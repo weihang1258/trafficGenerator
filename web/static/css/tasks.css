@@ -1,0 +1,700 @@
+/* 任务管理页面样式 */
+.tasks-header {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+/* 搜索行样式 */
+.search-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.left-search, .right-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-direction: row;
+}
+
+.search-group label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  min-width: auto;
+  white-space: nowrap;
+}
+
+.search-group input,
+.search-group select {
+  height: 26px;
+  padding: 2px 8px;
+  font-size: 12px;
+  min-width: 90px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  transition: border-color 0.2s;
+  background: #fff;
+}
+
+.search-group input:focus,
+.search-group select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+/* 控制行样式 */
+.control-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 8px 0;
+}
+
+.left-controls, .right-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 按钮样式优化 */
+.btn {
+  height: 28px;
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.btn-sm {
+  height: 24px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.btn.ghost {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+.btn.ghost:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.btn.primary {
+  background: #3b82f6;
+  border: 1px solid #3b82f6;
+  color: #fff;
+}
+
+.btn.primary:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.btn.danger {
+  background: #ef4444;
+  border: 1px solid #ef4444;
+  color: #fff;
+}
+
+.btn.danger:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+/* 任务内容区域 */
+.tasks-content {
+  flex: 1;
+  min-height: 400px;
+  max-height: calc(100vh - 300px);
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.subtasks {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  max-height: calc(100vh - 120px);
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.subtasks::-webkit-scrollbar {
+  width: 8px;
+}
+
+.subtasks::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.subtasks::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.subtasks::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 任务表格 */
+.subtasks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: auto;
+}
+
+.subtasks-table th,
+.subtasks-table td {
+  padding: 12px 16px;
+  text-align: center;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 确保表格容器允许水平滚动 */
+.subtasks {
+  overflow-x: auto !important;
+  overflow-y: auto;
+}
+
+/* 编辑行样式 */
+.edit-row {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.edit-row td {
+  padding: 0 !important;
+  border: none;
+}
+
+.subtasks-table th {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  font-weight: 600;
+  color: #1e293b;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.subtasks-table tbody tr:hover {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.subtasks-table tbody tr.selected {
+  background: #eff6ff;
+}
+
+/* 表格内的按钮组 */
+.subtasks-table .btn-sm {
+  height: 28px;
+  padding: 4px 12px;
+  font-size: 12px;
+  margin-right: 6px;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.subtasks-table .btn-sm:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* 表格内的复选框 */
+.subtasks-table input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  accent-color: #3b82f6;
+  transform: scale(1.1);
+  transition: all 0.2s ease;
+}
+
+.subtasks-table input[type="checkbox"]:hover {
+  transform: scale(1.2);
+}
+
+/* 表格内的状态徽章 */
+.subtasks-table .badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 表格内的单行文本 */
+.subtasks-table .mono-badge {
+  font-family: 'Courier New', monospace;
+  background: #f1f5f9;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* 空状态样式 */
+.subtasks .empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.subtasks .empty-state::before {
+  content: "📋";
+  font-size: 48px;
+  display: block;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+/* Badge 样式 */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-tcp {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-udp {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-http {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-idle {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.badge-running {
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* 任务状态栏 */
+.task-status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.task-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-count .count {
+  font-weight: 600;
+  color: #374151;
+}
+
+.task-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 响应式布局优化 */
+@media (max-height: 800px) {
+  .tasks-content {
+    min-height: 350px !important;
+    max-height: calc(100vh - 250px) !important;
+  }
+  
+  .subtasks {
+    max-height: calc(100vh - 350px) !important;
+  }
+  
+  .search-group label {
+    font-size: 10px;
+  }
+  
+  .search-group input,
+  .search-group select {
+    height: 24px;
+    padding: 2px 4px;
+  }
+}
+
+@media (max-height: 600px) {
+  .tasks-content {
+    min-height: 300px !important;
+    max-height: calc(100vh - 200px) !important;
+  }
+  
+  .subtasks {
+    max-height: calc(100vh - 300px) !important;
+  }
+  
+  .tasks-header {
+    padding: 8px 12px;
+    margin-bottom: 12px;
+  }
+  
+  .search-row {
+    margin-bottom: 12px;
+  }
+}
+
+@media (min-height: 1000px) {
+  .tasks-content {
+    min-height: 500px !important;
+    max-height: calc(100vh - 350px) !important;
+  }
+  
+  .subtasks {
+    max-height: calc(100vh - 450px) !important;
+  }
+}
+
+/* 分页控件样式 - 紧凑一行设计 */
+.pagination-container {
+  padding: 6px 16px;
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.pagination-controls {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 16px;
+}
+
+.pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.pagination-left select {
+  padding: 2px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 12px;
+  height: 24px;
+}
+
+.pagination-center {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pagination-btn {
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  font-size: 12px;
+  height: 24px;
+  min-width: 28px;
+  transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-info {
+  margin: 0 8px;
+  font-size: 12px;
+  color: #64748b;
+  min-width: 40px;
+  text-align: center;
+}
+
+.pagination-right {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: #64748b;
+  min-width: 60px;
+  justify-content: flex-end;
+}
+
+/* 响应式分页布局 */
+@media (max-width: 768px) {
+  .pagination-controls {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .pagination-left,
+  .pagination-center,
+  .pagination-right {
+    justify-content: center;
+  }
+}
+
+/* 任务项包装器样式 */
+.task-items-wrapper {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* 任务行组样式 */
+.task-row-group {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: auto;
+}
+
+.task-row-group td {
+  padding: 0;
+  border: none;
+  width: 100%;
+}
+
+/* 确保编辑区域能够自适应宽度 */
+.task-row-group .subtask-bd {
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
+}
+
+/* 任务编辑区域样式 - 紧凑版 */
+.subtask-bd {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-top: none;
+  padding: 12px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  margin-top: -1px; /* 与任务行边框重叠 */
+  border-radius: 0 0 8px 8px;
+  line-height: 1.4;
+}
+
+.subtask-bd.hidden {
+  display: none;
+}
+
+/* 确保表格行在新布局中正常显示 */
+.task-row-group .task-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px 8px 0 0;
+  background: #fff;
+}
+
+/* 优化编辑区域的表单元素布局 - 紧凑样式 */
+.subtask-bd .form-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.subtask-bd .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.subtask-bd .form-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.subtask-bd .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.subtask-bd .row:last-child {
+  margin-bottom: 0;
+}
+
+.subtask-bd label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #475569;
+  min-width: 70px;
+  white-space: nowrap;
+}
+
+.subtask-bd input,
+.subtask-bd select {
+  height: 24px;
+  padding: 3px 6px;
+  font-size: 11px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  transition: border-color 0.2s;
+  min-width: 100px;
+}
+
+.subtask-bd input:focus,
+.subtask-bd select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.subtask-bd input[type="number"] {
+  text-align: right;
+  width: 70px;
+}
+
+.subtask-bd input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  min-width: auto;
+  margin-right: 3px;
+}
+
+.subtask-bd span {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+/* 优化编辑界面的特殊元素样式 */
+.subtask-bd input[type="text"] {
+  width: 120px;
+}
+
+.subtask-bd select {
+  width: 180px !important;
+  min-width: 180px !important;
+  max-width: none !important;
+  font-size: 10px;
+  padding: 4px 16px !important;
+  height: 30px !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  position: relative;
+  z-index: 10;
+}
+
+/* 下拉框选项自然继承样式 */
+.subtask-bd select option {
+  white-space: nowrap;
+  padding: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  display: block;
+}
+
+/* 确保表单组内的下拉框不受限制 */
+.subtask-bd .form-group select {
+  width: 180px !important;
+  min-width: 180px !important;
+}
+
+/* 优化范围输入框样式 */
+.subtask-bd input[type="text"]:not([type="number"]):not([type="checkbox"]) {
+  width: 120px;
+}
+
+/* 优化协议配置区域的布局 */
+.subtask-bd .form-group:first-child {
+  margin-top: 0;
+}
+
+/* 确保按钮在编辑区域中也使用紧凑样式 */
+.subtask-bd .btn {
+  font-size: 11px;
+  padding: 4px 8px;
+  min-height: 24px;
+}
+
+.subtask-bd .btn-sm {
+  padding: 3px 6px;
+  font-size: 10px;
+  min-height: 20px;
+}

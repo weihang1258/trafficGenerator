@@ -1,0 +1,50 @@
+{
+  "strategy_1": {
+    "id": "strategy_1",
+    "name": "Web压力测试-1",
+    "protocol": "HTTP",
+    "description": "Web服务器压力测试策略",
+    "enabled": true,
+    "tuple_config": {
+      "src_ip": "192.168.1.0/24",
+      "dst_ip": "10.0.0.1",
+      "src_port": "10000-20000",
+      "dst_port": "80,443",
+      "protocol": "HTTP",
+      "src_ip_strategy": "random",
+      "dst_ip_strategy": "fixed",
+      "src_port_strategy": "range",
+      "dst_port_strategy": "list"
+    },
+    "protocol_config": {},
+    "created_at": "2024-01-15 14:30:25",
+    "updated_at": null,
+    "created_by": "admin",
+    "usage_count": 28,
+    "tags": []
+  },
+  "strategy_2": {
+    "id": "strategy_2",
+    "name": "TCP批量传输-A",
+    "protocol": "TCP",
+    "description": "TCP批量数据传输测试",
+    "enabled": true,
+    "tuple_config": {
+      "src_ip": "192.168.1.100-200",
+      "dst_ip": "172.16.0.0/16",
+      "src_port": "1024-65535",
+      "dst_port": "80",
+      "protocol": "TCP",
+      "src_ip_strategy": "range",
+      "dst_ip_strategy": "random",
+      "src_port_strategy": "random",
+      "dst_port_strategy": "fixed"
+    },
+    "protocol_config": {},
+    "created_at": "2024-01-14 10:15:30",
+    "updated_at": null,
+    "created_by": "admin",
+    "usage_count": 15,
+    "tags": []
+  }
+}

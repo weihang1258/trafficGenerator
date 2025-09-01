@@ -1,0 +1,1638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高性能流量生成器</title>
+    
+    <!-- 外部依赖 (CDN) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    
+    <!-- 调试：检查资源加载 -->
+    <script>
+        console.log('页面开始加载');
+        window.addEventListener('load', function() {
+            console.log('页面加载完成');
+            console.log('Vue:', typeof Vue);
+        });
+    </script>
+    
+    <!-- 样式 -->
+    <style>
+        [v-cloak] { display: none !important; }
+        
+        /* 调试样式 */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+        }
+        
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1e2329;
+            --bg-tertiary: #30363d;
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --text-disabled: #484f58;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-orange: #d29922;
+            --accent-red: #f85149;
+        }
+        
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box;
+        }
+        
+        /* 调试样式 */
+        .debug-border {
+            border: 1px solid #ff0000 !important;
+        }
+        
+        body {
+            background: var(--bg-primary) !important;
+            color: var(--text-primary) !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+        
+        /* 确保应用容器可见 */
+        #app {
+            min-height: 100vh;
+        }
+        
+        .app-container {
+            display: flex;
+            height: calc(100vh - 60px); /* 减去导航栏高度 */
+            margin-top: 60px; /* 给顶部导航留出空间 */
+            overflow: hidden;
+        }
+        
+        /* 顶部导航 */
+        .top-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            z-index: 100;
+        }
+        
+        .nav-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-right: 48px;
+        }
+        
+        .nav-menu {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+        
+        .nav-menu a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .nav-menu a:hover,
+        .nav-menu a.active {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+        
+        /* 侧边栏 */
+        .sidebar {
+            width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--bg-tertiary);
+            margin-top: 60px;
+            overflow-y: auto;
+        }
+        
+        .sidebar-menu {
+            padding: 24px 0;
+        }
+        
+        .menu-group {
+            margin-bottom: 32px;
+        }
+        
+        .menu-title {
+            padding: 0 24px 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        
+        .menu-item {
+            display: block;
+            padding: 12px 24px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .menu-item:hover,
+        .menu-item.active {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            border-left: 3px solid var(--accent-blue);
+        }
+        
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            background: var(--bg-primary);
+        }
+        
+        /* 工具类 */
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid var(--bg-tertiary);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        .btn-primary {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+        }
+        
+        .btn-success {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+        }
+        
+        .btn-success:hover {
+            background: #2ea043;
+        }
+        
+        input, select {
+            background: var(--bg-primary);
+            border: 1px solid var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: 8px;
+            border-radius: 4px;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+        
+        textarea {
+            background: var(--bg-primary);
+            border: 1px solid var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: 8px;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        /* 协议标签样式 */
+        .protocol-tcp {
+            background: var(--accent-blue);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        .protocol-udp {
+            background: var(--accent-green);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        .protocol-http {
+            background: var(--accent-orange);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        .protocol-https {
+            background: var(--accent-red);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        /* 网格布局 */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+        
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .control-buttons {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-secondary);
+        }
+        
+        .table th,
+        .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--bg-tertiary);
+        }
+        
+        .table th {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+        }
+        
+        .status-running { color: var(--accent-green); }
+        .status-stopped { color: var(--text-secondary); }
+        .status-error { color: var(--accent-red); }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak>
+        <!-- 顶部导航 -->
+        <nav class="top-nav">
+            <div class="nav-title">🌐 网络测试平台</div>
+            <ul class="nav-menu">
+                <li><a href="#" :class="{active: currentSystem === 'traffic'}" @click="switchSystem('traffic')">流量生成器</a></li>
+                <li><a href="#" :class="{active: currentSystem === 'analyzer'}" @click="switchSystem('analyzer')">报文分析器</a></li>
+                <li><a href="#" :class="{active: currentSystem === 'monitor'}" @click="switchSystem('monitor')">性能监控</a></li>
+                <li><a href="#" :class="{active: currentSystem === 'settings'}" @click="switchSystem('settings')">系统设置</a></li>
+            </ul>
+        </nav>
+
+        <div class="app-container">
+            <!-- 侧边栏 -->
+            <aside class="sidebar" v-show="currentSystem === 'traffic'">
+                <nav class="sidebar-menu">
+                    <div class="menu-group">
+                        <div class="menu-title">流量生成器</div>
+                        <a href="#" class="menu-item" :class="{active: currentPage === 'dashboard'}" @click="switchPage('dashboard')">📊 控制台</a>
+                        <a href="#" class="menu-item" :class="{active: currentPage === 'strategies'}" @click="switchPage('strategies')">📋 策略管理</a>
+                        <a href="#" class="menu-item" :class="{active: currentPage === 'tasks'}" @click="switchPage('tasks')">🚀 任务管理</a>
+                        <a href="#" class="menu-item" :class="{active: currentPage === 'system'}" @click="switchPage('system')">⚙️ 系统配置</a>
+                        <a href="#" class="menu-item" :class="{active: currentPage === 'monitor'}" @click="switchPage('monitor')">📈 实时监控</a>
+                        <a href="#" class="menu-item" :class="{active: currentPage === 'data'}" @click="switchPage('data')">💾 数据管理</a>
+                    </div>
+                </nav>
+            </aside>
+
+            <!-- 主内容区 -->
+            <main class="main-content">
+                <!-- 控制台页面 -->
+                <div v-show="currentSystem === 'traffic' && currentPage === 'dashboard'">
+                    <h2>🎛️ 生成器控制台</h2>
+                    <div class="card">
+                        <div class="control-buttons">
+                            <button class="btn btn-success" @click="startGenerator">启动生成器</button>
+                            <button class="btn" @click="stopGenerator">停止生成器</button>
+                            <button class="btn" @click="pauseGenerator">暂停</button>
+                            <button class="btn" @click="restartGenerator">重启</button>
+                        </div>
+                        
+                        <div class="grid-2">
+                            <div>
+                                <h4>📊 系统状态</h4>
+                                <div style="margin-top: 12px;">
+                                    <div>运行状态: <span :class="systemStatus.running ? 'status-running' : 'status-stopped'">{{ systemStatus.running ? '●运行中' : '○已停止' }}</span></div>
+                                    <div>活跃任务: {{ systemStatus.activeTasks }}个</div>
+                                    <div>队列深度: {{ systemStatus.queueDepth }}/2000</div>
+                                    <div>缓冲使用: {{ systemStatus.bufferUsage.toFixed(1) }}%</div>
+                                </div>
+                            </div>
+                            <div>
+                                <h4>📈 实时指标</h4>
+                                <div style="margin-top: 12px;">
+                                    <div>流量速率: {{ systemStatus.trafficRate }} Mbps</div>
+                                    <div>生成包数: {{ systemStatus.packetCount.toLocaleString() }}</div>
+                                    <div>CPU使用: {{ systemStatus.cpuUsage.toFixed(1) }}%</div>
+                                    <div>内存使用: {{ systemStatus.memoryUsage }} GB</div>
+                                </div>
+                            </div>
+                        </div>
+                                            
+                        <!-- 实时监控图表 -->
+                        <div class="card" style="margin-top: 20px;">
+                            <h4>📈 实时性能监控</h4>
+                            <div class="grid-2" style="margin-top: 16px;">
+                                <div>
+                                    <div id="trafficChart" style="width: 100%; height: 200px;"></div>
+                                </div>
+                                <div>
+                                    <div id="systemChart" style="width: 100%; height: 200px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 策略管理页面 -->
+                <div v-show="currentSystem === 'traffic' && currentPage === 'strategies'">
+                    <h2>📋 策略管理</h2>
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                            <div style="display: flex; gap: 12px;">
+                                <button class="btn btn-primary" @click="showCreateStrategy = true">新建策略</button>
+                                <button class="btn">批量导入</button>
+                                <button class="btn">导出选中</button>
+                            </div>
+                            <div>
+                                <input type="text" v-model="strategyFilter" placeholder="搜索策略..." style="padding: 8px; border-radius: 4px; border: 1px solid var(--bg-tertiary); background: var(--bg-primary); color: var(--text-primary);">
+                            </div>
+                        </div>
+                        
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>选择</th>
+                                    <th>策略名称</th>
+                                    <th>协议</th>
+                                    <th>状态</th>
+                                    <th>五元组配置</th>
+                                    <th>创建时间</th>
+                                    <th>使用次数</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="strategy in filteredStrategies" :key="strategy.id">
+                                    <td><input type="checkbox" v-model="selectedStrategies" :value="strategy.id"></td>
+                                    <td>{{ strategy.name }}</td>
+                                    <td>{{ strategy.protocol }}</td>
+                                    <td><span :class="strategy.enabled ? 'status-running' : 'status-stopped'">{{ strategy.enabled ? '●启用' : '○禁用' }}</span></td>
+                                    <td style="font-family: monospace; font-size: 12px;">{{ formatTuple(strategy.tuple) }}</td>
+                                    <td>{{ strategy.createdAt }}</td>
+                                    <td>{{ strategy.usageCount }}</td>
+                                    <td>
+                                        <button class="btn" @click="editStrategy(strategy)" style="margin-right: 8px;">编辑</button>
+                                        <button class="btn" @click="copyStrategy(strategy)">复制</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 任务管理页面 -->
+                <div v-show="currentSystem === 'traffic' && currentPage === 'tasks'">
+                    <h2>🚀 任务管理</h2>
+                    <div class="card">
+                        <h4>⚙️ 全局控制参数</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin: 16px 0;">
+                            <div>
+                                <label>流数总量: </label>
+                                <input type="number" v-model="globalConfig.flowCount" placeholder="0=不限制" style="width: 100px;">
+                            </div>
+                            <div>
+                                <label>执行时间: </label>
+                                <input type="number" v-model="globalConfig.duration" placeholder="10"> 分钟
+                            </div>
+                            <div>
+                                <label>输出方式: </label>
+                                <select v-model="globalConfig.outputMode">
+                                    <option value="pcap">PCAP文件</option>
+                                    <option value="interface">网卡发送</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                            <button class="btn btn-primary" @click="showCreateTask = true">新建任务</button>
+                            <div style="display: flex; gap: 12px;">
+                                <button class="btn" @click="exportTasks">导出配置</button>
+                                <button class="btn" @click="importTasks">导入配置</button>
+                                <button class="btn btn-success" @click="batchStartTasks" :disabled="selectedTasks.length === 0">批量启动</button>
+                                <button class="btn" @click="batchStopTasks" :disabled="selectedTasks.length === 0">批量停止</button>
+                            </div>
+                        </div>
+
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>选择</th>
+                                    <th>任务名称</th>
+                                    <th>绑定策略</th>
+                                    <th>状态</th>
+                                    <th>进度</th>
+                                    <th>开始时间</th>
+                                    <th>流量量</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="task in tasks" :key="task.id">
+                                    <td><input type="checkbox" v-model="selectedTasks" :value="task.id"></td>
+                                    <td>{{ task.name }}</td>
+                                    <td>{{ task.strategies.join(', ') }}</td>
+                                    <td><span :class="getTaskStatusClass(task.status)">{{ task.status }}</span></td>
+                                    <td>{{ task.progress }}%</td>
+                                    <td>{{ task.startTime || '-' }}</td>
+                                    <td>{{ task.dataSize || '-' }}</td>
+                                    <td>
+                                        <button v-if="task.status === '等待中'" class="btn btn-success" @click="startTask(task)">启动</button>
+                                        <button v-if="task.status === '运行中'" class="btn" @click="stopTask(task)">停止</button>
+                                        <button class="btn" @click="editTask(task)">编辑</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 其他系统占位 -->
+                <div v-show="currentSystem !== 'traffic'">
+                    <h2>{{ getSystemTitle() }}</h2>
+                    <div class="card">
+                        <p>{{ currentSystem }} 系统功能开发中...</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- 创建策略弹窗 -->
+        <div v-show="showCreateStrategy" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+            <div style="background: var(--bg-secondary); border-radius: 8px; padding: 24px; width: 800px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--bg-tertiary);">
+                <h3>📋 新建策略</h3>
+                
+                <!-- 基础信息 -->
+                <div class="card" style="margin: 16px 0;">
+                    <h4>基础信息</h4>
+                    <div class="grid-2" style="margin-top: 12px;">
+                        <div>
+                            <label>策略名称:</label>
+                            <input type="text" v-model="newStrategy.name" placeholder="输入策略名称..." style="width: 100%; margin-top: 4px;">
+                        </div>
+                        <div>
+                            <label>协议类型:</label>
+                            <select v-model="newStrategy.protocol" style="width: 100%; margin-top: 4px;">
+                                <option value="TCP">TCP</option>
+                                <option value="UDP">UDP</option>
+                                <option value="HTTP">HTTP</option>
+                                <option value="HTTPS">HTTPS</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <label>描述:</label>
+                        <textarea v-model="newStrategy.description" placeholder="策略描述..." style="width: 100%; height: 60px; margin-top: 4px; resize: vertical;"></textarea>
+                    </div>
+                </div>
+                
+                <!-- 五元组配置 -->
+                <div class="card" style="margin: 16px 0;">
+                    <h4>🌐 五元组配置</h4>
+                    <div class="grid-2" style="margin-top: 12px;">
+                        <div>
+                            <label>源IP配置:</label>
+                            <div style="display: flex; gap: 8px; margin-top: 4px;">
+                                <select v-model="newStrategy.tuple.srcIpStrategy" style="flex: 1;">
+                                    <option value="fixed">固定</option>
+                                    <option value="range">范围</option>
+                                    <option value="random">随机</option>
+                                    <option value="list">列表</option>
+                                </select>
+                                <input type="text" v-model="newStrategy.tuple.srcIp" placeholder="192.168.1.100" style="flex: 2;">
+                            </div>
+                        </div>
+                        <div>
+                            <label>目标IP配置:</label>
+                            <div style="display: flex; gap: 8px; margin-top: 4px;">
+                                <select v-model="newStrategy.tuple.dstIpStrategy" style="flex: 1;">
+                                    <option value="fixed">固定</option>
+                                    <option value="range">范围</option>
+                                    <option value="random">随机</option>
+                                    <option value="list">列表</option>
+                                </select>
+                                <input type="text" v-model="newStrategy.tuple.dstIp" placeholder="10.0.0.1" style="flex: 2;">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid-2" style="margin-top: 12px;">
+                        <div>
+                            <label>源端口配置:</label>
+                            <div style="display: flex; gap: 8px; margin-top: 4px;">
+                                <select v-model="newStrategy.tuple.srcPortStrategy" style="flex: 1;">
+                                    <option value="fixed">固定</option>
+                                    <option value="range">范围</option>
+                                    <option value="random">随机</option>
+                                    <option value="dynamic">动态</option>
+                                </select>
+                                <input type="text" v-model="newStrategy.tuple.srcPort" placeholder="1024" style="flex: 2;">
+                            </div>
+                        </div>
+                        <div>
+                            <label>目标端口配置:</label>
+                            <div style="display: flex; gap: 8px; margin-top: 4px;">
+                                <select v-model="newStrategy.tuple.dstPortStrategy" style="flex: 1;">
+                                    <option value="fixed">固定</option>
+                                    <option value="range">范围</option>
+                                    <option value="list">列表</option>
+                                </select>
+                                <input type="text" v-model="newStrategy.tuple.dstPort" placeholder="80" style="flex: 2;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 五元组预览 -->
+                    <div style="margin-top: 16px; padding: 12px; background: var(--bg-primary); border-radius: 4px;">
+                        <strong>五元组预览:</strong>
+                        <div style="font-family: monospace; margin-top: 4px; color: var(--accent-blue);">
+                            {{ formatTuplePreview() }}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 协议特定配置 -->
+                <div class="card" v-if="newStrategy.protocol !== 'UDP'" style="margin: 16px 0;">
+                    <h4 v-if="newStrategy.protocol === 'TCP'">⚡ TCP配置</h4>
+                    <h4 v-if="newStrategy.protocol === 'HTTP' || newStrategy.protocol === 'HTTPS'">🌐 HTTP配置</h4>
+                    
+                    <div v-if="newStrategy.protocol === 'TCP'" class="grid-3" style="margin-top: 12px;">
+                        <div>
+                            <label>连接数:</label>
+                            <input type="number" v-model="newStrategy.protocolConfig.connections" placeholder="100" style="width: 100%; margin-top: 4px;">
+                        </div>
+                        <div>
+                            <label>数据长度:</label>
+                            <input type="text" v-model="newStrategy.protocolConfig.dataLength" placeholder="1024" style="width: 100%; margin-top: 4px;">
+                        </div>
+                        <div>
+                            <label>超时时间:</label>
+                            <input type="number" v-model="newStrategy.protocolConfig.timeout" placeholder="30" style="width: 100%; margin-top: 4px;">
+                        </div>
+                    </div>
+                    
+                    <div v-if="newStrategy.protocol === 'HTTP' || newStrategy.protocol === 'HTTPS'" style="margin-top: 12px;">
+                        <div class="grid-2">
+                            <div>
+                                <label>请求方法:</label>
+                                <select v-model="newStrategy.protocolConfig.method" multiple style="width: 100%; margin-top: 4px;">
+                                    <option value="GET">GET</option>
+                                    <option value="POST">POST</option>
+                                    <option value="PUT">PUT</option>
+                                    <option value="DELETE">DELETE</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>并发连接:</label>
+                                <input type="number" v-model="newStrategy.protocolConfig.concurrent" placeholder="50" style="width: 100%; margin-top: 4px;">
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <label>URI路径:</label>
+                            <input type="text" v-model="newStrategy.protocolConfig.uri" placeholder="/api/test" style="width: 100%; margin-top: 4px;">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 速率控制 -->
+                <div class="card" style="margin: 16px 0;">
+                    <h4>⚡ 速率控制</h4>
+                    <div class="grid-3" style="margin-top: 12px;">
+                        <div>
+                            <label>流量速率:</label>
+                            <input type="text" v-model="newStrategy.rateLimit" placeholder="100k" style="width: 100%; margin-top: 4px;">
+                        </div>
+                        <div>
+                            <label>连接速率:</label>
+                            <input type="number" v-model="newStrategy.connectionRate" placeholder="10" style="width: 100%; margin-top: 4px;">
+                        </div>
+                        <div>
+                            <label>优先级:</label>
+                            <select v-model="newStrategy.priority" style="width: 100%; margin-top: 4px;">
+                                <option value="low">低</option>
+                                <option value="normal">普通</option>
+                                <option value="high">高</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 按钮组 -->
+                <div style="margin-top: 24px; text-align: right; display: flex; gap: 12px; justify-content: flex-end;">
+                    <button class="btn" @click="showCreateStrategy = false">取消</button>
+                    <button class="btn" @click="previewStrategy">预览配置</button>
+                    <button class="btn btn-primary" @click="saveStrategy">保存策略</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 任务创建弹窗 -->
+    <div v-show="showCreateTask" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+        <div style="background: var(--bg-secondary); border-radius: 8px; padding: 24px; width: 900px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--bg-tertiary);">
+            <h3>🏃 新建任务</h3>
+            
+            <!-- 步骤指示器 -->
+            <div style="margin: 20px 0; display: flex; align-items: center; gap: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent-blue); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">1</div>
+                    <span>基本信息</span>
+                </div>
+                <div style="width: 32px; height: 2px; background: var(--bg-tertiary);"></div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent-blue); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">2</div>
+                    <span>策略选择</span>
+                </div>
+                <div style="width: 32px; height: 2px; background: var(--bg-tertiary);"></div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent-blue); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">3</div>
+                    <span>执行配置</span>
+                </div>
+            </div>
+
+            <!-- 任务基本信息 -->
+            <div class="card" style="margin: 16px 0;">
+                <h4>📝 任务基本信息</h4>
+                <div class="grid-2" style="margin-top: 12px;">
+                    <div>
+                        <label>任务名称:</label>
+                        <input type="text" v-model="newTask.name" placeholder="输入任务名称..." style="width: 100%; margin-top: 4px;">
+                    </div>
+                    <div>
+                        <label>任务类型:</label>
+                        <select v-model="newTask.type" style="width: 100%; margin-top: 4px;">
+                            <option value="performance">性能测试</option>
+                            <option value="stress">压力测试</option>
+                            <option value="stability">稳定性测试</option>
+                            <option value="custom">自定义测试</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>任务描述:</label>
+                    <textarea v-model="newTask.description" placeholder="请描述任务目标和预期结果..." style="width: 100%; height: 80px; margin-top: 4px; resize: vertical;"></textarea>
+                </div>
+            </div>
+
+            <!-- 策略选择 -->
+            <div class="card" style="margin: 16px 0;">
+                <h4>🎯 策略选择与配置</h4>
+                
+                <!-- 策略过滤 -->
+                <div style="margin: 12px 0; display: flex; gap: 12px; align-items: center;">
+                    <input type="text" v-model="taskStrategyFilter" placeholder="搜索策略..." style="flex: 1;">
+                    <button class="btn" @click="selectAllStrategies">全选</button>
+                    <button class="btn" @click="clearSelectedStrategies">清除</button>
+                    <span style="color: var(--text-secondary); font-size: 12px;">已选择: {{ newTask.selectedStrategies.length }} / {{ filteredTaskStrategies.length }}</span>
+                </div>
+
+                <!-- 策略列表 -->
+                <div style="max-height: 200px; overflow-y: auto; border: 1px solid var(--bg-tertiary); border-radius: 4px;">
+                    <table class="table" style="margin: 0;">
+                        <thead>
+                            <tr>
+                                <th width="40">选择</th>
+                                <th>策略名称</th>
+                                <th>协议</th>
+                                <th>五元组</th>
+                                <th width="80">权重</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="strategy in filteredTaskStrategies" :key="strategy.id">
+                                <td><input type="checkbox" v-model="newTask.selectedStrategies" :value="strategy.id"></td>
+                                <td>{{ strategy.name }}</td>
+                                <td><span :class="'protocol-' + strategy.protocol.toLowerCase()">{{ strategy.protocol }}</span></td>
+                                <td style="font-family: monospace; font-size: 12px;">{{ formatTuple(strategy.tuple) }}</td>
+                                <td>
+                                    <input type="number" v-model="newTask.strategyWeights[strategy.id]" min="1" max="100" 
+                                           :disabled="!newTask.selectedStrategies.includes(strategy.id)"
+                                           style="width: 60px; padding: 2px 4px;" value="10">
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 执行配置 -->
+            <div class="card" style="margin: 16px 0;">
+                <h4>⚙️ 执行参数配置</h4>
+                
+                <div class="grid-3" style="margin-top: 12px;">
+                    <div>
+                        <label>总流数量:</label>
+                        <input type="number" v-model="newTask.flowCount" placeholder="1000" min="1" style="width: 100%; margin-top: 4px;">
+                        <small style="color: var(--text-secondary);">总共生成的流数量</small>
+                    </div>
+                    <div>
+                        <label>执行时间(秒):</label>
+                        <input type="number" v-model="newTask.duration" placeholder="60" min="1" style="width: 100%; margin-top: 4px;">
+                        <small style="color: var(--text-secondary);">任务执行时间限制</small>
+                    </div>
+                    <div>
+                        <label>输出方式:</label>
+                        <select v-model="newTask.outputMode" style="width: 100%; margin-top: 4px;">
+                            <option value="pcap">PCAP文件</option>
+                            <option value="interface">网卡发送</option>
+                            <option value="both">同时输出</option>
+                        </select>
+                        <small style="color: var(--text-secondary);">数据包输出方式</small>
+                    </div>
+                </div>
+                
+                <div class="grid-2" style="margin-top: 12px;">
+                    <div>
+                        <label>速率控制(bps):</label>
+                        <input type="text" v-model="newTask.rateLimit" placeholder="100M" style="width: 100%; margin-top: 4px;">
+                        <small style="color: var(--text-secondary);">全局最大速率限制</small>
+                    </div>
+                    <div>
+                        <label>并发控制:</label>
+                        <input type="number" v-model="newTask.concurrency" placeholder="100" min="1" style="width: 100%; margin-top: 4px;">
+                        <small style="color: var(--text-secondary);">最大并发连接数</small>
+                    </div>
+                </div>
+
+                <!-- 输出路径配置 -->
+                <div v-if="newTask.outputMode === 'pcap' || newTask.outputMode === 'both'" style="margin-top: 12px;">
+                    <label>PCAP输出路径:</label>
+                    <input type="text" v-model="newTask.pcapPath" placeholder="./output/task_{{ newTask.name }}.pcap" style="width: 100%; margin-top: 4px;">
+                </div>
+                
+                <div v-if="newTask.outputMode === 'interface' || newTask.outputMode === 'both'" style="margin-top: 12px;">
+                    <label>发送网卡:</label>
+                    <select v-model="newTask.interface" style="width: 100%; margin-top: 4px;">
+                        <option value="eth0">eth0 - 以太网卡</option>
+                        <option value="wlan0">wlan0 - 无线网卡</option>
+                        <option value="auto">自动选择</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 预览与确认 -->
+            <div class="card" style="margin: 16px 0; background: var(--bg-primary);">
+                <h4>🔍 任务配置预览</h4>
+                <div style="margin-top: 12px;">
+                    <div v-if="newTask.selectedStrategies.length === 0" style="color: var(--text-secondary); font-style: italic;">
+                        请选择至少一个策略...
+                    </div>
+                    <div v-else>
+                        <p><strong>任务名称:</strong> {{ newTask.name || '未命名任务' }}</p>
+                        <p><strong>选中策略:</strong> {{ getSelectedStrategyNames().join(', ') }}</p>
+                        <p><strong>执行参数:</strong> {{ newTask.flowCount || 0 }} 流, {{ newTask.duration || 0 }} 秒, {{ newTask.outputMode }}</p>
+                        <p><strong>预估数据量:</strong> {{ calculateEstimatedDataSize() }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 按钮组 -->
+            <div style="margin-top: 24px; text-align: right; display: flex; gap: 12px; justify-content: flex-end;">
+                <button class="btn" @click="showCreateTask = false">取消</button>
+                <button class="btn" @click="previewTaskConfig" :disabled="newTask.selectedStrategies.length === 0">预览JSON</button>
+                <button class="btn btn-primary" @click="saveTask" :disabled="!newTask.name || newTask.selectedStrategies.length === 0">创建任务</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('脚本开始执行');
+        
+        // 检查Vue是否加载
+        if (typeof Vue === 'undefined') {
+            console.error('Vue.js未加载！');
+            document.body.innerHTML = '<div style="color: white; padding: 20px; background: #f00;">错误: Vue.js未加载，请检查网络连接</div>';
+        } else {
+            console.log('Vue.js加载成功');
+        }
+        
+        const { createApp } = Vue;
+        
+        const app = createApp({
+            data() {
+                return {
+                    currentSystem: 'traffic',
+                    currentPage: 'dashboard',
+                    showCreateStrategy: false,
+                    showCreateTask: false,
+                    strategyFilter: '',
+                    selectedStrategies: [],
+                    selectedTasks: [],
+                    taskStrategyFilter: '',
+                    
+                    // 图表实例
+                    trafficChartInstance: null,
+                    systemChartInstance: null,
+                    
+                    // 图表实例
+                    trafficChartInstance: null,
+                    systemChartInstance: null,
+                    
+                    newTask: {
+                        name: '',
+                        type: 'performance',
+                        description: '',
+                        selectedStrategies: [],
+                        strategyWeights: {},
+                        flowCount: 1000,
+                        duration: 60,
+                        outputMode: 'pcap',
+                        rateLimit: '100M',
+                        concurrency: 100,
+                        pcapPath: '',
+                        interface: 'auto'
+                    },
+                    
+                    newStrategy: {
+                        name: '',
+                        protocol: 'TCP',
+                        description: '',
+                        tuple: {
+                            srcIp: '192.168.1.100',
+                            dstIp: '10.0.0.1',
+                            srcPort: '1024',
+                            dstPort: '80',
+                            srcIpStrategy: 'fixed',
+                            dstIpStrategy: 'fixed',
+                            srcPortStrategy: 'dynamic',
+                            dstPortStrategy: 'fixed'
+                        },
+                        protocolConfig: {
+                            connections: 100,
+                            dataLength: '1024',
+                            timeout: 30,
+                            method: ['GET'],
+                            concurrent: 50,
+                            uri: '/'
+                        },
+                        rateLimit: '100k',
+                        connectionRate: 10,
+                        priority: 'normal'
+                    },
+                    
+                    systemStatus: {
+                        running: false,
+                        activeTasks: 0,
+                        queueDepth: 0,
+                        bufferUsage: 0,
+                        trafficRate: 0,
+                        packetCount: 0,
+                        cpuUsage: 0,
+                        memoryUsage: 0
+                    },
+                    
+                    globalConfig: {
+                        flowCount: 0,
+                        duration: 10,
+                        outputMode: 'pcap'
+                    },
+                    
+                    strategies: [
+                        {
+                            id: 1,
+                            name: 'Web压力测试-1',
+                            protocol: 'HTTP',
+                            enabled: true,
+                            tuple: {
+                                srcIp: '192.168.1.0/24',
+                                dstIp: '10.0.0.1',
+                                srcPort: '10000-20000',
+                                dstPort: '80,443',
+                                protocol: 'HTTP'
+                            },
+                            createdAt: '01-15',
+                            usageCount: 28
+                        },
+                        {
+                            id: 2,
+                            name: 'TCP批量传输-A',
+                            protocol: 'TCP',
+                            enabled: true,
+                            tuple: {
+                                srcIp: '192.168.1.100-200',
+                                dstIp: '172.16.0.0/16',
+                                srcPort: '1024-65535',
+                                dstPort: '80',
+                                protocol: 'TCP'
+                            },
+                            createdAt: '01-14',
+                            usageCount: 15
+                        },
+                        {
+                            id: 3,
+                            name: 'UDP组播测试-B',
+                            protocol: 'UDP',
+                            enabled: false,
+                            tuple: {
+                                srcIp: '10.1.1.1',
+                                dstIp: '224.0.0.0/4',
+                                srcPort: '5000',
+                                dstPort: '5000-5010',
+                                protocol: 'UDP'
+                            },
+                            createdAt: '01-13',
+                            usageCount: 3
+                        }
+                    ],
+                    
+                    tasks: [
+                        {
+                            id: 1,
+                            name: '压力测试-01',
+                            strategies: ['Web压力测试-1', 'TCP批量传输-A'],
+                            status: '运行中',
+                            progress: 65,
+                            startTime: '14:30',
+                            dataSize: '2.1GB'
+                        },
+                        {
+                            id: 2,
+                            name: 'API接口测试',
+                            strategies: ['Web压力测试-1'],
+                            status: '等待中',
+                            progress: 0,
+                            startTime: null,
+                            dataSize: null
+                        },
+                        {
+                            id: 3,
+                            name: 'UDP组播测试',
+                            strategies: ['UDP组播测试-B'],
+                            status: '已完成',
+                            progress: 100,
+                            startTime: '13:15',
+                            dataSize: '856MB'
+                        }
+                    ]
+                }
+            },
+            
+            computed: {
+                filteredStrategies() {
+                    if (!this.strategyFilter) return this.strategies;
+                    return this.strategies.filter(s => 
+                        s.name.toLowerCase().includes(this.strategyFilter.toLowerCase())
+                    );
+                },
+                
+                filteredTaskStrategies() {
+                    if (!this.taskStrategyFilter) return this.strategies.filter(s => s.enabled);
+                    return this.strategies.filter(s => 
+                        s.enabled && s.name.toLowerCase().includes(this.taskStrategyFilter.toLowerCase())
+                    );
+                }
+            },
+            
+            methods: {
+                switchSystem(system) {
+                    this.currentSystem = system;
+                    if (system === 'traffic') {
+                        this.currentPage = 'dashboard';
+                    }
+                },
+                
+                switchPage(page) {
+                    this.currentPage = page;
+                },
+                
+                getSystemTitle() {
+                    const titles = {
+                        traffic: '流量生成器',
+                        analyzer: '报文分析器',
+                        monitor: '性能监控',
+                        settings: '系统设置'
+                    };
+                    return titles[this.currentSystem] || '';
+                },
+                
+                formatTuple(tuple) {
+                    if (!tuple) return '-';
+                    return `${tuple.srcIp || ''}→${tuple.dstIp || ''} :${tuple.srcPort || ''}→${tuple.dstPort || ''}`;
+                },
+                
+                getTaskStatusClass(status) {
+                    const classes = {
+                        '运行中': 'status-running',
+                        '等待中': 'status-stopped',
+                        '已完成': 'status-running',
+                        '失败': 'status-error'
+                    };
+                    return classes[status] || '';
+                },
+                
+                // API调用方法
+                async startGenerator() {
+                    try {
+                        const response = await fetch('/api/hptg/start', { method: 'POST' });
+                        if (response.ok) {
+                            this.systemStatus.running = true;
+                            console.log('生成器启动成功');
+                        } else {
+                            console.error('生成器启动失败:', response.status);
+                        }
+                    } catch (error) {
+                        console.error('启动失败:', error);
+                    }
+                },
+                
+                async stopGenerator() {
+                    try {
+                        const response = await fetch('/api/hptg/stop', { method: 'POST' });
+                        if (response.ok) {
+                            this.systemStatus.running = false;
+                            console.log('生成器停止成功');
+                        } else {
+                            console.error('生成器停止失败:', response.status);
+                        }
+                    } catch (error) {
+                        console.error('停止失败:', error);
+                    }
+                },
+                
+                pauseGenerator() {
+                    console.log('暂停功能待实现');
+                },
+                
+                restartGenerator() {
+                    console.log('重启功能待实现');
+                },
+                
+                createStrategy() {
+                    // 创建策略逻辑
+                    console.log('创建策略');
+                    this.showCreateStrategy = true;
+                },
+                
+                saveStrategy() {
+                    // 保存策略
+                    const strategy = {
+                        id: Date.now(),
+                        name: this.newStrategy.name,
+                        protocol: this.newStrategy.protocol,
+                        enabled: true,
+                        tuple: { ...this.newStrategy.tuple },
+                        protocolConfig: { ...this.newStrategy.protocolConfig },
+                        createdAt: new Date().toLocaleDateString(),
+                        usageCount: 0,
+                        rateLimit: this.newStrategy.rateLimit
+                    };
+                    
+                    this.strategies.push(strategy);
+                    this.showCreateStrategy = false;
+                    this.resetNewStrategy();
+                    console.log('策略保存成功:', strategy.name);
+                },
+                
+                resetNewStrategy() {
+                    // 重置新策略表单
+                    this.newStrategy = {
+                        name: '',
+                        protocol: 'TCP',
+                        description: '',
+                        tuple: {
+                            srcIp: '192.168.1.100',
+                            dstIp: '10.0.0.1',
+                            srcPort: '1024',
+                            dstPort: '80',
+                            srcIpStrategy: 'fixed',
+                            dstIpStrategy: 'fixed',
+                            srcPortStrategy: 'dynamic',
+                            dstPortStrategy: 'fixed'
+                        },
+                        protocolConfig: {
+                            connections: 100,
+                            dataLength: '1024',
+                            timeout: 30,
+                            method: ['GET'],
+                            concurrent: 50,
+                            uri: '/'
+                        },
+                        rateLimit: '100k',
+                        connectionRate: 10,
+                        priority: 'normal'
+                    };
+                },
+                
+                formatTuplePreview() {
+                    // 格式化五元组预览
+                    const tuple = this.newStrategy.tuple;
+                    return `${tuple.srcIp}(${tuple.srcIpStrategy}) → ${tuple.dstIp}(${tuple.dstIpStrategy}) : ${tuple.srcPort}(${tuple.srcPortStrategy}) → ${tuple.dstPort}(${tuple.dstPortStrategy})`;
+                },
+                
+                previewStrategy() {
+                    // 预览策略配置
+                    const config = {
+                        basic: {
+                            name: this.newStrategy.name,
+                            protocol: this.newStrategy.protocol,
+                            description: this.newStrategy.description
+                        },
+                        tuple: this.newStrategy.tuple,
+                        protocolConfig: this.newStrategy.protocolConfig,
+                        performance: {
+                            rateLimit: this.newStrategy.rateLimit,
+                            connectionRate: this.newStrategy.connectionRate,
+                            priority: this.newStrategy.priority
+                        }
+                    };
+                    
+                    alert('策略配置预览:\n' + JSON.stringify(config, null, 2));
+                },
+                
+                editStrategy(strategy) {
+                    // 编辑策略逻辑
+                    console.log('编辑策略:', strategy.name);
+                },
+                
+                copyStrategy(strategy) {
+                    // 复制策略逻辑  
+                    console.log('复制策略:', strategy.name);
+                },
+                
+                startTask(task) {
+                    task.status = '运行中';
+                    task.startTime = new Date().toLocaleTimeString();
+                    console.log('启动任务:', task.name);
+                },
+                
+                stopTask(task) {
+                    task.status = '已停止';
+                    console.log('停止任务:', task.name);
+                },
+                
+                editTask(task) {
+                    console.log('编辑任务:', task.name);
+                },
+                
+                // 任务创建相关方法
+                selectAllStrategies() {
+                    this.newTask.selectedStrategies = this.filteredTaskStrategies.map(s => s.id);
+                    // 初始化权重
+                    this.filteredTaskStrategies.forEach(s => {
+                        if (!this.newTask.strategyWeights[s.id]) {
+                            this.$set ? this.$set(this.newTask.strategyWeights, s.id, 10) : (this.newTask.strategyWeights[s.id] = 10);
+                        }
+                    });
+                },
+                
+                clearSelectedStrategies() {
+                    this.newTask.selectedStrategies = [];
+                },
+                
+                getSelectedStrategyNames() {
+                    return this.strategies
+                        .filter(s => this.newTask.selectedStrategies.includes(s.id))
+                        .map(s => s.name);
+                },
+                
+                calculateEstimatedDataSize() {
+                    const selectedCount = this.newTask.selectedStrategies.length;
+                    const flowCount = this.newTask.flowCount || 0;
+                    const avgPacketSize = 1500; // 平均包大小
+                    const avgPacketsPerFlow = 20; // 平均每流包数
+                    
+                    const estimatedBytes = selectedCount * flowCount * avgPacketSize * avgPacketsPerFlow;
+                    
+                    if (estimatedBytes < 1024 * 1024) {
+                        return Math.round(estimatedBytes / 1024) + ' KB';
+                    } else if (estimatedBytes < 1024 * 1024 * 1024) {
+                        return (estimatedBytes / (1024 * 1024)).toFixed(1) + ' MB';
+                    } else {
+                        return (estimatedBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+                    }
+                },
+                
+                previewTaskConfig() {
+                    const config = {
+                        task: {
+                            name: this.newTask.name,
+                            type: this.newTask.type,
+                            description: this.newTask.description
+                        },
+                        strategies: this.newTask.selectedStrategies.map(id => {
+                            const strategy = this.strategies.find(s => s.id === id);
+                            return {
+                                id: strategy.id,
+                                name: strategy.name,
+                                weight: this.newTask.strategyWeights[id] || 10
+                            };
+                        }),
+                        execution: {
+                            flowCount: this.newTask.flowCount,
+                            duration: this.newTask.duration,
+                            outputMode: this.newTask.outputMode,
+                            rateLimit: this.newTask.rateLimit,
+                            concurrency: this.newTask.concurrency,
+                            pcapPath: this.newTask.pcapPath,
+                            interface: this.newTask.interface
+                        }
+                    };
+                    
+                    const configText = JSON.stringify(config, null, 2);
+                    const newWindow = window.open('', '_blank', 'width=600,height=400');
+                    newWindow.document.write(`
+                        <html>
+                        <head><title>任务配置预览</title></head>
+                        <body style="font-family: monospace; padding: 20px; background: #1e1e1e; color: #fff;">
+                            <h3>任务配置 JSON</h3>
+                            <pre style="background: #000; padding: 15px; border-radius: 5px; overflow: auto;">${configText}</pre>
+                        </body>
+                        </html>
+                    `);
+                },
+                
+                saveTask() {
+                    const newTask = {
+                        id: Date.now(),
+                        name: this.newTask.name,
+                        type: this.newTask.type,
+                        description: this.newTask.description,
+                        strategies: this.getSelectedStrategyNames(),
+                        status: '等待中',
+                        progress: 0,
+                        startTime: null,
+                        dataSize: null,
+                        config: {
+                            flowCount: this.newTask.flowCount,
+                            duration: this.newTask.duration,
+                            outputMode: this.newTask.outputMode,
+                            rateLimit: this.newTask.rateLimit,
+                            strategyWeights: { ...this.newTask.strategyWeights }
+                        },
+                        createdAt: new Date().toLocaleString()
+                    };
+                    
+                    this.tasks.push(newTask);
+                    this.showCreateTask = false;
+                    this.resetNewTask();
+                    console.log('任务创建成功:', newTask.name);
+                },
+                
+                resetNewTask() {
+                    this.newTask = {
+                        name: '',
+                        type: 'performance',
+                        description: '',
+                        selectedStrategies: [],
+                        strategyWeights: {},
+                        flowCount: 1000,
+                        duration: 60,
+                        outputMode: 'pcap',
+                        rateLimit: '100M',
+                        concurrency: 100,
+                        pcapPath: '',
+                        interface: 'auto'
+                    };
+                    this.taskStrategyFilter = '';
+                },
+                
+                // 数据导入导出
+                exportTasks() {
+                    const data = {
+                        tasks: this.tasks,
+                        strategies: this.strategies,
+                        exportTime: new Date().toISOString()
+                    };
+                    
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `hptg_config_${new Date().toISOString().slice(0, 10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    
+                    console.log('配置导出成功');
+                },
+                
+                importTasks() {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json';
+                    input.onchange = (e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                try {
+                                    const data = JSON.parse(e.target.result);
+                                    if (data.tasks && data.strategies) {
+                                        // 合并策略，避免重复
+                                        data.strategies.forEach(importStrategy => {
+                                            const exists = this.strategies.find(s => s.name === importStrategy.name);
+                                            if (!exists) {
+                                                importStrategy.id = Date.now() + Math.random();
+                                                this.strategies.push(importStrategy);
+                                            }
+                                        });
+                                        
+                                        // 合并任务
+                                        data.tasks.forEach(importTask => {
+                                            importTask.id = Date.now() + Math.random();
+                                            importTask.status = '等待中';
+                                            importTask.progress = 0;
+                                            this.tasks.push(importTask);
+                                        });
+                                        
+                                        console.log('配置导入成功');
+                                        alert(`导入成功：${data.strategies.length} 个策略，${data.tasks.length} 个任务`);
+                                    } else {
+                                        alert('配置文件格式错误');
+                                    }
+                                } catch (error) {
+                                    console.error('解析配置文件失败:', error);
+                                    alert('文件解析失败，请检查格式');
+                                }
+                            };
+                            reader.readAsText(file);
+                        }
+                    };
+                    input.click();
+                },
+                
+                batchStartTasks() {
+                    console.log('批量启动任务:', this.selectedTasks);
+                },
+                
+                batchStopTasks() {
+                    console.log('批量停止任务:', this.selectedTasks);
+                },
+                
+                initWebSocket() {
+                    // WebSocket连接逻辑
+                    console.log('初始化WebSocket连接');
+                },
+                
+                async loadSystemStatus() {
+                    try {
+                        const response = await fetch('/api/hptg/status');
+                        if (response.ok) {
+                            const status = await response.json();
+                            Object.assign(this.systemStatus, status);
+                            
+                            // 更新图表数据
+                            this.updateCharts();
+                        }
+                    } catch (error) {
+                        console.error('加载状态失败:', error);
+                    }
+                },
+
+                // 图表相关方法
+                initCharts() {
+                    if (typeof echarts === 'undefined') {
+                        console.warn('ECharts 未加载，跳过图表初始化');
+                        return;
+                    }
+                    
+                    // 等待DOM元素渲染完成
+                    setTimeout(() => {
+                        // 初始化流量监控图表
+                        const trafficChartEl = document.getElementById('trafficChart');
+                        if (trafficChartEl) {
+                            const trafficChart = echarts.init(trafficChartEl);
+                            this.trafficChartInstance = trafficChart;
+                            
+                            const trafficOption = {
+                                title: {
+                                    text: '流量速率监控',
+                                    textStyle: { color: '#f0f6fc', fontSize: 14 }
+                                },
+                                grid: { left: 50, right: 20, top: 40, bottom: 30 },
+                                xAxis: {
+                                    type: 'time',
+                                    boundaryGap: false,
+                                    axisLabel: { color: '#8b949e' },
+                                    axisLine: { lineStyle: { color: '#30363d' } }
+                                },
+                                yAxis: {
+                                    type: 'value',
+                                    name: 'Mbps',
+                                    nameTextStyle: { color: '#8b949e' },
+                                    axisLabel: { color: '#8b949e' },
+                                    axisLine: { lineStyle: { color: '#30363d' } },
+                                    splitLine: { lineStyle: { color: '#30363d' } }
+                                },
+                                series: [{
+                                    name: '流量速率',
+                                    type: 'line',
+                                    smooth: true,
+                                    lineStyle: { color: '#58a6ff' },
+                                    areaStyle: { 
+                                        color: {
+                                            type: 'linear',
+                                            x: 0, y: 0, x2: 0, y2: 1,
+                                            colorStops: [
+                                                { offset: 0, color: 'rgba(88, 166, 255, 0.3)' },
+                                                { offset: 1, color: 'rgba(88, 166, 255, 0.1)' }
+                                            ]
+                                        }
+                                    },
+                                    data: []
+                                }]
+                            };
+                            
+                            trafficChart.setOption(trafficOption);
+                        }
+                        
+                        // 初始化系统资源监控图表
+                        const systemChartEl = document.getElementById('systemChart');
+                        if (systemChartEl) {
+                            const systemChart = echarts.init(systemChartEl);
+                            this.systemChartInstance = systemChart;
+                            
+                            const systemOption = {
+                                title: {
+                                    text: '系统资源使用',
+                                    textStyle: { color: '#f0f6fc', fontSize: 14 }
+                                },
+                                grid: { left: 50, right: 20, top: 40, bottom: 30 },
+                                legend: {
+                                    data: ['CPU使用率', '缓存使用率'],
+                                    textStyle: { color: '#8b949e' }
+                                },
+                                xAxis: {
+                                    type: 'time',
+                                    boundaryGap: false,
+                                    axisLabel: { color: '#8b949e' },
+                                    axisLine: { lineStyle: { color: '#30363d' } }
+                                },
+                                yAxis: {
+                                    type: 'value',
+                                    name: '%',
+                                    min: 0,
+                                    max: 100,
+                                    nameTextStyle: { color: '#8b949e' },
+                                    axisLabel: { color: '#8b949e' },
+                                    axisLine: { lineStyle: { color: '#30363d' } },
+                                    splitLine: { lineStyle: { color: '#30363d' } }
+                                },
+                                series: [
+                                    {
+                                        name: 'CPU使用率',
+                                        type: 'line',
+                                        smooth: true,
+                                        lineStyle: { color: '#3fb950' },
+                                        data: []
+                                    },
+                                    {
+                                        name: '缓存使用率',
+                                        type: 'line',
+                                        smooth: true,
+                                        lineStyle: { color: '#d29922' },
+                                        data: []
+                                    }
+                                ]
+                            };
+                            
+                            systemChart.setOption(systemOption);
+                        }
+                        
+                        // 窗口大小改变时重新调整图表
+                        window.addEventListener('resize', () => {
+                            if (this.trafficChartInstance) this.trafficChartInstance.resize();
+                            if (this.systemChartInstance) this.systemChartInstance.resize();
+                        });
+                    }, 200);
+                },
+
+                updateCharts() {
+                    const now = new Date();
+                    
+                    // 更新流量图表
+                    if (this.trafficChartInstance) {
+                        const option = this.trafficChartInstance.getOption();
+                        if (option.series && option.series[0]) {
+                            const data = option.series[0].data;
+                            
+                            data.push([now, this.systemStatus.trafficRate]);
+                            
+                            // 只保留最近100个数据点
+                            if (data.length > 100) {
+                                data.shift();
+                            }
+                            
+                            this.trafficChartInstance.setOption({
+                                series: [{ data: data }]
+                            });
+                        }
+                    }
+                    
+                    // 更新系统资源图表
+                    if (this.systemChartInstance) {
+                        const option = this.systemChartInstance.getOption();
+                        if (option.series && option.series.length >= 2) {
+                            const cpuData = option.series[0].data;
+                            const bufferData = option.series[1].data;
+                            
+                            cpuData.push([now, this.systemStatus.cpuUsage]);
+                            bufferData.push([now, this.systemStatus.bufferUsage]);
+                            
+                            // 只保留最近100个数据点
+                            if (cpuData.length > 100) {
+                                cpuData.shift();
+                            }
+                            if (bufferData.length > 100) {
+                                bufferData.shift();
+                            }
+                            
+                            this.systemChartInstance.setOption({
+                                series: [
+                                    { data: cpuData },
+                                    { data: bufferData }
+                                ]
+                            });
+                        }
+                    }
+                }
+            },
+            
+            mounted() {
+                // 初始化应用
+                console.log('Vue应用挂载成功');
+                this.initWebSocket();
+                this.loadSystemStatus();
+                
+                // 初始化图表
+                setTimeout(() => {
+                    this.initCharts();
+                }, 100);
+                
+                // 定时更新状态和图表
+                setInterval(() => {
+                    this.loadSystemStatus();
+                    
+                    // 模拟数据更新（用于演示）
+                    if (!this.systemStatus.running) {
+                        this.systemStatus.trafficRate = Math.random() * 50;
+                        this.systemStatus.cpuUsage = 20 + Math.random() * 30;
+                        this.systemStatus.bufferUsage = 30 + Math.random() * 40;
+                    }
+                }, 2000);
+            }
+        });
+        
+        console.log('Vue应用创建完成，准备挂载');
+        
+        try {
+            app.mount('#app');
+            console.log('Vue应用挂载成功');
+        } catch (error) {
+            console.error('Vue应用挂载失败:', error);
+            document.body.innerHTML = '<div style="color: white; padding: 20px; background: #f00;">Vue应用挂载失败: ' + error.message + '</div>';
+        }
+    </script>
+</body>
+</html>

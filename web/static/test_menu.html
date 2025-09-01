@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>菜单功能测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .nav { margin: 20px 0; }
+        .nav a { display: inline-block; padding: 10px 20px; margin: 5px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; }
+        .nav a:hover { background: #0056b3; }
+        .nav a.active { background: #28a745 !important; }
+        .section { padding: 20px; border: 1px solid #ddd; margin: 10px 0; border-radius: 5px; }
+        .hidden { display: none; }
+        .status { padding: 10px; background: #f8f9fa; border-radius: 5px; margin: 10px 0; }
+        .btn { padding: 8px 14px; border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; cursor: pointer; margin-right: 8px; }
+        .btn.primary { background: #3b82f6; color:#fff; border-color:#2563eb; }
+    </style>
+</head>
+<body>
+    <h1>菜单功能测试</h1>
+    
+    <div class="nav">
+        <a href="#" onclick="switchPage('overview'); return false;" id="nav_overview" class="active">概览</a>
+        <a href="#" onclick="switchPage('tasks'); return false;" id="nav_tasks">任务</a>
+        <a href="#" onclick="switchPage('settings'); return false;" id="nav_settings">设置</a>
+    </div>
+    
+    <div id="sec_overview" class="section">
+        <h2>概览页面</h2>
+        <p>这是概览页面的内容</p>
+        <div class="status" id="status">状态信息将显示在这里</div>
+        <button class="btn primary" onclick="testFunction()">测试按钮</button>
+    </div>
+    
+    <div id="sec_tasks" class="section hidden">
+        <h2>任务页面</h2>
+        <p>这是任务页面的内容</p>
+        <p>如果你能看到这个页面，说明任务菜单切换功能已经修复！</p>
+        <div id="subtasks">任务列表将显示在这里</div>
+    </div>
+    
+    <div id="sec_settings" class="section hidden">
+        <h2>设置页面</h2>
+        <p>这是设置页面的内容</p>
+        <button onclick="testMenuSwitch()">测试菜单切换</button>
+    </div>
+    
+    <script>
+        // 使用安全的函数名，避免与jQuery冲突
+        function getElement(id) { 
+            return document.getElementById(id); 
+        }
+        
+        var state = { 
+            page: 'overview',
+            subtasks: [
+                {
+                    id: 'test_task_1',
+                    type: 'tcp',
+                    bps: '100k',
+                    status: 'idle'
+                }
+            ]
+        };
+        
+        function switchPage(p) {
+            console.log('Switching to page:', p);
+            state.page = p;
+            
+            var secs = ['overview', 'tasks', 'settings'];
+            for(var i = 0; i < secs.length; i++) {
+                var k = secs[i];
+                var el = getElement("sec_" + k);
+                if(el) {
+                    el.className = 'section' + (k === p ? '' : ' hidden');
+                }
+                var nav = getElement("nav_" + k);
+                if(nav) {
+                    if(k === p) {
+                        nav.className = 'nav a active';
+                    } else {
+                        nav.className = 'nav a';
+                    }
+                }
+            }
+            
+            if(p === 'overview') {
+                console.log('Overview page loaded');
+                getElement('status').innerText = '概览页面已加载 - ' + new Date().toLocaleTimeString();
+            } else if(p === 'tasks') {
+                console.log('Tasks page loaded');
+                renderSubtasks();
+            } else if(p === 'settings') {
+                console.log('Settings page loaded');
+            }
+        }
+        
+        function renderSubtasks() {
+            console.log('Rendering subtasks, count:', state.subtasks.length);
+            var box = getElement('subtasks');
+            if (!box) {
+                console.error('subtasks element not found');
+                return;
+            }
+            
+            box.innerHTML = '';
+            
+            for(var i = 0; i < state.subtasks.length; i++) {
+                var st = state.subtasks[i];
+                var div = document.createElement('div');
+                div.style.padding = '10px';
+                div.style.margin = '5px';
+                div.style.border = '1px solid #ccc';
+                div.style.borderRadius = '5px';
+                div.innerHTML = `
+                    <strong>${st.id}</strong> - ${st.type.toUpperCase()} - ${st.bps} - ${st.status}
+                `;
+                box.appendChild(div);
+            }
+            
+            console.log('Subtasks rendered successfully');
+        }
+        
+        function testFunction() {
+            alert('按钮点击功能正常！');
+            console.log('Button clicked successfully');
+        }
+        
+        function testMenuSwitch() {
+            console.log('Testing menu switch...');
+            console.log('Current page:', state.page);
+            
+            // 测试切换到任务页面
+            switchPage('tasks');
+            console.log('After switch to tasks, current page:', state.page);
+            
+            // 检查DOM元素
+            var tasksSection = getElement('sec_tasks');
+            var overviewSection = getElement('sec_overview');
+            console.log('Tasks section exists:', !!tasksSection);
+            console.log('Tasks section class:', tasksSection ? tasksSection.className : 'N/A');
+            console.log('Overview section class:', overviewSection ? overviewSection.className : 'N/A');
+        }
+        
+        // 页面加载完成后的初始化
+        window.onload = function() {
+            console.log('Page loaded, initializing...');
+            console.log('getElement function:', typeof getElement);
+            console.log('switchPage function:', typeof switchPage);
+            
+            // 测试getElement函数
+            var testEl = getElement('sec_overview');
+            console.log('Test element found:', !!testEl);
+            
+            // 显示初始状态
+            getElement('status').innerText = '页面已加载 - ' + new Date().toLocaleTimeString();
+        };
+    </script>
+</body>
+</html>

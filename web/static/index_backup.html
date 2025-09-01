@@ -1,0 +1,1086 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>高性能流量控制台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚦</text></svg>">
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; }
+    .app { display: flex; min-height: 100vh; }
+    .sidebar { width: 220px; background: #0f172a; color: #e2e8f0; padding: 16px; }
+    .sidebar h2 { font-size: 16px; margin: 0 0 12px 0; color: #93c5fd; }
+    .nav a { display: block; color: #e2e8f0; text-decoration: none; padding: 8px 10px; border-radius: 6px; margin: 4px 0; }
+    .nav a.active, .nav a:hover { background: #1e293b; }
+    .main { flex: 1; background:#f8fafc; padding: 16px; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .row { margin: 8px 0; display: flex; align-items: center; flex-wrap: wrap; }
+    .row.space-between { justify-content: space-between; }
+    .row .left, .row .right { display:flex; align-items:center; gap:8px; }
+    .row .right { margin-left:auto; }
+    .row label { min-width: 96px; color: #334155; }
+    .row input, .row select { margin-right: 8px; }
+    .control-lg { height: 36px; padding: 4px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background:#fff; }
+    .control-lg:focus { outline: none; border-color:#93c5fd; box-shadow: 0 0 0 3px rgba(147,197,253,0.35); }
+    .btn { padding: 8px 14px; border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; cursor: pointer; margin-right: 8px; }
+    .btn.primary { background: #3b82f6; color:#fff; border-color:#2563eb; }
+    .btn.danger { background: #ef4444; color: #fff; border-color:#dc2626; }
+    .btn.ghost { background: transparent; border-color:#cbd5e1; color:#334155; }
+    .status { white-space: pre-line; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#f1f5f9; padding:8px; border-radius:8px; border:1px solid #e2e8f0; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); grid-gap: 10px; }
+    .subtasks { margin-top: 8px; }
+    .subtask { border:1px solid #e5e7eb; border-radius:8px; margin:10px 0; background:#fbfbfb; overflow: hidden; }
+    .subtask-bd { padding:10px; }
+    .hidden { display:none; }
+    textarea { width:100%; height:120px; font-family: monospace; }
+    .toast { position: fixed; right: 16px; bottom: 16px; min-width: 200px; background: #111827; color: #f9fafb; padding: 10px 12px; border-radius: 8px; opacity: 0.98; box-shadow: 0 6px 16px rgba(0,0,0,0.2); z-index: 9999; }
+    .toast.ok { background:#065f46; }
+    .toast.err { background:#7f1d1d; }
+    .list-wrap { overflow-x:auto; }
+    .list-grid { display:grid; align-items:center; gap:8px; }
+    .list-grid > div { text-align:center; }
+    .list-hd { color:#475569; font-weight:bold; padding:6px 8px; position:sticky; top:0; background:#fff; z-index:1; }
+    .list-row { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:6px 8px; margin:8px 0; }
+    .list-row:hover { box-shadow: 0 4px 14px rgba(2,6,23,0.06); background:#f8fafc; }
+    .list-row.selected { border-color:#93c5fd; background:#eff6ff; }
+    .muted { color:#64748b; }
+    .nowrap { white-space: nowrap; }
+    .th { position:relative; user-select:none; display:flex; align-items:center; gap:6px; justify-content:center; }
+    .drag { position:absolute; right:-4px; top:0; width:8px; height:100%; cursor:col-resize; }
+    .mono-badge { display:inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#f1f5f9; border:1px solid #e2e8f0; color:#334155; padding:2px 6px; border-radius:6px; }
+    .right-actions { display:flex; align-items:center; justify-content:center; gap:8px; }
+    .badge { display:inline-block; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:500; border:1px solid; }
+    .pagination-controls { display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; }
+    .pagination-info { display:flex; align-items:center; gap:8px; }
+    .pagination-buttons { display:flex; align-items:center; gap:8px; }
+    .page-info { margin:0 12px; color:#64748b; }
+    .subtask-bd { padding:16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-top:8px; }
+    .subtask-bd .row { margin:12px 0; }
+    .subtask-bd label { min-width:120px; font-weight:500; color:#374151; }
+    .subtask-bd input, .subtask-bd select, .subtask-bd textarea { padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; background:#fff; }
+    .subtask-bd input:focus, .subtask-bd select:focus, .subtask-bd textarea:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+    .payload-config { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:12px; margin:8px 0; }
+    .payload-config h4 { margin:0 0 8px 0; color:#374151; font-size:14px; }
+    .payload-row { display:flex; align-items:center; gap:12px; margin:8px 0; }
+    .payload-row label { min-width:100px; }
+         .payload-row input, .payload-row select { flex:1; }
+     
+     /* 任务页面新布局样式 */
+     .tasks-header {
+       background: #f8fafc;
+       border: 1px solid #e2e8f0;
+       border-radius: 8px;
+       padding: 16px;
+       margin-bottom: 16px;
+     }
+     
+     .search-row {
+       display: flex;
+       flex-wrap: wrap;
+       gap: 16px;
+       margin-bottom: 16px;
+       align-items: center;
+     }
+     
+     .search-group {
+       display: flex;
+       flex-direction: column;
+       gap: 4px;
+       min-width: 120px;
+     }
+     
+     .search-group label {
+       font-size: 12px;
+       color: #64748b;
+       font-weight: 500;
+     }
+     
+     .search-group input,
+     .search-group select {
+       height: 32px;
+       padding: 4px 8px;
+       border: 1px solid #cbd5e1;
+       border-radius: 6px;
+       background: #fff;
+       font-size: 13px;
+     }
+     
+     .control-row {
+       display: flex;
+       justify-content: space-between;
+       align-items: center;
+       gap: 16px;
+     }
+     
+     .left-controls,
+     .right-controls {
+       display: flex;
+       gap: 8px;
+       align-items: center;
+     }
+     
+     .tasks-content {
+       flex: 1;
+       min-height: 400px;
+       background: #fff;
+       border: 1px solid #e2e8f0;
+       border-radius: 8px;
+       overflow: hidden;
+     }
+     
+     .list-wrap {
+       height: 100%;
+       overflow: hidden;
+     }
+     
+     .list-hd {
+       position: sticky;
+       top: 0;
+       background: #f8fafc;
+       border-bottom: 1px solid #e2e8f0;
+       z-index: 10;
+     }
+     
+     .subtasks {
+       max-height: 400px;
+       overflow-y: auto;
+       overflow-x: hidden;
+     }
+     
+     .tasks-footer {
+       margin-top: 16px;
+       background: #f8fafc;
+       border: 1px solid #e2e8f0;
+       border-radius: 8px;
+       padding: 12px;
+     }
+     
+     /* 编辑界面样式优化 */
+     .subtask-bd {
+       padding: 16px;
+       background: #f8fafc;
+       border: 1px solid #e2e8f0;
+       border-radius: 8px;
+       margin-top: 8px;
+     }
+     
+     .subtask-bd .row {
+       margin: 12px 0;
+       display: flex;
+       align-items: center;
+       gap: 12px;
+       flex-wrap: wrap;
+     }
+     
+     .subtask-bd label {
+       min-width: 120px;
+       font-weight: 500;
+       color: #374151;
+       font-size: 13px;
+     }
+     
+     .subtask-bd input,
+     .subtask-bd select,
+     .subtask-bd textarea {
+       padding: 8px 12px;
+       border: 1px solid #d1d5db;
+       border-radius: 6px;
+       background: #fff;
+       font-size: 13px;
+       min-width: 120px;
+     }
+     
+     .subtask-bd input:focus,
+     .subtask-bd select:focus,
+     .subtask-bd textarea:focus {
+       outline: none;
+       border-color: #3b82f6;
+       box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+     }
+     
+     .subtask-bd select {
+       cursor: pointer;
+     }
+   </style>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <div class="sidebar">
+      <h2>高性能流量控制台</h2>
+      <div class="nav">
+        <a id="nav_overview" href="#" onclick="switchPage('overview');return false;" class="active">概览</a>
+        <a id="nav_tasks" href="#" onclick="switchPage('tasks');return false;">任务</a>
+        <a id="nav_pcap" href="#" onclick="switchPage('pcap');return false;">抓包</a>
+        <a id="nav_history" href="#" onclick="switchPage('history');return false;">历史配置</a>
+        <a id="nav_settings" href="#" onclick="switchPage('settings');return false;">设置</a>
+      </div>
+    </div>
+    <div class="main">
+      <div class="card" id="sec_overview">
+        <h3>概览</h3>
+        <div class="row">
+          <label>Token</label>
+          <input id="token" placeholder="可选：后端设置 HPTG_TOKEN 后填写" class="control-lg" style="min-width:280px;"/>
+          <button class="btn" onclick="saveToken()">保存</button>
+        </div>
+        <div class="row">
+          <label>配置进程数</label>
+          <input id="cfg_cp" type="number" value="1" class="control-lg"/>
+          <label style="margin-left:12px;">数据包进程数</label>
+          <input id="cfg_pp" type="number" value="1" class="control-lg"/>
+        </div>
+        <div class="row">
+          <label>本地缓冲大小</label>
+          <input id="cfg_buf" type="number" value="4096" class="control-lg"/>
+          <label style="margin-left:12px;">配置队列</label>
+          <input id="cfg_qc" type="number" value="2000" class="control-lg"/>
+          <label style="margin-left:12px;">报文队列</label>
+          <input id="cfg_qp" type="number" value="2000" class="control-lg"/>
+        </div>
+        <div class="row">
+          <button class="btn primary" onclick="startGen()">启动生成器</button>
+          <button class="btn danger" onclick="stopGen()">停止生成器</button>
+        </div>
+        <div class="row"><div class="status" id="status">{}</div></div>
+        <div class="grid">
+          <div id="chart_buffer" style="height:240px;"></div>
+          <div id="chart_queue" style="height:240px;"></div>
+        </div>
+      </div>
+
+      <div class="card hidden" id="sec_tasks">
+        <h3>任务</h3>
+        
+        <!-- 上部分：查询栏和控件 -->
+        <div class="tasks-header">
+          <div class="search-row">
+                         <div class="search-group">
+               <label>任务ID</label>
+               <input id="search_id" type="text" placeholder="搜索任务ID" class="control-lg" oninput="onSearchChange()"/>
+             </div>
+             <div class="search-group">
+               <label>类型</label>
+               <select id="search_type" class="control-lg" onchange="onSearchChange()">
+                 <option value="">全部类型</option>
+                 <option value="tcp">TCP</option>
+                 <option value="udp">UDP</option>
+                 <option value="http">HTTP</option>
+               </select>
+             </div>
+             <div class="search-group">
+               <label>状态</label>
+               <select id="search_status" class="control-lg" onchange="onSearchChange()">
+                 <option value="">全部状态</option>
+                 <option value="idle">空闲</option>
+                 <option value="running">运行中</option>
+                 <option value="stopped">已停止</option>
+               </select>
+             </div>
+            <div class="search-group">
+              <label>总流数量</label>
+              <input id="flows_count" type="number" value="4" class="control-lg" style="width:80px;"/>
+            </div>
+            <div class="search-group">
+              <label>预设模型</label>
+              <select id="preset_sel" class="control-lg" onchange="onPresetAdd(this)">
+                <option value="">选择预设...</option>
+                <option value="tcp_web">TCP Web 小流量</option>
+                <option value="udp_ping">UDP Ping 模拟</option>
+                <option value="http_api">HTTP API 混合</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="control-row">
+            <div class="left-controls">
+              <button class="btn" onclick="addSubtask()">新增任务</button>
+              <button class="btn ghost" onclick="resetColWidths()">重置列宽</button>
+              <button class="btn" onclick="clearSearch()">清空搜索</button>
+            </div>
+            <div class="right-controls">
+              <button class="btn primary" onclick="startSelected()">启动选中</button>
+              <button class="btn" onclick="stopSelected()">停止选中</button>
+              <button class="btn danger" onclick="deleteSelected()">删除选中</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 中部分：列表界面 -->
+        <div class="tasks-content">
+          <div class="list-wrap">
+            <div class="list-grid list-hd" id="grid_hd"></div>
+            <div id="subtasks" class="subtasks"></div>
+          </div>
+        </div>
+        
+        <!-- 下部分：翻页栏 -->
+        <div class="tasks-footer">
+          <div class="pagination-controls">
+            <div class="pagination-info">
+              <span>每页显示</span>
+              <select id="page_size_sel" onchange="changePageSize(this.value)">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+              <span>条，共 <span id="total_items">0</span> 条</span>
+            </div>
+            <div class="pagination-buttons">
+              <button class="btn" onclick="goToPage(1)" id="first_page">首页</button>
+              <button class="btn" onclick="goToPage(state.pagination.currentPage-1)" id="prev_page">上一页</button>
+              <span class="page-info">第 <span id="current_page">1</span> 页，共 <span id="total_pages">1</span> 页</span>
+              <button class="btn" onclick="goToPage(state.pagination.currentPage+1)" id="next_page">下一页</button>
+              <button class="btn" onclick="goToPage(state.pagination.totalPages)" id="last_page">末页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card hidden" id="sec_pcap">
+        <h3>抓包</h3>
+        <div class="row">
+          <label>模式</label>
+          <select id="pcap_mode" class="control-lg"><option value="combined">combined</option><option value="up">up</option><option value="down">down</option></select>
+          <label style="margin-left:12px;">数量</label>
+          <input id="pcap_count" type="number" value="1000" class="control-lg" style="width:120px;"/>
+          <button class="btn" onclick="downloadPcap()">下载 PCAP</button>
+        </div>
+        <div class="row">
+          <form id="upform" onsubmit="return false;" enctype="multipart/form-data">
+            <label>上传 Body 文件</label>
+            <input id="upfile" type="file" class="control-lg"/>
+            <button class="btn" onclick="uploadFile()">上传</button>
+          </form>
+        </div>
+        <div id="upload_result" class="status"></div>
+      </div>
+
+      <div class="card hidden" id="sec_history">
+        <h3>历史配置</h3>
+        <div class="row">
+          <button class="btn" onclick="loadRecent()">刷新</button>
+          <button class="btn" onclick="exportRecent()">导出</button>
+          <input id="import_file" type="file" accept="application/json" onchange="importRecent()" class="control-lg"/>
+        </div>
+        <div class="row"><div class="status" id="recent_box">{}</div></div>
+        <div class="row" id="recent_list"></div>
+      </div>
+
+      <div class="card hidden" id="sec_settings">
+        <h3>设置</h3>
+        <div class="row"><span>参数显示为中文；表单字段根据选择动态联动。</span></div>
+        <div class="row"><button class="btn" onclick="loadExamplesToTasks()">载入示例到任务</button></div>
+        <div class="row"><button class="btn" onclick="testMenuSwitch()">测试菜单切换</button></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 默认列：复选、ID(自适应)、类型(px)、bps(px)、每秒流(px)、IP(自适应)、端口(px)、状态(px)、操作(px)
+    var defaultColWidths = ["40px","1fr","100px","100px","100px","2fr","1.2fr","120px","220px"];
+    var MIN_COL_PX = 80, MAX_COL_PX = 600;
+    var state = { 
+      page:'overview', 
+      subtasks:[], 
+      ws:null, 
+      charts:{buf:null,q:null}, 
+      selected:{}, 
+      colWidths: (function(){ try{ var s=localStorage.getItem('HPTG_COLWIDTHS'); if(s){ return JSON.parse(s);} }catch(e){} return defaultColWidths.slice(); })(),
+      pagination: {
+        currentPage: 1,
+        pageSize: 10,
+        totalItems: 0
+      }
+    };
+
+    function getElement(id){ return document.getElementById(id); }
+    function authHeaders(){ var t=getElement('token').value||''; return t? {'X-Token': t} : {}; }
+    function saveToken(){ try{ localStorage.setItem('HPTG_TOKEN', getElement('token').value||''); alert('已保存'); }catch(e){} }
+    function switchPage(p){ state.page=p; var secs=['overview','tasks','pcap','history','settings']; for(var i=0;i<secs.length;i++){ var k=secs[i]; var el=getElement("sec_"+k); if(el){ el.className = 'card'+(k===p? '': ' hidden'); } var nav=getElement("nav_"+k); if(nav){ if(k===p){ nav.className='active'; }else{ nav.className=''; } } } if(p==='overview'){ ensureWS(); initCharts(); refreshStatus(); } if(p==='history'){ loadRecent(); } if(p==='tasks'){ renderHeader(); renderSubtasks(); } }
+
+    // 概览略
+    var bufSeries=[], upSeries=[], downSeries=[], qcSeries=[], qpSeries=[], timeSeries=[];
+    function initCharts(){ if(state.charts.buf&&state.charts.q) return; state.charts.buf = echarts.init(getElement("chart_buffer")); state.charts.q = echarts.init(getElement("chart_queue")); state.charts.buf.setOption({ title:{text:'缓冲区大小'}, tooltip:{}, legend:{data:['合并','上行','下行']}, xAxis:{type:'category',data:[]}, yAxis:{type:'value'}, series:[{name:'合并',type:'line',data:[]},{name:'上行',type:'line',data:[]},{name:'下行',type:'line',data:[]}] }); state.charts.q.setOption({ title:{text:'队列深度'}, tooltip:{}, legend:{data:['配置队列','报文队列']}, xAxis:{type:'category',data:[]}, yAxis:{type:'value'}, series:[{name:'配置队列',type:'line',data:[]},{name:'报文队列',type:'line',data:[]}] }); }
+    function pushMetrics(s){ var ts=new Date().toLocaleTimeString(); timeSeries.push(ts); bufSeries.push(s.current_size||0); upSeries.push(s.current_size_up||0); downSeries.push(s.current_size_down||0); qcSeries.push(s.config_queue_depth||0); qpSeries.push(s.packet_queue_depth||0); if(timeSeries.length>100){ timeSeries.shift(); bufSeries.shift(); upSeries.shift(); downSeries.shift(); qcSeries.shift(); qpSeries.shift(); } state.charts.buf.setOption({xAxis:{data:timeSeries}, series:[{name:'合并',data:bufSeries},{name:'上行',data:upSeries},{name:'下行',data:downSeries}]}); state.charts.q.setOption({xAxis:{data:timeSeries}, series:[{name:'配置队列',data:qcSeries},{name:'报文队列',data:qpSeries}]}); }
+    function ensureWS(){ if(state.ws) return; try{ var t=encodeURIComponent(getElement('token').value||''); var qs=t? ('?token='+t):''; state.ws=new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/api/hptg/stream'+qs); state.ws.onmessage=function(ev){ try{ var j=JSON.parse(ev.data); getElement('status').innerText=JSON.stringify(j,null,2); if(j&&j.running){ pushMetrics(j);} }catch(e){} try{ state.ws.send('ping'); }catch(e){} }; state.ws.onclose=function(){ state.ws=null; setTimeout(function(){ if(!state.ws && state.page==='overview'){ ensureWS(); } }, 3000); }; }catch(e){} }
+    async function refreshStatus(){ try{ var r=await fetch('/api/hptg/status',{headers:authHeaders()}); var s=await r.json(); getElement('status').innerText=JSON.stringify(s,null,2);}catch(e){} }
+    
+    // 启动/停止生成器
+    async function startGen(){ 
+      try {
+        var cp = parseInt(getElement('cfg_cp').value || '1');
+        var pp = parseInt(getElement('cfg_pp').value || '1');
+        var buf = parseInt(getElement('cfg_buf').value || '4096');
+        var qc = parseInt(getElement('cfg_qc').value || '2000');
+        var qp = parseInt(getElement('cfg_qp').value || '2000');
+        
+        var r = await fetch('/api/hptg/start', {
+          method: 'POST',
+          headers: Object.assign({'Content-Type': 'application/json'}, authHeaders()),
+          body: JSON.stringify({
+            config_processes: cp,
+            packet_processes: pp,
+            local_buffer_size: buf,
+            config_queue_capacity: qc,
+            packet_queue_capacity: qp
+          })
+        });
+        
+        if (r.ok) {
+          showToast('生成器已启动', true);
+          refreshStatus();
+        } else {
+          showToast('启动失败: ' + r.status, false);
+        }
+      } catch (e) {
+        showToast('启动出错: ' + e.message, false);
+      }
+    }
+    
+    async function stopGen(){ 
+      try {
+        var r = await fetch('/api/hptg/stop', {
+          method: 'POST',
+          headers: authHeaders()
+        });
+        
+        if (r.ok) {
+          showToast('生成器已停止', true);
+          refreshStatus();
+        } else {
+          showToast('停止失败: ' + r.status, false);
+        }
+      } catch (e) {
+        showToast('停止出错: ' + e.message, false);
+      }
+    }
+
+    // 摘要
+    function summarizeIp(spec){ if(!spec) return '-'; var s=spec.strategy||'inc'; var txt='-'; if(s==='fixed'){ txt=String(spec.value||'-'); } else if(s==='inc'){ txt=String(spec.range||'-'); } else if(s==='rand'){ txt=String(spec.range||'-'); } return '<span class="mono-badge">'+txt+'</span>'; }
+    function summarizePort(spec){ if(!spec) return '-'; var s=spec.strategy||'inc'; var txt='-'; if(s==='fixed'){ txt=String(spec.value||'-'); } else if(s==='inc' || s==='rand'){ if(Array.isArray(spec.range)){ txt=String(spec.range[0])+'-'+String(spec.range[1]); } else { txt=String(spec.range||'-'); } } return '<span class="mono-badge">'+txt+'</span>'; }
+
+    // 任务
+    function generateUniqueId(baseName) {
+      var counter = 1;
+      var id = baseName;
+      while (state.subtasks.some(function(st) { return st.id === id; })) {
+        id = baseName + '_' + counter;
+        counter++;
+      }
+      return id;
+    }
+    
+    function addSubtask(prefill){ 
+      var st = prefill || { 
+        id: generateUniqueId('task'), 
+        type:'tcp', 
+        bps:'50k', 
+        rate_limit_fps:2, 
+        tuples:{ 
+          ip_src:{strategy:'inc', range:'10.0.1.1-10.0.1.3', step:1}, 
+          ip_dst:{strategy:'fixed', value:'192.168.1.1'}, 
+          sport:{strategy:'inc', range:[10000,10002], step:1}, 
+          dport:{strategy:'fixed', value:80} 
+        }, 
+        tcp:{ 
+          handshake:true, 
+          termination:true, 
+          mss:1460, 
+          directionless:true, 
+          uplink:{payload_length:128}, 
+          downlink:{payload_length:64} 
+        }, 
+        status:'idle' 
+      }; 
+      state.subtasks.push(st); 
+      renderSubtasks(); 
+      persistDraft(); 
+      showToast('已添加任务', true); 
+    }
+    function onPresetAdd(sel){ 
+      var v=sel.value||''; 
+      if(!v) return; 
+      if(v==='tcp_web'){ 
+        addSubtask({ 
+          id: generateUniqueId('tcp_web'), 
+          type:'tcp', 
+          bps:'50k', 
+          rate_limit_fps:5, 
+          tuples:{ 
+            ip_src:{strategy:'inc', range:'10.0.2.1-10.0.2.10', step:1}, 
+            ip_dst:{strategy:'fixed', value:'192.168.1.1'}, 
+            sport:{strategy:'inc', range:[20000,20050], step:1}, 
+            dport:{strategy:'fixed', value:80} 
+          }, 
+          tcp:{ 
+            handshake:true, 
+            termination:true, 
+            mss:1460, 
+            directionless:true, 
+            uplink:{payload_length:256}, 
+            downlink:{payload_length:128} 
+          }, 
+          status:'idle' 
+        }); 
+      } else if(v==='udp_ping'){ 
+        addSubtask({ 
+          id: generateUniqueId('udp_ping'), 
+          type:'udp', 
+          bps:'0', 
+          rate_limit_fps:20, 
+          tuples:{ 
+            ip_src:{strategy:'inc', range:'10.0.3.1-10.0.3.5', step:1}, 
+            ip_dst:{strategy:'fixed', value:'192.168.1.2'}, 
+            sport:{strategy:'fixed', value:33434}, 
+            dport:{strategy:'fixed', value:33434} 
+          }, 
+          udp:{ 
+            uplink:{payload_length:48}, 
+            downlink:{payload_length:48} 
+          }, 
+          status:'idle' 
+        }); 
+      } else if(v==='http_api'){ 
+        addSubtask({ 
+          id: generateUniqueId('http_api'), 
+          type:'http', 
+          bps:'100k', 
+          rate_limit_fps:10, 
+          tuples:{ 
+            ip_src:{strategy:'rand', range:'172.16.0.0/16', seed:42}, 
+            ip_dst:{strategy:'fixed', value:'192.168.1.10'}, 
+            sport:{strategy:'inc', range:[30000,30100], step:1}, 
+            dport:{strategy:'fixed', value:80} 
+          }, 
+          http:{ 
+            handshake:true, 
+            termination:true, 
+            directionless:true, 
+            uplink:{dport:80}, 
+            sessions_per_flow:{range:[1,3]}, 
+            methods:['GET','POST'], 
+            domains:{strategy:'list', list:['api.example.com']}, 
+            uris:{strategy:'inc', pattern:'/users/{n}', n_range:[1,1000]}, 
+            body:{ length_range:[0,256] } 
+          }, 
+          status:'idle' 
+        }); 
+      } 
+      sel.value=''; 
+    }
+    function removeSubtask(idx){ var st=state.subtasks[idx]; if(st && st.status==='running'){ showToast('执行中的任务不能删除', false); return;} state.subtasks.splice(idx,1); renderSubtasks(); persistDraft(); }
+         function onChange(idx, path, val){ 
+       var parts=path.split('.'); 
+       var obj=state.subtasks[idx]; 
+       for(var i=0;i<parts.length-1;i++){ 
+         var p=parts[i]; 
+         if(!obj[p]) obj[p]={}; 
+         obj=obj[p]; 
+       } 
+       obj[parts[parts.length-1]]=val; 
+       
+       // 只更新当前行的编辑界面，不重新渲染整个列表
+       var editDiv = getElement('subtask_bd_' + idx);
+       if (editDiv && !editDiv.classList.contains('hidden')) {
+         editDiv.innerHTML = renderProtoConfig(idx);
+       }
+       
+       persistDraft(); 
+     }
+
+    // 头部与拖拽（混合 fr + px）
+    function gridColsFromState(){ return state.colWidths.join(' '); }
+    function renderHeader(){ var hd=getElement("grid_hd"); var cols=gridColsFromState(); hd.style.gridTemplateColumns=cols; var labels=["<input type='checkbox' id='chk_all' onclick='toggleAll(this)'/>","任务ID","类型","bps","每秒流","IP(源→目的)","端口(源→目的)","状态","操作"]; hd.innerHTML=''; for(var i=0;i<labels.length;i++){ var d=document.createElement('div'); d.className='th'; d.innerHTML=labels[i]+"<span class='drag' data-idx='"+i+"'></span>"; // 双击重置该列
+        d.ondblclick=(function(colIdx){ return function(){ state.colWidths[colIdx]=defaultColWidths[colIdx]; applyGridWidths(true); try{ localStorage.setItem('HPTG_COLWIDTHS', JSON.stringify(state.colWidths)); }catch(e){} }; })(i);
+        hd.appendChild(d);
+      }
+      hd.onmousedown=function(e){ if(!e.target.classList.contains('drag')) return; var idx=parseInt(e.target.getAttribute('data-idx')||'-1'); if(idx<0) return; var startX=e.clientX; var start=state.colWidths[idx]; var startPx = String(start).indexOf('fr')>-1 ? 160 : parseInt(String(start).replace('px','')||'160'); function mm(ev){ var dx=ev.clientX-startX; var newPx=Math.min(MAX_COL_PX, Math.max(MIN_COL_PX, startPx+dx)); state.colWidths[idx]=newPx+'px'; applyGridWidths(true); }
+        function mu(){ document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); try{ localStorage.setItem('HPTG_COLWIDTHS', JSON.stringify(state.colWidths)); }catch(e){} }
+        document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
+      };
+    }
+    function applyGridWidths(recalc){ var cols=gridColsFromState(); getElement("grid_hd").style.gridTemplateColumns=cols; var rows=document.querySelectorAll('.list-row'); for(var i=0;i<rows.length;i++){ rows[i].style.gridTemplateColumns=cols; }
+      if(recalc){ /* reserved */ }
+    }
+    function resetColWidths(){ state.colWidths = defaultColWidths.slice(); applyGridWidths(true); try{ localStorage.setItem('HPTG_COLWIDTHS', JSON.stringify(state.colWidths)); }catch(e){} }
+    
+         // 搜索和过滤功能
+     function getFilteredSubtasks() {
+       var searchId = getElement('search_id').value.toLowerCase();
+       var searchType = getElement('search_type').value;
+       var searchStatus = getElement('search_status').value;
+       
+       return state.subtasks.filter(function(st) {
+         var matchId = !searchId || (st.id && st.id.toLowerCase().includes(searchId));
+         var matchType = !searchType || st.type === searchType;
+         var matchStatus = !searchStatus || st.status === searchStatus;
+         
+         return matchId && matchType && matchStatus;
+       });
+     }
+     
+     function clearSearch() {
+       getElement('search_id').value = '';
+       getElement('search_type').value = '';
+       getElement('search_status').value = '';
+       renderSubtasks();
+     }
+     
+     function onSearchChange() {
+       // 搜索条件改变时，重置到第一页并重新渲染
+       state.pagination.currentPage = 1;
+       renderSubtasks();
+     }
+     
+     // 分页相关函数
+     function updatePagination() {
+       var filteredTasks = getFilteredSubtasks();
+       state.pagination.totalItems = filteredTasks.length;
+       state.pagination.totalPages = Math.ceil(state.pagination.totalItems / state.pagination.pageSize);
+       if (state.pagination.currentPage > state.pagination.totalPages) {
+         state.pagination.currentPage = Math.max(1, state.pagination.totalPages);
+       }
+       
+       // 更新分页控件显示
+       getElement('total_items').innerText = state.pagination.totalItems;
+       getElement('current_page').innerText = state.pagination.currentPage;
+       getElement('total_pages').innerText = state.pagination.totalPages;
+       
+       // 更新按钮状态
+       getElement('first_page').disabled = state.pagination.currentPage <= 1;
+       getElement('prev_page').disabled = state.pagination.currentPage <= 1;
+       getElement('next_page').disabled = state.pagination.currentPage >= state.pagination.totalPages;
+       getElement('last_page').disabled = state.pagination.currentPage >= state.pagination.totalPages;
+     }
+    
+    function goToPage(page) {
+      if (page < 1 || page > state.pagination.totalPages) return;
+      state.pagination.currentPage = page;
+      renderSubtasks();
+      updatePagination();
+    }
+    
+    function changePageSize(size) {
+      state.pagination.pageSize = parseInt(size);
+      state.pagination.currentPage = 1;
+      renderSubtasks();
+      updatePagination();
+    }
+    
+         function getCurrentPageItems() {
+       var filteredTasks = getFilteredSubtasks();
+       var start = (state.pagination.currentPage - 1) * state.pagination.pageSize;
+       var end = start + state.pagination.pageSize;
+       return filteredTasks.slice(start, end);
+     }
+
+    // 行
+    function rowClickHandler(evt, id){ var tag=(evt.target&&evt.target.tagName)||''; if(tag==='INPUT' || tag==='BUTTON' || tag==='SELECT' || tag==='TEXTAREA') return; var on = !state.selected[id]; toggleSelect(id, on); renderSubtasks(); }
+    function renderSubtasks(){ 
+      var box=getElement('subtasks'); 
+      box.innerHTML=''; 
+      var cols=gridColsFromState(); 
+      
+      // 获取当前页的数据
+      var currentItems = getCurrentPageItems();
+      var startIndex = (state.pagination.currentPage - 1) * state.pagination.pageSize;
+      
+      for(var i=0;i<currentItems.length;i++){ 
+        var st=currentItems[i]; 
+        var globalIndex = startIndex + i; // 全局索引，用于编辑和删除
+        var id=st.id||('task_'+(globalIndex+1)); 
+        var checked = !!state.selected[id]; 
+        var row=document.createElement('div'); 
+        row.className='list-grid list-row'+(checked?' selected':''); 
+        row.style.gridTemplateColumns=cols; 
+        
+        // 使用立即执行函数创建正确的闭包
+        (function(rowId) {
+          row.onclick=function(e){ rowClickHandler(e, rowId); };
+        })(id);
+        
+        var statusBadge = '<span class="badge" style="'+(st.status==='running'?'background:#dcfce7;border-color:#16a34a;color:#166534;':(st.status==='idle'?'background:#e2e8f0;':'background:#fee2e2;border-color:#ef4444;color:#991b1b;'))+'">'+(st.status||'idle')+'</span>';
+        var ip_src = summarizeIp(st.tuples&&st.tuples.ip_src); 
+        var ip_dst = summarizeIp(st.tuples&&st.tuples.ip_dst); 
+        var p_src = summarizePort(st.tuples&&st.tuples.sport); 
+        var p_dst = summarizePort(st.tuples&&st.tuples.dport);
+        var ip_comb = ip_src+' → '+ip_dst;
+        row.innerHTML = '<div><input type="checkbox" '+(checked?'checked':'')+' onclick="toggleSelect(\''+id+'\', this.checked); event.stopPropagation();"/></div>'+
+          '<div><strong>'+ id +'</strong></div>'+
+          '<div class="muted">'+ (st.type||'tcp').toUpperCase() +'</div>'+
+          '<div class="muted">'+ (st.bps||'0') +'</div>'+
+          '<div class="muted">'+ (st.rate_limit_fps||0) +'</div>'+
+          '<div class="muted">'+ ip_comb +'</div>'+
+          '<div class="muted">'+ p_src+' → '+p_dst +'</div>'+
+          '<div>'+ statusBadge +'</div>'+
+          '<div class="right-actions">'+
+            ' <button class="btn" onclick="toggleSubtaskBody('+globalIndex+'); event.stopPropagation();">编辑</button>'+
+            ' <button class="btn danger" onclick="removeSubtask('+globalIndex+'); event.stopPropagation();" '+(st.status==='running'?'disabled':'')+'>删除</button>'+
+          '</div>';
+        box.appendChild(row);
+        var div=document.createElement('div'); 
+        div.className='subtask-bd hidden'; 
+        div.id='subtask_bd_'+globalIndex; 
+        div.innerHTML=renderProtoConfig(globalIndex); 
+        box.appendChild(div);
+      } 
+      
+      // 更新分页信息
+      updatePagination();
+    }
+
+    function renderProtoConfig(idx){ 
+      var st=state.subtasks[idx]; 
+      var t=st.type||'tcp'; 
+      var html=''; 
+      
+      // 基本信息行
+      html+='<div class="row">'+
+        '<label>类型</label>'+
+        '<select onchange="onChange('+idx+',\'type\', this.value)">'+
+          '<option '+(t==='tcp'?'selected':'')+' value="tcp">TCP</option>'+
+          '<option '+(t==='udp'?'selected':'')+' value="udp">UDP</option>'+
+          '<option '+(t==='http'?'selected':'')+' value="http">HTTP</option>'+
+        '</select>'+
+        '<label style="margin-left:12px;">bps</label>'+
+        '<input value="'+(st.bps||'0')+'" onchange="onChange('+idx+',\'bps\', this.value)"/>'+
+        '<label style="margin-left:12px;">每秒流数量</label>'+
+        '<input type="number" style="width:100px;" value="'+(st.rate_limit_fps||0)+'" onchange="onChange('+idx+',\'rate_limit_fps\', parseInt(this.value||0))"/>'+
+      '</div>'; 
+      
+      // IP和端口策略行
+      html+=renderStrategyRow(idx,'ip_src','源IP'); 
+      html+=renderStrategyRow(idx,'ip_dst','目的IP'); 
+      html+=renderStrategyRow(idx,'sport','源端口'); 
+      html+=renderStrategyRow(idx,'dport','目的端口'); 
+      
+      // 协议特定配置
+      if(t==='tcp'){ 
+        var c=st.tcp||{}; 
+        if(!c.uplink) c.uplink={}; 
+        if(!c.downlink) c.downlink={}; 
+        
+        html+='<div class="row">'+
+          '<label>TCP</label>'+
+          '<span style="margin-right:8px;">握手</span>'+
+          '<input type="checkbox" '+(c.handshake!==false?'checked':'')+' onchange="onChange('+idx+',\'tcp.handshake\', this.checked)"/>'+
+          '<span style="margin:0 8px;">挥手</span>'+
+          '<input type="checkbox" '+(c.termination!==false?'checked':'')+' onchange="onChange('+idx+',\'tcp.termination\', this.checked)"/>'+
+          '<label style="margin-left:12px;">MSS</label>'+
+          '<input type="number" style="width:100px;" value="'+(c.mss||1460)+'" onchange="onChange('+idx+',\'tcp.mss\', parseInt(this.value||0))"/>'+
+        '</div>'; 
+        
+        html+='<div class="row">'+
+          '<label>上行负载长度</label>'+
+          '<input type="number" style="width:120px;" value="'+((c.uplink&&c.uplink.payload_length)||128)+'" onchange="onChange('+idx+',\'tcp.uplink.payload_length\', parseInt(this.value||0))"/>'+
+          '<label style="margin-left:12px;">下行负载长度</label>'+
+          '<input type="number" style="width:120px;" value="'+((c.downlink&&c.downlink.payload_length)||64)+'" onchange="onChange('+idx+',\'tcp.downlink.payload_length\', parseInt(this.value||0))"/>'+
+        '</div>'; 
+        
+      } else if(t==='udp'){ 
+        var u=st.udp||{}; 
+        if(!u.uplink) u.uplink={}; 
+        if(!u.downlink) u.downlink={}; 
+        
+        html+='<div class="row"><label>UDP</label></div>'; 
+        
+        html+='<div class="row">'+
+          '<label>上行负载长度</label>'+
+          '<input type="number" style="width:120px;" value="'+((u.uplink&&u.uplink.payload_length)||48)+'" onchange="onChange('+idx+',\'udp.uplink.payload_length\', parseInt(this.value||0))"/>'+
+          '<label style="margin-left:12px;">下行负载长度</label>'+
+          '<input type="number" style="width:120px;" value="'+((u.downlink&&u.downlink.payload_length)||48)+'" onchange="onChange('+idx+',\'udp.downlink.payload_length\', parseInt(this.value||0))"/>'+
+        '</div>'; 
+        
+      } else { var h=st.http||{ handshake:true, termination:true, directionless:true, uplink:{dport:80}, sessions_per_flow:{range:[1,2]}, methods:['GET','POST'], domains:{strategy:'rand', list:['www.example.com']}, uris:{strategy:'inc', pattern:'/p{n}.html', n_range:[1,100]}, body:{ length_range:[0,256] } }; st.http=h; html+='<div class="row"><label>HTTP</label>'+'<span style="margin-right:8px;">握手</span><input type="checkbox" '+(h.handshake!==false?'checked':'')+' onchange="onChange('+idx+',\'http.handshake\', this.checked)"/>'+'<span style="margin:0 8px;">挥手</span><input type="checkbox" '+(h.termination!==false?'checked':'')+' onchange="onChange('+idx+',\'http.termination\', this.checked)"/>'+'<label style="margin-left:12px;">目的端口</label><input type="number" style="width:100px;" value="'+((h.uplink&&h.uplink.dport)||80)+'" onchange="onChange('+idx+',\'http.uplink.dport\', parseInt(this.value||80))"/>'+'</div>'; html+='<div class="row"><label>每流会话数</label><input style="width:160px;" value="'+((h.sessions_per_flow&&h.sessions_per_flow.range)? (h.sessions_per_flow.range[0]+","+h.sessions_per_flow.range[1]) : '1,2')+'" onchange="(function(v){ var a=v.split(','); onChange('+idx+',\'http.sessions_per_flow\',{range:[parseInt(a[0]||1),parseInt(a[1]||2)]}) })(this.value)"/>'+'<label style="margin-left:12px;">Body长度范围</label><input style="width:160px;" value="'+((h.body&&h.body.length_range)? (h.body.length_range[0]+","+h.body.length_range[1]) : '0,256')+'" onchange="(function(v){ var a=v.split(','); var b={length_range:[parseInt(a[0]||0),parseInt(a[1]||256)]}; onChange('+idx+',\'http.body\', b) })(this.value)"/>'+'</div>'; }
+      return html;
+    }
+    function renderStrategyRow(idx, field, label){ var cfg=(state.subtasks[idx].tuples[field]||{}); var html=''; html+='<div class="row">'+'<label>'+label+'策略</label>'+'<select onchange="onChange('+idx+',\'tuples.'+field+'.strategy\', this.value)">'+'<option '+(cfg.strategy==='inc'?'selected':'')+' value="inc">递增</option>'+'<option '+(cfg.strategy==='rand'?'selected':'')+' value="rand">随机</option>'+'<option '+(cfg.strategy==='fixed'?'selected':'')+' value="fixed">固定</option>'+'</select>'; if(cfg.strategy==='inc'){ if(field==='ip_src'||field==='ip_dst'){ html+='<label style="margin-left:12px;">范围</label><input value="'+(cfg.range||'10.0.0.1-10.0.0.254')+'" onchange="onChange('+idx+',\'tuples.'+field+'.range\', this.value)"/>'+'<label style="margin-left:12px;">步长</label><input type="number" style="width:80px;" value="'+(cfg.step||1)+'" onchange="onChange('+idx+',\'tuples.'+field+'.step\', parseInt(this.value||1))"/>'; } else { var r=cfg.range||[10000,10010]; html+='<label style="margin-left:12px;">范围</label><input value="'+r[0]+','+r[1]+'" onchange="(function(v){ var a=v.split(','); onChange('+idx+',\'tuples.'+field+'.range\',[parseInt(a[0]||0),parseInt(a[1]||0)]) })(this.value)"/>'+'<label style="margin-left:12px;">步长</label><input type="number" style="width:80px;" value="'+(cfg.step||1)+'" onchange="onChange('+idx+',\'tuples.'+field+'.step\', parseInt(this.value||1))"/>'; } } else if(cfg.strategy==='rand'){ if(field==='ip_src'||field==='ip_dst'){ html+='<label style="margin-left:12px;">范围/CIDR</label><input value="'+(cfg.range||'192.168.1.0/24')+'" onchange="onChange('+idx+',\'tuples.'+field+'.range\', this.value)"/>'+'<label style="margin-left:12px;">种子</label><input type="number" style="width:80px;" value="'+(cfg.seed||0)+'" onchange="onChange('+idx+',\'tuples.'+field+'.seed\', parseInt(this.value||0))"/>'; } else { var rr=cfg.range||[1024,65535]; html+='<label style="margin-left:12px;">范围</label><input value="'+rr[0]+','+rr[1]+'" onchange="(function(v){ var a=v.split(','); onChange('+idx+',\'tuples.'+field+'.range\',[parseInt(a[0]||0),parseInt(a[1]||0)]) })(this.value)"/>'+'<label style="margin-left:12px;">种子</label><input type="number" style="width:80px;" value="'+(cfg.seed||0)+'" onchange="onChange('+idx+',\'tuples.'+field+'.seed\', parseInt(this.value||0))"/>'; } } else { html+='<label style="margin-left:12px;">值</label><input value="'+(cfg.value|| (field==='dport'?80:'192.168.1.1'))+'" onchange="onChange('+idx+',\'tuples.'+field+'.value\', this.value)"/>'; } html+='</div>'; return html; }
+
+    // 其他（历史/导入导出/校验/持久化）略，同前
+    function isValidIpRange(s){ if(!s || typeof s !== 'string') return false; if(s.indexOf('/')>0) return true; if(s.indexOf('-')>0){ var a=s.split('-'); return a.length===2; } return (/^\d+\.\d+\.\d+\.\d+$/.test(s)); }
+    function validateSpec(bs){ try{ var classes=bs.classes||[]; if(classes.length===0){ showToast('请至少添加一个子任务', false); return false; } for(var i=0;i<classes.length;i++){ var c=classes[i]; if(!c.id){ showToast('子任务缺少 ID', false); return false; } var t=c.tuples||{}; if(t.ip_src){ if(t.ip_src.strategy==='inc' || t.ip_src.strategy==='rand'){ if(!isValidIpRange(t.ip_src.range)){ showToast('源IP范围无效: '+t.ip_src.range, false); return false; } } } if(t.ip_dst){ if(t.ip_dst.strategy==='inc' || t.ip_dst.strategy==='rand'){ if(!isValidIpRange(t.ip_dst.range)){ showToast('目的IP范围无效: '+t.ip_dst.range, false); return false; } } } if(t.sport && t.sport.range){ if(t.sport.range.length===2 && (t.sport.range[0]>t.sport.range[1])){ showToast('源端口范围非法', false); return false; } } if(t.dport && t.dport.range){ if(t.dport.range.length===2 && (t.dport.range[0]>t.dport.range[1])){ showToast('目的端口范围非法', false); return false; } } } return true; }catch(e){ return true; } }
+    function showToast(msg, ok){ try{ var el=document.createElement('div'); el.className='toast'+(ok?' ok':' err'); el.innerText=msg; document.body.appendChild(el); setTimeout(function(){ try{ document.body.removeChild(el);}catch(e){} }, 1800); }catch(e){} }
+    // 转换为批处理规格
+    function toBatchSpec(){
+      var classes = [];
+      for(var i=0; i<state.subtasks.length; i++){
+        var st = state.subtasks[i];
+        var cls = {
+          id: st.id || ('task_'+(i+1)),
+          type: st.type || 'tcp',
+          bps: st.bps || '0',
+          tuples: st.tuples || {},
+          rate_limit_fps: parseInt(st.rate_limit_fps || 0)
+        };
+        
+        if(cls.type === 'tcp') {
+          cls.tcp = st.tcp || {};
+        } else if(cls.type === 'udp') {
+          cls.udp = st.udp || {};
+        } else if(cls.type === 'http') {
+          cls.http = st.http || {};
+        }
+        
+        classes.push(cls);
+      }
+      
+             var flowsCount = parseInt(getElement('flows_count').value || '0');
+      return {
+        classes: classes,
+        flows: {
+          count: flowsCount > 0 ? flowsCount : 0
+        }
+      };
+    }
+    
+    async function startTasks(){ var bs=toBatchSpec(); if(!validateSpec(bs)) return; await fetch('/api/hptg/batch/start',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},authHeaders()),body:JSON.stringify({batch_spec:bs})}); showToast('任务已启动', true); }
+    async function startSelected(){ var classes=[]; var map=state.selected||{}; for(var i=0;i<state.subtasks.length;i++){ var st=state.subtasks[i]; var id=st.id||('task_'+(i+1)); if(map[id]){ var cls={ id:id, type:(st.type||'tcp'), bps: st.bps, tuples: st.tuples, rate_limit_fps: parseInt(st.rate_limit_fps||0) }; if(cls.type==='tcp') cls.tcp=st.tcp; else if(cls.type==='udp') cls.udp=st.udp; else cls.http=st.http; classes.push(cls); } }
+      if(classes.length===0){ showToast('请先勾选要启动的任务', false); return; }
+             var flowsCount=parseInt((getElement('flows_count').value||'0'));
+      var bsSel={ classes: classes, flows:{count: flowsCount>0? flowsCount:0} };
+      if(!validateSpec(bsSel)) return;
+      await fetch('/api/hptg/batch/start',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},authHeaders()),body:JSON.stringify({batch_spec:bsSel})});
+      for(var j=0;j<state.subtasks.length;j++){ var s=state.subtasks[j]; if(state.selected[s.id]) s.status='running'; }
+      renderSubtasks(); showToast('选中任务已启动', true);
+    }
+    async function stopTasks(){ await fetch('/api/hptg/batch/stop',{method:'POST',headers:authHeaders()}); alert('任务已停止'); }
+    async function stopSelected(){ if(Object.keys(state.selected||{}).length===0){ showToast('请先勾选要停止的任务', false); return; } await fetch('/api/hptg/batch/stop',{method:'POST',headers:authHeaders()}); for(var i=0;i<state.subtasks.length;i++){ var st=state.subtasks[i]; if(state.selected[st.id]) st.status='stopped'; } renderSubtasks(); showToast('任务已停止（当前后端为全局停止）', true); }
+    
+    // 删除选中的任务
+    async function deleteSelected(){ 
+      if(Object.keys(state.selected||{}).length===0){
+        showToast('请先勾选要删除的任务', false); 
+        return; 
+      }
+      
+      if(!confirm('确定要删除选中的任务吗？此操作不可恢复。')) {
+        return;
+      }
+      
+      // 从后往前删除，避免索引变化
+      var toDelete = [];
+      for(var i=0; i<state.subtasks.length; i++){
+        var st = state.subtasks[i];
+        if(state.selected[st.id]) {
+          toDelete.push(i);
+        }
+      }
+      
+      // 从大到小排序，从后往前删除
+      toDelete.sort((a,b) => b-a);
+      for(var idx of toDelete) {
+        state.subtasks.splice(idx, 1);
+      }
+      
+      // 清空选中状态
+      state.selected = {};
+      renderSubtasks();
+      persistDraft();
+      showToast('已删除选中任务', true);
+    }
+         async function downloadPcap(){ var mode=(getElement('pcap_mode').value||'combined'); var cnt=parseInt(getElement('pcap_count').value||'1000'); var r=await fetch(`/api/pcap/download?mode=${encodeURIComponent(mode)}&count=${encodeURIComponent(cnt)}`,{headers:authHeaders()}); var b=await r.blob(); var url=URL.createObjectURL(b); var a=document.createElement('a'); a.href=url; a.download='hptg_'+mode+'.pcap'; a.click(); URL.revokeObjectURL(url); }
+         async function uploadFile(){ var f=getElement('upfile').files[0]; if(!f){ alert('请选择文件'); return;} var fd=new FormData(); fd.append('file',f); var r=await fetch('/api/upload',{method:'POST',headers:authHeaders(),body:fd}); getElement('upload_result').innerText=JSON.stringify(await r.json(),null,2); }
+    async function loadRecent(){ var r=await fetch('/api/config/recent',{headers:authHeaders()}); var j=await r.json(); getElement('recent_box').innerText=JSON.stringify(j,null,2); var list=getElement('recent_list'); list.innerHTML=''; var keys=Object.keys(j).sort().reverse(); for(var i=0;i<keys.length;i++){ (function(id){ var div=document.createElement('div'); div.style.margin='4px 0'; var b1=document.createElement('button'); b1.className='btn'; b1.innerText='回放任务('+id+')'; b1.onclick=function(){ replayRecent(id,'batch'); }; var b2=document.createElement('button'); b2.className='btn'; b2.innerText='回放单流'; b2.onclick=function(){ replayRecent(id,'single'); }; var b3=document.createElement('button'); b3.className='btn danger'; b3.innerText='删除'; b3.onclick=function(){ deleteRecent(id); }; div.appendChild(b1); div.appendChild(b2); div.appendChild(b3); list.appendChild(div); })(keys[i]); }
+    }
+    async function exportRecent(){ var r=await fetch('/api/config/export',{headers:authHeaders()}); var j=await r.json(); var blob=new Blob([JSON.stringify(j,null,2)],{type:'application/json'}); var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download='recent_configs.json'; a.click(); URL.revokeObjectURL(url); }
+    async function importRecent(){ var f=getElement('import_file').files[0]; if(!f) return; var text=await f.text(); var data={}; try{ data=JSON.parse(text);}catch(e){ alert('JSON 无效'); return;} await fetch('/api/config/import',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},authHeaders()),body:JSON.stringify(data)}); await loadRecent(); }
+    async function replayRecent(id, mode){ await fetch(`/api/config/start_from?id=${encodeURIComponent(id)}&mode=${encodeURIComponent(mode||'batch')}`,{method:'POST',headers:authHeaders()}); showToast('已回放 '+(mode||'batch'), true); }
+    async function deleteRecent(id){ await fetch(`/api/config/delete?id=${encodeURIComponent(id)}`,{method:'DELETE',headers:authHeaders()}); await loadRecent(); }
+
+    function persistDraft(){ try{ localStorage.setItem('HPTG_TASKS_DRAFT', JSON.stringify({subtasks: state.subtasks, flows: getElement('flows_count').value||'4'})); }catch(e){} }
+    function restoreDraft(){ try{ var t=localStorage.getItem('HPTG_TOKEN'); if(t) getElement('token').value=t; var d=localStorage.getItem('HPTG_TASKS_DRAFT'); if(d){ var j=JSON.parse(d); state.subtasks=j.subtasks||[]; getElement('flows_count').value=j.flows||'4'; } }catch(e){} }
+    function showToast(msg, ok){ try{ var el=document.createElement('div'); el.className='toast'+(ok?' ok':' err'); el.innerText=msg; document.body.appendChild(el); setTimeout(function(){ try{ document.body.removeChild(el);}catch(e){} }, 1800); }catch(e){} }
+    
+    // 负载配置渲染函数
+    function renderPayloadConfig(idx, path, label, config) {
+      if (!config) config = {};
+      var html = '<div class="payload-row">';
+      html += '<label>' + label + '策略</label>';
+      html += '<select onchange="onChange(' + idx + ',\'' + path + '.strategy\', this.value)">';
+      html += '<option ' + (config.strategy === 'fixed' ? 'selected' : '') + ' value="fixed">固定内容</option>';
+      html += '<option ' + (config.strategy === 'random' ? 'selected' : '') + ' value="random">随机字符串</option>';
+      html += '<option ' + (config.strategy === 'increment' ? 'selected' : '') + ' value="increment">递增模式</option>';
+      html += '<option ' + (config.strategy === 'length' ? 'selected' : '') + ' value="length">指定长度</option>';
+      html += '</select>';
+      
+      if (config.strategy === 'fixed') {
+        html += '<input type="text" placeholder="固定内容" value="' + (config.content || '') + '" onchange="onChange(' + idx + ',\'' + path + '.content\', this.value)"/>';
+      } else if (config.strategy === 'random') {
+        html += '<input type="number" placeholder="长度" value="' + (config.length || 64) + '" onchange="onChange(' + idx + ',\'' + path + '.length\', parseInt(this.value))"/>';
+        html += '<input type="text" placeholder="字符集(可选)" value="' + (config.charset || '') + '" onchange="onChange(' + idx + ',\'' + path + '.charset\', this.value)"/>';
+      } else if (config.strategy === 'increment') {
+        html += '<input type="text" placeholder="模式，如: Hello{n}" value="' + (config.pattern || '') + '" onchange="onChange(' + idx + ',\'' + path + '.pattern\', this.value)"/>';
+        html += '<input type="number" placeholder="起始值" value="' + (config.start || 1) + '" onchange="onChange(' + idx + ',\'' + path + '.start\', parseInt(this.value))"/>';
+        html += '<input type="number" placeholder="步长" value="' + (config.step || 1) + '" onchange="onChange(' + idx + ',\'' + path + '.step\', parseInt(this.value))"/>';
+      } else if (config.strategy === 'length') {
+        html += '<input type="number" placeholder="最小长度" value="' + (config.min_length || 64) + '" onchange="onChange(' + idx + ',\'' + path + '.min_length\', parseInt(this.value))"/>';
+        html += '<input type="number" placeholder="最大长度" value="' + (config.max_length || 128) + '" onchange="onChange(' + idx + ',\'' + path + '.max_length\', parseInt(this.value))"/>';
+      }
+      
+      html += '</div>';
+      return html;
+    }
+    
+    // 载入示例到任务
+    function loadExamplesToTasks(){
+      // 清空现有任务
+      state.subtasks = [];
+      
+      // 添加TCP Web示例
+      addSubtask({
+        id: generateUniqueId('tcp_web'),
+        type: 'tcp',
+        bps: '100k',
+        rate_limit_fps: 10,
+        tuples: {
+          ip_src: {strategy: 'inc', range: '10.0.1.1-10.0.1.50', step: 1},
+          ip_dst: {strategy: 'fixed', value: '192.168.1.100'},
+          sport: {strategy: 'inc', range: [20000, 20099], step: 1},
+          dport: {strategy: 'fixed', value: 80}
+        },
+        tcp: {
+          handshake: true,
+          termination: true,
+          mss: 1460,
+          directionless: true,
+          uplink: {
+            strategy: 'random',
+            length: 512
+          },
+          downlink: {
+            strategy: 'random',
+            length: 256
+          }
+        },
+        status: 'idle'
+      });
+      
+      // 添加UDP Ping示例
+      addSubtask({
+        id: generateUniqueId('udp_ping'),
+        type: 'udp',
+        bps: '0',
+        rate_limit_fps: 50,
+        tuples: {
+          ip_src: {strategy: 'inc', range: '10.0.2.1-10.0.2.20', step: 1},
+          ip_dst: {strategy: 'fixed', value: '192.168.1.200'},
+          sport: {strategy: 'fixed', value: 33434},
+          dport: {strategy: 'fixed', value: 33434}
+        },
+        udp: {
+          uplink: {
+            strategy: 'fixed',
+            content: 'ping'
+          },
+          downlink: {
+            strategy: 'fixed',
+            content: 'pong'
+          }
+        },
+        status: 'idle'
+      });
+      
+      // 添加HTTP API示例
+      addSubtask({
+        id: generateUniqueId('http_api'),
+        type: 'http',
+        bps: '200k',
+        rate_limit_fps: 20,
+        tuples: {
+          ip_src: {strategy: 'rand', range: '172.16.0.0/16', seed: 123},
+          ip_dst: {strategy: 'fixed', value: '192.168.1.50'},
+          sport: {strategy: 'inc', range: [30000, 30099], step: 1},
+          dport: {strategy: 'fixed', value: 443}
+        },
+        http: {
+          handshake: true,
+          termination: true,
+          directionless: true,
+          uplink: {dport: 443},
+          sessions_per_flow: {range: [1, 5]},
+          methods: ['GET', 'POST', 'PUT'],
+          domains: {strategy: 'list', list: ['api.example.com', 'v1.api.example.com']},
+          uris: {strategy: 'inc', pattern: '/users/{n}', n_range: [1, 1000]},
+          body: {length_range: [0, 1024]},
+          uplink: {
+            strategy: 'increment',
+            pattern: 'POST /api/users/{n}',
+            start: 1,
+            step: 1
+          },
+          downlink: {
+            strategy: 'random',
+            length: 256
+          }
+        },
+        status: 'idle'
+      });
+      
+      // 设置总流数量
+      getElement('flows_count').value = '100';
+      
+      showToast('已载入示例任务', true);
+      renderSubtasks();
+    }
+    
+    function selectAll(on){ state.selected={}; if(on){ for(var i=0;i<state.subtasks.length;i++){ var id=state.subtasks[i].id||('task_'+(i+1)); state.selected[id]=true; } } renderHeader(); renderSubtasks(); var chk=getElement('chk_all'); if(chk) chk.checked=on; }
+    function toggleAll(el){ if(!el) return; selectAll(el.checked); }
+    function toggleSubtaskBody(i){ var el=getElement('subtask_bd_'+i); if(!el) return; el.className = (el.className.indexOf('hidden')>-1) ? 'subtask-bd' : 'subtask-bd hidden'; }
+    function toggleSelect(id, on){ if(on){ state.selected[id]=true; }else{ delete state.selected[id]; } var allSel = Object.keys(state.selected).length===state.subtasks.length && state.subtasks.length>0; var chk=getElement('chk_all'); if(chk) chk.checked=allSel; }
+
+    // 初始
+    (function(){ 
+      restoreDraft(); 
+      
+      // 如果没有任务数据，添加默认示例
+      if (state.subtasks.length === 0) {
+        // 添加一个默认的TCP任务
+        addSubtask({
+          id: 'default_tcp_task',
+          type: 'tcp',
+          bps: '100k',
+          rate_limit_fps: 10,
+          tuples: {
+            ip_src: {strategy: 'inc', range: '10.0.1.1-10.0.1.10', step: 1},
+            ip_dst: {strategy: 'fixed', value: '192.168.1.100'},
+            sport: {strategy: 'inc', range: [10000, 10009], step: 1},
+            dport: {strategy: 'fixed', value: 80}
+          },
+          tcp: {
+            handshake: true,
+            termination: true,
+            mss: 1460,
+            directionless: true,
+            uplink: {payload_length: 128},
+            downlink: {payload_length: 64}
+          },
+          status: 'idle'
+        });
+      }
+      
+      switchPage('overview'); 
+    })();
+    
+    // 测试函数
+    function testMenuSwitch() {
+      console.log('Testing menu switch...');
+      console.log('Current page:', state.page);
+      console.log('Available sections:', ['overview', 'tasks', 'pcap', 'history', 'settings']);
+      
+      // 测试切换到任务页面
+      switchPage('tasks');
+      console.log('After switch to tasks, current page:', state.page);
+      
+      // 检查DOM元素
+      var tasksSection = document.getElementById('sec_tasks');
+      var overviewSection = document.getElementById('sec_overview');
+      console.log('Tasks section exists:', !!tasksSection);
+      console.log('Tasks section class:', tasksSection ? tasksSection.className : 'N/A');
+      console.log('Overview section class:', overviewSection ? overviewSection.className : 'N/A');
+    }
+  </script>
+</body>
+</html>
+

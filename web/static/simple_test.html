@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>简单功能测试</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+    .success { color: green; }
+    .error { color: red; }
+    button { margin: 5px; padding: 10px; }
+  </style>
+</head>
+<body>
+  <h1>功能模块测试</h1>
+  
+  <div class="test-section">
+    <h2>基本功能测试</h2>
+    <button onclick="testBasic()">测试基本功能</button>
+    <div id="basic-result"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>任务功能测试</h2>
+    <button onclick="testTasks()">测试任务功能</button>
+    <div id="tasks-result"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>页面切换测试</h2>
+    <button onclick="testPageSwitch()">测试页面切换</button>
+    <div id="switch-result"></div>
+  </div>
+
+  <!-- 引入功能模块 -->
+  <script src="common.js"></script>
+  <script src="overview_simple.js"></script>
+  <script src="tasks_simple.js"></script>
+  
+  <script>
+    function testBasic() {
+      var result = document.getElementById('basic-result');
+      try {
+        if (typeof getElement === 'function') {
+          result.innerHTML = '<span class="success">✓ getElement函数正常</span><br>';
+        } else {
+          result.innerHTML = '<span class="error">✗ getElement函数缺失</span><br>';
+          return;
+        }
+        
+        if (typeof showToast === 'function') {
+          result.innerHTML += '<span class="success">✓ showToast函数正常</span><br>';
+        } else {
+          result.innerHTML += '<span class="error">✗ showToast函数缺失</span><br>';
+        }
+        
+        if (typeof switchPage === 'function') {
+          result.innerHTML += '<span class="success">✓ switchPage函数正常</span><br>';
+        } else {
+          result.innerHTML += '<span class="error">✗ switchPage函数缺失</span><br>';
+        }
+        
+        result.innerHTML += '<span class="success">✓ 基本功能测试通过</span>';
+      } catch (e) {
+        result.innerHTML = '<span class="error">✗ 测试失败: ' + e.message + '</span>';
+      }
+    }
+    
+    function testTasks() {
+      var result = document.getElementById('tasks-result');
+      try {
+        if (typeof addSubtask === 'function') {
+          result.innerHTML = '<span class="success">✓ addSubtask函数正常</span><br>';
+        } else {
+          result.innerHTML = '<span class="error">✗ addSubtask函数缺失</span><br>';
+          return;
+        }
+        
+        if (typeof renderSubtasks === 'function') {
+          result.innerHTML += '<span class="success">✓ renderSubtasks函数正常</span><br>';
+        } else {
+          result.innerHTML += '<span class="error">✗ renderSubtasks函数缺失</span><br>';
+        }
+        
+        result.innerHTML += '<span class="success">✓ 任务功能测试通过</span>';
+      } catch (e) {
+        result.innerHTML = '<span class="error">✗ 测试失败: ' + e.message + '</span>';
+      }
+    }
+    
+    function testPageSwitch() {
+      var result = document.getElementById('switch-result');
+      try {
+        var originalPage = state.page;
+        switchPage('tasks');
+        if (state.page === 'tasks') {
+          result.innerHTML = '<span class="success">✓ 页面切换到tasks正常</span><br>';
+        } else {
+          result.innerHTML = '<span class="error">✗ 页面切换异常</span><br>';
+          return;
+        }
+        
+        switchPage('overview');
+        if (state.page === 'overview') {
+          result.innerHTML += '<span class="success">✓ 页面切换到overview正常</span><br>';
+        } else {
+          result.innerHTML += '<span class="error">✗ 页面切换异常</span><br>';
+        }
+        
+        switchPage(originalPage);
+        result.innerHTML += '<span class="success">✓ 页面切换测试通过</span>';
+      } catch (e) {
+        result.innerHTML = '<span class="error">✗ 测试失败: ' + e.message + '</span>';
+      }
+    }
+    
+    // 页面加载完成后自动运行测试
+    window.addEventListener('load', function() {
+      console.log('所有模块加载完成，开始测试...');
+      testBasic();
+    });
+  </script>
+</body>
+</html>

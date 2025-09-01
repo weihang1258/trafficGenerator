@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>调试测试页面</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 20px; 
+      background: #f5f5f5;
+    }
+    .test-section { 
+      margin: 20px 0; 
+      padding: 20px; 
+      border: 1px solid #ddd; 
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .success { color: #22c55e; font-weight: bold; }
+    .error { color: #ef4444; font-weight: bold; }
+    .warning { color: #f59e0b; font-weight: bold; }
+    .info { color: #3b82f6; font-weight: bold; }
+    button { 
+      margin: 5px; 
+      padding: 10px 16px; 
+      border: none;
+      border-radius: 6px;
+      background: #3b82f6;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover { background: #2563eb; }
+    button.danger { background: #ef4444; }
+    button.danger:hover { background: #dc2626; }
+    button.success { background: #22c55e; }
+    button.success:hover { background: #16a34a; }
+    .log { 
+      background: #1f2937; 
+      color: #f9fafb; 
+      padding: 15px; 
+      border-radius: 6px; 
+      font-family: monospace; 
+      font-size: 12px; 
+      max-height: 300px; 
+      overflow-y: auto; 
+      margin-top: 10px;
+    }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin: 15px 0;
+    }
+    .status-item {
+      padding: 15px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .status-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #1f2937;
+    }
+    .status-label {
+      color: #6b7280;
+      font-size: 14px;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚀 流量生成器 - 调试测试页面</h1>
+  
+  <div class="test-section">
+    <h2>📊 系统状态</h2>
+    <div class="status-grid">
+      <div class="status-item">
+        <div class="status-value" id="page_status">-</div>
+        <div class="status-label">当前页面</div>
+      </div>
+      <div class="status-item">
+        <div class="status-value" id="ws_status">-</div>
+        <div class="status-label">WebSocket状态</div>
+      </div>
+      <div class="status-item">
+        <div class="status-value" id="tasks_count">-</div>
+        <div class="status-label">任务数量</div>
+      </div>
+      <div class="status-item">
+        <div class="status-value" id="memory_usage">-</div>
+        <div class="status-label">内存使用</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="test-section">
+    <h2>🧪 功能测试</h2>
+    <button onclick="testBasic()">测试基本功能</button>
+    <button onclick="testTasks()">测试任务功能</button>
+    <button onclick="testPageSwitch()">测试页面切换</button>
+    <button onclick="testToast()">测试Toast提示</button>
+    <button onclick="testWebSocket()">测试WebSocket</button>
+    <button onclick="clearLog()">清空日志</button>
+    <div id="test-results"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>🔧 操作测试</h2>
+    <button onclick="addTestTask()">添加测试任务</button>
+    <button onclick="switchToTasks()">切换到任务页面</button>
+    <button onclick="exportTestConfig()">导出测试配置</button>
+    <button onclick="importTestConfig()">导入测试配置</button>
+    <button onclick="clearAllTasks()" class="danger">清空所有任务</button>
+  </div>
+  
+  <div class="test-section">
+    <h2>📝 调试日志</h2>
+    <div class="log" id="debug-log">系统启动中...</div>
+  </div>
+
+  <!-- 引入功能模块 -->
+  <script src="common.js"></script>
+  <script src="overview_simple.js"></script>
+  <script src="tasks_simple.js"></script>
+  <script src="pcap.js"></script>
+  <script src="history.js"></script>
+  <script src="settings.js"></script>
+  
+  <script>
+    // 调试日志系统
+    function log(message, type = 'info') {
+      var logElement = document.getElementById('debug-log');
+      if (!logElement) return;
+      
+      var timestamp = new Date().toLocaleTimeString();
+      var typeIcon = {
+        'info': 'ℹ️',
+        'success': '✅',
+        'warning': '⚠️',
+        'error': '❌'
+      }[type] || 'ℹ️';
+      
+      var logEntry = document.createElement('div');
+      logEntry.innerHTML = `[${timestamp}] ${typeIcon} ${message}`;
+      logElement.appendChild(logEntry);
+      logElement.scrollTop = logElement.scrollHeight;
+    }
+    
+    function clearLog() {
+      var logElement = document.getElementById('debug-log');
+      if (logElement) {
+        logElement.innerHTML = '日志已清空';
+      }
+    }
+    
+    // 更新状态显示
+    function updateStatus() {
+      var pageStatus = document.getElementById('page_status');
+      var wsStatus = document.getElementById('ws_status');
+      var tasksCount = document.getElementById('tasks_count');
+      var memoryUsage = document.getElementById('memory_usage');
+      
+      if (pageStatus) pageStatus.textContent = state.page || 'unknown';
+      if (wsStatus) {
+        var wsState = state.ws ? state.ws.readyState : 'disconnected';
+        var wsStateText = {
+          0: '连接中',
+          1: '已连接',
+          2: '关闭中',
+          3: '已关闭'
+        }[wsState] || '未知';
+        wsStatus.textContent = wsStateText;
+      }
+      if (tasksCount) tasksCount.textContent = state.subtasks ? state.subtasks.length : 0;
+      if (memoryUsage) {
+        if (performance && performance.memory) {
+          var mb = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+          memoryUsage.textContent = mb + ' MB';
+        } else {
+          memoryUsage.textContent = 'N/A';
+        }
+      }
+    }
+    
+    // 测试基本功能
+    function testBasic() {
+      var result = document.getElementById('test-results');
+      var tests = [];
+      
+      try {
+        // 测试基本函数
+        if (typeof getElement === 'function') {
+          tests.push('✅ getElement函数正常');
+        } else {
+          tests.push('❌ getElement函数缺失');
+        }
+        
+        if (typeof showToast === 'function') {
+          tests.push('✅ showToast函数正常');
+        } else {
+          tests.push('❌ showToast函数缺失');
+        }
+        
+        if (typeof switchPage === 'function') {
+          tests.push('✅ switchPage函数正常');
+        } else {
+          tests.push('❌ switchPage函数缺失');
+        }
+        
+        if (typeof persistDraft === 'function') {
+          tests.push('✅ persistDraft函数正常');
+        } else {
+          tests.push('❌ persistDraft函数缺失');
+        }
+        
+        result.innerHTML = tests.join('<br>');
+        log('基本功能测试完成', 'success');
+      } catch (e) {
+        result.innerHTML = '<span class="error">❌ 测试失败: ' + e.message + '</span>';
+        log('基本功能测试失败: ' + e.message, 'error');
+      }
+    }
+    
+    // 测试任务功能
+    function testTasks() {
+      var result = document.getElementById('test-results');
+      var tests = [];
+      
+      try {
+        if (typeof addSubtask === 'function') {
+          tests.push('✅ addSubtask函数正常');
+        } else {
+          tests.push('❌ addSubtask函数缺失');
+        }
+        
+        if (typeof renderSubtasks === 'function') {
+          tests.push('✅ renderSubtasks函数正常');
+        } else {
+          tests.push('❌ renderSubtasks函数缺失');
+        }
+        
+        if (typeof filterTasks === 'function') {
+          tests.push('✅ filterTasks函数正常');
+        } else {
+          tests.push('❌ filterTasks函数缺失');
+        }
+        
+        result.innerHTML = tests.join('<br>');
+        log('任务功能测试完成', 'success');
+      } catch (e) {
+        result.innerHTML = '<span class="error">❌ 测试失败: ' + e.message + '</span>';
+        log('任务功能测试失败: ' + e.message, 'error');
+      }
+    }
+    
+    // 测试页面切换
+    function testPageSwitch() {
+      var result = document.getElementById('test-results');
+      var tests = [];
+      
+      try {
+        var originalPage = state.page;
+        
+        // 测试切换到tasks
+        switchPage('tasks');
+        if (state.page === 'tasks') {
+          tests.push('✅ 页面切换到tasks正常');
+        } else {
+          tests.push('❌ 页面切换异常');
+        }
+        
+        // 测试切换到overview
+        switchPage('overview');
+        if (state.page === 'overview') {
+          tests.push('✅ 页面切换到overview正常');
+        } else {
+          tests.push('❌ 页面切换异常');
+        }
+        
+        // 恢复原始页面
+        switchPage(originalPage);
+        tests.push('✅ 页面切换测试通过');
+        
+        result.innerHTML = tests.join('<br>');
+        log('页面切换测试完成', 'success');
+      } catch (e) {
+        result.innerHTML = '<span class="error">❌ 测试失败: ' + e.message + '</span>';
+        log('页面切换测试失败: ' + e.message, 'error');
+      }
+    }
+    
+    // 测试Toast提示
+    function testToast() {
+      var result = document.getElementById('test-results');
+      try {
+        showToast('这是一个测试提示', true);
+        result.innerHTML = '<span class="success">✅ Toast提示功能正常</span>';
+        log('Toast测试完成', 'success');
+      } catch (e) {
+        result.innerHTML = '<span class="error">❌ Toast测试失败: ' + e.message + '</span>';
+        log('Toast测试失败: ' + e.message, 'error');
+      }
+    }
+    
+    // 测试WebSocket
+    function testWebSocket() {
+      var result = document.getElementById('test-results');
+      try {
+        ensureWS();
+        result.innerHTML = '<span class="info">ℹ️ WebSocket连接测试已启动</span>';
+        log('WebSocket测试启动', 'info');
+      } catch (e) {
+        result.innerHTML = '<span class="error">❌ WebSocket测试失败: ' + e.message + '</span>';
+        log('WebSocket测试失败: ' + e.message, 'error');
+      }
+    }
+    
+    // 添加测试任务
+    function addTestTask() {
+      try {
+        addSubtask();
+        log('测试任务已添加', 'success');
+        updateStatus();
+      } catch (e) {
+        log('添加测试任务失败: ' + e.message, 'error');
+      }
+    }
+    
+    // 切换到任务页面
+    function switchToTasks() {
+      try {
+        switchPage('tasks');
+        log('已切换到任务页面', 'info');
+        updateStatus();
+      } catch (e) {
+        log('切换页面失败: ' + e.message, 'error');
+      }
+    }
+    
+    // 导出测试配置
+    function exportTestConfig() {
+      try {
+        exportConfig();
+        log('配置导出测试完成', 'success');
+      } catch (e) {
+        log('配置导出失败: ' + e.message, 'error');
+      }
+    }
+    
+    // 导入测试配置
+    function importTestConfig() {
+      try {
+        importConfig();
+        log('配置导入测试启动', 'info');
+      } catch (e) {
+        log('配置导入失败: ' + e.message, 'error');
+      }
+    }
+    
+    // 清空所有任务
+    function clearAllTasks() {
+      if (confirm('确定要清空所有任务吗？此操作不可恢复。')) {
+        try {
+          state.subtasks = [];
+          persistDraft();
+          log('所有任务已清空', 'warning');
+          updateStatus();
+        } catch (e) {
+          log('清空任务失败: ' + e.message, 'error');
+        }
+      }
+    }
+    
+    // 页面加载完成后的初始化
+    window.addEventListener('load', function() {
+      log('页面加载完成，开始初始化...', 'info');
+      
+      // 等待所有模块加载
+      setTimeout(function() {
+        log('所有模块加载完成', 'success');
+        
+        // 自动运行基本测试
+        testBasic();
+        
+        // 开始状态更新
+        setInterval(updateStatus, 1000);
+        updateStatus();
+        
+        log('系统初始化完成，可以开始测试', 'success');
+      }, 500);
+    });
+    
+    // 错误捕获
+    window.addEventListener('error', function(e) {
+      log('JavaScript错误: ' + e.message + ' at ' + e.filename + ':' + e.lineno, 'error');
+    });
+    
+    // 未处理的Promise拒绝
+    window.addEventListener('unhandledrejection', function(e) {
+      log('未处理的Promise拒绝: ' + e.reason, 'error');
+    });
+  </script>
+</body>
+</html>
