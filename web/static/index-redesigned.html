@@ -12,6 +12,31 @@
     <!-- 调试：检查资源加载 -->
     <script>
         console.log('页面开始加载');
+        
+        // 🚨 紧急修复：立即隐藏所有可能的弹窗
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔧 执行紧急弹窗修复...');
+            
+            // 查找并隐藏所有可能的弹窗元素
+            const modals = document.querySelectorAll('[style*="position: fixed"]');
+            modals.forEach(modal => {
+                if (modal.style.zIndex >= 1000) {
+                    modal.style.display = 'none';
+                    console.log('🚫 隐藏了一个弹窗元素');
+                }
+            });
+            
+            // 再次尝试隐藏包含弹窗关键词的元素
+            const allDivs = document.querySelectorAll('div');
+            allDivs.forEach(div => {
+                const style = window.getComputedStyle(div);
+                if (style.position === 'fixed' && style.zIndex >= 1000) {
+                    div.style.display = 'none';
+                    console.log('🚫 强制隐藏了固定定位元素');
+                }
+            });
+        });
+        
         window.addEventListener('load', function() {
             console.log('页面加载完成');
             console.log('Vue:', typeof Vue);
@@ -21,6 +46,13 @@
     <!-- 样式 -->
     <style>
         [v-cloak] { display: none !important; }
+        
+        /* 🚨 紧急修复：强制隐藏弹窗 */
+        .modal-overlay,
+        [style*="position: fixed"][style*="z-index: 1000"],
+        [style*="position:fixed"][style*="z-index:1000"] {
+            display: none !important;
+        }
         
         /* 调试样式 */
         html, body {
@@ -308,6 +340,46 @@
     </style>
 </head>
 <body>
+    <!-- 🚨 紧急关闭弹窗按钮（最高优先级） -->
+    <div id="emergency-close" style="
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 99999;
+        background: #ff0000;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 16px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+    " onclick="emergencyCloseAllModals()">
+        🚨 紧急关闭弹窗
+    </div>
+    
+    <script>
+        function emergencyCloseAllModals() {
+            // 隐藏所有固定定位的元素
+            var elements = document.querySelectorAll('div');
+            for (var i = 0; i < elements.length; i++) {
+                var el = elements[i];
+                var style = window.getComputedStyle(el);
+                if (style.position === 'fixed' && parseInt(style.zIndex) >= 1000 && el.id !== 'emergency-close') {
+                    el.style.display = 'none';
+                }
+            }
+            // 重置Vue状态
+            if (window.vueApp) {
+                window.vueApp.showCreateTask = false;
+                window.vueApp.showCreateStrategy = false;
+            }
+            console.log('🚨 紧急关闭所有弹窗');
+            document.getElementById('emergency-close').style.display = 'none';
+        }
+    </script>
+    
     <div id="app" v-cloak>
         <!-- 顶部导航 -->
         <nav class="top-nav">
@@ -318,6 +390,11 @@
                 <li><a href="#" :class="{active: currentSystem === 'monitor'}" @click="switchSystem('monitor')">性能监控</a></li>
                 <li><a href="#" :class="{active: currentSystem === 'settings'}" @click="switchSystem('settings')">系统设置</a></li>
             </ul>
+            <!-- 紧急重置按钮 -->
+            <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
+                <button class="btn" @click="resetModalStates()" title="重置弹窗状态" style="padding: 4px 8px; font-size: 12px;">🔄 重置</button>
+                <button class="btn" @click="checkModalStates()" title="检查弹窗状态" style="padding: 4px 8px; font-size: 12px;">🔍 检查</button>
+            </div>
         </nav>
 
         <div class="app-container">
@@ -511,7 +588,7 @@
         </div>
 
         <!-- 创建策略弹窗 -->
-        <div v-show="showCreateStrategy" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+        <div v-if="showCreateStrategy" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
             <div style="background: var(--bg-secondary); border-radius: 8px; padding: 24px; width: 800px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--bg-tertiary);">
                 <h3>📋 新建策略</h3>
                 
@@ -680,7 +757,7 @@
     </div>
 
     <!-- 任务创建弹窗 -->
-    <div v-show="showCreateTask" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+    <div v-if="showCreateTask" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
         <div style="background: var(--bg-secondary); border-radius: 8px; padding: 24px; width: 900px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--bg-tertiary);">
             <h3>🏃 新建任务</h3>
             
@@ -848,7 +925,7 @@
     </div>
 
     <script>
-        console.log('脚本开始执行');
+        console.log('🔧 脚本开始执行');
         
         // 检查Vue是否加载
         if (typeof Vue === 'undefined') {
@@ -860,13 +937,22 @@
         
         const { createApp } = Vue;
         
+        // 🚨 在创建应用之前就强制设置初始值
+        const FORCE_MODAL_STATE = {
+            showCreateTask: false,
+            showCreateStrategy: false
+        };
+        
+        console.log('🔒 强制设置弹窗状态:', FORCE_MODAL_STATE);
+        
         const app = createApp({
             data() {
-                return {
+                console.log('📋 Vue data() 初始化中...');
+                const initialData = {
                     currentSystem: 'traffic',
                     currentPage: 'dashboard',
-                    showCreateStrategy: false,
-                    showCreateTask: false,
+                    showCreateStrategy: FORCE_MODAL_STATE.showCreateStrategy, // 强制false
+                    showCreateTask: FORCE_MODAL_STATE.showCreateTask,  // 强制false
                     strategyFilter: '',
                     selectedStrategies: [],
                     selectedTasks: [],
@@ -1016,7 +1102,14 @@
                             dataSize: '856MB'
                         }
                     ]
-                }
+                };
+                
+                console.log('✅ 初始数据设置完成:', {
+                    showCreateTask: initialData.showCreateTask,
+                    showCreateStrategy: initialData.showCreateStrategy
+                });
+                
+                return initialData;
             },
             
             computed: {
@@ -1032,6 +1125,31 @@
                     return this.strategies.filter(s => 
                         s.enabled && s.name.toLowerCase().includes(this.taskStrategyFilter.toLowerCase())
                     );
+                }
+            },
+            
+            watch: {
+                showCreateTask(newVal, oldVal) {
+                    console.log('🔍 showCreateTask 变化:', {
+                        from: oldVal,
+                        to: newVal,
+                        timestamp: new Date().toISOString()
+                    });
+                    if (newVal === true) {
+                        console.warn('⚠️ 警告: showCreateTask 被设置为 true! 这可能不是期望的行为');
+                        console.trace('调用堆栈:');
+                    }
+                },
+                showCreateStrategy(newVal, oldVal) {
+                    console.log('🔍 showCreateStrategy 变化:', {
+                        from: oldVal,
+                        to: newVal,
+                        timestamp: new Date().toISOString()
+                    });
+                    if (newVal === true) {
+                        console.warn('⚠️ 警告: showCreateStrategy 被设置为 true! 这可能不是期望的行为');
+                        console.trace('调用堆栈:');
+                    }
                 }
             },
             
@@ -1596,12 +1714,47 @@
                             });
                         }
                     }
+                },
+                
+                // 手动重置弹窗状态（用于调试）
+                resetModalStates() {
+                    this.showCreateTask = false;
+                    this.showCreateStrategy = false;
+                    console.log('弹窗状态已重置');
+                },
+                
+                // 检查弹窗状态（用于调试）
+                checkModalStates() {
+                    console.log('当前弹窗状态:', {
+                        showCreateTask: this.showCreateTask,
+                        showCreateStrategy: this.showCreateStrategy
+                    });
                 }
             },
             
             mounted() {
                 // 初始化应用
-                console.log('Vue应用挂载成功');
+                console.log('🚀 Vue应用挂载成功');
+                
+                // 确保弹窗状态正确初始化
+                this.showCreateTask = false;
+                this.showCreateStrategy = false;
+                console.log('✅ 弹窗状态已重置:', {
+                    showCreateTask: this.showCreateTask,
+                    showCreateStrategy: this.showCreateStrategy
+                });
+                
+                // 双重检查：延迟1秒后再次检查
+                setTimeout(() => {
+                    if (this.showCreateTask || this.showCreateStrategy) {
+                        console.error('❌ 发现弹窗状态异常！强制重置...');
+                        this.showCreateTask = false;
+                        this.showCreateStrategy = false;
+                    } else {
+                        console.log('✅ 弹窗状态正常');
+                    }
+                }, 1000);
+                
                 this.initWebSocket();
                 this.loadSystemStatus();
                 
@@ -1628,9 +1781,27 @@
         
         try {
             app.mount('#app');
-            console.log('Vue应用挂载成功');
+            console.log('✅ Vue应用挂载成功');
+            
+            // 全局紧急重置函数（可在控制台调用）
+            window.emergencyResetModals = function() {
+                if (window.vueApp && window.vueApp.$data) {
+                    window.vueApp.$data.showCreateTask = false;
+                    window.vueApp.$data.showCreateStrategy = false;
+                    console.log('🚑 紧急重置完成');
+                } else {
+                    console.error('❌ Vue应用实例未找到');
+                }
+            };
+            
+            // 保存Vue应用实例到全局
+            const vueInstance = app._instance;
+            if (vueInstance) {
+                window.vueApp = vueInstance.proxy;
+                console.log('🔗 Vue应用实例已保存到 window.vueApp');
+            }
         } catch (error) {
-            console.error('Vue应用挂载失败:', error);
+            console.error('❌ Vue应用挂载失败:', error);
             document.body.innerHTML = '<div style="color: white; padding: 20px; background: #f00;">Vue应用挂载失败: ' + error.message + '</div>';
         }
     </script>
