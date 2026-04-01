@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trafficgen
+  labels:
+    app: trafficgen
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trafficgen
+  template:
+    metadata:
+      labels:
+        app: trafficgen
+    spec:
+      containers:
+      - name: trafficgen
+        image: trafficgen:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: TZ
+          value: "Asia/Shanghai"
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        volumeMounts:
+        - name: config
+          mountPath: /app/configs
+          readOnly: true
+        - name: data
+          mountPath: /app/data
+        securityContext:
+          capabilities:
+            add:
+            - NET_RAW
+            - NET_ADMIN
+      volumes:
+      - name: config
+        configMap:
+          name: trafficgen-config
+      - name: data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trafficgen
+  labels:
+    app: trafficgen
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: trafficgen
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trafficgen-config
+data:
+  config.yaml: |
+    server:
+      host: "0.0.0.0"
+      port: 8080
+      mode: "release"
+
+    database:
+      type: "sqlite"
+      sqlite:
+        path: "/app/data/trafficgen.db"
+      pool:
+        max_open: 100
+        max_idle: 10
+        conn_lifetime: "1h"
+
+    redis:
+      enabled: false
+
+    engine:
+      config_workers: 4
+      packet_workers: 8
+      output_workers: 4
+      buffer_size: 4096
+      queue_size: 1024
+
+    logging:
+      level: "info"
+      format: "json"
+      output: "stdout"
+
+    jwt:
+      secret: "change-me-in-production"
+      issuer: "trafficgen"
+      expiry: "24h"
+
+    metrics:
+      enabled: true
+      path: "/metrics"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: trafficgen
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: trafficgen.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: trafficgen
+            port:
+              number: 8080

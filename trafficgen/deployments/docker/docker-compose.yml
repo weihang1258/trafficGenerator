@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  trafficgen:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - trafficgen-net
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: trafficgen
+      POSTGRES_PASSWORD: trafficgen123
+      POSTGRES_DB: trafficgen
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - trafficgen-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - trafficgen-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - trafficgen-net
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - trafficgen-net
+
+volumes:
+  postgres-data:
+  redis-data:
+  grafana-data:
+
+networks:
+  trafficgen-net:
+    driver: bridge
