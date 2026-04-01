@@ -1,0 +1,577 @@
+openapi: 3.0.3
+info:
+  title: Traffic Generator API
+  description: High-performance network traffic generator API
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@trafficgen.local
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development server
+
+tags:
+  - name: Tasks
+    description: Task management operations
+  - name: Strategies
+    description: Strategy management operations
+  - name: System
+    description: System information and status
+  - name: Interfaces
+    description: Network interface management
+  - name: Auth
+    description: Authentication operations
+
+paths:
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [created, running, paused, completed, failed]
+        - name: protocol
+          in: query
+          schema:
+            type: string
+            enum: [tcp, udp, http, dns, icmp, arp]
+      responses:
+        '200':
+          description: Task list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTasksResponse'
+    post:
+      tags: [Tasks]
+      summary: Create a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTaskResponse'
+
+  /tasks/{id}:
+    get:
+      tags: [Tasks]
+      summary: Get task by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '404':
+          description: Task not found
+    delete:
+      tags: [Tasks]
+      summary: Delete a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task deleted
+
+  /tasks/{id}/start:
+    post:
+      tags: [Tasks]
+      summary: Start a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task started
+        '409':
+          description: Task already running
+
+  /tasks/{id}/stop:
+    post:
+      tags: [Tasks]
+      summary: Stop a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task stopped
+        '409':
+          description: Task not running
+
+  /strategies:
+    get:
+      tags: [Strategies]
+      summary: List strategies
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Strategy list
+    post:
+      tags: [Strategies]
+      summary: Create a strategy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStrategyRequest'
+      responses:
+        '201':
+          description: Strategy created
+
+  /strategies/{id}:
+    get:
+      tags: [Strategies]
+      summary: Get strategy by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Strategy details
+    put:
+      tags: [Strategies]
+      summary: Update a strategy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStrategyRequest'
+      responses:
+        '200':
+          description: Strategy updated
+    delete:
+      tags: [Strategies]
+      summary: Delete a strategy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Strategy deleted
+
+  /system/status:
+    get:
+      tags: [System]
+      summary: Get system status
+      responses:
+        '200':
+          description: System status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+
+  /system/protocols:
+    get:
+      tags: [System]
+      summary: Get supported protocols
+      responses:
+        '200':
+          description: Protocol list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /interfaces:
+    get:
+      tags: [Interfaces]
+      summary: List network interfaces
+      responses:
+        '200':
+          description: Interface list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Interface'
+
+  /interfaces/discover:
+    post:
+      tags: [Interfaces]
+      summary: Discover network interfaces
+      responses:
+        '200':
+          description: Discovery started
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      responses:
+        '200':
+          description: Logout successful
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+
+  /ready:
+    get:
+      summary: Readiness check
+      responses:
+        '200':
+          description: Ready
+        '503':
+          description: Not ready
+
+components:
+  schemas:
+    TaskResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        protocol:
+          type: string
+        status:
+          type: string
+          enum: [created, running, paused, completed, failed]
+        progress:
+          type: number
+        stats:
+          $ref: '#/components/schemas/TaskStats'
+        created_at:
+          type: integer
+        started_at:
+          type: integer
+        completed_at:
+          type: integer
+        error:
+          type: string
+
+    TaskStats:
+      type: object
+      properties:
+        packets_sent:
+          type: integer
+        bytes_sent:
+          type: integer
+        flows_count:
+          type: integer
+        current_pps:
+          type: number
+        current_bps:
+          type: number
+
+    ListTasksResponse:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskResponse'
+        total:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+
+    CreateTaskRequest:
+      type: object
+      required:
+        - name
+        - protocol
+        - spec
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        protocol:
+          type: string
+          enum: [tcp, udp, http, dns, icmp, arp]
+        spec:
+          $ref: '#/components/schemas/FlowSpec'
+        interface:
+          type: string
+        output_mode:
+          type: string
+          enum: [interface, pcap, both]
+        pcap_file:
+          type: string
+
+    CreateTaskResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+        message:
+          type: string
+
+    FlowSpec:
+      type: object
+      properties:
+        src_ip:
+          type: string
+        dst_ip:
+          type: string
+        src_port:
+          type: integer
+        dst_port:
+          type: integer
+        src_mac:
+          type: string
+        dst_mac:
+          type: string
+        tcp:
+          $ref: '#/components/schemas/TCPConfig'
+        udp:
+          $ref: '#/components/schemas/UDPConfig'
+        http:
+          $ref: '#/components/schemas/HTTPConfig'
+        dns:
+          $ref: '#/components/schemas/DNSConfig'
+        icmp:
+          $ref: '#/components/schemas/ICMPConfig'
+        payload:
+          type: string
+        count:
+          type: integer
+
+    TCPConfig:
+      type: object
+      properties:
+        handshake:
+          type: boolean
+        termination:
+          type: boolean
+        mss:
+          type: integer
+        window_size:
+          type: integer
+
+    UDPConfig:
+      type: object
+      properties:
+        response:
+          type: boolean
+
+    HTTPConfig:
+      type: object
+      properties:
+        method:
+          type: string
+        uri:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        body:
+          type: string
+        keep_alive:
+          type: boolean
+        transactions:
+          type: integer
+        think_time:
+          type: integer
+
+    DNSConfig:
+      type: object
+      properties:
+        domain:
+          type: string
+        query_type:
+          type: integer
+        response:
+          type: boolean
+        response_ip:
+          type: string
+
+    ICMPConfig:
+      type: object
+      properties:
+        type:
+          type: integer
+        code:
+          type: integer
+        sequence:
+          type: integer
+        data:
+          type: string
+
+    CreateStrategyRequest:
+      type: object
+      required:
+        - name
+        - protocol
+      properties:
+        name:
+          type: string
+        protocol:
+          type: string
+        config:
+          type: object
+
+    UpdateStrategyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        config:
+          type: object
+
+    SystemStatus:
+      type: object
+      properties:
+        running:
+          type: boolean
+        cpu_usage:
+          type: number
+        memory_mb:
+          type: number
+        active_tasks:
+          type: integer
+        buffer_status:
+          type: object
+        uptime:
+          type: integer
+
+    Interface:
+      type: object
+      properties:
+        name:
+          type: string
+        mac:
+          type: string
+        ip:
+          type: string
+        is_up:
+          type: boolean
+        link_up:
+          type: boolean
+        mtu:
+          type: integer
+        description:
+          type: string
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        expires_at:
+          type: integer
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
