@@ -41,6 +41,38 @@ WS /ws/tasks/{task_id}
 - `error`: 错误通知
 - `completed`: 任务完成
 
+### 错误消息格式
+
+```json
+{
+  "type": "error",
+  "data": {
+    "task_id": "task-123",
+    "error_code": "PORT_CONFLICT",
+    "error_message": "Port 8080 already in use",
+    "timestamp": "2026-04-01T10:00:00Z"
+  }
+}
+```
+
+### 完成消息格式
+
+```json
+{
+  "type": "completed",
+  "data": {
+    "task_id": "task-123",
+    "status": "completed",
+    "final_stats": {
+      "packets_sent": 1000000,
+      "bytes_sent": 1500000000,
+      "duration_seconds": 60
+    },
+    "timestamp": "2026-04-01T10:01:00Z"
+  }
+}
+```
+
 ---
 
 ## 3. 实现
