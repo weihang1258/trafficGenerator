@@ -68,15 +68,86 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 ---
 
-## 4. 前端使用
+## 4. 心跳机制
+
+```go
+// internal/api/websocket/heartbeat.go
+const (
+    pingInterval = 30 * time.Second
+    pongTimeout  = 10 * time.Second
+)
+
+func HandleWebSocketWithHeartbeat(conn *websocket.Conn, taskID string) {
+    conn.SetReadDeadline(time.Now().Add(pongTimeout))
+    conn.SetPongHandler(func(string) error {
+        conn.SetReadDeadline(time.Now().Add(pongTimeout))
+        return nil
+    })
+    
+    ticker := time.NewTicker(pingInterval)
+    defer ticker.Stop()
+    
+    go func() {
+        for range ticker.C {
+            if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+                return
+            }
+        }
+    }()
+    
+    // 发送数据...
+}
+```
+
+---
+
+## 5. 前端使用（含重连）
 
 ```typescript
-const ws = new WebSocket(`ws://localhost:8080/ws/tasks/${taskId}`)
-
-ws.onmessage = (event) => {
-  const msg = JSON.parse(event.data)
-  if (msg.type === 'status_update') {
-    updateUI(msg.data)
+class TaskWebSocket {
+  private ws: WebSocket | null = null
+  private reconnectAttempts = 0
+  private maxReconnectAttempts = 5
+  private reconnectDelay = 5000
+  
+  connect(taskId: string) {
+    this.ws = new WebSocket(`ws://localhost:8080/ws/tasks/${taskId}`)
+    
+    this.ws.onopen = () => {
+      console.log('WebSocket connected')
+      this.reconnectAttempts = 0
+    }
+    
+    this.ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data)
+      if (msg.type === 'status_update') {
+        this.updateUI(msg.data)
+      }
+    }
+    
+    this.ws.onerror = (error) => {
+      console.error('WebSocket error:', error)
+    }
+    
+    this.ws.onclose = () => {
+      console.log('WebSocket closed')
+      this.reconnect(taskId)
+    }
+  }
+  
+  private reconnect(taskId: string) {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.reconnectAttempts++
+      console.log(`Reconnecting... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
+      setTimeout(() => this.connect(taskId), this.reconnectDelay)
+    }
+  }
+  
+  disconnect() {
+    if (this.ws) {
+      this.ws.close()
+      this.ws = null
+    }
   }
 }
 ```
