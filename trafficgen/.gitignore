@@ -1,0 +1,17 @@
+bin/
+data/
+logs/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+.idea/
+.vscode/
+*.swp
+*.swo
+.env
+trafficgen
