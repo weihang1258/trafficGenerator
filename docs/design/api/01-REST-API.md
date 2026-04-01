@@ -140,7 +140,79 @@ Response:
 
 ---
 
-## 5. 错误码
+## 5. 监控接口
+
+### 获取Prometheus指标
+```
+GET /api/v1/metrics
+
+Response: 200 (Prometheus格式)
+# HELP traffic_gen_packets_total Total packets generated
+# TYPE traffic_gen_packets_total counter
+traffic_gen_packets_total{protocol="tcp"} 1234567
+```
+
+### 健康检查
+```
+GET /health
+
+Response: 200
+{
+  "status": "healthy"
+}
+```
+
+### 就绪检查
+```
+GET /ready
+
+Response: 200
+{
+  "status": "ready",
+  "database": "connected",
+  "redis": "connected"
+}
+```
+
+---
+
+## 6. 系统配置
+
+### 获取配置
+```
+GET /api/v1/settings
+
+Response: 200
+{
+  "code": 0,
+  "data": {
+    "max_tasks": 100,
+    "buffer_size": 2048,
+    "log_level": "info"
+  }
+}
+```
+
+### 更新配置
+```
+PUT /api/v1/settings
+
+Request:
+{
+  "log_level": "debug",
+  "max_tasks": 200
+}
+
+Response: 200
+{
+  "code": 0,
+  "message": "Settings updated"
+}
+```
+
+---
+
+## 7. 错误码
 
 ```go
 const (
