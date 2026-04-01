@@ -1,11 +1,9 @@
-// Package builder builds binary packets from configurations.
-package builder
+// Package core provides core functionality.
+package core
 
 import (
 	"encoding/binary"
 	"net"
-
-	"github.com/trafficgen/trafficgen/internal/core"
 )
 
 const (
@@ -27,7 +25,7 @@ func NewBuilder() *Builder {
 }
 
 // Build builds a binary packet from a PacketConfig.
-func (b *Builder) Build(config core.PacketConfig) ([]byte, error) {
+func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 	// Build bottom-up: L4 -> L3 -> L2
 
 	var packet []byte
@@ -52,7 +50,7 @@ func (b *Builder) Build(config core.PacketConfig) ([]byte, error) {
 }
 
 // buildL2 builds the Ethernet header.
-func (b *Builder) buildL2(config core.PacketConfig, payloadLen int) []byte {
+func (b *Builder) buildL2(config PacketConfig, payloadLen int) []byte {
 	header := make([]byte, 14) // Ethernet header is 14 bytes
 
 	// Destination MAC
@@ -95,7 +93,7 @@ func (b *Builder) buildL2(config core.PacketConfig, payloadLen int) []byte {
 }
 
 // buildL3 builds the IPv4 header.
-func (b *Builder) buildL3(config core.PacketConfig, payloadLen int) []byte {
+func (b *Builder) buildL3(config PacketConfig, payloadLen int) []byte {
 	header := make([]byte, 20) // IPv4 header is 20 bytes minimum
 
 	// Version (4) and IHL (5, 20 bytes / 4)
@@ -153,7 +151,7 @@ func (b *Builder) buildL3(config core.PacketConfig, payloadLen int) []byte {
 }
 
 // buildL4 builds the L4 header (TCP/UDP/ICMP).
-func (b *Builder) buildL4(config core.PacketConfig) []byte {
+func (b *Builder) buildL4(config PacketConfig) []byte {
 	switch config.L4.Protocol {
 	case "tcp":
 		return b.buildTCP(config)
@@ -167,7 +165,7 @@ func (b *Builder) buildL4(config core.PacketConfig) []byte {
 }
 
 // buildTCP builds the TCP header.
-func (b *Builder) buildTCP(config core.PacketConfig) []byte {
+func (b *Builder) buildTCP(config PacketConfig) []byte {
 	header := make([]byte, 20) // TCP header is 20 bytes minimum
 
 	// Source port
@@ -203,7 +201,7 @@ func (b *Builder) buildTCP(config core.PacketConfig) []byte {
 }
 
 // buildUDP builds the UDP header.
-func (b *Builder) buildUDP(config core.PacketConfig) []byte {
+func (b *Builder) buildUDP(config PacketConfig) []byte {
 	header := make([]byte, 8) // UDP header is 8 bytes
 
 	// Source port
@@ -224,7 +222,7 @@ func (b *Builder) buildUDP(config core.PacketConfig) []byte {
 }
 
 // buildICMP builds the ICMP header (payload already contains ICMP data).
-func (b *Builder) buildICMP(config core.PacketConfig) []byte {
+func (b *Builder) buildICMP(config PacketConfig) []byte {
 	// ICMP header is part of the payload in our design
 	// This returns empty as ICMP data is in Payload
 	return nil
@@ -245,7 +243,7 @@ func calculateIPChecksum(header []byte) uint16 {
 }
 
 // calculateTCPChecksum calculates the TCP checksum with pseudo-header.
-func calculateTCPChecksum(config core.PacketConfig, header, payload []byte) uint16 {
+func calculateTCPChecksum(config PacketConfig, header, payload []byte) uint16 {
 	// Build pseudo-header
 	pseudoHeader := make([]byte, 12)
 
@@ -310,7 +308,7 @@ func calculateTCPChecksum(config core.PacketConfig, header, payload []byte) uint
 }
 
 // calculateUDPChecksum calculates the UDP checksum with pseudo-header.
-func calculateUDPChecksum(config core.PacketConfig, payload []byte) uint16 {
+func calculateUDPChecksum(config PacketConfig, payload []byte) uint16 {
 	// Build pseudo-header
 	pseudoHeader := make([]byte, 12)
 
