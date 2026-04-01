@@ -16,6 +16,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/output"
 	"github.com/trafficgen/trafficgen/internal/protocol"
+	"github.com/trafficgen/trafficgen/internal/protocol/arp"
 	"github.com/trafficgen/trafficgen/internal/protocol/dns"
 	"github.com/trafficgen/trafficgen/internal/protocol/http"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
@@ -187,6 +188,7 @@ func (app *Application) initEngine() error {
 	protocol.Register(http.NewPlanner())
 	protocol.Register(dns.NewPlanner())
 	protocol.Register(icmp.NewPlanner())
+	protocol.Register(arp.NewPlanner())
 
 	zap.L().Info("protocols registered",
 		zap.Strings("protocols", protocol.List()),
