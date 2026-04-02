@@ -77,6 +77,9 @@ func Init(cfg Config) error {
 	Log = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
 	Sugar = Log.Sugar()
 
+	// Replace global zap logger so zap.L() works
+	zap.ReplaceGlobals(Log)
+
 	return nil
 }
 

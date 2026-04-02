@@ -68,6 +68,15 @@ func (e *Engine) RegisterPlanner(planner ProtocolPlanner) {
 	e.planners[planner.Name()] = planner
 }
 
+// ListProtocols returns all registered protocol names.
+func (e *Engine) ListProtocols() []string {
+	names := make([]string, 0, len(e.planners))
+	for name := range e.planners {
+		names = append(names, name)
+	}
+	return names
+}
+
 // SetBuildFunc sets the packet building function.
 func (e *Engine) SetBuildFunc(fn func(PacketConfig) ([]byte, error)) {
 	e.buildFunc = fn

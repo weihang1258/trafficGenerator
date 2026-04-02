@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	sqlite "github.com/glebarez/sqlite" // pure Go SQLite driver
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 

@@ -15,7 +15,6 @@ import (
 	"github.com/trafficgen/trafficgen/internal/api/websocket"
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/output"
-	"github.com/trafficgen/trafficgen/internal/protocol"
 	"github.com/trafficgen/trafficgen/internal/protocol/arp"
 	"github.com/trafficgen/trafficgen/internal/protocol/dns"
 	httpprotocol "github.com/trafficgen/trafficgen/internal/protocol/http"
@@ -182,16 +181,16 @@ func (app *Application) initEngine() error {
 		MaxBufferBytes: 100 * 1024 * 1024, // 100MB
 	})
 
-	// Register protocol planners
-	protocol.Register(tcp.NewPlanner())
-	protocol.Register(udp.NewPlanner())
-	protocol.Register(httpprotocol.NewPlanner())
-	protocol.Register(dns.NewPlanner())
-	protocol.Register(icmp.NewPlanner())
-	protocol.Register(arp.NewPlanner())
+	// Register protocol planners directly to engine
+	app.engine.RegisterPlanner(tcp.NewPlanner())
+	app.engine.RegisterPlanner(udp.NewPlanner())
+	app.engine.RegisterPlanner(httpprotocol.NewPlanner())
+	app.engine.RegisterPlanner(dns.NewPlanner())
+	app.engine.RegisterPlanner(icmp.NewPlanner())
+	app.engine.RegisterPlanner(arp.NewPlanner())
 
 	zap.L().Info("protocols registered",
-		zap.Strings("protocols", protocol.List()),
+		zap.Strings("protocols", app.engine.ListProtocols()),
 	)
 
 	// Set packet builder

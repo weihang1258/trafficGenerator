@@ -8,6 +8,15 @@ import (
 	"go.uber.org/zap"
 )
 
+// Helper function to get planner keys for logging
+func getPlannerKeys(m map[string]ProtocolPlanner) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // ProtocolPlanner defines the interface for protocol-specific planning.
 type ProtocolPlanner interface {
 	// Name returns the protocol name.
@@ -89,11 +98,18 @@ func (w *ConfigWorker) run() {
 
 // processTask processes a single task.
 func (w *ConfigWorker) processTask(task Task) {
+	zap.L().Info("processing task",
+		zap.String("task_id", task.ID),
+		zap.String("protocol", task.Protocol),
+		zap.Int("planners_count", len(w.planners)),
+	)
+
 	planner, ok := w.planners[task.Protocol]
 	if !ok {
 		zap.L().Error("unknown protocol",
 			zap.String("task_id", task.ID),
 			zap.String("protocol", task.Protocol),
+			zap.Any("available_protocols", getPlannerKeys(w.planners)),
 		)
 		atomic.AddInt64(&w.stats.Errors, 1)
 		return
@@ -123,6 +139,9 @@ func (w *ConfigWorker) processTask(task Task) {
 	// Forward configs to packet workers
 	for config := range configChan {
 		config.ClassID = task.ClassID
+		if config.Metadata == nil {
+			config.Metadata = make(map[string]interface{})
+		}
 		config.Metadata["task_id"] = task.ID
 		config.Metadata["interface"] = task.Interface
 
