@@ -212,7 +212,7 @@ func (app *Application) initWebSocket() {
 
 // initServer initializes the API server.
 func (app *Application) initServer() error {
-	app.server = rest.NewServer(app.config, app.engine)
+	app.server = rest.NewServer(app.config, app.engine, app.wsHandler, app.db, app.ifaceMgr)
 	return app.server.Setup()
 }
 

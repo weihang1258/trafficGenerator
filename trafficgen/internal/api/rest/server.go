@@ -2,29 +2,41 @@ package rest
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/trafficgen/trafficgen/internal/api/websocket"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/config"
+	"github.com/trafficgen/trafficgen/pkg/netif"
 )
 
 // Server represents the REST API server.
 type Server struct {
 	config     *config.Config
 	engine     *core.Engine
+	db         *storage.DB
+	ifaceMgr   *netif.Manager
 	httpServer *http.Server
 	router     *gin.Engine
+	wsHandler  *websocket.Handler
 }
 
 // NewServer creates a new REST API server.
-func NewServer(cfg *config.Config, engine *core.Engine) *Server {
+func NewServer(cfg *config.Config, engine *core.Engine, wsHandler *websocket.Handler, db *storage.DB, ifaceMgr *netif.Manager) *Server {
 	return &Server{
-		config: cfg,
-		engine: engine,
+		config:    cfg,
+		engine:    engine,
+		wsHandler: wsHandler,
+		db:        db,
+		ifaceMgr:  ifaceMgr,
 	}
 }
 
@@ -63,6 +75,11 @@ func (s *Server) setupRoutes() {
 	// Health endpoints (no auth required)
 	s.router.GET("/health", systemHandler.HealthCheck)
 	s.router.GET("/ready", systemHandler.ReadyCheck)
+
+	// WebSocket endpoint
+	if s.wsHandler != nil {
+		s.router.GET("/ws", s.wsHandler.Handle)
+	}
 
 	// Prometheus metrics
 	if s.config.Metrics.Enabled {
@@ -193,14 +210,49 @@ func LoggerMiddleware() gin.HandlerFunc {
 	}
 }
 
-// Placeholder handlers for routes not yet implemented
+// Interface handlers
 
 func (s *Server) listInterfaces(c *gin.Context) {
-	Success(c, []InterfaceResponse{})
+	if s.ifaceMgr == nil {
+		Success(c, []InterfaceResponse{})
+		return
+	}
+
+	interfaces := s.ifaceMgr.List()
+	result := make([]InterfaceResponse, len(interfaces))
+	for i, iface := range interfaces {
+		ip := ""
+		if len(iface.IPs) > 0 {
+			ip = iface.IPs[0].String()
+		}
+		result[i] = InterfaceResponse{
+			Name:        iface.Name,
+			MAC:         iface.MAC.String(),
+			IP:          ip,
+			IsUp:        iface.IsUp,
+			LinkUp:      iface.LinkUp,
+			MTU:         iface.MTU,
+			Description: iface.Description,
+		}
+	}
+
+	Success(c, result)
 }
 
 func (s *Server) discoverInterfaces(c *gin.Context) {
-	SuccessWithMessage(c, "discovery started", nil)
+	if s.ifaceMgr == nil {
+		InternalError(c, "interface manager not initialized")
+		return
+	}
+
+	if err := s.ifaceMgr.Refresh(); err != nil {
+		InternalError(c, "failed to discover interfaces: "+err.Error())
+		return
+	}
+
+	SuccessWithMessage(c, "discovery completed", map[string]int{
+		"count": len(s.ifaceMgr.List()),
+	})
 }
 
 func (s *Server) createStrategy(c *gin.Context) {
@@ -209,22 +261,112 @@ func (s *Server) createStrategy(c *gin.Context) {
 		BadRequest(c, "invalid request: "+err.Error())
 		return
 	}
-	Created(c, map[string]string{"id": "strategy-1"})
+
+	// Generate ID
+	b := make([]byte, 8)
+	rand.Read(b)
+	id := "strategy-" + hex.EncodeToString(b)
+
+	// Serialize config
+	configJSON, _ := json.Marshal(req.Config)
+
+	strategy := &storage.StrategyModel{
+		ID:       id,
+		Name:     req.Name,
+		Protocol: req.Protocol,
+		Config:   string(configJSON),
+	}
+
+	if err := s.db.Create(strategy).Error; err != nil {
+		InternalError(c, "failed to create strategy: "+err.Error())
+		return
+	}
+
+	Created(c, map[string]string{"id": id})
 }
 
 func (s *Server) listStrategies(c *gin.Context) {
-	Success(c, []StrategyResponse{})
+	var strategies []storage.StrategyModel
+	if err := s.db.Find(&strategies).Error; err != nil {
+		InternalError(c, "failed to list strategies: "+err.Error())
+		return
+	}
+
+	result := make([]StrategyResponse, len(strategies))
+	for i, s := range strategies {
+		var config map[string]interface{}
+		json.Unmarshal([]byte(s.Config), &config)
+		result[i] = StrategyResponse{
+			ID:        s.ID,
+			Name:      s.Name,
+			Protocol:  s.Protocol,
+			Config:    config,
+			CreatedAt: s.CreatedAt.Unix(),
+			UpdatedAt: s.UpdatedAt.Unix(),
+		}
+	}
+
+	Success(c, result)
 }
 
 func (s *Server) getStrategy(c *gin.Context) {
-	NotFound(c, "strategy not found")
+	id := c.Param("id")
+
+	var strategy storage.StrategyModel
+	if err := s.db.First(&strategy, "id = ?", id).Error; err != nil {
+		NotFound(c, "strategy not found")
+		return
+	}
+
+	var config map[string]interface{}
+	json.Unmarshal([]byte(strategy.Config), &config)
+
+	Success(c, StrategyResponse{
+		ID:        strategy.ID,
+		Name:      strategy.Name,
+		Protocol:  strategy.Protocol,
+		Config:    config,
+		CreatedAt: strategy.CreatedAt.Unix(),
+		UpdatedAt: strategy.UpdatedAt.Unix(),
+	})
 }
 
 func (s *Server) updateStrategy(c *gin.Context) {
-	NotFound(c, "strategy not found")
+	id := c.Param("id")
+
+	var strategy storage.StrategyModel
+	if err := s.db.First(&strategy, "id = ?", id).Error; err != nil {
+		NotFound(c, "strategy not found")
+		return
+	}
+
+	var req CreateStrategyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, "invalid request: "+err.Error())
+		return
+	}
+
+	configJSON, _ := json.Marshal(req.Config)
+	strategy.Name = req.Name
+	strategy.Protocol = req.Protocol
+	strategy.Config = string(configJSON)
+
+	if err := s.db.Save(&strategy).Error; err != nil {
+		InternalError(c, "failed to update strategy: "+err.Error())
+		return
+	}
+
+	SuccessWithMessage(c, "strategy updated", nil)
 }
 
 func (s *Server) deleteStrategy(c *gin.Context) {
+	id := c.Param("id")
+
+	if err := s.db.Delete(&storage.StrategyModel{}, "id = ?", id).Error; err != nil {
+		InternalError(c, "failed to delete strategy: "+err.Error())
+		return
+	}
+
 	SuccessWithMessage(c, "strategy deleted", nil)
 }
 
