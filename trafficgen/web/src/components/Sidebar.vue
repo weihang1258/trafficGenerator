@@ -9,36 +9,36 @@
     >
       <el-menu-item index="/dashboard">
         <el-icon><Odometer /></el-icon>
-        <span>仪表盘</span>
+        <span>{{ t('menu.dashboard') }}</span>
       </el-menu-item>
 
       <el-sub-menu index="tasks">
         <template #title>
           <el-icon><Document /></el-icon>
-          <span>任务管理</span>
+          <span>{{ t('menu.taskManagement') }}</span>
         </template>
-        <el-menu-item index="/tasks">任务列表</el-menu-item>
-        <el-menu-item index="/tasks/create">创建任务</el-menu-item>
+        <el-menu-item index="/tasks">{{ t('menu.taskList') }}</el-menu-item>
+        <el-menu-item index="/tasks/create">{{ t('menu.createTask') }}</el-menu-item>
       </el-sub-menu>
 
       <el-menu-item index="/strategies">
         <el-icon><Collection /></el-icon>
-        <span>策略管理</span>
+        <span>{{ t('menu.strategyManagement') }}</span>
       </el-menu-item>
 
       <el-menu-item index="/interfaces">
         <el-icon><Monitor /></el-icon>
-        <span>网卡管理</span>
+        <span>{{ t('menu.interfaceManagement') }}</span>
       </el-menu-item>
 
       <el-menu-item index="/history">
         <el-icon><Clock /></el-icon>
-        <span>历史记录</span>
+        <span>{{ t('menu.history') }}</span>
       </el-menu-item>
 
       <el-menu-item index="/settings">
         <el-icon><Setting /></el-icon>
-        <span>系统设置</span>
+        <span>{{ t('menu.settings') }}</span>
       </el-menu-item>
     </el-menu>
   </div>
@@ -47,6 +47,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   Odometer,
   Document,
@@ -56,6 +57,7 @@ import {
   Setting
 } from '@element-plus/icons-vue'
 
+const { t } = useI18n()
 const route = useRoute()
 
 const activeMenu = computed(() => {

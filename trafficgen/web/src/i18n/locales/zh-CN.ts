@@ -1,0 +1,324 @@
+export default {
+  // 通用
+  common: {
+    confirm: '确认',
+    cancel: '取消',
+    save: '保存',
+    delete: '删除',
+    edit: '编辑',
+    create: '创建',
+    search: '搜索',
+    reset: '重置',
+    refresh: '刷新',
+    submit: '提交',
+    back: '返回',
+    loading: '加载中...',
+    success: '成功',
+    error: '错误',
+    warning: '警告',
+    info: '提示',
+    yes: '是',
+    no: '否',
+    enable: '启用',
+    disable: '禁用',
+    status: '状态',
+    action: '操作',
+    detail: '详情',
+    name: '名称',
+    description: '描述',
+    type: '类型',
+    time: '时间',
+    total: '总计',
+    page: '页',
+    pageSize: '每页数量',
+    noData: '暂无数据'
+  },
+
+  // 导航菜单
+  menu: {
+    dashboard: '仪表盘',
+    taskManagement: '任务管理',
+    taskList: '任务列表',
+    createTask: '创建任务',
+    strategyManagement: '策略管理',
+    interfaceManagement: '网卡管理',
+    history: '历史记录',
+    settings: '系统设置',
+    userManagement: '用户管理'
+  },
+
+  // 登录页面
+  login: {
+    title: 'Traffic Generator',
+    subtitle: '高性能网络流量生成器',
+    username: '用户名',
+    password: '密码',
+    rememberMe: '记住我',
+    login: '登录',
+    logout: '退出登录',
+    usernamePlaceholder: '请输入用户名',
+    passwordPlaceholder: '请输入密码',
+    loginSuccess: '登录成功',
+    loginFailed: '登录失败',
+    pleaseInputUsername: '请输入用户名',
+    pleaseInputPassword: '请输入密码'
+  },
+
+  // 仪表盘
+  dashboard: {
+    title: '仪表盘',
+    systemOverview: '系统概览',
+    activeTasks: '活跃任务',
+    packetsSent: '已发送数据包',
+    throughput: '吞吐量',
+    bufferUsage: '缓冲区使用率',
+    recentTasks: '最近任务',
+    taskDistribution: '任务分布',
+    protocolDistribution: '协议分布',
+    performanceMetrics: '性能指标'
+  },
+
+  // 任务管理
+  task: {
+    title: '任务列表',
+    createTask: '创建任务',
+    taskName: '任务名称',
+    protocol: '协议',
+    config: '配置',
+    output: '输出',
+    status: '状态',
+    createdAt: '创建时间',
+    updatedAt: '更新时间',
+    startedAt: '启动时间',
+    completedAt: '完成时间',
+    pending: '待运行',
+    running: '运行中',
+    completed: '已完成',
+    failed: '失败',
+    stopped: '已停止',
+    start: '启动',
+    stop: '停止',
+    delete: '删除',
+    viewDetail: '查看详情',
+    taskDetail: '任务详情',
+    basicInfo: '基本信息',
+    statistics: '统计信息',
+    packets: '数据包',
+    bytes: '字节',
+    duration: '运行时长',
+    rate: '速率',
+    noTasks: '暂无任务',
+    confirmDelete: '确定要删除该任务吗？',
+    confirmStart: '确定要启动该任务吗？',
+    confirmStop: '确定要停止该任务吗？',
+    createSuccess: '任务创建成功',
+    createFailed: '任务创建失败',
+    startSuccess: '任务启动成功',
+    startFailed: '任务启动失败',
+    stopSuccess: '任务停止成功',
+    stopFailed: '任务停止失败',
+    deleteSuccess: '任务删除成功',
+    deleteFailed: '任务删除失败'
+  },
+
+  // 任务创建
+  taskCreate: {
+    title: '创建任务',
+    basicConfig: '基本配置',
+    networkConfig: '网络配置',
+    outputConfig: '输出配置',
+    taskName: '任务名称',
+    taskNamePlaceholder: '请输入任务名称',
+    protocol: '协议',
+    selectProtocol: '选择协议',
+    srcIP: '源 IP',
+    srcIPPlaceholder: '请输入源 IP 地址',
+    dstIP: '目标 IP',
+    dstIPPlaceholder: '请输入目标 IP 地址',
+    srcPort: '源端口',
+    srcPortPlaceholder: '请输入源端口',
+    dstPort: '目标端口',
+    dstPortPlaceholder: '请输入目标端口',
+    outputMode: '输出模式',
+    selectOutputMode: '选择输出模式',
+    interface: '网卡',
+    selectInterface: '选择网卡',
+    filename: '文件名',
+    filenamePlaceholder: '请输入文件名',
+    create: '创建',
+    cancel: '取消',
+    validation: {
+      taskNameRequired: '请输入任务名称',
+      protocolRequired: '请选择协议',
+      srcIPRequired: '请输入源 IP 地址',
+      srcIPInvalid: '源 IP 地址格式不正确',
+      dstIPRequired: '请输入目标 IP 地址',
+      dstIPInvalid: '目标 IP 地址格式不正确',
+      srcPortRequired: '请输入源端口',
+      srcPortRange: '源端口范围为 1-65535',
+      dstPortRequired: '请输入目标端口',
+      dstPortRange: '目标端口范围为 1-65535'
+    }
+  },
+
+  // 策略管理
+  strategy: {
+    title: '策略管理',
+    createStrategy: '新建策略',
+    strategyName: '策略名称',
+    strategyNamePlaceholder: '请输入策略名称',
+    description: '描述',
+    descriptionPlaceholder: '请输入策略描述',
+    config: '配置',
+    noStrategies: '暂无策略',
+    confirmDelete: '确定要删除该策略吗？',
+    createSuccess: '策略创建成功',
+    createFailed: '策略创建失败',
+    updateSuccess: '策略更新成功',
+    updateFailed: '策略更新失败',
+    deleteSuccess: '策略删除成功',
+    deleteFailed: '策略删除失败'
+  },
+
+  // 网卡管理
+  interface: {
+    title: '网卡管理',
+    interfaceName: '网卡名称',
+    macAddress: 'MAC 地址',
+    ipAddress: 'IP 地址',
+    netmask: '子网掩码',
+    mtu: 'MTU',
+    status: '状态',
+    up: '启用',
+    down: '禁用',
+    linkUp: '连接',
+    linkDown: '断开',
+    refresh: '刷新',
+    refreshSuccess: '刷新成功',
+    refreshFailed: '刷新失败',
+    noInterfaces: '暂无网卡'
+  },
+
+  // 历史记录
+  history: {
+    title: '历史记录',
+    taskName: '任务名称',
+    protocol: '协议',
+    status: '状态',
+    startTime: '开始时间',
+    endTime: '结束时间',
+    duration: '运行时长',
+    packets: '数据包数',
+    bytes: '字节数',
+    export: '导出',
+    timeRange: '时间范围',
+    selectTimeRange: '选择时间范围',
+    today: '今天',
+    yesterday: '昨天',
+    last7Days: '最近 7 天',
+    last30Days: '最近 30 天',
+    custom: '自定义',
+    noHistory: '暂无历史记录'
+  },
+
+  // 系统设置
+  settings: {
+    title: '系统设置',
+    basicSettings: '基本设置',
+    performanceSettings: '性能设置',
+    logSettings: '日志设置',
+    language: '语言',
+    selectLanguage: '选择语言',
+    logLevel: '日志级别',
+    selectLogLevel: '选择日志级别',
+    debug: '调试',
+    info: '信息',
+    warn: '警告',
+    error: '错误',
+    maxTasks: '最大任务数',
+    bufferSize: '缓冲区大小',
+    workerCount: 'Worker 数量',
+    save: '保存',
+    reset: '重置',
+    saveSuccess: '设置保存成功',
+    saveFailed: '设置保存失败',
+    resetSuccess: '设置重置成功',
+    resetFailed: '设置重置失败'
+  },
+
+  // 用户管理
+  user: {
+    title: '用户管理',
+    createUser: '新建用户',
+    username: '用户名',
+    usernamePlaceholder: '请输入用户名',
+    email: '邮箱',
+    emailPlaceholder: '请输入邮箱',
+    password: '密码',
+    passwordPlaceholder: '请输入密码',
+    role: '角色',
+    selectRole: '选择角色',
+    admin: '管理员',
+    user: '普通用户',
+    guest: '访客',
+    status: '状态',
+    active: '启用',
+    disabled: '禁用',
+    createdAt: '创建时间',
+    lastLogin: '最后登录',
+    resetPassword: '重置密码',
+    confirmResetPassword: '确定要重置该用户的密码吗？',
+    confirmDelete: '确定要删除该用户吗？',
+    createSuccess: '用户创建成功',
+    createFailed: '用户创建失败',
+    updateSuccess: '用户更新成功',
+    updateFailed: '用户更新失败',
+    deleteSuccess: '用户删除成功',
+    deleteFailed: '用户删除失败',
+    resetPasswordSuccess: '密码重置成功',
+    resetPasswordFailed: '密码重置失败',
+    noUsers: '暂无用户'
+  },
+
+  // 协议
+  protocol: {
+    tcp: 'TCP',
+    udp: 'UDP',
+    http: 'HTTP',
+    dns: 'DNS',
+    icmp: 'ICMP',
+    arp: 'ARP'
+  },
+
+  // 输出模式
+  outputMode: {
+    interface: '网卡输出',
+    pcap: 'PCAP 文件',
+    null: '仅统计'
+  },
+
+  // 单位
+  unit: {
+    packets: '个数据包',
+    bytes: '字节',
+    bps: 'bps',
+    kbps: 'Kbps',
+    mbps: 'Mbps',
+    gbps: 'Gbps',
+    seconds: '秒',
+    minutes: '分钟',
+    hours: '小时',
+    days: '天'
+  },
+
+  // 错误消息
+  error: {
+    networkError: '网络错误',
+    serverError: '服务器错误',
+    unauthorized: '未授权，请重新登录',
+    forbidden: '拒绝访问',
+    notFound: '资源不存在',
+    validationError: '数据验证失败',
+    unknownError: '未知错误'
+  }
+}

@@ -4,7 +4,27 @@
       <el-icon :size="24"><Connection /></el-icon>
       <span class="title">Traffic Generator</span>
     </div>
-    <div class="user-info">
+    <div class="header-actions">
+      <!-- 语言切换 -->
+      <el-dropdown @command="handleLanguageChange" class="language-dropdown">
+        <span class="el-dropdown-link">
+          <el-icon><Globe /></el-icon>
+          {{ currentLanguageLabel }}
+          <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+        </span>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="zh-CN" :disabled="locale === 'zh-CN'">
+              简体中文
+            </el-dropdown-item>
+            <el-dropdown-item command="en-US" :disabled="locale === 'en-US'">
+              English
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+
+      <!-- 用户菜单 -->
       <el-dropdown @command="handleCommand">
         <span class="el-dropdown-link">
           <el-icon><User /></el-icon>
@@ -15,11 +35,11 @@
           <el-dropdown-menu>
             <el-dropdown-item command="settings">
               <el-icon><Setting /></el-icon>
-              个人设置
+              {{ t('menu.settings') }}
             </el-dropdown-item>
             <el-dropdown-item command="logout" divided>
               <el-icon><SwitchButton /></el-icon>
-              退出登录
+              {{ t('login.logout') }}
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -29,26 +49,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Connection, User, ArrowDown, Setting, SwitchButton } from '@element-plus/icons-vue'
+import { Connection, User, ArrowDown, Setting, SwitchButton, Globe } from '@element-plus/icons-vue'
+import { setLocale } from '@/i18n'
 
+const { t, locale } = useI18n()
 const router = useRouter()
 const username = ref('admin')
+
+const currentLanguageLabel = computed(() => {
+  return locale.value === 'zh-CN' ? '简体中文' : 'English'
+})
+
+const handleLanguageChange = (command: string) => {
+  setLocale(command)
+  ElMessage.success(command === 'zh-CN' ? '语言切换成功' : 'Language changed successfully')
+}
 
 const handleCommand = (command: string) => {
   if (command === 'settings') {
     router.push('/settings')
   } else if (command === 'logout') {
-    ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    ElMessageBox.confirm(t('login.logout') + '?', t('common.warning'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning'
     }).then(() => {
       // 清除 token
       localStorage.removeItem('token')
-      ElMessage.success('退出成功')
+      ElMessage.success(t('login.logout') + t('common.success'))
       router.push('/login')
     }).catch(() => {
       // 取消退出
@@ -77,9 +109,14 @@ const handleCommand = (command: string) => {
   font-weight: bold;
 }
 
-.user-info {
+.header-actions {
   display: flex;
   align-items: center;
+  gap: 20px;
+}
+
+.language-dropdown {
+  margin-right: 10px;
 }
 
 .el-dropdown-link {
