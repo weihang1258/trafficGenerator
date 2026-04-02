@@ -77,10 +77,6 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// Generate flow ID
 		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
 
-		// Parse MAC addresses
-		srcMAC, _ := net.ParseMAC(spec.SrcMAC)
-		dstMAC, _ := net.ParseMAC(spec.DstMAC)
-
 		// Get TCP config
 		tcpConfig := spec.TCP
 		if tcpConfig == nil {

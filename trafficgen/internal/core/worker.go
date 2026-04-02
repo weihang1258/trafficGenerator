@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"go.uber.org/zap"
 )

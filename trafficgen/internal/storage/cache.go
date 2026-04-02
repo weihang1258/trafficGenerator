@@ -1,5 +1,5 @@
-// Package cache provides caching functionality.
-package cache
+// Package storage provides caching functionality.
+package storage
 
 import (
 	"context"

@@ -1,5 +1,6 @@
 @echo off
-REM Windows编译验证脚本
+chcp 65001 >nul
+REM Windows Build Verification Script
 
 echo ========================================
 echo Traffic Generator - Build Verification
@@ -9,9 +10,15 @@ echo.
 REM Check Go installation
 where go >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERROR] Go is not installed!
+    echo [ERROR] Go is not installed or not in PATH!
+    echo.
     echo Please install Go 1.21+ from https://go.dev/dl/
     echo Or use: winget install GoLang.Go
+    echo.
+    echo If Go is already installed, add it to your PATH:
+    echo   1. Open System Properties ^> Environment Variables
+    echo   2. Add Go bin directory to PATH
+    echo   Typical path: C:\Program Files\Go\bin
     exit /b 1
 )
 

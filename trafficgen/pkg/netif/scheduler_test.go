@@ -99,7 +99,7 @@ func TestScheduler_Expiry(t *testing.T) {
 	sched := NewScheduler()
 
 	// Allocate port
-	alloc, _ := sched.AllocatePort("eth0", 8080, "task-1")
+	_, _ = sched.AllocatePort("eth0", 8080, "task-1")
 
 	// Set expiry in the past
 	sched.SetExpiry("eth0", 8080, time.Now().Add(-time.Hour))

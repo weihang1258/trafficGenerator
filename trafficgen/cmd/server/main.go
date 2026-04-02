@@ -18,7 +18,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol"
 	"github.com/trafficgen/trafficgen/internal/protocol/arp"
 	"github.com/trafficgen/trafficgen/internal/protocol/dns"
-	"github.com/trafficgen/trafficgen/internal/protocol/http"
+	httpprotocol "github.com/trafficgen/trafficgen/internal/protocol/http"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/tcp"
 	"github.com/trafficgen/trafficgen/internal/protocol/udp"
@@ -185,7 +185,7 @@ func (app *Application) initEngine() error {
 	// Register protocol planners
 	protocol.Register(tcp.NewPlanner())
 	protocol.Register(udp.NewPlanner())
-	protocol.Register(http.NewPlanner())
+	protocol.Register(httpprotocol.NewPlanner())
 	protocol.Register(dns.NewPlanner())
 	protocol.Register(icmp.NewPlanner())
 	protocol.Register(arp.NewPlanner())
