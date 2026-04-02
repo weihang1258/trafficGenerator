@@ -1,0 +1,207 @@
+# Prometheus Alert Rules for Traffic Generator
+
+groups:
+  - name: traffic_generator.rules
+    interval: 30s
+    rules:
+      # Task failure alerts
+      - alert: TaskFailureRate
+        expr: |
+          rate(trafficgen_packets_dropped_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High task failure rate detected"
+          description: "Task failure rate is {{ $value }} packets/sec over the last 5 minutes"
+
+      - alert: TaskFailureCritical
+        expr: |
+          rate(trafficgen_packets_dropped_total[5m]) > 1.0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical task failure rate"
+          description: "Task failure rate is {{ $value }} packets/sec - immediate attention required"
+
+      # CPU usage alerts
+      - alert: HighCPUUsage
+        expr: |
+          rate(process_cpu_seconds_total{job="trafficgen"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      - alert: CPUUsageCritical
+        expr: |
+          rate(process_cpu_seconds_total{job="trafficgen"}[5m]) > 0.95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical CPU usage"
+          description: "CPU usage is {{ $value | humanizePercentage }} - system may become unresponsive"
+
+      # Memory usage alerts
+      - alert: HighMemoryUsage
+        expr: |
+          (process_resident_memory_bytes{job="trafficgen"} / 1024 / 1024 / 1024) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value | humanize }}GB"
+
+      - alert: MemoryUsageCritical
+        expr: |
+          (process_resident_memory_bytes{job="trafficgen"} / 1024 / 1024 / 1024) > 1.5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical memory usage"
+          description: "Memory usage is {{ $value | humanize }}GB - risk of OOM"
+
+      # Buffer usage alerts
+      - alert: BufferUsageHigh
+        expr: |
+          trafficgen_buffer_usage_percent > 80
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Buffer usage is high"
+          description: "Buffer {{ $labels.buffer_type }} usage is {{ $value }}%"
+
+      - alert: BufferUsageCritical
+        expr: |
+          trafficgen_buffer_usage_percent > 95
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Buffer nearly full"
+          description: "Buffer {{ $labels.buffer_type }} usage is {{ $value }}% - risk of overflow"
+
+      # Port allocation alerts
+      - alert: PortAllocationHigh
+        expr: |
+          trafficgen_port_allocations > 50000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High port allocation count"
+          description: "{{ $value }} ports are currently allocated"
+
+      - alert: PortWaitQueueGrowing
+        expr: |
+          trafficgen_port_wait_queue > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Port wait queue is growing"
+          description: "{{ $value }} tasks waiting for port allocation"
+
+      # WebSocket connection alerts
+      - alert: WebSocketConnectionsHigh
+        expr: |
+          trafficgen_websocket_connections > 100
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "High WebSocket connection count"
+          description: "{{ $value }} active WebSocket connections"
+
+      # Throughput alerts
+      - alert: ThroughputDegraded
+        expr: |
+          (rate(trafficgen_bytes_sent_total[5m]) < 1000000) and (trafficgen_active_tasks > 0)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Throughput degraded"
+          description: "Throughput is {{ $value | humanize }}B/s with active tasks"
+
+      # Task count alerts
+      - alert: TooManyActiveTasks
+        expr: |
+          trafficgen_active_tasks > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many active tasks"
+          description: "{{ $value }} tasks are currently active"
+
+      - alert: NoActiveTasks
+        expr: |
+          trafficgen_active_tasks == 0
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "No active tasks"
+          description: "No traffic generation tasks have been running for 1 hour"
+
+  - name: traffic_generator.availability
+    interval: 30s
+    rules:
+      # Service availability alerts
+      - alert: ServiceDown
+        expr: up{job="trafficgen"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Traffic Generator service is down"
+          description: "Service {{ $labels.instance }} has been down for more than 1 minute"
+
+      - alert: ServiceRestart
+        expr: |
+          changes(process_start_time_seconds{job="trafficgen"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Service restarted"
+          description: "Traffic Generator service has restarted {{ $value }} times in the last 10 minutes"
+
+      # API health alerts
+      - alert: APIResponseTimeSlow
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="trafficgen"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API response time is slow"
+          description: "P95 response time is {{ $value | humanizeDuration }}"
+
+      - alert: APIErrorRateHigh
+        expr: |
+          (sum(rate(http_requests_total{job="trafficgen",status=~"5.."}[5m])) / sum(rate(http_requests_total{job="trafficgen"}[5m]))) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API error rate"
+          description: "API error rate is {{ $value | humanizePercentage }}"
+
+      - alert: APIErrorRateCritical
+        expr: |
+          (sum(rate(http_requests_total{job="trafficgen",status=~"5.."}[5m])) / sum(rate(http_requests_total{job="trafficgen"}[5m]))) > 0.1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical API error rate"
+          description: "API error rate is {{ $value | humanizePercentage }} - immediate attention required"

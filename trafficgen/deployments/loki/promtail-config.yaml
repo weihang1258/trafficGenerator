@@ -1,0 +1,118 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Traffic Generator 应用日志
+  - job_name: trafficgen
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: trafficgen
+          service: trafficgen
+          environment: production
+          __path__: /var/log/trafficgen/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            timestamp: ts
+            caller: caller
+            message: msg
+            task_id: task_id
+            protocol: protocol
+      - labels:
+          level:
+          task_id:
+          protocol:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      - output:
+          message: message
+
+  # Docker 容器日志
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          __path__: /var/log/docker/containers/*/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            log: log
+            stream: stream
+            time: time
+      - labels:
+          stream:
+      - timestamp:
+          source: time
+          format: RFC3339Nano
+
+  # 系统日志
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          __path__: /var/log/syslog
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\S+)\s+(?P<program>\S+):\s+(?P<message>.*)$'
+      - labels:
+          hostname:
+          program:
+      - timestamp:
+          source: timestamp
+          format: "Jan 2 15:04:05"
+
+  # Nginx 访问日志（如果有）
+  - job_name: nginx
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          __path__: /var/log/nginx/access.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<remote_addr>\S+)\s+-\s+(?P<remote_user>\S+)\s+\[(?P<time_local>[^\]]+)\]\s+"(?P<request>[^"]+)"\s+(?P<status>\d+)\s+(?P<body_bytes_sent>\d+)\s+"(?P<http_referer>[^"]*)"\s+"(?P<http_user_agent>[^"]*)"'
+      - labels:
+          remote_addr:
+          status:
+      - timestamp:
+          source: time_local
+          format: "02/Jan/2006:15:04:05 -0700"
+
+  # 应用错误日志
+  - job_name: trafficgen-errors
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: trafficgen-errors
+          service: trafficgen
+          __path__: /var/log/trafficgen/error.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            timestamp: ts
+            message: msg
+            error: error
+            stack: stack
+      - labels:
+          level:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano

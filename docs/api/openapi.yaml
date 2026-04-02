@@ -1,0 +1,804 @@
+openapi: 3.0.3
+info:
+  title: Traffic Generator API
+  description: |
+    高性能网络流量生成器 REST API
+
+    ## 认证
+
+    所有 API 请求需要在 Header 中携带 JWT Token:
+    ```
+    Authorization: Bearer <token>
+    ```
+
+    ## 错误处理
+
+    API 返回标准错误格式:
+    ```json
+    {
+      "error": "错误类型",
+      "message": "详细错误信息"
+    }
+    ```
+  version: 1.0.0
+  contact:
+    name: Traffic Generator Team
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: 本地开发服务器
+  - url: https://trafficgen.example.com/api/v1
+    description: 生产服务器
+
+tags:
+  - name: auth
+    description: 认证相关接口
+  - name: tasks
+    description: 任务管理接口
+  - name: strategies
+    description: 策略管理接口
+  - name: interfaces
+    description: 网卡管理接口
+  - name: system
+    description: 系统信息接口
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - auth
+      summary: 用户登录
+      description: 使用用户名和密码登录，返回 JWT Token
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  format: password
+                  example: admin123
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT Token
+                  expires_at:
+                    type: string
+                    format: date-time
+                    description: Token 过期时间
+              example:
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                expires_at: "2026-04-02T12:00:00Z"
+        '401':
+          description: 认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: unauthorized
+                message: 用户名或密码错误
+
+  /auth/logout:
+    post:
+      tags:
+        - auth
+      summary: 用户登出
+      description: 注销当前用户会话
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: 登出成功
+
+  /tasks:
+    get:
+      tags:
+        - tasks
+      summary: 获取任务列表
+      description: 获取所有任务列表，支持分页和过滤
+      operationId: listTasks
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: 任务状态过滤
+          schema:
+            type: string
+            enum: [pending, running, completed, failed]
+        - name: protocol
+          in: query
+          description: 协议类型过滤
+          schema:
+            type: string
+            enum: [tcp, udp, http, dns, icmp, arp]
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 成功返回任务列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  total:
+                    type: integer
+                    description: 总数量
+                  page:
+                    type: integer
+                    description: 当前页码
+                  page_size:
+                    type: integer
+                    description: 每页数量
+
+    post:
+      tags:
+        - tasks
+      summary: 创建任务
+      description: 创建新的流量生成任务
+      operationId: createTask
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: 任务创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tasks/{taskId}:
+    get:
+      tags:
+        - tasks
+      summary: 获取任务详情
+      description: 根据 ID 获取任务详细信息
+      operationId: getTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: 任务 ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功返回任务详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: 任务不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - tasks
+      summary: 删除任务
+      description: 删除指定任务
+      operationId: deleteTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: 任务 ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 任务删除成功
+        '404':
+          description: 任务不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tasks/{taskId}/start:
+    post:
+      tags:
+        - tasks
+      summary: 启动任务
+      description: 启动指定的流量生成任务
+      operationId: startTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: 任务 ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 任务启动成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: 任务状态不允许启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tasks/{taskId}/stop:
+    post:
+      tags:
+        - tasks
+      summary: 停止任务
+      description: 停止正在运行的任务
+      operationId: stopTask
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: 任务 ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 任务停止成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: 任务未在运行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tasks/{taskId}/stats:
+    get:
+      tags:
+        - tasks
+      summary: 获取任务统计信息
+      description: 获取任务的实时统计信息
+      operationId: getTaskStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: 任务 ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功返回统计信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStats'
+
+  /strategies:
+    get:
+      tags:
+        - strategies
+      summary: 获取策略列表
+      description: 获取所有保存的策略配置
+      operationId: listStrategies
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功返回策略列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Strategy'
+
+    post:
+      tags:
+        - strategies
+      summary: 创建策略
+      description: 创建新的策略配置
+      operationId: createStrategy
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StrategyCreate'
+      responses:
+        '201':
+          description: 策略创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Strategy'
+
+  /strategies/{strategyId}:
+    get:
+      tags:
+        - strategies
+      summary: 获取策略详情
+      description: 根据 ID 获取策略详细信息
+      operationId: getStrategy
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: strategyId
+          in: path
+          required: true
+          description: 策略 ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功返回策略详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Strategy'
+
+    put:
+      tags:
+        - strategies
+      summary: 更新策略
+      description: 更新策略配置
+      operationId: updateStrategy
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: strategyId
+          in: path
+          required: true
+          description: 策略 ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StrategyCreate'
+      responses:
+        '200':
+          description: 策略更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Strategy'
+
+    delete:
+      tags:
+        - strategies
+      summary: 删除策略
+      description: 删除指定策略
+      operationId: deleteStrategy
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: strategyId
+          in: path
+          required: true
+          description: 策略 ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 策略删除成功
+
+  /interfaces:
+    get:
+      tags:
+        - interfaces
+      summary: 获取网卡列表
+      description: 获取所有可用网卡信息
+      operationId: listInterfaces
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功返回网卡列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Interface'
+
+  /interfaces/{interfaceName}:
+    get:
+      tags:
+        - interfaces
+      summary: 获取网卡详情
+      description: 获取指定网卡的详细信息
+      operationId: getInterface
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: interfaceName
+          in: path
+          required: true
+          description: 网卡名称
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功返回网卡详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Interface'
+
+  /system/health:
+    get:
+      tags:
+        - system
+      summary: 健康检查
+      description: 检查服务健康状态
+      operationId: healthCheck
+      responses:
+        '200':
+          description: 服务健康
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, unhealthy]
+                  timestamp:
+                    type: string
+                    format: date-time
+              example:
+                status: healthy
+                timestamp: "2026-04-02T10:30:45Z"
+
+  /system/metrics:
+    get:
+      tags:
+        - system
+      summary: 获取系统指标
+      description: 获取 Prometheus 格式的系统指标
+      operationId: getMetrics
+      responses:
+        '200':
+          description: 成功返回指标数据
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP trafficgen_packets_sent_total Total packets sent
+                  # TYPE trafficgen_packets_sent_total counter
+                  trafficgen_packets_sent_total{protocol="tcp"} 1234
+
+  /buffer/status:
+    get:
+      tags:
+        - system
+      summary: 获取缓冲区状态
+      description: 获取缓冲区使用情况
+      operationId: getBufferStatus
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功返回缓冲区状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BufferStatus'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Token 认证
+
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 任务 ID
+        name:
+          type: string
+          description: 任务名称
+        protocol:
+          type: string
+          enum: [tcp, udp, http, dns, icmp, arp]
+          description: 协议类型
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+          description: 任务状态
+        config:
+          type: object
+          description: 任务配置
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+      example:
+        id: "task-123"
+        name: "TCP流量测试"
+        protocol: "tcp"
+        status: "running"
+        config:
+          src_ip: "192.168.1.1"
+          dst_ip: "192.168.1.2"
+          src_port: 12345
+          dst_port: 80
+        created_at: "2026-04-02T10:00:00Z"
+        updated_at: "2026-04-02T10:30:00Z"
+
+    TaskCreate:
+      type: object
+      required:
+        - name
+        - protocol
+        - config
+      properties:
+        name:
+          type: string
+          description: 任务名称
+        protocol:
+          type: string
+          enum: [tcp, udp, http, dns, icmp, arp]
+          description: 协议类型
+        config:
+          type: object
+          description: 任务配置
+          properties:
+            src_ip:
+              type: string
+              description: 源 IP 地址
+            dst_ip:
+              type: string
+              description: 目标 IP 地址
+            src_port:
+              type: integer
+              description: 源端口
+            dst_port:
+              type: integer
+              description: 目标端口
+        output:
+          type: object
+          description: 输出配置
+          properties:
+            type:
+              type: string
+              enum: [pcap, interface, null]
+              description: 输出类型
+            interface:
+              type: string
+              description: 网卡名称（type=interface 时必填）
+            filename:
+              type: string
+              description: 文件名（type=pcap 时必填）
+      example:
+        name: "TCP流量测试"
+        protocol: "tcp"
+        config:
+          src_ip: "192.168.1.1"
+          dst_ip: "192.168.1.2"
+          src_port: 12345
+          dst_port: 80
+        output:
+          type: "interface"
+          interface: "eth0"
+
+    TaskStats:
+      type: object
+      properties:
+        packets_sent:
+          type: integer
+          description: 已发送数据包数
+        bytes_sent:
+          type: integer
+          description: 已发送字节数
+        packets_dropped:
+          type: integer
+          description: 丢弃数据包数
+        duration:
+          type: integer
+          description: 运行时长（秒）
+        rate:
+          type: number
+          description: 发送速率（pps）
+        throughput:
+          type: number
+          description: 吞吐量（bps）
+      example:
+        packets_sent: 10000
+        bytes_sent: 1500000
+        packets_dropped: 0
+        duration: 60
+        rate: 166.67
+        throughput: 200000
+
+    Strategy:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 策略 ID
+        name:
+          type: string
+          description: 策略名称
+        description:
+          type: string
+          description: 策略描述
+        config:
+          type: object
+          description: 策略配置
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+
+    StrategyCreate:
+      type: object
+      required:
+        - name
+        - config
+      properties:
+        name:
+          type: string
+          description: 策略名称
+        description:
+          type: string
+          description: 策略描述
+        config:
+          type: object
+          description: 策略配置
+
+    Interface:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 网卡名称
+        mac:
+          type: string
+          description: MAC 地址
+        ip:
+          type: string
+          description: IP 地址
+        netmask:
+          type: string
+          description: 子网掩码
+        status:
+          type: string
+          enum: [up, down]
+          description: 网卡状态
+        mtu:
+          type: integer
+          description: MTU 大小
+      example:
+        name: "eth0"
+        mac: "00:0c:29:12:34:56"
+        ip: "192.168.1.100"
+        netmask: "255.255.255.0"
+        status: "up"
+        mtu: 1500
+
+    BufferStatus:
+      type: object
+      properties:
+        combined:
+          type: object
+          properties:
+            count:
+              type: integer
+              description: 当前缓冲区数据包数
+            size:
+              type: integer
+              description: 缓冲区总大小
+            usage:
+              type: number
+              description: 使用率（百分比）
+      example:
+        combined:
+          count: 100
+          size: 4096
+          usage: 2.44
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: 错误类型
+        message:
+          type: string
+          description: 错误详细信息
+      example:
+        error: "not_found"
+        message: "任务不存在"

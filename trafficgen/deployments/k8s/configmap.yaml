@@ -1,0 +1,154 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trafficgen-config
+  namespace: trafficgen
+  labels:
+    app: trafficgen
+    component: config
+data:
+  config.yaml: |
+    # Traffic Generator 配置文件
+    server:
+      host: "0.0.0.0"
+      port: 8080
+      read_timeout: 30s
+      write_timeout: 30s
+      idle_timeout: 60s
+
+    database:
+      type: "postgres"
+      dsn: "host=postgres-service port=5432 user=trafficgen password=trafficgen_secret dbname=trafficgen sslmode=disable"
+      max_open_conns: 25
+      max_idle_conns: 5
+      conn_max_lifetime: 5m
+
+    engine:
+      config_workers: 4
+      packet_workers: 8
+      output_workers: 4
+      buffer_size: 4096
+      queue_size: 100
+      max_buffer_bytes: 104857600
+
+    logging:
+      level: "info"
+      format: "json"
+      output: "/var/log/trafficgen/app.log"
+      max_size: 100
+      max_backups: 10
+      max_age: 30
+
+    monitoring:
+      enabled: true
+      prometheus_port: 9090
+      metrics_path: "/metrics"
+
+    websocket:
+      enabled: true
+      ping_interval: 30s
+      pong_timeout: 60s
+      max_message_size: 65536
+
+---
+# Prometheus ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: trafficgen
+  labels:
+    app: prometheus
+    component: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        monitor: 'trafficgen-monitor'
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: []
+
+    rule_files:
+      - /etc/prometheus/alerts.yml
+
+    scrape_configs:
+      - job_name: 'trafficgen'
+        static_configs:
+          - targets: ['trafficgen-service:8080']
+        metrics_path: '/metrics'
+        scrape_interval: 10s
+
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+  alerts.yml: |
+    groups:
+      - name: traffic_generator.rules
+        interval: 30s
+        rules:
+          - alert: ServiceDown
+            expr: up{job="trafficgen"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Traffic Generator service is down"
+              description: "Service has been down for more than 1 minute"
+
+          - alert: HighCPUUsage
+            expr: rate(process_cpu_seconds_total{job="trafficgen"}[5m]) > 0.8
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High CPU usage detected"
+              description: "CPU usage is {{ $value | humanizePercentage }}"
+
+          - alert: HighMemoryUsage
+            expr: (process_resident_memory_bytes{job="trafficgen"} / 1024 / 1024 / 1024) > 0.8
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High memory usage detected"
+              description: "Memory usage is {{ $value | humanize }}GB"
+
+          - alert: BufferUsageCritical
+            expr: trafficgen_buffer_usage_percent > 95
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Buffer nearly full"
+              description: "Buffer usage is {{ $value }}%"
+
+---
+# Grafana Dashboard ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard
+  namespace: trafficgen
+  labels:
+    app: grafana
+    component: monitoring
+data:
+  trafficgen-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "Traffic Generator Dashboard",
+        "tags": ["trafficgen", "network"],
+        "timezone": "browser",
+        "panels": [],
+        "schemaVersion": 38,
+        "version": 1,
+        "refresh": "10s"
+      },
+      "overwrite": true
+    }
