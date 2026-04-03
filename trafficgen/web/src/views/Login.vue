@@ -4,7 +4,8 @@
       <template #header>
         <div class="card-header">
           <el-icon :size="32"><Connection /></el-icon>
-          <h2>Traffic Generator</h2>
+          <h2>{{ t('login.title') }}</h2>
+          <p class="subtitle">{{ t('login.subtitle') }}</p>
         </div>
       </template>
 
@@ -15,19 +16,19 @@
         label-position="top"
         @submit.prevent="handleLogin"
       >
-        <el-form-item label="用户名" prop="username">
+        <el-form-item :label="t('login.username')" prop="username">
           <el-input
             v-model="form.username"
-            placeholder="请输入用户名"
+            :placeholder="t('login.usernamePlaceholder')"
             prefix-icon="User"
           />
         </el-form-item>
 
-        <el-form-item label="密码" prop="password">
+        <el-form-item :label="t('login.password')" prop="password">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="请输入密码"
+            :placeholder="t('login.passwordPlaceholder')"
             prefix-icon="Lock"
             show-password
           />
@@ -40,7 +41,7 @@
             style="width: 100%"
             @click="handleLogin"
           >
-            登录
+            {{ t('login.login') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -51,10 +52,12 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 
+const { t } = useI18n()
 const router = useRouter()
 const userStore = useUserStore()
 
@@ -68,10 +71,10 @@ const form = reactive({
 
 const rules: FormRules = {
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' }
+    { required: true, message: t('login.pleaseInputUsername'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' }
+    { required: true, message: t('login.pleaseInputPassword'), trigger: 'blur' }
   ]
 }
 
@@ -82,7 +85,7 @@ async function handleLogin() {
   loading.value = true
   try {
     await userStore.login(form.username, form.password)
-    ElMessage.success('登录成功')
+    ElMessage.success(t('login.loginSuccess'))
     router.push('/')
   } catch (error) {
     // Error handled in API interceptor
@@ -115,5 +118,11 @@ async function handleLogin() {
 .card-header h2 {
   margin: 0;
   color: #303133;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #909399;
 }
 </style>

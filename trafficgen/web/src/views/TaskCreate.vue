@@ -3,7 +3,7 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>创建任务</span>
+          <span>{{ t('taskCreate.title') }}</span>
         </div>
       </template>
 
@@ -14,16 +14,16 @@
         label-width="120px"
         style="max-width: 800px;"
       >
-        <el-form-item label="任务名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入任务名称" />
+        <el-form-item :label="t('taskCreate.taskName')" prop="name">
+          <el-input v-model="form.name" :placeholder="t('taskCreate.taskNamePlaceholder')" />
         </el-form-item>
 
-        <el-form-item label="描述">
-          <el-input v-model="form.description" type="textarea" rows="2" placeholder="请输入任务描述" />
+        <el-form-item :label="t('common.description')">
+          <el-input v-model="form.description" type="textarea" rows="2" :placeholder="t('strategy.descriptionPlaceholder')" />
         </el-form-item>
 
-        <el-form-item label="协议" prop="protocol">
-          <el-select v-model="form.protocol" placeholder="请选择协议" @change="onProtocolChange">
+        <el-form-item :label="t('taskCreate.protocol')" prop="protocol">
+          <el-select v-model="form.protocol" :placeholder="t('taskCreate.selectProtocol')" @change="onProtocolChange">
             <el-option label="TCP" value="tcp" />
             <el-option label="UDP" value="udp" />
             <el-option label="HTTP" value="http" />
@@ -32,29 +32,29 @@
           </el-select>
         </el-form-item>
 
-        <el-divider content-position="left">网络配置</el-divider>
+        <el-divider content-position="left">{{ t('taskCreate.networkConfig') }}</el-divider>
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="源IP" prop="spec.src_ip">
-              <el-input v-model="form.spec.src_ip" placeholder="例如: 192.168.1.100" />
+            <el-form-item :label="t('taskCreate.srcIP')" prop="spec.src_ip">
+              <el-input v-model="form.spec.src_ip" :placeholder="t('taskCreate.srcIPPlaceholder')" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="目标IP" prop="spec.dst_ip">
-              <el-input v-model="form.spec.dst_ip" placeholder="例如: 192.168.1.1" />
+            <el-form-item :label="t('taskCreate.dstIP')" prop="spec.dst_ip">
+              <el-input v-model="form.spec.dst_ip" :placeholder="t('taskCreate.dstIPPlaceholder')" />
             </el-form-item>
           </el-col>
         </el-row>
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="源端口" prop="spec.src_port">
+            <el-form-item :label="t('taskCreate.srcPort')" prop="spec.src_port">
               <el-input-number v-model="form.spec.src_port" :min="1" :max="65535" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="目标端口" prop="spec.dst_port">
+            <el-form-item :label="t('taskCreate.dstPort')" prop="spec.dst_port">
               <el-input-number v-model="form.spec.dst_port" :min="1" :max="65535" style="width: 100%;" />
             </el-form-item>
           </el-col>
@@ -75,7 +75,7 @@
 
         <!-- TCP specific config -->
         <template v-if="form.protocol === 'tcp'">
-          <el-divider content-position="left">TCP配置</el-divider>
+          <el-divider content-position="left">TCP {{ t('common.type') }}</el-divider>
           <el-row :gutter="20">
             <el-col :span="8">
               <el-form-item label="三次握手">
@@ -97,7 +97,7 @@
 
         <!-- HTTP specific config -->
         <template v-if="form.protocol === 'http'">
-          <el-divider content-position="left">HTTP配置</el-divider>
+          <el-divider content-position="left">HTTP {{ t('common.type') }}</el-divider>
           <el-row :gutter="20">
             <el-col :span="8">
               <el-form-item label="请求方法">
@@ -122,7 +122,7 @@
 
         <!-- DNS specific config -->
         <template v-if="form.protocol === 'dns'">
-          <el-divider content-position="left">DNS配置</el-divider>
+          <el-divider content-position="left">DNS {{ t('common.type') }}</el-divider>
           <el-row :gutter="20">
             <el-col :span="16">
               <el-form-item label="域名">
@@ -142,31 +142,31 @@
           </el-row>
         </template>
 
-        <el-divider content-position="left">输出配置</el-divider>
+        <el-divider content-position="left">{{ t('taskCreate.outputConfig') }}</el-divider>
 
-        <el-form-item label="输出网卡">
-          <el-select v-model="form.interface" placeholder="选择输出网卡">
+        <el-form-item :label="t('taskCreate.interface')">
+          <el-select v-model="form.interface" :placeholder="t('taskCreate.selectInterface')">
             <el-option v-for="iface in interfaces" :key="iface.name" :label="iface.name" :value="iface.name" />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="输出模式">
+        <el-form-item :label="t('taskCreate.outputMode')">
           <el-radio-group v-model="form.output_mode">
-            <el-radio label="interface">网卡输出</el-radio>
-            <el-radio label="pcap">PCAP文件</el-radio>
-            <el-radio label="both">两者都输出</el-radio>
+            <el-radio label="interface">{{ t('outputMode.interface') }}</el-radio>
+            <el-radio label="pcap">{{ t('outputMode.pcap') }}</el-radio>
+            <el-radio label="both">{{ t('common.both') || '两者都输出' }}</el-radio>
           </el-radio-group>
         </el-form-item>
 
-        <el-form-item v-if="form.output_mode !== 'interface'" label="PCAP文件">
-          <el-input v-model="form.pcap_file" placeholder="output.pcap" />
+        <el-form-item v-if="form.output_mode !== 'interface'" :label="t('taskCreate.filename')">
+          <el-input v-model="form.pcap_file" :placeholder="t('taskCreate.filenamePlaceholder')" />
         </el-form-item>
 
         <el-form-item>
           <el-button type="primary" :loading="loading" @click="handleSubmit">
-            创建任务
+            {{ t('taskCreate.create') }}
           </el-button>
-          <el-button @click="$router.back()">取消</el-button>
+          <el-button @click="$router.back()">{{ t('taskCreate.cancel') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -176,10 +176,12 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { taskApi, interfaceApi, type NetworkInterface, type CreateTaskRequest } from '@/api'
 
+const { t } = useI18n()
 const router = useRouter()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
@@ -220,12 +222,12 @@ const form = reactive<CreateTaskRequest>({
 })
 
 const rules: FormRules = {
-  name: [{ required: true, message: '请输入任务名称', trigger: 'blur' }],
-  protocol: [{ required: true, message: '请选择协议', trigger: 'change' }],
-  'spec.src_ip': [{ required: true, message: '请输入源IP', trigger: 'blur' }],
-  'spec.dst_ip': [{ required: true, message: '请输入目标IP', trigger: 'blur' }],
-  'spec.src_port': [{ required: true, message: '请输入源端口', trigger: 'blur' }],
-  'spec.dst_port': [{ required: true, message: '请输入目标端口', trigger: 'blur' }]
+  name: [{ required: true, message: t('taskCreate.validation.taskNameRequired'), trigger: 'blur' }],
+  protocol: [{ required: true, message: t('taskCreate.validation.protocolRequired'), trigger: 'change' }],
+  'spec.src_ip': [{ required: true, message: t('taskCreate.validation.srcIPRequired'), trigger: 'blur' }],
+  'spec.dst_ip': [{ required: true, message: t('taskCreate.validation.dstIPRequired'), trigger: 'blur' }],
+  'spec.src_port': [{ required: true, message: t('taskCreate.validation.srcPortRequired'), trigger: 'blur' }],
+  'spec.dst_port': [{ required: true, message: t('taskCreate.validation.dstPortRequired'), trigger: 'blur' }]
 }
 
 function onProtocolChange() {
@@ -251,7 +253,7 @@ async function handleSubmit() {
   try {
     const res = await taskApi.create(form)
     if (res.data) {
-      ElMessage.success('任务创建成功')
+      ElMessage.success(t('task.createSuccess'))
       router.push(`/tasks/${res.data.task_id}`)
     }
   } catch (error) {

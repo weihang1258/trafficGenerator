@@ -3,34 +3,34 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>网卡管理</span>
+          <span>{{ t('interface.title') }}</span>
           <el-button type="primary" @click="discoverInterfaces">
             <el-icon><Refresh /></el-icon>
-            刷新
+            {{ t('interface.refresh') }}
           </el-button>
         </div>
       </template>
 
       <el-table :data="interfaces" v-loading="loading" stripe>
-        <el-table-column prop="name" label="名称" width="150" />
-        <el-table-column prop="mac" label="MAC地址" width="180" />
-        <el-table-column prop="ip" label="IP地址" width="150" />
-        <el-table-column prop="mtu" label="MTU" width="100" />
-        <el-table-column prop="is_up" label="状态" width="100">
+        <el-table-column prop="name" :label="t('interface.interfaceName')" width="150" />
+        <el-table-column prop="mac" :label="t('interface.macAddress')" width="180" />
+        <el-table-column prop="ip" :label="t('interface.ipAddress')" width="150" />
+        <el-table-column prop="mtu" :label="t('interface.mtu')" width="100" />
+        <el-table-column prop="is_up" :label="t('interface.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="row.is_up ? 'success' : 'danger'">
-              {{ row.is_up ? 'UP' : 'DOWN' }}
+              {{ row.is_up ? t('interface.up') : t('interface.down') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="link_up" label="Link状态" width="100">
+        <el-table-column prop="link_up" :label="t('interface.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="row.link_up ? 'success' : 'warning'">
-              {{ row.link_up ? 'LINK' : 'NO LINK' }}
+              {{ row.link_up ? t('interface.linkUp') : t('interface.linkDown') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="200" />
+        <el-table-column prop="description" :label="t('common.description')" min-width="200" />
       </el-table>
     </el-card>
   </div>
@@ -38,8 +38,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { interfaceApi, type NetworkInterface } from '@/api'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const interfaces = ref<NetworkInterface[]>([])
@@ -61,7 +64,7 @@ async function loadInterfaces() {
 async function discoverInterfaces() {
   try {
     await interfaceApi.discover()
-    ElMessage.success('网卡发现完成')
+    ElMessage.success(t('interface.refreshSuccess'))
     loadInterfaces()
   } catch (error) {
     console.error('Failed to discover interfaces:', error)

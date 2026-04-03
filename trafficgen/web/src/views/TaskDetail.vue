@@ -7,7 +7,7 @@
             <el-button link @click="$router.back()">
               <el-icon><ArrowLeft /></el-icon>
             </el-button>
-            <span>{{ task?.name || '任务详情' }}</span>
+            <span>{{ task?.name || t('task.taskDetail') }}</span>
             <el-tag :type="getStatusTagType(task?.status || '')">{{ getStatusText(task?.status || '') }}</el-tag>
           </div>
           <div class="actions">
@@ -16,34 +16,34 @@
               :disabled="task?.status !== 'created' && task?.status !== 'paused'"
               @click="startTask"
             >
-              启动
+              {{ t('task.start') }}
             </el-button>
             <el-button
               type="warning"
               :disabled="task?.status !== 'running'"
               @click="stopTask"
             >
-              停止
+              {{ t('task.stop') }}
             </el-button>
-            <el-button type="danger" @click="deleteTask">删除</el-button>
+            <el-button type="danger" @click="deleteTask">{{ t('common.delete') }}</el-button>
           </div>
         </div>
       </template>
 
       <el-descriptions :column="3" border>
-        <el-descriptions-item label="任务ID">{{ task?.id }}</el-descriptions-item>
-        <el-descriptions-item label="协议">
+        <el-descriptions-item :label="t('task.taskName')">{{ task?.id }}</el-descriptions-item>
+        <el-descriptions-item :label="t('task.protocol')">
           <el-tag :type="getProtocolTagType(task?.protocol || '')">{{ task?.protocol?.toUpperCase() }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="状态">
+        <el-descriptions-item :label="t('task.status')">
           <el-tag :type="getStatusTagType(task?.status || '')">{{ getStatusText(task?.status || '') }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ formatDate(task?.created_at) }}</el-descriptions-item>
-        <el-descriptions-item label="开始时间">{{ formatDate(task?.started_at) }}</el-descriptions-item>
-        <el-descriptions-item label="完成时间">{{ formatDate(task?.completed_at) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('task.createdAt')">{{ formatDate(task?.created_at) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('task.startedAt')">{{ formatDate(task?.started_at) }}</el-descriptions-item>
+        <el-descriptions-item :label="t('task.completedAt')">{{ formatDate(task?.completed_at) }}</el-descriptions-item>
       </el-descriptions>
 
-      <el-divider content-position="left">进度</el-divider>
+      <el-divider content-position="left">{{ t('task.progress') }}</el-divider>
 
       <el-progress
         :percentage="task?.progress || 0"
@@ -52,14 +52,14 @@
         style="margin-bottom: 20px;"
       />
 
-      <el-divider content-position="left">统计信息</el-divider>
+      <el-divider content-position="left">{{ t('task.statistics') }}</el-divider>
 
       <el-row :gutter="20">
         <el-col :span="6">
-          <el-statistic title="已发送报文" :value="task?.stats?.packets_sent || 0" />
+          <el-statistic :title="t('dashboard.packetsSent')" :value="task?.stats?.packets_sent || 0" />
         </el-col>
         <el-col :span="6">
-          <el-statistic title="已发送字节" :value="task?.stats?.bytes_sent || 0" />
+          <el-statistic :title="t('task.bytes')" :value="task?.stats?.bytes_sent || 0" />
         </el-col>
         <el-col :span="6">
           <el-statistic title="当前PPS" :value="task?.stats?.current_pps || 0" :precision="2" />
@@ -69,7 +69,7 @@
         </el-col>
       </el-row>
 
-      <el-divider content-position="left">错误信息</el-divider>
+      <el-divider content-position="left">{{ t('common.error') }}</el-divider>
 
       <el-alert
         v-if="task?.error"
@@ -78,7 +78,7 @@
         show-icon
         :closable="false"
       />
-      <el-empty v-else description="无错误" :image-size="60" />
+      <el-empty v-else :description="t('common.noData')" :image-size="60" />
     </el-card>
   </div>
 </template>
@@ -86,10 +86,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { taskApi, type Task } from '@/api'
 import dayjs from 'dayjs'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
@@ -106,11 +108,11 @@ function formatDate(timestamp?: number): string {
 
 function getStatusText(status: string): string {
   const map: Record<string, string> = {
-    created: '已创建',
-    running: '运行中',
-    paused: '已暂停',
-    completed: '已完成',
-    failed: '失败'
+    created: t('task.pending'),
+    running: t('task.running'),
+    paused: t('task.stopped'),
+    completed: t('task.completed'),
+    failed: t('task.failed')
   }
   return map[status] || status
 }
@@ -158,7 +160,7 @@ async function loadTask() {
 async function startTask() {
   try {
     await taskApi.start(taskId)
-    ElMessage.success('任务已启动')
+    ElMessage.success(t('task.startSuccess'))
     loadTask()
   } catch (error) {
     console.error('Failed to start task:', error)
@@ -168,7 +170,7 @@ async function startTask() {
 async function stopTask() {
   try {
     await taskApi.stop(taskId)
-    ElMessage.success('任务已停止')
+    ElMessage.success(t('task.stopSuccess'))
     loadTask()
   } catch (error) {
     console.error('Failed to stop task:', error)
@@ -177,9 +179,9 @@ async function stopTask() {
 
 async function deleteTask() {
   try {
-    await ElMessageBox.confirm('确定要删除此任务吗？', '确认删除', { type: 'warning' })
+    await ElMessageBox.confirm(t('task.confirmDelete'), t('common.confirm'), { type: 'warning' })
     await taskApi.delete(taskId)
-    ElMessage.success('任务已删除')
+    ElMessage.success(t('task.deleteSuccess'))
     router.push('/tasks')
   } catch (error) {
     // Cancelled

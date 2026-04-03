@@ -3,31 +3,31 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>策略管理</span>
+          <span>{{ t('strategy.title') }}</span>
           <el-button type="primary" @click="showCreateDialog">
             <el-icon><Plus /></el-icon>
-            创建策略
+            {{ t('strategy.createStrategy') }}
           </el-button>
         </div>
       </template>
 
       <el-table :data="strategies" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="180" />
-        <el-table-column prop="name" label="名称" min-width="150" />
-        <el-table-column prop="protocol" label="协议" width="100">
+        <el-table-column prop="name" :label="t('common.name')" min-width="150" />
+        <el-table-column prop="protocol" :label="t('task.protocol')" width="100">
           <template #default="{ row }">
             <el-tag>{{ row.protocol.toUpperCase() }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
+        <el-table-column prop="created_at" :label="t('task.createdAt')" width="180">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column :label="t('common.action')" width="150" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="editStrategy(row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="deleteStrategy(row.id)">删除</el-button>
+            <el-button size="small" @click="editStrategy(row)">{{ t('common.edit') }}</el-button>
+            <el-button size="small" type="danger" @click="deleteStrategy(row.id)">{{ t('common.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -43,13 +43,13 @@
     </el-card>
 
     <!-- Create/Edit Dialog -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑策略' : '创建策略'" width="500px">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? t('common.edit') : t('strategy.createStrategy')" width="500px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入策略名称" />
+        <el-form-item :label="t('common.name')" prop="name">
+          <el-input v-model="form.name" :placeholder="t('strategy.strategyNamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="协议" prop="protocol">
-          <el-select v-model="form.protocol" placeholder="请选择协议">
+        <el-form-item :label="t('task.protocol')" prop="protocol">
+          <el-select v-model="form.protocol" :placeholder="t('taskCreate.selectProtocol')">
             <el-option label="TCP" value="tcp" />
             <el-option label="UDP" value="udp" />
             <el-option label="HTTP" value="http" />
@@ -58,8 +58,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">确定</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="handleSubmit">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -67,10 +67,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { strategyApi, type Strategy } from '@/api'
 import dayjs from 'dayjs'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const strategies = ref<Strategy[]>([])
@@ -92,8 +95,8 @@ const form = reactive({
 })
 
 const rules: FormRules = {
-  name: [{ required: true, message: '请输入策略名称', trigger: 'blur' }],
-  protocol: [{ required: true, message: '请选择协议', trigger: 'change' }]
+  name: [{ required: true, message: t('strategy.strategyNamePlaceholder'), trigger: 'blur' }],
+  protocol: [{ required: true, message: t('taskCreate.validation.protocolRequired'), trigger: 'change' }]
 }
 
 function formatDate(timestamp: number): string {
@@ -138,10 +141,10 @@ async function handleSubmit() {
   try {
     if (isEdit.value) {
       await strategyApi.update(form.id, { name: form.name, protocol: form.protocol })
-      ElMessage.success('策略更新成功')
+      ElMessage.success(t('strategy.updateSuccess'))
     } else {
       await strategyApi.create({ name: form.name, protocol: form.protocol, config: {} })
-      ElMessage.success('策略创建成功')
+      ElMessage.success(t('strategy.createSuccess'))
     }
     dialogVisible.value = false
     loadStrategies()
@@ -152,9 +155,9 @@ async function handleSubmit() {
 
 async function deleteStrategy(id: string) {
   try {
-    await ElMessageBox.confirm('确定要删除此策略吗？', '确认删除', { type: 'warning' })
+    await ElMessageBox.confirm(t('strategy.confirmDelete'), t('common.confirm'), { type: 'warning' })
     await strategyApi.delete(id)
-    ElMessage.success('策略已删除')
+    ElMessage.success(t('strategy.deleteSuccess'))
     loadStrategies()
   } catch (error) {
     // Cancelled

@@ -31,7 +31,9 @@ export default {
     total: 'Total',
     page: 'Page',
     pageSize: 'Page Size',
-    noData: 'No Data'
+    noData: 'No Data',
+    select: 'Please select',
+    both: 'Both'
   },
 
   // Navigation Menu
@@ -107,6 +109,7 @@ export default {
     bytes: 'Bytes',
     duration: 'Duration',
     rate: 'Rate',
+    progress: 'Progress',
     noTasks: 'No tasks',
     confirmDelete: 'Are you sure to delete this task?',
     confirmStart: 'Are you sure to start this task?',

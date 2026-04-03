@@ -2,55 +2,55 @@
   <div class="history">
     <el-card>
       <template #header>
-        <span>历史记录</span>
+        <span>{{ t('history.title') }}</span>
       </template>
 
       <el-form :inline="true" class="search-form">
-        <el-form-item label="时间范围">
+        <el-form-item :label="t('history.timeRange')">
           <el-date-picker
             v-model="dateRange"
             type="datetimerange"
-            range-separator="至"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间"
+            range-separator="-"
+            :start-placeholder="t('history.startTime')"
+            :end-placeholder="t('history.endTime')"
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadHistory">查询</el-button>
+          <el-button type="primary" @click="loadHistory">{{ t('common.search') }}</el-button>
         </el-form-item>
       </el-form>
 
       <el-table :data="histories" v-loading="loading" stripe>
-        <el-table-column prop="task_id" label="任务ID" width="180" />
-        <el-table-column prop="name" label="任务名称" min-width="150" />
-        <el-table-column prop="protocol" label="协议" width="100">
+        <el-table-column prop="task_id" :label="t('task.taskName')" width="180" />
+        <el-table-column prop="name" :label="t('history.taskName')" min-width="150" />
+        <el-table-column prop="protocol" :label="t('task.protocol')" width="100">
           <template #default="{ row }">
             <el-tag>{{ row.protocol.toUpperCase() }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" :label="t('task.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 'completed' ? 'success' : 'danger'">
-              {{ row.status === 'completed' ? '完成' : '失败' }}
+              {{ row.status === 'completed' ? t('task.completed') : t('task.failed') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="packets_sent" label="发送报文" width="120">
+        <el-table-column prop="packets_sent" :label="t('history.packets')" width="120">
           <template #default="{ row }">
             {{ formatNumber(row.packets_sent) }}
           </template>
         </el-table-column>
-        <el-table-column prop="bytes_sent" label="发送字节" width="120">
+        <el-table-column prop="bytes_sent" :label="t('history.bytes')" width="120">
           <template #default="{ row }">
             {{ formatBytes(row.bytes_sent) }}
           </template>
         </el-table-column>
-        <el-table-column prop="duration" label="持续时间" width="100">
+        <el-table-column prop="duration" :label="t('history.duration')" width="100">
           <template #default="{ row }">
             {{ row.duration }}s
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
+        <el-table-column prop="created_at" :label="t('task.createdAt')" width="180">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
@@ -71,7 +71,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const histories = ref<any[]>([])

@@ -8,7 +8,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ status.active_tasks }}</div>
-            <div class="stat-label">运行中任务</div>
+            <div class="stat-label">{{ t('dashboard.activeTasks') }}</div>
           </div>
         </el-card>
       </el-col>
@@ -19,7 +19,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ formatNumber(stats.packets_sent || 0) }}</div>
-            <div class="stat-label">已发送报文</div>
+            <div class="stat-label">{{ t('dashboard.packetsSent') }}</div>
           </div>
         </el-card>
       </el-col>
@@ -30,7 +30,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ formatBytes(stats.bytes_sent || 0) }}</div>
-            <div class="stat-label">已发送字节</div>
+            <div class="stat-label">{{ t('dashboard.throughput') }}</div>
           </div>
         </el-card>
       </el-col>
@@ -41,7 +41,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ formatBps(stats.current_bps || 0) }}</div>
-            <div class="stat-label">当前速率</div>
+            <div class="stat-label">{{ t('dashboard.throughput') }}</div>
           </div>
         </el-card>
       </el-col>
@@ -52,7 +52,7 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>流量趋势</span>
+              <span>{{ t('dashboard.throughput') }}</span>
             </div>
           </template>
           <div ref="chartRef" style="height: 300px;"></div>
@@ -62,7 +62,7 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>协议分布</span>
+              <span>{{ t('dashboard.protocolDistribution') }}</span>
             </div>
           </template>
           <div ref="pieChartRef" style="height: 300px;"></div>
@@ -75,22 +75,22 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>系统状态</span>
+              <span>{{ t('dashboard.systemOverview') }}</span>
               <el-button type="primary" size="small" @click="refreshStatus">
                 <el-icon><Refresh /></el-icon>
-                刷新
+                {{ t('common.refresh') }}
               </el-button>
             </div>
           </template>
           <el-descriptions :column="4" border>
-            <el-descriptions-item label="引擎状态">
+            <el-descriptions-item :label="t('dashboard.systemOverview')">
               <el-tag :type="status.running ? 'success' : 'danger'">
-                {{ status.running ? '运行中' : '已停止' }}
+                {{ status.running ? t('task.running') : t('task.stopped') }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="CPU使用率">{{ status.cpu_usage?.toFixed(1) }}%</el-descriptions-item>
-            <el-descriptions-item label="内存使用">{{ status.memory_mb?.toFixed(0) }} MB</el-descriptions-item>
-            <el-descriptions-item label="运行时间">{{ formatUptime(status.uptime) }}</el-descriptions-item>
+            <el-descriptions-item label="CPU">{{ status.cpu_usage?.toFixed(1) }}%</el-descriptions-item>
+            <el-descriptions-item label="Memory">{{ status.memory_mb?.toFixed(0) }} MB</el-descriptions-item>
+            <el-descriptions-item :label="t('task.duration')">{{ formatUptime(status.uptime) }}</el-descriptions-item>
           </el-descriptions>
         </el-card>
       </el-col>
@@ -100,8 +100,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import { systemApi, type SystemStatus } from '@/api'
+
+const { t } = useI18n()
 
 const chartRef = ref<HTMLElement>()
 const pieChartRef = ref<HTMLElement>()
@@ -159,7 +162,7 @@ function formatBps(bps: number): string {
 function formatUptime(seconds: number): string {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
-  return `${hours}小时${minutes}分钟`
+  return `${hours}${t('unit.hours')}${minutes}${t('unit.minutes')}`
 }
 
 async function refreshStatus() {
@@ -180,11 +183,11 @@ function initCharts() {
       tooltip: { trigger: 'axis' },
       xAxis: {
         type: 'category',
-        data: Array.from({ length: 30 }, (_, i) => `${30 - i}秒前`)
+        data: Array.from({ length: 30 }, (_, i) => `${30 - i}${t('unit.seconds')}`)
       },
       yAxis: { type: 'value', name: 'Mbps' },
       series: [{
-        name: '发送速率',
+        name: t('dashboard.throughput'),
         type: 'line',
         smooth: true,
         areaStyle: { opacity: 0.3 },
@@ -202,10 +205,10 @@ function initCharts() {
         type: 'pie',
         radius: ['40%', '70%'],
         data: [
-          { value: 40, name: 'TCP' },
-          { value: 30, name: 'UDP' },
-          { value: 20, name: 'HTTP' },
-          { value: 10, name: 'DNS' }
+          { value: 40, name: t('protocol.tcp') },
+          { value: 30, name: t('protocol.udp') },
+          { value: 20, name: t('protocol.http') },
+          { value: 10, name: t('protocol.dns') }
         ]
       }]
     })

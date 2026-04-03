@@ -3,26 +3,26 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>任务列表</span>
+          <span>{{ t('task.title') }}</span>
           <el-button type="primary" @click="$router.push('/tasks/create')">
             <el-icon><Plus /></el-icon>
-            创建任务
+            {{ t('task.createTask') }}
           </el-button>
         </div>
       </template>
 
       <!-- Search and Filter -->
       <el-form :inline="true" class="search-form">
-        <el-form-item label="状态">
-          <el-select v-model="filters.status" placeholder="全部状态" clearable @change="loadTasks">
-            <el-option label="运行中" value="running" />
-            <el-option label="已完成" value="completed" />
-            <el-option label="失败" value="failed" />
-            <el-option label="已暂停" value="paused" />
+        <el-form-item :label="t('task.status')">
+          <el-select v-model="filters.status" :placeholder="t('common.select')" clearable @change="loadTasks">
+            <el-option :label="t('task.running')" value="running" />
+            <el-option :label="t('task.completed')" value="completed" />
+            <el-option :label="t('task.failed')" value="failed" />
+            <el-option :label="t('task.stopped')" value="paused" />
           </el-select>
         </el-form-item>
-        <el-form-item label="协议">
-          <el-select v-model="filters.protocol" placeholder="全部协议" clearable @change="loadTasks">
+        <el-form-item :label="t('task.protocol')">
+          <el-select v-model="filters.protocol" :placeholder="t('common.select')" clearable @change="loadTasks">
             <el-option label="TCP" value="tcp" />
             <el-option label="UDP" value="udp" />
             <el-option label="HTTP" value="http" />
@@ -34,38 +34,38 @@
 
       <!-- Task Table -->
       <el-table :data="tasks" v-loading="loading" stripe>
-        <el-table-column prop="id" label="任务ID" width="180" />
-        <el-table-column prop="name" label="任务名称" min-width="150" />
-        <el-table-column prop="protocol" label="协议" width="100">
+        <el-table-column prop="id" :label="t('task.taskName')" width="180" />
+        <el-table-column prop="name" :label="t('common.name')" min-width="150" />
+        <el-table-column prop="protocol" :label="t('task.protocol')" width="100">
           <template #default="{ row }">
             <el-tag :type="getProtocolTagType(row.protocol)">{{ row.protocol.toUpperCase() }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="120">
+        <el-table-column prop="status" :label="t('task.status')" width="120">
           <template #default="{ row }">
             <el-tag :type="getStatusTagType(row.status)">{{ getStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="progress" label="进度" width="150">
+        <el-table-column prop="progress" :label="t('task.progress')" width="150">
           <template #default="{ row }">
             <el-progress :percentage="row.progress" :status="getProgressStatus(row.status)" />
           </template>
         </el-table-column>
-        <el-table-column prop="stats.packets_sent" label="已发送" width="120">
+        <el-table-column prop="stats.packets_sent" :label="t('task.packets')" width="120">
           <template #default="{ row }">
             {{ formatNumber(row.stats?.packets_sent || 0) }}
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
+        <el-table-column prop="created_at" :label="t('task.createdAt')" width="180">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column :label="t('common.action')" width="200" fixed="right">
           <template #default="{ row }">
             <el-button-group>
               <el-button size="small" @click="$router.push(`/tasks/${row.id}`)">
-                查看
+                {{ t('task.viewDetail') }}
               </el-button>
               <el-button
                 size="small"
@@ -73,7 +73,7 @@
                 :disabled="row.status !== 'created' && row.status !== 'paused'"
                 @click="startTask(row.id)"
               >
-                启动
+                {{ t('task.start') }}
               </el-button>
               <el-button
                 size="small"
@@ -81,14 +81,14 @@
                 :disabled="row.status !== 'running'"
                 @click="stopTask(row.id)"
               >
-                停止
+                {{ t('task.stop') }}
               </el-button>
               <el-button
                 size="small"
                 type="danger"
                 @click="deleteTask(row.id)"
               >
-                删除
+                {{ t('common.delete') }}
               </el-button>
             </el-button-group>
           </template>
@@ -112,9 +112,12 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { taskApi, type Task } from '@/api'
 import dayjs from 'dayjs'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const tasks = ref<Task[]>([])
@@ -142,11 +145,11 @@ function formatDate(timestamp: number): string {
 
 function getStatusText(status: string): string {
   const map: Record<string, string> = {
-    created: '已创建',
-    running: '运行中',
-    paused: '已暂停',
-    completed: '已完成',
-    failed: '失败'
+    created: t('task.pending'),
+    running: t('task.running'),
+    paused: t('task.stopped'),
+    completed: t('task.completed'),
+    failed: t('task.failed')
   }
   return map[status] || status
 }
@@ -203,7 +206,7 @@ async function loadTasks() {
 async function startTask(id: string) {
   try {
     await taskApi.start(id)
-    ElMessage.success('任务已启动')
+    ElMessage.success(t('task.startSuccess'))
     loadTasks()
   } catch (error) {
     console.error('Failed to start task:', error)
@@ -213,7 +216,7 @@ async function startTask(id: string) {
 async function stopTask(id: string) {
   try {
     await taskApi.stop(id)
-    ElMessage.success('任务已停止')
+    ElMessage.success(t('task.stopSuccess'))
     loadTasks()
   } catch (error) {
     console.error('Failed to stop task:', error)
@@ -222,11 +225,11 @@ async function stopTask(id: string) {
 
 async function deleteTask(id: string) {
   try {
-    await ElMessageBox.confirm('确定要删除此任务吗？', '确认删除', {
+    await ElMessageBox.confirm(t('task.confirmDelete'), t('common.confirm'), {
       type: 'warning'
     })
     await taskApi.delete(id)
-    ElMessage.success('任务已删除')
+    ElMessage.success(t('task.deleteSuccess'))
     loadTasks()
   } catch (error) {
     // Cancelled or error

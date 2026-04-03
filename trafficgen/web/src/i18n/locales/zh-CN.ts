@@ -31,7 +31,9 @@ export default {
     total: '总计',
     page: '页',
     pageSize: '每页数量',
-    noData: '暂无数据'
+    noData: '暂无数据',
+    select: '请选择',
+    both: '两者都'
   },
 
   // 导航菜单
@@ -107,6 +109,7 @@ export default {
     bytes: '字节',
     duration: '运行时长',
     rate: '速率',
+    progress: '进度',
     noTasks: '暂无任务',
     confirmDelete: '确定要删除该任务吗？',
     confirmStart: '确定要启动该任务吗？',
