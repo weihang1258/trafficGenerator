@@ -111,6 +111,7 @@ export default {
     rate: '速率',
     progress: '进度',
     noTasks: '暂无任务',
+    createFirst: '创建第一个任务',
     confirmDelete: '确定要删除该任务吗？',
     confirmStart: '确定要启动该任务吗？',
     confirmStop: '确定要停止该任务吗？',
@@ -121,7 +122,22 @@ export default {
     stopSuccess: '任务停止成功',
     stopFailed: '任务停止失败',
     deleteSuccess: '任务删除成功',
-    deleteFailed: '任务删除失败'
+    deleteFailed: '任务删除失败',
+    refreshed: '列表已刷新',
+    bulkStart: '批量启动',
+    bulkStop: '批量停止',
+    bulkDelete: '批量删除',
+    bulkStarted: '已启动 {count} 个任务',
+    bulkStopped: '已停止 {count} 个任务',
+    bulkDeleted: '已删除 {count} 个任务',
+    advancedFilters: '高级筛选',
+    searchPlaceholder: '搜索任务名称或 ID',
+    step: {
+      basic: '基本信息',
+      protocol: '协议配置',
+      advanced: '高级选项',
+      review: '确认提交'
+    }
   },
 
   // 任务创建

@@ -33,7 +33,16 @@
       </el-form>
 
       <!-- Task Table -->
-      <el-table :data="tasks" v-loading="loading" stripe>
+      <el-empty
+        v-if="tasks.length === 0 && !loading"
+        :description="t('task.noTasks')"
+      >
+        <el-button type="primary" @click="$router.push('/tasks/create')">
+          {{ t('task.createFirst') }}
+        </el-button>
+      </el-empty>
+
+      <el-table v-else :data="tasks" v-loading="loading" stripe>
         <el-table-column prop="id" :label="t('task.taskName')" width="180" />
         <el-table-column prop="name" :label="t('common.name')" min-width="150" />
         <el-table-column prop="protocol" :label="t('task.protocol')" width="100">

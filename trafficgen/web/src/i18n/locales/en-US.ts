@@ -111,6 +111,7 @@ export default {
     rate: 'Rate',
     progress: 'Progress',
     noTasks: 'No tasks',
+    createFirst: 'Create your first task',
     confirmDelete: 'Are you sure to delete this task?',
     confirmStart: 'Are you sure to start this task?',
     confirmStop: 'Are you sure to stop this task?',
@@ -121,7 +122,22 @@ export default {
     stopSuccess: 'Task stopped successfully',
     stopFailed: 'Failed to stop task',
     deleteSuccess: 'Task deleted successfully',
-    deleteFailed: 'Failed to delete task'
+    deleteFailed: 'Failed to delete task',
+    refreshed: 'List refreshed',
+    bulkStart: 'Bulk Start',
+    bulkStop: 'Bulk Stop',
+    bulkDelete: 'Bulk Delete',
+    bulkStarted: 'Started {count} tasks',
+    bulkStopped: 'Stopped {count} tasks',
+    bulkDeleted: 'Deleted {count} tasks',
+    advancedFilters: 'Advanced Filters',
+    searchPlaceholder: 'Search task name or ID',
+    step: {
+      basic: 'Basic Info',
+      protocol: 'Protocol Config',
+      advanced: 'Advanced Options',
+      review: 'Review & Submit'
+    }
   },
 
   // Task Create

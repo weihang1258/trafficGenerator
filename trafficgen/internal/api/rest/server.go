@@ -68,8 +68,11 @@ func (s *Server) Setup() error {
 
 // setupRoutes configures all API routes.
 func (s *Server) setupRoutes() {
+	// Create repositories
+	taskRepo := storage.NewTaskRepository(s.db)
+
 	// Handlers
-	taskHandler := NewTaskHandler(s.engine)
+	taskHandler := NewTaskHandler(s.engine, taskRepo)
 	systemHandler := NewSystemHandler(s.engine)
 
 	// Health endpoints (no auth required)
