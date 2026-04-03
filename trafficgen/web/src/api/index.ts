@@ -6,9 +6,12 @@ import i18n from '@/i18n'
 // Get translate function
 const t = (key: string) => i18n.global.t(key)
 
+// Get API base URL from environment variable
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
 // Create axios instance
 const request: AxiosInstance = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
