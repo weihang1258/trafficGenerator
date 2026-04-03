@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { listTasks, getTask, createTask, deleteTask, startTask, stopTask, getTaskStats } from '@/api/task'
 import type { Task, TaskCreate, TaskStats } from '@/api/task'
+import i18n from '@/i18n'
+
+const t = (key: string) => i18n.global.t(key)
 
 export const useTaskStore = defineStore('task', () => {
   // State
@@ -57,7 +60,7 @@ export const useTaskStore = defineStore('task', () => {
       tasks.value = response.tasks
       total.value = response.total
     } catch (err: any) {
-      error.value = err.message || '获取任务列表失败'
+      error.value = err.message || t('task.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -73,7 +76,7 @@ export const useTaskStore = defineStore('task', () => {
       currentTask.value = task
       return task
     } catch (err: any) {
-      error.value = err.message || '获取任务详情失败'
+      error.value = err.message || t('error.serverError')
       throw err
     } finally {
       loading.value = false
@@ -90,7 +93,7 @@ export const useTaskStore = defineStore('task', () => {
       total.value++
       return task
     } catch (err: any) {
-      error.value = err.message || '创建任务失败'
+      error.value = err.message || t('task.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -109,7 +112,7 @@ export const useTaskStore = defineStore('task', () => {
         total.value--
       }
     } catch (err: any) {
-      error.value = err.message || '删除任务失败'
+      error.value = err.message || t('task.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -125,7 +128,7 @@ export const useTaskStore = defineStore('task', () => {
       updateTaskInList(task)
       return task
     } catch (err: any) {
-      error.value = err.message || '启动任务失败'
+      error.value = err.message || t('task.startFailed')
       throw err
     } finally {
       loading.value = false
@@ -141,7 +144,7 @@ export const useTaskStore = defineStore('task', () => {
       updateTaskInList(task)
       return task
     } catch (err: any) {
-      error.value = err.message || '停止任务失败'
+      error.value = err.message || t('task.stopFailed')
       throw err
     } finally {
       loading.value = false
@@ -154,7 +157,7 @@ export const useTaskStore = defineStore('task', () => {
       taskStats.value = stats
       return stats
     } catch (err: any) {
-      error.value = err.message || '获取任务统计失败'
+      error.value = err.message || t('error.serverError')
       throw err
     }
   }

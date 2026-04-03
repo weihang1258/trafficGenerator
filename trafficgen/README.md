@@ -2,6 +2,13 @@
 
 高性能网络流量生成器，支持多种协议和输出方式。
 
+**功能特点**:
+- 多协议支持: TCP, UDP, HTTP, DNS, ICMP, ARP
+- 多输出模式: 网卡输出、PCAP文件、混合模式
+- 国际化支持: 中文/英文切换
+- 实时监控: WebSocket推送、Prometheus指标
+- 现代化UI: Vue 3 + Element Plus
+
 ## 项目结构
 
 ```
@@ -49,6 +56,7 @@ trafficgen/
 - Element Plus
 - ECharts
 - Pinia
+- Vue I18n (国际化)
 
 ## 快速开始
 

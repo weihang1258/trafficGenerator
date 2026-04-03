@@ -47,8 +47,15 @@ declare module 'vue' {
     ElTable: typeof import('element-plus/es')['ElTable']
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
     ElTag: typeof import('element-plus/es')['ElTag']
+    Header: typeof import('./components/Header.vue')['default']
+    Layout: typeof import('./components/Layout.vue')['default']
+    Pagination: typeof import('./components/Pagination.vue')['default']
+    ProtocolIcon: typeof import('./components/ProtocolIcon.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    Sidebar: typeof import('./components/Sidebar.vue')['default']
+    StatsCard: typeof import('./components/StatsCard.vue')['default']
+    TaskStatusTag: typeof import('./components/TaskStatusTag.vue')['default']
   }
   export interface ComponentCustomProperties {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

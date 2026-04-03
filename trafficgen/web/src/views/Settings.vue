@@ -6,6 +6,15 @@
       </template>
 
       <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" style="max-width: 600px;">
+        <el-form-item :label="t('settings.language')" prop="language">
+          <el-select v-model="currentLocale" @change="handleLanguageChange">
+            <el-option label="中文" value="zh-CN" />
+            <el-option label="English" value="en-US" />
+          </el-select>
+        </el-form-item>
+
+        <el-divider />
+
         <el-form-item :label="t('settings.maxTasks')" prop="max_tasks">
           <el-input-number v-model="form.max_tasks" :min="1" :max="1000" />
         </el-form-item>
@@ -40,11 +49,13 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { settingsApi, type Settings } from '@/api'
+import { setLocale, getLocale } from '@/i18n'
 
 const { t } = useI18n()
 
 const loading = ref(false)
 const formRef = ref<FormInstance>()
+const currentLocale = ref(getLocale())
 
 const form = reactive<Settings>({
   max_tasks: 100,
@@ -69,6 +80,11 @@ async function loadSettings() {
   } catch (error) {
     console.error('Failed to load settings:', error)
   }
+}
+
+function handleLanguageChange(locale: string) {
+  setLocale(locale)
+  ElMessage.success(t('settings.saveSuccess'))
 }
 
 async function handleSave() {

@@ -1,6 +1,10 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
+import i18n from '@/i18n'
+
+// Get translate function
+const t = (key: string) => i18n.global.t(key)
 
 // Create axios instance
 const request: AxiosInstance = axios.create({
@@ -30,8 +34,8 @@ request.interceptors.response.use(
   (response: AxiosResponse) => {
     const { data } = response
     if (data.code !== 0) {
-      ElMessage.error(data.message || '请求失败')
-      return Promise.reject(new Error(data.message || '请求失败'))
+      ElMessage.error(data.message || t('error.serverError'))
+      return Promise.reject(new Error(data.message || t('error.serverError')))
     }
     return data
   },
@@ -40,24 +44,24 @@ request.interceptors.response.use(
       const { status } = error.response
       switch (status) {
         case 401:
-          ElMessage.error('未授权，请重新登录')
+          ElMessage.error(t('error.unauthorized'))
           localStorage.removeItem('token')
           window.location.href = '/login'
           break
         case 403:
-          ElMessage.error('拒绝访问')
+          ElMessage.error(t('error.forbidden'))
           break
         case 404:
-          ElMessage.error('请求资源不存在')
+          ElMessage.error(t('error.notFound'))
           break
         case 500:
-          ElMessage.error('服务器错误')
+          ElMessage.error(t('error.serverError'))
           break
         default:
-          ElMessage.error(error.message || '请求失败')
+          ElMessage.error(error.message || t('error.networkError'))
       }
     } else {
-      ElMessage.error('网络错误')
+      ElMessage.error(t('error.networkError'))
     }
     return Promise.reject(error)
   }
