@@ -2,7 +2,7 @@
 
 **项目**: Traffic Generator v2.0  
 **语言**: Go 1.21+  
-**更新日期**: 2026-04-01
+**更新日期**: 2026-04-03
 
 ---
 
@@ -44,10 +44,14 @@ design/
 │   ├── 02-存储方案.md            # 存储方案选型
 │   └── 03-缓存设计.md            # 缓存策略设计
 │
-└── deployment/                  # 部署文档
+├── deployment/                  # 部署文档
     ├── 01-部署架构.md            # 部署架构
     ├── 02-Docker部署.md          # Docker部署
     └── 03-K8s部署.md             # Kubernetes部署
+
+**注**: 完整的部署配置和指南请参考 `trafficgen/deployments/` 目录：
+- `DEPLOYMENT.md` - 详细部署指南
+- `nginx/trafficgen.conf` - Nginx 配置模板
 ```
 
 ---
@@ -121,6 +125,7 @@ design/
 ### 运维部署
 1. 系统架构 → 部署架构
 2. Docker部署 → K8s部署
+3. 参考 `trafficgen/deployments/DEPLOYMENT.md` 获取完整部署指南
 
 ---
 
@@ -165,5 +170,6 @@ design/
 
 | 版本 | 日期 | 说明 | 作者 |
 |------|------|------|------|
+| v1.1 | 2026-04-03 | 更新部署方案，添加环境变量配置和 Nginx 反向代理支持 | 架构组 |
 | v1.0 | 2026-04-01 | 初始版本 | 架构组 |
 
