@@ -131,7 +131,7 @@
         <el-table-column :label="t('common.action')" width="200" fixed="right">
           <template #default="{ row }">
             <el-button-group>
-              <el-button size="small" @click="$router.push(`/tasks/${row.id}`)">
+              <el-button size="small" @click="openDrawer(row)">
                 {{ t('task.viewDetail') }}
               </el-button>
               <el-button
@@ -174,15 +174,92 @@
         @current-change="loadTasks"
       />
     </el-card>
+
+    <!-- Task Detail Drawer -->
+    <el-drawer
+      v-model="drawerVisible"
+      :title="selectedTask?.name || t('task.taskDetail')"
+      size="60%"
+      direction="rtl"
+    >
+      <div v-if="selectedTask" v-loading="drawerLoading">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item :label="t('task.taskName')">{{ selectedTask.id }}</el-descriptions-item>
+          <el-descriptions-item :label="t('common.name')">{{ selectedTask.name }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.protocol')">
+            <el-tag :type="getProtocolTagType(selectedTask.protocol)">{{ selectedTask.protocol?.toUpperCase() }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('task.status')">
+            <el-tag :type="getStatusTagType(selectedTask.status)">{{ getStatusText(selectedTask.status) }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item :label="t('task.createdAt')">{{ formatDate(selectedTask.created_at) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('task.startedAt')">{{ formatDate(selectedTask.started_at) }}</el-descriptions-item>
+        </el-descriptions>
+
+        <el-divider content-position="left">{{ t('task.progress') }}</el-divider>
+
+        <el-progress
+          :percentage="selectedTask.progress || 0"
+          :status="getProgressStatus(selectedTask.status)"
+          :stroke-width="20"
+          style="margin-bottom: 20px;"
+        />
+
+        <el-divider content-position="left">{{ t('task.statistics') }}</el-divider>
+
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-statistic :title="t('dashboard.packetsSent')" :value="selectedTask.stats?.packets_sent || 0" />
+          </el-col>
+          <el-col :span="12">
+            <el-statistic :title="t('task.bytes')" :value="selectedTask.stats?.bytes_sent || 0" />
+          </el-col>
+        </el-row>
+
+        <el-divider content-position="left">{{ t('common.action') }}</el-divider>
+
+        <el-space>
+          <el-button
+            type="success"
+            :disabled="selectedTask.status !== 'created' && selectedTask.status !== 'paused'"
+            @click="handleDrawerStart"
+          >
+            {{ t('task.start') }}
+          </el-button>
+          <el-button
+            type="warning"
+            :disabled="selectedTask.status !== 'running'"
+            @click="handleDrawerStop"
+          >
+            {{ t('task.stop') }}
+          </el-button>
+          <el-button type="danger" @click="handleDrawerDelete">
+            {{ t('common.delete') }}
+          </el-button>
+        </el-space>
+
+        <el-divider content-position="left">{{ t('common.error') }}</el-divider>
+
+        <el-alert
+          v-if="selectedTask.error"
+          :title="selectedTask.error"
+          type="error"
+          show-icon
+          :closable="false"
+        />
+        <el-empty v-else :description="t('common.noData')" :image-size="60" />
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import { taskApi, type Task } from '@/api'
+import { useTaskWebSocket } from '@/composables/useTaskWebSocket'
 import dayjs from 'dayjs'
 
 const { t } = useI18n()
@@ -191,6 +268,12 @@ const loading = ref(false)
 const tasks = ref<Task[]>([])
 const selectedTasks = ref<Task[]>([])
 const activeFilters = ref<string[]>(['filters'])
+const drawerVisible = ref(false)
+const drawerLoading = ref(false)
+const selectedTask = ref<Task | null>(null)
+
+// WebSocket for real-time updates
+const { taskStatus, connect: connectWs, disconnect: disconnectWs, subscribeTask, unsubscribeTask } = useTaskWebSocket()
 
 const filters = reactive({
   status: [] as string[],
@@ -369,8 +452,93 @@ async function handleBulkDelete() {
   }
 }
 
+async function openDrawer(task: Task) {
+  selectedTask.value = task
+  drawerVisible.value = true
+  await loadDrawerTask()
+
+  // Connect WebSocket and subscribe to task updates
+  await connectWs()
+  subscribeTask(task.id)
+}
+
+async function loadDrawerTask() {
+  if (!selectedTask.value) return
+  drawerLoading.value = true
+  try {
+    const res = await taskApi.get(selectedTask.value.id)
+    if (res.data) {
+      selectedTask.value = res.data
+    }
+  } catch (error) {
+    console.error('Failed to load task detail:', error)
+  } finally {
+    drawerLoading.value = false
+  }
+}
+
+async function handleDrawerStart() {
+  if (!selectedTask.value) return
+  try {
+    await taskApi.start(selectedTask.value.id)
+    ElMessage.success(t('task.startSuccess'))
+    await loadDrawerTask()
+    loadTasks()
+  } catch (error) {
+    console.error('Failed to start task:', error)
+    ElMessage.error(t('task.startFailed'))
+  }
+}
+
+async function handleDrawerStop() {
+  if (!selectedTask.value) return
+  try {
+    await taskApi.stop(selectedTask.value.id)
+    ElMessage.success(t('task.stopSuccess'))
+    await loadDrawerTask()
+    loadTasks()
+  } catch (error) {
+    console.error('Failed to stop task:', error)
+    ElMessage.error(t('task.stopFailed'))
+  }
+}
+
+async function handleDrawerDelete() {
+  if (!selectedTask.value) return
+  try {
+    await ElMessageBox.confirm(t('task.confirmDelete'), t('common.confirm'), {
+      type: 'warning'
+    })
+    await taskApi.delete(selectedTask.value.id)
+    ElMessage.success(t('task.deleteSuccess'))
+    drawerVisible.value = false
+    loadTasks()
+  } catch (error) {
+    // Cancelled or error
+  }
+}
+
 onMounted(() => {
   loadTasks()
+})
+
+onUnmounted(() => {
+  disconnectWs()
+})
+
+// Watch drawer close to unsubscribe and disconnect
+watch(drawerVisible, (newVal) => {
+  if (!newVal && selectedTask.value) {
+    unsubscribeTask(selectedTask.value.id)
+    disconnectWs()
+  }
+})
+
+// Watch WebSocket task status updates
+watch(taskStatus, (newStatus) => {
+  if (newStatus && selectedTask.value && newStatus.id === selectedTask.value.id) {
+    selectedTask.value = newStatus
+  }
 })
 </script>
 
