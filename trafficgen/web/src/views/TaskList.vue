@@ -12,25 +12,82 @@
       </template>
 
       <!-- Search and Filter -->
-      <el-form :inline="true" class="search-form">
-        <el-form-item :label="t('task.status')">
-          <el-select v-model="filters.status" :placeholder="t('common.select')" clearable @change="loadTasks">
-            <el-option :label="t('task.running')" value="running" />
-            <el-option :label="t('task.completed')" value="completed" />
-            <el-option :label="t('task.failed')" value="failed" />
-            <el-option :label="t('task.stopped')" value="paused" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="t('task.protocol')">
-          <el-select v-model="filters.protocol" :placeholder="t('common.select')" clearable @change="loadTasks">
-            <el-option label="TCP" value="tcp" />
-            <el-option label="UDP" value="udp" />
-            <el-option label="HTTP" value="http" />
-            <el-option label="DNS" value="dns" />
-            <el-option label="ICMP" value="icmp" />
-          </el-select>
-        </el-form-item>
-      </el-form>
+      <el-collapse v-model="activeFilters" class="filter-collapse">
+        <el-collapse-item :title="t('task.advancedFilters')" name="filters">
+          <el-form :inline="true" class="search-form">
+            <el-form-item :label="t('task.status')">
+              <el-select
+                v-model="filters.status"
+                :placeholder="t('common.select')"
+                multiple
+                clearable
+                @change="loadTasks"
+              >
+                <el-option :label="t('task.running')" value="running" />
+                <el-option :label="t('task.completed')" value="completed" />
+                <el-option :label="t('task.failed')" value="failed" />
+                <el-option :label="t('task.stopped')" value="paused" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="t('task.protocol')">
+              <el-select
+                v-model="filters.protocol"
+                :placeholder="t('common.select')"
+                multiple
+                clearable
+                @change="loadTasks"
+              >
+                <el-option label="TCP" value="tcp" />
+                <el-option label="UDP" value="udp" />
+                <el-option label="HTTP" value="http" />
+                <el-option label="DNS" value="dns" />
+                <el-option label="ICMP" value="icmp" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="t('common.search')">
+              <el-input
+                v-model="filters.search"
+                :placeholder="t('task.searchPlaceholder')"
+                clearable
+                @clear="loadTasks"
+                @keyup.enter="loadTasks"
+              >
+                <template #append>
+                  <el-button :icon="Search" @click="loadTasks" />
+                </template>
+              </el-input>
+            </el-form-item>
+            <el-form-item>
+              <el-button @click="resetFilters">
+                {{ t('common.reset') }}
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </el-collapse-item>
+      </el-collapse>
+
+      <!-- Bulk Actions Toolbar -->
+      <div v-if="selectedTasks.length > 0" class="bulk-actions">
+        <el-alert
+          :title="`${t('common.selected')} ${selectedTasks.length} ${t('task.tasks')}`"
+          type="info"
+          :closable="false"
+        >
+          <template #default>
+            <el-button-group>
+              <el-button size="small" type="success" @click="handleBulkStart">
+                {{ t('task.bulkStart') }}
+              </el-button>
+              <el-button size="small" type="warning" @click="handleBulkStop">
+                {{ t('task.bulkStop') }}
+              </el-button>
+              <el-button size="small" type="danger" @click="handleBulkDelete">
+                {{ t('task.bulkDelete') }}
+              </el-button>
+            </el-button-group>
+          </template>
+        </el-alert>
+      </div>
 
       <!-- Task Table -->
       <el-empty
@@ -42,7 +99,8 @@
         </el-button>
       </el-empty>
 
-      <el-table v-else :data="tasks" v-loading="loading" stripe>
+      <el-table v-else :data="tasks" v-loading="loading" stripe @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="55" />
         <el-table-column prop="id" :label="t('task.taskName')" width="180" />
         <el-table-column prop="name" :label="t('common.name')" min-width="150" />
         <el-table-column prop="protocol" :label="t('task.protocol')" width="100">
@@ -123,6 +181,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { taskApi, type Task } from '@/api'
 import dayjs from 'dayjs'
 
@@ -130,10 +189,13 @@ const { t } = useI18n()
 
 const loading = ref(false)
 const tasks = ref<Task[]>([])
+const selectedTasks = ref<Task[]>([])
+const activeFilters = ref<string[]>(['filters'])
 
 const filters = reactive({
-  status: '',
-  protocol: ''
+  status: [] as string[],
+  protocol: [] as string[],
+  search: ''
 })
 
 const pagination = reactive({
@@ -198,11 +260,22 @@ async function loadTasks() {
     const res = await taskApi.list({
       page: pagination.page,
       size: pagination.size,
-      status: filters.status,
-      protocol: filters.protocol
+      status: Array.isArray(filters.status) ? filters.status.join(',') : filters.status,
+      protocol: Array.isArray(filters.protocol) ? filters.protocol.join(',') : filters.protocol
     })
     if (res.data) {
-      tasks.value = res.data.tasks
+      let taskList = res.data.tasks
+
+      // Client-side search filter
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase()
+        taskList = taskList.filter(task =>
+          task.id.toLowerCase().includes(searchLower) ||
+          task.name?.toLowerCase().includes(searchLower)
+        )
+      }
+
+      tasks.value = taskList
       pagination.total = res.data.total
     }
   } catch (error) {
@@ -210,6 +283,13 @@ async function loadTasks() {
   } finally {
     loading.value = false
   }
+}
+
+function resetFilters() {
+  filters.status = []
+  filters.protocol = []
+  filters.search = ''
+  loadTasks()
 }
 
 async function startTask(id: string) {
@@ -245,6 +325,50 @@ async function deleteTask(id: string) {
   }
 }
 
+function handleSelectionChange(selection: Task[]) {
+  selectedTasks.value = selection
+}
+
+async function handleBulkStart() {
+  try {
+    await Promise.all(selectedTasks.value.map(task => taskApi.start(task.id)))
+    ElMessage.success(t('task.bulkStarted', { count: selectedTasks.value.length }))
+    selectedTasks.value = []
+    loadTasks()
+  } catch (error) {
+    console.error('Failed to bulk start tasks:', error)
+    ElMessage.error(t('task.startFailed'))
+  }
+}
+
+async function handleBulkStop() {
+  try {
+    await Promise.all(selectedTasks.value.map(task => taskApi.stop(task.id)))
+    ElMessage.success(t('task.bulkStopped', { count: selectedTasks.value.length }))
+    selectedTasks.value = []
+    loadTasks()
+  } catch (error) {
+    console.error('Failed to bulk stop tasks:', error)
+    ElMessage.error(t('task.stopFailed'))
+  }
+}
+
+async function handleBulkDelete() {
+  try {
+    await ElMessageBox.confirm(
+      t('task.confirmBulkDelete', { count: selectedTasks.value.length }),
+      t('common.confirm'),
+      { type: 'warning' }
+    )
+    await Promise.all(selectedTasks.value.map(task => taskApi.delete(task.id)))
+    ElMessage.success(t('task.bulkDeleted', { count: selectedTasks.value.length }))
+    selectedTasks.value = []
+    loadTasks()
+  } catch (error) {
+    // Cancelled or error
+  }
+}
+
 onMounted(() => {
   loadTasks()
 })
@@ -257,7 +381,22 @@ onMounted(() => {
   align-items: center;
 }
 
-.search-form {
+.filter-collapse {
   margin-bottom: 20px;
+}
+
+.search-form {
+  margin-top: 10px;
+}
+
+.bulk-actions {
+  margin-bottom: 20px;
+}
+
+.bulk-actions :deep(.el-alert__content) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 </style>

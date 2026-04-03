@@ -33,7 +33,8 @@ export default {
     pageSize: '每页数量',
     noData: '暂无数据',
     select: '请选择',
-    both: '两者都'
+    both: '两者都',
+    selected: '已选择'
   },
 
   // 导航菜单
@@ -130,6 +131,8 @@ export default {
     bulkStarted: '已启动 {count} 个任务',
     bulkStopped: '已停止 {count} 个任务',
     bulkDeleted: '已删除 {count} 个任务',
+    confirmBulkDelete: '确定要删除选中的 {count} 个任务吗？',
+    tasks: '个任务',
     advancedFilters: '高级筛选',
     searchPlaceholder: '搜索任务名称或 ID',
     step: {

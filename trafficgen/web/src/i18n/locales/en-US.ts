@@ -33,7 +33,8 @@ export default {
     pageSize: 'Page Size',
     noData: 'No Data',
     select: 'Please select',
-    both: 'Both'
+    both: 'Both',
+    selected: 'Selected'
   },
 
   // Navigation Menu
@@ -130,6 +131,8 @@ export default {
     bulkStarted: 'Started {count} tasks',
     bulkStopped: 'Stopped {count} tasks',
     bulkDeleted: 'Deleted {count} tasks',
+    confirmBulkDelete: 'Are you sure to delete {count} selected tasks?',
+    tasks: 'tasks',
     advancedFilters: 'Advanced Filters',
     searchPlaceholder: 'Search task name or ID',
     step: {
