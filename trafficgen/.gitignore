@@ -15,3 +15,6 @@ coverage.out
 *.swo
 .env
 trafficgen
+
+# Ignore actual config file (use templates)
+configs/config.yaml

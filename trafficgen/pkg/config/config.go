@@ -3,6 +3,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"regexp"
 	"time"
 
 	"github.com/spf13/viper"
@@ -150,12 +152,45 @@ func Load(configPath string) (*Config, error) {
 		// Config file not found, use defaults
 	}
 
+	// Expand environment variables in config values
+	expandEnvInViper(v)
+
 	var config Config
 	if err := v.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
 	return &config, nil
+}
+
+// expandEnvInViper expands environment variables in all string values.
+func expandEnvInViper(v *viper.Viper) {
+	keys := v.AllKeys()
+	for _, key := range keys {
+		val := v.Get(key)
+		if str, ok := val.(string); ok {
+			v.Set(key, expandEnv(str))
+		}
+	}
+}
+
+// expandEnv replaces ${VAR} or $VAR with environment variable values.
+func expandEnv(s string) string {
+	re := regexp.MustCompile(`\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)`)
+	return re.ReplaceAllStringFunc(s, func(match string) string {
+		var name string
+		if len(match) > 2 && match[0] == '$' && match[1] == '{' {
+			name = match[2 : len(match)-1]
+		} else if len(match) > 1 && match[0] == '$' {
+			name = match[1:]
+		} else {
+			return match
+		}
+		if val := os.Getenv(name); val != "" {
+			return val
+		}
+		return match
+	})
 }
 
 // setDefaults sets default configuration values.

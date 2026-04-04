@@ -1,7 +1,7 @@
 # API设计 - 安全设计
 
-**文档版本**: v1.0  
-**更新日期**: 2026-04-01  
+**文档版本**: v1.1  
+**更新日期**: 2026-04-04  
 **模块**: internal/api
 
 ---
@@ -69,9 +69,81 @@ func AuthMiddleware() gin.HandlerFunc {
 
 ---
 
-## 2. 权限控制 (RBAC)
+## 2. 用户管理
 
-### 2.1 角色定义
+### 2.1 管理员账户
+
+**重要约束**: 管理员账户只能通过服务器配置文件创建，不能通过 API 或页面进行增删改操作。
+
+配置文件示例 (`configs/config.yaml`):
+
+```yaml
+auth:
+  jwt_secret: "${JWT_SECRET}"
+  jwt_issuer: "trafficgen"
+  jwt_expires_in: 24  # hours
+  admin:
+    username: "${ADMIN_USERNAME}"
+    password: "${ADMIN_PASSWORD}"
+    email: "${ADMIN_EMAIL}"
+```
+
+系统启动时会自动创建配置文件中指定的管理员账户。
+
+### 2.2 普通用户注册
+
+普通用户可以通过 API 注册：
+
+```http
+POST /api/v1/auth/register
+Content-Type: application/json
+
+{
+    "username": "testuser",
+    "password": "password123",
+    "email": "user@example.com"
+}
+```
+
+注册时自动设置 `role: "user"`，无法指定管理员角色。
+
+### 2.3 用户自我管理
+
+已认证用户可以管理自己的账户：
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/v1/user/profile` | GET | 获取当前用户信息 |
+| `/api/v1/user/profile` | PUT | 修改当前用户信息（邮箱、密码） |
+| `/api/v1/user/profile` | DELETE | 删除当前用户账号 |
+
+**约束**:
+- 用户只能修改/删除自己的账号
+- 管理员账号无法通过 API 修改或删除（返回 403 Forbidden）
+
+```go
+// UpdateProfile 更新用户资料
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+    userID := auth.GetUserID(c)
+    
+    var user storage.UserModel
+    h.db.Where("id = ?", userID).First(&user)
+    
+    // 管理员账号不允许通过 API 修改
+    if user.Role == "admin" {
+        Forbidden(c, "admin account cannot be modified via API")
+        return
+    }
+    
+    // 更新用户信息...
+}
+```
+
+---
+
+## 3. 权限控制 (RBAC)
+
+### 3.1 角色定义
 
 ```go
 const (
@@ -87,7 +159,7 @@ var rolePermissions = map[string][]string{
 }
 ```
 
-### 2.2 权限中间件
+### 3.2 权限中间件
 
 ```go
 func RequirePermission(permission string) gin.HandlerFunc {

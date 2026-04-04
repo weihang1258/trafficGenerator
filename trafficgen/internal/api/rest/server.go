@@ -124,6 +124,11 @@ func (s *Server) setupRoutes() {
 	api := s.router.Group("/api/v1")
 	api.Use(authMiddleware)
 	{
+		// User profile routes (authenticated user can manage own account)
+		api.GET("/user/profile", authHandler.GetProfile)
+		api.PUT("/user/profile", authHandler.UpdateProfile)
+		api.DELETE("/user/profile", authHandler.DeleteProfile)
+
 		// Strategy routes
 		strategies := api.Group("/strategies")
 		{

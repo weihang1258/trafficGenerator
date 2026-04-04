@@ -75,7 +75,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Create user
+	// Create user (always as "user" role, admin can only be created via config)
 	user := &storage.UserModel{
 		ID:           uuid.New().String(),
 		Username:     req.Username,
@@ -248,4 +248,136 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func hashToken(token string) string {
 	hash := md5.Sum([]byte(token))
 	return hex.EncodeToString(hash[:])
+}
+
+// GetProfile returns the current user's profile.
+func (h *AuthHandler) GetProfile(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == "" {
+		Unauthorized(c, "user not authenticated")
+		return
+	}
+
+	var user storage.UserModel
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			NotFound(c, "user not found")
+			return
+		}
+		InternalError(c, "failed to query user")
+		return
+	}
+
+	Success(c, map[string]interface{}{
+		"user_id":       user.ID,
+		"username":      user.Username,
+		"email":         user.Email,
+		"role":          user.Role,
+		"enabled":       user.Enabled,
+		"last_login_at": user.LastLoginAt,
+		"created_at":    user.CreatedAt,
+	})
+}
+
+// UpdateProfileRequest represents a profile update request.
+type UpdateProfileRequest struct {
+	Email    string `json:"email" binding:"omitempty,email"`
+	Password string `json:"password" binding:"omitempty,min=6,max=128"`
+}
+
+// UpdateProfile updates the current user's profile.
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == "" {
+		Unauthorized(c, "user not authenticated")
+		return
+	}
+
+	var user storage.UserModel
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			NotFound(c, "user not found")
+			return
+		}
+		InternalError(c, "failed to query user")
+		return
+	}
+
+	// Check if user is admin (admin cannot be modified via API)
+	if user.Role == "admin" {
+		Forbidden(c, "admin account cannot be modified via API")
+		return
+	}
+
+	var req UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, "invalid request: "+err.Error())
+		return
+	}
+
+	updates := map[string]interface{}{}
+
+	if req.Email != "" && req.Email != user.Email {
+		// Check if email already exists
+		var existingUser storage.UserModel
+		if err := h.db.Where("email = ? AND id != ?", req.Email, userID).First(&existingUser).Error; err == nil {
+			BadRequest(c, "email already exists")
+			return
+		}
+		updates["email"] = req.Email
+	}
+
+	if req.Password != "" {
+		passwordHash, err := auth.HashPassword(req.Password)
+		if err != nil {
+			InternalError(c, "failed to hash password")
+			return
+		}
+		updates["password_hash"] = passwordHash
+	}
+
+	if len(updates) > 0 {
+		if err := h.db.Model(&user).Updates(updates).Error; err != nil {
+			InternalError(c, "failed to update profile")
+			return
+		}
+	}
+
+	SuccessWithMessage(c, "profile updated", nil)
+}
+
+// DeleteProfile deletes the current user's account.
+func (h *AuthHandler) DeleteProfile(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == "" {
+		Unauthorized(c, "user not authenticated")
+		return
+	}
+
+	var user storage.UserModel
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			NotFound(c, "user not found")
+			return
+		}
+		InternalError(c, "failed to query user")
+		return
+	}
+
+	// Check if user is admin (admin cannot be deleted via API)
+	if user.Role == "admin" {
+		Forbidden(c, "admin account cannot be deleted via API")
+		return
+	}
+
+	// Revoke all tokens for this user
+	h.db.Model(&storage.TokenModel{}).Where("user_id = ?", userID).Update("status", "revoked")
+
+	// Delete user
+	if err := h.db.Delete(&user).Error; err != nil {
+		InternalError(c, "failed to delete account")
+		return
+	}
+
+	SuccessWithMessage(c, "account deleted", nil)
 }
