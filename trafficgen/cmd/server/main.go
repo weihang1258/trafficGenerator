@@ -127,7 +127,7 @@ func main() {
 
 // initDatabase initializes the database connection.
 func (app *Application) initDatabase() error {
-	db, err := storage.NewDB(&app.config.Database)
+	db, err := storage.NewDBWithAdmin(&app.config.Database, &app.config.Auth.Admin)
 	if err != nil {
 		return fmt.Errorf("database init: %w", err)
 	}
@@ -135,6 +135,7 @@ func (app *Application) initDatabase() error {
 
 	zap.L().Info("database connected",
 		zap.String("type", app.config.Database.Type),
+		zap.String("admin_user", app.config.Auth.Admin.Username),
 	)
 
 	return nil

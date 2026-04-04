@@ -7,6 +7,8 @@ import (
 	"time"
 
 	sqlite "github.com/glebarez/sqlite" // pure Go SQLite driver
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -22,6 +24,11 @@ type DB struct {
 
 // NewDB creates a new database connection.
 func NewDB(cfg *config.DatabaseConfig) (*DB, error) {
+	return NewDBWithAdmin(cfg, nil)
+}
+
+// NewDBWithAdmin creates a new database connection and initializes admin account.
+func NewDBWithAdmin(cfg *config.DatabaseConfig, adminCfg *config.AdminConfig) (*DB, error) {
 	var db *gorm.DB
 	var err error
 
@@ -58,10 +65,71 @@ func NewDB(cfg *config.DatabaseConfig) (*DB, error) {
 		return nil, fmt.Errorf("failed to auto migrate: %w", err)
 	}
 
-	return &DB{
+	database := &DB{
 		DB:     db,
 		config: cfg,
-	}, nil
+	}
+
+	// Initialize admin account if provided
+	if adminCfg != nil {
+		if err := database.initAdminUser(adminCfg); err != nil {
+			return nil, fmt.Errorf("failed to initialize admin user: %w", err)
+		}
+	}
+
+	return database, nil
+}
+
+// initAdminUser initializes the default admin user.
+func (db *DB) initAdminUser(adminCfg *config.AdminConfig) error {
+	// Check if admin user already exists
+	var count int64
+	if err := db.Model(&UserModel{}).Where("username = ?", adminCfg.Username).Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to check admin user: %w", err)
+	}
+
+	if count > 0 {
+		// Admin user already exists, update password if needed
+		var admin UserModel
+		if err := db.Where("username = ?", adminCfg.Username).First(&admin).Error; err != nil {
+			return fmt.Errorf("failed to get admin user: %w", err)
+		}
+
+		// Update password if it doesn't match
+		if err := bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash), []byte(adminCfg.Password)); err != nil {
+			// Password doesn't match, update it
+			passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminCfg.Password), bcrypt.DefaultCost)
+			if err != nil {
+				return fmt.Errorf("failed to hash password: %w", err)
+			}
+			admin.PasswordHash = string(passwordHash)
+			if err := db.Save(&admin).Error; err != nil {
+				return fmt.Errorf("failed to update admin password: %w", err)
+			}
+		}
+		return nil
+	}
+
+	// Create admin user
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminCfg.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	admin := &UserModel{
+		ID:           uuid.New().String(),
+		Username:     adminCfg.Username,
+		PasswordHash: string(passwordHash),
+		Email:        adminCfg.Email,
+		Role:         "admin",
+		Enabled:      true,
+	}
+
+	if err := db.Create(admin).Error; err != nil {
+		return fmt.Errorf("failed to create admin user: %w", err)
+	}
+
+	return nil
 }
 
 // Close closes the database connection.

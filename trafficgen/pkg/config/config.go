@@ -94,9 +94,17 @@ type FileConfig struct {
 
 // AuthConfig for authentication configuration.
 type AuthConfig struct {
-	JWTSecret     string `mapstructure:"jwt_secret"`
-	JWTIssuer     string `mapstructure:"jwt_issuer"`
-	JWTExpiresIn  int    `mapstructure:"jwt_expires_in"` // hours
+	JWTSecret     string        `mapstructure:"jwt_secret"`
+	JWTIssuer     string        `mapstructure:"jwt_issuer"`
+	JWTExpiresIn  int           `mapstructure:"jwt_expires_in"` // hours
+	Admin         AdminConfig   `mapstructure:"admin"`
+}
+
+// AdminConfig for default admin account configuration.
+type AdminConfig struct {
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	Email    string `mapstructure:"email"`
 }
 
 // RateLimitConfig for API rate limiting.
@@ -185,6 +193,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("auth.jwt_secret", "change-me-in-production")
 	v.SetDefault("auth.jwt_issuer", "trafficgen")
 	v.SetDefault("auth.jwt_expires_in", 24)
+	v.SetDefault("auth.admin.username", "admin")
+	v.SetDefault("auth.admin.password", "admin")
+	v.SetDefault("auth.admin.email", "admin@trafficgen.local")
 
 	// Rate limit defaults
 	v.SetDefault("rate_limit.enabled", true)
