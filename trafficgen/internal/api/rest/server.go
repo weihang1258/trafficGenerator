@@ -164,6 +164,15 @@ func (s *Server) setupRoutes() {
 			interfaces.POST("/discover", s.discoverInterfaces)
 		}
 	}
+
+	// Serve frontend static files
+	s.router.Static("/assets", "./web/dist/assets")
+	s.router.StaticFile("/favicon.ico", "./web/dist/favicon.ico")
+
+	// Handle all other routes by serving index.html (for SPA routing)
+	s.router.NoRoute(func(c *gin.Context) {
+		c.File("./web/dist/index.html")
+	})
 }
 
 // Start starts the HTTP server.
