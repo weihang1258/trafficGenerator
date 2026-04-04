@@ -10,14 +10,14 @@ import (
 
 // Config represents the application configuration.
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Redis    RedisConfig    `mapstructure:"redis"`
-	Engine   EngineConfig   `mapstructure:"engine"`
-	Logging  LoggingConfig  `mapstructure:"logging"`
-	JWT      JWTConfig      `mapstructure:"jwt"`
+	Server    ServerConfig    `mapstructure:"server"`
+	Database  DatabaseConfig  `mapstructure:"database"`
+	Redis     RedisConfig     `mapstructure:"redis"`
+	Engine    EngineConfig    `mapstructure:"engine"`
+	Logging   LoggingConfig   `mapstructure:"logging"`
+	Auth      AuthConfig      `mapstructure:"auth"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
-	Metrics  MetricsConfig  `mapstructure:"metrics"`
+	Metrics   MetricsConfig   `mapstructure:"metrics"`
 }
 
 // ServerConfig for HTTP server.
@@ -92,11 +92,11 @@ type FileConfig struct {
 	Compress   bool   `mapstructure:"compress"`
 }
 
-// JWTConfig for JWT authentication.
-type JWTConfig struct {
-	Secret string        `mapstructure:"secret"`
-	Issuer string        `mapstructure:"issuer"`
-	Expiry time.Duration `mapstructure:"expiry"`
+// AuthConfig for authentication configuration.
+type AuthConfig struct {
+	JWTSecret     string `mapstructure:"jwt_secret"`
+	JWTIssuer     string `mapstructure:"jwt_issuer"`
+	JWTExpiresIn  int    `mapstructure:"jwt_expires_in"` // hours
 }
 
 // RateLimitConfig for API rate limiting.
@@ -181,10 +181,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("logging.format", "json")
 	v.SetDefault("logging.output", "stdout")
 
-	// JWT defaults
-	v.SetDefault("jwt.secret", "change-me-in-production")
-	v.SetDefault("jwt.issuer", "trafficgen")
-	v.SetDefault("jwt.expiry", "24h")
+	// Auth defaults
+	v.SetDefault("auth.jwt_secret", "change-me-in-production")
+	v.SetDefault("auth.jwt_issuer", "trafficgen")
+	v.SetDefault("auth.jwt_expires_in", 24)
 
 	// Rate limit defaults
 	v.SetDefault("rate_limit.enabled", true)

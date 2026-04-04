@@ -24,7 +24,9 @@ func TestSQLInjection(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Type: "sqlite",
-			DSN:  ":memory:",
+			SQLite: config.SQLiteConfig{
+				Path: ":memory:",
+			},
 		},
 	}
 
@@ -33,12 +35,11 @@ func TestSQLInjection(t *testing.T) {
 	defer db.Close()
 
 	engine := core.NewEngine(core.EngineConfig{
-		ConfigWorkers:  1,
-		PacketWorkers:  1,
-		OutputWorkers:  1,
-		BufferSize:     100,
-		QueueSize:      10,
-		MaxBufferBytes: 1024 * 1024,
+		ConfigWorkers: 1,
+		PacketWorkers: 1,
+		OutputWorkers: 1,
+		BufferSize:    100,
+		QueueSize:     10,
 	})
 
 	server := rest.NewServer(cfg, engine, nil, db, nil)
@@ -86,7 +87,8 @@ func TestSQLInjection(t *testing.T) {
 
 			// Verify database is not corrupted
 			var count int64
-			db.DB().Raw("SELECT COUNT(*) FROM tasks").Scan(&count)
+			s := db.DB().Session(&gorm.Session{AllowGlobalUpdate: true})
+			s.Model(&storage.TaskModel{}).Where("1=1").Count(&count)
 			assert.GreaterOrEqual(t, count, int64(0))
 		})
 	}
@@ -101,7 +103,9 @@ func TestXSS(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Type: "sqlite",
-			DSN:  ":memory:",
+			SQLite: config.SQLiteConfig{
+				Path: ":memory:",
+			},
 		},
 	}
 
@@ -110,12 +114,11 @@ func TestXSS(t *testing.T) {
 	defer db.Close()
 
 	engine := core.NewEngine(core.EngineConfig{
-		ConfigWorkers:  1,
-		PacketWorkers:  1,
-		OutputWorkers:  1,
-		BufferSize:     100,
-		QueueSize:      10,
-		MaxBufferBytes: 1024 * 1024,
+		ConfigWorkers: 1,
+		PacketWorkers: 1,
+		OutputWorkers: 1,
+		BufferSize:    100,
+		QueueSize:     10,
 	})
 
 	server := rest.NewServer(cfg, engine, nil, db, nil)
@@ -174,7 +177,9 @@ func TestCSRF(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Type: "sqlite",
-			DSN:  ":memory:",
+			SQLite: config.SQLiteConfig{
+				Path: ":memory:",
+			},
 		},
 	}
 
@@ -183,12 +188,11 @@ func TestCSRF(t *testing.T) {
 	defer db.Close()
 
 	engine := core.NewEngine(core.EngineConfig{
-		ConfigWorkers:  1,
-		PacketWorkers:  1,
-		OutputWorkers:  1,
-		BufferSize:     100,
-		QueueSize:      10,
-		MaxBufferBytes: 1024 * 1024,
+		ConfigWorkers: 1,
+		PacketWorkers: 1,
+		OutputWorkers: 1,
+		BufferSize:    100,
+		QueueSize:     10,
 	})
 
 	server := rest.NewServer(cfg, engine, nil, db, nil)
@@ -237,7 +241,9 @@ func TestAuthenticationBypass(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Type: "sqlite",
-			DSN:  ":memory:",
+			SQLite: config.SQLiteConfig{
+				Path: ":memory:",
+			},
 		},
 	}
 
@@ -246,12 +252,11 @@ func TestAuthenticationBypass(t *testing.T) {
 	defer db.Close()
 
 	engine := core.NewEngine(core.EngineConfig{
-		ConfigWorkers:  1,
-		PacketWorkers:  1,
-		OutputWorkers:  1,
-		BufferSize:     100,
-		QueueSize:      10,
-		MaxBufferBytes: 1024 * 1024,
+		ConfigWorkers: 1,
+		PacketWorkers: 1,
+		OutputWorkers: 1,
+		BufferSize:    100,
+		QueueSize:     10,
 	})
 
 	server := rest.NewServer(cfg, engine, nil, db, nil)
@@ -307,7 +312,9 @@ func TestInputValidation(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Type: "sqlite",
-			DSN:  ":memory:",
+			SQLite: config.SQLiteConfig{
+				Path: ":memory:",
+			},
 		},
 	}
 
@@ -316,12 +323,11 @@ func TestInputValidation(t *testing.T) {
 	defer db.Close()
 
 	engine := core.NewEngine(core.EngineConfig{
-		ConfigWorkers:  1,
-		PacketWorkers:  1,
-		OutputWorkers:  1,
-		BufferSize:     100,
-		QueueSize:      10,
-		MaxBufferBytes: 1024 * 1024,
+		ConfigWorkers: 1,
+		PacketWorkers: 1,
+		OutputWorkers: 1,
+		BufferSize:    100,
+		QueueSize:     10,
 	})
 
 	server := rest.NewServer(cfg, engine, nil, db, nil)
@@ -425,7 +431,9 @@ func TestRateLimiting(t *testing.T) {
 		},
 		Database: config.DatabaseConfig{
 			Type: "sqlite",
-			DSN:  ":memory:",
+			SQLite: config.SQLiteConfig{
+				Path: ":memory:",
+			},
 		},
 	}
 
@@ -434,12 +442,11 @@ func TestRateLimiting(t *testing.T) {
 	defer db.Close()
 
 	engine := core.NewEngine(core.EngineConfig{
-		ConfigWorkers:  1,
-		PacketWorkers:  1,
-		OutputWorkers:  1,
-		BufferSize:     100,
-		QueueSize:      10,
-		MaxBufferBytes: 1024 * 1024,
+		ConfigWorkers: 1,
+		PacketWorkers: 1,
+		OutputWorkers: 1,
+		BufferSize:    100,
+		QueueSize:     10,
 	})
 
 	server := rest.NewServer(cfg, engine, nil, db, nil)

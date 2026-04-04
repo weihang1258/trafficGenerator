@@ -19,6 +19,14 @@
             <el-tag>{{ row.protocol.toUpperCase() }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="flow_control" label="Flow Control" width="150">
+          <template #default="{ row }">
+            <span v-if="row.flow_control">
+              {{ row.flow_control.type }}: {{ row.flow_control.value }}
+            </span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="created_at" :label="t('task.createdAt')" width="180">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
@@ -44,7 +52,7 @@
 
     <!-- Create/Edit Dialog -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? t('common.edit') : t('strategy.createStrategy')" width="500px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
         <el-form-item :label="t('common.name')" prop="name">
           <el-input v-model="form.name" :placeholder="t('strategy.strategyNamePlaceholder')" />
         </el-form-item>
@@ -55,6 +63,18 @@
             <el-option label="HTTP" value="http" />
             <el-option label="DNS" value="dns" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="Flow Control Type" prop="flow_control.type">
+          <el-select v-model="form.flow_control.type" placeholder="Select flow control type">
+            <el-option label="Flows (number of flows)" value="flows" />
+            <el-option label="CPS (connections per second)" value="cps" />
+            <el-option label="BPS (bytes per second)" value="bps" />
+            <el-option label="Ratio (percentage)" value="ratio" />
+            <el-option label="Time (duration)" value="time" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="Flow Control Value" prop="flow_control.value">
+          <el-input-number v-model="form.flow_control.value" :min="1" :step="1" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -91,7 +111,11 @@ const form = reactive({
   id: '',
   name: '',
   protocol: 'tcp',
-  config: {}
+  config: {} as Record<string, any>,
+  flow_control: {
+    type: 'flows',
+    value: 1
+  }
 })
 
 const rules: FormRules = {
@@ -106,10 +130,10 @@ function formatDate(timestamp: number): string {
 async function loadStrategies() {
   loading.value = true
   try {
-    const res = await strategyApi.list({ page: pagination.page, size: pagination.size })
-    if (res.data) {
-      strategies.value = res.data.strategies
-      pagination.total = res.data.total
+    const data = await strategyApi.list()
+    if (data) {
+      strategies.value = data
+      pagination.total = data.length
     }
   } catch (error) {
     console.error('Failed to load strategies:', error)
@@ -140,10 +164,20 @@ async function handleSubmit() {
 
   try {
     if (isEdit.value) {
-      await strategyApi.update(form.id, { name: form.name, protocol: form.protocol })
+      await strategyApi.update(form.id, {
+        name: form.name,
+        protocol: form.protocol,
+        config: form.config,
+        flow_control: form.flow_control
+      })
       ElMessage.success(t('strategy.updateSuccess'))
     } else {
-      await strategyApi.create({ name: form.name, protocol: form.protocol, config: {} })
+      await strategyApi.create({
+        name: form.name,
+        protocol: form.protocol,
+        config: form.config,
+        flow_control: form.flow_control
+      })
       ElMessage.success(t('strategy.createSuccess'))
     }
     dialogVisible.value = false

@@ -2,9 +2,6 @@ package rest
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -14,6 +11,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/api/websocket"
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/storage"
+	"github.com/trafficgen/trafficgen/pkg/auth"
 	"github.com/trafficgen/trafficgen/pkg/config"
 	"github.com/trafficgen/trafficgen/pkg/netif"
 )
@@ -27,16 +25,25 @@ type Server struct {
 	httpServer *http.Server
 	router     *gin.Engine
 	wsHandler  *websocket.Handler
+	jwtManager *auth.JWTManager
 }
 
 // NewServer creates a new REST API server.
 func NewServer(cfg *config.Config, engine *core.Engine, wsHandler *websocket.Handler, db *storage.DB, ifaceMgr *netif.Manager) *Server {
+	// Initialize JWT manager
+	jwtManager := auth.NewJWTManager(
+		cfg.Auth.JWTSecret,
+		cfg.Auth.JWTIssuer,
+		time.Duration(cfg.Auth.JWTExpiresIn)*time.Hour,
+	)
+
 	return &Server{
-		config:    cfg,
-		engine:    engine,
-		wsHandler: wsHandler,
-		db:        db,
-		ifaceMgr:  ifaceMgr,
+		config:     cfg,
+		engine:     engine,
+		wsHandler:  wsHandler,
+		db:         db,
+		ifaceMgr:   ifaceMgr,
+		jwtManager: jwtManager,
 	}
 }
 
@@ -68,32 +75,67 @@ func (s *Server) Setup() error {
 
 // setupRoutes configures all API routes.
 func (s *Server) setupRoutes() {
-	// Create repositories
-	taskRepo := storage.NewTaskRepository(s.db)
-
-	// Handlers
-	taskHandler := NewTaskHandler(s.engine, taskRepo)
+	// Create handlers
+	authHandler := NewAuthHandler(s.db, s.jwtManager)
+	strategyHandler := NewStrategyHandler(s.db)
+	taskHandler := NewTaskHandler(s.db)
+	portGroupHandler := NewPortGroupHandler(s.db)
 	systemHandler := NewSystemHandler(s.engine)
 
 	// Health endpoints (no auth required)
 	s.router.GET("/health", systemHandler.HealthCheck)
 	s.router.GET("/ready", systemHandler.ReadyCheck)
 
-	// WebSocket endpoint
+	// WebSocket endpoint (no auth required for now)
 	if s.wsHandler != nil {
 		s.router.GET("/ws", s.wsHandler.Handle)
 	}
 
-	// Prometheus metrics
+	// Prometheus metrics (no auth required)
 	if s.config.Metrics.Enabled {
 		s.router.GET(s.config.Metrics.Path, gin.WrapH(promhttp.Handler()))
 	}
 
-	// API v1 routes
-	v1 := s.router.Group("/api/v1")
+	// Auth routes (no auth required)
+	authGroup := s.router.Group("/api/v1/auth")
 	{
+		authGroup.POST("/register", authHandler.Register)
+		authGroup.POST("/login", authHandler.Login)
+		authGroup.GET("/validate", authHandler.ValidateToken)
+		authGroup.POST("/logout", authHandler.Logout)
+	}
+
+	// Port routes (no auth required - public data)
+	portsGroup := s.router.Group("/api/v1/ports")
+	{
+		portsGroup.GET("", s.listPorts)
+	}
+
+	// Port group routes (public data, but creation requires auth)
+	portGroupsGroup := s.router.Group("/api/v1/port-groups")
+	{
+		portGroupsGroup.GET("", portGroupHandler.List)
+		portGroupsGroup.GET("/:id", portGroupHandler.Get)
+	}
+
+	// Authenticated routes
+	authMiddleware := auth.AuthMiddleware(s.jwtManager)
+
+	api := s.router.Group("/api/v1")
+	api.Use(authMiddleware)
+	{
+		// Strategy routes
+		strategies := api.Group("/strategies")
+		{
+			strategies.POST("", strategyHandler.Create)
+			strategies.GET("", strategyHandler.List)
+			strategies.GET("/:id", strategyHandler.Get)
+			strategies.PUT("/:id", strategyHandler.Update)
+			strategies.DELETE("/:id", strategyHandler.Delete)
+		}
+
 		// Task routes
-		tasks := v1.Group("/tasks")
+		tasks := api.Group("/tasks")
 		{
 			tasks.POST("", taskHandler.Create)
 			tasks.GET("", taskHandler.List)
@@ -101,11 +143,14 @@ func (s *Server) setupRoutes() {
 			tasks.POST("/:id/start", taskHandler.Start)
 			tasks.POST("/:id/stop", taskHandler.Stop)
 			tasks.DELETE("/:id", taskHandler.Delete)
-			tasks.GET("/:id/packets", taskHandler.GetPackets)
 		}
 
+		// Port group creation (requires auth)
+		api.POST("/port-groups", portGroupHandler.Create)
+		api.DELETE("/port-groups/:id", portGroupHandler.Delete)
+
 		// System routes
-		system := v1.Group("/system")
+		system := api.Group("/system")
 		{
 			system.GET("/status", systemHandler.GetStatus)
 			system.GET("/protocols", systemHandler.GetProtocols)
@@ -113,35 +158,10 @@ func (s *Server) setupRoutes() {
 		}
 
 		// Interface routes
-		interfaces := v1.Group("/interfaces")
+		interfaces := api.Group("/interfaces")
 		{
 			interfaces.GET("", s.listInterfaces)
 			interfaces.POST("/discover", s.discoverInterfaces)
-		}
-
-		// Strategy routes
-		strategies := v1.Group("/strategies")
-		{
-			strategies.POST("", s.createStrategy)
-			strategies.GET("", s.listStrategies)
-			strategies.GET("/:id", s.getStrategy)
-			strategies.PUT("/:id", s.updateStrategy)
-			strategies.DELETE("/:id", s.deleteStrategy)
-		}
-
-		// Settings routes
-		settings := v1.Group("/settings")
-		{
-			settings.GET("", s.getSettings)
-			settings.PUT("", s.updateSettings)
-		}
-
-		// Auth routes (no auth required)
-		auth := v1.Group("/auth")
-		{
-			auth.POST("/login", s.login)
-			auth.POST("/logout", s.logout)
-			auth.POST("/refresh", s.refreshToken)
 		}
 	}
 }
@@ -167,6 +187,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return s.httpServer.Shutdown(ctx)
 	}
 	return nil
+}
+
+// Router returns the Gin router for testing.
+func (s *Server) Router() *gin.Engine {
+	return s.router
 }
 
 // CORSMiddleware handles CORS.
@@ -258,164 +283,28 @@ func (s *Server) discoverInterfaces(c *gin.Context) {
 	})
 }
 
-func (s *Server) createStrategy(c *gin.Context) {
-	var req CreateStrategyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, "invalid request: "+err.Error())
+// listPorts lists all ports with status
+func (s *Server) listPorts(c *gin.Context) {
+	var ports []storage.PortModel
+	if err := s.db.Find(&ports).Error; err != nil {
+		InternalError(c, "failed to list ports: "+err.Error())
 		return
 	}
 
-	// Generate ID
-	b := make([]byte, 8)
-	rand.Read(b)
-	id := "strategy-" + hex.EncodeToString(b)
-
-	// Serialize config
-	configJSON, _ := json.Marshal(req.Config)
-
-	strategy := &storage.StrategyModel{
-		ID:       id,
-		Name:     req.Name,
-		Protocol: req.Protocol,
-		Config:   string(configJSON),
-	}
-
-	if err := s.db.Create(strategy).Error; err != nil {
-		InternalError(c, "failed to create strategy: "+err.Error())
-		return
-	}
-
-	Created(c, map[string]string{"id": id})
-}
-
-func (s *Server) listStrategies(c *gin.Context) {
-	var strategies []storage.StrategyModel
-	if err := s.db.Find(&strategies).Error; err != nil {
-		InternalError(c, "failed to list strategies: "+err.Error())
-		return
-	}
-
-	result := make([]StrategyResponse, len(strategies))
-	for i, s := range strategies {
-		var config map[string]interface{}
-		json.Unmarshal([]byte(s.Config), &config)
-		result[i] = StrategyResponse{
-			ID:        s.ID,
-			Name:      s.Name,
-			Protocol:  s.Protocol,
-			Config:    config,
-			CreatedAt: s.CreatedAt.Unix(),
-			UpdatedAt: s.UpdatedAt.Unix(),
+	result := make([]map[string]interface{}, len(ports))
+	for i, port := range ports {
+		result[i] = map[string]interface{}{
+			"id":              port.ID,
+			"name":            port.Name,
+			"type":            port.Type,
+			"pci_address":     port.PCIAddress,
+			"status":          port.Status,
+			"current_task_id": port.CurrentTaskID,
+			"created_at":      port.CreatedAt.Unix(),
+			"updated_at":      port.UpdatedAt.Unix(),
 		}
 	}
 
 	Success(c, result)
 }
 
-func (s *Server) getStrategy(c *gin.Context) {
-	id := c.Param("id")
-
-	var strategy storage.StrategyModel
-	if err := s.db.First(&strategy, "id = ?", id).Error; err != nil {
-		NotFound(c, "strategy not found")
-		return
-	}
-
-	var config map[string]interface{}
-	json.Unmarshal([]byte(strategy.Config), &config)
-
-	Success(c, StrategyResponse{
-		ID:        strategy.ID,
-		Name:      strategy.Name,
-		Protocol:  strategy.Protocol,
-		Config:    config,
-		CreatedAt: strategy.CreatedAt.Unix(),
-		UpdatedAt: strategy.UpdatedAt.Unix(),
-	})
-}
-
-func (s *Server) updateStrategy(c *gin.Context) {
-	id := c.Param("id")
-
-	var strategy storage.StrategyModel
-	if err := s.db.First(&strategy, "id = ?", id).Error; err != nil {
-		NotFound(c, "strategy not found")
-		return
-	}
-
-	var req CreateStrategyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, "invalid request: "+err.Error())
-		return
-	}
-
-	configJSON, _ := json.Marshal(req.Config)
-	strategy.Name = req.Name
-	strategy.Protocol = req.Protocol
-	strategy.Config = string(configJSON)
-
-	if err := s.db.Save(&strategy).Error; err != nil {
-		InternalError(c, "failed to update strategy: "+err.Error())
-		return
-	}
-
-	SuccessWithMessage(c, "strategy updated", nil)
-}
-
-func (s *Server) deleteStrategy(c *gin.Context) {
-	id := c.Param("id")
-
-	if err := s.db.Delete(&storage.StrategyModel{}, "id = ?", id).Error; err != nil {
-		InternalError(c, "failed to delete strategy: "+err.Error())
-		return
-	}
-
-	SuccessWithMessage(c, "strategy deleted", nil)
-}
-
-func (s *Server) getSettings(c *gin.Context) {
-	Success(c, SettingsResponse{
-		MaxTasks:   100,
-		BufferSize: 4096,
-		LogLevel:   "info",
-	})
-}
-
-func (s *Server) updateSettings(c *gin.Context) {
-	var req UpdateSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, "invalid request: "+err.Error())
-		return
-	}
-	SuccessWithMessage(c, "settings updated", nil)
-}
-
-func (s *Server) login(c *gin.Context) {
-	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, "invalid request: "+err.Error())
-		return
-	}
-
-	// TODO: Implement actual authentication
-	if req.Username == "admin" && req.Password == "admin" {
-		Success(c, LoginResponse{
-			Token:     "dummy-token",
-			ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
-		})
-		return
-	}
-
-	Unauthorized(c, "invalid credentials")
-}
-
-func (s *Server) logout(c *gin.Context) {
-	SuccessWithMessage(c, "logged out", nil)
-}
-
-func (s *Server) refreshToken(c *gin.Context) {
-	Success(c, LoginResponse{
-		Token:     "new-dummy-token",
-		ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
-	})
-}

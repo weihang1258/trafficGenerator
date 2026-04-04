@@ -103,9 +103,21 @@
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" :label="t('task.taskName')" width="180" />
         <el-table-column prop="name" :label="t('common.name')" min-width="150" />
-        <el-table-column prop="protocol" :label="t('task.protocol')" width="100">
+        <el-table-column prop="strategy_ids" label="Strategies" width="150">
           <template #default="{ row }">
-            <el-tag :type="getProtocolTagType(row.protocol)">{{ row.protocol.toUpperCase() }}</el-tag>
+            <el-tag v-for="id in row.strategy_ids?.slice(0, 2)" :key="id" size="small" style="margin: 2px">
+              {{ id.substring(0, 8) }}
+            </el-tag>
+            <el-tag v-if="row.strategy_ids?.length > 2" size="small" type="info">
+              +{{ row.strategy_ids.length - 2 }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="output_type" label="Output" width="120">
+          <template #default="{ row }">
+            <el-tag :type="row.output_type === 'pcap' ? 'warning' : 'success'">
+              {{ row.output_type?.toUpperCase() }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="status" :label="t('task.status')" width="120">
@@ -116,11 +128,6 @@
         <el-table-column prop="progress" :label="t('task.progress')" width="150">
           <template #default="{ row }">
             <el-progress :percentage="row.progress" :status="getProgressStatus(row.status)" />
-          </template>
-        </el-table-column>
-        <el-table-column prop="stats.packets_sent" :label="t('task.packets')" width="120">
-          <template #default="{ row }">
-            {{ formatNumber(row.stats?.packets_sent || 0) }}
           </template>
         </el-table-column>
         <el-table-column prop="created_at" :label="t('task.createdAt')" width="180">
@@ -137,7 +144,7 @@
               <el-button
                 size="small"
                 type="success"
-                :disabled="row.status !== 'created' && row.status !== 'paused'"
+                :disabled="row.status !== 'pending'"
                 @click="startTask(row.id)"
               >
                 {{ t('task.start') }}
@@ -186,8 +193,10 @@
         <el-descriptions :column="2" border>
           <el-descriptions-item :label="t('task.taskName')">{{ selectedTask.id }}</el-descriptions-item>
           <el-descriptions-item :label="t('common.name')">{{ selectedTask.name }}</el-descriptions-item>
-          <el-descriptions-item :label="t('task.protocol')">
-            <el-tag :type="getProtocolTagType(selectedTask.protocol)">{{ selectedTask.protocol?.toUpperCase() }}</el-tag>
+          <el-descriptions-item label="Output Type">
+            <el-tag :type="selectedTask.output_type === 'pcap' ? 'warning' : 'success'">
+              {{ selectedTask.output_type?.toUpperCase() }}
+            </el-tag>
           </el-descriptions-item>
           <el-descriptions-item :label="t('task.status')">
             <el-tag :type="getStatusTagType(selectedTask.status)">{{ getStatusText(selectedTask.status) }}</el-tag>
@@ -195,6 +204,15 @@
           <el-descriptions-item :label="t('task.createdAt')">{{ formatDate(selectedTask.created_at) }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.startedAt')">{{ formatDate(selectedTask.started_at) }}</el-descriptions-item>
         </el-descriptions>
+
+        <el-divider content-position="left">Strategies</el-divider>
+        <el-table :data="selectedTask.strategy_ids" size="small">
+          <el-table-column prop="id" label="Strategy ID">
+            <template #default="{ row }">
+              {{ row }}
+            </template>
+          </el-table-column>
+        </el-table>
 
         <el-divider content-position="left">{{ t('task.progress') }}</el-divider>
 
@@ -299,22 +317,22 @@ function formatDate(timestamp: number): string {
 
 function getStatusText(status: string): string {
   const map: Record<string, string> = {
-    created: t('task.pending'),
+    pending: t('task.pending'),
     running: t('task.running'),
-    paused: t('task.stopped'),
+    stopped: t('task.stopped'),
     completed: t('task.completed'),
-    failed: t('task.failed')
+    error: t('task.failed')
   }
   return map[status] || status
 }
 
 function getStatusTagType(status: string): string {
   const map: Record<string, string> = {
-    created: 'info',
+    pending: 'info',
     running: 'success',
-    paused: 'warning',
+    stopped: 'warning',
     completed: '',
-    failed: 'danger'
+    error: 'danger'
   }
   return map[status] || 'info'
 }
@@ -332,22 +350,19 @@ function getProtocolTagType(protocol: string): string {
 
 function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {
   if (status === 'completed') return 'success'
-  if (status === 'failed') return 'exception'
-  if (status === 'paused') return 'warning'
+  if (status === 'error') return 'exception'
+  if (status === 'stopped') return 'warning'
   return ''
 }
 
 async function loadTasks() {
   loading.value = true
   try {
-    const res = await taskApi.list({
-      page: pagination.page,
-      size: pagination.size,
-      status: Array.isArray(filters.status) ? filters.status.join(',') : filters.status,
-      protocol: Array.isArray(filters.protocol) ? filters.protocol.join(',') : filters.protocol
+    const data = await taskApi.list({
+      status: filters.status?.join(',')
     })
-    if (res.data) {
-      let taskList = res.data.tasks
+    if (data) {
+      let taskList = data
 
       // Client-side search filter
       if (filters.search) {
@@ -359,7 +374,7 @@ async function loadTasks() {
       }
 
       tasks.value = taskList
-      pagination.total = res.data.total
+      pagination.total = taskList.length
     }
   } catch (error) {
     console.error('Failed to load tasks:', error)

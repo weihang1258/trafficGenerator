@@ -180,7 +180,7 @@ func (c *Client) readPump() {
 		c.conn.Close()
 	}()
 
-	c.conn.SetReadLimit(512)
+	c.conn.SetReadLimit(65536) // 64KB max message size
 	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.conn.SetPongHandler(func(string) error {
 		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
@@ -207,10 +207,16 @@ func (c *Client) readPump() {
 			c.mu.Lock()
 			c.taskID = msg.TaskID
 			c.mu.Unlock()
+			// Send subscription confirmation
+			resp, _ := json.Marshal(Message{Type: "subscribed", Timestamp: time.Now().Unix()})
+			c.send <- resp
 		case "unsubscribe":
 			c.mu.Lock()
 			c.taskID = ""
 			c.mu.Unlock()
+			// Send unsubscription confirmation
+			resp, _ := json.Marshal(Message{Type: "unsubscribed", Timestamp: time.Now().Unix()})
+			c.send <- resp
 		case "ping":
 			resp, _ := json.Marshal(Message{Type: "pong", Timestamp: time.Now().Unix()})
 			c.send <- resp

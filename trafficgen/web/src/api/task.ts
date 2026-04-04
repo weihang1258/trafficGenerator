@@ -1,50 +1,57 @@
 import request from './index'
 
+export interface FlowControl {
+  type: string  // "flows", "cps", "bps", "ratio", "time"
+  value: number
+}
+
+export interface OutputConfig {
+  port_group_id?: string
+  pcap_path?: string
+}
+
 export interface Task {
   id: string
+  user_id: string
   name: string
-  protocol: string
-  status: string
-  config: Record<string, any>
-  output?: Record<string, any>
-  created_at: string
-  updated_at: string
+  strategy_ids: string[]
+  output_type: string  // "port_group" or "pcap"
+  output_config: OutputConfig
+  flow_control?: FlowControl
+  status: string  // "pending", "running", "stopped", "completed", "error"
+  error_message?: string
+  progress: number
+  created_at: number
+  updated_at: number
+  started_at?: number
+  completed_at?: number
 }
 
 export interface TaskCreate {
   name: string
-  protocol: string
-  config: Record<string, any>
-  output?: Record<string, any>
-}
-
-export interface TaskStats {
-  packets_sent: number
-  bytes_sent: number
-  packets_dropped: number
-  duration: number
-  rate: number
-  throughput: number
+  strategy_ids: string[]
+  output_type: string
+  output_config: OutputConfig
+  flow_control?: FlowControl
 }
 
 export interface TaskListParams {
   status?: string
-  protocol?: string
   page?: number
   page_size?: number
 }
 
-export interface TaskListResponse {
-  tasks: Task[]
-  total: number
-  page: number
-  page_size: number
+export interface TaskStats {
+  total_packets: number
+  total_bytes: number
+  duration: number
+  errors: number
 }
 
 /**
  * 获取任务列表
  */
-export function listTasks(params?: TaskListParams): Promise<TaskListResponse> {
+export function listTasks(params?: TaskListParams): Promise<Task[]> {
   return request({
     url: '/tasks',
     method: 'get',
@@ -63,13 +70,33 @@ export function getTask(taskId: string): Promise<Task> {
 }
 
 /**
- * 创建任务
+ * 创建任务（幂等）
  */
-export function createTask(data: TaskCreate): Promise<Task> {
+export function createTask(data: TaskCreate): Promise<{ id: string; message?: string }> {
   return request({
     url: '/tasks',
     method: 'post',
     data
+  })
+}
+
+/**
+ * 启动任务
+ */
+export function startTask(taskId: string): Promise<void> {
+  return request({
+    url: `/tasks/${taskId}/start`,
+    method: 'post'
+  })
+}
+
+/**
+ * 停止任务
+ */
+export function stopTask(taskId: string): Promise<void> {
+  return request({
+    url: `/tasks/${taskId}/stop`,
+    method: 'post'
   })
 }
 
@@ -80,26 +107,6 @@ export function deleteTask(taskId: string): Promise<void> {
   return request({
     url: `/tasks/${taskId}`,
     method: 'delete'
-  })
-}
-
-/**
- * 启动任务
- */
-export function startTask(taskId: string): Promise<Task> {
-  return request({
-    url: `/tasks/${taskId}/start`,
-    method: 'post'
-  })
-}
-
-/**
- * 停止任务
- */
-export function stopTask(taskId: string): Promise<Task> {
-  return request({
-    url: `/tasks/${taskId}/stop`,
-    method: 'post'
   })
 }
 
