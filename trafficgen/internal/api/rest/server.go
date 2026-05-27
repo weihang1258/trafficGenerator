@@ -121,7 +121,7 @@ func (s *Server) setupRoutes() {
 	}
 
 	// Authenticated routes
-	authMiddleware := auth.AuthMiddleware(s.jwtManager)
+	authMiddleware := auth.AuthMiddlewareWithDB(s.jwtManager, s.db.DB)
 
 	api := s.router.Group("/api/v1")
 	api.Use(authMiddleware)
