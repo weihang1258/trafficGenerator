@@ -15,6 +15,7 @@ export const useUserStore = defineStore('user', () => {
     username.value = user
     localStorage.setItem('token', data.token)
     localStorage.setItem('username', user)
+    localStorage.setItem('token_expires_at', String(data.expires_at))
   }
 
   function clearAuth() {
@@ -23,6 +24,7 @@ export const useUserStore = defineStore('user', () => {
     expiresAt.value = null
     localStorage.removeItem('token')
     localStorage.removeItem('username')
+    localStorage.removeItem('token_expires_at')
   }
 
   async function login(username: string, password: string) {

@@ -6,6 +6,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
   status: string
@@ -18,21 +21,22 @@ const props = withDefaults(defineProps<Props>(), {
   effect: 'light'
 })
 
-const statusMap: Record<string, { type: string; text: string }> = {
-  pending: { type: 'info', text: '待运行' },
-  running: { type: 'success', text: '运行中' },
-  completed: { type: '', text: '已完成' },
-  failed: { type: 'danger', text: '失败' },
-  stopped: { type: 'warning', text: '已停止' }
+const statusConfig: Record<string, { type: string; i18nKey: string }> = {
+  pending: { type: 'info', i18nKey: 'task.pending' },
+  running: { type: 'success', i18nKey: 'task.running' },
+  completed: { type: '', i18nKey: 'task.completed' },
+  failed: { type: 'danger', i18nKey: 'task.failed' },
+  error: { type: 'danger', i18nKey: 'task.failed' },
+  stopped: { type: 'warning', i18nKey: 'task.stopped' }
 }
 
 const statusType = computed(() => {
-  const status = statusMap[props.status]
-  return status ? status.type : 'info'
+  const config = statusConfig[props.status]
+  return config ? config.type : 'info'
 })
 
 const statusText = computed(() => {
-  const status = statusMap[props.status]
-  return status ? status.text : props.status
+  const config = statusConfig[props.status]
+  return config ? t(config.i18nKey) : props.status
 })
 </script>

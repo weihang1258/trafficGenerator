@@ -8,8 +8,8 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" style="max-width: 600px;">
         <el-form-item :label="t('settings.language')" prop="language">
           <el-select v-model="currentLocale" @change="handleLanguageChange">
-            <el-option label="中文" value="zh-CN" />
-            <el-option label="English" value="en-US" />
+            <el-option :label="t('settings.chinese')" value="zh-CN" />
+            <el-option :label="t('settings.english')" value="en-US" />
           </el-select>
         </el-form-item>
 
@@ -25,10 +25,10 @@
 
         <el-form-item :label="t('settings.logLevel')" prop="log_level">
           <el-select v-model="form.log_level">
-            <el-option label="Debug" value="debug" />
-            <el-option label="Info" value="info" />
-            <el-option label="Warn" value="warn" />
-            <el-option label="Error" value="error" />
+            <el-option :label="t('settings.debug')" value="debug" />
+            <el-option :label="t('settings.info')" value="info" />
+            <el-option :label="t('settings.warn')" value="warn" />
+            <el-option :label="t('settings.error')" value="error" />
           </el-select>
         </el-form-item>
 

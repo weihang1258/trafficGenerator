@@ -1,4 +1,7 @@
 export default {
+  app: {
+    title: 'Traffic Generator',
+  },
   // Common
   common: {
     confirm: 'Confirm',
@@ -23,6 +26,7 @@ export default {
     disable: 'Disable',
     status: 'Status',
     action: 'Action',
+    actions: 'Actions',
     detail: 'Detail',
     name: 'Name',
     description: 'Description',
@@ -34,7 +38,8 @@ export default {
     noData: 'No Data',
     select: 'Please select',
     both: 'Both',
-    selected: 'Selected'
+    selected: 'Selected',
+    createdAt: 'Created At'
   },
 
   // Navigation Menu
@@ -78,7 +83,31 @@ export default {
     recentTasks: 'Recent Tasks',
     taskDistribution: 'Task Distribution',
     protocolDistribution: 'Protocol Distribution',
-    performanceMetrics: 'Performance Metrics'
+    performanceMetrics: 'Performance Metrics',
+    currentRate: 'Current Rate',
+    pps: 'PPS',
+    bps: 'BPS',
+    cpuUsage: 'CPU Usage',
+    memoryUsage: 'Memory Usage',
+    errorRate: 'Error Rate',
+    packetLossRate: 'Packet Loss Rate',
+    timeRange1m: '1 Min',
+    timeRange5m: '5 Min',
+    timeRange15m: '15 Min',
+    timeRange1h: '1 Hour',
+    exportCSV: 'Export CSV',
+    zoom: 'Zoom',
+    zoomBack: 'Zoom Back',
+    restore: 'Restore',
+    alerts: 'Alerts',
+    clearAlerts: 'Clear Alerts',
+    alertCpuWarning: 'CPU usage exceeds 80% threshold ({value}%)',
+    alertCpuDanger: 'CPU usage exceeds 90% danger level ({value}%)',
+    alertMemoryWarning: 'Memory usage exceeds 80% threshold ({value}%)',
+    alertMemoryDanger: 'Memory usage exceeds 90% danger level ({value}%)',
+    alertBufferWarning: 'Buffer usage exceeds 80% threshold ({value}%)',
+    alertBufferDanger: 'Buffer usage exceeds 90% danger level ({value}%)',
+    alertErrorRate: 'Abnormal error rate ({value}%)'
   },
 
   // Task Management
@@ -133,53 +162,41 @@ export default {
     bulkDeleted: 'Deleted {count} tasks',
     confirmBulkDelete: 'Are you sure to delete {count} selected tasks?',
     tasks: 'tasks',
+    bulkPartial: '{succeeded} succeeded, {failed} failed',
     advancedFilters: 'Advanced Filters',
     searchPlaceholder: 'Search task name or ID',
+    strategies: 'Strategies',
     step: {
       basic: 'Basic Info',
-      protocol: 'Protocol Config',
-      advanced: 'Advanced Options',
-      review: 'Review & Submit'
+      strategy: 'Select Strategy',
+      output: 'Output Config',
+      review: 'Review'
     }
   },
 
   // Task Create
   taskCreate: {
     title: 'Create Task',
-    basicConfig: 'Basic Config',
-    networkConfig: 'Network Config',
-    outputConfig: 'Output Config',
     taskName: 'Task Name',
     taskNamePlaceholder: 'Please enter task name',
-    protocol: 'Protocol',
-    selectProtocol: 'Select Protocol',
-    srcIP: 'Source IP',
-    srcIPPlaceholder: 'Please enter source IP',
-    dstIP: 'Destination IP',
-    dstIPPlaceholder: 'Please enter destination IP',
-    srcPort: 'Source Port',
-    srcPortPlaceholder: 'Please enter source port',
-    dstPort: 'Destination Port',
-    dstPortPlaceholder: 'Please enter destination port',
-    outputMode: 'Output Mode',
-    selectOutputMode: 'Select Output Mode',
-    interface: 'Interface',
-    selectInterface: 'Select Interface',
-    filename: 'Filename',
-    filenamePlaceholder: 'Please enter filename',
+    selectStrategy: 'Select Strategy',
+    strategyRequired: 'Please select at least one strategy',
+    outputType: 'Output Type',
+    portGroup: 'Port Group Output',
+    pcap: 'PCAP File Output',
+    portGroupID: 'Port Group ID',
+    selectPortGroup: 'Select Port Group',
+    pcapPath: 'PCAP File Path',
+    pcapPathPlaceholder: 'e.g.: /tmp/output.pcap',
+    flowControl: 'Flow Control (Optional)',
+    flowControlType: 'Control Type',
+    flowControlValue: 'Control Value',
+    nextStep: 'Next',
     create: 'Create',
     cancel: 'Cancel',
     validation: {
       taskNameRequired: 'Please enter task name',
-      protocolRequired: 'Please select protocol',
-      srcIPRequired: 'Please enter source IP',
-      srcIPInvalid: 'Invalid source IP format',
-      dstIPRequired: 'Please enter destination IP',
-      dstIPInvalid: 'Invalid destination IP format',
-      srcPortRequired: 'Please enter source port',
-      srcPortRange: 'Source port must be between 1-65535',
-      dstPortRequired: 'Please enter destination port',
-      dstPortRange: 'Destination port must be between 1-65535'
+      strategyRequired: 'Please select at least one strategy'
     }
   },
 
@@ -193,13 +210,112 @@ export default {
     descriptionPlaceholder: 'Please enter description',
     config: 'Config',
     noStrategies: 'No strategies',
+    selectProtocol: 'Please select protocol',
+    strategyId: 'Strategy ID',
     confirmDelete: 'Are you sure to delete this strategy?',
     createSuccess: 'Strategy created successfully',
     createFailed: 'Failed to create strategy',
     updateSuccess: 'Strategy updated successfully',
     updateFailed: 'Failed to update strategy',
     deleteSuccess: 'Strategy deleted successfully',
-    deleteFailed: 'Failed to delete strategy'
+    deleteFailed: 'Failed to delete strategy',
+    searchPlaceholder: 'Search strategy name or ID',
+    strategiesUnit: 'strategies',
+    bulkDelete: 'Bulk Delete',
+    bulkDeleted: 'Deleted {count} strategies',
+    confirmBulkDelete: 'Are you sure to delete {count} selected strategies?',
+    clearSelection: 'Clear Selection',
+    clone: 'Clone',
+    cloneSuffix: '(Copy)',
+    validation: {
+      invalidIP: 'Invalid IP address format, e.g.: 192.168.1.1',
+      invalidMAC: 'Invalid MAC address format, e.g.: aa:bb:cc:dd:ee:ff'
+    },
+    // Templates
+    templates: 'Strategy Templates',
+    builtinTemplates: 'Built-in Templates',
+    customTemplates: 'Custom Templates',
+    selectTemplate: 'Select Template',
+    applyTemplate: 'Apply Template',
+    saveAsTemplate: 'Save as Template',
+    templateName: 'Template Name',
+    templateNamePlaceholder: 'Please enter template name',
+    templateDescription: 'Template Description',
+    templateDescriptionPlaceholder: 'Please enter template description',
+    templateApplied: 'Template applied',
+    templateSaved: 'Template saved',
+    templateDeleted: 'Template deleted',
+    templateDeleteConfirm: 'Are you sure to delete this template?',
+    // Strategy config fields
+    networkConfig: 'Network Config',
+    l2Config: 'L2 Config',
+    l3Config: 'L3 Config',
+    protocolConfig: 'Protocol Config',
+    payload: 'Payload',
+    payloadPlaceholder: 'Enter payload data',
+    srcIP: 'Source IP',
+    dstIP: 'Destination IP',
+    srcPort: 'Source Port',
+    dstPort: 'Destination Port',
+    srcMAC: 'Source MAC',
+    dstMAC: 'Destination MAC',
+    srcMACPlaceholder: 'e.g.: aa:bb:cc:dd:ee:ff',
+    dstMACPlaceholder: 'e.g.: 11:22:33:44:55:66',
+    vlan: 'VLAN Config',
+    vlanEnable: 'Enable VLAN',
+    vlanID: 'VLAN ID',
+    vlanPriority: 'VLAN Priority',
+    ttl: 'TTL',
+    tos: 'TOS',
+    // TCP
+    handshake: 'TCP Handshake',
+    termination: 'TCP Termination',
+    mss: 'MSS',
+    windowSize: 'Window Size',
+    // UDP
+    udpResponse: 'Generate Response',
+    // HTTP
+    method: 'HTTP Method',
+    uri: 'URI',
+    uriPlaceholder: 'e.g.: /api/test',
+    headers: 'Headers',
+    headerKey: 'Header Name',
+    headerValue: 'Header Value',
+    addHeader: 'Add Header',
+    body: 'Body',
+    keepAlive: 'Keep Alive',
+    transactions: 'Transactions',
+    thinkTime: 'Think Time (ms)',
+    // DNS
+    domain: 'Domain',
+    domainPlaceholder: 'e.g.: example.com',
+    queryType: 'Query Type',
+    dnsResponse: 'Generate Response',
+    responseIP: 'Response IP',
+    responseIPPlaceholder: 'e.g.: 192.168.1.1',
+    // ICMP
+    icmpType: 'ICMP Type',
+    icmpCode: 'ICMP Code',
+    sequence: 'Sequence',
+    icmpData: 'Data',
+    echoRequest: 'Echo Request (8)',
+    echoReply: 'Echo Reply (0)',
+    // ARP
+    operation: 'Operation',
+    arpRequest: 'ARP Request (1)',
+    arpReply: 'ARP Reply (2)',
+    targetMAC: 'Target MAC',
+    targetIP: 'Target IP',
+    // Flow Control
+    flowControl: 'Flow Control',
+    flowControlType: 'Control Type',
+    flowControlValue: 'Control Value',
+    flowControlValuePlaceholder: 'Enter control value',
+    flows: 'Flows (count)',
+    cps: 'CPS (connections/sec)',
+    bps: 'BPS (bytes/sec)',
+    ratio: 'Ratio (%)',
+    time: 'Duration (seconds)'
   },
 
   // Interface Management
@@ -210,6 +326,8 @@ export default {
     ipAddress: 'IP Address',
     netmask: 'Netmask',
     mtu: 'MTU',
+    adminStatus: 'Admin Status',
+    linkStatus: 'Link Status',
     status: 'Status',
     up: 'Up',
     down: 'Down',
@@ -218,7 +336,12 @@ export default {
     refresh: 'Refresh',
     refreshSuccess: 'Refresh successful',
     refreshFailed: 'Refresh failed',
-    noInterfaces: 'No interfaces'
+    noInterfaces: 'No interfaces',
+    discover: 'Discover',
+    usageStatus: 'Usage',
+    inUse: 'In Use',
+    idle: 'Idle',
+    traffic: 'Traffic'
   },
 
   // History
@@ -240,7 +363,9 @@ export default {
     last7Days: 'Last 7 Days',
     last30Days: 'Last 30 Days',
     custom: 'Custom',
-    noHistory: 'No history'
+    noHistory: 'No history',
+    noRecords: 'No records',
+    to: 'to'
   },
 
   // Settings
@@ -265,7 +390,9 @@ export default {
     saveSuccess: 'Settings saved successfully',
     saveFailed: 'Failed to save settings',
     resetSuccess: 'Settings reset successfully',
-    resetFailed: 'Failed to reset settings'
+    resetFailed: 'Failed to reset settings',
+    chinese: 'Chinese',
+    english: 'English'
   },
 
   // User Management
@@ -299,7 +426,9 @@ export default {
     deleteFailed: 'Failed to delete user',
     resetPasswordSuccess: 'Password reset successfully',
     resetPasswordFailed: 'Failed to reset password',
-    noUsers: 'No users'
+    noUsers: 'No users',
+    usernameLength: 'Username must be 3-20 characters',
+    passwordLength: 'Password must be 6-20 characters'
   },
 
   // Protocol

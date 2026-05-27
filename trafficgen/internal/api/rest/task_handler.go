@@ -1,15 +1,17 @@
 package rest
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"gorm.io/gorm"
@@ -17,12 +19,13 @@ import (
 
 // TaskHandler handles task requests.
 type TaskHandler struct {
-	db *storage.DB
+	db     *storage.DB
+	engine *core.Engine
 }
 
 // NewTaskHandler creates a new task handler.
-func NewTaskHandler(db *storage.DB) *TaskHandler {
-	return &TaskHandler{db: db}
+func NewTaskHandler(db *storage.DB, engine *core.Engine) *TaskHandler {
+	return &TaskHandler{db: db, engine: engine}
 }
 
 // CreateTaskRequest represents a create task request.
@@ -72,6 +75,12 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Validate strategy_ids
+	if len(req.StrategyIDs) == 0 {
+		BadRequest(c, "at least one strategy_id is required")
+		return
+	}
+
 	// Validate output configuration
 	if req.OutputType == "port_group" && req.OutputConfig.PortGroupID == "" {
 		BadRequest(c, "port_group_id is required for port_group output")
@@ -103,15 +112,15 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		flowControlJSON, _ = json.Marshal(req.FlowControl)
 	}
 
-	// Calculate hash for idempotent creation
+	// Sort strategy IDs for consistent idempotency checks
 	sortedStrategyIDs := make([]string, len(req.StrategyIDs))
 	copy(sortedStrategyIDs, req.StrategyIDs)
 	sort.Strings(sortedStrategyIDs)
-	_ = calculateTaskHash(sortedStrategyIDs, string(outputConfigJSON)) // For future use
+	sortedStrategyIDsJSON, _ := json.Marshal(sortedStrategyIDs)
 
-	// Check if task already exists
+	// Check if task already exists for this user
 	var existingTask storage.TaskModel
-	if err := h.db.Where("user_id = ? AND strategy_ids = ?", userID, string(strategyIDsJSON)).First(&existingTask).Error; err == nil {
+	if err := h.db.Where("user_id = ? AND strategy_ids = ?", userID, string(sortedStrategyIDsJSON)).First(&existingTask).Error; err == nil {
 		// Task exists, return existing ID
 		Success(c, map[string]string{
 			"id":      existingTask.ID,
@@ -220,10 +229,11 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		return
 	}
 
-	// Validate all strategies exist
+	// Validate all strategies exist and convert to engine tasks
 	var strategyIDs []string
 	json.Unmarshal([]byte(task.StrategyIDs), &strategyIDs)
 
+	var coreTasks []*core.Task
 	for _, strategyID := range strategyIDs {
 		var strategy storage.StrategyModel
 		if err := h.db.Where("id = ? AND user_id = ?", strategyID, userID).First(&strategy).Error; err != nil {
@@ -237,55 +247,49 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			InternalError(c, "failed to validate strategy: "+err.Error())
 			return
 		}
+
+		coreTask, err := core.StrategyModelToTask(&task, &strategy)
+		if err != nil {
+			log.Printf("error converting strategy %s: %v", strategyID, err)
+			continue
+		}
+		coreTasks = append(coreTasks, coreTask)
 	}
 
-	// Validate port group if needed
-	if task.OutputType == "port_group" {
-		var outputConfig OutputConfigRequest
-		json.Unmarshal([]byte(task.OutputConfig), &outputConfig)
-
-		var portGroup storage.PortGroupModel
-		if err := h.db.Where("id = ?", outputConfig.PortGroupID).First(&portGroup).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				task.Status = "error"
-				task.ErrorMessage = "port group not found"
-				h.db.Save(&task)
-				BadRequest(c, task.ErrorMessage)
-				return
-			}
-			InternalError(c, "failed to validate port group: "+err.Error())
-			return
-		}
-
-		// Check port status
-		var portsConfig []map[string]interface{}
-		json.Unmarshal([]byte(portGroup.PortsConfig), &portsConfig)
-
-		for _, portConfig := range portsConfig {
-			if iface, ok := portConfig["interface"].(string); ok {
-				var port storage.PortModel
-				if err := h.db.Where("name = ?", iface).First(&port).Error; err == nil {
-					if port.Status == "using" && port.CurrentTaskID != id {
-						task.Status = "error"
-						task.ErrorMessage = fmt.Sprintf("port %s is in use by another task", iface)
-						h.db.Save(&task)
-						BadRequest(c, task.ErrorMessage)
-						return
-					}
-				}
-			}
-		}
+	if len(coreTasks) == 0 {
+		task.Status = "error"
+		task.ErrorMessage = "no valid strategies to execute"
+		h.db.Save(&task)
+		BadRequest(c, task.ErrorMessage)
+		return
 	}
 
-	// TODO: Actually start the task execution
-	// This will be implemented in the engine
+	// Submit all engine tasks
+	var submittedIDs []string
+	for _, ct := range coreTasks {
+		if err := h.engine.SubmitTask(*ct); err != nil {
+			log.Printf("error submitting engine task %s: %v", ct.ID, err)
+			continue
+		}
+		submittedIDs = append(submittedIDs, ct.ID)
+	}
+
+	if len(submittedIDs) == 0 {
+		task.Status = "error"
+		task.ErrorMessage = "failed to start any strategy"
+		h.db.Save(&task)
+		InternalError(c, task.ErrorMessage)
+		return
+	}
 
 	task.Status = "running"
 	now := currentTime()
 	task.StartedAt = &now
 	h.db.Save(&task)
 
-	SuccessWithMessage(c, "task started", nil)
+	SuccessWithMessage(c, "task started", map[string]interface{}{
+		"engine_task_ids": submittedIDs,
+	})
 }
 
 // Stop stops a task.
@@ -318,8 +322,19 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 		return
 	}
 
-	// TODO: Actually stop the task execution
-	// This will be implemented in the engine
+	// Stop all engine tasks for this task
+	var strategyIDs []string
+	json.Unmarshal([]byte(task.StrategyIDs), &strategyIDs)
+
+	var stopped []string
+	for _, strategyID := range strategyIDs {
+		engineTaskID := fmt.Sprintf("%s-%s", id, strategyID)
+		if err := h.engine.StopTask(engineTaskID); err != nil {
+			log.Printf("error stopping engine task %s: %v", engineTaskID, err)
+			continue
+		}
+		stopped = append(stopped, engineTaskID)
+	}
 
 	task.Status = "stopped"
 	now := currentTime()
@@ -349,7 +364,9 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 		}
 	}
 
-	SuccessWithMessage(c, "task stopped", nil)
+	SuccessWithMessage(c, "task stopped", map[string]interface{}{
+		"stopped_engine_tasks": stopped,
+	})
 }
 
 // Delete deletes a task.
@@ -389,6 +406,28 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 	}
 
 	SuccessWithMessage(c, "task deleted", nil)
+}
+
+// History returns completed task history.
+func (h *TaskHandler) History(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == "" {
+		Unauthorized(c, "user not authenticated")
+		return
+	}
+
+	var tasks []storage.TaskModel
+	if err := h.db.Where("user_id = ? AND status IN ?", userID, []string{"completed", "failed", "stopped", "error"}).Find(&tasks).Error; err != nil {
+		InternalError(c, "failed to list history: "+err.Error())
+		return
+	}
+
+	result := make([]TaskResponse, len(tasks))
+	for i, t := range tasks {
+		result[i] = convertTaskToResponse(&t)
+	}
+
+	Success(c, result)
 }
 
 // convertTaskToResponse converts a TaskModel to TaskResponse.
@@ -440,7 +479,7 @@ func calculateTaskHash(strategyIDs []string, outputConfig string) string {
 		data += id
 	}
 	data += outputConfig
-	hash := md5.Sum([]byte(data))
+	hash := sha256.Sum256([]byte(data))
 	return hex.EncodeToString(hash[:])
 }
 

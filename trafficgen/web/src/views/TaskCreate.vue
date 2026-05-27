@@ -7,11 +7,10 @@
         </div>
       </template>
 
-      <!-- Steps -->
       <el-steps :active="currentStep" finish-status="success" align-center style="margin-bottom: 30px;">
         <el-step :title="t('task.step.basic')" />
-        <el-step :title="t('task.step.protocol')" />
-        <el-step :title="t('task.step.advanced')" />
+        <el-step :title="t('task.step.strategy')" />
+        <el-step :title="t('task.step.output')" />
         <el-step :title="t('task.step.review')" />
       </el-steps>
 
@@ -28,179 +27,120 @@
             <el-input v-model="form.name" :placeholder="t('taskCreate.taskNamePlaceholder')" />
           </el-form-item>
 
-          <el-form-item :label="t('common.description')">
-            <el-input v-model="form.description" type="textarea" rows="3" :placeholder="t('strategy.descriptionPlaceholder')" />
-          </el-form-item>
-
-          <el-form-item :label="t('taskCreate.protocol')" prop="protocol">
-            <el-select v-model="form.protocol" :placeholder="t('taskCreate.selectProtocol')" @change="onProtocolChange">
-              <el-option label="TCP" value="tcp" />
-              <el-option label="UDP" value="udp" />
-              <el-option label="HTTP" value="http" />
-              <el-option label="DNS" value="dns" />
-              <el-option label="ICMP" value="icmp" />
+          <!-- Quick create from template -->
+          <el-form-item :label="t('strategy.selectTemplate')">
+            <el-select v-model="selectedTemplateId" :placeholder="t('strategy.selectTemplate')" clearable style="width: 100%;" @change="handleTemplateSelect">
+              <el-option-group :label="t('strategy.builtinTemplates')">
+                <el-option v-for="tp in builtinTemplates" :key="tp.id" :label="`${tp.name} (${tp.protocol.toUpperCase()}) - ${tp.description}`" :value="tp.id" />
+              </el-option-group>
+              <el-option-group v-if="customTemplates.length > 0" :label="t('strategy.customTemplates')">
+                <el-option v-for="tp in customTemplates" :key="tp.id" :label="`${tp.name} (${tp.protocol.toUpperCase()}) - ${tp.description}`" :value="tp.id" />
+              </el-option-group>
             </el-select>
           </el-form-item>
         </div>
 
-        <!-- Step 2: Protocol Config -->
+        <!-- Step 2: Select Strategies -->
         <div v-show="currentStep === 1">
-          <el-divider content-position="left">{{ t('taskCreate.networkConfig') }}</el-divider>
-
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item :label="t('taskCreate.srcIP')" prop="spec.src_ip">
-                <el-input v-model="form.spec.src_ip" :placeholder="t('taskCreate.srcIPPlaceholder')" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item :label="t('taskCreate.dstIP')" prop="spec.dst_ip">
-                <el-input v-model="form.spec.dst_ip" :placeholder="t('taskCreate.dstIPPlaceholder')" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item :label="t('taskCreate.srcPort')" prop="spec.src_port">
-                <el-input-number v-model="form.spec.src_port" :min="1" :max="65535" style="width: 100%;" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item :label="t('taskCreate.dstPort')" prop="spec.dst_port">
-                <el-input-number v-model="form.spec.dst_port" :min="1" :max="65535" style="width: 100%;" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-
-          <!-- TCP specific config -->
-          <template v-if="form.protocol === 'tcp'">
-            <el-divider content-position="left">TCP {{ t('task.config') }}</el-divider>
-            <el-row :gutter="20">
-              <el-col :span="8">
-                <el-form-item label="三次握手">
-                  <el-switch v-model="form.spec.tcp.handshake" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="四次挥手">
-                  <el-switch v-model="form.spec.tcp.termination" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="MSS">
-                  <el-input-number v-model="form.spec.tcp.mss" :min="536" :max="65535" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-          </template>
-
-          <!-- HTTP specific config -->
-          <template v-if="form.protocol === 'http'">
-            <el-divider content-position="left">HTTP {{ t('task.config') }}</el-divider>
-            <el-row :gutter="20">
-              <el-col :span="8">
-                <el-form-item label="请求方法">
-                  <el-select v-model="form.spec.http.method">
-                    <el-option label="GET" value="GET" />
-                    <el-option label="POST" value="POST" />
-                    <el-option label="PUT" value="PUT" />
-                    <el-option label="DELETE" value="DELETE" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="16">
-                <el-form-item label="URI">
-                  <el-input v-model="form.spec.http.uri" placeholder="/api/test" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <el-form-item label="请求体">
-              <el-input v-model="form.spec.http.body" type="textarea" rows="3" />
-            </el-form-item>
-          </template>
-
-          <!-- DNS specific config -->
-          <template v-if="form.protocol === 'dns'">
-            <el-divider content-position="left">DNS {{ t('task.config') }}</el-divider>
-            <el-row :gutter="20">
-              <el-col :span="16">
-                <el-form-item label="域名">
-                  <el-input v-model="form.spec.dns.domain" placeholder="example.com" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="查询类型">
-                  <el-select v-model="form.spec.dns.query_type">
-                    <el-option label="A" :value="1" />
-                    <el-option label="AAAA" :value="28" />
-                    <el-option label="CNAME" :value="5" />
-                    <el-option label="MX" :value="15" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-            </el-row>
-          </template>
-        </div>
-
-        <!-- Step 3: Advanced Options -->
-        <div v-show="currentStep === 2">
-          <el-divider content-position="left">{{ t('taskCreate.outputConfig') }}</el-divider>
-
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="源MAC">
-                <el-input v-model="form.spec.src_mac" placeholder="例如: aa:bb:cc:dd:ee:ff" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="目标MAC">
-                <el-input v-model="form.spec.dst_mac" placeholder="例如: 11:22:33:44:55:66" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-
-          <el-form-item :label="t('taskCreate.interface')">
-            <el-select v-model="form.interface" :placeholder="t('taskCreate.selectInterface')">
-              <el-option v-for="iface in interfaces" :key="iface.name" :label="iface.name" :value="iface.name" />
+          <el-form-item :label="t('taskCreate.selectStrategy')" prop="strategy_ids">
+            <el-select
+              v-model="form.strategy_ids"
+              multiple
+              :placeholder="t('taskCreate.selectStrategy')"
+              style="width: 100%;"
+              v-loading="strategyLoading"
+            >
+              <el-option
+                v-for="s in strategies"
+                :key="s.id"
+                :label="`${s.name} (${s.protocol.toUpperCase()})`"
+                :value="s.id"
+              />
             </el-select>
           </el-form-item>
 
-          <el-form-item :label="t('taskCreate.outputMode')">
-            <el-radio-group v-model="form.output_mode">
-              <el-radio label="interface">{{ t('outputMode.interface') }}</el-radio>
-              <el-radio label="pcap">{{ t('outputMode.pcap') }}</el-radio>
-              <el-radio label="both">{{ t('common.both') || '两者都输出' }}</el-radio>
+          <el-empty v-if="strategies.length === 0 && !strategyLoading" :description="t('strategy.noStrategies')">
+            <el-button type="primary" @click="$router.push('/strategies')">
+              {{ t('strategy.createStrategy') }}
+            </el-button>
+          </el-empty>
+
+          <!-- Show selected strategies detail -->
+          <div v-if="selectedStrategyDetails.length > 0" style="margin-top: 20px;">
+            <el-divider content-position="left">{{ t('task.step.strategy') }}</el-divider>
+            <el-descriptions v-for="s in selectedStrategyDetails" :key="s.id" :column="2" border style="margin-bottom: 10px;">
+              <el-descriptions-item :label="t('common.name')">{{ s.name }}</el-descriptions-item>
+              <el-descriptions-item :label="t('task.protocol')">{{ s.protocol.toUpperCase() }}</el-descriptions-item>
+              <el-descriptions-item :label="t('strategy.flowControl')" :span="2">
+                <span v-if="s.flow_control">{{ s.flow_control.type }}: {{ s.flow_control.value }}</span>
+                <span v-else>-</span>
+              </el-descriptions-item>
+            </el-descriptions>
+          </div>
+        </div>
+
+        <!-- Step 3: Output Config -->
+        <div v-show="currentStep === 2">
+          <el-form-item :label="t('taskCreate.outputType')" prop="output_type">
+            <el-radio-group v-model="form.output_type">
+              <el-radio label="port_group">{{ t('taskCreate.portGroup') }}</el-radio>
+              <el-radio label="pcap">{{ t('taskCreate.pcap') }}</el-radio>
             </el-radio-group>
           </el-form-item>
 
-          <el-form-item v-if="form.output_mode !== 'interface'" :label="t('taskCreate.filename')">
-            <el-input v-model="form.pcap_file" :placeholder="t('taskCreate.filenamePlaceholder')" />
+          <el-form-item v-if="form.output_type === 'port_group'" :label="t('taskCreate.portGroupID')" prop="output_config.port_group_id">
+            <el-select v-model="form.output_config.port_group_id" :placeholder="t('taskCreate.selectPortGroup')" v-loading="portGroupLoading">
+              <el-option v-for="pg in portGroups" :key="pg.id" :label="`${pg.name} (${pg.ports_config.length} ports)`" :value="pg.id" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item v-if="form.output_type === 'pcap'" :label="t('taskCreate.pcapPath')" prop="output_config.pcap_path">
+            <el-input v-model="form.output_config.pcap_path" :placeholder="t('taskCreate.pcapPathPlaceholder')" />
+          </el-form-item>
+
+          <el-divider content-position="left">{{ t('taskCreate.flowControl') }}</el-divider>
+
+          <el-form-item :label="t('taskCreate.flowControlType')">
+            <el-select v-model="form.flow_control.type" :placeholder="t('strategy.flowControlType')" clearable style="width: 200px;">
+              <el-option :label="t('strategy.bps')" value="bps" />
+              <el-option :label="t('strategy.flows')" value="flows" />
+              <el-option :label="t('strategy.cps')" value="cps" />
+              <el-option :label="t('strategy.ratio')" value="ratio" />
+              <el-option :label="t('strategy.time')" value="time" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item v-if="form.flow_control.type" :label="t('taskCreate.flowControlValue')">
+            <el-input-number v-model="form.flow_control.value" :min="1" style="width: 200px;" />
           </el-form-item>
         </div>
 
         <!-- Step 4: Review -->
         <div v-show="currentStep === 3">
-          <el-divider content-position="left">{{ t('task.basicInfo') }}</el-divider>
+          <el-divider content-position="left">{{ t('task.step.basic') }}</el-divider>
           <el-descriptions :column="2" border>
             <el-descriptions-item :label="t('taskCreate.taskName')">{{ form.name }}</el-descriptions-item>
-            <el-descriptions-item :label="t('taskCreate.protocol')">{{ form.protocol.toUpperCase() }}</el-descriptions-item>
-            <el-descriptions-item :label="t('common.description')" :span="2">{{ form.description || '-' }}</el-descriptions-item>
+            <el-descriptions-item :label="t('taskCreate.outputType')">{{ form.output_type === 'port_group' ? t('taskCreate.portGroup') : t('taskCreate.pcap') }}</el-descriptions-item>
           </el-descriptions>
 
-          <el-divider content-position="left">{{ t('taskCreate.networkConfig') }}</el-divider>
-          <el-descriptions :column="2" border>
-            <el-descriptions-item :label="t('taskCreate.srcIP')">{{ form.spec.src_ip }}</el-descriptions-item>
-            <el-descriptions-item :label="t('taskCreate.dstIP')">{{ form.spec.dst_ip }}</el-descriptions-item>
-            <el-descriptions-item :label="t('taskCreate.srcPort')">{{ form.spec.src_port }}</el-descriptions-item>
-            <el-descriptions-item :label="t('taskCreate.dstPort')">{{ form.spec.dst_port }}</el-descriptions-item>
+          <el-divider content-position="left">{{ t('task.step.strategy') }}</el-divider>
+          <el-descriptions v-for="s in selectedStrategyDetails" :key="s.id" :column="2" border style="margin-bottom: 10px;">
+            <el-descriptions-item :label="t('common.name')">{{ s.name }}</el-descriptions-item>
+            <el-descriptions-item :label="t('task.protocol')">{{ s.protocol.toUpperCase() }}</el-descriptions-item>
           </el-descriptions>
 
-          <el-divider content-position="left">{{ t('taskCreate.outputConfig') }}</el-divider>
+          <el-divider content-position="left">{{ t('task.step.output') }}</el-divider>
           <el-descriptions :column="2" border>
-            <el-descriptions-item :label="t('taskCreate.interface')">{{ form.interface || '-' }}</el-descriptions-item>
-            <el-descriptions-item :label="t('taskCreate.outputMode')">{{ form.output_mode }}</el-descriptions-item>
-            <el-descriptions-item v-if="form.pcap_file" :label="t('taskCreate.filename')" :span="2">{{ form.pcap_file }}</el-descriptions-item>
+            <el-descriptions-item v-if="form.output_type === 'port_group'" :label="t('taskCreate.portGroupID')">
+              {{ form.output_config.port_group_id || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="form.output_type === 'pcap'" :label="t('taskCreate.pcapPath')">
+              {{ form.output_config.pcap_path || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item :label="t('taskCreate.flowControl')">
+              <span v-if="form.flow_control.type">{{ form.flow_control.type }}: {{ form.flow_control.value }}</span>
+              <span v-else>-</span>
+            </el-descriptions-item>
           </el-descriptions>
         </div>
 
@@ -210,7 +150,7 @@
             {{ t('common.back') }}
           </el-button>
           <el-button v-if="currentStep < 3" type="primary" @click="nextStep">
-            {{ t('common.submit') }}
+            {{ t('taskCreate.nextStep') }}
           </el-button>
           <el-button v-if="currentStep === 3" type="primary" :loading="loading" @click="handleSubmit">
             {{ t('taskCreate.create') }}
@@ -223,85 +163,74 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { taskApi, interfaceApi, type NetworkInterface, type CreateTaskRequest } from '@/api'
+import { taskApi, strategyApi, portGroupApi, type Strategy, type PortGroup, type CreateTaskRequest, type FlowControlRequest, type OutputConfigRequest } from '@/api'
+import { useStrategyTemplates } from '@/composables/useStrategyTemplates'
 
 const { t } = useI18n()
 const router = useRouter()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
-const interfaces = ref<NetworkInterface[]>([])
 const currentStep = ref(0)
+
+const strategies = ref<Strategy[]>([])
+const portGroups = ref<PortGroup[]>([])
+const strategyLoading = ref(false)
+const portGroupLoading = ref(false)
+
+const { allTemplates, customTemplates, getTemplate } = useStrategyTemplates()
+const builtinTemplates = computed(() => allTemplates.value.filter(t => t.isBuiltin))
+const selectedTemplateId = ref<string>('')
 
 const form = reactive<CreateTaskRequest>({
   name: '',
-  description: '',
-  protocol: 'tcp',
-  spec: {
-    src_ip: '192.168.1.100',
-    dst_ip: '192.168.1.1',
-    src_port: 12345,
-    dst_port: 80,
-    tcp: {
-      handshake: true,
-      termination: true,
-      mss: 1460,
-      window_size: 65535
-    },
-    http: {
-      method: 'GET',
-      uri: '/',
-      headers: {},
-      body: '',
-      keep_alive: true,
-      transactions: 1,
-      think_time: 0
-    },
-    dns: {
-      domain: 'example.com',
-      query_type: 1,
-      response: false
-    }
+  strategy_ids: [],
+  output_type: 'pcap',
+  output_config: {
+    pcap_path: '/tmp/output.pcap'
   },
-  interface: '',
-  output_mode: 'interface'
+  flow_control: {
+    type: '',
+    value: 1
+  }
+})
+
+const selectedStrategyDetails = computed(() => {
+  return strategies.value.filter(s => form.strategy_ids.includes(s.id))
 })
 
 const rules: FormRules = {
   name: [{ required: true, message: t('taskCreate.validation.taskNameRequired'), trigger: 'blur' }],
-  protocol: [{ required: true, message: t('taskCreate.validation.protocolRequired'), trigger: 'change' }],
-  'spec.src_ip': [{ required: true, message: t('taskCreate.validation.srcIPRequired'), trigger: 'blur' }],
-  'spec.dst_ip': [{ required: true, message: t('taskCreate.validation.dstIPRequired'), trigger: 'blur' }],
-  'spec.src_port': [{ required: true, message: t('taskCreate.validation.srcPortRequired'), trigger: 'blur' }],
-  'spec.dst_port': [{ required: true, message: t('taskCreate.validation.dstPortRequired'), trigger: 'blur' }]
+  strategy_ids: [{ required: true, type: 'array', min: 1, message: t('taskCreate.validation.strategyRequired'), trigger: 'change' }]
 }
 
-function onProtocolChange() {
-  // Reset protocol-specific config
-}
+async function handleTemplateSelect(templateId: string) {
+  if (!templateId) return
+  const template = getTemplate(templateId)
+  if (!template) return
 
-async function nextStep() {
-  // Validate current step fields
-  if (currentStep.value === 0) {
-    try {
-      await formRef.value?.validateField(['name', 'protocol'])
-      currentStep.value++
-    } catch (error) {
-      console.error('Validation failed:', error)
+  // Create strategy from template
+  try {
+    const submitData: any = {
+      name: template.name + ' ' + t('strategy.cloneSuffix'),
+      protocol: template.protocol,
+      config: template.config
     }
-  } else if (currentStep.value === 1) {
-    try {
-      await formRef.value?.validateField(['spec.src_ip', 'spec.dst_ip', 'spec.src_port', 'spec.dst_port'])
-      currentStep.value++
-    } catch (error) {
-      console.error('Validation failed:', error)
+    if (template.flow_control) {
+      submitData.flow_control = template.flow_control
     }
-  } else {
-    currentStep.value++
+    const res = await strategyApi.create(submitData)
+    if (res.data) {
+      form.strategy_ids.push((res.data as any).id)
+      ElMessage.success(t('strategy.templateApplied'))
+      loadStrategies()
+    }
+  } catch (error) {
+    console.error('Failed to create strategy from template:', error)
   }
 }
 
@@ -311,14 +240,47 @@ function prevStep() {
   }
 }
 
-async function loadInterfaces() {
+async function nextStep() {
+  if (currentStep.value === 0) {
+    try {
+      await formRef.value?.validateField(['name'])
+      currentStep.value++
+    } catch { /* validation failed */ }
+  } else if (currentStep.value === 1) {
+    try {
+      await formRef.value?.validateField(['strategy_ids'])
+      currentStep.value++
+    } catch { /* validation failed */ }
+  } else {
+    currentStep.value++
+  }
+}
+
+async function loadStrategies() {
+  strategyLoading.value = true
   try {
-    const res = await interfaceApi.list()
+    const res = await strategyApi.list()
     if (res.data) {
-      interfaces.value = res.data
+      strategies.value = res.data as Strategy[]
     }
   } catch (error) {
-    console.error('Failed to load interfaces:', error)
+    console.error('Failed to load strategies:', error)
+  } finally {
+    strategyLoading.value = false
+  }
+}
+
+async function loadPortGroups() {
+  portGroupLoading.value = true
+  try {
+    const res = await portGroupApi.list()
+    if (res.data) {
+      portGroups.value = res.data as PortGroup[]
+    }
+  } catch (error) {
+    console.error('Failed to load port groups:', error)
+  } finally {
+    portGroupLoading.value = false
   }
 }
 
@@ -328,7 +290,21 @@ async function handleSubmit() {
 
   loading.value = true
   try {
-    const res = await taskApi.create(form)
+    const submitData: CreateTaskRequest = {
+      name: form.name,
+      strategy_ids: form.strategy_ids,
+      output_type: form.output_type,
+      output_config: form.output_config
+    }
+
+    if (form.flow_control.type) {
+      submitData.flow_control = {
+        type: form.flow_control.type,
+        value: form.flow_control.value
+      } as FlowControlRequest
+    }
+
+    const res = await taskApi.create(submitData)
     if (res.data) {
       ElMessage.success(t('task.createSuccess'))
       router.push('/tasks')
@@ -341,7 +317,8 @@ async function handleSubmit() {
 }
 
 onMounted(() => {
-  loadInterfaces()
+  loadStrategies()
+  loadPortGroups()
 })
 </script>
 

@@ -3,7 +3,7 @@
     <el-aside width="220px" class="sidebar">
       <div class="logo">
         <el-icon :size="24"><Connection /></el-icon>
-        <span>Traffic Generator</span>
+        <span>{{ t('app.title') }}</span>
       </div>
       <el-menu
         :default-active="activeMenu"
@@ -15,7 +15,7 @@
         <template v-for="route in menuRoutes" :key="route.path">
           <el-menu-item :index="'/' + route.path">
             <el-icon><component :is="route.meta?.icon" /></el-icon>
-            <span>{{ route.meta?.title }}</span>
+            <span>{{ t(route.meta?.title as string) }}</span>
           </el-menu-item>
         </template>
       </el-menu>
@@ -25,9 +25,9 @@
       <el-header class="header">
         <div class="header-left">
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-            <el-breadcrumb-item v-if="currentRoute.meta?.title !== '仪表盘'">
-              {{ currentRoute.meta?.title }}
+            <el-breadcrumb-item :to="{ path: '/' }">{{ t('menu.dashboard') }}</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="currentRoute.path !== '/dashboard'">
+              {{ t(currentRoute.meta?.title as string) }}
             </el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -40,8 +40,8 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="settings">系统设置</el-dropdown-item>
-                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+                <el-dropdown-item command="settings">{{ t('menu.settings') }}</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>{{ t('login.logout') }}</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -58,10 +58,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const userStore = useUserStore()
 
 const currentRoute = computed(() => route)

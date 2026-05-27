@@ -39,7 +39,7 @@ type StrategyModel struct {
 	Protocol    string    `gorm:"size:32;not null;index"`
 	Config      string    `gorm:"type:text"`              // JSON 配置
 	FlowControl string    `gorm:"type:text"`              // JSON: {"type": "flows", "value": 1}
-	ConfigHash  string    `gorm:"size:64;uniqueIndex"`    // 配置哈希，幂等创建
+	ConfigHash  string    `gorm:"size:64;index"`    // 配置哈希，幂等创建
 	CreatedAt   time.Time `gorm:"autoCreateTime"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
 }

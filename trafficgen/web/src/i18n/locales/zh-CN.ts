@@ -1,4 +1,7 @@
 export default {
+  app: {
+    title: '流量生成器',
+  },
   // 通用
   common: {
     confirm: '确认',
@@ -23,6 +26,7 @@ export default {
     disable: '禁用',
     status: '状态',
     action: '操作',
+    actions: '操作',
     detail: '详情',
     name: '名称',
     description: '描述',
@@ -34,7 +38,8 @@ export default {
     noData: '暂无数据',
     select: '请选择',
     both: '两者都',
-    selected: '已选择'
+    selected: '已选择',
+    createdAt: '创建时间'
   },
 
   // 导航菜单
@@ -78,7 +83,31 @@ export default {
     recentTasks: '最近任务',
     taskDistribution: '任务分布',
     protocolDistribution: '协议分布',
-    performanceMetrics: '性能指标'
+    performanceMetrics: '性能指标',
+    currentRate: '当前速率',
+    pps: 'PPS',
+    bps: 'BPS',
+    cpuUsage: 'CPU 使用率',
+    memoryUsage: '内存使用',
+    errorRate: '错误率',
+    packetLossRate: '丢包率',
+    timeRange1m: '1分钟',
+    timeRange5m: '5分钟',
+    timeRange15m: '15分钟',
+    timeRange1h: '1小时',
+    exportCSV: '导出CSV',
+    zoom: '缩放',
+    zoomBack: '还原',
+    restore: '恢复',
+    alerts: '告警通知',
+    clearAlerts: '清除告警',
+    alertCpuWarning: 'CPU 使用率超过80%阈值 ({value}%)',
+    alertCpuDanger: 'CPU 使用率超过90%危险值 ({value}%)',
+    alertMemoryWarning: '内存使用率超过80%阈值 ({value}%)',
+    alertMemoryDanger: '内存使用率超过90%危险值 ({value}%)',
+    alertBufferWarning: '缓冲区使用率超过80%阈值 ({value}%)',
+    alertBufferDanger: '缓冲区使用率超过90%危险值 ({value}%)',
+    alertErrorRate: '错误率异常 ({value}%)'
   },
 
   // 任务管理
@@ -133,53 +162,41 @@ export default {
     bulkDeleted: '已删除 {count} 个任务',
     confirmBulkDelete: '确定要删除选中的 {count} 个任务吗？',
     tasks: '个任务',
+    bulkPartial: '成功 {succeeded} 个，失败 {failed} 个',
     advancedFilters: '高级筛选',
     searchPlaceholder: '搜索任务名称或 ID',
+    strategies: '策略',
     step: {
       basic: '基本信息',
-      protocol: '协议配置',
-      advanced: '高级选项',
-      review: '确认提交'
+      strategy: '选择策略',
+      output: '输出配置',
+      review: '确认'
     }
   },
 
   // 任务创建
   taskCreate: {
     title: '创建任务',
-    basicConfig: '基本配置',
-    networkConfig: '网络配置',
-    outputConfig: '输出配置',
     taskName: '任务名称',
     taskNamePlaceholder: '请输入任务名称',
-    protocol: '协议',
-    selectProtocol: '选择协议',
-    srcIP: '源 IP',
-    srcIPPlaceholder: '请输入源 IP 地址',
-    dstIP: '目标 IP',
-    dstIPPlaceholder: '请输入目标 IP 地址',
-    srcPort: '源端口',
-    srcPortPlaceholder: '请输入源端口',
-    dstPort: '目标端口',
-    dstPortPlaceholder: '请输入目标端口',
-    outputMode: '输出模式',
-    selectOutputMode: '选择输出模式',
-    interface: '网卡',
-    selectInterface: '选择网卡',
-    filename: '文件名',
-    filenamePlaceholder: '请输入文件名',
+    selectStrategy: '选择策略',
+    strategyRequired: '请至少选择一个策略',
+    outputType: '输出类型',
+    portGroup: '端口组输出',
+    pcap: 'PCAP 文件输出',
+    portGroupID: '端口组 ID',
+    selectPortGroup: '选择端口组',
+    pcapPath: 'PCAP 文件路径',
+    pcapPathPlaceholder: '例如: /tmp/output.pcap',
+    flowControl: '流量控制（可选）',
+    flowControlType: '控制类型',
+    flowControlValue: '控制值',
+    nextStep: '下一步',
     create: '创建',
     cancel: '取消',
     validation: {
       taskNameRequired: '请输入任务名称',
-      protocolRequired: '请选择协议',
-      srcIPRequired: '请输入源 IP 地址',
-      srcIPInvalid: '源 IP 地址格式不正确',
-      dstIPRequired: '请输入目标 IP 地址',
-      dstIPInvalid: '目标 IP 地址格式不正确',
-      srcPortRequired: '请输入源端口',
-      srcPortRange: '源端口范围为 1-65535',
-      dstPortRequired: '请输入目标端口',
-      dstPortRange: '目标端口范围为 1-65535'
+      strategyRequired: '请至少选择一个策略'
     }
   },
 
@@ -193,13 +210,112 @@ export default {
     descriptionPlaceholder: '请输入策略描述',
     config: '配置',
     noStrategies: '暂无策略',
+    selectProtocol: '请选择协议',
+    strategyId: '策略ID',
     confirmDelete: '确定要删除该策略吗？',
     createSuccess: '策略创建成功',
     createFailed: '策略创建失败',
     updateSuccess: '策略更新成功',
     updateFailed: '策略更新失败',
     deleteSuccess: '策略删除成功',
-    deleteFailed: '策略删除失败'
+    deleteFailed: '策略删除失败',
+    searchPlaceholder: '搜索策略名称或ID',
+    strategiesUnit: '个策略',
+    bulkDelete: '批量删除',
+    bulkDeleted: '已删除 {count} 个策略',
+    confirmBulkDelete: '确定要删除选中的 {count} 个策略吗？',
+    clearSelection: '取消选择',
+    clone: '克隆',
+    cloneSuffix: '(副本)',
+    validation: {
+      invalidIP: 'IP地址格式不正确，例如: 192.168.1.1',
+      invalidMAC: 'MAC地址格式不正确，例如: aa:bb:cc:dd:ee:ff'
+    },
+    // 模板
+    templates: '策略模板',
+    builtinTemplates: '内置模板',
+    customTemplates: '自定义模板',
+    selectTemplate: '选择模板',
+    applyTemplate: '应用模板',
+    saveAsTemplate: '保存为模板',
+    templateName: '模板名称',
+    templateNamePlaceholder: '请输入模板名称',
+    templateDescription: '模板描述',
+    templateDescriptionPlaceholder: '请输入模板描述',
+    templateApplied: '模板已应用',
+    templateSaved: '模板已保存',
+    templateDeleted: '模板已删除',
+    templateDeleteConfirm: '确定要删除该模板吗？',
+    // 策略配置字段
+    networkConfig: '网络配置',
+    l2Config: '二层配置',
+    l3Config: '三层配置',
+    protocolConfig: '协议配置',
+    payload: '载荷',
+    payloadPlaceholder: '请输入载荷数据',
+    srcIP: '源 IP',
+    dstIP: '目标 IP',
+    srcPort: '源端口',
+    dstPort: '目标端口',
+    srcMAC: '源 MAC',
+    dstMAC: '目标 MAC',
+    srcMACPlaceholder: '例如: aa:bb:cc:dd:ee:ff',
+    dstMACPlaceholder: '例如: 11:22:33:44:55:66',
+    vlan: 'VLAN 配置',
+    vlanEnable: '启用 VLAN',
+    vlanID: 'VLAN ID',
+    vlanPriority: 'VLAN 优先级',
+    ttl: 'TTL',
+    tos: 'TOS',
+    // TCP
+    handshake: '三次握手',
+    termination: '四次挥手',
+    mss: 'MSS',
+    windowSize: '窗口大小',
+    // UDP
+    udpResponse: '生成响应',
+    // HTTP
+    method: '请求方法',
+    uri: 'URI',
+    uriPlaceholder: '例如: /api/test',
+    headers: '请求头',
+    headerKey: 'Header 名称',
+    headerValue: 'Header 值',
+    addHeader: '添加请求头',
+    body: '请求体',
+    keepAlive: '保持连接',
+    transactions: '事务数量',
+    thinkTime: '思考时间 (ms)',
+    // DNS
+    domain: '域名',
+    domainPlaceholder: '例如: example.com',
+    queryType: '查询类型',
+    dnsResponse: '生成响应',
+    responseIP: '响应 IP',
+    responseIPPlaceholder: '例如: 192.168.1.1',
+    // ICMP
+    icmpType: 'ICMP 类型',
+    icmpCode: 'ICMP 代码',
+    sequence: '序列号',
+    icmpData: '数据',
+    echoRequest: '回显请求 (8)',
+    echoReply: '回显应答 (0)',
+    // ARP
+    operation: '操作类型',
+    arpRequest: 'ARP 请求 (1)',
+    arpReply: 'ARP 应答 (2)',
+    targetMAC: '目标 MAC',
+    targetIP: '目标 IP',
+    // 流量控制
+    flowControl: '流量控制',
+    flowControlType: '控制类型',
+    flowControlValue: '控制值',
+    flowControlValuePlaceholder: '请输入控制值',
+    flows: '流数量',
+    cps: '连接速率 (CPS)',
+    bps: '字节速率 (BPS)',
+    ratio: '比例',
+    time: '持续时间 (秒)'
   },
 
   // 网卡管理
@@ -210,6 +326,8 @@ export default {
     ipAddress: 'IP 地址',
     netmask: '子网掩码',
     mtu: 'MTU',
+    adminStatus: '管理状态',
+    linkStatus: '链路状态',
     status: '状态',
     up: '启用',
     down: '禁用',
@@ -218,7 +336,12 @@ export default {
     refresh: '刷新',
     refreshSuccess: '刷新成功',
     refreshFailed: '刷新失败',
-    noInterfaces: '暂无网卡'
+    noInterfaces: '暂无网卡',
+    discover: '发现网卡',
+    usageStatus: '使用状态',
+    inUse: '使用中',
+    idle: '空闲',
+    traffic: '流量统计'
   },
 
   // 历史记录
@@ -240,7 +363,9 @@ export default {
     last7Days: '最近 7 天',
     last30Days: '最近 30 天',
     custom: '自定义',
-    noHistory: '暂无历史记录'
+    noHistory: '暂无历史记录',
+    noRecords: '暂无记录',
+    to: '至'
   },
 
   // 系统设置
@@ -265,7 +390,9 @@ export default {
     saveSuccess: '设置保存成功',
     saveFailed: '设置保存失败',
     resetSuccess: '设置重置成功',
-    resetFailed: '设置重置失败'
+    resetFailed: '设置重置失败',
+    chinese: '中文',
+    english: '英文'
   },
 
   // 用户管理
@@ -299,7 +426,9 @@ export default {
     deleteFailed: '用户删除失败',
     resetPasswordSuccess: '密码重置成功',
     resetPasswordFailed: '密码重置失败',
-    noUsers: '暂无用户'
+    noUsers: '暂无用户',
+    usernameLength: '用户名长度为3-20个字符',
+    passwordLength: '密码长度为6-20个字符'
   },
 
   // 协议

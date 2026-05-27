@@ -1176,6 +1176,19 @@ def plan_tcp_flow_packet_configs_iter(flow_spec: Dict, mac_src_default: str, mac
     vlan_up = up.get('vlan')
     vlan_down = down.get('vlan')
 
+    # 支持vlan为整数(直接作为vlan id)或字典
+    def normalize_vlan(v):
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, int):
+            return {'id': v, 'enable': True}
+        return None
+
+    vlan_up = normalize_vlan(vlan_up)
+    vlan_down = normalize_vlan(vlan_down)
+
     ttl_up = up.get('ttl', 64); tos_up = up.get('tos', 0)
     ttl_down = down.get('ttl', 64); tos_down = down.get('tos', 0)
 
@@ -1241,14 +1254,35 @@ def plan_tcp_flow_packet_configs_iter(flow_spec: Dict, mac_src_default: str, mac
     # 2) 数据阶段
     def extract_payload(side: dict) -> bytes:
         """提取方向负载
-        - 若 side.payload 存在且非空：按其内容转换为 bytes，并自动回填 side.payload_length
-        - 若 side.payload 缺失或为空：按 side.payload_length 生成随机 bytes（长度<=0 时返回空）
+        - 若 side.payload 存在且非空：
+            - bytes/bytearray: 直接使用
+            - dict(策略): 用BodyGenerator生成
+            - 其他: 转bytes
+        - 若 side.payload 缺失或为空：按 side.payload_length 生成随机 bytes
         """
         if side is None:
             return b''
         if 'payload' in side and side['payload']:
             raw = side['payload']
-            data = raw if isinstance(raw, (bytes, bytearray)) else str(raw).encode('utf-8')
+            if isinstance(raw, (bytes, bytearray)):
+                try:
+                    side['payload_length'] = len(raw)
+                except Exception:
+                    pass
+                return raw
+            if isinstance(raw, dict):
+                # payload策略字典 -> 用BodyGenerator生成
+                try:
+                    bg = BodyGenerator(raw, debug_mode=False)
+                    data = bg.next_body()
+                    try:
+                        side['payload_length'] = len(data)
+                    except Exception:
+                        pass
+                    return data
+                except Exception:
+                    pass
+            data = str(raw).encode('utf-8')
             try:
                 side['payload_length'] = len(data)
             except Exception:
@@ -1335,6 +1369,20 @@ def plan_udp_flow_packet_configs_iter(flow_spec: Dict, mac_src_default: str, mac
     dport_d = down.get('dport') or sport
 
     vlan_up = up.get('vlan'); vlan_down = down.get('vlan')
+
+    # 支持vlan为整数(直接作为vlan id)或字典
+    def normalize_vlan(v):
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, int):
+            return {'id': v, 'enable': True}
+        return None
+
+    vlan_up = normalize_vlan(vlan_up)
+    vlan_down = normalize_vlan(vlan_down)
+
     ttl_up = up.get('ttl', 64); tos_up = up.get('tos', 0)
     ttl_down = down.get('ttl', 64); tos_down = down.get('tos', 0)
 
@@ -1461,6 +1509,20 @@ def plan_http_sessions_iter(http_spec: Dict, mac_src_default: str, mac_dst_defau
 
     vlan_up = up.get('vlan')
     vlan_down = down.get('vlan')
+
+    # 支持vlan为整数(直接作为vlan id)或字典
+    def normalize_vlan(v):
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, int):
+            return {'id': v, 'enable': True}
+        return None
+
+    vlan_up = normalize_vlan(vlan_up)
+    vlan_down = normalize_vlan(vlan_down)
+
     ttl_up = up.get('ttl', 64); tos_up = up.get('tos', 0)
     ttl_down = down.get('ttl', 64); tos_down = down.get('tos', 0)
 
@@ -1946,7 +2008,13 @@ class HttpRandomGenerator:
         self.method_gen = self._make_method_generator(http_spec.get('methods', ['GET']))
         self.body_gen = BodyGenerator(http_spec.get('body', {}), debug_mode=False)
 
-    def _make_domain_generator(self, spec: Dict):
+    def _make_domain_generator(self, spec):
+        if spec is None:
+            spec = {}
+        if isinstance(spec, str):
+            return FixedValue(spec)
+        if not isinstance(spec, dict):
+            spec = {}
         strategy = spec.get('strategy', 'rand').lower()
         domain_list = spec.get('list', [])
         if domain_list and strategy == 'rand':
@@ -1955,7 +2023,13 @@ class HttpRandomGenerator:
         n_range = spec.get('n_range', [1, 1000])
         return PatternIncrementer(pattern, n_range[0], n_range[1])
 
-    def _make_uri_generator(self, spec: Dict):
+    def _make_uri_generator(self, spec):
+        if spec is None:
+            spec = {}
+        if isinstance(spec, str):
+            return FixedValue(spec)
+        if not isinstance(spec, dict):
+            spec = {}
         strategy = spec.get('strategy', 'rand').lower()
         uri_list = spec.get('list', ['/'])
         if uri_list and strategy == 'rand':
@@ -1964,7 +2038,13 @@ class HttpRandomGenerator:
         n_range = spec.get('n_range', [1, 10000])
         return PatternIncrementer(pattern, n_range[0], n_range[1])
 
-    def _make_method_generator(self, methods: List[str]):
+    def _make_method_generator(self, methods):
+        if methods is None:
+            methods = ['GET']
+        if isinstance(methods, str):
+            return FixedValue(methods)
+        if not isinstance(methods, (list, tuple)):
+            methods = ['GET']
         return ListRandom(methods or ['GET'])
 
     def next_domain(self) -> str:
@@ -2153,13 +2233,11 @@ class BatchMixedRunner:
         http_spec = {
             'handshake': http_base.get('handshake', True),
             'termination': http_base.get('termination', True),
-            # mss 若提供则透传；未提供则在配置进程内用生成器产生
             'mss': http_base.get('mss'),
             'directionless': http_base.get('directionless', False),
             'class_id': class_id,
             'uplink': dict(http_base.get('uplink', {})),
             'downlink': dict(http_base.get('downlink', {})),
-            # 下传生成策略，配置进程再具体化
             'methods': http_base.get('methods'),
             'domains': http_base.get('domains'),
             'uris': http_base.get('uris'),
@@ -2171,12 +2249,28 @@ class BatchMixedRunner:
             'tos': http_base.get('tos'),
             'window': http_base.get('window'),
         }
+        # 更新上行参数
         http_spec['uplink'].update({
             'ip_src': ip_src,
             'ip_dst': ip_dst,
             'sport': sport,
             'dport': dport
         })
+        # 更新下行参数（如果没有配置，则自动生成反向参数）
+        if not http_spec['downlink']:
+            http_spec['downlink'] = {
+                'ip_src': ip_dst,
+                'ip_dst': ip_src,
+                'sport': dport,
+                'dport': sport,
+            }
+        else:
+            http_spec['downlink'].update({
+                'ip_src': ip_dst,
+                'ip_dst': ip_src,
+                'sport': dport,
+                'dport': sport,
+            })
         return http_spec
 
 # -------- 通用参数生成器 --------
@@ -2256,7 +2350,11 @@ class HeaderGenerator:
     def __init__(self, header_spec: Dict):
         self.header_spec = header_spec
         self._generators = {}
-        
+
+        # 处理 None 或空字典的情况
+        if not header_spec:
+            return
+
         for header_name, spec in header_spec.items():
             if isinstance(spec, dict):
                 self._generators[header_name] = ParameterGenerator(spec)
@@ -2287,7 +2385,13 @@ class EnhancedHttpRandomGenerator:
         self.mss_gen = ParameterGenerator(http_spec.get('mss', {'strategy': 'fixed', 'value': 1460}))
         self.window_gen = ParameterGenerator(http_spec.get('window', {'strategy': 'fixed', 'value': 65535}))
 
-    def _make_domain_generator(self, spec: Dict):
+    def _make_domain_generator(self, spec):
+        if spec is None:
+            spec = {}
+        if isinstance(spec, str):
+            return FixedValue(spec)
+        if not isinstance(spec, dict):
+            spec = {}
         strategy = spec.get('strategy', 'rand').lower()
         domain_list = spec.get('list', [])
         if domain_list and strategy == 'rand':
@@ -2296,7 +2400,13 @@ class EnhancedHttpRandomGenerator:
         n_range = spec.get('n_range', [1, 1000])
         return PatternIncrementer(pattern, n_range[0], n_range[1])
 
-    def _make_uri_generator(self, spec: Dict):
+    def _make_uri_generator(self, spec):
+        if spec is None:
+            spec = {}
+        if isinstance(spec, str):
+            return FixedValue(spec)
+        if not isinstance(spec, dict):
+            spec = {}
         strategy = spec.get('strategy', 'rand').lower()
         uri_list = spec.get('list', ['/'])
         if uri_list and strategy == 'rand':

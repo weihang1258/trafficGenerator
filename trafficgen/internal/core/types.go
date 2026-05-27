@@ -52,6 +52,10 @@ type FlowSpec struct {
 	DstMAC string `json:"dst_mac,omitempty"`
 	VLAN   *VLAN  `json:"vlan,omitempty"`
 
+	// L3 configuration
+	TTL uint8 `json:"ttl,omitempty"`
+	TOS uint8 `json:"tos,omitempty"`
+
 	// Protocol specific configuration
 	TCP  *TCPConfig  `json:"tcp,omitempty"`
 	UDP  *UDPConfig  `json:"udp,omitempty"`

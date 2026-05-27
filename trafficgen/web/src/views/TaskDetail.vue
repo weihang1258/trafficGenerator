@@ -13,7 +13,7 @@
           <div class="actions">
             <el-button
               type="success"
-              :disabled="task?.status !== 'created' && task?.status !== 'paused'"
+              :disabled="task?.status !== 'pending' && task?.status !== 'stopped'"
               @click="startTask"
             >
               {{ t('task.start') }}
@@ -31,7 +31,7 @@
       </template>
 
       <el-descriptions :column="3" border>
-        <el-descriptions-item :label="t('task.taskName')">{{ task?.id }}</el-descriptions-item>
+        <el-descriptions-item :label="t('task.taskName')">{{ task?.name }}</el-descriptions-item>
         <el-descriptions-item :label="t('task.protocol')">
           <el-tag :type="getProtocolTagType(task?.protocol || '')">{{ task?.protocol?.toUpperCase() }}</el-tag>
         </el-descriptions-item>
@@ -62,18 +62,18 @@
           <el-statistic :title="t('task.bytes')" :value="task?.stats?.bytes_sent || 0" />
         </el-col>
         <el-col :span="6">
-          <el-statistic title="当前PPS" :value="task?.stats?.current_pps || 0" :precision="2" />
+          <el-statistic :title="t('dashboard.pps')" :value="task?.stats?.current_pps || 0" :precision="2" />
         </el-col>
         <el-col :span="6">
-          <el-statistic title="当前BPS" :value="task?.stats?.current_bps || 0" :precision="2" />
+          <el-statistic :title="t('dashboard.bps')" :value="task?.stats?.current_bps || 0" :precision="2" />
         </el-col>
       </el-row>
 
       <el-divider content-position="left">{{ t('common.error') }}</el-divider>
 
       <el-alert
-        v-if="task?.error"
-        :title="task.error"
+        v-if="task?.error_message"
+        :title="task.error_message"
         type="error"
         show-icon
         :closable="false"
@@ -108,22 +108,22 @@ function formatDate(timestamp?: number): string {
 
 function getStatusText(status: string): string {
   const map: Record<string, string> = {
-    created: t('task.pending'),
+    pending: t('task.pending'),
     running: t('task.running'),
-    paused: t('task.stopped'),
+    stopped: t('task.stopped'),
     completed: t('task.completed'),
-    failed: t('task.failed')
+    error: t('task.failed')
   }
   return map[status] || status
 }
 
 function getStatusTagType(status: string): string {
   const map: Record<string, string> = {
-    created: 'info',
+    pending: 'info',
     running: 'success',
-    paused: 'warning',
+    stopped: 'warning',
     completed: '',
-    failed: 'danger'
+    error: 'danger'
   }
   return map[status] || 'info'
 }
@@ -141,8 +141,8 @@ function getProtocolTagType(protocol: string): string {
 
 function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {
   if (status === 'completed') return 'success'
-  if (status === 'failed') return 'exception'
-  if (status === 'paused') return 'warning'
+  if (status === 'error') return 'exception'
+  if (status === 'stopped') return 'warning'
   return ''
 }
 

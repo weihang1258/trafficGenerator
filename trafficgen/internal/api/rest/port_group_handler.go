@@ -1,7 +1,7 @@
 package rest
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -51,15 +51,10 @@ func (h *PortGroupHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Validate ports exist
+	// Validate ports exist as interfaces (soft check - allow any interface name)
 	for _, portConfig := range req.Ports {
-		var port storage.PortModel
-		if err := h.db.Where("name = ?", portConfig.Interface).First(&port).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				BadRequest(c, fmt.Sprintf("port %s not found", portConfig.Interface))
-				return
-			}
-			InternalError(c, "failed to validate port: "+err.Error())
+		if portConfig.Interface == "" {
+			BadRequest(c, "interface name is required")
 			return
 		}
 	}
@@ -182,10 +177,10 @@ func (h *PortGroupHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	// Check if port group is used by any tasks
+	// Check if port group is used by any tasks (JSON exact match)
 	var taskCount int64
 	h.db.Model(&storage.TaskModel{}).
-		Where("output_config LIKE ?", "%"+id+"%").
+		Where("output_config LIKE ?", "%\""+id+"\"%").
 		Count(&taskCount)
 	if taskCount > 0 {
 		BadRequest(c, "port group is used by tasks, cannot delete")
@@ -203,6 +198,6 @@ func (h *PortGroupHandler) Delete(c *gin.Context) {
 
 // calculatePortsConfigHash calculates a hash for ports configuration.
 func calculatePortsConfigHash(portsConfig string) string {
-	hash := md5.Sum([]byte(portsConfig))
+	hash := sha256.Sum256([]byte(portsConfig))
 	return hex.EncodeToString(hash[:])
 }

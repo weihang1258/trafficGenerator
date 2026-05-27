@@ -11,7 +11,6 @@
         </div>
       </template>
 
-      <!-- 搜索栏 -->
       <el-form :inline="true" :model="searchForm" class="search-form">
         <el-form-item :label="t('user.username')">
           <el-input v-model="searchForm.username" :placeholder="t('user.usernamePlaceholder')" clearable />
@@ -21,12 +20,6 @@
             <el-option :label="t('user.admin')" value="admin" />
             <el-option :label="t('user.user')" value="user" />
             <el-option :label="t('user.guest')" value="guest" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="t('user.status')">
-          <el-select v-model="searchForm.status" :placeholder="t('common.select')" clearable>
-            <el-option :label="t('user.active')" value="active" />
-            <el-option :label="t('user.disabled')" value="disabled" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -41,9 +34,7 @@
         </el-form-item>
       </el-form>
 
-      <!-- 用户表格 -->
-      <el-table :data="users" v-loading="loading" border stripe>
-        <el-table-column prop="id" label="ID" width="80" />
+      <el-table :data="users" v-loading="loading" stripe>
         <el-table-column prop="username" :label="t('user.username')" width="150" />
         <el-table-column prop="email" :label="t('user.email')" width="200" />
         <el-table-column prop="role" :label="t('user.role')" width="120">
@@ -51,38 +42,40 @@
             <el-tag :type="getRoleType(row.role)">{{ getRoleText(row.role) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="t('user.status')" width="100">
+        <el-table-column :label="t('user.status')" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'danger'">
-              {{ row.status === 'active' ? t('user.active') : t('user.disabled') }}
-            </el-tag>
+            <el-switch
+              v-model="row.enabled"
+              :disabled="row.username === 'admin'"
+              @change="(val) => handleStatusChange(row, val)"
+            />
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" :label="t('user.createdAt')" width="180" />
-        <el-table-column prop="last_login" :label="t('user.lastLogin')" width="180" />
-        <el-table-column :label="t('common.action')" width="250" fixed="right">
+        <el-table-column :label="t('user.createdAt')" width="180">
+          <template #default="{ row }">
+            {{ row.created_at ? formatDate(row.created_at) : '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('user.lastLogin')" width="180">
+          <template #default="{ row }">
+            {{ row.last_login ? formatDate(row.last_login) : '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('common.action')" width="220" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="handleEdit(row)">{{ t('common.edit') }}</el-button>
             <el-button size="small" type="warning" @click="handleResetPassword(row)">{{ t('user.resetPassword') }}</el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row)">{{ t('common.delete') }}</el-button>
+            <el-button size="small" type="danger" :disabled="row.role === 'admin'" @click="handleDelete(row)">{{ t('common.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
-
-      <!-- 分页 -->
-      <Pagination
-        :total="total"
-        :page="currentPage"
-        :limit="pageSize"
-        @pagination="handlePagination"
-      />
     </el-card>
 
-    <!-- 创建/编辑用户对话框 -->
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
       width="500px"
+      :close-on-click-modal="false"
       @close="handleDialogClose"
     >
       <el-form
@@ -92,12 +85,12 @@
         label-width="100px"
       >
         <el-form-item :label="t('user.username')" prop="username">
-          <el-input v-model="userForm.username" :placeholder="t('user.usernamePlaceholder')" />
+          <el-input v-model="userForm.username" :placeholder="t('user.usernamePlaceholder')" :disabled="!!userForm.id" />
         </el-form-item>
         <el-form-item :label="t('user.email')" prop="email">
           <el-input v-model="userForm.email" :placeholder="t('user.emailPlaceholder')" />
         </el-form-item>
-        <el-form-item :label="t('user.password')" prop="password" v-if="!userForm.id">
+        <el-form-item v-if="!userForm.id" :label="t('user.password')" prop="password">
           <el-input
             v-model="userForm.password"
             type="password"
@@ -112,16 +105,13 @@
             <el-option :label="t('user.guest')" value="guest" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('user.status')" prop="status">
-          <el-radio-group v-model="userForm.status">
-            <el-radio label="active">{{ t('user.active') }}</el-radio>
-            <el-radio label="disabled">{{ t('user.disabled') }}</el-radio>
-          </el-radio-group>
+        <el-form-item :label="t('user.status')">
+          <el-switch v-model="userForm.enabled" :active-text="t('user.active')" :inactive-text="t('user.disabled')" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="handleSubmit">{{ t('common.confirm') }}</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -130,32 +120,21 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
-import Pagination from '@/components/Pagination.vue'
+import { userApi, authApi, type User } from '@/api'
+import dayjs from 'dayjs'
 
 const { t } = useI18n()
 
-interface User {
-  id: string
-  username: string
-  email: string
-  role: string
-  status: string
-  created_at: string
-  last_login: string
-}
-
 const loading = ref(false)
+const submitLoading = ref(false)
 const users = ref<User[]>([])
-const total = ref(0)
-const currentPage = ref(1)
-const pageSize = ref(20)
 
 const searchForm = reactive({
   username: '',
-  role: '',
-  status: ''
+  role: ''
 })
 
 const dialogVisible = ref(false)
@@ -168,13 +147,13 @@ const userForm = reactive({
   email: '',
   password: '',
   role: 'user',
-  status: 'active'
+  enabled: true
 })
 
 const rules: FormRules = {
   username: [
     { required: true, message: t('user.usernamePlaceholder'), trigger: 'blur' },
-    { min: 3, max: 20, message: '3-20 characters', trigger: 'blur' }
+    { min: 3, max: 20, message: t('user.usernameLength'), trigger: 'blur' }
   ],
   email: [
     { required: true, message: t('user.emailPlaceholder'), trigger: 'blur' },
@@ -182,13 +161,10 @@ const rules: FormRules = {
   ],
   password: [
     { required: true, message: t('user.passwordPlaceholder'), trigger: 'blur' },
-    { min: 6, max: 20, message: '6-20 characters', trigger: 'blur' }
+    { min: 6, max: 20, message: t('user.passwordLength'), trigger: 'blur' }
   ],
   role: [
     { required: true, message: t('user.selectRole'), trigger: 'change' }
-  ],
-  status: [
-    { required: true, message: t('common.select'), trigger: 'change' }
   ]
 }
 
@@ -210,118 +186,124 @@ const getRoleText = (role: string) => {
   return texts[role] || role
 }
 
-const fetchUsers = async () => {
+function formatDate(timestamp: number): string {
+  if (!timestamp) return '-'
+  return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm:ss')
+}
+
+async function fetchUsers() {
   loading.value = true
   try {
-    // 模拟 API 调用
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    // 模拟数据
-    users.value = [
-      {
-        id: '1',
-        username: 'admin',
-        email: 'admin@example.com',
-        role: 'admin',
-        status: 'active',
-        created_at: '2026-01-01 10:00:00',
-        last_login: '2026-04-02 09:30:00'
-      },
-      {
-        id: '2',
-        username: 'user1',
-        email: 'user1@example.com',
-        role: 'user',
-        status: 'active',
-        created_at: '2026-02-15 14:20:00',
-        last_login: '2026-04-01 16:45:00'
-      }
-    ]
-    total.value = 2
+    const res = await userApi.list({
+      username: searchForm.username || undefined,
+      role: searchForm.role || undefined
+    })
+    if (res.data) {
+      users.value = res.data as User[]
+    }
   } catch (error) {
-    ElMessage.error(t('error.serverError'))
+    console.error('Failed to load users:', error)
   } finally {
     loading.value = false
   }
 }
 
-const handleSearch = () => {
-  currentPage.value = 1
+function handleSearch() {
   fetchUsers()
 }
 
-const handleReset = () => {
+function handleReset() {
   searchForm.username = ''
   searchForm.role = ''
-  searchForm.status = ''
-  handleSearch()
-}
-
-const handlePagination = (params: { page: number; limit: number }) => {
-  currentPage.value = params.page
-  pageSize.value = params.limit
   fetchUsers()
 }
 
-const handleCreate = () => {
+function handleCreate() {
   dialogTitle.value = t('user.createUser')
   userForm.id = ''
   userForm.username = ''
   userForm.email = ''
   userForm.password = ''
   userForm.role = 'user'
-  userForm.status = 'active'
+  userForm.enabled = true
   dialogVisible.value = true
 }
 
-const handleEdit = (row: User) => {
+function handleEdit(row: User) {
   dialogTitle.value = t('common.edit')
   userForm.id = row.id
   userForm.username = row.username
   userForm.email = row.email
   userForm.role = row.role
-  userForm.status = row.status
+  userForm.enabled = row.enabled
   dialogVisible.value = true
 }
 
-const handleDelete = (row: User) => {
-  ElMessageBox.confirm(t('user.confirmDelete'), t('common.confirm'), {
-    confirmButtonText: t('common.confirm'),
-    cancelButtonText: t('common.cancel'),
-    type: 'warning'
-  }).then(() => {
+async function handleDelete(row: User) {
+  try {
+    await ElMessageBox.confirm(t('user.confirmDelete'), t('common.confirm'), { type: 'warning' })
+    await userApi.delete(row.id)
     ElMessage.success(t('user.deleteSuccess'))
     fetchUsers()
-  }).catch(() => {
-    // 取消删除
-  })
+  } catch { /* cancelled */ }
 }
 
-const handleResetPassword = (row: User) => {
-  ElMessageBox.confirm(t('user.confirmResetPassword'), t('common.confirm'), {
-    confirmButtonText: t('common.confirm'),
-    cancelButtonText: t('common.cancel'),
-    type: 'warning'
-  }).then(() => {
+async function handleResetPassword(row: User) {
+  try {
+    await ElMessageBox.confirm(t('user.confirmResetPassword'), t('common.confirm'), { type: 'warning' })
+    await userApi.resetPassword(row.id)
     ElMessage.success(t('user.resetPasswordSuccess'))
-  }).catch(() => {
-    // 取消重置
-  })
+  } catch { /* cancelled */ }
 }
 
-const handleSubmit = async () => {
-  if (!formRef.value) return
+async function handleStatusChange(row: User, enabled: boolean) {
+  try {
+    await userApi.update(row.id, { enabled })
+    ElMessage.success(enabled ? t('user.active') : t('user.disabled'))
+  } catch {
+    row.enabled = !enabled
+  }
+}
 
-  await formRef.value.validate((valid) => {
-    if (valid) {
-      ElMessage.success(userForm.id ? t('user.updateSuccess') : t('user.createSuccess'))
-      dialogVisible.value = false
-      fetchUsers()
+async function handleSubmit() {
+  const valid = await formRef.value?.validate()
+  if (!valid) return
+
+  submitLoading.value = true
+  try {
+    if (userForm.id) {
+      await userApi.update(userForm.id, {
+        role: userForm.role,
+        enabled: userForm.enabled,
+        email: userForm.email
+      })
+      ElMessage.success(t('user.updateSuccess'))
+    } else {
+      const res = await authApi.register({
+        username: userForm.username,
+        password: userForm.password,
+        email: userForm.email
+      })
+      // Set role and enabled status after registration
+      const userId = (res.data as any)?.user_id || (res as any)?.data?.user_id
+      if (userId && (userForm.role !== 'user' || !userForm.enabled)) {
+        await userApi.update(userId, {
+          role: userForm.role,
+          enabled: userForm.enabled
+        })
+      }
+      ElMessage.success(t('user.createSuccess'))
     }
-  })
+    dialogVisible.value = false
+    fetchUsers()
+  } catch (error) {
+    console.error('Failed to save user:', error)
+  } finally {
+    submitLoading.value = false
+  }
 }
 
-const handleDialogClose = () => {
+function handleDialogClose() {
   formRef.value?.resetFields()
 }
 
@@ -331,10 +313,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.user-list {
-  padding: 20px;
-}
-
 .card-header {
   display: flex;
   justify-content: space-between;

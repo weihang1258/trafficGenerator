@@ -16,6 +16,9 @@ type SystemStatusResponse struct {
 	Running      bool                   `json:"running"`
 	ActiveTasks  int                    `json:"active_tasks"`
 	BufferStatus map[string]interface{} `json:"buffer_status"`
+	CpuUsage     float64                `json:"cpu_usage"`
+	MemoryMB     float64                `json:"memory_mb"`
+	Uptime       int64                  `json:"uptime"`
 }
 
 // SettingsResponse represents application settings.

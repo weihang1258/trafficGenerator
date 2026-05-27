@@ -35,6 +35,12 @@
         </el-form-item>
 
         <el-form-item>
+          <div class="login-options">
+            <el-checkbox v-model="rememberMe">{{ t('login.rememberMe') }}</el-checkbox>
+          </div>
+        </el-form-item>
+
+        <el-form-item>
           <el-button
             type="primary"
             :loading="loading"
@@ -50,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
@@ -63,10 +69,11 @@ const userStore = useUserStore()
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
+const rememberMe = ref(false)
 
 const form = reactive({
-  username: 'admin',
-  password: 'admin'
+  username: '',
+  password: ''
 })
 
 const rules: FormRules = {
@@ -78,6 +85,14 @@ const rules: FormRules = {
   ]
 }
 
+onMounted(() => {
+  const saved = localStorage.getItem('remembered_username')
+  if (saved) {
+    form.username = saved
+    rememberMe.value = true
+  }
+})
+
 async function handleLogin() {
   const valid = await formRef.value?.validate()
   if (!valid) return
@@ -85,6 +100,11 @@ async function handleLogin() {
   loading.value = true
   try {
     await userStore.login(form.username, form.password)
+    if (rememberMe.value) {
+      localStorage.setItem('remembered_username', form.username)
+    } else {
+      localStorage.removeItem('remembered_username')
+    }
     ElMessage.success(t('login.loginSuccess'))
     router.push('/')
   } catch (error) {
@@ -105,7 +125,14 @@ async function handleLogin() {
 }
 
 .login-card {
-  width: 400px;
+  max-width: 400px;
+  width: 90%;
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    width: 95%;
+  }
 }
 
 .card-header {
@@ -124,5 +151,10 @@ async function handleLogin() {
   margin: 0;
   font-size: 14px;
   color: #909399;
+}
+
+.login-options {
+  display: flex;
+  align-items: center;
 }
 </style>

@@ -1,7 +1,7 @@
 package rest
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"time"
 
@@ -135,9 +135,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Store token in database for validation
+	// Store token in database for validation (upsert: revoke existing then insert)
 	tokenHash := hashToken(token)
 	expiresAt := time.Now().Add(24 * time.Hour)
+
+	// If same token hash already exists, revoke it first
+	var existingToken storage.TokenModel
+	if err := h.db.Where("token_hash = ?", tokenHash).First(&existingToken).Error; err == nil {
+		h.db.Delete(&existingToken)
+	}
+
 	tokenRecord := &storage.TokenModel{
 		ID:        uuid.New().String(),
 		UserID:    user.ID,
@@ -244,9 +251,56 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	SuccessWithMessage(c, "logged out", nil)
 }
 
+// Refresh refreshes an authentication token.
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == "" {
+		Unauthorized(c, "invalid token")
+		return
+	}
+
+	username := auth.GetUsername(c)
+	roles := auth.GetRoles(c)
+
+	token, err := h.jwtManager.GenerateToken(userID, username, roles)
+	if err != nil {
+		InternalError(c, "failed to generate token")
+		return
+	}
+
+	expiresAt := time.Now().Add(24 * time.Hour)
+
+	// Revoke old token and store new one
+	authHeader := c.GetHeader("Authorization")
+	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		oldTokenHash := hashToken(authHeader[7:])
+		h.db.Model(&storage.TokenModel{}).Where("token_hash = ?", oldTokenHash).Update("status", "revoked")
+	}
+
+	tokenHash := hashToken(token)
+	tokenRecord := &storage.TokenModel{
+		ID:        uuid.New().String(),
+		UserID:    userID,
+		TokenHash: tokenHash,
+		ExpiresAt: expiresAt,
+		Status:    "active",
+	}
+	if err := h.db.Create(tokenRecord).Error; err != nil {
+		InternalError(c, "failed to store token")
+		return
+	}
+
+	Success(c, LoginResponse{
+		Token:     token,
+		ExpiresAt: expiresAt.Unix(),
+		UserID:    userID,
+		Username:  username,
+	})
+}
+
 // hashToken creates a hash of the token for storage.
 func hashToken(token string) string {
-	hash := md5.Sum([]byte(token))
+	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
 }
 

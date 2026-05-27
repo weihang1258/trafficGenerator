@@ -78,9 +78,11 @@ func (s *Server) setupRoutes() {
 	// Create handlers
 	authHandler := NewAuthHandler(s.db, s.jwtManager)
 	strategyHandler := NewStrategyHandler(s.db)
-	taskHandler := NewTaskHandler(s.db)
+	taskHandler := NewTaskHandler(s.db, s.engine)
 	portGroupHandler := NewPortGroupHandler(s.db)
 	systemHandler := NewSystemHandler(s.engine)
+	settingsHandler := NewSettingsHandler()
+	userHandler := NewUserHandler(s.db)
 
 	// Health endpoints (no auth required)
 	s.router.GET("/health", systemHandler.HealthCheck)
@@ -168,6 +170,23 @@ func (s *Server) setupRoutes() {
 			interfaces.GET("", s.listInterfaces)
 			interfaces.POST("/discover", s.discoverInterfaces)
 		}
+
+		// Settings routes
+		api.GET("/settings", settingsHandler.Get)
+		api.PUT("/settings", settingsHandler.Update)
+
+		// Auth refresh route
+		api.POST("/auth/refresh", authHandler.Refresh)
+
+		// User management routes (admin only)
+		api.GET("/users", userHandler.List)
+		api.GET("/users/:id", userHandler.Get)
+		api.PUT("/users/:id", userHandler.Update)
+		api.DELETE("/users/:id", userHandler.Delete)
+		api.POST("/users/:id/reset-password", userHandler.ResetPassword)
+
+		// History route
+		api.GET("/history", taskHandler.History)
 	}
 
 	// Serve frontend static files
@@ -211,7 +230,11 @@ func (s *Server) Router() *gin.Engine {
 // CORSMiddleware handles CORS.
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := c.GetHeader("Origin")
+		if origin == "" {
+			origin = "*"
+		}
+		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")

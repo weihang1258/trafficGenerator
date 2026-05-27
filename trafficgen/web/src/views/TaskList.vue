@@ -11,82 +11,75 @@
         </div>
       </template>
 
-      <!-- Search and Filter -->
-      <el-collapse v-model="activeFilters" class="filter-collapse">
-        <el-collapse-item :title="t('task.advancedFilters')" name="filters">
-          <el-form :inline="true" class="search-form">
-            <el-form-item :label="t('task.status')">
-              <el-select
-                v-model="filters.status"
-                :placeholder="t('common.select')"
-                multiple
-                clearable
-                @change="loadTasks"
-              >
-                <el-option :label="t('task.running')" value="running" />
-                <el-option :label="t('task.completed')" value="completed" />
-                <el-option :label="t('task.failed')" value="failed" />
-                <el-option :label="t('task.stopped')" value="paused" />
-              </el-select>
-            </el-form-item>
-            <el-form-item :label="t('task.protocol')">
-              <el-select
-                v-model="filters.protocol"
-                :placeholder="t('common.select')"
-                multiple
-                clearable
-                @change="loadTasks"
-              >
-                <el-option label="TCP" value="tcp" />
-                <el-option label="UDP" value="udp" />
-                <el-option label="HTTP" value="http" />
-                <el-option label="DNS" value="dns" />
-                <el-option label="ICMP" value="icmp" />
-              </el-select>
-            </el-form-item>
-            <el-form-item :label="t('common.search')">
-              <el-input
-                v-model="filters.search"
-                :placeholder="t('task.searchPlaceholder')"
-                clearable
-                @clear="loadTasks"
-                @keyup.enter="loadTasks"
-              >
-                <template #append>
-                  <el-button :icon="Search" @click="loadTasks" />
-                </template>
-              </el-input>
-            </el-form-item>
-            <el-form-item>
-              <el-button @click="resetFilters">
-                {{ t('common.reset') }}
-              </el-button>
-            </el-form-item>
-          </el-form>
-        </el-collapse-item>
-      </el-collapse>
+      <!-- Modern single-line filter bar -->
+      <div class="filter-bar">
+        <el-input
+          v-model="filters.search"
+          :placeholder="t('task.searchPlaceholder')"
+          clearable
+          style="width: 300px"
+          @keyup.enter="loadTasks"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+
+        <el-select
+          v-model="filters.status"
+          :placeholder="t('task.status')"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          clearable
+          style="width: 200px"
+          @change="loadTasks"
+        >
+          <el-option :label="t('task.pending')" value="pending" />
+          <el-option :label="t('task.running')" value="running" />
+          <el-option :label="t('task.completed')" value="completed" />
+          <el-option :label="t('task.failed')" value="error" />
+          <el-option :label="t('task.stopped')" value="stopped" />
+        </el-select>
+
+        <el-select
+          v-model="filters.protocol"
+          :placeholder="t('task.protocol')"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          clearable
+          style="width: 200px"
+          @change="loadTasks"
+        >
+          <el-option :label="t('protocol.tcp')" value="tcp" />
+          <el-option :label="t('protocol.udp')" value="udp" />
+          <el-option :label="t('protocol.http')" value="http" />
+          <el-option :label="t('protocol.dns')" value="dns" />
+          <el-option :label="t('protocol.icmp')" value="icmp" />
+        </el-select>
+
+        <el-button link type="primary" @click="resetFilters">
+          {{ t('common.reset') }}
+        </el-button>
+      </div>
 
       <!-- Bulk Actions Toolbar -->
-      <div v-if="selectedTasks.length > 0" class="bulk-actions">
-        <el-alert
-          :title="`${t('common.selected')} ${selectedTasks.length} ${t('task.tasks')}`"
-          type="info"
-          :closable="false"
-        >
-          <template #default>
-            <el-button-group>
-              <el-button size="small" type="success" @click="handleBulkStart">
-                {{ t('task.bulkStart') }}
-              </el-button>
-              <el-button size="small" type="warning" @click="handleBulkStop">
-                {{ t('task.bulkStop') }}
-              </el-button>
-              <el-button size="small" type="danger" @click="handleBulkDelete">
-                {{ t('task.bulkDelete') }}
-              </el-button>
-            </el-button-group>
-          </template>
-        </el-alert>
+      <div v-if="selectedTasks.length > 0" class="bulk-toolbar">
+        <el-space>
+          <span class="bulk-text">
+            {{ t('common.selected') }} {{ selectedTasks.length }} {{ t('task.tasks') }}
+          </span>
+          <el-button size="small" type="success" @click="handleBulkStart">
+            {{ t('task.bulkStart') }}
+          </el-button>
+          <el-button size="small" type="warning" @click="handleBulkStop">
+            {{ t('task.bulkStop') }}
+          </el-button>
+          <el-button size="small" type="danger" @click="handleBulkDelete">
+            {{ t('task.bulkDelete') }}
+          </el-button>
+        </el-space>
       </div>
 
       <!-- Task Table -->
@@ -101,50 +94,51 @@
 
       <el-table v-else :data="tasks" v-loading="loading" stripe @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" :label="t('task.taskName')" width="180" />
-        <el-table-column prop="name" :label="t('common.name')" min-width="150" />
-        <el-table-column prop="strategy_ids" label="Strategies" width="150">
+        <el-table-column prop="name" :label="t('common.name')" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="strategy_ids" :label="t('task.strategies')" min-width="180">
           <template #default="{ row }">
-            <el-tag v-for="id in row.strategy_ids?.slice(0, 2)" :key="id" size="small" style="margin: 2px">
-              {{ id.substring(0, 8) }}
-            </el-tag>
-            <el-tag v-if="row.strategy_ids?.length > 2" size="small" type="info">
-              +{{ row.strategy_ids.length - 2 }}
-            </el-tag>
+            <div class="strategy-tags">
+              <el-tag v-for="id in row.strategy_ids?.slice(0, 2)" :key="id" size="small" style="margin: 2px">
+                {{ id.substring(0, 8) }}
+              </el-tag>
+              <el-tag v-if="row.strategy_ids?.length > 2" size="small" type="info">
+                +{{ row.strategy_ids.length - 2 }}
+              </el-tag>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="output_type" label="Output" width="120">
+        <el-table-column prop="output_type" :label="t('task.output')" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.output_type === 'pcap' ? 'warning' : 'success'">
+            <el-tag :type="row.output_type === 'pcap' ? 'warning' : 'success'" size="small">
               {{ row.output_type?.toUpperCase() }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="t('task.status')" width="120">
+        <el-table-column prop="status" :label="t('task.status')" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="getStatusTagType(row.status)">{{ getStatusText(row.status) }}</el-tag>
+            <el-tag :type="getStatusTagType(row.status)" size="small">{{ getStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="progress" :label="t('task.progress')" width="150">
+        <el-table-column prop="progress" :label="t('task.progress')" width="140">
           <template #default="{ row }">
-            <el-progress :percentage="row.progress" :status="getProgressStatus(row.status)" />
+            <el-progress :percentage="row.progress" :status="getProgressStatus(row.status)" :stroke-width="6" />
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" :label="t('task.createdAt')" width="180">
+        <el-table-column prop="created_at" :label="t('task.createdAt')" width="160">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column :label="t('common.action')" width="200" fixed="right">
+        <el-table-column :label="t('common.action')" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button-group>
+            <el-space>
               <el-button size="small" @click="openDrawer(row)">
                 {{ t('task.viewDetail') }}
               </el-button>
               <el-button
                 size="small"
                 type="success"
-                :disabled="row.status !== 'pending'"
+                :disabled="row.status !== 'pending' && row.status !== 'stopped'"
                 @click="startTask(row.id)"
               >
                 {{ t('task.start') }}
@@ -164,7 +158,7 @@
               >
                 {{ t('common.delete') }}
               </el-button>
-            </el-button-group>
+            </el-space>
           </template>
         </el-table-column>
       </el-table>
@@ -193,7 +187,7 @@
         <el-descriptions :column="2" border>
           <el-descriptions-item :label="t('task.taskName')">{{ selectedTask.id }}</el-descriptions-item>
           <el-descriptions-item :label="t('common.name')">{{ selectedTask.name }}</el-descriptions-item>
-          <el-descriptions-item label="Output Type">
+          <el-descriptions-item :label="t('taskCreate.outputType')">
             <el-tag :type="selectedTask.output_type === 'pcap' ? 'warning' : 'success'">
               {{ selectedTask.output_type?.toUpperCase() }}
             </el-tag>
@@ -205,9 +199,9 @@
           <el-descriptions-item :label="t('task.startedAt')">{{ formatDate(selectedTask.started_at) }}</el-descriptions-item>
         </el-descriptions>
 
-        <el-divider content-position="left">Strategies</el-divider>
+        <el-divider content-position="left">{{ t('task.strategies') }}</el-divider>
         <el-table :data="selectedTask.strategy_ids" size="small">
-          <el-table-column prop="id" label="Strategy ID">
+          <el-table-column prop="id" :label="t('strategy.strategyId')">
             <template #default="{ row }">
               {{ row }}
             </template>
@@ -239,7 +233,7 @@
         <el-space>
           <el-button
             type="success"
-            :disabled="selectedTask.status !== 'created' && selectedTask.status !== 'paused'"
+            :disabled="selectedTask.status !== 'pending' && selectedTask.status !== 'stopped'"
             @click="handleDrawerStart"
           >
             {{ t('task.start') }}
@@ -259,8 +253,8 @@
         <el-divider content-position="left">{{ t('common.error') }}</el-divider>
 
         <el-alert
-          v-if="selectedTask.error"
-          :title="selectedTask.error"
+          v-if="selectedTask.error_message"
+          :title="selectedTask.error_message"
           type="error"
           show-icon
           :closable="false"
@@ -280,12 +274,13 @@ import { taskApi, type Task } from '@/api'
 import { useTaskWebSocket } from '@/composables/useTaskWebSocket'
 import dayjs from 'dayjs'
 
+const TASK_LIST_STORAGE_KEY = 'task-list-state'
+
 const { t } = useI18n()
 
 const loading = ref(false)
 const tasks = ref<Task[]>([])
 const selectedTasks = ref<Task[]>([])
-const activeFilters = ref<string[]>(['filters'])
 const drawerVisible = ref(false)
 const drawerLoading = ref(false)
 const selectedTask = ref<Task | null>(null)
@@ -293,17 +288,34 @@ const selectedTask = ref<Task | null>(null)
 // WebSocket for real-time updates
 const { taskStatus, connect: connectWs, disconnect: disconnectWs, subscribeTask, unsubscribeTask } = useTaskWebSocket()
 
+function loadTaskListState() {
+  try {
+    const raw = localStorage.getItem(TASK_LIST_STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return null
+}
+
+const savedTaskState = loadTaskListState()
+
 const filters = reactive({
-  status: [] as string[],
-  protocol: [] as string[],
-  search: ''
+  status: savedTaskState?.filters?.status || [] as string[],
+  protocol: savedTaskState?.filters?.protocol || [] as string[],
+  search: savedTaskState?.filters?.search || ''
 })
 
 const pagination = reactive({
-  page: 1,
-  size: 20,
+  page: savedTaskState?.pagination?.page || 1,
+  size: savedTaskState?.pagination?.size || 20,
   total: 0
 })
+
+watch([() => ({ ...filters }), () => ({ ...pagination })], () => {
+  localStorage.setItem(TASK_LIST_STORAGE_KEY, JSON.stringify({
+    filters: { status: filters.status, protocol: filters.protocol, search: filters.search },
+    pagination: { page: pagination.page, size: pagination.size }
+  }))
+}, { deep: true })
 
 function formatNumber(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M'
@@ -311,7 +323,8 @@ function formatNumber(num: number): string {
   return num.toString()
 }
 
-function formatDate(timestamp: number): string {
+function formatDate(timestamp?: number): string {
+  if (!timestamp) return '-'
   return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm:ss')
 }
 
@@ -359,7 +372,8 @@ async function loadTasks() {
   loading.value = true
   try {
     const data = await taskApi.list({
-      status: filters.status?.join(',')
+      status: filters.status?.join(','),
+      protocol: filters.protocol?.join(',')
     })
     if (data) {
       let taskList = data
@@ -429,25 +443,35 @@ function handleSelectionChange(selection: Task[]) {
 
 async function handleBulkStart() {
   try {
-    await Promise.all(selectedTasks.value.map(task => taskApi.start(task.id)))
-    ElMessage.success(t('task.bulkStarted', { count: selectedTasks.value.length }))
+    const results = await Promise.allSettled(selectedTasks.value.map(task => taskApi.start(task.id)))
+    const succeeded = results.filter(r => r.status === 'fulfilled').length
+    const failed = results.filter(r => r.status === 'rejected').length
+    if (failed > 0) {
+      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
+    } else {
+      ElMessage.success(t('task.bulkStarted', { count: succeeded }))
+    }
     selectedTasks.value = []
     loadTasks()
   } catch (error) {
     console.error('Failed to bulk start tasks:', error)
-    ElMessage.error(t('task.startFailed'))
   }
 }
 
 async function handleBulkStop() {
   try {
-    await Promise.all(selectedTasks.value.map(task => taskApi.stop(task.id)))
-    ElMessage.success(t('task.bulkStopped', { count: selectedTasks.value.length }))
+    const results = await Promise.allSettled(selectedTasks.value.map(task => taskApi.stop(task.id)))
+    const succeeded = results.filter(r => r.status === 'fulfilled').length
+    const failed = results.filter(r => r.status === 'rejected').length
+    if (failed > 0) {
+      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
+    } else {
+      ElMessage.success(t('task.bulkStopped', { count: succeeded }))
+    }
     selectedTasks.value = []
     loadTasks()
   } catch (error) {
     console.error('Failed to bulk stop tasks:', error)
-    ElMessage.error(t('task.stopFailed'))
   }
 }
 
@@ -458,8 +482,14 @@ async function handleBulkDelete() {
       t('common.confirm'),
       { type: 'warning' }
     )
-    await Promise.all(selectedTasks.value.map(task => taskApi.delete(task.id)))
-    ElMessage.success(t('task.bulkDeleted', { count: selectedTasks.value.length }))
+    const results = await Promise.allSettled(selectedTasks.value.map(task => taskApi.delete(task.id)))
+    const succeeded = results.filter(r => r.status === 'fulfilled').length
+    const failed = results.filter(r => r.status === 'rejected').length
+    if (failed > 0) {
+      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
+    } else {
+      ElMessage.success(t('task.bulkDeleted', { count: succeeded }))
+    }
     selectedTasks.value = []
     loadTasks()
   } catch (error) {
@@ -564,22 +594,28 @@ watch(taskStatus, (newStatus) => {
   align-items: center;
 }
 
-.filter-collapse {
-  margin-bottom: 20px;
-}
-
-.search-form {
-  margin-top: 10px;
-}
-
-.bulk-actions {
-  margin-bottom: 20px;
-}
-
-.bulk-actions :deep(.el-alert__content) {
+.filter-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.bulk-toolbar {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #f4f4f5;
+  border-radius: 4px;
+}
+
+.bulk-text {
+  color: #606266;
+  font-size: 14px;
+}
+
+.strategy-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 </style>

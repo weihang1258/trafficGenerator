@@ -1,9 +1,11 @@
 package rest
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"net"
+	"regexp"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -62,6 +64,19 @@ func (h *StrategyHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Validate network config fields
+	if errMsg := validateConfigNetwork(req.Config); errMsg != "" {
+		BadRequest(c, errMsg)
+		return
+	}
+
+	// Validate protocol
+	validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true}
+	if req.Protocol == "" || !validProtocols[req.Protocol] {
+		BadRequest(c, "invalid or missing protocol: " + req.Protocol)
+		return
+	}
+
 	// Set default flow control if not provided
 	if req.FlowControl == nil {
 		req.FlowControl = &FlowControlRequest{
@@ -86,9 +101,9 @@ func (h *StrategyHandler) Create(c *gin.Context) {
 	// Calculate config hash for idempotent creation
 	configHash := calculateConfigHash(req.Protocol, string(configJSON), string(flowControlJSON))
 
-	// Check if strategy already exists
+	// Check if strategy already exists for this user
 	var existingStrategy storage.StrategyModel
-	if err := h.db.Where("config_hash = ?", configHash).First(&existingStrategy).Error; err == nil {
+	if err := h.db.Where("user_id = ? AND config_hash = ?", userID, configHash).First(&existingStrategy).Error; err == nil {
 		// Strategy exists, return existing ID
 		Success(c, map[string]string{
 			"id":      existingStrategy.ID,
@@ -215,6 +230,12 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 		return
 	}
 
+	// Validate network config fields
+	if errMsg := validateConfigNetwork(req.Config); errMsg != "" {
+		BadRequest(c, errMsg)
+		return
+	}
+
 	// Check if strategy exists and belongs to user
 	var strategy storage.StrategyModel
 	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&strategy).Error; err != nil {
@@ -282,10 +303,10 @@ func (h *StrategyHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	// Check if strategy is used by any tasks
+	// Check if strategy is used by any tasks (JSON array exact match)
 	var taskCount int64
 	h.db.Model(&storage.TaskModel{}).
-		Where("user_id = ? AND strategy_ids LIKE ?", userID, "%"+id+"%").
+		Where("user_id = ? AND strategy_ids LIKE ?", userID, "%\""+id+"\"%").
 		Count(&taskCount)
 	if taskCount > 0 {
 		BadRequest(c, "strategy is used by tasks, cannot delete")
@@ -304,6 +325,39 @@ func (h *StrategyHandler) Delete(c *gin.Context) {
 // calculateConfigHash calculates a hash for strategy configuration.
 func calculateConfigHash(protocol, config, flowControl string) string {
 	data := protocol + config + flowControl
-	hash := md5.Sum([]byte(data))
+	hash := sha256.Sum256([]byte(data))
 	return hex.EncodeToString(hash[:])
+}
+
+// validateIP checks that a string is a valid IPv4 address.
+func validateIP(ip string) bool {
+	return net.ParseIP(ip) != nil && regexp.MustCompile(`^\d+\.\d+\.\d+\.\d+$`).MatchString(ip)
+}
+
+// validateMAC checks that a string is a valid MAC address (XX:XX:XX:XX:XX:XX).
+func validateMAC(mac string) bool {
+	return regexp.MustCompile(`^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$`).MatchString(mac)
+}
+
+// validateConfigNetwork validates IP and MAC fields in a config map.
+func validateConfigNetwork(config map[string]interface{}) string {
+	for _, key := range []string{"src_ip", "dst_ip"} {
+		val, ok := config[key]
+		if ok {
+			s, ok := val.(string)
+			if ok && s != "" && !validateIP(s) {
+				return "invalid IP format: " + key + " = " + s
+			}
+		}
+	}
+	for _, key := range []string{"src_mac", "dst_mac"} {
+		val, ok := config[key]
+		if ok {
+			s, ok := val.(string)
+			if ok && s != "" && !validateMAC(s) {
+				return "invalid MAC format: " + key + " = " + s
+			}
+		}
+	}
+	return ""
 }

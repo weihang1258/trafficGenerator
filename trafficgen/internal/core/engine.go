@@ -31,16 +31,24 @@ type Engine struct {
 
 	// Rate limiters
 	rateLimiters map[string]*TokenBucket
+	rateMu       sync.RWMutex
 
 	// State
 	running   atomic.Bool
 	wg        sync.WaitGroup
 	ctx       context.Context
 	cancel    context.CancelFunc
-	taskStore map[string]*TaskStatus
+	taskStore map[string]*taskEntry
+	taskMu    sync.RWMutex
 
 	// Error handling
 	fatalError atomic.Value
+}
+
+type taskEntry struct {
+	task   *Task
+	status *TaskStatus
+	cancel context.CancelFunc
 }
 
 // EngineConfig for engine configuration.
@@ -59,7 +67,7 @@ func NewEngine(config EngineConfig) *Engine {
 		config:       config,
 		planners:     make(map[string]ProtocolPlanner),
 		rateLimiters: make(map[string]*TokenBucket),
-		taskStore:    make(map[string]*TaskStatus),
+		taskStore:    make(map[string]*taskEntry),
 	}
 }
 
@@ -106,6 +114,7 @@ func (e *Engine) Start() error {
 	// Start config workers
 	e.configWorkers = make([]*ConfigWorker, e.config.ConfigWorkers)
 	for i := 0; i < e.config.ConfigWorkers; i++ {
+		e.wg.Add(1)
 		worker := NewConfigWorker(i, e.planners, e.taskChan, e.configChan, &e.wg)
 		e.configWorkers[i] = worker
 		worker.Start()
@@ -114,6 +123,7 @@ func (e *Engine) Start() error {
 	// Start packet workers
 	e.packetWorkers = make([]*PacketWorker, e.config.PacketWorkers)
 	for i := 0; i < e.config.PacketWorkers; i++ {
+		e.wg.Add(1)
 		rateLimiter := NewTokenBucket(0, 65536) // No rate limit by default
 		worker := NewPacketWorker(i, e.configChan, e.packetChan, e.buildFunc, &e.wg, rateLimiter)
 		e.packetWorkers[i] = worker
@@ -123,6 +133,7 @@ func (e *Engine) Start() error {
 	// Start output workers
 	e.outputWorkers = make([]*OutputWorker, e.config.OutputWorkers)
 	for i := 0; i < e.config.OutputWorkers; i++ {
+		e.wg.Add(1)
 		worker := NewOutputWorker(i, e.packetChan, e.buffer, &e.wg)
 		e.outputWorkers[i] = worker
 		worker.Start()
@@ -178,6 +189,9 @@ func (e *Engine) SubmitTask(task Task) error {
 		return fmt.Errorf("task validation failed: %w", err)
 	}
 
+	// Create per-task context for cancellation
+	_, cancel := context.WithCancel(e.ctx)
+
 	// Initialize task status
 	status := &TaskStatus{
 		TaskID:    task.ID,
@@ -185,7 +199,9 @@ func (e *Engine) SubmitTask(task Task) error {
 		Progress:  0,
 		CreatedAt: time.Now(),
 	}
-	e.taskStore[task.ID] = status
+	e.taskMu.Lock()
+	e.taskStore[task.ID] = &taskEntry{task: &task, status: status, cancel: cancel}
+	e.taskMu.Unlock()
 
 	// Submit task
 	select {
@@ -200,17 +216,47 @@ func (e *Engine) SubmitTask(task Task) error {
 	case <-time.After(5 * time.Second):
 		status.Status = "failed"
 		status.Error = "task queue full"
+		cancel()
 		return fmt.Errorf("task queue full")
 	}
 }
 
+// StopTask stops a running task.
+func (e *Engine) StopTask(taskID string) error {
+	e.taskMu.Lock()
+	defer e.taskMu.Unlock()
+
+	entry, ok := e.taskStore[taskID]
+	if !ok {
+		return fmt.Errorf("task not found: %s", taskID)
+	}
+
+	entry.cancel()
+	entry.status.Status = "stopped"
+	entry.status.CompletedAt = time.Now()
+	delete(e.taskStore, taskID)
+
+	zap.L().Info("task stopped", zap.String("task_id", taskID))
+	return nil
+}
+
 // GetTaskStatus returns the status of a task.
 func (e *Engine) GetTaskStatus(taskID string) (*TaskStatus, error) {
-	status, ok := e.taskStore[taskID]
+	e.taskMu.RLock()
+	defer e.taskMu.RUnlock()
+
+	entry, ok := e.taskStore[taskID]
 	if !ok {
 		return nil, fmt.Errorf("task not found: %s", taskID)
 	}
-	return status, nil
+	return entry.status, nil
+}
+
+// ActiveTaskCount returns the number of active tasks.
+func (e *Engine) ActiveTaskCount() int {
+	e.taskMu.RLock()
+	defer e.taskMu.RUnlock()
+	return len(e.taskStore)
 }
 
 // GetPackets retrieves packets from the buffer.
@@ -232,7 +278,16 @@ func (e *Engine) GetBufferStatus() map[string]interface{} {
 // SetClassRateLimit sets the rate limit for a class.
 func (e *Engine) SetClassRateLimit(classID string, bps int64) {
 	limiter := NewTokenBucket(bps, 65536)
+	e.rateMu.Lock()
 	e.rateLimiters[classID] = limiter
+	e.rateMu.Unlock()
+}
+
+// GetRateLimiter returns the rate limiter for a class.
+func (e *Engine) GetRateLimiter(classID string) *TokenBucket {
+	e.rateMu.RLock()
+	defer e.rateMu.RUnlock()
+	return e.rateLimiters[classID]
 }
 
 // GetStats returns engine statistics.
