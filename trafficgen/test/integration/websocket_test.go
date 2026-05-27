@@ -3,6 +3,7 @@ package integration_test
 import (
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -62,7 +63,7 @@ func (suite *WebSocketTestSuite) SetupSuite() {
 	err = db.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
 	assert.NoError(suite.T(), err)
 
-	err = db.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, config TEXT, flow_control TEXT, config_hash TEXT UNIQUE, created_at DATETIME, updated_at DATETIME)").Error
+	err = db.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
 	assert.NoError(suite.T(), err)
 
 	err = db.Exec("CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, email TEXT UNIQUE, role TEXT NOT NULL DEFAULT 'user', enabled BOOLEAN DEFAULT 1, created_at DATETIME, updated_at DATETIME, last_login_at DATETIME)").Error
@@ -106,7 +107,15 @@ func (suite *WebSocketTestSuite) SetupSuite() {
 // TearDownSuite 清理测试套件
 func (suite *WebSocketTestSuite) TearDownSuite() {
 	if suite.engine != nil {
-		suite.engine.Stop()
+		done := make(chan struct{})
+		go func() {
+			suite.engine.Stop()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+		}
 	}
 	if suite.db != nil {
 		suite.db.Close()
@@ -337,9 +346,10 @@ func (suite *WebSocketTestSuite) TestWebSocketConcurrentMessages() {
 	assert.NoError(suite.T(), err)
 	defer conn.Close()
 
-	// 并发发送消息
+	// 并发发送消息 (serialize writes with mutex - gorilla websocket is not thread-safe)
 	const messageCount = 10
 	done := make(chan bool, messageCount)
+	var writeMu sync.Mutex
 
 	for i := 0; i < messageCount; i++ {
 		go func(id int) {
@@ -347,7 +357,9 @@ func (suite *WebSocketTestSuite) TestWebSocketConcurrentMessages() {
 				"type": "test",
 				"id":   id,
 			}
+			writeMu.Lock()
 			err := conn.WriteJSON(msg)
+			writeMu.Unlock()
 			assert.NoError(suite.T(), err)
 			done <- true
 		}(i)

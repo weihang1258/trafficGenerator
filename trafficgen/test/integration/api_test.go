@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	sqlite "github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -48,6 +49,11 @@ func (suite *APITestSuite) SetupSuite() {
 			BufferSize:     100,
 			QueueSize:      10,
 		},
+		Auth: config.AuthConfig{
+			JWTSecret:    "test-secret-key-for-integration-test",
+			JWTIssuer:    "trafficgen-test",
+			JWTExpiresIn: 24,
+		},
 	}
 
 	// 直接创建数据库连接，避免AutoMigrate问题
@@ -62,7 +68,10 @@ func (suite *APITestSuite) SetupSuite() {
 	err = db.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
 	assert.NoError(suite.T(), err)
 
-	err = db.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, config TEXT, flow_control TEXT, config_hash TEXT UNIQUE, created_at DATETIME, updated_at DATETIME)").Error
+	err = db.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
+	assert.NoError(suite.T(), err)
+
+	err = db.Exec("CREATE TABLE history (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, status TEXT NOT NULL, packets_sent INTEGER DEFAULT 0, bytes_sent INTEGER DEFAULT 0, duration INTEGER DEFAULT 0, error TEXT, created_at DATETIME, completed_at DATETIME)").Error
 	assert.NoError(suite.T(), err)
 
 	err = db.Exec("CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, email TEXT UNIQUE, role TEXT NOT NULL DEFAULT 'user', enabled BOOLEAN DEFAULT 1, created_at DATETIME, updated_at DATETIME, last_login_at DATETIME)").Error
@@ -158,7 +167,15 @@ func (suite *APITestSuite) createTestUserAndToken() {
 // TearDownSuite 清理测试套件
 func (suite *APITestSuite) TearDownSuite() {
 	if suite.engine != nil {
-		suite.engine.Stop()
+		done := make(chan struct{})
+		go func() {
+			suite.engine.Stop()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+		}
 	}
 	if suite.db != nil {
 		suite.db.Close()
@@ -198,7 +215,7 @@ func (suite *APITestSuite) TestCreateTask() {
 
 	var strategyResp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &strategyResp)
-	strategyID := strategyResp["id"].(string)
+	strategyData, _ := strategyResp["data"].(map[string]interface{}); strategyID := strategyData["id"].(string)
 
 	// 创建任务
 	taskReq := map[string]interface{}{
@@ -221,7 +238,7 @@ func (suite *APITestSuite) TestCreateTask() {
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(suite.T(), err)
-	assert.NotEmpty(suite.T(), response["id"])
+	respData, _ := response["data"].(map[string]interface{}); assert.NotEmpty(suite.T(), respData["id"])
 }
 
 // TestListTasks 测试获取任务列表接口
@@ -234,9 +251,10 @@ func (suite *APITestSuite) TestListTasks() {
 
 	assert.Equal(suite.T(), http.StatusOK, w.Code)
 
-	var response []interface{}
+	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), float64(0), response["code"])
 }
 
 // TestGetTask 测试获取任务详情接口
@@ -257,7 +275,7 @@ func (suite *APITestSuite) TestGetTask() {
 
 	var strategyResp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &strategyResp)
-	strategyID := strategyResp["id"].(string)
+	strategyData, _ := strategyResp["data"].(map[string]interface{}); strategyID := strategyData["id"].(string)
 
 	// 创建任务
 	taskReq := map[string]interface{}{
@@ -276,7 +294,7 @@ func (suite *APITestSuite) TestGetTask() {
 
 	var createResponse map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &createResponse)
-	taskID := createResponse["id"].(string)
+	createData, _ := createResponse["data"].(map[string]interface{}); taskID := createData["id"].(string)
 
 	// 获取任务详情
 	req = httptest.NewRequest("GET", "/api/v1/tasks/"+taskID, nil)
@@ -289,7 +307,7 @@ func (suite *APITestSuite) TestGetTask() {
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(suite.T(), err)
-	assert.Equal(suite.T(), taskID, response["id"])
+	respData, _ := response["data"].(map[string]interface{}); assert.Equal(suite.T(), taskID, respData["id"])
 }
 
 // TestDeleteTask 测试删除任务接口
@@ -310,7 +328,7 @@ func (suite *APITestSuite) TestDeleteTask() {
 
 	var strategyResp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &strategyResp)
-	strategyID := strategyResp["id"].(string)
+	strategyData, _ := strategyResp["data"].(map[string]interface{}); strategyID := strategyData["id"].(string)
 
 	// 创建任务
 	taskReq := map[string]interface{}{
@@ -329,7 +347,7 @@ func (suite *APITestSuite) TestDeleteTask() {
 
 	var createResponse map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &createResponse)
-	taskID := createResponse["id"].(string)
+	createData, _ := createResponse["data"].(map[string]interface{}); taskID := createData["id"].(string)
 
 	// 删除任务
 	req = httptest.NewRequest("DELETE", "/api/v1/tasks/"+taskID, nil)
@@ -362,7 +380,7 @@ func (suite *APITestSuite) TestCreateStrategy() {
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(suite.T(), err)
-	assert.NotEmpty(suite.T(), response["id"])
+	respData, _ := response["data"].(map[string]interface{}); assert.NotEmpty(suite.T(), respData["id"])
 }
 
 // TestListStrategies 测试获取策略列表接口
@@ -375,9 +393,10 @@ func (suite *APITestSuite) TestListStrategies() {
 
 	assert.Equal(suite.T(), http.StatusOK, w.Code)
 
-	var response []interface{}
+	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), float64(0), response["code"])
 }
 
 // TestGetInterfaces 测试获取网卡列表接口
@@ -390,9 +409,10 @@ func (suite *APITestSuite) TestGetInterfaces() {
 
 	assert.Equal(suite.T(), http.StatusOK, w.Code)
 
-	var response []interface{}
+	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), float64(0), response["code"])
 }
 
 // TestGetBufferStatus 测试获取缓冲区状态接口
