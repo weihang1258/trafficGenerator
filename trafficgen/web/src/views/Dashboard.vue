@@ -1,874 +1,690 @@
 <template>
-  <div class="dashboard" :class="{ 'is-fullscreen': isFullscreen }">
-    <!-- Dashboard header with fullscreen toggle -->
+  <div class="dashboard">
+    <!-- Header -->
     <div class="dashboard-header">
-      <span class="dashboard-title">{{ t('dashboard.title') }}</span>
-      <el-button size="small" @click="toggleFullscreen">
-        <el-icon><FullScreen /></el-icon>
-        {{ isFullscreen ? t('dashboard.restore') : t('dashboard.zoom') }}
+      <h2 class="dashboard-title">{{ t('dashboard.title') }}</h2>
+      <el-button :loading="refreshing" @click="handleRefresh" circle size="small">
+        <el-icon><Refresh /></el-icon>
       </el-button>
     </div>
-    <el-row :gutter="20">
-      <el-col :span="4">
-        <el-card shadow="hover" class="stat-card clickable" @click="navigateToTasks">
-          <div class="stat-icon running">
-            <el-icon :size="32"><VideoPlay /></el-icon>
+
+    <!-- Section 1: Overview Stats -->
+    <div class="section-title">{{ t('dashboard.sectionStats') }}</div>
+    <el-row :gutter="12" class="stats-row">
+      <el-col :xs="12" :sm="8" :md="4" :lg="4">
+        <div class="stat-card" @click="$router.push('/tasks')">
+          <div class="stat-icon stat-icon--primary">
+            <el-icon :size="20"><List /></el-icon>
           </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ status.active_tasks }}</div>
+          <div class="stat-body">
+            <div class="stat-value">{{ stats.activeTasks || '--' }}</div>
             <div class="stat-label">{{ t('dashboard.activeTasks') }}</div>
           </div>
-        </el-card>
+        </div>
       </el-col>
-      <el-col :span="4">
-        <el-card shadow="hover" class="stat-card clickable" @click="navigateToTasks">
-          <div class="stat-icon packets">
-            <el-icon :size="32"><Promotion /></el-icon>
+      <el-col :xs="12" :sm="8" :md="4" :lg="4">
+        <div class="stat-card">
+          <div class="stat-icon stat-icon--success">
+            <el-icon :size="20"><MessageBox /></el-icon>
           </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ formatNumber(stats.packets_sent || 0) }}</div>
+          <div class="stat-body">
+            <div class="stat-value">{{ stats.packetsSent ? formatNumber(stats.packetsSent) : '--' }}</div>
             <div class="stat-label">{{ t('dashboard.packetsSent') }}</div>
           </div>
-        </el-card>
+        </div>
       </el-col>
-      <el-col :span="4">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-icon bytes">
-            <el-icon :size="32"><Coin /></el-icon>
+      <el-col :xs="12" :sm="8" :md="4" :lg="4">
+        <div class="stat-card">
+          <div class="stat-icon stat-icon--warning">
+            <el-icon :size="20"><TrendCharts /></el-icon>
           </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ formatBytes(stats.bytes_sent || 0) }}</div>
+          <div class="stat-body">
+            <div class="stat-value">{{ stats.throughputBps ? formatThroughput(stats.throughputBps) : '--' }}</div>
             <div class="stat-label">{{ t('dashboard.throughput') }}</div>
           </div>
-        </el-card>
+        </div>
       </el-col>
-      <el-col :span="4">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-icon speed">
-            <el-icon :size="32"><Odometer /></el-icon>
+      <el-col :xs="12" :sm="8" :md="4" :lg="4">
+        <div class="stat-card">
+          <div class="stat-icon stat-icon--info">
+            <el-icon :size="20"><Odometer /></el-icon>
           </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ formatBps(stats.current_bps || 0) }}</div>
-            <div class="stat-label">{{ t('dashboard.currentRate') }}</div>
+          <div class="stat-body">
+            <div class="stat-value">{{ stats.currentPps ? formatNumber(stats.currentPps) + '/s' : '--' }}</div>
+            <div class="stat-label">{{ t('dashboard.packetRate') }}</div>
           </div>
-        </el-card>
+        </div>
       </el-col>
-      <el-col :span="4">
-        <el-card shadow="hover" class="stat-card clickable" @click="navigateToErrorTasks">
-          <div class="stat-icon error">
-            <el-icon :size="32"><Warning /></el-icon>
+      <el-col :xs="12" :sm="8" :md="4" :lg="4">
+        <div class="stat-card">
+          <div class="stat-icon stat-icon--purple">
+            <el-icon :size="20"><Coin /></el-icon>
           </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ formatPercent(stats.error_rate || 0) }}</div>
-            <div class="stat-label">{{ t('dashboard.errorRate') }}</div>
+          <div class="stat-body">
+            <div class="stat-value">{{ bufferPercent > 0 ? bufferPercent.toFixed(1) + '%' : '--' }}</div>
+            <div class="stat-label">{{ t('dashboard.bufferUsage') }}</div>
+            <el-progress v-if="bufferPercent > 0" :percentage="bufferPercent" :stroke-width="3" :show-text="false" :color="getProgressColor(bufferPercent)" class="buffer-bar" />
           </div>
-        </el-card>
-      </el-col>
-      <el-col :span="4">
-        <el-card shadow="hover" class="stat-card clickable" @click="navigateToLostPackets">
-          <div class="stat-icon loss">
-            <el-icon :size="32"><CircleClose /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ formatPercent(stats.packet_loss_rate || 0) }}</div>
-            <div class="stat-label">{{ t('dashboard.packetLossRate') }}</div>
-          </div>
-        </el-card>
+        </div>
       </el-col>
     </el-row>
 
-    <el-row :gutter="20" style="margin-top: 20px;">
-      <el-col :span="16">
-        <el-card>
-          <template #header>
-            <div class="card-header">
-              <span>{{ t('dashboard.throughput') }}</span>
-              <div class="header-actions">
-                <el-button-group size="small">
-                  <el-button :type="timeRange === '1m' ? 'primary' : ''" @click="changeTimeRange('1m')">
-                    {{ t('dashboard.timeRange1m') }}
-                  </el-button>
-                  <el-button :type="timeRange === '5m' ? 'primary' : ''" @click="changeTimeRange('5m')">
-                    {{ t('dashboard.timeRange5m') }}
-                  </el-button>
-                  <el-button :type="timeRange === '15m' ? 'primary' : ''" @click="changeTimeRange('15m')">
-                    {{ t('dashboard.timeRange15m') }}
-                  </el-button>
-                  <el-button :type="timeRange === '1h' ? 'primary' : ''" @click="changeTimeRange('1h')">
-                    {{ t('dashboard.timeRange1h') }}
-                  </el-button>
-                </el-button-group>
-                <el-button size="small" @click="exportChartData">
-                  <el-icon><Download /></el-icon>
-                  {{ t('dashboard.exportCSV') }}
-                </el-button>
+    <!-- Section 2: Hardware Resources + Charts -->
+    <div class="section-title">
+      {{ t('dashboard.sectionResources') }}
+      <span v-if="resources.uptime" class="uptime-badge">
+        {{ t('dashboard.uptime') }}: {{ formatUptime(resources.uptime) }}
+      </span>
+    </div>
+    <el-row :gutter="12" class="resources-row">
+      <!-- Left: Resource Gauges -->
+      <el-col :xs="24" :lg="8">
+        <el-card class="resource-card" shadow="never">
+          <div class="resource-list">
+            <div class="resource-item">
+              <div class="resource-header">
+                <span class="resource-name">CPU</span>
+                <span class="resource-value">{{ resources.cpu }}%</span>
               </div>
+              <el-progress :percentage="resources.cpu" :stroke-width="8" :show-text="false" :color="getProgressColor(resources.cpu)" />
             </div>
-          </template>
-          <div ref="chartRef" style="height: 300px;"></div>
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card>
-          <template #header>
-            <div class="card-header">
-              <span>{{ t('dashboard.protocolDistribution') }}</span>
+            <div class="resource-item">
+              <div class="resource-header">
+                <span class="resource-name">{{ t('dashboard.memory') }}</span>
+                <span class="resource-value">{{ resources.memoryMb > 0 ? resources.memoryMb.toFixed(1) + ' MB' : '--' }}</span>
+              </div>
+              <el-progress :percentage="memoryPercent" :stroke-width="8" :show-text="false" :color="getProgressColor(memoryPercent)" />
             </div>
-          </template>
-          <div ref="pieChartRef" style="height: 300px;"></div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <el-row :gutter="20" style="margin-top: 20px;">
-      <el-col :span="24">
-        <el-card>
-          <template #header>
-            <div class="card-header">
-              <span>{{ t('dashboard.systemOverview') }}</span>
-              <el-button type="primary" size="small" @click="refreshStatus">
-                <el-icon><Refresh /></el-icon>
-                {{ t('common.refresh') }}
-              </el-button>
-            </div>
-          </template>
-          <el-row :gutter="20">
-            <el-col :span="6">
-              <div class="resource-item">
-                <div class="resource-header">
-                  <span class="resource-label">{{ t('dashboard.cpuUsage') }}</span>
-                  <span class="resource-value" :class="{ 'resource-warning': status.cpu_usage > 80, 'resource-danger': status.cpu_usage > 90 }">
-                    {{ status.cpu_usage?.toFixed(1) }}%
-                  </span>
-                </div>
-                <el-progress
-                  :percentage="status.cpu_usage || 0"
-                  :stroke-width="12"
-                  :color="getProgressColor(status.cpu_usage || 0)"
-                />
+            <div class="resource-item">
+              <div class="resource-header">
+                <span class="resource-name">{{ t('dashboard.bufferUsage') }}</span>
+                <span class="resource-value">{{ bufferPercent > 0 ? bufferPercent.toFixed(2) + '%' : '--' }}</span>
               </div>
-            </el-col>
-            <el-col :span="6">
-              <div class="resource-item">
-                <div class="resource-header">
-                  <span class="resource-label">{{ t('dashboard.memoryUsage') }}</span>
-                  <span class="resource-value" :class="{ 'resource-warning': memoryUsagePercent > 80, 'resource-danger': memoryUsagePercent > 90 }">
-                    {{ status.memory_mb?.toFixed(0) }} MB ({{ memoryUsagePercent.toFixed(1) }}%)
-                  </span>
-                </div>
-                <el-progress
-                  :percentage="memoryUsagePercent"
-                  :stroke-width="12"
-                  :color="getProgressColor(memoryUsagePercent)"
-                />
-              </div>
-            </el-col>
-            <el-col :span="6">
-              <div class="resource-item">
-                <div class="resource-header">
-                  <span class="resource-label">{{ t('dashboard.bufferUsage') }}</span>
-                  <span class="resource-value" :class="{ 'resource-warning': bufferUsagePercent > 80, 'resource-danger': bufferUsagePercent > 90 }">
-                    {{ bufferUsagePercent.toFixed(1) }}%
-                  </span>
-                </div>
-                <el-progress
-                  :percentage="bufferUsagePercent"
-                  :stroke-width="12"
-                  :color="getProgressColor(bufferUsagePercent)"
-                />
-              </div>
-            </el-col>
-            <el-col :span="6">
-              <div class="resource-item">
-                <div class="resource-header">
-                  <span class="resource-label">{{ t('task.duration') }}</span>
-                  <span class="resource-value">{{ formatUptime(status.uptime) }}</span>
-                </div>
-                <el-descriptions :column="1" border size="small">
-                  <el-descriptions-item :label="t('dashboard.systemOverview')">
-                    <el-tag :type="status.running ? 'success' : 'danger'">
-                      {{ status.running ? t('task.running') : t('task.stopped') }}
-                    </el-tag>
-                  </el-descriptions-item>
-                </el-descriptions>
-              </div>
-            </el-col>
-          </el-row>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <!-- 告警通知区域 -->
-    <el-row v-if="alerts.length > 0" :gutter="20" style="margin-top: 20px;">
-      <el-col :span="24">
-        <el-card>
-          <template #header>
-            <div class="card-header">
-              <span>
-                <el-icon style="color: #e6a23c; margin-right: 6px;"><Warning /></el-icon>
-                {{ t('dashboard.alerts') }}
-              </span>
-              <el-button size="small" link type="primary" @click="clearAlerts">
-                {{ t('dashboard.clearAlerts') }}
-              </el-button>
-            </div>
-          </template>
-          <div class="alert-list">
-            <div v-for="(alert, index) in alerts" :key="index" class="alert-item" :class="`alert-${alert.level}`">
-              <el-icon class="alert-icon">
-                <Warning v-if="alert.level === 'warning'" />
-                <CircleClose v-else />
-              </el-icon>
-              <span class="alert-message">{{ alert.message }}</span>
-              <span class="alert-time">{{ alert.time }}</span>
+              <el-progress :percentage="bufferPercent" :stroke-width="8" :show-text="false" :color="getProgressColor(bufferPercent)" />
             </div>
           </div>
         </el-card>
       </el-col>
+      <!-- Right: Charts -->
+      <el-col :xs="24" :lg="16">
+        <el-row :gutter="12">
+          <el-col :xs="24" :sm="14">
+            <el-card class="chart-card" shadow="never">
+              <template #header>
+                <span class="chart-title">{{ t('dashboard.throughputTrend') }}</span>
+              </template>
+              <div ref="throughputChartRef" class="chart-container-sm" />
+            </el-card>
+          </el-col>
+          <el-col :xs="24" :sm="10">
+            <el-card class="chart-card" shadow="never">
+              <template #header>
+                <span class="chart-title">{{ t('dashboard.protocolDistribution') }}</span>
+              </template>
+              <div ref="protocolChartRef" class="chart-container-sm" />
+            </el-card>
+          </el-col>
+        </el-row>
+      </el-col>
     </el-row>
+
+    <!-- Section 3: Task Execution Details -->
+    <div class="section-title">
+      {{ t('dashboard.sectionTasks') }}
+      <el-button link type="primary" size="small" @click="$router.push('/tasks')">
+        {{ t('dashboard.viewAll') }} &rarr;
+      </el-button>
+    </div>
+    <el-card class="task-card" shadow="never">
+      <el-table :data="displayTasks" stripe size="small" v-loading="tasksLoading" :max-height="taskTableHeight">
+        <el-table-column prop="name" :label="t('task.taskName')" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">
+            <router-link :to="`/tasks/${row.id}`" class="task-link">{{ row.name }}</router-link>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('task.protocol')" width="80">
+          <template #default="{ row }">
+            <el-tag size="small">{{ getProtocol(row).toUpperCase() }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('task.status')" width="100">
+          <template #default="{ row }">
+            <task-status-tag :status="row.status" size="small" />
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('dashboard.packetsSent')" width="100">
+          <template #default="{ row }">
+            {{ row.stats?.packets_sent ? formatNumber(row.stats.packets_sent) : '--' }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('dashboard.throughput')" width="120">
+          <template #default="{ row }">
+            {{ row.stats?.current_bps ? formatThroughput(row.stats.current_bps) : '--' }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('task.progress')" width="110">
+          <template #default="{ row }">
+            <el-progress :percentage="row.progress || 0" :stroke-width="5" :status="getProgressStatus(row.status)" />
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('dashboard.runningTime')" width="100">
+          <template #default="{ row }">
+            {{ getDuration(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('common.action')" width="80" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              v-if="row.status === 'pending'"
+              type="primary"
+              size="small"
+              link
+              @click="handleStartTask(row)"
+            >
+              {{ t('task.start') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'running'"
+              type="danger"
+              size="small"
+              link
+              @click="handleStopTask(row)"
+            >
+              {{ t('task.stop') }}
+            </el-button>
+            <span v-if="!['pending', 'running'].includes(row.status)" class="text-muted">--</span>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="displayTasks.length === 0 && !tasksLoading" :description="t('task.noTasks')" :image-size="60" />
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  List, MessageBox, TrendCharts, Odometer, Coin, Refresh
+} from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
-import { systemApi, type SystemStatus } from '@/api'
-import { Warning, CircleClose, Download, FullScreen } from '@element-plus/icons-vue'
+import { taskApi, systemApi, strategyApi, type Task } from '@/api'
+import TaskStatusTag from '@/components/TaskStatusTag.vue'
 
-const { t, locale } = useI18n()
-const router = useRouter()
+const { t } = useI18n()
 
-const chartRef = ref<HTMLElement>()
-const pieChartRef = ref<HTMLElement>()
-let lineChart: echarts.ECharts | null = null
-let pieChart: echarts.ECharts | null = null
+const throughputChartRef = ref<HTMLElement>()
+const protocolChartRef = ref<HTMLElement>()
+let throughputChart: echarts.ECharts | null = null
+let protocolChart: echarts.ECharts | null = null
 let refreshTimer: number | null = null
 
-const timeRange = ref<'1m' | '5m' | '15m' | '1h'>('1m')
-const refreshInterval = computed(() => {
-  switch (timeRange.value) {
-    case '1m': return 5000
-    case '5m': return 10000
-    case '15m': return 15000
-    case '1h': return 30000
-    default: return 5000
-  }
+const refreshing = ref(false)
+const tasksLoading = ref(false)
+const allTasks = ref<Task[]>([])
+const strategyMap = ref<Map<string, string>>(new Map())
+
+const stats = reactive({
+  activeTasks: 0,
+  packetsSent: 0,
+  throughputBps: 0,
+  currentPps: 0
 })
 
-const historyLength = computed(() => {
-  switch (timeRange.value) {
-    case '1m': return 12  // 12 * 5秒 = 1分钟
-    case '5m': return 30  // 30 * 10秒 = 5分钟
-    case '15m': return 60 // 60 * 15秒 = 15分钟
-    case '1h': return 120 // 120 * 30秒 = 1小时
-    default: return 30
-  }
-})
-
-const status = ref<SystemStatus>({
-  running: false,
-  cpu_usage: 0,
-  memory_mb: 0,
-  active_tasks: 0,
-  buffer_status: {},
+const resources = reactive({
+  cpu: 0,
+  memoryMb: 0,
+  bufferBytes: 0,
+  bufferMaxBytes: 0,
   uptime: 0
 })
 
-const stats = ref({
-  packets_sent: 0,
-  bytes_sent: 0,
-  current_pps: 0,
-  current_bps: 0,
-  error_rate: 0,
-  packet_loss_rate: 0
+const throughputHistory = ref<{ time: string; value: number }[]>([])
+
+const bufferPercent = computed(() => {
+  if (!resources.bufferMaxBytes) return 0
+  return (resources.bufferBytes / resources.bufferMaxBytes) * 100
+})
+
+const memoryPercent = computed(() => {
+  // memory_mb is absolute, show as progress assuming ~8GB total
+  const totalMb = 8192
+  return Math.min((resources.memoryMb / totalMb) * 100, 100)
+})
+
+const taskTableHeight = ref(400)
+
+const displayTasks = computed(() => {
+  const order: Record<string, number> = { running: 0, pending: 1, stopped: 2, completed: 3, error: 4 }
+  return [...allTasks.value]
+    .sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9))
+    .slice(0, 10)
 })
 
 function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(2) + 'M'
-  } else if (num >= 1000) {
-    return (num / 1000).toFixed(2) + 'K'
-  }
+  if (num >= 1000000000) return (num / 1000000000).toFixed(2) + 'G'
+  if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M'
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
   return num.toString()
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024 * 1024) {
-    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
-  } else if (bytes >= 1024 * 1024) {
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
-  } else if (bytes >= 1024) {
-    return (bytes / 1024).toFixed(2) + ' KB'
-  }
-  return bytes + ' B'
-}
-
-function formatBps(bps: number): string {
-  if (bps >= 1000000000) {
-    return (bps / 1000000000).toFixed(2) + ' Gbps'
-  } else if (bps >= 1000000) {
-    return (bps / 1000000).toFixed(2) + ' Mbps'
-  } else if (bps >= 1000) {
-    return (bps / 1000).toFixed(2) + ' Kbps'
-  }
-  return bps.toFixed(0) + ' bps'
-}
-
-function formatPercent(value: number): string {
-  return value.toFixed(2) + '%'
+function formatThroughput(bps: number): string {
+  if (bps >= 1000000000) return (bps / 1000000000).toFixed(2) + ' Gbps'
+  if (bps >= 1000000) return (bps / 1000000).toFixed(2) + ' Mbps'
+  if (bps >= 1000) return (bps / 1000).toFixed(1) + ' Kbps'
+  return bps + ' bps'
 }
 
 function formatUptime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  return `${hours}${t('unit.hours')}${minutes}${t('unit.minutes')}`
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
 }
 
-const statsHistory = ref<number[]>([])
-const protocolStats = ref<{ name: string; value: number }[]>([])
-const timeLabels = ref<string[]>([])
-
-function changeTimeRange(range: '1m' | '5m' | '15m' | '1h') {
-  timeRange.value = range
-  statsHistory.value = Array(historyLength.value).fill(0)
-  generateTimeLabels()
-  initCharts()
-
-  // 重置定时器
-  if (refreshTimer) {
-    clearInterval(refreshTimer)
-    refreshTimer = window.setInterval(refreshStatus, refreshInterval.value)
-  }
+function getProgressColor(value: number): string {
+  if (value >= 90) return '#EF4444'
+  if (value >= 70) return '#F59E0B'
+  return '#10B981'
 }
 
-function generateTimeLabels() {
-  const labels: string[] = []
-  const now = Date.now()
-  const intervalMs = refreshInterval.value
-
-  for (let i = historyLength.value - 1; i >= 0; i--) {
-    const time = new Date(now - i * intervalMs)
-    if (timeRange.value === '1h') {
-      labels.push(time.toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' }))
-    } else {
-      labels.push(time.toLocaleTimeString(locale.value, { minute: '2-digit', second: '2-digit' }))
-    }
-  }
-  timeLabels.value = labels
+function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {
+  if (status === 'completed') return 'success'
+  if (status === 'failed' || status === 'error') return 'exception'
+  if (status === 'stopped') return 'warning'
+  return ''
 }
 
-function exportChartData() {
-  const csvRows = [
-    ['Time', 'Throughput (Mbps)'],
-    ...timeLabels.value.map((time, idx) => [time, statsHistory.value[idx].toString()])
-  ]
-
-  const csvContent = csvRows.map(row => row.join(',')).join('\n')
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `dashboard-throughput-${new Date().toISOString().slice(0, 10)}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
+function getProtocol(task: Task): string {
+  if ((task as any).protocol) return (task as any).protocol
+  const sid = task.strategy_ids?.[0]
+  if (sid && strategyMap.value.has(sid)) return strategyMap.value.get(sid)!
+  return 'N/A'
 }
 
-async function refreshStatus() {
-  try {
-    const [statusRes, statsRes] = await Promise.all([
-      systemApi.getStatus(),
-      systemApi.getStats()
-    ])
-    if (statusRes.data) {
-      status.value = statusRes.data
-    }
-    if (statsRes.data) {
-      const data = statsRes.data as any
-      stats.value = {
-        packets_sent: data.packets_sent || 0,
-        bytes_sent: data.bytes_sent || 0,
-        current_pps: data.current_pps || 0,
-        current_bps: data.current_bps || 0,
-        error_rate: data.error_rate || 0,
-        packet_loss_rate: data.packet_loss_rate || 0
-      }
+function getDuration(task: Task): string {
+  if (!task.started_at) return '--'
+  const end = task.completed_at || Math.floor(Date.now() / 1000)
+  const secs = end - task.started_at
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const s = secs % 60
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
 
-      // 更新吞吐量历史数据
-      if (statsHistory.value.length >= historyLength.value) {
-        statsHistory.value.shift()
-      }
-      statsHistory.value.push(data.current_bps ? data.current_bps / 1000000 : 0)
-
-      // 更新时间标签
-      generateTimeLabels()
-
-      updateLineChart()
-
-      // 更新协议分布数据
-      if (data.protocols) {
-        protocolStats.value = Object.entries(data.protocols).map(([proto, count]) => ({
-          name: t(`protocol.${proto}`),
-          value: count as number
-        }))
-        updatePieChart()
-      }
-
-      // 检查告警
-      checkAlerts()
-    }
-  } catch (error) {
-    console.error('Failed to refresh status:', error)
-  }
+function recordThroughput(bps: number) {
+  const now = new Date()
+  const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+  throughputHistory.value.push({ time, value: bps })
+  if (throughputHistory.value.length > 30) throughputHistory.value.shift()
 }
 
 function initCharts() {
-  if (chartRef.value) {
-    lineChart = echarts.init(chartRef.value)
-    lineChart.setOption({
-      tooltip: {
-        trigger: 'axis',
-        formatter: (params: any) => {
-          const data = params[0]
-          return `${data.name}<br/>${data.seriesName}: ${data.value?.toFixed(2)} Mbps`
-        }
-      },
-      toolbox: {
-        feature: {
-          dataZoom: {
-            yAxisIndex: false,
-            title: {
-              zoom: t('dashboard.zoom'),
-              back: t('dashboard.zoomBack')
-            }
-          },
-          restore: {
-            title: t('dashboard.restore')
-          }
-        }
-      },
-      dataZoom: [
-        {
-          type: 'inside',
-          xAxisIndex: 0,
-          filterMode: 'none'
-        },
-        {
-          type: 'slider',
-          xAxisIndex: 0,
-          filterMode: 'none',
-          height: 20,
-          bottom: 10,
-          start: 0,
-          end: 100
-        }
-      ],
-      xAxis: {
-        type: 'category',
-        data: timeLabels.value,
-        axisLabel: {
-          rotate: timeRange.value === '1h' ? 0 : 30
-        }
-      },
-      yAxis: {
-        type: 'value',
-        name: 'Mbps',
-        splitLine: {
-          lineStyle: {
-            type: 'dashed'
-          }
-        }
-      },
+  if (throughputChartRef.value) {
+    throughputChart = echarts.init(throughputChartRef.value)
+    throughputChart.setOption({
+      tooltip: { trigger: 'axis', formatter: (p: any) => p[0] ? `${p[0].name}<br/>${formatThroughput(p[0].value)}` : '' },
+      grid: { left: 50, right: 12, top: 12, bottom: 24 },
+      xAxis: { type: 'category', data: [], boundaryGap: false, axisLabel: { fontSize: 11 } },
+      yAxis: { type: 'value', axisLabel: { fontSize: 11, formatter: (v: number) => formatThroughput(v) }, splitLine: { lineStyle: { type: 'dashed' } } },
       series: [{
-        name: t('dashboard.throughput'),
-        type: 'line',
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 6,
-        itemStyle: {
-          color: '#4facfe'
-        },
-        areaStyle: {
-          opacity: 0.3,
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(79, 172, 254, 0.5)' },
-            { offset: 1, color: 'rgba(79, 172, 254, 0.1)' }
-          ])
-        },
-        data: statsHistory.value
-      }],
-      grid: {
-        bottom: 80
-      }
+        type: 'line', smooth: true, symbol: 'none',
+        areaStyle: { opacity: 0.12 },
+        lineStyle: { width: 2, color: '#2563EB' },
+        itemStyle: { color: '#2563EB' },
+        data: []
+      }]
     })
   }
 
-  if (pieChartRef.value) {
-    pieChart = echarts.init(pieChartRef.value)
-    pieChart.setOption({
+  if (protocolChartRef.value) {
+    protocolChart = echarts.init(protocolChartRef.value)
+    protocolChart.setOption({
       tooltip: { trigger: 'item' },
-      legend: { bottom: 0 },
+      legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 11 } },
       series: [{
-        type: 'pie',
-        radius: ['40%', '70%'],
-        data: protocolStats.value.length > 0 ? protocolStats.value : [
-          { value: 0, name: t('protocol.tcp') },
-          { value: 0, name: t('protocol.udp') },
-          { value: 0, name: t('protocol.http') }
-        ]
+        type: 'pie', radius: ['35%', '60%'],
+        avoidLabelOverlap: false,
+        label: { show: false },
+        emphasis: { label: { show: true, fontSize: 12, fontWeight: 'bold' } },
+        labelLine: { show: false },
+        data: [],
+        itemStyle: { borderColor: '#fff', borderWidth: 2 }
       }]
     })
   }
 }
 
-function updateLineChart() {
-  if (lineChart) {
-    lineChart.setOption({
-      xAxis: { data: timeLabels.value },
-      series: [{ data: statsHistory.value }]
+function updateCharts() {
+  if (throughputChart) {
+    throughputChart.setOption({
+      xAxis: { data: throughputHistory.value.map(p => p.time) },
+      series: [{ data: throughputHistory.value.map(p => p.value) }]
     })
   }
 }
 
-function updatePieChart() {
-  if (pieChart && protocolStats.value.length > 0) {
-    pieChart.setOption({
-      series: [{ data: protocolStats.value }]
-    })
+async function loadDashboardData() {
+  try {
+    const [statusRes, statsRes] = await Promise.all([
+      systemApi.getStatus(),
+      systemApi.getStats()
+    ])
+
+    if (statusRes.data) {
+      const d = statusRes.data as any
+      stats.activeTasks = d.active_tasks || 0
+      resources.cpu = Math.round(d.cpu_usage || 0)
+      resources.memoryMb = d.memory_mb || 0
+      resources.uptime = d.uptime || 0
+      if (d.buffer_status?.combined) {
+        resources.bufferBytes = d.buffer_status.combined.bytes || 0
+        resources.bufferMaxBytes = d.buffer_status.combined.max_bytes || 1
+      }
+    }
+
+    if (statsRes.data) {
+      const d = statsRes.data as any
+      stats.packetsSent = d.packets_sent || 0
+      stats.throughputBps = d.current_bps || 0
+      stats.currentPps = d.current_pps || 0
+
+      recordThroughput(d.current_bps || 0)
+      updateCharts()
+
+      if (protocolChart) {
+        if (d.protocols && Object.keys(d.protocols).length > 0) {
+          const pieData = Object.entries(d.protocols).map(([name, value]) => ({
+            name: name.toUpperCase(),
+            value
+          }))
+          protocolChart.setOption({ series: [{ data: pieData }] })
+        } else {
+          protocolChart.setOption({ series: [{ data: [] }] })
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load dashboard data:', error)
   }
 }
 
-function navigateToTasks() {
-  router.push('/tasks')
-}
-
-function navigateToErrorTasks() {
-  router.push({ path: '/tasks', query: { status: 'error' } })
-}
-
-function navigateToLostPackets() {
-  router.push('/history')
-}
-
-// 告警系统
-interface Alert {
-  level: 'warning' | 'danger'
-  message: string
-  time: string
-}
-
-const alerts = ref<Alert[]>([])
-const isFullscreen = ref(false)
-const CPU_THRESHOLD_WARNING = 80
-const CPU_THRESHOLD_DANGER = 90
-const MEMORY_THRESHOLD_WARNING = 80
-const MEMORY_THRESHOLD_DANGER = 90
-const BUFFER_THRESHOLD_WARNING = 80
-const BUFFER_THRESHOLD_DANGER = 90
-
-const memoryUsagePercent = computed(() => {
-  // 假设系统总内存约8GB，按比例计算
-  const totalMemoryMB = 8192
-  return Math.min(((status.value.memory_mb || 0) / totalMemoryMB) * 100, 100)
-})
-
-const bufferUsagePercent = computed(() => {
-  const bufferStatus = status.value.buffer_status as any
-  if (!bufferStatus) return 0
-  // 计算所有缓冲区的平均使用率
-  const buffers = Object.values(bufferStatus)
-  if (buffers.length === 0) return 0
-  const totalUsage = buffers.reduce((sum: number, buf: any) => {
-    return sum + (buf.usage_percent || buf.usage || 0)
-  }, 0)
-  return Math.min(totalUsage / buffers.length, 100)
-})
-
-function getProgressColor(percentage: number): string {
-  if (percentage > CPU_THRESHOLD_DANGER) return '#f56c6c'
-  if (percentage > CPU_THRESHOLD_WARNING) return '#e6a23c'
-  return '#67c23a'
-}
-
-function checkAlerts() {
-  const newAlerts: Alert[] = []
-  const now = new Date().toLocaleTimeString()
-
-  // CPU告警
-  if (status.value.cpu_usage > CPU_THRESHOLD_DANGER) {
-    newAlerts.push({
-      level: 'danger',
-      message: t('dashboard.alertCpuDanger', { value: status.value.cpu_usage?.toFixed(1) }),
-      time: now
-    })
-  } else if (status.value.cpu_usage > CPU_THRESHOLD_WARNING) {
-    newAlerts.push({
-      level: 'warning',
-      message: t('dashboard.alertCpuWarning', { value: status.value.cpu_usage?.toFixed(1) }),
-      time: now
-    })
-  }
-
-  // 内存告警
-  if (memoryUsagePercent.value > MEMORY_THRESHOLD_DANGER) {
-    newAlerts.push({
-      level: 'danger',
-      message: t('dashboard.alertMemoryDanger', { value: memoryUsagePercent.value.toFixed(1) }),
-      time: now
-    })
-  } else if (memoryUsagePercent.value > MEMORY_THRESHOLD_WARNING) {
-    newAlerts.push({
-      level: 'warning',
-      message: t('dashboard.alertMemoryWarning', { value: memoryUsagePercent.value.toFixed(1) }),
-      time: now
-    })
-  }
-
-  // 缓冲区告警
-  if (bufferUsagePercent.value > BUFFER_THRESHOLD_DANGER) {
-    newAlerts.push({
-      level: 'danger',
-      message: t('dashboard.alertBufferDanger', { value: bufferUsagePercent.value.toFixed(1) }),
-      time: now
-    })
-  } else if (bufferUsagePercent.value > BUFFER_THRESHOLD_WARNING) {
-    newAlerts.push({
-      level: 'warning',
-      message: t('dashboard.alertBufferWarning', { value: bufferUsagePercent.value.toFixed(1) }),
-      time: now
-    })
-  }
-
-  // 错误率告警
-  if (stats.value.error_rate > 5) {
-    newAlerts.push({
-      level: 'danger',
-      message: t('dashboard.alertErrorRate', { value: stats.value.error_rate.toFixed(2) }),
-      time: now
-    })
-  } else if (stats.value.error_rate > 1) {
-    newAlerts.push({
-      level: 'warning',
-      message: t('dashboard.alertErrorRate', { value: stats.value.error_rate.toFixed(2) }),
-      time: now
-    })
-  }
-
-  alerts.value = newAlerts
-}
-
-function clearAlerts() {
-  alerts.value = []
-}
-
-function toggleFullscreen() {
-  const el = document.querySelector('.dashboard') as HTMLElement
-  if (!el) return
-  if (!document.fullscreenElement) {
-    el.requestFullscreen().then(() => { isFullscreen.value = true })
-  } else {
-    document.exitFullscreen().then(() => { isFullscreen.value = false })
+async function loadTasks() {
+  if (tasksLoading.value) return
+  tasksLoading.value = true
+  try {
+    const res = await taskApi.list()
+    if (res.data) {
+      const data = res.data as any
+      allTasks.value = Array.isArray(data) ? data : (data.items || [])
+    }
+  } catch (error) {
+    console.error('Failed to load tasks:', error)
+  } finally {
+    tasksLoading.value = false
   }
 }
 
-function onFullscreenChange() {
-  isFullscreen.value = !!document.fullscreenElement
+async function loadStrategies() {
+  try {
+    const res = await strategyApi.list()
+    if (res.data) {
+      const data = res.data as any
+      const strategies = Array.isArray(data) ? data : (data.items || [])
+      strategyMap.value = new Map(strategies.map((s: any) => [s.id, s.protocol]))
+    }
+  } catch (error) {
+    console.error('Failed to load strategies:', error)
+  }
+}
+
+async function handleStartTask(task: Task) {
+  try {
+    await taskApi.start(task.id)
+    ElMessage.success(t('task.startSuccess'))
+    loadTasks()
+  } catch (error) {
+    console.error('Failed to start task:', error)
+  }
+}
+
+async function handleStopTask(task: Task) {
+  try {
+    await ElMessageBox.confirm(t('task.stopConfirm'), t('task.stop'), { type: 'warning' })
+    await taskApi.stop(task.id)
+    ElMessage.success(t('task.stopSuccess'))
+    loadTasks()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Failed to stop task:', error)
+    }
+  }
 }
 
 function handleResize() {
-  lineChart?.resize()
-  pieChart?.resize()
+  throughputChart?.resize()
+  protocolChart?.resize()
 }
 
-onMounted(() => {
-  document.addEventListener('fullscreenchange', onFullscreenChange)
-  window.addEventListener('resize', handleResize)
-  statsHistory.value = Array(historyLength.value).fill(0)
-  generateTimeLabels()
-  refreshStatus()
+function scheduleRefresh() {
+  refreshTimer = window.setTimeout(async () => {
+    await Promise.all([loadDashboardData(), loadTasks()])
+    scheduleRefresh()
+  }, 10000)
+}
+
+async function handleRefresh() {
+  refreshing.value = true
+  try {
+    await Promise.all([loadDashboardData(), loadTasks()])
+  } finally {
+    refreshing.value = false
+  }
+}
+
+onMounted(async () => {
+  await nextTick()
   initCharts()
-  refreshTimer = window.setInterval(refreshStatus, refreshInterval.value)
+  await Promise.all([loadStrategies(), loadDashboardData(), loadTasks()])
+  scheduleRefresh()
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  if (refreshTimer) clearTimeout(refreshTimer)
+  throughputChart?.dispose()
+  protocolChart?.dispose()
   window.removeEventListener('resize', handleResize)
-  if (refreshTimer) {
-    clearInterval(refreshTimer)
-  }
-  lineChart?.dispose()
-  pieChart?.dispose()
 })
 </script>
 
 <style scoped>
 .dashboard {
-  padding: 0;
-}
-
-.dashboard.is-fullscreen {
-  padding: 20px;
-  background: #f5f7fa;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
 }
 
 .dashboard-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .dashboard-title {
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--tg-text-primary, #0F172A);
+  margin: 0;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tg-text-body, #334155);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.uptime-badge {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--tg-text-secondary, #64748B);
+  background: var(--tg-bg-hover, #F1F5F9);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* Section 1: Stats Cards */
+.stats-row {
+  flex-shrink: 0;
 }
 
 .stat-card {
   display: flex;
   align-items: center;
-  padding: 20px;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--tg-bg-card, #FFFFFF);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  cursor: default;
+  transition: box-shadow 0.2s;
 }
 
-.stat-card :deep(.el-card__body) {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: 20px;
+.stat-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .stat-icon {
-  width: 64px;
-  height: 64px;
-  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  margin-right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex-shrink: 0;
 }
 
-.stat-icon.running { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.stat-icon.packets { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.stat-icon.bytes { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.stat-icon.speed { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-.stat-icon.error { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
-.stat-icon.loss { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+.stat-icon--primary { background: rgba(37, 99, 235, 0.1); color: #2563EB; }
+.stat-icon--success { background: rgba(16, 185, 129, 0.1); color: #10B981; }
+.stat-icon--warning { background: rgba(245, 158, 11, 0.1); color: #F59E0B; }
+.stat-icon--info { background: rgba(59, 130, 246, 0.1); color: #3B82F6; }
+.stat-icon--purple { background: rgba(139, 92, 246, 0.1); color: #8B5CF6; }
 
-.stat-info {
+.stat-body {
   flex: 1;
+  min-width: 0;
 }
 
 .stat-value {
-  font-size: 28px;
-  font-weight: bold;
-  color: #303133;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--tg-text-primary, #0F172A);
+  line-height: 1.2;
 }
 
 .stat-label {
-  font-size: 14px;
-  color: #909399;
+  font-size: 12px;
+  color: var(--tg-text-secondary, #64748B);
+  margin-top: 2px;
+}
+
+.buffer-bar {
   margin-top: 4px;
 }
 
-.stat-card.clickable {
-  cursor: pointer;
-  transition: all 0.3s ease;
+/* Section 2: Resources */
+.resources-row {
+  flex-shrink: 0;
 }
 
-.stat-card.clickable:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.resource-card {
+  height: 100%;
 }
 
-.card-header {
+.resource-list {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.resource-item {
-  padding: 8px 0;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .resource-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
-.resource-label {
-  font-size: 14px;
-  color: #606266;
+.resource-name {
+  font-size: 13px;
+  color: var(--tg-text-body, #334155);
 }
 
 .resource-value {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #303133;
+  color: var(--tg-text-primary, #0F172A);
 }
 
-.resource-warning {
-  color: #e6a23c;
+.chart-card {
+  height: 100%;
 }
 
-.resource-danger {
-  color: #f56c6c;
+.chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tg-text-body, #334155);
 }
 
-.alert-list {
-  max-height: 200px;
-  overflow-y: auto;
+.chart-container-sm {
+  height: 160px;
 }
 
-.alert-item {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  margin-bottom: 6px;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.alert-warning {
-  background: #fdf6ec;
-  border-left: 3px solid #e6a23c;
-}
-
-.alert-danger {
-  background: #fef0f0;
-  border-left: 3px solid #f56c6c;
-}
-
-.alert-icon {
-  margin-right: 8px;
-  flex-shrink: 0;
-}
-
-.alert-warning .alert-icon {
-  color: #e6a23c;
-}
-
-.alert-danger .alert-icon {
-  color: #f56c6c;
-}
-
-.alert-message {
+/* Section 3: Tasks */
+.task-card {
   flex: 1;
-  color: #303133;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.alert-time {
-  color: #909399;
-  font-size: 12px;
-  margin-left: 12px;
-  flex-shrink: 0;
+.task-card :deep(.el-card__body) {
+  flex: 1;
+  padding: 0;
+  overflow: hidden;
+}
+
+.task-link {
+  color: var(--tg-primary, #2563EB);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.task-link:hover {
+  text-decoration: underline;
+}
+
+.text-muted {
+  color: var(--tg-text-disabled, #94A3B8);
+}
+
+@media (max-width: 768px) {
+  .stat-card {
+    padding: 10px 12px;
+  }
+  .stat-value {
+    font-size: 16px;
+  }
+  .chart-container-sm {
+    height: 120px;
+  }
 }
 </style>

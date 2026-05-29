@@ -4,323 +4,224 @@
       <template #header>
         <div class="card-header">
           <span>{{ t('task.title') }}</span>
-          <el-button type="primary" @click="$router.push('/tasks/create')">
-            <el-icon><Plus /></el-icon>
-            {{ t('task.createTask') }}
-          </el-button>
+          <div class="header-actions">
+            <template v-if="selectedTasks.length === 0">
+              <el-button @click="proTableRef?.openColumnSettings()" circle size="small">
+                <el-icon><Setting /></el-icon>
+              </el-button>
+              <el-button @click="loadTasks" circle size="small">
+                <el-icon><Refresh /></el-icon>
+              </el-button>
+              <el-button type="primary" @click="$router.push('/tasks/create')">
+                <el-icon><Plus /></el-icon>
+                {{ t('task.createTask') }}
+              </el-button>
+            </template>
+            <template v-else>
+              <span class="batch-info">{{ t('task.selectedCount', { count: selectedTasks.length }) }}</span>
+              <el-button type="danger" size="small" @click="handleBatchDelete">{{ t('task.batchDelete') }}</el-button>
+              <el-button size="small" @click="handleBatchStop">{{ t('task.batchStop') }}</el-button>
+              <el-button size="small" link type="primary" @click="clearSelection">{{ t('common.reset') }}</el-button>
+            </template>
+          </div>
         </div>
       </template>
 
-      <!-- Modern single-line filter bar -->
+      <!-- Filter bar -->
       <div class="filter-bar">
         <el-input
-          v-model="filters.search"
+          v-model="filters.keyword"
           :placeholder="t('task.searchPlaceholder')"
           clearable
-          style="width: 300px"
+          style="width: 240px"
           @keyup.enter="loadTasks"
+          @clear="loadTasks"
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-
-        <el-select
-          v-model="filters.status"
-          :placeholder="t('task.status')"
-          multiple
-          collapse-tags
-          collapse-tags-tooltip
-          clearable
-          style="width: 200px"
-          @change="loadTasks"
-        >
-          <el-option :label="t('task.pending')" value="pending" />
+        <el-select v-model="filters.protocol" :placeholder="t('task.protocol')" clearable style="width: 140px" @change="loadTasks">
+          <el-option label="TCP" value="tcp" />
+          <el-option label="UDP" value="udp" />
+          <el-option label="HTTP" value="http" />
+          <el-option label="DNS" value="dns" />
+          <el-option label="ICMP" value="icmp" />
+          <el-option label="ARP" value="arp" />
+        </el-select>
+        <el-select v-model="filters.status" :placeholder="t('task.status')" clearable style="width: 140px" @change="loadTasks">
           <el-option :label="t('task.running')" value="running" />
+          <el-option :label="t('task.pending')" value="pending" />
           <el-option :label="t('task.completed')" value="completed" />
-          <el-option :label="t('task.failed')" value="error" />
+          <el-option :label="t('task.failed')" value="failed" />
           <el-option :label="t('task.stopped')" value="stopped" />
         </el-select>
-
-        <el-select
-          v-model="filters.protocol"
-          :placeholder="t('task.protocol')"
-          multiple
-          collapse-tags
-          collapse-tags-tooltip
-          clearable
-          style="width: 200px"
-          @change="loadTasks"
-        >
-          <el-option :label="t('protocol.tcp')" value="tcp" />
-          <el-option :label="t('protocol.udp')" value="udp" />
-          <el-option :label="t('protocol.http')" value="http" />
-          <el-option :label="t('protocol.dns')" value="dns" />
-          <el-option :label="t('protocol.icmp')" value="icmp" />
-        </el-select>
-
-        <el-button link type="primary" @click="resetFilters">
-          {{ t('common.reset') }}
-        </el-button>
+        <el-button link type="primary" @click="resetFilters">{{ t('common.reset') }}</el-button>
       </div>
 
-      <!-- Bulk Actions Toolbar -->
-      <div v-if="selectedTasks.length > 0" class="bulk-toolbar">
-        <el-space>
-          <span class="bulk-text">
-            {{ t('common.selected') }} {{ selectedTasks.length }} {{ t('task.tasks') }}
-          </span>
-          <el-button size="small" type="success" @click="handleBulkStart">
-            {{ t('task.bulkStart') }}
-          </el-button>
-          <el-button size="small" type="warning" @click="handleBulkStop">
-            {{ t('task.bulkStop') }}
-          </el-button>
-          <el-button size="small" type="danger" @click="handleBulkDelete">
-            {{ t('task.bulkDelete') }}
-          </el-button>
-        </el-space>
+      <!-- Active filter tags -->
+      <div v-if="hasActiveFilters" class="active-filters">
+        <el-tag v-if="filters.keyword" closable @close="filters.keyword = ''; loadTasks()">
+          {{ filters.keyword }}
+        </el-tag>
+        <el-tag v-if="filters.protocol" closable @close="filters.protocol = ''; loadTasks()">
+          {{ filters.protocol.toUpperCase() }}
+        </el-tag>
+        <el-tag v-if="filters.status" closable @close="filters.status = ''; loadTasks()">
+          {{ getStatusText(filters.status) }}
+        </el-tag>
+        <el-button link type="primary" size="small" @click="resetFilters">{{ t('common.reset') }}</el-button>
       </div>
 
-      <!-- Task Table -->
-      <el-empty
-        v-if="tasks.length === 0 && !loading"
-        :description="t('task.noTasks')"
+      <ProTable
+        ref="proTableRef"
+        table-id="task-list"
+        :columns="columns"
+        :data="tasks"
+        :loading="loading"
+        :pagination="{ total: pagination.total }"
+        :empty-text="t('task.noTasks')"
+        @selection-change="handleSelectionChange"
+        @sort-change="handleSortChange"
+        @page-change="handlePageChange"
       >
-        <el-button type="primary" @click="$router.push('/tasks/create')">
-          {{ t('task.createFirst') }}
-        </el-button>
-      </el-empty>
-
-      <el-table v-else :data="tasks" v-loading="loading" stripe @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="name" :label="t('common.name')" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="strategy_ids" :label="t('task.strategies')" min-width="180">
-          <template #default="{ row }">
-            <div class="strategy-tags">
-              <el-tag v-for="id in row.strategy_ids?.slice(0, 2)" :key="id" size="small" style="margin: 2px">
-                {{ id.substring(0, 8) }}
-              </el-tag>
-              <el-tag v-if="row.strategy_ids?.length > 2" size="small" type="info">
-                +{{ row.strategy_ids.length - 2 }}
-              </el-tag>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="output_type" :label="t('task.output')" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag :type="row.output_type === 'pcap' ? 'warning' : 'success'" size="small">
-              {{ row.output_type?.toUpperCase() }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" :label="t('task.status')" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag :type="getStatusTagType(row.status)" size="small">{{ getStatusText(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="progress" :label="t('task.progress')" width="140">
-          <template #default="{ row }">
-            <el-progress :percentage="row.progress" :status="getProgressStatus(row.status)" :stroke-width="6" />
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" :label="t('task.createdAt')" width="160">
-          <template #default="{ row }">
-            {{ formatDate(row.created_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('common.action')" width="220" fixed="right">
-          <template #default="{ row }">
-            <el-space>
-              <el-button size="small" @click="openDrawer(row)">
-                {{ t('task.viewDetail') }}
+        <template #toolbar>
+          <span></span>
+        </template>
+        <template #name="{ row }">
+          <router-link :to="`/tasks/${row.id}`" class="task-name-link">
+            {{ row.name }}
+          </router-link>
+        </template>
+        <template #protocol="{ row }">
+          <el-tag size="small">{{ (row.protocol || 'N/A').toUpperCase() }}</el-tag>
+        </template>
+        <template #status="{ row }">
+          <task-status-tag :status="row.status" />
+        </template>
+        <template #progress="{ row }">
+          <el-progress
+            :percentage="row.progress || 0"
+            :status="getProgressStatus(row.status)"
+            :stroke-width="6"
+          />
+        </template>
+        <template #output_type="{ row }">
+          {{ row.output_type === 'port_group' ? t('taskCreate.portGroup') : 'PCAP' }}
+        </template>
+        <template #stats.packets_sent="{ row }">
+          {{ formatNumber(row.stats?.packets_sent || 0) }}
+        </template>
+        <template #created_at="{ row }">
+          {{ formatDate(row.created_at) }}
+        </template>
+        <template #actions="{ row }">
+          <div class="action-buttons">
+            <el-button
+              v-if="row.status === 'pending'"
+              type="primary"
+              size="small"
+              link
+              @click="handleStart(row)"
+            >
+              {{ t('task.start') }}
+            </el-button>
+            <el-button
+              v-if="row.status === 'running'"
+              type="danger"
+              size="small"
+              link
+              @click="handleStop(row)"
+            >
+              {{ t('task.stop') }}
+            </el-button>
+            <el-dropdown trigger="hover" @command="(cmd: string) => handleAction(cmd, row)">
+              <el-button size="small" link>
+                <el-icon><More /></el-icon>
               </el-button>
-              <el-button
-                size="small"
-                type="success"
-                :disabled="row.status !== 'pending' && row.status !== 'stopped'"
-                @click="startTask(row.id)"
-              >
-                {{ t('task.start') }}
-              </el-button>
-              <el-button
-                size="small"
-                type="warning"
-                :disabled="row.status !== 'running'"
-                @click="stopTask(row.id)"
-              >
-                {{ t('task.stop') }}
-              </el-button>
-              <el-button
-                size="small"
-                type="danger"
-                @click="deleteTask(row.id)"
-              >
-                {{ t('common.delete') }}
-              </el-button>
-            </el-space>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <!-- Pagination -->
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.size"
-        :total="pagination.total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        style="margin-top: 20px; justify-content: flex-end;"
-        @size-change="loadTasks"
-        @current-change="loadTasks"
-      />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="detail">{{ t('task.viewDetail') }}</el-dropdown-item>
+                  <el-dropdown-item command="delete" style="color: var(--el-color-danger)">{{ t('task.delete') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+        </template>
+        <template #empty>
+          <el-empty :description="t('task.noTasks')">
+            <el-button type="primary" @click="$router.push('/tasks/create')">
+              {{ t('task.createTask') }}
+            </el-button>
+          </el-empty>
+        </template>
+      </ProTable>
     </el-card>
-
-    <!-- Task Detail Drawer -->
-    <el-drawer
-      v-model="drawerVisible"
-      :title="selectedTask?.name || t('task.taskDetail')"
-      size="60%"
-      direction="rtl"
-    >
-      <div v-if="selectedTask" v-loading="drawerLoading">
-        <el-descriptions :column="2" border>
-          <el-descriptions-item :label="t('task.taskName')">{{ selectedTask.id }}</el-descriptions-item>
-          <el-descriptions-item :label="t('common.name')">{{ selectedTask.name }}</el-descriptions-item>
-          <el-descriptions-item :label="t('taskCreate.outputType')">
-            <el-tag :type="selectedTask.output_type === 'pcap' ? 'warning' : 'success'">
-              {{ selectedTask.output_type?.toUpperCase() }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item :label="t('task.status')">
-            <el-tag :type="getStatusTagType(selectedTask.status)">{{ getStatusText(selectedTask.status) }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item :label="t('task.createdAt')">{{ formatDate(selectedTask.created_at) }}</el-descriptions-item>
-          <el-descriptions-item :label="t('task.startedAt')">{{ formatDate(selectedTask.started_at) }}</el-descriptions-item>
-        </el-descriptions>
-
-        <el-divider content-position="left">{{ t('task.strategies') }}</el-divider>
-        <el-table :data="selectedTask.strategy_ids" size="small">
-          <el-table-column prop="id" :label="t('strategy.strategyId')">
-            <template #default="{ row }">
-              {{ row }}
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <el-divider content-position="left">{{ t('task.progress') }}</el-divider>
-
-        <el-progress
-          :percentage="selectedTask.progress || 0"
-          :status="getProgressStatus(selectedTask.status)"
-          :stroke-width="20"
-          style="margin-bottom: 20px;"
-        />
-
-        <el-divider content-position="left">{{ t('task.statistics') }}</el-divider>
-
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-statistic :title="t('dashboard.packetsSent')" :value="selectedTask.stats?.packets_sent || 0" />
-          </el-col>
-          <el-col :span="12">
-            <el-statistic :title="t('task.bytes')" :value="selectedTask.stats?.bytes_sent || 0" />
-          </el-col>
-        </el-row>
-
-        <el-divider content-position="left">{{ t('common.action') }}</el-divider>
-
-        <el-space>
-          <el-button
-            type="success"
-            :disabled="selectedTask.status !== 'pending' && selectedTask.status !== 'stopped'"
-            @click="handleDrawerStart"
-          >
-            {{ t('task.start') }}
-          </el-button>
-          <el-button
-            type="warning"
-            :disabled="selectedTask.status !== 'running'"
-            @click="handleDrawerStop"
-          >
-            {{ t('task.stop') }}
-          </el-button>
-          <el-button type="danger" @click="handleDrawerDelete">
-            {{ t('common.delete') }}
-          </el-button>
-        </el-space>
-
-        <el-divider content-position="left">{{ t('common.error') }}</el-divider>
-
-        <el-alert
-          v-if="selectedTask.error_message"
-          :title="selectedTask.error_message"
-          type="error"
-          show-icon
-          :closable="false"
-        />
-        <el-empty v-else :description="t('common.noData')" :image-size="60" />
-      </div>
-    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
+import { Plus, Search, Setting, Refresh, More } from '@element-plus/icons-vue'
 import { taskApi, type Task } from '@/api'
-import { useTaskWebSocket } from '@/composables/useTaskWebSocket'
+import TaskStatusTag from '@/components/TaskStatusTag.vue'
+import ProTable from '@/components/ProTable/index.vue'
 import dayjs from 'dayjs'
 
-const TASK_LIST_STORAGE_KEY = 'task-list-state'
-
 const { t } = useI18n()
+const router = useRouter()
 
 const loading = ref(false)
 const tasks = ref<Task[]>([])
 const selectedTasks = ref<Task[]>([])
-const drawerVisible = ref(false)
-const drawerLoading = ref(false)
-const selectedTask = ref<Task | null>(null)
+const proTableRef = ref()
+let refreshTimer: number | null = null
 
-// WebSocket for real-time updates
-const { taskStatus, connect: connectWs, disconnect: disconnectWs, subscribeTask, unsubscribeTask } = useTaskWebSocket()
-
-function loadTaskListState() {
-  try {
-    const raw = localStorage.getItem(TASK_LIST_STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {}
-  return null
-}
-
-const savedTaskState = loadTaskListState()
+const columns = computed(() => [
+  { prop: 'selection', label: '', type: 'selection', width: 45 },
+  { prop: 'name', label: t('task.taskName'), minWidth: 160, sortable: 'custom', required: true },
+  { prop: 'protocol', label: t('task.protocol'), width: 100, sortable: 'custom' },
+  { prop: 'status', label: t('task.status'), width: 110, sortable: 'custom' },
+  { prop: 'progress', label: t('task.progress'), width: 140 },
+  { prop: 'output_type', label: t('task.outputType'), width: 100 },
+  { prop: 'stats.packets_sent', label: t('task.packets'), width: 100 },
+  { prop: 'created_at', label: t('task.createdAt'), width: 170, sortable: 'custom' },
+  { prop: 'actions', label: t('task.actions'), width: 140, fixed: 'right', required: true }
+])
 
 const filters = reactive({
-  status: savedTaskState?.filters?.status || [] as string[],
-  protocol: savedTaskState?.filters?.protocol || [] as string[],
-  search: savedTaskState?.filters?.search || ''
+  keyword: '',
+  protocol: '',
+  status: ''
 })
 
 const pagination = reactive({
-  page: savedTaskState?.pagination?.page || 1,
-  size: savedTaskState?.pagination?.size || 20,
+  page: 1,
+  pageSize: 20,
   total: 0
 })
 
-watch([() => ({ ...filters }), () => ({ ...pagination })], () => {
-  localStorage.setItem(TASK_LIST_STORAGE_KEY, JSON.stringify({
-    filters: { status: filters.status, protocol: filters.protocol, search: filters.search },
-    pagination: { page: pagination.page, size: pagination.size }
-  }))
-}, { deep: true })
+const sortState = reactive({
+  prop: '',
+  order: ''
+})
 
-function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M'
-  if (num >= 1000) return (num / 1000).toFixed(2) + 'K'
-  return num.toString()
+const hasActiveFilters = computed(() =>
+  filters.keyword || filters.protocol || filters.status
+)
+
+function getStatusText(status: string): string {
+  const map: Record<string, string> = {
+    running: t('task.running'),
+    pending: t('task.pending'),
+    completed: t('task.completed'),
+    failed: t('task.failed'),
+    stopped: t('task.stopped')
+  }
+  return map[status] || status
 }
 
 function formatDate(timestamp?: number): string {
@@ -328,67 +229,67 @@ function formatDate(timestamp?: number): string {
   return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm:ss')
 }
 
-function getStatusText(status: string): string {
-  const map: Record<string, string> = {
-    pending: t('task.pending'),
-    running: t('task.running'),
-    stopped: t('task.stopped'),
-    completed: t('task.completed'),
-    error: t('task.failed')
-  }
-  return map[status] || status
-}
-
-function getStatusTagType(status: string): string {
-  const map: Record<string, string> = {
-    pending: 'info',
-    running: 'success',
-    stopped: 'warning',
-    completed: '',
-    error: 'danger'
-  }
-  return map[status] || 'info'
-}
-
-function getProtocolTagType(protocol: string): string {
-  const map: Record<string, string> = {
-    tcp: 'primary',
-    udp: 'success',
-    http: 'warning',
-    dns: 'info',
-    icmp: 'danger'
-  }
-  return map[protocol] || ''
+function formatNumber(num: number): string {
+  if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M'
+  if (num >= 1000) return (num / 1000).toFixed(2) + 'K'
+  return num.toString()
 }
 
 function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {
   if (status === 'completed') return 'success'
-  if (status === 'error') return 'exception'
+  if (status === 'failed') return 'exception'
   if (status === 'stopped') return 'warning'
   return ''
+}
+
+function resetFilters() {
+  filters.keyword = ''
+  filters.protocol = ''
+  filters.status = ''
+  pagination.page = 1
+  loadTasks()
+}
+
+function handleSelectionChange(selection: Task[]) {
+  selectedTasks.value = selection
+}
+
+function clearSelection() {
+  selectedTasks.value = []
+  proTableRef.value?.tableRef?.clearSelection()
+}
+
+function handleSortChange({ prop, order }: { prop: string; order: string }) {
+  sortState.prop = prop
+  sortState.order = order
+  loadTasks()
+}
+
+function handlePageChange(page: number, pageSize: number) {
+  pagination.page = page
+  pagination.pageSize = pageSize
+  loadTasks()
 }
 
 async function loadTasks() {
   loading.value = true
   try {
-    const data = await taskApi.list({
-      status: filters.status?.join(','),
-      protocol: filters.protocol?.join(',')
-    })
-    if (data) {
-      let taskList = data
-
-      // Client-side search filter
-      if (filters.search) {
-        const searchLower = filters.search.toLowerCase()
-        taskList = taskList.filter(task =>
-          task.id.toLowerCase().includes(searchLower) ||
-          task.name?.toLowerCase().includes(searchLower)
-        )
-      }
-
-      tasks.value = taskList
-      pagination.total = taskList.length
+    const params: any = {
+      page: pagination.page,
+      size: pagination.pageSize
+    }
+    if (filters.keyword) params.keyword = filters.keyword
+    if (filters.protocol) params.protocol = filters.protocol
+    if (filters.status) params.status = filters.status
+    if (sortState.prop) {
+      params.sort_by = sortState.prop
+      params.sort_order = sortState.order === 'ascending' ? 'asc' : 'desc'
+    }
+    const res = await taskApi.list(params)
+    if (res.data) {
+      const data = res.data as any
+      tasks.value = data.items || data
+      pagination.total = data.total || tasks.value.length
     }
   } catch (error) {
     console.error('Failed to load tasks:', error)
@@ -397,16 +298,9 @@ async function loadTasks() {
   }
 }
 
-function resetFilters() {
-  filters.status = []
-  filters.protocol = []
-  filters.search = ''
-  loadTasks()
-}
-
-async function startTask(id: string) {
+async function handleStart(task: Task) {
   try {
-    await taskApi.start(id)
+    await taskApi.start(task.id)
     ElMessage.success(t('task.startSuccess'))
     loadTasks()
   } catch (error) {
@@ -414,75 +308,62 @@ async function startTask(id: string) {
   }
 }
 
-async function stopTask(id: string) {
+async function handleStop(task: Task) {
   try {
-    await taskApi.stop(id)
+    await ElMessageBox.confirm(
+      t('task.stopConfirm'),
+      t('task.stop'),
+      { type: 'warning' }
+    )
+    await taskApi.stop(task.id)
     ElMessage.success(t('task.stopSuccess'))
     loadTasks()
   } catch (error) {
-    console.error('Failed to stop task:', error)
+    if (error !== 'cancel') {
+      console.error('Failed to stop task:', error)
+    }
   }
 }
 
-async function deleteTask(id: string) {
+async function handleDelete(task: Task) {
   try {
-    await ElMessageBox.confirm(t('task.confirmDelete'), t('common.confirm'), {
-      type: 'warning'
-    })
-    await taskApi.delete(id)
+    await ElMessageBox.confirm(
+      t('task.deleteConfirm', { name: task.name }),
+      t('task.delete'),
+      { type: 'warning' }
+    )
+    await taskApi.delete(task.id)
     ElMessage.success(t('task.deleteSuccess'))
     loadTasks()
   } catch (error) {
-    // Cancelled or error
-  }
-}
-
-function handleSelectionChange(selection: Task[]) {
-  selectedTasks.value = selection
-}
-
-async function handleBulkStart() {
-  try {
-    const results = await Promise.allSettled(selectedTasks.value.map(task => taskApi.start(task.id)))
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
-    if (failed > 0) {
-      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
-    } else {
-      ElMessage.success(t('task.bulkStarted', { count: succeeded }))
+    if (error !== 'cancel') {
+      console.error('Failed to delete task:', error)
     }
-    selectedTasks.value = []
-    loadTasks()
-  } catch (error) {
-    console.error('Failed to bulk start tasks:', error)
   }
 }
 
-async function handleBulkStop() {
-  try {
-    const results = await Promise.allSettled(selectedTasks.value.map(task => taskApi.stop(task.id)))
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
-    if (failed > 0) {
-      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
-    } else {
-      ElMessage.success(t('task.bulkStopped', { count: succeeded }))
-    }
-    selectedTasks.value = []
-    loadTasks()
-  } catch (error) {
-    console.error('Failed to bulk stop tasks:', error)
+function handleAction(command: string, task: Task) {
+  switch (command) {
+    case 'detail':
+      router.push(`/tasks/${task.id}`)
+      break
+    case 'delete':
+      handleDelete(task)
+      break
   }
 }
 
-async function handleBulkDelete() {
+async function handleBatchDelete() {
+  if (selectedTasks.value.length === 0) return
   try {
     await ElMessageBox.confirm(
-      t('task.confirmBulkDelete', { count: selectedTasks.value.length }),
-      t('common.confirm'),
+      t('task.batchDeleteConfirm', { count: selectedTasks.value.length }),
+      t('task.batchDelete'),
       { type: 'warning' }
     )
-    const results = await Promise.allSettled(selectedTasks.value.map(task => taskApi.delete(task.id)))
+    const results = await Promise.allSettled(
+      selectedTasks.value.map(task => taskApi.delete(task.id))
+    )
     const succeeded = results.filter(r => r.status === 'fulfilled').length
     const failed = results.filter(r => r.status === 'rejected').length
     if (failed > 0) {
@@ -490,99 +371,53 @@ async function handleBulkDelete() {
     } else {
       ElMessage.success(t('task.bulkDeleted', { count: succeeded }))
     }
-    selectedTasks.value = []
     loadTasks()
   } catch (error) {
-    // Cancelled or error
-  }
-}
-
-async function openDrawer(task: Task) {
-  selectedTask.value = task
-  drawerVisible.value = true
-  await loadDrawerTask()
-
-  // Connect WebSocket and subscribe to task updates
-  await connectWs()
-  subscribeTask(task.id)
-}
-
-async function loadDrawerTask() {
-  if (!selectedTask.value) return
-  drawerLoading.value = true
-  try {
-    const res = await taskApi.get(selectedTask.value.id)
-    if (res.data) {
-      selectedTask.value = res.data
+    if (error !== 'cancel') {
+      console.error('Failed to delete tasks:', error)
     }
-  } catch (error) {
-    console.error('Failed to load task detail:', error)
-  } finally {
-    drawerLoading.value = false
   }
 }
 
-async function handleDrawerStart() {
-  if (!selectedTask.value) return
+async function handleBatchStop() {
+  if (selectedTasks.value.length === 0) return
   try {
-    await taskApi.start(selectedTask.value.id)
-    ElMessage.success(t('task.startSuccess'))
-    await loadDrawerTask()
+    await ElMessageBox.confirm(
+      t('task.batchStopConfirm', { count: selectedTasks.value.length }),
+      t('task.batchStop'),
+      { type: 'warning' }
+    )
+    const runningTasks = selectedTasks.value.filter(t => t.status === 'running')
+    const results = await Promise.allSettled(
+      runningTasks.map(task => taskApi.stop(task.id))
+    )
+    const succeeded = results.filter(r => r.status === 'fulfilled').length
+    const failed = results.filter(r => r.status === 'rejected').length
+    if (failed > 0) {
+      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
+    } else {
+      ElMessage.success(t('task.bulkStopped', { count: succeeded }))
+    }
     loadTasks()
   } catch (error) {
-    console.error('Failed to start task:', error)
-    ElMessage.error(t('task.startFailed'))
-  }
-}
-
-async function handleDrawerStop() {
-  if (!selectedTask.value) return
-  try {
-    await taskApi.stop(selectedTask.value.id)
-    ElMessage.success(t('task.stopSuccess'))
-    await loadDrawerTask()
-    loadTasks()
-  } catch (error) {
-    console.error('Failed to stop task:', error)
-    ElMessage.error(t('task.stopFailed'))
-  }
-}
-
-async function handleDrawerDelete() {
-  if (!selectedTask.value) return
-  try {
-    await ElMessageBox.confirm(t('task.confirmDelete'), t('common.confirm'), {
-      type: 'warning'
-    })
-    await taskApi.delete(selectedTask.value.id)
-    ElMessage.success(t('task.deleteSuccess'))
-    drawerVisible.value = false
-    loadTasks()
-  } catch (error) {
-    // Cancelled or error
+    if (error !== 'cancel') {
+      console.error('Failed to stop tasks:', error)
+    }
   }
 }
 
 onMounted(() => {
   loadTasks()
+  refreshTimer = window.setInterval(() => {
+    if (tasks.value.some(t => t.status === 'running')) {
+      loadTasks()
+    }
+  }, 10000)
 })
 
 onUnmounted(() => {
-  disconnectWs()
-})
-
-// Watch drawer close to unsubscribe and disconnect
-watch(drawerVisible, (newVal) => {
-  if (!newVal && selectedTask.value) {
-    unsubscribeTask(selectedTask.value.id)
-    disconnectWs()
-  }
-})
-
-// Watch WebSocket task status updates
-watch(taskStatus, (newStatus) => {
-  if (newStatus && selectedTask.value && newStatus.id === selectedTask.value.id) {
-    selectedTask.value = newStatus
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
   }
 })
 </script>
@@ -594,28 +429,53 @@ watch(taskStatus, (newStatus) => {
   align-items: center;
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 32px;
+}
+
 .filter-bar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.bulk-toolbar {
   margin-bottom: 16px;
-  padding: 12px 16px;
-  background: #f4f4f5;
-  border-radius: 4px;
-}
-
-.bulk-text {
-  color: #606266;
-  font-size: 14px;
-}
-
-.strategy-tags {
-  display: flex;
+  gap: 8px;
   flex-wrap: wrap;
+}
+
+.active-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.batch-info {
+  font-size: 13px;
+  color: var(--tg-text-secondary, #606266);
+}
+
+.task-name-link {
+  color: var(--tg-primary, #409eff);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.task-name-link:hover {
+  text-decoration: underline;
+}
+
+.action-buttons {
+  display: flex;
   gap: 4px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>

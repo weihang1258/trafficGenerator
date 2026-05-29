@@ -4,71 +4,118 @@
       <template #header>
         <div class="card-header">
           <span>{{ t('user.title') }}</span>
-          <el-button type="primary" @click="handleCreate">
-            <el-icon><Plus /></el-icon>
-            {{ t('user.createUser') }}
-          </el-button>
+          <div class="header-actions">
+            <template v-if="selectedUsers.length === 0">
+              <el-button @click="proTableRef?.openColumnSettings()" circle size="small">
+                <el-icon><Setting /></el-icon>
+              </el-button>
+              <el-button @click="fetchUsers" circle size="small">
+                <el-icon><Refresh /></el-icon>
+              </el-button>
+              <el-button type="primary" @click="handleCreate">
+                <el-icon><Plus /></el-icon>
+                {{ t('user.createUser') }}
+              </el-button>
+            </template>
+            <template v-else>
+              <span class="batch-info">{{ t('common.selected') }} {{ selectedUsers.length }} {{ t('user.title') }}</span>
+              <el-button type="danger" size="small" @click="handleBatchDelete">{{ t('common.delete') }}</el-button>
+              <el-button size="small" link type="primary" @click="clearSelection">{{ t('common.reset') }}</el-button>
+            </template>
+          </div>
         </div>
       </template>
 
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item :label="t('user.username')">
-          <el-input v-model="searchForm.username" :placeholder="t('user.usernamePlaceholder')" clearable />
-        </el-form-item>
-        <el-form-item :label="t('user.role')">
-          <el-select v-model="searchForm.role" :placeholder="t('user.selectRole')" clearable>
-            <el-option :label="t('user.admin')" value="admin" />
-            <el-option :label="t('user.user')" value="user" />
-            <el-option :label="t('user.guest')" value="guest" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <el-input
+          v-model="searchForm.username"
+          :placeholder="t('user.usernamePlaceholder')"
+          clearable
+          style="width: 240px"
+          @keyup.enter="handleSearch"
+          @clear="handleSearch"
+        >
+          <template #prefix>
             <el-icon><Search /></el-icon>
-            {{ t('common.search') }}
-          </el-button>
-          <el-button @click="handleReset">
-            <el-icon><Refresh /></el-icon>
-            {{ t('common.reset') }}
-          </el-button>
-        </el-form-item>
-      </el-form>
+          </template>
+        </el-input>
+        <el-select v-model="searchForm.role" :placeholder="t('user.selectRole')" clearable style="width: 140px" @change="handleSearch">
+          <el-option :label="t('user.admin')" value="admin" />
+          <el-option :label="t('user.user')" value="user" />
+          <el-option :label="t('user.guest')" value="guest" />
+        </el-select>
+        <el-button link type="primary" @click="handleReset">{{ t('common.reset') }}</el-button>
+      </div>
 
-      <el-table :data="users" v-loading="loading" stripe>
-        <el-table-column prop="username" :label="t('user.username')" width="150" />
-        <el-table-column prop="email" :label="t('user.email')" width="200" />
-        <el-table-column prop="role" :label="t('user.role')" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getRoleType(row.role)">{{ getRoleText(row.role) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('user.status')" width="100">
-          <template #default="{ row }">
-            <el-switch
-              v-model="row.enabled"
-              :disabled="row.username === 'admin'"
-              @change="(val) => handleStatusChange(row, val)"
-            />
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('user.createdAt')" width="180">
-          <template #default="{ row }">
-            {{ row.created_at ? formatDate(row.created_at) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('user.lastLogin')" width="180">
-          <template #default="{ row }">
-            {{ row.last_login ? formatDate(row.last_login) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('common.action')" width="220" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" @click="handleEdit(row)">{{ t('common.edit') }}</el-button>
-            <el-button size="small" type="warning" @click="handleResetPassword(row)">{{ t('user.resetPassword') }}</el-button>
-            <el-button size="small" type="danger" :disabled="row.role === 'admin'" @click="handleDelete(row)">{{ t('common.delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <!-- Active filter tags -->
+      <div v-if="hasActiveFilters" class="active-filters">
+        <el-tag v-if="searchForm.username" closable @close="searchForm.username = ''; handleSearch()">
+          {{ searchForm.username }}
+        </el-tag>
+        <el-tag v-if="searchForm.role" closable @close="searchForm.role = ''; handleSearch()">
+          {{ getRoleText(searchForm.role) }}
+        </el-tag>
+        <el-button link type="primary" size="small" @click="handleReset">{{ t('common.reset') }}</el-button>
+      </div>
+
+      <ProTable
+        ref="proTableRef"
+        table-id="user-list"
+        :columns="columns"
+        :data="users"
+        :loading="loading"
+        :pagination="{ total: pagination.total }"
+        :empty-text="t('user.noUsers')"
+        @selection-change="handleSelectionChange"
+        @sort-change="handleSortChange"
+        @page-change="handlePageChange"
+      >
+        <template #username="{ row }">
+          <span class="user-name">{{ row.username }}</span>
+        </template>
+        <template #role="{ row }">
+          <el-tag :type="getRoleType(row.role)" size="small">{{ getRoleText(row.role) }}</el-tag>
+        </template>
+        <template #enabled="{ row }">
+          <el-switch
+            v-model="row.enabled"
+            :disabled="row.username === 'admin'"
+            @change="(val: boolean) => handleStatusChange(row, val)"
+          />
+        </template>
+        <template #created_at="{ row }">
+          {{ row.created_at ? formatDate(row.created_at) : '-' }}
+        </template>
+        <template #last_login="{ row }">
+          {{ row.last_login ? formatDate(row.last_login) : '-' }}
+        </template>
+        <template #actions="{ row }">
+          <div class="action-buttons">
+            <el-button size="small" link type="primary" @click="handleEdit(row)">
+              {{ t('common.edit') }}
+            </el-button>
+            <el-dropdown trigger="hover" @command="(cmd: string) => handleAction(cmd, row)">
+              <el-button size="small" link>
+                <el-icon><More /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="resetPassword">{{ t('user.resetPassword') }}</el-dropdown-item>
+                  <el-dropdown-item command="delete" :disabled="row.role === 'admin'" style="color: var(--el-color-danger)">{{ t('common.delete') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+        </template>
+        <template #empty>
+          <el-empty :description="t('user.noUsers')">
+            <el-button type="primary" @click="handleCreate">
+              {{ t('user.createUser') }}
+            </el-button>
+          </el-empty>
+        </template>
+      </ProTable>
     </el-card>
 
     <el-dialog
@@ -118,12 +165,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Plus, Search, Refresh } from '@element-plus/icons-vue'
+import { Plus, Search, Refresh, Setting, More } from '@element-plus/icons-vue'
 import { userApi, authApi, type User } from '@/api'
+import ProTable from '@/components/ProTable/index.vue'
 import dayjs from 'dayjs'
 
 const { t } = useI18n()
@@ -131,11 +179,39 @@ const { t } = useI18n()
 const loading = ref(false)
 const submitLoading = ref(false)
 const users = ref<User[]>([])
+const proTableRef = ref()
+const selectedUsers = ref<User[]>([])
 
 const searchForm = reactive({
   username: '',
   role: ''
 })
+
+const pagination = reactive({
+  page: 1,
+  size: 20,
+  total: 0
+})
+
+const sortState = reactive({
+  prop: '',
+  order: ''
+})
+
+const hasActiveFilters = computed(() =>
+  searchForm.username || searchForm.role
+)
+
+const columns = computed(() => [
+  { type: 'selection' as const, width: 45 },
+  { prop: 'username', label: t('user.username'), width: 150, required: true },
+  { prop: 'email', label: t('user.email'), width: 200 },
+  { prop: 'role', label: t('user.role'), width: 120 },
+  { prop: 'enabled', label: t('user.status'), width: 100 },
+  { prop: 'created_at', label: t('user.createdAt'), width: 180, sortable: 'custom' },
+  { prop: 'last_login', label: t('user.lastLogin'), width: 180 },
+  { prop: 'actions', label: t('common.action'), width: 140, fixed: 'right', required: true }
+])
 
 const dialogVisible = ref(false)
 const dialogTitle = ref(t('user.createUser'))
@@ -194,12 +270,21 @@ function formatDate(timestamp: number): string {
 async function fetchUsers() {
   loading.value = true
   try {
-    const res = await userApi.list({
-      username: searchForm.username || undefined,
-      role: searchForm.role || undefined
-    })
+    const params: any = {
+      page: pagination.page,
+      size: pagination.size
+    }
+    if (searchForm.username) params.username = searchForm.username
+    if (searchForm.role) params.role = searchForm.role
+    if (sortState.prop) {
+      params.sort_by = sortState.prop
+      params.sort_order = sortState.order === 'ascending' ? 'asc' : 'desc'
+    }
+    const res = await userApi.list(params)
     if (res.data) {
-      users.value = res.data as User[]
+      const data = res.data as any
+      users.value = data.items || data
+      pagination.total = data.total || users.value.length
     }
   } catch (error) {
     console.error('Failed to load users:', error)
@@ -209,12 +294,26 @@ async function fetchUsers() {
 }
 
 function handleSearch() {
+  pagination.page = 1
   fetchUsers()
 }
 
 function handleReset() {
   searchForm.username = ''
   searchForm.role = ''
+  pagination.page = 1
+  fetchUsers()
+}
+
+function handleSortChange({ prop, order }: { prop: string; order: string }) {
+  sortState.prop = prop
+  sortState.order = order
+  fetchUsers()
+}
+
+function handlePageChange(page: number, pageSize: number) {
+  pagination.page = page
+  pagination.size = pageSize
   fetchUsers()
 }
 
@@ -239,6 +338,34 @@ function handleEdit(row: User) {
   dialogVisible.value = true
 }
 
+function handleSelectionChange(selection: User[]) {
+  selectedUsers.value = selection
+}
+
+function clearSelection() {
+  selectedUsers.value = []
+  proTableRef.value?.tableRef?.clearSelection()
+}
+
+async function handleBatchDelete() {
+  if (selectedUsers.value.length === 0) return
+  try {
+    await ElMessageBox.confirm(
+      t('user.batchDeleteConfirm', { count: selectedUsers.value.length }),
+      t('common.confirm'),
+      { type: 'warning' }
+    )
+    for (const user of selectedUsers.value) {
+      await userApi.delete(user.id)
+    }
+    ElMessage.success(t('user.deleteSuccess'))
+    selectedUsers.value = []
+    fetchUsers()
+  } catch {
+    // cancelled
+  }
+}
+
 async function handleDelete(row: User) {
   try {
     await ElMessageBox.confirm(t('user.confirmDelete'), t('common.confirm'), { type: 'warning' })
@@ -254,6 +381,17 @@ async function handleResetPassword(row: User) {
     await userApi.resetPassword(row.id)
     ElMessage.success(t('user.resetPasswordSuccess'))
   } catch { /* cancelled */ }
+}
+
+function handleAction(command: string, user: User) {
+  switch (command) {
+    case 'resetPassword':
+      handleResetPassword(user)
+      break
+    case 'delete':
+      handleDelete(user)
+      break
+  }
 }
 
 async function handleStatusChange(row: User, enabled: boolean) {
@@ -284,7 +422,6 @@ async function handleSubmit() {
         password: userForm.password,
         email: userForm.email
       })
-      // Set role and enabled status after registration
       const userId = (res.data as any)?.user_id || (res as any)?.data?.user_id
       if (userId && (userForm.role !== 'user' || !userForm.enabled)) {
         await userApi.update(userId, {
@@ -319,7 +456,47 @@ onMounted(() => {
   align-items: center;
 }
 
-.search-form {
-  margin-bottom: 20px;
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 32px;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.active-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.batch-info {
+  font-size: 13px;
+  color: var(--tg-text-secondary, #64748B);
+}
+
+.user-name {
+  font-weight: 500;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>

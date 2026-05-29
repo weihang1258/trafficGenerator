@@ -5,9 +5,11 @@
         <div class="card-header">
           <span>{{ t('history.title') }}</span>
           <div class="header-actions">
-            <el-button @click="loadHistory">
+            <el-button @click="proTableRef?.openColumnSettings()" circle size="small">
+              <el-icon><Setting /></el-icon>
+            </el-button>
+            <el-button @click="loadHistory" circle size="small">
               <el-icon><Refresh /></el-icon>
-              {{ t('common.refresh') }}
             </el-button>
             <el-button @click="exportHistoryCSV" :disabled="records.length === 0">
               <el-icon><Download /></el-icon>
@@ -51,68 +53,97 @@
         </el-button>
       </div>
 
-      <el-table :data="records" v-loading="loading" stripe>
-        <el-table-column prop="name" :label="t('task.taskName')" min-width="150" />
-        <el-table-column prop="protocol" :label="t('task.protocol')" width="100">
-          <template #default="{ row }">
-            <el-tag>{{ row.protocol?.toUpperCase() }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" :label="t('task.status')" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="progress" :label="t('task.progress')" width="120">
-          <template #default="{ row }">
-            <el-progress :percentage="row.progress" :status="getProgressStatus(row.status)" />
-          </template>
-        </el-table-column>
-        <el-table-column prop="duration" :label="t('task.duration')" width="120">
-          <template #default="{ row }">
-            {{ formatDuration(row.started_at, row.completed_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="stats.packets_sent" :label="t('task.packets')" width="120">
-          <template #default="{ row }">
-            {{ formatNumber(row.stats?.packets_sent || 0) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="stats.bytes_sent" :label="t('task.bytes')" width="120">
-          <template #default="{ row }">
-            {{ formatBytes(row.stats?.bytes_sent || 0) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" :label="t('task.createdAt')" width="180">
-          <template #default="{ row }">
-            {{ formatDate(row.created_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="completed_at" :label="t('task.completedAt')" width="180">
-          <template #default="{ row }">
-            {{ formatDate(row.completed_at) }}
-          </template>
-        </el-table-column>
-      </el-table>
+      <!-- Active filter tags -->
+      <div v-if="quickRange" class="active-filters">
+        <el-tag closable @close="quickRange = ''; dateRange = null; loadHistory()">
+          {{ getRangeLabel(quickRange) }}
+        </el-tag>
+        <el-button link type="primary" size="small" @click="quickRange = ''; dateRange = null; loadHistory()">
+          {{ t('common.reset') }}
+        </el-button>
+      </div>
 
-      <el-empty v-if="records.length === 0 && !loading" :description="t('history.noRecords')" />
+      <ProTable
+        ref="proTableRef"
+        table-id="history-list"
+        :columns="columns"
+        :data="records"
+        :loading="loading"
+        :pagination="{ total: pagination.total }"
+        :empty-text="t('history.noRecords')"
+        @sort-change="handleSortChange"
+        @page-change="handlePageChange"
+      >
+        <template #protocol="{ row }">
+          <el-tag size="small">{{ (row.protocol || 'N/A').toUpperCase() }}</el-tag>
+        </template>
+        <template #status="{ row }">
+          <el-tag :type="getStatusType(row.status)" size="small">{{ getStatusText(row.status) }}</el-tag>
+        </template>
+        <template #progress="{ row }">
+          <el-progress :percentage="row.progress" :status="getProgressStatus(row.status)" :stroke-width="6" />
+        </template>
+        <template #duration="{ row }">
+          {{ formatDuration(row.started_at, row.completed_at) }}
+        </template>
+        <template #stats.packets_sent="{ row }">
+          {{ formatNumber(row.stats?.packets_sent || 0) }}
+        </template>
+        <template #stats.bytes_sent="{ row }">
+          {{ formatBytes(row.stats?.bytes_sent || 0) }}
+        </template>
+        <template #created_at="{ row }">
+          {{ formatDate(row.created_at) }}
+        </template>
+        <template #completed_at="{ row }">
+          {{ formatDate(row.completed_at) }}
+        </template>
+        <template #empty>
+          <el-empty :description="t('history.noRecords')" />
+        </template>
+      </ProTable>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Refresh, Download } from '@element-plus/icons-vue'
+import { Refresh, Download, Setting } from '@element-plus/icons-vue'
 import { historyApi } from '@/api'
+import ProTable from '@/components/ProTable/index.vue'
 import dayjs from 'dayjs'
 
 const { t } = useI18n()
 
 const loading = ref(false)
 const records = ref<any[]>([])
+const proTableRef = ref()
 const dateRange = ref<[string, string] | null>(null)
 const quickRange = ref<'today' | 'yesterday' | '7d' | '30d' | 'custom' | ''>('7d')
+
+const pagination = reactive({
+  page: 1,
+  size: 20,
+  total: 0
+})
+
+const sortState = reactive({
+  prop: '',
+  order: ''
+})
+
+const columns = computed(() => [
+  { prop: 'name', label: t('task.taskName'), minWidth: 150, required: true },
+  { prop: 'protocol', label: t('task.protocol'), width: 100 },
+  { prop: 'status', label: t('task.status'), width: 120 },
+  { prop: 'progress', label: t('task.progress'), width: 120 },
+  { prop: 'duration', label: t('task.duration'), width: 120 },
+  { prop: 'stats.packets_sent', label: t('task.packets'), width: 120 },
+  { prop: 'stats.bytes_sent', label: t('task.bytes'), width: 120 },
+  { prop: 'created_at', label: t('task.createdAt'), width: 180, sortable: 'custom' },
+  { prop: 'completed_at', label: t('task.completedAt'), width: 180 }
+])
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024 * 1024) {
@@ -154,7 +185,7 @@ function formatDate(timestamp?: number): string {
 
 function getStatusType(status: string): string {
   const map: Record<string, string> = {
-    completed: '',
+    completed: 'success',
     failed: 'danger',
     error: 'danger',
     stopped: 'warning'
@@ -193,6 +224,17 @@ function getQuickRangeTimestamps(range: string): { start: number; end: number } 
     default:
       return { start: 0, end: 0 }
   }
+}
+
+function getRangeLabel(range: string): string {
+  const labels: Record<string, string> = {
+    today: t('history.today'),
+    yesterday: t('history.yesterday'),
+    '7d': t('history.last7Days'),
+    '30d': t('history.last30Days'),
+    custom: t('history.custom')
+  }
+  return labels[range] || range
 }
 
 function setQuickRange(range: 'today' | 'yesterday' | '7d' | '30d' | 'custom') {
@@ -235,10 +277,25 @@ function exportHistoryCSV() {
   URL.revokeObjectURL(url)
 }
 
+function handleSortChange({ prop, order }: { prop: string; order: string }) {
+  sortState.prop = prop
+  sortState.order = order
+  loadHistory()
+}
+
+function handlePageChange(page: number, pageSize: number) {
+  pagination.page = page
+  pagination.size = pageSize
+  loadHistory()
+}
+
 async function loadHistory() {
   loading.value = true
   try {
-    const params: any = {}
+    const params: any = {
+      page: pagination.page,
+      size: pagination.size
+    }
     if (quickRange.value && quickRange.value !== 'custom') {
       const { start, end } = getQuickRangeTimestamps(quickRange.value)
       params.start_time = start
@@ -247,9 +304,15 @@ async function loadHistory() {
       params.start_time = Number(dateRange.value[0])
       params.end_time = Number(dateRange.value[1])
     }
+    if (sortState.prop) {
+      params.sort_by = sortState.prop
+      params.sort_order = sortState.order === 'ascending' ? 'asc' : 'desc'
+    }
     const res = await historyApi.list(params)
     if (res.data) {
-      records.value = res.data as any[]
+      const data = res.data as any
+      records.value = data.items || data
+      pagination.total = data.total || records.value.length
     }
   } catch (error) {
     console.error('Failed to load history:', error)
@@ -279,5 +342,14 @@ onMounted(() => {
   display: flex;
   align-items: center;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>

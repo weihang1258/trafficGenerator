@@ -52,6 +52,7 @@
         </el-form-item>
       </el-form>
     </el-card>
+    <p class="version-text">v1.0.0</p>
   </div>
 </template>
 
@@ -61,6 +62,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import { Connection } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
 const { t } = useI18n()
@@ -107,8 +109,12 @@ async function handleLogin() {
     }
     ElMessage.success(t('login.loginSuccess'))
     router.push('/')
-  } catch (error) {
-    // Error handled in API interceptor
+  } catch (error: any) {
+    if (error?.response?.data?.message) {
+      ElMessage.error(error.response.data.message)
+    } else {
+      ElMessage.error(t('login.loginFailed'))
+    }
   } finally {
     loading.value = false
   }
@@ -119,42 +125,71 @@ async function handleLogin() {
 .login-container {
   height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--tg-primary, #2563EB) 0%, var(--tg-primary-dark, #1D4ED8) 100%);
+}
+
+html.dark .login-container {
+  background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
 }
 
 .login-card {
   max-width: 400px;
   width: 90%;
+  border-radius: var(--tg-radius-card, 12px);
+  box-shadow: var(--tg-shadow-lg);
+  background: var(--tg-bg-card);
 }
 
-@media (max-width: 480px) {
-  .login-card {
-    width: 95%;
-  }
+.login-card :deep(.el-card__header) {
+  padding: var(--tg-spacing-lg) var(--tg-spacing-md) var(--tg-spacing-md);
+  border-bottom: none;
+}
+
+.login-card :deep(.el-card__body) {
+  padding: 0 var(--tg-spacing-lg) var(--tg-spacing-lg);
 }
 
 .card-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: var(--tg-spacing-sm);
 }
 
 .card-header h2 {
   margin: 0;
-  color: #303133;
+  color: var(--tg-text-primary);
+  font-size: var(--tg-font-title);
+  font-weight: 600;
 }
 
 .subtitle {
   margin: 0;
-  font-size: 14px;
-  color: #909399;
+  font-size: var(--tg-font-body);
+  color: var(--tg-text-secondary);
 }
 
 .login-options {
   display: flex;
   align-items: center;
+}
+
+.version-text {
+  margin-top: var(--tg-spacing-lg);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: var(--tg-font-small);
+}
+
+html.dark .version-text {
+  color: rgba(148, 163, 184, 0.6);
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    width: 95%;
+  }
 }
 </style>

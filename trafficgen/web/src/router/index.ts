@@ -21,6 +21,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'menu.dashboard', icon: 'Odometer' }
       },
       {
+        path: 'strategies',
+        name: 'Strategies',
+        component: () => import('@/views/StrategyList.vue'),
+        meta: { title: 'menu.strategyManagement', icon: 'Setting' }
+      },
+      {
         path: 'tasks',
         name: 'Tasks',
         component: () => import('@/views/TaskList.vue'),
@@ -37,12 +43,6 @@ const routes: RouteRecordRaw[] = [
         name: 'TaskDetail',
         component: () => import('@/views/TaskDetail.vue'),
         meta: { title: 'task.taskDetail', icon: 'Document', hidden: true }
-      },
-      {
-        path: 'strategies',
-        name: 'Strategies',
-        component: () => import('@/views/StrategyList.vue'),
-        meta: { title: 'menu.strategyManagement', icon: 'Setting' }
       },
       {
         path: 'interfaces',

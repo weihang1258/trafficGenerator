@@ -31,6 +31,9 @@ request.interceptors.request.use(
 request.interceptors.response.use(
   (response: AxiosResponse) => {
     const { data } = response
+    if (typeof data !== 'object' || data === null || data.code === undefined) {
+      return data
+    }
     if (data.code !== 0) {
       ElMessage.error(data.message || t('error.serverError'))
       return Promise.reject(new Error(data.message || t('error.serverError')))

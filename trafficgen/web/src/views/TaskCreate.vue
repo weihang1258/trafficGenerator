@@ -186,15 +186,32 @@ const { allTemplates, customTemplates, getTemplate } = useStrategyTemplates()
 const builtinTemplates = computed(() => allTemplates.value.filter(t => t.isBuiltin))
 const selectedTemplateId = ref<string>('')
 
+// Generate default task name with timestamp
+function generateTaskName(): string {
+  const now = new Date()
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '')
+  const timeStr = now.toTimeString().slice(0, 5).replace(':', '')
+  return `Task_${dateStr}_${timeStr}`
+}
+
+// Get cross-platform default output path
+function getDefaultOutputPath(): string {
+  const isWindows = navigator.platform.includes('Win')
+  if (isWindows) {
+    return 'C:\\temp\\output.pcap'
+  }
+  return '/tmp/output.pcap'
+}
+
 const form = reactive<CreateTaskRequest>({
-  name: '',
+  name: generateTaskName(),
   strategy_ids: [],
   output_type: 'pcap',
   output_config: {
-    pcap_path: '/tmp/output.pcap'
+    pcap_path: getDefaultOutputPath()
   },
   flow_control: {
-    type: '',
+    type: 'flows',
     value: 1
   }
 })
@@ -301,6 +318,12 @@ async function handleSubmit() {
       submitData.flow_control = {
         type: form.flow_control.type,
         value: form.flow_control.value
+      } as FlowControlRequest
+    } else {
+      // Default flow control when none selected
+      submitData.flow_control = {
+        type: 'flows',
+        value: 1
       } as FlowControlRequest
     }
 
