@@ -1,5 +1,22 @@
 <template>
-  <div class="task-detail">
+  <div class="task-detail" v-loading="loading && !task.id">
+    <!-- Loading state -->
+    <div v-if="loading && !task.id" class="loading-state" v-loading="true"></div>
+
+    <!-- Error state -->
+    <el-result
+      v-else-if="errorState"
+      icon="error"
+      :title="errorState"
+    >
+      <template #extra>
+        <el-button type="primary" @click="loadTask">{{ t('common.retry') }}</el-button>
+        <el-button @click="$router.back()">{{ t('common.back') }}</el-button>
+      </template>
+    </el-result>
+
+    <!-- Content -->
+    <template v-else>
     <!-- Back button + title -->
     <div class="page-header">
       <el-button link @click="$router.back()">
@@ -77,7 +94,11 @@
           <template #header>
             <span>{{ t('task.throughputTrend') }}</span>
           </template>
-          <div ref="chartRef" class="chart-container" />
+          <div ref="chartRef" class="chart-container" style="position: relative;">
+            <div v-if="throughputHistory.length === 0 && !loading" class="chart-empty-overlay">
+              <el-empty :description="t('common.noData')" :image-size="60" />
+            </div>
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -160,6 +181,7 @@
         {{ t('task.delete') }}
       </el-button>
     </div>
+    </template>
   </div>
 </template>
 
@@ -179,10 +201,13 @@ const router = useRouter()
 const { t } = useI18n()
 
 const chartRef = ref<HTMLElement>()
-let chart: echarts.ECharts | null = null
 let refreshTimer: number | null = null
 
 const task = ref<Task>({} as Task)
+const throughputHistory = ref<Array<{ time: string; pps: number; bps: number }>>([])
+const loading = ref(true)
+const errorState = ref<string | null>(null)
+const chartInstance = ref<echarts.ECharts | null>(null)
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
@@ -236,32 +261,74 @@ function getProgressStatus(status: string): '' | 'success' | 'warning' | 'except
 
 function initChart() {
   if (!chartRef.value) return
-  chart = echarts.init(chartRef.value)
-  chart.setOption({
+  chartInstance.value = echarts.init(chartRef.value)
+  chartInstance.value.setOption({
     tooltip: { trigger: 'axis' },
-    grid: { left: 60, right: 20, top: 20, bottom: 30 },
+    legend: { data: ['PPS', 'Mbps'] },
+    grid: { left: 60, right: 20, top: 40, bottom: 30 },
     xAxis: { type: 'category', data: [], boundaryGap: false },
     yAxis: { type: 'value' },
     series: [{
+      name: 'PPS',
       type: 'line',
       smooth: true,
       areaStyle: { opacity: 0.15 },
       lineStyle: { width: 2 },
       itemStyle: { color: getComputedStyle(document.documentElement).getPropertyValue('--tg-primary').trim() || '#2563EB' },
       data: []
+    }, {
+      name: 'Mbps',
+      type: 'line',
+      smooth: true,
+      areaStyle: { opacity: 0.15 },
+      lineStyle: { width: 2 },
+      itemStyle: { color: getComputedStyle(document.documentElement).getPropertyValue('--tg-success', '#10B981').trim() || '#10B981' },
+      data: []
     }]
   })
 }
 
+function updateChart() {
+  if (!chartInstance.value) return
+  const history = throughputHistory.value
+  chartInstance.value.setOption({
+    xAxis: { data: history.map(h => h.time) },
+    series: [
+      { data: history.map(h => h.pps) },
+      { data: history.map(h => (h.bps / 1024 / 1024).toFixed(2)) }
+    ]
+  })
+}
+
 async function loadTask() {
+  loading.value = true
+  errorState.value = null
   try {
     const id = route.params.id as string
     const res = await taskApi.get(id)
     if (res.data) {
       task.value = res.data as Task
+      if (task.value.stats?.current_pps || task.value.stats?.current_bps) {
+        throughputHistory.value.push({
+          time: new Date().toLocaleTimeString(),
+          pps: task.value.stats.current_pps || 0,
+          bps: task.value.stats.current_bps || 0
+        })
+        if (throughputHistory.value.length > 30) {
+          throughputHistory.value = throughputHistory.value.slice(-30)
+        }
+        updateChart()
+      }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to load task:', error)
+    if (error?.response?.status === 404) {
+      errorState.value = t('error.notFound')
+    } else {
+      errorState.value = t('error.networkError')
+    }
+  } finally {
+    loading.value = false
   }
 }
 
@@ -272,6 +339,7 @@ async function handleStart() {
     loadTask()
   } catch (error) {
     console.error('Failed to start task:', error)
+    ElMessage.error(t('task.startFailed'))
   }
 }
 
@@ -294,6 +362,7 @@ async function handleStop() {
   } catch (error) {
     if (error !== 'cancel') {
       console.error('Failed to stop task:', error)
+      ElMessage.error(t('task.stopFailed'))
     }
   }
 }
@@ -316,7 +385,7 @@ async function handleDelete() {
 }
 
 function handleResize() {
-  chart?.resize()
+  chartInstance.value?.resize()
 }
 
 onMounted(async () => {
@@ -333,7 +402,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer)
-  chart?.dispose()
+  chartInstance.value?.dispose()
   window.removeEventListener('resize', handleResize)
 })
 </script>
@@ -422,6 +491,18 @@ onUnmounted(() => {
 
 .chart-container {
   height: 250px;
+}
+
+.loading-state {
+  min-height: 400px;
+}
+
+.chart-empty-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--tg-bg-card, #fff);
+  z-index: 1;
 }
 
 .error-card {

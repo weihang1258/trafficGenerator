@@ -1245,12 +1245,15 @@ async function handleSubmit() {
 
 async function handleDelete(id: string) {
   try {
+    await ElMessageBox.confirm(t('strategy.confirmDelete'), t('common.confirm'), { type: 'warning' })
     await strategyApi.delete(id)
     ElMessage.success(t('strategy.deleteSuccess'))
     loadStrategies()
   } catch (error) {
-    console.error('Failed to delete strategy:', error)
-    ElMessage.error(t('strategy.deleteFailed'))
+    if (error !== 'cancel') {
+      console.error('Failed to delete strategy:', error)
+      ElMessage.error(t('strategy.deleteFailed'))
+    }
   }
 }
 

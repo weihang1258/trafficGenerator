@@ -132,7 +132,7 @@
           <el-divider content-position="left">{{ t('task.step.output') }}</el-divider>
           <el-descriptions :column="2" border>
             <el-descriptions-item v-if="form.output_type === 'port_group'" :label="t('taskCreate.portGroupID')">
-              {{ form.output_config.port_group_id || '-' }}
+              {{ selectedPortGroupName }}
             </el-descriptions-item>
             <el-descriptions-item v-if="form.output_type === 'pcap'" :label="t('taskCreate.pcapPath')">
               {{ form.output_config.pcap_path || '-' }}
@@ -220,6 +220,12 @@ const selectedStrategyDetails = computed(() => {
   return strategies.value.filter(s => form.strategy_ids.includes(s.id))
 })
 
+const selectedPortGroupName = computed(() => {
+  if (form.output_type !== 'port_group' || !form.output_config.port_group_id) return '-'
+  const pg = portGroups.value.find(p => p.id === form.output_config.port_group_id)
+  return pg ? `${pg.name} (${pg.ports_config.length} ports)` : form.output_config.port_group_id
+})
+
 const rules: FormRules = {
   name: [{ required: true, message: t('taskCreate.validation.taskNameRequired'), trigger: 'blur' }],
   strategy_ids: [{ required: true, type: 'array', min: 1, message: t('taskCreate.validation.strategyRequired'), trigger: 'change' }]
@@ -248,6 +254,7 @@ async function handleTemplateSelect(templateId: string) {
     }
   } catch (error) {
     console.error('Failed to create strategy from template:', error)
+    ElMessage.error(t('strategy.createFailed'))
   }
 }
 

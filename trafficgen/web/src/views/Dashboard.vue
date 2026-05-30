@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard">
+  <div class="dashboard" v-loading="initialLoading">
     <!-- Header -->
     <div class="dashboard-header">
       <h2 class="dashboard-title">{{ t('dashboard.title') }}</h2>
@@ -113,7 +113,12 @@
               <template #header>
                 <span class="chart-title">{{ t('dashboard.throughputTrend') }}</span>
               </template>
-              <div ref="throughputChartRef" class="chart-container-sm" />
+              <div class="chart-container-sm chart-with-overlay">
+                <div ref="throughputChartRef" class="chart-canvas" />
+                <div v-if="throughputHistory.length === 0" class="chart-empty-overlay">
+                  <el-empty :image-size="48" description="No data yet" />
+                </div>
+              </div>
             </el-card>
           </el-col>
           <el-col :xs="24" :sm="10">
@@ -121,7 +126,12 @@
               <template #header>
                 <span class="chart-title">{{ t('dashboard.protocolDistribution') }}</span>
               </template>
-              <div ref="protocolChartRef" class="chart-container-sm" />
+              <div class="chart-container-sm chart-with-overlay">
+                <div ref="protocolChartRef" class="chart-canvas" />
+                <div v-if="protocolDataEmpty" class="chart-empty-overlay">
+                  <el-empty :image-size="48" description="No data yet" />
+                </div>
+              </div>
             </el-card>
           </el-col>
         </el-row>
@@ -221,6 +231,7 @@ let protocolChart: echarts.ECharts | null = null
 let refreshTimer: number | null = null
 
 const refreshing = ref(false)
+const initialLoading = ref(true)
 const tasksLoading = ref(false)
 const allTasks = ref<Task[]>([])
 const strategyMap = ref<Map<string, string>>(new Map())
@@ -241,16 +252,18 @@ const resources = reactive({
 })
 
 const throughputHistory = ref<{ time: string; value: number }[]>([])
-
+const protocolDataEmpty = ref(true)
 const bufferPercent = computed(() => {
   if (!resources.bufferMaxBytes) return 0
   return (resources.bufferBytes / resources.bufferMaxBytes) * 100
 })
 
+// Use navigator.deviceMemory (in GB) or fallback to 8GB
+const memoryTotalMb = (navigator as any).deviceMemory ? (navigator as any).deviceMemory * 1024 : 8192
+
 const memoryPercent = computed(() => {
-  // memory_mb is absolute, show as progress assuming ~8GB total
-  const totalMb = 8192
-  return Math.min((resources.memoryMb / totalMb) * 100, 100)
+  if (!resources.memoryMb) return 0
+  return Math.min((resources.memoryMb / memoryTotalMb) * 100, 100)
 })
 
 const taskTableHeight = ref(400)
@@ -398,12 +411,14 @@ async function loadDashboardData() {
 
       if (protocolChart) {
         if (d.protocols && Object.keys(d.protocols).length > 0) {
+          protocolDataEmpty.value = false
           const pieData = Object.entries(d.protocols).map(([name, value]) => ({
             name: name.toUpperCase(),
             value
           }))
           protocolChart.setOption({ series: [{ data: pieData }] })
         } else {
+          protocolDataEmpty.value = true
           protocolChart.setOption({ series: [{ data: [] }] })
         }
       }
@@ -449,6 +464,7 @@ async function handleStartTask(task: Task) {
     loadTasks()
   } catch (error) {
     console.error('Failed to start task:', error)
+    ElMessage.error(t('task.startFailed'))
   }
 }
 
@@ -490,6 +506,7 @@ onMounted(async () => {
   await nextTick()
   initCharts()
   await Promise.all([loadStrategies(), loadDashboardData(), loadTasks()])
+  initialLoading.value = false
   scheduleRefresh()
   window.addEventListener('resize', handleResize)
 })
@@ -646,6 +663,27 @@ onUnmounted(() => {
 
 .chart-container-sm {
   height: 160px;
+}
+
+.chart-with-overlay {
+  position: relative;
+}
+
+.chart-canvas {
+  height: 100%;
+}
+
+.chart-empty-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tg-bg-card, #FFFFFF);
+  z-index: 1;
 }
 
 /* Section 3: Tasks */

@@ -7,7 +7,13 @@
         </div>
       </template>
 
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="auto" style="max-width: 600px;">
+      <div v-if="initialLoading" v-loading="true" style="min-height: 300px;" />
+      <el-result v-else-if="errorState" icon="error" :title="errorState">
+        <template #extra>
+          <el-button type="primary" @click="loadSettings">{{ t('common.refresh') }}</el-button>
+        </template>
+      </el-result>
+      <el-form v-else ref="formRef" :model="form" :rules="rules" label-width="auto" style="max-width: 600px;">
         <el-divider content-position="left">{{ t('settings.basicSettings') }}</el-divider>
 
         <el-form-item :label="t('settings.language')" prop="language">
@@ -73,6 +79,8 @@ const { t } = useI18n()
 const { isDark, toggleDark } = useDarkMode()
 
 const loading = ref(false)
+const initialLoading = ref(true)
+const errorState = ref<string | null>(null)
 const formRef = ref<FormInstance>()
 const currentLocale = ref(getLocale())
 
@@ -89,6 +97,8 @@ const rules: FormRules = {
 }
 
 async function loadSettings() {
+  initialLoading.value = true
+  errorState.value = null
   try {
     const res = await settingsApi.get()
     if (res.data) {
@@ -98,6 +108,9 @@ async function loadSettings() {
     }
   } catch (error) {
     console.error('Failed to load settings:', error)
+    errorState.value = t('error.networkError')
+  } finally {
+    initialLoading.value = false
   }
 }
 
@@ -116,6 +129,7 @@ async function handleSave() {
     ElMessage.success(t('settings.saveSuccess'))
   } catch (error) {
     console.error('Failed to save settings:', error)
+    ElMessage.error(t('settings.saveFailed'))
   } finally {
     loading.value = false
   }

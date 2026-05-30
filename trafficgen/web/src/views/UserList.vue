@@ -364,10 +364,16 @@ async function handleBatchDelete() {
       t('common.confirm'),
       { type: 'warning' }
     )
-    for (const user of selectedUsers.value) {
-      await userApi.delete(user.id)
+    const results = await Promise.allSettled(
+      selectedUsers.value.map(user => userApi.delete(user.id))
+    )
+    const succeeded = results.filter(r => r.status === 'fulfilled').length
+    const failed = results.filter(r => r.status === 'rejected').length
+    if (failed > 0) {
+      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
+    } else {
+      ElMessage.success(t('user.deleteSuccess'))
     }
-    ElMessage.success(t('user.deleteSuccess'))
     selectedUsers.value = []
     fetchUsers()
   } catch {

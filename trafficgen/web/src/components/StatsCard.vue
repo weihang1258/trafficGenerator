@@ -36,7 +36,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   icon: TrendCharts,
-  iconBgColor: '#409eff',
+  iconBgColor: '#2563EB',
   unit: '',
   format: 'number'
 })
@@ -120,13 +120,13 @@ function formatBps(bps: number): string {
 .stats-value {
   font-size: 28px;
   font-weight: bold;
-  color: #303133;
+  color: var(--tg-text-primary, #0F172A);
   line-height: 1.2;
 }
 
 .stats-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--tg-text-secondary, #64748B);
   margin-top: 5px;
 }
 
@@ -139,14 +139,14 @@ function formatBps(bps: number): string {
 }
 
 .trend-up {
-  color: #67c23a;
+  color: var(--tg-success, #10B981);
 }
 
 .trend-down {
-  color: #f56c6c;
+  color: var(--tg-danger, #EF4444);
 }
 
 .trend-neutral {
-  color: #909399;
+  color: var(--tg-text-secondary, #64748B);
 }
 </style>

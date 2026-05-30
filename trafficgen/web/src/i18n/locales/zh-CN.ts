@@ -481,7 +481,8 @@ export default {
     resetPasswordFailed: '密码重置失败',
     noUsers: '暂无用户',
     usernameLength: '用户名长度为3-20个字符',
-    passwordLength: '密码长度为6-20个字符'
+    passwordLength: '密码长度为6-20个字符',
+    batchDeleteConfirm: '确定要删除选中的 {count} 个用户吗？'
   },
 
   // 协议
