@@ -14,6 +14,7 @@
         :model="form"
         :rules="rules"
         label-position="top"
+        label-width="auto"
         @submit.prevent="handleLogin"
       >
         <el-form-item :label="t('login.username')" prop="username">

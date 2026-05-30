@@ -134,15 +134,15 @@ const sortState = reactive({
 })
 
 const columns = computed(() => [
-  { prop: 'name', label: t('task.taskName'), minWidth: 150, required: true },
-  { prop: 'protocol', label: t('task.protocol'), width: 100 },
-  { prop: 'status', label: t('task.status'), width: 120 },
-  { prop: 'progress', label: t('task.progress'), width: 120 },
-  { prop: 'duration', label: t('task.duration'), width: 120 },
-  { prop: 'stats.packets_sent', label: t('task.packets'), width: 120 },
-  { prop: 'stats.bytes_sent', label: t('task.bytes'), width: 120 },
+  { prop: 'name', label: t('task.taskName'), minWidth: 150, required: true, sortable: 'custom' },
+  { prop: 'protocol', label: t('task.protocol'), width: 100, sortable: 'custom' },
+  { prop: 'status', label: t('task.status'), width: 120, sortable: 'custom' },
+  { prop: 'progress', label: t('task.progress'), width: 120, sortable: 'custom' },
+  { prop: 'duration', label: t('task.duration'), width: 120, sortable: 'custom' },
+  { prop: 'stats.packets_sent', label: t('task.packets'), width: 120, sortable: 'custom' },
+  { prop: 'stats.bytes_sent', label: t('task.bytes'), width: 120, sortable: 'custom' },
   { prop: 'created_at', label: t('task.createdAt'), width: 180, sortable: 'custom' },
-  { prop: 'completed_at', label: t('task.completedAt'), width: 180 }
+  { prop: 'completed_at', label: t('task.completedAt'), width: 180, sortable: 'custom' }
 ])
 
 function formatBytes(bytes: number): string {
@@ -280,7 +280,25 @@ function exportHistoryCSV() {
 function handleSortChange({ prop, order }: { prop: string; order: string }) {
   sortState.prop = prop
   sortState.order = order
-  loadHistory()
+  records.value = applySort(records.value)
+}
+
+function applySort(data: any[]): any[] {
+  if (!sortState.prop || !sortState.order) return data
+  const dir = sortState.order === 'ascending' ? 1 : -1
+  return [...data].sort((a: any, b: any) => {
+    let va = sortState.prop!.includes('.') ? sortState.prop!.split('.').reduce((o: any, k: string) => o?.[k], a) : a[sortState.prop]
+    let vb = sortState.prop!.includes('.') ? sortState.prop!.split('.').reduce((o: any, k: string) => o?.[k], b) : b[sortState.prop]
+    if (sortState.prop === 'duration') {
+      va = (a.completed_at || 0) - (a.started_at || 0)
+      vb = (b.completed_at || 0) - (b.started_at || 0)
+    }
+    if (va == null && vb == null) return 0
+    if (va == null) return dir
+    if (vb == null) return -dir
+    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
+    return String(va).localeCompare(String(vb)) * dir
+  })
 }
 
 function handlePageChange(page: number, pageSize: number) {
@@ -304,14 +322,11 @@ async function loadHistory() {
       params.start_time = Number(dateRange.value[0])
       params.end_time = Number(dateRange.value[1])
     }
-    if (sortState.prop) {
-      params.sort_by = sortState.prop
-      params.sort_order = sortState.order === 'ascending' ? 'asc' : 'desc'
-    }
     const res = await historyApi.list(params)
     if (res.data) {
       const data = res.data as any
-      records.value = data.items || data
+      const items = Array.isArray(data) ? data : (data.items || [])
+      records.value = applySort(items)
       pagination.total = data.total || records.value.length
     }
   } catch (error) {

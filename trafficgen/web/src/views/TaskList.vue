@@ -181,15 +181,15 @@ const proTableRef = ref()
 let refreshTimer: number | null = null
 
 const columns = computed(() => [
-  { prop: 'selection', label: '', type: 'selection', width: 45 },
-  { prop: 'name', label: t('task.taskName'), minWidth: 160, sortable: 'custom', required: true },
-  { prop: 'protocol', label: t('task.protocol'), width: 100, sortable: 'custom' },
-  { prop: 'status', label: t('task.status'), width: 110, sortable: 'custom' },
-  { prop: 'progress', label: t('task.progress'), width: 140 },
-  { prop: 'output_type', label: t('task.outputType'), width: 100 },
-  { prop: 'stats.packets_sent', label: t('task.packets'), width: 100 },
+  { prop: 'selection', label: '', type: 'selection', width: 45, fixed: 'left' },
+  { prop: 'name', label: t('task.taskName'), minWidth: 180, sortable: 'custom', required: true },
+  { prop: 'protocol', label: t('task.protocol'), width: 90, sortable: 'custom' },
+  { prop: 'status', label: t('task.status'), width: 100, sortable: 'custom' },
+  { prop: 'progress', label: t('task.progress'), width: 120, sortable: 'custom' },
+  { prop: 'output_type', label: t('task.outputType'), width: 90, sortable: 'custom' },
+  { prop: 'stats.packets_sent', label: t('task.packets'), width: 90, sortable: 'custom' },
   { prop: 'created_at', label: t('task.createdAt'), width: 170, sortable: 'custom' },
-  { prop: 'actions', label: t('task.actions'), width: 140, fixed: 'right', required: true }
+  { prop: 'actions', label: t('task.actions'), width: 120, fixed: 'right', required: true }
 ])
 
 const filters = reactive({
@@ -274,21 +274,11 @@ function handlePageChange(page: number, pageSize: number) {
 async function loadTasks() {
   loading.value = true
   try {
-    const params: any = {
-      page: pagination.page,
-      size: pagination.pageSize
-    }
-    if (filters.keyword) params.keyword = filters.keyword
-    if (filters.protocol) params.protocol = filters.protocol
-    if (filters.status) params.status = filters.status
-    if (sortState.prop) {
-      params.sort_by = sortState.prop
-      params.sort_order = sortState.order === 'ascending' ? 'asc' : 'desc'
-    }
-    const res = await taskApi.list(params)
+    const res = await taskApi.list()
     if (res.data) {
       const data = res.data as any
-      tasks.value = data.items || data
+      const items = Array.isArray(data) ? data : (data.items || [])
+      tasks.value = applySort(items)
       pagination.total = data.total || tasks.value.length
     }
   } catch (error) {
@@ -296,6 +286,20 @@ async function loadTasks() {
   } finally {
     loading.value = false
   }
+}
+
+function applySort(data: Task[]): Task[] {
+  if (!sortState.prop || !sortState.order) return data
+  const dir = sortState.order === 'ascending' ? 1 : -1
+  return [...data].sort((a: any, b: any) => {
+    const va = sortState.prop.includes('.') ? sortState.prop.split('.').reduce((o: any, k: string) => o?.[k], a) : a[sortState.prop]
+    const vb = sortState.prop.includes('.') ? sortState.prop.split('.').reduce((o: any, k: string) => o?.[k], b) : b[sortState.prop]
+    if (va == null && vb == null) return 0
+    if (va == null) return dir
+    if (vb == null) return -dir
+    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
+    return String(va).localeCompare(String(vb)) * dir
+  })
 }
 
 async function handleStart(task: Task) {

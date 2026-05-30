@@ -605,13 +605,13 @@ const drawerStrategy = ref<Strategy | null>(null)
 const activeSections = ref<string[]>(['basicInfo', 'networkConfig', 'protocolConfig'])
 
 const columns = computed(() => [
-  { prop: 'selection', label: '', type: 'selection', width: 45 },
-  { prop: 'id', label: t('strategy.strategyId'), width: 100, required: true },
-  { prop: 'name', label: t('strategy.strategyName'), minWidth: 160, sortable: 'custom', required: true },
-  { prop: 'protocol', label: t('task.protocol'), width: 100, sortable: 'custom' },
-  { prop: 'flow_control', label: t('strategy.flowControl'), width: 120 },
+  { prop: 'selection', label: '', type: 'selection', width: 45, fixed: 'left' },
+  { prop: 'id', label: t('strategy.strategyId'), width: 100, required: true, sortable: 'custom' },
+  { prop: 'name', label: t('strategy.strategyName'), minWidth: 180, sortable: 'custom', required: true },
+  { prop: 'protocol', label: t('task.protocol'), width: 90, sortable: 'custom' },
+  { prop: 'flow_control', label: t('strategy.flowControl'), width: 110, sortable: 'custom' },
   { prop: 'created_at', label: t('common.createdAt'), width: 170, sortable: 'custom' },
-  { prop: 'actions', label: t('task.actions'), width: 140, fixed: 'right', required: true }
+  { prop: 'actions', label: t('task.actions'), width: 120, fixed: 'right', required: true }
 ])
 
 function loadState() {
@@ -740,8 +740,12 @@ const filteredStrategies = computed(() => {
   // 排序
   if (sortState.prop && sortState.order) {
     result = [...result].sort((a, b) => {
-      const aVal = a[sortState.prop as keyof Strategy]
-      const bVal = b[sortState.prop as keyof Strategy]
+      let aVal: any = a[sortState.prop as keyof Strategy]
+      let bVal: any = b[sortState.prop as keyof Strategy]
+      if (sortState.prop === 'flow_control') {
+        aVal = (aVal as any)?.value ?? 0
+        bVal = (bVal as any)?.value ?? 0
+      }
       let cmp = 0
       if (typeof aVal === 'string' && typeof bVal === 'string') {
         cmp = aVal.localeCompare(bVal)

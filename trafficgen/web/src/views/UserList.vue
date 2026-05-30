@@ -203,14 +203,14 @@ const hasActiveFilters = computed(() =>
 )
 
 const columns = computed(() => [
-  { type: 'selection' as const, width: 45 },
-  { prop: 'username', label: t('user.username'), width: 150, required: true },
-  { prop: 'email', label: t('user.email'), width: 200 },
-  { prop: 'role', label: t('user.role'), width: 120 },
-  { prop: 'enabled', label: t('user.status'), width: 100 },
-  { prop: 'created_at', label: t('user.createdAt'), width: 180, sortable: 'custom' },
-  { prop: 'last_login', label: t('user.lastLogin'), width: 180 },
-  { prop: 'actions', label: t('common.action'), width: 140, fixed: 'right', required: true }
+  { type: 'selection' as const, width: 45, fixed: 'left' },
+  { prop: 'username', label: t('user.username'), width: 130, required: true, sortable: 'custom' },
+  { prop: 'email', label: t('user.email'), minWidth: 180, sortable: 'custom' },
+  { prop: 'role', label: t('user.role'), width: 90, sortable: 'custom' },
+  { prop: 'enabled', label: t('user.status'), width: 90, sortable: 'custom' },
+  { prop: 'created_at', label: t('user.createdAt'), width: 170, sortable: 'custom' },
+  { prop: 'last_login', label: t('user.lastLogin'), width: 170, sortable: 'custom' },
+  { prop: 'actions', label: t('common.action'), width: 120, fixed: 'right', required: true }
 ])
 
 const dialogVisible = ref(false)
@@ -270,21 +270,15 @@ function formatDate(timestamp: number): string {
 async function fetchUsers() {
   loading.value = true
   try {
-    const params: any = {
-      page: pagination.page,
-      size: pagination.size
-    }
+    const params: any = {}
     if (searchForm.username) params.username = searchForm.username
     if (searchForm.role) params.role = searchForm.role
-    if (sortState.prop) {
-      params.sort_by = sortState.prop
-      params.sort_order = sortState.order === 'ascending' ? 'asc' : 'desc'
-    }
     const res = await userApi.list(params)
     if (res.data) {
       const data = res.data as any
-      users.value = data.items || data
-      pagination.total = data.total || users.value.length
+      const items = Array.isArray(data) ? data : (data.items || [])
+      users.value = applySort(items)
+      pagination.total = items.length
     }
   } catch (error) {
     console.error('Failed to load users:', error)
@@ -308,7 +302,22 @@ function handleReset() {
 function handleSortChange({ prop, order }: { prop: string; order: string }) {
   sortState.prop = prop
   sortState.order = order
-  fetchUsers()
+  users.value = applySort(users.value)
+}
+
+function applySort(data: any[]): any[] {
+  if (!sortState.prop || !sortState.order) return data
+  const dir = sortState.order === 'ascending' ? 1 : -1
+  return [...data].sort((a: any, b: any) => {
+    const va = a[sortState.prop!]
+    const vb = b[sortState.prop!]
+    if (va == null && vb == null) return 0
+    if (va == null) return dir
+    if (vb == null) return -dir
+    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
+    if (typeof va === 'boolean' && typeof vb === 'boolean') return (Number(va) - Number(vb)) * dir
+    return String(va).localeCompare(String(vb)) * dir
+  })
 }
 
 function handlePageChange(page: number, pageSize: number) {

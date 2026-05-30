@@ -55,9 +55,10 @@
         ref="proTableRef"
         table-id="interface-list"
         :columns="columns"
-        :data="filteredInterfaces"
+        :data="sortedInterfaces"
         :loading="loading"
         :empty-text="t('interface.noInterfaces')"
+        @sort-change="handleSortChange"
       >
         <template #name="{ row }">
           <span class="interface-name">{{ row.name }}</span>
@@ -100,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Refresh, Setting, Search } from '@element-plus/icons-vue'
@@ -115,6 +116,8 @@ const proTableRef = ref()
 let refreshTimer: number | null = null
 const searchQuery = ref('')
 const filterStatus = ref('')
+
+const sortState = reactive({ prop: '', order: '' })
 
 const filteredInterfaces = computed(() => {
   let result = interfaces.value
@@ -134,17 +137,42 @@ const filteredInterfaces = computed(() => {
   return result
 })
 
+const sortedInterfaces = computed(() => {
+  const data = filteredInterfaces.value
+  if (!sortState.prop || !sortState.order) return data
+  const dir = sortState.order === 'ascending' ? 1 : -1
+  return [...data].sort((a: any, b: any) => {
+    let va = a[sortState.prop]
+    let vb = b[sortState.prop]
+    if (sortState.prop === 'traffic') {
+      va = (a.stats?.tx_bytes || 0) + (a.stats?.rx_bytes || 0)
+      vb = (b.stats?.tx_bytes || 0) + (b.stats?.rx_bytes || 0)
+    }
+    if (va == null && vb == null) return 0
+    if (va == null) return dir
+    if (vb == null) return -dir
+    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
+    if (typeof va === 'boolean' && typeof vb === 'boolean') return (Number(va) - Number(vb)) * dir
+    return String(va).localeCompare(String(vb)) * dir
+  })
+})
+
 const columns = computed(() => [
-  { prop: 'name', label: t('interface.interfaceName'), width: 150, required: true },
-  { prop: 'mac', label: t('interface.macAddress'), width: 180 },
-  { prop: 'ip', label: t('interface.ipAddress'), width: 150 },
-  { prop: 'mtu', label: t('interface.mtu'), width: 80, align: 'center' as const },
-  { prop: 'is_up', label: t('interface.adminStatus'), width: 90, align: 'center' as const },
-  { prop: 'link_up', label: t('interface.linkStatus'), width: 90, align: 'center' as const },
-  { prop: 'in_use', label: t('interface.usageStatus'), width: 110, align: 'center' as const },
-  { prop: 'traffic', label: t('interface.traffic'), width: 150 },
+  { prop: 'name', label: t('interface.interfaceName'), width: 150, required: true, sortable: 'custom' },
+  { prop: 'mac', label: t('interface.macAddress'), width: 180, sortable: 'custom' },
+  { prop: 'ip', label: t('interface.ipAddress'), width: 150, sortable: 'custom' },
+  { prop: 'mtu', label: t('interface.mtu'), width: 80, align: 'center' as const, sortable: 'custom' },
+  { prop: 'is_up', label: t('interface.adminStatus'), width: 90, align: 'center' as const, sortable: 'custom' },
+  { prop: 'link_up', label: t('interface.linkStatus'), width: 90, align: 'center' as const, sortable: 'custom' },
+  { prop: 'in_use', label: t('interface.usageStatus'), width: 110, align: 'center' as const, sortable: 'custom' },
+  { prop: 'traffic', label: t('interface.traffic'), width: 150, sortable: 'custom' },
   { prop: 'description', label: t('common.description'), minWidth: 150 }
 ])
+
+function handleSortChange({ prop, order }: { prop: string; order: string }) {
+  sortState.prop = prop
+  sortState.order = order
+}
 
 function handleSearch() {
   // filteredInterfaces is reactive via computed
