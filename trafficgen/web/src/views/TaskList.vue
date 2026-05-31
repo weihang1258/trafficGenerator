@@ -118,7 +118,14 @@
         <template #actions="{ row }">
           <div class="action-buttons">
             <el-button
-              v-if="row.status === 'pending'"
+              size="small"
+              link
+              @click="router.push(`/tasks/${row.id}`)"
+            >
+              {{ t('task.viewDetail') }}
+            </el-button>
+            <el-button
+              v-if="row.status !== 'running'"
               type="primary"
               size="small"
               link
@@ -135,17 +142,14 @@
             >
               {{ t('task.stop') }}
             </el-button>
-            <el-dropdown trigger="hover" @command="(cmd: string) => handleAction(cmd, row)">
-              <el-button size="small" link>
-                <el-icon><More /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="detail">{{ t('task.viewDetail') }}</el-dropdown-item>
-                  <el-dropdown-item command="delete" style="color: var(--el-color-danger)">{{ t('task.delete') }}</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+            <el-button
+              type="danger"
+              size="small"
+              link
+              @click="handleDelete(row)"
+            >
+              {{ t('task.delete') }}
+            </el-button>
           </div>
         </template>
         <template #empty>
@@ -165,7 +169,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Setting, Refresh, More } from '@element-plus/icons-vue'
+import { Plus, Search, Setting, Refresh } from '@element-plus/icons-vue'
 import { taskApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import ProTable from '@/components/ProTable/index.vue'
@@ -190,7 +194,7 @@ const columns = computed(() => [
   { prop: 'output_type', label: t('task.outputType'), width: 90, sortable: 'custom' },
   { prop: 'stats.packets_sent', label: t('task.packets'), width: 90, sortable: 'custom' },
   { prop: 'created_at', label: t('task.createdAt'), width: 170, sortable: 'custom' },
-  { prop: 'actions', label: t('task.actions'), width: 120, fixed: 'right', required: true }
+  { prop: 'actions', label: t('task.actions'), width: 180, fixed: 'right', required: true }
 ])
 
 const filters = reactive({
@@ -341,16 +345,6 @@ async function handleDelete(task: Task) {
   }
 }
 
-function handleAction(command: string, task: Task) {
-  switch (command) {
-    case 'detail':
-      router.push(`/tasks/${task.id}`)
-      break
-    case 'delete':
-      handleDelete(task)
-      break
-  }
-}
 
 async function handleBatchDelete() {
   if (selectedTasks.value.length === 0) return
