@@ -48,6 +48,7 @@ declare module 'vue' {
     ElResult: typeof import('element-plus/es')['ElResult']
     ElRow: typeof import('element-plus/es')['ElRow']
     ElSelect: typeof import('element-plus/es')['ElSelect']
+    ElSpace: typeof import('element-plus/es')['ElSpace']
     ElStep: typeof import('element-plus/es')['ElStep']
     ElSteps: typeof import('element-plus/es')['ElSteps']
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
@@ -65,6 +66,7 @@ declare module 'vue' {
     SmartForm: typeof import('./components/SmartForm/index.vue')['default']
     StatsCard: typeof import('./components/StatsCard.vue')['default']
     TaskStatusTag: typeof import('./components/TaskStatusTag.vue')['default']
+    ValueStrategySelector: typeof import('./components/ValueStrategySelector/index.vue')['default']
     VirtualScroll: typeof import('./components/VirtualScroll/index.vue')['default']
   }
   export interface ComponentCustomProperties {

@@ -38,6 +38,17 @@
               </el-option-group>
             </el-select>
           </el-form-item>
+
+          <!-- Template preview -->
+          <el-descriptions v-if="templatePreview" :column="1" border size="small" style="margin-top: 8px;">
+            <el-descriptions-item :label="t('task.protocol')">{{ templatePreview.protocol.toUpperCase() }}</el-descriptions-item>
+            <el-descriptions-item :label="t('strategy.srcIP')">{{ templatePreview.config?.src_ip || '-' }}</el-descriptions-item>
+            <el-descriptions-item :label="t('strategy.dstIP')">{{ templatePreview.config?.dst_ip || '-' }}</el-descriptions-item>
+            <el-descriptions-item :label="t('strategy.dstPort')">{{ templatePreview.config?.dst_port || '-' }}</el-descriptions-item>
+            <el-descriptions-item v-if="templatePreview.flow_control" :label="t('strategy.flowControl')">
+              {{ templatePreview.flow_control.type }}: {{ templatePreview.flow_control.value }}
+            </el-descriptions-item>
+          </el-descriptions>
         </div>
 
         <!-- Step 2: Select Strategies -->
@@ -50,12 +61,16 @@
               style="width: 100%;"
               v-loading="strategyLoading"
             >
-              <el-option
-                v-for="s in strategies"
-                :key="s.id"
-                :label="`${s.name} (${s.protocol.toUpperCase()})`"
-                :value="s.id"
-              />
+              <template v-for="group in strategyGroups" :key="group.label">
+                <el-option-group :label="group.label">
+                  <el-option
+                    v-for="s in group.items"
+                    :key="s.id"
+                    :label="`${s.name} (${s.protocol.toUpperCase()})`"
+                    :value="s.id"
+                  />
+                </el-option-group>
+              </template>
             </el-select>
           </el-form-item>
 
@@ -89,7 +104,7 @@
           </el-form-item>
 
           <el-form-item v-if="form.output_type === 'port_group'" :label="t('taskCreate.portGroupID')" prop="output_config.port_group_id">
-            <el-select v-model="form.output_config.port_group_id" :placeholder="t('taskCreate.selectPortGroup')" v-loading="portGroupLoading">
+            <el-select v-model="form.output_config.port_group_id" :placeholder="t('taskCreate.selectPortGroup')" v-loading="portGroupLoading" style="width: 100%;">
               <el-option v-for="pg in portGroups" :key="pg.id" :label="`${pg.name} (${pg.ports_config.length} ports)`" :value="pg.id" />
             </el-select>
           </el-form-item>
@@ -102,16 +117,19 @@
 
           <el-form-item :label="t('taskCreate.flowControlType')">
             <el-select v-model="form.flow_control.type" :placeholder="t('strategy.flowControlType')" clearable style="width: 200px;">
-              <el-option :label="t('strategy.bps')" value="bps" />
               <el-option :label="t('strategy.flows')" value="flows" />
               <el-option :label="t('strategy.cps')" value="cps" />
+              <el-option :label="t('strategy.bps')" value="bps" />
               <el-option :label="t('strategy.ratio')" value="ratio" />
               <el-option :label="t('strategy.time')" value="time" />
             </el-select>
           </el-form-item>
 
           <el-form-item v-if="form.flow_control.type" :label="t('taskCreate.flowControlValue')">
-            <el-input-number v-model="form.flow_control.value" :min="1" style="width: 200px;" />
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <el-input-number v-model="form.flow_control.value" :min="flowControlMin" :max="flowControlMax" style="width: 200px;" />
+              <span class="flow-control-unit">{{ flowControlUnit }}</span>
+            </div>
           </el-form-item>
         </div>
 
@@ -138,7 +156,7 @@
               {{ form.output_config.pcap_path || '-' }}
             </el-descriptions-item>
             <el-descriptions-item :label="t('taskCreate.flowControl')">
-              <span v-if="form.flow_control.type">{{ form.flow_control.type }}: {{ form.flow_control.value }}</span>
+              <span v-if="form.flow_control.type">{{ t('strategy.' + form.flow_control.type) }}: {{ form.flow_control.value }} {{ flowControlUnit }}</span>
               <span v-else>-</span>
             </el-descriptions-item>
           </el-descriptions>
@@ -155,7 +173,7 @@
           <el-button v-if="currentStep === 3" type="primary" :loading="loading" @click="handleSubmit">
             {{ t('taskCreate.create') }}
           </el-button>
-          <el-button @click="$router.back()">{{ t('taskCreate.cancel') }}</el-button>
+          <el-button @click="handleCancel">{{ t('taskCreate.cancel') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -166,9 +184,9 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { taskApi, strategyApi, portGroupApi, type Strategy, type PortGroup, type CreateTaskRequest, type FlowControlRequest, type OutputConfigRequest } from '@/api'
+import { taskApi, strategyApi, portGroupApi, type Strategy, type PortGroup, type CreateTaskRequest, type FlowControlRequest } from '@/api'
 import { useStrategyTemplates } from '@/composables/useStrategyTemplates'
 
 const { t } = useI18n()
@@ -176,6 +194,7 @@ const router = useRouter()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const currentStep = ref(0)
+const formDirty = ref(false)
 
 const strategies = ref<Strategy[]>([])
 const portGroups = ref<PortGroup[]>([])
@@ -185,6 +204,7 @@ const portGroupLoading = ref(false)
 const { allTemplates, customTemplates, getTemplate } = useStrategyTemplates()
 const builtinTemplates = computed(() => allTemplates.value.filter(t => t.isBuiltin))
 const selectedTemplateId = ref<string>('')
+const templatePreview = ref<any>(null)
 
 // Generate default task name with timestamp
 function generateTaskName(): string {
@@ -211,9 +231,22 @@ const form = reactive<CreateTaskRequest>({
     pcap_path: getDefaultOutputPath()
   },
   flow_control: {
-    type: 'flows',
+    type: '',
     value: 1
   }
+})
+
+// Strategy grouped by protocol
+const strategyGroups = computed(() => {
+  const groups: Record<string, Strategy[]> = {}
+  for (const s of strategies.value) {
+    if (!groups[s.protocol]) groups[s.protocol] = []
+    groups[s.protocol].push(s)
+  }
+  return Object.entries(groups).map(([protocol, items]) => ({
+    label: protocol.toUpperCase(),
+    items
+  })).sort((a, b) => a.label.localeCompare(b.label))
 })
 
 const selectedStrategyDetails = computed(() => {
@@ -226,36 +259,57 @@ const selectedPortGroupName = computed(() => {
   return pg ? `${pg.name} (${pg.ports_config.length} ports)` : form.output_config.port_group_id
 })
 
+// Dynamic flow control constraints
+const flowControlMin = computed(() => {
+  if (form.flow_control.type === 'ratio') return 0
+  if (form.flow_control.type === 'time') return 0
+  return 1
+})
+
+const flowControlMax = computed(() => {
+  if (form.flow_control.type === 'ratio') return 100
+  return Infinity
+})
+
+const flowControlUnit = computed(() => {
+  const units: Record<string, string> = {
+    flows: t('strategy.unitFlows'),
+    bps: t('strategy.unitBps'),
+    cps: t('strategy.unitCps'),
+    ratio: t('strategy.unitRatio'),
+    time: t('strategy.unitTime')
+  }
+  return units[form.flow_control.type] || ''
+})
+
 const rules: FormRules = {
   name: [{ required: true, message: t('taskCreate.validation.taskNameRequired'), trigger: 'blur' }],
-  strategy_ids: [{ required: true, type: 'array', min: 1, message: t('taskCreate.validation.strategyRequired'), trigger: 'change' }]
+  strategy_ids: [{ required: true, type: 'array', min: 1, message: t('taskCreate.validation.strategyRequired'), trigger: 'change' }],
+  'output_config.port_group_id': [{ required: true, message: t('taskCreate.validation.portGroupRequired'), trigger: 'change' }],
+  'output_config.pcap_path': [{ required: true, message: t('taskCreate.validation.pcapPathRequired'), trigger: 'blur' }]
 }
 
-async function handleTemplateSelect(templateId: string) {
-  if (!templateId) return
-  const template = getTemplate(templateId)
-  if (!template) return
-
-  // Create strategy from template
-  try {
-    const submitData: any = {
-      name: template.name + ' ' + t('strategy.cloneSuffix'),
-      protocol: template.protocol,
-      config: template.config
-    }
-    if (template.flow_control) {
-      submitData.flow_control = template.flow_control
-    }
-    const res = await strategyApi.create(submitData)
-    if (res.data) {
-      form.strategy_ids.push((res.data as any).id)
-      ElMessage.success(t('strategy.templateApplied'))
-      loadStrategies()
-    }
-  } catch (error) {
-    console.error('Failed to create strategy from template:', error)
-    ElMessage.error(t('strategy.createFailed'))
+function handleTemplateSelect(templateId: string) {
+  if (!templateId) {
+    templatePreview.value = null
+    return
   }
+  templatePreview.value = getTemplate(templateId) || null
+}
+
+async function handleCancel() {
+  if (formDirty.value) {
+    try {
+      await ElMessageBox.confirm(t('common.unsavedChanges'), t('common.warning'), {
+        confirmButtonText: t('common.discard'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      })
+    } catch {
+      return
+    }
+  }
+  router.back()
 }
 
 function prevStep() {
@@ -268,11 +322,52 @@ async function nextStep() {
   if (currentStep.value === 0) {
     try {
       await formRef.value?.validateField(['name'])
+      // If template selected, create strategy from template
+      if (templatePreview.value && selectedTemplateId.value) {
+        try {
+          const template = templatePreview.value
+          const submitData: any = {
+            name: template.name + ' ' + t('strategy.cloneSuffix'),
+            protocol: template.protocol,
+            config: template.config
+          }
+          if (template.flow_control) {
+            submitData.flow_control = template.flow_control
+          }
+          const res = await strategyApi.create(submitData)
+          if (res.data) {
+            form.strategy_ids.push((res.data as any).id)
+            ElMessage.success(t('strategy.templateApplied'))
+            loadStrategies()
+          }
+        } catch (error) {
+          console.error('Failed to create strategy from template:', error)
+          ElMessage.error(t('strategy.createFailed'))
+          return
+        }
+        templatePreview.value = null
+        selectedTemplateId.value = ''
+      }
+      formDirty.value = true
       currentStep.value++
     } catch { /* validation failed */ }
   } else if (currentStep.value === 1) {
     try {
       await formRef.value?.validateField(['strategy_ids'])
+      formDirty.value = true
+      currentStep.value++
+    } catch { /* validation failed */ }
+  } else if (currentStep.value === 2) {
+    // Validate output config
+    const fieldsToValidate = ['output_type']
+    if (form.output_type === 'port_group') {
+      fieldsToValidate.push('output_config.port_group_id')
+    } else {
+      fieldsToValidate.push('output_config.pcap_path')
+    }
+    try {
+      await formRef.value?.validateField(fieldsToValidate)
+      formDirty.value = true
       currentStep.value++
     } catch { /* validation failed */ }
   } else {
@@ -327,7 +422,6 @@ async function handleSubmit() {
         value: form.flow_control.value
       } as FlowControlRequest
     } else {
-      // Default flow control when none selected
       submitData.flow_control = {
         type: 'flows',
         value: 1
@@ -357,5 +451,10 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.flow-control-unit {
+  font-size: 12px;
+  color: var(--tg-text-secondary, #909399);
 }
 </style>

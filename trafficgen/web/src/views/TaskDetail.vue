@@ -44,7 +44,7 @@
           </span>
           <span v-if="task.started_at" class="meta-item">
             <el-icon><Timer /></el-icon>
-            {{ formatDuration(task.started_at, task.completed_at) }}
+            {{ formatTaskDuration(task.started_at, task.completed_at) }}
           </span>
         </div>
       </div>
@@ -75,13 +75,13 @@
       </el-col>
       <el-col :xs="12" :sm="6">
         <div class="mini-stat">
-          <div class="mini-stat-value">{{ formatThroughput(task.stats?.current_pps || 0) }}</div>
+          <div class="mini-stat-value">{{ formatPps(task.stats?.current_pps || 0) }}</div>
           <div class="mini-stat-label">{{ t('task.pps') || 'PPS' }}</div>
         </div>
       </el-col>
       <el-col :xs="12" :sm="6">
         <div class="mini-stat">
-          <div class="mini-stat-value">{{ formatThroughputBps(task.stats?.current_bps || 0) }}</div>
+          <div class="mini-stat-value">{{ formatBps(task.stats?.current_bps || 0) }}</div>
           <div class="mini-stat-label">{{ t('task.bps') || 'BPS' }}</div>
         </div>
       </el-col>
@@ -195,6 +195,7 @@ import * as echarts from 'echarts'
 import { taskApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import dayjs from 'dayjs'
+import { formatBytes, formatNumber, formatPps, formatBps, formatTaskDuration } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -209,47 +210,9 @@ const loading = ref(true)
 const errorState = ref<string | null>(null)
 const chartInstance = ref<echarts.ECharts | null>(null)
 
-function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
-  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
-  if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB'
-  return bytes + ' B'
-}
-
-function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M'
-  if (num >= 1000) return (num / 1000).toFixed(2) + 'K'
-  return num.toString()
-}
-
-function formatThroughput(pps: number): string {
-  if (pps >= 1000000) return (pps / 1000000).toFixed(2) + 'M'
-  if (pps >= 1000) return (pps / 1000).toFixed(2) + 'K'
-  return pps.toString()
-}
-
-function formatThroughputBps(bps: number): string {
-  if (bps >= 1000000000) return (bps / 1000000000).toFixed(2) + ' Gbps'
-  if (bps >= 1000000) return (bps / 1000000).toFixed(2) + ' Mbps'
-  if (bps >= 1000) return (bps / 1000).toFixed(2) + ' Kbps'
-  return bps + ' bps'
-}
-
 function formatDate(timestamp?: number): string {
   if (!timestamp) return '-'
   return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm:ss')
-}
-
-function formatDuration(start?: number, end?: number): string {
-  if (!start) return '-'
-  const endTime = end || Math.floor(Date.now() / 1000)
-  const seconds = Math.floor(endTime - start)
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
-  if (hours > 0) return `${hours}h ${minutes}m ${secs}s`
-  if (minutes > 0) return `${minutes}m ${secs}s`
-  return `${secs}s`
 }
 
 function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {

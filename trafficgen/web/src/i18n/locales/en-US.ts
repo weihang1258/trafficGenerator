@@ -41,7 +41,9 @@ export default {
     selected: 'Selected',
     createdAt: 'Created At',
     columnSettings: 'Column Settings',
-    close: 'Close'
+    close: 'Close',
+    discard: 'Discard',
+    unsavedChanges: 'You have unsaved changes. Are you sure you want to leave?'
   },
   shortcuts: {
     title: 'Keyboard Shortcuts',
@@ -233,7 +235,9 @@ export default {
     cancel: 'Cancel',
     validation: {
       taskNameRequired: 'Please enter task name',
-      strategyRequired: 'Please select at least one strategy'
+      strategyRequired: 'Please select at least one strategy',
+      portGroupRequired: 'Please select a port group',
+      pcapPathRequired: 'Please enter PCAP file path'
     }
   },
 
@@ -266,7 +270,9 @@ export default {
     cloneSuffix: '(Copy)',
     validation: {
       invalidIP: 'Invalid IP address format, e.g.: 192.168.1.1',
-      invalidMAC: 'Invalid MAC address format, e.g.: aa:bb:cc:dd:ee:ff'
+      invalidMAC: 'Invalid MAC address format, e.g.: aa:bb:cc:dd:ee:ff',
+      dstIPRequired: 'Please enter destination IP address',
+      domainInvalid: 'Invalid domain format'
     },
     // Templates
     templates: 'Strategy Templates',
@@ -283,6 +289,23 @@ export default {
     templateSaved: 'Template saved',
     templateDeleted: 'Template deleted',
     templateDeleteConfirm: 'Are you sure to delete this template?',
+    // Template names
+    templateTcpHandshake: 'TCP Handshake',
+    templateTcpHandshakeDesc: 'Standard TCP connection establishment test',
+    templateHttpGet: 'HTTP GET Request',
+    templateHttpGetDesc: 'Standard HTTP GET request test',
+    templateHttpPost: 'HTTP POST Request',
+    templateHttpPostDesc: 'HTTP POST JSON data test',
+    templateUdpStream: 'UDP Stream',
+    templateUdpStreamDesc: 'UDP continuous data stream test',
+    templateDnsQuery: 'DNS A Record Query',
+    templateDnsQueryDesc: 'Standard DNS A record resolution test',
+    templateIcmpPing: 'ICMP Ping',
+    templateIcmpPingDesc: 'ICMP Echo Request test',
+    templateArpRequest: 'ARP Request',
+    templateArpRequestDesc: 'ARP address resolution request test',
+    templateTcpPressure: 'TCP Pressure Test',
+    templateTcpPressureDesc: 'High concurrency TCP connection stress test',
     // Collapse sections
     sectionBasicInfo: 'Basic Info',
     sectionNetworkConfig: 'Network Config',
@@ -296,8 +319,11 @@ export default {
     protocolConfig: 'Protocol Config',
     payload: 'Payload',
     payloadPlaceholder: 'Enter payload data',
+    bodyPlaceholder: 'Enter HTTP request body',
     srcIP: 'Source IP',
     dstIP: 'Destination IP',
+    srcIPPlaceholder: 'e.g.: 192.168.1.100',
+    dstIPPlaceholder: 'e.g.: 192.168.1.1',
     srcPort: 'Source Port',
     dstPort: 'Destination Port',
     srcMAC: 'Source MAC',
@@ -341,6 +367,7 @@ export default {
     icmpCode: 'ICMP Code',
     sequence: 'Sequence',
     icmpData: 'Data',
+    icmpDataPlaceholder: 'e.g.: ping',
     echoRequest: 'Echo Request (8)',
     echoReply: 'Echo Reply (0)',
     // ARP
@@ -358,7 +385,28 @@ export default {
     cps: 'CPS (connections/sec)',
     bps: 'BPS (bytes/sec)',
     ratio: 'Ratio (%)',
-    time: 'Duration (seconds)'
+    time: 'Duration (seconds)',
+    // Quick select
+    quickSelect: 'Quick',
+    quickPresets: 'Quick Presets',
+    // Flow control units
+    unitFlows: 'flows',
+    unitBps: 'bit/s',
+    unitCps: 'conn/s',
+    unitRatio: '%',
+    unitTime: 'sec',
+    // Strategy modes
+    strategyFixed: 'Fixed',
+    strategyInc: 'Increment',
+    strategyRandom: 'Random',
+    strategyPattern: 'Pattern',
+    strategyList: 'List',
+    strategyFile: 'File',
+    from: 'From',
+    patternPlaceholder: 'e.g.: user{n}',
+    listPlaceholder: 'Select or type',
+    filePathPlaceholder: 'e.g.: /path/to/data.bin',
+    advancedConfig: 'Advanced'
   },
 
   // Interface Management
@@ -428,12 +476,16 @@ export default {
     warn: 'Warning',
     error: 'Error',
     maxTasks: 'Max Tasks',
-    maxTasksHint: 'Maximum concurrent task count',
+    maxTasksHint: 'Maximum concurrent task count (recommended: 50-200)',
+    maxTasksRequired: 'Please enter max tasks',
     bufferSize: 'Buffer Size',
-    bufferSizeHint: 'Packet buffer size in bytes',
+    bufferSizeHint: 'Packet buffer size in bytes (recommended: 2048-8192)',
+    bufferSizeRequired: 'Please enter buffer size',
     workerCount: 'Worker Count',
     save: 'Save',
     reset: 'Reset',
+    reload: 'Reload from Server',
+    reloadHint: 'Settings reloaded from server',
     saveSuccess: 'Settings saved successfully',
     saveFailed: 'Failed to save settings',
     resetSuccess: 'Settings reset successfully',
@@ -452,6 +504,15 @@ export default {
     emailPlaceholder: 'Please enter email',
     password: 'Password',
     passwordPlaceholder: 'Please enter password',
+    confirmPassword: 'Confirm Password',
+    confirmPasswordPlaceholder: 'Please re-enter password',
+    confirmPasswordRequired: 'Please enter confirm password',
+    passwordMismatch: 'Passwords do not match',
+    passwordRequired: 'Please enter password',
+    usernameRequired: 'Please enter username',
+    emailRequired: 'Please enter email',
+    emailInvalid: 'Invalid email format',
+    newPasswordIs: 'New password is: {password}',
     role: 'Role',
     selectRole: 'Select Role',
     admin: 'Admin',
@@ -475,8 +536,8 @@ export default {
     resetPasswordSuccess: 'Password reset successfully',
     resetPasswordFailed: 'Failed to reset password',
     noUsers: 'No users',
-    usernameLength: 'Username must be 3-20 characters',
-    passwordLength: 'Password must be 6-20 characters'
+    usernameLength: 'Username must be 3-64 characters',
+    passwordLength: 'Password must be 6-128 characters'
   },
 
   // Protocol

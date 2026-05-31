@@ -41,7 +41,9 @@ export default {
     selected: '已选择',
     createdAt: '创建时间',
     columnSettings: '列设置',
-    close: '关闭'
+    close: '关闭',
+    discard: '放弃更改',
+    unsavedChanges: '有未保存的更改，确定要离开吗？'
   },
   shortcuts: {
     title: '键盘快捷键',
@@ -239,7 +241,9 @@ export default {
     cancel: '取消',
     validation: {
       taskNameRequired: '请输入任务名称',
-      strategyRequired: '请至少选择一个策略'
+      strategyRequired: '请至少选择一个策略',
+      portGroupRequired: '请选择端口组',
+      pcapPathRequired: '请输入 PCAP 文件路径'
     }
   },
 
@@ -272,7 +276,9 @@ export default {
     cloneSuffix: '(副本)',
     validation: {
       invalidIP: 'IP地址格式不正确，例如: 192.168.1.1',
-      invalidMAC: 'MAC地址格式不正确，例如: aa:bb:cc:dd:ee:ff'
+      invalidMAC: 'MAC地址格式不正确，例如: aa:bb:cc:dd:ee:ff',
+      dstIPRequired: '请输入目标 IP 地址',
+      domainInvalid: '域名格式不正确'
     },
     // 模板
     templates: '策略模板',
@@ -289,6 +295,23 @@ export default {
     templateSaved: '模板已保存',
     templateDeleted: '模板已删除',
     templateDeleteConfirm: '确定要删除该模板吗？',
+    // Template names
+    templateTcpHandshake: 'TCP 三次握手',
+    templateTcpHandshakeDesc: '标准TCP连接建立测试',
+    templateHttpGet: 'HTTP GET 请求',
+    templateHttpGetDesc: '标准HTTP GET请求测试',
+    templateHttpPost: 'HTTP POST 请求',
+    templateHttpPostDesc: 'HTTP POST JSON数据测试',
+    templateUdpStream: 'UDP 数据流',
+    templateUdpStreamDesc: 'UDP持续数据流测试',
+    templateDnsQuery: 'DNS A记录查询',
+    templateDnsQueryDesc: '标准DNS A记录解析测试',
+    templateIcmpPing: 'ICMP Ping',
+    templateIcmpPingDesc: 'ICMP Echo Request回显测试',
+    templateArpRequest: 'ARP 请求',
+    templateArpRequestDesc: 'ARP地址解析请求测试',
+    templateTcpPressure: 'TCP 压力测试',
+    templateTcpPressureDesc: '高并发TCP连接压力测试',
     // 折叠面板
     sectionBasicInfo: '基本信息',
     sectionNetworkConfig: '网络配置',
@@ -302,8 +325,11 @@ export default {
     protocolConfig: '协议配置',
     payload: '载荷',
     payloadPlaceholder: '请输入载荷数据',
+    bodyPlaceholder: '请输入 HTTP 请求体',
     srcIP: '源 IP',
     dstIP: '目标 IP',
+    srcIPPlaceholder: '例如: 192.168.1.100',
+    dstIPPlaceholder: '例如: 192.168.1.1',
     srcPort: '源端口',
     dstPort: '目标端口',
     srcMAC: '源 MAC',
@@ -347,6 +373,7 @@ export default {
     icmpCode: 'ICMP 代码',
     sequence: '序列号',
     icmpData: '数据',
+    icmpDataPlaceholder: '例如: ping',
     echoRequest: '回显请求 (8)',
     echoReply: '回显应答 (0)',
     // ARP
@@ -364,7 +391,28 @@ export default {
     cps: '连接速率 (CPS)',
     bps: '字节速率 (BPS)',
     ratio: '比例',
-    time: '持续时间 (秒)'
+    time: '持续时间 (秒)',
+    // Quick select
+    quickSelect: '快速',
+    quickPresets: '快捷预设',
+    // Flow control units
+    unitFlows: '个流',
+    unitBps: 'bit/s',
+    unitCps: '连接/秒',
+    unitRatio: '%',
+    unitTime: '秒',
+    // Strategy modes
+    strategyFixed: '固定值',
+    strategyInc: '递增',
+    strategyRandom: '随机',
+    strategyPattern: '模式',
+    strategyList: '列表',
+    strategyFile: '文件',
+    from: '从',
+    patternPlaceholder: '例如: user{n}',
+    listPlaceholder: '选择或输入',
+    filePathPlaceholder: '例如: /path/to/data.bin',
+    advancedConfig: '高级配置'
   },
 
   // 网卡管理
@@ -434,12 +482,16 @@ export default {
     warn: '警告',
     error: '错误',
     maxTasks: '最大任务数',
-    maxTasksHint: '最大并发任务数量',
+    maxTasksHint: '最大并发任务数量（推荐值: 50-200）',
+    maxTasksRequired: '请输入最大任务数',
     bufferSize: '缓冲区大小',
-    bufferSizeHint: '数据包缓冲区大小（字节）',
+    bufferSizeHint: '数据包缓冲区大小（字节，推荐值: 2048-8192）',
+    bufferSizeRequired: '请输入缓冲区大小',
     workerCount: 'Worker 数量',
     save: '保存',
     reset: '重置',
+    reload: '从服务器重新加载',
+    reloadHint: '已从服务器重新加载设置',
     saveSuccess: '设置保存成功',
     saveFailed: '设置保存失败',
     resetSuccess: '设置重置成功',
@@ -458,6 +510,15 @@ export default {
     emailPlaceholder: '请输入邮箱',
     password: '密码',
     passwordPlaceholder: '请输入密码',
+    confirmPassword: '确认密码',
+    confirmPasswordPlaceholder: '请再次输入密码',
+    confirmPasswordRequired: '请输入确认密码',
+    passwordMismatch: '两次输入的密码不一致',
+    passwordRequired: '请输入密码',
+    usernameRequired: '请输入用户名',
+    emailRequired: '请输入邮箱',
+    emailInvalid: '邮箱格式不正确',
+    newPasswordIs: '新密码为: {password}',
     role: '角色',
     selectRole: '选择角色',
     admin: '管理员',
@@ -480,8 +541,8 @@ export default {
     resetPasswordSuccess: '密码重置成功',
     resetPasswordFailed: '密码重置失败',
     noUsers: '暂无用户',
-    usernameLength: '用户名长度为3-20个字符',
-    passwordLength: '密码长度为6-20个字符',
+    usernameLength: '用户名长度为3-64个字符',
+    passwordLength: '密码长度为6-128个字符',
     batchDeleteConfirm: '确定要删除选中的 {count} 个用户吗？'
   },
 

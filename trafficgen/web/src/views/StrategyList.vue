@@ -25,94 +25,36 @@
         </div>
       </template>
 
-      <!-- 筛选栏 -->
+      <!-- Filter bar -->
       <div class="filter-bar">
-        <el-input
-          v-model="filters.search"
-          :placeholder="t('strategy.searchPlaceholder')"
-          clearable
-          style="width: 240px"
-          @keyup.enter="loadStrategies"
-          @clear="loadStrategies"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
+        <el-input v-model="filters.search" :placeholder="t('strategy.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="loadStrategies" @clear="loadStrategies">
+          <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
-
-        <el-select
-          v-model="filters.protocol"
-          :placeholder="t('task.protocol')"
-          multiple
-          collapse-tags
-          collapse-tags-tooltip
-          clearable
-          style="width: 200px"
-          @change="loadStrategies"
-        >
-          <el-option :label="t('protocol.tcp')" value="tcp" />
-          <el-option :label="t('protocol.udp')" value="udp" />
-          <el-option :label="t('protocol.http')" value="http" />
-          <el-option :label="t('protocol.dns')" value="dns" />
-          <el-option :label="t('protocol.icmp')" value="icmp" />
-          <el-option :label="t('protocol.arp')" value="arp" />
+        <el-select v-model="filters.protocol" :placeholder="t('task.protocol')" multiple collapse-tags collapse-tags-tooltip clearable style="width: 200px" @change="loadStrategies">
+          <el-option v-for="p in ['tcp','udp','http','dns','icmp','arp']" :key="p" :label="t('protocol.' + p)" :value="p" />
         </el-select>
-
-        <el-button @click="loadStrategies" circle size="small">
-          <el-icon><Search /></el-icon>
-        </el-button>
-        <el-button link type="primary" @click="resetFilters">
-          {{ t('common.reset') }}
-        </el-button>
+        <el-button @click="loadStrategies" circle size="small"><el-icon><Search /></el-icon></el-button>
+        <el-button link type="primary" @click="resetFilters">{{ t('common.reset') }}</el-button>
       </div>
 
-      <!-- Active filter tags -->
       <div v-if="filters.search || filters.protocol.length > 0" class="active-filters">
-        <el-tag v-if="filters.search" closable @close="filters.search = ''; loadStrategies()">
-          {{ filters.search }}
-        </el-tag>
-        <el-tag v-if="filters.protocol.length > 0" closable @close="filters.protocol = []; loadStrategies()">
-          {{ filters.protocol.map(p => p.toUpperCase()).join(', ') }}
-        </el-tag>
-        <el-button link type="primary" size="small" @click="resetFilters">
-          {{ t('common.reset') }}
-        </el-button>
+        <el-tag v-if="filters.search" closable @close="filters.search = ''; loadStrategies()">{{ filters.search }}</el-tag>
+        <el-tag v-if="filters.protocol.length > 0" closable @close="filters.protocol = []; loadStrategies()">{{ filters.protocol.map(p => p.toUpperCase()).join(', ') }}</el-tag>
       </div>
 
-      <ProTable
-        ref="proTableRef"
-        table-id="strategy-list"
-        :columns="columns"
-        :data="filteredStrategies"
-        :loading="loading"
-        :pagination="{ total: filteredStrategies.length }"
-        :empty-text="t('strategy.noStrategies')"
-        @selection-change="handleSelectionChange"
-        @sort-change="handleSortChange"
-        @page-change="(page: number, size: number) => { pagination.page = page; pagination.size = size }"
-      >
-        <template #id="{ row }">
-          {{ row.id?.substring(0, 8) }}
-        </template>
-        <template #protocol="{ row }">
-          <el-tag size="small">{{ row.protocol.toUpperCase() }}</el-tag>
-        </template>
+      <ProTable ref="proTableRef" table-id="strategy-list" :columns="columns" :data="filteredStrategies" :loading="loading" :pagination="{ total: filteredStrategies.length }" :empty-text="t('strategy.noStrategies')" @selection-change="handleSelectionChange" @sort-change="handleSortChange" @page-change="(page: number, size: number) => { pagination.page = page; pagination.size = size }">
+        <template #id="{ row }">{{ row.id?.substring(0, 8) }}</template>
+        <template #protocol="{ row }"><el-tag size="small">{{ row.protocol.toUpperCase() }}</el-tag></template>
         <template #flow_control="{ row }">
           <span v-if="row.flow_control">{{ row.flow_control.type }}: {{ row.flow_control.value }}</span>
           <span v-else>-</span>
         </template>
-        <template #created_at="{ row }">
-          {{ formatTime(row.created_at) }}
-        </template>
+        <template #created_at="{ row }">{{ formatTime(row.created_at) }}</template>
         <template #actions="{ row }">
           <div class="action-buttons">
-            <el-button type="primary" link size="small" @click="openEditDialog(row)">
-              {{ t('common.edit') }}
-            </el-button>
+            <el-button type="primary" link size="small" @click="openEditDialog(row)">{{ t('common.edit') }}</el-button>
             <el-dropdown trigger="hover" @command="(cmd: string) => handleAction(cmd, row)">
-              <el-button size="small" link>
-                <el-icon><More /></el-icon>
-              </el-button>
+              <el-button size="small" link><el-icon><More /></el-icon></el-button>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="detail">{{ t('task.viewDetail') }}</el-dropdown-item>
@@ -125,168 +67,289 @@
         </template>
         <template #empty>
           <el-empty :description="t('strategy.noStrategies')">
-            <el-button type="primary" @click="openCreateDialog">
-              {{ t('strategy.createStrategy') }}
-            </el-button>
+            <el-button type="primary" @click="openCreateDialog">{{ t('strategy.createStrategy') }}</el-button>
           </el-empty>
         </template>
       </ProTable>
     </el-card>
 
-    <!-- 策略详情抽屉 -->
-    <el-drawer
-      v-model="drawerVisible"
-      :title="drawerStrategy?.name || t('strategy.strategyId')"
-      size="50%"
-      direction="rtl"
-    >
+    <!-- Detail Drawer -->
+    <el-drawer v-model="drawerVisible" :title="drawerStrategy?.name || t('strategy.strategyId')" size="50%" direction="rtl">
       <div v-if="drawerStrategy" v-loading="drawerLoading">
         <el-descriptions :column="2" border>
           <el-descriptions-item :label="t('strategy.strategyId')">{{ drawerStrategy.id }}</el-descriptions-item>
           <el-descriptions-item :label="t('strategy.strategyName')">{{ drawerStrategy.name }}</el-descriptions-item>
-          <el-descriptions-item :label="t('task.protocol')">
-            <el-tag>{{ drawerStrategy.protocol.toUpperCase() }}</el-tag>
-          </el-descriptions-item>
+          <el-descriptions-item :label="t('task.protocol')"><el-tag>{{ drawerStrategy.protocol.toUpperCase() }}</el-tag></el-descriptions-item>
           <el-descriptions-item :label="t('common.createdAt')">{{ formatTime(drawerStrategy.created_at) }}</el-descriptions-item>
         </el-descriptions>
-
         <el-divider content-position="left">{{ t('strategy.networkConfig') }}</el-divider>
         <el-descriptions :column="2" border v-if="drawerStrategy.config">
-          <el-descriptions-item :label="t('strategy.srcIP')">{{ drawerStrategy.config.src_ip || '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="t('strategy.dstIP')">{{ drawerStrategy.config.dst_ip || '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="t('strategy.srcPort')">{{ drawerStrategy.config.src_port || '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="t('strategy.dstPort')">{{ drawerStrategy.config.dst_port || '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="t('strategy.srcMAC')">{{ drawerStrategy.config.src_mac || '-' }}</el-descriptions-item>
-          <el-descriptions-item :label="t('strategy.dstMAC')">{{ drawerStrategy.config.dst_mac || '-' }}</el-descriptions-item>
-          <el-descriptions-item v-if="drawerStrategy.config.vlan_id" :label="t('strategy.vlanID')">{{ drawerStrategy.config.vlan_id }}</el-descriptions-item>
-          <el-descriptions-item v-if="drawerStrategy.config.vlan_id" :label="t('strategy.vlanPriority')">{{ drawerStrategy.config.vlan_priority || 0 }}</el-descriptions-item>
-          <el-descriptions-item :label="t('strategy.ttl')">{{ drawerStrategy.config.ttl || 64 }}</el-descriptions-item>
-          <el-descriptions-item :label="t('strategy.tos')">{{ drawerStrategy.config.tos || 0 }}</el-descriptions-item>
-        </el-descriptions>
-
-        <!-- 协议特定配置 -->
-        <template v-if="drawerStrategy.config?.tcp">
-          <el-divider content-position="left">{{ t('protocol.tcp') }} {{ t('strategy.protocolConfig') }}</el-divider>
-          <el-descriptions :column="2" border>
-            <el-descriptions-item :label="t('strategy.handshake')">{{ drawerStrategy.config.tcp.handshake ? t('common.yes') : t('common.no') }}</el-descriptions-item>
-            <el-descriptions-item :label="t('strategy.termination')">{{ drawerStrategy.config.tcp.termination ? t('common.yes') : t('common.no') }}</el-descriptions-item>
-            <el-descriptions-item :label="t('strategy.mss')">{{ drawerStrategy.config.tcp.mss }}</el-descriptions-item>
-            <el-descriptions-item :label="t('strategy.windowSize')">{{ drawerStrategy.config.tcp.window_size }}</el-descriptions-item>
-          </el-descriptions>
-        </template>
-
-        <template v-if="drawerStrategy.config?.http">
-          <el-divider content-position="left">{{ t('protocol.http') }} {{ t('strategy.protocolConfig') }}</el-divider>
-          <el-descriptions :column="2" border>
-            <el-descriptions-item :label="t('strategy.method')">{{ drawerStrategy.config.http.method }}</el-descriptions-item>
-            <el-descriptions-item :label="t('strategy.uri')">{{ drawerStrategy.config.http.uri }}</el-descriptions-item>
-            <el-descriptions-item :label="t('strategy.keepAlive')">{{ drawerStrategy.config.http.keep_alive ? t('common.yes') : t('common.no') }}</el-descriptions-item>
-            <el-descriptions-item :label="t('strategy.transactions')">{{ drawerStrategy.config.http.transactions }}</el-descriptions-item>
-          </el-descriptions>
-        </template>
-
-        <template v-if="drawerStrategy.config?.dns">
-          <el-divider content-position="left">{{ t('protocol.dns') }} {{ t('strategy.protocolConfig') }}</el-divider>
-          <el-descriptions :column="2" border>
-            <el-descriptions-item :label="t('strategy.domain')">{{ drawerStrategy.config.dns.domain }}</el-descriptions-item>
-            <el-descriptions-item :label="t('strategy.queryType')">{{ drawerStrategy.config.dns.query_type }}</el-descriptions-item>
-          </el-descriptions>
-        </template>
-
-        <template v-if="drawerStrategy.config?.icmp">
-          <el-divider content-position="left">{{ t('protocol.icmp') }} {{ t('strategy.protocolConfig') }}</el-divider>
-          <el-descriptions :column="2" border>
-            <el-descriptions-item :label="t('strategy.icmpType')">{{ drawerStrategy.config.icmp.type }}</el-descriptions-item>
-            <el-descriptions-item :label="t('strategy.icmpCode')">{{ drawerStrategy.config.icmp.code }}</el-descriptions-item>
-          </el-descriptions>
-        </template>
-
-        <el-divider content-position="left">{{ t('strategy.flowControl') }}</el-divider>
-        <el-descriptions :column="1" border>
-          <el-descriptions-item :label="t('strategy.flowControl')">
-            <span v-if="drawerStrategy.flow_control">{{ drawerStrategy.flow_control.type }}: {{ drawerStrategy.flow_control.value }}</span>
-            <span v-else>{{ t('common.noData') }}</span>
-          </el-descriptions-item>
+          <el-descriptions-item :label="t('strategy.srcIP')">{{ strategyConfigValue(drawerStrategy.config.src_ip) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('strategy.dstIP')">{{ strategyConfigValue(drawerStrategy.config.dst_ip) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('strategy.srcPort')">{{ strategyConfigValue(drawerStrategy.config.src_port) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('strategy.dstPort')">{{ strategyConfigValue(drawerStrategy.config.dst_port) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('strategy.ttl')">{{ drawerStrategy.config.ttl ?? 64 }}</el-descriptions-item>
+          <el-descriptions-item :label="t('strategy.tos')">{{ drawerStrategy.config.tos ?? 0 }}</el-descriptions-item>
         </el-descriptions>
       </div>
     </el-drawer>
 
     <!-- Create/Edit Dialog -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="editingStrategy ? t('common.edit') : t('strategy.createStrategy')"
-      width="720px"
-      :close-on-click-modal="false"
-      destroy-on-close
-    >
-      <el-form ref="formRef" :model="form" :rules="{ ...rules, ...configRules }" label-width="120px">
-        <el-collapse v-model="activeSections">
-          <!-- Template Selector (only for create mode) -->
-          <template v-if="!editingStrategy">
-            <el-form-item :label="t('strategy.selectTemplate')" style="margin-bottom: 0; padding: 8px 0;">
-              <el-select v-model="selectedTemplateId" :placeholder="t('strategy.selectTemplate')" clearable style="width: 100%;" @change="applyTemplate">
-                <el-option-group :label="t('strategy.builtinTemplates')">
-                  <el-option v-for="tp in builtinTemplates" :key="tp.id" :label="`${tp.name} (${tp.protocol.toUpperCase()}) - ${tp.description}`" :value="tp.id" />
-                </el-option-group>
-                <el-option-group v-if="customTemplates.length > 0" :label="t('strategy.customTemplates')">
-                  <el-option v-for="tp in customTemplates" :key="tp.id" :label="`${tp.name} (${tp.protocol.toUpperCase()}) - ${tp.description}`" :value="tp.id" />
-                </el-option-group>
-              </el-select>
-            </el-form-item>
-            <el-divider style="margin: 8px 0 16px;" />
-          </template>
+    <el-dialog v-model="dialogVisible" :title="editingStrategy ? t('common.edit') : t('strategy.createStrategy')" width="900px" :close-on-click-modal="false" :before-close="handleDialogClose" destroy-on-close>
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="130px" class="strategy-form">
+        <!-- Section 1: Basic Info (always visible) -->
+        <el-divider content-position="left">{{ t('strategy.sectionBasicInfo') }}</el-divider>
 
-          <!-- 1. Basic Info -->
-          <el-collapse-item :title="t('strategy.sectionBasicInfo')" name="basicInfo">
+        <template v-if="!editingStrategy">
+          <el-form-item :label="t('strategy.selectTemplate')">
+            <el-select v-model="selectedTemplateId" :placeholder="t('strategy.selectTemplate')" clearable style="width: 100%;" @change="applyTemplate">
+              <el-option-group :label="t('strategy.builtinTemplates')">
+                <el-option v-for="tp in builtinTemplates" :key="tp.id" :label="`${tp.name} (${tp.protocol.toUpperCase()})`" :value="tp.id" />
+              </el-option-group>
+              <el-option-group v-if="customTemplates.length > 0" :label="t('strategy.customTemplates')">
+                <el-option v-for="tp in customTemplates" :key="tp.id" :label="`${tp.name} (${tp.protocol.toUpperCase()})`" :value="tp.id" />
+              </el-option-group>
+            </el-select>
+          </el-form-item>
+        </template>
+
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item :label="t('strategy.strategyName')" prop="name">
               <el-input v-model="form.name" :placeholder="t('strategy.strategyNamePlaceholder')" />
             </el-form-item>
-
+          </el-col>
+          <el-col :span="12">
             <el-form-item :label="t('task.protocol')" prop="protocol">
-              <el-select v-model="form.protocol" :placeholder="t('strategy.selectProtocol')" :disabled="!!editingStrategy" @change="onProtocolChange">
-                <el-option :label="t('protocol.tcp')" value="tcp" />
-                <el-option :label="t('protocol.udp')" value="udp" />
-                <el-option :label="t('protocol.http')" value="http" />
-                <el-option :label="t('protocol.dns')" value="dns" />
-                <el-option :label="t('protocol.icmp')" value="icmp" />
-                <el-option :label="t('protocol.arp')" value="arp" />
+              <el-select v-model="form.protocol" :placeholder="t('strategy.selectProtocol')" :disabled="!!editingStrategy" style="width: 100%;" @change="onProtocolChange">
+                <el-option v-for="p in ['tcp','udp','http','dns','icmp','arp']" :key="p" :label="t('protocol.' + p)" :value="p" />
               </el-select>
             </el-form-item>
-          </el-collapse-item>
+          </el-col>
+        </el-row>
 
-          <!-- 2. Network Config (all protocols except ARP) -->
-          <el-collapse-item v-if="form.protocol && form.protocol !== 'arp'" :title="t('strategy.sectionNetworkConfig')" name="networkConfig">
-            <el-row :gutter="20">
+        <!-- Section 2: Network Config (IP + Port with strategy) -->
+        <template v-if="form.protocol">
+          <el-divider content-position="left">{{ t('strategy.sectionNetworkConfig') }}</el-divider>
+
+          <el-form-item :label="t('strategy.srcIP')">
+            <ValueStrategySelector
+              v-model="form.config.src_ip"
+              field-type="ip"
+              :placeholder="t('strategy.srcIPPlaceholder')"
+              :available-strategies="['fixed', 'inc', 'random']"
+              :list-options="srcIPPresets"
+            />
+          </el-form-item>
+
+          <el-form-item :label="t('strategy.dstIP')" prop="config.dst_ip">
+            <ValueStrategySelector
+              v-model="form.config.dst_ip"
+              field-type="ip"
+              :placeholder="t('strategy.dstIPPlaceholder')"
+              :available-strategies="['fixed', 'inc', 'random']"
+              :list-options="dstIPPresets"
+            />
+          </el-form-item>
+
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item :label="t('strategy.srcPort')">
+                <ValueStrategySelector
+                  v-model="form.config.src_port"
+                  field-type="port"
+                  :min="1" :max="65535"
+                  :available-strategies="['fixed', 'inc', 'random']"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item :label="t('strategy.dstPort')">
+                <ValueStrategySelector
+                  v-model="form.config.dst_port"
+                  field-type="port"
+                  :min="1" :max="65535"
+                  :available-strategies="['fixed', 'inc', 'random']"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </template>
+
+        <!-- Section 3: Protocol Config -->
+        <template v-if="form.protocol">
+          <el-divider content-position="left">{{ t('strategy.sectionProtocolConfig') }}</el-divider>
+
+          <!-- TCP -->
+          <template v-if="form.protocol === 'tcp'">
+            <el-row :gutter="16">
               <el-col :span="12">
-                <el-form-item :label="t('strategy.srcIP')">
-                  <el-input v-model="form.config.src_ip" placeholder="192.168.1.100" />
+                <el-form-item :label="t('strategy.handshake')">
+                  <el-switch v-model="form.config.tcp.handshake" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item :label="t('strategy.dstIP')">
-                  <el-input v-model="form.config.dst_ip" placeholder="192.168.1.1" />
+                <el-form-item :label="t('strategy.termination')">
+                  <el-switch v-model="form.config.tcp.termination" />
                 </el-form-item>
               </el-col>
             </el-row>
-
-            <el-row :gutter="20">
+            <el-row :gutter="16">
               <el-col :span="12">
-                <el-form-item :label="t('strategy.srcPort')">
-                  <el-input-number v-model="form.config.src_port" :min="1" :max="65535" style="width: 100%;" />
+                <el-form-item :label="t('strategy.mss')">
+                  <el-input-number v-model="form.config.tcp.mss" :min="536" :max="65535" controls-position="right" style="width: 100%;" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item :label="t('strategy.dstPort')">
-                  <el-input-number v-model="form.config.dst_port" :min="1" :max="65535" style="width: 100%;" />
+                <el-form-item :label="t('strategy.windowSize')">
+                  <el-input-number v-model="form.config.tcp.window_size" :min="1" :max="65535" controls-position="right" style="width: 100%;" />
                 </el-form-item>
               </el-col>
             </el-row>
-          </el-collapse-item>
+          </template>
 
-          <!-- 3. L2/L3 Config -->
-          <el-collapse-item v-if="form.protocol" :title="t('strategy.sectionL2L3Config')" name="l2l3Config">
-            <!-- L2: MAC + VLAN -->
-            <el-row :gutter="20">
+          <!-- UDP -->
+          <template v-if="form.protocol === 'udp'">
+            <el-form-item :label="t('strategy.udpResponse')">
+              <el-switch v-model="form.config.udp.response" />
+            </el-form-item>
+          </template>
+
+          <!-- HTTP -->
+          <template v-if="form.protocol === 'http'">
+            <el-form-item :label="t('strategy.method')">
+              <el-select v-model="form.config.http.methods" multiple filterable allow-create default-first-option style="width: 100%;" :placeholder="t('strategy.method')">
+                <el-option v-for="m in ['GET','POST','PUT','DELETE','PATCH','HEAD','OPTIONS']" :key="m" :label="m" :value="m" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="t('strategy.uri')">
+              <ValueStrategySelector v-model="form.config.http.uri" field-type="text" :placeholder="t('strategy.uriPlaceholder')" :available-strategies="['fixed', 'random', 'pattern', 'list']" :list-options="['/', '/api', '/health', '/login', '/index.html']" />
+            </el-form-item>
+            <el-form-item :label="t('strategy.headers')">
+              <div style="width: 100%;">
+                <div v-for="(header, index) in form.config.http.headers" :key="index" class="header-row">
+                  <el-select v-model="header.key" filterable allow-create style="width: 200px;" :placeholder="t('strategy.headerKey')">
+                    <el-option v-for="hp in HEADER_PRESETS" :key="hp.key" :label="hp.key" :value="hp.key" />
+                  </el-select>
+                  <el-input v-model="header.value" :placeholder="t('strategy.headerValue')" style="flex: 1;" />
+                  <el-button type="danger" link @click="form.config.http.headers.splice(index, 1)">{{ t('common.delete') }}</el-button>
+                </div>
+                <el-button type="primary" link @click="addHeader">{{ t('strategy.addHeader') }}</el-button>
+              </div>
+            </el-form-item>
+            <el-form-item :label="t('strategy.body')">
+              <ValueStrategySelector v-model="form.config.http.body" field-type="text" :placeholder="t('strategy.bodyPlaceholder')" :available-strategies="['fixed', 'file']" />
+            </el-form-item>
+            <el-row :gutter="16">
+              <el-col :span="8">
+                <el-form-item :label="t('strategy.keepAlive')">
+                  <el-switch v-model="form.config.http.keep_alive" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item :label="t('strategy.transactions')">
+                  <el-input-number v-model="form.config.http.transactions" :min="1" controls-position="right" style="width: 100%;" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item :label="t('strategy.thinkTime')">
+                  <el-input-number v-model="form.config.http.think_time" :min="0" controls-position="right" style="width: 100%;" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </template>
+
+          <!-- DNS -->
+          <template v-if="form.protocol === 'dns'">
+            <el-row :gutter="16">
+              <el-col :span="16">
+                <el-form-item :label="t('strategy.domain')" prop="config.dns.domain">
+                  <el-input v-model="form.config.dns.domain" :placeholder="t('strategy.domainPlaceholder')" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item :label="t('strategy.queryType')">
+                  <el-select v-model="form.config.dns.query_type" style="width: 100%;">
+                    <el-option label="A" :value="1" /><el-option label="AAAA" :value="28" /><el-option label="CNAME" :value="5" /><el-option label="MX" :value="15" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="16">
+              <el-col :span="8">
+                <el-form-item :label="t('strategy.dnsResponse')">
+                  <el-switch v-model="form.config.dns.response" />
+                </el-form-item>
+              </el-col>
+              <el-col v-if="form.config.dns.response" :span="16">
+                <el-form-item :label="t('strategy.responseIP')">
+                  <el-input v-model="form.config.dns.response_ip" :placeholder="t('strategy.responseIPPlaceholder')" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </template>
+
+          <!-- ICMP -->
+          <template v-if="form.protocol === 'icmp'">
+            <el-row :gutter="16">
+              <el-col :span="8">
+                <el-form-item :label="t('strategy.icmpType')">
+                  <el-select v-model="form.config.icmp.type" style="width: 100%;">
+                    <el-option :label="t('strategy.echoRequest')" :value="8" /><el-option :label="t('strategy.echoReply')" :value="0" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item :label="t('strategy.icmpCode')">
+                  <el-input-number v-model="form.config.icmp.code" :min="0" :max="255" controls-position="right" style="width: 100%;" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item :label="t('strategy.sequence')">
+                  <el-input-number v-model="form.config.icmp.sequence" :min="0" :max="65535" controls-position="right" style="width: 100%;" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item :label="t('strategy.icmpData')">
+              <el-input v-model="form.config.icmp.data" :placeholder="t('strategy.icmpDataPlaceholder')" />
+            </el-form-item>
+          </template>
+
+          <!-- ARP -->
+          <template v-if="form.protocol === 'arp'">
+            <el-row :gutter="16">
+              <el-col :span="8">
+                <el-form-item :label="t('strategy.operation')">
+                  <el-select v-model="form.config.arp.operation" style="width: 100%;">
+                    <el-option :label="t('strategy.arpRequest')" :value="1" /><el-option :label="t('strategy.arpReply')" :value="2" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item :label="t('strategy.targetMAC')">
+                  <el-input v-model="form.config.arp.target_mac" :placeholder="t('strategy.srcMACPlaceholder')" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item :label="t('strategy.targetIP')">
+                  <el-input v-model="form.config.arp.target_ip" :placeholder="t('strategy.dstIPPlaceholder')" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </template>
+        </template>
+
+        <!-- Section 4: Advanced Config (collapsible) -->
+        <template v-if="form.protocol">
+          <el-divider content-position="left">
+            <el-button link type="primary" @click="showAdvanced = !showAdvanced">
+              {{ t('strategy.advancedConfig') }}
+              <el-icon :class="{ 'el-icon--right': true, 'rotate-icon': showAdvanced }"><ArrowRight /></el-icon>
+            </el-button>
+          </el-divider>
+
+          <div v-show="showAdvanced">
+            <el-row :gutter="16">
               <el-col :span="12">
                 <el-form-item :label="t('strategy.srcMAC')">
                   <el-input v-model="form.config.src_mac" :placeholder="t('strategy.srcMACPlaceholder')" />
@@ -298,296 +361,82 @@
                 </el-form-item>
               </el-col>
             </el-row>
-
-            <!-- VLAN -->
-            <el-row :gutter="20">
-              <el-col :span="6">
+            <el-row :gutter="16">
+              <el-col :span="8">
                 <el-form-item :label="t('strategy.vlanEnable')">
                   <el-switch v-model="form.config.vlan_enable" />
                 </el-form-item>
               </el-col>
-              <el-col v-if="form.config.vlan_enable" :span="9">
+              <el-col v-if="form.config.vlan_enable" :span="8">
                 <el-form-item :label="t('strategy.vlanID')">
-                  <el-input-number v-model="form.config.vlan_id" :min="1" :max="4094" style="width: 100%;" />
+                  <el-input-number v-model="form.config.vlan_id" :min="1" :max="4094" controls-position="right" style="width: 100%;" />
                 </el-form-item>
               </el-col>
-              <el-col v-if="form.config.vlan_enable" :span="9">
+              <el-col v-if="form.config.vlan_enable" :span="8">
                 <el-form-item :label="t('strategy.vlanPriority')">
-                  <el-input-number v-model="form.config.vlan_priority" :min="0" :max="7" style="width: 100%;" />
+                  <el-input-number v-model="form.config.vlan_priority" :min="0" :max="7" controls-position="right" style="width: 100%;" />
                 </el-form-item>
               </el-col>
             </el-row>
+            <el-row v-if="form.protocol !== 'arp'" :gutter="16">
+              <el-col :span="12">
+                <el-form-item :label="t('strategy.ttl')">
+                  <ValueStrategySelector v-model="form.config.ttl" field-type="number" :min="1" :max="255" :available-strategies="['fixed', 'random']" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item :label="t('strategy.tos')">
+                  <ValueStrategySelector v-model="form.config.tos" field-type="number" :min="0" :max="255" :available-strategies="['fixed', 'random', 'list']" :list-options="['0', '8', '16', '32', '40', '48', '56', '64', '104', '136']" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item v-if="form.protocol !== 'arp'" :label="t('strategy.payload')">
+              <ValueStrategySelector v-model="form.config.payload" field-type="text" :placeholder="t('strategy.payloadPlaceholder')" :available-strategies="['fixed', 'file']" />
+            </el-form-item>
 
-            <!-- L3: TTL, TOS, Payload (all protocols except ARP) -->
-            <template v-if="form.protocol !== 'arp'">
-              <el-row :gutter="20">
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.ttl')">
-                    <el-input-number v-model="form.config.ttl" :min="1" :max="255" style="width: 100%;" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.tos')">
-                    <el-input-number v-model="form.config.tos" :min="0" :max="255" style="width: 100%;" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.payload')">
-                    <el-input v-model="form.config.payload" :placeholder="t('strategy.payloadPlaceholder')" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </template>
-          </el-collapse-item>
-
-          <!-- 4. Protocol Config -->
-          <el-collapse-item v-if="form.protocol" :title="t('strategy.sectionProtocolConfig')" name="protocolConfig">
-            <!-- TCP -->
-            <template v-if="form.protocol === 'tcp'">
-              <el-row :gutter="20">
-                <el-col :span="6">
-                  <el-form-item :label="t('strategy.handshake')">
-                    <el-switch v-model="form.config.tcp.handshake" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="6">
-                  <el-form-item :label="t('strategy.termination')">
-                    <el-switch v-model="form.config.tcp.termination" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="6">
-                  <el-form-item :label="t('strategy.mss')">
-                    <el-input-number v-model="form.config.tcp.mss" :min="536" :max="65535" style="width: 100%;" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="6">
-                  <el-form-item :label="t('strategy.windowSize')">
-                    <el-input-number v-model="form.config.tcp.window_size" :min="1" :max="65535" style="width: 100%;" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </template>
-
-            <!-- UDP -->
-            <template v-if="form.protocol === 'udp'">
-              <el-row :gutter="20">
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.udpResponse')">
-                    <el-switch v-model="form.config.udp.response" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </template>
-
-            <!-- HTTP -->
-            <template v-if="form.protocol === 'http'">
-              <el-row :gutter="20">
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.method')">
-                    <el-select v-model="form.config.http.method" style="width: 100%;">
-                      <el-option label="GET" value="GET" />
-                      <el-option label="POST" value="POST" />
-                      <el-option label="PUT" value="PUT" />
-                      <el-option label="DELETE" value="DELETE" />
-                      <el-option label="PATCH" value="PATCH" />
-                      <el-option label="HEAD" value="HEAD" />
-                      <el-option label="OPTIONS" value="OPTIONS" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="16">
-                  <el-form-item :label="t('strategy.uri')">
-                    <el-input v-model="form.config.http.uri" :placeholder="t('strategy.uriPlaceholder')" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-
-              <!-- Headers -->
-              <el-form-item :label="t('strategy.headers')">
-                <div style="width: 100%;">
-                  <div v-for="(header, index) in form.config.http.headers" :key="index" style="display: flex; gap: 8px; margin-bottom: 8px;">
-                    <el-input v-model="header.key" :placeholder="t('strategy.headerKey')" style="flex: 1;" />
-                    <el-input v-model="header.value" :placeholder="t('strategy.headerValue')" style="flex: 1;" />
-                    <el-button type="danger" link @click="form.config.http.headers.splice(index, 1)">
-                      {{ t('common.delete') }}
-                    </el-button>
-                  </div>
-                  <el-button type="primary" link @click="form.config.http.headers.push({ key: '', value: '' })">
-                    + {{ t('strategy.addHeader') }}
-                  </el-button>
-                </div>
-              </el-form-item>
-
-              <el-form-item :label="t('strategy.body')">
-                <el-input v-model="form.config.http.body" type="textarea" rows="3" />
-              </el-form-item>
-
-              <el-row :gutter="20">
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.keepAlive')">
-                    <el-switch v-model="form.config.http.keep_alive" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.transactions')">
-                    <el-input-number v-model="form.config.http.transactions" :min="1" style="width: 100%;" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.thinkTime')">
-                    <el-input-number v-model="form.config.http.think_time" :min="0" style="width: 100%;" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </template>
-
-            <!-- DNS -->
-            <template v-if="form.protocol === 'dns'">
-              <el-row :gutter="20">
-                <el-col :span="16">
-                  <el-form-item :label="t('strategy.domain')">
-                    <el-input v-model="form.config.dns.domain" :placeholder="t('strategy.domainPlaceholder')" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.queryType')">
-                    <el-select v-model="form.config.dns.query_type" style="width: 100%;">
-                      <el-option label="A" :value="1" />
-                      <el-option label="AAAA" :value="28" />
-                      <el-option label="CNAME" :value="5" />
-                      <el-option label="MX" :value="15" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-              <el-row :gutter="20">
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.dnsResponse')">
-                    <el-switch v-model="form.config.dns.response" />
-                  </el-form-item>
-                </el-col>
-                <el-col v-if="form.config.dns.response" :span="16">
-                  <el-form-item :label="t('strategy.responseIP')">
-                    <el-input v-model="form.config.dns.response_ip" :placeholder="t('strategy.responseIPPlaceholder')" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </template>
-
-            <!-- ICMP -->
-            <template v-if="form.protocol === 'icmp'">
-              <el-row :gutter="20">
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.icmpType')">
-                    <el-select v-model="form.config.icmp.type" style="width: 100%;">
-                      <el-option :label="t('strategy.echoRequest')" :value="8" />
-                      <el-option :label="t('strategy.echoReply')" :value="0" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.icmpCode')">
-                    <el-input-number v-model="form.config.icmp.code" :min="0" :max="255" style="width: 100%;" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.sequence')">
-                    <el-input-number v-model="form.config.icmp.sequence" :min="0" :max="65535" style="width: 100%;" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-              <el-form-item :label="t('strategy.icmpData')">
-                <el-input v-model="form.config.icmp.data" placeholder="ping" />
-              </el-form-item>
-            </template>
-
-            <!-- ARP -->
-            <template v-if="form.protocol === 'arp'">
-              <el-row :gutter="20">
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.operation')">
-                    <el-select v-model="form.config.arp.operation" style="width: 100%;">
-                      <el-option :label="t('strategy.arpRequest')" :value="1" />
-                      <el-option :label="t('strategy.arpReply')" :value="2" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.targetMAC')">
-                    <el-input v-model="form.config.arp.target_mac" :placeholder="t('strategy.srcMACPlaceholder')" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item :label="t('strategy.targetIP')">
-                    <el-input v-model="form.config.arp.target_ip" placeholder="192.168.1.1" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-              <!-- ARP still needs src/dst IP -->
-              <el-row :gutter="20">
-                <el-col :span="12">
-                  <el-form-item :label="t('strategy.srcIP')">
-                    <el-input v-model="form.config.src_ip" placeholder="192.168.1.100" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item :label="t('strategy.dstIP')">
-                    <el-input v-model="form.config.dst_ip" placeholder="192.168.1.1" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </template>
-          </el-collapse-item>
-
-          <!-- 5. Flow Control -->
-          <el-collapse-item :title="t('strategy.sectionFlowControl')" name="flowControl">
-            <el-row :gutter="20">
+            <el-divider content-position="left">{{ t('strategy.sectionFlowControl') }}</el-divider>
+            <el-row :gutter="16">
               <el-col :span="12">
                 <el-form-item :label="t('strategy.flowControlType')">
-                  <el-select v-model="form.flow_control.type" clearable :placeholder="t('strategy.flowControlType')" style="width: 100%;">
-                    <el-option :label="t('strategy.bps')" value="bps" />
-                    <el-option :label="t('strategy.flows')" value="flows" />
-                    <el-option :label="t('strategy.cps')" value="cps" />
-                    <el-option :label="t('strategy.ratio')" value="ratio" />
-                    <el-option :label="t('strategy.time')" value="time" />
+                  <el-select v-model="form.flow_control.type" clearable style="width: 100%;" :placeholder="t('strategy.flowControlType')">
+                    <el-option :label="t('strategy.flows')" value="flows" /><el-option :label="t('strategy.cps')" value="cps" /><el-option :label="t('strategy.bps')" value="bps" /><el-option :label="t('strategy.ratio')" value="ratio" /><el-option :label="t('strategy.time')" value="time" />
                   </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item v-if="form.flow_control.type" :label="t('strategy.flowControlValue')">
-                  <el-input-number v-model="form.flow_control.value" :min="0" style="width: 100%;" />
+                  <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+                    <el-input-number v-model="form.flow_control.value" :min="0" style="flex: 1;" />
+                    <span class="flow-unit">{{ flowControlUnit }}</span>
+                  </div>
                 </el-form-item>
               </el-col>
             </el-row>
-          </el-collapse-item>
-        </el-collapse>
+          </div>
+        </template>
       </el-form>
 
       <template #footer>
-        <el-button @click="handleSaveTemplate" :disabled="!form.name || !form.protocol">
-          {{ t('strategy.saveAsTemplate') }}
-        </el-button>
+        <el-button @click="handleSaveTemplate" :disabled="!form.name || !form.protocol">{{ t('strategy.saveAsTemplate') }}</el-button>
         <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
-          {{ t('common.confirm') }}
-        </el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Setting, Refresh, Plus, More } from '@element-plus/icons-vue'
+import { Search, Setting, Refresh, More, ArrowRight } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { strategyApi, type Strategy } from '@/api'
-import { useStrategyTemplates, type StrategyTemplate } from '@/composables/useStrategyTemplates'
+import { useStrategyTemplates } from '@/composables/useStrategyTemplates'
 import ProTable from '@/components/ProTable/index.vue'
+import ValueStrategySelector, { type StrategyValue } from '@/components/ValueStrategySelector/index.vue'
 
 const STORAGE_KEY = 'strategy-list-state'
-
 const { t } = useI18n()
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -600,12 +449,10 @@ const selectedStrategies = ref<Strategy[]>([])
 const drawerVisible = ref(false)
 const drawerLoading = ref(false)
 const drawerStrategy = ref<Strategy | null>(null)
-
-// Collapsible sections: default expanded = basicInfo, networkConfig, protocolConfig
-const activeSections = ref<string[]>(['basicInfo', 'networkConfig', 'protocolConfig'])
+const showAdvanced = ref(false)
 
 const columns = computed(() => [
-  { prop: 'selection', label: '', type: 'selection', width: 45, fixed: 'left' },
+  { type: 'selection' as const, width: 45, fixed: 'left' },
   { prop: 'id', label: t('strategy.strategyId'), width: 100, required: true, sortable: 'custom' },
   { prop: 'name', label: t('strategy.strategyName'), minWidth: 180, sortable: 'custom', required: true },
   { prop: 'protocol', label: t('task.protocol'), width: 90, sortable: 'custom' },
@@ -614,734 +461,355 @@ const columns = computed(() => [
   { prop: 'actions', label: t('task.actions'), width: 120, fixed: 'right', required: true }
 ])
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {}
-  return null
-}
-
+function loadState() { try { const r = localStorage.getItem(STORAGE_KEY); if (r) return JSON.parse(r) } catch {} return null }
 const saved = loadState()
-
-const filters = reactive({
-  search: saved?.filters?.search || '',
-  protocol: saved?.filters?.protocol || [] as string[]
-})
-
-const pagination = reactive({
-  page: saved?.pagination?.page || 1,
-  size: saved?.pagination?.size || 20
-})
-
-const sortState = reactive({
-  prop: '',
-  order: ''
-})
+const filters = reactive({ search: saved?.filters?.search || '', protocol: saved?.filters?.protocol || [] as string[] })
+const pagination = reactive({ page: saved?.pagination?.page || 1, size: saved?.pagination?.size || 20 })
+const sortState = reactive({ prop: '', order: '' })
 
 watch([() => ({ ...filters }), () => ({ ...pagination })], () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ filters: { search: filters.search, protocol: filters.protocol }, pagination: { page: pagination.page, size: pagination.size } }))
 }, { deep: true })
 
-// Template system
-const { allTemplates, customTemplates, addTemplate, deleteTemplate: deleteCustomTemplate, getTemplate } = useStrategyTemplates()
+// Presets
+const srcIPPresets = ['192.168.1.100', '10.0.0.1', '172.16.0.1']
+const dstIPPresets = ['192.168.1.1', '10.0.0.2', '172.16.0.2']
+
+const HEADER_PRESETS = [
+  { key: 'Content-Type', value: 'application/json' },
+  { key: 'Accept', value: '*/*' },
+  { key: 'User-Agent', value: 'Mozilla/5.0' },
+  { key: 'Authorization', value: 'Bearer ' },
+  { key: 'Host', value: '' },
+]
+
+const PROTOCOL_PRESETS: Record<string, number> = { tcp: 80, udp: 5000, http: 80, dns: 53, icmp: 0, arp: 0 }
+
+// Templates
+const { allTemplates, customTemplates, addTemplate, getTemplate } = useStrategyTemplates()
 const builtinTemplates = computed(() => allTemplates.value.filter(t => t.isBuiltin))
 const selectedTemplateId = ref<string>('')
 
-function applyTemplate(templateId: string) {
-  if (!templateId) return
-  const template = getTemplate(templateId)
-  if (!template) return
-
-  form.protocol = template.protocol
-  const cfg = template.config || {}
-  if (cfg.src_ip) form.config.src_ip = cfg.src_ip
-  if (cfg.dst_ip) form.config.dst_ip = cfg.dst_ip
-  if (cfg.src_port) form.config.src_port = cfg.src_port
-  if (cfg.dst_port) form.config.dst_port = cfg.dst_port
-  if (cfg.src_mac) form.config.src_mac = cfg.src_mac
-  if (cfg.dst_mac) form.config.dst_mac = cfg.dst_mac
-  if (cfg.ttl) form.config.ttl = cfg.ttl
-  if (cfg.tos) form.config.tos = cfg.tos
-  if (cfg.payload) form.config.payload = cfg.payload
-  if (cfg.vlan_id) {
-    form.config.vlan_enable = true
-    form.config.vlan_id = cfg.vlan_id
-    if (cfg.vlan_priority) form.config.vlan_priority = cfg.vlan_priority
-  }
-  if (cfg.tcp && typeof cfg.tcp === 'object') {
-    form.config.tcp = { ...form.config.tcp, ...cfg.tcp }
-  }
-  if (cfg.udp && typeof cfg.udp === 'object') {
-    form.config.udp = { ...form.config.udp, ...cfg.udp }
-  }
-  if (cfg.http && typeof cfg.http === 'object') {
-    const httpCfg = { ...cfg.http }
-    if (httpCfg.headers && typeof httpCfg.headers === 'object' && !Array.isArray(httpCfg.headers)) {
-      form.config.http.headers = Object.entries(httpCfg.headers).map(([key, value]) => ({
-        key, value: String(value)
-      }))
-      delete httpCfg.headers
-    }
-    form.config.http = { ...form.config.http, ...httpCfg }
-  }
-  if (cfg.dns && typeof cfg.dns === 'object') {
-    form.config.dns = { ...form.config.dns, ...cfg.dns }
-  }
-  if (cfg.icmp && typeof cfg.icmp === 'object') {
-    form.config.icmp = { ...form.config.icmp, ...cfg.icmp }
-  }
-  if (cfg.arp && typeof cfg.arp === 'object') {
-    form.config.arp = { ...form.config.arp, ...cfg.arp }
-  }
-  if (template.flow_control) {
-    form.flow_control = { ...template.flow_control }
-  }
-
-  ElMessage.success(t('strategy.templateApplied'))
+function sv(val: any): StrategyValue {
+  return { strategy: 'fixed', value: val ?? '' }
 }
-
-function handleSaveTemplate() {
-  if (!form.name || !form.protocol) return
-  ElMessageBox.prompt(t('strategy.templateDescriptionPlaceholder'), t('strategy.saveAsTemplate'), {
-    confirmButtonText: t('common.save'),
-    cancelButtonText: t('common.cancel'),
-    inputPlaceholder: t('strategy.templateDescriptionPlaceholder')
-  }).then(({ value: description }) => {
-    const cfg = buildConfigForSubmit()
-    addTemplate({
-      name: form.name,
-      description: description || '',
-      protocol: form.protocol,
-      config: cfg,
-      flow_control: form.flow_control.type ? { ...form.flow_control } : undefined
-    })
-    ElMessage.success(t('strategy.templateSaved'))
-  }).catch(() => {})
-}
-
-const filteredStrategies = computed(() => {
-  let result = strategies.value
-
-  // 搜索筛选
-  if (filters.search) {
-    const searchLower = filters.search.toLowerCase()
-    result = result.filter(s =>
-      s.name.toLowerCase().includes(searchLower) ||
-      s.id.toLowerCase().includes(searchLower)
-    )
-  }
-
-  // 协议筛选
-  if (filters.protocol.length > 0) {
-    result = result.filter(s => filters.protocol.includes(s.protocol))
-  }
-
-  // 排序
-  if (sortState.prop && sortState.order) {
-    result = [...result].sort((a, b) => {
-      let aVal: any = a[sortState.prop as keyof Strategy]
-      let bVal: any = b[sortState.prop as keyof Strategy]
-      if (sortState.prop === 'flow_control') {
-        aVal = (aVal as any)?.value ?? 0
-        bVal = (bVal as any)?.value ?? 0
-      }
-      let cmp = 0
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        cmp = aVal.localeCompare(bVal)
-      } else if (typeof aVal === 'number' && typeof bVal === 'number') {
-        cmp = aVal - bVal
-      } else {
-        cmp = String(aVal ?? '').localeCompare(String(bVal ?? ''))
-      }
-      return sortState.order === 'ascending' ? cmp : -cmp
-    })
-  }
-
-  return result
-})
-
-function resetFilters() {
-  filters.search = ''
-  filters.protocol = []
-  pagination.page = 1
-}
-
-interface HttpHeader {
-  key: string
-  value: string
+function svPort(val: number): StrategyValue {
+  return { strategy: 'fixed', value: val }
 }
 
 interface StrategyForm {
   name: string
   protocol: string
   config: {
-    src_ip: string
-    dst_ip: string
-    src_port: number
-    dst_port: number
-    src_mac: string
-    dst_mac: string
-    ttl: number
-    tos: number
-    payload: string
-    vlan_enable: boolean
-    vlan_id: number
-    vlan_priority: number
-    tcp: {
-      handshake: boolean
-      termination: boolean
-      mss: number
-      window_size: number
-    }
-    udp: {
-      response: boolean
-    }
-    http: {
-      method: string
-      uri: string
-      headers: HttpHeader[]
-      body: string
-      keep_alive: boolean
-      transactions: number
-      think_time: number
-    }
-    dns: {
-      domain: string
-      query_type: number
-      response: boolean
-      response_ip: string
-    }
-    icmp: {
-      type: number
-      code: number
-      sequence: number
-      data: string
-    }
-    arp: {
-      operation: number
-      target_mac: string
-      target_ip: string
-    }
+    src_ip: StrategyValue; dst_ip: StrategyValue
+    src_port: StrategyValue; dst_port: StrategyValue
+    src_mac: string; dst_mac: string
+    ttl: StrategyValue; tos: StrategyValue; payload: StrategyValue
+    vlan_enable: boolean; vlan_id: number; vlan_priority: number
+    tcp: { handshake: boolean; termination: boolean; mss: number; window_size: number }
+    udp: { response: boolean }
+    http: { methods: string[]; uri: StrategyValue; headers: { key: string; value: string }[]; body: StrategyValue; keep_alive: boolean; transactions: number; think_time: number }
+    dns: { domain: string; query_type: number; response: boolean; response_ip: string }
+    icmp: { type: number; code: number; sequence: number; data: string }
+    arp: { operation: number; target_mac: string; target_ip: string }
   }
-  flow_control: {
-    type: string
-    value: number
-  }
+  flow_control: { type: string; value: number }
 }
 
-// Protocol preset port mapping
-const PROTOCOL_PRESETS: Record<string, { dst_port: number; description: string }> = {
-  tcp: { dst_port: 80, description: 'HTTP' },
-  udp: { dst_port: 5000, description: "Custom UDP" },
-  http: { dst_port: 80, description: "HTTP" },
-  https: { dst_port: 443, description: "HTTPS" },
-  dns: { dst_port: 53, description: "DNS" },
-  ftp: { dst_port: 21, description: "FTP" },
-  ssh: { dst_port: 22, description: "SSH" },
-  icmp: { dst_port: 0, description: "ICMP" },
-  arp: { dst_port: 0, description: "ARP" }
-}
-
-// Common IP presets for quick selection
-const IP_PRESETS = [
-  { label: "Local IP", value: "auto_local", description: "Auto-detect local IP address" },
-  { label: "Loopback", value: "127.0.0.1", description: "Local loopback" },
-  { label: "Gateway", value: "auto_gateway", description: "Auto-detect gateway" },
-  { label: "DNS (Google)", value: "8.8.8.8", description: "Google DNS" },
-  { label: "DNS (Cloudflare)", value: "1.1.1.1", description: "Cloudflare DNS" }
-]
-
-// Common HTTP URI presets
-const URI_PRESETS = [
-  { label: "Root", value: "/", description: "Server root path" },
-  { label: "API", value: "/api", description: "API root path" },
-  { label: "Health", value: "/health", description: "Health check endpoint" },
-  { label: "Login", value: "/login", description: "Login page" },
-  { label: "Index", value: "/index.html", description: "Home page" }
-]
-
-// Flow control presets
-const FLOW_CONTROL_PRESETS = [
-  { label: "Fixed Flows", type: "flows", value: 100, description: "Fixed 100 flows" },
-  { label: "Duration", type: "time", value: 60, description: "Duration 60 seconds" },
-  { label: "Connections/sec", type: "cps", value: 1000, description: "1000 connections per second" },
-  { label: "Bandwidth", type: "bps", value: 1000000, description: "1Mbps bandwidth" }
-]
-
-// Generate random high port for source
-function getRandomPort(): number {
-  return Math.floor(Math.random() * (65535 - 49152 + 1)) + 49152
-}
-
-// Auto-detect local IP (best effort)
-function getLocalIP(): string {
-  try {
-    // Try to get from a common local IP pattern
-    return "192.168.1.100"
-  } catch {
-    return "192.168.1.100"
+function defaultForm(): StrategyForm {
+  return {
+    name: '', protocol: 'tcp',
+    config: {
+      src_ip: sv('192.168.1.100'), dst_ip: sv(''),
+      src_port: svPort(Math.floor(Math.random() * (65535 - 49152 + 1)) + 49152),
+      dst_port: svPort(PROTOCOL_PRESETS['tcp']),
+      src_mac: '', dst_mac: '',
+      ttl: svPort(64), tos: svPort(0), payload: sv(''),
+      vlan_enable: false, vlan_id: 1, vlan_priority: 0,
+      tcp: { handshake: true, termination: true, mss: 1460, window_size: 65535 },
+      udp: { response: false },
+      http: { methods: ['GET'], uri: sv('/'), headers: [], body: sv(''), keep_alive: true, transactions: 10, think_time: 100 },
+      dns: { domain: 'example.com', query_type: 1, response: false, response_ip: '' },
+      icmp: { type: 8, code: 0, sequence: 1, data: 'ping' },
+      arp: { operation: 1, target_mac: '', target_ip: '' },
+    },
+    flow_control: { type: 'flows', value: 1 },
   }
 }
-
-const defaultForm = (): StrategyForm => ({
-  name: '',
-  protocol: 'tcp',
-  config: {
-    src_ip: getLocalIP(),
-    dst_ip: '',
-    src_port: getRandomPort(),
-    dst_port: PROTOCOL_PRESETS['tcp'].dst_port,
-    src_mac: '',
-    dst_mac: '',
-    ttl: 64,
-    tos: 0,
-    payload: '',
-    vlan_enable: false,
-    vlan_id: 1,
-    vlan_priority: 0,
-    tcp: {
-      handshake: true,
-      termination: true,
-      mss: 1460,
-      window_size: 65535
-    },
-    udp: {
-      response: false
-    },
-    http: {
-      method: 'GET',
-      uri: '/',
-      headers: [],
-      body: '',
-      keep_alive: true,
-      transactions: 10,
-      think_time: 100
-    },
-    dns: {
-      domain: 'example.com',
-      query_type: 1,
-      response: false,
-      response_ip: ''
-    },
-    icmp: {
-      type: 8,
-      code: 0,
-      sequence: 1,
-      data: 'ping'
-    },
-    arp: {
-      operation: 1,
-      target_mac: '',
-      target_ip: ''
-    }
-  },
-  flow_control: {
-    type: 'flows',
-    value: 1
-  }
-})
 
 const form = reactive<StrategyForm>(defaultForm())
 
+const formDirty = ref(false)
+const initialFormJson = ref('')
+
+function captureFormState() { return JSON.stringify({ name: form.name, protocol: form.protocol, config: form.config, flow_control: form.flow_control }) }
+function resetDirtyState() { nextTick(() => { initialFormJson.value = captureFormState(); formDirty.value = false }) }
+watch(() => captureFormState(), (v) => { formDirty.value = v !== initialFormJson.value })
+
+const flowControlUnit = computed(() => {
+  const u: Record<string, string> = { flows: t('strategy.unitFlows'), bps: t('strategy.unitBps'), cps: t('strategy.unitCps'), ratio: t('strategy.unitRatio'), time: t('strategy.unitTime') }
+  return u[form.flow_control.type] || ''
+})
+
+// Validation
+const ipValidator = (_r: any, value: string, cb: (e?: Error) => void) => {
+  if (!value) { cb(); return }
+  const sv = typeof value === 'object' ? (value as StrategyValue).value : value
+  if (typeof sv === 'string' && sv) {
+    if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(sv) || sv.split('.').some(p => Number(p) > 255)) { cb(new Error(t('strategy.validation.invalidIP'))); return }
+  }
+  cb()
+}
+
 const rules: FormRules = {
   name: [{ required: true, message: t('strategy.strategyNamePlaceholder'), trigger: 'blur' }],
-  protocol: [{ required: true, message: () => t('strategy.selectProtocol'), trigger: 'change' }]
+  protocol: [{ required: true, message: () => t('strategy.selectProtocol'), trigger: 'change' }],
+  'config.dst_ip': [
+    { required: true, validator: (_r: any, v: StrategyValue, cb: (e?: Error) => void) => { if (!v?.value) cb(new Error(t('strategy.validation.dstIPRequired'))); else cb() }, trigger: 'blur' },
+  ],
 }
 
-// 自定义验证器
-const ipValidator = (_rule: any, value: string, callback: (err?: Error) => void) => {
-  if (!value) { callback(); return }
-  const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/
-  if (!ipRegex.test(value)) {
-    callback(new Error(t('strategy.validation.invalidIP')))
-    return
+// Strategy config helpers
+function strategyConfigValue(val: any): string {
+  if (!val) return '-'
+  if (typeof val === 'object' && val.strategy) {
+    const sv = val as StrategyValue
+    if (sv.strategy === 'fixed') return String(sv.value || '-')
+    if (sv.strategy === 'inc') return `${sv.range?.[0] ?? '?'} ~ ${sv.range?.[1] ?? '?'} (step ${sv.step ?? 1})`
+    if (sv.strategy === 'random') return `${sv.range?.[0] ?? '?'} ~ ${sv.range?.[1] ?? '?'} (random)`
+    if (sv.strategy === 'pattern') return sv.pattern || '-'
+    if (sv.strategy === 'list') return (sv.list || []).join(', ') || '-'
   }
-  const parts = value.split('.')
-  if (parts.some(p => Number(p) > 255)) {
-    callback(new Error(t('strategy.validation.invalidIP')))
-    return
-  }
-  callback()
+  return String(val)
 }
 
-const macValidator = (_rule: any, value: string, callback: (err?: Error) => void) => {
-  if (!value) { callback(); return }
-  const macRegex = /^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/
-  if (!macRegex.test(value)) {
-    callback(new Error(t('strategy.validation.invalidMAC')))
-    return
-  }
-  callback()
+function normalizeStrategyValue(val: any, defaultVal: any): StrategyValue {
+  if (!val) return sv(defaultVal)
+  if (typeof val === 'object' && val.strategy) return val
+  return sv(val)
 }
 
-const configRules: FormRules = {
-  'config.src_ip': [{ validator: ipValidator, trigger: 'blur' }],
-  'config.dst_ip': [{ validator: ipValidator, trigger: 'blur' }],
-  'config.src_mac': [{ validator: macValidator, trigger: 'blur' }],
-  'config.dst_mac': [{ validator: macValidator, trigger: 'blur' }]
+function extractConfigValue(sv: StrategyValue): any {
+  if (!sv || sv.strategy === 'fixed') return sv?.value
+  return sv // pass through strategy object for backend
 }
 
 function onProtocolChange() {
-  const preset = PROTOCOL_PRESETS[form.protocol]
-  if (preset) {
-    form.config.dst_port = preset.dst_port
+  form.config.dst_port = svPort(PROTOCOL_PRESETS[form.protocol] ?? 0)
+  showAdvanced.value = false
+  switch (form.protocol) {
+    case 'tcp': form.config.tcp = { handshake: true, termination: true, mss: 1460, window_size: 65535, seq: 0, flags: 0, wscale: false, sack: false, timestamps: false }; break
+    case 'udp': form.config.udp = { response: false }; break
+    case 'http': form.config.http = { methods: ['GET'], uri: sv('/'), headers: [], body: '', keep_alive: true, transactions: 10, think_time: 100 }; break
+    case 'dns': form.config.dns = { domain: 'example.com', query_type: 1, response: false, response_ip: '' }; break
+    case 'icmp': form.config.icmp = { type: 8, code: 0, sequence: 1, data: 'ping' }; break
+    case 'arp': form.config.arp = { operation: 1, target_mac: '', target_ip: '' }; break
   }
-
-  // Show/hide protocol-specific config sections based on protocol
-  // TCP config visible for tcp and http protocols
-  // HTTP config visible for http protocol
-  // UDP config visible for udp protocol
-  // DNS config visible for dns protocol
-  // ICMP config visible for icmp protocol
-  // ARP config visible for arp protocol
 }
 
-function openCreateDialog() {
-  editingStrategy.value = null
-  selectedTemplateId.value = ''
-  Object.assign(form, defaultForm())
-  dialogVisible.value = true
+function addHeader() {
+  form.config.http.headers.push({ key: '', value: '' })
 }
 
-function cloneStrategy(strategy: Strategy) {
-  // 克隆策略：复制配置，名称添加"(副本)"后缀
-  openEditDialog(strategy)
-  form.name = strategy.name + ' ' + t('strategy.cloneSuffix')
-  editingStrategy.value = null // 设为新建模式
-}
-
-function openEditDialog(strategy: Strategy) {
-  editingStrategy.value = strategy
-  const base = defaultForm()
-  Object.assign(form, base)
-
-  form.name = strategy.name
-  form.protocol = strategy.protocol
-
-  // Restore config from strategy
-  const cfg = strategy.config || {}
-  if (cfg.src_ip) form.config.src_ip = cfg.src_ip
-  if (cfg.dst_ip) form.config.dst_ip = cfg.dst_ip
-  if (cfg.src_port) form.config.src_port = cfg.src_port
-  if (cfg.dst_port) form.config.dst_port = cfg.dst_port
-  if (cfg.src_mac) form.config.src_mac = cfg.src_mac
-  if (cfg.dst_mac) form.config.dst_mac = cfg.dst_mac
+function applyTemplate(templateId: string) {
+  if (!templateId) return
+  const template = getTemplate(templateId)
+  if (!template) return
+  form.protocol = template.protocol
+  const cfg = template.config || {}
+  if (cfg.src_ip) form.config.src_ip = normalizeStrategyValue(cfg.src_ip, cfg.src_ip)
+  if (cfg.dst_ip) form.config.dst_ip = normalizeStrategyValue(cfg.dst_ip, cfg.dst_ip)
+  if (cfg.src_port) form.config.src_port = normalizeStrategyValue(cfg.src_port, cfg.src_port)
+  if (cfg.dst_port) form.config.dst_port = normalizeStrategyValue(cfg.dst_port, cfg.dst_port)
   if (cfg.ttl) form.config.ttl = cfg.ttl
   if (cfg.tos) form.config.tos = cfg.tos
   if (cfg.payload) form.config.payload = cfg.payload
-  if (cfg.vlan_id) {
-    form.config.vlan_enable = true
-    form.config.vlan_id = cfg.vlan_id
-    if (cfg.vlan_priority) form.config.vlan_priority = cfg.vlan_priority
-  }
-
-  // Protocol-specific
-  if (cfg.tcp && typeof cfg.tcp === 'object') {
-    form.config.tcp = { ...form.config.tcp, ...cfg.tcp }
-  }
-  if (cfg.udp && typeof cfg.udp === 'object') {
-    form.config.udp = { ...form.config.udp, ...cfg.udp }
-  }
+  if (cfg.vlan_id) { form.config.vlan_enable = true; form.config.vlan_id = cfg.vlan_id; if (cfg.vlan_priority) form.config.vlan_priority = cfg.vlan_priority }
+  if (cfg.tcp && typeof cfg.tcp === 'object') form.config.tcp = { ...form.config.tcp, ...cfg.tcp }
+  if (cfg.udp && typeof cfg.udp === 'object') form.config.udp = { ...form.config.udp, ...cfg.udp }
   if (cfg.http && typeof cfg.http === 'object') {
-    const httpCfg = { ...cfg.http }
-    // Convert headers object to array format
-    if (httpCfg.headers && typeof httpCfg.headers === 'object' && !Array.isArray(httpCfg.headers)) {
-      form.config.http.headers = Object.entries(httpCfg.headers).map(([key, value]) => ({
-        key,
-        value: String(value)
-      }))
-      delete httpCfg.headers
+    const h = { ...cfg.http }
+    if (h.headers && typeof h.headers === 'object' && !Array.isArray(h.headers)) {
+      form.config.http.headers = Object.entries(h.headers).map(([k, v]) => ({ key: k, value: String(v) }))
+      delete h.headers
     }
-    form.config.http = { ...form.config.http, ...httpCfg }
+    if (h.method && !h.methods) { form.config.http.methods = [h.method]; delete h.method }
+    if (h.uri) form.config.http.uri = normalizeStrategyValue(h.uri, h.uri)
+    form.config.http = { ...form.config.http, ...h }
   }
-  if (cfg.dns && typeof cfg.dns === 'object') {
-    form.config.dns = { ...form.config.dns, ...cfg.dns }
-  }
-  if (cfg.icmp && typeof cfg.icmp === 'object') {
-    form.config.icmp = { ...form.config.icmp, ...cfg.icmp }
-  }
-  if (cfg.arp && typeof cfg.arp === 'object') {
-    form.config.arp = { ...form.config.arp, ...cfg.arp }
-  }
+  if (cfg.dns && typeof cfg.dns === 'object') form.config.dns = { ...form.config.dns, ...cfg.dns }
+  if (cfg.icmp && typeof cfg.icmp === 'object') form.config.icmp = { ...form.config.icmp, ...cfg.icmp }
+  if (cfg.arp && typeof cfg.arp === 'object') form.config.arp = { ...form.config.arp, ...cfg.arp }
+  if (template.flow_control) form.flow_control = { ...template.flow_control }
+  ElMessage.success(t('strategy.templateApplied'))
+}
 
-  // Flow control
-  if (strategy.flow_control) {
-    form.flow_control = { ...strategy.flow_control }
-  }
+function handleSaveTemplate() {
+  if (!form.name || !form.protocol) return
+  ElMessageBox.prompt(t('strategy.templateDescriptionPlaceholder'), t('strategy.saveAsTemplate'), {
+    confirmButtonText: t('common.save'), cancelButtonText: t('common.cancel'),
+    inputPlaceholder: t('strategy.templateDescriptionPlaceholder')
+  }).then(({ value: description }) => {
+    addTemplate({ name: form.name, description: description || '', protocol: form.protocol, config: buildConfigForSubmit(), flow_control: form.flow_control.type ? { ...form.flow_control } : undefined })
+    ElMessage.success(t('strategy.templateSaved'))
+  }).catch(() => {})
+}
 
-  dialogVisible.value = true
+function openCreateDialog() {
+  editingStrategy.value = null; selectedTemplateId.value = ''
+  Object.assign(form, defaultForm()); showAdvanced.value = false
+  dialogVisible.value = true; resetDirtyState()
+}
+
+function cloneStrategy(s: Strategy) {
+  openEditDialog(s)
+  form.name = s.name + ' ' + t('strategy.cloneSuffix')
+  editingStrategy.value = null
+}
+
+function openEditDialog(s: Strategy) {
+  editingStrategy.value = s
+  Object.assign(form, defaultForm())
+  form.name = s.name; form.protocol = s.protocol
+  const cfg = s.config || {}
+  form.config.src_ip = normalizeStrategyValue(cfg.src_ip, '192.168.1.100')
+  form.config.dst_ip = normalizeStrategyValue(cfg.dst_ip, '')
+  form.config.src_port = normalizeStrategyValue(cfg.src_port, 0)
+  form.config.dst_port = normalizeStrategyValue(cfg.dst_port, PROTOCOL_PRESETS[s.protocol] ?? 0)
+  if (cfg.src_mac) form.config.src_mac = cfg.src_mac
+  if (cfg.dst_mac) form.config.dst_mac = cfg.dst_mac
+  form.config.ttl = normalizeStrategyValue(cfg.ttl, 64)
+  form.config.tos = normalizeStrategyValue(cfg.tos, 0)
+  form.config.payload = normalizeStrategyValue(cfg.payload, '')
+  if (cfg.vlan_id) { form.config.vlan_enable = true; form.config.vlan_id = cfg.vlan_id; if (cfg.vlan_priority) form.config.vlan_priority = cfg.vlan_priority }
+  if (cfg.tcp && typeof cfg.tcp === 'object') form.config.tcp = { ...form.config.tcp, ...cfg.tcp }
+  if (cfg.udp && typeof cfg.udp === 'object') form.config.udp = { ...form.config.udp, ...cfg.udp }
+  if (cfg.http && typeof cfg.http === 'object') {
+    const h = { ...cfg.http }
+    if (h.headers && typeof h.headers === 'object' && !Array.isArray(h.headers)) {
+      form.config.http.headers = Object.entries(h.headers).map(([k, v]) => ({ key: k, value: String(v) }))
+      delete h.headers
+    }
+    if (h.method && !h.methods) { form.config.http.methods = Array.isArray(h.method) ? h.method : [h.method]; delete h.method }
+    if (h.uri) form.config.http.uri = normalizeStrategyValue(h.uri, h.uri)
+    if (h.body) form.config.http.body = normalizeStrategyValue(h.body, '')
+    form.config.http = { ...form.config.http, ...h }
+  }
+  if (cfg.dns && typeof cfg.dns === 'object') form.config.dns = { ...form.config.dns, ...cfg.dns }
+  if (cfg.icmp && typeof cfg.icmp === 'object') form.config.icmp = { ...form.config.icmp, ...cfg.icmp }
+  if (cfg.arp && typeof cfg.arp === 'object') form.config.arp = { ...form.config.arp, ...cfg.arp }
+  if (s.flow_control) form.flow_control = { ...s.flow_control }
+  showAdvanced.value = false
+  dialogVisible.value = true; resetDirtyState()
 }
 
 function buildConfigForSubmit(): Record<string, any> {
   const cfg: Record<string, any> = {}
-
-  if (form.config.src_ip) cfg.src_ip = form.config.src_ip
-  if (form.config.dst_ip) cfg.dst_ip = form.config.dst_ip
-  if (form.config.src_port) cfg.src_port = form.config.src_port
-  if (form.config.dst_port) cfg.dst_port = form.config.dst_port
+  cfg.src_ip = extractConfigValue(form.config.src_ip)
+  cfg.dst_ip = extractConfigValue(form.config.dst_ip)
+  cfg.src_port = extractConfigValue(form.config.src_port)
+  cfg.dst_port = extractConfigValue(form.config.dst_port)
   if (form.config.src_mac) cfg.src_mac = form.config.src_mac
   if (form.config.dst_mac) cfg.dst_mac = form.config.dst_mac
-  if (form.config.ttl && form.config.ttl !== 64) cfg.ttl = form.config.ttl
-  if (form.config.tos) cfg.tos = form.config.tos
-  if (form.config.payload) cfg.payload = form.config.payload
-
-  // VLAN
-  if (form.config.vlan_enable && form.config.vlan_id) {
-    cfg.vlan_id = form.config.vlan_id
-    if (form.config.vlan_priority) cfg.vlan_priority = form.config.vlan_priority
-  }
-
-  // Protocol-specific
+  const ttlVal = extractConfigValue(form.config.ttl)
+  if (ttlVal && ttlVal !== 64) cfg.ttl = ttlVal
+  const tosVal = extractConfigValue(form.config.tos)
+  if (tosVal) cfg.tos = tosVal
+  const payloadVal = extractConfigValue(form.config.payload)
+  if (payloadVal) cfg.payload = payloadVal
+  if (form.config.vlan_enable && form.config.vlan_id) { cfg.vlan_id = form.config.vlan_id; if (form.config.vlan_priority) cfg.vlan_priority = form.config.vlan_priority }
   switch (form.protocol) {
-    case 'tcp':
-      cfg.tcp = {
-        handshake: form.config.tcp.handshake,
-        termination: form.config.tcp.termination,
-        mss: form.config.tcp.mss,
-        window_size: form.config.tcp.window_size
-      }
-      break
-    case 'udp':
-      cfg.udp = { response: form.config.udp.response }
-      break
+    case 'tcp': cfg.tcp = { handshake: form.config.tcp.handshake, termination: form.config.tcp.termination, mss: form.config.tcp.mss, window_size: form.config.tcp.window_size }; break
+    case 'udp': cfg.udp = { response: form.config.udp.response }; break
     case 'http':
-      cfg.http = {
-        method: form.config.http.method,
-        uri: form.config.http.uri,
-        body: form.config.http.body,
-        keep_alive: form.config.http.keep_alive,
-        transactions: form.config.http.transactions,
-        think_time: form.config.http.think_time
-      }
-      // Convert headers array to object
-      const headersObj: Record<string, string> = {}
-      for (const h of form.config.http.headers) {
-        if (h.key) headersObj[h.key] = h.value
-      }
-      if (Object.keys(headersObj).length > 0) {
-        cfg.http.headers = headersObj
-      }
+      cfg.http = { method: form.config.http.methods.length === 1 ? form.config.http.methods[0] : form.config.http.methods, uri: extractConfigValue(form.config.http.uri), body: extractConfigValue(form.config.http.body), keep_alive: form.config.http.keep_alive, transactions: form.config.http.transactions, think_time: form.config.http.think_time }
+      const hdrs: Record<string, string> = {}
+      for (const h of form.config.http.headers) { if (h.key) hdrs[h.key] = h.value }
+      if (Object.keys(hdrs).length > 0) cfg.http.headers = hdrs
       break
-    case 'dns':
-      cfg.dns = {
-        domain: form.config.dns.domain,
-        query_type: form.config.dns.query_type,
-        response: form.config.dns.response
-      }
-      if (form.config.dns.response && form.config.dns.response_ip) {
-        cfg.dns.response_ip = form.config.dns.response_ip
-      }
-      break
-    case 'icmp':
-      cfg.icmp = {
-        type: form.config.icmp.type,
-        code: form.config.icmp.code,
-        sequence: form.config.icmp.sequence,
-        data: form.config.icmp.data
-      }
-      break
-    case 'arp':
-      cfg.arp = {
-        operation: form.config.arp.operation,
-        target_mac: form.config.arp.target_mac,
-        target_ip: form.config.arp.target_ip
-      }
-      break
+    case 'dns': cfg.dns = { domain: form.config.dns.domain, query_type: form.config.dns.query_type, response: form.config.dns.response }; if (form.config.dns.response && form.config.dns.response_ip) cfg.dns.response_ip = form.config.dns.response_ip; break
+    case 'icmp': cfg.icmp = { type: form.config.icmp.type, code: form.config.icmp.code, sequence: form.config.icmp.sequence, data: form.config.icmp.data }; break
+    case 'arp': cfg.arp = { operation: form.config.arp.operation, target_mac: form.config.arp.target_mac, target_ip: form.config.arp.target_ip }; break
   }
-
   return cfg
 }
 
-function handleSelectionChange(selection: Strategy[]) {
-  selectedStrategies.value = selection
-}
-
-function handleSortChange({ prop, order }: { prop: string; order: string }) {
-  sortState.prop = prop
-  sortState.order = order
-}
-
-function clearSelection() {
-  selectedStrategies.value = []
-}
-
-async function handleBulkDelete() {
-  try {
-    await ElMessageBox.confirm(
-      t('strategy.confirmBulkDelete', { count: selectedStrategies.value.length }),
-      t('common.confirm'),
-      { type: 'warning' }
-    )
-    await Promise.allSettled(selectedStrategies.value.map(s => strategyApi.delete(s.id)))
-    ElMessage.success(t('strategy.bulkDeleted', { count: selectedStrategies.value.length }))
-    selectedStrategies.value = []
-    loadStrategies()
-  } catch (error) {
-    // Cancelled
-  }
-}
-
-async function openDrawer(strategy: Strategy) {
-  drawerStrategy.value = strategy
-  drawerVisible.value = true
-  drawerLoading.value = true
-  try {
-    const res = await strategyApi.get(strategy.id)
-    if (res.data) {
-      drawerStrategy.value = res.data as Strategy
-    }
-  } catch (error) {
-    console.error('Failed to load strategy detail:', error)
-  } finally {
-    drawerLoading.value = false
-  }
+function handleDialogClose(done: () => void) {
+  if (formDirty.value) {
+    ElMessageBox.confirm(t('common.unsavedChanges'), t('common.warning'), {
+      confirmButtonText: t('common.discard'), cancelButtonText: t('common.cancel'), type: 'warning'
+    }).then(() => { formDirty.value = false; done() }).catch(() => {})
+  } else done()
 }
 
 async function handleSubmit() {
   const valid = await formRef.value?.validate()
   if (!valid) return
-
   submitLoading.value = true
   try {
     const cfg = buildConfigForSubmit()
+    const data: any = { name: form.name, protocol: form.protocol, config: cfg }
+    data.flow_control = form.flow_control.type ? { type: form.flow_control.type, value: form.flow_control.value } : { type: 'flows', value: 1 }
+    if (editingStrategy.value) { await strategyApi.update(editingStrategy.value.id, data); ElMessage.success(t('strategy.updateSuccess')) }
+    else { await strategyApi.create(data); ElMessage.success(t('strategy.createSuccess')) }
+    dialogVisible.value = false; loadStrategies()
+  } catch (e) { console.error(e); ElMessage.error(editingStrategy.value ? t('strategy.updateFailed') : t('strategy.createFailed')) }
+  finally { submitLoading.value = false }
+}
 
-    const submitData: any = {
-      name: form.name,
-      protocol: form.protocol,
-      config: cfg
-    }
-
-  if (form.flow_control.type) {
-      submitData.flow_control = {
-        type: form.flow_control.type,
-        value: form.flow_control.value
-      }
-    } else {
-      // Default flow control when none selected
-      submitData.flow_control = {
-        type: 'flows',
-        value: 1
-      }
-    }
-
-    if (editingStrategy.value) {
-      await strategyApi.update(editingStrategy.value.id, submitData)
-      ElMessage.success(t('strategy.updateSuccess'))
-    } else {
-      await strategyApi.create(submitData)
-      ElMessage.success(t('strategy.createSuccess'))
-    }
-
-    dialogVisible.value = false
-    loadStrategies()
-  } catch (error) {
-    console.error('Failed to save strategy:', error)
-    ElMessage.error(editingStrategy.value ? t('strategy.updateFailed') : t('strategy.createFailed'))
-  } finally {
-    submitLoading.value = false
+const filteredStrategies = computed(() => {
+  let r = strategies.value
+  if (filters.search) { const s = filters.search.toLowerCase(); r = r.filter(x => x.name.toLowerCase().includes(s) || x.id.toLowerCase().includes(s)) }
+  if (filters.protocol.length > 0) r = r.filter(x => filters.protocol.includes(x.protocol))
+  if (sortState.prop && sortState.order) {
+    r = [...r].sort((a, b) => {
+      let av: any = a[sortState.prop as keyof Strategy], bv: any = b[sortState.prop as keyof Strategy]
+      if (sortState.prop === 'flow_control') { av = av?.value ?? 0; bv = bv?.value ?? 0 }
+      let c = typeof av === 'string' && typeof bv === 'string' ? av.localeCompare(bv) : typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av ?? '').localeCompare(String(bv ?? ''))
+      return sortState.order === 'ascending' ? c : -c
+    })
   }
-}
-
-async function handleDelete(id: string) {
-  try {
-    await ElMessageBox.confirm(t('strategy.confirmDelete'), t('common.confirm'), { type: 'warning' })
-    await strategyApi.delete(id)
-    ElMessage.success(t('strategy.deleteSuccess'))
-    loadStrategies()
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('Failed to delete strategy:', error)
-      ElMessage.error(t('strategy.deleteFailed'))
-    }
-  }
-}
-
-function handleAction(command: string, strategy: Strategy) {
-  switch (command) {
-    case 'detail':
-      openDrawer(strategy)
-      break
-    case 'clone':
-      cloneStrategy(strategy)
-      break
-    case 'delete':
-      handleDelete(strategy.id)
-      break
-  }
-}
-
-async function loadStrategies() {
-  loading.value = true
-  try {
-    const res = await strategyApi.list()
-    if (res.data) {
-      strategies.value = res.data as Strategy[]
-    }
-  } catch (error) {
-    console.error('Failed to load strategies:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
-function formatTime(timestamp: number): string {
-  if (!timestamp) return '-'
-  return new Date(timestamp * 1000).toLocaleString()
-}
-
-onMounted(() => {
-  loadStrategies()
+  return r
 })
+
+function resetFilters() { filters.search = ''; filters.protocol = []; pagination.page = 1 }
+function handleSelectionChange(s: Strategy[]) { selectedStrategies.value = s }
+function handleSortChange({ prop, order }: { prop: string; order: string }) { sortState.prop = prop; sortState.order = order }
+function clearSelection() { selectedStrategies.value = [] }
+async function handleBulkDelete() { try { await ElMessageBox.confirm(t('strategy.confirmBulkDelete', { count: selectedStrategies.value.length }), t('common.confirm'), { type: 'warning' }); await Promise.allSettled(selectedStrategies.value.map(s => strategyApi.delete(s.id))); ElMessage.success(t('strategy.bulkDeleted', { count: selectedStrategies.value.length })); selectedStrategies.value = []; loadStrategies() } catch {} }
+async function openDrawer(s: Strategy) { drawerStrategy.value = s; drawerVisible.value = true; drawerLoading.value = true; try { const r = await strategyApi.get(s.id); if (r.data) drawerStrategy.value = r.data as Strategy } catch {} finally { drawerLoading.value = false } }
+async function handleDelete(id: string) { try { await ElMessageBox.confirm(t('strategy.confirmDelete'), t('common.confirm'), { type: 'warning' }); await strategyApi.delete(id); ElMessage.success(t('strategy.deleteSuccess')); loadStrategies() } catch (e) { if (e !== 'cancel') { ElMessage.error(t('strategy.deleteFailed')) } } }
+function handleAction(cmd: string, s: Strategy) { if (cmd === 'detail') openDrawer(s); else if (cmd === 'clone') cloneStrategy(s); else if (cmd === 'delete') handleDelete(s.id) }
+async function loadStrategies() { loading.value = true; try { const r = await strategyApi.list(); if (r.data) strategies.value = r.data as Strategy[] } catch {} finally { loading.value = false } }
+function formatTime(ts: number) { return ts ? new Date(ts * 1000).toLocaleString() : '-' }
+onMounted(() => { loadStrategies() })
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+.card-header { display: flex; justify-content: space-between; align-items: center; }
+.header-actions { display: flex; gap: 8px; align-items: center; min-height: 32px; }
+.filter-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.batch-info { font-size: 13px; color: var(--tg-text-secondary, #606266); }
+.active-filters { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.action-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
+.header-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.flow-unit { font-size: 12px; color: var(--tg-text-secondary, #909399); white-space: nowrap; }
 
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-height: 32px;
-}
-
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.batch-info {
-  font-size: 13px;
-  color: var(--tg-text-secondary, #606266);
-}
-
-/* Collapse styling inside the dialog form */
-:deep(.el-collapse) {
-  border: none;
-}
-
-:deep(.el-collapse-item__header) {
+.strategy-form :deep(.el-divider__text) {
   font-weight: 600;
   font-size: 14px;
-  background: transparent;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  padding-left: 4px;
-  height: 40px;
-  line-height: 40px;
+  color: var(--el-text-color-primary);
 }
 
-:deep(.el-collapse-item__wrap) {
-  background: transparent;
-  border-bottom: none;
+.strategy-form :deep(.el-form-item) {
+  margin-bottom: 16px;
 }
 
-:deep(.el-collapse-item__content) {
-  padding-bottom: 8px;
+.rotate-icon {
+  transform: rotate(90deg);
+}
+
+@media (max-width: 768px) {
+  .filter-bar { flex-direction: column; align-items: flex-start; }
 }
 </style>

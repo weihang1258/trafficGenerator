@@ -84,7 +84,7 @@
           <el-progress :percentage="row.progress" :status="getProgressStatus(row.status)" :stroke-width="6" />
         </template>
         <template #duration="{ row }">
-          {{ formatDuration(row.started_at, row.completed_at) }}
+          {{ formatTaskDuration(row.started_at, row.completed_at) }}
         </template>
         <template #stats.packets_sent="{ row }">
           {{ formatNumber(row.stats?.packets_sent || 0) }}
@@ -113,6 +113,7 @@ import { Refresh, Download, Setting } from '@element-plus/icons-vue'
 import { historyApi } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
 import dayjs from 'dayjs'
+import { formatBytes, formatNumber, formatTaskDuration } from '@/utils/format'
 
 const { t } = useI18n()
 
@@ -145,38 +146,6 @@ const columns = computed(() => [
   { prop: 'completed_at', label: t('task.completedAt'), width: 180, sortable: 'custom' }
 ])
 
-function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024 * 1024) {
-    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
-  } else if (bytes >= 1024 * 1024) {
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
-  } else if (bytes >= 1024) {
-    return (bytes / 1024).toFixed(2) + ' KB'
-  }
-  return bytes + ' B'
-}
-
-function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M'
-  if (num >= 1000) return (num / 1000).toFixed(2) + 'K'
-  return num.toString()
-}
-
-function formatDuration(start?: number, end?: number): string {
-  if (!start || !end) return '-'
-  const seconds = Math.floor(end - start)
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${secs}s`
-  } else if (minutes > 0) {
-    return `${minutes}m ${secs}s`
-  } else {
-    return `${secs}s`
-  }
-}
 
 function formatDate(timestamp?: number): string {
   if (!timestamp) return '-'
@@ -263,7 +232,7 @@ function exportHistoryCSV() {
     r.status || '',
     r.started_at ? dayjs(r.started_at * 1000).format('YYYY-MM-DD HH:mm:ss') : '',
     r.completed_at ? dayjs(r.completed_at * 1000).format('YYYY-MM-DD HH:mm:ss') : '',
-    formatDuration(r.started_at, r.completed_at),
+    formatTaskDuration(r.started_at, r.completed_at),
     r.stats?.packets_sent || 0,
     r.stats?.bytes_sent || 0
   ].join(','))

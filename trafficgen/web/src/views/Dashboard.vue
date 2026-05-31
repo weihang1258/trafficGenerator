@@ -39,7 +39,7 @@
             <el-icon :size="20"><TrendCharts /></el-icon>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ stats.throughputBps ? formatThroughput(stats.throughputBps) : '--' }}</div>
+            <div class="stat-value">{{ stats.throughputBps ? formatBps(stats.throughputBps) : '--' }}</div>
             <div class="stat-label">{{ t('dashboard.throughput') }}</div>
           </div>
         </div>
@@ -169,7 +169,7 @@
         </el-table-column>
         <el-table-column :label="t('dashboard.throughput')" width="120">
           <template #default="{ row }">
-            {{ row.stats?.current_bps ? formatThroughput(row.stats.current_bps) : '--' }}
+            {{ row.stats?.current_bps ? formatBps(row.stats.current_bps) : '--' }}
           </template>
         </el-table-column>
         <el-table-column :label="t('task.progress')" width="110">
@@ -221,6 +221,7 @@ import {
 import * as echarts from 'echarts'
 import { taskApi, systemApi, strategyApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
+import { formatNumber, formatBps, formatUptime, formatDuration } from '@/utils/format'
 
 const { t } = useI18n()
 
@@ -246,6 +247,7 @@ const stats = reactive({
 const resources = reactive({
   cpu: 0,
   memoryMb: 0,
+  memoryTotalMb: 0,
   bufferBytes: 0,
   bufferMaxBytes: 0,
   uptime: 0
@@ -258,8 +260,12 @@ const bufferPercent = computed(() => {
   return (resources.bufferBytes / resources.bufferMaxBytes) * 100
 })
 
-// Use navigator.deviceMemory (in GB) or fallback to 8GB
-const memoryTotalMb = (navigator as any).deviceMemory ? (navigator as any).deviceMemory * 1024 : 8192
+// Try API value first, then navigator.deviceMemory, fallback 8GB
+const memoryTotalMb = computed(() => {
+  if (resources.memoryTotalMb) return resources.memoryTotalMb
+  if ((navigator as any).deviceMemory) return (navigator as any).deviceMemory * 1024
+  return 8192
+})
 
 const memoryPercent = computed(() => {
   if (!resources.memoryMb) return 0
@@ -274,29 +280,6 @@ const displayTasks = computed(() => {
     .sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9))
     .slice(0, 10)
 })
-
-function formatNumber(num: number): string {
-  if (num >= 1000000000) return (num / 1000000000).toFixed(2) + 'G'
-  if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M'
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
-  return num.toString()
-}
-
-function formatThroughput(bps: number): string {
-  if (bps >= 1000000000) return (bps / 1000000000).toFixed(2) + ' Gbps'
-  if (bps >= 1000000) return (bps / 1000000).toFixed(2) + ' Mbps'
-  if (bps >= 1000) return (bps / 1000).toFixed(1) + ' Kbps'
-  return bps + ' bps'
-}
-
-function formatUptime(seconds: number): string {
-  const d = Math.floor(seconds / 86400)
-  const h = Math.floor((seconds % 86400) / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  if (d > 0) return `${d}d ${h}h ${m}m`
-  if (h > 0) return `${h}h ${m}m`
-  return `${m}m`
-}
 
 function getProgressColor(value: number): string {
   if (value >= 90) return '#EF4444'
@@ -321,12 +304,7 @@ function getProtocol(task: Task): string {
 function getDuration(task: Task): string {
   if (!task.started_at) return '--'
   const end = task.completed_at || Math.floor(Date.now() / 1000)
-  const secs = end - task.started_at
-  const h = Math.floor(secs / 3600)
-  const m = Math.floor((secs % 3600) / 60)
-  const s = secs % 60
-  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-  return `${m}:${s.toString().padStart(2, '0')}`
+  return formatDuration(end - task.started_at)
 }
 
 function recordThroughput(bps: number) {
@@ -340,10 +318,10 @@ function initCharts() {
   if (throughputChartRef.value) {
     throughputChart = echarts.init(throughputChartRef.value)
     throughputChart.setOption({
-      tooltip: { trigger: 'axis', formatter: (p: any) => p[0] ? `${p[0].name}<br/>${formatThroughput(p[0].value)}` : '' },
+      tooltip: { trigger: 'axis', formatter: (p: any) => p[0] ? `${p[0].name}<br/>${formatBps(p[0].value)}` : '' },
       grid: { left: 50, right: 12, top: 12, bottom: 24 },
       xAxis: { type: 'category', data: [], boundaryGap: false, axisLabel: { fontSize: 11 } },
-      yAxis: { type: 'value', axisLabel: { fontSize: 11, formatter: (v: number) => formatThroughput(v) }, splitLine: { lineStyle: { type: 'dashed' } } },
+      yAxis: { type: 'value', axisLabel: { fontSize: 11, formatter: (v: number) => formatBps(v) }, splitLine: { lineStyle: { type: 'dashed' } } },
       series: [{
         type: 'line', smooth: true, symbol: 'none',
         areaStyle: { opacity: 0.12 },
@@ -393,6 +371,7 @@ async function loadDashboardData() {
       stats.activeTasks = d.active_tasks || 0
       resources.cpu = Math.round(d.cpu_usage || 0)
       resources.memoryMb = d.memory_mb || 0
+      resources.memoryTotalMb = d.memory_total_mb || 0
       resources.uptime = d.uptime || 0
       if (d.buffer_status?.combined) {
         resources.bufferBytes = d.buffer_status.combined.bytes || 0

@@ -170,6 +170,7 @@ import { taskApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import ProTable from '@/components/ProTable/index.vue'
 import dayjs from 'dayjs'
+import { formatNumber } from '@/utils/format'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -227,12 +228,6 @@ function getStatusText(status: string): string {
 function formatDate(timestamp?: number): string {
   if (!timestamp) return '-'
   return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm:ss')
-}
-
-function formatNumber(num: number): string {
-  if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M'
-  if (num >= 1000) return (num / 1000).toFixed(2) + 'K'
-  return num.toString()
 }
 
 function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {

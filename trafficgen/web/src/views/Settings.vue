@@ -16,7 +16,7 @@
       <el-form v-else ref="formRef" :model="form" :rules="rules" label-width="auto" style="max-width: 600px;">
         <el-divider content-position="left">{{ t('settings.basicSettings') }}</el-divider>
 
-        <el-form-item :label="t('settings.language')" prop="language">
+        <el-form-item :label="t('settings.language')">
           <el-select v-model="currentLocale" @change="handleLanguageChange" style="width: 200px;">
             <el-option :label="t('settings.chinese')" value="zh-CN" />
             <el-option :label="t('settings.english')" value="en-US" />
@@ -36,12 +36,12 @@
 
         <el-form-item :label="t('settings.maxTasks')" prop="max_tasks">
           <el-input-number v-model="form.max_tasks" :min="1" :max="1000" />
-          <span class="form-hint">{{ t('settings.maxTasksHint') || 'Maximum number of concurrent tasks' }}</span>
+          <span class="form-hint">{{ t('settings.maxTasksHint') }}</span>
         </el-form-item>
 
         <el-form-item :label="t('settings.bufferSize')" prop="buffer_size">
           <el-input-number v-model="form.buffer_size" :min="1024" :max="65536" :step="1024" />
-          <span class="form-hint">{{ t('settings.bufferSizeHint') || 'Packet buffer size in bytes' }}</span>
+          <span class="form-hint">{{ t('settings.bufferSizeHint') }}</span>
         </el-form-item>
 
         <el-divider content-position="left">{{ t('settings.logSettings') }}</el-divider>
@@ -59,7 +59,7 @@
           <el-button type="primary" :loading="loading" @click="handleSave">
             {{ t('settings.save') }}
           </el-button>
-          <el-button @click="loadSettings">{{ t('settings.reset') }}</el-button>
+          <el-button @click="handleReload">{{ t('settings.reload') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -91,8 +91,8 @@ const form = reactive<Settings>({
 })
 
 const rules: FormRules = {
-  max_tasks: [{ required: true, message: t('settings.maxTasks'), trigger: 'blur' }],
-  buffer_size: [{ required: true, message: t('settings.bufferSize'), trigger: 'blur' }],
+  max_tasks: [{ required: true, message: t('settings.maxTasksRequired'), trigger: 'blur' }],
+  buffer_size: [{ required: true, message: t('settings.bufferSizeRequired'), trigger: 'blur' }],
   log_level: [{ required: true, message: t('settings.selectLogLevel'), trigger: 'change' }]
 }
 
@@ -117,6 +117,11 @@ async function loadSettings() {
 function handleLanguageChange(locale: string) {
   setLocale(locale)
   ElMessage.success(t('settings.saveSuccess'))
+}
+
+function handleReload() {
+  loadSettings()
+  ElMessage.info(t('settings.reloadHint'))
 }
 
 async function handleSave() {

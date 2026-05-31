@@ -23,7 +23,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   size: 20,
-  color: '#2563EB'
+  color: 'var(--tg-primary, #2563EB)'
 })
 
 const protocolIconMap: Record<string, any> = {

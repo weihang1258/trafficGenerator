@@ -23,6 +23,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { TrendCharts, ArrowUp, ArrowDown, Minus } from '@element-plus/icons-vue'
+import { formatBytes, formatBps } from '@/utils/format'
 
 interface Props {
   value: number | string
@@ -75,21 +76,6 @@ const trendText = computed(() => {
   return `${Math.abs(props.trend)}%`
 })
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
-}
-
-function formatBps(bps: number): string {
-  if (bps === 0) return '0 bps'
-  const k = 1000
-  const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps']
-  const i = Math.floor(Math.log(bps) / Math.log(k))
-  return `${(bps / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
-}
 </script>
 
 <style scoped>

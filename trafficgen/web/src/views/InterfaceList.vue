@@ -107,6 +107,7 @@ import { ElMessage } from 'element-plus'
 import { Refresh, Setting, Search } from '@element-plus/icons-vue'
 import { interfaceApi, type NetworkInterface } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
+import { formatBytes, formatBps } from '@/utils/format'
 
 const { t } = useI18n()
 
@@ -181,20 +182,6 @@ function handleSearch() {
 function handleReset() {
   searchQuery.value = ''
   filterStatus.value = ''
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB'
-  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-  if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return bytes + ' B'
-}
-
-function formatRate(bps: number): string {
-  if (bps >= 1000000000) return (bps / 1000000000).toFixed(1) + ' Gbps'
-  if (bps >= 1000000) return (bps / 1000000).toFixed(1) + ' Mbps'
-  if (bps >= 1000) return (bps / 1000).toFixed(1) + ' Kbps'
-  return bps + ' bps'
 }
 
 async function loadInterfaces() {

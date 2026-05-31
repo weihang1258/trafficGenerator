@@ -123,6 +123,7 @@
       :title="dialogTitle"
       width="500px"
       :close-on-click-modal="false"
+      :before-close="handleDialogBeforeClose"
       @close="handleDialogClose"
     >
       <el-form
@@ -142,6 +143,14 @@
             v-model="userForm.password"
             type="password"
             :placeholder="t('user.passwordPlaceholder')"
+            show-password
+          />
+        </el-form-item>
+        <el-form-item v-if="!userForm.id" :label="t('user.confirmPassword')" prop="confirmPassword">
+          <el-input
+            v-model="userForm.confirmPassword"
+            type="password"
+            :placeholder="t('user.confirmPasswordPlaceholder')"
             show-password
           />
         </el-form-item>
@@ -181,6 +190,7 @@ const submitLoading = ref(false)
 const users = ref<User[]>([])
 const proTableRef = ref()
 const selectedUsers = ref<User[]>([])
+const formDirty = ref(false)
 
 const searchForm = reactive({
   username: '',
@@ -222,22 +232,36 @@ const userForm = reactive({
   username: '',
   email: '',
   password: '',
+  confirmPassword: '',
   role: 'user',
   enabled: true
 })
 
+const validateConfirmPassword = (_rule: any, value: string, callback: (err?: Error) => void) => {
+  if (!value) {
+    callback(new Error(t('user.confirmPasswordRequired')))
+  } else if (value !== userForm.password) {
+    callback(new Error(t('user.passwordMismatch')))
+  } else {
+    callback()
+  }
+}
+
 const rules: FormRules = {
   username: [
-    { required: true, message: t('user.usernamePlaceholder'), trigger: 'blur' },
-    { min: 3, max: 20, message: t('user.usernameLength'), trigger: 'blur' }
+    { required: true, message: t('user.usernameRequired'), trigger: 'blur' },
+    { min: 3, max: 64, message: t('user.usernameLength'), trigger: 'blur' }
   ],
   email: [
-    { required: true, message: t('user.emailPlaceholder'), trigger: 'blur' },
-    { type: 'email', message: t('user.emailPlaceholder'), trigger: 'blur' }
+    { required: true, message: t('user.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('user.emailInvalid'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: t('user.passwordPlaceholder'), trigger: 'blur' },
-    { min: 6, max: 20, message: t('user.passwordLength'), trigger: 'blur' }
+    { required: true, message: t('user.passwordRequired'), trigger: 'blur' },
+    { min: 6, max: 128, message: t('user.passwordLength'), trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { validator: validateConfirmPassword, trigger: 'blur' }
   ],
   role: [
     { required: true, message: t('user.selectRole'), trigger: 'change' }
@@ -332,8 +356,10 @@ function handleCreate() {
   userForm.username = ''
   userForm.email = ''
   userForm.password = ''
+  userForm.confirmPassword = ''
   userForm.role = 'user'
   userForm.enabled = true
+  formDirty.value = false
   dialogVisible.value = true
 }
 
@@ -344,6 +370,8 @@ function handleEdit(row: User) {
   userForm.email = row.email
   userForm.role = row.role
   userForm.enabled = row.enabled
+  userForm.confirmPassword = ''
+  formDirty.value = false
   dialogVisible.value = true
 }
 
@@ -393,8 +421,17 @@ async function handleDelete(row: User) {
 async function handleResetPassword(row: User) {
   try {
     await ElMessageBox.confirm(t('user.confirmResetPassword'), t('common.confirm'), { type: 'warning' })
-    await userApi.resetPassword(row.id)
-    ElMessage.success(t('user.resetPasswordSuccess'))
+    const res = await userApi.resetPassword(row.id)
+    const newPwd = (res.data as any)?.new_password || (res as any)?.data?.new_password
+    if (newPwd) {
+      ElMessageBox.alert(
+        t('user.newPasswordIs', { password: newPwd }),
+        t('user.resetPasswordSuccess'),
+        { type: 'success', confirmButtonText: t('common.confirm') }
+      )
+    } else {
+      ElMessage.success(t('user.resetPasswordSuccess'))
+    }
   } catch { /* cancelled */ }
 }
 
@@ -452,6 +489,21 @@ async function handleSubmit() {
     console.error('Failed to save user:', error)
   } finally {
     submitLoading.value = false
+  }
+}
+
+function handleDialogBeforeClose(done: () => void) {
+  if (formDirty.value) {
+    ElMessageBox.confirm(t('common.unsavedChanges'), t('common.warning'), {
+      confirmButtonText: t('common.discard'),
+      cancelButtonText: t('common.cancel'),
+      type: 'warning'
+    }).then(() => {
+      formDirty.value = false
+      done()
+    }).catch(() => {})
+  } else {
+    done()
   }
 }
 
