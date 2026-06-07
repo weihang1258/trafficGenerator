@@ -91,7 +91,7 @@
           <el-tag size="small">{{ (row.protocol || 'N/A').toUpperCase() }}</el-tag>
         </template>
         <template #status="{ row }">
-          <el-tag :type="getStatusType(row.status)" size="small">{{ getStatusText(row.status) }}</el-tag>
+          <el-tag :type="TASK_STATUS_TYPE[row.status] || 'info'" size="small">{{ getStatusText(row.status) }}</el-tag>
         </template>
         <template #progress="{ row }">
           <el-progress :percentage="row.progress" :status="getProgressStatus(row.status)" :stroke-width="6" />
@@ -127,6 +127,7 @@ import { historyApi } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
 import dayjs from 'dayjs'
 import { formatBytes, formatNumber, formatTaskDuration, formatTimestamp } from '@/utils/format'
+import { TASK_STATUS_TYPE, getProgressStatus } from '@/constants/status'
 
 const { t } = useI18n()
 
@@ -162,16 +163,6 @@ const columns = computed(() => [
 
 
 
-function getStatusType(status: string): string {
-  const map: Record<string, string> = {
-    completed: 'success',
-    failed: 'danger',
-    error: 'danger',
-    stopped: 'warning'
-  }
-  return map[status] || 'info'
-}
-
 function getStatusText(status: string): string {
   const map: Record<string, string> = {
     completed: t('task.completed'),
@@ -180,13 +171,6 @@ function getStatusText(status: string): string {
     stopped: t('task.stopped')
   }
   return map[status] || status
-}
-
-function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {
-  if (status === 'completed') return 'success'
-  if (status === 'failed' || status === 'error') return 'exception'
-  if (status === 'stopped') return 'warning'
-  return ''
 }
 
 function getQuickRangeTimestamps(range: string): { start: number; end: number } {

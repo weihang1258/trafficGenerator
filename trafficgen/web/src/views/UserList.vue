@@ -76,7 +76,7 @@
           <span class="user-name">{{ row.username }}</span>
         </template>
         <template #role="{ row }">
-          <el-tag :type="getRoleType(row.role)" size="small">{{ getRoleText(row.role) }}</el-tag>
+          <el-tag :type="ROLE_TAG_TYPE[row.role] || 'info'" size="small">{{ getRoleText(row.role) }}</el-tag>
         </template>
         <template #enabled="{ row }">
           <el-switch
@@ -186,6 +186,7 @@ import { Plus, Search, Refresh, Setting, More } from '@element-plus/icons-vue'
 import { userApi, authApi, type User } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
 import { formatTimestamp } from '@/utils/format'
+import { ROLE_TAG_TYPE } from '@/constants/status'
 
 const { t } = useI18n()
 
@@ -283,15 +284,6 @@ const rules: FormRules = {
   role: [
     { required: true, message: t('user.selectRole'), trigger: 'change' }
   ]
-}
-
-const getRoleType = (role: string) => {
-  const types: Record<string, string> = {
-    admin: 'danger',
-    user: 'primary',
-    guest: 'info'
-  }
-  return types[role] || 'info'
 }
 
 const getRoleText = (role: string) => {

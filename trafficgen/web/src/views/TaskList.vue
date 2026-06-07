@@ -189,6 +189,7 @@ import { taskApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import ProTable from '@/components/ProTable/index.vue'
 import { formatNumber, formatTimestamp } from '@/utils/format'
+import { TASK_STATUS_TYPE, getProgressStatus } from '@/constants/status'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -244,14 +245,6 @@ function getStatusText(status: string): string {
     stopped: t('task.stopped')
   }
   return map[status] || status
-}
-
-
-function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {
-  if (status === 'completed') return 'success'
-  if (status === 'failed') return 'exception'
-  if (status === 'stopped') return 'warning'
-  return ''
 }
 
 function resetFilters() {
