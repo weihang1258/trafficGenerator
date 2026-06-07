@@ -99,7 +99,7 @@
           <el-col :xs="24" :sm="14">
             <el-card class="chart-card" shadow="never">
               <template #header>
-                <span class="chart-title">{{ t('dashboard.throughputTrend') }}</span>
+                <ProCardHeader :title="t('dashboard.throughputTrend')" />
               </template>
               <div class="chart-container-sm chart-with-overlay">
                 <div ref="throughputChartRef" class="chart-canvas" />
@@ -112,7 +112,7 @@
           <el-col :xs="24" :sm="10">
             <el-card class="chart-card" shadow="never">
               <template #header>
-                <span class="chart-title">{{ t('dashboard.protocolDistribution') }}</span>
+                <ProCardHeader :title="t('dashboard.protocolDistribution')" />
               </template>
               <div class="chart-container-sm chart-with-overlay">
                 <div ref="protocolChartRef" class="chart-canvas" />
@@ -211,6 +211,7 @@ import { taskApi, systemApi, strategyApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import { formatNumber, formatBps, formatUptime, formatDuration } from '@/utils/format'
 import { getProgressStatus } from '@/constants/status'
+import ProCardHeader from '@/components/ProCardHeader/index.vue'
 import { useDarkMode } from '@/composables/useDarkMode'
 
 const { t } = useI18n()
