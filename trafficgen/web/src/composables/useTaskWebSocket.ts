@@ -1,18 +1,36 @@
 import { ref, onUnmounted } from 'vue'
 import { createWebSocket } from '@/utils/websocket'
-import type { Task } from '@/api'
+import type { Task, TaskStats } from '@/api'
 
-export function useTaskWebSocket(taskId?: string) {
+/** WebSocket progress update message data (after flattening) */
+interface WSProgressData {
+  task_id?: string
+  progress?: number
+  stats?: TaskStats
+  timestamp?: number
+}
+
+/** WebSocket task completion/failure message data (after flattening) */
+interface WSTaskEventData {
+  task_id?: string
+  status?: string
+  progress?: number
+  timestamp?: number
+}
+
+export function useTaskWebSocket() {
   const connected = ref(false)
   const taskStatus = ref<Task | null>(null)
+  const progress = ref<number>(0)
+  const stats = ref<TaskStats | null>(null)
   const error = ref<string | null>(null)
+  const subscribedTaskId = ref<string | null>(null)
 
-  // Get WebSocket URL
+  // Get WebSocket URL - use the single /ws endpoint with JWT token
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = window.location.host
-  const wsUrl = taskId
-    ? `${protocol}//${host}/ws/tasks/${taskId}`
-    : `${protocol}//${host}/ws/tasks`
+  const token = localStorage.getItem('token') || ''
+  const wsUrl = `${protocol}//${host}/ws${token ? '?token=' + encodeURIComponent(token) : ''}`
 
   // Create WebSocket client
   const ws = createWebSocket({
@@ -27,29 +45,57 @@ export function useTaskWebSocket(taskId?: string) {
   ws.onOpen(() => {
     connected.value = true
     error.value = null
-    console.log('[TaskWebSocket] Connected')
+    // Re-subscribe to previously subscribed task after reconnect
+    if (subscribedTaskId.value) {
+      ws.send({
+        type: 'subscribe',
+        task_id: subscribedTaskId.value
+      })
+    }
   })
 
   // Handle connection close
   ws.onClose(() => {
     connected.value = false
-    console.log('[TaskWebSocket] Disconnected')
   })
 
   // Handle errors
-  ws.onError((err) => {
+  ws.onError(() => {
     error.value = 'WebSocket connection error'
-    console.error('[TaskWebSocket] Error:', err)
   })
 
-  // Handle task status updates
-  ws.on('task_status', (data) => {
-    taskStatus.value = data as Task
+  // Handle status updates (task status changed)
+  ws.on('status_update', (data: Record<string, unknown>) => {
+    taskStatus.value = data as unknown as Task
   })
 
-  // Handle task update messages
-  ws.on('task_update', (data) => {
-    taskStatus.value = data as Task
+  // Handle stats updates
+  ws.on('stats_update', (data: Record<string, unknown>) => {
+    if (data.stats) {
+      stats.value = data.stats as TaskStats
+    }
+  })
+
+  // Handle progress updates
+  // After websocket.ts flattening, data contains: task_id, progress, stats, timestamp
+  ws.on('progress_update', (data: WSProgressData) => {
+    progress.value = data.progress || 0
+    if (data.stats) {
+      stats.value = data.stats
+    }
+  })
+
+  // Handle task completion
+  ws.on('task_completed', (data: WSTaskEventData) => {
+    if (data.task_id) {
+      progress.value = 100
+    }
+    taskStatus.value = { ...taskStatus.value, ...data } as unknown as Task
+  })
+
+  // Handle task failure
+  ws.on('task_failed', (data: WSTaskEventData) => {
+    taskStatus.value = { ...taskStatus.value, ...data } as unknown as Task
   })
 
   // Connect
@@ -69,6 +115,7 @@ export function useTaskWebSocket(taskId?: string) {
 
   // Subscribe to specific task
   const subscribeTask = (id: string) => {
+    subscribedTaskId.value = id
     ws.send({
       type: 'subscribe',
       task_id: id
@@ -77,6 +124,7 @@ export function useTaskWebSocket(taskId?: string) {
 
   // Unsubscribe from task
   const unsubscribeTask = (id: string) => {
+    subscribedTaskId.value = null
     ws.send({
       type: 'unsubscribe',
       task_id: id
@@ -91,6 +139,8 @@ export function useTaskWebSocket(taskId?: string) {
   return {
     connected,
     taskStatus,
+    progress,
+    stats,
     error,
     connect,
     disconnect,

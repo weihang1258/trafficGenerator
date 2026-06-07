@@ -3,7 +3,9 @@ import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { ElMessage } from 'element-plus'
 import i18n from '@/i18n'
 
-const t = (key: string) => i18n.global.t(key)
+const t = (key: string) => {
+  try { return i18n.global.t(key) } catch { return key }
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
@@ -43,7 +45,11 @@ request.interceptors.response.use(
   (error) => {
     if (error.response) {
       const { status } = error.response
+      const serverMsg = error.response.data?.message || ''
       switch (status) {
+        case 400:
+          ElMessage.error(serverMsg || t('error.badRequest'))
+          break
         case 401:
           ElMessage.error(t('error.unauthorized'))
           localStorage.removeItem('token')
@@ -60,7 +66,7 @@ request.interceptors.response.use(
           ElMessage.error(t('error.serverError'))
           break
         default:
-          ElMessage.error(error.message || t('error.networkError'))
+          ElMessage.error(serverMsg || error.message || t('error.networkError'))
       }
     } else {
       ElMessage.error(t('error.networkError'))
@@ -96,6 +102,8 @@ export interface Task {
   user_id: string
   name: string
   strategy_ids: string[]
+  protocol?: string
+  strategies?: Strategy[]
   output_type: string  // "port_group" or "pcap"
   output_config: OutputConfigRequest
   flow_control?: FlowControlRequest
@@ -126,8 +134,8 @@ export interface CreateTaskRequest {
 }
 
 export const taskApi = {
-  list: (params?: { page?: number; size?: number; status?: string; protocol?: string }) =>
-    request.get<any, ApiResponse<Task[]>>('/tasks', { params }),
+  list: (params?: { page?: number; size?: number; status?: string; protocol?: string; sort_by?: string; sort_order?: string }) =>
+    request.get<any, ApiResponse<{ items: Task[]; total: number; page: number; size: number }>>('/tasks', { params }),
 
   get: (id: string) =>
     request.get<any, ApiResponse<Task>>(`/tasks/${id}`),
@@ -167,14 +175,23 @@ export const systemApi = {
 }
 
 // Interface API
+export interface PortAllocation {
+  port: number
+  task_id: string
+  allocated_at: string
+}
+
 export interface NetworkInterface {
   name: string
   mac: string
-  ip: string
+  ips: string[]
   is_up: boolean
   link_up: boolean
   mtu: number
   description: string
+  is_virtual: boolean
+  in_use: boolean
+  allocations?: PortAllocation[]
 }
 
 export const interfaceApi = {
@@ -222,8 +239,15 @@ export interface Strategy {
   protocol: string
   config: Record<string, any>
   flow_control?: FlowControlRequest
+  task_count?: number
   created_at: number
   updated_at: number
+}
+
+export interface TaskBrief {
+  id: string
+  name: string
+  status: string
 }
 
 export const strategyApi = {
@@ -233,6 +257,9 @@ export const strategyApi = {
   get: (id: string) =>
     request.get<any, ApiResponse<Strategy>>(`/strategies/${id}`),
 
+  getTasks: (id: string) =>
+    request.get<any, ApiResponse<TaskBrief[]>>(`/strategies/${id}/tasks`),
+
   create: (data: { name: string; protocol: string; config: Record<string, any>; flow_control?: FlowControlRequest }) =>
     request.post<any, ApiResponse<{ id: string }>>('/strategies', data),
 
@@ -241,6 +268,23 @@ export const strategyApi = {
 
   delete: (id: string) =>
     request.delete<any, ApiResponse<null>>(`/strategies/${id}`)
+}
+
+// Port API
+export interface Port {
+  id: string
+  name: string
+  type: string      // "libpcap" or "dpdk"
+  pci_address: string
+  status: string    // "idle", "using", "maintenance"
+  current_task_id: string
+  created_at: number
+  updated_at: number
+}
+
+export const portApi = {
+  list: () =>
+    request.get<any, ApiResponse<Port[]>>('/ports')
 }
 
 // Port Group API
@@ -294,6 +338,7 @@ export interface User {
   role: string
   enabled: boolean
   created_at: number
+  updated_at: number
   last_login: number
 }
 
@@ -321,9 +366,10 @@ export interface HistoryRecord {
   bytes_sent: number
   duration: number
   created_at: number
+  updated_at: number
 }
 
 export const historyApi = {
-  list: (params?: { start_time?: number; end_time?: number; page?: number; size?: number }) =>
+  list: (params?: { start_time?: number; end_time?: number; status?: string; sort_by?: string; sort_order?: string; page?: number; size?: number }) =>
     request.get<any, ApiResponse<HistoryRecord[]>>('/history', { params })
 }

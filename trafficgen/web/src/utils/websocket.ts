@@ -205,9 +205,9 @@ class WebSocketClient {
   /**
    * 处理消息
    */
-  private handleMessage(data: string): void {
+  private handleMessage(raw: string): void {
     try {
-      const message = JSON.parse(data)
+      const message = JSON.parse(raw)
 
       // 处理 pong 响应
       if (message.type === 'pong') {
@@ -215,9 +215,12 @@ class WebSocketClient {
       }
 
       // 根据 type 分发消息
-      const { type, ...payload } = message
+      // Backend Message struct: {type, timestamp, data, error}
+      // We flatten the inner `data` field into the payload so handlers
+      // can access data.progress, data.stats, data.task_id directly.
+      const { type, data: payload, ...rest } = message
       const handlers = this.messageHandlers.get(type) || []
-      handlers.forEach(handler => handler(payload))
+      handlers.forEach(handler => handler({ ...payload, ...rest }))
 
       // 通配符处理器
       const wildcardHandlers = this.messageHandlers.get('*') || []
