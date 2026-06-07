@@ -2,32 +2,28 @@
   <div class="user-list">
     <el-card>
       <template #header>
-        <div class="card-header">
-          <span>{{ t('user.title') }}</span>
-          <div class="header-actions">
-            <template v-if="selectedUsers.length === 0">
-              <el-button aria-label="Column settings" @click="proTableRef?.openColumnSettings()" circle size="small">
-                <el-icon><Setting /></el-icon>
-              </el-button>
-              <el-button aria-label="Refresh" @click="fetchUsers" circle size="small">
-                <el-icon><Refresh /></el-icon>
-              </el-button>
-              <el-button type="primary" @click="handleCreate">
-                <el-icon><Plus /></el-icon>
-                {{ t('user.createUser') }}
-              </el-button>
-            </template>
-            <template v-else>
-              <span class="batch-info">{{ t('common.selected') }} {{ selectedUsers.length }} {{ t('user.title') }}</span>
-              <el-button type="danger" size="small" @click="handleBatchDelete">{{ t('common.delete') }}</el-button>
-              <el-button size="small" link type="primary" @click="clearSelection">{{ t('common.reset') }}</el-button>
-            </template>
-          </div>
-        </div>
+        <ProCardHeader :title="t('user.title')">
+          <template v-if="selectedUsers.length === 0">
+            <el-button aria-label="Column settings" @click="proTableRef?.openColumnSettings()" circle size="small">
+              <el-icon><Setting /></el-icon>
+            </el-button>
+            <el-button aria-label="Refresh" @click="refresh" circle size="small">
+              <el-icon><Refresh /></el-icon>
+            </el-button>
+            <el-button type="primary" @click="handleCreate">
+              <el-icon><Plus /></el-icon>
+              {{ t('user.createUser') }}
+            </el-button>
+          </template>
+          <template v-else>
+            <span class="batch-info">{{ t('common.selected') }} {{ selectedUsers.length }} {{ t('user.title') }}</span>
+            <el-button type="danger" size="small" @click="handleBatchDelete">{{ t('common.delete') }}</el-button>
+            <el-button size="small" link type="primary" @click="clearSelection(proTableRef?.tableRef)">{{ t('common.reset') }}</el-button>
+          </template>
+        </ProCardHeader>
       </template>
 
-      <!-- Filter bar -->
-      <div class="filter-bar">
+      <ProFilterBar :filters="searchForm" @reset="handleReset">
         <el-input
           v-model="searchForm.username"
           :placeholder="t('user.usernamePlaceholder')"
@@ -46,18 +42,7 @@
           <el-option :label="t('user.guest')" value="guest" />
         </el-select>
         <el-button link type="primary" @click="handleReset">{{ t('common.reset') }}</el-button>
-      </div>
-
-      <!-- Active filter tags -->
-      <div v-if="hasActiveFilters" class="active-filters">
-        <el-tag v-if="searchForm.username" closable @close="searchForm.username = ''; handleSearch()">
-          {{ searchForm.username }}
-        </el-tag>
-        <el-tag v-if="searchForm.role" closable @close="searchForm.role = ''; handleSearch()">
-          {{ getRoleText(searchForm.role) }}
-        </el-tag>
-        <el-button link type="primary" size="small" @click="handleReset">{{ t('common.reset') }}</el-button>
-      </div>
+      </ProFilterBar>
 
       <ProTable
         ref="proTableRef"
@@ -66,11 +51,9 @@
         :data="users"
         :loading="loading"
         :default-sort="{ prop: 'created_at', order: 'descending' }"
-        :pagination="{ total: pagination.total }"
         :empty-text="t('user.noUsers')"
         @selection-change="handleSelectionChange"
         @sort-change="handleSortChange"
-        @page-change="handlePageChange"
       >
         <template #username="{ row }">
           <span class="user-name">{{ row.username }}</span>
@@ -122,13 +105,13 @@
       </ProTable>
     </el-card>
 
-    <el-dialog
-      v-model="dialogVisible"
+    <ProDialog
+      :visible="dialogVisible"
       :title="dialogTitle"
       width="500px"
-      :close-on-click-modal="false"
-      :before-close="handleDialogBeforeClose"
-      @close="handleDialogClose"
+      :dirty-guard="formDirty"
+      @update:visible="dialogVisible = $event"
+      @closed="handleDialogClose"
     >
       <el-form
         ref="formRef"
@@ -173,12 +156,12 @@
         <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('common.confirm') }}</el-button>
       </template>
-    </el-dialog>
+    </ProDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -187,35 +170,57 @@ import { userApi, authApi, type User } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
 import { formatTimestamp } from '@/utils/format'
 import { ROLE_TAG_TYPE } from '@/constants/status'
+import { useClientList } from '@/composables/useClientList'
+import { useSelection } from '@/composables/useSelection'
+import { useBatchAction } from '@/composables/useBatchAction'
+import { useFormDirty } from '@/composables/useFormDirty'
+import ProCardHeader from '@/components/ProCardHeader/index.vue'
+import ProFilterBar from '@/components/ProFilterBar/index.vue'
+import ProDialog from '@/components/ProDialog/index.vue'
 
 const { t } = useI18n()
 
-const loading = ref(false)
 const submitLoading = ref(false)
-const users = ref<User[]>([])
 const proTableRef = ref()
-const selectedUsers = ref<User[]>([])
-const formDirty = ref(false)
 
 const searchForm = reactive({
   username: '',
   role: ''
 })
 
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
+const { loading, data: users, sortState, refresh, handleSortChange } = useClientList({
+  fetchFn: async () => {
+    const params: any = {}
+    if (searchForm.username) params.username = searchForm.username
+    if (searchForm.role) params.role = searchForm.role
+    const res = await userApi.list(params)
+    return Array.isArray(res.data) ? res.data : (res.data as any).items || []
+  },
+  clientSort: (items, sort) => {
+    if (!sort.prop || !sort.order) return items
+    const dir = sort.order === 'ascending' ? 1 : -1
+    return [...items].sort((a: any, b: any) => {
+      const va = a[sort.prop!]
+      const vb = b[sort.prop!]
+      if (va == null && vb == null) return 0
+      if (va == null) return dir
+      if (vb == null) return -dir
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
+      if (typeof va === 'boolean' && typeof vb === 'boolean') return (Number(va) - Number(vb)) * dir
+      return String(va).localeCompare(String(vb)) * dir
+    })
+  },
+  defaultSort: { prop: 'created_at', order: 'descending' }
 })
 
-const sortState = reactive({
-  prop: 'created_at',
-  order: 'descending'
-})
+const { selectedItems: selectedUsers, handleSelectionChange, clearSelection } = useSelection<User>()
 
-const hasActiveFilters = computed(() =>
-  searchForm.username || searchForm.role
-)
+const batchDelete = useBatchAction<User>({
+  action: (user) => userApi.delete(user.id),
+  confirmMessage: (count) => t('user.batchDeleteConfirm', { count }),
+  successMessage: (count) => t('user.deleteSuccess'),
+  partialMessage: (succeeded, failed) => t('task.bulkPartial', { succeeded, failed })
+})
 
 const columns = computed(() => [
   { type: 'selection' as const, width: 45, fixed: 'left' },
@@ -243,17 +248,7 @@ const userForm = reactive({
   enabled: true
 })
 
-const initialFormJson = ref('')
-
-function captureUserFormState() {
-  return JSON.stringify({ username: userForm.username, email: userForm.email, password: userForm.password, confirmPassword: userForm.confirmPassword, role: userForm.role, enabled: userForm.enabled })
-}
-
-watch(() => captureUserFormState(), (v) => {
-  if (dialogVisible.value) {
-    formDirty.value = v !== initialFormJson.value
-  }
-})
+const formDirty = useFormDirty(userForm)
 
 const validateConfirmPassword = (_rule: any, value: string, callback: (err?: Error) => void) => {
   if (!value) {
@@ -295,64 +290,14 @@ const getRoleText = (role: string) => {
   return texts[role] || role
 }
 
-
-async function fetchUsers() {
-  loading.value = true
-  try {
-    const params: any = {}
-    if (searchForm.username) params.username = searchForm.username
-    if (searchForm.role) params.role = searchForm.role
-    const res = await userApi.list(params)
-    if (res.data) {
-      const data = res.data as any
-      const items = Array.isArray(data) ? data : (data.items || [])
-      users.value = applySort(items)
-      pagination.total = items.length
-    }
-  } catch (error) {
-    console.error('Failed to load users:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
 function handleSearch() {
-  pagination.page = 1
-  fetchUsers()
+  refresh()
 }
 
 function handleReset() {
   searchForm.username = ''
   searchForm.role = ''
-  pagination.page = 1
-  fetchUsers()
-}
-
-function handleSortChange({ prop, order }: { prop: string; order: string }) {
-  sortState.prop = prop
-  sortState.order = order
-  users.value = applySort(users.value)
-}
-
-function applySort(data: any[]): any[] {
-  if (!sortState.prop || !sortState.order) return data
-  const dir = sortState.order === 'ascending' ? 1 : -1
-  return [...data].sort((a: any, b: any) => {
-    const va = a[sortState.prop!]
-    const vb = b[sortState.prop!]
-    if (va == null && vb == null) return 0
-    if (va == null) return dir
-    if (vb == null) return -dir
-    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
-    if (typeof va === 'boolean' && typeof vb === 'boolean') return (Number(va) - Number(vb)) * dir
-    return String(va).localeCompare(String(vb)) * dir
-  })
-}
-
-function handlePageChange(page: number, pageSize: number) {
-  pagination.page = page
-  pagination.size = pageSize
-  fetchUsers()
+  refresh()
 }
 
 function handleCreate() {
@@ -364,9 +309,8 @@ function handleCreate() {
   userForm.confirmPassword = ''
   userForm.role = 'user'
   userForm.enabled = true
-  formDirty.value = false
   dialogVisible.value = true
-  nextTick(() => { initialFormJson.value = captureUserFormState() })
+  nextTick(() => { formDirty.captureSnapshot() })
 }
 
 function handleEdit(row: User) {
@@ -377,43 +321,14 @@ function handleEdit(row: User) {
   userForm.role = row.role
   userForm.enabled = row.enabled
   userForm.confirmPassword = ''
-  formDirty.value = false
   dialogVisible.value = true
-  nextTick(() => { initialFormJson.value = captureUserFormState() })
-}
-
-function handleSelectionChange(selection: User[]) {
-  selectedUsers.value = selection
-}
-
-function clearSelection() {
-  selectedUsers.value = []
-  proTableRef.value?.tableRef?.clearSelection()
+  nextTick(() => { formDirty.captureSnapshot() })
 }
 
 async function handleBatchDelete() {
-  if (selectedUsers.value.length === 0) return
-  try {
-    await ElMessageBox.confirm(
-      t('user.batchDeleteConfirm', { count: selectedUsers.value.length }),
-      t('common.confirm'),
-      { type: 'warning' }
-    )
-    const results = await Promise.allSettled(
-      selectedUsers.value.map(user => userApi.delete(user.id))
-    )
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
-    if (failed > 0) {
-      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
-    } else {
-      ElMessage.success(t('user.deleteSuccess'))
-    }
-    selectedUsers.value = []
-    fetchUsers()
-  } catch {
-    // cancelled
-  }
+  await batchDelete.execute(selectedUsers.value)
+  clearSelection(proTableRef.value?.tableRef)
+  refresh()
 }
 
 async function handleDelete(row: User) {
@@ -421,7 +336,7 @@ async function handleDelete(row: User) {
     await ElMessageBox.confirm(t('user.confirmDelete'), t('common.confirm'), { type: 'warning' })
     await userApi.delete(row.id)
     ElMessage.success(t('user.deleteSuccess'))
-    fetchUsers()
+    refresh()
   } catch { /* cancelled */ }
 }
 
@@ -496,26 +411,11 @@ async function handleSubmit() {
       ElMessage.success(t('user.createSuccess'))
     }
     dialogVisible.value = false
-    fetchUsers()
+    refresh()
   } catch (error) {
     console.error('Failed to save user:', error)
   } finally {
     submitLoading.value = false
-  }
-}
-
-function handleDialogBeforeClose(done: () => void) {
-  if (formDirty.value) {
-    ElMessageBox.confirm(t('common.unsavedChanges'), t('common.warning'), {
-      confirmButtonText: t('common.discard'),
-      cancelButtonText: t('common.cancel'),
-      type: 'warning'
-    }).then(() => {
-      formDirty.value = false
-      done()
-    }).catch(() => {})
-  } else {
-    done()
   }
 }
 
@@ -524,39 +424,11 @@ function handleDialogClose() {
 }
 
 onMounted(() => {
-  fetchUsers()
+  refresh()
 })
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-height: 32px;
-}
-
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.active-filters {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
 .batch-info {
   font-size: 13px;
   color: var(--tg-text-secondary, #64748B);
@@ -570,12 +442,5 @@ onMounted(() => {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
-}
-
-@media (max-width: 768px) {
-  .filter-bar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 </style>
