@@ -180,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -195,6 +195,7 @@ import { taskApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import ConnectionIndicator from '@/components/ConnectionIndicator.vue'
 import { useTaskWebSocket } from '@/composables/useTaskWebSocket'
+import { useServerList } from '@/composables/useServerList'
 import { formatBytes, formatNumber, formatPps, formatBps, formatTaskDuration, formatTimestamp } from '@/utils/format'
 
 const route = useRoute()
@@ -207,9 +208,19 @@ let refreshTimer: number | null = null
 // WebSocket for real-time updates
 const { connected: wsConnected, progress: wsProgress, stats: wsStats, error: wsError, connect: wsConnect, subscribeTask: wsSubscribe, disconnect: wsDisconnect } = useTaskWebSocket()
 
-const task = ref<Task>({} as Task)
+const taskId = route.params.id as string
+
+// Server list composable for task data (single item list)
+const { loading, data: taskList, refresh } = useServerList<Task>({
+  fetchFn: async () => {
+    const res = await taskApi.get(taskId)
+    return { items: res.data ? [res.data] : [], total: res.data ? 1 : 0 }
+  },
+  defaultPageSize: 1
+})
+
+const task = computed(() => taskList.value[0] || ({} as Task))
 const throughputHistory = ref<Array<{ time: string; pps: number; bps: number }>>([])
-const loading = ref(true)
 const errorState = ref<string | null>(null)
 const chartInstance = ref<echarts.ECharts | null>(null)
 
@@ -262,28 +273,28 @@ function updateChart() {
   })
 }
 
-async function loadTask(showLoading = true) {
+async function loadTaskData(showLoading = true) {
   if (disposed) return
-  if (showLoading) loading.value = true
+  await refresh()
+  if (disposed) return
+  const t = task.value
+  if (t.stats?.current_pps || t.stats?.current_bps) {
+    throughputHistory.value.push({
+      time: new Date().toLocaleTimeString(),
+      pps: t.stats.current_pps || 0,
+      bps: t.stats.current_bps || 0
+    })
+    if (throughputHistory.value.length > 30) {
+      throughputHistory.value = throughputHistory.value.slice(-30)
+    }
+    updateChart()
+  }
+}
+
+async function loadTask(showLoading = true) {
   errorState.value = null
   try {
-    const id = route.params.id as string
-    const res = await taskApi.get(id)
-    if (disposed) return
-    if (res.data) {
-      task.value = res.data as Task
-      if (task.value.stats?.current_pps || task.value.stats?.current_bps) {
-        throughputHistory.value.push({
-          time: new Date().toLocaleTimeString(),
-          pps: task.value.stats.current_pps || 0,
-          bps: task.value.stats.current_bps || 0
-        })
-        if (throughputHistory.value.length > 30) {
-          throughputHistory.value = throughputHistory.value.slice(-30)
-        }
-        updateChart()
-      }
-    }
+    await loadTaskData(showLoading)
   } catch (error: any) {
     if (disposed) return
     console.error('Failed to load task:', error)
@@ -292,8 +303,6 @@ async function loadTask(showLoading = true) {
     } else {
       errorState.value = t('error.networkError')
     }
-  } finally {
-    if (!disposed && showLoading) loading.value = false
   }
 }
 
