@@ -5,10 +5,10 @@
         <div class="card-header">
           <span>{{ t('history.title') }}</span>
           <div class="header-actions">
-            <el-button @click="proTableRef?.openColumnSettings()" circle size="small">
+            <el-button aria-label="Column settings" @click="proTableRef?.openColumnSettings()" circle size="small">
               <el-icon><Setting /></el-icon>
             </el-button>
-            <el-button @click="loadHistory" circle size="small">
+            <el-button aria-label="Refresh" @click="loadHistory" circle size="small">
               <el-icon><Refresh /></el-icon>
             </el-button>
             <el-button @click="exportHistoryCSV" :disabled="records.length === 0">
@@ -48,17 +48,29 @@
           value-format="X"
           style="margin-left: 12px;"
         />
+        <el-select v-model="statusFilter" :placeholder="t('task.status')" clearable style="width: 130px; margin-left: 12px;" @change="loadHistory">
+          <el-option :label="t('task.completed')" value="completed" />
+          <el-option :label="t('task.failed')" value="failed" />
+          <el-option :label="t('task.stopped')" value="stopped" />
+          <el-option :label="t('task.error')" value="error" />
+        </el-select>
         <el-button type="primary" size="small" @click="loadHistory" style="margin-left: 12px;">
           {{ t('common.search') }}
+        </el-button>
+        <el-button link type="primary" size="small" @click="resetFilters">
+          {{ t('common.reset') }}
         </el-button>
       </div>
 
       <!-- Active filter tags -->
-      <div v-if="quickRange" class="active-filters">
-        <el-tag closable @close="quickRange = ''; dateRange = null; loadHistory()">
+      <div v-if="quickRange || statusFilter" class="active-filters">
+        <el-tag v-if="quickRange" closable @close="quickRange = ''; dateRange = null; loadHistory()">
           {{ getRangeLabel(quickRange) }}
         </el-tag>
-        <el-button link type="primary" size="small" @click="quickRange = ''; dateRange = null; loadHistory()">
+        <el-tag v-if="statusFilter" closable @close="statusFilter = ''; loadHistory()">
+          {{ getStatusText(statusFilter) }}
+        </el-tag>
+        <el-button link type="primary" size="small" @click="resetFilters">
           {{ t('common.reset') }}
         </el-button>
       </div>
@@ -69,6 +81,7 @@
         :columns="columns"
         :data="records"
         :loading="loading"
+        :default-sort="{ prop: 'created_at', order: 'descending' }"
         :pagination="{ total: pagination.total }"
         :empty-text="t('history.noRecords')"
         @sort-change="handleSortChange"
@@ -93,10 +106,10 @@
           {{ formatBytes(row.stats?.bytes_sent || 0) }}
         </template>
         <template #created_at="{ row }">
-          {{ formatDate(row.created_at) }}
+          {{ formatTimestamp(row.created_at) }}
         </template>
         <template #completed_at="{ row }">
-          {{ formatDate(row.completed_at) }}
+          {{ formatTimestamp(row.completed_at) }}
         </template>
         <template #empty>
           <el-empty :description="t('history.noRecords')" />
@@ -113,7 +126,7 @@ import { Refresh, Download, Setting } from '@element-plus/icons-vue'
 import { historyApi } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
 import dayjs from 'dayjs'
-import { formatBytes, formatNumber, formatTaskDuration } from '@/utils/format'
+import { formatBytes, formatNumber, formatTaskDuration, formatTimestamp } from '@/utils/format'
 
 const { t } = useI18n()
 
@@ -122,6 +135,7 @@ const records = ref<any[]>([])
 const proTableRef = ref()
 const dateRange = ref<[string, string] | null>(null)
 const quickRange = ref<'today' | 'yesterday' | '7d' | '30d' | 'custom' | ''>('7d')
+const statusFilter = ref('')
 
 const pagination = reactive({
   page: 1,
@@ -130,8 +144,8 @@ const pagination = reactive({
 })
 
 const sortState = reactive({
-  prop: '',
-  order: ''
+  prop: 'created_at',
+  order: 'descending'
 })
 
 const columns = computed(() => [
@@ -147,10 +161,6 @@ const columns = computed(() => [
 ])
 
 
-function formatDate(timestamp?: number): string {
-  if (!timestamp) return '-'
-  return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm:ss')
-}
 
 function getStatusType(status: string): string {
   const map: Record<string, string> = {
@@ -166,7 +176,7 @@ function getStatusText(status: string): string {
   const map: Record<string, string> = {
     completed: t('task.completed'),
     failed: t('task.failed'),
-    error: t('task.failed'),
+    error: t('task.error'),
     stopped: t('task.stopped')
   }
   return map[status] || status
@@ -214,6 +224,14 @@ function setQuickRange(range: 'today' | 'yesterday' | '7d' | '30d' | 'custom') {
   }
 }
 
+function escapeCsv(value: string | number): string {
+  const str = String(value)
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return '"' + str.replace(/"/g, '""') + '"'
+  }
+  return str
+}
+
 function exportHistoryCSV() {
   if (records.value.length === 0) return
   const header = [
@@ -225,16 +243,16 @@ function exportHistoryCSV() {
     t('history.duration'),
     t('history.packets'),
     t('history.bytes')
-  ].join(',')
+  ].map(escapeCsv).join(',')
   const rows = records.value.map(r => [
-    `"${r.name || r.id || ''}"`,
-    r.protocol || '',
-    r.status || '',
-    r.started_at ? dayjs(r.started_at * 1000).format('YYYY-MM-DD HH:mm:ss') : '',
-    r.completed_at ? dayjs(r.completed_at * 1000).format('YYYY-MM-DD HH:mm:ss') : '',
-    formatTaskDuration(r.started_at, r.completed_at),
-    r.stats?.packets_sent || 0,
-    r.stats?.bytes_sent || 0
+    escapeCsv(r.name || r.id || ''),
+    escapeCsv(r.protocol || ''),
+    escapeCsv(r.status || ''),
+    escapeCsv(r.started_at ? dayjs(r.started_at * 1000).format('YYYY-MM-DD HH:mm:ss') : ''),
+    escapeCsv(r.completed_at ? dayjs(r.completed_at * 1000).format('YYYY-MM-DD HH:mm:ss') : ''),
+    escapeCsv(formatTaskDuration(r.started_at, r.completed_at)),
+    escapeCsv(r.stats?.packets_sent || 0),
+    escapeCsv(r.stats?.bytes_sent || 0)
   ].join(','))
   const csv = '﻿' + header + '\n' + rows.join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
@@ -249,25 +267,15 @@ function exportHistoryCSV() {
 function handleSortChange({ prop, order }: { prop: string; order: string }) {
   sortState.prop = prop
   sortState.order = order
-  records.value = applySort(records.value)
+  loadHistory()
 }
 
-function applySort(data: any[]): any[] {
-  if (!sortState.prop || !sortState.order) return data
-  const dir = sortState.order === 'ascending' ? 1 : -1
-  return [...data].sort((a: any, b: any) => {
-    let va = sortState.prop!.includes('.') ? sortState.prop!.split('.').reduce((o: any, k: string) => o?.[k], a) : a[sortState.prop]
-    let vb = sortState.prop!.includes('.') ? sortState.prop!.split('.').reduce((o: any, k: string) => o?.[k], b) : b[sortState.prop]
-    if (sortState.prop === 'duration') {
-      va = (a.completed_at || 0) - (a.started_at || 0)
-      vb = (b.completed_at || 0) - (b.started_at || 0)
-    }
-    if (va == null && vb == null) return 0
-    if (va == null) return dir
-    if (vb == null) return -dir
-    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
-    return String(va).localeCompare(String(vb)) * dir
-  })
+function resetFilters() {
+  quickRange.value = '7d'
+  dateRange.value = null
+  statusFilter.value = ''
+  pagination.page = 1
+  loadHistory()
 }
 
 function handlePageChange(page: number, pageSize: number) {
@@ -281,7 +289,9 @@ async function loadHistory() {
   try {
     const params: any = {
       page: pagination.page,
-      size: pagination.size
+      size: pagination.size,
+      sort_by: sortState.prop || 'created_at',
+      sort_order: sortState.order || 'descending'
     }
     if (quickRange.value && quickRange.value !== 'custom') {
       const { start, end } = getQuickRangeTimestamps(quickRange.value)
@@ -291,11 +301,14 @@ async function loadHistory() {
       params.start_time = Number(dateRange.value[0])
       params.end_time = Number(dateRange.value[1])
     }
+    if (statusFilter.value) {
+      params.status = statusFilter.value
+    }
     const res = await historyApi.list(params)
     if (res.data) {
       const data = res.data as any
       const items = Array.isArray(data) ? data : (data.items || [])
-      records.value = applySort(items)
+      records.value = items
       pagination.total = data.total || records.value.length
     }
   } catch (error) {
@@ -327,7 +340,7 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 20px;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
 }
 
 @media (max-width: 768px) {

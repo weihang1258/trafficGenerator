@@ -27,11 +27,12 @@
     </div>
 
     <!-- Status banner -->
-    <el-card class="status-card">
+    <el-card class="status-card" :class="`status-${task.status}`">
       <div class="status-row">
         <div class="status-main">
           <task-status-tag :status="task.status" size="large" />
           <span class="task-id">ID: {{ task.id }}</span>
+          <ConnectionIndicator v-if="task.status === 'running'" :connected="wsConnected" :error="wsError" />
         </div>
         <div class="status-meta">
           <span class="meta-item">
@@ -40,7 +41,7 @@
           </span>
           <span class="meta-item">
             <el-icon><Clock /></el-icon>
-            {{ formatDate(task.created_at) }}
+            {{ formatTimestamp(task.created_at) }}
           </span>
           <span v-if="task.started_at" class="meta-item">
             <el-icon><Timer /></el-icon>
@@ -76,13 +77,13 @@
       <el-col :xs="12" :sm="6">
         <div class="mini-stat">
           <div class="mini-stat-value">{{ formatPps(task.stats?.current_pps || 0) }}</div>
-          <div class="mini-stat-label">{{ t('task.pps') || 'PPS' }}</div>
+          <div class="mini-stat-label">{{ t('task.pps') }}</div>
         </div>
       </el-col>
       <el-col :xs="12" :sm="6">
         <div class="mini-stat">
           <div class="mini-stat-value">{{ formatBps(task.stats?.current_bps || 0) }}</div>
-          <div class="mini-stat-label">{{ t('task.bps') || 'BPS' }}</div>
+          <div class="mini-stat-label">{{ t('task.bps') }}</div>
         </div>
       </el-col>
     </el-row>
@@ -110,7 +111,7 @@
       </template>
       <el-descriptions :column="2" border>
         <el-descriptions-item :label="t('task.outputType')">
-          {{ task.output_type === 'port_group' ? t('taskCreate.portGroup') : 'PCAP' }}
+          {{ task.output_type === 'port_group' ? t('taskCreate.portGroup') : t('taskCreate.pcap') }}
         </el-descriptions-item>
         <el-descriptions-item v-if="task.output_type === 'pcap'" :label="t('taskCreate.pcapPath')">
           {{ task.output_config?.pcap_path || '-' }}
@@ -154,7 +155,7 @@
     <!-- Action buttons -->
     <div class="action-bar">
       <el-button
-        v-if="task.status === 'pending'"
+        v-if="task.status !== 'running'"
         type="primary"
         @click="handleStart"
       >
@@ -168,13 +169,6 @@
         {{ t('task.stop') }}
       </el-button>
       <el-button
-        v-if="task.status === 'completed' || task.status === 'failed' || task.status === 'stopped'"
-        type="primary"
-        @click="handleRestart"
-      >
-        {{ t('task.start') }}
-      </el-button>
-      <el-button
         type="danger"
         @click="handleDelete"
       >
@@ -186,16 +180,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Connection, Clock, Timer } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+
+echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 import { taskApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
-import dayjs from 'dayjs'
-import { formatBytes, formatNumber, formatPps, formatBps, formatTaskDuration } from '@/utils/format'
+import ConnectionIndicator from '@/components/ConnectionIndicator.vue'
+import { useTaskWebSocket } from '@/composables/useTaskWebSocket'
+import { formatBytes, formatNumber, formatPps, formatBps, formatTaskDuration, formatTimestamp } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -204,16 +204,15 @@ const { t } = useI18n()
 const chartRef = ref<HTMLElement>()
 let refreshTimer: number | null = null
 
+// WebSocket for real-time updates
+const { connected: wsConnected, progress: wsProgress, stats: wsStats, error: wsError, connect: wsConnect, subscribeTask: wsSubscribe, disconnect: wsDisconnect } = useTaskWebSocket()
+
 const task = ref<Task>({} as Task)
 const throughputHistory = ref<Array<{ time: string; pps: number; bps: number }>>([])
 const loading = ref(true)
 const errorState = ref<string | null>(null)
 const chartInstance = ref<echarts.ECharts | null>(null)
 
-function formatDate(timestamp?: number): string {
-  if (!timestamp) return '-'
-  return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm:ss')
-}
 
 function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {
   if (status === 'completed') return 'success'
@@ -258,17 +257,19 @@ function updateChart() {
     xAxis: { data: history.map(h => h.time) },
     series: [
       { data: history.map(h => h.pps) },
-      { data: history.map(h => (h.bps / 1024 / 1024).toFixed(2)) }
+      { data: history.map(h => Number((h.bps / 1024 / 1024).toFixed(2))) }
     ]
   })
 }
 
-async function loadTask() {
-  loading.value = true
+async function loadTask(showLoading = true) {
+  if (disposed) return
+  if (showLoading) loading.value = true
   errorState.value = null
   try {
     const id = route.params.id as string
     const res = await taskApi.get(id)
+    if (disposed) return
     if (res.data) {
       task.value = res.data as Task
       if (task.value.stats?.current_pps || task.value.stats?.current_bps) {
@@ -284,6 +285,7 @@ async function loadTask() {
       }
     }
   } catch (error: any) {
+    if (disposed) return
     console.error('Failed to load task:', error)
     if (error?.response?.status === 404) {
       errorState.value = t('error.notFound')
@@ -291,7 +293,7 @@ async function loadTask() {
       errorState.value = t('error.networkError')
     }
   } finally {
-    loading.value = false
+    if (!disposed && showLoading) loading.value = false
   }
 }
 
@@ -300,17 +302,7 @@ async function handleStart() {
     await taskApi.start(task.value.id)
     ElMessage.success(t('task.startSuccess'))
     loadTask()
-  } catch (error) {
-    console.error('Failed to start task:', error)
-    ElMessage.error(t('task.startFailed'))
-  }
-}
-
-async function handleRestart() {
-  try {
-    await taskApi.start(task.value.id)
-    ElMessage.success(t('task.startSuccess'))
-    loadTask()
+    scheduleRefresh()
   } catch (error: any) {
     ElMessage.error(error?.response?.data?.message || t('task.startFailed'))
   }
@@ -351,20 +343,65 @@ function handleResize() {
   chartInstance.value?.resize()
 }
 
+let disposed = false
+
+function scheduleRefresh() {
+  if (disposed) return
+  const terminalStatuses = ['completed', 'stopped', 'failed', 'error']
+  if (terminalStatuses.includes(task.value.status)) return
+  refreshTimer = window.setTimeout(async () => {
+    if (disposed) return
+    if (task.value.status === 'running') {
+      await loadTask(false)
+    }
+    scheduleRefresh()
+  }, 5000)
+}
+
+// Merge WebSocket real-time data into task
+watch(wsProgress, (val) => {
+  if (val > 0 && task.value.status === 'running') {
+    task.value.progress = val
+  }
+})
+
+watch(wsStats, (val) => {
+  if (val && task.value.status === 'running') {
+    task.value.stats = { ...task.value.stats, ...val }
+    // Append to throughput history
+    throughputHistory.value.push({
+      time: new Date().toLocaleTimeString(),
+      pps: val.current_pps || 0,
+      bps: val.current_bps || 0
+    })
+    if (throughputHistory.value.length > 30) {
+      throughputHistory.value = throughputHistory.value.slice(-30)
+    }
+    updateChart()
+  }
+})
+
 onMounted(async () => {
   await loadTask()
+  if (disposed) return
   await nextTick()
   initChart()
-  refreshTimer = window.setInterval(() => {
-    if (task.value.status === 'running') {
-      loadTask()
-    }
-  }, 5000)
+  // Try WebSocket for real-time updates
+  try {
+    await wsConnect()
+    wsSubscribe(route.params.id as string)
+  } catch {
+    // WebSocket failed, HTTP polling will continue
+  }
+  scheduleRefresh()
   window.addEventListener('resize', handleResize)
 })
 
-onUnmounted(() => {
-  if (refreshTimer) clearInterval(refreshTimer)
+onBeforeUnmount(() => {
+  disposed = true
+  wsDisconnect()
+  if (refreshTimer) clearTimeout(refreshTimer)
+  refreshTimer = null
   chartInstance.value?.dispose()
   window.removeEventListener('resize', handleResize)
 })
@@ -392,6 +429,23 @@ onUnmounted(() => {
 
 .status-card {
   border-left: 4px solid var(--tg-primary, #2563EB);
+}
+
+.status-card.status-running {
+  border-left-color: var(--tg-warning, #F59E0B);
+}
+
+.status-card.status-completed {
+  border-left-color: var(--tg-success, #10B981);
+}
+
+.status-card.status-failed,
+.status-card.status-error {
+  border-left-color: var(--tg-danger, #EF4444);
+}
+
+.status-card.status-stopped {
+  border-left-color: var(--tg-text-disabled, #94A3B8);
 }
 
 .status-row {
@@ -473,12 +527,12 @@ onUnmounted(() => {
 }
 
 .error-log {
-  background: #fef0f0;
+  background: var(--tg-danger-light);
   padding: 12px;
   border-radius: 6px;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--tg-danger, #f56c6c);
+  color: var(--tg-danger);
   white-space: pre-wrap;
   word-break: break-all;
   margin: 0;

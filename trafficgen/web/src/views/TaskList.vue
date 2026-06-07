@@ -6,11 +6,11 @@
           <span>{{ t('task.title') }}</span>
           <div class="header-actions">
             <template v-if="selectedTasks.length === 0">
-              <el-button @click="proTableRef?.openColumnSettings()" circle size="small">
+              <el-button aria-label="Column settings" @click="proTableRef?.openColumnSettings()" circle size="small">
                 <el-icon><Setting /></el-icon>
               </el-button>
-              <el-button @click="loadTasks" circle size="small">
-                <el-icon><Refresh /></el-icon>
+              <el-button aria-label="Refresh" @click="loadTasks" circle size="small">
+                <el-icon><RefreshRight /></el-icon>
               </el-button>
               <el-button type="primary" @click="$router.push('/tasks/create')">
                 <el-icon><Plus /></el-icon>
@@ -79,6 +79,7 @@
         :columns="columns"
         :data="tasks"
         :loading="loading"
+        :default-sort="{ prop: 'created_at', order: 'descending' }"
         :pagination="{ total: pagination.total }"
         :empty-text="t('task.noTasks')"
         @selection-change="handleSelectionChange"
@@ -97,7 +98,18 @@
           <el-tag size="small">{{ (row.protocol || 'N/A').toUpperCase() }}</el-tag>
         </template>
         <template #status="{ row }">
-          <task-status-tag :status="row.status" />
+          <el-tooltip v-if="row.error_message" :content="row.error_message" placement="top">
+            <task-status-tag :status="row.status" />
+          </el-tooltip>
+          <task-status-tag v-else :status="row.status" />
+        </template>
+        <template #error_message="{ row }">
+          <el-tooltip v-if="row.error_message" :content="row.error_message" placement="top">
+            <el-tag type="danger" size="small" effect="light" class="error-tag">
+              {{ row.error_message.length > 20 ? row.error_message.slice(0, 20) + '...' : row.error_message }}
+            </el-tag>
+          </el-tooltip>
+          <span v-else style="color: var(--tg-text-secondary, #94a3b8);">-</span>
         </template>
         <template #progress="{ row }">
           <el-progress
@@ -107,13 +119,16 @@
           />
         </template>
         <template #output_type="{ row }">
-          {{ row.output_type === 'port_group' ? t('taskCreate.portGroup') : 'PCAP' }}
+          {{ row.output_type === 'port_group' ? t('taskCreate.portGroup') : t('taskCreate.pcap') }}
         </template>
         <template #stats.packets_sent="{ row }">
           {{ formatNumber(row.stats?.packets_sent || 0) }}
         </template>
         <template #created_at="{ row }">
-          {{ formatDate(row.created_at) }}
+          {{ formatTimestamp(row.created_at) }}
+        </template>
+        <template #updated_at="{ row }">
+          {{ formatTimestamp(row.updated_at) }}
         </template>
         <template #actions="{ row }">
           <div class="action-buttons">
@@ -169,12 +184,11 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Setting, Refresh } from '@element-plus/icons-vue'
+import { Plus, Search, Setting, RefreshRight } from '@element-plus/icons-vue'
 import { taskApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import ProTable from '@/components/ProTable/index.vue'
-import dayjs from 'dayjs'
-import { formatNumber } from '@/utils/format'
+import { formatNumber, formatTimestamp } from '@/utils/format'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -184,16 +198,19 @@ const tasks = ref<Task[]>([])
 const selectedTasks = ref<Task[]>([])
 const proTableRef = ref()
 let refreshTimer: number | null = null
+let loadErrorShown = false
 
 const columns = computed(() => [
   { prop: 'selection', label: '', type: 'selection', width: 45, fixed: 'left' },
   { prop: 'name', label: t('task.taskName'), minWidth: 180, sortable: 'custom', required: true },
   { prop: 'protocol', label: t('task.protocol'), width: 90, sortable: 'custom' },
   { prop: 'status', label: t('task.status'), width: 100, sortable: 'custom' },
+  { prop: 'error_message', label: t('task.errorLog'), width: 160, sortable: 'custom' },
   { prop: 'progress', label: t('task.progress'), width: 120, sortable: 'custom' },
   { prop: 'output_type', label: t('task.outputType'), width: 90, sortable: 'custom' },
   { prop: 'stats.packets_sent', label: t('task.packets'), width: 90, sortable: 'custom' },
   { prop: 'created_at', label: t('task.createdAt'), width: 170, sortable: 'custom' },
+  { prop: 'updated_at', label: t('common.updatedAt'), width: 170, sortable: 'custom' },
   { prop: 'actions', label: t('task.actions'), width: 180, fixed: 'right', required: true }
 ])
 
@@ -210,8 +227,8 @@ const pagination = reactive({
 })
 
 const sortState = reactive({
-  prop: '',
-  order: ''
+  prop: 'created_at',
+  order: 'descending'
 })
 
 const hasActiveFilters = computed(() =>
@@ -229,10 +246,6 @@ function getStatusText(status: string): string {
   return map[status] || status
 }
 
-function formatDate(timestamp?: number): string {
-  if (!timestamp) return '-'
-  return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm:ss')
-}
 
 function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {
   if (status === 'completed') return 'success'
@@ -273,42 +286,39 @@ function handlePageChange(page: number, pageSize: number) {
 async function loadTasks() {
   loading.value = true
   try {
-    const res = await taskApi.list()
+    const res = await taskApi.list({
+      page: pagination.page,
+      size: pagination.pageSize,
+      status: filters.status || undefined,
+      sort_by: sortState.prop || undefined,
+      sort_order: sortState.order || undefined,
+    })
     if (res.data) {
       const data = res.data as any
-      const items = Array.isArray(data) ? data : (data.items || [])
-      tasks.value = applySort(items)
-      pagination.total = data.total || tasks.value.length
+      tasks.value = data.items || []
+      pagination.total = data.total || 0
+      loadErrorShown = false
     }
   } catch (error) {
     console.error('Failed to load tasks:', error)
+    if (!loadErrorShown) {
+      ElMessage.error(t('task.loadFailed'))
+      loadErrorShown = true
+    }
   } finally {
     loading.value = false
   }
 }
 
-function applySort(data: Task[]): Task[] {
-  if (!sortState.prop || !sortState.order) return data
-  const dir = sortState.order === 'ascending' ? 1 : -1
-  return [...data].sort((a: any, b: any) => {
-    const va = sortState.prop.includes('.') ? sortState.prop.split('.').reduce((o: any, k: string) => o?.[k], a) : a[sortState.prop]
-    const vb = sortState.prop.includes('.') ? sortState.prop.split('.').reduce((o: any, k: string) => o?.[k], b) : b[sortState.prop]
-    if (va == null && vb == null) return 0
-    if (va == null) return dir
-    if (vb == null) return -dir
-    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
-    return String(va).localeCompare(String(vb)) * dir
-  })
-}
 
 async function handleStart(task: Task) {
   try {
     await taskApi.start(task.id)
     ElMessage.success(t('task.startSuccess'))
-    loadTasks()
-  } catch (error) {
-    console.error('Failed to start task:', error)
+  } catch {
+    // Error toast already shown by axios interceptor
   }
+  loadTasks()
 }
 
 async function handleStop(task: Task) {
@@ -321,9 +331,10 @@ async function handleStop(task: Task) {
     await taskApi.stop(task.id)
     ElMessage.success(t('task.stopSuccess'))
     loadTasks()
-  } catch (error) {
+  } catch (error: any) {
     if (error !== 'cancel') {
-      console.error('Failed to stop task:', error)
+      const msg = error?.response?.data?.message || t('task.stopFailed')
+      ElMessage.error(msg)
     }
   }
 }
@@ -433,7 +444,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   margin-bottom: 16px;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -463,6 +474,12 @@ onUnmounted(() => {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
+}
+
+.error-tag {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (max-width: 768px) {

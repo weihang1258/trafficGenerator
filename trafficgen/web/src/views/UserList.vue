@@ -6,10 +6,10 @@
           <span>{{ t('user.title') }}</span>
           <div class="header-actions">
             <template v-if="selectedUsers.length === 0">
-              <el-button @click="proTableRef?.openColumnSettings()" circle size="small">
+              <el-button aria-label="Column settings" @click="proTableRef?.openColumnSettings()" circle size="small">
                 <el-icon><Setting /></el-icon>
               </el-button>
-              <el-button @click="fetchUsers" circle size="small">
+              <el-button aria-label="Refresh" @click="fetchUsers" circle size="small">
                 <el-icon><Refresh /></el-icon>
               </el-button>
               <el-button type="primary" @click="handleCreate">
@@ -65,6 +65,7 @@
         :columns="columns"
         :data="users"
         :loading="loading"
+        :default-sort="{ prop: 'created_at', order: 'descending' }"
         :pagination="{ total: pagination.total }"
         :empty-text="t('user.noUsers')"
         @selection-change="handleSelectionChange"
@@ -85,17 +86,20 @@
           />
         </template>
         <template #created_at="{ row }">
-          {{ row.created_at ? formatDate(row.created_at) : '-' }}
+          {{ row.created_at ? formatTimestamp(row.created_at) : '-' }}
+        </template>
+        <template #updated_at="{ row }">
+          {{ row.updated_at ? formatTimestamp(row.updated_at) : '-' }}
         </template>
         <template #last_login="{ row }">
-          {{ row.last_login ? formatDate(row.last_login) : '-' }}
+          {{ row.last_login ? formatTimestamp(row.last_login) : '-' }}
         </template>
         <template #actions="{ row }">
           <div class="action-buttons">
             <el-button size="small" link type="primary" @click="handleEdit(row)">
               {{ t('common.edit') }}
             </el-button>
-            <el-dropdown trigger="hover" @command="(cmd: string) => handleAction(cmd, row)">
+            <el-dropdown trigger="click" @command="(cmd: string) => handleAction(cmd, row)">
               <el-button size="small" link>
                 <el-icon><More /></el-icon>
               </el-button>
@@ -174,14 +178,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Search, Refresh, Setting, More } from '@element-plus/icons-vue'
 import { userApi, authApi, type User } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
-import dayjs from 'dayjs'
+import { formatTimestamp } from '@/utils/format'
 
 const { t } = useI18n()
 
@@ -204,8 +208,8 @@ const pagination = reactive({
 })
 
 const sortState = reactive({
-  prop: '',
-  order: ''
+  prop: 'created_at',
+  order: 'descending'
 })
 
 const hasActiveFilters = computed(() =>
@@ -219,6 +223,7 @@ const columns = computed(() => [
   { prop: 'role', label: t('user.role'), width: 90, sortable: 'custom' },
   { prop: 'enabled', label: t('user.status'), width: 90, sortable: 'custom' },
   { prop: 'created_at', label: t('user.createdAt'), width: 170, sortable: 'custom' },
+  { prop: 'updated_at', label: t('common.updatedAt'), width: 170, sortable: 'custom' },
   { prop: 'last_login', label: t('user.lastLogin'), width: 170, sortable: 'custom' },
   { prop: 'actions', label: t('common.action'), width: 120, fixed: 'right', required: true }
 ])
@@ -235,6 +240,18 @@ const userForm = reactive({
   confirmPassword: '',
   role: 'user',
   enabled: true
+})
+
+const initialFormJson = ref('')
+
+function captureUserFormState() {
+  return JSON.stringify({ username: userForm.username, email: userForm.email, password: userForm.password, confirmPassword: userForm.confirmPassword, role: userForm.role, enabled: userForm.enabled })
+}
+
+watch(() => captureUserFormState(), (v) => {
+  if (dialogVisible.value) {
+    formDirty.value = v !== initialFormJson.value
+  }
 })
 
 const validateConfirmPassword = (_rule: any, value: string, callback: (err?: Error) => void) => {
@@ -258,7 +275,7 @@ const rules: FormRules = {
   ],
   password: [
     { required: true, message: t('user.passwordRequired'), trigger: 'blur' },
-    { min: 6, max: 128, message: t('user.passwordLength'), trigger: 'blur' }
+    { min: 8, max: 128, message: t('user.passwordLength'), trigger: 'blur' }
   ],
   confirmPassword: [
     { validator: validateConfirmPassword, trigger: 'blur' }
@@ -286,10 +303,6 @@ const getRoleText = (role: string) => {
   return texts[role] || role
 }
 
-function formatDate(timestamp: number): string {
-  if (!timestamp) return '-'
-  return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm:ss')
-}
 
 async function fetchUsers() {
   loading.value = true
@@ -361,6 +374,7 @@ function handleCreate() {
   userForm.enabled = true
   formDirty.value = false
   dialogVisible.value = true
+  nextTick(() => { initialFormJson.value = captureUserFormState() })
 }
 
 function handleEdit(row: User) {
@@ -373,6 +387,7 @@ function handleEdit(row: User) {
   userForm.confirmPassword = ''
   formDirty.value = false
   dialogVisible.value = true
+  nextTick(() => { initialFormJson.value = captureUserFormState() })
 }
 
 function handleSelectionChange(selection: User[]) {
@@ -448,6 +463,11 @@ function handleAction(command: string, user: User) {
 
 async function handleStatusChange(row: User, enabled: boolean) {
   try {
+    await ElMessageBox.confirm(
+      t('user.confirmToggleStatus'),
+      t('common.confirm'),
+      { type: 'warning' }
+    )
     await userApi.update(row.id, { enabled })
     ElMessage.success(enabled ? t('user.active') : t('user.disabled'))
   } catch {
@@ -533,7 +553,7 @@ onMounted(() => {
 .filter-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
