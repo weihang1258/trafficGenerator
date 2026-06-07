@@ -1,34 +1,32 @@
 <template>
   <div class="task-list">
     <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>{{ t('task.title') }}</span>
-          <div class="header-actions">
-            <template v-if="selectedTasks.length === 0">
-              <el-button aria-label="Column settings" @click="proTableRef?.openColumnSettings()" circle size="small">
-                <el-icon><Setting /></el-icon>
-              </el-button>
-              <el-button aria-label="Refresh" @click="loadTasks" circle size="small">
-                <el-icon><RefreshRight /></el-icon>
-              </el-button>
-              <el-button type="primary" @click="$router.push('/tasks/create')">
-                <el-icon><Plus /></el-icon>
-                {{ t('task.createTask') }}
-              </el-button>
-            </template>
-            <template v-else>
-              <span class="batch-info">{{ t('task.selectedCount', { count: selectedTasks.length }) }}</span>
-              <el-button type="danger" size="small" @click="handleBatchDelete">{{ t('task.batchDelete') }}</el-button>
-              <el-button size="small" @click="handleBatchStop">{{ t('task.batchStop') }}</el-button>
-              <el-button size="small" link type="primary" @click="clearSelection">{{ t('common.reset') }}</el-button>
-            </template>
-          </div>
-        </div>
-      </template>
+      <ProCardHeader :title="t('task.title')">
+        <template v-if="selectedTasks.length === 0">
+          <el-button aria-label="Column settings" @click="proTableRef?.openColumnSettings()" circle size="small">
+            <el-icon><Setting /></el-icon>
+          </el-button>
+          <el-button aria-label="Refresh" @click="loadTasks" circle size="small">
+            <el-icon><RefreshRight /></el-icon>
+          </el-button>
+          <el-button type="primary" @click="$router.push('/tasks/create')">
+            <el-icon><Plus /></el-icon>
+            {{ t('task.createTask') }}
+          </el-button>
+        </template>
+        <template v-else>
+          <span class="batch-info">{{ t('task.selectedCount', { count: selectedTasks.length }) }}</span>
+          <el-button type="danger" size="small" @click="batchDelete.execute(selectedTasks)">{{ t('task.batchDelete') }}</el-button>
+          <el-button size="small" @click="batchStop.execute(selectedTasks)">{{ t('task.batchStop') }}</el-button>
+          <el-button size="small" link type="primary" @click="clearSelection(proTableRef?.tableRef)">{{ t('common.reset') }}</el-button>
+        </template>
+      </ProCardHeader>
 
-      <!-- Filter bar -->
-      <div class="filter-bar">
+      <ProFilterBar
+        :filters="filters"
+        :field-defs="filterFieldDefs"
+        @reset="resetFilters"
+      >
         <el-input
           v-model="filters.keyword"
           :placeholder="t('task.searchPlaceholder')"
@@ -56,29 +54,14 @@
           <el-option :label="t('task.failed')" value="failed" />
           <el-option :label="t('task.stopped')" value="stopped" />
         </el-select>
-        <el-button link type="primary" @click="resetFilters">{{ t('common.reset') }}</el-button>
-      </div>
-
-      <!-- Active filter tags -->
-      <div v-if="hasActiveFilters" class="active-filters">
-        <el-tag v-if="filters.keyword" closable @close="filters.keyword = ''; loadTasks()">
-          {{ filters.keyword }}
-        </el-tag>
-        <el-tag v-if="filters.protocol" closable @close="filters.protocol = ''; loadTasks()">
-          {{ filters.protocol.toUpperCase() }}
-        </el-tag>
-        <el-tag v-if="filters.status" closable @close="filters.status = ''; loadTasks()">
-          {{ getStatusText(filters.status) }}
-        </el-tag>
-        <el-button link type="primary" size="small" @click="resetFilters">{{ t('common.reset') }}</el-button>
-      </div>
+      </ProFilterBar>
 
       <ProTable
         ref="proTableRef"
         table-id="task-list"
         :columns="columns"
         :data="tasks"
-        :loading="loading"
+        v-model:loading="loading"
         :default-sort="{ prop: 'created_at', order: 'descending' }"
         :pagination="{ total: pagination.total }"
         :empty-text="t('task.noTasks')"
@@ -180,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -188,18 +171,50 @@ import { Plus, Search, Setting, RefreshRight } from '@element-plus/icons-vue'
 import { taskApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import ProTable from '@/components/ProTable/index.vue'
+import ProCardHeader from '@/components/ProCardHeader/index.vue'
+import ProFilterBar from '@/components/ProFilterBar/index.vue'
+import { useServerList } from '@/composables/useServerList'
+import { useSelection } from '@/composables/useSelection'
+import { useBatchAction } from '@/composables/useBatchAction'
 import { formatNumber, formatTimestamp } from '@/utils/format'
 import { TASK_STATUS_TYPE, getProgressStatus } from '@/constants/status'
+import type { FilterFieldDef } from '@/composables/useActiveFilters'
 
 const { t } = useI18n()
 const router = useRouter()
 
-const loading = ref(false)
-const tasks = ref<Task[]>([])
-const selectedTasks = ref<Task[]>([])
 const proTableRef = ref()
 let refreshTimer: number | null = null
 let loadErrorShown = false
+
+const { loading, data: tasks, pagination, sortState, refresh: loadTasks, handleSortChange, handlePageChange } = useServerList<Task>({
+  fetchFn: async (params) => {
+    const res = await taskApi.list({
+      ...params,
+      status: filters.status || undefined,
+    })
+    const data = res.data as any
+    return { items: data.items || [], total: data.total || 0 }
+  },
+  defaultPageSize: 20,
+  defaultSort: { prop: 'created_at', order: 'descending' }
+})
+
+const { selectedItems: selectedTasks, handleSelectionChange, clearSelection } = useSelection<Task>()
+
+const batchDelete = useBatchAction<Task>({
+  action: (task) => taskApi.delete(task.id),
+  confirmMessage: (count) => t('task.batchDeleteConfirm', { count }),
+  successMessage: (count) => t('task.deleteSuccess', { count }),
+  partialMessage: (succeeded, failed) => t('task.bulkPartial', { succeeded, failed })
+})
+
+const batchStop = useBatchAction<Task>({
+  action: (task) => taskApi.stop(task.id),
+  confirmMessage: (count) => t('task.batchStopConfirm', { count }),
+  successMessage: (count) => t('task.stopSuccess', { count }),
+  partialMessage: (succeeded, failed) => t('task.bulkPartial', { succeeded, failed })
+})
 
 const columns = computed(() => [
   { prop: 'selection', label: '', type: 'selection', width: 45, fixed: 'left' },
@@ -221,20 +236,11 @@ const filters = reactive({
   status: ''
 })
 
-const pagination = reactive({
-  page: 1,
-  pageSize: 20,
-  total: 0
-})
-
-const sortState = reactive({
-  prop: 'created_at',
-  order: 'descending'
-})
-
-const hasActiveFilters = computed(() =>
-  filters.keyword || filters.protocol || filters.status
-)
+const filterFieldDefs: FilterFieldDef[] = [
+  { key: 'keyword', label: t('task.taskName') },
+  { key: 'protocol', label: t('task.protocol'), valueFormatter: (v: string) => v.toUpperCase() },
+  { key: 'status', label: t('task.status'), valueFormatter: (v: string) => getStatusText(v) }
+]
 
 function getStatusText(status: string): string {
   const map: Record<string, string> = {
@@ -254,55 +260,6 @@ function resetFilters() {
   pagination.page = 1
   loadTasks()
 }
-
-function handleSelectionChange(selection: Task[]) {
-  selectedTasks.value = selection
-}
-
-function clearSelection() {
-  selectedTasks.value = []
-  proTableRef.value?.tableRef?.clearSelection()
-}
-
-function handleSortChange({ prop, order }: { prop: string; order: string }) {
-  sortState.prop = prop
-  sortState.order = order
-  loadTasks()
-}
-
-function handlePageChange(page: number, pageSize: number) {
-  pagination.page = page
-  pagination.pageSize = pageSize
-  loadTasks()
-}
-
-async function loadTasks() {
-  loading.value = true
-  try {
-    const res = await taskApi.list({
-      page: pagination.page,
-      size: pagination.pageSize,
-      status: filters.status || undefined,
-      sort_by: sortState.prop || undefined,
-      sort_order: sortState.order || undefined,
-    })
-    if (res.data) {
-      const data = res.data as any
-      tasks.value = data.items || []
-      pagination.total = data.total || 0
-      loadErrorShown = false
-    }
-  } catch (error) {
-    console.error('Failed to load tasks:', error)
-    if (!loadErrorShown) {
-      ElMessage.error(t('task.loadFailed'))
-      loadErrorShown = true
-    }
-  } finally {
-    loading.value = false
-  }
-}
-
 
 async function handleStart(task: Task) {
   try {
@@ -349,64 +306,10 @@ async function handleDelete(task: Task) {
   }
 }
 
-
-async function handleBatchDelete() {
-  if (selectedTasks.value.length === 0) return
-  try {
-    await ElMessageBox.confirm(
-      t('task.batchDeleteConfirm', { count: selectedTasks.value.length }),
-      t('task.batchDelete'),
-      { type: 'warning' }
-    )
-    const results = await Promise.allSettled(
-      selectedTasks.value.map(task => taskApi.delete(task.id))
-    )
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
-    if (failed > 0) {
-      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
-    } else {
-      ElMessage.success(t('task.bulkDeleted', { count: succeeded }))
-    }
-    loadTasks()
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('Failed to delete tasks:', error)
-    }
-  }
-}
-
-async function handleBatchStop() {
-  if (selectedTasks.value.length === 0) return
-  try {
-    await ElMessageBox.confirm(
-      t('task.batchStopConfirm', { count: selectedTasks.value.length }),
-      t('task.batchStop'),
-      { type: 'warning' }
-    )
-    const runningTasks = selectedTasks.value.filter(t => t.status === 'running')
-    const results = await Promise.allSettled(
-      runningTasks.map(task => taskApi.stop(task.id))
-    )
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
-    if (failed > 0) {
-      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
-    } else {
-      ElMessage.success(t('task.bulkStopped', { count: succeeded }))
-    }
-    loadTasks()
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('Failed to stop tasks:', error)
-    }
-  }
-}
-
 onMounted(() => {
   loadTasks()
   refreshTimer = window.setInterval(() => {
-    if (tasks.value.some(t => t.status === 'running')) {
+    if (tasks.value.some((t: Task) => t.status === 'running')) {
       loadTasks()
     }
   }, 10000)
@@ -420,34 +323,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-height: 32px;
-}
-
-.filter-bar {
-  display: flex;
-  align-items: center;
-  margin-bottom: 16px;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.active-filters {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
 .batch-info {
   font-size: 13px;
   color: var(--tg-text-secondary, #606266);
@@ -473,12 +348,5 @@ onUnmounted(() => {
   max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-@media (max-width: 768px) {
-  .filter-bar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 </style>
