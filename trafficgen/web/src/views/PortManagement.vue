@@ -1,31 +1,28 @@
 <template>
   <div class="port-management">
     <el-card>
-      <template #header>
-        <div class="card-header">
-          <span class="card-title">{{ t('ports.title') }}</span>
-          <el-button
-            circle
-            size="small"
-            :aria-label="t('common.refresh')"
-            @click="loadData"
-          >
-            <el-icon><RefreshRight /></el-icon>
-          </el-button>
-        </div>
-      </template>
+      <ProCardHeader :title="t('ports.title')">
+        <el-button
+          circle
+          size="small"
+          :aria-label="t('common.refresh')"
+          @click="loadData"
+        >
+          <el-icon><RefreshRight /></el-icon>
+        </el-button>
+      </ProCardHeader>
 
       <el-tabs v-model="activeTab">
         <!-- Ports Tab -->
         <el-tab-pane :label="t('ports.portsTab')" name="ports">
           <ProTable
-
             table-id="port-list"
             :columns="portColumns"
             :data="ports"
-            :loading="portsLoading"
-            :default-sort="{ prop: 'name', order: 'ascending' }"
+            :loading="loading"
+            :default-sort="sortState"
             :empty-text="t('ports.noPorts')"
+            @sort-change="handleSortChange"
           >
             <template #name="{ row }">
               <div class="port-name-cell">
@@ -81,7 +78,6 @@
           </div>
 
           <ProTable
-
             table-id="port-group-list"
             :columns="groupColumns"
             :data="portGroups"
@@ -203,15 +199,36 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { RefreshRight, Plus, Connection } from '@element-plus/icons-vue'
 import { portApi, portGroupApi, type Port, type PortGroup } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
+import ProCardHeader from '@/components/ProCardHeader/index.vue'
 import { formatTimestamp } from '@/utils/format'
+import { useClientList } from '@/composables/useClientList'
 
 const { t } = useI18n()
 
 const activeTab = ref('ports')
-const ports = ref<Port[]>([])
 const portGroups = ref<PortGroup[]>([])
-const portsLoading = ref(false)
 const groupsLoading = ref(false)
+
+const { loading, data: ports, sortState, refresh, handleSortChange } = useClientList<Port>({
+  fetchFn: async () => {
+    const res = await portApi.list()
+    return Array.isArray(res.data) ? res.data : (res.data as any).items || []
+  },
+  clientSort: (items, sort) => {
+    if (!sort.prop || !sort.order) return items
+    const dir = sort.order === 'ascending' ? 1 : -1
+    return [...items].sort((a: any, b: any) => {
+      const va = a[sort.prop!]
+      const vb = b[sort.prop!]
+      if (va == null && vb == null) return 0
+      if (va == null) return dir
+      if (vb == null) return -dir
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
+      return String(va).localeCompare(String(vb)) * dir
+    })
+  },
+  defaultSort: { prop: 'port_number', order: 'ascending' }
+})
 
 // Create dialog state
 const createDialogVisible = ref(false)
@@ -248,22 +265,6 @@ function portStatusText(status: string): string {
   return status || '-'
 }
 
-
-async function loadPorts() {
-  portsLoading.value = true
-  try {
-    const res = await portApi.list()
-    if (res.data) {
-      ports.value = (Array.isArray(res.data) ? res.data : []) as Port[]
-    }
-  } catch (error) {
-    console.error('Failed to load ports:', error)
-    ElMessage.error(t('ports.loadFailed'))
-  } finally {
-    portsLoading.value = false
-  }
-}
-
 async function loadPortGroups() {
   groupsLoading.value = true
   try {
@@ -280,7 +281,7 @@ async function loadPortGroups() {
 }
 
 function loadData() {
-  loadPorts()
+  refresh()
   loadPortGroups()
 }
 
@@ -351,17 +352,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.card-title {
-  font-size: 16px;
-  font-weight: 600;
-}
-
 .group-header {
   display: flex;
   justify-content: flex-end;
