@@ -2,25 +2,26 @@
   <div class="history">
     <el-card>
       <template #header>
-        <div class="card-header">
-          <span>{{ t('history.title') }}</span>
-          <div class="header-actions">
-            <el-button aria-label="Column settings" @click="proTableRef?.openColumnSettings()" circle size="small">
-              <el-icon><Setting /></el-icon>
-            </el-button>
-            <el-button aria-label="Refresh" @click="loadHistory" circle size="small">
-              <el-icon><Refresh /></el-icon>
-            </el-button>
-            <el-button @click="exportHistoryCSV" :disabled="records.length === 0">
-              <el-icon><Download /></el-icon>
-              {{ t('history.export') }}
-            </el-button>
-          </div>
-        </div>
+        <ProCardHeader :title="t('history.title')">
+          <el-button aria-label="Column settings" @click="proTableRef?.openColumnSettings()" circle size="small">
+            <el-icon><Setting /></el-icon>
+          </el-button>
+          <el-button aria-label="Refresh" @click="refresh" circle size="small">
+            <el-icon><Refresh /></el-icon>
+          </el-button>
+          <el-button @click="exportHistoryCSV" :disabled="historyRecords.length === 0">
+            <el-icon><Download /></el-icon>
+            {{ t('history.export') }}
+          </el-button>
+        </ProCardHeader>
       </template>
 
       <!-- Quick time filters + date range picker -->
-      <div class="filter-bar">
+      <ProFilterBar
+        :filters="filters"
+        :field-defs="filterFieldDefs"
+        @reset="resetFilters"
+      >
         <el-button-group size="small">
           <el-button :type="quickRange === 'today' ? 'primary' : ''" @click="setQuickRange('today')">
             {{ t('history.today') }}
@@ -48,40 +49,24 @@
           value-format="X"
           style="margin-left: 12px;"
         />
-        <el-select v-model="statusFilter" :placeholder="t('task.status')" clearable style="width: 130px; margin-left: 12px;" @change="loadHistory">
+        <el-select v-model="statusFilter" :placeholder="t('task.status')" clearable style="width: 130px; margin-left: 12px;" @change="refresh">
           <el-option :label="t('task.completed')" value="completed" />
           <el-option :label="t('task.failed')" value="failed" />
           <el-option :label="t('task.stopped')" value="stopped" />
           <el-option :label="t('task.error')" value="error" />
         </el-select>
-        <el-button type="primary" size="small" @click="loadHistory" style="margin-left: 12px;">
+        <el-button type="primary" size="small" @click="refresh" style="margin-left: 12px;">
           {{ t('common.search') }}
         </el-button>
-        <el-button link type="primary" size="small" @click="resetFilters">
-          {{ t('common.reset') }}
-        </el-button>
-      </div>
-
-      <!-- Active filter tags -->
-      <div v-if="quickRange || statusFilter" class="active-filters">
-        <el-tag v-if="quickRange" closable @close="quickRange = ''; dateRange = null; loadHistory()">
-          {{ getRangeLabel(quickRange) }}
-        </el-tag>
-        <el-tag v-if="statusFilter" closable @close="statusFilter = ''; loadHistory()">
-          {{ getStatusText(statusFilter) }}
-        </el-tag>
-        <el-button link type="primary" size="small" @click="resetFilters">
-          {{ t('common.reset') }}
-        </el-button>
-      </div>
+      </ProFilterBar>
 
       <ProTable
         ref="proTableRef"
         table-id="history-list"
         :columns="columns"
-        :data="records"
+        :data="historyRecords"
         :loading="loading"
-        :default-sort="{ prop: 'created_at', order: 'descending' }"
+        :default-sort="{ prop: 'completed_at', order: 'descending' }"
         :pagination="{ total: pagination.total }"
         :empty-text="t('history.noRecords')"
         @sort-change="handleSortChange"
@@ -120,48 +105,34 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Refresh, Download, Setting } from '@element-plus/icons-vue'
 import { historyApi } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
 import dayjs from 'dayjs'
-import { formatBytes, formatNumber, formatTaskDuration, formatTimestamp } from '@/utils/format'
+import { useServerList } from '@/composables/useServerList'
 import { TASK_STATUS_TYPE, getProgressStatus } from '@/constants/status'
+import { formatBytes, formatNumber, formatTaskDuration, formatTimestamp } from '@/utils/format'
+import ProCardHeader from '@/components/ProCardHeader/index.vue'
+import ProFilterBar from '@/components/ProFilterBar/index.vue'
 
 const { t } = useI18n()
 
-const loading = ref(false)
-const records = ref<any[]>([])
 const proTableRef = ref()
 const dateRange = ref<[string, string] | null>(null)
 const quickRange = ref<'today' | 'yesterday' | '7d' | '30d' | 'custom' | ''>('7d')
 const statusFilter = ref('')
 
-const pagination = reactive({
-  page: 1,
-  size: 20,
-  total: 0
-})
+const filters = computed(() => ({
+  quickRange: quickRange.value,
+  status: statusFilter.value
+}))
 
-const sortState = reactive({
-  prop: 'created_at',
-  order: 'descending'
-})
-
-const columns = computed(() => [
-  { prop: 'name', label: t('task.taskName'), minWidth: 150, required: true, sortable: 'custom' },
-  { prop: 'protocol', label: t('task.protocol'), width: 100, sortable: 'custom' },
-  { prop: 'status', label: t('task.status'), width: 120, sortable: 'custom' },
-  { prop: 'progress', label: t('task.progress'), width: 120, sortable: 'custom' },
-  { prop: 'duration', label: t('task.duration'), width: 120, sortable: 'custom' },
-  { prop: 'stats.packets_sent', label: t('task.packets'), width: 120, sortable: 'custom' },
-  { prop: 'stats.bytes_sent', label: t('task.bytes'), width: 120, sortable: 'custom' },
-  { prop: 'created_at', label: t('task.createdAt'), width: 180, sortable: 'custom' },
-  { prop: 'completed_at', label: t('task.completedAt'), width: 180, sortable: 'custom' }
-])
-
-
+const filterFieldDefs = [
+  { key: 'quickRange', label: t('history.range'), emptyValue: '' },
+  { key: 'status', label: t('task.status'), emptyValue: '' }
+]
 
 function getStatusText(status: string): string {
   const map: Record<string, string> = {
@@ -204,7 +175,7 @@ function setQuickRange(range: 'today' | 'yesterday' | '7d' | '30d' | 'custom') {
   quickRange.value = range
   if (range !== 'custom') {
     dateRange.value = null
-    loadHistory()
+    refresh()
   }
 }
 
@@ -217,7 +188,7 @@ function escapeCsv(value: string | number): string {
 }
 
 function exportHistoryCSV() {
-  if (records.value.length === 0) return
+  if (historyRecords.value.length === 0) return
   const header = [
     t('history.taskName'),
     t('history.protocol'),
@@ -228,7 +199,7 @@ function exportHistoryCSV() {
     t('history.packets'),
     t('history.bytes')
   ].map(escapeCsv).join(',')
-  const rows = records.value.map(r => [
+  const rows = historyRecords.value.map(r => [
     escapeCsv(r.name || r.id || ''),
     escapeCsv(r.protocol || ''),
     escapeCsv(r.status || ''),
@@ -248,89 +219,54 @@ function exportHistoryCSV() {
   URL.revokeObjectURL(url)
 }
 
-function handleSortChange({ prop, order }: { prop: string; order: string }) {
-  sortState.prop = prop
-  sortState.order = order
-  loadHistory()
-}
-
 function resetFilters() {
   quickRange.value = '7d'
   dateRange.value = null
   statusFilter.value = ''
-  pagination.page = 1
-  loadHistory()
+  refresh()
 }
 
-function handlePageChange(page: number, pageSize: number) {
-  pagination.page = page
-  pagination.size = pageSize
-  loadHistory()
-}
+const columns = computed(() => [
+  { prop: 'name', label: t('task.taskName'), minWidth: 150, required: true, sortable: 'custom' },
+  { prop: 'protocol', label: t('task.protocol'), width: 100, sortable: 'custom' },
+  { prop: 'status', label: t('task.status'), width: 120, sortable: 'custom' },
+  { prop: 'progress', label: t('task.progress'), width: 120, sortable: 'custom' },
+  { prop: 'duration', label: t('task.duration'), width: 120, sortable: 'custom' },
+  { prop: 'stats.packets_sent', label: t('task.packets'), width: 120, sortable: 'custom' },
+  { prop: 'stats.bytes_sent', label: t('task.bytes'), width: 120, sortable: 'custom' },
+  { prop: 'created_at', label: t('task.createdAt'), width: 180, sortable: 'custom' },
+  { prop: 'completed_at', label: t('task.completedAt'), width: 180, sortable: 'custom' }
+])
 
-async function loadHistory() {
-  loading.value = true
-  try {
-    const params: any = {
-      page: pagination.page,
-      size: pagination.size,
-      sort_by: sortState.prop || 'created_at',
-      sort_order: sortState.order || 'descending'
-    }
+const { loading, data: historyRecords, pagination, sortState, refresh, handleSortChange, handlePageChange } = useServerList({
+  fetchFn: async (params) => {
+    const extra: Record<string, any> = {}
     if (quickRange.value && quickRange.value !== 'custom') {
       const { start, end } = getQuickRangeTimestamps(quickRange.value)
-      params.start_time = start
-      params.end_time = end
+      extra.start_time = start
+      extra.end_time = end
     } else if (dateRange.value) {
-      params.start_time = Number(dateRange.value[0])
-      params.end_time = Number(dateRange.value[1])
+      extra.start_time = Number(dateRange.value[0])
+      extra.end_time = Number(dateRange.value[1])
     }
     if (statusFilter.value) {
-      params.status = statusFilter.value
+      extra.status = statusFilter.value
     }
-    const res = await historyApi.list(params)
-    if (res.data) {
-      const data = res.data as any
-      const items = Array.isArray(data) ? data : (data.items || [])
-      records.value = items
-      pagination.total = data.total || records.value.length
-    }
-  } catch (error) {
-    console.error('Failed to load history:', error)
-  } finally {
-    loading.value = false
-  }
-}
+    const res = await historyApi.list({ ...params, ...extra })
+    const data = res.data as any
+    return { items: data.items || [], total: data.total || 0 }
+  },
+  defaultPageSize: 20,
+  defaultSort: { prop: 'completed_at', order: 'descending' }
+})
 
 onMounted(() => {
-  loadHistory()
+  refresh()
 })
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.filter-bar {
-  display: flex;
-  align-items: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-@media (max-width: 768px) {
-  .filter-bar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.history {
+  padding: 20px;
 }
 </style>
