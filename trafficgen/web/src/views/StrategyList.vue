@@ -2,32 +2,34 @@
   <div class="strategy-list">
     <el-card>
       <template #header>
-        <div class="card-header">
-          <span>{{ t('strategy.title') }}</span>
-          <div class="header-actions">
-            <template v-if="selectedStrategies.length === 0">
-              <el-button @click="proTableRef?.openColumnSettings()" circle size="small">
-                <el-icon><Setting /></el-icon>
-              </el-button>
-              <el-button @click="loadStrategies" circle size="small">
-                <el-icon><Refresh /></el-icon>
-              </el-button>
-              <el-button type="primary" @click="openCreateDialog">
-                <el-icon><Plus /></el-icon>
-                {{ t('strategy.createStrategy') }}
-              </el-button>
-            </template>
-            <template v-else>
-              <span class="batch-info">{{ t('common.selected') }} {{ selectedStrategies.length }} {{ t('strategy.strategiesUnit') }}</span>
-              <el-button type="danger" size="small" @click="handleBulkDelete">{{ t('strategy.bulkDelete') }}</el-button>
-              <el-button size="small" link type="primary" @click="clearSelection">{{ t('common.reset') }}</el-button>
-            </template>
-          </div>
-        </div>
+        <ProCardHeader :title="t('strategy.title')">
+          <template v-if="selectedStrategies.length === 0">
+            <el-button @click="proTableRef?.openColumnSettings()" circle size="small">
+              <el-icon><Setting /></el-icon>
+            </el-button>
+            <el-button @click="loadStrategies" circle size="small">
+              <el-icon><Refresh /></el-icon>
+            </el-button>
+            <el-button type="primary" @click="openCreateDialog">
+              <el-icon><Plus /></el-icon>
+              {{ t('strategy.createStrategy') }}
+            </el-button>
+          </template>
+          <template v-else>
+            <span class="batch-info">{{ t('common.selected') }} {{ selectedStrategies.length }} {{ t('strategy.strategiesUnit') }}</span>
+            <el-button type="danger" size="small" @click="handleBulkDelete">{{ t('strategy.bulkDelete') }}</el-button>
+            <el-button size="small" link type="primary" @click="clearSelection">{{ t('common.reset') }}</el-button>
+          </template>
+        </ProCardHeader>
       </template>
 
       <!-- Filter bar -->
-      <div class="filter-bar">
+      <ProFilterBar
+        :filters="filters"
+        :field-defs="filterFieldDefs"
+        filter-id="strategy-list"
+        @reset="resetFilters"
+      >
         <el-input v-model="filters.search" :placeholder="t('strategy.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="loadStrategies" @clear="loadStrategies">
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
@@ -36,13 +38,7 @@
         </el-select>
         <el-button @click="loadStrategies" circle size="small"><el-icon><Search /></el-icon></el-button>
         <el-button link type="primary" @click="resetFilters">{{ t('common.reset') }}</el-button>
-      </div>
-
-      <div v-if="filters.search || filters.protocol.length > 0" class="active-filters">
-        <el-tag v-if="filters.search" closable @close="filters.search = ''; loadStrategies()">{{ filters.search }}</el-tag>
-        <el-tag v-if="filters.protocol.length > 0" closable @close="filters.protocol = []; loadStrategies()">{{ filters.protocol.map(p => p.toUpperCase()).join(', ') }}</el-tag>
-        <el-button link type="primary" size="small" @click="resetFilters">{{ t('common.reset') }}</el-button>
-      </div>
+      </ProFilterBar>
 
       <ProTable ref="proTableRef" table-id="strategy-list" :columns="columns" :data="filteredStrategies" :loading="loading" :default-sort="{ prop: 'created_at', order: 'descending' }" :pagination="{ total: filteredStrategies.length }" :empty-text="t('strategy.noStrategies')" @selection-change="handleSelectionChange" @sort-change="handleSortChange" @page-change="(page: number, size: number) => { pagination.page = page; pagination.size = size }">
         <template #id="{ row }">{{ row.id?.substring(0, 8) }}</template>
@@ -99,7 +95,7 @@
     </el-card>
 
     <!-- Detail Drawer -->
-    <el-drawer v-model="drawerVisible" :title="drawerStrategy?.name || t('strategy.strategyId')" size="50%" direction="rtl">
+    <ProDrawer v-model:visible="drawerVisible" :title="drawerStrategy?.name || t('strategy.strategyId')" size="50%" direction="rtl">
       <div v-if="drawerStrategy" v-loading="drawerLoading">
         <el-descriptions :column="2" border>
           <el-descriptions-item :label="t('strategy.strategyId')">{{ drawerStrategy.id }}</el-descriptions-item>
@@ -117,10 +113,10 @@
           <el-descriptions-item :label="t('strategy.tos')">{{ drawerStrategy.config.tos ?? 0 }}</el-descriptions-item>
         </el-descriptions>
       </div>
-    </el-drawer>
+    </ProDrawer>
 
     <!-- Create/Edit Dialog -->
-    <el-dialog v-model="dialogVisible" :title="editingStrategy ? t('common.edit') : t('strategy.createStrategy')" width="900px" :close-on-click-modal="false" :before-close="handleDialogClose" destroy-on-close>
+    <ProDialog v-model="dialogVisible" :title="editingStrategy ? t('common.edit') : t('strategy.createStrategy')" width="900px" :dirty-guard="formDirty">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="130px" class="strategy-form">
         <!-- Section 1: Basic Info (always visible) -->
         <el-divider content-position="left">{{ t('strategy.sectionBasicInfo') }}</el-divider>
@@ -446,7 +442,7 @@
         <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('common.confirm') }}</el-button>
       </template>
-    </el-dialog>
+    </ProDialog>
   </div>
 </template>
 
@@ -458,20 +454,71 @@ import { Search, Setting, Refresh, More, ArrowRight, Plus } from '@element-plus/
 import type { FormInstance, FormRules } from 'element-plus'
 import { strategyApi, type Strategy, type TaskBrief } from '@/api'
 import { useStrategyTemplates } from '@/composables/useStrategyTemplates'
+import { useClientList } from '@/composables/useClientList'
+import { useSelection } from '@/composables/useSelection'
+import { useBatchAction } from '@/composables/useBatchAction'
+import { useFormDirty } from '@/composables/useFormDirty'
 import ProTable from '@/components/ProTable/index.vue'
+import ProCardHeader from '@/components/ProCardHeader/index.vue'
+import ProFilterBar from '@/components/ProFilterBar/index.vue'
+import ProDialog from '@/components/ProDialog/index.vue'
+import ProDrawer from '@/components/ProDrawer/index.vue'
 import ValueStrategySelector, { type StrategyValue } from '@/components/ValueStrategySelector/index.vue'
 import { formatTimestamp } from '@/utils/format'
+import type { FilterFieldDef } from '@/composables/useActiveFilters'
 
 const STORAGE_KEY = 'strategy-list-state'
 const { t } = useI18n()
-const loading = ref(false)
+
+// Client list composable (replaces loading, strategies, sortState, fetch, sort logic)
+const { loading, data: strategies, sortState, refresh, handleSortChange } = useClientList<Strategy>({
+  fetchFn: async () => {
+    const res = await strategyApi.list()
+    return Array.isArray(res.data) ? res.data : (res.data as any).items || []
+  },
+  clientFilter: (items, filters) => {
+    let result = [...items]
+    if (filters.keyword) {
+      const kw = filters.keyword.toLowerCase()
+      result = result.filter((s: any) => s.name?.toLowerCase().includes(kw))
+    }
+    if (filters.protocol && filters.protocol.length > 0) {
+      result = result.filter((s: any) => filters.protocol.includes(s.protocol))
+    }
+    return result
+  },
+  clientSort: (items, sort) => {
+    if (!sort.prop || !sort.order) return items
+    const dir = sort.order === 'ascending' ? 1 : -1
+    return [...items].sort((a: any, b: any) => {
+      const va = a[sort.prop!]
+      const vb = b[sort.prop!]
+      if (va == null && vb == null) return 0
+      if (va == null) return dir
+      if (vb == null) return -dir
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
+      return String(va).localeCompare(String(vb)) * dir
+    })
+  },
+  defaultSort: { prop: 'created_at', order: 'descending' }
+})
+
+// Selection composable (replaces selectedStrategies, handleSelectionChange, clearSelection)
+const { selectedItems: selectedStrategies, handleSelectionChange, clearSelection } = useSelection<any>()
+
+// Batch action composable (replaces handleBulkDelete inline)
+const batchDelete = useBatchAction<any>({
+  action: (strategy) => strategyApi.delete(strategy.id),
+  confirmMessage: (count) => t('strategy.confirmBulkDelete', { count }),
+  successMessage: (count) => t('strategy.bulkDeleted', { count }),
+  partialMessage: (succeeded, failed) => t('task.bulkPartial', { succeeded, failed })
+})
+
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
 const editingStrategy = ref<Strategy | null>(null)
-const strategies = ref<Strategy[]>([])
 const formRef = ref<FormInstance>()
 const proTableRef = ref()
-const selectedStrategies = ref<Strategy[]>([])
 const strategyTasks = ref<TaskBrief[]>([])
 const taskPopoverLoading = ref(false)
 const drawerVisible = ref(false)
@@ -495,11 +542,16 @@ function loadState() { try { const r = localStorage.getItem(STORAGE_KEY); if (r)
 const saved = loadState()
 const filters = reactive({ search: saved?.filters?.search || '', protocol: saved?.filters?.protocol || [] as string[] })
 const pagination = reactive({ page: saved?.pagination?.page || 1, size: saved?.pagination?.size || 20 })
-const sortState = reactive({ prop: 'created_at', order: 'descending' })
 
 watch([() => ({ ...filters }), () => ({ ...pagination })], () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ filters: { search: filters.search, protocol: filters.protocol }, pagination: { page: pagination.page, size: pagination.size } }))
 }, { deep: true })
+
+// ProFilterBar field definitions
+const filterFieldDefs: FilterFieldDef[] = [
+  { key: 'search', label: t('strategy.searchPlaceholder'), type: 'text' },
+  { key: 'protocol', label: t('task.protocol'), type: 'select', multiple: true }
+]
 
 // Presets
 const srcIPPresets = ['192.168.1.100', '10.0.0.1', '172.16.0.1']
@@ -569,12 +621,8 @@ function defaultForm(): StrategyForm {
 
 const form = reactive<StrategyForm>(defaultForm())
 
-const formDirty = ref(false)
-const initialFormJson = ref('')
-
-function captureFormState() { return JSON.stringify({ name: form.name, protocol: form.protocol, config: form.config, flow_control: form.flow_control }) }
-function resetDirtyState() { nextTick(() => { initialFormJson.value = captureFormState(); formDirty.value = false }) }
-watch(() => captureFormState(), (v) => { formDirty.value = v !== initialFormJson.value })
+// Form dirty tracking (replaced by useFormDirty)
+const formDirty = useFormDirty(form)
 
 const flowControlUnit = computed(() => {
   const u: Record<string, string> = { flows: t('strategy.unitFlows'), bps: t('strategy.unitBps'), cps: t('strategy.unitCps'), ratio: t('strategy.unitRatio'), time: t('strategy.unitTime') }
@@ -688,7 +736,8 @@ function handleSaveTemplate() {
 function openCreateDialog() {
   editingStrategy.value = null; selectedTemplateId.value = ''
   Object.assign(form, defaultForm()); showAdvanced.value = false
-  dialogVisible.value = true; resetDirtyState()
+  dialogVisible.value = true
+  nextTick(() => formDirty.captureSnapshot())
 }
 
 function cloneStrategy(s: Strategy) {
@@ -730,7 +779,8 @@ function openEditDialog(s: Strategy) {
   if (cfg.arp && typeof cfg.arp === 'object') form.config.arp = { ...form.config.arp, ...cfg.arp }
   if (s.flow_control) form.flow_control = { ...s.flow_control }
   showAdvanced.value = false
-  dialogVisible.value = true; resetDirtyState()
+  dialogVisible.value = true
+  nextTick(() => formDirty.captureSnapshot())
 }
 
 function buildConfigForSubmit(): Record<string, any> {
@@ -764,14 +814,6 @@ function buildConfigForSubmit(): Record<string, any> {
   return cfg
 }
 
-function handleDialogClose(done: () => void) {
-  if (formDirty.value) {
-    ElMessageBox.confirm(t('common.unsavedChanges'), t('common.warning'), {
-      confirmButtonText: t('common.discard'), cancelButtonText: t('common.cancel'), type: 'warning'
-    }).then(() => { formDirty.value = false; done() }).catch(() => {})
-  } else done()
-}
-
 async function handleSubmit() {
   const valid = await formRef.value?.validate()
   if (!valid) return
@@ -791,40 +833,25 @@ const filteredStrategies = computed(() => {
   let r = strategies.value
   if (filters.search) { const s = filters.search.toLowerCase(); r = r.filter(x => x.name.toLowerCase().includes(s) || x.id.toLowerCase().includes(s)) }
   if (filters.protocol.length > 0) r = r.filter(x => filters.protocol.includes(x.protocol))
-  if (sortState.prop && sortState.order) {
-    r = [...r].sort((a, b) => {
-      let av: any = a[sortState.prop as keyof Strategy], bv: any = b[sortState.prop as keyof Strategy]
-      if (sortState.prop === 'flow_control') { av = av?.value ?? 0; bv = bv?.value ?? 0 }
-      let c = typeof av === 'string' && typeof bv === 'string' ? av.localeCompare(bv) : typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av ?? '').localeCompare(String(bv ?? ''))
-      return sortState.order === 'ascending' ? c : -c
-    })
-  }
+  // Sort is now handled by useClientList, so we don't apply it here
   return r
 })
 
 function resetFilters() { filters.search = ''; filters.protocol = []; pagination.page = 1 }
-function handleSelectionChange(s: Strategy[]) { selectedStrategies.value = s }
-function handleSortChange({ prop, order }: { prop: string; order: string }) { sortState.prop = prop; sortState.order = order }
-function clearSelection() { selectedStrategies.value = [] }
+
 async function handleBulkDelete() {
-  try {
-    await ElMessageBox.confirm(t('strategy.confirmBulkDelete', { count: selectedStrategies.value.length }), t('common.confirm'), { type: 'warning' })
-    const results = await Promise.allSettled(selectedStrategies.value.map(s => strategyApi.delete(s.id)))
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
-    if (failed > 0) {
-      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
-    } else {
-      ElMessage.success(t('strategy.bulkDeleted', { count: succeeded }))
-    }
-    selectedStrategies.value = []
-    loadStrategies()
-  } catch {}
+  await batchDelete.execute(selectedStrategies.value)
+  clearSelection(proTableRef.value)
+  refresh()
 }
+
 async function openDrawer(s: Strategy) { drawerStrategy.value = s; drawerVisible.value = true; drawerLoading.value = true; try { const r = await strategyApi.get(s.id); if (r.data) drawerStrategy.value = r.data as Strategy } catch {} finally { drawerLoading.value = false } }
-async function handleDelete(id: string) { try { await ElMessageBox.confirm(t('strategy.confirmDelete'), t('common.confirm'), { type: 'warning' }); await strategyApi.delete(id); ElMessage.success(t('strategy.deleteSuccess')); loadStrategies() } catch (e) { if (e !== 'cancel') { ElMessage.error(t('strategy.deleteFailed')) } } }
+
+async function handleDelete(id: string) { try { await ElMessageBox.confirm(t('strategy.confirmDelete'), t('common.confirm'), { type: 'warning' }); await strategyApi.delete(id); ElMessage.success(t('strategy.deleteSuccess')); refresh() } catch (e) { if (e !== 'cancel') { ElMessage.error(t('strategy.deleteFailed')) } } }
+
 function handleAction(cmd: string, s: Strategy) { if (cmd === 'detail') openDrawer(s); else if (cmd === 'clone') cloneStrategy(s); else if (cmd === 'delete') handleDelete(s.id) }
-async function loadStrategies() { loading.value = true; try { const r = await strategyApi.list(); if (r.data) strategies.value = r.data as Strategy[] } catch {} finally { loading.value = false } }
+
+async function loadStrategies() { await refresh() }
 
 function taskStatusType(status: string): 'success' | 'warning' | 'danger' | 'info' {
   if (status === 'completed') return 'success'
@@ -844,15 +871,12 @@ async function loadStrategyTasks(strategyId: string) {
     taskPopoverLoading.value = false
   }
 }
-onMounted(() => { loadStrategies() })
+
+onMounted(() => { refresh() })
 </script>
 
 <style scoped>
-.card-header { display: flex; justify-content: space-between; align-items: center; }
-.header-actions { display: flex; gap: 8px; align-items: center; min-height: 32px; }
-.filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
 .batch-info { font-size: 13px; color: var(--tg-text-secondary, #606266); }
-.active-filters { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .action-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
 .header-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
 .flow-unit { font-size: 12px; color: var(--tg-text-secondary, #909399); white-space: nowrap; }
@@ -902,9 +926,5 @@ onMounted(() => { loadStrategies() })
   color: var(--tg-text-secondary, #909399);
   text-align: center;
   padding: 8px 0;
-}
-
-@media (max-width: 768px) {
-  .filter-bar { flex-direction: column; align-items: flex-start; }
 }
 </style>
