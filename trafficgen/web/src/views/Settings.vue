@@ -13,7 +13,13 @@
           <el-button type="primary" @click="loadSettings">{{ t('common.refresh') }}</el-button>
         </template>
       </el-result>
-      <el-form v-else ref="formRef" :model="form" :rules="rules" label-width="auto" style="max-width: 600px;">
+      <ProForm
+        v-else
+        :model="form"
+        :rules="rules"
+        label-width="auto"
+        label-position="right"
+      >
         <el-divider content-position="left">{{ t('settings.basicSettings') }}</el-divider>
 
         <el-form-item :label="t('settings.language')">
@@ -61,19 +67,22 @@
           </el-button>
           <el-button @click="handleReload">{{ t('settings.reload') }}</el-button>
         </el-form-item>
-      </el-form>
+      </ProForm>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import type { FormRules } from 'element-plus'
 import { settingsApi, type Settings } from '@/api'
 import { setLocale, getLocale } from '@/i18n'
 import { useDarkMode } from '@/composables/useDarkMode'
+import { useFormDirty } from '@/composables/useFormDirty'
+import ProForm from '@/components/ProForm/index.vue'
 
 const { t } = useI18n()
 const { isDark, toggleDark } = useDarkMode()
@@ -81,13 +90,19 @@ const { isDark, toggleDark } = useDarkMode()
 const loading = ref(false)
 const initialLoading = ref(true)
 const errorState = ref<string | null>(null)
-const formRef = ref<FormInstance>()
 const currentLocale = ref(getLocale())
 
 const form = reactive<Settings>({
   max_tasks: 100,
   buffer_size: 4096,
   log_level: 'info'
+})
+
+const formDirty = useFormDirty(form)
+
+onBeforeRouteLeave(async () => {
+  const canLeave = await formDirty.confirmDiscard()
+  if (!canLeave) return false
 })
 
 const rules: FormRules = {
@@ -105,6 +120,7 @@ async function loadSettings() {
       form.max_tasks = res.data.max_tasks
       form.buffer_size = res.data.buffer_size
       form.log_level = res.data.log_level
+      formDirty.captureSnapshot()
     }
   } catch (error) {
     console.error('Failed to load settings:', error)
@@ -125,13 +141,11 @@ function handleReload() {
 }
 
 async function handleSave() {
-  const valid = await formRef.value?.validate()
-  if (!valid) return
-
   loading.value = true
   try {
     await settingsApi.update(form)
     ElMessage.success(t('settings.saveSuccess'))
+    formDirty.captureSnapshot()
   } catch (error) {
     console.error('Failed to save settings:', error)
     ElMessage.error(t('settings.saveFailed'))
