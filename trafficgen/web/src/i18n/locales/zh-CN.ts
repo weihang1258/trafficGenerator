@@ -45,7 +45,8 @@ export default {
     columnSettings: '列设置',
     close: '关闭',
     discard: '放弃更改',
-    unsavedChanges: '有未保存的更改，确定要离开吗？'
+    unsavedChanges: '有未保存的更改，确定要离开吗？',
+    retry: '重试'
   },
   shortcuts: {
     title: '键盘快捷键',
@@ -674,6 +675,7 @@ export default {
     unauthorized: '未授权，请重新登录',
     forbidden: '拒绝访问',
     notFound: '资源不存在',
+    badRequest: '请求参数错误',
     validationError: '数据验证失败',
     unknownError: '未知错误'
   }

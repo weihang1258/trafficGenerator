@@ -45,7 +45,8 @@ export default {
     columnSettings: 'Column Settings',
     close: 'Close',
     discard: 'Discard',
-    unsavedChanges: 'You have unsaved changes. Are you sure you want to leave?'
+    unsavedChanges: 'You have unsaved changes. Are you sure you want to leave?',
+    retry: 'Retry'
   },
   shortcuts: {
     title: 'Keyboard Shortcuts',
@@ -235,6 +236,11 @@ export default {
     disconnected: 'Disconnected',
     error: 'Error',
     outputType: 'Output Type',
+    viewAll: 'View All',
+    noActiveTasks: 'No active tasks',
+    resourceUsage: 'Resource Usage',
+    memory: 'Memory',
+    disk: 'Disk',
     step: {
       basic: 'Basic Info',
       strategy: 'Select Strategy',
@@ -669,6 +675,7 @@ export default {
     unauthorized: 'Unauthorized, please login again',
     forbidden: 'Forbidden',
     notFound: 'Resource not found',
+    badRequest: 'Bad request',
     validationError: 'Validation failed',
     unknownError: 'Unknown error'
   }
