@@ -11,16 +11,20 @@
 
   /* Status Colors */
   --tg-success: #10B981;
+  --tg-success-light: rgba(16, 185, 129, 0.1);
   --tg-warning: #F59E0B;
+  --tg-warning-light: rgba(245, 158, 11, 0.1);
   --tg-danger: #EF4444;
   --tg-danger-light: rgba(239, 68, 68, 0.08);
   --tg-info: #3B82F6;
+  --tg-info-light: rgba(59, 130, 246, 0.1);
 
   /* Background Colors */
   --tg-bg-page: #F8FAFC;
   --tg-bg-card: #FFFFFF;
   --tg-bg-hover: #F1F5F9;
   --tg-bg-surface: #F8FAFC;
+  --tg-bg-overlay: rgba(0, 0, 0, 0.5);
 
   /* Text Colors */
   --tg-text-primary: #0F172A;
@@ -69,16 +73,20 @@ html.dark {
 
   /* Status Colors */
   --tg-success: #34D399;
+  --tg-success-light: rgba(52, 211, 153, 0.12);
   --tg-warning: #FBBF24;
+  --tg-warning-light: rgba(251, 191, 36, 0.12);
   --tg-danger: #F87171;
   --tg-danger-light: rgba(248, 113, 113, 0.12);
   --tg-info: #60A5FA;
+  --tg-info-light: rgba(96, 165, 250, 0.12);
 
   /* Background Colors */
   --tg-bg-page: #0F172A;
   --tg-bg-card: #1E293B;
   --tg-bg-hover: #334155;
   --tg-bg-surface: #1E293B;
+  --tg-bg-overlay: rgba(0, 0, 0, 0.7);
 
   /* Text Colors */
   --tg-text-primary: #F1F5F9;
@@ -133,29 +141,29 @@ html.dark .el-card {
 }
 
 html.dark .el-menu {
-  background-color: #1E293B;
+  background-color: var(--tg-bg-card);
 }
 
 html.dark .sidebar {
-  background-color: #1E293B;
+  background-color: var(--tg-bg-card);
 }
 
 html.dark .header {
-  background-color: #1E293B;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  background-color: var(--tg-bg-card);
+  box-shadow: var(--tg-shadow-sm);
 }
 
 html.dark .main {
-  background-color: #0F172A;
+  background-color: var(--tg-bg-page);
 }
 
 html.dark .logo {
-  border-bottom-color: #334155;
+  border-bottom-color: var(--tg-border-light, #334155);
 }
 
 html.dark .bulk-toolbar,
 html.dark .filter-advanced {
-  background: #334155;
+  background: var(--tg-bg-hover);
 }
 
 /* Global Styles */
@@ -211,7 +219,7 @@ body {
 
 .tg-input:focus {
   border-color: var(--tg-border-focus);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 3px var(--tg-primary-light, rgba(37, 99, 235, 0.1));
   outline: none;
 }
 
@@ -251,22 +259,22 @@ body {
 
 /* Status Tag Colors */
 .tg-tag-success {
-  background-color: rgba(16, 185, 129, 0.1);
+  background-color: var(--tg-success-light);
   color: var(--tg-success);
 }
 
 .tg-tag-warning {
-  background-color: rgba(245, 158, 11, 0.1);
+  background-color: var(--tg-warning-light);
   color: var(--tg-warning);
 }
 
 .tg-tag-danger {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: var(--tg-danger-light);
   color: var(--tg-danger);
 }
 
 .tg-tag-info {
-  background-color: rgba(59, 130, 246, 0.1);
+  background-color: var(--tg-info-light);
   color: var(--tg-info);
 }
 

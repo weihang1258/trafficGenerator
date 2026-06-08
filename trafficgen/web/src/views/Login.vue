@@ -156,7 +156,7 @@ async function handleLogin() {
 }
 
 html.dark .login-container {
-  background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+  background: linear-gradient(135deg, var(--tg-bg-card, #1E293B) 0%, var(--tg-bg-page, #0F172A) 100%);
 }
 
 .login-card {
@@ -216,12 +216,12 @@ html.dark .login-container {
 
 .version-text {
   margin-top: var(--tg-spacing-lg);
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--tg-text-secondary, rgba(255, 255, 255, 0.6));
   font-size: var(--tg-font-small);
 }
 
 html.dark .version-text {
-  color: rgba(148, 163, 184, 0.6);
+  color: var(--tg-text-secondary, rgba(148, 163, 184, 0.6));
 }
 
 @media (max-width: 480px) {

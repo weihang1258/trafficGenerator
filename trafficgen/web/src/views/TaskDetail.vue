@@ -258,7 +258,7 @@ function initChart() {
       smooth: true,
       areaStyle: { opacity: 0.15 },
       lineStyle: { width: 2 },
-      itemStyle: { color: getComputedStyle(document.documentElement).getPropertyValue('--tg-success', '#10B981').trim() || '#10B981' },
+      itemStyle: { color: getComputedStyle(document.documentElement).getPropertyValue('--tg-success').trim() || '#10B981' },
       data: []
     }]
   })

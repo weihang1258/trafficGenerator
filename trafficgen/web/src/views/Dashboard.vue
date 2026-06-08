@@ -613,13 +613,13 @@ watch(isDark, () => {
   padding: 14px 16px;
   background: var(--tg-bg-card, #FFFFFF);
   border-radius: var(--tg-radius-card, 12px);
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  box-shadow: var(--tg-shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
   cursor: default;
   transition: box-shadow 0.2s;
 }
 
 .stat-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--tg-shadow-md, 0 2px 8px rgba(0, 0, 0, 0.08));
 }
 
 .stat-icon {
@@ -632,10 +632,10 @@ watch(isDark, () => {
   flex-shrink: 0;
 }
 
-.stat-icon--primary { background: rgba(37, 99, 235, 0.1); color: var(--tg-primary, #2563EB); }
-.stat-icon--success { background: rgba(16, 185, 129, 0.1); color: var(--tg-success, #10B981); }
-.stat-icon--warning { background: rgba(245, 158, 11, 0.1); color: var(--tg-warning, #F59E0B); }
-.stat-icon--info { background: rgba(59, 130, 246, 0.1); color: var(--tg-info, #3B82F6); }
+.stat-icon--primary { background: var(--tg-primary-light, rgba(37, 99, 235, 0.1)); color: var(--tg-primary, #2563EB); }
+.stat-icon--success { background: var(--tg-success-light, rgba(16, 185, 129, 0.1)); color: var(--tg-success, #10B981); }
+.stat-icon--warning { background: var(--tg-warning-light, rgba(245, 158, 11, 0.1)); color: var(--tg-warning, #F59E0B); }
+.stat-icon--info { background: var(--tg-info-light, rgba(59, 130, 246, 0.1)); color: var(--tg-info, #3B82F6); }
 
 .stat-body {
   flex: 1;

@@ -82,7 +82,7 @@
             :active-text="t('interface.showVirtual')"
             :inactive-text="t('interface.hideVirtual')"
             inline-prompt
-            style="--el-switch-on-color: #909399"
+            style="--el-switch-on-color: var(--tg-text-secondary, #909399)"
           />
         </template>
       </ProFilterBar>
@@ -441,12 +441,12 @@ onUnmounted(() => {
 }
 
 .physical-icon {
-  color: #67c23a;
+  color: var(--tg-success, #67c23a);
   font-size: 16px;
 }
 
 .virtual-icon {
-  color: #909399;
+  color: var(--tg-text-secondary, #909399);
   font-size: 16px;
 }
 
@@ -467,7 +467,7 @@ onUnmounted(() => {
 }
 
 .text-muted {
-  color: #c0c4cc;
+  color: var(--tg-text-disabled, #c0c4cc);
 }
 
 /* Detail drawer styles */
@@ -497,7 +497,7 @@ onUnmounted(() => {
 
 .allocation-item {
   font-size: 12px;
-  color: #606266;
+  color: var(--tg-text-body, #606266);
 }
 
 .allocation-label {
@@ -505,7 +505,7 @@ onUnmounted(() => {
 }
 
 .allocation-task {
-  background: #f5f7fa;
+  background: var(--tg-bg-hover, #f5f7fa);
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 11px;
@@ -513,11 +513,11 @@ onUnmounted(() => {
 
 /* Row highlighting */
 :deep(.row-available) {
-  background-color: #f0f9eb !important;
+  background-color: var(--tg-success-light, rgba(16, 185, 129, 0.1)) !important;
 }
 
 :deep(.row-in-use) {
-  background-color: #fdf6ec !important;
+  background-color: var(--tg-warning-light, rgba(245, 158, 11, 0.1)) !important;
 }
 
 :deep(.row-virtual) {
