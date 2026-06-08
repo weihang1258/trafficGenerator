@@ -68,7 +68,7 @@
       </template>
     </el-dialog>
 
-    <p class="version-text">v{{ version }}</p>
+    <p class="version-text">v{{ APP_VERSION }}</p>
   </div>
 </template>
 
@@ -80,7 +80,7 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Connection } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { version } from '../../package.json'
+import { APP_VERSION } from '@/version'
 import ProForm from '@/components/ProForm/index.vue'
 
 const { t } = useI18n()

@@ -72,7 +72,7 @@
         </div>
       </ProForm>
     </el-card>
-    <p class="version-text">v{{ version }}</p>
+    <p class="version-text">v{{ APP_VERSION }}</p>
   </div>
 </template>
 
@@ -84,7 +84,7 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Connection } from '@element-plus/icons-vue'
 import { authApi } from '@/api'
-import { version } from '../../package.json'
+import { APP_VERSION } from '@/version'
 import ProForm from '@/components/ProForm/index.vue'
 
 const { t } = useI18n()
@@ -114,7 +114,7 @@ const rules: FormRules = {
     { min: 3, max: 64, message: t('login.usernameLength'), trigger: 'blur' }
   ],
   email: [
-    { required: true, message: t('login.emailInvalid'), trigger: 'blur' },
+    { required: true, message: t('login.emailRequired'), trigger: 'blur' },
     { type: 'email', message: t('login.emailInvalid'), trigger: 'blur' }
   ],
   password: [

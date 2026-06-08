@@ -62,11 +62,16 @@
           <el-tag :type="ROLE_TAG_TYPE[row.role] || 'info'" size="small">{{ getRoleText(row.role) }}</el-tag>
         </template>
         <template #enabled="{ row }">
-          <el-switch
-            v-model="row.enabled"
-            :disabled="row.username === 'admin'"
-            @change="(val: boolean) => handleStatusChange(row, val)"
-          />
+          <div class="status-cell">
+            <el-switch
+              v-model="row.enabled"
+              :disabled="row.username === 'admin'"
+              @change="(val: boolean) => handleStatusChange(row, val)"
+            />
+            <span class="status-label" :class="{ 'status-active': row.enabled, 'status-disabled': !row.enabled }">
+              {{ row.enabled ? t('user.active') : t('user.disabled') }}
+            </span>
+          </div>
         </template>
         <template #created_at="{ row }">
           {{ row.created_at ? formatTimestamp(row.created_at) : '-' }}
@@ -149,7 +154,7 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('user.status')">
-          <el-switch v-model="userForm.enabled" :active-text="t('user.active')" :inactive-text="t('user.disabled')" />
+          <el-switch v-model="userForm.enabled" inline-prompt :active-text="t('user.active')" :inactive-text="t('user.disabled')" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -169,6 +174,7 @@ import { Plus, Search, Refresh, Setting, More } from '@element-plus/icons-vue'
 import { userApi, authApi, type User } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
 import { formatTimestamp } from '@/utils/format'
+import { createClientSort } from '@/utils/sort'
 import { ROLE_TAG_TYPE } from '@/constants/status'
 import { useClientList } from '@/composables/useClientList'
 import { useSelection } from '@/composables/useSelection'
@@ -198,17 +204,7 @@ const { loading, data: users, sortState, refresh, handleSortChange } = useClient
   },
   clientSort: (items, sort) => {
     if (!sort.prop || !sort.order) return items
-    const dir = sort.order === 'ascending' ? 1 : -1
-    return [...items].sort((a: any, b: any) => {
-      const va = a[sort.prop!]
-      const vb = b[sort.prop!]
-      if (va == null && vb == null) return 0
-      if (va == null) return dir
-      if (vb == null) return -dir
-      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
-      if (typeof va === 'boolean' && typeof vb === 'boolean') return (Number(va) - Number(vb)) * dir
-      return String(va).localeCompare(String(vb)) * dir
-    })
+    return [...items].sort(createClientSort(sort.prop as keyof User, sort.order))
   },
   defaultSort: { prop: 'created_at', order: 'descending' }
 })
@@ -227,7 +223,7 @@ const columns = computed(() => [
   { prop: 'username', label: t('user.username'), width: 130, required: true, sortable: 'custom' },
   { prop: 'email', label: t('user.email'), minWidth: 180, sortable: 'custom' },
   { prop: 'role', label: t('user.role'), width: 90, sortable: 'custom' },
-  { prop: 'enabled', label: t('user.status'), width: 90, sortable: 'custom' },
+  { prop: 'enabled', label: t('user.status'), width: 140, sortable: 'custom' },
   { prop: 'created_at', label: t('user.createdAt'), width: 170, sortable: 'custom' },
   { prop: 'updated_at', label: t('common.updatedAt'), width: 170, sortable: 'custom' },
   { prop: 'last_login', label: t('user.lastLogin'), width: 170, sortable: 'custom' },
@@ -442,5 +438,24 @@ onMounted(() => {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
+}
+
+.status-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-active {
+  color: var(--el-color-success);
+}
+
+.status-disabled {
+  color: var(--el-color-danger);
 }
 </style>

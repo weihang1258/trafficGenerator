@@ -8,7 +8,7 @@ type ErrorHandler = (error: Event) => void
 type ConnectionHandler = () => void
 
 interface WebSocketOptions {
-  url: string
+  url: string | (() => string)
   reconnect?: boolean
   reconnectInterval?: number
   reconnectAttempts?: number
@@ -60,7 +60,9 @@ class WebSocketClient {
       this.isManualClose = false
 
       try {
-        this.ws = new WebSocket(this.options.url)
+        // Resolve URL at connection time (supports function for dynamic token)
+        const url = typeof this.options.url === 'function' ? this.options.url() : this.options.url
+        this.ws = new WebSocket(url)
 
         this.ws.onopen = () => {
           console.log('[WebSocket] Connected')

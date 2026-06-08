@@ -99,7 +99,8 @@ export default {
     emailExists: 'Email already registered',
     usernameLength: 'Username must be 3-64 characters',
     passwordLength: 'Password must be 8-128 characters',
-    emailInvalid: 'Invalid email format'
+    emailInvalid: 'Invalid email format',
+    emailRequired: 'Please enter email'
   },
 
   // Dashboard

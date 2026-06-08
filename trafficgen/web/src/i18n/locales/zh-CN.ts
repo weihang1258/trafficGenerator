@@ -99,7 +99,8 @@ export default {
     emailExists: '邮箱已注册',
     usernameLength: '用户名长度为3-64个字符',
     passwordLength: '密码长度为8-128个字符',
-    emailInvalid: '邮箱格式不正确'
+    emailInvalid: '邮箱格式不正确',
+    emailRequired: '请输入邮箱'
   },
 
   // 仪表盘

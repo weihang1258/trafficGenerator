@@ -201,6 +201,7 @@ import { portApi, portGroupApi, type Port, type PortGroup } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
 import ProCardHeader from '@/components/ProCardHeader/index.vue'
 import { formatTimestamp } from '@/utils/format'
+import { createClientSort } from '@/utils/sort'
 import { useClientList } from '@/composables/useClientList'
 
 const { t } = useI18n()
@@ -216,16 +217,7 @@ const { loading, data: ports, sortState, refresh, handleSortChange } = useClient
   },
   clientSort: (items, sort) => {
     if (!sort.prop || !sort.order) return items
-    const dir = sort.order === 'ascending' ? 1 : -1
-    return [...items].sort((a: any, b: any) => {
-      const va = a[sort.prop!]
-      const vb = b[sort.prop!]
-      if (va == null && vb == null) return 0
-      if (va == null) return dir
-      if (vb == null) return -dir
-      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
-      return String(va).localeCompare(String(vb)) * dir
-    })
+    return [...items].sort(createClientSort(sort.prop as keyof Port, sort.order))
   },
   defaultSort: { prop: 'port_number', order: 'ascending' }
 })

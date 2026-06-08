@@ -11,9 +11,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, provide } from 'vue'
+import { ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import { useFormDirty, type UseFormDirtyReturn } from '@/composables/useFormDirty'
+import { useFormDirty } from '@/composables/useFormDirty'
 
 export interface ProFormProps {
   model: Record<string, any>
@@ -42,6 +42,4 @@ defineExpose({
   confirmDiscard: formDirty.confirmDiscard
 })
 
-// Provide dirty guard to child ProDialog/ProDrawer
-provide<UseFormDirtyReturn>('formDirtyGuard', formDirty)
 </script>

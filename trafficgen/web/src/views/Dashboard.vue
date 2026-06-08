@@ -130,7 +130,7 @@
     <div class="section-title">
       {{ t('dashboard.sectionTasks') }}
       <el-button link type="primary" size="small" @click="$router.push('/tasks')">
-        {{ t('dashboard.viewAll') }} &rarr;
+        {{ t('dashboard.viewAll') }} <el-icon><ArrowRight /></el-icon>
       </el-button>
     </div>
     <el-card class="task-card" shadow="never">
@@ -204,7 +204,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  List, MessageBox, TrendCharts, Odometer, Refresh
+  List, MessageBox, TrendCharts, Odometer, Refresh, ArrowRight
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts/core'
 import { PieChart, LineChart } from 'echarts/charts'
@@ -287,10 +287,14 @@ const displayTasks = computed(() => {
     .slice(0, 10)
 })
 
+function getCssVar(name: string, fallback: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
+
 function getProgressColor(value: number): string {
-  if (value >= 90) return '#EF4444'
-  if (value >= 70) return '#F59E0B'
-  return '#10B981'
+  if (value >= 90) return getCssVar('--tg-danger', '#EF4444')
+  if (value >= 70) return getCssVar('--tg-warning', '#F59E0B')
+  return getCssVar('--tg-success', '#10B981')
 }
 
 function getProtocol(task: Task): string {
@@ -319,6 +323,8 @@ function getChartTheme(): string | undefined {
 
 function initCharts() {
   const theme = getChartTheme()
+  const primaryColor = getCssVar('--tg-primary', '#2563EB')
+  const cardBgColor = getCssVar('--tg-bg-card', '#fff')
   if (throughputChartRef.value) {
     throughputChart = echarts.init(throughputChartRef.value, theme)
     throughputChart.setOption({
@@ -329,8 +335,8 @@ function initCharts() {
       series: [{
         type: 'line', smooth: true, symbol: 'none',
         areaStyle: { opacity: 0.12 },
-        lineStyle: { width: 2, color: '#2563EB' },
-        itemStyle: { color: '#2563EB' },
+        lineStyle: { width: 2, color: primaryColor },
+        itemStyle: { color: primaryColor },
         data: []
       }]
     })
@@ -348,7 +354,7 @@ function initCharts() {
         emphasis: { label: { show: true, fontSize: 12, fontWeight: 'bold' } },
         labelLine: { show: false },
         data: [],
-        itemStyle: { borderColor: '#fff', borderWidth: 2 }
+        itemStyle: { borderColor: cardBgColor, borderWidth: 2 }
       }]
     })
   }

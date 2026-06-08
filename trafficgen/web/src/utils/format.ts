@@ -4,10 +4,12 @@ import dayjs from 'dayjs'
  * Format bytes with human-readable units (base-1024).
  */
 export function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  if (Number.isNaN(bytes)) return '0 B'
+  if (bytes < 0) return '-' + formatBytes(Math.abs(bytes))
+  if (!Number.isFinite(bytes) || bytes === 0) return '0 B'
   const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
 }
 
@@ -26,10 +28,12 @@ export function formatNumber(num: number): string {
  * Format throughput in bits-per-second with bps/Kbps/Mbps/Gbps units.
  */
 export function formatBps(bps: number): string {
-  if (!Number.isFinite(bps) || bps <= 0) return '0 bps'
+  if (Number.isNaN(bps)) return '0 bps'
+  if (bps < 0) return '-' + formatBps(Math.abs(bps))
+  if (!Number.isFinite(bps) || bps === 0) return '0 bps'
   const k = 1000
-  const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps']
-  const i = Math.floor(Math.log(bps) / Math.log(k))
+  const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps', 'Pbps']
+  const i = Math.min(Math.floor(Math.log(bps) / Math.log(k)), sizes.length - 1)
   return `${(bps / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
 }
 

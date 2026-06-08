@@ -117,7 +117,7 @@
     </ProDrawer>
 
     <!-- Create/Edit Dialog -->
-    <ProDialog v-model="dialogVisible" :title="editingStrategy ? t('common.edit') : t('strategy.createStrategy')" width="900px" :dirty-guard="formDirty">
+    <ProDialog v-model="dialogVisible" :title="editingStrategy ? `${t('common.edit')}: ${editingStrategy.name}` : t('strategy.createStrategy')" width="900px" :dirty-guard="formDirty">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="130px" class="strategy-form">
         <!-- Section 1: Basic Info (always visible) -->
         <el-divider content-position="left">{{ t('strategy.sectionBasicInfo') }}</el-divider>
@@ -468,6 +468,7 @@ import ProDialog from '@/components/ProDialog/index.vue'
 import ProDrawer from '@/components/ProDrawer/index.vue'
 import ValueStrategySelector, { type StrategyValue } from '@/components/ValueStrategySelector/index.vue'
 import { formatTimestamp } from '@/utils/format'
+import { createClientSort } from '@/utils/sort'
 import { TASK_STATUS_TYPE } from '@/constants/status'
 import type { FilterFieldDef } from '@/composables/useActiveFilters'
 
@@ -480,29 +481,9 @@ const { loading, data: strategies, sortState, refresh, handleSortChange } = useC
     const res = await strategyApi.list()
     return Array.isArray(res.data) ? res.data : (res.data as any).items || []
   },
-  clientFilter: (items, filters) => {
-    let result = [...items]
-    if (filters.keyword) {
-      const kw = filters.keyword.toLowerCase()
-      result = result.filter((s: any) => s.name?.toLowerCase().includes(kw))
-    }
-    if (filters.protocol && filters.protocol.length > 0) {
-      result = result.filter((s: any) => filters.protocol.includes(s.protocol))
-    }
-    return result
-  },
   clientSort: (items, sort) => {
     if (!sort.prop || !sort.order) return items
-    const dir = sort.order === 'ascending' ? 1 : -1
-    return [...items].sort((a: any, b: any) => {
-      const va = a[sort.prop!]
-      const vb = b[sort.prop!]
-      if (va == null && vb == null) return 0
-      if (va == null) return dir
-      if (vb == null) return -dir
-      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
-      return String(va).localeCompare(String(vb)) * dir
-    })
+    return [...items].sort(createClientSort(sort.prop as keyof Strategy, sort.order))
   },
   defaultSort: { prop: 'created_at', order: 'descending' }
 })

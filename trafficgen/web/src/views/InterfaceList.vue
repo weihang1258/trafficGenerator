@@ -107,7 +107,7 @@
         ref="proTableRef"
         table-id="interface-list"
         :columns="columns"
-        :data="sortedInterfaces"
+        :data="filteredInterfaces"
         :loading="loading"
         :default-sort="{ prop: 'is_up', order: 'descending' }"
         :empty-text="t('interface.noInterfaces')"
@@ -256,6 +256,7 @@ import { interfaceApi, type NetworkInterface } from '@/api'
 import ProTable from '@/components/ProTable/index.vue'
 import { useClientList } from '@/composables/useClientList'
 import { formatTimestamp } from '@/utils/format'
+import { createClientSort } from '@/utils/sort'
 import ProCardHeader from '@/components/ProCardHeader/index.vue'
 import ProFilterBar from '@/components/ProFilterBar/index.vue'
 import ProDrawer from '@/components/ProDrawer/index.vue'
@@ -283,16 +284,7 @@ const { loading, data: interfaces, sortState, refresh, handleSortChange } = useC
   },
   clientSort: (items, sort) => {
     if (!sort.prop || !sort.order) return items
-    const dir = sort.order === 'ascending' ? 1 : -1
-    return [...items].sort((a: any, b: any) => {
-      const va = a[sort.prop!]
-      const vb = b[sort.prop!]
-      if (va == null && vb == null) return 0
-      if (va == null) return dir
-      if (vb == null) return -dir
-      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
-      return String(va).localeCompare(String(vb)) * dir
-    })
+    return [...items].sort(createClientSort(sort.prop as keyof NetworkInterface, sort.order))
   },
   defaultSort: { prop: 'name', order: 'ascending' }
 })
@@ -337,22 +329,6 @@ const filteredInterfaces = computed(() => {
   }
 
   return result
-})
-
-const sortedInterfaces = computed(() => {
-  const data = filteredInterfaces.value
-  if (!sortState.prop || !sortState.order) return data
-  const dir = sortState.order === 'ascending' ? 1 : -1
-  return [...data].sort((a: NetworkInterface, b: NetworkInterface) => {
-    const va = (a as any)[sortState.prop]
-    const vb = (b as any)[sortState.prop]
-    if (va == null && vb == null) return 0
-    if (va == null) return dir
-    if (vb == null) return -dir
-    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
-    if (typeof va === 'boolean' && typeof vb === 'boolean') return (Number(va) - Number(vb)) * dir
-    return String(va).localeCompare(String(vb)) * dir
-  })
 })
 
 const columns = computed(() => [

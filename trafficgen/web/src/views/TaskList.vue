@@ -62,7 +62,7 @@
         table-id="task-list"
         :columns="columns"
         :data="tasks"
-        v-model:loading="loading"
+        :loading="loading"
         :default-sort="{ prop: 'created_at', order: 'descending' }"
         :pagination="{ total: pagination.total }"
         :empty-text="t('task.noTasks')"

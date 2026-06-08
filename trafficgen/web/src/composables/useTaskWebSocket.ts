@@ -26,15 +26,18 @@ export function useTaskWebSocket() {
   const error = ref<string | null>(null)
   const subscribedTaskId = ref<string | null>(null)
 
-  // Get WebSocket URL - use the single /ws endpoint with JWT token
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const host = window.location.host
-  const token = localStorage.getItem('token') || ''
-  const wsUrl = `${protocol}//${host}/ws${token ? '?token=' + encodeURIComponent(token) : ''}`
+  // Build WebSocket URL - read token from localStorage at connection time
+  // to ensure fresh token after re-login (not stale from composable init)
+  const buildWsUrl = () => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host
+    const token = localStorage.getItem('token') || ''
+    return `${protocol}//${host}/ws${token ? '?token=' + encodeURIComponent(token) : ''}`
+  }
 
-  // Create WebSocket client
+  // Create WebSocket client - pass function so URL is resolved at connect time
   const ws = createWebSocket({
-    url: wsUrl,
+    url: buildWsUrl,
     reconnect: true,
     reconnectInterval: 3000,
     reconnectAttempts: 10,
