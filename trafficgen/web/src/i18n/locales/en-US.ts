@@ -201,6 +201,7 @@ export default {
     deleteSuccess: 'Task deleted successfully',
     deleteFailed: 'Failed to delete task',
     loadFailed: 'Failed to load tasks',
+    stuckWarning: 'This task has been running for 5+ minutes with 0% progress — it may be stuck',
     refreshed: 'List refreshed',
     selectedCount: '{count} selected',
     batchDelete: 'Batch Delete',

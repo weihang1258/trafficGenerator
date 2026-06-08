@@ -82,10 +82,15 @@
           <el-tag size="small">{{ (row.protocol || 'N/A').toUpperCase() }}</el-tag>
         </template>
         <template #status="{ row }">
-          <el-tooltip v-if="row.error_message" :content="row.error_message" placement="top">
-            <task-status-tag :status="row.status" />
-          </el-tooltip>
-          <task-status-tag v-else :status="row.status" />
+          <div class="status-cell">
+            <el-tooltip v-if="row.error_message" :content="row.error_message" placement="top">
+              <task-status-tag :status="row.status" />
+            </el-tooltip>
+            <task-status-tag v-else :status="row.status" />
+            <el-tooltip v-if="isStuckTask(row)" :content="t('task.stuckWarning')" placement="top">
+              <el-icon class="stuck-icon" :size="14"><Warning /></el-icon>
+            </el-tooltip>
+          </div>
         </template>
         <template #error_message="{ row }">
           <el-popover v-if="row.error_message" placement="top" :width="300" trigger="hover">
@@ -174,7 +179,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Setting, RefreshRight } from '@element-plus/icons-vue'
+import { Plus, Search, Setting, RefreshRight, Warning } from '@element-plus/icons-vue'
 import { taskApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import ProTable from '@/components/ProTable/index.vue'
@@ -263,6 +268,14 @@ function getStatusText(status: string): string {
 function truncate(str: string, len: number) {
   if (!str) return ''
   return str.length > len ? str.slice(0, len) + '...' : str
+}
+
+/** Detect stuck tasks: running for >5 minutes with 0% progress */
+function isStuckTask(row: Task): boolean {
+  if (row.status !== 'running' || row.progress > 0) return false
+  if (!row.started_at) return false
+  const elapsed = Math.floor(Date.now() / 1000) - row.started_at
+  return elapsed > 300 // 5 minutes with 0% = likely stuck
 }
 
 function resetFilters() {
@@ -362,6 +375,22 @@ onUnmounted(() => {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
+}
+
+.status-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stuck-icon {
+  color: var(--tg-warning, #F59E0B);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 </style>

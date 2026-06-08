@@ -66,13 +66,18 @@ export function useFormDirty<T extends object>(source: T | import('vue').Ref<T>)
   }
 
   // Watch for changes - use deep watch on the source object
-  // The getter returns the source so Vue can track its reactive properties
+  // Debounce serialization to avoid excessive JSON.stringify on rapid keystrokes
+  let dirtyCheckTimer: number | null = null
   const stopWatch = watch(
     () => source,
     () => {
       if (snapshotJson) {
-        const currentJson = serialize(source as T)
-        isDirty.value = currentJson !== snapshotJson
+        if (dirtyCheckTimer) clearTimeout(dirtyCheckTimer)
+        dirtyCheckTimer = window.setTimeout(() => {
+          const currentJson = serialize(source as T)
+          isDirty.value = currentJson !== snapshotJson
+          dirtyCheckTimer = null
+        }, 150) // 150ms debounce — fast enough for UX, slow enough for performance
       }
     },
     { deep: true }
@@ -80,6 +85,7 @@ export function useFormDirty<T extends object>(source: T | import('vue').Ref<T>)
 
   onBeforeUnmount(() => {
     stopWatch()
+    if (dirtyCheckTimer) clearTimeout(dirtyCheckTimer)
   })
 
   return {

@@ -573,7 +573,7 @@ interface StrategyForm {
     src_mac: string; dst_mac: string
     ttl: StrategyValue; tos: StrategyValue; payload: StrategyValue
     vlan_enable: boolean; vlan_id: number; vlan_priority: number
-    tcp: { handshake: boolean; termination: boolean; mss: number; window_size: number }
+    tcp: { handshake: boolean; termination: boolean; mss: number; window_size: number; seq?: number; flags?: number; wscale?: boolean; sack?: boolean; timestamps?: boolean }
     udp: { response: boolean }
     http: { methods: string[]; uri: StrategyValue; headers: { key: string; value: string }[]; body: StrategyValue; keep_alive: boolean; transactions: number; think_time: number }
     dns: { domain: string; query_type: number; response: boolean; response_ip: string }
@@ -593,7 +593,7 @@ function defaultForm(): StrategyForm {
       src_mac: '', dst_mac: '',
       ttl: svPort(64), tos: svPort(0), payload: sv(''),
       vlan_enable: false, vlan_id: 1, vlan_priority: 0,
-      tcp: { handshake: true, termination: true, mss: 1460, window_size: 65535 },
+      tcp: { handshake: true, termination: true, mss: 1460, window_size: 65535, seq: 0, flags: 0, wscale: false, sack: false, timestamps: false },
       udp: { response: false },
       http: { methods: ['GET'], uri: sv('/'), headers: [], body: sv(''), keep_alive: true, transactions: 10, think_time: 100 },
       dns: { domain: 'example.com', query_type: 1, response: false, response_ip: '' },

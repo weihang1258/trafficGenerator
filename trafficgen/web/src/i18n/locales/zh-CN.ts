@@ -199,6 +199,7 @@ export default {
     deleteSuccess: '任务删除成功',
     deleteFailed: '任务删除失败',
     loadFailed: '加载任务列表失败',
+    stuckWarning: '此任务已运行5分钟以上但进度为0%，可能已卡死',
     refreshed: '列表已刷新',
     selectedCount: '已选择 {count} 个',
     batchDelete: '批量删除',

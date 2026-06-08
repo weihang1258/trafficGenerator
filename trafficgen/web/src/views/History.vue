@@ -74,7 +74,7 @@
         @page-change="handlePageChange"
       >
         <template #protocol="{ row }">
-          <el-tag size="small">{{ (row.protocol || 'N/A').toUpperCase() }}</el-tag>
+          <el-tag size="small" :type="row.protocol ? '' : 'info'">{{ (row.protocol || 'N/A').toUpperCase() }}</el-tag>
         </template>
         <template #status="{ row }">
           <el-tag :type="TASK_STATUS_TYPE[row.status] || 'info'" size="small">{{ getStatusText(row.status) }}</el-tag>
