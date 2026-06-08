@@ -55,9 +55,9 @@
               <span v-else class="text-muted">-</span>
             </template>
             <template #empty>
-              <el-empty :description="t('ports.noPorts')">
+              <el-empty :description="t('ports.noPortsHint')">
                 <el-button type="primary" @click="$router.push('/interfaces')">
-                  {{ t('interface.scan') }}
+                  {{ t('ports.goToInterfaceManagement') }}
                 </el-button>
               </el-empty>
             </template>

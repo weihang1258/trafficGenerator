@@ -1,4 +1,3 @@
-// Package icmp implements the ICMP protocol planner.
 package icmp
 
 import (
@@ -33,7 +32,6 @@ func (p *Planner) Name() string {
 
 // Validate validates an ICMP flow spec.
 func (p *Planner) Validate(spec core.FlowSpec) error {
-	// Validate IP addresses
 	if spec.SrcIP != "" {
 		if net.ParseIP(spec.SrcIP) == nil {
 			return fmt.Errorf("invalid source IP: %s", spec.SrcIP)
@@ -44,7 +42,6 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("invalid destination IP: %s", spec.DstIP)
 		}
 	}
-
 	return nil
 }
 
@@ -62,7 +59,16 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// Generate flow ID
 		flowID := fmt.Sprintf("%s-%s-icmp", spec.SrcIP, spec.DstIP)
 
+		// Resolve effective TTL from spec
+		effectiveTTL := spec.TTL
+		if effectiveTTL == 0 {
+			effectiveTTL = DefaultTTL
+		}
+
 		now := time.Now()
+
+		ipID := uint16(1)
+		nextIPID := func() uint16 { id := ipID; ipID++; return id }
 
 		// Get ICMP config
 		icmpConfig := spec.ICMP
@@ -90,7 +96,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				SrcIP:    spec.SrcIP,
 				DstIP:    spec.DstIP,
 				Protocol: 1, // ICMP
-				TTL:      DefaultTTL,
+				TTL:      effectiveTTL,
+				IPID:     nextIPID(),
 			},
 			L4: core.L4Config{
 				Protocol: "icmp",
@@ -125,7 +132,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					SrcIP:    spec.DstIP,
 					DstIP:    spec.SrcIP,
 					Protocol: 1,
-					TTL:      DefaultTTL,
+					TTL:      effectiveTTL,
+					IPID:     nextIPID(),
 				},
 				L4: core.L4Config{
 					Protocol: "icmp",
@@ -149,9 +157,9 @@ func buildICMPPayload(config *core.ICMPConfig) []byte {
 	header[0] = config.Type
 	header[1] = config.Code
 	// Checksum will be calculated later
-	// ID (identifier) - using 0x1234
-	header[4] = 0x12
-	header[5] = 0x34
+	// ID (identifier)
+	header[4] = byte(config.Sequence >> 8) // Use sequence as ID high byte
+	header[5] = byte(config.Sequence)       // Use sequence as ID low byte
 	// Sequence
 	header[6] = byte(config.Sequence >> 8)
 	header[7] = byte(config.Sequence)

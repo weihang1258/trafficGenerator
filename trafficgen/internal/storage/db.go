@@ -157,6 +157,32 @@ func (db *DB) IsConnected() bool {
 	return db.Ping(ctx) == nil
 }
 
+// CountActiveTasks returns the count of tasks with running or pending status.
+func (db *DB) CountActiveTasks() (int64, error) {
+	var count int64
+	if err := db.Model(&TaskModel{}).Where("status IN ?", []string{"running", "pending"}).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// CountTasksByProtocol returns a map of protocol -> task count for all tasks.
+func (db *DB) CountTasksByProtocol() (map[string]int64, error) {
+	type protocolCount struct {
+		Protocol string
+		Count    int64
+	}
+	var results []protocolCount
+	if err := db.Model(&TaskModel{}).Select("protocol, count(*) as count").Where("protocol != ''").Group("protocol").Find(&results).Error; err != nil {
+		return nil, err
+	}
+	counts := make(map[string]int64)
+	for _, r := range results {
+		counts[r.Protocol] = r.Count
+	}
+	return counts, nil
+}
+
 // TaskRepository provides task database operations.
 type TaskRepository struct {
 	db *DB

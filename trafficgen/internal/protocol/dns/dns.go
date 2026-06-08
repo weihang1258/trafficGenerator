@@ -76,18 +76,27 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	go func() {
 		defer close(configChan)
 
-		// Generate flow ID
 		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
-
+		effectiveTTL := spec.TTL
+		if effectiveTTL == 0 {
+			effectiveTTL = DefaultTTL
+		}
 		now := time.Now()
+		packetIndex := uint64(0)
+		ipID := uint16(1)
 
-		// Build DNS query packet
+		nextIPID := func() uint16 {
+			id := ipID
+			ipID++
+			return id
+		}
+
 		queryPayload := buildDNSQuery(spec.DNS.Domain, spec.DNS.QueryType)
 
-		// DNS Query (client -> server)
+		// DNS Query
 		configChan <- core.PacketConfig{
 			FlowID:      flowID,
-			PacketIndex: 0,
+			PacketIndex: packetIndex,
 			Direction:   "up",
 			Timestamp:   now,
 			L2: core.L2Config{
@@ -98,8 +107,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			L3: core.L3Config{
 				SrcIP:    spec.SrcIP,
 				DstIP:    spec.DstIP,
-				Protocol: 17, // UDP
-				TTL:      DefaultTTL,
+				Protocol: 17,
+				TTL:      effectiveTTL,
+				IPID:     nextIPID(),
 			},
 			L4: core.L4Config{
 				Protocol: "udp",
@@ -108,14 +118,15 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			},
 			Payload: queryPayload,
 		}
+		packetIndex++
 
-		// DNS Response (server -> client) if configured
+		// DNS Response
 		if spec.DNS.Response {
 			responsePayload := buildDNSResponse(spec.DNS.Domain, spec.DNS.QueryType, spec.DNS.ResponseIP)
 
 			configChan <- core.PacketConfig{
 				FlowID:      flowID,
-				PacketIndex: 1,
+				PacketIndex: packetIndex,
 				Direction:   "down",
 				Timestamp:   now,
 				L2: core.L2Config{
@@ -127,7 +138,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					SrcIP:    spec.DstIP,
 					DstIP:    spec.SrcIP,
 					Protocol: 17,
-					TTL:      DefaultTTL,
+					TTL:      effectiveTTL,
+					IPID:     nextIPID(),
 				},
 				L4: core.L4Config{
 					Protocol: "udp",

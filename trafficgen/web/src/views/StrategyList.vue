@@ -439,7 +439,9 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="handleSaveTemplate" :disabled="!form.name || !form.protocol">{{ t('strategy.saveAsTemplate') }}</el-button>
+        <el-tooltip :content="(!form.name || !form.protocol) ? t('strategy.templateDisabledHint') : ''" placement="top">
+          <el-button @click="handleSaveTemplate" :disabled="!form.name || !form.protocol">{{ t('strategy.saveAsTemplate') }}</el-button>
+        </el-tooltip>
         <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('common.confirm') }}</el-button>
       </template>

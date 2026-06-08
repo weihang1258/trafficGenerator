@@ -29,7 +29,7 @@ func NewAuthHandler(db *storage.DB, jwtManager *auth.JWTManager) *AuthHandler {
 // RegisterRequest represents a registration request.
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required,min=3,max=64"`
-	Password string `json:"password" binding:"required,min=6,max=128"`
+	Password string `json:"password" binding:"required,min=8,max=128"`
 	Email    string `json:"email" binding:"required,email"`
 }
 
@@ -336,7 +336,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 // UpdateProfileRequest represents a profile update request.
 type UpdateProfileRequest struct {
 	Email    string `json:"email" binding:"omitempty,email"`
-	Password string `json:"password" binding:"omitempty,min=6,max=128"`
+	Password string `json:"password" binding:"omitempty,min=8,max=128"`
 }
 
 // UpdateProfile updates the current user's profile.

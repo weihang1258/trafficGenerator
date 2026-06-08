@@ -92,6 +92,24 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		clientSeq := uint32(1000)
 		serverSeq := uint32(2000)
 		packetIndex := uint64(0)
+		ipID := uint16(1)
+
+		nextIPID := func() uint16 {
+			id := ipID
+			ipID++
+			return id
+		}
+
+		winSize := uint16(65535)
+		if tcpConfig.WindowSize > 0 {
+			winSize = tcpConfig.WindowSize
+		}
+
+		// Resolve effective TTL from spec
+		effectiveTTL := spec.TTL
+		if effectiveTTL == 0 {
+			effectiveTTL = DefaultTTL
+		}
 
 		now := time.Now()
 
@@ -112,7 +130,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					SrcIP:    spec.SrcIP,
 					DstIP:    spec.DstIP,
 					Protocol: 6, // TCP
-					TTL:      DefaultTTL,
+					TTL:      effectiveTTL,
+					IPID:     nextIPID(),
 				},
 				L4: core.L4Config{
 					Protocol: "tcp",
@@ -120,6 +139,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstPort:  spec.DstPort,
 					Seq:      clientSeq,
 					Flags:    FlagSYN,
+					WindowSize: winSize,
 				},
 			}
 			packetIndex++
@@ -140,7 +160,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					SrcIP:    spec.DstIP,
 					DstIP:    spec.SrcIP,
 					Protocol: 6,
-					TTL:      DefaultTTL,
+					TTL:      effectiveTTL,
+					IPID:     nextIPID(),
 				},
 				L4: core.L4Config{
 					Protocol: "tcp",
@@ -149,6 +170,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      serverSeq,
 					Ack:      clientSeq,
 					Flags:    FlagSYN | FlagACK,
+					WindowSize: winSize,
 				},
 			}
 			packetIndex++
@@ -169,7 +191,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					SrcIP:    spec.SrcIP,
 					DstIP:    spec.DstIP,
 					Protocol: 6,
-					TTL:      DefaultTTL,
+					TTL:      effectiveTTL,
+					IPID:     nextIPID(),
 				},
 				L4: core.L4Config{
 					Protocol: "tcp",
@@ -178,6 +201,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      clientSeq,
 					Ack:      serverSeq,
 					Flags:    FlagACK,
+					WindowSize: winSize,
 				},
 			}
 			packetIndex++
@@ -213,7 +237,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						SrcIP:    spec.SrcIP,
 						DstIP:    spec.DstIP,
 						Protocol: 6,
-						TTL:      DefaultTTL,
+						TTL:      effectiveTTL,
+						IPID:     nextIPID(),
 					},
 					L4: core.L4Config{
 						Protocol: "tcp",
@@ -222,6 +247,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						Seq:      clientSeq,
 						Ack:      serverSeq,
 						Flags:    FlagPSH | FlagACK,
+					WindowSize: winSize,
 					},
 					Payload: payload[:segmentSize],
 				}
@@ -244,7 +270,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						SrcIP:    spec.DstIP,
 						DstIP:    spec.SrcIP,
 						Protocol: 6,
-						TTL:      DefaultTTL,
+						TTL:      effectiveTTL,
+						IPID:     nextIPID(),
 					},
 					L4: core.L4Config{
 						Protocol: "tcp",
@@ -253,6 +280,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						Seq:      serverSeq,
 						Ack:      clientSeq,
 						Flags:    FlagACK,
+					WindowSize: winSize,
 					},
 				}
 				packetIndex++
@@ -276,7 +304,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					SrcIP:    spec.SrcIP,
 					DstIP:    spec.DstIP,
 					Protocol: 6,
-					TTL:      DefaultTTL,
+					TTL:      effectiveTTL,
+					IPID:     nextIPID(),
 				},
 				L4: core.L4Config{
 					Protocol: "tcp",
@@ -285,6 +314,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      clientSeq,
 					Ack:      serverSeq,
 					Flags:    FlagFIN | FlagACK,
+					WindowSize: winSize,
 				},
 			}
 			packetIndex++
@@ -305,7 +335,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					SrcIP:    spec.DstIP,
 					DstIP:    spec.SrcIP,
 					Protocol: 6,
-					TTL:      DefaultTTL,
+					TTL:      effectiveTTL,
+					IPID:     nextIPID(),
 				},
 				L4: core.L4Config{
 					Protocol: "tcp",
@@ -314,6 +345,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      serverSeq,
 					Ack:      clientSeq,
 					Flags:    FlagACK,
+					WindowSize: winSize,
 				},
 			}
 			packetIndex++
@@ -333,7 +365,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					SrcIP:    spec.DstIP,
 					DstIP:    spec.SrcIP,
 					Protocol: 6,
-					TTL:      DefaultTTL,
+					TTL:      effectiveTTL,
+					IPID:     nextIPID(),
 				},
 				L4: core.L4Config{
 					Protocol: "tcp",
@@ -342,6 +375,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      serverSeq,
 					Ack:      clientSeq,
 					Flags:    FlagFIN | FlagACK,
+					WindowSize: winSize,
 				},
 			}
 			packetIndex++
@@ -362,7 +396,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					SrcIP:    spec.SrcIP,
 					DstIP:    spec.DstIP,
 					Protocol: 6,
-					TTL:      DefaultTTL,
+					TTL:      effectiveTTL,
+					IPID:     nextIPID(),
 				},
 				L4: core.L4Config{
 					Protocol: "tcp",
@@ -371,6 +406,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      clientSeq,
 					Ack:      serverSeq,
 					Flags:    FlagACK,
+					WindowSize: winSize,
 				},
 			}
 		}

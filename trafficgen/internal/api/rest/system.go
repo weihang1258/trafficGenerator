@@ -14,11 +14,23 @@ var startTime = time.Now()
 // SystemHandler handles system-related requests.
 type SystemHandler struct {
 	engine *core.Engine
+	db     storageQuerier
+}
+
+// storageQuerier defines the interface needed from storage layer.
+type storageQuerier interface {
+	CountActiveTasks() (int64, error)
+	CountTasksByProtocol() (map[string]int64, error)
 }
 
 // NewSystemHandler creates a new system handler.
 func NewSystemHandler(engine *core.Engine) *SystemHandler {
 	return &SystemHandler{engine: engine}
+}
+
+// SetDB sets the database connection for querying task counts.
+func (h *SystemHandler) SetDB(db storageQuerier) {
+	h.db = db
 }
 
 // GetStatus returns the system status.
@@ -29,9 +41,17 @@ func (h *SystemHandler) GetStatus(c *gin.Context) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
+	// Count active tasks from database
+	var activeTasks int64
+	if h.db != nil {
+		if count, err := h.db.CountActiveTasks(); err == nil {
+			activeTasks = count
+		}
+	}
+
 	Success(c, SystemStatusResponse{
 		Running:      h.engine.IsRunning(),
-		ActiveTasks:  0, // TODO: Count active tasks
+		ActiveTasks:  int(activeTasks),
 		BufferStatus: stats["buffer"].(map[string]interface{}),
 		CpuUsage:     0, // TODO: implement CPU usage calculation
 		MemoryMB:     float64(m.Alloc) / 1024 / 1024,
@@ -51,7 +71,7 @@ func (h *SystemHandler) GetProtocols(c *gin.Context) {
 func (h *SystemHandler) GetStats(c *gin.Context) {
 	engineStats := h.engine.GetStats()
 
-	// 聚合所有任务统计
+	// 聚合所有运行中任务的统计
 	var totalPackets, totalBytes int64
 	var currentPPS, currentBPS float64
 	protocolCount := make(map[string]int64)
@@ -76,6 +96,15 @@ func (h *SystemHandler) GetStats(c *gin.Context) {
 				if protocol, ok := task["protocol"].(string); ok {
 					protocolCount[protocol]++
 				}
+			}
+		}
+	}
+
+	// 补充数据库中所有任务的协议分布（不仅仅是运行中的）
+	if h.db != nil {
+		if dbProtocols, err := h.db.CountTasksByProtocol(); err == nil {
+			for proto, count := range dbProtocols {
+				protocolCount[proto] = count
 			}
 		}
 	}

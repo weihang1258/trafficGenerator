@@ -4,6 +4,7 @@ package core
 import (
 	"encoding/binary"
 	"net"
+	"go.uber.org/zap"
 )
 
 const (
@@ -33,8 +34,9 @@ func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 	// Build L4 (TCP/UDP/ICMP)
 	l4Data := b.buildL4(config)
 
-	// Build L3 (IP)
-	l3Data := b.buildL3(config, len(l4Data))
+	// Build L3 (IP) — payload length includes L4 header + actual payload
+	totalL4Len := len(l4Data) + len(config.Payload)
+	l3Data := b.buildL3(config, totalL4Len)
 
 	// Build L2 (Ethernet)
 	l2Data := b.buildL2(config, len(l3Data)+len(l4Data))
@@ -54,13 +56,19 @@ func (b *Builder) buildL2(config PacketConfig, payloadLen int) []byte {
 	header := make([]byte, 14) // Ethernet header is 14 bytes
 
 	// Destination MAC
-	dstMAC, _ := net.ParseMAC(config.L2.DstMAC)
+	dstMAC, err := net.ParseMAC(config.L2.DstMAC)
+	if err != nil && config.L2.DstMAC != "" {
+		zap.L().Warn("invalid dst MAC address", zap.String("mac", config.L2.DstMAC), zap.Error(err))
+	}
 	if len(dstMAC) == 6 {
 		copy(header[0:6], dstMAC)
 	}
 
 	// Source MAC
-	srcMAC, _ := net.ParseMAC(config.L2.SrcMAC)
+	srcMAC, err2 := net.ParseMAC(config.L2.SrcMAC)
+	if err2 != nil && config.L2.SrcMAC != "" {
+		zap.L().Warn("invalid src MAC address", zap.String("mac", config.L2.SrcMAC), zap.Error(err2))
+	}
 	if len(srcMAC) == 6 {
 		copy(header[6:12], srcMAC)
 	}
@@ -106,8 +114,13 @@ func (b *Builder) buildL3(config PacketConfig, payloadLen int) []byte {
 	totalLen := 20 + payloadLen
 	binary.BigEndian.PutUint16(header[2:4], uint16(totalLen))
 
-	// Identification (can be random)
-	binary.BigEndian.PutUint16(header[4:6], 0x1234)
+	// Identification — use config value or generate deterministic value from seq
+	ipID := config.L3.IPID
+	if ipID == 0 {
+		// Fallback: use lower 16 bits of sequence number for uniqueness
+		ipID = uint16(config.L4.Seq & 0xFFFF)
+	}
+	binary.BigEndian.PutUint16(header[4:6], ipID)
 
 	// Flags and Fragment Offset (don't fragment)
 	binary.BigEndian.PutUint16(header[6:8], 0x4000)
@@ -127,6 +140,9 @@ func (b *Builder) buildL3(config PacketConfig, payloadLen int) []byte {
 
 	// Source IP
 	srcIP := net.ParseIP(config.L3.SrcIP)
+	if srcIP == nil && config.L3.SrcIP != "" {
+		zap.L().Warn("invalid src IP address", zap.String("ip", config.L3.SrcIP))
+	}
 	if srcIP != nil {
 		srcIP = srcIP.To4()
 		if len(srcIP) == 4 {
@@ -136,6 +152,9 @@ func (b *Builder) buildL3(config PacketConfig, payloadLen int) []byte {
 
 	// Destination IP
 	dstIP := net.ParseIP(config.L3.DstIP)
+	if dstIP == nil && config.L3.DstIP != "" {
+		zap.L().Warn("invalid dst IP address", zap.String("ip", config.L3.DstIP))
+	}
 	if dstIP != nil {
 		dstIP = dstIP.To4()
 		if len(dstIP) == 4 {
@@ -185,7 +204,11 @@ func (b *Builder) buildTCP(config PacketConfig) []byte {
 	header[13] = config.L4.Flags
 
 	// Window size
-	binary.BigEndian.PutUint16(header[14:16], 65535)
+	winSize := config.L4.WindowSize
+	if winSize == 0 {
+		winSize = 65535
+	}
+	binary.BigEndian.PutUint16(header[14:16], winSize)
 
 	// Checksum (calculated with pseudo-header)
 	// header[16:18] = 0
@@ -249,6 +272,9 @@ func calculateTCPChecksum(config PacketConfig, header, payload []byte) uint16 {
 
 	// Source IP
 	srcIP := net.ParseIP(config.L3.SrcIP)
+	if srcIP == nil && config.L3.SrcIP != "" {
+		zap.L().Warn("invalid src IP address", zap.String("ip", config.L3.SrcIP))
+	}
 	if srcIP != nil {
 		srcIP = srcIP.To4()
 		if len(srcIP) == 4 {
@@ -258,6 +284,9 @@ func calculateTCPChecksum(config PacketConfig, header, payload []byte) uint16 {
 
 	// Destination IP
 	dstIP := net.ParseIP(config.L3.DstIP)
+	if dstIP == nil && config.L3.DstIP != "" {
+		zap.L().Warn("invalid dst IP address", zap.String("ip", config.L3.DstIP))
+	}
 	if dstIP != nil {
 		dstIP = dstIP.To4()
 		if len(dstIP) == 4 {
@@ -314,6 +343,9 @@ func calculateUDPChecksum(config PacketConfig, payload []byte) uint16 {
 
 	// Source IP
 	srcIP := net.ParseIP(config.L3.SrcIP)
+	if srcIP == nil && config.L3.SrcIP != "" {
+		zap.L().Warn("invalid src IP address", zap.String("ip", config.L3.SrcIP))
+	}
 	if srcIP != nil {
 		srcIP = srcIP.To4()
 		if len(srcIP) == 4 {
@@ -323,6 +355,9 @@ func calculateUDPChecksum(config PacketConfig, payload []byte) uint16 {
 
 	// Destination IP
 	dstIP := net.ParseIP(config.L3.DstIP)
+	if dstIP == nil && config.L3.DstIP != "" {
+		zap.L().Warn("invalid dst IP address", zap.String("ip", config.L3.DstIP))
+	}
 	if dstIP != nil {
 		dstIP = dstIP.To4()
 		if len(dstIP) == 4 {

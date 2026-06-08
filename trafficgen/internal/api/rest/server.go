@@ -22,6 +22,7 @@ type Server struct {
 	engine     *core.Engine
 	db         *storage.DB
 	ifaceMgr   *netif.Manager
+	portSched  *netif.Scheduler
 	httpServer *http.Server
 	router     *gin.Engine
 	wsHandler  *websocket.Handler
@@ -29,7 +30,7 @@ type Server struct {
 }
 
 // NewServer creates a new REST API server.
-func NewServer(cfg *config.Config, engine *core.Engine, wsHandler *websocket.Handler, db *storage.DB, ifaceMgr *netif.Manager) *Server {
+func NewServer(cfg *config.Config, engine *core.Engine, wsHandler *websocket.Handler, db *storage.DB, ifaceMgr *netif.Manager, portSched *netif.Scheduler) *Server {
 	// Initialize JWT manager
 	jwtManager := auth.NewJWTManager(
 		cfg.Auth.JWTSecret,
@@ -37,12 +38,18 @@ func NewServer(cfg *config.Config, engine *core.Engine, wsHandler *websocket.Han
 		time.Duration(cfg.Auth.JWTExpiresIn)*time.Hour,
 	)
 
+	// Inject JWT manager into WebSocket handler for authentication
+	if wsHandler != nil {
+		wsHandler.SetJWTManager(jwtManager)
+	}
+
 	return &Server{
 		config:     cfg,
 		engine:     engine,
 		wsHandler:  wsHandler,
 		db:         db,
 		ifaceMgr:   ifaceMgr,
+		portSched:  portSched,
 		jwtManager: jwtManager,
 	}
 }
@@ -64,7 +71,7 @@ func (s *Server) Setup() error {
 
 	// Add middleware
 	s.router.Use(gin.Recovery())
-	s.router.Use(CORSMiddleware())
+	s.router.Use(CORSMiddleware(s.config.Server.AllowedOrigins))
 	s.router.Use(LoggerMiddleware())
 
 	// Setup routes
@@ -78,9 +85,10 @@ func (s *Server) setupRoutes() {
 	// Create handlers
 	authHandler := NewAuthHandler(s.db, s.jwtManager)
 	strategyHandler := NewStrategyHandler(s.db)
-	taskHandler := NewTaskHandler(s.db, s.engine)
+	taskHandler := NewTaskHandler(s.db, s.engine, s.wsHandler)
 	portGroupHandler := NewPortGroupHandler(s.db)
 	systemHandler := NewSystemHandler(s.engine)
+	systemHandler.SetDB(s.db)
 	settingsHandler := NewSettingsHandler()
 	userHandler := NewUserHandler(s.db)
 
@@ -137,6 +145,7 @@ func (s *Server) setupRoutes() {
 			strategies.POST("", strategyHandler.Create)
 			strategies.GET("", strategyHandler.List)
 			strategies.GET("/:id", strategyHandler.Get)
+				strategies.GET("/:id/tasks", strategyHandler.ListTasks)
 			strategies.PUT("/:id", strategyHandler.Update)
 			strategies.DELETE("/:id", strategyHandler.Delete)
 		}
@@ -227,15 +236,33 @@ func (s *Server) Router() *gin.Engine {
 	return s.router
 }
 
-// CORSMiddleware handles CORS.
-func CORSMiddleware() gin.HandlerFunc {
+// CORSMiddleware handles CORS with origin whitelist validation.
+func CORSMiddleware(allowedOrigins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
-		if origin == "" {
-			origin = "*"
+
+		// Validate origin against allowed list
+		allowed := false
+		if origin != "" {
+			for _, o := range allowedOrigins {
+				if o == origin || o == "*" {
+					allowed = true
+					break
+				}
+			}
 		}
-		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		if !allowed && origin != "" {
+			// Origin not in whitelist - deny CORS but let the request proceed
+			// (browser will block the response anyway)
+			c.Next()
+			return
+		}
+
+		if origin != "" {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 
@@ -283,21 +310,41 @@ func (s *Server) listInterfaces(c *gin.Context) {
 		return
 	}
 
+	// Build a set of interfaces that have active port allocations
+	inUseMap := make(map[string][]PortAllocationBrief)
+	if s.portSched != nil {
+		for _, alloc := range s.portSched.ListAllocations() {
+			brief := PortAllocationBrief{
+				Port:        alloc.Port,
+				TaskID:      alloc.TaskID,
+				AllocatedAt: alloc.AllocatedAt.Format(time.RFC3339),
+			}
+			inUseMap[alloc.Interface] = append(inUseMap[alloc.Interface], brief)
+		}
+	}
+
 	interfaces := s.ifaceMgr.List()
 	result := make([]InterfaceResponse, len(interfaces))
 	for i, iface := range interfaces {
-		ip := ""
-		if len(iface.IPs) > 0 {
-			ip = iface.IPs[0].String()
+		// Collect all IP addresses
+		ips := make([]string, len(iface.IPs))
+		for j, ip := range iface.IPs {
+			ips[j] = ip.String()
 		}
+
+		allocs := inUseMap[iface.Name]
+
 		result[i] = InterfaceResponse{
 			Name:        iface.Name,
 			MAC:         iface.MAC.String(),
-			IP:          ip,
+			IPs:         ips,
 			IsUp:        iface.IsUp,
 			LinkUp:      iface.LinkUp,
 			MTU:         iface.MTU,
 			Description: iface.Description,
+			IsVirtual:   iface.IsVirtual,
+			InUse:       len(allocs) > 0,
+			Allocations: allocs,
 		}
 	}
 

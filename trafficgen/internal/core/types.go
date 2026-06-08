@@ -1,7 +1,10 @@
 // Package core provides core data structures for the traffic generator.
 package core
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Task represents a traffic generation task.
 type Task struct {
@@ -11,10 +14,11 @@ type Task struct {
 	Protocol    string                 `json:"protocol"` // tcp, udp, http, dns, icmp, arp
 	Spec        FlowSpec               `json:"spec"`
 	ClassID     string                 `json:"class_id"`
-	Interface   string                 `json:"interface"` // output interface name
+	Interface   string                 `json:"interface"`  // output interface name
 	OutputMode  string                 `json:"output_mode"` // interface, pcap, both
 	PcapFile    string                 `json:"pcap_file,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Ctx         context.Context        `json:"-"` // per-task context for cancellation
 }
 
 // TaskStatus represents the current status of a task.
@@ -157,13 +161,15 @@ type L3Config struct {
 	DstIP    string `json:"dst_ip"`
 	Protocol uint8  `json:"protocol"` // 1=ICMP, 6=TCP, 17=UDP
 	TTL      uint8  `json:"ttl"`
+	IPID     uint16 `json:"ip_id,omitempty"`
 }
 
 // L4Config for Layer 4 (TCP/UDP).
 type L4Config struct {
-	Protocol string `json:"protocol"` // tcp, udp
-	SrcPort  uint16 `json:"src_port"`
-	DstPort  uint16 `json:"dst_port"`
+	Protocol   string `json:"protocol"` // tcp, udp
+	SrcPort    uint16 `json:"src_port"`
+	DstPort    uint16 `json:"dst_port"`
+	WindowSize uint16 `json:"window_size,omitempty"`
 
 	// TCP specific
 	Seq   uint32 `json:"seq,omitempty"`

@@ -312,6 +312,11 @@ func (tb *TokenBucket) Allow(n int64) bool {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 
+	// rate=0 means no rate limit — always allow
+	if tb.rate == 0 {
+		return true
+	}
+
 	now := time.Now().UnixNano()
 	elapsed := now - tb.lastTime
 	tb.lastTime = now

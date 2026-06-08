@@ -88,11 +88,17 @@
           <task-status-tag v-else :status="row.status" />
         </template>
         <template #error_message="{ row }">
-          <el-tooltip v-if="row.error_message" :content="row.error_message" placement="top">
-            <el-tag type="danger" size="small" effect="light" class="error-tag">
-              {{ row.error_message.length > 20 ? row.error_message.slice(0, 20) + '...' : row.error_message }}
-            </el-tag>
-          </el-tooltip>
+          <el-popover v-if="row.error_message" placement="top" :width="300" trigger="hover">
+            <template #reference>
+              <el-tag type="danger" size="small" class="cursor-pointer">{{ truncate(row.error_message, 30) }}</el-tag>
+            </template>
+            <div style="max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; font-size: 13px;">
+              {{ row.error_message }}
+            </div>
+            <div style="margin-top: 8px;">
+              <router-link :to="`/tasks/${row.id}`" style="font-size: 12px;">View Details →</router-link>
+            </div>
+          </el-popover>
           <span v-else style="color: var(--tg-text-secondary, #94a3b8);">-</span>
         </template>
         <template #progress="{ row }">
@@ -254,6 +260,11 @@ function getStatusText(status: string): string {
   return map[status] || status
 }
 
+function truncate(str: string, len: number) {
+  if (!str) return ''
+  return str.length > len ? str.slice(0, len) + '...' : str
+}
+
 function resetFilters() {
   filters.keyword = ''
   filters.protocol = ''
@@ -353,9 +364,4 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
-.error-tag {
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 </style>

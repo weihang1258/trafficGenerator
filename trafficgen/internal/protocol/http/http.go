@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -72,12 +73,30 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 		}
 
+		transactions := httpConfig.Transactions
+		if transactions <= 0 {
+			transactions = 1
+		}
+
+		// Resolve effective TTL from spec
+		effectiveTTL := spec.TTL
+		if effectiveTTL == 0 {
+			effectiveTTL = DefaultTTL
+		}
+
 		now := time.Now()
 		packetIndex := uint64(0)
+		ipID := uint16(1)
 
 		// Initialize sequence numbers
 		clientSeq := uint32(1000)
 		serverSeq := uint32(2000)
+
+		nextIPID := func() uint16 {
+			id := ipID
+			ipID++
+			return id
+		}
 
 		// TCP Handshake
 		// SYN
@@ -95,14 +114,16 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				SrcIP:    spec.SrcIP,
 				DstIP:    spec.DstIP,
 				Protocol: 6,
-				TTL:      DefaultTTL,
+				TTL:      effectiveTTL,
+				IPID:     nextIPID(),
 			},
 			L4: core.L4Config{
-				Protocol: "tcp",
-				SrcPort:  spec.SrcPort,
-				DstPort:  spec.DstPort,
-				Seq:      clientSeq,
-				Flags:    0x02, // SYN
+				Protocol:   "tcp",
+				SrcPort:    spec.SrcPort,
+				DstPort:    spec.DstPort,
+				Seq:        clientSeq,
+				Flags:      0x02, // SYN
+				WindowSize: 65535,
 			},
 		}
 		packetIndex++
@@ -123,21 +144,23 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				SrcIP:    spec.DstIP,
 				DstIP:    spec.SrcIP,
 				Protocol: 6,
-				TTL:      DefaultTTL,
+				TTL:      effectiveTTL,
+				IPID:     nextIPID(),
 			},
 			L4: core.L4Config{
-				Protocol: "tcp",
-				SrcPort:  spec.DstPort,
-				DstPort:  spec.SrcPort,
-				Seq:      serverSeq,
-				Ack:      clientSeq,
-				Flags:    0x12, // SYN-ACK
+				Protocol:   "tcp",
+				SrcPort:    spec.DstPort,
+				DstPort:    spec.SrcPort,
+				Seq:        serverSeq,
+				Ack:        clientSeq,
+				Flags:      0x12, // SYN-ACK
+				WindowSize: 65535,
 			},
 		}
 		packetIndex++
 		serverSeq++
 
-		// ACK
+		// ACK (completes 3-way handshake)
 		configChan <- core.PacketConfig{
 			FlowID:      flowID,
 			PacketIndex: packetIndex,
@@ -152,80 +175,89 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				SrcIP:    spec.SrcIP,
 				DstIP:    spec.DstIP,
 				Protocol: 6,
-				TTL:      DefaultTTL,
+				TTL:      effectiveTTL,
+				IPID:     nextIPID(),
 			},
 			L4: core.L4Config{
-				Protocol: "tcp",
-				SrcPort:  spec.SrcPort,
-				DstPort:  spec.DstPort,
-				Seq:      clientSeq,
-				Ack:      serverSeq,
-				Flags:    0x10, // ACK
+				Protocol:   "tcp",
+				SrcPort:    spec.SrcPort,
+				DstPort:    spec.DstPort,
+				Seq:        clientSeq,
+				Ack:        serverSeq,
+				Flags:      0x10, // ACK
+				WindowSize: 65535,
 			},
 		}
 		packetIndex++
 
-		// HTTP Request
-		request := buildHTTPRequest(httpConfig)
-		configChan <- core.PacketConfig{
-			FlowID:      flowID,
-			PacketIndex: packetIndex,
-			Direction:   "up",
-			Timestamp:   now,
-			L2: core.L2Config{
-				SrcMAC:    spec.SrcMAC,
-				DstMAC:    spec.DstMAC,
-				EtherType: 0x0800,
-			},
-			L3: core.L3Config{
-				SrcIP:    spec.SrcIP,
-				DstIP:    spec.DstIP,
-				Protocol: 6,
-				TTL:      DefaultTTL,
-			},
-			L4: core.L4Config{
-				Protocol: "tcp",
-				SrcPort:  spec.SrcPort,
-				DstPort:  spec.DstPort,
-				Seq:      clientSeq,
-				Ack:      serverSeq,
-				Flags:    0x18, // PSH-ACK
-			},
-			Payload: []byte(request),
-		}
-		packetIndex++
-		clientSeq += uint32(len(request))
+		// HTTP Transactions (keep-alive: multiple request/response pairs in one TCP connection)
+		for i := 0; i < transactions; i++ {
+			// HTTP Request
+			request := buildHTTPRequest(httpConfig)
+			configChan <- core.PacketConfig{
+				FlowID:      flowID,
+				PacketIndex: packetIndex,
+				Direction:   "up",
+				Timestamp:   now,
+				L2: core.L2Config{
+					SrcMAC:    spec.SrcMAC,
+					DstMAC:    spec.DstMAC,
+					EtherType: 0x0800,
+				},
+				L3: core.L3Config{
+					SrcIP:    spec.SrcIP,
+					DstIP:    spec.DstIP,
+					Protocol: 6,
+					TTL:      effectiveTTL,
+					IPID:     nextIPID(),
+				},
+				L4: core.L4Config{
+					Protocol:   "tcp",
+					SrcPort:    spec.SrcPort,
+					DstPort:    spec.DstPort,
+					Seq:        clientSeq,
+					Ack:        serverSeq,
+					Flags:      0x18, // PSH-ACK
+					WindowSize: 65535,
+				},
+				Payload: []byte(request),
+			}
+			packetIndex++
+			clientSeq += uint32(len(request))
 
-		// HTTP Response
-		response := buildHTTPResponse(httpConfig)
-		configChan <- core.PacketConfig{
-			FlowID:      flowID,
-			PacketIndex: packetIndex,
-			Direction:   "down",
-			Timestamp:   now,
-			L2: core.L2Config{
-				SrcMAC:    spec.DstMAC,
-				DstMAC:    spec.SrcMAC,
-				EtherType: 0x0800,
-			},
-			L3: core.L3Config{
-				SrcIP:    spec.DstIP,
-				DstIP:    spec.SrcIP,
-				Protocol: 6,
-				TTL:      DefaultTTL,
-			},
-			L4: core.L4Config{
-				Protocol: "tcp",
-				SrcPort:  spec.DstPort,
-				DstPort:  spec.SrcPort,
-				Seq:      serverSeq,
-				Ack:      clientSeq,
-				Flags:    0x18, // PSH-ACK
-			},
-			Payload: []byte(response),
+			// HTTP Response
+			response := buildHTTPResponse(httpConfig)
+			configChan <- core.PacketConfig{
+				FlowID:      flowID,
+				PacketIndex: packetIndex,
+				Direction:   "down",
+				Timestamp:   now,
+				L2: core.L2Config{
+					SrcMAC:    spec.DstMAC,
+					DstMAC:    spec.SrcMAC,
+					EtherType: 0x0800,
+				},
+				L3: core.L3Config{
+					SrcIP:    spec.DstIP,
+					DstIP:    spec.SrcIP,
+					Protocol: 6,
+					TTL:      effectiveTTL,
+					IPID:     nextIPID(),
+				},
+				L4: core.L4Config{
+					Protocol:   "tcp",
+					SrcPort:    spec.DstPort,
+					DstPort:    spec.SrcPort,
+					Seq:        serverSeq,
+					Ack:        clientSeq,
+					Flags:      0x18, // PSH-ACK
+					WindowSize: 65535,
+				},
+				Payload: []byte(response),
+			}
+			packetIndex++
+			serverSeq += uint32(len(response))
 		}
-		packetIndex++
-		serverSeq += uint32(len(response))
 
 		// TCP Termination (FIN, ACK, FIN, ACK)
 		// FIN (client)
@@ -243,21 +275,23 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				SrcIP:    spec.SrcIP,
 				DstIP:    spec.DstIP,
 				Protocol: 6,
-				TTL:      DefaultTTL,
+				TTL:      effectiveTTL,
+				IPID:     nextIPID(),
 			},
 			L4: core.L4Config{
-				Protocol: "tcp",
-				SrcPort:  spec.SrcPort,
-				DstPort:  spec.DstPort,
-				Seq:      clientSeq,
-				Ack:      serverSeq,
-				Flags:    0x11, // FIN-ACK
+				Protocol:   "tcp",
+				SrcPort:    spec.SrcPort,
+				DstPort:    spec.DstPort,
+				Seq:        clientSeq,
+				Ack:        serverSeq,
+				Flags:      0x11, // FIN-ACK
+				WindowSize: 65535,
 			},
 		}
 		packetIndex++
 		clientSeq++
 
-		// ACK (server)
+		// ACK (server acknowledges client FIN)
 		configChan <- core.PacketConfig{
 			FlowID:      flowID,
 			PacketIndex: packetIndex,
@@ -272,15 +306,17 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				SrcIP:    spec.DstIP,
 				DstIP:    spec.SrcIP,
 				Protocol: 6,
-				TTL:      DefaultTTL,
+				TTL:      effectiveTTL,
+				IPID:     nextIPID(),
 			},
 			L4: core.L4Config{
-				Protocol: "tcp",
-				SrcPort:  spec.DstPort,
-				DstPort:  spec.SrcPort,
-				Seq:      serverSeq,
-				Ack:      clientSeq,
-				Flags:    0x10, // ACK
+				Protocol:   "tcp",
+				SrcPort:    spec.DstPort,
+				DstPort:    spec.SrcPort,
+				Seq:        serverSeq,
+				Ack:        clientSeq,
+				Flags:      0x10, // ACK
+				WindowSize: 65535,
 			},
 		}
 		packetIndex++
@@ -300,21 +336,23 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				SrcIP:    spec.DstIP,
 				DstIP:    spec.SrcIP,
 				Protocol: 6,
-				TTL:      DefaultTTL,
+				TTL:      effectiveTTL,
+				IPID:     nextIPID(),
 			},
 			L4: core.L4Config{
-				Protocol: "tcp",
-				SrcPort:  spec.DstPort,
-				DstPort:  spec.SrcPort,
-				Seq:      serverSeq,
-				Ack:      clientSeq,
-				Flags:    0x11, // FIN-ACK
+				Protocol:   "tcp",
+				SrcPort:    spec.DstPort,
+				DstPort:    spec.SrcPort,
+				Seq:        serverSeq,
+				Ack:        clientSeq,
+				Flags:      0x11, // FIN-ACK
+				WindowSize: 65535,
 			},
 		}
 		packetIndex++
 		serverSeq++
 
-		// ACK (client)
+		// ACK (client acknowledges server FIN)
 		configChan <- core.PacketConfig{
 			FlowID:      flowID,
 			PacketIndex: packetIndex,
@@ -329,15 +367,17 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				SrcIP:    spec.SrcIP,
 				DstIP:    spec.DstIP,
 				Protocol: 6,
-				TTL:      DefaultTTL,
+				TTL:      effectiveTTL,
+				IPID:     nextIPID(),
 			},
 			L4: core.L4Config{
-				Protocol: "tcp",
-				SrcPort:  spec.SrcPort,
-				DstPort:  spec.DstPort,
-				Seq:      clientSeq,
-				Ack:      serverSeq,
-				Flags:    0x10, // ACK
+				Protocol:   "tcp",
+				SrcPort:    spec.SrcPort,
+				DstPort:    spec.DstPort,
+				Seq:        clientSeq,
+				Ack:        serverSeq,
+				Flags:      0x10, // ACK
+				WindowSize: 65535,
 			},
 		}
 	}()
@@ -376,10 +416,16 @@ func buildHTTPRequest(config *core.HTTPConfig) string {
 
 // buildHTTPResponse builds an HTTP response string.
 func buildHTTPResponse(config *core.HTTPConfig) string {
-	response := "HTTP/1.1 200 OK\r\n"
-	response += "Content-Type: text/plain\r\n"
-	response += "Content-Length: 2\r\n"
-	response += "\r\n"
-	response += "OK"
-	return response
+	body := "OK"
+
+	var sb strings.Builder
+	sb.WriteString("HTTP/1.1 200 OK\r\n")
+	sb.WriteString("Content-Type: text/plain\r\n")
+	sb.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(body)))
+	if config.KeepAlive {
+		sb.WriteString("Connection: keep-alive\r\n")
+	}
+	sb.WriteString("\r\n")
+	sb.WriteString(body)
+	return sb.String()
 }
