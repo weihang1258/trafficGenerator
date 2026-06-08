@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import type { ComputedRef, Reactive } from 'vue'
+import type { ComputedRef } from 'vue'
 
 export interface FilterFieldDef {
   /** Key matching filters[key] */
@@ -20,13 +20,20 @@ export interface ActiveFilterEntry {
 }
 
 /**
- * Computes active filter entries from a filters reactive object + field definitions.
+ * Computes active filter entries from a filters object + field definitions.
  * Each entry provides display info and an onClear callback.
  * Used by ProFilterBar for active-tag rendering.
+ *
+ * onClearFilter: called when a single filter key should be cleared; parent
+ *   must perform the actual mutation since the filters object may be readonly
+ *   (Vue props or computed).
+ * onReset: called when all filters should be cleared; parent must perform
+ *   the actual mutations.
  */
 export function useActiveFilters(
-  filters: Reactive<Record<string, any>>,
+  filters: Record<string, any>,
   fieldDefs: FilterFieldDef[],
+  onClearFilter: (key: string) => void,
   onReset: () => void
 ): {
   activeEntries: ComputedRef<ActiveFilterEntry[]>
@@ -39,20 +46,24 @@ export function useActiveFilters(
     return false
   }
 
+  const getEmptyValue = (def: FilterFieldDef): any => {
+    if (def.emptyValue !== undefined) return def.emptyValue
+    const rawValue = filters[def.key]
+    return Array.isArray(rawValue) ? [] : ''
+  }
+
   const activeEntries = computed<ActiveFilterEntry[]>(() => {
     return fieldDefs
       .filter(def => !isEmptyValue(filters[def.key]))
       .map(def => {
         const rawValue = filters[def.key]
         const displayValue = def.valueFormatter ? def.valueFormatter(rawValue) : String(rawValue)
-        const emptyVal = def.emptyValue !== undefined ? def.emptyValue : (Array.isArray(rawValue) ? [] : '')
         return {
           key: def.key,
           label: def.label,
           value: displayValue,
           onClear: () => {
-            filters[def.key] = emptyVal
-            onReset()
+            onClearFilter(def.key)
           }
         }
       })
@@ -61,10 +72,6 @@ export function useActiveFilters(
   const hasActiveFilters = computed(() => activeEntries.value.length > 0)
 
   const resetFilters = () => {
-    for (const def of fieldDefs) {
-      const emptyVal = def.emptyValue !== undefined ? def.emptyValue : (Array.isArray(filters[def.key]) ? [] : '')
-      filters[def.key] = emptyVal
-    }
     onReset()
   }
 

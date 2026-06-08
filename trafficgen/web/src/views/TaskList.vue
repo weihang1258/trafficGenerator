@@ -26,6 +26,7 @@
         :filters="filters"
         :field-defs="filterFieldDefs"
         @reset="resetFilters"
+        @clear-filter="handleClearFilter"
       >
         <el-input
           v-model="filters.keyword"
@@ -258,6 +259,14 @@ function resetFilters() {
   filters.protocol = ''
   filters.status = ''
   pagination.page = 1
+  loadTasks()
+}
+
+function handleClearFilter(key: string) {
+  const emptyValues: Record<string, any> = { keyword: '', protocol: '', status: '' }
+  if (key in emptyValues) {
+    filters[key as keyof typeof filters] = emptyValues[key]
+  }
   loadTasks()
 }
 

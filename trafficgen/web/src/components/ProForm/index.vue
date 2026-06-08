@@ -29,7 +29,7 @@ const props = withDefaults(defineProps<ProFormProps>(), {
 })
 
 const formRef = ref<FormInstance>()
-const formDirty = useFormDirty(() => props.model)
+const formDirty = useFormDirty(props.model)
 
 // Expose methods for parent components
 defineExpose({

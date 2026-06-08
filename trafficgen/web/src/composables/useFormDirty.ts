@@ -65,15 +65,17 @@ export function useFormDirty<T extends object>(source: T | import('vue').Ref<T>)
     }
   }
 
-  // Watch for changes
+  // Watch for changes - use deep watch on the source object
+  // The getter returns the source so Vue can track its reactive properties
   const stopWatch = watch(
-    () => serialize(source as T),
-    (newJson) => {
+    () => source,
+    () => {
       if (snapshotJson) {
-        isDirty.value = newJson !== snapshotJson
+        const currentJson = serialize(source as T)
+        isDirty.value = currentJson !== snapshotJson
       }
     },
-    { deep: false } // We handle depth ourselves via serialize
+    { deep: true }
   )
 
   onBeforeUnmount(() => {

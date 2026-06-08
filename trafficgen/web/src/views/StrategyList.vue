@@ -29,6 +29,7 @@
         :field-defs="filterFieldDefs"
         filter-id="strategy-list"
         @reset="resetFilters"
+        @clear-filter="handleClearFilter"
       >
         <el-input v-model="filters.search" :placeholder="t('strategy.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="loadStrategies" @clear="loadStrategies">
           <template #prefix><el-icon><Search /></el-icon></template>
@@ -57,7 +58,7 @@
               <div v-if="strategyTasks.length > 0" class="task-popover-list">
                 <div v-for="task in strategyTasks" :key="task.id" class="task-popover-item">
                   <router-link :to="`/tasks/${task.id}`" class="task-popover-name">{{ task.name }}</router-link>
-                  <el-tag size="small" :type="taskStatusType(task.status)">{{ task.status }}</el-tag>
+                  <el-tag size="small" :type="TASK_STATUS_TYPE[task.status]">{{ task.status }}</el-tag>
                 </div>
               </div>
               <div v-else class="task-popover-empty">{{ t('common.noData') }}</div>
@@ -465,6 +466,7 @@ import ProDialog from '@/components/ProDialog/index.vue'
 import ProDrawer from '@/components/ProDrawer/index.vue'
 import ValueStrategySelector, { type StrategyValue } from '@/components/ValueStrategySelector/index.vue'
 import { formatTimestamp } from '@/utils/format'
+import { TASK_STATUS_TYPE } from '@/constants/status'
 import type { FilterFieldDef } from '@/composables/useActiveFilters'
 
 const STORAGE_KEY = 'strategy-list-state'
@@ -839,6 +841,13 @@ const filteredStrategies = computed(() => {
 
 function resetFilters() { filters.search = ''; filters.protocol = []; pagination.page = 1 }
 
+function handleClearFilter(key: string) {
+  const emptyValues: Record<string, any> = { search: '', protocol: [] }
+  if (key in emptyValues) {
+    filters[key as keyof typeof filters] = emptyValues[key]
+  }
+}
+
 async function handleBulkDelete() {
   await batchDelete.execute(selectedStrategies.value)
   clearSelection(proTableRef.value)
@@ -852,13 +861,6 @@ async function handleDelete(id: string) { try { await ElMessageBox.confirm(t('st
 function handleAction(cmd: string, s: Strategy) { if (cmd === 'detail') openDrawer(s); else if (cmd === 'clone') cloneStrategy(s); else if (cmd === 'delete') handleDelete(s.id) }
 
 async function loadStrategies() { await refresh() }
-
-function taskStatusType(status: string): 'success' | 'warning' | 'danger' | 'info' {
-  if (status === 'completed') return 'success'
-  if (status === 'running') return 'warning'
-  if (status === 'failed' || status === 'error') return 'danger'
-  return 'info'
-}
 
 async function loadStrategyTasks(strategyId: string) {
   taskPopoverLoading.value = true

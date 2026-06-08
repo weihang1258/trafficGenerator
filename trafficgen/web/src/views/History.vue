@@ -21,6 +21,7 @@
         :filters="filters"
         :field-defs="filterFieldDefs"
         @reset="resetFilters"
+        @clear-filter="handleClearFilter"
       >
         <el-button-group size="small">
           <el-button :type="quickRange === 'today' ? 'primary' : ''" @click="setQuickRange('today')">
@@ -130,8 +131,8 @@ const filters = computed(() => ({
 }))
 
 const filterFieldDefs = [
-  { key: 'quickRange', label: t('history.range'), emptyValue: '' },
-  { key: 'status', label: t('task.status'), emptyValue: '' }
+  { key: 'quickRange', label: t('history.range'), emptyValue: '', valueFormatter: (v: string) => getRangeLabel(v) },
+  { key: 'status', label: t('task.status'), emptyValue: '', valueFormatter: (v: string) => getStatusText(v) }
 ]
 
 function getStatusText(status: string): string {
@@ -223,6 +224,16 @@ function resetFilters() {
   quickRange.value = '7d'
   dateRange.value = null
   statusFilter.value = ''
+  refresh()
+}
+
+function handleClearFilter(key: string) {
+  if (key === 'quickRange') {
+    quickRange.value = '7d'
+    dateRange.value = null
+  } else if (key === 'status') {
+    statusFilter.value = ''
+  }
   refresh()
 }
 

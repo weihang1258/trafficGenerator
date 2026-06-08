@@ -8,4 +8,5 @@ export interface ProFilterBarProps {
 
 export interface ProFilterBarEmits {
   (e: 'reset'): void
+  (e: 'clear-filter', key: string): void
 }

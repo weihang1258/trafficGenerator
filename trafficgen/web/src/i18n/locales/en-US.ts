@@ -232,6 +232,7 @@ export default {
     polling: 'Polling',
     disconnected: 'Disconnected',
     error: 'Error',
+    outputType: 'Output Type',
     step: {
       basic: 'Basic Info',
       strategy: 'Select Strategy',
@@ -539,7 +540,8 @@ export default {
     custom: 'Custom',
     noHistory: 'No history',
     noRecords: 'No records',
-    to: 'to'
+    to: 'to',
+    range: 'Time Range'
   },
 
   // Settings
@@ -562,7 +564,7 @@ export default {
     maxTasksHint: 'Maximum concurrent task count (recommended: 50-200)',
     maxTasksRequired: 'Please enter max tasks',
     bufferSize: 'Buffer Size',
-    bufferSizeHint: 'Packet buffer size in bytes (recommended: 2048-8192)',
+    bufferSizeHint: 'Packet buffer size in packets (recommended: 2048-8192)',
     bufferSizeRequired: 'Please enter buffer size',
     workerCount: 'Worker Count',
     save: 'Save',

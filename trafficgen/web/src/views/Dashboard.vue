@@ -206,7 +206,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   List, MessageBox, TrendCharts, Odometer, Refresh
 } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import { PieChart, LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+
+echarts.use([PieChart, LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 import { taskApi, systemApi, strategyApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import { formatNumber, formatBps, formatUptime, formatDuration } from '@/utils/format'

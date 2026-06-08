@@ -545,7 +545,8 @@ export default {
     custom: '自定义',
     noHistory: '暂无历史记录',
     noRecords: '暂无记录',
-    to: '至'
+    to: '至',
+    range: '时间范围'
   },
 
   // 系统设置
@@ -568,7 +569,7 @@ export default {
     maxTasksHint: '最大并发任务数量（推荐值: 50-200）',
     maxTasksRequired: '请输入最大任务数',
     bufferSize: '缓冲区大小',
-    bufferSizeHint: '数据包缓冲区大小（字节，推荐值: 2048-8192）',
+    bufferSizeHint: '数据包缓冲区大小（包数，推荐值: 2048-8192）',
     bufferSizeRequired: '请输入缓冲区大小',
     workerCount: 'Worker 数量',
     save: '保存',

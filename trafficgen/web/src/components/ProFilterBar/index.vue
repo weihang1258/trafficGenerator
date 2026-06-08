@@ -23,19 +23,22 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useActiveFilters, type FilterFieldDef } from '@/composables/useActiveFilters'
-import type { ProFilterBarProps, ProFilterBarEmits } from './types'
+import type { ProFilterBarProps } from './types'
 
 const props = withDefaults(defineProps<ProFilterBarProps>(), {
   fieldDefs: () => [],
   filterId: ''
 })
 
-const emit = defineEmits<ProFilterBarEmits>()
-const { t } = useI18n()
+const emit = defineEmits<{
+  (e: 'reset'): void
+  (e: 'clear-filter', key: string): void
+}>()
 
 const { activeEntries, hasActiveFilters, resetFilters } = useActiveFilters(
-  props.filters as any,
+  props.filters,
   props.fieldDefs,
+  (key: string) => emit('clear-filter', key),
   () => emit('reset')
 )
 </script>
