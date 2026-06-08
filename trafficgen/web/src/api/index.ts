@@ -51,10 +51,17 @@ request.interceptors.response.use(
           ElMessage.error(serverMsg || t('error.badRequest'))
           break
         case 401:
-          ElMessage.error(t('error.unauthorized'))
-          localStorage.removeItem('token')
-          localStorage.removeItem('token_expires_at')
-          window.location.href = '/login'
+          // Don't redirect on auth pages — let the component handle the error
+          const isAuthRequest = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/register')
+          if (!isAuthRequest) {
+            ElMessage.error(t('error.unauthorized'))
+            localStorage.removeItem('token')
+            localStorage.removeItem('token_expires_at')
+            // Use router push instead of hard redirect to preserve Vue state
+            import('@/router').then(({ default: router }) => {
+              router.push('/login')
+            })
+          }
           break
         case 403:
           ElMessage.error(t('error.forbidden'))

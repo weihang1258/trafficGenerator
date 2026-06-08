@@ -71,11 +71,13 @@ export function useServerList<T>(options: UseServerListOptions<T>): {
   const handleSortChange = (sort: { prop: string; order: string }) => {
     sortState.prop = sort.prop
     sortState.order = sort.order
+    refresh()
   }
 
   const handlePageChange = (page: number, pageSize: number) => {
     pagination.page = page
     pagination.pageSize = pageSize
+    refresh()
   }
 
   return {

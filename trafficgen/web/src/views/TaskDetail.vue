@@ -180,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -196,6 +196,7 @@ import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import ConnectionIndicator from '@/components/ConnectionIndicator.vue'
 import { useTaskWebSocket } from '@/composables/useTaskWebSocket'
 import { useServerList } from '@/composables/useServerList'
+import { getProgressStatus } from '@/constants/status'
 import { formatBytes, formatNumber, formatPps, formatBps, formatTaskDuration, formatTimestamp } from '@/utils/format'
 
 const route = useRoute()
@@ -219,18 +220,20 @@ const { loading, data: taskList, refresh } = useServerList<Task>({
   defaultPageSize: 1
 })
 
-const task = computed(() => taskList.value[0] || ({} as Task))
+// Use reactive object instead of computed so WebSocket updates can merge in
+const task = reactive<Record<string, any>>({})
+
+// When useServerList data loads, merge it into task
+watch(() => taskList.value[0], (apiTask) => {
+  if (apiTask) {
+    Object.assign(task, apiTask)
+  }
+}, { immediate: true })
+
 const throughputHistory = ref<Array<{ time: string; pps: number; bps: number }>>([])
 const errorState = ref<string | null>(null)
 const chartInstance = ref<echarts.ECharts | null>(null)
 
-
-function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {
-  if (status === 'completed') return 'success'
-  if (status === 'failed') return 'exception'
-  if (status === 'stopped') return 'warning'
-  return ''
-}
 
 function initChart() {
   if (!chartRef.value) return
@@ -277,12 +280,12 @@ async function loadTaskData(showLoading = true) {
   if (disposed) return
   await refresh()
   if (disposed) return
-  const t = task.value
-  if (t.stats?.current_pps || t.stats?.current_bps) {
+  // task is a reactive object, access directly
+  if (task.stats?.current_pps || task.stats?.current_bps) {
     throughputHistory.value.push({
       time: new Date().toLocaleTimeString(),
-      pps: t.stats.current_pps || 0,
-      bps: t.stats.current_bps || 0
+      pps: task.stats.current_pps || 0,
+      bps: task.stats.current_bps || 0
     })
     if (throughputHistory.value.length > 30) {
       throughputHistory.value = throughputHistory.value.slice(-30)
@@ -308,7 +311,7 @@ async function loadTask(showLoading = true) {
 
 async function handleStart() {
   try {
-    await taskApi.start(task.value.id)
+    await taskApi.start(task.id)
     ElMessage.success(t('task.startSuccess'))
     loadTask()
     scheduleRefresh()
@@ -320,7 +323,7 @@ async function handleStart() {
 async function handleStop() {
   try {
     await ElMessageBox.confirm(t('task.stopConfirm'), t('task.stop'), { type: 'warning' })
-    await taskApi.stop(task.value.id)
+    await taskApi.stop(task.id)
     ElMessage.success(t('task.stopSuccess'))
     loadTask()
   } catch (error) {
@@ -334,11 +337,11 @@ async function handleStop() {
 async function handleDelete() {
   try {
     await ElMessageBox.confirm(
-      t('task.deleteConfirm', { name: task.value.name }),
+      t('task.deleteConfirm', { name: task.name }),
       t('task.delete'),
       { type: 'warning' }
     )
-    await taskApi.delete(task.value.id)
+    await taskApi.delete(task.id)
     ElMessage.success(t('task.deleteSuccess'))
     router.push('/tasks')
   } catch (error) {
@@ -357,26 +360,26 @@ let disposed = false
 function scheduleRefresh() {
   if (disposed) return
   const terminalStatuses = ['completed', 'stopped', 'failed', 'error']
-  if (terminalStatuses.includes(task.value.status)) return
+  if (terminalStatuses.includes(task.status)) return
   refreshTimer = window.setTimeout(async () => {
     if (disposed) return
-    if (task.value.status === 'running') {
+    if (task.status === 'running') {
       await loadTask(false)
     }
     scheduleRefresh()
   }, 5000)
 }
 
-// Merge WebSocket real-time data into task
+// Merge WebSocket real-time data into task (reactive object allows mutation)
 watch(wsProgress, (val) => {
-  if (val > 0 && task.value.status === 'running') {
-    task.value.progress = val
+  if (val > 0 && task.status === 'running') {
+    task.progress = val
   }
 })
 
 watch(wsStats, (val) => {
-  if (val && task.value.status === 'running') {
-    task.value.stats = { ...task.value.stats, ...val }
+  if (val && task.status === 'running') {
+    task.stats = { ...task.stats, ...val }
     // Append to throughput history
     throughputHistory.value.push({
       time: new Date().toLocaleTimeString(),

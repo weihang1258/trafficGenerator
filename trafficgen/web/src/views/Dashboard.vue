@@ -17,7 +17,7 @@
             <el-icon :size="20"><List /></el-icon>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ stats.activeTasks || '--' }}</div>
+            <div class="stat-value">{{ stats.activeTasks != null ? stats.activeTasks : '--' }}</div>
             <div class="stat-label">{{ t('dashboard.activeTasks') }}</div>
           </div>
         </div>
@@ -28,7 +28,7 @@
             <el-icon :size="20"><MessageBox /></el-icon>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ stats.packetsSent ? formatNumber(stats.packetsSent) : '--' }}</div>
+            <div class="stat-value">{{ stats.packetsSent != null ? formatNumber(stats.packetsSent) : '--' }}</div>
             <div class="stat-label">{{ t('dashboard.packetsSent') }}</div>
           </div>
         </div>
@@ -39,7 +39,7 @@
             <el-icon :size="20"><TrendCharts /></el-icon>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ stats.throughputBps ? formatBps(stats.throughputBps) : '--' }}</div>
+            <div class="stat-value">{{ stats.throughputBps != null ? formatBps(stats.throughputBps) : '--' }}</div>
             <div class="stat-label">{{ t('dashboard.throughput') }}</div>
           </div>
         </div>
@@ -50,7 +50,7 @@
             <el-icon :size="20"><Odometer /></el-icon>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ stats.currentPps ? formatNumber(stats.currentPps) + '/s' : '--' }}</div>
+            <div class="stat-value">{{ stats.currentPps != null ? formatNumber(stats.currentPps) + '/s' : '--' }}</div>
             <div class="stat-label">{{ t('dashboard.packetRate') }}</div>
           </div>
         </div>
@@ -152,12 +152,12 @@
         </el-table-column>
         <el-table-column :label="t('dashboard.packetsSent')" width="100">
           <template #default="{ row }">
-            {{ row.stats?.packets_sent ? formatNumber(row.stats.packets_sent) : '--' }}
+            {{ row.stats?.packets_sent != null ? formatNumber(row.stats.packets_sent) : '--' }}
           </template>
         </el-table-column>
         <el-table-column :label="t('dashboard.throughput')" width="120">
           <template #default="{ row }">
-            {{ row.stats?.current_bps ? formatBps(row.stats.current_bps) : '--' }}
+            {{ row.stats?.current_bps != null ? formatBps(row.stats.current_bps) : '--' }}
           </template>
         </el-table-column>
         <el-table-column :label="t('task.progress')" width="110">
@@ -367,7 +367,7 @@ async function loadDashboardData() {
 
     if (statusRes.data) {
       const d = statusRes.data as any
-      stats.activeTasks = d.active_tasks || 0
+      stats.activeTasks = d.active_tasks ?? 0
       resources.cpu = Math.round(Number(d.cpu_usage) || 0)
       resources.memoryMb = Number(d.memory_mb) || 0
       resources.memoryTotalMb = Number(d.memory_total_mb) || 0
@@ -380,9 +380,9 @@ async function loadDashboardData() {
 
     if (statsRes.data) {
       const d = statsRes.data as any
-      stats.packetsSent = d.packets_sent || 0
-      stats.throughputBps = d.current_bps || 0
-      stats.currentPps = d.current_pps || 0
+      stats.packetsSent = d.packets_sent ?? 0
+      stats.throughputBps = d.current_bps ?? 0
+      stats.currentPps = d.current_pps ?? 0
 
       recordThroughput(d.current_bps || 0)
       updateCharts()
