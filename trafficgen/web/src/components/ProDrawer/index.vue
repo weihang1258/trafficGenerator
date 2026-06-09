@@ -6,6 +6,7 @@
     :direction="direction"
     :destroy-on-close="destroyOnClose"
     :before-close="handleBeforeClose"
+    @closed="handleClosed"
   >
     <slot />
     <template #footer>
@@ -71,5 +72,9 @@ async function handleBeforeClose(done: () => void) {
   } catch {
     // User cancelled
   }
+}
+
+function handleClosed() {
+  emit('update:visible', false)
 }
 </script>

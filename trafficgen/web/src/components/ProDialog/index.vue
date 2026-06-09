@@ -64,6 +64,7 @@ async function handleBeforeClose(done: () => void) {
 }
 
 function handleClosed() {
+  emit('update:visible', false)
   emit('closed')
 }
 </script>

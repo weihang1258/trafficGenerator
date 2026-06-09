@@ -17,7 +17,7 @@
     >
       <template #empty>
         <slot name="empty">
-          <el-empty :description="emptyText" />
+          <el-empty :description="emptyText || t('common.noData')" />
         </slot>
       </template>
     </el-table-v2>
@@ -81,7 +81,7 @@
 
       <template #empty>
         <slot name="empty">
-          <el-empty :description="emptyText" />
+          <el-empty :description="emptyText || t('common.noData')" />
         </slot>
       </template>
     </el-table>
@@ -186,7 +186,7 @@ const props = withDefaults(defineProps<{
   stripe: true,
   border: true,
   size: 'default',
-  emptyText: 'No Data',
+  emptyText: '',
   tableId: 'default',
   virtualScroll: false,
   virtualThreshold: 200

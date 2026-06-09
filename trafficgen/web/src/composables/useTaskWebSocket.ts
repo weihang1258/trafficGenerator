@@ -1,4 +1,5 @@
 import { ref, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { createWebSocket } from '@/utils/websocket'
 import type { Task, TaskStats } from '@/api'
 
@@ -19,6 +20,7 @@ interface WSTaskEventData {
 }
 
 export function useTaskWebSocket() {
+  const { t } = useI18n()
   const connected = ref(false)
   const taskStatus = ref<Task | null>(null)
   const progress = ref<number>(0)
@@ -64,7 +66,7 @@ export function useTaskWebSocket() {
 
   // Handle errors
   ws.onError(() => {
-    error.value = 'WebSocket connection error'
+    error.value = t('error.networkError')
   })
 
   // Handle status updates (task status changed)
@@ -107,7 +109,7 @@ export function useTaskWebSocket() {
       await ws.connect()
     } catch (err) {
       console.error('[TaskWebSocket] Connect failed:', err)
-      error.value = 'Failed to connect to WebSocket'
+      error.value = t('error.networkError')
     }
   }
 

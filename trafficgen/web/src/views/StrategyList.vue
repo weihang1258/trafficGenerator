@@ -489,10 +489,10 @@ const { loading, data: strategies, sortState, refresh, handleSortChange } = useC
 })
 
 // Selection composable (replaces selectedStrategies, handleSelectionChange, clearSelection)
-const { selectedItems: selectedStrategies, handleSelectionChange, clearSelection } = useSelection<any>()
+const { selectedItems: selectedStrategies, handleSelectionChange, clearSelection } = useSelection<Strategy>()
 
 // Batch action composable (replaces handleBulkDelete inline)
-const batchDelete = useBatchAction<any>({
+const batchDelete = useBatchAction<Strategy>({
   action: (strategy) => strategyApi.delete(strategy.id),
   confirmMessage: (count) => t('strategy.confirmBulkDelete', { count }),
   successMessage: (count) => t('strategy.bulkDeleted', { count }),
