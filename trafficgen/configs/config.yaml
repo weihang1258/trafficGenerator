@@ -32,8 +32,8 @@ redis:
 # Engine configuration
 engine:
   config_workers: 4
-  packet_workers: 8
-  output_workers: 4
+  packet_workers: 1
+  output_workers: 1
   buffer_size: 4096
   queue_size: 1024
 
