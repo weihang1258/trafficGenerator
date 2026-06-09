@@ -51,6 +51,9 @@ type Application struct {
 func main() {
 	flag.Parse()
 
+	// Ensure pcap output directory exists
+	os.MkdirAll("pcap", 0755)
+
 	// Load configuration
 	cfg, err := config.Load(*configPath)
 	if err != nil {
@@ -213,7 +216,7 @@ func (app *Application) initWebSocket() {
 
 // initServer initializes the API server.
 func (app *Application) initServer() error {
-	app.server = rest.NewServer(app.config, app.engine, app.wsHandler, app.db, app.ifaceMgr)
+	app.server = rest.NewServer(app.config, app.engine, app.wsHandler, app.db, app.ifaceMgr, app.portSched)
 	return app.server.Setup()
 }
 

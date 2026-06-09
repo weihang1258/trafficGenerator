@@ -4,6 +4,7 @@ package netif
 import (
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,13 +14,39 @@ import (
 
 // Interface represents a network interface.
 type Interface struct {
-	Name        string         `json:"name"`
+	Name        string           `json:"name"`
 	MAC         net.HardwareAddr `json:"mac"`
-	IPs         []net.IP       `json:"ips"`
-	IsUp        bool           `json:"is_up"`
-	LinkUp      bool           `json:"link_up"`
-	MTU         int            `json:"mtu"`
-	Description string         `json:"description"`
+	IPs         []net.IP         `json:"ips"`
+	IsUp        bool             `json:"is_up"`
+	LinkUp      bool             `json:"link_up"`
+	MTU         int              `json:"mtu"`
+	Description string           `json:"description"`
+	IsVirtual   bool             `json:"is_virtual"`
+}
+
+// virtualInterfaceNames lists interface names that are always virtual.
+var virtualInterfaceNames = map[string]bool{
+	"any": true, "lo": true,
+}
+
+// virtualInterfacePrefixes lists prefixes that indicate a virtual interface.
+var virtualInterfacePrefixes = []string{
+	"nf", "usbmon", "bluetooth", "bridge", "docker",
+	"veth", "virbr", "vnic", "cni-", "flannel", "tun", "tap",
+	"gre", "sit", "ipip", "wg", "ovs-", "br-",
+}
+
+// isVirtualInterface determines if an interface is virtual based on its name.
+func isVirtualInterface(name string) bool {
+	if virtualInterfaceNames[name] {
+		return true
+	}
+	for _, prefix := range virtualInterfacePrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // Manager manages network interfaces.
@@ -64,6 +91,7 @@ func (m *Manager) Discover() error {
 			Name:        dev.Name,
 			Description: dev.Description,
 			IPs:         make([]net.IP, 0),
+			IsVirtual:   isVirtualInterface(dev.Name),
 		}
 
 		// Get addresses
@@ -80,8 +108,10 @@ func (m *Manager) Discover() error {
 			iface.IsUp = ni.Flags&net.FlagUp != 0
 		}
 
-		// Check link status
-		iface.LinkUp = m.checkLinkStatus(dev.Name)
+		// Skip link status check for virtual interfaces (they cannot be opened via pcap)
+		if !iface.IsVirtual {
+			iface.LinkUp = m.checkLinkStatus(dev.Name)
+		}
 
 		m.interfaces[dev.Name] = iface
 
@@ -90,6 +120,7 @@ func (m *Manager) Discover() error {
 			zap.Strings("ips", ipsToStrings(iface.IPs)),
 			zap.Bool("is_up", iface.IsUp),
 			zap.Bool("link_up", iface.LinkUp),
+			zap.Bool("is_virtual", iface.IsVirtual),
 		)
 	}
 
