@@ -25,6 +25,8 @@ import { useI18n } from 'vue-i18n'
 import { useActiveFilters, type FilterFieldDef } from '@/composables/useActiveFilters'
 import type { ProFilterBarProps } from './types'
 
+const { t } = useI18n()
+
 const props = withDefaults(defineProps<ProFilterBarProps>(), {
   fieldDefs: () => [],
   filterId: ''
