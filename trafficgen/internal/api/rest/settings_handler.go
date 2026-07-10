@@ -56,6 +56,14 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 		return
 	}
 
+	// Validate log_level before persisting (avoid saving an invalid value).
+	if req.LogLevel != "" {
+		if err := logger.SetLevel(req.LogLevel); err != nil {
+			BadRequest(c, "invalid log_level: "+err.Error())
+			return
+		}
+	}
+
 	// Load current row (seeds defaults if missing), apply changes, persist.
 	s, err := h.db.GetSettings()
 	if err != nil {
@@ -76,13 +84,7 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// Apply runtime-applicable settings immediately.
-	if req.LogLevel != "" {
-		if err := logger.SetLevel(req.LogLevel); err != nil {
-			BadRequest(c, "invalid log_level: "+err.Error())
-			return
-		}
-	}
+	// log_level already applied above; apply max_tasks now.
 	if req.MaxTasks > 0 && h.engine != nil {
 		h.engine.SetMaxTasks(req.MaxTasks)
 	}
