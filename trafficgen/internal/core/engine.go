@@ -190,8 +190,8 @@ func (e *Engine) Start() error {
 	e.packetWorkers = make([]*PacketWorker, e.config.PacketWorkers)
 	for i := 0; i < e.config.PacketWorkers; i++ {
 		e.wg.Add(1)
-		rateLimiter := NewTokenBucket(0, 65536) // No rate limit by default
-		worker := NewPacketWorker(i, e.configChan, e.packetChan, buildFn, &e.wg, rateLimiter)
+		// Rate limiting is engine-level (per ClassID), looked up via engine ref.
+		worker := NewPacketWorker(i, e.configChan, e.packetChan, buildFn, &e.wg, e)
 		e.packetWorkers[i] = worker
 		worker.Start()
 	}
@@ -264,6 +264,23 @@ func (e *Engine) SubmitTask(task Task) error {
 	// Validate task
 	if err := ValidateTask(task); err != nil {
 		return fmt.Errorf("task validation failed: %w", err)
+	}
+
+	// Wire rate limit: parse BPS and create a per-class TokenBucket.
+	// The bucket is keyed by ClassID (falls back to task ID for single-protocol
+	// tasks without a ClassID). PacketWorker looks it up by config.ClassID.
+	if task.Spec.BPS != "" {
+		bps, err := ParseBPS(task.Spec.BPS)
+		if err != nil {
+			return fmt.Errorf("invalid bps %q: %w", task.Spec.BPS, err)
+		}
+		if bps > 0 {
+			classKey := task.ClassID
+			if classKey == "" {
+				classKey = task.ID
+			}
+			e.SetClassRateLimit(classKey, bps)
+		}
 	}
 
 	// Create per-task context for cancellation

@@ -216,7 +216,7 @@ type PacketWorker struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	stats      WorkerStats
-	rateLimit  *TokenBucket
+	engine     *Engine // for per-class rate limiter lookup
 }
 
 // NewPacketWorker creates a new packet worker.
@@ -226,7 +226,7 @@ func NewPacketWorker(
 	packetChan chan<- PacketOutput,
 	buildFunc func(PacketConfig) ([]byte, error),
 	wg *sync.WaitGroup,
-	rateLimit *TokenBucket,
+	engine *Engine,
 ) *PacketWorker {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &PacketWorker{
@@ -237,7 +237,7 @@ func NewPacketWorker(
 		wg:         wg,
 		ctx:        ctx,
 		cancel:     cancel,
-		rateLimit:  rateLimit,
+		engine:     engine,
 	}
 }
 
@@ -270,13 +270,6 @@ func (w *PacketWorker) run() {
 
 // processConfig processes a single packet configuration.
 func (w *PacketWorker) processConfig(config PacketConfig) {
-	if w.rateLimit != nil {
-		estimatedSize := int64(1500)
-		if err := w.rateLimit.Wait(w.ctx, estimatedSize); err != nil {
-			return
-		}
-	}
-
 	if w.buildFunc == nil {
 		return
 	}
@@ -290,6 +283,16 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 		)
 		atomic.AddInt64(&w.stats.Errors, 1)
 		return
+	}
+
+	// Rate limit AFTER build using the real packet size, looked up by ClassID.
+	// This enforces per-class BPS precisely (Phase 1 wiring + Phase 2 per-class).
+	if w.engine != nil && config.ClassID != "" {
+		if limiter := w.engine.GetRateLimiter(config.ClassID); limiter != nil {
+			if err := limiter.Wait(w.ctx, int64(len(packet))); err != nil {
+				return // context cancelled while waiting
+			}
+		}
 	}
 
 	out := PacketOutput{
