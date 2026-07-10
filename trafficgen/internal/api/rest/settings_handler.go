@@ -1,62 +1,95 @@
 package rest
 
 import (
-	"sync"
-
 	"github.com/gin-gonic/gin"
+	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/storage"
+	"github.com/trafficgen/trafficgen/pkg/logger"
 )
 
-// SettingsHandler handles settings requests.
+// SettingsHandler handles settings requests. Settings are persisted to the DB
+// (surviving restarts) and applied to the running system where possible.
 type SettingsHandler struct {
-	mu     sync.RWMutex
-	config SettingsConfig
+	db     *storage.DB
+	engine *core.Engine
 }
 
-// SettingsConfig holds the current settings.
+// SettingsConfig is the API model for settings.
 type SettingsConfig struct {
 	MaxTasks   int    `json:"max_tasks"`
 	BufferSize int    `json:"buffer_size"`
 	LogLevel   string `json:"log_level"`
 }
 
-// NewSettingsHandler creates a new settings handler.
-func NewSettingsHandler() *SettingsHandler {
-	return &SettingsHandler{
-		config: SettingsConfig{
-			MaxTasks:   100,
-			BufferSize: 4096,
-			LogLevel:   "info",
-		},
+// NewSettingsHandler creates a new settings handler backed by db and engine.
+func NewSettingsHandler(db *storage.DB, engine *core.Engine) *SettingsHandler {
+	return &SettingsHandler{db: db, engine: engine}
+}
+
+// GetConfig returns the current settings (reads from DB). Intended for testing
+// and internal use; Get is the HTTP handler.
+func (h *SettingsHandler) GetConfig() SettingsConfig {
+	if h.db == nil {
+		return SettingsConfig{MaxTasks: 100, BufferSize: 4096, LogLevel: "info"}
 	}
+	s, err := h.db.GetSettings()
+	if err != nil {
+		return SettingsConfig{MaxTasks: 100, BufferSize: 4096, LogLevel: "info"}
+	}
+	return SettingsConfig{MaxTasks: s.MaxTasks, BufferSize: s.BufferSize, LogLevel: s.LogLevel}
 }
 
 // Get returns current settings.
+// GET /api/v1/settings
 func (h *SettingsHandler) Get(c *gin.Context) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	Success(c, h.config)
+	Success(c, h.GetConfig())
 }
 
-// Update updates settings.
+// Update updates settings: persists to DB and applies runtime-applicable items
+// (log_level and max_tasks take effect immediately; buffer_size applies on next
+// engine restart since the ring buffer is fixed-size).
+// PUT /api/v1/settings
 func (h *SettingsHandler) Update(c *gin.Context) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	var req SettingsConfig
 	if err := c.ShouldBindJSON(&req); err != nil {
 		BadRequest(c, "invalid request: "+err.Error())
 		return
 	}
 
+	// Load current row (seeds defaults if missing), apply changes, persist.
+	s, err := h.db.GetSettings()
+	if err != nil {
+		InternalError(c, "failed to load settings: "+err.Error())
+		return
+	}
 	if req.MaxTasks > 0 {
-		h.config.MaxTasks = req.MaxTasks
+		s.MaxTasks = req.MaxTasks
 	}
 	if req.BufferSize > 0 {
-		h.config.BufferSize = req.BufferSize
+		s.BufferSize = req.BufferSize
 	}
 	if req.LogLevel != "" {
-		h.config.LogLevel = req.LogLevel
+		s.LogLevel = req.LogLevel
+	}
+	if err := h.db.SaveSettings(s); err != nil {
+		InternalError(c, "failed to save settings: "+err.Error())
+		return
 	}
 
-	SuccessWithMessage(c, "settings updated", nil)
+	// Apply runtime-applicable settings immediately.
+	if req.LogLevel != "" {
+		if err := logger.SetLevel(req.LogLevel); err != nil {
+			BadRequest(c, "invalid log_level: "+err.Error())
+			return
+		}
+	}
+	if req.MaxTasks > 0 && h.engine != nil {
+		h.engine.SetMaxTasks(req.MaxTasks)
+	}
+
+	SuccessWithMessage(c, "settings updated", SettingsConfig{
+		MaxTasks:   s.MaxTasks,
+		BufferSize: s.BufferSize,
+		LogLevel:   s.LogLevel,
+	})
 }

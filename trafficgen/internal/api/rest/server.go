@@ -89,7 +89,7 @@ func (s *Server) setupRoutes() {
 	portGroupHandler := NewPortGroupHandler(s.db)
 	systemHandler := NewSystemHandler(s.engine)
 	systemHandler.SetDB(s.db)
-	settingsHandler := NewSettingsHandler()
+	settingsHandler := NewSettingsHandler(s.db, s.engine)
 	userHandler := NewUserHandler(s.db)
 
 	// Health endpoints (no auth required)

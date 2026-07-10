@@ -106,3 +106,35 @@ func TestEngine_GetCPUUsage(t *testing.T) {
 		t.Errorf("GetCPUUsage() = %v, expected > 0", cpu)
 	}
 }
+
+// TestEngine_MaxTasksLimit verifies that SetMaxTasks caps concurrent tasks.
+func TestEngine_MaxTasksLimit(t *testing.T) {
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 64, QueueSize: 32,
+	})
+	e.RegisterPlanner(&mockPlanner{name: "tcp"})
+	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) { return make([]byte, 10), nil })
+	e.SetMaxTasks(1)
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer e.Stop()
+
+	// First task is accepted.
+	first := Task{ID: "mt-1", Name: "max-tasks-1", Protocol: "tcp", ClassID: "mt-1",
+		Spec: FlowSpec{BPS: "1k", Count: 10000}} // slow task so it stays active
+	if err := e.SubmitTask(first); err != nil {
+		t.Fatalf("first submit: %v", err)
+	}
+	// Give the config worker a moment to register the task in the store.
+	time.Sleep(100 * time.Millisecond)
+
+	// Second task while the first is still active should be rejected.
+	second := Task{ID: "mt-2", Name: "max-tasks-2", Protocol: "tcp", ClassID: "mt-2",
+		Spec: FlowSpec{BPS: "1k", Count: 10000}}
+	err := e.SubmitTask(second)
+	if err == nil {
+		t.Error("second submit should have been rejected due to max_tasks, but succeeded")
+	}
+}

@@ -176,14 +176,39 @@ func (app *Application) initOutputManager() {
 
 // initEngine initializes the traffic engine.
 func (app *Application) initEngine() error {
+	// Load persisted settings; buffer_size only takes effect at startup
+	// (the ring buffer is fixed-size). log_level and max_tasks are applied below.
+	bufferSize := app.config.Engine.BufferSize
+	if app.db != nil {
+		if s, err := app.db.GetSettings(); err == nil {
+			if s.BufferSize > 0 {
+				bufferSize = s.BufferSize
+			}
+		} else {
+			zap.L().Warn("failed to load settings for engine init, using config defaults", zap.Error(err))
+		}
+	}
+
 	app.engine = core.NewEngine(core.EngineConfig{
 		ConfigWorkers:  app.config.Engine.ConfigWorkers,
 		PacketWorkers:  app.config.Engine.PacketWorkers,
 		OutputWorkers:  app.config.Engine.OutputWorkers,
-		BufferSize:     app.config.Engine.BufferSize,
+		BufferSize:     bufferSize,
 		QueueSize:      app.config.Engine.QueueSize,
 		MaxBufferBytes: 100 * 1024 * 1024, // 100MB
 	})
+
+	// Apply persisted runtime settings now that the engine exists.
+	if app.db != nil {
+		if s, err := app.db.GetSettings(); err == nil {
+			app.engine.SetMaxTasks(s.MaxTasks)
+			if s.LogLevel != "" {
+				if err := logger.SetLevel(s.LogLevel); err == nil {
+					zap.L().Info("applied persisted log level", zap.String("level", s.LogLevel))
+				}
+			}
+		}
+	}
 
 	// Register protocol planners directly to engine
 	app.engine.RegisterPlanner(tcp.NewPlanner())

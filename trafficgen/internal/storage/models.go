@@ -149,6 +149,20 @@ func (TokenModel) TableName() string {
 	return "tokens"
 }
 
+// SettingsModel stores application settings (singleton row, id="default").
+type SettingsModel struct {
+	ID         string    `gorm:"primaryKey;size:32"`
+	MaxTasks   int       `gorm:"default:100"`
+	BufferSize int       `gorm:"default:4096"`
+	LogLevel   string    `gorm:"size:16;default:'info'"`
+	UpdatedAt  time.Time `gorm:"autoUpdateTime"`
+}
+
+// TableName returns the table name.
+func (SettingsModel) TableName() string {
+	return "settings"
+}
+
 // AutoMigrate runs auto migration for all models.
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
@@ -160,5 +174,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&PortModel{},
 		&PortGroupModel{},
 		&TokenModel{},
+		&SettingsModel{},
 	)
 }

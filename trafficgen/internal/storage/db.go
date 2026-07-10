@@ -157,6 +157,30 @@ func (db *DB) IsConnected() bool {
 	return db.Ping(ctx) == nil
 }
 
+// GetSettings returns the singleton settings row. If it does not exist yet,
+// it seeds a row with the documented defaults and returns it.
+func (db *DB) GetSettings() (*SettingsModel, error) {
+	var s SettingsModel
+	err := db.First(&s, "id = ?", "default").Error
+	if err == gorm.ErrRecordNotFound {
+		seeded := SettingsModel{ID: "default", MaxTasks: 100, BufferSize: 4096, LogLevel: "info"}
+		if e := db.Create(&seeded).Error; e != nil {
+			return nil, e
+		}
+		return &seeded, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+// SaveSettings upserts the singleton settings row (forces id="default").
+func (db *DB) SaveSettings(s *SettingsModel) error {
+	s.ID = "default"
+	return db.Save(s).Error
+}
+
 // CountActiveTasks returns the count of tasks with running or pending status.
 func (db *DB) CountActiveTasks() (int64, error) {
 	var count int64

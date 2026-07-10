@@ -50,6 +50,10 @@ type Engine struct {
 	startWallClock time.Time
 	startCPUTime   time.Duration
 
+	// maxTasks caps the number of concurrently active tasks (0 = unlimited).
+	// Set from persisted settings; enforced in SubmitTask.
+	maxTasks atomic.Int64
+
 	// Callbacks
 	OnTaskComplete   func(taskID string)                // called when a task finishes (completed or failed)
 	OnTaskFailed     func(taskID string, errMsg string) // called when a task fails with error message
@@ -276,6 +280,11 @@ func (e *Engine) SubmitTask(task Task) error {
 	// Validate task
 	if err := ValidateTask(task); err != nil {
 		return fmt.Errorf("task validation failed: %w", err)
+	}
+
+	// Enforce max concurrent tasks (0 = unlimited).
+	if max := e.maxTasks.Load(); max > 0 && int64(e.activeTaskCount()) >= max {
+		return fmt.Errorf("max_tasks limit reached (%d active)", max)
 	}
 
 	// Wire rate limit: parse BPS and create a per-class TokenBucket.
@@ -532,6 +541,21 @@ func (e *Engine) GetCPUUsage() float64 {
 	}
 	cpuTime := cur - e.startCPUTime
 	return float64(cpuTime) / float64(elapsed) * 100.0
+}
+
+// SetMaxTasks sets the cap on concurrently active tasks (0 = unlimited).
+func (e *Engine) SetMaxTasks(n int) {
+	if n < 0 {
+		n = 0
+	}
+	e.maxTasks.Store(int64(n))
+}
+
+// activeTaskCount returns the number of tasks currently in the store.
+func (e *Engine) activeTaskCount() int {
+	e.taskMu.RLock()
+	defer e.taskMu.RUnlock()
+	return len(e.taskStore)
 }
 
 // GetStats returns engine statistics.
