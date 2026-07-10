@@ -62,15 +62,15 @@
 
 **现状（已核实）：** `system.go:56` 直接写死 `CpuUsage: 0`，注释为 `// TODO`。
 
-**修复设计：** 用 Go 标准库 `runtime` 采集进程级 CPU 占用。引擎启动时记录起始时间和初始 CPU 时间（`runtime` 进程时间），每次查询时计算：
+**修复设计：** 用 `syscall.Getrusage(syscall.RUSAGE_SELF)` 采集进程级 CPU 时间（Go 的 `runtime` 包不提供进程 CPU 时间，需用 syscall）。引擎启动时记录起始墙钟时间和初始 CPU 时间（`rusage.Utime` 用户态 + `rusage.Stime` 内核态），每次查询时计算：
 
 ```
 CPU占用率 = (当前进程CPU时间 - 初始进程CPU时间) / (经过墙钟时间 × CPU核数) × 100%
 ```
 
-这是进程自身的 CPU 占用率（不是整机）。整机占用需读 `/proc/stat`（Linux 专属），本期不做。
+CPU 核数用 `runtime.NumCPU()`。这是进程自身的 CPU 占用率（不是整机）。整机占用需读 `/proc/stat`（Linux 专属），本期不做。
 
-**改动文件：** `system.go`（GetStatus 实现 CPU 计算）、`engine.go`（记录启动时 CPU 时间基准）
+**改动文件：** `system.go`（GetStatus 实现 CPU 计算）、`engine.go`（启动时记录 CPU 时间基准，存 startWallClock 和 startCPUTime）
 
 ### 1.3 Bug 3：设置不保存
 
@@ -79,6 +79,8 @@ CPU占用率 = (当前进程CPU时间 - 初始进程CPU时间) / (经过墙钟�
 **修复设计：**
 
 ```
+0. 引擎启动时（server.go 初始化阶段）从 DB 读 settings 行，构造 EngineConfig
+   传给 NewEngine。这样保存的设置"重启后"才生效。
 1. 数据库新增 settings 表（单行配置）
 2. SettingsHandler 持有 db 引用：Get 从库读，Update 写库
 3. 可生效设置项在 Update 时同步应用到引擎：
@@ -90,7 +92,7 @@ CPU占用率 = (当前进程CPU时间 - 初始进程CPU时间) / (经过墙钟�
 
 **取舍说明：** `buffer_size` 运行时改不了（环形缓冲区固定大小，改大小要重建），设计为"保存后下次启动生效"。这是合理的工程取舍。
 
-**改动文件：** `settings_handler.go`（加 db 读写）、`storage/models.go`（新增 Settings 模型）、`storage/db.go`（新增 settings CRUD）
+**改动文件：** `settings_handler.go`（加 db 读写 + 应用到引擎）、`storage/models.go`（新增 Settings 模型）、`storage/db.go`（新增 settings CRUD）、`server.go`（启动时读 DB settings 构造 EngineConfig）、`engine.go`（SubmitTask 检查 max_tasks）
 
 ---
 
@@ -202,13 +204,19 @@ type Task struct {
 
 每个流量类用自己的 `TupleGenerator`，给自己的流编索引，**保证同类流不冲突**。不同类之间天然不冲突（协议/端口不同）。
 
+**实现要点：** IP 递增（`strategy: "inc"`）不是简单整数递增，需将 IP 地址解析为 4 字节整数，按字节递增（`10.0.0.1` → `10.0.0.2` → ... → `10.0.0.255` → `10.0.1.0`），超出 range 上限时回绕或停止。端口递增同理。TupleGenerator 需**类型感知**：对 IP 字段做字节级运算，对端口字段做整数运算。`list` 策略按序循环取值；`rand` 策略带 seed 保证可复现。
+
 **决策 4：每类独立限速**
 
 每个 `TrafficClass` 的 BPS 在提交时解析成独立 TokenBucket（key = "任务ID:类ID"）。包配置里带 `class_id`，PacketWorker 按 `class_id` 找桶限速。这样"TCP 占 50%、UDP 占 30%"才精确可控。复用 Phase 1 建好的"按 ClassID 查 TokenBucket"基础设施。
 
+**已知限制（v1）：** 当前默认单 PacketWorker，限速用阻塞 `Wait()`。若某类 BPS 设得很低，worker 会在该类桶上阻塞睡眠（如 1500 字节 / 200kbps ≈ 60ms），期间其他类的包在通道里排队干等，导致低速率类拖累高速率类、类间并非完全独立。多数场景下各类 BPS 充裕（`Wait()` 立即返回不阻塞），影响可忽略；极端低速率配比下才会显现。彻底解决需优化项⑥（多 PacketWorker + 重排序，见 §4.3），但⑥已暂缓，故作为 v1 已知限制。
+
 **决策 5：TrafficClass.Config 转 FlowSpec**
 
-`TrafficClass.Config` 是 `map[string]interface{}`（灵活但无类型）。批量模式下，用现有 `strategy_convert.go` 把它转成对应协议的 `FlowSpec`。**复用现有转换逻辑**，不重复造轮子。
+`TrafficClass.Config` 是 `map[string]interface{}`（灵活但无类型）。批量模式下需把它转成对应协议的 `FlowSpec`。
+
+现有 `strategy_convert.go` 的 `StrategyModelToTask` 已含 map->FlowSpec 的字段映射逻辑，但与 `*storage.StrategyModel` 耦合，不能直接用于 `TrafficClass.Config`。**需先抽取**：把 map->FlowSpec 的核心逻辑拆成独立函数（如 `mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec`），`StrategyModelToTask` 和混合流量两条路径共用此函数，不重复造轮子。
 
 ### 2.5 持续时间与流数控制
 
@@ -224,7 +232,7 @@ type Task struct {
 - `engine.go`：SubmitTask 处理 BatchSpec，为每类建 TokenBucket
 - `worker.go`：ConfigWorker.processTask 增加批量模式分支（每类并发 + WaitGroup）
 - 新增 `tuple_generator.go`：TupleGenerator 实现
-- `strategy_convert.go`：复用现有转换（TrafficClass.Config → FlowSpec）
+- `strategy_convert.go`：抽取 `mapToFlowSpec` 公共函数，TrafficClass.Config 和 StrategyModel 两条路径共用
 
 ---
 
@@ -358,7 +366,7 @@ type Task struct {
 - 头和数据拼成一个切片，一次 Write 写完（系统调用减半）
 - fsync 只在关闭文件/轮转时调用，不每批刷
   （崩溃最多丢最后几批，对流量生成可接受）
-- 时间戳改为每包独立（用 PacketConfig 自带时间戳，不再整批同时间戳）
+- 时间戳改为**循环内每包独立调 `time.Now()`**（现状是循环外取一次、整批共享；不用 config.Timestamp，因为规划器在计划时设 Timestamp 且整条流复用同一值，粒度更粗）
 ```
 
 预计：PCAP 输出吞吐提升 5-10 倍。
@@ -504,17 +512,18 @@ Phase 4：性能优化               ← 把浪费省回来
 
 | 文件 | 涉及 Phase | 改动概述 |
 |------|-----------|---------|
-| `internal/core/engine.go` | 1, 2 | 速率限制接线、CPU 基准、SubmitTask 处理 BatchSpec |
+| `internal/core/engine.go` | 1, 2 | 速率限制接线、CPU 基准、SubmitTask 处理 BatchSpec、max_tasks 检查 |
 | `internal/core/worker.go` | 1, 2 | processConfig 真实字节限速、ConfigWorker 批量模式 |
 | `internal/core/buffer.go` | 4 | RingBuffer.Put 去复制 |
 | `internal/core/builder.go` | 3, 4 | DSCP/ECN/分片/TCP选项、单缓冲构建 |
 | `internal/core/types.go` | 2, 3 | Task.Batch、L3Config/L4Config 新字段 |
-| `internal/core/strategy_convert.go` | 2, 3 | TrafficClass.Config 转 FlowSpec、新字段映射 |
+| `internal/core/strategy_convert.go` | 2, 3 | 抽取 mapToFlowSpec 公共函数、新字段映射 |
 | `internal/core/validate.go`（新增） | 3 | 参数范围校验 |
-| `internal/core/tuple_generator.go`（新增） | 2 | 4元组生成器 |
+| `internal/core/tuple_generator.go`（新增） | 2 | 4元组生成器（IP/端口类型感知） |
 | `internal/core/engine_bench_test.go`（新增） | 4 | 基准测试 |
 | `internal/api/rest/system.go` | 1, 4 | CPU 监控、GC 指标 |
-| `internal/api/rest/settings_handler.go` | 1 | 设置持久化 |
+| `internal/api/rest/settings_handler.go` | 1 | 设置持久化、应用到引擎 |
+| `internal/api/rest/server.go` | 1 | 启动时读 DB settings 构造 EngineConfig |
 | `internal/storage/models.go` | 1 | Settings 模型 |
 | `internal/storage/db.go` | 1 | settings CRUD |
-| `internal/output/pcap.go` | 4 | bufio、单次写、按需 fsync、每包时间戳 |
+| `internal/output/pcap.go` | 4 | bufio、单次写、按需 fsync、循环内每包时间戳 |
