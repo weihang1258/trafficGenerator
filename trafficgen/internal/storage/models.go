@@ -15,6 +15,7 @@ type TaskModel struct {
 	Description  string    `gorm:"size:1024"`
 	StrategyIDs  string    `gorm:"type:text"`              // JSON: ["id1", "id2"]
 	Protocol     string    `gorm:"size:32"`                // Primary protocol (from first strategy)
+	BatchConfig  string    `gorm:"type:text"`              // JSON: BatchSpec for mixed-traffic tasks
 	OutputType   string    `gorm:"size:32"`                // "port_group" or "pcap"
 	OutputConfig string    `gorm:"type:text"`              // JSON output configuration
 	FlowControl  string    `gorm:"type:text"`              // JSON: {"type": "bps", "value": 1000000000}

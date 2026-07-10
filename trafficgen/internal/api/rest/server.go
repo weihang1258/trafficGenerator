@@ -154,6 +154,7 @@ func (s *Server) setupRoutes() {
 		tasks := api.Group("/tasks")
 		{
 			tasks.POST("", taskHandler.Create)
+			tasks.POST("/batch", taskHandler.CreateBatch)
 			tasks.GET("", taskHandler.List)
 			tasks.GET("/:id", taskHandler.Get)
 			tasks.POST("/:id/start", taskHandler.Start)

@@ -245,6 +245,12 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 			classKey := task.ID + ":" + c.ID
 
 			for flowIdx := 0; flowIdx < c.FlowCount; flowIdx++ {
+				srcIP, dstIP, srcPort, dstPort := tupleGen.Next(flowIdx)
+				spec.SrcIP = srcIP
+				spec.DstIP = dstIP
+				spec.SrcPort = srcPort
+				spec.DstPort = dstPort
+
 				if err := p.Validate(spec); err != nil {
 					zap.L().Warn("batch flow validation failed, skipping flow",
 						zap.String("task_id", task.ID),
@@ -253,11 +259,6 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 					)
 					continue
 				}
-				srcIP, dstIP, srcPort, dstPort := tupleGen.Next(flowIdx)
-				spec.SrcIP = srcIP
-				spec.DstIP = dstIP
-				spec.SrcPort = srcPort
-				spec.DstPort = dstPort
 
 				configChan, err := p.Plan(taskCtx, spec)
 				if err != nil {

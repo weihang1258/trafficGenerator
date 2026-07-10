@@ -274,6 +274,16 @@ type CreateTaskRequest struct {
 	FlowControl  *FlowControlRequest  `json:"flow_control"` // Optional, task-level flow control
 }
 
+// CreateBatchTaskRequest represents a mixed-traffic batch task request. The
+// caller supplies a full BatchSpec (multiple protocol classes) inline rather
+// than referencing saved strategies.
+type CreateBatchTaskRequest struct {
+	Name         string               `json:"name" binding:"required"`
+	Batch        *core.BatchSpec      `json:"batch" binding:"required"`
+	OutputType   string               `json:"output_type" binding:"required"` // "port_group" or "pcap"
+	OutputConfig *OutputConfigRequest `json:"output_config" binding:"required"`
+}
+
 // OutputConfigRequest represents output configuration.
 type OutputConfigRequest struct {
 	PortGroupID string `json:"port_group_id"` // For port_group output
@@ -411,6 +421,127 @@ func (h *TaskHandler) Create(c *gin.Context) {
 	}
 
 	Created(c, map[string]string{"id": task.ID})
+}
+
+// CreateBatch creates and immediately starts a mixed-traffic batch task. The
+// BatchSpec runs multiple protocol classes concurrently in one engine task.
+// POST /api/v1/tasks/batch
+func (h *TaskHandler) CreateBatch(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == "" {
+		Unauthorized(c, "user not authenticated")
+		return
+	}
+
+	var req CreateBatchTaskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		BadRequest(c, "invalid request: "+err.Error())
+		return
+	}
+	if req.Batch == nil || len(req.Batch.Classes) == 0 {
+		BadRequest(c, "batch must contain at least one traffic class")
+		return
+	}
+
+	// Validate output configuration.
+	if req.OutputType == "port_group" && req.OutputConfig.PortGroupID == "" {
+		BadRequest(c, "port_group_id is required for port_group output")
+		return
+	}
+	if req.OutputType == "pcap" && req.OutputConfig.PcapPath == "" {
+		BadRequest(c, "pcap_path is required for pcap output")
+		return
+	}
+
+	taskID := uuid.New().String()
+
+	// Resolve output: interface name for port_group, resolved path for pcap.
+	outputMode := "pcap"
+	iface := ""
+	pcapFile := ""
+	if req.OutputType == "port_group" {
+		outputMode = "interface"
+		var portGroup storage.PortGroupModel
+		if err := h.db.Where("id = ?", req.OutputConfig.PortGroupID).First(&portGroup).Error; err != nil {
+			BadRequest(c, "port group not found: "+req.OutputConfig.PortGroupID)
+			return
+		}
+		var portsConfig []map[string]interface{}
+		json.Unmarshal([]byte(portGroup.PortsConfig), &portsConfig)
+		if len(portsConfig) > 0 {
+			if i, ok := portsConfig[0]["interface"].(string); ok {
+				iface = i
+			}
+		}
+		if iface == "" {
+			BadRequest(c, "port group has no interface configured")
+			return
+		}
+	} else {
+		resolved, err := resolvePcapPath(req.OutputConfig.PcapPath)
+		if err != nil {
+			BadRequest(c, err.Error())
+			return
+		}
+		pcapFile = resolved
+	}
+
+	// Create + register the output writer BEFORE submitting (avoids race).
+	var writer core.PacketWriter
+	var err error
+	if outputMode == "interface" {
+		writer, err = newInterfacePacketWriter(iface)
+	} else {
+		writer, err = newPcapPacketWriter(pcapFile)
+	}
+	if err != nil {
+		InternalError(c, "failed to create output writer: "+err.Error())
+		return
+	}
+	h.engine.RegisterOutputWriter(taskID, writer)
+
+	// Persist a task record (StrategyIDs empty; BatchConfig holds the spec).
+	batchJSON, _ := json.Marshal(req.Batch)
+	outputConfigJSON, _ := json.Marshal(req.OutputConfig)
+	now := currentTime()
+	taskModel := &storage.TaskModel{
+		ID:           taskID,
+		UserID:       userID,
+		Name:         req.Name,
+		Protocol:     "batch",
+		BatchConfig:  string(batchJSON),
+		OutputType:   req.OutputType,
+		OutputConfig: string(outputConfigJSON),
+		Status:       "running",
+		StartedAt:    &now,
+	}
+	if err := h.db.Create(taskModel).Error; err != nil {
+		h.engine.UnregisterOutputWriter(taskID)
+		InternalError(c, "failed to create task record: "+err.Error())
+		return
+	}
+
+	// Submit the batch engine task (engine task ID == taskModel ID, so the
+	// existing completion callback marks this task done when it finishes).
+	coreTask := core.Task{
+		ID:         taskID,
+		Name:       req.Name,
+		Protocol:   "batch",
+		Batch:      req.Batch,
+		OutputMode: outputMode,
+		Interface:  iface,
+		PcapFile:   pcapFile,
+	}
+	if err := h.engine.SubmitTask(coreTask); err != nil {
+		h.engine.UnregisterOutputWriter(taskID)
+		taskModel.Status = "error"
+		taskModel.ErrorMessage = err.Error()
+		h.db.Save(taskModel)
+		BadRequest(c, err.Error())
+		return
+	}
+
+	Created(c, map[string]string{"id": taskID})
 }
 
 // List lists all tasks for the current user with server-side pagination.
