@@ -16,88 +16,7 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 		return nil, fmt.Errorf("invalid strategy config JSON: %w", err)
 	}
 
-	spec := FlowSpec{
-		SrcIP:   getString(cfg, "src_ip"),
-		DstIP:   getString(cfg, "dst_ip"),
-		SrcPort: getUint16(cfg, "src_port"),
-		DstPort: getUint16(cfg, "dst_port"),
-		SrcMAC:  getString(cfg, "src_mac"),
-		DstMAC:  getString(cfg, "dst_mac"),
-		TTL:     uint8(getIntDefault(cfg, "ttl", 64)),
-		TOS:     uint8(getInt(cfg, "tos")),
-		Payload: []byte(getString(cfg, "payload")),
-	}
-
-	// VLAN
-	if vlanID := getUint16(cfg, "vlan_id"); vlanID > 0 {
-		spec.VLAN = &VLAN{
-			ID:       vlanID,
-			Priority: uint8(getInt(cfg, "vlan_priority")),
-		}
-	}
-
-	// Protocol-specific config
-	switch strategy.Protocol {
-	case "tcp":
-		if sub, ok := cfg["tcp"].(map[string]interface{}); ok {
-			spec.TCP = &TCPConfig{
-				Handshake:   getBool(sub, "handshake", true),
-				Termination: getBool(sub, "termination", true),
-				MSS:         getUint16(sub, "mss"),
-				WindowSize:  getUint16(sub, "window_size"),
-			}
-		}
-	case "udp":
-		if sub, ok := cfg["udp"].(map[string]interface{}); ok {
-			spec.UDP = &UDPConfig{
-				Response: getBool(sub, "response", false),
-			}
-		}
-	case "http":
-		if sub, ok := cfg["http"].(map[string]interface{}); ok {
-			spec.HTTP = &HTTPConfig{
-				Method:       getStringDefault(sub, "method", "GET"),
-				URI:          getStringDefault(sub, "uri", "/"),
-				Headers:      getStringMap(sub, "headers"),
-				Body:         getString(sub, "body"),
-				KeepAlive:    getBool(sub, "keep_alive", false),
-				Transactions: getInt(sub, "transactions"),
-				ThinkTime:    getInt(sub, "think_time"),
-			}
-		}
-		if spec.DstPort == 0 {
-			spec.DstPort = 80
-		}
-	case "dns":
-		if sub, ok := cfg["dns"].(map[string]interface{}); ok {
-			spec.DNS = &DNSConfig{
-				Domain:     getString(sub, "domain"),
-				QueryType:  uint16(getIntDefault(sub, "query_type", 1)),
-				Response:   getBool(sub, "response", false),
-				ResponseIP: getString(sub, "response_ip"),
-			}
-		}
-		if spec.DstPort == 0 {
-			spec.DstPort = 53
-		}
-	case "icmp":
-		if sub, ok := cfg["icmp"].(map[string]interface{}); ok {
-			spec.ICMP = &ICMPConfig{
-				Type:     uint8(getIntDefault(sub, "type", 8)),
-				Code:     uint8(getIntDefault(sub, "code", 0)),
-				Sequence: uint16(getIntDefault(sub, "sequence", 1)),
-				Data:     []byte(getStringDefault(sub, "data", "ping")),
-			}
-		}
-	case "arp":
-		if sub, ok := cfg["arp"].(map[string]interface{}); ok {
-			spec.ARP = &ARPConfig{
-				Operation: uint16(getIntDefault(sub, "operation", 1)),
-				TargetMAC: getString(sub, "target_mac"),
-				TargetIP:  getString(sub, "target_ip"),
-			}
-		}
-	}
+	spec := mapToFlowSpec(cfg, strategy.Protocol)
 
 	// Flow control from strategy
 	var fc struct {
@@ -161,6 +80,98 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 		OutputMode: outputMode,
 		PcapFile:   pcapFile,
 	}, nil
+}
+
+// mapToFlowSpec builds a FlowSpec from a config map and protocol name. It
+// populates L2/L3/L4 and protocol-specific fields. It does NOT set BPS/Count/
+// Duration (those come from flow control and are the caller's responsibility).
+// Shared by StrategyModelToTask (single-protocol tasks) and the mixed-traffic
+// batch path (TrafficClass.Config).
+func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
+	spec := FlowSpec{
+		SrcIP:   getString(cfg, "src_ip"),
+		DstIP:   getString(cfg, "dst_ip"),
+		SrcPort: getUint16(cfg, "src_port"),
+		DstPort: getUint16(cfg, "dst_port"),
+		SrcMAC:  getString(cfg, "src_mac"),
+		DstMAC:  getString(cfg, "dst_mac"),
+		TTL:     uint8(getIntDefault(cfg, "ttl", 64)),
+		TOS:     uint8(getInt(cfg, "tos")),
+		Payload: []byte(getString(cfg, "payload")),
+	}
+
+	// VLAN
+	if vlanID := getUint16(cfg, "vlan_id"); vlanID > 0 {
+		spec.VLAN = &VLAN{
+			ID:       vlanID,
+			Priority: uint8(getInt(cfg, "vlan_priority")),
+		}
+	}
+
+	// Protocol-specific config
+	switch protocol {
+	case "tcp":
+		if sub, ok := cfg["tcp"].(map[string]interface{}); ok {
+			spec.TCP = &TCPConfig{
+				Handshake:   getBool(sub, "handshake", true),
+				Termination: getBool(sub, "termination", true),
+				MSS:         getUint16(sub, "mss"),
+				WindowSize:  getUint16(sub, "window_size"),
+			}
+		}
+	case "udp":
+		if sub, ok := cfg["udp"].(map[string]interface{}); ok {
+			spec.UDP = &UDPConfig{
+				Response: getBool(sub, "response", false),
+			}
+		}
+	case "http":
+		if sub, ok := cfg["http"].(map[string]interface{}); ok {
+			spec.HTTP = &HTTPConfig{
+				Method:       getStringDefault(sub, "method", "GET"),
+				URI:          getStringDefault(sub, "uri", "/"),
+				Headers:      getStringMap(sub, "headers"),
+				Body:         getString(sub, "body"),
+				KeepAlive:    getBool(sub, "keep_alive", false),
+				Transactions: getInt(sub, "transactions"),
+				ThinkTime:    getInt(sub, "think_time"),
+			}
+		}
+		if spec.DstPort == 0 {
+			spec.DstPort = 80
+		}
+	case "dns":
+		if sub, ok := cfg["dns"].(map[string]interface{}); ok {
+			spec.DNS = &DNSConfig{
+				Domain:     getString(sub, "domain"),
+				QueryType:  uint16(getIntDefault(sub, "query_type", 1)),
+				Response:   getBool(sub, "response", false),
+				ResponseIP: getString(sub, "response_ip"),
+			}
+		}
+		if spec.DstPort == 0 {
+			spec.DstPort = 53
+		}
+	case "icmp":
+		if sub, ok := cfg["icmp"].(map[string]interface{}); ok {
+			spec.ICMP = &ICMPConfig{
+				Type:     uint8(getIntDefault(sub, "type", 8)),
+				Code:     uint8(getIntDefault(sub, "code", 0)),
+				Sequence: uint16(getIntDefault(sub, "sequence", 1)),
+				Data:     []byte(getStringDefault(sub, "data", "ping")),
+			}
+		}
+	case "arp":
+		if sub, ok := cfg["arp"].(map[string]interface{}); ok {
+			spec.ARP = &ARPConfig{
+				Operation: uint16(getIntDefault(sub, "operation", 1)),
+				TargetMAC: getString(sub, "target_mac"),
+				TargetIP:  getString(sub, "target_ip"),
+			}
+		}
+	}
+
+	return spec
 }
 
 func formatBPS(val float64) string {
