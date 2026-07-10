@@ -234,6 +234,9 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		for _, sid := range strategyIDs {
 			h.engine.UnregisterOutputWriter(fmt.Sprintf("%s-%s", taskID, sid))
 		}
+		// Batch tasks register a single writer under the plain taskID
+		// (no strategy suffix); unregister it too. No-op for strategy tasks.
+		h.engine.UnregisterOutputWriter(taskID)
 	}
 }
 

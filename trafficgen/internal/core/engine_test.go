@@ -241,3 +241,60 @@ func TestMixedTraffic_Batch(t *testing.T) {
 		t.Errorf("udp packets = %d, want 6", seen["batch-1:udp"])
 	}
 }
+
+// TestTask_ZeroConfigsCompletes verifies that a task producing 0 packet configs
+// still reaches completed status (previously hung because SetTaskTotalConfigs
+// only completed when count > 0).
+func TestTask_ZeroConfigsCompletes(t *testing.T) {
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 64, QueueSize: 32,
+	})
+	e.RegisterPlanner(&mockPlanner{name: "tcp"})
+	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) { return make([]byte, 10), nil })
+	done := make(chan string, 1)
+	e.OnTaskComplete = func(taskID string) { done <- taskID }
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer e.Stop()
+
+	task := Task{ID: "zero-1", Name: "zero-config", Protocol: "tcp", ClassID: "zero-1",
+		Spec: FlowSpec{Count: 0}} // mockPlanner yields 0 configs
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("zero-config task hung instead of completing")
+	}
+}
+
+// TestRateLimit_CleanupAfterCompletion verifies that a task's rate limiter is
+// removed from the engine once the task completes (prevents unbounded map growth).
+func TestRateLimit_CleanupAfterCompletion(t *testing.T) {
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 64, QueueSize: 32,
+	})
+	e.RegisterPlanner(&mockPlanner{name: "tcp"})
+	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) { return make([]byte, 10), nil })
+	done := make(chan string, 1)
+	e.OnTaskComplete = func(taskID string) { done <- taskID }
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer e.Stop()
+
+	task := Task{ID: "cleanup-1", Name: "cleanup-test", Protocol: "tcp", ClassID: "cleanup-1",
+		Spec: FlowSpec{BPS: "100k", Count: 5}}
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	<-done
+
+	if limiter := e.GetRateLimiter("cleanup-1"); limiter != nil {
+		t.Error("rate limiter not cleaned up after task completion")
+	}
+}

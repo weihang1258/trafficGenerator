@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -388,20 +389,41 @@ func (e *Engine) SetTaskTotalConfigs(taskID string, count int64) {
 		return
 	}
 	entry.totalConfigs = count
-	if count > 0 && entry.writtenPackets >= count {
+	// Complete when planning is done (onTaskDone fired) and all configs have
+	// been written. count == 0 means planning produced no configs (e.g., an
+	// empty batch or all flows failed validation); since onTaskDone already
+	// fired, no more packets will arrive, so complete now with 0 packets.
+	if count == 0 || entry.writtenPackets >= count {
 		entry.status.Status = "completed"
 		entry.status.Progress = 100
 		entry.status.CompletedAt = time.Now()
 		entry.cancel()
 		delete(e.taskStore, taskID)
 		e.taskMu.Unlock()
-		zap.L().Info("task completed (totalConfigs set after drain)", zap.String("task_id", taskID))
+		e.cleanupTaskRateLimiters(taskID)
+		zap.L().Info("task completed (totalConfigs set after drain)", zap.String("task_id", taskID), zap.Int64("configs", count))
 		if e.OnTaskComplete != nil {
 			e.OnTaskComplete(taskID)
 		}
 		return
 	}
 	e.taskMu.Unlock()
+}
+
+// cleanupTaskRateLimiters removes rate limiters owned by a task: the key
+// matching taskID exactly (single-protocol tasks) and any "taskID:classID"
+// keys (mixed-traffic classes). Called on task completion/failure to prevent
+// the rateLimiters map from growing unbounded over a long engine lifetime.
+func (e *Engine) cleanupTaskRateLimiters(taskID string) {
+	e.rateMu.Lock()
+	defer e.rateMu.Unlock()
+	delete(e.rateLimiters, taskID)
+	prefix := taskID + ":"
+	for k := range e.rateLimiters {
+		if strings.HasPrefix(k, prefix) {
+			delete(e.rateLimiters, k)
+		}
+	}
 }
 
 // OnPacketWritten is called by OutputWorker after writing a packet.
@@ -426,6 +448,7 @@ func (e *Engine) OnPacketWritten(taskID string) {
 		entry.cancel()
 		delete(e.taskStore, taskID)
 		e.taskMu.Unlock()
+		e.cleanupTaskRateLimiters(taskID)
 		zap.L().Info("task completed (pipeline drained)", zap.String("task_id", taskID))
 		if e.OnTaskComplete != nil {
 			e.OnTaskComplete(taskID)
@@ -463,6 +486,7 @@ func (e *Engine) FailTask(taskID string, errMsg string) {
 	entry.cancel()
 	delete(e.taskStore, taskID)
 	e.taskMu.Unlock()
+	e.cleanupTaskRateLimiters(taskID)
 
 	zap.L().Info("task failed", zap.String("task_id", taskID), zap.String("error", errMsg))
 
