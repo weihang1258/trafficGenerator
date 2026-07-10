@@ -74,3 +74,35 @@ func TestRateLimit_EnforcesBPS(t *testing.T) {
 		t.Errorf("rate limit not enforced: elapsed=%v, want >= 800ms", elapsed)
 	}
 }
+
+// TestEngine_GetCPUUsage verifies that GetCPUUsage reports nonzero process CPU
+// usage after burning CPU. Uses Getrusage (user+system time), so the burn
+// goroutine's CPU time is reflected process-wide.
+func TestEngine_GetCPUUsage(t *testing.T) {
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 64, QueueSize: 32,
+	})
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer e.Stop()
+
+	// Burn CPU to produce nonzero process CPU time since engine start.
+	done := make(chan struct{})
+	go func() {
+		x := 0
+		for i := 0; i < 5e7; i++ {
+			x++
+		}
+		_ = x
+		close(done)
+	}()
+	<-done
+	time.Sleep(100 * time.Millisecond) // let OS account CPU time
+
+	cpu := e.GetCPUUsage()
+	if cpu <= 0 {
+		t.Errorf("GetCPUUsage() = %v, expected > 0", cpu)
+	}
+}

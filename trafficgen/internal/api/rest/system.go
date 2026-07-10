@@ -53,7 +53,7 @@ func (h *SystemHandler) GetStatus(c *gin.Context) {
 		Running:      h.engine.IsRunning(),
 		ActiveTasks:  int(activeTasks),
 		BufferStatus: stats["buffer"].(map[string]interface{}),
-		CpuUsage:     0, // TODO: implement CPU usage calculation
+		CpuUsage:     h.engine.GetCPUUsage(),
 		MemoryMB:     float64(m.Alloc) / 1024 / 1024,
 		Uptime:       int64(time.Since(startTime).Seconds()),
 	})

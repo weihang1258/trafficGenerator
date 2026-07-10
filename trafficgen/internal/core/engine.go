@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -44,6 +45,10 @@ type Engine struct {
 	cancel    context.CancelFunc
 	taskStore map[string]*taskEntry
 	taskMu    sync.RWMutex
+
+	// CPU monitoring baseline (recorded at Start)
+	startWallClock time.Time
+	startCPUTime   time.Duration
 
 	// Callbacks
 	OnTaskComplete   func(taskID string)                // called when a task finishes (completed or failed)
@@ -206,6 +211,13 @@ func (e *Engine) Start() error {
 	}
 
 	e.running.Store(true)
+
+	// Record CPU monitoring baseline.
+	e.startWallClock = time.Now()
+	if usage, err := getProcessCPUTime(); err == nil {
+		e.startCPUTime = usage
+	}
+
 	zap.L().Info("engine started",
 		zap.Int("config_workers", e.config.ConfigWorkers),
 		zap.Int("packet_workers", e.config.PacketWorkers),
@@ -493,6 +505,33 @@ func (e *Engine) GetRateLimiter(classID string) *TokenBucket {
 	e.rateMu.RLock()
 	defer e.rateMu.RUnlock()
 	return e.rateLimiters[classID]
+}
+
+// getProcessCPUTime returns user+system CPU time accumulated by this process.
+func getProcessCPUTime() (time.Duration, error) {
+	var ru syscall.Rusage
+	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &ru); err != nil {
+		return 0, err
+	}
+	return time.Duration(ru.Utime.Nano() + ru.Stime.Nano()), nil
+}
+
+// GetCPUUsage returns process CPU usage as a percentage of one core since
+// engine start (0-100 means one core fully busy; multi-core busy may exceed 100).
+func (e *Engine) GetCPUUsage() float64 {
+	if e.startWallClock.IsZero() {
+		return 0
+	}
+	cur, err := getProcessCPUTime()
+	if err != nil {
+		return 0
+	}
+	elapsed := time.Since(e.startWallClock)
+	if elapsed <= 0 {
+		return 0
+	}
+	cpuTime := cur - e.startCPUTime
+	return float64(cpuTime) / float64(elapsed) * 100.0
 }
 
 // GetStats returns engine statistics.
