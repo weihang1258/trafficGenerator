@@ -124,6 +124,11 @@ func ValidateTask(task Task) error {
 		return fmt.Errorf("task name is required")
 	}
 
+	// Mixed-traffic (batch) tasks validate each class instead of a single spec.
+	if task.Batch != nil {
+		return ValidateBatchSpec(*task.Batch)
+	}
+
 	validProtocols := map[string]bool{
 		"tcp":  true,
 		"udp":  true,
@@ -141,5 +146,27 @@ func ValidateTask(task Task) error {
 		return fmt.Errorf("invalid spec: %w", err)
 	}
 
+	return nil
+}
+
+// ValidateBatchSpec validates a mixed-traffic batch specification.
+func ValidateBatchSpec(batch BatchSpec) error {
+	if len(batch.Classes) == 0 {
+		return fmt.Errorf("batch must contain at least one traffic class")
+	}
+	validProtocols := map[string]bool{
+		"tcp": true, "udp": true, "http": true, "dns": true, "icmp": true, "arp": true,
+	}
+	for i, c := range batch.Classes {
+		if c.ID == "" {
+			return fmt.Errorf("class[%d]: id is required", i)
+		}
+		if !validProtocols[c.Type] {
+			return fmt.Errorf("class[%d] %s: invalid type %s", i, c.ID, c.Type)
+		}
+		if c.FlowCount <= 0 {
+			return fmt.Errorf("class[%d] %s: flow_count must be > 0", i, c.ID)
+		}
+	}
 	return nil
 }

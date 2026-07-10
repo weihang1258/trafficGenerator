@@ -290,7 +290,22 @@ func (e *Engine) SubmitTask(task Task) error {
 	// Wire rate limit: parse BPS and create a per-class TokenBucket.
 	// The bucket is keyed by ClassID (falls back to task ID for single-protocol
 	// tasks without a ClassID). PacketWorker looks it up by config.ClassID.
-	if task.Spec.BPS != "" {
+	if task.Batch != nil {
+		// Mixed traffic: create an independent bucket per class, keyed
+		// "taskID:classID" so classes sharing the engine don't collide.
+		for _, c := range task.Batch.Classes {
+			if c.BPS == "" {
+				continue
+			}
+			bps, err := ParseBPS(c.BPS)
+			if err != nil {
+				return fmt.Errorf("class %s invalid bps %q: %w", c.ID, c.BPS, err)
+			}
+			if bps > 0 {
+				e.SetClassRateLimit(task.ID+":"+c.ID, bps)
+			}
+		}
+	} else if task.Spec.BPS != "" {
 		bps, err := ParseBPS(task.Spec.BPS)
 		if err != nil {
 			return fmt.Errorf("invalid bps %q: %w", task.Spec.BPS, err)
@@ -304,8 +319,15 @@ func (e *Engine) SubmitTask(task Task) error {
 		}
 	}
 
-	// Create per-task context for cancellation
-	taskCtx, cancel := context.WithCancel(e.ctx)
+	// Create per-task context for cancellation. For batch tasks with a
+	// duration set, derive a deadline so all classes stop at the timeout.
+	var taskCtx context.Context
+	var cancel context.CancelFunc
+	if task.Batch != nil && task.Batch.Global.DurationSeconds > 0 {
+		taskCtx, cancel = context.WithTimeout(e.ctx, time.Duration(task.Batch.Global.DurationSeconds)*time.Second)
+	} else {
+		taskCtx, cancel = context.WithCancel(e.ctx)
+	}
 
 	// Initialize task status
 	status := &TaskStatus{

@@ -116,6 +116,12 @@ func (w *ConfigWorker) run() {
 
 // processTask processes a single task.
 func (w *ConfigWorker) processTask(task Task) {
+	// Mixed-traffic (batch) tasks fan out to per-class goroutines.
+	if task.Batch != nil {
+		w.processBatchTask(task)
+		return
+	}
+
 	zap.L().Info("processing task",
 		zap.String("task_id", task.ID),
 		zap.String("protocol", task.Protocol),
@@ -189,6 +195,98 @@ func (w *ConfigWorker) processTask(task Task) {
 			configCount++
 		}
 	}
+
+	atomic.AddInt64(&w.stats.TasksProcessed, 1)
+	atomic.AddInt64(&w.stats.PacketsGenerated, configCount)
+	if w.onTaskDone != nil {
+		w.onTaskDone(task.ID, nil, configCount)
+	}
+}
+
+// processBatchTask runs a mixed-traffic task: each TrafficClass runs in its
+// own goroutine, generating FlowCount flows through its protocol planner. All
+// classes feed the shared configChan; each config is tagged with
+// "taskID:classID" so PacketWorker can apply per-class rate limiting. Classes
+// run concurrently so their packets interleave naturally in the output.
+func (w *ConfigWorker) processBatchTask(task Task) {
+	zap.L().Info("processing batch task",
+		zap.String("task_id", task.ID),
+		zap.Int("classes", len(task.Batch.Classes)),
+	)
+
+	taskCtx := task.Ctx
+	if taskCtx == nil {
+		taskCtx = w.ctx
+	}
+
+	var classWg sync.WaitGroup
+	var configCount int64
+
+	for _, class := range task.Batch.Classes {
+		planner, ok := w.planners[class.Type]
+		if !ok {
+			zap.L().Error("batch class unknown protocol, skipping",
+				zap.String("task_id", task.ID),
+				zap.String("class_id", class.ID),
+				zap.String("type", class.Type),
+			)
+			continue
+		}
+
+		classWg.Add(1)
+		go func(c TrafficClass, p ProtocolPlanner) {
+			defer classWg.Done()
+
+			spec := mapToFlowSpec(c.Config, c.Type)
+			if c.BPS != "" {
+				spec.BPS = c.BPS
+			}
+			tupleGen := NewTupleGenerator(c.Tuples)
+			classKey := task.ID + ":" + c.ID
+
+			for flowIdx := 0; flowIdx < c.FlowCount; flowIdx++ {
+				if err := p.Validate(spec); err != nil {
+					zap.L().Warn("batch flow validation failed, skipping flow",
+						zap.String("task_id", task.ID),
+						zap.String("class_id", c.ID),
+						zap.Error(err),
+					)
+					continue
+				}
+				srcIP, dstIP, srcPort, dstPort := tupleGen.Next(flowIdx)
+				spec.SrcIP = srcIP
+				spec.DstIP = dstIP
+				spec.SrcPort = srcPort
+				spec.DstPort = dstPort
+
+				configChan, err := p.Plan(taskCtx, spec)
+				if err != nil {
+					zap.L().Error("batch flow planning failed",
+						zap.String("task_id", task.ID),
+						zap.String("class_id", c.ID),
+						zap.Error(err),
+					)
+					return
+				}
+				for config := range configChan {
+					config.ClassID = classKey
+					if config.Metadata == nil {
+						config.Metadata = make(map[string]interface{})
+					}
+					config.Metadata["task_id"] = task.ID
+					config.Metadata["interface"] = task.Interface
+					select {
+					case <-taskCtx.Done():
+						return
+					case w.configChan <- config:
+						atomic.AddInt64(&configCount, 1)
+					}
+				}
+			}
+		}(class, planner)
+	}
+
+	classWg.Wait()
 
 	atomic.AddInt64(&w.stats.TasksProcessed, 1)
 	atomic.AddInt64(&w.stats.PacketsGenerated, configCount)

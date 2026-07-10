@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 )
@@ -136,5 +137,107 @@ func TestEngine_MaxTasksLimit(t *testing.T) {
 	err := e.SubmitTask(second)
 	if err == nil {
 		t.Error("second submit should have been rejected due to max_tasks, but succeeded")
+	}
+}
+
+// mockBatchPlanner generates a fixed number of packets per flow regardless of
+// spec.Count, so batch tests can predict packet counts per class.
+type mockBatchPlanner struct {
+	name     string
+	perFlow  int
+}
+
+func (m *mockBatchPlanner) Name() string                 { return m.name }
+func (m *mockBatchPlanner) Validate(spec FlowSpec) error { return nil }
+func (m *mockBatchPlanner) Plan(ctx context.Context, spec FlowSpec) (<-chan PacketConfig, error) {
+	ch := make(chan PacketConfig)
+	go func() {
+		defer close(ch)
+		for i := 0; i < m.perFlow; i++ {
+			select {
+			case <-ctx.Done():
+				return
+			case ch <- PacketConfig{FlowID: spec.SrcIP, PacketIndex: uint64(i)}:
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// TestMixedTraffic_Batch verifies that a BatchSpec task runs multiple protocol
+// classes concurrently, producing the expected packet count per class and
+// mixing them into the shared output.
+func TestMixedTraffic_Batch(t *testing.T) {
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 2, PacketWorkers: 2, OutputWorkers: 1,
+		BufferSize: 512, QueueSize: 128,
+	})
+	e.RegisterPlanner(&mockBatchPlanner{name: "tcp", perFlow: 4})
+	e.RegisterPlanner(&mockBatchPlanner{name: "udp", perFlow: 2})
+
+	var mu sync.Mutex
+	seen := map[string]int{}
+	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) {
+		mu.Lock()
+		seen[c.ClassID]++
+		mu.Unlock()
+		return make([]byte, 64), nil
+	})
+
+	done := make(chan string, 1)
+	e.OnTaskComplete = func(taskID string) { done <- taskID }
+
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer e.Stop()
+
+	// 2 classes: TCP (5 flows x 4 packets = 20) and UDP (3 flows x 2 = 6).
+	task := Task{
+		ID:       "batch-1",
+		Name:     "mixed-traffic-test",
+		Protocol: "batch",
+		Batch: &BatchSpec{
+			Classes: []TrafficClass{
+				{
+					ID: "tcp", Type: "tcp", FlowCount: 5,
+					Config: map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "10.0.0.2"},
+					Tuples: TupleConfig{
+						SrcIP:   StrategyConfig{Strategy: "fixed", Value: "10.0.0.1"},
+						DstIP:   StrategyConfig{Strategy: "fixed", Value: "10.0.0.2"},
+						SrcPort: StrategyConfig{Strategy: "fixed", Value: float64(1000)},
+						DstPort: StrategyConfig{Strategy: "fixed", Value: float64(80)},
+					},
+				},
+				{
+					ID: "udp", Type: "udp", FlowCount: 3,
+					Config: map[string]interface{}{"src_ip": "10.0.0.3", "dst_ip": "10.0.0.4"},
+					Tuples: TupleConfig{
+						SrcIP:   StrategyConfig{Strategy: "fixed", Value: "10.0.0.3"},
+						DstIP:   StrategyConfig{Strategy: "fixed", Value: "10.0.0.4"},
+						SrcPort: StrategyConfig{Strategy: "fixed", Value: float64(2000)},
+						DstPort: StrategyConfig{Strategy: "fixed", Value: float64(53)},
+					},
+				},
+			},
+		},
+	}
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("batch task did not complete within 10s")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	// ClassIDs are tagged "taskID:classID" by the batch path.
+	if seen["batch-1:tcp"] != 20 {
+		t.Errorf("tcp packets = %d, want 20", seen["batch-1:tcp"])
+	}
+	if seen["batch-1:udp"] != 6 {
+		t.Errorf("udp packets = %d, want 6", seen["batch-1:udp"])
 	}
 }

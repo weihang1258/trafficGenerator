@@ -12,7 +12,8 @@ type Task struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
 	Protocol    string                 `json:"protocol"` // tcp, udp, http, dns, icmp, arp
-	Spec        FlowSpec               `json:"spec"`
+	Spec        FlowSpec               `json:"spec"`     // single-protocol mode
+	Batch       *BatchSpec             `json:"batch,omitempty"` // mixed-traffic mode (Spec XOR Batch)
 	ClassID     string                 `json:"class_id"`
 	Interface   string                 `json:"interface"`  // output interface name
 	OutputMode  string                 `json:"output_mode"` // interface, pcap, both
