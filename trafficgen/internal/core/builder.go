@@ -55,121 +55,96 @@ func L3Base(srcIP, dstIP string, protocol uint8, ttl uint8, ipid uint16, spec Fl
 	return l3
 }
 
-// Build builds a binary packet from a PacketConfig.
+// Build builds a binary packet from a PacketConfig. It allocates a single
+// buffer sized for the whole packet and writes each layer directly at its
+// offset, avoiding the per-layer temporary allocations of a bottom-up build.
 func (b *Builder) Build(config PacketConfig) ([]byte, error) {
-	// Build bottom-up: L4 -> L3 -> L2
+	l4Len := l4Length(config)
+	l3Len := 20
+	l2Len := 14
+	if config.L2.VLAN != nil {
+		l2Len = 18
+	}
+	total := l2Len + l3Len + l4Len + len(config.Payload)
 
-	var packet []byte
+	packet := make([]byte, total)
+	l2End := l2Len
+	l3End := l2End + l3Len
+	l4End := l3End + l4Len
 
-	// Build L4 (TCP/UDP/ICMP)
-	l4Data := b.buildL4(config)
-
-	// Build L3 (IP) — payload length includes L4 header + actual payload
-	totalL4Len := len(l4Data) + len(config.Payload)
-	l3Data := b.buildL3(config, totalL4Len)
-
-	// Build L2 (Ethernet)
-	l2Data := b.buildL2(config, len(l3Data)+len(l4Data))
-
-	// Combine: L2 + L3 + L4 + Payload
-	packet = make([]byte, 0, len(l2Data)+len(l3Data)+len(l4Data)+len(config.Payload))
-	packet = append(packet, l2Data...)
-	packet = append(packet, l3Data...)
-	packet = append(packet, l4Data...)
-	packet = append(packet, config.Payload...)
+	b.writeL2(packet[0:l2End], config)
+	b.writeL3(packet[l2End:l3End], config, l4Len+len(config.Payload))
+	if l4Len > 0 {
+		b.writeL4(packet[l3End:l4End], config)
+	}
+	copy(packet[l4End:], config.Payload)
 
 	return packet, nil
 }
 
-// buildL2 builds the Ethernet header.
-func (b *Builder) buildL2(config PacketConfig, payloadLen int) []byte {
-	header := make([]byte, 14) // Ethernet header is 14 bytes
+// l4Length returns the L4 header length in bytes for the config.
+func l4Length(config PacketConfig) int {
+	switch config.L4.Protocol {
+	case "tcp":
+		return 20 + len(encodeTCPOptions(config.L4.TCPOptions))
+	case "udp":
+		return 8
+	default:
+		return 0 // icmp/arp: header data carried in payload
+	}
+}
 
-	// Destination MAC
+// writeL2 writes the Ethernet header (with optional 802.1Q VLAN tag) into dst.
+func (b *Builder) writeL2(dst []byte, config PacketConfig) {
 	dstMAC, err := net.ParseMAC(config.L2.DstMAC)
 	if err != nil && config.L2.DstMAC != "" {
 		zap.L().Warn("invalid dst MAC address", zap.String("mac", config.L2.DstMAC), zap.Error(err))
 	}
 	if len(dstMAC) == 6 {
-		copy(header[0:6], dstMAC)
+		copy(dst[0:6], dstMAC)
 	}
-
-	// Source MAC
 	srcMAC, err2 := net.ParseMAC(config.L2.SrcMAC)
 	if err2 != nil && config.L2.SrcMAC != "" {
 		zap.L().Warn("invalid src MAC address", zap.String("mac", config.L2.SrcMAC), zap.Error(err2))
 	}
 	if len(srcMAC) == 6 {
-		copy(header[6:12], srcMAC)
+		copy(dst[6:12], srcMAC)
 	}
-
-	// EtherType
 	etherType := config.L2.EtherType
 	if etherType == 0 {
 		etherType = EtherTypeIPv4
 	}
-	binary.BigEndian.PutUint16(header[12:14], etherType)
-
-	// Handle VLAN if present
 	if config.L2.VLAN != nil {
-		vlanHeader := make([]byte, 4)
-		// VLAN tag protocol identifier (0x8100 for 802.1Q)
-		binary.BigEndian.PutUint16(vlanHeader[0:2], 0x8100)
-		// VLAN ID and priority
+		// [dstMAC(6)][srcMAC(6)][TPID 0x8100(2)][VLAN tag(2)][EtherType(2)]
+		binary.BigEndian.PutUint16(dst[12:14], 0x8100)
 		vlanTag := (uint16(config.L2.VLAN.Priority) << 13) | (config.L2.VLAN.ID & 0x0FFF)
-		binary.BigEndian.PutUint16(vlanHeader[2:4], vlanTag)
-
-		// Insert VLAN header after EtherType
-		result := make([]byte, 0, 18)
-		result = append(result, header[0:12]...)
-		result = append(result, vlanHeader...)
-		result = append(result, header[12:14]...)
-		return result
+		binary.BigEndian.PutUint16(dst[14:16], vlanTag)
+		binary.BigEndian.PutUint16(dst[16:18], etherType)
+	} else {
+		binary.BigEndian.PutUint16(dst[12:14], etherType)
 	}
-
-	return header
 }
 
-// buildL3 builds the IPv4 header.
-func (b *Builder) buildL3(config PacketConfig, payloadLen int) []byte {
-	header := make([]byte, 20) // IPv4 header is 20 bytes minimum
+// writeL3 writes the IPv4 header into dst.
+func (b *Builder) writeL3(dst []byte, config PacketConfig, payloadLen int) {
+	dst[0] = 0x45 // Version 4, IHL 5
+	dst[1] = (config.L3.DSCP << 2) | (config.L3.ECN & 0x03)
+	binary.BigEndian.PutUint16(dst[2:4], uint16(20+payloadLen))
 
-	// Version (4) and IHL (5, 20 bytes / 4)
-	header[0] = 0x45
-
-	// DSCP and ECN: header[1] = (DSCP << 2) | (ECN & 0x03)
-	header[1] = (config.L3.DSCP << 2) | (config.L3.ECN & 0x03)
-
-	// Total length
-	totalLen := 20 + payloadLen
-	binary.BigEndian.PutUint16(header[2:4], uint16(totalLen))
-
-	// Identification — use config value or generate deterministic value from seq
 	ipID := config.L3.IPID
 	if ipID == 0 {
-		// Fallback: use lower 16 bits of sequence number for uniqueness
 		ipID = uint16(config.L4.Seq & 0xFFFF)
 	}
-	binary.BigEndian.PutUint16(header[4:6], ipID)
+	binary.BigEndian.PutUint16(dst[4:6], ipID)
+	binary.BigEndian.PutUint16(dst[6:8], (uint16(config.L3.Flags)<<13)|(config.L3.FragOffset&0x1FFF))
 
-	// Flags and Fragment Offset. Flags=0 means no flags (fragmentable); the DF
-	// default for normal traffic is applied by L3Base at the flow-config layer.
-	binary.BigEndian.PutUint16(header[6:8], (uint16(config.L3.Flags)<<13)|(config.L3.FragOffset&0x1FFF))
-
-	// TTL
 	ttl := config.L3.TTL
 	if ttl == 0 {
 		ttl = 64
 	}
-	header[8] = ttl
+	dst[8] = ttl
+	dst[9] = config.L3.Protocol
 
-	// Protocol
-	header[9] = config.L3.Protocol
-
-	// Header checksum (calculated later)
-	// header[10:12] = 0
-
-	// Source IP
 	srcIP := net.ParseIP(config.L3.SrcIP)
 	if srcIP == nil && config.L3.SrcIP != "" {
 		zap.L().Warn("invalid src IP address", zap.String("ip", config.L3.SrcIP))
@@ -177,11 +152,9 @@ func (b *Builder) buildL3(config PacketConfig, payloadLen int) []byte {
 	if srcIP != nil {
 		srcIP = srcIP.To4()
 		if len(srcIP) == 4 {
-			copy(header[12:16], srcIP)
+			copy(dst[12:16], srcIP)
 		}
 	}
-
-	// Destination IP
 	dstIP := net.ParseIP(config.L3.DstIP)
 	if dstIP == nil && config.L3.DstIP != "" {
 		zap.L().Warn("invalid dst IP address", zap.String("ip", config.L3.DstIP))
@@ -189,64 +162,57 @@ func (b *Builder) buildL3(config PacketConfig, payloadLen int) []byte {
 	if dstIP != nil {
 		dstIP = dstIP.To4()
 		if len(dstIP) == 4 {
-			copy(header[16:20], dstIP)
+			copy(dst[16:20], dstIP)
 		}
 	}
 
-	// Calculate header checksum
-	checksum := calculateIPChecksum(header)
-	binary.BigEndian.PutUint16(header[10:12], checksum)
-
-	return header
+	checksum := calculateIPChecksum(dst)
+	binary.BigEndian.PutUint16(dst[10:12], checksum)
 }
 
-// buildL4 builds the L4 header (TCP/UDP/ICMP).
-func (b *Builder) buildL4(config PacketConfig) []byte {
+// writeL4 writes the L4 header (TCP/UDP) into dst. ICMP has no separate header
+// (its data is in the payload).
+func (b *Builder) writeL4(dst []byte, config PacketConfig) {
 	switch config.L4.Protocol {
 	case "tcp":
-		return b.buildTCP(config)
+		b.writeTCP(dst, config)
 	case "udp":
-		return b.buildUDP(config)
-	case "icmp":
-		return b.buildICMP(config)
-	default:
-		return nil
+		b.writeUDP(dst, config)
 	}
 }
 
-// buildTCP builds the TCP header, including any TCP options.
-func (b *Builder) buildTCP(config PacketConfig) []byte {
-	// Encode options (padded to a 4-byte boundary with NOP).
+// writeTCP writes the TCP header (with options) into dst.
+func (b *Builder) writeTCP(dst []byte, config PacketConfig) {
 	opts := encodeTCPOptions(config.L4.TCPOptions)
-	dataOffset := (20 + len(opts)) / 4 // TCP header length in 4-byte words
+	dataOffset := (20 + len(opts)) / 4
 
-	header := make([]byte, 20)
-	binary.BigEndian.PutUint16(header[0:2], config.L4.SrcPort)
-	binary.BigEndian.PutUint16(header[2:4], config.L4.DstPort)
-	binary.BigEndian.PutUint32(header[4:8], config.L4.Seq)
-	binary.BigEndian.PutUint32(header[8:12], config.L4.Ack)
-
-	// Data offset (high nibble) + reserved (low nibble)
-	header[12] = byte(dataOffset << 4)
-	header[13] = config.L4.Flags
+	binary.BigEndian.PutUint16(dst[0:2], config.L4.SrcPort)
+	binary.BigEndian.PutUint16(dst[2:4], config.L4.DstPort)
+	binary.BigEndian.PutUint32(dst[4:8], config.L4.Seq)
+	binary.BigEndian.PutUint32(dst[8:12], config.L4.Ack)
+	dst[12] = byte(dataOffset << 4)
+	dst[13] = config.L4.Flags
 
 	winSize := config.L4.WindowSize
 	if winSize == 0 {
 		winSize = 65535
 	}
-	binary.BigEndian.PutUint16(header[14:16], winSize)
+	binary.BigEndian.PutUint16(dst[14:16], winSize)
+	binary.BigEndian.PutUint16(dst[18:20], 0) // urgent pointer
+	copy(dst[20:], opts)
 
-	// header[16:18] = checksum (computed below)
-	binary.BigEndian.PutUint16(header[18:20], 0) // urgent pointer
+	// Checksum covers the full TCP header (incl options) + payload.
+	checksum := calculateTCPChecksum(config, dst, config.Payload)
+	binary.BigEndian.PutUint16(dst[16:18], checksum)
+}
 
-	// Append options to the header before computing the checksum (the
-	// checksum covers header + options + payload).
-	header = append(header, opts...)
-
-	checksum := calculateTCPChecksum(config, header, config.Payload)
-	binary.BigEndian.PutUint16(header[16:18], checksum)
-
-	return header
+// writeUDP writes the UDP header into dst.
+func (b *Builder) writeUDP(dst []byte, config PacketConfig) {
+	binary.BigEndian.PutUint16(dst[0:2], config.L4.SrcPort)
+	binary.BigEndian.PutUint16(dst[2:4], config.L4.DstPort)
+	binary.BigEndian.PutUint16(dst[4:6], uint16(8+len(config.Payload)))
+	checksum := calculateUDPChecksum(config, config.Payload)
+	binary.BigEndian.PutUint16(dst[6:8], checksum)
 }
 
 // encodeTCPOptions serializes TCP options and pads to a 4-byte boundary with
@@ -267,34 +233,6 @@ func encodeTCPOptions(opts []TCPOption) []byte {
 		buf = append(buf, TCPOptNOP)
 	}
 	return buf
-}
-
-// buildUDP builds the UDP header.
-func (b *Builder) buildUDP(config PacketConfig) []byte {
-	header := make([]byte, 8) // UDP header is 8 bytes
-
-	// Source port
-	binary.BigEndian.PutUint16(header[0:2], config.L4.SrcPort)
-
-	// Destination port
-	binary.BigEndian.PutUint16(header[2:4], config.L4.DstPort)
-
-	// Length (header + payload)
-	length := uint16(8 + len(config.Payload))
-	binary.BigEndian.PutUint16(header[4:6], length)
-
-	// Checksum (calculated with pseudo-header)
-	checksum := calculateUDPChecksum(config, config.Payload)
-	binary.BigEndian.PutUint16(header[6:8], checksum)
-
-	return header
-}
-
-// buildICMP builds the ICMP header (payload already contains ICMP data).
-func (b *Builder) buildICMP(config PacketConfig) []byte {
-	// ICMP header is part of the payload in our design
-	// This returns empty as ICMP data is in Payload
-	return nil
 }
 
 // calculateIPChecksum calculates the IP header checksum.

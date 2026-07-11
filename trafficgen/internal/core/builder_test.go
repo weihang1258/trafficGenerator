@@ -308,3 +308,23 @@ func TestBuilder_TCPOptions_MultipleAndPadding(t *testing.T) {
 		t.Errorf("options = %x, want %x", opts, want)
 	}
 }
+
+// TestBuild_Allocs verifies single-buffer construction keeps allocations low
+// (packet buffer + stdlib IP parsing). Guards against reintroducing per-layer
+// temporary allocations.
+func TestBuild_Allocs(t *testing.T) {
+	b := NewBuilder()
+	cfg := PacketConfig{
+		L2: L2Config{SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66", EtherType: 0x0800},
+		L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 6, TTL: 64},
+		L4: L4Config{Protocol: "tcp", SrcPort: 1, DstPort: 2, Seq: 100, Flags: 0x02},
+	}
+	allocs := testing.AllocsPerRun(200, func() {
+		b.Build(cfg)
+	})
+	// 1 packet buffer + 2 net.ParseIP (src/dst). MACs parse from cache-friendly
+	// inputs; allow slack for stdlib variance but catch per-layer regressions.
+	if allocs > 4 {
+		t.Errorf("Build allocs = %v, want <= 4 (single-buffer)", allocs)
+	}
+}
