@@ -147,3 +147,24 @@ func TestTokenBucket_RateLimit(t *testing.T) {
 	// Wait a bit for tokens to accumulate
 	// In real test, we'd use time.Sleep or mocking
 }
+
+// TestRingBuffer_PutHoldsReference verifies Put stores the original slice
+// reference (no per-packet make+copy). After the optimization, Get returns a
+// slice sharing the same underlying array as the one passed to Put.
+func TestRingBuffer_PutHoldsReference(t *testing.T) {
+	rb := NewRingBuffer(10, 0)
+	packet := []byte("hello world packet data xyz")
+	if !rb.Put(packet) {
+		t.Fatal("Put failed")
+	}
+	got, ok := rb.Get()
+	if !ok {
+		t.Fatal("Get failed")
+	}
+	if string(got) != string(packet) {
+		t.Errorf("content = %q, want %q", got, packet)
+	}
+	if len(got) == 0 || len(packet) == 0 || &got[0] != &packet[0] {
+		t.Error("Put copied the slice; expected to hold the original reference (no copy)")
+	}
+}
