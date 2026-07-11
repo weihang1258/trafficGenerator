@@ -89,35 +89,6 @@ func ParseBPS(bps string) (int64, error) {
 // This is implemented by protocol-specific planners.
 type FlowSpecToPacketConfigsFunc func(spec FlowSpec) (<-chan PacketConfig, error)
 
-// ValidateFlowSpec validates a FlowSpec.
-func ValidateFlowSpec(spec FlowSpec) error {
-	// Validate IP addresses
-	if spec.SrcIP != "" {
-		if _, err := ParseIP(spec.SrcIP); err != nil {
-			return fmt.Errorf("invalid src_ip: %w", err)
-		}
-	}
-	if spec.DstIP != "" {
-		if _, err := ParseIP(spec.DstIP); err != nil {
-			return fmt.Errorf("invalid dst_ip: %w", err)
-		}
-	}
-
-	// Validate MAC addresses
-	if spec.SrcMAC != "" {
-		if _, err := ParseMAC(spec.SrcMAC); err != nil {
-			return fmt.Errorf("invalid src_mac: %w", err)
-		}
-	}
-	if spec.DstMAC != "" {
-		if _, err := ParseMAC(spec.DstMAC); err != nil {
-			return fmt.Errorf("invalid dst_mac: %w", err)
-		}
-	}
-
-	return nil
-}
-
 // ValidateTask validates a Task.
 func ValidateTask(task Task) error {
 	if task.Name == "" {
@@ -166,6 +137,10 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		}
 		if c.FlowCount <= 0 {
 			return fmt.Errorf("class[%d] %s: flow_count must be > 0", i, c.ID)
+		}
+		// Validate the class's spec fields (DSCP/ECN/VLAN/MSS ranges, IP format).
+		if err := ValidateFlowSpec(mapToFlowSpec(c.Config, c.Type)); err != nil {
+			return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)
 		}
 	}
 	return nil
