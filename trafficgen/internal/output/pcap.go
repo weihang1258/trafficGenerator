@@ -1,6 +1,7 @@
 package output
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
 	"os"
@@ -19,9 +20,12 @@ const (
 	pcapLinkType     = 1 // Ethernet
 )
 
-// PCAPWriter writes packets to a PCAP file.
+// PCAPWriter writes packets to a PCAP file. Writes are buffered (bufio) and
+// each packet gets its own timestamp; fsync happens only on Close, not per
+// Write, so high packet rates do not stall on disk flushes.
 type PCAPWriter struct {
 	file    *os.File
+	bw      *bufio.Writer
 	path    string
 	mu      sync.Mutex
 	written int64
@@ -36,6 +40,7 @@ func NewPCAPWriter(path string) (*PCAPWriter, error) {
 
 	writer := &PCAPWriter{
 		file: file,
+		bw:   bufio.NewWriterSize(file, 256*1024),
 		path: path,
 	}
 
@@ -71,47 +76,38 @@ func (w *PCAPWriter) writeGlobalHeader() error {
 	// Link type (Ethernet)
 	binary.LittleEndian.PutUint32(header[20:24], pcapLinkType)
 
-	_, err := w.file.Write(header)
+	_, err := w.bw.Write(header)
 	return err
 }
 
-// Write writes packets to the PCAP file.
+// Write writes packets to the PCAP file. Each packet gets its own timestamp
+// (computed per-packet inside the loop), the 16-byte record header and packet
+// body are written as a single buffered write, and the buffer is flushed (not
+// fsynced) so high packet rates do not stall on disk flushes.
 func (w *PCAPWriter) Write(packets [][]byte) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	now := time.Now()
-	sec := uint32(now.Unix())
-	usec := uint32(now.Nanosecond() / 1000)
-
+	var buf [16]byte
 	for _, packet := range packets {
-		// Write packet header
-		header := make([]byte, 16)
+		now := time.Now()
+		binary.LittleEndian.PutUint32(buf[0:4], uint32(now.Unix()))
+		binary.LittleEndian.PutUint32(buf[4:8], uint32(now.Nanosecond()/1000))
+		caplen := uint32(len(packet))
+		binary.LittleEndian.PutUint32(buf[8:12], caplen)
+		binary.LittleEndian.PutUint32(buf[12:16], caplen)
 
-		// Timestamp seconds
-		binary.LittleEndian.PutUint32(header[0:4], sec)
-
-		// Timestamp microseconds
-		binary.LittleEndian.PutUint32(header[4:8], usec)
-
-		// Captured length
-		binary.LittleEndian.PutUint32(header[8:12], uint32(len(packet)))
-
-		// Original length
-		binary.LittleEndian.PutUint32(header[12:16], uint32(len(packet)))
-
-		if _, err := w.file.Write(header); err != nil {
+		// Header + body in one buffered write (avoids two syscalls per packet).
+		if _, err := w.bw.Write(buf[:]); err != nil {
 			return err
 		}
-
-		if _, err := w.file.Write(packet); err != nil {
+		if _, err := w.bw.Write(packet); err != nil {
 			return err
 		}
-
-		w.written += int64(len(packet) + 16)
+		w.written += int64(len(packet)) + 16
 	}
 
-	return w.file.Sync()
+	return w.bw.Flush()
 }
 
 // Close closes the PCAP file.
@@ -120,7 +116,19 @@ func (w *PCAPWriter) Close() error {
 	defer w.mu.Unlock()
 
 	if w.file != nil {
-		err := w.file.Close()
+		// Flush buffered writes, then fsync so data reaches disk on close.
+		var err error
+		if w.bw != nil {
+			if flushErr := w.bw.Flush(); flushErr != nil {
+				err = flushErr
+			}
+		}
+		if syncErr := w.file.Sync(); syncErr != nil && err == nil {
+			err = syncErr
+		}
+		if closeErr := w.file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
 		w.file = nil
 		return err
 	}
