@@ -59,7 +59,14 @@ type FlowSpec struct {
 
 	// L3 configuration
 	TTL uint8 `json:"ttl,omitempty"`
-	TOS uint8 `json:"tos,omitempty"`
+	TOS uint8 `json:"tos,omitempty"` // legacy whole-byte TOS (overrides DSCP/ECN if non-zero)
+
+	// DSCP/ECN and fragmentation (L3). When set, flow-level and applied to
+	// every packet in the flow.
+	DSCP       uint8  `json:"dscp,omitempty"`
+	ECN        uint8  `json:"ecn,omitempty"`
+	Flags      uint8  `json:"flags,omitempty"`       // IPFlagDF / IPFlagMF
+	FragOffset uint16 `json:"frag_offset,omitempty"`
 
 	// Protocol specific configuration
 	TCP  *TCPConfig  `json:"tcp,omitempty"`
@@ -163,7 +170,25 @@ type L3Config struct {
 	Protocol uint8  `json:"protocol"` // 1=ICMP, 6=TCP, 17=UDP
 	TTL      uint8  `json:"ttl"`
 	IPID     uint16 `json:"ip_id,omitempty"`
+
+	// DSCP (6-bit DiffServ codepoint) and ECN (2-bit Explicit Congestion
+	// Notification). Encoded into the TOS byte as (DSCP<<2)|(ECN&0x03).
+	DSCP uint8 `json:"dscp,omitempty"`
+	ECN  uint8 `json:"ecn,omitempty"`
+
+	// Flags (3-bit: reserved|DF|MF) and FragOffset (13-bit, in 8-byte units).
+	// Encoded into bytes 6:8 as (Flags<<13)|(FragOffset&0x1FFF).
+	// Use IPFlagDF / IPFlagMF constants. Default Flags=IPFlagDF (0x4000).
+	Flags       uint8  `json:"flags,omitempty"`
+	FragOffset  uint16 `json:"frag_offset,omitempty"`
 }
+
+// IP flags bit positions within the L3Config.Flags field.
+const (
+	IPFlagReserved uint8 = 0x04 // bit 2 (must be 0)
+	IPFlagDF       uint8 = 0x02 // bit 1 - Don't Fragment
+	IPFlagMF       uint8 = 0x01 // bit 0 - More Fragments
+)
 
 // L4Config for Layer 4 (TCP/UDP).
 type L4Config struct {

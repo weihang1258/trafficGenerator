@@ -85,13 +85,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				DstMAC:    spec.DstMAC,
 				EtherType: 0x0800,
 			},
-			L3: core.L3Config{
-				SrcIP:    spec.SrcIP,
-				DstIP:    spec.DstIP,
-				Protocol: 17,
-				TTL:      effectiveTTL,
-				IPID:     nextIPID(),
-			},
+			L3: core.L3Base(spec.SrcIP, spec.DstIP, 17, effectiveTTL, nextIPID(), spec),
 			L4: core.L4Config{
 				Protocol: "udp",
 				SrcPort:  spec.SrcPort,
@@ -113,13 +107,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.SrcMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.DstIP,
-					DstIP:    spec.SrcIP,
-					Protocol: 17,
-					TTL:      effectiveTTL,
-					IPID:     nextIPID(),
-				},
+				L3: core.L3Base(spec.DstIP, spec.SrcIP, 17, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "udp",
 					SrcPort:  spec.DstPort,

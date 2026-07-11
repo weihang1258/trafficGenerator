@@ -92,13 +92,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				DstMAC:    spec.DstMAC,
 				EtherType: 0x0800,
 			},
-			L3: core.L3Config{
-				SrcIP:    spec.SrcIP,
-				DstIP:    spec.DstIP,
-				Protocol: 1, // ICMP
-				TTL:      effectiveTTL,
-				IPID:     nextIPID(),
-			},
+			L3: core.L3Base(spec.SrcIP, spec.DstIP, 1, effectiveTTL, nextIPID(), spec),
 			L4: core.L4Config{
 				Protocol: "icmp",
 			},
@@ -128,13 +122,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.SrcMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.DstIP,
-					DstIP:    spec.SrcIP,
-					Protocol: 1,
-					TTL:      effectiveTTL,
-					IPID:     nextIPID(),
-				},
+				L3: core.L3Base(spec.DstIP, spec.SrcIP, 1, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "icmp",
 				},

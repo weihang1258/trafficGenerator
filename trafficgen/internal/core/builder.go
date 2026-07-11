@@ -25,6 +25,36 @@ func NewBuilder() *Builder {
 	return &Builder{}
 }
 
+// L3Base builds an L3Config with the common L3 fields plus the flow-level
+// DSCP/ECN/Flags/FragOffset carried on spec. srcIP/dstIP are passed explicitly
+// so reply packets can swap them. Legacy spec.TOS (whole-byte) overrides
+// DSCP/ECN when set, for backward compatibility with old configs.
+// Planners use this instead of inlining L3Config{} at every packet site.
+func L3Base(srcIP, dstIP string, protocol uint8, ttl uint8, ipid uint16, spec FlowSpec) L3Config {
+	// Default to DF (don't fragment) for normal traffic unless the caller
+	// explicitly requests fragmentation (flags set or a fragment offset).
+	flags := spec.Flags
+	if flags == 0 && spec.FragOffset == 0 {
+		flags = IPFlagDF
+	}
+	l3 := L3Config{
+		SrcIP:       srcIP,
+		DstIP:       dstIP,
+		Protocol:    protocol,
+		TTL:         ttl,
+		IPID:        ipid,
+		DSCP:        spec.DSCP,
+		ECN:         spec.ECN,
+		Flags:       flags,
+		FragOffset:  spec.FragOffset,
+	}
+	if spec.TOS != 0 {
+		l3.DSCP = spec.TOS >> 2
+		l3.ECN = spec.TOS & 0x03
+	}
+	return l3
+}
+
 // Build builds a binary packet from a PacketConfig.
 func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 	// Build bottom-up: L4 -> L3 -> L2
@@ -107,8 +137,8 @@ func (b *Builder) buildL3(config PacketConfig, payloadLen int) []byte {
 	// Version (4) and IHL (5, 20 bytes / 4)
 	header[0] = 0x45
 
-	// DSCP and ECN (default 0)
-	header[1] = 0
+	// DSCP and ECN: header[1] = (DSCP << 2) | (ECN & 0x03)
+	header[1] = (config.L3.DSCP << 2) | (config.L3.ECN & 0x03)
 
 	// Total length
 	totalLen := 20 + payloadLen
@@ -122,8 +152,9 @@ func (b *Builder) buildL3(config PacketConfig, payloadLen int) []byte {
 	}
 	binary.BigEndian.PutUint16(header[4:6], ipID)
 
-	// Flags and Fragment Offset (don't fragment)
-	binary.BigEndian.PutUint16(header[6:8], 0x4000)
+	// Flags and Fragment Offset. Flags=0 means no flags (fragmentable); the DF
+	// default for normal traffic is applied by L3Base at the flow-config layer.
+	binary.BigEndian.PutUint16(header[6:8], (uint16(config.L3.Flags)<<13)|(config.L3.FragOffset&0x1FFF))
 
 	// TTL
 	ttl := config.L3.TTL

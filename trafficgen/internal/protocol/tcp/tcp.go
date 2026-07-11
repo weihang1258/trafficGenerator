@@ -126,13 +126,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.DstMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.SrcIP,
-					DstIP:    spec.DstIP,
-					Protocol: 6, // TCP
-					TTL:      effectiveTTL,
-					IPID:     nextIPID(),
-				},
+				L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.SrcPort,
@@ -156,13 +150,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.SrcMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.DstIP,
-					DstIP:    spec.SrcIP,
-					Protocol: 6,
-					TTL:      effectiveTTL,
-					IPID:     nextIPID(),
-				},
+				L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.DstPort,
@@ -187,13 +175,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.DstMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.SrcIP,
-					DstIP:    spec.DstIP,
-					Protocol: 6,
-					TTL:      effectiveTTL,
-					IPID:     nextIPID(),
-				},
+				L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.SrcPort,
@@ -233,13 +215,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						DstMAC:    spec.DstMAC,
 						EtherType: 0x0800,
 					},
-					L3: core.L3Config{
-						SrcIP:    spec.SrcIP,
-						DstIP:    spec.DstIP,
-						Protocol: 6,
-						TTL:      effectiveTTL,
-						IPID:     nextIPID(),
-					},
+					L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 					L4: core.L4Config{
 						Protocol: "tcp",
 						SrcPort:  spec.SrcPort,
@@ -266,13 +242,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						DstMAC:    spec.SrcMAC,
 						EtherType: 0x0800,
 					},
-					L3: core.L3Config{
-						SrcIP:    spec.DstIP,
-						DstIP:    spec.SrcIP,
-						Protocol: 6,
-						TTL:      effectiveTTL,
-						IPID:     nextIPID(),
-					},
+					L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 					L4: core.L4Config{
 						Protocol: "tcp",
 						SrcPort:  spec.DstPort,
@@ -300,13 +270,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.DstMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.SrcIP,
-					DstIP:    spec.DstIP,
-					Protocol: 6,
-					TTL:      effectiveTTL,
-					IPID:     nextIPID(),
-				},
+				L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.SrcPort,
@@ -331,13 +295,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.SrcMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.DstIP,
-					DstIP:    spec.SrcIP,
-					Protocol: 6,
-					TTL:      effectiveTTL,
-					IPID:     nextIPID(),
-				},
+				L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.DstPort,
@@ -361,13 +319,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.SrcMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.DstIP,
-					DstIP:    spec.SrcIP,
-					Protocol: 6,
-					TTL:      effectiveTTL,
-					IPID:     nextIPID(),
-				},
+				L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.DstPort,
@@ -392,13 +344,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.DstMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.SrcIP,
-					DstIP:    spec.DstIP,
-					Protocol: 6,
-					TTL:      effectiveTTL,
-					IPID:     nextIPID(),
-				},
+				L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.SrcPort,

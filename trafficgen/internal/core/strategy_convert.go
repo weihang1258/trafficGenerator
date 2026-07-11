@@ -97,7 +97,11 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		DstMAC:  getString(cfg, "dst_mac"),
 		TTL:     uint8(getIntDefault(cfg, "ttl", 64)),
 		TOS:     uint8(getInt(cfg, "tos")),
-		Payload: []byte(getString(cfg, "payload")),
+		DSCP:       uint8(getInt(cfg, "dscp")),
+		ECN:        uint8(getInt(cfg, "ecn")),
+		Flags:      uint8(getInt(cfg, "flags")),
+		FragOffset: uint16(getInt(cfg, "frag_offset")),
+		Payload:    []byte(getString(cfg, "payload")),
 	}
 
 	// VLAN

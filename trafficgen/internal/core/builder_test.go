@@ -132,3 +132,116 @@ func TestBuilder_BuildWithVLAN(t *testing.T) {
 		t.Errorf("Wrong VLAN TPID")
 	}
 }
+
+// TestBuilder_DSCP_ECN verifies DSCP and ECN are encoded into the TOS byte.
+// header[1] = (DSCP << 2) | (ECN & 0x03).
+func TestBuilder_DSCP_ECN(t *testing.T) {
+	builder := NewBuilder()
+
+	// DSCP=46 (EF, expedited forwarding), ECN=0 -> 0xB8
+	config := PacketConfig{
+		L2: L2Config{SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66", EtherType: 0x0800},
+		L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 6, TTL: 64, DSCP: 46, ECN: 0},
+		L4: L4Config{Protocol: "tcp", SrcPort: 1, DstPort: 2},
+	}
+	packet, err := builder.Build(config)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+	// L3 starts at byte 14 (Ethernet header). TOS is L3 byte 1 = packet[15].
+	if packet[15] != 0xB8 {
+		t.Errorf("DSCP=46 ECN=0: TOS byte = 0x%02x, want 0xB8", packet[15])
+	}
+
+	// DSCP=0, ECN=3 (CE, congestion experienced) -> 0x03
+	config.L3.DSCP = 0
+	config.L3.ECN = 3
+	packet, _ = builder.Build(config)
+	if packet[15] != 0x03 {
+		t.Errorf("DSCP=0 ECN=3: TOS byte = 0x%02x, want 0x03", packet[15])
+	}
+
+	// DSCP=10, ECN=1 -> (10<<2)|1 = 41 = 0x29
+	config.L3.DSCP = 10
+	config.L3.ECN = 1
+	packet, _ = builder.Build(config)
+	if packet[15] != 0x29 {
+		t.Errorf("DSCP=10 ECN=1: TOS byte = 0x%02x, want 0x29", packet[15])
+	}
+}
+
+// TestBuilder_Fragmentation verifies IP flags and fragment offset encoding.
+// header[6:8] = (Flags << 13) | (FragOffset & 0x1FFF). The builder encodes
+// L3Config.Flags faithfully (0 = no flags / fragmentable); the DF default for
+// normal traffic is applied by L3Base, tested separately.
+func TestBuilder_Fragmentation(t *testing.T) {
+	builder := NewBuilder()
+
+	config := PacketConfig{
+		L2: L2Config{SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66", EtherType: 0x0800},
+		L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 6, TTL: 64},
+		L4: L4Config{Protocol: "tcp", SrcPort: 1, DstPort: 2},
+	}
+
+	// Flags=0 (no flags) -> 0x0000
+	packet, err := builder.Build(config)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+	got := uint16(packet[20])<<8 | uint16(packet[21])
+	if got != 0x0000 {
+		t.Errorf("no flags: 0x%04x, want 0x0000", got)
+	}
+
+	// DF set explicitly -> 0x4000
+	config.L3.Flags = IPFlagDF
+	packet, _ = builder.Build(config)
+	got = uint16(packet[20])<<8 | uint16(packet[21])
+	if got != 0x4000 {
+		t.Errorf("DF: 0x%04x, want 0x4000", got)
+	}
+
+	// MF set, FragOffset=100 -> (0x01<<13)|100 = 0x2064
+	config.L3.Flags = IPFlagMF
+	config.L3.FragOffset = 100
+	packet, _ = builder.Build(config)
+	got = uint16(packet[20])<<8 | uint16(packet[21])
+	if got != 0x2064 {
+		t.Errorf("MF+offset=100: 0x%04x, want 0x2064", got)
+	}
+
+	// No flags, offset=185 -> 0x00B9
+	config.L3.Flags = 0
+	config.L3.FragOffset = 185
+	packet, _ = builder.Build(config)
+	got = uint16(packet[20])<<8 | uint16(packet[21])
+	if got != 185 {
+		t.Errorf("no flags offset=185: 0x%04x, want 0x00B9", got)
+	}
+}
+
+// TestL3Base_DefaultDF verifies L3Base defaults to DF for normal traffic, and
+// respects explicit fragmentation requests.
+func TestL3Base_DefaultDF(t *testing.T) {
+	// Default (no flags, no offset) -> DF
+	l3 := L3Base("10.0.0.1", "10.0.0.2", 6, 64, 1, FlowSpec{})
+	if l3.Flags != IPFlagDF {
+		t.Errorf("default flags = 0x%02x, want IPFlagDF", l3.Flags)
+	}
+	// Explicit MF + offset -> no DF default
+	l3 = L3Base("10.0.0.1", "10.0.0.2", 6, 64, 1, FlowSpec{Flags: IPFlagMF, FragOffset: 100})
+	if l3.Flags != IPFlagMF || l3.FragOffset != 100 {
+		t.Errorf("explicit frag: flags=0x%02x off=%d, want MF/100", l3.Flags, l3.FragOffset)
+	}
+	// DSCP/ECN carried through
+	l3 = L3Base("10.0.0.1", "10.0.0.2", 6, 64, 1, FlowSpec{DSCP: 46, ECN: 1})
+	if l3.DSCP != 46 || l3.ECN != 1 {
+		t.Errorf("dscp/ecn: %d/%d, want 46/1", l3.DSCP, l3.ECN)
+	}
+	// Legacy TOS splits into DSCP/ECN
+	l3 = L3Base("10.0.0.1", "10.0.0.2", 6, 64, 1, FlowSpec{TOS: 0xB8}) // 0xB8 = DSCP 46, ECN 0
+	if l3.DSCP != 46 || l3.ECN != 0 {
+		t.Errorf("TOS=0xB8: dscp=%d ecn=%d, want 46/0", l3.DSCP, l3.ECN)
+	}
+}
+
