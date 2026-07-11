@@ -29,6 +29,8 @@ type SystemStatusResponse struct {
 	CpuUsage     float64                `json:"cpu_usage"`
 	MemoryMB     float64                `json:"memory_mb"`
 	Uptime       int64                  `json:"uptime"`
+	NumGC        uint32                 `json:"num_gc"`
+	GCPauseMs    float64                `json:"gc_pause_ms"`
 }
 
 // SettingsResponse represents application settings.
