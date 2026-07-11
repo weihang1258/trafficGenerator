@@ -5,7 +5,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -82,11 +85,16 @@ func (w *PCAPWriter) writeGlobalHeader() error {
 
 // Write writes packets to the PCAP file. Each packet gets its own timestamp
 // (computed per-packet inside the loop), the 16-byte record header and packet
-// body are written as a single buffered write, and the buffer is flushed (not
-// fsynced) so high packet rates do not stall on disk flushes.
+// body are written as a single buffered write. The buffer is NOT flushed here:
+// bufio auto-flushes when the 256KB buffer fills, and fsync happens on Close.
+// Per-Write Flush would defeat the bufio buffer (one syscall per packet).
 func (w *PCAPWriter) Write(packets [][]byte) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	if w.file == nil {
+		return fmt.Errorf("pcap writer closed: %s", w.path)
+	}
 
 	var buf [16]byte
 	for _, packet := range packets {
@@ -107,7 +115,7 @@ func (w *PCAPWriter) Write(packets [][]byte) error {
 		w.written += int64(len(packet)) + 16
 	}
 
-	return w.bw.Flush()
+	return nil
 }
 
 // Close closes the PCAP file.
@@ -152,6 +160,7 @@ type RotatingPCAPWriter struct {
 	maxFiles    int   // Max number of files to keep
 	current     *PCAPWriter
 	currentSize int64
+	rotation    int64 // monotonic counter for unique filenames
 	mu          sync.Mutex
 }
 
@@ -181,8 +190,12 @@ func (w *RotatingPCAPWriter) Write(packets [][]byte) error {
 		totalSize += int64(len(p) + 16)
 	}
 
-	// Check if rotation needed
-	if w.currentSize+totalSize > w.maxSize {
+	// Rotate when the current file would exceed maxSize, or when a prior
+	// rotate() failed and left w.current == nil. Treating nil as a rotation
+	// trigger makes the writer self-recover: after a transient NewPCAPWriter
+	// failure (disk full, EMFILE, ...), the next Write retries rotation
+	// instead of staying wedged on a closed inner writer forever.
+	if w.current == nil || w.currentSize+totalSize > w.maxSize {
 		if err := w.rotate(); err != nil {
 			return err
 		}
@@ -207,20 +220,45 @@ func (w *RotatingPCAPWriter) Close() error {
 	return nil
 }
 
-// rotate creates a new PCAP file.
+// rotate creates a new PCAP file. It closes the previous file (propagating
+// close errors to the log), uses a monotonic counter in the filename so two
+// rotations within the same second do not collide and truncate each other,
+// and enforces maxFiles by deleting the oldest files.
 func (w *RotatingPCAPWriter) rotate() error {
-	// Close current file
+	// Close current file, surfacing close errors (flush/fsync) rather than
+	// silently dropping data.
 	if w.current != nil {
-		w.current.Close()
+		if err := w.current.Close(); err != nil {
+			zap.L().Warn("previous pcap file close error (possible data loss)",
+				zap.String("path", w.current.path),
+				zap.Error(err),
+			)
+		}
 	}
+	// Drop the reference and reset the size BEFORE creating the new file. If
+	// NewPCAPWriter fails below, w.current stays nil so the next Write retries
+	// rotation (via the w.current == nil trigger) instead of calling Write on
+	// the just-closed inner writer and wedging on its closed-state guard.
+	w.current = nil
+	w.currentSize = 0
 
-	// Generate new filename with timestamp
+	// Monotonic counter guarantees uniqueness even when two rotations happen
+	// in the same second (second-granularity timestamps alone collide and
+	// os.Create would truncate the prior file). Zero-padded so lexical sort
+	// of filenames matches numeric order (otherwise seq>=10 mis-sorts and
+	// enforceMaxFiles could delete the currently-open file). %09d keeps
+	// lexical == numeric order up to 999,999,999 rotations, far beyond any
+	// realistic session (%05d would re-break at 100,000 same-second rotations).
+	seq := atomic.AddInt64(&w.rotation, 1)
 	timestamp := time.Now().Format("20060102-150405")
-	path := fmt.Sprintf("%s-%s.pcap", w.basePath, timestamp)
+	path := fmt.Sprintf("%s-%s-%09d.pcap", w.basePath, timestamp, seq)
 
 	// Create new file
 	writer, err := NewPCAPWriter(path)
 	if err != nil {
+		// Leave w.current == nil and currentSize == 0 (set above) so the next
+		// Write retries rotation via the w.current == nil trigger instead of
+		// hitting the closed-writer guard on a stale, closed inner writer.
 		return err
 	}
 
@@ -229,7 +267,31 @@ func (w *RotatingPCAPWriter) rotate() error {
 
 	zap.L().Info("rotated pcap file", zap.String("path", path))
 
-	// TODO: Clean up old files if maxFiles exceeded
+	// Enforce maxFiles: delete oldest files beyond the limit.
+	if w.maxFiles > 0 {
+		w.enforceMaxFiles()
+	}
 
 	return nil
+}
+
+// enforceMaxFiles deletes the oldest rotated files beyond maxFiles. Files are
+// matched by the basePath-*.pcap glob and sorted by name (timestamp+seq).
+func (w *RotatingPCAPWriter) enforceMaxFiles() {
+	pattern := w.basePath + "-*.pcap"
+	matches, err := filepath.Glob(pattern)
+	if err != nil || len(matches) <= w.maxFiles {
+		return
+	}
+	// Sort by name; oldest first (timestamp in name makes lexical order ~chronological).
+	sort.Strings(matches)
+	excess := len(matches) - w.maxFiles
+	for i := 0; i < excess; i++ {
+		if rmErr := os.Remove(matches[i]); rmErr != nil {
+			zap.L().Warn("failed to remove old pcap file",
+				zap.String("path", matches[i]),
+				zap.Error(rmErr),
+			)
+		}
+	}
 }

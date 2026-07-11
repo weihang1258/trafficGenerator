@@ -40,11 +40,18 @@ func NewInterfaceWriter(iface string) (*InterfaceWriter, error) {
 	}, nil
 }
 
-// Write writes packets to the interface.
+// Write writes packets to the interface. Returns the first write error
+// encountered so a dead interface fails the task instead of silently
+// reporting success with zero packets actually sent.
 func (w *InterfaceWriter) Write(packets [][]byte) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	if w.handle == nil {
+		return fmt.Errorf("interface writer closed: %s", w.iface)
+	}
+
+	var firstErr error
 	for _, packet := range packets {
 		if err := w.handle.WritePacketData(packet); err != nil {
 			w.errors++
@@ -52,12 +59,15 @@ func (w *InterfaceWriter) Write(packets [][]byte) error {
 				zap.String("interface", w.iface),
 				zap.Error(err),
 			)
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		w.sent++
 	}
 
-	return nil
+	return firstErr
 }
 
 // Close closes the interface handle.
@@ -95,10 +105,13 @@ func (w *InterfaceWriter) Stats() map[string]interface{} {
 // BatchInterfaceWriter writes packets in batches for better performance.
 type BatchInterfaceWriter struct {
 	*InterfaceWriter
-	batchSize int
-	batch     [][]byte
-	timer     *time.Timer
-	flushChan chan struct{}
+	batchSize     int
+	batch         [][]byte
+	flushInterval time.Duration
+	timer         *time.Timer
+	flushChan     chan struct{}
+	done          chan struct{}
+	once          sync.Once
 }
 
 // NewBatchInterfaceWriter creates a new batch interface writer.
@@ -111,13 +124,19 @@ func NewBatchInterfaceWriter(iface string, batchSize int, flushInterval time.Dur
 	bw := &BatchInterfaceWriter{
 		InterfaceWriter: iw,
 		batchSize:       batchSize,
+		flushInterval:   flushInterval,
 		batch:           make([][]byte, 0, batchSize),
 		flushChan:       make(chan struct{}, 1),
+		done:            make(chan struct{}),
 	}
 
 	// Start flush timer
 	bw.timer = time.AfterFunc(flushInterval, func() {
+		// Guard against sending after Close: select on done so we never send
+		// on a flushed/closing path (flushChan is never closed, but we stop
+		// signalling once done is closed).
 		select {
+		case <-bw.done:
 		case bw.flushChan <- struct{}{}:
 		default:
 		}
@@ -146,44 +165,82 @@ func (w *BatchInterfaceWriter) Write(packets [][]byte) error {
 	return nil
 }
 
-// flushLoop periodically flushes the batch.
+// flushLoop periodically flushes the batch. Exits when done is closed.
+// Logs flush errors (a transient timer-driven flush should not fail the task,
+// but the error must not be silently swallowed). Re-arms the one-shot AfterFunc
+// timer after each flush: without Reset the timer fires only once, so
+// sub-batchSize writes would sit in w.batch until Close (delayed delivery /
+// data held in memory for the task's whole lifetime).
 func (w *BatchInterfaceWriter) flushLoop() {
-	for range w.flushChan {
-		w.mu.Lock()
-		w.flushLocked()
-		w.mu.Unlock()
+	for {
+		select {
+		case <-w.done:
+			return
+		case <-w.flushChan:
+			w.mu.Lock()
+			if err := w.flushLocked(); err != nil {
+				zap.L().Warn("batch interface flush error",
+					zap.String("interface", w.iface),
+					zap.Error(err),
+				)
+			}
+			w.mu.Unlock()
+			// Re-arm the periodic flush. Concurrent with Close's timer.Stop:
+			// time.Timer Reset/Stop are mutex-protected internally (no panic,
+			// no race-detector trip). If Stop already fired, this arms one more
+			// tick whose callback harmlessly selects <-done and does not re-arm
+			// again (this loop has exited), so there is no post-close spin.
+			w.timer.Reset(w.flushInterval)
+		}
 	}
 }
 
-// flushLocked flushes the batch (must hold lock).
+// flushLocked flushes the batch (must hold lock). Returns the first write error.
+// Guards against a nil handle (e.g. Write-after-Close) to avoid a nil deref.
 func (w *BatchInterfaceWriter) flushLocked() error {
 	if len(w.batch) == 0 {
 		return nil
 	}
+	if w.handle == nil {
+		w.batch = w.batch[:0]
+		return fmt.Errorf("interface writer closed: %s", w.iface)
+	}
 
+	var firstErr error
 	for _, packet := range w.batch {
 		if err := w.handle.WritePacketData(packet); err != nil {
 			w.errors++
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		w.sent++
 	}
 
 	w.batch = w.batch[:0]
-	return nil
+	return firstErr
 }
 
-// Close closes the writer and flushes remaining packets.
+// Close closes the writer and flushes remaining packets. Signals flushLoop to
+// exit via the done channel (closing done, never flushChan) to avoid a
+// goroutine leak and a send-on-closed-channel panic. Returns the final flush
+// error (if any) alongside the underlying close error.
 func (w *BatchInterfaceWriter) Close() error {
-	w.mu.Lock()
-	w.flushLocked()
-	w.mu.Unlock()
-
+	w.once.Do(func() { close(w.done) })
 	if w.timer != nil {
 		w.timer.Stop()
 	}
 
-	return w.InterfaceWriter.Close()
+	w.mu.Lock()
+	flushErr := w.flushLocked()
+	w.mu.Unlock()
+
+	closeErr := w.InterfaceWriter.Close()
+	if flushErr != nil {
+		return flushErr
+	}
+	return closeErr
 }
 
 // InjectPacket injects a single gopacket packet.

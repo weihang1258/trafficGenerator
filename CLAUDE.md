@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Code Modification & Review Policy (Mandatory)
+
+**Any code modification MUST be followed by a code review before considering the work done.** This is a binding workflow rule, not a suggestion:
+
+1. **After writing/changing code → review the changed code first.** Do not jump straight to testing. Review the diff for correctness, newly introduced bugs (races, deadlocks, double-close, nil deref, off-by-one), missed call sites/edge cases, regressions, and resource leaks. Read the actual changed files in context, not just the diff.
+2. **Then run tests.** Build, vet, and run the relevant test suite (including `-race`).
+3. **If tests or review find bugs → fix them → review the fix.** Every bug fix is itself a code modification, so it must be reviewed too (a fix can introduce a new bug). Repeat the review→test→fix→review loop until clean.
+4. **In short: every code change — feature, fix, or refactor — must be reviewed.** No exceptions for "small" or "obvious" changes.
+
+For non-trivial changesets, prefer a thorough review: parallel reviewers per changed area + adversarial verification of each finding (try to refute it by reading the actual code; default to "not a bug" if uncertain or if the behavior is intentional/by-design). Report confirmed issues ranked by severity, then fix and re-verify.
+
 ## Project Overview
 
 This is a **high-performance network traffic generator** implemented as a single Python file (`high_performance_traffic_generator.py`, ~2336 lines). It uses a multiprocessing pipeline architecture to generate TCP/UDP/HTTP traffic with precise rate control and memory efficiency.

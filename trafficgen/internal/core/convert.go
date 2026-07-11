@@ -128,15 +128,30 @@ func ValidateBatchSpec(batch BatchSpec) error {
 	validProtocols := map[string]bool{
 		"tcp": true, "udp": true, "http": true, "dns": true, "icmp": true, "arp": true,
 	}
+	seenIDs := make(map[string]bool)
 	for i, c := range batch.Classes {
 		if c.ID == "" {
 			return fmt.Errorf("class[%d]: id is required", i)
 		}
+		if seenIDs[c.ID] {
+			return fmt.Errorf("class[%d] %s: duplicate class id (ids must be unique within a batch)", i, c.ID)
+		}
+		seenIDs[c.ID] = true
 		if !validProtocols[c.Type] {
 			return fmt.Errorf("class[%d] %s: invalid type %s", i, c.ID, c.Type)
 		}
 		if c.FlowCount <= 0 {
 			return fmt.Errorf("class[%d] %s: flow_count must be > 0", i, c.ID)
+		}
+		// Validate raw DSCP/ECN/VLAN ranges BEFORE mapToFlowSpec truncates them
+		// to uint8/uint16. Without this, dscp=256 silently wraps to 0 (valid).
+		if err := ValidateConfigRanges(c.Config); err != nil {
+			return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)
+		}
+		// Validate per-protocol sub-config fields (tcp.mss, icmp.type, etc.)
+		// that also truncate silently through uint16/uint8.
+		if err := ValidateProtocolSubConfigs(c.Config, c.Type); err != nil {
+			return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)
 		}
 		// Validate the class's spec fields (DSCP/ECN/VLAN/MSS ranges, IP format).
 		if err := ValidateFlowSpec(mapToFlowSpec(c.Config, c.Type)); err != nil {

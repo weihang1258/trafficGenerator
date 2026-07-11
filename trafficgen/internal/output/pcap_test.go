@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -122,5 +123,37 @@ func TestPCAPWriter_NoSyncPerWrite(t *testing.T) {
 	// flakiness on slow CI disks.
 	if elapsed > 500*time.Millisecond {
 		t.Errorf("Write of 2000 small packets took %v, expected faster (no per-call fsync)", elapsed)
+	}
+}
+
+// TestRotatingPCAPWriter_SeqZeroPadded verifies the rotation counter is
+// zero-padded so >=10 rotations sort lexically in numeric order. Without
+// zero-padding, "basePath-...-10.pcap" sorts before "basePath-...-2.pcap",
+// causing enforceMaxFiles to delete the wrong (possibly currently-open) file.
+func TestRotatingPCAPWriter_SeqZeroPadded(t *testing.T) {
+	dir := t.TempDir()
+	base := dir + "/rot"
+	// maxSize just above one minimal packet (16-byte record header) so each
+	// Write triggers a rotation.
+	w, err := NewRotatingPCAPWriter(base, 20, 100)
+	if err != nil {
+		t.Fatalf("NewRotatingPCAPWriter: %v", err)
+	}
+	defer w.Close()
+	for i := 0; i < 12; i++ {
+		if err := w.Write([][]byte{[]byte("x")}); err != nil {
+			t.Fatalf("Write %d: %v", i, err)
+		}
+	}
+	// Glob the rotated files and confirm seq suffixes are zero-padded (9 digits).
+	matches, _ := filepath.Glob(base + "-*.pcap")
+	if len(matches) < 10 {
+		t.Fatalf("expected >=10 rotated files, got %d", len(matches))
+	}
+	for _, m := range matches {
+		// filename should contain "-000000001.pcap" style suffix (9 digits).
+		if !strings.Contains(m, "-00000000") && !strings.Contains(m, "-00000001") {
+			t.Errorf("filename %q not zero-padded (expected 9-digit seq)", m)
+		}
 	}
 }

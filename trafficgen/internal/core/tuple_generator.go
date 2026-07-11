@@ -44,6 +44,9 @@ func genIP(s StrategyConfig, index int) string {
 		}
 		return s.List[index%len(s.List)]
 	case "inc":
+		if len(s.Range) < 2 {
+			return ""
+		}
 		start, ok1 := ipToU32(asString(s.Range[0]))
 		end, ok2 := ipToU32(asString(s.Range[1]))
 		if !ok1 || !ok2 || end < start {
@@ -57,6 +60,9 @@ func genIP(s StrategyConfig, index int) string {
 		offset := uint32((index * step) % int(count))
 		return u32ToIP(start + offset)
 	case "rand":
+		if len(s.Range) < 2 {
+			return ""
+		}
 		start, ok1 := ipToU32(asString(s.Range[0]))
 		end, ok2 := ipToU32(asString(s.Range[1]))
 		if !ok1 || !ok2 || end < start {
@@ -80,6 +86,9 @@ func genPort(s StrategyConfig, index int) uint16 {
 		}
 		return toPort(s.List[index%len(s.List)])
 	case "inc":
+		if len(s.Range) < 2 {
+			return 0
+		}
 		start := int(toPort(s.Range[0]))
 		end := int(toPort(s.Range[1]))
 		if end < start {
@@ -92,6 +101,9 @@ func genPort(s StrategyConfig, index int) uint16 {
 		}
 		return uint16(start + (index*step)%count)
 	case "rand":
+		if len(s.Range) < 2 {
+			return 0
+		}
 		start := int(toPort(s.Range[0]))
 		end := int(toPort(s.Range[1]))
 		if end < start {

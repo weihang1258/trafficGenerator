@@ -119,3 +119,30 @@ func TestTupleGenerator_IPIncrementAcrossOctet(t *testing.T) {
 		t.Errorf("Next(2) = %s, want 10.0.1.0 (carry)", srcIP)
 	}
 }
+
+// TestTupleGenerator_EmptyRangeNoPanic verifies inc/rand strategies with an
+// empty or single-element Range do not panic (previously s.Range[0]/[1] were
+// indexed without a length check, crashing the worker process).
+func TestTupleGenerator_EmptyRangeNoPanic(t *testing.T) {
+	cases := []struct {
+		name string
+		tc   TupleConfig
+	}{
+		{"inc empty range", TupleConfig{SrcIP: StrategyConfig{Strategy: "inc", Step: 1}}},
+		{"inc single range", TupleConfig{SrcIP: StrategyConfig{Strategy: "inc", Range: []interface{}{"10.0.0.1"}}}},
+		{"rand empty range", TupleConfig{SrcPort: StrategyConfig{Strategy: "rand", Seed: 1}}},
+		{"rand single range", TupleConfig{SrcPort: StrategyConfig{Strategy: "rand", Range: []interface{}{float64(80)}}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("panicked on %s: %v", c.name, r)
+				}
+			}()
+			g := NewTupleGenerator(c.tc)
+			g.Next(0)
+			g.Next(1)
+		})
+	}
+}

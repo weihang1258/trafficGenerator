@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"gorm.io/gorm"
@@ -77,11 +78,24 @@ func (h *StrategyHandler) Create(c *gin.Context) {
 		BadRequest(c, errMsg)
 		return
 	}
+	// Validate DSCP/ECN/VLAN ranges on the raw config before mapToFlowSpec
+	// truncates them to uint8/uint16 (otherwise dscp=256 silently wraps to 0).
+	if err := core.ValidateConfigRanges(req.Config); err != nil {
+		BadRequest(c, err.Error())
+		return
+	}
 
 	// Validate protocol
 	validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true}
 	if req.Protocol == "" || !validProtocols[req.Protocol] {
 		BadRequest(c, "invalid or missing protocol: " + req.Protocol)
+		return
+	}
+	// Validate per-protocol sub-config fields (tcp.mss, icmp.type, etc.)
+	// that also truncate silently through uint16/uint8. Runs after protocol
+	// validation so req.Protocol is known-good.
+	if err := core.ValidateProtocolSubConfigs(req.Config, req.Protocol); err != nil {
+		BadRequest(c, err.Error())
 		return
 	}
 
@@ -261,6 +275,19 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 	// Validate network config fields
 	if errMsg := validateConfigNetwork(req.Config); errMsg != "" {
 		BadRequest(c, errMsg)
+		return
+	}
+	// Validate DSCP/ECN/VLAN ranges on the raw config before mapToFlowSpec
+	// truncates them to uint8/uint16 (otherwise dscp=256 silently wraps to 0).
+	if err := core.ValidateConfigRanges(req.Config); err != nil {
+		BadRequest(c, err.Error())
+		return
+	}
+	// Validate per-protocol sub-config fields (tcp.mss, icmp.type, etc.)
+	// that also truncate silently through uint16/uint8. Unknown/empty protocol
+	// is a no-op (switch has no matching case).
+	if err := core.ValidateProtocolSubConfigs(req.Config, req.Protocol); err != nil {
+		BadRequest(c, err.Error())
 		return
 	}
 

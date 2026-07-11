@@ -179,6 +179,12 @@ func (w *ConfigWorker) processTask(task Task) {
 	var configCount int64
 	for config := range configChan {
 		config.ClassID = task.ClassID
+		// Propagate flow-level VLAN to the packet's L2 config. Planners do not
+		// copy spec.VLAN into L2Config, so without this the builder never sees
+		// the VLAN and 802.1Q tags are never emitted.
+		if config.L2.VLAN == nil && task.Spec.VLAN != nil {
+			config.L2.VLAN = task.Spec.VLAN
+		}
 		if config.Metadata == nil {
 			config.Metadata = make(map[string]interface{})
 		}
@@ -187,6 +193,11 @@ func (w *ConfigWorker) processTask(task Task) {
 
 		select {
 		case <-taskCtx.Done():
+			// Drain remaining configs so the planner goroutine is not blocked
+			// on configChan <- (which would leak it permanently). Planners
+			// generate a finite number of packets, so this drain is bounded.
+			for range configChan {
+			}
 			if w.onTaskDone != nil {
 				w.onTaskDone(task.ID, fmt.Errorf("task cancelled"), configCount)
 			}
@@ -221,6 +232,11 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 
 	var classWg sync.WaitGroup
 	var configCount int64
+	var flowFailures int64
+	totalFlows := 0
+	for _, class := range task.Batch.Classes {
+		totalFlows += class.FlowCount
+	}
 
 	for _, class := range task.Batch.Classes {
 		planner, ok := w.planners[class.Type]
@@ -230,6 +246,7 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 				zap.String("class_id", class.ID),
 				zap.String("type", class.Type),
 			)
+			atomic.AddInt64(&flowFailures, int64(class.FlowCount))
 			continue
 		}
 
@@ -257,20 +274,31 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 						zap.String("class_id", c.ID),
 						zap.Error(err),
 					)
+					atomic.AddInt64(&flowFailures, 1)
 					continue
 				}
 
 				configChan, err := p.Plan(taskCtx, spec)
 				if err != nil {
-					zap.L().Error("batch flow planning failed",
+					// A single flow's planning error must not abort the entire
+					// class: skip this flow and continue with the rest.
+					zap.L().Error("batch flow planning failed, skipping flow",
 						zap.String("task_id", task.ID),
 						zap.String("class_id", c.ID),
 						zap.Error(err),
 					)
-					return
+					atomic.AddInt64(&flowFailures, 1)
+					continue
 				}
 				for config := range configChan {
 					config.ClassID = classKey
+					// Propagate flow-level VLAN to the packet's L2 config.
+					// Planners do not copy spec.VLAN into L2Config, so without
+					// this the builder never sees the VLAN and 802.1Q tags are
+					// never emitted.
+					if config.L2.VLAN == nil && spec.VLAN != nil {
+						config.L2.VLAN = spec.VLAN
+					}
 					if config.Metadata == nil {
 						config.Metadata = make(map[string]interface{})
 					}
@@ -278,6 +306,11 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 					config.Metadata["interface"] = task.Interface
 					select {
 					case <-taskCtx.Done():
+						// Drain remaining configs so this class's planner goroutine
+						// is not blocked on configChan <- (leak). Bounded: planners
+						// generate a finite packet count per flow.
+						for range configChan {
+						}
 						return
 					case w.configChan <- config:
 						atomic.AddInt64(&configCount, 1)
@@ -291,8 +324,23 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 
 	atomic.AddInt64(&w.stats.TasksProcessed, 1)
 	atomic.AddInt64(&w.stats.PacketsGenerated, configCount)
+	// Report the appropriate terminal state. If every flow failed, report an
+	// error. A duration deadline (context.DeadlineExceeded) is normal
+	// completion - the task ran its configured lifetime - so report nil and
+	// let SetTaskTotalConfigs complete it once in-flight packets drain. An
+	// explicit cancel (context.Canceled: StopTask or engine shutdown) reports
+	// "task cancelled"; FailTask respects the "stopped" status StopTask set.
 	if w.onTaskDone != nil {
-		w.onTaskDone(task.ID, nil, configCount)
+		switch {
+		case totalFlows > 0 && atomic.LoadInt64(&flowFailures) >= int64(totalFlows):
+			w.onTaskDone(task.ID, fmt.Errorf("all %d flows failed validation/planning", totalFlows), configCount)
+		case taskCtx.Err() == context.DeadlineExceeded:
+			w.onTaskDone(task.ID, nil, configCount)
+		case taskCtx.Err() != nil:
+			w.onTaskDone(task.ID, fmt.Errorf("task cancelled"), configCount)
+		default:
+			w.onTaskDone(task.ID, nil, configCount)
+		}
 	}
 }
 
@@ -494,7 +542,7 @@ func (w *OutputWorker) processPacket(out PacketOutput) {
 func (w *OutputWorker) writePacket(out PacketOutput) {
 	packet := out.Data
 
-	// Route to registered output writer based on task_id metadata
+	// 1. Route to registered output writer based on task_id metadata.
 	if w.engine != nil && out.Metadata != nil {
 		if taskID, ok := out.Metadata["task_id"].(string); ok && taskID != "" {
 			w.engine.outputMu.RLock()
@@ -509,6 +557,18 @@ func (w *OutputWorker) writePacket(out PacketOutput) {
 					atomic.AddInt64(&w.stats.Errors, 1)
 					if w.engine.OnOutputError != nil {
 						w.engine.OnOutputError(taskID, err)
+					} else {
+						// Defensive: if no callback is wired (e.g. direct Engine
+						// use without the API layer), fail the task directly so
+						// it doesn't hang (OnPacketWritten is skipped on error,
+						// so writtenPackets would never reach totalConfigs).
+						w.engine.FailTask(taskID, "output writer error: "+err.Error())
+						// Unregister the broken writer so subsequent in-flight
+						// packets for this taskID do not keep hitting WritePackets
+						// and generating log-noise / fd leaks. Mirrors the API
+						// layer's onEngineOutputError ordering (FailTask then
+						// UnregisterOutputWriter).
+						w.engine.UnregisterOutputWriter(taskID)
 					}
 					return
 				}
@@ -516,7 +576,13 @@ func (w *OutputWorker) writePacket(out PacketOutput) {
 		}
 	}
 
-	// Also store in buffer for API retrieval
+	// 2. Store in buffer for API retrieval (best-effort). Overflow does NOT
+	// fail the task: the packet was already written to the output writer
+	// above; the buffer is only a snapshot for get_packets. We log and count
+	// the drop but still count the packet as written so task completion
+	// accounting is not stalled (otherwise a task generating more than
+	// BufferSize packets would never reach writtenPackets==totalConfigs and
+	// leak forever).
 	direction := "combined"
 	if w.buffer != nil {
 		if !w.buffer.Put(packet, direction) {
@@ -527,13 +593,13 @@ func (w *OutputWorker) writePacket(out PacketOutput) {
 					w.engine.OnBufferOverflow(taskID, 1)
 				}
 			}
-			return
 		}
 	}
 
 	atomic.AddInt64(&w.stats.PacketsGenerated, 1)
 
-	// Notify engine that a packet was written (triggers task completion when all packets drain)
+	// 3. Notify engine that a packet was written. Always fires (even on buffer
+	// overflow) so the task completes once all planned packets are processed.
 	if w.engine != nil && out.Metadata != nil {
 		if taskID, ok := out.Metadata["task_id"].(string); ok {
 			w.engine.OnPacketWritten(taskID)

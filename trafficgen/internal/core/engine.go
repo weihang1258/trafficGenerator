@@ -139,15 +139,19 @@ func (e *Engine) RegisterOutputWriter(taskID string, writer PacketWriter) {
 	e.outputMu.Unlock()
 }
 
-// UnregisterOutputWriter removes and closes a task's output writer.
+// UnregisterOutputWriter removes and closes a task's output writer. Close runs
+// outside the outputMu lock because PCAPWriter.Close fsyncs (can block); holding
+// the write-lock during fsync would stall all packet output across all tasks.
 func (e *Engine) UnregisterOutputWriter(taskID string) {
 	e.outputMu.Lock()
 	w, ok := e.outputWriters[taskID]
 	if ok {
 		delete(e.outputWriters, taskID)
-		w.Close()
 	}
 	e.outputMu.Unlock()
+	if ok && w != nil {
+		w.Close()
+	}
 }
 
 // Start starts the engine.
@@ -267,6 +271,22 @@ func (e *Engine) Stop() {
 	// Close buffer
 	if e.buffer != nil {
 		e.buffer.Close()
+	}
+
+	// Close all registered output writers. Without this, stopping the engine
+	// mid-task leaks file handles and skips the PCAPWriter Close fsync (data
+	// loss). Close outside the outputMu lock to avoid blocking output.
+	e.outputMu.Lock()
+	writers := make([]PacketWriter, 0, len(e.outputWriters))
+	for id, w := range e.outputWriters {
+		writers = append(writers, w)
+		delete(e.outputWriters, id)
+	}
+	e.outputMu.Unlock()
+	for _, w := range writers {
+		if w != nil {
+			w.Close()
+		}
 	}
 
 	zap.L().Info("engine stopped")
@@ -480,6 +500,15 @@ func (e *Engine) FailTask(taskID string, errMsg string) {
 		e.taskMu.Unlock()
 		return
 	}
+	// A stopped task is already terminal: StopTask set the user-visible
+	// "stopped" status and CompletedAt. Do NOT overwrite it with "failed"
+	// when the draining pipeline reports "task cancelled" after a stop -
+	// otherwise every user-initiated stop lands in "failed" state. Mirrors
+	// the OnPacketWritten "stopped" guard.
+	if entry.status.Status == "stopped" {
+		e.taskMu.Unlock()
+		return
+	}
 	entry.status.Status = "failed"
 	entry.status.Error = errMsg
 	entry.status.CompletedAt = time.Now()
@@ -547,9 +576,19 @@ func (e *Engine) GetBufferStatus() map[string]interface{} {
 	return e.buffer.Status()
 }
 
-// SetClassRateLimit sets the rate limit for a class.
+// SetClassRateLimit sets the rate limit for a class. bps is in bits/second
+// (networking convention: "1M" = 1 Mbps). The token bucket consumes bytes per
+// packet, so convert bits/s to bytes/s here. Without this conversion the bucket
+// would treat bps as bytes/s and the actual wire rate would be 8x the configured
+// value (e.g. "1M" -> 8 Mbps instead of 1 Mbps).
 func (e *Engine) SetClassRateLimit(classID string, bps int64) {
-	limiter := NewTokenBucket(bps, 65536)
+	rateBytesPerSec := bps / 8
+	if rateBytesPerSec < 1 {
+		// Guard against truncation to zero: rate=0 means unlimited in the
+		// token bucket, which would silently disable limiting for tiny bps.
+		rateBytesPerSec = 1
+	}
+	limiter := NewTokenBucket(rateBytesPerSec, 65536)
 	e.rateMu.Lock()
 	e.rateLimiters[classID] = limiter
 	e.rateMu.Unlock()

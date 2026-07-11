@@ -2,6 +2,100 @@ package core
 
 import "fmt"
 
+// ValidateConfigRanges checks DSCP/ECN/VLAN/Flags/FragOffset/TTL/TOS/Port values in
+// the raw config map before mapToFlowSpec truncates them to uint8/uint16.
+// Without this, an out-of-range value like dscp=256 silently wraps to 0
+// (valid) because uint8(256)==0, and negative values wrap to large unsigned
+// values. getInt returns the untruncated int, so both upper- and lower-bound
+// violations are caught here.
+func ValidateConfigRanges(cfg map[string]interface{}) error {
+	if d := getInt(cfg, "dscp"); d < 0 || d > 63 {
+		return fmt.Errorf("dscp %d invalid (must be 0-63)", d)
+	}
+	if e := getInt(cfg, "ecn"); e < 0 || e > 3 {
+		return fmt.Errorf("ecn %d invalid (must be 0-3)", e)
+	}
+	if v := getInt(cfg, "vlan_id"); v < 0 || v > 4095 {
+		return fmt.Errorf("vlan_id %d invalid (must be 0-4095)", v)
+	}
+	if p := getInt(cfg, "vlan_priority"); p < 0 || p > 7 {
+		return fmt.Errorf("vlan_priority %d invalid (must be 0-7)", p)
+	}
+	// IP flags: 3-bit field (reserved|DF|MF). Valid 0-7; reserved bit (0x04)
+	// should be 0 but is masked by the builder, so only range-check here.
+	if f := getInt(cfg, "flags"); f < 0 || f > 7 {
+		return fmt.Errorf("flags %d invalid (must be 0-7)", f)
+	}
+	// Fragment offset: 13-bit field (0-8191), in 8-byte units.
+	if fo := getInt(cfg, "frag_offset"); fo < 0 || fo > 8191 {
+		return fmt.Errorf("frag_offset %d invalid (must be 0-8191)", fo)
+	}
+	// TTL/TOS: 8-bit fields (0-255). 0 means "use default"; >255 silently wraps.
+	if ttl := getInt(cfg, "ttl"); ttl < 0 || ttl > 255 {
+		return fmt.Errorf("ttl %d invalid (must be 0-255)", ttl)
+	}
+	if tos := getInt(cfg, "tos"); tos < 0 || tos > 255 {
+		return fmt.Errorf("tos %d invalid (must be 0-255)", tos)
+	}
+	// src_port/dst_port: 16-bit fields (0-65535). getUint16 truncates 65536 to 0
+	// and -1 to 65535, the same silent-wrap class of bug as the uint8 fields above.
+	if p := getInt(cfg, "src_port"); p < 0 || p > 65535 {
+		return fmt.Errorf("src_port %d invalid (must be 0-65535)", p)
+	}
+	if p := getInt(cfg, "dst_port"); p < 0 || p > 65535 {
+		return fmt.Errorf("dst_port %d invalid (must be 0-65535)", p)
+	}
+	return nil
+}
+
+// ValidateProtocolSubConfigs checks per-protocol sub-config fields (tcp.mss,
+// tcp.window_size, dns.query_type, icmp.type/code/sequence, arp.operation)
+// for truncation wraparound before mapToFlowSpec casts to uint16/uint8.
+// These fields live in nested sub-maps (cfg["tcp"], etc.) that are invisible
+// to ValidateConfigRanges's flat getInt lookups.
+func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) error {
+	switch protocol {
+	case "tcp":
+		if sub, ok := cfg["tcp"].(map[string]interface{}); ok {
+			if m := getInt(sub, "mss"); m < 0 || m > 65535 {
+				return fmt.Errorf("tcp.mss %d invalid (must be 0-65535)", m)
+			}
+			if w := getInt(sub, "window_size"); w < 0 || w > 65535 {
+				return fmt.Errorf("tcp.window_size %d invalid (must be 0-65535)", w)
+			}
+		}
+	case "dns":
+		if sub, ok := cfg["dns"].(map[string]interface{}); ok {
+			if q := getInt(sub, "query_type"); q < 0 || q > 65535 {
+				return fmt.Errorf("dns.query_type %d invalid (must be 0-65535)", q)
+			}
+		}
+	case "icmp":
+		if sub, ok := cfg["icmp"].(map[string]interface{}); ok {
+			if t := getInt(sub, "type"); t < 0 || t > 255 {
+				return fmt.Errorf("icmp.type %d invalid (must be 0-255)", t)
+			}
+			if c := getInt(sub, "code"); c < 0 || c > 255 {
+				return fmt.Errorf("icmp.code %d invalid (must be 0-255)", c)
+			}
+			if s := getInt(sub, "sequence"); s < 0 || s > 65535 {
+				return fmt.Errorf("icmp.sequence %d invalid (must be 0-65535)", s)
+			}
+		}
+	case "arp":
+		if sub, ok := cfg["arp"].(map[string]interface{}); ok {
+			if o := getInt(sub, "operation"); o < 0 || o > 65535 {
+				return fmt.Errorf("arp.operation %d invalid (must be 0-65535)", o)
+			}
+		}
+	case "http":
+		// HTTP sub-config fields are strings or booleans — no uint truncation.
+		// http.transactions is an int but capped at reasonable values by the
+		// planner, so no truncation validation needed here.
+	}
+	return nil
+}
+
 // ValidateFlowSpec validates a FlowSpec. Empty/zero values mean "use default"
 // and are accepted; only genuinely invalid values (out-of-range, malformed)
 // are rejected. IP/MAC format is checked when present.

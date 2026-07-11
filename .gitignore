@@ -22,7 +22,32 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
+
+# Ignore root-level package-lock.json only; trafficgen/web/ has its own tracked lockfile
+/package-lock.json
+trafficgen/package-lock.json
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Build & cache directories
+.vite/
+__pycache__/
+.playwright-mcp/
+
+# Python
+*.pyc
+*.pyo
+test.txt
+
+# Screenshots and review artifacts
+*.png
+*.jpg
+*.jpeg
+*.gif
+tg-ui-*.json
 
 # Build outputs
 dist/
@@ -63,9 +88,15 @@ temp/
 *.pcap
 *.pcapng
 
+# Compiled binaries (Go, etc.)
+trafficgen/tgserver
+trafficgen/trafficgen-server
+trafficgen/trafficgen
+
 # Config files with secrets
 config.local.yaml
 config.production.yaml
 
 # Claude Code
 .claude/
+docs/superpowers/

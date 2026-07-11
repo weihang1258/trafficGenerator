@@ -328,3 +328,96 @@ func TestBuild_Allocs(t *testing.T) {
 		t.Errorf("Build allocs = %v, want <= 4 (single-buffer)", allocs)
 	}
 }
+
+// TestBuilder_ARPNoL3Header verifies ARP packets (EtherType 0x0806) have NO IP
+// header: the 28-byte ARP payload sits directly after the 14-byte Ethernet
+// header (total 42 bytes). Previously the builder unconditionally wrote a
+// 20-byte IP header, shifting the ARP payload and corrupting the packet
+// (captured as "Unknown Hardware 0x4500").
+func TestBuilder_ARPNoL3Header(t *testing.T) {
+	b := NewBuilder()
+	// Minimal ARP request payload (28 bytes): htype=1, ptype=0x0800, hlen=6,
+	// plen=4, op=1, sender MAC+IP, target MAC(0)+IP.
+	arp := make([]byte, 28)
+	arp[0], arp[1] = 0x00, 0x01 // htype Ethernet
+	arp[2], arp[3] = 0x08, 0x00 // ptype IPv4
+	arp[4] = 6                  // hlen
+	arp[5] = 4                  // plen
+	arp[6], arp[7] = 0x00, 0x01 // op=request
+	copy(arp[8:14], []byte{0x0c, 0x42, 0xa1, 0x09, 0x9e, 0x5e})
+
+	config := PacketConfig{
+		L2: L2Config{
+			SrcMAC:    "0c:42:a1:09:9e:5e",
+			DstMAC:    "ff:ff:ff:ff:ff:ff",
+			EtherType: 0x0806, // ARP
+		},
+		L3: L3Config{Protocol: 0}, // no L3 for ARP
+		L4: L4Config{Protocol: "arp"},
+		Payload: arp,
+	}
+
+	packet, err := b.Build(config)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	// Expect exactly 14 (Eth) + 28 (ARP) = 42 bytes; no IP header.
+	if len(packet) != 42 {
+		t.Errorf("ARP packet size = %d, want 42 (Eth 14 + ARP 28, no IP header)", len(packet))
+	}
+
+	// EtherType at bytes 12:14 must be 0x0806.
+	if et := uint16(packet[12])<<8 | uint16(packet[13]); et != 0x0806 {
+		t.Errorf("EtherType = 0x%04x, want 0x0806 (ARP)", et)
+	}
+
+	// ARP payload starts at byte 14: hardware type must be 0x0001, not 0x4500
+	// (the IP-version byte that appeared when an IP header was wrongly written).
+	if ht := uint16(packet[14])<<8 | uint16(packet[15]); ht != 0x0001 {
+		t.Errorf("ARP htype = 0x%04x, want 0x0001 (corrupted by IP header?)", ht)
+	}
+	// Operation at bytes 20:21 must be 1 (request).
+	if op := uint16(packet[20])<<8 | uint16(packet[21]); op != 1 {
+		t.Errorf("ARP op = %d, want 1 (request)", op)
+	}
+}
+
+// TestBuilder_VLAN8021Q verifies a VLAN-tagged packet has the 802.1Q TPID
+// (0x8100) and the VLAN tag (priority+ID) inserted between the Ethernet
+// header and the EtherType. Previously planners never propagated spec.VLAN to
+// PacketConfig.L2.VLAN, so the tag was silently omitted.
+func TestBuilder_VLAN8021Q(t *testing.T) {
+	b := NewBuilder()
+	vlan := &VLAN{ID: 100, Priority: 5}
+	config := PacketConfig{
+		L2: L2Config{
+			SrcMAC:    "aa:bb:cc:dd:ee:ff",
+			DstMAC:    "11:22:33:44:55:66",
+			EtherType: 0x0800,
+			VLAN:      vlan,
+		},
+		L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 6, TTL: 64},
+		L4: L4Config{Protocol: "tcp", SrcPort: 1, DstPort: 2, Seq: 1, Flags: 0x02},
+	}
+
+	packet, err := b.Build(config)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	// Ethernet header is 18 bytes with VLAN (vs 14 without).
+	// [dst(6)][src(6)][TPID 0x8100(2)][VLAN tag(2)][EtherType(2)]
+	if tpID := uint16(packet[12])<<8 | uint16(packet[13]); tpID != 0x8100 {
+		t.Errorf("TPID = 0x%04x, want 0x8100 (VLAN)", tpID)
+	}
+	tag := uint16(packet[14])<<8 | uint16(packet[15])
+	wantTag := (uint16(5) << 13) | (100 & 0x0FFF) // priority 5, ID 100
+	if tag != wantTag {
+		t.Errorf("VLAN tag = 0x%04x, want 0x%04x (pri=5 id=100)", tag, wantTag)
+	}
+	// Inner EtherType at 16:18 must be 0x0800 (IPv4).
+	if et := uint16(packet[16])<<8 | uint16(packet[17]); et != 0x0800 {
+		t.Errorf("inner EtherType = 0x%04x, want 0x0800", et)
+	}
+}

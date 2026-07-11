@@ -31,11 +31,11 @@ func (m *mockPlanner) Plan(ctx context.Context, spec FlowSpec) (<-chan PacketCon
 }
 
 // TestRateLimit_EnforcesBPS verifies that a task with BPS set actually throttles
-// output. With BPS=100k, 1000-byte packets, 200 packets = 200000 bytes total.
-// TokenBucket burst=65536 covers the first ~65 packets instantly; the remaining
-// ~135000 bytes must wait at 100000 B/s -> ~1.35s. Without rate limiting the
-// whole batch finishes in a few ms, so asserting elapsed >= 800ms cleanly
-// distinguishes enforced vs unenforced.
+// output. BPS is bits/second: 1M = 1 Mbps = 125000 B/s. With 1000-byte packets,
+// 200 packets = 200000 bytes total. TokenBucket burst=65536 covers the first
+// ~65 packets instantly; the remaining ~135000 bytes must wait at 125000 B/s
+// -> ~1.08s. Without rate limiting the whole batch finishes in a few ms, so
+// asserting elapsed >= 800ms cleanly distinguishes enforced vs unenforced.
 func TestRateLimit_EnforcesBPS(t *testing.T) {
 	e := NewEngine(EngineConfig{
 		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
@@ -59,7 +59,7 @@ func TestRateLimit_EnforcesBPS(t *testing.T) {
 		Name:     "rate-limit-test",
 		Protocol: "tcp",
 		ClassID:  "rl-1",
-		Spec:     FlowSpec{BPS: "100k", Count: 200},
+		Spec:     FlowSpec{BPS: "1M", Count: 200},
 	}
 	start := time.Now()
 	if err := e.SubmitTask(task); err != nil {
@@ -296,5 +296,44 @@ func TestRateLimit_CleanupAfterCompletion(t *testing.T) {
 
 	if limiter := e.GetRateLimiter("cleanup-1"); limiter != nil {
 		t.Error("rate limiter not cleaned up after task completion")
+	}
+}
+
+// TestBufferOverflow_TaskCompletes verifies a task still reaches completion when
+// the packet buffer overflows. Previously, buffer.Put returning false (overflow)
+// caused an early return that skipped OnPacketWritten, so writtenPackets never
+// reached totalConfigs and the task hung in "running" forever, leaking the task
+// store entry, rate limiter, and output writer. With the fix, OnPacketWritten
+// fires even on overflow (the packet was already sent to the output writer).
+func TestBufferOverflow_TaskCompletes(t *testing.T) {
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 8, QueueSize: 128, // tiny buffer: 100 packets will overflow
+	})
+	e.RegisterPlanner(&mockPlanner{name: "tcp"})
+	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) {
+		return make([]byte, 100), nil
+	})
+	done := make(chan string, 1)
+	e.OnTaskComplete = func(taskID string) { done <- taskID }
+
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer e.Stop()
+
+	task := Task{
+		ID: "overflow-1", Name: "overflow-test", Protocol: "tcp", ClassID: "overflow-1",
+		Spec: FlowSpec{Count: 100}, // 100 packets >> BufferSize 8
+	}
+	start := time.Now()
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	select {
+	case <-done:
+		// Task completed despite buffer overflow dropping packets.
+	case <-time.After(5 * time.Second):
+		t.Fatalf("task did not complete within 5s (buffer overflow stalled completion); elapsed=%v", time.Since(start))
 	}
 }

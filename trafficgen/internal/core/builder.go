@@ -61,6 +61,18 @@ func L3Base(srcIP, dstIP string, protocol uint8, ttl uint8, ipid uint16, spec Fl
 func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 	l4Len := l4Length(config)
 	l3Len := 20
+	// Skip the L3 (IPv4) header for any non-IPv4 EtherType. ARP (0x0806) and
+	// other L2 protocols carry their payload directly after the Ethernet
+	// header; writing a 20-byte IPv4 header would shift the payload and
+	// corrupt the packet. EtherType 0 means "default to IPv4" (see writeL2),
+	// so resolve the effective type before deciding.
+	effectiveEtherType := config.L2.EtherType
+	if effectiveEtherType == 0 {
+		effectiveEtherType = EtherTypeIPv4
+	}
+	if effectiveEtherType != EtherTypeIPv4 {
+		l3Len = 0
+	}
 	l2Len := 14
 	if config.L2.VLAN != nil {
 		l2Len = 18
@@ -73,7 +85,9 @@ func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 	l4End := l3End + l4Len
 
 	b.writeL2(packet[0:l2End], config)
-	b.writeL3(packet[l2End:l3End], config, l4Len+len(config.Payload))
+	if l3Len > 0 {
+		b.writeL3(packet[l2End:l3End], config, l4Len+len(config.Payload))
+	}
 	if l4Len > 0 {
 		b.writeL4(packet[l3End:l4End], config)
 	}
