@@ -100,3 +100,8 @@ config.production.yaml
 # Claude Code
 .claude/
 docs/superpowers/
+# Root session test artifacts
+test_*.py
+trafficgen/cmd/verify/
+trafficgen/cmd/verify2/
+trafficgen/web/package-lock.json
