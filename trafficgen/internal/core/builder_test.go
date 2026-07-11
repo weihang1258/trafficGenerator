@@ -245,3 +245,66 @@ func TestL3Base_DefaultDF(t *testing.T) {
 	}
 }
 
+
+// TestBuilder_TCPOptions_MSS verifies a TCP packet with an MSS option encodes
+// the data offset and option bytes correctly. Ethernet(14)+IP(20)=34, so TCP
+// starts at byte 34; data offset is the high nibble of TCP byte 12.
+func TestBuilder_TCPOptions_MSS(t *testing.T) {
+	builder := NewBuilder()
+	config := PacketConfig{
+		L2: L2Config{SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66", EtherType: 0x0800},
+		L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 6, TTL: 64},
+		L4: L4Config{
+			Protocol: "tcp", SrcPort: 1, DstPort: 2, Seq: 100, Flags: 0x02, // SYN
+			TCPOptions: []TCPOption{{Kind: 2, Data: []byte{0x05, 0xB4}}}, // MSS=1460
+		},
+	}
+	packet, err := builder.Build(config)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+	tcpStart := 34 // 14 (eth) + 20 (ip)
+	// MSS option is 4 bytes -> data offset = (20+4)/4 = 6 (24-byte TCP header)
+	if packet[tcpStart+12]>>4 != 6 {
+		t.Errorf("data offset = %d, want 6", packet[tcpStart+12]>>4)
+	}
+	// Option bytes at tcpStart+20: kind=2, len=4, mss=0x05B4
+	opts := packet[tcpStart+20 : tcpStart+24]
+	want := []byte{0x02, 0x04, 0x05, 0xB4}
+	if !bytes.Equal(opts, want) {
+		t.Errorf("MSS option = %x, want %x", opts, want)
+	}
+}
+
+// TestBuilder_TCPOptions_MultipleAndPadding verifies multiple options are
+// encoded in order and padded to a 4-byte boundary.
+func TestBuilder_TCPOptions_MultipleAndPadding(t *testing.T) {
+	builder := NewBuilder()
+	// SACK-Permitted (2 bytes) + Window Scale (3 bytes) = 5 bytes -> padded to 8
+	config := PacketConfig{
+		L2: L2Config{SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66", EtherType: 0x0800},
+		L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 6, TTL: 64},
+		L4: L4Config{
+			Protocol: "tcp", SrcPort: 1, DstPort: 2, Flags: 0x02,
+			TCPOptions: []TCPOption{
+				{Kind: 4},                       // SACK-Permitted (no data)
+				{Kind: 3, Data: []byte{0x07}},   // Window Scale shift=7
+			},
+		},
+	}
+	packet, err := builder.Build(config)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+	tcpStart := 34
+	// 20 + 5 options + 3 padding = 28 -> data offset = 7
+	if packet[tcpStart+12]>>4 != 7 {
+		t.Errorf("data offset = %d, want 7", packet[tcpStart+12]>>4)
+	}
+	// SACK-Permitted: 04 02 ; Window Scale: 03 03 07 ; NOP padding: 01 01 01
+	opts := packet[tcpStart+20 : tcpStart+28]
+	want := []byte{0x04, 0x02, 0x03, 0x03, 0x07, 0x01, 0x01, 0x01}
+	if !bytes.Equal(opts, want) {
+		t.Errorf("options = %x, want %x", opts, want)
+	}
+}

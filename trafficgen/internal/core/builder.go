@@ -214,44 +214,59 @@ func (b *Builder) buildL4(config PacketConfig) []byte {
 	}
 }
 
-// buildTCP builds the TCP header.
+// buildTCP builds the TCP header, including any TCP options.
 func (b *Builder) buildTCP(config PacketConfig) []byte {
-	header := make([]byte, 20) // TCP header is 20 bytes minimum
+	// Encode options (padded to a 4-byte boundary with NOP).
+	opts := encodeTCPOptions(config.L4.TCPOptions)
+	dataOffset := (20 + len(opts)) / 4 // TCP header length in 4-byte words
 
-	// Source port
+	header := make([]byte, 20)
 	binary.BigEndian.PutUint16(header[0:2], config.L4.SrcPort)
-
-	// Destination port
 	binary.BigEndian.PutUint16(header[2:4], config.L4.DstPort)
-
-	// Sequence number
 	binary.BigEndian.PutUint32(header[4:8], config.L4.Seq)
-
-	// Acknowledgment number
 	binary.BigEndian.PutUint32(header[8:12], config.L4.Ack)
 
-	// Data offset (5, 20 bytes / 4) and reserved + flags
-	header[12] = 0x50 // Data offset = 5
+	// Data offset (high nibble) + reserved (low nibble)
+	header[12] = byte(dataOffset << 4)
 	header[13] = config.L4.Flags
 
-	// Window size
 	winSize := config.L4.WindowSize
 	if winSize == 0 {
 		winSize = 65535
 	}
 	binary.BigEndian.PutUint16(header[14:16], winSize)
 
-	// Checksum (calculated with pseudo-header)
-	// header[16:18] = 0
+	// header[16:18] = checksum (computed below)
+	binary.BigEndian.PutUint16(header[18:20], 0) // urgent pointer
 
-	// Urgent pointer
-	binary.BigEndian.PutUint16(header[18:20], 0)
+	// Append options to the header before computing the checksum (the
+	// checksum covers header + options + payload).
+	header = append(header, opts...)
 
-	// Calculate TCP checksum with pseudo-header
 	checksum := calculateTCPChecksum(config, header, config.Payload)
 	binary.BigEndian.PutUint16(header[16:18], checksum)
 
 	return header
+}
+
+// encodeTCPOptions serializes TCP options and pads to a 4-byte boundary with
+// NOP (Kind=1). Kind 0 (End) and Kind 1 (NOP) are single-byte options with no
+// length field; all other kinds are encoded as Kind + Length(2+len(Data)) + Data.
+func encodeTCPOptions(opts []TCPOption) []byte {
+	var buf []byte
+	for _, o := range opts {
+		if o.Kind == TCPOptEnd || o.Kind == TCPOptNOP {
+			buf = append(buf, o.Kind)
+			continue
+		}
+		buf = append(buf, o.Kind)
+		buf = append(buf, byte(2+len(o.Data))) // length includes kind + length byte
+		buf = append(buf, o.Data...)
+	}
+	for len(buf)%4 != 0 {
+		buf = append(buf, TCPOptNOP)
+	}
+	return buf
 }
 
 // buildUDP builds the UDP header.

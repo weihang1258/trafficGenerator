@@ -201,7 +201,29 @@ type L4Config struct {
 	Seq   uint32 `json:"seq,omitempty"`
 	Ack   uint32 `json:"ack,omitempty"`
 	Flags uint8  `json:"flags,omitempty"`
+
+	// TCP options (MSS, Window Scale, SACK-Permitted, Timestamp, ...).
+	// Encoded after the 20-byte TCP header; data offset grows accordingly.
+	TCPOptions []TCPOption `json:"tcp_options,omitempty"`
 }
+
+// TCPOption is a single TCP option. Kind 0 (End) and 1 (NOP) are 1-byte
+// options with no length field or data; all other kinds are encoded as
+// kind + length(2+len(Data)) + Data.
+type TCPOption struct {
+	Kind uint8  `json:"kind"`
+	Data []byte `json:"data,omitempty"`
+}
+
+// TCP option kinds.
+const (
+	TCPOptEnd       uint8 = 0 // End of Option List
+	TCPOptNOP       uint8 = 1 // No-Operation (padding)
+	TCPOptMSS       uint8 = 2 // Maximum Segment Size
+	TCPOptWinScale  uint8 = 3 // Window Scale
+	TCPOptSACKPermit uint8 = 4 // SACK-Permitted
+	TCPOptTimestamp uint8 = 8 // Timestamp
+)
 
 // BatchSpec for batch traffic generation.
 type BatchSpec struct {

@@ -64,6 +64,17 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 }
 
 // Plan generates packet configs for a TCP flow.
+// synOptions builds TCP options for SYN packets: MSS (from config) and
+// SACK-Permitted, matching real-world SYN capture characteristics.
+func synOptions(mss uint16) []core.TCPOption {
+	opts := make([]core.TCPOption, 0, 2)
+	if mss > 0 {
+		opts = append(opts, core.TCPOption{Kind: core.TCPOptMSS, Data: []byte{byte(mss >> 8), byte(mss)}})
+	}
+	opts = append(opts, core.TCPOption{Kind: core.TCPOptSACKPermit})
+	return opts
+}
+
 func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {
 	if err := p.Validate(spec); err != nil {
 		return nil, err
@@ -105,6 +116,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			winSize = tcpConfig.WindowSize
 		}
 
+		synOpts := synOptions(tcpConfig.MSS)
+
 		// Resolve effective TTL from spec
 		effectiveTTL := spec.TTL
 		if effectiveTTL == 0 {
@@ -134,6 +147,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      clientSeq,
 					Flags:    FlagSYN,
 					WindowSize: winSize,
+					TCPOptions: synOpts,
 				},
 			}
 			packetIndex++
@@ -159,6 +173,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Ack:      clientSeq,
 					Flags:    FlagSYN | FlagACK,
 					WindowSize: winSize,
+					TCPOptions: synOpts,
 				},
 			}
 			packetIndex++
