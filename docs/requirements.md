@@ -1,7 +1,7 @@
 # FlowB — 功能需求确认文档
 
 > 项目名称：FlowB（流量生成器 Flow Builder）
-> 版本：v1.1 | 日期：2026-07-10 | 状态：已确认
+> 版本：v1.4 | 日期：2026-07-12 | 状态：已确认（新增 PCAP 回放与资源管理需求，见 §15-§17；§17 解析引擎设计已确认定稿；补全场景缺口见 §15.6/§17.4/§17.11）
 
 ---
 
@@ -21,10 +21,13 @@
 12. [用户管理](#12-用户管理)
 13. [实时通信](#13-实时通信)
 14. [流量生成引擎](#14-流量生成引擎)
-15. [外部 API（MCP）](#15-外部-api-mcp)
-16. [API 端点一览](#16-api-端点一览)
-17. [当前状态评估](#17-当前状态评估)
-18. [后续优化方向](#18-后续优化方向)
+15. [PCAP 资产管理](#15-pcap-资产管理)
+16. [PCAP 回放](#16-pcap-回放)
+17. [PCAP 解析引擎](#17-pcap-解析引擎)
+18. [外部 API（MCP）](#18-外部-apimcp)
+19. [API 端点一览](#19-api-端点一览)
+20. [当前状态评估](#20-当前状态评估)
+21. [后续优化方向](#21-后续优化方向)
 
 ---
 
@@ -56,6 +59,11 @@
 | 14 | **目录结构**：`internal/api/rest/`（内部 REST）和 `internal/mcp/`（MCP Server）完全独立 | ✅ |
 | 15 | **页面全面重做**：当前只能算"能用"，全部翻新 | ✅ |
 | 16 | **混合流量（BatchSpec）**：必做。一个任务内多种协议按比例分配带宽 | ✅ |
+| 17 | **PCAP 回放**：读 pcap -> 按需改写 L2-L4 -> 回放（网卡/pcap），支持多流放大与双口分流。详见 §16 | ✅ |
+| 18 | **PCAP 资产管理**：pcap 导入/查询/删除 + 校验控制，导入时全量解析预提取。详见 §15 | ✅ |
+| 19 | **PCAP 解析引擎**：独立模块，全层（L2-L7 含应用层）解析，导入时预提取。详见 §17 | ✅ |
+| 20 | **回放即策略**：pcap 回放作为 `TrafficClass.Type="replay"` 与 `Strategy(protocol="replay")`，与合成流量统一管理 | ✅ |
+| 21 | **回放保真**：默认忠实回放，不修正异常包；校验和默认重算、支持保持。详见 §16.10 | ✅ |
 
 ### 技术栈
 
@@ -1017,7 +1025,802 @@ graph LR
 
 ---
 
-## 15. 外部 API（MCP）
+## 15. PCAP 资产管理
+
+### 15.1 概述
+
+PCAP 文件是回放的输入原材料。导入时做**全量解析预提取**（流索引、方向分类、每包每层字段），落盘 + 入库，供：
+
+- **查看**：用户直接浏览 pcap 内容（流明细、包字段，类 Wireshark）
+- **回放**：发包前直接取用预提取信息，不重复解析
+- **配置校验**：写改写规则时实时预览 matcher 命中哪几条流
+
+资源管理需功能完善：**能查、能导入、能删除**，配套校验与控制。
+
+### 15.2 资产数据模型
+
+```go
+// internal/storage/models.go 新增
+type PcapAssetModel struct {
+    ID               string    `gorm:"primaryKey;size:64"`
+    UserID           string    `gorm:"size:64;not null;index"`          // 用户隔离
+    Name             string    `gorm:"size:255;not null"`
+    OriginalFilename string    `gorm:"size:255"`
+    StoragePath      string    `gorm:"size:512;not null"`                // 磁盘 data/pcaps/{id}.pcap
+    PayloadsPath     string    `gorm:"size:512"`                         // data/pcaps/{id}.payloads（重组 L7 流）
+    TrigramIndexPath string    `gorm:"size:512"`                         // trigram 索引文件
+    FileHash         string    `gorm:"size:64;index"`                    // sha256，去重 + 完整性
+    FileSize         int64
+    Status           string    `gorm:"size:32;not null;index"`           // importing|ready|error|reindexing
+    ParseError       string    `gorm:"size:1024"`
+    ParserVersion    string    `gorm:"size:32"`                          // 解析引擎版本
+    Tags             string    `gorm:"size:256"`                         // 标签，逗号分隔（v1 字段，v2 做 UI 检索）
+    Notes            string    `gorm:"type:text"`                        // 备注
+    // 全局统计（查询/筛选/排序用）
+    PacketCount      int64
+    ByteCount        int64
+    FlowCount        int64
+    DurationUs       int64                                               // 微秒
+    LinkType         int                                                 // DLT_*
+    Snaplen          int
+    ProtocolDist     string    `gorm:"type:text"`                        // JSON: {"tcp":120,"udp":30}
+    CreatedAt        time.Time `gorm:"autoCreateTime"`
+    UpdatedAt        time.Time `gorm:"autoUpdateTime"`
+}
+```
+
+**流详情见 `FlowModel`（§17.3），包详情见 `PacketModel`（§17.4）**，不在此表存 JSON 大块。资产表只存资产级元数据 + 全局统计，流/包是独立表（一对多），支持索引/分页/条件过滤。
+
+`Status` 是控制核心：`importing`（解析中，不可用不可删）-> `ready`（可用）/ `error`（解析失败，保留错误信息）/ `reindexing`（重解析中）。
+
+### 15.3 导入功能
+
+```
+用户上传 pcap 文件 / 指定服务端路径
+        │
+        ▼
+【导入校验】（见 15.6）
+  ├─ 格式：pcap magic / pcapng magic
+  ├─ 大小上限：可配（默认 2GB，防滥用）
+  ├─ 链路层：v1 仅以太网（DLT_EN10MB），非以太网（WiFi/SLL/Raw）直接拒绝
+  ├─ 可读性：gopacket 试读，损坏即拒
+  ├─ 磁盘空间：预估需 4× pcap 大小（.payloads+trigram+索引），不足则拒绝 + 报"预计需 X 可用 Y"
+  └─ 去重：sha256 命中已有资产 -> 直接返回已有 ID（幂等）
+        │
+        ▼
+落盘 -> 建 PcapAssetModel(Status=importing)
+        │
+        ▼
+调 §17 解析引擎全量解析（异步）
+        │
+        ▼
+回填 FlowModel + PacketModel + .payloads + trigram 索引，Status=ready
+        │
+        ▼
+返回资产 ID
+```
+
+**异步导入**：大 pcap 解析耗时，导入异步执行，前端轮询 Status 进度。`importing` 期间不可用于回放，但**支持取消**（见 §15.5）。
+
+### 15.4 查询功能
+
+多层级按需查询（完整端点见 §19）：
+
+- **资产列表**：分页 + 按 name/协议分布/大小/时间筛选
+- **资产详情**：全局统计 + 流概览
+- **流列表/详情**：FlowModel 全量字段（5 元组、方向、统计、TCP 专属、L7 元数据、重组状态）
+- **包列表**：PacketModel 最小索引分页
+- **单包全字段**：动态重解析 L2-L7（LayerRecord，类 Wireshark 逐层展开）
+- **负载查看**：单包负载（按 RawOffset 读 pcap）/ 重组流字节（.payloads）/ 最高层 body
+- **多条件搜索**：流过滤 + 包过滤 + 负载内容，AND 组合（见 §17.10）
+
+包级查看是"直接看包信息"的落点：前端按 `LayerRecord` 逐层展开显示，类 Wireshark packet details。
+
+### 15.5 删除功能
+
+```
+DELETE /api/v1/pcaps/:id
+        │
+        ▼
+【引用检查】
+  ├─ 查 StrategyModel：有无 protocol=replay 且 config.pcap_asset_id==该 ID 的策略
+  ├─ 查 TaskModel：有无运行中任务引用
+  └─ 有引用 -> 拒绝，返回引用列表（同策略删除检查任务的模式）
+        │
+        ▼
+【状态检查】
+  ├─ Status=reindexing -> 拒绝（防并发）
+  └─ Status=importing -> 转为"取消导入"语义：终止解析、清理半成品文件+记录
+        │
+        ▼
+删磁盘文件 + 删 DB 记录（+ 流索引，若独立表）
+```
+
+可选 `?force=true`：强制删（级联把引用它的策略标记失效），默认不强制，保护用户。
+
+### 15.6 校验与控制
+
+| 控制类别 | 具体规则 |
+|---------|---------|
+| **导入校验** | 格式 / 大小上限 / 链路层（非以太网拒绝）/ 损坏检测 / sha256 去重 |
+| **磁盘空间** | 导入前预估需 4× pcap 大小（.payloads+trigram+索引），不足拒绝 + 报"预计需 X 可用 Y"；中途写入失败回滚清理 |
+| **引用控制** | 删除前查策略 + 任务引用，有则阻止 |
+| **状态控制** | `reindexing` 期间不可删不可用；`importing` 期间不可用但**可取消** |
+| **取消** | `importing` 期间可取消（DELETE 触发），终止解析 + 清理半成品文件和记录 |
+| **完整性** | 导入算 sha256 入库；可选读取时重算校验（防磁盘文件被外部篡改） |
+| **配额控制** | 用户级存储上限 + 资产数量上限（可配，防滥用） |
+| **权限** | UserID 隔离，用户只能查/删自己的；admin 可查所有 |
+| **重解析** | 解析逻辑升级后，`POST /reparse` 重建索引（Status=reindexing -> ready） |
+| **并发** | 同 hash 并发导入只跑一次，其他等结果复用 |
+
+### 15.7 与其他模块的关系
+
+- **§16 PCAP 回放**：replay 策略通过 `pcap_asset_id` 引用资产，回放读 `FlowModel.OffsetLayout`（byte-patch 偏移）+ `PacketModel.RawOffset`（定位字节）+ 原始 pcap 文件，零二次解析
+- **§17 PCAP 解析引擎**：资产导入时调 `pcapparser.Parse()`，解析引擎填充 `FlowModel` + `PacketModel` + `.payloads` 重组流 + trigram 索引。解析内部黑盒，资产层只管存取
+- **§6 策略管理**：pcap 资产是 replay 策略的原材料，UI 上 pcap 资产列表可挂在策略管理下
+- **§19 API 端点**：资产 CRUD + 流/包查询 + 负载搜索端点见 §19
+
+---
+
+## 16. PCAP 回放
+
+### 16.1 概述与定位
+
+**一句话**：读取 pcap 文件，按需改写 L2/L3/L4 参数，按设定速率从网卡或 pcap 文件回放，支持多流放大与双口分流。
+
+**定位**：原列于 §21 P5（后续优化），现正式细化立项。对标 tcpreplay 套件（tcprewrite + tcpprep + tcpreplay）与商业产品（Spirent TestCenter / Keysight ixNetwork 的 StreamBlock + Traffic Modifier）。
+
+**核心原则**：
+
+- **商业级回放**：支持按包/按流改写、多流放大、双口分流、全速率模式
+- **byte-patch 保真**：用 gopacket 定位层与字段偏移，patch 原始字节，**不重构包**--未改写字段（含畸形结构、未知协议、TCP 选项）原样保留
+- **默认忠实，opt-in 修复**：回放不"修正"包；所有可能改变包内容的动作（校验和重算、MTU 截断、fixlen）默认关闭或可控
+- **回放即策略**：pcap 回放作为一种 TrafficClass 类型与 Strategy 协议，与合成流量统一管理
+
+### 16.2 已确认决策
+
+| # | 维度 | 决定 |
+|---|------|------|
+| 1 | 改写范围 | L2 + L3 + L4 |
+| 2 | 多流放大 | 支持（1 pcap -> N 流），公式 N×M |
+| 3 | 速率模式 | 全模式：original / multiplier / bps / pps / max |
+| 4 | flow 定义 | 5 元组双向归一化 |
+| 5 | 多流 TCP seq | per-flow 随机偏移（offset 语义） |
+| 6 | 方向处理 | 双口分流（client/server 分两口） |
+| 7 | 方向分类 | 首包定初始方向 + SYN/SYN-ACK 校准 + 校准一次锁定 + UDP 端口辅助 |
+| 8 | pcap 文件输出 | 单文件 + 双文件均支持 |
+| 9 | 积压策略 | 有界反压 + 漂移吸收（不丢包） |
+| 10 | 限速桶 | 类内共享桶 + 类间独立桶 |
+| 11 | 混合任务 | 支持；回放 = `TrafficClass.Type="replay"` |
+| 12 | 规则执行 | 并行（matcher 匹配原始 pcap，不链式）；同字段重叠不同值=冲突报错，同值=幂等 |
+| 13 | 校验和 | 默认 recompute，支持 preserve；改写动字段时强制重算 |
+| 14 | 异常注入 | v2+；v1 只做异常保留，`inject` 字段位置预留 |
+
+### 16.3 核心能力（8 子能力）
+
+| # | 子能力 | 说明 |
+|---|--------|------|
+| 1 | 纯回放 | 读 pcap 按原样发出 |
+| 2 | per-packet 改写 | 对每个包字段做覆盖 |
+| 3 | per-flow 改写 | 同一流所有包应用一致替换，保流完整 |
+| 4 | 多流放大 | 1 pcap -> N 流，IP/MAC/seq 按策略变 |
+| 5 | 方向感知 | 区分 client/server，单口填 MAC / 双口分流 |
+| 6 | 校验和重算 | 改 L3 必重算 IP+L4 校验和 |
+| 7 | 速率/时间模型 | 保原始间隔 / 倍速 / 按 BPS·PPS / 极速 |
+| 8 | 循环与持续时间 | loop N 次 / 跑到时间到 / 跑指定包数 |
+
+### 16.4 数据结构
+
+```go
+// ReplaySpec：replay 策略的 config（Strategy.protocol="replay"）
+type ReplaySpec struct {
+    PcapAssetID string         `json:"pcap_asset_id"`           // 引用 §15 资产
+    Loop        int            `json:"loop"`                    // 0=无限
+    Speed       ReplaySpeed    `json:"speed"`
+    Direction   string         `json:"direction"`               // single | dual
+    ChecksumMode string        `json:"checksum_mode"`           // recompute(默认) | preserve
+    Rewrites    []RewriteRule  `json:"rewrites"`
+    FlowScaling *FlowScaling   `json:"flow_scaling,omitempty"`  // 可选：多流放大
+    Inject      *InjectConfig  `json:"inject,omitempty"`        // v2 预留：异常注入
+}
+
+type ReplaySpeed struct {
+    Mode       string  `json:"mode"`        // original | multiplier | bps | pps | max
+    Multiplier float64 `json:"multiplier"`  // multiplier 模式：1.5=1.5 倍速
+    BPS        string  `json:"bps"`         // bps 模式："200k"
+    PPS        float64 `json:"pps"`         // pps 模式
+}
+
+type RewriteRule struct {
+    Match    FlowMatcher   `json:"match"`    // 作用于哪些包/流；空=全部
+    Kind     string        `json:"kind"`     // field | endpoint | ipmap | portmap | macmap
+    Target   string        `json:"target"`   // field/endpoint 模式：改哪个字段
+    Mapping  map[string]string `json:"mapping,omitempty"` // map 模式：值->值替换表
+    Scope    string        `json:"scope"`    // per-packet | per-flow（值一致性）
+    Apply    string        `json:"apply"`    // set | offset
+    Strategy StrategyConfig `json:"strategy"`// 复用现有 fixed/inc/random/list/pattern
+}
+
+// FlowMatcher：方向归一化匹配，写正写反都能命中
+type FlowMatcher struct {
+    Protocol string `json:"protocol,omitempty"` // tcp|udp|icmp|arp|"" = any
+    SrcIP    string `json:"src_ip,omitempty"`   // exact 或 CIDR，空=any
+    SrcPort  uint16 `json:"src_port,omitempty"` // 0=any
+    DstIP    string `json:"dst_ip,omitempty"`
+    DstPort  uint16 `json:"dst_port,omitempty"`
+}
+
+type FlowScaling struct {
+    Count      int             `json:"count"`               // 每条原流克隆 N 份（总 N×M）
+    SrcIP      StrategyConfig `json:"src_ip,omitempty"`     // per-flow 取一致值
+    DstIP      StrategyConfig `json:"dst_ip,omitempty"`
+    SrcPort    StrategyConfig `json:"src_port,omitempty"`
+    DstPort    StrategyConfig `json:"dst_port,omitempty"`
+    SrcMAC     StrategyConfig `json:"src_mac,omitempty"`
+    DstMAC     StrategyConfig `json:"dst_mac,omitempty"`
+    SeqOffset  StrategyConfig `json:"seq_offset,omitempty"` // 每条流 seq 随机偏移
+    Interleave string         `json:"interleave,omitempty"` // stack(默认) | serial
+}
+```
+
+**Target 字段词汇**（决定端点 vs 字段语义）：
+
+| 类别 | 端点（双向一致，复用方向分类） | 字段（逐包，方向无关） |
+|------|------|------|
+| L3 | `client_ip`、`server_ip` | `src_ip`、`dst_ip`、`ttl`、`dscp`、`ecn`、`ip_flags`、`frag_offset` |
+| L4 | `client_port`、`server_port` | `src_port`、`dst_port`、`seq`、`ack`、`window`、`tcp_flags` |
+| L2 | -- | `src_mac`、`dst_mac`、`vlan_id`、`vlan_pcp` |
+
+### 16.5 改写引擎：三种操作
+
+| 操作 | Kind/Target | 语义 | 典型场景 | 需识别流 | 需判方向 |
+|------|-------------|------|---------|---------|---------|
+| **映射** | `kind: ipmap/portmap/macmap` | 值->值全局替换，双向一致 | 换网重放、地址平移 | 否 | 否 |
+| **端点** | `target: client_ip/server_ip` | 按流迁移端点，双向一致 | 改特定流的端点 | 是 | 是 |
+| **字段** | `target: src_ip/dst_port/...` | 单方向单字段覆盖 | 强制逐包改某字段 | 否 | 否 |
+
+映射支持 CIDR（`10.0.0.0/8 -> 192.168.0.0/16`，网段平移保偏移）。`seq`/`ack`/`ip_id` 用 `apply: offset`（流内 delta 不变），其余用 `apply: set`。
+
+### 16.6 规则执行语义
+
+**并行模型**（非链式）：
+
+- 所有 `matcher` 永远匹配**原始 pcap 值**（不受其他规则改写结果影响）
+- 所有改写独立计算后合并，base = 原始包 + 全部改写合并结果
+- 不同字段规则：天然叠加
+- 同字段重叠：**不同目标值 = 冲突报错**；**相同值 = 幂等允许**
+- 单条 map 的 mapping 表内：键值对**同时**应用（单次扫描，不内部链式）
+- 多条规则之间：并行，不链式
+- FlowScaling base = 合并后的包，克隆在 base 上变；映射 + FlowScaling 可共存（映射打底，克隆递增）
+- 端点/字段规则（set 语义）与 FlowScaling（vary 语义）动同一字段 = 冲突报错（"固定某值"与"按流变化"意图相斥）；映射（substitution）与 FlowScaling 不冲突
+- 链式（规则 N 看规则 N-1 输出）：v2 提供 `see: "rewritten"` 显式声明，v1 不做
+
+### 16.7 流分组与方向分类
+
+**流分组**（per-flow 改写与多流放大的基础）：5 元组双向归一化--把 (src,sport,dst,dport,proto) 按大小排序后哈希，一个连接的两个方向归到同一条流。ARP/ICMP 退化为 (ip,type) 等。
+
+**方向分类**（双口分流的前提，每条流独立状态机）：
+
+```
+1. 首包定初始方向：流首包 src 视为 client 候选（发起方即 client）
+2. 握手校准：
+   - 见 SYN（独立 SYN，无 ACK）：SYN 的 src=client -> 校准，锁定
+   - 见 SYN+ACK：其 src=server -> 校准，锁定（能纠首包猜错，如 pcap 漏 SYN 只抓到 SYN-ACK）
+3. 校准一次后该流方向锁定，后续包不再判
+4. UDP（无握手）：沿用首包初始方向 + 知名端口辅助
+   （首包端口对含已知服务端口 53/67/68/123/161 等，该侧判为 server，优先于首包猜测）
+```
+
+方向分类失败（纯 P2P 随机端口、无握手无端口辅助）：回退首包猜测 + 告警"方向不确定"，或要求用户提供显式 IP 映射。
+
+### 16.8 多流放大
+
+- **N×M 公式**：源 pcap 有 M 条流，`FlowScaling.Count=N`，输出 N×M 条流（每条原流克隆 N 份）
+- **per-flow 替换表**：每条克隆流 k 取一组一致的 IP/端口/MAC（来自 StrategyConfig），保证流完整
+- **per-flow seq 随机偏移**：`new_seq = orig_seq + offset_k`，流内 delta 不变，N 流 seq 互不雷同；ack/ip_id 同理
+- **k-way 时间戳归并**：N 条克隆流保原始时间线时，按发送时刻堆式 streaming 归并成一条有序流（不聚合到内存，符合流式约束）
+
+### 16.9 速率与时间模型
+
+5 模式分两族：
+
+| 族 | 模式 | 机制 |
+|----|------|------|
+| 时间戳 pacing | original、multiplier | 按 pcap 原始 ts 间隔发包（multiplier 除以倍速）。不走 TokenBucket |
+| 速率 pacing | bps、pps、max | 忽略原始 ts，走现有 TokenBucket（max=无限速率） |
+
+- **漂移吸收**（时间戳 pacing）：维护 `timeOffset`，包计划时刻已过时把原点挪到现在、立即发当前包、后续按新原点 spacing。不丢包、不无限突发、保相对时序
+- **有界反压**（速率 pacing）：全链路有界通道 + 流式读取，reader 写满即阻塞，被 TokenBucket 消费速度反压。内存安全，不丢包
+- **循环时间戳偏移**：original/multiplier 模式循环时，每轮 ts 偏移 `loop_index × pcap_duration`，避免时间倒退；每轮重随机 seq 偏移（每轮像新流量）
+
+### 16.10 回放保真与异常处理
+
+**保真原则（硬保证）**：
+
+1. 默认忠实回放，不动任何未显式指定的内容
+2. replay 路径**不走 resequencer**，保留 pcap 全局文件序
+3. **不去重**，重复/重传原样保留
+4. byte-patch 只改显式字段，**不重构包结构**
+5. 校验和可配（`recompute` 默认 / `preserve`），改写动字段时强制重算
+6. fixlen / MTU 截断 / 任何"修复"动作一律 opt-in，默认关闭
+7. 若未来启多 PacketWorker，replay 必须有"保文件序"模式（按文件位置序，不按 seq 重排）
+
+**异常包逐类型处理**：
+
+| 异常类型 | 处理 | 说明 |
+|---------|------|------|
+| 乱序 | ✅ 保留 | 文件序输出，不走 resequencer |
+| 重传 | ✅ 保留 | 不去重；seq 偏移统一应用 |
+| 重复包 | ✅ 保留 | 不去重 |
+| 坏校验和 | ⚠️ 默认重算会"修" | 需 `checksum_mode: preserve` 才保留 |
+| 畸形包（坏长度/无效标志） | ✅ 保留 | byte-patch 不重构 |
+| 分片重叠/错序 | ✅ 保留 | 不重组；IPID 偏移按组应用 |
+| TTL/窗口异常 | ✅ 保留 | 不动除非规则指定 |
+| 超大/超小包 | ✅ 保留 | MTU 截断 opt-in |
+| 时序异常 | ✅ 保留 | original 模式保原始 ts 间隔 |
+
+**校验和冲突与解法**：
+
+- TX-offload 坏校验和（发送机本机抓包，L4 校验和是网卡占位值）-> 需重算
+- 故意坏校验和（测 DUT 处理）-> 需保留
+- 解法：`checksum_mode`（`recompute` 默认修好 offload / `preserve` 保留异常）
+- 改写动字段 -> 强制重算（否则字段与校验和自相矛盾，非用户所要的"坏校验和"异常）
+- "改字段 + 保留坏校验和"：v1 不支持，v2 可"重算后重新注入同款错误"
+
+**异常注入**（v2+）：给正常流量注入乱序/重传/丢包/抖动/重复/比特错，对标 Spirent/Keysight impairment 与 Linux netem。`InjectConfig` 字段位置预留，v1 不实现。
+
+### 16.11 双口分流与输出
+
+- **单口模式**：所有包一个口出，MAC 按方向填（client/server 侧各填对）
+- **双口模式**：client->server 走口 1，server->client 走口 2，需 `Task.Interface` + `Task.Interface2`（Task 模型新增 `Interface2` 字段，单口模式留空，向后兼容）
+- **routing writer**：新增输出 Writer 实现，持两个 interface writer，按 `PacketConfig.Direction`（synth 已打 up/down，replay 按方向分类）路由。synth 流量因此也能享受双口分流
+- **MAC 来源**：值来自 FlowScaling/改写规则，出口来自方向分类，两者正交
+- **pcap 输出**：单文件（包内带方向 tag）/ 双文件（一口一个）均支持；双口是网卡输出概念
+- **输出 pcap 时间戳**：用计划发送时刻（反映实际回放节奏）
+
+### 16.12 流水线接入
+
+```mermaid
+graph LR
+    subgraph Replay["PCAP 回放（作为 TrafficClass）"]
+        RP[replayPlanner<br/>读 pcap 资产]
+        RW[rewriter<br/>byte-patch + 校验和]
+    end
+    subgraph Pipeline["现有流水线（零改动复用）"]
+        CW[ConfigWorker<br/>批量分支分流]
+        PW[PacketWorker<br/>TokenBucket 限速]
+        OW[OutputWorker<br/>routing writer]
+    end
+    RP -->|PacketConfig<br/>带 raw+patches| CW
+    RW -.->|buildFunc 按 Metadata 分流| PW
+    CW --> PW --> OW
+    OW -->|Direction 路由| NIC1[网口1]
+    OW -->|Direction 路由| NIC2[网口2]
+    OW --> PCAP[pcap 单/双文件]
+```
+
+**三处接入点**（均为扩展，不改现有合约）：
+
+1. **ConfigWorker 批量分支**：`Type=="replay"` 调 `replayPlanner.Plan()`，否则调协议 planner
+2. **buildFunc 全局单函数**：按 `config.Metadata["_replay"]` 标记分流--合成包走 builder 重建，回放包走 patch+校验和
+3. **输出层**：新增 routing writer
+
+**复用基础设施**：PacketConfig 通道、PacketWorker、TokenBucket（按 ClassID）、Writer 接口、ParameterSchema、Direction 字段。
+
+### 16.13 场景矩阵（关键场景）
+
+| 维度 | 场景 | 可行性 | 处理 |
+|------|------|--------|------|
+| 输入 | pcap / pcapng / 巨型 / 损坏 / snaplen 截断 / ts 乱序 | ✅/⚠️ | 流式读；损坏报错；截断 fixlen opt-in；ts 乱序排序或告警 |
+| 协议 | TCP 完整/中途/单向、UDP 请求响应/单向、ICMP、ARP、HTTP、分片、IPv6 | ✅/⚠️ | IPv6 因 byte-patch 可回放+改部分字段，地址改写留 v2 |
+| 链路层 | 以太网、VLAN、QinQ、MPLS、GRE/VXLAN、WiFi、Raw、Jumbo、Runt | ✅/⚠️/❌ | v1 仅以太网；QinQ/MPLS/隧道透传不改内层；WiFi/SLL 拒绝 |
+| 改写 | 纯回放、改 MAC/IP(CIDR)/端口/TTL/DSCP/VLAN 增删/seq/flags、组合、冲突 | ✅/❌ | 同字段冲突拦截；VLAN 增删检查 MTU |
+| 多流 | 2/100/10000 流、IP 递增/随机、N×M、双口、循环、限速 | ✅/⚠️ | 大 N 流式+有界；bps 总速率共享桶 |
+| 速率 | max/multiplier/bps/pps/original、低于原始、循环、精度 | ✅/⚠️ | 低于原始走反压不丢包；循环 ts 偏移 |
+| 方向 | 单口、双口、全单向、无握手、判错 | ✅/⚠️ | 判错告警+方向统计 |
+| 输出 | pcap 单/双文件、网卡单/双口、both、旋转 | ✅ | 复用现有 pcap 旋转 |
+| 异常 | 乱序/重传/坏校验和/畸形/分片重叠/超大超小 | ✅/⚠️ | 默认全保留；坏校验和需 preserve |
+| 集成 | REST、MCP、Schema 表单、batch 混合 | ✅ | 回放即策略，进 Schema |
+
+**交互热点**：纯回放×TX-offload 校验和（需重算）、改 IP×L4 校验和（连算）、改 seq×多流（per-flow 偏移）、设定速率<原始×bps（反压不丢包）、多流×original×循环（k-way+ts 偏移+重随机）、双口×方向判错（告警）、双口×pcap 输出（单/双文件）、IPv6 pcap×无 IPv6 合成（byte-patch 可回放）。
+
+### 16.14 配置示例
+
+**场景 A：纯回放**
+```json
+{"pcap_asset_id":"pcap_abc123","speed":{"mode":"original"},"direction":"single","loop":1}
+```
+
+**场景 B：换网重放（IP 替换）**
+```json
+{
+  "pcap_asset_id":"pcap_abc123","speed":{"mode":"multiplier","multiplier":1.0},"direction":"single",
+  "rewrites":[{"kind":"ipmap","mapping":{"1.0.0.1":"11.0.0.1"}}]
+}
+```
+
+**场景 C：多流放大（1->100 流，IP 递增）**
+```json
+{
+  "pcap_asset_id":"pcap_abc123","speed":{"mode":"bps","bps":"500k"},"direction":"single",
+  "flow_scaling":{"count":100,
+    "src_ip":{"strategy":"inc","range":["11.0.0.1","11.0.0.100"],"step":1},
+    "dst_ip":{"strategy":"fixed","value":"22.0.0.1"},
+    "seq_offset":{"strategy":"random","range":[0,4294967295],"seed":42},
+    "interleave":"stack"}
+}
+```
+
+**场景 D：定向改单流（端点迁移）**
+```json
+{
+  "pcap_asset_id":"pcap_abc123","speed":{"mode":"original"},"direction":"single",
+  "rewrites":[
+    {"match":{"protocol":"tcp","src_ip":"1.0.0.1","src_port":1000,"dst_ip":"2.0.0.1","dst_port":21},
+     "kind":"endpoint","target":"client_ip","apply":"set","strategy":{"strategy":"fixed","value":"11.0.0.1"}},
+    {"match":{"protocol":"udp","src_ip":"1.0.0.1","src_port":2000,"dst_ip":"2.0.0.1","dst_port":2001},
+     "kind":"endpoint","target":"server_ip","apply":"set","strategy":{"strategy":"fixed","value":"22.0.0.1"}}
+  ]
+}
+```
+
+**场景 E：双口分流回放**
+```json
+{"pcap_asset_id":"pcap_abc123","speed":{"mode":"multiplier","multiplier":2.0},"direction":"dual","loop":0}
+```
+
+**场景 F：混合任务（合成 TCP + 回放 pcap + DNS，一个 batch）**
+```json
+{
+  "classes":[
+    {"id":"bg_tcp","type":"tcp","bps":"60%","flow_count":50,"config":{"tcp":{"handshake":true,"mss":1460}}},
+    {"id":"replay1","type":"replay","bps":"30%","replay":{
+       "pcap_asset_id":"pcap_abc123","speed":{"mode":"original"},"direction":"dual",
+       "rewrites":[{"kind":"ipmap","mapping":{"1.0.0.1":"11.0.0.1"}}]}},
+    {"id":"dns_bg","type":"dns","bps":"10%","flow_count":100,"config":{"dns":{"domain":"example.com","query_type":1}}}
+  ],
+  "global":{"duration_seconds":60}
+}
+```
+
+### 16.15 不在 v1 范围
+
+- 异常注入（impairment）：v2+
+- 链式规则（规则 N 看规则 N-1 输出）：v2+，`see:"rewritten"` 显式声明
+- IPv6 地址改写：v2（IPv6 pcap 回放本身因 byte-patch 可行）
+- 双层 VLAN（QinQ）改写、隧道内层改写：v2
+- 非以太网链路层（WiFi/SLL/Raw）：v2
+- payload 字节改写：v2
+- "改字段 + 保留坏校验和"：v2（重算后重新注入同款错误）
+- pcap 解析引擎内部实现：见 §17，设计单独沟通确认
+
+---
+
+## 17. PCAP 解析引擎
+
+### 17.1 模块定位
+
+独立目录 `internal/pcapparser/`（与 `internal/output/pcap.go` 写入端分开）。职责：读 pcap/pcapng -> 产出全层级结构化描述，供 §15 资产管理（查看）与 §16 回放（发包）两个消费方共用。
+
+**两个消费者需求解耦**：
+
+- 查看：要字段**值**（L2-L7 全字段，类 Wireshark）
+- 回放：要字段**偏移**（byte-patch 用）
+
+回放不碰字段值，查看不碰偏移，分开处理。
+
+**双向测试用例**：
+
+- 报文 -> 预期值（提取）：从 pcap 解析字段当测试断言的预期值
+- 预期值 -> 报文（构造）：已有 §16 生成器 builder
+
+**黑盒接口**：资产层调 `pcapparser.Parse(path) (*PcapAnalysis, error)`，解析内部对资产层是黑盒。
+
+### 17.2 数据模型与存储原则
+
+**层级结构**：
+
+```
+PcapAsset（主键）
+  └─ Flows[]（FlowModel，列表信息，包汇总派生）
+       └─ Packets[]（PacketModel，详细记录，包是原子）
+```
+
+- **包为原子、流为派生汇总**：先解析所有包，再从包汇总成流。流信息是包的派生视图。
+- **导入可单遍实现**：数据模型是包主流派生，但实现可单遍（解析一包就累加到对应流桶），存时包和流一起存。
+
+**存储原则**：
+
+- pcap 文件（磁盘）= **真理之源**，DB 存指针 + 聚合，不存可重算的派生值
+- 磁盘文件：`{id}.pcap`（原始字节）+ `{id}.payloads`（物化重组 L7 流）+ trigram 索引文件
+- **不存**：每包 L2-L7 字段值（按需重解析）、负载字节（引用偏移）
+
+**存储形式**（已确认）：独立表 `FlowModel` + `PacketModel`，字段建列，支持索引/分页/条件过滤。不用 JSON 大块。
+
+### 17.3 FlowModel（流级全量聚合）
+
+流远少于包（1M 包可能 10k-100k 流），每流存全量聚合。FlowModel 完整字段：
+
+```go
+// internal/storage/models.go 新增
+type FlowModel struct {
+    ID          string    `gorm:"primaryKey;size:64"`
+    PcapAssetID string    `gorm:"size:64;not null;index"`   // 归属 pcap
+    UserID      string    `gorm:"size:64;not null;index"`   // 用户隔离
+
+    // 标识
+    FlowKey     string    `gorm:"size:128;index"`           // 归一化 flow key
+    L4Protocol  string    `gorm:"size:16;index"`            // tcp|udp|icmp|arp
+    IPVersion   int                                         // 4|6
+    SrcIP       string    `gorm:"size:45;index"`
+    SrcPort     uint16
+    DstIP       string    `gorm:"size:45;index"`
+    DstPort     uint16
+
+    // 方向分类
+    Client       string    `gorm:"size:64"`                 // client 端点 ip:port
+    Server       string    `gorm:"size:64"`                 // server 端点 ip:port
+    DirMethod    string    `gorm:"size:16"`                 // syn|port|first_packet
+    DirConfident bool                                        // 分类可信度
+    DirStatus    string    `gorm:"size:16"`                 // classified|uncertain
+
+    // 统计
+    PacketCount  int64
+    ByteCount    int64
+    C2SPackets   int64                                      // c2s 包数
+    C2SBytes     int64
+    S2CPackets   int64
+    S2CBytes     int64
+    FirstTsUs    int64                                      // 首包时间（微秒）
+    LastTsUs     int64
+    DurationUs   int64
+
+    // TCP 专属
+    HandshakeStatus string `gorm:"size:16"`                 // none|partial|complete
+    C2SInitSeq      uint32                                  // 初始 seq
+    S2CInitSeq      uint32
+    SeqRange        string `gorm:"size:64"`                 // JSON [min,max]
+    FlagsSummary    string `gorm:"type:text"`               // JSON {syn:n,fin:n,rst:n,...}
+    MSS             uint16
+    WindowScale     int
+    WindowRange     string `gorm:"size:64"`
+    TCPOptions      string `gorm:"type:text"`               // JSON 出现的选项
+    RetransCount    int64                                   // 重传数
+    OutOfOrderCount int64                                   // 乱序数
+
+    // L7 元数据
+    L7Protocol  string    `gorm:"size:16;index"`            // http|dns|tls|raw|...
+    L7Metadata  string    `gorm:"type:text"`                // JSON，按协议展开（完整详情）
+    // TCP：一条完整报文（method/uri/status/host 等）
+    // UDP：列表，每条 L7 消息都记（DNS 所有查询/应答）
+    // 常用 L7 过滤字段反范式建列（供实时过滤，同 PcapAsset 反范式模式）
+    L7Method    string    `gorm:"size:16;index"`            // HTTP method
+    L7Host      string    `gorm:"size:255;index"`           // HTTP host / TLS SNI
+    L7QueryName string    `gorm:"size:255;index"`           // DNS 查询名
+
+    // 重组引用（流级最高层负载地址）
+    StreamFile        string `gorm:"size:512"`              // {pcap_id}.payloads
+    C2SOffset         int64                                  // c2s 重组流偏移
+    C2SLength         int64
+    S2COffset         int64
+    S2CLength         int64
+    C2SBodyOffset     int64                                  // L7 body 在 c2s 流内偏移
+    C2SBodyLength     int64
+    S2CBodyOffset     int64
+    S2CBodyLength     int64
+    ReassemblyComplete bool                                  // 重组完整性
+    GapInfo           string `gorm:"size:256"`               // 缺口信息
+
+    // 改写偏移布局（回放 byte-patch 用，封装恒定，每流一份）
+    OffsetLayout string    `gorm:"type:text"`               // JSON 字段->偏移
+
+    // 完整性
+    ParserVersion string    `gorm:"size:32"`                 // 解析时用的版本
+
+    CreatedAt time.Time `gorm:"autoCreateTime"`
+}
+```
+
+### 17.4 PacketModel（包级最小索引）
+
+每包只存最小索引，字段值不存（按需重解析）。约 120 字节/包（含负载哈希/异常/分片标记）：
+
+```go
+type PacketModel struct {
+    ID          string    `gorm:"primaryKey;size:64"`
+    PcapAssetID string    `gorm:"size:64;not null;index"`
+    FlowID      string    `gorm:"size:64;not null;index"`   // 归属流
+    UserID      string    `gorm:"size:64;not null;index"`
+
+    RawOffset   int64                                       // pcap 文件中字节偏移（定位/重解析入口）
+    Length      int                                          // 包长
+    TimestampUs int64     `gorm:"index"`                    // 时间（排序/pacing/显示）
+    IndexInFlow int                                          // 流内序号
+    Direction   string    `gorm:"size:4;index"`             // c2s|s2c
+    L4Protocol  string    `gorm:"size:16;index"`            // tcp|udp|icmp|arp
+    PayloadHash string    `gorm:"size:64;index"`            // 负载 sha256（等值断言用，免传整个负载）
+    AnomalyFlag string    `gorm:"size:16;index"`            // truncated|oversize|undersize|""（异常标记）
+    FragGroupID string    `gorm:"size:64;index"`            // IP 分片组 ID（IPID+src+dst），无分片则空
+    FragOffset  int                                          // 分片偏移（8字节单位），非分片包 -1
+
+    CreatedAt time.Time `gorm:"autoCreateTime"`
+}
+```
+
+L2-L7 完整字段值**不存**，查询时按 `RawOffset` 重解析单包（见 §17.7）。`PayloadHash` 供测试等值断言（"该包负载应是 X"用哈希比对，免传大负载）；`AnomalyFlag` 标记截断/超大/超小包；`FragGroupID`/`FragOffset` 标记 IP 分片组关系（见 §17.6）。
+
+### 17.5 两级负载地址
+
+| 级别 | 负载地址 | 指向 | 用途 |
+|------|---------|------|------|
+| 包级 | `(RawOffset, header_len, payload_len)` | pcap 文件 | 单包负载查看/提取/回放 |
+| 流级（最高层） | `(StreamFile, offset, body_offset, body_length)` | `.payloads` 重组 L7 流 | 完整 HTTP body 等、流级提取/搜索 |
+
+两级都存地址，不存字节。包级直接定位 pcap 文件；流级定位物化的重组流文件。
+
+包级 `header_len`/`payload_len` 不逐包存储，由流的 `OffsetLayout`（封装恒定）或动态重解析得出。
+
+### 17.6 TCP 重组（v1）
+
+用 gopacket `tcpassembly`（`Assembler` + `StreamPool` + `Stream` 接口）。
+
+- **双向分别重组**：一个 TCP 流 c2s、s2c 各自独立重组
+- **排序**：按 seq，处理回绕（PAWS）
+- **重传**：重复 seq 数据去重（重传包在包级保留，重组流内去重），重传数计入 FlowModel
+- **缺口**：seq 空洞标记 gap，缺口部分无法重组，`ReassemblyComplete=false` + `GapInfo`
+- **边界**：FIN/RST 触发流结束 flush；超长流分段 flush 防内存涨
+- **L7 解析**：重组流上跑 L7 parser，得 L7 头 + body 边界（`BodyOffset/Length`）
+- **物化**：重组流写入 `{pcap_id}.payloads` 文件，FlowModel 存偏移引用
+
+**方向分类依赖**：重组分 c2s/s2c 依赖方向分类（§16.7）。分类失败（纯 P2P 无握手）回退首包猜测，`DirStatus=uncertain`，重组按猜测方向分，标注不确定。
+
+**UDP / 非 TCP 流**：不重组（每包独立 L7 消息）。流级 L7 元数据存**列表**（每条消息都记，如 DNS 所有查询/应答）。流级负载地址用包级（逐包查），不建重组流。
+
+**IP 分片处理**：分片包按 `IPID+src+dst` 分组，PacketModel 标 `FragGroupID` + `FragOffset`。重组流处理顺序：**IP 分片先重组，再 TCP 重组**（分片重组在 TCP 重组之前）。非首片分片无 L4 头，byte-patch 时按分片处理（只改 L2/L3，跳过 L4）。截断包（`AnomalyFlag=truncated`）尽力解析已有部分，标记不完整。
+
+### 17.7 动态解析（按需重解析单包字段）
+
+每包字段值**不预存**，查询时按 `(pcap_id, RawOffset, length)` 读 pcap 文件那段字节，gopacket 解析单包，返回完整 `LayerRecord`。
+
+- 单包解析：微秒级
+- 翻页（一页 50 包）：重解析 50 包，亚毫秒，用户无感
+- 与负载查看同一机制（按 RawOffset 读字节），字段多过一遍 gopacket
+
+**LayerRecord（动态生成，不存储）**：
+
+```go
+type LayerRecord struct {
+    Layer   string          // "eth"|"ipv4"|"tcp"|"http"|...
+    Fields  map[string]any  // 该层字段值（查看用）
+    Offsets map[string]int  // 字段字节偏移（每层偏移，查看用）
+    Range   [2]int          // 该层在帧内 [start,end)
+}
+```
+
+**FlowModel.OffsetLayout vs LayerRecord.Offsets 关系**：
+
+- `FlowModel.OffsetLayout`：存储，每流一份（封装恒定），回放 byte-patch 用，只含可改字段偏移
+- `LayerRecord.Offsets`：动态生成，每包每层，查看用，含全字段偏移
+
+两者并存不冲突，服务不同消费者。
+
+### 17.8 协议范围与深度
+
+- **gopacket 内置全开**：HTTP/DNS/TLS/DHCP/SNMP/Modbus/ARP/ICMP/IPv4/IPv6/TCP/UDP/SCTP/GRE/VXLAN/MPLS/... 几十种
+- **未知协议 opaque 保留**：gopacket 不认识的层，存字节范围 + 层名（若有）+ "未识别"标签，不阻断解析
+- **插件扩展**：`ProtocolParser` 接口 + Registry 注册新协议解析器（如 QUIC/HTTP2/HTTP3），不动核心
+- **加密流量**：TLS/SSH 解 handshake 元数据（SNI/版本/密码套件/cert 链长度），payload 标"加密 opaque"，不解密
+- **解析深度**：能解析的都解析，字段全展开
+
+### 17.9 负载搜索（trigram，v1）
+
+**机制**：trigram（三字节）倒排索引。
+
+- 索引：每个 trigram -> 出现该 trigram 的 (flow_id, dir, offset) 列表
+- 搜索模式 P：拆 trigrams -> 交集 -> 候选位置 -> 读对应流字节验证 -> 命中
+- 支持**任意子串**（文本 + 二进制），实时
+
+**索引范围**：
+
+- TCP：索引重组 L7 流（c2s/s2c，完整 HTTP body 等）
+- UDP：索引每包负载（每包独立 L7 消息）
+- 统一支持任意子串搜索
+
+**加密负载**：TLS payload 加密，搜索匹配密文（意义有限，除非搜已知字节模式）；handshake 明文部分可正常搜。
+
+**命中映射回包**：重组流知道每段来自哪个包，流命中可定位到贡献的包。
+
+**存储代价**：trigram 索引约为负载的 3 倍。
+
+### 17.10 多条件组合查询
+
+```
+POST /api/v1/pcaps/:id/search
+{
+  "flow_filter": {                    // 流级过滤（FlowModel SQL）
+    "protocol": "tcp", "src_ip": "10.0.0.1", "dst_port": 443,
+    "l7": {"type": "http", "method": "POST"}
+  },
+  "packet_filter": {                  // 包级过滤（PacketModel 索引列或重解析）
+    "direction": "c2s", "time_range": ["...", "..."], "flags": {"rst": false}
+  },
+  "payload": {                        // 负载内容（trigram 索引）
+    "contains": "password", "encoding": "ascii", "regex": "可选正则"
+  },
+  "scope": "reassembled",             // reassembled(TCP) | packet(UDP/单包)
+  "return": ["flow", "packet", "payload_range"],
+  "limit": 100, "offset": 0
+}
+```
+
+**执行计划**：
+
+1. `flow_filter` -> SQL 查 FlowModel -> 候选流集合 F
+2. `payload` -> trigram 索引查"含 X" -> 候选 (flow, offset) 集合 P
+3. F ∩ P（流级交集）
+4. `packet_filter` -> 候选流内按包过滤（索引列或重解析）
+5. 返回命中的流 + 包 + 负载匹配位置，分页
+
+**条件类型**：
+
+| 维度 | 条件 | 走什么 |
+|------|------|--------|
+| 流头部 | 协议、IP、端口、方向 | FlowModel SQL |
+| 流 L7 | HTTP method、DNS 查询名、TLS SNI | FlowModel L7 元数据 |
+| 包头部 | direction、time、flags | PacketModel 索引列或重解析 |
+| 负载内容 | 含子串、正则、字节序列 | trigram 索引 + 验证 |
+| 范围 | 时间区间、大小区间 | 索引列范围查询 |
+
+**组合方式**：v1 **只支持 AND**（条件同时满足）。OR / 嵌套分组留 v2。
+
+### 17.11 实时查询 API
+
+| 端点 | 返回 |
+|------|------|
+| `GET /pcaps/:id/packets/:pid` | 单包全字段（动态重解析） |
+| `GET /pcaps/:id/packets/:pid/payload` | 单包负载（按 RawOffset 读 pcap） |
+| `GET /pcaps/:id/flows/:fid/stream?dir=c2s&offset=&limit=` | 重组流字节（.payloads 偏移读），支持 Range |
+| `GET /pcaps/:id/flows/:fid/body?dir=c2s` | 最高层 body |
+| `POST /pcaps/:id/search` | 多条件组合搜索 |
+| `POST /pcaps/:id/extract` | 批量提取指定包/字段（测试预期值，一次取多包多字段，免逐包调用） |
+| `POST /pcaps/:id/match-preview` | matcher 命中预览（传 FlowMatcher，返回命中的流列表，配置改写规则时验证） |
+
+按需返回，支持 Range 分块拉取大流。
+
+### 17.12 重解析
+
+解析逻辑升级后，已有资产重建索引：
+
+- **重建**：FlowModel（重新聚合）+ `.payloads`（重新重组）+ trigram 索引
+- **保留**：PacketModel 索引（RawOffset 等，不失效）+ 原始 pcap 文件
+- **触发**：`POST /pcaps/:id/reparse`，`Status=reindexing` -> `ready`
+- **版本一致性**：FlowModel 带 `ParserVersion`，查询时若版本不匹配当前引擎版本，提示 reparse
+
+### 17.13 存储代价
+
+| 项 | 大小 |
+|----|------|
+| `{id}.pcap` | 原始大小 |
+| FlowModel + PacketModel | 每流 ~2KB × 流数 + 每包 ~120B × 包数（含负载哈希/异常/分片标记） |
+| `{id}.payloads` 重组流 | ≈ 原 pcap 负载量 |
+| trigram 索引 | ≈ 3 × 负载量 |
+
+总额外约 **4 × 负载量**。1GB pcap（70% 负载）-> 额外 ~2.8GB。**不设上限，全量建**（已确认）。
+
+### 17.14 不在 v1 范围
+
+- OR / 嵌套分组查询：v2
+- TCP 重组的 L7 跨流关联（如 HTTP/2 多路复用）：v2
+- 加密 payload 解密：不做（只抓 handshake 元数据）
+
+### 17.15 与其他模块的关系
+
+- **§15 资产管理**：导入时调 `pcapparser.Parse()`，解析引擎填充 FlowModel + PacketModel + `.payloads` + trigram 索引。解析内部黑盒，资产层只管存取。
+- **§16 回放**：replay planner 读 `FlowModel.OffsetLayout`（byte-patch 偏移）+ `PacketModel.RawOffset`（定位字节）+ 原始 pcap 文件，零二次解析。
+
+---
+
+## 18. 外部 API（MCP）
 
 ### 设计原则
 
@@ -1055,10 +1858,13 @@ internal/
 | `get_system_status` | 系统状态 | 无 |
 | `export_history` | 导出历史 | 时间范围、格式 |
 | `manage_users` | 用户管理（admin） | 操作类型、用户信息 |
+| `import_pcap` | 导入 pcap 资产 | 文件/路径、名称 |
+| `list_pcaps` | 列出 pcap 资产 | 协议/大小/时间筛选 |
+| `replay_pcap` | 创建并启动回放任务 | pcap_asset_id、改写规则、速率、方向、多流放大、输出配置 |
 
 ---
 
-## 16. API 端点一览
+## 19. API 端点一览
 
 ### 公开端点（无需认证）
 
@@ -1119,6 +1925,27 @@ internal/
 | GET | `/api/v1/settings` | 获取设置 |
 | PUT | `/api/v1/settings` | 更新设置 |
 
+### PCAP 资产端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/pcaps` | 资产列表（分页/筛选） |
+| POST | `/api/v1/pcaps` | 导入 pcap（上传/指定路径，异步解析） |
+| GET | `/api/v1/pcaps/:id` | 资产详情（全局统计 + 流概览） |
+| GET | `/api/v1/pcaps/:id/flows` | 流列表（FlowModel，分页/筛选） |
+| GET | `/api/v1/pcaps/:id/flows/:fid` | 单流详情（全量字段） |
+| GET | `/api/v1/pcaps/:id/flows/:fid/stream?dir=c2s&offset=&limit=` | 重组流字节（.payloads 偏移读，支持 Range） |
+| GET | `/api/v1/pcaps/:id/flows/:fid/body?dir=c2s` | 最高层 body（HTTP body 等） |
+| GET | `/api/v1/pcaps/:id/packets?offset=&limit=` | 包列表（PacketModel 最小索引，分页） |
+| GET | `/api/v1/pcaps/:id/packets/:pid` | 单包全字段（动态重解析 L2-L7） |
+| GET | `/api/v1/pcaps/:id/packets/:pid/payload` | 单包负载（按 RawOffset 读 pcap） |
+| POST | `/api/v1/pcaps/:id/search` | 多条件组合搜索（流过滤 + 包过滤 + 负载内容，AND） |
+| POST | `/api/v1/pcaps/:id/extract` | 批量提取包字段（测试预期值，一次取多包多字段） |
+| POST | `/api/v1/pcaps/:id/match-preview` | matcher 命中预览（配置改写规则时验证命中流） |
+| GET | `/api/v1/pcaps/:id/download` | 下载原始 pcap |
+| POST | `/api/v1/pcaps/:id/reparse` | 重新解析（重建 FlowModel/payloads/trigram） |
+| DELETE | `/api/v1/pcaps/:id` | 删除资产（引用检查，可选 force）；importing 状态时为取消导入+清理 |
+
 ### 管理端点（admin only）
 
 | 方法 | 路径 | 说明 |
@@ -1131,7 +1958,7 @@ internal/
 
 ---
 
-## 17. 当前状态评估
+## 20. 当前状态评估
 
 ### 功能完整度
 
@@ -1164,6 +1991,9 @@ quadrantChart
     "MCP": [0.0, 0.85]
     "Schema驱动表单": [0.0, 0.8]
     "IPv6": [0.0, 0.85]
+    "PCAP资产管理": [0.0, 0.75]
+    "PCAP回放": [0.0, 0.9]
+    "PCAP解析引擎": [0.0, 0.8]
     "Metrics采集": [0.15, 0.4]
     "Redis缓存应用": [0.1, 0.35]
 ```
@@ -1187,7 +2017,7 @@ quadrantChart
 
 ---
 
-## 18. 后续优化方向
+## 21. 后续优化方向
 
 > 详细的分阶段实施计划、代码位置、修复方案见 [`docs/engine-analysis.md` §8 修复优先级建议](./engine-analysis.md#8-修复优先级建议)。
 > 以下为高层路线图摘要。
@@ -1224,7 +2054,8 @@ P3 - Schema 驱动: 见 docs/engine-analysis.md §5.2
 
 ```
 P4 - 插件化协议注册
-P5 - 引擎能力扩展 (resequencing / MTU 检查 / PCAP 重放)
+P5 - 引擎能力扩展 (resequencing / MTU 检查)
+P5.5 - PCAP 回放与资源管理（需求已确认见 §15-§17，含解析引擎/资产管理/回放/改写/双口/多流）
 ```
 
 ### Phase 4: MCP + 高级功能（持续迭代）
