@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"gorm.io/gorm"
@@ -46,8 +47,16 @@ type StrategyResponse struct {
 	Protocol    string                 `json:"protocol"`
 	Config      map[string]interface{} `json:"config"`
 	FlowControl *FlowControlRequest    `json:"flow_control"`
+	TaskCount   int                    `json:"task_count"`
 	CreatedAt   int64                  `json:"created_at"`
 	UpdatedAt   int64                  `json:"updated_at"`
+}
+
+// TaskBrief represents a brief task reference.
+type TaskBrief struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
 }
 
 // Create creates a new strategy (idempotent).
@@ -69,11 +78,24 @@ func (h *StrategyHandler) Create(c *gin.Context) {
 		BadRequest(c, errMsg)
 		return
 	}
+	// Validate DSCP/ECN/VLAN ranges on the raw config before mapToFlowSpec
+	// truncates them to uint8/uint16 (otherwise dscp=256 silently wraps to 0).
+	if err := core.ValidateConfigRanges(req.Config); err != nil {
+		BadRequest(c, err.Error())
+		return
+	}
 
 	// Validate protocol
-	validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true}
+	validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true}
 	if req.Protocol == "" || !validProtocols[req.Protocol] {
 		BadRequest(c, "invalid or missing protocol: " + req.Protocol)
+		return
+	}
+	// Validate per-protocol sub-config fields (tcp.mss, icmp.type, etc.)
+	// that also truncate silently through uint16/uint8. Runs after protocol
+	// validation so req.Protocol is known-good.
+	if err := core.ValidateProtocolSubConfigs(req.Config, req.Protocol); err != nil {
+		BadRequest(c, err.Error())
 		return
 	}
 
@@ -85,6 +107,19 @@ func (h *StrategyHandler) Create(c *gin.Context) {
 		}
 	}
 
+
+		// Validate flow_control type
+		validFlowTypes := map[string]bool{"flows": true, "cps": true, "bps": true, "ratio": true, "time": true}
+		if !validFlowTypes[req.FlowControl.Type] {
+			BadRequest(c, "invalid flow_control type: must be flows, cps, bps, ratio, or time")
+			return
+		}
+
+		// Validate flow_control value is positive
+		if req.FlowControl.Value <= 0 {
+			BadRequest(c, "flow_control value must be positive")
+			return
+		}
 	// Serialize config and flow control
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
@@ -153,6 +188,12 @@ func (h *StrategyHandler) List(c *gin.Context) {
 		var flowControl FlowControlRequest
 		json.Unmarshal([]byte(s.FlowControl), &flowControl)
 
+		// Count tasks using this strategy
+		var taskCount int64
+		h.db.Model(&storage.TaskModel{}).
+			Where("user_id = ? AND EXISTS (SELECT 1 FROM json_each(strategy_ids) WHERE json_each.value = ?)", userID, s.ID).
+			Count(&taskCount)
+
 		result[i] = StrategyResponse{
 			ID:          s.ID,
 			UserID:      s.UserID,
@@ -160,6 +201,7 @@ func (h *StrategyHandler) List(c *gin.Context) {
 			Protocol:    s.Protocol,
 			Config:      config,
 			FlowControl: &flowControl,
+			TaskCount:   int(taskCount),
 			CreatedAt:   s.CreatedAt.Unix(),
 			UpdatedAt:   s.UpdatedAt.Unix(),
 		}
@@ -235,6 +277,19 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 		BadRequest(c, errMsg)
 		return
 	}
+	// Validate DSCP/ECN/VLAN ranges on the raw config before mapToFlowSpec
+	// truncates them to uint8/uint16 (otherwise dscp=256 silently wraps to 0).
+	if err := core.ValidateConfigRanges(req.Config); err != nil {
+		BadRequest(c, err.Error())
+		return
+	}
+	// Validate per-protocol sub-config fields (tcp.mss, icmp.type, etc.)
+	// that also truncate silently through uint16/uint8. Unknown/empty protocol
+	// is a no-op (switch has no matching case).
+	if err := core.ValidateProtocolSubConfigs(req.Config, req.Protocol); err != nil {
+		BadRequest(c, err.Error())
+		return
+	}
 
 	// Check if strategy exists and belongs to user
 	var strategy storage.StrategyModel
@@ -247,6 +302,19 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 		return
 	}
 
+
+	// Validate flow_control type and value if provided
+	if req.FlowControl != nil {
+		validFlowTypes := map[string]bool{"flows": true, "cps": true, "bps": true, "ratio": true, "time": true}
+		if !validFlowTypes[req.FlowControl.Type] {
+			BadRequest(c, "invalid flow_control type: must be flows, cps, bps, ratio, or time")
+			return
+		}
+		if req.FlowControl.Value <= 0 {
+			BadRequest(c, "flow_control value must be positive")
+			return
+		}
+	}
 	// Serialize config and flow control
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
@@ -306,7 +374,7 @@ func (h *StrategyHandler) Delete(c *gin.Context) {
 	// Check if strategy is used by any tasks (JSON array exact match)
 	var taskCount int64
 	h.db.Model(&storage.TaskModel{}).
-		Where("user_id = ? AND strategy_ids LIKE ?", userID, "%\""+id+"\"%").
+		Where("user_id = ? AND EXISTS (SELECT 1 FROM json_each(strategy_ids) WHERE json_each.value = ?)", userID, id).
 		Count(&taskCount)
 	if taskCount > 0 {
 		BadRequest(c, "strategy is used by tasks, cannot delete")
@@ -360,4 +428,47 @@ func validateConfigNetwork(config map[string]interface{}) string {
 		}
 	}
 	return ""
+}
+
+// ListTasks returns tasks that use a given strategy.
+func (h *StrategyHandler) ListTasks(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if userID == "" {
+		Unauthorized(c, "user not authenticated")
+		return
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		BadRequest(c, "missing strategy id")
+		return
+	}
+
+	// Verify strategy exists and belongs to user
+	var strategy storage.StrategyModel
+	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&strategy).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			NotFound(c, "strategy not found")
+			return
+		}
+		InternalError(c, "failed to get strategy: "+err.Error())
+		return
+	}
+
+	// Find tasks referencing this strategy
+	var tasks []storage.TaskModel
+	h.db.Where("user_id = ? AND EXISTS (SELECT 1 FROM json_each(strategy_ids) WHERE json_each.value = ?)", userID, id).
+		Select("id, name, status").
+		Find(&tasks)
+
+	result := make([]TaskBrief, len(tasks))
+	for i, t := range tasks {
+		result[i] = TaskBrief{
+			ID:     t.ID,
+			Name:   t.Name,
+			Status: t.Status,
+		}
+	}
+
+	Success(c, result)
 }

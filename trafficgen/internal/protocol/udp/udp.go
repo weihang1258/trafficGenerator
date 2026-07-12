@@ -29,7 +29,6 @@ func (p *Planner) Name() string {
 
 // Validate validates a UDP flow spec.
 func (p *Planner) Validate(spec core.FlowSpec) error {
-	// Validate IP addresses
 	if spec.SrcIP != "" {
 		if net.ParseIP(spec.SrcIP) == nil {
 			return fmt.Errorf("invalid source IP: %s", spec.SrcIP)
@@ -40,15 +39,12 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("invalid destination IP: %s", spec.DstIP)
 		}
 	}
-
-	// Validate ports
 	if spec.SrcPort == 0 {
 		return fmt.Errorf("source port is required")
 	}
 	if spec.DstPort == 0 {
 		return fmt.Errorf("destination port is required")
 	}
-
 	return nil
 }
 
@@ -63,15 +59,25 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	go func() {
 		defer close(configChan)
 
-		// Generate flow ID
 		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
-
+		effectiveTTL := spec.TTL
+		if effectiveTTL == 0 {
+			effectiveTTL = DefaultTTL
+		}
 		now := time.Now()
+		packetIndex := uint64(0)
+		ipID := uint16(1)
 
-		// UDP Request (client -> server)
+		nextIPID := func() uint16 {
+			id := ipID
+			ipID++
+			return id
+		}
+
+		// UDP Request
 		configChan <- core.PacketConfig{
 			FlowID:      flowID,
-			PacketIndex: 0,
+			PacketIndex: packetIndex,
 			Direction:   "up",
 			Timestamp:   now,
 			L2: core.L2Config{
@@ -79,12 +85,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				DstMAC:    spec.DstMAC,
 				EtherType: 0x0800,
 			},
-			L3: core.L3Config{
-				SrcIP:    spec.SrcIP,
-				DstIP:    spec.DstIP,
-				Protocol: 17, // UDP
-				TTL:      DefaultTTL,
-			},
+			L3: core.L3Base(spec.SrcIP, spec.DstIP, 17, effectiveTTL, nextIPID(), spec),
 			L4: core.L4Config{
 				Protocol: "udp",
 				SrcPort:  spec.SrcPort,
@@ -92,12 +93,13 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			},
 			Payload: spec.Payload,
 		}
+		packetIndex++
 
-		// UDP Response (server -> client) if configured
+		// UDP Response if configured
 		if spec.UDP != nil && spec.UDP.Response {
 			configChan <- core.PacketConfig{
 				FlowID:      flowID,
-				PacketIndex: 1,
+				PacketIndex: packetIndex,
 				Direction:   "down",
 				Timestamp:   now,
 				L2: core.L2Config{
@@ -105,18 +107,13 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.SrcMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.DstIP,
-					DstIP:    spec.SrcIP,
-					Protocol: 17,
-					TTL:      DefaultTTL,
-				},
+				L3: core.L3Base(spec.DstIP, spec.SrcIP, 17, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "udp",
 					SrcPort:  spec.DstPort,
 					DstPort:  spec.SrcPort,
 				},
-				Payload: spec.Payload, // Echo back for now
+				Payload: spec.Payload,
 			}
 		}
 	}()

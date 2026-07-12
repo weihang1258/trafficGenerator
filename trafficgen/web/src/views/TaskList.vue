@@ -1,34 +1,33 @@
 <template>
   <div class="task-list">
     <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>{{ t('task.title') }}</span>
-          <div class="header-actions">
-            <template v-if="selectedTasks.length === 0">
-              <el-button @click="proTableRef?.openColumnSettings()" circle size="small">
-                <el-icon><Setting /></el-icon>
-              </el-button>
-              <el-button @click="loadTasks" circle size="small">
-                <el-icon><Refresh /></el-icon>
-              </el-button>
-              <el-button type="primary" @click="$router.push('/tasks/create')">
-                <el-icon><Plus /></el-icon>
-                {{ t('task.createTask') }}
-              </el-button>
-            </template>
-            <template v-else>
-              <span class="batch-info">{{ t('task.selectedCount', { count: selectedTasks.length }) }}</span>
-              <el-button type="danger" size="small" @click="handleBatchDelete">{{ t('task.batchDelete') }}</el-button>
-              <el-button size="small" @click="handleBatchStop">{{ t('task.batchStop') }}</el-button>
-              <el-button size="small" link type="primary" @click="clearSelection">{{ t('common.reset') }}</el-button>
-            </template>
-          </div>
-        </div>
-      </template>
+      <ProCardHeader :title="t('task.title')">
+        <template v-if="selectedTasks.length === 0">
+          <el-button aria-label="Column settings" @click="proTableRef?.openColumnSettings()" circle size="small">
+            <el-icon><Setting /></el-icon>
+          </el-button>
+          <el-button aria-label="Refresh" @click="loadTasks" circle size="small">
+            <el-icon><RefreshRight /></el-icon>
+          </el-button>
+          <el-button type="primary" @click="$router.push('/tasks/create')">
+            <el-icon><Plus /></el-icon>
+            {{ t('task.createTask') }}
+          </el-button>
+        </template>
+        <template v-else>
+          <span class="batch-info">{{ t('task.selectedCount', { count: selectedTasks.length }) }}</span>
+          <el-button type="danger" size="small" @click="batchDelete.execute(selectedTasks)">{{ t('task.batchDelete') }}</el-button>
+          <el-button size="small" @click="batchStop.execute(selectedTasks)">{{ t('task.batchStop') }}</el-button>
+          <el-button size="small" link type="primary" @click="clearSelection(proTableRef?.tableRef)">{{ t('common.reset') }}</el-button>
+        </template>
+      </ProCardHeader>
 
-      <!-- Filter bar -->
-      <div class="filter-bar">
+      <ProFilterBar
+        :filters="filters"
+        :field-defs="filterFieldDefs"
+        @reset="resetFilters"
+        @clear-filter="handleClearFilter"
+      >
         <el-input
           v-model="filters.keyword"
           :placeholder="t('task.searchPlaceholder')"
@@ -56,22 +55,7 @@
           <el-option :label="t('task.failed')" value="failed" />
           <el-option :label="t('task.stopped')" value="stopped" />
         </el-select>
-        <el-button link type="primary" @click="resetFilters">{{ t('common.reset') }}</el-button>
-      </div>
-
-      <!-- Active filter tags -->
-      <div v-if="hasActiveFilters" class="active-filters">
-        <el-tag v-if="filters.keyword" closable @close="filters.keyword = ''; loadTasks()">
-          {{ filters.keyword }}
-        </el-tag>
-        <el-tag v-if="filters.protocol" closable @close="filters.protocol = ''; loadTasks()">
-          {{ filters.protocol.toUpperCase() }}
-        </el-tag>
-        <el-tag v-if="filters.status" closable @close="filters.status = ''; loadTasks()">
-          {{ getStatusText(filters.status) }}
-        </el-tag>
-        <el-button link type="primary" size="small" @click="resetFilters">{{ t('common.reset') }}</el-button>
-      </div>
+      </ProFilterBar>
 
       <ProTable
         ref="proTableRef"
@@ -79,6 +63,7 @@
         :columns="columns"
         :data="tasks"
         :loading="loading"
+        :default-sort="{ prop: 'created_at', order: 'descending' }"
         :pagination="{ total: pagination.total }"
         :empty-text="t('task.noTasks')"
         @selection-change="handleSelectionChange"
@@ -97,7 +82,29 @@
           <el-tag size="small">{{ (row.protocol || 'N/A').toUpperCase() }}</el-tag>
         </template>
         <template #status="{ row }">
-          <task-status-tag :status="row.status" />
+          <div class="status-cell">
+            <el-tooltip v-if="row.error_message" :content="row.error_message" placement="top">
+              <task-status-tag :status="row.status" />
+            </el-tooltip>
+            <task-status-tag v-else :status="row.status" />
+            <el-tooltip v-if="isStuckTask(row)" :content="t('task.stuckWarning')" placement="top">
+              <el-icon class="stuck-icon" :size="14"><Warning /></el-icon>
+            </el-tooltip>
+          </div>
+        </template>
+        <template #error_message="{ row }">
+          <el-popover v-if="row.error_message" placement="top" :width="300" trigger="hover">
+            <template #reference>
+              <el-tag type="danger" size="small" class="cursor-pointer">{{ truncate(row.error_message, 30) }}</el-tag>
+            </template>
+            <div style="max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; font-size: 13px;">
+              {{ row.error_message }}
+            </div>
+            <div style="margin-top: 8px;">
+              <router-link :to="`/tasks/${row.id}`" style="font-size: 12px;">View Details →</router-link>
+            </div>
+          </el-popover>
+          <span v-else style="color: var(--tg-text-secondary, #94a3b8);">-</span>
         </template>
         <template #progress="{ row }">
           <el-progress
@@ -107,13 +114,16 @@
           />
         </template>
         <template #output_type="{ row }">
-          {{ row.output_type === 'port_group' ? t('taskCreate.portGroup') : 'PCAP' }}
+          {{ row.output_type === 'port_group' ? t('taskCreate.portGroup') : t('taskCreate.pcap') }}
         </template>
         <template #stats.packets_sent="{ row }">
           {{ formatNumber(row.stats?.packets_sent || 0) }}
         </template>
         <template #created_at="{ row }">
-          {{ formatDate(row.created_at) }}
+          {{ formatTimestamp(row.created_at) }}
+        </template>
+        <template #updated_at="{ row }">
+          {{ formatTimestamp(row.updated_at) }}
         </template>
         <template #actions="{ row }">
           <div class="action-buttons">
@@ -165,35 +175,70 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Setting, Refresh } from '@element-plus/icons-vue'
+import { Plus, Search, Setting, RefreshRight, Warning } from '@element-plus/icons-vue'
 import { taskApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import ProTable from '@/components/ProTable/index.vue'
-import dayjs from 'dayjs'
-import { formatNumber } from '@/utils/format'
+import ProCardHeader from '@/components/ProCardHeader/index.vue'
+import ProFilterBar from '@/components/ProFilterBar/index.vue'
+import { useServerList } from '@/composables/useServerList'
+import { useSelection } from '@/composables/useSelection'
+import { useBatchAction } from '@/composables/useBatchAction'
+import { formatNumber, formatTimestamp } from '@/utils/format'
+import { TASK_STATUS_TYPE, getProgressStatus } from '@/constants/status'
+import type { FilterFieldDef } from '@/composables/useActiveFilters'
 
 const { t } = useI18n()
 const router = useRouter()
 
-const loading = ref(false)
-const tasks = ref<Task[]>([])
-const selectedTasks = ref<Task[]>([])
 const proTableRef = ref()
 let refreshTimer: number | null = null
+let loadErrorShown = false
+
+const { loading, data: tasks, pagination, sortState, refresh: loadTasks, handleSortChange, handlePageChange } = useServerList<Task>({
+  fetchFn: async (params) => {
+    const res = await taskApi.list({
+      ...params,
+      status: filters.status || undefined,
+    })
+    const data = res.data as any
+    return { items: data.items || [], total: data.total || 0 }
+  },
+  defaultPageSize: 20,
+  defaultSort: { prop: 'created_at', order: 'descending' }
+})
+
+const { selectedItems: selectedTasks, handleSelectionChange, clearSelection } = useSelection<Task>()
+
+const batchDelete = useBatchAction<Task>({
+  action: (task) => taskApi.delete(task.id),
+  confirmMessage: (count) => t('task.batchDeleteConfirm', { count }),
+  successMessage: (count) => t('task.deleteSuccess', { count }),
+  partialMessage: (succeeded, failed) => t('task.bulkPartial', { succeeded, failed })
+})
+
+const batchStop = useBatchAction<Task>({
+  action: (task) => taskApi.stop(task.id),
+  confirmMessage: (count) => t('task.batchStopConfirm', { count }),
+  successMessage: (count) => t('task.stopSuccess', { count }),
+  partialMessage: (succeeded, failed) => t('task.bulkPartial', { succeeded, failed })
+})
 
 const columns = computed(() => [
   { prop: 'selection', label: '', type: 'selection', width: 45, fixed: 'left' },
   { prop: 'name', label: t('task.taskName'), minWidth: 180, sortable: 'custom', required: true },
   { prop: 'protocol', label: t('task.protocol'), width: 90, sortable: 'custom' },
   { prop: 'status', label: t('task.status'), width: 100, sortable: 'custom' },
+  { prop: 'error_message', label: t('task.errorLog'), width: 160, sortable: 'custom' },
   { prop: 'progress', label: t('task.progress'), width: 120, sortable: 'custom' },
   { prop: 'output_type', label: t('task.outputType'), width: 90, sortable: 'custom' },
   { prop: 'stats.packets_sent', label: t('task.packets'), width: 90, sortable: 'custom' },
   { prop: 'created_at', label: t('task.createdAt'), width: 170, sortable: 'custom' },
+  { prop: 'updated_at', label: t('common.updatedAt'), width: 170, sortable: 'custom' },
   { prop: 'actions', label: t('task.actions'), width: 180, fixed: 'right', required: true }
 ])
 
@@ -203,20 +248,11 @@ const filters = reactive({
   status: ''
 })
 
-const pagination = reactive({
-  page: 1,
-  pageSize: 20,
-  total: 0
-})
-
-const sortState = reactive({
-  prop: '',
-  order: ''
-})
-
-const hasActiveFilters = computed(() =>
-  filters.keyword || filters.protocol || filters.status
-)
+const filterFieldDefs: FilterFieldDef[] = [
+  { key: 'keyword', label: t('task.taskName') },
+  { key: 'protocol', label: t('task.protocol'), valueFormatter: (v: string) => v.toUpperCase() },
+  { key: 'status', label: t('task.status'), valueFormatter: (v: string) => getStatusText(v) }
+]
 
 function getStatusText(status: string): string {
   const map: Record<string, string> = {
@@ -229,16 +265,17 @@ function getStatusText(status: string): string {
   return map[status] || status
 }
 
-function formatDate(timestamp?: number): string {
-  if (!timestamp) return '-'
-  return dayjs(timestamp * 1000).format('YYYY-MM-DD HH:mm:ss')
+function truncate(str: string, len: number) {
+  if (!str) return ''
+  return str.length > len ? str.slice(0, len) + '...' : str
 }
 
-function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {
-  if (status === 'completed') return 'success'
-  if (status === 'failed') return 'exception'
-  if (status === 'stopped') return 'warning'
-  return ''
+/** Detect stuck tasks: running for >5 minutes with 0% progress */
+function isStuckTask(row: Task): boolean {
+  if (row.status !== 'running' || row.progress > 0) return false
+  if (!row.started_at) return false
+  const elapsed = Math.floor(Date.now() / 1000) - row.started_at
+  return elapsed > 300 // 5 minutes with 0% = likely stuck
 }
 
 function resetFilters() {
@@ -249,66 +286,22 @@ function resetFilters() {
   loadTasks()
 }
 
-function handleSelectionChange(selection: Task[]) {
-  selectedTasks.value = selection
-}
-
-function clearSelection() {
-  selectedTasks.value = []
-  proTableRef.value?.tableRef?.clearSelection()
-}
-
-function handleSortChange({ prop, order }: { prop: string; order: string }) {
-  sortState.prop = prop
-  sortState.order = order
-  loadTasks()
-}
-
-function handlePageChange(page: number, pageSize: number) {
-  pagination.page = page
-  pagination.pageSize = pageSize
-  loadTasks()
-}
-
-async function loadTasks() {
-  loading.value = true
-  try {
-    const res = await taskApi.list()
-    if (res.data) {
-      const data = res.data as any
-      const items = Array.isArray(data) ? data : (data.items || [])
-      tasks.value = applySort(items)
-      pagination.total = data.total || tasks.value.length
-    }
-  } catch (error) {
-    console.error('Failed to load tasks:', error)
-  } finally {
-    loading.value = false
+function handleClearFilter(key: string) {
+  const emptyValues: Record<string, any> = { keyword: '', protocol: '', status: '' }
+  if (key in emptyValues) {
+    filters[key as keyof typeof filters] = emptyValues[key]
   }
-}
-
-function applySort(data: Task[]): Task[] {
-  if (!sortState.prop || !sortState.order) return data
-  const dir = sortState.order === 'ascending' ? 1 : -1
-  return [...data].sort((a: any, b: any) => {
-    const va = sortState.prop.includes('.') ? sortState.prop.split('.').reduce((o: any, k: string) => o?.[k], a) : a[sortState.prop]
-    const vb = sortState.prop.includes('.') ? sortState.prop.split('.').reduce((o: any, k: string) => o?.[k], b) : b[sortState.prop]
-    if (va == null && vb == null) return 0
-    if (va == null) return dir
-    if (vb == null) return -dir
-    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir
-    return String(va).localeCompare(String(vb)) * dir
-  })
+  loadTasks()
 }
 
 async function handleStart(task: Task) {
   try {
     await taskApi.start(task.id)
     ElMessage.success(t('task.startSuccess'))
-    loadTasks()
-  } catch (error) {
-    console.error('Failed to start task:', error)
+  } catch {
+    // Error toast already shown by axios interceptor
   }
+  loadTasks()
 }
 
 async function handleStop(task: Task) {
@@ -321,9 +314,10 @@ async function handleStop(task: Task) {
     await taskApi.stop(task.id)
     ElMessage.success(t('task.stopSuccess'))
     loadTasks()
-  } catch (error) {
+  } catch (error: any) {
     if (error !== 'cancel') {
-      console.error('Failed to stop task:', error)
+      const msg = error?.response?.data?.message || t('task.stopFailed')
+      ElMessage.error(msg)
     }
   }
 }
@@ -345,64 +339,10 @@ async function handleDelete(task: Task) {
   }
 }
 
-
-async function handleBatchDelete() {
-  if (selectedTasks.value.length === 0) return
-  try {
-    await ElMessageBox.confirm(
-      t('task.batchDeleteConfirm', { count: selectedTasks.value.length }),
-      t('task.batchDelete'),
-      { type: 'warning' }
-    )
-    const results = await Promise.allSettled(
-      selectedTasks.value.map(task => taskApi.delete(task.id))
-    )
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
-    if (failed > 0) {
-      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
-    } else {
-      ElMessage.success(t('task.bulkDeleted', { count: succeeded }))
-    }
-    loadTasks()
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('Failed to delete tasks:', error)
-    }
-  }
-}
-
-async function handleBatchStop() {
-  if (selectedTasks.value.length === 0) return
-  try {
-    await ElMessageBox.confirm(
-      t('task.batchStopConfirm', { count: selectedTasks.value.length }),
-      t('task.batchStop'),
-      { type: 'warning' }
-    )
-    const runningTasks = selectedTasks.value.filter(t => t.status === 'running')
-    const results = await Promise.allSettled(
-      runningTasks.map(task => taskApi.stop(task.id))
-    )
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
-    if (failed > 0) {
-      ElMessage.warning(t('task.bulkPartial', { succeeded, failed }))
-    } else {
-      ElMessage.success(t('task.bulkStopped', { count: succeeded }))
-    }
-    loadTasks()
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('Failed to stop tasks:', error)
-    }
-  }
-}
-
 onMounted(() => {
   loadTasks()
   refreshTimer = window.setInterval(() => {
-    if (tasks.value.some(t => t.status === 'running')) {
+    if (tasks.value.some((t: Task) => t.status === 'running')) {
       loadTasks()
     }
   }, 10000)
@@ -416,34 +356,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-height: 32px;
-}
-
-.filter-bar {
-  display: flex;
-  align-items: center;
-  margin-bottom: 16px;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.active-filters {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
 .batch-info {
   font-size: 13px;
   color: var(--tg-text-secondary, #606266);
@@ -465,10 +377,20 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
-@media (max-width: 768px) {
-  .filter-bar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.status-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
+
+.stuck-icon {
+  color: var(--tg-warning, #F59E0B);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 </style>

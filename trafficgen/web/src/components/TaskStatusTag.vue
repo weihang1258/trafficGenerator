@@ -7,6 +7,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { TASK_STATUS_TYPE } from '@/constants/status'
 
 const { t } = useI18n()
 
@@ -22,24 +23,24 @@ const props = withDefaults(defineProps<Props>(), {
   effect: 'light'
 })
 
-const statusConfig: Record<string, { type: string; i18nKey: string }> = {
-  pending: { type: 'info', i18nKey: 'task.pending' },
-  created: { type: 'info', i18nKey: 'task.pending' },
-  running: { type: 'success', i18nKey: 'task.running' },
-  completed: { type: '', i18nKey: 'task.completed' },
-  failed: { type: 'danger', i18nKey: 'task.failed' },
-  error: { type: 'danger', i18nKey: 'task.failed' },
-  stopped: { type: 'warning', i18nKey: 'task.stopped' },
-  paused: { type: 'warning', i18nKey: 'task.paused' }
+const statusI18nMap: Record<string, string> = {
+  pending: 'task.pending',
+  created: 'task.pending',
+  starting: 'task.running',
+  running: 'task.running',
+  completed: 'task.completed',
+  failed: 'task.failed',
+  error: 'task.failed',
+  stopped: 'task.stopped',
+  paused: 'task.paused'
 }
 
 const statusType = computed(() => {
-  const config = statusConfig[props.status]
-  return config ? config.type : 'info'
+  return TASK_STATUS_TYPE[props.status] || 'info'
 })
 
 const statusText = computed(() => {
-  const config = statusConfig[props.status]
-  return config ? t(config.i18nKey) : props.status
+  const key = statusI18nMap[props.status]
+  return key ? t(key) : props.status
 })
 </script>

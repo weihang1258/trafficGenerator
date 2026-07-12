@@ -17,7 +17,7 @@
     >
       <template #empty>
         <slot name="empty">
-          <el-empty :description="emptyText" />
+          <el-empty :description="emptyText || t('common.noData')" />
         </slot>
       </template>
     </el-table-v2>
@@ -33,6 +33,7 @@
       :border="border"
       :size="size"
       :default-sort="defaultSort"
+      :scrollbar-always-on="true"
       :max-height="maxHeight"
       :height="height"
       @selection-change="handleSelectionChange"
@@ -68,7 +69,7 @@
           :sortable="col.sortable"
           :show-overflow-tooltip="col.showOverflowTooltip !== false"
           :align="col.align"
-          :resizable="col.fixed !== 'right' && col.fixed !== 'left'"
+          :resizable="col.resizable !== false && col.fixed !== 'right'"
           :class-name="col.fixed === 'right' ? 'col-fixed-right' : col.fixed === 'left' ? 'col-fixed-left' : ''"
         >
           <template #default="scope">
@@ -80,7 +81,7 @@
 
       <template #empty>
         <slot name="empty">
-          <el-empty :description="emptyText" />
+          <el-empty :description="emptyText || t('common.noData')" />
         </slot>
       </template>
     </el-table>
@@ -155,6 +156,7 @@ export interface ProTableColumn {
   showOverflowTooltip?: boolean
   visible?: boolean
   required?: boolean
+  resizable?: boolean
 }
 
 export interface ProTablePagination {
@@ -184,7 +186,7 @@ const props = withDefaults(defineProps<{
   stripe: true,
   border: true,
   size: 'default',
-  emptyText: 'No Data',
+  emptyText: '',
   tableId: 'default',
   virtualScroll: false,
   virtualThreshold: 200
@@ -264,7 +266,6 @@ const virtualColumns = computed(() =>
 )
 
 const containerObserver = ref<ResizeObserver | null>(null)
-const wrapperObserver = ref<ResizeObserver | null>(null)
 
 onMounted(() => {
   initColumnSettings()
@@ -280,23 +281,10 @@ onMounted(() => {
     })
     containerObserver.value.observe(container)
   }
-  nextTick(() => {
-    const wrapper = tableRef.value?.$el?.querySelector('.el-table__body-wrapper')
-    if (wrapper) {
-      wrapperObserver.value = new ResizeObserver(() => {
-        const table = wrapper.querySelector('table')
-        if (table && wrapper.clientWidth > 0) {
-          table.style.minWidth = (wrapper.clientWidth + 1) + 'px'
-        }
-      })
-      wrapperObserver.value.observe(wrapper)
-    }
-  })
 })
 
 onUnmounted(() => {
   containerObserver.value?.disconnect()
-  wrapperObserver.value?.disconnect()
 })
 
 function handleSelectionChange(selection: any[]) {
@@ -320,10 +308,12 @@ function handleRowDblclick(row: any) {
 }
 
 /**
- * Column resize handler — Jira/Notion model:
- * Only the dragged column and its right neighbor change width.
- * All other columns stay unchanged. Total table width stays constant.
- * Fixed columns (selection/actions) never resize.
+ * Column resize handler — Commercial standard (Excel/Jira model):
+ * - Fixed-left columns (e.g. name) ARE resizable for usability
+ * - Fixed-right columns (e.g. actions) are NOT resizable
+ * - The dragged column and its right neighbor compensate each other
+ * - All other columns stay unchanged; total table width stays constant
+ * - Width changes are persisted to localStorage
  */
 function handleHeaderDragend(newWidth: number, oldWidth: number, column: any) {
   if (!column?.property) return
@@ -335,29 +325,34 @@ function handleHeaderDragend(newWidth: number, oldWidth: number, column: any) {
   const dragIndex = cols.findIndex(c => c.prop === column.property)
   if (dragIndex < 0) return
 
-  // Don't resize fixed columns
+  // Only block fixed-right columns (actions); fixed-left is allowed
   const dragCol = cols[dragIndex]
-  if (dragCol.fixed === 'right' || dragCol.fixed === 'left') return
+  if (dragCol.fixed === 'right') return
 
-  // Find the nearest resizable column to the right
+  // For fixed-left columns, find the first non-fixed-right neighbor to compensate
   let adjIndex = -1
   for (let i = dragIndex + 1; i < cols.length; i++) {
     const c = cols[i]
     if (c.type === 'selection' || c.type === 'expand') continue
-    if (c.fixed === 'right' || c.fixed === 'left') continue
+    if (c.fixed === 'right') continue
+    // Skip adjacent fixed-left columns (they're part of the fixed group)
+    if (c.fixed === 'left') continue
     adjIndex = i
     break
   }
 
   if (adjIndex < 0) {
-    // No resizable neighbor — revert to old width
-    dragCol.width = oldWidth
+    // No resizable neighbor — allow free resize, just persist
+    dragCol.width = newWidth
+    const widths = loadWidths().filter(w => w.prop !== dragCol.prop)
+    widths.push({ prop: dragCol.prop, width: Number(newWidth) })
+    saveWidths(widths)
     nextTick(() => tableRef.value?.doLayout())
     return
   }
 
   const adjCol = cols[adjIndex]
-  const adjCurrentWidth = Number(adjCol.width) || 100
+  const adjCurrentWidth = Number(adjCol.width) || Number(adjCol.minWidth) || 100
   const minAdjWidth = Math.max(60, Math.round(adjCurrentWidth * 0.3))
 
   if (delta > 0) {
@@ -454,6 +449,12 @@ defineExpose({
   width: 100%;
 }
 
+/* Enable horizontal scrolling so fixed columns work */
+:deep(.el-table__body-wrapper),
+:deep(.el-table__header-wrapper) {
+  overflow-x: auto !important;
+}
+
 .pro-table-toolbar {
   margin-bottom: 12px;
 }
@@ -484,45 +485,5 @@ defineExpose({
 .column-settings-label {
   flex: 1;
   font-size: 14px;
-}
-
-/* Enable horizontal scroll for sticky columns */
-:deep(.el-table__body-wrapper),
-:deep(.el-table__header-wrapper) {
-  overflow-x: auto !important;
-}
-
-/* Fixed column: sticky right (Actions column) */
-:deep(.el-table__body-wrapper) td.col-fixed-right,
-:deep(.el-table__header-wrapper) th.col-fixed-right {
-  position: sticky !important;
-  right: 0;
-  z-index: 3;
-  background: var(--el-bg-color);
-}
-
-:deep(.el-table--striped .el-table__body tr.el-table__row--striped td.col-fixed-right) {
-  background: var(--el-fill-color-lighter);
-}
-
-:deep(.el-table__body tr:hover td.col-fixed-right) {
-  background: var(--el-table-row-hover-bg-color) !important;
-}
-
-/* Fixed column: sticky left (Selection checkbox) */
-:deep(.el-table__body-wrapper) td.col-fixed-left,
-:deep(.el-table__header-wrapper) th.col-fixed-left {
-  position: sticky !important;
-  left: 0;
-  z-index: 3;
-  background: var(--el-bg-color);
-}
-
-:deep(.el-table--striped .el-table__body tr.el-table__row--striped td.col-fixed-left) {
-  background: var(--el-fill-color-lighter);
-}
-
-:deep(.el-table__body tr:hover td.col-fixed-left) {
-  background: var(--el-table-row-hover-bg-color) !important;
 }
 </style>

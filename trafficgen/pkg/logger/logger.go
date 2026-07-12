@@ -14,6 +14,8 @@ var (
 	Log *zap.Logger
 	// Sugar logger for convenient usage.
 	Sugar *zap.SugaredLogger
+	// atom holds the current log level so it can be changed at runtime.
+	atom zap.AtomicLevel
 )
 
 // Config for logger initialization.
@@ -25,13 +27,12 @@ type Config struct {
 
 // Init initializes the global logger.
 func Init(cfg Config) error {
-	// Parse log level
+	// Parse log level into an AtomicLevel so it can be changed at runtime.
 	level, err := zapcore.ParseLevel(strings.ToLower(cfg.Level))
 	if err != nil {
 		level = zapcore.InfoLevel
 	}
-
-	// Configure encoder
+	atom = zap.NewAtomicLevelAt(level)
 	var encoder zapcore.Encoder
 	encoderConfig := zapcore.EncoderConfig{
 		TimeKey:        "time",
@@ -71,7 +72,7 @@ func Init(cfg Config) error {
 	}
 
 	// Create core
-	core := zapcore.NewCore(encoder, writeSyncer, level)
+	core := zapcore.NewCore(encoder, writeSyncer, atom)
 
 	// Create logger
 	Log = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
@@ -80,6 +81,17 @@ func Init(cfg Config) error {
 	// Replace global zap logger so zap.L() works
 	zap.ReplaceGlobals(Log)
 
+	return nil
+}
+
+// SetLevel changes the global log level at runtime. Returns an error if the
+// level string is invalid (in which case the level is left unchanged).
+func SetLevel(level string) error {
+	l, err := zapcore.ParseLevel(strings.ToLower(level))
+	if err != nil {
+		return err
+	}
+	atom.SetLevel(l)
 	return nil
 }
 

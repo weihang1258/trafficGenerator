@@ -1,0 +1,411 @@
+/* Traffic Generator Design System
+ * Based on Phase 2.2 of the redesign plan
+ * ------------------------------------- */
+
+/* Color System */
+:root {
+  /* Brand Colors */
+  --tg-primary: #2563EB;
+  --tg-primary-light: #3B82F6;
+  --tg-primary-dark: #1D4ED8;
+
+  /* Status Colors */
+  --tg-success: #10B981;
+  --tg-success-light: rgba(16, 185, 129, 0.1);
+  --tg-warning: #F59E0B;
+  --tg-warning-light: rgba(245, 158, 11, 0.1);
+  --tg-danger: #EF4444;
+  --tg-danger-light: rgba(239, 68, 68, 0.08);
+  --tg-info: #3B82F6;
+  --tg-info-light: rgba(59, 130, 246, 0.1);
+
+  /* Background Colors */
+  --tg-bg-page: #F8FAFC;
+  --tg-bg-card: #FFFFFF;
+  --tg-bg-hover: #F1F5F9;
+  --tg-bg-surface: #F8FAFC;
+  --tg-bg-overlay: rgba(0, 0, 0, 0.5);
+
+  /* Text Colors */
+  --tg-text-primary: #0F172A;
+  --tg-text-body: #334155;
+  --tg-text-secondary: #64748B;
+  --tg-text-disabled: #94A3B8;
+
+  /* Border Colors */
+  --tg-border-default: #E2E8F0;
+  --tg-border-light: #F1F5F9;
+  --tg-border-hover: #CBD5E1;
+  --tg-border-focus: #2563EB;
+
+  /* Shadow */
+  --tg-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --tg-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --tg-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+  /* Border Radius */
+  --tg-radius-page: 12px;
+  --tg-radius-card: 12px;
+  --tg-radius-button: 8px;
+  --tg-radius-input: 6px;
+  --tg-radius-tag: 4px;
+
+  /* Spacing */
+  --tg-spacing-xs: 4px;
+  --tg-spacing-sm: 8px;
+  --tg-spacing-md: 16px;
+  --tg-spacing-lg: 24px;
+  --tg-spacing-xl: 32px;
+
+  /* Font Sizes */
+  --tg-font-title: 20px;
+  --tg-font-card-title: 16px;
+  --tg-font-body: 14px;
+  --tg-font-small: 12px;
+  --tg-font-label: 11px;
+}
+
+/* Dark Mode Theme */
+html.dark {
+  /* Brand Colors */
+  --tg-primary: #3B82F6;
+  --tg-primary-light: #60A5FA;
+  --tg-primary-dark: #2563EB;
+
+  /* Status Colors */
+  --tg-success: #34D399;
+  --tg-success-light: rgba(52, 211, 153, 0.12);
+  --tg-warning: #FBBF24;
+  --tg-warning-light: rgba(251, 191, 36, 0.12);
+  --tg-danger: #F87171;
+  --tg-danger-light: rgba(248, 113, 113, 0.12);
+  --tg-info: #60A5FA;
+  --tg-info-light: rgba(96, 165, 250, 0.12);
+
+  /* Background Colors */
+  --tg-bg-page: #0F172A;
+  --tg-bg-card: #1E293B;
+  --tg-bg-hover: #334155;
+  --tg-bg-surface: #1E293B;
+  --tg-bg-overlay: rgba(0, 0, 0, 0.7);
+
+  /* Text Colors */
+  --tg-text-primary: #F1F5F9;
+  --tg-text-body: #CBD5E1;
+  --tg-text-secondary: #94A3B8;
+  --tg-text-disabled: #64748B;
+
+  /* Border Colors */
+  --tg-border-default: #475569;
+  --tg-border-hover: #64748B;
+  --tg-border-focus: #3B82F6;
+  --tg-border-light: #334155;
+
+  /* Shadows */
+  --tg-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --tg-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --tg-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* Dark mode overrides for Element Plus */
+html.dark {
+  --el-bg-color: #1E293B;
+  --el-bg-color-overlay: #334155;
+  --el-bg-color-page: #0F172A;
+  --el-text-color-primary: #F1F5F9;
+  --el-text-color-regular: #CBD5E1;
+  --el-text-color-secondary: #94A3B8;
+  --el-text-color-placeholder: #64748B;
+  --el-text-color-disabled: #475569;
+  --el-border-color: #475569;
+  --el-border-color-light: #334155;
+  --el-border-color-lighter: #1E293B;
+  --el-border-color-dark: #64748B;
+  --el-fill-color: #334155;
+  --el-fill-color-light: #1E293B;
+  --el-fill-color-lighter: #0F172A;
+  --el-fill-color-blank: #1E293B;
+  --el-color-primary: #3B82F6;
+  --el-color-primary-light-3: #60A5FA;
+  --el-color-primary-light-5: #3B82F6;
+  --el-color-primary-light-7: #2563EB;
+  --el-color-primary-light-8: #1D4ED8;
+  --el-color-primary-light-9: #1E40AF;
+  --el-color-primary-dark-2: #60A5FA;
+  --el-mask-color: rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+html.dark .el-card {
+  background-color: var(--el-bg-color);
+  border-color: var(--el-border-color);
+}
+
+html.dark .el-menu {
+  background-color: var(--tg-bg-card);
+}
+
+html.dark .sidebar {
+  background-color: var(--tg-bg-card);
+}
+
+html.dark .header {
+  background-color: var(--tg-bg-card);
+  box-shadow: var(--tg-shadow-sm);
+}
+
+html.dark .main {
+  background-color: var(--tg-bg-page);
+}
+
+html.dark .logo {
+  border-bottom-color: var(--tg-border-light, #334155);
+}
+
+html.dark .bulk-toolbar,
+html.dark .filter-advanced {
+  background: var(--tg-bg-hover);
+}
+
+/* Global Styles */
+body {
+  background-color: var(--tg-bg-page);
+  color: var(--tg-text-body);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: var(--tg-font-body);
+  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+}
+
+/* Card Styles */
+.tg-card {
+  background: var(--tg-bg-card);
+  border-radius: var(--tg-radius-card);
+  box-shadow: var(--tg-shadow-sm);
+  padding: var(--tg-spacing-lg);
+  transition: box-shadow 0.3s ease;
+}
+
+.tg-card:hover {
+  box-shadow: var(--tg-shadow-md);
+}
+
+/* Button Styles */
+.tg-btn {
+  border-radius: var(--tg-radius-button);
+  font-weight: 500;
+  padding: 8px 16px;
+  transition: all 0.2s ease;
+}
+
+.tg-btn-primary {
+  background-color: var(--tg-primary);
+  border: none;
+  color: white;
+}
+
+.tg-btn-primary:hover {
+  background-color: var(--tg-primary-dark);
+  transform: translateY(-1px);
+}
+
+/* Input Styles */
+.tg-input {
+  border: 1px solid var(--tg-border-default);
+  border-radius: var(--tg-radius-input);
+  padding: 8px 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tg-input:focus {
+  border-color: var(--tg-border-focus);
+  box-shadow: 0 0 0 3px var(--tg-primary-light, rgba(37, 99, 235, 0.1));
+  outline: none;
+}
+
+/* Table Styles */
+.tg-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tg-table th {
+  background-color: var(--tg-bg-hover);
+  color: var(--tg-text-primary);
+  font-weight: 600;
+  padding: 12px 16px;
+  text-align: left;
+  font-size: var(--tg-font-small);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tg-table td {
+  border-bottom: 1px solid var(--tg-border-default);
+  padding: 12px 16px;
+}
+
+.tg-table tr:hover td {
+  background-color: var(--tg-bg-hover);
+}
+
+/* Tag Styles */
+.tg-tag {
+  border-radius: var(--tg-radius-tag);
+  font-size: var(--tg-font-small);
+  font-weight: 500;
+  padding: 2px 8px;
+}
+
+/* Status Tag Colors */
+.tg-tag-success {
+  background-color: var(--tg-success-light);
+  color: var(--tg-success);
+}
+
+.tg-tag-warning {
+  background-color: var(--tg-warning-light);
+  color: var(--tg-warning);
+}
+
+.tg-tag-danger {
+  background-color: var(--tg-danger-light);
+  color: var(--tg-danger);
+}
+
+.tg-tag-info {
+  background-color: var(--tg-info-light);
+  color: var(--tg-info);
+}
+
+/* Stat Card Styles */
+.tg-stat-card {
+  background: var(--tg-bg-card);
+  border-radius: var(--tg-radius-card);
+  padding: var(--tg-spacing-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.tg-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--tg-primary);
+}
+
+.tg-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--tg-text-primary);
+  line-height: 1.2;
+}
+
+.tg-stat-label {
+  color: var(--tg-text-secondary);
+  font-size: var(--tg-font-small);
+  margin-top: 4px;
+}
+
+/* Progress Bar Styles */
+.tg-progress {
+  background-color: var(--tg-bg-hover);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.tg-progress-bar {
+  background: linear-gradient(90deg, var(--tg-primary) 0%, var(--tg-primary-light) 100%);
+  border-radius: 999px;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+/* Empty State Styles */
+.tg-empty {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--tg-spacing-xl);
+  text-align: center;
+}
+
+.tg-empty-icon {
+  color: var(--tg-text-disabled);
+  font-size: 48px;
+  margin-bottom: var(--tg-spacing-md);
+}
+
+.tg-empty-title {
+  color: var(--tg-text-primary);
+  font-size: var(--tg-font-card-title);
+  font-weight: 600;
+  margin-bottom: var(--tg-spacing-sm);
+}
+
+.tg-empty-desc {
+  color: var(--tg-text-secondary);
+  font-size: var(--tg-font-body);
+  margin-bottom: var(--tg-spacing-md);
+}
+
+/* Toast Notification Styles */
+.tg-toast {
+  border-radius: var(--tg-radius-card);
+  box-shadow: var(--tg-shadow-lg);
+  padding: var(--tg-spacing-md);
+  position: fixed;
+  right: var(--tg-spacing-lg);
+  top: var(--tg-spacing-lg);
+  z-index: 9999;
+}
+
+/* Responsive Utilities */
+@media (max-width: 1279px) {
+  .tg-hide-tablet {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .tg-hide-mobile {
+    display: none !important;
+  }
+
+  .tg-card {
+    padding: var(--tg-spacing-md);
+  }
+}
+
+/* ===== Shared Page Layout Utilities ===== */
+/* These replace duplicated scoped CSS across 10+ page files */
+
+.tg-page-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tg-page-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 32px;
+}
+
+.tg-page-batch-info {
+  font-size: 13px;
+  color: var(--tg-text-secondary, #64748B);
+}
+
+.tg-page-action-buttons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}

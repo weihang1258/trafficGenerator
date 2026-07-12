@@ -9,6 +9,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false }
   },
   {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/Register.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     redirect: '/dashboard',
@@ -49,6 +55,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Interfaces',
         component: () => import('@/views/InterfaceList.vue'),
         meta: { title: 'menu.interfaceManagement', icon: 'Connection' }
+      },
+      {
+        path: 'ports',
+        name: 'PortManagement',
+        component: () => import('@/views/PortManagement.vue'),
+        meta: { title: 'menu.portManagement', icon: 'Monitor' }
       },
       {
         path: 'history',
@@ -97,7 +109,7 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth !== false && !hasValidToken) {
     next('/login')
-  } else if (to.path === '/login' && hasValidToken) {
+  } else if ((to.path === '/login' || to.path === '/register') && hasValidToken) {
     next('/')
   } else {
     next()

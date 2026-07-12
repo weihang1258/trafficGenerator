@@ -162,3 +162,53 @@ func TestAPIRequestToTask(t *testing.T) {
 		t.Error("ID should not be empty")
 	}
 }
+
+// TestValidateBatchSpec_DuplicateClassID verifies duplicate class IDs are
+// rejected (previously they collided on the rate-limiter key and config
+// ClassID, breaking per-class rate isolation).
+func TestValidateBatchSpec_DuplicateClassID(t *testing.T) {
+	batch := BatchSpec{Classes: []TrafficClass{
+		{ID: "a", Type: "tcp", FlowCount: 1,
+			Config: map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "10.0.0.2"}},
+		{ID: "a", Type: "tcp", FlowCount: 1,
+			Config: map[string]interface{}{"src_ip": "10.0.0.3", "dst_ip": "10.0.0.4"}},
+	}}
+	err := ValidateBatchSpec(batch)
+	if err == nil {
+		t.Fatal("expected error for duplicate class id, got nil")
+	}
+}
+
+// TestValidateConfigRanges_TruncationBypass verifies out-of-range DSCP/ECN/VLAN
+// values are rejected based on the raw int, not the truncated uint8/uint16.
+// Previously dscp=256 silently wrapped to 0 (valid) via uint8(256).
+func TestValidateConfigRanges_TruncationBypass(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  map[string]interface{}
+	}{
+		{"dscp 256 wraps to 0", map[string]interface{}{"dscp": float64(256)}},
+		{"ecn 4", map[string]interface{}{"ecn": float64(4)}},
+		{"vlan_id 65536 wraps to 0", map[string]interface{}{"vlan_id": float64(65536)}},
+		{"vlan_priority 8", map[string]interface{}{"vlan_priority": float64(8)}},
+		{"flags 8 wraps", map[string]interface{}{"flags": float64(8)}},
+		{"frag_offset 9000 out of 13-bit", map[string]interface{}{"frag_offset": float64(9000)}},
+		{"ttl 256 wraps to 0", map[string]interface{}{"ttl": float64(256)}},
+		{"tos 256 wraps to 0", map[string]interface{}{"tos": float64(256)}},
+		{"dscp -1 wraps to 255", map[string]interface{}{"dscp": float64(-1)}},
+		{"vlan_id -1", map[string]interface{}{"vlan_id": float64(-1)}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if err := ValidateConfigRanges(c.cfg); err == nil {
+				t.Fatalf("expected error for %s, got nil", c.name)
+			}
+		})
+	}
+	// Valid values must still pass (including 0 = default for ttl/flags/frag).
+	valid := map[string]interface{}{"dscp": float64(46), "ecn": float64(0), "vlan_id": float64(100),
+		"flags": float64(2), "frag_offset": float64(0), "ttl": float64(0), "tos": float64(0)}
+	if err := ValidateConfigRanges(valid); err != nil {
+		t.Fatalf("valid config rejected: %v", err)
+	}
+}

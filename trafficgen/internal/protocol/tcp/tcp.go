@@ -64,6 +64,17 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 }
 
 // Plan generates packet configs for a TCP flow.
+// synOptions builds TCP options for SYN packets: MSS (from config) and
+// SACK-Permitted, matching real-world SYN capture characteristics.
+func synOptions(mss uint16) []core.TCPOption {
+	opts := make([]core.TCPOption, 0, 2)
+	if mss > 0 {
+		opts = append(opts, core.TCPOption{Kind: core.TCPOptMSS, Data: []byte{byte(mss >> 8), byte(mss)}})
+	}
+	opts = append(opts, core.TCPOption{Kind: core.TCPOptSACKPermit})
+	return opts
+}
+
 func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {
 	if err := p.Validate(spec); err != nil {
 		return nil, err
@@ -92,6 +103,26 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		clientSeq := uint32(1000)
 		serverSeq := uint32(2000)
 		packetIndex := uint64(0)
+		ipID := uint16(1)
+
+		nextIPID := func() uint16 {
+			id := ipID
+			ipID++
+			return id
+		}
+
+		winSize := uint16(65535)
+		if tcpConfig.WindowSize > 0 {
+			winSize = tcpConfig.WindowSize
+		}
+
+		synOpts := synOptions(tcpConfig.MSS)
+
+		// Resolve effective TTL from spec
+		effectiveTTL := spec.TTL
+		if effectiveTTL == 0 {
+			effectiveTTL = DefaultTTL
+		}
 
 		now := time.Now()
 
@@ -108,18 +139,15 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.DstMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.SrcIP,
-					DstIP:    spec.DstIP,
-					Protocol: 6, // TCP
-					TTL:      DefaultTTL,
-				},
+				L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.SrcPort,
 					DstPort:  spec.DstPort,
 					Seq:      clientSeq,
 					Flags:    FlagSYN,
+					WindowSize: winSize,
+					TCPOptions: synOpts,
 				},
 			}
 			packetIndex++
@@ -136,12 +164,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.SrcMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.DstIP,
-					DstIP:    spec.SrcIP,
-					Protocol: 6,
-					TTL:      DefaultTTL,
-				},
+				L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.DstPort,
@@ -149,6 +172,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      serverSeq,
 					Ack:      clientSeq,
 					Flags:    FlagSYN | FlagACK,
+					WindowSize: winSize,
+					TCPOptions: synOpts,
 				},
 			}
 			packetIndex++
@@ -165,12 +190,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.DstMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.SrcIP,
-					DstIP:    spec.DstIP,
-					Protocol: 6,
-					TTL:      DefaultTTL,
-				},
+				L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.SrcPort,
@@ -178,6 +198,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      clientSeq,
 					Ack:      serverSeq,
 					Flags:    FlagACK,
+					WindowSize: winSize,
 				},
 			}
 			packetIndex++
@@ -209,12 +230,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						DstMAC:    spec.DstMAC,
 						EtherType: 0x0800,
 					},
-					L3: core.L3Config{
-						SrcIP:    spec.SrcIP,
-						DstIP:    spec.DstIP,
-						Protocol: 6,
-						TTL:      DefaultTTL,
-					},
+					L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 					L4: core.L4Config{
 						Protocol: "tcp",
 						SrcPort:  spec.SrcPort,
@@ -222,6 +238,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						Seq:      clientSeq,
 						Ack:      serverSeq,
 						Flags:    FlagPSH | FlagACK,
+					WindowSize: winSize,
 					},
 					Payload: payload[:segmentSize],
 				}
@@ -240,12 +257,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						DstMAC:    spec.SrcMAC,
 						EtherType: 0x0800,
 					},
-					L3: core.L3Config{
-						SrcIP:    spec.DstIP,
-						DstIP:    spec.SrcIP,
-						Protocol: 6,
-						TTL:      DefaultTTL,
-					},
+					L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 					L4: core.L4Config{
 						Protocol: "tcp",
 						SrcPort:  spec.DstPort,
@@ -253,6 +265,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						Seq:      serverSeq,
 						Ack:      clientSeq,
 						Flags:    FlagACK,
+					WindowSize: winSize,
 					},
 				}
 				packetIndex++
@@ -272,12 +285,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.DstMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.SrcIP,
-					DstIP:    spec.DstIP,
-					Protocol: 6,
-					TTL:      DefaultTTL,
-				},
+				L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.SrcPort,
@@ -285,6 +293,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      clientSeq,
 					Ack:      serverSeq,
 					Flags:    FlagFIN | FlagACK,
+					WindowSize: winSize,
 				},
 			}
 			packetIndex++
@@ -301,12 +310,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.SrcMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.DstIP,
-					DstIP:    spec.SrcIP,
-					Protocol: 6,
-					TTL:      DefaultTTL,
-				},
+				L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.DstPort,
@@ -314,6 +318,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      serverSeq,
 					Ack:      clientSeq,
 					Flags:    FlagACK,
+					WindowSize: winSize,
 				},
 			}
 			packetIndex++
@@ -329,12 +334,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.SrcMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.DstIP,
-					DstIP:    spec.SrcIP,
-					Protocol: 6,
-					TTL:      DefaultTTL,
-				},
+				L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.DstPort,
@@ -342,6 +342,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      serverSeq,
 					Ack:      clientSeq,
 					Flags:    FlagFIN | FlagACK,
+					WindowSize: winSize,
 				},
 			}
 			packetIndex++
@@ -358,12 +359,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    spec.DstMAC,
 					EtherType: 0x0800,
 				},
-				L3: core.L3Config{
-					SrcIP:    spec.SrcIP,
-					DstIP:    spec.DstIP,
-					Protocol: 6,
-					TTL:      DefaultTTL,
-				},
+				L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "tcp",
 					SrcPort:  spec.SrcPort,
@@ -371,6 +367,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					Seq:      clientSeq,
 					Ack:      serverSeq,
 					Flags:    FlagACK,
+					WindowSize: winSize,
 				},
 			}
 		}

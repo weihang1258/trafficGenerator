@@ -24,7 +24,7 @@
         <!-- Step 1: Basic Info -->
         <div v-show="currentStep === 0">
           <el-form-item :label="t('taskCreate.taskName')" prop="name">
-            <el-input v-model="form.name" :placeholder="t('taskCreate.taskNamePlaceholder')" />
+            <el-input v-model="form.name" :placeholder="t('taskCreate.taskNamePlaceholder')" @input="onTaskNameChange" />
           </el-form-item>
 
           <!-- Quick create from template -->
@@ -83,14 +83,11 @@
           <!-- Show selected strategies detail -->
           <div v-if="selectedStrategyDetails.length > 0" style="margin-top: 20px;">
             <el-divider content-position="left">{{ t('task.step.strategy') }}</el-divider>
-            <el-descriptions v-for="s in selectedStrategyDetails" :key="s.id" :column="2" border style="margin-bottom: 10px;">
-              <el-descriptions-item :label="t('common.name')">{{ s.name }}</el-descriptions-item>
-              <el-descriptions-item :label="t('task.protocol')">{{ s.protocol.toUpperCase() }}</el-descriptions-item>
-              <el-descriptions-item :label="t('strategy.flowControl')" :span="2">
-                <span v-if="s.flow_control">{{ s.flow_control.type }}: {{ s.flow_control.value }}</span>
-                <span v-else>-</span>
-              </el-descriptions-item>
-            </el-descriptions>
+            <StrategyConfigPreview
+              v-for="s in selectedStrategyDetails"
+              :key="s.id"
+              :strategy="s"
+            />
           </div>
         </div>
 
@@ -98,8 +95,8 @@
         <div v-show="currentStep === 2">
           <el-form-item :label="t('taskCreate.outputType')" prop="output_type">
             <el-radio-group v-model="form.output_type">
-              <el-radio label="port_group">{{ t('taskCreate.portGroup') }}</el-radio>
-              <el-radio label="pcap">{{ t('taskCreate.pcap') }}</el-radio>
+              <el-radio value="port_group">{{ t('taskCreate.portGroup') }}</el-radio>
+              <el-radio value="pcap">{{ t('taskCreate.pcap') }}</el-radio>
             </el-radio-group>
           </el-form-item>
 
@@ -110,7 +107,9 @@
           </el-form-item>
 
           <el-form-item v-if="form.output_type === 'pcap'" :label="t('taskCreate.pcapPath')" prop="output_config.pcap_path">
-            <el-input v-model="form.output_config.pcap_path" :placeholder="t('taskCreate.pcapPathPlaceholder')" />
+            <el-input v-model="form.output_config.pcap_path" :placeholder="t('taskCreate.pcapPathPlaceholder')" >
+              <template #prepend>pcap/</template>
+            </el-input>
           </el-form-item>
 
           <el-divider content-position="left">{{ t('taskCreate.flowControl') }}</el-divider>
@@ -142,10 +141,11 @@
           </el-descriptions>
 
           <el-divider content-position="left">{{ t('task.step.strategy') }}</el-divider>
-          <el-descriptions v-for="s in selectedStrategyDetails" :key="s.id" :column="2" border style="margin-bottom: 10px;">
-            <el-descriptions-item :label="t('common.name')">{{ s.name }}</el-descriptions-item>
-            <el-descriptions-item :label="t('task.protocol')">{{ s.protocol.toUpperCase() }}</el-descriptions-item>
-          </el-descriptions>
+          <StrategyConfigPreview
+            v-for="s in selectedStrategyDetails"
+            :key="s.id"
+            :strategy="s"
+          />
 
           <el-divider content-position="left">{{ t('task.step.output') }}</el-divider>
           <el-descriptions :column="2" border>
@@ -182,19 +182,20 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { taskApi, strategyApi, portGroupApi, type Strategy, type PortGroup, type CreateTaskRequest, type FlowControlRequest } from '@/api'
 import { useStrategyTemplates } from '@/composables/useStrategyTemplates'
+import { useFormDirty } from '@/composables/useFormDirty'
+import StrategyConfigPreview from '@/components/StrategyConfigPreview/index.vue'
 
 const { t } = useI18n()
 const router = useRouter()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const currentStep = ref(0)
-const formDirty = ref(false)
 
 const strategies = ref<Strategy[]>([])
 const portGroups = ref<PortGroup[]>([])
@@ -214,27 +215,37 @@ function generateTaskName(): string {
   return `Task_${dateStr}_${timeStr}`
 }
 
-// Get cross-platform default output path
-function getDefaultOutputPath(): string {
-  const isWindows = navigator.platform.includes('Win')
-  if (isWindows) {
-    return 'C:\\temp\\output.pcap'
-  }
-  return '/tmp/output.pcap'
-}
+const defaultTaskName = generateTaskName()
 
 const form = reactive<CreateTaskRequest>({
-  name: generateTaskName(),
+  name: defaultTaskName,
   strategy_ids: [],
   output_type: 'pcap',
   output_config: {
-    pcap_path: getDefaultOutputPath()
+    pcap_path: `${defaultTaskName}.pcap`
   },
   flow_control: {
     type: '',
     value: 1
   }
 })
+
+const formDirty = useFormDirty(form)
+formDirty.captureSnapshot()
+
+onBeforeRouteLeave(async () => {
+  const canLeave = await formDirty.confirmDiscard()
+  if (!canLeave) return false
+})
+
+// Sync pcap_path when task name changes
+function onTaskNameChange(name: string) {
+  const oldDefault = form.output_config.pcap_path
+  // If pcap_path was auto-generated from old name, sync it
+  if (oldDefault && oldDefault.endsWith('.pcap') && !oldDefault.includes('/')) {
+    form.output_config.pcap_path = `${name}.pcap`
+  }
+}
 
 // Strategy grouped by protocol
 const strategyGroups = computed(() => {
@@ -298,18 +309,10 @@ function handleTemplateSelect(templateId: string) {
 }
 
 async function handleCancel() {
-  if (formDirty.value) {
-    try {
-      await ElMessageBox.confirm(t('common.unsavedChanges'), t('common.warning'), {
-        confirmButtonText: t('common.discard'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      })
-    } catch {
-      return
-    }
+  const canLeave = await formDirty.confirmDiscard()
+  if (canLeave) {
+    router.back()
   }
-  router.back()
 }
 
 function prevStep() {
@@ -348,13 +351,11 @@ async function nextStep() {
         templatePreview.value = null
         selectedTemplateId.value = ''
       }
-      formDirty.value = true
       currentStep.value++
     } catch { /* validation failed */ }
   } else if (currentStep.value === 1) {
     try {
       await formRef.value?.validateField(['strategy_ids'])
-      formDirty.value = true
       currentStep.value++
     } catch { /* validation failed */ }
   } else if (currentStep.value === 2) {
@@ -367,7 +368,6 @@ async function nextStep() {
     }
     try {
       await formRef.value?.validateField(fieldsToValidate)
-      formDirty.value = true
       currentStep.value++
     } catch { /* validation failed */ }
   } else {
@@ -420,11 +420,6 @@ async function handleSubmit() {
       submitData.flow_control = {
         type: form.flow_control.type,
         value: form.flow_control.value
-      } as FlowControlRequest
-    } else {
-      submitData.flow_control = {
-        type: 'flows',
-        value: 1
       } as FlowControlRequest
     }
 

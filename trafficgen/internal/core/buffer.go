@@ -49,14 +49,13 @@ func (rb *RingBuffer) Put(packet []byte) bool {
 		return false
 	}
 
-	// Copy packet data
-	data := make([]byte, len(packet))
-	copy(data, packet)
-
-	rb.buffer[rb.tail] = data
+	// Hold the original slice reference directly. The builder returns a fresh
+	// slice per packet (never reused), so copying here is wasted work. Callers
+	// must not mutate the slice after Put.
+	rb.buffer[rb.tail] = packet
 	rb.tail = (rb.tail + 1) % rb.size
 	rb.count++
-	rb.bytes += int64(len(data))
+	rb.bytes += int64(len(packet))
 
 	return true
 }
@@ -311,6 +310,11 @@ func NewTokenBucket(rate, burst int64) *TokenBucket {
 func (tb *TokenBucket) Allow(n int64) bool {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
+
+	// rate=0 means no rate limit — always allow
+	if tb.rate == 0 {
+		return true
+	}
 
 	now := time.Now().UnixNano()
 	elapsed := now - tb.lastTime

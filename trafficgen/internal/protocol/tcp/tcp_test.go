@@ -118,6 +118,49 @@ func TestPlanner_Plan(t *testing.T) {
 	}
 }
 
+// TestPlanner_SYNCarriesMSSOption verifies the SYN packet carries an MSS TCP
+// option derived from TCPConfig.MSS, plus SACK-Permitted.
+func TestPlanner_SYNCarriesMSSOption(t *testing.T) {
+	p := NewPlanner()
+	spec := core.FlowSpec{
+		SrcIP: "192.168.1.1", DstIP: "192.168.1.2",
+		SrcPort: 12345, DstPort: 80,
+		TCP: &core.TCPConfig{Handshake: true, Termination: false, MSS: 1460},
+	}
+	configChan, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	var configs []core.PacketConfig
+	for c := range configChan {
+		configs = append(configs, c)
+	}
+
+	syn := configs[0]
+	if syn.L4.Flags != 0x02 {
+		t.Fatalf("first packet not SYN: flags=%x", syn.L4.Flags)
+	}
+	// Expect MSS (Kind=2, 4 bytes incl len) + SACK-Permitted (Kind=4).
+	var sawMSS, sawSACK bool
+	for _, o := range syn.L4.TCPOptions {
+		if o.Kind == core.TCPOptMSS {
+			sawMSS = true
+			if len(o.Data) != 2 || o.Data[0] != 0x05 || o.Data[1] != 0xB4 {
+				t.Errorf("MSS data = %x, want 05b4 (1460)", o.Data)
+			}
+		}
+		if o.Kind == core.TCPOptSACKPermit {
+			sawSACK = true
+		}
+	}
+	if !sawMSS {
+		t.Error("SYN missing MSS option")
+	}
+	if !sawSACK {
+		t.Error("SYN missing SACK-Permitted option")
+	}
+}
+
 func TestPlanner_PlanWithPayload(t *testing.T) {
 	p := NewPlanner()
 

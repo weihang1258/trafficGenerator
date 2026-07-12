@@ -10,15 +10,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+
+	"github.com/trafficgen/trafficgen/pkg/auth"
 )
 
-// Message types.
+// Message types sent from server to client.
 const (
-	TypeStatusUpdate = "status_update"
-	TypeStatsUpdate  = "stats_update"
-	TypeError        = "error"
-	TypeCompleted    = "completed"
-	TypeHeartbeat    = "heartbeat"
+	TypeStatusUpdate   = "status_update"   // Task status changed
+	TypeStatsUpdate    = "stats_update"    // Task stats updated
+	TypeProgressUpdate = "progress_update" // Task progress updated (0-100%)
+	TypeTaskCompleted  = "task_completed"  // Task completed successfully
+	TypeTaskFailed     = "task_failed"     // Task failed with error
+	TypeError          = "error"           // Generic error message
+	TypeHeartbeat      = "heartbeat"       // Heartbeat/ping message
 )
 
 // Message represents a WebSocket message.
@@ -33,6 +37,7 @@ type Message struct {
 type Client struct {
 	conn     *websocket.Conn
 	send     chan []byte
+	done     chan struct{} // closed when client is being removed
 	hub      *Hub
 	taskID   string // Subscribed task ID (empty for all)
 	mu       sync.Mutex
@@ -45,7 +50,7 @@ type Hub struct {
 	broadcast  chan []byte
 	register   chan *Client
 	unregister chan *Client
-	mu         sync.RWMutex
+	mu         sync.Mutex
 }
 
 // NewHub creates a new Hub.
@@ -72,22 +77,27 @@ func (h *Hub) Run() {
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
-				close(client.send)
+				close(client.done) // signal to BroadcastToTask
+				// Note: client.send is closed by writePump when done is signaled
 			}
 			h.mu.Unlock()
 			zap.L().Debug("client disconnected", zap.Int("total", len(h.clients)))
 
 		case message := <-h.broadcast:
-			h.mu.RLock()
+			h.mu.Lock()
 			for client := range h.clients {
 				select {
+				case <-client.done:
+					// Client already being removed
+					delete(h.clients, client)
 				case client.send <- message:
 				default:
-					close(client.send)
+					// Client buffer full, mark for removal
+					close(client.done)
 					delete(h.clients, client)
 				}
 			}
-			h.mu.RUnlock()
+			h.mu.Unlock()
 		}
 	}
 }
@@ -112,24 +122,28 @@ func (h *Hub) BroadcastToTask(taskID string, msg Message) {
 		return
 	}
 
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
+	h.mu.Lock()
 	for client := range h.clients {
 		if client.taskID == "" || client.taskID == taskID {
 			select {
+			case <-client.done:
+				// Client being removed, skip
+				delete(h.clients, client)
 			case client.send <- data:
 			default:
-				// Client buffer full, skip
+				// Client buffer full, mark for removal
+				close(client.done)
+				delete(h.clients, client)
 			}
 		}
 	}
+	h.mu.Unlock()
 }
 
 // ClientCount returns the number of connected clients.
 func (h *Hub) ClientCount() int {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	return len(h.clients)
 }
 
@@ -144,7 +158,8 @@ var Upgrader = websocket.Upgrader{
 
 // Handler handles WebSocket connections.
 type Handler struct {
-	hub *Hub
+	hub        *Hub
+	jwtManager *auth.JWTManager
 }
 
 // NewHandler creates a new WebSocket handler.
@@ -152,8 +167,36 @@ func NewHandler(hub *Hub) *Handler {
 	return &Handler{hub: hub}
 }
 
+// SetJWTManager sets the JWT manager for authenticating WebSocket connections.
+func (h *Handler) SetJWTManager(jwtManager *auth.JWTManager) {
+	h.jwtManager = jwtManager
+}
+
+// Hub returns the underlying Hub for external use (e.g., broadcasting from engine callbacks).
+func (h *Handler) Hub() *Hub {
+	return h.hub
+}
+
 // Handle handles WebSocket connections.
+// Validates JWT token from query parameter before upgrading.
 func (h *Handler) Handle(c *gin.Context) {
+	// Validate JWT token from query parameter
+	if h.jwtManager != nil {
+		tokenString := c.Query("token")
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+			return
+		}
+
+		claims, err := h.jwtManager.ValidateToken(tokenString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+
+		_ = claims // userID available via claims.UserID for future per-user filtering
+	}
+
 	conn, err := Upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		zap.L().Error("websocket upgrade failed", zap.Error(err))
@@ -163,6 +206,7 @@ func (h *Handler) Handle(c *gin.Context) {
 	client := &Client{
 		conn: conn,
 		send: make(chan []byte, 256),
+		done: make(chan struct{}),
 		hub:  h.hub,
 	}
 
@@ -176,6 +220,9 @@ func (h *Handler) Handle(c *gin.Context) {
 // readPump pumps messages from the WebSocket connection.
 func (c *Client) readPump() {
 	defer func() {
+		if r := recover(); r != nil {
+			zap.L().Debug("websocket read recovered", zap.Any("error", r))
+		}
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
@@ -188,9 +235,15 @@ func (c *Client) readPump() {
 	})
 
 	for {
+		select {
+		case <-c.done:
+			return
+		default:
+		}
+
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
-			break
+			return
 		}
 
 		// Handle incoming message
@@ -207,19 +260,29 @@ func (c *Client) readPump() {
 			c.mu.Lock()
 			c.taskID = msg.TaskID
 			c.mu.Unlock()
-			// Send subscription confirmation
 			resp, _ := json.Marshal(Message{Type: "subscribed", Timestamp: time.Now().Unix()})
-			c.send <- resp
+			select {
+			case c.send <- resp:
+			case <-c.done:
+				return
+			}
 		case "unsubscribe":
 			c.mu.Lock()
 			c.taskID = ""
 			c.mu.Unlock()
-			// Send unsubscription confirmation
 			resp, _ := json.Marshal(Message{Type: "unsubscribed", Timestamp: time.Now().Unix()})
-			c.send <- resp
+			select {
+			case c.send <- resp:
+			case <-c.done:
+				return
+			}
 		case "ping":
 			resp, _ := json.Marshal(Message{Type: "pong", Timestamp: time.Now().Unix()})
-			c.send <- resp
+			select {
+			case c.send <- resp:
+			case <-c.done:
+				return
+			}
 		}
 	}
 }
@@ -257,6 +320,12 @@ func (c *Client) writePump() {
 			if err := w.Close(); err != nil {
 				return
 			}
+
+		case <-c.done:
+			// Hub is removing this client, drain remaining messages and close
+			c.conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
+			c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+			return
 
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))

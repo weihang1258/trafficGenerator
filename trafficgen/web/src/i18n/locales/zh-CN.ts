@@ -40,10 +40,13 @@ export default {
     both: '两者都',
     selected: '已选择',
     createdAt: '创建时间',
+    updatedAt: '更新时间',
+    all: '全部',
     columnSettings: '列设置',
     close: '关闭',
     discard: '放弃更改',
-    unsavedChanges: '有未保存的更改，确定要离开吗？'
+    unsavedChanges: '有未保存的更改，确定要离开吗？',
+    retry: '重试'
   },
   shortcuts: {
     title: '键盘快捷键',
@@ -58,6 +61,7 @@ export default {
     createTask: '创建任务',
     strategyManagement: '策略管理',
     interfaceManagement: '网卡管理',
+    portManagement: '端口管理',
     history: '历史记录',
     settings: '系统设置',
     userManagement: '用户管理'
@@ -77,7 +81,27 @@ export default {
     loginSuccess: '登录成功',
     loginFailed: '登录失败',
     pleaseInputUsername: '请输入用户名',
-    pleaseInputPassword: '请输入密码'
+    pleaseInputPassword: '请输入密码',
+    register: '注册',
+    registerTitle: '创建账户',
+    registerSubtitle: '注册新的 Traffic Generator 账户',
+    email: '邮箱',
+    emailPlaceholder: '请输入邮箱',
+    confirmPassword: '确认密码',
+    confirmPasswordPlaceholder: '请再次输入密码',
+    passwordMismatch: '两次输入的密码不一致',
+    registerSuccess: '注册成功，请登录',
+    registerFailed: '注册失败',
+    forgotPassword: '忘记密码？',
+    forgotPasswordMessage: '请联系系统管理员重置您的密码。',
+    alreadyHaveAccount: '已有账户？',
+    goToLogin: '返回登录',
+    usernameExists: '用户名已存在',
+    emailExists: '邮箱已注册',
+    usernameLength: '用户名长度为3-64个字符',
+    passwordLength: '密码长度为8-128个字符',
+    emailInvalid: '邮箱格式不正确',
+    emailRequired: '请输入邮箱'
   },
 
   // 仪表盘
@@ -125,10 +149,10 @@ export default {
     sectionStats: '数据统计',
     sectionResources: '硬件资源',
     sectionTasks: '任务执行详情',
-    bufferUsage: '缓冲区使用率',
     packetRate: '包速率',
     uptime: '运行时长',
-    runningTime: '运行时长'
+    runningTime: '运行时长',
+    loadFailed: '加载仪表盘数据失败'
   },
 
   // 任务管理
@@ -175,6 +199,8 @@ export default {
     stopFailed: '任务停止失败',
     deleteSuccess: '任务删除成功',
     deleteFailed: '任务删除失败',
+    loadFailed: '加载任务列表失败',
+    stuckWarning: '此任务已运行5分钟以上但进度为0%，可能已卡死',
     refreshed: '列表已刷新',
     selectedCount: '已选择 {count} 个',
     batchDelete: '批量删除',
@@ -211,6 +237,10 @@ export default {
     advancedFilters: '高级筛选',
     searchPlaceholder: '搜索任务名称或 ID',
     strategies: '策略',
+    live: '实时',
+    polling: '轮询',
+    disconnected: '已断开',
+    error: '错误',
     step: {
       basic: '基本信息',
       strategy: '选择策略',
@@ -287,6 +317,7 @@ export default {
     selectTemplate: '选择模板',
     applyTemplate: '应用模板',
     saveAsTemplate: '保存为模板',
+    templateDisabledHint: '请先填写名称并选择协议',
     templateName: '模板名称',
     templateNamePlaceholder: '请输入模板名称',
     templateDescription: '模板描述',
@@ -412,7 +443,9 @@ export default {
     patternPlaceholder: '例如: user{n}',
     listPlaceholder: '选择或输入',
     filePathPlaceholder: '例如: /path/to/data.bin',
-    advancedConfig: '高级配置'
+    advancedConfig: '高级配置',
+    taskCount: '关联任务',
+    usedByTasks: '被以下任务引用'
   },
 
   // 网卡管理
@@ -421,6 +454,7 @@ export default {
     interfaceName: '网卡名称',
     macAddress: 'MAC 地址',
     ipAddress: 'IP 地址',
+    allIPs: '所有 IP 地址',
     netmask: '子网掩码',
     mtu: 'MTU',
     adminStatus: '管理状态',
@@ -431,14 +465,69 @@ export default {
     linkUp: '连接',
     linkDown: '断开',
     refresh: '刷新',
-    refreshSuccess: '刷新成功',
-    refreshFailed: '刷新失败',
-    noInterfaces: '暂无网卡',
+    refreshSuccess: '网卡扫描成功',
+    refreshFailed: '网卡扫描失败',
+    scanSuccess: '已发现 {count} 个网卡',
+    noInterfaces: '未发现网卡，点击"扫描网卡"发现网络接口。',
     discover: '发现网卡',
+    scan: '扫描网卡',
+    scanning: '扫描中...',
+    searchPlaceholder: '搜索名称、IP 或 MAC...',
     usageStatus: '使用状态',
     inUse: '使用中',
+    idle: '可用',
+    traffic: '流量统计',
+    interfaceType: '类型',
+    physical: '物理',
+    virtual: '虚拟',
+    showVirtual: '显示虚拟',
+    hideVirtual: '隐藏虚拟',
+    description: '描述',
+    filterByStatus: '管理状态',
+    filterByLink: '链路状态',
+    filterByUsage: '使用状态',
+    allStatus: '全部',
+    linked: '已连接',
+    unlinked: '未连接',
+    loadFailed: '加载网卡列表失败',
+    taskUsing: '被任务使用',
+    createTask: '创建任务',
+    available: '可用',
+    detailTitle: '网卡详情',
+    noDescription: '无描述'
+  },
+
+  // 端口管理
+  ports: {
+    title: '端口管理',
+    portsTab: '物理端口',
+    portGroupsTab: '端口组',
+    name: '名称',
+    type: '类型',
+    pciAddress: 'PCI 地址',
+    status: '状态',
+    currentTask: '当前任务',
     idle: '空闲',
-    traffic: '流量统计'
+    using: '使用中',
+    maintenance: '维护中',
+    createGroup: '创建端口组',
+    selectPorts: '选择端口',
+    portWeight: '权重',
+    noPorts: '暂无端口',
+    noPortsHint: '端口由发现的网卡自动填充。请前往网卡管理发现网卡。',
+    goToInterfaceManagement: '前往网卡管理',
+    noPortGroups: '暂无端口组',
+    deleteGroup: '删除',
+    confirmDeleteGroup: '确定要删除该端口组吗？',
+    groupInUse: '端口组正在被任务使用，无法删除',
+    memberPorts: '成员端口',
+    portsCount: '端口数',
+    noPortsAvailable: '暂无可用端口，请先发现网卡。',
+    loadFailed: '加载端口数据失败',
+    createSuccess: '端口组创建成功',
+    createFailed: '端口组创建失败',
+    deleteSuccess: '端口组删除成功',
+    deleteFailed: '端口组删除失败'
   },
 
   // 历史记录
@@ -462,7 +551,8 @@ export default {
     custom: '自定义',
     noHistory: '暂无历史记录',
     noRecords: '暂无记录',
-    to: '至'
+    to: '至',
+    range: '时间范围'
   },
 
   // 系统设置
@@ -485,7 +575,7 @@ export default {
     maxTasksHint: '最大并发任务数量（推荐值: 50-200）',
     maxTasksRequired: '请输入最大任务数',
     bufferSize: '缓冲区大小',
-    bufferSizeHint: '数据包缓冲区大小（字节，推荐值: 2048-8192）',
+    bufferSizeHint: '数据包缓冲区大小（包数，推荐值: 2048-8192）',
     bufferSizeRequired: '请输入缓冲区大小',
     workerCount: 'Worker 数量',
     save: '保存',
@@ -540,9 +630,10 @@ export default {
     deleteFailed: '用户删除失败',
     resetPasswordSuccess: '密码重置成功',
     resetPasswordFailed: '密码重置失败',
+    confirmToggleStatus: '确定要更改该用户的状态吗？',
     noUsers: '暂无用户',
     usernameLength: '用户名长度为3-64个字符',
-    passwordLength: '密码长度为6-128个字符',
+    passwordLength: '密码长度为8-128个字符',
     batchDeleteConfirm: '确定要删除选中的 {count} 个用户吗？'
   },
 
@@ -584,6 +675,7 @@ export default {
     unauthorized: '未授权，请重新登录',
     forbidden: '拒绝访问',
     notFound: '资源不存在',
+    badRequest: '请求参数错误',
     validationError: '数据验证失败',
     unknownError: '未知错误'
   }

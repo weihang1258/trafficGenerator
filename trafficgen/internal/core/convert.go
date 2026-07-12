@@ -89,39 +89,15 @@ func ParseBPS(bps string) (int64, error) {
 // This is implemented by protocol-specific planners.
 type FlowSpecToPacketConfigsFunc func(spec FlowSpec) (<-chan PacketConfig, error)
 
-// ValidateFlowSpec validates a FlowSpec.
-func ValidateFlowSpec(spec FlowSpec) error {
-	// Validate IP addresses
-	if spec.SrcIP != "" {
-		if _, err := ParseIP(spec.SrcIP); err != nil {
-			return fmt.Errorf("invalid src_ip: %w", err)
-		}
-	}
-	if spec.DstIP != "" {
-		if _, err := ParseIP(spec.DstIP); err != nil {
-			return fmt.Errorf("invalid dst_ip: %w", err)
-		}
-	}
-
-	// Validate MAC addresses
-	if spec.SrcMAC != "" {
-		if _, err := ParseMAC(spec.SrcMAC); err != nil {
-			return fmt.Errorf("invalid src_mac: %w", err)
-		}
-	}
-	if spec.DstMAC != "" {
-		if _, err := ParseMAC(spec.DstMAC); err != nil {
-			return fmt.Errorf("invalid dst_mac: %w", err)
-		}
-	}
-
-	return nil
-}
-
 // ValidateTask validates a Task.
 func ValidateTask(task Task) error {
 	if task.Name == "" {
 		return fmt.Errorf("task name is required")
+	}
+
+	// Mixed-traffic (batch) tasks validate each class instead of a single spec.
+	if task.Batch != nil {
+		return ValidateBatchSpec(*task.Batch)
 	}
 
 	validProtocols := map[string]bool{
@@ -141,5 +117,46 @@ func ValidateTask(task Task) error {
 		return fmt.Errorf("invalid spec: %w", err)
 	}
 
+	return nil
+}
+
+// ValidateBatchSpec validates a mixed-traffic batch specification.
+func ValidateBatchSpec(batch BatchSpec) error {
+	if len(batch.Classes) == 0 {
+		return fmt.Errorf("batch must contain at least one traffic class")
+	}
+	validProtocols := map[string]bool{
+		"tcp": true, "udp": true, "http": true, "dns": true, "icmp": true, "arp": true,
+	}
+	seenIDs := make(map[string]bool)
+	for i, c := range batch.Classes {
+		if c.ID == "" {
+			return fmt.Errorf("class[%d]: id is required", i)
+		}
+		if seenIDs[c.ID] {
+			return fmt.Errorf("class[%d] %s: duplicate class id (ids must be unique within a batch)", i, c.ID)
+		}
+		seenIDs[c.ID] = true
+		if !validProtocols[c.Type] {
+			return fmt.Errorf("class[%d] %s: invalid type %s", i, c.ID, c.Type)
+		}
+		if c.FlowCount <= 0 {
+			return fmt.Errorf("class[%d] %s: flow_count must be > 0", i, c.ID)
+		}
+		// Validate raw DSCP/ECN/VLAN ranges BEFORE mapToFlowSpec truncates them
+		// to uint8/uint16. Without this, dscp=256 silently wraps to 0 (valid).
+		if err := ValidateConfigRanges(c.Config); err != nil {
+			return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)
+		}
+		// Validate per-protocol sub-config fields (tcp.mss, icmp.type, etc.)
+		// that also truncate silently through uint16/uint8.
+		if err := ValidateProtocolSubConfigs(c.Config, c.Type); err != nil {
+			return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)
+		}
+		// Validate the class's spec fields (DSCP/ECN/VLAN/MSS ranges, IP format).
+		if err := ValidateFlowSpec(mapToFlowSpec(c.Config, c.Type)); err != nil {
+			return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)
+		}
+	}
 	return nil
 }

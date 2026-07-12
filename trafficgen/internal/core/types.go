@@ -1,7 +1,10 @@
 // Package core provides core data structures for the traffic generator.
 package core
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Task represents a traffic generation task.
 type Task struct {
@@ -9,12 +12,14 @@ type Task struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
 	Protocol    string                 `json:"protocol"` // tcp, udp, http, dns, icmp, arp
-	Spec        FlowSpec               `json:"spec"`
+	Spec        FlowSpec               `json:"spec"`     // single-protocol mode
+	Batch       *BatchSpec             `json:"batch,omitempty"` // mixed-traffic mode (Spec XOR Batch)
 	ClassID     string                 `json:"class_id"`
-	Interface   string                 `json:"interface"` // output interface name
+	Interface   string                 `json:"interface"`  // output interface name
 	OutputMode  string                 `json:"output_mode"` // interface, pcap, both
 	PcapFile    string                 `json:"pcap_file,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Ctx         context.Context        `json:"-"` // per-task context for cancellation
 }
 
 // TaskStatus represents the current status of a task.
@@ -54,7 +59,14 @@ type FlowSpec struct {
 
 	// L3 configuration
 	TTL uint8 `json:"ttl,omitempty"`
-	TOS uint8 `json:"tos,omitempty"`
+	TOS uint8 `json:"tos,omitempty"` // legacy whole-byte TOS (overrides DSCP/ECN if non-zero)
+
+	// DSCP/ECN and fragmentation (L3). When set, flow-level and applied to
+	// every packet in the flow.
+	DSCP       uint8  `json:"dscp,omitempty"`
+	ECN        uint8  `json:"ecn,omitempty"`
+	Flags      uint8  `json:"flags,omitempty"`       // IPFlagDF / IPFlagMF
+	FragOffset uint16 `json:"frag_offset,omitempty"`
 
 	// Protocol specific configuration
 	TCP  *TCPConfig  `json:"tcp,omitempty"`
@@ -157,19 +169,61 @@ type L3Config struct {
 	DstIP    string `json:"dst_ip"`
 	Protocol uint8  `json:"protocol"` // 1=ICMP, 6=TCP, 17=UDP
 	TTL      uint8  `json:"ttl"`
+	IPID     uint16 `json:"ip_id,omitempty"`
+
+	// DSCP (6-bit DiffServ codepoint) and ECN (2-bit Explicit Congestion
+	// Notification). Encoded into the TOS byte as (DSCP<<2)|(ECN&0x03).
+	DSCP uint8 `json:"dscp,omitempty"`
+	ECN  uint8 `json:"ecn,omitempty"`
+
+	// Flags (3-bit: reserved|DF|MF) and FragOffset (13-bit, in 8-byte units).
+	// Encoded into bytes 6:8 as (Flags<<13)|(FragOffset&0x1FFF).
+	// Use IPFlagDF / IPFlagMF constants. Default Flags=IPFlagDF (0x4000).
+	Flags       uint8  `json:"flags,omitempty"`
+	FragOffset  uint16 `json:"frag_offset,omitempty"`
 }
+
+// IP flags bit positions within the L3Config.Flags field.
+const (
+	IPFlagReserved uint8 = 0x04 // bit 2 (must be 0)
+	IPFlagDF       uint8 = 0x02 // bit 1 - Don't Fragment
+	IPFlagMF       uint8 = 0x01 // bit 0 - More Fragments
+)
 
 // L4Config for Layer 4 (TCP/UDP).
 type L4Config struct {
-	Protocol string `json:"protocol"` // tcp, udp
-	SrcPort  uint16 `json:"src_port"`
-	DstPort  uint16 `json:"dst_port"`
+	Protocol   string `json:"protocol"` // tcp, udp
+	SrcPort    uint16 `json:"src_port"`
+	DstPort    uint16 `json:"dst_port"`
+	WindowSize uint16 `json:"window_size,omitempty"`
 
 	// TCP specific
 	Seq   uint32 `json:"seq,omitempty"`
 	Ack   uint32 `json:"ack,omitempty"`
 	Flags uint8  `json:"flags,omitempty"`
+
+	// TCP options (MSS, Window Scale, SACK-Permitted, Timestamp, ...).
+	// Encoded after the 20-byte TCP header; data offset grows accordingly.
+	TCPOptions []TCPOption `json:"tcp_options,omitempty"`
 }
+
+// TCPOption is a single TCP option. Kind 0 (End) and 1 (NOP) are 1-byte
+// options with no length field or data; all other kinds are encoded as
+// kind + length(2+len(Data)) + Data.
+type TCPOption struct {
+	Kind uint8  `json:"kind"`
+	Data []byte `json:"data,omitempty"`
+}
+
+// TCP option kinds.
+const (
+	TCPOptEnd       uint8 = 0 // End of Option List
+	TCPOptNOP       uint8 = 1 // No-Operation (padding)
+	TCPOptMSS       uint8 = 2 // Maximum Segment Size
+	TCPOptWinScale  uint8 = 3 // Window Scale
+	TCPOptSACKPermit uint8 = 4 // SACK-Permitted
+	TCPOptTimestamp uint8 = 8 // Timestamp
+)
 
 // BatchSpec for batch traffic generation.
 type BatchSpec struct {

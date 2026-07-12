@@ -9,7 +9,7 @@
         </div>
       </template>
 
-      <el-form
+      <ProForm
         ref="formRef"
         :model="form"
         :rules="rules"
@@ -51,28 +51,47 @@
             {{ t('login.login') }}
           </el-button>
         </el-form-item>
-      </el-form>
+
+        <div class="login-links">
+          <el-button link type="primary" @click="$router.push('/register')">{{ t('login.register') }}</el-button>
+          <span class="link-divider">|</span>
+          <el-button link @click="forgotPasswordVisible = true">{{ t('login.forgotPassword') }}</el-button>
+        </div>
+      </ProForm>
     </el-card>
-    <p class="version-text">v1.0.0</p>
+
+    <!-- Forgot Password Dialog -->
+    <el-dialog v-model="forgotPasswordVisible" :title="t('login.forgotPassword')" width="400px" append-to-body>
+      <p style="color: var(--tg-text-body, #606266); line-height: 1.8;">{{ t('login.forgotPasswordMessage') }}</p>
+      <template #footer>
+        <el-button @click="forgotPasswordVisible = false">{{ t('common.close') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <p class="version-text">v{{ APP_VERSION }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Connection } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { APP_VERSION } from '@/version'
+import ProForm from '@/components/ProForm/index.vue'
 
 const { t } = useI18n()
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const rememberMe = ref(false)
+const forgotPasswordVisible = ref(false)
 
 const form = reactive({
   username: '',
@@ -93,6 +112,10 @@ onMounted(() => {
   if (saved) {
     form.username = saved
     rememberMe.value = true
+  }
+  // Show success message after registration
+  if (route.query.registered === 'true') {
+    ElMessage.success(t('login.registerSuccess'))
   }
 })
 
@@ -133,7 +156,7 @@ async function handleLogin() {
 }
 
 html.dark .login-container {
-  background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+  background: linear-gradient(135deg, var(--tg-bg-card, #1E293B) 0%, var(--tg-bg-page, #0F172A) 100%);
 }
 
 .login-card {
@@ -178,14 +201,27 @@ html.dark .login-container {
   align-items: center;
 }
 
+.login-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: -8px;
+}
+
+.link-divider {
+  color: var(--tg-text-secondary, #94a3b8);
+  font-size: 12px;
+}
+
 .version-text {
   margin-top: var(--tg-spacing-lg);
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--tg-text-secondary, rgba(255, 255, 255, 0.6));
   font-size: var(--tg-font-small);
 }
 
 html.dark .version-text {
-  color: rgba(148, 163, 184, 0.6);
+  color: var(--tg-text-secondary, rgba(148, 163, 184, 0.6));
 }
 
 @media (max-width: 480px) {

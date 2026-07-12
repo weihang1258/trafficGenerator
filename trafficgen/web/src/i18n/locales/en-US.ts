@@ -26,8 +26,8 @@ export default {
     disable: 'Disable',
     status: 'Status',
     action: 'Action',
-    actions: 'Actions',
     detail: 'Detail',
+    actions: 'Actions',
     name: 'Name',
     description: 'Description',
     type: 'Type',
@@ -40,10 +40,13 @@ export default {
     both: 'Both',
     selected: 'Selected',
     createdAt: 'Created At',
+    updatedAt: 'Updated At',
+    all: 'All',
     columnSettings: 'Column Settings',
     close: 'Close',
     discard: 'Discard',
-    unsavedChanges: 'You have unsaved changes. Are you sure you want to leave?'
+    unsavedChanges: 'You have unsaved changes. Are you sure you want to leave?',
+    retry: 'Retry'
   },
   shortcuts: {
     title: 'Keyboard Shortcuts',
@@ -58,6 +61,7 @@ export default {
     createTask: 'Create Task',
     strategyManagement: 'Strategy Management',
     interfaceManagement: 'Interface Management',
+    portManagement: 'Port Management',
     history: 'History',
     settings: 'Settings',
     userManagement: 'User Management'
@@ -77,7 +81,27 @@ export default {
     loginSuccess: 'Login successful',
     loginFailed: 'Login failed',
     pleaseInputUsername: 'Please enter username',
-    pleaseInputPassword: 'Please enter password'
+    pleaseInputPassword: 'Please enter password',
+    register: 'Register',
+    registerTitle: 'Create Account',
+    registerSubtitle: 'Register a new Traffic Generator account',
+    email: 'Email',
+    emailPlaceholder: 'Please enter email',
+    confirmPassword: 'Confirm Password',
+    confirmPasswordPlaceholder: 'Please re-enter password',
+    passwordMismatch: 'Passwords do not match',
+    registerSuccess: 'Registration successful, please login',
+    registerFailed: 'Registration failed',
+    forgotPassword: 'Forgot password?',
+    forgotPasswordMessage: 'Please contact your system administrator to reset your password.',
+    alreadyHaveAccount: 'Already have an account?',
+    goToLogin: 'Back to Login',
+    usernameExists: 'Username already exists',
+    emailExists: 'Email already registered',
+    usernameLength: 'Username must be 3-64 characters',
+    passwordLength: 'Password must be 8-128 characters',
+    emailInvalid: 'Invalid email format',
+    emailRequired: 'Please enter email'
   },
 
   // Dashboard
@@ -125,10 +149,10 @@ export default {
     sectionStats: 'Overview',
     sectionResources: 'Resource Usage',
     sectionTasks: 'Task Execution',
-    bufferUsage: 'Buffer Usage',
     packetRate: 'Packet Rate',
     uptime: 'Uptime',
-    runningTime: 'Running Time'
+    runningTime: 'Running Time',
+    loadFailed: 'Failed to load dashboard data'
   },
 
   // Task Management
@@ -177,6 +201,8 @@ export default {
     stopFailed: 'Failed to stop task',
     deleteSuccess: 'Task deleted successfully',
     deleteFailed: 'Failed to delete task',
+    loadFailed: 'Failed to load tasks',
+    stuckWarning: 'This task has been running for 5+ minutes with 0% progress — it may be stuck',
     refreshed: 'List refreshed',
     selectedCount: '{count} selected',
     batchDelete: 'Batch Delete',
@@ -205,6 +231,16 @@ export default {
     advancedFilters: 'Advanced Filters',
     searchPlaceholder: 'Search task name or ID',
     strategies: 'Strategies',
+    live: 'Live',
+    polling: 'Polling',
+    disconnected: 'Disconnected',
+    error: 'Error',
+    outputType: 'Output Type',
+    viewAll: 'View All',
+    noActiveTasks: 'No active tasks',
+    resourceUsage: 'Resource Usage',
+    memory: 'Memory',
+    disk: 'Disk',
     step: {
       basic: 'Basic Info',
       strategy: 'Select Strategy',
@@ -281,6 +317,7 @@ export default {
     selectTemplate: 'Select Template',
     applyTemplate: 'Apply Template',
     saveAsTemplate: 'Save as Template',
+    templateDisabledHint: 'Please fill in name and select protocol first',
     templateName: 'Template Name',
     templateNamePlaceholder: 'Please enter template name',
     templateDescription: 'Template Description',
@@ -406,7 +443,9 @@ export default {
     patternPlaceholder: 'e.g.: user{n}',
     listPlaceholder: 'Select or type',
     filePathPlaceholder: 'e.g.: /path/to/data.bin',
-    advancedConfig: 'Advanced'
+    advancedConfig: 'Advanced',
+    taskCount: 'Tasks',
+    usedByTasks: 'Used by tasks'
   },
 
   // Interface Management
@@ -415,6 +454,7 @@ export default {
     interfaceName: 'Interface Name',
     macAddress: 'MAC Address',
     ipAddress: 'IP Address',
+    allIPs: 'All IP Addresses',
     netmask: 'Netmask',
     mtu: 'MTU',
     adminStatus: 'Admin Status',
@@ -425,14 +465,69 @@ export default {
     linkUp: 'Link Up',
     linkDown: 'Link Down',
     refresh: 'Refresh',
-    refreshSuccess: 'Refresh successful',
-    refreshFailed: 'Refresh failed',
-    noInterfaces: 'No interfaces',
+    refreshSuccess: 'Interfaces scanned successfully',
+    refreshFailed: 'Failed to scan interfaces',
+    scanSuccess: '{count} interfaces discovered',
+    noInterfaces: 'No interfaces found. Click "Scan Interfaces" to discover network interfaces.',
     discover: 'Discover',
+    scan: 'Scan Interfaces',
+    scanning: 'Scanning...',
+    searchPlaceholder: 'Search name, IP, or MAC...',
     usageStatus: 'Usage',
     inUse: 'In Use',
+    idle: 'Available',
+    traffic: 'Traffic',
+    interfaceType: 'Type',
+    physical: 'Physical',
+    virtual: 'Virtual',
+    showVirtual: 'Show Virtual',
+    hideVirtual: 'Hide Virtual',
+    description: 'Description',
+    filterByStatus: 'Admin Status',
+    filterByLink: 'Link Status',
+    filterByUsage: 'Usage',
+    allStatus: 'All',
+    linked: 'Linked',
+    unlinked: 'Unlinked',
+    loadFailed: 'Failed to load interfaces',
+    taskUsing: 'Used by task',
+    createTask: 'Create Task',
+    available: 'Available',
+    detailTitle: 'Interface Details',
+    noDescription: 'No description'
+  },
+
+  // Port Management
+  ports: {
+    title: 'Port Management',
+    portsTab: 'Ports',
+    portGroupsTab: 'Port Groups',
+    name: 'Name',
+    type: 'Type',
+    pciAddress: 'PCI Address',
+    status: 'Status',
+    currentTask: 'Current Task',
     idle: 'Idle',
-    traffic: 'Traffic'
+    using: 'In Use',
+    maintenance: 'Maintenance',
+    createGroup: 'Create Port Group',
+    selectPorts: 'Select Ports',
+    portWeight: 'Weight',
+    noPorts: 'No ports found',
+    noPortsHint: 'Ports are automatically populated from discovered interfaces. Go to Interface Management to discover network interfaces.',
+    goToInterfaceManagement: 'Go to Interface Management',
+    noPortGroups: 'No port groups',
+    deleteGroup: 'Delete',
+    confirmDeleteGroup: 'Are you sure to delete this port group?',
+    groupInUse: 'Port group is used by tasks, cannot be deleted',
+    memberPorts: 'Member Ports',
+    portsCount: 'Ports',
+    noPortsAvailable: 'No ports available. Discover interfaces first.',
+    loadFailed: 'Failed to load port data',
+    createSuccess: 'Port group created successfully',
+    createFailed: 'Failed to create port group',
+    deleteSuccess: 'Port group deleted successfully',
+    deleteFailed: 'Failed to delete port group'
   },
 
   // History
@@ -456,7 +551,8 @@ export default {
     custom: 'Custom',
     noHistory: 'No history',
     noRecords: 'No records',
-    to: 'to'
+    to: 'to',
+    range: 'Time Range'
   },
 
   // Settings
@@ -479,7 +575,7 @@ export default {
     maxTasksHint: 'Maximum concurrent task count (recommended: 50-200)',
     maxTasksRequired: 'Please enter max tasks',
     bufferSize: 'Buffer Size',
-    bufferSizeHint: 'Packet buffer size in bytes (recommended: 2048-8192)',
+    bufferSizeHint: 'Packet buffer size in packets (recommended: 2048-8192)',
     bufferSizeRequired: 'Please enter buffer size',
     workerCount: 'Worker Count',
     save: 'Save',
@@ -535,9 +631,10 @@ export default {
     batchDeleteConfirm: 'Are you sure to delete {count} selected users?',
     resetPasswordSuccess: 'Password reset successfully',
     resetPasswordFailed: 'Failed to reset password',
+    confirmToggleStatus: 'Are you sure to change the status of this user?',
     noUsers: 'No users',
     usernameLength: 'Username must be 3-64 characters',
-    passwordLength: 'Password must be 6-128 characters'
+    passwordLength: 'Password must be 8-128 characters'
   },
 
   // Protocol
@@ -578,6 +675,7 @@ export default {
     unauthorized: 'Unauthorized, please login again',
     forbidden: 'Forbidden',
     notFound: 'Resource not found',
+    badRequest: 'Bad request',
     validationError: 'Validation failed',
     unknownError: 'Unknown error'
   }

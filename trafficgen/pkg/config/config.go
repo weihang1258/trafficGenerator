@@ -24,9 +24,10 @@ type Config struct {
 
 // ServerConfig for HTTP server.
 type ServerConfig struct {
-	Host string `mapstructure:"host"`
-	Port int    `mapstructure:"port"`
-	Mode string `mapstructure:"mode"` // debug, release, test
+	Host           string   `mapstructure:"host"`
+	Port           int      `mapstructure:"port"`
+	Mode           string   `mapstructure:"mode"` // debug, release, test
+	AllowedOrigins []string `mapstructure:"allowed_origins"`
 }
 
 // DatabaseConfig for database connection.
@@ -199,6 +200,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.host", "0.0.0.0")
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.mode", "release")
+	v.SetDefault("server.allowed_origins", []string{"http://localhost:3000", "http://localhost:8080"})
 
 	// Database defaults
 	v.SetDefault("database.type", "sqlite")
@@ -215,7 +217,7 @@ func setDefaults(v *viper.Viper) {
 	// Engine defaults
 	v.SetDefault("engine.config_workers", 4)
 	v.SetDefault("engine.packet_workers", 8)
-	v.SetDefault("engine.output_workers", 4)
+	v.SetDefault("engine.output_workers", 1)
 	v.SetDefault("engine.buffer_size", 4096)
 	v.SetDefault("engine.queue_size", 1024)
 

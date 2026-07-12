@@ -157,6 +157,56 @@ func (db *DB) IsConnected() bool {
 	return db.Ping(ctx) == nil
 }
 
+// GetSettings returns the singleton settings row. If it does not exist yet,
+// it seeds a row with the documented defaults and returns it.
+func (db *DB) GetSettings() (*SettingsModel, error) {
+	var s SettingsModel
+	err := db.First(&s, "id = ?", "default").Error
+	if err == gorm.ErrRecordNotFound {
+		seeded := SettingsModel{ID: "default", MaxTasks: 100, BufferSize: 4096, LogLevel: "info"}
+		if e := db.Create(&seeded).Error; e != nil {
+			return nil, e
+		}
+		return &seeded, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+// SaveSettings upserts the singleton settings row (forces id="default").
+func (db *DB) SaveSettings(s *SettingsModel) error {
+	s.ID = "default"
+	return db.Save(s).Error
+}
+
+// CountActiveTasks returns the count of tasks with running or pending status.
+func (db *DB) CountActiveTasks() (int64, error) {
+	var count int64
+	if err := db.Model(&TaskModel{}).Where("status IN ?", []string{"running", "pending"}).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// CountTasksByProtocol returns a map of protocol -> task count for all tasks.
+func (db *DB) CountTasksByProtocol() (map[string]int64, error) {
+	type protocolCount struct {
+		Protocol string
+		Count    int64
+	}
+	var results []protocolCount
+	if err := db.Model(&TaskModel{}).Select("protocol, count(*) as count").Where("protocol != ''").Group("protocol").Find(&results).Error; err != nil {
+		return nil, err
+	}
+	counts := make(map[string]int64)
+	for _, r := range results {
+		counts[r.Protocol] = r.Count
+	}
+	return counts, nil
+}
+
 // TaskRepository provides task database operations.
 type TaskRepository struct {
 	db *DB

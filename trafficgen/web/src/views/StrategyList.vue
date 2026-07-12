@@ -2,31 +2,35 @@
   <div class="strategy-list">
     <el-card>
       <template #header>
-        <div class="card-header">
-          <span>{{ t('strategy.title') }}</span>
-          <div class="header-actions">
-            <template v-if="selectedStrategies.length === 0">
-              <el-button @click="proTableRef?.openColumnSettings()" circle size="small">
-                <el-icon><Setting /></el-icon>
-              </el-button>
-              <el-button @click="loadStrategies" circle size="small">
-                <el-icon><Refresh /></el-icon>
-              </el-button>
-              <el-button type="primary" @click="openCreateDialog">
-                {{ t('strategy.createStrategy') }}
-              </el-button>
-            </template>
-            <template v-else>
-              <span class="batch-info">{{ t('common.selected') }} {{ selectedStrategies.length }} {{ t('strategy.strategiesUnit') }}</span>
-              <el-button type="danger" size="small" @click="handleBulkDelete">{{ t('strategy.bulkDelete') }}</el-button>
-              <el-button size="small" link type="primary" @click="clearSelection">{{ t('common.reset') }}</el-button>
-            </template>
-          </div>
-        </div>
+        <ProCardHeader :title="t('strategy.title')">
+          <template v-if="selectedStrategies.length === 0">
+            <el-button @click="proTableRef?.openColumnSettings()" circle size="small">
+              <el-icon><Setting /></el-icon>
+            </el-button>
+            <el-button @click="loadStrategies" circle size="small">
+              <el-icon><Refresh /></el-icon>
+            </el-button>
+            <el-button type="primary" @click="openCreateDialog">
+              <el-icon><Plus /></el-icon>
+              {{ t('strategy.createStrategy') }}
+            </el-button>
+          </template>
+          <template v-else>
+            <span class="batch-info">{{ t('common.selected') }} {{ selectedStrategies.length }} {{ t('strategy.strategiesUnit') }}</span>
+            <el-button type="danger" size="small" @click="handleBulkDelete">{{ t('strategy.bulkDelete') }}</el-button>
+            <el-button size="small" link type="primary" @click="clearSelection">{{ t('common.reset') }}</el-button>
+          </template>
+        </ProCardHeader>
       </template>
 
       <!-- Filter bar -->
-      <div class="filter-bar">
+      <ProFilterBar
+        :filters="filters"
+        :field-defs="filterFieldDefs"
+        filter-id="strategy-list"
+        @reset="resetFilters"
+        @clear-filter="handleClearFilter"
+      >
         <el-input v-model="filters.search" :placeholder="t('strategy.searchPlaceholder')" clearable style="width: 240px" @keyup.enter="loadStrategies" @clear="loadStrategies">
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
@@ -35,25 +39,43 @@
         </el-select>
         <el-button @click="loadStrategies" circle size="small"><el-icon><Search /></el-icon></el-button>
         <el-button link type="primary" @click="resetFilters">{{ t('common.reset') }}</el-button>
-      </div>
+      </ProFilterBar>
 
-      <div v-if="filters.search || filters.protocol.length > 0" class="active-filters">
-        <el-tag v-if="filters.search" closable @close="filters.search = ''; loadStrategies()">{{ filters.search }}</el-tag>
-        <el-tag v-if="filters.protocol.length > 0" closable @close="filters.protocol = []; loadStrategies()">{{ filters.protocol.map(p => p.toUpperCase()).join(', ') }}</el-tag>
-      </div>
-
-      <ProTable ref="proTableRef" table-id="strategy-list" :columns="columns" :data="filteredStrategies" :loading="loading" :pagination="{ total: filteredStrategies.length }" :empty-text="t('strategy.noStrategies')" @selection-change="handleSelectionChange" @sort-change="handleSortChange" @page-change="(page: number, size: number) => { pagination.page = page; pagination.size = size }">
+      <ProTable ref="proTableRef" table-id="strategy-list" :columns="columns" :data="filteredStrategies" :loading="loading" :default-sort="{ prop: 'created_at', order: 'descending' }" :pagination="{ total: filteredStrategies.length }" :empty-text="t('strategy.noStrategies')" @selection-change="handleSelectionChange" @sort-change="handleSortChange" @page-change="(page: number, size: number) => { pagination.page = page; pagination.size = size }">
         <template #id="{ row }">{{ row.id?.substring(0, 8) }}</template>
         <template #protocol="{ row }"><el-tag size="small">{{ row.protocol.toUpperCase() }}</el-tag></template>
+        <template #task_count="{ row }">
+          <el-popover
+            v-if="(row.task_count || 0) > 0"
+            trigger="hover"
+            :width="280"
+            @show="loadStrategyTasks(row.id)"
+          >
+            <template #reference>
+              <el-button link type="primary" size="small">{{ row.task_count }} {{ t('strategy.taskCount') }}</el-button>
+            </template>
+            <div v-loading="taskPopoverLoading">
+              <div v-if="strategyTasks.length > 0" class="task-popover-list">
+                <div v-for="task in strategyTasks" :key="task.id" class="task-popover-item">
+                  <router-link :to="`/tasks/${task.id}`" class="task-popover-name">{{ task.name }}</router-link>
+                  <el-tag size="small" :type="TASK_STATUS_TYPE[task.status]">{{ task.status }}</el-tag>
+                </div>
+              </div>
+              <div v-else class="task-popover-empty">{{ t('common.noData') }}</div>
+            </div>
+          </el-popover>
+          <span v-else class="text-muted">0</span>
+        </template>
         <template #flow_control="{ row }">
           <span v-if="row.flow_control">{{ row.flow_control.type }}: {{ row.flow_control.value }}</span>
           <span v-else>-</span>
         </template>
-        <template #created_at="{ row }">{{ formatTime(row.created_at) }}</template>
+        <template #created_at="{ row }">{{ formatTimestamp(row.created_at) }}</template>
+        <template #updated_at="{ row }">{{ formatTimestamp(row.updated_at) }}</template>
         <template #actions="{ row }">
           <div class="action-buttons">
             <el-button type="primary" link size="small" @click="openEditDialog(row)">{{ t('common.edit') }}</el-button>
-            <el-dropdown trigger="hover" @command="(cmd: string) => handleAction(cmd, row)">
+            <el-dropdown trigger="click" @command="(cmd: string) => handleAction(cmd, row)">
               <el-button size="small" link><el-icon><More /></el-icon></el-button>
               <template #dropdown>
                 <el-dropdown-menu>
@@ -74,13 +96,13 @@
     </el-card>
 
     <!-- Detail Drawer -->
-    <el-drawer v-model="drawerVisible" :title="drawerStrategy?.name || t('strategy.strategyId')" size="50%" direction="rtl">
+    <ProDrawer v-model:visible="drawerVisible" :title="drawerStrategy?.name || t('strategy.strategyId')" size="50%" direction="rtl">
       <div v-if="drawerStrategy" v-loading="drawerLoading">
         <el-descriptions :column="2" border>
           <el-descriptions-item :label="t('strategy.strategyId')">{{ drawerStrategy.id }}</el-descriptions-item>
           <el-descriptions-item :label="t('strategy.strategyName')">{{ drawerStrategy.name }}</el-descriptions-item>
           <el-descriptions-item :label="t('task.protocol')"><el-tag>{{ drawerStrategy.protocol.toUpperCase() }}</el-tag></el-descriptions-item>
-          <el-descriptions-item :label="t('common.createdAt')">{{ formatTime(drawerStrategy.created_at) }}</el-descriptions-item>
+          <el-descriptions-item :label="t('common.createdAt')">{{ formatTimestamp(drawerStrategy.created_at) }}</el-descriptions-item>
         </el-descriptions>
         <el-divider content-position="left">{{ t('strategy.networkConfig') }}</el-divider>
         <el-descriptions :column="2" border v-if="drawerStrategy.config">
@@ -92,10 +114,10 @@
           <el-descriptions-item :label="t('strategy.tos')">{{ drawerStrategy.config.tos ?? 0 }}</el-descriptions-item>
         </el-descriptions>
       </div>
-    </el-drawer>
+    </ProDrawer>
 
     <!-- Create/Edit Dialog -->
-    <el-dialog v-model="dialogVisible" :title="editingStrategy ? t('common.edit') : t('strategy.createStrategy')" width="900px" :close-on-click-modal="false" :before-close="handleDialogClose" destroy-on-close>
+    <ProDialog v-model="dialogVisible" :title="editingStrategy ? `${t('common.edit')}: ${editingStrategy.name}` : t('strategy.createStrategy')" width="900px" :dirty-guard="formDirty">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="130px" class="strategy-form">
         <!-- Section 1: Basic Info (always visible) -->
         <el-divider content-position="left">{{ t('strategy.sectionBasicInfo') }}</el-divider>
@@ -417,11 +439,13 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="handleSaveTemplate" :disabled="!form.name || !form.protocol">{{ t('strategy.saveAsTemplate') }}</el-button>
+        <el-tooltip :content="(!form.name || !form.protocol) ? t('strategy.templateDisabledHint') : ''" placement="top">
+          <el-button @click="handleSaveTemplate" :disabled="!form.name || !form.protocol">{{ t('strategy.saveAsTemplate') }}</el-button>
+        </el-tooltip>
         <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{ t('common.confirm') }}</el-button>
       </template>
-    </el-dialog>
+    </ProDialog>
   </div>
 </template>
 
@@ -429,23 +453,59 @@
 import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Setting, Refresh, More, ArrowRight } from '@element-plus/icons-vue'
+import { Search, Setting, Refresh, More, ArrowRight, Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import { strategyApi, type Strategy } from '@/api'
+import { strategyApi, type Strategy, type TaskBrief } from '@/api'
 import { useStrategyTemplates } from '@/composables/useStrategyTemplates'
+import { useClientList } from '@/composables/useClientList'
+import { useSelection } from '@/composables/useSelection'
+import { useBatchAction } from '@/composables/useBatchAction'
+import { useFormDirty } from '@/composables/useFormDirty'
 import ProTable from '@/components/ProTable/index.vue'
+import ProCardHeader from '@/components/ProCardHeader/index.vue'
+import ProFilterBar from '@/components/ProFilterBar/index.vue'
+import ProDialog from '@/components/ProDialog/index.vue'
+import ProDrawer from '@/components/ProDrawer/index.vue'
 import ValueStrategySelector, { type StrategyValue } from '@/components/ValueStrategySelector/index.vue'
+import { formatTimestamp } from '@/utils/format'
+import { createClientSort } from '@/utils/sort'
+import { TASK_STATUS_TYPE } from '@/constants/status'
+import type { FilterFieldDef } from '@/composables/useActiveFilters'
 
 const STORAGE_KEY = 'strategy-list-state'
 const { t } = useI18n()
-const loading = ref(false)
+
+// Client list composable (replaces loading, strategies, sortState, fetch, sort logic)
+const { loading, data: strategies, sortState, refresh, handleSortChange } = useClientList<Strategy>({
+  fetchFn: async () => {
+    const res = await strategyApi.list()
+    return Array.isArray(res.data) ? res.data : (res.data as any).items || []
+  },
+  clientSort: (items, sort) => {
+    if (!sort.prop || !sort.order) return items
+    return [...items].sort(createClientSort(sort.prop as keyof Strategy, sort.order))
+  },
+  defaultSort: { prop: 'created_at', order: 'descending' }
+})
+
+// Selection composable (replaces selectedStrategies, handleSelectionChange, clearSelection)
+const { selectedItems: selectedStrategies, handleSelectionChange, clearSelection } = useSelection<Strategy>()
+
+// Batch action composable (replaces handleBulkDelete inline)
+const batchDelete = useBatchAction<Strategy>({
+  action: (strategy) => strategyApi.delete(strategy.id),
+  confirmMessage: (count) => t('strategy.confirmBulkDelete', { count }),
+  successMessage: (count) => t('strategy.bulkDeleted', { count }),
+  partialMessage: (succeeded, failed) => t('task.bulkPartial', { succeeded, failed })
+})
+
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
 const editingStrategy = ref<Strategy | null>(null)
-const strategies = ref<Strategy[]>([])
 const formRef = ref<FormInstance>()
 const proTableRef = ref()
-const selectedStrategies = ref<Strategy[]>([])
+const strategyTasks = ref<TaskBrief[]>([])
+const taskPopoverLoading = ref(false)
 const drawerVisible = ref(false)
 const drawerLoading = ref(false)
 const drawerStrategy = ref<Strategy | null>(null)
@@ -456,8 +516,10 @@ const columns = computed(() => [
   { prop: 'id', label: t('strategy.strategyId'), width: 100, required: true, sortable: 'custom' },
   { prop: 'name', label: t('strategy.strategyName'), minWidth: 180, sortable: 'custom', required: true },
   { prop: 'protocol', label: t('task.protocol'), width: 90, sortable: 'custom' },
+  { prop: 'task_count', label: t('strategy.taskCount'), width: 100, align: 'center' as const, sortable: 'custom' },
   { prop: 'flow_control', label: t('strategy.flowControl'), width: 110, sortable: 'custom' },
   { prop: 'created_at', label: t('common.createdAt'), width: 170, sortable: 'custom' },
+  { prop: 'updated_at', label: t('common.updatedAt'), width: 170, sortable: 'custom' },
   { prop: 'actions', label: t('task.actions'), width: 120, fixed: 'right', required: true }
 ])
 
@@ -465,11 +527,16 @@ function loadState() { try { const r = localStorage.getItem(STORAGE_KEY); if (r)
 const saved = loadState()
 const filters = reactive({ search: saved?.filters?.search || '', protocol: saved?.filters?.protocol || [] as string[] })
 const pagination = reactive({ page: saved?.pagination?.page || 1, size: saved?.pagination?.size || 20 })
-const sortState = reactive({ prop: '', order: '' })
 
 watch([() => ({ ...filters }), () => ({ ...pagination })], () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ filters: { search: filters.search, protocol: filters.protocol }, pagination: { page: pagination.page, size: pagination.size } }))
 }, { deep: true })
+
+// ProFilterBar field definitions
+const filterFieldDefs: FilterFieldDef[] = [
+  { key: 'search', label: t('strategy.searchPlaceholder'), type: 'text' },
+  { key: 'protocol', label: t('task.protocol'), type: 'select', multiple: true }
+]
 
 // Presets
 const srcIPPresets = ['192.168.1.100', '10.0.0.1', '172.16.0.1']
@@ -506,7 +573,7 @@ interface StrategyForm {
     src_mac: string; dst_mac: string
     ttl: StrategyValue; tos: StrategyValue; payload: StrategyValue
     vlan_enable: boolean; vlan_id: number; vlan_priority: number
-    tcp: { handshake: boolean; termination: boolean; mss: number; window_size: number }
+    tcp: { handshake: boolean; termination: boolean; mss: number; window_size: number; seq?: number; flags?: number; wscale?: boolean; sack?: boolean; timestamps?: boolean }
     udp: { response: boolean }
     http: { methods: string[]; uri: StrategyValue; headers: { key: string; value: string }[]; body: StrategyValue; keep_alive: boolean; transactions: number; think_time: number }
     dns: { domain: string; query_type: number; response: boolean; response_ip: string }
@@ -526,7 +593,7 @@ function defaultForm(): StrategyForm {
       src_mac: '', dst_mac: '',
       ttl: svPort(64), tos: svPort(0), payload: sv(''),
       vlan_enable: false, vlan_id: 1, vlan_priority: 0,
-      tcp: { handshake: true, termination: true, mss: 1460, window_size: 65535 },
+      tcp: { handshake: true, termination: true, mss: 1460, window_size: 65535, seq: 0, flags: 0, wscale: false, sack: false, timestamps: false },
       udp: { response: false },
       http: { methods: ['GET'], uri: sv('/'), headers: [], body: sv(''), keep_alive: true, transactions: 10, think_time: 100 },
       dns: { domain: 'example.com', query_type: 1, response: false, response_ip: '' },
@@ -539,12 +606,8 @@ function defaultForm(): StrategyForm {
 
 const form = reactive<StrategyForm>(defaultForm())
 
-const formDirty = ref(false)
-const initialFormJson = ref('')
-
-function captureFormState() { return JSON.stringify({ name: form.name, protocol: form.protocol, config: form.config, flow_control: form.flow_control }) }
-function resetDirtyState() { nextTick(() => { initialFormJson.value = captureFormState(); formDirty.value = false }) }
-watch(() => captureFormState(), (v) => { formDirty.value = v !== initialFormJson.value })
+// Form dirty tracking (replaced by useFormDirty)
+const formDirty = useFormDirty(form)
 
 const flowControlUnit = computed(() => {
   const u: Record<string, string> = { flows: t('strategy.unitFlows'), bps: t('strategy.unitBps'), cps: t('strategy.unitCps'), ratio: t('strategy.unitRatio'), time: t('strategy.unitTime') }
@@ -658,7 +721,8 @@ function handleSaveTemplate() {
 function openCreateDialog() {
   editingStrategy.value = null; selectedTemplateId.value = ''
   Object.assign(form, defaultForm()); showAdvanced.value = false
-  dialogVisible.value = true; resetDirtyState()
+  dialogVisible.value = true
+  nextTick(() => formDirty.captureSnapshot())
 }
 
 function cloneStrategy(s: Strategy) {
@@ -700,7 +764,8 @@ function openEditDialog(s: Strategy) {
   if (cfg.arp && typeof cfg.arp === 'object') form.config.arp = { ...form.config.arp, ...cfg.arp }
   if (s.flow_control) form.flow_control = { ...s.flow_control }
   showAdvanced.value = false
-  dialogVisible.value = true; resetDirtyState()
+  dialogVisible.value = true
+  nextTick(() => formDirty.captureSnapshot())
 }
 
 function buildConfigForSubmit(): Record<string, any> {
@@ -734,14 +799,6 @@ function buildConfigForSubmit(): Record<string, any> {
   return cfg
 }
 
-function handleDialogClose(done: () => void) {
-  if (formDirty.value) {
-    ElMessageBox.confirm(t('common.unsavedChanges'), t('common.warning'), {
-      confirmButtonText: t('common.discard'), cancelButtonText: t('common.cancel'), type: 'warning'
-    }).then(() => { formDirty.value = false; done() }).catch(() => {})
-  } else done()
-}
-
 async function handleSubmit() {
   const valid = await formRef.value?.validate()
   if (!valid) return
@@ -761,36 +818,50 @@ const filteredStrategies = computed(() => {
   let r = strategies.value
   if (filters.search) { const s = filters.search.toLowerCase(); r = r.filter(x => x.name.toLowerCase().includes(s) || x.id.toLowerCase().includes(s)) }
   if (filters.protocol.length > 0) r = r.filter(x => filters.protocol.includes(x.protocol))
-  if (sortState.prop && sortState.order) {
-    r = [...r].sort((a, b) => {
-      let av: any = a[sortState.prop as keyof Strategy], bv: any = b[sortState.prop as keyof Strategy]
-      if (sortState.prop === 'flow_control') { av = av?.value ?? 0; bv = bv?.value ?? 0 }
-      let c = typeof av === 'string' && typeof bv === 'string' ? av.localeCompare(bv) : typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av ?? '').localeCompare(String(bv ?? ''))
-      return sortState.order === 'ascending' ? c : -c
-    })
-  }
+  // Sort is now handled by useClientList, so we don't apply it here
   return r
 })
 
 function resetFilters() { filters.search = ''; filters.protocol = []; pagination.page = 1 }
-function handleSelectionChange(s: Strategy[]) { selectedStrategies.value = s }
-function handleSortChange({ prop, order }: { prop: string; order: string }) { sortState.prop = prop; sortState.order = order }
-function clearSelection() { selectedStrategies.value = [] }
-async function handleBulkDelete() { try { await ElMessageBox.confirm(t('strategy.confirmBulkDelete', { count: selectedStrategies.value.length }), t('common.confirm'), { type: 'warning' }); await Promise.allSettled(selectedStrategies.value.map(s => strategyApi.delete(s.id))); ElMessage.success(t('strategy.bulkDeleted', { count: selectedStrategies.value.length })); selectedStrategies.value = []; loadStrategies() } catch {} }
+
+function handleClearFilter(key: string) {
+  const emptyValues: Record<string, any> = { search: '', protocol: [] }
+  if (key in emptyValues) {
+    filters[key as keyof typeof filters] = emptyValues[key]
+  }
+}
+
+async function handleBulkDelete() {
+  await batchDelete.execute(selectedStrategies.value)
+  clearSelection(proTableRef.value)
+  refresh()
+}
+
 async function openDrawer(s: Strategy) { drawerStrategy.value = s; drawerVisible.value = true; drawerLoading.value = true; try { const r = await strategyApi.get(s.id); if (r.data) drawerStrategy.value = r.data as Strategy } catch {} finally { drawerLoading.value = false } }
-async function handleDelete(id: string) { try { await ElMessageBox.confirm(t('strategy.confirmDelete'), t('common.confirm'), { type: 'warning' }); await strategyApi.delete(id); ElMessage.success(t('strategy.deleteSuccess')); loadStrategies() } catch (e) { if (e !== 'cancel') { ElMessage.error(t('strategy.deleteFailed')) } } }
+
+async function handleDelete(id: string) { try { await ElMessageBox.confirm(t('strategy.confirmDelete'), t('common.confirm'), { type: 'warning' }); await strategyApi.delete(id); ElMessage.success(t('strategy.deleteSuccess')); refresh() } catch (e) { if (e !== 'cancel') { ElMessage.error(t('strategy.deleteFailed')) } } }
+
 function handleAction(cmd: string, s: Strategy) { if (cmd === 'detail') openDrawer(s); else if (cmd === 'clone') cloneStrategy(s); else if (cmd === 'delete') handleDelete(s.id) }
-async function loadStrategies() { loading.value = true; try { const r = await strategyApi.list(); if (r.data) strategies.value = r.data as Strategy[] } catch {} finally { loading.value = false } }
-function formatTime(ts: number) { return ts ? new Date(ts * 1000).toLocaleString() : '-' }
-onMounted(() => { loadStrategies() })
+
+async function loadStrategies() { await refresh() }
+
+async function loadStrategyTasks(strategyId: string) {
+  taskPopoverLoading.value = true
+  try {
+    const res = await strategyApi.getTasks(strategyId)
+    strategyTasks.value = (res.data as TaskBrief[]) || []
+  } catch {
+    strategyTasks.value = []
+  } finally {
+    taskPopoverLoading.value = false
+  }
+}
+
+onMounted(() => { refresh() })
 </script>
 
 <style scoped>
-.card-header { display: flex; justify-content: space-between; align-items: center; }
-.header-actions { display: flex; gap: 8px; align-items: center; min-height: 32px; }
-.filter-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
 .batch-info { font-size: 13px; color: var(--tg-text-secondary, #606266); }
-.active-filters { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .action-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
 .header-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
 .flow-unit { font-size: 12px; color: var(--tg-text-secondary, #909399); white-space: nowrap; }
@@ -809,7 +880,36 @@ onMounted(() => { loadStrategies() })
   transform: rotate(90deg);
 }
 
-@media (max-width: 768px) {
-  .filter-bar { flex-direction: column; align-items: flex-start; }
+.text-muted {
+  color: var(--tg-text-disabled, #94A3B8);
+}
+
+.task-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-popover-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-popover-name {
+  color: var(--tg-primary, #409eff);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.task-popover-name:hover {
+  text-decoration: underline;
+}
+
+.task-popover-empty {
+  color: var(--tg-text-secondary, #909399);
+  text-align: center;
+  padding: 8px 0;
 }
 </style>

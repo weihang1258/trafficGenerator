@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="dashboard-header">
       <h2 class="dashboard-title">{{ t('dashboard.title') }}</h2>
-      <el-button :loading="refreshing" @click="handleRefresh" circle size="small">
+      <el-button :loading="refreshing" @click="handleRefresh" circle size="small" aria-label="Refresh dashboard">
         <el-icon><Refresh /></el-icon>
       </el-button>
     </div>
@@ -17,7 +17,7 @@
             <el-icon :size="20"><List /></el-icon>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ stats.activeTasks || '--' }}</div>
+            <div class="stat-value">{{ stats.activeTasks != null ? stats.activeTasks : '--' }}</div>
             <div class="stat-label">{{ t('dashboard.activeTasks') }}</div>
           </div>
         </div>
@@ -28,7 +28,7 @@
             <el-icon :size="20"><MessageBox /></el-icon>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ stats.packetsSent ? formatNumber(stats.packetsSent) : '--' }}</div>
+            <div class="stat-value">{{ stats.packetsSent != null ? formatNumber(stats.packetsSent) : '--' }}</div>
             <div class="stat-label">{{ t('dashboard.packetsSent') }}</div>
           </div>
         </div>
@@ -39,7 +39,7 @@
             <el-icon :size="20"><TrendCharts /></el-icon>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ stats.throughputBps ? formatBps(stats.throughputBps) : '--' }}</div>
+            <div class="stat-value">{{ stats.throughputBps != null ? formatBps(stats.throughputBps) : '--' }}</div>
             <div class="stat-label">{{ t('dashboard.throughput') }}</div>
           </div>
         </div>
@@ -50,20 +50,8 @@
             <el-icon :size="20"><Odometer /></el-icon>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ stats.currentPps ? formatNumber(stats.currentPps) + '/s' : '--' }}</div>
+            <div class="stat-value">{{ stats.currentPps != null ? formatNumber(stats.currentPps) + '/s' : '--' }}</div>
             <div class="stat-label">{{ t('dashboard.packetRate') }}</div>
-          </div>
-        </div>
-      </el-col>
-      <el-col :xs="12" :sm="8" :md="4" :lg="4">
-        <div class="stat-card">
-          <div class="stat-icon stat-icon--purple">
-            <el-icon :size="20"><Coin /></el-icon>
-          </div>
-          <div class="stat-body">
-            <div class="stat-value">{{ bufferPercent > 0 ? bufferPercent.toFixed(1) + '%' : '--' }}</div>
-            <div class="stat-label">{{ t('dashboard.bufferUsage') }}</div>
-            <el-progress v-if="bufferPercent > 0" :percentage="bufferPercent" :stroke-width="3" :show-text="false" :color="getProgressColor(bufferPercent)" class="buffer-bar" />
           </div>
         </div>
       </el-col>
@@ -86,21 +74,21 @@
                 <span class="resource-name">CPU</span>
                 <span class="resource-value">{{ resources.cpu }}%</span>
               </div>
-              <el-progress :percentage="resources.cpu" :stroke-width="8" :show-text="false" :color="getProgressColor(resources.cpu)" />
+              <el-progress :percentage="resources.cpu || 0" :stroke-width="8" :show-text="false" :color="getProgressColor(resources.cpu || 0)" />
             </div>
             <div class="resource-item">
               <div class="resource-header">
                 <span class="resource-name">{{ t('dashboard.memory') }}</span>
                 <span class="resource-value">{{ resources.memoryMb > 0 ? resources.memoryMb.toFixed(1) + ' MB' : '--' }}</span>
               </div>
-              <el-progress :percentage="memoryPercent" :stroke-width="8" :show-text="false" :color="getProgressColor(memoryPercent)" />
+              <el-progress :percentage="memoryPercent || 0" :stroke-width="8" :show-text="false" :color="getProgressColor(memoryPercent || 0)" />
             </div>
             <div class="resource-item">
               <div class="resource-header">
                 <span class="resource-name">{{ t('dashboard.bufferUsage') }}</span>
                 <span class="resource-value">{{ bufferPercent > 0 ? bufferPercent.toFixed(2) + '%' : '--' }}</span>
               </div>
-              <el-progress :percentage="bufferPercent" :stroke-width="8" :show-text="false" :color="getProgressColor(bufferPercent)" />
+              <el-progress :percentage="bufferPercent || 0" :stroke-width="8" :show-text="false" :color="getProgressColor(bufferPercent || 0)" />
             </div>
           </div>
         </el-card>
@@ -111,12 +99,12 @@
           <el-col :xs="24" :sm="14">
             <el-card class="chart-card" shadow="never">
               <template #header>
-                <span class="chart-title">{{ t('dashboard.throughputTrend') }}</span>
+                <ProCardHeader :title="t('dashboard.throughputTrend')" />
               </template>
               <div class="chart-container-sm chart-with-overlay">
                 <div ref="throughputChartRef" class="chart-canvas" />
                 <div v-if="throughputHistory.length === 0" class="chart-empty-overlay">
-                  <el-empty :image-size="48" description="No data yet" />
+                  <el-empty :image-size="48" :description="t('common.noData')" />
                 </div>
               </div>
             </el-card>
@@ -124,12 +112,12 @@
           <el-col :xs="24" :sm="10">
             <el-card class="chart-card" shadow="never">
               <template #header>
-                <span class="chart-title">{{ t('dashboard.protocolDistribution') }}</span>
+                <ProCardHeader :title="t('dashboard.protocolDistribution')" />
               </template>
               <div class="chart-container-sm chart-with-overlay">
                 <div ref="protocolChartRef" class="chart-canvas" />
                 <div v-if="protocolDataEmpty" class="chart-empty-overlay">
-                  <el-empty :image-size="48" description="No data yet" />
+                  <el-empty :image-size="48" :description="t('common.noData')" />
                 </div>
               </div>
             </el-card>
@@ -142,7 +130,7 @@
     <div class="section-title">
       {{ t('dashboard.sectionTasks') }}
       <el-button link type="primary" size="small" @click="$router.push('/tasks')">
-        {{ t('dashboard.viewAll') }} &rarr;
+        {{ t('dashboard.viewAll') }} <el-icon><ArrowRight /></el-icon>
       </el-button>
     </div>
     <el-card class="task-card" shadow="never">
@@ -164,17 +152,17 @@
         </el-table-column>
         <el-table-column :label="t('dashboard.packetsSent')" width="100">
           <template #default="{ row }">
-            {{ row.stats?.packets_sent ? formatNumber(row.stats.packets_sent) : '--' }}
+            {{ row.stats?.packets_sent != null ? formatNumber(row.stats.packets_sent) : '--' }}
           </template>
         </el-table-column>
         <el-table-column :label="t('dashboard.throughput')" width="120">
           <template #default="{ row }">
-            {{ row.stats?.current_bps ? formatBps(row.stats.current_bps) : '--' }}
+            {{ row.stats?.current_bps != null ? formatBps(row.stats.current_bps) : '--' }}
           </template>
         </el-table-column>
         <el-table-column :label="t('task.progress')" width="110">
           <template #default="{ row }">
-            <el-progress :percentage="row.progress || 0" :stroke-width="5" :status="getProgressStatus(row.status)" />
+            <el-progress :percentage="Number(row.progress) || 0" :stroke-width="5" :status="getProgressStatus(row.status)" />
           </template>
         </el-table-column>
         <el-table-column :label="t('dashboard.runningTime')" width="100">
@@ -212,24 +200,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  List, MessageBox, TrendCharts, Odometer, Coin, Refresh
+  List, MessageBox, TrendCharts, Odometer, Refresh, ArrowRight
 } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import { PieChart, LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+
+echarts.use([PieChart, LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 import { taskApi, systemApi, strategyApi, type Task } from '@/api'
 import TaskStatusTag from '@/components/TaskStatusTag.vue'
 import { formatNumber, formatBps, formatUptime, formatDuration } from '@/utils/format'
+import { getProgressStatus } from '@/constants/status'
+import ProCardHeader from '@/components/ProCardHeader/index.vue'
+import { useDarkMode } from '@/composables/useDarkMode'
 
 const { t } = useI18n()
+const { isDark } = useDarkMode()
 
 const throughputChartRef = ref<HTMLElement>()
 const protocolChartRef = ref<HTMLElement>()
 let throughputChart: echarts.ECharts | null = null
 let protocolChart: echarts.ECharts | null = null
 let refreshTimer: number | null = null
+let visibilityHandler: (() => void) | null = null
+
+// Error spam prevention: only show error once until next successful load
+let dashboardErrorShown = false
+let tasksErrorShown = false
 
 const refreshing = ref(false)
 const initialLoading = ref(true)
@@ -257,7 +259,8 @@ const throughputHistory = ref<{ time: string; value: number }[]>([])
 const protocolDataEmpty = ref(true)
 const bufferPercent = computed(() => {
   if (!resources.bufferMaxBytes) return 0
-  return (resources.bufferBytes / resources.bufferMaxBytes) * 100
+  const v = (resources.bufferBytes / resources.bufferMaxBytes) * 100
+  return Number.isFinite(v) ? v : 0
 })
 
 // Try API value first, then navigator.deviceMemory, fallback 8GB
@@ -269,7 +272,10 @@ const memoryTotalMb = computed(() => {
 
 const memoryPercent = computed(() => {
   if (!resources.memoryMb) return 0
-  return Math.min((resources.memoryMb / memoryTotalMb) * 100, 100)
+  const total = memoryTotalMb.value
+  if (!total) return 0
+  const v = Math.min((resources.memoryMb / total) * 100, 100)
+  return Number.isFinite(v) ? v : 0
 })
 
 const taskTableHeight = ref(400)
@@ -281,21 +287,18 @@ const displayTasks = computed(() => {
     .slice(0, 10)
 })
 
-function getProgressColor(value: number): string {
-  if (value >= 90) return '#EF4444'
-  if (value >= 70) return '#F59E0B'
-  return '#10B981'
+function getCssVar(name: string, fallback: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
 }
 
-function getProgressStatus(status: string): '' | 'success' | 'warning' | 'exception' {
-  if (status === 'completed') return 'success'
-  if (status === 'failed' || status === 'error') return 'exception'
-  if (status === 'stopped') return 'warning'
-  return ''
+function getProgressColor(value: number): string {
+  if (value >= 90) return getCssVar('--tg-danger', '#EF4444')
+  if (value >= 70) return getCssVar('--tg-warning', '#F59E0B')
+  return getCssVar('--tg-success', '#10B981')
 }
 
 function getProtocol(task: Task): string {
-  if ((task as any).protocol) return (task as any).protocol
+  if (task.protocol) return task.protocol
   const sid = task.strategy_ids?.[0]
   if (sid && strategyMap.value.has(sid)) return strategyMap.value.get(sid)!
   return 'N/A'
@@ -314,9 +317,16 @@ function recordThroughput(bps: number) {
   if (throughputHistory.value.length > 30) throughputHistory.value.shift()
 }
 
+function getChartTheme(): string | undefined {
+  return isDark.value ? 'dark' : undefined
+}
+
 function initCharts() {
+  const theme = getChartTheme()
+  const primaryColor = getCssVar('--tg-primary', '#2563EB')
+  const cardBgColor = getCssVar('--tg-bg-card', '#fff')
   if (throughputChartRef.value) {
-    throughputChart = echarts.init(throughputChartRef.value)
+    throughputChart = echarts.init(throughputChartRef.value, theme)
     throughputChart.setOption({
       tooltip: { trigger: 'axis', formatter: (p: any) => p[0] ? `${p[0].name}<br/>${formatBps(p[0].value)}` : '' },
       grid: { left: 50, right: 12, top: 12, bottom: 24 },
@@ -325,15 +335,15 @@ function initCharts() {
       series: [{
         type: 'line', smooth: true, symbol: 'none',
         areaStyle: { opacity: 0.12 },
-        lineStyle: { width: 2, color: '#2563EB' },
-        itemStyle: { color: '#2563EB' },
+        lineStyle: { width: 2, color: primaryColor },
+        itemStyle: { color: primaryColor },
         data: []
       }]
     })
   }
 
   if (protocolChartRef.value) {
-    protocolChart = echarts.init(protocolChartRef.value)
+    protocolChart = echarts.init(protocolChartRef.value, theme)
     protocolChart.setOption({
       tooltip: { trigger: 'item' },
       legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 11 } },
@@ -344,7 +354,7 @@ function initCharts() {
         emphasis: { label: { show: true, fontSize: 12, fontWeight: 'bold' } },
         labelLine: { show: false },
         data: [],
-        itemStyle: { borderColor: '#fff', borderWidth: 2 }
+        itemStyle: { borderColor: cardBgColor, borderWidth: 2 }
       }]
     })
   }
@@ -368,11 +378,11 @@ async function loadDashboardData() {
 
     if (statusRes.data) {
       const d = statusRes.data as any
-      stats.activeTasks = d.active_tasks || 0
-      resources.cpu = Math.round(d.cpu_usage || 0)
-      resources.memoryMb = d.memory_mb || 0
-      resources.memoryTotalMb = d.memory_total_mb || 0
-      resources.uptime = d.uptime || 0
+      stats.activeTasks = d.active_tasks ?? 0
+      resources.cpu = Math.round(Number(d.cpu_usage) || 0)
+      resources.memoryMb = Number(d.memory_mb) || 0
+      resources.memoryTotalMb = Number(d.memory_total_mb) || 0
+      resources.uptime = Number(d.uptime) || 0
       if (d.buffer_status?.combined) {
         resources.bufferBytes = d.buffer_status.combined.bytes || 0
         resources.bufferMaxBytes = d.buffer_status.combined.max_bytes || 1
@@ -381,9 +391,9 @@ async function loadDashboardData() {
 
     if (statsRes.data) {
       const d = statsRes.data as any
-      stats.packetsSent = d.packets_sent || 0
-      stats.throughputBps = d.current_bps || 0
-      stats.currentPps = d.current_pps || 0
+      stats.packetsSent = d.packets_sent ?? 0
+      stats.throughputBps = d.current_bps ?? 0
+      stats.currentPps = d.current_pps ?? 0
 
       recordThroughput(d.current_bps || 0)
       updateCharts()
@@ -402,8 +412,15 @@ async function loadDashboardData() {
         }
       }
     }
+
+    // Success — reset error flag so next failure can show again
+    dashboardErrorShown = false
   } catch (error) {
     console.error('Failed to load dashboard data:', error)
+    if (!dashboardErrorShown) {
+      ElMessage.error(t('dashboard.loadFailed'))
+      dashboardErrorShown = true
+    }
   }
 }
 
@@ -416,8 +433,14 @@ async function loadTasks() {
       const data = res.data as any
       allTasks.value = Array.isArray(data) ? data : (data.items || [])
     }
+    // Success — reset error flag so next failure can show again
+    tasksErrorShown = false
   } catch (error) {
     console.error('Failed to load tasks:', error)
+    if (!tasksErrorShown) {
+      ElMessage.error(t('task.loadFailed'))
+      tasksErrorShown = true
+    }
   } finally {
     tasksLoading.value = false
   }
@@ -481,6 +504,13 @@ async function handleRefresh() {
   }
 }
 
+function stopPolling() {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer)
+    refreshTimer = null
+  }
+}
+
 onMounted(async () => {
   await nextTick()
   initCharts()
@@ -488,13 +518,45 @@ onMounted(async () => {
   initialLoading.value = false
   scheduleRefresh()
   window.addEventListener('resize', handleResize)
+
+  // Pause polling when tab is hidden, resume when visible
+  visibilityHandler = () => {
+    if (document.hidden) {
+      stopPolling()
+    } else {
+      // Immediately poll and resume interval
+      handleRefresh()
+      scheduleRefresh()
+    }
+  }
+  document.addEventListener('visibilitychange', visibilityHandler)
 })
 
 onUnmounted(() => {
-  if (refreshTimer) clearTimeout(refreshTimer)
+  stopPolling()
+  if (visibilityHandler) {
+    document.removeEventListener('visibilitychange', visibilityHandler)
+  }
   throughputChart?.dispose()
   protocolChart?.dispose()
   window.removeEventListener('resize', handleResize)
+})
+
+// Re-init charts when dark mode toggles
+watch(isDark, () => {
+  // Dispose existing charts and re-create with new theme
+  throughputChart?.dispose()
+  throughputChart = null
+  protocolChart?.dispose()
+  protocolChart = null
+  nextTick(() => {
+    initCharts()
+    updateCharts()
+    // Re-render protocol data if available
+    if (protocolChart && !protocolDataEmpty.value) {
+      // Protocol data will be refreshed on next poll cycle
+    }
+  })
 })
 </script>
 
@@ -550,14 +612,14 @@ onUnmounted(() => {
   gap: 12px;
   padding: 14px 16px;
   background: var(--tg-bg-card, #FFFFFF);
-  border-radius: 8px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  border-radius: var(--tg-radius-card, 12px);
+  box-shadow: var(--tg-shadow-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
   cursor: default;
   transition: box-shadow 0.2s;
 }
 
 .stat-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--tg-shadow-md, 0 2px 8px rgba(0, 0, 0, 0.08));
 }
 
 .stat-icon {
@@ -570,11 +632,10 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.stat-icon--primary { background: rgba(37, 99, 235, 0.1); color: #2563EB; }
-.stat-icon--success { background: rgba(16, 185, 129, 0.1); color: #10B981; }
-.stat-icon--warning { background: rgba(245, 158, 11, 0.1); color: #F59E0B; }
-.stat-icon--info { background: rgba(59, 130, 246, 0.1); color: #3B82F6; }
-.stat-icon--purple { background: rgba(139, 92, 246, 0.1); color: #8B5CF6; }
+.stat-icon--primary { background: var(--tg-primary-light, rgba(37, 99, 235, 0.1)); color: var(--tg-primary, #2563EB); }
+.stat-icon--success { background: var(--tg-success-light, rgba(16, 185, 129, 0.1)); color: var(--tg-success, #10B981); }
+.stat-icon--warning { background: var(--tg-warning-light, rgba(245, 158, 11, 0.1)); color: var(--tg-warning, #F59E0B); }
+.stat-icon--info { background: var(--tg-info-light, rgba(59, 130, 246, 0.1)); color: var(--tg-info, #3B82F6); }
 
 .stat-body {
   flex: 1;
@@ -582,7 +643,7 @@ onUnmounted(() => {
 }
 
 .stat-value {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--tg-text-primary, #0F172A);
   line-height: 1.2;
@@ -592,10 +653,6 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--tg-text-secondary, #64748B);
   margin-top: 2px;
-}
-
-.buffer-bar {
-  margin-top: 4px;
 }
 
 /* Section 2: Resources */
