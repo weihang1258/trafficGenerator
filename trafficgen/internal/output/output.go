@@ -165,6 +165,7 @@ type OutputWorker struct {
 	cancel    context.CancelFunc
 	wg        *sync.WaitGroup
 	stats     WorkerStats
+	statsMu   sync.Mutex
 }
 
 // WorkerStats holds worker statistics.
@@ -211,19 +212,25 @@ func (w *OutputWorker) run() {
 			}
 
 			if err := w.writer.Write(packets); err != nil {
+				w.statsMu.Lock()
 				w.stats.Errors++
+				w.statsMu.Unlock()
 				continue
 			}
 
+			w.statsMu.Lock()
 			for _, p := range packets {
 				w.stats.PacketsWritten++
 				w.stats.BytesWritten += int64(len(p))
 			}
+			w.statsMu.Unlock()
 		}
 	}
 }
 
 // GetStats returns worker statistics.
 func (w *OutputWorker) GetStats() WorkerStats {
+	w.statsMu.Lock()
+	defer w.statsMu.Unlock()
 	return w.stats
 }

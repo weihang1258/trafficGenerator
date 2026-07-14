@@ -291,6 +291,7 @@ type CreateBatchTaskRequest struct {
 type OutputConfigRequest struct {
 	PortGroupID string `json:"port_group_id"` // For port_group output
 	PcapPath    string `json:"pcap_path"`    // For pcap output
+	Interface2  string `json:"interface2,omitempty"` // Second interface for dual-port replay (§16.11)
 }
 
 // TaskStatsResponse represents task statistics in the response.
@@ -379,14 +380,14 @@ func (h *TaskHandler) Create(c *gin.Context) {
 	}
 
 	// Serialize for storage
-	strategyIDsJSON, _ := json.Marshal(req.StrategyIDs)
 	outputConfigJSON, _ := json.Marshal(req.OutputConfig)
 	var flowControlJSON []byte
 	if req.FlowControl != nil {
 		flowControlJSON, _ = json.Marshal(req.FlowControl)
 	}
 
-	// Sort strategy IDs for consistent idempotency checks
+	// Sort strategy IDs for consistent idempotency checks AND canonical storage,
+	// so a duplicate submission with reversed order still hits the same record.
 	sortedStrategyIDs := make([]string, len(req.StrategyIDs))
 	copy(sortedStrategyIDs, req.StrategyIDs)
 	sort.Strings(sortedStrategyIDs)
@@ -404,12 +405,13 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Create new task
+	// Create new task. Store the SORTED strategy_ids so idempotency lookups
+	// (which query by sorted form) match regardless of insertion order.
 	task := &storage.TaskModel{
 		ID:           uuid.New().String(),
 		UserID:       userID,
 		Name:         req.Name,
-		StrategyIDs:  string(strategyIDsJSON),
+		StrategyIDs:  string(sortedStrategyIDsJSON),
 		Protocol:     primaryProtocol,
 		OutputType:   req.OutputType,
 		OutputConfig: string(outputConfigJSON),
@@ -489,6 +491,28 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		pcapFile = resolved
 	}
 
+	// Detect dual-port replay: a replay class with direction="dual" OR an
+	// explicit interface2 in the output config (§16.11). Dual-port routes c2s
+	// packets to the primary interface and s2c to the second.
+	dualPort := req.OutputConfig != nil && req.OutputConfig.Interface2 != ""
+	if !dualPort {
+		for _, class := range req.Batch.Classes {
+			if class.Type == "replay" && len(class.Replay) > 0 {
+				var rs struct {
+					Direction string `json:"direction"`
+				}
+				if json.Unmarshal(class.Replay, &rs) == nil && rs.Direction == "dual" {
+					dualPort = true
+					break
+				}
+			}
+		}
+	}
+	if dualPort && outputMode == "interface" && (req.OutputConfig == nil || req.OutputConfig.Interface2 == "") {
+		BadRequest(c, "dual-port replay requires a second interface (interface2 in output_config)")
+		return
+	}
+
 	// Create + register the output writer BEFORE submitting (avoids race).
 	var writer core.PacketWriter
 	var err error
@@ -501,7 +525,24 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		InternalError(c, "failed to create output writer: "+err.Error())
 		return
 	}
-	h.engine.RegisterOutputWriter(taskID, writer)
+	if dualPort {
+		// Register a dual-port writer pair: c2s -> primary, s2c -> secondary.
+		var writer2 core.PacketWriter
+		if outputMode == "interface" {
+			writer2, err = newInterfacePacketWriter(req.OutputConfig.Interface2)
+		} else {
+			// Dual-file pcap output: append ".s2c" to the pcap path.
+			writer2, err = newPcapPacketWriter(pcapFile + ".s2c")
+		}
+		if err != nil {
+			writer.Close()
+			InternalError(c, "failed to create second output writer: "+err.Error())
+			return
+		}
+		h.engine.RegisterDualWriter(taskID, writer, writer2)
+	} else {
+		h.engine.RegisterOutputWriter(taskID, writer)
+	}
 
 	// Persist a task record (StrategyIDs empty; BatchConfig holds the spec).
 	batchJSON, _ := json.Marshal(req.Batch)
@@ -529,11 +570,15 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 	coreTask := core.Task{
 		ID:         taskID,
 		Name:       req.Name,
+		UserID:     userID,
 		Protocol:   "batch",
 		Batch:      req.Batch,
 		OutputMode: outputMode,
 		Interface:  iface,
 		PcapFile:   pcapFile,
+	}
+	if dualPort && req.OutputConfig != nil {
+		coreTask.Interface2 = req.OutputConfig.Interface2
 	}
 	if err := h.engine.SubmitTask(coreTask); err != nil {
 		h.engine.UnregisterOutputWriter(taskID)
@@ -561,8 +606,11 @@ func (h *TaskHandler) List(c *gin.Context) {
 	if p, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && p > 0 {
 		page = p
 	}
-	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s > 0 && s <= 100 {
+	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s > 0 {
 		size = s
+		if size > 100 {
+			size = 100
+		}
 	}
 
 	// Build query
@@ -984,8 +1032,11 @@ func (h *TaskHandler) History(c *gin.Context) {
 	if p, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && p > 0 {
 		page = p
 	}
-	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s > 0 && s <= 100 {
+	if s, err := strconv.Atoi(c.DefaultQuery("size", "20")); err == nil && s > 0 {
 		size = s
+		if size > 100 {
+			size = 100
+		}
 	}
 
 	// Build query
@@ -1178,6 +1229,17 @@ type pcapPacketWriter struct {
 
 func (pw *pcapPacketWriter) WritePackets(packets [][]byte) error {
 	return pw.w.Write(packets)
+}
+
+// WriteTimedPackets implements core.TimedWriter so the pcap output uses the
+// scheduled send timestamp (§12) instead of time.Now(). The OutputWorker
+// prefers this path over WritePackets when present.
+func (pw *pcapPacketWriter) WriteTimedPackets(packets []core.PacketOutput) error {
+	tp := make([]output.TimedPacket, len(packets))
+	for i, p := range packets {
+		tp[i] = output.TimedPacket{Data: p.Data, Timestamp: p.Timestamp}
+	}
+	return pw.w.WriteTimed(tp)
 }
 
 func (pw *pcapPacketWriter) Close() error {

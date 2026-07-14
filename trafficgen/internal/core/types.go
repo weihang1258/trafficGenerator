@@ -3,6 +3,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -11,11 +12,13 @@ type Task struct {
 	ID          string                 `json:"id"`
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
+	UserID      string                 `json:"user_id,omitempty"` // owning user (for user-scoped asset access during replay)
 	Protocol    string                 `json:"protocol"` // tcp, udp, http, dns, icmp, arp
 	Spec        FlowSpec               `json:"spec"`     // single-protocol mode
 	Batch       *BatchSpec             `json:"batch,omitempty"` // mixed-traffic mode (Spec XOR Batch)
 	ClassID     string                 `json:"class_id"`
-	Interface   string                 `json:"interface"`  // output interface name
+	Interface   string                 `json:"interface"`   // output interface name (client side / primary)
+	Interface2  string                 `json:"interface2,omitempty"` // server side (dual-port replay); empty = single
 	OutputMode  string                 `json:"output_mode"` // interface, pcap, both
 	PcapFile    string                 `json:"pcap_file,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
@@ -240,6 +243,10 @@ type TrafficClass struct {
 	FlowCount      int                    `json:"flow_count"`
 	Tuples         TupleConfig            `json:"tuples"`
 	Config         map[string]interface{} `json:"config"`
+	// Replay holds the ReplaySpec JSON for type=="replay" classes. It's raw JSON
+	// (not a typed replay.ReplaySpec) to avoid a core<->replay import cycle; the
+	// registered ReplayPlanner unmarshals it.
+	Replay json.RawMessage `json:"replay,omitempty"`
 }
 
 // TupleConfig for generating 4-tuples.

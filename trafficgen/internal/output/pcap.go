@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -23,11 +24,21 @@ const (
 	pcapLinkType     = 1 // Ethernet
 )
 
+// pcapFile is the subset of *os.File this package uses. Declared as an
+// interface so tests can inject fake files to simulate Sync/Close failures
+// (real *os.File.Close/Sync rarely fail, making failure-path coverage
+// impossible without this). *os.File satisfies this interface.
+type pcapFile interface {
+	io.Writer
+	Close() error
+	Sync() error
+}
+
 // PCAPWriter writes packets to a PCAP file. Writes are buffered (bufio) and
 // each packet gets its own timestamp; fsync happens only on Close, not per
 // Write, so high packet rates do not stall on disk flushes.
 type PCAPWriter struct {
-	file    *os.File
+	file    pcapFile
 	bw      *bufio.Writer
 	path    string
 	mu      sync.Mutex
@@ -113,6 +124,50 @@ func (w *PCAPWriter) Write(packets [][]byte) error {
 			return err
 		}
 		w.written += int64(len(packet)) + 16
+	}
+
+	return nil
+}
+
+// TimedPacket pairs a packet's bytes with its scheduled send timestamp (§12).
+// PCAPWriter.WriteTimed uses this instead of time.Now() so the output pcap
+// reflects the actual replay rhythm, not the wall-clock write instant.
+type TimedPacket struct {
+	Data      []byte
+	Timestamp time.Time
+}
+
+// WriteTimed writes packets with explicit timestamps (scheduled send time).
+// This is the preferred write path for replay pcap output (§12: "输出 pcap
+// 时间戳：用计划发送时刻"). Falls back to time.Now() for any packet whose
+// timestamp is the zero value.
+func (w *PCAPWriter) WriteTimed(packets []TimedPacket) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.file == nil {
+		return fmt.Errorf("pcap writer closed: %s", w.path)
+	}
+
+	var buf [16]byte
+	for _, tp := range packets {
+		ts := tp.Timestamp
+		if ts.IsZero() {
+			ts = time.Now()
+		}
+		binary.LittleEndian.PutUint32(buf[0:4], uint32(ts.Unix()))
+		binary.LittleEndian.PutUint32(buf[4:8], uint32(ts.Nanosecond()/1000))
+		caplen := uint32(len(tp.Data))
+		binary.LittleEndian.PutUint32(buf[8:12], caplen)
+		binary.LittleEndian.PutUint32(buf[12:16], caplen)
+
+		if _, err := w.bw.Write(buf[:]); err != nil {
+			return err
+		}
+		if _, err := w.bw.Write(tp.Data); err != nil {
+			return err
+		}
+		w.written += int64(len(tp.Data)) + 16
 	}
 
 	return nil

@@ -91,6 +91,7 @@ func (s *Server) setupRoutes() {
 	systemHandler.SetDB(s.db)
 	settingsHandler := NewSettingsHandler(s.db, s.engine)
 	userHandler := NewUserHandler(s.db)
+	pcapHandler := NewPcapHandler(s.db, "")
 
 	// Health endpoints (no auth required)
 	s.router.GET("/health", systemHandler.HealthCheck)
@@ -197,6 +198,28 @@ func (s *Server) setupRoutes() {
 
 		// History route
 		api.GET("/history", taskHandler.History)
+
+		// PCAP asset routes (§15/§19)
+		pcaps := api.Group("/pcaps")
+		{
+			pcaps.POST("", pcapHandler.Import)
+			pcaps.GET("", pcapHandler.List)
+			pcaps.GET("/:id", pcapHandler.Get)
+			pcaps.DELETE("/:id", pcapHandler.Delete)
+			pcaps.GET("/:id/flows", pcapHandler.ListFlows)
+			pcaps.GET("/:id/flows/:fid", pcapHandler.GetFlow)
+			pcaps.GET("/:id/flows/:fid/packets", pcapHandler.ListPackets)
+			pcaps.GET("/:id/flows/:fid/stream", pcapHandler.GetStream)
+			pcaps.GET("/:id/flows/:fid/body", pcapHandler.GetBody)
+			pcaps.GET("/:id/packets", pcapHandler.ListPacketsByAsset)
+			pcaps.GET("/:id/packets/:pid", pcapHandler.GetPacket)
+			pcaps.GET("/:id/packets/:pid/payload", pcapHandler.GetPacketPayload)
+			pcaps.POST("/:id/search", pcapHandler.Search)
+			pcaps.POST("/:id/match-preview", pcapHandler.MatchPreview)
+			pcaps.POST("/:id/extract", pcapHandler.Extract)
+			pcaps.GET("/:id/download", pcapHandler.Download)
+			pcaps.POST("/:id/reparse", pcapHandler.Reparse)
+		}
 	}
 
 	// Serve frontend static files

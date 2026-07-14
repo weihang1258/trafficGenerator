@@ -10,9 +10,18 @@ import (
 	"go.uber.org/zap"
 )
 
+// packetHandle is the subset of *pcap.Handle this package uses (writing
+// packets and closing). Declared as an interface so tests can inject a fake
+// handle to exercise write-failure paths without a real network interface.
+// *pcap.Handle satisfies this interface.
+type packetHandle interface {
+	WritePacketData([]byte) error
+	Close()
+}
+
 // InterfaceWriter writes packets to a network interface.
 type InterfaceWriter struct {
-	handle    *pcap.Handle
+	handle    packetHandle
 	iface     string
 	mu        sync.Mutex
 	sent      int64

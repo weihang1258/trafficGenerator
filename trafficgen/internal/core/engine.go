@@ -17,6 +17,9 @@ type Engine struct {
 	config    EngineConfig
 	planners  map[string]ProtocolPlanner
 	buildFunc func(PacketConfig) ([]byte, error)
+	// replayPlanner handles TrafficClass.Type=="replay" (§16.12). May be nil if
+	// replay isn't wired (then replay classes are rejected).
+	replayPlanner ReplayPlanner
 
 	// Channels
 	taskChan   chan Task
@@ -33,7 +36,11 @@ type Engine struct {
 
 	// Output writers indexed by task ID for per-task output routing
 	outputWriters map[string]PacketWriter
-	outputMu      sync.RWMutex
+	// dualWriters holds the two writers (c2s, s2c) for dual-port tasks (§16.11).
+	// When present for a task, the OutputWorker routes by Direction instead of
+	// using outputWriters[taskID].
+	dualWriters map[string]*DualPortWriter
+	outputMu    sync.RWMutex
 
 	// Rate limiters
 	rateLimiters map[string]*TokenBucket
@@ -72,12 +79,32 @@ type PacketWriter interface {
 	Close() error
 }
 
+// TimedWriter is an optional interface a PacketWriter may implement to receive
+// the scheduled send timestamp for each packet (§12: pcap output uses the
+// scheduled send time, not time.Now()). The OutputWorker prefers
+// WriteTimedPackets when the writer implements this interface; otherwise it
+// falls back to WritePackets (which stamps time.Now() internally).
+type TimedWriter interface {
+	WriteTimedPackets(packets []PacketOutput) error
+}
+
+// writePacketsTo dispatches a single PacketOutput to a writer, preferring the
+// timed path when available so pcap output preserves the scheduled send time.
+func writePacketsTo(w PacketWriter, out PacketOutput) error {
+	if tw, ok := w.(TimedWriter); ok {
+		return tw.WriteTimedPackets([]PacketOutput{out})
+	}
+	return w.WritePackets([][]byte{out.Data})
+}
+
 // PacketOutput carries a built packet with its routing metadata.
 type PacketOutput struct {
 	Data        []byte
 	Metadata    map[string]interface{}
 	FlowID      string
 	PacketIndex uint64
+	Direction   string // c2s|s2c (or up|down for synth) -- drives dual-port routing
+	Timestamp   time.Time // scheduled send time (§12: pcap output uses this, not time.Now())
 }
 
 type taskEntry struct {
@@ -100,6 +127,11 @@ type EngineConfig struct {
 	BufferSize     int
 	QueueSize      int
 	MaxBufferBytes int64
+	// ReplayOrderPreserve caps PacketWorkers to 1 when true, preserving pcap
+	// file order for replay tasks (§13 hard guarantee). Multi-worker replay is
+	// v2 (§17: "多 PacketWorker 并行 replay 保序需单工，暂缓"). Set this when
+	// the engine will run replay tasks; synth-only engines can use N workers.
+	ReplayOrderPreserve bool
 }
 
 // NewEngine creates a new traffic engine.
@@ -110,6 +142,7 @@ func NewEngine(config EngineConfig) *Engine {
 		rateLimiters:  make(map[string]*TokenBucket),
 		taskStore:     make(map[string]*taskEntry),
 		outputWriters: make(map[string]PacketWriter),
+		dualWriters:   make(map[string]*DualPortWriter),
 	}
 }
 
@@ -130,6 +163,51 @@ func (e *Engine) ListProtocols() []string {
 // SetBuildFunc sets the packet building function.
 func (e *Engine) SetBuildFunc(fn func(PacketConfig) ([]byte, error)) {
 	e.buildFunc = fn
+}
+
+// DualPortWriter holds the two writers for a dual-port task: C2S (client->server,
+// primary interface) and S2C (server->client, secondary interface).
+type DualPortWriter struct {
+	C2S PacketWriter
+	S2C PacketWriter
+}
+
+// RegisterDualWriter registers a dual-port writer pair for a task (§16.11).
+// When set, the OutputWorker routes packets by Direction to the matching writer.
+func (e *Engine) RegisterDualWriter(taskID string, c2s, s2c PacketWriter) {
+	e.outputMu.Lock()
+	e.dualWriters[taskID] = &DualPortWriter{C2S: c2s, S2C: s2c}
+	e.outputMu.Unlock()
+}
+
+// UnregisterDualWriter removes + closes a task's dual-port writers.
+func (e *Engine) UnregisterDualWriter(taskID string) {
+	e.outputMu.Lock()
+	dw, ok := e.dualWriters[taskID]
+	if ok {
+		delete(e.dualWriters, taskID)
+	}
+	e.outputMu.Unlock()
+	if ok && dw != nil {
+		if dw.C2S != nil {
+			dw.C2S.Close()
+		}
+		if dw.S2C != nil {
+			dw.S2C.Close()
+		}
+	}
+}
+
+// GetDualWriter returns the dual-port writer pair for a task (or nil).
+func (e *Engine) GetDualWriter(taskID string) *DualPortWriter {
+	e.outputMu.RLock()
+	defer e.outputMu.RUnlock()
+	return e.dualWriters[taskID]
+}
+
+// SetReplayPlanner registers the replay planner (handles TrafficClass.Type=="replay").
+func (e *Engine) SetReplayPlanner(p ReplayPlanner) {
+	e.replayPlanner = p
 }
 
 // RegisterOutputWriter registers a packet writer for a task.
@@ -179,7 +257,7 @@ func (e *Engine) Start() error {
 	e.configWorkers = make([]*ConfigWorker, e.config.ConfigWorkers)
 	for i := 0; i < e.config.ConfigWorkers; i++ {
 		e.wg.Add(1)
-		worker := NewConfigWorker(i, e.planners, e.taskChan, e.configChan, &e.wg)
+		worker := NewConfigWorker(i, e.planners, e.replayPlanner, e.taskChan, e.configChan, &e.wg)
 		worker.SetOnTaskDone(func(taskID string, err error, count int64) {
 			if err != nil {
 				e.FailTask(taskID, err.Error())
@@ -200,9 +278,14 @@ func (e *Engine) Start() error {
 		}
 	}
 
-	// Start packet workers
-	e.packetWorkers = make([]*PacketWorker, e.config.PacketWorkers)
-	for i := 0; i < e.config.PacketWorkers; i++ {
+	// Start packet workers. When ReplayOrderPreserve is set, cap PacketWorkers
+	// at 1 to preserve pcap file order (§13: replay must not resequence).
+	pw := e.config.PacketWorkers
+	if e.config.ReplayOrderPreserve && pw > 1 {
+		pw = 1
+	}
+	e.packetWorkers = make([]*PacketWorker, pw)
+	for i := 0; i < pw; i++ {
 		e.wg.Add(1)
 		// Rate limiting is engine-level (per ClassID), looked up via engine ref.
 		worker := NewPacketWorker(i, e.configChan, e.packetChan, buildFn, &e.wg, e)
@@ -286,6 +369,25 @@ func (e *Engine) Stop() {
 	for _, w := range writers {
 		if w != nil {
 			w.Close()
+		}
+	}
+
+	// Close dual-port writer pairs (same leak-prevention rationale).
+	e.outputMu.Lock()
+	duals := make([]*DualPortWriter, 0, len(e.dualWriters))
+	for id, dw := range e.dualWriters {
+		duals = append(duals, dw)
+		delete(e.dualWriters, id)
+	}
+	e.outputMu.Unlock()
+	for _, dw := range duals {
+		if dw != nil {
+			if dw.C2S != nil {
+				dw.C2S.Close()
+			}
+			if dw.S2C != nil {
+				dw.S2C.Close()
+			}
 		}
 	}
 

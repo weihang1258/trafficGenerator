@@ -3,6 +3,7 @@ package core
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -127,6 +128,7 @@ func ValidateBatchSpec(batch BatchSpec) error {
 	}
 	validProtocols := map[string]bool{
 		"tcp": true, "udp": true, "http": true, "dns": true, "icmp": true, "arp": true,
+		"replay": true,
 	}
 	seenIDs := make(map[string]bool)
 	for i, c := range batch.Classes {
@@ -139,6 +141,17 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		seenIDs[c.ID] = true
 		if !validProtocols[c.Type] {
 			return fmt.Errorf("class[%d] %s: invalid type %s", i, c.ID, c.Type)
+		}
+		// Replay classes don't use FlowCount/FlowSpec -- they replay a pcap
+		// asset's packets via the replay planner. Validate the replay spec itself.
+		if c.Type == "replay" {
+			if len(c.Replay) == 0 {
+				return fmt.Errorf("class[%d] %s: replay class missing 'replay' spec", i, c.ID)
+			}
+			if err := validateReplaySpec(c.Replay); err != nil {
+				return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)
+			}
+			continue
 		}
 		if c.FlowCount <= 0 {
 			return fmt.Errorf("class[%d] %s: flow_count must be > 0", i, c.ID)
@@ -157,6 +170,55 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		if err := ValidateFlowSpec(mapToFlowSpec(c.Config, c.Type)); err != nil {
 			return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)
 		}
+	}
+	return nil
+}
+
+// validateReplaySpec validates a replay spec JSON (§16.4): speed mode,
+// direction, checksum_mode, and that required fields are present. Catches
+// submission-time errors (e.g. bogus speed mode silently falling back to max,
+// dual without interface2) before the task runs and fails silently.
+func validateReplaySpec(specJSON json.RawMessage) error {
+	var spec struct {
+		PcapAssetID string `json:"pcap_asset_id"`
+		Speed       struct {
+			Mode       string  `json:"mode"`
+			Multiplier float64 `json:"multiplier"`
+			BPS        string  `json:"bps"`
+			PPS        float64 `json:"pps"`
+		} `json:"speed"`
+		Direction    string `json:"direction"`
+		ChecksumMode string `json:"checksum_mode"`
+	}
+	if err := json.Unmarshal(specJSON, &spec); err != nil {
+		return fmt.Errorf("invalid replay spec JSON: %w", err)
+	}
+	if spec.PcapAssetID == "" {
+		return fmt.Errorf("replay spec missing pcap_asset_id")
+	}
+	switch spec.Speed.Mode {
+	case "original", "multiplier", "bps", "pps", "max", "":
+		// valid
+	default:
+		return fmt.Errorf("invalid speed mode %q (want original|multiplier|bps|pps|max)", spec.Speed.Mode)
+	}
+	if spec.Speed.Mode == "bps" && spec.Speed.BPS == "" {
+		return fmt.Errorf("bps mode requires a bps value")
+	}
+	if spec.Speed.Mode == "pps" && spec.Speed.PPS <= 0 {
+		return fmt.Errorf("pps mode requires pps > 0")
+	}
+	switch spec.Direction {
+	case "single", "dual", "":
+		// valid
+	default:
+		return fmt.Errorf("invalid direction %q (want single|dual)", spec.Direction)
+	}
+	switch spec.ChecksumMode {
+	case "recompute", "preserve", "":
+		// valid
+	default:
+		return fmt.Errorf("invalid checksum_mode %q (want recompute|preserve)", spec.ChecksumMode)
 	}
 	return nil
 }

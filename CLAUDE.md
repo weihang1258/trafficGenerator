@@ -13,6 +13,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 For non-trivial changesets, prefer a thorough review: parallel reviewers per changed area + adversarial verification of each finding (try to refute it by reading the actual code; default to "not a bug" if uncertain or if the behavior is intentional/by-design). Report confirmed issues ranked by severity, then fix and re-verify.
 
+## Testing Policy (Mandatory)
+
+**Tests must be derived from the spec and must actually cover the behavior they claim to--not merely pass.** This is a binding workflow rule, not a suggestion. It exists because a prior changeset shipped with 178 tests green and a 4-way adversarial code review clean, yet a follow-up spec-vs-implementation audit found 33 issues (7 CRITICAL). The tests passed because they tested the wrong thing. The rules below prevent a repeat.
+
+### 1. Spec-driven test derivation, not ad-hoc
+
+Every table, field list, and error-handling row in the design spec is a test-case checklist. Before writing tests, enumerate the spec sections that cover the changed code and convert each row/field into at least one test. **Do not write tests organically ("I can test this feature"); write them from the spec ("§X requires behavior Y on row Z, so I need a test for it").** Concrete anti-patterns that bit us: a FlowModel with 28 spec fields where 6 (RetransCount, MSS, WindowScale, ...) had zero tests and stayed silently zero-valued forever; an error-handling table with 10 rows where only 1 was tested.
+
+### 2. Cover failure paths, not just the happy path
+
+Every feature needs both a success test AND negative-path tests: invalid input, missing/unready dependency, broken mid-operation state, empty/zero/boundary values. **A test that only feeds valid input through the success path is incomplete.** Anti-patterns that bit us: the fragmented-TCP test always established the flow with a non-fragmented handshake first, so the fully-fragmented-flow case (where the first packet is a fragment) was never exercised; the ipmap test used exact-match keys only, so CIDR keys were never tested; every e2e test asserted "task does not fail" but none injected a broken spec to verify the task *does* fail when it should--so a planner error that got silently swallowed (task reported "completed" with 0 packets) passed every test.
+
+### 3. Test the right function/scope--one test per code path
+
+When a feature spans multiple functions or methods, each path needs its own test. **Do not test function A and assume function B works because they are "related".** Anti-patterns that bit us: CIDR was tested in the matcher (`matchRule`) but not in the ipmap rewriter (a different function) -- the rewriter's CIDR path was unimplemented and no test caught it; user-isolation was tested for `GetAssetByHash` only, leaving 10 other Get/List methods with no `WHERE user_id` clause untested; `apply:offset` semantics were declared on a rule field but never read, and no test ever set `apply:"offset"`. If a method/branch exists, it needs a test that exercises it.
+
+### 4. Integration tests, not just unit tests
+
+Units passing in isolation does not prove the feature works end-to-end. **For any feature spanning layers (API -> engine -> output, or planner -> worker -> writer), add a test that drives the full path.** Anti-patterns that bit us: `RegisterDualWriter` was tested by calling it directly on the engine, but the production path (task handler -> engine) never called it, so dual-port output was dead code that passed its test; `Plan()` correctly returned an error, but no test verified that error propagated through the pipeline to fail the task; every test used `PacketWorkers: 1` so the default `PacketWorkers: 8` file-ordering bug was never hit.
+
+### 5. Assert observable outcomes, not just structure
+
+Tests must assert output values and observable behavior, not merely "it didn't panic" or "the object exists." **A field that is never populated stays at its zero value and passes any structural assertion.** Anti-patterns that bit us: TCP-stat fields (RetransCount, MSS, WindowScale) were never asserted non-zero, so the code that forgot to populate them passed; the pacer concurrency test checked `-race` was clean (no data race) but never measured the actual aggregate rate, so 8 workers each sleeping independently (8x the configured rate) passed.
+
+### 6. Concurrency tests must verify correctness, not just race-safety
+
+`-race` clean means no data race; it does NOT mean the logic is correct under concurrency. **For any shared-state or shared-rate component, write a test that measures the aggregate observable behavior under N concurrent workers** (e.g., actual total throughput vs configured rate, actual ordering vs expected ordering). Anti-pattern: a shared Pacer across workers had a correct mutex (no race) but no mutual exclusion on the rate-defining sleep, so total throughput scaled with worker count.
+
+### 7. Failing-test-first for every bug fix
+
+When fixing a bug (from review, audit, or report), **write a failing test that reproduces the bug FIRST, then fix the code so the test passes.** This proves the fix covers the bug and guards against regression. Do not fix-then-hope. If you cannot write a failing test, you do not understand the bug yet.
+
+### 8. Adversarial review of test quality (not just code quality)
+
+When reviewing, do not stop at "tests pass." For each test, ask: Does it test the right code path? What input would break this that the test does not feed? Does it assert the outcome or just the setup? Is there a spec row/field this test does not correspond to? **A green suite that tests the wrong things is worse than no tests--it creates false confidence.** Treat test coverage as a first-class review dimension alongside correctness.
+
 ## Project Overview
 
 This is a **high-performance network traffic generator** implemented as a single Python file (`high_performance_traffic_generator.py`, ~2336 lines). It uses a multiprocessing pipeline architecture to generate TCP/UDP/HTTP traffic with precise rate control and memory efficiency.

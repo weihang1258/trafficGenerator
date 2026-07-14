@@ -21,6 +21,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/tcp"
 	"github.com/trafficgen/trafficgen/internal/protocol/udp"
+	"github.com/trafficgen/trafficgen/internal/replay"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/config"
 	"github.com/trafficgen/trafficgen/pkg/logger"
@@ -222,9 +223,13 @@ func (app *Application) initEngine() error {
 		zap.Strings("protocols", app.engine.ListProtocols()),
 	)
 
-	// Set packet builder
+	// Set packet builder. The buildFunc dispatches between synth (builder.Build)
+	// and replay (rewriter.ApplyPatches) based on the _replay metadata flag.
 	builder := core.NewBuilder()
-	app.engine.SetBuildFunc(builder.Build)
+	app.engine.SetBuildFunc(replay.NewBuildFunc(builder.Build))
+
+	// Register the replay planner (handles TrafficClass.Type=="replay").
+	app.engine.SetReplayPlanner(replay.NewReplayPlanner(app.db))
 
 	return nil
 }

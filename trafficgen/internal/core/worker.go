@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -30,18 +31,26 @@ type ProtocolPlanner interface {
 	Validate(spec FlowSpec) error
 }
 
+// ReplayPlanner generates packet configs for a replay TrafficClass (§16.12).
+// Defined in core (taking raw JSON) so core can dispatch to it without importing
+// the replay package; the concrete replay.ReplayPlanner implements this.
+type ReplayPlanner interface {
+	PlanReplay(ctx context.Context, specJSON json.RawMessage, taskID, classID, userID string) (<-chan PacketConfig, error)
+}
+
 // ConfigWorker generates packet configurations.
 type ConfigWorker struct {
-	id         int
-	planners   map[string]ProtocolPlanner
-	taskChan   <-chan Task
-	configChan chan<- PacketConfig
-	wg         *sync.WaitGroup
-	ctx        context.Context
-	cancel     context.CancelFunc
-	stats      WorkerStats
-	onTaskDone func(taskID string, err error, count int64)
-	sem        chan struct{} // limits concurrent task processing per worker
+	id            int
+	planners      map[string]ProtocolPlanner
+	replayPlanner ReplayPlanner
+	taskChan      <-chan Task
+	configChan    chan<- PacketConfig
+	wg            *sync.WaitGroup
+	ctx           context.Context
+	cancel        context.CancelFunc
+	stats         WorkerStats
+	onTaskDone    func(taskID string, err error, count int64)
+	sem           chan struct{} // limits concurrent task processing per worker
 }
 
 // WorkerStats holds worker statistics.
@@ -55,17 +64,19 @@ type WorkerStats struct {
 func NewConfigWorker(
 	id int,
 	planners map[string]ProtocolPlanner,
+	replayPlanner ReplayPlanner,
 	taskChan <-chan Task,
 	configChan chan<- PacketConfig,
 	wg *sync.WaitGroup,
 ) *ConfigWorker {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &ConfigWorker{
-		id:         id,
-		planners:   planners,
-		taskChan:   taskChan,
-		configChan: configChan,
-		wg:         wg,
+		id:            id,
+		planners:      planners,
+		replayPlanner: replayPlanner,
+		taskChan:      taskChan,
+		configChan:    configChan,
+		wg:            wg,
 		ctx:        ctx,
 		cancel:     cancel,
 		sem:        make(chan struct{}, 4), // process up to 4 tasks concurrently per worker
@@ -235,10 +246,56 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 	var flowFailures int64
 	totalFlows := 0
 	for _, class := range task.Batch.Classes {
-		totalFlows += class.FlowCount
+		// Replay classes contribute 1 "flow unit" to totalFlows; synth classes
+		// contribute their FlowCount. Without this, a failed replay class would
+		// not trigger the "all flows failed" guard (totalFlows would stay 0) and
+		// the task would silently report "completed" with 0 packets.
+		if class.Type == "replay" {
+			totalFlows += 1
+		} else {
+			totalFlows += class.FlowCount
+		}
 	}
 
 	for _, class := range task.Batch.Classes {
+		// Replay class: dispatch to the replay planner (no protocol planner /
+		// flow loop -- the planner emits all the asset's packets in one channel).
+		if class.Type == "replay" {
+			if w.replayPlanner == nil {
+				zap.L().Error("batch replay class but no replay planner registered, skipping",
+					zap.String("task_id", task.ID), zap.String("class_id", class.ID))
+				atomic.AddInt64(&flowFailures, int64(1))
+				continue
+			}
+			classWg.Add(1)
+			go func(c TrafficClass) {
+				defer classWg.Done()
+				classKey := task.ID + ":" + c.ID
+				configChan, err := w.replayPlanner.PlanReplay(taskCtx, c.Replay, task.ID, classKey, task.UserID)
+				if err != nil {
+					zap.L().Error("replay plan failed", zap.String("task_id", task.ID), zap.String("class_id", c.ID), zap.Error(err))
+					atomic.AddInt64(&flowFailures, 1)
+					return
+				}
+				for config := range configChan {
+					config.ClassID = classKey
+					if config.Metadata == nil {
+						config.Metadata = make(map[string]interface{})
+					}
+					config.Metadata["task_id"] = task.ID
+					config.Metadata["interface"] = task.Interface
+					select {
+					case <-taskCtx.Done():
+						for range configChan {
+						}
+						return
+					case w.configChan <- config:
+						atomic.AddInt64(&configCount, 1)
+					}
+				}
+			}(class)
+			continue
+		}
 		planner, ok := w.planners[class.Type]
 		if !ok {
 			zap.L().Error("batch class unknown protocol, skipping",
@@ -432,9 +489,18 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 		return
 	}
 
-	// Rate limit AFTER build using the real packet size, looked up by ClassID.
-	// This enforces per-class BPS precisely (Phase 1 wiring + Phase 2 per-class).
-	if w.engine != nil && config.ClassID != "" {
+	// Rate limit AFTER build using the real packet size. For replay packets,
+	// a Pacer in Metadata takes precedence (timestamp/rate pacing per §16.9);
+	// otherwise fall back to the per-class TokenBucket.
+	if pacer, ok := config.Metadata["_pacer"]; ok {
+		if rp, ok := pacer.(interface {
+			Wait(context.Context, PacketConfig, int) error
+		}); ok {
+			if err := rp.Wait(w.ctx, config, len(packet)); err != nil {
+				return // context cancelled while waiting
+			}
+		}
+	} else if w.engine != nil && config.ClassID != "" {
 		if limiter := w.engine.GetRateLimiter(config.ClassID); limiter != nil {
 			if err := limiter.Wait(w.ctx, int64(len(packet))); err != nil {
 				return // context cancelled while waiting
@@ -447,6 +513,8 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 		Metadata:    config.Metadata,
 		FlowID:      config.FlowID,
 		PacketIndex: config.PacketIndex,
+		Direction:   config.Direction,
+		Timestamp:   config.Timestamp, // scheduled send time (§12: pcap output uses this)
 	}
 	select {
 	case <-w.ctx.Done():
@@ -542,35 +610,49 @@ func (w *OutputWorker) processPacket(out PacketOutput) {
 func (w *OutputWorker) writePacket(out PacketOutput) {
 	packet := out.Data
 
-	// 1. Route to registered output writer based on task_id metadata.
+	// 1. Route to registered output writer based on task_id metadata. For
+	// dual-port tasks, route by Direction to the matching interface writer.
 	if w.engine != nil && out.Metadata != nil {
 		if taskID, ok := out.Metadata["task_id"].(string); ok && taskID != "" {
-			w.engine.outputMu.RLock()
-			writer, found := w.engine.outputWriters[taskID]
-			w.engine.outputMu.RUnlock()
-			if found && writer != nil {
-				if err := writer.WritePackets([][]byte{packet}); err != nil {
-					zap.L().Error("output writer error, failing task",
-						zap.String("task_id", taskID),
-						zap.Error(err),
-					)
-					atomic.AddInt64(&w.stats.Errors, 1)
-					if w.engine.OnOutputError != nil {
-						w.engine.OnOutputError(taskID, err)
-					} else {
-						// Defensive: if no callback is wired (e.g. direct Engine
-						// use without the API layer), fail the task directly so
-						// it doesn't hang (OnPacketWritten is skipped on error,
-						// so writtenPackets would never reach totalConfigs).
-						w.engine.FailTask(taskID, "output writer error: "+err.Error())
-						// Unregister the broken writer so subsequent in-flight
-						// packets for this taskID do not keep hitting WritePackets
-						// and generating log-noise / fd leaks. Mirrors the API
-						// layer's onEngineOutputError ordering (FailTask then
-						// UnregisterOutputWriter).
-						w.engine.UnregisterOutputWriter(taskID)
+			if dw := w.engine.GetDualWriter(taskID); dw != nil {
+				// Primary (C2S) side = "up"/"c2s"; secondary (S2C) = "down"/"s2c".
+				pw := dw.C2S
+				if out.Direction == "down" || out.Direction == "s2c" {
+					pw = dw.S2C
+				}
+				if pw != nil {
+					if err := writePacketsTo(pw, out); err != nil {
+						zap.L().Error("dual-port writer error, failing task", zap.String("task_id", taskID), zap.Error(err))
+						atomic.AddInt64(&w.stats.Errors, 1)
+						if w.engine.OnOutputError != nil {
+							w.engine.OnOutputError(taskID, err)
+						} else {
+							w.engine.FailTask(taskID, "output writer error: "+err.Error())
+							w.engine.UnregisterDualWriter(taskID)
+						}
+						return
 					}
-					return
+					// Fall through to buffer + OnPacketWritten.
+				}
+			} else {
+				w.engine.outputMu.RLock()
+				writer, found := w.engine.outputWriters[taskID]
+				w.engine.outputMu.RUnlock()
+				if found && writer != nil {
+					if err := writePacketsTo(writer, out); err != nil {
+						zap.L().Error("output writer error, failing task",
+							zap.String("task_id", taskID),
+							zap.Error(err),
+						)
+						atomic.AddInt64(&w.stats.Errors, 1)
+						if w.engine.OnOutputError != nil {
+							w.engine.OnOutputError(taskID, err)
+						} else {
+							w.engine.FailTask(taskID, "output writer error: "+err.Error())
+							w.engine.UnregisterOutputWriter(taskID)
+						}
+						return
+					}
 				}
 			}
 		}
