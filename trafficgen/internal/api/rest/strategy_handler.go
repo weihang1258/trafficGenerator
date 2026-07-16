@@ -28,15 +28,16 @@ func NewStrategyHandler(db *storage.DB) *StrategyHandler {
 // CreateStrategyRequest represents a create strategy request.
 type CreateStrategyRequest struct {
 	Name        string                 `json:"name" binding:"required"`
-	Protocol    string                 `json:"protocol" binding:"required"`
+	Mode        string                 `json:"mode"`     // "synth" (default) | "replay"
+	Protocol    string                 `json:"protocol"` // required for synth; ignored for replay
 	Config      map[string]interface{} `json:"config" binding:"required"`
 	FlowControl *FlowControlRequest    `json:"flow_control"`
 }
 
 // FlowControlRequest represents flow control configuration.
 type FlowControlRequest struct {
-	Type  string  `json:"type" binding:"required"`  // "flows", "cps", "bps", "ratio", "time"
-	Value float64 `json:"value" binding:"required"` // 流数/速率/比例/时间
+	Type  string  `json:"type" binding:"required"`  // "flows", "bps", "time" (cps/ratio dropped)
+	Value float64 `json:"value" binding:"required"` // 流数/速率/时间
 }
 
 // StrategyResponse represents a strategy response.
@@ -44,6 +45,7 @@ type StrategyResponse struct {
 	ID          string                 `json:"id"`
 	UserID      string                 `json:"user_id"`
 	Name        string                 `json:"name"`
+	Mode        string                 `json:"mode"`
 	Protocol    string                 `json:"protocol"`
 	Config      map[string]interface{} `json:"config"`
 	FlowControl *FlowControlRequest    `json:"flow_control"`
@@ -73,96 +75,147 @@ func (h *StrategyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Validate network config fields
-	if errMsg := validateConfigNetwork(req.Config); errMsg != "" {
-		BadRequest(c, errMsg)
-		return
-	}
-	// Validate DSCP/ECN/VLAN ranges on the raw config before mapToFlowSpec
-	// truncates them to uint8/uint16 (otherwise dscp=256 silently wraps to 0).
-	if err := core.ValidateConfigRanges(req.Config); err != nil {
-		BadRequest(c, err.Error())
-		return
+	// Determine mode: default to synth
+	mode := req.Mode
+	if mode == "" {
+		mode = "synth"
 	}
 
-	// Validate protocol
-	validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true}
-	if req.Protocol == "" || !validProtocols[req.Protocol] {
-		BadRequest(c, "invalid or missing protocol: " + req.Protocol)
-		return
-	}
-	// Validate per-protocol sub-config fields (tcp.mss, icmp.type, etc.)
-	// that also truncate silently through uint16/uint8. Runs after protocol
-	// validation so req.Protocol is known-good.
-	if err := core.ValidateProtocolSubConfigs(req.Config, req.Protocol); err != nil {
-		BadRequest(c, err.Error())
-		return
-	}
-
-	// Set default flow control if not provided
-	if req.FlowControl == nil {
+	// Set default flow control for synth only (replay leaves nil unless caller
+	// explicitly sets one - and only time is accepted then).
+	if req.FlowControl == nil && mode != "replay" {
 		req.FlowControl = &FlowControlRequest{
 			Type:  "flows",
 			Value: 1,
 		}
 	}
 
+	if mode == "replay" {
+		h.createReplayStrategy(c, userID, &req)
+		return
+	}
+	h.createSynthStrategy(c, userID, mode, &req)
+}
 
-		// Validate flow_control type
-		validFlowTypes := map[string]bool{"flows": true, "cps": true, "bps": true, "ratio": true, "time": true}
-		if !validFlowTypes[req.FlowControl.Type] {
-			BadRequest(c, "invalid flow_control type: must be flows, cps, bps, ratio, or time")
-			return
-		}
-
-		// Validate flow_control value is positive
-		if req.FlowControl.Value <= 0 {
-			BadRequest(c, "flow_control value must be positive")
-			return
-		}
-	// Serialize config and flow control
+// createReplayStrategy validates + persists a replay-mode strategy. Skips all
+// synth-specific validation (network/ranges/protocol/sub-configs); the config
+// is validated as a ReplaySpec instead. Strategy-level flow_control only
+// accepts "time" (flows is unsupported, bps folds into speed.mode).
+func (h *StrategyHandler) createReplayStrategy(c *gin.Context, userID string, req *CreateStrategyRequest) {
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		BadRequest(c, "invalid config format")
 		return
 	}
+	if err := core.ValidateReplaySpec(json.RawMessage(configJSON)); err != nil {
+		BadRequest(c, err.Error())
+		return
+	}
+	if req.FlowControl != nil {
+		if req.FlowControl.Type != "time" {
+			BadRequest(c, "replay strategy flow_control only supports type=time")
+			return
+		}
+		if req.FlowControl.Value <= 0 {
+			BadRequest(c, "flow_control value must be positive")
+			return
+		}
+	}
+	var flowControlJSON []byte
+	if req.FlowControl != nil {
+		flowControlJSON, err = json.Marshal(req.FlowControl)
+		if err != nil {
+			BadRequest(c, "invalid flow_control format")
+			return
+		}
+	}
+	configHash := calculateConfigHash("replay", "", string(configJSON), string(flowControlJSON))
 
+	var existing storage.StrategyModel
+	if err := h.db.Where("user_id = ? AND config_hash = ?", userID, configHash).First(&existing).Error; err == nil {
+		Success(c, map[string]string{"id": existing.ID, "message": "strategy already exists"})
+		return
+	}
+	strategy := &storage.StrategyModel{
+		ID:          uuid.New().String(),
+		UserID:      userID,
+		Name:        req.Name,
+		Mode:        "replay",
+		Config:      string(configJSON),
+		FlowControl: string(flowControlJSON),
+		ConfigHash:  configHash,
+	}
+	if err := h.db.Create(strategy).Error; err != nil {
+		InternalError(c, "failed to create strategy: "+err.Error())
+		return
+	}
+	Created(c, map[string]string{"id": strategy.ID})
+}
+
+// createSynthStrategy validates + persists a synth-mode strategy (the original
+// path). cps/ratio flow-control types are rejected; only flows/bps/time are
+// accepted.
+func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode string, req *CreateStrategyRequest) {
+	if errMsg := validateConfigNetwork(req.Config); errMsg != "" {
+		BadRequest(c, errMsg)
+		return
+	}
+	if err := core.ValidateConfigRanges(req.Config); err != nil {
+		BadRequest(c, err.Error())
+		return
+	}
+
+	validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true}
+	if req.Protocol == "" || !validProtocols[req.Protocol] {
+		BadRequest(c, "invalid or missing protocol: "+req.Protocol)
+		return
+	}
+	if err := core.ValidateProtocolSubConfigs(req.Config, req.Protocol); err != nil {
+		BadRequest(c, err.Error())
+		return
+	}
+
+	validFlowTypes := map[string]bool{"flows": true, "bps": true, "time": true}
+	if !validFlowTypes[req.FlowControl.Type] {
+		BadRequest(c, "invalid flow_control type: must be flows, bps, or time")
+		return
+	}
+	if req.FlowControl.Value <= 0 {
+		BadRequest(c, "flow_control value must be positive")
+		return
+	}
+
+	configJSON, err := json.Marshal(req.Config)
+	if err != nil {
+		BadRequest(c, "invalid config format")
+		return
+	}
 	flowControlJSON, err := json.Marshal(req.FlowControl)
 	if err != nil {
 		BadRequest(c, "invalid flow_control format")
 		return
 	}
+	configHash := calculateConfigHash(mode, req.Protocol, string(configJSON), string(flowControlJSON))
 
-	// Calculate config hash for idempotent creation
-	configHash := calculateConfigHash(req.Protocol, string(configJSON), string(flowControlJSON))
-
-	// Check if strategy already exists for this user
-	var existingStrategy storage.StrategyModel
-	if err := h.db.Where("user_id = ? AND config_hash = ?", userID, configHash).First(&existingStrategy).Error; err == nil {
-		// Strategy exists, return existing ID
-		Success(c, map[string]string{
-			"id":      existingStrategy.ID,
-			"message": "strategy already exists",
-		})
+	var existing storage.StrategyModel
+	if err := h.db.Where("user_id = ? AND config_hash = ?", userID, configHash).First(&existing).Error; err == nil {
+		Success(c, map[string]string{"id": existing.ID, "message": "strategy already exists"})
 		return
 	}
-
-	// Create new strategy
 	strategy := &storage.StrategyModel{
 		ID:          uuid.New().String(),
 		UserID:      userID,
 		Name:        req.Name,
+		Mode:        "synth",
 		Protocol:    req.Protocol,
 		Config:      string(configJSON),
 		FlowControl: string(flowControlJSON),
 		ConfigHash:  configHash,
 	}
-
 	if err := h.db.Create(strategy).Error; err != nil {
 		InternalError(c, "failed to create strategy: "+err.Error())
 		return
 	}
-
 	Created(c, map[string]string{"id": strategy.ID})
 }
 
@@ -188,7 +241,6 @@ func (h *StrategyHandler) List(c *gin.Context) {
 		var flowControl FlowControlRequest
 		json.Unmarshal([]byte(s.FlowControl), &flowControl)
 
-		// Count tasks using this strategy
 		var taskCount int64
 		h.db.Model(&storage.TaskModel{}).
 			Where("user_id = ? AND EXISTS (SELECT 1 FROM json_each(strategy_ids) WHERE json_each.value = ?)", userID, s.ID).
@@ -198,6 +250,7 @@ func (h *StrategyHandler) List(c *gin.Context) {
 			ID:          s.ID,
 			UserID:      s.UserID,
 			Name:        s.Name,
+			Mode:        s.Mode,
 			Protocol:    s.Protocol,
 			Config:      config,
 			FlowControl: &flowControl,
@@ -244,6 +297,7 @@ func (h *StrategyHandler) Get(c *gin.Context) {
 		ID:          strategy.ID,
 		UserID:      strategy.UserID,
 		Name:        strategy.Name,
+		Mode:        strategy.Mode,
 		Protocol:    strategy.Protocol,
 		Config:      config,
 		FlowControl: &flowControl,
@@ -272,67 +326,151 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// Validate network config fields
-	if errMsg := validateConfigNetwork(req.Config); errMsg != "" {
-		BadRequest(c, errMsg)
-		return
-	}
-	// Validate DSCP/ECN/VLAN ranges on the raw config before mapToFlowSpec
-	// truncates them to uint8/uint16 (otherwise dscp=256 silently wraps to 0).
-	if err := core.ValidateConfigRanges(req.Config); err != nil {
-		BadRequest(c, err.Error())
-		return
-	}
-	// Validate per-protocol sub-config fields (tcp.mss, icmp.type, etc.)
-	// that also truncate silently through uint16/uint8. Unknown/empty protocol
-	// is a no-op (switch has no matching case).
-	if err := core.ValidateProtocolSubConfigs(req.Config, req.Protocol); err != nil {
-		BadRequest(c, err.Error())
-		return
-	}
-
-	// Check if strategy exists and belongs to user
+	// Determine mode: explicit request mode takes precedence; when omitted,
+	// read the existing strategy's mode from DB (方案 A: preserve original
+	// mode on updates that don't specify mode). If the strategy doesn't exist
+	// or isn't owned, fall back to synth validation -- bad input still gets
+	// 400 (STRAT4-BR2), good input gets 404 after validation.
+	mode := req.Mode
 	var strategy storage.StrategyModel
-	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&strategy).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			NotFound(c, "strategy not found")
+	dbLoaded := false
+	if mode == "" {
+		if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&strategy).Error; err == nil {
+			dbLoaded = true
+			mode = strategy.Mode
+			if mode == "" {
+				mode = "synth"
+			}
+		} else if err != gorm.ErrRecordNotFound {
+			InternalError(c, "failed to get strategy: "+err.Error())
 			return
 		}
-		InternalError(c, "failed to get strategy: "+err.Error())
+		// ErrRecordNotFound: mode stays "" -> defaults to synth below. Validation
+		// runs, then 404 is returned post-validation (preserves STRAT4-BR2).
+	}
+
+	if mode == "" {
+		mode = "synth"
+	}
+
+	// Validate request. When mode was provided explicitly, this runs BEFORE
+	// the ownership check (STRAT4-BR2). When mode was empty, validation also
+	// runs before the not-found response (bad input -> 400, good input -> 404).
+	if mode == "replay" {
+		configJSON, err := json.Marshal(req.Config)
+		if err != nil {
+			BadRequest(c, "invalid config format")
+			return
+		}
+		if err := core.ValidateReplaySpec(json.RawMessage(configJSON)); err != nil {
+			BadRequest(c, err.Error())
+			return
+		}
+		if req.FlowControl != nil {
+			if req.FlowControl.Type != "time" {
+				BadRequest(c, "replay strategy flow_control only supports type=time")
+				return
+			}
+			if req.FlowControl.Value <= 0 {
+				BadRequest(c, "flow_control value must be positive")
+				return
+			}
+		}
+	} else {
+		if errMsg := validateConfigNetwork(req.Config); errMsg != "" {
+			BadRequest(c, errMsg)
+			return
+		}
+		if err := core.ValidateConfigRanges(req.Config); err != nil {
+			BadRequest(c, err.Error())
+			return
+		}
+		validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true}
+		if req.Protocol == "" || !validProtocols[req.Protocol] {
+			BadRequest(c, "invalid or missing protocol: "+req.Protocol)
+			return
+		}
+		if err := core.ValidateProtocolSubConfigs(req.Config, req.Protocol); err != nil {
+			BadRequest(c, err.Error())
+			return
+		}
+		if req.FlowControl != nil {
+			validFlowTypes := map[string]bool{"flows": true, "bps": true, "time": true}
+			if !validFlowTypes[req.FlowControl.Type] {
+				BadRequest(c, "invalid flow_control type: must be flows, bps, or time")
+				return
+			}
+			if req.FlowControl.Value <= 0 {
+				BadRequest(c, "flow_control value must be positive")
+				return
+			}
+		}
+	}
+
+	// If the empty-mode DB lookup failed (not found / not owned), return 404
+	// now that validation has passed. Preserves STRAT4-BR2: bad input got 400
+	// above; good input gets 404 here.
+	if !dbLoaded && req.Mode == "" {
+		NotFound(c, "strategy not found")
 		return
 	}
 
-
-	// Validate flow_control type and value if provided
-	if req.FlowControl != nil {
-		validFlowTypes := map[string]bool{"flows": true, "cps": true, "bps": true, "ratio": true, "time": true}
-		if !validFlowTypes[req.FlowControl.Type] {
-			BadRequest(c, "invalid flow_control type: must be flows, cps, bps, ratio, or time")
-			return
-		}
-		if req.FlowControl.Value <= 0 {
-			BadRequest(c, "flow_control value must be positive")
+	// DB lookup if not already done above (mode was provided -> validate
+	// first, then load). When mode was empty, the lookup already happened.
+	if !dbLoaded {
+		if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&strategy).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				NotFound(c, "strategy not found")
+				return
+			}
+			InternalError(c, "failed to get strategy: "+err.Error())
 			return
 		}
 	}
-	// Serialize config and flow control
+
+	if mode == "replay" {
+		configJSON, err := json.Marshal(req.Config)
+		if err != nil {
+			BadRequest(c, "invalid config format")
+			return
+		}
+		var flowControlJSON []byte
+		if req.FlowControl != nil {
+			flowControlJSON, err = json.Marshal(req.FlowControl)
+			if err != nil {
+				BadRequest(c, "invalid flow_control format")
+				return
+			}
+		}
+		strategy.Name = req.Name
+		strategy.Mode = "replay"
+		strategy.Protocol = ""
+		strategy.Config = string(configJSON)
+		strategy.FlowControl = string(flowControlJSON)
+		strategy.ConfigHash = calculateConfigHash("replay", "", string(configJSON), string(flowControlJSON))
+		if err := h.db.Save(&strategy).Error; err != nil {
+			InternalError(c, "failed to update strategy: "+err.Error())
+			return
+		}
+		SuccessWithMessage(c, "strategy updated", nil)
+		return
+	}
+
+	// synth mode update (validation already done above)
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		BadRequest(c, "invalid config format")
 		return
 	}
-
 	flowControlJSON, err := json.Marshal(req.FlowControl)
 	if err != nil {
 		BadRequest(c, "invalid flow_control format")
 		return
 	}
+	configHash := calculateConfigHash(mode, req.Protocol, string(configJSON), string(flowControlJSON))
 
-	// Calculate new config hash
-	configHash := calculateConfigHash(req.Protocol, string(configJSON), string(flowControlJSON))
-
-	// Update strategy
 	strategy.Name = req.Name
+	strategy.Mode = "synth"
 	strategy.Protocol = req.Protocol
 	strategy.Config = string(configJSON)
 	strategy.FlowControl = string(flowControlJSON)
@@ -342,7 +480,6 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 		InternalError(c, "failed to update strategy: "+err.Error())
 		return
 	}
-
 	SuccessWithMessage(c, "strategy updated", nil)
 }
 
@@ -360,7 +497,6 @@ func (h *StrategyHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	// Check if strategy exists and belongs to user
 	var strategy storage.StrategyModel
 	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&strategy).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -371,7 +507,6 @@ func (h *StrategyHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	// Check if strategy is used by any tasks (JSON array exact match)
 	var taskCount int64
 	h.db.Model(&storage.TaskModel{}).
 		Where("user_id = ? AND EXISTS (SELECT 1 FROM json_each(strategy_ids) WHERE json_each.value = ?)", userID, id).
@@ -381,7 +516,6 @@ func (h *StrategyHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	// Delete strategy
 	if err := h.db.Delete(&strategy).Error; err != nil {
 		InternalError(c, "failed to delete strategy: "+err.Error())
 		return
@@ -390,9 +524,11 @@ func (h *StrategyHandler) Delete(c *gin.Context) {
 	SuccessWithMessage(c, "strategy deleted", nil)
 }
 
-// calculateConfigHash calculates a hash for strategy configuration.
-func calculateConfigHash(protocol, config, flowControl string) string {
-	data := protocol + config + flowControl
+// calculateConfigHash calculates a hash for strategy configuration. mode is
+// included so synth and replay configs with identical bodies get distinct
+// hashes (they are distinct strategy types).
+func calculateConfigHash(mode, protocol, config, flowControl string) string {
+	data := mode + protocol + config + flowControl
 	hash := sha256.Sum256([]byte(data))
 	return hex.EncodeToString(hash[:])
 }
@@ -444,7 +580,6 @@ func (h *StrategyHandler) ListTasks(c *gin.Context) {
 		return
 	}
 
-	// Verify strategy exists and belongs to user
 	var strategy storage.StrategyModel
 	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&strategy).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -455,7 +590,6 @@ func (h *StrategyHandler) ListTasks(c *gin.Context) {
 		return
 	}
 
-	// Find tasks referencing this strategy
 	var tasks []storage.TaskModel
 	h.db.Where("user_id = ? AND EXISTS (SELECT 1 FROM json_each(strategy_ids) WHERE json_each.value = ?)", userID, id).
 		Select("id, name, status").

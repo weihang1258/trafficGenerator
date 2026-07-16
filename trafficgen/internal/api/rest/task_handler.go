@@ -237,6 +237,10 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		// Batch tasks register a single writer under the plain taskID
 		// (no strategy suffix); unregister it too. No-op for strategy tasks.
 		h.engine.UnregisterOutputWriter(taskID)
+
+		// Clean up task-level flow control state (parent rate bucket +
+		// shared flow counter). Safe no-op when no ceiling was set.
+		h.engine.CleanupTaskFlowControl(taskID)
 	}
 }
 
@@ -307,6 +311,7 @@ type TaskStatsResponse struct {
 type StrategyBrief struct {
 	ID          string               `json:"id"`
 	Name        string               `json:"name"`
+	Mode        string               `json:"mode,omitempty"`
 	Protocol    string               `json:"protocol"`
 	FlowControl *FlowControlRequest  `json:"flow_control,omitempty"`
 }
@@ -362,6 +367,19 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Validate task-level flow control (if provided).
+	if req.FlowControl != nil {
+		validFlowTypes := map[string]bool{"flows": true, "bps": true, "time": true}
+		if !validFlowTypes[req.FlowControl.Type] {
+			BadRequest(c, "invalid flow_control type: must be flows, bps, or time")
+			return
+		}
+		if req.FlowControl.Value <= 0 {
+			BadRequest(c, "flow_control value must be positive")
+			return
+		}
+	}
+
 	// Validate strategy IDs and capture primary protocol
 	var primaryProtocol string
 	for _, strategyID := range req.StrategyIDs {
@@ -379,6 +397,21 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		}
 	}
 
+	// Collect strategies for replay+bps conflict check (needed below)
+	strategiesForFC := make([]storage.StrategyModel, 0, len(req.StrategyIDs))
+	for _, strategyID := range req.StrategyIDs {
+		var strategy storage.StrategyModel
+		if err := h.db.Where("id = ? AND user_id = ?", strategyID, userID).First(&strategy).Error; err != nil {
+			// already validated above, skip on error
+			continue
+		}
+		strategiesForFC = append(strategiesForFC, strategy)
+	}
+	if err := validateReplayBPSConflict(strategiesForFC, req.FlowControl); err != nil {
+		BadRequest(c, err.Error())
+		return
+	}
+
 	// Serialize for storage
 	outputConfigJSON, _ := json.Marshal(req.OutputConfig)
 	var flowControlJSON []byte
@@ -393,10 +426,11 @@ func (h *TaskHandler) Create(c *gin.Context) {
 	sort.Strings(sortedStrategyIDs)
 	sortedStrategyIDsJSON, _ := json.Marshal(sortedStrategyIDs)
 
-	// Check if an ACTIVE task already exists with same config for this user
+	// Check if an ACTIVE task already exists with same config for this user.
+	// FlowControl is part of the identity: different ceilings = different task.
 	var existingTask storage.TaskModel
-	if err := h.db.Where("user_id = ? AND strategy_ids = ? AND output_config = ? AND status IN ?",
-		userID, string(sortedStrategyIDsJSON), string(outputConfigJSON),
+	if err := h.db.Where("user_id = ? AND strategy_ids = ? AND output_config = ? AND flow_control = ? AND status IN ?",
+		userID, string(sortedStrategyIDsJSON), string(outputConfigJSON), string(flowControlJSON),
 		[]string{"pending", "running"}).First(&existingTask).Error; err == nil {
 		Success(c, map[string]string{
 			"id":      existingTask.ID,
@@ -763,8 +797,8 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		}
 	}
 
-	var coreTasks []*core.Task
-	var failedIDs []string
+	// Load all strategies first for conflict validation
+	var loadedStrategies []storage.StrategyModel
 	for _, strategyID := range strategyIDs {
 		var strategy storage.StrategyModel
 		if err := h.db.Where("id = ? AND user_id = ?", strategyID, userID).First(&strategy).Error; err != nil {
@@ -778,11 +812,29 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			InternalError(c, "failed to validate strategy: "+err.Error())
 			return
 		}
+		loadedStrategies = append(loadedStrategies, strategy)
+	}
+	// Replay+bps conflict: replay original/multiplier + task bps is forbidden
+	var taskFC *FlowControlRequest
+	if task.FlowControl != "" {
+		taskFC = &FlowControlRequest{}
+		json.Unmarshal([]byte(task.FlowControl), taskFC)
+	}
+	if err := validateReplayBPSConflict(loadedStrategies, taskFC); err != nil {
+		task.Status = "error"
+		task.ErrorMessage = err.Error()
+		h.db.Save(&task)
+		BadRequest(c, task.ErrorMessage)
+		return
+	}
 
+	var coreTasks []*core.Task
+	var failedIDs []string
+	for _, strategy := range loadedStrategies {
 		coreTask, err := core.StrategyModelToTask(&task, &strategy, portGroupIface)
 		if err != nil {
-			log.Printf("error converting strategy %s: %v", strategyID, err)
-			failedIDs = append(failedIDs, strategyID)
+			log.Printf("error converting strategy %s: %v", strategy.ID, err)
+			failedIDs = append(failedIDs, strategy.ID)
 			continue
 		}
 		coreTasks = append(coreTasks, coreTask)
@@ -880,6 +932,10 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		task.Status = "error"
 		task.ErrorMessage = "failed to start any strategy"
 		h.db.Save(&task)
+		// Clean up flow-control state created during the failed SubmitTask attempts
+		// (parent rate bucket + shared flow counter). Without this, a task that
+		// never successfully starts leaks entries in the engine's maps.
+		h.engine.CleanupTaskFlowControl(id)
 		InternalError(c, task.ErrorMessage)
 		return
 	}
@@ -973,6 +1029,9 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 		}
 		stopped = append(stopped, engineTaskID)
 	}
+
+	// Clean up task-level flow control state (parent bucket + flow counter).
+	h.engine.CleanupTaskFlowControl(id)
 
 	SuccessWithMessage(c, "task stopped", map[string]interface{}{
 		"stopped_engine_tasks": stopped,
@@ -1169,6 +1228,7 @@ func convertTaskToResponseWithDB(t *storage.TaskModel, db *storage.DB) TaskRespo
 				resp.Strategies = append(resp.Strategies, StrategyBrief{
 					ID:          s.ID,
 					Name:        s.Name,
+					Mode:        s.Mode,
 					Protocol:    s.Protocol,
 					FlowControl: fc,
 				})
@@ -1188,6 +1248,30 @@ func calculateTaskHash(strategyIDs []string, outputConfig string) string {
 	data += outputConfig
 	hash := sha256.Sum256([]byte(data))
 	return hex.EncodeToString(hash[:])
+}
+
+// validateReplayBPSConflict checks that no replay strategy with original or
+// multiplier speed coexists with bps task-level flow control. The R-F2 invariant
+// forbids a TimestampPacer (used by original/multiplier) from sharing a packet
+// with the engine's parent bps bucket — so if the task ceiling is bps, every
+// replay strategy must use bps speed mode (engine child bucket, no _pacer).
+func validateReplayBPSConflict(strategies []storage.StrategyModel, taskFC *FlowControlRequest) error {
+	if taskFC == nil || taskFC.Type != "bps" {
+		return nil
+	}
+	for _, s := range strategies {
+		if s.Mode == "replay" {
+			var rs struct {
+				Speed struct {
+					Mode string `json:"mode"`
+				} `json:"speed"`
+			}
+			if json.Unmarshal([]byte(s.Config), &rs) == nil && (rs.Speed.Mode == "original" || rs.Speed.Mode == "multiplier") {
+				return fmt.Errorf("replay strategy %q has %s speed limit, cannot combine with bps task-level flow control", s.Name, rs.Speed.Mode)
+			}
+		}
+	}
+	return nil
 }
 
 // currentTime returns current time (helper for testing).

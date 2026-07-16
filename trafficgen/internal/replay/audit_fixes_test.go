@@ -168,7 +168,7 @@ func TestAuditFix_LoopTimestampOffset(t *testing.T) {
 		Direction:   "single",
 		Loop:        2,
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestAuditFix_SerialInterleave(t *testing.T) {
 			Interleave: "serial",
 		},
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestAuditFix_SeqOffsetReRandomizedPerRound(t *testing.T) {
 			SeqOffset: core.StrategyConfig{Strategy: "random", Range: []interface{}{"1000", "9999"}, Seed: 42},
 		},
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -389,7 +389,7 @@ func TestAuditFix_DirStatusUncertainWarning(t *testing.T) {
 		Speed:       ReplaySpeed{Mode: "max"},
 		Direction:   "single",
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}

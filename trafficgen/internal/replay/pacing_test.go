@@ -70,7 +70,8 @@ func TestNewPacer_Selection(t *testing.T) {
 		{"original", "*replay.TimestampPacer"},
 		{"multiplier", "*replay.TimestampPacer"},
 		{"bps", "*replay.TokenBucketPacer"},
-		{"pps", "*replay.PPSPacer"},
+		// pps removed: falls through to MaxPacer
+		{"pps", "replay.MaxPacer"},
 		{"max", "replay.MaxPacer"},
 		{"", "replay.MaxPacer"},
 	}

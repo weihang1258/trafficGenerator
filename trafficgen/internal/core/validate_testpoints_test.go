@@ -241,7 +241,7 @@ func TestValidateBatchSpec_Branches(t *testing.T) {
 func TestValidateBatchSpec_ReplayValid(t *testing.T) {
 	batch := BatchSpec{Classes: []TrafficClass{{
 		ID: "r1", Type: "replay",
-		Replay: json.RawMessage(`{"pcap_asset_id":"a1","speed":{"mode":"max"},"direction":"single"}`),
+		Replay: json.RawMessage(`{"pcap_asset_id":"a1","speed":{"mode":"original"},"direction":"single"}`),
 	}}}
 	if err := ValidateBatchSpec(batch); err != nil {
 		t.Errorf("valid replay: %v", err)
@@ -261,7 +261,7 @@ func TestValidateBatchSpec_ReplayInvalidSpec(t *testing.T) {
 func TestValidateBatchSpec_ReplayFlowCountIgnored(t *testing.T) {
 	batch := BatchSpec{Classes: []TrafficClass{{
 		ID: "r1", Type: "replay", FlowCount: 0,
-		Replay: json.RawMessage(`{"pcap_asset_id":"a1","speed":{"mode":"max"}}`),
+		Replay: json.RawMessage(`{"pcap_asset_id":"a1","speed":{"mode":"original"}}`),
 	}}}
 	if err := ValidateBatchSpec(batch); err != nil {
 		t.Errorf("replay should ignore flow_count: %v", err)
@@ -278,27 +278,34 @@ func TestValidateReplaySpec_Branches(t *testing.T) {
 	}{
 		{"valid original", `{"pcap_asset_id":"a1","speed":{"mode":"original"},"direction":"single"}`, ""},
 		{"valid multiplier", `{"pcap_asset_id":"a1","speed":{"mode":"multiplier","multiplier":2}}`, ""},
+		{"valid multiplier slow-mo", `{"pcap_asset_id":"a1","speed":{"mode":"multiplier","multiplier":0.5}}`, ""},
+		{"valid multiplier one", `{"pcap_asset_id":"a1","speed":{"mode":"multiplier","multiplier":1}}`, ""},
+		// M4: multiplier <= 0 is invalid (0 = no packets, negative = time backwards).
+		// Before the fix, NewPacer silently fell back to 1.0 for <= 0.
+		{"multiplier zero rejected", `{"pcap_asset_id":"a1","speed":{"mode":"multiplier","multiplier":0}}`, "multiplier > 0"},
+		{"multiplier neg rejected", `{"pcap_asset_id":"a1","speed":{"mode":"multiplier","multiplier":-1.5}}`, "multiplier > 0"},
 		{"valid bps", `{"pcap_asset_id":"a1","speed":{"mode":"bps","bps":"1M"}}`, ""},
-		{"valid pps", `{"pcap_asset_id":"a1","speed":{"mode":"pps","pps":100}}`, ""},
-		{"valid max", `{"pcap_asset_id":"a1","speed":{"mode":"max"}}`, ""},
+		// pps + max were removed (folded to default). Spec rejects them explicitly.
+		{"pps rejected", `{"pcap_asset_id":"a1","speed":{"mode":"pps","pps":100}}`, "invalid speed mode"},
+		{"max rejected", `{"pcap_asset_id":"a1","speed":{"mode":"max"}}`, "invalid speed mode"},
 		{"speed empty", `{"pcap_asset_id":"a1"}`, ""},
-		{"direction dual", `{"pcap_asset_id":"a1","speed":{"mode":"max"},"direction":"dual"}`, ""},
-		{"direction empty", `{"pcap_asset_id":"a1","speed":{"mode":"max"}}`, ""},
-		{"checksum recompute", `{"pcap_asset_id":"a1","speed":{"mode":"max"},"checksum_mode":"recompute"}`, ""},
-		{"checksum preserve", `{"pcap_asset_id":"a1","speed":{"mode":"max"},"checksum_mode":"preserve"}`, ""},
-		{"checksum empty", `{"pcap_asset_id":"a1","speed":{"mode":"max"}}`, ""},
+		{"direction dual", `{"pcap_asset_id":"a1","speed":{"mode":"original"},"direction":"dual"}`, ""},
+		{"direction empty", `{"pcap_asset_id":"a1","speed":{"mode":"original"}}`, ""},
+		{"checksum recompute", `{"pcap_asset_id":"a1","speed":{"mode":"original"},"checksum_mode":"recompute"}`, ""},
+		{"checksum preserve", `{"pcap_asset_id":"a1","speed":{"mode":"original"},"checksum_mode":"preserve"}`, ""},
+		{"checksum empty", `{"pcap_asset_id":"a1","speed":{"mode":"original"}}`, ""},
 		{"invalid json", `{not json`, "invalid replay spec JSON"},
-		{"no pcap asset id", `{"speed":{"mode":"max"}}`, "replay spec missing pcap_asset_id"},
+		{"no pcap asset id", `{"speed":{"mode":"original"}}`, "replay spec missing pcap_asset_id"},
 		{"speed bogus", `{"pcap_asset_id":"a1","speed":{"mode":"bogus"}}`, "invalid speed mode"},
 		{"bps no value", `{"pcap_asset_id":"a1","speed":{"mode":"bps"}}`, "bps mode requires a bps value"},
-		{"pps zero", `{"pcap_asset_id":"a1","speed":{"mode":"pps","pps":0}}`, "pps mode requires pps > 0"},
-		{"pps neg", `{"pcap_asset_id":"a1","speed":{"mode":"pps","pps":-1}}`, "pps mode requires pps > 0"},
-		{"direction bogus", `{"pcap_asset_id":"a1","speed":{"mode":"max"},"direction":"triple"}`, "invalid direction"},
-		{"checksum bogus", `{"pcap_asset_id":"a1","speed":{"mode":"max"},"checksum_mode":"magic"}`, "invalid checksum_mode"},
+		{"pps zero", `{"pcap_asset_id":"a1","speed":{"mode":"pps","pps":0}}`, "invalid speed mode"},
+		{"pps neg", `{"pcap_asset_id":"a1","speed":{"mode":"pps","pps":-1}}`, "invalid speed mode"},
+		{"direction bogus", `{"pcap_asset_id":"a1","speed":{"mode":"original"},"direction":"triple"}`, "invalid direction"},
+		{"checksum bogus", `{"pcap_asset_id":"a1","speed":{"mode":"original"},"checksum_mode":"magic"}`, "invalid checksum_mode"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := validateReplaySpec(json.RawMessage(c.json))
+			err := ValidateReplaySpec(json.RawMessage(c.json))
 			if c.wantErr != "" {
 				assertErrContains(t, err, c.wantErr)
 			} else if err != nil {

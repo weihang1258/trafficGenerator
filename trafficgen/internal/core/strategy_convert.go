@@ -11,6 +11,69 @@ import (
 // Each strategy produces one engine task with a composite ID "{taskID}-{strategyID}".
 // ifaceOverride, when non-empty, overrides the interface name (resolved from port_group by caller).
 func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.StrategyModel, ifaceOverride string) (*Task, error) {
+	// Output config from task model — parsed first because replay and synth
+	// branches both need it.
+	var outputCfg struct {
+		PortGroupID string `json:"port_group_id"`
+		PcapPath    string `json:"pcap_path"`
+	}
+	json.Unmarshal([]byte(taskModel.OutputConfig), &outputCfg)
+
+	outputMode := "pcap"
+	iface := ""
+	pcapFile := outputCfg.PcapPath
+	if taskModel.OutputType == "port_group" {
+		outputMode = "interface"
+		pcapFile = ""
+		iface = ifaceOverride
+	} else if outputCfg.PcapPath != "" {
+		pcapFile = outputCfg.PcapPath
+	}
+
+	// Task-level flow control: parsed into typed fields for the engine to
+	// consume as an aggregate ceiling (parent rate bucket / shared flow
+	// counter / parent context deadline). Unlike the legacy behaviour, this
+	// does NOT overwrite spec.BPS/Count/Duration — the strategy-level limits
+	// remain in spec and the task-level value caps the aggregate on top.
+	var taskFC struct {
+		Type  string  `json:"type"`
+		Value float64 `json:"value"`
+	}
+	if taskModel.FlowControl != "" {
+		json.Unmarshal([]byte(taskModel.FlowControl), &taskFC)
+	}
+
+	// Replay branch: no protocol planner, no mapToFlowSpec. The raw strategy
+	// Config is passed as Replay JSON for the replay planner to interpret.
+	if strategy.Mode == "replay" {
+		task := &Task{
+			ID:           fmt.Sprintf("%s-%s", taskModel.ID, strategy.ID),
+			Name:         strategy.Name,
+			Mode:         "replay",
+			Replay:       json.RawMessage(strategy.Config),
+			ClassID:      fmt.Sprintf("%s-%s", taskModel.ID, strategy.ID),
+			ParentTaskID: taskModel.ID,
+			Interface:    iface,
+			OutputMode:   outputMode,
+			PcapFile:     pcapFile,
+			TaskFCType:   taskFC.Type,
+			TaskFCValue:  taskFC.Value,
+			UserID:       taskModel.UserID,
+		}
+		// bps mode: extract speed.bps into Spec.BPS so the engine creates a
+		// per-strategy child rate-limiter bucket for this task (same as synth).
+		var rs struct {
+			Speed struct {
+				Mode string `json:"mode"`
+				BPS  string `json:"bps"`
+			} `json:"speed"`
+		}
+		if json.Unmarshal([]byte(strategy.Config), &rs) == nil && rs.Speed.Mode == "bps" {
+			task.Spec.BPS = rs.Speed.BPS
+		}
+		return task, nil
+	}
+
 	var cfg map[string]interface{}
 	if err := json.Unmarshal([]byte(strategy.Config), &cfg); err != nil {
 		return nil, fmt.Errorf("invalid strategy config JSON: %w", err)
@@ -35,50 +98,18 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 		spec.Duration = int(fc.Value)
 	}
 
-	// Output config from task model
-	var outputCfg struct {
-		PortGroupID string `json:"port_group_id"`
-		PcapPath    string `json:"pcap_path"`
-	}
-	json.Unmarshal([]byte(taskModel.OutputConfig), &outputCfg)
-
-	outputMode := "pcap"
-	iface := ""
-	pcapFile := outputCfg.PcapPath
-	if taskModel.OutputType == "port_group" {
-		outputMode = "interface"
-		pcapFile = ""
-		iface = ifaceOverride
-	} else if outputCfg.PcapPath != "" {
-		pcapFile = outputCfg.PcapPath
-	}
-
-	// Task-level flow control override
-	var taskFC struct {
-		Type  string  `json:"type"`
-		Value float64 `json:"value"`
-	}
-	if taskModel.FlowControl != "" {
-		json.Unmarshal([]byte(taskModel.FlowControl), &taskFC)
-		switch taskFC.Type {
-		case "bps":
-			spec.BPS = formatBPS(taskFC.Value)
-		case "flows":
-			spec.Count = int(taskFC.Value)
-		case "time":
-			spec.Duration = int(taskFC.Value)
-		}
-	}
-
 	return &Task{
-		ID:         fmt.Sprintf("%s-%s", taskModel.ID, strategy.ID),
-		Name:       strategy.Name,
-		Protocol:   strategy.Protocol,
-		Spec:       spec,
-		ClassID:    taskModel.ID,
-		Interface:  iface,
-		OutputMode: outputMode,
-		PcapFile:   pcapFile,
+		ID:           fmt.Sprintf("%s-%s", taskModel.ID, strategy.ID),
+		Name:         strategy.Name,
+		Protocol:     strategy.Protocol,
+		Spec:         spec,
+		ClassID:      fmt.Sprintf("%s-%s", taskModel.ID, strategy.ID),
+		ParentTaskID: taskModel.ID,
+		Interface:    iface,
+		OutputMode:   outputMode,
+		PcapFile:     pcapFile,
+		TaskFCType:   taskFC.Type,
+		TaskFCValue:  taskFC.Value,
 	}, nil
 }
 

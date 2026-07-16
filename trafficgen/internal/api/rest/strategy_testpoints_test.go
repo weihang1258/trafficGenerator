@@ -39,7 +39,7 @@ func createTestStrategy(t *testing.T, db *storage.DB, userID, name, protocol str
 	t.Helper()
 	config := `{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"}`
 	fc := `{"type":"flows","value":1}`
-	ch := calculateConfigHash(protocol, config, fc)
+	ch := calculateConfigHash("synth", protocol, config, fc)
 	id := uuid.New().String()
 	if err := db.Create(&storage.StrategyModel{
 		ID: id, UserID: userID, Name: name, Protocol: protocol,

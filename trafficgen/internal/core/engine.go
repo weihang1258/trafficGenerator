@@ -46,6 +46,9 @@ type Engine struct {
 	rateLimiters map[string]*TokenBucket
 	rateMu       sync.RWMutex
 
+	// Flow counters for task-level flows ceiling. Keyed by parentTaskID.
+	flowCounters map[string]*int64
+
 	// State
 	running   atomic.Bool
 	wg        sync.WaitGroup
@@ -140,6 +143,7 @@ func NewEngine(config EngineConfig) *Engine {
 		config:        config,
 		planners:      make(map[string]ProtocolPlanner),
 		rateLimiters:  make(map[string]*TokenBucket),
+		flowCounters:  make(map[string]*int64),
 		taskStore:     make(map[string]*taskEntry),
 		outputWriters: make(map[string]PacketWriter),
 		dualWriters:   make(map[string]*DualPortWriter),
@@ -257,7 +261,7 @@ func (e *Engine) Start() error {
 	e.configWorkers = make([]*ConfigWorker, e.config.ConfigWorkers)
 	for i := 0; i < e.config.ConfigWorkers; i++ {
 		e.wg.Add(1)
-		worker := NewConfigWorker(i, e.planners, e.replayPlanner, e.taskChan, e.configChan, &e.wg)
+		worker := NewConfigWorker(i, e.planners, e.replayPlanner, e.taskChan, e.configChan, &e.wg, e)
 		worker.SetOnTaskDone(func(taskID string, err error, count int64) {
 			if err != nil {
 				e.FailTask(taskID, err.Error())
@@ -410,9 +414,9 @@ func (e *Engine) SubmitTask(task Task) error {
 		return fmt.Errorf("max_tasks limit reached (%d active)", max)
 	}
 
-	// Wire rate limit: parse BPS and create a per-class TokenBucket.
-	// The bucket is keyed by ClassID (falls back to task ID for single-protocol
-	// tasks without a ClassID). PacketWorker looks it up by config.ClassID.
+	// Wire rate limit: per-strategy child bucket + optional task-level parent
+	// bucket (ceiling). Child bucket is keyed by ClassID (= engine task ID);
+	// parent bucket is keyed by ParentTaskID.
 	if task.Batch != nil {
 		// Mixed traffic: create an independent bucket per class, keyed
 		// "taskID:classID" so classes sharing the engine don't collide.
@@ -429,26 +433,49 @@ func (e *Engine) SubmitTask(task Task) error {
 			}
 		}
 	} else if task.Spec.BPS != "" {
+		// Single-protocol / strategy-reference: child bucket keyed by ClassID.
 		bps, err := ParseBPS(task.Spec.BPS)
 		if err != nil {
 			return fmt.Errorf("invalid bps %q: %w", task.Spec.BPS, err)
 		}
 		if bps > 0 {
-			classKey := task.ClassID
-			if classKey == "" {
-				classKey = task.ID
-			}
-			e.SetClassRateLimit(classKey, bps)
+			e.SetClassRateLimit(task.ClassID, bps)
 		}
 	}
+	// Task-level BPS ceiling: parent bucket keyed by ParentTaskID.
+	// TaskFCValue is already in bps (stored raw in TaskModel.FlowControl), so
+	// convert directly -- a formatBPS->ParseBPS string round-trip would lose
+	// precision (e.g. 1.5Gbps rounds to "2G").
+	if task.TaskFCType == "bps" && task.ParentTaskID != "" {
+		bps := int64(task.TaskFCValue)
+		if bps > 0 {
+			e.SetClassRateLimit(task.ParentTaskID, bps)
+		}
+	}
+	// Task-level flows ceiling: lazily create a shared counter.
+	if task.TaskFCType == "flows" && task.ParentTaskID != "" {
+		e.getOrCreateFlowCounter(task.ParentTaskID)
+	}
 
-	// Create per-task context for cancellation. For batch tasks with a
-	// duration set, derive a deadline so all classes stop at the timeout.
+	// Create per-task context for cancellation. Priority:
+	//  1. batch DurationSeconds
+	//  2. task-level time ceiling (min with strategy Duration)
+	//  3. strategy-level Duration
+	//  4. no timeout (WithCancel)
 	var taskCtx context.Context
 	var cancel context.CancelFunc
-	if task.Batch != nil && task.Batch.Global.DurationSeconds > 0 {
+	switch {
+	case task.Batch != nil && task.Batch.Global.DurationSeconds > 0:
 		taskCtx, cancel = context.WithTimeout(e.ctx, time.Duration(task.Batch.Global.DurationSeconds)*time.Second)
-	} else {
+	case task.TaskFCType == "time" && task.ParentTaskID != "":
+		eff := task.TaskFCValue
+		if task.Spec.Duration > 0 && time.Duration(task.Spec.Duration)*time.Second < time.Duration(eff*float64(time.Second)) {
+			eff = float64(task.Spec.Duration) // min(strategy, task-level)
+		}
+		taskCtx, cancel = context.WithTimeout(e.ctx, time.Duration(eff*float64(time.Second)))
+	case task.Spec.Duration > 0:
+		taskCtx, cancel = context.WithTimeout(e.ctx, time.Duration(task.Spec.Duration)*time.Second)
+	default:
 		taskCtx, cancel = context.WithCancel(e.ctx)
 	}
 
@@ -478,6 +505,12 @@ func (e *Engine) SubmitTask(task Task) error {
 		status.Status = "failed"
 		status.Error = "task queue full"
 		cancel()
+		// Clean up this task's rate limiter + taskStore entry so a queue-full
+		// failure doesn't leak them (they were created above before queueing).
+		e.taskMu.Lock()
+		delete(e.taskStore, task.ID)
+		e.taskMu.Unlock()
+		e.cleanupTaskRateLimiters(task.ID)
 		return fmt.Errorf("task queue full")
 	}
 }
@@ -701,6 +734,40 @@ func (e *Engine) GetRateLimiter(classID string) *TokenBucket {
 	e.rateMu.RLock()
 	defer e.rateMu.RUnlock()
 	return e.rateLimiters[classID]
+}
+
+// getOrCreateFlowCounter returns the shared flow counter for a parent task,
+// creating it on first access. Used by task-level "flows" ceilings: each
+// strategy's processTask increments this counter and stops generating flows
+// once the task-level total is reached.
+func (e *Engine) getOrCreateFlowCounter(parentTaskID string) *int64 {
+	e.rateMu.Lock()
+	defer e.rateMu.Unlock()
+	if c, ok := e.flowCounters[parentTaskID]; ok {
+		return c
+	}
+	var v int64
+	e.flowCounters[parentTaskID] = &v
+	return &v
+}
+
+// CleanupTaskFlowControl removes the parent rate-limiter bucket and shared
+// flow counter for a parent task, plus any leftover child buckets (safety
+// net). Called by the task handler once ALL strategies of a parent task have
+// finished (completed/failed/stopped), so the rateLimiters/flowCounters maps
+// don't grow unbounded over the engine lifetime.
+func (e *Engine) CleanupTaskFlowControl(parentTaskID string) {
+	e.rateMu.Lock()
+	defer e.rateMu.Unlock()
+	delete(e.rateLimiters, parentTaskID)
+	delete(e.flowCounters, parentTaskID)
+	// Child buckets are keyed "parentTaskID-strategyID"; sweep any leftovers.
+	prefix := parentTaskID + "-"
+	for k := range e.rateLimiters {
+		if strings.HasPrefix(k, prefix) {
+			delete(e.rateLimiters, k)
+		}
+	}
 }
 
 // getProcessCPUTime returns user+system CPU time accumulated by this process.

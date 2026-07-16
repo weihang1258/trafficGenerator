@@ -39,8 +39,9 @@ type StrategyModel struct {
 	ID          string    `gorm:"primaryKey;size:64"`
 	UserID      string    `gorm:"size:64;not null;index"` // 用户ID，数据隔离
 	Name        string    `gorm:"size:255;not null"`
+	Mode        string    `gorm:"size:16;not null;default:'synth'"` // synth | replay；replay 时 Protocol 仅为信息性，真实协议由 pcap 决定
 	Protocol    string    `gorm:"size:32;not null;index"`
-	Config      string    `gorm:"type:text"`              // JSON 配置
+	Config      string    `gorm:"type:text"`              // JSON 配置（synth=FlowSpec 字段；replay=ReplaySpec JSON）
 	FlowControl string    `gorm:"type:text"`              // JSON: {"type": "flows", "value": 1}
 	ConfigHash  string    `gorm:"size:64;index"`    // 配置哈希，幂等创建
 	CreatedAt   time.Time `gorm:"autoCreateTime"`

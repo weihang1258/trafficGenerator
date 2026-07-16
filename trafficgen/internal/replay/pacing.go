@@ -34,8 +34,8 @@ func NewPacer(speed ReplaySpeed) Pacer {
 		return &TimestampPacer{multiplier: m}
 	case "bps":
 		return &TokenBucketPacer{bps: speed.BPS}
-	case "pps":
-		return &PPSPacer{pps: speed.PPS}
+	// pps removed per audit: speed.mode only supports original/multiplier/bps/"".
+	// Case "pps" intentionally omitted -- unknown modes fall through to MaxPacer.
 	case "max", "":
 		return &MaxPacer{}
 	}

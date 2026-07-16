@@ -16,13 +16,40 @@ type Task struct {
 	Protocol    string                 `json:"protocol"` // tcp, udp, http, dns, icmp, arp
 	Spec        FlowSpec               `json:"spec"`     // single-protocol mode
 	Batch       *BatchSpec             `json:"batch,omitempty"` // mixed-traffic mode (Spec XOR Batch)
+
+	// Mode selects the source of packet configs. "synth" (default) synthesizes
+	// packets from Spec via a planner. "replay" replays a recorded pcap via the
+	// registered ReplayPlanner; the pcap's own protocols populate the wire bytes
+	// (Protocol is informational). Replay and synth share the same task-level
+	// flow-control ceiling (bps/flows/time) -- no exceptions.
+	Mode string `json:"mode,omitempty"`
+
+	// Replay holds the raw ReplaySpec JSON for Mode=="replay" tasks, passed
+	// verbatim to ReplayPlanner.PlanReplay. Not used for synth mode.
+	Replay json.RawMessage `json:"replay,omitempty"`
+
 	ClassID     string                 `json:"class_id"`
 	Interface   string                 `json:"interface"`   // output interface name (client side / primary)
 	Interface2  string                 `json:"interface2,omitempty"` // server side (dual-port replay); empty = single
 	OutputMode  string                 `json:"output_mode"` // interface, pcap, both
 	PcapFile    string                 `json:"pcap_file,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	Ctx         context.Context        `json:"-"` // per-task context for cancellation
+
+	// ParentTaskID is the REST-level task ID (parent) that owns this engine
+	// task. A multi-strategy task spawns one engine task per strategy, each
+	// sharing the same ParentTaskID. It keys the task-level flow-control
+	// ceiling (parent rate-limiter bucket + shared flow counter).
+	ParentTaskID string `json:"parent_task_id,omitempty"`
+
+	// TaskFCType/TaskFCValue carry the task-level flow-control ceiling
+	// (from TaskModel.FlowControl). Empty TaskFCType = no task-level ceiling.
+	// Type is "bps" (parent bucket), "flows" (shared counter), or "time"
+	// (parent context deadline). Unlike strategy-level FC, this does NOT
+	// override the per-strategy spec; it caps the aggregate.
+	TaskFCType  string  `json:"task_fc_type,omitempty"`
+	TaskFCValue float64 `json:"task_fc_value,omitempty"`
+
+	Ctx context.Context `json:"-"` // per-task context for cancellation
 }
 
 // TaskStatus represents the current status of a task.

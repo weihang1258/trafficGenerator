@@ -86,7 +86,7 @@ func TestPlanner_Plan_IPMap(t *testing.T) {
 			Kind: "ipmap", Mapping: map[string]string{"10.0.0.1": "11.0.0.1"},
 		}},
 	}
-	ch, err := planner.Plan(context.Background(), spec, "task1", "cls1", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "task1", "cls1", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestPlanner_Plan_AssetNotReady(t *testing.T) {
 	// Mark the asset as reindexing (legal ready->reindexing transition; "not ready").
 	repo := storage.NewPcapRepository(db)
 	repo.UpdateAssetStatus("ast1", "reindexing", "")
-	_, err := planner.Plan(context.Background(), ReplaySpec{PcapAssetID: "ast1", Speed: ReplaySpeed{Mode: "max"}}, "t", "c", "u1")
+	_, err := planner.Plan(context.Background(), ReplaySpec{PcapAssetID: "ast1", Speed: ReplaySpeed{Mode: "max"}}, "t", "c", "u1", nil)
 	if err == nil {
 		t.Error("expected not-ready error, got nil")
 	}

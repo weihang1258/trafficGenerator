@@ -53,7 +53,7 @@ func TestReplay_E2E_IPMap(t *testing.T) {
 
 	// Batch task with one replay class (ipmap 10.0.0.1 -> 11.0.0.1).
 	replaySpec, _ := json.Marshal(ReplaySpec{
-		PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}, Direction: "single", ChecksumMode: "recompute",
+		PcapAssetID: assetID, Speed: ReplaySpeed{Mode: ""}, Direction: "single", ChecksumMode: "recompute",
 		Rewrites: []RewriteRule{{Kind: "ipmap", Mapping: map[string]string{"10.0.0.1": "11.0.0.1"}}},
 	})
 	task := core.Task{

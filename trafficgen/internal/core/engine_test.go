@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-// mockPlanner yields spec.Count packet configs for testing without a real protocol.
+// mockPlanner yields one packet config per Plan() call (one per flow).
+// processTask calls Plan spec.Count times, so a task with spec.Count=N
+// produces N packets total. This matches real protocol planners, which
+// generate a fixed packet sequence per flow regardless of Count.
 // It registers under a real protocol name (e.g. "tcp") to pass ValidateTask.
 type mockPlanner struct {
 	name string
@@ -19,12 +22,10 @@ func (m *mockPlanner) Plan(ctx context.Context, spec FlowSpec) (<-chan PacketCon
 	ch := make(chan PacketConfig)
 	go func() {
 		defer close(ch)
-		for i := 0; i < spec.Count; i++ {
-			select {
-			case <-ctx.Done():
-				return
-			case ch <- PacketConfig{FlowID: "f1", PacketIndex: uint64(i)}:
-			}
+		select {
+		case <-ctx.Done():
+			return
+		case ch <- PacketConfig{FlowID: "f1", PacketIndex: 0}:
 		}
 	}()
 	return ch, nil
@@ -244,13 +245,14 @@ func TestMixedTraffic_Batch(t *testing.T) {
 
 // TestTask_ZeroConfigsCompletes verifies that a task producing 0 packet configs
 // still reaches completed status (previously hung because SetTaskTotalConfigs
-// only completed when count > 0).
+// only completed when count > 0). Uses a planner that yields 0 packets per
+// flow so configCount stays 0.
 func TestTask_ZeroConfigsCompletes(t *testing.T) {
 	e := NewEngine(EngineConfig{
 		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
 		BufferSize: 64, QueueSize: 32,
 	})
-	e.RegisterPlanner(&mockPlanner{name: "tcp"})
+	e.RegisterPlanner(&fixedPacketsPlanner{name: "tcp", perFlow: 0})
 	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) { return make([]byte, 10), nil })
 	done := make(chan string, 1)
 	e.OnTaskComplete = func(taskID string) { done <- taskID }
@@ -260,7 +262,7 @@ func TestTask_ZeroConfigsCompletes(t *testing.T) {
 	defer e.Stop()
 
 	task := Task{ID: "zero-1", Name: "zero-config", Protocol: "tcp", ClassID: "zero-1",
-		Spec: FlowSpec{Count: 0}} // mockPlanner yields 0 configs
+		Spec: FlowSpec{Count: 1}} // 1 flow, but planner yields 0 packets per flow
 	if err := e.SubmitTask(task); err != nil {
 		t.Fatalf("submit: %v", err)
 	}

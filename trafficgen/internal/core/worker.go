@@ -31,11 +31,20 @@ type ProtocolPlanner interface {
 	Validate(spec FlowSpec) error
 }
 
+// ReplayFC carries task-level flow-control state that the replay planner
+// consults during plan execution. A nil FlowCounter means "no flows ceiling" --
+// the planner counts but never caps. Ceiling is the max unique flows before
+// new flows are skipped.
+type ReplayFC struct {
+	FlowCounter *int64 // nil = no flows ceiling
+	Ceiling     int64
+}
+
 // ReplayPlanner generates packet configs for a replay TrafficClass (§16.12).
 // Defined in core (taking raw JSON) so core can dispatch to it without importing
 // the replay package; the concrete replay.ReplayPlanner implements this.
 type ReplayPlanner interface {
-	PlanReplay(ctx context.Context, specJSON json.RawMessage, taskID, classID, userID string) (<-chan PacketConfig, error)
+	PlanReplay(ctx context.Context, specJSON json.RawMessage, taskID, classID, userID string, fc *ReplayFC) (<-chan PacketConfig, error)
 }
 
 // ConfigWorker generates packet configurations.
@@ -51,6 +60,7 @@ type ConfigWorker struct {
 	stats         WorkerStats
 	onTaskDone    func(taskID string, err error, count int64)
 	sem           chan struct{} // limits concurrent task processing per worker
+	engine        *Engine // for task-level flow counter (shared across strategies)
 }
 
 // WorkerStats holds worker statistics.
@@ -68,6 +78,7 @@ func NewConfigWorker(
 	taskChan <-chan Task,
 	configChan chan<- PacketConfig,
 	wg *sync.WaitGroup,
+	engine *Engine,
 ) *ConfigWorker {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &ConfigWorker{
@@ -80,6 +91,7 @@ func NewConfigWorker(
 		ctx:        ctx,
 		cancel:     cancel,
 		sem:        make(chan struct{}, 4), // process up to 4 tasks concurrently per worker
+		engine:    engine,
 	}
 }
 
@@ -133,6 +145,15 @@ func (w *ConfigWorker) processTask(task Task) {
 		return
 	}
 
+	// Replay tasks (mode=replay) dispatch to the replay planner once -- no
+	// per-flow loop, no protocol planner. The planner emits all of the asset's
+	// packets in one channel, optionally paced by timestamps and capped by the
+	// task-level flows ceiling.
+	if task.Mode == "replay" || len(task.Replay) > 0 {
+		w.processReplayTask(task)
+		return
+	}
+
 	zap.L().Info("processing task",
 		zap.String("task_id", task.ID),
 		zap.String("protocol", task.Protocol),
@@ -172,45 +193,186 @@ func (w *ConfigWorker) processTask(task Task) {
 		taskCtx = w.ctx
 	}
 
-	// Plan packet configs
-	configChan, err := planner.Plan(taskCtx, task.Spec)
+	// Number of flows to generate. spec.Count (from strategy flow_control
+	// type="flows") controls flow count; <=0 defaults to 1 (e.g. bps-only or
+	// time-only strategies that still produce at least one flow).
+	flowCount := task.Spec.Count
+	if flowCount <= 0 {
+		flowCount = 1
+	}
+
+	// Task-level flows ceiling (shared counter across all strategies of the
+	// parent task). Each flow increments the counter; once the ceiling is
+	// exceeded, no more flows are generated.
+	hasFlowCeiling := task.TaskFCType == "flows" && task.ParentTaskID != ""
+	var flowCounter *int64
+	if hasFlowCeiling {
+		flowCounter = w.engine.getOrCreateFlowCounter(task.ParentTaskID)
+	}
+
+	// Forward configs to packet workers
+	var configCount int64
+	for i := 0; i < flowCount; i++ {
+		// Honour context cancellation between flows (time deadline / stop).
+		select {
+		case <-taskCtx.Done():
+			if w.onTaskDone != nil {
+				if taskCtx.Err() == context.DeadlineExceeded {
+					w.onTaskDone(task.ID, nil, configCount) // time deadline = normal completion
+				} else {
+					w.onTaskDone(task.ID, fmt.Errorf("task cancelled"), configCount)
+				}
+			}
+			return
+		default:
+		}
+		// Task-level flows ceiling check.
+		if hasFlowCeiling && atomic.AddInt64(flowCounter, 1) > int64(task.TaskFCValue) {
+			break
+		}
+
+		// Plan packet configs for this flow.
+		configChan, err := planner.Plan(taskCtx, task.Spec)
+		if err != nil {
+			// Release the flows-ceiling slot this iteration reserved: a failed
+			// flow produces no traffic, so it must not permanently consume a
+			// slot that sibling strategies could use. (AddInt64 is atomic, so
+			// this is safe under concurrent strategies; the brief over-count
+			// window between reserve and release is bounded and rare.)
+			if hasFlowCeiling {
+				atomic.AddInt64(flowCounter, -1)
+			}
+			zap.L().Error("task planning failed",
+				zap.String("task_id", task.ID),
+				zap.Error(err),
+			)
+			atomic.AddInt64(&w.stats.Errors, 1)
+			if w.onTaskDone != nil {
+				w.onTaskDone(task.ID, fmt.Errorf("planning failed: %w", err), configCount)
+			}
+			return
+		}
+
+		for config := range configChan {
+			config.ClassID = task.ClassID
+			// Propagate flow-level VLAN to the packet's L2 config. Planners do not
+			// copy spec.VLAN into L2Config, so without this the builder never sees
+			// the VLAN and 802.1Q tags are never emitted.
+			if config.L2.VLAN == nil && task.Spec.VLAN != nil {
+				config.L2.VLAN = task.Spec.VLAN
+			}
+			if config.Metadata == nil {
+				config.Metadata = make(map[string]interface{})
+			}
+			config.Metadata["task_id"] = task.ID
+			config.Metadata["parent_task_id"] = task.ParentTaskID
+			config.Metadata["interface"] = task.Interface
+
+			select {
+			case <-taskCtx.Done():
+				// Drain remaining configs so the planner goroutine is not blocked
+				// on configChan <- (which would leak it permanently). Planners
+				// generate a finite number of packets, so this drain is bounded.
+				for range configChan {
+				}
+				if w.onTaskDone != nil {
+					if taskCtx.Err() == context.DeadlineExceeded {
+						w.onTaskDone(task.ID, nil, configCount) // time deadline = normal completion
+					} else {
+						w.onTaskDone(task.ID, fmt.Errorf("task cancelled"), configCount)
+					}
+				}
+				return
+			case w.configChan <- config:
+				configCount++
+			}
+		}
+	}
+
+	atomic.AddInt64(&w.stats.TasksProcessed, 1)
+	atomic.AddInt64(&w.stats.PacketsGenerated, configCount)
+	if w.onTaskDone != nil {
+		w.onTaskDone(task.ID, nil, configCount)
+	}
+}
+
+// processReplayTask runs a single-protocol replay task. Unlike synth tasks,
+// there is no per-flow loop: the replay planner emits all of the asset's
+// packets in one channel (handshake/data/termination come from the pcap). The
+// task-level flows ceiling (if any) is enforced inside the planner via fc --
+// each unique flow ID increments a shared counter, and flows beyond the
+// ceiling are skipped at emit time.
+//
+// fc is always non-nil here so the planner takes the single-protocol path
+// (bps/empty mode drops the in-packet pacer and routes through the engine's
+// child rate-limiter bucket, mirroring synth). Only when FlowCounter != nil
+// does the planner enforce a flows ceiling.
+func (w *ConfigWorker) processReplayTask(task Task) {
+	if w.replayPlanner == nil {
+		zap.L().Error("replay task but no replay planner registered",
+			zap.String("task_id", task.ID))
+		atomic.AddInt64(&w.stats.Errors, 1)
+		if w.onTaskDone != nil {
+			w.onTaskDone(task.ID, fmt.Errorf("replay planner not registered"), 0)
+		}
+		return
+	}
+
+	zap.L().Info("processing replay task",
+		zap.String("task_id", task.ID),
+		zap.String("class_id", task.ClassID),
+	)
+
+	taskCtx := task.Ctx
+	if taskCtx == nil {
+		taskCtx = w.ctx
+	}
+
+	// Build fc. Always non-nil: signals single-protocol path to the planner
+	// (drop pacer for bps/empty, route through engine child bucket). FlowCounter
+	// is set only when the task-level ceiling is "flows" and a parent task
+	// owns the shared counter.
+	fc := &ReplayFC{}
+	if task.TaskFCType == "flows" && task.ParentTaskID != "" {
+		fc.FlowCounter = w.engine.getOrCreateFlowCounter(task.ParentTaskID)
+		fc.Ceiling = int64(task.TaskFCValue)
+	}
+
+	configChan, err := w.replayPlanner.PlanReplay(taskCtx, task.Replay, task.ID, task.ClassID, task.UserID, fc)
 	if err != nil {
-		zap.L().Error("task planning failed",
+		zap.L().Error("replay plan failed",
 			zap.String("task_id", task.ID),
 			zap.Error(err),
 		)
 		atomic.AddInt64(&w.stats.Errors, 1)
 		if w.onTaskDone != nil {
-			w.onTaskDone(task.ID, fmt.Errorf("planning failed: %w", err), 0)
+			w.onTaskDone(task.ID, fmt.Errorf("replay plan failed: %w", err), 0)
 		}
 		return
 	}
 
-	// Forward configs to packet workers
 	var configCount int64
 	for config := range configChan {
 		config.ClassID = task.ClassID
-		// Propagate flow-level VLAN to the packet's L2 config. Planners do not
-		// copy spec.VLAN into L2Config, so without this the builder never sees
-		// the VLAN and 802.1Q tags are never emitted.
-		if config.L2.VLAN == nil && task.Spec.VLAN != nil {
-			config.L2.VLAN = task.Spec.VLAN
-		}
 		if config.Metadata == nil {
 			config.Metadata = make(map[string]interface{})
 		}
 		config.Metadata["task_id"] = task.ID
+		config.Metadata["parent_task_id"] = task.ParentTaskID
 		config.Metadata["interface"] = task.Interface
 
 		select {
 		case <-taskCtx.Done():
 			// Drain remaining configs so the planner goroutine is not blocked
-			// on configChan <- (which would leak it permanently). Planners
-			// generate a finite number of packets, so this drain is bounded.
+			// on configChan <- (leak). Bounded: planner emits a finite count.
 			for range configChan {
 			}
 			if w.onTaskDone != nil {
-				w.onTaskDone(task.ID, fmt.Errorf("task cancelled"), configCount)
+				if taskCtx.Err() == context.DeadlineExceeded {
+					w.onTaskDone(task.ID, nil, configCount) // time deadline = normal completion
+				} else {
+					w.onTaskDone(task.ID, fmt.Errorf("task cancelled"), configCount)
+				}
 			}
 			return
 		case w.configChan <- config:
@@ -221,7 +383,14 @@ func (w *ConfigWorker) processTask(task Task) {
 	atomic.AddInt64(&w.stats.TasksProcessed, 1)
 	atomic.AddInt64(&w.stats.PacketsGenerated, configCount)
 	if w.onTaskDone != nil {
-		w.onTaskDone(task.ID, nil, configCount)
+		// A time deadline during normal drain is normal completion; an
+		// explicit cancel is an error. If ctx is still alive, the planner
+		// simply exhausted its pcap -- also normal completion.
+		if taskCtx.Err() == context.Canceled {
+			w.onTaskDone(task.ID, fmt.Errorf("task cancelled"), configCount)
+		} else {
+			w.onTaskDone(task.ID, nil, configCount)
+		}
 	}
 }
 
@@ -271,7 +440,7 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 			go func(c TrafficClass) {
 				defer classWg.Done()
 				classKey := task.ID + ":" + c.ID
-				configChan, err := w.replayPlanner.PlanReplay(taskCtx, c.Replay, task.ID, classKey, task.UserID)
+				configChan, err := w.replayPlanner.PlanReplay(taskCtx, c.Replay, task.ID, classKey, task.UserID, nil)
 				if err != nil {
 					zap.L().Error("replay plan failed", zap.String("task_id", task.ID), zap.String("class_id", c.ID), zap.Error(err))
 					atomic.AddInt64(&flowFailures, 1)
@@ -489,9 +658,14 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 		return
 	}
 
-	// Rate limit AFTER build using the real packet size. For replay packets,
-	// a Pacer in Metadata takes precedence (timestamp/rate pacing per §16.9);
-	// otherwise fall back to the per-class TokenBucket.
+	// Rate limit AFTER build using the real packet size. Three layers, applied
+	// top-down: (1) a per-packet Pacer in Metadata (replay timestamp/rate
+	// pacing per §16.9) takes precedence; (2) the per-class child bucket
+	// (strategy-level rate limit); (3) the task-level parent bucket (aggregate
+	// ceiling). The parent bucket is ALWAYS applied when present -- even when a
+	// pacer ran -- so the task-level bps ceiling cannot be bypassed by a
+	// pacer-driven replay strategy. Pacer/child Wait errors (context cancel)
+	// return immediately; the parent bucket then runs only if we did not return.
 	if pacer, ok := config.Metadata["_pacer"]; ok {
 		if rp, ok := pacer.(interface {
 			Wait(context.Context, PacketConfig, int) error
@@ -501,9 +675,27 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 			}
 		}
 	} else if w.engine != nil && config.ClassID != "" {
+		// Child bucket: per-strategy rate limit.
 		if limiter := w.engine.GetRateLimiter(config.ClassID); limiter != nil {
 			if err := limiter.Wait(w.ctx, int64(len(packet))); err != nil {
 				return // context cancelled while waiting
+			}
+		}
+	}
+	// Parent bucket: task-level aggregate ceiling. Always applied when
+	// parent_task_id is set, regardless of whether a pacer or child bucket
+	// ran above. This is the invariant: replay strategies with original/
+	// multiplier pacers are rejected at Create/Start if a task-level bps is
+	// also set, so in well-formed tasks the parent bucket is either absent
+	// or complementary. When misconfigured (e.g., a stale task loaded from
+	// DB without re-validation), this still enforces the ceiling as
+	// defense-in-depth.
+	if w.engine != nil {
+		if parentID, ok := config.Metadata["parent_task_id"].(string); ok && parentID != "" {
+			if parentLimiter := w.engine.GetRateLimiter(parentID); parentLimiter != nil {
+				if err := parentLimiter.Wait(w.ctx, int64(len(packet))); err != nil {
+					return // context cancelled while waiting
+				}
 			}
 		}
 	}

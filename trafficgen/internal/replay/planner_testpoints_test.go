@@ -18,9 +18,6 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/pcapparser"
 	"github.com/trafficgen/trafficgen/internal/storage"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 	"gorm.io/gorm"
 )
 
@@ -800,7 +797,7 @@ func TestPlanReplay_ValidJSON(t *testing.T) {
 		PcapAssetID: assetID,
 		Speed:       ReplaySpeed{Mode: "max"},
 	})
-	ch, err := planner.PlanReplay(context.Background(), specJSON, "t", "c", "u1")
+	ch, err := planner.PlanReplay(context.Background(), specJSON, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("PlanReplay: %v", err)
 	}
@@ -815,7 +812,7 @@ func TestPlanReplay_ValidJSON(t *testing.T) {
 
 func TestPlanReplay_InvalidJSON(t *testing.T) {
 	planner, _, _, _ := setupReplayAsset(t)
-	ch, err := planner.PlanReplay(context.Background(), json.RawMessage(`{"bad`), "t", "c", "u1")
+	ch, err := planner.PlanReplay(context.Background(), json.RawMessage(`{"bad`), "t", "c", "u1", nil)
 	if err == nil {
 		t.Fatal("expected unmarshal error")
 	}
@@ -832,7 +829,7 @@ func TestPlan_AssetNotFound(t *testing.T) {
 	_, err := planner.Plan(context.Background(), ReplaySpec{
 		PcapAssetID: "nope",
 		Speed:       ReplaySpeed{Mode: "max"},
-	}, "t", "c", "u1")
+	}, "t", "c", "u1", nil)
 	if err == nil {
 		t.Fatal("expected error for missing asset")
 	}
@@ -849,7 +846,7 @@ func TestPlan_AssetWrongUser(t *testing.T) {
 	_, err := planner.Plan(context.Background(), ReplaySpec{
 		PcapAssetID: "ast1",
 		Speed:       ReplaySpeed{Mode: "max"},
-	}, "t", "c", "u2") // wrong user
+	}, "t", "c", "u2", nil) // wrong user
 	if err == nil {
 		t.Fatal("expected error for wrong user")
 	}
@@ -868,7 +865,7 @@ func TestPlan_AssetStatusImporting(t *testing.T) {
 	_, err := planner.Plan(context.Background(), ReplaySpec{
 		PcapAssetID: "ast1",
 		Speed:       ReplaySpeed{Mode: "max"},
-	}, "t", "c", "u1")
+	}, "t", "c", "u1", nil)
 	if err == nil {
 		t.Fatal("expected error for importing status")
 	}
@@ -886,7 +883,7 @@ func TestPlan_AssetStatusError(t *testing.T) {
 	_, err := planner.Plan(context.Background(), ReplaySpec{
 		PcapAssetID: "ast1",
 		Speed:       ReplaySpeed{Mode: "max"},
-	}, "t", "c", "u1")
+	}, "t", "c", "u1", nil)
 	if err == nil {
 		t.Fatal("expected error for error status")
 	}
@@ -901,7 +898,7 @@ func TestPlan_AssetStatusError(t *testing.T) {
 func TestPlan_ChecksumModeDefault(t *testing.T) {
 	planner, _, assetID, _ := setupReplayAsset(t)
 	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}, ChecksumMode: ""}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -917,7 +914,7 @@ func TestPlan_ChecksumModeDefault(t *testing.T) {
 func TestPlan_ChecksumModePreserve(t *testing.T) {
 	planner, _, assetID, _ := setupReplayAsset(t)
 	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}, ChecksumMode: "preserve"}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -933,7 +930,7 @@ func TestPlan_ChecksumModePreserve(t *testing.T) {
 func TestPlan_PacerOriginal(t *testing.T) {
 	planner, _, assetID, _ := setupReplayAsset(t)
 	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "original"}}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -953,7 +950,7 @@ func TestPlan_PacerOriginal(t *testing.T) {
 func TestPlan_PacerBPS(t *testing.T) {
 	planner, _, assetID, _ := setupReplayAsset(t)
 	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "bps", BPS: "200k"}}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -969,7 +966,7 @@ func TestPlan_PacerBPS(t *testing.T) {
 func TestPlan_PacerMax(t *testing.T) {
 	planner, _, assetID, _ := setupReplayAsset(t)
 	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -985,7 +982,7 @@ func TestPlan_PacerMax(t *testing.T) {
 func TestPlan_PacerEmpty(t *testing.T) {
 	planner, _, assetID, _ := setupReplayAsset(t)
 	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: ""}}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -999,32 +996,27 @@ func TestPlan_PacerEmpty(t *testing.T) {
 }
 
 func TestPlan_OpenPcapFailed(t *testing.T) {
-	coreObs, obs := observer.New(zapcore.ErrorLevel)
-	old := zap.ReplaceGlobals(zap.New(coreObs))
-	defer old()
-
 	planner, db, _, _ := setupReplayAsset(t)
 	db.Model(&storage.PcapAssetModel{}).Where("id = ?", "ast1").Update("storage_path", "/nonexistent.pcap")
 	ch, err := planner.Plan(context.Background(), ReplaySpec{
 		PcapAssetID: "ast1",
 		Speed:       ReplaySpeed{Mode: "max"},
-	}, "t", "c", "u1")
-	if err != nil {
-		t.Fatalf("Plan: %v (open error is in goroutine, not return)", err)
+	}, "t", "c", "u1", nil)
+	if err == nil {
+		t.Fatal("Plan returned nil error for unopenable pcap file (M1: should surface as Plan error, not silent goroutine close)")
 	}
-	configs := drainTimeout(ch, 500*time.Millisecond)
-	if len(configs) != 0 {
-		t.Errorf("configs = %d, want 0 (pcap open failed)", len(configs))
+	if ch != nil {
+		t.Errorf("expected nil channel alongside Plan error")
 	}
-	if obs.FilterMessageSnippet("open pcap file failed").Len() == 0 {
-		t.Error("expected 'open pcap file failed' error log")
+	if !strings.Contains(err.Error(), "open pcap file") {
+		t.Errorf("err = %q, want substring 'open pcap file'", err.Error())
 	}
 }
 
 func TestPlan_LoopZeroCappedToOne(t *testing.T) {
 	planner, _, assetID, _ := setupReplayAsset(t)
 	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}, Loop: 0}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1037,7 +1029,7 @@ func TestPlan_LoopZeroCappedToOne(t *testing.T) {
 func TestPlan_LoopThree(t *testing.T) {
 	planner, _, assetID, _ := setupReplayAsset(t)
 	spec := ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}, Loop: 3}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1054,10 +1046,6 @@ func TestPlan_LoopThree(t *testing.T) {
 }
 
 func TestPlan_FlowScalingConflictAbort(t *testing.T) {
-	coreObs, obs := observer.New(zapcore.ErrorLevel)
-	old := zap.ReplaceGlobals(zap.New(coreObs))
-	defer old()
-
 	planner, _, assetID, _ := setupReplayAsset(t)
 	spec := ReplaySpec{
 		PcapAssetID: assetID,
@@ -1069,16 +1057,15 @@ func TestPlan_FlowScalingConflictAbort(t *testing.T) {
 		Rewrites: []RewriteRule{{Kind: "field", Target: "src_ip", Apply: "set",
 			Strategy: core.StrategyConfig{Strategy: "fixed", Value: "11.0.0.1"}}},
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
-	if err != nil {
-		t.Fatalf("Plan: %v (conflict is in goroutine)", err)
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
+	if err == nil {
+		t.Fatal("Plan returned nil error for flow scaling conflict (should surface as Plan error, not silent goroutine close)")
 	}
-	configs := drainTimeout(ch, 500*time.Millisecond)
-	if len(configs) != 0 {
-		t.Errorf("configs = %d, want 0 (flow scaling conflict abort)", len(configs))
+	if ch != nil {
+		t.Errorf("expected nil channel alongside Plan error")
 	}
-	if obs.FilterMessageSnippet("flow scaling conflict").Len() == 0 {
-		t.Error("expected 'flow scaling conflict' error log")
+	if !strings.Contains(err.Error(), "flow scaling conflict") {
+		t.Errorf("err = %q, want substring 'flow scaling conflict'", err.Error())
 	}
 }
 
@@ -1093,7 +1080,7 @@ func TestPlan_PerRoundCloneRegeneration(t *testing.T) {
 			SeqOffset: core.StrategyConfig{Strategy: "fixed", Value: "1000"},
 		},
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1134,7 +1121,7 @@ func TestPlan_SerialInterleaveOrder(t *testing.T) {
 			Interleave: "serial",
 		},
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1175,7 +1162,7 @@ func TestPlan_StackModeOrder(t *testing.T) {
 			DstIP: core.StrategyConfig{Strategy: "fixed", Value: "22.0.0.1"},
 		},
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1212,7 +1199,7 @@ func TestPlan_SerialNoClones(t *testing.T) {
 		Speed:       ReplaySpeed{Mode: "max"},
 		FlowScaling: &FlowScaling{Interleave: "serial"},
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1237,7 +1224,7 @@ func TestPlan_SerialCtxCancel(t *testing.T) {
 		},
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	ch, err := planner.Plan(ctx, spec, "t", "c", "u1")
+	ch, err := planner.Plan(ctx, spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1266,7 +1253,7 @@ func TestPlan_StackCtxCancel(t *testing.T) {
 		},
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	ch, err := planner.Plan(ctx, spec, "t", "c", "u1")
+	ch, err := planner.Plan(ctx, spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1288,7 +1275,7 @@ func TestPlan_CtxCancelBeforeGoroutine(t *testing.T) {
 	ch, err := planner.Plan(ctx, ReplaySpec{
 		PcapAssetID: assetID,
 		Speed:       ReplaySpeed{Mode: "max"},
-	}, "t", "c", "u1")
+	}, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1308,7 +1295,7 @@ func TestPlan_StackFlowLookupMiss(t *testing.T) {
 	ch, err := planner.Plan(context.Background(), ReplaySpec{
 		PcapAssetID: assetID,
 		Speed:       ReplaySpeed{Mode: "max"},
-	}, "t", "c", "u1")
+	}, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1325,7 +1312,7 @@ func TestPlan_StackReadAtFail(t *testing.T) {
 	ch, err := planner.Plan(context.Background(), ReplaySpec{
 		PcapAssetID: assetID,
 		Speed:       ReplaySpeed{Mode: "max"},
-	}, "t", "c", "u1")
+	}, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1350,7 +1337,7 @@ func TestIntegration_OffsetRewrite(t *testing.T) {
 			Strategy: core.StrategyConfig{Strategy: "fixed", Value: "1000"},
 		}},
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -1390,7 +1377,7 @@ func TestIntegration_CloneScaling(t *testing.T) {
 			SeqOffset: core.StrategyConfig{Strategy: "fixed", Value: "1000"},
 		},
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}

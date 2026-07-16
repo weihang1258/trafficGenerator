@@ -217,12 +217,12 @@ func TestValidateConfigNetwork_IPv6(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCalculateConfigHash_Deterministic(t *testing.T) {
-	h1 := calculateConfigHash("tcp", `{"src_ip":"10.0.0.1"}`, `{"type":"flows","value":1}`)
-	h2 := calculateConfigHash("tcp", `{"src_ip":"10.0.0.1"}`, `{"type":"flows","value":1}`)
+	h1 := calculateConfigHash("synth", "tcp", `{"src_ip":"10.0.0.1"}`, `{"type":"flows","value":1}`)
+	h2 := calculateConfigHash("synth", "tcp", `{"src_ip":"10.0.0.1"}`, `{"type":"flows","value":1}`)
 	if h1 != h2 {
 		t.Errorf("not deterministic: %s != %s", h1, h2)
 	}
-	h3 := calculateConfigHash("udp", `{"src_ip":"10.0.0.1"}`, `{"type":"flows","value":1}`)
+	h3 := calculateConfigHash("synth", "udp", `{"src_ip":"10.0.0.1"}`, `{"type":"flows","value":1}`)
 	if h1 == h3 {
 		t.Errorf("different protocol should produce different hash")
 	}

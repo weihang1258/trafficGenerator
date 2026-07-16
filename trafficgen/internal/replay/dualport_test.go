@@ -85,7 +85,7 @@ func TestReplay_DualPort(t *testing.T) {
 	s2cW := &countingWriter{}
 	e.RegisterDualWriter("td", c2sW, s2cW)
 
-	spec, _ := json.Marshal(ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}, Direction: "dual"})
+	spec, _ := json.Marshal(ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: ""}, Direction: "dual"})
 	task := core.Task{ID: "td", Name: "dual", UserID: "u1", Protocol: "batch",
 		Batch: &core.BatchSpec{Classes: []core.TrafficClass{{ID: "r", Type: "replay", Replay: spec}}}}
 	if err := e.SubmitTask(task); err != nil {

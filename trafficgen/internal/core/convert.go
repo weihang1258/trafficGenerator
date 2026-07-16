@@ -101,6 +101,13 @@ func ValidateTask(task Task) error {
 		return ValidateBatchSpec(*task.Batch)
 	}
 
+	// Replay tasks validate the ReplaySpec JSON instead of protocol/spec.
+	// The pcap's own protocols populate the wire bytes, so Protocol/Spec are
+	// informational and not validated here.
+	if task.Mode == "replay" || len(task.Replay) > 0 {
+		return ValidateReplaySpec(task.Replay)
+	}
+
 	validProtocols := map[string]bool{
 		"tcp":  true,
 		"udp":  true,
@@ -148,7 +155,7 @@ func ValidateBatchSpec(batch BatchSpec) error {
 			if len(c.Replay) == 0 {
 				return fmt.Errorf("class[%d] %s: replay class missing 'replay' spec", i, c.ID)
 			}
-			if err := validateReplaySpec(c.Replay); err != nil {
+			if err := ValidateReplaySpec(c.Replay); err != nil {
 				return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)
 			}
 			continue
@@ -174,18 +181,23 @@ func ValidateBatchSpec(batch BatchSpec) error {
 	return nil
 }
 
-// validateReplaySpec validates a replay spec JSON (§16.4): speed mode,
+// ValidateReplaySpec validates a replay spec JSON (§16.4): speed mode,
 // direction, checksum_mode, and that required fields are present. Catches
 // submission-time errors (e.g. bogus speed mode silently falling back to max,
 // dual without interface2) before the task runs and fails silently.
-func validateReplaySpec(specJSON json.RawMessage) error {
+//
+// Speed modes are reduced to original|multiplier|bps|"" (unrestricted). pps and
+// max were dropped: max folds to empty (unrestricted) and pps is removed (replay
+// rate is either timestamp-paced or byte-paced). bps requires a parseable bps
+// value (validated via ParseBPS so a typo like "2xx" is caught at submit time,
+// not when the engine first builds the token bucket).
+func ValidateReplaySpec(specJSON json.RawMessage) error {
 	var spec struct {
 		PcapAssetID string `json:"pcap_asset_id"`
 		Speed       struct {
 			Mode       string  `json:"mode"`
 			Multiplier float64 `json:"multiplier"`
 			BPS        string  `json:"bps"`
-			PPS        float64 `json:"pps"`
 		} `json:"speed"`
 		Direction    string `json:"direction"`
 		ChecksumMode string `json:"checksum_mode"`
@@ -197,16 +209,26 @@ func validateReplaySpec(specJSON json.RawMessage) error {
 		return fmt.Errorf("replay spec missing pcap_asset_id")
 	}
 	switch spec.Speed.Mode {
-	case "original", "multiplier", "bps", "pps", "max", "":
+	case "original", "multiplier", "bps", "":
 		// valid
 	default:
-		return fmt.Errorf("invalid speed mode %q (want original|multiplier|bps|pps|max)", spec.Speed.Mode)
+		return fmt.Errorf("invalid speed mode %q (want original|multiplier|bps)", spec.Speed.Mode)
 	}
-	if spec.Speed.Mode == "bps" && spec.Speed.BPS == "" {
-		return fmt.Errorf("bps mode requires a bps value")
+	// M4: multiplier <= 0 is invalid. Without this, NewPacer silently falls
+	// back to 1.0 (pacing.go:31) so a typo like multiplier:0 or multiplier:-1
+	// replays at original speed instead of erroring. 0 and negative are
+	// nonsensical for a speed multiplier (0 = freeze, negative = reverse time)
+	// and almost always typos or miscalculations, not intent.
+	if spec.Speed.Mode == "multiplier" && spec.Speed.Multiplier <= 0 {
+		return fmt.Errorf("multiplier mode requires multiplier > 0 (got %v)", spec.Speed.Multiplier)
 	}
-	if spec.Speed.Mode == "pps" && spec.Speed.PPS <= 0 {
-		return fmt.Errorf("pps mode requires pps > 0")
+	if spec.Speed.Mode == "bps" {
+		if spec.Speed.BPS == "" {
+			return fmt.Errorf("bps mode requires a bps value")
+		}
+		if _, err := ParseBPS(spec.Speed.BPS); err != nil {
+			return fmt.Errorf("bps mode invalid bps value %q: %w", spec.Speed.BPS, err)
+		}
 	}
 	switch spec.Direction {
 	case "single", "dual", "":

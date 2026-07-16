@@ -356,3 +356,10 @@ func (tb *TokenBucket) SetRate(rate int64) {
 	defer tb.mu.Unlock()
 	tb.rate = rate
 }
+
+// Rate returns the current rate limit in bytes per second (0 = unlimited).
+func (tb *TokenBucket) Rate() int64 {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	return tb.rate
+}

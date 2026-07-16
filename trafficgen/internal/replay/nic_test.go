@@ -44,7 +44,7 @@ func TestRealNIC_SinglePort(t *testing.T) {
 	e.RegisterOutputWriter("tnic", &nicWriter{w: iw})
 
 	spec, _ := json.Marshal(ReplaySpec{
-		PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}, Direction: "single", ChecksumMode: "recompute",
+		PcapAssetID: assetID, Speed: ReplaySpeed{Mode: ""}, Direction: "single", ChecksumMode: "recompute",
 		Rewrites: []RewriteRule{{Kind: "ipmap", Mapping: map[string]string{"10.0.0.1": "11.0.0.1"}}},
 	})
 	task := core.Task{ID: "tnic", Name: "nic-replay", UserID: "u1", Protocol: "batch",

@@ -92,7 +92,7 @@ func TestPlanner_FlowScaling(t *testing.T) {
 			DstIP: core.StrategyConfig{Strategy: "fixed", Value: "22.0.0.1"},
 		},
 	}
-	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1")
+	ch, err := planner.Plan(context.Background(), spec, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}

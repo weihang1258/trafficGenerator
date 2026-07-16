@@ -70,7 +70,7 @@ func TestFidelity_OutOfOrderPreserved(t *testing.T) {
 	pcapPath, db, assetID := storeFrames(t, frames, "oo")
 	_ = pcapPath
 	planner := NewReplayPlanner(db)
-	ch, err := planner.Plan(plannerBg(), ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}}, "t", "c", "u1")
+	ch, err := planner.Plan(plannerBg(), ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}}, "t", "c", "u1", nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestFidelity_RetransmitPreserved(t *testing.T) {
 	frames := [][]byte{build(), build()} // two identical packets (retransmit)
 	_, db, assetID := storeFrames(t, frames, "rt")
 	planner := NewReplayPlanner(db)
-	ch, _ := planner.Plan(plannerBg(), ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}}, "t", "c", "u1")
+	ch, _ := planner.Plan(plannerBg(), ReplaySpec{PcapAssetID: assetID, Speed: ReplaySpeed{Mode: "max"}}, "t", "c", "u1", nil)
 	var count int
 	for range ch {
 		count++

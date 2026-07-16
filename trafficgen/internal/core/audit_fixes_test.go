@@ -19,7 +19,7 @@ type stubReplayPlanner struct {
 	packetsPerCall int
 }
 
-func (s *stubReplayPlanner) PlanReplay(ctx context.Context, specJSON json.RawMessage, taskID, classID, userID string) (<-chan PacketConfig, error) {
+func (s *stubReplayPlanner) PlanReplay(ctx context.Context, specJSON json.RawMessage, taskID, classID, userID string, fc *ReplayFC) (<-chan PacketConfig, error) {
 	var spec struct {
 		PcapAssetID string `json:"pcap_asset_id"`
 	}
@@ -50,7 +50,7 @@ func TestAuditFix_ReplayFailureSurfaces(t *testing.T) {
 	taskChan := make(chan Task, 1)
 	configChan := make(chan PacketConfig, 16)
 	var wg sync.WaitGroup
-	worker := NewConfigWorker(0, map[string]ProtocolPlanner{}, planner, taskChan, configChan, &wg)
+	worker := NewConfigWorker(0, map[string]ProtocolPlanner{}, planner, taskChan, configChan, &wg, nil)
 
 	var mu sync.Mutex
 	var gotErr error
@@ -113,7 +113,7 @@ func TestAuditFix_ReplayFailureInMixedBatch(t *testing.T) {
 	taskChan := make(chan Task, 1)
 	configChan := make(chan PacketConfig, 64)
 	var wg sync.WaitGroup
-	worker := NewConfigWorker(0, map[string]ProtocolPlanner{"tcp": stubProto}, planner, taskChan, configChan, &wg)
+	worker := NewConfigWorker(0, map[string]ProtocolPlanner{"tcp": stubProto}, planner, taskChan, configChan, &wg, nil)
 
 	var mu sync.Mutex
 	var gotErr error
@@ -163,13 +163,13 @@ func TestAuditFix_ValidateReplaySpec(t *testing.T) {
 		wantErr bool
 	}{
 		{"valid original", `{"pcap_asset_id":"a1","speed":{"mode":"original"},"direction":"single"}`, false},
-		{"valid max", `{"pcap_asset_id":"a1","speed":{"mode":"max"},"direction":"dual"}`, false},
-		{"missing asset", `{"speed":{"mode":"max"}}`, true},
+		{"valid multiplier", `{"pcap_asset_id":"a1","speed":{"mode":"multiplier","multiplier":2},"direction":"dual"}`, false},
+		{"missing asset", `{"speed":{"mode":"original"}}`, true},
 		{"bad speed mode", `{"pcap_asset_id":"a1","speed":{"mode":"warp9"}}`, true},
 		{"bps no value", `{"pcap_asset_id":"a1","speed":{"mode":"bps"}}`, true},
 		{"pps zero", `{"pcap_asset_id":"a1","speed":{"mode":"pps","pps":0}}`, true},
-		{"bad direction", `{"pcap_asset_id":"a1","speed":{"mode":"max"},"direction":"triple"}`, true},
-		{"bad checksum", `{"pcap_asset_id":"a1","speed":{"mode":"max"},"checksum_mode":"magic"}`, true},
+		{"bad direction", `{"pcap_asset_id":"a1","speed":{"mode":"original"},"direction":"triple"}`, true},
+		{"bad checksum", `{"pcap_asset_id":"a1","speed":{"mode":"original"},"checksum_mode":"magic"}`, true},
 		{"malformed json", `{not json`, true},
 	}
 	for _, tc := range cases {

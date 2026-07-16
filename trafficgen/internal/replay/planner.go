@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -55,19 +56,23 @@ type offsetRule struct {
 // PlanReplay implements core.ReplayPlanner (the interface core dispatches to).
 // It unmarshals the raw spec JSON and delegates to Plan. userID scopes all
 // asset/flow/packet reads to the owning user (defense-in-depth isolation).
-func (p *ReplayPlanner) PlanReplay(ctx context.Context, specJSON json.RawMessage, taskID, classID, userID string) (<-chan core.PacketConfig, error) {
+// fc carries the task-level flow-control state: non-nil means single-protocol
+// path (not batch), and a non-nil fc.FlowCounter means a flows ceiling is
+// active — each unique flow ID increments the counter and flows past the
+// ceiling are skipped.
+func (p *ReplayPlanner) PlanReplay(ctx context.Context, specJSON json.RawMessage, taskID, classID, userID string, fc *core.ReplayFC) (<-chan core.PacketConfig, error) {
 	var spec ReplaySpec
 	if err := json.Unmarshal(specJSON, &spec); err != nil {
 		return nil, fmt.Errorf("unmarshal replay spec: %w", err)
 	}
-	return p.Plan(ctx, spec, taskID, classID, userID)
+	return p.Plan(ctx, spec, taskID, classID, userID, fc)
 }
 
 // Plan produces a channel of PacketConfigs for the replay (§4). It runs in a
 // goroutine and closes the channel when done (or on context cancel). The caller
 // (ConfigWorker) drains the channel into the engine pipeline. userID scopes
 // asset/flow/packet reads to the owning user.
-func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, classID, userID string) (<-chan core.PacketConfig, error) {
+func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, classID, userID string, fc *core.ReplayFC) (<-chan core.PacketConfig, error) {
 	repo := storage.NewPcapRepository(p.db)
 
 	// 1. Load + validate the asset (user-scoped).
@@ -105,21 +110,112 @@ func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, class
 	if err != nil {
 		return nil, fmt.Errorf("load packets: %w", err)
 	}
+	// M6: an asset with status=ready but zero parsed packets (e.g. parser
+	// produced nothing -- truncated file with only a global header, or all
+	// packets failed to parse) is a user-visible error, not a silent 0-packet
+	// "completion". Without this check, Plan launches a goroutine that iterates
+	// an empty list, closes the channel with 0 configs, and returns nil --
+	// causing processReplayTask to report the task as "completed" with 0
+	// packets.
+	if len(packets) == 0 {
+		return nil, fmt.Errorf("pcap asset %s has no packets to replay", asset.ID)
+	}
 
 	checksumMode := spec.ChecksumMode
 	if checksumMode == "" {
 		checksumMode = "recompute"
 	}
-	pacer := NewPacer(spec.Speed)
+	// Pacer selection (§16.9, R-F2 invariant: pacer and task-level bps ceiling
+	// never coexist on the same packet). Two paths:
+	//   - Batch (fc==nil): always use a Pacer -- original/multiplier via
+	//     TimestampPacer, bps via TokenBucketPacer, empty via MaxPacer. processConfig
+	//     sees _pacer in Metadata and routes through it (no engine child bucket
+	//     exists for batch classes).
+	//   - Single-protocol (fc!=nil): original/multiplier still use TimestampPacer
+	//     (validated at Create/Start to forbid a task-level bps ceiling alongside);
+	//     bps/empty drop the pacer (nil) so processConfig falls through to the
+	//     engine's per-strategy child bucket (bps) or no rate limit at all (empty,
+	//     only the optional task-level parent bucket applies).
+	var pacer Pacer // nil = no in-packet pacer
+	switch spec.Speed.Mode {
+	case "original", "multiplier":
+		pacer = NewPacer(spec.Speed)
+	case "bps":
+		if fc == nil {
+			pacer = NewPacer(spec.Speed) // batch: TokenBucketPacer
+		}
+		// single-protocol: pacer stays nil, route through engine child bucket
+	case "", "max":
+		if fc == nil {
+			pacer = NewPacer(spec.Speed) // batch: MaxPacer
+		}
+		// single-protocol: pacer stays nil, no rate limit (only parent bucket)
+	}
+
+	// Flow ceiling counter (§B1). Only active when fc != nil and
+	// fc.FlowCounter != nil (single-protocol task with type=flows). The seen
+	// map dedupes flow IDs so a multi-packet flow only counts once; skipped
+	// records flows past the ceiling so subsequent packets of the same flow
+	// are also skipped. Single goroutine owns seen/skipped (no race).
+	//
+	// M3 (known limitation, documented): the seen map is per-Plan-call (per-
+	// strategy), but fc.FlowCounter is shared across strategies in the same
+	// task. If two replay strategies in one task both contain flow X, each
+	// strategy's seen map independently records X and increments the shared
+	// counter -- so X is counted twice. This over-counts the total toward the
+	// task-level ceiling, causing flows past the ceiling to be skipped earlier
+	// than the user intended. The reverse (under-count) cannot happen: every
+	// unique flow in every strategy increments the counter at least once.
+	//
+	// Fixing this requires hoisting seen/skipped to the fc level (shared across
+	// strategies), which needs engine-side coordination because fc is currently
+	// a plain struct passed by pointer. Deferred as low-priority because the
+	// common case is one replay strategy per task, and multi-strategy tasks
+	// with overlapping flow sets are rare.
+	seen := map[string]bool{}
+	skipped := map[string]bool{}
+	countFlow := func(flowID string) bool {
+		if fc == nil || fc.FlowCounter == nil {
+			return true
+		}
+		if skipped[flowID] {
+			return false
+		}
+		if !seen[flowID] {
+			seen[flowID] = true
+			if atomic.AddInt64(fc.FlowCounter, 1) > fc.Ceiling {
+				skipped[flowID] = true
+				return false
+			}
+		}
+		return true
+	}
+
+	// Open the pcap file + validate flow scaling synchronously so failures
+	// surface as Plan errors instead of silently closing the channel with 0
+	// configs. Without this, processReplayTask would report the task as
+	// "completed" with 0 packets when the file is missing/deleted/moved (M1).
+	// The goroutine owns the file's Close via defer.
+	pcapFile, err := os.Open(asset.StoragePath)
+	if err != nil {
+		return nil, fmt.Errorf("open pcap file %s: %w", asset.StoragePath, err)
+	}
+	if err := checkFlowScalingConflict(spec.FlowScaling, spec.Rewrites); err != nil {
+		pcapFile.Close()
+		return nil, fmt.Errorf("flow scaling conflict: %w", err)
+	}
+	// Pre-generate clones once to catch generation errors before launching
+	// the goroutine. The goroutine re-generates per loop for seq
+	// re-randomization (M5); a loop-1+ failure is extremely unlikely for a
+	// random generator and would still emit loop 0's packets before closing.
+	if _, err := generateClones(spec.FlowScaling); err != nil {
+		pcapFile.Close()
+		return nil, fmt.Errorf("generate clones: %w", err)
+	}
 
 	out := make(chan core.PacketConfig, 256)
 	go func() {
 		defer close(out)
-		pcapFile, err := os.Open(asset.StoragePath)
-		if err != nil {
-			zap.L().Error("replay planner: open pcap file failed", zap.String("asset", asset.ID), zap.Error(err))
-			return
-		}
 		defer pcapFile.Close()
 
 		loops := spec.Loop
@@ -135,11 +231,7 @@ func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, class
 			lastTs := packets[len(packets)-1].TimestampUs
 			pcapDuration = time.Duration(lastTs-firstTs) * time.Microsecond
 		}
-		// Multi-flow amplification (§16.8): generate N clones per flow.
-		if err := checkFlowScalingConflict(spec.FlowScaling, spec.Rewrites); err != nil {
-			zap.L().Error("replay planner: flow scaling conflict", zap.String("task", taskID), zap.Error(err))
-			return
-		}
+		// checkFlowScalingConflict already validated synchronously above.
 		interleaveSerial := spec.FlowScaling != nil && spec.FlowScaling.Interleave == "serial"
 		// Serial mode: clone 1 all packets, then clone 2 all packets, etc.
 		// Each clone gets its own iteration over the packet list.
@@ -170,6 +262,9 @@ func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, class
 						if ctx.Err() != nil {
 							return
 						}
+						if !countFlow(pkt.FlowID) {
+							continue
+						}
 						if !emitPacket(pkt, flowMap, pcapFile, roundClones[ci], checksumMode, pacer, taskID, classID, loopBase, out, ctx) {
 							return
 						}
@@ -180,6 +275,9 @@ func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, class
 				for _, pkt := range packets {
 					if ctx.Err() != nil {
 						return
+					}
+					if !countFlow(pkt.FlowID) {
+						continue
 					}
 					fc, ok := flowMap[pkt.FlowID]
 					if !ok {
@@ -238,22 +336,28 @@ func emitPacket(pkt storage.PacketModel, flowMap map[string]*flowCtx, pcapFile *
 func emitReplayCfg(pkt storage.PacketModel, fc *flowCtx, patches []Patch, raw []byte, checksumMode string, pacer Pacer, taskID, classID string, loopBase time.Duration, out chan core.PacketConfig, ctx context.Context) bool {
 	// Timestamp: original pkt ts + loopBase offset (§10).
 	ts := time.UnixMicro(pkt.TimestampUs).Add(loopBase)
+	meta := map[string]interface{}{
+		"_replay":        true,
+		"_raw":           raw,
+		"_patches":       patches,
+		"_checksum_mode": checksumMode,
+		"_layout":        fc.layout,
+		"_task_id":       taskID,
+		"_interface":     "", // filled by caller
+	}
+	// Only attach a pacer when one is in use. nil pacer = single-protocol
+	// bps/empty mode, where processConfig should fall through to the engine's
+	// child/parent rate-limiter buckets instead.
+	if pacer != nil {
+		meta["_pacer"] = pacer
+	}
 	cfg := core.PacketConfig{
 		FlowID:      pkt.FlowID,
 		PacketIndex: uint64(pkt.IndexInFlow),
 		ClassID:     classID,
 		Direction:   mapDirection(pkt.Direction),
 		Timestamp:   ts,
-		Metadata: map[string]interface{}{
-			"_replay":        true,
-			"_raw":           raw,
-			"_patches":       patches,
-			"_checksum_mode": checksumMode,
-			"_layout":        fc.layout,
-			"_pacer":         pacer,
-			"_task_id":       taskID,
-			"_interface":     "", // filled by caller
-		},
+		Metadata:    meta,
 	}
 	select {
 	case out <- cfg:

@@ -77,14 +77,12 @@ func TestNewPacer_BPS(t *testing.T) {
 	}
 }
 
+// PPS mode was removed per audit (speed.mode only supports original/multiplier/
+// bps/""). NewPacer now falls through to MaxPacer for "pps".
 func TestNewPacer_PPS(t *testing.T) {
 	p := NewPacer(ReplaySpeed{Mode: "pps", PPS: 1000})
-	pp, ok := p.(*PPSPacer)
-	if !ok {
-		t.Fatalf("got %T, want *PPSPacer", p)
-	}
-	if pp.pps != 1000 {
-		t.Errorf("pps = %v, want 1000", pp.pps)
+	if _, ok := p.(*MaxPacer); !ok {
+		t.Errorf("got %T, want *MaxPacer (pps removed, falls through to max)", p)
 	}
 }
 
