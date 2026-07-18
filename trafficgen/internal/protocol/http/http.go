@@ -68,8 +68,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		httpConfig := spec.HTTP
 		if httpConfig == nil {
 			httpConfig = &core.HTTPConfig{
-				Method: "GET",
-				URI:    "/",
+				Method:       "GET",
+				URI:          "/",
+				ResponseBody: "OK",
 			}
 		}
 
@@ -175,7 +176,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// HTTP Transactions (keep-alive: multiple request/response pairs in one TCP connection)
 		for i := 0; i < transactions; i++ {
 			// HTTP Request
-			request := buildHTTPRequest(httpConfig)
+			request := buildHTTPRequest(httpConfig, spec.DstIP)
 			configChan <- core.PacketConfig{
 				FlowID:      flowID,
 				PacketIndex: packetIndex,
@@ -331,24 +332,47 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	return configChan, nil
 }
 
-// buildHTTPRequest builds an HTTP request string.
-func buildHTTPRequest(config *core.HTTPConfig) string {
+// buildHTTPRequest builds an HTTP request string. dstIP is the fallback Host
+// when RequestHeaders does not contain a Host entry.
+//
+// Defaulting follows the unified rule (user > default > none) for every
+// output field:
+//
+//   - Method: empty -> "GET"
+//   - URI: empty -> "/"
+//   - Version: empty -> "HTTP/1.1"
+//   - Host: not user-provided -> dstIP
+//   - Content-Length: not user-provided + Body non-empty -> len(Body)
+//   - Connection: not user-provided -> "keep-alive" if Transactions>1 or
+//     KeepAlive=true, else "close"
+//
+// User-provided RequestHeaders are emitted verbatim and suppress the
+// corresponding default (case-insensitive match per RFC 7230 §3.2).
+func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
 	if config.Method == "" {
 		config.Method = "GET"
 	}
 	if config.URI == "" {
 		config.URI = "/"
 	}
-
-	request := fmt.Sprintf("%s %s HTTP/1.1\r\n", config.Method, config.URI)
-	request += fmt.Sprintf("Host: localhost\r\n")
-
-	for key, value := range config.Headers {
-		request += fmt.Sprintf("%s: %s\r\n", key, value)
+	if config.Version == "" {
+		config.Version = "HTTP/1.1"
 	}
 
-	if config.Body != "" {
+	request := fmt.Sprintf("%s %s %s\r\n", config.Method, config.URI, config.Version)
+
+	if !hasHeader(config.RequestHeaders, "Host") {
+		request += fmt.Sprintf("Host: %s\r\n", bracketHost(dstIP))
+	}
+	if !hasHeader(config.RequestHeaders, "Connection") {
+		request += fmt.Sprintf("Connection: %s\r\n", defaultConnection(config))
+	}
+	if config.Body != "" && !hasHeader(config.RequestHeaders, "Content-Length") {
 		request += fmt.Sprintf("Content-Length: %d\r\n", len(config.Body))
+	}
+
+	for key, value := range config.RequestHeaders {
+		request += fmt.Sprintf("%s: %s\r\n", key, value)
 	}
 
 	request += "\r\n"
@@ -360,18 +384,153 @@ func buildHTTPRequest(config *core.HTTPConfig) string {
 	return request
 }
 
+// hasHeader reports whether headers contains the given field name using the
+// case-insensitive comparison RFC 7230 requires for HTTP header names.
+func hasHeader(headers map[string]string, name string) bool {
+	for k := range headers {
+		if strings.EqualFold(k, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// defaultConnection returns the default Connection header value derived from
+// the TCP behavior implied by Transactions and KeepAlive:
+//   - Transactions > 1 (multiple HTTP transactions in one TCP connection)
+//   - KeepAlive = true
+// Either condition -> "keep-alive"; otherwise "close".
+func defaultConnection(config *core.HTTPConfig) string {
+	if config.Transactions > 1 || config.KeepAlive {
+		return "keep-alive"
+	}
+	return "close"
+}
+
+// bracketHost wraps an IPv6 literal in brackets for use in a Host header
+// value, per RFC 7230 §5.4 (uri-host production: IP-literals use "[" ... "]").
+// IPv4 and non-IP strings pass through unchanged.
+func bracketHost(host string) string {
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		return "[" + host + "]"
+	}
+	return host
+}
+
 // buildHTTPResponse builds an HTTP response string.
+//
+// Defaulting follows the unified rule (user > default > none) for every
+// output field:
+//
+//   - Version: empty -> "HTTP/1.1"
+//   - StatusCode: 0 -> 200
+//   - StatusText: empty -> looked up from StatusCode; unknown -> "Status NNN"
+//   - Content-Type: not user-provided + ResponseBody non-empty -> "text/plain"
+//   - Content-Length: not user-provided + ResponseBody non-empty -> len(ResponseBody)
+//   - Connection: not user-provided -> "keep-alive" if Transactions>1 or
+//     KeepAlive=true, else "close"
+//
+// User-provided ResponseHeaders are emitted verbatim and suppress the
+// corresponding default (case-insensitive match per RFC 7230 §3.2).
 func buildHTTPResponse(config *core.HTTPConfig) string {
-	body := "OK"
+	body := config.ResponseBody
+	version := config.Version
+	if version == "" {
+		version = "HTTP/1.1"
+	}
+	statusCode := config.ResponseStatusCode
+	if statusCode == 0 {
+		statusCode = 200
+	}
+	statusText := config.ResponseStatusText
+	if statusText == "" {
+		statusText = statusTextFor(statusCode)
+	}
 
 	var sb strings.Builder
-	sb.WriteString("HTTP/1.1 200 OK\r\n")
-	sb.WriteString("Content-Type: text/plain\r\n")
-	sb.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(body)))
-	if config.KeepAlive {
-		sb.WriteString("Connection: keep-alive\r\n")
+	sb.WriteString(fmt.Sprintf("%s %d %s\r\n", version, statusCode, statusText))
+
+	if body != "" && !hasHeader(config.ResponseHeaders, "Content-Type") {
+		sb.WriteString("Content-Type: text/plain\r\n")
 	}
+	if body != "" && !hasHeader(config.ResponseHeaders, "Content-Length") {
+		sb.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(body)))
+	}
+	if !hasHeader(config.ResponseHeaders, "Connection") {
+		sb.WriteString(fmt.Sprintf("Connection: %s\r\n", defaultConnection(config)))
+	}
+
+	for key, value := range config.ResponseHeaders {
+		sb.WriteString(fmt.Sprintf("%s: %s\r\n", key, value))
+	}
+
 	sb.WriteString("\r\n")
 	sb.WriteString(body)
 	return sb.String()
+}
+
+// statusTextFor returns the RFC 7231 reason phrase for the given status code,
+// or "Status NNN" for unrecognized codes.
+func statusTextFor(code int) string {
+	switch code {
+	case 100:
+		return "Continue"
+	case 101:
+		return "Switching Protocols"
+	case 200:
+		return "OK"
+	case 201:
+		return "Created"
+	case 202:
+		return "Accepted"
+	case 204:
+		return "No Content"
+	case 301:
+		return "Moved Permanently"
+	case 302:
+		return "Found"
+	case 304:
+		return "Not Modified"
+	case 307:
+		return "Temporary Redirect"
+	case 308:
+		return "Permanent Redirect"
+	case 400:
+		return "Bad Request"
+	case 401:
+		return "Unauthorized"
+	case 403:
+		return "Forbidden"
+	case 404:
+		return "Not Found"
+	case 405:
+		return "Method Not Allowed"
+	case 408:
+		return "Request Timeout"
+	case 409:
+		return "Conflict"
+	case 410:
+		return "Gone"
+	case 411:
+		return "Length Required"
+	case 413:
+		return "Payload Too Large"
+	case 414:
+		return "URI Too Long"
+	case 415:
+		return "Unsupported Media Type"
+	case 429:
+		return "Too Many Requests"
+	case 500:
+		return "Internal Server Error"
+	case 501:
+		return "Not Implemented"
+	case 502:
+		return "Bad Gateway"
+	case 503:
+		return "Service Unavailable"
+	case 504:
+		return "Gateway Timeout"
+	}
+	return fmt.Sprintf("Status %d", code)
 }

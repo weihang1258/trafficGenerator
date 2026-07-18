@@ -49,8 +49,8 @@ func TestNewEngine_ZeroConfig(t *testing.T) {
 	if e.taskChan != nil {
 		t.Error("taskChan should be nil before Start")
 	}
-	if e.configChan != nil {
-		t.Error("configChan should be nil before Start")
+	if e.shardedConfigChan != nil {
+		t.Error("shardedConfigChan should be nil before Start")
 	}
 	if e.packetChan != nil {
 		t.Error("packetChan should be nil before Start")
@@ -288,8 +288,8 @@ func TestStart_ValidConfig(t *testing.T) {
 	if e.taskChan == nil || cap(e.taskChan) != 8 {
 		t.Errorf("taskChan cap=%d want 8", cap(e.taskChan))
 	}
-	if e.configChan == nil || cap(e.configChan) != 16 {
-		t.Errorf("configChan cap=%d want 16", cap(e.configChan))
+	if len(e.shardedConfigChan) != 1 || cap(e.shardedConfigChan[0]) != 16 {
+		t.Errorf("shardedConfigChan len=%d cap=%d want 1/16", len(e.shardedConfigChan), cap(e.shardedConfigChan[0]))
 	}
 	if e.packetChan == nil || cap(e.packetChan) != 16 {
 		t.Errorf("packetChan cap=%d want 16", cap(e.packetChan))
@@ -326,15 +326,16 @@ func TestStart_ZeroConfigWorkers(t *testing.T) {
 	}
 }
 
-// E28-BR2: zero PacketWorkers.
+// E28-BR2: zero PacketWorkers. New behavior (spec §5.1): pw<=0 is clamped
+// to 1, since without any PacketWorker the pipeline cannot drain configs.
 func TestStart_ZeroPacketWorkers(t *testing.T) {
 	e := NewEngine(EngineConfig{ConfigWorkers: 1, PacketWorkers: 0, OutputWorkers: 1, BufferSize: 16, QueueSize: 8})
 	if err := e.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	defer e.Stop()
-	if len(e.packetWorkers) != 0 {
-		t.Errorf("packetWorkers len=%d want 0", len(e.packetWorkers))
+	if len(e.packetWorkers) != 1 {
+		t.Errorf("packetWorkers len=%d want 1 (clamped from 0)", len(e.packetWorkers))
 	}
 }
 
@@ -350,27 +351,29 @@ func TestStart_ZeroOutputWorkers(t *testing.T) {
 	}
 }
 
-// E30-BR1: ReplayOrderPreserve clamps PW 4 -> 1.
+// E30-BR1: ReplayOrderPreserve no longer clamps (spec §8.3: replay uses
+// implicit gID taskID:classID to route all packets to one shard, preserving
+// pcap order without capping worker count).
 func TestStart_ReplayOrderPreserve_ClampsPW4to1(t *testing.T) {
 	e := NewEngine(EngineConfig{PacketWorkers: 4, ConfigWorkers: 1, OutputWorkers: 1, BufferSize: 16, QueueSize: 8, ReplayOrderPreserve: true})
 	if err := e.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	defer e.Stop()
-	if len(e.packetWorkers) != 1 {
-		t.Errorf("packet workers=%d want 1 (clamped from 4)", len(e.packetWorkers))
+	if len(e.packetWorkers) != 4 {
+		t.Errorf("packet workers=%d want 4 (no longer clamped)", len(e.packetWorkers))
 	}
 }
 
-// E31-BR2: ReplayOrderPreserve with PW=0 stays 0.
+// E31-BR2: ReplayOrderPreserve with PW=0 clamps to 1 (new behavior, §5.1).
 func TestStart_ReplayOrderPreserve_PW0(t *testing.T) {
 	e := NewEngine(EngineConfig{PacketWorkers: 0, ConfigWorkers: 1, OutputWorkers: 1, BufferSize: 16, QueueSize: 8, ReplayOrderPreserve: true})
 	if err := e.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	defer e.Stop()
-	if len(e.packetWorkers) != 0 {
-		t.Errorf("packet workers=%d want 0", len(e.packetWorkers))
+	if len(e.packetWorkers) != 1 {
+		t.Errorf("packet workers=%d want 1 (clamped from 0)", len(e.packetWorkers))
 	}
 }
 
@@ -424,8 +427,8 @@ func TestStart_QueueSizeZero(t *testing.T) {
 	if cap(e.taskChan) != 0 {
 		t.Errorf("taskChan cap=%d want 0 (unbuffered)", cap(e.taskChan))
 	}
-	if cap(e.configChan) != 0 {
-		t.Errorf("configChan cap=%d want 0", cap(e.configChan))
+	if len(e.shardedConfigChan) != 1 || cap(e.shardedConfigChan[0]) != 0 {
+		t.Errorf("shardedConfigChan[0] cap=%d want 0", cap(e.shardedConfigChan[0]))
 	}
 	if cap(e.packetChan) != 0 {
 		t.Errorf("packetChan cap=%d want 0", cap(e.packetChan))

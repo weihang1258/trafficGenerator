@@ -118,7 +118,7 @@ func TestBuildHTTPRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request := buildHTTPRequest(tt.config)
+			request := buildHTTPRequest(tt.config, "10.0.0.2")
 			for _, s := range tt.contains {
 				if !containsString(request, s) {
 					t.Errorf("Request should contain %s, got: %s", s, request)

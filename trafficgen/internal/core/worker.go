@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/maphash"
 	"sync"
 	"sync/atomic"
 
@@ -53,14 +54,13 @@ type ConfigWorker struct {
 	planners      map[string]ProtocolPlanner
 	replayPlanner ReplayPlanner
 	taskChan      <-chan Task
-	configChan    chan<- PacketConfig
 	wg            *sync.WaitGroup
 	ctx           context.Context
 	cancel        context.CancelFunc
 	stats         WorkerStats
 	onTaskDone    func(taskID string, err error, count int64)
 	sem           chan struct{} // limits concurrent task processing per worker
-	engine        *Engine // for task-level flow counter (shared across strategies)
+	engine        *Engine // for sharded channels, shardSeed, rate limiters, task-level flow counter
 }
 
 // WorkerStats holds worker statistics.
@@ -76,7 +76,6 @@ func NewConfigWorker(
 	planners map[string]ProtocolPlanner,
 	replayPlanner ReplayPlanner,
 	taskChan <-chan Task,
-	configChan chan<- PacketConfig,
 	wg *sync.WaitGroup,
 	engine *Engine,
 ) *ConfigWorker {
@@ -86,12 +85,11 @@ func NewConfigWorker(
 		planners:      planners,
 		replayPlanner: replayPlanner,
 		taskChan:      taskChan,
-		configChan:    configChan,
 		wg:            wg,
-		ctx:        ctx,
-		cancel:     cancel,
-		sem:        make(chan struct{}, 4), // process up to 4 tasks concurrently per worker
-		engine:    engine,
+		ctx:           ctx,
+		cancel:        cancel,
+		sem:           make(chan struct{}, 4), // process up to 4 tasks concurrently per worker
+		engine:        engine,
 	}
 }
 
@@ -231,6 +229,17 @@ func (w *ConfigWorker) processTask(task Task) {
 			break
 		}
 
+		// Per-flow shard routing: compute hashKey + gID once for this flow,
+		// then write (shard_idx, group_id) to every packet's Metadata and push
+		// to the matching shard. Same flow -> same shard -> single-goroutine
+		// PacketWorker -> strict FIFO (spec §3.1, §5.4).
+		hashKey, gID := computeHashKey(task.Spec, task, i)
+		shardIdx := 0
+		if n := len(w.engine.shardedConfigChan); n > 0 {
+			h := maphash.String(w.engine.shardSeed, hashKey)
+			shardIdx = int(h % uint64(n))
+		}
+
 		// Plan packet configs for this flow.
 		configChan, err := planner.Plan(taskCtx, task.Spec)
 		if err != nil {
@@ -267,6 +276,8 @@ func (w *ConfigWorker) processTask(task Task) {
 			config.Metadata["task_id"] = task.ID
 			config.Metadata["parent_task_id"] = task.ParentTaskID
 			config.Metadata["interface"] = task.Interface
+			config.Metadata["shard_idx"] = shardIdx
+			config.Metadata["group_id"] = gID
 
 			select {
 			case <-taskCtx.Done():
@@ -283,7 +294,8 @@ func (w *ConfigWorker) processTask(task Task) {
 					}
 				}
 				return
-			case w.configChan <- config:
+			case w.engine.shardedConfigChan[shardIdx] <- config:
+				w.engine.shardCounts[shardIdx].Add(1)
 				configCount++
 			}
 		}
@@ -357,9 +369,22 @@ func (w *ConfigWorker) processReplayTask(task Task) {
 		if config.Metadata == nil {
 			config.Metadata = make(map[string]interface{})
 		}
+		// gID already set by PlanReplay; compute shardIdx from it. If gID
+		// empty (shouldn't happen — PlanReplay always sets it), fall back to
+		// shard 0.
+		gID, _ := config.Metadata["group_id"].(string)
+		shardIdx := 0
+		if gID != "" {
+			n := len(w.engine.shardedConfigChan)
+			if n > 0 {
+				h := maphash.String(w.engine.shardSeed, gID)
+				shardIdx = int(h % uint64(n))
+			}
+		}
 		config.Metadata["task_id"] = task.ID
 		config.Metadata["parent_task_id"] = task.ParentTaskID
 		config.Metadata["interface"] = task.Interface
+		config.Metadata["shard_idx"] = shardIdx
 
 		select {
 		case <-taskCtx.Done():
@@ -375,7 +400,8 @@ func (w *ConfigWorker) processReplayTask(task Task) {
 				}
 			}
 			return
-		case w.configChan <- config:
+		case w.engine.shardedConfigChan[shardIdx] <- config:
+			w.engine.shardCounts[shardIdx].Add(1)
 			configCount++
 		}
 	}
@@ -451,14 +477,26 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 					if config.Metadata == nil {
 						config.Metadata = make(map[string]interface{})
 					}
+					// gID already set by PlanReplay; compute shardIdx from it
+					gID, _ := config.Metadata["group_id"].(string)
+					shardIdx := 0
+					if gID != "" {
+						n := len(w.engine.shardedConfigChan)
+						if n > 0 {
+							h := maphash.String(w.engine.shardSeed, gID)
+							shardIdx = int(h % uint64(n))
+						}
+					}
 					config.Metadata["task_id"] = task.ID
 					config.Metadata["interface"] = task.Interface
+					config.Metadata["shard_idx"] = shardIdx
 					select {
 					case <-taskCtx.Done():
 						for range configChan {
 						}
 						return
-					case w.configChan <- config:
+					case w.engine.shardedConfigChan[shardIdx] <- config:
+						w.engine.shardCounts[shardIdx].Add(1)
 						atomic.AddInt64(&configCount, 1)
 					}
 				}
@@ -488,11 +526,34 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 			classKey := task.ID + ":" + c.ID
 
 			for flowIdx := 0; flowIdx < c.FlowCount; flowIdx++ {
+				// tupleGen.Next returns ("", "", 0, 0) when the corresponding
+				// TupleConfig strategy is empty. We must NOT clobber the
+				// defaults that mapToFlowSpec just filled in (DefaultSrcIP,
+				// DefaultDstIP, etc.) with those zero values -- only override
+				// when the tuple generator actually produced a value.
 				srcIP, dstIP, srcPort, dstPort := tupleGen.Next(flowIdx)
-				spec.SrcIP = srcIP
-				spec.DstIP = dstIP
-				spec.SrcPort = srcPort
-				spec.DstPort = dstPort
+				if srcIP != "" {
+					spec.SrcIP = srcIP
+				}
+				if dstIP != "" {
+					spec.DstIP = dstIP
+				}
+				if srcPort != 0 {
+					spec.SrcPort = srcPort
+				}
+				if dstPort != 0 {
+					spec.DstPort = dstPort
+				}
+
+				// Per-flow shard routing for batch class. GroupID on the class
+				// is propagated to spec via mapToFlowSpec; computeHashKey uses
+				// it if set, else falls back to unordered 4-tuple.
+				hashKey, gID := computeHashKey(spec, task, flowIdx)
+				shardIdx := 0
+				if n := len(w.engine.shardedConfigChan); n > 0 {
+					h := maphash.String(w.engine.shardSeed, hashKey)
+					shardIdx = int(h % uint64(n))
+				}
 
 				if err := p.Validate(spec); err != nil {
 					zap.L().Warn("batch flow validation failed, skipping flow",
@@ -530,6 +591,8 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 					}
 					config.Metadata["task_id"] = task.ID
 					config.Metadata["interface"] = task.Interface
+					config.Metadata["shard_idx"] = shardIdx
+					config.Metadata["group_id"] = gID
 					select {
 					case <-taskCtx.Done():
 						// Drain remaining configs so this class's planner goroutine
@@ -538,7 +601,8 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 						for range configChan {
 						}
 						return
-					case w.configChan <- config:
+					case w.engine.shardedConfigChan[shardIdx] <- config:
+						w.engine.shardCounts[shardIdx].Add(1)
 						atomic.AddInt64(&configCount, 1)
 					}
 				}
@@ -582,7 +646,7 @@ func (w *ConfigWorker) GetStats() WorkerStats {
 // PacketWorker builds packets from configurations.
 type PacketWorker struct {
 	id         int
-	configChan <-chan PacketConfig
+	shardChan  <-chan PacketConfig // own shard of shardedConfigChan
 	packetChan chan<- PacketOutput
 	buildFunc  func(PacketConfig) ([]byte, error)
 	wg         *sync.WaitGroup
@@ -595,7 +659,7 @@ type PacketWorker struct {
 // NewPacketWorker creates a new packet worker.
 func NewPacketWorker(
 	id int,
-	configChan <-chan PacketConfig,
+	shardChan <-chan PacketConfig,
 	packetChan chan<- PacketOutput,
 	buildFunc func(PacketConfig) ([]byte, error),
 	wg *sync.WaitGroup,
@@ -604,7 +668,7 @@ func NewPacketWorker(
 	ctx, cancel := context.WithCancel(context.Background())
 	return &PacketWorker{
 		id:         id,
-		configChan: configChan,
+		shardChan:  shardChan,
 		packetChan: packetChan,
 		buildFunc:  buildFunc,
 		wg:         wg,
@@ -632,7 +696,7 @@ func (w *PacketWorker) run() {
 		select {
 		case <-w.ctx.Done():
 			return
-		case config, ok := <-w.configChan:
+		case config, ok := <-w.shardChan:
 			if !ok {
 				return
 			}
@@ -725,8 +789,10 @@ func (w *PacketWorker) GetStats() WorkerStats {
 	}
 }
 
-// NOTE: Resequencing is not currently used because a single PacketWorker guarantees ordering.
-// If multiple PacketWorkers are configured in the future, resequencing will be needed.
+// NOTE: Per-flow sharded channel guarantees ordering — same flow always lands
+// on the same PacketWorker (shard), so no resequencing is needed even with
+// multiple PacketWorkers. See shardedConfigChan in Engine and computeHashKey
+// in shard_router.go.
 
 // OutputWorker handles packet output.
 type OutputWorker struct {

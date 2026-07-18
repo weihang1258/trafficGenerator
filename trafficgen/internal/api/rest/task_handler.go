@@ -37,6 +37,15 @@ type TaskHandler struct {
 
 // NewTaskHandler creates a new task handler and registers engine callbacks.
 func NewTaskHandler(db *storage.DB, engine *core.Engine, wsHandler *websocket.Handler) *TaskHandler {
+	return NewTaskHandlerWithCallbacks(db, engine, wsHandler, true)
+}
+
+// NewTaskHandlerWithCallbacks creates a TaskHandler. If registerCallbacks is
+// false, engine callback fields (OnTaskComplete/OnTaskFailed/OnOutputError/
+// OnProgress) are NOT overwritten -- used by MCP server to avoid clobbering
+// the REST server's callbacks when it creates its own TaskHandler instance
+// for direct method invocation.
+func NewTaskHandlerWithCallbacks(db *storage.DB, engine *core.Engine, wsHandler *websocket.Handler, registerCallbacks bool) *TaskHandler {
 	var hub *websocket.Hub
 	if wsHandler != nil {
 		hub = wsHandler.Hub()
@@ -49,17 +58,19 @@ func NewTaskHandler(db *storage.DB, engine *core.Engine, wsHandler *websocket.Ha
 		lastProgressUpdate: make(map[string]time.Time),
 	}
 
-	// Register engine completion callback to update DB status
-	engine.OnTaskComplete = h.onEngineTaskComplete
+	if registerCallbacks {
+		// Register engine completion callback to update DB status
+		engine.OnTaskComplete = h.onEngineTaskComplete
 
-	// Register task failed callback to record error messages
-	engine.OnTaskFailed = h.onEngineTaskFailed
+		// Register task failed callback to record error messages
+		engine.OnTaskFailed = h.onEngineTaskFailed
 
-	// Register output error callback to fail tasks on write errors
-	engine.OnOutputError = h.onEngineOutputError
+		// Register output error callback to fail tasks on write errors
+		engine.OnOutputError = h.onEngineOutputError
 
-	// Register progress callback for continuous progress tracking
-	engine.OnProgress = h.onEngineProgress
+		// Register progress callback for continuous progress tracking
+		engine.OnProgress = h.onEngineProgress
+	}
 
 	return h
 }
@@ -155,6 +166,9 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 
 // onEngineTaskComplete is called by the engine when a task finishes (completed or failed).
 // The engine task ID format is "{taskID}-{strategyID}", so we extract the parent task ID.
+// Batch tasks are a special case: their engine task ID == task ID (no suffix), and
+// they use BatchConfig instead of StrategyIDs — so the strategyIDs loop below would
+// no-op and we'd miss the failure-message collection path.
 func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 	// Extract parent task ID (format: {taskID}-{strategyID}, where taskID is a UUID)
 	// UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 chars)
@@ -167,6 +181,60 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 	var task storage.TaskModel
 	if err := h.db.Where("id = ?", taskID).First(&task).Error; err != nil {
 		log.Printf("onEngineTaskComplete: task %s not found in DB: %v", taskID, err)
+		return
+	}
+
+	// Batch tasks: single engine task, ID == taskID. Skip the strategyIDs
+	// loop (empty by design) and check this engine task directly.
+	if task.BatchConfig != "" {
+		// Engine task still running -> not done yet.
+		if _, err := h.engine.GetTaskStatus(taskID); err == nil {
+			return
+		}
+		if task.Status != "running" {
+			return
+		}
+		now := currentTime()
+		task.CompletedAt = &now
+
+		h.failMu.Lock()
+		var failMsgs []string
+		if errMsg, ok := h.failedTasks[taskID]; ok {
+			failMsgs = append(failMsgs, fmt.Sprintf("%s: %s", taskID, errMsg))
+			delete(h.failedTasks, taskID)
+		}
+		h.failMu.Unlock()
+
+		if len(failMsgs) > 0 {
+			task.Status = "failed"
+			task.ErrorMessage = fmt.Sprintf("output error: %v", failMsgs)
+			log.Printf("batch task %s marked as failed in DB: %s", taskID, task.ErrorMessage)
+		} else {
+			task.Status = "completed"
+			task.Progress = 100
+			log.Printf("batch task %s marked as completed in DB", taskID)
+		}
+		h.db.Save(&task)
+
+		if h.wsHub != nil {
+			msgType := websocket.TypeTaskCompleted
+			if task.Status == "failed" {
+				msgType = websocket.TypeTaskFailed
+			}
+			h.wsHub.BroadcastToTask(taskID, websocket.Message{
+				Type:      msgType,
+				Data: map[string]interface{}{
+					"task_id":  taskID,
+					"status":   task.Status,
+					"progress": task.Progress,
+				},
+			})
+		}
+
+		h.releasePortGroupPorts(&task)
+		h.engine.UnregisterOutputWriter(taskID)
+		h.engine.UnregisterDualWriter(taskID)
+		h.engine.CleanupTaskFlowControl(taskID)
 		return
 	}
 
@@ -230,13 +298,16 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 		// Release port group ports
 		h.releasePortGroupPorts(&task)
 
-		// Unregister output writers for all engine tasks
+		// Unregister output writers (and dual-writers, if any) for all engine tasks
 		for _, sid := range strategyIDs {
-			h.engine.UnregisterOutputWriter(fmt.Sprintf("%s-%s", taskID, sid))
+			eid := fmt.Sprintf("%s-%s", taskID, sid)
+			h.engine.UnregisterOutputWriter(eid)
+			h.engine.UnregisterDualWriter(eid)
 		}
 		// Batch tasks register a single writer under the plain taskID
 		// (no strategy suffix); unregister it too. No-op for strategy tasks.
 		h.engine.UnregisterOutputWriter(taskID)
+		h.engine.UnregisterDualWriter(taskID)
 
 		// Clean up task-level flow control state (parent rate bucket +
 		// shared flow counter). Safe no-op when no ceiling was set.
@@ -768,6 +839,19 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	task.ErrorMessage = ""
 	task.CompletedAt = nil
 
+	// Batch tasks are auto-started on creation and use BatchConfig instead of
+	// StrategyIDs. Re-starting them is not supported — the engine task ID format
+	// differs (plain taskID vs {taskID}-{strategyID}) and the batch spec is not
+	// re-runnable. Return a clear error instead of failing later with the
+	// misleading "corrupt strategy_ids" message.
+	if task.StrategyIDs == "" && task.BatchConfig != "" {
+		task.Status = "error"
+		task.ErrorMessage = "batch tasks are auto-started on creation and cannot be restarted"
+		h.db.Save(&task)
+		BadRequest(c, task.ErrorMessage)
+		return
+	}
+
 	// Validate all strategies exist and convert to engine tasks
 	var strategyIDs []string
 	if err := json.Unmarshal([]byte(task.StrategyIDs), &strategyIDs); err != nil {
@@ -872,6 +956,35 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		}
 	}
 
+	// Detect dual-port replay: an explicit interface2 in the output config,
+	// OR any loaded replay strategy whose Config has direction="dual".
+	// Mirrors CreateBatch's dual-port detection (§16.11). When set, each
+	// engine task gets a DualWriter pair: c2s -> primary, s2c -> secondary.
+	var outputConfigForDual OutputConfigRequest
+	json.Unmarshal([]byte(task.OutputConfig), &outputConfigForDual)
+	dualPort := outputConfigForDual.Interface2 != ""
+	if !dualPort {
+		for _, s := range loadedStrategies {
+			if s.Mode != "replay" {
+				continue
+			}
+			var rs struct {
+				Direction string `json:"direction"`
+			}
+			if json.Unmarshal([]byte(s.Config), &rs) == nil && rs.Direction == "dual" {
+				dualPort = true
+				break
+			}
+		}
+	}
+	if dualPort && task.OutputType == "port_group" && outputConfigForDual.Interface2 == "" {
+		task.Status = "error"
+		task.ErrorMessage = "dual-port replay requires a second interface (interface2 in output_config)"
+		h.db.Save(&task)
+		BadRequest(c, task.ErrorMessage)
+		return
+	}
+
 	// Set up output writers BEFORE submitting engine tasks to avoid race
 	var writerErrors []string
 	for _, ct := range coreTasks {
@@ -887,6 +1000,30 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		if err != nil {
 			log.Printf("failed to create output writer for task %s: %v", ct.ID, err)
 			writerErrors = append(writerErrors, fmt.Sprintf("%s: %v", ct.ID, err))
+			continue
+		}
+
+		if dualPort {
+			// Create the secondary writer for s2c traffic. Interface mode uses
+			// interface2; pcap mode appends ".s2c" to the path. On failure we
+			// close the primary writer and record the error so the task fails
+			// rather than silently degrading to single-port.
+			var writer2 core.PacketWriter
+			if ct.OutputMode == "interface" {
+				writer2, err = newInterfacePacketWriter(outputConfigForDual.Interface2)
+			} else if ct.PcapFile != "" {
+				writer2, err = newPcapPacketWriter(ct.PcapFile + ".s2c")
+			}
+			if err != nil {
+				if writer != nil {
+					writer.Close()
+				}
+				log.Printf("failed to create second output writer for task %s: %v", ct.ID, err)
+				writerErrors = append(writerErrors, fmt.Sprintf("%s: %v", ct.ID, err))
+				continue
+			}
+			ct.Interface2 = outputConfigForDual.Interface2
+			h.engine.RegisterDualWriter(ct.ID, writer, writer2)
 		} else if writer != nil {
 			h.engine.RegisterOutputWriter(ct.ID, writer)
 		}
@@ -922,6 +1059,7 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		if err := h.engine.SubmitTask(*ct); err != nil {
 			log.Printf("error submitting engine task %s: %v", ct.ID, err)
 			h.engine.UnregisterOutputWriter(ct.ID)
+			h.engine.UnregisterDualWriter(ct.ID)
 			failedIDs = append(failedIDs, ct.ID)
 			continue
 		}
@@ -1012,6 +1150,22 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 	// Release port group ports
 	h.releasePortGroupPorts(&task)
 
+	// Batch tasks: engine task ID == task ID (no strategy suffix), and
+	// StrategyIDs is empty by design. Stop the single engine task directly
+	// and clean up both OutputWriter and DualWriter (whichever was registered).
+	if task.BatchConfig != "" {
+		h.engine.UnregisterOutputWriter(id)
+		h.engine.UnregisterDualWriter(id)
+		if err := h.engine.StopTask(id); err != nil {
+			log.Printf("error stopping batch engine task %s: %v", id, err)
+		}
+		h.engine.CleanupTaskFlowControl(id)
+		SuccessWithMessage(c, "task stopped", map[string]interface{}{
+			"stopped_engine_tasks": []string{id},
+		})
+		return
+	}
+
 	// Stop engine tasks and unregister output writers (best-effort after DB update)
 	var strategyIDs []string
 	if err := json.Unmarshal([]byte(task.StrategyIDs), &strategyIDs); err != nil {
@@ -1023,6 +1177,7 @@ func (h *TaskHandler) Stop(c *gin.Context) {
 	for _, strategyID := range strategyIDs {
 		engineTaskID := fmt.Sprintf("%s-%s", id, strategyID)
 		h.engine.UnregisterOutputWriter(engineTaskID)
+		h.engine.UnregisterDualWriter(engineTaskID)
 		if err := h.engine.StopTask(engineTaskID); err != nil {
 			log.Printf("error stopping engine task %s: %v", engineTaskID, err)
 			continue

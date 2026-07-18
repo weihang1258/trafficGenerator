@@ -30,13 +30,13 @@ func NewBuilder() *Builder {
 // so reply packets can swap them. Legacy spec.TOS (whole-byte) overrides
 // DSCP/ECN when set, for backward compatibility with old configs.
 // Planners use this instead of inlining L3Config{} at every packet site.
+//
+// Defaulting (DF=1, DSCP=0x2E, MACs, etc.) is owned by mapToFlowSpec via
+// presence-check helpers. L3Base passes spec.Flags through unchanged so an
+// explicit user choice of flags=0 (no DF, allow fragmentation) is honored
+// end-to-end. Code paths that construct FlowSpec directly (bypassing
+// mapToFlowSpec) must set spec.Flags explicitly if they want DF=1.
 func L3Base(srcIP, dstIP string, protocol uint8, ttl uint8, ipid uint16, spec FlowSpec) L3Config {
-	// Default to DF (don't fragment) for normal traffic unless the caller
-	// explicitly requests fragmentation (flags set or a fragment offset).
-	flags := spec.Flags
-	if flags == 0 && spec.FragOffset == 0 {
-		flags = IPFlagDF
-	}
 	l3 := L3Config{
 		SrcIP:       srcIP,
 		DstIP:       dstIP,
@@ -45,7 +45,7 @@ func L3Base(srcIP, dstIP string, protocol uint8, ttl uint8, ipid uint16, spec Fl
 		IPID:        ipid,
 		DSCP:        spec.DSCP,
 		ECN:         spec.ECN,
-		Flags:       flags,
+		Flags:       spec.Flags,
 		FragOffset:  spec.FragOffset,
 	}
 	if spec.TOS != 0 {

@@ -14,6 +14,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/api/rest"
 	"github.com/trafficgen/trafficgen/internal/api/websocket"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/mcp"
 	"github.com/trafficgen/trafficgen/internal/output"
 	"github.com/trafficgen/trafficgen/internal/protocol/arp"
 	"github.com/trafficgen/trafficgen/internal/protocol/dns"
@@ -23,6 +24,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/udp"
 	"github.com/trafficgen/trafficgen/internal/replay"
 	"github.com/trafficgen/trafficgen/internal/storage"
+	"github.com/trafficgen/trafficgen/pkg/auth"
 	"github.com/trafficgen/trafficgen/pkg/config"
 	"github.com/trafficgen/trafficgen/pkg/logger"
 	"github.com/trafficgen/trafficgen/pkg/metrics"
@@ -37,16 +39,21 @@ var (
 
 // Application holds all application components.
 type Application struct {
-	config       *config.Config
-	engine       *core.Engine
-	server       *rest.Server
-	wsHub        *websocket.Hub
-	wsHandler    *websocket.Handler
-	db           *storage.DB
-	outputMgr    *output.Manager
-	ifaceMgr     *netif.Manager
-	portSched    *netif.Scheduler
+	config          *config.Config
+	engine          *core.Engine
+	server          *rest.Server
+	wsHub           *websocket.Hub
+	wsHandler       *websocket.Handler
+	db              *storage.DB
+	outputMgr       *output.Manager
+	ifaceMgr        *netif.Manager
+	portSched       *netif.Scheduler
 	stopAutoRelease chan struct{}
+	mcpServer       *mcp.Server
+	mcpCancel       context.CancelFunc
+	mcpDone         chan struct{}
+	mcpHTTPCancel   context.CancelFunc
+	mcpHTTPDone     chan struct{}
 }
 
 func main() {
@@ -71,6 +78,23 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
+
+	// If MCP stdio transport will be enabled, redirect logging to stderr NOW
+	// (before any zap.L() call) -- the MCP JSON-RPC protocol owns stdout and
+	// any log line there would corrupt the stream. This must run before
+	// initDatabase/initEngine/initServer, all of which log on startup.
+	if cfg.MCP.Enabled && cfg.MCP.Transports.Stdio && cfg.Logging.Output == "stdout" {
+		fmt.Fprintln(os.Stderr, "mcp stdio enabled; forcing log output to stderr to avoid corrupting JSON-RPC stream")
+		if err := logger.Init(logger.Config{
+			Level:  cfg.Logging.Level,
+			Format: cfg.Logging.Format,
+			Output: "stderr",
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to redirect logger: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	defer logger.Sync()
 
 	zap.L().Info("starting traffic generator",
@@ -110,6 +134,12 @@ func main() {
 	if err := app.initServer(); err != nil {
 		zap.L().Fatal("failed to init server", zap.Error(err))
 	}
+
+	// Initialize MCP server (optional, only if enabled). Must come after
+	// initServer so the REST server's TaskHandler already owns the engine
+	// callbacks (OnTaskComplete etc.) -- MCP's TaskHandler is created with
+	// registerCallbacks=false to avoid clobbering them.
+	app.initMCPServer()
 
 	// Start all components
 	if err := app.Start(); err != nil {
@@ -250,6 +280,89 @@ func (app *Application) initServer() error {
 	return app.server.Setup()
 }
 
+// initMCPServer initializes the MCP server if enabled. The MCP server shares
+// the same engine/db/ifaceMgr as the REST server and invokes handler methods
+// directly via constructed gin.Context (no HTTP hop). Logger redirection for
+// stdio transport is handled in main() before any zap.L() call.
+func (app *Application) initMCPServer() {
+	if !app.config.MCP.Enabled {
+		return
+	}
+
+	srv, err := mcp.NewServer(&app.config.MCP, app.engine, app.db, app.ifaceMgr)
+	if err != nil {
+		zap.L().Fatal("failed to init mcp server", zap.Error(err))
+	}
+	srv.SetPortScheduler(app.portSched)
+	// JWT manager is needed by flowb_manage_auth (validate/logout/refresh
+	// parse the LLM-provided token to derive caller identity).
+	jwtManager := auth.NewJWTManager(
+		app.config.Auth.JWTSecret,
+		app.config.Auth.JWTIssuer,
+		time.Duration(app.config.Auth.JWTExpiresIn)*time.Hour,
+	)
+	srv.SetJWTManager(jwtManager)
+	app.mcpServer = srv
+}
+
+// startMCPServer runs the MCP server on stdio in a goroutine. Blocks until
+// stdin EOF or context cancel. No-op if MCP is disabled.
+func (app *Application) startMCPServer() {
+	if app.mcpServer == nil {
+		return
+	}
+	if !app.config.MCP.Transports.Stdio {
+		zap.L().Warn("mcp enabled but stdio transport disabled; skipping stdio")
+	} else {
+		ctx, cancel := context.WithCancel(context.Background())
+		app.mcpCancel = cancel
+		app.mcpDone = make(chan struct{})
+
+		go func() {
+			defer close(app.mcpDone)
+			zap.L().Info("starting mcp server (stdio)")
+			if err := app.mcpServer.Run(ctx, mcp.NewStdioTransport()); err != nil {
+				zap.L().Error("mcp server ended with error", zap.Error(err))
+			}
+			zap.L().Info("mcp server stopped")
+		}()
+	}
+
+	// Start HTTP transport if enabled (Phase 3 -- remote MCP primary use case).
+	if app.config.MCP.Transports.HTTP.Enabled {
+		httpCtx, httpCancel := context.WithCancel(context.Background())
+		app.mcpHTTPCancel = httpCancel
+		app.mcpHTTPDone = make(chan struct{})
+
+		go func() {
+			defer close(app.mcpHTTPDone)
+			if err := app.startMCPHTTP(httpCtx); err != nil {
+				zap.L().Error("mcp http server ended with error", zap.Error(err))
+			}
+			zap.L().Info("mcp http server stopped")
+		}()
+	}
+}
+
+// startMCPHTTP constructs and runs the MCP HTTP transport. Blocks until ctx
+// is canceled or the server returns a fatal error.
+func (app *Application) startMCPHTTP(ctx context.Context) error {
+	httpSrv, err := mcp.NewHTTPServer(
+		app.mcpServer,
+		app.config.MCP.Transports.HTTP.Listen,
+		app.config.MCP.APIKey,
+		app.config.MCP.Transports.HTTP.CORSOrigins,
+	)
+	if err != nil {
+		return fmt.Errorf("init mcp http server: %w", err)
+	}
+
+	zap.L().Info("starting mcp http server",
+		zap.String("listen", app.config.MCP.Transports.HTTP.Listen),
+	)
+	return httpSrv.Start(ctx)
+}
+
 // Start starts all components.
 func (app *Application) Start() error {
 	// Start engine
@@ -271,6 +384,9 @@ func (app *Application) Start() error {
 	// Start metrics update
 	go app.updateMetrics()
 
+	// Start MCP server (no-op if disabled)
+	app.startMCPServer()
+
 	return nil
 }
 
@@ -278,6 +394,33 @@ func (app *Application) Start() error {
 func (app *Application) Stop() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Stop MCP servers first: cancel their Run contexts (stdio transport
+	// returns on ctx.Done; HTTP server initiates graceful Shutdown), then
+	// wait for goroutines to exit before tearing down engine/db -- an
+	// in-flight tool call may be using both. Bound the wait by the shutdown
+	// deadline so a wedged MCP goroutine cannot block exit.
+	if app.mcpCancel != nil {
+		app.mcpCancel()
+	}
+	if app.mcpDone != nil {
+		select {
+		case <-app.mcpDone:
+		case <-ctx.Done():
+			zap.L().Warn("mcp stdio server did not stop within shutdown deadline")
+		}
+	}
+
+	if app.mcpHTTPCancel != nil {
+		app.mcpHTTPCancel()
+	}
+	if app.mcpHTTPDone != nil {
+		select {
+		case <-app.mcpHTTPDone:
+		case <-ctx.Done():
+			zap.L().Warn("mcp http server did not stop within shutdown deadline")
+		}
+	}
 
 	// Stop HTTP server
 	if err := app.server.Shutdown(ctx); err != nil {

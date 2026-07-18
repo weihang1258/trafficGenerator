@@ -99,6 +99,7 @@ config.production.yaml
 
 # Claude Code
 .claude/
+.mcp.json
 docs/superpowers/
 # Root session test artifacts
 test_*.py

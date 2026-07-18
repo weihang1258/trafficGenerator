@@ -69,3 +69,30 @@ rate_limit:
 metrics:
   enabled: true
   path: "/metrics"
+
+# MCP (Model Context Protocol) server -- flowB
+# Start with: trafficgen --config configs/config.dev.yaml
+# Claude Code connects via .mcp.json at project root.
+mcp:
+  enabled: true
+  service_user_id: "mcp-service"
+  service_user_role: "user"
+  service_account_password: "flowb-mcp-change-me"
+  # HTTP transport auth key. Claude Code sends this as X-MCP-Key header.
+  # MUST be non-empty when http.enabled=true or NewHTTPServer refuses to start.
+  api_key: "dev-mcp-key"
+
+  transports:
+    # stdio off -- we use HTTP so the same trafficgen process can serve both
+    # REST (port 8080) and MCP HTTP (port 8081) without stdout conflicts.
+    stdio: false
+    http:
+      enabled: true
+      listen: "127.0.0.1:8081"
+      cors_origins:
+        - "http://localhost:*"
+        - "http://127.0.0.1:*"
+
+  max_wait_timeout_seconds: 3600
+  audit_log: true
+  max_subscriptions: 100

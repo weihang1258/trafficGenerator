@@ -604,7 +604,11 @@ func (h *PcapHandler) GetStream(c *gin.Context) {
 		return
 	}
 	if streamLength == 0 || asset.PayloadsPath == "" {
-		Success(c, []byte{})
+		// Binary endpoint: always return octet-stream, never a JSON envelope.
+		// Returning Success(c, []byte{}) here writes a JSON envelope, which
+		// MCP's binary wrapper would then base64-encode as if it were the
+		// actual stream payload (CRITICAL bug). Empty stream -> empty bytes.
+		c.Data(200, "application/octet-stream", []byte{})
 		return
 	}
 	// Optional Range: offset + limit for chunked reads.
@@ -663,7 +667,9 @@ func (h *PcapHandler) GetBody(c *gin.Context) {
 		return
 	}
 	if bodyLength == 0 || asset.PayloadsPath == "" {
-		Success(c, []byte{})
+		// Binary endpoint: always return octet-stream, never a JSON envelope.
+		// (See GetStream for the rationale.)
+		c.Data(200, "application/octet-stream", []byte{})
 		return
 	}
 	f, err := os.Open(asset.PayloadsPath)

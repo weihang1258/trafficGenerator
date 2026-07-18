@@ -15,7 +15,11 @@ var (
 	// Sugar logger for convenient usage.
 	Sugar *zap.SugaredLogger
 	// atom holds the current log level so it can be changed at runtime.
-	atom zap.AtomicLevel
+	// Initialized to a valid Info-level AtomicLevel at package init so SetLevel
+	// is safe to call even before Init (e.g., during partial startup or in
+	// tests that don't call Init). Init replaces this with a level derived
+	// from the config.
+	atom = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 )
 
 // Config for logger initialization.

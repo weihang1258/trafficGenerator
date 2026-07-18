@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"hash/maphash"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -23,8 +24,16 @@ type Engine struct {
 
 	// Channels
 	taskChan   chan Task
-	configChan chan PacketConfig
 	packetChan chan PacketOutput // carries packet bytes + metadata for routing
+
+	// Sharded config channel: one per PacketWorker. ConfigWorker pushes to
+	// shardedConfigChan[shardIdx] after computing shardIdx from group_id or
+	// 4-tuple hash. Each PacketWorker reads only its own shard, guaranteeing
+	// per-flow FIFO (spec §3.1).
+	shardedConfigChan []chan PacketConfig
+	shardSeed         maphash.Seed       // random seed for hash, anti-flooding
+	shardCounts       []atomic.Int64     // per-shard enqueue count, for imbalance monitor
+	shardMonitorCancel context.CancelFunc // stops runShardMonitor on Engine.Stop
 
 	// Workers
 	configWorkers []*ConfigWorker
@@ -247,7 +256,20 @@ func (e *Engine) Start() error {
 
 	// Initialize channels
 	e.taskChan = make(chan Task, e.config.QueueSize)
-	e.configChan = make(chan PacketConfig, e.config.QueueSize*2)
+	e.shardSeed = maphash.MakeSeed()
+	pw := e.config.PacketWorkers
+	if pw <= 0 {
+		pw = 1
+	}
+	// ReplayOrderPreserve no longer caps PacketWorkers to 1 (spec §8.3):
+	// replay with empty group_id uses implicit gID "taskID:classID" so all
+	// packets land on one shard via hash, preserving pcap order without
+	// forcing single-worker.
+	e.shardedConfigChan = make([]chan PacketConfig, pw)
+	e.shardCounts = make([]atomic.Int64, pw)
+	for i := 0; i < pw; i++ {
+		e.shardedConfigChan[i] = make(chan PacketConfig, e.config.QueueSize*2)
+	}
 	e.packetChan = make(chan PacketOutput, e.config.QueueSize*2)
 
 	// Initialize buffer
@@ -261,7 +283,8 @@ func (e *Engine) Start() error {
 	e.configWorkers = make([]*ConfigWorker, e.config.ConfigWorkers)
 	for i := 0; i < e.config.ConfigWorkers; i++ {
 		e.wg.Add(1)
-		worker := NewConfigWorker(i, e.planners, e.replayPlanner, e.taskChan, e.configChan, &e.wg, e)
+		// ConfigWorker accesses sharded channels via w.engine.shardedConfigChan
+		worker := NewConfigWorker(i, e.planners, e.replayPlanner, e.taskChan, &e.wg, e)
 		worker.SetOnTaskDone(func(taskID string, err error, count int64) {
 			if err != nil {
 				e.FailTask(taskID, err.Error())
@@ -282,17 +305,12 @@ func (e *Engine) Start() error {
 		}
 	}
 
-	// Start packet workers. When ReplayOrderPreserve is set, cap PacketWorkers
-	// at 1 to preserve pcap file order (§13: replay must not resequence).
-	pw := e.config.PacketWorkers
-	if e.config.ReplayOrderPreserve && pw > 1 {
-		pw = 1
-	}
+	// Start packet workers, one per shard.
 	e.packetWorkers = make([]*PacketWorker, pw)
 	for i := 0; i < pw; i++ {
 		e.wg.Add(1)
-		// Rate limiting is engine-level (per ClassID), looked up via engine ref.
-		worker := NewPacketWorker(i, e.configChan, e.packetChan, buildFn, &e.wg, e)
+		// Each PacketWorker reads only its own shard channel.
+		worker := NewPacketWorker(i, e.shardedConfigChan[i], e.packetChan, buildFn, &e.wg, e)
 		e.packetWorkers[i] = worker
 		worker.Start()
 	}
@@ -307,6 +325,11 @@ func (e *Engine) Start() error {
 	}
 
 	e.running.Store(true)
+
+	// Start shard load imbalance monitor (spec §7.2)
+	monCtx, monCancel := context.WithCancel(context.Background())
+	e.shardMonitorCancel = monCancel
+	go e.runShardMonitor(monCtx)
 
 	// Record CPU monitoring baseline.
 	e.startWallClock = time.Now()
@@ -331,6 +354,12 @@ func (e *Engine) Stop() {
 
 	e.running.Store(false)
 
+	// Stop shard load monitor first (no more warnings during shutdown)
+	if e.shardMonitorCancel != nil {
+		e.shardMonitorCancel()
+		e.shardMonitorCancel = nil
+	}
+
 	// Close taskChan so ConfigWorkers stop receiving new tasks
 	close(e.taskChan)
 
@@ -352,7 +381,10 @@ func (e *Engine) Stop() {
 	e.wg.Wait()
 
 	// Close remaining channels (safe now since all workers exited)
-	close(e.configChan)
+	for i := range e.shardedConfigChan {
+		close(e.shardedConfigChan[i])
+	}
+	e.shardedConfigChan = nil
 	close(e.packetChan)
 
 	// Close buffer
@@ -396,6 +428,52 @@ func (e *Engine) Stop() {
 	}
 
 	zap.L().Info("engine stopped")
+}
+
+// runShardMonitor periodically samples shardCounts and warns on severe
+// imbalance (spec §7.2). Does NOT do dynamic rebalance — that would break
+// per-flow ordering (shardIdx is sticky for a given gID).
+func (e *Engine) runShardMonitor(ctx context.Context) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			e.checkShardBalance()
+		}
+	}
+}
+
+// checkShardBalance warns if any shard has > 3x the average packet count.
+// Avoids div-by-zero; no-op when all shards are zero.
+func (e *Engine) checkShardBalance() {
+	n := len(e.shardCounts)
+	if n == 0 {
+		return
+	}
+	var sum int64
+	counts := make([]int64, n)
+	for i := range e.shardCounts {
+		c := e.shardCounts[i].Load()
+		counts[i] = c
+		sum += c
+	}
+	avg := sum / int64(n)
+	if avg == 0 {
+		return
+	}
+	for i, c := range counts {
+		if c > avg*3 {
+			zap.L().Warn("shard load imbalance detected",
+				zap.Int("shard_idx", i),
+				zap.Int64("packets", c),
+				zap.Int64("avg", avg),
+				zap.String("hint", "consider checking group_id strategy distribution"),
+			)
+		}
+	}
 }
 
 // SubmitTask submits a task for execution.

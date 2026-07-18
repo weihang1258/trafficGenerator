@@ -20,6 +20,7 @@ type Config struct {
 	Auth      AuthConfig      `mapstructure:"auth"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 	Metrics   MetricsConfig   `mapstructure:"metrics"`
+	MCP       MCPConfig       `mapstructure:"mcp"`
 }
 
 // ServerConfig for HTTP server.
@@ -121,6 +122,32 @@ type RateLimitConfig struct {
 type MetricsConfig struct {
 	Enabled bool   `mapstructure:"enabled"`
 	Path    string `mapstructure:"path"`
+}
+
+// MCPConfig for MCP server (flowB).
+type MCPConfig struct {
+	Enabled                bool          `mapstructure:"enabled"`
+	ServiceUserID          string        `mapstructure:"service_user_id"`
+	ServiceUserRole        string        `mapstructure:"service_user_role"`
+	ServiceAccountPassword string        `mapstructure:"service_account_password"`
+	APIKey                 string        `mapstructure:"api_key"`
+	Transports             MCPTransports `mapstructure:"transports"`
+	MaxWaitTimeoutSeconds  int           `mapstructure:"max_wait_timeout_seconds"`
+	AuditLog               bool          `mapstructure:"audit_log"`
+	MaxSubscriptions       int           `mapstructure:"max_subscriptions"`
+}
+
+// MCPTransports for MCP transport configuration.
+type MCPTransports struct {
+	Stdio bool          `mapstructure:"stdio"`
+	HTTP  MCPHTTPConfig `mapstructure:"http"`
+}
+
+// MCPHTTPConfig for MCP HTTP/SSE transport.
+type MCPHTTPConfig struct {
+	Enabled     bool     `mapstructure:"enabled"`
+	Listen      string   `mapstructure:"listen"`
+	CORSOrigins []string `mapstructure:"cors_origins"`
 }
 
 // Load loads configuration from file.
@@ -242,6 +269,20 @@ func setDefaults(v *viper.Viper) {
 	// Metrics defaults
 	v.SetDefault("metrics.enabled", true)
 	v.SetDefault("metrics.path", "/metrics")
+
+	// MCP defaults (flowB)
+	v.SetDefault("mcp.enabled", false)
+	v.SetDefault("mcp.service_user_id", "mcp-service")
+	v.SetDefault("mcp.service_user_role", "user")
+	v.SetDefault("mcp.service_account_password", "flowb-mcp-change-me")
+	v.SetDefault("mcp.api_key", "")
+	v.SetDefault("mcp.transports.stdio", true)
+	v.SetDefault("mcp.transports.http.enabled", false)
+	v.SetDefault("mcp.transports.http.listen", "127.0.0.1:8081")
+	v.SetDefault("mcp.transports.http.cors_origins", []string{"http://localhost:*", "http://127.0.0.1:*"})
+	v.SetDefault("mcp.max_wait_timeout_seconds", 3600)
+	v.SetDefault("mcp.audit_log", true)
+	v.SetDefault("mcp.max_subscriptions", 100)
 }
 
 // GetDSN returns the database connection string.

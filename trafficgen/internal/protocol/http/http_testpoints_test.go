@@ -7,6 +7,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"strconv"
 	"strings"
@@ -255,15 +256,20 @@ func TestHTTPPlan_IPIDSequential(t *testing.T) {
 	}
 }
 
-func TestHTTPPlan_DFDefault(t *testing.T) {
+// TestHTTPPlan_FlagsPassThrough verifies L3Base passes spec.Flags through
+// unchanged. The DF=1 default is owned by mapToFlowSpec's defaultIPFlags
+// helper; planners that receive a FlowSpec with explicit Flags=0 must honor
+// it (no-DF, allow fragmentation). Pre-fix L3Base silently rewrote 0 to
+// IPFlagDF, breaking the user>default rule end-to-end.
+func TestHTTPPlan_FlagsPassThrough(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
 	spec.Flags = 0
 	spec.FragOffset = 0
 	cfgs := drain(mustPlan(t, p, spec))
 	for i, c := range cfgs {
-		if c.L3.Flags != 0x02 {
-			t.Errorf("cfg[%d].Flags=%x, want 0x02 (IPFlagDF)", i, c.L3.Flags)
+		if c.L3.Flags != 0 {
+			t.Errorf("cfg[%d].Flags=0x%02x, want 0x00 (L3Base must pass through explicit 0)", i, c.L3.Flags)
 		}
 	}
 }
@@ -736,7 +742,7 @@ func TestHTTPPlan_SendOnClosedChannelPanic(t *testing.T) {
 
 func TestBuildHTTPRequest_EmptyMethodDefaultsGET(t *testing.T) {
 	cfg := &core.HTTPConfig{Method: "", URI: "/"}
-	result := buildHTTPRequest(cfg)
+	result := buildHTTPRequest(cfg, "10.0.0.2")
 	if cfg.Method != "GET" {
 		t.Errorf("cfg.Method=%q after build, want 'GET' (side effect)", cfg.Method)
 	}
@@ -747,7 +753,7 @@ func TestBuildHTTPRequest_EmptyMethodDefaultsGET(t *testing.T) {
 
 func TestBuildHTTPRequest_EmptyURIDefaultsRoot(t *testing.T) {
 	cfg := &core.HTTPConfig{Method: "GET", URI: ""}
-	result := buildHTTPRequest(cfg)
+	result := buildHTTPRequest(cfg, "10.0.0.2")
 	if cfg.URI != "/" {
 		t.Errorf("cfg.URI=%q after build, want '/' (side effect)", cfg.URI)
 	}
@@ -758,11 +764,11 @@ func TestBuildHTTPRequest_EmptyURIDefaultsRoot(t *testing.T) {
 
 func TestBuildHTTPRequest_CustomHeaders(t *testing.T) {
 	cfg := &core.HTTPConfig{
-		Method:  "GET",
-		URI:     "/",
-		Headers: map[string]string{"Accept": "application/json", "X-Custom": "v"},
+		Method:         "GET",
+		URI:            "/",
+		RequestHeaders: map[string]string{"Accept": "application/json", "X-Custom": "v"},
 	}
-	result := buildHTTPRequest(cfg)
+	result := buildHTTPRequest(cfg, "10.0.0.2")
 	if !strings.Contains(result, "Accept: application/json") {
 		t.Errorf("result missing Accept header: %q", result)
 	}
@@ -772,24 +778,24 @@ func TestBuildHTTPRequest_CustomHeaders(t *testing.T) {
 }
 
 func TestBuildHTTPRequest_NilHeaders(t *testing.T) {
-	cfg := &core.HTTPConfig{Method: "GET", URI: "/", Headers: nil}
-	result := buildHTTPRequest(cfg)
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/", RequestHeaders: nil}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
 	// No custom headers after Host: line
 	lines := strings.Split(result, "\r\n")
 	for _, line := range lines {
-		if strings.Contains(line, ":") && !strings.HasPrefix(line, "Host:") && !strings.HasPrefix(line, "Content-Length:") {
+		if strings.Contains(line, ":") && !strings.HasPrefix(line, "Host:") && !strings.HasPrefix(line, "Content-Length:") && !strings.HasPrefix(line, "Connection:") {
 			t.Errorf("unexpected custom header: %q", line)
 		}
 	}
 }
 
 func TestBuildHTTPRequest_EmptyHeaders(t *testing.T) {
-	cfg := &core.HTTPConfig{Method: "GET", URI: "/", Headers: map[string]string{}}
-	result := buildHTTPRequest(cfg)
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/", RequestHeaders: map[string]string{}}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
 	// No custom headers after Host: line
 	lines := strings.Split(result, "\r\n")
 	for _, line := range lines {
-		if strings.Contains(line, ":") && !strings.HasPrefix(line, "Host:") && !strings.HasPrefix(line, "Content-Length:") {
+		if strings.Contains(line, ":") && !strings.HasPrefix(line, "Host:") && !strings.HasPrefix(line, "Content-Length:") && !strings.HasPrefix(line, "Connection:") {
 			t.Errorf("unexpected custom header: %q", line)
 		}
 	}
@@ -797,7 +803,7 @@ func TestBuildHTTPRequest_EmptyHeaders(t *testing.T) {
 
 func TestBuildHTTPRequest_BodyAddsContentLength(t *testing.T) {
 	cfg := &core.HTTPConfig{Method: "POST", URI: "/", Body: `{"key":"value"}`}
-	result := buildHTTPRequest(cfg)
+	result := buildHTTPRequest(cfg, "10.0.0.2")
 	expectedCL := "Content-Length: " + strconv.Itoa(len(cfg.Body))
 	if !strings.Contains(result, expectedCL) {
 		t.Errorf("result=%q, want contains %q", result, expectedCL)
@@ -806,7 +812,7 @@ func TestBuildHTTPRequest_BodyAddsContentLength(t *testing.T) {
 
 func TestBuildHTTPRequest_NoBodyNoContentLength(t *testing.T) {
 	cfg := &core.HTTPConfig{Method: "GET", URI: "/", Body: ""}
-	result := buildHTTPRequest(cfg)
+	result := buildHTTPRequest(cfg, "10.0.0.2")
 	if strings.Contains(result, "Content-Length") {
 		t.Errorf("result should not contain Content-Length: %q", result)
 	}
@@ -814,7 +820,7 @@ func TestBuildHTTPRequest_NoBodyNoContentLength(t *testing.T) {
 
 func TestBuildHTTPRequest_BodyAppended(t *testing.T) {
 	cfg := &core.HTTPConfig{Method: "POST", URI: "/", Body: "payload_data"}
-	result := buildHTTPRequest(cfg)
+	result := buildHTTPRequest(cfg, "10.0.0.2")
 	if !strings.Contains(result, "\r\n\r\npayload_data") {
 		t.Errorf("result=%q, want body after double CRLF", result)
 	}
@@ -826,9 +832,86 @@ func TestBuildHTTPRequest_CRLFInjection(t *testing.T) {
 		Method: "GET\r\nX-Injected: true",
 		URI:    "/",
 	}
-	result := buildHTTPRequest(cfg)
+	result := buildHTTPRequest(cfg, "10.0.0.2")
 	if !strings.Contains(result, "X-Injected: true") {
 		t.Errorf("CRLF injection did not produce injected header; result=%q", result)
+	}
+}
+
+// --- Host header defaulting (case-insensitive, dstIP fallback) ---
+
+// TestBuildHTTPRequest_NoHostUsesDstIP verifies that when config.RequestHeaders
+// does not contain a Host entry, the request uses the dstIP argument as the Host.
+// Before the fix, the function unconditionally wrote "Host: localhost" which
+// was wrong for any non-loopback destination.
+func TestBuildHTTPRequest_NoHostUsesDstIP(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/", RequestHeaders: nil}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "Host: 10.0.0.2\r\n") {
+		t.Errorf("result=%q, want contains 'Host: 10.0.0.2\\r\\n'", result)
+	}
+	if strings.Contains(result, "Host: localhost") {
+		t.Errorf("result=%q, should not contain 'Host: localhost'", result)
+	}
+}
+
+// TestBuildHTTPRequest_UserHostReplacesDefault verifies that an explicit Host
+// in config.RequestHeaders takes precedence over the dstIP default — and that
+// the default Host line is NOT also emitted (the bug that produced two Host headers).
+func TestBuildHTTPRequest_UserHostReplacesDefault(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		Method:         "GET",
+		URI:            "/",
+		RequestHeaders: map[string]string{"Host": "www.home.com"},
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "Host: www.home.com\r\n") {
+		t.Errorf("result=%q, want contains 'Host: www.home.com\\r\\n'", result)
+	}
+	hostCount := strings.Count(result, "Host:")
+	if hostCount != 1 {
+		t.Errorf("result=%q, want exactly 1 Host header, got %d", result, hostCount)
+	}
+	if strings.Contains(result, "Host: 10.0.0.2") {
+		t.Errorf("result=%q, should not contain default 'Host: 10.0.0.2' when user Host provided", result)
+	}
+}
+
+// TestBuildHTTPRequest_HostCaseInsensitive verifies that a header named "host"
+// (lowercase) or "HOST" (uppercase) is recognized as the Host header per RFC
+// 7230, and the default dstIP Host is not added.
+func TestBuildHTTPRequest_HostCaseInsensitive(t *testing.T) {
+	cases := []string{"host", "Host", "HOST", "hOsT"}
+	for _, key := range cases {
+		t.Run(key, func(t *testing.T) {
+			cfg := &core.HTTPConfig{
+				Method:         "GET",
+				URI:            "/",
+				RequestHeaders: map[string]string{key: "www.home.com"},
+			}
+			result := buildHTTPRequest(cfg, "10.0.0.2")
+			lower := strings.ToLower(result)
+			totalHost := strings.Count(lower, "host:")
+			if totalHost != 1 {
+				t.Errorf("key=%q: result=%q, want exactly 1 Host header (any case), got %d", key, result, totalHost)
+			}
+			if strings.Contains(result, "Host: 10.0.0.2") {
+				t.Errorf("key=%q: result=%q, should not contain default 'Host: 10.0.0.2' when user Host provided", key, result)
+			}
+		})
+	}
+}
+
+// TestBuildHTTPRequest_EmptyDstIPProducesEmptyHost verifies behavior when the
+// caller passes an empty dstIP: we still emit a "Host: " line (per RFC 7230 §5.4
+// Host is mandatory for HTTP/1.1). The test asserts the Host line exists but
+// does not constrain its value — this is the most graceful degradation we can
+// offer without inventing data.
+func TestBuildHTTPRequest_EmptyDstIPProducesEmptyHost(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/", RequestHeaders: nil}
+	result := buildHTTPRequest(cfg, "")
+	if !strings.Contains(result, "Host:") {
+		t.Errorf("result=%q, want a 'Host:' header line even when dstIP is empty", result)
 	}
 }
 
@@ -845,8 +928,437 @@ func TestBuildHTTPResponse_KeepAlive(t *testing.T) {
 func TestBuildHTTPResponse_NoKeepAlive(t *testing.T) {
 	cfg := &core.HTTPConfig{KeepAlive: false}
 	result := buildHTTPResponse(cfg)
-	if strings.Contains(result, "Connection:") {
-		t.Errorf("result=%q, should not contain Connection header", result)
+	if !strings.Contains(result, "Connection: close") {
+		t.Errorf("result=%q, want contains 'Connection: close' (default for short-conn)", result)
+	}
+}
+
+// --- Unified header defaulting (user > default > none) ---
+
+// TestBuildHTTPRequest_VersionDefault verifies Version empty -> "HTTP/1.1".
+func TestBuildHTTPRequest_VersionDefault(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/"}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "GET / HTTP/1.1\r\n") {
+		t.Errorf("result=%q, want request line 'GET / HTTP/1.1\\r\\n'", result)
+	}
+}
+
+// TestBuildHTTPRequest_VersionUserOverride verifies user-provided Version wins.
+func TestBuildHTTPRequest_VersionUserOverride(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/", Version: "HTTP/1.0"}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "GET / HTTP/1.0\r\n") {
+		t.Errorf("result=%q, want request line 'GET / HTTP/1.0\\r\\n'", result)
+	}
+	if strings.Contains(result, "HTTP/1.1") {
+		t.Errorf("result=%q, should not contain default HTTP/1.1 when user provided Version", result)
+	}
+}
+
+// TestBuildHTTPRequest_ConnectionDefault_KeepAlive verifies the Connection
+// default derived from Transactions>1 (or KeepAlive=true) is "keep-alive".
+func TestBuildHTTPRequest_ConnectionDefault_KeepAlive(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/", Transactions: 3}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "Connection: keep-alive\r\n") {
+		t.Errorf("result=%q, want default 'Connection: keep-alive' for Transactions>1", result)
+	}
+}
+
+// TestBuildHTTPRequest_ConnectionDefault_Close verifies the Connection default
+// for Transactions==1 + KeepAlive=false is "close".
+func TestBuildHTTPRequest_ConnectionDefault_Close(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/", Transactions: 1, KeepAlive: false}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "Connection: close\r\n") {
+		t.Errorf("result=%q, want default 'Connection: close' for short-conn", result)
+	}
+}
+
+// TestBuildHTTPRequest_ConnectionUserOverride verifies user Connection wins
+// and the default is not also emitted.
+func TestBuildHTTPRequest_ConnectionUserOverride(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		Method:         "GET",
+		URI:            "/",
+		Transactions:   1,
+		KeepAlive:      false,
+		RequestHeaders: map[string]string{"Connection": "keep-alive"},
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	connCount := strings.Count(result, "Connection:")
+	if connCount != 1 {
+		t.Errorf("result=%q, want exactly 1 Connection header, got %d", result, connCount)
+	}
+	if !strings.Contains(result, "Connection: keep-alive\r\n") {
+		t.Errorf("result=%q, want user value 'Connection: keep-alive'", result)
+	}
+	if strings.Contains(result, "Connection: close") {
+		t.Errorf("result=%q, should not contain default 'Connection: close' when user provided", result)
+	}
+}
+
+// TestBuildHTTPRequest_ContentLengthUserOverride verifies user Content-Length
+// wins (even if it differs from len(Body)) and the default is not also emitted.
+func TestBuildHTTPRequest_ContentLengthUserOverride(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		Method:         "POST",
+		URI:            "/",
+		Body:           "abc",
+		RequestHeaders: map[string]string{"Content-Length": "999"},
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	clCount := strings.Count(result, "Content-Length:")
+	if clCount != 1 {
+		t.Errorf("result=%q, want exactly 1 Content-Length header, got %d", result, clCount)
+	}
+	if !strings.Contains(result, "Content-Length: 999\r\n") {
+		t.Errorf("result=%q, want user value 'Content-Length: 999'", result)
+	}
+}
+
+// TestBuildHTTPRequest_NoBodyNoConnection leak guard: when Transactions=1 and
+// KeepAlive=false, default Connection=close is emitted even with no body.
+func TestBuildHTTPRequest_NoBodyHasConnectionClose(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/", Transactions: 1, KeepAlive: false}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "Connection: close\r\n") {
+		t.Errorf("result=%q, want 'Connection: close' for short-conn even with no body", result)
+	}
+}
+
+// --- Response-side unified defaulting ---
+
+// TestBuildHTTPResponse_DefaultStatusLine verifies default version/code/text.
+func TestBuildHTTPResponse_DefaultStatusLine(t *testing.T) {
+	cfg := &core.HTTPConfig{ResponseBody: "OK"}
+	result := buildHTTPResponse(cfg)
+	if !strings.HasPrefix(result, "HTTP/1.1 200 OK\r\n") {
+		t.Errorf("result=%q, want status line 'HTTP/1.1 200 OK\\r\\n'", result)
+	}
+}
+
+// TestBuildHTTPResponse_StatusCodeUserOverride verifies user code wins.
+func TestBuildHTTPResponse_StatusCodeUserOverride(t *testing.T) {
+	cfg := &core.HTTPConfig{ResponseBody: "not found", ResponseStatusCode: 404}
+	result := buildHTTPResponse(cfg)
+	if !strings.HasPrefix(result, "HTTP/1.1 404 Not Found\r\n") {
+		t.Errorf("result=%q, want status line 'HTTP/1.1 404 Not Found\\r\\n'", result)
+	}
+}
+
+// TestBuildHTTPResponse_StatusTextUserOverride verifies user text wins over
+// the lookup table.
+func TestBuildHTTPResponse_StatusTextUserOverride(t *testing.T) {
+	cfg := &core.HTTPConfig{ResponseBody: "x", ResponseStatusCode: 200, ResponseStatusText: "Custom"}
+	result := buildHTTPResponse(cfg)
+	if !strings.HasPrefix(result, "HTTP/1.1 200 Custom\r\n") {
+		t.Errorf("result=%q, want status line 'HTTP/1.1 200 Custom\\r\\n'", result)
+	}
+}
+
+// TestBuildHTTPResponse_StatusCodeUnknownFallback verifies the "Status NNN"
+// fallback for codes not in the lookup table.
+func TestBuildHTTPResponse_StatusCodeUnknownFallback(t *testing.T) {
+	cfg := &core.HTTPConfig{ResponseBody: "x", ResponseStatusCode: 599}
+	result := buildHTTPResponse(cfg)
+	if !strings.HasPrefix(result, "HTTP/1.1 599 Status 599\r\n") {
+		t.Errorf("result=%q, want status line 'HTTP/1.1 599 Status 599\\r\\n'", result)
+	}
+}
+
+// TestBuildHTTPResponse_VersionUserOverride verifies user version wins.
+func TestBuildHTTPResponse_VersionUserOverride(t *testing.T) {
+	cfg := &core.HTTPConfig{ResponseBody: "x", Version: "HTTP/1.0"}
+	result := buildHTTPResponse(cfg)
+	if !strings.HasPrefix(result, "HTTP/1.0 200 OK\r\n") {
+		t.Errorf("result=%q, want status line 'HTTP/1.0 200 OK\\r\\n'", result)
+	}
+}
+
+// TestBuildHTTPResponse_ResponseBodyCustom verifies body is taken from
+// ResponseBody field (not hardcoded "OK").
+func TestBuildHTTPResponse_ResponseBodyCustom(t *testing.T) {
+	cfg := &core.HTTPConfig{ResponseBody: "custom-body"}
+	result := buildHTTPResponse(cfg)
+	if !strings.Contains(result, "Content-Length: 11\r\n") {
+		t.Errorf("result=%q, want Content-Length: 11 for 'custom-body'", result)
+	}
+	if !strings.HasSuffix(result, "custom-body") {
+		t.Errorf("result=%q, want body 'custom-body' at end", result)
+	}
+}
+
+// TestBuildHTTPResponse_EmptyBodyNoContentLength verifies that empty
+// ResponseBody -> no Content-Length and no Content-Type default.
+func TestBuildHTTPResponse_EmptyBodyNoContentLength(t *testing.T) {
+	cfg := &core.HTTPConfig{ResponseBody: ""}
+	result := buildHTTPResponse(cfg)
+	if strings.Contains(result, "Content-Length") {
+		t.Errorf("result=%q, should not contain Content-Length when body empty", result)
+	}
+	if strings.Contains(result, "Content-Type") {
+		t.Errorf("result=%q, should not contain Content-Type when body empty", result)
+	}
+}
+
+// TestBuildHTTPResponse_ResponseHeadersOverride verifies user response
+// headers override defaults (Content-Type, Content-Length, Connection).
+func TestBuildHTTPResponse_ResponseHeadersOverride(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		ResponseBody:      "x",
+		KeepAlive:         true,
+		ResponseHeaders:   map[string]string{
+			"Content-Type":   "application/json",
+			"Content-Length": "999",
+			"Connection":     "close",
+		},
+	}
+	result := buildHTTPResponse(cfg)
+	ctCount := strings.Count(result, "Content-Type:")
+	if ctCount != 1 {
+		t.Errorf("result=%q, want exactly 1 Content-Type, got %d", result, ctCount)
+	}
+	clCount := strings.Count(result, "Content-Length:")
+	if clCount != 1 {
+		t.Errorf("result=%q, want exactly 1 Content-Length, got %d", result, clCount)
+	}
+	connCount := strings.Count(result, "Connection:")
+	if connCount != 1 {
+		t.Errorf("result=%q, want exactly 1 Connection, got %d", result, connCount)
+	}
+	if !strings.Contains(result, "Content-Type: application/json\r\n") {
+		t.Errorf("result=%q, want user Content-Type", result)
+	}
+	if !strings.Contains(result, "Content-Length: 999\r\n") {
+		t.Errorf("result=%q, want user Content-Length", result)
+	}
+	if !strings.Contains(result, "Connection: close\r\n") {
+		t.Errorf("result=%q, want user Connection", result)
+	}
+}
+
+// TestBuildHTTPResponse_ConnectionDefault_Close verifies response-side
+// Connection default follows the same rule as request-side.
+func TestBuildHTTPResponse_ConnectionDefault_Close(t *testing.T) {
+	cfg := &core.HTTPConfig{ResponseBody: "x", Transactions: 1, KeepAlive: false}
+	result := buildHTTPResponse(cfg)
+	if !strings.Contains(result, "Connection: close\r\n") {
+		t.Errorf("result=%q, want 'Connection: close' default for short-conn", result)
+	}
+}
+
+// TestStatusTextFor_KnownCodes spot-checks the lookup table.
+func TestStatusTextFor_KnownCodes(t *testing.T) {
+	cases := map[int]string{
+		100: "Continue",
+		200: "OK",
+		201: "Created",
+		204: "No Content",
+		301: "Moved Permanently",
+		302: "Found",
+		304: "Not Modified",
+		400: "Bad Request",
+		401: "Unauthorized",
+		403: "Forbidden",
+		404: "Not Found",
+		500: "Internal Server Error",
+		502: "Bad Gateway",
+		503: "Service Unavailable",
+	}
+	for code, want := range cases {
+		got := statusTextFor(code)
+		if got != want {
+			t.Errorf("statusTextFor(%d)=%q, want %q", code, got, want)
+		}
+	}
+}
+
+// TestStatusTextFor_UnknownFallback verifies the "Status NNN" fallback.
+func TestStatusTextFor_UnknownFallback(t *testing.T) {
+	for _, code := range []int{199, 299, 399, 499, 599, 700, 999} {
+		want := fmt.Sprintf("Status %d", code)
+		got := statusTextFor(code)
+		if got != want {
+			t.Errorf("statusTextFor(%d)=%q, want %q", code, got, want)
+		}
+	}
+}
+
+// TestBuildHTTPRequest_IPv6HostBracketed verifies that an IPv6 dstIP is
+// wrapped in brackets per RFC 7230 §5.4 (uri-host: IP-literal = "[" ... "]").
+// Without brackets, downstream parsers may misinterpret ":" as a port separator.
+func TestBuildHTTPRequest_IPv6HostBracketed(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/"}
+	result := buildHTTPRequest(cfg, "::1")
+	if !strings.Contains(result, "Host: [::1]\r\n") {
+		t.Errorf("result=%q, want 'Host: [::1]\\r\\n' (IPv6 must be bracketed)", result)
+	}
+}
+
+// TestBuildHTTPRequest_IPv4HostNotBracketed verifies IPv4 dstIP is NOT
+// bracketed (regression guard for the IPv6 fix).
+func TestBuildHTTPRequest_IPv4HostNotBracketed(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/"}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "Host: 10.0.0.2\r\n") {
+		t.Errorf("result=%q, want 'Host: 10.0.0.2\\r\\n'", result)
+	}
+	if strings.Contains(result, "[10.0.0.2]") {
+		t.Errorf("result=%q, IPv4 must not be bracketed", result)
+	}
+}
+
+// TestBuildHTTPResponse_ContentTypeDefaultPlain verifies that when user
+// does NOT provide a Content-Type in ResponseHeaders and ResponseBody is
+// non-empty, the default "Content-Type: text/plain" is emitted.
+//
+// Per CLAUDE.md testing policy §5: a field that is never asserted stays at
+// its zero value and passes structural tests. This test asserts the actual
+// header value, closing a coverage gap identified in the post-merge review.
+func TestBuildHTTPResponse_ContentTypeDefaultPlain(t *testing.T) {
+	cfg := &core.HTTPConfig{ResponseBody: "hello"}
+	result := buildHTTPResponse(cfg)
+	if !strings.Contains(result, "Content-Type: text/plain\r\n") {
+		t.Errorf("result=%q, want default 'Content-Type: text/plain\\r\\n'", result)
+	}
+}
+
+// TestBuildHTTPRequest_ConnectionUserOverrideForcesClose verifies that when
+// default would emit "keep-alive" (Transactions>1), user-provided
+// "Connection: close" wins. This is the inverse of
+// TestBuildHTTPRequest_ConnectionUserOverride (which forces keep-alive on a
+// short-conn default). Both directions must work.
+func TestBuildHTTPRequest_ConnectionUserOverrideForcesClose(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		Method:         "GET",
+		URI:            "/",
+		Transactions:   3, // default would be keep-alive
+		KeepAlive:      true,
+		RequestHeaders: map[string]string{"Connection": "close"},
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	connCount := strings.Count(result, "Connection:")
+	if connCount != 1 {
+		t.Errorf("result=%q, want exactly 1 Connection header, got %d", result, connCount)
+	}
+	if !strings.Contains(result, "Connection: close\r\n") {
+		t.Errorf("result=%q, want user value 'Connection: close'", result)
+	}
+	if strings.Contains(result, "Connection: keep-alive") {
+		t.Errorf("result=%q, should not contain default 'keep-alive' when user provided close", result)
+	}
+}
+
+// TestHTTPPlan_RequestPayloadWithCustomHeaders is an integration test that
+// drives the full Plan() flow with custom RequestHeaders and verifies the
+// actual packet Payload contains:
+//   - exactly one Host (the user's, not the dstIP default)
+//   - exactly one Connection (default, since user didn't override)
+//   - the user's custom header X-Trace
+//
+// Per CLAUDE.md testing policy §4: units passing in isolation does not prove
+// the feature works end-to-end. This test catches plan() <-> buildHTTPRequest
+// integration regressions that unit tests miss.
+func TestHTTPPlan_RequestPayloadWithCustomHeaders(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	spec.HTTP = &core.HTTPConfig{
+		Method:       "GET",
+		URI:          "/",
+		Transactions: 1,
+		KeepAlive:    false,
+		RequestHeaders: map[string]string{
+			"Host":    "www.home.com",
+			"X-Trace": "abc-123",
+		},
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+
+	// Find the request packet (PSH-ACK with payload starting "GET ").
+	var requestPkt *core.PacketConfig
+	for i := range cfgs {
+		if cfgs[i].Payload != nil && strings.HasPrefix(string(cfgs[i].Payload), "GET ") {
+			requestPkt = &cfgs[i]
+			break
+		}
+	}
+	if requestPkt == nil {
+		t.Fatalf("no request packet found in %d configs", len(cfgs))
+	}
+	body := string(requestPkt.Payload)
+
+	hostCount := strings.Count(body, "Host:")
+	if hostCount != 1 {
+		t.Errorf("payload=%q, want exactly 1 Host header, got %d", body, hostCount)
+	}
+	if !strings.Contains(body, "Host: www.home.com\r\n") {
+		t.Errorf("payload=%q, want 'Host: www.home.com\\r\\n'", body)
+	}
+	if strings.Contains(body, "Host: 10.0.0.2") {
+		t.Errorf("payload=%q, should not contain default 'Host: 10.0.0.2'", body)
+	}
+
+	connCount := strings.Count(body, "Connection:")
+	if connCount != 1 {
+		t.Errorf("payload=%q, want exactly 1 Connection header, got %d", body, connCount)
+	}
+	if !strings.Contains(body, "Connection: close\r\n") {
+		t.Errorf("payload=%q, want default 'Connection: close' (short-conn)", body)
+	}
+
+	if !strings.Contains(body, "X-Trace: abc-123\r\n") {
+		t.Errorf("payload=%q, want 'X-Trace: abc-123\\r\\n'", body)
+	}
+}
+
+// TestHTTPPlan_ResponsePayloadWithCustomHeaders is the response-side
+// counterpart of TestHTTPPlan_RequestPayloadWithCustomHeaders. Verifies
+// Plan() produces a response packet with user-overridden Content-Type and
+// custom ResponseBody.
+func TestHTTPPlan_ResponsePayloadWithCustomHeaders(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	spec.HTTP = &core.HTTPConfig{
+		Method:              "GET",
+		URI:                 "/",
+		Transactions:        1,
+		KeepAlive:           false,
+		ResponseBody:        `{"ok":true}`,
+		ResponseStatusCode:  201,
+		ResponseStatusText:  "Created",
+		ResponseHeaders:     map[string]string{"Content-Type": "application/json"},
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+
+	var respPkt *core.PacketConfig
+	for i := range cfgs {
+		if cfgs[i].Payload != nil && strings.HasPrefix(string(cfgs[i].Payload), "HTTP/1.1 ") {
+			respPkt = &cfgs[i]
+			break
+		}
+	}
+	if respPkt == nil {
+		t.Fatalf("no response packet found in %d configs", len(cfgs))
+	}
+	body := string(respPkt.Payload)
+
+	if !strings.HasPrefix(body, "HTTP/1.1 201 Created\r\n") {
+		t.Errorf("payload=%q, want status line 'HTTP/1.1 201 Created\\r\\n'", body)
+	}
+	if !strings.Contains(body, "Content-Type: application/json\r\n") {
+		t.Errorf("payload=%q, want user 'Content-Type: application/json\\r\\n'", body)
+	}
+	if strings.Contains(body, "Content-Type: text/plain") {
+		t.Errorf("payload=%q, should not contain default text/plain when user provided", body)
+	}
+	ctCount := strings.Count(body, "Content-Type:")
+	if ctCount != 1 {
+		t.Errorf("payload=%q, want exactly 1 Content-Type, got %d", body, ctCount)
+	}
+	if !strings.HasSuffix(body, `{"ok":true}`) {
+		t.Errorf("payload=%q, want ResponseBody at end", body)
 	}
 }
 

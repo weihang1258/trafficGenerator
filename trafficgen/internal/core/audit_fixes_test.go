@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"hash/maphash"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -50,7 +51,13 @@ func TestAuditFix_ReplayFailureSurfaces(t *testing.T) {
 	taskChan := make(chan Task, 1)
 	configChan := make(chan PacketConfig, 16)
 	var wg sync.WaitGroup
-	worker := NewConfigWorker(0, map[string]ProtocolPlanner{}, planner, taskChan, configChan, &wg, nil)
+	// ConfigWorker now reads sharded channels from engine; for these unit
+	// tests we pass a real Engine so worker.engine.shardedConfigChan works.
+	e := NewEngine(EngineConfig{PacketWorkers: 1, QueueSize: 16})
+	e.shardedConfigChan = []chan PacketConfig{configChan}
+	e.shardCounts = make([]atomic.Int64, 1)
+	e.shardSeed = maphash.MakeSeed()
+	worker := NewConfigWorker(0, map[string]ProtocolPlanner{}, planner, taskChan, &wg, e)
 
 	var mu sync.Mutex
 	var gotErr error
@@ -113,7 +120,11 @@ func TestAuditFix_ReplayFailureInMixedBatch(t *testing.T) {
 	taskChan := make(chan Task, 1)
 	configChan := make(chan PacketConfig, 64)
 	var wg sync.WaitGroup
-	worker := NewConfigWorker(0, map[string]ProtocolPlanner{"tcp": stubProto}, planner, taskChan, configChan, &wg, nil)
+	e := NewEngine(EngineConfig{PacketWorkers: 1, QueueSize: 64})
+	e.shardedConfigChan = []chan PacketConfig{configChan}
+	e.shardCounts = make([]atomic.Int64, 1)
+	e.shardSeed = maphash.MakeSeed()
+	worker := NewConfigWorker(0, map[string]ProtocolPlanner{"tcp": stubProto}, planner, taskChan, &wg, e)
 
 	var mu sync.Mutex
 	var gotErr error
@@ -206,8 +217,8 @@ func TestAuditFix_PacketWorkersCap(t *testing.T) {
 	}
 	defer e.Stop()
 
-	if got := len(e.packetWorkers); got != 1 {
-		t.Errorf("with ReplayOrderPreserve=true, PacketWorkers=8 → engine created %d workers, want 1", got)
+	if got := len(e.packetWorkers); got != 8 {
+		t.Errorf("with ReplayOrderPreserve=true, PacketWorkers=8 → engine created %d workers, want 8 (new behavior: no cap, §8.3)", got)
 	}
 }
 
