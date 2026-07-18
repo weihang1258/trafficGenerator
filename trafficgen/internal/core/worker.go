@@ -522,6 +522,13 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 			if c.BPS != "" {
 				spec.BPS = c.BPS
 			}
+			// Class-level GroupID (TrafficClass.GroupID field) takes
+			// precedence over config-map group_id: explicit struct field is
+			// the canonical source. mapToFlowSpec may have set spec.GroupID
+			// from c.Config["group_id"]; overwrite if c.GroupID is non-nil.
+			if c.GroupID != nil {
+				spec.GroupID = c.GroupID
+			}
 			tupleGen := NewTupleGenerator(c.Tuples)
 			classKey := task.ID + ":" + c.ID
 

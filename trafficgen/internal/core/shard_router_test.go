@@ -1,7 +1,7 @@
 package core
 
 import (
-	"strings"
+	"strconv"
 	"testing"
 )
 
@@ -129,11 +129,13 @@ func TestComputeHashKeyRandStrategyDeterministic(t *testing.T) {
 	if gID0a != gID0b {
 		t.Fatalf("rand not deterministic: %q vs %q", gID0a, gID0b)
 	}
-	if !strings.HasPrefix(gID0a, "") {
-		// should be a numeric string
-		if gID0a == "" {
-			t.Fatal("gID0 empty, want a number 1..1000")
-		}
+	if gID0a == "" {
+		t.Fatal("gID0 empty, want a number 1..1000")
+	}
+	// Verify the value is within [1, 1000]
+	n, err := strconv.Atoi(gID0a)
+	if err != nil || n < 1 || n > 1000 {
+		t.Fatalf("gID0a=%q want number in [1,1000]", gID0a)
 	}
 }
 
