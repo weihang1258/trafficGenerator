@@ -630,7 +630,7 @@ func TestEmitReplayCfg_Success(t *testing.T) {
 	pkt := storage.PacketModel{FlowID: "f1", Direction: "c2s", TimestampUs: 1000}
 	raw := []byte{0, 1, 2, 3}
 	patches := []Patch{{Field: "ttl", Offset: 22, Bytes: []byte{128}, Layer: "l3"}}
-	ok := emitReplayCfg(pkt, fc, patches, raw, "recompute", MaxPacer{}, "t1", "cls1", 0, out, context.Background())
+	ok := emitReplayCfg(pkt, fc, patches, raw, "recompute", MaxPacer{}, "t1", "cls1", "g1", 0, out, context.Background())
 	if !ok {
 		t.Fatal("expected true")
 	}
@@ -668,7 +668,7 @@ func TestEmitReplayCfg_CtxCancelled(t *testing.T) {
 	pkt := storage.PacketModel{FlowID: "f1", Direction: "c2s", TimestampUs: 1000}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	ok := emitReplayCfg(pkt, fc, nil, nil, "recompute", MaxPacer{}, "t1", "cls1", 0, out, ctx)
+	ok := emitReplayCfg(pkt, fc, nil, nil, "recompute", MaxPacer{}, "t1", "cls1", "g1", 0, out, ctx)
 	if ok {
 		t.Error("expected false for cancelled ctx")
 	}
@@ -684,7 +684,7 @@ func TestEmitReplayCfg_FieldsMapped(t *testing.T) {
 	out := make(chan core.PacketConfig, 1)
 	pkt := storage.PacketModel{FlowID: "f1", Direction: "c2s", TimestampUs: 1000}
 	loopBase := 5 * time.Second
-	ok := emitReplayCfg(pkt, fc, nil, nil, "recompute", MaxPacer{}, "t1", "cls1", loopBase, out, context.Background())
+	ok := emitReplayCfg(pkt, fc, nil, nil, "recompute", MaxPacer{}, "t1", "cls1", "g1", loopBase, out, context.Background())
 	if !ok {
 		t.Fatal("expected true")
 	}
@@ -715,7 +715,7 @@ func TestEmitPacket_FlowLookupMiss(t *testing.T) {
 	defer f.Close()
 	pkt := storage.PacketModel{FlowID: "ghost", Direction: "c2s", Length: len(raw), RawOffset: 0}
 	out := make(chan core.PacketConfig, 1)
-	ok := emitPacket(pkt, flowMap, f, Clone{}, "recompute", MaxPacer{}, "t", "c", 0, out, context.Background())
+	ok := emitPacket(pkt, flowMap, f, Clone{}, "recompute", MaxPacer{}, "t", "c", "g1", 0, out, context.Background())
 	if !ok {
 		t.Error("expected true for flow lookup miss (skip, not error)")
 	}
@@ -731,7 +731,7 @@ func TestEmitPacket_ReadAtFail(t *testing.T) {
 	defer f.Close()
 	pkt := storage.PacketModel{FlowID: "f1", Direction: "c2s", Length: 200, RawOffset: 0} // 200 > 100
 	out := make(chan core.PacketConfig, 1)
-	ok := emitPacket(pkt, flowMap, f, Clone{}, "recompute", MaxPacer{}, "t", "c", 0, out, context.Background())
+	ok := emitPacket(pkt, flowMap, f, Clone{}, "recompute", MaxPacer{}, "t", "c", "g1", 0, out, context.Background())
 	if !ok {
 		t.Error("expected true for ReadAt fail (skip, not error)")
 	}
@@ -750,7 +750,7 @@ func TestEmitPacket_SeqOffsetApplied(t *testing.T) {
 	pkt := storage.PacketModel{FlowID: "f1", Direction: "c2s", Length: len(raw), RawOffset: 0, TimestampUs: 1000}
 	clone := Clone{SeqOffset: 1000}
 	out := make(chan core.PacketConfig, 1)
-	ok := emitPacket(pkt, flowMap, f, clone, "recompute", MaxPacer{}, "t", "c", 0, out, context.Background())
+	ok := emitPacket(pkt, flowMap, f, clone, "recompute", MaxPacer{}, "t", "c", "g1", 0, out, context.Background())
 	if !ok {
 		t.Fatal("expected true")
 	}
@@ -781,7 +781,7 @@ func TestEmitPacket_CtxCancelPropagate(t *testing.T) {
 	defer f.Close()
 	pkt := storage.PacketModel{FlowID: "f1", Direction: "c2s", Length: len(raw), RawOffset: 0}
 	out := make(chan core.PacketConfig) // unbuffered: ctx.Done() wins
-	ok := emitPacket(pkt, flowMap, f, Clone{}, "recompute", MaxPacer{}, "t", "c", 0, out, ctx)
+	ok := emitPacket(pkt, flowMap, f, Clone{}, "recompute", MaxPacer{}, "t", "c", "g1", 0, out, ctx)
 	if ok {
 		t.Error("expected false for cancelled ctx propagating to emitReplayCfg")
 	}

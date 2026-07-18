@@ -5,8 +5,11 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -258,6 +261,7 @@ func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, class
 			// Serial mode: iterate over clones outer, then packets inner.
 			if interleaveSerial && len(roundClones) > 0 {
 				for ci := 0; ci < len(roundClones); ci++ {
+					gID := computeReplayGroupID(spec, taskID, classID, ci)
 					for _, pkt := range packets {
 						if ctx.Err() != nil {
 							return
@@ -265,13 +269,14 @@ func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, class
 						if !countFlow(pkt.FlowID) {
 							continue
 						}
-						if !emitPacket(pkt, flowMap, pcapFile, roundClones[ci], checksumMode, pacer, taskID, classID, loopBase, out, ctx) {
+						if !emitPacket(pkt, flowMap, pcapFile, roundClones[ci], checksumMode, pacer, taskID, classID, gID, loopBase, out, ctx) {
 							return
 						}
 					}
 				}
 			} else {
 				// Stack mode (default): iterate over packets outer, then clones inner.
+				// Compute gID per clone (or single implicit gID if no FlowScaling).
 				for _, pkt := range packets {
 					if ctx.Err() != nil {
 						return
@@ -290,16 +295,21 @@ func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, class
 					basePatches := assemblePatches(fc, pkt, raw)
 					if stackCloneCount > 0 {
 						for ci := 0; ci < stackCloneCount; ci++ {
+							gID := computeReplayGroupID(spec, taskID, classID, ci)
 							patches := append(append([]Patch{}, basePatches...), clonePatches(roundClones[ci], fc.layout)...)
 							if sp, ok := seqOffsetPatch(raw, roundClones[ci], fc.layout); ok {
 								patches = append(patches, sp)
 							}
-							if !emitReplayCfg(pkt, fc, patches, raw, checksumMode, pacer, taskID, classID, loopBase, out, ctx) {
+							if !emitReplayCfg(pkt, fc, patches, raw, checksumMode, pacer, taskID, classID, gID, loopBase, out, ctx) {
 								return
 							}
 						}
 					} else {
-						if !emitReplayCfg(pkt, fc, basePatches, raw, checksumMode, pacer, taskID, classID, loopBase, out, ctx) {
+						// No FlowScaling: single implicit gID for whole asset
+						// (computeReplayGroupID with cloneIdx=0 returns
+						// taskID:classID when no FlowScaling).
+						gID := computeReplayGroupID(spec, taskID, classID, 0)
+						if !emitReplayCfg(pkt, fc, basePatches, raw, checksumMode, pacer, taskID, classID, gID, loopBase, out, ctx) {
 							return
 						}
 					}
@@ -315,7 +325,7 @@ func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, class
 
 // emitPacket reads one packet, assembles patches, and sends it to the output
 // channel. Used by serial interleave mode. Returns false if context cancelled.
-func emitPacket(pkt storage.PacketModel, flowMap map[string]*flowCtx, pcapFile *os.File, clone Clone, checksumMode string, pacer Pacer, taskID, classID string, loopBase time.Duration, out chan core.PacketConfig, ctx context.Context) bool {
+func emitPacket(pkt storage.PacketModel, flowMap map[string]*flowCtx, pcapFile *os.File, clone Clone, checksumMode string, pacer Pacer, taskID, classID string, gID string, loopBase time.Duration, out chan core.PacketConfig, ctx context.Context) bool {
 	fc, ok := flowMap[pkt.FlowID]
 	if !ok {
 		return true
@@ -329,11 +339,11 @@ func emitPacket(pkt storage.PacketModel, flowMap map[string]*flowCtx, pcapFile *
 	if sp, ok := seqOffsetPatch(raw, clone, fc.layout); ok {
 		patches = append(patches, sp)
 	}
-	return emitReplayCfg(pkt, fc, patches, raw, checksumMode, pacer, taskID, classID, loopBase, out, ctx)
+	return emitReplayCfg(pkt, fc, patches, raw, checksumMode, pacer, taskID, classID, gID, loopBase, out, ctx)
 }
 
 // emitReplayCfg builds a PacketConfig with replay metadata and sends it.
-func emitReplayCfg(pkt storage.PacketModel, fc *flowCtx, patches []Patch, raw []byte, checksumMode string, pacer Pacer, taskID, classID string, loopBase time.Duration, out chan core.PacketConfig, ctx context.Context) bool {
+func emitReplayCfg(pkt storage.PacketModel, fc *flowCtx, patches []Patch, raw []byte, checksumMode string, pacer Pacer, taskID, classID, gID string, loopBase time.Duration, out chan core.PacketConfig, ctx context.Context) bool {
 	// Timestamp: original pkt ts + loopBase offset (§10).
 	ts := time.UnixMicro(pkt.TimestampUs).Add(loopBase)
 	meta := map[string]interface{}{
@@ -344,6 +354,7 @@ func emitReplayCfg(pkt storage.PacketModel, fc *flowCtx, patches []Patch, raw []
 		"_layout":        fc.layout,
 		"_task_id":       taskID,
 		"_interface":     "", // filled by caller
+		"group_id":       gID,
 	}
 	// Only attach a pacer when one is in use. nil pacer = single-protocol
 	// bps/empty mode, where processConfig should fall through to the engine's
@@ -365,6 +376,105 @@ func emitReplayCfg(pkt storage.PacketModel, fc *flowCtx, patches []Patch, raw []
 	case <-ctx.Done():
 		return false
 	}
+}
+
+// computeReplayGroupID derives the group id for a replay flow (spec §8.1).
+//
+// Priority:
+//  1. ReplaySpec.GroupID non-nil with a strategy -> generate via strategy
+//     (fixed/inc/pattern/list)
+//  2. FlowScaling exists -> implicit "taskID:classID:cloneIdx" per clone
+//  3. No FlowScaling -> implicit "taskID:classID" (whole asset, preserves
+//     pcap order)
+func computeReplayGroupID(spec ReplaySpec, taskID, classID string, cloneIdx int) string {
+	if spec.GroupID != nil && spec.GroupID.Strategy != "" {
+		g := genReplayGroupValue(*spec.GroupID, cloneIdx)
+		if g != "" {
+			return g
+		}
+	}
+	if spec.FlowScaling != nil && spec.FlowScaling.Count > 0 {
+		return taskID + ":" + classID + ":" + strconv.Itoa(cloneIdx)
+	}
+	return taskID + ":" + classID
+}
+
+// genReplayGroupValue mirrors core.genStringValue but lives in the replay
+// package to avoid an import cycle (core can't import replay).
+func genReplayGroupValue(s core.StrategyConfig, index int) string {
+	switch s.Strategy {
+	case "fixed", "":
+		if v, ok := s.Value.(string); ok {
+			return v
+		}
+		return ""
+	case "list":
+		if len(s.List) == 0 {
+			return ""
+		}
+		return s.List[index%len(s.List)]
+	case "pattern":
+		return applyReplayPattern(s.Pattern, s.Range, index)
+	case "inc":
+		if len(s.Range) < 2 {
+			return ""
+		}
+		start := replayToInt(s.Range[0])
+		end := replayToInt(s.Range[1])
+		if end < start {
+			return ""
+		}
+		count := end - start + 1
+		step := s.Step
+		if step <= 0 {
+			step = 1
+		}
+		return strconv.Itoa(start + (index*step)%count)
+	case "rand":
+		if len(s.Range) < 2 {
+			return ""
+		}
+		start := replayToInt(s.Range[0])
+		end := replayToInt(s.Range[1])
+		if end < start {
+			return ""
+		}
+		r := rand.New(rand.NewSource(s.Seed + int64(index)))
+		return strconv.Itoa(start + r.Intn(end-start+1))
+	}
+	return ""
+}
+
+func applyReplayPattern(pattern string, nRange []interface{}, index int) string {
+	if pattern == "" || len(nRange) < 2 {
+		return ""
+	}
+	start := replayToInt(nRange[0])
+	end := replayToInt(nRange[1])
+	if end < start {
+		return ""
+	}
+	count := end - start + 1
+	if count <= 0 {
+		return ""
+	}
+	n := start + (index % count)
+	return strings.ReplaceAll(pattern, "{n}", strconv.Itoa(n))
+}
+
+func replayToInt(v interface{}) int {
+	switch x := v.(type) {
+	case float64:
+		return int(x)
+	case int:
+		return x
+	case int64:
+		return int(x)
+	case string:
+		n, _ := strconv.Atoi(x)
+		return n
+	}
+	return 0
 }
 
 // buildFlowContexts precomputes per-flow patches + endpoint rules + offset rules.
