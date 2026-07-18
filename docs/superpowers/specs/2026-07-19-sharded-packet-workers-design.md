@@ -170,68 +170,110 @@ type ReplaySpec struct {
 - `Metadata["group_id"]`（string）：ConfigWorker 写入，路由层 + 调试用
 - `Metadata["shard_idx"]`（int）：per-flow 算一次后写入，后续 push 直读，避免 per-packet 重算
 
+**注**：`shard_idx` 实际上只在 ConfigWorker push 时用一次（决定 push 到哪个分片），PacketWorker 接收后不需要再读它。保留在 Metadata 是为调试和监控（可从包元数据看出它走了哪个分片）。
+
 ## 5. 路由层变更
 
-### 5.1 `Engine.Start`（引擎启动函数，`engine.go:240`）
+### 5.1 `Engine` 结构体新增字段
+
+```go
+type Engine struct {
+    // ...existing fields...
+    shardedConfigChan []chan PacketConfig  // 分片数组，长度 = pw（实际 PacketWorker 数）
+    shardSeed         maphash.Seed        // 随机种子，防 hash flooding
+}
+```
+
+`Engine.Start`（引擎启动函数，`engine.go:240`）初始化（含删除 `ReplayOrderPreserve` cap-to-1 逻辑，见 §8.3）：
 
 ```go
 // 改前
 e.configChan = make(chan PacketConfig, e.config.QueueSize*2)
+pw := e.config.PacketWorkers
+if e.config.ReplayOrderPreserve && pw > 1 {
+    pw = 1  // 旧逻辑：cap worker 数
+}
+e.packetWorkers = make([]*PacketWorker, pw)
+for i := 0; i < pw; i++ {
+    worker := NewPacketWorker(i, e.configChan, e.packetChan, buildFn, &e.wg, e)
+    // ...
+}
 
 // 改后
-e.shardSeed = maphash.MakeSeed()  // 随机种子，防 hash flooding
+e.shardSeed = maphash.MakeSeed()
+pw := e.config.PacketWorkers
+// 删除 ReplayOrderPreserve cap-to-1（见 §8.3：replay 留空 group_id 走隐式 gID 保 pcap 顺序，不需要 cap）
 e.shardedConfigChan = make([]chan PacketConfig, pw)
 for i := 0; i < pw; i++ {
-    e.shardedConfigChan[i] = make(chan PacketConfig, e.config.QueueSize)
+    e.shardedConfigChan[i] = make(chan PacketConfig, e.config.QueueSize*2)  // 每分片容量 = 改前共享容量
+}
+e.packetWorkers = make([]*PacketWorker, pw)
+for i := 0; i < pw; i++ {
+    worker := NewPacketWorker(i, e.shardedConfigChan[i], e.packetChan, buildFn, &e.wg, e)
+    // ...
 }
 ```
+
+每分片容量 = 改前共享 `configChan` 容量（`QueueSize*2`），总容量 = `pw × QueueSize×2`。内存增幅几 MB。理由见 §6.2。
 
 ### 5.2 `ConfigWorker`（配置工作协程）结构体
 
 ```go
 type ConfigWorker struct {
     // ...existing fields...
-    shardedConfigChan []chan<- PacketConfig  // 改：分片数组
-    shardSeed         maphash.Seed
+    // shardedConfigChan 和 shardSeed 通过 engine 引用读，不复制到 ConfigWorker
+    // （ConfigWorker 已有 engine *Engine 字段，见 worker.go:63）
 }
 ```
+
+无需新增字段——`ConfigWorker` 已持有 `engine *Engine`（`worker.go:63`），通过 `w.engine.shardedConfigChan` 和 `w.engine.shardSeed` 访问。
 
 ### 5.3 `PacketWorker`（包构建工作协程）结构体
 
 ```go
 type PacketWorker struct {
     // ...existing fields...
-    shardChan <-chan PacketConfig  // 改：自己的分片
+    shardChan <-chan PacketConfig  // 新增：自己的分片
 }
 ```
 
+`NewPacketWorker`（构造函数，`worker.go:609`）签名改为接收 `shardChan <-chan PacketConfig` 而非共享 `configChan`。`Engine.Start` 在创建每个 PacketWorker 时传入 `e.shardedConfigChan[i]`。
+
 ### 5.4 `processTask` / `processBatchTask` / `processReplayTask`（任务处理函数）
 
-在 push 前加路由逻辑（伪代码）：
+在 push 前加路由逻辑。**per-flow（每流一次）**：在 `planner.Plan` 返回 `configChan` 之前，由 ConfigWorker 算一次 `shardIdx`，写入该流所有包的 `Metadata["shard_idx"]`。**注意**：由于 `planner.Plan` 返回的是 `<-chan PacketConfig`（只读 channel），ConfigWorker 无法在包进入 channel 前注入 `shardIdx`——需在**接收循环内**逐包写入（仍是一次 hash 计算 + N 次写 map，开销远小于 per-packet hash）：
 
 ```go
-// 在生成每条流的第一个包之前，per-flow 算一次 shardIdx
-hashKey := computeHashKey(spec, config, task)  // group_id > 4元组 > 隐式gID
-shardIdx := int(maphash.String(hashKey, w.shardSeed) % uint64(len(w.shardedConfigChan)))
+// 在 planner.Plan 返回 configChan 后，进入 for config := range configChan 循环前
+// 算一次 shardIdx（per-flow，不是 per-packet）
+hashKey := computeHashKey(spec, task)  // group_id > 4元组 > 隐式gID
+shardIdx := int(maphash.String(hashKey, w.engine.shardSeed) % uint64(len(w.engine.shardedConfigChan)))
 
-// 把 shardIdx 写入该流所有包的 Metadata
+// 接收循环内逐包写入 Metadata（hash 只算了一次）
 for config := range configChan {
     if config.Metadata == nil {
         config.Metadata = make(map[string]interface{})
     }
     config.Metadata["shard_idx"] = shardIdx
-    config.Metadata["group_id"] = gID  // 可能为空字符串
+    config.Metadata["group_id"] = gID  // 可能为空字符串（fallback 路径）
 
     select {
     case <-taskCtx.Done():
         for range configChan {}  // drain（排空剩余包配置）
         // ...existing cancel handling...
         return
-    case w.shardedConfigChan[shardIdx] <- config:
+    case w.engine.shardedConfigChan[shardIdx] <- config:
         // ...
     }
 }
 ```
+
+`computeHashKey`（路由键计算函数）逻辑：
+1. 若 `spec.GroupID.Strategy != ""`：调 `ValuePattern`/`ValueInc`/`ValueRandom`/`ValueList` 按 flowIdx 生成 gID，返回 gID
+2. 若 synth 任务且 `spec.GroupID.Strategy == ""`：返回 `min(src,dst)+"-"+max(src,dst)+"-"+min(sport,dport)+"-"+max(sport,dport)`
+3. 若 replay 任务且 `spec.GroupID.Strategy == ""`：返回 `task.ID + ":" + task.ClassID`（隐式 gID）
+
+**per-flow 而非 per-packet 的关键**：`shardIdx` 在进入接收循环前算一次，循环内只写 map 不重算 hash。同一条流的所有包共享同一个 `shardIdx`。
 
 ### 5.5 `PacketWorker.run` 主循环
 
@@ -243,7 +285,23 @@ case config, ok := <-w.configChan:
 case config, ok := <-w.shardChan:
 ```
 
-其余 build / rate-limit / push 逻辑不变。
+其余 build / rate-limit / push 逻辑不变。`shardChan` 在 `NewPacketWorker` 时由 `Engine.Start` 传入 `e.shardedConfigChan[i]`。
+
+### 5.6 `Engine.Stop` 关闭分片 channel
+
+`engine.go:334` 当前 `close(e.taskChan)` 让 ConfigWorker 退出。改后还需关闭所有分片 channel 让 PacketWorker 退出：
+
+```go
+// Engine.Stop 内
+close(e.taskChan)
+// ...等待 ConfigWorker 退出...
+for i := range e.shardedConfigChan {
+    close(e.shardedConfigChan[i])
+}
+// ...等待 PacketWorker 退出...
+```
+
+关闭顺序：先 `taskChan`（停止新任务进入）→ 等 ConfigWorker 退出（保证所有 push 已完成）→ 再 `close(shardedConfigChan[i])`（让 PacketWorker 的 `for config := range` 退出）→ 等 PacketWorker 退出。
 
 ## 6. hash 与路由策略
 
@@ -252,19 +310,19 @@ case config, ok := <-w.shardChan:
 | hash 函数 | `hash/maphash`（Go 标准库） | 零依赖、性能最优、带 seed 防碰撞 |
 | 计算位置 | per-flow（每流一次） | 流数远小于包数，性能最优 |
 | 路由 key 优先级 | `group_id` > 无序4元组 > replay隐式gID | 显式声明优先于隐式 |
-| 分片容量 | 每分片 `QueueSize` | 总容量 ×N（几 MB），抗局部背压 |
+| 分片容量 | 每分片 `QueueSize*2`（= 改前共享容量） | 总容量 ×N（几 MB），抗局部背压；与改前共享 channel 容量一致，避免改变背压行为 |
 | push 阻塞 | `select` + `ctx.Done()` | 避免永久阻塞，支持优雅停止 |
 
 ### 6.1 为什么 per-flow 而非 per-packet
 
-一条 TCP 流可能有几十上百个包。per-packet 每包算一次 hash，per-flow 只算一次。把 `shardIdx` 存到 `Metadata["shard_idx"]`，后续 push 直读，开销从 O(packet_count) 降到 O(flow_count)。
+一条 TCP 流可能有几十上百个包。per-packet 每包算一次 hash，per-flow 只算一次。`shardIdx` 在进入 `planner.Plan` 返回的 `configChan` 接收循环前算一次，循环内只写 `Metadata["shard_idx"]`（map 写，无 hash 计算），开销从 O(packet_count) 降到 O(flow_count)。
 
-### 6.2 为什么每分片 `QueueSize` 而非 `QueueSize / N`
+### 6.2 为什么每分片 `QueueSize*2` 而非 `QueueSize*2 / N`
 
-- **方案 A**（每分片 `QueueSize`，推荐）：内存涨到 N × QueueSize（假设 QueueSize=4096、N=8，32768 个 `PacketConfig` 槽位，约几 MB），任一分片满不影响其他分片生产
-- **方案 B**（每分片 `QueueSize / N`）：内存不变，但任一分片满会阻塞 ConfigWorker 串行 push 该 class 的所有包（包括其他分片的）
+- **方案 A**（每分片 `QueueSize*2`，推荐）：每分片容量 = 改前共享 `configChan` 容量，总容量 = `N × QueueSize×2`（假设 `QueueSize=4096`、N=8，32768 个 `PacketConfig` 槽位，约几 MB），任一分片满不影响其他分片生产
+- **方案 B**（每分片 `QueueSize*2 / N`）：总容量不变，但任一分片满会阻塞 ConfigWorker 串行 push 该 class 的所有包（包括其他分片的）
 
-ConfigWorker 是串行 push 模型，方案 B 的"一分片满全卡"问题严重——某 worker 慢（rate limiter 卡住）会拖累所有 class。方案 A 让分片间真正隔离。
+ConfigWorker 是串行 push 模型，方案 B 的"一分片满全卡"问题严重——某 worker 慢（rate limiter 卡住）会拖累所有 class。方案 A 让分片间真正隔离，且保持与改前相同的单分片背压行为（不会因为分片容量变小而更早触发背压）。
 
 ## 7. 负载均衡
 
@@ -310,12 +368,16 @@ zap.L().Warn("shard load imbalance detected",
 
 ### 8.3 `ReplayOrderPreserve` 向后兼容
 
-| `ReplayOrderPreserve` 值 | 旧行为 | 新行为 |
-|---|---|---|
-| `true`（默认） | 强制 PacketWorker=1 | 等价"留空 + 无 FlowScaling"——隐式 gID 保 pcap 顺序，**但不再 cap worker 数** |
-| `false` | 多 worker 乱序 replay | 需显式配 `group_id` 才能多 worker 并行，否则 fallback 到保序 |
+`ReplayOrderPreserve` 字段语义变更：
 
-字段保留作向后兼容，删除 `engine.go:287` 的 cap-to-1 强限制。
+| `ReplayOrderPreserve` 值 | 旧行为（改前） | 新行为（改后） |
+|---|---|---|
+| `true`（默认） | 强制 PacketWorker=1，cap worker 数 | **不再 cap worker 数**——保留字段但 cap 逻辑移除；replay 留空 `group_id` 时走隐式 gID（`taskID+classID`）保 pcap 顺序，多 worker 并行可用 |
+| `false` | 多 worker 乱序 replay（用户接受乱序） | 行为不变——多 worker 乱序 replay（用户接受乱序） |
+
+**关键决策**：删除 `engine.go:287` 的 `if e.config.ReplayOrderPreserve && pw > 1 { pw = 1 }` 强限制。replay 留空 `group_id` 时，所有包走隐式 gID（`taskID+classID`）→ `hash(taskID+classID) % pw` → 全部落同一 worker → 保 pcap 顺序，**不需要 cap worker 数**。`ReplayOrderPreserve=false` 时行为不变（用户显式接受乱序，可配 `group_id` 走分片或留空走隐式 gID）。
+
+字段保留作向后兼容：旧配置 `ReplayOrderPreserve=true` 仍然保 pcap 顺序（通过隐式 gID 实现，而非 cap worker 数）。
 
 ## 9. MCP（模型上下文协议）同步
 
