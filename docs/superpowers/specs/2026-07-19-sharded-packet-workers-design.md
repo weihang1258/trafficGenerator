@@ -129,10 +129,27 @@ batch:
 ### 3.4 关键不变量
 
 1. **同 gID 的所有包 → 同 PacketWorker**（hash 函数确定 + worker 只读自己分片）
-2. **同 worker 单 goroutine 串行** → 出包顺序 = ConfigWorker push 顺序
-3. **ConfigWorker push 顺序 = 业务时序**（用户在 spec 里按时序声明，planner 按时序生成包）→ 跨流时序自动正确
-4. **无 `group_id` 的流走 4 元组 hash** → 单流保序、跨流不绑 → 并行吞吐不退化
-5. **replay 留空 `group_id`** → 整资产绑一个 worker → pcap 顺序保住
+2. **同 worker 单 goroutine 串行** → 出包顺序 = 该 worker 的入队顺序
+3. **流内保序**（保证）：同一条 flow 的所有包落同 worker，单 goroutine 串行 → 严格 FIFO
+4. **双向流保序**（保证）：双向流的 4 元组无序集合相同 → 落同 worker → 双向包不交错乱序
+5. **跨流不交错**（保证）：同 gID 的多条流落同 worker，它们的包在 worker 内串行，不会交错乱序（如 RTP-A 的包不会插到 SIP-A 的包序列中间）
+6. **跨流业务时序**（**不保证**，见 §3.5）：同 gID 多条流的**入队顺序**由 ConfigWorker 决定。batch（批量任务）里多个 class 是并发 goroutine（`processBatchTask` 的 `go func(c TrafficClass, p ProtocolPlanner) {...}`），SIP class 和 RTP class 的包入队顺序不确定——不保证 SIP INVITE 一定先于 RTP 入队
+7. **无 `group_id` 的流走 4 元组 hash** → 单流保序、跨流不绑 → 并行吞吐不退化
+8. **replay 留空 `group_id`** → 整资产绑一个 worker → pcap 顺序保住
+
+### 3.5 跨流业务时序的限制与应对
+
+§3.4 不变量 6 承认 group_id **不保证跨流业务时序**（如 SIP INVITE 一定在 RTP 之前）。这是设计边界，不是缺陷——保证业务时序需要 ConfigWorker 按时序入队，但 batch 的并发 class 模型不保证这一点。
+
+**用户的应对方式**：
+
+| 场景 | 应对 |
+|---|---|
+| 单 task 内多 class 需严格时序 | 不用 batch，拆成多个 single-protocol task，按时序顺序 start（task-A 完成后再 start task-B） |
+| batch 内多 class 需大致时序 | 接受 group_id 的"不交错"保证（SIP 和 RTP 不会乱插），不要求严格先后 |
+| 跨 task 绑定 | 两个 task 写相同 gID 字符串，但时序仍由 start 顺序决定 |
+
+**group_id 的实际价值**：保流内 + 保双向 + 保跨流不交错。**不保跨流严格先后**——这是用户需理解的边界。
 
 ## 4. 数据结构变更
 
@@ -241,12 +258,12 @@ type PacketWorker struct {
 
 ### 5.4 `processTask` / `processBatchTask` / `processReplayTask`（任务处理函数）
 
-在 push 前加路由逻辑。**per-flow（每流一次）**：在 `planner.Plan` 返回 `configChan` 之前，由 ConfigWorker 算一次 `shardIdx`，写入该流所有包的 `Metadata["shard_idx"]`。**注意**：由于 `planner.Plan` 返回的是 `<-chan PacketConfig`（只读 channel），ConfigWorker 无法在包进入 channel 前注入 `shardIdx`——需在**接收循环内**逐包写入（仍是一次 hash 计算 + N 次写 map，开销远小于 per-packet hash）：
+在 push 前加路由逻辑。**per-flow（每流一次）**：在 `planner.Plan` 返回 `configChan` 之后、进入接收循环之前，由 ConfigWorker 算一次 `shardIdx`，写入该流所有包的 `Metadata["shard_idx"]`。**注意**：由于 `planner.Plan` 返回的是 `<-chan PacketConfig`（只读 channel），ConfigWorker 无法在包进入 channel 前注入 `shardIdx`——需在**接收循环内**逐包写入（仍是一次 hash 计算 + N 次写 map，开销远小于 per-packet hash）：
 
 ```go
 // 在 planner.Plan 返回 configChan 后，进入 for config := range configChan 循环前
 // 算一次 shardIdx（per-flow，不是 per-packet）
-hashKey := computeHashKey(spec, task)  // group_id > 4元组 > 隐式gID
+hashKey, gID := computeHashKey(spec, task)  // group_id > 4元组 > 隐式gID
 shardIdx := int(maphash.String(hashKey, w.engine.shardSeed) % uint64(len(w.engine.shardedConfigChan)))
 
 // 接收循环内逐包写入 Metadata（hash 只算了一次）
@@ -268,12 +285,16 @@ for config := range configChan {
 }
 ```
 
-`computeHashKey`（路由键计算函数）逻辑：
-1. 若 `spec.GroupID.Strategy != ""`：调 `ValuePattern`/`ValueInc`/`ValueRandom`/`ValueList` 按 flowIdx 生成 gID，返回 gID
-2. 若 synth 任务且 `spec.GroupID.Strategy == ""`：返回 `min(src,dst)+"-"+max(src,dst)+"-"+min(sport,dport)+"-"+max(sport,dport)`
-3. 若 replay 任务且 `spec.GroupID.Strategy == ""`：返回 `task.ID + ":" + task.ClassID`（隐式 gID）
+`computeHashKey`（路由键计算函数）逻辑（返回 hashKey + gID 两个值，gID 写入 Metadata 供调试）：
+1. 若 `spec.GroupID.Strategy != ""`：调 `ValuePattern`/`ValueInc`/`ValueRandom`/`ValueList` 按 flowIdx 生成 gID，返回 `(gID, gID)`
+2. 若 synth 任务且 `spec.GroupID.Strategy == ""`：构造 `min(src,dst)+"-"+max(src,dst)+"-"+min(sport,dport)+"-"+max(sport,dport)` 作 hashKey，返回 `(hashKey, "")`（gID 留空，表示 fallback 路径）
+3. 若 replay 任务且 `spec.GroupID.Strategy == ""`：返回 `task.ID + ":" + task.ClassID`（隐式 gID，作 hashKey 和 gID）
 
 **per-flow 而非 per-packet 的关键**：`shardIdx` 在进入接收循环前算一次，循环内只写 map 不重算 hash。同一条流的所有包共享同一个 `shardIdx`。
+
+**gID 生成器在 batch 路径的位置**：`processBatchTask` 的 class goroutine（`worker.go:480`）在 `tupleGen := NewTupleGenerator(c.Tuples)` 旁边加 `groupGen := NewValueGenerator(c.GroupID)`（`ValueGenerator`（值生成器统一接口，封装 pattern/inc/rand/list 四种模式））。在 `tupleGen.Next(flowIdx)` 旁边调 `gID := groupGen.Next(flowIdx)`。
+
+**注意 ConfigWorker 引用问题**：§5.2 说 ConfigWorker 通过 `w.engine.shardedConfigChan`/`w.engine.shardSeed` 访问分片。但 `processBatchTask` 的 class goroutine 是 `go func(c TrafficClass, p ProtocolPlanner)` 闭包，捕获了 `w *ConfigWorker`——闭包内 `w.engine.shardedConfigChan` 和 `w.engine.shardSeed` 可直接访问，无需额外传参。
 
 ### 5.5 `PacketWorker.run` 主循环
 
@@ -287,21 +308,36 @@ case config, ok := <-w.shardChan:
 
 其余 build / rate-limit / push 逻辑不变。`shardChan` 在 `NewPacketWorker` 时由 `Engine.Start` 传入 `e.shardedConfigChan[i]`。
 
+**注意 `worker.go:741` 注释更新**：原注释 "Resequencing is not currently used because a single PacketWorker guarantees ordering. If multiple PacketWorkers are configured in the future, resequencing will be needed." 需更新为 "Per-flow sharded channel guarantees ordering: same flow always lands on the same PacketWorker, so no resequencing is needed even with multiple PacketWorkers."（每个流走分片 channel 保序：同流永远落同 PacketWorker，多 PacketWorker 下也无需 resequencer）
+
 ### 5.6 `Engine.Stop` 关闭分片 channel
 
-`engine.go:334` 当前 `close(e.taskChan)` 让 ConfigWorker 退出。改后还需关闭所有分片 channel 让 PacketWorker 退出：
+`engine.go:334-356` 当前逻辑：`close(e.taskChan)` → cancel worker contexts → `w.Stop()` 各 worker → `e.wg.Wait()` → `close(e.configChan)` + `close(e.packetChan)`。
+
+改后逻辑：`close(e.taskChan)` → cancel worker contexts → `w.Stop()` 各 worker（ConfigWorker 先退出，PacketWorker 后退出）→ `e.wg.Wait()` → 关闭所有分片 channel：
 
 ```go
-// Engine.Stop 内
-close(e.taskChan)
-// ...等待 ConfigWorker 退出...
+// 改前（engine.go:354-356）
+close(e.configChan)
+close(e.packetChan)
+
+// 改后
 for i := range e.shardedConfigChan {
     close(e.shardedConfigChan[i])
 }
-// ...等待 PacketWorker 退出...
+close(e.packetChan)
 ```
 
-关闭顺序：先 `taskChan`（停止新任务进入）→ 等 ConfigWorker 退出（保证所有 push 已完成）→ 再 `close(shardedConfigChan[i])`（让 PacketWorker 的 `for config := range` 退出）→ 等 PacketWorker 退出。
+**关键顺序**：
+1. `close(e.taskChan)`（停止新任务进入）
+2. cancel worker contexts + `w.Stop()`（让 worker 的 select 循环退出）
+3. `e.wg.Wait()`（等所有 ConfigWorker 和 PacketWorker 退出——ConfigWorker 的 `run()` 在 `taskChan` 关闭后 `case task, ok := <-w.taskChan: if !ok { return }` 退出；PacketWorker 的 `run()` 在 context cancel 后 `<-w.ctx.Done()` 退出）
+4. `close(e.shardedConfigChan[i])`（所有 PacketWorker 已退出，关闭安全）
+5. `close(e.packetChan)`
+
+**风险**：PacketWorker 的 `run()` 当前用 `<-w.ctx.Done()` 退出，不靠 channel close。所以即使分片 channel 没关闭，PacketWorker 也能通过 ctx.Done 退出。但 `close` 是必要的——否则分片 channel 永远不关闭，gc（垃圾回收）无法回收。改后顺序保证 close 在 worker 退出之后，不会触发 "send on closed channel" panic（恐慌，Go 运行时错误）。
+
+**`wg.Wait()` 与 ConfigWorker 的 goroutine**：`processBatchTask` 的 class goroutine 用 `classWg.Wait()` 等待（`worker.go:562`），不进 `e.wg`。所以 `e.wg.Wait()` 等的是 ConfigWorker 的 `run()` goroutine。ConfigWorker `run()` 在 `taskChan` 关闭后退出，但它 spawn 的 `processTask` goroutine 用 `w.wg.Add(1)` + `defer w.wg.Done()`（`worker.go:128-133`）进入 `e.wg`——所以 `e.wg.Wait()` 也会等这些 goroutine。需保证这些 goroutine 在 ctx cancel 后能退出（它们用 `taskCtx.Done()` 或 `w.ctx.Done()`，可被 cancel）。
 
 ## 6. hash 与路由策略
 
@@ -475,8 +511,26 @@ MCP 工具的 input 类型对 `Config`/`Batch` 用 `map[string]interface{}`（Go
 | 指标 | 改前 | 改后 |
 |---|---|---|
 | 单流包顺序 | 多 worker 下乱序 | 严格 FIFO |
-| 跨流时序（多流协议） | 无法保证 | 业务时序保住 |
+| 双向流保序 | 不保证 | 严格 FIFO（4 元组无序集合同 hash） |
+| 跨流不交错 | 不保证 | 同 gID 的流不交错（但**不保严格先后**，见 §3.5） |
 | 多 worker 吞吐 | 受限于共享 channel 锁竞争 | 分片隔离，锁竞争消除 |
 | hash 开销 | 无 | per-flow 一次，可忽略 |
-| 内存 | `QueueSize` | `N × QueueSize`（几 MB） |
+| 内存 | `QueueSize*2`（单 channel） | `pw × QueueSize*2`（分片，几 MB） |
 | replay 多 worker | cap-to-1 限制 | 支持多 worker，保 pcap 顺序 |
+
+## 14. 已知边界（用户需理解）
+
+1. **group_id 不保证跨流严格先后**（§3.5）：batch 内多 class 是并发 goroutine，入队顺序不保证。要严格业务时序需拆成多个 single-protocol task 顺序 start。
+2. **hot gID 退化吞吐**（§7.3）：用户配错（所有流绑一个 gID）会让吞吐退化到 1/N，系统检测后打 WARN，由用户修正。
+3. **replay 跨 task 绑定**：两个 task 写相同 gID 字符串可绑同 worker，但时序仍由 start 顺序决定。
+4. **hash 分布不均**：N 个 worker 下，gID 数 < N 会导致部分 worker 闲——这是配置决定，系统不动态迁移。
+
+## 15. 自审记录
+
+- §3.4 修正不变量描述（原"ConfigWorker push 顺序 = 业务时序"过度承诺）
+- §3.5 新增"跨流业务时序的限制与应对"段落，明确 group_id 不保严格先后
+- §5.4 修正 per-flow hash 实现路径 + 补 `processBatchTask` class goroutine 内 gID 生成位置
+- §5.5 补 `worker.go:741` 注释更新
+- §5.6 重写 `Engine.Stop` 顺序，处理 `wg.Wait()` 与 spawn goroutine 的关系
+- §13 性能预期表补"双向流保序"和"跨流不交错"两行，标注限制
+- §14 新增"已知边界"章节，把限制明文化
