@@ -22,7 +22,7 @@ type manageTasksInput struct {
 	ID           string                 `json:"id,omitempty" jsonschema:"task id (for get/start/stop/delete)"`
 	Name         string                 `json:"name,omitempty" jsonschema:"task name (for create/create_batch)"`
 	StrategyIDs  []string               `json:"strategy_ids,omitempty" jsonschema:"strategy ids (for create)"`
-	Batch        map[string]interface{} `json:"batch,omitempty" jsonschema:"batch spec (for create_batch)"`
+	Batch        map[string]interface{} `json:"batch,omitempty" jsonschema:"batch spec (for create_batch). Each class accepts an optional group_id strategy field. Classes with the same group_id strategy (same pattern + range) bind to one PacketWorker for cross-flow ordering. See manage_strategies tool's Config.group_id for strategy syntax."`
 	OutputType   string                 `json:"output_type,omitempty" jsonschema:"output type: port_group or pcap (for create/create_batch)"`
 	OutputConfig *outputConfigInput     `json:"output_config,omitempty" jsonschema:"output configuration (for create/create_batch)"`
 	FlowControl  *flowControlInput      `json:"flow_control,omitempty" jsonschema:"optional task-level flow control (for create)"`
