@@ -7,6 +7,47 @@ import (
 	"github.com/trafficgen/trafficgen/internal/storage"
 )
 
+// Default field values applied by mapToFlowSpec when the user did not
+// provide a value. Per the "user > default > none" rule, explicit user
+// values (including 0 for numeric fields where 0 is a valid choice) MUST
+// be honored -- defaults only fill in gaps.
+const (
+	// DefaultSrcMAC / DefaultDstMAC: locally-administered IEEE 802 MACs
+	// (02: prefix) so trafficgen packets are visually distinct from real
+	// hosts on the wire. Filter: ether src 02:00:00:00:00:00/16
+	DefaultSrcMAC = "02:00:00:00:00:01"
+	DefaultDstMAC = "02:00:00:00:00:02"
+
+	// DefaultSrcIP / DefaultDstIP: TEST-NET-1 (RFC 5737) addresses reserved
+	// for documentation/testing. Public routers drop these, so trafficgen
+	// packets never leak into real networks. Users running real-traffic
+	// tests override with actual routable IPs.
+	DefaultSrcIP = "192.0.2.1"
+	DefaultDstIP = "192.0.2.2"
+
+	// DefaultSrcPort: high non-privileged port (>1024) typical of client
+	// ephemeral ports. Multi-flow scenarios should use batch tuples to
+	// vary src_port per flow.
+	DefaultSrcPort = 12345
+
+	// DefaultDstPort: 80 (HTTP) is the most common test target for TCP/UDP.
+	// Protocol-specific defaults (DNS=53) still override this in their
+	// switch cases.
+	DefaultDstPort = 80
+
+	// DefaultDSCP: EF (Expedited Forwarding, 0x2E=46). Visible in the IP
+	// TOS byte as 0xB8 (0x2E<<2). Marks every trafficgen IP packet so it
+	// can be filtered out of noisy captures:
+	//   tcpdump 'ip[1] & 0xfc == 0xb8'
+	// User can override with dscp=0 for best-effort (clean) traffic.
+	DefaultDSCP = 0x2E
+
+	// DefaultIPFlags: DF=1 (Don't Fragment). Matches modern OS TCP defaults
+	// (Linux/macOS/Windows set DF=1 for TCP PMTU discovery). User can
+	// override with flags=0 to allow fragmentation.
+	DefaultIPFlags = 0x02 // IPFlagDF
+)
+
 // StrategyModelToTask converts a StrategyModel + TaskModel into a core.Task for the engine.
 // Each strategy produces one engine task with a composite ID "{taskID}-{strategyID}".
 // ifaceOverride, when non-empty, overrides the interface name (resolved from port_group by caller).
@@ -118,19 +159,24 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 // Duration (those come from flow control and are the caller's responsibility).
 // Shared by StrategyModelToTask (single-protocol tasks) and the mixed-traffic
 // batch path (TrafficClass.Config).
+//
+// Defaulting follows the unified rule (user > default > none): when a field
+// is absent from cfg, the corresponding Default* constant fills in. Numeric
+// fields where 0 is a valid user choice (DSCP=best-effort, Flags=no-DF) use
+// hasKey to distinguish "absent" from "explicitly 0".
 func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	spec := FlowSpec{
-		SrcIP:   getString(cfg, "src_ip"),
-		DstIP:   getString(cfg, "dst_ip"),
-		SrcPort: getUint16(cfg, "src_port"),
-		DstPort: getUint16(cfg, "dst_port"),
-		SrcMAC:  getString(cfg, "src_mac"),
-		DstMAC:  getString(cfg, "dst_mac"),
+		SrcIP:   defaultString(cfg, "src_ip", DefaultSrcIP),
+		DstIP:   defaultString(cfg, "dst_ip", DefaultDstIP),
+		SrcPort: defaultPort(cfg, "src_port", DefaultSrcPort),
+		DstPort: defaultPort(cfg, "dst_port", DefaultDstPort),
+		SrcMAC:  defaultMAC(cfg, "src_mac", DefaultSrcMAC),
+		DstMAC:  defaultMAC(cfg, "dst_mac", DefaultDstMAC),
 		TTL:     uint8(getIntDefault(cfg, "ttl", 64)),
 		TOS:     uint8(getInt(cfg, "tos")),
-		DSCP:       uint8(getInt(cfg, "dscp")),
+		DSCP:       defaultDSCP(cfg),
 		ECN:        uint8(getInt(cfg, "ecn")),
-		Flags:      uint8(getInt(cfg, "flags")),
+		Flags:      defaultIPFlags(cfg),
 		FragOffset: uint16(getInt(cfg, "frag_offset")),
 		Payload:    []byte(getString(cfg, "payload")),
 	}
@@ -162,19 +208,31 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	case "http":
 		if sub, ok := cfg["http"].(map[string]interface{}); ok {
+			// Backward compat: pre-rename strategies stored request headers
+			// under the "headers" key. Prefer the new "request_headers" key
+			// when present; fall back to legacy key so existing DB rows do
+			// not silently lose user-configured headers.
+			reqHeaders := getStringMap(sub, "request_headers")
+			if len(reqHeaders) == 0 {
+				reqHeaders = getStringMap(sub, "headers")
+			}
 			spec.HTTP = &HTTPConfig{
-				Method:       getStringDefault(sub, "method", "GET"),
-				URI:          getStringDefault(sub, "uri", "/"),
-				Headers:      getStringMap(sub, "headers"),
-				Body:         getString(sub, "body"),
-				KeepAlive:    getBool(sub, "keep_alive", false),
-				Transactions: getInt(sub, "transactions"),
-				ThinkTime:    getInt(sub, "think_time"),
+				Method:            getStringDefault(sub, "method", "GET"),
+				URI:               getStringDefault(sub, "uri", "/"),
+				Version:           getString(sub, "version"),
+				RequestHeaders:    reqHeaders,
+				Body:              getString(sub, "body"),
+				KeepAlive:         getBool(sub, "keep_alive", false),
+				Transactions:      getInt(sub, "transactions"),
+				ThinkTime:         getInt(sub, "think_time"),
+				ResponseHeaders:    getStringMap(sub, "response_headers"),
+				ResponseBody:       getString(sub, "response_body"),
+				ResponseStatusCode: getInt(sub, "response_status_code"),
+				ResponseStatusText: getString(sub, "response_status_text"),
 			}
 		}
-		if spec.DstPort == 0 {
-			spec.DstPort = 80
-		}
+		// HTTP defaults to port 80, same as DefaultDstPort. No override
+		// needed here -- mapToFlowSpec's defaultPort call already set it.
 	case "dns":
 		if sub, ok := cfg["dns"].(map[string]interface{}); ok {
 			spec.DNS = &DNSConfig{
@@ -184,7 +242,8 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				ResponseIP: getString(sub, "response_ip"),
 			}
 		}
-		if spec.DstPort == 0 {
+		// DNS overrides the generic port-80 default with its own 53.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 53
 		}
 	case "icmp":
@@ -202,6 +261,18 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				Operation: uint16(getIntDefault(sub, "operation", 1)),
 				TargetMAC: getString(sub, "target_mac"),
 				TargetIP:  getString(sub, "target_ip"),
+			}
+		}
+	}
+
+	// GroupID: optional strategy for cross-flow ordering. When cfg has
+	// "group_id" as a map, unmarshal into StrategyConfig; absent = nil
+	// (fall back to 4-tuple hash).
+	if gCfg, ok := cfg["group_id"].(map[string]interface{}); ok && gCfg != nil {
+		if raw, err := json.Marshal(gCfg); err == nil {
+			var g StrategyConfig
+			if err := json.Unmarshal(raw, &g); err == nil {
+				spec.GroupID = &g
 			}
 		}
 	}
@@ -266,6 +337,73 @@ func getIntDefault(m map[string]interface{}, key string, def int) int {
 		return def
 	}
 	return v
+}
+
+// defaultDSCP returns the user-provided DSCP value when the "dscp" key is
+// present in cfg AND non-nil (even if 0 = best-effort), and DefaultDSCP when
+// the key is absent or explicitly null. The presence + nil check is required
+// because:
+//   - DSCP=0 is a valid user choice (clean best-effort traffic with no
+//     trafficgen marker), which the older getIntDefault helper would silently
+//     override with the default.
+//   - JSON null (cfg["dscp"]=nil) should be treated as "not set", not as
+//     "explicitly 0" -- otherwise a config like {"dscp": null} silently
+//     disables the trafficgen marker.
+func defaultDSCP(cfg map[string]interface{}) uint8 {
+	if v, ok := cfg["dscp"]; ok && v != nil {
+		return uint8(getInt(cfg, "dscp"))
+	}
+	return DefaultDSCP
+}
+
+// defaultIPFlags returns the user-provided IP flags when the "flags" key is
+// present in cfg AND non-nil (even if 0 = allow fragmentation), and
+// DefaultIPFlags (DF=1) when the key is absent or null. Same presence + nil
+// check rationale as defaultDSCP: flags=0 is a valid user choice.
+func defaultIPFlags(cfg map[string]interface{}) uint8 {
+	if v, ok := cfg["flags"]; ok && v != nil {
+		return uint8(getInt(cfg, "flags"))
+	}
+	return DefaultIPFlags
+}
+
+// defaultMAC returns the user-provided MAC when the "key" field is present
+// AND non-empty (allowing explicit "" to produce an all-zero MAC on the wire
+// for ARP probe scenarios), and def when absent or null. The presence check
+// is required because empty string is a legitimate user value (zero MAC),
+// which getStringDefault would silently replace with the default.
+func defaultMAC(cfg map[string]interface{}, key, def string) string {
+	if v, ok := cfg[key]; ok && v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return def
+}
+
+// defaultString returns the user-provided string when the "key" field is
+// present AND non-nil (even if ""), and def when absent or null. Same
+// presence + nil rationale as defaultMAC: empty string is a legitimate
+// user value (e.g., empty domain for DNS wildcard, empty URI for root).
+func defaultString(cfg map[string]interface{}, key, def string) string {
+	if v, ok := cfg[key]; ok && v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return def
+}
+
+// defaultPort returns the user-provided port when the "port_key" field is
+// present AND non-nil (even if 0), and def when absent or null. Port 0 is a
+// valid user choice (let OS pick ephemeral port), which getUint16 would
+// silently override with the default. Same presence-check pattern as
+// defaultDSCP.
+func defaultPort(cfg map[string]interface{}, key string, def uint16) uint16 {
+	if v, ok := cfg[key]; ok && v != nil {
+		return getUint16(cfg, key)
+	}
+	return def
 }
 
 func getBool(m map[string]interface{}, key string, def bool) bool {

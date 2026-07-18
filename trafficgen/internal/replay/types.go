@@ -19,6 +19,12 @@ type ReplaySpec struct {
 	Rewrites     []RewriteRule `json:"rewrites"`
 	FlowScaling  *FlowScaling  `json:"flow_scaling,omitempty"`    // optional multi-flow amplification
 	Inject       *InjectConfig `json:"inject,omitempty"`          // v2 reserved: anomaly injection
+	// GroupID routes all packets of this replay asset to one PacketWorker for
+	// cross-flow/cross-asset ordering. nil = use taskID:classID as implicit
+	// gID (preserves pcap order within a single asset). With FlowScaling,
+	// implicit gID becomes "taskID:classID:cloneIdx" so clones spread across
+	// workers while each clone preserves pcap order internally.
+	GroupID *core.StrategyConfig `json:"group_id,omitempty"`
 }
 
 // ReplaySpeed selects the rate model (§16.9). Two families: timestamp pacing

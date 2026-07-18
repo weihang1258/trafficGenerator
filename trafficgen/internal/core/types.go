@@ -111,6 +111,11 @@ type FlowSpec struct {
 	Count    int    `json:"count,omitempty"`
 	Duration int    `json:"duration,omitempty"` // seconds
 	BPS      string `json:"bps,omitempty"`     // rate limit, e.g., "200k", "1M"
+
+	// GroupID routes flows with the same generated id to one PacketWorker,
+	// preserving cross-flow timing (e.g. SIP signaling + RTP data). nil/empty =
+	// fall back to unordered 4-tuple hash (single-flow ordering only).
+	GroupID *StrategyConfig `json:"group_id,omitempty"`
 }
 
 // VLAN configuration.
@@ -136,14 +141,34 @@ type UDPConfig struct {
 }
 
 // HTTPConfig for HTTP protocol.
+//
+// Field defaulting follows a single rule for every output field
+// (request line, status line, and headers):
+//
+//	user-provided value > derived default > not emitted
+//
+// User-provided headers live in RequestHeaders / ResponseHeaders and are
+// matched case-insensitively (RFC 7230 §3.2). When a header is present in
+// the user map, the corresponding default is NOT also emitted (preventing
+// duplicate Host / Content-Length / Connection headers).
 type HTTPConfig struct {
 	Method       string            `json:"method"`
 	URI          string            `json:"uri"`
-	Headers      map[string]string `json:"headers"`
+	Version      string            `json:"version"` // empty -> "HTTP/1.1"
+	RequestHeaders map[string]string `json:"request_headers"`
 	Body         string            `json:"body"`
 	KeepAlive    bool              `json:"keep_alive"`
 	Transactions int               `json:"transactions"`
 	ThinkTime    int               `json:"think_time"` // milliseconds
+
+	// Response-side fields. ResponseHeaders overrides generated defaults
+	// (Content-Type/Content-Length/Connection). ResponseBody empty -> no
+	// Content-Length, no Content-Type default. ResponseStatusCode 0 -> 200.
+	// ResponseStatusText empty -> looked up from ResponseStatusCode.
+	ResponseHeaders     map[string]string `json:"response_headers"`
+	ResponseBody        string            `json:"response_body"`
+	ResponseStatusCode  int               `json:"response_status_code"`
+	ResponseStatusText  string            `json:"response_status_text"`
 }
 
 // DNSConfig for DNS protocol.
@@ -274,6 +299,9 @@ type TrafficClass struct {
 	// (not a typed replay.ReplaySpec) to avoid a core<->replay import cycle; the
 	// registered ReplayPlanner unmarshals it.
 	Replay json.RawMessage `json:"replay,omitempty"`
+	// GroupID routes all flows of this class with the same generated id to one
+	// PacketWorker. See FlowSpec.GroupID.
+	GroupID *StrategyConfig `json:"group_id,omitempty"`
 }
 
 // TupleConfig for generating 4-tuples.
@@ -286,7 +314,7 @@ type TupleConfig struct {
 
 // StrategyConfig for value generation strategies.
 type StrategyConfig struct {
-	Strategy string        `json:"strategy"` // fixed, inc, random, pattern, list
+	Strategy string `json:"strategy,omitempty"` // fixed, inc, random, pattern, list
 	Value    interface{}   `json:"value,omitempty"`
 	Range    []interface{} `json:"range,omitempty"`
 	Step     int           `json:"step,omitempty"`
