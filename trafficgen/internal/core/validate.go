@@ -1,6 +1,10 @@
 package core
 
-import "fmt"
+import (
+	"fmt"
+
+	"go.uber.org/zap"
+)
 
 // ValidateConfigRanges checks DSCP/ECN/VLAN/Flags/FragOffset/TTL/TOS/Port values in
 // the raw config map before mapToFlowSpec truncates them to uint8/uint16.
@@ -131,6 +135,17 @@ func ValidateFlowSpec(spec FlowSpec) error {
 		}
 		if spec.VLAN.Priority > 7 {
 			return fmt.Errorf("vlan_priority %d invalid (must be 0-7)", spec.VLAN.Priority)
+		}
+		// 802.1Q VLAN ID 0 is a "priority tag" frame: the tag carries only
+		// the priority bits and the VID is 0, meaning "this frame belongs to
+		// no VLAN". Users who write `vlan: {id: 0, priority: 5}` almost
+		// always intend a real VLAN and are surprised when the resulting
+		// frame is treated as priority-only by switches. Warn (not error)
+		// because priority-tagged frames are a valid 802.1Q construct.
+		if spec.VLAN.ID == 0 {
+			zap.L().Warn("VLAN ID=0 is priority-tag (802.1Q), not a real VLAN",
+				zap.String("note", "set vlan.id >= 1 for a real VLAN"),
+			)
 		}
 	}
 

@@ -21,6 +21,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/api/websocket"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
+	"github.com/trafficgen/trafficgen/pkg/netif"
 	"gorm.io/gorm"
 )
 
@@ -341,6 +342,53 @@ func (h *TaskHandler) releasePortGroupPorts(task *storage.TaskModel) {
 				})
 		}
 	}
+}
+
+// ensureTaskMTU ensures every NIC the task will write to has MTU >=
+// engine.min_mtu. Returns the list of interfaces it was asked to check
+// (for error reporting) and an error if any raise failed. For port_group
+// output this walks every interface in the group; for dual-port replay it
+// also checks interface2. pcap output is skipped (no NIC involved). On
+// raise failure the caller must mark the task failed -- the operator
+// needs to either run as root or lower engine.min_mtu.
+func (h *TaskHandler) ensureTaskMTU(task *storage.TaskModel, interface2 string) ([]string, error) {
+	minMTU := h.engine.MinMTU()
+	if minMTU <= 0 {
+		return nil, nil
+	}
+	if task.OutputType != "port_group" {
+		// pcap output doesn't touch a NIC.
+		return nil, nil
+	}
+	var outputConfig OutputConfigRequest
+	if err := json.Unmarshal([]byte(task.OutputConfig), &outputConfig); err != nil {
+		return nil, fmt.Errorf("corrupt output_config: %w", err)
+	}
+	var portGroup storage.PortGroupModel
+	if err := h.db.Where("id = ?", outputConfig.PortGroupID).First(&portGroup).Error; err != nil {
+		return nil, fmt.Errorf("port group %s not found: %w", outputConfig.PortGroupID, err)
+	}
+	var portsConfig []map[string]interface{}
+	if err := json.Unmarshal([]byte(portGroup.PortsConfig), &portsConfig); err != nil {
+		return nil, fmt.Errorf("corrupt ports_config in port group %s: %w", portGroup.ID, err)
+	}
+	var ifaces []string
+	seen := make(map[string]bool)
+	for _, portConfig := range portsConfig {
+		if iface, ok := portConfig["interface"].(string); ok && iface != "" && !seen[iface] {
+			seen[iface] = true
+			ifaces = append(ifaces, iface)
+		}
+	}
+	if interface2 != "" && !seen[interface2] {
+		ifaces = append(ifaces, interface2)
+	}
+	for _, iface := range ifaces {
+		if err := netif.EnsureMTU(iface, minMTU); err != nil {
+			return ifaces, fmt.Errorf("MTU raise failed for %s: %w", iface, err)
+		}
+	}
+	return ifaces, nil
 }
 
 // CreateTaskRequest represents a create task request.
@@ -670,6 +718,22 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		return
 	}
 
+	// Raise NIC MTU if engine.min_mtu is configured. Done AFTER the task
+	// record is persisted (so a failure leaves a clear audit trail) but
+	// BEFORE SubmitTask (so the engine never sees a task whose NIC can't
+	// fit the packets). On failure the task is marked failed.
+	interface2ForDual := ""
+	if dualPort && req.OutputConfig != nil {
+		interface2ForDual = req.OutputConfig.Interface2
+	}
+	if _, err := h.ensureTaskMTU(taskModel, interface2ForDual); err != nil {
+		taskModel.Status = "error"
+		taskModel.ErrorMessage = err.Error()
+		h.db.Save(taskModel)
+		BadRequest(c, taskModel.ErrorMessage)
+		return
+	}
+
 	// Submit the batch engine task (engine task ID == taskModel ID, so the
 	// existing completion callback marks this task done when it finishes).
 	coreTask := core.Task{
@@ -980,6 +1044,18 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	if dualPort && task.OutputType == "port_group" && outputConfigForDual.Interface2 == "" {
 		task.Status = "error"
 		task.ErrorMessage = "dual-port replay requires a second interface (interface2 in output_config)"
+		h.db.Save(&task)
+		BadRequest(c, task.ErrorMessage)
+		return
+	}
+
+	// Raise NIC MTU if engine.min_mtu is configured. Done after dual-port
+	// validation (so we know interface2 is valid) but BEFORE creating output
+	// writers / SubmitTask. On failure the task is marked failed -- the
+	// operator must either run as root or lower engine.min_mtu.
+	if _, err := h.ensureTaskMTU(&task, outputConfigForDual.Interface2); err != nil {
+		task.Status = "error"
+		task.ErrorMessage = err.Error()
 		h.db.Save(&task)
 		BadRequest(c, task.ErrorMessage)
 		return

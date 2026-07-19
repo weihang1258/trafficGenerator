@@ -4,10 +4,12 @@ package udp
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
+	"go.uber.org/zap"
 )
 
 const (
@@ -45,6 +47,19 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	if spec.DstPort == 0 {
 		return fmt.Errorf("destination port is required")
 	}
+	// UDP has no MSS concept, so a payload larger than the typical Ethernet
+	// MTU (1500 - 20 IP - 8 UDP = 1472) forces IP fragmentation on the wire,
+	// which hurts throughput and confuses fragment-unaware middleboxes. This
+	// is a warning, not a hard error: legitimate uses exist (jumbo frames,
+	// path-MTU probing, sending intentional fragments). A future MTU-aware
+	// check can replace the hardcoded 1472 with the actual interface MTU.
+	if len(spec.Payload) > 1472 {
+		zap.L().Warn("UDP payload exceeds typical MTU, will trigger IP fragmentation",
+			zap.Int("payload_size", len(spec.Payload)),
+			zap.Int("typical_max", 1472),
+			zap.String("note", "consider increasing NIC MTU or reducing payload"),
+		)
+	}
 	return nil
 }
 
@@ -66,7 +81,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 		now := time.Now()
 		packetIndex := uint64(0)
-		ipID := uint16(1)
+		// IPID random start to avoid cross-flow ID collision.
+		ipID := uint16(rand.Uint32())
 
 		nextIPID := func() uint16 {
 			id := ipID

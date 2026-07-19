@@ -59,6 +59,24 @@ func TestPlanner_Validate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		// Spec row: an empty QueryName (domain) produces a malformed DNS
+		// question section -- the QNAME is just the null terminator and real
+		// resolvers treat it as malformed. Validate must reject it at submit
+		// time rather than ship a broken packet.
+		{
+			name: "empty query_name (domain) rejected",
+			spec: core.FlowSpec{
+				SrcIP:   "192.168.1.1",
+				DstIP:   "192.168.1.2",
+				SrcPort: 12345,
+				DstPort: 53,
+				DNS: &core.DNSConfig{
+					Domain:    "",
+					QueryType: 1,
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -68,6 +86,28 @@ func TestPlanner_Validate(t *testing.T) {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestDNSValidate_EmptyQueryName verifies that an explicitly empty
+// QueryName (Domain) is rejected. A non-nil DNSConfig with an empty Domain
+// must surface the same error as a missing Domain field: the resulting DNS
+// question section would be malformed (zero-length QNAME).
+func TestDNSValidate_EmptyQueryName(t *testing.T) {
+	p := NewPlanner()
+	spec := core.FlowSpec{
+		SrcIP:   "192.168.1.1",
+		DstIP:   "192.168.1.2",
+		SrcPort: 12345,
+		DstPort: 53,
+		DNS: &core.DNSConfig{
+			Domain:    "",
+			QueryType: 1,
+		},
+	}
+	err := p.Validate(spec)
+	if err == nil {
+		t.Fatalf("Validate() with empty QueryName: expected error, got nil")
 	}
 }
 

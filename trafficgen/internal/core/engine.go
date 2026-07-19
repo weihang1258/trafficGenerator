@@ -151,6 +151,12 @@ type EngineConfig struct {
 	// v2 (§17: "多 PacketWorker 并行 replay 保序需单工，暂缓"). Set this when
 	// the engine will run replay tasks; synth-only engines can use N workers.
 	ReplayOrderPreserve bool
+	// MinMTU is the minimum NIC MTU enforced at task start. If an interface's
+	// MTU is below this value, trafficgen runs `ip link set dev <iface> mtu
+	// <min_mtu>` (requires CAP_NET_ADMIN / root) before submitting the task.
+	// Original MTU is NOT restored after the task ends (logged at WARN).
+	// 0 disables the check. Default 2000 (set by config defaults).
+	MinMTU int
 }
 
 // NewEngine creates a new traffic engine.
@@ -183,6 +189,13 @@ func (e *Engine) ListProtocols() []string {
 // SetBuildFunc sets the packet building function.
 func (e *Engine) SetBuildFunc(fn func(PacketConfig) ([]byte, error)) {
 	e.buildFunc = fn
+}
+
+// MinMTU returns the configured minimum NIC MTU enforced at task start.
+// Returns 0 when the check is disabled. Callers (task handler) use this
+// to decide whether to run `ip link set` before submitting a task.
+func (e *Engine) MinMTU() int {
+	return e.config.MinMTU
 }
 
 // DualPortWriter holds the two writers for a dual-port task: C2S (client->server,

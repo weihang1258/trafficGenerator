@@ -110,6 +110,40 @@ func TestValidateTask(t *testing.T) {
 	}
 }
 
+// TestValidateFlowSpec_VLANIDZeroWarns verifies that a VLAN ID of 0 does
+// not fail validation (it is a valid 802.1Q priority-tag construct) but is
+// surfaced as a warning so users learn that VID 0 is a priority tag, not a
+// real VLAN. The test asserts only that Validate returns nil (warn, not
+// error); the warning itself is observable via zap and is not asserted here.
+func TestValidateFlowSpec_VLANIDZeroWarns(t *testing.T) {
+	spec := FlowSpec{
+		SrcIP:   "192.168.1.1",
+		DstIP:   "192.168.1.2",
+		SrcPort: 12345,
+		DstPort: 80,
+		VLAN:    &VLAN{ID: 0, Priority: 5},
+	}
+	if err := ValidateFlowSpec(spec); err != nil {
+		t.Fatalf("ValidateFlowSpec() with vlan.id=0: expected no error (warn only), got %v", err)
+	}
+}
+
+// TestValidateFlowSpec_VLANIDZeroNoPointer verifies that vlan.id==0 inside
+// a nil VLAN pointer does not trigger the warning path. The 802.1Q warning
+// is specific to an explicitly configured VLAN tag with VID 0.
+func TestValidateFlowSpec_VLANNilNoWarn(t *testing.T) {
+	spec := FlowSpec{
+		SrcIP:   "192.168.1.1",
+		DstIP:   "192.168.1.2",
+		SrcPort: 12345,
+		DstPort: 80,
+		// VLAN is nil -- no warning path should execute.
+	}
+	if err := ValidateFlowSpec(spec); err != nil {
+		t.Fatalf("ValidateFlowSpec() with nil VLAN: expected no error, got %v", err)
+	}
+}
+
 func TestParseBPS(t *testing.T) {
 	tests := []struct {
 		input   string

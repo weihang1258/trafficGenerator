@@ -4,6 +4,7 @@ package http
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"strings"
 	"time"
@@ -87,11 +88,16 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		now := time.Now()
 		packetIndex := uint64(0)
-		ipID := uint16(1)
+		ipID := uint16(rand.Uint32())
 
-		// Initialize sequence numbers
-		clientSeq := uint32(1000)
-		serverSeq := uint32(2000)
+		// Initialize sequence numbers. Random per flow to avoid seq collisions
+		// across flows (real TCP randomizes ISN per RFC 6528). User can override
+		// client seq via spec.InitialSeq for reproducible tests.
+		clientSeq := spec.InitialSeq
+		if clientSeq == 0 {
+			clientSeq = rand.Uint32()
+		}
+		serverSeq := rand.Uint32()
 
 		nextIPID := func() uint16 {
 			id := ipID
@@ -341,7 +347,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 //   - Method: empty -> "GET"
 //   - URI: empty -> "/"
 //   - Version: empty -> "HTTP/1.1"
-//   - Host: not user-provided -> dstIP
+//   - Host: not user-provided + Version=HTTP/1.1 -> dstIP
+//     (HTTP/1.0 does not mandate Host, so none is emitted)
 //   - Content-Length: not user-provided + Body non-empty -> len(Body)
 //   - Connection: not user-provided -> "keep-alive" if Transactions>1 or
 //     KeepAlive=true, else "close"
@@ -361,7 +368,10 @@ func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
 
 	request := fmt.Sprintf("%s %s %s\r\n", config.Method, config.URI, config.Version)
 
-	if !hasHeader(config.RequestHeaders, "Host") {
+	// HTTP/1.1 mandates Host (RFC 7230 §5.4); HTTP/1.0 does not, so we only
+	// auto-emit Host for 1.1 (user-provided Host on any version always wins
+	// via the user-header pass below).
+	if !hasHeader(config.RequestHeaders, "Host") && isHTTP11(config.Version) {
 		request += fmt.Sprintf("Host: %s\r\n", bracketHost(dstIP))
 	}
 	if !hasHeader(config.RequestHeaders, "Connection") {
@@ -405,6 +415,16 @@ func defaultConnection(config *core.HTTPConfig) string {
 		return "keep-alive"
 	}
 	return "close"
+}
+
+// isHTTP11 reports whether version is HTTP/1.1, using the case-insensitive
+// comparison RFC 7230 §3.1.1 allows for HTTP version tokens. Empty input is
+// treated as HTTP/1.1 to match the Version default applied above.
+func isHTTP11(version string) bool {
+	if version == "" {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(version), "HTTP/1.1")
 }
 
 // bracketHost wraps an IPv6 literal in brackets for use in a Host header

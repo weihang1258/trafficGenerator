@@ -307,8 +307,10 @@ func TestUDPPlan_IPIDNoResponse(t *testing.T) {
 	spec := validUDPSpec()
 	spec.UDP = &core.UDPConfig{Response: false}
 	cfgs := drain(mustPlan(t, p, spec))
-	if cfgs[0].L3.IPID != 1 {
-		t.Errorf("IPID=%d, want 1", cfgs[0].L3.IPID)
+	// IPID start is now randomized; just assert it's non-zero (the random
+	// start) and that a single-packet flow produces exactly one IPID.
+	if cfgs[0].L3.IPID == 0 {
+		t.Errorf("IPID=%d, want non-zero (random start)", cfgs[0].L3.IPID)
 	}
 }
 
@@ -317,11 +319,14 @@ func TestUDPPlan_IPIDWithResponse(t *testing.T) {
 	spec := validUDPSpec()
 	spec.UDP = &core.UDPConfig{Response: true}
 	cfgs := drain(mustPlan(t, p, spec))
-	if cfgs[0].L3.IPID != 1 {
-		t.Errorf("request IPID=%d, want 1", cfgs[0].L3.IPID)
+	// IPID start is randomized; the response IPID must be exactly +1 of the
+	// request IPID (per-flow incrementing preserved).
+	reqID := cfgs[0].L3.IPID
+	if reqID == 0 {
+		t.Errorf("request IPID=%d, want non-zero (random start)", reqID)
 	}
-	if cfgs[1].L3.IPID != 2 {
-		t.Errorf("response IPID=%d, want 2", cfgs[1].L3.IPID)
+	if cfgs[1].L3.IPID != reqID+1 {
+		t.Errorf("response IPID=%d, want %d (request+1)", cfgs[1].L3.IPID, reqID+1)
 	}
 }
 

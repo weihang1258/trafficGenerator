@@ -247,11 +247,14 @@ func TestHTTPPlan_IPIDSequential(t *testing.T) {
 	spec := validHTTPSpec()
 	spec.HTTP.Transactions = 3 // more packets to verify sequence
 	cfgs := drain(mustPlan(t, p, spec))
-	// IPIDs should be 1,2,3,... (11 packets for transactions=1 -> 1..11)
+	// IPID start is randomized; what we verify here is that the IPID sequence
+	// is strictly incrementing by 1 across packets in the flow (per-flow
+	// incrementing preserved, regardless of starting value).
 	for i, c := range cfgs {
-		want := uint16(i + 1)
+		want := cfgs[0].L3.IPID + uint16(i)
 		if c.L3.IPID != want {
-			t.Errorf("cfg[%d].IPID=%d, want %d", i, c.L3.IPID, want)
+			t.Errorf("cfg[%d].IPID=%d, want %d (start=%d + %d)",
+				i, c.L3.IPID, want, cfgs[0].L3.IPID, i)
 		}
 	}
 }
@@ -337,6 +340,9 @@ func TestHTTPPlan_AllPacketsSameTimestamp(t *testing.T) {
 func TestHTTPPlan_SYNPacketFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
+	// Pin client ISN so the Seq assertion is deterministic. Server ISN
+	// and IPID start remain randomized; we only assert non-zero there.
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	syn := cfgs[0]
 	if syn.PacketIndex != 0 {
@@ -363,8 +369,9 @@ func TestHTTPPlan_SYNPacketFields(t *testing.T) {
 	if syn.L3.Protocol != 6 {
 		t.Errorf("L3.Protocol=%d, want 6", syn.L3.Protocol)
 	}
-	if syn.L3.IPID != 1 {
-		t.Errorf("IPID=%d, want 1", syn.L3.IPID)
+	// IPID start is randomized; just assert non-zero on the first packet.
+	if syn.L3.IPID == 0 {
+		t.Errorf("IPID=%d, want non-zero (random start)", syn.L3.IPID)
 	}
 	if syn.L2.EtherType != 0x0800 {
 		t.Errorf("EtherType=%x, want 0x0800", syn.L2.EtherType)
@@ -385,6 +392,9 @@ func TestHTTPPlan_EmptyMACs(t *testing.T) {
 func TestHTTPPlan_SYNACKFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
+	// Pin client ISN; server ISN is still randomized, so the SYN-ACK Seq
+	// is asserted as non-zero/different-from-SYN instead of a fixed value.
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	synack := cfgs[1]
 	if synack.PacketIndex != 1 {
@@ -396,8 +406,8 @@ func TestHTTPPlan_SYNACKFields(t *testing.T) {
 	if synack.L4.Flags != 0x12 {
 		t.Errorf("Flags=%x, want 0x12 (SYN-ACK)", synack.L4.Flags)
 	}
-	if synack.L4.Seq != 2000 {
-		t.Errorf("Seq=%d, want 2000", synack.L4.Seq)
+	if synack.L4.Seq == 0 || synack.L4.Seq == 1000 {
+		t.Errorf("Seq=%d, want non-zero and != client ISN (random server ISN)", synack.L4.Seq)
 	}
 	if synack.L4.Ack != 1001 {
 		t.Errorf("Ack=%d, want 1001", synack.L4.Ack)
@@ -412,14 +422,19 @@ func TestHTTPPlan_SYNACKFields(t *testing.T) {
 	if synack.L4.SrcPort != spec.DstPort || synack.L4.DstPort != spec.SrcPort {
 		t.Error("ports not swapped")
 	}
-	if synack.L3.IPID != 2 {
-		t.Errorf("IPID=%d, want 2", synack.L3.IPID)
+	// IPID increments per-packet; SYN-ACK should differ from SYN's IPID.
+	if synack.L3.IPID == cfgs[0].L3.IPID {
+		t.Errorf("SYN-ACK IPID=%d == SYN IPID=%d, want incrementing",
+			synack.L3.IPID, cfgs[0].L3.IPID)
 	}
 }
 
 func TestHTTPPlan_HandshakeACKFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
+	// Pin client ISN; server ISN is still randomized, so Ack (= serverSeq+1)
+	// is asserted as SYN-ACK.Seq+1 instead of a fixed value.
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[2]
 	if ack.PacketIndex != 2 {
@@ -434,11 +449,14 @@ func TestHTTPPlan_HandshakeACKFields(t *testing.T) {
 	if ack.L4.Seq != 1001 {
 		t.Errorf("Seq=%d, want 1001", ack.L4.Seq)
 	}
-	if ack.L4.Ack != 2001 {
-		t.Errorf("Ack=%d, want 2001", ack.L4.Ack)
+	synackSeq := cfgs[1].L4.Seq
+	if ack.L4.Ack != synackSeq+1 {
+		t.Errorf("Ack=%d, want %d (serverSeq+1, server ISN randomized)", ack.L4.Ack, synackSeq+1)
 	}
-	if ack.L3.IPID != 3 {
-		t.Errorf("IPID=%d, want 3", ack.L3.IPID)
+	// IPID increments per-packet; ACK should differ from SYN-ACK's IPID.
+	if ack.L3.IPID == cfgs[1].L3.IPID {
+		t.Errorf("ACK IPID=%d == SYN-ACK IPID=%d, want incrementing",
+			ack.L3.IPID, cfgs[1].L3.IPID)
 	}
 }
 
@@ -541,15 +559,16 @@ func TestHTTPPlan_ResponsePayloadFields(t *testing.T) {
 
 func TestHTTPPlan_ClientSeqOverflow(t *testing.T) {
 	// H31: clientSeq += uint32(len(request)) per transaction. Full 2^32
-	// wraparound would require a ~4GB body (clientSeq is hardcoded to start
-	// at 1000 and there is no way to inject a near-max value), which is
-	// infeasible in a unit test. Instead we verify the observable
-	// accumulation: each request packet's Seq advances by exactly len(request)
-	// from the previous one. This is the same uint32 arithmetic that would
-	// wrap silently per Go's unsigned-overflow rules.
+	// wraparound would require a ~4GB body, which is infeasible in a unit
+	// test. Instead we verify the observable accumulation: each request
+	// packet's Seq advances by exactly len(request) from the previous one.
+	// This is the same uint32 arithmetic that would wrap silently per Go's
+	// unsigned-overflow rules. We pin the client ISN so the absolute Seq
+	// values are deterministic.
 	p := NewPlanner()
 	spec := validHTTPSpec()
 	spec.HTTP = &core.HTTPConfig{Transactions: 3} // 3+6+4=13 packets
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	if len(cfgs) != 13 {
 		t.Fatalf("len=%d, want 13", len(cfgs))
@@ -570,6 +589,10 @@ func TestHTTPPlan_ClientSeqOverflow(t *testing.T) {
 func TestHTTPPlan_ClientFINFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
+	// Pin client ISN; server ISN is still randomized, so we compute the
+	// expected Ack from the observed SYN-ACK Seq (serverSeq starts there)
+	// plus the response payload length.
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	// For 1 transaction: indices 0-2 handshake, 3-4 transaction, 5-8 termination
 	fin := cfgs[5]
@@ -585,9 +608,10 @@ func TestHTTPPlan_ClientFINFields(t *testing.T) {
 	if fin.L4.Seq != expectedSeq {
 		t.Errorf("Seq=%d, want %d", fin.L4.Seq, expectedSeq)
 	}
-	// serverSeq after handshake (2001) + response payload length
+	// serverSeq after handshake (synackSeq+1) + response payload length
+	synackSeq := cfgs[1].L4.Seq
 	respLen := len(cfgs[4].Payload)
-	expectedAck := uint32(2001) + uint32(respLen)
+	expectedAck := synackSeq + 1 + uint32(respLen)
 	if fin.L4.Ack != expectedAck {
 		t.Errorf("Ack=%d, want %d", fin.L4.Ack, expectedAck)
 	}
@@ -596,6 +620,7 @@ func TestHTTPPlan_ClientFINFields(t *testing.T) {
 func TestHTTPPlan_ServerACKofFIN(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[6]
 	if ack.Direction != "down" {
@@ -615,6 +640,7 @@ func TestHTTPPlan_ServerACKofFIN(t *testing.T) {
 func TestHTTPPlan_ServerFINFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	fin := cfgs[7]
 	if fin.Direction != "down" {
@@ -624,9 +650,11 @@ func TestHTTPPlan_ServerFINFields(t *testing.T) {
 		t.Errorf("Flags=%x, want 0x11 (FIN|ACK)", fin.L4.Flags)
 	}
 	// serverSeq after response payload; FIN carries current serverSeq, then
-	// serverSeq++ happens AFTER sending the FIN.
+	// serverSeq++ happens AFTER sending the FIN. Server ISN is randomized,
+	// so we derive the expected value from the observed SYN-ACK Seq.
+	synackSeq := cfgs[1].L4.Seq
 	respLen := len(cfgs[4].Payload)
-	expectedSeq := uint32(2001) + uint32(respLen)
+	expectedSeq := synackSeq + 1 + uint32(respLen)
 	if fin.L4.Seq != expectedSeq {
 		t.Errorf("Seq=%d, want %d", fin.L4.Seq, expectedSeq)
 	}
@@ -635,6 +663,7 @@ func TestHTTPPlan_ServerFINFields(t *testing.T) {
 func TestHTTPPlan_ClientACKofServerFIN(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[8]
 	if ack.Direction != "up" {
@@ -644,9 +673,10 @@ func TestHTTPPlan_ClientACKofServerFIN(t *testing.T) {
 		t.Errorf("Flags=%x, want 0x10 (ACK)", ack.L4.Flags)
 	}
 	// After server FIN, serverSeq++: ACK acknowledges (serverSeq+1) where
-	// serverSeq = 2001 + respLen (the value carried by the server FIN).
+	// serverSeq = synackSeq+1 + respLen (the value carried by the server FIN).
+	synackSeq := cfgs[1].L4.Seq
 	respLen := len(cfgs[4].Payload)
-	expectedAck := uint32(2001) + uint32(respLen) + 1
+	expectedAck := synackSeq + 1 + uint32(respLen) + 1
 	if ack.L4.Ack != expectedAck {
 		t.Errorf("Ack=%d, want %d", ack.L4.Ack, expectedAck)
 	}
@@ -1025,6 +1055,139 @@ func TestBuildHTTPRequest_NoBodyHasConnectionClose(t *testing.T) {
 	result := buildHTTPRequest(cfg, "10.0.0.2")
 	if !strings.Contains(result, "Connection: close\r\n") {
 		t.Errorf("result=%q, want 'Connection: close' for short-conn even with no body", result)
+	}
+}
+
+// --- Host header: HTTP/1.1 vs HTTP/1.0 defaulting ---
+//
+// HTTP/1.1 mandates Host (RFC 7230 §5.4); HTTP/1.0 does not. So the dstIP
+// fallback Host is only auto-emitted for 1.1, and a user-provided Host on
+// either version always wins via the user-header pass.
+
+// TestBuildHTTPRequest_AutoHost_HTTP11 verifies that for HTTP/1.1 with no
+// user-provided Host, the request contains "Host: <dstIP>".
+func TestBuildHTTPRequest_AutoHost_HTTP11(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/", Version: "HTTP/1.1"}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "Host: 10.0.0.2\r\n") {
+		t.Errorf("result=%q, want contains 'Host: 10.0.0.2\\r\\n' for HTTP/1.1", result)
+	}
+	hostCount := strings.Count(result, "Host:")
+	if hostCount != 1 {
+		t.Errorf("result=%q, want exactly 1 Host header for HTTP/1.1, got %d", result, hostCount)
+	}
+}
+
+// TestBuildHTTPRequest_AutoHost_HTTP10Absent verifies that for HTTP/1.0 with
+// no user-provided Host, NO Host header is emitted (1.0 does not mandate it).
+func TestBuildHTTPRequest_AutoHost_HTTP10Absent(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/", Version: "HTTP/1.0"}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if strings.Contains(result, "Host:") {
+		t.Errorf("result=%q, should not contain Host header for HTTP/1.0 without user Host", result)
+	}
+}
+
+// TestBuildHTTPRequest_AutoHost_HTTP10UserOverride verifies that an explicit
+// Host on HTTP/1.0 is still honored (user > default > none).
+func TestBuildHTTPRequest_AutoHost_HTTP10UserOverride(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		Method:         "GET",
+		URI:            "/",
+		Version:        "HTTP/1.0",
+		RequestHeaders: map[string]string{"Host": "example.com"},
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "Host: example.com\r\n") {
+		t.Errorf("result=%q, want contains user 'Host: example.com\\r\\n'", result)
+	}
+	hostCount := strings.Count(result, "Host:")
+	if hostCount != 1 {
+		t.Errorf("result=%q, want exactly 1 Host header, got %d", result, hostCount)
+	}
+}
+
+// TestBuildHTTPRequest_AutoHost_DefaultVersion11 verifies that when Version is
+// empty (defaulted to HTTP/1.1 inside buildHTTPRequest), the Host default is
+// still emitted.
+func TestBuildHTTPRequest_AutoHost_DefaultVersion11(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/"} // Version empty -> HTTP/1.1
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "Host: 10.0.0.2\r\n") {
+		t.Errorf("result=%q, want contains 'Host: 10.0.0.2\\r\\n' (default Version=HTTP/1.1)", result)
+	}
+}
+
+// --- Content-Length auto-derivation (user > default > none) ---
+//
+// buildHTTPRequest must auto-emit Content-Length: len(Body) when Body is
+// non-empty and the user has not provided one; empty Body + no user header
+// means no Content-Length.
+
+// TestBuildHTTPRequest_AutoContentLength verifies that a non-empty Body
+// without a user Content-Length produces "Content-Length: <len(Body)>".
+func TestBuildHTTPRequest_AutoContentLength(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "POST", URI: "/", Body: `{"k":"v"}`}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	want := "Content-Length: " + strconv.Itoa(len(cfg.Body)) + "\r\n"
+	if !strings.Contains(result, want) {
+		t.Errorf("result=%q, want contains %q", result, want)
+	}
+	clCount := strings.Count(result, "Content-Length:")
+	if clCount != 1 {
+		t.Errorf("result=%q, want exactly 1 Content-Length, got %d", result, clCount)
+	}
+}
+
+// TestBuildHTTPRequest_UserContentLengthOverrideAutoHost confirms the same
+// override behavior with a body present and HTTP/1.1: user Content-Length wins
+// and the default is not also emitted.
+func TestBuildHTTPRequest_UserContentLengthOverrideAutoHost(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		Method:         "POST",
+		URI:            "/",
+		Body:           "abcdef",
+		RequestHeaders: map[string]string{"Content-Length": "999"},
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	clCount := strings.Count(result, "Content-Length:")
+	if clCount != 1 {
+		t.Errorf("result=%q, want exactly 1 Content-Length, got %d", result, clCount)
+	}
+	if !strings.Contains(result, "Content-Length: 999\r\n") {
+		t.Errorf("result=%q, want user value 'Content-Length: 999'", result)
+	}
+}
+
+// TestBuildHTTPRequest_EmptyBodyNoContentLength verifies that an empty Body
+// produces no Content-Length header at all.
+func TestBuildHTTPRequest_EmptyBodyNoContentLength(t *testing.T) {
+	cfg := &core.HTTPConfig{Method: "GET", URI: "/", Body: ""}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if strings.Contains(result, "Content-Length") {
+		t.Errorf("result=%q, should not contain Content-Length when Body empty", result)
+	}
+}
+
+// TestBuildHTTPRequest_ContentLengthCaseInsensitive verifies that a
+// user-provided "content-length" (lowercase) suppresses the default just
+// like "Content-Length" per RFC 7230 §3.2.
+func TestBuildHTTPRequest_ContentLengthCaseInsensitive(t *testing.T) {
+	cases := []string{"content-length", "Content-Length", "CONTENT-LENGTH"}
+	for _, key := range cases {
+		t.Run(key, func(t *testing.T) {
+			cfg := &core.HTTPConfig{
+				Method:         "POST",
+				URI:            "/",
+				Body:           "abc",
+				RequestHeaders: map[string]string{key: "7"},
+			}
+			result := buildHTTPRequest(cfg, "10.0.0.2")
+			clCount := strings.Count(strings.ToLower(result), "content-length:")
+			if clCount != 1 {
+				t.Errorf("key=%q: result=%q, want exactly 1 Content-Length (any case), got %d", key, result, clCount)
+			}
+		})
 	}
 }
 

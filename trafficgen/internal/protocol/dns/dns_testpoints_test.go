@@ -162,8 +162,12 @@ func TestDNSValidate_DomainEmpty(t *testing.T) {
 	spec := validDNSSpec()
 	spec.DNS = &core.DNSConfig{Domain: ""}
 	err := p.Validate(spec)
-	if err == nil || !strings.Contains(err.Error(), "domain is required") {
-		t.Errorf("err=%v, want contains 'domain is required'", err)
+	// Error message must mention both "domain" and "required" so users
+	// understand which field is missing and why. The legacy message was
+	// "domain is required"; the new message is "dns query_name (domain) is
+	// required" to also catch users who set query_name instead of domain.
+	if err == nil || !strings.Contains(err.Error(), "domain") || !strings.Contains(err.Error(), "required") {
+		t.Errorf("err=%v, want contains 'domain' and 'required'", err)
 	}
 }
 

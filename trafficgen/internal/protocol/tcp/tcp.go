@@ -4,6 +4,7 @@ package tcp
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"time"
 
@@ -60,17 +61,36 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("destination port is required")
 	}
 
+	// Validate MSS range. RFC 879: minimum MSS is 536 (IP header 20 + TCP
+	// header 20 + 536 = 576 byte minimum packet). uint16 max is 65535.
+	// Out-of-range MSS produces malformed SYNs or oversized frames.
+	if spec.TCP != nil && spec.TCP.MSS > 0 {
+		if spec.TCP.MSS < 536 {
+			return fmt.Errorf("MSS %d too small (min 536 per RFC 879)", spec.TCP.MSS)
+		}
+		if spec.TCP.MSS > 65535 {
+			return fmt.Errorf("MSS %d too large (max 65535)", spec.TCP.MSS)
+		}
+	}
+
 	return nil
 }
 
 // Plan generates packet configs for a TCP flow.
-// synOptions builds TCP options for SYN packets: MSS (from config) and
+// synOptions builds TCP options for SYN packets: MSS, Window Scale, and
 // SACK-Permitted, matching real-world SYN capture characteristics.
+// MSS=0 is normalized to DefaultMSS by callers so the SYN always carries a
+// valid MSS option (RFC 879: MSS=0 in SYN is misinterpreted as 536 by some
+// stacks).
 func synOptions(mss uint16) []core.TCPOption {
-	opts := make([]core.TCPOption, 0, 2)
-	if mss > 0 {
-		opts = append(opts, core.TCPOption{Kind: core.TCPOptMSS, Data: []byte{byte(mss >> 8), byte(mss)}})
+	if mss == 0 {
+		mss = DefaultMSS
 	}
+	opts := make([]core.TCPOption, 0, 3)
+	opts = append(opts, core.TCPOption{Kind: core.TCPOptMSS, Data: []byte{byte(mss >> 8), byte(mss)}})
+	// Window Scale option (RFC 7323): shift count 7 expands the 16-bit
+	// window field to 65535 << 7 = ~8MB, enough for high-bandwidth paths.
+	opts = append(opts, core.TCPOption{Kind: core.TCPOptWinScale, Data: []byte{0x07}})
 	opts = append(opts, core.TCPOption{Kind: core.TCPOptSACKPermit})
 	return opts
 }
@@ -99,11 +119,17 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 		}
 
-		// Initialize sequence numbers
-		clientSeq := uint32(1000)
-		serverSeq := uint32(2000)
+		// Initialize sequence numbers. Random per flow to avoid seq collisions
+		// across flows (real TCP randomizes ISN per RFC 6528). User can override
+		// client seq via spec.InitialSeq for reproducible tests.
+		clientSeq := spec.InitialSeq
+		if clientSeq == 0 {
+			clientSeq = rand.Uint32()
+		}
+		serverSeq := rand.Uint32()
 		packetIndex := uint64(0)
-		ipID := uint16(1)
+		// IPID random start to avoid cross-flow ID collision.
+		ipID := uint16(rand.Uint32())
 
 		nextIPID := func() uint16 {
 			id := ipID

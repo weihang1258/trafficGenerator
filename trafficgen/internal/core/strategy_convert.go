@@ -35,12 +35,15 @@ const (
 	// switch cases.
 	DefaultDstPort = 80
 
-	// DefaultDSCP: EF (Expedited Forwarding, 0x2E=46). Visible in the IP
-	// TOS byte as 0xB8 (0x2E<<2). Marks every trafficgen IP packet so it
+	// DefaultDSCP: CS1 (Class Selector 1, 0x08=8). Visible in the IP TOS
+	// byte as 0x20 (0x08<<2). CS1 is RFC 4594 "less than best-effort" --
+	// background traffic class that does NOT compete with business traffic
+	// for the default (BE) queue. Marks every trafficgen IP packet so it
 	// can be filtered out of noisy captures:
-	//   tcpdump 'ip[1] & 0xfc == 0xb8'
-	// User can override with dscp=0 for best-effort (clean) traffic.
-	DefaultDSCP = 0x2E
+	//   tcpdump 'ip[1] & 0xfc == 0x20'
+	// User can override with dscp=0 for plain best-effort, or dscp=0x2E
+	// for EF (legacy behavior, affects business traffic).
+	DefaultDSCP = 0x08
 
 	// DefaultIPFlags: DF=1 (Don't Fragment). Matches modern OS TCP defaults
 	// (Linux/macOS/Windows set DF=1 for TCP PMTU discovery). User can

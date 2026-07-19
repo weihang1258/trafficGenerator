@@ -77,6 +77,11 @@ type EngineConfig struct {
 	OutputWorkers int `mapstructure:"output_workers"`
 	BufferSize    int `mapstructure:"buffer_size"`
 	QueueSize     int `mapstructure:"queue_size"`
+	// MinMTU is the minimum NIC MTU enforced at task start. If an interface's
+	// MTU is below this value, the server runs `ip link set dev <iface> mtu
+	// <min_mtu>` (requires CAP_NET_ADMIN / root) before submitting the task.
+	// 0 disables the check. Default 2000 (set in setDefaults).
+	MinMTU int `mapstructure:"min_mtu"`
 }
 
 // LoggingConfig for logging.
@@ -247,6 +252,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("engine.output_workers", 1)
 	v.SetDefault("engine.buffer_size", 4096)
 	v.SetDefault("engine.queue_size", 1024)
+	v.SetDefault("engine.min_mtu", 2000)
 
 	// Logging defaults
 	v.SetDefault("logging.level", "info")

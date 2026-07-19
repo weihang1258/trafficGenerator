@@ -227,6 +227,7 @@ func (app *Application) initEngine() error {
 		BufferSize:     bufferSize,
 		QueueSize:      app.config.Engine.QueueSize,
 		MaxBufferBytes: 100 * 1024 * 1024, // 100MB
+		MinMTU:         app.config.Engine.MinMTU,
 	})
 
 	// Apply persisted runtime settings now that the engine exists.

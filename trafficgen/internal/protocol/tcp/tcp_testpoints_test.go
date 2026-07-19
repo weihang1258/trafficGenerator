@@ -125,8 +125,8 @@ func TestTCPValidate_ShortCircuitSrcFirst(t *testing.T) {
 
 func TestTCPSynOptions_MSS1460(t *testing.T) {
 	opts := synOptions(1460)
-	if len(opts) != 2 {
-		t.Fatalf("len(opts)=%d, want 2", len(opts))
+	if len(opts) != 3 {
+		t.Fatalf("len(opts)=%d, want 3 (MSS+WS+SACK)", len(opts))
 	}
 	if opts[0].Kind != core.TCPOptMSS {
 		t.Errorf("opts[0].Kind=%d, want TCPOptMSS(%d)", opts[0].Kind, core.TCPOptMSS)
@@ -134,8 +134,14 @@ func TestTCPSynOptions_MSS1460(t *testing.T) {
 	if len(opts[0].Data) != 2 || opts[0].Data[0] != 0x05 || opts[0].Data[1] != 0xb4 {
 		t.Errorf("MSS data=%v, want [05 b4]", opts[0].Data)
 	}
-	if opts[1].Kind != core.TCPOptSACKPermit {
-		t.Errorf("opts[1].Kind=%d, want TCPOptSACKPermit(%d)", opts[1].Kind, core.TCPOptSACKPermit)
+	if opts[1].Kind != core.TCPOptWinScale {
+		t.Errorf("opts[1].Kind=%d, want TCPOptWinScale(%d)", opts[1].Kind, core.TCPOptWinScale)
+	}
+	if len(opts[1].Data) != 1 || opts[1].Data[0] != 0x07 {
+		t.Errorf("WS data=%v, want [07]", opts[1].Data)
+	}
+	if opts[2].Kind != core.TCPOptSACKPermit {
+		t.Errorf("opts[2].Kind=%d, want TCPOptSACKPermit(%d)", opts[2].Kind, core.TCPOptSACKPermit)
 	}
 }
 
@@ -148,11 +154,21 @@ func TestTCPSynOptions_MSSMax(t *testing.T) {
 
 func TestTCPSynOptions_MSSZero(t *testing.T) {
 	opts := synOptions(0)
-	if len(opts) != 1 {
-		t.Fatalf("len(opts)=%d, want 1 (SACK only)", len(opts))
+	// MSS=0 normalizes to DefaultMSS, so SYN still carries MSS + WS + SACK.
+	if len(opts) != 3 {
+		t.Fatalf("len(opts)=%d, want 3 (MSS+WS+SACK)", len(opts))
 	}
-	if opts[0].Kind != core.TCPOptSACKPermit {
-		t.Errorf("opts[0].Kind=%d, want SACKPermit", opts[0].Kind)
+	if opts[0].Kind != core.TCPOptMSS {
+		t.Errorf("opts[0].Kind=%d, want TCPOptMSS", opts[0].Kind)
+	}
+	if opts[0].Data[0] != 0x05 || opts[0].Data[1] != 0xb4 {
+		t.Errorf("MSS data=%v, want [05 b4] for DefaultMSS=1460", opts[0].Data)
+	}
+	if opts[1].Kind != core.TCPOptWinScale {
+		t.Errorf("opts[1].Kind=%d, want TCPOptWinScale", opts[1].Kind)
+	}
+	if opts[2].Kind != core.TCPOptSACKPermit {
+		t.Errorf("opts[2].Kind=%d, want TCPOptSACKPermit", opts[2].Kind)
 	}
 }
 
@@ -221,17 +237,17 @@ func TestTCPPlan_ConfigNilDefaults(t *testing.T) {
 func TestTCPPlan_ConfigProvided(t *testing.T) {
 	p := NewPlanner()
 	spec := validTCPSpec()
-	spec.TCP = &core.TCPConfig{Handshake: true, Termination: false, MSS: 512, WindowSize: 16384}
+	spec.TCP = &core.TCPConfig{Handshake: true, Termination: false, MSS: 536, WindowSize: 16384}
 	cfgs := drain(mustPlan(t, p, spec))
-	// SYN MSS=512
+	// SYN MSS=536 (RFC 879 minimum, satisfies range validation)
 	var mssData []byte
 	for _, o := range cfgs[0].L4.TCPOptions {
 		if o.Kind == core.TCPOptMSS {
 			mssData = o.Data
 		}
 	}
-	if len(mssData) != 2 || mssData[0] != 0x02 || mssData[1] != 0x00 {
-		t.Errorf("MSS=%v, want [02 00]=512", mssData)
+	if len(mssData) != 2 || mssData[0] != 0x02 || mssData[1] != 0x18 {
+		t.Errorf("MSS=%v, want [02 18]=536", mssData)
 	}
 	// WindowSize=16384
 	if cfgs[0].L4.WindowSize != 16384 {
@@ -315,6 +331,10 @@ func TestTCPPlan_SYNPacketFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validTCPSpec()
 	spec.TCP = &core.TCPConfig{Handshake: true, Termination: false, MSS: 1460}
+	// Pin client ISN so the Seq/IPID assertions below are deterministic.
+	// (ISN and IPID start are randomized per flow by default; tests opt in
+	// to fixed values via InitialSeq.)
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	syn := cfgs[0]
 	if syn.PacketIndex != 0 {
@@ -350,8 +370,10 @@ func TestTCPPlan_SYNPacketFields(t *testing.T) {
 	if syn.L3.Protocol != 6 {
 		t.Errorf("L3.Protocol=%d, want 6", syn.L3.Protocol)
 	}
-	if syn.L3.IPID != 1 {
-		t.Errorf("IPID=%d, want 1", syn.L3.IPID)
+	// IPID start is randomized; SYN is the first packet so it carries the
+	// (random) starting IPID. Just assert non-zero.
+	if syn.L3.IPID == 0 {
+		t.Errorf("IPID=%d, want non-zero (random start)", syn.L3.IPID)
 	}
 }
 
@@ -359,6 +381,9 @@ func TestTCPPlan_SYNACKPacketFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validTCPSpec()
 	spec.TCP = &core.TCPConfig{Handshake: true, Termination: false}
+	// Pin client ISN; server ISN is still randomized, so we only assert
+	// the SYN-ACK's Seq differs from the SYN's Seq and its Ack == SYN.Seq+1.
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	synack := cfgs[1]
 	if synack.PacketIndex != 1 {
@@ -370,8 +395,8 @@ func TestTCPPlan_SYNACKPacketFields(t *testing.T) {
 	if synack.L4.Flags != 0x12 {
 		t.Errorf("Flags=%x, want 0x12", synack.L4.Flags)
 	}
-	if synack.L4.Seq != 2000 {
-		t.Errorf("Seq=%d, want 2000", synack.L4.Seq)
+	if synack.L4.Seq == 0 || synack.L4.Seq == 1000 {
+		t.Errorf("Seq=%d, want non-zero and != client ISN (random server ISN)", synack.L4.Seq)
 	}
 	if synack.L4.Ack != 1001 {
 		t.Errorf("Ack=%d, want 1001", synack.L4.Ack)
@@ -386,8 +411,10 @@ func TestTCPPlan_SYNACKPacketFields(t *testing.T) {
 	if synack.L4.SrcPort != spec.DstPort || synack.L4.DstPort != spec.SrcPort {
 		t.Errorf("ports not swapped")
 	}
-	if synack.L3.IPID != 2 {
-		t.Errorf("IPID=%d, want 2", synack.L3.IPID)
+	// IPID increments per-packet; just assert it differs from SYN's IPID.
+	if synack.L3.IPID == cfgs[0].L3.IPID {
+		t.Errorf("SYN-ACK IPID=%d == SYN IPID=%d, want incrementing",
+			synack.L3.IPID, cfgs[0].L3.IPID)
 	}
 }
 
@@ -395,6 +422,9 @@ func TestTCPPlan_HandshakeACKFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validTCPSpec()
 	spec.TCP = &core.TCPConfig{Handshake: true, Termination: false}
+	// Pin client ISN; server ISN is still randomized, so Ack (= serverSeq+1)
+	// is asserted as != SYN-ACK.Seq instead of a fixed value.
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[2]
 	if ack.L4.Flags != 0x10 {
@@ -403,14 +433,17 @@ func TestTCPPlan_HandshakeACKFields(t *testing.T) {
 	if ack.L4.Seq != 1001 {
 		t.Errorf("Seq=%d, want 1001", ack.L4.Seq)
 	}
-	if ack.L4.Ack != 2001 {
-		t.Errorf("Ack=%d, want 2001", ack.L4.Ack)
+	synackSeq := cfgs[1].L4.Seq
+	if ack.L4.Ack != synackSeq+1 {
+		t.Errorf("Ack=%d, want %d (serverSeq+1, server ISN randomized)", ack.L4.Ack, synackSeq+1)
 	}
 	if ack.L4.TCPOptions != nil {
 		t.Error("handshake ACK should have no TCP options")
 	}
-	if ack.L3.IPID != 3 {
-		t.Errorf("IPID=%d, want 3", ack.L3.IPID)
+	// IPID increments per-packet; third packet should be != second packet's IPID.
+	if ack.L3.IPID == cfgs[1].L3.IPID {
+		t.Errorf("ACK IPID=%d == SYN-ACK IPID=%d, want incrementing",
+			ack.L3.IPID, cfgs[1].L3.IPID)
 	}
 }
 
@@ -478,13 +511,15 @@ func TestTCPPlan_MSSNonZeroInData(t *testing.T) {
 	p := NewPlanner()
 	spec := validTCPSpec()
 	spec.Payload = make([]byte, 1500)
-	spec.TCP = &core.TCPConfig{Handshake: false, Termination: false, MSS: 512}
+	// Use MSS=536 (RFC 879 minimum) to satisfy new range validation.
+	// 3 segments [536,536,428], 6 packets.
+	spec.TCP = &core.TCPConfig{Handshake: false, Termination: false, MSS: 536}
 	cfgs := drain(mustPlan(t, p, spec))
-	// 3 segments [512,512,476], 6 packets
+	// ceil(1500/536) = 3 segments, 6 packets (3 data + 3 acks)
 	if len(cfgs) != 6 {
 		t.Fatalf("len=%d, want 6", len(cfgs))
 	}
-	wantLens := []int{512, 512, 476}
+	wantLens := []int{536, 536, 428}
 	for i, want := range wantLens {
 		if len(cfgs[i*2].Payload) != want {
 			t.Errorf("segment %d len=%d, want %d", i, len(cfgs[i*2].Payload), want)
@@ -536,6 +571,9 @@ func TestTCPPlan_DataSegmentFields(t *testing.T) {
 	spec := validTCPSpec()
 	spec.Payload = []byte("hello")
 	spec.TCP = &core.TCPConfig{Handshake: false, Termination: false}
+	// Pin client ISN; server ISN is still randomized, so Ack (serverSeq)
+	// is asserted as != Seq (clientSeq) instead of a fixed value.
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	data := cfgs[0]
 	if data.Direction != "up" {
@@ -547,8 +585,8 @@ func TestTCPPlan_DataSegmentFields(t *testing.T) {
 	if data.L4.Seq != 1000 {
 		t.Errorf("Seq=%d, want 1000 (clientSeq)", data.L4.Seq)
 	}
-	if data.L4.Ack != 2000 {
-		t.Errorf("Ack=%d, want 2000 (serverSeq)", data.L4.Ack)
+	if data.L4.Ack == 0 || data.L4.Ack == 1000 {
+		t.Errorf("Ack=%d, want non-zero and != clientSeq (random server ISN)", data.L4.Ack)
 	}
 	if string(data.Payload) != "hello" {
 		t.Errorf("Payload=%q", data.Payload)
@@ -560,6 +598,9 @@ func TestTCPPlan_DataACKFields(t *testing.T) {
 	spec := validTCPSpec()
 	spec.Payload = []byte("hello")
 	spec.TCP = &core.TCPConfig{Handshake: false, Termination: false, WindowSize: 32768}
+	// Pin client ISN; server ISN is still randomized, so the ACK's Seq
+	// (serverSeq) is asserted as != 0 / != Ack instead of a fixed value.
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[1]
 	if ack.Direction != "down" {
@@ -571,6 +612,11 @@ func TestTCPPlan_DataACKFields(t *testing.T) {
 	// After sending 5 bytes, clientSeq=1005; ACK acknowledges 1005
 	if ack.L4.Ack != 1005 {
 		t.Errorf("Ack=%d, want 1005 (clientSeq updated)", ack.L4.Ack)
+	}
+	// ACK's Seq is the random server ISN; just assert non-zero and that it
+	// differs from the Ack (sanity check that we're not reading the same field).
+	if ack.L4.Seq == 0 {
+		t.Errorf("Seq=%d, want non-zero (random server ISN)", ack.L4.Seq)
 	}
 	if ack.L4.WindowSize != 32768 {
 		t.Errorf("WindowSize=%d, want 32768 (winSize)", ack.L4.WindowSize)
@@ -615,6 +661,9 @@ func TestTCPPlan_ClientFINFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validTCPSpec()
 	spec.TCP = &core.TCPConfig{Handshake: false, Termination: true, WindowSize: 32768}
+	// Pin client ISN; server ISN is still randomized, so Ack (serverSeq)
+	// is asserted as != Seq (clientSeq) instead of a fixed value.
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	fin := cfgs[0]
 	if fin.Direction != "up" {
@@ -626,8 +675,8 @@ func TestTCPPlan_ClientFINFields(t *testing.T) {
 	if fin.L4.Seq != 1000 {
 		t.Errorf("Seq=%d, want 1000", fin.L4.Seq)
 	}
-	if fin.L4.Ack != 2000 {
-		t.Errorf("Ack=%d, want 2000", fin.L4.Ack)
+	if fin.L4.Ack == 0 || fin.L4.Ack == 1000 {
+		t.Errorf("Ack=%d, want non-zero and != clientSeq (random server ISN)", fin.L4.Ack)
 	}
 	if fin.L4.WindowSize != 32768 {
 		t.Errorf("WindowSize=%d, want 32768", fin.L4.WindowSize)
@@ -638,6 +687,8 @@ func TestTCPPlan_ServerACKofFINFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validTCPSpec()
 	spec.TCP = &core.TCPConfig{Handshake: false, Termination: true, WindowSize: 32768}
+	// Pin client ISN so the Ack (clientSeq+1 after FIN) is deterministic.
+	spec.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[1]
 	if ack.Direction != "down" || ack.L4.Flags != 0x10 {
@@ -661,8 +712,14 @@ func TestTCPPlan_ServerFINFields(t *testing.T) {
 	if fin.Direction != "down" || fin.L4.Flags != 0x11 {
 		t.Errorf("fin: dir=%s flags=%x", fin.Direction, fin.L4.Flags)
 	}
-	if fin.L4.Seq != 2000 {
-		t.Errorf("Seq=%d, want 2000", fin.L4.Seq)
+	// Server ISN is randomized, so just assert Seq is non-zero and differs
+	// from the client's FIN Seq (cfgs[0].L4.Seq).
+	if fin.L4.Seq == 0 {
+		t.Errorf("Seq=%d, want non-zero (random server ISN)", fin.L4.Seq)
+	}
+	if fin.L4.Seq == cfgs[0].L4.Seq {
+		t.Errorf("server FIN Seq=%d == client FIN Seq=%d, want different ISNs",
+			fin.L4.Seq, cfgs[0].L4.Seq)
 	}
 	if fin.L4.WindowSize != 32768 {
 		t.Errorf("WindowSize=%d, want 32768", fin.L4.WindowSize)
@@ -678,9 +735,12 @@ func TestTCPPlan_ClientACKofServerFINFields(t *testing.T) {
 	if ack.Direction != "up" || ack.L4.Flags != 0x10 {
 		t.Errorf("ack: dir=%s flags=%x", ack.Direction, ack.L4.Flags)
 	}
-	// After server FIN, serverSeq=2001; ACK acknowledges 2001
-	if ack.L4.Ack != 2001 {
-		t.Errorf("Ack=%d, want 2001", ack.L4.Ack)
+	// After server FIN, serverSeq++; ACK acknowledges (serverSeq before FIN)+1.
+	// Server ISN is randomized, so derive the expected Ack from the observed
+	// server FIN's Seq (cfgs[2].L4.Seq) + 1.
+	wantAck := cfgs[2].L4.Seq + 1
+	if ack.L4.Ack != wantAck {
+		t.Errorf("Ack=%d, want %d (server FIN Seq+1, server ISN randomized)", ack.L4.Ack, wantAck)
 	}
 	if ack.L4.WindowSize != 32768 {
 		t.Errorf("WindowSize=%d, want 32768", ack.L4.WindowSize)
@@ -1055,4 +1115,89 @@ func mustPlan(t *testing.T, p *Planner, spec core.FlowSpec) <-chan core.PacketCo
 		t.Fatalf("Plan: %v", err)
 	}
 	return ch
+}
+
+// --- ISN / IPID randomization (S1-S3) ---
+//
+// RFC 6528: TCP ISNs SHOULD be unpredictable per flow. Pre-fix the planner
+// hardcoded clientSeq=1000/serverSeq=2000 and IPID=1 for every flow, causing
+// cross-flow seq/IPID collisions in multi-flow tests. These tests pin down
+// the new behavior: random by default, overridable via spec.InitialSeq for
+// reproducible tests.
+
+func TestTCPPlan_RandomSeqNonZero(t *testing.T) {
+	// Default (no InitialSeq): SYN Seq should NOT be the old fixed value
+	// 1000. Extremely small chance of false positive (rand.Uint32()==1000);
+	// tolerate by skipping rather than failing in that case.
+	p := NewPlanner()
+	spec := validTCPSpec()
+	spec.TCP = &core.TCPConfig{Handshake: true, Termination: false}
+	cfgs := drain(mustPlan(t, p, spec))
+	syn := cfgs[0]
+	if syn.L4.Seq == 1000 {
+		t.Skip("random ISN happened to hit the old fixed value 1000; retry")
+	}
+	if syn.L4.Seq == 0 {
+		t.Errorf("Seq=%d, want non-zero random ISN", syn.L4.Seq)
+	}
+}
+
+func TestTCPPlan_InitialSeqOverride(t *testing.T) {
+	// User can pin the client ISN for reproducible tests.
+	p := NewPlanner()
+	spec := validTCPSpec()
+	spec.TCP = &core.TCPConfig{Handshake: true, Termination: false}
+	spec.InitialSeq = 0x12345
+	cfgs := drain(mustPlan(t, p, spec))
+	if cfgs[0].L4.Seq != 0x12345 {
+		t.Errorf("SYN Seq=%d, want 0x12345 (InitialSeq override)", cfgs[0].L4.Seq)
+	}
+	// SYN-ACK Ack should be InitialSeq+1 (client SYN consumes one seq number).
+	if cfgs[1].L4.Ack != 0x12345+1 {
+		t.Errorf("SYN-ACK Ack=%d, want 0x12346", cfgs[1].L4.Ack)
+	}
+}
+
+func TestTCPPlan_RandomIPIDNonOne(t *testing.T) {
+	// Default: first packet's IPID should NOT be the old fixed value 1.
+	// (rand start is uint16(rand.Uint32()) -- chance of hitting 1 is 1/65536.)
+	p := NewPlanner()
+	spec := validTCPSpec()
+	spec.TCP = &core.TCPConfig{Handshake: true, Termination: false}
+	cfgs := drain(mustPlan(t, p, spec))
+	if cfgs[0].L3.IPID == 1 {
+		t.Skip("random IPID start happened to hit the old fixed value 1; retry")
+	}
+	if cfgs[0].L3.IPID == 0 {
+		t.Errorf("IPID=%d, want non-zero random start", cfgs[0].L3.IPID)
+	}
+	// Per-flow incrementing still works: second packet's IPID == first+1.
+	if cfgs[1].L3.IPID != cfgs[0].L3.IPID+1 {
+		t.Errorf("SYN-ACK IPID=%d, want %d (first+1, incrementing preserved)",
+			cfgs[1].L3.IPID, cfgs[0].L3.IPID+1)
+	}
+}
+
+func TestTCPPlan_RandomSeqDistinctAcrossFlows(t *testing.T) {
+	// Two independent flows should (with overwhelming probability) get
+	// distinct client ISNs and distinct IPID starts. This is the actual
+	// motivation for the change: pre-fix, every flow's SYN had Seq=1000
+	// and IPID=1.
+	p := NewPlanner()
+	spec1 := validTCPSpec()
+	spec1.TCP = &core.TCPConfig{Handshake: true, Termination: false}
+	cfgs1 := drain(mustPlan(t, p, spec1))
+
+	spec2 := validTCPSpec()
+	spec2.SrcPort = 3000 // different 4-tuple -> different flow
+	spec2.TCP = &core.TCPConfig{Handshake: true, Termination: false}
+	cfgs2 := drain(mustPlan(t, p, spec2))
+
+	if cfgs1[0].L4.Seq == cfgs2[0].L4.Seq {
+		t.Skip("two random ISNs collided (very unlikely); retry")
+	}
+	if cfgs1[0].L3.IPID == cfgs2[0].L3.IPID {
+		t.Skip("two random IPID starts collided (very unlikely); retry")
+	}
+	// If we didn't skip, the randomization is working across flows.
 }

@@ -36,6 +36,7 @@ engine:
   output_workers: 4
   buffer_size: 4096
   queue_size: 1024
+  min_mtu: 2000  # 任务启动时强制 NIC MTU >= 此值；< 则执行 `ip link set dev <iface> mtu 2000` (需 root/CAP_NET_ADMIN)；0 禁用；原值不恢复
 
 # Logging configuration
 logging:

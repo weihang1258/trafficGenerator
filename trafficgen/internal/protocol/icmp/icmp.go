@@ -3,6 +3,7 @@ package icmp
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"time"
 
@@ -67,7 +68,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		now := time.Now()
 
-		ipID := uint16(1)
+		// IPID random start to avoid cross-flow ID collision.
+		ipID := uint16(rand.Uint32())
 		nextIPID := func() uint16 { id := ipID; ipID++; return id }
 
 		// Get ICMP config

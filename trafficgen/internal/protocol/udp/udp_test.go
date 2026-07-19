@@ -64,6 +64,43 @@ func TestPlanner_Validate(t *testing.T) {
 	}
 }
 
+// TestUDPValidate_LargePayloadWarns verifies that a UDP payload exceeding
+// the typical Ethernet MTU (1500 - 20 IP - 8 UDP = 1472) triggers a
+// fragmentation warning but does NOT fail validation. Fragmentation is a
+// legitimate use case (jumbo frames, path-MTU probing), so Validate must
+// return nil and emit the warning via zap.L().Warn.
+func TestUDPValidate_LargePayloadWarns(t *testing.T) {
+	p := NewPlanner()
+	spec := core.FlowSpec{
+		SrcIP:   "192.168.1.1",
+		DstIP:   "192.168.1.2",
+		SrcPort: 12345,
+		DstPort: 53,
+		Payload: make([]byte, 2000), // > 1472 typical MTU
+	}
+	err := p.Validate(spec)
+	if err != nil {
+		t.Fatalf("Validate() with large payload: expected no error, got %v", err)
+	}
+}
+
+// TestUDPValidate_PayloadUnderMTUNoWarn sanity-checks that a payload within
+// the typical MTU does not trigger the fragmentation warning path. This
+// guards against accidentally flipping the comparison operator.
+func TestUDPValidate_PayloadUnderMTUNoWarn(t *testing.T) {
+	p := NewPlanner()
+	spec := core.FlowSpec{
+		SrcIP:   "192.168.1.1",
+		DstIP:   "192.168.1.2",
+		SrcPort: 12345,
+		DstPort: 53,
+		Payload: make([]byte, 512), // well under 1472
+	}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("Validate() with small payload: expected no error, got %v", err)
+	}
+}
+
 func TestPlanner_Plan(t *testing.T) {
 	p := NewPlanner()
 

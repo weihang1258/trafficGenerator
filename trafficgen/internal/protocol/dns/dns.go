@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 	"net"
 	"time"
 
@@ -58,8 +59,12 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	if spec.DNS == nil {
 		return fmt.Errorf("DNS config is required")
 	}
+	// An empty domain produces a malformed DNS question section (zero-length
+	// QNAME, just the null terminator), which real resolvers/libradios treat
+	// as malformed or ignore. Reject at submit time rather than ship a
+	// broken packet.
 	if spec.DNS.Domain == "" {
-		return fmt.Errorf("domain is required")
+		return fmt.Errorf("dns query_name (domain) is required")
 	}
 
 	return nil
@@ -83,7 +88,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 		now := time.Now()
 		packetIndex := uint64(0)
-		ipID := uint16(1)
+		// IPID random start to avoid cross-flow ID collision.
+		ipID := uint16(rand.Uint32())
 
 		nextIPID := func() uint16 {
 			id := ipID

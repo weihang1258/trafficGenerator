@@ -107,7 +107,7 @@ func TestManagePcaps_ExtractRulesSchemaMentionsLayerFields(t *testing.T) {
 
 // TestManageStrategies_ConfigSchemaMentionsL2L3Defaults verifies the Config
 // description mentions the L2/L3 field defaults so LLMs know:
-//   - packets carry trafficgen markers (02:00:00:00:00:0x MAC, 0xb8 TOS)
+//   - packets carry trafficgen markers (02:00:00:00:00:0x MAC, 0x20 TOS)
 //   - defaults are overridable; explicit 0 is honored
 //   - the tcpdump filter expression for finding trafficgen packets
 //
@@ -118,14 +118,14 @@ func TestManageStrategies_ConfigSchemaMentionsL2L3Defaults(t *testing.T) {
 	if !strings.Contains(got, "02:00:00:00:00:01") {
 		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention default src_mac '02:00:00:00:00:01'", got)
 	}
-	if !strings.Contains(got, "0x2E") {
-		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention default dscp '0x2E'", got)
+	if !strings.Contains(got, "0x08") {
+		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention default dscp '0x08' (CS1)", got)
 	}
 	if !strings.Contains(got, "DF") {
 		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention default flags=DF", got)
 	}
-	if !strings.Contains(got, "0xb8") {
-		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention TOS byte 0xb8 (for tcpdump filter)", got)
+	if !strings.Contains(got, "0x20") {
+		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention TOS byte 0x20 (for tcpdump filter)", got)
 	}
 	if !strings.Contains(got, "tcpdump") {
 		t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention tcpdump filter", got)
@@ -139,8 +139,8 @@ func TestGenerateTraffic_ConfigSchemaMentionsL2L3Defaults(t *testing.T) {
 	if !strings.Contains(got, "02:00:00:00:00:01") {
 		t.Errorf("generateTrafficInput.Config jsonschema = %q; must mention default src_mac '02:00:00:00:00:01'", got)
 	}
-	if !strings.Contains(got, "0x2E") {
-		t.Errorf("generateTrafficInput.Config jsonschema = %q; must mention default dscp '0x2E'", got)
+	if !strings.Contains(got, "0x08") {
+		t.Errorf("generateTrafficInput.Config jsonschema = %q; must mention default dscp '0x08' (CS1)", got)
 	}
 	if !strings.Contains(got, "DF") {
 		t.Errorf("generateTrafficInput.Config jsonschema = %q; must mention default flags=DF", got)

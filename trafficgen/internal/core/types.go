@@ -112,6 +112,11 @@ type FlowSpec struct {
 	Duration int    `json:"duration,omitempty"` // seconds
 	BPS      string `json:"bps,omitempty"`     // rate limit, e.g., "200k", "1M"
 
+	// InitialSeq overrides the random initial sequence number for TCP flows.
+	// 0 = random per flow (default, RFC 6528 ISN randomization). Non-zero
+	// forces a deterministic client ISN for reproducible tests.
+	InitialSeq uint32 `json:"initial_seq,omitempty"`
+
 	// GroupID routes flows with the same generated id to one PacketWorker,
 	// preserving cross-flow timing (e.g. SIP signaling + RTP data). nil/empty =
 	// fall back to unordered 4-tuple hash (single-flow ordering only).
