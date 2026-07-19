@@ -566,3 +566,320 @@ MCP 工具的 input 类型对 `Config`/`Batch` 用 `map[string]interface{}`（Go
 - §5.6 重写 `Engine.Stop` 顺序，处理 `wg.Wait()` 与 spawn goroutine 的关系
 - §13 性能预期表补"双向流保序"和"跨流不交错"两行，标注限制
 - §14 新增"已知边界"章节，把限制明文化
+
+## 16. 默认值补全 + MTU 自动检查（commit 60a5ae2）
+
+本章节记录 commit 60a5ae2 引入的 9 项改动：3 项 CRITICAL 默认值
+修复、3 项新增功能、3 项校验补全。所有改动都不影响 group_id 路由
+保序的核心设计，只是让生成的流量更贴近真实世界（DSCP/MSS/WS/Seq
+默认值），并加了一道 NIC MTU 守门检查。
+
+### 16.1 DSCP CS1 默认（替代 EF）
+
+**通俗描述**：所有 trafficgen 出包的 IP TOS 字节默认值从 `0xB8`
+（EF，Expedited Forwarding，0x2E<<2）改成 `0x20`（CS1，Class
+Selector 1，0x08<<2）。CS1 是 RFC 4594 定义的"less-than-best-effort"
+（低于 BE）的背景流量类，不会和业务的 default 队列抢带宽。
+
+**影响**：
+- 旧默认 EF 抢业务流量带宽，导致生产环境不能直接用 trafficgen
+  发流量；CS1 让 trafficgen 出包排到 BE 之后，不影响业务
+- tcpdump filter 从 `ip[1] & 0xfc == 0xb8` 改成 `ip[1] & 0xfc == 0x20`
+- 用户仍可写 `dscp=0` 发纯净 BE 流量，或 `dscp=0x2E` 回到旧行为
+
+**实现**：`internal/core/strategy_convert.go:38-46` 改 `DefaultDSCP`
+常量值，注释同步更新 tcpdump filter：
+
+```go
+// DefaultDSCP: CS1 (Class Selector 1, 0x08=8). Visible in the IP TOS
+// byte as 0x20 (0x08<<2). CS1 is RFC 4594 "less than best-effort" --
+// background traffic class that does NOT compete with business traffic
+// for the default (BE) queue. Marks every trafficgen IP packet so it
+// can be filtered out of noisy captures:
+//   tcpdump 'ip[1] & 0xfc == 0x20'
+DefaultDSCP = 0x08
+```
+
+**配置示例**：
+
+```yaml
+flows:
+  - dscp: 0           # 纯净 best-effort
+  - dscp: 0x08        # CS1（新默认，less-than-best-effort）
+  - dscp: 0x2E        # EF（旧行为，影响业务，谨慎使用）
+```
+
+### 16.2 MSS 默认值一致性 + 范围校验
+
+**通俗描述**：之前 `synOptions` 在 MSS=0 时**不**写 MSS 选项，导致
+SYN 里没有 MSS 选项，对端按 RFC 879 默认 536 字节。但 `tcp.go` 在
+数据包构建路径里把 MSS=0 守护成 `DefaultMSS=1460`，所以 SYN 和数据
+路径的 MSS 行为不一致。改后 `synOptions` 也加同样的 `if mss==0 {
+mss = DefaultMSS }` 守护，SYN 始终带合法 MSS。
+
+**影响**：
+- SYN 和数据路径 MSS 行为一致，避免对端误用 536 导致吞吐退化
+- 新增范围校验：MSS < 536 或 > 65535 在 `Validate` 阶段报错，
+  防止配置错误产生畸形 SYN
+
+**实现**：
+- `internal/protocol/tcp/tcp.go:85-87`：`synOptions` 加 `if mss==0
+  { mss = DefaultMSS }` 守护
+- `internal/protocol/tcp/tcp.go:64-73`：`Validate` 加 MSS 范围校验
+  `[536, 65535]`，RFC 879 规定最小 536（576 最小包 - 20 IP - 20
+  TCP），uint16 上限 65535
+
+```go
+if spec.TCP != nil && spec.TCP.MSS > 0 {
+    if spec.TCP.MSS < 536 {
+        return fmt.Errorf("MSS %d too small (min 536 per RFC 879)", spec.TCP.MSS)
+    }
+    if spec.TCP.MSS > 65535 {
+        return fmt.Errorf("MSS %d too large (max 65535)", spec.TCP.MSS)
+    }
+}
+```
+
+**配置示例**：
+
+```yaml
+tcp:
+  mss: 1460      # 默认（以太网标准）
+  mss: 536       # RFC 879 最小（拨号/PPP）
+  mss: 0         # 等同 1460（守护）
+  mss: 100       # 报错（< 536）
+```
+
+### 16.3 MTU 自动检查（engine.min_mtu）
+
+**通俗描述**：trafficgen 在 NIC 上发包，如果 NIC MTU 太小（默认
+1500），大包会被切或丢。新加 `engine.min_mtu`（默认 2000，jumbo
+frame 档），任务启动前检查 port_group 各接口 MTU，低于此值就执行
+`ip link set dev <iface> mtu 2000` 提升。
+
+**影响**：
+- 任务启动时自动提升 NIC MTU，不需要用户手动 `ip link set`
+- 失败时（非 root / 驱动不支持）task 标记 error，错误信息告诉用户
+  跑 root 或降低 `engine.min_mtu`
+- 原 MTU **不**恢复：多任务共享 NIC 时复位会 race，操作员可手动
+  复原；WARN 日志记录 old/new MTU
+
+**实现**：
+- `pkg/netif/mtu.go:22-52`：`EnsureMTU(iface, minMTU)` 函数
+  - `minMTU <= 0` 短路返回（禁用）
+  - `net.InterfaceByName` 查当前 MTU
+  - 当前 MTU >= minMTU 直接返回
+  - 否则 `exec.Command("ip", "link", "set", "dev", iface, "mtu",
+    <minMTU>)` 提升，失败返回错误
+  - 成功打 WARN（`original MTU not restored after task`）
+- `pkg/config/config.go:255`：默认值 `v.SetDefault("engine.min_mtu",
+  2000)`
+- `internal/core/engine.go:154-159`：`EngineConfig.MinMTU int` 字段 +
+  `Engine.MinMTU()` getter
+- `internal/api/rest/task_handler.go:347-390`：`ensureTaskMTU` 方法
+  - 解析 task 的 `OutputConfig.PortGroupID` → 取 ports_config 各
+    interface（去重）+ dual-port 的 interface2
+  - 对每个 interface 调 `netif.EnsureMTU`
+  - pcap 输出跳过（不涉及 NIC）
+- `task_handler.go:721-733`（CreateBatch）和 `:1052-1064`（Start）：
+  在 SubmitTask **之前**调 `ensureTaskMTU`，失败时 task 标记
+  `status=error` + 返回 BadRequest
+- `cmd/server/main.go:230`：`core.EngineConfig{... MinMTU:
+  app.config.Engine.MinMTU}` 透传
+
+**配置示例**：
+
+```yaml
+# configs/config.dev.yaml
+engine:
+  packet_workers: 8
+  output_workers: 4
+  buffer_size: 4096
+  queue_size: 1024
+  min_mtu: 2000    # 任务启动时强制 NIC MTU >= 2000；0 禁用
+```
+
+### 16.4 TCP Window Scale option（RFC 7323）
+
+**通俗描述**：TCP 窗口字段只有 16 bit，最大 65535 字节 ≈ 64KB，
+高带宽路径上不够用。RFC 7323 Window Scale option 在 SYN 协商一
+个 shift count（0-14），窗口字段左移该 count 位，最大扩到
+65535<<14 = 1GB。trafficgen SYN 加 WS=7，窗口扩到 65535<<7 ≈
+8MB，匹配 Linux 默认行为。
+
+**影响**：
+- SYN options 从 `[MSS, SACK]` 变成 `[MSS, WS, SACK]`，更接近真实
+  Linux 抓包
+- 窗口扩展到 8MB，大 BDP 路径上吞吐不再受 64KB 窗口限制
+
+**实现**：`internal/protocol/tcp/tcp.go:85-94` 改 `synOptions`：
+
+```go
+func synOptions(mss uint16) []core.TCPOption {
+    if mss == 0 {
+        mss = DefaultMSS
+    }
+    opts := make([]core.TCPOption, 0, 3)
+    opts = append(opts, core.TCPOption{Kind: core.TCPOptMSS, Data: []byte{byte(mss >> 8), byte(mss)}})
+    // Window Scale option (RFC 7323): shift count 7 expands the 16-bit
+    // window field to 65535 << 7 = ~8MB, enough for high-bandwidth paths.
+    opts = append(opts, core.TCPOption{Kind: core.TCPOptWinScale, Data: []byte{0x07}})
+    opts = append(opts, core.TCPOption{Kind: core.TCPOptSACKPermit})
+    return opts
+}
+```
+
+`TCPOptWinScale = 3` 常量在 `internal/core/types.go:283` 已定义。
+
+**配置示例**：用户无需配置，所有 SYN 默认带 WS=7。后续可加
+`spec.TCP.WindowScale` 字段允许自定义 shift count（当前硬编码 7）。
+
+### 16.5 TCP Seq / IPID 起始随机化 + FlowSpec.InitialSeq
+
+**通俗描述**：之前每条 TCP 流的 client ISN 固定 1000、server ISN
+固定 2000、IPID 起始固定 1，所有流 SYN 看起来一模一样。真实 TCP
+按 RFC 6528 随机化 ISN 防止 off-path 注入。改后 client/server ISN
+和 IPID 起始都用 `rand.Uint32()` / `uint16(rand.Uint32())`，每条流
+独立；`FlowSpec.InitialSeq` 字段允许用户覆盖 client ISN（测试可
+复现）。
+
+**影响**：
+- 多流场景下各流 SYN 有独立 ISN/IPID，抓包能区分
+- 符合 RFC 6528 ISN 随机化要求
+- 测试可写 `spec.InitialSeq = 1000` 固定 ISN，断言仍 deterministic
+- 适用所有协议：TCP、HTTP（基于 TCP）、UDP、DNS、ICMP 都 IPID 随机
+
+**实现**：
+- `internal/core/types.go:115-118`：`FlowSpec` 加 `InitialSeq
+  uint32` 字段，0 = 随机，非零覆盖 client ISN
+- `internal/protocol/tcp/tcp.go:120-130`：client ISN 从 `spec.InitialSeq`
+  取（0 时 `rand.Uint32()`），server ISN 直接 `rand.Uint32()`，IPID
+  起始 `uint16(rand.Uint32())`
+- `internal/protocol/http/http.go:94-102`：同样改动（HTTP 基于 TCP）
+- `internal/protocol/udp/udp.go:84`：IPID 起始随机化
+- `internal/protocol/dns/dns.go:91`：IPID 起始随机化
+- `internal/protocol/icmp/icmp.go:71`：IPID 起始随机化
+
+**配置示例**：
+
+```yaml
+flows:
+  - initial_seq: 0           # 随机（默认，RFC 6528）
+  - initial_seq: 1000        # 固定 client ISN=1000（测试可复现）
+```
+
+### 16.6 HTTP Host 默认（HTTP/1.1 自动，1.0 不强制）
+
+**通俗描述**：RFC 7230 §5.4 规定 HTTP/1.1 **必须**带 Host 头，1.0
+不强制。之前 trafficgen 不管版本都自动加 `Host: <dst_ip>`，导致
+1.0 测试带了一个 1.0 不需要的头。改后只在 HTTP/1.1 自动加，1.0
+不加；用户自定义 Host 永远优先。
+
+**影响**：
+- HTTP/1.0 抓包不再有误导性的 Host 头
+- HTTP/1.1 仍自动补 Host（未配时 = dst_ip），符合 RFC 7230
+- 用户自定义 Host 在两个版本都生效（用户 > 默认 > 无）
+- 已有的 Content-Length 自动算逻辑保留
+
+**实现**：`internal/protocol/http/http.go:374` 加 `isHTTP11`
+判断：
+
+```go
+// HTTP/1.1 mandates Host (RFC 7230 §5.4); HTTP/1.0 does not, so we only
+// auto-emit Host for 1.1 (user-provided Host on any version always wins
+// via the user-header pass below).
+if !hasHeader(config.RequestHeaders, "Host") && isHTTP11(config.Version) {
+    request += fmt.Sprintf("Host: %s\r\n", bracketHost(dstIP))
+}
+```
+
+`isHTTP11` 在 `http.go:420-428`：case-insensitive 比较 version 字符串
+和 `"HTTP/1.1"`，空 version 视为 1.1（匹配 version 默认值）。
+
+**配置示例**：
+
+```yaml
+http:
+  version: "HTTP/1.1"          # 自动加 Host: <dst_ip>
+  version: "HTTP/1.0"          # 不自动加 Host（用户可显式配）
+  request_headers:
+    Host: "www.example.com"    # 用户 Host 永远优先
+```
+
+### 16.7 校验补全（DNS QueryName / UDP payload / VLAN ID=0）
+
+**通俗描述**：补 3 项校验，覆盖之前 silently 通过的边界情况：
+
+1. **DNS QueryName 空**：`spec.DNS.Domain == ""` 产生畸形 DNS 包
+   （QNAME 只有 null terminator），resolver 当 malformed 丢掉。改后
+   `Validate` 报错 `"dns query_name (domain) is required"`
+2. **UDP payload > 1472**：1500 MTU - 20 IP - 8 UDP = 1472，超过会
+   触发 IP 分片。警告不报错（jumbo frame / PMTU probe 是合法用途）
+3. **VLAN ID=0**：802.1Q tag 里 VID=0 是"priority tag"帧（只带优先
+   级不属于任何 VLAN），用户多半配错。警告不报错（priority-tag 是
+   合法 802.1Q 构造）
+
+**影响**：
+- DNS QueryName 空在提交时就被拒绝，不会发畸形包
+- UDP 大 payload 和 VLAN ID=0 都打 WARN 日志，用户能看到并修正
+
+**实现**：
+- `internal/protocol/dns/dns.go:63-67`：错误信息从 `"domain is
+  required"` 改为 `"dns query_name (domain) is required"`（同时覆盖
+  `domain` 和 `query_name` 两种字段名提示）
+- `internal/protocol/udp/udp.go:53-64`：`Validate` 加 payload > 1472
+  警告：
+
+```go
+if len(spec.Payload) > 1472 {
+    zap.L().Warn("UDP payload exceeds typical MTU, will trigger IP fragmentation",
+        zap.Int("payload_size", len(spec.Payload)),
+        zap.Int("typical_max", 1472),
+        zap.String("note", "consider increasing NIC MTU or reducing payload"),
+    )
+}
+```
+
+- `internal/core/validate.go:139-149`：`ValidateFlowSpec` 在
+  `spec.VLAN != nil` 分支里加 `spec.VLAN.ID == 0` 警告：
+
+```go
+if spec.VLAN.ID == 0 {
+    zap.L().Warn("VLAN ID=0 is priority-tag (802.1Q), not a real VLAN",
+        zap.String("note", "set vlan.id >= 1 for a real VLAN"),
+    )
+}
+```
+
+**配置示例**：
+
+```yaml
+# 报错：提交被拒
+dns:
+  domain: ""
+
+# 警告：会触发 IP 分片
+payload: "<2000 bytes>"
+
+# 警告：priority-tag，不是真 VLAN
+vlan:
+  id: 0
+  priority: 5
+```
+
+## 17. 自审记录（v3，commit 60a5ae2）
+
+- §16.1 DSCP 默认 CS1：tcpdump filter 同步更新，用户可 override
+- §16.2 MSS 默认值一致性：synOptions 和 data 路径都做 `mss==0 ->
+  DefaultMSS` 守护；范围校验在 Validate 阶段拦截
+- §16.3 MTU 自动检查：复用 EnsureMTU 单一职责函数，task_handler
+  在 SubmitTask 前调用，失败 task 标 error；不恢复原值（多任务共享
+  NIC 时 race，由操作员复原）
+- §16.4 TCP Window Scale：硬编码 shift=7（Linux 默认），后续可加
+  spec.TCP.WindowScale 字段自定义
+- §16.5 Seq/IPID 随机化：所有协议都改，FlowSpec.InitialSeq 仅覆盖
+  client ISN（server ISN 始终随机）
+- §16.6 HTTP Host：1.1 自动 / 1.0 不强制 / 用户 override 永远优先
+- §16.7 校验补全：DNS 空报错（硬错），UDP 大 payload 和 VLAN ID=0
+  警告（软警告，合法用途存在）
+

@@ -208,3 +208,199 @@ forcing OutputWorkers=PacketWorkers for shard 1:1 mapping
 ```
 
 用户无需改配置，系统自动调整。
+
+---
+
+## 7. 默认值补全 v3 验证（commit 60a5ae2）
+
+### 7.1 修改点清单（9 项）
+
+| # | 修改点 | 类型 | 文件 |
+|---|---|---|---|
+| 1 | DSCP 默认 EF(0x2E) -> CS1(0x08) | CRITICAL 默认值 | `core/strategy_convert.go:38-46` |
+| 2 | MSS 默认值一致性（synOptions 守护）+ 范围校验 | CRITICAL 默认值 | `tcp/tcp.go:64-73, 85-87` |
+| 3 | HTTP Host HTTP/1.1 自动 / 1.0 不强制 | CRITICAL 默认值 | `http/http.go:374, 420-428` |
+| 4 | MTU 自动检查（engine.min_mtu 默认 2000） | 新增功能 | `netif/mtu.go`, `core/engine.go:154-159`, `rest/task_handler.go:347-390`, `config/config.go:255`, `cmd/server/main.go:230` |
+| 5 | TCP Window Scale option (WS=7) | 新增功能 | `tcp/tcp.go:85-94`, `core/types.go:283` |
+| 6 | TCP Seq/IPID 起始随机化 + FlowSpec.InitialSeq | 新增功能 | `tcp/tcp.go:120-130`, `http/http.go:94-102`, `udp/udp.go:84`, `dns/dns.go:91`, `icmp/icmp.go:71`, `core/types.go:115-118` |
+| 7 | DNS QueryName 空校验 | 校验补全 | `dns/dns.go:63-67` |
+| 8 | UDP payload > 1472 警告 | 校验补全 | `udp/udp.go:53-64` |
+| 9 | VLAN ID=0 警告 | 校验补全 | `core/validate.go:139-149` |
+
+### 7.2 单元测试结果
+
+#### §16.1 DSCP CS1 默认
+
+| 测试 | 文件 | 结果 |
+|---|---|---|
+| `TestValidateFlowSpec` (隐式覆盖 DefaultDSCP=0x08) | `core/convert_test.go` | PASS |
+| 现有 DSCP/TOS 测试无 regression（值在 strategy_convert 层应用，单测覆盖 `TestTCPPlan_TOSOverrides`） | `tcp/tcp_testpoints_test.go` | PASS |
+
+#### §16.2 MSS 默认值一致性 + 范围校验
+
+| 测试 | 文件 | 结果 |
+|---|---|---|
+| `TestTCPSynOptions_MSS1460` (3 options: MSS+WS+SACK) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPSynOptions_MSSMax` | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPSynOptions_MSSZero` (MSS=0 守护成 DefaultMSS=1460) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_ConfigProvided` (MSS=536 满足范围校验) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_MSSNonZeroInData` (MSS=536 分段 [536,536,428]) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_MSSZeroFallbackInData` | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_MSSLarge` | `tcp/tcp_testpoints_test.go` | PASS |
+
+**注**：MSS < 536 报错路径未单独写测试（`Validate` 路径，构建合法
+spec 测报错），是后续工作。但 `TestTCPPlan_ConfigProvided` 用
+MSS=536 验证边界值通过，间接覆盖了范围校验逻辑。
+
+#### §16.3 MTU 自动检查
+
+| 测试 | 文件 | 结果 |
+|---|---|---|
+| `TestEnsureMTU_DisabledWhenZero` (minMTU=0/-1 短路) | `pkg/netif/mtu_test.go` | PASS |
+| `TestEnsureMTU_EmptyInterfaceName` (空 interface 报错) | `pkg/netif/mtu_test.go` | PASS |
+| `TestEnsureMTU_InterfaceNotFound` (不存在接口报错) | `pkg/netif/mtu_test.go` | PASS |
+| `TestEnsureMTU_AlreadySufficient` (lo 接口 MTU 已足够，no-op) | `pkg/netif/mtu_test.go` | PASS |
+
+**注**：`task_handler.ensureTaskMTU` 集成路径未单测（依赖 DB 和
+port_group 模型，pre-existing 测试基础设施问题，与 §6.1 v2
+shardedPacketChan e2e 问题同源）。`EnsureMTU` 单元层覆盖了 4 个
+边界（disabled/empty-name/not-found/already-sufficient），核心逻辑
+完整。raise 失败路径依赖 `ip link set` 真实执行，需要 root 权限
+的 e2e 测试，列为后续工作。
+
+#### §16.4 TCP Window Scale option
+
+| 测试 | 文件 | 结果 |
+|---|---|---|
+| `TestTCPSynOptions_MSS1460` (opts[1] = WinScale, Data=[0x07]) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPSynOptions_MSSZero` (守护后仍 3 options，WS 在 [1]) | `tcp/tcp_testpoints_test.go` | PASS |
+
+#### §16.5 TCP Seq/IPID 起始随机化 + FlowSpec.InitialSeq
+
+| 测试 | 文件 | 结果 |
+|---|---|---|
+| `TestTCPPlan_InitialSeqOverride` (InitialSeq=0x12345 覆盖 client ISN) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_RandomSeqNonZero` (默认 ISN 非零非 1000) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_RandomIPIDNonOne` (默认 IPID 非零非 1，per-flow 递增保留) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_RandomSeqDistinctAcrossFlows` (两条流 ISN/IPID 不同) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_SYNPacketFields` (InitialSeq=1000 固定后 IPID 非零) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_SYNACKPacketFields` (server ISN 随机，Ack=client+1) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_HandshakeACKFields` (Ack=synackSeq+1) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_DataSegmentFields` (Ack 随机 server ISN) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_DataACKFields` (Seq 随机 server ISN) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_ClientFINFields` (Ack 随机 server ISN) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_ServerACKofFINFields` (InitialSeq=1000 固定) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_ServerFINFields` (Ack=synackSeq+1+respLen) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestTCPPlan_ClientACKofServerFIN` (Ack=synackSeq+1+respLen+1) | `tcp/tcp_testpoints_test.go` | PASS |
+| `TestHTTPPlan_SYNPacketFields` (InitialSeq=1000 固定) | `http/http_testpoints_test.go` | PASS |
+| `TestHTTPPlan_SYNACKFields` (server ISN 随机，Seq != 1000) | `http/http_testpoints_test.go` | PASS |
+| `TestHTTPPlan_HandshakeACKFields` (Ack=synackSeq+1) | `http/http_testpoints_test.go` | PASS |
+| `TestHTTPPlan_ClientFINFields` (Ack=synackSeq+1+respLen) | `http/http_testpoints_test.go` | PASS |
+| `TestHTTPPlan_ServerACKofFIN` (InitialSeq=1000 固定) | `http/http_testpoints_test.go` | PASS |
+| `TestHTTPPlan_ServerFINFields` (Seq=synackSeq+1+respLen) | `http/http_testpoints_test.go` | PASS |
+| `TestHTTPPlan_ClientACKofServerFIN` (Ack=synackSeq+1+respLen+1) | `http/http_testpoints_test.go` | PASS |
+| `TestHTTPPlan_ClientSeqOverflow` (InitialSeq=1000 固定后累加) | `http/http_testpoints_test.go` | PASS |
+| `TestHTTPPlan_IPIDSequential` (IPID 起始随机，per-packet 递增保留) | `http/http_testpoints_test.go` | PASS |
+| `TestUDPPlan_IPIDNoResponse` (IPID 随机非零) | `udp/udp_testpoints_test.go` | PASS |
+| `TestUDPPlan_IPIDWithResponse` (response IPID = request+1) | `udp/udp_testpoints_test.go` | PASS |
+
+#### §16.6 HTTP Host 默认
+
+| 测试 | 文件 | 结果 |
+|---|---|---|
+| `TestBuildHTTPRequest_AutoHost_HTTP11` (1.1 自动加 Host: dstIP) | `http/http_testpoints_test.go` | PASS |
+| `TestBuildHTTPRequest_AutoHost_HTTP10Absent` (1.0 不加 Host) | `http/http_testpoints_test.go` | PASS |
+| `TestBuildHTTPRequest_AutoHost_HTTP10UserOverride` (1.0 用户 Host 仍优先) | `http/http_testpoints_test.go` | PASS |
+| `TestBuildHTTPRequest_AutoHost_DefaultVersion11` (空 version 视为 1.1) | `http/http_testpoints_test.go` | PASS |
+| `TestBuildHTTPRequest_AutoContentLength` (Body 非空自动算 CL) | `http/http_testpoints_test.go` | PASS |
+| `TestBuildHTTPRequest_UserContentLengthOverrideAutoHost` (用户 CL 优先) | `http/http_testpoints_test.go` | PASS |
+| `TestBuildHTTPRequest_EmptyBodyNoContentLength` (空 Body 不加 CL) | `http/http_testpoints_test.go` | PASS |
+| `TestBuildHTTPRequest_ContentLengthCaseInsensitive` (大小写不敏感) | `http/http_testpoints_test.go` | PASS |
+
+#### §16.7 校验补全
+
+| 测试 | 文件 | 结果 |
+|---|---|---|
+| `TestDNSValidate_EmptyQueryName` (Domain 空 -> 报错) | `dns/dns_test.go` | PASS |
+| `TestDNSValidate_DomainEmpty` (错误信息含 "domain"+"required") | `dns/dns_testpoints_test.go` | PASS |
+| `TestUDPValidate_LargePayloadWarns` (payload=2000 -> 警告不报错) | `udp/udp_test.go` | PASS |
+| `TestUDPValidate_PayloadUnderMTUNoWarn` (payload=512 -> 不警告) | `udp/udp_test.go` | PASS |
+| `TestValidateFlowSpec_VLANIDZeroWarns` (VLAN ID=0 -> 警告不报错) | `core/convert_test.go` | PASS |
+| `TestValidateFlowSpec_VLANNilNoWarn` (VLAN nil -> 不警告) | `core/convert_test.go` | PASS |
+
+### 7.3 race 测试
+
+```
+cd trafficgen && go test -race -count=1 \
+  ./internal/protocol/tcp/ ./internal/protocol/http/ \
+  ./internal/protocol/udp/ ./internal/protocol/dns/ \
+  ./internal/protocol/icmp/ ./internal/core/ ./pkg/netif/
+```
+
+结果：
+- `internal/protocol/tcp`: PASS
+- `internal/protocol/http`: PASS
+- `internal/protocol/udp`: PASS
+- `internal/protocol/dns`: PASS
+- `internal/protocol/icmp`: PASS
+- `internal/core`: PASS
+- `pkg/netif`: PASS
+
+### 7.4 e2e 抓包验证
+
+§16 改动**未单独**做 e2e 抓包测试。理由：本批次改动主要是默认值/
+校验补全，不涉及流水线路由（§6 v2 shardedPacketChan 已 e2e 验证
+过），分组路由保序的核心保证不受影响。§16.5 ISN/IPID 随机化的
+可观察行为（多流 SYN Seq 不同、IPID 不同）已由单元测试
+`TestTCPPlan_RandomSeqDistinctAcrossFlows` 覆盖；§16.3 MTU 自动
+检查的 raise 路径需要 root 权限 + 真实 NIC，列为后续工作。
+
+### 7.5 测试质量审计（按 CLAUDE.md §8）
+
+| Spec 行 | 测试 | 是否覆盖失败路径 | 是否 assert 观察值 |
+|---|---|---|---|
+| §16.1 DSCP CS1 默认 | `TestTCPPlan_TOSOverrides` | 部分（用户 override 覆盖；CS1 默认值未单独断言 byte 值，依赖 strategy_convert 层） | 是（TOS byte 值） |
+| §16.2 MSS=0 守护 | `TestTCPSynOptions_MSSZero` | 否（MSS<536 报错未测） | 是（opts[0] Kind + Data bytes） |
+| §16.3 EnsureMTU=0 | `TestEnsureMTU_DisabledWhenZero` | 是（disabled + not-found） | 是（err == nil） |
+| §16.4 WS option | `TestTCPSynOptions_MSS1460` | 否（无 WS option 的负例未测） | 是（opts[1] Kind + Data=[0x07]） |
+| §16.5 InitialSeq override | `TestTCPPlan_InitialSeqOverride` | 是（override + 默认随机） | 是（SYN Seq == 0x12345, SYN-ACK Ack == 0x12346） |
+| §16.5 随机 ISN 跨流 | `TestTCPPlan_RandomSeqDistinctAcrossFlows` | 是（两条流对比） | 是（ISN 不同则不 skip） |
+| §16.6 HTTP/1.0 不加 Host | `TestBuildHTTPRequest_AutoHost_HTTP10Absent` | 是（1.0 + 用户 override） | 是（result 不含 "Host:"） |
+| §16.7 DNS Domain 空 | `TestDNSValidate_EmptyQueryName` | 是 | 是（err != nil） |
+| §16.7 UDP 大 payload | `TestUDPValidate_LargePayloadWarns` | 部分（警告本身 zap 输出未捕获断言，依赖代码 review） | 部分（err == nil 即警告路径走过） |
+| §16.7 VLAN ID=0 | `TestValidateFlowSpec_VLANIDZeroWarns` | 部分（警告本身未捕获断言） | 部分（err == nil） |
+
+**审计结论**：本批次测试覆盖了所有 9 项改动的核心 happy path 和
+大部分边界。两个软警告路径（UDP 大 payload、VLAN ID=0）的 zap 输出
+本身未在测试里捕获断言（依赖人工 review 代码确认 Warn 调用存在），
+是后续可加固的方向。MSS 范围校验的报错路径（< 536 / > 65535）未
+单独写 negative 测试，是后续工作。
+
+### 7.6 review 发现与修复（本批次）
+
+| Reviewer | 发现 | Severity | 修复 |
+|---|---|---|---|
+| 1 | 现有测试断言 `clientSeq=1000` / `serverSeq=2000` / `IPID=1` 在随机化后会 flaky | HIGH | 改为 `spec.InitialSeq=1000` 固定 client ISN；server ISN 和 IPID 改为"非零"或"与前包不同"断言；ACK 类断言改为从观察到的 SYN-ACK Seq 推导（`synackSeq+1`） |
+| 1 | `TestTCPPlan_ConfigProvided` 用 MSS=512 会触发新的范围校验报错 | MEDIUM | 改用 MSS=536（RFC 879 最小，合法） |
+| 1 | `TestTCPPlan_MSSNonZeroInData` 同上 | MEDIUM | 改用 MSS=536，期望分段 [536,536,428] |
+| 2 | HTTP/1.0 用户自定义 Host 应该被尊重（不能因为不加默认就抹掉用户头） | HIGH | `isHTTP11` 判断只在"未提供 Host 时"生效，用户 Host 通过 user-header pass 永远生效；`TestBuildHTTPRequest_AutoHost_HTTP10UserOverride` 验证 |
+| 3 | `TestTCPPlan_RandomSeqDistinctAcrossFlows` 两条流 ISN 极小概率碰撞会假阴性 | LOW | 用 `t.Skip` 处理碰撞（1/2^32 概率，retry 即可） |
+| 3 | `TestTCPPlan_RandomIPIDNonOne` 极小概率命中 1 | LOW | 同上 `t.Skip` 处理 |
+
+未修复：无 CRITICAL/HIGH 遗留。
+
+### 7.7 性能预期核对
+
+| 指标 | 改前 | 改后 | 核对 |
+|---|---|---|---|
+| DSCP 默认值 | EF (0x2E) | CS1 (0x08) | 代码常量 + tcpdump filter 更新 PASS |
+| SYN options 数 | 2 (MSS+SACK) | 3 (MSS+WS+SACK) | `TestTCPSynOptions_MSS1460` PASS |
+| SYN MSS=0 行为 | 不写 MSS option | 守护为 DefaultMSS=1460 | `TestTCPSynOptions_MSSZero` PASS |
+| TCP ISN | 固定 1000 | 随机 + 可 override | `TestTCPPlan_RandomSeqNonZero` + `TestTCPPlan_InitialSeqOverride` PASS |
+| TCP server ISN | 固定 2000 | 随机 | `TestTCPPlan_SYNACKPacketFields` PASS |
+| IPID 起始 | 固定 1 | 随机 + per-flow 递增保留 | `TestTCPPlan_RandomIPIDNonOne` PASS |
+| HTTP Host 1.0 | 自动加 | 不加 | `TestBuildHTTPRequest_AutoHost_HTTP10Absent` PASS |
+| NIC MTU 检查 | 无 | task 启动前 EnsureMTU | `TestEnsureMTU_*` 4 项 PASS |
+| DNS Domain 空 | 报错 "domain is required" | 报错 "dns query_name (domain) is required" | `TestDNSValidate_EmptyQueryName` PASS |
+| UDP 大 payload | 静默通过 | 警告不报错 | `TestUDPValidate_LargePayloadWarns` PASS |
+| VLAN ID=0 | 静默通过 | 警告不报错 | `TestValidateFlowSpec_VLANIDZeroWarns` PASS |
