@@ -25,8 +25,6 @@ type Engine struct {
 	// Channels
 	taskChan chan Task
 	// packetChan removed: replaced by shardedPacketChan (one per OutputWorker).
-	// Kept as nil alias for backward-compat in any code still referencing it;
-	// all production paths use shardedPacketChan.
 
 	// Sharded config channel: one per PacketWorker. ConfigWorker pushes to
 	// shardedConfigChan[shardIdx] after computing shardIdx from group_id or
@@ -333,7 +331,7 @@ func (e *Engine) Start() error {
 		e.wg.Add(1)
 		// Each PacketWorker reads only its own config shard channel and
 		// writes to its own packet shard channel (same index i).
-		worker := NewPacketWorker(i, e.shardedConfigChan[i], e.shardedPacketChan[i], buildFn, &e.wg, e)
+		worker := NewPacketWorker(i, e.shardedConfigChan[i], buildFn, &e.wg, e)
 		e.packetWorkers[i] = worker
 		worker.Start()
 	}

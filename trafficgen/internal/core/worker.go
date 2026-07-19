@@ -654,7 +654,6 @@ func (w *ConfigWorker) GetStats() WorkerStats {
 type PacketWorker struct {
 	id         int
 	shardChan  <-chan PacketConfig // own shard of shardedConfigChan
-	// packetChan removed: replaced by w.engine.shardedPacketChan[w.id]
 	buildFunc  func(PacketConfig) ([]byte, error)
 	wg         *sync.WaitGroup
 	ctx        context.Context
@@ -663,11 +662,11 @@ type PacketWorker struct {
 	engine     *Engine // for per-class rate limiter lookup + shardedPacketChan
 }
 
-// NewPacketWorker creates a new packet worker.
+// NewPacketWorker creates a new packet worker. shardChan is this worker's
+// own config shard; packet output goes to w.engine.shardedPacketChan[w.id].
 func NewPacketWorker(
 	id int,
 	shardChan <-chan PacketConfig,
-	_ chan<- PacketOutput, // kept for call-site compat; unused (see w.engine.shardedPacketChan)
 	buildFunc func(PacketConfig) ([]byte, error),
 	wg *sync.WaitGroup,
 	engine *Engine,
