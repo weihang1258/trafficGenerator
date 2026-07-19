@@ -23,14 +23,23 @@ type Engine struct {
 	replayPlanner ReplayPlanner
 
 	// Channels
-	taskChan   chan Task
-	packetChan chan PacketOutput // carries packet bytes + metadata for routing
+	taskChan chan Task
+	// packetChan removed: replaced by shardedPacketChan (one per OutputWorker).
+	// Kept as nil alias for backward-compat in any code still referencing it;
+	// all production paths use shardedPacketChan.
 
 	// Sharded config channel: one per PacketWorker. ConfigWorker pushes to
 	// shardedConfigChan[shardIdx] after computing shardIdx from group_id or
 	// 4-tuple hash. Each PacketWorker reads only its own shard, guaranteeing
 	// per-flow FIFO (spec §3.1).
 	shardedConfigChan []chan PacketConfig
+	// Sharded packet channel: one per OutputWorker. PacketWorker pushes to
+	// shardedPacketChan[w.id] (same shardIdx as its config shard). Each
+	// OutputWorker reads only its own shard. This closes the second ordering
+	// gap: without sharding here, multiple OutputWorkers pulling from a shared
+	// packetChan would reorder same-flow packets (large packet slow, small
+	// packet fast -> small overtakes large on the wire).
+	shardedPacketChan []chan PacketOutput
 	shardSeed         maphash.Seed       // random seed for hash, anti-flooding
 	shardCounts       []atomic.Int64     // per-shard enqueue count, for imbalance monitor
 	shardMonitorCancel context.CancelFunc // stops runShardMonitor on Engine.Stop
@@ -270,7 +279,20 @@ func (e *Engine) Start() error {
 	for i := 0; i < pw; i++ {
 		e.shardedConfigChan[i] = make(chan PacketConfig, e.config.QueueSize*2)
 	}
-	e.packetChan = make(chan PacketOutput, e.config.QueueSize*2)
+	// Sharded packet channel: OutputWorkers count forced to PacketWorkers
+	// count so each OutputWorker[i] reads shardedPacketChan[i] (1:1 with
+	// PacketWorker[i]). This closes the OutputWorker-layer ordering gap.
+	ow := e.config.OutputWorkers
+	if ow != pw {
+		zap.L().Info("forcing OutputWorkers=PacketWorkers for shard 1:1 mapping",
+			zap.Int("configured_output_workers", ow),
+			zap.Int("actual_output_workers", pw))
+		ow = pw
+	}
+	e.shardedPacketChan = make([]chan PacketOutput, ow)
+	for i := 0; i < ow; i++ {
+		e.shardedPacketChan[i] = make(chan PacketOutput, e.config.QueueSize*2)
+	}
 
 	// Initialize buffer
 	e.buffer = NewPacketBuffer(PacketBufferConfig{
@@ -309,17 +331,18 @@ func (e *Engine) Start() error {
 	e.packetWorkers = make([]*PacketWorker, pw)
 	for i := 0; i < pw; i++ {
 		e.wg.Add(1)
-		// Each PacketWorker reads only its own shard channel.
-		worker := NewPacketWorker(i, e.shardedConfigChan[i], e.packetChan, buildFn, &e.wg, e)
+		// Each PacketWorker reads only its own config shard channel and
+		// writes to its own packet shard channel (same index i).
+		worker := NewPacketWorker(i, e.shardedConfigChan[i], e.shardedPacketChan[i], buildFn, &e.wg, e)
 		e.packetWorkers[i] = worker
 		worker.Start()
 	}
 
-	// Start output workers
-	e.outputWorkers = make([]*OutputWorker, e.config.OutputWorkers)
-	for i := 0; i < e.config.OutputWorkers; i++ {
+	// Start output workers, one per shard (ow == pw enforced above).
+	e.outputWorkers = make([]*OutputWorker, ow)
+	for i := 0; i < ow; i++ {
 		e.wg.Add(1)
-		worker := NewOutputWorker(i, e.packetChan, e.buffer, e, &e.wg)
+		worker := NewOutputWorker(i, e.shardedPacketChan[i], e.buffer, e, &e.wg)
 		e.outputWorkers[i] = worker
 		worker.Start()
 	}
@@ -385,7 +408,10 @@ func (e *Engine) Stop() {
 		close(e.shardedConfigChan[i])
 	}
 	e.shardedConfigChan = nil
-	close(e.packetChan)
+	for i := range e.shardedPacketChan {
+		close(e.shardedPacketChan[i])
+	}
+	e.shardedPacketChan = nil
 
 	// Close buffer
 	if e.buffer != nil {

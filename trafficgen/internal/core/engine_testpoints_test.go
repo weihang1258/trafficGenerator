@@ -52,8 +52,8 @@ func TestNewEngine_ZeroConfig(t *testing.T) {
 	if e.shardedConfigChan != nil {
 		t.Error("shardedConfigChan should be nil before Start")
 	}
-	if e.packetChan != nil {
-		t.Error("packetChan should be nil before Start")
+	if e.shardedPacketChan != nil {
+		t.Error("shardedPacketChan should be nil before Start")
 	}
 	if e.replayPlanner != nil {
 		t.Error("replayPlanner should be nil by default")
@@ -291,8 +291,8 @@ func TestStart_ValidConfig(t *testing.T) {
 	if len(e.shardedConfigChan) != 1 || cap(e.shardedConfigChan[0]) != 16 {
 		t.Errorf("shardedConfigChan len=%d cap=%d want 1/16", len(e.shardedConfigChan), cap(e.shardedConfigChan[0]))
 	}
-	if e.packetChan == nil || cap(e.packetChan) != 16 {
-		t.Errorf("packetChan cap=%d want 16", cap(e.packetChan))
+	if len(e.shardedPacketChan) != 1 || cap(e.shardedPacketChan[0]) != 16 {
+		t.Errorf("shardedPacketChan len=%d cap=%d want 1/16", len(e.shardedPacketChan), cap(e.shardedPacketChan[0]))
 	}
 	if e.buffer == nil {
 		t.Error("buffer is nil")
@@ -340,14 +340,17 @@ func TestStart_ZeroPacketWorkers(t *testing.T) {
 }
 
 // E29-BR3: zero OutputWorkers.
+// E29-BR2: zero OutputWorkers. New behavior (sharded packetChan forces
+// OutputWorkers = PacketWorkers for 1:1 shard mapping). With PacketWorkers=1,
+// OutputWorkers is forced to 1.
 func TestStart_ZeroOutputWorkers(t *testing.T) {
 	e := NewEngine(EngineConfig{ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 0, BufferSize: 16, QueueSize: 8})
 	if err := e.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	defer e.Stop()
-	if len(e.outputWorkers) != 0 {
-		t.Errorf("outputWorkers len=%d want 0", len(e.outputWorkers))
+	if len(e.outputWorkers) != 1 {
+		t.Errorf("outputWorkers len=%d want 1 (forced to PacketWorkers for shard 1:1)", len(e.outputWorkers))
 	}
 }
 
@@ -430,8 +433,8 @@ func TestStart_QueueSizeZero(t *testing.T) {
 	if len(e.shardedConfigChan) != 1 || cap(e.shardedConfigChan[0]) != 0 {
 		t.Errorf("shardedConfigChan[0] cap=%d want 0", cap(e.shardedConfigChan[0]))
 	}
-	if cap(e.packetChan) != 0 {
-		t.Errorf("packetChan cap=%d want 0", cap(e.packetChan))
+	if len(e.shardedPacketChan) != 1 || cap(e.shardedPacketChan[0]) != 0 {
+		t.Errorf("shardedPacketChan[0] cap=%d want 0", cap(e.shardedPacketChan[0]))
 	}
 }
 

@@ -654,20 +654,20 @@ func (w *ConfigWorker) GetStats() WorkerStats {
 type PacketWorker struct {
 	id         int
 	shardChan  <-chan PacketConfig // own shard of shardedConfigChan
-	packetChan chan<- PacketOutput
+	// packetChan removed: replaced by w.engine.shardedPacketChan[w.id]
 	buildFunc  func(PacketConfig) ([]byte, error)
 	wg         *sync.WaitGroup
 	ctx        context.Context
 	cancel     context.CancelFunc
 	stats      WorkerStats
-	engine     *Engine // for per-class rate limiter lookup
+	engine     *Engine // for per-class rate limiter lookup + shardedPacketChan
 }
 
 // NewPacketWorker creates a new packet worker.
 func NewPacketWorker(
 	id int,
 	shardChan <-chan PacketConfig,
-	packetChan chan<- PacketOutput,
+	_ chan<- PacketOutput, // kept for call-site compat; unused (see w.engine.shardedPacketChan)
 	buildFunc func(PacketConfig) ([]byte, error),
 	wg *sync.WaitGroup,
 	engine *Engine,
@@ -676,7 +676,6 @@ func NewPacketWorker(
 	return &PacketWorker{
 		id:         id,
 		shardChan:  shardChan,
-		packetChan: packetChan,
 		buildFunc:  buildFunc,
 		wg:         wg,
 		ctx:        ctx,
@@ -779,10 +778,15 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 		Direction:   config.Direction,
 		Timestamp:   config.Timestamp, // scheduled send time (§12: pcap output uses this)
 	}
+	// Push to this worker's own shard in shardedPacketChan. PacketWorker.id
+	// == shardIdx == OutputWorker.id, so the same shard's packets flow
+	// ConfigWorker -> shardedConfigChan[i] -> PacketWorker[i] ->
+	// shardedPacketChan[i] -> OutputWorker[i] -> NIC, all single-goroutine
+	// serial, strict FIFO (spec §3.4 invariant 2-3).
 	select {
 	case <-w.ctx.Done():
 		return
-	case w.packetChan <- out:
+	case w.engine.shardedPacketChan[w.id] <- out:
 		atomic.AddInt64(&w.stats.PacketsGenerated, 1)
 	}
 }
@@ -804,7 +808,7 @@ func (w *PacketWorker) GetStats() WorkerStats {
 // OutputWorker handles packet output.
 type OutputWorker struct {
 	id         int
-	packetChan <-chan PacketOutput
+	shardChan  <-chan PacketOutput // own shard of shardedPacketChan
 	buffer     *PacketBuffer
 	engine     *Engine // for accessing output writers
 	wg         *sync.WaitGroup
@@ -812,13 +816,13 @@ type OutputWorker struct {
 	cancel     context.CancelFunc
 	stats      WorkerStats
 
-	// NOTE: Resequencing fields removed; single PacketWorker guarantees ordering.
+	// NOTE: Resequencing fields removed; sharded channel guarantees ordering.
 }
 
 // NewOutputWorker creates a new output worker.
 func NewOutputWorker(
 	id int,
-	packetChan <-chan PacketOutput,
+	shardChan <-chan PacketOutput,
 	buffer *PacketBuffer,
 	engine *Engine,
 	wg *sync.WaitGroup,
@@ -826,7 +830,7 @@ func NewOutputWorker(
 	ctx, cancel := context.WithCancel(context.Background())
 	return &OutputWorker{
 		id:           id,
-		packetChan:   packetChan,
+		shardChan:    shardChan,
 		buffer:       buffer,
 		engine:       engine,
 		wg:           wg,
@@ -853,7 +857,7 @@ func (w *OutputWorker) run() {
 		select {
 		case <-w.ctx.Done():
 			return
-		case out, ok := <-w.packetChan:
+		case out, ok := <-w.shardChan:
 			if !ok {
 				return
 			}
