@@ -147,3 +147,64 @@ cd trafficgen && go test -race -count=1 ./internal/core/ ./internal/replay/ ./in
 | hash 开销 | 无 | per-flow 一次 | `computeHashKey` 单元测试 PASS |
 | 内存 | `QueueSize*2` | `pw × QueueSize*2` | `TestStart_QueueSize*` 验证容量 |
 | replay 多 worker | cap-to-1 | 多 worker 保序 | `TestStart_ReplayOrderPreserve_ClampsPW4to1` 新语义 PASS |
+
+---
+
+## 6. v2 补充：shardedPacketChan + e2e 抓包验证（commit a0436af..aa38938）
+
+### 6.1 新发现的问题
+
+仅分片 `configChan` 不够。真实抓包发现：8 PacketWorker + 4 OutputWorker
+配置下，HTTP 任务的 TCP 包序仍然错乱（HTTP GET 出现在第 1 位，SYN-ACK
+出现在第 8 位）。根因：`packetChan` 共享，多 OutputWorker 抢同一 channel，
+大包（HTTP GET 67B）慢、小包（SYN 0B）快 -> 小包后发先出。
+
+### 6.2 修复：shardedPacketChan
+
+| # | 修改点 | 文件 | 测试 | 结果 |
+|---|---|---|---|---|
+| 39 | `Engine.shardedPacketChan []chan PacketOutput` | `core/engine.go` | `TestStart_*` | PASS |
+| 40 | `Engine.packetChan` 字段删除 | `core/engine.go` | 编译通过 | PASS |
+| 41 | `Engine.Start` 强制 `OutputWorkers = PacketWorkers`（1:1 shard mapping） | `core/engine.go:285-295` | `TestStart_ZeroOutputWorkers` 新语义 | PASS |
+| 42 | `Engine.Stop` 关闭 `shardedPacketChan[i]` | `core/engine.go:412-419` | 现有 stop 测试 | PASS |
+| 43 | `PacketWorker.packetChan` 字段删除，push 到 `w.engine.shardedPacketChan[w.id]` | `core/worker.go:785` | e2e 抓包 | PASS |
+| 44 | `OutputWorker.shardChan`（自己的分片） | `core/worker.go:805,819-836` | e2e 抓包 | PASS |
+| 45 | `NewPacketWorker` 签名（删 `packetChan` 参数） | `core/worker.go:665-679` | 编译通过 | PASS |
+| 46 | `engine_testpoints_test.go` 断言改 `shardedPacketChan` | `core/engine_testpoints_test.go` | 3 处断言通过 | PASS |
+
+### 6.3 Review 结果（commit a0436af）
+
+并行 reviewer 审查 sharded packetChan 改动：
+- **无 CRITICAL/HIGH/MEDIUM 问题**
+- Stop 顺序安全（`shardMonitorCancel -> close(taskChan) -> cancel() -> worker Stop() -> wg.Wait() -> close shards`），所有 push 有 `ctx.Done()` 分支防死锁
+- `w.id == OutputWorker.id == shardIdx` 1:1 对应，构造时固定
+- OutputWriter 内部有 mutex，多 OutputWorker 并发写不同 writer 安全
+- 2 个 LOW 清理项已修复：
+  - 删除误导注释"Kept as nil alias"（字段已全删）
+  - 删除 `NewPacketWorker` 死参数 `_ chan<- PacketOutput`
+
+### 6.4 E2E 真实抓包验证（enp135s0f0np0）
+
+5 个场景全 PASS，脚本 `trafficgen/test/integration/e2e_capture_test.py`：
+
+| # | 场景 | 抓包数 | 验证点 | 结果 |
+|---|---|---|---|---|
+| 1 | 单流 TCP | 7 | `['S', 'S.', '.', 'F.', '.', 'F.', '.']` 严格 FIFO | PASS |
+| 2 | HTTP + Host: www.home.com | 9 | SYN@0 SYN-ACK@1 GET@3 200OK@4，Host 头正确 | PASS |
+| 3 | UDP 请求/响应 | 2 | 请求方向先发 | PASS |
+| 4 | 多 group_id（5 流并发） | 35 | 5 条流各自 7 包，每流 SYN 在 FIN 前，无跨流交错 | PASS |
+| 5 | 双向流（4 元组 fallback） | 9 | SYN c2s -> SYN-ACK s2c -> ACK c2s -> 数据 c2s -> 响应 s2c -> FIN | PASS |
+
+**关键验证**：场景 2 的 `SYN@0 SYN-ACK@1 GET@3 200OK@4` 证明 HTTP 请求
+（67B 大包）不再被 SYN（0B 小包）超越--OutputWorker 层乱序已消除。
+
+### 6.5 配置影响
+
+`config.dev.yaml` 的 `output_workers: 4` 在运行时被强制改为 8（与
+`packet_workers: 8` 1:1）。日志：
+```
+forcing OutputWorkers=PacketWorkers for shard 1:1 mapping
+  {"configured_output_workers": 4, "actual_output_workers": 8}
+```
+
+用户无需改配置，系统自动调整。

@@ -77,6 +77,38 @@ ConfigWorker ×N
 - 不同路由键的包散到不同分片 → 并行吞吐不退化
 - 无锁：分片间完全隔离，无共享 channel 的 mutex（互斥锁）竞争
 
+### 3.1b 分片 PacketChannel（OutputWorker 层，v2 补充）
+
+仅分片 `configChan` 不够--`packetChan`（包输出队列）如果仍共享，N 个
+OutputWorker 抢同一个 channel 会导致**第二层乱序**：
+
+```
+PacketWorker[i] (serial) ─┐
+PacketWorker[j] (serial) ─┼──> 共享 packetChan ──> N OutputWorker 抢 ──> NIC
+PacketWorker[k] (serial) ─┘
+```
+
+同一条流的包从同一个 PacketWorker 串行 push 到 `packetChan`（FIFO），
+但被不同 OutputWorker 拉走后，**处理速度不同**导致写出 NIC 的顺序乱：
+大包（HTTP GET 67B）处理慢、小包（SYN 0B）处理快 -> 小包后发先出 ->
+TCP 握手/数据/关闭交错。
+
+**修复**：`packetChan` 也按 shard 分片，OutputWorkers 数强制等于
+PacketWorkers 数（1:1 shard mapping）。同 shard 的包全链路单 goroutine
+串行：
+
+```
+shard[i]: ConfigWorker -> shardedConfigChan[i] -> PacketWorker[i] (serial)
+       -> shardedPacketChan[i] -> OutputWorker[i] (serial) -> NIC
+```
+
+PacketWorker.id == OutputWorker.id == shardIdx，1:1 对应，全链路单
+goroutine 串行 -> 严格 FIFO。
+
+**关键不变量**（补充 §3.4）：
+9. **同 shard 全链路串行**：ConfigWorker push -> PacketWorker build ->
+   OutputWorker write，全链路单 goroutine，无抢占式乱序。
+
 ### 3.2 路由键算法
 
 对每个 `PacketConfig`，ConfigWorker push 前按以下优先级算路由键：
