@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/trafficgen/trafficgen/internal/api/rest"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/pkg/netif"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/config"
 	"gorm.io/gorm"
@@ -80,9 +81,9 @@ func TestSQLInjection(t *testing.T) {
 	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)
 	// Manually create tables to avoid AutoMigrate issues
-	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, protocol TEXT, batch_config TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
 	require.NoError(t, err)
-	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'synth', config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
 	require.NoError(t, err)
 	err = gormDB.Exec("CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, email TEXT UNIQUE, role TEXT NOT NULL DEFAULT 'user', enabled BOOLEAN DEFAULT 1, created_at DATETIME, updated_at DATETIME, last_login_at DATETIME)").Error
 	require.NoError(t, err)
@@ -99,7 +100,7 @@ func TestSQLInjection(t *testing.T) {
 		QueueSize:     10,
 	})
 
-	server := rest.NewServer(cfg, engine, nil, db, nil)
+	server := rest.NewServer(cfg, engine, nil, db, netif.NewManager(), netif.NewScheduler())
 	err = server.Setup()
 	assert.NoError(t, err)
 
@@ -182,9 +183,9 @@ func TestXSS(t *testing.T) {
 	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)
 	// Manually create tables to avoid AutoMigrate issues
-	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, protocol TEXT, batch_config TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
 	require.NoError(t, err)
-	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'synth', config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
 	require.NoError(t, err)
 	err = gormDB.Exec("CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, email TEXT UNIQUE, role TEXT NOT NULL DEFAULT 'user', enabled BOOLEAN DEFAULT 1, created_at DATETIME, updated_at DATETIME, last_login_at DATETIME)").Error
 	require.NoError(t, err)
@@ -201,7 +202,7 @@ func TestXSS(t *testing.T) {
 		QueueSize:     10,
 	})
 
-	server := rest.NewServer(cfg, engine, nil, db, nil)
+	server := rest.NewServer(cfg, engine, nil, db, netif.NewManager(), netif.NewScheduler())
 	err = server.Setup()
 	assert.NoError(t, err)
 
@@ -279,9 +280,9 @@ func TestCSRF(t *testing.T) {
 	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)
 	// Manually create tables to avoid AutoMigrate issues
-	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, protocol TEXT, batch_config TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
 	require.NoError(t, err)
-	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'synth', config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
 	require.NoError(t, err)
 	err = gormDB.Exec("CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, email TEXT UNIQUE, role TEXT NOT NULL DEFAULT 'user', enabled BOOLEAN DEFAULT 1, created_at DATETIME, updated_at DATETIME, last_login_at DATETIME)").Error
 	require.NoError(t, err)
@@ -298,7 +299,7 @@ func TestCSRF(t *testing.T) {
 		QueueSize:     10,
 	})
 
-	server := rest.NewServer(cfg, engine, nil, db, nil)
+	server := rest.NewServer(cfg, engine, nil, db, netif.NewManager(), netif.NewScheduler())
 	err = server.Setup()
 	assert.NoError(t, err)
 
@@ -366,9 +367,9 @@ func TestAuthenticationBypass(t *testing.T) {
 	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)
 	// Manually create tables to avoid AutoMigrate issues
-	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, protocol TEXT, batch_config TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
 	require.NoError(t, err)
-	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'synth', config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
 	require.NoError(t, err)
 	err = gormDB.Exec("CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, email TEXT UNIQUE, role TEXT NOT NULL DEFAULT 'user', enabled BOOLEAN DEFAULT 1, created_at DATETIME, updated_at DATETIME, last_login_at DATETIME)").Error
 	require.NoError(t, err)
@@ -385,7 +386,7 @@ func TestAuthenticationBypass(t *testing.T) {
 		QueueSize:     10,
 	})
 
-	server := rest.NewServer(cfg, engine, nil, db, nil)
+	server := rest.NewServer(cfg, engine, nil, db, netif.NewManager(), netif.NewScheduler())
 	err = server.Setup()
 	assert.NoError(t, err)
 
@@ -458,9 +459,9 @@ func TestInputValidation(t *testing.T) {
 	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)
 	// Manually create tables to avoid AutoMigrate issues
-	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, protocol TEXT, batch_config TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
 	require.NoError(t, err)
-	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'synth', config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
 	require.NoError(t, err)
 	err = gormDB.Exec("CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, email TEXT UNIQUE, role TEXT NOT NULL DEFAULT 'user', enabled BOOLEAN DEFAULT 1, created_at DATETIME, updated_at DATETIME, last_login_at DATETIME)").Error
 	require.NoError(t, err)
@@ -477,7 +478,7 @@ func TestInputValidation(t *testing.T) {
 		QueueSize:     10,
 	})
 
-	server := rest.NewServer(cfg, engine, nil, db, nil)
+	server := rest.NewServer(cfg, engine, nil, db, netif.NewManager(), netif.NewScheduler())
 	err = server.Setup()
 	assert.NoError(t, err)
 
@@ -605,9 +606,9 @@ func TestRateLimiting(t *testing.T) {
 	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)
 	// Manually create tables to avoid AutoMigrate issues
-	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, protocol TEXT, batch_config TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
 	require.NoError(t, err)
-	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
+	err = gormDB.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'synth', config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
 	require.NoError(t, err)
 	err = gormDB.Exec("CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, email TEXT UNIQUE, role TEXT NOT NULL DEFAULT 'user', enabled BOOLEAN DEFAULT 1, created_at DATETIME, updated_at DATETIME, last_login_at DATETIME)").Error
 	require.NoError(t, err)
@@ -624,7 +625,7 @@ func TestRateLimiting(t *testing.T) {
 		QueueSize:     10,
 	})
 
-	server := rest.NewServer(cfg, engine, nil, db, nil)
+	server := rest.NewServer(cfg, engine, nil, db, netif.NewManager(), netif.NewScheduler())
 	err = server.Setup()
 	assert.NoError(t, err)
 

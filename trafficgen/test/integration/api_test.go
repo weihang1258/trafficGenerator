@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/trafficgen/trafficgen/internal/api/rest"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/pkg/netif"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/config"
 	"gorm.io/gorm"
@@ -65,10 +66,10 @@ func (suite *APITestSuite) SetupSuite() {
 	assert.NoError(suite.T(), err)
 
 	// 手动创建表
-	err = db.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
+	err = db.Exec("CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT, strategy_ids TEXT, protocol TEXT, batch_config TEXT, output_type TEXT, output_config TEXT, flow_control TEXT, status TEXT NOT NULL, progress REAL DEFAULT 0, error_message TEXT, created_at DATETIME, updated_at DATETIME, started_at DATETIME, completed_at DATETIME)").Error
 	assert.NoError(suite.T(), err)
 
-	err = db.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
+	err = db.Exec("CREATE TABLE strategies (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'synth', config TEXT, flow_control TEXT, config_hash TEXT, created_at DATETIME, updated_at DATETIME)").Error
 	assert.NoError(suite.T(), err)
 
 	err = db.Exec("CREATE TABLE history (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, name TEXT NOT NULL, protocol TEXT NOT NULL, status TEXT NOT NULL, packets_sent INTEGER DEFAULT 0, bytes_sent INTEGER DEFAULT 0, duration INTEGER DEFAULT 0, error TEXT, created_at DATETIME, completed_at DATETIME)").Error
@@ -99,7 +100,9 @@ func (suite *APITestSuite) SetupSuite() {
 	suite.engine = engine
 
 	// 初始化服务器
-	server := rest.NewServer(cfg, engine, nil, suite.db, nil)
+	ifaceMgr := netif.NewManager()
+	portSched := netif.NewScheduler()
+	server := rest.NewServer(cfg, engine, nil, suite.db, ifaceMgr, portSched)
 	err = server.Setup()
 	assert.NoError(suite.T(), err)
 	suite.server = server
