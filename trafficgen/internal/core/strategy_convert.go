@@ -280,6 +280,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	}
 
+	// InitialSeq: optional TCP initial sequence number override. 0 = random
+	// (default). Non-zero fixes client ISN for reproducible tests. Without
+	// this, user JSON "initial_seq" is silently dropped and always random.
+	if v, ok := cfg["initial_seq"]; ok && v != nil {
+		spec.InitialSeq = uint32(getInt(cfg, "initial_seq"))
+	}
+
 	return spec
 }
 

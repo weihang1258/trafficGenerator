@@ -47,17 +47,22 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	if spec.DstPort == 0 {
 		return fmt.Errorf("destination port is required")
 	}
-	// UDP has no MSS concept, so a payload larger than the typical Ethernet
-	// MTU (1500 - 20 IP - 8 UDP = 1472) forces IP fragmentation on the wire,
-	// which hurts throughput and confuses fragment-unaware middleboxes. This
-	// is a warning, not a hard error: legitimate uses exist (jumbo frames,
-	// path-MTU probing, sending intentional fragments). A future MTU-aware
-	// check can replace the hardcoded 1472 with the actual interface MTU.
+	// UDP has no MSS concept, so a payload larger than (NIC MTU - 20 IP - 8
+	// UDP) forces IP fragmentation on the wire, which hurts throughput and
+	// confuses fragment-unaware middleboxes. We use the typical Ethernet
+	// MTU 1500 (max payload 1472) as the conservative threshold: any payload
+	// over 1472 will fragment on a standard NIC. On a jumbo-MTU NIC (raised
+	// by engine.min_mtu to 2000+), a 1500-byte payload won't actually
+	// fragment -- this is a false positive (warning only, not error). The
+	// reverse (no warning when fragmentation WILL happen) is the real bug,
+	// and 1472 catches that for standard MTU. This is a warning, not a hard
+	// error: legitimate uses exist (jumbo frames, path-MTU probing, sending
+	// intentional fragments).
 	if len(spec.Payload) > 1472 {
-		zap.L().Warn("UDP payload exceeds typical MTU, will trigger IP fragmentation",
+		zap.L().Warn("UDP payload exceeds typical MTU, may trigger IP fragmentation",
 			zap.Int("payload_size", len(spec.Payload)),
 			zap.Int("typical_max", 1472),
-			zap.String("note", "consider increasing NIC MTU or reducing payload"),
+			zap.String("note", "no warning if NIC MTU > 1500 (e.g. jumbo frames raised by engine.min_mtu)"),
 		)
 	}
 	return nil

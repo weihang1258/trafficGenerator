@@ -6,9 +6,16 @@ import (
 	"net"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"go.uber.org/zap"
 )
+
+// mtuMu serializes EnsureMTU calls per interface. Without this, concurrent
+// task starts on the same port_group would race: both read MTU=1500, both
+// run `ip link set` -- the second is a no-op but the read/set window lets a
+// task see a half-raised MTU. Per-interface locking keeps read+set atomic.
+var mtuMu sync.Map // map[string]*sync.Mutex
 
 // EnsureMTU checks the MTU of the given interface and raises it to minMTU if
 // below. Returns nil if already >= minMTU or if the raise succeeded.
@@ -19,6 +26,9 @@ import (
 // over the value would race; the operator can revert manually if needed.
 //
 // minMTU <= 0 disables the check (no-op, returns nil).
+//
+// Concurrent calls for the same interface are serialized via a per-interface
+// mutex so the read+set is atomic across concurrent task starts.
 func EnsureMTU(iface string, minMTU int) error {
 	if minMTU <= 0 {
 		return nil
@@ -26,6 +36,10 @@ func EnsureMTU(iface string, minMTU int) error {
 	if iface == "" {
 		return fmt.Errorf("EnsureMTU: empty interface name")
 	}
+	mu := getMTUMu(iface)
+	mu.Lock()
+	defer mu.Unlock()
+
 	ifi, err := net.InterfaceByName(iface)
 	if err != nil {
 		return fmt.Errorf("interface %s: %w", iface, err)
@@ -50,4 +64,11 @@ func EnsureMTU(iface string, minMTU int) error {
 		zap.String("note", "original MTU not restored after task"),
 	)
 	return nil
+}
+
+// getMTUMu returns (creating if needed) the mutex for an interface. The
+// sync.Map ensures the mutex itself is created atomically across goroutines.
+func getMTUMu(iface string) *sync.Mutex {
+	v, _ := mtuMu.LoadOrStore(iface, &sync.Mutex{})
+	return v.(*sync.Mutex)
 }
