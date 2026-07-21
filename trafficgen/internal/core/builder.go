@@ -22,6 +22,13 @@ const (
 	// Extension headers are NOT included — they are carried in Payload when
 	// present and the planner sets the Next Header field to chain them.
 	IPv6HeaderLen = 40
+
+	// MinEthernetFrame is the minimum Ethernet frame size in bytes (excluding
+	// the 4-byte FCS) per IEEE 802.3. Frames shorter than this are padded
+	// with zero bytes after the L3/L4 payload. The padding is NOT counted in
+	// the IP total-length field (RFC 894 §1: "The data field is padded to a
+	// minimum of 60 octets") so receivers strip it based on IP total length.
+	MinEthernetFrame = 60
 )
 
 // Builder builds binary packets from PacketConfig.
@@ -89,6 +96,15 @@ func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 	}
 	total := l2Len + l3Len + l4Len + len(config.Payload)
 
+	// Ethernet padding: pad short frames to MinEthernetFrame (60 bytes,
+	// excluding FCS) so real NICs don't reject them. L2Config.Pad controls
+	// the behavior — nil or *true pads, *false skips. Padding bytes are
+	// zero-filled and appended AFTER the L3/L4 payload; IP total length
+	// reflects only the real payload so receivers strip padding correctly.
+	if shouldPad(config.L2.Pad) && total < MinEthernetFrame {
+		total = MinEthernetFrame
+	}
+
 	packet := make([]byte, total)
 	l2End := l2Len
 	l3End := l2End + l3Len
@@ -104,6 +120,16 @@ func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 	copy(packet[l4End:], config.Payload)
 
 	return packet, nil
+}
+
+// shouldPad returns true unless the caller explicitly disabled padding via
+// *false. nil (L2Config.Pad unset) and *true both pad — matching the
+// default-ON behavior the user requested.
+func shouldPad(p *bool) bool {
+	if p == nil {
+		return true
+	}
+	return *p
 }
 
 // l4Length returns the L4 header length in bytes for the config.

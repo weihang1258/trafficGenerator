@@ -270,6 +270,12 @@ func (w *ConfigWorker) processTask(task Task) {
 			if config.L2.VLAN == nil && task.Spec.VLAN != nil {
 				config.L2.VLAN = task.Spec.VLAN
 			}
+			// Propagate flow-level PadMinFrame to the packet's L2 config.
+			// Planners leave L2.Pad nil; without this, the builder applies
+			// its default (pad ON) and user false (don't pad) is lost.
+			if config.L2.Pad == nil && task.Spec.PadMinFrame != nil {
+				config.L2.Pad = task.Spec.PadMinFrame
+			}
 			if config.Metadata == nil {
 				config.Metadata = make(map[string]interface{})
 			}
@@ -592,6 +598,11 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 					// never emitted.
 					if config.L2.VLAN == nil && spec.VLAN != nil {
 						config.L2.VLAN = spec.VLAN
+					}
+					// Propagate flow-level PadMinFrame to the packet's L2
+					// config (same pattern as VLAN).
+					if config.L2.Pad == nil && spec.PadMinFrame != nil {
+						config.L2.Pad = spec.PadMinFrame
 					}
 					if config.Metadata == nil {
 						config.Metadata = make(map[string]interface{})

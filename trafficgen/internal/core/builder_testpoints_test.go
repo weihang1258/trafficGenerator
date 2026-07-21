@@ -62,14 +62,24 @@ func TestBuild_TCP_NoVLAN(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := 14 + 20 + 20 + 4; len(pkt) != want {
-		t.Errorf("len=%d want %d", len(pkt), want)
+	// 14+20+20+4 = 58, padded to MinEthernetFrame (60).
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("len=%d want %d (padded)", len(pkt), want)
 	}
 	if et := uint16(pkt[12])<<8 | uint16(pkt[13]); et != 0x0800 {
 		t.Errorf("etherType=0x%04x want 0x0800", et)
 	}
 	if pkt[23] != 6 { // IP proto at offset 14+9
 		t.Errorf("IP proto=%d want 6 (TCP)", pkt[23])
+	}
+	// IP total length (bytes 16-17) reflects only the real L3+L4+payload (44),
+	// NOT the padded frame size (60-14=46). Padding is invisible to L3.
+	if tl := uint16(pkt[16])<<8 | uint16(pkt[17]); tl != 44 {
+		t.Errorf("IP total length=%d want 44 (excludes padding)", tl)
+	}
+	// Padding bytes at 58-59 must be zero.
+	if pkt[58] != 0 || pkt[59] != 0 {
+		t.Errorf("padding bytes=[0x%02x,0x%02x] want [0x00,0x00]", pkt[58], pkt[59])
 	}
 }
 
@@ -80,8 +90,9 @@ func TestBuild_UDP_NoVLAN(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := 14 + 20 + 8 + 4; len(pkt) != want {
-		t.Errorf("len=%d want %d", len(pkt), want)
+	// 14+20+8+4 = 46, padded to 60.
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("len=%d want %d (padded)", len(pkt), want)
 	}
 	if pkt[23] != 17 {
 		t.Errorf("IP proto=%d want 17 (UDP)", pkt[23])
@@ -128,9 +139,15 @@ func TestBuild_EtherTypeARP(t *testing.T) {
 		L3: L3Config{}, L4: L4Config{Protocol: "arp"}, Payload: arp,
 	}
 	pkt, _ := b.Build(cfg)
-	// No IPv4 header: 14 (eth) + 0 (l3) + 0 (l4, arp) + 28 (payload) = 42.
-	if want := 14 + 0 + 0 + 28; len(pkt) != want {
-		t.Errorf("ARP len=%d want %d (no IP header)", len(pkt), want)
+	// 14 (eth) + 0 (l3, ARP) + 0 (l4) + 28 (payload) = 42, padded to 60.
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("ARP len=%d want %d (padded, no IP header)", len(pkt), want)
+	}
+	// L3 absent: byte 14 must not be 0x45 (IPv4 IHL). Padding is appended
+	// where the L3 header would have been, but byte 14 is the start of
+	// the ARP payload (zero) — not 0x45 — confirming writeL3 was skipped.
+	if pkt[14] == 0x45 {
+		t.Error("IPv4 header written for ARP EtherType (should be skipped)")
 	}
 	if et := uint16(pkt[12])<<8 | uint16(pkt[13]); et != 0x0806 {
 		t.Errorf("etherType=0x%04x want 0x0806", et)
@@ -145,8 +162,9 @@ func TestBuild_ARP_WithVLAN(t *testing.T) {
 		L3: L3Config{}, L4: L4Config{Protocol: "arp"}, Payload: arp,
 	}
 	pkt, _ := b.Build(cfg)
-	if want := 18 + 0 + 0 + 28; len(pkt) != want {
-		t.Errorf("ARP+VLAN len=%d want %d", len(pkt), want)
+	// 18 (eth+VLAN) + 0 (l3, ARP) + 0 (l4) + 28 (payload) = 46, padded to 60.
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("ARP+VLAN len=%d want %d (padded)", len(pkt), want)
 	}
 	if tp := uint16(pkt[12])<<8 | uint16(pkt[13]); tp != 0x8100 {
 		t.Errorf("TPID=0x%04x want 0x8100", tp)
@@ -158,9 +176,14 @@ func TestBuild_ICMP(t *testing.T) {
 	icmpData := []byte{0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01} // echo request
 	cfg := PacketConfig{L2: baseL2(), L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 1, TTL: 64}, L4: L4Config{Protocol: "icmp"}, Payload: icmpData}
 	pkt, _ := b.Build(cfg)
-	// ICMP: l4Len=0. len = 14 + 20 + 0 + len(payload).
-	if want := 14 + 20 + 0 + len(icmpData); len(pkt) != want {
-		t.Errorf("ICMP len=%d want %d", len(pkt), want)
+	// ICMP: l4Len=0. Natural len = 14 + 20 + 0 + 8 = 42, padded to 60.
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("ICMP len=%d want %d (padded)", len(pkt), want)
+	}
+	// IP total length (bytes 16-17) reflects only the real L3+L4+payload
+	// (20+0+8=28), NOT the padded frame size. Padding is invisible to L3.
+	if tl := uint16(pkt[16])<<8 | uint16(pkt[17]); tl != 28 {
+		t.Errorf("IP total length=%d want 28 (excludes padding)", tl)
 	}
 	if pkt[23] != 1 {
 		t.Errorf("IP proto=%d want 1 (ICMP)", pkt[23])
@@ -171,8 +194,9 @@ func TestBuild_EmptyPayload(t *testing.T) {
 	b := NewBuilder()
 	cfg := PacketConfig{L2: baseL2(), L3: baseL3(), L4: L4Config{Protocol: "tcp", SrcPort: 1, DstPort: 2}}
 	pkt, _ := b.Build(cfg)
-	if want := 14 + 20 + 20; len(pkt) != want {
-		t.Errorf("empty payload len=%d want %d", len(pkt), want)
+	// 14+20+20 = 54, padded to 60.
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("empty payload len=%d want %d (padded)", len(pkt), want)
 	}
 }
 
@@ -185,8 +209,9 @@ func TestBuild_EmptyConfig(t *testing.T) {
 	}()
 	pkt, _ := b.Build(PacketConfig{})
 	// All zero: EtherType 0 -> IPv4 (l3Len 20), L4.Protocol "" -> l4Len 0, no payload.
-	if want := 14 + 20 + 0; len(pkt) != want {
-		t.Errorf("empty config len=%d want %d", len(pkt), want)
+	// Natural len = 14+20+0 = 34, padded to 60.
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("empty config len=%d want %d (padded)", len(pkt), want)
 	}
 }
 
@@ -204,9 +229,15 @@ func TestBuild_L4LenZero_ICMP(t *testing.T) {
 	b := NewBuilder()
 	cfg := PacketConfig{L2: baseL2(), L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 1, TTL: 64}, L4: L4Config{Protocol: "icmp"}, Payload: []byte{1, 2, 3}}
 	pkt, _ := b.Build(cfg)
-	// ICMP has no L4 header: payload directly after IP. len = 14+20+0+3.
-	if want := 14 + 20 + 0 + 3; len(pkt) != want {
-		t.Errorf("ICMP len=%d want %d (no L4 header)", len(pkt), want)
+	// ICMP has no L4 header: payload directly after IP. Natural len = 14+20+0+3 = 37,
+	// padded to 60.
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("ICMP len=%d want %d (padded, no L4 header)", len(pkt), want)
+	}
+	// IP total length (bytes 16-17) reflects only the real L3+L4+payload
+	// (20+0+3=23), NOT the padded frame size. Padding is invisible to L3.
+	if tl := uint16(pkt[16])<<8 | uint16(pkt[17]); tl != 23 {
+		t.Errorf("IP total length=%d want 23 (excludes padding)", tl)
 	}
 }
 
@@ -218,8 +249,9 @@ func TestBuild_ZeroLengthPacket(t *testing.T) {
 		}
 	}()
 	pkt, _ := b.Build(PacketConfig{})
-	if len(pkt) != 34 {
-		t.Errorf("zero-length len=%d want 34", len(pkt))
+	// Natural len = 14+20+0 = 34, padded to 60.
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("zero-length len=%d want %d (padded)", len(pkt), want)
 	}
 }
 
@@ -234,8 +266,9 @@ func TestBuild_TCP_WithOptions(t *testing.T) {
 	}
 	// Spec B13 listed 28/7 (4B MSS + 4B NOP), but encodeTCPOptions pads to a 4-byte
 	// boundary and 4 bytes is already aligned, so the actual value is 24/6.
-	if want := 14 + 20 + 24; len(pkt) != want {
-		t.Errorf("TCP+MSS len=%d want %d", len(pkt), want)
+	// Natural len = 14+20+24 = 58, padded to 60.
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("TCP+MSS len=%d want %d (padded)", len(pkt), want)
 	}
 }
 
@@ -243,9 +276,9 @@ func TestBuild_UDP_Len8(t *testing.T) {
 	b := NewBuilder()
 	cfg := PacketConfig{L2: baseL2(), L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 17, TTL: 64}, L4: L4Config{Protocol: "udp", SrcPort: 1, DstPort: 2}}
 	pkt, _ := b.Build(cfg)
-	// l4Len=8: len = 14+20+8.
-	if want := 14 + 20 + 8; len(pkt) != want {
-		t.Errorf("UDP len8 len=%d want %d", len(pkt), want)
+	// l4Len=8: natural len = 14+20+8 = 42, padded to 60.
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("UDP len8 len=%d want %d (padded)", len(pkt), want)
 	}
 }
 

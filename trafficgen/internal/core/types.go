@@ -125,6 +125,19 @@ type FlowSpec struct {
 	// preserving cross-flow timing (e.g. SIP signaling + RTP data). nil/empty =
 	// fall back to unordered 4-tuple hash (single-flow ordering only).
 	GroupID *StrategyConfig `json:"group_id,omitempty"`
+
+	// PadMinFrame controls Ethernet padding to the minimum frame size (60
+	// bytes, excluding FCS per IEEE 802.3). nil = padding ON (default —
+	// short frames like ARP or small ICMP are padded to 60 bytes so real
+	// NICs don't reject them); false = padding OFF (frame emitted at its
+	// natural size, useful for testing how a DUT handles runt frames);
+	// true = padding ON (explicit).
+	//
+	// The 60-byte threshold is fixed (standard Ethernet minimum). Padding
+	// bytes are zero-filled and appended AFTER the L3/L4 payload — the IP
+	// total-length field reflects only the actual payload, so receivers
+	// strip padding based on IP total length.
+	PadMinFrame *bool `json:"pad_min_frame,omitempty"`
 }
 
 // VLAN configuration.
@@ -428,6 +441,14 @@ type L2Config struct {
 	DstMAC    string `json:"dst_mac"`
 	EtherType uint16 `json:"ether_type"` // 0x0800=IPv4, 0x0806=ARP
 	VLAN      *VLAN  `json:"vlan,omitempty"`
+
+	// Pad controls padding to MinEthernetFrame (60 bytes, excluding FCS).
+	// nil = pad (default ON — short frames like ARP or small ICMP are padded
+	// so real NICs don't reject them); *true = pad; *false = don't pad
+	// (emit at natural size, useful for testing runt-frame handling).
+	// Propagated from FlowSpec.PadMinFrame by the worker; planners leave
+	// this nil so the builder applies its default.
+	Pad *bool `json:"pad,omitempty"`
 }
 
 // L3Config for Layer 3 (IP).

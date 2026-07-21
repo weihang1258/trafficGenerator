@@ -243,14 +243,14 @@ func TestStrategyCreate_UnsupportedProtocol(t *testing.T) {
 	h, r, _ := newStrategyTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/strategies", h.Create)
-	body := `{"name":"s1","protocol":"sctp","config":{"src_ip":"10.0.0.1"}}`
+	body := `{"name":"s1","protocol":"dnp3","config":{"src_ip":"10.0.0.1"}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "invalid or missing protocol: sctp") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "invalid or missing protocol: dnp3") { t.Errorf("msg=%q", msg) }
 }
 
 func TestStrategyCreate_BadSubConfig(t *testing.T) {

@@ -347,6 +347,16 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		spec.InitialSeq = uint32(getInt(cfg, "initial_seq"))
 	}
 
+	// PadMinFrame: optional Ethernet padding toggle. nil (absent) = default
+	// ON; explicit true = ON; explicit false = OFF. Presence-checked so
+	// user false (don't pad) is honored rather than replaced with the
+	// default true.
+	if v, ok := cfg["pad_min_frame"]; ok && v != nil {
+		if b, ok := v.(bool); ok {
+			spec.PadMinFrame = &b
+		}
+	}
+
 	return spec
 }
 

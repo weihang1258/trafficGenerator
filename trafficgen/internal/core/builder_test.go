@@ -372,9 +372,13 @@ func TestBuilder_ARPNoL3Header(t *testing.T) {
 		t.Fatalf("Build failed: %v", err)
 	}
 
-	// Expect exactly 14 (Eth) + 28 (ARP) = 42 bytes; no IP header.
-	if len(packet) != 42 {
-		t.Errorf("ARP packet size = %d, want 42 (Eth 14 + ARP 28, no IP header)", len(packet))
+	// Expect 14 (Eth) + 28 (ARP) = 42 bytes natural, padded to 60 (MinEthernetFrame).
+	// Padding is appended after the ARP payload; bytes 42-59 are zero. The ARP
+	// payload at 14:42 is unaffected — receivers parse ARP by EtherType, then
+	// strip padding based on the L2 payload length (ARP has no length field, so
+	// padding is implicitly stripped by the receiver's frame-length check).
+	if len(packet) != MinEthernetFrame {
+		t.Errorf("ARP packet size = %d, want %d (padded, Eth 14 + ARP 28 + 18 pad)", len(packet), MinEthernetFrame)
 	}
 
 	// EtherType at bytes 12:14 must be 0x0806.
