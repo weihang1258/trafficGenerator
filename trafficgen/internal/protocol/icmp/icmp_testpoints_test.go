@@ -6,6 +6,7 @@ package icmp
 // green; remove the skip when the bug is fixed.
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -641,6 +642,247 @@ func TestBuildICMPPayload_ChecksumStillValidForDistinctIDSeq(t *testing.T) {
 	recomputed := calculateChecksum(payload)
 	if inserted != recomputed {
 		t.Errorf("checksum mismatch: inserted=%x recomputed=%x", inserted, recomputed)
+	}
+}
+
+// --- Multi-session ping pattern (Task #51) ---
+//
+// Pattern enables multi-session ping: a single ICMP flow that carries
+// multiple ping request/reply pairs within the same flow (RFC 792 session
+// semantics — Identifier groups pings into a session, Sequence increments
+// per ping within the session). Each step in Pattern is its own ping with
+// its own Type/Code/Sequence/Data; Echo Request steps get an auto-Echo-Reply
+// matching the request's Identifier and Sequence.
+
+// TestICMPPlan_PatternMultiSession verifies that a non-empty Pattern emits
+// one ping per step plus an auto-reply for each Echo Request step. With 3
+// Echo Request steps, expect 6 packets (3 up + 3 down) in alternating order.
+func TestICMPPlan_PatternMultiSession(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Identifier: 0xBEEF,
+		Pattern: []core.ICMPStep{
+			{Type: TypeEchoRequest, Code: 0, Sequence: 1, Data: []byte("p1")},
+			{Type: TypeEchoRequest, Code: 0, Sequence: 2, Data: []byte("p2")},
+			{Type: TypeEchoRequest, Code: 0, Sequence: 3, Data: []byte("p3")},
+		},
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	if len(cfgs) != 6 {
+		t.Fatalf("len=%d, want 6 (3 req + 3 reply)", len(cfgs))
+	}
+	// Verify alternating up/down and per-step Sequence increments.
+	for i, c := range cfgs {
+		if c.PacketIndex != uint64(i) {
+			t.Errorf("cfg[%d].PacketIndex=%d, want %d", i, c.PacketIndex, i)
+		}
+		if i%2 == 0 {
+			if c.Direction != "up" {
+				t.Errorf("cfg[%d].Direction=%s, want up (request)", i, c.Direction)
+			}
+			if c.Payload[0] != TypeEchoRequest {
+				t.Errorf("cfg[%d].Type=%d, want %d (EchoRequest)", i, c.Payload[0], TypeEchoRequest)
+			}
+		} else {
+			if c.Direction != "down" {
+				t.Errorf("cfg[%d].Direction=%s, want down (reply)", i, c.Direction)
+			}
+			if c.Payload[0] != TypeEchoReply {
+				t.Errorf("cfg[%d].Type=%d, want %d (EchoReply)", i, c.Payload[0], TypeEchoReply)
+			}
+		}
+	}
+	// Per-step Sequence increments.
+	wantSeqs := []uint16{1, 1, 2, 2, 3, 3}
+	for i, want := range wantSeqs {
+		seq := uint16(cfgs[i].Payload[6])<<8 | uint16(cfgs[i].Payload[7])
+		if seq != want {
+			t.Errorf("cfg[%d].Sequence=%d, want %d", i, seq, want)
+		}
+	}
+}
+
+// TestICMPPlan_PatternIdentifierSharedAcrossSteps verifies that all steps
+// (and their replies) carry the same Identifier, since Identifier groups
+// pings into a session per RFC 792.
+func TestICMPPlan_PatternIdentifierSharedAcrossSteps(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Identifier: 0x1234,
+		Pattern: []core.ICMPStep{
+			{Type: TypeEchoRequest, Code: 0, Sequence: 1, Data: []byte("a")},
+			{Type: TypeEchoRequest, Code: 0, Sequence: 2, Data: []byte("b")},
+		},
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	for i, c := range cfgs {
+		id := uint16(c.Payload[4])<<8 | uint16(c.Payload[5])
+		if id != 0x1234 {
+			t.Errorf("cfg[%d].Identifier=%x, want 1234 (session ID shared)", i, id)
+		}
+	}
+}
+
+// TestICMPPlan_PatternSequenceAutoFromIndex verifies that when a step's
+// Sequence is 0, the planner auto-fills it from the step index (1-based).
+// This matches RFC 792 ping session semantics: Identifier groups, Sequence
+// increments per ping.
+func TestICMPPlan_PatternSequenceAutoFromIndex(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Identifier: 0xCAFE,
+		Pattern: []core.ICMPStep{
+			{Type: TypeEchoRequest, Code: 0, Sequence: 0, Data: []byte("auto1")},
+			{Type: TypeEchoRequest, Code: 0, Sequence: 0, Data: []byte("auto2")},
+		},
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	// Step 0 (cfg[0] request, cfg[1] reply): Sequence should be 1.
+	// Step 1 (cfg[2] request, cfg[3] reply): Sequence should be 2.
+	wantSeqs := []uint16{1, 1, 2, 2}
+	for i, want := range wantSeqs {
+		seq := uint16(cfgs[i].Payload[6])<<8 | uint16(cfgs[i].Payload[7])
+		if seq != want {
+			t.Errorf("cfg[%d].Sequence=%d, want %d (auto from step index)", i, seq, want)
+		}
+	}
+}
+
+// TestICMPPlan_PatternMixedTypes verifies that non-Echo-Request steps do
+// NOT get an auto-reply. With 1 Echo Request + 1 Destination Unreachable
+// (Type=3) step, expect 3 packets (req+reply for Echo Request + one for
+// Type=3).
+func TestICMPPlan_PatternMixedTypes(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Identifier: 0xABCD,
+		Pattern: []core.ICMPStep{
+			{Type: TypeEchoRequest, Code: 0, Sequence: 1, Data: []byte("p1")},
+			{Type: 3, Code: 0, Sequence: 2, Data: []byte("unreachable")},
+		},
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	if len(cfgs) != 3 {
+		t.Fatalf("len=%d, want 3 (req + reply + unreachable, no reply for Type=3)", len(cfgs))
+	}
+	// cfg[0]: Echo Request up
+	if cfgs[0].Direction != "up" || cfgs[0].Payload[0] != TypeEchoRequest {
+		t.Errorf("cfg[0]: dir=%s type=%d, want up/EchoRequest", cfgs[0].Direction, cfgs[0].Payload[0])
+	}
+	// cfg[1]: Echo Reply down
+	if cfgs[1].Direction != "down" || cfgs[1].Payload[0] != TypeEchoReply {
+		t.Errorf("cfg[1]: dir=%s type=%d, want down/EchoReply", cfgs[1].Direction, cfgs[1].Payload[0])
+	}
+	// cfg[2]: Type=3 up (no auto-reply)
+	if cfgs[2].Direction != "up" || cfgs[2].Payload[0] != 3 {
+		t.Errorf("cfg[2]: dir=%s type=%d, want up/Type3", cfgs[2].Direction, cfgs[2].Payload[0])
+	}
+}
+
+// TestICMPPlan_PatternEmptyFallsBackToLegacy verifies that an empty Pattern
+// preserves the legacy single-ping path (request + auto-reply for Echo
+// Request). This is the backward-compatibility contract.
+func TestICMPPlan_PatternEmptyFallsBackToLegacy(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Type:       TypeEchoRequest,
+		Code:       0,
+		Identifier: 0xDEAD,
+		Sequence:   0xBEEF,
+		Data:       []byte("legacy"),
+		Pattern:    nil,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	if len(cfgs) != 2 {
+		t.Fatalf("len=%d, want 2 (legacy single-ping path)", len(cfgs))
+	}
+	if cfgs[0].Direction != "up" || cfgs[0].Payload[0] != TypeEchoRequest {
+		t.Errorf("cfg[0]: dir=%s type=%d, want up/EchoRequest", cfgs[0].Direction, cfgs[0].Payload[0])
+	}
+	if cfgs[1].Direction != "down" || cfgs[1].Payload[0] != TypeEchoReply {
+		t.Errorf("cfg[1]: dir=%s type=%d, want down/EchoReply", cfgs[1].Direction, cfgs[1].Payload[0])
+	}
+	// Identifier shared between request and reply (RFC 792).
+	reqID := uint16(cfgs[0].Payload[4])<<8 | uint16(cfgs[0].Payload[5])
+	replyID := uint16(cfgs[1].Payload[4])<<8 | uint16(cfgs[1].Payload[5])
+	if reqID != 0xDEAD || replyID != 0xDEAD {
+		t.Errorf("Identifier: req=%x reply=%x, want DEAD/DEAD", reqID, replyID)
+	}
+}
+
+// TestICMPPlan_PatternRequestReplyDataMatches verifies that each auto-reply
+// carries the SAME Data as the request (RFC 792: server must echo the data
+// from the request back in the reply).
+func TestICMPPlan_PatternRequestReplyDataMatches(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Identifier: 0x1111,
+		Pattern: []core.ICMPStep{
+			{Type: TypeEchoRequest, Code: 0, Sequence: 1, Data: []byte("payload-A")},
+			{Type: TypeEchoRequest, Code: 0, Sequence: 2, Data: []byte("payload-B")},
+		},
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	if len(cfgs) != 4 {
+		t.Fatalf("len=%d, want 4", len(cfgs))
+	}
+	for i := 0; i < len(cfgs); i += 2 {
+		reqData := cfgs[i].Payload[8:]
+		replyData := cfgs[i+1].Payload[8:]
+		if !bytes.Equal(reqData, replyData) {
+			t.Errorf("step %d: req data=%q, reply data=%q (must match per RFC 792)",
+				i/2, string(reqData), string(replyData))
+		}
+	}
+}
+
+// TestICMPPlan_PatternIPIDIncrementsPerPacket verifies that within a
+// multi-session pattern, IPID increments per packet (so each ping and reply
+// has a distinct IP ID).
+func TestICMPPlan_PatternIPIDIncrementsPerPacket(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Identifier: 0x2222,
+		Pattern: []core.ICMPStep{
+			{Type: TypeEchoRequest, Code: 0, Sequence: 1, Data: []byte("a")},
+			{Type: TypeEchoRequest, Code: 0, Sequence: 2, Data: []byte("b")},
+		},
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	for i := 1; i < len(cfgs); i++ {
+		if cfgs[i].L3.IPID == cfgs[i-1].L3.IPID {
+			t.Errorf("cfg[%d].IPID=%d == cfg[%d].IPID=%d (want incrementing)",
+				i, cfgs[i].L3.IPID, i-1, cfgs[i-1].L3.IPID)
+		}
+	}
+}
+
+// TestICMPPlan_PatternSequenceFieldOverridesAuto verifies that an explicit
+// Sequence in a step takes precedence over the auto-from-index behavior.
+func TestICMPPlan_PatternSequenceFieldOverridesAuto(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Identifier: 0x3333,
+		Pattern: []core.ICMPStep{
+			{Type: TypeEchoRequest, Code: 0, Sequence: 100, Data: []byte("hundred")},
+			{Type: TypeEchoRequest, Code: 0, Sequence: 200, Data: []byte("two-hundred")},
+		},
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	wantSeqs := []uint16{100, 100, 200, 200}
+	for i, want := range wantSeqs {
+		seq := uint16(cfgs[i].Payload[6])<<8 | uint16(cfgs[i].Payload[7])
+		if seq != want {
+			t.Errorf("cfg[%d].Sequence=%d, want %d (explicit value, not index)", i, seq, want)
+		}
 	}
 }
 

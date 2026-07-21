@@ -206,12 +206,30 @@ type DNSConfig struct {
 // to using Sequence as the Identifier (the pre-field behavior wrote Sequence
 // to both positions). Callers that want distinct values must set Identifier
 // to a non-zero value.
+//
+// Pattern (Task #51): when non-empty, the planner iterates the steps and
+// emits each as a separate ping within the same flow (multi-session ping).
+// Each step carries its own Type/Code/Sequence; the planner auto-fills
+// Identifier from the top-level field (or falls back to Sequence per the
+// rule above). An empty Pattern falls back to the legacy single-ping path
+// (request + auto-reply) so existing configs keep working unchanged.
 type ICMPConfig struct {
-	Type       uint8  `json:"type"`      // 8=Echo Request, 0=Echo Reply
-	Code       uint8  `json:"code"`
-	Identifier uint16 `json:"identifier"` // Echo session ID; 0 -> fallback to Sequence
-	Sequence   uint16 `json:"sequence"`
-	Data       []byte `json:"data"`
+	Type       uint8       `json:"type"`      // 8=Echo Request, 0=Echo Reply
+	Code       uint8       `json:"code"`
+	Identifier uint16      `json:"identifier"` // Echo session ID; 0 -> fallback to Sequence
+	Sequence   uint16      `json:"sequence"`
+	Data       []byte      `json:"data"`
+	Pattern    []ICMPStep  `json:"pattern,omitempty"` // multi-session ping steps
+}
+
+// ICMPStep is a single ping within a multi-session ICMP flow. The planner
+// emits Type (and its auto-reply if Type=EchoRequest) for each step, with
+// Sequence incrementing per step. Data is the per-ping payload.
+type ICMPStep struct {
+	Type     uint8  `json:"type"`     // 8=Echo Request, 0=Echo Reply
+	Code     uint8  `json:"code"`
+	Sequence uint16 `json:"sequence"` // per-step sequence; if 0, planner uses step index+1
+	Data     []byte `json:"data"`
 }
 
 // ARPConfig for ARP protocol.

@@ -47,6 +47,19 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 }
 
 // Plan generates packet configs for an ICMP flow.
+//
+// Two emission modes:
+//   - Single ping (legacy): when ICMPConfig.Pattern is empty, emit one Echo
+//     Request and an auto-reply Echo Reply if Type=EchoRequest. The Sequence
+//     and Identifier come from the top-level config fields. This preserves
+//     pre-#51 behavior for existing configs.
+//   - Multi-session ping: when Pattern is non-empty, iterate the steps and
+//     emit each step as its own ping (Type/Code/Sequence/Data per step),
+//     auto-replying Echo Request steps. The Identifier is shared across
+//     steps (per RFC 792 session semantics: Identifier groups pings into
+//     a session, Sequence increments per ping within the session). When
+//     Identifier is 0, the per-step fallback uses step.Sequence for the
+//     ID field (matching the single-ping fallback rule).
 func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {
 	if err := p.Validate(spec); err != nil {
 		return nil, err
@@ -83,6 +96,79 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 		}
 
+		// Multi-session ping path: iterate steps, emit each as its own ping
+		// with auto-reply for Echo Request steps. Identifier is shared across
+		// steps (RFC 792 session semantics). Sequence auto-fills from step
+		// index (1-based) when the step leaves Sequence at 0.
+		if len(icmpConfig.Pattern) > 0 {
+			packetIndex := uint64(0)
+			for stepIdx, step := range icmpConfig.Pattern {
+				seq := step.Sequence
+				if seq == 0 {
+					seq = uint16(stepIdx + 1)
+				}
+				stepCfg := &core.ICMPConfig{
+					Type:       step.Type,
+					Code:       step.Code,
+					Identifier: icmpConfig.Identifier,
+					Sequence:   seq,
+					Data:       step.Data,
+				}
+				// Emit the step as an up packet (client -> server).
+				configChan <- core.PacketConfig{
+					FlowID:      flowID,
+					PacketIndex: packetIndex,
+					Direction:   "up",
+					Timestamp:   now,
+					L2: core.L2Config{
+						SrcMAC:    spec.SrcMAC,
+						DstMAC:    spec.DstMAC,
+						EtherType: 0x0800,
+					},
+					L3: core.L3Base(spec.SrcIP, spec.DstIP, 1, effectiveTTL, nextIPID(), spec),
+					L4: core.L4Config{Protocol: "icmp"},
+					Payload: buildICMPPayload(stepCfg),
+					Metadata: map[string]interface{}{
+						"icmp_type": stepCfg.Type,
+						"icmp_code": stepCfg.Code,
+					},
+				}
+				packetIndex++
+
+				// Auto-reply Echo Reply for Echo Request steps.
+				if step.Type == TypeEchoRequest {
+					replyCfg := &core.ICMPConfig{
+						Type:       TypeEchoReply,
+						Code:       0,
+						Identifier: icmpConfig.Identifier,
+						Sequence:   seq,
+						Data:       step.Data,
+					}
+					configChan <- core.PacketConfig{
+						FlowID:      flowID,
+						PacketIndex: packetIndex,
+						Direction:   "down",
+						Timestamp:   now,
+						L2: core.L2Config{
+							SrcMAC:    spec.DstMAC,
+							DstMAC:    spec.SrcMAC,
+							EtherType: 0x0800,
+						},
+						L3: core.L3Base(spec.DstIP, spec.SrcIP, 1, effectiveTTL, nextIPID(), spec),
+						L4: core.L4Config{Protocol: "icmp"},
+						Payload: buildICMPPayload(replyCfg),
+						Metadata: map[string]interface{}{
+							"icmp_type": replyCfg.Type,
+							"icmp_code": replyCfg.Code,
+						},
+					}
+					packetIndex++
+				}
+			}
+			return
+		}
+
+		// Legacy single-ping path.
 		// ICMP Echo Request (client -> server)
 		configChan <- core.PacketConfig{
 			FlowID:      flowID,

@@ -259,6 +259,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				Identifier: uint16(getInt(sub, "identifier")),
 				Sequence:   uint16(getIntDefault(sub, "sequence", 1)),
 				Data:       []byte(getStringDefault(sub, "data", "ping")),
+				Pattern:    parseICMPPattern(sub["pattern"]),
 			}
 		}
 	case "arp":
@@ -304,6 +305,43 @@ func formatBPS(val float64) string {
 	default:
 		return fmt.Sprintf("%.0f", val)
 	}
+}
+
+// parseICMPPattern converts the JSON-decoded "pattern" value (an array of
+// step objects) into a []ICMPStep. Returns nil for absent/non-array input
+// so the planner falls back to the single-ping path. Each step inherits
+// Type/Code defaults from the parent config when absent (Type=8, Code=0);
+// Sequence defaults to step index+1 when 0 (per RFC 792 ping session
+// semantics: Identifier groups, Sequence increments per ping).
+func parseICMPPattern(v interface{}) []ICMPStep {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]ICMPStep, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		typ := uint8(getIntDefault(m, "type", 8))
+		code := uint8(getIntDefault(m, "code", 0))
+		seq := uint16(getInt(m, "sequence"))
+		if seq == 0 {
+			seq = uint16(len(out) + 1)
+		}
+		data := []byte(getStringDefault(m, "data", "ping"))
+		out = append(out, ICMPStep{
+			Type:     typ,
+			Code:     code,
+			Sequence: seq,
+			Data:     data,
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // JSON helper functions with sensible defaults
