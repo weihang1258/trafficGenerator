@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/gopacket/pcapgo"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/protocol/arp"
+	"github.com/trafficgen/trafficgen/internal/replay"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"github.com/trafficgen/trafficgen/pkg/config"
@@ -169,6 +172,113 @@ func (e *testMCPEnv) cleanup() {
 	e.eng.Stop()
 	e.db.Close()
 	os.RemoveAll(e.tmp)
+}
+
+// setupMCPTestWithRealBuilder creates a test env that registers the real ARP
+// planner (arp.NewPlanner) and uses the production BuildFunc wrapper
+// (replay.NewBuildFunc(builder.Build)). Tests that need to verify byte-exact
+// packet output (e.g. Ethernet padding) must use this helper instead of
+// setupMCPTest, whose mockMCPPlanner + fake `make([]byte, 64)` BuildFunc
+// never invokes Builder.Build and so can't exercise padding logic.
+func setupMCPTestWithRealBuilder(t *testing.T) *testMCPEnv {
+	t.Helper()
+
+	tmp, err := os.MkdirTemp("", "mcp-real-*")
+	if err != nil {
+		t.Fatalf("temp dir: %v", err)
+	}
+	dbPath := tmp + "/test.db"
+
+	sdb, err := storage.NewDB(&config.DatabaseConfig{Type: "sqlite", SQLite: config.SQLiteConfig{Path: dbPath}})
+	if err != nil {
+		os.RemoveAll(tmp)
+		t.Fatalf("new db: %v", err)
+	}
+
+	userID := "svc-user-1"
+	sdb.Create(&storage.UserModel{
+		ID:           userID,
+		Username:     "mcp-test-svc",
+		PasswordHash: "test-hash",
+		Email:        "mcp@test.local",
+		Role:         "user",
+		Enabled:      true,
+	})
+
+	eng := core.NewEngine(core.EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 256, QueueSize: 64,
+	})
+	eng.RegisterPlanner(arp.NewPlanner())
+	eng.SetBuildFunc(replay.NewBuildFunc(core.NewBuilder().Build))
+
+	done := make(chan string, 4)
+	eng.OnTaskComplete = func(taskID string) {
+		done <- taskID
+	}
+	eng.OnTaskFailed = func(taskID, msg string) {
+		done <- taskID
+	}
+
+	if err := eng.Start(); err != nil {
+		eng.Stop()
+		sdb.Close()
+		os.RemoveAll(tmp)
+		t.Fatalf("engine start: %v", err)
+	}
+
+	cfg := &config.MCPConfig{
+		Enabled:                true,
+		ServiceUserID:          "mcp-test-svc",
+		ServiceUserRole:        "user",
+		ServiceAccountPassword: "test-pass",
+		AuditLog:               false,
+		Transports:             config.MCPTransports{Stdio: false},
+	}
+	srv, err := NewServer(cfg, eng, sdb, netif.NewManager())
+	if err != nil {
+		eng.Stop()
+		sdb.Close()
+		os.RemoveAll(tmp)
+		t.Fatalf("new mcp server: %v", err)
+	}
+	srv.SetJWTManager(auth.NewJWTManager("test-secret", "test-issuer", 24*time.Hour))
+
+	return &testMCPEnv{
+		db:     sdb,
+		eng:    eng,
+		im:     netif.NewManager(),
+		srv:    srv,
+		tmp:    tmp,
+		done:   done,
+		dbPath: dbPath,
+	}
+}
+
+// readPcapFrameLengths opens the pcap at path with pcapgo (pure Go, no
+// tcpdump/root) and returns the CaptureLength of each frame. CaptureLength
+// is the on-wire frame length the writer stored — exactly what padding tests
+// need to verify.
+func readPcapFrameLengths(t *testing.T, path string) []int {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open pcap: %v", err)
+	}
+	defer f.Close()
+	r, err := pcapgo.NewReader(f)
+	if err != nil {
+		t.Fatalf("pcapgo.NewReader: %v", err)
+	}
+	var lengths []int
+	for {
+		_, ci, err := r.ReadPacketData()
+		if err != nil {
+			break
+		}
+		lengths = append(lengths, ci.CaptureLength)
+	}
+	return lengths
 }
 
 // ---------------------------------------------------------------------------
@@ -1138,5 +1248,165 @@ func TestMCP_ManageTasks_StopRunning(t *testing.T) {
 	select {
 	case <-env.done:
 	case <-time.After(2 * time.Second):
+	}
+}
+
+// ---------------------------------------------------------------------------
+// §4.x pad_min_frame E2E — ARP + real Builder.Build + pcap roundtrip
+// ---------------------------------------------------------------------------
+//
+// These tests exercise the pad_min_frame (Ethernet padding to 60-byte minimum)
+// feature end-to-end through the MCP generate_traffic tool surface. They use
+// the real ARP planner (arp.NewPlanner) and the production BuildFunc wrapper
+// (replay.NewBuildFunc(builder.Build)), so Builder.Build is actually invoked
+// and its padding logic is exercised. Frame lengths are verified by reading
+// the pcap output back with pcapgo (pure Go, no tcpdump or root required).
+//
+// ARP is the natural choice for padding E2E: each ARP frame is 14 (Eth) + 0
+// (no L3) + 0 (no L4) + 28 (ARP payload) = 42 bytes natural, clearly below
+// the 60-byte IEEE 802.3 minimum, so padding behavior is obvious. The ARP
+// planner emits a request (up) + reply (down) by default, so each task
+// produces 2 frames.
+//
+// Three states to verify (matching mapToFlowSpec + Builder.shouldPad):
+//   - absent (default): PadMinFrame=nil -> shouldPad=true -> padded to 60
+//   - explicit false:   PadMinFrame=*false -> shouldPad=false -> 42 (natural)
+//   - explicit true:    PadMinFrame=*true  -> shouldPad=true  -> 60 (matches default)
+
+// TestMCP_GenerateTraffic_PadMinFrame_DefaultON verifies that an ARP task
+// with NO pad_min_frame field produces 60-byte frames in the pcap (default
+// padding ON, per IEEE 802.3). This is the most common user path — they
+// don't set the field, they get spec-compliant frames.
+func TestMCP_GenerateTraffic_PadMinFrame_DefaultON(t *testing.T) {
+	env := setupMCPTestWithRealBuilder(t)
+	defer env.cleanup()
+
+	pcapPath := env.tmp + "/arp-default.pcap"
+	_, out, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
+		TaskName: "arp-default",
+		Protocol: "arp",
+		Config: map[string]interface{}{
+			"src_ip": "192.0.2.1",
+			"dst_ip": "192.0.2.2",
+			"arp":    map[string]interface{}{"operation": 1},
+		},
+		OutputType: "pcap",
+		OutputConfig: &outputConfigInput{
+			PcapPath: pcapPath,
+		},
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	select {
+	case <-env.done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("task did not complete")
+	}
+
+	engineTaskID := out.TaskID + "-" + out.StrategyID
+	env.eng.UnregisterOutputWriter(engineTaskID)
+
+	lengths := readPcapFrameLengths(t, pcapPath)
+	if len(lengths) != 2 {
+		t.Fatalf("frame count = %d, want 2 (ARP request + reply)", len(lengths))
+	}
+	for i, l := range lengths {
+		if l != 60 {
+			t.Errorf("frame[%d] length = %d, want 60 (default padded)", i, l)
+		}
+	}
+}
+
+// TestMCP_GenerateTraffic_PadMinFrame_False_NoPadding verifies that explicit
+// pad_min_frame=false disables padding. Frames are emitted at their natural
+// size (42 bytes for ARP). This proves the presence-check in mapToFlowSpec
+// (absent vs. explicit false) and the worker propagation (spec.PadMinFrame
+// -> config.L2.Pad) both work through the MCP tool surface.
+func TestMCP_GenerateTraffic_PadMinFrame_False_NoPadding(t *testing.T) {
+	env := setupMCPTestWithRealBuilder(t)
+	defer env.cleanup()
+
+	pcapPath := env.tmp + "/arp-nopad.pcap"
+	_, out, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
+		TaskName: "arp-nopad",
+		Protocol: "arp",
+		Config: map[string]interface{}{
+			"src_ip":        "192.0.2.1",
+			"dst_ip":        "192.0.2.2",
+			"arp":           map[string]interface{}{"operation": 1},
+			"pad_min_frame": false,
+		},
+		OutputType: "pcap",
+		OutputConfig: &outputConfigInput{
+			PcapPath: pcapPath,
+		},
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	select {
+	case <-env.done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("task did not complete")
+	}
+
+	engineTaskID := out.TaskID + "-" + out.StrategyID
+	env.eng.UnregisterOutputWriter(engineTaskID)
+
+	lengths := readPcapFrameLengths(t, pcapPath)
+	if len(lengths) != 2 {
+		t.Fatalf("frame count = %d, want 2", len(lengths))
+	}
+	for i, l := range lengths {
+		if l != 42 {
+			t.Errorf("frame[%d] length = %d, want 42 (padding disabled, natural size)", i, l)
+		}
+	}
+}
+
+// TestMCP_GenerateTraffic_PadMinFrame_True_ExplicitON verifies that explicit
+// pad_min_frame=true matches the default-ON behavior (60-byte frames). This
+// guards against a regression where the presence-check treats true the same
+// as absent (and a future default-OFF change silently breaks explicit true).
+func TestMCP_GenerateTraffic_PadMinFrame_True_ExplicitON(t *testing.T) {
+	env := setupMCPTestWithRealBuilder(t)
+	defer env.cleanup()
+
+	pcapPath := env.tmp + "/arp-pad.pcap"
+	_, out, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
+		TaskName: "arp-pad",
+		Protocol: "arp",
+		Config: map[string]interface{}{
+			"src_ip":        "192.0.2.1",
+			"dst_ip":        "192.0.2.2",
+			"arp":           map[string]interface{}{"operation": 1},
+			"pad_min_frame": true,
+		},
+		OutputType: "pcap",
+		OutputConfig: &outputConfigInput{
+			PcapPath: pcapPath,
+		},
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	select {
+	case <-env.done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("task did not complete")
+	}
+
+	engineTaskID := out.TaskID + "-" + out.StrategyID
+	env.eng.UnregisterOutputWriter(engineTaskID)
+
+	lengths := readPcapFrameLengths(t, pcapPath)
+	if len(lengths) != 2 {
+		t.Fatalf("frame count = %d, want 2", len(lengths))
+	}
+	for i, l := range lengths {
+		if l != 60 {
+			t.Errorf("frame[%d] length = %d, want 60 (explicit pad=true)", i, l)
+		}
 	}
 }
