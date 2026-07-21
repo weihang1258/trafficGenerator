@@ -282,6 +282,114 @@ func TestBuild_UDP_Len8(t *testing.T) {
 	}
 }
 
+// TestBuild_PadFalse_ShortFrameNotPadded verifies that L2.Pad=*false
+// disables padding for short frames. The frame is emitted at its natural
+// size (42 bytes here: 14 eth + 20 IP + 8 UDP), NOT padded to 60. This is
+// the "test runt-frame handling" use case from the Pad doc comment.
+func TestBuild_PadFalse_ShortFrameNotPadded(t *testing.T) {
+	b := NewBuilder()
+	padOff := false
+	cfg := PacketConfig{
+		L2: L2Config{SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66", EtherType: 0x0800, Pad: &padOff},
+		L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 17, TTL: 64},
+		L4: L4Config{Protocol: "udp", SrcPort: 1, DstPort: 2},
+	}
+	pkt, _ := b.Build(cfg)
+	// Natural size 14+20+8 = 42, NOT padded.
+	if want := 14 + 20 + 8; len(pkt) != want {
+		t.Errorf("Pad=false len=%d want %d (not padded)", len(pkt), want)
+	}
+}
+
+// TestBuild_PadTrue_ShortFramePaddedTo60 verifies that L2.Pad=*true (explicit)
+// pads short frames to MinEthernetFrame (60), matching the nil/default behavior.
+func TestBuild_PadTrue_ShortFramePaddedTo60(t *testing.T) {
+	b := NewBuilder()
+	padOn := true
+	cfg := PacketConfig{
+		L2: L2Config{SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66", EtherType: 0x0800, Pad: &padOn},
+		L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 17, TTL: 64},
+		L4: L4Config{Protocol: "udp", SrcPort: 1, DstPort: 2},
+	}
+	pkt, _ := b.Build(cfg)
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Errorf("Pad=true len=%d want %d (padded)", len(pkt), want)
+	}
+}
+
+// TestBuild_PadNil_LongFrameUnchanged verifies that long frames (>= 60 bytes)
+// are NOT padded regardless of the Pad setting — padding only applies to short
+// frames. A 1000-byte TCP payload produces 14+20+20+1000 = 1054 bytes either way.
+func TestBuild_PadNil_LongFrameUnchanged(t *testing.T) {
+	b := NewBuilder()
+	cfg := PacketConfig{
+		L2: baseL2(),
+		L3: baseL3(),
+		L4: L4Config{Protocol: "tcp", SrcPort: 1, DstPort: 2},
+		Payload: make([]byte, 1000),
+	}
+	pkt, _ := b.Build(cfg)
+	if want := 14 + 20 + 20 + 1000; len(pkt) != want {
+		t.Errorf("long-frame len=%d want %d (no padding above 60)", len(pkt), want)
+	}
+}
+
+// TestBuild_PaddingBytesAreZero verifies that padding bytes (when applied) are
+// zero-filled, not random/garbage. This matters because some receivers inspect
+// padding bytes for fingerprinting; non-zero padding would be a tell.
+func TestBuild_PaddingBytesAreZero(t *testing.T) {
+	b := NewBuilder()
+	cfg := PacketConfig{
+		L2: baseL2(),
+		L3: L3Config{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", Protocol: 17, TTL: 64},
+		L4: L4Config{Protocol: "udp", SrcPort: 1, DstPort: 2},
+	}
+	pkt, _ := b.Build(cfg)
+	// Natural size 42; padded to 60; bytes 42..59 are padding.
+	for i := 42; i < MinEthernetFrame; i++ {
+		if pkt[i] != 0 {
+			t.Errorf("padding byte %d=0x%02x want 0x00", i, pkt[i])
+		}
+	}
+}
+
+// TestBuild_IPTotalLengthExcludesPadding_ARP verifies that ARP frames (no IP
+// header) padded to 60 still expose the ARP payload at byte 14 — padding is
+// appended after the payload, so the ARP htype field (bytes 14-15) is the
+// real payload, not padding. (ARP has no length field, so receivers strip
+// padding based on the L2 frame length / EtherType.)
+func TestBuild_IPTotalLengthExcludesPadding_ARP(t *testing.T) {
+	b := NewBuilder()
+	arp := make([]byte, 28)
+	arp[0], arp[1] = 0x00, 0x01 // htype Ethernet
+	arp[6], arp[7] = 0x00, 0x01 // op=request
+	cfg := PacketConfig{
+		L2: L2Config{SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "ff:ff:ff:ff:ff:ff", EtherType: 0x0806},
+		L3: L3Config{},
+		L4: L4Config{Protocol: "arp"},
+		Payload: arp,
+	}
+	pkt, _ := b.Build(cfg)
+	// Padded to 60. ARP payload at 14:14+28=42; padding is 42..59.
+	if want := MinEthernetFrame; len(pkt) != want {
+		t.Fatalf("ARP len=%d want %d (padded)", len(pkt), want)
+	}
+	// ARP htype (bytes 14-15) = 0x0001 (Ethernet), not 0x0000 (padding).
+	if ht := uint16(pkt[14])<<8 | uint16(pkt[15]); ht != 0x0001 {
+		t.Errorf("ARP htype=0x%04x want 0x0001 (payload at offset 14, not padding)", ht)
+	}
+	// ARP op (bytes 20-21) = 0x0001 (request).
+	if op := uint16(pkt[20])<<8 | uint16(pkt[21]); op != 0x0001 {
+		t.Errorf("ARP op=0x%04x want 0x0001 (request)", op)
+	}
+	// Bytes 42..59 are zero padding.
+	for i := 42; i < MinEthernetFrame; i++ {
+		if pkt[i] != 0 {
+			t.Errorf("ARP padding byte %d=0x%02x want 0x00", i, pkt[i])
+		}
+	}
+}
+
 func TestL4Length_TCP(t *testing.T) {
 	if got := l4Length(PacketConfig{L4: L4Config{Protocol: "tcp"}}); got != 20 {
 		t.Errorf("l4Length(tcp)=%d want 20", got)

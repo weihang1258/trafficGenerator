@@ -994,3 +994,85 @@ func TestMapToFlowSpec_DefaultsPropagateToWire_IPPort(t *testing.T) {
 		t.Errorf("dst port bytes = %x, want %x (DefaultDstPort 80)", packet[36:38], wantDstPort)
 	}
 }
+
+// TestMapToFlowSpec_PadMinFrame_Absent verifies that absent pad_min_frame
+// leaves PadMinFrame nil (default ON, handled by Builder.shouldPad). This
+// is the default path — user doesn't specify the field, padding applies.
+func TestMapToFlowSpec_PadMinFrame_Absent(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "10.0.0.2",
+	}
+	spec := mapToFlowSpec(cfg, "tcp")
+	if spec.PadMinFrame != nil {
+		t.Errorf("PadMinFrame=%v, want nil (absent -> default ON via builder)", *spec.PadMinFrame)
+	}
+}
+
+// TestMapToFlowSpec_PadMinFrame_True verifies that explicit true is honored
+// (not replaced with a default). Presence-checked so true wins.
+func TestMapToFlowSpec_PadMinFrame_True(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip":        "10.0.0.1",
+		"dst_ip":        "10.0.0.2",
+		"pad_min_frame": true,
+	}
+	spec := mapToFlowSpec(cfg, "tcp")
+	if spec.PadMinFrame == nil {
+		t.Fatal("PadMinFrame=nil, want *true")
+	}
+	if !*spec.PadMinFrame {
+		t.Errorf("PadMinFrame=false, want true (user explicit)")
+	}
+}
+
+// TestMapToFlowSpec_PadMinFrame_False verifies that explicit false is honored
+// (NOT replaced with the default true). This is the whole point of the
+// presence-check: user "don't pad" must win, or the feature is useless.
+// Matches the pattern of TestMapToFlowSpec_FlagsUserExplicitZero.
+func TestMapToFlowSpec_PadMinFrame_False(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip":        "10.0.0.1",
+		"dst_ip":        "10.0.0.2",
+		"pad_min_frame": false,
+	}
+	spec := mapToFlowSpec(cfg, "tcp")
+	if spec.PadMinFrame == nil {
+		t.Fatal("PadMinFrame=nil, want *false (explicit false, not absent)")
+	}
+	if *spec.PadMinFrame {
+		t.Errorf("PadMinFrame=true, want false (user explicit OFF)")
+	}
+}
+
+// TestMapToFlowSpec_PadMinFrame_NullFallsBackToDefault verifies that explicit
+// JSON null is treated as "not set", not as "explicitly false". Without the
+// nil guard, cfg["pad_min_frame"]=nil passes the outer ok check but fails
+// the inner bool type assertion, leaving PadMinFrame nil (correct here, but
+// fragile — this test pins the behavior so a future refactor can't break it).
+func TestMapToFlowSpec_PadMinFrame_NullFallsBackToDefault(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip":        "10.0.0.1",
+		"dst_ip":        "10.0.0.2",
+		"pad_min_frame": nil,
+	}
+	spec := mapToFlowSpec(cfg, "tcp")
+	if spec.PadMinFrame != nil {
+		t.Errorf("PadMinFrame=%v, want nil (null -> default ON via builder)", *spec.PadMinFrame)
+	}
+}
+
+// TestMapToFlowSpec_PadMinFrame_NonBoolIgnored verifies that a non-bool value
+// (e.g. a string from misconfigured JSON) is ignored, leaving PadMinFrame nil.
+// This matches the inner type-assertion guard's behavior.
+func TestMapToFlowSpec_PadMinFrame_NonBoolIgnored(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip":        "10.0.0.1",
+		"dst_ip":        "10.0.0.2",
+		"pad_min_frame": "yes", // wrong type
+	}
+	spec := mapToFlowSpec(cfg, "tcp")
+	if spec.PadMinFrame != nil {
+		t.Errorf("PadMinFrame=%v, want nil (non-bool ignored)", *spec.PadMinFrame)
+	}
+}
