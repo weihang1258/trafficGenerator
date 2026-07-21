@@ -444,6 +444,206 @@ func TestICMPChecksum_SingleByte(t *testing.T) {
 
 // --- Helpers ---
 
+// --- Identifier field independence (Task #50) ---
+//
+// RFC 792 specifies that an Echo Request/Reply carries TWO independent 16-bit
+// fields: Identifier (bytes 4-5) and Sequence (bytes 6-7). The pre-#50 planner
+// wrote Sequence to both positions, which is correct for a single ping but
+// breaks the multi-session pattern (where Identifier stays fixed and Sequence
+// increments per ping). These tests verify that Identifier and Sequence are
+// now independent fields, while the fallback (Identifier==0 -> use Sequence)
+// preserves backward compatibility.
+
+// TestICMPPlan_IdentifierDistinctFromSequence verifies that when Identifier
+// is non-zero, the planner writes Identifier to bytes 4-5 and Sequence to
+// bytes 6-7 — distinct values that do NOT mirror each other.
+func TestICMPPlan_IdentifierDistinctFromSequence(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Type:       TypeEchoRequest,
+		Code:       0,
+		Identifier: 0xABCD,
+		Sequence:   0x1234,
+		Data:       []byte("id-test"),
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	if len(cfgs) < 1 {
+		t.Fatal("no configs")
+	}
+	req := cfgs[0].Payload
+	if len(req) < 8 {
+		t.Fatal("payload too short for ICMP header")
+	}
+	id := uint16(req[4])<<8 | uint16(req[5])
+	seq := uint16(req[6])<<8 | uint16(req[7])
+	if id != 0xABCD {
+		t.Errorf("Identifier=%x, want ABCD (must be distinct value)", id)
+	}
+	if seq != 0x1234 {
+		t.Errorf("Sequence=%x, want 1234", seq)
+	}
+	if id == seq {
+		t.Errorf("Identifier and Sequence must be distinct fields (both=%x)", id)
+	}
+}
+
+// TestICMPPlan_IdentifierZeroFallsBackToSequence verifies backward
+// compatibility: when Identifier == 0, the planner writes Sequence to both
+// the Identifier and Sequence positions (the pre-#50 behavior). This keeps
+// existing user configs that only set Sequence producing the same bytes on
+// the wire.
+func TestICMPPlan_IdentifierZeroFallsBackToSequence(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Type:       TypeEchoRequest,
+		Code:       0,
+		Identifier: 0, // zero -> fall back to Sequence
+		Sequence:   0x4242,
+		Data:       []byte("fallback"),
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	if len(cfgs) < 1 {
+		t.Fatal("no configs")
+	}
+	req := cfgs[0].Payload
+	id := uint16(req[4])<<8 | uint16(req[5])
+	seq := uint16(req[6])<<8 | uint16(req[7])
+	if id != 0x4242 {
+		t.Errorf("Identifier (fallback)=%x, want 4242 (Sequence)", id)
+	}
+	if seq != 0x4242 {
+		t.Errorf("Sequence=%x, want 4242", seq)
+	}
+}
+
+// TestICMPPlan_IdentifierPropagatedToReply verifies that the auto-generated
+// Echo Reply carries the same Identifier as the Echo Request (so the client
+// can correlate request and reply within the same session).
+func TestICMPPlan_IdentifierPropagatedToReply(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Type:       TypeEchoRequest,
+		Code:       0,
+		Identifier: 0xBEEF,
+		Sequence:   1,
+		Data:       []byte("reply-id"),
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	if len(cfgs) != 2 {
+		t.Fatalf("len=%d, want 2 (request + reply)", len(cfgs))
+	}
+	reqID := uint16(cfgs[0].Payload[4])<<8 | uint16(cfgs[0].Payload[5])
+	replyID := uint16(cfgs[1].Payload[4])<<8 | uint16(cfgs[1].Payload[5])
+	if reqID != 0xBEEF {
+		t.Errorf("request Identifier=%x, want BEEF", reqID)
+	}
+	if replyID != reqID {
+		t.Errorf("reply Identifier=%x, want %x (must match request)", replyID, reqID)
+	}
+}
+
+// TestICMPPlan_IdentifierReplySameSequence verifies that the auto-generated
+// Echo Reply carries the same Sequence as the Echo Request (RFC 792: the
+// reply must echo the request's Identifier AND Sequence).
+func TestICMPPlan_IdentifierReplySameSequence(t *testing.T) {
+	p := NewPlanner()
+	spec := validICMPSpec()
+	spec.ICMP = &core.ICMPConfig{
+		Type:       TypeEchoRequest,
+		Code:       0,
+		Identifier: 0x1111,
+		Sequence:   0x2222,
+		Data:       []byte("seq-test"),
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	if len(cfgs) != 2 {
+		t.Fatalf("len=%d, want 2", len(cfgs))
+	}
+	reqSeq := uint16(cfgs[0].Payload[6])<<8 | uint16(cfgs[0].Payload[7])
+	replySeq := uint16(cfgs[1].Payload[6])<<8 | uint16(cfgs[1].Payload[7])
+	if reqSeq != 0x2222 {
+		t.Errorf("request Sequence=%x, want 2222", reqSeq)
+	}
+	if replySeq != reqSeq {
+		t.Errorf("reply Sequence=%x, want %x (must echo request)", replySeq, reqSeq)
+	}
+}
+
+// TestBuildICMPPayload_IdentifierWrittenToBytes4to5 verifies the byte
+// position: Identifier is written to bytes 4-5 (NOT bytes 6-7). RFC 792
+// fixes the header layout; writing to the wrong bytes breaks parsers.
+func TestBuildICMPPayload_IdentifierWrittenToBytes4to5(t *testing.T) {
+	config := &core.ICMPConfig{
+		Type:       TypeEchoRequest,
+		Code:       0,
+		Identifier: 0xCAFE,
+		Sequence:   0xBABE,
+		Data:       nil,
+	}
+	payload := buildICMPPayload(config)
+	if len(payload) < 8 {
+		t.Fatal("payload too short")
+	}
+	id := uint16(payload[4])<<8 | uint16(payload[5])
+	seq := uint16(payload[6])<<8 | uint16(payload[7])
+	if id != 0xCAFE {
+		t.Errorf("Identifier at bytes 4-5 = %x, want CAFE", id)
+	}
+	if seq != 0xBABE {
+		t.Errorf("Sequence at bytes 6-7 = %x, want BABE", seq)
+	}
+}
+
+// TestBuildICMPPayload_IdentifierZeroUsesSequenceForID verifies the fallback
+// path: when Identifier is 0, bytes 4-5 are filled with Sequence (preserving
+// pre-#50 wire bytes for configs that only set Sequence).
+func TestBuildICMPPayload_IdentifierZeroUsesSequenceForID(t *testing.T) {
+	config := &core.ICMPConfig{
+		Type:       TypeEchoRequest,
+		Code:       0,
+		Identifier: 0,
+		Sequence:   0x7777,
+		Data:       nil,
+	}
+	payload := buildICMPPayload(config)
+	id := uint16(payload[4])<<8 | uint16(payload[5])
+	seq := uint16(payload[6])<<8 | uint16(payload[7])
+	if id != 0x7777 {
+		t.Errorf("Identifier (fallback) = %x, want 7777 (Sequence)", id)
+	}
+	if seq != 0x7777 {
+		t.Errorf("Sequence = %x, want 7777", seq)
+	}
+}
+
+// TestBuildICMPPayload_ChecksumStillValidForDistinctIDSeq verifies the
+// checksum calculation still produces a self-consistent value when
+// Identifier and Sequence are distinct (the change from "ID = Sequence"
+// to "ID = Identifier" changes the bytes summed, so we guard against any
+// checksum regression that would silently produce wrong values).
+func TestBuildICMPPayload_ChecksumStillValidForDistinctIDSeq(t *testing.T) {
+	config := &core.ICMPConfig{
+		Type:       TypeEchoRequest,
+		Code:       0,
+		Identifier: 0xDEAD,
+		Sequence:   0xBEEF,
+		Data:       []byte("checksum-test"),
+	}
+	payload := buildICMPPayload(config)
+	// Self-consistency: zero the checksum field, recompute, and verify it
+	// matches the inserted value.
+	inserted := uint16(payload[2])<<8 | uint16(payload[3])
+	payload[2] = 0
+	payload[3] = 0
+	recomputed := calculateChecksum(payload)
+	if inserted != recomputed {
+		t.Errorf("checksum mismatch: inserted=%x recomputed=%x", inserted, recomputed)
+	}
+}
+
 // mustPlan calls Plan and fatals on error.
 func mustPlan(t *testing.T, p *Planner, spec core.FlowSpec) <-chan core.PacketConfig {
 	t.Helper()

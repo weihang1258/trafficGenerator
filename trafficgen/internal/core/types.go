@@ -197,11 +197,21 @@ type DNSConfig struct {
 }
 
 // ICMPConfig for ICMP protocol.
+//
+// Per RFC 792, an Echo Request/Reply carries two separate 16-bit fields:
+// Identifier (bytes 4-5) and Sequence (bytes 6-7). Identifier groups pings
+// into a session; Sequence increments per ping within that session.
+//
+// Backward compatibility: when Identifier == 0, buildICMPPayload falls back
+// to using Sequence as the Identifier (the pre-field behavior wrote Sequence
+// to both positions). Callers that want distinct values must set Identifier
+// to a non-zero value.
 type ICMPConfig struct {
-	Type     uint8  `json:"type"` // 8=Echo Request, 0=Echo Reply
-	Code     uint8  `json:"code"`
-	Sequence uint16 `json:"sequence"`
-	Data     []byte `json:"data"`
+	Type       uint8  `json:"type"`      // 8=Echo Request, 0=Echo Reply
+	Code       uint8  `json:"code"`
+	Identifier uint16 `json:"identifier"` // Echo session ID; 0 -> fallback to Sequence
+	Sequence   uint16 `json:"sequence"`
+	Data       []byte `json:"data"`
 }
 
 // ARPConfig for ARP protocol.

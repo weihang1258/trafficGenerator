@@ -254,10 +254,11 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	case "icmp":
 		if sub, ok := cfg["icmp"].(map[string]interface{}); ok {
 			spec.ICMP = &ICMPConfig{
-				Type:     uint8(getIntDefault(sub, "type", 8)),
-				Code:     uint8(getIntDefault(sub, "code", 0)),
-				Sequence: uint16(getIntDefault(sub, "sequence", 1)),
-				Data:     []byte(getStringDefault(sub, "data", "ping")),
+				Type:       uint8(getIntDefault(sub, "type", 8)),
+				Code:       uint8(getIntDefault(sub, "code", 0)),
+				Identifier: uint16(getInt(sub, "identifier")),
+				Sequence:   uint16(getIntDefault(sub, "sequence", 1)),
+				Data:       []byte(getStringDefault(sub, "data", "ping")),
 			}
 		}
 	case "arp":

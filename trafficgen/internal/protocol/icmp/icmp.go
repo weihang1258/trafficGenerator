@@ -108,10 +108,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// ICMP Echo Reply (server -> client) if Echo Request
 		if icmpConfig.Type == TypeEchoRequest {
 			replyConfig := &core.ICMPConfig{
-				Type:     TypeEchoReply,
-				Code:     0,
-				Sequence: icmpConfig.Sequence,
-				Data:     icmpConfig.Data,
+				Type:       TypeEchoReply,
+				Code:       0,
+				Identifier: icmpConfig.Identifier,
+				Sequence:   icmpConfig.Sequence,
+				Data:       icmpConfig.Data,
 			}
 
 			configChan <- core.PacketConfig{
@@ -141,16 +142,34 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 }
 
 // buildICMPPayload builds an ICMP payload.
+//
+// RFC 792: Echo Request/Reply header is Type(1) + Code(1) + Checksum(2) +
+// Identifier(2) + Sequence(2) = 8 bytes. Identifier and Sequence are
+// independent fields — Identifier groups pings into a session, Sequence
+// increments per ping within the session.
+//
+// Backward compatibility: when config.Identifier == 0, we fall back to the
+// pre-Identifier-field behavior of using Sequence as the Identifier (so
+// request and reply within a single ping share the Identifier = Sequence
+// value). Callers that need distinct values must set Identifier to non-zero.
 func buildICMPPayload(config *core.ICMPConfig) []byte {
 	// ICMP header: Type (1) + Code (1) + Checksum (2) + ID (2) + Sequence (2) = 8 bytes
 	header := make([]byte, 8)
 	header[0] = config.Type
 	header[1] = config.Code
 	// Checksum will be calculated later
-	// ID (identifier)
-	header[4] = byte(config.Sequence >> 8) // Use sequence as ID high byte
-	header[5] = byte(config.Sequence)       // Use sequence as ID low byte
-	// Sequence
+
+	// Identifier (bytes 4-5). Fall back to Sequence when Identifier is 0 to
+	// preserve the pre-field behavior (request and reply within a single ping
+	// shared the same value).
+	identifier := config.Identifier
+	if identifier == 0 {
+		identifier = config.Sequence
+	}
+	header[4] = byte(identifier >> 8)
+	header[5] = byte(identifier)
+
+	// Sequence (bytes 6-7) — independent of Identifier.
 	header[6] = byte(config.Sequence >> 8)
 	header[7] = byte(config.Sequence)
 
