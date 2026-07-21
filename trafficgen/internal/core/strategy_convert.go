@@ -296,6 +296,19 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 5060
 		}
+	case "sctp":
+		if sub, ok := cfg["sctp"].(map[string]interface{}); ok {
+			spec.SCTP = &SCTPConfig{
+				VerificationTag: getUint32(sub, "verification_tag"),
+				InitiateTag:     getUint32(sub, "initiate_tag"),
+				Chunks:          parseSCTPChunks(sub["chunks"]),
+			}
+		}
+		// SCTP has no universal default port (common ports: 38412 for NGAP,
+		// 2905 for M3UA, 9 for discard). Unlike HTTP/FTP/SIP, the user must
+		// specify dst_port; otherwise mapToFlowSpec's generic default of
+		// DefaultDstPort (80) is left in place — which is almost never what
+		// an SCTP test wants. We do not silently override 80 → 38412.
 	}
 
 	// GroupID: optional strategy for cross-flow ordering. When cfg has
@@ -441,6 +454,53 @@ func parseSIPDialog(v interface{}) []SIPMessage {
 	return out
 }
 
+// parseSCTPChunks converts the JSON-decoded "chunks" value (an array of
+// SCTPChunk objects) into a []SCTPChunk. Returns nil for absent/non-array
+// input — the planner then emits only SCTP handshake + teardown (an empty
+// SCTP session, which is a valid degenerate test).
+//
+// Each chunk carries TSN/SID/SSN/PPID/Data/Direction. TSN 0 = planner
+// auto-increments per direction. Direction "up" = client→server, "down"
+// = server→client; empty defaults to "up".
+func parseSCTPChunks(v interface{}) []SCTPChunk {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]SCTPChunk, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		var data []byte
+		switch d := m["data"].(type) {
+		case string:
+			data = []byte(d)
+		case []interface{}:
+			data = make([]byte, 0, len(d))
+			for _, b := range d {
+				if n, ok := b.(float64); ok {
+					data = append(data, byte(int(n)))
+				}
+			}
+		}
+		chunk := SCTPChunk{
+			TSN:       getUint32(m, "tsn"),
+			SID:       getUint16(m, "sid"),
+			SSN:       getUint16(m, "ssn"),
+			PPID:      getUint32(m, "ppid"),
+			Data:      data,
+			Direction: getString(m, "direction"),
+		}
+		out = append(out, chunk)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // JSON helper functions with sensible defaults
 
 func getString(m map[string]interface{}, key string) string {
@@ -462,6 +522,18 @@ func getUint16(m map[string]interface{}, key string) uint16 {
 	case json.Number:
 		n, _ := v.Int64()
 		return uint16(n)
+	default:
+		return 0
+	}
+}
+
+func getUint32(m map[string]interface{}, key string) uint32 {
+	switch v := m[key].(type) {
+	case float64:
+		return uint32(v)
+	case json.Number:
+		n, _ := v.Int64()
+		return uint32(n)
 	default:
 		return 0
 	}

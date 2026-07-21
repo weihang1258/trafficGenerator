@@ -108,6 +108,21 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 				return fmt.Errorf("sip.mss %d invalid (must be 0-65535)", m)
 			}
 		}
+	case "sctp":
+		if sub, ok := cfg["sctp"].(map[string]interface{}); ok {
+			if t := getInt(sub, "verification_tag"); t < 0 {
+				return fmt.Errorf("sctp.verification_tag %d invalid (must be >= 0)", t)
+			}
+			if t := getInt(sub, "initiate_tag"); t < 0 {
+				return fmt.Errorf("sctp.initiate_tag %d invalid (must be >= 0)", t)
+			}
+			if s := getInt(sub, "sid"); s < 0 || s > 65535 {
+				return fmt.Errorf("sctp.sid %d invalid (must be 0-65535)", s)
+			}
+			if s := getInt(sub, "ssn"); s < 0 || s > 65535 {
+				return fmt.Errorf("sctp.ssn %d invalid (must be 0-65535)", s)
+			}
+		}
 	}
 	return nil
 }

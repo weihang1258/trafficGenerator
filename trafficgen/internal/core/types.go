@@ -107,6 +107,7 @@ type FlowSpec struct {
 	ARP  *ARPConfig  `json:"arp,omitempty"`
 	FTP  *FTPConfig  `json:"ftp,omitempty"`
 	SIP  *SIPConfig  `json:"sip,omitempty"`
+	SCTP *SCTPConfig `json:"sctp,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`
@@ -311,6 +312,60 @@ type SIPMessage struct {
 	Headers    []string `json:"headers,omitempty"`    // each "Name: Value"; Content-Length auto-added when Body non-empty
 	Body       string   `json:"body,omitempty"`        // e.g. SDP content; empty = no body
 	Direction  string   `json:"direction,omitempty"`   // "up" or "down"; empty -> planner infers from Method/StatusCode
+}
+
+// SCTPConfig for the SCTP protocol. SCTP (RFC 4960) is a session-level,
+// message-oriented transport carrying IP protocol 132. Unlike TCP's 3-way
+// handshake, SCTP uses a 4-way handshake (INIT → INIT-ACK → COOKIE-ECHO →
+// COOKIE-ACK) with a Verification Tag that identifies each association and a
+// per-direction TSN (Transmission Sequence Number) that numbers every DATA
+// chunk in order.
+//
+// The planner emits the 4-way handshake, then each SCTPChunk in Chunks as a
+// DATA chunk (type 0) carrying TSN/SID/SSN/PPID, then the 3-way SHUTDOWN
+// teardown (SHUTDOWN → SHUTDOWN-ACK → SHUTDOWN-COMPLETE) — all within one
+// 4-tuple (one flow) with one continuous TSN space per direction.
+//
+// Chunk layout (RFC 4960 §3.2): Type(1) + Flags(1) + Length(2) + value.
+// The Length field includes the 4-byte header and is padded to a 4-byte
+// boundary at the end. DATA chunks add TSN(4) + SID(2) + SSN(2) + PPID(4)
+// in front of the user data (16 bytes of per-chunk header + data).
+//
+// Verification Tag handling: the client picks the server's InitiateTag (from
+// INIT-ACK) as the destination Verification Tag for all packets it sends
+// to the server, and vice versa. For test purposes, when the user leaves
+// VerificationTag at 0, the planner auto-generates a random non-zero tag
+// for each side and ensures INIT carries 0 in the Verification Tag field
+// per RFC 4960 §5.1.1 (INIT must carry 0; the peer's tag is learned from
+// the INIT-ACK).
+type SCTPConfig struct {
+	// VerificationTag is the client-side (local) verification tag — the tag
+	// the server should put in packets it sends to the client. 0 = random.
+	VerificationTag uint32 `json:"verification_tag,omitempty"`
+	// InitiateTag is the tag the client puts in the Verification Tag field
+	// of packets it sends to the server. Per RFC 4960 §5.1.1, INIT carries
+	// 0 in this field; the value is learned from the INIT-ACK. 0 = random.
+	InitiateTag uint32 `json:"initiate_tag,omitempty"`
+	// Chunks are the SCTP message chunks in order. Each becomes one SCTP
+	// packet (IP/SCTP + DATA chunk) carrying the user-supplied payload.
+	Chunks []SCTPChunk `json:"chunks,omitempty"`
+}
+
+// SCTPChunk models a single SCTP chunk. For DATA chunks, TSN is the
+// transmission sequence number (increments per chunk per direction), SID is
+// the stream identifier, SSN is the per-stream sequence number, and PPID
+// is the payload protocol identifier (e.g. 60 for NGAP, 47 for M3UA).
+// Data is the user payload bytes carried in the chunk.
+//
+// Direction "up" = client→server, "down" = server→client. Empty defaults
+// to "up" (most DATA chunks in a test flow go up).
+type SCTPChunk struct {
+	TSN       uint32 `json:"tsn,omitempty"`        // 0 = planner auto-increments per direction
+	SID       uint16 `json:"sid,omitempty"`        // stream identifier
+	SSN       uint16 `json:"ssn,omitempty"`        // per-stream sequence
+	PPID      uint32 `json:"ppid,omitempty"`       // payload protocol id
+	Data      []byte `json:"data,omitempty"`       // user payload
+	Direction string `json:"direction,omitempty"`  // "up" or "down"; empty -> "up"
 }
 
 // PacketConfig represents the configuration for building a single packet.

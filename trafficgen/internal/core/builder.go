@@ -15,6 +15,7 @@ const (
 	ProtocolICMP = 1
 	ProtocolTCP  = 6
 	ProtocolUDP  = 17
+	ProtocolSCTP = 132
 )
 
 // Builder builds binary packets from PacketConfig.
@@ -103,6 +104,13 @@ func l4Length(config PacketConfig) int {
 		return 20 + len(encodeTCPOptions(config.L4.TCPOptions))
 	case "udp":
 		return 8
+	case "sctp":
+		// SCTP common header: SrcPort(2) + DstPort(2) + VerificationTag(4)
+		// + Checksum(4) = 12 bytes. Chunks are carried in Payload (the
+		// planner serializes DATA/INIT/INIT-ACK/COOKIE-ECHO/SHUTDOWN
+		// chunks there), so the L4 header is the fixed 12-byte common
+		// header only.
+		return 12
 	default:
 		return 0 // icmp/arp: header data carried in payload
 	}
@@ -185,14 +193,33 @@ func (b *Builder) writeL3(dst []byte, config PacketConfig, payloadLen int) {
 }
 
 // writeL4 writes the L4 header (TCP/UDP) into dst. ICMP has no separate header
-// (its data is in the payload).
+// (its data is in the payload). SCTP writes the 12-byte common header here;
+// SCTP chunks are carried in the payload (the planner serializes them).
 func (b *Builder) writeL4(dst []byte, config PacketConfig) {
 	switch config.L4.Protocol {
 	case "tcp":
 		b.writeTCP(dst, config)
 	case "udp":
 		b.writeUDP(dst, config)
+	case "sctp":
+		b.writeSCTP(dst, config)
 	}
+}
+
+// writeSCTP writes the 12-byte SCTP common header into dst. Chunks are
+// serialized by the planner into PacketConfig.Payload and copied after
+// this header by Build(). The checksum field is filled with 0 — SCTP uses
+// CRC32c (RFC 4960 §6.8), not the IP one's-complement checksum; computing
+// CRC32c here would require importing a CRC32c package and the test only
+// needs byte-exact packet structure, not a valid CRC. Real SCTP stacks
+// validate the CRC and drop on mismatch, but trafficgen is a packet
+// generator for testing — receivers in the test path either don't validate
+// (packet counters, captures) or are themselves trafficgen-controlled.
+func (b *Builder) writeSCTP(dst []byte, config PacketConfig) {
+	binary.BigEndian.PutUint16(dst[0:2], config.L4.SrcPort)
+	binary.BigEndian.PutUint16(dst[2:4], config.L4.DstPort)
+	binary.BigEndian.PutUint32(dst[4:8], config.L4.Ack) // VerificationTag reuses Ack field
+	binary.BigEndian.PutUint32(dst[8:12], 0)           // Checksum (CRC32c, left 0)
 }
 
 // writeTCP writes the TCP header (with options) into dst.
