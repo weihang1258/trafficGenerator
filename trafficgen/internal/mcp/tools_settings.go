@@ -29,6 +29,7 @@ func (s *Server) registerSettingsTools() {
 		&mcp.Tool{
 			Name:        "flowb_manage_settings",
 			Description: "Manage system settings: get/update max_tasks, buffer_size, log_level. Settings are global.",
+			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManageSettings,
 	)

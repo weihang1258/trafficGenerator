@@ -170,10 +170,16 @@ type HTTPConfig struct {
 	// (Content-Type/Content-Length/Connection). ResponseBody empty -> no
 	// Content-Length, no Content-Type default. ResponseStatusCode 0 -> 200.
 	// ResponseStatusText empty -> looked up from ResponseStatusCode.
+	//
+	// ContentEncoding, when set to "gzip", compresses ResponseBody with gzip
+	// before framing. Content-Length reflects the compressed byte count, and
+	// a "Content-Encoding: gzip" header is emitted (overridable via
+	// ResponseHeaders, case-insensitive). Empty/unset -> no compression.
 	ResponseHeaders     map[string]string `json:"response_headers"`
 	ResponseBody        string            `json:"response_body"`
 	ResponseStatusCode  int               `json:"response_status_code"`
 	ResponseStatusText  string            `json:"response_status_text"`
+	ContentEncoding     string            `json:"content_encoding"`
 }
 
 // DNSConfig for DNS protocol.

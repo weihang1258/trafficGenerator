@@ -232,6 +232,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				ResponseBody:       getString(sub, "response_body"),
 				ResponseStatusCode: getInt(sub, "response_status_code"),
 				ResponseStatusText: getString(sub, "response_status_text"),
+				ContentEncoding:    getString(sub, "content_encoding"),
 			}
 		}
 		// HTTP defaults to port 80, same as DefaultDstPort. No override

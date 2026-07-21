@@ -33,6 +33,7 @@ func (s *Server) registerPortGroupTools() {
 		&mcp.Tool{
 			Name:        "flowb_manage_port_groups",
 			Description: "Manage port groups: create/list/get/delete. Port groups bind interfaces for traffic output.",
+			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManagePortGroups,
 	)

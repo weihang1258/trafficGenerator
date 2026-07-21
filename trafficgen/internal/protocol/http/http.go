@@ -2,6 +2,8 @@
 package http
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"math/rand"
@@ -446,9 +448,17 @@ func bracketHost(host string) string {
 //   - StatusCode: 0 -> 200
 //   - StatusText: empty -> looked up from StatusCode; unknown -> "Status NNN"
 //   - Content-Type: not user-provided + ResponseBody non-empty -> "text/plain"
-//   - Content-Length: not user-provided + ResponseBody non-empty -> len(ResponseBody)
+//   - Content-Length: not user-provided + ResponseBody non-empty -> len(body)
 //   - Connection: not user-provided -> "keep-alive" if Transactions>1 or
 //     KeepAlive=true, else "close"
+//
+// When ContentEncoding == "gzip", ResponseBody is gzip-compressed (RFC 1952);
+// the compressed bytes replace the body, Content-Length reflects the
+// compressed byte count, and a "Content-Encoding: gzip" header is emitted
+// (still overridable via ResponseHeaders, case-insensitive per RFC 7230 §3.2).
+// Any ContentEncoding value other than "" or "gzip" is treated as a literal
+// header value passed through to Content-Encoding without transformation
+// (caller responsibility — only "gzip" triggers actual compression here).
 //
 // User-provided ResponseHeaders are emitted verbatim and suppress the
 // corresponding default (case-insensitive match per RFC 7230 §3.2).
@@ -467,6 +477,15 @@ func buildHTTPResponse(config *core.HTTPConfig) string {
 		statusText = statusTextFor(statusCode)
 	}
 
+	// Apply gzip compression when requested. Compression happens before
+	// header emission so Content-Length reflects the compressed byte count.
+	// The Content-Encoding header is emitted below unless the user already
+	// provided one (case-insensitive).
+	contentEncoding := strings.ToLower(strings.TrimSpace(config.ContentEncoding))
+	if body != "" && contentEncoding == "gzip" {
+		body = gzipBody(body)
+	}
+
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("%s %d %s\r\n", version, statusCode, statusText))
 
@@ -475,6 +494,9 @@ func buildHTTPResponse(config *core.HTTPConfig) string {
 	}
 	if body != "" && !hasHeader(config.ResponseHeaders, "Content-Length") {
 		sb.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(body)))
+	}
+	if contentEncoding != "" && body != "" && !hasHeader(config.ResponseHeaders, "Content-Encoding") {
+		sb.WriteString(fmt.Sprintf("Content-Encoding: %s\r\n", contentEncoding))
 	}
 	if !hasHeader(config.ResponseHeaders, "Connection") {
 		sb.WriteString(fmt.Sprintf("Connection: %s\r\n", defaultConnection(config)))
@@ -487,6 +509,26 @@ func buildHTTPResponse(config *core.HTTPConfig) string {
 	sb.WriteString("\r\n")
 	sb.WriteString(body)
 	return sb.String()
+}
+
+// gzipBody gzip-compresses s (UTF-8 bytes) using the standard library with
+// the default (RFC 1952) compression level. The gzip header magic 0x1f 0x8b
+// is what Wireshark/tshark recognize as "GZIP-encoded data" (a content
+// encoding of HTTP, not to be confused with a gzipped *pcap* stream).
+func gzipBody(s string) string {
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	if _, err := zw.Write([]byte(s)); err != nil {
+		// gzip.Writer.Write only returns an error after the first Flush/Close,
+		// so this branch is unreachable in practice for an in-memory buffer.
+		// Fall back to the uncompressed body on a defensive error rather than
+		// silently emitting truncated/empty compressed bytes.
+		return s
+	}
+	if err := zw.Close(); err != nil {
+		return s
+	}
+	return buf.String()
 }
 
 // statusTextFor returns the RFC 7231 reason phrase for the given status code,

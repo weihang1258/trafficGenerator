@@ -29,6 +29,7 @@ func (s *Server) registerProfileTools() {
 		&mcp.Tool{
 			Name:        "flowb_manage_profile",
 			Description: "Manage current user's profile: get/update/delete. In service account mode, operates on mcp-service account.",
+			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManageProfile,
 	)

@@ -30,6 +30,7 @@ func (s *Server) registerSystemTools() {
 		&mcp.Tool{
 			Name:        "flowb_query_system",
 			Description: "Query system info: status/protocols/stats/health/ready/interfaces/ports, or refresh_interfaces to rescan NICs.",
+			OutputSchema: manageOutputSchema(),
 		},
 		s.handleQuerySystem,
 	)

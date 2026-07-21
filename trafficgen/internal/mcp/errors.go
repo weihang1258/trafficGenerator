@@ -68,6 +68,48 @@ func rawData(raw json.RawMessage) interface{} {
 	return v
 }
 
+// dataAnySchema is the JSON Schema for a property that accepts any JSON value
+// (object, array, string, number, boolean, null). An empty schema ({}) matches
+// anything per JSON Schema draft 2020-12 §4.6 ("no constraints").
+//
+// Used as the "data" property in explicit OutputSchema definitions for tools
+// whose Data field is interface{} (raw backend response, shape varies by
+// action). Without this override, the SDK's jsonschema inference for
+// interface{} emits "data": true (a boolean schema), which Claude Code's zod
+// validator rejects at tools/list time with "Invalid input", breaking all
+// tool discovery even though the server is fully functional.
+var dataAnySchema = map[string]interface{}{}
+
+// manageOutputSchema returns the OutputSchema for tools whose output struct
+// has shape {action: string, data: any}. Used by the 9 flowb_manage_* and
+// flowb_query_system tools. The explicit schema overrides the SDK's
+// auto-generated one, replacing "data": true with "data": {}.
+func manageOutputSchema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"action": map[string]interface{}{"type": "string"},
+			"data":   dataAnySchema,
+		},
+		"required":             []string{"action", "data"},
+		"additionalProperties": false,
+	}
+}
+
+// dataOnlyOutputSchema returns the OutputSchema for tools whose output struct
+// has shape {data: any}. Used by flowb_get_task_progress and
+// flowb_wait_for_task, which wrap raw task JSON without an action field.
+func dataOnlyOutputSchema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"data": dataAnySchema,
+		},
+		"required":             []string{"data"},
+		"additionalProperties": false,
+	}
+}
+
 // asRaw marshals an interface{} (typically an MCP output Data field) back to
 // json.RawMessage. Used by tests that need to inspect structured content via
 // json.Unmarshal or string conversion.

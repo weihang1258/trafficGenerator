@@ -6,6 +6,8 @@ package http
 // bug description so the suite stays green; remove the skip when the bug is fixed.
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"runtime"
@@ -1299,6 +1301,142 @@ func TestBuildHTTPResponse_ResponseHeadersOverride(t *testing.T) {
 	}
 	if !strings.Contains(result, "Connection: close\r\n") {
 		t.Errorf("result=%q, want user Connection", result)
+	}
+}
+
+// TestBuildHTTPResponse_GzipCompressesBody verifies that ContentEncoding=gzip
+// compresses the body (payload no longer equals the plaintext body), the
+// emitted body starts with the gzip magic 0x1f 0x8b (RFC 1952), Content-Length
+// reflects the compressed byte count, and a Content-Encoding header is present.
+func TestBuildHTTPResponse_GzipCompressesBody(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		ResponseBody:    "Hello, world! Hello, world! Hello, world!",
+		ContentEncoding:  "gzip",
+	}
+	result := buildHTTPResponse(cfg)
+
+	if !strings.Contains(result, "Content-Encoding: gzip\r\n") {
+		t.Errorf("result=%q, want 'Content-Encoding: gzip' header", result)
+	}
+
+	// The response body follows the blank line after headers.
+	idx := strings.Index(result, "\r\n\r\n")
+	if idx < 0 {
+		t.Fatalf("result=%q, no header/body separator", result)
+	}
+	body := result[idx+4:]
+	if strings.HasPrefix(body, "Hello, world!") {
+		t.Fatalf("body=%q, should not be plaintext (must be gzip-compressed)", body)
+	}
+	if len(body) < 2 || body[0] != 0x1f || body[1] != 0x8b {
+		t.Fatalf("body first 2 bytes = % x, want gzip magic 1f 8b", body[:min(2, len(body))])
+	}
+
+	// Content-Length must match the compressed body byte count, not the
+	// plaintext length.
+	wantCL := fmt.Sprintf("Content-Length: %d\r\n", len(body))
+	if !strings.Contains(result, wantCL) {
+		t.Errorf("result=%q, want %s (compressed length, not %d)", result, wantCL, len("Hello, world! Hello, world! Hello, world!"))
+	}
+
+	// Round-trip: gzip-decompress the body and confirm it equals the input.
+	zr, err := gzip.NewReader(bytes.NewReader([]byte(body)))
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+	var decoded bytes.Buffer
+	if _, err := decoded.ReadFrom(zr); err != nil {
+		t.Fatalf("decompress: %v", err)
+	}
+	if got := decoded.String(); got != "Hello, world! Hello, world! Hello, world!" {
+		t.Errorf("decompressed body=%q, want original plaintext", got)
+	}
+}
+
+// TestBuildHTTPResponse_GzipUTF8Chinese verifies a non-ASCII body survives
+// gzip round-trip with bytes preserved (a UTF-8 multibyte boundary regression
+// in an earlier version of the code).
+func TestBuildHTTPResponse_GzipUTF8Chinese(t *testing.T) {
+	plaintext := "我爱你中国"
+	cfg := &core.HTTPConfig{
+		ResponseBody:    plaintext,
+		ContentEncoding:  "gzip",
+		ResponseHeaders: map[string]string{"Content-Type": "text/html; charset=utf-8"},
+	}
+	result := buildHTTPResponse(cfg)
+
+	if !strings.Contains(result, "Content-Encoding: gzip\r\n") {
+		t.Errorf("result=%q, want 'Content-Encoding: gzip' header", result)
+	}
+	if !strings.Contains(result, "Content-Type: text/html; charset=utf-8\r\n") {
+		t.Errorf("result=%q, want user Content-Type", result)
+	}
+
+	idx := strings.Index(result, "\r\n\r\n")
+	if idx < 0 {
+		t.Fatalf("result=%q, no header/body separator", result)
+	}
+	body := result[idx+4:]
+
+	zr, err := gzip.NewReader(bytes.NewReader([]byte(body)))
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+	var decoded bytes.Buffer
+	if _, err := decoded.ReadFrom(zr); err != nil {
+		t.Fatalf("decompress: %v", err)
+	}
+	if got := decoded.String(); got != plaintext {
+		t.Errorf("decompressed body=%q, want %q", got, plaintext)
+	}
+	if encLen := len([]byte(plaintext)); encLen != 15 {
+		t.Errorf("plaintext byte length = %d, want 15 (5 Chinese chars * 3 bytes UTF-8)", encLen)
+	}
+}
+
+// TestBuildHTTPResponse_GzipContentEncodingUserOverride verifies that a
+// user-provided Content-Encoding header suppresses the auto-emitted default
+// (no duplicate header), case-insensitive per RFC 7230 §3.2.
+func TestBuildHTTPResponse_GzipContentEncodingUserOverride(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		ResponseBody:    "x",
+		ContentEncoding:  "gzip",
+		ResponseHeaders:  map[string]string{"content-encoding": "gzip"},
+	}
+	result := buildHTTPResponse(cfg)
+	if got := strings.Count(strings.ToLower(result), "content-encoding:"); got != 1 {
+		t.Errorf("result=%q, want exactly 1 Content-Encoding header, got %d", result, got)
+	}
+}
+
+// TestBuildHTTPResponse_GzipEmptyBodySkipsCompression verifies that
+// ContentEncoding=gzip with an empty body does not emit Content-Encoding
+// or Content-Length (matches the empty-body defaulting rule for the
+// non-gzip path).
+func TestBuildHTTPResponse_GzipEmptyBodySkipsCompression(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		ResponseBody:    "",
+		ContentEncoding:  "gzip",
+	}
+	result := buildHTTPResponse(cfg)
+	if strings.Contains(result, "Content-Encoding:") {
+		t.Errorf("result=%q, should not emit Content-Encoding when body empty", result)
+	}
+	if strings.Contains(result, "Content-Length:") {
+		t.Errorf("result=%q, should not emit Content-Length when body empty", result)
+	}
+}
+
+// TestBuildHTTPResponse_NoGzipByDefault verifies the default (no compression)
+// path is unchanged: no Content-Encoding header, body is plaintext.
+func TestBuildHTTPResponse_NoGzipByDefault(t *testing.T) {
+	cfg := &core.HTTPConfig{ResponseBody: "hello"}
+	result := buildHTTPResponse(cfg)
+	if strings.Contains(result, "Content-Encoding:") {
+		t.Errorf("result=%q, should not emit Content-Encoding by default", result)
+	}
+	if !strings.HasSuffix(result, "hello") {
+		t.Errorf("result=%q, want plaintext body 'hello' at end", result)
 	}
 }
 

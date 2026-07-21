@@ -45,6 +45,7 @@ func (s *Server) registerTaskTools() {
 		&mcp.Tool{
 			Name:        "flowb_manage_tasks",
 			Description: "Manage traffic tasks: create/create_batch/list/get/start/stop/delete/history. Use the 'action' field to select the operation.",
+			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManageTasks,
 	)

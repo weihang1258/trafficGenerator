@@ -38,6 +38,7 @@ func (s *Server) registerStrategyTools() {
 		&mcp.Tool{
 			Name:        "flowb_manage_strategies",
 			Description: "Manage traffic strategies: create/list/get/update/delete/list_tasks. Use the 'action' field to select the operation.",
+			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManageStrategies,
 	)

@@ -40,6 +40,7 @@ func (s *Server) registerAuthTools() {
 		&mcp.Tool{
 			Name:        "flowb_manage_auth",
 			Description: "Manage authentication: register/login (public), validate/logout/refresh (need JWT token). Token-based actions derive caller identity from the token, not the service account.",
+			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManageAuth,
 	)

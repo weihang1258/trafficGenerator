@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -512,6 +513,256 @@ func TestHTTPServer_InvalidSessionID(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Test 7: Handshake order regression (raw HTTP)
+// ---------------------------------------------------------------------------
+
+// rawMCPRequest sends a single JSON-RPC request over raw HTTP (not the SDK
+// client) and returns the HTTP status code + body. Used to verify the SDK's
+// handshake constraints from the server's perspective, since the SDK client
+// always does the right thing and would hide regressions.
+func rawMCPRequest(t *testing.T, ts *httptest.Server, headers map[string]string, body string) (int, string) {
+	t.Helper()
+	req, _ := http.NewRequest("POST", ts.URL+"/mcp", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(b)
+}
+
+// TestHTTPServer_HandshakeRejectsToolsListBeforeInitialize verifies the SDK
+// rejects tools/list sent before initialize. The StreamableHTTP spec requires
+// a stateful session: initialize → notifications/initialized → tools/list.
+// Calling tools/list first must fail with the SDK's
+// "method %q is invalid during session initialization" error, NOT succeed.
+//
+// Regression value: catches anyone reordering middleware, enabling stateless
+// mode by accident, or SDK upgrades that loosen the handshake rule.
+func TestHTTPServer_HandshakeRejectsToolsListBeforeInitialize(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	streamHandler := mcp.NewStreamableHTTPHandler(
+		func(req *http.Request) *mcp.Server { return env.srv.MCP() },
+		&mcp.StreamableHTTPOptions{SessionTimeout: 30 * time.Minute},
+	)
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", corsMiddleware([]string{"*"}, apiKeyMiddleware("test-secret", streamHandler)))
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	headers := map[string]string{
+		"X-MCP-Key": "test-secret",
+		"Accept":    "application/json, text/event-stream",
+	}
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`
+	status, respBody := rawMCPRequest(t, ts, headers, body)
+
+	// The server may return 200 with an error response in the body (SSE
+	// stream), or 400/404 for a session violation. Either is acceptable; what
+	// is NOT acceptable is a 200 with a valid tools list.
+	containsError := strings.Contains(respBody, "invalid during session initialization") ||
+		strings.Contains(respBody, "session not found") ||
+		status == 400 || status == 404
+	if !containsError {
+		t.Errorf("expected handshake violation, got status=%d body=%s", status, respBody)
+	}
+	if strings.Contains(respBody, `"tools":[`) && !strings.Contains(respBody, "invalid during") {
+		t.Errorf("server leaked tools/list before initialize: %s", respBody)
+	}
+}
+
+// TestHTTPServer_HandshakeRejectsMissingAccept verifies the SDK rejects POST
+// requests whose Accept header is missing one of the required media types.
+// The StreamableHTTP spec requires clients to accept BOTH application/json
+// (for single responses) and text/event-stream (for SSE streams), because the
+// server may respond in either format.
+//
+// Regression value: catches anyone who tries to use plain `Accept: application/json`
+// or omits Accept entirely. The SDK enforces this before any handler runs.
+func TestHTTPServer_HandshakeRejectsMissingAccept(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	streamHandler := mcp.NewStreamableHTTPHandler(
+		func(req *http.Request) *mcp.Server { return env.srv.MCP() },
+		&mcp.StreamableHTTPOptions{SessionTimeout: 30 * time.Minute},
+	)
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", corsMiddleware([]string{"*"}, apiKeyMiddleware("test-secret", streamHandler)))
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	// Case 1: only application/json (missing text/event-stream)
+	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`
+	status, respBody := rawMCPRequest(t, ts, map[string]string{
+		"X-MCP-Key": "test-secret",
+		"Accept":    "application/json",
+	}, body)
+	if status != 400 {
+		t.Errorf("Accept=application/json only: status=%d, want 400 (Accept must contain both)", status)
+	}
+	if !strings.Contains(respBody, "Accept must contain both") {
+		t.Errorf("expected 'Accept must contain both' error, got: %s", respBody)
+	}
+
+	// Case 2: no Accept header at all
+	status, _ = rawMCPRequest(t, ts, map[string]string{
+		"X-MCP-Key": "test-secret",
+	}, body)
+	if status != 400 {
+		t.Errorf("no Accept header: status=%d, want 400", status)
+	}
+}
+
+// TestHTTPServer_HandshakeRejectsToolsListWithoutSessionID verifies that
+// after a correct initialize, calling tools/list WITHOUT the Mcp-Session-Id
+// header is rejected. The session id returned in the initialize response
+// header is the only way to address the session; omitting it starts a new
+// (uninitialized) session, which rejects tools/list.
+//
+// Regression value: the previous bug was that the SDK client always supplied
+// the session id, so this constraint was invisible. A raw client that
+// forgets to copy the header must be caught.
+func TestHTTPServer_HandshakeRejectsToolsListWithoutSessionID(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	streamHandler := mcp.NewStreamableHTTPHandler(
+		func(req *http.Request) *mcp.Server { return env.srv.MCP() },
+		&mcp.StreamableHTTPOptions{SessionTimeout: 30 * time.Minute},
+	)
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", corsMiddleware([]string{"*"}, apiKeyMiddleware("test-secret", streamHandler)))
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	// Step 1: correct initialize (returns session id in response header).
+	initBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`
+	req, _ := http.NewRequest("POST", ts.URL+"/mcp", strings.NewReader(initBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("X-MCP-Key", "test-secret")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("initialize: %v", err)
+	}
+	resp.Body.Close()
+	sid := resp.Header.Get("Mcp-Session-Id")
+	if sid == "" {
+		t.Fatal("initialize did not return Mcp-Session-Id")
+	}
+
+	// Step 2: notifications/initialized (carrying session id)
+	notifBody := `{"jsonrpc":"2.0","method":"notifications/initialized"}`
+	req, _ = http.NewRequest("POST", ts.URL+"/mcp", strings.NewReader(notifBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("X-MCP-Key", "test-secret")
+	req.Header.Set("Mcp-Session-Id", sid)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("initialized: %v", err)
+	}
+	resp.Body.Close()
+
+	// Step 3: tools/list WITHOUT Mcp-Session-Id -- must be rejected.
+	listBody := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
+	status, respBody := rawMCPRequest(t, ts, map[string]string{
+		"X-MCP-Key": "test-secret",
+		"Accept":    "application/json, text/event-stream",
+	}, listBody)
+	// Without a session id, the server creates a fresh uninitialized session
+	// which rejects tools/list with "invalid during session initialization".
+	containsError := strings.Contains(respBody, "invalid during session initialization") ||
+		status == 400 || status == 404
+	if !containsError {
+		t.Errorf("tools/list without session id should be rejected, got status=%d body=%s", status, respBody)
+	}
+	if strings.Contains(respBody, `"tools":[`) && !strings.Contains(respBody, "invalid during") {
+		t.Errorf("server leaked tools/list without session id: %s", respBody)
+	}
+}
+
+// TestHTTPServer_HandshakeFullSequence verifies the canonical 3-step
+// handshake works end-to-end with raw HTTP (no SDK client), producing a
+// valid tools list. This is the positive counterpart to the rejection tests
+// above: it confirms our server actually accepts the handshake when done
+// correctly, so a regression in any rejection test is a real regression,
+// not a "server is broken in general" false alarm.
+//
+// Regression value: if someone breaks middleware ordering (e.g. wrapping
+// CORS inside API key, breaking preflight) or removes the session id
+// passthrough, this test fails alongside the rejection tests, localizing
+// the bug to "handshake broken" rather than "all tools broken".
+func TestHTTPServer_HandshakeFullSequence(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	streamHandler := mcp.NewStreamableHTTPHandler(
+		func(req *http.Request) *mcp.Server { return env.srv.MCP() },
+		&mcp.StreamableHTTPOptions{SessionTimeout: 30 * time.Minute},
+	)
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", corsMiddleware([]string{"*"}, apiKeyMiddleware("test-secret", streamHandler)))
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	// 1) initialize
+	initBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`
+	req, _ := http.NewRequest("POST", ts.URL+"/mcp", strings.NewReader(initBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("X-MCP-Key", "test-secret")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("initialize: %v", err)
+	}
+	resp.Body.Close()
+	sid := resp.Header.Get("Mcp-Session-Id")
+	if sid == "" {
+		t.Fatal("initialize did not return Mcp-Session-Id")
+	}
+
+	// 2) notifications/initialized
+	notifBody := `{"jsonrpc":"2.0","method":"notifications/initialized"}`
+	req, _ = http.NewRequest("POST", ts.URL+"/mcp", strings.NewReader(notifBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("X-MCP-Key", "test-secret")
+	req.Header.Set("Mcp-Session-Id", sid)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("initialized: %v", err)
+	}
+	resp.Body.Close()
+
+	// 3) tools/list
+	listBody := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
+	status, respBody := rawMCPRequest(t, ts, map[string]string{
+		"X-MCP-Key":       "test-secret",
+		"Accept":          "application/json, text/event-stream",
+		"Mcp-Session-Id":  sid,
+	}, listBody)
+	if status != 200 {
+		t.Errorf("tools/list: status=%d, want 200; body=%s", status, respBody)
+	}
+	if !strings.Contains(respBody, `"tools":[`) {
+		t.Errorf("tools/list did not return a tools array: %s", respBody)
+	}
+	// Sanity check: at least one flowb tool must appear.
+	if !strings.Contains(respBody, "flowb_") {
+		t.Errorf("tools/list response missing flowb_ tools: %s", respBody)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -526,4 +777,170 @@ func parseToolResult(result *mcp.CallToolResult, target interface{}) error {
 		}
 	}
 	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Test 8: OutputSchema compatibility with Claude Code's zod validator
+// ---------------------------------------------------------------------------
+
+// TestHTTPServer_OutputSchema_NoBooleanSchemas verifies that no tool's
+// outputSchema contains a boolean schema (e.g. `"data": true`). Claude Code's
+// zod validator rejects boolean JSON Schemas at tools/list time with
+// "Invalid input", which breaks ALL tool discovery even though the server is
+// functional.
+//
+// Root cause this guards against: a field of type `interface{}` (Go's "any")
+// produces `"data": true` under the JSON Schema spec's boolean-schema form
+// (which means "accept anything"). That's a valid schema in spec, but zod's
+// MCP validator only accepts object schemas with explicit properties.
+//
+// Fix: every tool whose output struct has a `Data interface{}` field must
+// also set an explicit OutputSchema on the Tool, replacing `true` with `{}`
+// (empty schema = accept anything, but in object form).
+//
+// Regression value: if someone adds a new tool with `Data interface{}` and
+// forgets the explicit OutputSchema, or if the SDK's schema inference changes
+// to produce boolean schemas for other types, this test catches it before the
+// LLM client sees a broken tools/list.
+func TestHTTPServer_OutputSchema_NoBooleanSchemas(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	ts, session := newHTTPTestServer(t, env, "test-secret", []string{"*"})
+	defer ts.Close()
+	defer session.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Paginate through all tools -- the SDK may split tools/list into pages.
+	allTools := []*mcp.Tool{}
+	var cursor string
+	for {
+		resp, err := session.ListTools(ctx, &mcp.ListToolsParams{Cursor: cursor})
+		if err != nil {
+			t.Fatalf("list tools (cursor=%q): %v", cursor, err)
+		}
+		allTools = append(allTools, resp.Tools...)
+		if resp.NextCursor == "" {
+			break
+		}
+		cursor = resp.NextCursor
+	}
+
+	for _, tool := range allTools {
+		// Tools without outputSchema are fine (SDK omits it for `any` output).
+		if tool.OutputSchema == nil {
+			continue
+		}
+		// Marshal the outputSchema to JSON so we can scan for boolean values.
+		// The SDK accepts OutputSchema as any; under the hood it's typically a
+		// *jsonschema.Schema or a map[string]any. Marshal normalizes both.
+		b, err := json.Marshal(tool.OutputSchema)
+		if err != nil {
+			t.Fatalf("tool %q: marshal outputSchema: %v", tool.Name, err)
+		}
+		var schema map[string]interface{}
+		if err := json.Unmarshal(b, &schema); err != nil {
+			t.Fatalf("tool %q: parse outputSchema: %v", tool.Name, err)
+		}
+		// The fix ensures every "data" property is an object (even if empty).
+		// If we see a boolean true, the regression is back.
+		props, ok := schema["properties"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		dataProp, ok := props["data"]
+		if !ok {
+			continue
+		}
+		if _, isBool := dataProp.(bool); isBool {
+			t.Errorf("tool %q has outputSchema.properties.data = true (boolean schema); "+
+				"Claude Code zod will reject this. Add OutputSchema: manageOutputSchema() "+
+				"or dataOnlyOutputSchema() to the Tool registration.", tool.Name)
+		}
+	}
+}
+
+// TestHTTPServer_OutputSchema_AcceptsAnyDataValue verifies that the explicit
+// OutputSchema on tools with `Data interface{}` accepts any JSON value for
+// the data property -- objects, arrays, strings, numbers, booleans, and null.
+// The schema must not constrain the data type, or it will reject valid
+// backend responses.
+//
+// Regression value: if someone "fixes" the boolean-schema issue by giving
+// data a concrete type (e.g. `{"type": "object"}`), every list action that
+// returns an array would fail validation at tools/call time. This test
+// catches that overcorrection.
+func TestHTTPServer_OutputSchema_AcceptsAnyDataValue(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	ts, session := newHTTPTestServer(t, env, "test-secret", []string{"*"})
+	defer ts.Close()
+	defer session.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Paginate through all tools.
+	allTools := []*mcp.Tool{}
+	var cursor string
+	for {
+		resp, err := session.ListTools(ctx, &mcp.ListToolsParams{Cursor: cursor})
+		if err != nil {
+			t.Fatalf("list tools (cursor=%q): %v", cursor, err)
+		}
+		allTools = append(allTools, resp.Tools...)
+		if resp.NextCursor == "" {
+			break
+		}
+		cursor = resp.NextCursor
+	}
+
+	// Tools that must accept any data type (have `Data interface{}` output).
+	wantAnyData := map[string]bool{
+		"flowb_manage_strategies":  false,
+		"flowb_manage_tasks":       false,
+		"flowb_manage_users":       false,
+		"flowb_manage_auth":        false,
+		"flowb_manage_profile":     false,
+		"flowb_manage_pcaps":       false,
+		"flowb_manage_port_groups": false,
+		"flowb_manage_settings":    false,
+		"flowb_query_system":       false,
+		"flowb_get_task_progress":  false,
+		"flowb_wait_for_task":      false,
+	}
+	for _, tool := range allTools {
+		_, want := wantAnyData[tool.Name]
+		if !want {
+			continue
+		}
+		wantAnyData[tool.Name] = true
+
+		if tool.OutputSchema == nil {
+			t.Errorf("tool %q: missing OutputSchema (needed to override interface{} boolean schema)", tool.Name)
+			continue
+		}
+		b, _ := json.Marshal(tool.OutputSchema)
+		var schema map[string]interface{}
+		if err := json.Unmarshal(b, &schema); err != nil {
+			t.Errorf("tool %q: parse outputSchema: %v", tool.Name, err)
+			continue
+		}
+		props, _ := schema["properties"].(map[string]interface{})
+		dataProp, _ := props["data"].(map[string]interface{})
+		// "data" must NOT have a "type" constraint -- any type is valid.
+		if _, hasType := dataProp["type"]; hasType {
+			t.Errorf("tool %q: outputSchema.properties.data has 'type' constraint; "+
+				"this will reject valid backend responses of other types (arrays, strings, etc.)",
+				tool.Name)
+		}
+	}
+	for name, found := range wantAnyData {
+		if !found {
+			t.Errorf("expected tool %q in tools/list, not found", name)
+		}
+	}
 }

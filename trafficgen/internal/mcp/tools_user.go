@@ -32,6 +32,7 @@ func (s *Server) registerUserTools() {
 		&mcp.Tool{
 			Name:        "flowb_manage_users",
 			Description: "Manage users (admin only): list/get/update/delete/reset_password. In service account mode, all actions return 403 -- tool exists for Phase 3 multi-user mode.",
+			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManageUsers,
 	)

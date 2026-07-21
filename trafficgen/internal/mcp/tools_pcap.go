@@ -47,6 +47,7 @@ func (s *Server) registerPcapTools() {
 		&mcp.Tool{
 			Name:        "flowb_manage_pcaps",
 			Description: "Manage PCAP assets: import/list/get/delete, parse flows/packets, search/extract, download. 17 actions covering the full PCAP lifecycle.",
+			OutputSchema: manageOutputSchema(),
 		},
 		s.handleManagePcaps,
 	)
