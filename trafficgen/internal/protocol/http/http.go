@@ -16,6 +16,16 @@ import (
 
 const (
 	DefaultTTL = 64
+	// DefaultMSS is the default TCP Maximum Segment Size used when MSS is 0.
+	// Same value as internal/protocol/tcp.DefaultMSS (1460) — duplicated here
+	// to avoid an import cycle (tcp imports core, not http). RFC 879 floor
+	// is 536; 1460 is the Ethernet-friendly value used by Linux.
+	DefaultMSS = 1460
+
+	// MinMSS is the minimum acceptable MSS per RFC 879 (IP+TCP header 20+20
+	// +536 = 576-byte minimum packet). Smaller values produce malformed
+	// frames or pathological fragmentation.
+	MinMSS = 536
 )
 
 // Planner implements the HTTP protocol planner.
@@ -48,6 +58,15 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	// Validate ports
 	if spec.DstPort == 0 {
 		spec.DstPort = 80 // Default HTTP port
+	}
+
+	// Validate MSS range. RFC 879: minimum MSS is 536 (IP+TCP header 20+20
+	// +536 = 576-byte minimum packet). uint16 max is 65535. Out-of-range
+	// MSS produces malformed SYNs or pathological fragmentation.
+	if spec.HTTP != nil && spec.HTTP.MSS > 0 {
+		if spec.HTTP.MSS < MinMSS {
+			return fmt.Errorf("MSS %d too small (min %d per RFC 879)", spec.HTTP.MSS, MinMSS)
+		}
 	}
 
 	return nil
@@ -107,6 +126,15 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			return id
 		}
 
+		// Resolve MSS: 0 -> DefaultMSS (1460). The same value drives both
+		// SYN/SYN-ACK option emission and response segmentation, so the
+		// advertised MSS matches what the planner actually emits on the wire.
+		mss := uint16(DefaultMSS)
+		if httpConfig.MSS > 0 {
+			mss = httpConfig.MSS
+		}
+		synOpts := synOptions(mss)
+
 		// TCP Handshake
 		// SYN
 		configChan <- core.PacketConfig{
@@ -127,6 +155,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				Seq:        clientSeq,
 				Flags:      0x02, // SYN
 				WindowSize: 65535,
+				TCPOptions: synOpts,
 			},
 		}
 		packetIndex++
@@ -152,6 +181,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				Ack:        clientSeq,
 				Flags:      0x12, // SYN-ACK
 				WindowSize: 65535,
+				TCPOptions: synOpts,
 			},
 		}
 		packetIndex++
@@ -183,7 +213,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		// HTTP Transactions (keep-alive: multiple request/response pairs in one TCP connection)
 		for i := 0; i < transactions; i++ {
-			// HTTP Request
+			// HTTP Request — emit as a single PSH-ACK segment. Real-world
+			// HTTP requests are small (<MSS); if a user ever sends a huge
+			// request body, segmenting it would need the same MSS loop as
+			// the response. Until we see a pcap that needs it, keep the
+			// request in one segment to match the captured samples.
 			request := buildHTTPRequest(httpConfig, spec.DstIP)
 			configChan <- core.PacketConfig{
 				FlowID:      flowID,
@@ -210,32 +244,39 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			packetIndex++
 			clientSeq += uint32(len(request))
 
-			// HTTP Response
+			// HTTP Response — segment by MSS. A 3066-byte response over
+			// MSS=1460 becomes 3 segments (1460 + 1460 + 146). Intermediate
+			// segments are PSH-ACK (matching the captured samples); the
+			// final segment is PSH-ACK as well. Each segment advances
+			// serverSeq by its payload length, so the next transaction's
+			// request ACKs all response bytes.
 			response := buildHTTPResponse(httpConfig)
-			configChan <- core.PacketConfig{
-				FlowID:      flowID,
-				PacketIndex: packetIndex,
-				Direction:   "down",
-				Timestamp:   now,
-				L2: core.L2Config{
-					SrcMAC:    spec.DstMAC,
-					DstMAC:    spec.SrcMAC,
-					EtherType: 0x0800,
-				},
-				L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
-				L4: core.L4Config{
-					Protocol:   "tcp",
-					SrcPort:    spec.DstPort,
-					DstPort:    spec.SrcPort,
-					Seq:        serverSeq,
-					Ack:        clientSeq,
-					Flags:      0x18, // PSH-ACK
-					WindowSize: 65535,
-				},
-				Payload: []byte(response),
+			for _, seg := range segmentByMSS([]byte(response), int(mss)) {
+				configChan <- core.PacketConfig{
+					FlowID:      flowID,
+					PacketIndex: packetIndex,
+					Direction:   "down",
+					Timestamp:   now,
+					L2: core.L2Config{
+						SrcMAC:    spec.DstMAC,
+						DstMAC:    spec.SrcMAC,
+						EtherType: 0x0800,
+					},
+					L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
+					L4: core.L4Config{
+						Protocol:   "tcp",
+						SrcPort:    spec.DstPort,
+						DstPort:    spec.SrcPort,
+						Seq:        serverSeq,
+						Ack:        clientSeq,
+						Flags:      0x18, // PSH-ACK
+						WindowSize: 65535,
+					},
+					Payload: seg,
+				}
+				packetIndex++
+				serverSeq += uint32(len(seg))
 			}
-			packetIndex++
-			serverSeq += uint32(len(response))
 		}
 
 		// TCP Termination (FIN, ACK, FIN, ACK)
@@ -338,6 +379,54 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	}()
 
 	return configChan, nil
+}
+
+// segmentByMSS splits payload into chunks of at most mss bytes. The last
+// chunk may be smaller. A nil/empty payload returns a single empty chunk
+// so the caller emits one PSH-ACK segment (matching the pre-segmentation
+// behavior where an empty body still produced one response packet).
+//
+// Caller is responsible for ensuring mss >= MinMSS (validated upstream).
+// We do not cap mss here — the SYN advertises whatever the user asked for,
+// and segmentation must match.
+func segmentByMSS(payload []byte, mss int) [][]byte {
+	if mss <= 0 {
+		// Defensive: should never happen — caller resolves 0 -> DefaultMSS
+		// before invoking. Fall back to one segment to avoid an infinite
+		// loop on bad input.
+		return [][]byte{payload}
+	}
+	if len(payload) == 0 {
+		return [][]byte{{}}
+	}
+	chunks := make([][]byte, 0, (len(payload)+mss-1)/mss)
+	for len(payload) > 0 {
+		n := len(payload)
+		if n > mss {
+			n = mss
+		}
+		chunks = append(chunks, payload[:n])
+		payload = payload[n:]
+	}
+	return chunks
+}
+
+// synOptions builds TCP options for SYN packets: MSS, Window Scale, and
+// SACK-Permitted, matching real-world SYN capture characteristics. Mirrors
+// internal/protocol/tcp.synOptions — duplicated here to avoid an import
+// cycle (tcp already imports core; http importing tcp would create a
+// dependency we don't need elsewhere).
+func synOptions(mss uint16) []core.TCPOption {
+	if mss == 0 {
+		mss = DefaultMSS
+	}
+	opts := make([]core.TCPOption, 0, 3)
+	opts = append(opts, core.TCPOption{Kind: core.TCPOptMSS, Data: []byte{byte(mss >> 8), byte(mss)}})
+	// Window Scale option (RFC 7323): shift count 7 expands the 16-bit
+	// window field to 65535 << 7 = ~8MB, enough for high-bandwidth paths.
+	opts = append(opts, core.TCPOption{Kind: core.TCPOptWinScale, Data: []byte{0x07}})
+	opts = append(opts, core.TCPOption{Kind: core.TCPOptSACKPermit})
+	return opts
 }
 
 // buildHTTPRequest builds an HTTP request string. dstIP is the fallback Host

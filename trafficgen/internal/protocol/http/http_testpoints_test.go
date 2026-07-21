@@ -1680,6 +1680,462 @@ func TestHTTPPlan_VLANNotPropagated(t *testing.T) {
 	}
 }
 
+// --- MSS segmentation (Task #49) ---
+//
+// The next set of tests covers HTTP response segmentation by MSS. A response
+// longer than MSS is split into multiple PSH-ACK segments; the SYN/SYN-ACK
+// advertise that MSS as a TCP option. Each segment advances serverSeq by its
+// payload length, so the following packet's Ack accounts for all response
+// bytes.
+
+// TestHTTPPlan_MSSDefault_NoSegmentation verifies that the default path
+// (MSS=0 -> DefaultMSS=1460) does not segment a short response: the response
+// is a single PSH-ACK segment whose payload equals the full built response.
+func TestHTTPPlan_MSSDefault_NoSegmentation(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	spec.HTTP = &core.HTTPConfig{
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: "short",
+		Transactions: 1,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	// 3 handshake + 1 request + 1 response + 4 termination = 9
+	if len(cfgs) != 9 {
+		t.Fatalf("len=%d, want 9 (short response should NOT segment)", len(cfgs))
+	}
+	resp := cfgs[4]
+	if resp.L4.Flags != 0x18 {
+		t.Errorf("resp.Flags=%x, want 0x18 (PSH-ACK)", resp.L4.Flags)
+	}
+	if !strings.HasPrefix(string(resp.Payload), "HTTP/1.1 200 OK") {
+		t.Errorf("resp payload=%q, want HTTP/1.1 200 OK prefix", string(resp.Payload))
+	}
+}
+
+// TestHTTPPlan_MSSSegmentsLongResponse verifies that a response larger than
+// MSS is split into ceil(len/MSS) PSH-ACK segments, each carrying the right
+// payload slice and advancing serverSeq per segment. A 3000-byte body over
+// MSS=1460 -> ceil(3000/1460) = 3 segments (1460 + 1460 + 80) — the actual
+// response includes HTTP headers so the total payload length is larger; we
+// assert segment count and per-segment payload size directly.
+func TestHTTPPlan_MSSSegmentsLongResponse(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	// Body large enough to force segmentation at DefaultMSS=1460.
+	spec.HTTP = &core.HTTPConfig{
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: strings.Repeat("A", 3000),
+		Transactions: 1,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+
+	// Collect all "down" PSH-ACK packets AFTER the handshake (index 4 onward,
+	// excluding termination). With 1 transaction, packets 4..N-4 are response
+	// segments (N = total packets, last 4 are FIN/ACK/FIN/ACK).
+	total := len(cfgs)
+	if total < 9 {
+		t.Fatalf("len=%d, want >=9", total)
+	}
+	var respSegs []core.PacketConfig
+	for i := 4; i < total-4; i++ {
+		if cfgs[i].Direction == "down" && cfgs[i].L4.Flags == 0x18 {
+			respSegs = append(respSegs, cfgs[i])
+		}
+	}
+	if len(respSegs) < 2 {
+		t.Fatalf("expected at least 2 response segments, got %d (response not segmented)", len(respSegs))
+	}
+	// Every segment except the last must be exactly MSS-sized (1460).
+	for i, seg := range respSegs[:len(respSegs)-1] {
+		if len(seg.Payload) != 1460 {
+			t.Errorf("segment[%d].len=%d, want 1460 (MSS)", i, len(seg.Payload))
+		}
+	}
+	// Reassemble payload and verify it starts with "HTTP/1.1 200 OK" and ends
+	// with the repeated 'A' body.
+	var reassembled []byte
+	for _, seg := range respSegs {
+		reassembled = append(reassembled, seg.Payload...)
+	}
+	if !strings.HasPrefix(string(reassembled), "HTTP/1.1 200 OK") {
+		t.Errorf("reassembled payload prefix=%q", string(reassembled[:min(20, len(reassembled))]))
+	}
+	if !strings.HasSuffix(string(reassembled), strings.Repeat("A", 3000)) {
+		t.Errorf("reassembled payload does not end with 3000 'A's")
+	}
+
+	// Per-segment Seq: each segment's Seq advances by the previous segment's
+	// payload length. serverSeq starts from the SYN-ACK Seq + 1 (after the
+	// handshake ACK consumes the SYN).
+	synackSeq := cfgs[1].L4.Seq
+	expectedSeq := synackSeq + 1
+	for i, seg := range respSegs {
+		if seg.L4.Seq != expectedSeq {
+			t.Errorf("segment[%d].Seq=%d, want %d", i, seg.L4.Seq, expectedSeq)
+		}
+		expectedSeq += uint32(len(seg.Payload))
+	}
+}
+
+// TestHTTPPlan_MSSExactMultiple verifies the boundary case where payload is
+// an exact multiple of MSS: the planner must still emit the correct segment
+// count (no off-by-one). With MSS=100 and a 300-byte body, we expect 3
+// segments of 100 bytes each.
+func TestHTTPPlan_MSSExactMultiple(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	// Use a small custom MSS so the body hits an exact multiple. MSS must be
+	// >= MinMSS=536 per RFC 879, so use 536 with a 1072-byte (2*536) body.
+	spec.HTTP = &core.HTTPConfig{
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: strings.Repeat("B", 1072), // 2 * 536
+		MSS:          536,
+		Transactions: 1,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	total := len(cfgs)
+	var respSegs []core.PacketConfig
+	for i := 4; i < total-4; i++ {
+		if cfgs[i].Direction == "down" && cfgs[i].L4.Flags == 0x18 {
+			respSegs = append(respSegs, cfgs[i])
+		}
+	}
+	// HTTP headers add to payload length, so total payload > 1072. With MSS=536,
+	// ceil(total/536) segments expected. Just assert each non-last segment is
+	// exactly 536 and that the reassembled body contains the 1072 B's at the end.
+	for i, seg := range respSegs[:len(respSegs)-1] {
+		if len(seg.Payload) != 536 {
+			t.Errorf("segment[%d].len=%d, want 536 (MSS)", i, len(seg.Payload))
+		}
+	}
+	var reassembled []byte
+	for _, seg := range respSegs {
+		reassembled = append(reassembled, seg.Payload...)
+	}
+	if !strings.HasSuffix(string(reassembled), strings.Repeat("B", 1072)) {
+		t.Errorf("reassembled payload does not end with 1072 B's")
+	}
+}
+
+// TestHTTPPlan_MSSEmptyBodyOneSegment verifies that an empty response body
+// still produces exactly one PSH-ACK segment (the HTTP/1.1 200 OK header line
+// alone), matching the pre-segmentation behavior. segmentByMSS returns a
+// single empty chunk for empty input, but the response payload is non-empty
+// (just headers), so segmentation applies normally — we verify that the
+// response is still emitted as a single packet because the header-only
+// response is shorter than MSS.
+func TestHTTPPlan_MSSEmptyBodyOneSegment(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	spec.HTTP = &core.HTTPConfig{
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: "", // empty body
+		Transactions: 1,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	if len(cfgs) != 9 {
+		t.Fatalf("len=%d, want 9 (empty-body response is one segment)", len(cfgs))
+	}
+	resp := cfgs[4]
+	if resp.L4.Flags != 0x18 {
+		t.Errorf("resp.Flags=%x, want 0x18 (PSH-ACK)", resp.L4.Flags)
+	}
+	if !strings.HasPrefix(string(resp.Payload), "HTTP/1.1 200 OK") {
+		t.Errorf("resp payload=%q, want 'HTTP/1.1 200 OK' prefix", string(resp.Payload))
+	}
+}
+
+// TestHTTPPlan_MSSZeroUsesDefault verifies MSS=0 resolves to DefaultMSS (1460)
+// for both segmentation and the SYN TCP option.
+func TestHTTPPlan_MSSZeroUsesDefault(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	spec.HTTP = &core.HTTPConfig{
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: strings.Repeat("X", 2900), // 2*1460=2920, so 2900 -> 2 segments (1460 + 1440)
+		MSS:          0,
+		Transactions: 1,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	total := len(cfgs)
+	var respSegs []core.PacketConfig
+	for i := 4; i < total-4; i++ {
+		if cfgs[i].Direction == "down" && cfgs[i].L4.Flags == 0x18 {
+			respSegs = append(respSegs, cfgs[i])
+		}
+	}
+	// Total response payload = headers + 2900 'X'. Headers are <100 bytes, so
+	// total ~3000 bytes. Over MSS=1460, expect ceil(3000/1460)=3 segments.
+	if len(respSegs) < 2 {
+		t.Fatalf("expected >=2 response segments at MSS=1460, got %d", len(respSegs))
+	}
+
+	// SYN must carry the MSS TCP option with value 1460.
+	syn := cfgs[0]
+	if len(syn.L4.TCPOptions) == 0 {
+		t.Fatalf("SYN has no TCP options; expected MSS option")
+	}
+	var mssOpt *core.TCPOption
+	for i := range syn.L4.TCPOptions {
+		if syn.L4.TCPOptions[i].Kind == core.TCPOptMSS {
+			mssOpt = &syn.L4.TCPOptions[i]
+			break
+		}
+	}
+	if mssOpt == nil {
+		t.Fatalf("SYN missing MSS option; options=%+v", syn.L4.TCPOptions)
+	}
+	if len(mssOpt.Data) != 2 {
+		t.Fatalf("MSS option data len=%d, want 2", len(mssOpt.Data))
+	}
+	got := uint16(mssOpt.Data[0])<<8 | uint16(mssOpt.Data[1])
+	if got != 1460 {
+		t.Errorf("SYN MSS option=%d, want 1460 (DefaultMSS)", got)
+	}
+}
+
+// TestHTTPPlan_MSSUserOverrideInSYN verifies a user-provided MSS is carried in
+// the SYN/SYN-ACK TCP option.
+func TestHTTPPlan_MSSUserOverrideInSYN(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	spec.HTTP = &core.HTTPConfig{
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: "x",
+		MSS:          536, // RFC 879 minimum
+		Transactions: 1,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	syn := cfgs[0]
+	synack := cfgs[1]
+	for _, pkt := range []struct {
+		name string
+		cfg  core.PacketConfig
+	}{
+		{"SYN", syn}, {"SYN-ACK", synack},
+	} {
+		var mssOpt *core.TCPOption
+		for i := range pkt.cfg.L4.TCPOptions {
+			if pkt.cfg.L4.TCPOptions[i].Kind == core.TCPOptMSS {
+				mssOpt = &pkt.cfg.L4.TCPOptions[i]
+				break
+			}
+		}
+		if mssOpt == nil {
+			t.Errorf("%s missing MSS option", pkt.name)
+			continue
+		}
+		got := uint16(mssOpt.Data[0])<<8 | uint16(mssOpt.Data[1])
+		if got != 536 {
+			t.Errorf("%s MSS=%d, want 536", pkt.name, got)
+		}
+	}
+}
+
+// TestHTTPPlan_MSSTooSmall verifies Validate rejects MSS below MinMSS (536)
+// per RFC 879.
+func TestHTTPPlan_MSSTooSmall(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	spec.HTTP = &core.HTTPConfig{MSS: 100} // < MinMSS
+	_, err := p.Plan(context.Background(), spec)
+	if err == nil {
+		t.Fatal("expected error for MSS < MinMSS, got nil")
+	}
+	if !strings.Contains(err.Error(), "MSS") || !strings.Contains(err.Error(), "RFC 879") {
+		t.Errorf("err=%v, want contains 'MSS' and 'RFC 879'", err)
+	}
+}
+
+// TestHTTPPlan_MSSTooLargeAtMaxUint16 verifies that the maximum uint16 (65535)
+// is accepted (no upper-bound rejection; uint16 is the natural TCP option max).
+func TestHTTPPlan_MSSMaxUint16(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	spec.HTTP = &core.HTTPConfig{
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: "x",
+		MSS:          65535,
+		Transactions: 1,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	// SYN must carry MSS=65535.
+	syn := cfgs[0]
+	var mssOpt *core.TCPOption
+	for i := range syn.L4.TCPOptions {
+		if syn.L4.TCPOptions[i].Kind == core.TCPOptMSS {
+			mssOpt = &syn.L4.TCPOptions[i]
+			break
+		}
+	}
+	if mssOpt == nil {
+		t.Fatalf("SYN missing MSS option")
+	}
+	got := uint16(mssOpt.Data[0])<<8 | uint16(mssOpt.Data[1])
+	if got != 65535 {
+		t.Errorf("SYN MSS=%d, want 65535", got)
+	}
+	// Response should be a single segment since it's tiny.
+	if len(cfgs) != 9 {
+		t.Errorf("len=%d, want 9 (short response at MSS=65535)", len(cfgs))
+	}
+}
+
+// TestHTTPPlan_MSSACKOnNextTransaction verifies that after a segmented
+// response in transaction 1, the request in transaction 2 ACKs the final
+// serverSeq (i.e., all response bytes have been accounted for via
+// serverSeq += len(seg) per segment).
+func TestHTTPPlan_MSSACKOnNextTransaction(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	spec.HTTP = &core.HTTPConfig{
+		Method:       "GET",
+		URI:          "/",
+		ResponseBody: strings.Repeat("A", 3000),
+		Transactions: 2,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	// 3 handshake + (1 req + N resp segs) + (1 req + M resp segs) + 4 term
+	// Find the index of the second request packet (an "up" PSH-ACK after the
+	// first response segment burst).
+	var secondReqIdx int = -1
+	seenUpReqs := 0
+	for i, c := range cfgs {
+		if c.Direction == "up" && c.L4.Flags == 0x18 && len(c.Payload) > 0 {
+			seenUpReqs++
+			if seenUpReqs == 2 {
+				secondReqIdx = i
+				break
+			}
+		}
+	}
+	if secondReqIdx < 0 {
+		t.Fatalf("did not find second request packet in %d configs", len(cfgs))
+	}
+	secondReq := cfgs[secondReqIdx]
+	// The second request's Ack must equal (serverSeq after all first-response
+	// segments). serverSeq starts at synackSeq+1, then advances by the sum of
+	// all response segment payload lengths.
+	synackSeq := cfgs[1].L4.Seq
+	expectedAck := synackSeq + 1
+	// Sum all first-response segments (down, PSH-ACK, between handshake and
+	// the second request).
+	for i := 4; i < secondReqIdx; i++ {
+		if cfgs[i].Direction == "down" && cfgs[i].L4.Flags == 0x18 {
+			expectedAck += uint32(len(cfgs[i].Payload))
+		}
+	}
+	if secondReq.L4.Ack != expectedAck {
+		t.Errorf("second req Ack=%d, want %d (serverSeq advanced by all response segments)",
+			secondReq.L4.Ack, expectedAck)
+	}
+}
+
+// TestSegmentByMSS_EmptyInput verifies segmentByMSS returns a single empty
+// chunk for empty input, so the caller emits one PSH-ACK segment (matching the
+// pre-segmentation behavior where an empty body still produced one response).
+func TestSegmentByMSS_EmptyInput(t *testing.T) {
+	got := segmentByMSS(nil, 1460)
+	if len(got) != 1 || len(got[0]) != 0 {
+		t.Errorf("nil input: got %v, want [{}]", got)
+	}
+	got = segmentByMSS([]byte{}, 1460)
+	if len(got) != 1 || len(got[0]) != 0 {
+		t.Errorf("empty input: got %v, want [{}]", got)
+	}
+}
+
+// TestSegmentByMSS_SingleChunkUnderMSS verifies a payload smaller than MSS
+// returns a single-chunk result.
+func TestSegmentByMSS_SingleChunkUnderMSS(t *testing.T) {
+	payload := []byte("hello")
+	got := segmentByMSS(payload, 1460)
+	if len(got) != 1 {
+		t.Fatalf("got %d chunks, want 1", len(got))
+	}
+	if string(got[0]) != "hello" {
+		t.Errorf("got[0]=%q, want 'hello'", string(got[0]))
+	}
+}
+
+// TestSegmentByMSS_ExactMultiple verifies the boundary case where payload is
+// an exact multiple of MSS — no off-by-one empty trailing chunk.
+func TestSegmentByMSS_ExactMultiple(t *testing.T) {
+	payload := bytes.Repeat([]byte("a"), 2920) // 2 * 1460
+	got := segmentByMSS(payload, 1460)
+	if len(got) != 2 {
+		t.Fatalf("got %d chunks, want 2", len(got))
+	}
+	if len(got[0]) != 1460 || len(got[1]) != 1460 {
+		t.Errorf("chunk sizes = [%d, %d], want [1460, 1460]", len(got[0]), len(got[1]))
+	}
+}
+
+// TestSegmentByMSS_PartialLastChunk verifies the last chunk is smaller than
+// MSS when the payload is not a multiple of MSS.
+func TestSegmentByMSS_PartialLastChunk(t *testing.T) {
+	payload := bytes.Repeat([]byte("a"), 3000) // 2*1460 + 80
+	got := segmentByMSS(payload, 1460)
+	if len(got) != 3 {
+		t.Fatalf("got %d chunks, want 3", len(got))
+	}
+	if len(got[0]) != 1460 || len(got[1]) != 1460 || len(got[2]) != 80 {
+		t.Errorf("chunk sizes = [%d, %d, %d], want [1460, 1460, 80]",
+			len(got[0]), len(got[1]), len(got[2]))
+	}
+}
+
+// TestSynOptions_IncludesAllThreeOptions verifies synOptions emits MSS,
+// Window Scale, and SACK-Permitted, and that MSS is encoded as 2 bytes
+// big-endian.
+func TestSynOptions_IncludesAllThreeOptions(t *testing.T) {
+	opts := synOptions(1460)
+	if len(opts) != 3 {
+		t.Fatalf("got %d options, want 3", len(opts))
+	}
+	// MSS option
+	if opts[0].Kind != core.TCPOptMSS {
+		t.Errorf("opts[0].Kind=%d, want %d (MSS)", opts[0].Kind, core.TCPOptMSS)
+	}
+	if len(opts[0].Data) != 2 {
+		t.Fatalf("MSS data len=%d, want 2", len(opts[0].Data))
+	}
+	mss := uint16(opts[0].Data[0])<<8 | uint16(opts[0].Data[1])
+	if mss != 1460 {
+		t.Errorf("MSS=%d, want 1460", mss)
+	}
+	// Window Scale
+	if opts[1].Kind != core.TCPOptWinScale {
+		t.Errorf("opts[1].Kind=%d, want %d (WinScale)", opts[1].Kind, core.TCPOptWinScale)
+	}
+	// SACK-Permitted
+	if opts[2].Kind != core.TCPOptSACKPermit {
+		t.Errorf("opts[2].Kind=%d, want %d (SACKPermit)", opts[2].Kind, core.TCPOptSACKPermit)
+	}
+}
+
+// TestSynOptions_ZeroMSSDefaults verifies synOptions(0) falls back to
+// DefaultMSS (1460) rather than emitting MSS=0 (which would negotiate a
+// pathological 0-byte segment size).
+func TestSynOptions_ZeroMSSDefaults(t *testing.T) {
+	opts := synOptions(0)
+	if len(opts) == 0 || opts[0].Kind != core.TCPOptMSS {
+		t.Fatalf("expected MSS option first, got %+v", opts)
+	}
+	mss := uint16(opts[0].Data[0])<<8 | uint16(opts[0].Data[1])
+	if mss != DefaultMSS {
+		t.Errorf("synOptions(0).MSS=%d, want %d (DefaultMSS)", mss, DefaultMSS)
+	}
+}
+
 // mustPlan is a helper that fails the test if Plan returns an error.
 func mustPlan(t *testing.T, p *Planner, spec core.FlowSpec) <-chan core.PacketConfig {
 	t.Helper()

@@ -175,11 +175,17 @@ type HTTPConfig struct {
 	// before framing. Content-Length reflects the compressed byte count, and
 	// a "Content-Encoding: gzip" header is emitted (overridable via
 	// ResponseHeaders, case-insensitive). Empty/unset -> no compression.
+	//
+	// MSS governs response (and request) segmentation: payloads longer than
+	// MSS are split into multiple TCP segments (each PSH-ACK), so a 3066-byte
+	// HTTP response over MSS=1460 becomes 3 segments (1460+1460+146). 0 ->
+	// DefaultMSS (1460). The SYN/SYN-ACK carry this MSS as a TCP option.
 	ResponseHeaders     map[string]string `json:"response_headers"`
 	ResponseBody        string            `json:"response_body"`
 	ResponseStatusCode  int               `json:"response_status_code"`
 	ResponseStatusText  string            `json:"response_status_text"`
 	ContentEncoding     string            `json:"content_encoding"`
+	MSS                 uint16            `json:"mss"`
 }
 
 // DNSConfig for DNS protocol.
