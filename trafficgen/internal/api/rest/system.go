@@ -64,7 +64,7 @@ func (h *SystemHandler) GetStatus(c *gin.Context) {
 // GetProtocols returns the list of supported protocols.
 // GET /api/v1/system/protocols
 func (h *SystemHandler) GetProtocols(c *gin.Context) {
-	protocols := []string{"tcp", "udp", "http", "dns", "icmp", "arp", "ftp", "sip", "sctp"}
+	protocols := []string{"tcp", "udp", "http", "dns", "icmp", "arp", "ftp", "sip", "sctp", "icmpv6"}
 	Success(c, protocols)
 }
 

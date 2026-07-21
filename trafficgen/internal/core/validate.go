@@ -123,6 +123,18 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 				return fmt.Errorf("sctp.ssn %d invalid (must be 0-65535)", s)
 			}
 		}
+	case "icmpv6":
+		if sub, ok := cfg["icmpv6"].(map[string]interface{}); ok {
+			if t := getInt(sub, "type"); t < 0 || t > 255 {
+				return fmt.Errorf("icmpv6.type %d invalid (must be 0-255)", t)
+			}
+			if c := getInt(sub, "code"); c < 0 || c > 255 {
+				return fmt.Errorf("icmpv6.code %d invalid (must be 0-255)", c)
+			}
+			if s := getInt(sub, "sequence"); s < 0 || s > 65535 {
+				return fmt.Errorf("icmpv6.sequence %d invalid (must be 0-65535)", s)
+			}
+		}
 	}
 	return nil
 }

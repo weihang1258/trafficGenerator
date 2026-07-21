@@ -309,6 +309,23 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// specify dst_port; otherwise mapToFlowSpec's generic default of
 		// DefaultDstPort (80) is left in place — which is almost never what
 		// an SCTP test wants. We do not silently override 80 → 38412.
+	case "icmpv6":
+		if sub, ok := cfg["icmpv6"].(map[string]interface{}); ok {
+			spec.ICMPv6 = &ICMPv6Config{
+				Type:       uint8(getIntDefault(sub, "type", 128)),
+				Code:       uint8(getIntDefault(sub, "code", 0)),
+				Identifier: uint16(getInt(sub, "identifier")),
+				Sequence:   uint16(getIntDefault(sub, "sequence", 1)),
+				Data:       []byte(getStringDefault(sub, "data", "ping")),
+				Pattern:    parseICMPv6Pattern(sub["pattern"]),
+			}
+		}
+		// ICMPv6 does not use ports (it is a Layer 3 protocol like ICMP).
+		// Clear src_port/dst_port to 0 so the L4 header — which is never
+		// emitted for ICMP — does not carry stale values that confuse
+		// packet inspection. ICMPv6 packets over the wire carry no L4.
+		spec.SrcPort = 0
+		spec.DstPort = 0
 	}
 
 	// GroupID: optional strategy for cross-flow ordering. When cfg has
@@ -494,6 +511,43 @@ func parseSCTPChunks(v interface{}) []SCTPChunk {
 			Direction: getString(m, "direction"),
 		}
 		out = append(out, chunk)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseICMPv6Pattern converts the JSON-decoded "pattern" value (an array of
+// step objects) into a []ICMPv6Step. Returns nil for absent/non-array input
+// so the planner falls back to the single-ping path. Each step inherits
+// Type/Code defaults from the parent config when absent (Type=128, Code=0);
+// Sequence defaults to step index+1 when 0 (per RFC 4443 ping session
+// semantics: Identifier groups, Sequence increments per ping).
+func parseICMPv6Pattern(v interface{}) []ICMPv6Step {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]ICMPv6Step, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		typ := uint8(getIntDefault(m, "type", 128))
+		code := uint8(getIntDefault(m, "code", 0))
+		seq := uint16(getInt(m, "sequence"))
+		if seq == 0 {
+			seq = uint16(len(out) + 1)
+		}
+		data := []byte(getStringDefault(m, "data", "ping"))
+		out = append(out, ICMPv6Step{
+			Type:     typ,
+			Code:     code,
+			Sequence: seq,
+			Data:     data,
+		})
 	}
 	if len(out) == 0 {
 		return nil

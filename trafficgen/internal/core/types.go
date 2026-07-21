@@ -99,15 +99,16 @@ type FlowSpec struct {
 	FragOffset uint16 `json:"frag_offset,omitempty"`
 
 	// Protocol specific configuration
-	TCP  *TCPConfig  `json:"tcp,omitempty"`
-	UDP  *UDPConfig  `json:"udp,omitempty"`
-	HTTP *HTTPConfig `json:"http,omitempty"`
-	DNS  *DNSConfig  `json:"dns,omitempty"`
-	ICMP *ICMPConfig `json:"icmp,omitempty"`
-	ARP  *ARPConfig  `json:"arp,omitempty"`
-	FTP  *FTPConfig  `json:"ftp,omitempty"`
-	SIP  *SIPConfig  `json:"sip,omitempty"`
-	SCTP *SCTPConfig `json:"sctp,omitempty"`
+	TCP     *TCPConfig     `json:"tcp,omitempty"`
+	UDP     *UDPConfig     `json:"udp,omitempty"`
+	HTTP    *HTTPConfig    `json:"http,omitempty"`
+	DNS     *DNSConfig     `json:"dns,omitempty"`
+	ICMP    *ICMPConfig    `json:"icmp,omitempty"`
+	ARP     *ARPConfig     `json:"arp,omitempty"`
+	FTP     *FTPConfig     `json:"ftp,omitempty"`
+	SIP     *SIPConfig     `json:"sip,omitempty"`
+	SCTP    *SCTPConfig    `json:"sctp,omitempty"`
+	ICMPv6  *ICMPv6Config  `json:"icmpv6,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`
@@ -366,6 +367,43 @@ type SCTPChunk struct {
 	PPID      uint32 `json:"ppid,omitempty"`       // payload protocol id
 	Data      []byte `json:"data,omitempty"`       // user payload
 	Direction string `json:"direction,omitempty"`  // "up" or "down"; empty -> "up"
+}
+
+// ICMPv6Config for the ICMPv6 protocol (RFC 4443). ICMPv6 is the IPv6
+// equivalent of ICMP — same Echo Request/Reply model (types 128/129), same
+// session semantics (Identifier groups pings into a session, Sequence
+// increments per ping). The planner emits each ping as an up packet
+// (client→server) followed by an auto-reply down packet (server→client)
+// when Type=EchoRequest, all within one flow (one IPv6 2-tuple).
+//
+// Pattern mirrors the ICMPv4 multi-session path: when non-empty, the
+// planner iterates the steps and emits each as a separate ping within the
+// same flow. Identifier is shared across steps (RFC 4443 §4.1). An empty
+// Pattern falls back to the single-ping path (request + auto-reply).
+//
+// ICMPv6 checksum uses the IPv6 pseudo-header (srcIP + dstIP + length +
+// nextHeader=58), NOT the IPv4-style pseudo-header. The planner computes
+// it during payload serialization (see calculateIPv6PseudoHeader in
+// builder.go). The pseudo-header requirement means src/dst IP MUST be
+// valid IPv6 addresses for the checksum to be non-zero — IPv4 addresses
+// produce a zero checksum (matching IPv4's invalid-input behavior).
+type ICMPv6Config struct {
+	Type       uint8          `json:"type"`                // 128=Echo Request, 129=Echo Reply
+	Code       uint8          `json:"code"`
+	Identifier uint16         `json:"identifier"`          // Echo session ID; 0 -> fallback to Sequence
+	Sequence   uint16         `json:"sequence"`
+	Data       []byte         `json:"data"`
+	Pattern    []ICMPv6Step   `json:"pattern,omitempty"`   // multi-session ping steps
+}
+
+// ICMPv6Step is a single ping within a multi-session ICMPv6 flow. The
+// planner emits Type (and its auto-reply if Type=EchoRequest) for each
+// step, with Sequence incrementing per step. Data is the per-ping payload.
+type ICMPv6Step struct {
+	Type     uint8  `json:"type"`     // 128=Echo Request, 129=Echo Reply
+	Code     uint8  `json:"code"`
+	Sequence uint16 `json:"sequence"` // per-step sequence; if 0, planner uses step index+1
+	Data     []byte `json:"data"`
 }
 
 // PacketConfig represents the configuration for building a single packet.
