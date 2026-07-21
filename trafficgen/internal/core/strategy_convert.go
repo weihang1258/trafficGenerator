@@ -284,6 +284,18 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 21
 		}
+	case "sip":
+		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
+			spec.SIP = &SIPConfig{
+				Dialog: parseSIPDialog(sub["dialog"]),
+				MSS:    getUint16(sub, "mss"),
+			}
+		}
+		// SIP defaults to port 5060 (signaling). Only override when the
+		// user did not specify a dst_port — matches DNS/FTP pattern.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 5060
+		}
 	}
 
 	// GroupID: optional strategy for cross-flow ordering. When cfg has
@@ -377,6 +389,51 @@ func parseFTPCommands(v interface{}) []FTPCommand {
 			Cmd:      getString(m, "cmd"),
 			Response: getString(m, "response"),
 		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseSIPDialog converts the JSON-decoded "dialog" value (an array of
+// SIPMessage objects) into a []SIPMessage. Returns nil for absent/non-array
+// input — the planner then emits only TCP handshake + teardown (an empty
+// SIP session, which is a valid degenerate test).
+//
+// Each message may carry Method+URI (request) or StatusCode+StatusText
+// (response). Direction is "up" or "down"; when empty, the planner infers
+// it from Method/StatusCode (Method set → up request; StatusCode set →
+// down response). Headers is a list of "Name: Value" strings; the planner
+// auto-appends Content-Length when Body is non-empty. Body is the optional
+// message body (e.g. SDP).
+func parseSIPDialog(v interface{}) []SIPMessage {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]SIPMessage, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		msg := SIPMessage{
+			Method:     getString(m, "method"),
+			URI:        getString(m, "uri"),
+			StatusCode: getInt(m, "status_code"),
+			StatusText: getString(m, "status_text"),
+			Direction:  getString(m, "direction"),
+			Body:       getString(m, "body"),
+		}
+		if headers, ok := m["headers"].([]interface{}); ok {
+			for _, h := range headers {
+				if s, ok := h.(string); ok {
+					msg.Headers = append(msg.Headers, s)
+				}
+			}
+		}
+		out = append(out, msg)
 	}
 	if len(out) == 0 {
 		return nil

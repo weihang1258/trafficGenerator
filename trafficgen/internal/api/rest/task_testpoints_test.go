@@ -1506,7 +1506,7 @@ func TestSystemProtocols_List(t *testing.T) {
 	if code != 0 { t.Errorf("code=%d", code) }
 	var protocols []string
 	json.Unmarshal(data, &protocols)
-	expected := []string{"tcp", "udp", "http", "dns", "icmp", "arp", "ftp"}
+	expected := []string{"tcp", "udp", "http", "dns", "icmp", "arp", "ftp", "sip"}
 	if len(protocols) != len(expected) { t.Errorf("got %v, want %v", protocols, expected) }
 	for i, p := range expected {
 		if i < len(protocols) && protocols[i] != p {

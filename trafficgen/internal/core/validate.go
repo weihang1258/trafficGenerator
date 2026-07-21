@@ -102,6 +102,12 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 				return fmt.Errorf("ftp.mss %d invalid (must be 0-65535)", m)
 			}
 		}
+	case "sip":
+		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
+			if m := getInt(sub, "mss"); m < 0 || m > 65535 {
+				return fmt.Errorf("sip.mss %d invalid (must be 0-65535)", m)
+			}
+		}
 	}
 	return nil
 }

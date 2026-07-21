@@ -106,6 +106,7 @@ type FlowSpec struct {
 	ICMP *ICMPConfig `json:"icmp,omitempty"`
 	ARP  *ARPConfig  `json:"arp,omitempty"`
 	FTP  *FTPConfig  `json:"ftp,omitempty"`
+	SIP  *SIPConfig  `json:"sip,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`
@@ -270,6 +271,46 @@ type FTPConfig struct {
 type FTPCommand struct {
 	Cmd      string `json:"cmd"`               // e.g. "USER anonymous"; sent client -> server
 	Response string `json:"response"`           // e.g. "331 ..."; sent server -> client
+}
+
+// SIPConfig for SIP protocol. SIP (RFC 3261) is a session-level protocol:
+// a single TCP (or UDP) connection on port 5060 carries a sequence of
+// SIP signaling messages (INVITE → 100 → 180 → 200 → ACK → BYE → 200).
+// The planner emits a TCP handshake, followed by each SIP message in
+// Dialog (as PSH-ACK payload), then a TCP teardown — all within one flow.
+//
+// Each SIPMessage carries either a request (Method + URI) or a response
+// (StatusCode + StatusText). Direction "up" = client→server, "down" =
+// server→client. Headers is a list of "Name: Value" strings; the planner
+// appends CRLF per RFC 3261 §7 (each line ends with CRLF, body separated
+// from headers by a blank CRLF line). Body is the optional message body
+// (e.g. SDP); when non-empty, the planner emits a Content-Length header
+// derived from len(Body) unless the user supplied one in Headers.
+//
+// This planner does NOT generate RTP media traffic. RTP runs over UDP
+// on a separate 4-tuple (negotiated inside SDP); users who need media
+// run a second trafficgen flow with protocol=udp. The SIP signaling
+// session is what defines a "SIP flow" for testing purposes.
+type SIPConfig struct {
+	Dialog []SIPMessage `json:"dialog"`
+	// MSS drives segmentation of long SIP messages (INVITE with a large
+	// SDP body can exceed MSS). 0 -> DefaultMSS (1460). The SYN/SYN-ACK
+	// carry this MSS as a TCP option.
+	MSS uint16 `json:"mss,omitempty"`
+}
+
+// SIPMessage is a single message within a SIP dialog. A request sets
+// Method+URI (e.g. Method="INVITE", URI="sip:callee@spirent.com"); a
+// response sets StatusCode+StatusText (e.g. 200, "OK"). Direction "up"
+// = client→server (request), "down" = server→client (response).
+type SIPMessage struct {
+	Method     string   `json:"method,omitempty"`      // e.g. "INVITE", "ACK", "BYE"; empty for responses
+	URI        string   `json:"uri,omitempty"`         // e.g. "sip:callee@spirent.com"; empty for responses
+	StatusCode int      `json:"status_code,omitempty"` // e.g. 200; 0 for requests
+	StatusText string   `json:"status_text,omitempty"` // e.g. "OK"; empty for requests
+	Headers    []string `json:"headers,omitempty"`    // each "Name: Value"; Content-Length auto-added when Body non-empty
+	Body       string   `json:"body,omitempty"`        // e.g. SDP content; empty = no body
+	Direction  string   `json:"direction,omitempty"`   // "up" or "down"; empty -> planner infers from Method/StatusCode
 }
 
 // PacketConfig represents the configuration for building a single packet.

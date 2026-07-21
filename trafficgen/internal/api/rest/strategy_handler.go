@@ -165,7 +165,7 @@ func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode strin
 		return
 	}
 
-	validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true}
+	validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true, "sip": true}
 	if req.Protocol == "" || !validProtocols[req.Protocol] {
 		BadRequest(c, "invalid or missing protocol: "+req.Protocol)
 		return
@@ -385,7 +385,7 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 			BadRequest(c, err.Error())
 			return
 		}
-		validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true}
+		validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true, "sip": true}
 		if req.Protocol == "" || !validProtocols[req.Protocol] {
 			BadRequest(c, "invalid or missing protocol: "+req.Protocol)
 			return

@@ -21,6 +21,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/ftp"
 	httpprotocol "github.com/trafficgen/trafficgen/internal/protocol/http"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
+	"github.com/trafficgen/trafficgen/internal/protocol/sip"
 	"github.com/trafficgen/trafficgen/internal/protocol/tcp"
 	"github.com/trafficgen/trafficgen/internal/protocol/udp"
 	"github.com/trafficgen/trafficgen/internal/replay"
@@ -251,6 +252,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(icmp.NewPlanner())
 	app.engine.RegisterPlanner(arp.NewPlanner())
 	app.engine.RegisterPlanner(ftp.NewPlanner())
+	app.engine.RegisterPlanner(sip.NewPlanner())
 
 	zap.L().Info("protocols registered",
 		zap.Strings("protocols", app.engine.ListProtocols()),
