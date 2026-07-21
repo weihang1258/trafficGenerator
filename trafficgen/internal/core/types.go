@@ -105,6 +105,7 @@ type FlowSpec struct {
 	DNS  *DNSConfig  `json:"dns,omitempty"`
 	ICMP *ICMPConfig `json:"icmp,omitempty"`
 	ARP  *ARPConfig  `json:"arp,omitempty"`
+	FTP  *FTPConfig  `json:"ftp,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`
@@ -237,6 +238,38 @@ type ARPConfig struct {
 	Operation uint16 `json:"operation"` // 1=Request, 2=Reply
 	TargetMAC string `json:"target_mac"`
 	TargetIP  string `json:"target_ip"`
+}
+
+// FTPConfig for FTP protocol. FTP is a session-level protocol: a single TCP
+// connection on port 21 (the control channel) carries a sequence of
+// command/response pairs. The planner emits a TCP handshake, followed by
+// each FTP command (client → server) and its response (server → client),
+// then a TCP teardown — all within one flow (one 4-tuple, one sequence
+// space per direction).
+//
+// Each FTPCommand carries the command string (e.g. "USER anonymous") and
+// the expected response (e.g. "331 Anonymous access allowed"). The
+// response is emitted verbatim — the planner does not validate FTP state
+// transitions, it just plays back the dialog the user specified. This
+// matches the trafficgen contract: we synthesize test packets, not a
+// real FTP server.
+//
+// Banner: when non-empty, the server emits this as the first FTP payload
+// (right after the handshake ACK). Real FTP servers send "220 ..." as a
+// greeting; the user can set it explicitly or leave it empty to skip.
+type FTPConfig struct {
+	Banner   string       `json:"banner,omitempty"` // server greeting, e.g. "220 ..."; empty = skip
+	Commands []FTPCommand `json:"commands"`
+	// MSS drives segmentation of long payloads (response or command bodies).
+	// 0 -> DefaultMSS (1460). Pulled from the HTTP MSS constant via the
+	// planner package to avoid a core->http import.
+	MSS uint16 `json:"mss,omitempty"`
+}
+
+// FTPCommand is a single command/response pair within an FTP session.
+type FTPCommand struct {
+	Cmd      string `json:"cmd"`               // e.g. "USER anonymous"; sent client -> server
+	Response string `json:"response"`           // e.g. "331 ..."; sent server -> client
 }
 
 // PacketConfig represents the configuration for building a single packet.

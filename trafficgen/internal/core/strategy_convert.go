@@ -270,6 +270,20 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				TargetIP:  getString(sub, "target_ip"),
 			}
 		}
+	case "ftp":
+		if sub, ok := cfg["ftp"].(map[string]interface{}); ok {
+			spec.FTP = &FTPConfig{
+				Banner:   getString(sub, "banner"),
+				Commands: parseFTPCommands(sub["commands"]),
+				MSS:      getUint16(sub, "mss"),
+			}
+		}
+		// FTP defaults to port 21 (control channel). Only override when
+		// the user did not specify a dst_port — matches the DNS override
+		// pattern.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 21
+		}
 	}
 
 	// GroupID: optional strategy for cross-flow ordering. When cfg has
@@ -336,6 +350,32 @@ func parseICMPPattern(v interface{}) []ICMPStep {
 			Code:     code,
 			Sequence: seq,
 			Data:     data,
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseFTPCommands converts the JSON-decoded "commands" value (an array
+// of {cmd, response} objects) into a []FTPCommand. Returns nil for
+// absent/non-array input — the planner then emits only TCP handshake +
+// teardown (an empty FTP session, which is a valid degenerate test).
+func parseFTPCommands(v interface{}) []FTPCommand {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]FTPCommand, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, FTPCommand{
+			Cmd:      getString(m, "cmd"),
+			Response: getString(m, "response"),
 		})
 	}
 	if len(out) == 0 {

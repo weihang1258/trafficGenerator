@@ -96,6 +96,12 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 		// HTTP sub-config fields are strings or booleans — no uint truncation.
 		// http.transactions is an int but capped at reasonable values by the
 		// planner, so no truncation validation needed here.
+	case "ftp":
+		if sub, ok := cfg["ftp"].(map[string]interface{}); ok {
+			if m := getInt(sub, "mss"); m < 0 || m > 65535 {
+				return fmt.Errorf("ftp.mss %d invalid (must be 0-65535)", m)
+			}
+		}
 	}
 	return nil
 }
