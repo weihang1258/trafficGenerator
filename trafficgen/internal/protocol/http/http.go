@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"math/rand"
 	"net"
@@ -63,9 +64,10 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	// Validate MSS range. RFC 879: minimum MSS is 536 (IP+TCP header 20+20
 	// +536 = 576-byte minimum packet). uint16 max is 65535. Out-of-range
 	// MSS produces malformed SYNs or pathological fragmentation.
-	if spec.HTTP != nil && spec.HTTP.MSS > 0 {
-		if spec.HTTP.MSS < MinMSS {
-			return fmt.Errorf("MSS %d too small (min %d per RFC 879)", spec.HTTP.MSS, MinMSS)
+	// MSS is a TCP transport parameter; it lives on TCPConfig (spec.TCP.MSS).
+	if spec.TCP != nil && spec.TCP.MSS > 0 {
+		if spec.TCP.MSS < MinMSS {
+			return fmt.Errorf("MSS %d too small (min %d per RFC 879)", spec.TCP.MSS, MinMSS)
 		}
 	}
 
@@ -113,8 +115,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		// Initialize sequence numbers. Random per flow to avoid seq collisions
 		// across flows (real TCP randomizes ISN per RFC 6528). User can override
-		// client seq via spec.InitialSeq for reproducible tests.
-		clientSeq := spec.InitialSeq
+		// client seq via spec.TCP.InitialSeq for reproducible tests.
+		clientSeq := uint32(0)
+		if spec.TCP != nil {
+			clientSeq = spec.TCP.InitialSeq
+		}
 		if clientSeq == 0 {
 			clientSeq = rand.Uint32()
 		}
@@ -126,12 +131,14 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			return id
 		}
 
-		// Resolve MSS: 0 -> DefaultMSS (1460). The same value drives both
-		// SYN/SYN-ACK option emission and response segmentation, so the
-		// advertised MSS matches what the planner actually emits on the wire.
+		// Resolve MSS: 0 -> DefaultMSS (1460). MSS is a TCP transport
+		// parameter; it lives on TCPConfig (spec.TCP.MSS). The same value
+		// drives both SYN/SYN-ACK option emission and response/request
+		// segmentation, so the advertised MSS matches what the planner
+		// actually emits on the wire.
 		mss := uint16(DefaultMSS)
-		if httpConfig.MSS > 0 {
-			mss = httpConfig.MSS
+		if spec.TCP != nil && spec.TCP.MSS > 0 {
+			mss = spec.TCP.MSS
 		}
 		synOpts := synOptions(mss)
 
@@ -444,9 +451,16 @@ func synOptions(mss uint16) []core.TCPOption {
 //   - Version: empty -> "HTTP/1.1"
 //   - Host: not user-provided + Version=HTTP/1.1 -> dstIP
 //     (HTTP/1.0 does not mandate Host, so none is emitted)
+//   - Content-Type: not user-provided + Body non-empty -> sniffed from body
+//     (text: HTML/XML/JSON/plain; binary: magic bytes; fallback text/plain)
 //   - Content-Length: not user-provided + Body non-empty -> len(Body)
 //   - Connection: not user-provided -> "keep-alive" if Transactions>1 or
 //     KeepAlive=true, else "close"
+//
+// Body source: BodyB64 (base64) takes precedence over Body (string) when set,
+// so binary payloads (PNG/JPEG/PDF/ZIP/...) can be carried via BodyB64. The
+// decoded bytes feed Content-Length, Content-Type sniffing, gzip compression,
+// and MSS segmentation. A string Body still works for text payloads.
 //
 // When RequestContentEncoding == "gzip", Body is gzip-compressed (RFC 1952);
 // the compressed bytes replace the body, Content-Length reflects the
@@ -470,7 +484,7 @@ func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
 		config.Version = "HTTP/1.1"
 	}
 
-	body := config.Body
+	body := resolveRequestBody(config)
 
 	// Apply gzip compression to the request body when requested. Mirrors
 	// buildHTTPResponse: compression happens before header emission so
@@ -478,8 +492,8 @@ func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
 	// header is emitted below unless the user already provided one
 	// (case-insensitive).
 	requestContentEncoding := strings.ToLower(strings.TrimSpace(config.RequestContentEncoding))
-	if body != "" && requestContentEncoding == "gzip" {
-		body = gzipBody(body)
+	if len(body) > 0 && requestContentEncoding == "gzip" {
+		body = gzipBytes(body)
 	}
 
 	request := fmt.Sprintf("%s %s %s\r\n", config.Method, config.URI, config.Version)
@@ -493,10 +507,13 @@ func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
 	if !hasHeader(config.RequestHeaders, "Connection") {
 		request += fmt.Sprintf("Connection: %s\r\n", defaultConnection(config))
 	}
-	if body != "" && !hasHeader(config.RequestHeaders, "Content-Length") {
+	if len(body) > 0 && !hasHeader(config.RequestHeaders, "Content-Type") {
+		request += fmt.Sprintf("Content-Type: %s\r\n", sniffContentType(body))
+	}
+	if len(body) > 0 && !hasHeader(config.RequestHeaders, "Content-Length") {
 		request += fmt.Sprintf("Content-Length: %d\r\n", len(body))
 	}
-	if requestContentEncoding != "" && body != "" && !hasHeader(config.RequestHeaders, "Content-Encoding") {
+	if requestContentEncoding != "" && len(body) > 0 && !hasHeader(config.RequestHeaders, "Content-Encoding") {
 		request += fmt.Sprintf("Content-Encoding: %s\r\n", requestContentEncoding)
 	}
 
@@ -506,11 +523,35 @@ func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
 
 	request += "\r\n"
 
-	if body != "" {
-		request += body
+	if len(body) > 0 {
+		request += string(body)
 	}
 
 	return request
+}
+
+// resolveRequestBody decodes the request body to bytes. BodyB64 wins over
+// Body when set, so binary payloads (PNG/JPEG/PDF/ZIP/...) can be carried
+// via base64. Invalid base64 falls back to the text Body (preserves the
+// legacy string-only behavior and avoids a hard failure on a misconfigured
+// field).
+func resolveRequestBody(config *core.HTTPConfig) []byte {
+	if b64 := strings.TrimSpace(config.BodyB64); b64 != "" {
+		if decoded, err := base64.StdEncoding.DecodeString(b64); err == nil {
+			return decoded
+		}
+	}
+	return []byte(config.Body)
+}
+
+// resolveResponseBody is the response-side symmetric of resolveRequestBody.
+func resolveResponseBody(config *core.HTTPConfig) []byte {
+	if b64 := strings.TrimSpace(config.ResponseBodyB64); b64 != "" {
+		if decoded, err := base64.StdEncoding.DecodeString(b64); err == nil {
+			return decoded
+		}
+	}
+	return []byte(config.ResponseBody)
 }
 
 // hasHeader reports whether headers contains the given field name using the
@@ -564,23 +605,32 @@ func bracketHost(host string) string {
 //   - Version: empty -> "HTTP/1.1"
 //   - StatusCode: 0 -> 200
 //   - StatusText: empty -> looked up from StatusCode; unknown -> "Status NNN"
-//   - Content-Type: not user-provided + ResponseBody non-empty -> "text/plain"
+//   - Content-Type: not user-provided + ResponseBody non-empty -> sniffed
+//     (text: HTML/XML/JSON/plain; binary: magic bytes; fallback text/plain)
 //   - Content-Length: not user-provided + ResponseBody non-empty -> len(body)
 //   - Connection: not user-provided -> "keep-alive" if Transactions>1 or
 //     KeepAlive=true, else "close"
 //
-// When ContentEncoding == "gzip", ResponseBody is gzip-compressed (RFC 1952);
-// the compressed bytes replace the body, Content-Length reflects the
-// compressed byte count, and a "Content-Encoding: gzip" header is emitted
+// ResponseBodyB64 (base64) takes precedence over ResponseBody (string) when
+// set, so binary payloads (PNG/JPEG/PDF/ZIP/...) can be carried via
+// ResponseBodyB64. The decoded bytes feed Content-Type sniffing, gzip
+// compression, Content-Length, and MSS segmentation. A string ResponseBody
+// still works for text payloads. Symmetric to buildHTTPRequest's body
+// resolution on the request side.
+//
+// When ResponseContentEncoding == "gzip", ResponseBody is gzip-compressed
+// (RFC 1952); the compressed bytes replace the body, Content-Length reflects
+// the compressed byte count, and a "Content-Encoding: gzip" header is emitted
 // (still overridable via ResponseHeaders, case-insensitive per RFC 7230 §3.2).
-// Any ContentEncoding value other than "" or "gzip" is treated as a literal
-// header value passed through to Content-Encoding without transformation
-// (caller responsibility — only "gzip" triggers actual compression here).
+// Any ResponseContentEncoding value other than "" or "gzip" is treated as a
+// literal header value passed through to Content-Encoding without
+// transformation (caller responsibility — only "gzip" triggers actual
+// compression here).
 //
 // User-provided ResponseHeaders are emitted verbatim and suppress the
 // corresponding default (case-insensitive match per RFC 7230 §3.2).
 func buildHTTPResponse(config *core.HTTPConfig) string {
-	body := config.ResponseBody
+	body := resolveResponseBody(config)
 	version := config.Version
 	if version == "" {
 		version = "HTTP/1.1"
@@ -598,21 +648,21 @@ func buildHTTPResponse(config *core.HTTPConfig) string {
 	// header emission so Content-Length reflects the compressed byte count.
 	// The Content-Encoding header is emitted below unless the user already
 	// provided one (case-insensitive).
-	contentEncoding := strings.ToLower(strings.TrimSpace(config.ContentEncoding))
-	if body != "" && contentEncoding == "gzip" {
-		body = gzipBody(body)
+	contentEncoding := strings.ToLower(strings.TrimSpace(config.ResponseContentEncoding))
+	if len(body) > 0 && contentEncoding == "gzip" {
+		body = gzipBytes(body)
 	}
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("%s %d %s\r\n", version, statusCode, statusText))
 
-	if body != "" && !hasHeader(config.ResponseHeaders, "Content-Type") {
-		sb.WriteString("Content-Type: text/plain\r\n")
+	if len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Type") {
+		sb.WriteString(fmt.Sprintf("Content-Type: %s\r\n", sniffContentType(body)))
 	}
-	if body != "" && !hasHeader(config.ResponseHeaders, "Content-Length") {
+	if len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Length") {
 		sb.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(body)))
 	}
-	if contentEncoding != "" && body != "" && !hasHeader(config.ResponseHeaders, "Content-Encoding") {
+	if contentEncoding != "" && len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Encoding") {
 		sb.WriteString(fmt.Sprintf("Content-Encoding: %s\r\n", contentEncoding))
 	}
 	if !hasHeader(config.ResponseHeaders, "Connection") {
@@ -624,28 +674,147 @@ func buildHTTPResponse(config *core.HTTPConfig) string {
 	}
 
 	sb.WriteString("\r\n")
-	sb.WriteString(body)
+	sb.Write(body)
 	return sb.String()
 }
 
-// gzipBody gzip-compresses s (UTF-8 bytes) using the standard library with
-// the default (RFC 1952) compression level. The gzip header magic 0x1f 0x8b
-// is what Wireshark/tshark recognize as "GZIP-encoded data" (a content
-// encoding of HTTP, not to be confused with a gzipped *pcap* stream).
-func gzipBody(s string) string {
+// sniffContentType infers the MIME type from the body bytes. Text bodies are
+// detected by leading-content patterns (HTML/XML/JSON); binary bodies are
+// detected by magic-byte signatures (PNG/JPEG/GIF/PDF/ZIP/...). Unknown
+// bodies fall back to text/plain (the historical default — preserves
+// Wireshark's text rendering for plain-text payloads and keeps the
+// decompressed body readable in the dissection tree).
+//
+// This is a sniff, not a strict MIME type check: it only inspects the leading
+// bytes, not the whole body. The goal is a reasonable Content-Type default
+// when the user does not provide one, so Wireshark's HTTP dissector picks the
+// right sub-dissector (html for text/html, json for application/json, image
+// for image/png, ...). User-provided Content-Type always wins.
+func sniffContentType(body []byte) string {
+	if len(body) == 0 {
+		return "text/plain"
+	}
+
+	// Binary magic bytes — check first so binary content is not mis-sniffed
+	// as text when its first bytes happen to be printable.
+	if ct := sniffByMagic(body); ct != "" {
+		return ct
+	}
+
+	// Text patterns. Trim leading whitespace so a body starting with "<html"
+	// after whitespace is still detected as HTML.
+	trimmed := bytes.TrimLeft(body, " \t\r\n")
+	switch {
+	case bytes.HasPrefix(trimmed, []byte("<!DOCTYPE html")),
+		bytes.HasPrefix(trimmed, []byte("<!DOCTYPE HTML")),
+		bytes.HasPrefix(trimmed, []byte("<html")),
+		bytes.HasPrefix(trimmed, []byte("<HTML")),
+		bytes.HasPrefix(trimmed, []byte("<!doctype html")):
+		return "text/html; charset=utf-8"
+	case bytes.HasPrefix(trimmed, []byte("<?xml")):
+		return "application/xml; charset=utf-8"
+	case isJSON(trimmed):
+		return "application/json; charset=utf-8"
+	}
+
+	return "text/plain; charset=utf-8"
+}
+
+// sniffByMagic returns a MIME type for known binary magic byte signatures,
+// or "" when no signature matches (caller falls back to text sniffing or
+// text/plain). Signatures follow the common IANA registered types.
+func sniffByMagic(body []byte) string {
+	// PNG: 89 50 4E 47 0D 0A 1A 0A
+	if len(body) >= 8 && body[0] == 0x89 && body[1] == 0x50 && body[2] == 0x4E && body[3] == 0x47 &&
+		body[4] == 0x0D && body[5] == 0x0A && body[6] == 0x1A && body[7] == 0x0A {
+		return "image/png"
+	}
+	// JPEG: FF D8 FF
+	if len(body) >= 3 && body[0] == 0xFF && body[1] == 0xD8 && body[2] == 0xFF {
+		return "image/jpeg"
+	}
+	// GIF: 47 49 46 38 (GIF8)
+	if len(body) >= 4 && body[0] == 0x47 && body[1] == 0x49 && body[2] == 0x46 && body[3] == 0x38 {
+		return "image/gif"
+	}
+	// PDF: 25 50 44 46 (%PDF)
+	if len(body) >= 4 && body[0] == 0x25 && body[1] == 0x50 && body[2] == 0x44 && body[3] == 0x46 {
+		return "application/pdf"
+	}
+	// ZIP/GZIP/etc. (PK\x03\x04) — includes .docx/.xlsx/.zip
+	if len(body) >= 4 && body[0] == 0x50 && body[1] == 0x4B && body[2] == 0x03 && body[3] == 0x04 {
+		return "application/zip"
+	}
+	// GZIP: 1F 8B
+	if len(body) >= 2 && body[0] == 0x1F && body[1] == 0x8B {
+		return "application/gzip"
+	}
+	// BZIP2: 42 5A 68 (BZh)
+	if len(body) >= 3 && body[0] == 0x42 && body[1] == 0x5A && body[2] == 0x68 {
+		return "application/x-bzip2"
+	}
+	// RIFF (AVI/WAV/WebP): 52 49 46 46
+	if len(body) >= 4 && body[0] == 0x52 && body[1] == 0x49 && body[2] == 0x46 && body[3] == 0x46 {
+		return "application/octet-stream"
+	}
+	// BMP: 42 4D (BM)
+	if len(body) >= 2 && body[0] == 0x42 && body[1] == 0x4D {
+		return "image/bmp"
+	}
+	// MP3: 49 44 33 (ID3) or FF FB / FF F3 / FF F2
+	if (len(body) >= 3 && body[0] == 0x49 && body[1] == 0x44 && body[2] == 0x33) ||
+		(len(body) >= 2 && body[0] == 0xFF && (body[1] == 0xFB || body[1] == 0xF3 || body[1] == 0xF2)) {
+		return "audio/mpeg"
+	}
+	// WAV (RIFF.WAVE): 52 49 46 46 ?? ?? ?? ?? 57 41 56 45
+	if len(body) >= 12 && body[0] == 0x52 && body[1] == 0x49 && body[2] == 0x46 && body[3] == 0x46 &&
+		body[8] == 0x57 && body[9] == 0x41 && body[10] == 0x56 && body[11] == 0x45 {
+		return "audio/wav"
+	}
+	// WebP (RIFF.WEBP): 52 49 46 46 ?? ?? ?? ?? 57 45 42 50
+	if len(body) >= 12 && body[0] == 0x52 && body[1] == 0x49 && body[2] == 0x46 && body[3] == 0x46 &&
+		body[8] == 0x57 && body[9] == 0x45 && body[10] == 0x42 && body[11] == 0x50 {
+		return "image/webp"
+	}
+	// ICO: 00 00 01 00
+	if len(body) >= 4 && body[0] == 0x00 && body[1] == 0x00 && body[2] == 0x01 && body[3] == 0x00 {
+		return "image/x-icon"
+	}
+	return ""
+}
+
+// isJSON reports whether body looks like JSON: first non-whitespace byte is
+// '{' or '[' and the body parses (or at least starts plausibly). We don't
+// require full parse — a body starting with '{' or '[' is the strongest
+// single-signal heuristic for JSON, and false positives (text starting with
+// '{') are rare in practice. The caller already trimmed leading whitespace.
+func isJSON(trimmed []byte) bool {
+	if len(trimmed) == 0 {
+		return false
+	}
+	return trimmed[0] == '{' || trimmed[0] == '['
+}
+
+// gzipBytes gzip-compresses data (UTF-8 bytes or binary) using the standard
+// library with the default (RFC 1952) compression level. The gzip header
+// magic 0x1f 0x8b is what Wireshark/tshark recognize as "GZIP-encoded data"
+// (a content encoding of HTTP, not to be confused with a gzipped *pcap*
+// stream). Replaces gzipBody (which took a string) so binary payloads from
+// BodyB64 can be compressed too.
+func gzipBytes(data []byte) []byte {
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
-	if _, err := zw.Write([]byte(s)); err != nil {
+	if _, err := zw.Write(data); err != nil {
 		// gzip.Writer.Write only returns an error after the first Flush/Close,
 		// so this branch is unreachable in practice for an in-memory buffer.
 		// Fall back to the uncompressed body on a defensive error rather than
 		// silently emitting truncated/empty compressed bytes.
-		return s
+		return data
 	}
 	if err := zw.Close(); err != nil {
-		return s
+		return data
 	}
-	return buf.String()
+	return buf.Bytes()
 }
 
 // statusTextFor returns the RFC 7231 reason phrase for the given status code,

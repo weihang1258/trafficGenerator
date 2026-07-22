@@ -164,7 +164,7 @@ func TestPlanner_PlanWithResponse(t *testing.T) {
 		DNS: &core.DNSConfig{
 			Domain:     "example.com",
 			QueryType:  1,
-			Response:   true,
+			IsResponse: true,
 			ResponseIP: "192.168.1.100",
 		},
 	}

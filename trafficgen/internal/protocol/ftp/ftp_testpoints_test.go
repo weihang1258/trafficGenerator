@@ -21,6 +21,15 @@ func drain(ch <-chan core.PacketConfig) []core.PacketConfig {
 	return out
 }
 
+// ensureTCP returns spec.TCP, allocating it if nil. The caller must reassign
+// the returned pointer to spec.TCP if they want the allocation to persist.
+func ensureTCP(spec *core.FlowSpec) *core.TCPConfig {
+	if spec.TCP == nil {
+		spec.TCP = &core.TCPConfig{}
+	}
+	return spec.TCP
+}
+
 func validFTPSpec() core.FlowSpec {
 	return core.FlowSpec{
 		SrcIP: "10.0.0.1", DstIP: "10.0.0.2",
@@ -70,7 +79,7 @@ func TestFTPValidate_InvalidDstIP(t *testing.T) {
 func TestFTPValidate_MSSTooSmall(t *testing.T) {
 	p := NewPlanner()
 	spec := validFTPSpec()
-	spec.FTP.MSS = 100 // below MinMSS=536
+	ensureTCP(&spec).MSS = 100 // below MinMSS=536
 	err := p.Validate(spec)
 	if err == nil || !strings.Contains(err.Error(), "MSS") {
 		t.Errorf("err=%v, want contains 'MSS'", err)
@@ -80,7 +89,7 @@ func TestFTPValidate_MSSTooSmall(t *testing.T) {
 func TestFTPValidate_MSSZeroOK(t *testing.T) {
 	p := NewPlanner()
 	spec := validFTPSpec()
-	spec.FTP.MSS = 0 // 0 means default — not an error
+	ensureTCP(&spec).MSS = 0 // 0 means default — not an error
 	if err := p.Validate(spec); err != nil {
 		t.Errorf("MSS=0 should be accepted (means default): %v", err)
 	}
@@ -266,7 +275,7 @@ func TestFTPPlan_SequenceContinuity(t *testing.T) {
 func TestFTPPlan_MSSSegmentation(t *testing.T) {
 	p := NewPlanner()
 	spec := validFTPSpec()
-	spec.FTP.MSS = 536
+	ensureTCP(&spec).MSS = 536
 	longBody := strings.Repeat("x", 1080)
 	spec.FTP.Banner = ""
 	spec.FTP.Commands = []core.FTPCommand{
@@ -339,12 +348,12 @@ func TestFTPPlan_OneWayCommands(t *testing.T) {
 	}
 }
 
-// TestFTPPlan_InitialSeqOverride verifies that spec.InitialSeq fixes the
-// client ISN for reproducible tests.
+// TestFTPPlan_InitialSeqOverride verifies that spec.TCP.InitialSeq fixes
+// the client ISN for reproducible tests.
 func TestFTPPlan_InitialSeqOverride(t *testing.T) {
 	p := NewPlanner()
 	spec := validFTPSpec()
-	spec.InitialSeq = 0x11111111
+	ensureTCP(&spec).InitialSeq = 0x11111111
 	cfgs := drain(mustPlan(t, p, spec))
 	if cfgs[0].L4.Seq != 0x11111111 {
 		t.Errorf("cfg[0] (SYN) Seq=%x, want 11111111", cfgs[0].L4.Seq)

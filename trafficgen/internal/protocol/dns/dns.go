@@ -121,7 +121,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		packetIndex++
 
 		// DNS Response
-		if spec.DNS.Response {
+		if spec.DNS.IsResponse {
 			responsePayload := buildDNSResponse(spec.DNS.Domain, spec.DNS.QueryType, spec.DNS.ResponseIP)
 
 			configChan <- core.PacketConfig{

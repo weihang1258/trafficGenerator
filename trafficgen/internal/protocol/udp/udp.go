@@ -117,7 +117,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		packetIndex++
 
 		// UDP Response if configured
-		if spec.UDP != nil && spec.UDP.Response {
+		if spec.UDP != nil && spec.UDP.IsResponse {
 			configChan <- core.PacketConfig{
 				FlowID:      flowID,
 				PacketIndex: packetIndex,

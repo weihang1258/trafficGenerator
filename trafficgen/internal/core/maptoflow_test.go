@@ -307,37 +307,37 @@ func TestMapToFlowSpec_DefaultIPFlags(t *testing.T) {
 		"dst_ip": "10.0.0.2",
 	}
 	spec := mapToFlowSpec(cfg, "tcp")
-	if spec.Flags != DefaultIPFlags {
-		t.Errorf("Flags=%d, want default %d (DF=1)", spec.Flags, DefaultIPFlags)
+	if spec.IPFlags != DefaultIPFlags {
+		t.Errorf("IPFlags=%d, want default %d (DF=1)", spec.IPFlags, DefaultIPFlags)
 	}
 }
 
-// TestMapToFlowSpec_FlagsUserExplicitZero verifies that explicit flags=0 in
-// the config map is honored (allow fragmentation). Same presence-check
+// TestMapToFlowSpec_FlagsUserExplicitZero verifies that explicit ip_flags=0
+// in the config map is honored (allow fragmentation). Same presence-check
 // rationale as TestMapToFlowSpec_DSCPUserExplicitZero.
 func TestMapToFlowSpec_FlagsUserExplicitZero(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
-		"flags":  float64(0),
+		"src_ip":  "10.0.0.1",
+		"dst_ip":  "10.0.0.2",
+		"ip_flags": float64(0),
 	}
 	spec := mapToFlowSpec(cfg, "tcp")
-	if spec.Flags != 0 {
-		t.Errorf("Flags=%d, want 0 (user explicit no-DF, not default)", spec.Flags)
+	if spec.IPFlags != 0 {
+		t.Errorf("IPFlags=%d, want 0 (user explicit no-DF, not default)", spec.IPFlags)
 	}
 }
 
-// TestMapToFlowSpec_FlagsUserOverride verifies that a user-provided flags
+// TestMapToFlowSpec_FlagsUserOverride verifies that a user-provided ip_flags
 // value (e.g. MF=1 for fragmented traffic) wins over the default DF=1.
 func TestMapToFlowSpec_FlagsUserOverride(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
-		"flags":  float64(1), // MF=1
+		"src_ip":  "10.0.0.1",
+		"dst_ip":  "10.0.0.2",
+		"ip_flags": float64(1), // MF=1
 	}
 	spec := mapToFlowSpec(cfg, "tcp")
-	if spec.Flags != 1 {
-		t.Errorf("Flags=%d, want 1 (user override MF)", spec.Flags)
+	if spec.IPFlags != 1 {
+		t.Errorf("IPFlags=%d, want 1 (user override MF)", spec.IPFlags)
 	}
 }
 
@@ -360,16 +360,16 @@ func TestMapToFlowSpec_DSCPNullFallsBackToDefault(t *testing.T) {
 }
 
 // TestMapToFlowSpec_FlagsNullFallsBackToDefault verifies that explicit JSON
-// null for flags is treated as "not set".
+// null for ip_flags is treated as "not set".
 func TestMapToFlowSpec_FlagsNullFallsBackToDefault(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
-		"flags":  nil,
+		"src_ip":  "10.0.0.1",
+		"dst_ip":  "10.0.0.2",
+		"ip_flags": nil,
 	}
 	spec := mapToFlowSpec(cfg, "tcp")
-	if spec.Flags != DefaultIPFlags {
-		t.Errorf("Flags=%d, want DefaultIPFlags=%d (null should fall back to default)", spec.Flags, DefaultIPFlags)
+	if spec.IPFlags != DefaultIPFlags {
+		t.Errorf("IPFlags=%d, want DefaultIPFlags=%d (null should fall back to default)", spec.IPFlags, DefaultIPFlags)
 	}
 }
 
@@ -541,11 +541,11 @@ func TestMapToFlowSpec_DefaultsPropagateToWire_FlagsZeroHonored(t *testing.T) {
 		"dst_ip":   "10.0.0.2",
 		"src_port": float64(12345),
 		"dst_port": float64(80),
-		"flags":    float64(0), // user explicitly wants no-DF
+		"ip_flags": float64(0), // user explicitly wants no-DF
 	}
 	spec := mapToFlowSpec(cfg, "tcp")
-	if spec.Flags != 0 {
-		t.Fatalf("precondition: spec.Flags=%d, want 0", spec.Flags)
+	if spec.IPFlags != 0 {
+		t.Fatalf("precondition: spec.IPFlags=%d, want 0", spec.IPFlags)
 	}
 
 	l3 := L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, 1, spec)
@@ -787,8 +787,8 @@ func TestMapToFlowSpec_AllDefaults_TCP(t *testing.T) {
 	if spec.DSCP != DefaultDSCP {
 		t.Errorf("DSCP=%d, want %d", spec.DSCP, DefaultDSCP)
 	}
-	if spec.Flags != DefaultIPFlags {
-		t.Errorf("Flags=%d, want %d", spec.Flags, DefaultIPFlags)
+	if spec.IPFlags != DefaultIPFlags {
+		t.Errorf("IPFlags=%d, want %d", spec.IPFlags, DefaultIPFlags)
 	}
 	if spec.TTL != 64 {
 		t.Errorf("TTL=%d, want 64", spec.TTL)
@@ -1100,9 +1100,11 @@ func TestMapToFlowSpec_FTP_FullConfig(t *testing.T) {
 	cfg := map[string]interface{}{
 		"src_ip": "10.0.0.1",
 		"dst_ip": "10.0.0.2",
+		"tcp": map[string]interface{}{
+			"mss": float64(1400),
+		},
 		"ftp": map[string]interface{}{
 			"banner": "220 Welcome",
-			"mss":    float64(1400),
 			"commands": []interface{}{
 				map[string]interface{}{
 					"cmd":      "USER anonymous",
@@ -1122,8 +1124,11 @@ func TestMapToFlowSpec_FTP_FullConfig(t *testing.T) {
 	if spec.FTP.Banner != "220 Welcome" {
 		t.Errorf("FTP.Banner=%q, want \"220 Welcome\"", spec.FTP.Banner)
 	}
-	if spec.FTP.MSS != 1400 {
-		t.Errorf("FTP.MSS=%d, want 1400", spec.FTP.MSS)
+	if spec.TCP == nil {
+		t.Fatal("TCP nil, want populated (MSS lives under TCPConfig now)")
+	}
+	if spec.TCP.MSS != 1400 {
+		t.Errorf("TCP.MSS=%d, want 1400 (MSS unified under TCPConfig)", spec.TCP.MSS)
 	}
 	if len(spec.FTP.Commands) != 2 {
 		t.Fatalf("FTP.Commands len=%d, want 2", len(spec.FTP.Commands))
@@ -1370,8 +1375,10 @@ func TestMapToFlowSpec_SIP_FullDialog(t *testing.T) {
 	cfg := map[string]interface{}{
 		"src_ip": "10.0.0.1",
 		"dst_ip": "10.0.0.2",
-		"sip": map[string]interface{}{
+		"tcp": map[string]interface{}{
 			"mss": float64(1400),
+		},
+		"sip": map[string]interface{}{
 			"dialog": []interface{}{
 				map[string]interface{}{
 					"method":    "INVITE",
@@ -1392,8 +1399,11 @@ func TestMapToFlowSpec_SIP_FullDialog(t *testing.T) {
 	if spec.SIP == nil {
 		t.Fatal("SIP nil, want populated")
 	}
-	if spec.SIP.MSS != 1400 {
-		t.Errorf("SIP.MSS=%d, want 1400", spec.SIP.MSS)
+	if spec.TCP == nil {
+		t.Fatal("TCP nil, want populated (MSS lives under TCPConfig now)")
+	}
+	if spec.TCP.MSS != 1400 {
+		t.Errorf("TCP.MSS=%d, want 1400 (MSS unified under TCPConfig)", spec.TCP.MSS)
 	}
 	if len(spec.SIP.Dialog) != 2 {
 		t.Fatalf("SIP.Dialog len=%d, want 2", len(spec.SIP.Dialog))

@@ -311,7 +311,7 @@ func TestDNSPlan_ResponseEnabled(t *testing.T) {
 	spec.DNS = &core.DNSConfig{
 		Domain:     "example.com",
 		QueryType:  TypeA,
-		Response:   true,
+		IsResponse: true,
 		ResponseIP: "1.2.3.4",
 	}
 	cfgs := drain(mustPlan(t, p, spec))
@@ -378,7 +378,7 @@ func TestDNSPlan_ResponseDisabled(t *testing.T) {
 	spec.DNS = &core.DNSConfig{
 		Domain:    "example.com",
 		QueryType: TypeA,
-		Response:  false,
+		IsResponse: false,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	if len(cfgs) != 1 {
@@ -405,7 +405,7 @@ func TestDNSPlan_ContextCancelIgnored(t *testing.T) {
 	spec.DNS = &core.DNSConfig{
 		Domain:    "example.com",
 		QueryType: TypeA,
-		Response:  true,
+		IsResponse: true,
 	}
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {

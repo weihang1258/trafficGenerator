@@ -121,8 +121,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		// Initialize sequence numbers. Random per flow to avoid seq collisions
 		// across flows (real TCP randomizes ISN per RFC 6528). User can override
-		// client seq via spec.InitialSeq for reproducible tests.
-		clientSeq := spec.InitialSeq
+		// client seq via spec.TCP.InitialSeq for reproducible tests.
+		clientSeq := uint32(0)
+		if spec.TCP != nil {
+			clientSeq = spec.TCP.InitialSeq
+		}
 		if clientSeq == 0 {
 			clientSeq = rand.Uint32()
 		}

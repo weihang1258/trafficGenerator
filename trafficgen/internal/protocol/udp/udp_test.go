@@ -153,7 +153,7 @@ func TestPlanner_PlanWithResponse(t *testing.T) {
 		DstMAC:  "11:22:33:44:55:66",
 		Payload: []byte("test"),
 		UDP: &core.UDPConfig{
-			Response: true,
+			IsResponse: true,
 		},
 	}
 

@@ -235,7 +235,7 @@ func TestUDPPlan_UDPNilOnePacket(t *testing.T) {
 func TestUDPPlan_ResponseFalseOnePacket(t *testing.T) {
 	p := NewPlanner()
 	spec := validUDPSpec()
-	spec.UDP = &core.UDPConfig{Response: false}
+	spec.UDP = &core.UDPConfig{IsResponse: false}
 	cfgs := drain(mustPlan(t, p, spec))
 	if len(cfgs) != 1 {
 		t.Errorf("len=%d, want 1", len(cfgs))
@@ -245,7 +245,7 @@ func TestUDPPlan_ResponseFalseOnePacket(t *testing.T) {
 func TestUDPPlan_ResponseTrueTwoPackets(t *testing.T) {
 	p := NewPlanner()
 	spec := validUDPSpec()
-	spec.UDP = &core.UDPConfig{Response: true}
+	spec.UDP = &core.UDPConfig{IsResponse: true}
 	cfgs := drain(mustPlan(t, p, spec))
 	if len(cfgs) != 2 {
 		t.Errorf("len=%d, want 2", len(cfgs))
@@ -305,7 +305,7 @@ func TestUDPPlan_FlowIDBothEmpty(t *testing.T) {
 func TestUDPPlan_IPIDNoResponse(t *testing.T) {
 	p := NewPlanner()
 	spec := validUDPSpec()
-	spec.UDP = &core.UDPConfig{Response: false}
+	spec.UDP = &core.UDPConfig{IsResponse: false}
 	cfgs := drain(mustPlan(t, p, spec))
 	// IPID start is now randomized; just assert it's non-zero (the random
 	// start) and that a single-packet flow produces exactly one IPID.
@@ -317,7 +317,7 @@ func TestUDPPlan_IPIDNoResponse(t *testing.T) {
 func TestUDPPlan_IPIDWithResponse(t *testing.T) {
 	p := NewPlanner()
 	spec := validUDPSpec()
-	spec.UDP = &core.UDPConfig{Response: true}
+	spec.UDP = &core.UDPConfig{IsResponse: true}
 	cfgs := drain(mustPlan(t, p, spec))
 	// IPID start is randomized; the response IPID must be exactly +1 of the
 	// request IPID (per-flow incrementing preserved).
@@ -352,7 +352,7 @@ func TestUDPPlan_RequestDirectionFields(t *testing.T) {
 func TestUDPPlan_ResponseDirectionFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validUDPSpec()
-	spec.UDP = &core.UDPConfig{Response: true}
+	spec.UDP = &core.UDPConfig{IsResponse: true}
 	cfgs := drain(mustPlan(t, p, spec))
 	resp := cfgs[1]
 	if resp.Direction != "down" {
@@ -421,7 +421,7 @@ func TestUDPPlan_MACsBothEmpty(t *testing.T) {
 func TestUDPPlan_MACsBothSet(t *testing.T) {
 	p := NewPlanner()
 	spec := validUDPSpec()
-	spec.UDP = &core.UDPConfig{Response: true}
+	spec.UDP = &core.UDPConfig{IsResponse: true}
 	cfgs := drain(mustPlan(t, p, spec))
 	// Response swaps MACs
 	if cfgs[1].L2.SrcMAC != spec.DstMAC || cfgs[1].L2.DstMAC != spec.SrcMAC {
@@ -434,7 +434,7 @@ func TestUDPPlan_OnlySrcMAC(t *testing.T) {
 	spec := validUDPSpec()
 	spec.SrcMAC = "aa:bb:cc:dd:ee:ff"
 	spec.DstMAC = ""
-	spec.UDP = &core.UDPConfig{Response: true}
+	spec.UDP = &core.UDPConfig{IsResponse: true}
 	cfgs := drain(mustPlan(t, p, spec))
 	resp := cfgs[1]
 	// Response: SrcMAC=DstMAC(orig empty), DstMAC=SrcMAC
@@ -451,7 +451,7 @@ func TestUDPPlan_OnlyDstMAC(t *testing.T) {
 	spec := validUDPSpec()
 	spec.SrcMAC = ""
 	spec.DstMAC = "00:11:22:33:44:55"
-	spec.UDP = &core.UDPConfig{Response: true}
+	spec.UDP = &core.UDPConfig{IsResponse: true}
 	cfgs := drain(mustPlan(t, p, spec))
 	resp := cfgs[1]
 	if resp.L2.SrcMAC != "00:11:22:33:44:55" {
@@ -465,7 +465,7 @@ func TestUDPPlan_OnlyDstMAC(t *testing.T) {
 func TestUDPPlan_SharedTimestamp(t *testing.T) {
 	p := NewPlanner()
 	spec := validUDPSpec()
-	spec.UDP = &core.UDPConfig{Response: true}
+	spec.UDP = &core.UDPConfig{IsResponse: true}
 	cfgs := drain(mustPlan(t, p, spec))
 	if !cfgs[0].Timestamp.Equal(cfgs[1].Timestamp) {
 		t.Errorf("timestamps differ: req=%v resp=%v", cfgs[0].Timestamp, cfgs[1].Timestamp)
@@ -510,7 +510,7 @@ func TestUDPPlan_ChannelCloseOnePacket(t *testing.T) {
 func TestUDPPlan_ChannelCloseTwoPackets(t *testing.T) {
 	p := NewPlanner()
 	spec := validUDPSpec()
-	spec.UDP = &core.UDPConfig{Response: true}
+	spec.UDP = &core.UDPConfig{IsResponse: true}
 	cfgs := drain(mustPlan(t, p, spec))
 	if len(cfgs) != 2 {
 		t.Errorf("len=%d, want 2", len(cfgs))
@@ -525,7 +525,7 @@ func TestUDPPlan_ContextCancelIgnored(t *testing.T) {
 	p := NewPlanner()
 	ctx, cancel := context.WithCancel(context.Background())
 	spec := validUDPSpec()
-	spec.UDP = &core.UDPConfig{Response: true}
+	spec.UDP = &core.UDPConfig{IsResponse: true}
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -551,7 +551,7 @@ func TestUDPPlan_BlockedSendLeak(t *testing.T) {
 	p := NewPlanner()
 	ctx, cancel := context.WithCancel(context.Background())
 	spec := validUDPSpec()
-	spec.UDP = &core.UDPConfig{Response: true}
+	spec.UDP = &core.UDPConfig{IsResponse: true}
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)

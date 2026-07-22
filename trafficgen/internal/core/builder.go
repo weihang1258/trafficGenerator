@@ -40,16 +40,16 @@ func NewBuilder() *Builder {
 }
 
 // L3Base builds an L3Config with the common L3 fields plus the flow-level
-// DSCP/ECN/Flags/FragOffset carried on spec. srcIP/dstIP are passed explicitly
+// DSCP/ECN/IPFlags/FragOffset carried on spec. srcIP/dstIP are passed explicitly
 // so reply packets can swap them. Legacy spec.TOS (whole-byte) overrides
 // DSCP/ECN when set, for backward compatibility with old configs.
 // Planners use this instead of inlining L3Config{} at every packet site.
 //
 // Defaulting (DF=1, DSCP=0x2E, MACs, etc.) is owned by mapToFlowSpec via
-// presence-check helpers. L3Base passes spec.Flags through unchanged so an
-// explicit user choice of flags=0 (no DF, allow fragmentation) is honored
+// presence-check helpers. L3Base passes spec.IPFlags through unchanged so an
+// explicit user choice of ip_flags=0 (no DF, allow fragmentation) is honored
 // end-to-end. Code paths that construct FlowSpec directly (bypassing
-// mapToFlowSpec) must set spec.Flags explicitly if they want DF=1.
+// mapToFlowSpec) must set spec.IPFlags explicitly if they want DF=1.
 func L3Base(srcIP, dstIP string, protocol uint8, ttl uint8, ipid uint16, spec FlowSpec) L3Config {
 	l3 := L3Config{
 		SrcIP:       srcIP,
@@ -59,7 +59,7 @@ func L3Base(srcIP, dstIP string, protocol uint8, ttl uint8, ipid uint16, spec Fl
 		IPID:        ipid,
 		DSCP:        spec.DSCP,
 		ECN:         spec.ECN,
-		Flags:       spec.Flags,
+		Flags:       spec.IPFlags,
 		FragOffset:  spec.FragOffset,
 	}
 	if spec.TOS != 0 {

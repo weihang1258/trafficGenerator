@@ -23,6 +23,15 @@ func drain(ch <-chan core.PacketConfig) []core.PacketConfig {
 	return out
 }
 
+// ensureTCP returns spec.TCP, allocating it if nil. The caller must reassign
+// the returned pointer to spec.TCP if they want the allocation to persist.
+func ensureTCP(spec *core.FlowSpec) *core.TCPConfig {
+	if spec.TCP == nil {
+		spec.TCP = &core.TCPConfig{}
+	}
+	return spec.TCP
+}
+
 // validSIPSpec returns a spec with a minimal INVITE → 200 → ACK dialog
 // modeled after the pcap sample. The pcap shows 7 SIP messages on the
 // TCP 5060 signaling channel (INVITE, 100, 180, 200, ACK, BYE, 200).
@@ -105,9 +114,8 @@ func TestSIPValidate_InvalidDstIP(t *testing.T) {
 func TestSIPValidate_MSSTooSmall(t *testing.T) {
 	p := NewPlanner()
 	spec := validSIPSpec()
-	spec.SIP.MSS = 100 // below MinMSS=536
-	err := p.Validate(spec)
-	if err == nil || !strings.Contains(err.Error(), "MSS") {
+	ensureTCP(&spec).MSS = 100 // below MinMSS=536
+	if err := p.Validate(spec); err == nil || !strings.Contains(err.Error(), "MSS") {
 		t.Errorf("err=%v, want contains 'MSS'", err)
 	}
 }
@@ -115,7 +123,7 @@ func TestSIPValidate_MSSTooSmall(t *testing.T) {
 func TestSIPValidate_MSSZeroOK(t *testing.T) {
 	p := NewPlanner()
 	spec := validSIPSpec()
-	spec.SIP.MSS = 0 // 0 means default — not an error
+	ensureTCP(&spec).MSS = 0 // 0 means default — not an error
 	if err := p.Validate(spec); err != nil {
 		t.Errorf("MSS=0 should be accepted (means default): %v", err)
 	}
@@ -279,8 +287,8 @@ func TestSIPPlan_MSSSegmentation(t *testing.T) {
 	p := NewPlanner()
 	longBody := strings.Repeat("x", 1080)
 	spec := validSIPSpec()
+	ensureTCP(&spec).MSS = 536 // MSS is a TCP transport parameter
 	spec.SIP = &core.SIPConfig{
-		MSS: 536, // set on the NEW config, not the overwritten one
 		Dialog: []core.SIPMessage{
 			{
 				Method:    "INVITE",
@@ -358,12 +366,12 @@ func TestSIPPlan_DirectionInference(t *testing.T) {
 	}
 }
 
-// TestSIPPlan_InitialSeqOverride verifies that spec.InitialSeq fixes the
-// client ISN for reproducible tests.
+// TestSIPPlan_InitialSeqOverride verifies that spec.TCP.InitialSeq fixes
+// the client ISN for reproducible tests.
 func TestSIPPlan_InitialSeqOverride(t *testing.T) {
 	p := NewPlanner()
 	spec := validSIPSpec()
-	spec.InitialSeq = 0x22222222
+	ensureTCP(&spec).InitialSeq = 0x22222222
 	cfgs := drain(mustPlan(t, p, spec))
 	if cfgs[0].L4.Seq != 0x22222222 {
 		t.Errorf("cfg[0] (SYN) Seq=%x, want 22222222", cfgs[0].L4.Seq)

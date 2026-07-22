@@ -95,7 +95,7 @@ type FlowSpec struct {
 	// every packet in the flow.
 	DSCP       uint8  `json:"dscp,omitempty"`
 	ECN        uint8  `json:"ecn,omitempty"`
-	Flags      uint8  `json:"flags,omitempty"` // IPFlagDF / IPFlagMF
+	IPFlags    uint8  `json:"ip_flags,omitempty"` // IPFlagDF / IPFlagMF (was "flags")
 	FragOffset uint16 `json:"frag_offset,omitempty"`
 
 	// Protocol specific configuration
@@ -115,11 +115,6 @@ type FlowSpec struct {
 	Count    int    `json:"count,omitempty"`
 	Duration int    `json:"duration,omitempty"` // seconds
 	BPS      string `json:"bps,omitempty"`      // rate limit, e.g., "200k", "1M"
-
-	// InitialSeq overrides the random initial sequence number for TCP flows.
-	// 0 = random per flow (default, RFC 6528 ISN randomization). Non-zero
-	// forces a deterministic client ISN for reproducible tests.
-	InitialSeq uint32 `json:"initial_seq,omitempty"`
 
 	// GroupID routes flows with the same generated id to one PacketWorker,
 	// preserving cross-flow timing (e.g. SIP signaling + RTP data). nil/empty =
@@ -155,11 +150,17 @@ type TCPConfig struct {
 	Flags       uint8  `json:"flags"`
 	Seq         uint32 `json:"seq,omitempty"`
 	Ack         uint32 `json:"ack,omitempty"`
+
+	// InitialSeq overrides the random initial sequence number for TCP flows.
+	// 0 = random per flow (default, RFC 6528 ISN randomization). Non-zero
+	// forces a deterministic client ISN for reproducible tests. Moved here
+	// from FlowSpec because it is TCP-specific.
+	InitialSeq uint32 `json:"initial_seq,omitempty"`
 }
 
 // UDPConfig for UDP protocol.
 type UDPConfig struct {
-	Response bool `json:"response"`
+	IsResponse bool `json:"is_response"` // was "response"
 }
 
 // HTTPConfig for HTTP protocol.
@@ -173,12 +174,23 @@ type UDPConfig struct {
 // matched case-insensitively (RFC 7230 §3.2). When a header is present in
 // the user map, the corresponding default is NOT also emitted (preventing
 // duplicate Host / Content-Length / Connection headers).
+//
+// Body / ResponseBody hold text payloads as a UTF-8 string. For binary
+// payloads (PNG/JPEG/PDF/ZIP/...), set BodyB64 / ResponseBodyB64 instead —
+// a base64-encoded string that the planner decodes to []byte. When both
+// the text and b64 fields of a side are set, b64 wins. The planner uses
+// the decoded bytes to compute Content-Length, gzip compression, and MSS
+// segmentation.
+//
+// Content-Type: when the user does not provide one, the planner sniffs it
+// from the payload (text: HTML/XML/JSON/text/plain; binary: magic bytes).
 type HTTPConfig struct {
 	Method         string            `json:"method"`
 	URI            string            `json:"uri"`
 	Version        string            `json:"version"` // empty -> "HTTP/1.1"
 	RequestHeaders map[string]string `json:"request_headers"`
 	Body           string            `json:"body"`
+	BodyB64        string            `json:"body_b64,omitempty"` // base64-encoded binary body; overrides Body when set
 	KeepAlive      bool              `json:"keep_alive"`
 	Transactions   int               `json:"transactions"`
 	ThinkTime      int               `json:"think_time"` // milliseconds
@@ -188,10 +200,12 @@ type HTTPConfig struct {
 	// Content-Length, no Content-Type default. ResponseStatusCode 0 -> 200.
 	// ResponseStatusText empty -> looked up from ResponseStatusCode.
 	//
-	// ContentEncoding, when set to "gzip", compresses ResponseBody with gzip
-	// before framing. Content-Length reflects the compressed byte count, and
-	// a "Content-Encoding: gzip" header is emitted (overridable via
-	// ResponseHeaders, case-insensitive). Empty/unset -> no compression.
+	// ResponseContentEncoding, when set to "gzip", compresses ResponseBody
+	// with gzip before framing. Content-Length reflects the compressed byte
+	// count, and a "Content-Encoding: gzip" header is emitted (overridable
+	// via ResponseHeaders, case-insensitive). Empty/unset -> no compression.
+	// (Renamed from ContentEncoding — the old name was ambiguous: it sounded
+	// global but only affected the response side.)
 	//
 	// RequestContentEncoding is the symmetric field for the request side:
 	// when set to "gzip", compresses Body with gzip before framing.
@@ -199,24 +213,23 @@ type HTTPConfig struct {
 	// "Content-Encoding: gzip" header is emitted (overridable via
 	// RequestHeaders, case-insensitive). Empty/unset -> no compression.
 	//
-	// MSS governs response AND request segmentation: payloads longer than
-	// MSS are split into multiple TCP segments (each PSH-ACK), so a 3066-byte
-	// HTTP response over MSS=1460 becomes 3 segments (1460+1460+146). 0 ->
-	// DefaultMSS (1460). The SYN/SYN-ACK carry this MSS as a TCP option.
+	// MSS is governed by TCPConfig.MSS (MSS is a TCP transport parameter,
+	// not an HTTP one). Planners read spec.TCP.MSS for both request and
+	// response segmentation.
 	ResponseHeaders        map[string]string `json:"response_headers"`
 	ResponseBody           string            `json:"response_body"`
+	ResponseBodyB64        string            `json:"response_body_b64,omitempty"` // base64-encoded binary body; overrides ResponseBody when set
 	ResponseStatusCode     int               `json:"response_status_code"`
 	ResponseStatusText     string            `json:"response_status_text"`
-	ContentEncoding        string            `json:"content_encoding"`
+	ResponseContentEncoding string           `json:"response_content_encoding"`
 	RequestContentEncoding string            `json:"request_content_encoding"`
-	MSS                    uint16            `json:"mss"`
 }
 
 // DNSConfig for DNS protocol.
 type DNSConfig struct {
 	Domain     string `json:"domain"`
 	QueryType  uint16 `json:"query_type"` // A=1, AAAA=28
-	Response   bool   `json:"response"`
+	IsResponse bool   `json:"is_response"` // was "response"
 	ResponseIP string `json:"response_ip,omitempty"`
 }
 
@@ -283,10 +296,8 @@ type ARPConfig struct {
 type FTPConfig struct {
 	Banner   string       `json:"banner,omitempty"` // server greeting, e.g. "220 ..."; empty = skip
 	Commands []FTPCommand `json:"commands"`
-	// MSS drives segmentation of long payloads (response or command bodies).
-	// 0 -> DefaultMSS (1460). Pulled from the HTTP MSS constant via the
-	// planner package to avoid a core->http import.
-	MSS uint16 `json:"mss,omitempty"`
+	// MSS is governed by TCPConfig.MSS. FTP runs over TCP, so the planner
+	// reads spec.TCP.MSS for segmentation of long FTP payloads.
 }
 
 // FTPCommand is a single command/response pair within an FTP session.
@@ -315,10 +326,8 @@ type FTPCommand struct {
 // session is what defines a "SIP flow" for testing purposes.
 type SIPConfig struct {
 	Dialog []SIPMessage `json:"dialog"`
-	// MSS drives segmentation of long SIP messages (INVITE with a large
-	// SDP body can exceed MSS). 0 -> DefaultMSS (1460). The SYN/SYN-ACK
-	// carry this MSS as a TCP option.
-	MSS uint16 `json:"mss,omitempty"`
+	// MSS is governed by TCPConfig.MSS. SIP runs over TCP (or UDP), so the
+	// planner reads spec.TCP.MSS for segmentation of long SIP messages.
 }
 
 // SIPMessage is a single message within a SIP dialog. A request sets

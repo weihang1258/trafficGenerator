@@ -27,8 +27,10 @@ func ValidateConfigRanges(cfg map[string]interface{}) error {
 	}
 	// IP flags: 3-bit field (reserved|DF|MF). Valid 0-7; reserved bit (0x04)
 	// should be 0 but is masked by the builder, so only range-check here.
-	if f := getInt(cfg, "flags"); f < 0 || f > 7 {
-		return fmt.Errorf("flags %d invalid (must be 0-7)", f)
+	// Backward compat: "ip_flags" is the preferred key; "flags" is the legacy
+	// key (ambiguous with TCP flags) read as fallback by defaultIPFlags.
+	if f := getIntWithFallback(cfg, "ip_flags", "flags"); f < 0 || f > 7 {
+		return fmt.Errorf("ip_flags %d invalid (must be 0-7)", f)
 	}
 	// Fragment offset: 13-bit field (0-8191), in 8-byte units.
 	if fo := getInt(cfg, "frag_offset"); fo < 0 || fo > 8191 {
@@ -67,6 +69,9 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 			if w := getInt(sub, "window_size"); w < 0 || w > 65535 {
 				return fmt.Errorf("tcp.window_size %d invalid (must be 0-65535)", w)
 			}
+			if s := getInt(sub, "initial_seq"); s < 0 {
+				return fmt.Errorf("tcp.initial_seq %d invalid (must be >= 0)", s)
+			}
 		}
 	case "dns":
 		if sub, ok := cfg["dns"].(map[string]interface{}); ok {
@@ -95,19 +100,16 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 	case "http":
 		// HTTP sub-config fields are strings or booleans — no uint truncation.
 		// http.transactions is an int but capped at reasonable values by the
-		// planner, so no truncation validation needed here.
+		// planner, so no truncation validation needed here. MSS for HTTP
+		// segmentation is governed by tcp.mss (validated in the tcp case).
 	case "ftp":
-		if sub, ok := cfg["ftp"].(map[string]interface{}); ok {
-			if m := getInt(sub, "mss"); m < 0 || m > 65535 {
-				return fmt.Errorf("ftp.mss %d invalid (must be 0-65535)", m)
-			}
-		}
+		// FTP runs over TCP; MSS for FTP payload segmentation is governed
+		// by tcp.mss (validated in the tcp case). No FTP-specific uint
+		// fields to range-check.
 	case "sip":
-		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
-			if m := getInt(sub, "mss"); m < 0 || m > 65535 {
-				return fmt.Errorf("sip.mss %d invalid (must be 0-65535)", m)
-			}
-		}
+		// SIP runs over TCP (or UDP); MSS for SIP message segmentation is
+		// governed by tcp.mss (validated in the tcp case). No SIP-specific
+		// uint fields to range-check.
 	case "sctp":
 		if sub, ok := cfg["sctp"].(map[string]interface{}); ok {
 			if t := getInt(sub, "verification_tag"); t < 0 {
@@ -137,6 +139,13 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 		}
 	}
 	return nil
+}
+
+func getIntWithFallback(m map[string]interface{}, preferredKey, legacyKey string) int {
+	if v, ok := m[preferredKey]; ok && v != nil {
+		return getInt(m, preferredKey)
+	}
+	return getInt(m, legacyKey)
 }
 
 // ValidateFlowSpec validates a FlowSpec. Empty/zero values mean "use default"

@@ -334,7 +334,7 @@ func TestTCPPlan_SYNPacketFields(t *testing.T) {
 	// Pin client ISN so the Seq/IPID assertions below are deterministic.
 	// (ISN and IPID start are randomized per flow by default; tests opt in
 	// to fixed values via InitialSeq.)
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	syn := cfgs[0]
 	if syn.PacketIndex != 0 {
@@ -383,7 +383,7 @@ func TestTCPPlan_SYNACKPacketFields(t *testing.T) {
 	spec.TCP = &core.TCPConfig{Handshake: true, Termination: false}
 	// Pin client ISN; server ISN is still randomized, so we only assert
 	// the SYN-ACK's Seq differs from the SYN's Seq and its Ack == SYN.Seq+1.
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	synack := cfgs[1]
 	if synack.PacketIndex != 1 {
@@ -424,7 +424,7 @@ func TestTCPPlan_HandshakeACKFields(t *testing.T) {
 	spec.TCP = &core.TCPConfig{Handshake: true, Termination: false}
 	// Pin client ISN; server ISN is still randomized, so Ack (= serverSeq+1)
 	// is asserted as != SYN-ACK.Seq instead of a fixed value.
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[2]
 	if ack.L4.Flags != 0x10 {
@@ -573,7 +573,7 @@ func TestTCPPlan_DataSegmentFields(t *testing.T) {
 	spec.TCP = &core.TCPConfig{Handshake: false, Termination: false}
 	// Pin client ISN; server ISN is still randomized, so Ack (serverSeq)
 	// is asserted as != Seq (clientSeq) instead of a fixed value.
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	data := cfgs[0]
 	if data.Direction != "up" {
@@ -600,7 +600,7 @@ func TestTCPPlan_DataACKFields(t *testing.T) {
 	spec.TCP = &core.TCPConfig{Handshake: false, Termination: false, WindowSize: 32768}
 	// Pin client ISN; server ISN is still randomized, so the ACK's Seq
 	// (serverSeq) is asserted as != 0 / != Ack instead of a fixed value.
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[1]
 	if ack.Direction != "down" {
@@ -663,7 +663,7 @@ func TestTCPPlan_ClientFINFields(t *testing.T) {
 	spec.TCP = &core.TCPConfig{Handshake: false, Termination: true, WindowSize: 32768}
 	// Pin client ISN; server ISN is still randomized, so Ack (serverSeq)
 	// is asserted as != Seq (clientSeq) instead of a fixed value.
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	fin := cfgs[0]
 	if fin.Direction != "up" {
@@ -688,7 +688,7 @@ func TestTCPPlan_ServerACKofFINFields(t *testing.T) {
 	spec := validTCPSpec()
 	spec.TCP = &core.TCPConfig{Handshake: false, Termination: true, WindowSize: 32768}
 	// Pin client ISN so the Ack (clientSeq+1 after FIN) is deterministic.
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[1]
 	if ack.Direction != "down" || ack.L4.Flags != 0x10 {
@@ -1122,7 +1122,7 @@ func mustPlan(t *testing.T, p *Planner, spec core.FlowSpec) <-chan core.PacketCo
 // RFC 6528: TCP ISNs SHOULD be unpredictable per flow. Pre-fix the planner
 // hardcoded clientSeq=1000/serverSeq=2000 and IPID=1 for every flow, causing
 // cross-flow seq/IPID collisions in multi-flow tests. These tests pin down
-// the new behavior: random by default, overridable via spec.InitialSeq for
+// the new behavior: random by default, overridable via spec.TCP.InitialSeq for
 // reproducible tests.
 
 func TestTCPPlan_RandomSeqNonZero(t *testing.T) {
@@ -1147,7 +1147,7 @@ func TestTCPPlan_InitialSeqOverride(t *testing.T) {
 	p := NewPlanner()
 	spec := validTCPSpec()
 	spec.TCP = &core.TCPConfig{Handshake: true, Termination: false}
-	spec.InitialSeq = 0x12345
+	spec.TCP.InitialSeq = 0x12345
 	cfgs := drain(mustPlan(t, p, spec))
 	if cfgs[0].L4.Seq != 0x12345 {
 		t.Errorf("SYN Seq=%d, want 0x12345 (InitialSeq override)", cfgs[0].L4.Seq)

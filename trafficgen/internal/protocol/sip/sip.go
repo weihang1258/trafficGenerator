@@ -82,9 +82,10 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("invalid destination IP: %s", spec.DstIP)
 		}
 	}
-	if spec.SIP != nil && spec.SIP.MSS > 0 {
-		if spec.SIP.MSS < MinMSS {
-			return fmt.Errorf("MSS %d too small (min %d per RFC 879)", spec.SIP.MSS, MinMSS)
+	// MSS is a TCP transport parameter; it lives on TCPConfig (spec.TCP.MSS).
+	if spec.TCP != nil && spec.TCP.MSS > 0 {
+		if spec.TCP.MSS < MinMSS {
+			return fmt.Errorf("MSS %d too small (min %d per RFC 879)", spec.TCP.MSS, MinMSS)
 		}
 	}
 	return nil
@@ -113,9 +114,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			effectiveTTL = DefaultTTL
 		}
 
+		// Resolve MSS: 0 -> DefaultMSS (1460). MSS is a TCP transport
+		// parameter; it lives on TCPConfig (spec.TCP.MSS).
 		mss := uint16(DefaultMSS)
-		if sipConfig.MSS > 0 {
-			mss = sipConfig.MSS
+		if spec.TCP != nil && spec.TCP.MSS > 0 {
+			mss = spec.TCP.MSS
 		}
 		synOpts := synOptions(mss)
 
@@ -129,8 +132,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 
 		// Random ISN per RFC 6528. User can override client ISN via
-		// spec.InitialSeq for reproducible tests.
-		clientSeq := spec.InitialSeq
+		// spec.TCP.InitialSeq for reproducible tests.
+		clientSeq := uint32(0)
+		if spec.TCP != nil {
+			clientSeq = spec.TCP.InitialSeq
+		}
 		if clientSeq == 0 {
 			clientSeq = rand.Uint32()
 		}

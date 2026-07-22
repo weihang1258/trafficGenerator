@@ -36,6 +36,15 @@ func drain(ch <-chan core.PacketConfig) []core.PacketConfig {
 	return out
 }
 
+// ensureTCP returns spec.TCP, allocating it if nil. The caller must reassign
+// the returned pointer to spec.TCP if they want the allocation to persist.
+func ensureTCP(spec *core.FlowSpec) *core.TCPConfig {
+	if spec.TCP == nil {
+		spec.TCP = &core.TCPConfig{}
+	}
+	return spec.TCP
+}
+
 func validHTTPSpec() core.FlowSpec {
 	return core.FlowSpec{
 		SrcIP: "10.0.0.1", DstIP: "10.0.0.2",
@@ -269,15 +278,15 @@ func TestHTTPPlan_IPIDSequential(t *testing.T) {
 	}
 }
 
-// TestHTTPPlan_FlagsPassThrough verifies L3Base passes spec.Flags through
+// TestHTTPPlan_FlagsPassThrough verifies L3Base passes spec.IPFlags through
 // unchanged. The DF=1 default is owned by mapToFlowSpec's defaultIPFlags
-// helper; planners that receive a FlowSpec with explicit Flags=0 must honor
+// helper; planners that receive a FlowSpec with explicit IPFlags=0 must honor
 // it (no-DF, allow fragmentation). Pre-fix L3Base silently rewrote 0 to
 // IPFlagDF, breaking the user>default rule end-to-end.
 func TestHTTPPlan_FlagsPassThrough(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
-	spec.Flags = 0
+	spec.IPFlags = 0
 	spec.FragOffset = 0
 	cfgs := drain(mustPlan(t, p, spec))
 	for i, c := range cfgs {
@@ -352,7 +361,7 @@ func TestHTTPPlan_SYNPacketFields(t *testing.T) {
 	spec := validHTTPSpec()
 	// Pin client ISN so the Seq assertion is deterministic. Server ISN
 	// and IPID start remain randomized; we only assert non-zero there.
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	syn := cfgs[0]
 	if syn.PacketIndex != 0 {
@@ -404,7 +413,7 @@ func TestHTTPPlan_SYNACKFields(t *testing.T) {
 	spec := validHTTPSpec()
 	// Pin client ISN; server ISN is still randomized, so the SYN-ACK Seq
 	// is asserted as non-zero/different-from-SYN instead of a fixed value.
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	synack := cfgs[1]
 	if synack.PacketIndex != 1 {
@@ -444,7 +453,7 @@ func TestHTTPPlan_HandshakeACKFields(t *testing.T) {
 	spec := validHTTPSpec()
 	// Pin client ISN; server ISN is still randomized, so Ack (= serverSeq+1)
 	// is asserted as SYN-ACK.Seq+1 instead of a fixed value.
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[2]
 	if ack.PacketIndex != 2 {
@@ -578,7 +587,7 @@ func TestHTTPPlan_ClientSeqOverflow(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
 	spec.HTTP = &core.HTTPConfig{Transactions: 3} // 3+6+4=13 packets
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	if len(cfgs) != 13 {
 		t.Fatalf("len=%d, want 13", len(cfgs))
@@ -602,7 +611,7 @@ func TestHTTPPlan_ClientFINFields(t *testing.T) {
 	// Pin client ISN; server ISN is still randomized, so we compute the
 	// expected Ack from the observed SYN-ACK Seq (serverSeq starts there)
 	// plus the response payload length.
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	// For 1 transaction: indices 0-2 handshake, 3-4 transaction, 5-8 termination
 	fin := cfgs[5]
@@ -630,7 +639,7 @@ func TestHTTPPlan_ClientFINFields(t *testing.T) {
 func TestHTTPPlan_ServerACKofFIN(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[6]
 	if ack.Direction != "down" {
@@ -650,7 +659,7 @@ func TestHTTPPlan_ServerACKofFIN(t *testing.T) {
 func TestHTTPPlan_ServerFINFields(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	fin := cfgs[7]
 	if fin.Direction != "down" {
@@ -673,7 +682,7 @@ func TestHTTPPlan_ServerFINFields(t *testing.T) {
 func TestHTTPPlan_ClientACKofServerFIN(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
-	spec.InitialSeq = 1000
+	spec.TCP.InitialSeq = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 	ack := cfgs[8]
 	if ack.Direction != "up" {
@@ -1312,14 +1321,14 @@ func TestBuildHTTPResponse_ResponseHeadersOverride(t *testing.T) {
 	}
 }
 
-// TestBuildHTTPResponse_GzipCompressesBody verifies that ContentEncoding=gzip
+// TestBuildHTTPResponse_GzipCompressesBody verifies that ResponseContentEncoding=gzip
 // compresses the body (payload no longer equals the plaintext body), the
 // emitted body starts with the gzip magic 0x1f 0x8b (RFC 1952), Content-Length
 // reflects the compressed byte count, and a Content-Encoding header is present.
 func TestBuildHTTPResponse_GzipCompressesBody(t *testing.T) {
 	cfg := &core.HTTPConfig{
-		ResponseBody:    "Hello, world! Hello, world! Hello, world!",
-		ContentEncoding:  "gzip",
+		ResponseBody:            "Hello, world! Hello, world! Hello, world!",
+		ResponseContentEncoding: "gzip",
 	}
 	result := buildHTTPResponse(cfg)
 
@@ -1367,9 +1376,9 @@ func TestBuildHTTPResponse_GzipCompressesBody(t *testing.T) {
 func TestBuildHTTPResponse_GzipUTF8Chinese(t *testing.T) {
 	plaintext := "我爱你中国"
 	cfg := &core.HTTPConfig{
-		ResponseBody:    plaintext,
-		ContentEncoding:  "gzip",
-		ResponseHeaders: map[string]string{"Content-Type": "text/html; charset=utf-8"},
+		ResponseBody:            plaintext,
+		ResponseContentEncoding: "gzip",
+		ResponseHeaders:         map[string]string{"Content-Type": "text/html; charset=utf-8"},
 	}
 	result := buildHTTPResponse(cfg)
 
@@ -1407,9 +1416,9 @@ func TestBuildHTTPResponse_GzipUTF8Chinese(t *testing.T) {
 // (no duplicate header), case-insensitive per RFC 7230 §3.2.
 func TestBuildHTTPResponse_GzipContentEncodingUserOverride(t *testing.T) {
 	cfg := &core.HTTPConfig{
-		ResponseBody:    "x",
-		ContentEncoding:  "gzip",
-		ResponseHeaders:  map[string]string{"content-encoding": "gzip"},
+		ResponseBody:            "x",
+		ResponseContentEncoding: "gzip",
+		ResponseHeaders:         map[string]string{"content-encoding": "gzip"},
 	}
 	result := buildHTTPResponse(cfg)
 	if got := strings.Count(strings.ToLower(result), "content-encoding:"); got != 1 {
@@ -1418,13 +1427,13 @@ func TestBuildHTTPResponse_GzipContentEncodingUserOverride(t *testing.T) {
 }
 
 // TestBuildHTTPResponse_GzipEmptyBodySkipsCompression verifies that
-// ContentEncoding=gzip with an empty body does not emit Content-Encoding
+// ResponseContentEncoding=gzip with an empty body does not emit Content-Encoding
 // or Content-Length (matches the empty-body defaulting rule for the
 // non-gzip path).
 func TestBuildHTTPResponse_GzipEmptyBodySkipsCompression(t *testing.T) {
 	cfg := &core.HTTPConfig{
-		ResponseBody:    "",
-		ContentEncoding:  "gzip",
+		ResponseBody:            "",
+		ResponseContentEncoding: "gzip",
 	}
 	result := buildHTTPResponse(cfg)
 	if strings.Contains(result, "Content-Encoding:") {
@@ -1797,12 +1806,12 @@ func TestHTTPPlan_MSSExactMultiple(t *testing.T) {
 	spec := validHTTPSpec()
 	// Use a small custom MSS so the body hits an exact multiple. MSS must be
 	// >= MinMSS=536 per RFC 879, so use 536 with a 1072-byte (2*536) body.
+	ensureTCP(&spec).MSS = 536
 	spec.HTTP = &core.HTTPConfig{
-		Method:       "GET",
-		URI:          "/",
-		ResponseBody: strings.Repeat("B", 1072), // 2 * 536
-		MSS:          536,
-		Transactions: 1,
+		Method:        "GET",
+		URI:           "/",
+		ResponseBody:  strings.Repeat("B", 1072), // 2 * 536
+		Transactions:  1,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	total := len(cfgs)
@@ -1863,12 +1872,12 @@ func TestHTTPPlan_MSSEmptyBodyOneSegment(t *testing.T) {
 func TestHTTPPlan_MSSZeroUsesDefault(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
+	ensureTCP(&spec).MSS = 0
 	spec.HTTP = &core.HTTPConfig{
-		Method:       "GET",
-		URI:          "/",
-		ResponseBody: strings.Repeat("X", 2900), // 2*1460=2920, so 2900 -> 2 segments (1460 + 1440)
-		MSS:          0,
-		Transactions: 1,
+		Method:        "GET",
+		URI:           "/",
+		ResponseBody:  strings.Repeat("X", 2900), // 2*1460=2920, so 2900 -> 2 segments (1460 + 1440)
+		Transactions:  1,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	total := len(cfgs)
@@ -1913,12 +1922,12 @@ func TestHTTPPlan_MSSZeroUsesDefault(t *testing.T) {
 func TestHTTPPlan_MSSUserOverrideInSYN(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
+	ensureTCP(&spec).MSS = 536 // RFC 879 minimum
 	spec.HTTP = &core.HTTPConfig{
-		Method:       "GET",
-		URI:          "/",
-		ResponseBody: "x",
-		MSS:          536, // RFC 879 minimum
-		Transactions: 1,
+		Method:        "GET",
+		URI:           "/",
+		ResponseBody:  "x",
+		Transactions:  1,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	syn := cfgs[0]
@@ -1952,7 +1961,7 @@ func TestHTTPPlan_MSSUserOverrideInSYN(t *testing.T) {
 func TestHTTPPlan_MSSTooSmall(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
-	spec.HTTP = &core.HTTPConfig{MSS: 100} // < MinMSS
+	ensureTCP(&spec).MSS = 100 // < MinMSS
 	_, err := p.Plan(context.Background(), spec)
 	if err == nil {
 		t.Fatal("expected error for MSS < MinMSS, got nil")
@@ -1967,12 +1976,12 @@ func TestHTTPPlan_MSSTooSmall(t *testing.T) {
 func TestHTTPPlan_MSSMaxUint16(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
+	ensureTCP(&spec).MSS = 65535
 	spec.HTTP = &core.HTTPConfig{
-		Method:       "GET",
-		URI:          "/",
-		ResponseBody: "x",
-		MSS:          65535,
-		Transactions: 1,
+		Method:        "GET",
+		URI:           "/",
+		ResponseBody:  "x",
+		Transactions:  1,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	// SYN must carry MSS=65535.
@@ -2312,11 +2321,11 @@ func TestHTTPPlan_RequestMSSSegmentsLongBody(t *testing.T) {
 	spec := validHTTPSpec()
 	// Body large enough to force segmentation at DefaultMSS=1460. Use POST
 	// since GET typically has no body.
+	ensureTCP(&spec).MSS = 536 // use small MSS to force multiple segments with smaller body
 	spec.HTTP = &core.HTTPConfig{
 		Method: "POST",
 		URI:    "/upload",
 		Body:   strings.Repeat("A", 3000),
-		MSS:    536, // use small MSS to force multiple segments with smaller body
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 
@@ -2410,12 +2419,12 @@ func TestHTTPPlan_RequestGzipMSSComposite(t *testing.T) {
 	if _, err := cryptoRand.Read(bodyBytes); err != nil {
 		t.Fatalf("crypto/rand.Read: %v", err)
 	}
+	ensureTCP(&spec).MSS = 536
 	spec.HTTP = &core.HTTPConfig{
 		Method:                 "POST",
 		URI:                    "/upload",
 		Body:                   string(bodyBytes),
 		RequestContentEncoding: "gzip",
-		MSS:                    536,
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 

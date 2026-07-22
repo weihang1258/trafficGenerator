@@ -220,11 +220,11 @@ func TestBuilder_Fragmentation(t *testing.T) {
 	}
 }
 
-// TestL3Base_DefaultDF verifies L3Base passes spec.Flags through unchanged.
+// TestL3Base_DefaultDF verifies L3Base passes spec.IPFlags through unchanged.
 // Defaulting (DF=1 when user did not specify) is now owned by mapToFlowSpec
 // via the defaultIPFlags presence-check helper; L3Base no longer silently
-// rewrites an explicit flags=0 to DF=1. Code paths that construct FlowSpec
-// directly (bypassing mapToFlowSpec) must set spec.Flags explicitly.
+// rewrites an explicit ip_flags=0 to DF=1. Code paths that construct FlowSpec
+// directly (bypassing mapToFlowSpec) must set spec.IPFlags explicitly.
 func TestL3Base_DefaultDF(t *testing.T) {
 	// Empty FlowSpec (no flags) -> Flags=0 (no DF default applied here).
 	// mapToFlowSpec's defaultIPFlags helper is the single source of the DF=1
@@ -234,12 +234,12 @@ func TestL3Base_DefaultDF(t *testing.T) {
 		t.Errorf("empty FlowSpec flags = 0x%02x, want 0 (L3Base no longer defaults DF)", l3.Flags)
 	}
 	// Explicit MF + offset -> MF and offset carried through
-	l3 = L3Base("10.0.0.1", "10.0.0.2", 6, 64, 1, FlowSpec{Flags: IPFlagMF, FragOffset: 100})
+	l3 = L3Base("10.0.0.1", "10.0.0.2", 6, 64, 1, FlowSpec{IPFlags: IPFlagMF, FragOffset: 100})
 	if l3.Flags != IPFlagMF || l3.FragOffset != 100 {
 		t.Errorf("explicit frag: flags=0x%02x off=%d, want MF/100", l3.Flags, l3.FragOffset)
 	}
 	// Explicit DF -> carried through
-	l3 = L3Base("10.0.0.1", "10.0.0.2", 6, 64, 1, FlowSpec{Flags: IPFlagDF})
+	l3 = L3Base("10.0.0.1", "10.0.0.2", 6, 64, 1, FlowSpec{IPFlags: IPFlagDF})
 	if l3.Flags != IPFlagDF {
 		t.Errorf("explicit DF: flags=0x%02x, want DF", l3.Flags)
 	}

@@ -165,8 +165,15 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 //
 // Defaulting follows the unified rule (user > default > none): when a field
 // is absent from cfg, the corresponding Default* constant fills in. Numeric
-// fields where 0 is a valid user choice (DSCP=best-effort, Flags=no-DF) use
+// fields where 0 is a valid user choice (DSCP=best-effort, IPFlags=no-DF) use
 // hasKey to distinguish "absent" from "explicitly 0".
+//
+// Backward compatibility: several fields were renamed to remove ambiguity —
+// "flags" -> "ip_flags" (was ambiguous with TCP flags), "content_encoding"
+// -> "response_content_encoding" (sounded global but only affects response),
+// "response" -> "is_response" (UDP/DNS, was ambiguous with FTP response
+// bodies). The new name is preferred when present; the legacy name is read
+// as fallback so existing DB rows keep working.
 func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	spec := FlowSpec{
 		SrcIP:      defaultString(cfg, "src_ip", DefaultSrcIP),
@@ -179,7 +186,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		TOS:        uint8(getInt(cfg, "tos")),
 		DSCP:       defaultDSCP(cfg),
 		ECN:        uint8(getInt(cfg, "ecn")),
-		Flags:      defaultIPFlags(cfg),
+		IPFlags:    defaultIPFlags(cfg),
 		FragOffset: uint16(getInt(cfg, "frag_offset")),
 		Payload:    []byte(getString(cfg, "payload")),
 	}
@@ -201,12 +208,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				Termination: getBool(sub, "termination", true),
 				MSS:         getUint16(sub, "mss"),
 				WindowSize:  getUint16(sub, "window_size"),
+				InitialSeq:  getUint32(sub, "initial_seq"),
 			}
 		}
 	case "udp":
 		if sub, ok := cfg["udp"].(map[string]interface{}); ok {
 			spec.UDP = &UDPConfig{
-				Response: getBool(sub, "response", false),
+				IsResponse: getBoolWithFallback(sub, "is_response", "response", false),
 			}
 		}
 	case "http":
@@ -220,21 +228,22 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				reqHeaders = getStringMap(sub, "headers")
 			}
 			spec.HTTP = &HTTPConfig{
-				Method:                 getStringDefault(sub, "method", "GET"),
-				URI:                    getStringDefault(sub, "uri", "/"),
-				Version:                getString(sub, "version"),
-				RequestHeaders:         reqHeaders,
-				Body:                   getString(sub, "body"),
-				KeepAlive:              getBool(sub, "keep_alive", false),
-				Transactions:           getInt(sub, "transactions"),
-				ThinkTime:              getInt(sub, "think_time"),
-				ResponseHeaders:        getStringMap(sub, "response_headers"),
-				ResponseBody:           getString(sub, "response_body"),
-				ResponseStatusCode:     getInt(sub, "response_status_code"),
-				ResponseStatusText:     getString(sub, "response_status_text"),
-				ContentEncoding:        getString(sub, "content_encoding"),
-				RequestContentEncoding: getString(sub, "request_content_encoding"),
-				MSS:                    getUint16(sub, "mss"),
+				Method:                  getStringDefault(sub, "method", "GET"),
+				URI:                     getStringDefault(sub, "uri", "/"),
+				Version:                 getString(sub, "version"),
+				RequestHeaders:          reqHeaders,
+				Body:                    getString(sub, "body"),
+				BodyB64:                 getString(sub, "body_b64"),
+				KeepAlive:               getBool(sub, "keep_alive", false),
+				Transactions:            getInt(sub, "transactions"),
+				ThinkTime:               getInt(sub, "think_time"),
+				ResponseHeaders:         getStringMap(sub, "response_headers"),
+				ResponseBody:            getString(sub, "response_body"),
+				ResponseBodyB64:         getString(sub, "response_body_b64"),
+				ResponseStatusCode:      getInt(sub, "response_status_code"),
+				ResponseStatusText:      getString(sub, "response_status_text"),
+				ResponseContentEncoding: getStringWithFallback(sub, "response_content_encoding", "content_encoding"),
+				RequestContentEncoding:  getString(sub, "request_content_encoding"),
 			}
 		}
 		// HTTP defaults to port 80, same as DefaultDstPort. No override
@@ -244,7 +253,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.DNS = &DNSConfig{
 				Domain:     getString(sub, "domain"),
 				QueryType:  uint16(getIntDefault(sub, "query_type", 1)),
-				Response:   getBool(sub, "response", false),
+				IsResponse: getBoolWithFallback(sub, "is_response", "response", false),
 				ResponseIP: getString(sub, "response_ip"),
 			}
 		}
@@ -276,7 +285,6 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.FTP = &FTPConfig{
 				Banner:   getString(sub, "banner"),
 				Commands: parseFTPCommands(sub["commands"]),
-				MSS:      getUint16(sub, "mss"),
 			}
 		}
 		// FTP defaults to port 21 (control channel). Only override when
@@ -289,7 +297,6 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
 				Dialog: parseSIPDialog(sub["dialog"]),
-				MSS:    getUint16(sub, "mss"),
 			}
 		}
 		// SIP defaults to port 5060 (signaling). Only override when the
@@ -341,11 +348,21 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	}
 
-	// InitialSeq: optional TCP initial sequence number override. 0 = random
-	// (default). Non-zero fixes client ISN for reproducible tests. Without
-	// this, user JSON "initial_seq" is silently dropped and always random.
+	// InitialSeq backward compat: pre-rename strategies stored this at the
+	// top-level cfg. After the rename it lives inside the "tcp" sub-map. We
+	// prefer spec.TCP.InitialSeq (set above from the tcp sub-map) and fall
+	// back to the top-level "initial_seq" key when TCP is nil or its
+	// InitialSeq is 0. This preserves reproducible-ISN configs that still
+	// use the legacy top-level location.
 	if v, ok := cfg["initial_seq"]; ok && v != nil {
-		spec.InitialSeq = uint32(getInt(cfg, "initial_seq"))
+		legacy := getUint32(cfg, "initial_seq")
+		if legacy != 0 {
+			if spec.TCP == nil {
+				spec.TCP = &TCPConfig{InitialSeq: legacy}
+			} else if spec.TCP.InitialSeq == 0 {
+				spec.TCP.InitialSeq = legacy
+			}
+		}
 	}
 
 	// PadMinFrame: optional Ethernet padding toggle. nil (absent) = default
@@ -641,11 +658,19 @@ func defaultDSCP(cfg map[string]interface{}) uint8 {
 	return DefaultDSCP
 }
 
-// defaultIPFlags returns the user-provided IP flags when the "flags" key is
-// present in cfg AND non-nil (even if 0 = allow fragmentation), and
+// defaultIPFlags returns the user-provided IP flags when the "ip_flags" key
+// is present in cfg AND non-nil (even if 0 = allow fragmentation), and
 // DefaultIPFlags (DF=1) when the key is absent or null. Same presence + nil
 // check rationale as defaultDSCP: flags=0 is a valid user choice.
+//
+// Backward compat: pre-rename strategies used the key "flags". We prefer
+// "ip_flags" when present and fall back to "flags" so existing DB rows keep
+// working. The "flags" key is ambiguous on a FlowSpec (TCP flags vs IP flags)
+// — the rename makes the intent unambiguous.
 func defaultIPFlags(cfg map[string]interface{}) uint8 {
+	if v, ok := cfg["ip_flags"]; ok && v != nil {
+		return uint8(getInt(cfg, "ip_flags"))
+	}
 	if v, ok := cfg["flags"]; ok && v != nil {
 		return uint8(getInt(cfg, "flags"))
 	}
@@ -696,6 +721,34 @@ func getBool(m map[string]interface{}, key string, def bool) bool {
 		return v
 	}
 	return def
+}
+
+// getBoolWithFallback reads a bool from preferredKey, falling back to
+// legacyKey when preferredKey is absent. Used for renamed bool fields
+// (e.g. "is_response" replacing "response" on UDP/DNS) so existing DB
+// rows keep working.
+func getBoolWithFallback(m map[string]interface{}, preferredKey, legacyKey string, def bool) bool {
+	if v, ok := m[preferredKey].(bool); ok {
+		return v
+	}
+	if v, ok := m[legacyKey].(bool); ok {
+		return v
+	}
+	return def
+}
+
+// getStringWithFallback reads a string from preferredKey, falling back to
+// legacyKey when preferredKey is absent. Used for renamed string fields
+// (e.g. "response_content_encoding" replacing "content_encoding") so
+// existing DB rows keep working.
+func getStringWithFallback(m map[string]interface{}, preferredKey, legacyKey string) string {
+	if v, ok := m[preferredKey].(string); ok {
+		return v
+	}
+	if v, ok := m[legacyKey].(string); ok {
+		return v
+	}
+	return ""
 }
 
 func getStringMap(m map[string]interface{}, key string) map[string]string {
