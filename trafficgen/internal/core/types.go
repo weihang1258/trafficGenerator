@@ -9,13 +9,13 @@ import (
 
 // Task represents a traffic generation task.
 type Task struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	UserID      string                 `json:"user_id,omitempty"` // owning user (for user-scoped asset access during replay)
-	Protocol    string                 `json:"protocol"` // tcp, udp, http, dns, icmp, arp
-	Spec        FlowSpec               `json:"spec"`     // single-protocol mode
-	Batch       *BatchSpec             `json:"batch,omitempty"` // mixed-traffic mode (Spec XOR Batch)
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	UserID      string     `json:"user_id,omitempty"` // owning user (for user-scoped asset access during replay)
+	Protocol    string     `json:"protocol"`          // tcp, udp, http, dns, icmp, arp
+	Spec        FlowSpec   `json:"spec"`              // single-protocol mode
+	Batch       *BatchSpec `json:"batch,omitempty"`   // mixed-traffic mode (Spec XOR Batch)
 
 	// Mode selects the source of packet configs. "synth" (default) synthesizes
 	// packets from Spec via a planner. "replay" replays a recorded pcap via the
@@ -28,12 +28,12 @@ type Task struct {
 	// verbatim to ReplayPlanner.PlanReplay. Not used for synth mode.
 	Replay json.RawMessage `json:"replay,omitempty"`
 
-	ClassID     string                 `json:"class_id"`
-	Interface   string                 `json:"interface"`   // output interface name (client side / primary)
-	Interface2  string                 `json:"interface2,omitempty"` // server side (dual-port replay); empty = single
-	OutputMode  string                 `json:"output_mode"` // interface, pcap, both
-	PcapFile    string                 `json:"pcap_file,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	ClassID    string                 `json:"class_id"`
+	Interface  string                 `json:"interface"`            // output interface name (client side / primary)
+	Interface2 string                 `json:"interface2,omitempty"` // server side (dual-port replay); empty = single
+	OutputMode string                 `json:"output_mode"`          // interface, pcap, both
+	PcapFile   string                 `json:"pcap_file,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 
 	// ParentTaskID is the REST-level task ID (parent) that owns this engine
 	// task. A multi-strategy task spawns one engine task per strategy, each
@@ -95,26 +95,26 @@ type FlowSpec struct {
 	// every packet in the flow.
 	DSCP       uint8  `json:"dscp,omitempty"`
 	ECN        uint8  `json:"ecn,omitempty"`
-	Flags      uint8  `json:"flags,omitempty"`       // IPFlagDF / IPFlagMF
+	Flags      uint8  `json:"flags,omitempty"` // IPFlagDF / IPFlagMF
 	FragOffset uint16 `json:"frag_offset,omitempty"`
 
 	// Protocol specific configuration
-	TCP     *TCPConfig     `json:"tcp,omitempty"`
-	UDP     *UDPConfig     `json:"udp,omitempty"`
-	HTTP    *HTTPConfig    `json:"http,omitempty"`
-	DNS     *DNSConfig     `json:"dns,omitempty"`
-	ICMP    *ICMPConfig    `json:"icmp,omitempty"`
-	ARP     *ARPConfig     `json:"arp,omitempty"`
-	FTP     *FTPConfig     `json:"ftp,omitempty"`
-	SIP     *SIPConfig     `json:"sip,omitempty"`
-	SCTP    *SCTPConfig    `json:"sctp,omitempty"`
-	ICMPv6  *ICMPv6Config  `json:"icmpv6,omitempty"`
+	TCP    *TCPConfig    `json:"tcp,omitempty"`
+	UDP    *UDPConfig    `json:"udp,omitempty"`
+	HTTP   *HTTPConfig   `json:"http,omitempty"`
+	DNS    *DNSConfig    `json:"dns,omitempty"`
+	ICMP   *ICMPConfig   `json:"icmp,omitempty"`
+	ARP    *ARPConfig    `json:"arp,omitempty"`
+	FTP    *FTPConfig    `json:"ftp,omitempty"`
+	SIP    *SIPConfig    `json:"sip,omitempty"`
+	SCTP   *SCTPConfig   `json:"sctp,omitempty"`
+	ICMPv6 *ICMPv6Config `json:"icmpv6,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`
 	Count    int    `json:"count,omitempty"`
 	Duration int    `json:"duration,omitempty"` // seconds
-	BPS      string `json:"bps,omitempty"`     // rate limit, e.g., "200k", "1M"
+	BPS      string `json:"bps,omitempty"`      // rate limit, e.g., "200k", "1M"
 
 	// InitialSeq overrides the random initial sequence number for TCP flows.
 	// 0 = random per flow (default, RFC 6528 ISN randomization). Non-zero
@@ -174,14 +174,14 @@ type UDPConfig struct {
 // the user map, the corresponding default is NOT also emitted (preventing
 // duplicate Host / Content-Length / Connection headers).
 type HTTPConfig struct {
-	Method       string            `json:"method"`
-	URI          string            `json:"uri"`
-	Version      string            `json:"version"` // empty -> "HTTP/1.1"
+	Method         string            `json:"method"`
+	URI            string            `json:"uri"`
+	Version        string            `json:"version"` // empty -> "HTTP/1.1"
 	RequestHeaders map[string]string `json:"request_headers"`
-	Body         string            `json:"body"`
-	KeepAlive    bool              `json:"keep_alive"`
-	Transactions int               `json:"transactions"`
-	ThinkTime    int               `json:"think_time"` // milliseconds
+	Body           string            `json:"body"`
+	KeepAlive      bool              `json:"keep_alive"`
+	Transactions   int               `json:"transactions"`
+	ThinkTime      int               `json:"think_time"` // milliseconds
 
 	// Response-side fields. ResponseHeaders overrides generated defaults
 	// (Content-Type/Content-Length/Connection). ResponseBody empty -> no
@@ -193,16 +193,23 @@ type HTTPConfig struct {
 	// a "Content-Encoding: gzip" header is emitted (overridable via
 	// ResponseHeaders, case-insensitive). Empty/unset -> no compression.
 	//
-	// MSS governs response (and request) segmentation: payloads longer than
+	// RequestContentEncoding is the symmetric field for the request side:
+	// when set to "gzip", compresses Body with gzip before framing.
+	// Content-Length reflects the compressed byte count, and a
+	// "Content-Encoding: gzip" header is emitted (overridable via
+	// RequestHeaders, case-insensitive). Empty/unset -> no compression.
+	//
+	// MSS governs response AND request segmentation: payloads longer than
 	// MSS are split into multiple TCP segments (each PSH-ACK), so a 3066-byte
 	// HTTP response over MSS=1460 becomes 3 segments (1460+1460+146). 0 ->
 	// DefaultMSS (1460). The SYN/SYN-ACK carry this MSS as a TCP option.
-	ResponseHeaders     map[string]string `json:"response_headers"`
-	ResponseBody        string            `json:"response_body"`
-	ResponseStatusCode  int               `json:"response_status_code"`
-	ResponseStatusText  string            `json:"response_status_text"`
-	ContentEncoding     string            `json:"content_encoding"`
-	MSS                 uint16            `json:"mss"`
+	ResponseHeaders        map[string]string `json:"response_headers"`
+	ResponseBody           string            `json:"response_body"`
+	ResponseStatusCode     int               `json:"response_status_code"`
+	ResponseStatusText     string            `json:"response_status_text"`
+	ContentEncoding        string            `json:"content_encoding"`
+	RequestContentEncoding string            `json:"request_content_encoding"`
+	MSS                    uint16            `json:"mss"`
 }
 
 // DNSConfig for DNS protocol.
@@ -231,19 +238,19 @@ type DNSConfig struct {
 // rule above). An empty Pattern falls back to the legacy single-ping path
 // (request + auto-reply) so existing configs keep working unchanged.
 type ICMPConfig struct {
-	Type       uint8       `json:"type"`      // 8=Echo Request, 0=Echo Reply
-	Code       uint8       `json:"code"`
-	Identifier uint16      `json:"identifier"` // Echo session ID; 0 -> fallback to Sequence
-	Sequence   uint16      `json:"sequence"`
-	Data       []byte      `json:"data"`
-	Pattern    []ICMPStep  `json:"pattern,omitempty"` // multi-session ping steps
+	Type       uint8      `json:"type"` // 8=Echo Request, 0=Echo Reply
+	Code       uint8      `json:"code"`
+	Identifier uint16     `json:"identifier"` // Echo session ID; 0 -> fallback to Sequence
+	Sequence   uint16     `json:"sequence"`
+	Data       []byte     `json:"data"`
+	Pattern    []ICMPStep `json:"pattern,omitempty"` // multi-session ping steps
 }
 
 // ICMPStep is a single ping within a multi-session ICMP flow. The planner
 // emits Type (and its auto-reply if Type=EchoRequest) for each step, with
 // Sequence incrementing per step. Data is the per-ping payload.
 type ICMPStep struct {
-	Type     uint8  `json:"type"`     // 8=Echo Request, 0=Echo Reply
+	Type     uint8  `json:"type"` // 8=Echo Request, 0=Echo Reply
 	Code     uint8  `json:"code"`
 	Sequence uint16 `json:"sequence"` // per-step sequence; if 0, planner uses step index+1
 	Data     []byte `json:"data"`
@@ -284,8 +291,8 @@ type FTPConfig struct {
 
 // FTPCommand is a single command/response pair within an FTP session.
 type FTPCommand struct {
-	Cmd      string `json:"cmd"`               // e.g. "USER anonymous"; sent client -> server
-	Response string `json:"response"`           // e.g. "331 ..."; sent server -> client
+	Cmd      string `json:"cmd"`      // e.g. "USER anonymous"; sent client -> server
+	Response string `json:"response"` // e.g. "331 ..."; sent server -> client
 }
 
 // SIPConfig for SIP protocol. SIP (RFC 3261) is a session-level protocol:
@@ -323,7 +330,7 @@ type SIPMessage struct {
 	URI        string   `json:"uri,omitempty"`         // e.g. "sip:callee@spirent.com"; empty for responses
 	StatusCode int      `json:"status_code,omitempty"` // e.g. 200; 0 for requests
 	StatusText string   `json:"status_text,omitempty"` // e.g. "OK"; empty for requests
-	Headers    []string `json:"headers,omitempty"`    // each "Name: Value"; Content-Length auto-added when Body non-empty
+	Headers    []string `json:"headers,omitempty"`     // each "Name: Value"; Content-Length auto-added when Body non-empty
 	Body       string   `json:"body,omitempty"`        // e.g. SDP content; empty = no body
 	Direction  string   `json:"direction,omitempty"`   // "up" or "down"; empty -> planner infers from Method/StatusCode
 }
@@ -374,12 +381,12 @@ type SCTPConfig struct {
 // Direction "up" = client→server, "down" = server→client. Empty defaults
 // to "up" (most DATA chunks in a test flow go up).
 type SCTPChunk struct {
-	TSN       uint32 `json:"tsn,omitempty"`        // 0 = planner auto-increments per direction
-	SID       uint16 `json:"sid,omitempty"`        // stream identifier
-	SSN       uint16 `json:"ssn,omitempty"`        // per-stream sequence
-	PPID      uint32 `json:"ppid,omitempty"`       // payload protocol id
-	Data      []byte `json:"data,omitempty"`       // user payload
-	Direction string `json:"direction,omitempty"`  // "up" or "down"; empty -> "up"
+	TSN       uint32 `json:"tsn,omitempty"`       // 0 = planner auto-increments per direction
+	SID       uint16 `json:"sid,omitempty"`       // stream identifier
+	SSN       uint16 `json:"ssn,omitempty"`       // per-stream sequence
+	PPID      uint32 `json:"ppid,omitempty"`      // payload protocol id
+	Data      []byte `json:"data,omitempty"`      // user payload
+	Direction string `json:"direction,omitempty"` // "up" or "down"; empty -> "up"
 }
 
 // ICMPv6Config for the ICMPv6 protocol (RFC 4443). ICMPv6 is the IPv6
@@ -401,19 +408,19 @@ type SCTPChunk struct {
 // valid IPv6 addresses for the checksum to be non-zero — IPv4 addresses
 // produce a zero checksum (matching IPv4's invalid-input behavior).
 type ICMPv6Config struct {
-	Type       uint8          `json:"type"`                // 128=Echo Request, 129=Echo Reply
-	Code       uint8          `json:"code"`
-	Identifier uint16         `json:"identifier"`          // Echo session ID; 0 -> fallback to Sequence
-	Sequence   uint16         `json:"sequence"`
-	Data       []byte         `json:"data"`
-	Pattern    []ICMPv6Step   `json:"pattern,omitempty"`   // multi-session ping steps
+	Type       uint8        `json:"type"` // 128=Echo Request, 129=Echo Reply
+	Code       uint8        `json:"code"`
+	Identifier uint16       `json:"identifier"` // Echo session ID; 0 -> fallback to Sequence
+	Sequence   uint16       `json:"sequence"`
+	Data       []byte       `json:"data"`
+	Pattern    []ICMPv6Step `json:"pattern,omitempty"` // multi-session ping steps
 }
 
 // ICMPv6Step is a single ping within a multi-session ICMPv6 flow. The
 // planner emits Type (and its auto-reply if Type=EchoRequest) for each
 // step, with Sequence incrementing per step. Data is the per-ping payload.
 type ICMPv6Step struct {
-	Type     uint8  `json:"type"`     // 128=Echo Request, 129=Echo Reply
+	Type     uint8  `json:"type"` // 128=Echo Request, 129=Echo Reply
 	Code     uint8  `json:"code"`
 	Sequence uint16 `json:"sequence"` // per-step sequence; if 0, planner uses step index+1
 	Data     []byte `json:"data"`
@@ -421,11 +428,11 @@ type ICMPv6Step struct {
 
 // PacketConfig represents the configuration for building a single packet.
 type PacketConfig struct {
-	FlowID      string                 `json:"flow_id"`
-	PacketIndex uint64                 `json:"packet_index"`
-	ClassID     string                 `json:"class_id"`
-	Direction   string                 `json:"direction"` // up, down
-	Timestamp   time.Time              `json:"timestamp"`
+	FlowID      string    `json:"flow_id"`
+	PacketIndex uint64    `json:"packet_index"`
+	ClassID     string    `json:"class_id"`
+	Direction   string    `json:"direction"` // up, down
+	Timestamp   time.Time `json:"timestamp"`
 
 	L2      L2Config `json:"l2"`
 	L3      L3Config `json:"l3"`
@@ -467,8 +474,8 @@ type L3Config struct {
 	// Flags (3-bit: reserved|DF|MF) and FragOffset (13-bit, in 8-byte units).
 	// Encoded into bytes 6:8 as (Flags<<13)|(FragOffset&0x1FFF).
 	// Use IPFlagDF / IPFlagMF constants. Default Flags=IPFlagDF (0x4000).
-	Flags       uint8  `json:"flags,omitempty"`
-	FragOffset  uint16 `json:"frag_offset,omitempty"`
+	Flags      uint8  `json:"flags,omitempty"`
+	FragOffset uint16 `json:"frag_offset,omitempty"`
 }
 
 // IP flags bit positions within the L3Config.Flags field.
@@ -505,12 +512,12 @@ type TCPOption struct {
 
 // TCP option kinds.
 const (
-	TCPOptEnd       uint8 = 0 // End of Option List
-	TCPOptNOP       uint8 = 1 // No-Operation (padding)
-	TCPOptMSS       uint8 = 2 // Maximum Segment Size
-	TCPOptWinScale  uint8 = 3 // Window Scale
+	TCPOptEnd        uint8 = 0 // End of Option List
+	TCPOptNOP        uint8 = 1 // No-Operation (padding)
+	TCPOptMSS        uint8 = 2 // Maximum Segment Size
+	TCPOptWinScale   uint8 = 3 // Window Scale
 	TCPOptSACKPermit uint8 = 4 // SACK-Permitted
-	TCPOptTimestamp uint8 = 8 // Timestamp
+	TCPOptTimestamp  uint8 = 8 // Timestamp
 )
 
 // BatchSpec for batch traffic generation.
@@ -547,7 +554,7 @@ type TupleConfig struct {
 
 // StrategyConfig for value generation strategies.
 type StrategyConfig struct {
-	Strategy string `json:"strategy,omitempty"` // fixed, inc, random, pattern, list
+	Strategy string        `json:"strategy,omitempty"` // fixed, inc, random, pattern, list
 	Value    interface{}   `json:"value,omitempty"`
 	Range    []interface{} `json:"range,omitempty"`
 	Step     int           `json:"step,omitempty"`

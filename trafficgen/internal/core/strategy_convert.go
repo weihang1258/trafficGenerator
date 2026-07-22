@@ -169,14 +169,14 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 // hasKey to distinguish "absent" from "explicitly 0".
 func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	spec := FlowSpec{
-		SrcIP:   defaultString(cfg, "src_ip", DefaultSrcIP),
-		DstIP:   defaultString(cfg, "dst_ip", DefaultDstIP),
-		SrcPort: defaultPort(cfg, "src_port", DefaultSrcPort),
-		DstPort: defaultPort(cfg, "dst_port", DefaultDstPort),
-		SrcMAC:  defaultMAC(cfg, "src_mac", DefaultSrcMAC),
-		DstMAC:  defaultMAC(cfg, "dst_mac", DefaultDstMAC),
-		TTL:     uint8(getIntDefault(cfg, "ttl", 64)),
-		TOS:     uint8(getInt(cfg, "tos")),
+		SrcIP:      defaultString(cfg, "src_ip", DefaultSrcIP),
+		DstIP:      defaultString(cfg, "dst_ip", DefaultDstIP),
+		SrcPort:    defaultPort(cfg, "src_port", DefaultSrcPort),
+		DstPort:    defaultPort(cfg, "dst_port", DefaultDstPort),
+		SrcMAC:     defaultMAC(cfg, "src_mac", DefaultSrcMAC),
+		DstMAC:     defaultMAC(cfg, "dst_mac", DefaultDstMAC),
+		TTL:        uint8(getIntDefault(cfg, "ttl", 64)),
+		TOS:        uint8(getInt(cfg, "tos")),
 		DSCP:       defaultDSCP(cfg),
 		ECN:        uint8(getInt(cfg, "ecn")),
 		Flags:      defaultIPFlags(cfg),
@@ -220,20 +220,21 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				reqHeaders = getStringMap(sub, "headers")
 			}
 			spec.HTTP = &HTTPConfig{
-				Method:            getStringDefault(sub, "method", "GET"),
-				URI:               getStringDefault(sub, "uri", "/"),
-				Version:           getString(sub, "version"),
-				RequestHeaders:    reqHeaders,
-				Body:              getString(sub, "body"),
-				KeepAlive:         getBool(sub, "keep_alive", false),
-				Transactions:      getInt(sub, "transactions"),
-				ThinkTime:         getInt(sub, "think_time"),
-				ResponseHeaders:    getStringMap(sub, "response_headers"),
-				ResponseBody:       getString(sub, "response_body"),
-				ResponseStatusCode: getInt(sub, "response_status_code"),
-				ResponseStatusText: getString(sub, "response_status_text"),
-				ContentEncoding:    getString(sub, "content_encoding"),
-				MSS:                getUint16(sub, "mss"),
+				Method:                 getStringDefault(sub, "method", "GET"),
+				URI:                    getStringDefault(sub, "uri", "/"),
+				Version:                getString(sub, "version"),
+				RequestHeaders:         reqHeaders,
+				Body:                   getString(sub, "body"),
+				KeepAlive:              getBool(sub, "keep_alive", false),
+				Transactions:           getInt(sub, "transactions"),
+				ThinkTime:              getInt(sub, "think_time"),
+				ResponseHeaders:        getStringMap(sub, "response_headers"),
+				ResponseBody:           getString(sub, "response_body"),
+				ResponseStatusCode:     getInt(sub, "response_status_code"),
+				ResponseStatusText:     getString(sub, "response_status_text"),
+				ContentEncoding:        getString(sub, "content_encoding"),
+				RequestContentEncoding: getString(sub, "request_content_encoding"),
+				MSS:                    getUint16(sub, "mss"),
 			}
 		}
 		// HTTP defaults to port 80, same as DefaultDstPort. No override

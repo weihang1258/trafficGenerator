@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"runtime"
 	"strconv"
@@ -18,6 +19,13 @@ import (
 
 	"github.com/trafficgen/trafficgen/internal/core"
 )
+
+// cryptoRand is crypto/rand.Reader aliased for concise use in tests. We use
+// crypto/rand rather than math/rand for incompressible byte patterns because
+// gzip's LZ77 stage cannot find back-references in cryptographic random,
+// guaranteeing the compressed output stays larger than MSS regardless of
+// future Go stdlib gzip improvements.
+var cryptoRand = rand.Reader
 
 // drain collects all configs from the channel.
 func drain(ch <-chan core.PacketConfig) []core.PacketConfig {
@@ -2144,4 +2152,411 @@ func mustPlan(t *testing.T, p *Planner, spec core.FlowSpec) <-chan core.PacketCo
 		t.Fatalf("Plan: %v", err)
 	}
 	return ch
+}
+
+// --- Request-side gzip (symmetric to TestBuildHTTPResponse_Gzip*) ---
+
+// TestBuildHTTPRequest_GzipCompressesBody verifies that setting
+// RequestContentEncoding="gzip" compresses the request Body, emits a
+// "Content-Encoding: gzip" header, and sets Content-Length to the compressed
+// byte count. Symmetric to TestBuildHTTPResponse_GzipCompressesBody.
+func TestBuildHTTPRequest_GzipCompressesBody(t *testing.T) {
+	plaintext := "Hello, world! Hello, world! Hello, world!"
+	cfg := &core.HTTPConfig{
+		Method:                 "POST",
+		URI:                    "/upload",
+		Body:                   plaintext,
+		RequestContentEncoding: "gzip",
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+
+	if !strings.Contains(result, "Content-Encoding: gzip\r\n") {
+		t.Errorf("result=%q, want 'Content-Encoding: gzip' header", result)
+	}
+
+	// Body follows the blank line after headers.
+	idx := strings.Index(result, "\r\n\r\n")
+	if idx < 0 {
+		t.Fatalf("result=%q, no header/body separator", result)
+	}
+	body := result[idx+4:]
+	if strings.HasPrefix(body, "Hello, world!") {
+		t.Fatalf("body=%q, should not be plaintext (must be gzip-compressed)", body)
+	}
+	if len(body) < 2 || body[0] != 0x1f || body[1] != 0x8b {
+		t.Fatalf("body first 2 bytes = % x, want gzip magic 1f 8b", body[:min(2, len(body))])
+	}
+
+	// Content-Length must match the compressed body byte count, not the
+	// plaintext length.
+	wantCL := fmt.Sprintf("Content-Length: %d\r\n", len(body))
+	if !strings.Contains(result, wantCL) {
+		t.Errorf("result=%q, want %s (compressed length, not %d)", result, wantCL, len(plaintext))
+	}
+
+	// Round-trip: gzip-decompress the body and confirm it equals the input.
+	zr, err := gzip.NewReader(bytes.NewReader([]byte(body)))
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+	var decoded bytes.Buffer
+	if _, err := decoded.ReadFrom(zr); err != nil {
+		t.Fatalf("decompress: %v", err)
+	}
+	if got := decoded.String(); got != plaintext {
+		t.Errorf("decompressed body=%q, want %q", got, plaintext)
+	}
+}
+
+// TestBuildHTTPRequest_GzipContentEncodingUserOverride verifies that a
+// user-provided Content-Encoding header suppresses the auto-emitted default
+// (no duplicate header), case-insensitive per RFC 7230 §3.2. Symmetric to
+// TestBuildHTTPResponse_GzipContentEncodingUserOverride.
+func TestBuildHTTPRequest_GzipContentEncodingUserOverride(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		Method:                 "POST",
+		URI:                    "/",
+		Body:                   "x",
+		RequestContentEncoding: "gzip",
+		RequestHeaders:         map[string]string{"content-encoding": "gzip"},
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if got := strings.Count(strings.ToLower(result), "content-encoding:"); got != 1 {
+		t.Errorf("result=%q, want exactly 1 Content-Encoding header, got %d", result, got)
+	}
+}
+
+// TestBuildHTTPRequest_GzipEmptyBodySkipsCompression verifies that
+// RequestContentEncoding=gzip with an empty Body does not emit Content-Encoding
+// or Content-Length (matches the empty-body defaulting rule for the non-gzip
+// path). Symmetric to TestBuildHTTPResponse_GzipEmptyBodySkipsCompression.
+func TestBuildHTTPRequest_GzipEmptyBodySkipsCompression(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		Method:                 "GET",
+		URI:                    "/",
+		Body:                   "",
+		RequestContentEncoding: "gzip",
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if strings.Contains(result, "Content-Encoding:") {
+		t.Errorf("result=%q, should not emit Content-Encoding when body empty", result)
+	}
+	if strings.Contains(result, "Content-Length:") {
+		t.Errorf("result=%q, should not emit Content-Length when body empty", result)
+	}
+}
+
+// TestBuildHTTPRequest_NoGzipByDefault verifies the default (no compression)
+// path emits no Content-Encoding header. Symmetric to
+// TestBuildHTTPResponse_NoGzipByDefault.
+func TestBuildHTTPRequest_NoGzipByDefault(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		Method: "POST",
+		URI:    "/",
+		Body:   "x",
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if strings.Contains(result, "Content-Encoding:") {
+		t.Errorf("result=%q, should not emit Content-Encoding by default", result)
+	}
+}
+
+// TestBuildHTTPRequest_GzipUTF8Chinese verifies a non-ASCII request body
+// survives gzip round-trip with bytes preserved. Symmetric to
+// TestBuildHTTPResponse_GzipUTF8Chinese.
+func TestBuildHTTPRequest_GzipUTF8Chinese(t *testing.T) {
+	plaintext := "我爱你中国"
+	cfg := &core.HTTPConfig{
+		Method:                 "POST",
+		URI:                    "/",
+		Body:                   plaintext,
+		RequestContentEncoding: "gzip",
+		RequestHeaders:         map[string]string{"Content-Type": "text/html; charset=utf-8"},
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+
+	if !strings.Contains(result, "Content-Encoding: gzip\r\n") {
+		t.Errorf("result=%q, want 'Content-Encoding: gzip' header", result)
+	}
+	if !strings.Contains(result, "Content-Type: text/html; charset=utf-8\r\n") {
+		t.Errorf("result=%q, want user Content-Type", result)
+	}
+
+	idx := strings.Index(result, "\r\n\r\n")
+	if idx < 0 {
+		t.Fatalf("result=%q, no header/body separator", result)
+	}
+	body := result[idx+4:]
+
+	zr, err := gzip.NewReader(bytes.NewReader([]byte(body)))
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+	var decoded bytes.Buffer
+	if _, err := decoded.ReadFrom(zr); err != nil {
+		t.Fatalf("decompress: %v", err)
+	}
+	if got := decoded.String(); got != plaintext {
+		t.Errorf("decompressed body=%q, want %q", got, plaintext)
+	}
+}
+
+// --- Request-side MSS segmentation (symmetric to TestHTTPPlan_MSS*) ---
+
+// TestHTTPPlan_RequestMSSSegmentsLongBody verifies that a request body larger
+// than MSS is split into ceil(len/MSS) PSH-ACK segments, each carrying the
+// right payload slice and advancing clientSeq per segment. Symmetric to
+// TestHTTPPlan_MSSSegmentsLongResponse.
+func TestHTTPPlan_RequestMSSSegmentsLongBody(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	// Body large enough to force segmentation at DefaultMSS=1460. Use POST
+	// since GET typically has no body.
+	spec.HTTP = &core.HTTPConfig{
+		Method: "POST",
+		URI:    "/upload",
+		Body:   strings.Repeat("A", 3000),
+		MSS:    536, // use small MSS to force multiple segments with smaller body
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+
+	// Collect all "up" PSH-ACK packets AFTER the handshake (index 3 onward,
+	// excluding termination). With 1 transaction, packets 3..N-4 are request
+	// segments (N = total packets, last 4 are FIN/ACK/FIN/ACK).
+	total := len(cfgs)
+	if total < 9 {
+		t.Fatalf("len=%d, want >=9", total)
+	}
+	var reqSegs []core.PacketConfig
+	for i := 3; i < total-4; i++ {
+		if cfgs[i].Direction == "up" && cfgs[i].L4.Flags == 0x18 && len(cfgs[i].Payload) > 0 {
+			reqSegs = append(reqSegs, cfgs[i])
+		}
+	}
+	if len(reqSegs) < 2 {
+		t.Fatalf("expected at least 2 request segments, got %d (request not segmented)", len(reqSegs))
+	}
+	// Every segment except the last must be exactly MSS-sized (536).
+	for i, seg := range reqSegs[:len(reqSegs)-1] {
+		if len(seg.Payload) != 536 {
+			t.Errorf("segment[%d].len=%d, want 536 (MSS)", i, len(seg.Payload))
+		}
+	}
+	// Reassemble payload and verify it starts with "POST /upload" and ends
+	// with the repeated 'A' body.
+	var reassembled []byte
+	for _, seg := range reqSegs {
+		reassembled = append(reassembled, seg.Payload...)
+	}
+	if !strings.HasPrefix(string(reassembled), "POST /upload HTTP/1.1") {
+		t.Errorf("reassembled prefix=%q", string(reassembled[:min(30, len(reassembled))]))
+	}
+	if !strings.HasSuffix(string(reassembled), strings.Repeat("A", 3000)) {
+		t.Errorf("reassembled payload does not end with 3000 'A's")
+	}
+
+	// Per-segment Seq: each segment's Seq advances by the previous segment's
+	// payload length. clientSeq starts from the SYN Seq + 1 (after the
+	// handshake ACK consumes the SYN).
+	synSeq := cfgs[0].L4.Seq
+	expectedSeq := synSeq + 1
+	for i, seg := range reqSegs {
+		if seg.L4.Seq != expectedSeq {
+			t.Errorf("segment[%d].Seq=%d, want %d", i, seg.L4.Seq, expectedSeq)
+		}
+		expectedSeq += uint32(len(seg.Payload))
+	}
+}
+
+// TestHTTPPlan_RequestMSSDefault_NoSegmentation verifies that the default path
+// (MSS=0 -> DefaultMSS=1460) does not segment a short request: the request is
+// a single PSH-ACK segment. Symmetric to TestHTTPPlan_MSSDefault_NoSegmentation.
+func TestHTTPPlan_RequestMSSDefault_NoSegmentation(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	spec.HTTP = &core.HTTPConfig{
+		Method: "POST",
+		URI:    "/",
+		Body:   "short",
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	// 3 handshake + 1 request + 1 response + 4 termination = 9
+	if len(cfgs) != 9 {
+		t.Fatalf("len=%d, want 9 (short request should NOT segment)", len(cfgs))
+	}
+	req := cfgs[3]
+	if req.L4.Flags != 0x18 {
+		t.Errorf("req.Flags=%x, want 0x18 (PSH-ACK)", req.L4.Flags)
+	}
+	if !strings.HasPrefix(string(req.Payload), "POST / HTTP/1.1") {
+		t.Errorf("req payload=%q, want 'POST / HTTP/1.1' prefix", string(req.Payload))
+	}
+}
+
+// TestHTTPPlan_RequestGzipMSSComposite verifies that a gzip-compressed request
+// body that is still larger than MSS gets both compressed AND segmented: the
+// gzip happens first (in buildHTTPRequest), then segmentByMSS splits the
+// framed request. Symmetric to the response-side composite behavior.
+//
+// We use crypto/rand bytes (incompressible) to guarantee the gzip output
+// stays larger than MSS=536 regardless of Go stdlib gzip improvements. A
+// repetitive pattern like "AAAA..." or i%256 would compress to <100 bytes and
+// the test would degenerate to a single segment.
+func TestHTTPPlan_RequestGzipMSSComposite(t *testing.T) {
+	p := NewPlanner()
+	spec := validHTTPSpec()
+	const bodyLen = 100000
+	bodyBytes := make([]byte, bodyLen)
+	if _, err := cryptoRand.Read(bodyBytes); err != nil {
+		t.Fatalf("crypto/rand.Read: %v", err)
+	}
+	spec.HTTP = &core.HTTPConfig{
+		Method:                 "POST",
+		URI:                    "/upload",
+		Body:                   string(bodyBytes),
+		RequestContentEncoding: "gzip",
+		MSS:                    536,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+
+	// Collect request segments.
+	total := len(cfgs)
+	var reqSegs []core.PacketConfig
+	for i := 3; i < total-4; i++ {
+		if cfgs[i].Direction == "up" && cfgs[i].L4.Flags == 0x18 && len(cfgs[i].Payload) > 0 {
+			reqSegs = append(reqSegs, cfgs[i])
+		}
+	}
+	if len(reqSegs) < 2 {
+		t.Fatalf("expected at least 2 request segments (gzip-compressed body > MSS=536), got %d", len(reqSegs))
+	}
+
+	// Per-segment size: every non-last segment must be exactly MSS-sized.
+	// Symmetric to TestHTTPPlan_MSSSegmentsLongResponse line 1752-1756.
+	for i, seg := range reqSegs[:len(reqSegs)-1] {
+		if len(seg.Payload) != 536 {
+			t.Errorf("segment[%d].len=%d, want 536 (MSS)", i, len(seg.Payload))
+		}
+	}
+
+	// Reassemble and verify gzip magic appears after the request line + headers.
+	var reassembled []byte
+	for _, seg := range reqSegs {
+		reassembled = append(reassembled, seg.Payload...)
+	}
+	// Must start with the HTTP request line.
+	if !strings.HasPrefix(string(reassembled), "POST /upload HTTP/1.1") {
+		t.Errorf("prefix=%q", string(reassembled[:min(30, len(reassembled))]))
+	}
+	// Must contain Content-Encoding: gzip header.
+	if !strings.Contains(string(reassembled), "Content-Encoding: gzip\r\n") {
+		t.Errorf("reassembled request missing 'Content-Encoding: gzip' header")
+	}
+	// Body (after \r\n\r\n) must start with gzip magic.
+	idx := strings.Index(string(reassembled), "\r\n\r\n")
+	if idx < 0 {
+		t.Fatalf("no header/body separator")
+	}
+	bodyGzip := reassembled[idx+4:]
+	if len(bodyGzip) < 2 || bodyGzip[0] != 0x1f || bodyGzip[1] != 0x8b {
+		t.Fatalf("body first 2 bytes = % x, want gzip magic 1f 8b", bodyGzip[:min(2, len(bodyGzip))])
+	}
+
+	// Round-trip the compressed body.
+	zr, err := gzip.NewReader(bytes.NewReader(bodyGzip))
+	if err != nil {
+		t.Fatalf("gzip.NewReader: %v", err)
+	}
+	var decoded bytes.Buffer
+	if _, err := decoded.ReadFrom(zr); err != nil {
+		t.Fatalf("decompress: %v", err)
+	}
+	if got := decoded.String(); got != string(bodyBytes) {
+		t.Errorf("decompressed body length=%d, want %d", len(got), bodyLen)
+	}
+
+	// Per-segment Seq: each segment's Seq advances by the previous segment's
+	// payload length. Symmetric to TestHTTPPlan_MSSSegmentsLongResponse.
+	synSeq := cfgs[0].L4.Seq
+	expectedSeq := synSeq + 1
+	for i, seg := range reqSegs {
+		if seg.L4.Seq != expectedSeq {
+			t.Errorf("segment[%d].Seq=%d, want %d", i, seg.L4.Seq, expectedSeq)
+		}
+		expectedSeq += uint32(len(seg.Payload))
+	}
+}
+
+// TestBuildHTTPRequest_RequestContentEncodingNonGzip verifies that a
+// RequestContentEncoding value other than "gzip" (e.g. "br", "identity",
+// "deflate") is treated as a literal header value passed through to
+// Content-Encoding WITHOUT transformation — the Body remains plaintext.
+// Covers the branch at http.go:499 (requestContentEncoding != "" && != "gzip")
+// which the gzip-only tests do not exercise.
+func TestBuildHTTPRequest_RequestContentEncodingNonGzip(t *testing.T) {
+	cases := []string{"br", "identity", "deflate", "x-gzip"}
+	for _, enc := range cases {
+		t.Run(enc, func(t *testing.T) {
+			cfg := &core.HTTPConfig{
+				Method:                 "POST",
+				URI:                    "/",
+				Body:                   "Hello, world!",
+				RequestContentEncoding: enc,
+			}
+			result := buildHTTPRequest(cfg, "10.0.0.2")
+			// Header emitted with the literal value.
+			wantHeader := "Content-Encoding: " + enc + "\r\n"
+			if !strings.Contains(result, wantHeader) {
+				t.Errorf("result=%q, want header %q", result, wantHeader)
+			}
+			// Body must remain plaintext (not gzip-compressed).
+			idx := strings.Index(result, "\r\n\r\n")
+			if idx < 0 {
+				t.Fatalf("no separator")
+			}
+			body := result[idx+4:]
+			if body != "Hello, world!" {
+				t.Errorf("body=%q, want plaintext 'Hello, world!' (non-gzip encoding must not transform)", body)
+			}
+			// Content-Length must reflect plaintext length, not compressed.
+			wantCL := fmt.Sprintf("Content-Length: %d\r\n", len("Hello, world!"))
+			if !strings.Contains(result, wantCL) {
+				t.Errorf("result=%q, want %s", result, wantCL)
+			}
+		})
+	}
+}
+
+// TestBuildHTTPRequest_GzipWithUserContentLength verifies the documented
+// "caller responsibility" foot-gun: if the user explicitly sets
+// Content-Length via RequestHeaders AND enables gzip, the user's value wins
+// (passes through verbatim) even though it no longer matches the compressed
+// body byte count. This is symmetric to the response-side behavior and is
+// documented at http.go:455-458. Test locks the behavior so a future
+// "helpful" auto-correction doesn't silently change the contract.
+func TestBuildHTTPRequest_GzipWithUserContentLength(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		Method:                 "POST",
+		URI:                    "/",
+		Body:                   "Hello, world! Hello, world! Hello, world!",
+		RequestContentEncoding: "gzip",
+		RequestHeaders:         map[string]string{"Content-Length": "999"},
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	// User's Content-Length wins (no auto-emitted default).
+	if !strings.Contains(result, "Content-Length: 999\r\n") {
+		t.Errorf("result=%q, want user Content-Length: 999 to win", result)
+	}
+	if strings.Count(result, "Content-Length:") != 1 {
+		t.Errorf("result=%q, want exactly 1 Content-Length header", result)
+	}
+	// Body is still gzip-compressed.
+	idx := strings.Index(result, "\r\n\r\n")
+	if idx < 0 {
+		t.Fatalf("no separator")
+	}
+	body := result[idx+4:]
+	if len(body) < 2 || body[0] != 0x1f || body[1] != 0x8b {
+		t.Fatalf("body must still be gzip-compressed despite user Content-Length; got % x", body[:min(2, len(body))])
+	}
 }

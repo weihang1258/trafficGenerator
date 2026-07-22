@@ -213,36 +213,40 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		// HTTP Transactions (keep-alive: multiple request/response pairs in one TCP connection)
 		for i := 0; i < transactions; i++ {
-			// HTTP Request — emit as a single PSH-ACK segment. Real-world
-			// HTTP requests are small (<MSS); if a user ever sends a huge
-			// request body, segmenting it would need the same MSS loop as
-			// the response. Until we see a pcap that needs it, keep the
-			// request in one segment to match the captured samples.
+			// HTTP Request — segment by MSS. Symmetric to the response path:
+			// a 4000-byte request body over MSS=1460 becomes 3 segments
+			// (1460+1460+1080). Each segment advances clientSeq by its
+			// payload length, so the next transaction's response ACKs all
+			// request bytes. Small requests (the common case <MSS) produce
+			// a single segment, matching the captured samples and the
+			// pre-segmentation behavior.
 			request := buildHTTPRequest(httpConfig, spec.DstIP)
-			configChan <- core.PacketConfig{
-				FlowID:      flowID,
-				PacketIndex: packetIndex,
-				Direction:   "up",
-				Timestamp:   now,
-				L2: core.L2Config{
-					SrcMAC:    spec.SrcMAC,
-					DstMAC:    spec.DstMAC,
-					EtherType: 0x0800,
-				},
-				L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
-				L4: core.L4Config{
-					Protocol:   "tcp",
-					SrcPort:    spec.SrcPort,
-					DstPort:    spec.DstPort,
-					Seq:        clientSeq,
-					Ack:        serverSeq,
-					Flags:      0x18, // PSH-ACK
-					WindowSize: 65535,
-				},
-				Payload: []byte(request),
+			for _, seg := range segmentByMSS([]byte(request), int(mss)) {
+				configChan <- core.PacketConfig{
+					FlowID:      flowID,
+					PacketIndex: packetIndex,
+					Direction:   "up",
+					Timestamp:   now,
+					L2: core.L2Config{
+						SrcMAC:    spec.SrcMAC,
+						DstMAC:    spec.DstMAC,
+						EtherType: 0x0800,
+					},
+					L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
+					L4: core.L4Config{
+						Protocol:   "tcp",
+						SrcPort:    spec.SrcPort,
+						DstPort:    spec.DstPort,
+						Seq:        clientSeq,
+						Ack:        serverSeq,
+						Flags:      0x18, // PSH-ACK
+						WindowSize: 65535,
+					},
+					Payload: seg,
+				}
+				packetIndex++
+				clientSeq += uint32(len(seg))
 			}
-			packetIndex++
-			clientSeq += uint32(len(request))
 
 			// HTTP Response — segment by MSS. A 3066-byte response over
 			// MSS=1460 becomes 3 segments (1460 + 1460 + 146). Intermediate
@@ -444,6 +448,15 @@ func synOptions(mss uint16) []core.TCPOption {
 //   - Connection: not user-provided -> "keep-alive" if Transactions>1 or
 //     KeepAlive=true, else "close"
 //
+// When RequestContentEncoding == "gzip", Body is gzip-compressed (RFC 1952);
+// the compressed bytes replace the body, Content-Length reflects the
+// compressed byte count, and a "Content-Encoding: gzip" header is emitted
+// (still overridable via RequestHeaders, case-insensitive per RFC 7230 §3.2).
+// Any RequestContentEncoding value other than "" or "gzip" is treated as a
+// literal header value passed through to Content-Encoding without
+// transformation (caller responsibility — only "gzip" triggers actual
+// compression here). Symmetric to buildHTTPResponse's response-side gzip.
+//
 // User-provided RequestHeaders are emitted verbatim and suppress the
 // corresponding default (case-insensitive match per RFC 7230 §3.2).
 func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
@@ -457,6 +470,18 @@ func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
 		config.Version = "HTTP/1.1"
 	}
 
+	body := config.Body
+
+	// Apply gzip compression to the request body when requested. Mirrors
+	// buildHTTPResponse: compression happens before header emission so
+	// Content-Length reflects the compressed byte count. The Content-Encoding
+	// header is emitted below unless the user already provided one
+	// (case-insensitive).
+	requestContentEncoding := strings.ToLower(strings.TrimSpace(config.RequestContentEncoding))
+	if body != "" && requestContentEncoding == "gzip" {
+		body = gzipBody(body)
+	}
+
 	request := fmt.Sprintf("%s %s %s\r\n", config.Method, config.URI, config.Version)
 
 	// HTTP/1.1 mandates Host (RFC 7230 §5.4); HTTP/1.0 does not, so we only
@@ -468,8 +493,11 @@ func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
 	if !hasHeader(config.RequestHeaders, "Connection") {
 		request += fmt.Sprintf("Connection: %s\r\n", defaultConnection(config))
 	}
-	if config.Body != "" && !hasHeader(config.RequestHeaders, "Content-Length") {
-		request += fmt.Sprintf("Content-Length: %d\r\n", len(config.Body))
+	if body != "" && !hasHeader(config.RequestHeaders, "Content-Length") {
+		request += fmt.Sprintf("Content-Length: %d\r\n", len(body))
+	}
+	if requestContentEncoding != "" && body != "" && !hasHeader(config.RequestHeaders, "Content-Encoding") {
+		request += fmt.Sprintf("Content-Encoding: %s\r\n", requestContentEncoding)
 	}
 
 	for key, value := range config.RequestHeaders {
@@ -478,8 +506,8 @@ func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
 
 	request += "\r\n"
 
-	if config.Body != "" {
-		request += config.Body
+	if body != "" {
+		request += body
 	}
 
 	return request
