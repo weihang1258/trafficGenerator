@@ -106,3 +106,7 @@ test_*.py
 trafficgen/cmd/verify/
 trafficgen/cmd/verify2/
 trafficgen/web/package-lock.json
+
+# Local server binary (cmd/server build output)
+/server
+/trafficgen/server
