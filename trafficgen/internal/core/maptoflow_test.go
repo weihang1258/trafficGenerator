@@ -146,6 +146,72 @@ func TestMapToFlowSpec_HTTPFullSubmap(t *testing.T) {
 	}
 }
 
+// TestMapToFlowSpec_HTTP_TCPSubConfig verifies that an HTTP strategy with a
+// "tcp" sub-map gets spec.TCP populated (MSS, Handshake, Termination, etc.).
+// This is the C1 regression test: before the fix, mapToFlowSpec's switch only
+// read cfg["tcp"] in case "tcp", leaving spec.TCP nil for http/ftp/sip.
+func TestMapToFlowSpec_HTTP_TCPSubConfig(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "10.0.0.2",
+		"tcp": map[string]interface{}{
+			"mss":         float64(1400),
+			"initial_seq": float64(0x11111111),
+			"handshake":   false,
+		},
+		"http": map[string]interface{}{
+			"method": "GET",
+			"uri":    "/",
+		},
+	}
+	spec := mapToFlowSpec(cfg, "http")
+	if spec.TCP == nil {
+		t.Fatal("TCP nil, want populated (C1: http must read tcp sub-config)")
+	}
+	if spec.TCP.MSS != 1400 {
+		t.Errorf("TCP.MSS=%d, want 1400", spec.TCP.MSS)
+	}
+	if spec.TCP.InitialSeq != 0x11111111 {
+		t.Errorf("TCP.InitialSeq=0x%x, want 0x11111111", spec.TCP.InitialSeq)
+	}
+	if spec.TCP.Handshake {
+		t.Errorf("TCP.Handshake=true, want false (explicitly set)")
+	}
+	if !spec.TCP.Termination {
+		t.Errorf("TCP.Termination=false, want true (default)")
+	}
+}
+
+// TestMapToFlowSpec_InitialSeqLegacy_HandshakeDefault verifies that the
+// top-level initial_seq backward compat creates a TCPConfig with
+// Handshake=true and Termination=true (the defaults). Before the H3 fix,
+// it created TCPConfig{InitialSeq: legacy} with zero-value Handshake/Termination
+// (false), breaking HTTP/FTP/SIP flows that rely on the SYN handshake.
+func TestMapToFlowSpec_InitialSeqLegacy_HandshakeDefault(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip":       "10.0.0.1",
+		"dst_ip":       "10.0.0.2",
+		"initial_seq":  float64(0x22222222),
+		"http": map[string]interface{}{
+			"method": "GET",
+			"uri":    "/",
+		},
+	}
+	spec := mapToFlowSpec(cfg, "http")
+	if spec.TCP == nil {
+		t.Fatal("TCP nil, want populated from top-level initial_seq")
+	}
+	if spec.TCP.InitialSeq != 0x22222222 {
+		t.Errorf("TCP.InitialSeq=0x%x, want 0x22222222", spec.TCP.InitialSeq)
+	}
+	if !spec.TCP.Handshake {
+		t.Errorf("TCP.Handshake=false, want true (H3: backward compat must default Handshake)")
+	}
+	if !spec.TCP.Termination {
+		t.Errorf("TCP.Termination=false, want true (H3: backward compat must default Termination)")
+	}
+}
+
 // TestMapToFlowSpec_LegacyHeadersKeyFallback verifies that strategies stored
 // with the pre-rename "headers" JSON key still populate RequestHeaders after
 // the rename to "request_headers". Without the fallback, existing DB rows

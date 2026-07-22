@@ -219,6 +219,10 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		packetIndex++
 
 		// HTTP Transactions (keep-alive: multiple request/response pairs in one TCP connection)
+		// Pre-decode bodies once before the loop so base64 (BodyB64/ResponseBodyB64)
+		// is not re-decoded on every iteration.
+		requestBody := resolveRequestBody(httpConfig)
+		responseBody := resolveResponseBody(httpConfig)
 		for i := 0; i < transactions; i++ {
 			// HTTP Request — segment by MSS. Symmetric to the response path:
 			// a 4000-byte request body over MSS=1460 becomes 3 segments
@@ -227,7 +231,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			// request bytes. Small requests (the common case <MSS) produce
 			// a single segment, matching the captured samples and the
 			// pre-segmentation behavior.
-			request := buildHTTPRequest(httpConfig, spec.DstIP)
+			request := buildHTTPRequestBody(httpConfig, spec.DstIP, requestBody)
 			for _, seg := range segmentByMSS([]byte(request), int(mss)) {
 				configChan <- core.PacketConfig{
 					FlowID:      flowID,
@@ -261,7 +265,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			// final segment is PSH-ACK as well. Each segment advances
 			// serverSeq by its payload length, so the next transaction's
 			// request ACKs all response bytes.
-			response := buildHTTPResponse(httpConfig)
+			response := buildHTTPResponseBody(httpConfig, responseBody)
 			for _, seg := range segmentByMSS([]byte(response), int(mss)) {
 				configChan <- core.PacketConfig{
 					FlowID:      flowID,
@@ -474,6 +478,10 @@ func synOptions(mss uint16) []core.TCPOption {
 // User-provided RequestHeaders are emitted verbatim and suppress the
 // corresponding default (case-insensitive match per RFC 7230 §3.2).
 func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
+	return buildHTTPRequestBody(config, dstIP, resolveRequestBody(config))
+}
+
+func buildHTTPRequestBody(config *core.HTTPConfig, dstIP string, body []byte) string {
 	if config.Method == "" {
 		config.Method = "GET"
 	}
@@ -484,50 +492,48 @@ func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
 		config.Version = "HTTP/1.1"
 	}
 
-	body := resolveRequestBody(config)
+	// Sniff Content-Type from the ORIGINAL body (before gzip) so HTML/JSON/
+	// binary types are detected correctly, not as application/gzip.
+	var contentType string
+	if len(body) > 0 && !hasHeader(config.RequestHeaders, "Content-Type") {
+		contentType = sniffContentType(body)
+	}
 
-	// Apply gzip compression to the request body when requested. Mirrors
-	// buildHTTPResponse: compression happens before header emission so
-	// Content-Length reflects the compressed byte count. The Content-Encoding
-	// header is emitted below unless the user already provided one
-	// (case-insensitive).
+	// Apply gzip AFTER sniffing. Content-Length reflects compressed bytes.
 	requestContentEncoding := strings.ToLower(strings.TrimSpace(config.RequestContentEncoding))
 	if len(body) > 0 && requestContentEncoding == "gzip" {
 		body = gzipBytes(body)
 	}
 
-	request := fmt.Sprintf("%s %s %s\r\n", config.Method, config.URI, config.Version)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%s %s %s\r\n", config.Method, config.URI, config.Version))
 
 	// HTTP/1.1 mandates Host (RFC 7230 §5.4); HTTP/1.0 does not, so we only
 	// auto-emit Host for 1.1 (user-provided Host on any version always wins
 	// via the user-header pass below).
 	if !hasHeader(config.RequestHeaders, "Host") && isHTTP11(config.Version) {
-		request += fmt.Sprintf("Host: %s\r\n", bracketHost(dstIP))
+		sb.WriteString(fmt.Sprintf("Host: %s\r\n", bracketHost(dstIP)))
 	}
 	if !hasHeader(config.RequestHeaders, "Connection") {
-		request += fmt.Sprintf("Connection: %s\r\n", defaultConnection(config))
+		sb.WriteString(fmt.Sprintf("Connection: %s\r\n", defaultConnection(config)))
 	}
-	if len(body) > 0 && !hasHeader(config.RequestHeaders, "Content-Type") {
-		request += fmt.Sprintf("Content-Type: %s\r\n", sniffContentType(body))
+	if contentType != "" {
+		sb.WriteString(fmt.Sprintf("Content-Type: %s\r\n", contentType))
 	}
 	if len(body) > 0 && !hasHeader(config.RequestHeaders, "Content-Length") {
-		request += fmt.Sprintf("Content-Length: %d\r\n", len(body))
+		sb.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(body)))
 	}
 	if requestContentEncoding != "" && len(body) > 0 && !hasHeader(config.RequestHeaders, "Content-Encoding") {
-		request += fmt.Sprintf("Content-Encoding: %s\r\n", requestContentEncoding)
+		sb.WriteString(fmt.Sprintf("Content-Encoding: %s\r\n", requestContentEncoding))
 	}
 
 	for key, value := range config.RequestHeaders {
-		request += fmt.Sprintf("%s: %s\r\n", key, value)
+		sb.WriteString(fmt.Sprintf("%s: %s\r\n", key, value))
 	}
 
-	request += "\r\n"
-
-	if len(body) > 0 {
-		request += string(body)
-	}
-
-	return request
+	sb.WriteString("\r\n")
+	sb.Write(body)
+	return sb.String()
 }
 
 // resolveRequestBody decodes the request body to bytes. BodyB64 wins over
@@ -630,7 +636,10 @@ func bracketHost(host string) string {
 // User-provided ResponseHeaders are emitted verbatim and suppress the
 // corresponding default (case-insensitive match per RFC 7230 §3.2).
 func buildHTTPResponse(config *core.HTTPConfig) string {
-	body := resolveResponseBody(config)
+	return buildHTTPResponseBody(config, resolveResponseBody(config))
+}
+
+func buildHTTPResponseBody(config *core.HTTPConfig, body []byte) string {
 	version := config.Version
 	if version == "" {
 		version = "HTTP/1.1"
@@ -644,10 +653,14 @@ func buildHTTPResponse(config *core.HTTPConfig) string {
 		statusText = statusTextFor(statusCode)
 	}
 
-	// Apply gzip compression when requested. Compression happens before
-	// header emission so Content-Length reflects the compressed byte count.
-	// The Content-Encoding header is emitted below unless the user already
-	// provided one (case-insensitive).
+	// Sniff Content-Type from the ORIGINAL body (before gzip) so HTML/JSON/
+	// binary types are detected correctly, not as application/gzip.
+	var contentType string
+	if len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Type") {
+		contentType = sniffContentType(body)
+	}
+
+	// Apply gzip AFTER sniffing. Content-Length reflects compressed bytes.
 	contentEncoding := strings.ToLower(strings.TrimSpace(config.ResponseContentEncoding))
 	if len(body) > 0 && contentEncoding == "gzip" {
 		body = gzipBytes(body)
@@ -656,8 +669,8 @@ func buildHTTPResponse(config *core.HTTPConfig) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("%s %d %s\r\n", version, statusCode, statusText))
 
-	if len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Type") {
-		sb.WriteString(fmt.Sprintf("Content-Type: %s\r\n", sniffContentType(body)))
+	if contentType != "" {
+		sb.WriteString(fmt.Sprintf("Content-Type: %s\r\n", contentType))
 	}
 	if len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Length") {
 		sb.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(body)))
@@ -692,7 +705,7 @@ func buildHTTPResponse(config *core.HTTPConfig) string {
 // for image/png, ...). User-provided Content-Type always wins.
 func sniffContentType(body []byte) string {
 	if len(body) == 0 {
-		return "text/plain"
+		return "text/plain; charset=utf-8"
 	}
 
 	// Binary magic bytes — check first so binary content is not mis-sniffed
@@ -702,8 +715,10 @@ func sniffContentType(body []byte) string {
 	}
 
 	// Text patterns. Trim leading whitespace so a body starting with "<html"
-	// after whitespace is still detected as HTML.
+	// after whitespace is still detected as HTML. Also strip UTF-8 BOM
+	// (EF BB BF) so BOM-prefixed HTML/XML/JSON is detected correctly.
 	trimmed := bytes.TrimLeft(body, " \t\r\n")
+	trimmed = bytes.TrimPrefix(trimmed, []byte{0xEF, 0xBB, 0xBF})
 	switch {
 	case bytes.HasPrefix(trimmed, []byte("<!DOCTYPE html")),
 		bytes.HasPrefix(trimmed, []byte("<!DOCTYPE HTML")),
@@ -733,8 +748,9 @@ func sniffByMagic(body []byte) string {
 	if len(body) >= 3 && body[0] == 0xFF && body[1] == 0xD8 && body[2] == 0xFF {
 		return "image/jpeg"
 	}
-	// GIF: 47 49 46 38 (GIF8)
-	if len(body) >= 4 && body[0] == 0x47 && body[1] == 0x49 && body[2] == 0x46 && body[3] == 0x38 {
+	// GIF: 47 49 46 38 37 61 (GIF87a) or 47 49 46 38 39 61 (GIF89a)
+	if len(body) >= 6 && body[0] == 0x47 && body[1] == 0x49 && body[2] == 0x46 &&
+		body[3] == 0x38 && (body[4] == 0x37 || body[4] == 0x39) && body[5] == 0x61 {
 		return "image/gif"
 	}
 	// PDF: 25 50 44 46 (%PDF)
@@ -752,10 +768,6 @@ func sniffByMagic(body []byte) string {
 	// BZIP2: 42 5A 68 (BZh)
 	if len(body) >= 3 && body[0] == 0x42 && body[1] == 0x5A && body[2] == 0x68 {
 		return "application/x-bzip2"
-	}
-	// RIFF (AVI/WAV/WebP): 52 49 46 46
-	if len(body) >= 4 && body[0] == 0x52 && body[1] == 0x49 && body[2] == 0x46 && body[3] == 0x46 {
-		return "application/octet-stream"
 	}
 	// BMP: 42 4D (BM)
 	if len(body) >= 2 && body[0] == 0x42 && body[1] == 0x4D {

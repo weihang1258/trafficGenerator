@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/protocol/testutil"
 )
 
 // cryptoRand is crypto/rand.Reader aliased for concise use in tests. We use
@@ -36,15 +37,6 @@ func drain(ch <-chan core.PacketConfig) []core.PacketConfig {
 	return out
 }
 
-// ensureTCP returns spec.TCP, allocating it if nil. The caller must reassign
-// the returned pointer to spec.TCP if they want the allocation to persist.
-func ensureTCP(spec *core.FlowSpec) *core.TCPConfig {
-	if spec.TCP == nil {
-		spec.TCP = &core.TCPConfig{}
-	}
-	return spec.TCP
-}
-
 func validHTTPSpec() core.FlowSpec {
 	return core.FlowSpec{
 		SrcIP: "10.0.0.1", DstIP: "10.0.0.2",
@@ -54,6 +46,7 @@ func validHTTPSpec() core.FlowSpec {
 			Method: "GET",
 			URI:    "/",
 		},
+		TCP: &core.TCPConfig{Handshake: true, Termination: true},
 	}
 }
 
@@ -1538,8 +1531,8 @@ func TestBuildHTTPRequest_IPv4HostNotBracketed(t *testing.T) {
 func TestBuildHTTPResponse_ContentTypeDefaultPlain(t *testing.T) {
 	cfg := &core.HTTPConfig{ResponseBody: "hello"}
 	result := buildHTTPResponse(cfg)
-	if !strings.Contains(result, "Content-Type: text/plain\r\n") {
-		t.Errorf("result=%q, want default 'Content-Type: text/plain\\r\\n'", result)
+	if !strings.Contains(result, "Content-Type: text/plain; charset=utf-8\r\n") {
+		t.Errorf("result=%q, want default 'Content-Type: text/plain; charset=utf-8\\r\\n'", result)
 	}
 }
 
@@ -1806,7 +1799,7 @@ func TestHTTPPlan_MSSExactMultiple(t *testing.T) {
 	spec := validHTTPSpec()
 	// Use a small custom MSS so the body hits an exact multiple. MSS must be
 	// >= MinMSS=536 per RFC 879, so use 536 with a 1072-byte (2*536) body.
-	ensureTCP(&spec).MSS = 536
+	testutil.EnsureTCP(&spec).MSS = 536
 	spec.HTTP = &core.HTTPConfig{
 		Method:        "GET",
 		URI:           "/",
@@ -1872,7 +1865,7 @@ func TestHTTPPlan_MSSEmptyBodyOneSegment(t *testing.T) {
 func TestHTTPPlan_MSSZeroUsesDefault(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
-	ensureTCP(&spec).MSS = 0
+	testutil.EnsureTCP(&spec).MSS = 0
 	spec.HTTP = &core.HTTPConfig{
 		Method:        "GET",
 		URI:           "/",
@@ -1922,7 +1915,7 @@ func TestHTTPPlan_MSSZeroUsesDefault(t *testing.T) {
 func TestHTTPPlan_MSSUserOverrideInSYN(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
-	ensureTCP(&spec).MSS = 536 // RFC 879 minimum
+	testutil.EnsureTCP(&spec).MSS = 536 // RFC 879 minimum
 	spec.HTTP = &core.HTTPConfig{
 		Method:        "GET",
 		URI:           "/",
@@ -1961,7 +1954,7 @@ func TestHTTPPlan_MSSUserOverrideInSYN(t *testing.T) {
 func TestHTTPPlan_MSSTooSmall(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
-	ensureTCP(&spec).MSS = 100 // < MinMSS
+	testutil.EnsureTCP(&spec).MSS = 100 // < MinMSS
 	_, err := p.Plan(context.Background(), spec)
 	if err == nil {
 		t.Fatal("expected error for MSS < MinMSS, got nil")
@@ -1976,7 +1969,7 @@ func TestHTTPPlan_MSSTooSmall(t *testing.T) {
 func TestHTTPPlan_MSSMaxUint16(t *testing.T) {
 	p := NewPlanner()
 	spec := validHTTPSpec()
-	ensureTCP(&spec).MSS = 65535
+	testutil.EnsureTCP(&spec).MSS = 65535
 	spec.HTTP = &core.HTTPConfig{
 		Method:        "GET",
 		URI:           "/",
@@ -2321,7 +2314,7 @@ func TestHTTPPlan_RequestMSSSegmentsLongBody(t *testing.T) {
 	spec := validHTTPSpec()
 	// Body large enough to force segmentation at DefaultMSS=1460. Use POST
 	// since GET typically has no body.
-	ensureTCP(&spec).MSS = 536 // use small MSS to force multiple segments with smaller body
+	testutil.EnsureTCP(&spec).MSS = 536 // use small MSS to force multiple segments with smaller body
 	spec.HTTP = &core.HTTPConfig{
 		Method: "POST",
 		URI:    "/upload",
@@ -2419,7 +2412,7 @@ func TestHTTPPlan_RequestGzipMSSComposite(t *testing.T) {
 	if _, err := cryptoRand.Read(bodyBytes); err != nil {
 		t.Fatalf("crypto/rand.Read: %v", err)
 	}
-	ensureTCP(&spec).MSS = 536
+	testutil.EnsureTCP(&spec).MSS = 536
 	spec.HTTP = &core.HTTPConfig{
 		Method:                 "POST",
 		URI:                    "/upload",
@@ -2567,5 +2560,109 @@ func TestBuildHTTPRequest_GzipWithUserContentLength(t *testing.T) {
 	body := result[idx+4:]
 	if len(body) < 2 || body[0] != 0x1f || body[1] != 0x8b {
 		t.Fatalf("body must still be gzip-compressed despite user Content-Length; got % x", body[:min(2, len(body))])
+	}
+}
+
+// TestBuildHTTPRequest_GzipPreservesContentType verifies that gzip compression
+// does NOT corrupt the sniffed Content-Type. Before the C2 fix, gzip was
+// applied BEFORE sniffing, so the sniffer saw the gzip magic bytes (1F 8B)
+// and returned "application/gzip" instead of the original content type.
+func TestBuildHTTPRequest_GzipPreservesContentType(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		Method:                "POST",
+		URI:                   "/upload",
+		Body:                  "<html><body>hello</body></html>",
+		RequestContentEncoding: "gzip",
+	}
+	result := buildHTTPRequest(cfg, "10.0.0.2")
+	if !strings.Contains(result, "Content-Type: text/html; charset=utf-8\r\n") {
+		t.Errorf("result=%q, want Content-Type: text/html; charset=utf-8 (C2: sniff BEFORE gzip)", result)
+	}
+	if strings.Contains(result, "Content-Type: application/gzip") {
+		t.Errorf("result=%q, Content-Type must NOT be application/gzip (C2 bug)", result)
+	}
+	// Body must still be gzip-compressed.
+	idx := strings.Index(result, "\r\n\r\n")
+	if idx < 0 {
+		t.Fatalf("no separator")
+	}
+	body := result[idx+4:]
+	if len(body) < 2 || body[0] != 0x1f || body[1] != 0x8b {
+		t.Fatalf("body must be gzip-compressed; got % x", body[:min(2, len(body))])
+	}
+}
+
+// TestBuildHTTPResponse_GzipPreservesContentType verifies the response-side
+// symmetric fix (C3): gzip must not corrupt the sniffed Content-Type.
+func TestBuildHTTPResponse_GzipPreservesContentType(t *testing.T) {
+	cfg := &core.HTTPConfig{
+		ResponseBody:            "<html><body>response</body></html>",
+		ResponseContentEncoding: "gzip",
+	}
+	result := buildHTTPResponse(cfg)
+	if !strings.Contains(result, "Content-Type: text/html; charset=utf-8\r\n") {
+		t.Errorf("result=%q, want Content-Type: text/html; charset=utf-8 (C3: sniff BEFORE gzip)", result)
+	}
+	if strings.Contains(result, "Content-Type: application/gzip") {
+		t.Errorf("result=%q, Content-Type must NOT be application/gzip (C3 bug)", result)
+	}
+}
+
+// TestSniffByMagic_WAV verifies that WAV files are detected as audio/wav.
+// Before the H1 fix, a RIFF catch-all returned "application/octet-stream"
+// before the WAV check, making the WAV detection unreachable.
+func TestSniffByMagic_WAV(t *testing.T) {
+	// WAV: RIFF + size(4) + WAVE
+	wav := []byte{'R', 'I', 'F', 'F', 0x00, 0x00, 0x00, 0x00, 'W', 'A', 'V', 'E'}
+	if got := sniffByMagic(wav); got != "audio/wav" {
+		t.Errorf("sniffByMagic(WAV)=%q, want audio/wav (H1: RIFF catch-all was shadowing WAV)", got)
+	}
+}
+
+// TestSniffByMagic_WebP verifies that WebP files are detected as image/webp.
+// Before the H1 fix, the RIFF catch-all made WebP detection unreachable.
+func TestSniffByMagic_WebP(t *testing.T) {
+	// WebP: RIFF + size(4) + WEBP
+	webp := []byte{'R', 'I', 'F', 'F', 0x00, 0x00, 0x00, 0x00, 'W', 'E', 'B', 'P'}
+	if got := sniffByMagic(webp); got != "image/webp" {
+		t.Errorf("sniffByMagic(WebP)=%q, want image/webp (H1: RIFF catch-all was shadowing WebP)", got)
+	}
+}
+
+// TestSniffContentType_BOMStripped verifies that a UTF-8 BOM (EF BB BF)
+// prefix does not prevent HTML detection. Before the M2 fix, bytes.TrimLeft
+// did not strip BOM, so BOM-prefixed HTML was mis-detected as text/plain.
+func TestSniffContentType_BOMStripped(t *testing.T) {
+	bomHTML := []byte{0xEF, 0xBB, 0xBF, '<', 'h', 't', 'm', 'l', '>'}
+	if got := sniffContentType(bomHTML); got != "text/html; charset=utf-8" {
+		t.Errorf("sniffContentType(BOM+HTML)=%q, want text/html; charset=utf-8 (M2: BOM must be stripped)", got)
+	}
+}
+
+// TestSniffByMagic_GIF87a verifies GIF87a magic bytes are detected as image/gif.
+// Before the M3 fix, only 4 bytes "GIF8" were checked, not the full 6-byte
+// signature "GIF87a" / "GIF89a".
+func TestSniffByMagic_GIF87a(t *testing.T) {
+	gif87a := []byte{'G', 'I', 'F', '8', '7', 'a'}
+	if got := sniffByMagic(gif87a); got != "image/gif" {
+		t.Errorf("sniffByMagic(GIF87a)=%q, want image/gif", got)
+	}
+}
+
+// TestSniffByMagic_GIF89a verifies GIF89a magic bytes are detected as image/gif.
+func TestSniffByMagic_GIF89a(t *testing.T) {
+	gif89a := []byte{'G', 'I', 'F', '8', '9', 'a'}
+	if got := sniffByMagic(gif89a); got != "image/gif" {
+		t.Errorf("sniffByMagic(GIF89a)=%q, want image/gif", got)
+	}
+}
+
+// TestSniffByMagic_GIF8Incomplete verifies that "GIF8" without the version
+// byte is NOT mis-detected as image/gif. Before the M3 fix, only 4 bytes
+// were checked, so "GIF8" + garbage would be falsely detected.
+func TestSniffByMagic_GIF8Incomplete(t *testing.T) {
+	gif8bad := []byte{'G', 'I', 'F', '8', 'X', 'X'}
+	if got := sniffByMagic(gif8bad); got == "image/gif" {
+		t.Errorf("sniffByMagic(GIF8+XX)=%q, must NOT be image/gif (M3: full 6-byte check)", got)
 	}
 }

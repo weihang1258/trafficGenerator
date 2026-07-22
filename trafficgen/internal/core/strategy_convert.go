@@ -199,18 +199,27 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	}
 
+	// Universal TCP sub-config: applies to any TCP-based protocol
+	// (tcp/http/ftp/sip). Must run before the protocol-specific switch so
+	// the switch only handles protocol-specific fields (HTTP/FTP/SIP/...).
+	// Before this, cfg["tcp"] was only read inside case "tcp", leaving
+	// spec.TCP nil for http/ftp/sip -- a regression from the MSS relocation
+	// that silently dropped MSS/InitialSeq/Handshake/Termination for those
+	// protocols.
+	if sub, ok := cfg["tcp"].(map[string]interface{}); ok {
+		spec.TCP = &TCPConfig{
+			Handshake:   getBool(sub, "handshake", true),
+			Termination: getBool(sub, "termination", true),
+			MSS:         getUint16(sub, "mss"),
+			WindowSize:  getUint16(sub, "window_size"),
+			InitialSeq:  getUint32(sub, "initial_seq"),
+		}
+	}
+
 	// Protocol-specific config
 	switch protocol {
 	case "tcp":
-		if sub, ok := cfg["tcp"].(map[string]interface{}); ok {
-			spec.TCP = &TCPConfig{
-				Handshake:   getBool(sub, "handshake", true),
-				Termination: getBool(sub, "termination", true),
-				MSS:         getUint16(sub, "mss"),
-				WindowSize:  getUint16(sub, "window_size"),
-				InitialSeq:  getUint32(sub, "initial_seq"),
-			}
-		}
+		// TCP sub-config already read above; nothing protocol-specific to add.
 	case "udp":
 		if sub, ok := cfg["udp"].(map[string]interface{}); ok {
 			spec.UDP = &UDPConfig{
@@ -354,14 +363,21 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	// back to the top-level "initial_seq" key when TCP is nil or its
 	// InitialSeq is 0. This preserves reproducible-ISN configs that still
 	// use the legacy top-level location.
+	//
+	// When creating a new TCPConfig here (no "tcp" sub-map was present),
+	// Handshake/Termination default to true so HTTP/FTP/SIP flows still
+	// get a proper handshake/teardown -- without this, the zero-value false
+	// would skip the SYN handshake and FIN teardown, breaking the flow.
 	if v, ok := cfg["initial_seq"]; ok && v != nil {
 		legacy := getUint32(cfg, "initial_seq")
-		if legacy != 0 {
-			if spec.TCP == nil {
-				spec.TCP = &TCPConfig{InitialSeq: legacy}
-			} else if spec.TCP.InitialSeq == 0 {
-				spec.TCP.InitialSeq = legacy
+		if spec.TCP == nil {
+			spec.TCP = &TCPConfig{
+				Handshake:   true,
+				Termination: true,
+				InitialSeq:  legacy,
 			}
+		} else if spec.TCP.InitialSeq == 0 {
+			spec.TCP.InitialSeq = legacy
 		}
 	}
 
