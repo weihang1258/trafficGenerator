@@ -133,6 +133,64 @@ type FlowSpec struct {
 	// total-length field reflects only the actual payload, so receivers
 	// strip padding based on IP total length.
 	PadMinFrame *bool `json:"pad_min_frame,omitempty"`
+
+	// SubFlows is a generic list of secondary flows bound to this primary
+	// flow (e.g. FTP data channel, SIP RTP media, SCTP multi-homing). The
+	// primary protocol's planner iterates SubFlows and emits each as a
+	// separate PacketConfig stream into the same configChan — packets share
+	// the parent's GroupID so they route to the same PacketWorker, which
+	// preserves cross-flow timing (signaling first, data after, then
+	// signaling resumes).
+	//
+	// This field is NOT protocol-specific. Any planner can emit sub-flows
+	// — FTP, SIP, SCTP use it for their respective data-plane needs, and
+	// future protocols can reuse the same mechanism without touching
+	// FlowSpec again.
+	SubFlows []SubFlowSpec `json:"sub_flows,omitempty"`
+}
+
+// SubFlowSpec describes a secondary flow bound to a primary flow. The
+// primary protocol's planner emits sub-flow packets into the same
+// configChan as the primary flow, after the signaling that negotiates the
+// sub-flow (e.g. after FTP's PASV response, after SIP's 200 OK). The
+// sub-flow inherits the parent's GroupID so all packets route to the same
+// PacketWorker — preserving wire-order timing between signaling and data.
+//
+// Protocol selects the L4 behavior:
+//   - "tcp": full handshake (SYN/SYN-ACK/ACK) → payload segments →
+//     4-way teardown (FIN-ACK/ACK/FIN-ACK/ACK), MSS-segmented
+//   - "udp": single-direction or bidirectional payload datagrams
+//   - "sctp": 4-way handshake → DATA chunks → 3-way SHUTDOWN
+//
+// Direction "up" = client→server (client opens the data connection, e.g.
+// FTP passive mode), "down" = server→client (server opens, e.g. FTP active
+// mode). Payload is the raw bytes to send on the data connection (file
+// body, RTP frames, ...); for TCP it is MSS-segmented.
+//
+// SrcPort/DstPort: 0 means the planner derives a port. For FTP, the
+// planner parses the PASV/PORT response to fill these; for SIP/RTP, the
+// planner derives from the SDP; users can also set explicit ports.
+type SubFlowSpec struct {
+	Protocol    string `json:"protocol"`              // "tcp", "udp", "sctp"
+	SrcPort     uint16 `json:"src_port,omitempty"`     // 0 = derive from parent
+	DstPort     uint16 `json:"dst_port,omitempty"`     // 0 = derive from parent
+	Direction   string `json:"direction,omitempty"`    // "up"=client→server, "down"=server→client
+	Payload     string `json:"payload,omitempty"`      // raw text bytes (file body / RTP frames); []byte conversion at emit
+	PayloadB64  string `json:"payload_b64,omitempty"`  // base64 alternative; overrides Payload when set (for binary)
+	Handshake   bool   `json:"handshake,omitempty"`    // TCP/SCTP: emit handshake (default true)
+	Termination bool   `json:"termination,omitempty"`  // TCP/SCTP: emit teardown (default true)
+	MSS         uint16 `json:"mss,omitempty"`          // TCP segmentation size (0 = 1460)
+
+	// AltSrcIP/AltDstIP: when non-empty, the sub-flow uses a different
+	// 4-tuple than the primary (e.g. SCTP multi-homing uses an alternate
+	// path). Empty = inherit parent's SrcIP/DstIP.
+	AltSrcIP string `json:"alt_src_ip,omitempty"`
+	AltDstIP string `json:"alt_dst_ip,omitempty"`
+
+	// AltSrcMAC/AltDstMAC: when non-empty, the sub-flow uses different MACs
+	// (multi-homing often implies a different NIC). Empty = inherit.
+	AltSrcMAC string `json:"alt_src_mac,omitempty"`
+	AltDstMAC string `json:"alt_dst_mac,omitempty"`
 }
 
 // VLAN configuration.

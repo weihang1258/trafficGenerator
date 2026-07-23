@@ -75,7 +75,7 @@ func TestValidate_InvalidDstIP(t *testing.T) {
 func TestValidate_IPv4Rejected(t *testing.T) {
 	p := NewPlanner()
 	spec := validSpec()
-	spec.SrcIP = "192.0.2.1"
+	spec.SrcIP = "10.0.0.1"
 	err := p.Validate(spec)
 	if err == nil || !strings.Contains(err.Error(), "must be IPv6") {
 		t.Errorf("err=%v, want contains 'must be IPv6'", err)
@@ -433,7 +433,7 @@ func TestPlan_EchoReplyNoAutoReply(t *testing.T) {
 func TestPlan_IPv4InIPv6ConfigRejected(t *testing.T) {
 	p := NewPlanner()
 	spec := validSpec()
-	spec.SrcIP = "192.0.2.1"
+	spec.SrcIP = "10.0.0.1"
 	_, err := p.Plan(context.Background(), spec)
 	if err == nil {
 		t.Error("Plan with IPv4 srcIP should error")

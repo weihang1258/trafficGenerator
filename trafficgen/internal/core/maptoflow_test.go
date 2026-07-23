@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"net"
 	"testing"
 )
 
@@ -636,7 +637,7 @@ func TestMapToFlowSpec_DefaultsPropagateToWire_FlagsZeroHonored(t *testing.T) {
 // --- L3/L4 address defaults (SrcIP/DstIP/SrcPort/DstPort) ---
 
 // TestMapToFlowSpec_DefaultSrcIP verifies absent src_ip falls back to
-// DefaultSrcIP (192.0.2.1, TEST-NET-1). Without this default, src_ip was
+// DefaultSrcIP (10.0.0.1). Without this default, src_ip was
 // empty and the IP header had source 0.0.0.0, which is not a realistic
 // client address and is dropped by many routers.
 func TestMapToFlowSpec_DefaultSrcIP(t *testing.T) {
@@ -650,7 +651,7 @@ func TestMapToFlowSpec_DefaultSrcIP(t *testing.T) {
 }
 
 // TestMapToFlowSpec_DefaultDstIP verifies absent dst_ip falls back to
-// DefaultDstIP (192.0.2.2, TEST-NET-1).
+// DefaultDstIP (20.0.0.1).
 func TestMapToFlowSpec_DefaultDstIP(t *testing.T) {
 	cfg := map[string]interface{}{
 		"src_port": float64(12345),
@@ -1041,13 +1042,13 @@ func TestMapToFlowSpec_DefaultsPropagateToWire_IPPort(t *testing.T) {
 	}
 
 	// IP header: bytes 26-29 = src IP, 30-33 = dst IP (L3 offset 12-19).
-	wantSrcIP := []byte{192, 0, 2, 1}
+	wantSrcIP := []byte{10, 0, 0, 1}
 	if !bytes.Equal(packet[26:30], wantSrcIP) {
-		t.Errorf("src IP bytes = %v, want %v (DefaultSrcIP 192.0.2.1)", packet[26:30], wantSrcIP)
+		t.Errorf("src IP bytes = %v, want %v (DefaultSrcIP 10.0.0.1)", packet[26:30], wantSrcIP)
 	}
-	wantDstIP := []byte{192, 0, 2, 2}
+	wantDstIP := []byte{20, 0, 0, 1}
 	if !bytes.Equal(packet[30:34], wantDstIP) {
-		t.Errorf("dst IP bytes = %v, want %v (DefaultDstIP 192.0.2.2)", packet[30:34], wantDstIP)
+		t.Errorf("dst IP bytes = %v, want %v (DefaultDstIP 20.0.0.1)", packet[30:34], wantDstIP)
 	}
 
 	// TCP header: bytes 34-35 = src port, 36-37 = dst port.
@@ -2513,5 +2514,255 @@ func TestParseICMPPattern_AllItemsNonMapReturnsNil(t *testing.T) {
 	}
 	if spec.ICMP.Pattern != nil {
 		t.Errorf("ICMP.Pattern=%v, want nil (all items non-map -> nil)", spec.ICMP.Pattern)
+	}
+}
+
+// TestDefaultIPs_NotSameNetwork verifies the two default IPs are in
+// DIFFERENT /24 networks. Same-network defaults (e.g. 192.0.2.1/192.0.2.2
+// both in 192.0.2.0/24) cause DPI/firewall tests to mis-classify the
+// flow as intra-subnet (switched) rather than inter-subnet (routed),
+// defeating the purpose of synthesizing realistic cross-subnet traffic.
+// The user explicitly asked for 10.0.0.x (src) and 20.0.0.x (dst) so
+// src and dst DPI land in different subnets.
+func TestDefaultIPs_NotSameNetwork(t *testing.T) {
+	srcIP := net.ParseIP(DefaultSrcIP)
+	dstIP := net.ParseIP(DefaultDstIP)
+	if srcIP == nil {
+		t.Fatalf("DefaultSrcIP %q is not a valid IP", DefaultSrcIP)
+	}
+	if dstIP == nil {
+		t.Fatalf("DefaultDstIP %q is not a valid IP", DefaultDstIP)
+	}
+	src4 := srcIP.To4()
+	dst4 := dstIP.To4()
+	if src4 == nil || dst4 == nil {
+		t.Fatalf("defaults must be IPv4 (got src=%v dst=%v)", srcIP, dstIP)
+	}
+	// Compare /24 prefix (first 3 octets).
+	if src4[0] == dst4[0] && src4[1] == dst4[1] && src4[2] == dst4[2] {
+		t.Errorf("DefaultSrcIP %s and DefaultDstIP %s are in the same /24 (%d.%d.%d.0/24) -- "+
+			"DPI tests need src and dst in different subnets",
+			DefaultSrcIP, DefaultDstIP, src4[0], src4[1], src4[2])
+	}
+}
+
+// TestMapToFlowSpec_SubFlows_Absent verifies that when sub_flows is absent
+// from the config, spec.SubFlows is nil (no sub-flows). This is the default
+// for every protocol — sub-flows are opt-in.
+func TestMapToFlowSpec_SubFlows_Absent(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "20.0.0.1",
+	}
+	spec := mapToFlowSpec(cfg, "tcp")
+	if spec.SubFlows != nil {
+		t.Errorf("SubFlows=%v, want nil (absent in cfg)", spec.SubFlows)
+	}
+}
+
+// TestMapToFlowSpec_SubFlows_EmptyArray verifies that sub_flows: [] yields a
+// non-nil but empty slice. Planner iterates len(SubFlows), so empty is safe.
+func TestMapToFlowSpec_SubFlows_EmptyArray(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip":     "10.0.0.1",
+		"dst_ip":     "20.0.0.1",
+		"sub_flows":  []interface{}{},
+	}
+	spec := mapToFlowSpec(cfg, "tcp")
+	if spec.SubFlows == nil {
+		t.Errorf("SubFlows=nil, want non-nil empty slice (cfg had empty array)")
+	}
+	if len(spec.SubFlows) != 0 {
+		t.Errorf("len(SubFlows)=%d, want 0", len(spec.SubFlows))
+	}
+}
+
+// TestMapToFlowSpec_SubFlows_TCPFull verifies that a TCP sub-flow with all
+// fields populated parses correctly. This is the FTP-data-channel shape.
+func TestMapToFlowSpec_SubFlows_TCPFull(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "20.0.0.1",
+		"sub_flows": []interface{}{
+			map[string]interface{}{
+				"protocol":    "tcp",
+				"src_port":    float64(50000),
+				"dst_port":    float64(44000),
+				"direction":   "down",
+				"payload":     "hello",
+				"handshake":   true,
+				"termination": true,
+				"mss":         float64(1400),
+			},
+		},
+	}
+	spec := mapToFlowSpec(cfg, "ftp")
+	if len(spec.SubFlows) != 1 {
+		t.Fatalf("len(SubFlows)=%d, want 1", len(spec.SubFlows))
+	}
+	sub := spec.SubFlows[0]
+	if sub.Protocol != "tcp" {
+		t.Errorf("Protocol=%q, want \"tcp\"", sub.Protocol)
+	}
+	if sub.SrcPort != 50000 {
+		t.Errorf("SrcPort=%d, want 50000", sub.SrcPort)
+	}
+	if sub.DstPort != 44000 {
+		t.Errorf("DstPort=%d, want 44000", sub.DstPort)
+	}
+	if sub.Direction != "down" {
+		t.Errorf("Direction=%q, want \"down\"", sub.Direction)
+	}
+	if string(sub.Payload) != "hello" {
+		t.Errorf("Payload=%q, want \"hello\"", string(sub.Payload))
+	}
+	if !sub.Handshake {
+		t.Errorf("Handshake=false, want true")
+	}
+	if !sub.Termination {
+		t.Errorf("Termination=false, want true")
+	}
+	if sub.MSS != 1400 {
+		t.Errorf("MSS=%d, want 1400", sub.MSS)
+	}
+}
+
+// TestMapToFlowSpec_SubFlows_PayloadB64OverridesPayload verifies that
+// PayloadB64 takes precedence over Payload when both are set. This mirrors
+// the HTTP body_b64 / body precedence used elsewhere.
+func TestMapToFlowSpec_SubFlows_PayloadB64OverridesPayload(t *testing.T) {
+	// "ZmlsZSBib2R5" is base64 for "file body".
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "20.0.0.1",
+		"sub_flows": []interface{}{
+			map[string]interface{}{
+				"protocol":   "tcp",
+				"payload":    "WRONG",
+				"payload_b64": "ZmlsZSBib2R5",
+			},
+		},
+	}
+	spec := mapToFlowSpec(cfg, "tcp")
+	if len(spec.SubFlows) != 1 {
+		t.Fatalf("len(SubFlows)=%d, want 1", len(spec.SubFlows))
+	}
+	sub := spec.SubFlows[0]
+	// Note: PayloadB64 is decoded by EmitSubFlow at emit time, not by
+	// mapToFlowSpec. Here we just verify the field is parsed.
+	if sub.PayloadB64 != "ZmlsZSBib2R5" {
+		t.Errorf("PayloadB64=%q, want \"ZmlsZSBib2R5\"", sub.PayloadB64)
+	}
+	if string(sub.Payload) != "WRONG" {
+		t.Errorf("Payload=%q, want \"WRONG\" (kept as fallback; decoding happens at emit)", string(sub.Payload))
+	}
+}
+
+// TestMapToFlowSpec_SubFlows_AltIPsMultiHoming verifies that AltSrcIP/AltDstIP
+// on a sub-flow parse correctly — this is the SCTP multi-homing shape where
+// the sub-flow uses a different 4-tuple than the primary.
+func TestMapToFlowSpec_SubFlows_AltIPsMultiHoming(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "20.0.0.1",
+		"sub_flows": []interface{}{
+			map[string]interface{}{
+				"protocol":   "sctp",
+				"alt_src_ip": "10.0.0.2",
+				"alt_dst_ip": "20.0.0.2",
+				"alt_src_mac": "02:00:00:00:00:03",
+				"alt_dst_mac": "02:00:00:00:00:04",
+			},
+		},
+	}
+	spec := mapToFlowSpec(cfg, "sctp")
+	if len(spec.SubFlows) != 1 {
+		t.Fatalf("len(SubFlows)=%d, want 1", len(spec.SubFlows))
+	}
+	sub := spec.SubFlows[0]
+	if sub.AltSrcIP != "10.0.0.2" {
+		t.Errorf("AltSrcIP=%q, want \"10.0.0.2\"", sub.AltSrcIP)
+	}
+	if sub.AltDstIP != "20.0.0.2" {
+		t.Errorf("AltDstIP=%q, want \"20.0.0.2\"", sub.AltDstIP)
+	}
+	if sub.AltSrcMAC != "02:00:00:00:00:03" {
+		t.Errorf("AltSrcMAC=%q, want \"02:00:00:00:00:03\"", sub.AltSrcMAC)
+	}
+	if sub.AltDstMAC != "02:00:00:00:00:04" {
+		t.Errorf("AltDstMAC=%q, want \"02:00:00:00:00:04\"", sub.AltDstMAC)
+	}
+}
+
+// TestMapToFlowSpec_SubFlows_WrongTypeIgnored verifies that a non-array
+// sub_flows value is silently ignored (no panic, spec.SubFlows stays nil).
+// This mirrors the FTP/SIP "wrong type -> nil" pattern used by other sub-maps.
+func TestMapToFlowSpec_SubFlows_WrongTypeIgnored(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip":    "10.0.0.1",
+		"dst_ip":    "20.0.0.1",
+		"sub_flows": "not-an-array",
+	}
+	spec := mapToFlowSpec(cfg, "tcp")
+	if spec.SubFlows != nil {
+		t.Errorf("SubFlows=%v, want nil (string is not a valid sub_flows value)", spec.SubFlows)
+	}
+}
+
+// TestMapToFlowSpec_SubFlows_MultipleEntries verifies that multiple sub-flows
+// parse into an ordered slice (order matters — planner emits them in order,
+// and wire order = emit order).
+func TestMapToFlowSpec_SubFlows_MultipleEntries(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "20.0.0.1",
+		"sub_flows": []interface{}{
+			map[string]interface{}{"protocol": "tcp", "src_port": float64(50001)},
+			map[string]interface{}{"protocol": "udp", "src_port": float64(50002)},
+			map[string]interface{}{"protocol": "sctp", "src_port": float64(50003)},
+		},
+	}
+	spec := mapToFlowSpec(cfg, "tcp")
+	if len(spec.SubFlows) != 3 {
+		t.Fatalf("len(SubFlows)=%d, want 3", len(spec.SubFlows))
+	}
+	if spec.SubFlows[0].Protocol != "tcp" || spec.SubFlows[0].SrcPort != 50001 {
+		t.Errorf("SubFlows[0]=%+v, want tcp/50001", spec.SubFlows[0])
+	}
+	if spec.SubFlows[1].Protocol != "udp" || spec.SubFlows[1].SrcPort != 50002 {
+		t.Errorf("SubFlows[1]=%+v, want udp/50002", spec.SubFlows[1])
+	}
+	if spec.SubFlows[2].Protocol != "sctp" || spec.SubFlows[2].SrcPort != 50003 {
+		t.Errorf("SubFlows[2]=%+v, want sctp/50003", spec.SubFlows[2])
+	}
+}
+
+// TestMapToFlowSpec_SubFlows_SkipsNonMapItems verifies that non-map items in
+// the sub_flows array are skipped (json.Unmarshal leaves them zero-valued,
+// but our encoding round-trip drops them). Specifically: a string item
+// produces a zero-value SubFlowSpec (Protocol=""), which the planner must
+// skip at emit time. We verify the slice contains the one valid entry only
+// when the array is homogeneous.
+func TestMapToFlowSpec_SubFlows_SkipsNonMapItems(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "20.0.0.1",
+		"sub_flows": []interface{}{
+			"not-a-map",
+			map[string]interface{}{"protocol": "tcp"},
+		},
+	}
+	spec := mapToFlowSpec(cfg, "tcp")
+	// json.Unmarshal of a string into SubFlowSpec yields a zero-valued
+	// entry (Protocol=""); the array length matches the input length but
+	// the planner must skip entries with Protocol="".
+	if len(spec.SubFlows) != 2 {
+		t.Fatalf("len(SubFlows)=%d, want 2 (non-map item yields zero-valued entry)", len(spec.SubFlows))
+	}
+	if spec.SubFlows[0].Protocol != "" {
+		t.Errorf("SubFlows[0].Protocol=%q, want \"\" (non-map item -> zero value)", spec.SubFlows[0].Protocol)
+	}
+	if spec.SubFlows[1].Protocol != "tcp" {
+		t.Errorf("SubFlows[1].Protocol=%q, want \"tcp\"", spec.SubFlows[1].Protocol)
 	}
 }

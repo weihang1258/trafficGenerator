@@ -31,6 +31,26 @@ const (
 	MinEthernetFrame = 60
 )
 
+// EtherTypeFor returns the Ethernet EtherType field for the given source IP:
+// EtherTypeIPv6 (0x86DD) for IPv6 addresses, EtherTypeIPv4 (0x0800) for IPv4
+// addresses or anything unparseable (the historical default — every planner
+// used to hardcode 0x0800, so a parse failure stays on IPv4 rather than
+// silently emitting a malformed IPv6 frame).
+//
+// Planners that previously hardcoded EtherTypeIPv4 should call this with
+// spec.SrcIP (or the reply's swapped SrcIP) so a FlowSpec using IPv6
+// addresses produces an IPv6 EtherType and the builder's writeL3v6 path.
+func EtherTypeFor(srcIP string) uint16 {
+	parsed := net.ParseIP(srcIP)
+	if parsed == nil {
+		return EtherTypeIPv4
+	}
+	if parsed.To4() == nil {
+		return EtherTypeIPv6
+	}
+	return EtherTypeIPv4
+}
+
 // Builder builds binary packets from PacketConfig.
 type Builder struct{}
 
@@ -403,50 +423,64 @@ func calculateIPChecksum(header []byte) uint16 {
 }
 
 // calculateTCPChecksum calculates the TCP checksum with pseudo-header.
+// Handles both IPv4 (12-byte pseudo-header, RFC 793) and IPv6 (40-byte
+// pseudo-header, RFC 8200 §8.1). The IPv6 path is needed when srcIP/dstIP
+// are IPv6 addresses — without it, srcIP.To4() returns nil and the pseudo-
+// header is zero-filled, producing a wrong checksum that IPv6 stacks drop.
 func calculateTCPChecksum(config PacketConfig, header, payload []byte) uint16 {
-	// Build pseudo-header
-	pseudoHeader := make([]byte, 12)
-
-	// Source IP
-	srcIP := net.ParseIP(config.L3.SrcIP)
-	if srcIP == nil && config.L3.SrcIP != "" {
-		zap.L().Warn("invalid src IP address", zap.String("ip", config.L3.SrcIP))
-	}
-	if srcIP != nil {
-		srcIP = srcIP.To4()
-		if len(srcIP) == 4 {
-			copy(pseudoHeader[0:4], srcIP)
+	// Detect IPv6: if either IP parses as IPv6 (To4() == nil but To16() != nil),
+	// use the IPv6 pseudo-header path.
+	srcParsed := net.ParseIP(config.L3.SrcIP)
+	dstParsed := net.ParseIP(config.L3.DstIP)
+	isV6 := false
+	if srcParsed != nil && dstParsed != nil {
+		srcV4 := srcParsed.To4()
+		dstV4 := dstParsed.To4()
+		if (srcV4 == nil) && (dstV4 == nil) {
+			isV6 = true
 		}
 	}
 
-	// Destination IP
-	dstIP := net.ParseIP(config.L3.DstIP)
-	if dstIP == nil && config.L3.DstIP != "" {
-		zap.L().Warn("invalid dst IP address", zap.String("ip", config.L3.DstIP))
-	}
-	if dstIP != nil {
-		dstIP = dstIP.To4()
-		if len(dstIP) == 4 {
-			copy(pseudoHeader[4:8], dstIP)
+	var pseudoHeader []byte
+	if isV6 {
+		// IPv6 pseudo-header (40 bytes): SrcIP(16) + DstIP(16) + UpperLayerLen(4) + zero(3) + NextHeader(1)
+		upperLen := len(header) + len(payload)
+		pseudoHeader = calculateIPv6PseudoHeader(config.L3.SrcIP, config.L3.DstIP, upperLen, 6 /* TCP */)
+		if pseudoHeader == nil {
+			// Fall back to zero pseudo-header (matches IPv4 invalid-IP behavior).
+			pseudoHeader = make([]byte, 40)
 		}
+	} else {
+		// IPv4 pseudo-header (12 bytes): SrcIP(4) + DstIP(4) + zero(1) + Protocol(1) + TCP-len(2)
+		pseudoHeader = make([]byte, 12)
+		if srcParsed != nil {
+			if v4 := srcParsed.To4(); len(v4) == 4 {
+				copy(pseudoHeader[0:4], v4)
+			}
+		} else if config.L3.SrcIP != "" {
+			zap.L().Warn("invalid src IP address", zap.String("ip", config.L3.SrcIP))
+		}
+		if dstParsed != nil {
+			if v4 := dstParsed.To4(); len(v4) == 4 {
+				copy(pseudoHeader[4:8], v4)
+			}
+		} else if config.L3.DstIP != "" {
+			zap.L().Warn("invalid dst IP address", zap.String("ip", config.L3.DstIP))
+		}
+		pseudoHeader[8] = 0
+		pseudoHeader[9] = 6 // TCP
+		tcpLen := uint16(len(header) + len(payload))
+		binary.BigEndian.PutUint16(pseudoHeader[10:12], tcpLen)
 	}
-
-	// Zero
-	pseudoHeader[8] = 0
-
-	// Protocol
-	pseudoHeader[9] = 6 // TCP
-
-	// TCP length (header + payload)
-	tcpLen := uint16(len(header) + len(payload))
-	binary.BigEndian.PutUint16(pseudoHeader[10:12], tcpLen)
 
 	// Calculate checksum
 	sum := uint32(0)
 
 	// Pseudo-header
-	for i := 0; i < 12; i += 2 {
-		sum += uint32(binary.BigEndian.Uint16(pseudoHeader[i : i+2]))
+	for i := 0; i < len(pseudoHeader); i += 2 {
+		if i+2 <= len(pseudoHeader) {
+			sum += uint32(binary.BigEndian.Uint16(pseudoHeader[i : i+2]))
+		}
 	}
 
 	// TCP header (with checksum = 0)
@@ -474,58 +508,70 @@ func calculateTCPChecksum(config PacketConfig, header, payload []byte) uint16 {
 }
 
 // calculateUDPChecksum calculates the UDP checksum with pseudo-header.
+// Handles both IPv4 (12-byte pseudo-header, RFC 768) and IPv6 (40-byte
+// pseudo-header, RFC 8200 §8.1). IPv6 UDP MUST NOT have a zero checksum
+// (RFC 6936 §2) — unlike IPv4 where 0 means "no checksum" — so when the
+// computed checksum is 0 on IPv6, we emit 0xFFFF (per RFC 768 §4.1).
 func calculateUDPChecksum(config PacketConfig, payload []byte) uint16 {
-	// Build pseudo-header
-	pseudoHeader := make([]byte, 12)
-
-	// Source IP
-	srcIP := net.ParseIP(config.L3.SrcIP)
-	if srcIP == nil && config.L3.SrcIP != "" {
-		zap.L().Warn("invalid src IP address", zap.String("ip", config.L3.SrcIP))
-	}
-	if srcIP != nil {
-		srcIP = srcIP.To4()
-		if len(srcIP) == 4 {
-			copy(pseudoHeader[0:4], srcIP)
+	srcParsed := net.ParseIP(config.L3.SrcIP)
+	dstParsed := net.ParseIP(config.L3.DstIP)
+	isV6 := false
+	if srcParsed != nil && dstParsed != nil {
+		if (srcParsed.To4() == nil) && (dstParsed.To4() == nil) {
+			isV6 = true
 		}
 	}
 
-	// Destination IP
-	dstIP := net.ParseIP(config.L3.DstIP)
-	if dstIP == nil && config.L3.DstIP != "" {
-		zap.L().Warn("invalid dst IP address", zap.String("ip", config.L3.DstIP))
-	}
-	if dstIP != nil {
-		dstIP = dstIP.To4()
-		if len(dstIP) == 4 {
-			copy(pseudoHeader[4:8], dstIP)
-		}
-	}
-
-	// Zero
-	pseudoHeader[8] = 0
-
-	// Protocol
-	pseudoHeader[9] = 17 // UDP
-
-	// UDP length (8 byte header + payload)
 	udpLen := uint16(8 + len(payload))
-	binary.BigEndian.PutUint16(pseudoHeader[10:12], udpLen)
+
+	var pseudoHeader []byte
+	if isV6 {
+		// IPv6 pseudo-header (40 bytes). NextHeader=17 (UDP).
+		pseudoHeader = calculateIPv6PseudoHeader(config.L3.SrcIP, config.L3.DstIP, int(udpLen), 17 /* UDP */)
+		if pseudoHeader == nil {
+			pseudoHeader = make([]byte, 40)
+		}
+	} else {
+		// IPv4 pseudo-header (12 bytes)
+		pseudoHeader = make([]byte, 12)
+		if srcParsed != nil {
+			if v4 := srcParsed.To4(); len(v4) == 4 {
+				copy(pseudoHeader[0:4], v4)
+			}
+		} else if config.L3.SrcIP != "" {
+			zap.L().Warn("invalid src IP address", zap.String("ip", config.L3.SrcIP))
+		}
+		if dstParsed != nil {
+			if v4 := dstParsed.To4(); len(v4) == 4 {
+				copy(pseudoHeader[4:8], v4)
+			}
+		} else if config.L3.DstIP != "" {
+			zap.L().Warn("invalid dst IP address", zap.String("ip", config.L3.DstIP))
+		}
+		pseudoHeader[8] = 0
+		pseudoHeader[9] = 17 // UDP
+		binary.BigEndian.PutUint16(pseudoHeader[10:12], udpLen)
+	}
 
 	// Calculate checksum
 	sum := uint32(0)
 
 	// Pseudo-header
-	for i := 0; i < 12; i += 2 {
-		sum += uint32(binary.BigEndian.Uint16(pseudoHeader[i : i+2]))
+	for i := 0; i < len(pseudoHeader); i += 2 {
+		if i+2 <= len(pseudoHeader) {
+			sum += uint32(binary.BigEndian.Uint16(pseudoHeader[i : i+2]))
+		}
 	}
 
-	// UDP length
-	sum += uint32(udpLen)
-
-	// Ports
+	// UDP header fields: src_port(2) + dst_port(2) + length(2) + checksum(2).
+	// The UDP header's own length field (at UDP offset 4-5) is a SEPARATE
+	// field from the pseudo-header's length — both must be in the sum per
+	// RFC 768 (IPv4) and RFC 8200 §8.1 (IPv6). The pseudo-header length
+	// was already added by the loop above; now add the UDP header fields.
+	// (The checksum field at offset 6-7 is zeroed during computation.)
 	sum += uint32(config.L4.SrcPort)
 	sum += uint32(config.L4.DstPort)
+	sum += uint32(udpLen) // UDP header's own length field
 
 	// Payload
 	for i := 0; i < len(payload)-1; i += 2 {
@@ -538,7 +584,13 @@ func calculateUDPChecksum(config PacketConfig, payload []byte) uint16 {
 	sum = (sum >> 16) + (sum & 0xffff)
 	sum = sum + (sum >> 16)
 
-	return ^uint16(sum)
+	result := ^uint16(sum)
+	// IPv6 UDP MUST NOT have zero checksum (RFC 6936 §2). On IPv4, 0 means
+	// "no checksum" and is legal; on IPv6, 0xFFFF is the substitute.
+	if isV6 && result == 0 {
+		result = 0xFFFF
+	}
+	return result
 }
 
 // calculateIPv6PseudoHeader returns the 40-byte IPv6 pseudo-header used by

@@ -155,7 +155,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				L2: core.L2Config{
 					SrcMAC:    srcMAC,
 					DstMAC:    dstMAC,
-					EtherType: 0x0800,
+					EtherType: core.EtherTypeFor(spec.SrcIP),
 				},
 				L3:      l3,
 				L4:      l4,

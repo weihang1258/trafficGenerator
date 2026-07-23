@@ -2,6 +2,8 @@ package core
 
 import (
 	"bytes"
+	"encoding/binary"
+	"net"
 	"testing"
 )
 
@@ -433,5 +435,396 @@ func TestBuilder_VLAN8021Q(t *testing.T) {
 	// Inner EtherType at 16:18 must be 0x0800 (IPv4).
 	if et := uint16(packet[16])<<8 | uint16(packet[17]); et != 0x0800 {
 		t.Errorf("inner EtherType = 0x%04x, want 0x0800", et)
+	}
+}
+
+// TestTCPChecksum_IPv6 verifies the TCP checksum is computed correctly when
+// SrcIP/DstIP are IPv6 addresses. The pre-IPv6 implementation only built the
+// 12-byte IPv4 pseudo-header (srcIP.To4()), which returned nil for IPv6 —
+// leaving the pseudo-header zero-filled and producing a wrong checksum that
+// IPv6 stacks would drop. This test feeds a known IPv6 4-tuple + payload and
+// verifies the checksum matches the value computed by an independent reference
+// implementation (the same algorithm inlined here).
+//
+// Reference: RFC 8200 §8.1 — IPv6 pseudo-header is 40 bytes:
+// SrcIP(16) + DstIP(16) + UpperLayerPacketLength(4) + zero(3) + NextHeader(1).
+// NextHeader for TCP is 6.
+func TestTCPChecksum_IPv6(t *testing.T) {
+	srcIP := "2001:db8::1"
+	dstIP := "2001:db8::2"
+	srcPort := uint16(12345)
+	dstPort := uint16(80)
+	payload := []byte("hello tcp ipv6")
+
+	// Build a TCP header (20 bytes, no options). Checksum field at offset 16-17
+	// is zero during computation.
+	tcpHeader := make([]byte, 20)
+	binary.BigEndian.PutUint16(tcpHeader[0:2], srcPort)
+	binary.BigEndian.PutUint16(tcpHeader[2:4], dstPort)
+	// seq=0, ack=0
+	tcpHeader[12] = 0x50 // data offset = 5 (20 bytes)
+	tcpHeader[13] = 0x02 // SYN
+	// window=0, checksum=0, urgent=0
+
+	config := PacketConfig{
+		L3: L3Config{SrcIP: srcIP, DstIP: dstIP, Protocol: 6, TTL: 64},
+		L4: L4Config{Protocol: "tcp", SrcPort: srcPort, DstPort: dstPort, Seq: 0, Ack: 0, Flags: 0x02},
+	}
+	got := calculateTCPChecksum(config, tcpHeader, payload)
+
+	// Compute expected checksum independently.
+	src := net.ParseIP(srcIP).To16()
+	dst := net.ParseIP(dstIP).To16()
+	upperLen := len(tcpHeader) + len(payload)
+	ph := make([]byte, 40)
+	copy(ph[0:16], src)
+	copy(ph[16:32], dst)
+	binary.BigEndian.PutUint32(ph[32:36], uint32(upperLen))
+	ph[39] = 6 // TCP
+
+	var sum uint32
+	for i := 0; i < len(ph); i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(ph[i : i+2]))
+	}
+	for i := 0; i < len(tcpHeader); i += 2 {
+		if i == 16 {
+			continue
+		}
+		if i+2 <= len(tcpHeader) {
+			sum += uint32(binary.BigEndian.Uint16(tcpHeader[i : i+2]))
+		}
+	}
+	for i := 0; i < len(payload)-1; i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(payload[i : i+2]))
+	}
+	if len(payload)%2 == 1 {
+		sum += uint32(payload[len(payload)-1]) << 8
+	}
+	sum = (sum >> 16) + (sum & 0xffff)
+	sum = sum + (sum >> 16)
+	want := ^uint16(sum)
+
+	if got != want {
+		t.Errorf("IPv6 TCP checksum = 0x%04x, want 0x%04x (independent calc)", got, want)
+	}
+	// Sanity: checksum must NOT be zero (zero pseudo-header bug would produce
+	// a different value, possibly zero on some inputs).
+	if got == 0 {
+		t.Errorf("IPv6 TCP checksum = 0 — pseudo-header likely not applied")
+	}
+}
+
+// TestTCPChecksum_IPv4Unchanged verifies the IPv4 TCP checksum path still
+// produces the same value as the original (pre-IPv6) implementation. Catches
+// regressions where the IPv6 branch was added but broke the IPv4 branch.
+func TestTCPChecksum_IPv4Unchanged(t *testing.T) {
+	srcIP := "10.0.0.1"
+	dstIP := "20.0.0.1"
+	srcPort := uint16(12345)
+	dstPort := uint16(80)
+	payload := []byte("hello tcp ipv4")
+
+	tcpHeader := make([]byte, 20)
+	binary.BigEndian.PutUint16(tcpHeader[0:2], srcPort)
+	binary.BigEndian.PutUint16(tcpHeader[2:4], dstPort)
+	tcpHeader[12] = 0x50
+	tcpHeader[13] = 0x02
+
+	config := PacketConfig{
+		L3: L3Config{SrcIP: srcIP, DstIP: dstIP, Protocol: 6, TTL: 64},
+		L4: L4Config{Protocol: "tcp", SrcPort: srcPort, DstPort: dstPort, Flags: 0x02},
+	}
+	got := calculateTCPChecksum(config, tcpHeader, payload)
+
+	// Independent IPv4 pseudo-header calculation (12 bytes).
+	src := net.ParseIP(srcIP).To4()
+	dst := net.ParseIP(dstIP).To4()
+	ph := make([]byte, 12)
+	copy(ph[0:4], src)
+	copy(ph[4:8], dst)
+	ph[9] = 6 // TCP
+	binary.BigEndian.PutUint16(ph[10:12], uint16(len(tcpHeader)+len(payload)))
+
+	var sum uint32
+	for i := 0; i < 12; i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(ph[i : i+2]))
+	}
+	for i := 0; i < len(tcpHeader); i += 2 {
+		if i == 16 {
+			continue
+		}
+		if i+2 <= len(tcpHeader) {
+			sum += uint32(binary.BigEndian.Uint16(tcpHeader[i : i+2]))
+		}
+	}
+	for i := 0; i < len(payload)-1; i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(payload[i : i+2]))
+	}
+	if len(payload)%2 == 1 {
+		sum += uint32(payload[len(payload)-1]) << 8
+	}
+	sum = (sum >> 16) + (sum & 0xffff)
+	sum = sum + (sum >> 16)
+	want := ^uint16(sum)
+
+	if got != want {
+		t.Errorf("IPv4 TCP checksum = 0x%04x, want 0x%04x (regression)", got, want)
+	}
+}
+
+// TestUDPChecksum_IPv6 verifies the UDP checksum is computed correctly for
+// IPv6 src/dst. Same rationale as TestTCPChecksum_IPv6: pre-IPv6 code only
+// built IPv4 pseudo-header.
+func TestUDPChecksum_IPv6(t *testing.T) {
+	srcIP := "2001:db8::1"
+	dstIP := "2001:db8::2"
+	srcPort := uint16(12345)
+	dstPort := uint16(53)
+	payload := []byte("dns query ipv6")
+
+	config := PacketConfig{
+		L3: L3Config{SrcIP: srcIP, DstIP: dstIP, Protocol: 17, TTL: 64},
+		L4: L4Config{Protocol: "udp", SrcPort: srcPort, DstPort: dstPort},
+	}
+	got := calculateUDPChecksum(config, payload)
+
+	// Independent IPv6 UDP pseudo-header calc.
+	src := net.ParseIP(srcIP).To16()
+	dst := net.ParseIP(dstIP).To16()
+	udpLen := uint16(8 + len(payload))
+	ph := make([]byte, 40)
+	copy(ph[0:16], src)
+	copy(ph[16:32], dst)
+	binary.BigEndian.PutUint32(ph[32:36], uint32(udpLen))
+	ph[39] = 17 // UDP
+
+	var sum uint32
+	for i := 0; i < 40; i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(ph[i : i+2]))
+	}
+	// UDP header fields: src_port + dst_port + length (checksum=0 during calc)
+	sum += uint32(srcPort)
+	sum += uint32(dstPort)
+	sum += uint32(udpLen)
+	for i := 0; i < len(payload)-1; i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(payload[i : i+2]))
+	}
+	if len(payload)%2 == 1 {
+		sum += uint32(payload[len(payload)-1]) << 8
+	}
+	sum = (sum >> 16) + (sum & 0xffff)
+	sum = sum + (sum >> 16)
+	want := ^uint16(sum)
+	if want == 0 {
+		want = 0xFFFF // IPv6 UDP zero-checksum rule
+	}
+
+	if got != want {
+		t.Errorf("IPv6 UDP checksum = 0x%04x, want 0x%04x", got, want)
+	}
+	if got == 0 {
+		t.Errorf("IPv6 UDP checksum = 0 — RFC 6936 forbids zero on IPv6")
+	}
+}
+
+// TestUDPChecksum_IPv4Unchanged verifies the IPv4 UDP checksum is unchanged.
+func TestUDPChecksum_IPv4Unchanged(t *testing.T) {
+	srcIP := "10.0.0.1"
+	dstIP := "20.0.0.1"
+	srcPort := uint16(12345)
+	dstPort := uint16(53)
+	payload := []byte("dns query ipv4")
+
+	config := PacketConfig{
+		L3: L3Config{SrcIP: srcIP, DstIP: dstIP, Protocol: 17, TTL: 64},
+		L4: L4Config{Protocol: "udp", SrcPort: srcPort, DstPort: dstPort},
+	}
+	got := calculateUDPChecksum(config, payload)
+
+	src := net.ParseIP(srcIP).To4()
+	dst := net.ParseIP(dstIP).To4()
+	udpLen := uint16(8 + len(payload))
+	ph := make([]byte, 12)
+	copy(ph[0:4], src)
+	copy(ph[4:8], dst)
+	ph[9] = 17
+	binary.BigEndian.PutUint16(ph[10:12], udpLen)
+
+	var sum uint32
+	for i := 0; i < 12; i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(ph[i : i+2]))
+	}
+	sum += uint32(srcPort)
+	sum += uint32(dstPort)
+	sum += uint32(udpLen)
+	for i := 0; i < len(payload)-1; i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(payload[i : i+2]))
+	}
+	if len(payload)%2 == 1 {
+		sum += uint32(payload[len(payload)-1]) << 8
+	}
+	sum = (sum >> 16) + (sum & 0xffff)
+	sum = sum + (sum >> 16)
+	want := ^uint16(sum)
+
+	if got != want {
+		t.Errorf("IPv4 UDP checksum = 0x%04x, want 0x%04x (regression)", got, want)
+	}
+}
+
+// TestBuild_IPv6TCPIntegration verifies the full Build() path for an IPv6
+// TCP packet: EtherType 0x86DD, 40-byte IPv6 header at offset 14, Next
+// Header=6 (TCP) at offset 20, and the IPv6 source/destination addresses
+// written into bytes 22-37 and 38-53. This is the end-to-end integration
+// test for writeL3's EtherType dispatch + writeL3v6 — unit tests above
+// (TestTCPChecksum_IPv6) cover the checksum in isolation, but a planner
+// that emits IPv6 PacketConfigs depends on Build() wiring the header
+// layout correctly.
+func TestBuild_IPv6TCPIntegration(t *testing.T) {
+	builder := NewBuilder()
+	srcIP := "2001:db8::1"
+	dstIP := "2001:db8::2"
+
+	config := PacketConfig{
+		L2: L2Config{
+			SrcMAC:    "aa:bb:cc:dd:ee:ff",
+			DstMAC:    "11:22:33:44:55:66",
+			EtherType: EtherTypeIPv6, // 0x86DD — planner sets via EtherTypeFor()
+		},
+		L3: L3Config{
+			SrcIP:    srcIP,
+			DstIP:    dstIP,
+			Protocol: 6, // TCP
+			TTL:      64,
+			DSCP:     0x08,
+		},
+		L4: L4Config{
+			Protocol: "tcp",
+			SrcPort:  12345,
+			DstPort:  80,
+			Seq:      1000,
+			Flags:    0x02, // SYN
+		},
+	}
+
+	pkt, err := builder.Build(config)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	// Frame layout: 14 (Eth) + 40 (IPv6) + 20 (TCP, no options) = 74 bytes.
+	if len(pkt) != 74 {
+		t.Errorf("frame length = %d, want 74 (14+40+20)", len(pkt))
+	}
+
+	// EtherType at offset 12-13.
+	if got := binary.BigEndian.Uint16(pkt[12:14]); got != EtherTypeIPv6 {
+		t.Errorf("EtherType = 0x%04x, want 0x%04x (IPv6)", got, EtherTypeIPv6)
+	}
+
+	// IPv6 Version (4 bits) = 6, TrafficClass high 4 bits from DSCP=0x08.
+	// tc = (0x08<<2) | 0 = 0x20, tc>>4 = 0x02, byte[14] = (6<<4) | 0x02 = 0x62.
+	if pkt[14] != 0x62 {
+		t.Errorf("IPv6 byte[0] = 0x%02x, want 0x62 (Version=6, DSCP=0x08)", pkt[14])
+	}
+
+	// Payload Length at offset 18-19: TCP header (20) + no payload = 20.
+	if got := binary.BigEndian.Uint16(pkt[18:20]); got != 20 {
+		t.Errorf("Payload Length = %d, want 20", got)
+	}
+
+	// Next Header at offset 20: 6 (TCP).
+	if pkt[20] != 6 {
+		t.Errorf("Next Header = %d, want 6 (TCP)", pkt[20])
+	}
+
+	// Hop Limit at offset 21: 64.
+	if pkt[21] != 64 {
+		t.Errorf("Hop Limit = %d, want 64", pkt[21])
+	}
+
+	// SrcIP at offset 22-37 (14+8).
+	wantSrc := net.ParseIP(srcIP).To16()
+	if !bytes.Equal(pkt[22:38], wantSrc) {
+		t.Errorf("SrcIP bytes = %v, want %v", pkt[22:38], wantSrc)
+	}
+
+	// DstIP at offset 38-53.
+	wantDst := net.ParseIP(dstIP).To16()
+	if !bytes.Equal(pkt[38:54], wantDst) {
+		t.Errorf("DstIP bytes = %v, want %v", pkt[38:54], wantDst)
+	}
+}
+
+// TestBuild_IPv6UDPIntegration verifies the full Build() path for an IPv6
+// UDP packet, mirroring TestBuild_IPv6TCPIntegration. UDP Next Header = 17.
+func TestBuild_IPv6UDPIntegration(t *testing.T) {
+	builder := NewBuilder()
+	srcIP := "fd00::1"
+	dstIP := "fd00::2"
+	payload := []byte("hello ipv6 udp")
+
+	config := PacketConfig{
+		L2: L2Config{
+			SrcMAC: "aa:bb:cc:dd:ee:ff",
+			DstMAC: "11:22:33:44:55:66",
+			EtherType: EtherTypeIPv6,
+		},
+		L3: L3Config{
+			SrcIP:    srcIP,
+			DstIP:    dstIP,
+			Protocol: 17, // UDP
+			TTL:      64,
+		},
+		L4: L4Config{
+			Protocol: "udp",
+			SrcPort:  54321,
+			DstPort:  53,
+		},
+		Payload: payload,
+	}
+
+	pkt, err := builder.Build(config)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	// 14 + 40 + 8 + 14 = 76 bytes.
+	if len(pkt) != 76 {
+		t.Errorf("frame length = %d, want 76 (14+40+8+14)", len(pkt))
+	}
+
+	if got := binary.BigEndian.Uint16(pkt[12:14]); got != EtherTypeIPv6 {
+		t.Errorf("EtherType = 0x%04x, want 0x%04x (IPv6)", got, EtherTypeIPv6)
+	}
+
+	// Next Header at offset 20: 17 (UDP).
+	if pkt[20] != 17 {
+		t.Errorf("Next Header = %d, want 17 (UDP)", pkt[20])
+	}
+
+	// Payload Length: 8 (UDP hdr) + 14 (payload) = 22.
+	if got := binary.BigEndian.Uint16(pkt[18:20]); got != 22 {
+		t.Errorf("Payload Length = %d, want 22 (8+14)", got)
+	}
+
+	// UDP header at offset 54 (14+40). SrcPort, DstPort, Length, Checksum.
+	if got := binary.BigEndian.Uint16(pkt[54:56]); got != 54321 {
+		t.Errorf("UDP SrcPort = %d, want 54321", got)
+	}
+	if got := binary.BigEndian.Uint16(pkt[56:58]); got != 53 {
+		t.Errorf("UDP DstPort = %d, want 53", got)
+	}
+	if got := binary.BigEndian.Uint16(pkt[58:60]); got != 22 {
+		t.Errorf("UDP Length = %d, want 22", got)
+	}
+	// UDP checksum at offset 60-61: must be non-zero (RFC 6936 forbids zero on IPv6).
+	if got := binary.BigEndian.Uint16(pkt[60:62]); got == 0 {
+		t.Errorf("UDP checksum = 0 on IPv6 — RFC 6936 forbids this; want 0xFFFF substitute at minimum")
+	}
+
+	// Payload at offset 62.
+	if !bytes.Equal(pkt[62:], payload) {
+		t.Errorf("UDP payload = %q, want %q", pkt[62:], payload)
 	}
 }

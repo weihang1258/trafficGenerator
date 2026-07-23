@@ -1075,9 +1075,10 @@ func TestTCPPlan_IPv6Addresses(t *testing.T) {
 	if cfgs[0].FlowID != want {
 		t.Errorf("FlowID=%q, want %q", cfgs[0].FlowID, want)
 	}
-	// EtherType is still 0x0800 (IPv4 hardcoded, not 0x86DD)
-	if cfgs[0].L2.EtherType != 0x0800 {
-		t.Errorf("EtherType=%x, want 0x0800 (IPv4 hardcoded)", cfgs[0].L2.EtherType)
+	// EtherType is now dynamic — IPv6 srcIP must produce 0x86DD (IPv6),
+	// not the historical 0x0800 (IPv4) hardcoded value.
+	if cfgs[0].L2.EtherType != 0x86DD {
+		t.Errorf("EtherType=0x%04x, want 0x86DD (IPv6 dynamic)", cfgs[0].L2.EtherType)
 	}
 }
 

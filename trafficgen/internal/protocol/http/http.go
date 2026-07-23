@@ -152,7 +152,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			L2: core.L2Config{
 				SrcMAC:    spec.SrcMAC,
 				DstMAC:    spec.DstMAC,
-				EtherType: 0x0800,
+				EtherType: core.EtherTypeFor(spec.SrcIP),
 			},
 			L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 			L4: core.L4Config{
@@ -177,7 +177,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			L2: core.L2Config{
 				SrcMAC:    spec.DstMAC,
 				DstMAC:    spec.SrcMAC,
-				EtherType: 0x0800,
+				EtherType: core.EtherTypeFor(spec.SrcIP),
 			},
 			L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 			L4: core.L4Config{
@@ -203,7 +203,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			L2: core.L2Config{
 				SrcMAC:    spec.SrcMAC,
 				DstMAC:    spec.DstMAC,
-				EtherType: 0x0800,
+				EtherType: core.EtherTypeFor(spec.SrcIP),
 			},
 			L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 			L4: core.L4Config{
@@ -241,7 +241,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					L2: core.L2Config{
 						SrcMAC:    spec.SrcMAC,
 						DstMAC:    spec.DstMAC,
-						EtherType: 0x0800,
+						EtherType: core.EtherTypeFor(spec.SrcIP),
 					},
 					L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 					L4: core.L4Config{
@@ -275,7 +275,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					L2: core.L2Config{
 						SrcMAC:    spec.DstMAC,
 						DstMAC:    spec.SrcMAC,
-						EtherType: 0x0800,
+						EtherType: core.EtherTypeFor(spec.SrcIP),
 					},
 					L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 					L4: core.L4Config{
@@ -304,7 +304,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			L2: core.L2Config{
 				SrcMAC:    spec.SrcMAC,
 				DstMAC:    spec.DstMAC,
-				EtherType: 0x0800,
+				EtherType: core.EtherTypeFor(spec.SrcIP),
 			},
 			L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 			L4: core.L4Config{
@@ -329,7 +329,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			L2: core.L2Config{
 				SrcMAC:    spec.DstMAC,
 				DstMAC:    spec.SrcMAC,
-				EtherType: 0x0800,
+				EtherType: core.EtherTypeFor(spec.SrcIP),
 			},
 			L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 			L4: core.L4Config{
@@ -353,7 +353,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			L2: core.L2Config{
 				SrcMAC:    spec.DstMAC,
 				DstMAC:    spec.SrcMAC,
-				EtherType: 0x0800,
+				EtherType: core.EtherTypeFor(spec.SrcIP),
 			},
 			L3: core.L3Base(spec.DstIP, spec.SrcIP, 6, effectiveTTL, nextIPID(), spec),
 			L4: core.L4Config{
@@ -378,7 +378,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			L2: core.L2Config{
 				SrcMAC:    spec.SrcMAC,
 				DstMAC:    spec.DstMAC,
-				EtherType: 0x0800,
+				EtherType: core.EtherTypeFor(spec.SrcIP),
 			},
 			L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
 			L4: core.L4Config{

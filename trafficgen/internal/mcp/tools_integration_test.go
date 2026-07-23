@@ -1286,8 +1286,8 @@ func TestMCP_GenerateTraffic_PadMinFrame_DefaultON(t *testing.T) {
 		TaskName: "arp-default",
 		Protocol: "arp",
 		Config: map[string]interface{}{
-			"src_ip": "192.0.2.1",
-			"dst_ip": "192.0.2.2",
+			"src_ip": "10.0.0.1",
+			"dst_ip": "20.0.0.1",
 			"arp":    map[string]interface{}{"operation": 1},
 		},
 		OutputType: "pcap",
@@ -1332,8 +1332,8 @@ func TestMCP_GenerateTraffic_PadMinFrame_False_NoPadding(t *testing.T) {
 		TaskName: "arp-nopad",
 		Protocol: "arp",
 		Config: map[string]interface{}{
-			"src_ip":        "192.0.2.1",
-			"dst_ip":        "192.0.2.2",
+			"src_ip":        "10.0.0.1",
+			"dst_ip":        "20.0.0.1",
 			"arp":           map[string]interface{}{"operation": 1},
 			"pad_min_frame": false,
 		},
@@ -1378,8 +1378,8 @@ func TestMCP_GenerateTraffic_PadMinFrame_True_ExplicitON(t *testing.T) {
 		TaskName: "arp-pad",
 		Protocol: "arp",
 		Config: map[string]interface{}{
-			"src_ip":        "192.0.2.1",
-			"dst_ip":        "192.0.2.2",
+			"src_ip":        "10.0.0.1",
+			"dst_ip":        "20.0.0.1",
 			"arp":           map[string]interface{}{"operation": 1},
 			"pad_min_frame": true,
 		},

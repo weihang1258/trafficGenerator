@@ -61,8 +61,8 @@ func TestMCP_Padding_InspectBytes(t *testing.T) {
 			defer env.db.Close()
 
 			cfg := map[string]interface{}{
-				"src_ip": "192.0.2.1",
-				"dst_ip": "192.0.2.2",
+				"src_ip": "10.0.0.1",
+				"dst_ip": "20.0.0.1",
 				"arp":    map[string]interface{}{"operation": 1},
 			}
 			if tc.pad != nil {

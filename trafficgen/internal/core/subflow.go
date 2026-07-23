@@ -1,0 +1,574 @@
+// Package core provides core functionality.
+package core
+
+import (
+	"encoding/base64"
+	"fmt"
+	"math/rand"
+	"net"
+	"time"
+)
+
+// EmitSubFlow emits packets for a single sub-flow into configChan. It is the
+// generic entry point used by any planner that supports sub-flows (FTP data
+// channel, SIP RTP media, SCTP multi-homing) — the planner calls this with
+// the parent's FlowSpec, parent flow ID, and the sub-flow spec.
+//
+// Wire order is emit order: the planner emits the parent's signaling packets
+// (which negotiate the sub-flow, e.g. FTP PASV response), then calls
+// EmitSubFlow for the data plane, then continues with the parent's signaling
+// (e.g. FTP "226 Transfer complete"). Because the planner is a single
+// goroutine writing to one configChan, the wire order matches.
+//
+// The sub-flow's FlowID is "{parentFlowID}:sub-{subIdx}" so receivers can
+// distinguish primary vs. secondary packets. The GroupID is inherited from
+// the parent (callers must set it on every emitted PacketConfig — see the
+// worker's computeHashKey, which uses GroupID to route same-GroupID packets
+// to one PacketWorker, preserving cross-flow timing).
+//
+// Parameters:
+//   - configChan: the parent planner's output channel (EmitSubFlow writes
+//     into it directly — no intermediate channel).
+//   - subIdx: 0-based index into spec.SubFlows (used for FlowID suffix).
+//   - sub: the SubFlowSpec describing the data flow.
+//   - parent: the parent FlowSpec (for SrcIP/DstIP/MACs/TTL/DSCP inheritance).
+//   - parentFlowID: the parent's FlowID (for FlowID suffixing).
+//   - now: the timestamp to stamp on every emitted packet.
+//   - packetIndex: pointer to the parent's packet counter (EmitSubFlow
+//     increments it for each packet emitted, so the parent's numbering
+//     stays continuous).
+//   - nextIPID: the parent's IPID generator (so the sub-flow's IPIDs don't
+//     collide with the parent's).
+//
+// EmitSubFlow does NOT close configChan — the parent planner owns the
+// channel lifecycle.
+func EmitSubFlow(
+	configChan chan<- PacketConfig,
+	subIdx int,
+	sub SubFlowSpec,
+	parent FlowSpec,
+	parentFlowID string,
+	now time.Time,
+	packetIndex *uint64,
+	nextIPID func() uint16,
+) {
+	subFlowID := fmt.Sprintf("%s:sub-%d", parentFlowID, subIdx)
+
+	// Resolve effective 4-tuple: sub-flow can override IPs/MACs (multi-homing),
+	// ports, and direction. Empty -> inherit parent.
+	srcIP := parent.SrcIP
+	dstIP := parent.DstIP
+	srcMAC := parent.SrcMAC
+	dstMAC := parent.DstMAC
+	if sub.AltSrcIP != "" {
+		srcIP = sub.AltSrcIP
+	}
+	if sub.AltDstIP != "" {
+		dstIP = sub.AltDstIP
+	}
+	if sub.AltSrcMAC != "" {
+		srcMAC = sub.AltSrcMAC
+	}
+	if sub.AltDstMAC != "" {
+		dstMAC = sub.AltDstMAC
+	}
+
+	// Resolve payload (PayloadB64 overrides Payload, matching HTTP behavior).
+	var payload []byte
+	if b64 := sub.PayloadB64; b64 != "" {
+		if decoded, err := base64.StdEncoding.DecodeString(b64); err == nil {
+			payload = decoded
+		}
+	}
+	if len(payload) == 0 && sub.Payload != "" {
+		payload = []byte(sub.Payload)
+	}
+
+	// Effective TTL and DSCP inherit from parent.
+	effectiveTTL := parent.TTL
+	if effectiveTTL == 0 {
+		effectiveTTL = DefaultTTL
+	}
+
+	// Build a synthetic FlowSpec for the sub-flow so L3Base / EtherTypeFor
+	// pick up the (possibly alternate) IPs and parent's DSCP/ECN/Flags.
+	subSpec := FlowSpec{
+		SrcIP:       srcIP,
+		DstIP:       dstIP,
+		SrcMAC:      srcMAC,
+		DstMAC:      dstMAC,
+		TTL:         effectiveTTL,
+		DSCP:        parent.DSCP,
+		ECN:         parent.ECN,
+		IPFlags:     parent.IPFlags,
+		FragOffset:  parent.FragOffset,
+		PadMinFrame: parent.PadMinFrame,
+		VLAN:        parent.VLAN,
+	}
+
+	// Direction: which side initiates. "up" = client→server (client opens);
+	// "down" = server→client (server opens, e.g. FTP active mode).
+	dir := sub.Direction
+	if dir == "" {
+		dir = "up"
+	}
+
+	switch sub.Protocol {
+	case "tcp":
+		emitTCPSubFlow(configChan, sub, subSpec, subFlowID, now, packetIndex, nextIPID, payload, dir)
+	case "udp":
+		emitUDPSubFlow(configChan, sub, subSpec, subFlowID, now, packetIndex, nextIPID, payload, dir)
+	case "sctp":
+		emitSCTPSubFlow(configChan, sub, subSpec, subFlowID, now, packetIndex, nextIPID, payload, dir)
+	}
+}
+
+// emitTCPSubFlow emits a full TCP sub-flow: 3-way handshake (if Handshake),
+// MSS-segmented payload in the requested direction with peer ACKs, then
+// 4-way teardown (if Termination).
+//
+// Sequence space is independent from the parent flow — real TCP sub-flows
+// (e.g. FTP data channel) are separate connections with their own ISN.
+func emitTCPSubFlow(
+	configChan chan<- PacketConfig,
+	sub SubFlowSpec,
+	spec FlowSpec,
+	flowID string,
+	now time.Time,
+	packetIndex *uint64,
+	nextIPID func() uint16,
+	payload []byte,
+	dir string,
+) {
+	mss := uint16(sub.MSS)
+	if mss == 0 {
+		mss = 1460
+	}
+
+	clientSeq := rand.Uint32()
+	serverSeq := rand.Uint32()
+	winSize := uint16(65535)
+
+	// Handshake: SYN/SYN-ACK/ACK. The client (src side) always sends SYN
+	// first regardless of who initiated the connection — "down" direction
+	// only affects which side sends data first, not who sends SYN.
+	if sub.Handshake {
+		// SYN (client -> server)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Flags: 0x02 /* SYN */, WindowSize: winSize, TCPOptions: synMSSOptions(mss)},
+		}
+		*packetIndex++
+		clientSeq++
+
+		// SYN-ACK (server -> client)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.DstIP, spec.SrcIP, 6, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "tcp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Seq: serverSeq, Ack: clientSeq, Flags: 0x12 /* SYN|ACK */, WindowSize: winSize, TCPOptions: synMSSOptions(mss)},
+		}
+		*packetIndex++
+		serverSeq++
+
+		// ACK (client -> server)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Ack: serverSeq, Flags: 0x10 /* ACK */, WindowSize: winSize},
+		}
+		*packetIndex++
+	}
+
+	// Data segments in the requested direction. "up" = client sends; "down"
+	// = server sends (e.g. FTP RETR download in active mode — server pushes
+	// file bytes to client).
+	for len(payload) > 0 {
+		segSize := len(payload)
+		if segSize > int(mss) {
+			segSize = int(mss)
+		}
+
+		if dir == "down" {
+			// server -> client
+			configChan <- PacketConfig{
+				FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
+				L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+				L3: L3Base(spec.DstIP, spec.SrcIP, 6, spec.TTL, nextIPID(), spec),
+				L4: L4Config{Protocol: "tcp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Seq: serverSeq, Ack: clientSeq, Flags: 0x18 /* PSH|ACK */, WindowSize: winSize},
+				Payload: payload[:segSize],
+			}
+			*packetIndex++
+			serverSeq += uint32(segSize)
+
+			// ACK (client -> server)
+			configChan <- PacketConfig{
+				FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+				L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+				L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
+				L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Ack: serverSeq, Flags: 0x10 /* ACK */, WindowSize: winSize},
+			}
+			*packetIndex++
+		} else {
+			// client -> server
+			configChan <- PacketConfig{
+				FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+				L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+				L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
+				L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Ack: serverSeq, Flags: 0x18 /* PSH|ACK */, WindowSize: winSize},
+				Payload: payload[:segSize],
+			}
+			*packetIndex++
+			clientSeq += uint32(segSize)
+
+			// ACK (server -> client)
+			configChan <- PacketConfig{
+				FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
+				L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+				L3: L3Base(spec.DstIP, spec.SrcIP, 6, spec.TTL, nextIPID(), spec),
+				L4: L4Config{Protocol: "tcp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Seq: serverSeq, Ack: clientSeq, Flags: 0x10 /* ACK */, WindowSize: winSize},
+			}
+			*packetIndex++
+		}
+		payload = payload[segSize:]
+	}
+
+	// 4-way teardown.
+	if sub.Termination {
+		// FIN (client -> server)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Ack: serverSeq, Flags: 0x11 /* FIN|ACK */, WindowSize: winSize},
+		}
+		*packetIndex++
+		clientSeq++
+
+		// ACK (server -> client)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.DstIP, spec.SrcIP, 6, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "tcp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Seq: serverSeq, Ack: clientSeq, Flags: 0x10 /* ACK */, WindowSize: winSize},
+		}
+		*packetIndex++
+
+		// FIN (server -> client)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.DstIP, spec.SrcIP, 6, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "tcp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Seq: serverSeq, Ack: clientSeq, Flags: 0x11 /* FIN|ACK */, WindowSize: winSize},
+		}
+		*packetIndex++
+		serverSeq++
+
+		// ACK (client -> server)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Ack: serverSeq, Flags: 0x10 /* ACK */, WindowSize: winSize},
+		}
+		*packetIndex++
+	}
+}
+
+// emitUDPSubFlow emits a single UDP packet carrying payload in the requested
+// direction. UDP has no handshake or teardown — the sub-flow is one datagram.
+// (For RTP-style multi-frame sub-flows, the planner splits the payload into
+// N frames before calling EmitSubFlow, or we can add a FrameCount field
+// later. For now, one datagram per sub-flow matches the FTP/RTP-as-one-burst
+// pattern; SIP RTP support will follow with a Frames field on SubFlowSpec
+// when needed.)
+func emitUDPSubFlow(
+	configChan chan<- PacketConfig,
+	sub SubFlowSpec,
+	spec FlowSpec,
+	flowID string,
+	now time.Time,
+	packetIndex *uint64,
+	nextIPID func() uint16,
+	payload []byte,
+	dir string,
+) {
+	if dir == "down" {
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.DstIP, spec.SrcIP, 17, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "udp", SrcPort: sub.DstPort, DstPort: sub.SrcPort},
+			Payload: payload,
+		}
+	} else {
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.SrcIP, spec.DstIP, 17, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "udp", SrcPort: sub.SrcPort, DstPort: sub.DstPort},
+			Payload: payload,
+		}
+	}
+	*packetIndex++
+}
+
+// emitSCTPSubFlow emits a minimal SCTP sub-flow: INIT/INIT-ACK/COOKIE-ECHO/
+// COOKIE-ACK handshake (if Handshake), one DATA chunk carrying payload, then
+// SHUTDOWN/SHUTDOWN-ACK/SHUTDOWN-COMPLETE teardown (if Termination).
+//
+// SCTP sub-flows share the parent's Verification Tag space — real SCTP
+// multi-homing uses ONE association across multiple paths, not separate
+// associations. So this helper writes HEARTBEAT chunks (not a full
+// association) on alternate paths. For a full SCTP sub-flow (rare in
+// practice), we still emit the 4-way handshake with new tags.
+func emitSCTPSubFlow(
+	configChan chan<- PacketConfig,
+	sub SubFlowSpec,
+	spec FlowSpec,
+	flowID string,
+	now time.Time,
+	packetIndex *uint64,
+	nextIPID func() uint16,
+	payload []byte,
+	dir string,
+) {
+	clientTag := rand.Uint32()
+	serverTag := rand.Uint32()
+	clientTSN := rand.Uint32()
+	serverTSN := clientTSN + 1
+
+	// 4-way handshake.
+	if sub.Handshake {
+		// INIT (client -> server, VerificationTag=0)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: 0},
+			Payload: buildSCTPINITChunk(clientTag),
+		}
+		*packetIndex++
+
+		// INIT-ACK (server -> client)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
+			Payload: buildSCTPINITChunk(serverTag),
+		}
+		*packetIndex++
+
+		// COOKIE-ECHO (client -> server)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
+			Payload: buildSCTPCookieEchoChunk(),
+		}
+		*packetIndex++
+
+		// COOKIE-ACK (server -> client)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
+			Payload: buildSCTPCookieAckChunk(),
+		}
+		*packetIndex++
+	}
+
+	// DATA chunk.
+	if len(payload) > 0 {
+		if dir == "down" {
+			configChan <- PacketConfig{
+				FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
+				L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+				L3: L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
+				L4: L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
+				Payload: buildSCTPDATAChunk(serverTSN, payload),
+			}
+		} else {
+			configChan <- PacketConfig{
+				FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+				L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+				L3: L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
+				L4: L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
+				Payload: buildSCTPDATAChunk(clientTSN, payload),
+			}
+		}
+		*packetIndex++
+	}
+
+	// 3-way shutdown.
+	if sub.Termination {
+		// SHUTDOWN (client -> server)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
+			Payload: buildSCTPShutdownChunk(clientTSN),
+		}
+		*packetIndex++
+
+		// SHUTDOWN-ACK (server -> client)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
+			Payload: buildSCTPShutdownAckChunk(),
+		}
+		*packetIndex++
+
+		// SHUTDOWN-COMPLETE (client -> server)
+		configChan <- PacketConfig{
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
+			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3: L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
+			L4: L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
+			Payload: buildSCTPShutdownCompleteChunk(),
+		}
+		*packetIndex++
+	}
+}
+
+// synMSSOptions builds TCP options for SYN packets: MSS + Window Scale +
+// SACK-Permitted. Kept here so the subflow helper doesn't depend on the tcp
+// planner package (which would create an import cycle).
+func synMSSOptions(mss uint16) []TCPOption {
+	if mss == 0 {
+		mss = 1460
+	}
+	return []TCPOption{
+		{Kind: TCPOptMSS, Data: []byte{byte(mss >> 8), byte(mss)}},
+		{Kind: TCPOptWinScale, Data: []byte{0x07}},
+		{Kind: TCPOptSACKPermit},
+	}
+}
+
+// SCTP chunk builders. Layout per RFC 4960 §3.2:
+//   Type(1) + Flags(1) + Length(2) + value(padded to 4-byte boundary)
+
+func buildSCTPINITChunk(initiateTag uint32) []byte {
+	// INIT chunk: Type=1, Flags=0, Length=20 (4-byte chunk header + 16-byte INIT value).
+	// INIT value: InitiateTag(4) + A-RWND(4) + OutboundStreams(2) + InboundStreams(2) + InitialTSN(4).
+	buf := make([]byte, 20)
+	buf[0] = 1 // Type=INIT
+	buf[1] = 0
+	buf[2] = 0
+	buf[3] = 20
+	// InitiateTag
+	buf[4] = byte(initiateTag >> 24)
+	buf[5] = byte(initiateTag >> 16)
+	buf[6] = byte(initiateTag >> 8)
+	buf[7] = byte(initiateTag)
+	// A-RWND = 65535
+	buf[8] = 0
+	buf[9] = 0
+	buf[10] = 0xFF
+	buf[11] = 0xFF
+	// OutboundStreams = 1
+	buf[12] = 0
+	buf[13] = 1
+	// InboundStreams = 1
+	buf[14] = 0
+	buf[15] = 1
+	// InitialTSN = 0
+	buf[16] = 0
+	buf[17] = 0
+	buf[18] = 0
+	buf[19] = 0
+	return buf
+}
+
+func buildSCTPCookieEchoChunk() []byte {
+	// COOKIE-ECHO: Type=10, Flags=0, Length=4 (empty cookie for test).
+	return []byte{10, 0, 0, 4}
+}
+
+func buildSCTPCookieAckChunk() []byte {
+	// COOKIE-ACK: Type=11, Flags=0, Length=4.
+	return []byte{11, 0, 0, 4}
+}
+
+func buildSCTPDATAChunk(tsn uint32, data []byte) []byte {
+	// DATA chunk: Type=0, Flags=0x03 (Begin+End), Length=16+len(data) (padded).
+	dataLen := len(data)
+	totalLen := 16 + dataLen
+	paddedLen := totalLen
+	if paddedLen%4 != 0 {
+		paddedLen += 4 - (paddedLen % 4)
+	}
+	buf := make([]byte, paddedLen)
+	buf[0] = 0 // Type=DATA
+	buf[1] = 0x03 // Flags: B=1, E=1 (single-message chunk)
+	buf[2] = byte(totalLen >> 8)
+	buf[3] = byte(totalLen)
+	// TSN
+	buf[4] = byte(tsn >> 24)
+	buf[5] = byte(tsn >> 16)
+	buf[6] = byte(tsn >> 8)
+	buf[7] = byte(tsn)
+	// SID = 0
+	buf[8] = 0
+	buf[9] = 0
+	// SSN = 0
+	buf[10] = 0
+	buf[11] = 0
+	// PPID = 0
+	buf[12] = 0
+	buf[13] = 0
+	buf[14] = 0
+	buf[15] = 0
+	// Data
+	copy(buf[16:], data)
+	return buf
+}
+
+func buildSCTPShutdownChunk(cumTSN uint32) []byte {
+	// SHUTDOWN: Type=7, Flags=0, Length=8 (4-byte header + 4-byte CumulativeTSN).
+	buf := make([]byte, 8)
+	buf[0] = 7
+	buf[1] = 0
+	buf[2] = 0
+	buf[3] = 8
+	buf[4] = byte(cumTSN >> 24)
+	buf[5] = byte(cumTSN >> 16)
+	buf[6] = byte(cumTSN >> 8)
+	buf[7] = byte(cumTSN)
+	return buf
+}
+
+func buildSCTPShutdownAckChunk() []byte {
+	// SHUTDOWN-ACK: Type=8, Flags=0, Length=4.
+	return []byte{8, 0, 0, 4}
+}
+
+func buildSCTPShutdownCompleteChunk() []byte {
+	// SHUTDOWN-COMPLETE: Type=14, Flags=0, Length=4.
+	return []byte{14, 0, 0, 4}
+}
+
+// DefaultTTL mirrors the protocol planners' default. Kept here (not in
+// types.go) because it's only consumed by the subflow helper.
+const DefaultTTL = 64
+
+// withSubflowIPs is a small helper for tests that want to construct a
+// SubFlowSpec with explicit IPs without writing struct literals. Not used
+// by production code.
+func withSubflowIPs(sub SubFlowSpec, srcIP, dstIP string) SubFlowSpec {
+	sub.AltSrcIP = srcIP
+	sub.AltDstIP = dstIP
+	return sub
+}
+
+var _ = withSubflowIPs // keep helper alive even if unused by production
+var _ = net.ParseIP     // keep net import alive

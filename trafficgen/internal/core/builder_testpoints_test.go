@@ -1015,3 +1015,47 @@ func TestCalcUDPChecksum_IPv6Src(t *testing.T) {
 		t.Error("IPv6 SrcIP UDP checksum differs from zero-src (To4()==nil -> zero)")
 	}
 }
+
+// --- EtherTypeFor ---
+
+// TestEtherTypeFor_IPv4 verifies the helper returns 0x0800 for IPv4 inputs,
+// including unparseable strings (the historical default before the helper
+// existed — every planner hardcoded 0x0800, so a parse failure must NOT
+// silently switch to IPv6).
+func TestEtherTypeFor_IPv4(t *testing.T) {
+	cases := []string{
+		"10.0.0.1", "20.0.0.1", "192.168.1.1", "255.255.255.255", "0.0.0.0",
+		"not-an-ip", "", "999.999.999.999",
+	}
+	for _, ip := range cases {
+		if got := EtherTypeFor(ip); got != EtherTypeIPv4 {
+			t.Errorf("EtherTypeFor(%q) = 0x%04x, want 0x%04x (IPv4 default)", ip, got, EtherTypeIPv4)
+		}
+	}
+}
+
+// TestEtherTypeFor_IPv6 verifies the helper returns 0x86DD for IPv6 inputs
+// of various forms (ULA, link-local, loopback, IPv6-mapped-not-IPv4).
+func TestEtherTypeFor_IPv6(t *testing.T) {
+	cases := []string{
+		"fd00::1", "fd00::2",
+		"fe80::1", "fe80::aabb:ccdd:eeff:0011",
+		"::1", "2001:db8::1",
+	}
+	for _, ip := range cases {
+		if got := EtherTypeFor(ip); got != EtherTypeIPv6 {
+			t.Errorf("EtherTypeFor(%q) = 0x%04x, want 0x%04x (IPv6)", ip, got, EtherTypeIPv6)
+		}
+	}
+}
+
+// TestEtherTypeFor_IPv4MappedIPv6 verifies that IPv4-mapped IPv6 addresses
+// (::ffff:a.b.c.d) are treated as IPv4. net.ParseIP returns a 16-byte form
+// where To4() is non-nil, so these must land on EtherTypeIPv4 — otherwise
+// a planner that lets the user write "::ffff:10.0.0.1" would emit a frame
+// with EtherType 0x86DD but a 20-byte IPv4 header inside.
+func TestEtherTypeFor_IPv4MappedIPv6(t *testing.T) {
+	if got := EtherTypeFor("::ffff:10.0.0.1"); got != EtherTypeIPv4 {
+		t.Errorf("EtherTypeFor(::ffff:10.0.0.1) = 0x%04x, want 0x%04x (IPv4-mapped -> IPv4)", got, EtherTypeIPv4)
+	}
+}

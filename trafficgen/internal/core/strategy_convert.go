@@ -18,12 +18,17 @@ const (
 	DefaultSrcMAC = "02:00:00:00:00:01"
 	DefaultDstMAC = "02:00:00:00:00:02"
 
-	// DefaultSrcIP / DefaultDstIP: TEST-NET-1 (RFC 5737) addresses reserved
-	// for documentation/testing. Public routers drop these, so trafficgen
-	// packets never leak into real networks. Users running real-traffic
-	// tests override with actual routable IPs.
-	DefaultSrcIP = "192.0.2.1"
-	DefaultDstIP = "192.0.2.2"
+	// DefaultSrcIP / DefaultDstIP: 10.0.0.1 / 20.0.0.1 -- different /24
+	// subnets so DPI/firewall tests see a routed (inter-subnet) flow rather
+	// than a switched (intra-subnet) one. Formerly 192.0.2.1/192.0.2.2 (RFC
+	// 5737 TEST-NET-1, same /24) which made src and dst DPI land in the same
+	// subnet and defeated cross-subnet test scenarios.
+	// These are SYNTHETIC test IPs (not assigned to any real NIC) -- per
+	// trafficgen's "fake packets for testing" contract, they must not match
+	// system NIC addresses. Users running real-traffic tests override with
+	// actual routable IPs.
+	DefaultSrcIP = "10.0.0.1"
+	DefaultDstIP = "20.0.0.1"
 
 	// DefaultSrcPort: high non-privileged port (>1024) typical of client
 	// ephemeral ports. Multi-flow scenarios should use batch tuples to
@@ -388,6 +393,40 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	if v, ok := cfg["pad_min_frame"]; ok && v != nil {
 		if b, ok := v.(bool); ok {
 			spec.PadMinFrame = &b
+		}
+	}
+
+	// SubFlows: generic multi-flow binding (FTP data channel, SIP RTP,
+	// SCTP multi-homing). Parsed protocol-independently so any planner
+	// can emit sub-flows without its own map[]-decoder. Absent = no
+	// sub-flows (the default for every protocol unless the user sets it
+	// or the planner injects one internally, e.g. FTP's DataChannel).
+	//
+	// Two-stage decode: first unmarshal into a typed slice (decodes
+	// numeric/most fields), and if that fails fall back to nil. We
+	// tolerate individual field decode errors (e.g. Payload field
+	// receiving a non-base64 string into []byte) by using a json.RawMessage
+	// intermediate and then re-decoding field by field, so one bad field
+	// doesn't drop the whole sub-flow.
+	if sCfg, ok := cfg["sub_flows"]; ok && sCfg != nil {
+		if raw, err := json.Marshal(sCfg); err == nil {
+			var subs []SubFlowSpec
+			if err := json.Unmarshal(raw, &subs); err == nil {
+				spec.SubFlows = subs
+			} else {
+				// Fallback: decode each entry individually. A sub-flow with
+				// an un-decodable field (e.g. Payload that isn't valid base64)
+				// still gets its other fields populated; bad fields are left
+				// at their zero value.
+				var raws []json.RawMessage
+				if err := json.Unmarshal(raw, &raws); err == nil {
+					for _, r := range raws {
+						var sub SubFlowSpec
+						_ = json.Unmarshal(r, &sub)
+						spec.SubFlows = append(spec.SubFlows, sub)
+					}
+				}
+			}
 		}
 	}
 

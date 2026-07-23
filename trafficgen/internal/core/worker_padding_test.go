@@ -80,8 +80,8 @@ func TestProcessBatchTask_PadMinFrame_Propagation(t *testing.T) {
 			}()
 
 			classConfig := map[string]interface{}{
-				"src_ip": "192.0.2.1",
-				"dst_ip": "192.0.2.2",
+				"src_ip": "10.0.0.1",
+				"dst_ip": "20.0.0.1",
 			}
 			if tc.padSet {
 				classConfig["pad_min_frame"] = tc.padVal
