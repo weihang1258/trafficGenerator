@@ -229,6 +229,24 @@ func TestValidateBatchSpec_Valid(t *testing.T) {
 	}
 }
 
+// TestValidateBatchSpec_AllProtocolsValid verifies that every protocol
+// supported by mapToFlowSpec (tcp/udp/http/dns/icmp/arp/ftp/sip/sctp/icmpv6)
+// is also accepted by ValidateBatchSpec. The validProtocols map in
+// ValidateBatchSpec previously omitted ftp/sip/sctp/icmpv6, rejecting
+// valid batch classes for those protocols even though mapToFlowSpec and
+// the engine fully supported them.
+func TestValidateBatchSpec_AllProtocolsValid(t *testing.T) {
+	protos := []string{"tcp", "udp", "http", "dns", "icmp", "arp", "ftp", "sip", "sctp", "icmpv6"}
+	for _, p := range protos {
+		t.Run(p, func(t *testing.T) {
+			batch := BatchSpec{Classes: []TrafficClass{validSynthClass("c1", p)}}
+			if err := ValidateBatchSpec(batch); err != nil {
+				t.Errorf("protocol %s: %v", p, err)
+			}
+		})
+	}
+}
+
 func TestValidateBatchSpec_Branches(t *testing.T) {
 	cases := []struct {
 		name    string

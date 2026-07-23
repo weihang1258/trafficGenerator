@@ -115,6 +115,10 @@ func ValidateTask(task Task) error {
 		"dns":  true,
 		"icmp": true,
 		"arp":  true,
+		"ftp":  true,
+		"sip":  true,
+		"sctp": true,
+		"icmpv6": true,
 	}
 
 	if !validProtocols[task.Protocol] {
@@ -135,6 +139,7 @@ func ValidateBatchSpec(batch BatchSpec) error {
 	}
 	validProtocols := map[string]bool{
 		"tcp": true, "udp": true, "http": true, "dns": true, "icmp": true, "arp": true,
+		"ftp": true, "sip": true, "sctp": true, "icmpv6": true,
 		"replay": true,
 	}
 	seenIDs := make(map[string]bool)
