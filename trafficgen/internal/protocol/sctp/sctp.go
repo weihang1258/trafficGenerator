@@ -27,10 +27,13 @@
 // when the user leaves these at 0, the planner auto-generates random
 // non-zero tags for each side. INIT carries VerificationTag=0 per RFC.
 //
-// This planner does NOT implement HEARTBEAT chunks, multi-homing, or
-// SCTP authentication (RFC 4895). It models the minimal session-level
-// structure needed to test SCTP-aware packet processing: handshake +
-// DATA + teardown, with proper TSN/SID/SSN/PPID in DATA chunks.
+// Optional HEARTBEAT chunks (RFC 4960 §3.5.1) are emitted between
+// COOKIE-ACK and the first DATA chunk, or — when the user supplies no
+// DATA chunks — between COOKIE-ACK and SHUTDOWN. When Heartbeats.AltPath
+// is set, heartbeats carry the alternate IP/MAC tuple (multi-homing,
+// RFC 4960 §6/C5), giving the planner a sub-flow with a different 4-tuple
+// but the same GroupID as the parent so both paths route to one
+// PacketWorker (wire order = emit order).
 package sctp
 
 import (
@@ -199,6 +202,18 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			spec.DstPort, spec.SrcPort, clientVerTag,
 			buildCOOKIEAckChunk())
 
+			// --- Optional HEARTBEAT chunks (RFC 4960 §3.5.1) ---
+		// Emitted between COOKIE-ACK and the first DATA chunk (or before
+		// SHUTDOWN when there are no DATA chunks). Each pair is a
+		// HEARTBEAT (client → server) + HEARTBEAT-ACK (server → client).
+		// When AltPath is set, heartbeats carry the alternate 4-tuple
+		// (multi-homing); otherwise they ride the primary path.
+		if sctpConfig.Heartbeats != nil {
+			emitSCTPHeartbeats(configChan, sctpConfig.Heartbeats,
+				spec, flowID, now, &packetIndex, nextIPID,
+				clientVerTag, serverVerTag, effectiveTTL)
+		}
+
 		// --- DATA chunks ---
 		for _, ch := range sctpConfig.Chunks {
 			direction := ch.Direction
@@ -364,4 +379,118 @@ func buildSHUTDOWNAckChunk() []byte {
 // initiated shutdown.
 func buildSHUTDOWNCompleteChunk() []byte {
 	return buildChunk(ChunkSHUTDOWNComplete, 0, nil)
+}
+
+// buildHEARTBEATChunk builds a HEARTBEAT chunk (type 4) per RFC 4960
+// §3.5.1. The value is the Heartbeat Information TLV (type 1) carrying
+// a sender-defined opaque token (typically the sender's IP + timestamp).
+// We use a 16-byte token (4-byte magic + 12-byte filler) so a peer
+// (or DPI) can identify the chunk shape.
+func buildHEARTBEATChunk(info []byte) []byte {
+	value := make([]byte, 4+len(info))
+	binary.BigEndian.PutUint16(value[0:2], 1)                   // HB-Info param type
+	binary.BigEndian.PutUint16(value[2:4], uint16(4+len(info))) // length
+	copy(value[4:], info)
+	return buildChunk(ChunkHEARTBEAT, 0, value)
+}
+
+// buildHEARTBEATAckChunk builds a HEARTBEAT-ACK chunk (type 5). The value
+// echoes the Heartbeat Information TLV from the corresponding HEARTBEAT
+// per RFC 4960 §3.5.2.
+func buildHEARTBEATAckChunk(info []byte) []byte {
+	value := make([]byte, 4+len(info))
+	binary.BigEndian.PutUint16(value[0:2], 1)
+	binary.BigEndian.PutUint16(value[2:4], uint16(4+len(info)))
+	copy(value[4:], info)
+	return buildChunk(ChunkHEARTBEATAck, 0, value)
+}
+
+// emitSCTPHeartbeats emits Count heartbeat pairs between COOKIE-ACK and
+// the first DATA chunk. Each pair is HEARTBEAT (up) + HEARTBEAT-ACK (down).
+// When AltPath is set, heartbeats use the alternate IP/MAC tuple (multi-
+// homing) and the FlowID carries the ":hb" suffix so the sub-flow is
+// distinguishable from the primary path; the GroupID is inherited from
+// the parent so both paths route to one PacketWorker.
+func emitSCTPHeartbeats(
+	configChan chan<- core.PacketConfig,
+	hb *core.SCTPHeartbeatConfig,
+	spec core.FlowSpec,
+	parentFlowID string,
+	now time.Time,
+	packetIndex *uint64,
+	nextIPID func() uint16,
+	clientVerTag, serverVerTag uint32,
+	effectiveTTL uint8,
+) {
+	count := hb.Count
+	if count <= 0 {
+		count = 1
+	}
+
+	// Resolve alternate path addresses (multi-homing). When AltPath is
+	// nil or a field is empty, fall back to the parent's value so the
+	// heartbeat still goes somewhere.
+	srcIP := spec.SrcIP
+	dstIP := spec.DstIP
+	srcMAC := spec.SrcMAC
+	dstMAC := spec.DstMAC
+	flowID := parentFlowID
+	if hb.AltPath != nil {
+		if hb.AltPath.SrcIP != "" {
+			srcIP = hb.AltPath.SrcIP
+		}
+		if hb.AltPath.DstIP != "" {
+			dstIP = hb.AltPath.DstIP
+		}
+		if hb.AltPath.SrcMAC != "" {
+			srcMAC = hb.AltPath.SrcMAC
+		}
+		if hb.AltPath.DstMAC != "" {
+			dstMAC = hb.AltPath.DstMAC
+		}
+		flowID = parentFlowID + ":hb"
+	}
+
+	emitHB := func(direction, sMAC, dMAC, sIP, dIP string, verTag uint32, payload []byte) {
+		l3 := core.L3Base(sIP, dIP, core.ProtocolSCTP, effectiveTTL, nextIPID(), spec)
+		cfg := core.PacketConfig{
+			FlowID:      flowID,
+			PacketIndex: *packetIndex,
+			Direction:   direction,
+			Timestamp:   now,
+			L2: core.L2Config{
+				SrcMAC:    sMAC,
+				DstMAC:    dMAC,
+				EtherType: core.EtherTypeFor(sIP),
+			},
+			L3: l3,
+			L4: core.L4Config{
+				Protocol: "sctp",
+				SrcPort:  spec.SrcPort,
+				DstPort:  spec.DstPort,
+				Ack:      verTag,
+			},
+			Payload: payload,
+		}
+		configChan <- cfg
+		*packetIndex++
+	}
+
+	for i := 0; i < count; i++ {
+		// Per-iteration Heartbeat Info token: 4-byte magic + 4-byte counter
+		// + 8-byte random nonce = 16 bytes. Lets DPI identify the heartbeat
+		// shape and lets tests assert uniqueness across iterations.
+		info := make([]byte, 16)
+		binary.BigEndian.PutUint32(info[0:4], 0x48425443) // "HBTC"
+		binary.BigEndian.PutUint32(info[4:8], uint32(i))
+		rand.Read(info[8:16])
+
+		// HEARTBEAT (client -> server, VerificationTag = serverVerTag).
+		emitHB("up", srcMAC, dstMAC, srcIP, dstIP, serverVerTag,
+			buildHEARTBEATChunk(info))
+		// HEARTBEAT-ACK (server -> client, VerificationTag = clientVerTag).
+		// Per RFC 4960 §3.5.2, the ack echoes the Heartbeat Info unchanged.
+		emitHB("down", dstMAC, srcMAC, dstIP, srcIP, clientVerTag,
+			buildHEARTBEATAckChunk(info))
+	}
 }

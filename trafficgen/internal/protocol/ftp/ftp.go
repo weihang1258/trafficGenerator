@@ -10,18 +10,20 @@
 //     (PSH-ACK down). Payloads longer than MSS are segmented; each segment
 //     advances the sender's sequence number by its byte length, so the
 //     peer's next ACK covers all bytes.
-//  4. TCP 4-way teardown (FIN-ACK, ACK, FIN-ACK, ACK).
+//  4. (Optional) FTP data channel sub-flow: when FTPConfig.DataChannel
+//     is set AND a command has EmitDataChannel=true, the planner emits
+//     a second TCP flow (own 4-tuple, handshake, sequence space, teardown)
+//     carrying the file body. The sub-flow's packets are interleaved
+//     between the command's "150 Opening data connection" response and
+//     the next "226 Transfer complete" response — exactly as a real
+//     PASV/PORT data channel would land in a pcap.
+//  5. TCP 4-way teardown (FIN-ACK, ACK, FIN-ACK, ACK).
 //
-// All packets share the same 4-tuple (one flow). The sequence space is
-// continuous per direction — the next command ACKs all prior response
-// bytes, exactly as a real FTP control connection would.
-//
-// This planner does NOT implement the FTP data channel (port 20 or PASV-
-// negotiated high ports). Data-channel traffic in pcaps is a separate
-// TCP connection with its own handshake; users who need it should run a
-// second trafficgen flow with protocol=tcp. The control channel is what
-// carries the session-level dialog that defines an "FTP flow" for testing
-// purposes.
+// The control channel and data channel share the same GroupID (inherited
+// from the parent FlowSpec) so they route to the same PacketWorker — wire
+// order = emit order, so the data packets land between the 150 and 226
+// responses. See internal/core/subflow.go EmitSubFlow for the sub-flow
+// wire format.
 package ftp
 
 import (
@@ -29,6 +31,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -206,6 +209,17 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				payload := []byte(cmd.Response + "\r\n")
 				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, payload)
 			}
+
+			// Emit data channel sub-flow after this command's response
+			// when the user flagged it. The sub-flow is a separate TCP
+			// connection (own handshake/seq/teardown) but shares the
+			// parent's GroupID so it routes to the same PacketWorker —
+			// wire order = emit order, so these packets land between
+			// the "150" response (above) and the next "226" response
+			// (the next loop iteration).
+			if cmd.EmitDataChannel && ftpConfig.DataChannel != nil {
+				emitFTPDataChannel(configChan, ftpConfig.DataChannel, spec, flowID, now, &packetIndex, nextIPID, mss)
+			}
 		}
 
 		// --- TCP teardown (FIN-ACK, ACK, FIN-ACK, ACK) ---
@@ -263,4 +277,111 @@ func synOptions(mss uint16) []core.TCPOption {
 	opts = append(opts, core.TCPOption{Kind: core.TCPOptWinScale, Data: []byte{0x07}})
 	opts = append(opts, core.TCPOption{Kind: core.TCPOptSACKPermit})
 	return opts
+}
+
+// emitFTPDataChannel emits the FTP data-channel sub-flow. The sub-flow is
+// a second TCP connection carrying the file body — it has its own 4-tuple,
+// handshake, sequence space, and teardown, but shares the parent's GroupID
+// so it routes to the same PacketWorker (wire order = emit order).
+//
+// Port derivation (RFC 959 §5.2):
+//   - active mode (PORT): server connects from port 20 to client's
+//     data-port (control_src_port + 1 is the conventional choice).
+//     SubFlowSpec.ServerInitiated=true so SYN goes server→client.
+//   - passive mode (PASV): client connects from an ephemeral port to
+//     server's data-port (control_src_port + 1 is a reasonable ephemeral
+//     choice; the real port would be parsed from the PASV 227 response,
+//     but we keep it deterministic for test reproducibility).
+//     SubFlowSpec.ServerInitiated=false so SYN goes client→server.
+//
+// SrcPort/DstPort on SubFlowSpec are always CLIENT's port / SERVER's port
+// (regardless of who opens the connection). For active mode this means
+// SrcPort=client's data port (e.g. 20001), DstPort=20; for passive mode
+// SrcPort=client's ephemeral (e.g. 20001), DstPort=server's PASV port
+// (default 50000).
+//
+// The sub-flow's Direction is taken verbatim from FTPDataChannel.Direction:
+//   - "down" = RETR (server sends file bytes to client)
+//   - "up"   = STOR (client sends file bytes to server)
+//
+// Direction is independent of Mode: an active-mode RETR has the server
+// opening the data connection AND sending the file bytes; a passive-mode
+// RETR has the client opening the connection but the server still sending
+// the file bytes.
+func emitFTPDataChannel(
+	configChan chan<- core.PacketConfig,
+	dc *core.FTPDataChannel,
+	spec core.FlowSpec,
+	parentFlowID string,
+	now time.Time,
+	packetIndex *uint64,
+	nextIPID func() uint16,
+	parentMSS uint16,
+) {
+	// Default mode is passive (the modern default; active is rare outside
+	// legacy clients). Case-insensitive comparison so "Active", "PASSIVE",
+	// etc. all work.
+	mode := dc.Mode
+	if mode == "" {
+		mode = "passive"
+	}
+	isActive := strings.EqualFold(mode, "active")
+
+	// Resolve data-channel ports. SubFlowSpec uses SrcPort=client's port,
+	// DstPort=server's port always.
+	clientDataPort := dc.SrcPort
+	serverDataPort := dc.DstPort
+
+	if isActive {
+		// Server connects from port 20 (server's port) to client's data port.
+		if serverDataPort == 0 {
+			serverDataPort = 20
+		}
+		if clientDataPort == 0 {
+			// Convention: client's data port = control src_port + 1.
+			// Guard against overflow: if control port is 65535, wrap to
+			// an ephemeral port (e.g. 1024) rather than producing 0
+			// (which would be interpreted as "derive" and loop).
+			if spec.SrcPort == 65535 {
+				clientDataPort = 1024
+			} else {
+				clientDataPort = spec.SrcPort + 1
+			}
+		}
+	} else {
+		// Passive: client connects from an ephemeral port to server's data port.
+		if clientDataPort == 0 {
+			if spec.SrcPort == 65535 {
+				clientDataPort = 1024
+			} else {
+				clientDataPort = spec.SrcPort + 1
+			}
+		}
+		if serverDataPort == 0 {
+			// Default to 50000 when no PASV response to parse. This is
+			// a common high port for test scenarios; users can override.
+			serverDataPort = 50000
+		}
+	}
+
+	// Resolve MSS: data channel MSS defaults to parent's TCP MSS (so a
+	// single MSS setting on the FTP spec covers both channels).
+	mss := dc.MSS
+	if mss == 0 {
+		mss = parentMSS
+	}
+
+	sub := core.SubFlowSpec{
+		Protocol:        "tcp",
+		SrcPort:         clientDataPort,
+		DstPort:         serverDataPort,
+		Direction:       dc.Direction,
+		Payload:         dc.Payload,
+		PayloadB64:      dc.PayloadB64,
+		Handshake:       true,
+		Termination:     true,
+		MSS:             mss,
+		ServerInitiated: isActive,
+	}
+	core.EmitSubFlow(configChan, 0, sub, spec, parentFlowID, now, packetIndex, nextIPID)
 }

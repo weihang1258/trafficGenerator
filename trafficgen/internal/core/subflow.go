@@ -106,8 +106,9 @@ func EmitSubFlow(
 		VLAN:        parent.VLAN,
 	}
 
-	// Direction: which side initiates. "up" = client→server (client opens);
-	// "down" = server→client (server opens, e.g. FTP active mode).
+	// Direction: which side's payload bytes flow. "up" = client→server
+	// (client opens); "down" = server→client (server opens, e.g. FTP active
+	// mode). ServerInitiated controls who sends SYN — see emitTCPSubFlow.
 	dir := sub.Direction
 	if dir == "" {
 		dir = "up"
@@ -129,6 +130,17 @@ func EmitSubFlow(
 //
 // Sequence space is independent from the parent flow — real TCP sub-flows
 // (e.g. FTP data channel) are separate connections with their own ISN.
+//
+// ServerInitiated controls who sends SYN. When true (FTP active mode), the
+// server opens the connection — SYN goes server→client with SrcPort=sub.DstPort
+// (server's port, e.g. 20). When false (FTP passive, SIP RTP), the client
+// opens — SYN goes client→server with SrcPort=sub.SrcPort.
+//
+// Direction controls which way the PAYLOAD flows: "up"=client→server (STOR
+// upload), "down"=server→client (RETR download). Direction is orthogonal to
+// ServerInitiated: an active-mode RETR has the server open the connection
+// AND send file bytes (server→client); a passive-mode RETR has the client
+// open but the server still sends.
 func emitTCPSubFlow(
 	configChan chan<- PacketConfig,
 	sub SubFlowSpec,
@@ -149,43 +161,73 @@ func emitTCPSubFlow(
 	serverSeq := rand.Uint32()
 	winSize := uint16(65535)
 
-	// Handshake: SYN/SYN-ACK/ACK. The client (src side) always sends SYN
-	// first regardless of who initiated the connection — "down" direction
-	// only affects which side sends data first, not who sends SYN.
-	if sub.Handshake {
-		// SYN (client -> server)
-		configChan <- PacketConfig{
-			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Flags: 0x02 /* SYN */, WindowSize: winSize, TCPOptions: synMSSOptions(mss)},
-		}
-		*packetIndex++
-		clientSeq++
+	// Port pair: SrcPort=client's port, DstPort=server's port (always,
+	// regardless of who opens the connection).
+	clientPort := sub.SrcPort
+	serverPort := sub.DstPort
 
-		// SYN-ACK (server -> client)
-		configChan <- PacketConfig{
-			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.DstIP, spec.SrcIP, 6, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "tcp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Seq: serverSeq, Ack: clientSeq, Flags: 0x12 /* SYN|ACK */, WindowSize: winSize, TCPOptions: synMSSOptions(mss)},
+	// emitPacket builds and sends one TCP packet in the given direction.
+	// "up" = client→server (SrcMAC=spec.SrcMAC, ports client→server);
+	// "down" = server→client (swapped).
+	emitPacket := func(direction string, seq, ack uint32, flags uint8, pay []byte) {
+		var srcMAC, dstMAC, srcIP, dstIP string
+		var srcPort, dstPort uint16
+		if direction == "down" {
+			srcMAC, dstMAC = spec.DstMAC, spec.SrcMAC
+			srcIP, dstIP = spec.DstIP, spec.SrcIP
+			srcPort, dstPort = serverPort, clientPort
+		} else {
+			srcMAC, dstMAC = spec.SrcMAC, spec.DstMAC
+			srcIP, dstIP = spec.SrcIP, spec.DstIP
+			srcPort, dstPort = clientPort, serverPort
 		}
-		*packetIndex++
-		serverSeq++
-
-		// ACK (client -> server)
+		l4 := L4Config{
+			Protocol:   "tcp",
+			SrcPort:    srcPort,
+			DstPort:    dstPort,
+			Seq:        seq,
+			Ack:        ack,
+			Flags:      flags,
+			WindowSize: winSize,
+		}
+		if flags == 0x02 || flags == 0x12 {
+			l4.TCPOptions = synMSSOptions(mss)
+		}
 		configChan <- PacketConfig{
-			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Ack: serverSeq, Flags: 0x10 /* ACK */, WindowSize: winSize},
+			FlowID: flowID, PacketIndex: *packetIndex, Direction: direction, Timestamp: now,
+			L2:      L2Config{SrcMAC: srcMAC, DstMAC: dstMAC, EtherType: EtherTypeFor(srcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3:      L3Base(srcIP, dstIP, 6, spec.TTL, nextIPID(), spec),
+			L4:      l4,
+			Payload: pay,
 		}
 		*packetIndex++
 	}
 
+	// 3-way handshake. The initiator sends SYN first.
+	if sub.Handshake {
+		if sub.ServerInitiated {
+			// SYN (server -> client)
+			emitPacket("down", serverSeq, 0, 0x02, nil)
+			serverSeq++
+			// SYN-ACK (client -> server)
+			emitPacket("up", clientSeq, serverSeq, 0x12, nil)
+			clientSeq++
+			// ACK (server -> client)
+			emitPacket("down", serverSeq, clientSeq, 0x10, nil)
+		} else {
+			// SYN (client -> server)
+			emitPacket("up", clientSeq, 0, 0x02, nil)
+			clientSeq++
+			// SYN-ACK (server -> client)
+			emitPacket("down", serverSeq, clientSeq, 0x12, nil)
+			serverSeq++
+			// ACK (client -> server)
+			emitPacket("up", clientSeq, serverSeq, 0x10, nil)
+		}
+	}
+
 	// Data segments in the requested direction. "up" = client sends; "down"
-	// = server sends (e.g. FTP RETR download in active mode — server pushes
-	// file bytes to client).
+	// = server sends (e.g. FTP RETR download — server pushes file bytes).
 	for len(payload) > 0 {
 		segSize := len(payload)
 		if segSize > int(mss) {
@@ -193,45 +235,17 @@ func emitTCPSubFlow(
 		}
 
 		if dir == "down" {
-			// server -> client
-			configChan <- PacketConfig{
-				FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
-				L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-				L3: L3Base(spec.DstIP, spec.SrcIP, 6, spec.TTL, nextIPID(), spec),
-				L4: L4Config{Protocol: "tcp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Seq: serverSeq, Ack: clientSeq, Flags: 0x18 /* PSH|ACK */, WindowSize: winSize},
-				Payload: payload[:segSize],
-			}
-			*packetIndex++
+			// server -> client PSH|ACK
+			emitPacket("down", serverSeq, clientSeq, 0x18, payload[:segSize])
 			serverSeq += uint32(segSize)
-
-			// ACK (client -> server)
-			configChan <- PacketConfig{
-				FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-				L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-				L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
-				L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Ack: serverSeq, Flags: 0x10 /* ACK */, WindowSize: winSize},
-			}
-			*packetIndex++
+			// client -> server ACK
+			emitPacket("up", clientSeq, serverSeq, 0x10, nil)
 		} else {
-			// client -> server
-			configChan <- PacketConfig{
-				FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-				L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-				L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
-				L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Ack: serverSeq, Flags: 0x18 /* PSH|ACK */, WindowSize: winSize},
-				Payload: payload[:segSize],
-			}
-			*packetIndex++
+			// client -> server PSH|ACK
+			emitPacket("up", clientSeq, serverSeq, 0x18, payload[:segSize])
 			clientSeq += uint32(segSize)
-
-			// ACK (server -> client)
-			configChan <- PacketConfig{
-				FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
-				L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-				L3: L3Base(spec.DstIP, spec.SrcIP, 6, spec.TTL, nextIPID(), spec),
-				L4: L4Config{Protocol: "tcp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Seq: serverSeq, Ack: clientSeq, Flags: 0x10 /* ACK */, WindowSize: winSize},
-			}
-			*packetIndex++
+			// server -> client ACK
+			emitPacket("down", serverSeq, clientSeq, 0x10, nil)
 		}
 		payload = payload[segSize:]
 	}
@@ -239,42 +253,15 @@ func emitTCPSubFlow(
 	// 4-way teardown.
 	if sub.Termination {
 		// FIN (client -> server)
-		configChan <- PacketConfig{
-			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Ack: serverSeq, Flags: 0x11 /* FIN|ACK */, WindowSize: winSize},
-		}
-		*packetIndex++
+		emitPacket("up", clientSeq, serverSeq, 0x11, nil)
 		clientSeq++
-
 		// ACK (server -> client)
-		configChan <- PacketConfig{
-			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.DstIP, spec.SrcIP, 6, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "tcp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Seq: serverSeq, Ack: clientSeq, Flags: 0x10 /* ACK */, WindowSize: winSize},
-		}
-		*packetIndex++
-
+		emitPacket("down", serverSeq, clientSeq, 0x10, nil)
 		// FIN (server -> client)
-		configChan <- PacketConfig{
-			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.DstIP, spec.SrcIP, 6, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "tcp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Seq: serverSeq, Ack: clientSeq, Flags: 0x11 /* FIN|ACK */, WindowSize: winSize},
-		}
-		*packetIndex++
+		emitPacket("down", serverSeq, clientSeq, 0x11, nil)
 		serverSeq++
-
 		// ACK (client -> server)
-		configChan <- PacketConfig{
-			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.SrcIP, spec.DstIP, 6, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "tcp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Seq: clientSeq, Ack: serverSeq, Flags: 0x10 /* ACK */, WindowSize: winSize},
-		}
-		*packetIndex++
+		emitPacket("up", clientSeq, serverSeq, 0x10, nil)
 	}
 }
 
@@ -343,7 +330,7 @@ func emitSCTPSubFlow(
 
 	// 4-way handshake.
 	if sub.Handshake {
-		// INIT (client -> server, VerificationTag=0)
+		// INIT (client -> server, Verificationtag=0)
 		configChan <- PacketConfig{
 			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
 			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
@@ -508,7 +495,7 @@ func buildSCTPDATAChunk(tsn uint32, data []byte) []byte {
 		paddedLen += 4 - (paddedLen % 4)
 	}
 	buf := make([]byte, paddedLen)
-	buf[0] = 0 // Type=DATA
+	buf[0] = 0    // Type=DATA
 	buf[1] = 0x03 // Flags: B=1, E=1 (single-message chunk)
 	buf[2] = byte(totalLen >> 8)
 	buf[3] = byte(totalLen)

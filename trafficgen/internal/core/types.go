@@ -162,24 +162,32 @@ type FlowSpec struct {
 //   - "udp": single-direction or bidirectional payload datagrams
 //   - "sctp": 4-way handshake → DATA chunks → 3-way SHUTDOWN
 //
-// Direction "up" = client→server (client opens the data connection, e.g.
-// FTP passive mode), "down" = server→client (server opens, e.g. FTP active
-// mode). Payload is the raw bytes to send on the data connection (file
-// body, RTP frames, ...); for TCP it is MSS-segmented.
+// Direction describes which way the payload bytes flow, INDEPENDENT of
+// which side opened the TCP connection: "up" = client→server (e.g. FTP
+// STOR upload), "down" = server→client (e.g. FTP RETR download). Use
+// ServerInitiated to control who sends the SYN.
 //
-// SrcPort/DstPort: 0 means the planner derives a port. For FTP, the
-// planner parses the PASV/PORT response to fill these; for SIP/RTP, the
-// planner derives from the SDP; users can also set explicit ports.
+// SrcPort/DstPort: client's port / server's port (always, regardless of
+// who opens the connection). 0 means the planner derives a port. For FTP,
+// the planner parses the PASV/PORT response to fill these; for SIP/RTP,
+// the planner derives from the SDP; users can also set explicit ports.
 type SubFlowSpec struct {
 	Protocol    string `json:"protocol"`              // "tcp", "udp", "sctp"
-	SrcPort     uint16 `json:"src_port,omitempty"`     // 0 = derive from parent
-	DstPort     uint16 `json:"dst_port,omitempty"`     // 0 = derive from parent
-	Direction   string `json:"direction,omitempty"`    // "up"=client→server, "down"=server→client
+	SrcPort     uint16 `json:"src_port,omitempty"`     // client's port (0 = derive from parent)
+	DstPort     uint16 `json:"dst_port,omitempty"`     // server's port (0 = derive from parent)
+	Direction   string `json:"direction,omitempty"`    // "up"=client→server data flow, "down"=server→client
 	Payload     string `json:"payload,omitempty"`      // raw text bytes (file body / RTP frames); []byte conversion at emit
 	PayloadB64  string `json:"payload_b64,omitempty"`  // base64 alternative; overrides Payload when set (for binary)
 	Handshake   bool   `json:"handshake,omitempty"`    // TCP/SCTP: emit handshake (default true)
 	Termination bool   `json:"termination,omitempty"`  // TCP/SCTP: emit teardown (default true)
 	MSS         uint16 `json:"mss,omitempty"`          // TCP segmentation size (0 = 1460)
+
+	// ServerInitiated: when true, the server opens the TCP connection —
+	// SYN goes server→client (Direction="down", SrcPort=sub.DstPort,
+	// DstPort=sub.SrcPort). Used for FTP active mode (PORT) where the
+	// server connects from port 20 to the client's data port. Default
+	// false (client opens, e.g. FTP passive mode, SIP RTP).
+	ServerInitiated bool `json:"server_initiated,omitempty"`
 
 	// AltSrcIP/AltDstIP: when non-empty, the sub-flow uses a different
 	// 4-tuple than the primary (e.g. SCTP multi-homing uses an alternate
@@ -351,9 +359,15 @@ type ARPConfig struct {
 // Banner: when non-empty, the server emits this as the first FTP payload
 // (right after the handshake ACK). Real FTP servers send "220 ..." as a
 // greeting; the user can set it explicitly or leave it empty to skip.
+//
+// DataChannel: when non-nil, the planner emits a second TCP flow (the
+// data channel) carrying the file body, interleaved into the control
+// channel at the point where the data-channel-bearing command (RETR/STOR/
+// LIST) appears. See FTPDataChannel for mode/direction semantics.
 type FTPConfig struct {
-	Banner   string       `json:"banner,omitempty"` // server greeting, e.g. "220 ..."; empty = skip
-	Commands []FTPCommand `json:"commands"`
+	Banner      string           `json:"banner,omitempty"` // server greeting, e.g. "220 ..."; empty = skip
+	Commands    []FTPCommand     `json:"commands"`
+	DataChannel *FTPDataChannel  `json:"data_channel,omitempty"`
 	// MSS is governed by TCPConfig.MSS. FTP runs over TCP, so the planner
 	// reads spec.TCP.MSS for segmentation of long FTP payloads.
 }
@@ -362,6 +376,60 @@ type FTPConfig struct {
 type FTPCommand struct {
 	Cmd      string `json:"cmd"`      // e.g. "USER anonymous"; sent client -> server
 	Response string `json:"response"` // e.g. "331 ..."; sent server -> client
+
+	// EmitDataChannel, when true on a command, triggers the planner to emit
+	// the FTP data channel sub-flow immediately AFTER this command's
+	// response. This is how the user models "RETR /file.bin" -> server
+	// "150 Opening data connection" -> [DATA CHANNEL PACKETS] -> server
+	// "226 Transfer complete". The data channel is emitted as a separate
+	// TCP flow (own handshake / seq space / teardown) but shares the
+	// parent's GroupID so it routes to the same PacketWorker — wire order
+	// = emit order, so the data packets land between 150 and 226.
+	//
+	// This is a bool flag rather than a sub-flow spec on the command
+	// because the data channel's spec lives once on FTPConfig.DataChannel
+	// (one data channel per FTP session is the common case). For multiple
+	// data channels in one session (rare — e.g. LIST then RETR), use
+	// FlowSpec.SubFlows directly.
+	EmitDataChannel bool `json:"emit_data_channel,omitempty"`
+}
+
+// FTPDataChannel describes the FTP data connection. The data channel is a
+// second TCP flow (separate 4-tuple, separate handshake/teardown) that
+// carries file bytes or directory listings. The control channel negotiates
+// which side listens (active vs passive) and which port; the planner
+// derives the data-channel ports from that negotiation.
+//
+// Mode:
+//   - "active" (PORT): the client tells the server "I'm listening on
+//     port X, you connect to me." Server opens a TCP connection from
+//     port 20 to client:port X. Direction is still "down" for RETR
+//     (server→client file bytes) or "up" for STOR (client→server).
+//   - "passive" (PASV): the server tells the client "I'm listening on
+//     port Y, you connect to me." Client opens a TCP connection from
+//     an ephemeral port to server:port Y. Direction semantics same as
+//     active — Direction describes which way the file bytes flow, not
+//     who opened the connection.
+//
+// SrcPort/DstPort: 0 means the planner derives them:
+//   - active: SrcPort=20 (server's data port), DstPort=ephemeral
+//     derived from control-channel SrcPort+1 (e.g. ctrl 20000 -> data
+//     20001)
+//   - passive: SrcPort=ephemeral derived from control-channel SrcPort+1,
+//     DstPort=derived from PASV response (or 50000 if no PASV in dialog)
+//
+// Payload: the file body bytes (for RETR/STOR). For LIST, the user
+// provides the directory-listing bytes as Payload (the planner doesn't
+// generate listing content). PayloadB64 lets users embed binary file
+// bytes (e.g. a PNG) via JSON.
+type FTPDataChannel struct {
+	Mode       string `json:"mode,omitempty"`        // "active" (PORT) or "passive" (PASV); default "passive"
+	SrcPort    uint16 `json:"src_port,omitempty"`    // 0 = derive (20 for active, ephemeral for passive)
+	DstPort    uint16 `json:"dst_port,omitempty"`    // 0 = derive (ephemeral for active, PASV-negotiated or ephemeral for passive)
+	Direction  string `json:"direction,omitempty"`   // "up"=STOR (upload), "down"=RETR (download); default "down"
+	Payload    string `json:"payload,omitempty"`     // file body (text)
+	PayloadB64 string `json:"payload_b64,omitempty"` // file body (base64, for binary)
+	MSS        uint16 `json:"mss,omitempty"`         // 0 = inherit parent TCPConfig.MSS or 1460
 }
 
 // SIPConfig for SIP protocol. SIP (RFC 3261) is a session-level protocol:
@@ -378,12 +446,15 @@ type FTPCommand struct {
 // (e.g. SDP); when non-empty, the planner emits a Content-Length header
 // derived from len(Body) unless the user supplied one in Headers.
 //
-// This planner does NOT generate RTP media traffic. RTP runs over UDP
-// on a separate 4-tuple (negotiated inside SDP); users who need media
-// run a second trafficgen flow with protocol=udp. The SIP signaling
-// session is what defines a "SIP flow" for testing purposes.
+// Media: when non-nil, the planner emits a UDP sub-flow carrying RTP
+// media frames after the dialog's ACK message (the message that
+// completes the session establishment). The sub-flow shares the parent's
+// GroupID so it routes to the same PacketWorker — wire order = emit
+// order, so RTP frames land between ACK and BYE in the pcap, exactly
+// where real media would appear.
 type SIPConfig struct {
 	Dialog []SIPMessage `json:"dialog"`
+	Media  *SIPMedia    `json:"media,omitempty"`
 	// MSS is governed by TCPConfig.MSS. SIP runs over TCP (or UDP), so the
 	// planner reads spec.TCP.MSS for segmentation of long SIP messages.
 }
@@ -400,6 +471,57 @@ type SIPMessage struct {
 	Headers    []string `json:"headers,omitempty"`     // each "Name: Value"; Content-Length auto-added when Body non-empty
 	Body       string   `json:"body,omitempty"`        // e.g. SDP content; empty = no body
 	Direction  string   `json:"direction,omitempty"`   // "up" or "down"; empty -> planner infers from Method/StatusCode
+
+	// EmitMedia, when true on a message, triggers the planner to emit the
+	// RTP media sub-flow immediately AFTER this message. Typically set on
+	// the ACK that completes INVITE/200/ACK (the "session established"
+	// moment). RTP frames then appear between this ACK and the next
+	// message (usually BYE).
+	//
+	// Flag is per-message (rather than auto-detected on ACK) so the user
+	// has explicit control: a re-INVITE without media, or a session that
+	// starts media mid-dialog, can both be modeled.
+	EmitMedia bool `json:"emit_media,omitempty"`
+}
+
+// SIPMedia describes the RTP media plane for a SIP session. RTP (RFC
+// 3550) runs over UDP on a separate 4-tuple from the SIP signaling;
+// the SDP body of INVITE/200 OK negotiates the RTP ports. The planner
+// emits N RTP frames as a UDP sub-flow, each frame = 12-byte RTP header
+// + FrameSize bytes of payload.
+//
+// SrcPort/DstPort: 0 means the planner derives them. RTP ports are
+// typically even (per RFC 3550 §9); the planner uses 5004 (the default
+// RTP port for audio) when unset. The user should set these to match
+// the SDP body of their INVITE/200.
+//
+// Frames: number of RTP packets to emit. Each is one UDP datagram. A
+// 20ms G.711 call produces 50 packets/second, so Frames=100 models 2
+// seconds of one-way audio.
+//
+// PayloadType: RTP payload type (0=PCMU/G.711u, 8=PCMA/G.711a, 9=G.722,
+// etc.). The planner writes this into the RTP header's PT field so
+// receivers can decode the payload correctly.
+//
+// SampleRate: RTP clock rate in Hz (8000 for G.711, 16000 for G.722).
+// Drives the RTP timestamp increment per frame.
+//
+// FrameSize: bytes of audio payload per RTP packet. For G.711 20ms,
+// FrameSize=160 (8kHz * 0.02s * 1 byte/sample). For G.722 20ms,
+// FrameSize=320 (16kHz * 0.02s * 1 byte/sample).
+type SIPMedia struct {
+	SrcPort     uint16 `json:"src_port,omitempty"`     // 0 = 5004 (default RTP audio)
+	DstPort     uint16 `json:"dst_port,omitempty"`     // 0 = 5004 (default RTP audio)
+	Frames      int    `json:"frames,omitempty"`       // number of RTP packets; 0 = 1
+	PayloadType uint8  `json:"payload_type,omitempty"` // 0 = PCMU; 8 = PCMA; 9 = G.722
+	SampleRate  uint32 `json:"sample_rate,omitempty"`  // 0 = 8000 (G.711)
+	FrameSize   int    `json:"frame_size,omitempty"`   // 0 = 160 (G.711 20ms)
+
+	// Direction: which way RTP frames flow. "up" = caller→callee (the
+	// caller-side RTP stream, default), "down" = callee→caller. Real RTP
+	// is bidirectional; users model each direction with one SIPMedia.
+	// Empty defaults to "up".
+	Direction string `json:"direction,omitempty"`
 }
 
 // SCTPConfig for the SCTP protocol. SCTP (RFC 4960) is a session-level,
@@ -437,6 +559,35 @@ type SCTPConfig struct {
 	// Chunks are the SCTP message chunks in order. Each becomes one SCTP
 	// packet (IP/SCTP + DATA chunk) carrying the user-supplied payload.
 	Chunks []SCTPChunk `json:"chunks,omitempty"`
+	// Heartbeats configures optional HEARTBEAT/HEARTBEAT-ACK chunks
+	// (RFC 4960 §3.5.1) sent on the primary path or, when AltPath is
+	// set, on an alternate path (multi-homing). nil = no heartbeats.
+	Heartbeats *SCTPHeartbeatConfig `json:"heartbeats,omitempty"`
+}
+
+// SCTPHeartbeatConfig configures HEARTBEAT emission. HEARTBEAT chunks
+// probe path availability; the peer replies with HEARTBEAT-ACK. When
+// AltPath is set, heartbeats carry the alternate IP/MAC tuple (multi-
+// homing per RFC 4960 §6/C5). When nil, heartbeats go on the primary
+// path (still useful for liveness modeling).
+type SCTPHeartbeatConfig struct {
+	// Count is the number of heartbeat PAIRS (HEARTBEAT + ACK) to emit.
+	// 0 = 1 pair. Each pair is two packets.
+	Count int `json:"count,omitempty"`
+	// AltPath, when set, routes heartbeats on an alternate 4-tuple
+	// (different SrcIP/SrcMAC + DstIP/DstMAC). Ports inherit the
+	// parent's. nil = primary path.
+	AltPath *SCTPAltPath `json:"alt_path,omitempty"`
+}
+
+// SCTPAltPath describes the alternate path for multi-homing heartbeats.
+// At least one of SrcIP/DstIP should differ from the parent for the
+// sub-flow to be a genuine alternate path.
+type SCTPAltPath struct {
+	SrcIP   string `json:"alt_src_ip,omitempty"`
+	DstIP   string `json:"alt_dst_ip,omitempty"`
+	SrcMAC  string `json:"alt_src_mac,omitempty"`
+	DstMAC  string `json:"alt_dst_mac,omitempty"`
 }
 
 // SCTPChunk models a single SCTP chunk. For DATA chunks, TSN is the

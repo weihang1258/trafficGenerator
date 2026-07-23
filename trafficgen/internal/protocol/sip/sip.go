@@ -7,7 +7,12 @@
 //  1. TCP 3-way handshake (SYN, SYN-ACK, ACK) with MSS/WinScale/SACK options.
 //  2. Each SIPMessage in Dialog as a PSH-ACK payload. Messages longer than
 //     MSS are segmented; each segment advances the sender's sequence number.
-//  3. TCP 4-way teardown (FIN-ACK, ACK, FIN-ACK, ACK).
+//  3. (Optional) RTP media sub-flow: when SIPConfig.Media is set AND a
+//     message has EmitMedia=true, the planner emits N RTP frames as UDP
+//     sub-flow packets. The sub-flow shares the parent's GroupID so it
+//     routes to the same PacketWorker — wire order = emit order, so RTP
+//     frames land between the ACK and the next message (usually BYE).
+//  4. TCP 4-way teardown (FIN-ACK, ACK, FIN-ACK, ACK).
 //
 // All packets share the same 4-tuple (one flow). The sequence space is
 // continuous per direction — the next message ACKs all prior bytes.
@@ -29,11 +34,6 @@
 // did not supply a Content-Length header (matched case-insensitively).
 // This matches the behavior of real SIP stacks, which always set
 // Content-Length on requests with bodies.
-//
-// This planner does NOT generate RTP media. RTP runs over UDP on a
-// separate 4-tuple (negotiated inside the SDP body of INVITE/200 OK);
-// users who need media run a second trafficgen flow with protocol=udp.
-// The SIP signaling session is what defines a "SIP flow" for testing.
 package sip
 
 import (
@@ -215,6 +215,15 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			} else {
 				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, payload)
 			}
+
+			// Emit RTP media sub-flow after this message when the user
+			// flagged it. The sub-flow is a UDP flow (separate 4-tuple)
+			// but shares the parent's GroupID so it routes to the same
+			// PacketWorker — wire order = emit order, so RTP frames land
+			// between this message and the next (usually ACK → BYE).
+			if msg.EmitMedia && sipConfig.Media != nil {
+				emitSIPMedia(configChan, sipConfig.Media, spec, flowID, now, &packetIndex, nextIPID)
+			}
 		}
 
 		// --- TCP teardown (FIN-ACK, ACK, FIN-ACK, ACK) ---
@@ -347,4 +356,141 @@ func synOptions(mss uint16) []core.TCPOption {
 	opts = append(opts, core.TCPOption{Kind: core.TCPOptWinScale, Data: []byte{0x07}})
 	opts = append(opts, core.TCPOption{Kind: core.TCPOptSACKPermit})
 	return opts
+}
+
+// emitSIPMedia emits the RTP media sub-flow. Each RTP frame is one UDP
+// datagram carrying a 12-byte RTP header (RFC 3550 §5.1) + FrameSize
+// bytes of payload. Frames flow in the direction given by media.Direction
+// (default "up" = caller→callee). Real RTP is bidirectional; users model
+// each direction with one SIPMedia invocation.
+//
+// Ports default to 5004 (the standard RTP audio port). User can override
+// via SIPMedia.SrcPort/DstPort to match the SDP body of their INVITE/200.
+//
+// Per RFC 3550 §5.1, RTP sequence number and timestamp start at RANDOM
+// values (not 0) to mitigate off-path spoofing and known-plaintext attacks.
+// We use rand.Uint32() for both initial values.
+//
+// Timestamps increment by FrameSize per packet (frame samples at the
+// RTP clock rate = SampleRate). E.g. G.711 20ms @ 8kHz: FrameSize=160,
+// so timestamp += 160 per packet.
+//
+// All RTP frames share the FlowID "{parent}:rtp" so they resequence
+// together at the PacketWorker — one RTP stream, one flow.
+func emitSIPMedia(
+	configChan chan<- core.PacketConfig,
+	media *core.SIPMedia,
+	spec core.FlowSpec,
+	parentFlowID string,
+	now time.Time,
+	packetIndex *uint64,
+	nextIPID func() uint16,
+) {
+	frames := media.Frames
+	if frames <= 0 {
+		frames = 1
+	}
+	srcPort := media.SrcPort
+	if srcPort == 0 {
+		srcPort = 5004
+	}
+	dstPort := media.DstPort
+	if dstPort == 0 {
+		dstPort = 5004
+	}
+	pt := media.PayloadType // 0 is a valid PT (PCMU), so no defaulting.
+	sampleRate := media.SampleRate
+	if sampleRate == 0 {
+		sampleRate = 8000
+	}
+	frameSize := media.FrameSize
+	if frameSize == 0 {
+		frameSize = 160
+	}
+	dir := media.Direction
+	if dir == "" {
+		dir = "up"
+	}
+
+	// Per RFC 3550 §5.1, seq and timestamp start at random values.
+	ssrc := rand.Uint32()
+	rtpSeq := uint16(rand.Uint32())
+	rtpTimestamp := rand.Uint32()
+	rtpFlowID := parentFlowID + ":rtp"
+
+	// Direction determines L2/L3 tuple. "up" = caller→callee (spec.SrcIP →
+	// spec.DstIP); "down" = callee→caller (swap).
+	var srcMAC, dstMAC, srcIP, dstIP string
+	var srcPortWire, dstPortWire uint16
+	if dir == "down" {
+		srcMAC, dstMAC = spec.DstMAC, spec.SrcMAC
+		srcIP, dstIP = spec.DstIP, spec.SrcIP
+		srcPortWire, dstPortWire = dstPort, srcPort
+	} else {
+		srcMAC, dstMAC = spec.SrcMAC, spec.DstMAC
+		srcIP, dstIP = spec.SrcIP, spec.DstIP
+		srcPortWire, dstPortWire = srcPort, dstPort
+	}
+
+	for i := 0; i < frames; i++ {
+		// RTP header (12 bytes, no CSRC or extension):
+		//   V=2, P=0, X=0, CC=0 -> byte 0 = 0x80
+		//   M=0, PT=pt -> byte 1 = pt & 0x7F
+		//   Sequence number (16-bit) -> bytes 2-3
+		//   Timestamp (32-bit) -> bytes 4-7
+		//   SSRC (32-bit) -> bytes 8-11
+		// Audio payload follows (frameSize bytes of zeros — placeholder
+		// samples; for traffic generation we only need the bytes present
+		// so DPI sees the right packet size).
+		udpPayload := make([]byte, 12+frameSize)
+		udpPayload[0] = 0x80 // V=2
+		udpPayload[1] = pt & 0x7F
+		udpPayload[2] = byte(rtpSeq >> 8)
+		udpPayload[3] = byte(rtpSeq)
+		udpPayload[4] = byte(rtpTimestamp >> 24)
+		udpPayload[5] = byte(rtpTimestamp >> 16)
+		udpPayload[6] = byte(rtpTimestamp >> 8)
+		udpPayload[7] = byte(rtpTimestamp)
+		udpPayload[8] = byte(ssrc >> 24)
+		udpPayload[9] = byte(ssrc >> 16)
+		udpPayload[10] = byte(ssrc >> 8)
+		udpPayload[11] = byte(ssrc)
+		// bytes 12: are zero (placeholder audio payload).
+
+		cfg := core.PacketConfig{
+			FlowID:      rtpFlowID,
+			PacketIndex: *packetIndex,
+			Direction:   dir,
+			Timestamp:   now,
+			L2: core.L2Config{
+				SrcMAC:    srcMAC,
+				DstMAC:    dstMAC,
+				EtherType: core.EtherTypeFor(srcIP),
+			},
+			L3:      core.L3Base(srcIP, dstIP, 17, effectiveTTLOf(spec), nextIPID(), spec),
+			L4:      core.L4Config{Protocol: "udp", SrcPort: srcPortWire, DstPort: dstPortWire},
+			Payload: udpPayload,
+		}
+		configChan <- cfg
+		*packetIndex++
+		rtpSeq++
+		rtpTimestamp += uint32(frameSize)
+	}
+
+	// sampleRate is currently informational — we use it to compute the
+	// timestamp increment, which is frameSize = sampleRate * frameDur.
+	// The user sets frameSize directly, so we don't need sampleRate for
+	// the math. We keep it on SIPMedia for future use (e.g. RTCP SR
+	// generation, which needs the clock rate).
+	_ = sampleRate
+}
+
+// effectiveTTLOf returns the spec's TTL or DefaultTTL if unset. Kept here
+// to avoid importing DefaultTTL from the planner's outer scope into the
+// sub-flow emit function (which doesn't close over effectiveTTL).
+func effectiveTTLOf(spec core.FlowSpec) uint8 {
+	if spec.TTL == 0 {
+		return DefaultTTL
+	}
+	return spec.TTL
 }

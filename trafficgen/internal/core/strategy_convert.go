@@ -297,8 +297,9 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	case "ftp":
 		if sub, ok := cfg["ftp"].(map[string]interface{}); ok {
 			spec.FTP = &FTPConfig{
-				Banner:   getString(sub, "banner"),
-				Commands: parseFTPCommands(sub["commands"]),
+				Banner:      getString(sub, "banner"),
+				Commands:    parseFTPCommands(sub["commands"]),
+				DataChannel: parseFTPDataChannel(sub["data_channel"]),
 			}
 		}
 		// FTP defaults to port 21 (control channel). Only override when
@@ -311,6 +312,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
 				Dialog: parseSIPDialog(sub["dialog"]),
+				Media:  parseSIPMedia(sub["media"]),
 			}
 		}
 		// SIP defaults to port 5060 (signaling). Only override when the
@@ -324,6 +326,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				VerificationTag: getUint32(sub, "verification_tag"),
 				InitiateTag:     getUint32(sub, "initiate_tag"),
 				Chunks:          parseSCTPChunks(sub["chunks"]),
+				Heartbeats:      parseSCTPHeartbeats(sub["heartbeats"]),
 			}
 		}
 		// SCTP has no universal default port (common ports: 38412 for NGAP,
@@ -499,8 +502,9 @@ func parseFTPCommands(v interface{}) []FTPCommand {
 			continue
 		}
 		out = append(out, FTPCommand{
-			Cmd:      getString(m, "cmd"),
-			Response: getString(m, "response"),
+			Cmd:             getString(m, "cmd"),
+			Response:        getString(m, "response"),
+			EmitDataChannel: getBool(m, "emit_data_channel", false),
 		})
 	}
 	if len(out) == 0 {
@@ -509,8 +513,35 @@ func parseFTPCommands(v interface{}) []FTPCommand {
 	return out
 }
 
-// parseSIPDialog converts the JSON-decoded "dialog" value (an array of
-// SIPMessage objects) into a []SIPMessage. Returns nil for absent/non-array
+// parseFTPDataChannel converts the JSON-decoded "data_channel" sub-map
+// into an *FTPDataChannel. Returns nil for absent/non-map input — the
+// planner then emits only the control channel (the default for backward
+// compatibility with pre-data-channel specs).
+func parseFTPDataChannel(v interface{}) *FTPDataChannel {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	dc := &FTPDataChannel{
+		Mode:       getString(m, "mode"),
+		SrcPort:    getUint16(m, "src_port"),
+		DstPort:    getUint16(m, "dst_port"),
+		Direction:  getString(m, "direction"),
+		Payload:    getString(m, "payload"),
+		PayloadB64: getString(m, "payload_b64"),
+		MSS:        getUint16(m, "mss"),
+	}
+	// Defaults: Mode="passive", Direction="down" — matches the most
+	// common FTP test shape (PASV + RETR download). Zero-value check
+	// leaves room for the planner to derive ports.
+	if dc.Mode == "" {
+		dc.Mode = "passive"
+	}
+	if dc.Direction == "" {
+		dc.Direction = "down"
+	}
+	return dc
+}
 // input — the planner then emits only TCP handshake + teardown (an empty
 // SIP session, which is a valid degenerate test).
 //
@@ -538,6 +569,7 @@ func parseSIPDialog(v interface{}) []SIPMessage {
 			StatusText: getString(m, "status_text"),
 			Direction:  getString(m, "direction"),
 			Body:       getString(m, "body"),
+			EmitMedia:  getBool(m, "emit_media", false),
 		}
 		if headers, ok := m["headers"].([]interface{}); ok {
 			for _, h := range headers {
@@ -554,10 +586,23 @@ func parseSIPDialog(v interface{}) []SIPMessage {
 	return out
 }
 
-// parseSCTPChunks converts the JSON-decoded "chunks" value (an array of
-// SCTPChunk objects) into a []SCTPChunk. Returns nil for absent/non-array
-// input — the planner then emits only SCTP handshake + teardown (an empty
-// SCTP session, which is a valid degenerate test).
+// parseSIPMedia converts the JSON-decoded "media" sub-map into a *SIPMedia.
+// Returns nil for absent/non-map input — the planner then emits only
+// signaling (backward compat with pre-media specs).
+func parseSIPMedia(v interface{}) *SIPMedia {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &SIPMedia{
+		SrcPort:     getUint16(m, "src_port"),
+		DstPort:     getUint16(m, "dst_port"),
+		Frames:      getInt(m, "frames"),
+		PayloadType: uint8(getInt(m, "payload_type")),
+		SampleRate:  uint32(getInt(m, "sample_rate")),
+		FrameSize:   getInt(m, "frame_size"),
+	}
+}
 //
 // Each chunk carries TSN/SID/SSN/PPID/Data/Direction. TSN 0 = planner
 // auto-increments per direction. Direction "up" = client→server, "down"
@@ -599,6 +644,29 @@ func parseSCTPChunks(v interface{}) []SCTPChunk {
 		return nil
 	}
 	return out
+}
+
+// parseSCTPHeartbeats converts the JSON-decoded "heartbeats" value into an
+// *SCTPHeartbeatConfig. Returns nil for absent/non-map input so the planner
+// skips heartbeat emission. Count 0 = 1 pair default. AltPath is optional
+// — nil means primary-path heartbeats (still useful for liveness).
+func parseSCTPHeartbeats(v interface{}) *SCTPHeartbeatConfig {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	hb := &SCTPHeartbeatConfig{
+		Count: getInt(m, "count"),
+	}
+	if alt, ok := m["alt_path"].(map[string]interface{}); ok && alt != nil {
+		hb.AltPath = &SCTPAltPath{
+			SrcIP:  getString(alt, "alt_src_ip"),
+			DstIP:  getString(alt, "alt_dst_ip"),
+			SrcMAC: getString(alt, "alt_src_mac"),
+			DstMAC: getString(alt, "alt_dst_mac"),
+		}
+	}
+	return hb
 }
 
 // parseICMPv6Pattern converts the JSON-decoded "pattern" value (an array of
