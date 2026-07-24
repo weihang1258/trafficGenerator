@@ -78,35 +78,56 @@ func (p *Planner) Name() string { return "sctp" }
 
 // Validate validates an SCTP flow spec.
 func (p *Planner) Validate(spec core.FlowSpec) error {
+	parentSrcIsV6 := false
 	if spec.SrcIP != "" {
-		if net.ParseIP(spec.SrcIP) == nil {
+		ip := net.ParseIP(spec.SrcIP)
+		if ip == nil {
 			return fmt.Errorf("invalid source IP: %s", spec.SrcIP)
 		}
+		parentSrcIsV6 = ip.To4() == nil
 	}
+	parentDstIsV6 := false
 	if spec.DstIP != "" {
-		if net.ParseIP(spec.DstIP) == nil {
+		ip := net.ParseIP(spec.DstIP)
+		if ip == nil {
 			return fmt.Errorf("invalid destination IP: %s", spec.DstIP)
 		}
+		parentDstIsV6 = ip.To4() == nil
 	}
 	// AltPath multi-homing addresses must be valid IPv4. buildIPv4AddrParam
 	// only emits IPv4 Address params (RFC 4960 §3.3.2.1 type 5); an IPv6 or
 	// garbage alt IP would silently produce no INIT param while HEARTBEATs
 	// still originate from that address - a DPI sees two unrelated flows.
 	// Reject here so the user sees the misconfiguration.
+	//
+	// Additionally, per RFC 4960 §6.4 multi-homing addresses must be in the
+	// same address family as the primary path. An IPv4 AltPath on an IPv6
+	// association (or vice versa) would emit IPv4 Address params inside an
+	// IPv6 SCTP packet — semantically broken and invisible to DPI.
 	if spec.SCTP != nil && spec.SCTP.Heartbeats != nil && spec.SCTP.Heartbeats.AltPath != nil {
 		ap := spec.SCTP.Heartbeats.AltPath
 		if ap.SrcIP != "" {
-			if ip := net.ParseIP(ap.SrcIP); ip == nil {
+			ip := net.ParseIP(ap.SrcIP)
+			if ip == nil {
 				return fmt.Errorf("invalid AltPath.SrcIP: %s", ap.SrcIP)
-			} else if ip.To4() == nil {
+			}
+			if ip.To4() == nil {
 				return fmt.Errorf("AltPath.SrcIP %s is IPv6; only IPv4 multi-homing is supported (RFC 4960 §3.3.2.1 type 5)", ap.SrcIP)
+			}
+			if parentSrcIsV6 {
+				return fmt.Errorf("AltPath.SrcIP %s is IPv4 but parent SrcIP is IPv6; multi-homing requires same address family (RFC 4960 §6.4)", ap.SrcIP)
 			}
 		}
 		if ap.DstIP != "" {
-			if ip := net.ParseIP(ap.DstIP); ip == nil {
+			ip := net.ParseIP(ap.DstIP)
+			if ip == nil {
 				return fmt.Errorf("invalid AltPath.DstIP: %s", ap.DstIP)
-			} else if ip.To4() == nil {
+			}
+			if ip.To4() == nil {
 				return fmt.Errorf("AltPath.DstIP %s is IPv6; only IPv4 multi-homing is supported (RFC 4960 §3.3.2.1 type 5)", ap.DstIP)
+			}
+			if parentDstIsV6 {
+				return fmt.Errorf("AltPath.DstIP %s is IPv4 but parent DstIP is IPv6; multi-homing requires same address family (RFC 4960 §6.4)", ap.DstIP)
 			}
 		}
 	}

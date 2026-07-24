@@ -281,23 +281,38 @@ func synOptions(mss uint16) []core.TCPOption {
 	return opts
 }
 
-// pasvPortRe matches the 6-tuple inside a 227 PASV response per RFC 959 §4.1.2:
+// pasvPortRe matches a 227 PASV response line per RFC 959 §4.1.2:
 //   "227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)"
-// The data-port is p1*256+p2. The IP is h1.h2.h3.h4 (we only extract the
-// port here because FTP data-channel IP is already governed by spec.SrcIP/
-// DstIP — a real server advertising a different IP in PASV is rare and we
-// don't model routability edge cases).
-var pasvPortRe = regexp.MustCompile(`(?im)^227[^\n]*\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)`)
+// The data-port is p1*256+p2.
+//
+// Flags:
+//   - (?i) case-insensitive: "227" matches any casing (per RFC 959 §5.3.1
+//     the response code is case-insensitive).
+//   - (?m) multiline: `^` matches start of EACH line, so a multi-line 227
+//     response (RFC 959 §4.2 continuation format
+//     "227-Welcome\r\n227 Entering Passive Mode (...)") parses the final
+//     227 line correctly.
+//
+// `^227\s` requires whitespace (space/tab) after "227" — this prevents
+// matching "227-" continuation lines, which carry their own 6-tuple
+// in malformed replies and would otherwise hijack the real 227 line.
+//
+// `[^\n]*?` is non-greedy so the FIRST 6-tuple on the line wins. A greedy
+// `*` would backtrack to the LAST `(...)` on the line, picking the wrong
+// tuple when a server packs extra debug info into the reply.
+var pasvPortRe = regexp.MustCompile(`(?im)^227\s[^\n]*?\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)`)
 
 // portCmdRe matches a PORT command per RFC 959 §4.1.2:
 //   "PORT h1,h2,h3,h4,p1,p2"
 // The client tells the server "I'm listening on IP h1.h2.h3.h4 port p1*256+p2".
-// Per RFC 959 §5.3.1 FTP commands are case-insensitive — the regex anchors
-// at start-of-string and uses (?i) for case-insensitive matching so "port",
-// "Port", "PORT" all parse. The (?i) applies to the entire regex (not just
-// the literal PORT) but only the literal PORT is alphabetic so the effect
-// is "case-insensitive command name".
-var portCmdRe = regexp.MustCompile(`(?i)^PORT\s+(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)`)
+// Per RFC 959 §5.3.1 FTP commands are case-insensitive — the regex uses
+// (?i) so "port", "Port", "PORT" all parse. The (?m) flag makes ^ match
+// the start of each line (mirroring pasvPortRe's (?im)) so a multi-line
+// command string (e.g. "USER ...\r\nPORT 10,0,0,1,78,17") parses the PORT
+// line regardless of which line it's on. Today callers pass single-line
+// commands, but the (?m) flag future-proofs against callers that join
+// commands with CRLF.
+var portCmdRe = regexp.MustCompile(`(?im)^PORT\s+(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)`)
 
 // parsePASVPort scans a server response string for a 227 PASV 6-tuple and
 // returns the derived data-port (p1*256+p2). Returns 0 if not found or if

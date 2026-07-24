@@ -499,6 +499,51 @@ func TestSIPMedia_Direction(t *testing.T) {
 	}
 }
 
+// TestSIPMedia_DirectionDownSwapsPorts verifies that Direction="down" on the
+// SIPMedia config swaps the RTP 4-tuple's IP AND port roles: srcPortWire
+// becomes dstPort (callee's), dstPortWire becomes srcPort (caller's), and
+// the IP path is reversed (server→client). Pre-fix the test only checked
+// direction="up" with default ports (SrcPort=0, DstPort=0, both falling
+// back to 5004) — a swap regression would silently pass because 5004==5004.
+//
+// We use distinct user-supplied ports (SrcPort=10000, DstPort=10002) so
+// the swap is observable: under "down" the wire srcPort=10002 and
+// dstPort=10000; under "up" they'd be 10000/10002.
+func TestSIPMedia_DirectionDownSwapsPorts(t *testing.T) {
+	spec := mediaSpec()
+	spec.SIP.Media.Direction = "down"
+	spec.SIP.Media.SrcPort = 10000 // caller's RTP port
+	spec.SIP.Media.DstPort = 10002 // callee's RTP port
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	rtp := findRTPPackets(cfgs)
+	if len(rtp) == 0 {
+		t.Fatalf("no RTP packets")
+	}
+	for i, c := range rtp {
+		if c.Direction != "down" {
+			t.Errorf("rtp[%d] Direction=%q, want \"down\"", i, c.Direction)
+		}
+		// "down" = callee→caller. srcPortWire=dstPort (callee's), dstPortWire=srcPort (caller's).
+		if c.L4.SrcPort != 10002 {
+			t.Errorf("rtp[%d] SrcPort=%d, want 10002 (callee's port swapped to wire src)", i, c.L4.SrcPort)
+		}
+		if c.L4.DstPort != 10000 {
+			t.Errorf("rtp[%d] DstPort=%d, want 10000 (caller's port swapped to wire dst)", i, c.L4.DstPort)
+		}
+		// IP swap: server (spec.DstIP) → client (spec.SrcIP).
+		if c.L3.SrcIP != spec.DstIP {
+			t.Errorf("rtp[%d] L3.SrcIP=%q, want %q (server IP under down)", i, c.L3.SrcIP, spec.DstIP)
+		}
+		if c.L3.DstIP != spec.SrcIP {
+			t.Errorf("rtp[%d] L3.DstIP=%q, want %q (client IP under down)", i, c.L3.DstIP, spec.SrcIP)
+		}
+	}
+}
+
 // TestSIPMedia_PacketIndexContinuity verifies RTP packets' PacketIndex
 // continues from the parent's index (no reset, no gaps).
 func TestSIPMedia_PacketIndexContinuity(t *testing.T) {
@@ -582,6 +627,54 @@ func TestSIPMedia_PortFromSDPBody(t *testing.T) {
 	}
 	if rtp[0].L4.DstPort != 16386 {
 		t.Errorf("DstPort=%d, want 16386 (parsed from 200 OK SDP)", rtp[0].L4.DstPort)
+	}
+}
+
+// TestSIPMedia_ReInviteLastWinsPropagatesToEndToEndRTP verifies that a
+// re-INVITE changing the media port mid-call actually propagates the new
+// port through Plan → emitSIPMedia → wire RTP 4-tuple. This is the
+// integration-test companion to TestScanSDPMediaPorts_ReInviteLastWins:
+// the unit test proves scanSDPMediaPorts returns the right port, this
+// test proves the result is wired into the actual RTP packets.
+//
+// Dialog: INVITE(16384) → 200(16386) → ACK(emit) → re-INVITE(16390) →
+//         200(16392) → ACK(emit).
+// The RTP emitted after the SECOND ACK must use srcPort=16390 (the
+// re-INVITE's caller port), not 16384 (the stale first INVITE's port).
+func TestSIPMedia_ReInviteLastWinsPropagatesToEndToEndRTP(t *testing.T) {
+	spec := mediaSpec()
+	// Rewrite the dialog: initial INVITE/200/ACK(emit) then re-INVITE/200/ACK(emit).
+	spec.SIP.Dialog = []core.SIPMessage{
+		{Method: "INVITE", URI: "sip:callee@example.com", Direction: "up",
+			Body: "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"},
+		{StatusCode: 200, StatusText: "OK", Direction: "down",
+			Body: "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"},
+		{Method: "ACK", URI: "sip:callee@example.com", Direction: "up", EmitMedia: true},
+		{Method: "INVITE", URI: "sip:callee@example.com", Direction: "up",
+			Body: "v=0\r\nm=audio 16390 RTP/AVP 0\r\n"}, // re-INVITE new caller port
+		{StatusCode: 200, StatusText: "OK", Direction: "down",
+			Body: "v=0\r\nm=audio 16392 RTP/AVP 0\r\n"}, // new callee port
+		{Method: "ACK", URI: "sip:callee@example.com", Direction: "up", EmitMedia: true},
+	}
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	rtp := findRTPPackets(cfgs)
+	if len(rtp) == 0 {
+		t.Fatalf("no RTP packets")
+	}
+	// Both emits should pick up the re-INVITE's last-wins port (16390),
+	// NOT the stale first INVITE's port (16384). Pre-fix a regression
+	// where emitSIPMedia cached the first INVITE's port would show 16384.
+	for i, c := range rtp {
+		if c.L4.SrcPort != 16390 {
+			t.Errorf("rtp[%d] SrcPort=%d, want 16390 (re-INVITE last-wins propagated)", i, c.L4.SrcPort)
+		}
+		if c.L4.DstPort != 16392 {
+			t.Errorf("rtp[%d] DstPort=%d, want 16392 (re-INVITE 200 OK last-wins propagated)", i, c.L4.DstPort)
+		}
 	}
 }
 
@@ -721,5 +814,41 @@ func TestScanSDPMediaPorts_ReInviteDelayedOfferLastWins(t *testing.T) {
 	}
 	if ok200Port != 16392 {
 		t.Errorf("ok200Port=%d, want 16392 (from re-INVITE 200 OK, last-wins)", ok200Port)
+	}
+}
+
+// TestScanSDPMediaPorts_200ToPRACKWithSDPDoesNotPolluteOK200Port verifies
+// the early-media edge case (RFC 3262 §3): a 200-to-PRACK carrying SDP
+// (the PRACK's reliable answer) must NOT be attributed to the pending
+// INVITE transaction. Pre-fix scanSDPMediaPorts left lastWasInvite=true
+// across any 200 OK, so a 200-to-PRACK with SDP arriving before
+// 200-to-INVITE-with-no-SDP wrongly captured the PRACK's port as
+// ok200Port (and stayed there, because the real 200-to-INVITE had no
+// SDP to overwrite it).
+//
+// Dialog: INVITE(SDP) -> 183(SDP) -> PRACK(SDP) -> 200-to-PRACK(SDP)
+//         -> 200-to-INVITE (no SDP) -> ACK.
+// In this scenario the 200-to-INVITE carries no SDP (the answer was in
+// the reliable 183). The 200-to-PRACK's SDP port (7777) must NOT be
+// captured as ok200Port — the callee's actual RTP port came from 183
+// (not from any 200 OK), so ok200Port should stay 0.
+func TestScanSDPMediaPorts_200ToPRACKWithSDPDoesNotPolluteOK200Port(t *testing.T) {
+	dialog := []core.SIPMessage{
+		{Method: "INVITE", Body: "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"},
+		{StatusCode: 183, Body: "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"}, // early media
+		{Method: "PRACK", Body: "v=0\r\nm=audio 7778 RTP/AVP 0\r\n"},  // PRACK offer
+		// 200-to-PRACK with SDP answer - must NOT be treated as 200-to-INVITE.
+		{StatusCode: 200, Body: "v=0\r\nm=audio 7777 RTP/AVP 0\r\n"},
+		// 200-to-INVITE with no SDP (answer was in 183) - must NOT leave
+		// the stale 7777 in place.
+		{StatusCode: 200},
+		{Method: "ACK"},
+	}
+	invitePort, ok200Port := scanSDPMediaPorts(dialog)
+	if invitePort != 16384 {
+		t.Errorf("invitePort=%d, want 16384 (from INVITE)", invitePort)
+	}
+	if ok200Port != 0 {
+		t.Errorf("ok200Port=%d, want 0 (200-to-INVITE had no SDP; pre-fix held 7777 from 200-to-PRACK)", ok200Port)
 	}
 }

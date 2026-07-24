@@ -644,6 +644,20 @@ func TestParsePASVPort(t *testing.T) {
 		// first line has no 6-tuple. Pre-fix the `^227` anchor without
 		// `(?m)` rejected this multi-line format.
 		{"multiline_227_continuation", "227-Welcome to FTP\r\n227 Entering Passive Mode (20,0,0,1,195,80)", 50000},
+		// 227- continuation line containing its OWN 6-tuple must NOT hijack
+		// the real 227 line that follows. Pre-fix `(?im)^227[^\n]*\(...\)`
+		// matched the `^227` of the continuation (since `[^n]*` eats the
+		// `-`) and returned the continuation's port. After the fix (`\s`
+		// after `227` to require whitespace, not `-`), the continuation
+		// line does NOT match and the real 227 line wins.
+		{"227_continuation_with_own_6tuple_does_not_hijack",
+			"227-Welcome (20,0,0,1,195,80)\r\n227 Entering Passive Mode (20,0,0,1,195,81)", 50001},
+		// Greedy `[^\n]*` followed by `\(` backtracks to the LAST 6-tuple
+		// on the same line, not the first. This is a real-world concern
+		// when a server packs extra debug info into the 227 line. After
+		// the fix (`[^\n]*?` non-greedy), the FIRST 6-tuple wins.
+		{"single_line_two_6tuples_first_wins",
+			"227 Multi (1,2,3,4,5,6) Extra (7,8,9,10,11,12)", 1286}, // 5*256+6
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -673,6 +687,10 @@ func TestParsePORTPort(t *testing.T) {
 		{"no_match", "USER anonymous", 0},
 		{"pasv_response", "227 Entering Passive Mode (20,0,0,1,195,80)", 0},
 		{"empty", "", 0},
+		// (?m) flag: PORT command on a non-first line of a multi-line
+		// string still matches. Pre-fix only (?i) was set, so ^ matched
+		// only start-of-string and the PORT line was missed.
+		{"multiline_port_second_line", "USER anonymous\r\nPORT 10,0,0,1,78,17", 19985},
 		// strconv.Atoi error must be checked, not swallowed - huge numbers
 		// that overflow int must NOT silently wrap into [0,65535].
 		{"overflow_p1", "PORT 10,0,0,1,99999999999999999999,17", 0},
@@ -793,42 +811,31 @@ func TestFTPDataChannel_UserOverrideBeatsSignaling(t *testing.T) {
 // This test asserts port-to-CHANNEL ordering (first data channel uses 50000,
 // second uses 50001), not just that both ports appear somewhere - a
 // hypothetical swap regression would pass the weaker assertion.
+//
+// The dialog reuses dataChannelSpec() and surgically inserts a second
+// PASV/RETR pair to avoid duplicating the 30-line spec literal.
 func TestFTPDataChannel_MultiTransferDistinctPorts(t *testing.T) {
-	spec := core.FlowSpec{
-		SrcIP: "10.0.0.1", DstIP: "20.0.0.1",
-		SrcPort: 20000, DstPort: 21,
-		SrcMAC: "02:00:00:00:00:01", DstMAC: "02:00:00:00:00:02",
-		FTP: &core.FTPConfig{
-			Banner: "220 Welcome",
-			Commands: []core.FTPCommand{
-				{Cmd: "USER anonymous", Response: "331 Password required"},
-				{Cmd: "PASS guest", Response: "230 Login OK"},
-				{Cmd: "TYPE I", Response: "200 Type set"},
-				// First transfer: PASV advertises port 50000.
-				{Cmd: "PASV", Response: "227 Entering Passive Mode (20,0,0,1,195,80)"}, // 50000
-				{
-					Cmd:             "RETR /file1.bin",
-					Response:        "150 Opening data connection",
-					EmitDataChannel: true,
-				},
-				{Cmd: "", Response: "226 Transfer complete"},
-				// Second transfer: PASV advertises port 50001.
-				{Cmd: "PASV", Response: "227 Entering Passive Mode (20,0,0,1,195,81)"}, // 50001
-				{
-					Cmd:             "RETR /file2.bin",
-					Response:        "150 Opening data connection",
-					EmitDataChannel: true,
-				},
-				{Cmd: "", Response: "226 Transfer complete"},
-				{Cmd: "QUIT", Response: "221 Bye"},
-			},
-			DataChannel: &core.FTPDataChannel{
-				Mode:      "passive",
-				Direction: "down",
-				Payload:   "FILE-BODY",
-			},
+	spec := dataChannelSpec()
+	// Replace the trailing {QUIT, 221 Bye} with a second PASV/RETR pair
+	// followed by QUIT. dataChannelSpec's Commands slice:
+	//   [0] USER, [1] PASS, [2] TYPE, [3] PASV(50000),
+	//   [4] RETR /file.bin (EmitDataChannel=true), [5] 226,
+	//   [6] QUIT.
+	// We rebuild [5:] as: 226, PASV(50001), RETR /file2.bin (EmitDataChannel=true), 226, QUIT.
+	spec.FTP.Commands = append(spec.FTP.Commands[:5],
+		core.FTPCommand{Cmd: "", Response: "226 Transfer complete"},
+		core.FTPCommand{Cmd: "PASV", Response: "227 Entering Passive Mode (20,0,0,1,195,81)"}, // 50001
+		core.FTPCommand{
+			Cmd:             "RETR /file2.bin",
+			Response:        "150 Opening data connection",
+			EmitDataChannel: true,
 		},
-	}
+		core.FTPCommand{Cmd: "", Response: "226 Transfer complete"},
+		core.FTPCommand{Cmd: "QUIT", Response: "221 Bye"},
+	)
+	// Shorten the payload so both transfers stay small.
+	spec.FTP.DataChannel.Payload = "FILE-BODY"
+
 	ch, err := NewPlanner().Plan(context.Background(), spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -838,15 +845,7 @@ func TestFTPDataChannel_MultiTransferDistinctPorts(t *testing.T) {
 	// in wire order. Each data channel starts with one SYN; two data channels
 	// -> two SYNs, ordered by emit time (first data channel's SYN before
 	// second's).
-	var syns []core.PacketConfig
-	for _, c := range cfgs {
-		if strings.HasSuffix(c.FlowID, ":sub-0") &&
-			c.Direction == "up" &&
-			len(c.L4.TCPOptions) > 0 &&
-			c.L4.Flags == 0x02 { // SYN flag only (SYN-ACK has 0x12)
-			syns = append(syns, c)
-		}
-	}
+	syns := filterSubFlowSYNs(cfgs)
 	if len(syns) != 2 {
 		t.Fatalf("found %d SYN packets in sub-flow, want 2 (two data channels)", len(syns))
 	}
@@ -860,4 +859,20 @@ func TestFTPDataChannel_MultiTransferDistinctPorts(t *testing.T) {
 		t.Errorf("second data channel SYN DstPort=%d, want 50001 (second PASV)",
 			syns[1].L4.DstPort)
 	}
+}
+
+// filterSubFlowSYNs returns sub-flow SYN packets (Flags==0x02, "up"
+// direction, has TCP options) in wire order. Used by multi-transfer tests
+// to assert per-channel port assignments.
+func filterSubFlowSYNs(cfgs []core.PacketConfig) []core.PacketConfig {
+	var syns []core.PacketConfig
+	for _, c := range cfgs {
+		if strings.HasSuffix(c.FlowID, ":sub-0") &&
+			c.Direction == "up" &&
+			len(c.L4.TCPOptions) > 0 &&
+			c.L4.Flags == 0x02 {
+			syns = append(syns, c)
+		}
+	}
+	return syns
 }

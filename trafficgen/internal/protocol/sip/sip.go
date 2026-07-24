@@ -507,10 +507,12 @@ func emitSIPMedia(
 	_ = sampleRate
 }
 
-// sdpMediaPortRe matches an SDP "m=audio <port> ..." line per RFC 4566 §5.14:
-// the media field is "m=" type SP port SP proto [fmt] CRLF. We extract the
-// port. Other media types (m=video, m=application) also match; we capture
-// any "m=<type> <port>" line so this works for non-audio media too.
+// sdpMediaPortRe matches an SDP "m=audio <port> ..." line per RFC 4566
+// §5.14: the media field is "m=" type SP port SP proto [fmt] CRLF. We
+// extract the port. Only "m=audio" is matched — video/application/data
+// media types are skipped because the SIP planner only emits audio RTP
+// (PCMU/PCMA) today; matching m=video would silently capture a video
+// port and produce an audio RTP flow on the wrong 4-tuple.
 var sdpMediaPortRe = regexp.MustCompile(`(?m)^m=audio\s+(\d+)`)
 
 // parseSDPMediaPort scans an SDP body for the first "m=<type> <port>" line
@@ -537,8 +539,30 @@ func parseSDPMediaPort(body string) uint16 {
 // receive port; the 200 OK's SDP advertises the callee's. For "up"
 // direction (caller→callee) the caller is the source so SrcPort=invitePort,
 // and the callee is the destination so DstPort=ok200Port.
+//
+// State machine (tracks "what's the next 200 OK responding to?"):
+//   - INVITE: sets lastWasInvite=true. Captures invitePort (last-wins for
+//     re-INVITE) if SDP present.
+//   - Non-INVITE request (PRACK/UPDATE/BYE/OPTIONS/etc.): sets
+//     pendingNonInviteMethod. The next 200 OK belongs to this transaction,
+//     not the INVITE — so its SDP is NOT captured as ok200Port.
+//   - 200 OK:
+//     - If pendingNonInviteMethod set: this is 200-to-non-INVITE. Consume
+//       the pending flag but DO NOT capture ok200Port (the answer belongs
+//       to a side transaction, not the INVITE's callee). Per RFC 3262,
+//       200-to-PRACK carrying SDP is the PRACK's answer, not the INVITE's.
+//     - Else if lastWasInvite: this is 200-to-INVITE. Capture ok200Port
+//       (last-wins) if SDP present. Consume lastWasInvite.
+//   - ACK: delayed-offer path — captures invitePort if SDP present.
+//     Resets both flags.
+//
+// This correctly handles RFC 3262 early media via PRACK: a 200-to-PRACK
+// with SDP arriving before 200-to-INVITE is NOT misattributed to the
+// INVITE transaction (which would pollute ok200Port with the PRACK's
+// answer port).
 func scanSDPMediaPorts(dialog []core.SIPMessage) (invitePort, ok200Port uint16) {
 	lastWasInvite := false
+	var pendingNonInviteMethod string
 	for _, msg := range dialog {
 		port := parseSDPMediaPort(msg.Body) // 0 for empty/non-matching body
 		if msg.Method == "INVITE" {
@@ -548,18 +572,26 @@ func scanSDPMediaPorts(dialog []core.SIPMessage) (invitePort, ok200Port uint16) 
 			}
 			continue
 		}
+		// Non-INVITE request (PRACK/UPDATE/BYE/OPTIONS/INFO/REFER/...).
+		// The next 200 OK responds to this method, not the INVITE.
+		if msg.Method != "" && msg.Method != "ACK" {
+			pendingNonInviteMethod = msg.Method
+			continue
+		}
 		if msg.StatusCode == 200 {
-			// Only treat as 200-to-INVITE if it follows an INVITE (no
-			// intervening final response or ACK). 200-to-OPTIONS/REGISTER
-			// with SDP does NOT win. We do NOT reset lastWasInvite on
-			// non-INVITE requests (PRACK/UPDATE ride alongside the INVITE
-			// transaction per RFC 3262/3311 and shouldn't break the
-			// association). Last-wins means re-INVITEs pick up the new port.
-			// We also do NOT reset on 200 OK itself: a 200-to-PRACK (no SDP)
-			// must not prevent the subsequent 200-to-INVITE from matching.
-			// lastWasInvite is consumed only by ACK or a new INVITE.
-			if lastWasInvite && port != 0 {
-				ok200Port = port // last-wins
+			if pendingNonInviteMethod != "" {
+				// 200-to-non-INVITE (e.g. 200-to-PRACK with SDP answer per
+				// RFC 3262 §3). The SDP answer, if present, belongs to the
+				// non-INVITE transaction — NOT captured as ok200Port.
+				pendingNonInviteMethod = ""
+			} else if lastWasInvite {
+				// 200-to-INVITE. Capture callee's port (last-wins). Consume
+				// the flag so a subsequent 200-to-non-INVITE isn't
+				// misattributed to a stale INVITE.
+				if port != 0 {
+					ok200Port = port
+				}
+				lastWasInvite = false
 			}
 			continue
 		}
@@ -572,11 +604,15 @@ func scanSDPMediaPorts(dialog []core.SIPMessage) (invitePort, ok200Port uint16) 
 				invitePort = port
 			}
 			lastWasInvite = false
+			pendingNonInviteMethod = ""
 			continue
 		}
-		// Non-INVITE requests (PRACK/UPDATE/OPTIONS/BYE/REGISTER) do NOT
-		// reset lastWasInvite: they're separate transactions and shouldn't
-		// break the INVITE->200-OK association.
+		// 1xx provisional responses (100/180/183) and unknown message
+		// shapes fall through here. They don't affect the flags. RFC 3262
+		// reliable provisionals with SDP (183) carry the callee's early
+		// media port, but scanSDPMediaPorts's contract is "200 OK's SDP
+		// body" — early-media port extraction is left to the user via
+		// explicit media.DstPort override.
 	}
 	return invitePort, ok200Port
 }

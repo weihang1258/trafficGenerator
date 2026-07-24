@@ -128,6 +128,43 @@ func TestSCTPValidate_AltPathIPv4Accepted(t *testing.T) {
 	}
 }
 
+// TestSCTPValidate_AltPathDstIPv6Rejected verifies that an IPv6 DstIP on
+// AltPath (with valid IPv4 SrcIP) is rejected at Validate time. Pre-fix
+// only the SrcIP branch was tested, so the DstIP IPv6 path could be
+// silently broken.
+func TestSCTPValidate_AltPathDstIPv6Rejected(t *testing.T) {
+	p := NewPlanner()
+	spec := validSCTPSpec()
+	spec.SCTP.Heartbeats = &core.SCTPHeartbeatConfig{
+		Count:   1,
+		AltPath: &core.SCTPAltPath{SrcIP: "10.0.0.3", DstIP: "2001:db8::1"},
+	}
+	err := p.Validate(spec)
+	if err == nil || !strings.Contains(err.Error(), "AltPath.DstIP") {
+		t.Errorf("err=%v, want contains 'AltPath.DstIP' (IPv6 DstIP rejected)", err)
+	}
+}
+
+// TestSCTPValidate_AltPathFamilyMismatchRejected verifies that an IPv4
+// AltPath paired with an IPv6 parent spec is rejected. Per RFC 4960 §6.4
+// multi-homing addresses must be in the same family as the primary path.
+// Pre-fix this case passed Validate but produced semantically broken
+// INIT-ACK (IPv4 Address params inside an IPv6 SCTP packet).
+func TestSCTPValidate_AltPathFamilyMismatchRejected(t *testing.T) {
+	p := NewPlanner()
+	spec := validSCTPSpec()
+	spec.SrcIP = "2001:db8::1"
+	spec.DstIP = "2001:db8::2"
+	spec.SCTP.Heartbeats = &core.SCTPHeartbeatConfig{
+		Count:   1,
+		AltPath: &core.SCTPAltPath{SrcIP: "10.0.0.3", DstIP: "10.0.0.4"},
+	}
+	err := p.Validate(spec)
+	if err == nil || !strings.Contains(err.Error(), "same address family") {
+		t.Errorf("err=%v, want contains 'same address family' (family mismatch rejected)", err)
+	}
+}
+
 // --- Plan: structure ---
 
 // TestSCTPPlan_Handshake verifies the first 4 packets are INIT, INIT-ACK,
