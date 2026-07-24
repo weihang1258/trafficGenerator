@@ -658,6 +658,14 @@ func TestParsePASVPort(t *testing.T) {
 		// the fix (`[^\n]*?` non-greedy), the FIRST 6-tuple wins.
 		{"single_line_two_6tuples_first_wins",
 			"227 Multi (1,2,3,4,5,6) Extra (7,8,9,10,11,12)", 1286}, // 5*256+6
+		// `\s` after `227` matches tab/vertical-tab/form-feed, so a
+		// malformed continuation line "227\t-Welcome (..)" matches the
+		// regex (the `\t` satisfies `\s`, then `[^\n]*?` eats `-Welcome `)
+		// and the continuation's port wins over the real 227 line.
+		// After the fix: use literal space `[ ]` instead of `\s` so only
+		// space (the actual separator per RFC 959 §5.4) is accepted.
+		{"tab_continuation_does_not_hijack",
+			"227\t-Welcome (20,0,0,1,195,80)\r\n227 Real (20,0,0,1,195,81)", 50001},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

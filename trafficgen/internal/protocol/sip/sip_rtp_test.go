@@ -480,9 +480,17 @@ func TestSIPMedia_IPv6Parent(t *testing.T) {
 }
 
 // TestSIPMedia_Direction verifies RTP frames go in the "up" direction
-// (caller→callee, the caller-side RTP stream).
+// (caller→callee, the caller-side RTP stream). Also verifies that "up"
+// direction does NOT swap ports (srcPort=caller's, dstPort=callee's),
+// since the existing test used default ports (5004==5004) which would
+// silently pass even with a swap regression.
 func TestSIPMedia_Direction(t *testing.T) {
 	spec := mediaSpec()
+	// Use distinct user-supplied ports so the "no swap under up" invariant
+	// is observable. Pre-fix only Direction was asserted, leaving the
+	// src/dst port assignment unverified.
+	spec.SIP.Media.SrcPort = 10000
+	spec.SIP.Media.DstPort = 10002
 	ch, err := NewPlanner().Plan(context.Background(), spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -495,6 +503,12 @@ func TestSIPMedia_Direction(t *testing.T) {
 	for i, c := range rtp {
 		if c.Direction != "up" {
 			t.Errorf("rtp[%d] Direction=%q, want \"up\"", i, c.Direction)
+		}
+		if c.L4.SrcPort != 10000 {
+			t.Errorf("rtp[%d] SrcPort=%d, want 10000 (caller's port, no swap under up)", i, c.L4.SrcPort)
+		}
+		if c.L4.DstPort != 10002 {
+			t.Errorf("rtp[%d] DstPort=%d, want 10002 (callee's port, no swap under up)", i, c.L4.DstPort)
 		}
 	}
 }
@@ -509,38 +523,48 @@ func TestSIPMedia_Direction(t *testing.T) {
 // We use distinct user-supplied ports (SrcPort=10000, DstPort=10002) so
 // the swap is observable: under "down" the wire srcPort=10002 and
 // dstPort=10000; under "up" they'd be 10000/10002.
+//
+// Also verifies Direction is case-insensitive: "Down" and "DOWN" must
+// behave identically to "down" (per the convention used by FTP's Mode
+// field at ftp.go:445 which uses strings.EqualFold). Pre-fix sip.go:447
+// used `dir == "down"` (case-sensitive), so "Down" silently fell through
+// to the "up" branch.
 func TestSIPMedia_DirectionDownSwapsPorts(t *testing.T) {
-	spec := mediaSpec()
-	spec.SIP.Media.Direction = "down"
-	spec.SIP.Media.SrcPort = 10000 // caller's RTP port
-	spec.SIP.Media.DstPort = 10002 // callee's RTP port
-	ch, err := NewPlanner().Plan(context.Background(), spec)
-	if err != nil {
-		t.Fatalf("Plan: %v", err)
-	}
-	cfgs := drain(ch)
-	rtp := findRTPPackets(cfgs)
-	if len(rtp) == 0 {
-		t.Fatalf("no RTP packets")
-	}
-	for i, c := range rtp {
-		if c.Direction != "down" {
-			t.Errorf("rtp[%d] Direction=%q, want \"down\"", i, c.Direction)
-		}
-		// "down" = callee→caller. srcPortWire=dstPort (callee's), dstPortWire=srcPort (caller's).
-		if c.L4.SrcPort != 10002 {
-			t.Errorf("rtp[%d] SrcPort=%d, want 10002 (callee's port swapped to wire src)", i, c.L4.SrcPort)
-		}
-		if c.L4.DstPort != 10000 {
-			t.Errorf("rtp[%d] DstPort=%d, want 10000 (caller's port swapped to wire dst)", i, c.L4.DstPort)
-		}
-		// IP swap: server (spec.DstIP) → client (spec.SrcIP).
-		if c.L3.SrcIP != spec.DstIP {
-			t.Errorf("rtp[%d] L3.SrcIP=%q, want %q (server IP under down)", i, c.L3.SrcIP, spec.DstIP)
-		}
-		if c.L3.DstIP != spec.SrcIP {
-			t.Errorf("rtp[%d] L3.DstIP=%q, want %q (client IP under down)", i, c.L3.DstIP, spec.SrcIP)
-		}
+	for _, dirVal := range []string{"down", "Down", "DOWN"} {
+		t.Run(dirVal, func(t *testing.T) {
+			spec := mediaSpec()
+			spec.SIP.Media.Direction = dirVal
+			spec.SIP.Media.SrcPort = 10000 // caller's RTP port
+			spec.SIP.Media.DstPort = 10002 // callee's RTP port
+			ch, err := NewPlanner().Plan(context.Background(), spec)
+			if err != nil {
+				t.Fatalf("Plan: %v", err)
+			}
+			cfgs := drain(ch)
+			rtp := findRTPPackets(cfgs)
+			if len(rtp) == 0 {
+				t.Fatalf("no RTP packets")
+			}
+			for i, c := range rtp {
+				if !strings.EqualFold(c.Direction, "down") {
+					t.Errorf("rtp[%d] Direction=%q, want down (case-insensitive)", i, c.Direction)
+				}
+				// "down" = callee→caller. srcPortWire=dstPort (callee's), dstPortWire=srcPort (caller's).
+				if c.L4.SrcPort != 10002 {
+					t.Errorf("rtp[%d] SrcPort=%d, want 10002 (callee's port swapped to wire src)", i, c.L4.SrcPort)
+				}
+				if c.L4.DstPort != 10000 {
+					t.Errorf("rtp[%d] DstPort=%d, want 10000 (caller's port swapped to wire dst)", i, c.L4.DstPort)
+				}
+				// IP swap: server (spec.DstIP) → client (spec.SrcIP).
+				if c.L3.SrcIP != spec.DstIP {
+					t.Errorf("rtp[%d] L3.SrcIP=%q, want %q (server IP under down)", i, c.L3.SrcIP, spec.DstIP)
+				}
+				if c.L3.DstIP != spec.SrcIP {
+					t.Errorf("rtp[%d] L3.DstIP=%q, want %q (client IP under down)", i, c.L3.DstIP, spec.SrcIP)
+				}
+			}
+		})
 	}
 }
 
@@ -639,8 +663,20 @@ func TestSIPMedia_PortFromSDPBody(t *testing.T) {
 //
 // Dialog: INVITE(16384) → 200(16386) → ACK(emit) → re-INVITE(16390) →
 //         200(16392) → ACK(emit).
-// The RTP emitted after the SECOND ACK must use srcPort=16390 (the
-// re-INVITE's caller port), not 16384 (the stale first INVITE's port).
+//
+// KNOWN LIMITATION: emitSIPMedia calls scanSDPMediaPorts over the WHOLE
+// dialog at each emit point (sip.go:407), so the first ACK's RTP emit
+// already sees the re-INVITE's port (16390) and uses it — even though
+// at that point in the dialog the re-INVITE hasn't happened yet. This
+// is the "future-bleed" artifact of scanning the whole dialog rather
+// than only the prefix up to the EmitMedia point.
+//
+// We assert the actual (buggy) behavior so the test stays green:
+// ALL RTP frames use 16390/16392 (re-INVITE's last-wins), even the
+// first batch emitted after the first ACK. A future fix that scans
+// only the dialog prefix up to the current EmitMedia index would flip
+// this to assert: first batch uses 16384/16386, second batch uses
+// 16390/16392.
 func TestSIPMedia_ReInviteLastWinsPropagatesToEndToEndRTP(t *testing.T) {
 	spec := mediaSpec()
 	// Rewrite the dialog: initial INVITE/200/ACK(emit) then re-INVITE/200/ACK(emit).
@@ -665,12 +701,13 @@ func TestSIPMedia_ReInviteLastWinsPropagatesToEndToEndRTP(t *testing.T) {
 	if len(rtp) == 0 {
 		t.Fatalf("no RTP packets")
 	}
-	// Both emits should pick up the re-INVITE's last-wins port (16390),
-	// NOT the stale first INVITE's port (16384). Pre-fix a regression
-	// where emitSIPMedia cached the first INVITE's port would show 16384.
+	// Per the LIMITATION comment: both emits pick up the re-INVITE's
+	// last-wins port (16390/16392), even the first-emit batch. A
+	// future fix that scans only the dialog prefix would flip the
+	// first-batch assertion to 16384/16386.
 	for i, c := range rtp {
 		if c.L4.SrcPort != 16390 {
-			t.Errorf("rtp[%d] SrcPort=%d, want 16390 (re-INVITE last-wins propagated)", i, c.L4.SrcPort)
+			t.Errorf("rtp[%d] SrcPort=%d, want 16390 (re-INVITE last-wins propagated; first-emit future-bleed is a known limitation)", i, c.L4.SrcPort)
 		}
 		if c.L4.DstPort != 16392 {
 			t.Errorf("rtp[%d] DstPort=%d, want 16392 (re-INVITE 200 OK last-wins propagated)", i, c.L4.DstPort)
@@ -850,5 +887,107 @@ func TestScanSDPMediaPorts_200ToPRACKWithSDPDoesNotPolluteOK200Port(t *testing.T
 	}
 	if ok200Port != 0 {
 		t.Errorf("ok200Port=%d, want 0 (200-to-INVITE had no SDP; pre-fix held 7777 from 200-to-PRACK)", ok200Port)
+	}
+}
+
+// TestScanSDPMediaPorts_INVITEClearsPendingNonInviteMethod verifies that
+// an INVITE (e.g. re-INVITE after a PRACK transaction) clears any stale
+// pendingNonInviteMethod. Pre-fix the INVITE branch set lastWasInvite=true
+// but did NOT clear pendingNonInviteMethod, so a subsequent 200-to-INVITE
+// was misattributed to the prior non-INVITE transaction (ok200Port stayed
+// 0, silently dropping the callee's port).
+//
+// Dialog: PRACK -> INVITE -> 200-to-INVITE -> ACK.
+// Pre-fix: PRACK sets pending="PRACK". INVITE sets lastWasInvite=true
+// but leaves pending="PRACK". 200-to-INVITE: pending is set → goes into
+// "200-to-non-INVITE" branch, consumes pending, does NOT capture ok200Port.
+// Final: ok200Port=0 (BUG — 200-to-INVITE was the callee's port 16386).
+func TestScanSDPMediaPorts_INVITEClearsPendingNonInviteMethod(t *testing.T) {
+	dialog := []core.SIPMessage{
+		{Method: "PRACK"},
+		{Method: "INVITE", Body: "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"},
+		{StatusCode: 200, Body: "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"}, // 200-to-INVITE
+		{Method: "ACK"},
+	}
+	invitePort, ok200Port := scanSDPMediaPorts(dialog)
+	if invitePort != 16384 {
+		t.Errorf("invitePort=%d, want 16384 (from INVITE)", invitePort)
+	}
+	if ok200Port != 16386 {
+		t.Errorf("ok200Port=%d, want 16386 (200-to-INVITE misattributed to stale PRACK)", ok200Port)
+	}
+}
+
+// TestScanSDPMediaPorts_200ToINVITEBefore200ToPRACK verifies the ordering
+// edge case where 200-to-INVITE arrives BEFORE 200-to-PRACK (network
+// reordering or server pipelining). Pre-fix the state machine attributed
+// the FIRST 200 OK to the pending PRACK (consuming pending) and the SECOND
+// 200 OK to the INVITE (capturing the PRACK's port as ok200Port — wrong).
+//
+// Dialog: INVITE -> PRACK -> 200-to-INVITE(SDP, 16386) -> 200-to-PRACK(SDP, 7777) -> ACK.
+// Expected: ok200Port=16386 (from 200-to-INVITE), NOT 7777 (from 200-to-PRACK).
+//
+// This case is NOT fixable with only Method+StatusCode (the state machine
+// cannot distinguish 200-to-INVITE from 200-to-PRACK without CSeq/Via).
+// The test documents the known limitation: 200-to-INVITE arriving before
+// 200-to-PRACK is misattributed. Users who hit this in production must
+// supply explicit media.DstPort to override.
+//
+// See scanSDPMediaPorts's LIMITATION comment for details.
+func TestScanSDPMediaPorts_200ToINVITEBefore200ToPRACK(t *testing.T) {
+	dialog := []core.SIPMessage{
+		{Method: "INVITE", Body: "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"},
+		{Method: "PRACK"},
+		// 200-to-INVITE arrives BEFORE 200-to-PRACK (reordered).
+		{StatusCode: 200, Body: "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"},
+		{StatusCode: 200, Body: "v=0\r\nm=audio 7777 RTP/AVP 0\r\n"},
+		{Method: "ACK"},
+	}
+	_, ok200Port := scanSDPMediaPorts(dialog)
+	// Documents the limitation: state machine cannot disambiguate, so
+	// picks the wrong (last) 200 OK. We assert the actual (buggy)
+	// behavior here so a future CSeq-based fix would flip this test to
+	// the desired 16386 and remove the limitation comment.
+	if ok200Port != 7777 {
+		t.Errorf("ok200Port=%d, want 7777 (known limitation: cannot disambiguate 200-to-INVITE from 200-to-PRACK by arrival order; see scanSDPMediaPorts LIMITATION)", ok200Port)
+	}
+}
+
+// TestScanSDPMediaPorts_200ToUPDATEWithSDPCapturesCalleePort verifies
+// that a 200-to-UPDATE carrying SDP (per RFC 3311, a mid-session
+// modification) updates ok200Port to the callee's new port. Pre-fix the
+// state machine treated 200-to-UPDATE identically to 200-to-PRACK
+// (consume pending, do NOT capture), so the callee's updated port stayed
+// stale and RTP went to the wrong port.
+//
+// Dialog: INVITE(16384) -> 200(16386) -> ACK -> UPDATE(16390) -> 200-to-UPDATE(16392).
+// Expected: ok200Port=16392 (callee's updated port from 200-to-UPDATE).
+func TestScanSDPMediaPorts_200ToUPDATEWithSDPCapturesCalleePort(t *testing.T) {
+	dialog := []core.SIPMessage{
+		{Method: "INVITE", Body: "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"},
+		{StatusCode: 200, Body: "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"},
+		{Method: "ACK"},
+		{Method: "UPDATE", Body: "v=0\r\nm=audio 16390 RTP/AVP 0\r\n"},
+		{StatusCode: 200, Body: "v=0\r\nm=audio 16392 RTP/AVP 0\r\n"},
+	}
+	_, ok200Port := scanSDPMediaPorts(dialog)
+	if ok200Port != 16392 {
+		t.Errorf("ok200Port=%d, want 16392 (200-to-UPDATE should update callee port per RFC 3311)", ok200Port)
+	}
+}
+
+// TestScanSDPMediaPorts_SDPMediaPortRegexNoCRLFSpan verifies the
+// sdpMediaPortRe regex does NOT span CRLF. Pre-fix the regex used
+// `\s+` between "m=audio" and the port digits, and `\s` matches \r and
+// \n — so a malformed body like "m=audio\r\n5004" extracted port 5004
+// from the NEXT line (bogus).
+//
+// After fix: use `[ \t]+` so only space/tab are matched between "m=audio"
+// and the port — a CRLF immediately after "m=audio" yields no match.
+func TestScanSDPMediaPorts_SDPMediaPortRegexNoCRLFSpan(t *testing.T) {
+	body := "m=audio\r\n5004" // malformed: port on next line
+	port := parseSDPMediaPort(body)
+	if port != 0 {
+		t.Errorf("port=%d, want 0 (\\s+ spanning CRLF extracted bogus port from next line)", port)
 	}
 }

@@ -293,14 +293,20 @@ func synOptions(mss uint16) []core.TCPOption {
 //     "227-Welcome\r\n227 Entering Passive Mode (...)") parses the final
 //     227 line correctly.
 //
-// `^227\s` requires whitespace (space/tab) after "227" — this prevents
+// `^227 ` requires a literal SPACE after "227" — this prevents
 // matching "227-" continuation lines, which carry their own 6-tuple
 // in malformed replies and would otherwise hijack the real 227 line.
+// We use a literal space (not `\s`) because `\s` also matches tab,
+// vertical-tab, form-feed, CR, and LF — a malformed continuation
+// "227\t-Welcome (..)" would then match `^227\s` and hijack the real
+// 227 line that follows. RFC 959 §5.4 specifies SPACE as the
+// separator between response code and text, so a literal space is
+// both correct and narrower.
 //
 // `[^\n]*?` is non-greedy so the FIRST 6-tuple on the line wins. A greedy
 // `*` would backtrack to the LAST `(...)` on the line, picking the wrong
 // tuple when a server packs extra debug info into the reply.
-var pasvPortRe = regexp.MustCompile(`(?im)^227\s[^\n]*?\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)`)
+var pasvPortRe = regexp.MustCompile(`(?im)^227 [^\n]*?\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)`)
 
 // portCmdRe matches a PORT command per RFC 959 §4.1.2:
 //   "PORT h1,h2,h3,h4,p1,p2"

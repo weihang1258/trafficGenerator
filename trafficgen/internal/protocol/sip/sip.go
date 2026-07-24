@@ -404,6 +404,12 @@ func emitSIPMedia(
 	// advertises the caller's RTP port; 200 OK's m= advertises the callee's.
 	// For "up" direction (caller→callee): SrcPort=caller's (INVITE),
 	// DstPort=callee's (200 OK). For "down": swap.
+	//
+	// KNOWN LIMITATION: this scans the WHOLE dialog, not just the prefix
+	// up to the current EmitMedia index. So a re-INVITE that appears
+	// AFTER this EmitMedia point still affects this emit's ports
+	// (future-bleed). Fixing this would require passing the current
+	// dialog index into emitSIPMedia, which is a larger refactor.
 	invitePort, ok200Port := scanSDPMediaPorts(spec.SIP.Dialog)
 
 	srcPort := media.SrcPort
@@ -441,10 +447,12 @@ func emitSIPMedia(
 	rtpFlowID := parentFlowID + ":rtp"
 
 	// Direction determines L2/L3 tuple. "up" = caller→callee (spec.SrcIP →
-	// spec.DstIP); "down" = callee→caller (swap).
+	// spec.DstIP); "down" = callee→caller (swap). Case-insensitive to
+	// match FTP's Mode comparison (ftp.go:445 strings.EqualFold) — a user
+	// setting "Down" or "DOWN" should not silently fall through to "up".
 	var srcMAC, dstMAC, srcIP, dstIP string
 	var srcPortWire, dstPortWire uint16
-	if dir == "down" {
+	if strings.EqualFold(dir, "down") {
 		srcMAC, dstMAC = spec.DstMAC, spec.SrcMAC
 		srcIP, dstIP = spec.DstIP, spec.SrcIP
 		srcPortWire, dstPortWire = dstPort, srcPort
@@ -513,7 +521,12 @@ func emitSIPMedia(
 // media types are skipped because the SIP planner only emits audio RTP
 // (PCMU/PCMA) today; matching m=video would silently capture a video
 // port and produce an audio RTP flow on the wrong 4-tuple.
-var sdpMediaPortRe = regexp.MustCompile(`(?m)^m=audio\s+(\d+)`)
+//
+// The separator between "m=audio" and the port is `[ \t]+` (space or
+// tab, but NOT \r or \n). A `\s+` here would match CRLF and extract a
+// bogus port from the NEXT line of a malformed body like
+// "m=audio\r\n5004" — the port belongs to no media line at all.
+var sdpMediaPortRe = regexp.MustCompile(`(?m)^m=audio[ \t]+(\d+)`)
 
 // parseSDPMediaPort scans an SDP body for the first "m=<type> <port>" line
 // and returns the port. Returns 0 if not found.
@@ -541,16 +554,22 @@ func parseSDPMediaPort(body string) uint16 {
 // and the callee is the destination so DstPort=ok200Port.
 //
 // State machine (tracks "what's the next 200 OK responding to?"):
-//   - INVITE: sets lastWasInvite=true. Captures invitePort (last-wins for
-//     re-INVITE) if SDP present.
+//   - INVITE: sets lastWasInvite=true AND clears any pending non-INVITE
+//     method (a new INVITE supersedes any prior transaction per RFC 3261
+//     §17.2.1 — the prior PRACK/UPDATE transaction's 200 OK, if it
+//     arrives late, must NOT be misattributed to this new INVITE).
+//     Captures invitePort (last-wins for re-INVITE) if SDP present.
 //   - Non-INVITE request (PRACK/UPDATE/BYE/OPTIONS/etc.): sets
 //     pendingNonInviteMethod. The next 200 OK belongs to this transaction,
 //     not the INVITE — so its SDP is NOT captured as ok200Port.
 //   - 200 OK:
-//     - If pendingNonInviteMethod set: this is 200-to-non-INVITE. Consume
-//       the pending flag but DO NOT capture ok200Port (the answer belongs
-//       to a side transaction, not the INVITE's callee). Per RFC 3262,
-//       200-to-PRACK carrying SDP is the PRACK's answer, not the INVITE's.
+//     - If pendingNonInviteMethod set AND the pending method is UPDATE
+//       (RFC 3311 session modification): capture ok200Port (the callee's
+//       updated port — UPDATE modifies the session, so its answer is the
+//       new media port). Consume pending.
+//     - Else if pendingNonInviteMethod set: consume pending but DO NOT
+//       capture ok200Port (e.g. 200-to-PRACK's SDP is the PRACK's answer,
+//       not the INVITE's callee port per RFC 3262 §3).
 //     - Else if lastWasInvite: this is 200-to-INVITE. Capture ok200Port
 //       (last-wins) if SDP present. Consume lastWasInvite.
 //   - ACK: delayed-offer path — captures invitePort if SDP present.
@@ -560,6 +579,21 @@ func parseSDPMediaPort(body string) uint16 {
 // with SDP arriving before 200-to-INVITE is NOT misattributed to the
 // INVITE transaction (which would pollute ok200Port with the PRACK's
 // answer port).
+//
+// LIMITATION 1: when both 200-to-INVITE and 200-to-PRACK are pending
+// (both transactions in flight), the state machine attributes the FIRST
+// arriving 200 OK to the most recently sent request. If 200-to-INVITE
+// arrives BEFORE 200-to-PRACK (network reordering), it is misattributed
+// to PRACK and the real 200-to-PRACK's SDP is captured as ok200Port.
+// Correctly disambiguating requires CSeq/Via headers, which are not
+// modeled here. The user can work around this with explicit media.DstPort.
+//
+// LIMITATION 2: early-media port from reliable 1xx (RFC 3262 §3,
+// e.g. 183 with SDP) is NOT captured. The callee's actual RTP port in
+// an early-media session comes from the 183, but this scan returns it
+// as 0 — emitSIPMedia then falls back to 5004 for DstPort, producing
+// RTP to the wrong port. The user must set explicit media.DstPort for
+// early-media scenarios.
 func scanSDPMediaPorts(dialog []core.SIPMessage) (invitePort, ok200Port uint16) {
 	lastWasInvite := false
 	var pendingNonInviteMethod string
@@ -567,6 +601,11 @@ func scanSDPMediaPorts(dialog []core.SIPMessage) (invitePort, ok200Port uint16) 
 		port := parseSDPMediaPort(msg.Body) // 0 for empty/non-matching body
 		if msg.Method == "INVITE" {
 			lastWasInvite = true
+			// A new INVITE supersedes any pending non-INVITE transaction:
+			// its 200 OK is the callee's answer, not the prior PRACK's.
+			// Without this clear, PRACK → INVITE → 200-to-INVITE would
+			// misattribute the 200-to-INVITE to the stale PRACK.
+			pendingNonInviteMethod = ""
 			if port != 0 {
 				invitePort = port // last-wins for re-INVITE
 			}
@@ -580,9 +619,15 @@ func scanSDPMediaPorts(dialog []core.SIPMessage) (invitePort, ok200Port uint16) 
 		}
 		if msg.StatusCode == 200 {
 			if pendingNonInviteMethod != "" {
-				// 200-to-non-INVITE (e.g. 200-to-PRACK with SDP answer per
-				// RFC 3262 §3). The SDP answer, if present, belongs to the
-				// non-INVITE transaction — NOT captured as ok200Port.
+				if strings.EqualFold(pendingNonInviteMethod, "UPDATE") && port != 0 {
+					// 200-to-UPDATE per RFC 3311 is a session-modification
+					// answer — the callee's new RTP port. Update ok200Port
+					// (last-wins) so mid-call port changes propagate.
+					ok200Port = port
+				}
+				// For all non-UPDATE non-INVITE 200 OKs (PRACK, OPTIONS,
+				// BYE, etc.), the SDP answer belongs to that transaction,
+				// NOT to the INVITE's callee — discard it.
 				pendingNonInviteMethod = ""
 			} else if lastWasInvite {
 				// 200-to-INVITE. Capture callee's port (last-wins). Consume
