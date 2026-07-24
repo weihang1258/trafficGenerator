@@ -88,6 +88,28 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("invalid destination IP: %s", spec.DstIP)
 		}
 	}
+	// AltPath multi-homing addresses must be valid IPv4. buildIPv4AddrParam
+	// only emits IPv4 Address params (RFC 4960 §3.3.2.1 type 5); an IPv6 or
+	// garbage alt IP would silently produce no INIT param while HEARTBEATs
+	// still originate from that address - a DPI sees two unrelated flows.
+	// Reject here so the user sees the misconfiguration.
+	if spec.SCTP != nil && spec.SCTP.Heartbeats != nil && spec.SCTP.Heartbeats.AltPath != nil {
+		ap := spec.SCTP.Heartbeats.AltPath
+		if ap.SrcIP != "" {
+			if ip := net.ParseIP(ap.SrcIP); ip == nil {
+				return fmt.Errorf("invalid AltPath.SrcIP: %s", ap.SrcIP)
+			} else if ip.To4() == nil {
+				return fmt.Errorf("AltPath.SrcIP %s is IPv6; only IPv4 multi-homing is supported (RFC 4960 §3.3.2.1 type 5)", ap.SrcIP)
+			}
+		}
+		if ap.DstIP != "" {
+			if ip := net.ParseIP(ap.DstIP); ip == nil {
+				return fmt.Errorf("invalid AltPath.DstIP: %s", ap.DstIP)
+			} else if ip.To4() == nil {
+				return fmt.Errorf("AltPath.DstIP %s is IPv6; only IPv4 multi-homing is supported (RFC 4960 §3.3.2.1 type 5)", ap.DstIP)
+			}
+		}
+	}
 	return nil
 }
 
@@ -366,18 +388,18 @@ func buildINITAckChunk(initiateTag, initialTSN uint32, cookie []byte, altIPs []s
 }
 
 // buildIPv4AddrParam builds an IPv4 Address parameter (type 5) per RFC 4960
-// §3.3.2. Layout: Type(2) + Length(2) + 4 reserved + 4 IPv4 bytes = 12 bytes
-// total. Returns nil if ip is not a valid IPv4 address.
+// §3.3.2.1. Layout: Type(2) + Length(2) + IPv4(4) = 8 bytes total. Length=8
+// (includes Type+Length). No reserved field. Returns nil if ip is not a
+// valid IPv4 address - caller should Validate alt-path IPs to surface this.
 func buildIPv4AddrParam(ip string) []byte {
 	ipBytes := net.ParseIP(ip).To4()
 	if ipBytes == nil {
 		return nil
 	}
-	p := make([]byte, 12)
-	binary.BigEndian.PutUint16(p[0:2], 5)  // Parameter Type: IPv4 Address
-	binary.BigEndian.PutUint16(p[2:4], 12) // Length (includes Type+Length)
-	// p[4:8] reserved (zero)
-	copy(p[8:12], ipBytes)
+	p := make([]byte, 8)
+	binary.BigEndian.PutUint16(p[0:2], 5) // Parameter Type: IPv4 Address
+	binary.BigEndian.PutUint16(p[2:4], 8) // Length (includes Type+Length)
+	copy(p[4:8], ipBytes)
 	return p
 }
 

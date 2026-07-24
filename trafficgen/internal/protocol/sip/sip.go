@@ -511,7 +511,7 @@ func emitSIPMedia(
 // the media field is "m=" type SP port SP proto [fmt] CRLF. We extract the
 // port. Other media types (m=video, m=application) also match; we capture
 // any "m=<type> <port>" line so this works for non-audio media too.
-var sdpMediaPortRe = regexp.MustCompile(`(?m)^m=\w+\s+(\d+)`)
+var sdpMediaPortRe = regexp.MustCompile(`(?m)^m=audio\s+(\d+)`)
 
 // parseSDPMediaPort scans an SDP body for the first "m=<type> <port>" line
 // and returns the port. Returns 0 if not found.
@@ -538,20 +538,45 @@ func parseSDPMediaPort(body string) uint16 {
 // direction (caller→callee) the caller is the source so SrcPort=invitePort,
 // and the callee is the destination so DstPort=ok200Port.
 func scanSDPMediaPorts(dialog []core.SIPMessage) (invitePort, ok200Port uint16) {
+	lastWasInvite := false
 	for _, msg := range dialog {
-		if msg.Body == "" {
+		port := parseSDPMediaPort(msg.Body) // 0 for empty/non-matching body
+		if msg.Method == "INVITE" {
+			lastWasInvite = true
+			if port != 0 {
+				invitePort = port // last-wins for re-INVITE
+			}
 			continue
 		}
-		port := parseSDPMediaPort(msg.Body)
-		if port == 0 {
+		if msg.StatusCode == 200 {
+			// Only treat as 200-to-INVITE if it follows an INVITE (no
+			// intervening final response or ACK). 200-to-OPTIONS/REGISTER
+			// with SDP does NOT win. We do NOT reset lastWasInvite on
+			// non-INVITE requests (PRACK/UPDATE ride alongside the INVITE
+			// transaction per RFC 3262/3311 and shouldn't break the
+			// association). Last-wins means re-INVITEs pick up the new port.
+			// We also do NOT reset on 200 OK itself: a 200-to-PRACK (no SDP)
+			// must not prevent the subsequent 200-to-INVITE from matching.
+			// lastWasInvite is consumed only by ACK or a new INVITE.
+			if lastWasInvite && port != 0 {
+				ok200Port = port // last-wins
+			}
 			continue
 		}
-		if msg.Method == "INVITE" && invitePort == 0 {
-			invitePort = port
+		if msg.Method == "ACK" {
+			// Delayed-offer: INVITE had no SDP, ACK carries the answer.
+			// Always update (last-wins) so re-INVITE delayed-offer picks
+			// up the new caller port rather than holding the stale first
+			// INVITE's port.
+			if port != 0 {
+				invitePort = port
+			}
+			lastWasInvite = false
+			continue
 		}
-		if msg.StatusCode == 200 && ok200Port == 0 {
-			ok200Port = port
-		}
+		// Non-INVITE requests (PRACK/UPDATE/OPTIONS/BYE/REGISTER) do NOT
+		// reset lastWasInvite: they're separate transactions and shouldn't
+		// break the INVITE->200-OK association.
 	}
 	return invitePort, ok200Port
 }

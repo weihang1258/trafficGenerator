@@ -629,6 +629,21 @@ func TestParsePASVPort(t *testing.T) {
 		{"no_match", "227 Entering Passive Mode", 0},
 		{"malformed", "227 Entering Passive Mode (20,0,0,1)", 0},
 		{"empty", "", 0},
+		// Regex must anchor on "227" so a non-PASV response containing a
+		// 6-tuple (multi-line banner, MLSD/STAT listing) is NOT misinterpreted
+		// as a PASV advertisement.
+		{"non_227_banner_with_6tuple", "230-Welcome (1,2,3,4,5,6)", 0},
+		{"non_227_listing_with_6tuple", "150 Here follows a list (10,20,30,40,50,60)", 0},
+		// strconv.Atoi error must be checked, not swallowed - huge numbers
+		// that overflow int must NOT silently wrap into [0,65535].
+		{"overflow_p1", "227 Entering Passive Mode (20,0,0,1,99999999999999999999,80)", 0},
+		{"overflow_p2", "227 Entering Passive Mode (20,0,0,1,195,99999999999999999999)", 0},
+		// Multi-line 227 response per RFC 959 §4.2 continuation format:
+		// "227-Welcome\r\n227 Entering Passive Mode (...)". The regex must
+		// match the SECOND line (the final 227 line), not fail because the
+		// first line has no 6-tuple. Pre-fix the `^227` anchor without
+		// `(?m)` rejected this multi-line format.
+		{"multiline_227_continuation", "227-Welcome to FTP\r\n227 Entering Passive Mode (20,0,0,1,195,80)", 50000},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -658,6 +673,10 @@ func TestParsePORTPort(t *testing.T) {
 		{"no_match", "USER anonymous", 0},
 		{"pasv_response", "227 Entering Passive Mode (20,0,0,1,195,80)", 0},
 		{"empty", "", 0},
+		// strconv.Atoi error must be checked, not swallowed - huge numbers
+		// that overflow int must NOT silently wrap into [0,65535].
+		{"overflow_p1", "PORT 10,0,0,1,99999999999999999999,17", 0},
+		{"overflow_p2", "PORT 10,0,0,1,78,99999999999999999999", 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -761,5 +780,84 @@ func TestFTPDataChannel_UserOverrideBeatsSignaling(t *testing.T) {
 	syn := sub[0]
 	if syn.L4.DstPort != 43210 {
 		t.Errorf("DstPort=%d, want 43210 (user override beats signaling 50001)", syn.L4.DstPort)
+	}
+}
+
+// TestFTPDataChannel_MultiTransferDistinctPorts verifies that a dialog with
+// two PASV negotiations (advertising ports 50000 and 50001) and two
+// EmitDataChannel flags produces two data channels with DISTINCT DstPorts -
+// each data channel must associate with its own preceding PASV, not the
+// first one in the dialog. Pre-fix the function returned the first PASV
+// match for all data channels, producing 4-tuple collisions.
+//
+// This test asserts port-to-CHANNEL ordering (first data channel uses 50000,
+// second uses 50001), not just that both ports appear somewhere - a
+// hypothetical swap regression would pass the weaker assertion.
+func TestFTPDataChannel_MultiTransferDistinctPorts(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1",
+		SrcPort: 20000, DstPort: 21,
+		SrcMAC: "02:00:00:00:00:01", DstMAC: "02:00:00:00:00:02",
+		FTP: &core.FTPConfig{
+			Banner: "220 Welcome",
+			Commands: []core.FTPCommand{
+				{Cmd: "USER anonymous", Response: "331 Password required"},
+				{Cmd: "PASS guest", Response: "230 Login OK"},
+				{Cmd: "TYPE I", Response: "200 Type set"},
+				// First transfer: PASV advertises port 50000.
+				{Cmd: "PASV", Response: "227 Entering Passive Mode (20,0,0,1,195,80)"}, // 50000
+				{
+					Cmd:             "RETR /file1.bin",
+					Response:        "150 Opening data connection",
+					EmitDataChannel: true,
+				},
+				{Cmd: "", Response: "226 Transfer complete"},
+				// Second transfer: PASV advertises port 50001.
+				{Cmd: "PASV", Response: "227 Entering Passive Mode (20,0,0,1,195,81)"}, // 50001
+				{
+					Cmd:             "RETR /file2.bin",
+					Response:        "150 Opening data connection",
+					EmitDataChannel: true,
+				},
+				{Cmd: "", Response: "226 Transfer complete"},
+				{Cmd: "QUIT", Response: "221 Bye"},
+			},
+			DataChannel: &core.FTPDataChannel{
+				Mode:      "passive",
+				Direction: "down",
+				Payload:   "FILE-BODY",
+			},
+		},
+	}
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	// Collect SYN packets (passive mode: client->server, carries TCP options)
+	// in wire order. Each data channel starts with one SYN; two data channels
+	// -> two SYNs, ordered by emit time (first data channel's SYN before
+	// second's).
+	var syns []core.PacketConfig
+	for _, c := range cfgs {
+		if strings.HasSuffix(c.FlowID, ":sub-0") &&
+			c.Direction == "up" &&
+			len(c.L4.TCPOptions) > 0 &&
+			c.L4.Flags == 0x02 { // SYN flag only (SYN-ACK has 0x12)
+			syns = append(syns, c)
+		}
+	}
+	if len(syns) != 2 {
+		t.Fatalf("found %d SYN packets in sub-flow, want 2 (two data channels)", len(syns))
+	}
+	// First data channel's SYN must use the FIRST PASV port (50000).
+	if syns[0].L4.DstPort != 50000 {
+		t.Errorf("first data channel SYN DstPort=%d, want 50000 (first PASV)",
+			syns[0].L4.DstPort)
+	}
+	// Second data channel's SYN must use the SECOND PASV port (50001).
+	if syns[1].L4.DstPort != 50001 {
+		t.Errorf("second data channel SYN DstPort=%d, want 50001 (second PASV)",
+			syns[1].L4.DstPort)
 	}
 }

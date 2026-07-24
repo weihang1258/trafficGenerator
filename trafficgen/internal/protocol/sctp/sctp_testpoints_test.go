@@ -82,6 +82,52 @@ func TestSCTPValidate_NilSCTPConfig(t *testing.T) {
 	}
 }
 
+// TestSCTPValidate_AltPathIPv6Rejected verifies that an IPv6 AltPath address
+// is rejected at Validate time. Without this, buildIPv4AddrParam silently
+// returns nil for IPv6 -> INIT has no multi-homing param but HEARTBEATs
+// still originate from the IPv6 alt address -> DPI sees two unrelated flows.
+func TestSCTPValidate_AltPathIPv6Rejected(t *testing.T) {
+	p := NewPlanner()
+	spec := validSCTPSpec()
+	spec.SCTP.Heartbeats = &core.SCTPHeartbeatConfig{
+		Count:   1,
+		AltPath: &core.SCTPAltPath{SrcIP: "2001:db8::1", DstIP: "10.0.0.4"},
+	}
+	err := p.Validate(spec)
+	if err == nil || !strings.Contains(err.Error(), "AltPath.SrcIP") {
+		t.Errorf("err=%v, want contains 'AltPath.SrcIP' (IPv6 rejected)", err)
+	}
+}
+
+// TestSCTPValidate_AltPathGarbageRejected verifies that an unparseable
+// AltPath IP is rejected at Validate time.
+func TestSCTPValidate_AltPathGarbageRejected(t *testing.T) {
+	p := NewPlanner()
+	spec := validSCTPSpec()
+	spec.SCTP.Heartbeats = &core.SCTPHeartbeatConfig{
+		Count:   1,
+		AltPath: &core.SCTPAltPath{SrcIP: "garbage", DstIP: "10.0.0.4"},
+	}
+	err := p.Validate(spec)
+	if err == nil || !strings.Contains(err.Error(), "AltPath.SrcIP") {
+		t.Errorf("err=%v, want contains 'AltPath.SrcIP' (garbage rejected)", err)
+	}
+}
+
+// TestSCTPValidate_AltPathIPv4Accepted verifies that a valid IPv4 AltPath
+// passes Validate (the happy path for multi-homing).
+func TestSCTPValidate_AltPathIPv4Accepted(t *testing.T) {
+	p := NewPlanner()
+	spec := validSCTPSpec()
+	spec.SCTP.Heartbeats = &core.SCTPHeartbeatConfig{
+		Count:   1,
+		AltPath: &core.SCTPAltPath{SrcIP: "10.0.0.3", DstIP: "10.0.0.4"},
+	}
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("valid IPv4 AltPath: %v", err)
+	}
+}
+
 // --- Plan: structure ---
 
 // TestSCTPPlan_Handshake verifies the first 4 packets are INIT, INIT-ACK,
@@ -119,6 +165,17 @@ func TestSCTPPlan_Handshake(t *testing.T) {
 	}
 	if len(cfgs[1].Payload) < 4 || cfgs[1].Payload[0] != ChunkINITAck {
 		t.Errorf("cfg[1] payload: expected INIT-ACK chunk (type 2), got %v", cfgs[1].Payload)
+	}
+	// INIT-ACK ports must be swapped relative to INIT: src=server's port
+	// (spec.DstPort), dst=client's port (spec.SrcPort). Pre-fix the swap was
+	// missing and INIT-ACK carried the same (src,dst) as INIT.
+	if cfgs[1].L4.SrcPort != cfgs[0].L4.DstPort {
+		t.Errorf("cfg[1] (INIT-ACK) SrcPort=%d, want %d (server's port = INIT DstPort)",
+			cfgs[1].L4.SrcPort, cfgs[0].L4.DstPort)
+	}
+	if cfgs[1].L4.DstPort != cfgs[0].L4.SrcPort {
+		t.Errorf("cfg[1] (INIT-ACK) DstPort=%d, want %d (client's port = INIT SrcPort)",
+			cfgs[1].L4.DstPort, cfgs[0].L4.SrcPort)
 	}
 	// COOKIE-ECHO up
 	if cfgs[2].Direction != "up" {

@@ -538,12 +538,15 @@ func TestParseSDPMediaPort(t *testing.T) {
 			"v=0\r\nm=audio 16384 RTP/AVP 8\r\n",
 			16384,
 		},
-		{
-			"video",
-			"v=0\r\nm=video 5008 RTP/AVP 96\r\n",
-			5008,
-		},
-			{"no_m_line", "v=0\r\no=- 0 0 IN IP4 0.0.0.0\r\n", 0},
+		// m=video must NOT be parsed as an audio RTP port - pre-fix the
+		// regex matched any m= line so m=video 5008 won, producing an RTP
+		// 4-tuple that doesn't match the audio stream.
+		{"video_only", "v=0\r\nm=video 5008 RTP/AVP 96\r\n", 0},
+		// When m=video precedes m=audio, the audio port (5004) must win,
+		// not the video port (5006).
+		{"video_then_audio", "v=0\r\nm=video 5006 RTP/AVP 96\r\nm=audio 5004 RTP/AVP 0\r\n", 5004},
+		{"audio_then_video", "v=0\r\nm=audio 5004 RTP/AVP 0\r\nm=video 5006 RTP/AVP 96\r\n", 5004},
+		{"no_m_line", "v=0\r\no=- 0 0 IN IP4 0.0.0.0\r\n", 0},
 		{"empty", "", 0},
 	}
 	for _, tc := range cases {
@@ -605,5 +608,118 @@ func TestSIPMedia_UserPortOverrideBeatsSDP(t *testing.T) {
 	}
 	if rtp[0].L4.DstPort != 10002 {
 		t.Errorf("DstPort=%d, want 10002 (user override beats SDP 16386)", rtp[0].L4.DstPort)
+	}
+}
+
+// TestScanSDPMediaPorts_ReInviteLastWins verifies that a re-INVITE changing
+// the media port mid-call picks up the NEW port (last-wins), not the stale
+// first INVITE's port. Pre-fix scanSDPMediaPorts returned the FIRST match,
+// so a re-INVITE port change was silently dropped.
+func TestScanSDPMediaPorts_ReInviteLastWins(t *testing.T) {
+	dialog := []core.SIPMessage{
+		{Method: "INVITE", Body: "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"},
+		{StatusCode: 200, Body: "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"},
+		{Method: "ACK"},
+		// re-INVITE changes caller port to 16390.
+		{Method: "INVITE", Body: "v=0\r\nm=audio 16390 RTP/AVP 0\r\n"},
+		{StatusCode: 200, Body: "v=0\r\nm=audio 16392 RTP/AVP 0\r\n"},
+		{Method: "ACK"},
+	}
+	invitePort, ok200Port := scanSDPMediaPorts(dialog)
+	if invitePort != 16390 {
+		t.Errorf("invitePort=%d, want 16390 (last re-INVITE wins)", invitePort)
+	}
+	if ok200Port != 16392 {
+		t.Errorf("ok200Port=%d, want 16392 (last 200 OK wins)", ok200Port)
+	}
+}
+
+// TestScanSDPMediaPorts_200ToNonINVITERejected verifies that a 200 OK to a
+// non-INVITE request (e.g. OPTIONS) carrying an SDP body is NOT treated as
+// 200-to-INVITE. Pre-fix the scan matched any 200 OK, so a 200-to-OPTIONS
+// with SDP appearing before 200-to-INVITE would win.
+func TestScanSDPMediaPorts_200ToNonINVITERejected(t *testing.T) {
+	dialog := []core.SIPMessage{
+		{Method: "OPTIONS", Body: "v=0\r\nm=audio 9999 RTP/AVP 0\r\n"},
+		{StatusCode: 200, Body: "v=0\r\nm=audio 9998 RTP/AVP 0\r\n"}, // 200-to-OPTIONS
+		{Method: "INVITE", Body: "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"},
+		{StatusCode: 200, Body: "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"}, // 200-to-INVITE
+		{Method: "ACK"},
+	}
+	invitePort, ok200Port := scanSDPMediaPorts(dialog)
+	if invitePort != 16384 {
+		t.Errorf("invitePort=%d, want 16384 (from INVITE)", invitePort)
+	}
+	if ok200Port != 16386 {
+		t.Errorf("ok200Port=%d, want 16386 (from 200-to-INVITE, not 9998 from 200-to-OPTIONS)", ok200Port)
+	}
+}
+
+// TestScanSDPMediaPorts_DelayedOfferInACK verifies the delayed-offer
+// scenario (RFC 3261 §13.3.1): INVITE and 200 OK have empty Body, ACK
+// carries the SDP answer. Pre-fix scanSDPMediaPorts ignored ACK bodies so
+// invitePort stayed 0 and emitSIPMedia fell back to 5004, producing an RTP
+// 4-tuple that didn't match the ACK's advertised port.
+func TestScanSDPMediaPorts_DelayedOfferInACK(t *testing.T) {
+	dialog := []core.SIPMessage{
+		{Method: "INVITE"},                          // no SDP
+		{StatusCode: 200, Body: "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"},
+		{Method: "ACK", Body: "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"}, // delayed offer
+	}
+	invitePort, ok200Port := scanSDPMediaPorts(dialog)
+	if invitePort != 16384 {
+		t.Errorf("invitePort=%d, want 16384 (from ACK delayed-offer)", invitePort)
+	}
+	if ok200Port != 16386 {
+		t.Errorf("ok200Port=%d, want 16386 (from 200 OK)", ok200Port)
+	}
+}
+
+// TestScanSDPMediaPorts_PRACKDoesNotBreakInviteAssociation verifies that
+// a PRACK (RFC 3262 reliable provisional response ack) and its 200 OK,
+// sent between INVITE and 200-to-INVITE, do NOT break the
+// 200-OK-to-INVITE association. Pre-fix the "any non-INVITE request resets
+// lastWasInvite" logic caused 200-to-INVITE to be rejected after a PRACK.
+func TestScanSDPMediaPorts_PRACKDoesNotBreakInviteAssociation(t *testing.T) {
+	dialog := []core.SIPMessage{
+		{Method: "INVITE", Body: "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"},
+		{StatusCode: 183}, // Session Progress, no SDP
+		{Method: "PRACK"}, // ack the 183, no SDP
+		{StatusCode: 200}, // 200-to-PRACK, no SDP
+		{StatusCode: 200, Body: "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"}, // 200-to-INVITE
+		{Method: "ACK"},
+	}
+	invitePort, ok200Port := scanSDPMediaPorts(dialog)
+	if invitePort != 16384 {
+		t.Errorf("invitePort=%d, want 16384 (from INVITE)", invitePort)
+	}
+	if ok200Port != 16386 {
+		t.Errorf("ok200Port=%d, want 16386 (from 200-to-INVITE, not broken by PRACK)", ok200Port)
+	}
+}
+
+// TestScanSDPMediaPorts_ReInviteDelayedOfferLastWins verifies the re-INVITE
+// delayed-offer scenario: first INVITE sets invitePort, re-INVITE has no
+// SDP, re-INVITE's ACK carries the new caller port. Pre-fix the ACK branch
+// had `if invitePort == 0` so the re-INVITE's ACK-carried port was ignored,
+// producing a mixed state (stale invitePort, fresh ok200Port).
+func TestScanSDPMediaPorts_ReInviteDelayedOfferLastWins(t *testing.T) {
+	dialog := []core.SIPMessage{
+		// Initial offer/answer.
+		{Method: "INVITE", Body: "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"},
+		{StatusCode: 200, Body: "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"},
+		{Method: "ACK"},
+		// re-INVITE delayed-offer: re-INVITE has no SDP, 200 has callee's
+		// new port, ACK has caller's new port.
+		{Method: "INVITE"}, // no SDP
+		{StatusCode: 200, Body: "v=0\r\nm=audio 16392 RTP/AVP 0\r\n"},
+		{Method: "ACK", Body: "v=0\r\nm=audio 16390 RTP/AVP 0\r\n"},
+	}
+	invitePort, ok200Port := scanSDPMediaPorts(dialog)
+	if invitePort != 16390 {
+		t.Errorf("invitePort=%d, want 16390 (from re-INVITE ACK, last-wins; pre-fix stayed stale at 16384)", invitePort)
+	}
+	if ok200Port != 16392 {
+		t.Errorf("ok200Port=%d, want 16392 (from re-INVITE 200 OK, last-wins)", ok200Port)
 	}
 }

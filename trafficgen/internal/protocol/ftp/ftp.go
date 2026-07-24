@@ -199,7 +199,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 
 		// --- FTP command/response pairs ---
-		for _, cmd := range ftpConfig.Commands {
+		for cmdIdx, cmd := range ftpConfig.Commands {
 			// Command (client -> server). Append CRLF per RFC 959 §4.1.
 			// Empty Cmd is skipped (lets users model server-only turns,
 			// though real FTP is always command-then-response).
@@ -220,7 +220,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			// the "150" response (above) and the next "226" response
 			// (the next loop iteration).
 			if cmd.EmitDataChannel && ftpConfig.DataChannel != nil {
-				emitFTPDataChannel(configChan, ftpConfig.DataChannel, spec, flowID, now, &packetIndex, nextIPID, mss)
+				emitFTPDataChannel(configChan, ftpConfig.DataChannel, spec, flowID, now, &packetIndex, nextIPID, mss, cmdIdx)
 			}
 		}
 
@@ -287,7 +287,7 @@ func synOptions(mss uint16) []core.TCPOption {
 // port here because FTP data-channel IP is already governed by spec.SrcIP/
 // DstIP — a real server advertising a different IP in PASV is rare and we
 // don't model routability edge cases).
-var pasvPortRe = regexp.MustCompile(`\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)`)
+var pasvPortRe = regexp.MustCompile(`(?im)^227[^\n]*\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)`)
 
 // portCmdRe matches a PORT command per RFC 959 §4.1.2:
 //   "PORT h1,h2,h3,h4,p1,p2"
@@ -300,15 +300,19 @@ var pasvPortRe = regexp.MustCompile(`\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)`)
 var portCmdRe = regexp.MustCompile(`(?i)^PORT\s+(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)`)
 
 // parsePASVPort scans a server response string for a 227 PASV 6-tuple and
-// returns the derived data-port (p1*256+p2). Returns 0 if not found.
+// returns the derived data-port (p1*256+p2). Returns 0 if not found or if
+// the port components don't parse as integers in [0, 65535].
 // Example: "227 Entering Passive Mode (20,0,0,1,195,80)" -> 50000.
 func parsePASVPort(response string) uint16 {
 	m := pasvPortRe.FindStringSubmatch(response)
 	if m == nil {
 		return 0
 	}
-	p1, _ := strconv.Atoi(m[5])
-	p2, _ := strconv.Atoi(m[6])
+	p1, err1 := strconv.Atoi(m[5])
+	p2, err2 := strconv.Atoi(m[6])
+	if err1 != nil || err2 != nil {
+		return 0
+	}
 	port := p1*256 + p2
 	if port < 0 || port > 65535 {
 		return 0
@@ -317,15 +321,19 @@ func parsePASVPort(response string) uint16 {
 }
 
 // parsePORTPort scans a client command for a PORT 6-tuple and returns the
-// derived data-port (p1*256+p2). Returns 0 if not found.
+// derived data-port (p1*256+p2). Returns 0 if not found or if the port
+// components don't parse as integers in [0, 65535].
 // Example: "PORT 10,0,0,1,78,17" -> 20001 (78*256+17).
 func parsePORTPort(cmd string) uint16 {
 	m := portCmdRe.FindStringSubmatch(cmd)
 	if m == nil {
 		return 0
 	}
-	p1, _ := strconv.Atoi(m[5])
-	p2, _ := strconv.Atoi(m[6])
+	p1, err1 := strconv.Atoi(m[5])
+	p2, err2 := strconv.Atoi(m[6])
+	if err1 != nil || err2 != nil {
+		return 0
+	}
 	port := p1*256 + p2
 	if port < 0 || port > 65535 {
 		return 0
@@ -343,21 +351,28 @@ func parsePORTPort(cmd string) uint16 {
 // signaling plane actually advertised — without it, a pcap showing "227 ...(
 // 20,0,0,1,195,80)" followed by a data SYN to port 50001 would look like
 // two unrelated flows to a DPI.
-func scanCommandsForDataPort(commands []core.FTPCommand, isActive bool) uint16 {
+func scanCommandsForDataPort(commands []core.FTPCommand, isActive bool, upToIdx int) uint16 {
+	if upToIdx < 0 {
+		return 0
+	}
+	if upToIdx >= len(commands) {
+		upToIdx = len(commands) - 1
+	}
+	var port uint16
 	if isActive {
-		for _, cmd := range commands {
-			if port := parsePORTPort(cmd.Cmd); port != 0 {
-				return port
+		for i := 0; i <= upToIdx; i++ {
+			if p := parsePORTPort(commands[i].Cmd); p != 0 {
+				port = p
 			}
 		}
 	} else {
-		for _, cmd := range commands {
-			if port := parsePASVPort(cmd.Response); port != 0 {
-				return port
+		for i := 0; i <= upToIdx; i++ {
+			if p := parsePASVPort(commands[i].Response); p != 0 {
+				port = p
 			}
 		}
 	}
-	return 0
+	return port
 }
 
 // emitFTPDataChannel emits the FTP data-channel sub-flow. The sub-flow is
@@ -403,6 +418,7 @@ func emitFTPDataChannel(
 	packetIndex *uint64,
 	nextIPID func() uint16,
 	parentMSS uint16,
+	cmdIdx int,
 ) {
 	// Default mode is passive (the modern default; active is rare outside
 	// legacy clients). Case-insensitive comparison so "Active", "PASSIVE",
@@ -413,11 +429,13 @@ func emitFTPDataChannel(
 	}
 	isActive := strings.EqualFold(mode, "active")
 
-	// Scan the control-channel dialog to find the data-port declared in
-	// signaling (227 PASV response for passive; PORT command for active).
-	// This lets the data-channel 4-tuple match what the control channel
-	// actually advertised, so DPI sees them as related.
-	signalingDataPort := scanCommandsForDataPort(spec.FTP.Commands, isActive)
+	// Scan the control-channel dialog up to cmdIdx to find the data-port
+	// declared in signaling (227 PASV response for passive; PORT command for
+	// active). This lets the data-channel 4-tuple match what the control
+	// channel actually advertised, so DPI sees them as related. Scanning up
+	// to cmdIdx (not the whole dialog) ensures multi-transfer dialogs
+	// associate each data channel with its own preceding PASV/PORT.
+	signalingDataPort := scanCommandsForDataPort(spec.FTP.Commands, isActive, cmdIdx)
 
 	// Resolve data-channel ports. SubFlowSpec uses SrcPort=client's port,
 	// DstPort=server's port always.

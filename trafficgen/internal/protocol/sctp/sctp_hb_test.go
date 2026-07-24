@@ -468,32 +468,32 @@ func TestSCTPHeartbeat_PortsInheritFromParent(t *testing.T) {
 }
 
 // findINITPacket returns the first config whose Payload starts with the
-// INIT chunk type byte (0x01).
+// INIT chunk type byte. Uses findFirstChunkType to avoid duplicating the
+// scan loop. Returns (index, *config) or (-1, nil) if not found.
 func findINITPacket(cfgs []core.PacketConfig) (int, *core.PacketConfig) {
-	for i, c := range cfgs {
-		if len(c.Payload) >= 1 && c.Payload[0] == 0x01 {
-			return i, &c
-		}
+	i := findFirstChunkType(cfgs, ChunkINIT)
+	if i < 0 {
+		return -1, nil
 	}
-	return -1, nil
+	return i, &cfgs[i]
 }
 
 // findINITAckPacket returns the first config whose Payload starts with the
-// INIT-ACK chunk type byte (0x02).
+// INIT-ACK chunk type byte. Uses findFirstChunkType to avoid duplicating the
+// scan loop. Returns (index, *config) or (-1, nil) if not found.
 func findINITAckPacket(cfgs []core.PacketConfig) (int, *core.PacketConfig) {
-	for i, c := range cfgs {
-		if len(c.Payload) >= 1 && c.Payload[0] == 0x02 {
-			return i, &c
-		}
+	i := findFirstChunkType(cfgs, ChunkINITAck)
+	if i < 0 {
+		return -1, nil
 	}
-	return -1, nil
+	return i, &cfgs[i]
 }
 
 // scanIPv4AddrParams walks an SCTP chunk value (passed as the chunk's
 // value bytes, i.e. Payload with the 4-byte chunk header stripped) and
 // returns the list of IPv4 addresses declared in IPv4 Address parameters
-// (type 5). Per RFC 4960 §3.3.2, the parameter layout is:
-//   Type(2) + Length(2) + 4 reserved + 4 IPv4 = 12 bytes.
+// (type 5). Per RFC 4960 §3.3.2.1, the parameter layout is:
+//   Type(2) + Length(2) + IPv4(4) = 8 bytes (no reserved field).
 //
 // The caller passes the full chunk value (fixed 16 bytes for INIT/INIT-ACK
 // + trailing params). We start scanning at offset 16 (after fixed fields).
@@ -515,15 +515,15 @@ func scanIPv4AddrParams(value []byte) []string {
 		}
 	}
 
-	for off+12 <= len(value) {
+	for off+8 <= len(value) {
 		ptype := binary.BigEndian.Uint16(value[off : off+2])
 		plen := int(binary.BigEndian.Uint16(value[off+2 : off+4]))
-		if ptype == 5 && plen == 12 {
+		if ptype == 5 && plen == 8 {
 			addr := net.IPv4(
-				value[off+8],
-				value[off+9],
-				value[off+10],
-				value[off+11],
+				value[off+4],
+				value[off+5],
+				value[off+6],
+				value[off+7],
 			).String()
 			addrs = append(addrs, addr)
 		}
@@ -623,5 +623,17 @@ func TestSCTPMultiHoming_NoAltPathNoAddrParams(t *testing.T) {
 	addrs := scanIPv4AddrParams(value)
 	if len(addrs) != 0 {
 		t.Errorf("INIT without AltPath has %d IPv4 Address params, want 0", len(addrs))
+	}
+	// Also check INIT-ACK: pre-sweep the test only checked INIT, leaving
+	// the INIT-ACK path unverified - a regression that added spurious IPv4
+	// params to INIT-ACK without AltPath would have passed.
+	_, initAckPkt := findINITAckPacket(cfgs)
+	if initAckPkt == nil {
+		t.Fatalf("INIT-ACK packet not found")
+	}
+	value = initAckPkt.Payload[4:]
+	addrs = scanIPv4AddrParams(value)
+	if len(addrs) != 0 {
+		t.Errorf("INIT-ACK without AltPath has %d IPv4 Address params, want 0", len(addrs))
 	}
 }
