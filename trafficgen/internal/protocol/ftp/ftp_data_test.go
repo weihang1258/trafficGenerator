@@ -651,6 +651,10 @@ func TestParsePORTPort(t *testing.T) {
 		{"standard", "PORT 10,0,0,1,78,17", 19985},   // 78*256+17
 		{"high_port", "PORT 10,0,0,1,255,255", 65535}, // 255*256+255
 		{"low_port", "PORT 10,0,0,1,0,200", 200},      // 0*256+200
+		// Per RFC 959 §5.3.1 FTP commands are case-insensitive. The regex
+		// uses (?i) so "port", "Port", "PORT" all parse the same.
+		{"lowercase", "port 10,0,0,1,78,17", 19985},
+		{"mixed_case", "Port 10,0,0,1,78,17", 19985},
 		{"no_match", "USER anonymous", 0},
 		{"pasv_response", "227 Entering Passive Mode (20,0,0,1,195,80)", 0},
 		{"empty", "", 0},

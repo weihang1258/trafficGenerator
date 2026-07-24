@@ -292,7 +292,12 @@ var pasvPortRe = regexp.MustCompile(`\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)`)
 // portCmdRe matches a PORT command per RFC 959 §4.1.2:
 //   "PORT h1,h2,h3,h4,p1,p2"
 // The client tells the server "I'm listening on IP h1.h2.h3.h4 port p1*256+p2".
-var portCmdRe = regexp.MustCompile(`^PORT\s+(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)`)
+// Per RFC 959 §5.3.1 FTP commands are case-insensitive — the regex anchors
+// at start-of-string and uses (?i) for case-insensitive matching so "port",
+// "Port", "PORT" all parse. The (?i) applies to the entire regex (not just
+// the literal PORT) but only the literal PORT is alphabetic so the effect
+// is "case-insensitive command name".
+var portCmdRe = regexp.MustCompile(`(?i)^PORT\s+(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)`)
 
 // parsePASVPort scans a server response string for a 227 PASV 6-tuple and
 // returns the derived data-port (p1*256+p2). Returns 0 if not found.

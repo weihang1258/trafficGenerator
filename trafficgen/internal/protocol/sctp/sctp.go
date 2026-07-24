@@ -204,7 +204,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		cookie := make([]byte, 32) // arbitrary cookie; just needs to be non-empty
 		rand.Read(cookie)
 		emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP,
-			spec.SrcPort, spec.DstPort, clientVerTag,
+			spec.DstPort, spec.SrcPort, clientVerTag,
 			buildINITAckChunk(serverVerTag, serverTSN, cookie, serverAltIPs))
 
 		// COOKIE-ECHO (client -> server, VerificationTag=server's tag from INIT-ACK).
