@@ -31,6 +31,8 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -279,26 +281,105 @@ func synOptions(mss uint16) []core.TCPOption {
 	return opts
 }
 
+// pasvPortRe matches the 6-tuple inside a 227 PASV response per RFC 959 §4.1.2:
+//   "227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)"
+// The data-port is p1*256+p2. The IP is h1.h2.h3.h4 (we only extract the
+// port here because FTP data-channel IP is already governed by spec.SrcIP/
+// DstIP — a real server advertising a different IP in PASV is rare and we
+// don't model routability edge cases).
+var pasvPortRe = regexp.MustCompile(`\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)`)
+
+// portCmdRe matches a PORT command per RFC 959 §4.1.2:
+//   "PORT h1,h2,h3,h4,p1,p2"
+// The client tells the server "I'm listening on IP h1.h2.h3.h4 port p1*256+p2".
+var portCmdRe = regexp.MustCompile(`^PORT\s+(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)`)
+
+// parsePASVPort scans a server response string for a 227 PASV 6-tuple and
+// returns the derived data-port (p1*256+p2). Returns 0 if not found.
+// Example: "227 Entering Passive Mode (20,0,0,1,195,80)" -> 50000.
+func parsePASVPort(response string) uint16 {
+	m := pasvPortRe.FindStringSubmatch(response)
+	if m == nil {
+		return 0
+	}
+	p1, _ := strconv.Atoi(m[5])
+	p2, _ := strconv.Atoi(m[6])
+	port := p1*256 + p2
+	if port < 0 || port > 65535 {
+		return 0
+	}
+	return uint16(port)
+}
+
+// parsePORTPort scans a client command for a PORT 6-tuple and returns the
+// derived data-port (p1*256+p2). Returns 0 if not found.
+// Example: "PORT 10,0,0,1,78,17" -> 20001 (78*256+17).
+func parsePORTPort(cmd string) uint16 {
+	m := portCmdRe.FindStringSubmatch(cmd)
+	if m == nil {
+		return 0
+	}
+	p1, _ := strconv.Atoi(m[5])
+	p2, _ := strconv.Atoi(m[6])
+	port := p1*256 + p2
+	if port < 0 || port > 65535 {
+		return 0
+	}
+	return uint16(port)
+}
+
+// scanCommandsForDataPort walks the FTP control-channel dialog to find the
+// data-port declared in signaling. For passive mode it looks for the 227
+// PASV response (server-advertised port). For active mode it looks for the
+// PORT command (client-advertised port). Returns 0 if no signaling-derived
+// port is found.
+//
+// This is the mechanism that lets the data-channel 4-tuple match what the
+// signaling plane actually advertised — without it, a pcap showing "227 ...(
+// 20,0,0,1,195,80)" followed by a data SYN to port 50001 would look like
+// two unrelated flows to a DPI.
+func scanCommandsForDataPort(commands []core.FTPCommand, isActive bool) uint16 {
+	if isActive {
+		for _, cmd := range commands {
+			if port := parsePORTPort(cmd.Cmd); port != 0 {
+				return port
+			}
+		}
+	} else {
+		for _, cmd := range commands {
+			if port := parsePASVPort(cmd.Response); port != 0 {
+				return port
+			}
+		}
+	}
+	return 0
+}
+
 // emitFTPDataChannel emits the FTP data-channel sub-flow. The sub-flow is
 // a second TCP connection carrying the file body — it has its own 4-tuple,
 // handshake, sequence space, and teardown, but shares the parent's GroupID
 // so it routes to the same PacketWorker (wire order = emit order).
 //
-// Port derivation (RFC 959 §5.2):
-//   - active mode (PORT): server connects from port 20 to client's
-//     data-port (control_src_port + 1 is the conventional choice).
+// Port derivation (RFC 959 §5.2), in priority order:
+//  1. Explicit user override (dc.SrcPort / dc.DstPort).
+//  2. Parsed from signaling (PASV 227 response for passive; PORT command
+//     for active) — this is what makes the data-channel 4-tuple match what
+//     the control channel actually advertised.
+//  3. Hardcoded fallback (server port 20 for active; ephemeral
+//     control_src_port+1 for the client's side; 50000 when no PASV response
+//     in dialog).
+//
+//   - active mode (PORT): server connects from port 20 to client's data-port.
 //     SubFlowSpec.ServerInitiated=true so SYN goes server→client.
 //   - passive mode (PASV): client connects from an ephemeral port to
-//     server's data-port (control_src_port + 1 is a reasonable ephemeral
-//     choice; the real port would be parsed from the PASV 227 response,
-//     but we keep it deterministic for test reproducibility).
+//     server's data-port.
 //     SubFlowSpec.ServerInitiated=false so SYN goes client→server.
 //
 // SrcPort/DstPort on SubFlowSpec are always CLIENT's port / SERVER's port
 // (regardless of who opens the connection). For active mode this means
 // SrcPort=client's data port (e.g. 20001), DstPort=20; for passive mode
 // SrcPort=client's ephemeral (e.g. 20001), DstPort=server's PASV port
-// (default 50000).
+// (e.g. 50000).
 //
 // The sub-flow's Direction is taken verbatim from FTPDataChannel.Direction:
 //   - "down" = RETR (server sends file bytes to client)
@@ -327,6 +408,12 @@ func emitFTPDataChannel(
 	}
 	isActive := strings.EqualFold(mode, "active")
 
+	// Scan the control-channel dialog to find the data-port declared in
+	// signaling (227 PASV response for passive; PORT command for active).
+	// This lets the data-channel 4-tuple match what the control channel
+	// actually advertised, so DPI sees them as related.
+	signalingDataPort := scanCommandsForDataPort(spec.FTP.Commands, isActive)
+
 	// Resolve data-channel ports. SubFlowSpec uses SrcPort=client's port,
 	// DstPort=server's port always.
 	clientDataPort := dc.SrcPort
@@ -334,15 +421,16 @@ func emitFTPDataChannel(
 
 	if isActive {
 		// Server connects from port 20 (server's port) to client's data port.
+		// serverDataPort = server's data port (20 fallback).
 		if serverDataPort == 0 {
 			serverDataPort = 20
 		}
+		// clientDataPort = client's advertised PORT port (parsed from the
+		// PORT command) or control_src_port+1 fallback.
 		if clientDataPort == 0 {
-			// Convention: client's data port = control src_port + 1.
-			// Guard against overflow: if control port is 65535, wrap to
-			// an ephemeral port (e.g. 1024) rather than producing 0
-			// (which would be interpreted as "derive" and loop).
-			if spec.SrcPort == 65535 {
+			if signalingDataPort != 0 {
+				clientDataPort = signalingDataPort
+			} else if spec.SrcPort == 65535 {
 				clientDataPort = 1024
 			} else {
 				clientDataPort = spec.SrcPort + 1
@@ -357,10 +445,14 @@ func emitFTPDataChannel(
 				clientDataPort = spec.SrcPort + 1
 			}
 		}
+		// serverDataPort = server's advertised PASV port (parsed from the
+		// 227 response) or 50000 fallback.
 		if serverDataPort == 0 {
-			// Default to 50000 when no PASV response to parse. This is
-			// a common high port for test scenarios; users can override.
-			serverDataPort = 50000
+			if signalingDataPort != 0 {
+				serverDataPort = signalingDataPort
+			} else {
+				serverDataPort = 50000
+			}
 		}
 	}
 

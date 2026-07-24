@@ -10,6 +10,7 @@ package sctp
 import (
 	"context"
 	"encoding/binary"
+	"net"
 	"strings"
 	"testing"
 
@@ -463,5 +464,164 @@ func TestSCTPHeartbeat_PortsInheritFromParent(t *testing.T) {
 			t.Errorf("hb[%d] DstPort=%d, want 38412 (parent's)",
 				i, c.L4.DstPort)
 		}
+	}
+}
+
+// findINITPacket returns the first config whose Payload starts with the
+// INIT chunk type byte (0x01).
+func findINITPacket(cfgs []core.PacketConfig) (int, *core.PacketConfig) {
+	for i, c := range cfgs {
+		if len(c.Payload) >= 1 && c.Payload[0] == 0x01 {
+			return i, &c
+		}
+	}
+	return -1, nil
+}
+
+// findINITAckPacket returns the first config whose Payload starts with the
+// INIT-ACK chunk type byte (0x02).
+func findINITAckPacket(cfgs []core.PacketConfig) (int, *core.PacketConfig) {
+	for i, c := range cfgs {
+		if len(c.Payload) >= 1 && c.Payload[0] == 0x02 {
+			return i, &c
+		}
+	}
+	return -1, nil
+}
+
+// scanIPv4AddrParams walks an SCTP chunk value (passed as the chunk's
+// value bytes, i.e. Payload with the 4-byte chunk header stripped) and
+// returns the list of IPv4 addresses declared in IPv4 Address parameters
+// (type 5). Per RFC 4960 §3.3.2, the parameter layout is:
+//   Type(2) + Length(2) + 4 reserved + 4 IPv4 = 12 bytes.
+//
+// The caller passes the full chunk value (fixed 16 bytes for INIT/INIT-ACK
+// + trailing params). We start scanning at offset 16 (after fixed fields).
+// For INIT-ACK we also skip the State Cookie parameter if present.
+func scanIPv4AddrParams(value []byte) []string {
+	var addrs []string
+	off := 16 // skip INIT/INIT-ACK fixed fields
+
+	// INIT-ACK carries a State Cookie param (type 7) before any IPv4 params.
+	// If present, skip it. (INIT has no cookie, so this is a no-op there.)
+	if off+4 <= len(value) {
+		ptype := binary.BigEndian.Uint16(value[off : off+2])
+		if ptype == 7 {
+			plen := int(binary.BigEndian.Uint16(value[off+2 : off+4]))
+			if plen >= 4 {
+				padded := (plen + 3) &^ 3
+				off += padded
+			}
+		}
+	}
+
+	for off+12 <= len(value) {
+		ptype := binary.BigEndian.Uint16(value[off : off+2])
+		plen := int(binary.BigEndian.Uint16(value[off+2 : off+4]))
+		if ptype == 5 && plen == 12 {
+			addr := net.IPv4(
+				value[off+8],
+				value[off+9],
+				value[off+10],
+				value[off+11],
+			).String()
+			addrs = append(addrs, addr)
+		}
+		if plen < 4 {
+			break
+		}
+		padded := (plen + 3) &^ 3
+		off += padded
+	}
+	return addrs
+}
+
+// TestSCTPMultiHoming_INITCarriesAltAddrs verifies that when AltPath is set,
+// the INIT chunk carries an IPv4 Address parameter (type 5) declaring the
+// client's (sender's) alternate local address per RFC 4960 §3.3.2/§C.2.
+// INIT carries ONLY the sender's local addresses — the server's alt address
+// goes in INIT-ACK. Without this param, a DPI can't associate the alt-path
+// HEARTBEAT with this association.
+func TestSCTPMultiHoming_INITCarriesAltAddrs(t *testing.T) {
+	spec := heartbeatSpec()
+	spec.SCTP.Heartbeats.AltPath = &core.SCTPAltPath{
+		SrcIP: "10.0.0.3", DstIP: "10.0.0.4",
+	}
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	_, initPkt := findINITPacket(cfgs)
+	if initPkt == nil {
+		t.Fatalf("INIT packet not found")
+	}
+	if len(initPkt.Payload) < 4+16 {
+		t.Fatalf("INIT payload too short: %d", len(initPkt.Payload))
+	}
+	// Strip 4-byte chunk header to get the INIT value.
+	value := initPkt.Payload[4:]
+	addrs := scanIPv4AddrParams(value)
+	if len(addrs) != 1 {
+		t.Fatalf("INIT has %d IPv4 Address params, want 1 (client's alt only)",
+			len(addrs))
+	}
+	if addrs[0] != "10.0.0.3" {
+		t.Errorf("INIT addr[0]=%q, want 10.0.0.3 (client's alt SrcIP)",
+			addrs[0])
+	}
+}
+
+// TestSCTPMultiHoming_INITAckCarriesAltAddrs verifies INIT-ACK carries an
+// IPv4 Address parameter declaring the server's (sender's) alternate local
+// address per RFC 4960 §3.3.2/§C.2. INIT-ACK carries ONLY the sender's local
+// addresses — the client's alt address goes in INIT.
+func TestSCTPMultiHoming_INITAckCarriesAltAddrs(t *testing.T) {
+	spec := heartbeatSpec()
+	spec.SCTP.Heartbeats.AltPath = &core.SCTPAltPath{
+		SrcIP: "10.0.0.3", DstIP: "10.0.0.4",
+	}
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	_, initAckPkt := findINITAckPacket(cfgs)
+	if initAckPkt == nil {
+		t.Fatalf("INIT-ACK packet not found")
+	}
+	if len(initAckPkt.Payload) < 4+16+4+32 {
+		t.Fatalf("INIT-ACK payload too short: %d", len(initAckPkt.Payload))
+	}
+	value := initAckPkt.Payload[4:]
+	addrs := scanIPv4AddrParams(value)
+	if len(addrs) != 1 {
+		t.Fatalf("INIT-ACK has %d IPv4 Address params, want 1 (server's alt only)",
+			len(addrs))
+	}
+	if addrs[0] != "10.0.0.4" {
+		t.Errorf("INIT-ACK addr[0]=%q, want 10.0.0.4 (server's alt DstIP)",
+			addrs[0])
+	}
+}
+
+// TestSCTPMultiHoming_NoAltPathNoAddrParams verifies that without AltPath,
+// INIT and INIT-ACK do NOT carry IPv4 Address parameters (backward compat:
+// single-homed SCTP has no multi-homing addresses to declare).
+func TestSCTPMultiHoming_NoAltPathNoAddrParams(t *testing.T) {
+	spec := heartbeatSpec() // no AltPath
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	_, initPkt := findINITPacket(cfgs)
+	if initPkt == nil {
+		t.Fatalf("INIT packet not found")
+	}
+	value := initPkt.Payload[4:]
+	addrs := scanIPv4AddrParams(value)
+	if len(addrs) != 0 {
+		t.Errorf("INIT without AltPath has %d IPv4 Address params, want 0", len(addrs))
 	}
 }

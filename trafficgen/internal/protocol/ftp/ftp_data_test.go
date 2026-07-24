@@ -614,3 +614,148 @@ func TestFTPDataChannel_ModeEmptyDefaultsPassive(t *testing.T) {
 		t.Errorf("empty Mode: SYN Direction=%q, want \"up\" (passive default)", syn.Direction)
 	}
 }
+
+// TestParsePASVPort verifies the 227 PASV response parser. Per RFC 959 §5.2
+// the data-port is p1*256+p2 from the 6-tuple "(h1,h2,h3,h4,p1,p2)".
+func TestParsePASVPort(t *testing.T) {
+	cases := []struct {
+		name     string
+		response string
+		want     uint16
+	}{
+		{"standard", "227 Entering Passive Mode (20,0,0,1,195,80)", 50000},   // 195*256+80
+		{"high_port", "227 Entering Passive Mode (20,0,0,1,255,255)", 65535}, // 255*256+255
+		{"low_port", "227 Entering Passive Mode (20,0,0,1,0,1)", 1},          // 0*256+1
+		{"no_match", "227 Entering Passive Mode", 0},
+		{"malformed", "227 Entering Passive Mode (20,0,0,1)", 0},
+		{"empty", "", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := parsePASVPort(tc.response)
+			if got != tc.want {
+				t.Errorf("parsePASVPort(%q)=%d, want %d", tc.response, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestParsePORTPort verifies the PORT command parser. Per RFC 959 §5.2 the
+// data-port is p1*256+p2 from "PORT h1,h2,h3,h4,p1,p2".
+func TestParsePORTPort(t *testing.T) {
+	cases := []struct {
+		name string
+		cmd  string
+		want uint16
+	}{
+		{"standard", "PORT 10,0,0,1,78,17", 19985},   // 78*256+17
+		{"high_port", "PORT 10,0,0,1,255,255", 65535}, // 255*256+255
+		{"low_port", "PORT 10,0,0,1,0,200", 200},      // 0*256+200
+		{"no_match", "USER anonymous", 0},
+		{"pasv_response", "227 Entering Passive Mode (20,0,0,1,195,80)", 0},
+		{"empty", "", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := parsePORTPort(tc.cmd)
+			if got != tc.want {
+				t.Errorf("parsePORTPort(%q)=%d, want %d", tc.cmd, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestFTPDataChannel_PassivePortFromPASVResponse verifies that the data-channel
+// DstPort (server's PASV port) is parsed from the 227 PASV response in the
+// control-channel dialog rather than falling back to 50000.
+//
+// The default dataChannelSpec has "227 Entering Passive Mode (20,0,0,1,195,80)"
+// → port 50000, which happens to match the old hardcoded default. To prove
+// the parser is actually running, we use a different PASV port (50001 = 195*256+81)
+// and check the data-channel SYN's DstPort equals 50001.
+func TestFTPDataChannel_PassivePortFromPASVResponse(t *testing.T) {
+	spec := dataChannelSpec()
+	// Change the PASV response to advertise port 50001 (195*256+81) instead
+	// of the default 50000.
+	spec.FTP.Commands[3].Response = "227 Entering Passive Mode (20,0,0,1,195,81)"
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	sub := findSubFlowPackets(cfgs)
+	if len(sub) == 0 {
+		t.Fatalf("no sub-flow packets")
+	}
+	syn := sub[0]
+	if syn.L4.DstPort != 50001 {
+		t.Errorf("passive DstPort=%d, want 50001 (parsed from 227 response 195,81)", syn.L4.DstPort)
+	}
+	// The SrcPort is still the client's ephemeral derived from control port +1.
+	if syn.L4.SrcPort != 20001 {
+		t.Errorf("passive SrcPort=%d, want 20001 (control 20000 + 1)", syn.L4.SrcPort)
+	}
+}
+
+// TestFTPDataChannel_ActivePortFromPORTCommand verifies that the data-channel
+// client-side port is parsed from the PORT command in the control-channel
+// dialog rather than falling back to control_src_port+1.
+//
+// We inject "PORT 10,0,0,1,78,33" → port 20001 (78*256+33=20001) and check
+// the data-channel SYN's DstPort (client's port the server connects to)
+// equals 20001.
+func TestFTPDataChannel_ActivePortFromPORTCommand(t *testing.T) {
+	spec := dataChannelSpec()
+	spec.FTP.DataChannel.Mode = "active"
+	// Replace the PASV command/response pair with a PORT command.
+	// 78*256+33 = 20001 (matches the conventional ctrl_port+1 by coincidence,
+	// but proves the parser works — if it ignored PORT and fell back to
+	// ctrl+1 the answer would still be 20001). Use a non-+1 port to make the
+	// test meaningful: 100*256+1 = 25601.
+	spec.FTP.Commands[3] = core.FTPCommand{
+		Cmd:      "PORT 10,0,0,1,100,1",
+		Response: "200 PORT command successful",
+	}
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	sub := findSubFlowPackets(cfgs)
+	if len(sub) == 0 {
+		t.Fatalf("no sub-flow packets")
+	}
+	syn := sub[0]
+	// Active mode: SYN goes server→client. DstPort=client's advertised PORT port.
+	// 100*256+1 = 25601
+	if syn.L4.DstPort != 25601 {
+		t.Errorf("active DstPort=%d, want 25601 (parsed from PORT 100,1)", syn.L4.DstPort)
+	}
+	// Server's port is still 20.
+	if syn.L4.SrcPort != 20 {
+		t.Errorf("active SrcPort=%d, want 20 (server data port)", syn.L4.SrcPort)
+	}
+}
+
+// TestFTPDataChannel_UserOverrideBeatsSignaling verifies that explicit user
+// override on DataChannel.SrcPort/DstPort wins over both signaling-derived
+// and hardcoded defaults.
+func TestFTPDataChannel_UserOverrideBeatsSignaling(t *testing.T) {
+	spec := dataChannelSpec()
+	// Signaling says 50001; user says 43210.
+	spec.FTP.Commands[3].Response = "227 Entering Passive Mode (20,0,0,1,195,81)"
+	spec.FTP.DataChannel.DstPort = 43210
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	sub := findSubFlowPackets(cfgs)
+	if len(sub) == 0 {
+		t.Fatalf("no sub-flow packets")
+	}
+	syn := sub[0]
+	if syn.L4.DstPort != 43210 {
+		t.Errorf("DstPort=%d, want 43210 (user override beats signaling 50001)", syn.L4.DstPort)
+	}
+}

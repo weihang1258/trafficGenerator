@@ -519,3 +519,91 @@ func TestSIPMedia_PacketIndexContinuity(t *testing.T) {
 		}
 	}
 }
+
+// TestParseSDPMediaPort verifies the SDP m=audio port parser. Per RFC 4566
+// §5.14 the port is the first numeric token after the media type.
+func TestParseSDPMediaPort(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want uint16
+	}{
+		{
+			"audio_5004",
+			"v=0\r\nm=audio 5004 RTP/AVP 0\r\n",
+			5004,
+		},
+		{
+			"audio_high",
+			"v=0\r\nm=audio 16384 RTP/AVP 8\r\n",
+			16384,
+		},
+		{
+			"video",
+			"v=0\r\nm=video 5008 RTP/AVP 96\r\n",
+			5008,
+		},
+			{"no_m_line", "v=0\r\no=- 0 0 IN IP4 0.0.0.0\r\n", 0},
+		{"empty", "", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := parseSDPMediaPort(tc.body)
+			if got != tc.want {
+				t.Errorf("parseSDPMediaPort()=%d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSIPMedia_PortFromSDPBody verifies the RTP SrcPort is parsed from the
+// INVITE's SDP body m= line and the DstPort from the 200 OK's SDP body m=
+// line, rather than falling back to 5004. Without this, a DPI can't
+// associate the RTP 4-tuple with the SIP signaling.
+func TestSIPMedia_PortFromSDPBody(t *testing.T) {
+	spec := mediaSpec()
+	// INVITE advertises caller RTP port 16384; 200 OK advertises callee 16386.
+	spec.SIP.Dialog[0].Body = "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"
+	spec.SIP.Dialog[1].Body = "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	rtp := findRTPPackets(cfgs)
+	if len(rtp) == 0 {
+		t.Fatalf("no RTP packets")
+	}
+	if rtp[0].L4.SrcPort != 16384 {
+		t.Errorf("SrcPort=%d, want 16384 (parsed from INVITE SDP)", rtp[0].L4.SrcPort)
+	}
+	if rtp[0].L4.DstPort != 16386 {
+		t.Errorf("DstPort=%d, want 16386 (parsed from 200 OK SDP)", rtp[0].L4.DstPort)
+	}
+}
+
+// TestSIPMedia_UserPortOverrideBeatsSDP verifies that explicit user
+// override on SIPMedia.SrcPort/DstPort wins over SDP-parsed values.
+func TestSIPMedia_UserPortOverrideBeatsSDP(t *testing.T) {
+	spec := mediaSpec()
+	spec.SIP.Dialog[0].Body = "v=0\r\nm=audio 16384 RTP/AVP 0\r\n"
+	spec.SIP.Dialog[1].Body = "v=0\r\nm=audio 16386 RTP/AVP 0\r\n"
+	// User override wins.
+	spec.SIP.Media.SrcPort = 10000
+	spec.SIP.Media.DstPort = 10002
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	rtp := findRTPPackets(cfgs)
+	if len(rtp) == 0 {
+		t.Fatalf("no RTP packets")
+	}
+	if rtp[0].L4.SrcPort != 10000 {
+		t.Errorf("SrcPort=%d, want 10000 (user override beats SDP 16384)", rtp[0].L4.SrcPort)
+	}
+	if rtp[0].L4.DstPort != 10002 {
+		t.Errorf("DstPort=%d, want 10002 (user override beats SDP 16386)", rtp[0].L4.DstPort)
+	}
+}

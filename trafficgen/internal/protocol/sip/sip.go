@@ -41,6 +41,8 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -364,8 +366,15 @@ func synOptions(mss uint16) []core.TCPOption {
 // (default "up" = caller→callee). Real RTP is bidirectional; users model
 // each direction with one SIPMedia invocation.
 //
-// Ports default to 5004 (the standard RTP audio port). User can override
-// via SIPMedia.SrcPort/DstPort to match the SDP body of their INVITE/200.
+// Port derivation priority (so the RTP 4-tuple matches what the SDP body
+// actually advertised — without this, a DPI can't associate the RTP stream
+// with the SIP signaling):
+//  1. Explicit user override (media.SrcPort / media.DstPort).
+//  2. Parsed from SDP body "m=audio <port>" lines in the SIP dialog
+//     (INVITE advertises the caller's RTP port; 200 OK advertises the
+//     callee's). The up-direction (caller→callee) SrcPort comes from
+//     INVITE's m=, DstPort from 200 OK's m=. The down-direction swaps them.
+//  3. Hardcoded fallback (5004, the standard RTP audio port).
 //
 // Per RFC 3550 §5.1, RTP sequence number and timestamp start at RANDOM
 // values (not 0) to mitigate off-path spoofing and known-plaintext attacks.
@@ -390,11 +399,24 @@ func emitSIPMedia(
 	if frames <= 0 {
 		frames = 1
 	}
+
+	// Scan the SIP dialog for SDP-declared media ports. INVITE's m= line
+	// advertises the caller's RTP port; 200 OK's m= advertises the callee's.
+	// For "up" direction (caller→callee): SrcPort=caller's (INVITE),
+	// DstPort=callee's (200 OK). For "down": swap.
+	invitePort, ok200Port := scanSDPMediaPorts(spec.SIP.Dialog)
+
 	srcPort := media.SrcPort
+	if srcPort == 0 {
+		srcPort = invitePort
+	}
 	if srcPort == 0 {
 		srcPort = 5004
 	}
 	dstPort := media.DstPort
+	if dstPort == 0 {
+		dstPort = ok200Port
+	}
 	if dstPort == 0 {
 		dstPort = 5004
 	}
@@ -483,6 +505,55 @@ func emitSIPMedia(
 	// the math. We keep it on SIPMedia for future use (e.g. RTCP SR
 	// generation, which needs the clock rate).
 	_ = sampleRate
+}
+
+// sdpMediaPortRe matches an SDP "m=audio <port> ..." line per RFC 4566 §5.14:
+// the media field is "m=" type SP port SP proto [fmt] CRLF. We extract the
+// port. Other media types (m=video, m=application) also match; we capture
+// any "m=<type> <port>" line so this works for non-audio media too.
+var sdpMediaPortRe = regexp.MustCompile(`(?m)^m=\w+\s+(\d+)`)
+
+// parseSDPMediaPort scans an SDP body for the first "m=<type> <port>" line
+// and returns the port. Returns 0 if not found.
+// Example: "m=audio 5004 RTP/AVP 0" -> 5004.
+func parseSDPMediaPort(body string) uint16 {
+	m := sdpMediaPortRe.FindStringSubmatch(body)
+	if m == nil {
+		return 0
+	}
+	p, err := strconv.Atoi(m[1])
+	if err != nil || p < 0 || p > 65535 {
+		return 0
+	}
+	return uint16(p)
+}
+
+// scanSDPMediaPorts walks the SIP dialog and returns (invitePort, ok200Port)
+// — the RTP media ports declared in the INVITE's SDP body and the 200 OK's
+// SDP body. Returns 0 for either if the corresponding message has no SDP
+// body or no m= line.
+//
+// Per RFC 3261 §13.2.1, the INVITE's SDP advertises the caller's RTP
+// receive port; the 200 OK's SDP advertises the callee's. For "up"
+// direction (caller→callee) the caller is the source so SrcPort=invitePort,
+// and the callee is the destination so DstPort=ok200Port.
+func scanSDPMediaPorts(dialog []core.SIPMessage) (invitePort, ok200Port uint16) {
+	for _, msg := range dialog {
+		if msg.Body == "" {
+			continue
+		}
+		port := parseSDPMediaPort(msg.Body)
+		if port == 0 {
+			continue
+		}
+		if msg.Method == "INVITE" && invitePort == 0 {
+			invitePort = port
+		}
+		if msg.StatusCode == 200 && ok200Port == 0 {
+			ok200Port = port
+		}
+	}
+	return invitePort, ok200Port
 }
 
 // effectiveTTLOf returns the spec's TTL or DefaultTTL if unset. Kept here
