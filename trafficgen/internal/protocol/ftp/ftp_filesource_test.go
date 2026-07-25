@@ -1,6 +1,7 @@
 package ftp_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -260,5 +261,56 @@ func TestFTPDataChannel_FileSource_PrecedenceOverPayload(t *testing.T) {
 	if string(dataPayload) != "FROM-FILESOURCE" {
 		t.Fatalf("data payload got %q, want %q (FileSource must win over inline Payload)",
 			string(dataPayload), "FROM-FILESOURCE")
+	}
+}
+
+// TestFTPDataChannel_FileSource_BinaryWithNUL verifies the isText heuristic's
+// NUL branch: bytes that pass utf8.Valid but contain a 0x00 byte must be
+// carried via PayloadB64 (binary path), not Payload (string path), because
+// encoding/json would corrupt NUL-containing strings.
+func TestFTPDataChannel_FileSource_BinaryWithNUL(t *testing.T) {
+	p := ftp.NewPlanner()
+	fs, err := filesystem.New(t.TempDir())
+	if err != nil {
+		t.Fatalf("filesystem.New: %v", err)
+	}
+	pc := core.NewPayloadCache(fs)
+	ctx := ftp.WithPayloadCache(context.Background(), pc)
+
+	// Bytes that are valid UTF-8 (so utf8.Valid returns true) but contain a NUL.
+	// 0x41 0x42 0x00 0x43 0x44 = "AB\0CD" — utf8.Valid=true, but isText must return false.
+	nulBytes := []byte{0x41, 0x42, 0x00, 0x43, 0x44}
+
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1",
+		SrcPort: 20000, DstPort: 21,
+		TCP: &core.TCPConfig{InitialSeq: 1000},
+		FTP: &core.FTPConfig{
+			Banner: "220 Welcome",
+			Commands: []core.FTPCommand{
+				{Cmd: "RETR /file.bin", Response: "150", EmitDataChannel: true},
+				{Cmd: "", Response: "226"},
+			},
+			DataChannel: &core.FTPDataChannel{
+				Mode:       "passive",
+				Direction:  "down",
+				FileSource: &filesystem.FileSource{Literal: string(nulBytes)},
+			},
+		},
+	}
+	ch, err := p.Plan(ctx, spec)
+	if err != nil {
+		t.Fatalf("Plan err=%v", err)
+	}
+	var dataPayload []byte
+	for c := range ch {
+		// Data-channel packets are on a non-21 port.
+		if c.L4.DstPort != 21 && c.L4.SrcPort != 21 && len(c.Payload) > 0 {
+			dataPayload = c.Payload
+			break
+		}
+	}
+	if !bytes.Equal(dataPayload, nulBytes) {
+		t.Fatalf("data payload got % x, want % x", dataPayload, nulBytes)
 	}
 }
