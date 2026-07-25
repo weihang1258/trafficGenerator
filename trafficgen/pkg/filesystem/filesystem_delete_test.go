@@ -60,3 +60,16 @@ func TestDelete_NotFound(t *testing.T) {
 		t.Fatalf("Delete nope.txt: got err=%v, want ErrNotFound", err)
 	}
 }
+
+// TestDelete_CleanRelPath_Rejections mirrors TestUpload_CleanRelPath_Rejections:
+// empty path, absolute path, ".." escape, and "." (cleaned to "" -> rejected).
+// Guards against a future refactor that skips cleanRelPath on Delete and
+// silently allows path-escape on delete.
+func TestDelete_CleanRelPath_Rejections(t *testing.T) {
+	fs := newFS(t)
+	for _, path := range []string{"", "/etc/foo", "../foo", "."} {
+		if err := fs.Delete(context.Background(), path); err == nil {
+			t.Fatalf("Delete(%q) should return error", path)
+		}
+	}
+}
