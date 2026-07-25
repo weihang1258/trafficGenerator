@@ -22,9 +22,20 @@ type fileMeta struct {
 
 // resolveBytes returns the bytes for the given source. Used by Upload.
 // Precedence: File > Literal > Fill > Random.
+//
+// src.File may be either a filesystem-relative path (resolved via fs.Read,
+// recursive content-addressed lookup) or an absolute disk path (resolved
+// via os.ReadFile, bypassing the filesystem's own root). The absolute-path
+// branch lets callers import bytes from arbitrary on-disk locations
+// without first copying them into the filesystem.
 func (fs *Filesystem) resolveBytes(src FileSource) ([]byte, error) {
 	switch {
 	case src.File != "":
+		if filepath.IsAbs(src.File) {
+			// Absolute disk path — read directly from disk.
+			return os.ReadFile(src.File)
+		}
+		// Relative path — read from this filesystem.
 		return fs.Read(context.Background(), src.File)
 	case src.Literal != "":
 		return []byte(src.Literal), nil
