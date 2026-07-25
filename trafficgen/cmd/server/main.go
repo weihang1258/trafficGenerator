@@ -90,9 +90,7 @@ func main() {
 	// CLI override: --fs-root takes precedence over the config's
 	// filesystem.root. This is the only way to override the root at
 	// startup; the config default is "data/filesystem".
-	if *fsRoot != "" {
-		cfg.Filesystem.Root = *fsRoot
-	}
+	applyCLIOverrides(cfg, *fsRoot)
 
 	// Initialize logger
 	if err := logger.Init(logger.Config{

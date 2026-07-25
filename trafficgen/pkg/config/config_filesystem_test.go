@@ -11,7 +11,7 @@ func TestConfig_FilesystemDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load err=%v", err)
 	}
-	if cfg.Filesystem.Root == "" {
-		t.Fatalf("Filesystem.Root should default to non-empty")
+	if cfg.Filesystem.Root != "data/filesystem" {
+		t.Fatalf("expected Filesystem.Root=\"data/filesystem\", got %q", cfg.Filesystem.Root)
 	}
 }
