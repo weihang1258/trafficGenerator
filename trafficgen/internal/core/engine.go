@@ -90,6 +90,17 @@ type Engine struct {
 
 	// Error handling
 	fatalError atomic.Value
+
+	// payloadCache holds the engine-wide PayloadCache used to resolve
+	// FileSource payloads for ftp/sip/sctp/http/icmp planners. The server
+	// (cmd/server) constructs it from a filesystem.Filesystem and calls
+	// SetPayloadCache once at startup; the worker reads it via
+	// PayloadCache() and injects it into each task's ctx via
+	// WithPayloadCache so planners can call PayloadCacheFrom(ctx).
+	// May be nil when the engine runs without a filesystem (e.g. tests,
+	// or a deployment that doesn't use FileSource); planners treat nil
+	// as "skip FileSource resolution" rather than erroring.
+	payloadCache *PayloadCache
 }
 
 // PacketWriter writes raw packets to an output (pcap file, network interface, etc.).
@@ -189,6 +200,23 @@ func (e *Engine) ListProtocols() []string {
 // SetBuildFunc sets the packet building function.
 func (e *Engine) SetBuildFunc(fn func(PacketConfig) ([]byte, error)) {
 	e.buildFunc = fn
+}
+
+// SetPayloadCache wires the engine-wide PayloadCache used to resolve
+// FileSource payloads. The cache is constructed by the server (cmd/server)
+// from a filesystem.Filesystem and set once at startup. The worker reads
+// it via PayloadCache() and injects it into each task's ctx so the
+// ftp/sip/sctp/http/icmp planners can call PayloadCacheFrom(ctx). May be
+// left nil when FileSource isn't used.
+func (e *Engine) SetPayloadCache(pc *PayloadCache) {
+	e.payloadCache = pc
+}
+
+// PayloadCache returns the cache set by SetPayloadCache, or nil if none
+// was set. The worker uses this to inject the cache into per-task ctx
+// via WithPayloadCache.
+func (e *Engine) PayloadCache() *PayloadCache {
+	return e.payloadCache
 }
 
 // MinMTU returns the configured minimum NIC MTU enforced at task start.

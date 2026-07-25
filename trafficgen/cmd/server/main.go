@@ -30,6 +30,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"github.com/trafficgen/trafficgen/pkg/config"
+	"github.com/trafficgen/trafficgen/pkg/filesystem"
 	"github.com/trafficgen/trafficgen/pkg/logger"
 	"github.com/trafficgen/trafficgen/pkg/metrics"
 	"github.com/trafficgen/trafficgen/pkg/netif"
@@ -58,6 +59,20 @@ type Application struct {
 	mcpDone         chan struct{}
 	mcpHTTPCancel   context.CancelFunc
 	mcpHTTPDone     chan struct{}
+
+	// filesystem is the content-addressed filesystem used to resolve
+	// FileSource payloads (relative paths) for ftp/sip/sctp/http/icmp
+	// planners. Created at engine init from a root path; the path is
+	// currently a default ("data/filesystem") because the Filesystem
+	// section is not yet in pkg/config — Task 14 will add the config
+	// section + --fs-root flag and replace this default.
+	filesystem *filesystem.Filesystem
+	// payloadCache is the in-process dedup cache for payload bytes.
+	// All 5 protocol planners that support FileSource read it via
+	// core.PayloadCacheFrom(ctx) (the worker injects it into each
+	// task's ctx via core.WithPayloadCache). Set on the engine once
+	// at startup via SetPayloadCache.
+	payloadCache *core.PayloadCache
 }
 
 func main() {
@@ -233,6 +248,35 @@ func (app *Application) initEngine() error {
 		MaxBufferBytes: 100 * 1024 * 1024, // 100MB
 		MinMTU:         app.config.Engine.MinMTU,
 	})
+
+	// Construct the content-addressed filesystem and PayloadCache. The
+	// cache is read by ftp/sip/sctp/http/icmp planners via
+	// core.PayloadCacheFrom(ctx); the worker injects it via
+	// core.WithPayloadCache. The root path default "data/filesystem"
+	// is a placeholder until Task 14 adds a Filesystem section to
+	// pkg/config (and a --fs-root CLI flag). The filesystem.New call
+	// creates the root + required subdirs (.meta/files, blobs) if
+	// missing, so a fresh deploy just works.
+	fsRoot := "data/filesystem"
+	fs, err := filesystem.New(fsRoot)
+	if err != nil {
+		// A failure here doesn't abort engine startup: the engine
+		// still works for all non-FileSource flows. Planners treat a
+		// nil cache as "skip FileSource resolution" rather than
+		// panicking, so we log the error and continue without a
+		// cache. Task 14 may promote this to a fatal error.
+		zap.L().Warn("filesystem init failed; FileSource payloads will not resolve",
+			zap.String("root", fsRoot),
+			zap.Error(err),
+		)
+	} else {
+		app.filesystem = fs
+		app.payloadCache = core.NewPayloadCache(fs)
+		app.engine.SetPayloadCache(app.payloadCache)
+		zap.L().Info("payload cache wired",
+			zap.String("fs_root", fsRoot),
+		)
+	}
 
 	// Apply persisted runtime settings now that the engine exists.
 	if app.db != nil {

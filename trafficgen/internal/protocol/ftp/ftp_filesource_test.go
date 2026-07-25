@@ -13,7 +13,7 @@ import (
 // TestFTPDataChannel_FileSource_Literal verifies that when an FTP
 // DataChannel has FileSource set, the planner resolves the data-channel
 // payload bytes via PayloadCache.GetOrLoad (using the cache injected
-// through ftp.WithPayloadCache) instead of inline Payload/PayloadB64.
+// through core.WithPayloadCache) instead of inline Payload/PayloadB64.
 //
 // Precedence contract (Task 11):
 //  1. dc.FileSource != nil -> PayloadCache.GetOrLoad(ctx, *dc.FileSource)
@@ -22,8 +22,8 @@ import (
 //
 // This test sets FileSource.Literal = "FILE-BYTES" and asserts the
 // data-channel PSH-ACK packet carries exactly those bytes. The cache is
-// injected via ftp.WithPayloadCache so the planner can find it through
-// ctx.Value(payloadCacheKey{}).
+// injected via core.WithPayloadCache so the planner can find it through
+// core.PayloadCacheFrom(ctx).
 func TestFTPDataChannel_FileSource_Literal(t *testing.T) {
 	p := ftp.NewPlanner()
 	fs, err := filesystem.New(t.TempDir())
@@ -51,7 +51,7 @@ func TestFTPDataChannel_FileSource_Literal(t *testing.T) {
 		},
 	}
 
-	ctx := ftp.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan err=%v", err)
@@ -101,7 +101,7 @@ func TestFTPDataChannel_FileSource_NilCacheNoFallback(t *testing.T) {
 			},
 		},
 	}
-	// No ftp.WithPayloadCache: ctx has no cache.
+	// No core.WithPayloadCache: ctx has no cache.
 	ch, err := p.Plan(context.Background(), spec)
 	if err != nil {
 		t.Fatalf("Plan err=%v", err)
@@ -173,7 +173,7 @@ func TestFTPDataChannel_FileSource_FallbackToPayloadB64(t *testing.T) {
 	}
 	pc := core.NewPayloadCache(fs)
 	// Even with a cache injected, FileSource=nil means we use PayloadB64.
-	ctx := ftp.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 
 	// "QkFTRTY0LURBVEE=" decodes to "BASE64-DATA".
 	spec := core.FlowSpec{
@@ -223,7 +223,7 @@ func TestFTPDataChannel_FileSource_PrecedenceOverPayload(t *testing.T) {
 		t.Fatalf("filesystem.New: %v", err)
 	}
 	pc := core.NewPayloadCache(fs)
-	ctx := ftp.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 
 	spec := core.FlowSpec{
 		SrcIP: "10.0.0.1", DstIP: "20.0.0.1",
@@ -275,7 +275,7 @@ func TestFTPDataChannel_FileSource_BinaryWithNUL(t *testing.T) {
 		t.Fatalf("filesystem.New: %v", err)
 	}
 	pc := core.NewPayloadCache(fs)
-	ctx := ftp.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 
 	// Bytes that are valid UTF-8 (so utf8.Valid returns true) but contain a NUL.
 	// 0x41 0x42 0x00 0x43 0x44 = "AB\0CD" — utf8.Valid=true, but isText must return false.

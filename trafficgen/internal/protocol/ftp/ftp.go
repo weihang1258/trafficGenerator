@@ -40,24 +40,6 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
-// payloadCacheKey is the context-key type used to inject a PayloadCache
-// into the FTP planner via WithPayloadCache. The planner reads the cache
-// from ctx.Value(payloadCacheKey{}) when dc.FileSource is set.
-//
-// Task 11 keeps the key and WithPayloadCache helper in the ftp package
-// so the planner is testable in isolation; Task 13 will refactor callers
-// to use core.WithPayloadCache (a controller-level helper) which uses
-// the same key type so the planner's lookup continues to work.
-type payloadCacheKey struct{}
-
-// WithPayloadCache returns a context carrying the payload cache. The
-// FTP planner reads the cache via ctx.Value(payloadCacheKey{}) when
-// dc.FileSource is set; the cache is used to resolve file/literal/fill/
-// seeded-random payload bytes via PayloadCache.GetOrLoad.
-func WithPayloadCache(ctx context.Context, pc *core.PayloadCache) context.Context {
-	return context.WithValue(ctx, payloadCacheKey{}, pc)
-}
-
 const (
 	DefaultTTL = 64
 	// DefaultMSS mirrors internal/protocol/tcp.DefaultMSS and
@@ -533,7 +515,7 @@ func emitFTPDataChannel(
 	//  3. else []byte(dc.Payload)
 	//
 	// When FileSource is set but no cache is injected (e.g. a unit test
-	// that forgot WithPayloadCache, or a controller path that doesn't
+	// that forgot core.WithPayloadCache, or a controller path that doesn't
 	// wire the cache yet), we return WITHOUT emitting the data channel
 	// rather than silently falling through to Payload — falling through
 	// would violate the FileSource > Payload precedence contract. The
@@ -548,7 +530,7 @@ func emitFTPDataChannel(
 	// SubFlowSpec (for debugging) stays readable when possible.
 	var payloadBytes []byte
 	if dc.FileSource != nil {
-		pc, _ := ctx.Value(payloadCacheKey{}).(*core.PayloadCache)
+		pc := core.PayloadCacheFrom(ctx)
 		if pc == nil {
 			return
 		}

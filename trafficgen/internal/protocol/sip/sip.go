@@ -49,25 +49,6 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
-// payloadCacheKey is the context-key type used to inject a PayloadCache
-// into the SIP planner via WithPayloadCache. The planner reads the cache
-// from ctx.Value(payloadCacheKey{}) when SIPMedia.FileSource is set.
-//
-// Task 12 keeps the key and WithPayloadCache helper in the sip package
-// so the planner is testable in isolation; Task 13 will refactor callers
-// to use core.WithPayloadCache (a controller-level helper) which uses
-// the same key type so the planner's lookup continues to work. Mirrors
-// the FTP pattern (Task 11).
-type payloadCacheKey struct{}
-
-// WithPayloadCache returns a context carrying the payload cache. The SIP
-// planner reads the cache via ctx.Value(payloadCacheKey{}) when
-// SIPMedia.FileSource is set; the cache is used to resolve file/literal/
-// fill/seeded-random payload bytes via PayloadCache.GetOrLoad.
-func WithPayloadCache(ctx context.Context, pc *core.PayloadCache) context.Context {
-	return context.WithValue(ctx, payloadCacheKey{}, pc)
-}
-
 const (
 	DefaultTTL = 64
 	// DefaultMSS mirrors internal/protocol/tcp.DefaultMSS and
@@ -456,7 +437,7 @@ func emitSIPMedia(
 	// path would violate the FileSource > inline precedence contract.
 	var rtpFramePayloads [][]byte
 	if media.FileSource != nil {
-		pc, _ := ctx.Value(payloadCacheKey{}).(*core.PayloadCache)
+		pc := core.PayloadCacheFrom(ctx)
 		if pc == nil {
 			return
 		}

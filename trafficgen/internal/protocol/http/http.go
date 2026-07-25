@@ -15,25 +15,6 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
-// payloadCacheKey is the context-key type used to inject a PayloadCache
-// into the HTTP planner via WithPayloadCache. The planner reads the cache
-// from ctx.Value(payloadCacheKey{}) when HTTPConfig.FileSource is set.
-//
-// Task 12 keeps the key and WithPayloadCache helper in the http package
-// so the planner is testable in isolation; Task 13 will refactor callers
-// to use core.WithPayloadCache (a controller-level helper) which uses
-// the same key type so the planner's lookup continues to work. Mirrors
-// the FTP pattern (Task 11).
-type payloadCacheKey struct{}
-
-// WithPayloadCache returns a context carrying the payload cache. The HTTP
-// planner reads the cache via ctx.Value(payloadCacheKey{}) when
-// HTTPConfig.FileSource is set; the cache is used to resolve file/literal/
-// fill/seeded-random payload bytes via PayloadCache.GetOrLoad.
-func WithPayloadCache(ctx context.Context, pc *core.PayloadCache) context.Context {
-	return context.WithValue(ctx, payloadCacheKey{}, pc)
-}
-
 const (
 	DefaultTTL = 64
 	// DefaultMSS is the default TCP Maximum Segment Size used when MSS is 0.
@@ -258,7 +239,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// FileSource wins (matches FTP precedence). Production engine
 		// (Task 13) always injects the cache.
 		if httpConfig.FileSource != nil {
-			pc, _ := ctx.Value(payloadCacheKey{}).(*core.PayloadCache)
+			pc := core.PayloadCacheFrom(ctx)
 			if pc != nil {
 				if bytes, err := pc.GetOrLoad(ctx, *httpConfig.FileSource); err == nil {
 					if core.IsText(bytes) {

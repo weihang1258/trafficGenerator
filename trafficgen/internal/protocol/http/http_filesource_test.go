@@ -3,7 +3,7 @@ package http_test
 // HTTP FileSource integration tests (Task 12). Mirrors the FTP pattern
 // (Task 11): when HTTPConfig.FileSource is set, the planner resolves the
 // request body bytes via PayloadCache.GetOrLoad (using the cache injected
-// through http.WithPayloadCache) and derives Body / BodyB64 from the
+// through core.WithPayloadCache) and derives Body / BodyB64 from the
 // resolved bytes.
 //
 // Precedence contract (Task 12):
@@ -65,7 +65,7 @@ func TestHTTP_FileSource_Literal(t *testing.T) {
 			FileSource: &filesystem.FileSource{Literal: "HTTP-FILE-BYTES"},
 		},
 	}
-	ctx := http.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -167,7 +167,7 @@ func TestHTTP_FileSource_PrecedenceOverInlineBody(t *testing.T) {
 			Body:       "FROM-INLINE-BODY",
 		},
 	}
-	ctx := http.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -211,7 +211,7 @@ func TestHTTP_FileSource_BinaryWithNUL(t *testing.T) {
 			FileSource: &filesystem.FileSource{Literal: string(nulBytes)},
 		},
 	}
-	ctx := http.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)

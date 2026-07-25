@@ -47,25 +47,6 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
-// payloadCacheKey is the context-key type used to inject a PayloadCache
-// into the SCTP planner via WithPayloadCache. The planner reads the cache
-// from ctx.Value(payloadCacheKey{}) when SCTPChunk.FileSource is set.
-//
-// Task 12 keeps the key and WithPayloadCache helper in the sctp package
-// so the planner is testable in isolation; Task 13 will refactor callers
-// to use core.WithPayloadCache (a controller-level helper) which uses
-// the same key type so the planner's lookup continues to work. Mirrors
-// the FTP pattern (Task 11).
-type payloadCacheKey struct{}
-
-// WithPayloadCache returns a context carrying the payload cache. The SCTP
-// planner reads the cache via ctx.Value(payloadCacheKey{}) when
-// SCTPChunk.FileSource is set; the cache is used to resolve file/literal/
-// fill/seeded-random payload bytes via PayloadCache.GetOrLoad.
-func WithPayloadCache(ctx context.Context, pc *core.PayloadCache) context.Context {
-	return context.WithValue(ctx, payloadCacheKey{}, pc)
-}
-
 const (
 	DefaultTTL = 64
 
@@ -382,7 +363,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 // step 3.
 //
 // When FileSource is set but no cache is injected (e.g. a unit test that
-// forgot WithPayloadCache, or a controller path that doesn't wire the
+// forgot core.WithPayloadCache, or a controller path that doesn't wire the
 // cache yet), the function returns skipChunk=true so the caller skips
 // emitting this chunk (matching FTP's "return without emitting" behavior
 // on the same precedence-violation condition). Falling through to inline
@@ -394,7 +375,7 @@ func resolveSCTPChunkData(ctx context.Context, ch core.SCTPChunk) ([]byte, bool)
 	if ch.FileSource == nil {
 		return ch.Data, false
 	}
-	pc, _ := ctx.Value(payloadCacheKey{}).(*core.PayloadCache)
+	pc := core.PayloadCacheFrom(ctx)
 	if pc == nil {
 		return nil, true
 	}

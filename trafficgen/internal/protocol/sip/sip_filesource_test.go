@@ -3,7 +3,7 @@ package sip_test
 // SIP FileSource integration tests (Task 12). Mirrors the FTP pattern
 // (Task 11): when SIPMedia.FileSource is set, the planner resolves the
 // RTP frame payload bytes via PayloadCache.GetOrLoad (using the cache
-// injected through sip.WithPayloadCache) instead of synthesizing
+// injected through core.WithPayloadCache) instead of synthesizing
 // zero-byte placeholder payloads.
 //
 // Precedence contract (Task 12):
@@ -76,7 +76,7 @@ func TestSIPMedia_FileSource_Literal(t *testing.T) {
 	pc := core.NewPayloadCache(fs)
 
 	spec := sipFileSourceSpec("abcdefghij", 4)
-	ctx := sip.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -118,7 +118,7 @@ func TestSIPMedia_FileSource_FrameSizeZeroNoPanic(t *testing.T) {
 	pc := core.NewPayloadCache(fs)
 
 	spec := sipFileSourceSpec("hello", 0)
-	ctx := sip.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -182,7 +182,7 @@ func TestSIPMedia_FileSource_BackwardCompat(t *testing.T) {
 func TestSIPMedia_FileSource_NilCacheNoFallback(t *testing.T) {
 	p := sip.NewPlanner()
 	spec := sipFileSourceSpec("FILE-BYTES", 4)
-	// No sip.WithPayloadCache: ctx has no cache.
+	// No core.WithPayloadCache: ctx has no cache.
 	ch, err := p.Plan(context.Background(), spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -214,7 +214,7 @@ func TestSIPMedia_FileSource_BinaryWithNUL(t *testing.T) {
 
 	nulBytes := []byte{0x41, 0x42, 0x00, 0x43, 0x44} // "AB\0CD"
 	spec := sipFileSourceSpec(string(nulBytes), 0)
-	ctx := sip.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)

@@ -30,6 +30,35 @@ type PayloadCache struct {
 	totalBytes atomic.Int64
 }
 
+// payloadCacheKey is the context-key type used by the engine to inject
+// a *PayloadCache into per-task ctx. The worker calls core.WithPayloadCache
+// before invoking ProtocolPlanner.Plan; the 5 protocol planners that
+// support FileSource (ftp, sip, sctp, http, icmp) call core.PayloadCacheFrom
+// to read it back. Keeping the key type unexported is fine because both
+// the writer (engine/worker) and the reader (planners) live outside the
+// core package — they go through the exported WithPayloadCache /
+// PayloadCacheFrom helpers, which is the canonical Go pattern for
+// context-key encapsulation.
+type payloadCacheKey struct{}
+
+// WithPayloadCache returns a context carrying pc. The engine worker calls
+// this once per task to inject the engine-level cache so planners can
+// resolve FileSource payloads via PayloadCache.GetOrLoad.
+func WithPayloadCache(ctx context.Context, pc *PayloadCache) context.Context {
+	return context.WithValue(ctx, payloadCacheKey{}, pc)
+}
+
+// PayloadCacheFrom returns the cache injected by WithPayloadCache, or nil
+// if none was set. Planners call this (NOT ctx.Value(payloadCacheKey{})
+// directly) so the key type stays an opaque implementation detail of
+// this package. A nil return means the engine didn't wire the cache —
+// planners treat that as "FileSource cannot be resolved, skip emitting
+// the affected chunk/message" rather than panicking.
+func PayloadCacheFrom(ctx context.Context) *PayloadCache {
+	pc, _ := ctx.Value(payloadCacheKey{}).(*PayloadCache)
+	return pc
+}
+
 // NewPayloadCache returns a cache that uses fs for src.File resolution.
 // fs may be nil — then src.File is treated as an absolute disk path
 // (returns error if relative).

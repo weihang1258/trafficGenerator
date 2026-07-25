@@ -3,7 +3,7 @@ package icmp_test
 // ICMP FileSource integration tests (Task 12). Mirrors the FTP pattern
 // (Task 11): when ICMPConfig.FileSource is set, the planner resolves the
 // ICMP echo data bytes via PayloadCache.GetOrLoad (using the cache injected
-// through icmp.WithPayloadCache) instead of inline ICMPConfig.Data.
+// through core.WithPayloadCache) instead of inline ICMPConfig.Data.
 //
 // Precedence contract (Task 12):
 //  1. icmpConfig.FileSource != nil -> PayloadCache.GetOrLoad(ctx, *icmpConfig.FileSource)
@@ -54,7 +54,7 @@ func TestICMP_FileSource_Literal(t *testing.T) {
 			FileSource: &filesystem.FileSource{Literal: "ICMP-FILE-BYTES"},
 		},
 	}
-	ctx := icmp.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -186,7 +186,7 @@ func TestICMP_FileSource_PrecedenceOverInlineData(t *testing.T) {
 			Data:       []byte("FROM-INLINE-DATA"),
 		},
 	}
-	ctx := icmp.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -236,7 +236,7 @@ func TestICMP_FileSource_BinaryWithNUL(t *testing.T) {
 			FileSource: &filesystem.FileSource{Literal: string(nulBytes)},
 		},
 	}
-	ctx := icmp.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -285,7 +285,7 @@ func TestICMP_FileSource_PatternSteps(t *testing.T) {
 			},
 		},
 	}
-	ctx := icmp.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)

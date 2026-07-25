@@ -3,7 +3,7 @@ package sctp_test
 // SCTP FileSource integration tests (Task 12). Mirrors the FTP pattern
 // (Task 11): when SCTPChunk.FileSource is set, the planner resolves the
 // DATA chunk payload bytes via PayloadCache.GetOrLoad (using the cache
-// injected through sctp.WithPayloadCache) instead of inline chunk.Data.
+// injected through core.WithPayloadCache) instead of inline chunk.Data.
 //
 // Precedence contract (Task 12):
 //  1. chunk.FileSource != nil -> PayloadCache.GetOrLoad(ctx, *chunk.FileSource)
@@ -114,7 +114,7 @@ func TestSCTPChunk_FileSource_Literal(t *testing.T) {
 	pc := core.NewPayloadCache(fs)
 
 	spec := sctpFileSourceSpec("SCTP-FILE-BYTES")
-	ctx := sctp.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -197,7 +197,7 @@ func TestSCTPChunk_FileSource_NilCacheNoFallback(t *testing.T) {
 			},
 		},
 	}
-	// No sctp.WithPayloadCache: ctx has no cache.
+	// No core.WithPayloadCache: ctx has no cache.
 	ch, err := p.Plan(context.Background(), spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -237,7 +237,7 @@ func TestSCTPChunk_FileSource_PrecedenceOverInlineData(t *testing.T) {
 			},
 		},
 	}
-	ctx := sctp.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -284,7 +284,7 @@ func TestSCTPChunk_FileSource_BinaryWithNUL(t *testing.T) {
 			},
 		},
 	}
-	ctx := sctp.WithPayloadCache(context.Background(), pc)
+	ctx := core.WithPayloadCache(context.Background(), pc)
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
