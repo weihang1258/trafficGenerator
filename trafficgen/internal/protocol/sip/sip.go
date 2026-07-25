@@ -427,10 +427,10 @@ func synOptions(mss uint16) []core.TCPOption {
 // through directly in the RTP UDP payload — the inline-RTP path builds
 // udpPayload as []byte, no JSON string-field marshalling. (Compare FTP,
 // which routes through SubFlowSpec.Payload / PayloadB64 and so needs
-// core.IsText to pick the field.) The core.IsText helper is still
-// exercised by SIP through the FileSource resolution path for parity
-// with the other planners; future refactors that move RTP to a
-// SubFlowSpec indirection will use it.
+// core.IsText to pick the field.) core.IsText is NOT called anywhere
+// in SIP today because RTP builds []byte directly without SubFlowSpec
+// indirection; future refactors that move RTP onto a SubFlowSpec will
+// use it.
 func emitSIPMedia(
 	ctx context.Context,
 	configChan chan<- core.PacketConfig,
@@ -774,6 +774,13 @@ func effectiveTTLOf(spec core.FlowSpec) uint8 {
 // empty input to a single empty chunk when the input is nil — we want
 // the bytes to drive the frame count. Caller handles the empty case
 // explicitly (returns frames=1).
+//
+// splitRTPFrames is the only helper needed for the inline-RTP path.
+// The SubFlowSpec-based carriage (FTP-style Payload / PayloadB64
+// selection via core.IsText) is not needed here because emitSIPMedia
+// builds udpPayload directly (no SubFlowSpec indirection). Task 13
+// follow-up: if emitSIPMedia is refactored to use SubFlowSpec, add a
+// helper that mirrors ftp's Payload / PayloadB64 selection.
 func splitRTPFrames(b []byte, frameSize int) [][]byte {
 	if frameSize <= 0 {
 		return [][]byte{b}
@@ -792,10 +799,3 @@ func splitRTPFrames(b []byte, frameSize int) [][]byte {
 	}
 	return chunks
 }
-
-// splitRTPFrames is the only helper needed for the inline-RTP path.
-// The SubFlowSpec-based carriage (FTP-style Payload / PayloadB64
-// selection via core.IsText) is not needed here because emitSIPMedia
-// builds udpPayload directly (no SubFlowSpec indirection). Task 13
-// follow-up: if emitSIPMedia is refactored to use SubFlowSpec, add a
-// helper that mirrors ftp's Payload / PayloadB64 selection.

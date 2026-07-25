@@ -299,9 +299,10 @@ type HTTPConfig struct {
 	ResponseContentEncoding string           `json:"response_content_encoding"`
 	RequestContentEncoding string           `json:"request_content_encoding"`
 
-	// FileSource, when set, supplies the request and/or response body
-	// bytes via PayloadCache.GetOrLoad(src) instead of inline Body /
-	// ResponseBody / their *B64 variants. nil = use inline bodies.
+	// FileSource, when set, supplies the HTTP REQUEST body bytes via
+	// PayloadCache.GetOrLoad(src). The response body continues to use
+	// inline ResponseBody / ResponseBodyB64. May be overridden per-protocol
+	// in future revisions.
 	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
