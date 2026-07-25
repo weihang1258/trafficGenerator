@@ -29,19 +29,24 @@ func NewFilesystemHandler(fs *filesystem.Filesystem) *FilesystemHandler {
 // filesystem layer expects relative paths.
 func trimPathParam(p string) string { return strings.TrimPrefix(p, "/") }
 
-// fsErrorStatus maps a filesystem error to an HTTP status code.
-// ErrNotFound -> 404, ErrExists/ErrNotEmpty/ErrNotADirectory -> 409,
-// everything else -> 500.
-func fsErrorStatus(err error) int {
+// respondFsError maps a filesystem error to the standard Response
+// envelope with the appropriate HTTP status code:
+//   - ErrNotFound -> 404 NotFound
+//   - ErrExists / ErrNotEmpty / ErrNotADirectory -> 409 Conflict
+//   - everything else -> 500 InternalError
+//
+// Callers that receive a non-fs error (e.g. unknown query value) should
+// use BadRequest directly rather than routing through this helper.
+func respondFsError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, filesystem.ErrNotFound):
-		return http.StatusNotFound
+		NotFound(c, err.Error())
 	case errors.Is(err, filesystem.ErrExists),
 		errors.Is(err, filesystem.ErrNotEmpty),
 		errors.Is(err, filesystem.ErrNotADirectory):
-		return http.StatusConflict
+		Conflict(c, err.Error())
 	default:
-		return http.StatusInternalServerError
+		InternalError(c, err.Error())
 	}
 }
 
@@ -52,11 +57,11 @@ func (h *FilesystemHandler) Upload(c *gin.Context) {
 	relPath := trimPathParam(c.Param("path"))
 	var src filesystem.FileSource
 	if err := c.ShouldBindJSON(&src); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		BadRequest(c, err.Error())
 		return
 	}
 	if err := h.fs.Upload(c.Request.Context(), relPath, src); err != nil {
-		c.JSON(fsErrorStatus(err), gin.H{"error": err.Error()})
+		respondFsError(c, err)
 		return
 	}
 	c.Status(http.StatusCreated)
@@ -68,7 +73,7 @@ func (h *FilesystemHandler) Download(c *gin.Context) {
 	relPath := trimPathParam(c.Param("path"))
 	b, err := h.fs.Read(c.Request.Context(), relPath)
 	if err != nil {
-		c.JSON(fsErrorStatus(err), gin.H{"error": err.Error()})
+		respondFsError(c, err)
 		return
 	}
 	c.Data(http.StatusOK, "application/octet-stream", b)
@@ -80,10 +85,10 @@ func (h *FilesystemHandler) Info(c *gin.Context) {
 	relPath := trimPathParam(c.Param("path"))
 	info, err := h.fs.Query(c.Request.Context(), relPath)
 	if err != nil {
-		c.JSON(fsErrorStatus(err), gin.H{"error": err.Error()})
+		respondFsError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, info)
+	Success(c, info)
 }
 
 // DeleteFile removes relPath from the filesystem (decreasing the blob
@@ -92,7 +97,7 @@ func (h *FilesystemHandler) Info(c *gin.Context) {
 func (h *FilesystemHandler) DeleteFile(c *gin.Context) {
 	relPath := trimPathParam(c.Param("path"))
 	if err := h.fs.Delete(c.Request.Context(), relPath); err != nil {
-		c.JSON(fsErrorStatus(err), gin.H{"error": err.Error()})
+		respondFsError(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -105,7 +110,7 @@ func (h *FilesystemHandler) DeleteFile(c *gin.Context) {
 func (h *FilesystemHandler) Mkdir(c *gin.Context) {
 	relPath := trimPathParam(c.Param("path"))
 	if err := h.fs.Mkdir(c.Request.Context(), relPath); err != nil {
-		c.JSON(fsErrorStatus(err), gin.H{"error": err.Error()})
+		respondFsError(c, err)
 		return
 	}
 	c.Status(http.StatusCreated)
@@ -119,7 +124,7 @@ func (h *FilesystemHandler) Rmdir(c *gin.Context) {
 	relPath := trimPathParam(c.Param("path"))
 	recursive := c.Query("recursive") == "true"
 	if err := h.fs.Rmdir(c.Request.Context(), relPath, filesystem.RmdirOptions{Recursive: recursive}); err != nil {
-		c.JSON(fsErrorStatus(err), gin.H{"error": err.Error()})
+		respondFsError(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -136,8 +141,8 @@ func (h *FilesystemHandler) List(c *gin.Context) {
 	}
 	entries, err := h.fs.List(c.Request.Context(), dir)
 	if err != nil {
-		c.JSON(fsErrorStatus(err), gin.H{"error": err.Error()})
+		respondFsError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, entries)
+	Success(c, entries)
 }

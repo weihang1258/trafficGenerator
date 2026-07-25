@@ -157,7 +157,7 @@ func (s *Server) setupRoutes() {
 				case "download", "":
 					fsHandler.Download(c)
 				default:
-					c.JSON(http.StatusBadRequest, gin.H{"error": "unknown op: " + c.Query("op")})
+					BadRequest(c, "unknown op: "+c.Query("op"))
 				}
 			})
 			fsGroup.DELETE("/files/*path", fsHandler.DeleteFile)

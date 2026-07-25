@@ -60,6 +60,15 @@ func newFSServer(t *testing.T) (*Server, *filesystem.Filesystem) {
 	return srv, fs
 }
 
+// fsEnvelope is the Response{Code,Message,Data} envelope shared by all
+// /api/v1/fs/* JSON endpoints. Raw-bytes endpoints (Download) and
+// no-body endpoints (Upload/Mkdir/Delete/Rmdir) do not use it.
+type fsEnvelope struct {
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
+}
+
 func TestFSHandler_Upload_ThenRead(t *testing.T) {
 	srv, _ := newFSServer(t)
 	body := bytes.NewBufferString(`{"literal":"hello"}`)
@@ -111,12 +120,25 @@ func TestFSHandler_List(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("list status got %d", w.Code)
 	}
-	var entries []map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &entries); err != nil {
+	var resp struct {
+		Code    int                       `json:"code"`
+		Message string                   `json:"message"`
+		Data    []map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal err=%v; body=%s", err, w.Body.String())
 	}
+	if resp.Code != 0 {
+		t.Fatalf("envelope code got %d, want 0", resp.Code)
+	}
+	if resp.Message != "success" {
+		t.Fatalf("envelope message got %q, want %q", resp.Message, "success")
+	}
+	if resp.Data == nil {
+		t.Fatalf("envelope data missing: body=%s", w.Body.String())
+	}
 	names := map[string]bool{}
-	for _, e := range entries {
+	for _, e := range resp.Data {
 		name, ok := e["name"].(string)
 		if !ok {
 			t.Fatalf("entry has no string name: %+v", e)
@@ -145,3 +167,125 @@ func TestFSHandler_Mkdir_RmdirRecursive(t *testing.T) {
 		t.Fatalf("rmdir status got %d, want 204; body=%s", w2.Code, w2.Body.String())
 	}
 }
+
+// TestFSHandler_Download_NotFound_404 verifies the error envelope is
+// returned with a 404 status when the path does not exist.
+func TestFSHandler_Download_NotFound_404(t *testing.T) {
+	srv, _ := newFSServer(t)
+	req := httptest.NewRequest("GET", "/api/v1/fs/files/missing.txt?op=download", nil)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != 404 {
+		t.Fatalf("expected 404, got %d; body=%s", w.Code, w.Body.String())
+	}
+	var resp fsEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal err=%v; body=%s", err, w.Body.String())
+	}
+	if resp.Code != 404 {
+		t.Fatalf("envelope code got %d, want 404", resp.Code)
+	}
+	if resp.Message == "" {
+		t.Fatalf("envelope message empty: body=%s", w.Body.String())
+	}
+}
+
+// TestFSHandler_Info_NotFound_404 verifies the same status mapping on
+// the Info path (the prior implementation returned 404 for all errors;
+// now ErrNotFound -> 404 and other fs errors take their proper status).
+func TestFSHandler_Info_NotFound_404(t *testing.T) {
+	srv, _ := newFSServer(t)
+	req := httptest.NewRequest("GET", "/api/v1/fs/files/missing.txt?op=info", nil)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != 404 {
+		t.Fatalf("expected 404, got %d; body=%s", w.Code, w.Body.String())
+	}
+	var resp fsEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal err=%v; body=%s", err, w.Body.String())
+	}
+	if resp.Code != 404 {
+		t.Fatalf("envelope code got %d, want 404", resp.Code)
+	}
+}
+
+// TestFSHandler_Mkdir_ExistingFile_409 verifies that Mkdir on a path
+// already occupied by a file returns ErrExists -> 409 Conflict (not
+// 500, and not silently masking the file).
+func TestFSHandler_Mkdir_ExistingFile_409(t *testing.T) {
+	srv, fs := newFSServer(t)
+	ctx := context.Background()
+	if err := fs.Upload(ctx, "a.txt", filesystem.FileSource{Literal: "X"}); err != nil {
+		t.Fatalf("Upload err=%v", err)
+	}
+	req := httptest.NewRequest("POST", "/api/v1/fs/dirs/a.txt", nil)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != 409 {
+		t.Fatalf("expected 409, got %d; body=%s", w.Code, w.Body.String())
+	}
+	var resp fsEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal err=%v; body=%s", err, w.Body.String())
+	}
+	if resp.Code != 409 {
+		t.Fatalf("envelope code got %d, want 409", resp.Code)
+	}
+}
+
+// TestFSHandler_Rmdir_NonEmptyNonRecursive_409 verifies that Rmdir
+// without ?recursive=true on a non-empty directory returns
+// ErrNotEmpty -> 409 Conflict.
+func TestFSHandler_Rmdir_NonEmptyNonRecursive_409(t *testing.T) {
+	srv, fs := newFSServer(t)
+	ctx := context.Background()
+	if err := fs.Mkdir(ctx, "sub"); err != nil {
+		t.Fatalf("Mkdir err=%v", err)
+	}
+	if err := fs.Upload(ctx, "sub/inner.txt", filesystem.FileSource{Literal: "Y"}); err != nil {
+		t.Fatalf("Upload err=%v", err)
+	}
+	req := httptest.NewRequest("DELETE", "/api/v1/fs/dirs/sub", nil) // no recursive=true
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != 409 {
+		t.Fatalf("expected 409, got %d; body=%s", w.Code, w.Body.String())
+	}
+	var resp fsEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal err=%v; body=%s", err, w.Body.String())
+	}
+	if resp.Code != 409 {
+		t.Fatalf("envelope code got %d, want 409", resp.Code)
+	}
+}
+
+// TestFSHandler_UnknownOp_400 verifies the ?op= dispatch returns a
+// 400 BadRequest envelope for unknown op values (not via respondFsError
+// since this is not a filesystem error).
+func TestFSHandler_UnknownOp_400(t *testing.T) {
+	srv, fs := newFSServer(t)
+	ctx := context.Background()
+	if err := fs.Upload(ctx, "a.txt", filesystem.FileSource{Literal: "X"}); err != nil {
+		t.Fatalf("Upload err=%v", err)
+	}
+	req := httptest.NewRequest("GET", "/api/v1/fs/files/a.txt?op=delete", nil)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d; body=%s", w.Code, w.Body.String())
+	}
+	var resp fsEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal err=%v; body=%s", err, w.Body.String())
+	}
+	if resp.Code != 400 {
+		t.Fatalf("envelope code got %d, want 400", resp.Code)
+	}
+	if resp.Message == "" || !contains(resp.Message, "unknown op") {
+		t.Fatalf("envelope message unexpected: %q", resp.Message)
+	}
+}
+
+func contains(s, sub string) bool { return bytes.Contains([]byte(s), []byte(sub)) }
