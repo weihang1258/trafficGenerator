@@ -287,8 +287,10 @@ func (fs *Filesystem) List(ctx context.Context, dirPath string) ([]FileInfo, err
 	return out, nil
 }
 
-// Mkdir creates a directory at relPath (including parents). Stub form —
-// full implementation (refcount tracking, Rmdir integration) lands in Task 5.
+// Mkdir creates a directory at relPath (including parents). It is
+// idempotent: calling Mkdir on an existing directory is a no-op. If relPath
+// already exists as a file, Mkdir returns ErrExists rather than silently
+// masking the file with a directory.
 func (fs *Filesystem) Mkdir(ctx context.Context, relPath string) error {
 	cleanRel, err := fs.cleanRelPath(relPath)
 	if err != nil {
@@ -297,7 +299,103 @@ func (fs *Filesystem) Mkdir(ctx context.Context, relPath string) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 	abs := filepath.Join(fs.root, filepath.FromSlash(cleanRel))
+	if st, err := os.Stat(abs); err == nil {
+		if !st.IsDir() {
+			return ErrExists
+		}
+		// Idempotent: directory already exists.
+		return nil
+	}
 	return os.MkdirAll(abs, 0755)
+}
+
+// Rmdir deletes a directory. When opts.Recursive is false and the directory
+// is non-empty, returns ErrNotEmpty. When opts.Recursive is true, walks the
+// tree and deletes all files (by Delete semantics — last ref wins) and
+// sub-directories. Returns ErrNotFound if the path does not exist, and an
+// error if the path exists but is not a directory.
+func (fs *Filesystem) Rmdir(ctx context.Context, relPath string, opts RmdirOptions) error {
+	cleanRel, err := fs.cleanRelPath(relPath)
+	if err != nil {
+		return err
+	}
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	absDir := filepath.Join(fs.root, filepath.FromSlash(cleanRel))
+	st, err := os.Stat(absDir)
+	if os.IsNotExist(err) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if !st.IsDir() {
+		return errors.New("filesystem: Rmdir on non-directory")
+	}
+
+	if !opts.Recursive {
+		entries, err := os.ReadDir(absDir)
+		if err != nil {
+			return err
+		}
+		// Only .meta is "internal"; user-created entries count toward non-empty.
+		userEntries := 0
+		for _, e := range entries {
+			if e.Name() == ".meta" {
+				continue
+			}
+			userEntries++
+		}
+		if userEntries > 0 {
+			return ErrNotEmpty
+		}
+		return os.Remove(absDir)
+	}
+
+	// Recursive: walk and delete all files first, then directories.
+	return fs.rmdirRecursiveLocked(cleanRel)
+}
+
+// rmdirRecursiveLocked walks relDir recursively, deleting every file
+// (using removeRefLocked so dedup semantics hold) and then removing every
+// sub-directory. Caller must hold fs.mu.
+func (fs *Filesystem) rmdirRecursiveLocked(relDir string) error {
+	absDir := filepath.Join(fs.root, filepath.FromSlash(relDir))
+	entries, err := os.ReadDir(absDir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if e.Name() == ".meta" {
+			continue
+		}
+		entryPath := filepath.ToSlash(filepath.Join(relDir, e.Name()))
+		if e.IsDir() {
+			if err := fs.rmdirRecursiveLocked(entryPath); err != nil {
+				return err
+			}
+		} else {
+			// File in filesystem (a registered name). removeRefLocked
+			// removes the materialized hardlink and decrements the blob
+			// refcount, deleting the blob only when no refs remain.
+			if hash, err := fs.lookupHashForPath(entryPath); err == nil {
+				if err := fs.removeRefLocked(hash, entryPath); err != nil {
+					// If removeRefLocked failed because the meta was
+					// already gone (e.g., foreign file with no meta),
+					// still attempt to remove the on-disk entry below.
+					// For any other error, propagate.
+					if !errors.Is(err, ErrNotFound) {
+						return err
+					}
+				}
+			}
+			// Remove any placeholder file left on disk (foreign file
+			// with no meta, or a stale entry). Idempotent.
+			_ = os.Remove(filepath.Join(fs.root, filepath.FromSlash(entryPath)))
+		}
+	}
+	return os.Remove(absDir)
 }
 
 // cleanRelPath validates and cleans a relative path. Rejects empty paths,
