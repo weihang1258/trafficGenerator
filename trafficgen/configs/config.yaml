@@ -69,3 +69,9 @@ rate_limit:
 metrics:
   enabled: true
   path: "/metrics"
+
+# Filesystem configuration -- content-addressed filesystem backing
+# FileSource payload resolution (ftp/sip/sctp/http/icmp planners).
+# Override with the --fs-root CLI flag when running the server.
+filesystem:
+  root: "data/filesystem"

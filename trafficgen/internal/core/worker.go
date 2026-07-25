@@ -356,13 +356,12 @@ func (w *ConfigWorker) processReplayTask(task Task) {
 	if taskCtx == nil {
 		taskCtx = w.ctx
 	}
-	// Inject the engine-wide PayloadCache for the same reason as in
-	// processTask: the replay planner's strategies may include
-	// FileSource-aware protocols (ftp/sctp/etc. embedded in a replay
-	// batch), and the cache must be resolvable from ctx. Nil cache is
-	// safe (planners skip FileSource resolution on nil). w.engine may
-	// be nil in tests that construct a ConfigWorker directly; guard
-	// the deref.
+	// Inject the engine-wide cache when available. When w.engine is nil
+	// (test-only ConfigWorker) or pc is nil (engine without a filesystem),
+	// we skip injection — planners call PayloadCacheFrom(ctx), get nil, and
+	// skip FileSource resolution. This is the intended degradation
+	// (silently producing non-FileSource packets) rather than panicking on
+	// a nil deref.
 	if w.engine != nil {
 		if pc := w.engine.PayloadCache(); pc != nil {
 			taskCtx = WithPayloadCache(taskCtx, pc)
@@ -464,12 +463,12 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 	if taskCtx == nil {
 		taskCtx = w.ctx
 	}
-	// Inject the engine-wide PayloadCache for batch tasks: each class's
-	// planner goroutine (ftp/sip/sctp/http/icmp) reads the cache via
-	// core.PayloadCacheFrom(ctx) to resolve FileSource payloads. Nil
-	// cache is safe (planners skip FileSource resolution on nil).
-	// w.engine may be nil in tests that construct a ConfigWorker
-	// directly; guard the deref.
+	// Inject the engine-wide cache when available. When w.engine is nil
+	// (test-only ConfigWorker) or pc is nil (engine without a filesystem),
+	// we skip injection — planners call PayloadCacheFrom(ctx), get nil, and
+	// skip FileSource resolution. This is the intended degradation
+	// (silently producing non-FileSource packets) rather than panicking on
+	// a nil deref.
 	if w.engine != nil {
 		if pc := w.engine.PayloadCache(); pc != nil {
 			taskCtx = WithPayloadCache(taskCtx, pc)

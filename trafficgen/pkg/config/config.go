@@ -21,6 +21,14 @@ type Config struct {
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 	Metrics   MetricsConfig   `mapstructure:"metrics"`
 	MCP       MCPConfig       `mapstructure:"mcp"`
+	Filesystem FilesystemConfig `mapstructure:"filesystem"`
+}
+
+// FilesystemConfig configures the content-addressed filesystem that backs
+// FileSource payload resolution (ftp/sip/sctp/http/icmp planners). The
+// root directory is created on demand by filesystem.New when missing.
+type FilesystemConfig struct {
+	Root string `mapstructure:"root"`
 }
 
 // ServerConfig for HTTP server.
@@ -193,6 +201,14 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
+	// Defensive: viper.SetDefault above should populate this, but if a caller
+	// constructs a Config{} directly (some tests do) the field would be empty
+	// and filesystem.New would receive "" -- which it rejects. Keep the
+	// contract that Filesystem.Root is always non-empty after Load.
+	if config.Filesystem.Root == "" {
+		config.Filesystem.Root = "data/filesystem"
+	}
+
 	return &config, nil
 }
 
@@ -289,6 +305,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("mcp.max_wait_timeout_seconds", 3600)
 	v.SetDefault("mcp.audit_log", true)
 	v.SetDefault("mcp.max_subscriptions", 100)
+
+	// Filesystem defaults -- content-addressed filesystem backing FileSource
+	// payload resolution (ftp/sip/sctp/http/icmp). filesystem.New creates
+	// the root + required subdirs (.meta/files, blobs) if missing, so a
+	// fresh deploy just works without manual setup.
+	v.SetDefault("filesystem.root", "data/filesystem")
 }
 
 // GetDSN returns the database connection string.

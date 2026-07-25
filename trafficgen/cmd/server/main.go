@@ -39,6 +39,7 @@ import (
 
 var (
 	configPath = flag.String("config", "", "Path to configuration file")
+	fsRoot     = flag.String("fs-root", "", "Filesystem root override (default: data/filesystem)")
 	version    = "1.0.0"
 )
 
@@ -62,10 +63,8 @@ type Application struct {
 
 	// filesystem is the content-addressed filesystem used to resolve
 	// FileSource payloads (relative paths) for ftp/sip/sctp/http/icmp
-	// planners. Created at engine init from a root path; the path is
-	// currently a default ("data/filesystem") because the Filesystem
-	// section is not yet in pkg/config — Task 14 will add the config
-	// section + --fs-root flag and replace this default.
+	// planners. Created at engine init from app.config.Filesystem.Root
+	// (default "data/filesystem", overridable via --fs-root).
 	filesystem *filesystem.Filesystem
 	// payloadCache is the in-process dedup cache for payload bytes.
 	// All 5 protocol planners that support FileSource read it via
@@ -86,6 +85,13 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
 		os.Exit(1)
+	}
+
+	// CLI override: --fs-root takes precedence over the config's
+	// filesystem.root. This is the only way to override the root at
+	// startup; the config default is "data/filesystem".
+	if *fsRoot != "" {
+		cfg.Filesystem.Root = *fsRoot
 	}
 
 	// Initialize logger
@@ -252,12 +258,12 @@ func (app *Application) initEngine() error {
 	// Construct the content-addressed filesystem and PayloadCache. The
 	// cache is read by ftp/sip/sctp/http/icmp planners via
 	// core.PayloadCacheFrom(ctx); the worker injects it via
-	// core.WithPayloadCache. The root path default "data/filesystem"
-	// is a placeholder until Task 14 adds a Filesystem section to
-	// pkg/config (and a --fs-root CLI flag). The filesystem.New call
-	// creates the root + required subdirs (.meta/files, blobs) if
-	// missing, so a fresh deploy just works.
-	fsRoot := "data/filesystem"
+	// core.WithPayloadCache. The root path comes from
+	// app.config.Filesystem.Root (default "data/filesystem", overridable
+	// via the --fs-root CLI flag). filesystem.New creates the root +
+	// required subdirs (.meta/files, blobs) if missing, so a fresh
+	// deploy just works.
+	fsRoot := app.config.Filesystem.Root
 	fs, err := filesystem.New(fsRoot)
 	if err != nil {
 		// A failure here doesn't abort engine startup: the engine
