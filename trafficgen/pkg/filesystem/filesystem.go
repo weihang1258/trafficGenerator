@@ -130,6 +130,23 @@ func (fs *Filesystem) removeRefLocked(hash, relPath string) error {
 	return fs.saveMeta(hash, meta)
 }
 
+// Delete removes relPath from the filesystem. If the path's blob has no
+// remaining refs, the blob is deleted too. Returns ErrNotFound if relPath
+// is not registered.
+func (fs *Filesystem) Delete(ctx context.Context, relPath string) error {
+	cleanRel, err := fs.cleanRelPath(relPath)
+	if err != nil {
+		return err
+	}
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	hash, err := fs.lookupHashForPath(cleanRel)
+	if err != nil {
+		return err
+	}
+	return fs.removeRefLocked(hash, cleanRel)
+}
+
 // cleanRelPath validates and cleans a relative path. Rejects empty paths,
 // absolute paths, and directory traversal escape.
 func (fs *Filesystem) cleanRelPath(relPath string) (string, error) {
