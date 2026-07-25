@@ -13,6 +13,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"github.com/trafficgen/trafficgen/pkg/config"
+	"github.com/trafficgen/trafficgen/pkg/filesystem"
 	"github.com/trafficgen/trafficgen/pkg/netif"
 )
 
@@ -27,6 +28,18 @@ type Server struct {
 	router     *gin.Engine
 	wsHandler  *websocket.Handler
 	jwtManager *auth.JWTManager
+
+	// filesystem is the content-addressed filesystem exposed via
+	// /api/v1/fs/* routes (Upload/Download/Info/DeleteFile/Mkdir/Rmdir/
+	// List). When nil, no fs routes are registered (graceful
+	// degradation if the filesystem init failed at startup).
+	filesystem *filesystem.Filesystem
+}
+
+// SetFilesystem wires a content-addressed filesystem into the server.
+// Must be called before Setup() so routes are registered.
+func (s *Server) SetFilesystem(fs *filesystem.Filesystem) {
+	s.filesystem = fs
 }
 
 // NewServer creates a new REST API server.
@@ -127,6 +140,31 @@ func (s *Server) setupRoutes() {
 	{
 		portGroupsGroup.GET("", portGroupHandler.List)
 		portGroupsGroup.GET("/:id", portGroupHandler.Get)
+	}
+
+	// Filesystem routes (public; filesystem layer enforces root-scoped
+	// path validation, rejecting absolute paths and traversal escape).
+	// Registered only when a filesystem is configured.
+	if s.filesystem != nil {
+		fsHandler := NewFilesystemHandler(s.filesystem)
+		fsGroup := s.router.Group("/api/v1/fs")
+		{
+			fsGroup.POST("/files/*path", fsHandler.Upload)
+			fsGroup.GET("/files/*path", func(c *gin.Context) {
+				switch c.Query("op") {
+				case "info":
+					fsHandler.Info(c)
+				case "download", "":
+					fsHandler.Download(c)
+				default:
+					c.JSON(http.StatusBadRequest, gin.H{"error": "unknown op: " + c.Query("op")})
+				}
+			})
+			fsGroup.DELETE("/files/*path", fsHandler.DeleteFile)
+			fsGroup.POST("/dirs/*path", fsHandler.Mkdir)
+			fsGroup.DELETE("/dirs/*path", fsHandler.Rmdir)
+			fsGroup.GET("/list", fsHandler.List)
+		}
 	}
 
 	// Authenticated routes
