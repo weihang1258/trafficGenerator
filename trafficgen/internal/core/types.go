@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+
+	"github.com/trafficgen/trafficgen/pkg/filesystem"
 )
 
 // Task represents a traffic generation task.
@@ -115,6 +117,13 @@ type FlowSpec struct {
 	Count    int    `json:"count,omitempty"`
 	Duration int    `json:"duration,omitempty"` // seconds
 	BPS      string `json:"bps,omitempty"`      // rate limit, e.g., "200k", "1M"
+
+	// FileSource (protocol-agnostic): when set, planners obtain payload
+	// bytes via PayloadCache.GetOrLoad(src) instead of using inline
+	// Payload. May be overridden per-protocol (e.g. FTPDataChannel.
+	// FileSource takes precedence over FlowSpec.FileSource). nil means
+	// no file source — planners fall back to Payload.
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 
 	// GroupID routes flows with the same generated id to one PacketWorker,
 	// preserving cross-flow timing (e.g. SIP signaling + RTP data). nil/empty =
@@ -288,7 +297,12 @@ type HTTPConfig struct {
 	ResponseStatusCode     int               `json:"response_status_code"`
 	ResponseStatusText     string            `json:"response_status_text"`
 	ResponseContentEncoding string           `json:"response_content_encoding"`
-	RequestContentEncoding string            `json:"request_content_encoding"`
+	RequestContentEncoding string           `json:"request_content_encoding"`
+
+	// FileSource, when set, supplies the request and/or response body
+	// bytes via PayloadCache.GetOrLoad(src) instead of inline Body /
+	// ResponseBody / their *B64 variants. nil = use inline bodies.
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
 // DNSConfig for DNS protocol.
@@ -323,6 +337,10 @@ type ICMPConfig struct {
 	Sequence   uint16     `json:"sequence"`
 	Data       []byte     `json:"data"`
 	Pattern    []ICMPStep `json:"pattern,omitempty"` // multi-session ping steps
+
+	// FileSource, when set, supplies the ICMP echo data bytes via
+	// PayloadCache.GetOrLoad(src) instead of inline Data. nil = use Data.
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
 // ICMPStep is a single ping within a multi-session ICMP flow. The planner
@@ -430,6 +448,12 @@ type FTPDataChannel struct {
 	Payload    string `json:"payload,omitempty"`     // file body (text)
 	PayloadB64 string `json:"payload_b64,omitempty"` // file body (base64, for binary)
 	MSS        uint16 `json:"mss,omitempty"`         // 0 = inherit parent TCPConfig.MSS or 1460
+
+	// FileSource, when set, supplies the data-channel file body bytes via
+	// PayloadCache.GetOrLoad(src) instead of inline Payload / PayloadB64.
+	// nil = use inline payload fields. Takes precedence over
+	// FlowSpec.FileSource for FTP data-channel bytes.
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
 // SIPConfig for SIP protocol. SIP (RFC 3261) is a session-level protocol:
@@ -522,6 +546,11 @@ type SIPMedia struct {
 	// is bidirectional; users model each direction with one SIPMedia.
 	// Empty defaults to "up".
 	Direction string `json:"direction,omitempty"`
+
+	// FileSource, when set, supplies the RTP frame payload bytes via
+	// PayloadCache.GetOrLoad(src) instead of synthesizing G.711-style
+	// payload. nil = synthesize per PayloadType/FrameSize.
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
 // SCTPConfig for the SCTP protocol. SCTP (RFC 4960) is a session-level,
@@ -605,6 +634,11 @@ type SCTPChunk struct {
 	PPID      uint32 `json:"ppid,omitempty"`      // payload protocol id
 	Data      []byte `json:"data,omitempty"`      // user payload
 	Direction string `json:"direction,omitempty"` // "up" or "down"; empty -> "up"
+
+	// FileSource, when set, supplies the SCTP DATA chunk payload bytes
+	// via PayloadCache.GetOrLoad(src) instead of inline Data. nil = use
+	// Data.
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
 // ICMPv6Config for the ICMPv6 protocol (RFC 4443). ICMPv6 is the IPv6

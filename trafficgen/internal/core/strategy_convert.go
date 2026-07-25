@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/trafficgen/trafficgen/internal/storage"
+	"github.com/trafficgen/trafficgen/pkg/filesystem"
 )
 
 // Default field values applied by mapToFlowSpec when the user did not
@@ -433,7 +434,129 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	}
 
+	// FileSource (protocol-agnostic): parsed unconditionally so any
+	// protocol can carry a file_source. Planners that don't consume it
+	// simply ignore the field. Per-protocol FileSource fields (set below)
+	// take precedence over this top-level one.
+	spec.FileSource = parseFileSource(cfg)
+
+	// Per-protocol FileSource overrides. Each lives inside its protocol's
+	// sub-map under the "file_source" key. We only set the field when the
+	// sub-map is present (parseFileSource returns nil for absent/empty
+	// sources, so existing configs that don't use file_source stay
+	// zero-value and don't serialize).
+	if spec.FTP != nil && spec.FTP.DataChannel != nil {
+		if dcFS := parseFileSource(getMap(cfg, "ftp", "data_channel")); dcFS != nil {
+			spec.FTP.DataChannel.FileSource = dcFS
+		}
+	}
+	if spec.SIP != nil && spec.SIP.Media != nil {
+		if mFS := parseFileSource(getMap(cfg, "sip", "media")); mFS != nil {
+			spec.SIP.Media.FileSource = mFS
+		}
+	}
+	if spec.HTTP != nil {
+		if hFS := parseFileSource(getMap(cfg, "http")); hFS != nil {
+			spec.HTTP.FileSource = hFS
+		}
+	}
+	if spec.ICMP != nil {
+		if iFS := parseFileSource(getMap(cfg, "icmp")); iFS != nil {
+			spec.ICMP.FileSource = iFS
+		}
+	}
+	// SCTP chunks: each chunk may carry its own file_source. Parse them
+	// here (after parseSCTPChunks populated spec.SCTP.Chunks) so the
+	// planner can read chunk.FileSource without re-walking the cfg.
+	if spec.SCTP != nil && len(spec.SCTP.Chunks) > 0 {
+		if chunkList, ok := cfg["sctp"].(map[string]interface{}); ok {
+			if rawChunks, ok := chunkList["chunks"].([]interface{}); ok && len(rawChunks) == len(spec.SCTP.Chunks) {
+				for i, raw := range rawChunks {
+					if cm, ok := raw.(map[string]interface{}); ok {
+						if cFS := parseFileSource(cm); cFS != nil {
+							spec.SCTP.Chunks[i].FileSource = cFS
+						}
+					}
+				}
+			}
+		}
+	}
+
 	return spec
+}
+
+// MapToFlowSpec is the exported wrapper around mapToFlowSpec. It exists so
+// external test packages (core_test) can exercise the parser without
+// duplicating the dispatch logic. Production code continues to call
+// mapToFlowSpec directly.
+func MapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
+	return mapToFlowSpec(cfg, protocol)
+}
+
+// parseFileSource extracts a *FileSource from cfg["file_source"] (a map).
+// Returns nil when absent, not a map, or all fields zero — so a config
+// without a file_source serializes as nil (no null in JSON output thanks
+// to omitempty on the field tags).
+//
+// The four source kinds (File, Literal, Fill, Random) are parsed
+// independently; at most one is expected to be set, but we don't enforce
+// that here (priority resolution happens at consume time in PayloadCache).
+//
+// Numeric coercion: JSON decode produces float64 for numbers (and
+// json.Number when UseNumber is set); test map literals produce int. We
+// delegate to the package-level toInt (defined in shard_router.go) which
+// handles float64/int/int64/string so the parser works identically in
+// production and in tests.
+func parseFileSource(cfg map[string]interface{}) *filesystem.FileSource {
+	src, ok := cfg["file_source"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	fs := &filesystem.FileSource{}
+	if v, ok := src["file"].(string); ok {
+		fs.File = v
+	}
+	if v, ok := src["literal"].(string); ok {
+		fs.Literal = v
+	}
+	if fill, ok := src["fill"].(map[string]interface{}); ok {
+		fs.Fill = &filesystem.Fill{
+			Byte:  byte(toInt(fill["byte"])),
+			Bytes: toInt(fill["bytes"]),
+		}
+	}
+	if r, ok := src["random"].(map[string]interface{}); ok {
+		fs.Random = &filesystem.Random{
+			MinBytes: toInt(r["min_bytes"]),
+			MaxBytes: toInt(r["max_bytes"]),
+			Seed:     int64(toInt(r["seed"])),
+		}
+	}
+	// If all fields are zero, treat as nil. This prevents a non-nil pointer
+	// to a zero-value FileSource from being serialized as "file_source": {}
+	// and from confusing planners that test `if spec.FileSource != nil`.
+	if fs.File == "" && fs.Literal == "" && fs.Fill == nil && fs.Random == nil {
+		return nil
+	}
+	return fs
+}
+
+// getMap walks cfg through a chain of keys, returning the nested map at the
+// end of the chain or nil if any intermediate is missing or not a map. It
+// never panics on missing keys or nil maps.
+func getMap(cfg map[string]interface{}, keys ...string) map[string]interface{} {
+	var cur map[string]interface{} = cfg
+	for _, k := range keys {
+		if cur == nil {
+			return nil
+		}
+		next, ok := cur[k].(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		cur = next
+	}
+	return cur
 }
 
 func formatBPS(val float64) string {
