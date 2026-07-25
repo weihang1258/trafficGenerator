@@ -60,6 +60,24 @@ func (fs *Filesystem) Upload(ctx context.Context, relPath string, src FileSource
 		}
 	}
 
+	// Materialize the file on disk at relPath so it is visible to List,
+	// Query, and external tools. Use a hardlink to the blob when the OS
+	// supports it; fall back to a copy otherwise.
+	absRel := filepath.Join(fs.root, filepath.FromSlash(cleanRel))
+	if err := os.MkdirAll(filepath.Dir(absRel), 0755); err != nil {
+		return err
+	}
+	// Remove existing entry (could be a stale hardlink to an old blob).
+	if _, err := os.Lstat(absRel); err == nil {
+		_ = os.Remove(absRel)
+	}
+	if err := os.Link(blobPath, absRel); err != nil {
+		// Fall back to a copy if hardlink fails (e.g., cross-device).
+		if err := os.WriteFile(absRel, b, 0644); err != nil {
+			return err
+		}
+	}
+
 	// Update meta: add cleanRel to refs[].
 	meta, err := fs.loadMeta(hash)
 	if err != nil && !errors.Is(err, ErrNotFound) {
@@ -122,10 +140,18 @@ func (fs *Filesystem) removeRefLocked(hash, relPath string) error {
 	}
 	meta.Refs = removeStr(meta.Refs, relPath)
 	if len(meta.Refs) == 0 {
+		// Remove the materialized file at relPath (hardlink or copy).
+		if err := os.Remove(filepath.Join(fs.root, filepath.FromSlash(relPath))); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 		if err := os.Remove(fs.blobPath(hash)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 		return fs.deleteMeta(hash)
+	}
+	// Other refs remain: remove this name's materialized file but keep blob.
+	if err := os.Remove(filepath.Join(fs.root, filepath.FromSlash(relPath))); err != nil && !os.IsNotExist(err) {
+		return err
 	}
 	return fs.saveMeta(hash, meta)
 }
@@ -145,6 +171,112 @@ func (fs *Filesystem) Delete(ctx context.Context, relPath string) error {
 		return err
 	}
 	return fs.removeRefLocked(hash, cleanRel)
+}
+
+// Query returns metadata for relPath. Returns ErrNotFound if not registered.
+// Directories (present on disk under fs.root) are reported with IsDir=true.
+func (fs *Filesystem) Query(ctx context.Context, relPath string) (FileInfo, error) {
+	cleanRel, err := fs.cleanRelPath(relPath)
+	if err != nil {
+		return FileInfo{}, err
+	}
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	// Check directory first.
+	abs := filepath.Join(fs.root, filepath.FromSlash(cleanRel))
+	st, err := os.Stat(abs)
+	if err == nil && st.IsDir() {
+		return FileInfo{Name: cleanRel, IsDir: true, Size: 0, ModTime: st.ModTime()}, nil
+	}
+
+	hash, err := fs.lookupHashForPath(cleanRel)
+	if err != nil {
+		return FileInfo{}, err
+	}
+	meta, err := fs.loadMeta(hash)
+	if err != nil {
+		return FileInfo{}, err
+	}
+	blobStat, err := os.Stat(fs.blobPath(hash))
+	if err != nil {
+		return FileInfo{}, err
+	}
+	return FileInfo{
+		Name:    cleanRel,
+		IsDir:   false,
+		Size:    meta.Size,
+		ModTime: blobStat.ModTime(),
+		SHA256:  hash,
+	}, nil
+}
+
+// List returns entries in dirPath. Directories are listed as such. Files
+// are listed with size and mtime. Internal entries (.meta, blobs) are
+// skipped. Returns ErrNotFound if dirPath does not exist. A dirPath of
+// "." lists the filesystem root.
+func (fs *Filesystem) List(ctx context.Context, dirPath string) ([]FileInfo, error) {
+	// "." is a valid alias for the root directory; cleanRelPath would
+	// otherwise reject it. Normalize early.
+	if dirPath == "" || dirPath == "." {
+		dirPath = "."
+	} else {
+		clean, err := fs.cleanRelPath(dirPath)
+		if err != nil {
+			return nil, err
+		}
+		dirPath = clean
+	}
+	cleanDir := dirPath
+
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	absDir := filepath.Join(fs.root, filepath.FromSlash(cleanDir))
+	entries, err := os.ReadDir(absDir)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	out := make([]FileInfo, 0, len(entries))
+	for _, e := range entries {
+		// Skip internal .meta and blobs — those are the metadata store.
+		if e.Name() == ".meta" || e.Name() == "blobs" {
+			continue
+		}
+		abs := filepath.Join(absDir, e.Name())
+		st, err := os.Stat(abs)
+		if err != nil {
+			continue
+		}
+		entryPath := filepath.Join(cleanDir, e.Name())
+		entryPath = filepath.ToSlash(entryPath)
+		entryPath = strings.TrimPrefix(entryPath, "./")
+		fi := FileInfo{Name: entryPath, IsDir: st.IsDir(), ModTime: st.ModTime()}
+		if !st.IsDir() {
+			// Find hash for this file.
+			if hash, err := fs.lookupHashForPath(entryPath); err == nil {
+				if meta, err := fs.loadMeta(hash); err == nil {
+					fi.Size = meta.Size
+					fi.SHA256 = hash
+				}
+			}
+		}
+		out = append(out, fi)
+	}
+	return out, nil
+}
+
+// Mkdir creates a directory at relPath (including parents). Stub form —
+// full implementation (refcount tracking, Rmdir integration) lands in Task 5.
+func (fs *Filesystem) Mkdir(ctx context.Context, relPath string) error {
+	cleanRel, err := fs.cleanRelPath(relPath)
+	if err != nil {
+		return err
+	}
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	abs := filepath.Join(fs.root, filepath.FromSlash(cleanRel))
+	return os.MkdirAll(abs, 0755)
 }
 
 // cleanRelPath validates and cleans a relative path. Rejects empty paths,
