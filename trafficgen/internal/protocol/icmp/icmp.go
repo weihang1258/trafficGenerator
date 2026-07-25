@@ -10,6 +10,25 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
+// payloadCacheKey is the context-key type used to inject a PayloadCache
+// into the ICMP planner via WithPayloadCache. The planner reads the cache
+// from ctx.Value(payloadCacheKey{}) when ICMPConfig.FileSource is set.
+//
+// Task 12 keeps the key and WithPayloadCache helper in the icmp package
+// so the planner is testable in isolation; Task 13 will refactor callers
+// to use core.WithPayloadCache (a controller-level helper) which uses
+// the same key type so the planner's lookup continues to work. Mirrors
+// the FTP pattern (Task 11).
+type payloadCacheKey struct{}
+
+// WithPayloadCache returns a context carrying the payload cache. The ICMP
+// planner reads the cache via ctx.Value(payloadCacheKey{}) when
+// ICMPConfig.FileSource is set; the cache is used to resolve file/literal/
+// fill/seeded-random payload bytes via PayloadCache.GetOrLoad.
+func WithPayloadCache(ctx context.Context, pc *core.PayloadCache) context.Context {
+	return context.WithValue(ctx, payloadCacheKey{}, pc)
+}
+
 const (
 	DefaultTTL = 64
 
@@ -96,10 +115,44 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 		}
 
+		// Resolve ICMP echo data bytes per the FileSource precedence
+		// contract (mirrors FTP Task 11):
+		//  1. icmpConfig.FileSource != nil -> PayloadCache.GetOrLoad(ctx, *icmpConfig.FileSource)
+		//  2. else icmpConfig.Data (inline)
+		//
+		// When FileSource is set but no cache is injected, we use the
+		// inline Data (do NOT silently fall through to empty). This is
+		// the "set Data derived from bytes if Data is nil" caveat from
+		// the brief: it applies when FileSource is nil — don't override
+		// user-set Data with empty bytes. When FileSource is non-nil,
+		// FileSource wins (matches FTP precedence). Production engine
+		// (Task 13) always injects the cache.
+		//
+		// We resolve ONCE here so both the multi-session path and the
+		// legacy single-ping path see the same bytes (the multi-session
+		// path's per-step Data still wins for steps that set Data
+		// explicitly; the top-level FileSource only applies when a step
+		// leaves Data nil).
+		echoData := icmpConfig.Data
+		if icmpConfig.FileSource != nil {
+			pc, _ := ctx.Value(payloadCacheKey{}).(*core.PayloadCache)
+			if pc != nil {
+				if bytes, err := pc.GetOrLoad(ctx, *icmpConfig.FileSource); err == nil {
+					echoData = bytes
+				}
+			}
+		}
+
 		// Multi-session ping path: iterate steps, emit each as its own ping
 		// with auto-reply for Echo Request steps. Identifier is shared across
 		// steps (RFC 792 session semantics). Sequence auto-fills from step
 		// index (1-based) when the step leaves Sequence at 0.
+		//
+		// FileSource precedence for steps: when step.Data is nil, fall
+		// back to the top-level resolved echoData (which itself honors
+		// icmpConfig.FileSource). When step.Data is non-nil, the step's
+		// own bytes win (per-step override). This mirrors the brief's
+		// "set Data derived from bytes if Data is nil" caveat.
 		if len(icmpConfig.Pattern) > 0 {
 			packetIndex := uint64(0)
 			for stepIdx, step := range icmpConfig.Pattern {
@@ -107,12 +160,16 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				if seq == 0 {
 					seq = uint16(stepIdx + 1)
 				}
+				stepData := step.Data
+				if stepData == nil {
+					stepData = echoData
+				}
 				stepCfg := &core.ICMPConfig{
 					Type:       step.Type,
 					Code:       step.Code,
 					Identifier: icmpConfig.Identifier,
 					Sequence:   seq,
-					Data:       step.Data,
+					Data:       stepData,
 				}
 				// Emit the step as an up packet (client -> server).
 				configChan <- core.PacketConfig{
@@ -142,7 +199,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						Code:       0,
 						Identifier: icmpConfig.Identifier,
 						Sequence:   seq,
-						Data:       step.Data,
+						Data:       stepData,
 					}
 					configChan <- core.PacketConfig{
 						FlowID:      flowID,
@@ -169,7 +226,16 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 
 		// Legacy single-ping path.
-		// ICMP Echo Request (client -> server)
+		// ICMP Echo Request (client -> server). The echoData resolved
+		// above (honoring FileSource) overrides the inline Data for
+		// both the request and the auto-reply.
+		reqConfig := &core.ICMPConfig{
+			Type:       icmpConfig.Type,
+			Code:       icmpConfig.Code,
+			Identifier: icmpConfig.Identifier,
+			Sequence:   icmpConfig.Sequence,
+			Data:       echoData,
+		}
 		configChan <- core.PacketConfig{
 			FlowID:      flowID,
 			PacketIndex: 0,
@@ -184,10 +250,10 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			L4: core.L4Config{
 				Protocol: "icmp",
 			},
-			Payload: buildICMPPayload(icmpConfig),
+			Payload: buildICMPPayload(reqConfig),
 			Metadata: map[string]interface{}{
-				"icmp_type": icmpConfig.Type,
-				"icmp_code": icmpConfig.Code,
+				"icmp_type": reqConfig.Type,
+				"icmp_code": reqConfig.Code,
 			},
 		}
 
@@ -198,7 +264,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				Code:       0,
 				Identifier: icmpConfig.Identifier,
 				Sequence:   icmpConfig.Sequence,
-				Data:       icmpConfig.Data,
+				Data:       echoData,
 			}
 
 			configChan <- core.PacketConfig{

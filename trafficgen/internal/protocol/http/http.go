@@ -15,6 +15,25 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
+// payloadCacheKey is the context-key type used to inject a PayloadCache
+// into the HTTP planner via WithPayloadCache. The planner reads the cache
+// from ctx.Value(payloadCacheKey{}) when HTTPConfig.FileSource is set.
+//
+// Task 12 keeps the key and WithPayloadCache helper in the http package
+// so the planner is testable in isolation; Task 13 will refactor callers
+// to use core.WithPayloadCache (a controller-level helper) which uses
+// the same key type so the planner's lookup continues to work. Mirrors
+// the FTP pattern (Task 11).
+type payloadCacheKey struct{}
+
+// WithPayloadCache returns a context carrying the payload cache. The HTTP
+// planner reads the cache via ctx.Value(payloadCacheKey{}) when
+// HTTPConfig.FileSource is set; the cache is used to resolve file/literal/
+// fill/seeded-random payload bytes via PayloadCache.GetOrLoad.
+func WithPayloadCache(ctx context.Context, pc *core.PayloadCache) context.Context {
+	return context.WithValue(ctx, payloadCacheKey{}, pc)
+}
+
 const (
 	DefaultTTL = 64
 	// DefaultMSS is the default TCP Maximum Segment Size used when MSS is 0.
@@ -221,6 +240,37 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// HTTP Transactions (keep-alive: multiple request/response pairs in one TCP connection)
 		// Pre-decode bodies once before the loop so base64 (BodyB64/ResponseBodyB64)
 		// is not re-decoded on every iteration.
+		//
+		// FileSource resolution (Task 12): when httpConfig.FileSource is
+		// set, the resolved bytes override the inline Body/BodyB64 fields.
+		// We mutate httpConfig.Body / BodyB64 ONCE here (before the
+		// transaction loop) so buildHTTPRequestBody sees the resolved
+		// bytes on every iteration. The resolution precedence:
+		//  1. httpConfig.FileSource != nil -> PayloadCache.GetOrLoad(ctx, *httpConfig.FileSource)
+		//     - bytes go into Body (text, via core.IsText) or BodyB64 (binary)
+		//  2. else inline Body / BodyB64 (unchanged behavior)
+		//
+		// When FileSource is set but no cache is injected, we leave the
+		// inline fields untouched (do NOT silently fall through to Body).
+		// This is the "do not override user-set Body" caveat from the
+		// brief: it applies when FileSource is nil — don't override
+		// user-set Body with empty bytes. When FileSource is non-nil,
+		// FileSource wins (matches FTP precedence). Production engine
+		// (Task 13) always injects the cache.
+		if httpConfig.FileSource != nil {
+			pc, _ := ctx.Value(payloadCacheKey{}).(*core.PayloadCache)
+			if pc != nil {
+				if bytes, err := pc.GetOrLoad(ctx, *httpConfig.FileSource); err == nil {
+					if core.IsText(bytes) {
+						httpConfig.Body = string(bytes)
+						httpConfig.BodyB64 = "" // text wins over b64 when FileSource resolves
+					} else {
+						httpConfig.BodyB64 = base64.StdEncoding.EncodeToString(bytes)
+						httpConfig.Body = "" // b64 wins over text for binary bytes
+					}
+				}
+			}
+		}
 		requestBody := resolveRequestBody(httpConfig)
 		responseBody := resolveResponseBody(httpConfig)
 		for i := 0; i < transactions; i++ {

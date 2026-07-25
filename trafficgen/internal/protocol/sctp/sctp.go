@@ -47,6 +47,25 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
+// payloadCacheKey is the context-key type used to inject a PayloadCache
+// into the SCTP planner via WithPayloadCache. The planner reads the cache
+// from ctx.Value(payloadCacheKey{}) when SCTPChunk.FileSource is set.
+//
+// Task 12 keeps the key and WithPayloadCache helper in the sctp package
+// so the planner is testable in isolation; Task 13 will refactor callers
+// to use core.WithPayloadCache (a controller-level helper) which uses
+// the same key type so the planner's lookup continues to work. Mirrors
+// the FTP pattern (Task 11).
+type payloadCacheKey struct{}
+
+// WithPayloadCache returns a context carrying the payload cache. The SCTP
+// planner reads the cache via ctx.Value(payloadCacheKey{}) when
+// SCTPChunk.FileSource is set; the cache is used to resolve file/literal/
+// fill/seeded-random payload bytes via PayloadCache.GetOrLoad.
+func WithPayloadCache(ctx context.Context, pc *core.PayloadCache) context.Context {
+	return context.WithValue(ctx, payloadCacheKey{}, pc)
+}
+
 const (
 	DefaultTTL = 64
 
@@ -282,6 +301,21 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			if direction != "up" && direction != "down" {
 				continue
 			}
+			// Resolve the DATA chunk payload bytes per the FileSource
+			// precedence contract (mirrors FTP Task 11):
+			//  1. ch.FileSource != nil -> PayloadCache.GetOrLoad(ctx, *ch.FileSource)
+			//  2. else ch.Data (inline)
+			//
+			// SCTPChunk has no PayloadB64 field — only inline Data.
+			//
+			// When FileSource is set but no cache is injected, skip this
+			// chunk (do NOT fall through to inline Data). Falling through
+			// would violate the FileSource > inline precedence contract.
+			// Production engine (Task 13) always injects the cache.
+			dataBytes, skipChunk := resolveSCTPChunkData(ctx, ch)
+			if skipChunk {
+				continue
+			}
 			var tsn uint32
 			if ch.TSN != 0 {
 				tsn = ch.TSN
@@ -290,7 +324,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				clientTSN++
 			}
 			if direction == "up" {
-				dataChunk := buildDATAChunk(tsn, ch.SID, ch.SSN, ch.PPID, ch.Data)
+				dataChunk := buildDATAChunk(tsn, ch.SID, ch.SSN, ch.PPID, dataBytes)
 				emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP,
 					spec.SrcPort, spec.DstPort, serverVerTag, dataChunk)
 			} else {
@@ -304,7 +338,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					tsn = serverTSN
 					serverTSN++
 				}
-				dataChunk := buildDATAChunk(tsn, ch.SID, ch.SSN, ch.PPID, ch.Data)
+				dataChunk := buildDATAChunk(tsn, ch.SID, ch.SSN, ch.PPID, dataBytes)
 				emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP,
 					spec.DstPort, spec.SrcPort, clientVerTag, dataChunk)
 			}
@@ -335,6 +369,37 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	}()
 
 	return configChan, nil
+}
+
+// resolveSCTPChunkData resolves a DATA chunk's payload bytes per the
+// FileSource precedence contract (mirrors FTP Task 11):
+//
+//  1. ch.FileSource != nil -> PayloadCache.GetOrLoad(ctx, *ch.FileSource)
+//  2. else ch.Data (inline)
+//
+// SCTPChunk has no PayloadB64 field — only inline Data. If a future
+// enhancement adds PayloadB64, insert it as step 2 and demote Data to
+// step 3.
+//
+// When FileSource is set but no cache is injected (e.g. a unit test that
+// forgot WithPayloadCache, or a controller path that doesn't wire the
+// cache yet), the function returns skipChunk=true so the caller skips
+// emitting this chunk (matching FTP's "return without emitting" behavior
+// on the same precedence-violation condition). Falling through to inline
+// Data would silently violate the FileSource > inline precedence contract.
+// Production engine (Task 13) always injects the cache.
+//
+// Returns (bytes, skip). When skip is true, bytes is nil.
+func resolveSCTPChunkData(ctx context.Context, ch core.SCTPChunk) ([]byte, bool) {
+	if ch.FileSource == nil {
+		return ch.Data, false
+	}
+	pc, _ := ctx.Value(payloadCacheKey{}).(*core.PayloadCache)
+	if pc == nil {
+		return nil, true
+	}
+	bytes, _ := pc.GetOrLoad(ctx, *ch.FileSource)
+	return bytes, false
 }
 
 // randNonZeroTag returns a random non-zero 32-bit verification tag. RFC 4960

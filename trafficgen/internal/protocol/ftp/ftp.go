@@ -36,7 +36,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 )
@@ -567,7 +566,7 @@ func emitFTPDataChannel(
 		// no NUL bytes (a heuristic for "this is text"). Otherwise encode
 		// as base64 so binary payloads round-trip exactly. This mirrors
 		// how a user would write the same bytes inline.
-		if isText(payloadBytes) {
+		if core.IsText(payloadBytes) {
 			subPayload = string(payloadBytes)
 		} else {
 			subPayloadB64 = base64.StdEncoding.EncodeToString(payloadBytes)
@@ -589,14 +588,6 @@ func emitFTPDataChannel(
 	core.EmitSubFlow(configChan, 0, sub, spec, parentFlowID, now, packetIndex, nextIPID)
 }
 
-// isText reports whether b is a safe text payload: valid UTF-8 with no NUL
-// bytes. Used to choose between SubFlowSpec.Payload (text) and .PayloadB64
-// (binary) when carrying resolved []byte through the sub-flow spec.
-func isText(b []byte) bool {
-	for _, c := range b {
-		if c == 0 {
-			return false
-		}
-	}
-	return utf8.Valid(b)
-}
+// (Removed local isText helper — moved to core.IsText in Task 12.
+// All five planners (ftp, sip, sctp, http, icmp) now share the single
+// core.IsText definition.)

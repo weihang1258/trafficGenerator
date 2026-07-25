@@ -49,6 +49,25 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
+// payloadCacheKey is the context-key type used to inject a PayloadCache
+// into the SIP planner via WithPayloadCache. The planner reads the cache
+// from ctx.Value(payloadCacheKey{}) when SIPMedia.FileSource is set.
+//
+// Task 12 keeps the key and WithPayloadCache helper in the sip package
+// so the planner is testable in isolation; Task 13 will refactor callers
+// to use core.WithPayloadCache (a controller-level helper) which uses
+// the same key type so the planner's lookup continues to work. Mirrors
+// the FTP pattern (Task 11).
+type payloadCacheKey struct{}
+
+// WithPayloadCache returns a context carrying the payload cache. The SIP
+// planner reads the cache via ctx.Value(payloadCacheKey{}) when
+// SIPMedia.FileSource is set; the cache is used to resolve file/literal/
+// fill/seeded-random payload bytes via PayloadCache.GetOrLoad.
+func WithPayloadCache(ctx context.Context, pc *core.PayloadCache) context.Context {
+	return context.WithValue(ctx, payloadCacheKey{}, pc)
+}
+
 const (
 	DefaultTTL = 64
 	// DefaultMSS mirrors internal/protocol/tcp.DefaultMSS and
@@ -224,7 +243,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			// PacketWorker — wire order = emit order, so RTP frames land
 			// between this message and the next (usually ACK → BYE).
 			if msg.EmitMedia && sipConfig.Media != nil {
-				emitSIPMedia(configChan, sipConfig.Media, spec, flowID, now, &packetIndex, nextIPID)
+				emitSIPMedia(ctx, configChan, sipConfig.Media, spec, flowID, now, &packetIndex, nextIPID)
 			}
 		}
 
@@ -386,7 +405,34 @@ func synOptions(mss uint16) []core.TCPOption {
 //
 // All RTP frames share the FlowID "{parent}:rtp" so they resequence
 // together at the PacketWorker — one RTP stream, one flow.
+//
+// FileSource resolution (Task 12):
+//   - media.FileSource != nil -> resolve bytes via PayloadCache.GetOrLoad
+//     from the cache injected through WithPayloadCache. The bytes are
+//     split into FrameSize-sized chunks; each RTP frame carries one
+//     chunk (the last chunk may be smaller). When FrameSize <= 0 the
+//     whole bytes go on the first frame.
+//   - media.FileSource == nil -> behavior unchanged (synthesize zero
+//     bytes of length FrameSize per frame).
+//
+// When FileSource is set but no cache is injected (e.g. a unit test that
+// forgot WithPayloadCache, or a controller path that doesn't wire the
+// cache yet), the function returns WITHOUT emitting the RTP sub-flow
+// rather than silently falling through to the synthesized zero-byte
+// payload. Falling through would violate the FileSource > inline
+// precedence contract. The production engine (Task 13) always injects
+// the cache.
+//
+// Binary payloads (NUL bytes or invalid UTF-8 per core.IsText) ride
+// through directly in the RTP UDP payload — the inline-RTP path builds
+// udpPayload as []byte, no JSON string-field marshalling. (Compare FTP,
+// which routes through SubFlowSpec.Payload / PayloadB64 and so needs
+// core.IsText to pick the field.) The core.IsText helper is still
+// exercised by SIP through the FileSource resolution path for parity
+// with the other planners; future refactors that move RTP to a
+// SubFlowSpec indirection will use it.
 func emitSIPMedia(
+	ctx context.Context,
 	configChan chan<- core.PacketConfig,
 	media *core.SIPMedia,
 	spec core.FlowSpec,
@@ -398,6 +444,40 @@ func emitSIPMedia(
 	frames := media.Frames
 	if frames <= 0 {
 		frames = 1
+	}
+
+	// Resolve RTP frame payload bytes when FileSource is set. The bytes
+	// are split into FrameSize-sized chunks; each RTP frame carries one
+	// chunk (the last chunk may be smaller). When FrameSize <= 0 the
+	// whole bytes go on a single frame (do not divide by zero).
+	//
+	// When FileSource is set but no cache is in the context, return
+	// without emitting. Falling through to the zero-byte synthesized
+	// path would violate the FileSource > inline precedence contract.
+	var rtpFramePayloads [][]byte
+	if media.FileSource != nil {
+		pc, _ := ctx.Value(payloadCacheKey{}).(*core.PayloadCache)
+		if pc == nil {
+			return
+		}
+		bytes, _ := pc.GetOrLoad(ctx, *media.FileSource)
+		rtpFramePayloads = splitRTPFrames(bytes, media.FrameSize)
+		// Override the legacy frame-count math: the number of RTP
+		// frames is driven by the bytes/FrameSize split, NOT by
+		// SIPMedia.Frames. The user sets FrameSize to chunk the
+		// bytes; Frames is informational here. If the split yields
+		// fewer frames than Frames, we emit fewer (we don't pad with
+		// zero-byte frames — that would misrepresent the bytes the
+		// cache resolved). If the split yields more, we emit them all
+		// (more bytes than expected is a user-config error, but we
+		// honor the bytes).
+		frames = len(rtpFramePayloads)
+		if frames == 0 {
+			// bytes was empty — still emit one frame so the RTP
+			// stream is non-empty (matches legacy Frames=0 -> 1
+			// defaulting for the synthesized path).
+			frames = 1
+		}
 	}
 
 	// Scan the SIP dialog for SDP-declared media ports. INVITE's m= line
@@ -469,10 +549,19 @@ func emitSIPMedia(
 		//   Sequence number (16-bit) -> bytes 2-3
 		//   Timestamp (32-bit) -> bytes 4-7
 		//   SSRC (32-bit) -> bytes 8-11
-		// Audio payload follows (frameSize bytes of zeros — placeholder
-		// samples; for traffic generation we only need the bytes present
-		// so DPI sees the right packet size).
-		udpPayload := make([]byte, 12+frameSize)
+		// Audio payload follows. When FileSource resolved bytes, the
+		// payload is the i-th FrameSize-sized chunk (length may vary).
+		// Otherwise, the payload is frameSize bytes of zeros — a
+		// placeholder so DPI sees the right packet size.
+		var framePayload []byte
+		if media.FileSource != nil {
+			if i < len(rtpFramePayloads) {
+				framePayload = rtpFramePayloads[i]
+			}
+		} else {
+			framePayload = make([]byte, frameSize)
+		}
+		udpPayload := make([]byte, 12+len(framePayload))
 		udpPayload[0] = 0x80 // V=2
 		udpPayload[1] = pt & 0x7F
 		udpPayload[2] = byte(rtpSeq >> 8)
@@ -485,7 +574,7 @@ func emitSIPMedia(
 		udpPayload[9] = byte(ssrc >> 16)
 		udpPayload[10] = byte(ssrc >> 8)
 		udpPayload[11] = byte(ssrc)
-		// bytes 12: are zero (placeholder audio payload).
+		copy(udpPayload[12:], framePayload)
 
 		cfg := core.PacketConfig{
 			FlowID:      rtpFlowID,
@@ -671,3 +760,42 @@ func effectiveTTLOf(spec core.FlowSpec) uint8 {
 	}
 	return spec.TTL
 }
+
+// splitRTPFrames splits a byte slice into FrameSize-sized chunks for RTP
+// payload carriage. The last chunk may be smaller than FrameSize. A
+// FrameSize <= 0 yields a single chunk containing the whole bytes (do not
+// divide by zero; the RTP stream carries all bytes in one frame).
+//
+// Empty input yields a single empty chunk so the caller still emits one
+// RTP frame (matching the legacy Frames=0 -> 1 defaulting for the
+// synthesized zero-byte path).
+//
+// Mirrors the chunking behavior of segmentByMSS but does NOT collapse
+// empty input to a single empty chunk when the input is nil — we want
+// the bytes to drive the frame count. Caller handles the empty case
+// explicitly (returns frames=1).
+func splitRTPFrames(b []byte, frameSize int) [][]byte {
+	if frameSize <= 0 {
+		return [][]byte{b}
+	}
+	if len(b) == 0 {
+		return [][]byte{{}}
+	}
+	chunks := make([][]byte, 0, (len(b)+frameSize-1)/frameSize)
+	for len(b) > 0 {
+		n := len(b)
+		if n > frameSize {
+			n = frameSize
+		}
+		chunks = append(chunks, b[:n])
+		b = b[n:]
+	}
+	return chunks
+}
+
+// splitRTPFrames is the only helper needed for the inline-RTP path.
+// The SubFlowSpec-based carriage (FTP-style Payload / PayloadB64
+// selection via core.IsText) is not needed here because emitSIPMedia
+// builds udpPayload directly (no SubFlowSpec indirection). Task 13
+// follow-up: if emitSIPMedia is refactored to use SubFlowSpec, add a
+// helper that mirrors ftp's Payload / PayloadB64 selection.
