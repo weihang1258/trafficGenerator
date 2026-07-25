@@ -331,9 +331,16 @@ func (app *Application) initWebSocket() {
 	zap.L().Info("websocket hub started")
 }
 
-// initServer initializes the API server.
+// initServer initializes the API server. After construction, the filesystem
+// is wired in before Setup() so the /api/v1/fs/* routes are registered.
+// Guarded by nil check to mirror the MCP pattern: when filesystem init
+// failed at engine startup, routes are simply not registered and the
+// handler returns "filesystem not configured" rather than nil-derefing.
 func (app *Application) initServer() error {
 	app.server = rest.NewServer(app.config, app.engine, app.wsHandler, app.db, app.ifaceMgr, app.portSched)
+	if app.filesystem != nil {
+		app.server.SetFilesystem(app.filesystem)
+	}
 	return app.server.Setup()
 }
 
