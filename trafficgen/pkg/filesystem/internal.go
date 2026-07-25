@@ -57,6 +57,13 @@ func (fs *Filesystem) resolveBytes(src FileSource) ([]byte, error) {
 	}
 }
 
+// GenerateRandomBytes is exported for reuse by internal/core/payloadcache
+// so the unseeded-random bypass path can construct fresh bytes without
+// importing the internal helper.
+func GenerateRandomBytes(r *Random) ([]byte, error) {
+	return generateRandomBytes(r)
+}
+
 // generateRandomBytes produces random bytes. When Seed is non-zero, output
 // is reproducible per (Seed, MinBytes, MaxBytes). When Seed is zero,
 // output is crypto-random fresh on every call.
