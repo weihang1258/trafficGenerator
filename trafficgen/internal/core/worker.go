@@ -190,19 +190,12 @@ func (w *ConfigWorker) processTask(task Task) {
 	if taskCtx == nil {
 		taskCtx = w.ctx
 	}
-	// Inject the engine-wide PayloadCache so protocol planners that
-	// support FileSource (ftp, sip, sctp, http, icmp) can resolve
-	// file/literal/fill/seeded-random payload bytes via
-	// core.PayloadCacheFrom(ctx). The cache may be nil (engine running
-	// without a filesystem, or tests); planners treat nil as "skip
-	// FileSource resolution" rather than erroring, so a nil cache is
-	// safe. w.engine may be nil in tests that construct a ConfigWorker
-	// directly (e.g. fcCapturingPlanner); guard the deref. We inject
-	// unconditionally so the planner's ctx-value read always finds a
-	// value (nil or not) — without this, planners running under an
-	// engine without a filesystem would silently skip FileSource
-	// payloads even when the user expected them, but that is the
-	// intended degradation (vs. panicking on a nil deref).
+	// Inject the engine-wide cache when available. When w.engine is nil
+	// (test-only ConfigWorker) or pc is nil (engine without a filesystem),
+	// we skip injection — planners call PayloadCacheFrom(ctx), get nil, and
+	// skip FileSource resolution. This is the intended degradation
+	// (silently producing non-FileSource packets) rather than panicking on
+	// a nil deref.
 	if w.engine != nil {
 		if pc := w.engine.PayloadCache(); pc != nil {
 			taskCtx = WithPayloadCache(taskCtx, pc)
