@@ -359,6 +359,16 @@ func (app *Application) initMCPServer() {
 		time.Duration(app.config.Auth.JWTExpiresIn)*time.Hour,
 	)
 	srv.SetJWTManager(jwtManager)
+	// Filesystem is needed by flowb_manage_filesystem (upload/read/delete/
+	// mkdir/rmdir/list/query). When app.filesystem is nil (e.g. filesystem
+	// init failed at engine startup), the tool is not registered and the
+	// handler returns "filesystem not configured" -- so the LLM gets a
+	// clear error rather than a nil-deref. The nil guard inside
+	// registerFilesystemTool also protects the test path (setupMCPTest
+	// never wires a filesystem).
+	if app.filesystem != nil {
+		srv.SetFilesystem(app.filesystem)
+	}
 	app.mcpServer = srv
 }
 

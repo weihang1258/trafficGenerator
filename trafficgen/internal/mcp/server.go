@@ -9,6 +9,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"github.com/trafficgen/trafficgen/pkg/config"
+	"github.com/trafficgen/trafficgen/pkg/filesystem"
 	"github.com/trafficgen/trafficgen/pkg/netif"
 	"go.uber.org/zap"
 )
@@ -27,6 +28,7 @@ type Server struct {
 	serviceUsername string
 	serviceUserRole string
 	mcpServer       *mcp.Server
+	filesystem      *filesystem.Filesystem
 }
 
 // SetPortScheduler injects the port scheduler. Optional: when nil, the system
@@ -41,6 +43,15 @@ func (s *Server) SetPortScheduler(ps *netif.Scheduler) {
 // derive the caller identity (rather than using the service account).
 func (s *Server) SetJWTManager(jm *auth.JWTManager) {
 	s.jwtManager = jm
+}
+
+// SetFilesystem injects the content-addressed filesystem. Required for
+// flowb_manage_filesystem (upload/read/delete/mkdir/rmdir/list/query). When
+// nil, the filesystem tool is not registered (the server refuses to expose
+// a tool it can't actually serve). main.go calls this after NewServer once
+// the filesystem is constructed.
+func (s *Server) SetFilesystem(fs *filesystem.Filesystem) {
+	s.filesystem = fs
 }
 
 // NewServer creates a new MCP server. It validates the service account exists
@@ -116,6 +127,9 @@ func (s *Server) registerTools() {
 	s.registerUserTools()
 	s.registerAuthTools()
 	s.registerPcapTools()
+	if s.filesystem != nil {
+		s.registerFilesystemTool()
+	}
 }
 
 // Run starts the MCP server with the given transport. Blocks until the
