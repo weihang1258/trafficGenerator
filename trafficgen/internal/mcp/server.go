@@ -127,9 +127,7 @@ func (s *Server) registerTools() {
 	s.registerUserTools()
 	s.registerAuthTools()
 	s.registerPcapTools()
-	if s.filesystem != nil {
-		s.registerFilesystemTool()
-	}
+	s.registerFilesystemTool()
 }
 
 // Run starts the MCP server with the given transport. Blocks until the
