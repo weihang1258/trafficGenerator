@@ -79,6 +79,9 @@ func (c *PayloadCache) resolveBytes(ctx context.Context, src filesystem.FileSour
 	case src.Literal != "":
 		return []byte(src.Literal), nil
 	case src.Fill != nil:
+		if src.Fill.Bytes < 0 {
+			return nil, errors.New("payloadcache: Fill.Bytes must not be negative")
+		}
 		buf := make([]byte, src.Fill.Bytes)
 		for i := range buf {
 			buf[i] = src.Fill.Byte

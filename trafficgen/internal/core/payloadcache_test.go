@@ -35,9 +35,12 @@ func TestPayloadCache_Literal_HitAndMiss(t *testing.T) {
 	if !bytes.Equal(b1, b2) {
 		t.Fatalf("b1 != b2: %q vs %q", string(b1), string(b2))
 	}
-	// Same slice header — truly cached, not re-computed.
-	if len(b1) != len(b2) {
-		t.Fatalf("len differs")
+	// Same backing memory — truly cached, not re-computed.
+	if len(b1) == 0 {
+		t.Fatalf("b1 is empty")
+	}
+	if &b1[0] != &b2[0] {
+		t.Fatalf("b1 and b2 have different backing arrays — not cached")
 	}
 	entries, _ := pc.Stats()
 	if entries != 1 {
@@ -101,6 +104,16 @@ func TestPayloadCache_RandomUnseeded_NotCached(t *testing.T) {
 	entries, _ := pc.Stats()
 	if entries != 0 {
 		t.Fatalf("entries got %d, want 0 (unseeded random is NOT cached)", entries)
+	}
+}
+
+func TestPayloadCache_Fill_NegativeBytes_Errors(t *testing.T) {
+	pc, _ := newCache(t)
+	ctx := context.Background()
+	src := filesystem.FileSource{Fill: &filesystem.Fill{Byte: 0xAA, Bytes: -1}}
+	_, err := pc.GetOrLoad(ctx, src)
+	if err == nil {
+		t.Fatalf("expected error for negative Fill.Bytes, got nil")
 	}
 }
 
