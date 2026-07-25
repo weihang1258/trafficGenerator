@@ -185,6 +185,89 @@ func TestHTTP_FileSource_PrecedenceOverInlineBody(t *testing.T) {
 	}
 }
 
+// TestHTTPFileSource_NoCrossFlowMutation is a regression test for C1:
+// in batch mode, worker.go calls mapToFlowSpec once per TrafficClass then
+// loops flowIdx over FlowCount, reusing the same spec (and thus the same
+// *HTTPConfig pointer) for every flow. If the planner mutates
+// httpConfig.Body / BodyB64 in place to satisfy FileSource resolution,
+// flow 0's resolved bytes overwrite the user's original Body field, and
+// flow 1 sees the mutated Body instead of re-resolving FileSource.
+//
+// The fix is for the planner to copy the *HTTPConfig struct before any
+// mutation. This test asserts:
+//  1. Two consecutive Plan calls on the same spec produce identical request bodies.
+//  2. spec.HTTP.Body is NOT mutated after both calls (the user's original
+//     inline value must be preserved).
+func TestHTTPFileSource_NoCrossFlowMutation(t *testing.T) {
+	p := http.NewPlanner()
+	fs, err := filesystem.New(t.TempDir())
+	if err != nil {
+		t.Fatalf("filesystem.New: %v", err)
+	}
+	pc := core.NewPayloadCache(fs)
+
+	// User sets BOTH FileSource and inline Body. FileSource must win for
+	// resolved bytes, but inline Body must NOT be overwritten by the planner.
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "10.0.0.2",
+		SrcPort: 2000, DstPort: 80,
+		SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66",
+		TCP: &core.TCPConfig{Handshake: true, Termination: true},
+		HTTP: &core.HTTPConfig{
+			Method:     "POST",
+			URI:        "/upload",
+			FileSource: &filesystem.FileSource{Literal: "FILE-BYTES"},
+			Body:       "ORIGINAL-USER-BODY",
+		},
+	}
+	ctx := core.WithPayloadCache(context.Background(), pc)
+
+	// Capture the request payload from the first Plan call.
+	ch1, err := p.Plan(ctx, spec)
+	if err != nil {
+		t.Fatalf("Plan 1: %v", err)
+	}
+	var packets1 []core.PacketConfig
+	for c := range ch1 {
+		packets1 = append(packets1, c)
+	}
+	body1 := httpRequestPayload(packets1)
+
+	// Capture the request payload from the second Plan call on the SAME spec.
+	ch2, err := p.Plan(ctx, spec)
+	if err != nil {
+		t.Fatalf("Plan 2: %v", err)
+	}
+	var packets2 []core.PacketConfig
+	for c := range ch2 {
+		packets2 = append(packets2, c)
+	}
+	body2 := httpRequestPayload(packets2)
+
+	// Requirement 1: both calls must produce identical request bytes. If the
+	// planner mutated httpConfig.Body on call 1, call 2 would see the mutated
+	// Body (or mutated BodyB64) instead of re-resolving FileSource, and the
+	// bytes could differ or be empty.
+	if !bytes.Equal(body1, body2) {
+		t.Fatalf("cross-flow mutation: Plan 1 and Plan 2 produced different request bodies\n"+
+			"  body1=%q\n  body2=%q", string(body1), string(body2))
+	}
+
+	// Requirement 2: spec.HTTP.Body must be unchanged — the user's original
+	// inline value must still be there. If the planner mutated it, this would
+	// catch the bug even when both calls happened to produce the same bytes.
+	if spec.HTTP.Body != "ORIGINAL-USER-BODY" {
+		t.Fatalf("planner mutated spec.HTTP.Body: got %q, want %q (caller pointer must not be mutated)",
+			spec.HTTP.Body, "ORIGINAL-USER-BODY")
+	}
+
+	// Sanity: the resolved bytes must actually contain the FileSource bytes
+	// (otherwise the test would pass trivially without exercising the bug).
+	if !bytes.Contains(body1, []byte("FILE-BYTES")) {
+		t.Fatalf("FileSource bytes missing from request body: %q", string(body1))
+	}
+}
+
 // TestHTTP_FileSource_BinaryWithNUL verifies the core.IsText heuristic's
 // NUL branch: bytes containing 0x00 are carried via BodyB64 (binary path)
 // so they round-trip through JSON marshalling without corruption. The

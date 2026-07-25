@@ -7,7 +7,28 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 )
+
+// linkFunc is the OS hardlink primitive. It is a package-level variable so
+// tests can inject failures (e.g., to exercise the I1 rollback path: link
+// fails -> fallback write fails -> meta must be rolled back). In production
+// it is os.Link.
+var linkFunc = os.Link
+
+// LinkFunc returns the current hardlink function (for tests that need to
+// save and restore it across linkFunc-injection scenarios).
+func LinkFunc() func(string, string) error {
+	return linkFunc
+}
+
+// SetLinkFunc overrides the hardlink function. Used only by tests; production
+// code MUST NOT call this. The caller is responsible for restoring the
+// original via LinkFunc()/SetLinkFunc() (typically using t.Cleanup).
+func SetLinkFunc(f func(string, string) error) {
+	linkFunc = f
+}
 
 // initDirs creates the root, .meta/files, and blobs/ subdirectories.
 func (fs *Filesystem) initDirs() error {
@@ -44,12 +65,20 @@ func (fs *Filesystem) Upload(ctx context.Context, relPath string, src FileSource
 	defer fs.mu.Unlock()
 	hash := hashStr(b)
 
+	// Look up the existing hash (if any) for this path. Used both for the
+	// ref-removal step, the I2 fix (skip materialization when the existing
+	// hardlink already points at the same blob), and the I1 fix (rollback
+	// the meta save if materialization fails on the overwrite path).
+	existingHash, _ := fs.lookupHashForPath(cleanRel)
+
 	// If relPath already references a different blob, remove the old ref
 	// (and delete the old blob if refs become empty).
-	if existingHash, err := fs.lookupHashForPath(cleanRel); err == nil && existingHash != hash {
+	if existingHash != "" && existingHash != hash {
 		if err := fs.removeRefLocked(existingHash, cleanRel); err != nil {
 			return err
 		}
+		// The old blob's ref was removed; the new hash is what we'll save below.
+		existingHash = ""
 	}
 
 	// Write the blob if missing (hash dedup: skip write if already exists).
@@ -60,47 +89,104 @@ func (fs *Filesystem) Upload(ctx context.Context, relPath string, src FileSource
 		}
 	}
 
+	// I1 fix: save meta BEFORE materializing the hardlink. If materialization
+	// then fails (linkFunc fails AND fallback os.WriteFile fails), we roll
+	// back the meta by removing the ref we just added. Without this order,
+	// a failed materialization on the overwrite path would leave the new blob
+	// on disk with zero refs (meta not yet updated) AND the user's relPath
+	// missing — an orphan blob plus a dangling file.
+	//
+	// We re-load the meta after the blob write (it may have been created by
+	// a concurrent Upload, but that's fine — saveMeta is idempotent for the
+	// Refs append because containsStr guards against duplicates).
+	meta, err := fs.loadMeta(hash)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return err
+	}
+	metaWasNew := false
+	if meta == nil {
+		meta = &fileMeta{Hash: hash, Size: int64(len(b)), Created: time.Now().UnixNano()}
+		metaWasNew = true
+	}
+	refAdded := false
+	if !containsStr(meta.Refs, cleanRel) {
+		meta.Refs = append(meta.Refs, cleanRel)
+		refAdded = true
+	}
+	if err := fs.saveMeta(hash, meta); err != nil {
+		return err
+	}
+
 	// Materialize the file on disk at relPath so it is visible to List,
 	// Query, and external tools. Use a hardlink to the blob when the OS
 	// supports it; fall back to a copy otherwise.
 	absRel := filepath.Join(fs.root, filepath.FromSlash(cleanRel))
 	if err := os.MkdirAll(filepath.Dir(absRel), 0755); err != nil {
+		// Materialization failed — roll back the meta save above so we don't
+		// leave a meta entry pointing at a path with no hardlink on disk.
+		fs.rollbackMetaLocked(hash, cleanRel, metaWasNew, refAdded)
 		return err
 	}
-	// If an entry already exists at absRel, it must be a stale hardlink to
-	// an old blob (Upload is overwriting a previously uploaded file). A
-	// directory at absRel is a programming error — refuse to silently
-	// replace it with a hardlink, which would hide the dir behind a file.
-	if st, err := os.Lstat(absRel); err == nil {
+	if existingHash != "" && existingHash == hash {
+		// I2 fix: hardlink already points at the right blob — no-op.
+	} else if st, err := os.Lstat(absRel); err == nil {
 		if st.IsDir() {
+			fs.rollbackMetaLocked(hash, cleanRel, metaWasNew, refAdded)
 			return errors.New("filesystem: path is a directory")
 		}
-		// Remove the stale hardlink so the new hardlink can take its place.
-		// Surface the remove error rather than letting the subsequent
-		// os.Link fail with a confusing "file exists".
 		if err := os.Remove(absRel); err != nil {
+			fs.rollbackMetaLocked(hash, cleanRel, metaWasNew, refAdded)
 			return err
 		}
-	}
-	if err := os.Link(blobPath, absRel); err != nil {
-		// Fall back to a copy if hardlink fails (e.g., cross-device).
-		if err := os.WriteFile(absRel, b, 0644); err != nil {
-			return err
+		if err := linkFunc(blobPath, absRel); err != nil {
+			// Fall back to a copy if hardlink fails (e.g., cross-device).
+			if err := os.WriteFile(absRel, b, 0644); err != nil {
+				// I1 fix: linkFunc AND fallback both failed. Roll back.
+				fs.rollbackMetaLocked(hash, cleanRel, metaWasNew, refAdded)
+				return err
+			}
+		}
+	} else {
+		if err := linkFunc(blobPath, absRel); err != nil {
+			if err := os.WriteFile(absRel, b, 0644); err != nil {
+				fs.rollbackMetaLocked(hash, cleanRel, metaWasNew, refAdded)
+				return err
+			}
 		}
 	}
 
-	// Update meta: add cleanRel to refs[].
+	return nil
+}
+
+// rollbackMetaLocked undoes the meta save performed before materialization.
+// If refAdded is true, the ref was appended to meta.Refs; we either remove
+// just that ref (when other refs remain) or delete the meta and blob
+// entirely (when this was the only ref). If metaWasNew is true, the meta
+// file did not exist before this Upload, so rollback deletes it (and the
+// blob, since no other refs can point at a brand-new meta). Caller must
+// hold fs.mu.
+func (fs *Filesystem) rollbackMetaLocked(hash, relPath string, metaWasNew, refAdded bool) {
+	if !refAdded {
+		return
+	}
+	if metaWasNew {
+		// We created the meta; safe to delete meta + blob.
+		_ = fs.deleteMeta(hash)
+		_ = os.Remove(fs.blobPath(hash))
+		return
+	}
+	// Meta existed before; just remove this ref.
 	meta, err := fs.loadMeta(hash)
-	if err != nil && !errors.Is(err, ErrNotFound) {
-		return err
+	if err != nil {
+		return
 	}
-	if meta == nil {
-		meta = &fileMeta{Hash: hash, Size: int64(len(b)), Created: time.Now().UnixNano()}
+	meta.Refs = removeStr(meta.Refs, relPath)
+	if len(meta.Refs) == 0 {
+		_ = os.Remove(fs.blobPath(hash))
+		_ = fs.deleteMeta(hash)
+		return
 	}
-	if !containsStr(meta.Refs, cleanRel) {
-		meta.Refs = append(meta.Refs, cleanRel)
-	}
-	return fs.saveMeta(hash, meta)
+	_ = fs.saveMeta(hash, meta)
 }
 
 // Read returns the bytes at relPath. Returns ErrNotFound if relPath is
@@ -339,10 +425,13 @@ func (fs *Filesystem) Rmdir(ctx context.Context, relPath string, opts RmdirOptio
 		if err != nil {
 			return err
 		}
-		// Only .meta is "internal"; user-created entries count toward non-empty.
+		// Skip internal dirs (.meta and blobs). Only user-created entries
+		// count toward non-empty (I4 fix: previously only .meta was skipped,
+		// so a root-level Rmdir non-recursive would count blobs/ as a user
+		// entry and refuse to delete even an "empty" filesystem).
 		userEntries := 0
 		for _, e := range entries {
-			if e.Name() == ".meta" {
+			if e.Name() == ".meta" || e.Name() == "blobs" {
 				continue
 			}
 			userEntries++
@@ -367,7 +456,11 @@ func (fs *Filesystem) rmdirRecursiveLocked(relDir string) error {
 		return err
 	}
 	for _, e := range entries {
-		if e.Name() == ".meta" {
+		// I3 fix: skip BOTH internal dirs (.meta and blobs). Previously
+		// only .meta was skipped, so a recursive walk could descend into
+		// blobs/ and delete blob files. cleanRelPath blocks Rmdir("/") for
+		// now, but defense in depth: never recurse into blobs/.
+		if e.Name() == ".meta" || e.Name() == "blobs" {
 			continue
 		}
 		entryPath := filepath.ToSlash(filepath.Join(relDir, e.Name()))
@@ -381,12 +474,18 @@ func (fs *Filesystem) rmdirRecursiveLocked(relDir string) error {
 			// refcount, deleting the blob only when no refs remain.
 			if hash, err := fs.lookupHashForPath(entryPath); err == nil {
 				if err := fs.removeRefLocked(hash, entryPath); err != nil {
-					// If removeRefLocked failed because the meta was
-					// already gone (e.g., foreign file with no meta),
-					// still attempt to remove the on-disk entry below.
-					// For any other error, propagate.
+					// I8 fix: if removeRefLocked failed because the meta was
+					// already gone (foreign file with no meta), still attempt
+					// to remove the on-disk entry below. For any other error
+					// (e.g., corrupted meta JSON that fails to unmarshal),
+					// log and continue rather than aborting the entire walk:
+					// a corrupted meta should not block cleanup of the rest
+					// of the directory. The trailing os.Remove below will
+					// still clean up the on-disk file.
 					if !errors.Is(err, ErrNotFound) {
-						return err
+						zap.L().Warn("rmdir: meta error, skipping entry",
+							zap.String("path", entryPath),
+							zap.Error(err))
 					}
 				}
 			}

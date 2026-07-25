@@ -88,7 +88,12 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// Generate flow ID
 		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
 
-		// Get HTTP config
+		// Get HTTP config. Copy the struct so FileSource resolution below
+		// does NOT mutate the caller's *HTTPConfig. In batch mode, worker.go
+		// reuses the same spec (and thus the same *HTTPConfig pointer) across
+		// all flows in a TrafficClass; without this copy, flow 0's FileSource
+		// resolution would overwrite Body for flows 1..N (cross-flow data
+		// bleed — see TestHTTPFileSource_NoCrossFlowMutation).
 		httpConfig := spec.HTTP
 		if httpConfig == nil {
 			httpConfig = &core.HTTPConfig{
@@ -96,6 +101,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				URI:          "/",
 				ResponseBody: "OK",
 			}
+		} else {
+			copied := *httpConfig
+			httpConfig = &copied
 		}
 
 		transactions := httpConfig.Transactions
