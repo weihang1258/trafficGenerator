@@ -28,6 +28,7 @@ package ftp
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"math/rand"
 	"net"
@@ -35,9 +36,28 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 )
+
+// payloadCacheKey is the context-key type used to inject a PayloadCache
+// into the FTP planner via WithPayloadCache. The planner reads the cache
+// from ctx.Value(payloadCacheKey{}) when dc.FileSource is set.
+//
+// Task 11 keeps the key and WithPayloadCache helper in the ftp package
+// so the planner is testable in isolation; Task 13 will refactor callers
+// to use core.WithPayloadCache (a controller-level helper) which uses
+// the same key type so the planner's lookup continues to work.
+type payloadCacheKey struct{}
+
+// WithPayloadCache returns a context carrying the payload cache. The
+// FTP planner reads the cache via ctx.Value(payloadCacheKey{}) when
+// dc.FileSource is set; the cache is used to resolve file/literal/fill/
+// seeded-random payload bytes via PayloadCache.GetOrLoad.
+func WithPayloadCache(ctx context.Context, pc *core.PayloadCache) context.Context {
+	return context.WithValue(ctx, payloadCacheKey{}, pc)
+}
 
 const (
 	DefaultTTL = 64
@@ -220,7 +240,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			// the "150" response (above) and the next "226" response
 			// (the next loop iteration).
 			if cmd.EmitDataChannel && ftpConfig.DataChannel != nil {
-				emitFTPDataChannel(configChan, ftpConfig.DataChannel, spec, flowID, now, &packetIndex, nextIPID, mss, cmdIdx)
+				emitFTPDataChannel(ctx, configChan, ftpConfig.DataChannel, spec, flowID, now, &packetIndex, nextIPID, mss, cmdIdx)
 			}
 		}
 
@@ -431,6 +451,7 @@ func scanCommandsForDataPort(commands []core.FTPCommand, isActive bool, upToIdx 
 // RETR has the client opening the connection but the server still sending
 // the file bytes.
 func emitFTPDataChannel(
+	ctx context.Context,
 	configChan chan<- core.PacketConfig,
 	dc *core.FTPDataChannel,
 	spec core.FlowSpec,
@@ -507,17 +528,75 @@ func emitFTPDataChannel(
 		mss = parentMSS
 	}
 
+	// Resolve payload bytes per the FileSource precedence contract:
+	//  1. dc.FileSource != nil -> PayloadCache.GetOrLoad(ctx, *dc.FileSource)
+	//  2. else dc.PayloadB64 != "" -> base64-decode
+	//  3. else []byte(dc.Payload)
+	//
+	// When FileSource is set but no cache is injected (e.g. a unit test
+	// that forgot WithPayloadCache, or a controller path that doesn't
+	// wire the cache yet), we return WITHOUT emitting the data channel
+	// rather than silently falling through to Payload — falling through
+	// would violate the FileSource > Payload precedence contract. The
+	// production engine (Task 13) always injects the cache.
+	//
+	// We resolve to []byte and then carry it through SubFlowSpec via
+	// Payload (text) or PayloadB64 (binary) so the sub-flow emitter
+	// (core.EmitSubFlow) reads the exact same bytes regardless of whether
+	// the source was inline text, inline base64, or a FileSource that
+	// produced arbitrary bytes (file body, fill pattern, seeded random).
+	// The isText heuristic picks the right field so JSON marshalling of
+	// SubFlowSpec (for debugging) stays readable when possible.
+	var payloadBytes []byte
+	if dc.FileSource != nil {
+		pc, _ := ctx.Value(payloadCacheKey{}).(*core.PayloadCache)
+		if pc == nil {
+			return
+		}
+		payloadBytes, _ = pc.GetOrLoad(ctx, *dc.FileSource)
+	} else if dc.PayloadB64 != "" {
+		payloadBytes, _ = base64.StdEncoding.DecodeString(dc.PayloadB64)
+	} else {
+		payloadBytes = []byte(dc.Payload)
+	}
+
+	var subPayload string
+	var subPayloadB64 string
+	if len(payloadBytes) > 0 {
+		// Prefer the text field when the bytes are valid UTF-8 and contain
+		// no NUL bytes (a heuristic for "this is text"). Otherwise encode
+		// as base64 so binary payloads round-trip exactly. This mirrors
+		// how a user would write the same bytes inline.
+		if isText(payloadBytes) {
+			subPayload = string(payloadBytes)
+		} else {
+			subPayloadB64 = base64.StdEncoding.EncodeToString(payloadBytes)
+		}
+	}
+
 	sub := core.SubFlowSpec{
 		Protocol:        "tcp",
 		SrcPort:         clientDataPort,
 		DstPort:         serverDataPort,
 		Direction:       dc.Direction,
-		Payload:         dc.Payload,
-		PayloadB64:      dc.PayloadB64,
+		Payload:         subPayload,
+		PayloadB64:      subPayloadB64,
 		Handshake:       true,
 		Termination:     true,
 		MSS:             mss,
 		ServerInitiated: isActive,
 	}
 	core.EmitSubFlow(configChan, 0, sub, spec, parentFlowID, now, packetIndex, nextIPID)
+}
+
+// isText reports whether b is a safe text payload: valid UTF-8 with no NUL
+// bytes. Used to choose between SubFlowSpec.Payload (text) and .PayloadB64
+// (binary) when carrying resolved []byte through the sub-flow spec.
+func isText(b []byte) bool {
+	for _, c := range b {
+		if c == 0 {
+			return false
+		}
+	}
+	return utf8.Valid(b)
 }
