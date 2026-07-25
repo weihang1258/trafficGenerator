@@ -1,4 +1,4 @@
-.PHONY: all build run test clean lint
+.PHONY: all build run test clean lint build-fs build-all
 
 # Go parameters
 GOCMD=go
@@ -11,9 +11,11 @@ GOMOD=$(GOCMD) mod
 # Binary names
 BINARY_NAME=trafficgen
 BINARY_UNIX=$(BINARY_NAME)_unix
+FS_BINARY_NAME=tgserver-fs
 
-# Main package
+# Main packages
 MAIN_PACKAGE=./cmd/server
+FS_MAIN_PACKAGE=./cmd/fs
 
 # Build directory
 BUILD_DIR=./bin
@@ -26,7 +28,15 @@ deps:
 
 build:
 	mkdir -p $(BUILD_DIR)
-	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PACKAGE)
+	$(GOBUILD) -buildvcs=false -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PACKAGE)
+
+# build-fs builds the standalone filesystem CLI binary tgserver-fs.
+build-fs:
+	mkdir -p $(BUILD_DIR)
+	$(GOBUILD) -buildvcs=false -o $(BUILD_DIR)/$(FS_BINARY_NAME) $(FS_MAIN_PACKAGE)
+
+# build-all builds both the main server binary and the filesystem CLI binary.
+build-all: build build-fs
 
 run:
 	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PACKAGE)
