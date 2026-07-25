@@ -122,6 +122,22 @@ func TestUpload_OverwriteExistingPath_DedupOldBlobIfLastRef(t *testing.T) {
 	if _, err := os.Stat(blobX); !os.IsNotExist(err) {
 		t.Fatalf("blob X should be deleted after overwrite, got err=%v", err)
 	}
+	// After overwrite, a.txt must point at blob Y (not some stale leftover).
+	blobY, _ := fs.BlobPathForContent(ctx, []byte("content Y"))
+	if _, err := os.Stat(blobY); err != nil {
+		t.Fatalf("blob Y should exist: %v", err)
+	}
+	aInfo, err := os.Stat(aPath)
+	if err != nil {
+		t.Fatalf("stat a.txt after overwrite: %v", err)
+	}
+	blobYInfo, err := os.Stat(blobY)
+	if err != nil {
+		t.Fatalf("stat blob Y: %v", err)
+	}
+	if !os.SameFile(aInfo, blobYInfo) {
+		t.Fatalf("a.txt after overwrite should be same-file as blob Y (a.ino=%d blobY.ino=%d)", inodeOf(t, aInfo), inodeOf(t, blobYInfo))
+	}
 }
 
 // newFS returns a fresh Filesystem rooted at a temp dir.
@@ -142,4 +158,27 @@ func inodeOf(t *testing.T, fi os.FileInfo) uint64 {
 		return s.Ino
 	}
 	return 0
+}
+
+// TestUpload_OverwriteDirectory_Rejected covers M2: when relPath already
+// exists as a directory (created via Mkdir), Upload must NOT silently
+// replace it with a hardlink to a blob. It must return an error instead.
+func TestUpload_OverwriteDirectory_Rejected(t *testing.T) {
+	fs := newFS(t)
+	ctx := context.Background()
+	if err := fs.Mkdir(ctx, "d"); err != nil {
+		t.Fatalf("Mkdir d err=%v", err)
+	}
+	err := fs.Upload(ctx, "d", filesystem.FileSource{Literal: "payload"})
+	if err == nil {
+		t.Fatal("Upload into existing directory should return error")
+	}
+	// The directory must still be a directory (not silently replaced by a file).
+	st, err := os.Stat(filepath.Join(fs.Root(), "d"))
+	if err != nil {
+		t.Fatalf("stat d after failed Upload: %v", err)
+	}
+	if !st.IsDir() {
+		t.Fatalf("Upload silently replaced directory with a file: st=%+v", st)
+	}
 }

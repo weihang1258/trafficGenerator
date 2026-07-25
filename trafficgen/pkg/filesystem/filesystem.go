@@ -67,9 +67,20 @@ func (fs *Filesystem) Upload(ctx context.Context, relPath string, src FileSource
 	if err := os.MkdirAll(filepath.Dir(absRel), 0755); err != nil {
 		return err
 	}
-	// Remove existing entry (could be a stale hardlink to an old blob).
-	if _, err := os.Lstat(absRel); err == nil {
-		_ = os.Remove(absRel)
+	// If an entry already exists at absRel, it must be a stale hardlink to
+	// an old blob (Upload is overwriting a previously uploaded file). A
+	// directory at absRel is a programming error — refuse to silently
+	// replace it with a hardlink, which would hide the dir behind a file.
+	if st, err := os.Lstat(absRel); err == nil {
+		if st.IsDir() {
+			return errors.New("filesystem: path is a directory")
+		}
+		// Remove the stale hardlink so the new hardlink can take its place.
+		// Surface the remove error rather than letting the subsequent
+		// os.Link fail with a confusing "file exists".
+		if err := os.Remove(absRel); err != nil {
+			return err
+		}
 	}
 	if err := os.Link(blobPath, absRel); err != nil {
 		// Fall back to a copy if hardlink fails (e.g., cross-device).
@@ -213,8 +224,15 @@ func (fs *Filesystem) Query(ctx context.Context, relPath string) (FileInfo, erro
 
 // List returns entries in dirPath. Directories are listed as such. Files
 // are listed with size and mtime. Internal entries (.meta, blobs) are
-// skipped. Returns ErrNotFound if dirPath does not exist. A dirPath of
-// "." lists the filesystem root.
+// skipped. Returns ErrNotFound if dirPath does not exist; other os.ReadDir
+// errors (e.g., permission denied) are returned as-is. A dirPath of "."
+// lists the filesystem root.
+//
+// Note on foreign files: files that exist on disk under fs.root but were
+// not registered via Upload (e.g., dropped in by an external tool) appear
+// in the listing with Size: 0 and SHA256: "" because no metadata record
+// references them. By contrast, Query on such a foreign file returns
+// ErrNotFound (Query looks up by registered ref, not by disk presence).
 func (fs *Filesystem) List(ctx context.Context, dirPath string) ([]FileInfo, error) {
 	// "." is a valid alias for the root directory; cleanRelPath would
 	// otherwise reject it. Normalize early.
@@ -235,7 +253,10 @@ func (fs *Filesystem) List(ctx context.Context, dirPath string) ([]FileInfo, err
 	absDir := filepath.Join(fs.root, filepath.FromSlash(cleanDir))
 	entries, err := os.ReadDir(absDir)
 	if err != nil {
-		return nil, ErrNotFound
+		if os.IsNotExist(err) {
+			return nil, ErrNotFound
+		}
+		return nil, err
 	}
 	out := make([]FileInfo, 0, len(entries))
 	for _, e := range entries {
