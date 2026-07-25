@@ -331,7 +331,7 @@ func (fs *Filesystem) Rmdir(ctx context.Context, relPath string, opts RmdirOptio
 		return err
 	}
 	if !st.IsDir() {
-		return errors.New("filesystem: Rmdir on non-directory")
+		return ErrNotADirectory
 	}
 
 	if !opts.Recursive {

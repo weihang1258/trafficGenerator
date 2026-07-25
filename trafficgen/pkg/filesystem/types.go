@@ -52,9 +52,10 @@ type RmdirOptions struct {
 }
 
 var (
-	ErrNotFound = errors.New("filesystem: path not found")
-	ErrExists   = errors.New("filesystem: path already exists")
-	ErrNotEmpty = errors.New("filesystem: directory not empty")
+	ErrNotFound     = errors.New("filesystem: path not found")
+	ErrExists       = errors.New("filesystem: path already exists")
+	ErrNotEmpty     = errors.New("filesystem: directory not empty")
+	ErrNotADirectory = errors.New("filesystem: not a directory")
 )
 
 // Filesystem is the standalone content-addressed filesystem.
