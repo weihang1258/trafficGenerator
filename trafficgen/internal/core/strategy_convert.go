@@ -465,22 +465,15 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ICMP.FileSource = iFS
 		}
 	}
-	// SCTP chunks: each chunk may carry its own file_source. Parse them
-	// here (after parseSCTPChunks populated spec.SCTP.Chunks) so the
-	// planner can read chunk.FileSource without re-walking the cfg.
-	if spec.SCTP != nil && len(spec.SCTP.Chunks) > 0 {
-		if chunkList, ok := cfg["sctp"].(map[string]interface{}); ok {
-			if rawChunks, ok := chunkList["chunks"].([]interface{}); ok && len(rawChunks) == len(spec.SCTP.Chunks) {
-				for i, raw := range rawChunks {
-					if cm, ok := raw.(map[string]interface{}); ok {
-						if cFS := parseFileSource(cm); cFS != nil {
-							spec.SCTP.Chunks[i].FileSource = cFS
-						}
-					}
-				}
-			}
-		}
-	}
+	// SCTP chunks: FileSource parsing is handled inside parseSCTPChunks
+	// itself (each chunk is constructed there with its FileSource assigned
+	// from the chunk map's "file_source" key). The earlier dispatch loop
+	// here walked cfg["sctp"]["chunks"][i] and indexed into
+	// spec.SCTP.Chunks[i] — but parseSCTPChunks filters non-map entries,
+	// so len(parsed) < len(raw) whenever any entry was a non-map. The
+	// length-safety check failed and silently dropped ALL chunk
+	// FileSources, including valid ones at aligned indices. Pushing the
+	// parse into parseSCTPChunks eliminates the index-aliasing bug.
 
 	return spec
 }
@@ -754,12 +747,13 @@ func parseSCTPChunks(v interface{}) []SCTPChunk {
 			}
 		}
 		chunk := SCTPChunk{
-			TSN:       getUint32(m, "tsn"),
-			SID:       getUint16(m, "sid"),
-			SSN:       getUint16(m, "ssn"),
-			PPID:      getUint32(m, "ppid"),
-			Data:      data,
-			Direction: getString(m, "direction"),
+			TSN:        getUint32(m, "tsn"),
+			SID:        getUint16(m, "sid"),
+			SSN:        getUint16(m, "ssn"),
+			PPID:       getUint32(m, "ppid"),
+			Data:       data,
+			Direction:  getString(m, "direction"),
+			FileSource: parseFileSource(m),
 		}
 		out = append(out, chunk)
 	}
