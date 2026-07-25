@@ -28,6 +28,8 @@ type fileMeta struct {
 // via os.ReadFile, bypassing the filesystem's own root). The absolute-path
 // branch lets callers import bytes from arbitrary on-disk locations
 // without first copying them into the filesystem.
+//
+// Trusted callers only — absolute paths skip path validation (cleanRelPath).
 func (fs *Filesystem) resolveBytes(src FileSource) ([]byte, error) {
 	switch {
 	case src.File != "":
