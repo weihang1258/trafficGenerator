@@ -56,7 +56,7 @@ func generateRandomBytes(r *Random) ([]byte, error) {
 		span := r.MaxBytes - r.MinBytes
 		if r.Seed != 0 {
 			// Deterministic size from seeded source.
-			rng := mathrand.New(mathrand.NewPCG(uint64(r.Seed), uint64(r.Seed)))
+			rng := mathrand.New(mathrand.NewPCG(uint64(r.Seed), uint64(r.Seed)^0x9E3779B97F4A7C15))
 			size = r.MinBytes + int(rng.IntN(span+1))
 		} else {
 			size = r.MinBytes + int(mathrand.IntN(span+1))
@@ -65,7 +65,7 @@ func generateRandomBytes(r *Random) ([]byte, error) {
 	buf := make([]byte, size)
 	if r.Seed != 0 {
 		// Seeded random for reproducibility.
-		rng := mathrand.New(mathrand.NewPCG(uint64(r.Seed), uint64(r.Seed)))
+		rng := mathrand.New(mathrand.NewPCG(uint64(r.Seed), uint64(r.Seed)^0x9E3779B97F4A7C15))
 		for i := range buf {
 			buf[i] = byte(rng.IntN(256))
 		}

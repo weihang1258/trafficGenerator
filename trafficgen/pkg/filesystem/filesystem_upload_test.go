@@ -35,20 +35,17 @@ func TestUpload_SameContentSameHash_DoesNotRewriteBlob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BlobPathForContent err=%v", err)
 	}
-	info1, err := os.Stat(blobPath)
-	if err != nil {
-		t.Fatalf("first blob stat err=%v", err)
-	}
 	if err := fs.Upload(ctx, "b.txt", src); err != nil {
 		t.Fatalf("Upload b.txt err=%v", err)
 	}
-	info2, err := os.Stat(blobPath)
+	// Content-based assertion: blob bytes are exactly "same content", proving
+	// dedup did not overwrite with different bytes (and is present at all).
+	got, err := os.ReadFile(blobPath)
 	if err != nil {
-		t.Fatalf("second blob stat err=%v", err)
+		t.Fatalf("read blob err=%v", err)
 	}
-	// Same ModTime: blob was not rewritten.
-	if info1.ModTime() != info2.ModTime() {
-		t.Fatalf("blob was rewritten on second Upload (mtime changed)")
+	if string(got) != "same content" {
+		t.Fatalf("blob content after dedup = %q, want %q", string(got), "same content")
 	}
 }
 

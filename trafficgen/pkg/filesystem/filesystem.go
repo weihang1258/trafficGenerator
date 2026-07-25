@@ -35,14 +35,13 @@ func (fs *Filesystem) Upload(ctx context.Context, relPath string, src FileSource
 	if err != nil {
 		return err
 	}
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-
-	// Read source bytes (may recurse into filesystem for src.File).
+	// Resolve bytes BEFORE locking; src.File recurses into Read which needs RLock.
 	b, err := fs.resolveBytes(src)
 	if err != nil {
 		return err
 	}
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 	hash := hashStr(b)
 
 	// If relPath already references a different blob, remove the old ref
@@ -141,6 +140,9 @@ func (fs *Filesystem) cleanRelPath(relPath string) (string, error) {
 		return "", errors.New("filesystem: path must be relative")
 	}
 	clean := filepath.Clean(filepath.FromSlash(relPath))
+	if clean == "." {
+		return "", errors.New("filesystem: path must not be '.'")
+	}
 	// Reject ".." that escapes root.
 	rel := filepath.Clean(filepath.Join(fs.root, clean))
 	if !strings.HasPrefix(rel, fs.root+string(filepath.Separator)) && rel != fs.root {
