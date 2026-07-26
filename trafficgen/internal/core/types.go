@@ -156,6 +156,13 @@ type FlowSpec struct {
 	// future protocols can reuse the same mechanism without touching
 	// FlowSpec again.
 	SubFlows []SubFlowSpec `json:"sub_flows,omitempty"`
+
+	// ValidationErrors collects user-facing input errors found during
+	// mapToFlowSpec (e.g. Fill.Bytes=-1, Random.MinBytes>MaxBytes). Empty
+	// means valid. Planners/engine should check this before calling Plan
+	// and fail the task with a clear aggregated message rather than
+	// letting the error surface deep in a make([]byte, n) panic.
+	ValidationErrors []string `json:"validation_errors,omitempty"`
 }
 
 // SubFlowSpec describes a secondary flow bound to a primary flow. The

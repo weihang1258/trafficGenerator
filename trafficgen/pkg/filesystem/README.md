@@ -34,6 +34,16 @@ err = fs.Mkdir(ctx, "docs/sub")
 err = fs.Rmdir(ctx, "docs/sub", filesystem.RmdirOptions{Recursive: true})
 ```
 
+### REST API 行为对称性
+
+| 操作 | 文件路径 | 目录路径 |
+|------|---------|---------|
+| `?op=info` (查询元数据) | ✅ 返回 `FileInfo{IsDir:false}` | ✅ 返回 `FileInfo{IsDir:true}` |
+| `?op=download` (下载内容) | ✅ 返回 raw bytes | ❌ 返回 400（"is a directory"） |
+| `?op=list` (列目录，仅 GET `/api/v1/fs/list?path=`) | ❌ 不适用 | ✅ 返回 `[]FileInfo` |
+
+**`info` vs `download` 不对称是有意为之**：下载一个目录的字节流没有意义，而查询目录元数据（用于文件浏览 UI）是有用的。`Query()` 同时支持文件和目录；`Read()` 只支持文件。
+
 ## FileSource 数据源
 
 | 字段 | 说明 | 缓存策略 |

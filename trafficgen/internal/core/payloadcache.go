@@ -67,8 +67,18 @@ func NewPayloadCache(fs *filesystem.Filesystem) *PayloadCache {
 }
 
 // GetOrLoad returns the bytes for src. For unseeded random, returns fresh
-// bytes on every call without touching the cache.
+// bytes on every call without touching the cache. Returns ctx.Err() early
+// when ctx is already canceled — saves CPU/IO during graceful shutdown.
 func (c *PayloadCache) GetOrLoad(ctx context.Context, src filesystem.FileSource) ([]byte, error) {
+	// Honor ctx cancellation before any work. The traffic-gen worker
+	// calls GetOrLoad per-task; during graceful shutdown the ctx is
+	// canceled, and proceeding would still resolve bytes + populate the
+	// cache — wasting IO and memory after the operator asked to stop.
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 	// Rule: unseeded random bypasses the cache entirely.
 	if src.Random != nil && src.Random.Seed == 0 {
 		return filesystem.GenerateRandomBytes(src.Random)

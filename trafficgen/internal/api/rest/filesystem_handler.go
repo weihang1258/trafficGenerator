@@ -67,7 +67,10 @@ func (h *FilesystemHandler) Upload(c *gin.Context) {
 	c.Status(http.StatusCreated)
 }
 
-// Download returns the raw bytes at relPath.
+// Download returns the raw bytes at relPath. Only file paths are accepted
+// — passing a directory path returns 400 from filesystem.Read because
+// os.ReadFile on a directory fails with "is a directory". Use ?op=info
+// for directory metadata, or ?op=list for directory contents.
 // GET /api/v1/fs/files/*path?op=download
 func (h *FilesystemHandler) Download(c *gin.Context) {
 	relPath := trimPathParam(c.Param("path"))
@@ -79,7 +82,12 @@ func (h *FilesystemHandler) Download(c *gin.Context) {
 	c.Data(http.StatusOK, "application/octet-stream", b)
 }
 
-// Info returns metadata for relPath (file or directory).
+// Info returns metadata for relPath (file or directory). Unlike Download,
+// Info accepts both file and directory paths — directories return
+// FileInfo{IsDir: true, Size: 0, ModTime: <dir mtime>}. This asymmetry
+// between ?op=info and ?op=download is intentional: downloading a
+// directory's bytes is meaningless, while querying its metadata is useful
+// for traversal UIs.
 // GET /api/v1/fs/files/*path?op=info
 func (h *FilesystemHandler) Info(c *gin.Context) {
 	relPath := trimPathParam(c.Param("path"))

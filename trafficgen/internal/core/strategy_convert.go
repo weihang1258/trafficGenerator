@@ -475,6 +475,42 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	// FileSources, including valid ones at aligned indices. Pushing the
 	// parse into parseSCTPChunks eliminates the index-aliasing bug.
 
+	// Validate all FileSource instances surfaced above. parseFileSource
+	// returns nil for absent/empty sources, so nil-check first. A Validate
+	// failure is a user-facing input error and fails the task loudly —
+	// silent acceptance of, e.g., Fill.Bytes=-1 would panic make([]byte, n)
+	// deep in the planner and produce a confusing stack trace.
+	if err := spec.FileSource.Validate(); err != nil {
+		spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
+	}
+	if spec.FTP != nil && spec.FTP.DataChannel != nil {
+		if err := spec.FTP.DataChannel.FileSource.Validate(); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
+		}
+	}
+	if spec.SIP != nil && spec.SIP.Media != nil {
+		if err := spec.SIP.Media.FileSource.Validate(); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
+		}
+	}
+	if spec.HTTP != nil {
+		if err := spec.HTTP.FileSource.Validate(); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
+		}
+	}
+	if spec.ICMP != nil {
+		if err := spec.ICMP.FileSource.Validate(); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
+		}
+	}
+	if spec.SCTP != nil {
+		for i := range spec.SCTP.Chunks {
+			if err := spec.SCTP.Chunks[i].FileSource.Validate(); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
+			}
+		}
+	}
+
 	return spec
 }
 
