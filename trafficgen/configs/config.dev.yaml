@@ -76,7 +76,7 @@ metrics:
 # Claude Code connects via .mcp.json at project root.
 mcp:
   enabled: true
-  service_user_id: "mcp-service"
+  service_user_id: "admin"
   service_user_role: "user"
   service_account_password: "flowb-mcp-change-me"
   # HTTP transport auth key. Claude Code sends this as X-MCP-Key header.

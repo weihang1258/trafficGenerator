@@ -533,9 +533,13 @@ func calculateConfigHash(mode, protocol, config, flowControl string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// validateIP checks that a string is a valid IPv4 address.
+// validateIP checks that a string is a valid IPv4 or IPv6 address.
+// net.ParseIP handles both formats: dotted-quad (e.g. "10.0.0.1") and
+// colon-hex (e.g. "2001:db8::1", "::1", "fe80::1"). Previously this function
+// used an IPv4-only regex, which blocked IPv6 strategies at the MCP layer
+// even though the planner pipeline already supports IPv6 end-to-end.
 func validateIP(ip string) bool {
-	return net.ParseIP(ip) != nil && regexp.MustCompile(`^\d+\.\d+\.\d+\.\d+$`).MatchString(ip)
+	return net.ParseIP(ip) != nil
 }
 
 // validateMAC checks that a string is a valid MAC address (XX:XX:XX:XX:XX:XX).

@@ -161,6 +161,38 @@ func TestPlanner_SYNCarriesMSSOption(t *testing.T) {
 	}
 }
 
+func TestPlanner_PlanWithRST(t *testing.T) {
+	p := NewPlanner()
+	spec := core.FlowSpec{
+		SrcIP:   "192.168.1.1",
+		DstIP:   "192.168.1.2",
+		SrcPort: 12345,
+		DstPort: 80,
+		TCP: &core.TCPConfig{
+			Handshake:   true,
+			Termination: false,
+			RST:         true,
+		},
+	}
+
+	configChan, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+
+	var configs []core.PacketConfig
+	for config := range configChan {
+		configs = append(configs, config)
+	}
+
+	for _, config := range configs {
+		if config.L4.Flags&FlagRST != 0 {
+			return
+		}
+	}
+	t.Fatal("expected at least one TCP config with RST flag")
+}
+
 func TestPlanner_PlanWithPayload(t *testing.T) {
 	p := NewPlanner()
 

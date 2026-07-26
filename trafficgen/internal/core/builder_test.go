@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"encoding/binary"
+	"hash/crc32"
 	"net"
 	"testing"
 )
@@ -88,6 +89,35 @@ func TestBuilder_BuildUDP(t *testing.T) {
 	// Check minimum size (Ethernet + IP + UDP = 14 + 20 + 8 = 42 + payload)
 	if len(packet) < 42+len(config.Payload) {
 		t.Errorf("Packet size = %d, want at least %d", len(packet), 42+len(config.Payload))
+	}
+}
+
+// TestBuilder_UDPDisableChecksum_IPv6 is the failing test for E2.5 regression:
+// when udp_disable_checksum=true and the packet is IPv6, the UDP checksum
+// field MUST be 0 (RFC 6935/6936 allow this on IPv6 when L2 integrity check
+// is present). Previously the builder forced a computed checksum on IPv6
+// (To4() == nil → force-calculate), silently overriding the disable flag.
+func TestBuilder_UDPDisableChecksum_IPv6(t *testing.T) {
+	builder := NewBuilder()
+
+	config := PacketConfig{
+		L2: L2Config{SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66", EtherType: 0x86DD},
+		L3: L3Config{SrcIP: "2001:db8::1", DstIP: "2001:db8::2", Protocol: 17, TTL: 64},
+		L4:       L4Config{Protocol: "udp", SrcPort: 12345, DstPort: 53},
+		Payload:  []byte("ipv6 no checksum"),
+		Metadata: map[string]interface{}{"udp_disable_checksum": true},
+	}
+
+	packet, err := builder.Build(config)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	// UDP header starts at L3-end. For IPv6, L3 header is 40 bytes (no options),
+	// so UDP starts at offset 14 (L2) + 40 (L3) = 54. UDP checksum is at [6:8].
+	udpStart := 14 + 40
+	if got := binary.BigEndian.Uint16(packet[udpStart+6 : udpStart+8]); got != 0 {
+		t.Errorf("IPv6 disable_checksum=true: UDP cksum = 0x%04x, want 0x0000", got)
 	}
 }
 
@@ -826,5 +856,150 @@ func TestBuild_IPv6UDPIntegration(t *testing.T) {
 	// Payload at offset 62.
 	if !bytes.Equal(pkt[62:], payload) {
 		t.Errorf("UDP payload = %q, want %q", pkt[62:], payload)
+	}
+}
+
+// TestBuilder_BuildSCTP_CRC32c verifies RFC 4960 §6.8: the SCTP v-checksum
+// is CRC32c (Castagnoli polynomial 0x1EDC6F41), computed over the entire
+// SCTP packet (common header + chunks) with the checksum field zeroed
+// before computation. A traffic generator emitting csum=0x00000000 violates
+// the spec and is rejected by every compliant SCTP stack.
+//
+// Layout (RFC 4960 §3.1): SrcPort(2) + DstPort(2) + VTag(4) + Checksum(4) +
+// Chunks. The Checksum field is at bytes [8:12] of the SCTP region.
+//
+// We exercise:
+//  1. A minimal INIT chunk payload (no flags, no optional params).
+//  2. The full Build() path — which writes L2 + L3 + SCTP header + chunks
+//     and now must also fill the checksum field correctly.
+//  3. The computed CRC32c equals crc32.Checksum(packetWithoutChecksum, Castagnoli).
+//  4. The Castagnoli polynomial — NOT the IEEE polynomial (which is the
+//     other polynomial in Go's hash/crc32). Receiving a CRC32c-computed
+//     checksum that matches IEEE-CRC32 is a known anti-pattern; both
+//     return non-zero so a naive non-zero assertion would miss it.
+func TestBuilder_BuildSCTP_CRC32c(t *testing.T) {
+	builder := NewBuilder()
+
+	// Minimal INIT chunk payload (RFC 4960 §3.3.2):
+	//   Type(1)=0x01 + Flags(1)=0 + Length(2)=16 + InitiateTag(4) +
+	//   A-RWND(4) + NumOS(2) + NumMIS(2) + InitialTSN(4) = 16 bytes
+	// Payload bytes are deterministic so we can assert the exact CRC32c.
+	initChunk := []byte{
+		0x01, 0x00, 0x00, 0x10, // Type=INIT, Flags=0, Length=16
+		0x00, 0x00, 0x00, 0x01, // InitiateTag=1
+		0x00, 0x00, 0xFF, 0xFF, // A-RWND=65535
+		0x00, 0x01, // NumOS=1
+		0x00, 0x01, // NumMIS=1
+		0x00, 0x00, 0x00, 0x01, // InitialTSN=1
+	}
+
+	config := PacketConfig{
+		L2: L2Config{
+			SrcMAC:    "aa:bb:cc:dd:ee:ff",
+			DstMAC:    "11:22:33:44:55:66",
+			EtherType: 0x0800,
+		},
+		L3: L3Config{
+			SrcIP:    "192.168.1.1",
+			DstIP:    "192.168.1.2",
+			Protocol: ProtocolSCTP, // 132
+			TTL:      64,
+		},
+		L4: L4Config{
+			Protocol: "sctp",
+			SrcPort:  12345,
+			DstPort:  38412, // well-known SCTP port
+			Ack:      0xDEADBEEF,
+		},
+		Payload: initChunk,
+	}
+
+	pkt, err := builder.Build(config)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	// L4 starts after Ethernet (14) + IPv4 (20) = 34. SCTP header is 12 bytes.
+	l4Start := 14 + 20
+	if got := pkt[l4Start:l4Start+2]; !bytes.Equal(got, []byte{0x30, 0x39}) {
+		t.Errorf("SCTP SrcPort = %v, want 0x3039 (12345)", got)
+	}
+	if got := pkt[l4Start+2:l4Start+4]; !bytes.Equal(got, []byte{0x96, 0x0C}) {
+		t.Errorf("SCTP DstPort = %v, want 0x960C (38412)", got)
+	}
+	if got := binary.BigEndian.Uint32(pkt[l4Start+4 : l4Start+8]); got != 0xDEADBEEF {
+		t.Errorf("SCTP VTag = 0x%08X, want 0xDEADBEEF", got)
+	}
+
+	// 1. The checksum field MUST NOT be 0 (the bug being fixed).
+	gotCsum := binary.BigEndian.Uint32(pkt[l4Start+8 : l4Start+12])
+	if gotCsum == 0 {
+		t.Fatalf("SCTP checksum = 0x00000000 — RFC 4960 §6.8 requires CRC32c; got 0 (hardcoded placeholder, bug)")
+	}
+
+	// 2. The checksum MUST be exactly CRC32c over the SCTP region with the
+	//    checksum field zeroed — recompute from scratch.
+	crcTable := crc32.MakeTable(crc32.Castagnoli)
+	sctpRegion := make([]byte, len(pkt)-l4Start)
+	copy(sctpRegion, pkt[l4Start:])
+	// Zero checksum field before computing the reference CRC32c.
+	binary.BigEndian.PutUint32(sctpRegion[8:12], 0)
+	wantCsum := crc32.Checksum(sctpRegion, crcTable)
+	if gotCsum != wantCsum {
+		t.Errorf("SCTP CRC32c = 0x%08X, want 0x%08X (CRC32c of full SCTP region with csum=0)", gotCsum, wantCsum)
+	}
+
+	// 3. Polynomial must be Castagnoli, not IEEE. Compute the IEEE-CRC32
+	//    of the same region and ensure it does NOT match — catches a
+	//    regression where someone replaces crc32.Castagnoli with the IEEE
+	//    polynomial by accident (both produce non-zero but different values).
+	ieeeTable := crc32.MakeTable(crc32.IEEE)
+	ieeeCsum := crc32.Checksum(sctpRegion, ieeeTable)
+	if gotCsum == ieeeCsum {
+		t.Errorf("SCTP checksum = 0x%08X matches IEEE polynomial, not Castagnoli (RFC 4960 §6.8 violation)", gotCsum)
+	}
+
+	// 4. The bytes after the 12-byte header must equal the chunk payload
+	//    (i.e. the CRC32c computation covered the entire packet, not just
+	//    the common header — a common bug).
+	if !bytes.Equal(pkt[l4Start+12:], initChunk) {
+		t.Errorf("SCTP chunk payload = %x, want %x", pkt[l4Start+12:], initChunk)
+	}
+}
+
+// TestBuilder_BuildSCTP_CRC32c_TCPUnaffected is an adversarial regression
+// guard: the fix to writeSCTP must NOT alter the TCP one's-complement
+// checksum path. Same packet structure as the SCTP test, but with
+// Protocol="tcp" so writeTCP runs and we can assert the TCP checksum
+// remains valid (non-zero, equal to one's-complement sum) while the SCTP
+// path is not taken.
+func TestBuilder_BuildSCTP_CRC32c_TCPUnaffected(t *testing.T) {
+	builder := NewBuilder()
+
+	config := PacketConfig{
+		L2: L2Config{SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66", EtherType: 0x0800},
+		L3: L3Config{SrcIP: "192.168.1.1", DstIP: "192.168.1.2", Protocol: ProtocolTCP, TTL: 64},
+		L4: L4Config{
+			Protocol: "tcp",
+			SrcPort:  12345,
+			DstPort:  80,
+			Seq:      1000,
+			Ack:      0,
+			Flags:    0x18, // PSH+ACK (data)
+		},
+		Payload: []byte("hello world"),
+	}
+
+	pkt, err := builder.Build(config)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	// TCP header starts at offset 34 (Ethernet+IPv4). TCP checksum at [16:18]
+	// of the TCP header = pkt[50:52]. It must be non-zero (the TCP path is
+	// unaffected by the SCTP CRC32c change).
+	tcpCsum := binary.BigEndian.Uint16(pkt[50:52])
+	if tcpCsum == 0 {
+		t.Errorf("TCP checksum = 0; the SCTP CRC32c fix must not have touched the TCP path")
 	}
 }

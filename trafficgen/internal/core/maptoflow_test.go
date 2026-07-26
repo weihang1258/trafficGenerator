@@ -16,6 +16,7 @@ func TestMapToFlowSpec_TCP(t *testing.T) {
 		"tcp": map[string]interface{}{
 			"handshake":   true,
 			"termination": false,
+			"rst":         true,
 			"mss":         float64(1460),
 			"window_size": float64(65535),
 		},
@@ -36,8 +37,8 @@ func TestMapToFlowSpec_TCP(t *testing.T) {
 	if spec.TCP.MSS != 1460 || spec.TCP.WindowSize != 65535 {
 		t.Errorf("TCP MSS=%d Win=%d", spec.TCP.MSS, spec.TCP.WindowSize)
 	}
-	if !spec.TCP.Handshake || spec.TCP.Termination {
-		t.Errorf("TCP flags handshake=%v termination=%v", spec.TCP.Handshake, spec.TCP.Termination)
+	if !spec.TCP.Handshake || spec.TCP.Termination || !spec.TCP.RST {
+		t.Errorf("TCP flags handshake=%v termination=%v rst=%v", spec.TCP.Handshake, spec.TCP.Termination, spec.TCP.RST)
 	}
 }
 

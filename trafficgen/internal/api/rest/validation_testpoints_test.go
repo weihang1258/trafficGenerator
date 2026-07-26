@@ -67,8 +67,26 @@ func TestValidateIP_Broadcast(t *testing.T) {
 }
 
 func TestValidateIP_IPv6(t *testing.T) {
-	if validateIP("2001:db8::1") {
-		t.Error("IPv6 should be rejected (design requires dotted-quad)")
+	if !validateIP("2001:db8::1") {
+		t.Error("2001:db8::1 should be valid IPv6")
+	}
+}
+
+func TestValidateIP_IPv6Loopback(t *testing.T) {
+	if !validateIP("::1") {
+		t.Error("::1 should be valid IPv6 loopback")
+	}
+}
+
+func TestValidateIP_IPv6Unspecified(t *testing.T) {
+	if !validateIP("::") {
+		t.Error(":: should be valid IPv6 unspecified")
+	}
+}
+
+func TestValidateIP_IPv6LinkLocal(t *testing.T) {
+	if !validateIP("fe80::1") {
+		t.Error("fe80::1 should be valid IPv6 link-local")
 	}
 }
 
@@ -207,8 +225,8 @@ func TestValidateConfigNetwork_NonStringIP(t *testing.T) {
 func TestValidateConfigNetwork_IPv6(t *testing.T) {
 	cfg := map[string]interface{}{"src_ip": "2001:db8::1"}
 	msg := validateConfigNetwork(cfg)
-	if !strings.Contains(msg, "invalid IP format: src_ip =") {
-		t.Errorf("IPv6 should be rejected: %q", msg)
+	if msg != "" {
+		t.Errorf("IPv6 should be accepted, got: %q", msg)
 	}
 }
 

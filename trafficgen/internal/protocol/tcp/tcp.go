@@ -301,8 +301,34 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 		}
 
+		// TCP Reset (RST-ACK) abortively closes the connection. RFC 9293 §3.5.
+		// It replaces, rather than precedes, the orderly FIN teardown.
+		if tcpConfig.RST {
+			configChan <- core.PacketConfig{
+				FlowID:      flowID,
+				PacketIndex: packetIndex,
+				Direction:   "up",
+				Timestamp:   now,
+				L2: core.L2Config{
+					SrcMAC:    spec.SrcMAC,
+					DstMAC:    spec.DstMAC,
+					EtherType: core.EtherTypeFor(spec.SrcIP),
+				},
+				L3: core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec),
+				L4: core.L4Config{
+					Protocol:   "tcp",
+					SrcPort:    spec.SrcPort,
+					DstPort:    spec.DstPort,
+					Seq:        clientSeq,
+					Ack:        serverSeq,
+					Flags:      FlagRST | FlagACK,
+					WindowSize: winSize,
+				},
+			}
+		}
+
 		// TCP Termination (FIN, ACK, FIN, ACK)
-		if tcpConfig.Termination {
+		if tcpConfig.Termination && !tcpConfig.RST {
 			// FIN (client -> server)
 			configChan <- core.PacketConfig{
 				FlowID:      flowID,

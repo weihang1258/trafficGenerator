@@ -216,6 +216,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		spec.TCP = &TCPConfig{
 			Handshake:   getBool(sub, "handshake", true),
 			Termination: getBool(sub, "termination", true),
+			RST:         getBool(sub, "rst", false),
 			MSS:         getUint16(sub, "mss"),
 			WindowSize:  getUint16(sub, "window_size"),
 			InitialSeq:  getUint32(sub, "initial_seq"),
@@ -229,7 +230,8 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	case "udp":
 		if sub, ok := cfg["udp"].(map[string]interface{}); ok {
 			spec.UDP = &UDPConfig{
-				IsResponse: getBoolWithFallback(sub, "is_response", "response", false),
+				IsResponse:      getBoolWithFallback(sub, "is_response", "response", false),
+				DisableChecksum: getBool(sub, "disable_checksum", false),
 			}
 		}
 	case "http":
@@ -694,6 +696,7 @@ func parseFTPDataChannel(v interface{}) *FTPDataChannel {
 	}
 	return dc
 }
+
 // input — the planner then emits only TCP handshake + teardown (an empty
 // SIP session, which is a valid degenerate test).
 //
@@ -755,7 +758,7 @@ func parseSIPMedia(v interface{}) *SIPMedia {
 		FrameSize:   getInt(m, "frame_size"),
 	}
 }
-//
+
 // Each chunk carries TSN/SID/SSN/PPID/Data/Direction. TSN 0 = planner
 // auto-increments per direction. Direction "up" = client→server, "down"
 // = server→client; empty defaults to "up".

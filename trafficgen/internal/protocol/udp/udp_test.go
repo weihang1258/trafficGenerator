@@ -7,6 +7,51 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
+// TestUDPDisableChecksumByIPVersion verifies that DisableChecksum=true
+// produces a zero UDP checksum field for both IPv4 and IPv6 (RFC 6935/6936
+// permit checksum=0 on both address families when L2 integrity is present).
+func TestUDPDisableChecksumByIPVersion(t *testing.T) {
+	b := core.NewBuilder()
+	cases := []struct {
+		name     string
+		srcIP    string
+		dstIP    string
+		wantZero bool
+	}{
+		{name: "IPv4 allows disabled checksum", srcIP: "192.0.2.1", dstIP: "192.0.2.2", wantZero: true},
+		{name: "IPv6 allows disabled checksum", srcIP: "2001:db8::1", dstIP: "2001:db8::2", wantZero: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := core.FlowSpec{
+				SrcIP: tc.srcIP, DstIP: tc.dstIP,
+				SrcPort: 12345, DstPort: 53,
+				Payload: []byte("hello"),
+				UDP:     &core.UDPConfig{DisableChecksum: true},
+			}
+			configs, err := NewPlanner().Plan(context.Background(), spec)
+			if err != nil {
+				t.Fatalf("Plan() error = %v", err)
+			}
+			cfg := <-configs
+			pkt, err := b.Build(cfg)
+			if err != nil {
+				t.Fatalf("Build() error = %v", err)
+			}
+			udpStart := 14
+			if tc.srcIP[0] == '2' && tc.srcIP[1] == '0' && tc.srcIP[2] == '0' && tc.srcIP[3] == '1' {
+				udpStart = 14 + 40
+			} else {
+				udpStart = 14 + 20
+			}
+			checksum := uint16(pkt[udpStart+6])<<8 | uint16(pkt[udpStart+7])
+			if (checksum == 0) != tc.wantZero {
+				t.Errorf("UDP checksum = 0x%04x, wantZero=%v", checksum, tc.wantZero)
+			}
+		})
+	}
+}
+
 func TestPlanner_Name(t *testing.T) {
 	p := NewPlanner()
 	if p.Name() != "udp" {

@@ -189,14 +189,14 @@ type FlowSpec struct {
 // the planner derives from the SDP; users can also set explicit ports.
 type SubFlowSpec struct {
 	Protocol    string `json:"protocol"`              // "tcp", "udp", "sctp"
-	SrcPort     uint16 `json:"src_port,omitempty"`     // client's port (0 = derive from parent)
-	DstPort     uint16 `json:"dst_port,omitempty"`     // server's port (0 = derive from parent)
-	Direction   string `json:"direction,omitempty"`    // "up"=client→server data flow, "down"=server→client
-	Payload     string `json:"payload,omitempty"`      // raw text bytes (file body / RTP frames); []byte conversion at emit
-	PayloadB64  string `json:"payload_b64,omitempty"`  // base64 alternative; overrides Payload when set (for binary)
-	Handshake   bool   `json:"handshake,omitempty"`    // TCP/SCTP: emit handshake (default true)
-	Termination bool   `json:"termination,omitempty"`  // TCP/SCTP: emit teardown (default true)
-	MSS         uint16 `json:"mss,omitempty"`          // TCP segmentation size (0 = 1460)
+	SrcPort     uint16 `json:"src_port,omitempty"`    // client's port (0 = derive from parent)
+	DstPort     uint16 `json:"dst_port,omitempty"`    // server's port (0 = derive from parent)
+	Direction   string `json:"direction,omitempty"`   // "up"=client→server data flow, "down"=server→client
+	Payload     string `json:"payload,omitempty"`     // raw text bytes (file body / RTP frames); []byte conversion at emit
+	PayloadB64  string `json:"payload_b64,omitempty"` // base64 alternative; overrides Payload when set (for binary)
+	Handshake   bool   `json:"handshake,omitempty"`   // TCP/SCTP: emit handshake (default true)
+	Termination bool   `json:"termination,omitempty"` // TCP/SCTP: emit teardown (default true)
+	MSS         uint16 `json:"mss,omitempty"`         // TCP segmentation size (0 = 1460)
 
 	// ServerInitiated: when true, the server opens the TCP connection —
 	// SYN goes server→client (Direction="down", SrcPort=sub.DstPort,
@@ -227,6 +227,7 @@ type VLAN struct {
 type TCPConfig struct {
 	Handshake   bool   `json:"handshake"`
 	Termination bool   `json:"termination"`
+	RST         bool   `json:"rst,omitempty"`
 	MSS         uint16 `json:"mss"`
 	WindowSize  uint16 `json:"window_size"`
 	Flags       uint8  `json:"flags"`
@@ -242,7 +243,8 @@ type TCPConfig struct {
 
 // UDPConfig for UDP protocol.
 type UDPConfig struct {
-	IsResponse bool `json:"is_response"` // was "response"
+	IsResponse      bool `json:"is_response"` // was "response"
+	DisableChecksum bool `json:"disable_checksum,omitempty"`
 }
 
 // HTTPConfig for HTTP protocol.
@@ -298,13 +300,13 @@ type HTTPConfig struct {
 	// MSS is governed by TCPConfig.MSS (MSS is a TCP transport parameter,
 	// not an HTTP one). Planners read spec.TCP.MSS for both request and
 	// response segmentation.
-	ResponseHeaders        map[string]string `json:"response_headers"`
-	ResponseBody           string            `json:"response_body"`
-	ResponseBodyB64        string            `json:"response_body_b64,omitempty"` // base64-encoded binary body; overrides ResponseBody when set
-	ResponseStatusCode     int               `json:"response_status_code"`
-	ResponseStatusText     string            `json:"response_status_text"`
-	ResponseContentEncoding string           `json:"response_content_encoding"`
-	RequestContentEncoding string           `json:"request_content_encoding"`
+	ResponseHeaders         map[string]string `json:"response_headers"`
+	ResponseBody            string            `json:"response_body"`
+	ResponseBodyB64         string            `json:"response_body_b64,omitempty"` // base64-encoded binary body; overrides ResponseBody when set
+	ResponseStatusCode      int               `json:"response_status_code"`
+	ResponseStatusText      string            `json:"response_status_text"`
+	ResponseContentEncoding string            `json:"response_content_encoding"`
+	RequestContentEncoding  string            `json:"request_content_encoding"`
 
 	// FileSource, when set, supplies the HTTP REQUEST body bytes via
 	// PayloadCache.GetOrLoad(src). The response body continues to use
@@ -316,7 +318,7 @@ type HTTPConfig struct {
 // DNSConfig for DNS protocol.
 type DNSConfig struct {
 	Domain     string `json:"domain"`
-	QueryType  uint16 `json:"query_type"` // A=1, AAAA=28
+	QueryType  uint16 `json:"query_type"`  // A=1, AAAA=28
 	IsResponse bool   `json:"is_response"` // was "response"
 	ResponseIP string `json:"response_ip,omitempty"`
 }
@@ -391,9 +393,9 @@ type ARPConfig struct {
 // channel at the point where the data-channel-bearing command (RETR/STOR/
 // LIST) appears. See FTPDataChannel for mode/direction semantics.
 type FTPConfig struct {
-	Banner      string           `json:"banner,omitempty"` // server greeting, e.g. "220 ..."; empty = skip
-	Commands    []FTPCommand     `json:"commands"`
-	DataChannel *FTPDataChannel  `json:"data_channel,omitempty"`
+	Banner      string          `json:"banner,omitempty"` // server greeting, e.g. "220 ..."; empty = skip
+	Commands    []FTPCommand    `json:"commands"`
+	DataChannel *FTPDataChannel `json:"data_channel,omitempty"`
 	// MSS is governed by TCPConfig.MSS. FTP runs over TCP, so the planner
 	// reads spec.TCP.MSS for segmentation of long FTP payloads.
 }
@@ -621,10 +623,10 @@ type SCTPHeartbeatConfig struct {
 // At least one of SrcIP/DstIP should differ from the parent for the
 // sub-flow to be a genuine alternate path.
 type SCTPAltPath struct {
-	SrcIP   string `json:"alt_src_ip,omitempty"`
-	DstIP   string `json:"alt_dst_ip,omitempty"`
-	SrcMAC  string `json:"alt_src_mac,omitempty"`
-	DstMAC  string `json:"alt_dst_mac,omitempty"`
+	SrcIP  string `json:"alt_src_ip,omitempty"`
+	DstIP  string `json:"alt_dst_ip,omitempty"`
+	SrcMAC string `json:"alt_src_mac,omitempty"`
+	DstMAC string `json:"alt_dst_mac,omitempty"`
 }
 
 // SCTPChunk models a single SCTP chunk. For DATA chunks, TSN is the

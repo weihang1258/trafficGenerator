@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/maphash"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -172,7 +173,34 @@ func (w *ConfigWorker) processTask(task Task) {
 		return
 	}
 
-	// Validate task
+	// Validate task. Two distinct sources of validation errors must BOTH
+	// surface here, otherwise invalid input silently reaches Plan() and either
+	// panics (make([]byte, -n)) or produces zero-byte packets that the
+	// caller cannot distinguish from a real run:
+	//
+	//  1. spec.ValidationErrors — populated by strategy_convert.go lines
+	//     478-512 from FileSource.Validate() (e.g. fill.bytes=-1, MinBytes>MaxBytes,
+	//     negative MinBytes). These are user-facing input errors that bypass
+	//     the protocol planner's Validate() method, which only inspects
+	//     protocol-specific structure (ports, flags, etc.) — not FileSource
+	//     fields. Without this check, B5.1-B5.10 (file_source.fill.bytes=-1
+	//     and friends) silently report status=completed with error_message=null.
+	//
+	//  2. planner.Validate(spec) — protocol-specific structural checks
+	//     (already wired here). Kept as a separate branch so each error
+	//     source produces its own context in the failure log/metrics.
+	if len(task.Spec.ValidationErrors) > 0 {
+		joined := strings.Join(task.Spec.ValidationErrors, "; ")
+		zap.L().Error("task spec validation failed (file_source/etc)",
+			zap.String("task_id", task.ID),
+			zap.Strings("validation_errors", task.Spec.ValidationErrors),
+		)
+		atomic.AddInt64(&w.stats.Errors, 1)
+		if w.onTaskDone != nil {
+			w.onTaskDone(task.ID, fmt.Errorf("validation failed: %s", joined), 0)
+		}
+		return
+	}
 	if err := planner.Validate(task.Spec); err != nil {
 		zap.L().Error("task validation failed",
 			zap.String("task_id", task.ID),
@@ -478,6 +506,13 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 	var classWg sync.WaitGroup
 	var configCount int64
 	var flowFailures int64
+	// validationErrs accumulates per-class ValidationErrors so the final task
+	// status can surface them in the onTaskDone error message. Without this
+	// the "all flows failed" branch below would report the generic
+	// "all N flows failed validation/planning" and lose the actual input
+	// error string the caller needs to distinguish user mistakes.
+	var validationErrMu sync.Mutex
+	var validationErrs []string
 	totalFlows := 0
 	for _, class := range task.Batch.Classes {
 		// Replay classes contribute 1 "flow unit" to totalFlows; synth classes
@@ -567,6 +602,30 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 			// from c.Config["group_id"]; overwrite if c.GroupID is non-nil.
 			if c.GroupID != nil {
 				spec.GroupID = c.GroupID
+			}
+			// Reject the entire class BEFORE the per-flow loop if the spec
+			// has user-facing input errors (e.g. file_source.fill.bytes=-1).
+			// mapToFlowSpec populates these from strategy_convert.go lines
+			// 478-512 for all 5 protocol-specific locations
+			// (FTP.DataChannel, SIP.Media, HTTP, ICMP, SCTP.Chunks) plus
+			// the bare FlowSpec.FileSource. Without this guard, B5.1-B5.10
+			// silently flow through mapToFlowSpec into Plan(), where they
+			// either panic on make([]byte, -n) or produce zero-byte
+			// packets that callers cannot distinguish from real output.
+			// Same per-flow-failure accounting as the planner.Validate()
+			// branch below; "all N flows failed" at the bottom then fails
+			// the task.
+			if len(spec.ValidationErrors) > 0 {
+				zap.L().Error("batch class spec validation failed (file_source/etc)",
+					zap.String("task_id", task.ID),
+					zap.String("class_id", c.ID),
+					zap.Strings("validation_errors", spec.ValidationErrors),
+				)
+				validationErrMu.Lock()
+				validationErrs = append(validationErrs, spec.ValidationErrors...)
+				validationErrMu.Unlock()
+				atomic.AddInt64(&flowFailures, int64(c.FlowCount))
+				return
 			}
 			tupleGen := NewTupleGenerator(c.Tuples)
 			classKey := task.ID + ":" + c.ID
@@ -674,7 +733,17 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 	if w.onTaskDone != nil {
 		switch {
 		case totalFlows > 0 && atomic.LoadInt64(&flowFailures) >= int64(totalFlows):
-			w.onTaskDone(task.ID, fmt.Errorf("all %d flows failed validation/planning", totalFlows), configCount)
+			// User-input validation errors take priority over the generic
+			// "all flows failed" message so the caller can see what was
+			// wrong with the spec.
+			validationErrMu.Lock()
+			ve := validationErrs
+			validationErrMu.Unlock()
+			if len(ve) > 0 {
+				w.onTaskDone(task.ID, fmt.Errorf("validation failed: %s", strings.Join(ve, "; ")), configCount)
+			} else {
+				w.onTaskDone(task.ID, fmt.Errorf("all %d flows failed validation/planning", totalFlows), configCount)
+			}
 		case taskCtx.Err() == context.DeadlineExceeded:
 			w.onTaskDone(task.ID, nil, configCount)
 		case taskCtx.Err() != nil:

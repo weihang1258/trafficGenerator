@@ -3,8 +3,9 @@ package core
 
 import (
 	"encoding/binary"
-	"net"
 	"go.uber.org/zap"
+	"hash/crc32"
+	"net"
 )
 
 const (
@@ -72,15 +73,15 @@ func NewBuilder() *Builder {
 // mapToFlowSpec) must set spec.IPFlags explicitly if they want DF=1.
 func L3Base(srcIP, dstIP string, protocol uint8, ttl uint8, ipid uint16, spec FlowSpec) L3Config {
 	l3 := L3Config{
-		SrcIP:       srcIP,
-		DstIP:       dstIP,
-		Protocol:    protocol,
-		TTL:         ttl,
-		IPID:        ipid,
-		DSCP:        spec.DSCP,
-		ECN:         spec.ECN,
-		Flags:       spec.IPFlags,
-		FragOffset:  spec.FragOffset,
+		SrcIP:      srcIP,
+		DstIP:      dstIP,
+		Protocol:   protocol,
+		TTL:        ttl,
+		IPID:       ipid,
+		DSCP:       spec.DSCP,
+		ECN:        spec.ECN,
+		Flags:      spec.IPFlags,
+		FragOffset: spec.FragOffset,
 	}
 	if spec.TOS != 0 {
 		l3.DSCP = spec.TOS >> 2
@@ -138,6 +139,15 @@ func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 		b.writeL4(packet[l3End:l4End], config)
 	}
 	copy(packet[l4End:], config.Payload)
+
+	// SCTP checksum (RFC 4960 §6.8) is computed over the entire SCTP
+	// packet — common header + chunks — so it must be filled AFTER the
+	// chunk bytes are in place. Other L4 protocols compute their
+	// checksums inside writeL4() because their inputs (TCP pseudo-
+	// header, UDP pseudo-header) are already available there.
+	if config.L4.Protocol == "sctp" && l4Len > 0 {
+		fillSCTPChecksum(packet, l3End)
+	}
 
 	return packet, nil
 }
@@ -340,18 +350,35 @@ func (b *Builder) writeL4(dst []byte, config PacketConfig) {
 
 // writeSCTP writes the 12-byte SCTP common header into dst. Chunks are
 // serialized by the planner into PacketConfig.Payload and copied after
-// this header by Build(). The checksum field is filled with 0 — SCTP uses
-// CRC32c (RFC 4960 §6.8), not the IP one's-complement checksum; computing
-// CRC32c here would require importing a CRC32c package and the test only
-// needs byte-exact packet structure, not a valid CRC. Real SCTP stacks
-// validate the CRC and drop on mismatch, but trafficgen is a packet
-// generator for testing — receivers in the test path either don't validate
-// (packet counters, captures) or are themselves trafficgen-controlled.
+// this header by Build(). The checksum field is left at 0 here as a
+// placeholder — Build() calls fillSCTPChecksum() once the chunks have
+// been copied, since RFC 4960 §6.8 requires CRC32c over the ENTIRE SCTP
+// packet (common header + all chunks). Computing it here would require
+// the chunk bytes that are not yet in dst.
 func (b *Builder) writeSCTP(dst []byte, config PacketConfig) {
 	binary.BigEndian.PutUint16(dst[0:2], config.L4.SrcPort)
 	binary.BigEndian.PutUint16(dst[2:4], config.L4.DstPort)
 	binary.BigEndian.PutUint32(dst[4:8], config.L4.Ack) // VerificationTag reuses Ack field
-	binary.BigEndian.PutUint32(dst[8:12], 0)           // Checksum (CRC32c, left 0)
+	binary.BigEndian.PutUint32(dst[8:12], 0)            // Checksum placeholder (filled by fillSCTPChecksum)
+}
+
+// fillSCTPChecksum computes and writes the RFC 4960 §6.8 SCTP v-checksum
+// (CRC32c, Castagnoli polynomial 0x1EDC6F41) into packet[l4Start+8:l4Start+12].
+// The CRC is computed over the entire SCTP region (common header + chunks)
+// with the checksum field zeroed — the standard SCTP checksum algorithm
+// (RFC 4960 §6.8 step 3: "the CRC-32c is computed over ... the entire SCTP
+// packet including the checksum field set to zero").
+//
+// Called from Build() after the chunk bytes have been copied into the
+// packet. We must NOT use crc32.IEEE — that is the different polynomial
+// used by Ethernet/FCS and would be rejected by every RFC 4960-compliant
+// receiver.
+func fillSCTPChecksum(packet []byte, l4Start int) {
+	table := crc32.MakeTable(crc32.Castagnoli)
+	// Zero checksum field before computing CRC32c (RFC 4960 §6.8).
+	binary.BigEndian.PutUint32(packet[l4Start+8:l4Start+12], 0)
+	sum := crc32.Checksum(packet[l4Start:], table)
+	binary.BigEndian.PutUint32(packet[l4Start+8:l4Start+12], sum)
 }
 
 // writeTCP writes the TCP header (with options) into dst.
@@ -384,7 +411,19 @@ func (b *Builder) writeUDP(dst []byte, config PacketConfig) {
 	binary.BigEndian.PutUint16(dst[0:2], config.L4.SrcPort)
 	binary.BigEndian.PutUint16(dst[2:4], config.L4.DstPort)
 	binary.BigEndian.PutUint16(dst[4:6], uint16(8+len(config.Payload)))
-	checksum := calculateUDPChecksum(config, config.Payload)
+	checksum := uint16(0)
+	disableChecksum, _ := config.Metadata["udp_disable_checksum"].(bool)
+	srcIP := net.ParseIP(config.L3.SrcIP)
+	dstIP := net.ParseIP(config.L3.DstIP)
+	// Honor udp_disable_checksum for both IPv4 and IPv6. The previous IPv6
+	// guard (To4() == nil) silently overrode the disable flag on IPv6 flows,
+	// which contradicted RFC 6935/6936 (UDP checksum optional for both v4 and
+	// v6 when L2 integrity check is present) and broke E2.5 regression. We
+	// still require the IP strings to parse before calling the checksum
+	// helper, since calculateUDPChecksum needs to build a pseudo-header.
+	if !disableChecksum || srcIP == nil || dstIP == nil {
+		checksum = calculateUDPChecksum(config, config.Payload)
+	}
 	binary.BigEndian.PutUint16(dst[6:8], checksum)
 }
 

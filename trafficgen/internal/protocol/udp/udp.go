@@ -113,6 +113,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				DstPort:  spec.DstPort,
 			},
 			Payload: spec.Payload,
+			Metadata: map[string]interface{}{
+				"udp_disable_checksum": spec.UDP != nil && spec.UDP.DisableChecksum,
+			},
 		}
 		packetIndex++
 
@@ -135,6 +138,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstPort:  spec.SrcPort,
 				},
 				Payload: spec.Payload,
+				Metadata: map[string]interface{}{
+					"udp_disable_checksum": spec.UDP != nil && spec.UDP.DisableChecksum,
+				},
 			}
 		}
 	}()
