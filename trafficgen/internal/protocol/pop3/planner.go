@@ -77,10 +77,6 @@ const (
 	// MaxPasswordLen per RFC 1939 §6 PASS command (1-255 chars).
 	MaxPasswordLen = 255
 
-	// MaxResponseText per RFC 1939 §3 response format (4-512 bytes for
-	// the +OK/-ERR line including the +OK/-ERR prefix and CRLF).
-	MaxResponseText = 512
-
 	// MaxUIDLen per RFC 1939 §7 UIDL command (1-70 chars).
 	MaxUIDLen = 70
 
@@ -340,7 +336,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			// (user includes the CRLF.CRLF terminator) or with CRLF
 			// appended when Multiline=false (single-line +OK/-ERR).
 			if cmd.EmitMailDrop && pop3Config.Mailbox != nil {
-				respBytes := buildMailDropResponse(pop3Config.Mailbox.Messages[cmd.MsgNum-1], int(cmd.MsgNum))
+				respBytes := buildMailDropResponse(pop3Config.Mailbox.Messages[cmd.MsgNum-1])
 				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, respBytes)
 			} else if cmd.Response != "" {
 				var payload []byte
@@ -405,7 +401,7 @@ func splitCmd(cmd string) (string, []string) {
 // Header lines are NOT dot-stuffed (RFC 1939 §3 implies dot-stuffing is
 // for the message body only; headers are RFC 5322 mailbox metadata and
 // cannot legitimately start with "." anyway).
-func buildMailDropResponse(msg core.POP3Message, msgNum int) []byte {
+func buildMailDropResponse(msg core.POP3Message) []byte {
 	// Compute Size if user did not set it. Per testcases 1.6.1 + 4.5.5
 	// the size is the body octets; headers + blank-line overhead are
 	// reported as 0 when the message is empty.
