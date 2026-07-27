@@ -330,6 +330,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				InitiateTag:     getUint32(sub, "initiate_tag"),
 				Chunks:          parseSCTPChunks(sub["chunks"]),
 				Heartbeats:      parseSCTPHeartbeats(sub["heartbeats"]),
+				Abort:           getBool(sub, "abort", false),
 			}
 		}
 		// SCTP has no universal default port (common ports: 38412 for NGAP,

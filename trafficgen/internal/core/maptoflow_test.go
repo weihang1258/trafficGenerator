@@ -1965,6 +1965,46 @@ func TestMapToFlowSpec_SCTP_ChunksSkipNonMapItems(t *testing.T) {
 	}
 }
 
+// TestMapToFlowSpec_SCTP_AbortTrue verifies that sctp.abort=true in the raw
+// config is propagated to SCTPConfig.Abort. Without this wiring, MCP/API
+// submissions carrying abort=true silently drop the flag at the convert
+// layer, and the planner always emits SHUTDOWN even when the user asked
+// for an ABORT (C3.4 end-to-end regression).
+func TestMapToFlowSpec_SCTP_AbortTrue(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "10.0.0.2",
+		"sctp": map[string]interface{}{
+			"abort": true,
+		},
+	}
+	spec := mapToFlowSpec(cfg, "sctp")
+	if spec.SCTP == nil {
+		t.Fatal("SCTP nil, want populated")
+	}
+	if !spec.SCTP.Abort {
+		t.Errorf("SCTP.Abort=false, want true (convert layer dropped sctp.abort)")
+	}
+}
+
+// TestMapToFlowSpec_SCTP_AbortDefaultFalse verifies that sctp.abort absent
+// leaves SCTPConfig.Abort at its zero value (false). This guards the
+// default path so normal SCTP flows still emit SHUTDOWN.
+func TestMapToFlowSpec_SCTP_AbortDefaultFalse(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "10.0.0.2",
+		"sctp":   map[string]interface{}{},
+	}
+	spec := mapToFlowSpec(cfg, "sctp")
+	if spec.SCTP == nil {
+		t.Fatal("SCTP nil, want populated")
+	}
+	if spec.SCTP.Abort {
+		t.Errorf("SCTP.Abort=true, want false (abort key absent)")
+	}
+}
+
 // ============================================================================
 // ICMPv6 branch (strategy_convert.go:312-329)
 // ============================================================================
