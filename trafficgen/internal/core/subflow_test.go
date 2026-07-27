@@ -821,3 +821,61 @@ func TestEmitSubFlow_GroupIDTCPAllPacketsCarryIt(t *testing.T) {
 		}
 	}
 }
+
+// TestEmitSubFlow_GroupIDIncStrategy_Limitation documents a known limitation
+// of the Metadata["group_id"] pre-write: the planner evaluates the GroupID
+// strategy at flowIdx=0 because it does not know the per-flow index at emit
+// time (the worker drives the flow loop and computes flowIdx outside the
+// planner). For "fixed"/"list" strategies this is correct (index-invariant).
+// For "inc"/"pattern"/"rand" with flow_count > 1, the pre-write value
+// diverges from the worker's authoritative value (computed at the real
+// flowIdx).
+//
+// This test asserts the divergence is observable: with an "inc" strategy
+// over range [1,10], the pre-write evaluates to "1" regardless of the
+// parent's conceptual flow index. Downstream consumers that need the
+// authoritative group_id must read it AFTER the worker stamp, not from
+// the pre-write. The worker's stamp at worker.go:325 overwrites this
+// placeholder with the correct flowIdx-resolved gID, so routing is NOT
+// affected — only the pre-write value is.
+//
+// We pin the divergence with a real call to genStringValue at flowIdx=5
+// (what the worker would compute) to show it differs from the pre-write
+// at flowIdx=0.
+func TestEmitSubFlow_GroupIDIncStrategy_Limitation(t *testing.T) {
+	parent := mustFlowSpec()
+	parent.GroupID = &StrategyConfig{
+		Strategy: "inc",
+		Range:    []interface{}{float64(1), float64(10)},
+		Step:     1,
+	}
+	sub := SubFlowSpec{
+		Protocol: "udp",
+		SrcPort:  5004,
+		DstPort:  5004,
+		Payload:  "x",
+	}
+	cfgs := collectSubFlow(t, 0, sub, parent, "p")
+	if len(cfgs) != 1 {
+		t.Fatalf("len(cfgs)=%d, want 1", len(cfgs))
+	}
+
+	// Pre-write value: EmitSubFlow evaluates at flowIdx=0 -> "1".
+	preWriteGID, ok := cfgs[0].Metadata["group_id"].(string)
+	if !ok {
+		t.Fatalf("Metadata[\"group_id\"] missing or not string: %v", cfgs[0].Metadata["group_id"])
+	}
+	if preWriteGID != "1" {
+		t.Fatalf("pre-write group_id=%q, want \"1\" (inc strategy at flowIdx=0)", preWriteGID)
+	}
+
+	// Worker's authoritative value at flowIdx=5: genStringValue(*s, 5).
+	workerGID := genStringValue(*parent.GroupID, 5)
+	if workerGID == preWriteGID {
+		t.Fatalf("expected divergence at flowIdx=5: pre-write=%q, worker=%q, but they match",
+			preWriteGID, workerGID)
+	}
+	if workerGID != "6" {
+		t.Errorf("worker group_id at flowIdx=5 = %q, want \"6\" (inc range [1,10] step 1)", workerGID)
+	}
+}

@@ -153,12 +153,17 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				// SYN or SYN-ACK carries TCP options.
 				l4.TCPOptions = synOpts
 			}
-			// Pre-write Metadata["group_id"] when the spec carries a GroupID
-			// strategy, so any tool reading the PacketConfig directly (parsers,
-			// replays, custom harnesses) sees the same group the worker would
-			// stamp via computeHashKey. When spec.GroupID is nil the worker
-			// falls back to the unordered 4-tuple hash, so we leave Metadata
-			// nil and let the worker own it.
+			// Pre-write Metadata["group_id"] when the spec carries a
+			// GroupID strategy, so any tool reading the PacketConfig
+			// directly (parsers, replays, custom harnesses) sees the
+			// same group the worker would stamp via computeHashKey.
+			// The worker overwrites this at worker.go:325 with the
+			// flowIdx-resolved gID, so for "inc"/"pattern"/"rand"
+			// strategies with flow_count > 1 the pre-write value is a
+			// placeholder (it stays at the flowIdx=0 evaluation until
+			// the worker stamp). When spec.GroupID is nil the worker
+			// falls back to the unordered 4-tuple hash, so we leave
+			// Metadata nil and let the worker own it.
 			var meta map[string]interface{}
 			if spec.GroupID != nil && spec.GroupID.Strategy != "" {
 				if g := core.FlowGroupIDValue(spec.GroupID, 0); g != "" {
@@ -579,10 +584,14 @@ func emitFTPDataChannel(
 		Termination:     true,
 		MSS:             mss,
 		ServerInitiated: isActive,
-		// Wire the parent's GroupID through so EmitSubFlow pre-writes
-		// Metadata["group_id"] for the sub-flow packets. nil parent -> nil
-		// sub.GroupID -> EmitSubFlow inherits parent.GroupID (which is also
-		// nil) -> no Metadata write, matching the pre-fix behavior.
+		// Pass the parent's GroupID so EmitSubFlow pre-writes
+		// Metadata["group_id"] for the sub-flow packets. We assign the
+		// SAME pointer (not a copy) so resolveSubFlowGroupID's first
+		// branch (sub.GroupID non-nil) wins and returns the parent's
+		// evaluated gID — equivalent to inheriting, just via the override
+		// path. nil parent -> nil sub.GroupID -> both branches of
+		// resolveSubFlowGroupID return "" -> no Metadata write, matching
+		// pre-fix behavior.
 		GroupID: spec.GroupID,
 	}
 	core.EmitSubFlow(configChan, 0, sub, spec, parentFlowID, now, packetIndex, nextIPID)

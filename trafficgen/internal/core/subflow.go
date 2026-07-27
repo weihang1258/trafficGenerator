@@ -114,20 +114,22 @@ func EmitSubFlow(
 		dir = "up"
 	}
 
-	// Resolve the sub-flow's group_id. Priority (per spec C1.17):
-	//   1. sub.GroupID non-nil -> evaluate sub.GroupID strategy
-	//   2. parent.GroupID non-nil -> evaluate parent.GroupID strategy
-	//   3. both nil -> empty string (the engine's worker will then fall
-	//      back to the 4-tuple hash via computeHashKey)
+	// Pre-write Metadata["group_id"] for downstream consumers (parsers,
+	// replays, custom harnesses) that read PacketConfig before the engine's
+	// worker stamps the authoritative value. The worker's computeHashKey
+	// (worker.go:325) overwrites this with the flowIdx-resolved gID, so
+	// routing is unaffected by what we write here.
 	//
-	// The evaluated string is pre-written into every emitted PacketConfig's
-	// Metadata["group_id"] so that tools reading the PacketConfig directly
-	// (parsers, replays, snapshots) see the same group the worker would
-	// stamp. The gID is evaluated with flowIdx=0 because the sub-flow is
-	// emitted as part of the parent flow — strategies like "fixed" are
-	// index-invariant, and "inc"/"pattern"/"rand" stay consistent inside
-	// one flow because the parent's gID is computed once per flow in the
-	// worker.
+	// LIMITATION: the pre-write evaluates the strategy at flowIdx=0 because
+	// the planner does not know the per-flow index at emit time (the worker
+	// drives the loop and computes flowIdx outside the planner). For
+	// "fixed"/"list" strategies this is correct (index-invariant). For
+	// "inc"/"pattern"/"rand" strategies with flow_count > 1, the pre-write
+	// value diverges from the worker's authoritative value (e.g. inc range
+	// [1,10]: pre-write always "1", worker emits "1".."10"). Downstream
+	// consumers that need the authoritative group_id must read it AFTER the
+	// worker stamp, not from the pre-write. See TestEmitSubFlow_GroupIDIncStrategy_Limitation
+	// which demonstrates the divergence.
 	gID := resolveSubFlowGroupID(sub.GroupID, parent.GroupID)
 
 	switch sub.Protocol {

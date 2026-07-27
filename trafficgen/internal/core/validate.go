@@ -97,31 +97,13 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 				return fmt.Errorf("arp.operation %d invalid (must be 0-65535)", o)
 			}
 		}
-	case "http":
-		// HTTP runs over TCP. MSS for HTTP payload segmentation is governed
-		// by tcp.mss — validate here so protocol=http users can't smuggle
-		// out-of-range values past validation (the tcp case only fires when
-		// protocol=="tcp", which http/ftp/sip never reach).
-		if sub, ok := cfg["tcp"].(map[string]interface{}); ok {
-			if m := getInt(sub, "mss"); m < 0 || m > 65535 {
-				return fmt.Errorf("tcp.mss %d invalid (must be 0-65535)", m)
-			}
-		}
-	case "ftp":
-		// FTP runs over TCP. MSS for FTP payload segmentation is governed
-		// by tcp.mss (see http case comment for the validation rationale).
-		if sub, ok := cfg["tcp"].(map[string]interface{}); ok {
-			if m := getInt(sub, "mss"); m < 0 || m > 65535 {
-				return fmt.Errorf("tcp.mss %d invalid (must be 0-65535)", m)
-			}
-		}
-	case "sip":
-		// SIP runs over TCP (or UDP). MSS for SIP message segmentation is
-		// governed by tcp.mss (see http case comment for the validation rationale).
-		if sub, ok := cfg["tcp"].(map[string]interface{}); ok {
-			if m := getInt(sub, "mss"); m < 0 || m > 65535 {
-				return fmt.Errorf("tcp.mss %d invalid (must be 0-65535)", m)
-			}
+	case "http", "ftp", "sip":
+		// HTTP/FTP/SIP run over TCP (SIP also over UDP). MSS for payload
+		// segmentation is governed by tcp.mss — validate here so users
+		// can't smuggle out-of-range values past validation (the tcp case
+		// only fires when protocol=="tcp", which http/ftp/sip never reach).
+		if err := validateTCPMSS(cfg); err != nil {
+			return err
 		}
 	case "sctp":
 		if sub, ok := cfg["sctp"].(map[string]interface{}); ok {
@@ -150,6 +132,21 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 				return fmt.Errorf("icmpv6.sequence %d invalid (must be 0-65535)", s)
 			}
 		}
+	}
+	return nil
+}
+
+// validateTCPMSS validates tcp.mss in cfg when present. Shared by the
+// http/ftp/sip cases since they all run over TCP and use tcp.mss for
+// payload segmentation. Returns nil when tcp sub-config is absent (the
+// planner falls back to its default MSS).
+func validateTCPMSS(cfg map[string]interface{}) error {
+	sub, ok := cfg["tcp"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	if m := getInt(sub, "mss"); m < 0 || m > 65535 {
+		return fmt.Errorf("tcp.mss %d invalid (must be 0-65535)", m)
 	}
 	return nil
 }
