@@ -620,7 +620,7 @@ func emitSCTPHeartbeats(
 		flowID = parentFlowID + ":hb"
 	}
 
-	emitHB := func(direction, sMAC, dMAC, sIP, dIP string, verTag uint32, payload []byte) {
+	emitHB := func(direction, sMAC, dMAC, sIP, dIP string, srcPort, dstPort uint16, verTag uint32, payload []byte) {
 		l3 := core.L3Base(sIP, dIP, core.ProtocolSCTP, effectiveTTL, nextIPID(), spec)
 		cfg := core.PacketConfig{
 			FlowID:      flowID,
@@ -635,8 +635,8 @@ func emitSCTPHeartbeats(
 			L3: l3,
 			L4: core.L4Config{
 				Protocol: "sctp",
-				SrcPort:  spec.SrcPort,
-				DstPort:  spec.DstPort,
+				SrcPort:  srcPort,
+				DstPort:  dstPort,
 				Ack:      verTag,
 			},
 			Payload: payload,
@@ -655,11 +655,13 @@ func emitSCTPHeartbeats(
 		rand.Read(info[8:16])
 
 		// HEARTBEAT (client -> server, VerificationTag = serverVerTag).
-		emitHB("up", srcMAC, dstMAC, srcIP, dstIP, serverVerTag,
+		emitHB("up", srcMAC, dstMAC, srcIP, dstIP, spec.SrcPort, spec.DstPort, serverVerTag,
 			buildHEARTBEATChunk(info))
 		// HEARTBEAT-ACK (server -> client, VerificationTag = clientVerTag).
 		// Per RFC 4960 §3.5.2, the ack echoes the Heartbeat Info unchanged.
-		emitHB("down", dstMAC, srcMAC, dstIP, srcIP, clientVerTag,
+		// Swap ports so the server's source port is spec.DstPort (echoing the
+		// client's destination), matching INIT-ACK's port-swap pattern.
+		emitHB("down", dstMAC, srcMAC, dstIP, srcIP, spec.DstPort, spec.SrcPort, clientVerTag,
 			buildHEARTBEATAckChunk(info))
 	}
 }

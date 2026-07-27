@@ -348,6 +348,46 @@ func TestSCTPHeartbeat_VerificationTag(t *testing.T) {
 	}
 }
 
+// TestSCTPHeartbeat_AckPortSwap verifies the HEARTBEAT-ACK (down direction)
+// swaps source and destination ports relative to the HEARTBEAT (up).
+// Per RFC 4960 §1.3, both endpoints use the same 4-tuple for the lifetime
+// of the association, so the server's source port on HB-ACK must equal the
+// client's destination port (and vice versa). A prior bug had HB-ACK
+// reusing the parent spec.SrcPort/DstPort without swapping, which produced
+// packets with both src and dst ports from the client side.
+func TestSCTPHeartbeat_AckPortSwap(t *testing.T) {
+	spec := heartbeatSpec()
+	spec.SCTP.Heartbeats.Count = 1
+	// Fixed, distinguishable ports: client 38413, server 38412.
+	spec.SrcPort = 38413
+	spec.DstPort = 38412
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+	hb := findHeartbeatPackets(cfgs)
+	if len(hb) != 2 {
+		t.Fatalf("len(hb)=%d, want 2 (HB + HB-ACK)", len(hb))
+	}
+	// HB (up): client:38413 → server:38412.
+	if hb[0].L4.SrcPort != 38413 {
+		t.Errorf("HB SrcPort=%d, want 38413 (client)", hb[0].L4.SrcPort)
+	}
+	if hb[0].L4.DstPort != 38412 {
+		t.Errorf("HB DstPort=%d, want 38412 (server)", hb[0].L4.DstPort)
+	}
+	// HB-ACK (down): server:38412 → client:38413 (ports swap).
+	if hb[1].L4.SrcPort != 38412 {
+		t.Errorf("HB-ACK SrcPort=%d, want 38412 (server, swapped)",
+			hb[1].L4.SrcPort)
+	}
+	if hb[1].L4.DstPort != 38413 {
+		t.Errorf("HB-ACK DstPort=%d, want 38413 (client, swapped)",
+			hb[1].L4.DstPort)
+	}
+}
+
 // TestSCTPHeartbeat_HBInfoMagic verifies the Heartbeat Info TLV starts
 // with the 4-byte magic "HBTC" (0x48425443).
 func TestSCTPHeartbeat_HBInfoMagic(t *testing.T) {
@@ -439,8 +479,10 @@ func TestSCTPHeartbeat_AltPathPartialOverride(t *testing.T) {
 }
 
 // TestSCTPHeartbeat_PortsInheritFromParent verifies heartbeats use the
-// parent's SrcPort/DstPort (SCTP heartbeats always ride the association's
-// 4-tuple port pair, even on multi-homing).
+// parent's port pair (SCTP heartbeats always ride the association's
+// 4-tuple port pair, even on multi-homing). HB (up) uses parent
+// SrcPort→DstPort; HB-ACK (down) swaps them, so server's source port
+// is parent DstPort.
 func TestSCTPHeartbeat_PortsInheritFromParent(t *testing.T) {
 	spec := heartbeatSpec()
 	spec.SCTP.Heartbeats.AltPath = &core.SCTPAltPath{
@@ -456,13 +498,26 @@ func TestSCTPHeartbeat_PortsInheritFromParent(t *testing.T) {
 		t.Fatalf("no heartbeat packets")
 	}
 	for i, c := range hb {
-		if c.L4.SrcPort != 38413 {
-			t.Errorf("hb[%d] SrcPort=%d, want 38413 (parent's)",
-				i, c.L4.SrcPort)
-		}
-		if c.L4.DstPort != 38412 {
-			t.Errorf("hb[%d] DstPort=%d, want 38412 (parent's)",
-				i, c.L4.DstPort)
+		if i%2 == 0 {
+			// HB up: parent SrcPort → parent DstPort
+			if c.L4.SrcPort != 38413 {
+				t.Errorf("hb[%d] SrcPort=%d, want 38413 (parent SrcPort, up)",
+					i, c.L4.SrcPort)
+			}
+			if c.L4.DstPort != 38412 {
+				t.Errorf("hb[%d] DstPort=%d, want 38412 (parent DstPort, up)",
+					i, c.L4.DstPort)
+			}
+		} else {
+			// HB-ACK down: parent DstPort → parent SrcPort (swapped)
+			if c.L4.SrcPort != 38412 {
+				t.Errorf("hb[%d] SrcPort=%d, want 38412 (parent DstPort, swapped down)",
+					i, c.L4.SrcPort)
+			}
+			if c.L4.DstPort != 38413 {
+				t.Errorf("hb[%d] DstPort=%d, want 38413 (parent SrcPort, swapped down)",
+					i, c.L4.DstPort)
+			}
 		}
 	}
 }
