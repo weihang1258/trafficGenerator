@@ -540,10 +540,12 @@ func buildSHUTDOWNCompleteChunk() []byte {
 //
 // Layout: Type(1)=6 + Flags(1) + Length(2)=4 + (optional Cause fields).
 // We emit a minimal ABORT with no Cause — the chunk is exactly 4 bytes.
-// The T-bit (bit 0 of flags) is left 0 (TCB was discarded), which is the
-// normal case for a graceful ABORT (the sender has state but is
-// declaring the association dead). For tests/fault-injection this is
-// the conventional shape.
+// The T-bit (bit 0 of flags) is left 0, which per RFC 4960 §6.4 means
+// "the sender had a TCB" (normal ABORT on a known association). T=1
+// ("TCB was discarded") is reserved for scenarios where the sender
+// never had state — e.g. an ABORT sent in response to a packet that
+// doesn't match any existing association — and is NOT what we emit
+// here. For tests/fault-injection T=0 is the conventional shape.
 func buildABORTChunk() []byte {
 	return buildChunk(ChunkABORT, 0, nil)
 }
