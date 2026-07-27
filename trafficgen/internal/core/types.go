@@ -163,6 +163,38 @@ type FlowSpec struct {
 	// and fail the task with a clear aggregated message rather than
 	// letting the error surface deep in a make([]byte, n) panic.
 	ValidationErrors []string `json:"validation_errors,omitempty"`
+
+	// --- L7 protocol configurations (phase 3 batch). Appended at end per
+	// flowspec_extension.md §2.3 to avoid touching existing field layout.
+	// Each pointer is nil when the protocol is not selected; planners must
+	// nil-check before dereferencing. Implementers populate the struct
+	// bodies in core/types.go (their own region) -- DO NOT move these.
+
+	DHCP        *DHCPConfig        `json:"dhcp,omitempty"`
+	DHCPv6      *DHCPv6Config      `json:"dhcpv6,omitempty"`
+	GRPC        *GRPCConfig        `json:"grpc,omitempty"`
+	IKE         *IKEConfig         `json:"ike,omitempty"`
+	IKENATT     *IKENATTConfig     `json:"ike_nat_t,omitempty"`
+	IMAP        *IMAPConfig        `json:"imap,omitempty"`
+	L2TP        *L2TPConfig        `json:"l2tp,omitempty"`
+	MDNS        *MDNSConfig        `json:"mdns,omitempty"`
+	MySQL       *MySQLConfig       `json:"mysql,omitempty"`
+	NTP         *NTPConfig         `json:"ntp,omitempty"`
+	OpenVPN     *OpenVPNConfig     `json:"openvpn,omitempty"`
+	PostgreSQL  *PostgreSQLConfig  `json:"postgresql,omitempty"`
+	POP3        *POP3Config        `json:"pop3,omitempty"`
+	RDP         *RDPConfig         `json:"rdp,omitempty"`
+	Redis       *RedisConfig       `json:"redis,omitempty"`
+	Shadowsocks *ShadowsocksConfig `json:"shadowsocks,omitempty"`
+	SMTP        *SMTPConfig        `json:"smtp,omitempty"`
+	SNMP        *SNMPConfig        `json:"snmp,omitempty"`
+	SSDP        *SSDPConfig        `json:"ssdp,omitempty"`
+	SSH         *SSHConfig         `json:"ssh,omitempty"`
+	Syslog      *SyslogConfig      `json:"syslog,omitempty"`
+	Telnet      *TelnetConfig      `json:"telnet,omitempty"`
+	TLS         *TLSConfig         `json:"tls,omitempty"`
+	Vmess       *VmessConfig       `json:"vmess,omitempty"`
+	WireGuard   *WireGuardConfig   `json:"wireguard,omitempty"`
 }
 
 // SubFlowSpec describes a secondary flow bound to a primary flow. The
@@ -848,4 +880,164 @@ type StrategyConfig struct {
 type GlobalConfig struct {
 	TotalFlows      int `json:"total_flows"`
 	DurationSeconds int `json:"duration_seconds"`
+}
+
+// --- Phase 3 L7 protocol config placeholders. Each protocol's implementer
+// fills in the struct body for their own protocol (and only their own).
+// All structs are exported because FlowSpec fields use pointer-to-struct
+// and the planner packages need to read/write fields. Keep each protocol's
+// struct definition within the marked region to avoid git merge conflicts
+// when 25 implementers work in parallel.
+
+// DHCPConfig holds DHCPv4 protocol configuration. Fields populated by
+// internal/protocol/dhcp implementer per design_dhcp.md.
+type DHCPConfig struct {
+	// TODO(phase3-dhcp): populate fields per design_dhcp.md
+}
+
+// DHCPv6Config holds DHCPv6 protocol configuration. Fields populated by
+// internal/protocol/dhcpv6 implementer per design_dhcpv6.md.
+type DHCPv6Config struct {
+	// TODO(phase3-dhcpv6): populate fields per design_dhcpv6.md
+}
+
+// GRPCConfig holds gRPC/HTTP2 telemetry protocol configuration. Fields
+// populated by internal/protocol/grpc implementer per design_grpc.md.
+type GRPCConfig struct {
+	// TODO(phase3-grpc): populate fields per design_grpc.md
+}
+
+// IKEConfig holds IKEv2 protocol configuration. Fields populated by
+// internal/protocol/ike implementer per design_ike.md.
+type IKEConfig struct {
+	// TODO(phase3-ike): populate fields per design_ike.md
+}
+
+// IKENATTConfig holds IKE-NAT-T protocol configuration. Fields populated
+// by internal/protocol/ike_nat_t implementer per design_ike_nat_t.md.
+type IKENATTConfig struct {
+	// TODO(phase3-ike_nat_t): populate fields per design_ike_nat_t.md
+}
+
+// IMAPConfig holds IMAP4rev2 protocol configuration. Fields populated by
+// internal/protocol/imap implementer per design_imap.md.
+type IMAPConfig struct {
+	// TODO(phase3-imap): populate fields per design_imap.md
+}
+
+// L2TPConfig holds L2TPv2/v3 protocol configuration. Fields populated by
+// internal/protocol/l2tp implementer per design_l2tp.md.
+type L2TPConfig struct {
+	// TODO(phase3-l2tp): populate fields per design_l2tp.md
+}
+
+// MDNSConfig holds mDNS protocol configuration. Fields populated by
+// internal/protocol/mdns implementer per design_mdns.md.
+type MDNSConfig struct {
+	// TODO(phase3-mdns): populate fields per design_mdns.md
+}
+
+// MySQLConfig holds MySQL client/server protocol configuration. Fields
+// populated by internal/protocol/mysql implementer per design_mysql.md.
+type MySQLConfig struct {
+	// TODO(phase3-mysql): populate fields per design_mysql.md
+}
+
+// NTPConfig holds NTP protocol configuration. Fields populated by
+// internal/protocol/ntp implementer per design_ntp.md.
+type NTPConfig struct {
+	// TODO(phase3-ntp): populate fields per design_ntp.md
+}
+
+// OpenVPNConfig holds OpenVPN protocol configuration. Fields populated by
+// internal/protocol/openvpn implementer per design_openvpn.md.
+type OpenVPNConfig struct {
+	// TODO(phase3-openvpn): populate fields per design_openvpn.md
+}
+
+// PostgreSQLConfig holds PostgreSQL frontend/backend protocol
+// configuration. Fields populated by internal/protocol/postgresql
+// implementer per design_postgresql.md.
+type PostgreSQLConfig struct {
+	// TODO(phase3-postgresql): populate fields per design_postgresql.md
+}
+
+// POP3Config holds POP3 protocol configuration. Fields populated by
+// internal/protocol/pop3 implementer per design_pop3.md.
+type POP3Config struct {
+	// TODO(phase3-pop3): populate fields per design_pop3.md
+}
+
+// RDPConfig holds RDP protocol configuration. Fields populated by
+// internal/protocol/rdp implementer per design_rdp.md.
+type RDPConfig struct {
+	// TODO(phase3-rdp): populate fields per design_rdp.md
+}
+
+// RedisConfig holds Redis RESP protocol configuration. Fields populated
+// by internal/protocol/redis implementer per design_redis.md.
+type RedisConfig struct {
+	// TODO(phase3-redis): populate fields per design_redis.md
+}
+
+// ShadowsocksConfig holds Shadowsocks protocol configuration. Fields
+// populated by internal/protocol/shadowsocks implementer per
+// design_shadowsocks.md.
+type ShadowsocksConfig struct {
+	// TODO(phase3-shadowsocks): populate fields per design_shadowsocks.md
+}
+
+// SMTPConfig holds SMTP protocol configuration. Fields populated by
+// internal/protocol/smtp implementer per design_smtp.md.
+type SMTPConfig struct {
+	// TODO(phase3-smtp): populate fields per design_smtp.md
+}
+
+// SNMPConfig holds SNMP protocol configuration. Fields populated by
+// internal/protocol/snmp implementer per design_snmp.md.
+type SNMPConfig struct {
+	// TODO(phase3-snmp): populate fields per design_snmp.md
+}
+
+// SSDPConfig holds SSDP protocol configuration. Fields populated by
+// internal/protocol/ssdp implementer per design_ssdp.md.
+type SSDPConfig struct {
+	// TODO(phase3-ssdp): populate fields per design_ssdp.md
+}
+
+// SSHConfig holds SSH protocol configuration. Fields populated by
+// internal/protocol/ssh implementer per design_ssh.md.
+type SSHConfig struct {
+	// TODO(phase3-ssh): populate fields per design_ssh.md
+}
+
+// SyslogConfig holds Syslog protocol configuration. Fields populated by
+// internal/protocol/syslog implementer per design_syslog.md.
+type SyslogConfig struct {
+	// TODO(phase3-syslog): populate fields per design_syslog.md
+}
+
+// TelnetConfig holds Telnet protocol configuration. Fields populated by
+// internal/protocol/telnet implementer per design_telnet.md.
+type TelnetConfig struct {
+	// TODO(phase3-telnet): populate fields per design_telnet.md
+}
+
+// TLSConfig holds TLS protocol configuration. Fields populated by
+// internal/protocol/tls implementer per design_tls.md.
+type TLSConfig struct {
+	// TODO(phase3-tls): populate fields per design_tls.md
+}
+
+// VmessConfig holds vmess protocol configuration. Fields populated by
+// internal/protocol/vmess implementer per design_vmess.md.
+type VmessConfig struct {
+	// TODO(phase3-vmess): populate fields per design_vmess.md
+}
+
+// WireGuardConfig holds WireGuard protocol configuration. Fields
+// populated by internal/protocol/wireguard implementer per
+// design_wireguard.md.
+type WireGuardConfig struct {
+	// TODO(phase3-wireguard): populate fields per design_wireguard.md
 }

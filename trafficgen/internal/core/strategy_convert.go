@@ -355,6 +355,182 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// packet inspection. ICMPv6 packets over the wire carry no L4.
 		spec.SrcPort = 0
 		spec.DstPort = 0
+	// --- Phase 3 L7 protocols. Each case is a placeholder the protocol's
+	// implementer fills in. The default branch only sets spec.<Proto> to a
+	// zero-valued pointer when the cfg sub-map is present, so mapToFlowSpec
+	// round-trips (JSON unmarshal test) work before the implementer adds
+	// real field parsing. Implementer replaces the body with real parsing.
+	case "dhcp":
+		if _, ok := cfg["dhcp"].(map[string]interface{}); ok {
+			spec.DHCP = &DHCPConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 67
+		}
+	case "dhcpv6":
+		if _, ok := cfg["dhcpv6"].(map[string]interface{}); ok {
+			spec.DHCPv6 = &DHCPv6Config{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 547
+		}
+	case "grpc":
+		if _, ok := cfg["grpc"].(map[string]interface{}); ok {
+			spec.GRPC = &GRPCConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 8604
+		}
+	case "ike":
+		if _, ok := cfg["ike"].(map[string]interface{}); ok {
+			spec.IKE = &IKEConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 500
+		}
+	case "ike_nat_t":
+		if _, ok := cfg["ike_nat_t"].(map[string]interface{}); ok {
+			spec.IKENATT = &IKENATTConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 4500
+		}
+	case "imap":
+		if _, ok := cfg["imap"].(map[string]interface{}); ok {
+			spec.IMAP = &IMAPConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 143
+		}
+	case "l2tp":
+		if _, ok := cfg["l2tp"].(map[string]interface{}); ok {
+			spec.L2TP = &L2TPConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1701
+		}
+	case "mdns":
+		if _, ok := cfg["mdns"].(map[string]interface{}); ok {
+			spec.MDNS = &MDNSConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 5353
+		}
+	case "mysql":
+		if _, ok := cfg["mysql"].(map[string]interface{}); ok {
+			spec.MySQL = &MySQLConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 3306
+		}
+	case "ntp":
+		if _, ok := cfg["ntp"].(map[string]interface{}); ok {
+			spec.NTP = &NTPConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 123
+		}
+	case "openvpn":
+		if _, ok := cfg["openvpn"].(map[string]interface{}); ok {
+			spec.OpenVPN = &OpenVPNConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1194
+		}
+	case "postgresql":
+		if _, ok := cfg["postgresql"].(map[string]interface{}); ok {
+			spec.PostgreSQL = &PostgreSQLConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 5432
+		}
+	case "pop3":
+		if _, ok := cfg["pop3"].(map[string]interface{}); ok {
+			spec.POP3 = &POP3Config{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 110
+		}
+	case "rdp":
+		if _, ok := cfg["rdp"].(map[string]interface{}); ok {
+			spec.RDP = &RDPConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 3389
+		}
+	case "redis":
+		if _, ok := cfg["redis"].(map[string]interface{}); ok {
+			spec.Redis = &RedisConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 6379
+		}
+	case "shadowsocks":
+		if _, ok := cfg["shadowsocks"].(map[string]interface{}); ok {
+			spec.Shadowsocks = &ShadowsocksConfig{}
+		}
+		// shadowsocks has no canonical port; user must specify.
+	case "smtp":
+		if _, ok := cfg["smtp"].(map[string]interface{}); ok {
+			spec.SMTP = &SMTPConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 25
+		}
+	case "snmp":
+		if _, ok := cfg["snmp"].(map[string]interface{}); ok {
+			spec.SNMP = &SNMPConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 161
+		}
+	case "ssdp":
+		if _, ok := cfg["ssdp"].(map[string]interface{}); ok {
+			spec.SSDP = &SSDPConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1900
+		}
+	case "ssh":
+		if _, ok := cfg["ssh"].(map[string]interface{}); ok {
+			spec.SSH = &SSHConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 22
+		}
+	case "syslog":
+		if _, ok := cfg["syslog"].(map[string]interface{}); ok {
+			spec.Syslog = &SyslogConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 514
+		}
+	case "telnet":
+		if _, ok := cfg["telnet"].(map[string]interface{}); ok {
+			spec.Telnet = &TelnetConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 23
+		}
+	case "tls":
+		if _, ok := cfg["tls"].(map[string]interface{}); ok {
+			spec.TLS = &TLSConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 443
+		}
+	case "vmess":
+		if _, ok := cfg["vmess"].(map[string]interface{}); ok {
+			spec.Vmess = &VmessConfig{}
+		}
+		// vmess has no canonical port; user must specify.
+	case "wireguard":
+		if _, ok := cfg["wireguard"].(map[string]interface{}); ok {
+			spec.WireGuard = &WireGuardConfig{}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 51820
+		}
 	}
 
 	// GroupID: optional strategy for cross-flow ordering. When cfg has
