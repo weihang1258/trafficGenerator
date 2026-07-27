@@ -114,14 +114,43 @@ func EmitSubFlow(
 		dir = "up"
 	}
 
+	// Resolve the sub-flow's group_id. Priority (per spec C1.17):
+	//   1. sub.GroupID non-nil -> evaluate sub.GroupID strategy
+	//   2. parent.GroupID non-nil -> evaluate parent.GroupID strategy
+	//   3. both nil -> empty string (the engine's worker will then fall
+	//      back to the 4-tuple hash via computeHashKey)
+	//
+	// The evaluated string is pre-written into every emitted PacketConfig's
+	// Metadata["group_id"] so that tools reading the PacketConfig directly
+	// (parsers, replays, snapshots) see the same group the worker would
+	// stamp. The gID is evaluated with flowIdx=0 because the sub-flow is
+	// emitted as part of the parent flow — strategies like "fixed" are
+	// index-invariant, and "inc"/"pattern"/"rand" stay consistent inside
+	// one flow because the parent's gID is computed once per flow in the
+	// worker.
+	gID := resolveSubFlowGroupID(sub.GroupID, parent.GroupID)
+
 	switch sub.Protocol {
 	case "tcp":
-		emitTCPSubFlow(configChan, sub, subSpec, subFlowID, now, packetIndex, nextIPID, payload, dir)
+		emitTCPSubFlow(configChan, sub, subSpec, subFlowID, now, packetIndex, nextIPID, payload, dir, gID)
 	case "udp":
-		emitUDPSubFlow(configChan, sub, subSpec, subFlowID, now, packetIndex, nextIPID, payload, dir)
+		emitUDPSubFlow(configChan, sub, subSpec, subFlowID, now, packetIndex, nextIPID, payload, dir, gID)
 	case "sctp":
-		emitSCTPSubFlow(configChan, sub, subSpec, subFlowID, now, packetIndex, nextIPID, payload, dir)
+		emitSCTPSubFlow(configChan, sub, subSpec, subFlowID, now, packetIndex, nextIPID, payload, dir, gID)
 	}
+}
+
+// resolveSubFlowGroupID evaluates the sub-flow's group_id per the
+// priority documented on EmitSubFlow. Returns "" when both sub.GroupID and
+// parent.GroupID are nil (worker falls back to 4-tuple hash in that case).
+func resolveSubFlowGroupID(subGID, parentGID *StrategyConfig) string {
+	if g := FlowGroupIDValue(subGID, 0); g != "" {
+		return g
+	}
+	if g := FlowGroupIDValue(parentGID, 0); g != "" {
+		return g
+	}
+	return ""
 }
 
 // emitTCPSubFlow emits a full TCP sub-flow: 3-way handshake (if Handshake),
@@ -151,6 +180,7 @@ func emitTCPSubFlow(
 	nextIPID func() uint16,
 	payload []byte,
 	dir string,
+	gID string,
 ) {
 	mss := uint16(sub.MSS)
 	if mss == 0 {
@@ -165,6 +195,14 @@ func emitTCPSubFlow(
 	// regardless of who opens the connection).
 	clientPort := sub.SrcPort
 	serverPort := sub.DstPort
+
+	// Pre-allocate Metadata so each emitPacket can write gID without
+	// re-allocating. Only allocated when gID is non-empty (skips the
+	// map alloc on the common 4-tuple-hash fallback path).
+	var meta map[string]interface{}
+	if gID != "" {
+		meta = map[string]interface{}{"group_id": gID}
+	}
 
 	// emitPacket builds and sends one TCP packet in the given direction.
 	// "up" = client→server (SrcMAC=spec.SrcMAC, ports client→server);
@@ -193,12 +231,22 @@ func emitTCPSubFlow(
 		if flags == 0x02 || flags == 0x12 {
 			l4.TCPOptions = synMSSOptions(mss)
 		}
+		var pktMeta map[string]interface{}
+		if meta != nil {
+			// Copy so each emitted PacketConfig has its own Metadata
+			// (the engine may mutate it downstream).
+			pktMeta = make(map[string]interface{}, len(meta))
+			for k, v := range meta {
+				pktMeta[k] = v
+			}
+		}
 		configChan <- PacketConfig{
 			FlowID: flowID, PacketIndex: *packetIndex, Direction: direction, Timestamp: now,
 			L2:      L2Config{SrcMAC: srcMAC, DstMAC: dstMAC, EtherType: EtherTypeFor(srcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
 			L3:      L3Base(srcIP, dstIP, 6, spec.TTL, nextIPID(), spec),
 			L4:      l4,
 			Payload: pay,
+			Metadata: pktMeta,
 		}
 		*packetIndex++
 	}
@@ -282,22 +330,29 @@ func emitUDPSubFlow(
 	nextIPID func() uint16,
 	payload []byte,
 	dir string,
+	gID string,
 ) {
+	var meta map[string]interface{}
+	if gID != "" {
+		meta = map[string]interface{}{"group_id": gID}
+	}
 	if dir == "down" {
 		configChan <- PacketConfig{
 			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.DstIP, spec.SrcIP, 17, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "udp", SrcPort: sub.DstPort, DstPort: sub.SrcPort},
+			L2:      L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3:      L3Base(spec.DstIP, spec.SrcIP, 17, spec.TTL, nextIPID(), spec),
+			L4:      L4Config{Protocol: "udp", SrcPort: sub.DstPort, DstPort: sub.SrcPort},
 			Payload: payload,
+			Metadata: meta,
 		}
 	} else {
 		configChan <- PacketConfig{
 			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.SrcIP, spec.DstIP, 17, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "udp", SrcPort: sub.SrcPort, DstPort: sub.DstPort},
+			L2:      L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3:      L3Base(spec.SrcIP, spec.DstIP, 17, spec.TTL, nextIPID(), spec),
+			L4:      L4Config{Protocol: "udp", SrcPort: sub.SrcPort, DstPort: sub.DstPort},
 			Payload: payload,
+			Metadata: meta,
 		}
 	}
 	*packetIndex++
@@ -322,51 +377,75 @@ func emitSCTPSubFlow(
 	nextIPID func() uint16,
 	payload []byte,
 	dir string,
+	gID string,
 ) {
 	clientTag := rand.Uint32()
 	serverTag := rand.Uint32()
 	clientTSN := rand.Uint32()
 	serverTSN := clientTSN + 1
 
+	// Pre-build the Metadata template. Only allocated when gID is non-empty
+	// (skips the map alloc on the 4-tuple-hash fallback path). Each emitted
+	// PacketConfig gets its OWN copy so downstream mutations don't bleed
+	// between packets.
+	var metaTemplate map[string]interface{}
+	if gID != "" {
+		metaTemplate = map[string]interface{}{"group_id": gID}
+	}
+	metaFor := func() map[string]interface{} {
+		if metaTemplate == nil {
+			return nil
+		}
+		m := make(map[string]interface{}, len(metaTemplate))
+		for k, v := range metaTemplate {
+			m[k] = v
+		}
+		return m
+	}
+
 	// 4-way handshake.
 	if sub.Handshake {
 		// INIT (client -> server, Verificationtag=0)
 		configChan <- PacketConfig{
 			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: 0},
-			Payload: buildSCTPINITChunk(clientTag),
+			L2:       L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3:       L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
+			L4:       L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: 0},
+			Payload:  buildSCTPINITChunk(clientTag),
+			Metadata: metaFor(),
 		}
 		*packetIndex++
 
 		// INIT-ACK (server -> client)
 		configChan <- PacketConfig{
 			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
-			Payload: buildSCTPINITChunk(serverTag),
+			L2:       L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3:       L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
+			L4:       L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
+			Payload:  buildSCTPINITChunk(serverTag),
+			Metadata: metaFor(),
 		}
 		*packetIndex++
 
 		// COOKIE-ECHO (client -> server)
 		configChan <- PacketConfig{
 			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
-			Payload: buildSCTPCookieEchoChunk(),
+			L2:       L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3:       L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
+			L4:       L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
+			Payload:  buildSCTPCookieEchoChunk(),
+			Metadata: metaFor(),
 		}
 		*packetIndex++
 
 		// COOKIE-ACK (server -> client)
 		configChan <- PacketConfig{
 			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
-			Payload: buildSCTPCookieAckChunk(),
+			L2:       L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3:       L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
+			L4:       L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
+			Payload:  buildSCTPCookieAckChunk(),
+			Metadata: metaFor(),
 		}
 		*packetIndex++
 	}
@@ -376,18 +455,20 @@ func emitSCTPSubFlow(
 		if dir == "down" {
 			configChan <- PacketConfig{
 				FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
-				L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-				L3: L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
-				L4: L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
-				Payload: buildSCTPDATAChunk(serverTSN, payload),
+				L2:       L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+				L3:       L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
+				L4:       L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
+				Payload:  buildSCTPDATAChunk(serverTSN, payload),
+				Metadata: metaFor(),
 			}
 		} else {
 			configChan <- PacketConfig{
 				FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-				L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-				L3: L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
-				L4: L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
-				Payload: buildSCTPDATAChunk(clientTSN, payload),
+				L2:       L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+				L3:       L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
+				L4:       L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
+				Payload:  buildSCTPDATAChunk(clientTSN, payload),
+				Metadata: metaFor(),
 			}
 		}
 		*packetIndex++
@@ -398,30 +479,33 @@ func emitSCTPSubFlow(
 		// SHUTDOWN (client -> server)
 		configChan <- PacketConfig{
 			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
-			Payload: buildSCTPShutdownChunk(clientTSN),
+			L2:       L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3:       L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
+			L4:       L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
+			Payload:  buildSCTPShutdownChunk(clientTSN),
+			Metadata: metaFor(),
 		}
 		*packetIndex++
 
 		// SHUTDOWN-ACK (server -> client)
 		configChan <- PacketConfig{
 			FlowID: flowID, PacketIndex: *packetIndex, Direction: "down", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
-			Payload: buildSCTPShutdownAckChunk(),
+			L2:       L2Config{SrcMAC: spec.DstMAC, DstMAC: spec.SrcMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3:       L3Base(spec.DstIP, spec.SrcIP, 132, spec.TTL, nextIPID(), spec),
+			L4:       L4Config{Protocol: "sctp", SrcPort: sub.DstPort, DstPort: sub.SrcPort, Ack: clientTag},
+			Payload:  buildSCTPShutdownAckChunk(),
+			Metadata: metaFor(),
 		}
 		*packetIndex++
 
 		// SHUTDOWN-COMPLETE (client -> server)
 		configChan <- PacketConfig{
 			FlowID: flowID, PacketIndex: *packetIndex, Direction: "up", Timestamp: now,
-			L2: L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
-			L3: L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
-			L4: L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
-			Payload: buildSCTPShutdownCompleteChunk(),
+			L2:       L2Config{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, EtherType: EtherTypeFor(spec.SrcIP), VLAN: spec.VLAN, Pad: spec.PadMinFrame},
+			L3:       L3Base(spec.SrcIP, spec.DstIP, 132, spec.TTL, nextIPID(), spec),
+			L4:       L4Config{Protocol: "sctp", SrcPort: sub.SrcPort, DstPort: sub.DstPort, Ack: serverTag},
+			Payload:  buildSCTPShutdownCompleteChunk(),
+			Metadata: metaFor(),
 		}
 		*packetIndex++
 	}

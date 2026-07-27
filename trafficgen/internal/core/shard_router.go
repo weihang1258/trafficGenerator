@@ -134,3 +134,21 @@ func toInt(v interface{}) int {
 	}
 	return 0
 }
+
+// FlowGroupIDValue evaluates a FlowSpec.GroupID strategy at the given flow
+// index and returns the resulting group_id string. Returns "" when the
+// strategy is empty / unset / invalid — callers should treat that as "no
+// group_id", letting the engine's worker fall back to the unordered 4-tuple
+// hash via computeHashKey.
+//
+// Exposed so planners (FTP, SIP, ...) can pre-write Metadata["group_id"]
+// on their emitted PacketConfigs so external tools reading PacketConfig
+// directly (parsers, replays, snapshots) see the same group the worker
+// would stamp. The package-internal genStringValue is the source of truth
+// — this is just a public wrapper.
+func FlowGroupIDValue(s *StrategyConfig, flowIdx int) string {
+	if s == nil {
+		return ""
+	}
+	return genStringValue(*s, flowIdx)
+}

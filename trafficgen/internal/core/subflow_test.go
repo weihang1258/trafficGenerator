@@ -695,3 +695,129 @@ func TestEmitSubFlow_PayloadB64RoundTrip(t *testing.T) {
 		t.Errorf("Payload=%v, want %v (PNG signature)", cfgs[0].Payload, pngSig)
 	}
 }
+
+// TestEmitSubFlow_GroupIDInheritedFromParent verifies that when the
+// SubFlowSpec has no GroupID set but the parent FlowSpec carries one, the
+// sub-flow's PacketConfig.Metadata["group_id"] equals the parent's
+// evaluated GroupID. This is the "control + data share one group" path
+// that FTP relies on for cross-plane wire-order preservation.
+func TestEmitSubFlow_GroupIDInheritedFromParent(t *testing.T) {
+	parent := mustFlowSpec()
+	parent.GroupID = &StrategyConfig{
+		Strategy: "fixed",
+		Value:    "parent-call-1",
+	}
+	// sub.GroupID is nil -> inherit parent's evaluated group_id.
+	sub := SubFlowSpec{
+		Protocol: "udp",
+		SrcPort:  5004,
+		DstPort:  5004,
+		Payload:  "x",
+	}
+	cfgs := collectSubFlow(t, 0, sub, parent, "p")
+	if len(cfgs) != 1 {
+		t.Fatalf("len(cfgs)=%d, want 1", len(cfgs))
+	}
+	gid, ok := cfgs[0].Metadata["group_id"]
+	if !ok {
+		t.Fatalf("Metadata[\"group_id\"] missing on sub-flow packet")
+	}
+	if gid != "parent-call-1" {
+		t.Errorf("sub-flow group_id=%v, want %q (inherited from parent)", gid, "parent-call-1")
+	}
+}
+
+// TestEmitSubFlow_GroupIDSubOverridesParent verifies that when the
+// SubFlowSpec carries its own GroupID, it takes priority over the
+// parent's GroupID. This is the "split data plane onto its own worker"
+// path -- useful for fat FTP transfers where the data plane should not
+// starve the control plane's pacing.
+func TestEmitSubFlow_GroupIDSubOverridesParent(t *testing.T) {
+	parent := mustFlowSpec()
+	parent.GroupID = &StrategyConfig{
+		Strategy: "fixed",
+		Value:    "parent-call-1",
+	}
+	// sub.GroupID wins over parent.GroupID.
+	sub := SubFlowSpec{
+		Protocol: "udp",
+		SrcPort:  5004,
+		DstPort:  5004,
+		Payload:  "x",
+		GroupID: &StrategyConfig{
+			Strategy: "fixed",
+			Value:    "sub-call-2",
+		},
+	}
+	cfgs := collectSubFlow(t, 0, sub, parent, "p")
+	if len(cfgs) != 1 {
+		t.Fatalf("len(cfgs)=%d, want 1", len(cfgs))
+	}
+	gid, ok := cfgs[0].Metadata["group_id"]
+	if !ok {
+		t.Fatalf("Metadata[\"group_id\"] missing on sub-flow packet")
+	}
+	if gid != "sub-call-2" {
+		t.Errorf("sub-flow group_id=%v, want %q (sub overrides parent)", gid, "sub-call-2")
+	}
+}
+
+// TestEmitSubFlow_GroupIDAbsentWhenBothNil verifies that when neither
+// sub.GroupID nor parent.GroupID is set, EmitSubFlow does NOT pre-write
+// Metadata["group_id"] (worker falls back to 4-tuple hash in that case,
+// so pre-writing an empty string would be misleading).
+func TestEmitSubFlow_GroupIDAbsentWhenBothNil(t *testing.T) {
+	parent := mustFlowSpec() // no GroupID
+	sub := SubFlowSpec{
+		Protocol: "udp",
+		SrcPort:  5004,
+		DstPort:  5004,
+		Payload:  "x",
+	}
+	cfgs := collectSubFlow(t, 0, sub, parent, "p")
+	if len(cfgs) != 1 {
+		t.Fatalf("len(cfgs)=%d, want 1", len(cfgs))
+	}
+	if _, ok := cfgs[0].Metadata["group_id"]; ok {
+		t.Errorf("Metadata[\"group_id\"] present without GroupID strategy; should be absent (worker will 4-tuple-hash)")
+	}
+}
+
+// TestEmitSubFlow_GroupIDTCPAllPacketsCarryIt verifies that every
+// PacketConfig emitted by a TCP sub-flow carries the same
+// Metadata["group_id"] (per the inheritance rule). This is the
+// load-bearing property for the FTP data-plane ordering fix: one
+// group_id routed to one PacketWorker means the data plane's packets
+// stay in wire order between the 150 and 226 responses.
+func TestEmitSubFlow_GroupIDTCPAllPacketsCarryIt(t *testing.T) {
+	parent := mustFlowSpec()
+	parent.GroupID = &StrategyConfig{
+		Strategy: "fixed",
+		Value:    "shared-call",
+	}
+	// 10-byte payload -> 1 segment -> 9 TCP sub-flow packets
+	// (3 handshake + 2 data + 4 teardown).
+	sub := SubFlowSpec{
+		Protocol:    "tcp",
+		SrcPort:     50000,
+		DstPort:     44000,
+		Direction:   "up",
+		Payload:     "0123456789",
+		Handshake:   true,
+		Termination: true,
+	}
+	cfgs := collectSubFlow(t, 0, sub, parent, "p")
+	if len(cfgs) != 9 {
+		t.Fatalf("len(cfgs)=%d, want 9", len(cfgs))
+	}
+	for i, c := range cfgs {
+		gid, ok := c.Metadata["group_id"]
+		if !ok {
+			t.Errorf("cfgs[%d] missing Metadata[\"group_id\"]", i)
+			continue
+		}
+		if gid != "shared-call" {
+			t.Errorf("cfgs[%d] group_id=%v, want %q", i, gid, "shared-call")
+		}
+	}
+}

@@ -153,6 +153,18 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				// SYN or SYN-ACK carries TCP options.
 				l4.TCPOptions = synOpts
 			}
+			// Pre-write Metadata["group_id"] when the spec carries a GroupID
+			// strategy, so any tool reading the PacketConfig directly (parsers,
+			// replays, custom harnesses) sees the same group the worker would
+			// stamp via computeHashKey. When spec.GroupID is nil the worker
+			// falls back to the unordered 4-tuple hash, so we leave Metadata
+			// nil and let the worker own it.
+			var meta map[string]interface{}
+			if spec.GroupID != nil && spec.GroupID.Strategy != "" {
+				if g := core.FlowGroupIDValue(spec.GroupID, 0); g != "" {
+					meta = map[string]interface{}{"group_id": g}
+				}
+			}
 			cfg := core.PacketConfig{
 				FlowID:      flowID,
 				PacketIndex: packetIndex,
@@ -163,9 +175,10 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					DstMAC:    dstMAC,
 					EtherType: core.EtherTypeFor(spec.SrcIP),
 				},
-				L3:      l3,
-				L4:      l4,
-				Payload: payload,
+				L3:       l3,
+				L4:       l4,
+				Payload:  payload,
+				Metadata: meta,
 			}
 			configChan <- cfg
 			packetIndex++
@@ -566,6 +579,11 @@ func emitFTPDataChannel(
 		Termination:     true,
 		MSS:             mss,
 		ServerInitiated: isActive,
+		// Wire the parent's GroupID through so EmitSubFlow pre-writes
+		// Metadata["group_id"] for the sub-flow packets. nil parent -> nil
+		// sub.GroupID -> EmitSubFlow inherits parent.GroupID (which is also
+		// nil) -> no Metadata write, matching the pre-fix behavior.
+		GroupID: spec.GroupID,
 	}
 	core.EmitSubFlow(configChan, 0, sub, spec, parentFlowID, now, packetIndex, nextIPID)
 }

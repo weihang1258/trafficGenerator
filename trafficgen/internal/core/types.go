@@ -215,6 +215,18 @@ type SubFlowSpec struct {
 	// (multi-homing often implies a different NIC). Empty = inherit.
 	AltSrcMAC string `json:"alt_src_mac,omitempty"`
 	AltDstMAC string `json:"alt_dst_mac,omitempty"`
+
+	// GroupID overrides the parent's GroupID for routing the sub-flow's
+	// packets to a specific PacketWorker shard. When nil, EmitSubFlow
+	// inherits the parent's GroupID (so control + data plane stay on one
+	// worker and preserve wire-order timing). When set, the sub-flow's
+	// packets route independently of the parent -- used to split a noisy
+	// data plane onto its own worker so a fat FTP/SIP transfer does not
+	// starve the control plane's pacing.
+	//
+	// Mirrors FlowSpec.GroupID: same StrategyConfig semantics (fixed / inc /
+	// rand / pattern / list). nil = inherit parent.
+	GroupID *StrategyConfig `json:"group_id,omitempty"`
 }
 
 // VLAN configuration.

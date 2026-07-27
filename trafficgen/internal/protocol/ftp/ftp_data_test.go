@@ -884,3 +884,161 @@ func filterSubFlowSYNs(cfgs []core.PacketConfig) []core.PacketConfig {
 	}
 	return syns
 }
+
+// TestFTPDataChannel_GroupIDPropagation verifies that when a FlowSpec
+// carries a non-nil GroupID, every packet emitted by the planner -- both
+// control-channel packets (handshake, banner, commands, responses,
+// teardown) and data-channel sub-flow packets (its own handshake, data
+// segments, teardown) -- carries the SAME Metadata["group_id"] string.
+//
+// Why this matters: the engine's worker stamps group_id into Metadata per
+// spec.GroupID for routing to a PacketWorker shard. Pre-fix, the planner
+// left Metadata nil on control packets and EmitSubFlow left it nil on
+// sub-flow packets, so a downstream sampler could never observe which
+// group a packet belonged to without post-processing the worker's stamp.
+// Post-fix, the planner's emit() and EmitSubFlow both pre-write
+// Metadata["group_id"] so any tool reading the PacketConfig directly (e.g.
+// the engine in tests, deeptest scenarios, custom replay harnesses) sees
+// the same group_id on every packet of the flow.
+//
+// The spec uses GroupID = "fixed" with value "my-call-1" so the expected
+// group_id is deterministic. We then assert every packet in the wire
+// stream -- control + sub-flow -- carries Metadata["group_id"] == "my-call-1".
+func TestFTPDataChannel_GroupIDPropagation(t *testing.T) {
+	spec := dataChannelSpec()
+	spec.GroupID = &core.StrategyConfig{
+		Strategy: "fixed",
+		Value:    "my-call-1",
+	}
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+
+	// Every packet in the wire stream must carry Metadata["group_id"] ==
+	// "my-call-1". Iterate the whole stream (control + sub-flow) so any
+	// packet that diverges from the spec'd GroupID is caught.
+	const wantGID = "my-call-1"
+	var controlCount, subCount int
+	for i, c := range cfgs {
+		gid, ok := c.Metadata["group_id"]
+		if !ok {
+			t.Errorf("cfgs[%d] (FlowID=%q) missing Metadata[\"group_id\"]", i, c.FlowID)
+			continue
+		}
+		gidStr, ok := gid.(string)
+		if !ok {
+			t.Errorf("cfgs[%d] (FlowID=%q) Metadata[\"group_id\"] is not a string: %T", i, c.FlowID, gid)
+			continue
+		}
+		if gidStr != wantGID {
+			t.Errorf("cfgs[%d] (FlowID=%q) Metadata[\"group_id\"]=%q, want %q",
+				i, c.FlowID, gidStr, wantGID)
+		}
+		if strings.HasSuffix(c.FlowID, ":sub-0") {
+			subCount++
+		} else {
+			controlCount++
+		}
+	}
+	// Sanity: the data-channel spec must actually emit sub-flow packets;
+	// otherwise the test passes vacuously.
+	if subCount == 0 {
+		t.Fatalf("no sub-flow packets in wire stream; cannot verify data-plane group_id")
+	}
+	if controlCount == 0 {
+		t.Fatalf("no control-channel packets in wire stream; cannot verify control-plane group_id")
+	}
+}
+
+// TestFTPDataChannel_OrderingBetween150And226_WithMSS verifies that even
+// when the data-channel payload is split into multiple MSS segments, the
+// sub-flow's packets remain between the "150 Opening" and "226 Transfer"
+// responses in wire order.
+//
+// This is the multi-segment generalization of
+// TestFTPDataChannel_SubFlowPositionBetween150And226: it locks down the
+// same夹序 invariant under MSS-driven fragmentation. The spec uses an
+// MSS=600 (typed as float64 to match the JSON unmarshalling path) and a
+// 5000-byte payload so segmentByMSS produces ceil(5000/600) = 9 segments
+// (600*8 + 200). The sub-flow's emitting goroutine is single-threaded, so
+// all 9 segments land in wire order between RETR's "150" response and the
+// "226" response.
+//
+// The test then asserts:
+//
+//  1. PacketIndex is strictly monotonic across the whole wire stream.
+//  2. Every :sub-0 PacketIndex is strictly between idx150 and idx226.
+//  3. The sub-flow's segment count matches ceil(5000/600) = 9.
+//
+// Asserting PacketIndex (not just FlowID / position) is the load-bearing
+// part: a hypothetical "two PacketWorkers, scatters data-plane packets
+// across the wire" regression would keep the location invariant true by
+// chance but blow up PacketIndex monotonicity.
+func TestFTPDataChannel_OrderingBetween150And226_WithMSS(t *testing.T) {
+	spec := dataChannelSpec()
+	// 5000-byte payload + MSS=600 -> 9 segments (600*8 + 200).
+	// Using float64 for MSS/Range mimics the JSON unmarshalling path: StrategyConfig
+	// stores Range as []interface{} and the spec test feeds JSON-shaped values.
+	spec.FTP.DataChannel.Payload = strings.Repeat("A", 5000)
+	spec.FTP.DataChannel.MSS = 600 // uint16 from JSON becomes int; this is the sub-flow MSS
+	spec.TCP = &core.TCPConfig{MSS: 600}
+
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	cfgs := drain(ch)
+
+	// Locate 150 and 226 by payload content.
+	idx150, _ := findPacketWithPayload(cfgs, "150 Opening")
+	if idx150 < 0 {
+		t.Fatalf("could not find 150 response in wire stream")
+	}
+	idx226, _ := findPacketWithPayload(cfgs, "226 Transfer")
+	if idx226 < 0 {
+		t.Fatalf("could not find 226 response in wire stream")
+	}
+	if idx150 >= idx226 {
+		t.Fatalf("150 at idx %d should precede 226 at idx %d", idx150, idx226)
+	}
+
+	// Assert 1: PacketIndex is strictly monotonic across the whole stream.
+	for i := 1; i < len(cfgs); i++ {
+		if cfgs[i].PacketIndex <= cfgs[i-1].PacketIndex {
+			t.Errorf("PacketIndex not strictly increasing at idx %d: got %d, prev %d",
+				i, cfgs[i].PacketIndex, cfgs[i-1].PacketIndex)
+		}
+	}
+
+	// Assert 2: every :sub-0 PacketIndex is in (idx150, idx226).
+	var subPacketIndices []uint64
+	for i, c := range cfgs {
+		if strings.HasSuffix(c.FlowID, ":sub-0") {
+			if i <= idx150 || i >= idx226 {
+				t.Errorf("sub-flow packet at idx %d (PacketIndex=%d) not between 150 (%d) and 226 (%d)",
+					i, c.PacketIndex, idx150, idx226)
+			}
+			subPacketIndices = append(subPacketIndices, c.PacketIndex)
+		}
+	}
+	if len(subPacketIndices) == 0 {
+		t.Fatalf("no sub-flow packets in wire stream; cannot verify ordering")
+	}
+
+	// Assert 3: sub-flow's PSH-ACK data segment count == ceil(5000/600) = 9.
+	// Every data segment is followed by a peer pure-ACK (0x10), so the
+	// sub-flow's total packet count is 3 handshake + 9*2 (data+ack) + 4 teardown = 25.
+	wantSubTotal := 25
+	subCount := 0
+	for _, c := range cfgs {
+		if strings.HasSuffix(c.FlowID, ":sub-0") {
+			subCount++
+		}
+	}
+	if subCount != wantSubTotal {
+		t.Errorf("sub-flow packet count=%d, want %d (3 hs + 9*2 data+ack + 4 teardown)",
+			subCount, wantSubTotal)
+	}
+}
