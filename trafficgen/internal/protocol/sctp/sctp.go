@@ -325,28 +325,46 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 		}
 
-		// --- SCTP 3-way SHUTDOWN teardown ---
+		// --- SCTP teardown: 3-way SHUTDOWN or abrupt ABORT ---
+		//
+		// Default path is the 3-way SHUTDOWN/SHUTDOWN-ACK/SHUTDOWN-COMPLETE
+		// handshake (graceful close, RFC 4960 §9.2). When SCTPConfig.Abort
+		// is true, the planner instead emits a single ABORT chunk
+		// (RFC 4960 §9.1) — the abrupt-close path used for fault-injection
+		// scenarios where the side tears the association down without
+		// negotiating TSN exchange. ABORT replaces the 3-way shutdown
+		// entirely; we do NOT emit SHUTDOWN first and then ABORT.
+		if sctpConfig.Abort {
+			// ABORT (client -> server). No Cause fields — the minimal
+			// 4-byte ABORT chunk. VerificationTag is the server's tag
+			// per RFC 4960 §8.5.1 (ABORT must use the peer's last-seen
+			// verification tag, mirroring the DATA chunk's tag pattern).
+			emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP,
+				spec.SrcPort, spec.DstPort, serverVerTag,
+				buildABORTChunk())
+		} else {
+			// SHUTDOWN (client -> server). Carries the highest cumulative
+			// TSN ack the client has received. For test purposes, we
+			// send the latest serverTSN-1 (the last TSN the server would
+			// have sent).
+			shutdownTSN := serverTSN
+			if shutdownTSN > 0 {
+				shutdownTSN-- // last TSN acked = highest received - 1
+			}
+			emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP,
+				spec.SrcPort, spec.DstPort, serverVerTag,
+				buildSHUTDOWNChunk(shutdownTSN))
 
-		// SHUTDOWN (client -> server). Carries the highest cumulative TSN
-		// ack the client has received. For test purposes, we send the
-		// latest serverTSN-1 (the last TSN the server would have sent).
-		shutdownTSN := serverTSN
-		if shutdownTSN > 0 {
-			shutdownTSN-- // last TSN acked = highest received - 1
+			// SHUTDOWN-ACK (server -> client).
+			emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP,
+				spec.DstPort, spec.SrcPort, clientVerTag,
+				buildSHUTDOWNAckChunk())
+
+			// SHUTDOWN-COMPLETE (client -> server).
+			emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP,
+				spec.SrcPort, spec.DstPort, serverVerTag,
+				buildSHUTDOWNCompleteChunk())
 		}
-		emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP,
-			spec.SrcPort, spec.DstPort, serverVerTag,
-			buildSHUTDOWNChunk(shutdownTSN))
-
-		// SHUTDOWN-ACK (server -> client).
-		emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP,
-			spec.DstPort, spec.SrcPort, clientVerTag,
-			buildSHUTDOWNAckChunk())
-
-		// SHUTDOWN-COMPLETE (client -> server).
-		emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP,
-			spec.SrcPort, spec.DstPort, serverVerTag,
-			buildSHUTDOWNCompleteChunk())
 	}()
 
 	return configChan, nil
@@ -514,6 +532,20 @@ func buildSHUTDOWNAckChunk() []byte {
 // initiated shutdown.
 func buildSHUTDOWNCompleteChunk() []byte {
 	return buildChunk(ChunkSHUTDOWNComplete, 0, nil)
+}
+
+// buildABORTChunk builds an ABORT chunk (type 6) per RFC 4960 §6.4 and
+// §9.1. Used for the abrupt-close path (fault-injection scenarios where
+// the side tears the association down without negotiating TSN exchange).
+//
+// Layout: Type(1)=6 + Flags(1) + Length(2)=4 + (optional Cause fields).
+// We emit a minimal ABORT with no Cause — the chunk is exactly 4 bytes.
+// The T-bit (bit 0 of flags) is left 0 (TCB was discarded), which is the
+// normal case for a graceful ABORT (the sender has state but is
+// declaring the association dead). For tests/fault-injection this is
+// the conventional shape.
+func buildABORTChunk() []byte {
+	return buildChunk(ChunkABORT, 0, nil)
 }
 
 // buildHEARTBEATChunk builds a HEARTBEAT chunk (type 4) per RFC 4960

@@ -602,6 +602,13 @@ type SCTPConfig struct {
 	// (RFC 4960 §3.5.1) sent on the primary path or, when AltPath is
 	// set, on an alternate path (multi-homing). nil = no heartbeats.
 	Heartbeats *SCTPHeartbeatConfig `json:"heartbeats,omitempty"`
+	// Abort, when true, replaces the 3-way SHUTDOWN teardown with a
+	// single ABORT chunk (RFC 4960 §9.1) — the abrupt-close path used
+	// for fault-injection scenarios where the side tears the association
+	// down without negotiating TSN exchange. false (default) = 3-way
+	// SHUTDOWN. The ABORT is sent client→server (up) with VerificationTag
+	// = serverVerTag, after all DATA chunks.
+	Abort bool `json:"abort,omitempty"`
 }
 
 // SCTPHeartbeatConfig configures HEARTBEAT emission. HEARTBEAT chunks
