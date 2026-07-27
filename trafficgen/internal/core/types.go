@@ -943,10 +943,76 @@ type MySQLConfig struct {
 	// TODO(phase3-mysql): populate fields per design_mysql.md
 }
 
-// NTPConfig holds NTP protocol configuration. Fields populated by
-// internal/protocol/ntp implementer per design_ntp.md.
+// NTPConfig holds NTP protocol configuration (RFC 5905). The 48-byte fixed
+// header carries LeapIndicator/Version/Mode/Stratum/Poll/Precision, root
+// timing fields, Reference ID, and the four 64-bit NTP timestamps
+// (Reference/Origin/Receive/Transmit). Optional authentication (KeyID + MAC)
+// and RFC 7822 Extension Fields append after the 48-byte header. Mode=6
+// (control, RFC 5906) uses an 8-byte control header instead of the 48-byte
+// basic header and carries its own Sequence/Implementation/RequestCode/Data.
+//
+// All multi-byte fields are encoded in network byte order (big-endian) per
+// RFC 5905 §7.3. NTP timestamps use the 1900-01-01 00:00:00 UTC epoch with
+// 32-bit seconds + 32-bit fraction. The 2036-02-07 06:28:16 UTC rollover
+// wraps seconds back to 0 (era 1 begins).
+//
+// Field defaulting (per validate_conventions.md §1.3) happens in Plan's emit
+// goroutine, never in Validate. Zero values mean "not set" for the user-facing
+// fields below; the planner substitutes documented defaults at emit time.
 type NTPConfig struct {
-	// TODO(phase3-ntp): populate fields per design_ntp.md
+	// 48-byte fixed header fields (RFC 5905 §7.3).
+	LeapIndicator  uint8     `json:"leap_indicator"`      // 0-3, 0=none, 3=alarm
+	Version        uint8     `json:"version"`             // 3 or 4, default 4
+	Mode           uint8     `json:"mode"`                // 1-7, default 3 (client); 0 reserved
+	Stratum        uint8     `json:"stratum"`             // 0-16, 0=unspecified/KoD, 16=unsync
+	Poll           int8      `json:"poll"`                // 4-17 (log2 seconds), default 6 (64s)
+	Precision      int8      `json:"precision"`           // log2 seconds (negative), default -6 (~15ms)
+	RootDelay      float64   `json:"root_delay"`          // seconds, 16.16 fixed-point on the wire
+	RootDispersion float64   `json:"root_dispersion"`     // seconds, 16.16 fixed-point on the wire
+	ReferenceID    uint32    `json:"reference_id"`        // Stratum 0: KO ASCII; 1: ref source; 2+: upstream IPv4
+	RefTimestamp   time.Time `json:"ref_timestamp"`       // zero = not set (emitted as 0)
+	OriginTS       time.Time `json:"origin_ts"`           // zero = not set
+	ReceiveTS      time.Time `json:"receive_ts"`          // zero = not set
+	TransmitTS     time.Time `json:"transmit_ts"`         // zero = not set
+
+	// Optional authentication / extensions (RFC 7822). KeyID=0 and MAC=nil
+	// mean no authentication trailer. MAC length must be 0, 16 (AES-CMAC/MD5),
+	// or 20 (SHA1) per RFC 7822 §4.3. Extension values must be 4-byte aligned
+	// (the planner pads with zeros if needed).
+	KeyID      uint32   `json:"key_id,omitempty"`
+	MAC        []byte   `json:"mac,omitempty"`
+	Extensions []NTPExt `json:"extensions,omitempty"`
+
+	// Behavior controls. IsResponse=true in client mode (Mode=3) emits a
+	// server response after the request; in symmetric modes (Mode=1/2) emits
+	// the peer-to-peer reply; in control mode (Mode=6) emits the control
+	// response. RepeatCount overrides FlowSpec.Count for multi-packet modes
+	// (broadcast, symmetric, control sequences). PollInterval is informational
+	// only (the planner does not sleep; pacing is the worker's job).
+	IsResponse   bool `json:"is_response,omitempty"`
+	PollInterval int  `json:"poll_interval,omitempty"`
+	RepeatCount  int  `json:"repeat_count,omitempty"`
+
+	// Control message fields (Mode=6, RFC 5906). The control header is 8
+	// bytes: Version(2)|LI(2)|Mode(4) | Sequence | Implementation |
+	// RequestCode | (Error|More|StatusWord 16-bit) | DataSize. ControlData is
+	// the variable-length Data region (max 464 bytes; total packet max 472).
+	Sequence       uint8  `json:"sequence,omitempty"`
+	Implementation uint8  `json:"implementation,omitempty"`
+	RequestCode    uint8  `json:"request_code,omitempty"`
+	Error          bool   `json:"error,omitempty"`
+	More           bool   `json:"more,omitempty"`
+	StatusWord     uint16 `json:"status_word,omitempty"`
+	ControlData    []byte `json:"control_data,omitempty"`
+}
+
+// NTPExt is a single RFC 7822 extension field. Type is the 16-bit Field Type,
+// Value is the variable-length payload (the planner 0-pads to a 4-byte
+// boundary before emitting). The 4-byte (Type+Length) header is added by the
+// planner; users only supply Type and Value.
+type NTPExt struct {
+	Type  uint16 `json:"type"`
+	Value []byte `json:"value,omitempty"`
 }
 
 // OpenVPNConfig holds OpenVPN protocol configuration. Fields populated by
@@ -962,10 +1028,106 @@ type PostgreSQLConfig struct {
 	// TODO(phase3-postgresql): populate fields per design_postgresql.md
 }
 
-// POP3Config holds POP3 protocol configuration. Fields populated by
-// internal/protocol/pop3 implementer per design_pop3.md.
+// POP3Config for POP3 protocol (RFC 1939, 邮局协议第三版). POP3 is a
+// session-level protocol: a single TCP connection on port 110 carries a
+// sequence of command/response pairs across three states
+// (AUTHORIZATION/TRANSACTION/UPDATE). The planner emits a TCP handshake,
+// optional server banner, each POP3Command (client command + server
+// response; multi-line responses are dot-terminated per RFC 1939 §3), then
+// a TCP teardown - all within one flow (one 4-tuple, one sequence space
+// per direction).
+//
+// Each POP3Command carries the command string (e.g. "USER alice") and the
+// expected response. The response is emitted verbatim - the planner does
+// NOT validate POP3 state transitions; it plays back the dialog the user
+// specified. This matches the trafficgen contract: synthesize test
+// packets, not a real POP3 server.
+//
+// Banner: when non-empty, the server emits this as the first POP3 payload
+// (right after the handshake ACK). Real POP3 servers send
+// "+OK POP3 server ready <timestamp@domain>" as the greeting; the APOP
+// timestamp is parsed from it by real clients.
+//
+// Mailbox: when non-nil, the planner can synthesize RETR responses for
+// commands flagged with EmitMailDrop=true. The response is built from the
+// POP3Message at the specified 1-based index, including dot-stuffing and
+// the CRLF.CRLF terminator. Lets users model bulk mail-download scenarios
+// without hand-writing each message's wire bytes.
 type POP3Config struct {
-	// TODO(phase3-pop3): populate fields per design_pop3.md
+	Banner   string         `json:"banner,omitempty"` // server greeting, e.g. "+OK POP3 server ready"; empty = skip
+	Commands []POP3Command  `json:"commands"`
+	Mailbox  *POP3Mailbox   `json:"mailbox,omitempty"`
+	// MSS is governed by TCPConfig.MSS. POP3 runs over TCP, so the planner
+	// reads spec.TCP.MSS for segmentation of long POP3 responses.
+}
+
+// POP3Command is a single command/response pair within a POP3 session.
+type POP3Command struct {
+	// Cmd: the command string sent client -> server (e.g. "USER alice",
+	// "RETR 1"). Appended with CRLF per RFC 1939 §3. Empty = skip command
+	// emission (server-only turn, useful for AUTH PLAIN's intermediate
+	// "+" challenge which is a server->client-only message).
+	Cmd string `json:"cmd,omitempty"`
+
+	// Response: the server response sent server -> client. Single-line
+	// responses (e.g. "+OK", "-ERR no such message") get CRLF appended
+	// automatically when Multiline=false. Multi-line responses (RETR/TOP/
+	// LIST/UIDL/CAPA) must include the terminating "\r\n.\r\n" when the
+	// user sets Multiline=true; the planner does NOT auto-add the
+	// terminator in that case (matches FTP's verbatim contract). Empty =
+	// skip response emission.
+	Response string `json:"response,omitempty"`
+
+	// Multiline: when true, the response is a multi-line POP3 response
+	// (RFC 1939 §3). The planner emits the response as-is (no CRLF
+	// appended) and the user is responsible for including the
+	// CRLF.CRLF terminator. When false (default), the planner appends
+	// CRLF to the response (single-line +OK/-ERR per RFC 1939 §3).
+	Multiline bool `json:"multiline,omitempty"`
+
+	// EmitMailDrop: when true, the planner synthesizes a RETR-like
+	// multi-line response from Mailbox.Messages[MsgNum-1] and emits it
+	// as the response INSTEAD of any user-provided Response. Requires
+	// Mailbox to be set; Validate rejects EmitMailDrop=true with nil
+	// Mailbox or out-of-range MsgNum. Useful for bulk mail download
+	// scenarios (RETR 1, RETR 2, ... DELE N).
+	EmitMailDrop bool `json:"emit_mail_drop,omitempty"`
+
+	// MsgNum: 1-based message number for EmitMailDrop. Ignored when
+	// EmitMailDrop is false. Out-of-range -> Validate returns error.
+	MsgNum uint32 `json:"msg_num,omitempty"`
+}
+
+// POP3Mailbox describes the server-side maildrop state. Used to auto-
+// generate RETR responses based on message content. When Mailbox is set,
+// the planner can fill in responses for RETR commands flagged with
+// EmitMailDrop=true even when the user leaves Response empty.
+type POP3Mailbox struct {
+	Messages []POP3Message `json:"messages"`
+}
+
+// POP3Message is a single email in the maildrop.
+type POP3Message struct {
+	// UID: the unique identifier for UIDL (1-70 chars, ASCII per RFC 1939
+	// §7 UIDL). Empty = planner does NOT auto-generate (the user must
+	// provide UIDL responses explicitly if they want UIDL tested). This
+	// matches the design doc §6.2 contract.
+	UID string `json:"uid,omitempty"`
+
+	// Headers: email headers as a list of "Name: Value" strings (e.g.
+	// "From: alice@example.com"). The planner emits each followed by CRLF
+	// in RETR responses. Empty = no headers in the synthesized response.
+	Headers []string `json:"headers,omitempty"`
+
+	// Body: the email body (after the blank line separating headers from
+	// body). Dot-stuffing is applied by the planner: lines starting with
+	// "." get an extra "." prepended per RFC 1939 §3.
+	Body string `json:"body,omitempty"`
+
+	// Size: total size in octets (headers + blank line + body). 0 =
+	// planner computes from Headers + Body. Used in the "+OK <size> octets"
+	// status line of the RETR response.
+	Size uint32 `json:"size,omitempty"`
 }
 
 // RDPConfig holds RDP protocol configuration. Fields populated by
@@ -987,16 +1149,121 @@ type ShadowsocksConfig struct {
 	// TODO(phase3-shadowsocks): populate fields per design_shadowsocks.md
 }
 
-// SMTPConfig holds SMTP protocol configuration. Fields populated by
-// internal/protocol/smtp implementer per design_smtp.md.
+// SMTPConfig holds SMTP (RFC 5321) protocol configuration. SMTP is a
+// session-level text protocol: a single TCP connection on port 25 carries
+// a sequence of command/response pairs. The planner emits a TCP
+// handshake, the server banner (220 greeting), each SMTPCommand in
+// Dialog (as PSH-ACK payload), then a TCP teardown - all within one
+// flow.
+//
+// Each SMTPCommand carries a client command string (Cmd, e.g.
+// "HELO client.example.org") and/or a server response string (Response,
+// e.g. "250 OK"). The planner appends CRLF per RFC 5321 §2.3 to both.
+// When Direction is empty the planner infers it: Cmd non-empty -> "up"
+// (client->server); Response non-empty -> "down" (server->client). The
+// Direction field lets the user override the inference for unusual
+// cases (e.g. an empty Cmd with a Response that should still go "up").
+//
+// The planner plays back the Dialog verbatim - it does NOT implement a
+// real SMTP state machine, matching the trafficgen contract (synthesize
+// test packets, not a real server). When Dialog is empty, the planner
+// emits a default session (HELO + MAIL FROM + RCPT TO + DATA + empty
+// body + QUIT) so trivial specs produce a complete SMTP pcap.
+//
+// DATA terminator: per RFC 5321 §4.1.1.4 the body is terminated by
+// "\r\n.\r\n" (CRLF, period, CRLF). The user supplies the body Cmd
+// ending with "\r\n." and the planner's appended "\r\n" completes the
+// terminator. Dot-stuffing (RFC 5321 §4.5.2) is the user's
+// responsibility - the planner emits body bytes verbatim.
 type SMTPConfig struct {
-	// TODO(phase3-smtp): populate fields per design_smtp.md
+	// Banner is the server greeting (220 response). When empty, the
+	// planner auto-generates "220 <DstIP> ESMTP trafficgen" per
+	// design_smtp.md §8.6.
+	Banner string `json:"banner,omitempty"`
+
+	// Dialog is the SMTP command/response sequence (executed in order).
+	// When nil/empty, the planner emits a default session per §6.6.
+	Dialog []SMTPCommand `json:"dialog"`
+
+	// MSS is governed by TCPConfig.MSS. SMTP runs over TCP, so the
+	// planner reads spec.TCP.MSS for segmentation of long SMTP payloads.
+}
+
+// SMTPCommand is a single command/response pair within an SMTP session.
+// Either Cmd or Response may be empty - an empty Cmd with a non-empty
+// Response models a server-only turn (e.g. the 354 response after
+// DATA), and a non-empty Cmd with an empty Response models a
+// client-only turn (e.g. the DATA body itself, which has no immediate
+// response).
+type SMTPCommand struct {
+	// Cmd is the client command line (e.g. "HELO client.example.org"),
+	// sent client -> server. The planner appends "\r\n". Empty = skip
+	// the command packet. For the DATA body, the user supplies the body
+	// ending with "\r\n." so the appended "\r\n" completes the
+	// "\r\n.\r\n" terminator.
+	Cmd string `json:"cmd,omitempty"`
+
+	// Response is the server response line (e.g. "250 2.1.0 Ok"), sent
+	// server -> client. The planner appends "\r\n". Multi-line
+	// responses (e.g. EHLO capability list) are supplied as a single
+	// string with embedded "\r\n" - the planner emits the bytes
+	// verbatim. Empty = skip the response packet.
+	Response string `json:"response,omitempty"`
+
+	// Direction overrides the default direction inference. Empty = infer
+	// (Cmd non-empty -> "up"; Response non-empty -> "down"). "up" =
+	// client->server; "down" = server->client. Use this when both Cmd
+	// and Response are set but should go the same direction (rare), or
+	// when only one is set but should go the non-default direction.
+	Direction string `json:"direction,omitempty"`
 }
 
 // SNMPConfig holds SNMP protocol configuration. Fields populated by
 // internal/protocol/snmp implementer per design_snmp.md.
 type SNMPConfig struct {
-	// TODO(phase3-snmp): populate fields per design_snmp.md
+	// Version & authentication (认证).
+	Version      uint8  `json:"version"`       // 0=v1, 1=v2c, 3=v3; default 1 (v2c)
+	Community    string `json:"community"`     // v1/v2c plaintext (default "public"); v3 unused
+	UserName     string `json:"user_name"`     // v3 user name (discovery uses "")
+	AuthProtocol string `json:"auth_protocol"` // v3: none/md5/sha1/sha224/sha256/sha384/sha512
+	AuthPassword string `json:"auth_password"` // v3 auth password (planner derives localizedKey)
+	PrivProtocol string `json:"priv_protocol"` // v3: none/des/aes128/aes192/aes256
+	PrivPassword string `json:"priv_password"` // v3 priv password
+
+	// Engine parameters (v3 required; filled after discovery, 引擎参数).
+	AuthoritativeEngineID    string `json:"authoritative_engine_id"`    // hex string, 1-32 bytes
+	AuthoritativeEngineBoots uint32 `json:"authoritative_engine_boots"` // engine restart count
+	AuthoritativeEngineTime  uint32 `json:"authoritative_engine_time"`  // seconds since last boot
+
+	// Operation config (操作配置).
+	PDUType        uint8         `json:"pdu_type"`        // 0=Get, 1=GetNext, 2=Set, 3=GetBulk, 4=TrapV1, 5=TrapV2, 6=Inform
+	RequestID      uint32        `json:"request_id"`      // 0 = incrementing from random start
+	NonRepeaters   uint8         `json:"non_repeaters"`   // GetBulk: non-repeating varbind count
+	MaxRepetitions uint8         `json:"max_repetitions"` // GetBulk: repeating varbind max-repetitions
+	VarBinds       []SNMPVarBind `json:"var_binds"`       // variable bindings (变量绑定)
+
+	// Response / trap config (响应/陷阱配置).
+	IsResponse         bool          `json:"is_response"`          // emit Response PDU after request
+	ResponseError      uint8         `json:"response_error"`       // Response error-status (0=noError)
+	ResponseErrorIndex uint8         `json:"response_error_index"` // Response error-index
+	ResponseValues     []SNMPVarBind `json:"response_values"`      // Response varbinds (overrides VarBinds)
+
+	// Behavior control (行为控制).
+	PollInterval     int    `json:"poll_interval"`      // ms between repeats
+	RepeatCount      int    `json:"repeat_count"`       // total emissions (overrides spec.Count)
+	EngineIDOverride string `json:"engine_id_override"` // skip discovery, use this ID
+
+	// v3 message-level fields (v3 消息字段).
+	MaxSize     uint32 `json:"max_size"`     // msgMaxSize (default 484)
+	ContextName string `json:"context_name"` // scopedPDU contextName
+}
+
+// SNMPVarBind is a single variable binding (变量绑定): OID + value.
+type SNMPVarBind struct {
+	Name     string `json:"name"`                // OID string, e.g. "1.3.6.1.2.1.1.1.0"
+	Type     uint8  `json:"type,omitempty"`      // BER tag: 0x05 NULL / 0x02 INTEGER / 0x04 OCTET STRING / 0x06 OID / 0x40 IpAddress / 0x41 Counter32 / 0x42 Gauge32 / 0x43 TimeTicks / 0x46 Counter64 / 0x80 noSuchObject / 0x81 noSuchInstance / 0x82 EndOfMibView
+	Value    []byte `json:"value,omitempty"`     // raw bytes (NULL/exception types: empty)
+	StrValue string `json:"str_value,omitempty"` // string-form value for DisplayString convenience
 }
 
 // SSDPConfig holds SSDP protocol configuration. Fields populated by
@@ -1011,16 +1278,184 @@ type SSHConfig struct {
 	// TODO(phase3-ssh): populate fields per design_ssh.md
 }
 
-// SyslogConfig holds Syslog protocol configuration. Fields populated by
-// internal/protocol/syslog implementer per design_syslog.md.
+// SyslogConfig holds Syslog protocol configuration per RFC 5424/5425/5426/
+// 6587/5848/3164. Field naming follows design_syslog.md §6.1; defaults are
+// applied in the syslog planner's Plan goroutine (per validate_conventions.md
+// §1.3 - Validate is read-only).
 type SyslogConfig struct {
-	// TODO(phase3-syslog): populate fields per design_syslog.md
+	// Facility 0-23 (RFC 5424 §6.2.1). 0=kern, 1=user, ..., 23=reserved.
+	Facility uint8 `json:"facility"`
+	// Severity 0-7 (RFC 5424 §6.2.1). 0=emerg, ..., 7=debug.
+	Severity uint8 `json:"severity"`
+	// Version is the protocol version. 1 for RFC 5424 (required when
+	// Format="rfc5424"); 0 with Format="bsd" selects RFC 3164 layout.
+	Version uint8 `json:"version"`
+	// Timestamp is an RFC 3339 string. "" or "-" emits NILVALUE "-"
+	// (RFC 5424 §6.2.3). Non-empty non-"-" must parse as RFC 3339.
+	Timestamp string `json:"timestamp,omitempty"`
+	// Hostname 1-255 bytes (RFC 5424 §6.2.4). "" emits NILVALUE "-".
+	Hostname string `json:"hostname,omitempty"`
+	// AppName 1-48 bytes (RFC 5424 §6.2.5). "" emits NILVALUE "-".
+	AppName string `json:"app_name,omitempty"`
+	// ProcID 1-128 bytes (RFC 5424 §6.2.6). "" emits NILVALUE "-".
+	ProcID string `json:"proc_id,omitempty"`
+	// MsgID 1-32 bytes (RFC 5424 §6.2.7). "" emits NILVALUE "-".
+	MsgID string `json:"msg_id,omitempty"`
+	// StructuredData is a list of pre-framed SD-ELEMENT strings (RFC 5424
+	// §6.2.8), e.g. `origin ip="192.0.2.1"` or the full `[origin ip="..."]`.
+	// Elements are concatenated without spaces. Empty list emits NILVALUE "-".
+	// The planner wraps bare `id` or `id key="val"` forms with `[...]`.
+	StructuredData []string `json:"structured_data,omitempty"`
+	// Msg is the message body (RFC 5424 §6.2.9), UTF-8. Empty allowed.
+	Msg string `json:"msg,omitempty"`
+	// MsgHasBOM prepends UTF-8 BOM (EF BB BF) before Msg per RFC 5424 §6.4.4.
+	// BOM replaces the SP separator between STRUCTURED-DATA and MSG. Ignored
+	// when Msg is empty.
+	MsgHasBOM bool `json:"msg_has_bom,omitempty"`
+	// Format selects layout: "rfc5424" (default) or "bsd" (RFC 3164).
+	Format string `json:"format,omitempty"`
+	// Transport selects L4: "udp" (default, port 514, RFC 5426),
+	// "tcp" (port 514, RFC 6587), or "tls" (port 6514, RFC 5425).
+	Transport string `json:"transport,omitempty"`
+	// TCPFraming selects TCP frame format: "octet_counting" (default,
+	// RFC 6587 §3) or "non_transparent" (RFC 6587 §4). Only meaningful
+	// when Transport is tcp or tls.
+	TCPFraming string `json:"tcp_framing,omitempty"`
+	// Count is the number of syslog messages emitted per flow. 0 = 1.
+	Count uint32 `json:"count,omitempty"`
+	// SignBlocks carries RFC 5848 syslog-sign signature values. Each value
+	// is wrapped as `[sign@32473 signature="<value>"]` and appended to
+	// STRUCTURED-DATA. The planner escapes `"`, `\`, `]` per RFC 5424 §6.2.8.
+	SignBlocks []string `json:"sign_blocks,omitempty"`
 }
 
-// TelnetConfig holds Telnet protocol configuration. Fields populated by
-// internal/protocol/telnet implementer per design_telnet.md.
+// TelnetConfig holds Telnet protocol configuration per design_telnet.md.
+//
+// Telnet (RFC 854) is a session-level protocol running over a single TCP
+// connection on port 23. The stream is a mix of NVT (Network Virtual
+// Terminal) ASCII data bytes and IAC (Interpret As Command, 0xFF) command
+// sequences. The planner emits:
+//
+//  1. TCP 3-way handshake (SYN, SYN-ACK, ACK) with MSS/WinScale/SACK options.
+//  2. Optional server banner (e.g. "login: ") as the first PSH-ACK payload.
+//  3. Each TelnetEvent in Dialog, in order (data/will/wont/do/dont/sb/
+//     ttype_send/ttype_is/naws/ip/dm/nop/ayt/brk/ao/ec/el/ga/synch).
+//  4. TCP 4-way teardown (FIN-ACK, ACK, FIN-ACK, ACK).
+//
+// The planner does NOT implement Option negotiation state (RFC 1143 Q
+// method); it emits the dialog verbatim as specified by the user.
 type TelnetConfig struct {
-	// TODO(phase3-telnet): populate fields per design_telnet.md
+	// Banner is the optional server greeting (NVT ASCII, e.g. "login: ").
+	// Empty = skip banner. Emitted as PSH-ACK payload right after the
+	// handshake ACK. 0xFF bytes are auto-escaped to 0xFF 0xFF.
+	Banner string `json:"banner,omitempty"`
+
+	// Dialog is the ordered list of Telnet events. Each event is either
+	// a data string (NVT ASCII) or an IAC command. The planner emits
+	// each event as one or more PSH-ACK segments (MSS-segmented for long
+	// data; IAC commands are never split across segments).
+	// nil/empty -> planner uses defaultDialog() (a minimal login shape).
+	Dialog []TelnetEvent `json:"dialog,omitempty"`
+
+	// TerminalType is the terminal type string sent in response to
+	// SB TTYPE SEND (e.g. "xterm-256color"). Empty = "xterm" default.
+	// Used by the planner when a TelnetEvent of type "ttype_is" is
+	// emitted without an explicit Value.
+	TerminalType string `json:"terminal_type,omitempty"`
+
+	// WindowCols / WindowRows are the initial NAWS value sent in
+	// SB NAWS <cols> <rows>. Zero values = skip NAWS negotiation
+	// (planner falls back to 80x24 when an explicit naws event has
+	// Cols/Rows=0). Used when a TelnetEvent of type "naws" is emitted
+	// without explicit Cols/Rows.
+	WindowCols uint16 `json:"window_cols,omitempty"`
+	WindowRows uint16 `json:"window_rows,omitempty"`
+
+	// FileSource, when set, supplies NVT ASCII data bytes via
+	// PayloadCache.GetOrLoad(src) instead of inline Data. The bytes
+	// are emitted as a single data event (MSS-segmented) BEFORE the
+	// Dialog events. 0xFF bytes in the file are auto-escaped.
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
+}
+
+// TelnetEvent is a single event in a Telnet dialog. Exactly one of the
+// type-specific fields should be set per event. Empty Type is treated as
+// "data" with the Data field (empty Data -> event skipped).
+type TelnetEvent struct {
+	// Type controls how the event is rendered:
+	//
+	//   "data"       - NVT ASCII text (Data field). 0xFF auto-escaped.
+	//                  Direction "up" (client->server) or "down" (server->client).
+	//
+	//   "will"       - IAC WILL <Option> (server or client declares it WILL
+	//                  enable an option). Option field is the option code.
+	//                  Direction determines who sends.
+	//
+	//   "wont"       - IAC WONT <Option>. Same shape as "will".
+	//
+	//   "do"         - IAC DO <Option>. Request peer to enable.
+	//
+	//   "dont"       - IAC DONT <Option>. Request peer to disable.
+	//
+	//   "sb"         - IAC SB <Option> <SubData> IAC SE. Sub-option block.
+	//                  SubData is raw bytes (0xFF auto-escaped).
+	//
+	//   "ttype_send" - IAC SB TTYPE SEND IAC SE (shortcut; no data).
+	//   "ttype_is"   - IAC SB TTYPE IS <Value> IAC SE (Value = terminal
+	//                  string; defaults to TelnetConfig.TerminalType, then "xterm").
+	//
+	//   "naws"       - IAC SB NAWS <Cols> <Rows> IAC SE. Defaults to
+	//                  TelnetConfig.WindowCols/Rows, then 80x24.
+	//
+	//   "ip"         - IAC IP (Interrupt Process, 244). No payload.
+	//   "dm"         - IAC DM (Data Mark, 242). Sent without TCP URG
+	//                  (documented limitation - core.L4Config has no
+	//                  UrgentPointer field).
+	//   "nop"        - IAC NOP (No Operation, 241).
+	//   "ayt"        - IAC AYT (Are You There, 246).
+	//   "brk"        - IAC BRK (Break, 243).
+	//   "ao"         - IAC AO (Abort Output, 245).
+	//   "ec"         - IAC EC (Erase Character, 247).
+	//   "el"         - IAC EL (Erase Line, 248).
+	//   "ga"         - IAC GA (Go Ahead, 249).
+	//
+	//   "synch"      - IAC IP followed by IAC DM (Synch signal shortcut).
+	//
+	// Empty Type = "data" with empty Data (event is skipped).
+	Type string `json:"type"`
+
+	// Direction: "up" (client->server, default) or "down" (server->client).
+	// Empty = "up". Used by all event types.
+	Direction string `json:"direction,omitempty"`
+
+	// Option is the option code (0-255) for "will"/"wont"/"do"/"dont"/"sb".
+	Option uint8 `json:"option,omitempty"`
+
+	// Data is the NVT ASCII text for "data" events. 0xFF bytes are
+	// auto-escaped to 0xFF 0xFF on the wire. CR is followed by LF or NUL
+	// per RFC 854 - the user provides the raw text and the planner does
+	// NOT alter CR/LF (the user is responsible for proper line endings).
+	Data string `json:"data,omitempty"`
+
+	// DataB64 is the base64-encoded alternative for "data" events when
+	// the bytes are not valid UTF-8 (e.g. binary Telnet streams in
+	// BINARY mode). Overrides Data when set. 0xFF bytes are still
+	// auto-escaped after base64 decoding.
+	DataB64 string `json:"data_b64,omitempty"`
+
+	// SubData is the raw sub-option bytes for "sb" events (between SB
+	// and IAC SE). 0xFF bytes are auto-escaped.
+	SubData []byte `json:"sub_data,omitempty"`
+
+	// SubDataB64 overrides SubData for binary sub-option data.
+	SubDataB64 string `json:"sub_data_b64,omitempty"`
+
+	// Value is the terminal type string for "ttype_is" events.
+	Value string `json:"value,omitempty"`
+
+	// Cols/Rows are the window dimensions for "naws" events.
+	Cols uint16 `json:"cols,omitempty"`
+	Rows uint16 `json:"rows,omitempty"`
 }
 
 // TLSConfig holds TLS protocol configuration. Fields populated by

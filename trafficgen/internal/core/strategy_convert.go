@@ -3,6 +3,8 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/filesystem"
@@ -424,8 +426,35 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.DstPort = 3306
 		}
 	case "ntp":
-		if _, ok := cfg["ntp"].(map[string]interface{}); ok {
-			spec.NTP = &NTPConfig{}
+		if sub, ok := cfg["ntp"].(map[string]interface{}); ok {
+			spec.NTP = &NTPConfig{
+				LeapIndicator:  uint8(getIntDefault(sub, "leap_indicator", 0)),
+				Version:        uint8(getIntDefault(sub, "version", 4)),
+				Mode:           uint8(getIntDefault(sub, "mode", 3)),
+				Stratum:        uint8(getIntDefault(sub, "stratum", 0)),
+				Poll:           int8(getIntDefault(sub, "poll", 6)),
+				Precision:      int8(getIntDefault(sub, "precision", -6)),
+				RootDelay:      getFloatDefault(sub, "root_delay", 0),
+				RootDispersion: getFloatDefault(sub, "root_dispersion", 0),
+				ReferenceID:    getUint32(sub, "reference_id"),
+				RefTimestamp:   getTime(sub, "ref_timestamp"),
+				OriginTS:       getTime(sub, "origin_ts"),
+				ReceiveTS:      getTime(sub, "receive_ts"),
+				TransmitTS:     getTime(sub, "transmit_ts"),
+				KeyID:          getUint32(sub, "key_id"),
+				MAC:            getByteSlice(sub, "mac"),
+				Extensions:     parseNTPExtensions(sub["extensions"]),
+				IsResponse:     getBool(sub, "is_response", false),
+				PollInterval:   getInt(sub, "poll_interval"),
+				RepeatCount:    getInt(sub, "repeat_count"),
+				Sequence:       uint8(getIntDefault(sub, "sequence", 0)),
+				Implementation: uint8(getIntDefault(sub, "implementation", 0)),
+				RequestCode:    uint8(getIntDefault(sub, "request_code", 0)),
+				Error:          getBool(sub, "error", false),
+				More:           getBool(sub, "more", false),
+				StatusWord:     uint16(getInt(sub, "status_word")),
+				ControlData:    getByteSlice(sub, "control_data"),
+			}
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 123
@@ -445,9 +474,16 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.DstPort = 5432
 		}
 	case "pop3":
-		if _, ok := cfg["pop3"].(map[string]interface{}); ok {
-			spec.POP3 = &POP3Config{}
+		if sub, ok := cfg["pop3"].(map[string]interface{}); ok {
+			spec.POP3 = &POP3Config{
+				Banner:   getString(sub, "banner"),
+				Commands: parsePOP3Commands(sub["commands"]),
+				Mailbox:  parsePOP3Mailbox(sub["mailbox"]),
+			}
 		}
+		// POP3 defaults to port 110 per RFC 1939 §6. Only override when
+		// the user did not specify a dst_port - matches the DNS/FTP/SIP
+		// override pattern.
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 110
 		}
@@ -471,16 +507,53 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// shadowsocks has no canonical port; user must specify.
 	case "smtp":
-		if _, ok := cfg["smtp"].(map[string]interface{}); ok {
-			spec.SMTP = &SMTPConfig{}
+		if sub, ok := cfg["smtp"].(map[string]interface{}); ok {
+			spec.SMTP = &SMTPConfig{
+				Banner: getString(sub, "banner"),
+				Dialog: parseSMTPDialog(sub["dialog"]),
+			}
 		}
+		// SMTP defaults to port 25 (RFC 5321 §3.1). Only override when
+		// the user did not specify a dst_port - matches the DNS/FTP
+		// pattern. Submission (587) and SMTPS (465) are also valid but
+		// the user must set dst_port explicitly for those.
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 25
 		}
 	case "snmp":
-		if _, ok := cfg["snmp"].(map[string]interface{}); ok {
-			spec.SNMP = &SNMPConfig{}
+		if sub, ok := cfg["snmp"].(map[string]interface{}); ok {
+			spec.SNMP = &SNMPConfig{
+				Version:                   uint8(getIntDefault(sub, "version", 1)),
+				Community:                 getStringDefault(sub, "community", "public"),
+				UserName:                  getString(sub, "user_name"),
+				AuthProtocol:              getString(sub, "auth_protocol"),
+				AuthPassword:              getString(sub, "auth_password"),
+				PrivProtocol:              getString(sub, "priv_protocol"),
+				PrivPassword:              getString(sub, "priv_password"),
+				AuthoritativeEngineID:     getString(sub, "authoritative_engine_id"),
+				AuthoritativeEngineBoots:  getUint32(sub, "authoritative_engine_boots"),
+				AuthoritativeEngineTime:   getUint32(sub, "authoritative_engine_time"),
+				PDUType:                   uint8(getIntDefault(sub, "pdu_type", 0)),
+				RequestID:                 getUint32(sub, "request_id"),
+				NonRepeaters:              uint8(getInt(sub, "non_repeaters")),
+				MaxRepetitions:            uint8(getIntDefault(sub, "max_repetitions", 1)),
+				VarBinds:                  parseSNMPVarBinds(sub["var_binds"]),
+				IsResponse:                getBool(sub, "is_response", false),
+				ResponseError:             uint8(getInt(sub, "response_error")),
+				ResponseErrorIndex:        uint8(getInt(sub, "response_error_index")),
+				ResponseValues:            parseSNMPVarBinds(sub["response_values"]),
+				PollInterval:              getInt(sub, "poll_interval"),
+				RepeatCount:               getInt(sub, "repeat_count"),
+				EngineIDOverride:          getString(sub, "engine_id_override"),
+				MaxSize:                   getUint32(sub, "max_size"),
+				ContextName:               getString(sub, "context_name"),
+			}
 		}
+		// SNMP defaults to port 161 (query) or 162 (trap/inform). Only
+		// override when user did not specify dst_port - matches DNS/FTP
+		// pattern. The planner chooses 161 vs 162 based on PDUType when
+		// dst_port is absent here; if the user set dst_port explicitly,
+		// their value wins.
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 161
 		}
@@ -499,16 +572,55 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.DstPort = 22
 		}
 	case "syslog":
-		if _, ok := cfg["syslog"].(map[string]interface{}); ok {
-			spec.Syslog = &SyslogConfig{}
+		if sub, ok := cfg["syslog"].(map[string]interface{}); ok {
+			spec.Syslog = &SyslogConfig{
+				Facility:       uint8(getIntDefault(sub, "facility", 1)),
+				Severity:       uint8(getIntDefault(sub, "severity", 6)),
+				Version:        uint8(getIntDefault(sub, "version", 1)),
+				Timestamp:      getString(sub, "timestamp"),
+				Hostname:       getString(sub, "hostname"),
+				AppName:        getString(sub, "app_name"),
+				ProcID:         getString(sub, "proc_id"),
+				MsgID:          getString(sub, "msg_id"),
+				StructuredData: parseSyslogStructuredData(sub["structured_data"]),
+				Msg:            getString(sub, "msg"),
+				MsgHasBOM:      getBool(sub, "msg_has_bom", false),
+				Format:         getStringDefault(sub, "format", "rfc5424"),
+				Transport:      getStringDefault(sub, "transport", "udp"),
+				TCPFraming:     getStringDefault(sub, "tcp_framing", "octet_counting"),
+				Count:          uint32(getIntDefault(sub, "count", 1)),
+				SignBlocks:     parseSyslogSignBlocks(sub["sign_blocks"]),
+			}
 		}
+		// Default port depends on transport: udp/tcp=514, tls=6514.
+		// Only override when the user did not specify a dst_port.
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 514
+			transport := "udp"
+			if sub, ok := cfg["syslog"].(map[string]interface{}); ok {
+				if t, ok := sub["transport"].(string); ok && t != "" {
+					transport = t
+				}
+			}
+			if transport == "tls" {
+				spec.DstPort = 6514
+			} else {
+				spec.DstPort = 514
+			}
 		}
 	case "telnet":
-		if _, ok := cfg["telnet"].(map[string]interface{}); ok {
-			spec.Telnet = &TelnetConfig{}
+		if sub, ok := cfg["telnet"].(map[string]interface{}); ok {
+			spec.Telnet = &TelnetConfig{
+				Banner:       getString(sub, "banner"),
+				Dialog:       parseTelnetDialog(sub["dialog"]),
+				TerminalType: getString(sub, "terminal_type"),
+				WindowCols:   getUint16(sub, "window_cols"),
+				WindowRows:   getUint16(sub, "window_rows"),
+				FileSource:    parseFileSource(sub),
+			}
 		}
+		// Telnet defaults to port 23 (RFC 854). Only override when the
+		// user did not specify a dst_port — matches the DNS/FTP override
+		// pattern.
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 23
 		}
@@ -844,6 +956,100 @@ func parseFTPCommands(v interface{}) []FTPCommand {
 	return out
 }
 
+// parsePOP3Commands converts the JSON-decoded "commands" value (an array
+// of {cmd, response, multiline, emit_mail_drop, msg_num} objects) into a
+// []POP3Command. Returns nil for absent/non-array input - the planner then
+// emits only TCP handshake + teardown (an empty POP3 session, which is a
+// valid degenerate test). Mirrors parseFTPCommands.
+func parsePOP3Commands(v interface{}) []POP3Command {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]POP3Command, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, POP3Command{
+			Cmd:          getString(m, "cmd"),
+			Response:     getString(m, "response"),
+			Multiline:    getBool(m, "multiline", false),
+			EmitMailDrop: getBool(m, "emit_mail_drop", false),
+			MsgNum:       getUint32(m, "msg_num"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parsePOP3Mailbox converts the JSON-decoded "mailbox" sub-map into a
+// *POP3Mailbox. Returns nil for absent/non-map input - the planner then
+// cannot synthesize RETR responses (EmitMailDrop=true commands will fail
+// Validate). Mirrors parseFTPDataChannel.
+func parsePOP3Mailbox(v interface{}) *POP3Mailbox {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	mb := &POP3Mailbox{}
+	if msgs, ok := m["messages"].([]interface{}); ok {
+		for _, item := range msgs {
+			mi, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			msg := POP3Message{
+				UID:  getString(mi, "uid"),
+				Body: getString(mi, "body"),
+				Size: getUint32(mi, "size"),
+			}
+			if headers, ok := mi["headers"].([]interface{}); ok {
+				for _, h := range headers {
+					if s, ok := h.(string); ok {
+						msg.Headers = append(msg.Headers, s)
+					}
+				}
+			}
+			mb.Messages = append(mb.Messages, msg)
+		}
+	}
+	if len(mb.Messages) == 0 {
+		return nil
+	}
+	return mb
+}
+
+// parseSMTPDialog converts the JSON-decoded "dialog" value (an array of
+// {cmd, response, direction} objects) into a []SMTPCommand. Returns nil
+// for absent/non-array input - the planner then emits a default SMTP
+// session per design_smtp.md §6.6. Mirrors parsePOP3Commands.
+func parseSMTPDialog(v interface{}) []SMTPCommand {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]SMTPCommand, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, SMTPCommand{
+			Cmd:       getString(m, "cmd"),
+			Response:  getString(m, "response"),
+			Direction: getString(m, "direction"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // parseFTPDataChannel converts the JSON-decoded "data_channel" sub-map
 // into an *FTPDataChannel. Returns nil for absent/non-map input — the
 // planner then emits only the control channel (the default for backward
@@ -874,12 +1080,122 @@ func parseFTPDataChannel(v interface{}) *FTPDataChannel {
 	return dc
 }
 
-// input — the planner then emits only TCP handshake + teardown (an empty
-// SIP session, which is a valid degenerate test).
+// parseTelnetDialog converts the JSON-decoded "dialog" array into a
+// []TelnetEvent. Returns nil for absent/non-array input - the planner then
+// falls back to its built-in defaultDialog() (a minimal login shape per
+// design_telnet.md §6.6).
+//
+// Each event carries Type (data/will/wont/do/dont/sb/ttype_send/ttype_is/
+// naws/ip/dm/nop/ayt/brk/ao/ec/el/ga/synch), Direction ("up"/"down", empty
+// defaults to "up" in the planner), and type-specific fields (Option/Data/
+// DataB64/SubData/SubDataB64/Value/Cols/Rows). SubData may be a JSON array
+// of byte integers or a string (raw bytes).
+func parseTelnetDialog(v interface{}) []TelnetEvent {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]TelnetEvent, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		ev := TelnetEvent{
+			Type:       getString(m, "type"),
+			Direction:  getString(m, "direction"),
+			Option:     uint8(getInt(m, "option")),
+			Data:       getString(m, "data"),
+			DataB64:    getString(m, "data_b64"),
+			SubData:    parseByteSlice(m["sub_data"]),
+			SubDataB64: getString(m, "sub_data_b64"),
+			Value:      getString(m, "value"),
+			Cols:       getUint16(m, "cols"),
+			Rows:       getUint16(m, "rows"),
+		}
+		out = append(out, ev)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseByteSlice converts a JSON-decoded value into a []byte. Accepts a
+// JSON array of integers (each 0-255) or a string (raw bytes). Returns nil
+// for absent/non-array/non-string input. Mirrors the SCTP chunk data
+// parseSNMPVarBinds converts the JSON-decoded "var_binds" or "response_values"
+// value (an array of {name, type, value, str_value} objects) into a
+// []SNMPVarBind. Returns nil for absent/non-array input - the planner then
+// emits a PDU with an empty varbind list (valid for Trap/Inform, where the
+// planner synthesises sysUpTime + snmpTrapOID; rejected by Validate for
+// Get/GetNext/Set/GetBulk).
+//
+// Type is the BER tag (0x05 NULL / 0x02 INTEGER / 0x04 OCTET STRING / 0x06 OID
+// / 0x40 IpAddress / 0x41 Counter32 / 0x42 Gauge32 / 0x43 TimeTicks / 0x46
+// Counter64 / 0x80 noSuchObject / 0x81 noSuchInstance / 0x82 EndOfMibView).
+// Value is the raw bytes of the value body (without tag/length); for NULL and
+// exception types it is empty. StrValue, when set on an OCTET STRING varbind,
+// is encoded as the UTF-8 bytes of the string (convenience for DisplayString).
+func parseSNMPVarBinds(v interface{}) []SNMPVarBind {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]SNMPVarBind, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		vb := SNMPVarBind{
+			Name:     getString(m, "name"),
+			Type:     uint8(getInt(m, "type")),
+			Value:    parseByteSlice(m["value"]),
+			StrValue: getString(m, "str_value"),
+		}
+		// When Type is OCTET STRING (0x04) and Value is empty but StrValue
+		// is set, copy StrValue into Value so the encoder emits the string
+		// bytes. This is the DisplayString convenience path.
+		if vb.Type == 0x04 && len(vb.Value) == 0 && vb.StrValue != "" {
+			vb.Value = []byte(vb.StrValue)
+		}
+		out = append(out, vb)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parsing pattern.
+func parseByteSlice(v interface{}) []byte {
+	switch d := v.(type) {
+	case string:
+		return []byte(d)
+	case []interface{}:
+		out := make([]byte, 0, len(d))
+		for _, b := range d {
+			if n, ok := b.(float64); ok {
+				out = append(out, byte(int(n)))
+			}
+		}
+		if len(out) == 0 {
+			return nil
+		}
+		return out
+	}
+	return nil
+}
+
+// parseSIPDialog converts the JSON-decoded "dialog" value into a
+// []SIPMessage. Returns nil for absent/non-array input - the planner then
+// emits only TCP handshake + teardown (an empty SIP session, which is a
+// valid degenerate test).
 //
 // Each message may carry Method+URI (request) or StatusCode+StatusText
 // (response). Direction is "up" or "down"; when empty, the planner infers
-// it from Method/StatusCode (Method set → up request; StatusCode set →
+// it from Method/StatusCode (Method set -> up request; StatusCode set ->
 // down response). Headers is a list of "Name: Value" strings; the planner
 // auto-appends Content-Length when Body is non-empty. Body is the optional
 // message body (e.g. SDP).
@@ -1040,6 +1356,85 @@ func parseICMPv6Pattern(v interface{}) []ICMPv6Step {
 }
 
 // JSON helper functions with sensible defaults
+
+// parseSyslogStructuredData converts the JSON-decoded "structured_data" field
+// into a []string. Accepts both a list of strings (preferred, each entry is
+// a pre-framed SD-ELEMENT like `[origin ip="1.2.3.4"]` or a bare body like
+// `origin ip="1.2.3.4"`) and a list of maps with `id` + `parameters` keys
+// (structured form). Returns nil for absent/non-list input.
+func parseSyslogStructuredData(v interface{}) []string {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, item := range arr {
+		switch s := item.(type) {
+		case string:
+			if s != "" {
+				out = append(out, s)
+			}
+		case map[string]interface{}:
+			// Structured form: {id: "origin", parameters: {ip: "1.2.3.4"}}
+			id, _ := item.(map[string]interface{})["id"].(string)
+			if id == "" {
+				continue
+			}
+			params, _ := item.(map[string]interface{})["parameters"].(map[string]interface{})
+			var b strings.Builder
+			b.WriteByte('[')
+			b.WriteString(id)
+			for k, v := range params {
+				vs, _ := v.(string)
+				b.WriteString(` `)
+				b.WriteString(k)
+				b.WriteString(`="`)
+				b.WriteString(escapeSDValue(vs))
+				b.WriteString(`"`)
+			}
+			b.WriteByte(']')
+			out = append(out, b.String())
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseSyslogSignBlocks converts the JSON-decoded "sign_blocks" field into
+// a []string. Accepts a list of strings (each is a base64 signature value).
+// Returns nil for absent/non-list input.
+func parseSyslogSignBlocks(v interface{}) []string {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, item := range arr {
+		if s, ok := item.(string); ok && s != "" {
+			out = append(out, s)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// escapeSDValue escapes `"`, `\`, `]` in a STRUCTURED-DATA PARAM-VALUE per
+// RFC 5424 §6.2.8. Returns the escaped string.
+func escapeSDValue(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch r {
+		case '"', '\\', ']':
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
 
 func getString(m map[string]interface{}, key string) string {
 	v, _ := m[key].(string)
@@ -1217,4 +1612,99 @@ func getStringMap(m map[string]interface{}, key string) map[string]string {
 		}
 	}
 	return result
+}
+
+// getFloatDefault returns the float64 value for key when present and non-nil
+// (0.0 is a valid user value for RootDelay/RootDispersion), and def when the
+// key is absent or null. Mirrors the presence-check pattern of defaultDSCP
+// /defaultIPFlags so explicit 0 is honored rather than silently replaced.
+func getFloatDefault(m map[string]interface{}, key string, def float64) float64 {
+	if v, ok := m[key]; ok && v != nil {
+		switch f := v.(type) {
+		case float64:
+			return f
+		case int:
+			return float64(f)
+		case int64:
+			return float64(f)
+		case json.Number:
+			n, err := f.Float64()
+			if err == nil {
+				return n
+			}
+		}
+	}
+	return def
+}
+
+// getTime parses an RFC 3339 timestamp string into time.Time. Empty string,
+// missing key, or null returns the zero time.Time (which the NTP planner
+// treats as "not set" and emits as 0). Parse errors also return the zero
+// time -- mapToFlowSpec collects parse errors elsewhere; here we want a
+// best-effort conversion so the planner can still emit a packet.
+func getTime(m map[string]interface{}, key string) time.Time {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return time.Time{}
+	}
+	s, ok := v.(string)
+	if !ok || s == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
+// getByteSlice converts a JSON-decoded value into []byte. Accepts a string
+// (taken as raw bytes) or an array of numbers (each byte 0-255). nil/missing
+// returns nil so the planner skips the field entirely.
+func getByteSlice(m map[string]interface{}, key string) []byte {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil
+	}
+	switch b := v.(type) {
+	case string:
+		return []byte(b)
+	case []interface{}:
+		out := make([]byte, 0, len(b))
+		for _, n := range b {
+			if f, ok := n.(float64); ok {
+				out = append(out, byte(int(f)))
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+// parseNTPExtensions converts the JSON-decoded "extensions" value (an array
+// of {type, value} objects) into a []NTPExt. Returns nil for absent/non-array
+// input so the planner skips extension emission. Each extension's Value may
+// be a string (raw bytes) or a number array (each byte 0-255); the planner
+// 0-pads to a 4-byte boundary before emitting.
+func parseNTPExtensions(v interface{}) []NTPExt {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]NTPExt, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		ext := NTPExt{
+			Type:  uint16(getInt(m, "type")),
+			Value: getByteSlice(m, "value"),
+		}
+		out = append(out, ext)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
