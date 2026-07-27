@@ -1,9 +1,110 @@
 package core
 
 import (
+	"strings"
 	"testing"
 )
 
+// TestValidateProtocolSubConfigs_MSS_AllProtocols verifies the H2.10 fix:
+// MSS range validation (0 or 536-65535) must apply to ALL TCP-based
+// protocols, not just protocol="tcp". Previously the http/ftp/sip cases
+// in ValidateProtocolSubConfigs had only comments saying MSS was "governed
+// by tcp.mss", but the http/ftp/sip branches never executed the check, so
+// protocol=http + tcp.mss=70000 silently wrapped to 4464 (uint16 cast) and
+// passed validation. This is the failing-test-first regression guard.
+func TestValidateProtocolSubConfigs_MSS_AllProtocols(t *testing.T) {
+	// Note: cfg["tcp"].mss uses float64 because production cfg comes from
+	// JSON unmarshal (encoding/json always emits float64 for numbers).
+	// getInt() handles float64 and json.Number; passing int directly would
+	// hit the default branch and silently return 0 (an unrelated quirk
+	// already documented in strategy_convert.go:903).
+	cases := []struct {
+		name     string
+		protocol string
+		cfg      map[string]interface{}
+		wantErr  bool
+		wantMsg  string
+	}{
+		{
+			name:     "http/mss=70000 out of range",
+			protocol: "http",
+			cfg:      map[string]interface{}{"tcp": map[string]interface{}{"mss": float64(70000)}},
+			wantErr:  true,
+			wantMsg:  "tcp.mss",
+		},
+		{
+			name:     "http/mss=-1 out of range",
+			protocol: "http",
+			cfg:      map[string]interface{}{"tcp": map[string]interface{}{"mss": float64(-1)}},
+			wantErr:  true,
+			wantMsg:  "tcp.mss",
+		},
+		{
+			name:     "http/mss=1460 valid",
+			protocol: "http",
+			cfg:      map[string]interface{}{"tcp": map[string]interface{}{"mss": float64(1460)}},
+			wantErr:  false,
+		},
+		{
+			name:     "http/mss=0 ok (default)",
+			protocol: "http",
+			cfg:      map[string]interface{}{"tcp": map[string]interface{}{"mss": float64(0)}},
+			wantErr:  false,
+		},
+		{
+			name:     "ftp/mss=70000 out of range",
+			protocol: "ftp",
+			cfg:      map[string]interface{}{"tcp": map[string]interface{}{"mss": float64(70000)}},
+			wantErr:  true,
+			wantMsg:  "tcp.mss",
+		},
+		{
+			name:     "ftp/mss=1460 valid",
+			protocol: "ftp",
+			cfg:      map[string]interface{}{"tcp": map[string]interface{}{"mss": float64(1460)}},
+			wantErr:  false,
+		},
+		{
+			name:     "sip/mss=70000 out of range",
+			protocol: "sip",
+			cfg:      map[string]interface{}{"tcp": map[string]interface{}{"mss": float64(70000)}},
+			wantErr:  true,
+			wantMsg:  "tcp.mss",
+		},
+		{
+			name:     "sip/mss=536 min valid",
+			protocol: "sip",
+			cfg:      map[string]interface{}{"tcp": map[string]interface{}{"mss": float64(536)}},
+			wantErr:  false,
+		},
+		{
+			name:     "tcp/mss=70000 still rejected (regression guard for tcp case)",
+			protocol: "tcp",
+			cfg:      map[string]interface{}{"tcp": map[string]interface{}{"mss": float64(70000)}},
+			wantErr:  true,
+			wantMsg:  "tcp.mss",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateProtocolSubConfigs(tt.cfg, tt.protocol)
+			if tt.wantErr && err == nil {
+				t.Errorf("ValidateProtocolSubConfigs(%s) expected error, got nil", tt.protocol)
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("ValidateProtocolSubConfigs(%s) unexpected error: %v", tt.protocol, err)
+			}
+			if tt.wantMsg != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.wantMsg) {
+					t.Errorf("error %q does not contain %q", err.Error(), tt.wantMsg)
+				}
+			}
+		})
+	}
+}
+
+// TestValidateFlowSpec_Ranges
 func TestValidateFlowSpec_Ranges(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -98,18 +98,31 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 			}
 		}
 	case "http":
-		// HTTP sub-config fields are strings or booleans — no uint truncation.
-		// http.transactions is an int but capped at reasonable values by the
-		// planner, so no truncation validation needed here. MSS for HTTP
-		// segmentation is governed by tcp.mss (validated in the tcp case).
+		// HTTP runs over TCP. MSS for HTTP payload segmentation is governed
+		// by tcp.mss — validate here so protocol=http users can't smuggle
+		// out-of-range values past validation (the tcp case only fires when
+		// protocol=="tcp", which http/ftp/sip never reach).
+		if sub, ok := cfg["tcp"].(map[string]interface{}); ok {
+			if m := getInt(sub, "mss"); m < 0 || m > 65535 {
+				return fmt.Errorf("tcp.mss %d invalid (must be 0-65535)", m)
+			}
+		}
 	case "ftp":
-		// FTP runs over TCP; MSS for FTP payload segmentation is governed
-		// by tcp.mss (validated in the tcp case). No FTP-specific uint
-		// fields to range-check.
+		// FTP runs over TCP. MSS for FTP payload segmentation is governed
+		// by tcp.mss (see http case comment for the validation rationale).
+		if sub, ok := cfg["tcp"].(map[string]interface{}); ok {
+			if m := getInt(sub, "mss"); m < 0 || m > 65535 {
+				return fmt.Errorf("tcp.mss %d invalid (must be 0-65535)", m)
+			}
+		}
 	case "sip":
-		// SIP runs over TCP (or UDP); MSS for SIP message segmentation is
-		// governed by tcp.mss (validated in the tcp case). No SIP-specific
-		// uint fields to range-check.
+		// SIP runs over TCP (or UDP). MSS for SIP message segmentation is
+		// governed by tcp.mss (see http case comment for the validation rationale).
+		if sub, ok := cfg["tcp"].(map[string]interface{}); ok {
+			if m := getInt(sub, "mss"); m < 0 || m > 65535 {
+				return fmt.Errorf("tcp.mss %d invalid (must be 0-65535)", m)
+			}
+		}
 	case "sctp":
 		if sub, ok := cfg["sctp"].(map[string]interface{}); ok {
 			if t := getInt(sub, "verification_tag"); t < 0 {
