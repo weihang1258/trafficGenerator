@@ -889,10 +889,123 @@ type GlobalConfig struct {
 // struct definition within the marked region to avoid git merge conflicts
 // when 25 implementers work in parallel.
 
-// DHCPConfig holds DHCPv4 protocol configuration. Fields populated by
-// internal/protocol/dhcp implementer per design_dhcp.md.
+// DHCPConfig holds DHCPv4 protocol configuration (RFC 2131). DHCP is a session-level
+// protocol over UDP on ports 67 (server) / 68 (client). The planner emits each message
+// in Messages as a separate UDP datagram, sharing the same xid (transaction ID) and
+// 4-tuple (one flow).
+//
+// Role selects the source/destination port pair:
+// - "client" (default): SrcPort=68, DstPort=67; broadcast DISCOVER/REQUEST
+// to 255.255.255.255 when client has no IP; unicast INFORM/RELEASE/
+// RENEWING-REQUEST to known server when client has IP.
+// - "server": SrcPort=67, DstPort=68; OFFER/ACK/NAK to client
+// (broadcast or unicast per flags).
+// - "relay": SrcPort=67, DstPort=67; forwards both directions,
+// fills giaddr/hops/option 82 on incoming, strips/restores on outgoing.
 type DHCPConfig struct {
-	// TODO(phase3-dhcp): populate fields per design_dhcp.md
+	// Role selects the port pair and broadcast/unicast behavior.
+	// Empty defaults to "client".
+	Role string `json:"role,omitempty"`
+
+	// Xid is the 4-byte transaction ID shared across all messages in
+	// a session. 0 = random per session (recommended).
+	Xid uint32 `json:"xid,omitempty"`
+
+	// Messages is the ordered sequence of DHCP messages to emit.
+	// Each message carries MessageType + per-message field overrides.
+	// The planner emits one UDP datagram per message.
+	Messages []DHCPMessage `json:"messages"`
+
+	// ClientMAC is the chaddr field (16 bytes, right-padded with 0).
+	// Empty = use spec.SrcMAC (Role="client") or spec.DstMAC (Role="server").
+	ClientMAC string `json:"client_mac,omitempty"`
+
+	// HType is the BOOTP hardware type (1=Ethernet). Default 1.
+	HType uint8 `json:"h_type,omitempty"`
+
+	// HLen is the hardware address length (6 for Ethernet). Default 6.
+	HLen uint8 `json:"h_len,omitempty"`
+
+	// BroadcastFlag, when true, sets flags=0x8000 (broadcast response).
+	// Default false (0x0000, unicast response).
+	BroadcastFlag bool `json:"broadcast_flag,omitempty"`
+
+	// Secs is the seconds-since-start field. Default 0.
+	Secs uint16 `json:"secs,omitempty"`
+
+	// Sname is the server host name field (64 bytes). Optional.
+	Sname string `json:"sname,omitempty"`
+
+	// File is the boot file name field (128 bytes). Optional.
+	File string `json:"file,omitempty"`
+
+	// Default options inherited by all messages (per-message overrides win).
+	DefaultClientIP string `json:"default_client_ip,omitempty"` // ciaddr
+	DefaultYourIP string `json:"default_your_ip,omitempty"` // yiaddr
+	DefaultServerIP string `json:"default_server_ip,omitempty"` // siaddr
+	DefaultRelayAgentIP string `json:"default_relay_agent_ip,omitempty"` // giaddr
+	DefaultServerIdentifier string `json:"default_server_identifier,omitempty"` // option 54
+	DefaultLeaseTime uint32 `json:"default_lease_time,omitempty"` // option 51
+	DefaultT1 uint32 `json:"default_t1,omitempty"` // option 58
+	DefaultT2 uint32 `json:"default_t2,omitempty"` // option 59
+	DefaultSubnetMask string `json:"default_subnet_mask,omitempty"` // option 1
+	DefaultRouters []string `json:"default_routers,omitempty"` // option 3
+	DefaultDNS []string `json:"default_dns,omitempty"` // option 6
+	DefaultDomainName string `json:"default_domain_name,omitempty"` // option 15
+	DefaultHostname string `json:"default_hostname,omitempty"` // option 12
+	DefaultDomainSearch []string `json:"default_domain_search,omitempty"` // option 119
+	DefaultClientID []byte `json:"default_client_id,omitempty"` // option 61
+	DefaultRequestedIP string `json:"default_requested_ip,omitempty"` // option 50
+	DefaultParamRequestList []uint8 `json:"default_param_request_list,omitempty"` // option 55
+	DefaultVendorClass string `json:"default_vendor_class,omitempty"` // option 60
+	DefaultRelayAgentInfo []byte `json:"default_relay_agent_info,omitempty"` // option 82
+}
+
+// DHCPMessage is a single DHCP message in a session.
+type DHCPMessage struct {
+	// Type is option 53 (DHCP Message Type):
+	// 1=DISCOVER, 2=OFFER, 3=REQUEST, 4=DECLINE, 5=ACK, 6=NAK,
+	// 7=RELEASE, 8=INFORM
+	Type uint8 `json:"type"`
+
+	// Direction "up" = client->server, "down" = server->client.
+	// Empty = planner infers from Type.
+	Direction string `json:"direction,omitempty"`
+
+	// Per-message field overrides (empty = inherit from DHCPConfig).
+	ClientIP string `json:"client_ip,omitempty"` // ciaddr
+	YourIP string `json:"your_ip,omitempty"` // yiaddr
+	ServerIP string `json:"server_ip,omitempty"` // siaddr
+	RelayAgentIP string `json:"relay_agent_ip,omitempty"` // giaddr
+	Hops uint8 `json:"hops,omitempty"`
+	ServerIdentifier string `json:"server_identifier,omitempty"` // option 54
+	LeaseTime uint32 `json:"lease_time,omitempty"` // option 51
+	T1 uint32 `json:"t1,omitempty"` // option 58
+	T2 uint32 `json:"t2,omitempty"` // option 59
+	SubnetMask string `json:"subnet_mask,omitempty"` // option 1
+	Routers []string `json:"routers,omitempty"` // option 3
+	DNS []string `json:"dns,omitempty"` // option 6
+	DomainName string `json:"domain_name,omitempty"` // option 15
+	Hostname string `json:"hostname,omitempty"` // option 12
+	DomainSearch []string `json:"domain_search,omitempty"` // option 119
+	ClientID []byte `json:"client_id,omitempty"` // option 61
+	RequestedIP string `json:"requested_ip,omitempty"` // option 50
+	ParamRequestList []uint8 `json:"param_request_list,omitempty"` // option 55
+	VendorClass string `json:"vendor_class,omitempty"` // option 60
+	RelayAgentInfo []byte `json:"relay_agent_info,omitempty"` // option 82
+
+	// ExtraOptions is a list of arbitrary options for testing rare or
+	// vendor-specific options not covered above.
+	ExtraOptions []DHCPOption `json:"extra_options,omitempty"`
+
+	// Broadcast overrides DHCPConfig.BroadcastFlag for this message.
+	Broadcast *bool `json:"broadcast,omitempty"`
+}
+
+// DHCPOption is a single raw DHCP option (TLV).
+type DHCPOption struct {
+	Code uint8 `json:"code"`
+	Data []byte `json:"data,omitempty"`
 }
 
 // DHCPv6Config holds DHCPv6 protocol configuration. Fields populated by
@@ -1972,10 +2085,162 @@ type NTPExt struct {
 	Value []byte `json:"value,omitempty"`
 }
 
-// OpenVPNConfig holds OpenVPN protocol configuration. Fields populated by
-// internal/protocol/openvpn implementer per design_openvpn.md.
+// OpenVPNConfig holds OpenVPN protocol configuration.
+//
+// OpenVPN is a session-level, encrypted, layered protocol that wraps either UDP
+// (--proto udp, default) or TCP-over-TLS (--proto tcp) and runs an OpenVPN-specific
+// 控制通道 (control channel) 和数据通道 (data channel) on top. The planner emits
+// P_CONTROL_HARD_RESET_V1/V2/V3, P_DATA_V1/V2, optional tls-auth HMAC, optional
+// tls-crypt wrapped key, optional keepalive ping/pong, and teardown.
+//
+// Encryption is NOT implemented: post-TLS-finished payload is opaque (dummy bytes
+// or user-supplied). HMAC, tls-crypt auth-tag, AEAD IV, and AEAD tag are
+// deterministic filler (0xAA/0xBB/0xCC/0xDD/0xEE), structurally correct but not
+// cryptographically valid. This preserves OpenVPN wire format for DPI testing.
 type OpenVPNConfig struct {
-	// TODO(phase3-openvpn): populate fields per design_openvpn.md
+	// Proto selects the L4 transport. "udp" (default, port 1194) carries
+	// OpenVPN packets in UDP datagrams; "tcp" carries TLS-in-TCP where
+	// OpenVPN application data flows as TLS AppData. Empty defaults to
+	// "udp". Maps to OpenVPN --proto udp|--proto tcp.
+	Proto string `json:"proto,omitempty"`
+
+	// Version selects OpenVPN protocol version 1, 2, or 3. Empty defaults
+	// to "2" (V2, the openvpn-2.4+ default). Maps to OpenVPN internal
+	// negotiation. V1 uses OPCODE 1-3 + OCC; V2/V3 use 4-6 with
+	// HMAC/tls-crypt.
+	Version string `json:"version,omitempty"`
+
+	// KeyID is the OpenVPN key slot. 0 = client, 1 = server (matches
+	// default OpenVPN server config). Encoded as key_id field (5 bits for
+	// V1/V2, 3 bits for V3).
+	KeyID uint8 `json:"key_id,omitempty"`
+
+	// SessionID is the OpenVPN session ID. 3-byte for V2/V3; 0 = random.
+	// In V2/V3: SESSION_ID in payload header.
+	SessionID uint32 `json:"session_id,omitempty"`
+
+	// TLSAuth, when true, prepends HMAC-SHA1 tag (20 bytes) to each
+	// P_CONTROL payload. Maps to --tls-auth file. false = no tls-auth.
+	TLSAuth bool `json:"tls_auth,omitempty"`
+
+	// TLSCrypt, when true, prepends wrapped_key (tls-crypt: auth-tag 32B +
+	// IV 16B + cipher_key wrapped) to each P_CONTROL payload. Maps to
+	// --tls-crypt file (or --tls-crypt-v2). false = no tls-crypt (default).
+	TLSCrypt bool `json:"tls_crypt,omitempty"`
+
+	// TLSCryptV2, when true, emits --tls-crypt-v2 format with explicit
+	// wrapped_key_id (4 bytes) at start of wrapped_key. Requires
+	// TLSCrypt=true. false = --tls-crypt (default).
+	TLSCryptV2 bool `json:"tls_crypt_v2,omitempty"`
+
+	// DataCipher selects the data channel cipher. One of:
+	// "AES-256-CBC" (default with HMAC-SHA1 20B tag), "AES-128-GCM"
+	// (AEAD 16B tag), "AES-256-GCM", "CHACHA20-POLY1305". Affects
+	// P_DATA padding/IV/tag structure.
+	DataCipher string `json:"data_cipher,omitempty"`
+
+	// NCPDisable, when true, disables NCP (--ncp-disable) cipher
+	// negotiation. Use the cipher exactly as configured.
+	NCPDisable bool `json:"ncp_disable,omitempty"`
+
+	// TLSVersion selects the inner TLS protocol version: "1.2" or "1.3".
+	// Empty defaults to "1.3". Maps to tls.Config.Version.
+	TLSVersion string `json:"tls_version,omitempty"`
+
+	// TLSRole selects the OpenVPN-side TLS role:
+	// "client" (default): emit ClientHello first, expect ServerHello.
+	// "server": emit ServerHello first (only for asymmetric / replay scenarios).
+	TLSRole string `json:"tls_role,omitempty"`
+
+	// SNI is the inner TLS server_name (RFC 6066). Default "openvpn".
+	// Affects inner TLS ClientHello's server_name extension.
+	SNI string `json:"sni,omitempty"`
+
+	// Mssfix sets the OpenVPN --mssfix size. 0 = 1450 (default for
+	// tap), else specified value. Not a packet field but stored in
+	// metadata for downstream processing.
+	Mssfix uint16 `json:"mssfix,omitempty"`
+
+	// TLSAuthHMAC, when non-empty (20 bytes), overrides the
+	// deterministic 0xAA HMAC filler.
+	TLSAuthHMAC []byte `json:"tls_auth_hmac,omitempty"`
+
+	// TLSCryptWrappedKey, when non-empty, overrides the deterministic
+	// 0xBB/0xCC/0xEE tls-crypt filler. Format: auth-tag(32)||IV(16)||cipher_key(...).
+	TLSCryptWrappedKey []byte `json:"tls_crypt_wrapped_key,omitempty"`
+
+	// DataPayload is the plaintext payload for P_DATA encryption (V1/V2).
+	// Empty = no payload, just keepalive. Default: 64 bytes synthesized data.
+	DataPayload []byte `json:"data_payload,omitempty"`
+
+	// DataPacketCount is how many P_DATA packets to emit per direction.
+	// 0 = 1 packet. Default 5.
+	DataPacketCount int `json:"data_packet_count,omitempty"`
+
+	// PerformSoftReset, when true, after P_DATA exchange, emit
+	// P_CONTROL_SOFT_RESET_V1 (opcode=3) to simulate key renegotiation.
+	// After soft reset, subsequent P_DATA uses incremented key_id.
+	PerformSoftReset bool `json:"perform_soft_reset,omitempty"`
+
+	// StaticKeyMode, when true, switches to --secret/--static-key P2P
+	// mode. No TLS handshake, no P_CONTROL_HARD_RESET. Emits P_DATA_V1
+	// directly. Default false. Mutually exclusive with TLSAuth/TLSCrypt.
+	StaticKeyMode bool `json:"static_key_mode,omitempty"`
+
+	// KeyDirection selects the static-key direction: 0 = client->server,
+	// 1 = server->client. Only used when StaticKeyMode=true.
+	KeyDirection uint8 `json:"key_direction,omitempty"`
+
+	// StaticKey is the 256-byte pre-shared secret for P2P static-key mode.
+	// Format: 128B encrypt key || 128B HMAC key. Empty = random fill.
+	// Only used when StaticKeyMode=true.
+	StaticKey []byte `json:"static_key,omitempty"`
+
+	// AuthUserPass, when true, enables --auth-user-pass username/password
+	// authentication. After TLS handshake completes, the client emits
+	// "username\npassword" in TLS AppData. Default false.
+	AuthUserPass bool `json:"auth_user_pass,omitempty"`
+
+	// AuthUser is the username for --auth-user-pass. ASCII/UTF-8, 1..64 bytes.
+	// Default "anonymous". Only used when AuthUserPass=true.
+	AuthUser string `json:"auth_user,omitempty"`
+
+	// AuthPass is the password for --auth-user-pass. ASCII/UTF-8, 1..64 bytes.
+	// Default "anonymous". Only used when AuthUserPass=true.
+	AuthPass string `json:"auth_pass,omitempty"`
+
+	// AuthAlg selects the --auth HMAC algorithm. One of:
+	// "SHA1" (default, 20B HMAC), "SHA256" (32B), "SHA512" (64B),
+	// "MD5" (16B, legacy), "none" (0B, no HMAC). Affects tls-auth HMAC
+	// tag byte length. Empty defaults to "SHA1".
+	AuthAlg string `json:"auth_alg,omitempty"`
+
+	// FragmentSize, when >0, enables --fragment application-layer
+	// fragmentation with this payload size in bytes. 0 = disabled (default).
+	// When enabled, each P_DATA_V2 payload is fragmented into first/middle/last	// pieces with fragment header (1B info + 2B id + 2B size). Must be in [64,1500].
+	FragmentSize uint16 `json:"fragment_size,omitempty"`
+
+	// KeepalivePingInterval sets the --keepalive <ping> interval in
+	// seconds (1..65535). 0 = disabled (no keepalive). When enabled,
+	// planner inserts empty P_DATA_V2 keepalive packets every PingInterval seconds.
+	KeepalivePingInterval uint16 `json:"keepalive_ping,omitempty"`
+
+	// KeepalivePingRestart sets the --keepalive <restart> timeout in
+	// seconds (1..65535). 0 = disabled. Triggered after PingInterval of silence.
+	KeepalivePingRestart uint16 `json:"keepalive_ping_restart,omitempty"`
+
+	// ExitNotifyCount sets --explicit-exit-notify N (1..3). 0 = disabled.
+	// Only valid for proto=udp (TCP mode uses TLS close_notify).
+	ExitNotifyCount uint8 `json:"exit_notify_count,omitempty"`
+
+	// ExitNotifyInterval sets the interval between exit_notify packets
+	// in milliseconds (0..65535). Default 1000ms. Only used when ExitNotifyCount>0.
+	ExitNotifyInterval uint16 `json:"exit_notify_interval,omitempty"`
+
+	// TunMTU sets the --tun-mtu value in bytes (64..65535). Default 1500.
+	// Affects IP fragmentation boundary; NOT packet field - stored in
+	// PacketConfig.Metadata as metadata["openvpn_tun_mtu"].
+	TunMTU uint16 `json:"tun_mtu,omitempty"`
 }
 
 // PostgreSQLConfig holds PostgreSQL frontend/backend protocol v3 / v3.1
@@ -2591,11 +2856,105 @@ const (
 	RedisAutoReplyEmpty   = "empty-arr"
 )
 
-// ShadowsocksConfig holds Shadowsocks protocol configuration. Fields
-// populated by internal/protocol/shadowsocks implementer per
-// design_shadowsocks.md.
+// ShadowsocksConfig holds Shadowsocks protocol configuration. Shadowsocks
+// is a SOCKS5-based proxy protocol with pluggable encryption, primarily
+// used to bypass GFW (Great Firewall, 中国国家互联网防火墙). The planner
+// emits a TCP handshake (optional SOCKS5 negotiation + mandatory
+// shadowsocks AEAD framing) or UDP datagrams, all carrying AEAD-encrypted
+// payloads over the 4-tuple.
+//
+// Because shadowsocks encryption is non-decryptable from the test
+// perspective, the planner focuses on byte-format conformance (salt
+// length, chunk framing, tag presence, length fields), not on producing
+// real cryptographic output. Use Mode="tcp" (default) or "udp".
 type ShadowsocksConfig struct {
-	// TODO(phase3-shadowsocks): populate fields per design_shadowsocks.md
+	// Mode (模式): "tcp" (default) or "udp". TCP emits handshake + salt +
+	// AEAD chunks; UDP emits one (salt + AEAD-encrypted packet) per
+	// datagram, no handshake.
+	Mode string `json:"mode,omitempty"`
+
+	// Cipher (加密算法) selects the AEAD cipher. Supported:
+	// "aes-128-gcm" — AES-128-GCM, key=16B, salt=32B, tag=16B, nonce=12B
+	// "aes-256-gcm" — AES-256-GCM, key=32B, salt=32B, tag=16B, nonce=12B
+	// "chacha20-ietf-poly1305" — ChaCha20-Poly1305, key=32B, salt=32B, tag=16B, nonce=12B
+	// "none" — SIP004 plaintext, no salt/tag
+	// "2022-blake3-aes-128-gcm" — SIP022 AEAD 2022 (BLAKE3 KDF)
+	// "2022-blake3-aes-256-gcm" — SIP022 AEAD 2022 (BLAKE3 KDF)
+	// "2022-blake3-chacha20-poly1305" — SIP022 AEAD 2022 (BLAKE3 KDF)
+	// Default: "aes-256-gcm" (most common modern deployment).
+	Cipher string `json:"cipher,omitempty"`
+
+	// SOCKS5Handshake (SOCKS5握手), when true, emits a plain SOCKS5 negotiation
+	// (RFC 1928) BEFORE the shadowsocks salt + AEAD chunks. Default
+	// false (modern shadowsocks clients skip the SOCKS5 layer; the
+	// traffic between client and proxy is raw shadowsocks AEAD).
+	// When true, the planner additionally reads SOCKS5 fields below.
+	SOCKS5Handshake bool `json:"socks5_handshake,omitempty"`
+
+	// SOCKS5AuthMethod (SOCKS5认证方法): "none" (default) or "password". When
+	// SOCKS5Handshake=true, the planner emits the corresponding
+	// method in METHODS and the matching sub-negotiation
+	// (RFC 1929 USERNAME/PASSWORD when "password").
+	SOCKS5AuthMethod string `json:"socks5_auth_method,omitempty"`
+
+	// SOCKS5Username / SOCKS5Password (SOCKS5用户名/密码): required when
+	// SOCKS5AuthMethod="password". UTF-8 strings.
+	SOCKS5Username string `json:"socks5_username,omitempty"`
+	SOCKS5Password string `json:"socks5_password,omitempty"`
+
+	// SOCKS5Cmd (SOCKS5命令): "connect" (default, value 0x01), "bind" (0x02),
+	// or "udp_associate" (0x03). UDP_ASSOCIATE requires Mode="udp".
+	SOCKS5Cmd string `json:"socks5_cmd,omitempty"`
+
+	// SOCKS5DstAddr / SOCKS5DstPort (SOCKS5目标地址/端口): target address/port for the
+	// SOCKS5 CONNECT/BIND request. Type (IPv4/IPv6/domain) is
+	// inferred from the address format. For ATYP=0x03 (domain),
+	// pass the ASCII domain as SOCKS5DstAddr.
+	SOCKS5DstAddr string `json:"socks5_dst_addr,omitempty"`
+	SOCKS5DstPort uint16 `json:"socks5_dst_port,omitempty"`
+
+	// SOCKS5BNDAddr / SOCKS5BNDPort (SOCKS5绑定地址/端口): bound address/port in the
+	// SOCKS5 reply from the proxy. Empty = 0.0.0.0:0 (default reply).
+	SOCKS5BNDAddr string `json:"socks5_bnd_addr,omitempty"`
+	SOCKS5BNDPort uint16 `json:"socks5_bnd_port,omitempty"`
+
+	// Chunks (AEAD数据块数量): number of AEAD chunks to emit. 0 = derive from
+	// FlowSpec.Payload (chunk payload_size <= 0x3FFF). Each chunk
+	// carries Payload bytes (or random bytes when Payload empty).
+	// Default 1.
+	Chunks int `json:"chunks,omitempty"`
+
+	// ChunkPayloadSize (每块负载大小): bytes per chunk (<= 0x3FFF). 0 = use
+	// FlowSpec.Payload split, or 0x3FFF if Payload empty.
+	ChunkPayloadSize int `json:"chunk_payload_size,omitempty"`
+
+	// Obfuscation (混淆): "" (default, raw AEAD) or "http" (prepend
+	// HTTP CONNECT header before salt; some shadowsocks-android
+	// forks). Requires SOCKS5Handshake=false (mutually exclusive
+	// with SOCKS5 framing layer).
+	Obfuscation string `json:"obfuscation,omitempty"`
+
+	// ObfMethod (混淆HTTP方法): "CONNECT" (default) or "POST" for HTTP obfuscation.
+	ObfMethod string `json:"obf_method,omitempty"`
+
+	// ObfHeaders (混淆HTTP头): optional custom HTTP headers for obfuscation.
+	ObfHeaders map[string]string `json:"obf_headers,omitempty"`
+
+	// PayloadBytesFormat (负载字节格式): "random" (default, bytes 0..255 random)
+	// or "zeros" (all 0x00) for the encrypted payload / UDP payload
+	// content. Encryption is NOT applied — the planner emits
+	// correctly-framed but random/plaintext bytes.
+	PayloadBytesFormat string `json:"payload_bytes_format,omitempty"`
+
+	// FRAG (UDP分片ID): UDP fragment ID (0x00 default). Used in UDP relay mode.
+	FRAG uint8 `json:"frag,omitempty"`
+
+	// FileSource (文件源), when set, supplies the AEAD chunk payload bytes
+	// via PayloadCache.GetOrLoad(src) instead of synthesizing
+	// per-chunk random/zeros. Each Chunks iteration reads the
+	// next ChunkPayloadSize bytes from the cached file. nil = use
+	// PayloadBytesFormat synthesis.
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
 // SMTPConfig holds SMTP (RFC 5321) protocol configuration. SMTP is a
@@ -3118,8 +3477,68 @@ type TelnetEvent struct {
 
 // TLSConfig holds TLS protocol configuration. Fields populated by
 // internal/protocol/tls implementer per design_tls.md.
+//
+// TLS (Transport Layer Security, 传输层安全协议) is a cryptographic protocol
+// designed to provide secure communications over a TCP connection. The planner
+// supports TLS 1.0/1.1/1.2/1.3 and emits wire-protocol bytes for handshake,
+// record layer, alert, and application data. No real crypto is used; encrypted
+// portions use synth ciphertext (随机密文) — random bytes of the correct length.
 type TLSConfig struct {
-	// TODO(phase3-tls): populate fields per design_tls.md
+	// Version 协商 / 选择: "tls1.3" (default), "tls1.2", "tls1.1", "tls1.0".
+	Version string `json:"version,omitempty"`
+	// Role 客户端角色: "client" (default) — 发出 ClientHello, 含 client 证书 (mTLS);
+	// "server" — 发出 ServerHello, 发送 server 证书。
+	Role string `json:"role,omitempty"`
+	// SNI (Server Name Indication, 服务器名称指示) — e.g. "api.example.com".
+	// 空 = 不发送 server_name 扩展。
+	SNI string `json:"sni,omitempty"`
+	// ALPN (Application-Layer Protocol Negotiation, 应用层协议协商) 候选列表,
+	// 按优先级排序。空 = 默认 ["h2","http/1.1"]。
+	ALPN []string `json:"alpn,omitempty"`
+	// CipherSuites 密码套件, 代码值, 按 client 提供顺序。
+	// 默认 ["TLS_AES_128_GCM_SHA256"(0x1301), "TLS_AES_256_GCM_SHA384"(0x1302),
+	// "TLS_CHACHA20_POLY1305_SHA256"(0x1303), ...]。
+	CipherSuites []uint16 `json:"cipher_suites,omitempty"`
+	// SupportedGroups (支持的椭圆曲线), e.g. [X25519(0x001D), secp256r1(0x0017), secp384r1(0x0018)]。
+	SupportedGroups []uint16 `json:"supported_groups,omitempty"`
+	// SignatureAlgorithms (签名算法), e.g. [ecdsa_secp256r1_sha256(0x0403), rsa_pkcs1_sha256(0x0401)]。
+	SignatureAlgorithms []uint16 `json:"signature_algorithms,omitempty"`
+	// ClientCertificate (客户端证书, mTLS 时使用)。留空走合成自签测试证书。
+	ClientCertificate *X509Ref `json:"client_certificate,omitempty"`
+	// ServerCertificate (服务端证书)。留空走合成自签测试证书。
+	ServerCertificate *X509Ref `json:"server_certificate,omitempty"`
+	// PSKs (Pre-Shared Keys, 预共享密钥) — 用于 Session Resumption / 0-RTT。
+	PSKs []PSKIdentity `json:"psks,omitempty"`
+	// AllowEarlyData 决定是否在 0-RTT 时随 ClientHello 同发 application data。
+	AllowEarlyData bool `json:"allow_early_data,omitempty"`
+	// AlertPath 模拟服务器在握手某阶段后立即发 Alert。
+	AlertPath *AlertStep `json:"alert_path,omitempty"`
+	// OCSPStapling (OCSP 装订) 控制是否发送 status_request 扩展。
+	OCSPStapling bool `json:"ocsp_stapling,omitempty"`
+}
+
+// X509Ref 引用一个 X.509 证书, 用于 TLS 握手中的证书链。
+type X509Ref struct {
+	Subject string `json:"subject,omitempty"` // 自定义 subject (CN=...,O=...)
+	San []string `json:"san,omitempty"` // DNS SANs
+	NotBefore int64 `json:"not_before,omitempty"` // unix seconds; 0 = now
+	NotAfter int64 `json:"not_after,omitempty"` // unix seconds; 0 = now+30d
+	KeyType string `json:"key_type,omitempty"` // "rsa-2048"/"rsa-4096"/"ecdsa-p256"
+	// FileSource 提供预生成的 p12/der 证书文件。
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
+}
+
+// PSKIdentity (预共享密钥身份) 用于 TLS 1.3 PSK 会话恢复。
+type PSKIdentity struct {
+	Identity []byte `json:"identity,omitempty"` // PSK identity 字节
+	ObfuscatedAge uint32 `json:"obfuscated_age,omitempty"` // 混淆年龄 (用于 binder)
+}
+
+// AlertStep (警报步骤) 配置服务器在握手某个阶段后发送 Alert。
+type AlertStep struct {
+	After string `json:"after,omitempty"` // "server_hello", "certificate", "server_hello_done"
+	Description uint8 `json:"description,omitempty"` // RFC AlertDescription 编码
+	Level uint8 `json:"level,omitempty"` // 1=warning, 2=fatal
 }
 
 // VmessConfig holds vmess protocol configuration. Fields populated by
