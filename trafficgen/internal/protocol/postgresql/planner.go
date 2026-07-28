@@ -665,8 +665,35 @@ func (s *runState) runOperation(emit emitFunc, clientSeq, serverSeq uint32, curr
 	case "terminate":
 		clientSeq = sendUp(encodeTerminate())
 	case "function-call":
-		clientSeq = sendUp(encodeFunctionCall(1244, []int16{0}, op.ParamValues, 0))
-		serverSeq = sendDown(encodeFunctionCallResponse([]byte{0, 0, 0, 0}))
+		oid := op.FunctionOID
+		if oid == 0 {
+			oid = 1244
+		}
+		fmtCodes := op.ArgumentFormatCodes
+		if len(fmtCodes) == 0 {
+			fmtCodes = []int16{0}
+		}
+		resultFmt := op.ResultFormatCode
+		clientSeq = sendUp(encodeFunctionCall(oid, fmtCodes, op.ParamValues, resultFmt))
+		// FunctionCallResponse (函数调用响应): emit a synthetic result
+		// based on result format. For text format (0), emit int32 42 as
+		// 4-byte big-endian. For binary format (1), emit 8-byte big-endian
+		// 42. For void return (no result), emit empty.
+		var resp []byte
+		if resultFmt == 1 {
+			var buf [8]byte
+			binary.BigEndian.PutUint64(buf[:], 42)
+			resp = buf[:]
+		} else {
+			var buf [4]byte
+			binary.BigEndian.PutUint32(buf[:], 42)
+			resp = buf[:]
+		}
+		// If no arguments, treat as void (no result data).
+		if len(op.ParamValues) == 0 && oid == 1244 {
+			resp = nil
+		}
+		serverSeq = sendDown(encodeFunctionCallResponse(resp))
 	default:
 		// Unknown kind: emit Sync + ReadyForQuery to keep channel
 		// bounded.

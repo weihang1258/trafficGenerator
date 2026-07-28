@@ -2769,6 +2769,19 @@ type PGOperation struct {
 	// Kind="notification").
 	NotifyChannel string `json:"notify_channel,omitempty"`
 	NotifyPayload string `json:"notify_payload,omitempty"`
+
+	// FunctionOID is the PostgreSQL function OID (函数对象标识符) for
+	// Kind="function-call". 0 defaults to 1244 (nextval).
+	FunctionOID int32 `json:"function_oid,omitempty"`
+
+	// ArgumentFormatCodes (参数格式码) is the per-argument format code
+	// list for Kind="function-call". 0 = text, 1 = binary. Empty = all
+	// text (default).
+	ArgumentFormatCodes []int16 `json:"argument_format_codes,omitempty"`
+
+	// ResultFormatCode (结果格式码) is the format code for the
+	// FunctionCall result. 0 = text (default), 1 = binary.
+	ResultFormatCode int16 `json:"result_format_code,omitempty"`
 }
 
 // PGErrorField is a single field in ErrorResponse or NoticeResponse.

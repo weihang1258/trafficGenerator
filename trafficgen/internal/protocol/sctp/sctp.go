@@ -54,17 +54,30 @@ const (
 	ChunkDATA              = 0
 	ChunkINIT              = 1
 	ChunkINITAck           = 2
-	ChunkCOOKIEEcho        = 10
-	ChunkCOOKIEAck         = 11
+	ChunkSACK              = 3
 	ChunkHEARTBEAT         = 4
 	ChunkHEARTBEATAck      = 5
 	ChunkABORT             = 6
 	ChunkSHUTDOWN          = 7
 	ChunkSHUTDOWNAck       = 8
+	ChunkERROR             = 9
+	ChunkCOOKIEEcho        = 10
+	ChunkCOOKIEAck         = 11
 	ChunkSHUTDOWNComplete  = 14
 
 	// Chunk flags.
 	ChunkFlagBeginEnd = 0x03 // DATA chunk B+E (beginning+end of message)
+
+	// ERROR Cause Code constants (RFC 4960 §3.3.10).
+	ECInvalidStreamID       = 1
+	ECMissingMandatoryParam = 2
+	ECStaleCookieError      = 3
+	ECOutOfResource         = 4
+	ECUnresolvableAddress   = 5
+	ECUnrecognizedChunkType = 6
+	ECInvalidMandatoryParam = 7
+	ECUnrecognizedParams    = 8
+	ECNoUserData            = 9
 )
 
 // Planner implements the SCTP protocol planner.
@@ -572,6 +585,70 @@ func buildHEARTBEATAckChunk(info []byte) []byte {
 	binary.BigEndian.PutUint16(value[2:4], uint16(4+len(info)))
 	copy(value[4:], info)
 	return buildChunk(ChunkHEARTBEATAck, 0, value)
+}
+
+// buildSACKChunk builds a SACK (Selective ACK) chunk (type 3) per RFC 4960
+// §3.3.4. Value layout:
+//
+//	Cumulative TSN Ack(4) + a_rwnd(4) + Num Gap Ack Blocks(2) +
+//	Num Duplicate TSNs(2) + [Gap Ack Block(4) × N] + [Duplicate TSN(4) × M]
+//
+// When gapBlocks and dupTSNs are nil/empty, the chunk carries a bare
+// acknowledgment with no gap blocks and no duplicates — the minimal SACK.
+func buildSACKChunk(cumTSNAck, aRwnd uint32, gapBlocks []struct{ Start, End uint16 }, dupTSNs []uint32) []byte {
+	nGap := len(gapBlocks)
+	nDup := len(dupTSNs)
+	value := make([]byte, 12+nGap*4+nDup*4)
+	binary.BigEndian.PutUint32(value[0:4], cumTSNAck)
+	binary.BigEndian.PutUint32(value[4:8], aRwnd)
+	binary.BigEndian.PutUint16(value[8:10], uint16(nGap))
+	binary.BigEndian.PutUint16(value[10:12], uint16(nDup))
+	off := 12
+	for _, g := range gapBlocks {
+		binary.BigEndian.PutUint16(value[off:off+2], g.Start)
+		binary.BigEndian.PutUint16(value[off+2:off+4], g.End)
+		off += 4
+	}
+	for _, d := range dupTSNs {
+		binary.BigEndian.PutUint32(value[off:off+4], d)
+		off += 4
+	}
+	return buildChunk(ChunkSACK, 0, value)
+}
+
+// buildERRORChunk builds an ERROR chunk (type 9) per RFC 4960 §3.3.10.
+// Value is one or more Error Cause TLV entries. Each Error Cause has:
+//
+//	Cause Code(2) + Cause Length(2) + Cause-Specific Info(variable)
+//
+// When causes is nil/empty, the chunk carries a single "No User Data"
+// cause (code 9) as the default — the minimal ERROR a sender can emit
+// to signal a generic protocol error.
+func buildERRORChunk(causes []struct {
+	Code uint16
+	Info []byte
+}) []byte {
+	if len(causes) == 0 {
+		// Default: "No User Data" cause (code 9), 4 bytes total (no info).
+		value := make([]byte, 4)
+		binary.BigEndian.PutUint16(value[0:2], 9) // Cause Code: No User Data
+		binary.BigEndian.PutUint16(value[2:4], 4) // Length (includes Type+Length)
+		return buildChunk(ChunkERROR, 0, value)
+	}
+	totalLen := 0
+	for _, c := range causes {
+		totalLen += 4 + len(c.Info) // 4-byte header + info
+	}
+	value := make([]byte, totalLen)
+	off := 0
+	for _, c := range causes {
+		clen := uint16(4 + len(c.Info))
+		binary.BigEndian.PutUint16(value[off:off+2], c.Code)
+		binary.BigEndian.PutUint16(value[off+2:off+4], clen)
+		copy(value[off+4:], c.Info)
+		off += int(clen)
+	}
+	return buildChunk(ChunkERROR, 0, value)
 }
 
 // emitSCTPHeartbeats emits Count heartbeat pairs between COOKIE-ACK and
