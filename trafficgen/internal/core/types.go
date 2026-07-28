@@ -1011,7 +1011,78 @@ type DHCPOption struct {
 // DHCPv6Config holds DHCPv6 protocol configuration. Fields populated by
 // internal/protocol/dhcpv6 implementer per design_dhcpv6.md.
 type DHCPv6Config struct {
-	// TODO(phase3-dhcpv6): populate fields per design_dhcpv6.md
+	// Messages 是对话中的消息序列，按 wire 顺序输出。每条消息含
+	// msg-type/transaction-id/options/direction。
+	Messages []DHCPv6Message `json:"messages,omitempty"`
+
+	// ClientDUID 是客户端标识（用于 ClientID option）。所有客户端消息
+	// 共享同一个 DUID。nil = planner 自动生成 DUID-LLT 基于客户端 MAC。
+	ClientDUID *DUID `json:"client_duid,omitempty"`
+
+	// ServerDUID 是服务器标识（用于 ServerID option）。所有服务器消息
+	// 共享同一个 DUID。nil = planner 自动生成 DUID-EN enterprise=0。
+	ServerDUID *DUID `json:"server_duid,omitempty"`
+
+	// RelayConfig 配置中继封装。nil = 不做中继封装（直连 client↔server）。
+	RelayConfig *RelayConfig `json:"relay_config,omitempty"`
+}
+
+// DHCPv6Message 是一条 DHCPv6 消息（客户端/服务器/中继）。
+type DHCPv6Message struct {
+	// MsgType: 1-13。1-11 为客户端/服务器消息；12-13 为中继消息。
+	// 当 MsgType=12/13 时，planner 使用 34 字节中继头，否则使用 4 字节标准头。
+	MsgType uint8 `json:"msg_type"`
+
+	// TransactionID: 3 字节事务 ID（transaction ID，事务标识符）。中继消息（12/13）不用此字段。
+	// 全零 = planner 自动生成随机 XID；非零 = 用户指定（用于跨消息一致性）。
+	TransactionID [3]byte `json:"transaction_id,omitempty"`
+
+	// Direction: "up" = client→server, "down" = server→client。
+	Direction string `json:"direction,omitempty"`
+
+	// Options: 消息携带的 DHCPv6 选项列表，按用户指定顺序输出。
+	Options []DHCPv6Option `json:"options,omitempty"`
+
+	// RelayFields: 仅 MsgType=12/13 时使用。
+	RelayFields *RelayFields `json:"relay_fields,omitempty"`
+}
+
+// RelayFields 是 RELAY-FORW/RELAY-REPL 的中继特定字段。
+type RelayFields struct {
+	HopCount    uint8  `json:"hop_count"`
+	LinkAddress string `json:"link_address"`
+	PeerAddress string `json:"peer_address"`
+}
+
+// DUID 标识客户端/服务器（DHCPv6 Unique Identifier，DHCPv6 唯一标识符）。
+type DUID struct {
+	Type            uint8  `json:"type"`                       // 1=LLT, 2=EN, 3=LL
+	HardwareType    uint16 `json:"hardware_type,omitempty"`    // DUID-LLT/LL 用；1=Ethernet
+	Time            uint32 `json:"time,omitempty"`              // DUID-LLT 用；自 2000-01-01 UTC 秒
+	EnterpriseNum   uint32 `json:"enterprise_num,omitempty"`   // DUID-EN 用
+	VendorSpecific  []byte `json:"vendor_specific,omitempty"`  // DUID-EN 用
+	LinkLayerAddr   string `json:"link_layer_addr,omitempty"`  // MAC 地址字符串，如 "00:11:22:33:44:55"
+}
+
+// DHCPv6Option 是一个 TLV 选项。Code/LEN 由 planner 自动填，Data 是
+// 选项的 OPTION_DATA 字段（已序列化的字节）。
+type DHCPv6Option struct {
+	Code uint16 `json:"code"` // OPTION_* 常量，如 1=ClientID
+	Data []byte `json:"data,omitempty"` // 已序列化的 OPTION_DATA
+}
+
+// RelayConfig 配置中继封装行为。
+type RelayConfig struct {
+	// RelayIP: 中继代理的全球 IPv6 地址（用于 link-address）。
+	RelayIP string `json:"relay_ip"`
+	// RelayMAC: 中继代理的 MAC（用于 L2）。
+	RelayMAC string `json:"relay_mac"`
+	// HopCount: 起始 hop-count，默认 1。
+	HopCount uint8 `json:"hop_count,omitempty"`
+	// InterfaceID: 中继代理的接口标识（option 18），可为空。
+	InterfaceID []byte `json:"interface_id,omitempty"`
+	// IncludeClientMAC: 是否在 RELAY-FORW 中携带 option 79 (Client MAC)。
+	IncludeClientMAC bool `json:"include_client_mac,omitempty"`
 }
 
 // GRPCConfig holds gRPC/HTTP2 telemetry protocol configuration. gRPC runs
@@ -1437,8 +1508,122 @@ type IKEChildSA struct {
 
 // IKENATTConfig holds IKE-NAT-T protocol configuration. Fields populated
 // by internal/protocol/ike_nat_t implementer per design_ike_nat_t.md.
+//
+// IKE-NAT-T (IKEv2 NAT 穿透扩展, IKEv2 NAT Traversal extension) extends
+// IKEv2 (RFC 7296) with NAT-Traversal (RFC 3947/3948) — Non-ESP Marker (4
+// bytes 0x00000000), NAT-D/NAT-OA payloads, UDP-ESP encapsulation, and
+// NAT-keepalive (1 byte 0xFF). The default port is 4500 (floated from 500).
 type IKENATTConfig struct {
-	// TODO(phase3-ike_nat_t): populate fields per design_ike_nat_t.md
+	// InitiatorSPI 是发起方 SPI（8 字节）。0 = planner 自动生成。IKE 生命周期内不变。
+	InitiatorSPI uint64 `json:"initiator_spi,omitempty"`
+
+	// ResponderSPI 是响应方 SPI（8 字节）。IKE_SA_INIT 请求阶段为 0；
+	// 后续交换从响应方 IKE_SA_INIT 响应中学习。
+	ResponderSPI uint64 `json:"responder_spi,omitempty"`
+
+	// NATDetection 控制是否在 IKE_SA_INIT 中发送 NAT-D Notify。
+	// true = 携带 NAT_DETECTION_SOURCE_IP + NAT_DETECTION_DESTINATION_IP
+	NATDetection bool `json:"nat_detection,omitempty"`
+
+	// NATDetectedOnSource 表示发起方->响应方方向是否检测到 NAT。
+	// true = 触发端口浮动 + UDP-ESP 封装 + 周期 keepalive
+	NATDetectedOnSource bool `json:"nat_detected_on_source,omitempty"`
+
+	// NATDetectedOnDest 表示响应方->发起方方向是否检测到 NAT。
+	NATDetectedOnDest bool `json:"nat_detected_on_dest,omitempty"`
+
+	// PortFloat 控制是否在 NAT 检测后进行端口浮动 500->4500。
+	PortFloat bool `json:"port_float,omitempty"`
+
+	// UDPEncapESP 控制是否对 ESP 报文进行 UDP-ESP 封装。
+	UDPEncapESP bool `json:"udp_encap_esp,omitempty"`
+
+	// Keepalive 控制周期发送 NAT-keepalive (1 字节 0xFF)。
+	// 仅在 NATDetectedOnSource/Dest = true 时生效。
+	Keepalive *NATKeepaliveConfig `json:"keepalive,omitempty"`
+
+	// Retransmit 控制 IKE_SA_INIT 请求的重传策略（RFC 7296 §2.2）。
+	// nil = 使用默认值（Timeout=500ms, MaxRetransmits=5, Backoff=2.0）。
+	Retransmit *RetransmitConfig `json:"retransmit,omitempty"`
+
+	// Dialog 是 IKE 消息序列（IKE_SA_INIT 请求/响应, IKE_AUTH 请求/响应, ...）。
+	// 每条消息携带方向 (up/down) + Exchange Type + Payloads。
+	Dialog []IKENATTMessage `json:"dialog,omitempty"`
+
+	// ChildSA 描述 IKE_AUTH 后建立的 Child SA，用于 ESP-in-UDP 子流。
+	// nil = 不建立 Child SA（仅 IKE 协商）。
+	ChildSA *ESPChildSAConfig `json:"child_sa,omitempty"`
+}
+
+// NATKeepaliveConfig 配置 NAT-keepalive 周期发送。
+type NATKeepaliveConfig struct {
+	// Interval 是 keepalive 发送周期（秒）。0 = 默认 20s。
+	Interval int `json:"interval,omitempty"`
+	// Count 是 keepalive 报文数。0 = 1 个；正数 N = 发送 N 个。
+	Count int `json:"count,omitempty"`
+	// Direction 控制哪个方向发送 keepalive。"up" = 发起方->响应方；
+	// "down" = 响应方->发起方；"both" = 双方均发送。
+	Direction string `json:"direction,omitempty"`
+}
+
+// RetransmitConfig 配置 IKE_SA_INIT 请求的重传策略（RFC 7296 §2.2）。
+type RetransmitConfig struct {
+	// Timeout 是首次重传超时（毫秒）。0 = 默认 500ms。
+	Timeout int `json:"timeout,omitempty"`
+	// MaxRetransmits 是最大重传次数。0 = 不重传；默认 5。
+	MaxRetransmits int `json:"max_retransmits,omitempty"`
+	// Backoff 是指数退避因子。0 = 默认 2.0；小于 1.0 被 Validate 拒绝。
+	Backoff float64 `json:"backoff,omitempty"`
+}
+
+// IKENATTMessage 是 IKE-NAT-T 对话中的一条消息。
+type IKENATTMessage struct {
+	// Direction: "up" = 发起方->响应方；"down" = 响应方->发起方。
+	Direction string `json:"direction"`
+	// ExchangeType: 34=IKE_SA_INIT, 35=IKE_AUTH, 37=INFORMATIONAL, ...
+	ExchangeType uint8 `json:"exchange_type"`
+	// MessageID: 此消息的 ID；IKE_SA_INIT 双方均从 0 开始。
+	MessageID uint32 `json:"message_id,omitempty"`
+	// Payloads: 此消息携带的 IKE payload 列表（SAi/KEi/Ni/NAT-D/NAT-OA/...）。
+	Payloads []IKENATTPayload `json:"payloads,omitempty"`
+}
+
+// IKENATTPayload 描述 IKE payload。OneOf 风格（一个字段对应一种 payload 类型）。
+type IKENATTPayload struct {
+	// Type: 33=SA, 34=KE, 40=Nonce, 41=Notify (含 NAT-D), 53=Encrypted, ...
+	Type uint8 `json:"type"`
+	// 各 payload 类型对应的数据（仅一个非 nil）
+	SA     *IKESA      `json:"sa,omitempty"`
+	KE     *IKEKE      `json:"ke,omitempty"`
+	Nonce  []byte      `json:"nonce,omitempty"`
+	Notify *NotifyPayload `json:"notify,omitempty"`
+
+	// Raw 是原始 payload 体（用于故障注入或未知类型）。
+	Raw []byte `json:"raw,omitempty"`
+}
+
+// NotifyPayload 描述 IKE Notify payload。NAT 检测 Notify 携带 20 字节 SHA-1。
+type NotifyPayload struct {
+	ProtocolID      uint8  `json:"protocol_id,omitempty"`
+	SPISize         uint8  `json:"spi_size,omitempty"`
+	NotifyMsgType   uint16 `json:"notify_msg_type"`
+	NotificationData []byte `json:"notification_data,omitempty"`
+}
+
+// ESPChildSAConfig 描述建立 Child SA 后的 ESP 子流配置。
+type ESPChildSAConfig struct {
+	// SPIout 是发送方出方向 SPI（4 字节）。0 = planner 自动分配。
+	SPIout uint32 `json:"spi_out,omitempty"`
+	// SPIin 是接收方入方向 SPI（4 字节）。从对端 IKE_AUTH 中学习。
+	SPIin uint32 `json:"spi_in,omitempty"`
+	// ESPDataSize 是每个 ESP 报文承载的加密数据字节数。0 = 默认 100 字节。
+	ESPDataSize int `json:"esp_data_size,omitempty"`
+	// ESPCount 是 ESP 报文数量。0 = 1。
+	ESPCount int `json:"esp_count,omitempty"`
+	// Algorithm 是 ESP 加密/认证算法（仅元数据，本 planner 不实现真正加密）。
+	Algorithm string `json:"algorithm,omitempty"`
+	// Mode: "tunnel" = 整 IP 包加密；"transport" = 仅上层 PDU 加密
+	Mode string `json:"mode,omitempty"`
 }
 
 // IMAPConfig holds IMAP4rev2 (Internet Message Access Protocol version 4
@@ -1818,10 +2003,159 @@ type L2TPPPPFrame struct {
 	L2PPPHeader bool   `json:"l2_ppp_header,omitempty"` // true = include 0xFF03 HDLC
 }
 
-// MDNSConfig holds mDNS protocol configuration. Fields populated by
-// internal/protocol/mdns implementer per design_mdns.md.
+// MDNSConfig holds mDNS (Multicast DNS, 多播 DNS) protocol configuration
+// (RFC 6762). mDNS reuses the DNS wire format (header + question/answer/
+// authority/additional sections) but adds:
+//   - Transaction ID MUST be 0 (not 0x1234)
+//   - Source port MUST be 5353 (or the receiver treats as legacy unicast)
+//   - Destination IP is the multicast group (224.0.0.251 for IPv4, ff02::fb for IPv6)
+//   - IP TTL/HopLimit MUST be 255
+//   - cache-flush bit (0x8000) on the CLASS field of authoritative RRs
+//   - Default TTL for RRs is 4500 seconds (not 64/300)
+//
+// The planner synthesizes either a single query OR a single response per
+// flow (no implicit pairing — mDNS is multicast, one sender, many
+// receivers). For unsolicited announcement (no query), set IsResponse=true
+// and leave Questions empty.
 type MDNSConfig struct {
-	// TODO(phase3-mdns): populate fields per design_mdns.md
+	// Mode selects the mDNS message type:
+	//   "query"      — emit a multicast query (Question section)
+	//   "response"   — emit a multicast response (Answer + Additional sections)
+	//   "probe"      — emit a probe (Question section with QU=1, sent 3 times)
+	//   "announce"   — emit an unsolicited response (Answer section, cache-flush=1)
+	//   "goodbye"    — emit a response with TTL=0 for all records in Answers
+	// Empty defaults to "query".
+	Mode string `json:"mode,omitempty"`
+
+	// Questions is the Question section. For "query"/"probe" modes, this
+	// is what gets sent. For "response"/"announce"/"goodbye", Questions
+	// may be empty (unsolicited) or echo the original query (solicited).
+	Questions []MDNSQuestion `json:"questions,omitempty"`
+
+	// Answers is the Answer section. Used by "response"/"announce"/
+	// "goodbye" modes. For "goodbye", the planner overrides TTL=0 on
+	// every record.
+	Answers []MDNSResourceRecord `json:"answers,omitempty"`
+
+	// Authorities is the Authority section. mDNS typically leaves this
+	// empty (NSCOUNT=0). Included for completeness.
+	Authorities []MDNSResourceRecord `json:"authorities,omitempty"`
+
+	// Additionals is the Additional section. mDNS responses commonly
+	// place SRV/TXT/A here (related to a PTR in Answers).
+	Additionals []MDNSResourceRecord `json:"additionals,omitempty"`
+
+	// ProbingRepeat is the number of probe packets to emit in "probe"
+	// mode. Default 3 per RFC 6762 §8.1. Each probe is separated by
+	// ProbingInterval.
+	ProbingRepeat int `json:"probing_repeat,omitempty"`
+
+	// ProbingInterval is the base delay between probes in milliseconds.
+	// Default 250ms per RFC 6762 §8.1. Combined with ProbingJitterMax
+	// (0-250ms random), the actual inter-probe gap is:
+	//   t_n = t_(n-1) + ProbingInterval + rand[0, ProbingJitterMax]
+	// Set ProbingInterval=0 to disable the base delay (jitter only).
+	ProbingInterval int `json:"probing_interval,omitempty"`
+
+	// ProbingJitterMax is the maximum random jitter added to each
+	// ProbingInterval gap, in milliseconds. Default 250ms per RFC 6762
+	// §8.1. Set to 0 to disable jitter entirely (deterministic gap).
+	// 0-250 ms range; values >250 return Validate error.
+	ProbingJitterMax int `json:"probing_jitter_max,omitempty"`
+
+	// ProbingJitterSeed is the seed for the random jitter. Same seed
+	// produces identical probe timestamps (useful for tests). 0 means
+	// use crypto-random or time-based seed.
+	ProbingJitterSeed int64 `json:"probing_jitter_seed,omitempty"`
+
+	// AnnouncingRepeat is the number of announcement packets to emit in
+	// "announce" mode. Default 2 per RFC 6762 §8.3.
+	AnnouncingRepeat int `json:"announcing_repeat,omitempty"`
+
+	// AnnouncingInterval is the delay between announcements in
+	// milliseconds. Default 1000ms per RFC 6762 §8.3.
+	AnnouncingInterval int `json:"announcing_interval,omitempty"`
+
+	// ResponseDelay is the random delay before sending a multicast
+	// response, in milliseconds. Default 20-120ms per RFC 6762 §6.0.
+	// 0 means no delay (immediate response).
+	ResponseDelay int `json:"response_delay,omitempty"`
+
+	// MulticastGroup selects the destination IP. Default "224.0.0.251"
+	// (IPv4). For IPv6, the planner auto-selects "ff02::fb" based on
+	// spec.SrcIP. Explicit override is rare but allowed.
+	MulticastGroup string `json:"multicast_group,omitempty"`
+
+	// ForceUnicastResponse, when true, sets the QU bit on Questions (QCLASS
+	// high bit) — requests receivers to respond via unicast. Used in
+	// "query"/"probe" modes.
+	ForceUnicastResponse bool `json:"force_unicast_response,omitempty"`
+
+	// CacheFlush, when true, sets the cache-flush bit (0x8000) on the
+	// CLASS field of all RRs in Answers/Additionals. Default true for
+	// "announce"/"goodbye" modes (per RFC 6762 §10.2), false otherwise.
+	CacheFlush *bool `json:"cache_flush,omitempty"`
+
+	// DefaultTTL is the TTL to use when a Resource Record's TTL field is
+	// 0. Default 4500 (mDNS standard). Per-record TTL overrides this.
+	DefaultTTL uint32 `json:"default_ttl,omitempty"`
+
+	// TC (Truncation, 截断) when true sets the TC bit in the DNS header
+	// Flags field. Only valid for response modes. Default false.
+	TC bool `json:"tc,omitempty"`
+}
+
+// MDNSQuestion is one entry in the Question section of an mDNS message.
+type MDNSQuestion struct {
+	// Name is the QNAME, e.g. "_http._tcp.local" or "MyServer.local".
+	Name string `json:"name"`
+	// Type is the QTYPE: A=1, AAAA=28, PTR=12, SRV=33, TXT=16, ANY=255.
+	Type uint16 `json:"type"`
+	// Class is the QCLASS. 0 defaults to IN (1). Bit 15 (0x8000) sets
+	// the QU bit (unicast response request).
+	Class uint16 `json:"class,omitempty"`
+}
+
+// MDNSResourceRecord is one entry in Answer/Authority/Additional sections.
+type MDNSResourceRecord struct {
+	// Name is the owner name.
+	Name string `json:"name"`
+	// Type is the RR type: A=1, AAAA=28, PTR=12, SRV=33, TXT=16, NSEC=47.
+	Type uint16 `json:"type"`
+	// Class is the RR class. 0 defaults to IN (1). Bit 15 (0x8000) sets
+	// the cache-flush bit.
+	Class uint16 `json:"class,omitempty"`
+	// TTL in seconds. 0 = use DefaultTTL. Explicit 0 only via Goodbye mode.
+	TTL uint32 `json:"ttl,omitempty"`
+
+	// RDATA fields, populated per Type:
+	//   A    → IPAddress (IPv4)
+	//   AAAA → IPAddress (IPv6)
+	//   PTR  → DomainName
+	//   CNAME→ DomainName
+	//   SRV  → Priority, Weight, Port, Target
+	//   TXT  → TXTEntries (each becomes <len>str in RDATA)
+	//   NSEC → NSECNextName + NSECTypes (encoder builds RFC 4034 §4
+	//          window blocks and 1-32 byte type bitmaps)
+	IPAddress  string   `json:"ip_address,omitempty"`
+	DomainName string   `json:"domain_name,omitempty"`
+	Priority   uint16   `json:"priority,omitempty"`
+	Weight     uint16   `json:"weight,omitempty"`
+	Port       uint16   `json:"port,omitempty"`
+	Target     string   `json:"target,omitempty"`
+	TXTEntries []string `json:"txt_entries,omitempty"`
+
+	// NSEC typed RDATA fields (Type=47 only). NSECNextName is encoded as
+	// QName (compression allowed). NSECTypes is grouped by window T/256;
+	// each block is WindowNumber(1) + BitmapLength(1, range 1-32) +
+	// TypeBitmap(BitmapLength). Empty fields are invalid for Type=47.
+	NSECNextName string   `json:"nsec_next_name,omitempty"`
+	NSECTypes    []uint16 `json:"nsec_types,omitempty"`
+
+	// RawRDATA, when non-nil, overrides the typed fields above and is
+	// emitted verbatim as RDATA. Used only for testing malformed records;
+	// normal NSEC records MUST use NSECNextName + NSECTypes.
+	RawRDATA []byte `json:"raw_rdata,omitempty"`
 }
 
 // MySQLConfig for the MySQL Client/Server Protocol (MySQL 8.0+).
@@ -3074,10 +3408,112 @@ type SNMPVarBind struct {
 	StrValue string `json:"str_value,omitempty"` // string-form value for DisplayString convenience
 }
 
-// SSDPConfig holds SSDP protocol configuration. Fields populated by
-// internal/protocol/ssdp implementer per design_ssdp.md.
+// SSDPConfig holds SSDP (Simple Service Discovery Protocol, 简单服务发现协议)
+// configuration. SSDP is the discovery layer of UPnP (Universal Plug and Play,
+// 通用即插即用), carrying HTTP-formatted text over UDP port 1900 to either IPv4
+// multicast 239.255.255.250 or IPv6 multicast ff02::c.
+//
+// The planner generates either a NOTIFY (device announce/bye/update, sent
+// to the multicast group) or an M-SEARCH (control point search, sent to
+// the multicast group, with singlecast 200 OK responses). Each message is
+// a self-contained UDP datagram — there is no TCP-style state machine, no
+// connection, no keep-alive. SSDP borrows HTTP/1.1 message syntax only
+// (request/status line + CRLF-terminated headers + blank line + body);
+// HTTP semantics (chunked, keep-alive, 100-continue) do NOT apply.
+//
+// MessageType selects the role:
+// - "alive": NOTIFY * HTTP/1.1 + NTS=ssdp:alive + mandatory headers.
+// - "byebye": NOTIFY * HTTP/1.1 + NTS=ssdp:byebye + minimal headers.
+// - "update": NOTIFY * HTTP/1.1 + NTS=ssdp:update.
+// - "msearch": M-SEARCH * HTTP/1.1 + MAN="ssdp:discover" + ST + MX.
+// - "response": HTTP/1.1 200 OK (singlecast reply to msearch).
 type SSDPConfig struct {
-	// TODO(phase3-ssdp): populate fields per design_ssdp.md
+	// MessageType (消息类型): "alive" / "byebye" / "update" / "msearch" /
+	// "response". Required. Validate returns error when empty or unknown.
+	MessageType string `json:"message_type"`
+
+	// SearchTarget (搜索目标): NT for NOTIFY, ST for M-SEARCH/response.
+	// Examples: "upnp:rootdevice", "ssdp:all", "uuid:<UUID>",
+	// "urn:schemas-upnp-org:device:MediaServer:1". Required for all
+	// message types.
+	SearchTarget string `json:"search_target"`
+
+	// USN (Unique Service Name, 唯一服务名). Required for NOTIFY and response.
+	// Format: "uuid:<UUID>" or "uuid:<UUID>::<NT>". M-SEARCH does NOT carry USN.
+	USN string `json:"usn"`
+
+	// Location (设备描述文档URL). Used by alive and response (LOCATION header).
+	// Format: "http://<ip>:<port>/<path>". Empty -> header omitted.
+	Location string `json:"location,omitempty"`
+
+	// Server (设备信息字符串). Used by alive / response (SERVER header) and
+	// msearch (USER-AGENT header). Empty -> header omitted. Max 256 bytes
+	// recommended, 4096 bytes hard limit (Validate error).
+	Server string `json:"server,omitempty"`
+
+	// MaxAge (缓存寿命秒数). Used by alive (Cache-Control: max-age=N).
+	// 0 means "use default 1800". Validate enforces 1 <= MaxAge <= 1800.
+	MaxAge int `json:"max_age,omitempty"`
+
+	// MX (最大等待时间秒). Used by msearch (MX: N).
+	// 0 means "use default 3". Validate enforces 1 <= MX <= 5.
+	MX int `json:"mx,omitempty"`
+
+	// BootID (设备启动ID). Optional on alive/update (BOOTID.UPNP.ORG header).
+	// 0 -> header omitted. uint32 range (1 to 2^31-1 sensible).
+	BootID uint32 `json:"boot_id,omitempty"`
+
+	// ConfigID (设备配置ID). Optional on alive/update (CONFIGID.UPNP.ORG).
+	// 0 -> header omitted.
+	ConfigID uint32 `json:"config_id,omitempty"`
+
+	// ResponseCount. Used by msearch: number of singlecast 200 OK responses
+	// to emit (simulating K devices replying). 0/1 = 1 response. Each
+	// response shares flow_id but increments packet_index.
+	ResponseCount int `json:"response_count,omitempty"`
+
+	// ResponseDelayMinMs / ResponseDelayMaxMs. Used by msearch when
+	// ResponseCount > 1: random delay in [Min, Max] ms between each
+	// 200 OK response (UPnP 1.1 §1.3.4 mandates 0..MX seconds uniform).
+	// Default: 0..3000 (mapping MX=3 default). Validate requires Min<=Max.
+	ResponseDelayMinMs int `json:"response_delay_min_ms,omitempty"`
+	ResponseDelayMaxMs int `json:"response_delay_max_ms,omitempty"`
+
+	// RepeatCount. Used by alive/update: emit the same message N times
+	// within the same flow (each as its own PacketConfig with packet_index
+	// increment). 0/1 = 1 packet (default). Inter-packet delay defaults to
+	// MaxAge/3 seconds (UPnP 1.1 §1.2.2 re-announce pattern); override via
+	// RepeatIntervalMs.
+	RepeatCount int `json:"repeat_count,omitempty"`
+
+	// Date (HTTP-date格式). Used by response (DATE header).
+	// Format: RFC 7231 §7.1.1.1, e.g. "Sun, 28 Jul 2026 12:34:56 GMT".
+	// Empty -> header omitted.
+	Date string `json:"date,omitempty"`
+
+	// MulticastGroup override (多播组覆盖). Defaults to "239.255.255.250"
+	// for IPv4 and "ff02::c" for IPv6. Planner emits this in the HOST
+	// header AND uses it as the IP destination. For point-to-point tests,
+	// set to a unicast IP (legal for response messages).
+	MulticastGroup string `json:"multicast_group,omitempty"`
+
+	// OmitExt controls whether the EXT header is omitted in response
+	// messages. Default false (EXT header is emitted per UPnP 1.1 §1.3).
+	// Setting true suppresses the EXT header for negative testing.
+	OmitExt bool `json:"omit_ext,omitempty"`
+
+	// Body (可选报文主体). Empty -> no body. Used by response for optional
+	// device description XML payload.
+	Body string `json:"body,omitempty"`
+
+	// EmitContentLength controls whether Content-Length header is emitted.
+	// Default false (SSDP convention omits Content-Length for empty body).
+	// When true and Body is non-empty, Content-Length: <len> is emitted.
+	EmitContentLength bool `json:"emit_content_length,omitempty"`
+
+	// RepeatIntervalMs overrides the default MaxAge/3 seconds between
+	// repeat packets (used when RepeatCount > 1). 0 = use default.
+	RepeatIntervalMs int `json:"repeat_interval_ms,omitempty"`
 }
 
 // SSHConfig holds SSH protocol configuration. Fields populated by
@@ -3541,15 +3977,193 @@ type AlertStep struct {
 	Level uint8 `json:"level,omitempty"` // 1=warning, 2=fatal
 }
 
-// VmessConfig holds vmess protocol configuration. Fields populated by
-// internal/protocol/vmess implementer per design_vmess.md.
+// VmessConfig holds vmess protocol configuration. vmess is a session-level,
+// AEAD-encrypted binary proxy protocol running on top of TCP (default) or
+// UDP. The planner emits a TCP/UDP handshake (L4 transport), then the
+// VMess Request header (Version + IV + encrypted body + HMAC), then the
+// encrypted payload (opaque bytes), then the server's VMess Response, then
+// payload data — all within one flow. Encrypted fields (IV, body, HMAC,
+// payload) are opaque bytes from the planner's perspective — the planner
+// generates the BYTE STRUCTURE (Version byte, UUID bytes, command byte,
+// address type byte, port bytes) but treats encryption as a
+// "format-compliant opaque fill" — the bytes are well-formed but not
+// cryptographically meaningful (no real encryption key, 没有真实密钥).
+//
+// UUID (用户身份标识, RFC 4122): 16 bytes. Text form
+// "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" (36 chars with dashes) is
+// accepted and converted to bytes internally; hex form
+// "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" (32 chars) is also accepted.
+//
+// AlterID (变更标识): vmess AEAD requires alter_id=0. Non-zero alter_id
+// with AEAD is a protocol violation; Legacy mode requires alter_id>0.
+//
+// Encryption (加密算法): "aead_chacha20_poly1305" (default),
+// "aead_aes_128_gcm", "legacy_aes_128_cfb". The planner emits bytes
+// matching the encryption-mode framing — encrypted content is opaque
+// fill, but the framing offsets differ.
+//
+// Address (目标地址): the target the vmess server should proxy to. IPv4
+// (4 bytes, type 0x01), Domain (len-prefixed string, type 0x02), or IPv6
+// (16 bytes, type 0x03).
 type VmessConfig struct {
-	// TODO(phase3-vmess): populate fields per design_vmess.md
+	// UUID (用户身份标识) is the 16-byte user identifier per RFC 4122.
+	// Accepts standard text form "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+	// (36 chars with dashes), hex form (32 chars, no dashes), or
+	// uppercase variants. Required field.
+	UUID string `json:"uuid"`
+
+	// AlterID (变更标识): 0 = AEAD mode (vmess v5); >0 = Legacy mode
+	// (vmess v4, AES-128-CFB + HMAC SHA-256). AEAD with alter_id>0 is
+	// a protocol violation (Validate warns). Legacy with alter_id=0 is
+	// also invalid (Legacy requires alter_id>0).
+	AlterID uint16 `json:"alter_id,omitempty"`
+
+	// Encryption (加密算法) selects the cipher and framing layout:
+	//   "aead_chacha20_poly1305" (default) — AEAD, 16B IV (12B nonce + 4B counter)
+	//   "aead_aes_128_gcm"           — AEAD, 16B IV (12B nonce + 4B counter)
+	//   "legacy_aes_128_cfb"         — Legacy, 16B IV (random), HMAC SHA-256 (16B truncated)
+	// Empty defaults to "aead_chacha20_poly1305".
+	Encryption string `json:"encryption,omitempty"`
+
+	// Command (命令字节): 0x01=TCP (default), 0x02=UDP, 0x03=MUX. The
+	// planner uses Command=0x02 to select UDP transport; otherwise TCP.
+	Command uint8 `json:"command,omitempty"`
+
+	// AddressType (地址类型): 0x01=IPv4, 0x02=Domain, 0x03=IPv6. When 0
+	// (default), the planner derives the type from Address's parse
+	// result (IPv4 → 0x01, IPv6 → 0x03, otherwise Domain → 0x02).
+	AddressType uint8 `json:"address_type,omitempty"`
+
+	// Address (目标地址) is the target IPv4/Domain/IPv6 the vmess
+	// server should proxy to. For Domain, length must be 1-253 bytes.
+	Address string `json:"address,omitempty"`
+
+	// Port (目标端口) is the target port (1-65535, big-endian on wire).
+	Port uint16 `json:"port,omitempty"`
+
+	// HeaderPadLen (头部填充长度): 0-16 (default: random 0-16). Random
+	// padding bytes emitted after the Port field to obscure protocol
+	// fingerprint. Values >16 are invalid (vmess spec limit).
+	HeaderPadLen uint8 `json:"header_pad_len,omitempty"`
+
+	// Payload (请求载荷) is the user data (HTTP request / SOCKS5 bytes /
+	// raw TCP) sent as the Request Payload (encrypted with the AEAD
+	// body). When nil, the planner emits a single empty-chunk frame
+	// (2-byte length=0 + 16-byte tag) for AEAD mode, or no payload
+	// bytes for Legacy mode.
+	Payload []byte `json:"payload,omitempty"`
+
+	// ResponsePayload (响应载荷) is the data sent back as the Response
+	// Payload (server -> client direction, encrypted). nil = no response
+	// payload (planner still emits ResponsePayloadLen=0 for AEAD mode).
+	ResponsePayload []byte `json:"response_payload,omitempty"`
+
+	// FileSource (文件来源), when set, supplies the Request Payload via
+	// PayloadCache.GetOrLoad(src) instead of inline Payload. Takes
+	// precedence over Payload.
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
+
+	// Heartbeat (心跳), when true, emits a minimal VMess Request
+	// (HeaderPad=8, Payload=nil) followed by a VMess Response with empty
+	// payload — simulating a keepalive probe. Server typically responds
+	// within 1s.
+	Heartbeat bool `json:"heartbeat,omitempty"`
+
+	// HeartbeatCount (心跳次数): number of heartbeat request/response
+	// cycles to emit. 0 (default) = 1. Used to model long-lived
+	// connections with periodic keepalives (e.g. SSH-over-vmess idle).
+	HeartbeatCount int `json:"heartbeat_count,omitempty"`
+
+	// MuxStreams (多路复用流): when Command=0x03, MuxStreams generates
+	// multiple inner TCP streams within a single VMess connection. Each
+	// stream carries its own MUX frame (session_id + status + length +
+	// payload). Empty when Command != 0x03.
+	MuxStreams []VmessMuxStream `json:"mux_streams,omitempty"`
+}
+
+// VmessMuxStream (MUX多路复用流) describes one inner stream within a vmess
+// MUX connection. The planner emits each stream's frames (NEW / KEEP / END)
+// after the outer VMess Request/Response handshake.
+type VmessMuxStream struct {
+	// SessionID (会话标识) is the 2-byte MUX session identifier (1-65535).
+	SessionID uint16 `json:"session_id"`
+
+	// Frames (MUX帧) lists the frames to emit for this stream.
+	Frames []VmessMuxFrame `json:"frames"`
+
+	// TargetAddr (目标地址, for NEW frame only) is the destination
+	// address the stream connects to. Empty for KEEP/END/KEEPALIVE.
+	TargetAddr string `json:"target_addr,omitempty"`
+
+	// TargetPort (目标端口, for NEW frame only) is the destination port.
+	TargetPort uint16 `json:"target_port,omitempty"`
+}
+
+// VmessMuxFrame (MUX帧) is one MUX frame within a vmess stream.
+type VmessMuxFrame struct {
+	// Status (帧状态): 0x01=NEW (新会话), 0x02=KEEP (保持/数据), 0x03=END (关闭), 0x04=KEEPALIVE (保活).
+	Status uint8 `json:"status"`
+
+	// Payload (帧载荷) carries the data bytes for KEEP frames, or nil
+	// for NEW (carries target address in outer frame)/END/KEEPALIVE.
+	Payload []byte `json:"payload,omitempty"`
 }
 
 // WireGuardConfig holds WireGuard protocol configuration. Fields
 // populated by internal/protocol/wireguard implementer per
 // design_wireguard.md.
 type WireGuardConfig struct {
-	// TODO(phase3-wireguard): populate fields per design_wireguard.md
+	// Role (角色): "initiator" (default, 发起方) or "responder" (响应方)
+	Role string `json:"role,omitempty"`
+
+	// LocalStaticPubKey (本地静态公钥) is the local X25519 static public key (32 bytes)
+	LocalStaticPubKey []byte `json:"local_static_pub_key,omitempty"`
+
+	// PeerStaticPubKey (对端静态公钥) is the peer's X25519 static public key (32 bytes)
+	PeerStaticPubKey []byte `json:"peer_static_pub_key,omitempty"`
+
+	// LocalEphemeralPubKey (本地临时公钥) is the local ephemeral X25519 public key (32 bytes)
+	LocalEphemeralPubKey []byte `json:"local_ephemeral_pub_key,omitempty"`
+
+	// SenderIndex (发送方索引) is the local session index; 0 = auto-generate (1..2^32-1)
+	SenderIndex uint32 `json:"sender_index,omitempty"`
+
+	// PSK (预共享密钥) is the Noise_IKpsk2 pre-shared key (32 bytes); nil = zero-filled
+	PSK []byte `json:"psk,omitempty"`
+
+	// Cookie (mac2 派生) is the 16-byte BLAKE2s cookie for mac2; nil = zero (no cookie)
+	Cookie []byte `json:"cookie,omitempty"`
+
+	// InitialCounter (初始计数器) is the starting transport counter; 0 = start at 0
+	InitialCounter uint64 `json:"initial_counter,omitempty"`
+
+	// RekeyAfter (重密钥阈值) is the packet-count threshold for rekey; 0 = 2^60
+	RekeyAfter uint64 `json:"rekey_after,omitempty"`
+
+	// RekeyAfterTime (重密钥时间) is the time threshold in seconds for rekey; 0 = 120s
+	RekeyAfterTime int `json:"rekey_after_time,omitempty"`
+
+	// KeepaliveInterval (保活间隔) in seconds; 0 = disabled, 10 = 10s
+	KeepaliveInterval int `json:"keepalive_interval,omitempty"`
+
+	// CookieReplyThreshold (Cookie应答阈值) controls when responder sends Cookie Reply;
+	// 0 = never (default)
+	CookieReplyThreshold int `json:"cookie_reply_threshold,omitempty"`
+
+	// TransportPayloads (传输负载) is the list of inner IP packets to send as transport data
+	TransportPayloads [][]byte `json:"transport_payloads,omitempty"`
+
+	// FileSource (文件源) provides payload bytes; takes precedence over TransportPayloads
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
+
+	// Direction (方向): "up" (client->server, default), "down" (server->client), "both"
+	Direction string `json:"direction,omitempty"`
+
+	// Handshake (是否握手) controls whether to emit handshake initiation/response;
+	// nil or true = emit handshake (default), explicit false = skip handshake
+	Handshake *bool `json:"handshake,omitempty"`
+
+	// Response (是否响应) controls whether responder emits Response (type=2);
+	// nil or true = emit response (default), explicit false = skip response
+	Response *bool `json:"response,omitempty"`
 }
