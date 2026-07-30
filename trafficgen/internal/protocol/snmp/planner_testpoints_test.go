@@ -618,7 +618,7 @@ func TestPDU_V1TrapTag(t *testing.T) {
 	spec := validSNMPSpec()
 	spec.SNMP.Version = VersionSNMPv1
 	spec.SNMP.PDUType = PDUTrapV1
-	spec.SNMP.ResponseError = 2 // generic_trap=2 (linkDown) - reused field
+	spec.SNMP.GenericTrap = 2 // linkDown (dedicated field, not ResponseError)
 	cfgs := mustPlan(t, p, spec)
 	tag, _ := extractPDUTag(cfgs[0].Payload)
 	if tag != TagTrapV1 {

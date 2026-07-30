@@ -171,6 +171,14 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	if cfg == nil {
 		return nil
 	}
+	// Scenario mode: validate the scenario name. When Scenario is set, the
+	// planner auto-generates AuthMethods + Channels at Plan time; the manual
+	// lists are ignored. Empty Scenario = manual mode (backward-compatible).
+	if cfg.Scenario != "" {
+		if err := validateScenario(cfg); err != nil {
+			return err
+		}
+	}
 	if hasCRorLF(cfg.ServerVersion) {
 		return fmt.Errorf("ssh: server_version contains CR/LF (RFC 4253 §4.2)")
 	}
@@ -257,17 +265,33 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			sshCfg = &core.SSHConfig{}
 		}
 
+		// Scenario mode: when Scenario is set, synthesize the AuthMethods and
+		// Channels from the RFC state machine, overriding the manual lists.
+		// Empty Scenario = manual mode (backward-compatible).
+		var scenarioAuth []core.SSHMessage
+		var scenarioChannels []core.ChannelEntry
+		if sshCfg.Scenario != "" {
+			scenarioAuth = buildScenarioAuth(sshCfg)
+			scenarioChannels = buildScenarioChannels(sshCfg)
+		}
+
 		// Default auth flow when user provided none: a minimal but realistic
 		// password-shaped dialog so the planner still emits something
-		// observable. Per design §4.
+		// observable. Per design §4. In scenario mode the synthesized list
+		// takes precedence.
 		authMethods := sshCfg.AuthMethods
-		if len(authMethods) == 0 {
+		if scenarioAuth != nil {
+			authMethods = scenarioAuth
+		} else if len(authMethods) == 0 {
 			authMethods = defaultAuthMethods()
 		}
 
-		// Default channel flow.
+		// Default channel flow. In scenario mode the synthesized list takes
+		// precedence.
 		channels := sshCfg.Channels
-		if len(channels) == 0 {
+		if scenarioChannels != nil {
+			channels = scenarioChannels
+		} else if len(channels) == 0 {
 			channels = defaultChannels()
 		}
 

@@ -99,6 +99,13 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("smtp: TCP.MSS %d too small (min %d per RFC 879)", spec.TCP.MSS, MinMSS)
 		}
 	}
+	// Email structural validation (RFC 2046 §5.1.1 boundary rules,
+	// RFC 2045 §6.8 attachment data requirements).
+	if spec.SMTP != nil && spec.SMTP.Email != nil {
+		if err := validateSMTPEmail(spec.SMTP.Email); err != nil {
+			return err
+		}
+	}
 	// Port is NOT enforced here. SMTP defaults to 25 (set by
 	// mapToFlowSpec), but submission (587) and SMTPS (465) are also
 	// valid per validate_conventions.md §3.3. Enforcing port 25
@@ -247,9 +254,27 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// --- SMTP command/response pairs ---
 		dialog := smtpConfig.Dialog
 		if len(dialog) == 0 {
-			// Default session per design_smtp.md §6.6: HELO + MAIL +
-			// RCPT + DATA + empty body + QUIT.
-			dialog = defaultDialog()
+			if smtpConfig.Email != nil {
+				// When Email is set and Dialog is empty, use an envelope-
+				// only dialog (HELO + MAIL + RCPT + DATA + QUIT). The body
+				// is injected after the DATA/354 pair (see below); a body
+				// Cmd in the dialog would duplicate it.
+				dialog = defaultEmailDialog()
+			} else {
+				// Default session per design_smtp.md §6.6: HELO + MAIL +
+				// RCPT + DATA + empty body + QUIT.
+				dialog = defaultDialog()
+			}
+		}
+
+		// emailBody, when non-nil, is the auto-constructed DATA payload
+		// (RFC 5322 + RFC 2045/2046) plus terminator. It is injected
+		// after the DATA command's 354 response, and a 250 response is
+		// auto-emitted after the body. When nil, the Dialog plays back
+		// verbatim (backward-compatible path).
+		var emailBody []byte
+		if smtpConfig.Email != nil {
+			emailBody = buildSMTPEmailBody(smtpConfig.Email)
 		}
 
 		for _, cmd := range dialog {
@@ -283,6 +308,19 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, payload)
 				}
 			}
+
+			// Email body injection: when Email is set and this command
+			// is DATA, inject the auto-constructed body + a 250
+			// response after the 354 response. The body replaces the
+			// hand-written body Cmd the user would otherwise provide
+			// in the Dialog (so the user must NOT include a body Cmd
+			// when Email is set). This preserves the DATA/354 pair
+			// from the Dialog while filling in the body declaratively.
+			if emailBody != nil && isDATACommand(cmd.Cmd) {
+				clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, emailBody)
+				resp := []byte(smtpDefault250Response + "\r\n")
+				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, resp)
+			}
 		}
 
 		// --- TCP teardown (FIN-ACK, ACK, FIN-ACK, ACK) ---
@@ -314,6 +352,21 @@ func defaultDialog() []core.SMTPCommand {
 		// Body: minimal RFC 5322 headers + empty line + body + "."
 		// (the planner appends "\r\n" to complete the terminator).
 		{Cmd: "From: alice@example.org\r\nTo: bob@example.com\r\nSubject: Test\r\n\r\nHello\r\n.", Response: "250 2.0.0 Ok: queued as 1"},
+		{Cmd: "QUIT", Response: "221 2.0.0 Bye"},
+	}
+}
+
+// defaultEmailDialog returns an envelope-only SMTP session (HELO + MAIL
+// FROM + RCPT TO + DATA + QUIT) for use when SMTPConfig.Email is set and
+// Dialog is empty. The DATA body is auto-constructed from Email and
+// injected after the DATA/354 pair; including a body Cmd here would
+// duplicate it. The 250 response after the body is also auto-emitted.
+func defaultEmailDialog() []core.SMTPCommand {
+	return []core.SMTPCommand{
+		{Cmd: "HELO client.example.org", Response: "250 mail.example.org"},
+		{Cmd: "MAIL FROM:<alice@example.org>", Response: "250 2.1.0 Ok"},
+		{Cmd: "RCPT TO:<bob@example.com>", Response: "250 2.1.5 Ok"},
+		{Cmd: "DATA", Response: "354 End data with <CR><LF>.<CR><LF>"},
 		{Cmd: "QUIT", Response: "221 2.0.0 Bye"},
 	}
 }

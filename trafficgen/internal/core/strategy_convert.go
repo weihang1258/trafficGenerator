@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -248,22 +249,26 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				reqHeaders = getStringMap(sub, "headers")
 			}
 			spec.HTTP = &HTTPConfig{
-				Method:                  getStringDefault(sub, "method", "GET"),
-				URI:                     getStringDefault(sub, "uri", "/"),
-				Version:                 getString(sub, "version"),
-				RequestHeaders:          reqHeaders,
-				Body:                    getString(sub, "body"),
-				BodyB64:                 getString(sub, "body_b64"),
-				KeepAlive:               getBool(sub, "keep_alive", false),
-				Transactions:            getInt(sub, "transactions"),
-				ThinkTime:               getInt(sub, "think_time"),
-				ResponseHeaders:         getStringMap(sub, "response_headers"),
-				ResponseBody:            getString(sub, "response_body"),
-				ResponseBodyB64:         getString(sub, "response_body_b64"),
-				ResponseStatusCode:      getInt(sub, "response_status_code"),
-				ResponseStatusText:      getString(sub, "response_status_text"),
-				ResponseContentEncoding: getStringWithFallback(sub, "response_content_encoding", "content_encoding"),
-				RequestContentEncoding:  getString(sub, "request_content_encoding"),
+				Method:                   getStringDefault(sub, "method", "GET"),
+				URI:                      getStringDefault(sub, "uri", "/"),
+				Version:                  getString(sub, "version"),
+				RequestHeaders:           reqHeaders,
+				Body:                     getString(sub, "body"),
+				BodyB64:                  getString(sub, "body_b64"),
+				KeepAlive:                getBool(sub, "keep_alive", false),
+				Transactions:             getInt(sub, "transactions"),
+				ThinkTime:                getInt(sub, "think_time"),
+				ResponseHeaders:          getStringMap(sub, "response_headers"),
+				ResponseBody:             getString(sub, "response_body"),
+				ResponseBodyB64:          getString(sub, "response_body_b64"),
+				ResponseStatusCode:       getInt(sub, "response_status_code"),
+				ResponseStatusText:       getString(sub, "response_status_text"),
+				ResponseContentEncoding:  getStringWithFallback(sub, "response_content_encoding", "content_encoding"),
+				RequestContentEncoding:   getString(sub, "request_content_encoding"),
+				RequestTransferEncoding:  getString(sub, "request_transfer_encoding"),
+				ResponseTransferEncoding: getString(sub, "response_transfer_encoding"),
+				ChunkSize:                getInt(sub, "chunk_size"),
+				Pipelined:                getBool(sub, "pipelined", false),
 			}
 		}
 		// HTTP defaults to port 80, same as DefaultDstPort. No override
@@ -279,6 +284,12 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				EDNS0Enabled:   getBool(sub, "edns0_enabled", false),
 				UDPPayloadSize: uint16(getIntDefault(sub, "udp_payload_size", 4096)),
 				DnssecOK:       getBool(sub, "dnssec_ok", false),
+				Transport:      getString(sub, "transport"),
+				RCode:          uint8(getInt(sub, "rcode")),
+				TTL:            getUint32(sub, "ttl"),
+				Questions:      parseDNSQuestions(sub["questions"]),
+				Answers:        parseDNSRRs(sub["answers"]),
+				Authority:      parseDNSRRs(sub["authority"]),
 			}
 		}
 		// DNS overrides the generic port-80 default with its own 53.
@@ -338,6 +349,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				Chunks:          parseSCTPChunks(sub["chunks"]),
 				Heartbeats:      parseSCTPHeartbeats(sub["heartbeats"]),
 				Abort:           getBool(sub, "abort", false),
+				FragmentSize:    getInt(sub, "fragment_size"),
 			}
 		}
 		// SCTP has no universal default port (common ports: 38412 for NGAP,
@@ -518,6 +530,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["smtp"].(map[string]interface{}); ok {
 			spec.SMTP = &SMTPConfig{
 				Banner: getString(sub, "banner"),
+				Email:  parseSMTPEmail(sub["email"]),
 				Dialog: parseSMTPDialog(sub["dialog"]),
 			}
 		}
@@ -531,30 +544,35 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	case "snmp":
 		if sub, ok := cfg["snmp"].(map[string]interface{}); ok {
 			spec.SNMP = &SNMPConfig{
-				Version:                   uint8(getIntDefault(sub, "version", 1)),
-				Community:                 getStringDefault(sub, "community", "public"),
-				UserName:                  getString(sub, "user_name"),
-				AuthProtocol:              getString(sub, "auth_protocol"),
-				AuthPassword:              getString(sub, "auth_password"),
-				PrivProtocol:              getString(sub, "priv_protocol"),
-				PrivPassword:              getString(sub, "priv_password"),
-				AuthoritativeEngineID:     getString(sub, "authoritative_engine_id"),
-				AuthoritativeEngineBoots:  getUint32(sub, "authoritative_engine_boots"),
-				AuthoritativeEngineTime:   getUint32(sub, "authoritative_engine_time"),
-				PDUType:                   uint8(getIntDefault(sub, "pdu_type", 0)),
-				RequestID:                 getUint32(sub, "request_id"),
-				NonRepeaters:              uint8(getInt(sub, "non_repeaters")),
-				MaxRepetitions:            uint8(getIntDefault(sub, "max_repetitions", 1)),
-				VarBinds:                  parseSNMPVarBinds(sub["var_binds"]),
-				IsResponse:                getBool(sub, "is_response", false),
-				ResponseError:             uint8(getInt(sub, "response_error")),
-				ResponseErrorIndex:        uint8(getInt(sub, "response_error_index")),
-				ResponseValues:            parseSNMPVarBinds(sub["response_values"]),
-				PollInterval:              getInt(sub, "poll_interval"),
-				RepeatCount:               getInt(sub, "repeat_count"),
-				EngineIDOverride:          getString(sub, "engine_id_override"),
-				MaxSize:                   getUint32(sub, "max_size"),
-				ContextName:               getString(sub, "context_name"),
+				Version:                  uint8(getIntDefault(sub, "version", 1)),
+				Community:                getStringDefault(sub, "community", "public"),
+				UserName:                 getString(sub, "user_name"),
+				AuthProtocol:             getString(sub, "auth_protocol"),
+				AuthPassword:             getString(sub, "auth_password"),
+				PrivProtocol:             getString(sub, "priv_protocol"),
+				PrivPassword:             getString(sub, "priv_password"),
+				AuthoritativeEngineID:    getString(sub, "authoritative_engine_id"),
+				AuthoritativeEngineBoots: getUint32(sub, "authoritative_engine_boots"),
+				AuthoritativeEngineTime:  getUint32(sub, "authoritative_engine_time"),
+				PDUType:                  uint8(getIntDefault(sub, "pdu_type", 0)),
+				RequestID:                getUint32(sub, "request_id"),
+				NonRepeaters:             uint8(getInt(sub, "non_repeaters")),
+				MaxRepetitions:           uint8(getIntDefault(sub, "max_repetitions", 1)),
+				VarBinds:                 parseSNMPVarBinds(sub["var_binds"]),
+				IsResponse:               getBool(sub, "is_response", false),
+				ResponseError:            uint8(getInt(sub, "response_error")),
+				ResponseErrorIndex:       uint8(getInt(sub, "response_error_index")),
+				ResponseValues:           parseSNMPVarBinds(sub["response_values"]),
+				Enterprise:               getString(sub, "enterprise"),
+				AgentAddr:                getString(sub, "agent_addr"),
+				GenericTrap:              uint8(getInt(sub, "generic_trap")),
+				SpecificTrap:             uint8(getInt(sub, "specific_trap")),
+				TimeStamp:                getUint32(sub, "time_stamp"),
+				PollInterval:             getInt(sub, "poll_interval"),
+				RepeatCount:              getInt(sub, "repeat_count"),
+				EngineIDOverride:         getString(sub, "engine_id_override"),
+				MaxSize:                  getUint32(sub, "max_size"),
+				ContextName:              getString(sub, "context_name"),
 			}
 		}
 		// SNMP defaults to port 161 (query) or 162 (trap/inform). Only
@@ -598,6 +616,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				TCPFraming:     getStringDefault(sub, "tcp_framing", "octet_counting"),
 				Count:          uint32(getIntDefault(sub, "count", 1)),
 				SignBlocks:     parseSyslogSignBlocks(sub["sign_blocks"]),
+				Messages:       parseSyslogMessages(sub["messages"]),
 			}
 		}
 		// Default port depends on transport: udp/tcp=514, tls=6514.
@@ -623,7 +642,11 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				TerminalType: getString(sub, "terminal_type"),
 				WindowCols:   getUint16(sub, "window_cols"),
 				WindowRows:   getUint16(sub, "window_rows"),
-				FileSource:    parseFileSource(sub),
+				FileSource:   parseFileSource(sub),
+				Scenario:     getString(sub, "scenario"),
+				Username:     getString(sub, "username"),
+				Password:     getString(sub, "password"),
+				Commands:     getStringSlice(sub, "commands"),
 			}
 		}
 		// Telnet defaults to port 23 (RFC 854). Only override when the
@@ -1030,6 +1053,8 @@ func parsePOP3Commands(v interface{}) []POP3Command {
 			Response:     getString(m, "response"),
 			Multiline:    getBool(m, "multiline", false),
 			EmitMailDrop: getBool(m, "emit_mail_drop", false),
+			EmitTop:      getBool(m, "emit_top", false),
+			TopLines:     getUint32(m, "top_lines"),
 			MsgNum:       getUint32(m, "msg_num"),
 		})
 	}
@@ -1056,15 +1081,36 @@ func parsePOP3Mailbox(v interface{}) *POP3Mailbox {
 				continue
 			}
 			msg := POP3Message{
-				UID:  getString(mi, "uid"),
-				Body: getString(mi, "body"),
-				Size: getUint32(mi, "size"),
+				UID:      getString(mi, "uid"),
+				Body:     getString(mi, "body"),
+				Boundary: getString(mi, "boundary"),
+				Size:     getUint32(mi, "size"),
 			}
 			if headers, ok := mi["headers"].([]interface{}); ok {
 				for _, h := range headers {
 					if s, ok := h.(string); ok {
 						msg.Headers = append(msg.Headers, s)
 					}
+				}
+			}
+			if parts, ok := mi["mime_parts"].([]interface{}); ok {
+				for _, p := range parts {
+					pi, ok := p.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					part := POP3MIMEPart{
+						Body:    getString(pi, "body"),
+						BodyB64: getString(pi, "body_b64"),
+					}
+					if ph, ok := pi["headers"].([]interface{}); ok {
+						for _, h := range ph {
+							if s, ok := h.(string); ok {
+								part.Headers = append(part.Headers, s)
+							}
+						}
+					}
+					msg.MIMEParts = append(msg.MIMEParts, part)
 				}
 			}
 			mb.Messages = append(mb.Messages, msg)
@@ -1103,6 +1149,49 @@ func parseSMTPDialog(v interface{}) []SMTPCommand {
 	return out
 }
 
+// parseSMTPEmail converts the JSON-decoded "email" sub-map into an
+// *SMTPEmail. Returns nil for absent/non-map input - the planner then
+// plays back the Dialog verbatim (backward-compatible path).
+//
+// Attachments is parsed from the "attachments" array; each attachment
+// has filename, content_type, data (byte slice/string), and
+// data_b64 (pre-encoded base64). Mirrors parsePOP3Mailbox's MIME part
+// parsing for consistency.
+func parseSMTPEmail(v interface{}) *SMTPEmail {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	email := &SMTPEmail{
+		TextBody: getString(m, "text_body"),
+		HTMLBody: getString(m, "html_body"),
+		Boundary: getString(m, "boundary"),
+	}
+	if headers, ok := m["headers"].([]interface{}); ok {
+		for _, h := range headers {
+			if s, ok := h.(string); ok {
+				email.Headers = append(email.Headers, s)
+			}
+		}
+	}
+	if atts, ok := m["attachments"].([]interface{}); ok {
+		for _, a := range atts {
+			am, ok := a.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			att := SMTPAttachment{
+				Filename:    getString(am, "filename"),
+				ContentType: getString(am, "content_type"),
+				Data:        getByteSlice(am, "data"),
+				DataB64:     getString(am, "data_b64"),
+			}
+			email.Attachments = append(email.Attachments, att)
+		}
+	}
+	return email
+}
+
 // parseFTPDataChannel converts the JSON-decoded "data_channel" sub-map
 // into an *FTPDataChannel. Returns nil for absent/non-map input — the
 // planner then emits only the control channel (the default for backward
@@ -1113,13 +1202,14 @@ func parseFTPDataChannel(v interface{}) *FTPDataChannel {
 		return nil
 	}
 	dc := &FTPDataChannel{
-		Mode:       getString(m, "mode"),
-		SrcPort:    getUint16(m, "src_port"),
-		DstPort:    getUint16(m, "dst_port"),
-		Direction:  getString(m, "direction"),
-		Payload:    getString(m, "payload"),
-		PayloadB64: getString(m, "payload_b64"),
-		MSS:        getUint16(m, "mss"),
+		Mode:            getString(m, "mode"),
+		SrcPort:         getUint16(m, "src_port"),
+		DstPort:         getUint16(m, "dst_port"),
+		Direction:       getString(m, "direction"),
+		Payload:         getString(m, "payload"),
+		PayloadB64:      getString(m, "payload_b64"),
+		MSS:             getUint16(m, "mss"),
+		AbortAfterBytes: getInt(m, "abort_after_bytes"),
 	}
 	// Defaults: Mode="passive", Direction="down" — matches the most
 	// common FTP test shape (PASV + RETR download). Zero-value check
@@ -1154,6 +1244,10 @@ func parseSSHConfig(m map[string]interface{}) *SSHConfig {
 		Channels:              parseChannelEntries(m["channels"]),
 		RekeyAfter:            getUint32(m, "rekey_after"),
 		DisconnectOnClose:     getBool(m, "disconnect_on_close", false),
+		Scenario:              getString(m, "scenario"),
+		Command:               getString(m, "command"),
+		Stdout:                getByteSlice(m, "stdout"),
+		Stderr:                getByteSlice(m, "stderr"),
 	}
 }
 
@@ -1282,35 +1376,36 @@ func parseDHCPConfig(m map[string]interface{}) *DHCPConfig {
 		return nil
 	}
 	cfg := &DHCPConfig{
-		Role:               getString(m, "role"),
-		Xid:                 getUint32(m, "xid"),
-		Messages:            parseDHCPMessages(m["messages"]),
-		ClientMAC:           getString(m, "client_mac"),
-		HType:               uint8(getInt(m, "h_type")),
-		HLen:                uint8(getInt(m, "h_len")),
-		BroadcastFlag:       getBool(m, "broadcast_flag", false),
-		Secs:                getUint16(m, "secs"),
-		Sname:               getString(m, "sname"),
-		File:                getString(m, "file"),
-		DefaultClientIP:     getString(m, "default_client_ip"),
-		DefaultYourIP:       getString(m, "default_your_ip"),
-		DefaultServerIP:     getString(m, "default_server_ip"),
-		DefaultRelayAgentIP: getString(m, "default_relay_agent_ip"),
+		Role:                    getString(m, "role"),
+		Xid:                     getUint32(m, "xid"),
+		Scenario:                getString(m, "scenario"),
+		Messages:                parseDHCPMessages(m["messages"]),
+		ClientMAC:               getString(m, "client_mac"),
+		HType:                   uint8(getInt(m, "h_type")),
+		HLen:                    uint8(getInt(m, "h_len")),
+		BroadcastFlag:           getBool(m, "broadcast_flag", false),
+		Secs:                    getUint16(m, "secs"),
+		Sname:                   getString(m, "sname"),
+		File:                    getString(m, "file"),
+		DefaultClientIP:         getString(m, "default_client_ip"),
+		DefaultYourIP:           getString(m, "default_your_ip"),
+		DefaultServerIP:         getString(m, "default_server_ip"),
+		DefaultRelayAgentIP:     getString(m, "default_relay_agent_ip"),
 		DefaultServerIdentifier: getString(m, "default_server_identifier"),
-		DefaultLeaseTime:    getUint32(m, "default_lease_time"),
-		DefaultT1:           getUint32(m, "default_t1"),
-		DefaultT2:           getUint32(m, "default_t2"),
-		DefaultSubnetMask:   getString(m, "default_subnet_mask"),
-		DefaultRouters:      getStringSlice(m, "default_routers"),
-		DefaultDNS:          getStringSlice(m, "default_dns"),
-		DefaultDomainName:   getString(m, "default_domain_name"),
-		DefaultHostname:     getString(m, "default_hostname"),
-		DefaultDomainSearch: getStringSlice(m, "default_domain_search"),
-		DefaultClientID:     getByteSlice(m, "default_client_id"),
-		DefaultRequestedIP:  getString(m, "default_requested_ip"),
+		DefaultLeaseTime:        getUint32(m, "default_lease_time"),
+		DefaultT1:               getUint32(m, "default_t1"),
+		DefaultT2:               getUint32(m, "default_t2"),
+		DefaultSubnetMask:       getString(m, "default_subnet_mask"),
+		DefaultRouters:          getStringSlice(m, "default_routers"),
+		DefaultDNS:              getStringSlice(m, "default_dns"),
+		DefaultDomainName:       getString(m, "default_domain_name"),
+		DefaultHostname:         getString(m, "default_hostname"),
+		DefaultDomainSearch:     getStringSlice(m, "default_domain_search"),
+		DefaultClientID:         getByteSlice(m, "default_client_id"),
+		DefaultRequestedIP:      getString(m, "default_requested_ip"),
 		DefaultParamRequestList: getUint8Slice(m, "default_param_request_list"),
-		DefaultVendorClass:  getString(m, "default_vendor_class"),
-		DefaultRelayAgentInfo: getByteSlice(m, "default_relay_agent_info"),
+		DefaultVendorClass:      getString(m, "default_vendor_class"),
+		DefaultRelayAgentInfo:   getByteSlice(m, "default_relay_agent_info"),
 	}
 	return cfg
 }
@@ -1330,30 +1425,30 @@ func parseDHCPMessages(v interface{}) []DHCPMessage {
 			continue
 		}
 		msg := DHCPMessage{
-			Type:              uint8(getInt(m, "type")),
-			Direction:         getString(m, "direction"),
-			ClientIP:          getString(m, "client_ip"),
-			YourIP:            getString(m, "your_ip"),
-			ServerIP:          getString(m, "server_ip"),
-			RelayAgentIP:      getString(m, "relay_agent_ip"),
-			Hops:              uint8(getInt(m, "hops")),
-			ServerIdentifier:  getString(m, "server_identifier"),
-			LeaseTime:         getUint32(m, "lease_time"),
-			T1:                getUint32(m, "t1"),
-			T2:                getUint32(m, "t2"),
-			SubnetMask:        getString(m, "subnet_mask"),
-			Routers:           getStringSlice(m, "routers"),
-			DNS:               getStringSlice(m, "dns"),
-			DomainName:        getString(m, "domain_name"),
-			Hostname:          getString(m, "hostname"),
-			DomainSearch:      getStringSlice(m, "domain_search"),
-			ClientID:          getByteSlice(m, "client_id"),
-			RequestedIP:       getString(m, "requested_ip"),
-			ParamRequestList:  getUint8Slice(m, "param_request_list"),
-			VendorClass:       getString(m, "vendor_class"),
-			RelayAgentInfo:    getByteSlice(m, "relay_agent_info"),
-			ExtraOptions:      parseDHCPOptions(m["extra_options"]),
-			Broadcast:         getBoolPtr(m, "broadcast"),
+			Type:             uint8(getInt(m, "type")),
+			Direction:        getString(m, "direction"),
+			ClientIP:         getString(m, "client_ip"),
+			YourIP:           getString(m, "your_ip"),
+			ServerIP:         getString(m, "server_ip"),
+			RelayAgentIP:     getString(m, "relay_agent_ip"),
+			Hops:             uint8(getInt(m, "hops")),
+			ServerIdentifier: getString(m, "server_identifier"),
+			LeaseTime:        getUint32(m, "lease_time"),
+			T1:               getUint32(m, "t1"),
+			T2:               getUint32(m, "t2"),
+			SubnetMask:       getString(m, "subnet_mask"),
+			Routers:          getStringSlice(m, "routers"),
+			DNS:              getStringSlice(m, "dns"),
+			DomainName:       getString(m, "domain_name"),
+			Hostname:         getString(m, "hostname"),
+			DomainSearch:     getStringSlice(m, "domain_search"),
+			ClientID:         getByteSlice(m, "client_id"),
+			RequestedIP:      getString(m, "requested_ip"),
+			ParamRequestList: getUint8Slice(m, "param_request_list"),
+			VendorClass:      getString(m, "vendor_class"),
+			RelayAgentInfo:   getByteSlice(m, "relay_agent_info"),
+			ExtraOptions:     parseDHCPOptions(m["extra_options"]),
+			Broadcast:        getBoolPtr(m, "broadcast"),
 		}
 		out = append(out, msg)
 	}
@@ -1393,10 +1488,25 @@ func parseDHCPv6Config(m map[string]interface{}) *DHCPv6Config {
 		return nil
 	}
 	cfg := &DHCPv6Config{
-		Messages:     parseDHCPv6Messages(m["messages"]),
-		ClientDUID:    parseDUID(m["client_duid"]),
-		ServerDUID:    parseDUID(m["server_duid"]),
-		RelayConfig:   parseDHCPv6RelayConfig(m["relay_config"]),
+		Messages:                 parseDHCPv6Messages(m["messages"]),
+		Scenario:                 getString(m, "scenario"),
+		ClientDUID:               parseDUID(m["client_duid"]),
+		ServerDUID:               parseDUID(m["server_duid"]),
+		RelayConfig:              parseDHCPv6RelayConfig(m["relay_config"]),
+		DefaultLeasedAddr:        getString(m, "default_leased_addr"),
+		DefaultIAID:              getUint32(m, "default_iaid"),
+		DefaultPreferredLifetime: getUint32(m, "default_preferred_lifetime"),
+		DefaultValidLifetime:     getUint32(m, "default_valid_lifetime"),
+		DefaultT1:                getUint32(m, "default_t1"),
+		DefaultT2:                getUint32(m, "default_t2"),
+		DefaultPreference:        uint8(getInt(m, "default_preference")),
+		DefaultStatusCode:        getUint16(m, "default_status_code"),
+		DefaultStatusMessage:     getString(m, "default_status_message"),
+		DefaultORO:               getUint16Slice(m, "default_oro"),
+		DefaultDNSServers:        getStringSlice(m, "default_dns_servers"),
+		DefaultDNSSearch:         getStringSlice(m, "default_dns_search"),
+		DefaultSNTPServers:       getStringSlice(m, "default_sntp_servers"),
+		DefaultInfoRefreshTime:   getUint32(m, "default_info_refresh_time"),
 	}
 	return cfg
 }
@@ -1418,11 +1528,11 @@ func parseDHCPv6Messages(v interface{}) []DHCPv6Message {
 			copy(txID[:], t[:3])
 		}
 		msg := DHCPv6Message{
-			MsgType:        uint8(getInt(m, "msg_type")),
-			TransactionID:  txID,
-			Direction:      getString(m, "direction"),
-			Options:        parseDHCPv6Options(m["options"]),
-			RelayFields:    parseDHCPv6RelayFields(m["relay_fields"]),
+			MsgType:       uint8(getInt(m, "msg_type")),
+			TransactionID: txID,
+			Direction:     getString(m, "direction"),
+			Options:       parseDHCPv6Options(m["options"]),
+			RelayFields:   parseDHCPv6RelayFields(m["relay_fields"]),
 		}
 		out = append(out, msg)
 	}
@@ -1439,12 +1549,12 @@ func parseDUID(v interface{}) *DUID {
 		return nil
 	}
 	return &DUID{
-		Type:            uint8(getInt(m, "type")),
-		HardwareType:    getUint16(m, "hardware_type"),
-		Time:            getUint32(m, "time"),
-		EnterpriseNum:   getUint32(m, "enterprise_num"),
-		VendorSpecific:  getByteSlice(m, "vendor_specific"),
-		LinkLayerAddr:   getString(m, "link_layer_addr"),
+		Type:           uint8(getInt(m, "type")),
+		HardwareType:   getUint16(m, "hardware_type"),
+		Time:           getUint32(m, "time"),
+		EnterpriseNum:  getUint32(m, "enterprise_num"),
+		VendorSpecific: getByteSlice(m, "vendor_specific"),
+		LinkLayerAddr:  getString(m, "link_layer_addr"),
 	}
 }
 
@@ -1478,9 +1588,9 @@ func parseDHCPv6RelayFields(v interface{}) *RelayFields {
 		return nil
 	}
 	return &RelayFields{
-		HopCount:     uint8(getInt(m, "hop_count")),
-		LinkAddress:  getString(m, "link_address"),
-		PeerAddress:  getString(m, "peer_address"),
+		HopCount:    uint8(getInt(m, "hop_count")),
+		LinkAddress: getString(m, "link_address"),
+		PeerAddress: getString(m, "peer_address"),
 	}
 }
 
@@ -1491,11 +1601,11 @@ func parseDHCPv6RelayConfig(v interface{}) *RelayConfig {
 		return nil
 	}
 	return &RelayConfig{
-		RelayIP:           getString(m, "relay_ip"),
-		RelayMAC:          getString(m, "relay_mac"),
-		HopCount:          uint8(getInt(m, "hop_count")),
-		InterfaceID:       getByteSlice(m, "interface_id"),
-		IncludeClientMAC:  getBool(m, "include_client_mac", false),
+		RelayIP:          getString(m, "relay_ip"),
+		RelayMAC:         getString(m, "relay_mac"),
+		HopCount:         uint8(getInt(m, "hop_count")),
+		InterfaceID:      getByteSlice(m, "interface_id"),
+		IncludeClientMAC: getBool(m, "include_client_mac", false),
 	}
 }
 
@@ -1508,31 +1618,32 @@ func parseGRPCConfig(m map[string]interface{}) *GRPCConfig {
 		return nil
 	}
 	cfg := &GRPCConfig{
-		Service:               getString(m, "service"),
-		Method:                getString(m, "method"),
-		Authority:             getString(m, "authority"),
-		Scheme:                getString(m, "scheme"),
-		CallType:              getString(m, "call_type"),
-		RequestMessages:       getByteSlices(m, "request_messages"),
-		RequestMessagesB64:    getStringSlice(m, "request_messages_b64"),
-		ResponseMessages:      getByteSlices(m, "response_messages"),
-		ResponseMessagesB64:   getStringSlice(m, "response_messages_b64"),
-		ResponseStatus:        getInt(m, "response_status"),
-		ResponseMessage:       getString(m, "response_message"),
-		Timeout:               getString(m, "timeout"),
-		Encoding:              getString(m, "encoding"),
-		AcceptEncoding:        getString(m, "accept_encoding"),
-		Metadata:              getStringMap(m, "metadata"),
-		UserAgent:             getString(m, "user_agent"),
-		MaxFrameSize:          getUint32(m, "max_frame_size"),
-		InitialWindow:         getUint32(m, "initial_window"),
-		MaxConcurrentStreams:   getUint32(m, "max_concurrent_streams"),
-		HeaderTableSize:       getUint32(m, "header_table_size"),
-		Pings:                 parseGRPCPingConfig(m["pings"]),
-		CancelAfter:           getInt(m, "cancel_after"),
-		GoAwayAfter:           getBool(m, "go_away_after", false),
-		Calls:                 parseGRPCCalls(m["calls"]),
-		FileSource:            parseFileSourceField(m),
+		Service:              getString(m, "service"),
+		Method:               getString(m, "method"),
+		Authority:            getString(m, "authority"),
+		Scheme:               getString(m, "scheme"),
+		CallType:             getString(m, "call_type"),
+		RequestMessages:      getByteSlices(m, "request_messages"),
+		RequestMessagesB64:   getStringSlice(m, "request_messages_b64"),
+		ResponseMessages:     getByteSlices(m, "response_messages"),
+		ResponseMessagesB64:  getStringSlice(m, "response_messages_b64"),
+		ResponseStatus:       getInt(m, "response_status"),
+		ResponseMessage:      getString(m, "response_message"),
+		Timeout:              getString(m, "timeout"),
+		Encoding:             getString(m, "encoding"),
+		AcceptEncoding:       getString(m, "accept_encoding"),
+		Metadata:             getStringMap(m, "metadata"),
+		UserAgent:            getString(m, "user_agent"),
+		MaxFrameSize:         getUint32(m, "max_frame_size"),
+		InitialWindow:        getUint32(m, "initial_window"),
+		MaxConcurrentStreams: getUint32(m, "max_concurrent_streams"),
+		HeaderTableSize:      getUint32(m, "header_table_size"),
+		Pings:                parseGRPCPingConfig(m["pings"]),
+		CancelAfter:          getInt(m, "cancel_after"),
+		GoAwayAfter:          getBool(m, "go_away_after", false),
+		WindowUpdateIncrement: getUint32(m, "window_update_increment"),
+		Calls:                parseGRPCCalls(m["calls"]),
+		FileSource:           parseFileSourceField(m),
 	}
 	return cfg
 }
@@ -1548,9 +1659,9 @@ func parseGRPCPingConfig(v interface{}) *GRPCPingConfig {
 		copy(opaque[:], b[:8])
 	}
 	return &GRPCPingConfig{
-		IntervalMs:  getInt(m, "interval_ms"),
-		Count:        getInt(m, "count"),
-		OpaqueData:   opaque,
+		IntervalMs: getInt(m, "interval_ms"),
+		Count:      getInt(m, "count"),
+		OpaqueData: opaque,
 	}
 }
 
@@ -1576,6 +1687,7 @@ func parseGRPCCalls(v interface{}) []GRPCCall {
 			ResponseMessage:  getString(m, "response_message"),
 			Metadata:         getStringMap(m, "metadata"),
 			Timeout:          getString(m, "timeout"),
+			WindowUpdateIncrement: getUint32(m, "window_update_increment"),
 		})
 	}
 	if len(out) == 0 {
@@ -1590,29 +1702,30 @@ func parseIKEConfig(m map[string]interface{}) *IKEConfig {
 		return nil
 	}
 	cfg := &IKEConfig{
-		VersionMajor:            uint8(getIntDefault(m, "version_major", 2)),
-		VersionMinor:            uint8(getIntDefault(m, "version_minor", 0)),
-		InitiatorSPI:            getUint64(m, "initiator_spi"),
-		ResponderSPI:            getUint64(m, "responder_spi"),
-		StartMessageID:          getUint32(m, "start_message_id"),
-		Role:                    getString(m, "role"),
-		Strict:                  getBool(m, "strict", false),
-		FaultInjection:          getBool(m, "fault_injection", false),
-		Messages:                parseIKEMessages(m["messages"]),
-		Scenario:                getString(m, "scenario"),
-		DefaultProposal:         parseIKEProposal(m["default_proposal"]),
-		DefaultDHGroup:          getUint16(m, "default_dh_group"),
-		DefaultNonceSize:        getUint16(m, "default_nonce_size"),
-		DefaultAuthMethod:       uint8(getInt(m, "default_auth_method")),
-		AllowNullAuth:           getBool(m, "allow_null_auth", false),
-		EAPOnly:                 getBool(m, "eap_only", false),
-		FragmentationSupported:  getBool(m, "fragmentation_supported", false),
-		FragmentThreshold:       getUint16(m, "fragment_threshold"),
-		ChildSAs:                parseIKEChildSAs(m["child_sas"]),
-		DPDCount:                getInt(m, "dpd_count"),
-		RetransmitCount:         getInt(m, "retransmit_count"),
-		EncryptMode:             getString(m, "encrypt_mode"),
-		OpaqueKeySeed:           getUint64(m, "opaque_key_seed"),
+		VersionMajor:           uint8(getIntDefault(m, "version_major", 2)),
+		VersionMinor:           uint8(getIntDefault(m, "version_minor", 0)),
+		InitiatorSPI:           getUint64(m, "initiator_spi"),
+		ResponderSPI:           getUint64(m, "responder_spi"),
+		StartMessageID:         getUint32(m, "start_message_id"),
+		Role:                   getString(m, "role"),
+		Strict:                 getBool(m, "strict", false),
+		FaultInjection:         getBool(m, "fault_injection", false),
+		Messages:               parseIKEMessages(m["messages"]),
+		Scenario:               getString(m, "scenario"),
+		DefaultProposal:        parseIKEProposal(m["default_proposal"]),
+		DefaultDHGroup:         getUint16(m, "default_dh_group"),
+		DefaultNonceSize:       getUint16(m, "default_nonce_size"),
+		DefaultAuthMethod:      uint8(getInt(m, "default_auth_method")),
+		AllowNullAuth:          getBool(m, "allow_null_auth", false),
+		EAPOnly:                getBool(m, "eap_only", false),
+		FragmentationSupported: getBool(m, "fragmentation_supported", false),
+		FragmentThreshold:      getUint16(m, "fragment_threshold"),
+		ChildSAs:               parseIKEChildSAs(m["child_sas"]),
+		DPDCount:               getInt(m, "dpd_count"),
+		RetransmitCount:        getInt(m, "retransmit_count"),
+		EncryptMode:            getString(m, "encrypt_mode"),
+		OpaqueKeySeed:          getUint64(m, "opaque_key_seed"),
+		ESPDataPlane:           parseESPDataPlaneConfig(m["esp_data_plane"]),
 	}
 	return cfg
 }
@@ -1631,8 +1744,8 @@ func parseIKEMessages(v interface{}) []IKEMessage {
 		}
 		msg := IKEMessage{
 			Direction:              getString(m, "direction"),
-			ExchangeType:            uint8(getInt(m, "exchange_type")),
-			IsResponse:              getBool(m, "is_response", false),
+			ExchangeType:           uint8(getInt(m, "exchange_type")),
+			IsResponse:             getBool(m, "is_response", false),
 			FromOriginalInitiator:  getBool(m, "from_original_initiator", false),
 			HigherVersionSupported: getBool(m, "higher_version_supported", false),
 			MessageID:              getUint32Ptr(m, "message_id"),
@@ -1667,25 +1780,25 @@ func parseIKEPayloads(v interface{}) []IKEPayload {
 			continue
 		}
 		pl := IKEPayload{
-			Type:                     uint8(getInt(m, "type")),
-			Critical:                 getBool(m, "critical", false),
-			SA:                       parseIKESA(m["sa"]),
-			KE:                       parseIKEKE(m["ke"]),
-			ID:                       parseIKEIdentity(m["id"]),
-			Certificate:              parseIKECertificate(m["certificate"]),
-			CertificateRequest:       parseIKECertificateRequest(m["certificate_request"]),
-			Auth:                     parseIKEAuth(m["auth"]),
-			Nonce:                    getByteSlice(m, "nonce"),
-			Notify:                   parseIKENotify(m["notify"]),
-			Delete:                   parseIKEDelete(m["delete"]),
-			VendorID:                 getByteSlice(m, "vendor_id"),
-			TrafficSelectors:         parseIKETrafficSelectors(m["traffic_selectors"]),
-			Config:                   parseIKEConfiguration(m["config"]),
-			EAP:                      parseIKEEAP(m["eap"]),
-			Fragment:                 parseIKEFragment(m["fragment"]),
-			Raw:                      getByteSlice(m, "raw"),
-			RawLengthOverride:        getUint16Ptr(m, "raw_length_override"),
-			RawNextPayloadOverride:   getUint8Ptr(m, "raw_next_payload_override"),
+			Type:                   uint8(getInt(m, "type")),
+			Critical:               getBool(m, "critical", false),
+			SA:                     parseIKESA(m["sa"]),
+			KE:                     parseIKEKE(m["ke"]),
+			ID:                     parseIKEIdentity(m["id"]),
+			Certificate:            parseIKECertificate(m["certificate"]),
+			CertificateRequest:     parseIKECertificateRequest(m["certificate_request"]),
+			Auth:                   parseIKEAuth(m["auth"]),
+			Nonce:                  getByteSlice(m, "nonce"),
+			Notify:                 parseIKENotify(m["notify"]),
+			Delete:                 parseIKEDelete(m["delete"]),
+			VendorID:               getByteSlice(m, "vendor_id"),
+			TrafficSelectors:       parseIKETrafficSelectors(m["traffic_selectors"]),
+			Config:                 parseIKEConfiguration(m["config"]),
+			EAP:                    parseIKEEAP(m["eap"]),
+			Fragment:               parseIKEFragment(m["fragment"]),
+			Raw:                    getByteSlice(m, "raw"),
+			RawLengthOverride:      getUint16Ptr(m, "raw_length_override"),
+			RawNextPayloadOverride: getUint8Ptr(m, "raw_next_payload_override"),
 		}
 		out = append(out, pl)
 	}
@@ -1720,10 +1833,10 @@ func parseIKETransforms(v interface{}) []IKETransform {
 			continue
 		}
 		out = append(out, IKETransform{
-			Type:            uint8(getInt(m, "type")),
-			ID:              getUint16(m, "id"),
-			KeyLengthBits:   getUint16(m, "key_length_bits"),
-			RawAttributes:   getByteSlice(m, "raw_attributes"),
+			Type:          uint8(getInt(m, "type")),
+			ID:            getUint16(m, "id"),
+			KeyLengthBits: getUint16(m, "key_length_bits"),
+			RawAttributes: getByteSlice(m, "raw_attributes"),
 		})
 	}
 	if len(out) == 0 {
@@ -1765,8 +1878,8 @@ func parseIKEKE(v interface{}) *IKEKE {
 		return nil
 	}
 	return &IKEKE{
-		DHGroup:  getUint16(m, "dh_group"),
-		KeyData:  getByteSlice(m, "key_data"),
+		DHGroup: getUint16(m, "dh_group"),
+		KeyData: getByteSlice(m, "key_data"),
 	}
 }
 
@@ -1851,12 +1964,12 @@ func parseIKETrafficSelectors(v interface{}) []IKETrafficSelector {
 			continue
 		}
 		out = append(out, IKETrafficSelector{
-			TSType:        uint8(getInt(m, "ts_type")),
-			IPProtocolID:  uint8(getInt(m, "ip_protocol_id")),
-			StartPort:     getUint16(m, "start_port"),
-			EndPort:       getUint16(m, "end_port"),
-			StartAddress:  getByteSlice(m, "start_address"),
-			EndAddress:    getByteSlice(m, "end_address"),
+			TSType:       uint8(getInt(m, "ts_type")),
+			IPProtocolID: uint8(getInt(m, "ip_protocol_id")),
+			StartPort:    getUint16(m, "start_port"),
+			EndPort:      getUint16(m, "end_port"),
+			StartAddress: getByteSlice(m, "start_address"),
+			EndAddress:   getByteSlice(m, "end_address"),
 		})
 	}
 	if len(out) == 0 {
@@ -1904,10 +2017,10 @@ func parseIKEEAP(v interface{}) *IKEEAP {
 		return nil
 	}
 	return &IKEEAP{
-		Code:        uint8(getInt(m, "code")),
-		Identifier:  uint8(getInt(m, "identifier")),
-		Type:        getUint8Ptr(m, "type"),
-		Data:        getByteSlice(m, "data"),
+		Code:       uint8(getInt(m, "code")),
+		Identifier: uint8(getInt(m, "identifier")),
+		Type:       getUint8Ptr(m, "type"),
+		Data:       getByteSlice(m, "data"),
 	}
 }
 
@@ -1949,10 +2062,10 @@ func parseIKEChildSAs(v interface{}) []IKEChildSA {
 			continue
 		}
 		out = append(out, IKEChildSA{
-			Proposal:     parseIKEProposal(m["proposal"]),
-			TSi:          parseIKETrafficSelectors(m["ts_i"]),
-			TSr:          parseIKETrafficSelectors(m["ts_r"]),
-			EmitSubFlow:  getBool(m, "emit_sub_flow", false),
+			Proposal:    parseIKEProposal(m["proposal"]),
+			TSi:         parseIKETrafficSelectors(m["ts_i"]),
+			TSr:         parseIKETrafficSelectors(m["ts_r"]),
+			EmitSubFlow: getBool(m, "emit_sub_flow", false),
 		})
 	}
 	if len(out) == 0 {
@@ -1968,17 +2081,17 @@ func parseIKENATTConfig(m map[string]interface{}) *IKENATTConfig {
 		return nil
 	}
 	cfg := &IKENATTConfig{
-		InitiatorSPI:         getUint64(m, "initiator_spi"),
-		ResponderSPI:         getUint64(m, "responder_spi"),
-		NATDetection:         getBool(m, "nat_detection", false),
-		NATDetectedOnSource:  getBool(m, "nat_detected_on_source", false),
-		NATDetectedOnDest:    getBool(m, "nat_detected_on_dest", false),
-		PortFloat:            getBool(m, "port_float", false),
-		UDPEncapESP:          getBool(m, "udp_encap_esp", false),
-		Keepalive:            parseNATKeepaliveConfig(m["keepalive"]),
-		Retransmit:           parseRetransmitConfig(m["retransmit"]),
-		Dialog:               parseIKENATTMessages(m["dialog"]),
-		ChildSA:              parseESPChildSAConfig(m["child_sa"]),
+		InitiatorSPI:        getUint64(m, "initiator_spi"),
+		ResponderSPI:        getUint64(m, "responder_spi"),
+		NATDetection:        getBool(m, "nat_detection", false),
+		NATDetectedOnSource: getBool(m, "nat_detected_on_source", false),
+		NATDetectedOnDest:   getBool(m, "nat_detected_on_dest", false),
+		PortFloat:           getBool(m, "port_float", false),
+		UDPEncapESP:         getBool(m, "udp_encap_esp", false),
+		Keepalive:           parseNATKeepaliveConfig(m["keepalive"]),
+		Retransmit:          parseRetransmitConfig(m["retransmit"]),
+		Dialog:              parseIKENATTMessages(m["dialog"]),
+		ChildSA:             parseESPChildSAConfig(m["child_sa"]),
 	}
 	return cfg
 }
@@ -2043,12 +2156,12 @@ func parseIKENATTPayloads(v interface{}) []IKENATTPayload {
 			continue
 		}
 		out = append(out, IKENATTPayload{
-			Type:    uint8(getInt(m, "type")),
-			SA:      parseIKESA(m["sa"]),
-			KE:      parseIKEKE(m["ke"]),
-			Nonce:   getByteSlice(m, "nonce"),
-			Notify:  parseNotifyPayload(m["notify"]),
-			Raw:     getByteSlice(m, "raw"),
+			Type:   uint8(getInt(m, "type")),
+			SA:     parseIKESA(m["sa"]),
+			KE:     parseIKEKE(m["ke"]),
+			Nonce:  getByteSlice(m, "nonce"),
+			Notify: parseNotifyPayload(m["notify"]),
+			Raw:    getByteSlice(m, "raw"),
 		})
 	}
 	if len(out) == 0 {
@@ -2085,17 +2198,41 @@ func parseESPChildSAConfig(v interface{}) *ESPChildSAConfig {
 	}
 }
 
+// parseESPDataPlaneConfig converts the JSON-decoded "esp_data_plane"
+// sub-map of the IKE config into *ESPDataPlaneConfig. Returns nil for
+// absent/non-map input.
+func parseESPDataPlaneConfig(v interface{}) *ESPDataPlaneConfig {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &ESPDataPlaneConfig{
+		SPI:              getUint32(m, "spi"),
+		Count:            getInt(m, "count"),
+		Mode:             getString(m, "mode"),
+		Direction:        getString(m, "direction"),
+		IVLength:         getInt(m, "iv_length"),
+		ICVLength:        getInt(m, "icv_length"),
+		InnerSrcIP:       getString(m, "inner_src_ip"),
+		InnerDstIP:       getString(m, "inner_dst_ip"),
+		InnerProto:       uint8(getInt(m, "inner_proto")),
+		InnerSrcPort:     getUint16(m, "inner_src_port"),
+		InnerDstPort:     getUint16(m, "inner_dst_port"),
+		InnerPayloadSize: getInt(m, "inner_payload_size"),
+	}
+}
+
 // parseIMAPConfig converts the JSON-decoded "imap" sub-map into *IMAPConfig.
 func parseIMAPConfig(m map[string]interface{}) *IMAPConfig {
 	if m == nil {
 		return nil
 	}
 	cfg := &IMAPConfig{
-		Banner:              getString(m, "banner"),
-		Commands:            parseIMAPCommands(m["commands"]),
-		IDLE:                parseIMAPIDLE(m["idle"]),
-		PipelinedCommands:   getBool(m, "pipelined_commands", false),
-		AllowUTF8Mailbox:    getBool(m, "allow_utf8_mailbox", false),
+		Banner:            getString(m, "banner"),
+		Commands:          parseIMAPCommands(m["commands"]),
+		IDLE:              parseIMAPIDLE(m["idle"]),
+		PipelinedCommands: getBool(m, "pipelined_commands", false),
+		AllowUTF8Mailbox:  getBool(m, "allow_utf8_mailbox", false),
 	}
 	return cfg
 }
@@ -2112,15 +2249,16 @@ func parseIMAPCommands(v interface{}) []IMAPCommand {
 			continue
 		}
 		cmd := IMAPCommand{
-			Tag:                   getString(m, "tag"),
-			Cmd:                   getString(m, "cmd"),
-			Responses:             getStringSlice(m, "responses"),
-			LiteralBody:           getString(m, "literal_body"),
-			LiteralBodyB64:        getString(m, "literal_body_b64"),
-			FileSource:            parseFileSourceField(m),
-			EmitIDLE:              getBool(m, "emit_idle", false),
-			CancelAfterResponses:  getInt(m, "cancel_after_responses"),
-			UIDCacheInvalidation:  getBool(m, "uid_cache_invalidation", false),
+			Tag:                  getString(m, "tag"),
+			Cmd:                  getString(m, "cmd"),
+			Responses:            getStringSlice(m, "responses"),
+			LiteralBody:          getString(m, "literal_body"),
+			LiteralBodyB64:       getString(m, "literal_body_b64"),
+			FileSource:           parseFileSourceField(m),
+			EmitIDLE:             getBool(m, "emit_idle", false),
+			CancelAfterResponses: getInt(m, "cancel_after_responses"),
+			UIDCacheInvalidation: getBool(m, "uid_cache_invalidation", false),
+			MIMEBody:             parseIMAPMIMEBody(m["mime_body"]),
 		}
 		out = append(out, cmd)
 	}
@@ -2141,6 +2279,58 @@ func parseIMAPIDLE(v interface{}) *IMAPIDLE {
 		DoneResponse:          getString(m, "done_response"),
 		ServerTimeoutBehavior: getString(m, "server_timeout_behavior"),
 	}
+}
+
+// parseIMAPMIMEBody converts the JSON-decoded "mime_body" sub-map into
+// *IMAPMIMEBody. Returns nil when the input is absent or not a map.
+func parseIMAPMIMEBody(v interface{}) *IMAPMIMEBody {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	body := &IMAPMIMEBody{
+		Headers:  getStringSlice(m, "headers"),
+		Boundary: getString(m, "boundary"),
+		Text:     getString(m, "text"),
+	}
+	// Parts
+	if arr, ok := m["parts"].([]interface{}); ok {
+		for _, item := range arr {
+			pm, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			body.Parts = append(body.Parts, IMAPMIMEPart{
+				ContentType: getString(pm, "content_type"),
+				Body:        getString(pm, "body"),
+				Headers:     getStringSlice(pm, "headers"),
+			})
+		}
+	}
+	// Attachments
+	if arr, ok := m["attachments"].([]interface{}); ok {
+		for _, item := range arr {
+			am, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			att := IMAPAttachment{
+				Filename:    getString(am, "filename"),
+				ContentType: getString(am, "content_type"),
+			}
+			// Data may be a base64 string (data_b64) or raw text (data).
+			if b64 := getString(am, "data_b64"); b64 != "" {
+				if decoded, err := base64.StdEncoding.DecodeString(b64); err == nil {
+					att.Data = decoded
+				}
+			}
+			if raw := getString(am, "data"); raw != "" && att.Data == nil {
+				att.Data = []byte(raw)
+			}
+			body.Attachments = append(body.Attachments, att)
+		}
+	}
+	return body
 }
 
 // parseL2TPConfig converts the JSON-decoded "l2tp" sub-map into *L2TPConfig.
@@ -2174,6 +2364,8 @@ func parseL2TPConfig(m map[string]interface{}) *L2TPConfig {
 		ResultCode:        getUint16(m, "result_code"),
 		ErrorCode:         getUint16(m, "error_code"),
 		ErrorMessage:      getString(m, "error_message"),
+		Scenario:          getString(m, "scenario"),
+		InnerIP:           parseL2TPInnerIP(m["inner_ip"]),
 	}
 	return cfg
 }
@@ -2190,11 +2382,11 @@ func parseL2TPSteps(v interface{}) []L2TPStep {
 			continue
 		}
 		out = append(out, L2TPStep{
-			Type:               getString(m, "type"),
-			Direction:          getString(m, "direction"),
-			AVPs:               parseL2TPAVPs(m["avps"]),
-			TunnelIDOverride:   getUint16Ptr(m, "tunnel_id_override"),
-			SessionIDOverride:  getUint16Ptr(m, "session_id_override"),
+			Type:              getString(m, "type"),
+			Direction:         getString(m, "direction"),
+			AVPs:              parseL2TPAVPs(m["avps"]),
+			TunnelIDOverride:  getUint16Ptr(m, "tunnel_id_override"),
+			SessionIDOverride: getUint16Ptr(m, "session_id_override"),
 		})
 	}
 	if len(out) == 0 {
@@ -2252,31 +2444,130 @@ func parseL2TPPPPFrames(v interface{}) []L2TPPPPFrame {
 	return out
 }
 
+// parseL2TPInnerIP converts the JSON-decoded "inner_ip" sub-map into
+// *L2TPInnerIP (the inner IPv4 packet config for the tunnel_with_data
+// scenario).
+func parseL2TPInnerIP(v interface{}) *L2TPInnerIP {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &L2TPInnerIP{
+		SrcIP:      getString(m, "src_ip"),
+		DstIP:      getString(m, "dst_ip"),
+		Proto:      uint8(getInt(m, "proto")),
+		SrcPort:    getUint16(m, "src_port"),
+		DstPort:    getUint16(m, "dst_port"),
+		TTL:        uint8(getInt(m, "ttl")),
+		Payload:    getByteSlice(m, "payload"),
+		DataFrames: getInt(m, "data_frames"),
+	}
+}
+
 // parseMDNSConfig converts the JSON-decoded "mdns" sub-map into *MDNSConfig.
 func parseMDNSConfig(m map[string]interface{}) *MDNSConfig {
 	if m == nil {
 		return nil
 	}
 	cfg := &MDNSConfig{
-		Mode:               getString(m, "mode"),
-		Questions:           parseMDNSQuestions(m["questions"]),
-		Answers:             parseMDNSResourceRecords(m["answers"]),
-		Authorities:         parseMDNSResourceRecords(m["authorities"]),
-		Additionals:         parseMDNSResourceRecords(m["additionals"]),
-		ProbingRepeat:       getInt(m, "probing_repeat"),
-		ProbingInterval:     getInt(m, "probing_interval"),
-		ProbingJitterMax:    getInt(m, "probing_jitter_max"),
-		ProbingJitterSeed:   int64(getInt(m, "probing_jitter_seed")),
-		AnnouncingRepeat:    getInt(m, "announcing_repeat"),
-		AnnouncingInterval:  getInt(m, "announcing_interval"),
-		ResponseDelay:       getInt(m, "response_delay"),
-		MulticastGroup:      getString(m, "multicast_group"),
+		Mode:                 getString(m, "mode"),
+		Questions:            parseMDNSQuestions(m["questions"]),
+		Answers:              parseMDNSResourceRecords(m["answers"]),
+		Authorities:          parseMDNSResourceRecords(m["authorities"]),
+		Additionals:          parseMDNSResourceRecords(m["additionals"]),
+		ProbingRepeat:        getInt(m, "probing_repeat"),
+		ProbingInterval:      getInt(m, "probing_interval"),
+		ProbingJitterMax:     getInt(m, "probing_jitter_max"),
+		ProbingJitterSeed:    int64(getInt(m, "probing_jitter_seed")),
+		AnnouncingRepeat:     getInt(m, "announcing_repeat"),
+		AnnouncingInterval:   getInt(m, "announcing_interval"),
+		ResponseDelay:        getInt(m, "response_delay"),
+		MulticastGroup:       getString(m, "multicast_group"),
 		ForceUnicastResponse: getBool(m, "force_unicast_response", false),
-		CacheFlush:          getBoolPtr(m, "cache_flush"),
-		DefaultTTL:          getUint32(m, "default_ttl"),
-		TC:                  getBool(m, "tc", false),
+		CacheFlush:           getBoolPtr(m, "cache_flush"),
+		DefaultTTL:           getUint32(m, "default_ttl"),
+		TC:                   getBool(m, "tc", false),
 	}
 	return cfg
+}
+
+// parseDNSQuestions converts a JSON-decoded list of "questions" entries
+// into []DNSQuestion (RFC 1035 §4.1.2). Each entry must be an object with
+// at least name+type; class defaults to IN (1) when omitted.
+func parseDNSQuestions(v interface{}) []DNSQuestion {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]DNSQuestion, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, DNSQuestion{
+			Name:  getString(m, "name"),
+			Type:  getUint16(m, "type"),
+			Class: getUint16(m, "class"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseDNSRRs converts a JSON-decoded list of resource-record entries into
+// []DNSRR. Supports A/AAAA/CNAME/NS/PTR/MX/TXT/SOA/SRV/NAPTR/DS/DNSKEY by
+// reading the type-appropriate fields; see DNSRR docs for the mapping.
+func parseDNSRRs(v interface{}) []DNSRR {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]DNSRR, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		rr := DNSRR{
+			Name:   getString(m, "name"),
+			Type:   getUint16(m, "type"),
+			Class:  getUint16(m, "class"),
+			TTL:    getUint32(m, "ttl"),
+			IP:     getString(m, "ip"),
+			Target: getString(m, "target"),
+			Preference: getUint16(m, "preference"),
+			Text:   getString(m, "text"),
+			MName:  getString(m, "mname"),
+			RName:  getString(m, "rname"),
+			Serial:  getUint32(m, "serial"),
+			Refresh: getUint32(m, "refresh"),
+			Retry:   getUint32(m, "retry"),
+			Expire:  getUint32(m, "expire"),
+			Minimum: getUint32(m, "minimum"),
+			Priority: getUint16(m, "priority"),
+			Weight:   getUint16(m, "weight"),
+			Port:     getUint16(m, "port"),
+			Order:    getUint16(m, "order"),
+			Flags:    getString(m, "flags"),
+			Service:  getString(m, "service"),
+			Regexp:   getString(m, "regexp"),
+			KeyTag:       getUint16(m, "key_tag"),
+			Algorithm:    uint8(getInt(m, "algorithm")),
+			DigestType:   uint8(getInt(m, "digest_type")),
+			Digest:        getString(m, "digest"),
+			KeyFlags:     getUint16(m, "key_flags"),
+			Protocol:     uint8(getInt(m, "protocol")),
+			PublicKey:    getString(m, "public_key"),
+		}
+		out = append(out, rr)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func parseMDNSQuestions(v interface{}) []MDNSQuestion {
@@ -2343,17 +2634,17 @@ func parseMySQLConfig(m map[string]interface{}) *MySQLConfig {
 	}
 	cfg := &MySQLConfig{
 		ServerVersion:    getString(m, "server_version"),
-		ThreadID:          getUint32(m, "thread_id"),
-		AuthPlugin:        getString(m, "auth_plugin"),
-		Username:          getString(m, "username"),
-		Password:          getString(m, "password"),
-		Scramble:          getByteSlice(m, "scramble"),
-		Database:          getString(m, "database"),
-		CapabilityFlags:   getUint32(m, "capability_flags"),
-		MaxPacketSize:     getUint32(m, "max_packet_size"),
-		CharacterSet:      uint8(getInt(m, "character_set")),
-		Commands:          parseMySQLCommands(m["commands"]),
-		ServerBypassAuth:  getBool(m, "server_bypass_auth", false),
+		ThreadID:         getUint32(m, "thread_id"),
+		AuthPlugin:       getString(m, "auth_plugin"),
+		Username:         getString(m, "username"),
+		Password:         getString(m, "password"),
+		Scramble:         getByteSlice(m, "scramble"),
+		Database:         getString(m, "database"),
+		CapabilityFlags:  getUint32(m, "capability_flags"),
+		MaxPacketSize:    getUint32(m, "max_packet_size"),
+		CharacterSet:     uint8(getInt(m, "character_set")),
+		Commands:         parseMySQLCommands(m["commands"]),
+		ServerBypassAuth: getBool(m, "server_bypass_auth", false),
 	}
 	return cfg
 }
@@ -2370,17 +2661,28 @@ func parseMySQLCommands(v interface{}) []MySQLCommand {
 			continue
 		}
 		cmd := MySQLCommand{
-			Opcode:           uint8(getInt(m, "opcode")),
-			Body:             getString(m, "body"),
-			BodyEncoding:     getString(m, "body_encoding"),
-			ReplyMode:        getString(m, "reply_mode"),
-			ReplyBytes:       getString(m, "reply_bytes"),
-			ReplyEncoding:    getString(m, "reply_encoding"),
-			ColDefs:          parseMySQLColDefs(m["col_defs"]),
-			Rows:             parseMySQLRows(m["rows"]),
-			StmtID:           getUint32(m, "stmt_id"),
-			IterationCount:   getUint32(m, "iteration_count"),
-			EmitOkExtended:   getBool(m, "emit_ok_extended", false),
+			Opcode:         uint8(getInt(m, "opcode")),
+			Body:           getString(m, "body"),
+			BodyEncoding:   getString(m, "body_encoding"),
+			ReplyMode:      getString(m, "reply_mode"),
+			ReplyBytes:     getString(m, "reply_bytes"),
+			ReplyEncoding:  getString(m, "reply_encoding"),
+			ColDefs:        parseMySQLColDefs(m["col_defs"]),
+			Rows:           parseMySQLRows(m["rows"]),
+			StmtID:         getUint32(m, "stmt_id"),
+			IterationCount: getUint32(m, "iteration_count"),
+			EmitOkExtended: getBool(m, "emit_ok_extended", false),
+			Params:         parseMySQLColDefs(m["params"]),
+			WarningCount:   getUint16(m, "warning_count"),
+			ErrCode:        getUint16(m, "err_code"),
+			ErrSQLState:    getString(m, "err_sqlstate"),
+			ErrMessage:     getString(m, "err_message"),
+			AffectedRows:   getUint64(m, "affected_rows"),
+			LastInsertID:   getUint64(m, "last_insert_id"),
+			StatusFlags:    getUint16(m, "status_flags"),
+			Warnings:       getUint16(m, "warnings"),
+			StmtFlags:      uint8(getInt(m, "stmt_flags")),
+			StmtParams:     parseMySQLStmtParams(m["stmt_params"]),
 		}
 		out = append(out, cmd)
 	}
@@ -2402,17 +2704,17 @@ func parseMySQLColDefs(v interface{}) []MySQLColDef {
 			continue
 		}
 		out = append(out, MySQLColDef{
-			Catalog:   getString(m, "catalog"),
-			Schema:    getString(m, "schema"),
-			Table:     getString(m, "table"),
-			OrgTable:  getString(m, "org_table"),
-			Name:      getString(m, "name"),
-			OrgName:   getString(m, "org_name"),
-			Charset:   getUint16(m, "charset"),
-			Length:    getUint32(m, "length"),
-			Type:      uint8(getInt(m, "type")),
-			Flags:     getUint16(m, "flags"),
-			Decimals:  uint8(getInt(m, "decimals")),
+			Catalog:  getString(m, "catalog"),
+			Schema:   getString(m, "schema"),
+			Table:    getString(m, "table"),
+			OrgTable: getString(m, "org_table"),
+			Name:     getString(m, "name"),
+			OrgName:  getString(m, "org_name"),
+			Charset:  getUint16(m, "charset"),
+			Length:   getUint32(m, "length"),
+			Type:     uint8(getInt(m, "type")),
+			Flags:    getUint16(m, "flags"),
+			Decimals: uint8(getInt(m, "decimals")),
 		})
 	}
 	if len(out) == 0 {
@@ -2458,39 +2760,67 @@ func parseOpenVPNConfig(m map[string]interface{}) *OpenVPNConfig {
 		return nil
 	}
 	cfg := &OpenVPNConfig{
-		Proto:                   getString(m, "proto"),
-		Version:                 getString(m, "version"),
-		KeyID:                   uint8(getInt(m, "key_id")),
-		SessionID:               getUint64(m, "session_id"),
-		TLSAuth:                 getBool(m, "tls_auth", false),
-		TLSCrypt:                getBool(m, "tls_crypt", false),
-		TLSCryptV2:              getBool(m, "tls_crypt_v2", false),
-		DataCipher:              getString(m, "data_cipher"),
-		NCPDisable:              getBool(m, "ncp_disable", false),
-		TLSVersion:              getString(m, "tls_version"),
-		TLSRole:                 getString(m, "tls_role"),
-		SNI:                     getString(m, "sni"),
-		Mssfix:                  getUint16(m, "mssfix"),
-		TLSAuthHMAC:             getByteSlice(m, "tls_auth_hmac"),
-		TLSCryptWrappedKey:      getByteSlice(m, "tls_crypt_wrapped_key"),
-		DataPayload:             getByteSlice(m, "data_payload"),
-		DataPacketCount:         getInt(m, "data_packet_count"),
-		PerformSoftReset:       getBool(m, "perform_soft_reset", false),
-		StaticKeyMode:          getBool(m, "static_key_mode", false),
-		KeyDirection:           uint8(getInt(m, "key_direction")),
-		StaticKey:              getByteSlice(m, "static_key"),
-		AuthUserPass:           getBool(m, "auth_user_pass", false),
-		AuthUser:               getString(m, "auth_user"),
-		AuthPass:               getString(m, "auth_pass"),
-		AuthAlg:                 getString(m, "auth_alg"),
-		FragmentSize:           getUint16(m, "fragment_size"),
-		KeepalivePingInterval:  getUint16(m, "keepalive_ping"),
-		KeepalivePingRestart:   getUint16(m, "keepalive_ping_restart"),
-		ExitNotifyCount:        uint8(getInt(m, "exit_notify_count")),
-		ExitNotifyInterval:     getUint16(m, "exit_notify_interval"),
-		TunMTU:                 getUint16(m, "tun_mtu"),
+		Proto:                 getString(m, "proto"),
+		Version:               getString(m, "version"),
+		KeyID:                 uint8(getInt(m, "key_id")),
+		SessionID:             getUint64(m, "session_id"),
+		TLSAuth:               getBool(m, "tls_auth", false),
+		TLSCrypt:              getBool(m, "tls_crypt", false),
+		TLSCryptV2:            getBool(m, "tls_crypt_v2", false),
+		DataCipher:            getString(m, "data_cipher"),
+		NCPDisable:            getBool(m, "ncp_disable", false),
+		TLSVersion:            getString(m, "tls_version"),
+		TLSRole:               getString(m, "tls_role"),
+		SNI:                   getString(m, "sni"),
+		Mssfix:                getUint16(m, "mssfix"),
+		TLSAuthHMAC:           getByteSlice(m, "tls_auth_hmac"),
+		TLSCryptWrappedKey:    getByteSlice(m, "tls_crypt_wrapped_key"),
+		DataPayload:           getByteSlice(m, "data_payload"),
+		DataPacketCount:       getInt(m, "data_packet_count"),
+		PerformSoftReset:      getBool(m, "perform_soft_reset", false),
+		StaticKeyMode:         getBool(m, "static_key_mode", false),
+		KeyDirection:          uint8(getInt(m, "key_direction")),
+		StaticKey:             getByteSlice(m, "static_key"),
+		AuthUserPass:          getBool(m, "auth_user_pass", false),
+		AuthUser:              getString(m, "auth_user"),
+		AuthPass:              getString(m, "auth_pass"),
+		AuthAlg:               getString(m, "auth_alg"),
+		FragmentSize:          getUint16(m, "fragment_size"),
+		KeepalivePingInterval: getUint16(m, "keepalive_ping"),
+		KeepalivePingRestart:  getUint16(m, "keepalive_ping_restart"),
+		ExitNotifyCount:       uint8(getInt(m, "exit_notify_count")),
+		ExitNotifyInterval:    getUint16(m, "exit_notify_interval"),
+		TunMTU:                getUint16(m, "tun_mtu"),
+		InnerIPPackets:        parseOpenVPNInnerIPPackets(m["inner_ip_packets"]),
 	}
 	return cfg
+}
+
+// parseOpenVPNInnerIPPackets converts the JSON-decoded "inner_ip_packets"
+// array into []OpenVPNInnerIP. Each entry describes a complete inner IPv4/IPv6
+// packet carried inside a P_DATA_V2 as the encrypted data-channel payload.
+func parseOpenVPNInnerIPPackets(v interface{}) []OpenVPNInnerIP {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]OpenVPNInnerIP, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, OpenVPNInnerIP{
+			SrcIP:   getString(m, "src_ip"),
+			DstIP:   getString(m, "dst_ip"),
+			Proto:   uint8(getInt(m, "proto")),
+			SrcPort: getUint16(m, "src_port"),
+			DstPort: getUint16(m, "dst_port"),
+			TTL:     uint8(getInt(m, "ttl")),
+			Payload: getByteSlice(m, "payload"),
+		})
+	}
+	return out
 }
 
 // parsePostgreSQLConfig converts the JSON-decoded "postgresql" sub-map into
@@ -2519,20 +2849,20 @@ func parsePostgreSQLConfig(m map[string]interface{}) *PostgreSQLConfig {
 		}
 	}
 	cfg := &PostgreSQLConfig{
-		ProtocolVersion:      int32(getInt(m, "protocol_version")),
-		StartupParams:        getStringMap(m, "startup_params"),
-		AuthMethod:           getString(m, "auth_method"),
-		Username:             getString(m, "username"),
-		Password:             getString(m, "password"),
-		MD5Salt:              getByteSlice(m, "md5_salt"),
-		Operations:           parsePGOperations(m["operations"]),
-		Pipeline:             getBool(m, "pipeline", false),
-		RowCount:             getInt(m, "row_count"),
-		ColumnTypes:          colTypes,
-		NotificationPayload:  getString(m, "notification_payload"),
-		WALDataSize:          getInt(m, "wal_data_size"),
-		EmitHandshake:        getBoolPtr(m, "emit_handshake"),
-		EmitTeardown:         getBoolPtr(m, "emit_teardown"),
+		ProtocolVersion:     int32(getInt(m, "protocol_version")),
+		StartupParams:       getStringMap(m, "startup_params"),
+		AuthMethod:          getString(m, "auth_method"),
+		Username:            getString(m, "username"),
+		Password:            getString(m, "password"),
+		MD5Salt:             getByteSlice(m, "md5_salt"),
+		Operations:          parsePGOperations(m["operations"]),
+		Pipeline:            getBool(m, "pipeline", false),
+		RowCount:            getInt(m, "row_count"),
+		ColumnTypes:         colTypes,
+		NotificationPayload: getString(m, "notification_payload"),
+		WALDataSize:         getInt(m, "wal_data_size"),
+		EmitHandshake:       getBoolPtr(m, "emit_handshake"),
+		EmitTeardown:        getBoolPtr(m, "emit_teardown"),
 	}
 	return cfg
 }
@@ -2549,24 +2879,27 @@ func parsePGOperations(v interface{}) []PGOperation {
 			continue
 		}
 		op := PGOperation{
-			Kind:              getString(m, "kind"),
-			SQL:               getString(m, "sql"),
-			Statement:         getString(m, "statement"),
-			Portal:            getString(m, "portal"),
-			Mode:              getString(m, "mode"),
-			MaxRows:           int32(getInt(m, "max_rows")),
-			ParamCount:        getInt(m, "param_count"),
-			ParamValues:       getStringSlice(m, "param_values"),
-			Channel:           getString(m, "channel"),
-			CopyData:          getStringSlice(m, "copy_data"),
-			ReplicationSlot:   getString(m, "replication_slot"),
-			ReplicationLSN:    getString(m, "replication_lsn"),
-			ReplicationKind:   getString(m, "replication_kind"),
-			EmitAsServer:      getBool(m, "emit_as_server", false),
-			NotifyChannel:     getString(m, "notify_channel"),
-			NotifyPayload:     getString(m, "notify_payload"),
-			FunctionOID:       int32(getInt(m, "function_oid")),
-			ResultFormatCode:  int16(getInt(m, "result_format_code")),
+			Kind:             getString(m, "kind"),
+			SQL:              getString(m, "sql"),
+			Statement:        getString(m, "statement"),
+			Portal:           getString(m, "portal"),
+			Mode:             getString(m, "mode"),
+			MaxRows:          int32(getInt(m, "max_rows")),
+			ParamCount:       getInt(m, "param_count"),
+			ParamValues:      getStringSlice(m, "param_values"),
+			Channel:          getString(m, "channel"),
+			CopyData:         getStringSlice(m, "copy_data"),
+			ReplicationSlot:  getString(m, "replication_slot"),
+			ReplicationLSN:   getString(m, "replication_lsn"),
+			ReplicationKind:  getString(m, "replication_kind"),
+			EmitAsServer:     getBool(m, "emit_as_server", false),
+			NotifyChannel:    getString(m, "notify_channel"),
+			NotifyPayload:    getString(m, "notify_payload"),
+			FunctionOID:      int32(getInt(m, "function_oid")),
+			ResultFormatCode: int16(getInt(m, "result_format_code")),
+			ErrorFields:      parsePGErrorFields(m["error_fields"]),
+			ExpectNoData:     getBool(m, "expect_no_data", false),
+			ErrorSegment:     getInt(m, "error_segment"),
 		}
 		// ArgumentFormatCodes is int16 slice
 		if arr, ok := m["argument_format_codes"].([]interface{}); ok {
@@ -2589,56 +2922,95 @@ func parsePGOperations(v interface{}) []PGOperation {
 	return out
 }
 
+// parsePGErrorFields converts the JSON-decoded "error_fields" array into
+// []PGErrorField. Each entry is a {type, value} pair where type is a
+// 1-byte ASCII letter (e.g. 'V', 'C', 'M') and value is the C-string text.
+func parsePGErrorFields(v interface{}) []PGErrorField {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]PGErrorField, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		f := PGErrorField{
+			Value: getString(m, "value"),
+		}
+		// Type is a single byte; accept either an int or a 1-char string.
+		switch t := m["type"].(type) {
+		case float64:
+			f.Type = byte(uint8(t))
+		case json.Number:
+			if j, err := t.Int64(); err == nil {
+				f.Type = byte(uint8(j))
+			}
+		case string:
+			if len(t) > 0 {
+				f.Type = t[0]
+			}
+		}
+		out = append(out, f)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // parseRDPConfig converts the JSON-decoded "rdp" sub-map into *RDPConfig.
 func parseRDPConfig(m map[string]interface{}) *RDPConfig {
 	if m == nil {
 		return nil
 	}
 	cfg := &RDPConfig{
-		SecurityLayer:            getString(m, "security_layer"),
-		RequestedProtocols:       getUint32(m, "requested_protocols"),
-		RestrictedAdmin:          getBool(m, "restricted_admin", false),
-		RedirectedAuth:           getBool(m, "redirected_auth", false),
-		Cookie:                   getString(m, "cookie"),
-		ClientName:               getString(m, "client_name"),
-		ClientBuild:              getUint32(m, "client_build"),
-		KeyboardLayout:           getUint32(m, "keyboard_layout"),
-		KeyboardType:             getUint32(m, "keyboard_type"),
-		KeyboardSubType:          getUint32(m, "keyboard_sub_type"),
-		KeyboardFunctionKey:      getUint32(m, "keyboard_function_key"),
-		DesktopWidth:             getUint16(m, "desktop_width"),
-		DesktopHeight:            getUint16(m, "desktop_height"),
-		ColorDepth:               getUint16(m, "color_depth"),
-		HighColorDepth:           getUint16(m, "high_color_depth"),
-		SupportedColorDepths:     getUint16(m, "supported_color_depths"),
-		ConnectionType:           uint8(getInt(m, "connection_type")),
-		ServerSelectedProtocol:   getUint32(m, "server_selected_protocol"),
-		EncryptionMethods:        getUint32(m, "encryption_methods"),
-		ExtEncryptionMethods:     getUint32(m, "ext_encryption_methods"),
-		Domain:                   getString(m, "domain"),
-		UserName:                 getString(m, "user_name"),
-		Password:                 getString(m, "password"),
-		AlternateShell:           getString(m, "alternate_shell"),
-		WorkingDir:               getString(m, "working_dir"),
-		Channels:                 parseRDPChannels(m["channels"]),
-		AutoLogon:                getBool(m, "auto_logon", false),
-		InfoUnicode:              getBool(m, "info_unicode", false),
-		InfoLogonNotify:          getBool(m, "info_logon_notify", false),
-		InfoCompression:          getBool(m, "info_compression", false),
-		CodePage:                 getUint32(m, "code_page"),
-		Flags2:                   getUint16(m, "flags2"),
-		SkipMCSChannelJoin:       getBool(m, "skip_mcs_channel_join", false),
-		SkipSecurityExchange:     getBool(m, "skip_security_exchange", false),
-		SkipLicense:              getBool(m, "skip_license", false),
-		SkipCapability:           getBool(m, "skip_capability", false),
-		ForceRDPVersion:          getUint32(m, "force_rdp_version"),
-		EncryptionLevel:          getUint32(m, "encryption_level"),
-		EncryptionMethod:         getUint32(m, "encryption_method"),
-		ServerRandom:             getByteSlice(m, "server_random"),
-		ServerCertVersion:        getUint32(m, "server_cert_version"),
+		SecurityLayer:               getString(m, "security_layer"),
+		RequestedProtocols:          getUint32(m, "requested_protocols"),
+		RestrictedAdmin:             getBool(m, "restricted_admin", false),
+		RedirectedAuth:              getBool(m, "redirected_auth", false),
+		Cookie:                      getString(m, "cookie"),
+		ClientName:                  getString(m, "client_name"),
+		ClientBuild:                 getUint32(m, "client_build"),
+		KeyboardLayout:              getUint32(m, "keyboard_layout"),
+		KeyboardType:                getUint32(m, "keyboard_type"),
+		KeyboardSubType:             getUint32(m, "keyboard_sub_type"),
+		KeyboardFunctionKey:         getUint32(m, "keyboard_function_key"),
+		DesktopWidth:                getUint16(m, "desktop_width"),
+		DesktopHeight:               getUint16(m, "desktop_height"),
+		ColorDepth:                  getUint16(m, "color_depth"),
+		HighColorDepth:              getUint16(m, "high_color_depth"),
+		SupportedColorDepths:        getUint16(m, "supported_color_depths"),
+		ConnectionType:              uint8(getInt(m, "connection_type")),
+		ServerSelectedProtocol:      getUint32(m, "server_selected_protocol"),
+		EncryptionMethods:           getUint32(m, "encryption_methods"),
+		ExtEncryptionMethods:        getUint32(m, "ext_encryption_methods"),
+		Domain:                      getString(m, "domain"),
+		UserName:                    getString(m, "user_name"),
+		Password:                    getString(m, "password"),
+		AlternateShell:              getString(m, "alternate_shell"),
+		WorkingDir:                  getString(m, "working_dir"),
+		Channels:                    parseRDPChannels(m["channels"]),
+		AutoLogon:                   getBool(m, "auto_logon", false),
+		InfoUnicode:                 getBool(m, "info_unicode", false),
+		InfoLogonNotify:             getBool(m, "info_logon_notify", false),
+		InfoCompression:             getBool(m, "info_compression", false),
+		CodePage:                    getUint32(m, "code_page"),
+		Flags2:                      getUint16(m, "flags2"),
+		SkipMCSChannelJoin:          getBool(m, "skip_mcs_channel_join", false),
+		SkipSecurityExchange:        getBool(m, "skip_security_exchange", false),
+		SkipLicense:                 getBool(m, "skip_license", false),
+		SkipCapability:              getBool(m, "skip_capability", false),
+		ForceRDPVersion:             getUint32(m, "force_rdp_version"),
+		EncryptionLevel:             getUint32(m, "encryption_level"),
+		EncryptionMethod:            getUint32(m, "encryption_method"),
+		ServerRandom:                getByteSlice(m, "server_random"),
+		ServerCertVersion:           getUint32(m, "server_cert_version"),
 		SecurityExchangeRSAKeyBytes: getInt(m, "security_exchange_rsa_key_bytes"),
-		DataEvents:               parseRDPDataEvents(m["data_events"]),
-		ServerResponses:          parseRDPServerResponses(m["server_responses"]),
+		Scenario:                     getString(m, "scenario"),
+		DataEvents:                  parseRDPDataEvents(m["data_events"]),
+		ServerResponses:             parseRDPServerResponses(m["server_responses"]),
 	}
 	return cfg
 }
@@ -2752,12 +3124,12 @@ func parseRedisCommands(v interface{}) []RedisCommand {
 			continue
 		}
 		out = append(out, RedisCommand{
-			Args:        getStringSlice(m, "args"),
-			ArgsBase64:  getStringSlice(m, "args_base64"),
-			Reply:       getString(m, "reply"),
-			AutoReply:   getString(m, "auto_reply"),
-			EmitAsPush:  getBool(m, "emit_as_push", false),
-			Channel:     getString(m, "channel"),
+			Args:       getStringSlice(m, "args"),
+			ArgsBase64: getStringSlice(m, "args_base64"),
+			Reply:      getString(m, "reply"),
+			AutoReply:  getString(m, "auto_reply"),
+			EmitAsPush: getBool(m, "emit_as_push", false),
+			Channel:    getString(m, "channel"),
 		})
 	}
 	if len(out) == 0 {
@@ -2796,9 +3168,9 @@ func parseShadowsocksConfig(m map[string]interface{}) *ShadowsocksConfig {
 		return nil
 	}
 	cfg := &ShadowsocksConfig{
-		Mode:                getString(m, "mode"),
-		Cipher:              getString(m, "cipher"),
-		SOCKS5Handshake:     getBool(m, "socks5_handshake", false),
+		Mode:               getString(m, "mode"),
+		Cipher:             getString(m, "cipher"),
+		SOCKS5Handshake:    getBool(m, "socks5_handshake", false),
 		SOCKS5AuthMethod:   getString(m, "socks5_auth_method"),
 		SOCKS5Username:     getString(m, "socks5_username"),
 		SOCKS5Password:     getString(m, "socks5_password"),
@@ -2807,14 +3179,14 @@ func parseShadowsocksConfig(m map[string]interface{}) *ShadowsocksConfig {
 		SOCKS5DstPort:      getUint16(m, "socks5_dst_port"),
 		SOCKS5BNDAddr:      getString(m, "socks5_bnd_addr"),
 		SOCKS5BNDPort:      getUint16(m, "socks5_bnd_port"),
-		Chunks:              getInt(m, "chunks"),
+		Chunks:             getInt(m, "chunks"),
 		ChunkPayloadSize:   getInt(m, "chunk_payload_size"),
 		Obfuscation:        getString(m, "obfuscation"),
 		ObfMethod:          getString(m, "obf_method"),
-		ObfHeaders:          getStringMap(m, "obf_headers"),
-		PayloadBytesFormat:  getString(m, "payload_bytes_format"),
-		FRAG:                uint8(getInt(m, "frag")),
-		FileSource:          parseFileSourceField(m),
+		ObfHeaders:         getStringMap(m, "obf_headers"),
+		PayloadBytesFormat: getString(m, "payload_bytes_format"),
+		FRAG:               uint8(getInt(m, "frag")),
+		FileSource:         parseFileSourceField(m),
 	}
 	return cfg
 }
@@ -2825,27 +3197,27 @@ func parseSSDPConfig(m map[string]interface{}) *SSDPConfig {
 		return nil
 	}
 	cfg := &SSDPConfig{
-		MessageType:          getString(m, "message_type"),
-		SearchTarget:         getString(m, "search_target"),
-		USN:                  getString(m, "usn"),
-		Location:             getString(m, "location"),
-		Server:               getString(m, "server"),
-		MaxAge:               getInt(m, "max_age"),
-		MX:                   getInt(m, "mx"),
-		BootID:               getUint32(m, "boot_id"),
-		ConfigID:             getUint32(m, "config_id"),
-		NextBootID:           getUint32(m, "next_boot_id"),
-		SearchPort:           getUint16(m, "search_port"),
-		ResponseCount:        getInt(m, "response_count"),
-		ResponseDelayMinMs:   getInt(m, "response_delay_min_ms"),
-		ResponseDelayMaxMs:   getInt(m, "response_delay_max_ms"),
-		RepeatCount:          getInt(m, "repeat_count"),
-		Date:                 getString(m, "date"),
-		MulticastGroup:       getString(m, "multicast_group"),
-		OmitExt:              getBool(m, "omit_ext", false),
-		Body:                 getString(m, "body"),
-		EmitContentLength:    getBool(m, "emit_content_length", false),
-		RepeatIntervalMs:     getInt(m, "repeat_interval_ms"),
+		MessageType:        getString(m, "message_type"),
+		SearchTarget:       getString(m, "search_target"),
+		USN:                getString(m, "usn"),
+		Location:           getString(m, "location"),
+		Server:             getString(m, "server"),
+		MaxAge:             getInt(m, "max_age"),
+		MX:                 getInt(m, "mx"),
+		BootID:             getUint32(m, "boot_id"),
+		ConfigID:           getUint32(m, "config_id"),
+		NextBootID:         getUint32(m, "next_boot_id"),
+		SearchPort:         getUint16(m, "search_port"),
+		ResponseCount:      getInt(m, "response_count"),
+		ResponseDelayMinMs: getInt(m, "response_delay_min_ms"),
+		ResponseDelayMaxMs: getInt(m, "response_delay_max_ms"),
+		RepeatCount:        getInt(m, "repeat_count"),
+		Date:               getString(m, "date"),
+		MulticastGroup:     getString(m, "multicast_group"),
+		OmitExt:            getBool(m, "omit_ext", false),
+		Body:               getString(m, "body"),
+		EmitContentLength:  getBool(m, "emit_content_length", false),
+		RepeatIntervalMs:   getInt(m, "repeat_interval_ms"),
 	}
 	return cfg
 }
@@ -2900,8 +3272,8 @@ func parsePSKIdentities(v interface{}) []PSKIdentity {
 			continue
 		}
 		out = append(out, PSKIdentity{
-			Identity:        getByteSlice(m, "identity"),
-			ObfuscatedAge:   getUint32(m, "obfuscated_age"),
+			Identity:      getByteSlice(m, "identity"),
+			ObfuscatedAge: getUint32(m, "obfuscated_age"),
 		})
 	}
 	if len(out) == 0 {
@@ -2928,20 +3300,20 @@ func parseVmessConfig(m map[string]interface{}) *VmessConfig {
 		return nil
 	}
 	cfg := &VmessConfig{
-		UUID:             getString(m, "uuid"),
-		AlterID:          getUint16(m, "alter_id"),
-		Encryption:       getString(m, "encryption"),
-		Command:          uint8(getInt(m, "command")),
-		AddressType:      uint8(getInt(m, "address_type")),
-		Address:          getString(m, "address"),
-		Port:             getUint16(m, "port"),
-		HeaderPadLen:     uint8(getInt(m, "header_pad_len")),
-		Payload:          getByteSlice(m, "payload"),
-		ResponsePayload:  getByteSlice(m, "response_payload"),
-		FileSource:       parseFileSourceField(m),
-		Heartbeat:        getBool(m, "heartbeat", false),
-		HeartbeatCount:   getInt(m, "heartbeat_count"),
-		MuxStreams:       parseVmessMuxStreams(m["mux_streams"]),
+		UUID:            getString(m, "uuid"),
+		AlterID:         getUint16(m, "alter_id"),
+		Encryption:      getString(m, "encryption"),
+		Command:         uint8(getInt(m, "command")),
+		AddressType:     uint8(getInt(m, "address_type")),
+		Address:         getString(m, "address"),
+		Port:            getUint16(m, "port"),
+		HeaderPadLen:    uint8(getInt(m, "header_pad_len")),
+		Payload:         getByteSlice(m, "payload"),
+		ResponsePayload: getByteSlice(m, "response_payload"),
+		FileSource:      parseFileSourceField(m),
+		Heartbeat:       getBool(m, "heartbeat", false),
+		HeartbeatCount:  getInt(m, "heartbeat_count"),
+		MuxStreams:      parseVmessMuxStreams(m["mux_streams"]),
 	}
 	return cfg
 }
@@ -2958,10 +3330,10 @@ func parseVmessMuxStreams(v interface{}) []VmessMuxStream {
 			continue
 		}
 		out = append(out, VmessMuxStream{
-			SessionID:   getUint16(m, "session_id"),
-			Frames:      parseVmessMuxFrames(m["frames"]),
-			TargetAddr:  getString(m, "target_addr"),
-			TargetPort:  getUint16(m, "target_port"),
+			SessionID:  getUint16(m, "session_id"),
+			Frames:     parseVmessMuxFrames(m["frames"]),
+			TargetAddr: getString(m, "target_addr"),
+			TargetPort: getUint16(m, "target_port"),
 		})
 	}
 	if len(out) == 0 {
@@ -2999,23 +3371,44 @@ func parseWireGuardConfig(m map[string]interface{}) *WireGuardConfig {
 		return nil
 	}
 	cfg := &WireGuardConfig{
-		Role:                    getString(m, "role"),
-		LocalStaticPubKey:       getByteSlice(m, "local_static_pub_key"),
-		PeerStaticPubKey:        getByteSlice(m, "peer_static_pub_key"),
-		LocalEphemeralPubKey:   getByteSlice(m, "local_ephemeral_pub_key"),
-		SenderIndex:             getUint32(m, "sender_index"),
-		PSK:                     getByteSlice(m, "psk"),
-		Cookie:                  getByteSlice(m, "cookie"),
-		InitialCounter:          getUint64(m, "initial_counter"),
-		RekeyAfter:              getUint64(m, "rekey_after"),
-		RekeyAfterTime:          getInt(m, "rekey_after_time"),
-		KeepaliveInterval:       getInt(m, "keepalive_interval"),
-		CookieReplyThreshold:    getInt(m, "cookie_reply_threshold"),
-		TransportPayloads:       getByteSlices(m, "transport_payloads"),
-		FileSource:              parseFileSourceField(m),
-		Direction:               getString(m, "direction"),
+		Role:                 getString(m, "role"),
+		LocalStaticPubKey:    getByteSlice(m, "local_static_pub_key"),
+		PeerStaticPubKey:     getByteSlice(m, "peer_static_pub_key"),
+		LocalEphemeralPubKey: getByteSlice(m, "local_ephemeral_pub_key"),
+		SenderIndex:          getUint32(m, "sender_index"),
+		PSK:                  getByteSlice(m, "psk"),
+		Cookie:               getByteSlice(m, "cookie"),
+		InitialCounter:       getUint64(m, "initial_counter"),
+		RekeyAfter:           getUint64(m, "rekey_after"),
+		RekeyAfterTime:       getInt(m, "rekey_after_time"),
+		KeepaliveInterval:    getInt(m, "keepalive_interval"),
+		CookieReplyThreshold: getInt(m, "cookie_reply_threshold"),
+		TransportPayloads:    getByteSlices(m, "transport_payloads"),
+		FileSource:           parseFileSourceField(m),
+		Direction:            getString(m, "direction"),
+		InnerIP:              parseWireGuardInnerIP(m["inner_ip"]),
 	}
 	return cfg
+}
+
+// parseWireGuardInnerIP converts the JSON-decoded "inner_ip" sub-map into
+// *WireGuardInnerIP (the inner IPv4/IPv6 packet config for the
+// dual-encapsulation tunnel scenario).
+func parseWireGuardInnerIP(v interface{}) *WireGuardInnerIP {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &WireGuardInnerIP{
+		SrcIP:      getString(m, "src_ip"),
+		DstIP:      getString(m, "dst_ip"),
+		Proto:      uint8(getInt(m, "proto")),
+		SrcPort:    getUint16(m, "src_port"),
+		DstPort:    getUint16(m, "dst_port"),
+		TTL:        uint8(getInt(m, "ttl")),
+		Payload:    getByteSlice(m, "payload"),
+		DataFrames: getInt(m, "data_frames"),
+	}
 }
 
 // parseTelnetDialog converts the JSON-decoded "dialog" array into a
@@ -3126,6 +3519,31 @@ func parseByteSlice(v interface{}) []byte {
 	return nil
 }
 
+func parseMySQLStmtParams(v interface{}) []MySQLStmtParam {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MySQLStmtParam, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, MySQLStmtParam{
+			Type:          uint8(getInt(m, "type")),
+			Unsigned:      getBool(m, "unsigned", false),
+			Value:         getString(m, "value"),
+			ValueEncoding: getString(m, "value_encoding"),
+			IsNull:        getBool(m, "is_null", false),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // parseSIPDialog converts the JSON-decoded "dialog" value into a
 // []SIPMessage. Returns nil for absent/non-array input - the planner then
 // emits only TCP handshake + teardown (an empty SIP session, which is a
@@ -3175,18 +3593,26 @@ func parseSIPDialog(v interface{}) []SIPMessage {
 // parseSIPMedia converts the JSON-decoded "media" sub-map into a *SIPMedia.
 // Returns nil for absent/non-map input — the planner then emits only
 // signaling (backward compat with pre-media specs).
+//
+// Direction: parsed here so the JSON {"media":{"direction":"down"}} path
+// is wired through. Without this, the user's explicit direction override
+// is silently dropped and the planner falls through to the SDP-derived
+// default (or "up"). FileSource is parsed separately after this function
+// returns (strategy_convert.go:~768) so it can be patched in even if the
+// media sub-map was present without a file_source key.
 func parseSIPMedia(v interface{}) *SIPMedia {
 	m, ok := v.(map[string]interface{})
 	if !ok || m == nil {
 		return nil
 	}
 	return &SIPMedia{
-		SrcPort:     getUint16(m, "src_port"),
-		DstPort:     getUint16(m, "dst_port"),
-		Frames:      getInt(m, "frames"),
-		PayloadType: uint8(getInt(m, "payload_type")),
-		SampleRate:  uint32(getInt(m, "sample_rate")),
-		FrameSize:   getInt(m, "frame_size"),
+		Direction:    getString(m, "direction"),
+		SrcPort:      getUint16(m, "src_port"),
+		DstPort:      getUint16(m, "dst_port"),
+		Frames:       getInt(m, "frames"),
+		PayloadType:  uint8(getInt(m, "payload_type")),
+		SampleRate:   uint32(getInt(m, "sample_rate")),
+		FrameSize:    getInt(m, "frame_size"),
 	}
 }
 
@@ -3322,8 +3748,17 @@ func parseSyslogStructuredData(v interface{}) []string {
 			var b strings.Builder
 			b.WriteByte('[')
 			b.WriteString(id)
-			for k, v := range params {
-				vs, _ := v.(string)
+			// Iterate params in SORTED key order so the wire output is
+			// deterministic across runs. Go map iteration is randomized
+			// (design_syslog.md §1.8.4 requires stable output for tests
+			// like 3.7.1: `[meta sequenceId="1234" sysUpTime="0"]`).
+			paramKeys := make([]string, 0, len(params))
+			for k := range params {
+				paramKeys = append(paramKeys, k)
+			}
+			sort.Strings(paramKeys)
+			for _, k := range paramKeys {
+				vs, _ := params[k].(string)
 				b.WriteString(` `)
 				b.WriteString(k)
 				b.WriteString(`="`)
@@ -3333,6 +3768,45 @@ func parseSyslogStructuredData(v interface{}) []string {
 			b.WriteByte(']')
 			out = append(out, b.String())
 		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseSyslogMessages converts the JSON-decoded "messages" field into
+// []SyslogMessage. Each entry is a map mirroring SyslogMessage fields.
+// Returns nil for absent/non-list input or empty list.
+//
+// Per-message fields (Timestamp/Hostname/AppName/ProcID/MsgID/SD/Msg/
+// MsgHasBOM/SignBlocks) override the top-level SyslogConfig fields for
+// that one message. Protocol-level fields (Facility/Severity/Version/
+// Format/Transport/TCPFraming/Count) are NOT per-message — they remain
+// at the top-level SyslogConfig.
+func parseSyslogMessages(v interface{}) []SyslogMessage {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]SyslogMessage, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		entry := SyslogMessage{
+			Timestamp:      getString(m, "timestamp"),
+			Hostname:       getString(m, "hostname"),
+			AppName:        getString(m, "app_name"),
+			ProcID:         getString(m, "proc_id"),
+			MsgID:          getString(m, "msg_id"),
+			StructuredData: parseSyslogStructuredData(m["structured_data"]),
+			Msg:            getString(m, "msg"),
+			MsgHasBOM:      getBool(m, "msg_has_bom", false),
+			SignBlocks:     parseSyslogSignBlocks(m["sign_blocks"]),
+		}
+		out = append(out, entry)
 	}
 	if len(out) == 0 {
 		return nil

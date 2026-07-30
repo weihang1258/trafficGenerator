@@ -165,56 +165,69 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	}
 	cfg := spec.DHCPv6
 
-	// 3. Messages non-empty
-	if len(cfg.Messages) == 0 {
-		return fmt.Errorf("dhcpv6: at least one message is required")
-	}
-
-	// 4. Validate each message
-	for i, msg := range cfg.Messages {
-		// 4a. msg-type range check
-		if msg.MsgType < 1 || msg.MsgType > 13 {
-			return fmt.Errorf("dhcpv6: message[%d]: invalid msg-type %d (must be 1-13)", i, msg.MsgType)
+	// 2b. Scenario mode: validate scenario-specific prerequisites. When
+	// Scenario is set, the planner auto-generates the Messages list from
+	// the RFC 8415 state machine; the manual Messages field is ignored.
+	// Empty Scenario = manual mode (backward-compatible).
+	if cfg.Scenario != "" {
+		if err := validateScenario(cfg); err != nil {
+			return err
+		}
+		// Scenario mode synthesizes Messages at Plan time; skip the
+		// manual-Messages validation below, but still validate DUIDs and
+		// RelayConfig.
+	} else {
+		// 3. Messages non-empty (manual mode only)
+		if len(cfg.Messages) == 0 {
+			return fmt.Errorf("dhcpv6: at least one message is required")
 		}
 
-		// 4b. Relay message validation (msg-type 12/13)
-		isRelay := msg.MsgType == MsgTypeRelayForw || msg.MsgType == MsgTypeRelayRepl
-		if isRelay {
-			if msg.RelayFields == nil {
-				return fmt.Errorf("dhcpv6: message[%d]: relay message requires relay_fields", i)
+		// 4. Validate each message
+		for i, msg := range cfg.Messages {
+			// 4a. msg-type range check
+			if msg.MsgType < 1 || msg.MsgType > 13 {
+				return fmt.Errorf("dhcpv6: message[%d]: invalid msg-type %d (must be 1-13)", i, msg.MsgType)
 			}
-			if msg.RelayFields.HopCount > MaxHopCount {
-				return fmt.Errorf("dhcpv6: message[%d]: hop-count %d exceeds limit %d", i, msg.RelayFields.HopCount, MaxHopCount)
-			}
-			if msg.RelayFields.LinkAddress == "" {
-				return fmt.Errorf("dhcpv6: message[%d]: relay link-address is required", i)
-			}
-			if net.ParseIP(msg.RelayFields.LinkAddress) == nil || net.ParseIP(msg.RelayFields.LinkAddress).To4() != nil {
-				return fmt.Errorf("dhcpv6: message[%d]: invalid relay link-address (must be IPv6): %s", i, msg.RelayFields.LinkAddress)
-			}
-			if msg.RelayFields.PeerAddress == "" {
-				return fmt.Errorf("dhcpv6: message[%d]: relay peer-address is required", i)
-			}
-			if net.ParseIP(msg.RelayFields.PeerAddress) == nil || net.ParseIP(msg.RelayFields.PeerAddress).To4() != nil {
-				return fmt.Errorf("dhcpv6: message[%d]: invalid relay peer-address (must be IPv6): %s", i, msg.RelayFields.PeerAddress)
-			}
-		}
 
-		// 4c. Direction check
-		if msg.Direction != "" && msg.Direction != "up" && msg.Direction != "down" {
-			return fmt.Errorf("dhcpv6: message[%d]: invalid direction %q (must be up or down)", i, msg.Direction)
-		}
+			// 4b. Relay message validation (msg-type 12/13)
+			isRelay := msg.MsgType == MsgTypeRelayForw || msg.MsgType == MsgTypeRelayRepl
+			if isRelay {
+				if msg.RelayFields == nil {
+					return fmt.Errorf("dhcpv6: message[%d]: relay message requires relay_fields", i)
+				}
+				if msg.RelayFields.HopCount > MaxHopCount {
+					return fmt.Errorf("dhcpv6: message[%d]: hop-count %d exceeds limit %d", i, msg.RelayFields.HopCount, MaxHopCount)
+				}
+				if msg.RelayFields.LinkAddress == "" {
+					return fmt.Errorf("dhcpv6: message[%d]: relay link-address is required", i)
+				}
+				if net.ParseIP(msg.RelayFields.LinkAddress) == nil || net.ParseIP(msg.RelayFields.LinkAddress).To4() != nil {
+					return fmt.Errorf("dhcpv6: message[%d]: invalid relay link-address (must be IPv6): %s", i, msg.RelayFields.LinkAddress)
+				}
+				if msg.RelayFields.PeerAddress == "" {
+					return fmt.Errorf("dhcpv6: message[%d]: relay peer-address is required", i)
+				}
+				if net.ParseIP(msg.RelayFields.PeerAddress) == nil || net.ParseIP(msg.RelayFields.PeerAddress).To4() != nil {
+					return fmt.Errorf("dhcpv6: message[%d]: invalid relay peer-address (must be IPv6): %s", i, msg.RelayFields.PeerAddress)
+				}
+			}
 
-		// 4d. Validate options total length doesn't exceed MTU-IPv6-UDP
-		optionsLen := 0
-		for _, opt := range msg.Options {
-			optionsLen += 4 + len(opt.Data) // 2(code) + 2(len) + len(data)
-		}
-		// Relay messages have option 9 (Relay Message) which contains inner msg bytes;
-		// the inner msg bytes are counted in the outer message's options length.
-		// For non-relay messages, the options are the user-supplied ones.
-		if optionsLen > MaxOptionsLen {
-			return fmt.Errorf("dhcpv6: message[%d]: options length %d exceeds MTU limit %d", i, optionsLen, MaxOptionsLen)
+			// 4c. Direction check
+			if msg.Direction != "" && msg.Direction != "up" && msg.Direction != "down" {
+				return fmt.Errorf("dhcpv6: message[%d]: invalid direction %q (must be up or down)", i, msg.Direction)
+			}
+
+			// 4d. Validate options total length doesn't exceed MTU-IPv6-UDP
+			optionsLen := 0
+			for _, opt := range msg.Options {
+				optionsLen += 4 + len(opt.Data) // 2(code) + 2(len) + len(data)
+			}
+			// Relay messages have option 9 (Relay Message) which contains inner msg bytes;
+			// the inner msg bytes are counted in the outer message's options length.
+			// For non-relay messages, the options are the user-supplied ones.
+			if optionsLen > MaxOptionsLen {
+				return fmt.Errorf("dhcpv6: message[%d]: options length %d exceeds MTU limit %d", i, optionsLen, MaxOptionsLen)
+			}
 		}
 	}
 
@@ -302,6 +315,15 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			serverDUID = autoServerDUID()
 		}
 
+		// Resolve the message sequence. Scenario mode auto-generates
+		// the full RFC 8415 dialog (SARR/Renew/Rebind/.../Relay) with a
+		// shared transaction-id and correct option chains; manual mode
+		// uses the user-provided Messages list as-is.
+		messages := cfg.Messages
+		if cfg.Scenario != "" {
+			messages = buildScenarioMessages(cfg)
+		}
+
 		// Resolve ports and IPs based on direction (per-message basis).
 		// Like DHCPv4, the flow's 4-tuple is fixed; per-message direction
 		// determines the L2/L3/L4 src/dst swap.
@@ -325,7 +347,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// it matches a previous one (user-set), reuse it.
 		var lastXID [3]byte
 
-		for i, msg := range cfg.Messages {
+		for i, msg := range messages {
 			select {
 			case <-ctx.Done():
 				return

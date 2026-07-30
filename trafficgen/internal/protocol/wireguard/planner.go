@@ -167,6 +167,13 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 
+	// Validate InnerIP (内层 IP, dual-encapsulation tunnel scenario)
+	if wg.InnerIP != nil {
+		if err := validateInnerIP(wg.InnerIP); err != nil {
+			return fmt.Errorf("wireguard: InnerIP: %w", err)
+		}
+	}
+
 	// Validate Reserved fields (not stored in config, computed by planner)
 	// Per design §2.1, reserved_zero must always be 0 — planner always emits 0.
 	// No config-level validation needed.
@@ -238,13 +245,18 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// Flow ID (流标识) based on 4-tuple.
 		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
 
-		// Resolve transport payloads from FileSource or TransportPayloads.
-		// FileSource (文件源) takes precedence over TransportPayloads (传输负载).
+		// Resolve transport payloads from FileSource, InnerIP, or
+		// TransportPayloads. Precedence (highest wins):
+		//   1. FileSource (文件源) - opaque bytes, one transport packet.
+		//   2. InnerIP (内层 IP) - built complete inner IPv4/IPv6 packets,
+		//      one per DataFrame. Dual-encapsulation tunnel scenario.
+		//   3. TransportPayloads (传输负载) - raw bytes, verbatim.
+		//   4. Default: single 1-byte dummy payload (默认: 1 字节 dummy 负载)
 		var transportPayloads [][]byte
 		if len(fileBytes) > 0 {
-			// FileSource resolved bytes: split into individual payloads
-			// (one per transport packet) or use as single payload.
 			transportPayloads = [][]byte{fileBytes}
+		} else if wg.InnerIP != nil {
+			transportPayloads = buildInnerIPPackets(wg.InnerIP)
 		} else if len(wg.TransportPayloads) > 0 {
 			transportPayloads = wg.TransportPayloads
 		}
@@ -656,4 +668,307 @@ func resolveDirection(direction string, index int) string {
 	default:
 		return "up"
 	}
+}
+
+// ===================================================================
+// Inner IP tunnel scenario (Transport Data carries a complete inner
+// IPv4/IPv6 packet). Dual-encapsulation: outer UDP(WG) + inner IP.
+// Spec: WireGuard whitepaper §3/§6, RFC 791 (IPv4), RFC 8200 (IPv6),
+// RFC 768 (UDP), RFC 793 (TCP), RFC 792 (ICMP).
+// ===================================================================
+
+// validateInnerIP validates the inner IP config. IPs must be valid and the
+// same address family; Proto must be 1/6/17; DataFrames >= 0; the built
+// inner packet must fit within MaxTransportPayload (WireGuard MTU).
+func validateInnerIP(ip *core.WireGuardInnerIP) error {
+	srcIP := ip.SrcIP
+	dstIP := ip.DstIP
+	if srcIP == "" {
+		srcIP = "10.10.10.1"
+	}
+	if dstIP == "" {
+		dstIP = "10.10.10.2"
+	}
+	src := net.ParseIP(srcIP)
+	if src == nil {
+		return fmt.Errorf("SrcIP %q is not a valid IP address", ip.SrcIP)
+	}
+	dst := net.ParseIP(dstIP)
+	if dst == nil {
+		return fmt.Errorf("DstIP %q is not a valid IP address", ip.DstIP)
+	}
+	// Address families must match (RFC 791 vs RFC 8200 cannot mix in one
+	// inner packet).
+	srcIsV4 := src.To4() != nil
+	dstIsV4 := dst.To4() != nil
+	if srcIsV4 != dstIsV4 {
+		return fmt.Errorf("SrcIP and DstIP must be the same address family (got v4/v6 mix)")
+	}
+	if ip.Proto != 0 && ip.Proto != 1 && ip.Proto != 6 && ip.Proto != 17 {
+		return fmt.Errorf("Proto %d not in supported list (allowed: 1=ICMP, 6=TCP, 17=UDP)", ip.Proto)
+	}
+	if ip.DataFrames < 0 {
+		return fmt.Errorf("DataFrames %d must be >= 0", ip.DataFrames)
+	}
+	// Verify the built inner packet fits the MTU. The header size depends on
+	// the address family and the L4 header size on the protocol.
+	proto := ip.Proto
+	if proto == 0 {
+		proto = 17 // default UDP
+	}
+	ipHdrLen := 20 // IPv4
+	if !srcIsV4 {
+		ipHdrLen = 40 // IPv6
+	}
+	l4HdrLen := innerL4HeaderLen(proto)
+	innerLen := ipHdrLen + l4HdrLen + len(ip.Payload)
+	if innerLen > MaxTransportPayload {
+		return fmt.Errorf("built inner packet (%d bytes) exceeds MTU (max %d)", innerLen, MaxTransportPayload)
+	}
+	return nil
+}
+
+// innerL4HeaderLen returns the L4 header length for the given protocol.
+func innerL4HeaderLen(proto uint8) int {
+	switch proto {
+	case 6: // TCP
+		return 20
+	case 17: // UDP
+		return 8
+	case 1: // ICMP
+		return 8
+	default:
+		return 0
+	}
+}
+
+// buildInnerIPPackets builds one or more complete inner IP packets (IPv4 or
+// IPv6) from the config. Each packet gets a distinct IPID (IPv4) or Flow
+// Label (IPv6) so tshark sees separate inner packets. Returns the slice of
+// inner IP packet bytes to use as transport payloads.
+func buildInnerIPPackets(ip *core.WireGuardInnerIP) [][]byte {
+	// Resolve defaults.
+	srcIP := ip.SrcIP
+	dstIP := ip.DstIP
+	if srcIP == "" {
+		srcIP = "10.10.10.1"
+	}
+	if dstIP == "" {
+		dstIP = "10.10.10.2"
+	}
+	proto := ip.Proto
+	if proto == 0 {
+		proto = 17 // default UDP
+	}
+	ttl := ip.TTL
+	if ttl == 0 {
+		ttl = 64
+	}
+	frameCount := ip.DataFrames
+	if frameCount <= 0 {
+		frameCount = 1
+	}
+
+	parsedSrc := net.ParseIP(srcIP)
+	isV6 := parsedSrc != nil && parsedSrc.To4() == nil
+
+	out := make([][]byte, 0, frameCount)
+	for i := 0; i < frameCount; i++ {
+		// Distinct IPID (IPv4) / Flow Label (IPv6) per frame, starting at 1
+		// (IPID=0 is valid but used by some senders to mean "unused"; we use
+		// 1-based to mirror the L2TP convention and keep frames distinct).
+		ident := uint16(i + 1)
+		if isV6 {
+			out = append(out, buildInnerIPv6(srcIP, dstIP, proto, ip.SrcPort, ip.DstPort, ttl, ip.Payload, ident))
+		} else {
+			out = append(out, buildInnerIPv4(srcIP, dstIP, proto, ip.SrcPort, ip.DstPort, ttl, ip.Payload, ident))
+		}
+	}
+	return out
+}
+
+// buildInnerIPv4 builds a complete inner IPv4 packet (header + L4 + payload)
+// with a correct header checksum per RFC 791 §3.1.
+func buildInnerIPv4(srcIP, dstIP string, proto uint8, srcPort, dstPort uint16, ttl uint8, payload []byte, ipid uint16) []byte {
+	src := net.ParseIP(srcIP).To4()
+	dst := net.ParseIP(dstIP).To4()
+
+	l4 := buildInnerL4(proto, srcPort, dstPort, payload, src, dst)
+
+	totalLen := uint16(20 + len(l4))
+	hdr := make([]byte, 20)
+	hdr[0] = 0x45 // Version=4, IHL=5
+	// TOS = 0.
+	binary.BigEndian.PutUint16(hdr[2:4], totalLen)
+	binary.BigEndian.PutUint16(hdr[4:6], ipid)
+	// Flags=DF (0x4000), FragOffset=0.
+	binary.BigEndian.PutUint16(hdr[6:8], 0x4000)
+	hdr[8] = ttl
+	hdr[9] = proto
+	// Checksum at [10:12] computed below.
+	if len(src) == 4 {
+		copy(hdr[12:16], src)
+	}
+	if len(dst) == 4 {
+		copy(hdr[16:20], dst)
+	}
+	binary.BigEndian.PutUint16(hdr[10:12], innerIPv4Checksum(hdr))
+
+	return append(hdr, l4...)
+}
+
+// buildInnerIPv6 builds a complete inner IPv6 packet (40-byte fixed header +
+// L4 + payload) per RFC 8200 §3. IPv6 has no header checksum; L4 checksums
+// use the IPv6 pseudo-header (RFC 2460 §8.1). UDP checksum=0 is NOT valid
+// over IPv6, so we compute it; TCP checksum is mandatory; ICMPv6 checksum
+// uses the pseudo-header.
+func buildInnerIPv6(srcIP, dstIP string, proto uint8, srcPort, dstPort uint16, hopLimit uint8, payload []byte, flowLabel uint16) []byte {
+	src := net.ParseIP(srcIP).To16()
+	dst := net.ParseIP(dstIP).To16()
+
+	l4 := buildInnerL4v6(proto, srcPort, dstPort, payload, src, dst)
+
+	payloadLen := uint16(len(l4))
+	hdr := make([]byte, 40)
+	// Version(4)=6 + TrafficClass(8)=0 + FlowLabel(20). We encode the
+	// low 20 bits of flowLabel into the flow label field.
+	hdr[0] = 0x60 // version=6, TC high=0
+	// Flow label low 20 bits: bytes [1:4] low 4 bits of [1] + [2] + [3].
+	fl := uint32(flowLabel) & 0xFFFFF
+	hdr[1] = byte(fl >> 16)
+	hdr[2] = byte(fl >> 8)
+	hdr[3] = byte(fl)
+	binary.BigEndian.PutUint16(hdr[4:6], payloadLen)
+	hdr[6] = proto // Next Header
+	hdr[7] = hopLimit
+	if len(src) == 16 {
+		copy(hdr[8:24], src)
+	}
+	if len(dst) == 16 {
+		copy(hdr[24:40], dst)
+	}
+
+	return append(hdr, l4...)
+}
+
+// buildInnerL4 builds the L4 segment for IPv4. UDP checksum=0 is valid over
+// IPv4 (RFC 768). TCP checksum is mandatory (RFC 793). ICMP checksum covers
+// the whole ICMP message (RFC 792).
+func buildInnerL4(proto uint8, srcPort, dstPort uint16, payload, src, dst []byte) []byte {
+	switch proto {
+	case 6: // TCP (RFC 793)
+		l4 := make([]byte, 20+len(payload))
+		binary.BigEndian.PutUint16(l4[0:2], srcPort)
+		binary.BigEndian.PutUint16(l4[2:4], dstPort)
+		// Seq=0, Ack=0.
+		l4[12] = 5 << 4 // Data offset = 5 (20 bytes), no flags.
+		binary.BigEndian.PutUint16(l4[14:16], 65535) // window
+		copy(l4[20:], payload)
+		binary.BigEndian.PutUint16(l4[16:18], innerL4ChecksumV4(l4, proto, src, dst))
+		return l4
+	case 17: // UDP (RFC 768)
+		l4 := make([]byte, 8+len(payload))
+		binary.BigEndian.PutUint16(l4[0:2], srcPort)
+		binary.BigEndian.PutUint16(l4[2:4], dstPort)
+		binary.BigEndian.PutUint16(l4[4:6], uint16(8+len(payload)))
+		// UDP checksum = 0 is valid over IPv4 (RFC 768). Leave 0.
+		copy(l4[8:], payload)
+		return l4
+	case 1: // ICMP (RFC 792)
+		l4 := make([]byte, 8+len(payload))
+		l4[0] = 8 // echo request
+		copy(l4[8:], payload)
+		binary.BigEndian.PutUint16(l4[2:4], innerIPv4Checksum(l4))
+		return l4
+	default:
+		return payload
+	}
+}
+
+// buildInnerL4v6 builds the L4 segment for IPv6. UDP checksum is MANDATORY
+// over IPv6 (RFC 8200 §8.1), so we always compute it. ICMPv6 (proto 58)
+// checksum uses the pseudo-header; for proto 1 we still build an ICMPv6
+// echo request (type 128) since ICMPv6 is the IPv6 equivalent.
+func buildInnerL4v6(proto uint8, srcPort, dstPort uint16, payload, src, dst []byte) []byte {
+	switch proto {
+	case 6: // TCP
+		l4 := make([]byte, 20+len(payload))
+		binary.BigEndian.PutUint16(l4[0:2], srcPort)
+		binary.BigEndian.PutUint16(l4[2:4], dstPort)
+		l4[12] = 5 << 4
+		binary.BigEndian.PutUint16(l4[14:16], 65535)
+		copy(l4[20:], payload)
+		binary.BigEndian.PutUint16(l4[16:18], innerL4ChecksumV6(l4, 6, src, dst))
+		return l4
+	case 17: // UDP - checksum mandatory over IPv6
+		l4 := make([]byte, 8+len(payload))
+		binary.BigEndian.PutUint16(l4[0:2], srcPort)
+		binary.BigEndian.PutUint16(l4[2:4], dstPort)
+		binary.BigEndian.PutUint16(l4[4:6], uint16(8+len(payload)))
+		copy(l4[8:], payload)
+		binary.BigEndian.PutUint16(l4[6:8], innerL4ChecksumV6(l4, 17, src, dst))
+		return l4
+	case 1: // ICMPv6 echo request (type 128, RFC 4443)
+		l4 := make([]byte, 8+len(payload))
+		l4[0] = 128 // ICMPv6 echo request
+		copy(l4[8:], payload)
+		binary.BigEndian.PutUint16(l4[2:4], innerL4ChecksumV6(l4, 58, src, dst))
+		return l4
+	default:
+		return payload
+	}
+}
+
+// innerIPv4Checksum computes the 16-bit one's-complement checksum used by
+// IPv4 headers and ICMP messages (RFC 791 §3.1, RFC 792).
+func innerIPv4Checksum(b []byte) uint16 {
+	sum := uint32(0)
+	for i := 0; i+1 < len(b); i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(b[i : i+2]))
+	}
+	if len(b)%2 == 1 {
+		sum += uint32(b[len(b)-1]) << 8
+	}
+	for sum>>16 != 0 {
+		sum = (sum >> 16) + (sum & 0xffff)
+	}
+	return ^uint16(sum)
+}
+
+// innerL4ChecksumV4 computes the TCP/UDP checksum with the IPv4 pseudo-header
+// (RFC 793 / RFC 768): SrcIP(4) + DstIP(4) + zero(1) + Protocol(1) +
+// L4-len(2). src/dst must be 4-byte IPv4 addresses.
+func innerL4ChecksumV4(l4 []byte, proto uint8, src, dst []byte) uint16 {
+	pseudo := make([]byte, 12)
+	if len(src) == 4 {
+		copy(pseudo[0:4], src)
+	}
+	if len(dst) == 4 {
+		copy(pseudo[4:8], dst)
+	}
+	pseudo[9] = proto
+	binary.BigEndian.PutUint16(pseudo[10:12], uint16(len(l4)))
+	buf := make([]byte, 0, len(pseudo)+len(l4))
+	buf = append(buf, pseudo...)
+	buf = append(buf, l4...)
+	return innerIPv4Checksum(buf)
+}
+
+// innerL4ChecksumV6 computes the TCP/UDP/ICMPv6 checksum with the IPv6
+// pseudo-header (RFC 2460 §8.1): SrcIP(16) + DstIP(16) + UpperLayerLen(4) +
+// zero(3) + NextHeader(1). src/dst must be 16-byte IPv6 addresses.
+func innerL4ChecksumV6(l4 []byte, proto uint8, src, dst []byte) uint16 {
+	pseudo := make([]byte, 40)
+	if len(src) == 16 {
+		copy(pseudo[0:16], src)
+	}
+	if len(dst) == 16 {
+		copy(pseudo[16:32], dst)
+	}
+	binary.BigEndian.PutUint32(pseudo[32:36], uint32(len(l4)))
+	pseudo[39] = proto
+	buf := make([]byte, 0, len(pseudo)+len(l4))
+	buf = append(buf, pseudo...)
+	buf = append(buf, l4...)
+	return innerIPv4Checksum(buf)
 }

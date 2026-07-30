@@ -370,6 +370,15 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 
+	// Scenario mode: validate the scenario name. Manual mode (empty
+	// Scenario) skips this and uses Channels/DataEvents/ServerResponses
+	// verbatim (backward compatible). Per design_rdp.md §4 + scenario.go.
+	if cfg.Scenario != "" {
+		if err := validateScenario(cfg); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -402,6 +411,12 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		if cfg == nil {
 			cfg = &core.RDPConfig{}
 		}
+
+		// Scenario mode: fill in Channels / DataEvents / ServerResponses
+		// with scenario defaults before encoding. User-supplied fields
+		// are preserved (forwarder-style override). Per design_rdp.md §4
+		// + scenario.go.
+		applyScenarioDefaults(cfg)
 
 		effectiveTTL := spec.TTL
 		if effectiveTTL == 0 {

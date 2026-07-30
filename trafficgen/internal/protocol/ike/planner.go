@@ -106,6 +106,32 @@ const (
 	// under typical MTU when fragmentation is enabled. We still emit
 	// multiple SKF payloads beyond this.
 	MaxSingleOpaqueBytes = 60000
+
+	// --- ESP data-plane constants (RFC 4303) ---
+
+	// ProtocolESPData is the IP protocol number for ESP (50, RFC 4303).
+	// Named ProtocolESPData to avoid collision with the SA-payload
+	// ProtocolESP (3) constant used inside IKE Proposal substructures.
+	ProtocolESPData uint8 = 50
+
+	// DefaultESPIVLength is the default ESP IV length (AES-CBC, 16 bytes).
+	DefaultESPIVLength = 16
+
+	// DefaultESPICVLength is the default ESP ICV length (HMAC-SHA-256-128,
+	// 16 bytes).
+	DefaultESPICVLength = 16
+
+	// DefaultESPInnerPayloadSize is the default inner payload data size.
+	DefaultESPInnerPayloadSize = 100
+
+	// DefaultESPSPI is the auto-assigned ESP SPI when SPI=0 is configured.
+	// (SPI=0 is rejected at validation; this is the fallback for unset.)
+	DefaultESPSPI uint32 = 0xDEADBEEF
+
+	// IPProtoIPv4Encap is the Next Header value for IPv4-in-IPv4 tunnel
+	// mode (RFC 2003 §3.1). In ESP tunnel mode, NextHeader=4 tells the
+	// receiver that the decrypted payload starts with an IPv4 header.
+	IPProtoIPv4Encap uint8 = 4
 )
 
 // Default NONCE / AUTH data sizes when the user doesn't override.
@@ -234,12 +260,50 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 
+	// Validate ESP data-plane configuration (if set).
+	if cfg.ESPDataPlane != nil {
+		if err := validateESPDataPlane(cfg.ESPDataPlane); err != nil {
+			return fmt.Errorf("ike: ESPDataPlane: %w", err)
+		}
+	}
+
 	return nil
 }
 
-// validateIKEMessage validates one IKEMessage. role is used for I-bit
-// consistency; strict enforces RFC semantics; fault allows Raw*Override and
-// known-invalid fields to slip through.
+// validateESPDataPlane validates the ESP data-plane configuration per
+// RFC 4303. SPI must be non-zero (§2.1), mode must be tunnel/transport (§2.4/
+// §2.6), inner IPs must be valid for tunnel mode, and direction must be
+// up/down/empty.
+func validateESPDataPlane(esp *core.ESPDataPlaneConfig) error {
+	if esp == nil {
+		return nil
+	}
+	if esp.SPI == 0 {
+		return fmt.Errorf("SPI=0 is reserved (RFC 4303 §2.1); set a non-zero value or omit for auto")
+	}
+	if esp.Count < 0 {
+		return fmt.Errorf("Count %d must be >= 0", esp.Count)
+	}
+	mode := esp.Mode
+	if mode == "" {
+		mode = "tunnel"
+	}
+	if mode != "tunnel" && mode != "transport" {
+		return fmt.Errorf("Mode %q invalid (must be 'tunnel' or 'transport')", esp.Mode)
+	}
+	if esp.Direction != "" && esp.Direction != "up" && esp.Direction != "down" {
+		return fmt.Errorf("Direction %q invalid (must be 'up' or 'down')", esp.Direction)
+	}
+	if mode == "tunnel" {
+		if esp.InnerSrcIP != "" && net.ParseIP(esp.InnerSrcIP) == nil {
+			return fmt.Errorf("InnerSrcIP %q not a valid IP", esp.InnerSrcIP)
+		}
+		if esp.InnerDstIP != "" && net.ParseIP(esp.InnerDstIP) == nil {
+			return fmt.Errorf("InnerDstIP %q not a valid IP", esp.InnerDstIP)
+		}
+	}
+	return nil
+}
 func validateIKEMessage(m *core.IKEMessage, role string, strict, fault bool) error {
 	// Direction: "up" or "down".
 	if m.Direction != "up" && m.Direction != "down" {
@@ -671,6 +735,13 @@ func (p *Planner) runPlan(ctx context.Context, ch chan<- core.PacketConfig, spec
 		// Generate PacketConfigs for this IKE message (may emit multiple
 		// for retransmits or fragmentation).
 		emitMessage(ctx, ch, spec, flowID, msg, now, &pktIdx, rng, applied)
+	}
+
+	// Emit ESP data-plane packets AFTER the IKE control-plane handshake
+	// (RFC 4303 data plane follows SA establishment). When ESPDataPlane is
+	// configured, emit ESP packets as raw IP-protocol-50 frames.
+	if applied.ESPDataPlane != nil {
+		emitESPDataPlane(ctx, ch, spec, flowID, now, &pktIdx, rng, applied)
 	}
 }
 
@@ -1566,6 +1637,261 @@ func readSPIr(bytes []byte) uint64 {
 		return 0
 	}
 	return binary.BigEndian.Uint64(bytes[8:16])
+}
+
+// --- ESP data-plane emission (RFC 4303) ---
+
+// emitESPDataPlane emits ESP data-plane packets after the IKE control-plane
+// handshake. Each ESP packet is a raw IP-protocol-50 frame (no L4 header):
+//
+//	[Outer IP hdr][SPI(4)][Seq(4)][IV][PayloadData][Padding][PadLen][NextHdr][ICV]
+//
+// In tunnel mode (RFC 4303 §2.6), PayloadData = inner IPv4 header + inner L4
+// + data; NextHeader = 4 (IPv4-in-IPv4, RFC 2003). In transport mode (§2.4),
+// PayloadData = inner L4 header + data; NextHeader = InnerProto.
+//
+// The planner performs NO real encryption — the PayloadData is either a
+// synthesized inner IP packet (tunnel) or inner L4+data (transport), and
+// the IV/ICV are deterministic pseudo-bytes. The structure is wire-format
+// compliant so Wireshark can parse the ESP frame.
+func emitESPDataPlane(
+	ctx context.Context,
+	ch chan<- core.PacketConfig,
+	spec core.FlowSpec,
+	flowID string,
+	now time.Time,
+	pktIdx *uint64,
+	rng *opaqueRNG,
+	cfg core.IKEConfig,
+) {
+	esp := cfg.ESPDataPlane
+	if esp == nil {
+		return
+	}
+
+	spi := esp.SPI
+	if spi == 0 {
+		spi = DefaultESPSPI
+	}
+	count := esp.Count
+	if count <= 0 {
+		count = 1
+	}
+	mode := esp.Mode
+	if mode == "" {
+		mode = "tunnel"
+	}
+	direction := esp.Direction
+	if direction == "" {
+		direction = "up"
+	}
+	ivLen := esp.IVLength
+	if ivLen <= 0 {
+		ivLen = DefaultESPIVLength
+	}
+	icvLen := esp.ICVLength
+	if icvLen <= 0 {
+		icvLen = DefaultESPICVLength
+	}
+	innerPayloadSize := esp.InnerPayloadSize
+	if innerPayloadSize <= 0 {
+		innerPayloadSize = DefaultESPInnerPayloadSize
+	}
+
+	// Resolve outer IP / MAC based on direction.
+	srcIP := spec.SrcIP
+	dstIP := spec.DstIP
+	srcMAC := spec.SrcMAC
+	dstMAC := spec.DstMAC
+	if direction == "down" {
+		srcIP, dstIP = dstIP, srcIP
+		srcMAC, dstMAC = dstMAC, srcMAC
+	}
+
+	ttl := spec.TTL
+	if ttl == 0 {
+		ttl = 64
+	}
+
+	for i := 0; i < count; i++ {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		seqNum := uint32(i + 1)
+		espBytes := buildESPPacket(esp, spi, seqNum, ivLen, icvLen, innerPayloadSize, mode, rng)
+
+		ipID := uint16(*pktIdx & 0xFFFF)
+
+		pc := core.PacketConfig{
+			FlowID:      flowID,
+			PacketIndex: *pktIdx,
+			Direction:   direction,
+			Timestamp:   now,
+			L2: core.L2Config{
+				SrcMAC:    srcMAC,
+				DstMAC:    dstMAC,
+				EtherType: core.EtherTypeFor(srcIP),
+			},
+			L3: core.L3Base(srcIP, dstIP, ProtocolESPData, ttl, ipID, spec),
+			// ESP is an IP-layer protocol (protocol 50); there is no L4
+			// header. Leave L4 zeroed so the builder writes no L4 bytes and
+			// the ESP payload follows the IP header directly.
+			L4:      core.L4Config{},
+			Payload: espBytes,
+			Metadata: map[string]interface{}{
+				"esp_spi":     int(spi),
+				"esp_seq":     int(seqNum),
+				"esp_mode":    mode,
+				"esp_iv_len":  ivLen,
+				"esp_icv_len": icvLen,
+			},
+		}
+
+		select {
+		case ch <- pc:
+			*pktIdx++
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// buildESPPacket constructs one ESP packet's payload bytes (everything after
+// the outer IP header): SPI + Seq + IV + PayloadData + Padding + PadLength +
+// NextHeader + ICV (RFC 4303 §2).
+func buildESPPacket(
+	esp *core.ESPDataPlaneConfig,
+	spi uint32,
+	seqNum uint32,
+	ivLen, icvLen, innerPayloadSize int,
+	mode string,
+	rng *opaqueRNG,
+) []byte {
+	// Build the payload data (the cleartext before "encryption").
+	var payloadData []byte
+	var nextHeader uint8
+
+	if mode == "tunnel" {
+		payloadData = buildInnerIPv4Packet(esp, innerPayloadSize, rng)
+		nextHeader = IPProtoIPv4Encap // 4 = IPv4-in-IPv4
+	} else {
+		// Transport mode: payload = inner L4 header + data.
+		payloadData = buildInnerL4(esp, innerPayloadSize, rng)
+		nextHeader = esp.InnerProto // e.g. 17=UDP, 6=TCP
+	}
+
+	// IV: deterministic pseudo-bytes.
+	iv := rng.bytes(ivLen)
+
+	// Compute padding for 4-byte alignment (RFC 4303 §2.4: the
+	// PayloadData + Padding + PadLength + NextHeader must be a multiple
+	// of the block size; we use 4-byte alignment as the minimum).
+	// payloadLen = len(payloadData) + padding + 2 (PadLen + NextHdr).
+	payloadLen := len(payloadData) + 2
+	remainder := payloadLen % 4
+	padLen := 0
+	if remainder != 0 {
+		padLen = 4 - remainder
+	}
+
+	// Assemble: SPI(4) + Seq(4) + IV + PayloadData + Padding + PadLen(1) + NextHdr(1) + ICV.
+	total := 8 + ivLen + len(payloadData) + padLen + 2 + icvLen
+	out := make([]byte, total)
+	binary.BigEndian.PutUint32(out[0:4], spi)
+	binary.BigEndian.PutUint32(out[4:8], seqNum)
+	copy(out[8:8+ivLen], iv)
+	copy(out[8+ivLen:8+ivLen+len(payloadData)], payloadData)
+	// Padding bytes: 1, 2, 3, ... (RFC 4303 §2.4 recommended scheme).
+	for i := 0; i < padLen; i++ {
+		out[8+ivLen+len(payloadData)+i] = byte(i + 1)
+	}
+	// PadLength byte.
+	out[8+ivLen+len(payloadData)+padLen] = byte(padLen)
+	// NextHeader byte.
+	out[8+ivLen+len(payloadData)+padLen+1] = nextHeader
+	// ICV: deterministic pseudo-bytes.
+	icv := rng.bytes(icvLen)
+	copy(out[8+ivLen+len(payloadData)+padLen+2:], icv)
+
+	return out
+}
+
+// buildInnerIPv4Packet constructs a minimal inner IPv4 header + inner L4 +
+// payload for ESP tunnel mode (RFC 4303 §2.6). The inner IPv4 header is
+// 20 bytes with valid version/IHL/TTL/Protocol/checksum.
+func buildInnerIPv4Packet(esp *core.ESPDataPlaneConfig, innerPayloadSize int, rng *opaqueRNG) []byte {
+	srcIP := net.ParseIP(esp.InnerSrcIP).To4()
+	dstIP := net.ParseIP(esp.InnerDstIP).To4()
+
+	// Inner L4 payload (the data inside the inner IP packet).
+	innerL4 := buildInnerL4(esp, innerPayloadSize, rng)
+
+	// Inner IPv4 header (20 bytes).
+	totalLen := 20 + len(innerL4)
+	hdr := make([]byte, 20)
+	hdr[0] = 0x45 // Version 4, IHL 5
+	// TOS = 0 (best effort).
+	binary.BigEndian.PutUint16(hdr[2:4], uint16(totalLen))
+	binary.BigEndian.PutUint16(hdr[4:6], 0) // IPID (inner, deterministic 0)
+	binary.BigEndian.PutUint16(hdr[6:8], 0) // Flags + FragOffset (no flags)
+	hdr[8] = 64                              // TTL
+	hdr[9] = esp.InnerProto                  // Protocol
+	binary.BigEndian.PutUint16(hdr[10:12], 0) // Checksum placeholder
+	if srcIP != nil {
+		copy(hdr[12:16], srcIP)
+	}
+	if dstIP != nil {
+		copy(hdr[16:20], dstIP)
+	}
+	// Compute and set the IPv4 header checksum.
+	cs := ipChecksum(hdr)
+	binary.BigEndian.PutUint16(hdr[10:12], cs)
+
+	return append(hdr, innerL4...)
+}
+
+// buildInnerL4 constructs the inner L4 header + data. Currently supports
+// UDP (8-byte header) and TCP (20-byte header). For unknown protocols,
+// returns just the payload data.
+func buildInnerL4(esp *core.ESPDataPlaneConfig, innerPayloadSize int, rng *opaqueRNG) []byte {
+	data := rng.bytes(innerPayloadSize)
+	switch esp.InnerProto {
+	case 17: // UDP
+		hdr := make([]byte, 8)
+		binary.BigEndian.PutUint16(hdr[0:2], esp.InnerSrcPort)
+		binary.BigEndian.PutUint16(hdr[2:4], esp.InnerDstPort)
+		binary.BigEndian.PutUint16(hdr[4:6], uint16(8+len(data)))
+		binary.BigEndian.PutUint16(hdr[6:8], 0) // checksum (0 = optional for UDP)
+		return append(hdr, data...)
+	case 6: // TCP
+		hdr := make([]byte, 20)
+		binary.BigEndian.PutUint16(hdr[0:2], esp.InnerSrcPort)
+		binary.BigEndian.PutUint16(hdr[2:4], esp.InnerDstPort)
+		binary.BigEndian.PutUint32(hdr[4:8], 0) // Seq
+		binary.BigEndian.PutUint32(hdr[8:12], 0) // Ack
+		hdr[12] = 0x50                            // Data Offset 5 (20 bytes)
+		hdr[13] = 0x02                            // SYN
+		binary.BigEndian.PutUint16(hdr[14:16], 65535) // Window
+		return append(hdr, data...)
+	default:
+		return data
+	}
+}
+
+// ipChecksum computes the standard IP header checksum (RFC 791) over a
+// header with the checksum field set to 0.
+func ipChecksum(hdr []byte) uint16 {
+	var sum uint32
+	for i := 0; i+1 < len(hdr); i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(hdr[i : i+2]))
+	}
+	for sum>>16 > 0 {
+		sum = (sum & 0xFFFF) + (sum >> 16)
+	}
+	return ^uint16(sum)
 }
 
 // --- Scenario templates ---

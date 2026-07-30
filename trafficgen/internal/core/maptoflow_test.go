@@ -1695,6 +1695,81 @@ func TestMapToFlowSpec_SIP_DialogHeadersNonStringSkipped(t *testing.T) {
 	}
 }
 
+// TestMapToFlowSpec_SIP_MediaDirectionFromJSON locks in that the SIP media
+// sub-map's "direction" field is propagated to SIPMedia.Direction. This is
+// the JSON-config path; the F1 SDP-direction tests set media.Direction
+// directly on the Go struct, so they do NOT exercise this code path.
+//
+// Pre-fix: parseSIPMedia omitted the Direction field, so a user who
+// supplied {"media":{"direction":"down"}} in their strategy config had
+// the value silently dropped, and the planner fell through to the
+// SDP-derived default (which itself may not match the user's intent).
+// The fix: parseSIPMedia must read the "direction" JSON key.
+func TestMapToFlowSpec_SIP_MediaDirectionFromJSON(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "10.0.0.2",
+		"sip": map[string]interface{}{
+			"media": map[string]interface{}{
+				"direction": "down",
+			},
+		},
+	}
+	spec := mapToFlowSpec(cfg, "sip")
+	if spec.SIP == nil || spec.SIP.Media == nil {
+		t.Fatal("SIP.Media nil, want populated")
+	}
+	if spec.SIP.Media.Direction != "down" {
+		t.Errorf("SIP.Media.Direction=%q, want %q (JSON direction field lost in parseSIPMedia)",
+			spec.SIP.Media.Direction, "down")
+	}
+}
+
+// TestMapToFlowSpec_SIP_MediaDirectionEmptyStaysEmpty verifies that an absent
+// "direction" key in the media sub-map leaves SIPMedia.Direction as the
+// empty string (so the planner derives the direction from the SDP body or
+// falls back to "up"). It must NOT default to a non-empty value here — the
+// defaulting happens in the planner, not in parsing.
+func TestMapToFlowSpec_SIP_MediaDirectionEmptyStaysEmpty(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "10.0.0.2",
+		"sip": map[string]interface{}{
+			"media": map[string]interface{}{
+				"frames": float64(5),
+			},
+		},
+	}
+	spec := mapToFlowSpec(cfg, "sip")
+	if spec.SIP == nil || spec.SIP.Media == nil {
+		t.Fatal("SIP.Media nil, want populated")
+	}
+	if spec.SIP.Media.Direction != "" {
+		t.Errorf("SIP.Media.Direction=%q, want \"\" (absent key must stay empty)", spec.SIP.Media.Direction)
+	}
+}
+
+// TestMapToFlowSpec_SIP_MediaDirectionUpHonored verifies the "up" direction
+// is propagated verbatim (the most common value).
+func TestMapToFlowSpec_SIP_MediaDirectionUpHonored(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip": "10.0.0.1",
+		"dst_ip": "10.0.0.2",
+		"sip": map[string]interface{}{
+			"media": map[string]interface{}{
+				"direction": "up",
+			},
+		},
+	}
+	spec := mapToFlowSpec(cfg, "sip")
+	if spec.SIP == nil || spec.SIP.Media == nil {
+		t.Fatal("SIP.Media nil, want populated")
+	}
+	if spec.SIP.Media.Direction != "up" {
+		t.Errorf("SIP.Media.Direction=%q, want %q", spec.SIP.Media.Direction, "up")
+	}
+}
+
 // ============================================================================
 // SCTP branch (strategy_convert.go:299-311)
 // ============================================================================
@@ -2805,5 +2880,139 @@ func TestMapToFlowSpec_SubFlows_SkipsNonMapItems(t *testing.T) {
 	}
 	if spec.SubFlows[1].Protocol != "tcp" {
 		t.Errorf("SubFlows[1].Protocol=%q, want \"tcp\"", spec.SubFlows[1].Protocol)
+	}
+}
+
+// TestMapToFlowSpec_IKE_ESPDataPlane verifies the JSON -> FlowSpec parsing
+// path for the ESP data-plane sub-config (strategy_convert.go).
+func TestMapToFlowSpec_IKE_ESPDataPlane(t *testing.T) {
+	cfg := map[string]interface{}{
+		"src_ip":   "10.0.0.1",
+		"dst_ip":   "10.0.0.2",
+		"ike": map[string]interface{}{
+			"scenario":      "standard_v2",
+			"initiator_spi": float64(0x0123456789ABCDEF),
+			"esp_data_plane": map[string]interface{}{
+				"spi":                float64(0xCAFEBABE),
+				"count":              float64(3),
+				"mode":               "tunnel",
+				"direction":          "up",
+				"iv_length":          float64(16),
+				"icv_length":         float64(12),
+				"inner_src_ip":       "192.168.1.1",
+				"inner_dst_ip":       "192.168.2.1",
+				"inner_proto":        float64(17),
+				"inner_src_port":     float64(12345),
+				"inner_dst_port":     float64(8080),
+				"inner_payload_size": float64(64),
+			},
+		},
+	}
+	spec := mapToFlowSpec(cfg, "ike")
+	if spec.IKE == nil {
+		t.Fatal("IKE config nil")
+	}
+	if spec.IKE.ESPDataPlane == nil {
+		t.Fatal("ESPDataPlane nil")
+	}
+	esp := spec.IKE.ESPDataPlane
+	if esp.SPI != 0xCAFEBABE {
+		t.Errorf("SPI = 0x%08X, want 0xCAFEBABE", esp.SPI)
+	}
+	if esp.Count != 3 {
+		t.Errorf("Count = %d, want 3", esp.Count)
+	}
+	if esp.Mode != "tunnel" {
+		t.Errorf("Mode = %q, want tunnel", esp.Mode)
+	}
+	if esp.InnerSrcIP != "192.168.1.1" || esp.InnerDstIP != "192.168.2.1" {
+		t.Errorf("inner IPs = %s/%s", esp.InnerSrcIP, esp.InnerDstIP)
+	}
+	if esp.InnerProto != 17 {
+		t.Errorf("InnerProto = %d, want 17", esp.InnerProto)
+	}
+	if esp.IVLength != 16 || esp.ICVLength != 12 {
+		t.Errorf("IV/ICV = %d/%d, want 16/12", esp.IVLength, esp.ICVLength)
+	}
+}
+
+// TestMapToFlowSpec_IKE_NoESPDataPlane verifies the ESPDataPlane field stays
+// nil when not provided (backward compatibility).
+func TestMapToFlowSpec_IKE_NoESPDataPlane(t *testing.T) {
+	cfg := map[string]interface{}{
+		"ike": map[string]interface{}{
+			"scenario": "standard_v2",
+		},
+	}
+	spec := mapToFlowSpec(cfg, "ike")
+	if spec.IKE == nil {
+		t.Fatal("IKE config nil")
+	}
+	if spec.IKE.ESPDataPlane != nil {
+		t.Errorf("ESPDataPlane = %v, want nil (not provided)", spec.IKE.ESPDataPlane)
+	}
+}
+
+// TestMapToFlowSpec_HTTP_ChunkedAndPipeline verifies the new HTTP fields
+// (request_transfer_encoding, response_transfer_encoding, chunk_size,
+// pipelined) are parsed from the http sub-map into HTTPConfig.
+func TestMapToFlowSpec_HTTP_ChunkedAndPipeline(t *testing.T) {
+	cfg := map[string]interface{}{
+		"http": map[string]interface{}{
+			"method":                      "POST",
+			"uri":                         "/upload",
+			"body":                        "data",
+			"request_transfer_encoding":   "chunked",
+			"response_transfer_encoding":  "chunked",
+			"chunk_size":                  float64(512),
+			"pipelined":                   true,
+			"transactions":                float64(3),
+		},
+	}
+	spec := mapToFlowSpec(cfg, "http")
+	if spec.HTTP == nil {
+		t.Fatalf("spec.HTTP is nil")
+	}
+	h := spec.HTTP
+	if h.RequestTransferEncoding != "chunked" {
+		t.Errorf("RequestTransferEncoding=%q, want chunked", h.RequestTransferEncoding)
+	}
+	if h.ResponseTransferEncoding != "chunked" {
+		t.Errorf("ResponseTransferEncoding=%q, want chunked", h.ResponseTransferEncoding)
+	}
+	if h.ChunkSize != 512 {
+		t.Errorf("ChunkSize=%d, want 512", h.ChunkSize)
+	}
+	if !h.Pipelined {
+		t.Errorf("Pipelined=false, want true")
+	}
+}
+
+// TestMapToFlowSpec_HTTP_NewFieldsAbsent verifies backward compatibility:
+// when the new fields are absent, they default to zero values (no chunked,
+// no pipeline), preserving existing behavior.
+func TestMapToFlowSpec_HTTP_NewFieldsAbsent(t *testing.T) {
+	cfg := map[string]interface{}{
+		"http": map[string]interface{}{
+			"method": "GET",
+			"uri":    "/",
+		},
+	}
+	spec := mapToFlowSpec(cfg, "http")
+	if spec.HTTP == nil {
+		t.Fatalf("spec.HTTP is nil")
+	}
+	h := spec.HTTP
+	if h.RequestTransferEncoding != "" {
+		t.Errorf("RequestTransferEncoding=%q, want empty (absent)", h.RequestTransferEncoding)
+	}
+	if h.ResponseTransferEncoding != "" {
+		t.Errorf("ResponseTransferEncoding=%q, want empty (absent)", h.ResponseTransferEncoding)
+	}
+	if h.ChunkSize != 0 {
+		t.Errorf("ChunkSize=%d, want 0 (absent)", h.ChunkSize)
+	}
+	if h.Pipelined {
+		t.Errorf("Pipelined=true, want false (absent)")
 	}
 }

@@ -286,6 +286,9 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 				return fmt.Errorf("grpc: Calls[%d].ResponseMessages[%d]: %w", i, j, err)
 			}
 		}
+		if call.WindowUpdateIncrement > 0x7FFFFFFF {
+			return fmt.Errorf("grpc: Calls[%d].WindowUpdateIncrement %d exceeds 31-bit max %d (RFC 7540 §6.9)", i, call.WindowUpdateIncrement, 0x7FFFFFFF)
+		}
 	}
 
 	// Pings validation: when Pings is set, IntervalMs/Count are
@@ -301,6 +304,16 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 
 	if cfg.CancelAfter < 0 {
 		return fmt.Errorf("grpc: CancelAfter %d is negative", cfg.CancelAfter)
+	}
+
+	// WINDOW_UPDATE increment validation per RFC 7540 §6.9.1: a zero
+	// increment in a transmitted frame is a PROTOCOL_ERROR. We treat 0
+	// as "off" (no emission), so 0 is allowed. A non-zero value must be
+	// in the legal 31-bit range [1, 0x7FFFFFFF]. Values with the high
+	// bit set are masked at emit time, so we reject them here to avoid
+	// silent truncation.
+	if cfg.WindowUpdateIncrement > 0x7FFFFFFF {
+		return fmt.Errorf("grpc: WindowUpdateIncrement %d exceeds 31-bit max %d (RFC 7540 §6.9)", cfg.WindowUpdateIncrement, 0x7FFFFFFF)
 	}
 
 	return nil
@@ -603,6 +616,22 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				encoding = "identity"
 			}
 
+			// For bidi-stream, the server must emit its initial
+			// response HEADERS (:status=200) BEFORE any server DATA on
+			// the stream (RFC 7540 §8.1: response headers precede the
+			// response body). Since bidi interleaves server DATA with
+			// client DATA during the request loop below, we emit the
+			// server initial HEADERS here, before the request loop.
+			// For non-bidi call types, the server initial HEADERS is
+			// emitted after the request loop (matching the design
+			// §3.1-§3.5 diagrams where the server responds after the
+			// client half-closes).
+			serverHeaders := buildResponseHeaders(enc, streamID)
+			bidiInterleaved := callType == "bidi-stream" && grpcConfig.CancelAfter == 0
+			if bidiInterleaved {
+				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, serverHeaders)
+			}
+
 			for j, msg := range callReq {
 				isLast := j == len(callReq)-1
 				grpcBytes := buildGRPCMessage(msg, encoding)
@@ -613,6 +642,24 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				// is the last request message AND reqEndStream.
 				dataFrames := buildDataFrameStream(grpcBytes, streamID, isLast && reqEndStream, effectiveMaxFrameSize(grpcConfig))
 				clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, dataFrames)
+
+				// Bidi-stream: interleave the server response for this
+				// request immediately after the client request DATA
+				// (design §3.6 "interleaved"), rather than emitting all
+				// client DATA then all server DATA. We interleave one
+				// response per request when ResponseMessages has a
+				// corresponding entry; any remaining responses (when
+				// ResponseMessages > RequestMessages) are emitted after
+				// the client half-close below in the response loop. The
+				// interleaved response is skipped here if CancelAfter is
+				// set (the client cancels mid-stream; server responses
+				// would not follow). The server initial HEADERS was
+				// already emitted above before this loop.
+				if bidiInterleaved && j < len(callResp) {
+					grpcBytes := buildGRPCMessage(callResp[j], encoding)
+					dataFrames := buildDataFrameStream(grpcBytes, streamID, false, effectiveMaxFrameSize(grpcConfig))
+					serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, dataFrames)
+				}
 			}
 
 			// Optional RST_STREAM cancel (CancelAfter > 0). We do not
@@ -645,15 +692,56 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			// Server response: HEADERS (initial :status=200, ES=0) ->
 			// DATA per response message (final ES=0; trailers ES=1) ->
 			// HEADERS (trailers: grpc-status, grpc-message, ES=1).
-			serverHeaders := buildResponseHeaders(enc, streamID)
-			serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, serverHeaders)
+			// For bidi-stream the initial HEADERS was already emitted
+			// above before the request loop; emit it here only for
+			// non-bidi call types (and bidi-with-cancel, where the
+			// interleaving path was skipped).
+			if !bidiInterleaved {
+				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, serverHeaders)
+			}
 
-			for _, msg := range callResp {
-				grpcBytes := buildGRPCMessage(msg, encoding)
+			// For bidi-stream, the first min(len(req),len(resp))
+			// responses were already interleaved above during the
+			// request loop. Emit only the remaining responses here
+			// (when there are more responses than requests). For
+			// non-bidi call types, emit all responses.
+			respStart := 0
+			if bidiInterleaved {
+				if len(callReq) < len(callResp) {
+					respStart = len(callReq)
+				} else {
+					respStart = len(callResp) // all already interleaved
+				}
+			}
+			for k := respStart; k < len(callResp); k++ {
+				grpcBytes := buildGRPCMessage(callResp[k], encoding)
 				// Response DATA frames never set END_STREAM (trailers
 				// close the stream).
 				dataFrames := buildDataFrameStream(grpcBytes, streamID, false, effectiveMaxFrameSize(grpcConfig))
 				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, dataFrames)
+			}
+
+			// Optional WINDOW_UPDATE flow control frames (RFC 7540
+			// §6.9). When WindowUpdateIncrement > 0, the receiver of
+			// DATA replenishes the sender's window by emitting a
+			// connection-level WINDOW_UPDATE (Stream ID 0) and a
+			// stream-level WINDOW_UPDATE (the call's Stream ID). We
+			// emit them after the server response DATA, before
+			// trailers, modeling the design §3.3 sequence
+			// ("client <-WINDOW_UPDATE- server").
+			wuIncr := grpcConfig.WindowUpdateIncrement
+			if call.WindowUpdateIncrement > 0 {
+				wuIncr = call.WindowUpdateIncrement
+			}
+			if wuIncr > 0 {
+				// Connection-level WINDOW_UPDATE (Stream ID 0), from
+				// server to client.
+				connWU := buildWindowUpdateFrame(0, wuIncr)
+				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, connWU)
+				// Stream-level WINDOW_UPDATE (the call's Stream ID),
+				// from server to client.
+				streamWU := buildWindowUpdateFrame(streamID, wuIncr)
+				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, streamWU)
 			}
 
 			// Trailers: HEADERS with END_STREAM=1, END_HEADERS=1.

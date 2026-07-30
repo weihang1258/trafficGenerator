@@ -123,7 +123,7 @@ func TestPlanner_Validate(t *testing.T) {
 					Messages: []core.DHCPMessage{
 						{
 							Type:         MsgTypeDiscover,
-							ExtraOptions:  []core.DHCPOption{{Code: 52, Data: []byte{0x01}}},
+							ExtraOptions: []core.DHCPOption{{Code: 52, Data: []byte{0x01}}},
 						},
 					},
 				},
@@ -462,7 +462,7 @@ func TestPlan_Starvation(t *testing.T) {
 		SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 		SrcMAC: "aa:bb:cc:dd:ee:ff",
 		DHCP: &core.DHCPConfig{
-			Role: "client",
+			Role:     "client",
 			Messages: messages,
 		},
 	}
@@ -494,9 +494,9 @@ func TestPlan_RelayAgent(t *testing.T) {
 			Xid:  0x12345678,
 			Messages: []core.DHCPMessage{
 				{
-					Type:         MsgTypeDiscover,
-					RelayAgentIP: "192.168.2.1",
-					Hops:         1,
+					Type:           MsgTypeDiscover,
+					RelayAgentIP:   "192.168.2.1",
+					Hops:           1,
 					RelayAgentInfo: []byte{0x01, 0x06, 'e', 't', 'h', '0', '0', 0x02, 0x05, 'A', 'P', '1'},
 				},
 			},
@@ -542,7 +542,7 @@ func TestPlan_ClientMACDefault(t *testing.T) {
 		SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 		SrcMAC: "aa:bb:cc:dd:ee:ff",
 		DHCP: &core.DHCPConfig{
-			Role: "client",
+			Role:     "client",
 			Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}},
 		},
 	}
@@ -576,8 +576,8 @@ func TestPlan_RandomXid(t *testing.T) {
 		SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 		SrcMAC: "aa:bb:cc:dd:ee:ff",
 		DHCP: &core.DHCPConfig{
-			Role: "client",
-			Xid:  0, // random
+			Role:     "client",
+			Xid:      0, // random
 			Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}},
 		},
 	}
@@ -668,9 +668,9 @@ func TestPlan_BroadcastFlag(t *testing.T) {
 		SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 		SrcMAC: "aa:bb:cc:dd:ee:ff",
 		DHCP: &core.DHCPConfig{
-			Role: "client",
+			Role:          "client",
 			BroadcastFlag: true,
-			Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}},
+			Messages:      []core.DHCPMessage{{Type: MsgTypeDiscover}},
 		},
 	}
 
@@ -693,8 +693,8 @@ func TestPlan_SecondsField(t *testing.T) {
 		SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 		SrcMAC: "aa:bb:cc:dd:ee:ff",
 		DHCP: &core.DHCPConfig{
-			Role: "client",
-			Secs: 60,
+			Role:     "client",
+			Secs:     60,
 			Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}},
 		},
 	}
@@ -769,9 +769,9 @@ func TestPlan_HType(t *testing.T) {
 		SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 		SrcMAC: "aa:bb:cc:dd:ee:ff",
 		DHCP: &core.DHCPConfig{
-			Role: "client",
-			HType: 1,
-			HLen:  6,
+			Role:     "client",
+			HType:    1,
+			HLen:     6,
 			Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}},
 		},
 	}
@@ -815,7 +815,7 @@ func TestPlan_OptionOverloadRejected(t *testing.T) {
 			Role: "client",
 			Messages: []core.DHCPMessage{
 				{
-					Type:        MsgTypeDiscover,
+					Type:         MsgTypeDiscover,
 					ExtraOptions: []core.DHCPOption{{Code: 52, Data: []byte{0x01}}},
 				},
 			},
@@ -841,7 +841,7 @@ func TestPlan_OptionENDRejected(t *testing.T) {
 			Role: "client",
 			Messages: []core.DHCPMessage{
 				{
-					Type:        MsgTypeDiscover,
+					Type:         MsgTypeDiscover,
 					ExtraOptions: []core.DHCPOption{{Code: 255, Data: nil}},
 				},
 			},
@@ -864,9 +864,9 @@ func TestPlan_OptionSubnetMask(t *testing.T) {
 			Role: "server",
 			Messages: []core.DHCPMessage{
 				{
-					Type:       MsgTypeOffer,
-					YourIP:     "192.168.1.100",
-					SubnetMask: "255.255.255.0",
+					Type:             MsgTypeOffer,
+					YourIP:           "192.168.1.100",
+					SubnetMask:       "255.255.255.0",
 					ServerIdentifier: "192.168.1.1",
 				},
 			},
@@ -903,9 +903,9 @@ func TestPlan_OptionRouters(t *testing.T) {
 			Role: "server",
 			Messages: []core.DHCPMessage{
 				{
-					Type:    MsgTypeOffer,
-					YourIP:  "192.168.1.100",
-					Routers: []string{"192.168.1.1", "192.168.1.2"},
+					Type:             MsgTypeOffer,
+					YourIP:           "192.168.1.100",
+					Routers:          []string{"192.168.1.1", "192.168.1.2"},
 					ServerIdentifier: "192.168.1.1",
 				},
 			},
@@ -936,9 +936,9 @@ func TestPlan_OptionDNS(t *testing.T) {
 			Role: "server",
 			Messages: []core.DHCPMessage{
 				{
-					Type:   MsgTypeOffer,
-					YourIP: "192.168.1.100",
-					DNS:    []string{"8.8.8.8", "1.1.1.1"},
+					Type:             MsgTypeOffer,
+					YourIP:           "192.168.1.100",
+					DNS:              []string{"8.8.8.8", "1.1.1.1"},
 					ServerIdentifier: "192.168.1.1",
 				},
 			},
@@ -969,9 +969,9 @@ func TestPlan_OptionLeaseTime(t *testing.T) {
 			Role: "server",
 			Messages: []core.DHCPMessage{
 				{
-					Type:        MsgTypeOffer,
-					YourIP:      "192.168.1.100",
-					LeaseTime:   86400,
+					Type:             MsgTypeOffer,
+					YourIP:           "192.168.1.100",
+					LeaseTime:        86400,
 					ServerIdentifier: "192.168.1.1",
 				},
 			},
@@ -1006,8 +1006,8 @@ func TestPlan_OptionServerIdentifier(t *testing.T) {
 			Role: "server",
 			Messages: []core.DHCPMessage{
 				{
-					Type:        MsgTypeOffer,
-					YourIP:      "192.168.1.100",
+					Type:             MsgTypeOffer,
+					YourIP:           "192.168.1.100",
 					ServerIdentifier: "192.168.1.1",
 				},
 			},
@@ -1045,7 +1045,7 @@ func TestPlan_OptionParamRequestList(t *testing.T) {
 			Role: "client",
 			Messages: []core.DHCPMessage{
 				{
-					Type:            MsgTypeDiscover,
+					Type:             MsgTypeDiscover,
 					ParamRequestList: prl,
 				},
 			},
@@ -1207,8 +1207,8 @@ func TestPlan_SnameField(t *testing.T) {
 		SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 		SrcMAC: "aa:bb:cc:dd:ee:ff",
 		DHCP: &core.DHCPConfig{
-			Role:  "client",
-			Sname: "dhcp-server-01",
+			Role:     "client",
+			Sname:    "dhcp-server-01",
 			Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}},
 		},
 	}
@@ -1241,8 +1241,8 @@ func TestPlan_FileField(t *testing.T) {
 		SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 		SrcMAC: "aa:bb:cc:dd:ee:ff",
 		DHCP: &core.DHCPConfig{
-			Role: "client",
-			File: "pxelinux.0",
+			Role:     "client",
+			File:     "pxelinux.0",
 			Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}},
 		},
 	}
@@ -1269,9 +1269,9 @@ func TestPlan_ChaddrField(t *testing.T) {
 		SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 		SrcMAC: "aa:bb:cc:dd:ee:ff",
 		DHCP: &core.DHCPConfig{
-			Role: "client",
+			Role:      "client",
 			ClientMAC: "11:22:33:44:55:66",
-			Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}},
+			Messages:  []core.DHCPMessage{{Type: MsgTypeDiscover}},
 		},
 	}
 
@@ -1404,9 +1404,9 @@ func TestPlan_HLenInconsistent(t *testing.T) {
 		SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 		SrcMAC: "aa:bb:cc:dd:ee:ff",
 		DHCP: &core.DHCPConfig{
-			Role:  "client",
-			HType: 1,
-			HLen:  8, // Ethernet requires HLen=6
+			Role:     "client",
+			HType:    1,
+			HLen:     8, // Ethernet requires HLen=6
 			Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}},
 		},
 	}
@@ -1485,8 +1485,8 @@ func TestPlan_XidBoundary(t *testing.T) {
 				SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 				SrcMAC: "aa:bb:cc:dd:ee:ff",
 				DHCP: &core.DHCPConfig{
-					Role: "client",
-					Xid:  tt.xid,
+					Role:     "client",
+					Xid:      tt.xid,
 					Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}},
 				},
 			}
@@ -1513,12 +1513,12 @@ func TestPlan_OptionT1T2(t *testing.T) {
 			Role: "server",
 			Messages: []core.DHCPMessage{
 				{
-					Type:        MsgTypeOffer,
-					YourIP:      "192.168.1.100",
+					Type:             MsgTypeOffer,
+					YourIP:           "192.168.1.100",
 					ServerIdentifier: "192.168.1.1",
-					LeaseTime:   86400,
-					T1:          43200,
-					T2:          75600,
+					LeaseTime:        86400,
+					T1:               43200,
+					T2:               75600,
 				},
 			},
 		},
@@ -1571,7 +1571,7 @@ func TestPlan_InferredDirection(t *testing.T) {
 				SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 				SrcMAC: "aa:bb:cc:dd:ee:ff",
 				DHCP: &core.DHCPConfig{
-					Role: "client",
+					Role:     "client",
 					Messages: []core.DHCPMessage{{Type: tt.msgType}},
 				},
 			}

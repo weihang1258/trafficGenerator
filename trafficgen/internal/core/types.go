@@ -352,6 +352,38 @@ type HTTPConfig struct {
 	ResponseContentEncoding string            `json:"response_content_encoding"`
 	RequestContentEncoding  string            `json:"request_content_encoding"`
 
+	// TransferEncoding governs the HTTP chunked transfer-encoding
+	// (RFC 7230 §4.1). When set to "chunked", the planner frames the body
+	// as a sequence of length-prefixed chunks:
+	//
+	//	<hex-size>\r\n<chunk-data>\r\n ... 0\r\n\r\n
+	//
+	// The chunk-size field is hexadecimal (§4.1: chunk-size = 1*HEXDIG).
+	// ChunkSize controls how the body is split into chunks; 0 (default)
+	// emits the entire body as a single data chunk. When chunked is active,
+	// NO Content-Length header is emitted (§3.3.3: Transfer-Encoding takes
+	// precedence over Content-Length), and the auto-emitted
+	// "Transfer-Encoding: chunked" header is overridable via the user
+	// RequestHeaders/ResponseHeaders (case-insensitive per §3.2).
+	//
+	// A non-"chunked" value (e.g. "identity") is passed through as a literal
+	// header without framing, mirroring the ContentEncoding non-gzip
+	// pass-through (caller responsibility).
+	//
+	// Chunked composes with gzip: the body is gzip-compressed first, then
+	// the compressed bytes are chunk-framed (§4: Transfer-Encoding wraps the
+	// message body, which may itself be content-encoded).
+	RequestTransferEncoding  string `json:"request_transfer_encoding,omitempty"`
+	ResponseTransferEncoding string `json:"response_transfer_encoding,omitempty"`
+	ChunkSize                int    `json:"chunk_size,omitempty"`
+
+	// Pipelined, when true, reorders the transaction loop so all N requests
+	// are emitted before any response (HTTP pipelining, RFC 9112 §6.3.2).
+	// Default (false) interleaves request->response per transaction. With
+	// Transactions<=1, Pipelined is a no-op. The Connection header still
+	// defaults to keep-alive (pipelining requires a persistent connection).
+	Pipelined bool `json:"pipelined,omitempty"`
+
 	// FileSource, when set, supplies the HTTP REQUEST body bytes via
 	// PayloadCache.GetOrLoad(src). The response body continues to use
 	// inline ResponseBody / ResponseBodyB64. May be overridden per-protocol
@@ -379,6 +411,110 @@ type DNSConfig struct {
 	EDNS0Enabled   bool   `json:"edns0_enabled,omitempty"`
 	UDPPayloadSize uint16 `json:"udp_payload_size,omitempty"`
 	DnssecOK       bool   `json:"dnssec_ok,omitempty"`
+
+	// Transport selects the L4 carriage: "" or "udp" (default, RFC 1035
+	// §4.2.1) or "tcp" (DNS over TCP, RFC 1035 §4.2.2 / RFC 7766). When
+	// "tcp" the DNS message is prefixed with a 2-byte big-endian length
+	// field and carried in a TCP segment (L4 protocol = tcp).
+	Transport string `json:"transport,omitempty"`
+
+	// RCode is the DNS response code (RFC 1035 §4.1.1, low 4 bits of the
+	// flags). 0=NOERROR (default), 1=FORMERR, 2=SERVFAIL, 3=NXDOMAIN,
+	// 4=NOTIMP, 5=REFUSED. Only meaningful when IsResponse is true. Values
+	// >15 are rejected by Validate (the basic 4-bit rcode field tops out at
+	// 15; extended rcodes require EDNS0 which is out of scope here).
+	RCode uint8 `json:"rcode,omitempty"`
+
+	// TTL overrides the default 300-second answer/authority TTL. Per-RR
+	// TTL (DNSRR.TTL) takes precedence over this value.
+	TTL uint32 `json:"ttl,omitempty"`
+
+	// Questions carries multiple questions in one DNS message (rare but
+	// valid, RFC 1035 §4.1.2 -- QDCOUNT may be >1). When set, it overrides
+	// Domain/QueryType for the query; the response echoes the same list.
+	Questions []DNSQuestion `json:"questions,omitempty"`
+
+	// Answers carries multiple answer RRs in the response (RFC 1035
+	// §4.1.2), enabling multi-RR responses (e.g. several A records) and
+	// CNAME chains (CNAME followed by A). When set, it overrides the
+	// single ResponseIP-derived RR.
+	Answers []DNSRR `json:"answers,omitempty"`
+
+	// Authority carries authority-section RRs (RFC 1035 §4.1.2), e.g. a
+	// SOA record for negative caching on an NXDOMAIN response (RFC 1035
+	// §6.2.5).
+	Authority []DNSRR `json:"authority,omitempty"`
+}
+
+// DNSQuestion is a single DNS question: QNAME + QTYPE + QCLASS (RFC 1035
+// §4.1.2). Class defaults to IN (1) when zero.
+type DNSQuestion struct {
+	Name  string `json:"name"`
+	Type  uint16 `json:"type"`
+	Class uint16 `json:"class,omitempty"`
+}
+
+// DNSRR is a single DNS resource record (RFC 1035 §3.2.1). Type selects
+// which RDATA-carrying fields are read; the others are ignored. Class
+// defaults to IN (1) and TTL to 300 (or DNSConfig.TTL) when zero.
+//
+// RDATA field mapping by Type:
+//
+//	A(1)/AAAA(28)  -> IP
+//	CNAME(5)/NS(2)/PTR(12) -> Target (domain name)
+//	MX(15)         -> Preference + Target
+//	TXT(16)        -> Text (single length-prefixed string)
+//	SOA(6)         -> MName, RName, Serial, Refresh, Retry, Expire, Minimum
+//	SRV(33)        -> Priority, Weight, Port, Target (RFC 2782)
+//	NAPTR(35)      -> Order, Preference, Flags, Service, Regexp, Target (RFC 3401)
+//	DS(43)         -> KeyTag, Algorithm, DigestType, Digest(hex) (RFC 4034 §5)
+//	DNSKEY(48)     -> KeyFlags, Protocol, Algorithm, PublicKey(base64) (RFC 4034 §2)
+type DNSRR struct {
+	Name  string `json:"name,omitempty"`
+	Type  uint16 `json:"type"`
+	Class uint16 `json:"class,omitempty"`
+	TTL   uint32 `json:"ttl,omitempty"`
+
+	// A/AAAA record address.
+	IP string `json:"ip,omitempty"`
+	// CNAME/NS/PTR/SRV/NAPTR target domain.
+	Target string `json:"target,omitempty"`
+	// MX preference (RFC 1035 §3.3.9).
+	Preference uint16 `json:"preference,omitempty"`
+	// TXT text (single character-string; truncated to 255 bytes).
+	Text string `json:"text,omitempty"`
+
+	// SOA fields (RFC 1035 §3.3.13).
+	MName   string `json:"mname,omitempty"`
+	RName   string `json:"rname,omitempty"`
+	Serial  uint32 `json:"serial,omitempty"`
+	Refresh uint32 `json:"refresh,omitempty"`
+	Retry   uint32 `json:"retry,omitempty"`
+	Expire  uint32 `json:"expire,omitempty"`
+	Minimum uint32 `json:"minimum,omitempty"`
+
+	// SRV fields (RFC 2782).
+	Priority uint16 `json:"priority,omitempty"`
+	Weight   uint16 `json:"weight,omitempty"`
+	Port     uint16 `json:"port,omitempty"`
+
+	// NAPTR fields (RFC 3401 §4.1). Flags/Service/Regexp are
+	// length-prefixed character-strings; Target is the Replacement domain.
+	Order   uint16 `json:"order,omitempty"`
+	Flags   string `json:"flags,omitempty"`
+	Service string `json:"service,omitempty"`
+	Regexp  string `json:"regexp,omitempty"`
+
+	// DS fields (RFC 4034 §5). Digest is hex-encoded.
+	KeyTag     uint16 `json:"key_tag,omitempty"`
+	Algorithm  uint8  `json:"algorithm,omitempty"`
+	DigestType uint8  `json:"digest_type,omitempty"`
+	Digest     string `json:"digest,omitempty"`
+
+	// DNSKEY fields (RFC 4034 §2). PublicKey is base64-encoded.
+	KeyFlags  uint16 `json:"key_flags,omitempty"`
+	Protocol  uint8  `json:"protocol,omitempty"`
+	PublicKey string `json:"public_key,omitempty"`
 }
 
 // ICMPConfig for ICMP protocol.
@@ -516,6 +652,14 @@ type FTPDataChannel struct {
 	Payload    string `json:"payload,omitempty"`     // file body (text)
 	PayloadB64 string `json:"payload_b64,omitempty"` // file body (base64, for binary)
 	MSS        uint16 `json:"mss,omitempty"`         // 0 = inherit parent TCPConfig.MSS or 1460
+
+	// AbortAfterBytes, when > 0, truncates the data-channel payload to the
+	// first N bytes before emitting the sub-flow. This models ABOR (RFC 959
+	// §4.1.4): a transfer interrupted mid-stream sends only a prefix of the
+	// file, then the data connection tears down. The control-channel dialog
+	// carries the ABOR command and 426/226 responses separately. 0 (default)
+	// = no truncation, full payload sent.
+	AbortAfterBytes int `json:"abort_after_bytes,omitempty"`
 
 	// FileSource, when set, supplies the data-channel file body bytes via
 	// PayloadCache.GetOrLoad(src) instead of inline Payload / PayloadB64.
@@ -667,7 +811,23 @@ type SCTPConfig struct {
 	// SHUTDOWN. The ABORT is sent client→server (up) with VerificationTag
 	// = serverVerTag, after all DATA chunks.
 	Abort bool `json:"abort,omitempty"`
+	// FragmentSize, when non-zero, splits each DATA chunk's user payload
+	// into multiple DATA chunks of at most this many user-data bytes.
+	// Per RFC 4960 §3.3.1, the first fragment carries the B flag
+	// (beginning), the last carries E (end), and middle fragments carry
+	// neither; all fragments share the same SID/SSN/PPID and have
+	// incrementing TSNs. 0 (default) = no fragmentation (each chunk is
+	// one B+E DATA chunk), preserving backward compatibility. A
+	// FragmentSize below MinFragmentSize is rejected at Validate time.
+	FragmentSize int `json:"fragment_size,omitempty"`
 }
+
+// SCTPMinFragmentSize is the minimum legal FragmentSize. A fragment must
+// carry at least MinFragmentSize bytes of user data; smaller values would
+// split payloads into an absurd number of tiny chunks, which is almost
+// always a misconfiguration. Set to a practical floor above 1 to catch
+// typos like fragment_size=1. Enforced in Planner.Validate.
+const SCTPMinFragmentSize = 16
 
 // SCTPHeartbeatConfig configures HEARTBEAT emission. HEARTBEAT chunks
 // probe path availability; the peer replies with HEARTBEAT-ACK. When
@@ -930,8 +1090,19 @@ type DHCPConfig struct {
 	// a session. 0 = random per session (recommended).
 	Xid uint32 `json:"xid,omitempty"`
 
+	// Scenario selects an auto-generated multi-message DHCP dialog
+	// (RFC 2131 state-machine sequence) instead of a manual Messages
+	// list. When set, the planner synthesizes the full message
+	// sequence with correct option chains and shared xid; the user
+	// only supplies the parameters (leased IP via DefaultYourIP, server
+	// IP via DefaultServerIdentifier, lease time, etc.).
+	// Supported values: "dora", "nak", "release", "inform", "renew",
+	// "rebind". Empty = manual mode (use Messages).
+	Scenario string `json:"scenario,omitempty"`
+
 	// Messages is the ordered sequence of DHCP messages to emit.
 	// Each message carries MessageType + per-message field overrides.
+	// The planner emits one UDP datagram per message.
 	// The planner emits one UDP datagram per message.
 	Messages []DHCPMessage `json:"messages"`
 
@@ -959,25 +1130,25 @@ type DHCPConfig struct {
 	File string `json:"file,omitempty"`
 
 	// Default options inherited by all messages (per-message overrides win).
-	DefaultClientIP string `json:"default_client_ip,omitempty"` // ciaddr
-	DefaultYourIP string `json:"default_your_ip,omitempty"` // yiaddr
-	DefaultServerIP string `json:"default_server_ip,omitempty"` // siaddr
-	DefaultRelayAgentIP string `json:"default_relay_agent_ip,omitempty"` // giaddr
-	DefaultServerIdentifier string `json:"default_server_identifier,omitempty"` // option 54
-	DefaultLeaseTime uint32 `json:"default_lease_time,omitempty"` // option 51
-	DefaultT1 uint32 `json:"default_t1,omitempty"` // option 58
-	DefaultT2 uint32 `json:"default_t2,omitempty"` // option 59
-	DefaultSubnetMask string `json:"default_subnet_mask,omitempty"` // option 1
-	DefaultRouters []string `json:"default_routers,omitempty"` // option 3
-	DefaultDNS []string `json:"default_dns,omitempty"` // option 6
-	DefaultDomainName string `json:"default_domain_name,omitempty"` // option 15
-	DefaultHostname string `json:"default_hostname,omitempty"` // option 12
-	DefaultDomainSearch []string `json:"default_domain_search,omitempty"` // option 119
-	DefaultClientID []byte `json:"default_client_id,omitempty"` // option 61
-	DefaultRequestedIP string `json:"default_requested_ip,omitempty"` // option 50
-	DefaultParamRequestList []uint8 `json:"default_param_request_list,omitempty"` // option 55
-	DefaultVendorClass string `json:"default_vendor_class,omitempty"` // option 60
-	DefaultRelayAgentInfo []byte `json:"default_relay_agent_info,omitempty"` // option 82
+	DefaultClientIP         string   `json:"default_client_ip,omitempty"`          // ciaddr
+	DefaultYourIP           string   `json:"default_your_ip,omitempty"`            // yiaddr
+	DefaultServerIP         string   `json:"default_server_ip,omitempty"`          // siaddr
+	DefaultRelayAgentIP     string   `json:"default_relay_agent_ip,omitempty"`     // giaddr
+	DefaultServerIdentifier string   `json:"default_server_identifier,omitempty"`  // option 54
+	DefaultLeaseTime        uint32   `json:"default_lease_time,omitempty"`         // option 51
+	DefaultT1               uint32   `json:"default_t1,omitempty"`                 // option 58
+	DefaultT2               uint32   `json:"default_t2,omitempty"`                 // option 59
+	DefaultSubnetMask       string   `json:"default_subnet_mask,omitempty"`        // option 1
+	DefaultRouters          []string `json:"default_routers,omitempty"`            // option 3
+	DefaultDNS              []string `json:"default_dns,omitempty"`                // option 6
+	DefaultDomainName       string   `json:"default_domain_name,omitempty"`        // option 15
+	DefaultHostname         string   `json:"default_hostname,omitempty"`           // option 12
+	DefaultDomainSearch     []string `json:"default_domain_search,omitempty"`      // option 119
+	DefaultClientID         []byte   `json:"default_client_id,omitempty"`          // option 61
+	DefaultRequestedIP      string   `json:"default_requested_ip,omitempty"`       // option 50
+	DefaultParamRequestList []uint8  `json:"default_param_request_list,omitempty"` // option 55
+	DefaultVendorClass      string   `json:"default_vendor_class,omitempty"`       // option 60
+	DefaultRelayAgentInfo   []byte   `json:"default_relay_agent_info,omitempty"`   // option 82
 }
 
 // DHCPMessage is a single DHCP message in a session.
@@ -992,26 +1163,26 @@ type DHCPMessage struct {
 	Direction string `json:"direction,omitempty"`
 
 	// Per-message field overrides (empty = inherit from DHCPConfig).
-	ClientIP string `json:"client_ip,omitempty"` // ciaddr
-	YourIP string `json:"your_ip,omitempty"` // yiaddr
-	ServerIP string `json:"server_ip,omitempty"` // siaddr
-	RelayAgentIP string `json:"relay_agent_ip,omitempty"` // giaddr
-	Hops uint8 `json:"hops,omitempty"`
-	ServerIdentifier string `json:"server_identifier,omitempty"` // option 54
-	LeaseTime uint32 `json:"lease_time,omitempty"` // option 51
-	T1 uint32 `json:"t1,omitempty"` // option 58
-	T2 uint32 `json:"t2,omitempty"` // option 59
-	SubnetMask string `json:"subnet_mask,omitempty"` // option 1
-	Routers []string `json:"routers,omitempty"` // option 3
-	DNS []string `json:"dns,omitempty"` // option 6
-	DomainName string `json:"domain_name,omitempty"` // option 15
-	Hostname string `json:"hostname,omitempty"` // option 12
-	DomainSearch []string `json:"domain_search,omitempty"` // option 119
-	ClientID []byte `json:"client_id,omitempty"` // option 61
-	RequestedIP string `json:"requested_ip,omitempty"` // option 50
-	ParamRequestList []uint8 `json:"param_request_list,omitempty"` // option 55
-	VendorClass string `json:"vendor_class,omitempty"` // option 60
-	RelayAgentInfo []byte `json:"relay_agent_info,omitempty"` // option 82
+	ClientIP         string   `json:"client_ip,omitempty"`      // ciaddr
+	YourIP           string   `json:"your_ip,omitempty"`        // yiaddr
+	ServerIP         string   `json:"server_ip,omitempty"`      // siaddr
+	RelayAgentIP     string   `json:"relay_agent_ip,omitempty"` // giaddr
+	Hops             uint8    `json:"hops,omitempty"`
+	ServerIdentifier string   `json:"server_identifier,omitempty"`  // option 54
+	LeaseTime        uint32   `json:"lease_time,omitempty"`         // option 51
+	T1               uint32   `json:"t1,omitempty"`                 // option 58
+	T2               uint32   `json:"t2,omitempty"`                 // option 59
+	SubnetMask       string   `json:"subnet_mask,omitempty"`        // option 1
+	Routers          []string `json:"routers,omitempty"`            // option 3
+	DNS              []string `json:"dns,omitempty"`                // option 6
+	DomainName       string   `json:"domain_name,omitempty"`        // option 15
+	Hostname         string   `json:"hostname,omitempty"`           // option 12
+	DomainSearch     []string `json:"domain_search,omitempty"`      // option 119
+	ClientID         []byte   `json:"client_id,omitempty"`          // option 61
+	RequestedIP      string   `json:"requested_ip,omitempty"`       // option 50
+	ParamRequestList []uint8  `json:"param_request_list,omitempty"` // option 55
+	VendorClass      string   `json:"vendor_class,omitempty"`       // option 60
+	RelayAgentInfo   []byte   `json:"relay_agent_info,omitempty"`   // option 82
 
 	// ExtraOptions is a list of arbitrary options for testing rare or
 	// vendor-specific options not covered above.
@@ -1023,7 +1194,7 @@ type DHCPMessage struct {
 
 // DHCPOption is a single raw DHCP option (TLV).
 type DHCPOption struct {
-	Code uint8 `json:"code"`
+	Code uint8  `json:"code"`
 	Data []byte `json:"data,omitempty"`
 }
 
@@ -1033,6 +1204,17 @@ type DHCPv6Config struct {
 	// Messages 是对话中的消息序列，按 wire 顺序输出。每条消息含
 	// msg-type/transaction-id/options/direction。
 	Messages []DHCPv6Message `json:"messages,omitempty"`
+
+	// Scenario selects an auto-generated multi-message DHCPv6 dialog
+	// (RFC 8415 state-machine sequence) instead of a manual Messages
+	// list. When set, the planner synthesizes the full message sequence
+	// with correct option chains and a shared transaction-id; the user
+	// only supplies the parameters (leased IPv6 via DefaultLeasedAddr,
+	// lifetimes via DefaultPreferredLifetime/DefaultValidLifetime/T1/T2).
+	// Supported values: "sarr", "sarr_rapid", "renew", "rebind",
+	// "release", "decline", "confirm", "information_request",
+	// "reconfigure", "relay". Empty = manual mode (use Messages).
+	Scenario string `json:"scenario,omitempty"`
 
 	// ClientDUID 是客户端标识（用于 ClientID option）。所有客户端消息
 	// 共享同一个 DUID。nil = planner 自动生成 DUID-LLT 基于客户端 MAC。
@@ -1044,6 +1226,50 @@ type DHCPv6Config struct {
 
 	// RelayConfig 配置中继封装。nil = 不做中继封装（直连 client↔server）。
 	RelayConfig *RelayConfig `json:"relay_config,omitempty"`
+
+	// --- Scenario-mode defaults (inherited by synthesized messages) ---
+
+	// DefaultLeasedAddr is the IPv6 address the server assigns in
+	// ADVERTISE/REPLY IA_NA IA Address (scenario mode only). Required for
+	// sarr/sarr_rapid/renew/rebind/release/decline/confirm.
+	DefaultLeasedAddr string `json:"default_leased_addr,omitempty"`
+
+	// DefaultIAID is the IAID used in synthesized IA_NA options (default 1).
+	DefaultIAID uint32 `json:"default_iaid,omitempty"`
+
+	// DefaultPreferredLifetime / DefaultValidLifetime are the lifetimes
+	// placed in IA Address sub-options in ADVERTISE/REPLY (defaults 3600/7200).
+	DefaultPreferredLifetime uint32 `json:"default_preferred_lifetime,omitempty"`
+	DefaultValidLifetime     uint32 `json:"default_valid_lifetime,omitempty"`
+
+	// DefaultT1 / DefaultT2 are the T1/T2 values in REPLY IA_NA
+	// (defaults 1800/2880 — half and 0.8 of valid lifetime per RFC 8415).
+	DefaultT1 uint32 `json:"default_t1,omitempty"`
+	DefaultT2 uint32 `json:"default_t2,omitempty"`
+
+	// DefaultPreference is the server Preference in ADVERTISE (default 0).
+	DefaultPreference uint8 `json:"default_preference,omitempty"`
+
+	// DefaultStatusCode is the status code placed in REPLY StatusCode option
+	// for failure scenarios (e.g. 2=NoAddrsAvail, 3=NoBinding, 4=NotOnLink).
+	// 0 = Success (default).
+	DefaultStatusCode uint16 `json:"default_status_code,omitempty"`
+
+	// DefaultStatusMessage is the human-readable message in the REPLY
+	// StatusCode option (scenario mode). Empty = no message bytes.
+	DefaultStatusMessage string `json:"default_status_message,omitempty"`
+
+	// DefaultORO is the Option Request option-code list placed in SOLICIT/
+	// REQUEST/INFORMATION-REQUEST (default [23 RDNSS, 24 DNSSL, 31 SNTP]).
+	DefaultORO []uint16 `json:"default_oro,omitempty"`
+
+	// DefaultDNSServers / DefaultDNSSearch / DefaultSNTPServers /
+	// DefaultInfoRefreshTime are placed in the REPLY for
+	// information_request and sarr scenarios when non-empty.
+	DefaultDNSServers      []string `json:"default_dns_servers,omitempty"`
+	DefaultDNSSearch       []string `json:"default_dns_search,omitempty"`
+	DefaultSNTPServers     []string `json:"default_sntp_servers,omitempty"`
+	DefaultInfoRefreshTime uint32   `json:"default_info_refresh_time,omitempty"`
 }
 
 // DHCPv6Message 是一条 DHCPv6 消息（客户端/服务器/中继）。
@@ -1075,18 +1301,18 @@ type RelayFields struct {
 
 // DUID 标识客户端/服务器（DHCPv6 Unique Identifier，DHCPv6 唯一标识符）。
 type DUID struct {
-	Type            uint8  `json:"type"`                       // 1=LLT, 2=EN, 3=LL
-	HardwareType    uint16 `json:"hardware_type,omitempty"`    // DUID-LLT/LL 用；1=Ethernet
-	Time            uint32 `json:"time,omitempty"`              // DUID-LLT 用；自 2000-01-01 UTC 秒
-	EnterpriseNum   uint32 `json:"enterprise_num,omitempty"`   // DUID-EN 用
-	VendorSpecific  []byte `json:"vendor_specific,omitempty"`  // DUID-EN 用
-	LinkLayerAddr   string `json:"link_layer_addr,omitempty"`  // MAC 地址字符串，如 "00:11:22:33:44:55"
+	Type           uint8  `json:"type"`                      // 1=LLT, 2=EN, 3=LL
+	HardwareType   uint16 `json:"hardware_type,omitempty"`   // DUID-LLT/LL 用；1=Ethernet
+	Time           uint32 `json:"time,omitempty"`            // DUID-LLT 用；自 2000-01-01 UTC 秒
+	EnterpriseNum  uint32 `json:"enterprise_num,omitempty"`  // DUID-EN 用
+	VendorSpecific []byte `json:"vendor_specific,omitempty"` // DUID-EN 用
+	LinkLayerAddr  string `json:"link_layer_addr,omitempty"` // MAC 地址字符串，如 "00:11:22:33:44:55"
 }
 
 // DHCPv6Option 是一个 TLV 选项。Code/LEN 由 planner 自动填，Data 是
 // 选项的 OPTION_DATA 字段（已序列化的字节）。
 type DHCPv6Option struct {
-	Code uint16 `json:"code"` // OPTION_* 常量，如 1=ClientID
+	Code uint16 `json:"code"`           // OPTION_* 常量，如 1=ClientID
 	Data []byte `json:"data,omitempty"` // 已序列化的 OPTION_DATA
 }
 
@@ -1197,6 +1423,15 @@ type GRPCConfig struct {
 	// GoAwayAfter controls whether the server emits a GOAWAY frame after
 	// all streams complete. Default true (graceful close).
 	GoAwayAfter bool `json:"go_away_after,omitempty"`
+	// WindowUpdateIncrement enables HTTP/2 flow-control WINDOW_UPDATE
+	// frame emission per RFC 7540 §6.9. When > 0, the receiver of DATA
+	// frames emits a connection-level WINDOW_UPDATE (Stream ID 0) plus a
+	// stream-level WINDOW_UPDATE (the call's Stream ID) carrying this
+	// increment, modeling window replenishment (design §3.3/§3.7). 0
+	// (default) = no WINDOW_UPDATE frames emitted (backward compatible).
+	// RFC 7540 §6.9.1 forbids a zero increment; Validate enforces >= 1
+	// only when the field is explicitly non-zero (0 means "off").
+	WindowUpdateIncrement uint32 `json:"window_update_increment,omitempty"`
 	// Calls is the list of independent gRPC calls multiplexed on the same
 	// HTTP/2 connection (each gets its own stream ID). When non-empty, the
 	// planner emits each call in order; the top-level Service/Method/etc
@@ -1222,6 +1457,10 @@ type GRPCCall struct {
 	ResponseMessage  string            `json:"response_message,omitempty"`
 	Metadata         map[string]string `json:"metadata,omitempty"`
 	Timeout          string            `json:"timeout,omitempty"`
+	// WindowUpdateIncrement overrides the connection-level
+	// WindowUpdateIncrement for this call's streams. 0 = inherit the
+	// top-level GRPCConfig.WindowUpdateIncrement. See that field's doc.
+	WindowUpdateIncrement uint32 `json:"window_update_increment,omitempty"`
 }
 
 // GRPCPingConfig configures PING frame emission on the HTTP/2 connection.
@@ -1319,6 +1558,83 @@ type IKEConfig struct {
 	// OpaqueKeySeed seeds the deterministic pseudo-byte generator for
 	// SK/SKF/KE/NONCE/AUTH data. 0 = derive from InitiatorSPI.
 	OpaqueKeySeed uint64 `json:"opaque_key_seed,omitempty"`
+
+	// ESPDataPlane configures ESP (Encapsulating Security Payload, 封装安全
+	// 载荷) data-plane packets emitted after the IKE control-plane
+	// handshake (RFC 4303). When nil, no ESP data-plane packets are
+	// emitted (backward-compatible behavior). When set, the planner emits
+	// ESP packets immediately after the last IKE control-plane message.
+	//
+	// The planner performs NO real encryption — ESP PayloadData is filled
+	// with deterministic pseudo-bytes (or a synthesized inner IP/L4 packet
+	// for tunnel mode). The ESP header (SPI + Seq), trailer (PadLength +
+	// NextHeader), and ICV are structurally correct so Wireshark can parse
+	// the ESP frame and, in tunnel mode, the encapsulated inner IP packet.
+	ESPDataPlane *ESPDataPlaneConfig `json:"esp_data_plane,omitempty"`
+}
+
+// ESPDataPlaneConfig configures ESP (Encapsulating Security Payload) data-plane
+// packet emission for the IKE planner per RFC 4303. The planner emits ESP
+// packets as raw IP-protocol-50 frames (no UDP/L4 wrapper) after the IKE
+// control-plane handshake.
+//
+// Wire format (RFC 4303 §2):
+//
+//	[Outer IP hdr][SPI(4)][Seq(4)][IV(iv_len)][PayloadData][Padding][PadLen(1)][NextHdr(1)][ICV(icv_len)]
+//
+// Tunnel mode (RFC 4303 §2.6): PayloadData = inner IP header + inner L4 data;
+// NextHeader = 4 (IPv4-in-IPv4, RFC 2003). Transport mode (RFC 4303 §2.4):
+// PayloadData = inner L4 header + data; NextHeader = InnerProto.
+type ESPDataPlaneConfig struct {
+	// SPI is the 32-bit Security Parameter Index (RFC 4303 §2.1). Must be
+	// non-zero (SPI=0 is reserved for local use per RFC 4303 §2.1 and is
+	// rejected at validation).
+	SPI uint32 `json:"spi,omitempty"`
+
+	// Count is the number of ESP packets to emit. 0 = 1. Each packet gets
+	// an incrementing sequence number starting at 1.
+	Count int `json:"count,omitempty"`
+
+	// Mode is "tunnel" (encrypt entire inner IP packet, RFC 4303 §2.6) or
+	// "transport" (encrypt only inner L4+data, RFC 4303 §2.4). Default
+	// "tunnel".
+	Mode string `json:"mode,omitempty"`
+
+	// Direction is "up" (initiator→responder, default) or "down"
+	// (responder→initiator). "down" swaps outer src/dst IPs and MACs.
+	Direction string `json:"direction,omitempty"`
+
+	// IVLength is the Initialization Vector length in bytes (default 16,
+	// AES-CBC). The IV is filled with deterministic pseudo-bytes.
+	IVLength int `json:"iv_length,omitempty"`
+
+	// ICVLength is the Integrity Check Value length in bytes (default 16,
+	// HMAC-SHA-256-128). The ICV is filled with deterministic pseudo-bytes.
+	ICVLength int `json:"icv_length,omitempty"`
+
+	// --- Tunnel mode fields (ignored in transport mode) ---
+
+	// InnerSrcIP / InnerDstIP are the inner IP addresses for tunnel mode.
+	// Required when Mode="tunnel".
+	InnerSrcIP string `json:"inner_src_ip,omitempty"`
+	InnerDstIP string `json:"inner_dst_ip,omitempty"`
+
+	// --- Inner L4 fields (used in both modes for the inner payload) ---
+
+	// InnerProto is the inner IP protocol number (6=TCP, 17=UDP). In tunnel
+	// mode it populates the inner IP header's Protocol field; in transport
+	// mode it becomes the ESP NextHeader value.
+	InnerProto uint8 `json:"inner_proto,omitempty"`
+
+	// InnerSrcPort / InnerDstPort are the inner L4 ports. Used to build the
+	// inner L4 header in both modes.
+	InnerSrcPort uint16 `json:"inner_src_port,omitempty"`
+	InnerDstPort uint16 `json:"inner_dst_port,omitempty"`
+
+	// InnerPayloadSize is the size of the inner payload data (after the
+	// inner L4 header) in bytes. 0 = default 100. The planner fills this
+	// with deterministic pseudo-bytes.
+	InnerPayloadSize int `json:"inner_payload_size,omitempty"`
 }
 
 // IKEMessage is a single IKE message (one UDP datagram on port 500).
@@ -1493,7 +1809,7 @@ type IKEConfigAttribute struct {
 
 // IKEEAP is the body of an EAP payload (type 48, RFC 3748).
 type IKEEAP struct {
-	Code       uint8  `json:"code"`        // 1=Request, 2=Response, 3=Success, 4=Failure
+	Code       uint8  `json:"code"` // 1=Request, 2=Response, 3=Success, 4=Failure
 	Identifier uint8  `json:"identifier"`
 	Type       *uint8 `json:"type,omitempty"` // nil for Success/Failure
 	Data       []byte `json:"data,omitempty"`
@@ -1612,9 +1928,9 @@ type IKENATTPayload struct {
 	// Type: 33=SA, 34=KE, 40=Nonce, 41=Notify (含 NAT-D), 53=Encrypted, ...
 	Type uint8 `json:"type"`
 	// 各 payload 类型对应的数据（仅一个非 nil）
-	SA     *IKESA      `json:"sa,omitempty"`
-	KE     *IKEKE      `json:"ke,omitempty"`
-	Nonce  []byte      `json:"nonce,omitempty"`
+	SA     *IKESA         `json:"sa,omitempty"`
+	KE     *IKEKE         `json:"ke,omitempty"`
+	Nonce  []byte         `json:"nonce,omitempty"`
 	Notify *NotifyPayload `json:"notify,omitempty"`
 
 	// Raw 是原始 payload 体（用于故障注入或未知类型）。
@@ -1623,9 +1939,9 @@ type IKENATTPayload struct {
 
 // NotifyPayload 描述 IKE Notify payload。NAT 检测 Notify 携带 20 字节 SHA-1。
 type NotifyPayload struct {
-	ProtocolID      uint8  `json:"protocol_id,omitempty"`
-	SPISize         uint8  `json:"spi_size,omitempty"`
-	NotifyMsgType   uint16 `json:"notify_msg_type"`
+	ProtocolID       uint8  `json:"protocol_id,omitempty"`
+	SPISize          uint8  `json:"spi_size,omitempty"`
+	NotifyMsgType    uint16 `json:"notify_msg_type"`
 	NotificationData []byte `json:"notification_data,omitempty"`
 }
 
@@ -1826,6 +2142,142 @@ type IMAPCommand struct {
 	// response verbatim — the user does NOT need to add it to
 	// Responses. See edge case C-IMAP-1.9.
 	UIDCacheInvalidation bool `json:"uid_cache_invalidation,omitempty"`
+
+	// MIMEBody, when non-nil, constructs a MIME (Multipurpose Internet
+	// Mail Extensions, 多用途互联网邮件扩展) message and uses it as the
+	// literal body, overriding LiteralBody / LiteralBodyB64 / FileSource
+	// for the {N} literal placeholder. This enables FETCH BODY[] and
+	// APPEND to carry multipart/mixed messages (RFC 2045 §4, RFC 2046
+	// §5.1) with text + HTML + attachments without the user manually
+	// assembling the wire format.
+	//
+	// Precedence: MIMEBody > FileSource > LiteralBodyB64 > LiteralBody.
+	// MIMEBody is mutually exclusive with LiteralBody and LiteralBodyB64
+	// (Validate rejects mixing). When MIMEBody is set, the planner
+	// constructs the full RFC 822 message bytes from MIMEBody and uses
+	// len(constructed bytes) as the {N} value.
+	//
+	// When the {N} placeholder appears in a client command (APPEND), the
+	// MIME bytes are emitted up (client -> server). When it appears in a
+	// server response (FETCH), the MIME bytes are emitted down.
+	MIMEBody *IMAPMIMEBody `json:"mime_body,omitempty"`
+}
+
+// IMAPMIMEBody constructs a MIME (RFC 2045/2046) email message for use as
+// an IMAP literal body (FETCH BODY[] or APPEND). The planner assembles the
+// full RFC 822 wire bytes from this struct, then uses those bytes as the
+// {N} literal payload.
+//
+// Wire layout (RFC 2046 §5.1.1 for multipart, RFC 5322 for simple):
+//
+//	MULTIPART (Parts/Attachments non-empty OR Text + Parts/Attachments):
+//	  <top-level Headers>\r\n
+//	  MIME-Version: 1.0\r\n
+//	  Content-Type: multipart/mixed; boundary="<boundary>"\r\n
+//	  \r\n
+//	  --<boundary>\r\n
+//	  Content-Type: text/plain; charset=utf-8\r\n
+//	  Content-Transfer-Encoding: 8bit\r\n
+//	  \r\n
+//	  <Text>\r\n
+//	  --<boundary>\r\n
+//	  <each Part headers + \r\n + body + \r\n>
+//	  <each Attachment headers + base64 body + \r\n>
+//	  --<boundary>--\r\n
+//
+//	SIMPLE (no Parts and no Attachments):
+//	  <top-level Headers>\r\n
+//	  Content-Type: text/plain; charset=utf-8\r\n
+//	  Content-Transfer-Encoding: 8bit\r\n
+//	  \r\n
+//	  <Text>\r\n
+//
+// When Boundary is empty and the message is multipart, the planner
+// auto-generates a unique boundary string. When the user provides a
+// Boundary, it is used verbatim (RFC 2046 §5.1.1: boundary must not
+// appear in any body part).
+type IMAPMIMEBody struct {
+	// Headers is the list of top-level RFC 5322 headers (e.g.
+	// "From: alice@example.com", "To: bob@example.com",
+	// "Subject: Test"). Each entry is one header line without the
+	// trailing CRLF; the planner appends "\r\n" to each. The planner
+	// does NOT add Date/Message-ID automatically (the user is
+	// responsible for a syntactically valid RFC 5322 message).
+	Headers []string `json:"headers,omitempty"`
+
+	// Boundary is the multipart boundary string (RFC 2046 §5.1.1).
+	// When empty and the message is multipart (has Parts or
+	// Attachments), the planner auto-generates a unique boundary.
+	// When non-empty, used verbatim. Ignored for simple (non-multipart)
+	// messages.
+	Boundary string `json:"boundary,omitempty"`
+
+	// Text is the plain-text body of the message (or the first
+	// multipart part). When the message is simple, this is the entire
+	// body. When multipart, this becomes the first body part with
+	// Content-Type: text/plain; charset=utf-8.
+	Text string `json:"text,omitempty"`
+
+	// Parts is the list of additional MIME body parts (RFC 2046
+	// §5.1). Each part has its own Content-Type and body. When non-empty
+	// (or Attachments non-empty), the message is multipart/mixed.
+	Parts []IMAPMIMEPart `json:"parts,omitempty"`
+
+	// Attachments is the list of file attachments. Each attachment is
+	// emitted as a multipart part with Content-Disposition: attachment
+	// (RFC 2183) and Content-Transfer-Encoding: base64 (RFC 2045 §6.8)
+	// for binary data. When non-empty, the message is multipart/mixed.
+	Attachments []IMAPAttachment `json:"attachments,omitempty"`
+}
+
+// IMAPMIMEPart is one MIME body part within a multipart message
+// (RFC 2046 §5.1). The planner emits it as:
+//
+//	--<boundary>\r\n
+//	<ContentType header (or text/plain default)>\r\n
+//	<Content-Transfer-Encoding (8bit default)>\r\n
+//	\r\n
+//	<Body>\r\n
+type IMAPMIMEPart struct {
+	// ContentType is the MIME Content-Type for this part (e.g.
+	// "text/html; charset=utf-8"). When empty, defaults to
+	// "text/plain; charset=utf-8".
+	ContentType string `json:"content_type,omitempty"`
+
+	// Body is the raw body content of this part. The planner emits it
+	// verbatim (no encoding). For binary content, use Attachments
+	// instead (which auto-applies base64).
+	Body string `json:"body,omitempty"`
+
+	// Headers is additional part-specific headers (e.g.
+	// "Content-ID: <part1@example.com>"). Each entry is one header line
+	// without trailing CRLF. When nil, only Content-Type and
+	// Content-Transfer-Encoding are emitted.
+	Headers []string `json:"headers,omitempty"`
+}
+
+// IMAPAttachment is a file attachment within a multipart MIME message.
+// The planner emits it as a multipart part with:
+//
+//	--<boundary>\r\n
+//	Content-Type: <ContentType or application/octet-stream>\r\n
+//	Content-Transfer-Encoding: base64\r\n
+//	Content-Disposition: attachment; filename="<Filename>"\r\n
+//	\r\n
+//	<base64-encoded Data, wrapped at 76 chars per line (RFC 2045 §6.8)>\r\n
+type IMAPAttachment struct {
+	// Filename is the attachment filename, emitted in
+	// Content-Disposition per RFC 2183.
+	Filename string `json:"filename,omitempty"`
+
+	// ContentType is the MIME type (e.g. "application/pdf"). When
+	// empty, defaults to "application/octet-stream".
+	ContentType string `json:"content_type,omitempty"`
+
+	// Data is the raw binary attachment content. The planner
+	// base64-encodes it (RFC 2045 §6.8) and wraps at 76 chars per line
+	// per RFC 2045 §6.8 (base64 lines must be <= 76 chars).
+	Data []byte `json:"data,omitempty"`
 }
 
 // IMAPIDLE holds the IMAP IDLE mode (RFC 2177) configuration. It is
@@ -1976,6 +2428,50 @@ type L2TPConfig struct {
 	// ErrorMessage is the human-readable Error Message in Result Code
 	// AVP. "" = "user request".
 	ErrorMessage string `json:"error_message,omitempty"`
+
+	// Scenario selects a built-in multi-message template that expands into
+	// Scenarios + PPPFrames at Plan time. When set, Scenarios and PPPFrames
+	// MUST be empty (mutual exclusion enforced by Validate). Supported
+	// values: "tunnel_with_data" (full tunnel lifecycle: SCCRQ->SCCRP->
+	// SCCCN->ICRQ->ICRP->ICCN + inner-IPv4 PPP data frames + StopCCN).
+	// Empty = use Scenarios/PPPFrames explicitly (legacy manual mode).
+	Scenario string `json:"scenario,omitempty"`
+
+	// InnerIP configures the inner IPv4 packet carried inside PPP data
+	// frames when Scenario="tunnel_with_data". This is the dual-IP
+	// encapsulation (outer L2TP/UDP, inner IPv4) that is the core
+	// production tunnel scenario (RFC 1661 §6 PPP Protocol=0x0021 +
+	// RFC 791 IPv4). Nil = planner synthesizes a default inner IPv4
+	// packet (10.10.10.1 -> 10.10.10.2, UDP, no payload).
+	InnerIP *L2TPInnerIP `json:"inner_ip,omitempty"`
+}
+
+// L2TPInnerIP describes the inner IPv4 packet encapsulated in PPP data
+// frames for the "tunnel_with_data" scenario. The planner builds a complete
+// IPv4 header (with correct checksum) + optional L4 header + payload per
+// RFC 791 §3.1 / RFC 768 / RFC 793. Only IPv4 inner packets are supported
+// (PPP Protocol 0x0021) per RFC 1661 §6.
+type L2TPInnerIP struct {
+	// SrcIP is the inner IPv4 source address. Empty = "10.10.10.1".
+	SrcIP string `json:"src_ip,omitempty"`
+	// DstIP is the inner IPv4 destination address. Empty = "10.10.10.2".
+	DstIP string `json:"dst_ip,omitempty"`
+	// Proto is the inner IPv4 protocol number (RFC 790). Supported: 1
+	// (ICMP), 6 (TCP), 17 (UDP). Default 17 (UDP).
+	Proto uint8 `json:"proto,omitempty"`
+	// SrcPort is the inner L4 source port (TCP/UDP only).
+	SrcPort uint16 `json:"src_port,omitempty"`
+	// DstPort is the inner L4 destination port (TCP/UDP only).
+	DstPort uint16 `json:"dst_port,omitempty"`
+	// TTL is the inner IPv4 TTL (RFC 791 §3.1). 0 = 64.
+	TTL uint8 `json:"ttl,omitempty"`
+	// Payload is the inner L4 payload bytes. For TCP, prepended after the
+	// 20-byte TCP header (no options). For UDP, after the 8-byte header.
+	Payload []byte `json:"payload,omitempty"`
+	// DataFrames is the number of inner IPv4 packets to emit (each as a
+	// separate PPP data frame). Each frame gets a distinct inner IPID.
+	// 0 = 1 frame.
+	DataFrames int `json:"data_frames,omitempty"`
 }
 
 // L2TPStep is a single control-message step in the L2TP dialog. Direction
@@ -1996,7 +2492,7 @@ type L2TPStep struct {
 
 	// TunnelIDOverride and SessionIDOverride replace the auto-resolved
 	// Tunnel/Session ID for this step.
-	TunnelIDOverride *uint16 `json:"tunnel_id_override,omitempty"`
+	TunnelIDOverride  *uint16 `json:"tunnel_id_override,omitempty"`
 	SessionIDOverride *uint16 `json:"session_id_override,omitempty"`
 }
 
@@ -2016,9 +2512,9 @@ type L2TPAVP struct {
 // Data; the planner prepends Address(0xFF) + Control(0x03) when
 // L2PPPHeader is true.
 type L2TPPPPFrame struct {
-	Protocol    uint16 `json:"protocol"`               // 0x0021=IPv4, 0xC021=LCP
-	Data        []byte `json:"data,omitempty"`         // PPP Information field
-	Direction   string `json:"direction,omitempty"`    // "up" (default) | "down"
+	Protocol    uint16 `json:"protocol"`                // 0x0021=IPv4, 0xC021=LCP
+	Data        []byte `json:"data,omitempty"`          // PPP Information field
+	Direction   string `json:"direction,omitempty"`     // "up" (default) | "down"
 	L2PPPHeader bool   `json:"l2_ppp_header,omitempty"` // true = include 0xFF03 HDLC
 }
 
@@ -2303,13 +2799,25 @@ type MySQLCommand struct {
 	// ReplyMode:
 	//   "ok"           — emit a single OK packet (auto-derive affected_rows=0,
 	//                    last_insert_id=0, status_flags=0x0002, warnings=0).
+	//                    When StatusFlags is non-zero, it overrides the default.
 	//   "ok-insert"    — like ok but with affected_rows=1 and last_insert_id=42.
+	//                    When StatusFlags is non-zero, it overrides the default.
+	//   "ok-custom"    — emit OK with user-specified AffectedRows, LastInsertID,
+	//                    StatusFlags, Warnings (all from the command fields).
 	//   "err"          — emit ERR(1064 #HY000 syntax error).
 	//   "err-perm"     — emit ERR(1044 #42000 access denied).
+	//   "err-custom"   — emit ERR with user-specified ErrCode, ErrSQLState,
+	//                    ErrMessage.
 	//   "result-set"   — emit column_count=1, col_defs=[user provided], EOF,
 	//                    rows=[user provided], EOF. See ColDefs/Rows.
-	//   "binary-result"— for COM_STMT_EXECUTE: each value is lenenc-str
-	//                    (no column defs re-sent).
+	//   "binary-result"— for COM_STMT_EXECUTE: column_count + col_defs + EOF
+	//                    + binary protocol rows (0x00 header + null bitmap
+	//                    offset 2 + typed values) + EOF.
+	//   "prepare-ok"   — for COM_STMT_PREPARE: PREPARE_OK(stmt_id, num_cols,
+	//                    num_params) + param ColDefs + EOF + column ColDefs
+	//                    + EOF. See Params/ColDefs.
+	//   "no-reply"     — emit no server reply (for COM_QUIT / COM_STMT_CLOSE
+	//                    / COM_STMT_RESET which have no server response).
 	//   "raw"          — use ReplyBytes verbatim, splitting into packets by
 	//                    max_packet_size.
 	ReplyMode string `json:"reply_mode,omitempty"`
@@ -2334,22 +2842,79 @@ type MySQLCommand struct {
 	// EmitOkExtended: when true with ReplyMode="ok", emit the 5.7+
 	// extended OK packet (info + session state changes).
 	EmitOkExtended bool `json:"emit_ok_extended,omitempty"`
+
+	// For ReplyMode="prepare-ok" (COM_STMT_PREPARE response):
+	// Params holds the parameter column definitions (num_params).
+	// ColDefs holds the result column definitions (num_columns).
+	// WarningCount is the warning_count field in PREPARE_OK.
+	Params       []MySQLColDef `json:"params,omitempty"`
+	WarningCount uint16        `json:"warning_count,omitempty"`
+
+	// For ReplyMode="err-custom": custom ERR packet with user-specified
+	// error code, SQL state, and message. ErrSQLState should be exactly
+	// 5 ASCII chars; the planner pads/truncates if not.
+	ErrCode     uint16 `json:"err_code,omitempty"`
+	ErrSQLState string `json:"err_sqlstate,omitempty"`
+	ErrMessage  string `json:"err_message,omitempty"`
+
+	// For ReplyMode="ok-custom": custom OK packet with user-specified
+	// affected_rows, last_insert_id, status_flags, and warnings.
+	// StatusFlags is also used by "ok" and "ok-insert" modes when non-zero,
+	// enabling transaction status (SERVER_STATUS_IN_TRANS) propagation.
+	AffectedRows uint64 `json:"affected_rows,omitempty"`
+	LastInsertID uint64 `json:"last_insert_id,omitempty"`
+	StatusFlags  uint16 `json:"status_flags,omitempty"`
+	Warnings     uint16 `json:"warnings,omitempty"`
+
+	// For COM_STMT_EXECUTE request auto-encoding: when Opcode=0x1b and
+	// Body is empty, the planner auto-encodes the request from StmtID +
+	// StmtFlags + IterationCount + StmtParams. When Body is non-empty,
+	// the user-provided Body takes precedence (raw mode).
+	StmtFlags  uint8           `json:"stmt_flags,omitempty"`
+	StmtParams []MySQLStmtParam `json:"stmt_params,omitempty"`
+}
+
+// MySQLStmtParam is a single parameter for COM_STMT_EXECUTE request
+// auto-encoding. The planner encodes each parameter's type (2 bytes:
+// low byte = enum_field_type, MSB of high byte = unsigned flag) and
+// value (Binary Protocol Value format) into the request body.
+type MySQLStmtParam struct {
+	// Type is the MySQL column type byte (enum_field_types), e.g.
+	// 0x08 for MYSQL_TYPE_LONGLONG, 0x0f for MYSQL_TYPE_VARCHAR.
+	Type uint8 `json:"type"`
+
+	// Unsigned sets the unsigned flag (MSB of the high byte in the
+	// 2-byte parameter_type field).
+	Unsigned bool `json:"unsigned,omitempty"`
+
+	// Value is the raw parameter value (decoded per ValueEncoding).
+	// For integer types the planner parses this as a decimal integer
+	// and emits fixed-width little-endian bytes. For string/blob types
+	// the raw bytes are emitted as a length-encoded string.
+	Value string `json:"value,omitempty"`
+
+	// ValueEncoding: "text" (default), "hex", or "base64".
+	ValueEncoding string `json:"value_encoding,omitempty"`
+
+	// IsNull marks this parameter as SQL NULL (encoded in the null
+	// bitmap; no value bytes emitted).
+	IsNull bool `json:"is_null,omitempty"`
 }
 
 // MySQLColDef is a column definition packet body (without 4-byte header)
 // for COM_QUERY / COM_STMT_PREPARE result sets.
 type MySQLColDef struct {
-	Catalog  string `json:"catalog"`            // usually "def"
-	Schema   string `json:"schema"`             // database name
-	Table    string `json:"table"`              // table name
-	OrgTable string `json:"org_table"`          // alias
-	Name     string `json:"name"`                // column name
-	OrgName  string `json:"org_name"`            // alias
-	Charset  uint16 `json:"charset"`             // character set id
-	Length   uint32 `json:"length"`              // column display length (e.g. 11 for INT)
-	Type     uint8  `json:"type"`                // MySQL type byte (0x03=LONGLONG, 0xf7=GEOMETRY, etc.)
-	Flags    uint16 `json:"flags"`               // column flags (NOT_NULL, PRI_KEY, etc.)
-	Decimals uint8  `json:"decimals"`            // decimal precision
+	Catalog  string `json:"catalog"`   // usually "def"
+	Schema   string `json:"schema"`    // database name
+	Table    string `json:"table"`     // table name
+	OrgTable string `json:"org_table"` // alias
+	Name     string `json:"name"`      // column name
+	OrgName  string `json:"org_name"`  // alias
+	Charset  uint16 `json:"charset"`   // character set id
+	Length   uint32 `json:"length"`    // column display length (e.g. 11 for INT)
+	Type     uint8  `json:"type"`      // MySQL type byte (0x03=LONGLONG, 0xf7=GEOMETRY, etc.)
+	Flags    uint16 `json:"flags"`     // column flags (NOT_NULL, PRI_KEY, etc.)
+	Decimals uint8  `json:"decimals"`  // decimal precision
 }
 
 // MySQLRow is a single row packet body (without 4-byte header).
@@ -2384,19 +2949,19 @@ type MySQLRow struct {
 // fields below; the planner substitutes documented defaults at emit time.
 type NTPConfig struct {
 	// 48-byte fixed header fields (RFC 5905 §7.3).
-	LeapIndicator  uint8     `json:"leap_indicator"`      // 0-3, 0=none, 3=alarm
-	Version        uint8     `json:"version"`             // 3 or 4, default 4
-	Mode           uint8     `json:"mode"`                // 1-7, default 3 (client); 0 reserved
-	Stratum        uint8     `json:"stratum"`             // 0-16, 0=unspecified/KoD, 16=unsync
-	Poll           int8      `json:"poll"`                // 4-17 (log2 seconds), default 6 (64s)
-	Precision      int8      `json:"precision"`           // log2 seconds (negative), default -6 (~15ms)
-	RootDelay      float64   `json:"root_delay"`          // seconds, 16.16 fixed-point on the wire
-	RootDispersion float64   `json:"root_dispersion"`     // seconds, 16.16 fixed-point on the wire
-	ReferenceID    uint32    `json:"reference_id"`        // Stratum 0: KO ASCII; 1: ref source; 2+: upstream IPv4
-	RefTimestamp   time.Time `json:"ref_timestamp"`       // zero = not set (emitted as 0)
-	OriginTS       time.Time `json:"origin_ts"`           // zero = not set
-	ReceiveTS      time.Time `json:"receive_ts"`          // zero = not set
-	TransmitTS     time.Time `json:"transmit_ts"`         // zero = not set
+	LeapIndicator  uint8     `json:"leap_indicator"`  // 0-3, 0=none, 3=alarm
+	Version        uint8     `json:"version"`         // 3 or 4, default 4
+	Mode           uint8     `json:"mode"`            // 1-7, default 3 (client); 0 reserved
+	Stratum        uint8     `json:"stratum"`         // 0-16, 0=unspecified/KoD, 16=unsync
+	Poll           int8      `json:"poll"`            // 4-17 (log2 seconds), default 6 (64s)
+	Precision      int8      `json:"precision"`       // log2 seconds (negative), default -6 (~15ms)
+	RootDelay      float64   `json:"root_delay"`      // seconds, 16.16 fixed-point on the wire
+	RootDispersion float64   `json:"root_dispersion"` // seconds, 16.16 fixed-point on the wire
+	ReferenceID    uint32    `json:"reference_id"`    // Stratum 0: KO ASCII; 1: ref source; 2+: upstream IPv4
+	RefTimestamp   time.Time `json:"ref_timestamp"`   // zero = not set (emitted as 0)
+	OriginTS       time.Time `json:"origin_ts"`       // zero = not set
+	ReceiveTS      time.Time `json:"receive_ts"`      // zero = not set
+	TransmitTS     time.Time `json:"transmit_ts"`     // zero = not set
 
 	// Optional authentication / extensions (RFC 7822). KeyID=0 and MAC=nil
 	// mean no authentication trailer. MAC length must be 0, 16 (AES-CMAC/MD5),
@@ -2609,6 +3174,55 @@ type OpenVPNConfig struct {
 	// Affects IP fragmentation boundary; NOT packet field - stored in
 	// PacketConfig.Metadata as metadata["openvpn_tun_mtu"].
 	TunMTU uint16 `json:"tun_mtu,omitempty"`
+
+	// InnerIPPackets configures the inner IPv4/IPv6 business packets
+	// carried inside P_DATA_V2 as the encrypted data-channel payload. Each
+	// entry produces one P_DATA_V2 (client->server) carrying that inner IP
+	// packet, plus a matching server->client P_DATA_V2. This is the
+	// dual-IP encapsulation (outer IP+UDP/TCP + OpenVPN + inner IP) that
+	// models the production tunnel scenario: tunneled ping/TCP/UDP traffic
+	// flowing through the OpenVPN data channel.
+	//
+	// When non-empty, this REPLACES the default dataPacketCount loop: the
+	// number of P_DATA_V2 packets is driven by len(InnerIPPackets), not
+	// DataPacketCount. Each inner IP packet is built with a correct
+	// checksum (IPv4, RFC 791 §3.1) and embedded in the encrypted-payload
+	// region of P_DATA_V2 (the IV/nonce, packet_id, and AEAD/HMAC tag
+	// remain synthetic filler; the inner IP bytes occupy the
+	// "ciphertext" slot, representing what the encrypted body decrypts
+	// to). Metadata records the inner IP 5-tuple per packet.
+	//
+	// Empty = legacy mode (DataPacketCount P_DATA_V2 packets with 0xDD
+	// synthetic filler). Backward compatible.
+	InnerIPPackets []OpenVPNInnerIP `json:"inner_ip_packets,omitempty"`
+}
+
+// OpenVPNInnerIP describes a single inner IPv4/IPv6 packet encapsulated
+// inside an OpenVPN P_DATA_V2 data-channel message. The planner builds a
+// complete inner IP header (with a correct checksum for IPv4, RFC 791
+// §3.1) + optional L4 header + payload per RFC 791 (IPv4) / RFC 8200
+// (IPv6) / RFC 768 (UDP) / RFC 793 (TCP) / RFC 792 (ICMP). Mirrors the
+// WireGuardInnerIP / L2TPInnerIP tunnel patterns.
+type OpenVPNInnerIP struct {
+	// SrcIP is the inner source IP. Empty = "10.10.10.1" (IPv4 default).
+	// May be IPv4 or IPv6; must match DstIP's family.
+	SrcIP string `json:"src_ip,omitempty"`
+	// DstIP is the inner destination IP. Empty = "10.10.10.2" (IPv4 default).
+	DstIP string `json:"dst_ip,omitempty"`
+	// Proto is the inner IP protocol number (RFC 790). Supported: 1 (ICMP),
+	// 6 (TCP), 17 (UDP). Default 17 (UDP).
+	Proto uint8 `json:"proto,omitempty"`
+	// SrcPort is the inner L4 source port (TCP/UDP only; ignored for ICMP).
+	SrcPort uint16 `json:"src_port,omitempty"`
+	// DstPort is the inner L4 destination port (TCP/UDP only; ignored for
+	// ICMP).
+	DstPort uint16 `json:"dst_port,omitempty"`
+	// TTL is the inner IPv4 TTL / IPv6 HopLimit. 0 = 64.
+	TTL uint8 `json:"ttl,omitempty"`
+	// Payload is the inner L4 payload bytes. For TCP, prepended after the
+	// 20-byte TCP header (no options). For UDP, after the 8-byte header.
+	// For ICMP, after the 8-byte echo header.
+	Payload []byte `json:"payload,omitempty"`
 }
 
 // PostgreSQLConfig holds PostgreSQL frontend/backend protocol v3 / v3.1
@@ -2816,6 +3430,36 @@ type PGOperation struct {
 	// ResultFormatCode (结果格式码) is the format code for the
 	// FunctionCall result. 0 = text (default), 1 = binary.
 	ResultFormatCode int16 `json:"result_format_code,omitempty"`
+
+	// ErrorFields holds ErrorResponse or NoticeResponse fields (the two
+	// share the same field structure). Used by:
+	//   - "query" kind: when non-empty, the planner emits ErrorResponse
+	//     (E) + ReadyForQuery instead of the normal RowDescription /
+	//     DataRow / CommandComplete response. If the session is in a
+	//     transaction (status 'T'), the ReadyForQuery status flips to
+	//     'E' (failed transaction) per PostgreSQL §52.2.
+	//   - "error" kind: standalone ErrorResponse + ReadyForQuery.
+	//   - "notice" kind: standalone NoticeResponse (server->client push,
+	//     no client request, no ReadyForQuery).
+	ErrorFields []PGErrorField `json:"error_fields,omitempty"`
+
+	// ErrorSegment (1-indexed) specifies which segment of a multi-statement
+	// query the error occurs at. Only meaningful when ErrorFields is
+	// non-empty and SQL contains ';'. Segments before ErrorSegment produce
+	// their normal result sets; the ErrorSegment and all subsequent
+	// segments are cancelled (ErrorResponse + ReadyForQuery).
+	// 0 (default) = if SQL contains ';', error at segment 2 (the common
+	// "first statement succeeds, second fails" pattern); if no ';',
+	// error is immediate.
+	ErrorSegment int `json:"error_segment,omitempty"`
+
+	// ExpectNoData: when true on a "describe" kind operation, the planner
+	// emits NoData ('n') instead of RowDescription ('T'). This models
+	// non-SELECT prepared statements (INSERT/UPDATE/DELETE without
+	// RETURNING) per PostgreSQL §52.7 Describe-portal/statement rules.
+	// For Mode="statement", the planner also emits ParameterDescription
+	// ('t') before NoData/RowDescription regardless of this flag.
+	ExpectNoData bool `json:"expect_no_data,omitempty"`
 }
 
 // PGErrorField is a single field in ErrorResponse or NoticeResponse.
@@ -2869,9 +3513,9 @@ type PGField struct {
 // the CRLF.CRLF terminator. Lets users model bulk mail-download scenarios
 // without hand-writing each message's wire bytes.
 type POP3Config struct {
-	Banner   string         `json:"banner,omitempty"` // server greeting, e.g. "+OK POP3 server ready"; empty = skip
-	Commands []POP3Command  `json:"commands"`
-	Mailbox  *POP3Mailbox   `json:"mailbox,omitempty"`
+	Banner   string        `json:"banner,omitempty"` // server greeting, e.g. "+OK POP3 server ready"; empty = skip
+	Commands []POP3Command `json:"commands"`
+	Mailbox  *POP3Mailbox  `json:"mailbox,omitempty"`
 	// MSS is governed by TCPConfig.MSS. POP3 runs over TCP, so the planner
 	// reads spec.TCP.MSS for segmentation of long POP3 responses.
 }
@@ -2908,8 +3552,21 @@ type POP3Command struct {
 	// scenarios (RETR 1, RETR 2, ... DELE N).
 	EmitMailDrop bool `json:"emit_mail_drop,omitempty"`
 
-	// MsgNum: 1-based message number for EmitMailDrop. Ignored when
-	// EmitMailDrop is false. Out-of-range -> Validate returns error.
+	// EmitTop: when true, the planner synthesizes a TOP-style multi-line
+	// response from Mailbox.Messages[MsgNum-1]: the message headers, a
+	// blank line, then the first TopLines lines of the body, per
+	// RFC 1939 §6 TOP. Requires Mailbox; Validate rejects EmitTop=true
+	// with nil Mailbox, out-of-range MsgNum, or when EmitMailDrop is
+	// also true (mutually exclusive). The status line is "+OK" (no size,
+	// matching RFC 1939 §6 TOP). Dot-stuffing applies per RFC 1939 §3.
+	EmitTop bool `json:"emit_top,omitempty"`
+
+	// TopLines: number of body lines to emit for EmitTop (RFC 1939 §6
+	// TOP "n" argument). 0 = headers only. Ignored when EmitTop is false.
+	TopLines uint32 `json:"top_lines,omitempty"`
+
+	// MsgNum: 1-based message number for EmitMailDrop/EmitTop. Ignored
+	// when both are false. Out-of-range -> Validate returns error.
 	MsgNum uint32 `json:"msg_num,omitempty"`
 }
 
@@ -2937,12 +3594,58 @@ type POP3Message struct {
 	// Body: the email body (after the blank line separating headers from
 	// body). Dot-stuffing is applied by the planner: lines starting with
 	// "." get an extra "." prepended per RFC 1939 §3.
+	//
+	// When MIMEParts is non-empty, Body is ignored: the planner builds a
+	// multipart/mixed body from MIMEParts instead (RFC 2046 §5.1.1).
+	// This keeps backward compatibility: existing specs using Body keep
+	// working, and new specs use MIMEParts for rich mail content.
 	Body string `json:"body,omitempty"`
+
+	// MIMEParts: optional MIME multipart parts (RFC 2046 §5.1.1). When
+	// non-empty, the planner synthesizes a multipart/mixed body: a
+	// "MIME-Version: 1.0" header and a "Content-Type: multipart/mixed;
+	// boundary=..." header are added to the message headers, then each
+	// part is emitted between "--<boundary>" delimiters, terminated by
+	// "--<boundary>--". Each part's Body/BodyB64 is dot-stuffed per
+	// RFC 1939 §3 (dot-stuffing applies to the entire message body).
+	// When empty, the simple Body field is used (no MIME headers).
+	MIMEParts []POP3MIMEPart `json:"mime_parts,omitempty"`
+
+	// Boundary: the multipart boundary string (RFC 2046 §5.1.1). When
+	// MIMEParts is non-empty and Boundary is empty, the planner generates
+	// a deterministic boundary (e.g. "----=_POP3_BOUND_0001"). The
+	// boundary must not appear within any part body (RFC 2046 §5.1.1);
+	// the user is responsible for choosing a unique boundary.
+	Boundary string `json:"boundary,omitempty"`
 
 	// Size: total size in octets (headers + blank line + body). 0 =
 	// planner computes from Headers + Body. Used in the "+OK <size> octets"
 	// status line of the RETR response.
 	Size uint32 `json:"size,omitempty"`
+}
+
+// POP3MIMEPart is a single part within a multipart MIME message
+// (RFC 2046 §5.1.1). Each part has its own headers (Content-Type,
+// Content-Transfer-Encoding, Content-Disposition, etc.) and a body.
+type POP3MIMEPart struct {
+	// Headers: part-specific headers as "Name: Value" strings, e.g.
+	// "Content-Type: text/plain", "Content-Transfer-Encoding: base64",
+	// `Content-Disposition: attachment; filename="x.bin"`. Emitted each
+	// followed by CRLF, then a blank line, then the part body.
+	Headers []string `json:"headers,omitempty"`
+
+	// Body: the part body as raw text. Used when BodyB64 is empty.
+	// Dot-stuffing is applied to the whole message body (including
+	// multipart part bodies) per RFC 1939 §3.
+	Body string `json:"body,omitempty"`
+
+	// BodyB64: the part body as base64-encoded bytes (RFC 2045 §6.8).
+	// When non-empty, takes precedence over Body. Used for binary
+	// attachments (images, PDFs, etc.) so the JSON config stays
+	// text-safe. The planner does NOT decode it: the base64 text is
+	// emitted verbatim as the part body (the client decodes via the
+	// Content-Transfer-Encoding: base64 header).
+	BodyB64 string `json:"body_b64,omitempty"`
 }
 
 // RDPConfig holds RDP (Remote Desktop Protocol) configuration. RDP is a
@@ -3057,6 +3760,41 @@ type RDPConfig struct {
 	// 0=default 128 (RSA-1024). Caller may set 64/128/256/512.
 	SecurityExchangeRSAKeyBytes int `json:"security_exchange_rsa_key_bytes,omitempty"`
 
+	// Scenario selects a built-in end-to-end session template
+	// (design_rdp.md §4 + internal/protocol/rdp/scenario.go). When set,
+	// the planner auto-populates Channels / DataEvents / ServerResponses
+	// with sensible defaults for the named scenario before encoding.
+	//
+	// Supported scenarios:
+	//   ""               - empty Scenario: use whatever Channels /
+	//                     DataEvents / ServerResponses the user supplied
+	//                     (manual mode, backward compatible).
+	//   "full_session"   - complete TLS/NLA/standard RDP session with
+	//                     cliprdr/rdpdr/rdpsnd/drdynvc static channels +
+	//                     keyboard/mouse input + bitmap output (the
+	//                     realistic Win10 mstsc.exe flow).
+	//   "multi_channel"  - 4 static virtual channels with Channel-Join
+	//                     Confirms but no active-phase payload.
+	//   "cliprdr"        - clipboard redirection: cliprdr channel +
+	//                     CB_FORMAT_LIST exchange.
+	//   "rdpdr"          - device redirection: rdpdr channel +
+	//                     PAKID_CORE_DEVICELIST_ANNOUNCE.
+	//   "input_events"   - one keyboard and one mouse FastPath Input.
+	//   "bitmap_update"  - one FastPath Output Bitmap Update.
+	//   "channel_join_failure" - multi-channel session where the server
+	//                     rejects the second Channel-Join with
+	//                     rt-no-such-channel (result=4).
+	//   "disconnect"     - minimal session that ends with Shutdown
+	//                     Request + MCS Disconnect Provider Ultimatum
+	//                     (reason=user-requested, 0x80) + TCP teardown.
+	//
+	// When Scenario is set, user-supplied Channels / DataEvents /
+	// ServerResponses are PRESERVED (forwarder-style override): the
+	// scenario only fills in empty slots. This mirrors the
+	// design_rdp.md §6.2 rule "use defaults, override where user
+	// supplied".
+	Scenario string `json:"scenario,omitempty"`
+
 	// DataEvents are Active-phase payloads (client→server).
 	DataEvents []RDPDataEvent `json:"data_events,omitempty"`
 
@@ -3067,8 +3805,9 @@ type RDPConfig struct {
 // RDPChannel is a single static virtual channel declaration
 // (MS-RDPBCGR §2.2.1.3.4 ChannelDef). Name is a 7-char ASCII string
 // padded to 8 bytes on the wire. Options bitmask:
-//   0x00400000 REMOTE, 0x00800000 COMPRESS, 0x01000000 COMPRESS_RDP,
-//   0x02000000 SHOW_PROTOCOL, 0x04000000 ENCRYPT_CS, 0x08000000 ENCRYPT_SC.
+//
+//	0x00400000 REMOTE, 0x00800000 COMPRESS, 0x01000000 COMPRESS_RDP,
+//	0x02000000 SHOW_PROTOCOL, 0x04000000 ENCRYPT_CS, 0x08000000 ENCRYPT_SC.
 type RDPChannel struct {
 	Name    string `json:"name"`
 	Options uint32 `json:"options,omitempty"`
@@ -3226,7 +3965,7 @@ type RedisPublish struct {
 
 // AutoReply constant values used in RedisCommand.AutoReply.
 const (
-	RedisAutoReplyNone    = "none"     // default
+	RedisAutoReplyNone    = "none" // default
 	RedisAutoReplyOK      = "ok"
 	RedisAutoReplyQueued  = "queued"
 	RedisAutoReplyPong    = "pong"
@@ -3370,12 +4109,107 @@ type SMTPConfig struct {
 	// design_smtp.md §8.6.
 	Banner string `json:"banner,omitempty"`
 
+	// Email, when set, makes the planner auto-construct a complete RFC
+	// 5322 / RFC 2045 MIME email body for the DATA phase instead of
+	// requiring the user to hand-write the body as a Dialog Cmd. This
+	// enables declarative multipart/mixed emails with base64-encoded
+	// binary attachments (RFC 2045 §6.8, RFC 2046 §5.1.1).
+	//
+	// When Email is set, the planner injects a DATA body packet
+	// (constructed from Email fields) at the point where a body Cmd
+	// would appear, followed by an auto-emitted 250 response. The user
+	// must NOT include a body command in Dialog when Email is set (a
+	// DATA/354 pair in Dialog is still required; the body is injected
+	// after the 354 response).
+	//
+	// When Email is nil, the planner plays back the Dialog verbatim,
+	// preserving backward compatibility (the user hand-writes the body
+	// Cmd ending with "\r\n." so the planner's appended "\r\n" completes
+	// the "\r\n.\r\n" terminator per RFC 5321 §4.1.1.4).
+	Email *SMTPEmail `json:"email,omitempty"`
+
 	// Dialog is the SMTP command/response sequence (executed in order).
 	// When nil/empty, the planner emits a default session per §6.6.
 	Dialog []SMTPCommand `json:"dialog"`
 
 	// MSS is governed by TCPConfig.MSS. SMTP runs over TCP, so the
 	// planner reads spec.TCP.MSS for segmentation of long SMTP payloads.
+}
+
+// SMTPEmail describes a declaratively-constructed email body for the
+// SMTP DATA phase (RFC 5322 message + RFC 2045 MIME). The planner
+// assembles the full DATA body from these fields, applies dot-stuffing
+// (RFC 5321 §4.5.2), and terminates with "\r\n.\r\n" (RFC 5321
+// §4.1.1.4).
+//
+// Body precedence when no attachments are present:
+//   - HTMLBody set, TextBody empty: a single text/html part (RFC 2046).
+//   - TextBody set, HTMLBody empty: simple text body, NOT wrapped in
+//     MIME (no MIME-Version/Content-Type emitted). This keeps trivial
+//     text emails wire-compatible with non-MIME clients.
+//   - Both set: a multipart/alternative part (RFC 2046 §5.1.4).
+//
+// When Attachments is non-empty, the email is always multipart/mixed
+// (RFC 2046 §5.1.1): the first part is either the text body, the HTML
+// body, or a multipart/alternative containing both; subsequent parts are
+// the attachments, each base64-encoded (RFC 2045 §6.8) unless the user
+// provides DataB64 verbatim.
+type SMTPEmail struct {
+	// Headers: top-level RFC 5322 message headers as "Name: Value"
+	// strings (e.g. "From: alice@example.org", "Subject: Hello"). The
+	// planner emits each followed by CRLF. MIME-Version and
+	// Content-Type (multipart) headers are auto-prepended by the planner
+	// when the email is multipart; the user should NOT include them.
+	Headers []string `json:"headers,omitempty"`
+
+	// TextBody: the plain-text body (Content-Type: text/plain). When
+	// no attachments are present and HTMLBody is empty, the text is
+	// emitted as the raw body (no MIME wrapping) for wire compatibility.
+	TextBody string `json:"text_body,omitempty"`
+
+	// HTMLBody: the HTML body (Content-Type: text/html). When set
+	// without TextBody and without attachments, emitted as a single
+	// text/html part (MIME-Version + Content-Type emitted). When set
+	// alongside TextBody, both go into a multipart/alternative.
+	HTMLBody string `json:"html_body,omitempty"`
+
+	// Attachments: binary attachments, each emitted as a separate
+	// multipart/mixed part with base64 Content-Transfer-Encoding (RFC
+	// 2045 §6.8). When non-empty, the email becomes multipart/mixed.
+	Attachments []SMTPAttachment `json:"attachments,omitempty"`
+
+	// Boundary: the multipart boundary string (RFC 2046 §5.1.1). When
+	// empty and the email is multipart, the planner generates a
+	// deterministic boundary. The boundary must not contain CRLF and
+	// must be <= 70 chars (RFC 2046 §5.1.1); the planner validates
+	// these.
+	Boundary string `json:"boundary,omitempty"`
+}
+
+// SMTPAttachment is a single binary attachment in a multipart/mixed
+// email (RFC 2046 §5.1.1). The planner base64-encodes Data (RFC 2045
+// §6.8) and wraps it at 76 chars per line. When DataB64 is set, it is
+// emitted verbatim (the planner does NOT decode+re-encode).
+type SMTPAttachment struct {
+	// Filename: the attachment filename, emitted in
+	// Content-Disposition: attachment; filename="<Filename>" (RFC 2183).
+	Filename string `json:"filename,omitempty"`
+
+	// ContentType: the MIME media type (e.g.
+	// "application/octet-stream", "image/png"). Empty defaults to
+	// "application/octet-stream" (RFC 2046 §4).
+	ContentType string `json:"content_type,omitempty"`
+
+	// Data: the raw attachment bytes. The planner base64-encodes these
+	// (RFC 2045 §6.8) and wraps at 76 chars/line. When DataB64 is set,
+	// Data is ignored.
+	Data []byte `json:"data,omitempty"`
+
+	// DataB64: pre-base64-encoded attachment bytes. Emitted verbatim
+	// (the planner does NOT decode+re-encode; it trusts the user's
+	// encoding). Takes precedence over Data. Useful for embedding
+	// binary data in JSON configs.
+	DataB64 string `json:"data_b64,omitempty"`
 }
 
 // SMTPCommand is a single command/response pair within an SMTP session.
@@ -3436,6 +4270,17 @@ type SNMPConfig struct {
 	ResponseError      uint8         `json:"response_error"`       // Response error-status (0=noError)
 	ResponseErrorIndex uint8         `json:"response_error_index"` // Response error-index
 	ResponseValues     []SNMPVarBind `json:"response_values"`      // Response varbinds (overrides VarBinds)
+
+	// v1 Trap-specific fields (RFC 1157 §4.1.6, v1 陷阱专用字段). Used only
+	// when PDUType=TrapV1. The v1 Trap PDU has a special layout (enterprise
+	// OID + agent-addr + generic-trap + specific-trap + time-stamp +
+	// varbinds) that differs from the standard PDU (no request-id /
+	// error-status / error-index).
+	Enterprise   string `json:"enterprise"`    // v1 Trap enterprise OID (default "1.3.6.1.4.1.3.1.1")
+	AgentAddr    string `json:"agent_addr"`    // v1 Trap agent IPv4 address (default "0.0.0.0")
+	GenericTrap  uint8  `json:"generic_trap"`  // v1 Trap generic trap code 0-6 (0=coldStart, 2=linkDown, 6=enterpriseSpecific)
+	SpecificTrap uint8  `json:"specific_trap"` // v1 Trap enterprise-specific trap code (meaningful when generic_trap=6)
+	TimeStamp    uint32 `json:"time_stamp"`    // v1 Trap sysUpTime in centiseconds (TimeTicks)
 
 	// Behavior control (行为控制).
 	PollInterval     int    `json:"poll_interval"`      // ms between repeats
@@ -3634,6 +4479,33 @@ type SSHConfig struct {
 	// DisconnectOnClose, when true, emits SSH_MSG_DISCONNECT before TCP
 	// teardown.
 	DisconnectOnClose bool `json:"disconnect_on_close,omitempty"`
+
+	// Scenario selects an auto-generated complete-session dialog (RFC 4253
+	// transport + RFC 4254 connection). When set, the planner synthesizes
+	// AuthMethods + Channels from the RFC state machine; the manual
+	// AuthMethods/Channels fields are ignored. Empty = manual mode
+	// (backward-compatible). One of:
+	//   exec            - password auth + exec request + stdout + EOF + close
+	//   shell           - password auth + pty-req + shell + interactive data
+	//   pty-exec        - password auth + pty-req + exec + stdout
+	//   publickey       - publickey auth (probe + signed) + exec session
+	//   auth_fail_retry - password failure + retry success + exec session
+	//   long_output     - exec with multi-packet stdout + stderr
+	Scenario string `json:"scenario,omitempty"`
+
+	// Command is the exec command string used by exec/pty-exec/long_output
+	// scenarios. Empty = "uname -a". Ignored in manual mode.
+	Command string `json:"command,omitempty"`
+
+	// Stdout is the stdout byte payload emitted as CHANNEL_DATA (server->client)
+	// in exec/pty-exec/shell/long_output scenarios. Empty = representative
+	// default. Ignored in manual mode.
+	Stdout []byte `json:"stdout,omitempty"`
+
+	// Stderr is the stderr byte payload emitted as CHANNEL_EXTENDED_DATA
+	// (data_type_code=1) in the long_output scenario. Empty = no stderr.
+	// Ignored in manual mode.
+	Stderr []byte `json:"stderr,omitempty"`
 }
 
 // SSHMessage is a single SSH message in the User Auth dialog or as a
@@ -3655,18 +4527,18 @@ type SSHMessage struct {
 	ServiceName string `json:"service_name,omitempty"`
 
 	// --- USERAUTH_REQUEST fields ---
-	MethodName          string `json:"method_name,omitempty"`
-	Username            string `json:"username,omitempty"`
-	Password            string `json:"password,omitempty"`
-	HasPasswordChange   bool   `json:"has_password_change,omitempty"`
-	NewPassword         string `json:"new_password,omitempty"`
-	PublicKeyAlgorithm  string `json:"public_key_algorithm,omitempty"`
-	PublicKeyBlob       []byte `json:"public_key_blob,omitempty"`
-	HasSignature        bool   `json:"has_signature,omitempty"`
-	Signature           []byte `json:"signature,omitempty"`
-	Submethods          string `json:"submethods,omitempty"`
-	Prompt              string `json:"prompt,omitempty"`
-	Response            string `json:"response,omitempty"`
+	MethodName         string `json:"method_name,omitempty"`
+	Username           string `json:"username,omitempty"`
+	Password           string `json:"password,omitempty"`
+	HasPasswordChange  bool   `json:"has_password_change,omitempty"`
+	NewPassword        string `json:"new_password,omitempty"`
+	PublicKeyAlgorithm string `json:"public_key_algorithm,omitempty"`
+	PublicKeyBlob      []byte `json:"public_key_blob,omitempty"`
+	HasSignature       bool   `json:"has_signature,omitempty"`
+	Signature          []byte `json:"signature,omitempty"`
+	Submethods         string `json:"submethods,omitempty"`
+	Prompt             string `json:"prompt,omitempty"`
+	Response           string `json:"response,omitempty"`
 
 	// --- USERAUTH_FAILURE fields ---
 	AuthMethodsThatCanContinue string `json:"auth_methods_that_can_continue,omitempty"`
@@ -3677,11 +4549,11 @@ type SSHMessage struct {
 	LanguageTag string `json:"language_tag,omitempty"`
 
 	// --- USerauth_INFO_REQUEST fields ---
-	Name        string `json:"name,omitempty"`
-	Instruction string `json:"instruction,omitempty"`
-	PromptCount uint32 `json:"prompt_count,omitempty"`
-	Prompts     string `json:"prompts,omitempty"`
-	Echo        bool   `json:"echo,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Instruction  string `json:"instruction,omitempty"`
+	PromptCount  uint32 `json:"prompt_count,omitempty"`
+	Prompts      string `json:"prompts,omitempty"`
+	Echo         bool   `json:"echo,omitempty"`
 	NumResponses uint32 `json:"num_responses,omitempty"`
 	Responses    string `json:"responses,omitempty"`
 
@@ -3693,7 +4565,7 @@ type SSHMessage struct {
 	ReceiveSeq uint32 `json:"receive_seq,omitempty"`
 
 	// --- DEBUG fields ---
-	AlwaysDisplay bool `json:"always_display,omitempty"`
+	AlwaysDisplay bool   `json:"always_display,omitempty"`
 	Message       string `json:"message,omitempty"`
 
 	// --- IGNORE / generic data ---
@@ -3832,10 +4704,50 @@ type SyslogConfig struct {
 	// when Transport is tcp or tls.
 	TCPFraming string `json:"tcp_framing,omitempty"`
 	// Count is the number of syslog messages emitted per flow. 0 = 1.
+	// Ignored when Messages is non-empty (Messages drives per-message
+	// variation; Count emits N identical copies of the single Msg/SD).
 	Count uint32 `json:"count,omitempty"`
 	// SignBlocks carries RFC 5848 syslog-sign signature values. Each value
 	// is wrapped as `[sign@32473 signature="<value>"]` and appended to
 	// STRUCTURED-DATA. The planner escapes `"`, `\`, `]` per RFC 5424 §6.2.8.
+	SignBlocks []string `json:"sign_blocks,omitempty"`
+	// Messages is a list of per-message overrides (RFC 5424 §3.4 stream).
+	// When non-empty, the planner emits one datagram/frame per entry with
+	// the entry's Msg/StructuredData/MsgID/MsgHasBOM/Timestamp/AppName/
+	// ProcID/Hostname overriding the top-level fields. This enables
+	// testcases_syslog.md §3.3.2 (per-message sequenceId) and §3.4.2
+	// (per-message MSG length variation) without spawning N flows.
+	// Facility/Severity/Version/Format/Transport/TCPFraming are shared
+	// across all messages (they are protocol-level, not per-message).
+	// Count is ignored when Messages is set.
+	Messages []SyslogMessage `json:"messages,omitempty"`
+}
+
+// SyslogMessage is a single per-message override entry used when
+// SyslogConfig.Messages is non-empty. Each field overrides the
+// corresponding top-level SyslogConfig field for this one message.
+// Zero-value fields fall back to the top-level config (so an entry
+// with only Msg set inherits StructuredData/MsgID/etc from the parent).
+type SyslogMessage struct {
+	// Timestamp overrides SyslogConfig.Timestamp for this message.
+	// Empty = inherit parent Timestamp (which itself may be "" -> NILVALUE).
+	Timestamp string `json:"timestamp,omitempty"`
+	// Hostname overrides SyslogConfig.Hostname for this message.
+	Hostname string `json:"hostname,omitempty"`
+	// AppName overrides SyslogConfig.AppName for this message.
+	AppName string `json:"app_name,omitempty"`
+	// ProcID overrides SyslogConfig.ProcID for this message.
+	ProcID string `json:"proc_id,omitempty"`
+	// MsgID overrides SyslogConfig.MsgID for this message.
+	MsgID string `json:"msg_id,omitempty"`
+	// StructuredData overrides SyslogConfig.StructuredData for this
+	// message. nil/empty = inherit parent SD (which may be nil -> NILVALUE).
+	StructuredData []string `json:"structured_data,omitempty"`
+	// Msg overrides SyslogConfig.Msg for this message.
+	Msg string `json:"msg,omitempty"`
+	// MsgHasBOM overrides SyslogConfig.MsgHasBOM for this message.
+	MsgHasBOM bool `json:"msg_has_bom,omitempty"`
+	// SignBlocks overrides SyslogConfig.SignBlocks for this message.
 	SignBlocks []string `json:"sign_blocks,omitempty"`
 }
 
@@ -3886,6 +4798,43 @@ type TelnetConfig struct {
 	// are emitted as a single data event (MSS-segmented) BEFORE the
 	// Dialog events. 0xFF bytes in the file are auto-escaped.
 	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
+
+	// Scenario selects an auto-generated Telnet dialog (RFC 854/855 full
+	// interactive session) instead of a manual Dialog list. When set, the
+	// planner synthesizes the Dialog at Plan time; the user supplies only
+	// session parameters (Username, Password, Commands, TerminalType,
+	// WindowCols/Rows). The manual Dialog field is ignored in scenario mode.
+	// Empty = manual mode (use Dialog), backward-compatible.
+	// Supported values (design_telnet.md §4):
+	//   "login_full"    - full session: option negotiation (WILL/DO Echo,
+	//                      SGA, TTYPE, NAWS) + SB TTYPE SEND/IS + SB NAWS +
+	//                      login (login:/Password:) + multi-command exec +
+	//                      logout (exit/logout).
+	//   "login_fail"    - authentication failure path: negotiation + login +
+	//                      wrong password -> "Login incorrect" + re-prompt.
+	//   "multi_command" - post-login multiple command executions, each with
+	//                      a server response line + shell prompt.
+	//   "long_output"   - server response larger than MSS, forcing multiple
+	//                      PSH-ACK segments (tests MSS segmentation).
+	//   "option_reject" - option negotiation refusal: server WILL NEW-ENVIRON
+	//                      -> client DONT (reject), client WILL LINEMODE ->
+	//                      server DONT (reject). RFC 855 §3 refusal path.
+	//   "synch"         - SYNCH signal (IAC IP + IAC DM, RFC 854 §3)
+	//                      interrupting a long server output.
+	Scenario string `json:"scenario,omitempty"`
+
+	// Username is the login username used by login_* scenarios. Default
+	// "alice". Only consulted when Scenario != "".
+	Username string `json:"username,omitempty"`
+
+	// Password is the login password used by login_* scenarios. Default
+	// "secret123". In login_fail this is the wrong password.
+	Password string `json:"password,omitempty"`
+
+	// Commands is the list of shell commands executed by multi_command and
+	// login_full scenarios. Each command produces a one-line response.
+	// Default ["ls -la", "whoami"]. Only consulted when Scenario != "".
+	Commands []string `json:"commands,omitempty"`
 }
 
 // TelnetEvent is a single event in a Telnet dialog. Exactly one of the
@@ -4012,26 +4961,26 @@ type TLSConfig struct {
 
 // X509Ref 引用一个 X.509 证书, 用于 TLS 握手中的证书链。
 type X509Ref struct {
-	Subject string `json:"subject,omitempty"` // 自定义 subject (CN=...,O=...)
-	San []string `json:"san,omitempty"` // DNS SANs
-	NotBefore int64 `json:"not_before,omitempty"` // unix seconds; 0 = now
-	NotAfter int64 `json:"not_after,omitempty"` // unix seconds; 0 = now+30d
-	KeyType string `json:"key_type,omitempty"` // "rsa-2048"/"rsa-4096"/"ecdsa-p256"
+	Subject   string   `json:"subject,omitempty"`    // 自定义 subject (CN=...,O=...)
+	San       []string `json:"san,omitempty"`        // DNS SANs
+	NotBefore int64    `json:"not_before,omitempty"` // unix seconds; 0 = now
+	NotAfter  int64    `json:"not_after,omitempty"`  // unix seconds; 0 = now+30d
+	KeyType   string   `json:"key_type,omitempty"`   // "rsa-2048"/"rsa-4096"/"ecdsa-p256"
 	// FileSource 提供预生成的 p12/der 证书文件。
 	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
 // PSKIdentity (预共享密钥身份) 用于 TLS 1.3 PSK 会话恢复。
 type PSKIdentity struct {
-	Identity []byte `json:"identity,omitempty"` // PSK identity 字节
+	Identity      []byte `json:"identity,omitempty"`       // PSK identity 字节
 	ObfuscatedAge uint32 `json:"obfuscated_age,omitempty"` // 混淆年龄 (用于 binder)
 }
 
 // AlertStep (警报步骤) 配置服务器在握手某个阶段后发送 Alert。
 type AlertStep struct {
-	After string `json:"after,omitempty"` // "server_hello", "certificate", "server_hello_done"
-	Description uint8 `json:"description,omitempty"` // RFC AlertDescription 编码
-	Level uint8 `json:"level,omitempty"` // 1=warning, 2=fatal
+	After       string `json:"after,omitempty"`       // "server_hello", "certificate", "server_hello_done"
+	Description uint8  `json:"description,omitempty"` // RFC AlertDescription 编码
+	Level       uint8  `json:"level,omitempty"`       // 1=warning, 2=fatal
 }
 
 // VmessConfig holds vmess protocol configuration. vmess is a session-level,
@@ -4223,4 +5172,48 @@ type WireGuardConfig struct {
 	// Response (是否响应) controls whether responder emits Response (type=2);
 	// nil or true = emit response (default), explicit false = skip response
 	Response *bool `json:"response,omitempty"`
+
+	// InnerIP (内层 IP) configures the inner IPv4/IPv6 packet carried inside
+	// Transport Data (type=4 enc_payload). When set, the planner builds
+	// complete inner IP packets (header + L4 + payload) and uses them as the
+	// transport payloads, taking precedence over TransportPayloads (but
+	// FileSource still wins over both). This is the dual-encapsulation tunnel
+	// scenario (外层 UDP/WG + 内层 IP 双层封装): the inner IP header sits at
+	// enc_payload offset 16 of the Transport Data message. WireGuard tunnels
+	// both IPv4 and IPv6 (RFC 791 / RFC 8200); the address family is inferred
+	// from SrcIP/DstIP.
+	InnerIP *WireGuardInnerIP `json:"inner_ip,omitempty"`
+}
+
+// WireGuardInnerIP describes the inner IPv4/IPv6 packet encapsulated as
+// WireGuard Transport Data payload (type=4 enc_payload). The planner builds
+// a complete inner IP header (with a correct checksum for IPv4, RFC 791
+// §3.1) + optional L4 header + payload per RFC 791 (IPv4) / RFC 8200
+// (IPv6) / RFC 768 (UDP) / RFC 793 (TCP) / RFC 792 (ICMP). Mirrors the
+// L2TPInnerIP / ESPDataPlaneConfig tunnel patterns.
+type WireGuardInnerIP struct {
+	// SrcIP is the inner source IP. Empty = "10.10.10.1" (IPv4 default).
+	// May be IPv4 or IPv6; must match DstIP's family.
+	SrcIP string `json:"src_ip,omitempty"`
+	// DstIP is the inner destination IP. Empty = "10.10.10.2" (IPv4 default).
+	DstIP string `json:"dst_ip,omitempty"`
+	// Proto is the inner IP protocol number (RFC 790). Supported: 1 (ICMP),
+	// 6 (TCP), 17 (UDP). Default 17 (UDP).
+	Proto uint8 `json:"proto,omitempty"`
+	// SrcPort is the inner L4 source port (TCP/UDP only; ignored for ICMP).
+	SrcPort uint16 `json:"src_port,omitempty"`
+	// DstPort is the inner L4 destination port (TCP/UDP only; ignored for
+	// ICMP).
+	DstPort uint16 `json:"dst_port,omitempty"`
+	// TTL is the inner IPv4 TTL / IPv6 HopLimit. 0 = 64.
+	TTL uint8 `json:"ttl,omitempty"`
+	// Payload is the inner L4 payload bytes. For TCP, prepended after the
+	// 20-byte TCP header (no options). For UDP, after the 8-byte header.
+	// For ICMP, after the 8-byte echo header.
+	Payload []byte `json:"payload,omitempty"`
+	// DataFrames is the number of inner IP packets to emit (each as a
+	// separate Transport Data message with an incrementing counter). Each
+	// frame gets a distinct inner IPID (IPv4) / Flow Label (IPv6). 0 = 1
+	// frame.
+	DataFrames int `json:"data_frames,omitempty"`
 }

@@ -68,6 +68,15 @@ const (
 	// Chunk flags.
 	ChunkFlagBeginEnd = 0x03 // DATA chunk B+E (beginning+end of message)
 
+	// DATA chunk fragment flags per RFC 4960 §3.3.1. Bit 0 = E (end of
+	// user message), bit 1 = B (beginning of user message). A complete
+	// unfragmented message carries B+E (0x03). Middle fragments carry
+	// neither (0x00). The first fragment carries B only (0x02); the last
+	// carries E only (0x01).
+	ChunkFlagBegin    uint8 = 0x02 // B bit: beginning of a fragmented user message
+	ChunkFlagEnd      uint8 = 0x01 // E bit: end of a fragmented user message
+	ChunkFlagMiddle   uint8 = 0x00 // neither B nor E: middle fragment
+
 	// ERROR Cause Code constants (RFC 4960 §3.3.10).
 	ECInvalidStreamID       = 1
 	ECMissingMandatoryParam = 2
@@ -142,6 +151,16 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			if parentDstIsV6 {
 				return fmt.Errorf("AltPath.DstIP %s is IPv4 but parent DstIP is IPv6; multi-homing requires same address family (RFC 4960 §6.4)", ap.DstIP)
 			}
+		}
+	}
+	// FragmentSize validation: a non-zero value below the minimum floor
+	// would split a payload into absurdly many tiny fragments. Reject at
+	// Validate time so the misconfiguration is visible, not silently
+	// producing hundreds of single-byte chunks.
+	if spec.SCTP != nil && spec.SCTP.FragmentSize != 0 {
+		if spec.SCTP.FragmentSize < core.SCTPMinFragmentSize {
+			return fmt.Errorf("sctp.fragment_size=%d is below minimum %d (RFC 4960 §3.3.1 requires >=1 byte per fragment)",
+				spec.SCTP.FragmentSize, core.SCTPMinFragmentSize)
 		}
 	}
 	return nil
@@ -287,6 +306,15 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 
 		// --- DATA chunks ---
+		//
+		// Fragmentation (RFC 4960 §3.3.1): when FragmentSize > 0 and a
+		// chunk's user payload exceeds it, the planner splits the payload
+		// into multiple DATA chunks. The first fragment carries the B flag
+		// (beginning), the last carries E (end), middle fragments carry
+		// neither. All fragments share the same SID/SSN/PPID (one user
+		// message) and have incrementing TSNs. When FragmentSize is 0 or
+		// the payload fits within it, one B+E DATA chunk is emitted
+		// (the legacy behavior). FragmentSize is validated in Validate().
 		for _, ch := range sctpConfig.Chunks {
 			direction := ch.Direction
 			if direction == "" {
@@ -310,31 +338,44 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			if skipChunk {
 				continue
 			}
-			var tsn uint32
-			if ch.TSN != 0 {
-				tsn = ch.TSN
-			} else {
-				tsn = clientTSN
-				clientTSN++
-			}
+			// tsnPtr points at the per-direction TSN counter so fragments
+			// increment it. When ch.TSN is explicitly set, the first
+			// fragment uses it and subsequent fragments continue from
+			// there (so a user can pin the starting TSN of a fragmented
+			// message).
+			var tsnPtr *uint32
 			if direction == "up" {
-				dataChunk := buildDATAChunk(tsn, ch.SID, ch.SSN, ch.PPID, dataBytes)
-				emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP,
-					spec.SrcPort, spec.DstPort, serverVerTag, dataChunk)
+				tsnPtr = &clientTSN
 			} else {
-				// For down-direction DATA chunks, use the server's TSN
-				// space if the user didn't supply a TSN. Note: this branch
-				// only triggers when the user explicitly sets Direction="down"
-				// on a chunk — the common test case is up-only.
-				if ch.TSN != 0 {
-					tsn = ch.TSN
-				} else {
-					tsn = serverTSN
-					serverTSN++
+				tsnPtr = &serverTSN
+			}
+			// fragments is the list of (payload-slice, flags) pairs to
+			// emit for this chunk. A nil/empty dataBytes still produces
+			// one DATA chunk (B+E) per RFC 4960 §3.3.1 (a DATA chunk may
+			// carry zero user data, e.g. to keep an association alive).
+			fragments := splitDATAChunk(dataBytes, sctpConfig.FragmentSize)
+			// startTSN is the first TSN for this chunk's fragments.
+			// When the user pins ch.TSN, fragments walk forward from it;
+			// otherwise we draw from the per-direction counter.
+			startTSN := ch.TSN
+			nextTSN := func(i int) uint32 {
+				if startTSN != 0 {
+					return startTSN + uint32(i)
 				}
-				dataChunk := buildDATAChunk(tsn, ch.SID, ch.SSN, ch.PPID, dataBytes)
-				emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP,
-					spec.DstPort, spec.SrcPort, clientVerTag, dataChunk)
+				t := *tsnPtr
+				*tsnPtr++
+				return t
+			}
+			for i, frag := range fragments {
+				tsn := nextTSN(i)
+				dataChunk := buildDATAChunkWithFlags(tsn, ch.SID, ch.SSN, ch.PPID, frag.payload, frag.flags)
+				if direction == "up" {
+					emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP,
+						spec.SrcPort, spec.DstPort, serverVerTag, dataChunk)
+				} else {
+					emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP,
+						spec.DstPort, spec.SrcPort, clientVerTag, dataChunk)
+				}
 			}
 		}
 
@@ -517,13 +558,63 @@ func buildCOOKIEAckChunk() []byte {
 // (0x03) indicate the chunk carries a complete message (beginning and
 // end) — the common case when a user payload fits in one chunk.
 func buildDATAChunk(tsn uint32, sid, ssn uint16, ppid uint32, data []byte) []byte {
+	return buildDATAChunkWithFlags(tsn, sid, ssn, ppid, data, ChunkFlagBeginEnd)
+}
+
+// buildDATAChunkWithFlags builds a DATA chunk (type 0) with explicit flags,
+// used for fragmented messages. The caller computes the B/E flags per RFC
+// 4960 §3.3.1 (first=B, middle=none, last=E, complete=B+E).
+func buildDATAChunkWithFlags(tsn uint32, sid, ssn uint16, ppid uint32, data []byte, flags uint8) []byte {
 	value := make([]byte, 12+len(data))
 	binary.BigEndian.PutUint32(value[0:4], tsn)
 	binary.BigEndian.PutUint16(value[4:6], sid)
 	binary.BigEndian.PutUint16(value[6:8], ssn)
 	binary.BigEndian.PutUint32(value[8:12], ppid)
 	copy(value[12:], data)
-	return buildChunk(ChunkDATA, ChunkFlagBeginEnd, value)
+	return buildChunk(ChunkDATA, flags, value)
+}
+
+// dataFragment is one slice of a chunk's user payload plus the B/E flags
+// it should carry.
+type dataFragment struct {
+	payload []byte
+	flags   uint8
+}
+
+// splitDATAChunk divides data into fragments of at most fragmentSize user-
+// data bytes per RFC 4960 §3.3.1. The first fragment carries the B flag
+// (beginning), the last carries E (end), middle fragments carry neither.
+// A complete message (one fragment) carries B+E.
+//
+// When fragmentSize <= 0 or the data fits within it, returns a single
+// fragment with B+E (the legacy unfragmented behavior). A nil/empty data
+// returns one B+E fragment carrying zero user data — a DATA chunk may
+// legally carry no payload (e.g. a heartbeat-like keepalive).
+func splitDATAChunk(data []byte, fragmentSize int) []dataFragment {
+	if fragmentSize <= 0 || len(data) <= fragmentSize {
+		return []dataFragment{{payload: data, flags: ChunkFlagBeginEnd}}
+	}
+	var frags []dataFragment
+	for offset := 0; offset < len(data); offset += fragmentSize {
+		end := offset + fragmentSize
+		if end > len(data) {
+			end = len(data)
+		}
+		frag := data[offset:end]
+		var flags uint8
+		switch {
+		case offset == 0 && end == len(data):
+			flags = ChunkFlagBeginEnd // single fragment == complete message
+		case offset == 0:
+			flags = ChunkFlagBegin // first of multiple
+		case end == len(data):
+			flags = ChunkFlagEnd // last of multiple
+		default:
+			flags = ChunkFlagMiddle // middle
+		}
+		frags = append(frags, dataFragment{payload: frag, flags: flags})
+	}
+	return frags
 }
 
 // buildSHUTDOWNChunk builds a SHUTDOWN chunk (type 7). Value is the highest

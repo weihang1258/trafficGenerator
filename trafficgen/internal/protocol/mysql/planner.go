@@ -63,6 +63,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"math/rand"
 	"net"
 	"strings"
@@ -155,6 +156,52 @@ const (
 	serverStatusAutocommit uint16 = 0x0002
 )
 
+// MySQL column type constants (enum_field_types) per MySQL protocol.
+// Only the subset needed for binary protocol value encoding is enumerated.
+const (
+	mysqlTypeDecimal    uint8 = 0x00
+	mysqlTypeTiny       uint8 = 0x01
+	mysqlTypeShort      uint8 = 0x02
+	mysqlTypeLong       uint8 = 0x03
+	mysqlTypeFloat      uint8 = 0x04
+	mysqlTypeDouble     uint8 = 0x05
+	mysqlTypeNull       uint8 = 0x06
+	mysqlTypeTimestamp  uint8 = 0x07
+	mysqlTypeLongLong   uint8 = 0x08
+	mysqlTypeInt24      uint8 = 0x09
+	mysqlTypeDate       uint8 = 0x0a
+	mysqlTypeTime       uint8 = 0x0b
+	mysqlTypeDatetime   uint8 = 0x0c
+	mysqlTypeYear       uint8 = 0x0d
+	mysqlTypeVarchar    uint8 = 0x0f
+	mysqlTypeBit        uint8 = 0x10
+	mysqlTypeJSON       uint8 = 0xf5
+	mysqlTypeNewDecimal uint8 = 0xf6
+	mysqlTypeEnum       uint8 = 0xf7
+	mysqlTypeSet        uint8 = 0xf8
+	mysqlTypeTinyBlob   uint8 = 0xf9
+	mysqlTypeMediumBlob uint8 = 0xfa
+	mysqlTypeLongBlob   uint8 = 0xfb
+	mysqlTypeBlob       uint8 = 0xfc
+	mysqlTypeVarString  uint8 = 0xfd
+	mysqlTypeString     uint8 = 0xfe
+	mysqlTypeGeometry   uint8 = 0xff
+)
+
+// bitOffsetBinaryResult is the NULL-bitmap bit offset for binary
+// protocol result rows (per MySQL protocol).
+const bitOffsetBinaryResult = 2
+
+// nullBitInBinaryResult reports whether the bitmap byte for a (numCols,
+// bitPos) pair needs to be allocated. bitPos uses the binary result
+// offset (2) per MySQL protocol.
+func nullBitInBinaryResult(numCols int) int {
+	if numCols == 0 {
+		return 0
+	}
+	return (numCols + 7 + bitOffsetBinaryResult) / 8
+}
+
 // capConnectWithDB is the CLIENT_CONNECT_WITH_DB bit (0x08). When
 // enabled, the client may send a database name in the Handshake
 // Response.
@@ -245,7 +292,7 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("mysql: Commands[%d].ReplyEncoding %q not recognized", i, cmd.ReplyEncoding)
 		}
 		switch cmd.ReplyMode {
-		case "", "ok", "ok-insert", "err", "err-perm", "result-set", "binary-result", "raw":
+		case "", "ok", "ok-insert", "ok-custom", "err", "err-perm", "err-custom", "result-set", "binary-result", "prepare-ok", "no-reply", "raw":
 			// ok
 		default:
 			return fmt.Errorf("mysql: Commands[%d].ReplyMode %q not recognized", i, cmd.ReplyMode)
@@ -420,11 +467,19 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		// --- 5. Each MySQLCommand ---
 		for _, cmd := range mc.Commands {
-			// Client command (up): 4-byte header + opcode + body.
-			bodyBytes, _ := decodeUserBytes(cmd.Body, cmd.BodyEncoding)
-			cmdPacket := make([]byte, 0, 1+len(bodyBytes))
-			cmdPacket = append(cmdPacket, cmd.Opcode)
-			cmdPacket = append(cmdPacket, bodyBytes...)
+			// Client command (up): 4-byte header + opcode + body. When
+			// the opcode is COM_STMT_EXECUTE (0x1b) and Body is empty,
+			// the planner auto-encodes the request from StmtID +
+			// StmtFlags + IterationCount + StmtParams.
+			var cmdPacket []byte
+			if cmd.Opcode == 0x1b && cmd.Body == "" && cmd.StmtID != 0 {
+				cmdPacket = encodeStmtExecuteRequest(cmd)
+			} else {
+				bodyBytes, _ := decodeUserBytes(cmd.Body, cmd.BodyEncoding)
+				cmdPacket = make([]byte, 0, 1+len(bodyBytes))
+				cmdPacket = append(cmdPacket, cmd.Opcode)
+				cmdPacket = append(cmdPacket, bodyBytes...)
+			}
 			emitMySQLUp(framePacket(0, cmdPacket))
 
 			// Server reply (down): one or more MySQL packets framed at
@@ -919,6 +974,330 @@ func placeholderRSA(hasPassword bool) []byte {
 // Reply packet composition per ReplyMode.
 // ----------------------------------------------------------------------------
 
+// encodePrepareOKPacket emits the body of a COM_STMT_PREPARE_OK packet
+// per MySQL protocol:
+//
+//	0x00 (status) | stmt_id (4 LE) | num_columns (2 LE) |
+//	num_params (2 LE) | reserved (1) | warning_count (2 LE)
+func encodePrepareOKPacket(stmtID uint32, numColumns, numParams, warnings uint16) []byte {
+	buf := make([]byte, 0, 12)
+	buf = append(buf, 0x00) // status
+	buf = append(buf, encodeLEUint32(stmtID)...)
+	buf = append(buf, encodeLEUint16(numColumns)...)
+	buf = append(buf, encodeLEUint16(numParams)...)
+	buf = append(buf, 0x00) // reserved
+	buf = append(buf, encodeLEUint16(warnings)...)
+	return buf
+}
+
+// encodeBinaryValue emits a single value for COM_STMT_EXECUTE binary
+// protocol rows. The type byte determines the encoding (see MySQL
+// Binary Protocol Value spec). The val string is decoded per encoding
+// ("text" default, "hex", "base64"); for integer types it is parsed
+// as a decimal integer, for float/double as a float64, for string
+// types it is emitted as a length-encoded string.
+//
+// SQL NULL values are NOT emitted here - the caller marks them in the
+// NULL bitmap and skips them entirely.
+func encodeBinaryValue(typ uint8, unsigned bool, val, encoding string) []byte {
+	if encoding == "" {
+		encoding = "text"
+	}
+	// Parse the value bytes (raw bytes for string/integer types).
+	rawBytes, _ := decodeUserBytes(val, encoding)
+	// Build the 2-byte parameter type (low byte = type, MSB of high byte = unsigned).
+	_ = unsigned // Reserved for param-type encoding; values here are direct.
+
+	switch typ {
+	case mysqlTypeTiny:
+		v := parseUint64FromBytes(rawBytes, 0)
+		return []byte{byte(v & 0xff)}
+	case mysqlTypeShort, mysqlTypeYear:
+		v := parseUint64FromBytes(rawBytes, 0)
+		return encodeLEUint16(uint16(v & 0xffff))
+	case mysqlTypeLong, mysqlTypeInt24:
+		v := parseUint64FromBytes(rawBytes, 0)
+		return encodeLEUint32(uint32(v & 0xffffffff))
+	case mysqlTypeLongLong:
+		v := parseUint64FromBytes(rawBytes, 0)
+		return encodeLEUint64(v)
+	case mysqlTypeFloat:
+		f := parseFloatFromBytes(rawBytes, 0)
+		return encodeLEUint32(math.Float32bits(float32(f)))
+	case mysqlTypeDouble:
+		f := parseFloatFromBytes(rawBytes, 0)
+		return encodeLEUint64(math.Float64bits(f))
+	default:
+		// String / blob / json / decimal / date types: lenenc-string.
+		return encodeLenencBytes(rawBytes)
+	}
+}
+
+// encodeLEUint64 returns 8-byte little-endian.
+func encodeLEUint64(n uint64) []byte {
+	return []byte{
+		byte(n), byte(n >> 8), byte(n >> 16), byte(n >> 24),
+		byte(n >> 32), byte(n >> 40), byte(n >> 48), byte(n >> 56),
+	}
+}
+
+// parseUint64FromBytes decodes a decimal integer from raw bytes. If
+// raw is empty, returns def. Uses strings.TrimSpace for robustness.
+func parseUint64FromBytes(raw []byte, def uint64) uint64 {
+	if len(raw) == 0 {
+		return def
+	}
+	v, err := parseUint64String(string(raw))
+	if err != nil {
+		return def
+	}
+	return v
+}
+
+// parseUint64String parses a decimal or hex/0x-prefixed integer.
+func parseUint64String(s string) (uint64, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("empty")
+	}
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		return parseHexUint64(s[2:])
+	}
+	return parseDecUint64(s)
+}
+
+// parseDecUint64 parses a decimal uint64 from string.
+func parseDecUint64(s string) (uint64, error) {
+	var n uint64
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("bad digit %q", c)
+		}
+		n = n*10 + uint64(c-'0')
+	}
+	return n, nil
+}
+
+// parseHexUint64 parses a hex uint64 from string.
+func parseHexUint64(s string) (uint64, error) {
+	var n uint64
+	for _, c := range s {
+		var d uint64
+		switch {
+		case c >= '0' && c <= '9':
+			d = uint64(c - '0')
+		case c >= 'a' && c <= 'f':
+			d = uint64(c-'a') + 10
+		case c >= 'A' && c <= 'F':
+			d = uint64(c-'A') + 10
+		default:
+			return 0, fmt.Errorf("bad hex digit %q", c)
+		}
+		n = n*16 + d
+	}
+	return n, nil
+}
+
+// parseFloatFromBytes decodes a float64 from decimal text bytes.
+func parseFloatFromBytes(raw []byte, def float64) float64 {
+	if len(raw) == 0 {
+		return def
+	}
+	f, err := parseFloatString(string(raw))
+	if err != nil {
+		return def
+	}
+	return f
+}
+
+// parseFloatString parses a float64 from string (decimal point allowed).
+func parseFloatString(s string) (float64, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("empty")
+	}
+	// Integer promotion path avoids importing strconv; the integer
+	// parser handles "0", "10", etc. and the slow path handles decimals.
+	if !strings.ContainsAny(s, ".eE") {
+		v, err := parseDecUint64(s)
+		if err != nil {
+			return 0, err
+		}
+		return float64(v), nil
+	}
+	// Fallback: convert manually. The MySQL planner is single-threaded
+	// so the cost of a manual parser is acceptable; we avoid strconv.
+	return parseFloatManual(s)
+}
+
+// parseFloatManual parses a decimal float64 manually (no strconv import).
+func parseFloatManual(s string) (float64, error) {
+	neg := false
+	if len(s) > 0 && s[0] == '-' {
+		neg = true
+		s = s[1:]
+	}
+	dot := strings.Index(s, ".")
+	intPart, decPart := s, ""
+	if dot >= 0 {
+		intPart = s[:dot]
+		decPart = s[dot+1:]
+	}
+	var intVal uint64
+	for _, c := range intPart {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("bad int digit %q", c)
+		}
+		intVal = intVal*10 + uint64(c-'0')
+	}
+	var decVal uint64
+	var decPow float64 = 1
+	for _, c := range decPart {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("bad dec digit %q", c)
+		}
+		decVal = decVal*10 + uint64(c-'0')
+		decPow *= 10
+	}
+	v := float64(intVal) + float64(decVal)/decPow
+	if neg {
+		v = -v
+	}
+	return v, nil
+}
+
+// encodeBinaryRowPacket emits the body of a binary protocol result
+// row: 0x00 header + NULL bitmap (offset 2) + values per column type.
+// Returns nil if the number of columns doesn't match colDefs.
+//
+// The colDefs parameter is used to look up each value's type. The
+// row.Values are decoded per row.ValueEncoding (or "text" default);
+// for integer/float types the text is parsed as a decimal number, for
+// string/blob types the raw bytes are emitted as a length-encoded
+// string.
+//
+// IsNull[i] = true causes column i to be marked NULL in the bitmap
+// (no value bytes emitted for that column).
+func encodeBinaryRowPacket(row core.MySQLRow, colDefs []core.MySQLColDef) []byte {
+	numCols := len(colDefs)
+	bitmapLen := nullBitInBinaryResult(numCols)
+	bitmap := make([]byte, bitmapLen)
+	values := make([][]byte, numCols)
+
+	// First pass: compute NULL bitmap + encode each value.
+	for i := 0; i < numCols; i++ {
+		isNull := i < len(row.IsNull) && row.IsNull[i]
+		// A value of exactly "\xfb" also means NULL (lenenc convention).
+		if !isNull && i < len(row.Values) && row.Values[i] == "\xfb" {
+			isNull = true
+		}
+		if isNull {
+			bytePos := (i + bitOffsetBinaryResult) / 8
+			bitPos := uint((i + bitOffsetBinaryResult) % 8)
+			bitmap[bytePos] |= 1 << bitPos
+			continue
+		}
+		if i >= len(row.Values) {
+			// No value provided: emit SQL NULL.
+			bytePos := (i + bitOffsetBinaryResult) / 8
+			bitPos := uint((i + bitOffsetBinaryResult) % 8)
+			bitmap[bytePos] |= 1 << bitPos
+			continue
+		}
+		var typ uint8 = mysqlTypeString // default
+		var unsigned bool
+		if i < len(colDefs) {
+			typ = colDefs[i].Type
+			unsigned = colDefs[i].Flags&0x20 != 0 // UNSIGNED_FLAG
+		}
+		valEnc := row.ValueEncoding
+		if valEnc == "" {
+			valEnc = "text"
+		}
+		values[i] = encodeBinaryValue(typ, unsigned, row.Values[i], valEnc)
+	}
+
+	// Second pass: concatenate (0x00 header + bitmap + values).
+	var buf []byte
+	buf = append(buf, 0x00)
+	buf = append(buf, bitmap...)
+	for _, v := range values {
+		buf = append(buf, v...)
+	}
+	return buf
+}
+
+// encodeStmtExecuteRequest builds the COM_STMT_EXECUTE request body
+// from StmtID + StmtFlags + IterationCount + StmtParams. Per MySQL
+// protocol the body layout is:
+//
+//	0x17 (opcode) | stmt_id (4 LE) | flags (1) | iteration_count (4 LE) |
+//	[parameter_count (lenenc)] | null_bitmap | new_params_bind_flag |
+//	[per-param type (2 bytes) + value]
+//
+// The parameter_count lenenc field is only emitted when the
+// CLIENT_QUERY_ATTRIBUTES capability is set; trafficgen does not set
+// that capability, so the planner omits parameter_count and emits
+// the null bitmap + new_params_bind_flag + types + values directly.
+//
+// The null bitmap uses bit_offset=0 (COM_STMT_EXECUTE convention). The
+// new_params_bind_flag is always 1 (re-bind). Each parameter's 2-byte
+// type field is low byte = enum_field_type, MSB of high byte = unsigned.
+func encodeStmtExecuteRequest(cmd core.MySQLCommand) []byte {
+	params := cmd.StmtParams
+	numParams := len(params)
+
+	// null bitmap: (num_params + 7) / 8 bytes, bit_offset=0.
+	bitmapLen := (numParams + 7) / 8
+	bitmap := make([]byte, bitmapLen)
+	values := make([][]byte, numParams)
+	types := make([][]byte, numParams)
+
+	for i, p := range params {
+		// Emit the 2-byte type for ALL parameters (including NULL ones)
+		// when new_params_bind_flag=1. The null bitmap controls whether
+		// value bytes follow; the type is always present.
+		typByte := p.Type
+		unsignedBit := uint8(0)
+		if p.Unsigned {
+			unsignedBit = 0x80
+		}
+		types[i] = []byte{typByte, unsignedBit}
+
+		if p.IsNull {
+			bitmap[i/8] |= 1 << uint(i%8)
+			continue
+		}
+		valEnc := p.ValueEncoding
+		if valEnc == "" {
+			valEnc = "text"
+		}
+		values[i] = encodeBinaryValue(p.Type, p.Unsigned, p.Value, valEnc)
+	}
+
+	iterCount := cmd.IterationCount
+	if iterCount == 0 {
+		iterCount = 1
+	}
+
+	buf := make([]byte, 0, 9+bitmapLen+1+2*numParams)
+	buf = append(buf, 0x1b) // COM_STMT_EXECUTE opcode
+	buf = append(buf, encodeLEUint32(cmd.StmtID)...)
+	buf = append(buf, cmd.StmtFlags)
+	buf = append(buf, encodeLEUint32(iterCount)...)
+	if numParams > 0 {
+		buf = append(buf, bitmap...)
+		buf = append(buf, 0x01) // new_params_bind_flag = 1
+		for _, t := range types {
+			buf = append(buf, t...)
+		}
+		for _, v := range values {
+			buf = append(buf, v...)
+		}
+	}
+	return buf
+}
+
 // buildReplyPackets returns the application-layer bodies (without the
 // 4-byte packet header) for the command's reply. Each element becomes
 // one MySQL packet after framing.
@@ -930,13 +1309,38 @@ func placeholderRSA(hasPassword bool) []byte {
 func buildReplyPackets(cmd core.MySQLCommand, mc *core.MySQLConfig) [][]byte {
 	switch cmd.ReplyMode {
 	case "", "ok":
-		return [][]byte{encodeOKPacket(0, 0, serverStatusAutocommit, 0, cmd.EmitOkExtended, "")}
+		status := cmd.StatusFlags
+		if status == 0 {
+			status = serverStatusAutocommit
+		}
+		return [][]byte{encodeOKPacket(0, 0, status, 0, cmd.EmitOkExtended, "")}
 	case "ok-insert":
-		return [][]byte{encodeOKPacket(1, 42, serverStatusAutocommit, 0, cmd.EmitOkExtended, "")}
+		status := cmd.StatusFlags
+		if status == 0 {
+			status = serverStatusAutocommit
+		}
+		return [][]byte{encodeOKPacket(1, 42, status, 0, cmd.EmitOkExtended, "")}
+	case "ok-custom":
+		status := cmd.StatusFlags
+		if status == 0 {
+			status = serverStatusAutocommit
+		}
+		warnings := cmd.Warnings
+		return [][]byte{encodeOKPacket(cmd.AffectedRows, cmd.LastInsertID, status, warnings, cmd.EmitOkExtended, "")}
 	case "err":
 		return [][]byte{encodeERRPacket(1064, "HY000", "You have an error in your SQL syntax")}
 	case "err-perm":
 		return [][]byte{encodeERRPacket(1044, "42000", "Access denied for user")}
+	case "err-custom":
+		sqlState := cmd.ErrSQLState
+		if sqlState == "" {
+			sqlState = "HY000"
+		}
+		msg := cmd.ErrMessage
+		if msg == "" {
+			msg = "Unknown error"
+		}
+		return [][]byte{encodeERRPacket(cmd.ErrCode, sqlState, msg)}
 	case "result-set":
 		// column_count + col_defs + EOF + rows + EOF.
 		out := make([][]byte, 0, 2+len(cmd.ColDefs)+len(cmd.Rows))
@@ -945,26 +1349,58 @@ func buildReplyPackets(cmd core.MySQLCommand, mc *core.MySQLConfig) [][]byte {
 		for _, cd := range cmd.ColDefs {
 			out = append(out, encodeColDefPacket(cd))
 		}
-		out = append(out, encodeEOFPacket(0, serverStatusAutocommit))
+		status := cmd.StatusFlags
+		if status == 0 {
+			status = serverStatusAutocommit
+		}
+		out = append(out, encodeEOFPacket(0, status))
 		for _, r := range cmd.Rows {
 			out = append(out, encodeRowPacket(r, colCount))
 		}
-		out = append(out, encodeEOFPacket(0, serverStatusAutocommit))
+		out = append(out, encodeEOFPacket(0, status))
 		return out
 	case "binary-result":
-		// COM_STMT_EXECUTE: no column defs; each row is lenenc-string
-		// per column.
-		colCount := 0
-		if len(cmd.Rows) > 0 {
-			colCount = len(cmd.Rows[0].Values)
-		}
-		out := make([][]byte, 0, len(cmd.Rows)+2)
+		// COM_STMT_EXECUTE response: column_count + col_defs + EOF +
+		// binary rows + EOF. Each binary row is 0x00 header + NULL
+		// bitmap (offset 2) + typed values per column.
+		out := make([][]byte, 0, 2+len(cmd.ColDefs)+len(cmd.Rows))
+		colCount := len(cmd.ColDefs)
 		out = append(out, encodeLenencInt(uint64(colCount)))
-		for _, r := range cmd.Rows {
-			out = append(out, encodeRowPacket(r, colCount))
+		for _, cd := range cmd.ColDefs {
+			out = append(out, encodeColDefPacket(cd))
 		}
-		out = append(out, encodeEOFPacket(0, serverStatusAutocommit))
+		status := cmd.StatusFlags
+		if status == 0 {
+			status = serverStatusAutocommit
+		}
+		out = append(out, encodeEOFPacket(0, status))
+		for _, r := range cmd.Rows {
+			out = append(out, encodeBinaryRowPacket(r, cmd.ColDefs))
+		}
+		out = append(out, encodeEOFPacket(0, status))
 		return out
+	case "prepare-ok":
+		// COM_STMT_PREPARE_OK + param col defs + EOF + col defs + EOF.
+		numCols := uint16(len(cmd.ColDefs))
+		numParams := uint16(len(cmd.Params))
+		out := make([][]byte, 0, 2+numParams+numCols+1)
+		out = append(out, encodePrepareOKPacket(cmd.StmtID, numCols, numParams, cmd.WarningCount))
+		for _, p := range cmd.Params {
+			out = append(out, encodeColDefPacket(p))
+		}
+		if numParams > 0 {
+			out = append(out, encodeEOFPacket(0, serverStatusAutocommit))
+		}
+		for _, c := range cmd.ColDefs {
+			out = append(out, encodeColDefPacket(c))
+		}
+		if numCols > 0 {
+			out = append(out, encodeEOFPacket(0, serverStatusAutocommit))
+		}
+		return out
+	case "no-reply":
+		// COM_QUIT / COM_STMT_CLOSE / COM_STMT_RESET: no server reply.
+		return nil
 	case "raw":
 		rawBytes, err := decodeUserBytes(cmd.ReplyBytes, cmd.ReplyEncoding)
 		if err != nil || len(rawBytes) == 0 {

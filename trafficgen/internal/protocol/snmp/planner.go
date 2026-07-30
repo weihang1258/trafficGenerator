@@ -227,6 +227,32 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("snmp: PDUType %d not in supported list (allowed: 0=Get, 1=GetNext, 2=Set, 3=GetBulk, 4=TrapV1, 5=TrapV2, 6=Inform)", cfg.PDUType)
 	}
 
+	// Rule 5.1: v1 Trap (PDUType=4) field validation (RFC 1157 §4.1.6).
+	if cfg.PDUType == PDUTrapV1 {
+		// GenericTrap must be 0-6 (RFC 1157 §4.1.6: coldStart(0),
+		// warmStart(1), linkDown(2), linkUp(3), authenticationFailure(4),
+		// egpNeighborLoss(5), enterpriseSpecific(6)).
+		if cfg.GenericTrap > 6 {
+			return fmt.Errorf("snmp: GenericTrap %d out of range [0, 6] (RFC 1157 §4.1.6: 0=coldStart, 1=warmStart, 2=linkDown, 3=linkUp, 4=authFailure, 5=egpLoss, 6=enterpriseSpecific)", cfg.GenericTrap)
+		}
+		// Enterprise must be a valid OID if set.
+		if cfg.Enterprise != "" {
+			if err := validateOID(cfg.Enterprise); err != nil {
+				return fmt.Errorf("snmp: Enterprise %q invalid: %v", cfg.Enterprise, err)
+			}
+		}
+		// AgentAddr must be a valid IPv4 if set.
+		if cfg.AgentAddr != "" {
+			ip := net.ParseIP(cfg.AgentAddr)
+			if ip == nil {
+				return fmt.Errorf("snmp: AgentAddr %q is not a valid IP address", cfg.AgentAddr)
+			}
+			if ip.To4() == nil {
+				return fmt.Errorf("snmp: AgentAddr %q is IPv6, must be IPv4 (v1 Trap uses IpAddress)", cfg.AgentAddr)
+			}
+		}
+	}
+
 	// Rule 7: GetBulk with MaxRepetitions=0 is RFC-allowed (== 1). Do not
 	// reject; just let Plan coerce to 1.
 
@@ -757,16 +783,21 @@ func buildPDU(cfg *core.SNMPConfig, requestID uint32, isResponse bool) []byte {
 	}
 	switch cfg.PDUType {
 	case PDUTrapV1:
-		// v1 Trap has its own layout. Use VarBinds[0].Name as enterprise if
-		// present, else default to snmpTraps enterprise. agent_addr falls
-		// back to DstIP-equivalent (we use "0.0.0.0" if missing).
-		enterprise := "1.3.6.1.4.1.3.1.1" // generic enterprise
-		agentAddr := "0.0.0.0"
-		// Caller can override via cfg.VarBinds[0].Name (enterprise) -- but
-		// that conflicts with the varbind list. For now, use defaults.
-		genericTrap := uint8(cfg.ResponseError)       // reuse field
-		specificTrap := uint8(cfg.ResponseErrorIndex) // reuse field
-		enc, err := encodeV1TrapPDU(enterprise, agentAddr, genericTrap, specificTrap, 0, varBinds)
+		// v1 Trap has its own layout (RFC 1157 §4.1.6): enterprise OID +
+		// agent-addr + generic-trap + specific-trap + time-stamp +
+		// varbinds. The enterprise/agent_addr/generic_trap/specific_trap/
+		// time_stamp come from dedicated config fields (Enterprise,
+		// AgentAddr, GenericTrap, SpecificTrap, TimeStamp). When empty,
+		// sensible defaults are used.
+		enterprise := cfg.Enterprise
+		if enterprise == "" {
+			enterprise = "1.3.6.1.4.1.3.1.1" // generic enterprise
+		}
+		agentAddr := cfg.AgentAddr
+		if agentAddr == "" {
+			agentAddr = "0.0.0.0"
+		}
+		enc, err := encodeV1TrapPDU(enterprise, agentAddr, cfg.GenericTrap, cfg.SpecificTrap, cfg.TimeStamp, varBinds)
 		if err != nil {
 			return nil
 		}

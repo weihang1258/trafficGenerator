@@ -65,17 +65,17 @@ const (
 
 	// DHCP Message Types (DHCP 消息类型)
 	MsgTypeDiscover = 1
-	MsgTypeOffer = 2
-	MsgTypeRequest = 3
-	MsgTypeDecline = 4
-	MsgTypeAck = 5
-	MsgTypeNak = 6
-	MsgTypeRelease = 7
-	MsgTypeInform = 8
+	MsgTypeOffer    = 2
+	MsgTypeRequest  = 3
+	MsgTypeDecline  = 4
+	MsgTypeAck      = 5
+	MsgTypeNak      = 6
+	MsgTypeRelease  = 7
+	MsgTypeInform   = 8
 
 	// Op codes (操作码)
 	OpBootrequest = 1 // BOOTREQUEST, 客户端发出
-	OpBootreply = 2 // BOOTREPLY, 服务器发出
+	OpBootreply   = 2 // BOOTREPLY, 服务器发出
 
 	// Hardware type (硬件类型)
 	HTypeEthernet = 1
@@ -121,6 +121,17 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 
 	dhcp := spec.DHCP
 
+	// 2b. Scenario mode: validate scenario-specific prerequisites. When
+	// Scenario is set, the planner auto-generates the Messages list; the
+	// manual Messages field is ignored. Empty Scenario = manual mode
+	// (backward-compatible). The config-level checks below (steps 6-13)
+	// still apply to scenario mode, so we do NOT return early here.
+	if dhcp.Scenario != "" {
+		if err := validateScenario(dhcp); err != nil {
+			return err
+		}
+	}
+
 	// 3. Validate Role (验证角色)
 	role := dhcp.Role
 	if role == "" {
@@ -131,107 +142,113 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	}
 
 	// 4. Validate Messages non-empty (消息列表非空)
-	if len(dhcp.Messages) == 0 {
-		return fmt.Errorf("DHCP messages is required (at least 1 message)")
-	}
-
-	// 5. Validate each message type (验证每条消息类型)
-	for i, msg := range dhcp.Messages {
-		if msg.Type < 1 || msg.Type > 8 {
-			return fmt.Errorf("message[%d]: unknown DHCP message type %d", i, msg.Type)
+	// In scenario mode the planner synthesizes Messages at Plan time, so
+	// the manual list may be empty. Skip this and the per-message loop
+	// (step 5) in scenario mode; the synthesized messages are validated
+	// structurally by buildScenarioMessages.
+	if dhcp.Scenario == "" {
+		if len(dhcp.Messages) == 0 {
+			return fmt.Errorf("DHCP messages is required (at least 1 message)")
 		}
 
-		// Validate IP fields are IPv4
-		if msg.ClientIP != "" {
-			ip := net.ParseIP(msg.ClientIP)
-			if ip == nil || ip.To4() == nil {
-				return fmt.Errorf("message[%d]: invalid client IP: %s", i, msg.ClientIP)
+		// 5. Validate each message type (验证每条消息类型)
+		for i, msg := range dhcp.Messages {
+			if msg.Type < 1 || msg.Type > 8 {
+				return fmt.Errorf("message[%d]: unknown DHCP message type %d", i, msg.Type)
 			}
-		}
-		if msg.YourIP != "" {
-			ip := net.ParseIP(msg.YourIP)
-			if ip == nil || ip.To4() == nil {
-				return fmt.Errorf("message[%d]: invalid your IP: %s", i, msg.YourIP)
-			}
-		}
-		if msg.ServerIP != "" {
-			ip := net.ParseIP(msg.ServerIP)
-			if ip == nil || ip.To4() == nil {
-				return fmt.Errorf("message[%d]: invalid server IP: %s", i, msg.ServerIP)
-			}
-		}
-		if msg.RelayAgentIP != "" {
-			ip := net.ParseIP(msg.RelayAgentIP)
-			if ip == nil || ip.To4() == nil {
-				return fmt.Errorf("message[%d]: invalid relay agent IP: %s", i, msg.RelayAgentIP)
-			}
-		}
-		if msg.ServerIdentifier != "" {
-			ip := net.ParseIP(msg.ServerIdentifier)
-			if ip == nil || ip.To4() == nil {
-				return fmt.Errorf("message[%d]: invalid server identifier: %s", i, msg.ServerIdentifier)
-			}
-		}
-		if msg.RequestedIP != "" {
-			ip := net.ParseIP(msg.RequestedIP)
-			if ip == nil || ip.To4() == nil {
-				return fmt.Errorf("message[%d]: invalid requested IP: %s", i, msg.RequestedIP)
-			}
-		}
-		for j, r := range msg.Routers {
-			ip := net.ParseIP(r)
-			if ip == nil || ip.To4() == nil {
-				return fmt.Errorf("message[%d]: invalid router address: %s", i, r)
-			}
-			_ = j
-		}
-		for j, d := range msg.DNS {
-			ip := net.ParseIP(d)
-			if ip == nil || ip.To4() == nil {
-				return fmt.Errorf("message[%d]: invalid DNS address: %s", i, d)
-			}
-			_ = j
-		}
 
-		// Validate option 12/15 length <= 255
-		if len(msg.Hostname) > 255 {
-			return fmt.Errorf("message[%d]: hostname exceeds 255 bytes", i)
-		}
-		if len(msg.DomainName) > 255 {
-			return fmt.Errorf("message[%d]: domain name exceeds 255 bytes", i)
-		}
-
-		// Validate option 55 length <= 255
-		if len(msg.ParamRequestList) > 255 {
-			return fmt.Errorf("message[%d]: param request list exceeds 255 bytes", i)
-		}
-
-		// Validate option 60 length <= 255
-		if len(msg.VendorClass) > 255 {
-			return fmt.Errorf("message[%d]: vendor class exceeds 255 bytes", i)
-		}
-
-		// Validate option 12/15 length <= 255 on defaults (from DHCPConfig level)
-		// Validate option 82 length <= 255
-		if len(msg.RelayAgentInfo) > 255 {
-			return fmt.Errorf("message[%d]: relay agent info exceeds 255 bytes", i)
-		}
-
-		// Validate extra options
-		for _, opt := range msg.ExtraOptions {
-			if opt.Code == 52 {
-				return fmt.Errorf("option overload not supported (code 52 in message[%d])", i)
+			// Validate IP fields are IPv4
+			if msg.ClientIP != "" {
+				ip := net.ParseIP(msg.ClientIP)
+				if ip == nil || ip.To4() == nil {
+					return fmt.Errorf("message[%d]: invalid client IP: %s", i, msg.ClientIP)
+				}
 			}
-			if opt.Code == 255 {
-				return fmt.Errorf("option 255 END is reserved (message[%d])", i)
+			if msg.YourIP != "" {
+				ip := net.ParseIP(msg.YourIP)
+				if ip == nil || ip.To4() == nil {
+					return fmt.Errorf("message[%d]: invalid your IP: %s", i, msg.YourIP)
+				}
+			}
+			if msg.ServerIP != "" {
+				ip := net.ParseIP(msg.ServerIP)
+				if ip == nil || ip.To4() == nil {
+					return fmt.Errorf("message[%d]: invalid server IP: %s", i, msg.ServerIP)
+				}
+			}
+			if msg.RelayAgentIP != "" {
+				ip := net.ParseIP(msg.RelayAgentIP)
+				if ip == nil || ip.To4() == nil {
+					return fmt.Errorf("message[%d]: invalid relay agent IP: %s", i, msg.RelayAgentIP)
+				}
+			}
+			if msg.ServerIdentifier != "" {
+				ip := net.ParseIP(msg.ServerIdentifier)
+				if ip == nil || ip.To4() == nil {
+					return fmt.Errorf("message[%d]: invalid server identifier: %s", i, msg.ServerIdentifier)
+				}
+			}
+			if msg.RequestedIP != "" {
+				ip := net.ParseIP(msg.RequestedIP)
+				if ip == nil || ip.To4() == nil {
+					return fmt.Errorf("message[%d]: invalid requested IP: %s", i, msg.RequestedIP)
+				}
+			}
+			for j, r := range msg.Routers {
+				ip := net.ParseIP(r)
+				if ip == nil || ip.To4() == nil {
+					return fmt.Errorf("message[%d]: invalid router address: %s", i, r)
+				}
+				_ = j
+			}
+			for j, d := range msg.DNS {
+				ip := net.ParseIP(d)
+				if ip == nil || ip.To4() == nil {
+					return fmt.Errorf("message[%d]: invalid DNS address: %s", i, d)
+				}
+				_ = j
+			}
+
+			// Validate option 12/15 length <= 255
+			if len(msg.Hostname) > 255 {
+				return fmt.Errorf("message[%d]: hostname exceeds 255 bytes", i)
+			}
+			if len(msg.DomainName) > 255 {
+				return fmt.Errorf("message[%d]: domain name exceeds 255 bytes", i)
+			}
+
+			// Validate option 55 length <= 255
+			if len(msg.ParamRequestList) > 255 {
+				return fmt.Errorf("message[%d]: param request list exceeds 255 bytes", i)
+			}
+
+			// Validate option 60 length <= 255
+			if len(msg.VendorClass) > 255 {
+				return fmt.Errorf("message[%d]: vendor class exceeds 255 bytes", i)
+			}
+
+			// Validate option 12/15 length <= 255 on defaults (from DHCPConfig level)
+			// Validate option 82 length <= 255
+			if len(msg.RelayAgentInfo) > 255 {
+				return fmt.Errorf("message[%d]: relay agent info exceeds 255 bytes", i)
+			}
+
+			// Validate extra options
+			for _, opt := range msg.ExtraOptions {
+				if opt.Code == 52 {
+					return fmt.Errorf("option overload not supported (code 52 in message[%d])", i)
+				}
+				if opt.Code == 255 {
+					return fmt.Errorf("option 255 END is reserved (message[%d])", i)
+				}
+			}
+
+			// Validate direction is valid if set
+			if msg.Direction != "" && msg.Direction != "up" && msg.Direction != "down" {
+				return fmt.Errorf("message[%d]: invalid direction: %s", i, msg.Direction)
 			}
 		}
-
-		// Validate direction is valid if set
-		if msg.Direction != "" && msg.Direction != "up" && msg.Direction != "down" {
-			return fmt.Errorf("message[%d]: invalid direction: %s", i, msg.Direction)
-		}
-	}
+	} // end of scenario=="" block (manual message validation)
 
 	// 6. Validate ClientMAC length (if non-empty, 6 bytes)
 	if dhcp.ClientMAC != "" {
@@ -273,7 +290,7 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 
 	// 10. Validate default IP fields are IPv4
 	for _, field := range []struct {
-		name string
+		name  string
 		value string
 	}{
 		{"default_client_ip", dhcp.DefaultClientIP},
@@ -329,7 +346,22 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	}
 
 	// 12. Validate options total length <= MaxOptionsLen
-	estLen, err := estimateOptionsLen(dhcp, dhcp.Messages[0])
+	// In scenario mode, Messages may be empty (synthesized at Plan time);
+	// validate against the first synthesized message instead.
+	var firstMsg core.DHCPMessage
+	if dhcp.Scenario != "" {
+		synthesized := buildScenarioMessages(dhcp)
+		if len(synthesized) == 0 {
+			return fmt.Errorf("scenario %q produced no messages", dhcp.Scenario)
+		}
+		firstMsg = synthesized[0]
+	} else {
+		if len(dhcp.Messages) == 0 {
+			return fmt.Errorf("DHCP messages is required (at least 1 message)")
+		}
+		firstMsg = dhcp.Messages[0]
+	}
+	estLen, err := estimateOptionsLen(dhcp, firstMsg)
 	if err != nil {
 		return err
 	}
@@ -343,7 +375,9 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	}
 
 	// 14. Validate extra options on DHCPConfig level
-	for _, opt := range dhcp.Messages[0].ExtraOptions {
+	// In scenario mode, check the first synthesized message; otherwise
+	// check the first user-provided message.
+	for _, opt := range firstMsg.ExtraOptions {
 		if opt.Code == 52 {
 			return fmt.Errorf("option overload not supported")
 		}
@@ -367,6 +401,24 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		role := dhcp.Role
 		if role == "" {
 			role = "client"
+		}
+
+		// Scenario mode: auto-generate the message sequence from the
+		// RFC 2131 state machine. The synthesized messages carry the
+		// correct option chain (50/54/51/55) and ciaddr/yiaddr per
+		// RFC 2131 §3.1/§4.3. Manual mode uses the user-provided
+		// Messages list as-is.
+		var messages []core.DHCPMessage
+		var effectiveDHCP *core.DHCPConfig
+		if dhcp.Scenario != "" {
+			messages = buildScenarioMessages(dhcp)
+			// Use a config copy with cleared option defaults so the
+			// synthesized messages are self-contained — RFC option
+			// presence/absence is enforced structurally.
+			effectiveDHCP = scenarioConfig(dhcp)
+		} else {
+			messages = dhcp.Messages
+			effectiveDHCP = dhcp
 		}
 
 		// Resolve xid (事务ID): 0 = random
@@ -426,7 +478,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			return id
 		}
 
-		for i, msg := range dhcp.Messages {
+		for i, msg := range messages {
 			select {
 			case <-ctx.Done():
 				return
@@ -461,14 +513,14 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 
 			// Merge defaults + per-message overrides (合并默认值和每条消息的覆盖)
-			ciaddr := resolveStr(msg.ClientIP, dhcp.DefaultClientIP, "0.0.0.0")
-			yiaddr := resolveStr(msg.YourIP, dhcp.DefaultYourIP, "0.0.0.0")
-			siaddr := resolveStr(msg.ServerIP, dhcp.DefaultServerIP, "0.0.0.0")
-			giaddr := resolveStr(msg.RelayAgentIP, dhcp.DefaultRelayAgentIP, "0.0.0.0")
+			ciaddr := resolveStr(msg.ClientIP, effectiveDHCP.DefaultClientIP, "0.0.0.0")
+			yiaddr := resolveStr(msg.YourIP, effectiveDHCP.DefaultYourIP, "0.0.0.0")
+			siaddr := resolveStr(msg.ServerIP, effectiveDHCP.DefaultServerIP, "0.0.0.0")
+			giaddr := resolveStr(msg.RelayAgentIP, effectiveDHCP.DefaultRelayAgentIP, "0.0.0.0")
 
 			// Build DHCP message payload (构建 DHCP 报文载荷)
 			payload, err := buildDHCPMessage(
-				msg, dhcp, op, htype, hlen, hops, xid, secs, flags,
+				msg, effectiveDHCP, op, htype, hlen, hops, xid, secs, flags,
 				ciaddr, yiaddr, siaddr, giaddr,
 				clientMAC, sname, file,
 			)
@@ -564,20 +616,20 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 
 			configChan <- core.PacketConfig{
-				FlowID: flowID,
+				FlowID:      flowID,
 				PacketIndex: uint64(i),
-				Direction: direction,
-				Timestamp: now,
+				Direction:   direction,
+				Timestamp:   now,
 				L2: core.L2Config{
-					SrcMAC: msgSrcMAC,
-					DstMAC: msgDstMAC,
+					SrcMAC:    msgSrcMAC,
+					DstMAC:    msgDstMAC,
 					EtherType: core.EtherTypeFor(msgSrcIP),
 				},
 				L3: core.L3Base(msgSrcIP, msgDstIP, core.ProtocolUDP, effectiveTTL, nextIPID(), spec),
 				L4: core.L4Config{
 					Protocol: "udp",
-					SrcPort: srcPort,
-					DstPort: dstPort,
+					SrcPort:  srcPort,
+					DstPort:  dstPort,
 				},
 				Payload: payload,
 			}

@@ -45,6 +45,7 @@ import (
 	"math/rand"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -226,6 +227,21 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			}
 			if len(decoded) > MaxLiteralLen {
 				return fmt.Errorf("imap: Commands[%d].LiteralBodyB64 decoded length %d exceeds max %d", i, len(decoded), MaxLiteralLen)
+			}
+		}
+
+		// MIMEBody mutual exclusivity with LiteralBody / LiteralBodyB64.
+		// Precedence: MIMEBody > FileSource > LiteralBodyB64 > LiteralBody.
+		// MIMEBody constructs the literal bytes from a MIME structure
+		// (RFC 2045/2046); it must not be mixed with the raw-byte forms.
+		if cmd.MIMEBody != nil {
+			if cmd.LiteralBody != "" || cmd.LiteralBodyB64 != "" {
+				return fmt.Errorf("imap: Commands[%d].MIMEBody is mutually exclusive with LiteralBody and LiteralBodyB64", i)
+			}
+			// Pre-check the constructed MIME byte length against the
+			// literal cap so a huge attachment fails at Validate time.
+			if mimeBytes := constructMIMEBody(cmd.MIMEBody); len(mimeBytes) > MaxLiteralLen {
+				return fmt.Errorf("imap: Commands[%d].MIMEBody constructed length %d exceeds max %d", i, len(mimeBytes), MaxLiteralLen)
 			}
 		}
 
@@ -417,12 +433,16 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 
 		// resolveLiteral returns the literal body bytes for a command,
-		// applying precedence: FileSource > LiteralBodyB64 > LiteralBody.
+		// applying precedence: MIMEBody > FileSource > LiteralBodyB64 > LiteralBody.
 		// Returns nil when no literal source is set. When FileSource
 		// is set but no PayloadCache is in ctx, returns (nil, false)
 		// to signal "skip emitting the literal packet" — matches the
 		// FTP contract.
 		resolveLiteral := func(cmd core.IMAPCommand) ([]byte, bool) {
+			// MIMEBody takes precedence: construct MIME bytes (RFC 2045/2046).
+			if cmd.MIMEBody != nil {
+				return constructMIMEBody(cmd.MIMEBody), true
+			}
 			if cmd.FileSource != nil {
 				pc := core.PayloadCacheFrom(ctx)
 				if pc == nil {
@@ -756,4 +776,168 @@ func synOptions(mss uint16) []core.TCPOption {
 	opts = append(opts, core.TCPOption{Kind: core.TCPOptWinScale, Data: []byte{0x07}})
 	opts = append(opts, core.TCPOption{Kind: core.TCPOptSACKPermit})
 	return opts
+}
+
+// mimeBoundaryCounter guarantees unique auto-generated multipart
+// boundaries across planner runs (RFC 2046 §5.1.1 requires the boundary
+// to not appear in any body part). A process-wide counter + timestamp +
+// random suffix makes collisions effectively impossible.
+var mimeBoundaryCounter uint64
+
+// defaultMIMEContentType is the Content-Type used for plain-text-only
+// messages (RFC 2046 §2).
+const defaultMIMEContentType = "text/plain; charset=utf-8"
+
+// constructMIMEBody builds the wire bytes of a MIME (RFC 2045/2046) email
+// message from IMAPMIMEBody. The returned bytes are suitable as an IMAP
+// literal body (FETCH BODY[] or APPEND). The function is pure: it does
+// not touch the network or planner state.
+//
+// Wire layout:
+//
+//	MULTIPART (when Parts or Attachments non-empty):
+//	  <Headers>\r\n
+//	  MIME-Version: 1.0\r\n
+//	  Content-Type: multipart/mixed; boundary="<boundary>"\r\n
+//	  \r\n
+//	  --<boundary>\r\n
+//	  Content-Type: text/plain; charset=utf-8\r\n
+//	  Content-Transfer-Encoding: 8bit\r\n
+//	  \r\n
+//	  <Text>\r\n
+//	  <each Part>
+//	  <each Attachment (base64-encoded)>
+//	  --<boundary>--\r\n
+//
+//	SIMPLE (no Parts and no Attachments):
+//	  <Headers>\r\n
+//	  Content-Type: text/plain; charset=utf-8\r\n
+//	  Content-Transfer-Encoding: 8bit\r\n
+//	  \r\n
+//	  <Text>\r\n
+//
+// When Boundary is empty and the message is multipart, a unique boundary
+// is auto-generated (timestamp + counter + random suffix).
+func constructMIMEBody(m *core.IMAPMIMEBody) []byte {
+	if m == nil {
+		return nil
+	}
+	isMultipart := len(m.Parts) > 0 || len(m.Attachments) > 0
+
+	var b strings.Builder
+	// Top-level RFC 5322 headers.
+	for _, h := range m.Headers {
+		b.WriteString(h)
+		b.WriteString("\r\n")
+	}
+
+	if isMultipart {
+		boundary := m.Boundary
+		if boundary == "" {
+			boundary = generateMIMEBoundary()
+		}
+		// RFC 2045 §4: MIME-Version header.
+		b.WriteString("MIME-Version: 1.0\r\n")
+		// RFC 2046 §5.1: Content-Type with boundary.
+		b.WriteString("Content-Type: multipart/mixed; boundary=\"")
+		b.WriteString(boundary)
+		b.WriteString("\"\r\n\r\n")
+
+		// First part: the plain-text body (RFC 2046 §5.1.1: preamble is
+		// optional; we emit the text part as the first body part).
+		b.WriteString("--")
+		b.WriteString(boundary)
+		b.WriteString("\r\n")
+		b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
+		b.WriteString("Content-Transfer-Encoding: 8bit\r\n\r\n")
+		b.WriteString(m.Text)
+		b.WriteString("\r\n")
+
+		// Additional parts.
+		for _, part := range m.Parts {
+			b.WriteString("--")
+			b.WriteString(boundary)
+			b.WriteString("\r\n")
+			ct := part.ContentType
+			if ct == "" {
+				ct = defaultMIMEContentType
+			}
+			b.WriteString("Content-Type: ")
+			b.WriteString(ct)
+			b.WriteString("\r\n")
+			// Extra part-specific headers.
+			for _, h := range part.Headers {
+				b.WriteString(h)
+				b.WriteString("\r\n")
+			}
+			b.WriteString("Content-Transfer-Encoding: 8bit\r\n\r\n")
+			b.WriteString(part.Body)
+			b.WriteString("\r\n")
+		}
+
+		// Attachments (base64-encoded per RFC 2045 §6.8).
+		for _, att := range m.Attachments {
+			b.WriteString("--")
+			b.WriteString(boundary)
+			b.WriteString("\r\n")
+			ct := att.ContentType
+			if ct == "" {
+				ct = "application/octet-stream"
+			}
+			b.WriteString("Content-Type: ")
+			b.WriteString(ct)
+			b.WriteString("\r\n")
+			b.WriteString("Content-Transfer-Encoding: base64\r\n")
+			b.WriteString("Content-Disposition: attachment; filename=\"")
+			b.WriteString(att.Filename)
+			b.WriteString("\"\r\n\r\n")
+			// RFC 2045 §6.8: base64 lines must be <= 76 chars.
+			b.WriteString(wrapBase64(base64.StdEncoding.EncodeToString(att.Data)))
+			b.WriteString("\r\n")
+		}
+
+		// Close delimiter (RFC 2046 §5.1.1).
+		b.WriteString("--")
+		b.WriteString(boundary)
+		b.WriteString("--\r\n")
+	} else {
+		// Simple (non-multipart) message.
+		b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
+		b.WriteString("Content-Transfer-Encoding: 8bit\r\n\r\n")
+		b.WriteString(m.Text)
+		b.WriteString("\r\n")
+	}
+
+	return []byte(b.String())
+}
+
+// generateMIMEBoundary returns a unique multipart boundary string.
+// RFC 2046 §5.1.1: boundary = 0-69 chars, must not appear in body.
+// We use a timestamp + counter + random suffix for uniqueness.
+func generateMIMEBoundary() string {
+	n := atomic.AddUint64(&mimeBoundaryCounter, 1)
+	return fmt.Sprintf("----=_Part_%d_%d_%d", n, time.Now().UnixNano(), rand.Uint64())
+}
+
+// wrapBase64 wraps a base64 string into 76-char lines per RFC 2045 §6.8.
+// Each line (except possibly the last) is exactly 76 chars, terminated by
+// CRLF. The returned string includes the trailing CRLF after the last
+// line only when the input is non-empty.
+func wrapBase64(s string) string {
+	if s == "" {
+		return ""
+	}
+	const lineLen = 76
+	var b strings.Builder
+	for i := 0; i < len(s); i += lineLen {
+		end := i + lineLen
+		if end > len(s) {
+			end = len(s)
+		}
+		b.WriteString(s[i:end])
+		if end < len(s) {
+			b.WriteString("\r\n")
+		}
+	}
+	return b.String()
 }

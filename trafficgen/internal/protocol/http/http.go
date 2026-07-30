@@ -262,14 +262,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 		requestBody := resolveRequestBody(httpConfig)
 		responseBody := resolveResponseBody(httpConfig)
-		for i := 0; i < transactions; i++ {
-			// HTTP Request — segment by MSS. Symmetric to the response path:
-			// a 4000-byte request body over MSS=1460 becomes 3 segments
-			// (1460+1460+1080). Each segment advances clientSeq by its
-			// payload length, so the next transaction's response ACKs all
-			// request bytes. Small requests (the common case <MSS) produce
-			// a single segment, matching the captured samples and the
-			// pre-segmentation behavior.
+
+		// emitRequest emits the HTTP request as one or more PSH-ACK
+		// segments (segmented by MSS), advancing clientSeq. Factored so the
+		// pipelined and interleaved orderings share one code path.
+		emitRequest := func() {
 			request := buildHTTPRequestBody(httpConfig, spec.DstIP, requestBody)
 			for _, seg := range segmentByMSS([]byte(request), int(mss)) {
 				configChan <- core.PacketConfig{
@@ -297,13 +294,12 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				packetIndex++
 				clientSeq += uint32(len(seg))
 			}
+		}
 
-			// HTTP Response — segment by MSS. A 3066-byte response over
-			// MSS=1460 becomes 3 segments (1460 + 1460 + 146). Intermediate
-			// segments are PSH-ACK (matching the captured samples); the
-			// final segment is PSH-ACK as well. Each segment advances
-			// serverSeq by its payload length, so the next transaction's
-			// request ACKs all response bytes.
+		// emitResponse emits the HTTP response as one or more PSH-ACK
+		// segments (segmented by MSS), advancing serverSeq. Factored so the
+		// pipelined and interleaved orderings share one code path.
+		emitResponse := func() {
 			response := buildHTTPResponseBody(httpConfig, responseBody)
 			for _, seg := range segmentByMSS([]byte(response), int(mss)) {
 				configChan <- core.PacketConfig{
@@ -330,6 +326,33 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				}
 				packetIndex++
 				serverSeq += uint32(len(seg))
+			}
+		}
+
+		if httpConfig.Pipelined {
+			// HTTP pipelining (RFC 9112 §6.3.2): the client sends all
+			// requests without waiting for responses, then the server
+			// responds in order. This reorders the per-transaction loop so
+			// all N requests are emitted first, then all N responses.
+			// clientSeq advances across requests; serverSeq is unchanged
+			// until the first response (each request ACKs the same server
+			// seq). serverSeq then advances across responses.
+			for i := 0; i < transactions; i++ {
+				emitRequest()
+			}
+			for i := 0; i < transactions; i++ {
+				emitResponse()
+			}
+		} else {
+			// HTTP Transactions (keep-alive: multiple request/response pairs
+			// in one TCP connection). Default interleaved ordering: each
+			// transaction is a request immediately followed by its response.
+			// clientSeq advances per request payload; serverSeq advances per
+			// response payload, so the next transaction's request ACKs all
+			// prior response bytes.
+			for i := 0; i < transactions; i++ {
+				emitRequest()
+				emitResponse()
 			}
 		}
 
@@ -514,6 +537,16 @@ func synOptions(mss uint16) []core.TCPOption {
 // transformation (caller responsibility — only "gzip" triggers actual
 // compression here). Symmetric to buildHTTPResponse's response-side gzip.
 //
+// When RequestTransferEncoding == "chunked", the (possibly gzip-compressed)
+// body is framed as length-prefixed chunks per RFC 7230 §4.1, a
+// "Transfer-Encoding: chunked" header is emitted (overridable via
+// RequestHeaders, case-insensitive), and NO Content-Length is emitted
+// (§3.3.3: Transfer-Encoding takes precedence over Content-Length).
+// ChunkSize controls how the body is split; 0 (default) emits a single data
+// chunk. Non-"chunked" values pass through as literal headers without framing.
+// Chunked composes with gzip: gzip first, then chunk-framing wraps the
+// compressed bytes.
+//
 // User-provided RequestHeaders are emitted verbatim and suppress the
 // corresponding default (case-insensitive match per RFC 7230 §3.2).
 func buildHTTPRequest(config *core.HTTPConfig, dstIP string) string {
@@ -531,8 +564,9 @@ func buildHTTPRequestBody(config *core.HTTPConfig, dstIP string, body []byte) st
 		config.Version = "HTTP/1.1"
 	}
 
-	// Sniff Content-Type from the ORIGINAL body (before gzip) so HTML/JSON/
-	// binary types are detected correctly, not as application/gzip.
+	// Sniff Content-Type from the ORIGINAL body (before gzip/chunked) so
+	// HTML/JSON/binary types are detected correctly, not as
+	// application/gzip or a chunked stream.
 	var contentType string
 	if len(body) > 0 && !hasHeader(config.RequestHeaders, "Content-Type") {
 		contentType = sniffContentType(body)
@@ -542,6 +576,16 @@ func buildHTTPRequestBody(config *core.HTTPConfig, dstIP string, body []byte) st
 	requestContentEncoding := strings.ToLower(strings.TrimSpace(config.RequestContentEncoding))
 	if len(body) > 0 && requestContentEncoding == "gzip" {
 		body = gzipBytes(body)
+	}
+
+	// Apply chunked AFTER gzip (RFC 7230 §4: Transfer-Encoding wraps the
+	// message body, which may itself be content-encoded). When chunked is
+	// active, Content-Length is suppressed below (§3.3.3: Transfer-Encoding
+	// takes precedence over Content-Length).
+	requestTransferEncoding := strings.ToLower(strings.TrimSpace(config.RequestTransferEncoding))
+	isChunked := requestTransferEncoding == "chunked"
+	if isChunked {
+		body = chunkedEncode(body, config.ChunkSize)
 	}
 
 	var sb strings.Builder
@@ -559,11 +603,19 @@ func buildHTTPRequestBody(config *core.HTTPConfig, dstIP string, body []byte) st
 	if contentType != "" {
 		sb.WriteString(fmt.Sprintf("Content-Type: %s\r\n", contentType))
 	}
-	if len(body) > 0 && !hasHeader(config.RequestHeaders, "Content-Length") {
+	// Content-Length is suppressed when chunked is active (RFC 7230 §3.3.3).
+	if !isChunked && len(body) > 0 && !hasHeader(config.RequestHeaders, "Content-Length") {
 		sb.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(body)))
 	}
 	if requestContentEncoding != "" && len(body) > 0 && !hasHeader(config.RequestHeaders, "Content-Encoding") {
 		sb.WriteString(fmt.Sprintf("Content-Encoding: %s\r\n", requestContentEncoding))
+	}
+	if requestTransferEncoding != "" && !hasHeader(config.RequestHeaders, "Transfer-Encoding") {
+		// Any non-empty value emits the header; only "chunked" triggers
+		// actual framing above. Non-"chunked" values (e.g. "identity") pass
+		// through as literal headers without transformation, mirroring the
+		// ContentEncoding non-gzip pass-through.
+		sb.WriteString(fmt.Sprintf("Transfer-Encoding: %s\r\n", requestTransferEncoding))
 	}
 
 	for key, value := range config.RequestHeaders {
@@ -614,6 +666,7 @@ func hasHeader(headers map[string]string, name string) bool {
 // the TCP behavior implied by Transactions and KeepAlive:
 //   - Transactions > 1 (multiple HTTP transactions in one TCP connection)
 //   - KeepAlive = true
+//
 // Either condition -> "keep-alive"; otherwise "close".
 func defaultConnection(config *core.HTTPConfig) string {
 	if config.Transactions > 1 || config.KeepAlive {
@@ -672,6 +725,15 @@ func bracketHost(host string) string {
 // transformation (caller responsibility — only "gzip" triggers actual
 // compression here).
 //
+// When ResponseTransferEncoding == "chunked", the (possibly gzip-compressed)
+// body is framed as length-prefixed chunks per RFC 7230 §4.1, a
+// "Transfer-Encoding: chunked" header is emitted (overridable via
+// ResponseHeaders, case-insensitive), and NO Content-Length is emitted
+// (§3.3.3: Transfer-Encoding takes precedence over Content-Length).
+// ChunkSize controls how the body is split; 0 (default) emits a single data
+// chunk. Non-"chunked" values pass through as literal headers without framing.
+// Symmetric to buildHTTPRequest's request-side chunked.
+//
 // User-provided ResponseHeaders are emitted verbatim and suppress the
 // corresponding default (case-insensitive match per RFC 7230 §3.2).
 func buildHTTPResponse(config *core.HTTPConfig) string {
@@ -692,8 +754,9 @@ func buildHTTPResponseBody(config *core.HTTPConfig, body []byte) string {
 		statusText = statusTextFor(statusCode)
 	}
 
-	// Sniff Content-Type from the ORIGINAL body (before gzip) so HTML/JSON/
-	// binary types are detected correctly, not as application/gzip.
+	// Sniff Content-Type from the ORIGINAL body (before gzip/chunked) so
+	// HTML/JSON/binary types are detected correctly, not as
+	// application/gzip or a chunked stream.
 	var contentType string
 	if len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Type") {
 		contentType = sniffContentType(body)
@@ -705,17 +768,35 @@ func buildHTTPResponseBody(config *core.HTTPConfig, body []byte) string {
 		body = gzipBytes(body)
 	}
 
+	// Apply chunked AFTER gzip (RFC 7230 §4: Transfer-Encoding wraps the
+	// message body, which may itself be content-encoded). When chunked is
+	// active, Content-Length is suppressed below (§3.3.3: Transfer-Encoding
+	// takes precedence over Content-Length).
+	responseTransferEncoding := strings.ToLower(strings.TrimSpace(config.ResponseTransferEncoding))
+	isChunked := responseTransferEncoding == "chunked"
+	if isChunked {
+		body = chunkedEncode(body, config.ChunkSize)
+	}
+
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("%s %d %s\r\n", version, statusCode, statusText))
 
 	if contentType != "" {
 		sb.WriteString(fmt.Sprintf("Content-Type: %s\r\n", contentType))
 	}
-	if len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Length") {
+	// Content-Length is suppressed when chunked is active (RFC 7230 §3.3.3).
+	if !isChunked && len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Length") {
 		sb.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(body)))
 	}
 	if contentEncoding != "" && len(body) > 0 && !hasHeader(config.ResponseHeaders, "Content-Encoding") {
 		sb.WriteString(fmt.Sprintf("Content-Encoding: %s\r\n", contentEncoding))
+	}
+	if responseTransferEncoding != "" && !hasHeader(config.ResponseHeaders, "Transfer-Encoding") {
+		// Any non-empty value emits the header; only "chunked" triggers
+		// actual framing above. Non-"chunked" values (e.g. "identity") pass
+		// through as literal headers without transformation, mirroring the
+		// ContentEncoding non-gzip pass-through.
+		sb.WriteString(fmt.Sprintf("Transfer-Encoding: %s\r\n", responseTransferEncoding))
 	}
 	if !hasHeader(config.ResponseHeaders, "Connection") {
 		sb.WriteString(fmt.Sprintf("Connection: %s\r\n", defaultConnection(config)))
@@ -865,6 +946,47 @@ func gzipBytes(data []byte) []byte {
 	if err := zw.Close(); err != nil {
 		return data
 	}
+	return buf.Bytes()
+}
+
+// chunkedEncode frames data using the HTTP/1.1 chunked transfer-encoding
+// (RFC 7230 §4.1). The body is split into chunks of at most chunkSize bytes
+// (chunkSize <= 0 emits the entire body as a single data chunk). Each data
+// chunk is framed as:
+//
+//	<hex-size>\r\n<chunk-data>\r\n
+//
+// The frame is terminated by the last-chunk:
+//
+//	0\r\n\r\n
+//
+// (zero-size chunk + empty trailer-part + final CRLF, per §4.1). An empty
+// body produces just "0\r\n\r\n" (the last-chunk with no preceding data
+// chunks), which is a valid chunked body. The chunk-size field is lowercase
+// hexadecimal (§4.1: chunk-size = 1*HEXDIG; lowercase is conventional and
+// accepted by all parsers).
+func chunkedEncode(data []byte, chunkSize int) []byte {
+	if chunkSize <= 0 {
+		// Whole body as a single chunk. An empty body falls through to just
+		// the terminator below.
+		if len(data) == 0 {
+			return []byte("0\r\n\r\n")
+		}
+		chunkSize = len(data)
+	}
+	var buf bytes.Buffer
+	for off := 0; off < len(data); {
+		end := off + chunkSize
+		if end > len(data) {
+			end = len(data)
+		}
+		chunk := data[off:end]
+		fmt.Fprintf(&buf, "%x\r\n", len(chunk))
+		buf.Write(chunk)
+		buf.WriteString("\r\n")
+		off = end
+	}
+	buf.WriteString("0\r\n\r\n")
 	return buf.Bytes()
 }
 

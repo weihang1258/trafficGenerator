@@ -157,6 +157,21 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			}
 		}
 
+		// EmitTop (RFC 1939 §6 TOP) requires Mailbox and in-range MsgNum.
+		// Mutually exclusive with EmitMailDrop (ambiguous which response
+		// shape to synthesize: RETR "+OK <size> octets" vs TOP "+OK").
+		if cmd.EmitTop {
+			if cmd.EmitMailDrop {
+				return fmt.Errorf("pop3: Commands[%d].EmitTop and EmitMailDrop are mutually exclusive", i)
+			}
+			if spec.POP3.Mailbox == nil {
+				return fmt.Errorf("pop3: Commands[%d].EmitTop=true but Mailbox is nil", i)
+			}
+			if cmd.MsgNum < 1 || int(cmd.MsgNum) > len(spec.POP3.Mailbox.Messages) {
+				return fmt.Errorf("pop3: Commands[%d].MsgNum %d out of range [1, %d]", i, cmd.MsgNum, len(spec.POP3.Mailbox.Messages))
+			}
+		}
+
 		// Command-name-specific checks: USER/PASS/APOP length and digest
 		// format per RFC 1939 §6. State is NOT checked (user responsibility).
 		cmdName, args := splitCmd(cmd.Cmd)
@@ -331,12 +346,19 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 			// Response (server -> client). When EmitMailDrop=true,
 			// synthesize the multi-line RETR response from Mailbox and
-			// emit it INSTEAD of any user-provided Response. Otherwise,
-			// emit the user-provided Response verbatim when Multiline=true
-			// (user includes the CRLF.CRLF terminator) or with CRLF
-			// appended when Multiline=false (single-line +OK/-ERR).
+			// emit it INSTEAD of any user-provided Response. When EmitTop
+			// is true, synthesize a TOP response (headers + first N body
+			// lines). Otherwise, emit the user-provided Response verbatim
+			// when Multiline=true (user includes the CRLF.CRLF terminator)
+			// or with CRLF appended when Multiline=false (single-line
+			// +OK/-ERR). EmitMailDrop and EmitTop are mutually exclusive
+			// (enforced by Validate); EmitMailDrop takes precedence here
+			// for safety.
 			if cmd.EmitMailDrop && pop3Config.Mailbox != nil {
 				respBytes := buildMailDropResponse(pop3Config.Mailbox.Messages[cmd.MsgNum-1])
+				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, respBytes)
+			} else if cmd.EmitTop && pop3Config.Mailbox != nil {
+				respBytes := buildTopResponse(pop3Config.Mailbox.Messages[cmd.MsgNum-1], cmd.TopLines)
 				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, respBytes)
 			} else if cmd.Response != "" {
 				var payload []byte
@@ -387,6 +409,14 @@ func splitCmd(cmd string) (string, []string) {
 //	"<dot-stuffed body line 2>\r\n"        get an extra "." prepended
 //	".\r\n"                             <- termination line
 //
+// When MIMEParts is non-empty, the planner builds a multipart/mixed body
+// per RFC 2046 §5.1.1: it prepends "MIME-Version: 1.0" and
+// "Content-Type: multipart/mixed; boundary=..." to the message headers,
+// then emits each part between "--<boundary>" delimiters, terminated by
+// "--<boundary>--". Dot-stuffing (RFC 1939 §3) applies to the entire
+// message body (including multipart delimiters and part content), because
+// dot-stuffing is a POP3 transport concern, not a MIME concern.
+//
 // When Size > 0 the user's value is used verbatim; otherwise the planner
 // computes it from the body bytes only (matches testcase 4.5.5:
 // "+OK 0 octets\r\n\r\n.\r\n" for an empty email). The wire format still
@@ -402,17 +432,77 @@ func splitCmd(cmd string) (string, []string) {
 // for the message body only; headers are RFC 5322 mailbox metadata and
 // cannot legitimately start with "." anyway).
 func buildMailDropResponse(msg core.POP3Message) []byte {
+	// Build the message body. When MIMEParts is present, the body is the
+	// full multipart content; otherwise it is the simple Body field.
+	// effectiveHeaders carries the message-level headers (with MIME
+	// headers prepended for multipart).
+	effectiveHeaders := msg.Headers
+	bodyText := ""
+	if len(msg.MIMEParts) > 0 {
+		bodyText = buildMultipartBody(msg.MIMEParts, msg.Boundary)
+		effectiveHeaders = buildMIMEHeaders(msg.Headers, msg.Boundary)
+	} else {
+		bodyText = msg.Body
+	}
+
 	// Compute Size if user did not set it. Per testcases 1.6.1 + 4.5.5
 	// the size is the body octets; headers + blank-line overhead are
 	// reported as 0 when the message is empty.
 	size := msg.Size
 	if size == 0 {
-		size = uint32(len(msg.Body))
+		size = uint32(len(bodyText))
 	}
 
 	var b strings.Builder
 	// Status line: "+OK <size> octets\r\n" per RFC 1939 §6 RETR success.
 	fmt.Fprintf(&b, "+OK %d octets\r\n", size)
+
+	// Headers (RFC 5322): each header line followed by CRLF.
+	for _, h := range effectiveHeaders {
+		b.WriteString(h)
+		b.WriteString("\r\n")
+	}
+
+	// Blank line separating headers from body.
+	b.WriteString("\r\n")
+
+	// Body with dot-stuffing per RFC 1939 §3.
+	writeDotStuffedBody(&b, bodyText)
+
+	// Termination line: ".\r\n" per RFC 1939 §3.
+	b.WriteString(".\r\n")
+
+	return []byte(b.String())
+}
+
+// buildTopResponse synthesizes a TOP-style multi-line POP3 response from
+// a POP3Message per RFC 1939 §6 TOP. TOP returns the message headers, a
+// blank line, then the first topLines lines of the message body. The
+// status line is "+OK" (no size, matching RFC 1939 §6 TOP). The response
+// is terminated by ".\r\n" per RFC 1939 §3.
+//
+// When MIMEParts is non-empty, the "body" for TOP is the full multipart
+// body (the planner does not parse into individual parts - TOP operates
+// on the raw message body after the header/body separator). Dot-stuffing
+// applies per RFC 1939 §3.
+//
+// topLines=0 means headers only (RFC 1939 §6 TOP with n=0): after the
+// blank line, the terminator immediately follows.
+func buildTopResponse(msg core.POP3Message, topLines uint32) []byte {
+	// For TOP, the body is the raw body text (simple Body, or the full
+	// multipart body when MIMEParts is present). MIME headers are NOT
+	// emitted as separate message headers for TOP - the user provides
+	// message-level headers via msg.Headers, and TOP returns those +
+	// the body. This matches RFC 1939 §6: "the header of the message"
+	// and "the first n lines of the body".
+	bodyText := msg.Body
+	if len(msg.MIMEParts) > 0 {
+		bodyText = buildMultipartBody(msg.MIMEParts, msg.Boundary)
+	}
+
+	var b strings.Builder
+	// Status line: "+OK\r\n" per RFC 1939 §6 TOP success (no size).
+	b.WriteString("+OK\r\n")
 
 	// Headers (RFC 5322): each header line followed by CRLF.
 	for _, h := range msg.Headers {
@@ -423,13 +513,13 @@ func buildMailDropResponse(msg core.POP3Message) []byte {
 	// Blank line separating headers from body.
 	b.WriteString("\r\n")
 
-	// Body with dot-stuffing per RFC 1939 §3. Split on "\n" so we handle
-	// both "\n" and "\r\n" line endings in user input. Each line gets
-	// dot-stuffed if it starts with "."; the line is then re-joined with
-	// "\r\n" (the canonical POP3 wire line ending).
-	if len(msg.Body) > 0 {
-		bodyLines := strings.Split(strings.TrimRight(msg.Body, "\r\n"), "\n")
-		for _, line := range bodyLines {
+	// First topLines body lines with dot-stuffing per RFC 1939 §3.
+	if topLines > 0 && len(bodyText) > 0 {
+		bodyLines := strings.Split(strings.TrimRight(bodyText, "\r\n"), "\n")
+		for i, line := range bodyLines {
+			if uint32(i) >= topLines {
+				break
+			}
 			line = strings.TrimRight(line, "\r")
 			if strings.HasPrefix(line, ".") {
 				b.WriteString(".")
@@ -443,6 +533,113 @@ func buildMailDropResponse(msg core.POP3Message) []byte {
 	b.WriteString(".\r\n")
 
 	return []byte(b.String())
+}
+
+// buildMIMEHeaders prepends MIME-Version and Content-Type multipart headers
+// to the user-provided message headers. The boundary is resolved via
+// resolveBoundary. Returns a new slice; does not mutate the input.
+func buildMIMEHeaders(userHeaders []string, boundary string) []string {
+	resolved := resolveBoundary(boundary)
+	out := make([]string, 0, len(userHeaders)+2)
+	out = append(out, "MIME-Version: 1.0")
+	out = append(out, fmt.Sprintf(`Content-Type: multipart/mixed; boundary="%s"`, resolved))
+	out = append(out, userHeaders...)
+	return out
+}
+
+// buildMultipartBody constructs the multipart/mixed body per RFC 2046 §5.1.1:
+//
+//	--<boundary>\r\n
+//	<part headers>\r\n
+//	\r\n
+//	<part body>\r\n
+//	--<boundary>\r\n
+//	... (repeat for each part)
+//	--<boundary>--\r\n
+//
+// The boundary is resolved via resolveBoundary. Each part's body is
+// BodyB64 when non-empty (emitted verbatim - the client decodes via the
+// Content-Transfer-Encoding: base64 header), otherwise Body. Dot-stuffing
+// is NOT applied here: it is applied to the entire assembled body in
+// buildMailDropResponse/buildTopResponse, because dot-stuffing is a POP3
+// transport concern that must wrap the whole message body uniformly.
+func buildMultipartBody(parts []core.POP3MIMEPart, boundary string) string {
+	resolved := resolveBoundary(boundary)
+	var b strings.Builder
+	for _, part := range parts {
+		// Opening delimiter: "--<boundary>\r\n" per RFC 2046 §5.1.1.
+		b.WriteString("--")
+		b.WriteString(resolved)
+		b.WriteString("\r\n")
+
+		// Part headers (RFC 822/5322): each followed by CRLF.
+		for _, h := range part.Headers {
+			b.WriteString(h)
+			b.WriteString("\r\n")
+		}
+
+		// Blank line separating part headers from part body.
+		b.WriteString("\r\n")
+
+		// Part body. BodyB64 takes precedence (RFC 2045 §6.8 base64).
+		body := part.Body
+		if part.BodyB64 != "" {
+			body = part.BodyB64
+		}
+		// Normalize the part body's trailing line ending to CRLF so the
+		// next boundary delimiter starts on its own line. If the body
+		// already ends with "\r\n", leave it; if it ends with "\n" only,
+		// strip the "\n" and let the CRLF append below handle it; if it
+		// has no trailing newline, append CRLF. This prevents a stray
+		// "\n\r\n" sequence (which would create an extra empty line).
+		if strings.HasSuffix(body, "\r\n") {
+			b.WriteString(body)
+		} else if strings.HasSuffix(body, "\n") {
+			b.WriteString(body[:len(body)-1])
+			b.WriteString("\r\n")
+		} else if len(body) > 0 {
+			b.WriteString(body)
+			b.WriteString("\r\n")
+		}
+	}
+	// Closing delimiter: "--<boundary>--\r\n" per RFC 2046 §5.1.1.
+	b.WriteString("--")
+	b.WriteString(resolved)
+	b.WriteString("--\r\n")
+	return b.String()
+}
+
+// resolveBoundary returns the user-provided boundary when non-empty, or a
+// deterministic auto-generated boundary otherwise. The auto boundary is
+// RFC 2046 §5.1.1 compliant (any valid chars, <= 70 chars). We use a
+// fixed deterministic string rather than a random one so test captures
+// are reproducible.
+func resolveBoundary(boundary string) string {
+	if boundary != "" {
+		return boundary
+	}
+	return "----=_POP3_BOUND_0001"
+}
+
+// writeDotStuffedBody writes bodyText to b with dot-stuffing per RFC 1939 §3.
+// Lines beginning with "." get an extra "." prepended. Line endings are
+// normalized to CRLF. Empty body writes nothing (the caller writes the
+// terminator). This is the shared dot-stuffing implementation used by
+// buildMailDropResponse; extracted to avoid divergence between the simple
+// Body and multipart paths.
+func writeDotStuffedBody(b *strings.Builder, bodyText string) {
+	if len(bodyText) == 0 {
+		return
+	}
+	bodyLines := strings.Split(strings.TrimRight(bodyText, "\r\n"), "\n")
+	for _, line := range bodyLines {
+		line = strings.TrimRight(line, "\r")
+		if strings.HasPrefix(line, ".") {
+			b.WriteString(".")
+		}
+		b.WriteString(line)
+		b.WriteString("\r\n")
+	}
 }
 
 // segmentByMSS splits payload into chunks of at most mss bytes. The last

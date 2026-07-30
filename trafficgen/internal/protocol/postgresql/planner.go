@@ -562,7 +562,11 @@ func (s *runState) runOperation(emit emitFunc, clientSeq, serverSeq uint32, curr
 	switch op.Kind {
 	case "query":
 		clientSeq = sendUp(encodeQuery(op.SQL))
-		serverSeq, currentStatus = s.runSimpleQuery(sendDown, serverSeq, op.SQL, currentStatus)
+		if len(op.ErrorFields) > 0 {
+			serverSeq, currentStatus = s.runQueryError(sendDown, serverSeq, op.SQL, currentStatus, op.ErrorFields, op.ErrorSegment)
+		} else {
+			serverSeq, currentStatus = s.runSimpleQuery(sendDown, serverSeq, op.SQL, currentStatus)
+		}
 	case "parse":
 		clientSeq = sendUp(encodeParse(op.Statement, op.SQL, s.paramOIDs(op.ParamCount)))
 		serverSeq = sendDown(encodeParseComplete())
@@ -572,9 +576,16 @@ func (s *runState) runOperation(emit emitFunc, clientSeq, serverSeq uint32, curr
 	case "describe":
 		mode, name := descModeName(op)
 		clientSeq = sendUp(encodeDescribe(mode, name))
-		// planner emits RowDescription by default; user can model NoData
-		// by setting ParamCount=0 (would emit n in a future refinement).
-		serverSeq = sendDown(encodeRowDescription(s.rowDescFields(1)))
+		// For Mode="statement", PG returns ParameterDescription ('t')
+		// first, then RowDescription ('T') or NoData ('n').
+		if mode == modeStatement {
+			serverSeq = sendDown(encodeParameterDescription(s.paramOIDs(op.ParamCount)))
+		}
+		if op.ExpectNoData {
+			serverSeq = sendDown(encodeNoData())
+		} else {
+			serverSeq = sendDown(encodeRowDescription(s.rowDescFields(1)))
+		}
 	case "execute":
 		clientSeq = sendUp(encodeExecute(op.Portal, op.MaxRows))
 		for i := 0; i < cfg.RowCount; i++ {
@@ -664,6 +675,18 @@ func (s *runState) runOperation(emit emitFunc, clientSeq, serverSeq uint32, curr
 		serverSeq = sendDown(encodeCopyData(encodePrimaryKeepalive(0, 0, 0)))
 	case "terminate":
 		clientSeq = sendUp(encodeTerminate())
+	case "error":
+		// Standalone ErrorResponse + ReadyForQuery. If in a transaction,
+		// the status flips to 'E' (failed transaction).
+		serverSeq = sendDown(encodeErrorResponse(op.ErrorFields))
+		if currentStatus == rfqInTrans {
+			currentStatus = rfqFailed
+		}
+		serverSeq = sendDown(encodeReadyForQuery(currentStatus))
+	case "notice":
+		// Standalone NoticeResponse (server->client push). No client
+		// request, no ReadyForQuery (notices are informational).
+		serverSeq = sendDown(encodeNoticeResponse(op.ErrorFields))
 	case "function-call":
 		oid := op.FunctionOID
 		if oid == 0 {
@@ -712,10 +735,11 @@ func descModeName(op *core.PGOperation) (byte, string) {
 	return modeStatement, op.Statement
 }
 
-// runSimpleQuery models a Simple Query response set: T (optional) +
-// D* (optional) + C + Z.
+// runSimpleQuery models a Simple Query response set: for each SQL
+// statement (split on ';' per PostgreSQL §52.2.3), emit T (optional) +
+// D* (optional) + C. A single ReadyForQuery (Z) is emitted at the end of
+// the whole multi-statement query — never between statements.
 func (s *runState) runSimpleQuery(sendDown func([]byte) uint32, serverSeq uint32, sql string, currentStatus byte) (uint32, byte) {
-	cfg := s.cfg
 	trimmed := strings.TrimSpace(sql)
 	if trimmed == "" {
 		serverSeq = sendDown(encodeEmptyQueryResponse())
@@ -723,19 +747,49 @@ func (s *runState) runSimpleQuery(sendDown func([]byte) uint32, serverSeq uint32
 		return serverSeq, currentStatus
 	}
 
+	// Multi-statement: split on unescaped ';' and process each segment.
+	segments := splitMultiStatement(sql)
+	if len(segments) > 1 {
+		for _, seg := range segments {
+			seg = strings.TrimSpace(seg)
+			if seg == "" {
+				continue
+			}
+			serverSeq, currentStatus = s.emitStatementResponse(sendDown, serverSeq, seg, currentStatus)
+		}
+		serverSeq = sendDown(encodeReadyForQuery(currentStatus))
+		return serverSeq, currentStatus
+	}
+
+	// Single statement: emit response + final ReadyForQuery.
+	serverSeq, currentStatus = s.emitStatementResponse(sendDown, serverSeq, trimmed, currentStatus)
+	serverSeq = sendDown(encodeReadyForQuery(currentStatus))
+	return serverSeq, currentStatus
+}
+
+// emitStatementResponse emits the per-statement response (T + D* + C,
+// or just C for DML/BEGIN/COMMIT/etc.) for one SQL statement. It does
+// NOT emit ReadyForQuery — the caller decides when to emit Z (multi-
+// statement queries emit it only after the final statement). Returns
+// updated serverSeq and transaction status.
+func (s *runState) emitStatementResponse(sendDown func([]byte) uint32, serverSeq uint32, sql string, currentStatus byte) (uint32, byte) {
+	cfg := s.cfg
+	trimmed := strings.TrimSpace(sql)
+	if trimmed == "" {
+		serverSeq = sendDown(encodeEmptyQueryResponse())
+		return serverSeq, currentStatus
+	}
+
 	upper := strings.ToUpper(trimmed)
 	switch {
 	case strings.HasPrefix(upper, "BEGIN"), strings.HasPrefix(upper, "START TRANSACTION"):
 		serverSeq = sendDown(encodeCommandComplete("BEGIN"))
-		serverSeq = sendDown(encodeReadyForQuery(rfqInTrans))
 		return serverSeq, rfqInTrans
 	case upper == "COMMIT", upper == "END":
 		serverSeq = sendDown(encodeCommandComplete("COMMIT"))
-		serverSeq = sendDown(encodeReadyForQuery(rfqIdle))
 		return serverSeq, rfqIdle
 	case upper == "ROLLBACK", strings.HasPrefix(upper, "ROLLBACK "):
 		serverSeq = sendDown(encodeCommandComplete("ROLLBACK"))
-		serverSeq = sendDown(encodeReadyForQuery(rfqIdle))
 		return serverSeq, rfqIdle
 	case strings.HasPrefix(upper, "SELECT"):
 		ncols := strings.Count(trimmed, ",") + 1
@@ -744,7 +798,6 @@ func (s *runState) runSimpleQuery(sendDown func([]byte) uint32, serverSeq uint32
 			serverSeq = sendDown(encodeDataRow(s.syntheticDataRowColumns(ncols)))
 		}
 		serverSeq = sendDown(encodeCommandComplete(fmt.Sprintf("SELECT %d", cfg.RowCount)))
-		serverSeq = sendDown(encodeReadyForQuery(rfqIdle))
 		return serverSeq, rfqIdle
 	case strings.HasPrefix(upper, "LISTEN"), strings.HasPrefix(upper, "UNLISTEN"):
 		tag := "LISTEN"
@@ -752,13 +805,81 @@ func (s *runState) runSimpleQuery(sendDown func([]byte) uint32, serverSeq uint32
 			tag = "UNLISTEN"
 		}
 		serverSeq = sendDown(encodeCommandComplete(tag))
-		serverSeq = sendDown(encodeReadyForQuery(rfqIdle))
 		return serverSeq, rfqIdle
 	}
 
 	serverSeq = sendDown(encodeCommandComplete("OK"))
+	return serverSeq, currentStatus
+}
+
+// runQueryError handles the ErrorFields path for a "query" operation.
+// For single-statement SQL, it emits ErrorResponse + ReadyForQuery
+// immediately. For multi-statement SQL, it emits normal responses for
+// segments before errorSegment, then ErrorResponse + ReadyForQuery.
+// If the session is in a transaction (status 'T'), the ReadyForQuery
+// status flips to 'E' (failed transaction) per PostgreSQL §52.2.
+func (s *runState) runQueryError(sendDown func([]byte) uint32, serverSeq uint32, sql string, currentStatus byte, fields []core.PGErrorField, errorSegment int) (uint32, byte) {
+	segments := splitMultiStatement(sql)
+	if len(segments) <= 1 {
+		// Single statement or empty: emit ErrorResponse + ReadyForQuery.
+		serverSeq = sendDown(encodeErrorResponse(fields))
+		if currentStatus == rfqInTrans {
+			currentStatus = rfqFailed
+		}
+		serverSeq = sendDown(encodeReadyForQuery(currentStatus))
+		return serverSeq, currentStatus
+	}
+
+	// Multi-statement: default errorSegment = 2 (first succeeds, second
+	// fails). Caller can override with op.ErrorSegment.
+	errSeg := errorSegment
+	if errSeg <= 0 {
+		errSeg = 2
+	}
+	// Clamp to valid range [1, len(segments)+1]. errSeg = len(segments)+1
+	// means "all segments succeed, error comes after" — useful for
+	// modeling a session-level error.
+	if errSeg > len(segments)+1 {
+		errSeg = len(segments) + 1
+	}
+	// Emit normal responses for segments 1..errSeg-1 (1-indexed).
+	for i := 0; i < errSeg-1 && i < len(segments); i++ {
+		seg := strings.TrimSpace(segments[i])
+		if seg == "" {
+			continue
+		}
+		serverSeq, currentStatus = s.emitStatementResponse(sendDown, serverSeq, seg, currentStatus)
+	}
+	// Emit ErrorResponse + ReadyForQuery. In transaction -> 'E'.
+	serverSeq = sendDown(encodeErrorResponse(fields))
+	if currentStatus == rfqInTrans {
+		currentStatus = rfqFailed
+	}
 	serverSeq = sendDown(encodeReadyForQuery(currentStatus))
 	return serverSeq, currentStatus
+}
+
+// splitMultiStatement splits a SQL string on unescaped ';' separators
+// per PostgreSQL §52.2.3. The escape '\;' is treated as a literal
+// semicolon within a segment. Empty segments (caused by leading/
+// trailing/consecutive ';' or escaped '\;') are preserved as empty
+// strings — callers should trim/skip them.
+func splitMultiStatement(sql string) []string {
+	out := make([]string, 0, 1)
+	last := 0
+	for i := 0; i < len(sql); i++ {
+		if sql[i] == '\\' && i+1 < len(sql) && sql[i+1] == ';' {
+			// Skip the escape so the semicolon stays in the segment.
+			i++
+			continue
+		}
+		if sql[i] == ';' {
+			out = append(out, sql[last:i])
+			last = i + 1
+		}
+	}
+	out = append(out, sql[last:])
+	return out
 }
 
 // --- runState helpers ---

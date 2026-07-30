@@ -313,6 +313,16 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 
+	// 25. InnerIPPackets validation (内层 IP 业务流校验)
+	if cfg.StaticKeyMode && len(cfg.InnerIPPackets) > 0 {
+		return fmt.Errorf("inner_ip_packets is not supported in static_key_mode (static-key mode uses P_DATA_V1 with its own data path; inner IP business is for the TLS-mode data channel)")
+	}
+	for i := range cfg.InnerIPPackets {
+		if err := validateInnerIP(&cfg.InnerIPPackets[i]); err != nil {
+			return fmt.Errorf("inner_ip_packets[%d]: %w", i, err)
+		}
+	}
+
 	return nil
 }
 
@@ -423,8 +433,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 
 		// emitPacket sends a single packet config to the channel.
-		// 发送单个包配置到通道.
-		emitPacket := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, payload []byte, l3Protocol uint8, tcpSeq, tcpAck uint32, tcpFlags uint8) {
+		// 发送单个包配置到通道. meta may be nil.
+		emitPacket := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, payload []byte, l3Protocol uint8, tcpSeq, tcpAck uint32, tcpFlags uint8, meta map[string]interface{}) {
 			var l3 core.L3Config
 			var l4 core.L4Config
 			if isTCP {
@@ -462,6 +472,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				L3: l3,
 				L4: l4,
 				Payload: payload,
+				Metadata: meta,
 			}
 			packetIndex++
 		}
@@ -475,14 +486,14 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// real OpenVPN protocol (src/openvpn/mtu.c frame_link_mtu_set +
 		// forward.c). UDP mode needs no prefix (datagrams are self-delimiting
 		// and do not go through this function).
-		emitTCPData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq *uint32, payload []byte) {
+		emitTCPData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq *uint32, payload []byte, meta map[string]interface{}) {
 			var lenBuf [2]byte
 			binary.BigEndian.PutUint16(lenBuf[:], uint16(len(payload)))
 			framed := make([]byte, 0, 2+len(payload))
 			framed = append(framed, lenBuf[:]...)
 			framed = append(framed, payload...)
 			for _, seg := range segmentByMSS(framed, int(mss)) {
-				emitPacket(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, seg, 6, *senderSeq, *peerSeq, 0x18)
+				emitPacket(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, seg, 6, *senderSeq, *peerSeq, 0x18, meta)
 				*senderSeq += uint32(len(seg))
 			}
 		}
@@ -490,13 +501,13 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// --- TCP handshake (TCP mode only) ---
 		if isTCP {
 			// SYN (client -> server)
-			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, nil, 6, clientSeq, 0, 0x02)
+			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, nil, 6, clientSeq, 0, 0x02, nil)
 			clientSeq++
 			// SYN-ACK (server -> client)
-			emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, nil, 6, serverSeq, clientSeq, 0x12)
+			emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, nil, 6, serverSeq, clientSeq, 0x12, nil)
 			serverSeq++
 			// ACK (client -> server)
-			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, nil, 6, clientSeq, serverSeq, 0x10)
+			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, nil, 6, clientSeq, serverSeq, 0x10, nil)
 		}
 
 		// --- StaticKeyMode (P2P 静态密钥模式, 无 TLS 握手) ---
@@ -519,9 +530,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			emitStaticKeyData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, sPort, dPort uint16, senderSeq, peerSeq *uint32, packetID uint64) {
 				payload := buildStaticKeyDataV1(packetID, keyID, dataLen)
 				if isTCP {
-					emitTCPData(direction, srcMAC, dstMAC, srcIP, dstIP, sPort, dPort, senderSeq, peerSeq, payload)
+					emitTCPData(direction, srcMAC, dstMAC, srcIP, dstIP, sPort, dPort, senderSeq, peerSeq, payload, nil)
 				} else {
-					emitPacket(direction, srcMAC, dstMAC, srcIP, dstIP, sPort, dPort, payload, 17, 0, 0, 0)
+					emitPacket(direction, srcMAC, dstMAC, srcIP, dstIP, sPort, dPort, payload, 17, 0, 0, 0, nil)
 				}
 			}
 
@@ -558,9 +569,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			clientResetPayload = buildHardResetClientV2(keyID, sessionID, 0, cfg.TLSAuth, cfg.TLSCrypt, cfg.TLSCryptV2, hmacLen, clientHello, isTCP)
 		}
 		if isTCP {
-			emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, clientResetPayload)
+			emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, clientResetPayload, nil)
 		} else {
-			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientResetPayload, 17, 0, 0, 0)
+			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientResetPayload, 17, 0, 0, 0, nil)
 		}
 
 		// --- Step 2: P_CONTROL_HARD_RESET_SERVER (V1 -> opcode 2; V2/V3 -> opcode 8) ---
@@ -572,79 +583,168 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			serverResetPayload = buildHardResetServerV2(keyID, sessionID, 0, cfg.TLSAuth, cfg.TLSCrypt, cfg.TLSCryptV2, hmacLen, serverHello, isTCP)
 		}
 		if isTCP {
-			emitTCPData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, &serverSeq, &clientSeq, serverResetPayload)
+			emitTCPData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, &serverSeq, &clientSeq, serverResetPayload, nil)
 		} else {
-			emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, serverResetPayload, 17, 0, 0, 0)
+			emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, serverResetPayload, 17, 0, 0, 0, nil)
 		}
 
 		// --- Step 3: AuthUserPass (用户名密码认证, TLS 握手完成后) ---
 		if cfg.AuthUserPass {
 			authPayload := buildAuthUserPass(cfg.AuthUser, cfg.AuthPass, tlsVersion)
 			if isTCP {
-				emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, authPayload)
+				emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, authPayload, nil)
 			} else {
-				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, authPayload, 17, 0, 0, 0)
+				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, authPayload, 17, 0, 0, 0, nil)
 			}
 		}
 
 		// --- Step 4: P_DATA packets (数据通道包) ---
 		// V1 -> P_DATA_V1 (opcode=6); V2/V3 -> P_DATA_V2 (opcode=9).
+		//
+		// When InnerIPPackets is non-empty, each entry produces one
+		// client->server P_DATA_V2 carrying the complete inner IP packet
+		// in the encrypted-payload region (the inner IP bytes occupy the
+		// ciphertext slot; IV/nonce/packet_id/tag remain synthetic
+		// filler). This REPLACES the default DataPacketCount loop and
+		// models the production tunnel scenario: tunneled ping/TCP/UDP
+		// business traffic flowing through the OpenVPN data channel.
+		// A matching server->client P_DATA_V2 is emitted per inner IP
+		// entry for bidirectional tunnel traffic.
 		isV1 := ver == "1"
-		// client->server
-		for i := 0; i < dataPacketCount; i++ {
-			payload := dataPayload
 
-			var pkt []byte
-			if isV1 {
-				// buildDataV1 encrypts internally; pass raw payload.
-				pkt = buildDataV1(uint64(i), keyID, uint64(i), payload, dataCipher, hmacLen)
-			} else {
-				// Fragment if enabled (分片处理)
-				encryptedPayload := buildEncryptedPayload(payload, dataCipher, hmacLen)
-				if cfg.FragmentSize > 0 && len(encryptedPayload) > int(cfg.FragmentSize) {
-					// Fragment the data payload (应用层分片)
-					pkt = buildFragmentedDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, cfg.FragmentSize, dataCipher, hmacLen)
-				} else {
-					// 如果启用了分片但 payload 小于分片大小, 也走 first fragment (单 fragment)
-					if cfg.FragmentSize > 0 {
-						fragFirst := buildFragmentHeader(0, uint16(i), uint16(len(encryptedPayload)))
-						encryptedPayload = append(fragFirst, encryptedPayload...)
-					}
-					pkt = buildDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, dataCipher, hmacLen)
-				}
+		// innerIPMeta builds the metadata map recording the inner IP
+		// 5-tuple so downstream consumers can identify the tunneled flow.
+		innerIPMeta := func(idx int, ip *core.OpenVPNInnerIP) map[string]interface{} {
+			proto := ip.Proto
+			if proto == 0 {
+				proto = 17 // default UDP
 			}
-
-			if isTCP {
-				emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, pkt)
-			} else {
-				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, pkt, 17, 0, 0, 0)
+			src := ip.SrcIP
+			if src == "" {
+				src = "10.10.10.1"
+			}
+			dst := ip.DstIP
+			if dst == "" {
+				dst = "10.10.10.2"
+			}
+			return map[string]interface{}{
+				"openvpn_inner_src_ip": src,
+				"openvpn_inner_dst_ip": dst,
+				"openvpn_inner_proto":  proto,
+				"openvpn_inner_index":  idx,
 			}
 		}
 
-		// server->client
-		for i := 0; i < dataPacketCount; i++ {
-			payload := dataPayload
+		// buildInnerDataV2 builds a P_DATA_V2 carrying an inner IP packet.
+		// The inner IP bytes are placed in the ciphertext slot of the
+		// encrypted payload (after the synthetic IV/nonce + packet_id and
+		// before the HMAC/AEAD tag), so the inner IP is findable in the
+		// encrypted region by tools that parse the decrypted body.
+		buildInnerDataV2 := func(packetID uint64, ip *core.OpenVPNInnerIP) []byte {
+			inner := buildInnerIPPacket(ip, uint16(packetID+1))
+			encryptedPayload := buildEncryptedPayloadInner(inner, dataCipher, hmacLen)
+			return buildDataV2(packetID, keyID, peerSessionID, encryptedPayload, dataCipher, hmacLen)
+		}
 
-			var pkt []byte
-			if isV1 {
-				pkt = buildDataV1(uint64(i), keyID, uint64(i), payload, dataCipher, hmacLen)
-			} else {
-				encryptedPayload := buildEncryptedPayload(payload, dataCipher, hmacLen)
-				if cfg.FragmentSize > 0 && len(encryptedPayload) > int(cfg.FragmentSize) {
-					pkt = buildFragmentedDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, cfg.FragmentSize, dataCipher, hmacLen)
+		// innerIPPacketsCount drives the P_DATA loop count when configured.
+		innerCount := len(cfg.InnerIPPackets)
+
+		if innerCount > 0 {
+			// client->server: one P_DATA_V2 per inner IP packet
+			for i := 0; i < innerCount; i++ {
+				ip := &cfg.InnerIPPackets[i]
+				meta := innerIPMeta(i, ip)
+				var pkt []byte
+				if isV1 {
+					// V1 P_DATA_V1: inner IP goes in the encrypted payload.
+					inner := buildInnerIPPacket(ip, uint16(i+1))
+					pkt = buildDataV1Inner(keyID, inner, dataCipher, hmacLen)
 				} else {
-					if cfg.FragmentSize > 0 {
-						fragFirst := buildFragmentHeader(0, uint16(i), uint16(len(encryptedPayload)))
-						encryptedPayload = append(fragFirst, encryptedPayload...)
-					}
-					pkt = buildDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, dataCipher, hmacLen)
+					pkt = buildInnerDataV2(uint64(i), ip)
+				}
+				if isTCP {
+					emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, pkt, meta)
+				} else {
+					emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, pkt, 17, 0, 0, 0, meta)
 				}
 			}
 
-			if isTCP {
-				emitTCPData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, &serverSeq, &clientSeq, pkt)
-			} else {
-				emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, pkt, 17, 0, 0, 0)
+			// server->client: matching P_DATA_V2 per inner IP packet
+			for i := 0; i < innerCount; i++ {
+				ip := &cfg.InnerIPPackets[i]
+				meta := innerIPMeta(i, ip)
+				var pkt []byte
+				if isV1 {
+					inner := buildInnerIPPacket(ip, uint16(i+1))
+					pkt = buildDataV1Inner(keyID, inner, dataCipher, hmacLen)
+				} else {
+					pkt = buildInnerDataV2(uint64(i), ip)
+				}
+				if isTCP {
+					emitTCPData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, &serverSeq, &clientSeq, pkt, meta)
+				} else {
+					emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, pkt, 17, 0, 0, 0, meta)
+				}
+			}
+		} else {
+			// Legacy mode: DataPacketCount P_DATA packets with synthetic
+			// 0xDD filler (backward compatible).
+			// client->server
+			for i := 0; i < dataPacketCount; i++ {
+				payload := dataPayload
+
+				var pkt []byte
+				if isV1 {
+					// buildDataV1 encrypts internally; pass raw payload.
+					pkt = buildDataV1(uint64(i), keyID, uint64(i), payload, dataCipher, hmacLen)
+				} else {
+					// Fragment if enabled (分片处理)
+					encryptedPayload := buildEncryptedPayload(payload, dataCipher, hmacLen)
+					if cfg.FragmentSize > 0 && len(encryptedPayload) > int(cfg.FragmentSize) {
+						// Fragment the data payload (应用层分片)
+						pkt = buildFragmentedDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, cfg.FragmentSize, dataCipher, hmacLen)
+					} else {
+						// 如果启用了分片但 payload 小于分片大小, 也走 first fragment (单 fragment)
+						if cfg.FragmentSize > 0 {
+							fragFirst := buildFragmentHeader(0, uint16(i), uint16(len(encryptedPayload)))
+							encryptedPayload = append(fragFirst, encryptedPayload...)
+						}
+						pkt = buildDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, dataCipher, hmacLen)
+					}
+				}
+
+				if isTCP {
+					emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, pkt, nil)
+				} else {
+					emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, pkt, 17, 0, 0, 0, nil)
+				}
+			}
+
+			// server->client
+			for i := 0; i < dataPacketCount; i++ {
+				payload := dataPayload
+
+				var pkt []byte
+				if isV1 {
+					pkt = buildDataV1(uint64(i), keyID, uint64(i), payload, dataCipher, hmacLen)
+				} else {
+					encryptedPayload := buildEncryptedPayload(payload, dataCipher, hmacLen)
+					if cfg.FragmentSize > 0 && len(encryptedPayload) > int(cfg.FragmentSize) {
+						pkt = buildFragmentedDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, cfg.FragmentSize, dataCipher, hmacLen)
+					} else {
+						if cfg.FragmentSize > 0 {
+							fragFirst := buildFragmentHeader(0, uint16(i), uint16(len(encryptedPayload)))
+							encryptedPayload = append(fragFirst, encryptedPayload...)
+						}
+						pkt = buildDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, dataCipher, hmacLen)
+					}
+				}
+
+				if isTCP {
+					emitTCPData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, &serverSeq, &clientSeq, pkt, nil)
+				} else {
+					emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, pkt, 17, 0, 0, 0, nil)
+				}
 			}
 		}
 
@@ -654,9 +754,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			keepalivePayload := buildEncryptedPayload(nil, dataCipher, hmacLen)
 			kaPkt := buildDataV2(uint64(dataPacketCount), keyID, peerSessionID, keepalivePayload, dataCipher, hmacLen)
 			if isTCP {
-				emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, kaPkt)
+				emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, kaPkt, nil)
 			} else {
-				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, kaPkt, 17, 0, 0, 0)
+				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, kaPkt, 17, 0, 0, 0, nil)
 			}
 		}
 
@@ -665,9 +765,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			newKeyID := keyID + 1
 			softResetPayload := buildSoftReset(newKeyID, sessionID, uint64(dataPacketCount*2), cfg.TLSAuth, cfg.TLSCrypt, cfg.TLSCryptV2, hmacLen, isTCP)
 			if isTCP {
-				emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, softResetPayload)
+				emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, softResetPayload, nil)
 			} else {
-				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, softResetPayload, 17, 0, 0, 0)
+				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, softResetPayload, 17, 0, 0, 0, nil)
 			}
 
 			// Re-key data packets with new key_id
@@ -675,9 +775,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				encPayload := buildEncryptedPayload(dataPayload, dataCipher, hmacLen)
 				pkt := buildDataV2(uint64(i), newKeyID, peerSessionID, encPayload, dataCipher, hmacLen)
 				if isTCP {
-					emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, pkt)
+					emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, pkt, nil)
 				} else {
-					emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, pkt, 17, 0, 0, 0)
+					emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, pkt, 17, 0, 0, 0, nil)
 				}
 			}
 		}
@@ -690,22 +790,22 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		if cfg.ExitNotifyCount > 0 {
 			for i := uint8(0); i < cfg.ExitNotifyCount; i++ {
 				exitPayload := buildExitNotify(keyID, sessionID, uint64(i))
-				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, exitPayload, 17, 0, 0, 0)
+				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, exitPayload, 17, 0, 0, 0, nil)
 			}
 		}
 
 		// --- Step 8: TCP teardown (TCP mode only) ---
 		if isTCP {
 			// Client FIN
-			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, nil, 6, clientSeq, serverSeq, 0x11)
+			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, nil, 6, clientSeq, serverSeq, 0x11, nil)
 			clientSeq++
 			// Server ACK
-			emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, nil, 6, serverSeq, clientSeq, 0x10)
+			emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, nil, 6, serverSeq, clientSeq, 0x10, nil)
 			// Server FIN
-			emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, nil, 6, serverSeq, clientSeq, 0x11)
+			emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, nil, 6, serverSeq, clientSeq, 0x11, nil)
 			serverSeq++
 			// Client ACK
-			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, nil, 6, clientSeq, serverSeq, 0x10)
+			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, nil, 6, clientSeq, serverSeq, 0x10, nil)
 		}
 	}()
 
@@ -915,6 +1015,15 @@ func buildDataV1(packetID uint64, keyID uint8, _ uint64, payload []byte, cipher 
 	return b
 }
 
+// buildDataV1Inner builds a P_DATA_V1 carrying an inner IP packet. Like
+// buildDataV1 but the ciphertext slot contains the actual inner IP bytes
+// (not 0-DD filler) so the inner IP is findable in the encrypted region.
+func buildDataV1Inner(keyID uint8, payload []byte, cipher string, hmacLen int) []byte {
+	b := []byte{headerByte(OpcodeDATAV1, keyID)}
+	b = append(b, buildEncryptedPayloadInner(payload, cipher, hmacLen)...)
+	return b
+}
+
 // buildStaticKeyDataV1 builds a P_DATA_V1 packet for static-key P2P mode.
 // Per design §2.10.2 + §6.3 step 4: the P_DATA_V1 payload in static-key mode
 // contains StaticKeyNonce(16B) + StaticKeyCiphertext(N B) + StaticKeyHMAC(20B).
@@ -956,8 +1065,50 @@ func buildExitNotify(keyID uint8, sessionID uint64, packetID uint64) []byte {
 }
 
 // buildEncryptedPayload builds the encrypted data for P_DATA packet.
-// 构建 P_DATA 加密负载 (合成填充, 不真实加密).
+// 构建 P_DATA 加密负载 (合成填充, 不真实加密). The ciphertext slot is
+// filled with 0xDD synthetic filler (legacy mode).
 func buildEncryptedPayload(payload []byte, cipher string, hmacLen int) []byte {
+	return buildEncryptedPayloadRaw(payload, cipher, hmacLen, true)
+}
+
+// buildEncryptedPayloadInner builds the encrypted data for a P_DATA packet
+// carrying an inner IP business packet. It is identical to
+// buildEncryptedPayload EXCEPT the ciphertext slot contains the actual
+// inner IP packet bytes (not 0-DD filler), so the inner IP header is
+// findable in the encrypted region by tools that parse the decrypted body.
+// The IV/nonce, encrypted_pkt_id, and HMAC/AEAD tag remain synthetic
+// filler. This represents "what the encrypted body decrypts to" without
+// performing real cryptography.
+func buildEncryptedPayloadInner(payload []byte, cipher string, hmacLen int) []byte {
+	return buildEncryptedPayloadRaw(payload, cipher, hmacLen, false)
+}
+
+// buildEncryptedPayloadRaw is the shared encrypted-payload builder. When
+// useFiller is true, the ciphertext slot is 0-DD synthetic filler (legacy
+// mode, backward compatible). When false, the ciphertext slot contains the
+// actual payload bytes (inner IP mode - represents the decrypted body).
+// The IV/nonce, encrypted_pkt_id, and HMAC/AEAD tag are always synthetic
+// filler regardless of useFiller.
+func buildEncryptedPayloadRaw(payload []byte, cipher string, hmacLen int, useFiller bool) []byte {
+	// ciphertextSlot returns the bytes for the encrypted-data region:
+	// 0-DD filler (legacy) or the actual payload (inner IP).
+	ciphertextSlot := func() []byte {
+		if len(payload) == 0 {
+			return nil
+		}
+		if useFiller {
+			f := make([]byte, len(payload))
+			for i := range f {
+				f[i] = 0xDD
+			}
+			return f
+		}
+		// Inner IP mode: copy the actual payload (inner IP packet) so it
+		// is findable in the encrypted region.
+		c := make([]byte, len(payload))
+		copy(c, payload)
+		return c
+	}
 	var b []byte
 	switch cipher {
 	case "AES-128-GCM", "AES-192-GCM", "AES-256-GCM", "CHACHA20-POLY1305":
@@ -970,13 +1121,7 @@ func buildEncryptedPayload(payload []byte, cipher string, hmacLen int) []byte {
 		// encrypted_pkt_id
 		b = append(b, 0x00, 0x00, 0x00, 0x01)
 		// encrypted_payload
-		if len(payload) > 0 {
-			encPayload := make([]byte, len(payload))
-			for i := range encPayload {
-				encPayload[i] = 0xDD
-			}
-			b = append(b, encPayload...)
-		}
+		b = append(b, ciphertextSlot()...)
 		// AEAD tag
 		tag := make([]byte, 16)
 		for i := range tag {
@@ -991,13 +1136,7 @@ func buildEncryptedPayload(payload []byte, cipher string, hmacLen int) []byte {
 		}
 		b = append(b, iv...)
 		b = append(b, 0x00, 0x00, 0x00, 0x01)
-		if len(payload) > 0 {
-			encPayload := make([]byte, len(payload))
-			for i := range encPayload {
-				encPayload[i] = 0xDD
-			}
-			b = append(b, encPayload...)
-		}
+		b = append(b, ciphertextSlot()...)
 		// HMAC tag
 		hmac := make([]byte, hmacLen)
 		for i := range hmac {
@@ -1012,13 +1151,7 @@ func buildEncryptedPayload(payload []byte, cipher string, hmacLen int) []byte {
 		}
 		b = append(b, iv...)
 		b = append(b, 0x00, 0x00, 0x00, 0x01)
-		if len(payload) > 0 {
-			encPayload := make([]byte, len(payload))
-			for i := range encPayload {
-				encPayload[i] = 0xDD
-			}
-			b = append(b, encPayload...)
-		}
+		b = append(b, ciphertextSlot()...)
 		hmac := make([]byte, hmacLen)
 		for i := range hmac {
 			hmac[i] = 0xAA
@@ -1037,13 +1170,7 @@ func buildEncryptedPayload(payload []byte, cipher string, hmacLen int) []byte {
 		}
 		b = append(b, iv...)
 		b = append(b, 0x00, 0x00, 0x00, 0x01)
-		if len(payload) > 0 {
-			encPayload := make([]byte, len(payload))
-			for i := range encPayload {
-				encPayload[i] = 0xDD
-			}
-			b = append(b, encPayload...)
-		}
+		b = append(b, ciphertextSlot()...)
 		hmac := make([]byte, hmacLen)
 		for i := range hmac {
 			hmac[i] = 0xAA
@@ -1319,4 +1446,250 @@ func synOptions(mss uint16) []core.TCPOption {
 		{Kind: core.TCPOptWinScale, Data: []byte{7}},
 		{Kind: core.TCPOptSACKPermit},
 	}
+}
+
+// --- Inner IP packet builders (内层 IP 包构建) ---
+//
+// buildInnerIPPacket builds a complete inner IPv4 or IPv6 packet (header +
+// L4 + payload) for encapsulation inside an OpenVPN P_DATA_V2 encrypted
+// payload. IPv4 headers carry a correct checksum (RFC 791 §3.1); IPv6 has
+// no header checksum (RFC 8200 §3). L4 checksums are computed for TCP
+// (mandatory) and ICMP; UDP checksum=0 is valid over IPv4 (RFC 768) but
+// mandatory over IPv6 (so we compute it for v6). Mirrors the
+// WireGuardInnerIP / L2TPInnerIP tunnel patterns.
+func buildInnerIPPacket(ip *core.OpenVPNInnerIP, ipid uint16) []byte {
+	srcIP := ip.SrcIP
+	if srcIP == "" {
+		srcIP = "10.10.10.1"
+	}
+	dstIP := ip.DstIP
+	if dstIP == "" {
+		dstIP = "10.10.10.2"
+	}
+	proto := ip.Proto
+	if proto == 0 {
+		proto = 17 // default UDP
+	}
+	ttl := ip.TTL
+	if ttl == 0 {
+		ttl = 64
+	}
+	parsedSrc := net.ParseIP(srcIP)
+	if parsedSrc == nil {
+		// Should never happen (Validate rejects it); fall back to v4 default.
+		return nil
+	}
+	isV6 := parsedSrc.To4() == nil
+	if isV6 {
+		return buildInnerIPv6Packet(srcIP, dstIP, proto, ip.SrcPort, ip.DstPort, ttl, ip.Payload, ipid)
+	}
+	return buildInnerIPv4Packet(srcIP, dstIP, proto, ip.SrcPort, ip.DstPort, ttl, ip.Payload, ipid)
+}
+
+// buildInnerIPv4Packet builds a complete inner IPv4 packet (header + L4 +
+// payload) with a correct header checksum per RFC 791 §3.1. The L4
+// checksum is computed for TCP (mandatory) and ICMP; UDP checksum=0 is
+// valid over IPv4 (RFC 768).
+func buildInnerIPv4Packet(srcIP, dstIP string, proto uint8, srcPort, dstPort uint16, ttl uint8, payload []byte, ipid uint16) []byte {
+	src := net.ParseIP(srcIP).To4()
+	dst := net.ParseIP(dstIP).To4()
+
+	l4 := buildInnerL4(proto, srcPort, dstPort, payload, src, dst)
+
+	totalLen := uint16(20 + len(l4))
+	hdr := make([]byte, 20)
+	hdr[0] = 0x45 // Version=4, IHL=5
+	// TOS = 0.
+	binary.BigEndian.PutUint16(hdr[2:4], totalLen)
+	binary.BigEndian.PutUint16(hdr[4:6], ipid)
+	// Flags=DF (0x4000), FragOffset=0.
+	binary.BigEndian.PutUint16(hdr[6:8], 0x4000)
+	hdr[8] = ttl
+	hdr[9] = proto
+	// Checksum at [10:12] computed below.
+	if len(src) == 4 {
+		copy(hdr[12:16], src)
+	}
+	if len(dst) == 4 {
+		copy(hdr[16:20], dst)
+	}
+	binary.BigEndian.PutUint16(hdr[10:12], innerIPv4Checksum(hdr))
+
+	return append(hdr, l4...)
+}
+
+// buildInnerIPv6Packet builds a complete inner IPv6 packet (40-byte fixed
+// header + L4 + payload) per RFC 8200 §3. IPv6 has no header checksum; L4
+// checksums use the IPv6 pseudo-header (RFC 2460 §8.1). UDP checksum is
+// mandatory over IPv6; ICMPv6 (proto 58) checksum uses the pseudo-header.
+func buildInnerIPv6Packet(srcIP, dstIP string, proto uint8, srcPort, dstPort uint16, hopLimit uint8, payload []byte, flowLabel uint16) []byte {
+	src := net.ParseIP(srcIP).To16()
+	dst := net.ParseIP(dstIP).To16()
+
+	l4 := buildInnerL4v6(proto, srcPort, dstPort, payload, src, dst)
+
+	payloadLen := uint16(len(l4))
+	hdr := make([]byte, 40)
+	// Version(4)=6 + TrafficClass(8)=0 + FlowLabel(20). We encode the
+	// low 20 bits of flowLabel into the flow label field.
+	hdr[0] = 0x60 // version=6, TC high=0
+	fl := uint32(flowLabel) & 0xFFFFF
+	hdr[1] = byte(fl >> 16)
+	hdr[2] = byte(fl >> 8)
+	hdr[3] = byte(fl)
+	binary.BigEndian.PutUint16(hdr[4:6], payloadLen)
+	hdr[6] = proto // Next Header
+	hdr[7] = hopLimit
+	if len(src) == 16 {
+		copy(hdr[8:24], src)
+	}
+	if len(dst) == 16 {
+		copy(hdr[24:40], dst)
+	}
+
+	return append(hdr, l4...)
+}
+
+// buildInnerL4 builds the L4 segment for IPv4. UDP checksum=0 is valid over
+// IPv4 (RFC 768). TCP checksum is mandatory (RFC 793). ICMP checksum covers
+// the whole ICMP message (RFC 792).
+func buildInnerL4(proto uint8, srcPort, dstPort uint16, payload, src, dst []byte) []byte {
+	switch proto {
+	case 6: // TCP (RFC 793)
+		l4 := make([]byte, 20+len(payload))
+		binary.BigEndian.PutUint16(l4[0:2], srcPort)
+		binary.BigEndian.PutUint16(l4[2:4], dstPort)
+		// Seq=0, Ack=0.
+		l4[12] = 5 << 4 // Data offset = 5 (20 bytes), no flags.
+		binary.BigEndian.PutUint16(l4[14:16], 65535) // window
+		copy(l4[20:], payload)
+		binary.BigEndian.PutUint16(l4[16:18], innerL4Checksum(l4, proto, src, dst))
+		return l4
+	case 17: // UDP (RFC 768)
+		l4 := make([]byte, 8+len(payload))
+		binary.BigEndian.PutUint16(l4[0:2], srcPort)
+		binary.BigEndian.PutUint16(l4[2:4], dstPort)
+		binary.BigEndian.PutUint16(l4[4:6], uint16(8+len(payload)))
+		// UDP checksum = 0 is valid over IPv4 (RFC 768). Leave 0.
+		copy(l4[8:], payload)
+		return l4
+	case 1: // ICMP (RFC 792)
+		l4 := make([]byte, 8+len(payload))
+		l4[0] = 8 // echo request
+		copy(l4[8:], payload)
+		binary.BigEndian.PutUint16(l4[2:4], innerIPv4Checksum(l4))
+		return l4
+	default:
+		return payload
+	}
+}
+
+// buildInnerL4v6 builds the L4 segment for IPv6. UDP checksum is MANDATORY
+// over IPv6 (RFC 8200 §8.1), so we always compute it. ICMPv6 (proto 58)
+// checksum uses the pseudo-header; for proto 1 we still build an ICMPv6
+// echo request (type 128) since ICMPv6 is the IPv6 equivalent.
+func buildInnerL4v6(proto uint8, srcPort, dstPort uint16, payload, src, dst []byte) []byte {
+	switch proto {
+	case 6: // TCP
+		l4 := make([]byte, 20+len(payload))
+		binary.BigEndian.PutUint16(l4[0:2], srcPort)
+		binary.BigEndian.PutUint16(l4[2:4], dstPort)
+		l4[12] = 5 << 4
+		binary.BigEndian.PutUint16(l4[14:16], 65535)
+		copy(l4[20:], payload)
+		binary.BigEndian.PutUint16(l4[16:18], innerL4Checksum(l4, 6, src, dst))
+		return l4
+	case 17: // UDP - checksum mandatory over IPv6
+		l4 := make([]byte, 8+len(payload))
+		binary.BigEndian.PutUint16(l4[0:2], srcPort)
+		binary.BigEndian.PutUint16(l4[2:4], dstPort)
+		binary.BigEndian.PutUint16(l4[4:6], uint16(8+len(payload)))
+		copy(l4[8:], payload)
+		binary.BigEndian.PutUint16(l4[6:8], innerL4Checksum(l4, 17, src, dst))
+		return l4
+	case 1: // ICMPv6 echo request (type 128, RFC 4443)
+		l4 := make([]byte, 8+len(payload))
+		l4[0] = 128 // ICMPv6 echo request
+		copy(l4[8:], payload)
+		binary.BigEndian.PutUint16(l4[2:4], innerL4Checksum(l4, 58, src, dst))
+		return l4
+	default:
+		return payload
+	}
+}
+
+// innerIPv4Checksum computes the 16-bit one's-complement checksum used by
+// IPv4 headers and ICMP messages (RFC 791 §3.1, RFC 792).
+func innerIPv4Checksum(b []byte) uint16 {
+	sum := uint32(0)
+	for i := 0; i+1 < len(b); i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(b[i : i+2]))
+	}
+	if len(b)%2 == 1 {
+		sum += uint32(b[len(b)-1]) << 8
+	}
+	for sum>>16 != 0 {
+		sum = (sum >> 16) + (sum & 0xffff)
+	}
+	return ^uint16(sum)
+}
+
+// innerL4Checksum computes the TCP/UDP checksum with the IPv4 or IPv6
+// pseudo-header (RFC 793 / RFC 768 / RFC 2460 §8.1). The pseudo-header
+// carries the L4 length and the protocol number (or Next Header). Works for
+// both IPv4 (16-byte zero-padded) and IPv6 by using the 16-byte form.
+func innerL4Checksum(l4 []byte, proto uint8, src, dst net.IP) uint16 {
+	srcB := src.To16()
+	dstB := dst.To16()
+	if srcB == nil {
+		srcB = make([]byte, 16)
+	}
+	if dstB == nil {
+		dstB = make([]byte, 16)
+	}
+	// Pseudo-header: SrcIP(16) + DstIP(16) + UpperLayerLen(4) + zero(3) +
+	// NextHeader(1).
+	pseudo := make([]byte, 40)
+	copy(pseudo[0:16], srcB)
+	copy(pseudo[16:32], dstB)
+	binary.BigEndian.PutUint32(pseudo[32:36], uint32(len(l4)))
+	pseudo[39] = proto
+
+	buf := make([]byte, 0, len(pseudo)+len(l4))
+	buf = append(buf, pseudo...)
+	buf = append(buf, l4...)
+	return innerIPv4Checksum(buf)
+}
+
+// validateInnerIP validates the OpenVPNInnerIP config. IPs must be valid
+// and the same address family; Proto must be 0 (default), 1, 6, or 17.
+func validateInnerIP(ip *core.OpenVPNInnerIP) error {
+	if ip == nil {
+		return nil
+	}
+	srcIP := ip.SrcIP
+	dstIP := ip.DstIP
+	if srcIP == "" {
+		srcIP = "10.10.10.1"
+	}
+	if dstIP == "" {
+		dstIP = "10.10.10.2"
+	}
+	src := net.ParseIP(srcIP)
+	if src == nil {
+		return fmt.Errorf("SrcIP %q is not a valid IP address", ip.SrcIP)
+	}
+	dst := net.ParseIP(dstIP)
+	if dst == nil {
+		return fmt.Errorf("DstIP %q is not a valid IP address", ip.DstIP)
+	}
+	srcIsV4 := src.To4() != nil
+	dstIsV4 := dst.To4() != nil
+	if srcIsV4 != dstIsV4 {
+		return fmt.Errorf("SrcIP and DstIP must be the same address family (got v4/v6 mix)")
+	}
+	if ip.Proto != 0 && ip.Proto != 1 && ip.Proto != 6 && ip.Proto != 17 {
+		return fmt.Errorf("Proto %d not in supported list (allowed: 1=ICMP, 6=TCP, 17=UDP)", ip.Proto)
+	}
+	return nil
 }

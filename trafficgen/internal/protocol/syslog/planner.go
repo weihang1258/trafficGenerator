@@ -152,9 +152,18 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("syslog: TCPFraming %q not in supported list (allowed: octet_counting, non_transparent per RFC 6587)", cfg.TCPFraming)
 		}
 		// non-transparent framing forbids LF inside MSG (would break frame
-		// delimiting per RFC 6587 §4).
-		if framing == "non_transparent" && strings.Contains(cfg.Msg, "\n") {
-			return fmt.Errorf("syslog: MSG cannot contain LF in non-transparent framing (RFC 6587 §4 frame delimiting)")
+		// delimiting per RFC 6587 §4). Check both the top-level Msg and
+		// every per-message Msg (testcases §3.3.2/§3.4.2 multi-payload
+		// path: a per-message Msg with LF would corrupt the frame).
+		if framing == "non_transparent" {
+			if strings.Contains(cfg.Msg, "\n") {
+				return fmt.Errorf("syslog: MSG cannot contain LF in non-transparent framing (RFC 6587 §4 frame delimiting)")
+			}
+			for i, m := range cfg.Messages {
+				if strings.Contains(m.Msg, "\n") {
+					return fmt.Errorf("syslog: Messages[%d].Msg cannot contain LF in non-transparent framing (RFC 6587 §4)", i)
+				}
+			}
 		}
 	}
 
@@ -170,14 +179,31 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	// Rejecting "Jan  1 00:00:00" here would make every SYSLOG.1.3-style test
 	// fail validation even though the value is the canonical BSD timestamp
 	// format mandated by RFC 3164 §4.1.2.
-	if cfg.Timestamp != "" && cfg.Timestamp != NILVALUE {
+	//
+	// The same RFC 3339 rule applies to per-message Timestamp entries
+	// (testcases §3.3.2/§3.4.2 multi-payload path): an invalid per-message
+	// timestamp would otherwise be silently emitted verbatim, producing a
+	// malformed RFC 5424 frame that passes Validate but fails on the wire.
+	validateTimestamp := func(label, ts string) error {
+		if ts == "" || ts == NILVALUE {
+			return nil
+		}
 		if format == "rfc5424" {
-			if _, err := time.Parse(time.RFC3339Nano, cfg.Timestamp); err != nil {
-				return fmt.Errorf("syslog: Timestamp %q not a valid RFC 3339 timestamp (RFC 5424 §6.2.3): %v", cfg.Timestamp, err)
+			if _, err := time.Parse(time.RFC3339Nano, ts); err != nil {
+				return fmt.Errorf("syslog: %s %q not a valid RFC 3339 timestamp (RFC 5424 §6.2.3): %v", label, ts, err)
 			}
 		}
 		// For format == "bsd" we accept any non-empty value. encodeBSD handles
 		// both RFC 3339 (re-formatted to BSD) and pre-formatted BSD strings.
+		return nil
+	}
+	if err := validateTimestamp("Timestamp", cfg.Timestamp); err != nil {
+		return err
+	}
+	for i, m := range cfg.Messages {
+		if err := validateTimestamp(fmt.Sprintf("Messages[%d].Timestamp", i), m.Timestamp); err != nil {
+			return err
+		}
 	}
 
 	// HOSTNAME 1-255 bytes (RFC 5424 §6.2.4); no SP allowed.
@@ -356,14 +382,27 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			effectiveTTL = DefaultTTL
 		}
 
-		// Encode the RFC 5424 message once (same payload for all N copies
-		// when Count > 1; each copy is a separate UDP datagram or TCP frame
-		// with its own PacketIndex).
-		var msgBytes []byte
-		if format == "bsd" {
-			msgBytes = encodeBSD(cfg, facility, severity)
+		// Encode the syslog message(s). When Messages is non-empty, emit
+		// one datagram/frame per entry with per-message overrides; otherwise
+		// emit Count copies of the single encoded message.
+		//
+		// Per-message encoding (RFC 5424 §3.4 stream of distinct messages):
+		// testcases_syslog.md §3.3.2 (per-message sequenceId), §3.4.2
+		// (per-message MSG length variation).
+		var msgBytesList [][]byte
+		if len(cfg.Messages) > 0 {
+			msgBytesList = make([][]byte, 0, len(cfg.Messages))
+			for i := range cfg.Messages {
+				entry := buildPerMessageCfg(cfg, &cfg.Messages[i])
+				if format == "bsd" {
+					msgBytesList = append(msgBytesList, encodeBSD(entry, facility, severity))
+				} else {
+					msgBytesList = append(msgBytesList, encodeRFC5424(entry, facility, severity, version))
+				}
+			}
 		} else {
-			msgBytes = encodeRFC5424(cfg, facility, severity, version)
+			single := encodeSingleMsg(cfg, format, facility, severity, version)
+			msgBytesList = [][]byte{single}
 		}
 
 		now := time.Now()
@@ -377,13 +416,13 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		switch transport {
 		case "udp":
-			emitUDP(configChan, spec, flowID, msgBytes, now, &packetIndex, nextIPID, effectiveTTL, count)
+			emitUDP(configChan, spec, flowID, msgBytesList, now, &packetIndex, nextIPID, effectiveTTL, count)
 		case "tcp":
 			mss := uint16(DefaultMSS)
 			if spec.TCP != nil && spec.TCP.MSS > 0 {
 				mss = spec.TCP.MSS
 			}
-			emitTCP(configChan, spec, flowID, msgBytes, now, &packetIndex, nextIPID, effectiveTTL, mss, tcpFraming, count)
+			emitTCP(configChan, spec, flowID, msgBytesList, now, &packetIndex, nextIPID, effectiveTTL, mss, tcpFraming, count)
 		case "tls":
 			// TLS uses the same TCP framing; the engine layer handles the
 			// TLS handshake. We mark need_tls in Metadata so the engine can
@@ -392,7 +431,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			if spec.TCP != nil && spec.TCP.MSS > 0 {
 				mss = spec.TCP.MSS
 			}
-			emitTCP(configChan, spec, flowID, msgBytes, now, &packetIndex, nextIPID, effectiveTTL, mss, tcpFraming, count)
+			emitTCP(configChan, spec, flowID, msgBytesList, now, &packetIndex, nextIPID, effectiveTTL, mss, tcpFraming, count)
 		}
 
 		// Note: ctx.Done() is not explicitly checked here, matching the
@@ -405,12 +444,91 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	return configChan, nil
 }
 
-// emitUDP emits N UDP datagrams, each carrying the full syslog message.
+// encodeSingleMsg encodes the top-level SyslogConfig into a single
+// message byte slice, applying the active format (RFC 5424 or BSD).
+// Used when SyslogConfig.Messages is empty.
+func encodeSingleMsg(cfg *core.SyslogConfig, format string, facility, severity, version uint8) []byte {
+	if format == "bsd" {
+		return encodeBSD(cfg, facility, severity)
+	}
+	return encodeRFC5424(cfg, facility, severity, version)
+}
+
+// buildPerMessageCfg merges a per-message SyslogMessage entry over the
+// top-level SyslogConfig to produce a SyslogConfig whose encodeRFC5424
+// / encodeBSD will emit that one message. Fields that are zero-valued
+// in the entry inherit from the parent (so `Msg: "hi"` alone inherits
+// StructuredData/MsgID/etc from parent). msg_has_bom explicitly set in
+// the entry (true or false) overrides parent; unset (zero) inherits.
+//
+// Returns a *new* SyslogConfig (not the original) so the parent is not
+// mutated across iterations.
+func buildPerMessageCfg(parent *core.SyslogConfig, entry *core.SyslogMessage) *core.SyslogConfig {
+	out := *parent // shallow copy of scalar fields
+	// Per-message overrides. Only override when the entry has set the
+	// field (we use ""/nil as "inherit" sentinel for string/list fields;
+	// MsgHasBOM uses an explicit override helper because bool false vs
+	// unset is ambiguous in JSON).
+	if entry.Timestamp != "" {
+		out.Timestamp = entry.Timestamp
+	}
+	if entry.Hostname != "" {
+		out.Hostname = entry.Hostname
+	}
+	if entry.AppName != "" {
+		out.AppName = entry.AppName
+	}
+	if entry.ProcID != "" {
+		out.ProcID = entry.ProcID
+	}
+	if entry.MsgID != "" {
+		out.MsgID = entry.MsgID
+	}
+	if entry.StructuredData != nil {
+		out.StructuredData = entry.StructuredData
+	}
+	if entry.Msg != "" {
+		out.Msg = entry.Msg
+	}
+	// Distinguish "entry set msg_has_bom=true" from "entry omitted". We
+	// always honor the entry's value when present; callers who want to
+	// force "no BOM" for one message pass {msg_has_bom: false} explicitly
+	// (the parser converts absent to false via getBool default). In Go
+	// code via FlowSpec, the entry's MsgHasBOM is always honored as-is
+	// since bool zero is a valid value (inherits).
+	//
+	// To preserve the "inherit" semantic from JSON, we use a heuristic:
+	// if the entry has any other field set, the caller intended to
+	// override; we honor its MsgHasBOM verbatim. Otherwise inherit.
+	if hasAnyMessageField(entry) {
+		out.MsgHasBOM = entry.MsgHasBOM
+	}
+	if entry.SignBlocks != nil {
+		out.SignBlocks = entry.SignBlocks
+	}
+	return &out
+}
+
+// hasAnyMessageField returns true if the SyslogMessage has any
+// non-default per-message field set. Used to decide whether MsgHasBOM
+// should override or inherit (JSON absent -> inherit; explicit false ->
+// override to no-BOM).
+func hasAnyMessageField(m *core.SyslogMessage) bool {
+	return m.Timestamp != "" || m.Hostname != "" || m.AppName != "" ||
+		m.ProcID != "" || m.MsgID != "" || m.StructuredData != nil ||
+		m.Msg != "" || m.SignBlocks != nil
+}
+
+// emitUDP emits N UDP datagrams, each carrying one syslog message.
 // Direction is always "up" (client→server). UDP syslog is fire-and-forget
 // per RFC 5426 §3.
-func emitUDP(configChan chan<- core.PacketConfig, spec core.FlowSpec, flowID string, msg []byte,
+//
+// If msgs has multiple entries (from SyslogConfig.Messages), emit one
+// datagram per entry (Count is ignored). Otherwise emit Count copies of
+// the single encoded message.
+func emitUDP(configChan chan<- core.PacketConfig, spec core.FlowSpec, flowID string, msgs [][]byte,
 	now time.Time, packetIndex *uint64, nextIPID func() uint16, ttl uint8, count uint32) {
-	for i := uint32(0); i < count; i++ {
+	emit := func(msg []byte) {
 		configChan <- core.PacketConfig{
 			FlowID:      flowID,
 			PacketIndex: *packetIndex,
@@ -435,6 +553,17 @@ func emitUDP(configChan chan<- core.PacketConfig, spec core.FlowSpec, flowID str
 		}
 		*packetIndex++
 	}
+	if len(msgs) > 1 {
+		// Multi-payload: one datagram per distinct message.
+		for _, m := range msgs {
+			emit(m)
+		}
+		return
+	}
+	// Legacy path: emit Count copies of the single message.
+	for i := uint32(0); i < count; i++ {
+		emit(msgs[0])
+	}
 }
 
 // emitTCP emits TCP handshake → framed syslog messages → TCP teardown.
@@ -442,7 +571,11 @@ func emitUDP(configChan chan<- core.PacketConfig, spec core.FlowSpec, flowID str
 // or more PSH-ACK segments (MSS-segmented). Framing per RFC 6587:
 //   - octet_counting: `<len> SP <msg> LF` (len is ASCII digits, excludes itself)
 //   - non_transparent: `<msg> LF`
-func emitTCP(configChan chan<- core.PacketConfig, spec core.FlowSpec, flowID string, msg []byte,
+//
+// If msgs has multiple entries (from SyslogConfig.Messages), emit one
+// frame per entry (Count is ignored). Otherwise emit Count copies of the
+// single encoded message (legacy behavior).
+func emitTCP(configChan chan<- core.PacketConfig, spec core.FlowSpec, flowID string, msgs [][]byte,
 	now time.Time, packetIndex *uint64, nextIPID func() uint16, ttl uint8, mss uint16, framing string, count uint32) {
 	synOpts := synOptions(mss)
 
@@ -496,8 +629,19 @@ func emitTCP(configChan chan<- core.PacketConfig, spec core.FlowSpec, flowID str
 	serverSeq++
 	emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil)
 
-	// Frame each syslog message and emit as PSH-ACK segments, MSS-segmented.
-	for i := uint32(0); i < count; i++ {
+	// Determine how many frames to emit: 1 per distinct message when
+	// multi-payload; else Count copies of the single message.
+	frameCount := count
+	if len(msgs) > 1 {
+		frameCount = uint32(len(msgs))
+	}
+	for i := uint32(0); i < frameCount; i++ {
+		// Pick the source message: multi-payload uses msgs[i]; legacy
+		// path always uses msgs[0].
+		msg := msgs[0]
+		if len(msgs) > 1 {
+			msg = msgs[i]
+		}
 		var frame []byte
 		switch framing {
 		case "non_transparent":

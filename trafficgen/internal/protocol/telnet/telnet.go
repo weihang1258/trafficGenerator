@@ -144,6 +144,15 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	// Per validate_conventions.md §3.3, Telnet's default port (23) is
 	// "✅ 是 (warn)" — non-default port is accepted (e.g. for testing
 	// alternate ports). We do NOT hard-enforce port 23 here.
+
+	// Scenario mode: validate the scenario name. Manual mode (empty
+	// Scenario) skips this and uses Dialog/defaultDialog (backward
+	// compatible). Per design_telnet.md §4 + scenario.go.
+	if spec.Telnet != nil && spec.Telnet.Scenario != "" {
+		if err := validateScenario(spec.Telnet); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -181,8 +190,14 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// Default dialog when user provided none: a minimal but realistic
 		// login-shaped session so the planner still emits something
 		// observable. Per design_telnet.md §6.6.
+		//
+		// Scenario mode (cfg.Scenario != "") auto-generates the full
+		// interactive dialog and overrides any manual Dialog (per
+		// design_telnet.md §4 + scenario.go).
 		dialog := telnetConfig.Dialog
-		if len(dialog) == 0 {
+		if telnetConfig.Scenario != "" {
+			dialog = buildScenarioDialog(telnetConfig)
+		} else if len(dialog) == 0 {
 			dialog = defaultDialog()
 		}
 

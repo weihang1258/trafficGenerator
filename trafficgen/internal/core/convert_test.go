@@ -301,11 +301,11 @@ func TestMapToFlowSpec_SSDP_NextBootID_SearchPort(t *testing.T) {
 	raw := map[string]interface{}{
 		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
 		"ssdp": map[string]interface{}{
-			"message_type":  "update",
-			"boot_id":       float64(2),
-			"config_id":     float64(3),
-			"next_boot_id":  float64(5),
-			"search_port":   float64(49152),
+			"message_type": "update",
+			"boot_id":      float64(2),
+			"config_id":    float64(3),
+			"next_boot_id": float64(5),
+			"search_port":  float64(49152),
 		},
 	}
 	spec := mapToFlowSpec(raw, "ssdp")
@@ -385,5 +385,285 @@ func TestMapToFlowSpec_ICMPv6_FileSourcePrecedenceOverInline(t *testing.T) {
 	}
 	if string(spec.ICMPv6.Data) != "FROM-INLINE-DATA" {
 		t.Errorf("Data = %q, want FROM-INLINE-DATA", string(spec.ICMPv6.Data))
+	}
+}
+
+// TestMapToFlowSpec_POP3_MIMEParts verifies the POP3 converter wires
+// mime_parts (including body_b64 and per-part headers) and boundary into
+// the POP3Message. Regression guard: these fields were added for MIME
+// multipart support (RFC 2046); if the converter drops them the planner
+// silently falls back to the simple Body path and no multipart output
+// appears on the wire.
+func TestMapToFlowSpec_POP3_MIMEParts(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"pop3": map[string]interface{}{
+			"commands": []interface{}{
+				map[string]interface{}{
+					"cmd":            "RETR 1",
+					"emit_mail_drop": true,
+					"msg_num":        float64(1),
+					"emit_top":       false,
+					"top_lines":      float64(0),
+				},
+			},
+			"mailbox": map[string]interface{}{
+				"messages": []interface{}{
+					map[string]interface{}{
+						"uid":      "u1",
+						"boundary": "MB",
+						"headers":  []interface{}{"From: a@b.com"},
+						"mime_parts": []interface{}{
+							map[string]interface{}{
+								"headers": []interface{}{"Content-Type: text/plain"},
+								"body":    "Hello",
+							},
+							map[string]interface{}{
+								"headers": []interface{}{
+									"Content-Type: application/octet-stream",
+									"Content-Transfer-Encoding: base64",
+									`Content-Disposition: attachment; filename="x.bin"`,
+								},
+								"body_b64": "SGVsbG8=",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "pop3")
+	if spec.POP3 == nil {
+		t.Fatalf("spec.POP3 is nil")
+	}
+	if spec.POP3.Mailbox == nil || len(spec.POP3.Mailbox.Messages) != 1 {
+		t.Fatalf("Mailbox.Messages wrong")
+	}
+	msg := spec.POP3.Mailbox.Messages[0]
+	if msg.Boundary != "MB" {
+		t.Errorf("Boundary = %q, want MB", msg.Boundary)
+	}
+	if len(msg.MIMEParts) != 2 {
+		t.Fatalf("MIMEParts len = %d, want 2", len(msg.MIMEParts))
+	}
+	// Part 1: text body.
+	if msg.MIMEParts[0].Body != "Hello" {
+		t.Errorf("part[0].Body = %q, want Hello", msg.MIMEParts[0].Body)
+	}
+	if len(msg.MIMEParts[0].Headers) != 1 || msg.MIMEParts[0].Headers[0] != "Content-Type: text/plain" {
+		t.Errorf("part[0].Headers wrong: %v", msg.MIMEParts[0].Headers)
+	}
+	// Part 2: base64 attachment.
+	if msg.MIMEParts[1].BodyB64 != "SGVsbG8=" {
+		t.Errorf("part[1].BodyB64 = %q, want SGVsbG8=", msg.MIMEParts[1].BodyB64)
+	}
+	if len(msg.MIMEParts[1].Headers) != 3 {
+		t.Errorf("part[1].Headers len = %d, want 3", len(msg.MIMEParts[1].Headers))
+	}
+	// EmitTop / TopLines wired.
+	if len(spec.POP3.Commands) != 1 {
+		t.Fatalf("Commands len wrong")
+	}
+	if spec.POP3.Commands[0].EmitMailDrop != true {
+		t.Errorf("EmitMailDrop not wired")
+	}
+	if spec.POP3.Commands[0].MsgNum != 1 {
+		t.Errorf("MsgNum = %d, want 1", spec.POP3.Commands[0].MsgNum)
+	}
+}
+
+// TestMapToFlowSpec_SMTP_Email verifies the JSON-decoded "email" sub-map
+// is parsed into *SMTPEmail with Headers, TextBody, HTMLBody, Boundary,
+// and Attachments (each with Data/DataB64).
+func TestMapToFlowSpec_SMTP_Email(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"smtp": map[string]interface{}{
+			"banner": "220 mail.example.org ESMTP",
+			"email": map[string]interface{}{
+				"headers":   []interface{}{"From: a@b.com", "Subject: Test"},
+				"text_body": "plain text",
+				"html_body": "<p>html</p>",
+				"boundary":  "MYBOUND",
+				"attachments": []interface{}{
+					map[string]interface{}{
+						"filename":     "x.bin",
+						"content_type": "application/octet-stream",
+						"data":         "raw bytes",
+					},
+					map[string]interface{}{
+						"filename": "y.bin",
+						"data_b64": "SGVsbG8=",
+					},
+				},
+			},
+			"dialog": []interface{}{
+				map[string]interface{}{"cmd": "HELO client", "response": "250 ok"},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "smtp")
+	if spec.SMTP == nil {
+		t.Fatalf("spec.SMTP is nil")
+	}
+	if spec.SMTP.Banner != "220 mail.example.org ESMTP" {
+		t.Errorf("Banner = %q", spec.SMTP.Banner)
+	}
+	if spec.SMTP.Email == nil {
+		t.Fatalf("Email is nil")
+	}
+	email := spec.SMTP.Email
+	if len(email.Headers) != 2 || email.Headers[0] != "From: a@b.com" {
+		t.Errorf("Headers wrong: %v", email.Headers)
+	}
+	if email.TextBody != "plain text" {
+		t.Errorf("TextBody = %q", email.TextBody)
+	}
+	if email.HTMLBody != "<p>html</p>" {
+		t.Errorf("HTMLBody = %q", email.HTMLBody)
+	}
+	if email.Boundary != "MYBOUND" {
+		t.Errorf("Boundary = %q, want MYBOUND", email.Boundary)
+	}
+	if len(email.Attachments) != 2 {
+		t.Fatalf("Attachments len = %d, want 2", len(email.Attachments))
+	}
+	att0 := email.Attachments[0]
+	if att0.Filename != "x.bin" {
+		t.Errorf("att[0].Filename = %q", att0.Filename)
+	}
+	if att0.ContentType != "application/octet-stream" {
+		t.Errorf("att[0].ContentType = %q", att0.ContentType)
+	}
+	if string(att0.Data) != "raw bytes" {
+		t.Errorf("att[0].Data = %q, want 'raw bytes'", att0.Data)
+	}
+	att1 := email.Attachments[1]
+	if att1.Filename != "y.bin" {
+		t.Errorf("att[1].Filename = %q", att1.Filename)
+	}
+	if att1.DataB64 != "SGVsbG8=" {
+		t.Errorf("att[1].DataB64 = %q", att1.DataB64)
+	}
+	// Dialog still wired.
+	if len(spec.SMTP.Dialog) != 1 || spec.SMTP.Dialog[0].Cmd != "HELO client" {
+		t.Errorf("Dialog wrong: %v", spec.SMTP.Dialog)
+	}
+}
+
+// TestMapToFlowSpec_SMTP_EmailAbsent verifies that when the "email"
+// sub-map is absent, Email is nil (backward-compatible Dialog-only
+// path).
+func TestMapToFlowSpec_SMTP_EmailAbsent(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"smtp": map[string]interface{}{
+			"banner": "220 x",
+			"dialog": []interface{}{
+				map[string]interface{}{"cmd": "HELO c", "response": "250 ok"},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "smtp")
+	if spec.SMTP == nil {
+		t.Fatalf("spec.SMTP is nil")
+	}
+	if spec.SMTP.Email != nil {
+		t.Errorf("Email should be nil when absent, got %+v", spec.SMTP.Email)
+	}
+	if len(spec.SMTP.Dialog) != 1 {
+		t.Errorf("Dialog should still parse, got %v", spec.SMTP.Dialog)
+	}
+}
+
+// TestMapToFlowSpec_L2TP_TunnelWithData verifies the JSON-decoded "l2tp"
+// sub-map with scenario="tunnel_with_data" and inner_ip is parsed into
+// *L2TPConfig with Scenario + InnerIP (SrcIP/DstIP/Proto/SrcPort/DstPort/
+// TTL/Payload/DataFrames). Regression guard: these fields were added for
+// the dual-IP encapsulation scenario (RFC 2661 + RFC 1661 §6 + RFC 791);
+// if the converter drops them the planner silently falls back to manual
+// Scenarios/PPPFrames mode and emits no inner-IPv4 traffic.
+func TestMapToFlowSpec_L2TP_TunnelWithData(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"l2tp": map[string]interface{}{
+			"version":  float64(2),
+			"role":     "lac",
+			"scenario": "tunnel_with_data",
+			"inner_ip": map[string]interface{}{
+				"src_ip":      "10.10.10.1",
+				"dst_ip":      "10.10.10.2",
+				"proto":       float64(17),
+				"src_port":    float64(5000),
+				"dst_port":    float64(8080),
+				"ttl":         float64(64),
+				"payload":     "aGVsbG8=", // base64 "hello"
+				"data_frames": float64(3),
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "l2tp")
+	if spec.L2TP == nil {
+		t.Fatalf("spec.L2TP is nil")
+	}
+	if spec.L2TP.Scenario != "tunnel_with_data" {
+		t.Errorf("Scenario = %q, want tunnel_with_data", spec.L2TP.Scenario)
+	}
+	if spec.L2TP.InnerIP == nil {
+		t.Fatalf("InnerIP is nil")
+	}
+	ip := spec.L2TP.InnerIP
+	if ip.SrcIP != "10.10.10.1" {
+		t.Errorf("InnerIP.SrcIP = %q, want 10.10.10.1", ip.SrcIP)
+	}
+	if ip.DstIP != "10.10.10.2" {
+		t.Errorf("InnerIP.DstIP = %q, want 10.10.10.2", ip.DstIP)
+	}
+	if ip.Proto != 17 {
+		t.Errorf("InnerIP.Proto = %d, want 17 (UDP)", ip.Proto)
+	}
+	if ip.SrcPort != 5000 {
+		t.Errorf("InnerIP.SrcPort = %d, want 5000", ip.SrcPort)
+	}
+	if ip.DstPort != 8080 {
+		t.Errorf("InnerIP.DstPort = %d, want 8080", ip.DstPort)
+	}
+	if ip.TTL != 64 {
+		t.Errorf("InnerIP.TTL = %d, want 64", ip.TTL)
+	}
+	if ip.DataFrames != 3 {
+		t.Errorf("InnerIP.DataFrames = %d, want 3", ip.DataFrames)
+	}
+	// payload field maps to getByteSlice which interprets string as raw
+	// bytes (NOT base64). Use a byte array for base64-style payloads.
+	wantPayload := []byte("aGVsbG8=")
+	if string(ip.Payload) != string(wantPayload) {
+		t.Errorf("InnerIP.Payload = %q, want %q", ip.Payload, wantPayload)
+	}
+	// Default port wiring.
+	if spec.DstPort != 1701 {
+		t.Errorf("DstPort = %d, want 1701 (L2TP default)", spec.DstPort)
+	}
+}
+
+// TestMapToFlowSpec_L2TP_TunnelWithData_Defaults verifies that when
+// inner_ip is omitted, Scenario is still wired and InnerIP is nil (the
+// planner synthesizes defaults at Plan time).
+func TestMapToFlowSpec_L2TP_TunnelWithData_Defaults(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"l2tp": map[string]interface{}{
+			"scenario": "tunnel_with_data",
+		},
+	}
+	spec := mapToFlowSpec(raw, "l2tp")
+	if spec.L2TP == nil {
+		t.Fatalf("spec.L2TP is nil")
+	}
+	if spec.L2TP.Scenario != "tunnel_with_data" {
+		t.Errorf("Scenario = %q, want tunnel_with_data", spec.L2TP.Scenario)
+	}
+	if spec.L2TP.InnerIP != nil {
+		t.Errorf("InnerIP should be nil when omitted, got %+v", spec.L2TP.InnerIP)
 	}
 }

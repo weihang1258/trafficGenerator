@@ -559,6 +559,15 @@ func emitFTPDataChannel(
 		payloadBytes = []byte(dc.Payload)
 	}
 
+	// ABOR (RFC 959 §4.1.4): when AbortAfterBytes > 0, truncate the payload
+	// to the first N bytes. This models a transfer interrupted mid-stream -
+	// the data channel sends a prefix of the file then tears down, while the
+	// control channel carries the ABOR command + 426/226 responses. A value
+	// >= len(payloadBytes) is a no-op (no truncation past the end).
+	if dc.AbortAfterBytes > 0 && dc.AbortAfterBytes < len(payloadBytes) {
+		payloadBytes = payloadBytes[:dc.AbortAfterBytes]
+	}
+
 	var subPayload string
 	var subPayloadB64 string
 	if len(payloadBytes) > 0 {

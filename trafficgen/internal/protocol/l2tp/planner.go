@@ -134,6 +134,12 @@ const (
 	stepCDN    = "cdn"
 	stepWEN    = "wen"
 	stepSLI    = "sli"
+	stepZLB    = "zlb" // Zero Length Body ack (RFC 2661 §3.1.1)
+)
+
+// Built-in scenario template names (L2TPConfig.Scenario).
+const (
+	scenarioTunnelWithData = "tunnel_with_data"
 )
 
 // Planner emits L2TP packet configs on a UDP/1701 4-tuple.
@@ -185,6 +191,33 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("l2tp: L2TP config is required")
 	}
 	cfg := spec.L2TP
+
+	// Scenario mutual exclusion: Scenario cannot coexist with Scenarios or
+	// PPPFrames. When Scenario is set, the planner expands it into both at
+	// Plan time, so user-supplied values would conflict.
+	if cfg.Scenario != "" {
+		if len(cfg.Scenarios) > 0 {
+			return fmt.Errorf("l2tp: Scenario %q and Scenarios (%d entries) cannot both be set (Scenario expands into Scenarios internally)", cfg.Scenario, len(cfg.Scenarios))
+		}
+		if len(cfg.PPPFrames) > 0 {
+			return fmt.Errorf("l2tp: Scenario %q and PPPFrames (%d entries) cannot both be set (Scenario expands into PPPFrames internally)", cfg.Scenario, len(cfg.PPPFrames))
+		}
+		// Validate Scenario is a known template.
+		switch cfg.Scenario {
+		case scenarioTunnelWithData:
+			// ok
+		default:
+			return fmt.Errorf("l2tp: Scenario %q unknown (supported: %q)", cfg.Scenario, scenarioTunnelWithData)
+		}
+	}
+
+	// InnerIP validation (only meaningful with Scenario, but validate
+	// whenever present).
+	if cfg.InnerIP != nil {
+		if err := validateInnerIP(cfg.InnerIP); err != nil {
+			return err
+		}
+	}
 
 	// Version validation: only 2 or 3 allowed.
 	switch cfg.Version {
@@ -266,13 +299,48 @@ func validateAVPLengthForStep(si int, stepType string, ai int, a core.L2TPAVP) e
 	return nil
 }
 
+// validateInnerIP validates the L2TPInnerIP config per RFC 791 (IPv4) +
+// RFC 1661 §6 (PPP Protocol 0x0021). Only IPv4 inner packets are
+// supported.
+func validateInnerIP(ip *core.L2TPInnerIP) error {
+	if ip == nil {
+		return nil
+	}
+	// SrcIP must be a valid IPv4 address.
+	srcIP := net.ParseIP(ip.SrcIP)
+	if ip.SrcIP != "" && srcIP == nil {
+		return fmt.Errorf("l2tp: InnerIP.SrcIP %q is not a valid IP address", ip.SrcIP)
+	}
+	if ip.SrcIP != "" && srcIP != nil && srcIP.To4() == nil {
+		return fmt.Errorf("l2tp: InnerIP.SrcIP %q must be IPv4 (PPP Protocol 0x0021 carries IPv4 only, RFC 1661 §6)", ip.SrcIP)
+	}
+	dstIP := net.ParseIP(ip.DstIP)
+	if ip.DstIP != "" && dstIP == nil {
+		return fmt.Errorf("l2tp: InnerIP.DstIP %q is not a valid IP address", ip.DstIP)
+	}
+	if ip.DstIP != "" && dstIP != nil && dstIP.To4() == nil {
+		return fmt.Errorf("l2tp: InnerIP.DstIP %q must be IPv4 (PPP Protocol 0x0021 carries IPv4 only, RFC 1661 §6)", ip.DstIP)
+	}
+	// Proto: 0 = default (17/UDP). Only 1/6/17 supported.
+	switch ip.Proto {
+	case 0, 1, 6, 17:
+		// ok
+	default:
+		return fmt.Errorf("l2tp: InnerIP.Proto %d not in supported list (allowed: 1=ICMP, 6=TCP, 17=UDP)", ip.Proto)
+	}
+	if ip.DataFrames < 0 {
+		return fmt.Errorf("l2tp: InnerIP.DataFrames %d must be >= 0", ip.DataFrames)
+	}
+	return nil
+}
+
 // isKnownStepType reports whether s is a known L2TP control message type.
 func isKnownStepType(s string) bool {
 	switch s {
 	case stepSCCRQ, stepSCCRP, stepSCCCN, stepStopCCN, stepHELLO,
 		stepOCRQ, stepOCRP, stepOCCN,
 		stepICRQ, stepICRP, stepICCN,
-		stepCDN, stepWEN, stepSLI:
+		stepCDN, stepWEN, stepSLI, stepZLB:
 		return true
 	}
 	return false
@@ -309,6 +377,13 @@ func messageTypeForStep(s string) uint16 {
 		return msgWEN
 	case stepSLI:
 		return msgSLI
+	case stepZLB:
+		// ZLB (Zero Length Body) is an acknowledgment control message with
+		// no Message Type AVP -- it is just the L2TP control header (T=1,
+		// L=1, S=1) with no AVP payload per RFC 2661 §3.1.1. We return 0
+		// here; buildControlMessage is instructed to skip the Message Type
+		// AVP for ZLB (see emitStep ZLB branch).
+		return 0
 	}
 	return 0
 }
@@ -324,7 +399,8 @@ func messageTypeForStep(s string) uint16 {
 func isLACOriginatedStep(s string) bool {
 	switch s {
 	case stepSCCRQ, stepSCCCN, stepOCRQ, stepOCCN,
-		stepICRQ, stepICCN, stepCDN, stepHELLO, stepStopCCN, stepWEN, stepSLI:
+		stepICRQ, stepICCN, stepCDN, stepHELLO, stepStopCCN, stepWEN, stepSLI,
+		stepZLB:
 		return true
 	}
 	// sccrp, ocrp, icrp: LNS-originated replies.
@@ -336,7 +412,7 @@ func isLACOriginatedStep(s string) bool {
 // the L2TP header for tunnel-level messages MUST be 0.
 func isTunnelLevelStep(s string) bool {
 	switch s {
-	case stepSCCRQ, stepSCCRP, stepSCCCN, stepStopCCN, stepHELLO:
+	case stepSCCRQ, stepSCCRP, stepSCCCN, stepStopCCN, stepHELLO, stepZLB:
 		return true
 	}
 	return false
@@ -494,7 +570,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				nr = localNs
 			}
 
-			payload, err := buildControlMessage(version, tunID, sesID, sesID32, ns, nr, messageTypeForStep(step.Type), avps)
+			payload, err := buildControlMessage(version, tunID, sesID, sesID32, ns, nr, messageTypeForStep(step.Type), avps, step.Type == stepZLB)
 			if err != nil {
 				return false
 			}
@@ -541,8 +617,31 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			helloInterval = 60 * time.Second
 		}
 
+		// ----- Resolve Scenario template into Scenarios + PPPFrames -----
+		// (RFC 2661 §4 + RFC 1661 §6 + RFC 791). When Scenario is set, the
+		// planner builds the full tunnel lifecycle: control establishment
+		// (SCCRQ/SCCRP/SCCCN + ICRQ/ICRP/ICCN) + inner-IPv4 PPP data frames
+		// + teardown (StopCCN). This is the dual-IP encapsulation scenario
+		// (outer L2TP/UDP, inner IPv4) that is the core production tunnel
+		// case. Mutual exclusion with Scenarios/PPPFrames is enforced by
+		// Validate.
+		scenarios := cfg.Scenarios
+		pppFrames := cfg.PPPFrames
+		// teardownStep, when non-nil, is emitted AFTER the PPP data phase so
+		// the tunnel is torn down only after carrying inner traffic.
+		var teardownStep *core.L2TPStep
+		if cfg.Scenario == scenarioTunnelWithData {
+			// Control establishment + session establishment (RFC 2661
+			// §4.1 + §4.3) -- data phase happens between establishment and
+			// teardown.
+			scenarios = tunnelWithDataControlSteps()
+			pppFrames = tunnelWithDataPPPFrames(cfg.InnerIP)
+			td := core.L2TPStep{Type: stepStopCCN}
+			teardownStep = &td
+		}
+
 		// ----- Walk Scenarios (control messages) -----
-		for _, step := range cfg.Scenarios {
+		for _, step := range scenarios {
 			if err := ctx.Err(); err != nil {
 				return
 			}
@@ -580,7 +679,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 
 		// ----- Walk PPPFrames (data messages) -----
-		for _, ppp := range cfg.PPPFrames {
+		for _, ppp := range pppFrames {
 			if err := ctx.Err(); err != nil {
 				return
 			}
@@ -638,6 +737,35 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			payload := buildDataMessage(version, localTunID, localSesID, localSesID32, cfg.Cookie, pppBytes)
 
 			if !emit(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, payload) {
+				return
+			}
+		}
+
+		// ----- Teardown control message (after data phase) -----
+		// For "tunnel_with_data", the StopCCN is emitted AFTER the PPP data
+		// frames so the tunnel carries inner traffic before being torn down
+		// (RFC 2661 §4.4).
+		if teardownStep != nil {
+			if err := ctx.Err(); err != nil {
+				return
+			}
+			direction := teardownStep.Direction
+			if direction == "" {
+				if role == "lac" {
+					if isLACOriginatedStep(teardownStep.Type) {
+						direction = "up"
+					} else {
+						direction = "down"
+					}
+				} else {
+					if isLACOriginatedStep(teardownStep.Type) {
+						direction = "down"
+					} else {
+						direction = "up"
+					}
+				}
+			}
+			if !emitStep(*teardownStep, direction) {
 				return
 			}
 		}
@@ -760,6 +888,10 @@ func autoAVPsForStep(cfg *core.L2TPConfig, stepType string, localTunID, localSes
 		)
 	case stepHELLO:
 		// HELLO: just Message Type AVP (added by buildControlMessage).
+	case stepZLB:
+		// ZLB (Zero Length Body) carries NO AVPs -- just the control
+		// header (RFC 2661 §3.1.1). buildControlMessage handles the
+		// no-AVP path via the isZLB flag.
 	case stepWEN, stepSLI:
 		// WEN / SLI: optional AVPs only; nothing auto-emitted.
 	}
@@ -768,6 +900,190 @@ func autoAVPsForStep(cfg *core.L2TPConfig, stepType string, localTunID, localSes
 	avps = append(avps, cfg.CustomAVPs...)
 
 	return avps
+}
+
+// tunnelWithDataControlSteps returns the control-message sequence for the
+// "tunnel_with_data" scenario per RFC 2661 §4.1 (tunnel establishment) +
+// §4.3 (session establishment):
+//
+//	SCCRQ -> SCCRP -> SCCCN    (tunnel 3-way handshake, §4.1)
+//	ICRQ  -> ICRP  -> ICCN     (incoming-call session establishment, §4.3)
+//
+// followed by the data phase (PPP frames, returned separately) and finally a
+// StopCCN teardown. The StopCCN is appended here so it is the last control
+// message emitted. Direction is auto-resolved by the caller from Role.
+func tunnelWithDataControlSteps() []core.L2TPStep {
+	return []core.L2TPStep{
+		{Type: stepSCCRQ},
+		{Type: stepSCCRP},
+		{Type: stepSCCCN},
+		{Type: stepICRQ},
+		{Type: stepICRP},
+		{Type: stepICCN},
+	}
+}
+
+// tunnelWithDataPPPFrames builds the PPP data frames for the
+// "tunnel_with_data" scenario from the InnerIP config. Each frame carries a
+// complete inner IPv4 packet (with correct checksum) inside PPP Protocol
+// 0x0021 (IPv4) per RFC 1661 §6, with the HDLC address+control preamble
+// (0xFF 0x03) for L2TP data messages per RFC 2661 §3.1.
+//
+// When ip is nil, defaults are used (10.10.10.1 -> 10.10.10.2, UDP, one
+// frame). When ip.DataFrames > 1, each frame gets a distinct inner IPID.
+func tunnelWithDataPPPFrames(ip *core.L2TPInnerIP) []core.L2TPPPPFrame {
+	// Resolve defaults.
+	srcIP := "10.10.10.1"
+	dstIP := "10.10.10.2"
+	proto := uint8(17) // UDP
+	srcPort := uint16(0)
+	dstPort := uint16(0)
+	var payload []byte
+	frameCount := 1
+	if ip != nil {
+		if ip.SrcIP != "" {
+			srcIP = ip.SrcIP
+		}
+		if ip.DstIP != "" {
+			dstIP = ip.DstIP
+		}
+		if ip.Proto != 0 {
+			proto = ip.Proto
+		}
+		srcPort = ip.SrcPort
+		dstPort = ip.DstPort
+		payload = ip.Payload
+		if ip.DataFrames > 0 {
+			frameCount = ip.DataFrames
+		}
+	}
+
+	frames := make([]core.L2TPPPPFrame, 0, frameCount)
+	ttl := uint8(0)
+	if ip != nil {
+		ttl = ip.TTL
+	}
+	for i := 0; i < frameCount; i++ {
+		// Distinct IPID per frame so tshark sees separate inner packets.
+		ipid := uint16(i + 1)
+		inner := buildInnerIPv4Packet(srcIP, dstIP, proto, srcPort, dstPort, ttl, payload, ipid)
+		frames = append(frames, core.L2TPPPPFrame{
+			Protocol:    0x0021, // PPP IPv4 (RFC 1661 §6)
+			Data:        inner,
+			L2PPPHeader: true, // HDLC 0xFF 0x03 preamble for L2TP data
+		})
+	}
+	return frames
+}
+
+// buildInnerIPv4Packet builds a complete inner IPv4 packet (header + L4 +
+// payload) for encapsulation inside a PPP frame. The IPv4 header checksum is
+// computed per RFC 791 §3.1. L4 checksums are computed for TCP/ICMP and left
+// zero for UDP (valid per RFC 768 when the UDP checksum field is 0).
+//
+// Supported protocols (RFC 790):
+//   - 17 (UDP): 8-byte UDP header (RFC 768) + payload.
+//   - 6 (TCP): 20-byte TCP header (RFC 793, no options) + payload.
+//   - 1 (ICMP): 8-byte ICMP echo header (RFC 792) + payload.
+func buildInnerIPv4Packet(srcIP, dstIP string, proto uint8, srcPort, dstPort uint16, ttl uint8, payload []byte, ipid uint16) []byte {
+	src := net.ParseIP(srcIP).To4()
+	dst := net.ParseIP(dstIP).To4()
+
+	// Build L4 segment.
+	var l4 []byte
+	switch proto {
+	case 6: // TCP (RFC 793)
+		l4 = make([]byte, 20+len(payload))
+		binary.BigEndian.PutUint16(l4[0:2], srcPort)
+		binary.BigEndian.PutUint16(l4[2:4], dstPort)
+		// Seq=0, Ack=0.
+		// Data offset = 5 (20 bytes), no flags.
+		l4[12] = 5 << 4
+		binary.BigEndian.PutUint16(l4[14:16], 65535) // window
+		// Checksum at [16:18] computed below.
+		copy(l4[20:], payload)
+		// TCP checksum (mandatory, RFC 793).
+		tcpCksum := l4Checksum(l4, proto, src, dst)
+		binary.BigEndian.PutUint16(l4[16:18], tcpCksum)
+	case 17: // UDP (RFC 768)
+		l4 = make([]byte, 8+len(payload))
+		binary.BigEndian.PutUint16(l4[0:2], srcPort)
+		binary.BigEndian.PutUint16(l4[2:4], dstPort)
+		binary.BigEndian.PutUint16(l4[4:6], uint16(8+len(payload)))
+		// UDP checksum = 0 is valid over IPv4 (RFC 768).
+		copy(l4[8:], payload)
+	case 1: // ICMP (RFC 792)
+		l4 = make([]byte, 8+len(payload))
+		l4[0] = 8 // echo request
+		// Code = 0.
+		// Checksum at [2:4] computed below.
+		copy(l4[8:], payload)
+		binary.BigEndian.PutUint16(l4[2:4], ipChecksum16(l4))
+	default:
+		// Raw payload, no L4 header.
+		l4 = payload
+	}
+
+	totalLen := uint16(20 + len(l4))
+	hdr := make([]byte, 20)
+	hdr[0] = 0x45 // Version=4, IHL=5
+	// TOS = 0.
+	binary.BigEndian.PutUint16(hdr[2:4], totalLen)
+	binary.BigEndian.PutUint16(hdr[4:6], ipid)
+	// Flags=DF (0x4000), FragOffset=0.
+	binary.BigEndian.PutUint16(hdr[6:8], 0x4000)
+	if ttl == 0 {
+		ttl = 64
+	}
+	hdr[8] = ttl
+	hdr[9] = proto
+	// Checksum at [10:12] computed below.
+	if len(src) == 4 {
+		copy(hdr[12:16], src)
+	}
+	if len(dst) == 4 {
+		copy(hdr[16:20], dst)
+	}
+	binary.BigEndian.PutUint16(hdr[10:12], ipChecksum16(hdr))
+
+	return append(hdr, l4...)
+}
+
+// ipChecksum16 computes the 16-bit one's-complement checksum used by IPv4
+// (RFC 791 §3.1) and ICMP (RFC 792).
+func ipChecksum16(b []byte) uint16 {
+	sum := uint32(0)
+	for i := 0; i+1 < len(b); i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(b[i : i+2]))
+	}
+	if len(b)%2 == 1 {
+		sum += uint32(b[len(b)-1]) << 8
+	}
+	for sum>>16 != 0 {
+		sum = (sum >> 16) + (sum & 0xffff)
+	}
+	return ^uint16(sum)
+}
+
+// l4Checksum computes the TCP/UDP checksum with the IPv4 pseudo-header (RFC
+// 793 / RFC 768).
+func l4Checksum(l4 []byte, proto uint8, src, dst net.IP) uint16 {
+	// Pseudo-header: SrcIP(4) + DstIP(4) + zero(1) + Protocol(1) + L4-len(2).
+	pseudo := make([]byte, 12)
+	if len(src) == 4 {
+		copy(pseudo[0:4], src)
+	}
+	if len(dst) == 4 {
+		copy(pseudo[4:8], dst)
+	}
+	pseudo[9] = proto
+	binary.BigEndian.PutUint16(pseudo[10:12], uint16(len(l4)))
+
+	// Sum pseudo-header + L4 bytes.
+	buf := make([]byte, 0, len(pseudo)+len(l4))
+	buf = append(buf, pseudo...)
+	buf = append(buf, l4...)
+	return ipChecksum16(buf)
 }
 
 // buildResultCodeValue encodes (ResultCode, ErrorCode, ErrorMessage) per
@@ -785,18 +1101,26 @@ func buildResultCodeValue(rc, ec uint16, msg string) []byte {
 // buildControlMessage builds a complete L2TP control message (T=1, L=1, S=1)
 // per RFC 2661 §3.1 (v2) or RFC 3931 §3.2 (v3, Session ID = 32 bits).
 //
-// The Message Type AVP (type 0) is always prepended as the first AVP per
-// RFC 2661 §5.1. The AVP set is then appended (the caller has merged
+// The Message Type AVP (type 0) is prepended as the first AVP per RFC 2661
+// §5.1, EXCEPT for ZLB (Zero Length Body) acknowledgments (msgType == 0 and
+// isZLB == true), which carry no AVPs at all -- just the L2TP control header
+// per RFC 2661 §3.1.1. The AVP set is then appended (the caller has merged
 // auto-generated + per-step AVPs). Returns the payload bytes.
-func buildControlMessage(version uint8, tunID, sesID16 uint16, sesID32 uint32, ns, nr uint16, msgType uint16, avps []core.L2TPAVP) ([]byte, error) {
-	// Prepend Message Type AVP.
-	msgAVP := core.L2TPAVP{Mandatory: true, AttrType: attrMessageType, Value: u16BE(msgType)}
-	allAVPs := append([]core.L2TPAVP{msgAVP}, avps...)
-
-	// Build AVP bytes.
-	avpBytes, err := buildAVPs(allAVPs)
-	if err != nil {
-		return nil, err
+func buildControlMessage(version uint8, tunID, sesID16 uint16, sesID32 uint32, ns, nr uint16, msgType uint16, avps []core.L2TPAVP, isZLB bool) ([]byte, error) {
+	var avpBytes []byte
+	var err error
+	if isZLB {
+		// ZLB: no AVPs whatsoever (RFC 2661 §3.1.1). The Length field
+		// equals the header size only.
+		avpBytes = nil
+	} else {
+		// Prepend Message Type AVP.
+		msgAVP := core.L2TPAVP{Mandatory: true, AttrType: attrMessageType, Value: u16BE(msgType)}
+		allAVPs := append([]core.L2TPAVP{msgAVP}, avps...)
+		avpBytes, err = buildAVPs(allAVPs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var headerSize int
