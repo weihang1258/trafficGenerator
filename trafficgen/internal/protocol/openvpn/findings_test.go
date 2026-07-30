@@ -8,6 +8,8 @@ package openvpn
 import (
 	"context"
 	"testing"
+
+	"github.com/trafficgen/trafficgen/internal/core"
 )
 
 // F1 — V1/V3 control-channel code paths are dead code.
@@ -314,4 +316,106 @@ func TestF5_TLSRecordLengthServerHello(t *testing.T) {
 		t.Errorf("ServerHello TLS record length: expected %d (actual fragment length), got %d (off by %d)",
 			fragmentLen, recordLen, fragmentLen-recordLen)
 	}
+}
+
+// F6 — OpenVPN-over-TCP missing 2-byte big-endian length prefix.
+// Per the real OpenVPN protocol (src/openvpn/mtu.c frame_link_mtu_set +
+// forward.c), when running over TCP each OpenVPN packet is prefixed with a
+// 2-byte big-endian length (the byte count of the following OpenVPN packet,
+// excluding the prefix itself). This is the TCP stream framing — without it,
+// the receiver/Wireshark cannot delimit individual OpenVPN packets on the TCP
+// byte stream. UDP mode needs no prefix (datagrams are self-delimiting).
+//
+// Pre-fix: emitTCPData sends the raw OpenVPN packet bytes with no length
+// prefix, so Wireshark's openvpn dissector cannot parse TCP-mode captures.
+// This test fails against the buggy code (first payload byte is the opcode,
+// not a length high byte) and passes after the fix.
+func TestF6_TCPModeLengthPrefix(t *testing.T) {
+	spec := defaultOpenVPNSpec()
+	spec.UDP = nil
+	spec.TCP = &core.TCPConfig{
+		Handshake:   true,
+		Termination: true,
+		MSS:         1460,
+	}
+	spec.OpenVPN.Proto = "tcp"
+	spec.OpenVPN.Version = "2"
+	spec.OpenVPN.TLSVersion = "1.3"
+	spec.OpenVPN.DataPacketCount = 1
+	spec.OpenVPN.SessionID = 0xAABBCC
+
+	planner := NewPlanner()
+	ctx := context.Background()
+
+	configChan, err := planner.Plan(ctx, spec)
+	if err != nil {
+		t.Fatalf("Plan failed: %v", err)
+	}
+	packets := collectPackets(ctx, t, configChan)
+
+	// Find the first PSH-ACK data packet (TCP flags 0x18) in the up direction
+	// — that carries the client HARD_RESET_CLIENT_V2 OpenVPN packet.
+	var dataPayload []byte
+	for _, p := range packets {
+		if p.Direction == "up" && p.L4.Protocol == "tcp" && p.L4.Flags == 0x18 && len(p.Payload) > 0 {
+			dataPayload = p.Payload
+			break
+		}
+	}
+	if dataPayload == nil {
+		t.Fatal("no up-direction PSH-ACK data packet found")
+	}
+	if len(dataPayload) < 3 {
+		t.Fatalf("data payload too short: %d bytes", len(dataPayload))
+	}
+
+	// The first 2 bytes must be the big-endian length of the OpenVPN packet
+	// that follows (excluding the 2-byte prefix). For a single TCP segment
+	// carrying one full OpenVPN packet, this equals len(payload)-2.
+	declaredLen := int(dataPayload[0])<<8 | int(dataPayload[1])
+	if declaredLen != len(dataPayload)-2 {
+		t.Errorf("TCP length prefix: declared %d, want %d (len(payload)-2); "+
+			"first bytes = %02X %02X %02X (no length prefix — raw opcode at byte 0)",
+			declaredLen, len(dataPayload)-2, dataPayload[0], dataPayload[1], dataPayload[2])
+	}
+
+	// The byte after the prefix must be a valid V2 client reset opcode
+	// (P_CONTROL_HARD_RESET_CLIENT_V2 = opcode 4, high 3 bits = 100 = 0x80
+	// when key_id=0).
+	opcodeByte := dataPayload[2]
+	if opcodeByte&0xE0 != 0x80 {
+		t.Errorf("after length prefix: expected V2 client reset opcode (high bits 0x80), got 0x%02X", opcodeByte)
+	}
+}
+
+// TestF6_TCPModeLengthPrefix_NoPrefixInUDP confirms UDP mode does NOT get a
+// length prefix — UDP datagrams are self-delimiting. This guards against an
+// over-broad fix that prefixes both transports.
+func TestF6_TCPModeLengthPrefix_NoPrefixInUDP(t *testing.T) {
+	spec := defaultOpenVPNSpec() // UDP mode
+	spec.OpenVPN.Version = "2"
+	spec.OpenVPN.DataPacketCount = 1
+	spec.OpenVPN.SessionID = 0xAABBCC
+
+	planner := NewPlanner()
+	ctx := context.Background()
+
+	configChan, err := planner.Plan(ctx, spec)
+	if err != nil {
+		t.Fatalf("Plan failed: %v", err)
+	}
+	packets := collectPackets(ctx, t, configChan)
+
+	// First up packet is the client HARD_RESET — in UDP it must start with
+	// the opcode byte directly (no 2-byte length prefix).
+	for _, p := range packets {
+		if p.Direction == "up" && p.L4.Protocol == "udp" && len(p.Payload) > 0 {
+			opcodeByte := p.Payload[0]
+			if opcodeByte&0xE0 != 0x80 {
+				t.Errorf("UDP mode: first byte should be V2 client reset opcode (0x80 high bits), got 0x%02X (length prefix leaked into UDP?)", opcodeByte)
+			}
+			return
+		}
+	}
+	t.Fatal("no up-direction UDP data packet found")
 }

@@ -18,6 +18,7 @@ package openvpn
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"net"
@@ -445,8 +446,21 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 
 		// emitTCPData segments payload by MSS and emits each chunk as PSH-ACK.
+		//
+		// OpenVPN-over-TCP framing: each OpenVPN packet is prefixed with a
+		// 2-byte big-endian length (the byte count of the following OpenVPN
+		// packet, excluding the prefix itself) so the receiver can delimit
+		// individual OpenVPN packets on the TCP byte stream. This matches the
+		// real OpenVPN protocol (src/openvpn/mtu.c frame_link_mtu_set +
+		// forward.c). UDP mode needs no prefix (datagrams are self-delimiting
+		// and do not go through this function).
 		emitTCPData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq *uint32, payload []byte) {
-			for _, seg := range segmentByMSS(payload, int(mss)) {
+			var lenBuf [2]byte
+			binary.BigEndian.PutUint16(lenBuf[:], uint16(len(payload)))
+			framed := make([]byte, 0, 2+len(payload))
+			framed = append(framed, lenBuf[:]...)
+			framed = append(framed, payload...)
+			for _, seg := range segmentByMSS(framed, int(mss)) {
 				emitPacket(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, seg, 6, *senderSeq, *peerSeq, 0x18)
 				*senderSeq += uint32(len(seg))
 			}
