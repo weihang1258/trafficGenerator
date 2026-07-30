@@ -543,8 +543,17 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	case "snmp":
 		if sub, ok := cfg["snmp"].(map[string]interface{}); ok {
+			// Version is presence-checked: 0 is a legitimate value (SNMPv1,
+			// RFC 1157), distinct from "absent". Default to v2c (1) only when
+			// the key is absent or null. Using getIntDefault would collapse
+			// explicit version=0 into the v2c default, silently emitting the
+			// wrong protocol version (the bug behind SNMP.3.x failures).
+			var snmpVersion uint8 = 1 // default v2c (0=v1, 1=v2c, 3=v3)
+			if v, ok := sub["version"]; ok && v != nil {
+				snmpVersion = uint8(getInt(sub, "version"))
+			}
 			spec.SNMP = &SNMPConfig{
-				Version:                  uint8(getIntDefault(sub, "version", 1)),
+				Version:                  snmpVersion,
 				Community:                getStringDefault(sub, "community", "public"),
 				UserName:                 getString(sub, "user_name"),
 				AuthProtocol:             getString(sub, "auth_protocol"),
