@@ -32,36 +32,36 @@ func TestTC_Opcode_HARD_RESET_CLIENT_V1(t *testing.T) {
 }
 
 func TestTC_Opcode_HARD_RESET_CLIENT_V2(t *testing.T) {
-	// TC-OVPN-1.1.4: opcode=4, key_id=0 -> first byte = (4<<5) = 0x80
-	got := byte(OpcodeHARDResetClientV2<<5) | 0
-	want := byte(0x80)
-	if got != want {
-		t.Errorf("opcode=4 key=0: got 0x%02X, want 0x%02X", got, want)
-	}
-}
-
-func TestTC_Opcode_HARD_RESET_CLIENT_V3(t *testing.T) {
-	// TC-OVPN-1.1.6: opcode=6, key_id=0 -> first byte = 0xC0
-	got := byte(OpcodeHARDResetClientV3<<5) | 0
-	want := byte(0xC0)
-	if got != want {
-		t.Errorf("opcode=6 key=0: got 0x%02X, want 0x%02X", got, want)
-	}
-}
-
-func TestTC_Opcode_DATA_V1(t *testing.T) {
-	// TC-OVPN-1.1.7: opcode=7, key_id=0 -> first byte = 0xE0
-	got := byte(OpcodeDATAV1<<5) | 0
-	want := byte(0xE0)
+	// TC-OVPN-1.1.4: opcode=7, key_id=0 -> first byte = (7<<3)|0 = 0x38
+	got := byte(OpcodeHARDResetClientV2<<POpcodeShift) | 0
+	want := byte(0x38)
 	if got != want {
 		t.Errorf("opcode=7 key=0: got 0x%02X, want 0x%02X", got, want)
 	}
 }
 
+func TestTC_Opcode_HARD_RESET_CLIENT_V3(t *testing.T) {
+	// TC-OVPN-1.1.6: opcode=10, key_id=0 -> first byte = (10<<3)|0 = 0x50
+	got := byte(OpcodeHARDResetClientV3<<POpcodeShift) | 0
+	want := byte(0x50)
+	if got != want {
+		t.Errorf("opcode=10 key=0: got 0x%02X, want 0x%02X", got, want)
+	}
+}
+
+func TestTC_Opcode_DATA_V1(t *testing.T) {
+	// TC-OVPN-1.1.7: opcode=6, key_id=0 -> first byte = (6<<3)|0 = 0x30
+	got := byte(OpcodeDATAV1<<POpcodeShift) | 0
+	want := byte(0x30)
+	if got != want {
+		t.Errorf("opcode=6 key=0: got 0x%02X, want 0x%02X", got, want)
+	}
+}
+
 func TestTC_Opcode_DATA_V2(t *testing.T) {
-	// TC-OVPN-1.1.8: opcode=9, key_id=0 -> first byte = 0x40
-	got := byte(0x40) | 0 // P_DATA_V2 = high 3 bits 100b = 0x40
-	want := byte(0x40)
+	// TC-OVPN-1.1.8: opcode=9, key_id=0 -> first byte = (9<<3)|0 = 0x48
+	got := byte(0x48) | 0 // P_DATA_V2 = (9<<3)|0
+	want := byte(0x48)
 	if got != want {
 		t.Errorf("opcode=9 key=0: got 0x%02X, want 0x%02X", got, want)
 	}
@@ -69,23 +69,23 @@ func TestTC_Opcode_DATA_V2(t *testing.T) {
 
 // 1.2 key_id 字段
 func TestTC_KeyID(t *testing.T) {
-	// TC-OVPN-1.2.1: key_id=0 -> low 5 bits = 0x00
-	got := byte(0x40) | (0 & 0x1F) // P_DATA_V2 with key_id=0
-	want := byte(0x40)
+	// TC-OVPN-1.2.1: key_id=0 -> low 3 bits = 0x00
+	got := byte(0x48) | (0 & PKeyIDMask) // P_DATA_V2 with key_id=0
+	want := byte(0x48)
 	if got != want {
 		t.Errorf("key_id=0: got 0x%02X, want 0x%02X", got, want)
 	}
 
-	// TC-OVPN-1.2.5: key_id=31 -> low 5 bits = 0x1F
-	got = byte(0x40) | (31 & 0x1F)
-	want = byte(0x5F)
+	// TC-OVPN-1.2.5: key_id=7 (max 3-bit field) -> low 3 bits = 0x07
+	got = byte(0x48) | (7 & PKeyIDMask)
+	want = byte(0x4F)
 	if got != want {
-		t.Errorf("key_id=31: got 0x%02X, want 0x%02X", got, want)
+		t.Errorf("key_id=7: got 0x%02X, want 0x%02X", got, want)
 	}
 
-	// TC-OVPN-1.2.7: V3 key_id=7 -> 0xC0 | 0x07 = 0xC7
-	got = byte(OpcodeHARDResetClientV3<<5) | (7 & 0x07)
-	want = byte(0xC7)
+	// TC-OVPN-1.2.7: V3 key_id=7 -> (10<<3)|7 = 0x57
+	got = byte(OpcodeHARDResetClientV3<<POpcodeShift) | (7 & PKeyIDMask)
+	want = byte(0x57)
 	if got != want {
 		t.Errorf("V3 key_id=7: got 0x%02X, want 0x%02X", got, want)
 	}
@@ -194,11 +194,12 @@ func TestTC_TLSAuthHMAC(t *testing.T) {
 	}
 
 	clientPkt := packets[0].Payload
-	// After opcode(1) + session_id(3) + packet_id(1) = 5 bytes, 20 bytes HMAC
-	if len(clientPkt) < 25 {
+	// tls-auth layout: opcode(1) + session_id(8) + hmac(20) + ...
+	// HMAC starts at offset 9.
+	if len(clientPkt) < 29 {
 		t.Fatalf("packet too short: %d", len(clientPkt))
 	}
-	for i := 5; i < 25; i++ {
+	for i := 9; i < 29; i++ {
 		if clientPkt[i] != 0xAA {
 			t.Errorf("HMAC byte %d: expected 0xAA, got 0x%02X", i, clientPkt[i])
 			break
@@ -376,9 +377,9 @@ func TestTC_StaticKeyMode(t *testing.T) {
 	if len(packets) != 2 {
 		t.Fatalf("expected 2 packets, got %d", len(packets))
 	}
-	// P_DATA_V1: first byte = (7<<5) = 0xE0
-	if packets[0].Payload[0] != 0xE0 {
-		t.Errorf("expected P_DATA_V1 (0xE0), got 0x%02X", packets[0].Payload[0])
+	// P_DATA_V1: first byte = (6<<3) = 0x30
+	if packets[0].Payload[0] != 0x30 {
+		t.Errorf("expected P_DATA_V1 (0x30), got 0x%02X", packets[0].Payload[0])
 	}
 }
 
@@ -404,9 +405,9 @@ func TestTC_Fragment(t *testing.T) {
 	if len(fragments) == 0 {
 		t.Fatal("empty fragment result")
 	}
-	// First byte should be P_DATA_V2 header (0x40)
-	if fragments[0] != 0x40 {
-		t.Errorf("fragment packet: expected 0x40, got 0x%02X", fragments[0])
+	// First byte should be P_DATA_V2 header (opcode 9 -> (9<<3)|0 = 0x48)
+	if fragments[0] != 0x48 {
+		t.Errorf("fragment packet: expected 0x48, got 0x%02X", fragments[0])
 	}
 }
 
@@ -448,9 +449,9 @@ func TestTC_V2ClientSent(t *testing.T) {
 	if len(packets) < 1 {
 		t.Fatal("no packets")
 	}
-	// First packet should be HARD_RESET_CLIENT_V2 (opcode=4, first byte = 0x80)
-	if packets[0].Payload[0] != 0x80 {
-		t.Errorf("first packet: expected 0x80 (HARD_RESET_CLIENT_V2), got 0x%02X", packets[0].Payload[0])
+	// First packet should be HARD_RESET_CLIENT_V2 (opcode=7, first byte = (7<<3)|0 = 0x38)
+	if packets[0].Payload[0] != 0x38 {
+		t.Errorf("first packet: expected 0x38 (HARD_RESET_CLIENT_V2), got 0x%02X", packets[0].Payload[0])
 	}
 }
 
@@ -469,9 +470,9 @@ func TestTC_V2ServerWait(t *testing.T) {
 	if len(packets) < 2 {
 		t.Fatal("need at least 2 packets")
 	}
-	// Second packet should be HARD_RESET_SERVER_V2 (opcode=5, first byte = 0xA0)
-	if packets[1].Payload[0] != 0xA0 {
-		t.Errorf("second packet: expected 0xA0 (HARD_RESET_SERVER_V2), got 0x%02X", packets[1].Payload[0])
+	// Second packet should be HARD_RESET_SERVER_V2 (opcode=8, first byte = (8<<3)|0 = 0x40)
+	if packets[1].Payload[0] != 0x40 {
+		t.Errorf("second packet: expected 0x40 (HARD_RESET_SERVER_V2), got 0x%02X", packets[1].Payload[0])
 	}
 }
 
@@ -492,13 +493,13 @@ func TestTC_SoftReset(t *testing.T) {
 
 	softResetFound := false
 	for _, p := range packets {
-		if len(p.Payload) > 0 && (p.Payload[0] == 0x60 || p.Payload[0] == 0x61) {
+		if len(p.Payload) > 0 && p.Payload[0]>>POpcodeShift == OpcodeSOFTResetV1 {
 			softResetFound = true
 			break
 		}
 	}
 	if !softResetFound {
-		t.Error("SOFT_RESET_V1 (0x60/0x61) not found")
+		t.Error("SOFT_RESET_V1 (opcode=3) not found")
 	}
 }
 
@@ -519,9 +520,9 @@ func TestTC_StaticKeyP2P(t *testing.T) {
 	if len(packets) < 1 {
 		t.Fatal("no packets")
 	}
-	// Should be P_DATA_V1 (opcode=7, 0xE0)
-	if packets[0].Payload[0] != 0xE0 {
-		t.Errorf("expected P_DATA_V1 (0xE0), got 0x%02X", packets[0].Payload[0])
+	// Should be P_DATA_V1 (opcode=6, 0x30)
+	if packets[0].Payload[0] != 0x30 {
+		t.Errorf("expected P_DATA_V1 (0x30), got 0x%02X", packets[0].Payload[0])
 	}
 }
 
@@ -567,10 +568,10 @@ func TestTC_Scenario1_StandardUDP(t *testing.T) {
 		t.Fatalf("expected 12 packets (2 control + 10 data), got %d", len(packets))
 	}
 
-	// Count data packets (P_DATA_V2, first byte 0x40)
+	// Count data packets (P_DATA_V2, opcode 9 -> (9<<3)|0 = 0x48)
 	dataCount := 0
 	for _, p := range packets {
-		if len(p.Payload) > 0 && p.Payload[0] == 0x40 {
+		if len(p.Payload) > 0 && p.Payload[0]>>POpcodeShift == OpcodeDATAV2 {
 			dataCount++
 		}
 	}
@@ -652,10 +653,10 @@ func TestTC_Scenario13_StaticKey(t *testing.T) {
 		t.Fatalf("expected 4 packets, got %d", len(packets))
 	}
 
-	// All should be P_DATA_V1 (0xE0)
+	// All should be P_DATA_V1 (opcode=6 -> (6<<3)|0 = 0x30)
 	for i, p := range packets {
-		if p.Payload[0] != 0xE0 {
-			t.Errorf("packet %d: expected P_DATA_V1 (0xE0), got 0x%02X", i, p.Payload[0])
+		if p.Payload[0] != 0x30 {
+			t.Errorf("packet %d: expected P_DATA_V1 (0x30), got 0x%02X", i, p.Payload[0])
 		}
 	}
 }
@@ -756,7 +757,7 @@ func TestTC_ZeroPacketID(t *testing.T) {
 
 // 4.2 边界值
 func TestTC_BoundarySessionID(t *testing.T) {
-	// TC-OVPN-4.2.1: session_id=0xFFFFFF
+	// TC-OVPN-4.2.1: session_id=0xFFFFFF (fits in 8 bytes)
 	spec := defaultOpenVPNSpec()
 	spec.OpenVPN.SessionID = 0xFFFFFF
 	planner := NewPlanner()
@@ -767,20 +768,20 @@ func TestTC_BoundarySessionID(t *testing.T) {
 }
 
 func TestTC_BoundaryKeyID(t *testing.T) {
-	// TC-OVPN-4.2.2: key_id=31 (V1/V2 max)
+	// TC-OVPN-4.2.2: key_id=7 (max for 3-bit field)
 	spec := defaultOpenVPNSpec()
-	spec.OpenVPN.KeyID = 31
+	spec.OpenVPN.KeyID = 7
 	planner := NewPlanner()
 	err := planner.Validate(spec)
 	if err != nil {
-		t.Errorf("key_id=31: unexpected error: %v", err)
+		t.Errorf("key_id=7: unexpected error: %v", err)
 	}
 
-	// TC-OVPN-4.3.4: key_id=32 -> error
-	spec.OpenVPN.KeyID = 32
+	// TC-OVPN-4.3.4: key_id=8 -> error (exceeds 3-bit field)
+	spec.OpenVPN.KeyID = 8
 	err = planner.Validate(spec)
 	if err == nil {
-		t.Error("key_id=32: expected error")
+		t.Error("key_id=8: expected error")
 	}
 }
 
@@ -798,13 +799,13 @@ func TestTC_BoundaryPacketIDV1(t *testing.T) {
 
 // 4.3 异常值
 func TestTC_InvalidKeyID(t *testing.T) {
-	// TC-OVPN-4.3.4: key_id=32 -> error
+	// TC-OVPN-4.3.4: key_id=8 -> error (exceeds 3-bit field)
 	spec := defaultOpenVPNSpec()
-	spec.OpenVPN.KeyID = 32
+	spec.OpenVPN.KeyID = 8
 	planner := NewPlanner()
 	err := planner.Validate(spec)
 	if err == nil {
-		t.Error("key_id=32: expected error")
+		t.Error("key_id=8: expected error")
 	}
 }
 

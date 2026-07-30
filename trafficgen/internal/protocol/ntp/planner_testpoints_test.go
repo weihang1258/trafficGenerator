@@ -204,7 +204,7 @@ func TestNTP_1_14_Mode5Broadcast3(t *testing.T) {
 }
 
 func TestNTP_1_15_Mode6Control(t *testing.T) {
-	// Mode=6 + DataSize=10 -> control packet, header = 8 bytes + 10 data
+	// Mode=6 + DataSize=10 -> control packet, header = 12 bytes + 10 data
 	spec := validNTPSpec()
 	spec.NTP = &core.NTPConfig{
 		Mode:        ModeControl,
@@ -226,10 +226,11 @@ func TestNTP_1_15_Mode6Control(t *testing.T) {
 // TestNTP_1_15a_Mode6ControlByte0Layout verifies the Mode=6 control header
 // byte 0 uses the standard NTP LI(2)|VN(3)|Mode(3) layout -- the same layout
 // the ntpd reference implementation packs via PKT_LI_VN_MODE(l, v, m) in
-// ntp.h -- and that the payload is the 8-byte control header (not the 48-byte
-// standard header). This guards against a regression to the non-standard
-// Version(2)|LI(2)|Mode(4) packing described in design_ntp.md §2.3, which the
-// planner already rejects (see planner.go:508-526 comment block).
+// ntp.h -- and that the payload is the 12-byte control header (not the
+// 48-byte standard header). This guards against a regression to the
+// non-standard Version(2)|LI(2)|Mode(4) packing described in design_ntp.md
+// §2.3, which the planner already rejects (see planner.go buildControlRequest
+// comment block).
 //
 // Expected byte 0 values (LI<<6 | VN<<3 | Mode, Mode=6):
 //   LI=0 VN=4 -> 0x26   LI=0 VN=3 -> 0x1e   LI=3 VN=4 -> 0xE6
@@ -259,10 +260,10 @@ func TestNTP_1_15a_Mode6ControlByte0Layout(t *testing.T) {
 			if len(cfgs) != 1 {
 				t.Fatalf("len=%d, want 1", len(cfgs))
 			}
-			// Mode=6 must emit the 8-byte control header, NOT the 48-byte
+			// Mode=6 must emit the 12-byte control header, NOT the 48-byte
 			// standard header (RFC 1305 App. B / ntpd ntp_control.h).
 			if got := len(cfgs[0].Payload); got != ControlHeaderLen+4 {
-				t.Errorf("payload len=%d, want %d (8-byte control header + 4 data), "+
+				t.Errorf("payload len=%d, want %d (12-byte control header + 4 data), "+
 					"not the 48-byte standard header", got, ControlHeaderLen+4)
 			}
 			// Byte 0 = LI(2)|VN(3)|Mode(3); Mode=6 must be recoverable from
@@ -751,7 +752,8 @@ func TestNTP_2_7_BroadcastTransmitIncrements(t *testing.T) {
 }
 
 func TestNTP_2_8_ControlSequenceMatches(t *testing.T) {
-	// Mode=6 + IsResponse + Sequence=7 -> request and response both have seq=7
+	// Mode=6 + IsResponse + Sequence=7 -> request and response both have seq=7.
+	// Per RFC 1305 App. B the Sequence is a 16-bit field at bytes 2-3.
 	spec := validNTPSpec()
 	spec.NTP = &core.NTPConfig{
 		Mode:        ModeControl,
@@ -764,11 +766,11 @@ func TestNTP_2_8_ControlSequenceMatches(t *testing.T) {
 	if len(cfgs) != 2 {
 		t.Fatalf("len=%d, want 2 (request + response)", len(cfgs))
 	}
-	if cfgs[0].Payload[1] != 7 {
-		t.Errorf("request Sequence byte = %d, want 7", cfgs[0].Payload[1])
+	if got := binary.BigEndian.Uint16(cfgs[0].Payload[2:4]); got != 7 {
+		t.Errorf("request Sequence (bytes 2-3) = %d, want 7", got)
 	}
-	if cfgs[1].Payload[1] != 7 {
-		t.Errorf("response Sequence byte = %d, want 7", cfgs[1].Payload[1])
+	if got := binary.BigEndian.Uint16(cfgs[1].Payload[2:4]); got != 7 {
+		t.Errorf("response Sequence (bytes 2-3) = %d, want 7", got)
 	}
 }
 
@@ -857,7 +859,7 @@ func TestNTP_3_4_MultiStratumChain(t *testing.T) {
 }
 
 func TestNTP_3_5_ControlRequestCode(t *testing.T) {
-	// Mode=6 + RequestCode=0x01 (read_var) -> byte[3] = 0x01
+	// Mode=6 + RequestCode=0x01 (read_var) -> byte[1] low 5 bits = 0x01 (OpCode)
 	spec := validNTPSpec()
 	spec.NTP = &core.NTPConfig{
 		Mode:        ModeControl,
@@ -867,13 +869,13 @@ func TestNTP_3_5_ControlRequestCode(t *testing.T) {
 		ControlData: []byte{1, 2, 3},
 	}
 	cfg := drain(mustPlan(t, NewPlanner(), spec))[0]
-	if cfg.Payload[3] != 0x01 {
-		t.Errorf("RequestCode = 0x%02x, want 0x01", cfg.Payload[3])
+	if got := cfg.Payload[1] & 0x1F; got != 0x01 {
+		t.Errorf("OpCode (byte[1]&0x1F) = 0x%02x, want 0x01", got)
 	}
 }
 
 func TestNTP_3_6_ControlResponseErrorBit(t *testing.T) {
-	// Mode=6 + IsResponse + Error=false -> response Error bit = 0
+	// Mode=6 + IsResponse + Error=false -> response Error bit (byte[1]&0x40) = 0
 	spec := validNTPSpec()
 	spec.NTP = &core.NTPConfig{
 		Mode:        ModeControl,
@@ -884,10 +886,13 @@ func TestNTP_3_6_ControlResponseErrorBit(t *testing.T) {
 		Error:       false,
 	}
 	cfgs := drain(mustPlan(t, NewPlanner(), spec))
-	// Status word in bytes 4-5 (big-endian); bit 15 = Error.
-	status := binary.BigEndian.Uint16(cfgs[1].Payload[4:6])
-	if status&0x8000 != 0 {
-		t.Errorf("response Status Word Error bit = 1, want 0")
+	// Error bit is byte 1 bit 6 (0x40) per RFC 1305 App. B.
+	if cfgs[1].Payload[1]&0x40 != 0 {
+		t.Errorf("response Error bit (byte[1]&0x40) = 1, want 0")
+	}
+	// Response must also have the R bit (byte 1 bit 7) set.
+	if cfgs[1].Payload[1]&0x80 == 0 {
+		t.Errorf("response R bit (byte[1]&0x80) = 0, want 1 (response)")
 	}
 }
 
@@ -1006,7 +1011,8 @@ func TestNTP_4_7_MAC17Invalid(t *testing.T) {
 	}
 }
 
-func TestNTP_4_8_ControlData465Invalid(t *testing.T) {
+func TestNTP_4_8_ControlData469Invalid(t *testing.T) {
+	// Mode=6 + ControlData=469 -> exceeds CTL_MAX_DATA_LEN (468) -> error.
 	p := NewPlanner()
 	spec := validNTPSpec()
 	spec.NTP = &core.NTPConfig{
@@ -1014,15 +1020,15 @@ func TestNTP_4_8_ControlData465Invalid(t *testing.T) {
 		Version:     4,
 		Sequence:    1,
 		RequestCode: 1,
-		ControlData: make([]byte, 465),
+		ControlData: make([]byte, 469),
 	}
 	if err := p.Validate(spec); err == nil {
-		t.Error("Validate(ControlData len=465): expected error")
+		t.Error("Validate(ControlData len=469): expected error")
 	}
 }
 
-func TestNTP_4_9_ControlData464Max(t *testing.T) {
-	// Mode=6 + ControlData=464 -> total packet 472
+func TestNTP_4_9_ControlData468Max(t *testing.T) {
+	// Mode=6 + ControlData=468 -> total packet 480 (12-byte header + 468 data)
 	p := NewPlanner()
 	spec := validNTPSpec()
 	spec.NTP = &core.NTPConfig{
@@ -1030,14 +1036,14 @@ func TestNTP_4_9_ControlData464Max(t *testing.T) {
 		Version:     4,
 		Sequence:    1,
 		RequestCode: 1,
-		ControlData: make([]byte, 464),
+		ControlData: make([]byte, 468),
 	}
 	if err := p.Validate(spec); err != nil {
-		t.Errorf("Validate(ControlData len=464): unexpected error %v", err)
+		t.Errorf("Validate(ControlData len=468): unexpected error %v", err)
 	}
 	cfgs := drain(mustPlan(t, p, spec))
-	if len(cfgs[0].Payload) != ControlHeaderLen+464 {
-		t.Errorf("total len = %d, want %d (8 + 464)", len(cfgs[0].Payload), ControlHeaderLen+464)
+	if len(cfgs[0].Payload) != ControlHeaderLen+468 {
+		t.Errorf("total len = %d, want %d (12 + 468)", len(cfgs[0].Payload), ControlHeaderLen+468)
 	}
 }
 

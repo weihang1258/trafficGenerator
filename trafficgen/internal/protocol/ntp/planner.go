@@ -5,7 +5,7 @@
 // 48-byte fixed NTP header (LI/VN/Mode/Stratum/Poll/Precision + root timing
 // fields + Reference ID + four 64-bit timestamps). Optional authentication
 // (KeyID + MAC) and RFC 7822 extension fields append after the 48-byte header.
-// Mode=6 (control, RFC 5906) uses an 8-byte control header instead.
+// Mode=6 (control, RFC 1305 App. B) uses a 12-byte control header instead.
 //
 // IPv6 / multicast MAC / VLAN behavior follows the cross-cutting rules:
 // /tmp/l7_planner_design/multicast_ipv6_vlan.md
@@ -41,12 +41,22 @@ const (
 	// time.Time to the 32-bit NTP seconds field.
 	NTPEpochOffset = 2208988800
 
-	// ControlHeaderLen is the 8-byte Mode=6 control message header length
-	// (RFC 5906 §4). Control packets do NOT carry the 48-byte basic header.
-	ControlHeaderLen = 8
+	// ControlHeaderLen is the 12-byte Mode=6 control message header length
+	// (RFC 1305 App. B / ntpd ntp_control.h: CTL_HEADER_LEN). Control packets
+	// do NOT carry the 48-byte basic header. Layout:
+	//	byte 0:      LI(2)|VN(3)|Mode(3)
+	//	byte 1:      R(1)|E(1)|M(1)|OpCode(5)
+	//	bytes 2-3:   Sequence (16-bit)
+	//	bytes 4-5:   Status (16-bit)
+	//	bytes 6-7:   Association ID (16-bit)
+	//	bytes 8-9:   Offset (16-bit)
+	//	bytes 10-11: Count (16-bit) = data length
+	ControlHeaderLen = 12
 
-	// MaxControlData is the maximum Mode=6 Data region size (RFC 5906 §4).
-	MaxControlData = 464
+	// MaxControlData is the maximum Mode=6 Data region size (ntpd
+	// CTL_MAX_DATA_LEN = 468). Wireshark's dissector labels this region
+	// "Data (468 octets max)".
+	MaxControlData = 468
 
 	// Mode constants (RFC 5905 §7.3).
 	ModeReserved         = 0
@@ -146,11 +156,15 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 
-	// Mode=6 control messages use an 8-byte control header (not the 48-byte
-	// basic header). The Data region max is 464 bytes (RFC 5906 §4).
+	// Mode=6 control messages use a 12-byte control header (not the 48-byte
+	// basic header). The Data region max is 468 bytes (ntpd CTL_MAX_DATA_LEN,
+	// RFC 1305 App. B). RequestCode is a 5-bit OpCode field (max 31).
 	if cfg.Mode == ModeControl {
+		if cfg.RequestCode > 31 {
+			return fmt.Errorf("ntp: RequestCode %d invalid (must be 0-31: OpCode is a 5-bit field per RFC 1305 App. B)", cfg.RequestCode)
+		}
 		if len(cfg.ControlData) > MaxControlData {
-			return fmt.Errorf("ntp: ControlData length %d exceeds max %d per RFC 5906 §4", len(cfg.ControlData), MaxControlData)
+			return fmt.Errorf("ntp: ControlData length %d exceeds max %d per RFC 1305 App. B", len(cfg.ControlData), MaxControlData)
 		}
 	}
 
@@ -334,13 +348,13 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 
 		case ModeControl:
-			// Control mode (RFC 5906): emit an 8-byte control header +
+			// Control mode (RFC 1305 App. B): emit a 12-byte control header +
 			// ControlData. If IsResponse, emit a response with matching
-			// Sequence.
+			// Sequence and the R bit set.
 			for i := 0; i < repeat; i++ {
 				seq := cfg.Sequence
 				if repeat > 1 {
-					seq = cfg.Sequence + uint8(i)
+					seq = cfg.Sequence + uint16(i)
 				}
 				payload := buildControlRequest(&cfg, seq)
 				if !emit("up", spec.SrcIP, spec.DstIP, spec.SrcMAC, spec.DstMAC, effectiveSrcPort, effectiveDstPort, payload) {
@@ -505,58 +519,86 @@ func buildNTPPacket(cfg *core.NTPConfig, refTS, originTS, receiveTS, transmitTS 
 	return buf
 }
 
-// buildControlRequest builds an 8-byte Mode=6 control header (RFC 5906 §4)
-// followed by ControlData. The control header layout:
+// buildControlRequest builds a 12-byte Mode=6 control header (RFC 1305 App. B
+// / ntpd ntp_control.h struct ntp_control) followed by ControlData. The
+// control header layout (all multi-byte fields big-endian):
 //
-//	Byte 0: LI(2) | VN(3) | Mode(3)   -- standard NTP byte 0 (RFC 5905 §7.3),
-//	         Mode=6 in the low 3 bits, VN holds the NTP version (3 or 4).
-//	         The control protocol reuses the standard NTP header byte 0; it
-//	         does NOT carry a separate 2-bit "control version" field.
-//	Byte 1: Sequence
-//	Byte 2: Implementation
-//	Byte 3: Request Code
-//	Bytes 4-5: (Error(1) | More(1) | StatusWord(14))   -- 16-bit big-endian
-//	Bytes 6-7: Data Size (uint16, big-endian)
-//	Bytes 8+: Data (ControlData, length = Data Size)
+//	byte 0:      LI(2) | VN(3) | Mode(3)   -- standard NTP byte 0 (RFC 5905
+//	             §7.3); Mode=6 in the low 3 bits, VN holds the NTP version
+//	             (3 or 4), LI holds the leap indicator.
+//	byte 1:      R(1) | E(1) | M(1) | OpCode(5)
+//	             R=Response (set on responses, clear on requests),
+//	             E=Error, M=More (fragmented response),
+//	             OpCode = 5-bit request code (cfg.RequestCode, 0-31).
+//	bytes 2-3:   Sequence (16-bit, request/response pairing)
+//	bytes 4-5:   Status (16-bit status word)
+//	bytes 6-7:   Association ID (16-bit)
+//	bytes 8-9:   Offset (16-bit, data offset for fragmented responses)
+//	bytes 10-11: Count (16-bit) = Data region length
+//	bytes 12+:   Data (ControlData, length = Count)
 //
-// Note: an earlier revision packed byte 0 as Version(2)|LI(2)|Mode(4) per
-// design_ntp.md §2.3. That is non-standard: a real NTP stack reads byte 0
-// as LI(2)|VN(3)|Mode(3), so the old packing produced VN=0 (invalid) and a
-// wrong LI. The standard packing below matches RFC 1305 / RFC 5906 wire
-// format (Mode=6 recoverable in the low 3 bits, VN in bits 5-3).
-func buildControlRequest(cfg *core.NTPConfig, seq uint8) []byte {
+// Wireshark's dissect_ntp_ctrl reads exactly this 12-byte layout. An earlier
+// revision emitted an 8-byte header (Sequence at byte 1, no AssocID/Offset,
+// Count at bytes 6-7), which Wireshark reported as [Malformed Packet: NTP].
+//
+// Note: cfg.Implementation is retained for API compatibility but is NOT
+// emitted -- RFC 1305 App. B has no Implementation byte; the 5-bit OpCode
+// subsumes the old implementation/request-code split.
+func buildControlRequest(cfg *core.NTPConfig, seq uint16) []byte {
 	dataLen := len(cfg.ControlData)
 	totalLen := ControlHeaderLen + dataLen
 	buf := make([]byte, totalLen)
-	// Standard NTP byte 0: LI(2) | VN(3) | Mode(3). LI=user-provided,
-	// VN=cfg.Version (3 or 4), Mode=6 (control).
+	// Byte 0: LI(2) | VN(3) | Mode(3). LI=user-provided, VN=cfg.Version
+	// (3 or 4), Mode=6 (control).
 	buf[0] = ((cfg.LeapIndicator & 0x03) << 6) | ((cfg.Version & 0x07) << 3) | (ModeControl & 0x07)
-	buf[1] = seq
-	buf[2] = cfg.Implementation
-	buf[3] = cfg.RequestCode
-	// Status word: bit 15=Error, bit 14=More, bits 13-0=StatusWord (low 14 bits).
-	status := uint16(0)
+	// Byte 1: R(1) | E(1) | M(1) | OpCode(5). Requests have R=0.
+	flags2 := byte(0)
 	if cfg.Error {
-		status |= 0x8000
+		flags2 |= 0x40
 	}
 	if cfg.More {
-		status |= 0x4000
+		flags2 |= 0x20
 	}
-	status |= cfg.StatusWord & 0x3FFF
-	binary.BigEndian.PutUint16(buf[4:6], status)
-	binary.BigEndian.PutUint16(buf[6:8], uint16(dataLen))
-	copy(buf[8:], cfg.ControlData)
+	flags2 |= cfg.RequestCode & 0x1F
+	buf[1] = flags2
+	// Bytes 2-3: Sequence (16-bit, big-endian).
+	binary.BigEndian.PutUint16(buf[2:4], seq)
+	// Bytes 4-5: Status word (16-bit). Error/More bits live in byte 1, not
+	// here, per RFC 1305 App. B.
+	binary.BigEndian.PutUint16(buf[4:6], cfg.StatusWord)
+	// Bytes 6-7: Association ID.
+	binary.BigEndian.PutUint16(buf[6:8], cfg.AssociationID)
+	// Bytes 8-9: Offset.
+	binary.BigEndian.PutUint16(buf[8:10], cfg.Offset)
+	// Bytes 10-11: Count = data length.
+	binary.BigEndian.PutUint16(buf[10:12], uint16(dataLen))
+	// Bytes 12+: Data.
+	copy(buf[12:], cfg.ControlData)
 	return buf
 }
 
 // buildControlResponse builds a Mode=6 control response with matching
-// Sequence. Same layout as the request; Error bit and StatusWord come from
-// the config (the planner does not simulate state machine transitions).
-func buildControlResponse(cfg *core.NTPConfig, seq uint8) []byte {
-	// Same layout; the caller distinguishes request vs response by setting
-	// Error=true or by inspecting the Sequence. We do NOT flip any bits
-	// automatically -- the user controls Error/More/StatusWord.
-	return buildControlRequest(cfg, seq)
+// Sequence. Same 12-byte layout as the request, but the R bit (byte 1 bit 7)
+// is set to mark it as a response. Error/More/StatusWord come from the config
+// (the planner does not simulate state machine transitions).
+func buildControlResponse(cfg *core.NTPConfig, seq uint16) []byte {
+	// Set the Response bit. Mutate a local copy so we do not alter the
+	// caller's config (cfg is already a shallow copy from Plan's emit
+	// goroutine, but be defensive).
+	local := *cfg
+	// Build the flags byte with R=1, then preserve E/M/OpCode from cfg.
+	flags2 := byte(0x80) // R=1 (response)
+	if cfg.Error {
+		flags2 |= 0x40
+	}
+	if cfg.More {
+		flags2 |= 0x20
+	}
+	flags2 |= cfg.RequestCode & 0x1F
+	// Reuse buildControlRequest's body layout, then overwrite byte 1.
+	payload := buildControlRequest(&local, seq)
+	payload[1] = flags2
+	return payload
 }
 
 // timeToNTPTimestamp converts a time.Time to a 64-bit NTP timestamp (32-bit

@@ -211,15 +211,27 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("grpc: InitialWindow %d exceeds max %d (RFC 7540 §6.5.2)", cfg.InitialWindow, maxInitialWindowSize)
 	}
 
-	// Validate base64-encoded request/response messages.
+	// Validate base64-encoded request/response messages: decode
+	// success AND protobuf leading-key legality (field_number >= 1 per
+	// protobuf spec §3.1; field 0 is reserved and triggers Wireshark
+	// "Field Number: 0, Malformed"). A non-empty decoded body must start
+	// with a legal field key.
 	for i, b := range cfg.RequestMessagesB64 {
-		if _, err := base64.StdEncoding.DecodeString(b); err != nil {
+		dec, err := base64.StdEncoding.DecodeString(b)
+		if err != nil {
 			return fmt.Errorf("grpc: RequestMessagesB64[%d] decode error: %v", i, err)
+		}
+		if err := validateProtobufLeadingKey(dec); err != nil {
+			return fmt.Errorf("grpc: RequestMessagesB64[%d]: %w", i, err)
 		}
 	}
 	for i, b := range cfg.ResponseMessagesB64 {
-		if _, err := base64.StdEncoding.DecodeString(b); err != nil {
+		dec, err := base64.StdEncoding.DecodeString(b)
+		if err != nil {
 			return fmt.Errorf("grpc: ResponseMessagesB64[%d] decode error: %v", i, err)
+		}
+		if err := validateProtobufLeadingKey(dec); err != nil {
+			return fmt.Errorf("grpc: ResponseMessagesB64[%d]: %w", i, err)
 		}
 	}
 
@@ -228,6 +240,22 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	if cfg.FileSource != nil {
 		if len(cfg.RequestMessages) > 0 || len(cfg.RequestMessagesB64) > 0 {
 			return fmt.Errorf("grpc: FileSource is mutually exclusive with RequestMessages/RequestMessagesB64")
+		}
+	}
+
+	// Validate inline protobuf bodies (non-B64 form). A non-empty body
+	// must start with a legal field key (field_number >= 1 per protobuf
+	// spec §3.1; field 0 is reserved and triggers Wireshark "Field
+	// Number: 0, Malformed: Failed to parse value field"). Empty bodies
+	// (len==0) are valid (gRPC zero-length message = 5-byte prefix).
+	for i, msg := range cfg.RequestMessages {
+		if err := validateProtobufLeadingKey(msg); err != nil {
+			return fmt.Errorf("grpc: RequestMessages[%d]: %w", i, err)
+		}
+	}
+	for i, msg := range cfg.ResponseMessages {
+		if err := validateProtobufLeadingKey(msg); err != nil {
+			return fmt.Errorf("grpc: ResponseMessages[%d]: %w", i, err)
 		}
 	}
 
@@ -247,6 +275,16 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 		if err := validateResponseStatus(call.ResponseStatus); err != nil {
 			return fmt.Errorf("grpc: Calls[%d]: %w", i, err)
+		}
+		for j, msg := range call.RequestMessages {
+			if err := validateProtobufLeadingKey(msg); err != nil {
+				return fmt.Errorf("grpc: Calls[%d].RequestMessages[%d]: %w", i, j, err)
+			}
+		}
+		for j, msg := range call.ResponseMessages {
+			if err := validateProtobufLeadingKey(msg); err != nil {
+				return fmt.Errorf("grpc: Calls[%d].ResponseMessages[%d]: %w", i, j, err)
+			}
 		}
 	}
 
@@ -1237,6 +1275,60 @@ func lookupStaticName(name string) int {
 }
 
 // --- Protobuf wire format encoder ---
+
+// validateProtobufLeadingKey checks the leading field key of a protobuf
+// message body. Per protobuf spec §3.1, a field key is a varint encoding
+// (field_number << 3) | wire_type; field_number MUST be >= 1 (field 0 is
+// reserved/illegal). A body whose leading key decodes to field_number=0
+// produces Wireshark "Field Number: 0, Wire Type: varint, Malformed:
+// Failed to parse value field".
+//
+// We decode only the leading varint key and reject:
+//   - truncated varints (continuation bit set on the last available
+//     byte),
+//   - field_number == 0,
+//   - wire_type not in {0,1,2,5} (3=start-group, 4=end-group are
+//     deprecated in proto3; reject them as malformed for a traffic
+//     generator — real proto3 encoders never emit them).
+//
+// We do NOT validate the full message structure (field-value lengths,
+// tag uniqueness, etc.) — the user supplies raw protobuf bytes and is
+// responsible for schema-level correctness. We only guard against the
+// provably illegal leading key that produces a Wireshark parse error.
+//
+// Empty bodies (len==0) are valid: the gRPC spec allows a zero-length
+// message (5-byte prefix with Message-Length=0, no body bytes).
+func validateProtobufLeadingKey(msg []byte) error {
+	if len(msg) == 0 {
+		return nil // zero-length protobuf message is valid per gRPC spec
+	}
+	// Decode the leading varint key (at most 10 bytes for a uint64).
+	var key uint64
+	var shift uint
+	consumed := 0
+	for i := 0; i < len(msg) && i < 10; i++ {
+		b := msg[i]
+		key |= uint64(b&0x7F) << shift
+		shift += 7
+		consumed++
+		if b&0x80 == 0 {
+			fieldNumber := int(key >> 3)
+			wireType := int(key & 0x07)
+			if fieldNumber < 1 {
+				return fmt.Errorf("protobuf field_number %d < 1 (field 0 is reserved per protobuf spec §3.1)", fieldNumber)
+			}
+			switch wireType {
+			case 0, 1, 2, 5:
+				// legal wire types
+			default:
+				return fmt.Errorf("protobuf wire_type %d invalid (must be 0/1/2/5; 3/4 group types are deprecated)", wireType)
+			}
+			return nil
+		}
+	}
+	// All bytes had the continuation bit set -> truncated varint.
+	return fmt.Errorf("protobuf leading field key is a truncated varint (continuation bit set on all %d bytes)", consumed)
+}
 
 // protobufField encodes a protobuf field key per
 // https://protobuf.dev/programming-guides/encoding/. Key =

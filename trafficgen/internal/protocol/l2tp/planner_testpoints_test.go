@@ -95,13 +95,16 @@ func readV3ControlHeader(payload []byte) (flags, length, tunID uint16, sesID uin
 
 // findAVP scans an L2TP control-message payload for an AVP with the given
 // attribute type. Returns the AVP's (offset, declaredLength, valueBytes, ok).
-// declaredLength is the 12-bit Length field (6-byte header + value length).
-// paddedLen is the 4-byte-aligned total AVP size including padding.
+// declaredLength is the 10-bit Length field (6-byte header + value length).
+// The scan advances by the declared length only -- there is NO inter-AVP
+// padding per RFC 2661 §4.1 / RFC 3931 §5.1, matching Wireshark's
+// packet-l2tp.c. paddedLen is kept equal to declaredLength for callers that
+// still reference it (no padding is emitted).
 func findAVP(payload []byte, headerSize int, attrType uint16) (offset, declaredLen, paddedLen int, value []byte, ok bool) {
 	offset = headerSize
 	for offset+6 <= len(payload) {
 		mh := binary.BigEndian.Uint16(payload[offset : offset+2])
-		avpLen := int(mh & 0x0FFF)
+		avpLen := int(mh & 0x03FF)
 		at := binary.BigEndian.Uint16(payload[offset+4 : offset+6])
 		if avpLen < 6 {
 			return
@@ -111,14 +114,9 @@ func findAVP(payload []byte, headerSize int, attrType uint16) (offset, declaredL
 			if offset+6+valueLen > len(payload) {
 				return
 			}
-			padded := (avpLen + 3) &^ 3
-			return offset, avpLen, padded, payload[offset+6 : offset+6+valueLen], true
+			return offset, avpLen, avpLen, payload[offset+6 : offset+6+valueLen], true
 		}
-		padded := (avpLen + 3) &^ 3
-		if padded == 0 {
-			padded = 4
-		}
-		offset += padded
+		offset += avpLen
 	}
 	return
 }
@@ -511,7 +509,7 @@ func TestL2TP_AVP_MandatorySet(t *testing.T) {
 	if avpMH&0x8000 == 0 {
 		t.Errorf("M bit = 0, want 1 (Message Type AVP is M=1)")
 	}
-	length := avpMH & 0x0FFF
+	length := avpMH & 0x03FF
 	if length != 8 {
 		t.Errorf("Message Type AVP length = %d, want 8 (6 header + 2 value)", length)
 	}
@@ -577,7 +575,9 @@ func TestL2TP_AVP_8Byte(t *testing.T) {
 func TestL2TP_AVP_Alignment(t *testing.T) {
 	p := NewPlanner()
 	spec := validL2TPv2Spec()
-	// AVP value = 1 byte => total 7 bytes => must pad to 8.
+	// AVP value = 1 byte => total 7 bytes. RFC 2661 §4.1 defines NO inter-AVP
+	// padding, so the AVP is emitted as exactly 7 bytes with the next AVP
+	// (or end of message) immediately following.
 	spec.L2TP.CustomAVPs = []core.L2TPAVP{
 		{Mandatory: false, AttrType: 99, Value: []byte{0xAB}},
 	}
@@ -590,16 +590,14 @@ func TestL2TP_AVP_Alignment(t *testing.T) {
 	if avpLen != 7 {
 		t.Errorf("Custom AVP length = %d, want 7", avpLen)
 	}
-	if padded != 8 {
-		t.Errorf("Custom AVP padded length = %d, want 8", padded)
+	if padded != 7 {
+		t.Errorf("Custom AVP padded length = %d, want 7 (no padding per RFC 2661 §4.1)", padded)
 	}
-	// Verify padding byte (byte after the 7-byte AVP) is 0x00.
-	padByteOffset := offset + avpLen
-	if padByteOffset >= len(payload) {
-		t.Fatalf("padding byte out of bounds: offset=%d len=%d", padByteOffset, len(payload))
-	}
-	if payload[padByteOffset] != 0x00 {
-		t.Errorf("Padding byte = 0x%02x, want 0x00", payload[padByteOffset])
+	// With no padding, the byte after the 7-byte AVP is the first byte of the
+	// next AVP (or beyond payload). Since Custom AVPs are appended last, the
+	// 7-byte AVP is the final AVP; the payload must end exactly at offset+7.
+	if offset+avpLen != len(payload) {
+		t.Errorf("payload extends %d bytes past last AVP (no padding expected)", len(payload)-(offset+avpLen))
 	}
 }
 
@@ -738,8 +736,7 @@ func TestL2TP_TieBreakerAVP(t *testing.T) {
 			break
 		}
 		// Move to next AVP (4-byte aligned).
-		paddedLen := (avpLen + 3) &^ 3
-		offset += paddedLen
+		offset += avpLen
 	}
 	if !tbFound {
 		t.Errorf("Tie Breaker AVP not found")
@@ -772,8 +769,7 @@ func TestL2TP_HostNameAVP(t *testing.T) {
 			}
 			return
 		}
-		paddedLen := (avpLen + 3) &^ 3
-		offset += paddedLen
+		offset += avpLen
 	}
 	t.Errorf("Host Name AVP not found")
 }
@@ -798,8 +794,7 @@ func TestL2TP_DefaultHostName(t *testing.T) {
 			}
 			return
 		}
-		paddedLen := (avpLen + 3) &^ 3
-		offset += paddedLen
+		offset += avpLen
 	}
 	t.Errorf("Host Name AVP not found")
 }
@@ -888,8 +883,7 @@ func TestL2TP_StopCCN(t *testing.T) {
 				t.Errorf("Result Code = %d, want 1 (default)", rc)
 			}
 		}
-		paddedLen := (avpLen + 3) &^ 3
-		offset += paddedLen
+		offset += avpLen
 	}
 	if !atidFound {
 		t.Errorf("StopCCN missing Assigned Tunnel ID AVP")
@@ -961,8 +955,7 @@ func TestL2TP_OCRQ_CalledNumber(t *testing.T) {
 			}
 			return
 		}
-		paddedLen := (avpLen + 3) &^ 3
-		offset += paddedLen
+		offset += avpLen
 	}
 	t.Errorf("Called Number AVP not found")
 }
@@ -1132,8 +1125,7 @@ func TestL2TP_SLI_ACCM(t *testing.T) {
 			}
 			return
 		}
-		paddedLen := (avpLen + 3) &^ 3
-		offset += paddedLen
+		offset += avpLen
 	}
 	t.Errorf("ACCM AVP not found in SLI")
 }
@@ -1172,12 +1164,13 @@ func TestL2TP_HELLO_Minimal(t *testing.T) {
 // §5.2 Boundary values
 // ============================================================================
 
-// 5.2.1: max AVP length 4095 (header + 4089 bytes value).
+// 5.2.1: max AVP length 1023 (header + 1017 bytes value). The AVP Length
+// field is 10 bits per RFC 2661 §4.1 (max 1023), not 12 bits.
 func TestL2TP_AVP_MaxLength(t *testing.T) {
 	p := NewPlanner()
 	spec := validL2TPv2Spec()
 	spec.L2TP.CustomAVPs = []core.L2TPAVP{
-		{Mandatory: false, AttrType: 99, Value: make([]byte, 4089)},
+		{Mandatory: false, AttrType: 99, Value: make([]byte, 1017)},
 	}
 	configs := mustPlan(t, p, spec)
 	payload := configs[0].Payload
@@ -1185,8 +1178,8 @@ func TestL2TP_AVP_MaxLength(t *testing.T) {
 	if !ok {
 		t.Fatal("Custom AVP (attr 99) not found")
 	}
-	if avpLen != 4095 {
-		t.Errorf("Custom AVP length = %d, want 4095", avpLen)
+	if avpLen != 1023 {
+		t.Errorf("Custom AVP length = %d, want 1023 (10-bit Length max)", avpLen)
 	}
 }
 

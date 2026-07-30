@@ -34,33 +34,39 @@ func TestF1_V1VersionEmitsV1Opcodes(t *testing.T) {
 		t.Fatalf("expected at least 2 packets, got %d", len(packets))
 	}
 
-	// Packet 0: HARD_RESET_CLIENT_V1 (opcode=1, key_id=0) = (1<<5)|0 = 0x20
-	if packets[0].Payload[0] != 0x20 {
-		t.Errorf("V1 client reset first byte: expected 0x20 (opcode=1), got 0x%02X", packets[0].Payload[0])
+	// Packet 0: HARD_RESET_CLIENT_V1 (opcode=1, key_id=0) = (1<<3)|0 = 0x08
+	if packets[0].Payload[0] != 0x08 {
+		t.Errorf("V1 client reset first byte: expected 0x08 (opcode=1), got 0x%02X", packets[0].Payload[0])
 	}
 
-	// Packet 1: HARD_RESET_SERVER_V1 (opcode=2, key_id=0) = (2<<5)|0 = 0x40
-	if packets[1].Payload[0] != 0x40 {
-		t.Errorf("V1 server reset first byte: expected 0x40 (opcode=2), got 0x%02X", packets[1].Payload[0])
+	// Packet 1: HARD_RESET_SERVER_V1 (opcode=2, key_id=0) = (2<<3)|0 = 0x10
+	if packets[1].Payload[0] != 0x10 {
+		t.Errorf("V1 server reset first byte: expected 0x10 (opcode=2), got 0x%02X", packets[1].Payload[0])
 	}
 
-	// V1 has NO session_id. Format: opcode(1B) + packet_id(4B BE) + payload.
-	// So bytes 1-4 are packet_id (0x00000000 for first packet).
-	if len(packets[0].Payload) < 5 {
+	// V1 control packets carry the 8-byte session_id (Wireshark parses
+	// session_id for opcode 1). Format: opcode(1B) + session_id(8B) +
+	// ack_count(1B) + message_packet_id(4B) + payload.
+	// So bytes 1-8 are session_id, byte 9 is ack_count(0), bytes 10-13 are
+	// message_packet_id(0x00000000 for first packet).
+	if len(packets[0].Payload) < 14 {
 		t.Fatalf("V1 client reset too short: %d bytes", len(packets[0].Payload))
 	}
-	if packets[0].Payload[1] != 0x00 || packets[0].Payload[2] != 0x00 ||
-		packets[0].Payload[3] != 0x00 || packets[0].Payload[4] != 0x00 {
-		t.Errorf("V1 client reset: expected packet_id=0x00000000 at bytes 1-4, got %02X %02X %02X %02X",
-			packets[0].Payload[1], packets[0].Payload[2], packets[0].Payload[3], packets[0].Payload[4])
+	if packets[0].Payload[9] != 0x00 {
+		t.Errorf("V1 client reset ack_count: expected 0x00, got 0x%02X", packets[0].Payload[9])
+	}
+	if packets[0].Payload[10] != 0x00 || packets[0].Payload[11] != 0x00 ||
+		packets[0].Payload[12] != 0x00 || packets[0].Payload[13] != 0x00 {
+		t.Errorf("V1 client reset: expected message_packet_id=0x00000000 at bytes 10-13, got %02X %02X %02X %02X",
+			packets[0].Payload[10], packets[0].Payload[11], packets[0].Payload[12], packets[0].Payload[13])
 	}
 
-	// V1 data packets should use P_DATA_V1 (opcode=7 = 0xE0), not P_DATA_V2 (0x40).
+	// V1 data packets should use P_DATA_V1 (opcode=6 = (6<<3)|0 = 0x30), not P_DATA_V2 (0x48).
 	if len(packets) < 4 {
 		t.Fatalf("expected at least 4 packets (2 control + 2 data), got %d", len(packets))
 	}
-	if packets[2].Payload[0]&0xE0 != 0xE0 {
-		t.Errorf("V1 data packet: expected P_DATA_V1 (opcode=7, high 3 bits=111), got 0x%02X", packets[2].Payload[0])
+	if packets[2].Payload[0]>>3 != OpcodeDATAV1 {
+		t.Errorf("V1 data packet: expected P_DATA_V1 (opcode=6, high 5 bits=6), got 0x%02X", packets[2].Payload[0])
 	}
 }
 
@@ -82,24 +88,24 @@ func TestF1_V3VersionEmitsV3ClientOpcode(t *testing.T) {
 		t.Fatalf("expected at least 2 packets, got %d", len(packets))
 	}
 
-	// Packet 0: HARD_RESET_CLIENT_V3 (opcode=6, key_id=2) = (6<<5)|2 = 0xC2
-	if packets[0].Payload[0] != 0xC2 {
-		t.Errorf("V3 client reset first byte: expected 0xC2 (opcode=6, key_id=2), got 0x%02X", packets[0].Payload[0])
+	// Packet 0: HARD_RESET_CLIENT_V3 (opcode=10, key_id=2) = (10<<3)|2 = 0x52
+	if packets[0].Payload[0] != 0x52 {
+		t.Errorf("V3 client reset first byte: expected 0x52 (opcode=10, key_id=2), got 0x%02X", packets[0].Payload[0])
 	}
 
-	// V3 server still uses V2 opcode=5 (no V3 server opcode per design §2.1).
-	// (5<<5)|2 = 0xA2
-	if packets[1].Payload[0] != 0xA2 {
-		t.Errorf("V3 server reset first byte: expected 0xA2 (opcode=5, key_id=2), got 0x%02X", packets[1].Payload[0])
+	// V3 server still uses V2 opcode=8 (no V3 server opcode per ssl_pkt.h).
+	// (8<<3)|2 = 0x42
+	if packets[1].Payload[0] != 0x42 {
+		t.Errorf("V3 server reset first byte: expected 0x42 (opcode=8, key_id=2), got 0x%02X", packets[1].Payload[0])
 	}
 
-	// V3 has session_id (3 bytes) after opcode, like V2.
-	// bytes 1-3 = session_id
-	if len(packets[0].Payload) < 4 {
+	// V3 has 8-byte session_id (SID_SIZE) after opcode, like V2.
+	// bytes 1-8 = session_id
+	if len(packets[0].Payload) < 9 {
 		t.Fatalf("V3 client reset too short: %d bytes", len(packets[0].Payload))
 	}
 	// session_id should be non-zero (random or configured) — just check it's present
-	_ = packets[0].Payload[1:4]
+	_ = packets[0].Payload[1:9]
 }
 
 // F2 — tls-crypt-v2 field order wrong.
@@ -178,15 +184,15 @@ func TestF3_StaticKeyFormat(t *testing.T) {
 	}
 
 	pkt := packets[0].Payload
-	// P_DATA_V1: opcode+key_id(1B) + packet_id(4B BE) + nonce(16B) + ciphertext(N) + HMAC(20B)
-	// opcode = (7<<5)|0 = 0xE0
-	if pkt[0] != 0xE0 {
-		t.Errorf("expected P_DATA_V1 opcode 0xE0, got 0x%02X", pkt[0])
+	// P_DATA_V1: opcode(1B) + payload. No packet_id parsed by Wireshark.
+	// opcode = (6<<3)|0 = 0x30
+	if pkt[0] != 0x30 {
+		t.Errorf("expected P_DATA_V1 opcode 0x30, got 0x%02X", pkt[0])
 	}
 
-	// packet_id at bytes 1-4 (4-byte BE)
-	// nonce at bytes 5-20 (16 bytes, 0xCC filler per design §2.10.2)
-	nonceStart := 5
+	// payload starts at byte 1: nonce(16B) + ciphertext(N) + HMAC(20B)
+	// nonce at bytes 1-16 (16 bytes, 0xCC filler per design §2.10.2)
+	nonceStart := 1
 	if len(pkt) < nonceStart+16 {
 		t.Fatalf("packet too short for nonce: %d bytes", len(pkt))
 	}
@@ -221,8 +227,8 @@ func TestF3_StaticKeyFormat(t *testing.T) {
 		}
 	}
 
-	// Total: 1(opcode) + 4(packet_id) + 16(nonce) + 64(ciphertext) + 20(HMAC) = 105
-	expectedLen := 1 + 4 + 16 + 64 + 20
+	// Total: 1(opcode) + 16(nonce) + 64(ciphertext) + 20(HMAC) = 101
+	expectedLen := 1 + 16 + 64 + 20
 	if len(pkt) != expectedLen {
 		t.Errorf("static key P_DATA_V1 length: expected %d, got %d", expectedLen, len(pkt))
 	}
@@ -380,11 +386,11 @@ func TestF6_TCPModeLengthPrefix(t *testing.T) {
 	}
 
 	// The byte after the prefix must be a valid V2 client reset opcode
-	// (P_CONTROL_HARD_RESET_CLIENT_V2 = opcode 4, high 3 bits = 100 = 0x80
-	// when key_id=0).
+	// (P_CONTROL_HARD_RESET_CLIENT_V2 = opcode 7, high 5 bits = 7 when
+	// key_id=0 -> (7<<3)|0 = 0x38).
 	opcodeByte := dataPayload[2]
-	if opcodeByte&0xE0 != 0x80 {
-		t.Errorf("after length prefix: expected V2 client reset opcode (high bits 0x80), got 0x%02X", opcodeByte)
+	if opcodeByte>>POpcodeShift != OpcodeHARDResetClientV2 {
+		t.Errorf("after length prefix: opcode=%d, want %d", opcodeByte>>POpcodeShift, OpcodeHARDResetClientV2)
 	}
 }
 
@@ -407,15 +413,139 @@ func TestF6_TCPModeLengthPrefix_NoPrefixInUDP(t *testing.T) {
 	packets := collectPackets(ctx, t, configChan)
 
 	// First up packet is the client HARD_RESET — in UDP it must start with
-	// the opcode byte directly (no 2-byte length prefix).
+	// the opcode byte directly (no 2-byte length prefix). V2 client reset
+	// = opcode 7 -> (7<<3)|0 = 0x38.
 	for _, p := range packets {
 		if p.Direction == "up" && p.L4.Protocol == "udp" && len(p.Payload) > 0 {
 			opcodeByte := p.Payload[0]
-			if opcodeByte&0xE0 != 0x80 {
-				t.Errorf("UDP mode: first byte should be V2 client reset opcode (0x80 high bits), got 0x%02X (length prefix leaked into UDP?)", opcodeByte)
+			if opcodeByte>>POpcodeShift != OpcodeHARDResetClientV2 {
+				t.Errorf("UDP mode: first byte should be V2 client reset opcode (7), got opcode=%d (0x%02X) (length prefix leaked into UDP?)", opcodeByte>>POpcodeShift, opcodeByte)
 			}
 			return
 		}
 	}
 	t.Fatal("no up-direction UDP data packet found")
+}
+
+// F7 — Static-key (P2P 静态密钥) TCP mode missing the 2-byte big-endian
+// length prefix.
+//
+// The F6 fix added the 2B BE length prefix to the *normal* TCP path by routing
+// all control/data packets through emitTCPData. However the static-key branch
+// (cfg.StaticKeyMode=true, Plan() ~line 503) still calls emitPacket directly,
+// bypassing emitTCPData, so its P_DATA_V1 packets carry the raw opcode byte
+// (0x30 = (P_DATA_V1=6)<<3) as the first TCP payload byte with no length
+// prefix. Wireshark's openvpn dissector therefore cannot delimit the
+// P_DATA_V1 packet on the TCP byte stream and reports no openvpn layer
+// (Protocols in frame: ...:tcp only).
+//
+// Per the OpenVPN TCP framing spec (src/openvpn/mtu.c frame_link_mtu_set +
+// forward.c), EVERY OpenVPN packet on a TCP connection — control OR data,
+// normal OR static-key — is prefixed with a 2-byte big-endian length giving
+// the byte count of the following OpenVPN packet (excluding the prefix). UDP
+// static-key mode keeps no prefix (datagrams are self-delimiting).
+//
+// This test fails on the buggy code (first payload byte is 0x30, the raw
+// P_DATA_V1 opcode) and passes after the static-key TCP path is routed
+// through emitTCPData.
+
+func TestF7_StaticKeyTCPModeLengthPrefix(t *testing.T) {
+	spec := defaultOpenVPNSpec()
+	spec.UDP = nil
+	spec.TCP = &core.TCPConfig{
+		Handshake:   true,
+		Termination: true,
+		MSS:         1460,
+	}
+	spec.OpenVPN.Proto = "tcp"
+	spec.OpenVPN.StaticKeyMode = true
+	spec.OpenVPN.DataPacketCount = 1
+	spec.OpenVPN.DataPayload = make([]byte, 64)
+	for i := range spec.OpenVPN.DataPayload {
+		spec.OpenVPN.DataPayload[i] = 0xAB
+	}
+
+	planner := NewPlanner()
+	ctx := context.Background()
+
+	configChan, err := planner.Plan(ctx, spec)
+	if err != nil {
+		t.Fatalf("Plan failed: %v", err)
+	}
+	packets := collectPackets(ctx, t, configChan)
+
+	// Collect every PSH-ACK (0x18) TCP data packet. In static-key TCP mode
+	// these carry the P_DATA_V1 OpenVPN packets (both client->server "up"
+	// and server->client "down"). Both directions must be length-prefixed.
+	var dataPkts []core.PacketConfig
+	for _, p := range packets {
+		if p.L4.Protocol == "tcp" && p.L4.Flags == 0x18 && len(p.Payload) > 0 {
+			dataPkts = append(dataPkts, p)
+		}
+	}
+	if len(dataPkts) == 0 {
+		t.Fatal("no PSH-ACK TCP data packets found in static-key TCP mode")
+	}
+
+	for idx, p := range dataPkts {
+		payload := p.Payload
+		if len(payload) < 3 {
+			t.Fatalf("data pkt %d: payload too short (%d bytes)", idx, len(payload))
+		}
+
+		// Bytes 0-1: big-endian length of the OpenVPN packet that follows
+		// (excluding the 2-byte prefix). For a single TCP segment carrying
+		// one full OpenVPN packet this equals len(payload)-2.
+		declaredLen := int(payload[0])<<8 | int(payload[1])
+		if declaredLen != len(payload)-2 {
+			t.Errorf("data pkt %d (dir=%s): TCP length prefix declared %d, want %d (len-2); "+
+				"first bytes = %02X %02X %02X (raw opcode at byte 0 — no length prefix)",
+				idx, p.Direction, declaredLen, len(payload)-2,
+				payload[0], payload[1], payload[2])
+			continue
+		}
+
+		// Byte 2 must be a valid P_DATA_V1 header byte: opcode 6 in the high
+		// 5 bits -> (6<<3)|key_id = 0x30 when key_id=0. The byte must NOT be
+		// the raw opcode at offset 0 (which is the bug signature).
+		opcodeByte := payload[2]
+		if opcodeByte>>POpcodeShift != OpcodeDATAV1 {
+			t.Errorf("data pkt %d (dir=%s): after length prefix, opcode=%d, want P_DATA_V1 (%d); "+
+				"byte[2]=0x%02X",
+				idx, p.Direction, opcodeByte>>POpcodeShift, OpcodeDATAV1, opcodeByte)
+		}
+	}
+}
+
+// TestF7_StaticKeyUDPModeNoPrefix confirms static-key UDP mode does NOT get a
+// length prefix — UDP datagrams are self-delimiting, and static-key mode is
+// agnostic to transport framing. Guards against an over-broad fix that
+// prefixes static-key packets on both transports.
+func TestF7_StaticKeyUDPModeNoPrefix(t *testing.T) {
+	spec := defaultOpenVPNSpec() // UDP mode
+	spec.OpenVPN.StaticKeyMode = true
+	spec.OpenVPN.DataPacketCount = 1
+
+	planner := NewPlanner()
+	ctx := context.Background()
+
+	configChan, err := planner.Plan(ctx, spec)
+	if err != nil {
+		t.Fatalf("Plan failed: %v", err)
+	}
+	packets := collectPackets(ctx, t, configChan)
+
+	// In UDP static-key mode the first up packet must start with the raw
+	// P_DATA_V1 opcode byte (6<<3 = 0x30), NOT a 2-byte length prefix.
+	for _, p := range packets {
+		if p.Direction == "up" && p.L4.Protocol == "udp" && len(p.Payload) > 0 {
+			opcodeByte := p.Payload[0]
+			if opcodeByte>>POpcodeShift != OpcodeDATAV1 {
+				t.Errorf("UDP static-key: first byte should be P_DATA_V1 opcode (6), got opcode=%d (0x%02X) (length prefix leaked into UDP?)",
+					opcodeByte>>POpcodeShift, opcodeByte)
+			}
+			return
+		}
+	}
+	t.Fatal("no up-direction UDP static-key data packet found")
 }

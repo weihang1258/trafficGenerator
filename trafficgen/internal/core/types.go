@@ -2416,13 +2416,24 @@ type NTPConfig struct {
 	PollInterval int  `json:"poll_interval,omitempty"`
 	RepeatCount  int  `json:"repeat_count,omitempty"`
 
-	// Control message fields (Mode=6, RFC 5906). The control header is 8
-	// bytes: Version(2)|LI(2)|Mode(4) | Sequence | Implementation |
-	// RequestCode | (Error|More|StatusWord 16-bit) | DataSize. ControlData is
-	// the variable-length Data region (max 464 bytes; total packet max 472).
-	Sequence       uint8  `json:"sequence,omitempty"`
+	// Control message fields (Mode=6, RFC 1305 App. B / ntpd ntp_control.h).
+	// The control header is 12 bytes:
+	//   byte 0: LI(2)|VN(3)|Mode(3)
+	//   byte 1: R(1)|E(1)|M(1)|OpCode(5)
+	//   bytes 2-3: Sequence (16-bit)
+	//   bytes 4-5: Status (16-bit)
+	//   bytes 6-7: Association ID (16-bit)
+	//   bytes 8-9: Offset (16-bit)
+	//   bytes 10-11: Count (16-bit) = data length
+	//   bytes 12+: Data (max 468 = ntpd CTL_MAX_DATA_LEN)
+	// RequestCode is the 5-bit OpCode (0-31, ntpd CTL_OP_*). Sequence,
+	// AssociationID, and Offset are 16-bit. ControlData is the variable-length
+	// Data region (max 468 bytes; total packet max 480).
+	Sequence       uint16 `json:"sequence,omitempty"`
 	Implementation uint8  `json:"implementation,omitempty"`
 	RequestCode    uint8  `json:"request_code,omitempty"`
+	AssociationID  uint16 `json:"association_id,omitempty"`
+	Offset         uint16 `json:"offset,omitempty"`
 	Error          bool   `json:"error,omitempty"`
 	More           bool   `json:"more,omitempty"`
 	StatusWord     uint16 `json:"status_word,omitempty"`
@@ -2468,9 +2479,13 @@ type OpenVPNConfig struct {
 	// V1/V2, 3 bits for V3).
 	KeyID uint8 `json:"key_id,omitempty"`
 
-	// SessionID is the OpenVPN session ID. 3-byte for V2/V3; 0 = random.
-	// In V2/V3: SESSION_ID in payload header.
-	SessionID uint32 `json:"session_id,omitempty"`
+	// SessionID is the OpenVPN session ID. Real OpenVPN uses an 8-byte
+	// session_id (SID_SIZE=8 in src/openvpn/ssl_pkt.h), parsed as 8 bytes by
+	// Wireshark for all control/ack opcodes. 0 = random. Stored as uint64
+	// to hold the full 64-bit value; emitted as 8 bytes big-endian on the
+	// wire for V1/V2/V3 control packets. P_DATA_V1 emits no session_id;
+	// P_DATA_V2 emits a 3-byte peer_id instead.
+	SessionID uint64 `json:"session_id,omitempty"`
 
 	// TLSAuth, when true, prepends HMAC-SHA1 tag (20 bytes) to each
 	// P_CONTROL payload. Maps to --tls-auth file. false = no tls-auth.

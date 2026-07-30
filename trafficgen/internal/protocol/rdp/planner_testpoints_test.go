@@ -2557,6 +2557,239 @@ func TestResource_LargeRSAKey(t *testing.T) {
 	}
 }
 
+// =================== §7 TLS placeholder byte layout ===================
+//
+// Per RFC 8446 §4.1.3 (ServerHello) / RFC 5246 §7.4.1.3, the ServerHello
+// fragment differs from ClientHello in two key ways:
+//   - cipher_suite is a SINGLE CipherSuite (2 bytes), NOT a length-prefixed
+//     vector (ClientHello uses cipher_suites<2..2^16-2> with a 2-byte len).
+//   - legacy_compression_method is a SINGLE uint8 (1 byte), NOT a
+//     length-prefixed vector (ClientHello uses compression_methods<1..2^8-1>
+//     with a 1-byte len).
+//
+// A prior version of encodeTLSHandshakePlaceholderResponse mistakenly wrote
+// the ClientHello-style length prefixes, shifting every subsequent field.
+// Wireshark then read extensions_len from the wrong offset, producing
+// "Extensions Length: 12033 [Malformed]". These tests pin the RFC layout.
+
+// TestTLS_ServerHelloLayout verifies the ServerHello placeholder byte
+// sequence against the RFC 8446 §4.1.3 field order and asserts that the
+// record/handshake length fields exactly match the fragment they delimit
+// (no off-by-N, no spurious zero-padding).
+func TestTLS_ServerHelloLayout(t *testing.T) {
+	out := encodeTLSHandshakePlaceholderResponse(&core.RDPConfig{SecurityLayer: "tls"})
+
+	// --- TLS record header (RFC 8446 §5.1) ---
+	if len(out) < 5 {
+		t.Fatalf("ServerHello output too short: %d bytes", len(out))
+	}
+	if out[0] != 0x16 {
+		t.Errorf("record ContentType = 0x%02x, want 0x16 (Handshake)", out[0])
+	}
+	// legacy_record_version: 0x0301 is acceptable (many implementations
+	// send 0x0301 in the record header even for TLS 1.2/1.3).
+	if out[1] != 0x03 || out[2] != 0x01 {
+		t.Errorf("record Version = 0x%02x%02x, want 0x0301", out[1], out[2])
+	}
+	recLen := binary.BigEndian.Uint16(out[3:5])
+	// The record payload must be exactly the handshake message (no padding).
+	if int(recLen) != len(out)-5 {
+		t.Errorf("record Length = %d, want %d (must equal fragment length, no padding)",
+			recLen, len(out)-5)
+	}
+
+	// --- Handshake header (RFC 8446 §4) ---
+	hs := out[5:]
+	if hs[0] != 0x02 {
+		t.Errorf("handshake type = 0x%02x, want 0x02 (ServerHello)", hs[0])
+	}
+	hsLen := uint32(hs[1])<<16 | uint32(hs[2])<<8 | uint32(hs[3])
+	// The 3-byte handshake length must equal the body length exactly.
+	wantHsLen := uint32(len(hs) - 4)
+	if hsLen != wantHsLen {
+		t.Errorf("handshake Length = %d, want %d (must equal body length, no padding)",
+			hsLen, wantHsLen)
+	}
+
+	// --- ServerHello body (RFC 8446 §4.1.3) ---
+	// Field order: legacy_version(2) + random(32) + session_id_echo<0..32>
+	//   + cipher_suite(2) + legacy_compression_method(1) + extensions<6..>(2+len).
+	off := 4
+	// legacy_version = 0x0303 (TLS 1.2).
+	if hs[off] != 0x03 || hs[off+1] != 0x03 {
+		t.Errorf("legacy_version = 0x%02x%02x, want 0x0303", hs[off], hs[off+1])
+	}
+	off += 2
+	// random: 32 bytes.
+	if int(off+32) > len(hs) {
+		t.Fatalf("handshake too short for 32-byte random: off=%d len=%d", off, len(hs))
+	}
+	off += 32
+	// legacy_session_id_echo: 1-byte length echoed from ClientHello (which
+	// sends length 0), so this must be 0x00 with no following bytes.
+	if hs[off] != 0x00 {
+		t.Errorf("session_id_echo length = 0x%02x, want 0x00 (echo empty ClientHello session_id)", hs[off])
+	}
+	off += 1
+	// cipher_suite: 2 bytes, NO length prefix (this is the bug site).
+	if int(off+2) > len(hs) {
+		t.Fatalf("handshake too short for cipher_suite: off=%d len=%d", off, len(hs))
+	}
+	cipher := binary.BigEndian.Uint16(hs[off : off+2])
+	if cipher != 0x002F {
+		t.Errorf("cipher_suite = 0x%04x, want 0x002F (TLS_RSA_WITH_AES_128_CBC_SHA)", cipher)
+	}
+	// The byte immediately before cipher_suite must NOT be a 2-byte length
+	// prefix of 0x0002; the previous byte is session_id_echo_len (0x00).
+	// If a length prefix were present, hs[off-1] would be 0x02. Assert it
+	// is 0x00 to guard against the regression.
+	if hs[off-1] == 0x02 && hs[off-2] == 0x00 {
+		t.Errorf("found ClientHello-style cipher_suites length prefix (0x00 0x02) before cipher_suite at off=%d; ServerHello must have NO length prefix", off)
+	}
+	off += 2
+	// legacy_compression_method: 1 byte, NO length prefix (this is the bug site).
+	if int(off+1) > len(hs) {
+		t.Fatalf("handshake too short for compression_method: off=%d len=%d", off, len(hs))
+	}
+	if hs[off] != 0x00 {
+		t.Errorf("legacy_compression_method = 0x%02x, want 0x00 (null)", hs[off])
+	}
+	// Guard against a 1-byte length prefix (0x01) before the compression
+	// method: if present, hs[off] would be 0x01 instead of 0x00.
+	off += 1
+	// extensions: 2-byte length + data. For the placeholder, length must be
+	// 0 (no extensions), NOT the malformed 12033 (0x2F01).
+	if int(off+2) > len(hs) {
+		t.Fatalf("handshake too short for extensions_length: off=%d len=%d", off, len(hs))
+	}
+	extLen := binary.BigEndian.Uint16(hs[off : off+2])
+	if extLen != 0 {
+		t.Errorf("extensions_length = %d (0x%04x), want 0 (field misalignment causes Wireshark 'Vector length %d is too large')",
+			extLen, extLen, extLen)
+	}
+	off += 2
+
+	// After extensions (length 0), there must be NO trailing padding bytes.
+	if off != len(hs) {
+		t.Errorf("trailing bytes after extensions: %d extra byte(s) (handshake declared %d, parsed %d) -- spurious zero-padding inflates the record",
+			len(hs)-off, hsLen, off-4)
+	}
+}
+
+// TestTLS_ServerHelloNoMalformedExtensionsLength is a focused regression
+// test for the exact Wireshark malformation: extensions_length must never
+// decode to 0x2F01 (12033), which happens when cipher_suite/compression
+// length prefixes shift the extensions_length field by 3 bytes.
+func TestTLS_ServerHelloNoMalformedExtensionsLength(t *testing.T) {
+	out := encodeTLSHandshakePlaceholderResponse(&core.RDPConfig{SecurityLayer: "tls"})
+	hs := out[5:]
+	// Parse per RFC 8446 §4.1.3: skip type(1)+len(3)+version(2)+random(32)+
+	// session_id_echo_len(1)+session_id(0)+cipher_suite(2)+compression(1).
+	off := 4 + 2 + 32 + 1 + 0 + 2 + 1
+	if off+2 > len(hs) {
+		t.Fatalf("handshake too short to read extensions_length at off=%d", off)
+	}
+	extLen := binary.BigEndian.Uint16(hs[off : off+2])
+	if extLen == 0x2F01 || extLen > 256 {
+		t.Fatalf("malformed extensions_length = %d (0x%04x); expected 0 -- this is the Wireshark 'Vector length 12033 is too large' bug",
+			extLen, extLen)
+	}
+}
+
+// TestTLS_ClientHelloLayoutHasLengthPrefixes confirms the ClientHello
+// placeholder keeps its (RFC-correct) length-prefixed cipher_suites and
+// compression_methods vectors, so it is NOT affected by the ServerHello fix.
+func TestTLS_ClientHelloLayoutHasLengthPrefixes(t *testing.T) {
+	out := encodeTLSHandshakePlaceholder(&core.RDPConfig{SecurityLayer: "tls"})
+	hs := out[5:]
+	if hs[0] != 0x01 {
+		t.Errorf("handshake type = 0x%02x, want 0x01 (ClientHello)", hs[0])
+	}
+	// ClientHello body: version(2) + random(32) + session_id<0..32>(1+len)
+	//   + cipher_suites<2..2^16-2>(2+len) + compression_methods<1..2^8-1>(1+len)
+	//   + extensions<8..2^16-1>(2+len).
+	off := 4 + 2 + 32
+	if hs[off] != 0x00 {
+		t.Errorf("session_id length = 0x%02x, want 0x00", hs[off])
+	}
+	off += 1
+	// cipher_suites length prefix (2 bytes, BE) -- ClientHello DOES have this.
+	csLen := binary.BigEndian.Uint16(hs[off : off+2])
+	if csLen != 2 {
+		t.Errorf("cipher_suites length = %d, want 2 (ClientHello has length-prefixed vector)", csLen)
+	}
+	off += 2
+	cipher := binary.BigEndian.Uint16(hs[off : off+2])
+	if cipher != 0x002F {
+		t.Errorf("cipher_suite = 0x%04x, want 0x002F", cipher)
+	}
+	off += 2
+	// compression_methods length prefix (1 byte) -- ClientHello DOES have this.
+	if hs[off] != 0x01 {
+		t.Errorf("compression_methods length = 0x%02x, want 0x01", hs[off])
+	}
+	off += 1
+	if hs[off] != 0x00 {
+		t.Errorf("compression method = 0x%02x, want 0x00 (null)", hs[off])
+	}
+}
+
+// TestTLS_ServerHelloE2EFromPlan drains the full Planner output and finds
+// the TLS ServerHello record (down direction, ContentType 0x16 with
+// handshake type 0x02 after the X.224 CC), then asserts the RFC 8446
+// §4.1.3 layout. This guards the integration path (planner -> up/down ->
+// PacketConfig.Payload) that the encoder unit test alone does not cover.
+func TestTLS_ServerHelloE2EFromPlan(t *testing.T) {
+	p := NewPlanner()
+	spec := core.FlowSpec{
+		SrcIP: "1.1.1.1", DstIP: "2.2.2.2",
+		SrcPort: 1000, SrcMAC: "aa:bb:cc:dd:ee:ff",
+		DstMAC: "11:22:33:44:55:66",
+		RDP:    &core.RDPConfig{SecurityLayer: "tls"},
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	var found bool
+	for cfg := range ch {
+		if cfg.Direction != "down" || len(cfg.Payload) < 6 {
+			continue
+		}
+		// TLS record: 0x16 0x03 0x01 <len2> 0x02(ServerHello) ...
+		if cfg.Payload[0] != 0x16 || cfg.Payload[5] != 0x02 {
+			continue
+		}
+		found = true
+		hs := cfg.Payload[5:]
+		// RFC 8446 §4.1.3: type(1)+len(3)+version(2)+random(32)+
+		// session_id_echo_len(1)+session_id(0)+cipher_suite(2)+compression(1).
+		cipherOff := 4 + 2 + 32 + 1
+		if cipherOff+2 > len(hs) {
+			t.Fatalf("E2E ServerHello too short for cipher_suite at off=%d", cipherOff)
+		}
+		cipher := uint16(hs[cipherOff])<<8 | uint16(hs[cipherOff+1])
+		if cipher != 0x002F {
+			t.Errorf("E2E ServerHello cipher_suite = 0x%04x, want 0x002F", cipher)
+		}
+		compOff := cipherOff + 2
+		if hs[compOff] != 0x00 {
+			t.Errorf("E2E ServerHello compression = 0x%02x, want 0x00", hs[compOff])
+		}
+		extOff := compOff + 1
+		if extOff+2 > len(hs) {
+			t.Fatalf("E2E ServerHello too short for extensions_length at off=%d", extOff)
+		}
+		ext := uint16(hs[extOff])<<8 | uint16(hs[extOff+1])
+		if ext != 0 {
+			t.Errorf("E2E ServerHello extensions_length = %d (0x%04x), want 0", ext, ext)
+		}
+	}
+	if !found {
+		t.Fatal("E2E: no TLS ServerHello (0x16..0x02) down-packet found in Plan output")
+	}
+}
+
 // =================== Auxiliary / helpers ===================
 
 func TestBER_LengthShortForm(t *testing.T) {

@@ -1208,10 +1208,16 @@ func encodeTransforms(transforms []core.IKETransform) []byte {
 		//          Type(1) + Reserved2(1) + ID(2) + Attributes
 		attrs := t.RawAttributes
 		if len(attrs) == 0 && t.KeyLengthBits > 0 {
-			// Encode Key Length as a TLV attribute (RFC 7296 §3.3.2,
-			// attribute type 14). Format: Attribute Type(2) + Attribute
-			// Value (2 bytes = key length in bits for this transform type).
-			attrs = []byte{0x00, 0x0E, byte(t.KeyLengthBits >> 8), byte(t.KeyLengthBits & 0xFF)}
+			// Encode Key Length as a TV (short-form) Transform Attribute
+			// (RFC 7296 §3.3.5). The Key Length attribute (type 14) is fixed
+			// length and MUST use the Type/Value form with AF=1. Wire layout:
+			//   AF(1 bit)=1 | Attribute Type(15 bits)=14 | Attribute Value(2 bytes)
+			// For AES-128 this is 0x80 0x0E 0x00 0x80. Setting AF=0 (TLV form)
+			// would make the following 2 bytes (0x00 0x80) be parsed as a
+			// 128-byte Attribute Length, causing Wireshark to swallow the next
+			// transforms as attribute value — exactly the malformed-packet
+			// symptom reported on IKE_SA_INIT.
+			attrs = []byte{0x80 | byte((14>>8)&0x7F), byte(14 & 0xFF), byte(t.KeyLengthBits >> 8), byte(t.KeyLengthBits & 0xFF)}
 		}
 		tLen := 8 + len(attrs)
 		body := make([]byte, tLen)

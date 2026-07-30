@@ -1948,24 +1948,44 @@ func encodeTLSHandshakePlaceholder(cfg *core.RDPConfig) []byte {
 
 // encodeTLSHandshakePlaceholderResponse emits a TLS ServerHello-like
 // response for symmetry with the ClientHello placeholder.
+//
+// Per RFC 8446 §4.1.3 (and identically RFC 5246 §7.4.1.3), ServerHello
+// differs from ClientHello in two fields that are SINGLE values in
+// ServerHello but length-prefixed VECTORS in ClientHello:
+//   - cipher_suite: a single CipherSuite (2 bytes), NOT cipher_suites<2..>
+//     with a 2-byte length prefix.
+//   - legacy_compression_method: a single uint8 (1 byte), NOT
+//     compression_methods<1..> with a 1-byte length prefix.
+//
+// Writing the ClientHello-style length prefixes here shifts every
+// subsequent field; Wireshark then reads extensions_length from the wrong
+// offset and reports "Vector length 12033 is too large" (0x2F01 formed
+// from the cipher byte 0x2F and the compression length 0x01). The body is
+// built with no spurious zero-padding: the handshake length and record
+// length exactly equal the bytes they delimit.
 func encodeTLSHandshakePlaceholderResponse(cfg *core.RDPConfig) []byte {
-	handshake := make([]byte, 0, 80)
-	handshake = append(handshake, 0x02)            // ServerHello
-	handshake = append(handshake, 0x00, 0x00, 0x40)
-	handshake = append(handshake, 0x03, 0x03)
+	handshake := make([]byte, 0, 48)
+	handshake = append(handshake, 0x02) // ServerHello
+	// Handshake length placeholder (3 bytes); filled in once the body is known.
+	handshake = append(handshake, 0x00, 0x00, 0x00)
+	handshake = append(handshake, 0x03, 0x03) // legacy_version TLS 1.2
 	random := make([]byte, 32)
 	for i := range random {
 		random[i] = byte(0xFF - i)
 	}
 	handshake = append(handshake, random...)
-	handshake = append(handshake, 0x00)
-	handshake = append(handshake, 0x00, 0x02)
-	handshake = append(handshake, 0x00, 0x2F)
-	handshake = append(handshake, 0x01, 0x00)
-	handshake = append(handshake, 0x00, 0x00)
-	for len(handshake) < 4+64 {
-		handshake = append(handshake, 0x00)
-	}
+	handshake = append(handshake, 0x00)       // legacy_session_id_echo length = 0 (echo empty ClientHello)
+	handshake = append(handshake, 0x00, 0x2F) // cipher_suite = TLS_RSA_WITH_AES_128_CBC_SHA (NO length prefix)
+	handshake = append(handshake, 0x00)       // legacy_compression_method = null (NO length prefix)
+	handshake = append(handshake, 0x00, 0x00) // extensions length = 0
+
+	// Backfill the 3-byte handshake length with the exact body size.
+	bodyLen := uint32(len(handshake) - 4)
+	handshake[1] = byte(bodyLen >> 16)
+	handshake[2] = byte(bodyLen >> 8)
+	handshake[3] = byte(bodyLen)
+
+	// Record header: ContentType=0x16 (Handshake) + Version 0x0301 + Length.
 	out := make([]byte, 5+len(handshake))
 	out[0] = 0x16
 	out[1] = 0x03

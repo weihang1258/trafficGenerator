@@ -4,7 +4,12 @@
 // 协议, RFC 1661) frame encapsulation.
 //
 // The L2TP control plane uses AVP (Attribute-Value Pair, 属性值对) sequences
-// per RFC 2661 §4.1 with 4-byte alignment padding. The planner writes 14
+// per RFC 2661 §4.1. The AVP header is 6 bytes (M|H|rsvd|Length(10 bits) +
+// Vendor ID(2) + Attribute Type(2)); the 10-bit Length field counts the whole
+// AVP including the 6-byte header (min 6, max 1023). There is NO inter-AVP
+// padding — RFC 2661 §4.1 and RFC 3931 §5.1 define no alignment requirement,
+// and Wireshark's packet-l2tp.c advances by the declared Length only.
+// The planner writes 14
 // control-message types (SCCRQ/SCCRP/SCCCN/StopCCN/HELLO/OCRQ/OCRP/OCCN/
 // ICRQ/ICRP/ICCN/CDN/WEN/SLI) and dispatches scenarios based on the
 // L2TPConfig.Role ("lac" or "lns") field. Data messages follow RFC 2661
@@ -35,8 +40,11 @@ const (
 	VersionL2TPv2 uint8 = 2
 	VersionL2TPv3 uint8 = 3
 
-	// Maximum AVP length per RFC 2661 §4.1 (12-bit Length field).
-	maxAVPLength uint16 = 0x0FFF // 4095
+	// Maximum AVP length per RFC 2661 §4.1 (10-bit Length field, including
+	// the 6-byte header). The planner previously used 0x0FFF (12 bits), which
+	// let AVPs exceed 1023 and corrupted reserved bits 10-11 of the first
+	// word.
+	maxAVPLength uint16 = 0x03FF // 1023
 
 	// Control-message header sizes (v2 vs v3).
 	v2ControlHeaderSize = 12 // Flags+Ver(2) + Length(2) + TunnelID(2) + SessionID(2) + Ns(2) + Nr(2)
@@ -238,12 +246,13 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	return nil
 }
 
-// validateAVPLength checks that an AVP value fits within the 12-bit Length
-// field (max 4095 bytes total AVP size including 6-byte header).
+// validateAVPLength checks that an AVP value fits within the 10-bit Length
+// field (max 1023 bytes total AVP size including 6-byte header) per RFC 2661
+// §4.1.
 func validateAVPLength(i int, a core.L2TPAVP) error {
 	total := 6 + len(a.Value)
 	if total > int(maxAVPLength) {
-		return fmt.Errorf("l2tp: CustomAVPs[%d] total length %d exceeds max %d (RFC 2661 §4.1)", i, total, maxAVPLength)
+		return fmt.Errorf("l2tp: CustomAVPs[%d] total length %d exceeds max %d (RFC 2661 §4.1, 10-bit Length field)", i, total, maxAVPLength)
 	}
 	return nil
 }
@@ -252,7 +261,7 @@ func validateAVPLength(i int, a core.L2TPAVP) error {
 func validateAVPLengthForStep(si int, stepType string, ai int, a core.L2TPAVP) error {
 	total := 6 + len(a.Value)
 	if total > int(maxAVPLength) {
-		return fmt.Errorf("l2tp: Scenarios[%d] (%s) AVPs[%d] total length %d exceeds max %d", si, stepType, ai, total, maxAVPLength)
+		return fmt.Errorf("l2tp: Scenarios[%d] (%s) AVPs[%d] total length %d exceeds max %d (RFC 2661 §4.1, 10-bit Length field)", si, stepType, ai, total, maxAVPLength)
 	}
 	return nil
 }
@@ -877,16 +886,22 @@ func buildDataMessage(version uint8, localTunID uint16, localSesID uint16, local
 	return append(hdr, pppPayload...)
 }
 
-// buildAVPs serializes a list of AVPs into bytes. Each AVP is 4-byte aligned
-// per RFC 2661 §4.1. Returns an error if any AVP exceeds the 4095-byte limit.
+// buildAVPs serializes a list of AVPs into bytes per RFC 2661 §4.1 / RFC 3931
+// §5.1. Each AVP is 6 bytes of header (M|H|rsvd|Length(10 bits) + Vendor ID +
+// Attribute Type) followed by the Attribute Value. There is NO inter-AVP
+// padding: neither RFC defines 4-byte alignment, and Wireshark's packet-l2tp.c
+// advances by the declared Length only. Returns an error if any AVP exceeds
+// the 10-bit Length max (1023).
 func buildAVPs(avps []core.L2TPAVP) ([]byte, error) {
 	var buf []byte
 	for i, a := range avps {
 		total := 6 + len(a.Value)
 		if total > int(maxAVPLength) {
-			return nil, fmt.Errorf("l2tp: AVP[%d] length %d exceeds max %d", i, total, maxAVPLength)
+			return nil, fmt.Errorf("l2tp: AVP[%d] total length %d exceeds max %d (RFC 2661 §4.1, 10-bit Length field)", i, total, maxAVPLength)
 		}
-		// M/H/Length (2 bytes): bit 15 = M, bit 14 = H, bits 0-11 = length.
+		// First word: bit 15 = M, bit 14 = H, bits 13-10 reserved (0), bits
+		// 9-0 = Length. The Length is the 10-bit field covering the whole
+		// AVP including the 6-byte header.
 		var mh uint16
 		if a.Mandatory {
 			mh |= 0x8000
@@ -894,7 +909,7 @@ func buildAVPs(avps []core.L2TPAVP) ([]byte, error) {
 		if a.Hidden {
 			mh |= 0x4000
 		}
-		mh |= uint16(total) & 0x0FFF
+		mh |= uint16(total) & 0x03FF
 		buf = binary.BigEndian.AppendUint16(buf, mh)
 		// Vendor ID (2 bytes).
 		buf = binary.BigEndian.AppendUint16(buf, a.VendorID)
@@ -902,11 +917,8 @@ func buildAVPs(avps []core.L2TPAVP) ([]byte, error) {
 		buf = binary.BigEndian.AppendUint16(buf, a.AttrType)
 		// Value.
 		buf = append(buf, a.Value...)
-		// Padding to 4-byte boundary.
-		pad := (4 - (total % 4)) % 4
-		for j := 0; j < pad; j++ {
-			buf = append(buf, 0)
-		}
+		// No padding: RFC 2661 §4.1 / RFC 3931 §5.1 define no alignment
+		// requirement, and Wireshark advances by declared Length only.
 	}
 	return buf, nil
 }

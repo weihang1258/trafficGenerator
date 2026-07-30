@@ -77,28 +77,28 @@ func TestOpenVPN_StandardUDPV2(t *testing.T) {
 	if packets[0].L4.Protocol != "udp" {
 		t.Errorf("packet 0 L4 protocol: expected udp, got %s", packets[0].L4.Protocol)
 	}
-	// Payload should start with opcode=4 (P_CONTROL_HARD_RESET_CLIENT_V2): (4<<5)|0 = 0x80
-	if len(packets[0].Payload) == 0 || packets[0].Payload[0] != 0x80 {
-		t.Errorf("packet 0 first byte: expected 0x80 (opcode=4, key_id=0), got 0x%02X", packets[0].Payload[0])
+	// Payload should start with opcode=7 (P_CONTROL_HARD_RESET_CLIENT_V2): (7<<3)|0 = 0x38
+	if len(packets[0].Payload) == 0 || packets[0].Payload[0] != 0x38 {
+		t.Errorf("packet 0 first byte: expected 0x38 (opcode=7, key_id=0), got 0x%02X", packets[0].Payload[0])
 	}
 
 	// Check packet 1: server→client (down)
 	if packets[1].Direction != "down" {
 		t.Errorf("packet 1 direction: expected down, got %s", packets[1].Direction)
 	}
-	// Payload should start with opcode=5 (P_CONTROL_HARD_RESET_SERVER_V2): (5<<5)|0 = 0xA0
-	if len(packets[1].Payload) == 0 || packets[1].Payload[0] != 0xA0 {
-		t.Errorf("packet 1 first byte: expected 0xA0 (opcode=5, key_id=0), got 0x%02X", packets[1].Payload[0])
+	// Payload should start with opcode=8 (P_CONTROL_HARD_RESET_SERVER_V2): (8<<3)|0 = 0x40
+	if len(packets[1].Payload) == 0 || packets[1].Payload[0] != 0x40 {
+		t.Errorf("packet 1 first byte: expected 0x40 (opcode=8, key_id=0), got 0x%02X", packets[1].Payload[0])
 	}
 
-	// Check packet 2: client→server P_DATA_V2: first byte should be 0x40 (P_DATA_V2 high bits)
-	if len(packets[2].Payload) == 0 || packets[2].Payload[0] != 0x40 {
-		t.Errorf("packet 2 first byte: expected 0x40 (P_DATA_V2, key_id=0), got 0x%02X", packets[2].Payload[0])
+	// Check packet 2: client→server P_DATA_V2: first byte should be 0x48 (opcode=9, key_id=0 -> (9<<3)|0 = 0x48)
+	if len(packets[2].Payload) == 0 || packets[2].Payload[0] != 0x48 {
+		t.Errorf("packet 2 first byte: expected 0x48 (P_DATA_V2, key_id=0), got 0x%02X", packets[2].Payload[0])
 	}
 
 	// Check packet 3: server→client P_DATA_V2
-	if len(packets[3].Payload) == 0 || packets[3].Payload[0] != 0x40 {
-		t.Errorf("packet 3 first byte: expected 0x40 (P_DATA_V2, key_id=0), got 0x%02X", packets[3].Payload[0])
+	if len(packets[3].Payload) == 0 || packets[3].Payload[0] != 0x48 {
+		t.Errorf("packet 3 first byte: expected 0x48 (P_DATA_V2, key_id=0), got 0x%02X", packets[3].Payload[0])
 	}
 }
 
@@ -169,15 +169,14 @@ func TestOpenVPN_TLSAuth(t *testing.T) {
 		t.Fatalf("expected at least 2 packets, got %d", len(packets))
 	}
 
-	// Client reset packet: after opcode(1) + session_id(3) + packet_id(variadic), should have HMAC
-	// HMAC starts at offset 1+3+1=5 (assuming 1-byte variadic for packet_id=0)
+	// Client reset packet (tls-auth): layout is
+	//   opcode(1) + session_id(8) + hmac(20) + replay_pid(4) + net_time(4) + ack_count(1) + msg_pid(4) + payload
+	// So HMAC starts at offset 9 (after opcode+8B sid).
 	clientPkt := packets[0].Payload
-	// Offset: opcode(1) + session_id(3) + packet_id(variadic ~1) = 5 bytes
-	// After that is 20 bytes of HMAC (0xAA filler)
-	if len(clientPkt) < 25 {
+	if len(clientPkt) < 9+20 {
 		t.Fatalf("client reset payload too short for HMAC: %d bytes", len(clientPkt))
 	}
-	hmacStart := 5 // opcode(1) + session_id(3) + packet_id(1 for 0)
+	hmacStart := 9 // opcode(1) + session_id(8)
 	for i := hmacStart; i < hmacStart+20; i++ {
 		if clientPkt[i] != 0xAA {
 			t.Errorf("HMAC byte %d: expected 0xAA, got 0x%02X", i, clientPkt[i])
@@ -187,7 +186,7 @@ func TestOpenVPN_TLSAuth(t *testing.T) {
 
 	// Server reset packet: same structure
 	serverPkt := packets[1].Payload
-	if len(serverPkt) < 25 {
+	if len(serverPkt) < 9+20 {
 		t.Fatalf("server reset payload too short for HMAC: %d bytes", len(serverPkt))
 	}
 	for i := hmacStart; i < hmacStart+20; i++ {
@@ -220,10 +219,10 @@ func TestOpenVPN_TLSCrypt(t *testing.T) {
 		t.Fatalf("expected at least 2 packets, got %d", len(packets))
 	}
 
-	// Client reset: after opcode(1) + session_id(3) + packet_id(1) = 5 bytes,
-	// then wrapped_key: auth-tag(32) + IV(16) + cipher_key(32) = 80 bytes
+	// Client reset: layout is opcode(1) + session_id(8) + wrapped_key(80) + ...
+	// wrapped_key starts at offset 9.
 	clientPkt := packets[0].Payload
-	wrapStart := 5
+	wrapStart := 9
 	if len(clientPkt) < wrapStart+80 {
 		t.Fatalf("client reset too short for tls-crypt wrap: %d bytes, need %d", len(clientPkt), wrapStart+80)
 	}
@@ -268,11 +267,11 @@ func TestOpenVPN_TLSCryptV2(t *testing.T) {
 	}
 
 	clientPkt := packets[0].Payload
-	// After opcode(1) + session_id(3) + packet_id(1) = 5 bytes,
+	// Layout: opcode(1) + session_id(8) + wrapped_key(2+4+80) + ...
 	// tls-crypt-v2: length_prefix(2) + wrapped_key_id(4) + auth-tag(32) + IV(16) + cipher_key(32)
 	// length prefix = 0x0050 (80)
 	// wrapped_key_id = 0x00000001
-	wrapStart := 5
+	wrapStart := 9
 	if len(clientPkt) < wrapStart+2+4+80 {
 		t.Fatalf("client reset too short for tls-crypt-v2 wrap: %d bytes", len(clientPkt))
 	}
@@ -330,10 +329,10 @@ func TestOpenVPN_MultipleDataPackets(t *testing.T) {
 		t.Fatalf("expected at least 8 packets (2 control + 6 data), got %d", len(packets))
 	}
 
-	// Count P_DATA_V2 packets (first byte 0x40)
+	// Count P_DATA_V2 packets (opcode 9 -> (9<<3)|0 = 0x48)
 	dataCount := 0
 	for _, p := range packets {
-		if len(p.Payload) > 0 && p.Payload[0] == 0x40 {
+		if len(p.Payload) > 0 && p.Payload[0]>>POpcodeShift == OpcodeDATAV2 {
 			dataCount++
 		}
 	}
@@ -365,16 +364,16 @@ func TestOpenVPN_SoftReset(t *testing.T) {
 		t.Fatalf("expected at least 6 packets (2 control + 2 data + 1 soft_reset + 1 data), got %d", len(packets))
 	}
 
-	// Find the soft reset packet (opcode=3, first byte = (3<<5) = 0x60, with key_id=1 -> 0x61)
+	// Find the soft reset packet (opcode=3, first byte = (3<<3) = 0x18, with key_id=1 -> 0x19)
 	softResetFound := false
 	for _, p := range packets {
-		if len(p.Payload) > 0 && (p.Payload[0] == 0x60 || p.Payload[0] == 0x61) {
+		if len(p.Payload) > 0 && p.Payload[0]>>POpcodeShift == OpcodeSOFTResetV1 {
 			softResetFound = true
 			break
 		}
 	}
 	if !softResetFound {
-		t.Error("expected P_CONTROL_SOFT_RESET_V1 (0x60/0x61) packet, not found")
+		t.Error("expected P_CONTROL_SOFT_RESET_V1 (opcode=3) packet, not found")
 	}
 }
 
@@ -456,7 +455,7 @@ func TestOpenVPN_Validate_MaxDataPacketCount(t *testing.T) {
 	}
 }
 
-// ---- Validate: V3 key_id max 7 ----
+// ---- Validate: V3 key_id max 7 (3-bit field for all versions) ----
 
 func TestOpenVPN_Validate_V3KeyID(t *testing.T) {
 	spec := defaultOpenVPNSpec()
@@ -469,27 +468,29 @@ func TestOpenVPN_Validate_V3KeyID(t *testing.T) {
 	}
 }
 
-// ---- Validate: key_id max 31 for V1/V2 ----
+// ---- Validate: key_id max 7 (3-bit field per ssl_pkt.h) ----
 
 func TestOpenVPN_Validate_KeyIDMax(t *testing.T) {
 	spec := defaultOpenVPNSpec()
-	spec.OpenVPN.KeyID = 32
+	spec.OpenVPN.KeyID = 8
 	planner := NewPlanner()
 	err := planner.Validate(spec)
 	if err == nil {
-		t.Fatal("expected error for key_id > 31")
+		t.Fatal("expected error for key_id > 7")
 	}
 }
 
-// ---- Validate: session_id must fit in 24 bits ----
+// ---- Validate: session_id is 8 bytes (uint64), no 24-bit cap ----
 
 func TestOpenVPN_Validate_SessionID(t *testing.T) {
+	// Real OpenVPN session_id is 8 bytes; any uint64 is valid. A value
+	// larger than 0xFFFFFF is no longer an error (it fits in 8 bytes).
 	spec := defaultOpenVPNSpec()
 	spec.OpenVPN.SessionID = 0x1000000
 	planner := NewPlanner()
 	err := planner.Validate(spec)
-	if err == nil {
-		t.Fatal("expected error for session_id > 24 bits")
+	if err != nil {
+		t.Errorf("session_id=0x1000000 should be valid (8-byte field), got error: %v", err)
 	}
 }
 
@@ -742,14 +743,14 @@ func TestOpenVPN_StaticKeyMode(t *testing.T) {
 		t.Fatalf("expected 2 packets for static key mode, got %d", len(packets))
 	}
 
-	// First packet should be P_DATA_V1 (opcode=7, first byte = (7<<5) = 0xE0)
-	if len(packets[0].Payload) == 0 || packets[0].Payload[0] != 0xE0 {
-		t.Errorf("packet 0: expected 0xE0 (P_DATA_V1), got 0x%02X", packets[0].Payload[0])
+	// First packet should be P_DATA_V1 (opcode=6, first byte = (6<<3) = 0x30)
+	if len(packets[0].Payload) == 0 || packets[0].Payload[0] != 0x30 {
+		t.Errorf("packet 0: expected 0x30 (P_DATA_V1), got 0x%02X", packets[0].Payload[0])
 	}
 
 	// Second packet should be P_DATA_V1
-	if len(packets[1].Payload) == 0 || packets[1].Payload[0] != 0xE0 {
-		t.Errorf("packet 1: expected 0xE0 (P_DATA_V1), got 0x%02X", packets[1].Payload[0])
+	if len(packets[1].Payload) == 0 || packets[1].Payload[0] != 0x30 {
+		t.Errorf("packet 1: expected 0x30 (P_DATA_V1), got 0x%02X", packets[1].Payload[0])
 	}
 }
 
@@ -867,6 +868,7 @@ func TestOpenVPN_PktIDVariadic(t *testing.T) {
 
 // ---- RFC field: opcode byte calculation ----
 
+	// Opcode byte test table using the REAL wire encoding.
 func TestOpenVPN_OpcodeByte(t *testing.T) {
 	tests := []struct {
 		name string
@@ -874,26 +876,20 @@ func TestOpenVPN_OpcodeByte(t *testing.T) {
 		keyID uint8
 		want byte
 	}{
-		{"HARD_RESET_CLIENT_V1 key=0", 1, 0, 0x20},
-		{"HARD_RESET_SERVER_V1 key=0", 2, 0, 0x40},
-		{"SOFT_RESET_V1 key=1", 3, 1, 0x61},
-		{"HARD_RESET_CLIENT_V2 key=0", 4, 0, 0x80},
-		{"HARD_RESET_SERVER_V2 key=0", 5, 0, 0xA0},
-		{"HARD_RESET_CLIENT_V3 key=0", 6, 0, 0xC0},
-		{"P_DATA_V1 key=0", 7, 0, 0xE0},
-		{"P_DATA_V1 key=31", 7, 31, 0xFF},
-		{"P_DATA_V2 key=0", 9, 0, 0x40},
-		{"P_DATA_V2 key=31", 9, 31, 0x5F},
+		{"HARD_RESET_CLIENT_V1 key=0", 1, 0, 0x08},
+		{"HARD_RESET_SERVER_V1 key=0", 2, 0, 0x10},
+		{"SOFT_RESET_V1 key=1", 3, 1, 0x19},
+		{"HARD_RESET_CLIENT_V2 key=0", 7, 0, 0x38},
+		{"HARD_RESET_SERVER_V2 key=0", 8, 0, 0x40},
+		{"HARD_RESET_CLIENT_V3 key=0", 10, 0, 0x50},
+		{"DATA_V1 key=0", 6, 0, 0x30},
+		{"DATA_V1 key=7", 6, 7, 0x37},
+		{"DATA_V2 key=0", 9, 0, 0x48},
+		{"DATA_V2 key=7", 9, 7, 0x4F},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got byte
-			if tt.opcode == 9 {
-				// P_DATA_V2 uses high 3 bits = 100b = 0x40
-				got = 0x40 | (tt.keyID & 0x1F)
-			} else {
-				got = byte(tt.opcode<<5) | (tt.keyID & 0x1F)
-			}
+			got := headerByte(tt.opcode, tt.keyID)
 			if got != tt.want {
 				t.Errorf("opcode byte: got 0x%02X, want 0x%02X", got, tt.want)
 			}
@@ -1033,16 +1029,16 @@ func TestOpenVPN_Fragment(t *testing.T) {
 	// Check that data packet has the fragment headers embedded
 	for i := 2; i < 4; i++ {
 		pkt := packets[i].Payload
-		if len(pkt) < 5+5 { // P_DATA_V2 header (5) + fragment header (5)
+		// P_DATA_V2: opcode(1) + peer_id(3) = 4 bytes header, then fragment
+		if len(pkt) < 4+5 {
 			t.Errorf("data packet %d too short: %d bytes", i, len(pkt))
 			continue
 		}
-		// After P_DATA_V2 header (opcode=1 + peer_session_id=3 + packet_id=1), fragment starts at offset ~5
-		// Just check there are bytes
-		if pkt[5] == 0x00 || pkt[5] == 0x20 || pkt[5] == 0x40 {
+		// After P_DATA_V2 header (opcode=1 + peer_id=3), fragment starts at offset 4
+		if pkt[4] == 0x00 || pkt[4] == 0x20 || pkt[4] == 0x40 {
 			// valid frag_info byte
 		} else {
-			t.Errorf("data packet %d: expected fragment info byte at offset 5, got 0x%02X", i, pkt[5])
+			t.Errorf("data packet %d: expected fragment info byte at offset 4, got 0x%02X", i, pkt[4])
 		}
 	}
 }

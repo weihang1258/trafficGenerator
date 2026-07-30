@@ -194,7 +194,7 @@ func TestPlanner_Validate(t *testing.T) {
 					Mode:        ModeControl,
 					Sequence:    1,
 					RequestCode: 1,
-					ControlData: make([]byte, 465),
+					ControlData: make([]byte, 469),
 				},
 			},
 			wantErr: true,

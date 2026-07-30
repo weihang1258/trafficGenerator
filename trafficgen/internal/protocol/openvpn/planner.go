@@ -6,10 +6,20 @@
 // P_CONTROL_HARD_RESET_CLIENT_V2 / SERVER_V2, P_DATA_V2, optional tls-auth HMAC,
 // optional tls-crypt wrapped key, optional keepalive ping/pong, and teardown.
 //
-// Wire format (UDP mode):
+// Wire format (UDP mode, verified against OpenVPN src/openvpn/ssl_pkt.c /
+// ssl_pkt.h and Wireshark epan/dissectors/packet-openvpn.c):
 //
-//	[UDP header] [OpenVPN opcode+key_id(1B)] [session_id(3B V2/V3)] [packet_id(variadic)]
-//	 [tls-auth HMAC(20B)] [tls-crypt wrap] [payload(TLS Record or encrypted data)]
+//	P_CONTROL (no tls-auth): opcode|key_id(1B) | session_id(8B) |
+//	  ack_count(1B) | ack_packet_id[ack_count](4B each) |
+//	  remote_session_id(8B, if ack_count>0) | message_packet_id(4B) | TLS payload
+//	P_CONTROL (tls-auth): opcode|key_id(1B) | session_id(8B) | hmac(H) |
+//	  replay_packet_id(4B) | net_time(4B) | ack_count(1B) | ... | payload
+//	P_CONTROL (tls-crypt): opcode|key_id(1B) | session_id(8B) | encrypted_body
+//	P_DATA_V1: opcode|key_id(1B) | encrypted_payload (no session_id, no packet_id)
+//	P_DATA_V2: opcode|key_id(1B) | peer_id(3B) | encrypted_payload (no packet_id)
+//
+// Header byte = (opcode << 3) | (key_id & 0x07) [opcode in high 5 bits,
+// key_id in low 3 bits, P_OPCODE_SHIFT=3, P_KEY_ID_MASK=0x07].
 //
 // Encryption is NOT implemented: post-TLS-finished payload is opaque (dummy bytes).
 // HMAC, tls-crypt auth-tag, AEAD IV, and AEAD tag are deterministic filler
@@ -40,15 +50,29 @@ const (
 	// MinMSS per RFC 879 (IP+TCP header 20+20+536 = 576-byte minimum packet).
 	MinMSS = 536
 
-	// OpenVPN opcodes (opcode 编码)
-	OpcodeHARDResetClientV1 uint8 = 1 // P_CONTROL_HARD_RESET_CLIENT_V1
-	OpcodeHARDResetServerV1 uint8 = 2 // P_CONTROL_HARD_RESET_SERVER_V1
-	OpcodeSOFTResetV1 uint8 = 3 // P_CONTROL_SOFT_RESET_V1
-	OpcodeHARDResetClientV2 uint8 = 4 // P_CONTROL_HARD_RESET_CLIENT_V2
-	OpcodeHARDResetServerV2 uint8 = 5 // P_CONTROL_HARD_RESET_SERVER_V2
-	OpcodeHARDResetClientV3 uint8 = 6 // P_CONTROL_HARD_RESET_CLIENT_V3
-	OpcodeDATAV1 uint8 = 7 // P_DATA_V1
-	OpcodeDATAV2 uint8 = 9 // P_DATA_V2
+	// OpenVPN opcodes (opcode 编码). Values are the REAL OpenVPN wire values
+	// from src/openvpn/ssl_pkt.h, NOT the simplified/legacy numbers used in
+	// earlier revisions of this file.
+	OpcodeHARDResetClientV1 uint8 = 1  // P_CONTROL_HARD_RESET_CLIENT_V1
+	OpcodeHARDResetServerV1 uint8 = 2  // P_CONTROL_HARD_RESET_SERVER_V1
+	OpcodeSOFTResetV1   uint8 = 3  // P_CONTROL_SOFT_RESET_V1
+	OpcodeControlV1     uint8 = 4  // P_CONTROL_V1
+	OpcodeACKV1         uint8 = 5  // P_ACK_V1
+	OpcodeDATAV1        uint8 = 6  // P_DATA_V1
+	OpcodeHARDResetClientV2 uint8 = 7  // P_CONTROL_HARD_RESET_CLIENT_V2
+	OpcodeHARDResetServerV2 uint8 = 8  // P_CONTROL_HARD_RESET_SERVER_V2
+	OpcodeDATAV2        uint8 = 9  // P_DATA_V2
+	OpcodeHARDResetClientV3 uint8 = 10 // P_CONTROL_HARD_RESET_CLIENT_V3
+	OpcodeControlWKCV1  uint8 = 11 // P_CONTROL_WKC_V1
+
+	// P_OPCODE_SHIFT and P_KEY_ID_MASK from src/openvpn/ssl_pkt.h. The
+	// header byte is (opcode << P_OPCODE_SHIFT) | (key_id & P_KEY_ID_MASK),
+	// i.e. opcode in the high 5 bits and key_id in the low 3 bits.
+	POpcodeShift  = 3
+	PKeyIDMask    = 0x07
+	// SIDSize is the OpenVPN session ID size in bytes (src/openvpn/ssl_pkt.h
+	// SID_SIZE). Parsed as 8 bytes by Wireshark for all control/ack opcodes.
+	SIDSize = 8
 )
 
 const (
@@ -132,18 +156,15 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("openvpn version must be '1', '2', or '3', got %q", cfg.Version)
 	}
 
-	// 5. key_id range: [0,31] for V1/V2, [0,7] for V3
-	if ver == "3" && cfg.KeyID > 7 {
-		return fmt.Errorf("V3 key_id max is 7, got %d", cfg.KeyID)
-	}
-	if ver != "3" && cfg.KeyID > 31 {
-		return fmt.Errorf("key_id max is 31 for V1/V2, got %d", cfg.KeyID)
+	// 5. key_id range: real OpenVPN uses a 3-bit key_id (P_KEY_ID_MASK=0x07)
+	// for ALL versions (src/openvpn/ssl_pkt.h). Valid range is [0,7].
+	if cfg.KeyID > 7 {
+		return fmt.Errorf("key_id max is 7 (3-bit field), got %d", cfg.KeyID)
 	}
 
-	// 6. session_id must fit in 24 bits
-	if cfg.SessionID > 0xFFFFFF {
-		return fmt.Errorf("session_id must fit in 24 bits, got 0x%X", cfg.SessionID)
-	}
+	// 6. session_id is 8 bytes (SID_SIZE). Any uint64 value is valid; 0 is
+	// treated as "random" in Plan(). (Real OpenVPN session_id is 8 bytes;
+	// no bit-width constraint beyond the uint64 range.)
 
 	// 7. DataCipher validation (数据通道加密算法校验)
 	if cfg.DataCipher != "" && !validCiphers[cfg.DataCipher] {
@@ -346,7 +367,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		keyID := cfg.KeyID
 		sessionID := cfg.SessionID
 		if sessionID == 0 {
-			sessionID = uint32(rand.Intn(0x1000000)) // 3 bytes (24 bits)
+			sessionID = rand.Uint64() // 8 bytes (SID_SIZE)
 		}
 		peerSessionID := sessionID
 
@@ -489,20 +510,31 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				dataLen = 64
 			}
 
+			// emitStaticKeyData emits a static-key P_DATA_V1 packet on the
+			// appropriate transport. TCP mode routes through emitTCPData so the
+			// 2-byte big-endian length prefix (OpenVPN TCP stream framing, see
+			// emitTCPData doc) is applied — without it Wireshark cannot delimit
+			// the P_DATA_V1 packet on the TCP byte stream. UDP mode sends the
+			// raw P_DATA_V1 datagram (no prefix; datagrams are self-delimiting).
+			emitStaticKeyData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, sPort, dPort uint16, senderSeq, peerSeq *uint32, packetID uint64) {
+				payload := buildStaticKeyDataV1(packetID, keyID, dataLen)
+				if isTCP {
+					emitTCPData(direction, srcMAC, dstMAC, srcIP, dstIP, sPort, dPort, senderSeq, peerSeq, payload)
+				} else {
+					emitPacket(direction, srcMAC, dstMAC, srcIP, dstIP, sPort, dPort, payload, 17, 0, 0, 0)
+				}
+			}
+
 			// client->server P_DATA_V1
-			clientPayload := buildStaticKeyDataV1(0, keyID, dataLen)
-			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientPayload, 6, clientSeq, serverSeq, 0x18)
+			emitStaticKeyData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, 0)
 
 			// server->client P_DATA_V1
-			serverPayload := buildStaticKeyDataV1(0, keyID, dataLen)
-			emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, serverPayload, 6, serverSeq, clientSeq, 0x18)
+			emitStaticKeyData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, &serverSeq, &clientSeq, 0)
 
 			// 如果配置了多个数据包, 发送更多 P_DATA_V1
 			for i := 1; i < dataPacketCount; i++ {
-				cp := buildStaticKeyDataV1(uint64(i), keyID, dataLen)
-				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, cp, 6, clientSeq, serverSeq, 0x18)
-				sp := buildStaticKeyDataV1(uint64(i), keyID, dataLen)
-				emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, sp, 6, serverSeq, clientSeq, 0x18)
+				emitStaticKeyData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, uint64(i))
+				emitStaticKeyData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, &serverSeq, &clientSeq, uint64(i))
 			}
 			return
 		}
@@ -515,12 +547,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		serverHello := buildSynthServerHello(tlsVersion)
 
 		// --- Step 1: P_CONTROL_HARD_RESET_CLIENT (version-dependent opcode) ---
-		// V1 -> opcode 1 (no session_id, 4B packet_id); V2 -> opcode 4;
-		// V3 -> opcode 6. Design §2.2.1/§2.2.4/§2.2.6.
+		// V1 -> opcode 1; V2 -> opcode 7; V3 -> opcode 10 (real ssl_pkt.h).
 		var clientResetPayload []byte
 		switch ver {
 		case "1":
-			clientResetPayload = buildHardResetClientV1(keyID, 0, clientHello)
+			clientResetPayload = buildHardResetClientV1(keyID, sessionID, 0, clientHello)
 		case "3":
 			clientResetPayload = buildHardResetClientV3(keyID, sessionID, 0, cfg.TLSAuth, cfg.TLSCrypt, cfg.TLSCryptV2, hmacLen, clientHello, isTCP)
 		default: // "2"
@@ -532,13 +563,12 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientResetPayload, 17, 0, 0, 0)
 		}
 
-		// --- Step 2: P_CONTROL_HARD_RESET_SERVER (V1 -> opcode 2; V2/V3 -> opcode 5) ---
-		// Design §2.2.2/§2.2.5. There is no V3-specific server opcode.
+		// --- Step 2: P_CONTROL_HARD_RESET_SERVER (V1 -> opcode 2; V2/V3 -> opcode 8) ---
 		var serverResetPayload []byte
 		switch ver {
 		case "1":
-			serverResetPayload = buildHardResetServerV1(keyID, 0, serverHello)
-		default: // "2" or "3" — V3 server uses V2 opcode=5
+			serverResetPayload = buildHardResetServerV1(keyID, sessionID, 0, serverHello)
+		default: // "2" or "3" — V3 server uses V2 opcode=8
 			serverResetPayload = buildHardResetServerV2(keyID, sessionID, 0, cfg.TLSAuth, cfg.TLSCrypt, cfg.TLSCryptV2, hmacLen, serverHello, isTCP)
 		}
 		if isTCP {
@@ -558,8 +588,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 
 		// --- Step 4: P_DATA packets (数据通道包) ---
-		// V1 -> P_DATA_V1 (opcode=7); V2/V3 -> P_DATA_V2 (opcode=9).
-		// Design §2.3/§2.4 + state machine §3.1.
+		// V1 -> P_DATA_V1 (opcode=6); V2/V3 -> P_DATA_V2 (opcode=9).
 		isV1 := ver == "1"
 		// client->server
 		for i := 0; i < dataPacketCount; i++ {
@@ -685,141 +714,168 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 // --- OpenVPN packet builders (包构建辅助函数) ---
 
-// buildHardResetClientV1 builds the P_CONTROL_HARD_RESET_CLIENT_V1 packet bytes.
-// V1 format (design §2.2.1): opcode+key_id(1B) + packet_id(4B BE) + payload.
-// V1 has no session_id, no HMAC, no tls-crypt (mutually excluded by Validate).
-func buildHardResetClientV1(keyID uint8, packetID uint64, innerPayload []byte) []byte {
-	var b []byte
-	// opcode + key_id: opcode=1, (1<<5)|(keyID&0x1F)
-	b = append(b, (OpcodeHARDResetClientV1<<5)|(keyID&0x1F))
-	// packet_id: 4 bytes BE (V1 uses uint32)
-	pid := uint32(packetID)
-	b = append(b, byte(pid>>24), byte(pid>>16), byte(pid>>8), byte(pid))
-	// inner payload (TLS ClientHello)
+// headerByte encodes the 1-byte OpenVPN header: opcode in the high 5 bits
+// (shifted P_OPCODE_SHIFT=3) and key_id in the low 3 bits (masked
+// P_KEY_ID_MASK=0x07). Mirrors src/openvpn/ssl_pkt.h.
+func headerByte(opcode, keyID uint8) byte {
+	return (opcode << POpcodeShift) | (keyID & PKeyIDMask)
+}
+
+// appendSessionID appends the 8-byte big-endian session_id (SID_SIZE) that
+// Wireshark parses for all control/ack opcodes.
+func appendSessionID(b []byte, sid uint64) []byte {
+	return append(b,
+		byte(sid>>56), byte(sid>>48), byte(sid>>40), byte(sid>>32),
+		byte(sid>>24), byte(sid>>16), byte(sid>>8), byte(sid),
+	)
+}
+
+// appendControlHeader writes the common control-packet header used by all
+// P_CONTROL / P_ACK opcodes (V1/V2/V3) when tls-auth is NOT enabled. Per
+// Wireshark packet-openvpn.c dissect_openvpn_msg_common, the on-wire layout
+// is:
+//
+//	opcode|key_id(1B) | session_id(8B) | ack_count(1B) |
+//	ack_packet_id[ack_count](4B each) |
+//	remote_session_id(8B, only if ack_count>0 and >=8B remain) |
+//	message_packet_id(4B, skipped for P_ACK_V1) | TLS payload
+//
+// For the synth generator we always emit ack_count=0 (no acks carried) and a
+// single 4-byte message_packet_id. The remote_session_id field is omitted
+// because ack_count==0.
+func appendControlHeader(b []byte, opcode, keyID uint8, sid uint64, messagePacketID uint32) []byte {
+	b = append(b, headerByte(opcode, keyID))
+	b = appendSessionID(b, sid)
+	b = append(b, 0x00) // ack_count = 0
+	// No ack array, no remote_session_id (ack_count == 0).
+	// message_packet_id (4B BE), present for all non-ACK opcodes.
+	b = append(b, byte(messagePacketID>>24), byte(messagePacketID>>16),
+		byte(messagePacketID>>8), byte(messagePacketID))
+	return b
+}
+
+// appendControlHeaderTLSAuth writes the control-packet header when tls-auth
+// is enabled. Per Wireshark (tls_auth branch):
+//
+//	opcode|key_id(1B) | session_id(8B) | hmac(hmacLen) |
+//	replay_packet_id(4B) | net_time(4B, long format default) |
+//	ack_count(1B) | ack array | remote_session_id(8B if ack>0) |
+//	message_packet_id(4B) | payload
+//
+// We emit hmac=0xAA filler, replay_packet_id=messagePacketID, net_time=0,
+// ack_count=0, and message_packet_id=messagePacketID.
+func appendControlHeaderTLSAuth(b []byte, opcode, keyID uint8, sid uint64, messagePacketID uint32, hmacLen int) []byte {
+	b = append(b, headerByte(opcode, keyID))
+	b = appendSessionID(b, sid)
+	// tls-auth HMAC filler (deterministic, not cryptographically valid).
+	hmac := make([]byte, hmacLen)
+	for i := range hmac {
+		hmac[i] = 0xAA
+	}
+	b = append(b, hmac...)
+	// replay_packet_id (4B BE).
+	b = append(b, byte(messagePacketID>>24), byte(messagePacketID>>16),
+		byte(messagePacketID>>8), byte(messagePacketID))
+	// net_time (4B BE, long format default = 0).
+	b = append(b, 0x00, 0x00, 0x00, 0x00)
+	// ack_count = 0.
+	b = append(b, 0x00)
+	// message_packet_id (4B BE).
+	b = append(b, byte(messagePacketID>>24), byte(messagePacketID>>16),
+		byte(messagePacketID>>8), byte(messagePacketID))
+	return b
+}
+
+// appendControlHeaderTLSCrypt writes the control-packet header when tls-crypt
+// is enabled. Per Wireshark (tls_crypt branch): the entire body after the
+// 8-byte session_id is encrypted, so there is NO visible ack_count /
+// message_packet_id. We emit the wrapped key + payload directly after the
+// session_id (the wrapped key is the first part of the encrypted body).
+func appendControlHeaderTLSCrypt(b []byte, opcode, keyID uint8, sid uint64) []byte {
+	b = append(b, headerByte(opcode, keyID))
+	b = appendSessionID(b, sid)
+	return b
+}
+
+// buildHardResetClientV1 builds the P_CONTROL_HARD_RESET_CLIENT_V1 packet.
+// Real OpenVPN V1 control packets still carry the 8-byte session_id and the
+// ack/message_id structure (Wireshark parses session_id for opcode 1). V1
+// has no HMAC and no tls-crypt (mutually excluded by Validate).
+func buildHardResetClientV1(keyID uint8, sessionID uint64, packetID uint64, innerPayload []byte) []byte {
+	b := appendControlHeader(nil, OpcodeHARDResetClientV1, keyID, sessionID, uint32(packetID))
 	b = append(b, innerPayload...)
 	return b
 }
 
-// buildHardResetServerV1 builds the P_CONTROL_HARD_RESET_SERVER_V1 packet bytes.
-// V1 format: opcode+key_id(1B) + packet_id(4B BE) + payload.
-func buildHardResetServerV1(keyID uint8, packetID uint64, innerPayload []byte) []byte {
-	var b []byte
-	// opcode + key_id: opcode=2, (2<<5)|(keyID&0x1F)
-	b = append(b, (OpcodeHARDResetServerV1<<5)|(keyID&0x1F))
-	// packet_id: 4 bytes BE
-	pid := uint32(packetID)
-	b = append(b, byte(pid>>24), byte(pid>>16), byte(pid>>8), byte(pid))
-	// inner payload (TLS ServerHello + ...)
+// buildHardResetServerV1 builds the P_CONTROL_HARD_RESET_SERVER_V1 packet.
+func buildHardResetServerV1(keyID uint8, sessionID uint64, packetID uint64, innerPayload []byte) []byte {
+	b := appendControlHeader(nil, OpcodeHARDResetServerV1, keyID, sessionID, uint32(packetID))
 	b = append(b, innerPayload...)
 	return b
 }
 
-// buildHardResetClientV2 builds the P_CONTROL_HARD_RESET_CLIENT_V2 packet bytes.
-// 构建 P_CONTROL_HARD_RESET_CLIENT_V2 包字节.
-func buildHardResetClientV2(keyID uint8, sessionID uint32, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, innerPayload []byte, isTCP bool) []byte {
+// buildHardResetClientV2 builds the P_CONTROL_HARD_RESET_CLIENT_V2 packet.
+func buildHardResetClientV2(keyID uint8, sessionID uint64, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, innerPayload []byte, isTCP bool) []byte {
 	var b []byte
-	// opcode + key_id: opcode=4, (4<<5)|(keyID&0x1F)
-	b = append(b, (OpcodeHARDResetClientV2<<5)|(keyID&0x1F))
-	// session_id: 3 bytes BE
-	b = append(b, byte(sessionID>>16), byte(sessionID>>8), byte(sessionID))
-	// packet_id: V2 variadic
-	b = append(b, writePktID(packetID)...)
-	// tls-auth HMAC (if enabled)
-	if tlsAuth {
-		hmac := make([]byte, hmacLen)
-		for i := range hmac {
-			hmac[i] = 0xAA
-		}
-		b = append(b, hmac...)
+	switch {
+	case tlsCrypt:
+		b = appendControlHeaderTLSCrypt(b, OpcodeHARDResetClientV2, keyID, sessionID)
+		b = append(b, buildWrappedKey(tlsCryptV2)...)
+	case tlsAuth:
+		b = appendControlHeaderTLSAuth(b, OpcodeHARDResetClientV2, keyID, sessionID, uint32(packetID), hmacLen)
+	default:
+		b = appendControlHeader(b, OpcodeHARDResetClientV2, keyID, sessionID, uint32(packetID))
 	}
-	// tls-crypt wrapped key (if enabled)
-	if tlsCrypt {
-		wrappedKey := buildWrappedKey(tlsCryptV2)
-		b = append(b, wrappedKey...)
-	}
-	// inner payload (TLS ClientHello)
 	b = append(b, innerPayload...)
 	return b
 }
 
-// buildHardResetClientV3 builds the P_CONTROL_HARD_RESET_CLIENT_V3 packet bytes.
-// V3 format (design §2.2.6): like V2 but with opcode=6. key_id limited to 0..7.
-func buildHardResetClientV3(keyID uint8, sessionID uint32, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, innerPayload []byte, isTCP bool) []byte {
+// buildHardResetClientV3 builds the P_CONTROL_HARD_RESET_CLIENT_V3 packet.
+// V3 uses opcode 10. With tls-crypt enabled (the V3 default), the body after
+// the session_id is encrypted; for the synth generator we emit the wrapped
+// key + payload in the clear (structurally the header is correct).
+func buildHardResetClientV3(keyID uint8, sessionID uint64, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, innerPayload []byte, isTCP bool) []byte {
 	var b []byte
-	// opcode + key_id: opcode=6, (6<<5)|(keyID&0x1F)
-	b = append(b, (OpcodeHARDResetClientV3<<5)|(keyID&0x1F))
-	// session_id: 3 bytes BE (V3 必须有)
-	b = append(b, byte(sessionID>>16), byte(sessionID>>8), byte(sessionID))
-	// packet_id: V2 variadic (same as V2)
-	b = append(b, writePktID(packetID)...)
-	// tls-auth HMAC (if enabled)
-	if tlsAuth {
-		hmac := make([]byte, hmacLen)
-		for i := range hmac {
-			hmac[i] = 0xAA
-		}
-		b = append(b, hmac...)
+	switch {
+	case tlsCrypt:
+		b = appendControlHeaderTLSCrypt(b, OpcodeHARDResetClientV3, keyID, sessionID)
+		b = append(b, buildWrappedKey(tlsCryptV2)...)
+	case tlsAuth:
+		b = appendControlHeaderTLSAuth(b, OpcodeHARDResetClientV3, keyID, sessionID, uint32(packetID), hmacLen)
+	default:
+		b = appendControlHeader(b, OpcodeHARDResetClientV3, keyID, sessionID, uint32(packetID))
 	}
-	// tls-crypt wrapped key (if enabled)
-	if tlsCrypt {
-		wrappedKey := buildWrappedKey(tlsCryptV2)
-		b = append(b, wrappedKey...)
-	}
-	// inner payload (TLS ClientHello)
 	b = append(b, innerPayload...)
 	return b
 }
 
-// buildHardResetServerV2 builds the P_CONTROL_HARD_RESET_SERVER_V2 packet bytes.
-// 构建 P_CONTROL_HARD_RESET_SERVER_V2 包字节.
-func buildHardResetServerV2(keyID uint8, sessionID uint32, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, innerPayload []byte, isTCP bool) []byte {
+// buildHardResetServerV2 builds the P_CONTROL_HARD_RESET_SERVER_V2 packet.
+func buildHardResetServerV2(keyID uint8, sessionID uint64, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, innerPayload []byte, isTCP bool) []byte {
 	var b []byte
-	// opcode + key_id: opcode=5, (5<<5)|(keyID&0x1F)
-	b = append(b, (OpcodeHARDResetServerV2<<5)|(keyID&0x1F))
-	// session_id: echo client's session_id (3 bytes BE)
-	b = append(b, byte(sessionID>>16), byte(sessionID>>8), byte(sessionID))
-	// packet_id: V2 variadic
-	b = append(b, writePktID(packetID)...)
-	// tls-auth HMAC (if enabled)
-	if tlsAuth {
-		hmac := make([]byte, hmacLen)
-		for i := range hmac {
-			hmac[i] = 0xAA
-		}
-		b = append(b, hmac...)
+	switch {
+	case tlsCrypt:
+		b = appendControlHeaderTLSCrypt(b, OpcodeHARDResetServerV2, keyID, sessionID)
+		b = append(b, buildWrappedKey(tlsCryptV2)...)
+	case tlsAuth:
+		b = appendControlHeaderTLSAuth(b, OpcodeHARDResetServerV2, keyID, sessionID, uint32(packetID), hmacLen)
+	default:
+		b = appendControlHeader(b, OpcodeHARDResetServerV2, keyID, sessionID, uint32(packetID))
 	}
-	// tls-crypt wrapped key (if enabled)
-	if tlsCrypt {
-		wrappedKey := buildWrappedKey(tlsCryptV2)
-		b = append(b, wrappedKey...)
-	}
-	// inner payload (TLS ServerHello + ...)
 	b = append(b, innerPayload...)
 	return b
 }
 
-// buildSoftReset builds the P_CONTROL_SOFT_RESET_V1 packet bytes.
-// 构建 P_CONTROL_SOFT_RESET_V1 包字节.
-func buildSoftReset(newKeyID uint8, sessionID uint32, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, isTCP bool) []byte {
+// buildSoftReset builds the P_CONTROL_SOFT_RESET_V1 packet.
+func buildSoftReset(newKeyID uint8, sessionID uint64, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, isTCP bool) []byte {
 	var b []byte
-	// opcode + key_id: opcode=3, (3<<5)|(newKeyID&0x1F)
-	b = append(b, (OpcodeSOFTResetV1<<5)|(newKeyID&0x1F))
-	// session_id: 3 bytes BE
-	b = append(b, byte(sessionID>>16), byte(sessionID>>8), byte(sessionID))
-	// packet_id: V2 variadic
-	b = append(b, writePktID(packetID)...)
-	// tls-auth HMAC (if enabled)
-	if tlsAuth {
-		hmac := make([]byte, hmacLen)
-		for i := range hmac {
-			hmac[i] = 0xAA
-		}
-		b = append(b, hmac...)
-	}
-	// tls-crypt wrapped key (if enabled)
-	if tlsCrypt {
-		wrappedKey := buildWrappedKey(tlsCryptV2)
-		b = append(b, wrappedKey...)
+	switch {
+	case tlsCrypt:
+		b = appendControlHeaderTLSCrypt(b, OpcodeSOFTResetV1, newKeyID, sessionID)
+		b = append(b, buildWrappedKey(tlsCryptV2)...)
+	case tlsAuth:
+		b = appendControlHeaderTLSAuth(b, OpcodeSOFTResetV1, newKeyID, sessionID, uint32(packetID), hmacLen)
+	default:
+		b = appendControlHeader(b, OpcodeSOFTResetV1, newKeyID, sessionID, uint32(packetID))
 	}
 	// payload: TLS re-handshake stub (合成 TLS 重协商 stub)
 	b = append(b, 0x16, 0x03, 0x03, 0x00, 0x05, 0x01, 0x00, 0x00, 0x01, 0x00) // minimal TLS record
@@ -827,44 +883,46 @@ func buildSoftReset(newKeyID uint8, sessionID uint32, packetID uint64, tlsAuth, 
 }
 
 // buildDataV2 builds the P_DATA_V2 packet bytes.
-// 构建 P_DATA_V2 包字节.
-func buildDataV2(packetID uint64, keyID uint8, peerSessionID uint32, encryptedPayload []byte, cipher string, hmacLen int) []byte {
-	var b []byte
-	// opcode + key_id: P_DATA_V2 opcode=9, high 3 bits = 100b = 0x40
-	b = append(b, 0x40|(keyID&0x1F))
-	// peer_session_id: 3 bytes BE
-	b = append(b, byte(peerSessionID>>16), byte(peerSessionID>>8), byte(peerSessionID))
-	// packet_id: V2 variadic
-	b = append(b, writePktID(packetID)...)
-	// encrypted payload
+// Real wire format (Wireshark P_DATA_V2 branch):
+//
+//	opcode|key_id(1B) | peer_id(3B) | encrypted_payload...
+//
+// No session_id, no packet_id is parsed after peer_id.
+func buildDataV2(packetID uint64, keyID uint8, peerSessionID uint64, encryptedPayload []byte, cipher string, hmacLen int) []byte {
+	b := []byte{headerByte(OpcodeDATAV2, keyID)}
+	// peer_id: 3 bytes BE (FT_UINT24 in Wireshark). We use the low 24 bits
+	// of peerSessionID as the peer_id.
+	pid := uint32(peerSessionID & 0xFFFFFF)
+	b = append(b, byte(pid>>16), byte(pid>>8), byte(pid))
+	// encrypted payload (the encrypted packet_id + data + tag/IV are all
+	// opaque bytes that Wireshark does not further dissect for P_DATA_V2).
 	b = append(b, encryptedPayload...)
 	return b
 }
 
 // buildDataV1 builds the P_DATA_V1 packet bytes.
-// 构建 P_DATA_V1 包字节.
+// Real wire format (Wireshark P_DATA_V1 branch):
+//
+//	opcode|key_id(1B) | encrypted_payload...
+//
+// No session_id and no packet_id field is parsed — everything after the
+// opcode byte is opaque encrypted payload.
 func buildDataV1(packetID uint64, keyID uint8, _ uint64, payload []byte, cipher string, hmacLen int) []byte {
-	var b []byte
-	// opcode + key_id: opcode=7, (7<<5)|(keyID&0x1F)
-	b = append(b, (OpcodeDATAV1<<5)|(keyID&0x1F))
-	// packet_id: 4 bytes BE (V1 uses uint32)
-	b = append(b, byte(packetID>>24), byte(packetID>>16), byte(packetID>>8), byte(packetID))
-	// encrypted payload
+	b := []byte{headerByte(OpcodeDATAV1, keyID)}
+	// Encrypted payload directly after the opcode byte. The encrypted
+	// payload (IV + encrypted data + HMAC/tag) is opaque to Wireshark.
 	b = append(b, buildEncryptedPayload(payload, cipher, hmacLen)...)
 	return b
 }
 
 // buildStaticKeyDataV1 builds a P_DATA_V1 packet for static-key P2P mode.
 // Per design §2.10.2 + §6.3 step 4: the P_DATA_V1 payload in static-key mode
-// contains StaticKeyNonce(16B) + StaticKeyCiphertext(N B) + StaticKeyHMAC(20B),
-// NOT the generic buildEncryptedPayload layout (which assumes TLS-derived keys).
+// contains StaticKeyNonce(16B) + StaticKeyCiphertext(N B) + StaticKeyHMAC(20B).
+// Per the real wire format, P_DATA_V1 is opcode(1B) + opaque payload, so the
+// nonce/ciphertext/HMAC all live in the payload region.
 // Synth crypto: nonce=0xCC, ciphertext=0xDD, HMAC=0xAA (design §4.6).
 func buildStaticKeyDataV1(packetID uint64, keyID uint8, dataLen int) []byte {
-	var b []byte
-	// opcode + key_id: opcode=7, (7<<5)|(keyID&0x1F)
-	b = append(b, (OpcodeDATAV1<<5)|(keyID&0x1F))
-	// packet_id: 4 bytes BE (V1 uses uint32)
-	b = append(b, byte(packetID>>24), byte(packetID>>16), byte(packetID>>8), byte(packetID))
+	b := []byte{headerByte(OpcodeDATAV1, keyID)}
 	// StaticKeyNonce: 16 bytes 0xCC
 	nonce := make([]byte, 16)
 	for i := range nonce {
@@ -888,17 +946,10 @@ func buildStaticKeyDataV1(packetID uint64, keyID uint8, dataLen int) []byte {
 
 // buildExitNotify builds a framed exit_notify P_CONTROL message.
 // Per design §2.10.5: exit_notify is carried inside a P_CONTROL message
-// (opcode header + session_id + packet_id) with a 1-byte type=0x05 payload,
-// NOT a bare 0x05 byte. We reuse the V2 control framing (opcode=4) since
-// exit_notify is a client→server control message in the established session.
-func buildExitNotify(keyID uint8, sessionID uint32, packetID uint64) []byte {
-	var b []byte
-	// opcode + key_id: opcode=4 (P_CONTROL_HARD_RESET_CLIENT_V2 framing)
-	b = append(b, (OpcodeHARDResetClientV2<<5)|(keyID&0x1F))
-	// session_id: 3 bytes BE
-	b = append(b, byte(sessionID>>16), byte(sessionID>>8), byte(sessionID))
-	// packet_id: V2 variadic
-	b = append(b, writePktID(packetID)...)
+// (opcode header + session_id + ack/message_id) with a 1-byte type=0x05
+// payload, NOT a bare 0x05 byte. We reuse the V2 control framing.
+func buildExitNotify(keyID uint8, sessionID uint64, packetID uint64) []byte {
+	b := appendControlHeader(nil, OpcodeHARDResetClientV2, keyID, sessionID, uint32(packetID))
 	// exit_notify type byte
 	b = append(b, 0x05)
 	return b
@@ -1152,7 +1203,7 @@ func buildFragmentHeader(fragType uint8, fragmentID uint16, fragmentSize uint16)
 
 // buildFragmentedDataV2 builds P_DATA_V2 with application-layer fragmentation.
 // 构建带应用层分片的 P_DATA_V2.
-func buildFragmentedDataV2(packetID uint64, keyID uint8, peerSessionID uint32, data []byte, fragmentSize uint16, cipher string, hmacLen int) []byte {
+func buildFragmentedDataV2(packetID uint64, keyID uint8, peerSessionID uint64, data []byte, fragmentSize uint16, cipher string, hmacLen int) []byte {
 	var fragments []byte
 	fragmentID := uint16(packetID)
 	totalLen := len(data)
@@ -1178,21 +1229,23 @@ func buildFragmentedDataV2(packetID uint64, keyID uint8, peerSessionID uint32, d
 		offset = end
 	}
 
-	// Build P_DATA_V2 with fragments as payload
-	var b []byte
-	// opcode + key_id: P_DATA_V2 opcode=9, high 3 bits = 100b = 0x40
-	b = append(b, 0x40|(keyID&0x1F))
-	// peer_session_id: 3 bytes BE
-	b = append(b, byte(peerSessionID>>16), byte(peerSessionID>>8), byte(peerSessionID))
-	// packet_id: V2 variadic
-	b = append(b, writePktID(packetID)...)
-	// fragmented payload
+	// Build P_DATA_V2 with fragments as payload: opcode(1) + peer_id(3) + payload
+	b := []byte{headerByte(OpcodeDATAV2, keyID)}
+	pid := uint32(peerSessionID & 0xFFFFFF)
+	b = append(b, byte(pid>>16), byte(pid>>8), byte(pid))
+	// fragmented payload (no separate packet_id; Wireshark treats P_DATA_V2
+	// post-peer_id bytes as opaque data).
 	b = append(b, fragments...)
 	return b
 }
 
-// writePktID encodes a packet ID as V2 variadic encoding (V2 变长编码).
-// OpenSourc openvpn-2.4 pkt_id_write: 0-4 bytes header + data.
+// writePktID encodes a packet ID as the legacy V2 variadic encoding. This
+// function is retained for backward compatibility with tests that assert the
+// variadic encoding directly, but it is NOT used by the real wire-format
+// builders: real OpenVPN control packets use a fixed 4-byte replay packet_id
+// (+ optional 4-byte net_time for the long format), and P_DATA_V1/V2 carry no
+// packet_id field that Wireshark parses. The variadic scheme here was based
+// on an earlier incorrect reading of the protocol.
 func writePktID(packetID uint64) []byte {
 	switch {
 	case packetID < 0x80:

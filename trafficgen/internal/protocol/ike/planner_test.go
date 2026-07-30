@@ -911,16 +911,14 @@ func TestPlan_TransformEncodesKeyLengthAttr(t *testing.T) {
 		t.Fatal("no packets emitted")
 	}
 	// The default proposal uses ENCR=AES-CBC-128 with KeyLengthBits=128.
-	// This is encoded as a TLV attribute (type=14, value=128). Find the SA
-	// payload and look for the attribute bytes 0x00 0x0E 0x00 0x80 (TLV:
-	// type=14, length=2, value=128).
+	// Per RFC 7296 §3.3.5, the Key Length attribute (type 14) MUST use the
+	// TV (short) form with AF=1: 0x80 0x0E 0x00 0x80 (AF=1, type=14, value=128).
 	saBytes := findSAPayloadBody(pkts[0].Payload)
 	if saBytes == nil {
 		t.Fatal("no SA payload found")
 	}
-	// Attribute TLV: 0x00 0x0E 0x00 0x80 (Type=14, Length=0, Value=128).
-	// The current encoder uses TLV form: type(2) + value(2) = 0x00 0x0E 0x00 0x80.
-	want := []byte{0x00, 0x0E, 0x00, 0x80}
+	// Attribute TV form: 0x80 0x0E (AF=1, type=14) + 0x00 0x80 (value=128).
+	want := []byte{0x80, 0x0E, 0x00, 0x80}
 	if !bytesContains(saBytes, want) {
 		t.Errorf("SA payload does not contain KeyLength attr %v; SA body=%x", want, saBytes)
 	}
@@ -1334,6 +1332,17 @@ func TestEncodeTransforms_KeyLengthAttr(t *testing.T) {
 	transformLen := binary.BigEndian.Uint16(b[2:4])
 	if transformLen != 12 {
 		t.Errorf("Transform Length = %d, want 12 (8 + 4-byte attr)", transformLen)
+	}
+	// RFC 7296 §3.3.5: Key Length (type 14) MUST use TV form (AF=1).
+	// Bytes [8:10] = 0x80 0x0E (AF=1, type=14); [10:12] = value (256 = 0x0100).
+	if b[8]>>7 != 1 {
+		t.Errorf("Key Length attr AF bit = %d, want 1; attr bytes = %x", b[8]>>7, b[8:12])
+	}
+	if b[8]&0x7F != 0x00 || b[9] != 0x0E {
+		t.Errorf("Key Length attr type bytes = %x, want 800E", b[8:10])
+	}
+	if val := binary.BigEndian.Uint16(b[10:12]); val != 256 {
+		t.Errorf("Key Length attr value = %d, want 256", val)
 	}
 }
 

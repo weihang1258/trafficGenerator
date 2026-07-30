@@ -142,14 +142,14 @@ func TestPlanner_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "CustomAVP exceeding 4095 rejected",
+			name: "CustomAVP exceeding 1023 rejected",
 			spec: core.FlowSpec{
 				SrcIP: "192.168.1.1", DstIP: "192.168.1.2",
 				SrcPort: 12345, DstPort: 1701,
 				L2TP: &core.L2TPConfig{
 					Version: VersionL2TPv2,
 					CustomAVPs: []core.L2TPAVP{
-						{AttrType: 99, Value: make([]byte, 4090)},
+						{AttrType: 99, Value: make([]byte, 1018)}, // 6+1018=1024 > 1023
 					},
 					Scenarios: []core.L2TPStep{{Type: stepSCCRQ}},
 				},
