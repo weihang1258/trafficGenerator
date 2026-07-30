@@ -1227,16 +1227,34 @@ func TestVmess_Data_HeaderPadLen255_Error(t *testing.T) {
 	}
 }
 
-// §4.3.10: alterId=65536 (over uint16 max) → handled by uint16 type (wraps to 0)
-// Note: uint16 can't hold 65536, so this is tested via direct assignment
-func TestVmess_Data_AlterIDUint16Max(t *testing.T) {
+// §4.3.10: alterId > 255 cannot fit in the 1-byte Legacy wire field
+// (design §2.1.0: "Alt = alterId 字节 (1 字节, 0-255)"). Validate MUST
+// reject AlterID > 255 in Legacy mode instead of silently truncating via
+// byte(v.AlterID) at planner.go buildVMessRequestBodyPlain.
+func TestVmess_Data_AlterIDOver255_RejectedByValidate(t *testing.T) {
 	p := NewPlanner()
 	spec := validSpec()
 	spec.Vmess.Encryption = "legacy_aes_128_cfb"
-	spec.Vmess.AlterID = 65535 // max uint16
+	spec.Vmess.AlterID = 300 // > 255, cannot fit in 1-byte wire field
 	_, err := p.Plan(context.Background(), spec)
-	if err != nil {
-		t.Fatalf("Plan failed for alterId=65535: %v", err)
+	if err == nil {
+		t.Fatal("Plan should error for alter_id=300 in Legacy mode (exceeds 1-byte wire field 0-255)")
+	}
+	if !strings.Contains(err.Error(), "alter_id") {
+		t.Errorf("error should mention alter_id, got: %v", err)
+	}
+}
+
+// §4.3.10b: alterId=65535 (max uint16) in Legacy mode exceeds the 1-byte
+// wire field (0-255) and MUST be rejected by Validate.
+func TestVmess_Data_AlterIDUint16Max_RejectedByValidate(t *testing.T) {
+	p := NewPlanner()
+	spec := validSpec()
+	spec.Vmess.Encryption = "legacy_aes_128_cfb"
+	spec.Vmess.AlterID = 65535 // max uint16, exceeds 1-byte wire field
+	_, err := p.Plan(context.Background(), spec)
+	if err == nil {
+		t.Fatal("Plan should error for alter_id=65535 in Legacy mode (exceeds 1-byte wire field 0-255)")
 	}
 }
 

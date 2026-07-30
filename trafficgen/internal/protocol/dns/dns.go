@@ -67,6 +67,28 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("dns query_name (domain) is required")
 	}
 
+	// RFC 1035 §3.4.1 / RFC 3596 §2.2: the RDATA address family MUST match
+	// the record type. TypeA requires a 4-byte IPv4 address; TypeAAAA
+	// requires a 16-byte IPv6 address. When IsResponse is true and a
+	// responseIP is configured, reject a family mismatch at submit time so
+	// we never ship a malformed RDATA length on the wire. Only TypeA and
+	// TypeAAAA carry IP RDATA; CNAME/MX/TXT use domain/text RDATA.
+	if spec.DNS.IsResponse && spec.DNS.ResponseIP != "" {
+		switch spec.DNS.QueryType {
+		case TypeA, TypeAAAA:
+			ip := net.ParseIP(spec.DNS.ResponseIP)
+			if ip == nil {
+				return fmt.Errorf("dns response_ip %q is not a valid IP address (required for TypeA/TypeAAAA)", spec.DNS.ResponseIP)
+			}
+			if spec.DNS.QueryType == TypeA && ip.To4() == nil {
+				return fmt.Errorf("dns TypeA (A record) requires an IPv4 response_ip, got %q (IPv6)", spec.DNS.ResponseIP)
+			}
+			if spec.DNS.QueryType == TypeAAAA && ip.To4() != nil {
+				return fmt.Errorf("dns TypeAAAA (AAAA record) requires an IPv6 response_ip, got %q (IPv4)", spec.DNS.ResponseIP)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -111,7 +133,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			return id
 		}
 
-		queryPayload := buildDNSQuery(spec.DNS.Domain, spec.DNS.QueryType)
+		queryPayload := buildDNSQuery(spec.DNS.Domain, spec.DNS.QueryType, spec.DNS.TxID, spec.DNS.EDNS0Enabled, spec.DNS.UDPPayloadSize, spec.DNS.DnssecOK)
 
 		// DNS Query — context-aware send
 		select {
@@ -140,7 +162,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		// DNS Response — context-aware send
 		if spec.DNS.IsResponse {
-			responsePayload := buildDNSResponse(spec.DNS.Domain, spec.DNS.QueryType, spec.DNS.ResponseIP)
+			responsePayload := buildDNSResponse(spec.DNS.Domain, spec.DNS.QueryType, spec.DNS.ResponseIP, spec.DNS.TxID)
 
 			select {
 			case configChan <- core.PacketConfig{
@@ -170,11 +192,22 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	return configChan, nil
 }
 
-// buildDNSQuery builds a DNS query packet.
-func buildDNSQuery(domain string, queryType uint16) []byte {
+// buildDNSQuery builds a DNS query packet. The TxID is the 16-bit DNS
+// Transaction ID (RFC 1035 §4.1.1); txid=0 falls back to the historical
+// default 0x1234. When edns0Enabled is true an OPT pseudo-RR is appended to
+// the Additional section (ARCOUNT=1) per RFC 6891; udpPayloadSize is the OPT
+// CLASS field (max UDP payload the client accepts) and dnssecOK sets the DO
+// bit (RFC 4033).
+func buildDNSQuery(domain string, queryType uint16, txid uint16, edns0Enabled bool, udpPayloadSize uint16, dnssecOK bool) []byte {
+	if txid == 0 {
+		txid = 0x1234 // backward-compat default
+	}
+	if edns0Enabled {
+		return buildDNSQueryWithEDNS0(domain, queryType, txid, udpPayloadSize, dnssecOK)
+	}
 	// DNS header (12 bytes)
 	header := make([]byte, 12)
-	binary.BigEndian.PutUint16(header[0:2], 0x1234) // Transaction ID
+	binary.BigEndian.PutUint16(header[0:2], txid) // Transaction ID
 	binary.BigEndian.PutUint16(header[2:4], 0x0100) // Flags: standard query
 	binary.BigEndian.PutUint16(header[4:6], 1) // Questions
 	binary.BigEndian.PutUint16(header[6:8], 0) // Answer RRs
@@ -196,15 +229,27 @@ func buildDNSQuery(domain string, queryType uint16) []byte {
 	return result
 }
 
-// buildDNSResponse builds a DNS response packet.
-// For TypeA/TypeAAAA the RDATA is an IP address (responseIP).
+// buildDNSResponse builds a DNS response packet. The txid is the DNS
+// Transaction ID (RFC 1035 §4.1.1) — MUST echo the query's TxID; txid=0
+// falls back to the historical default 0x1234.
+//
+// For TypeA/TypeAAAA the RDATA is an IP address (responseIP). The address
+// family MUST match the record type: TypeA requires a 4-byte IPv4 address
+// (RFC 1035 §3.4.1), TypeAAAA requires a 16-byte IPv6 address (RFC 3596
+// §2.2). A mismatch (e.g. IPv6 responseIP for a TypeA record) is coerced:
+// the builder falls back to 127.0.0.1 (IPv4) for TypeA or ::1 (IPv6) for
+// TypeAAAA so the RDATA length is always correct on the wire.
+//
 // For TypeCNAME the RDATA is a domain name (responseIP field holds the target domain).
 // For TypeMX the RDATA is 2-byte preference + domain name.
 // For TypeTXT the RDATA is a length-prefixed text string.
-func buildDNSResponse(domain string, queryType uint16, responseIP string) []byte {
+func buildDNSResponse(domain string, queryType uint16, responseIP string, txid uint16) []byte {
+	if txid == 0 {
+		txid = 0x1234 // backward-compat default
+	}
 	// DNS header
 	header := make([]byte, 12)
-	binary.BigEndian.PutUint16(header[0:2], 0x1234) // Transaction ID
+	binary.BigEndian.PutUint16(header[0:2], txid) // Transaction ID
 	binary.BigEndian.PutUint16(header[2:4], 0x8180) // Flags: response, recursive desired
 	binary.BigEndian.PutUint16(header[4:6], 1) // Questions
 	binary.BigEndian.PutUint16(header[6:8], 1) // Answer RRs
@@ -228,17 +273,36 @@ func buildDNSResponse(domain string, queryType uint16, responseIP string) []byte
 	// Build RDATA based on query type.
 	var rdata []byte
 	switch queryType {
-	case TypeA, TypeAAAA:
-		// RDATA is an IP address.
+	case TypeA:
+		// RDATA MUST be a 4-byte IPv4 address (RFC 1035 §3.4.1). If the
+		// configured responseIP is IPv6 (or unparseable), fall back to the
+		// IPv4 loopback so the RDATA length is always 4.
 		ip := net.ParseIP(responseIP)
+		v4 := net.IP(nil)
+		if ip != nil {
+			v4 = ip.To4()
+		}
+		if v4 == nil {
+			v4 = net.IPv4(127, 0, 0, 1).To4()
+		}
+		rdata = v4
+	case TypeAAAA:
+		// RDATA MUST be a 16-byte IPv6 address (RFC 3596 §2.2). If the
+		// configured responseIP is IPv4 (or unparseable), fall back to the
+		// IPv6 loopback so the RDATA length is always 16.
+		ip := net.ParseIP(responseIP)
+		v4 := net.IP(nil)
+		if ip != nil {
+			v4 = ip.To4()
+		}
+		if v4 != nil {
+			// IPv4 given for an AAAA record: coerce to IPv6 loopback.
+			ip = net.ParseIP("::1")
+		}
 		if ip == nil {
-			ip = net.ParseIP("127.0.0.1")
+			ip = net.ParseIP("::1")
 		}
-		if ip.To4() != nil {
-			rdata = ip.To4()
-		} else {
-			rdata = ip.To16()
-		}
+		rdata = ip.To16()
 	case TypeCNAME:
 		// RDATA is a domain name (CNAME target domain).
 		// Use responseIP as the target domain name.
@@ -265,14 +329,14 @@ func buildDNSResponse(domain string, queryType uint16, responseIP string) []byte
 	default:
 		// Fallback: treat as A record.
 		ip := net.ParseIP(responseIP)
-		if ip == nil {
-			ip = net.ParseIP("127.0.0.1")
+		v4 := net.IP(nil)
+		if ip != nil {
+			v4 = ip.To4()
 		}
-		if ip.To4() != nil {
-			rdata = ip.To4()
-		} else {
-			rdata = ip.To16()
+		if v4 == nil {
+			v4 = net.IPv4(127, 0, 0, 1).To4()
 		}
+		rdata = v4
 	}
 	binary.BigEndian.PutUint16(answerType[8:10], uint16(len(rdata)))
 
@@ -328,11 +392,15 @@ func splitLabels(domain string) []string {
 }
 
 // buildDNSQueryWithEDNS0 builds a DNS query packet with an EDNS0 OPT
-// pseudo-record (RFC 6891). When enabled is false, the result is the same
-// as buildDNSQuery (no OPT record). When enabled is true, the query includes
-// an OPT record with the given UDP payload size and DO bit.
-func buildDNSQueryWithEDNS0(domain string, queryType uint16, udpPayloadSize uint16, dnssecOK bool) []byte {
-	base := buildDNSQuery(domain, queryType)
+// pseudo-record (RFC 6891). The txid is the DNS Transaction ID (0 → 0x1234).
+// When udpPayloadSize is 0 the function falls back to a non-EDNS0 query.
+// When non-zero, the query includes an OPT record with the given UDP payload
+// size and DO bit.
+func buildDNSQueryWithEDNS0(domain string, queryType uint16, txid uint16, udpPayloadSize uint16, dnssecOK bool) []byte {
+	if txid == 0 {
+		txid = 0x1234
+	}
+	base := buildDNSQuery(domain, queryType, txid, false, 0, false)
 	if udpPayloadSize == 0 {
 		return base
 	}

@@ -490,6 +490,33 @@ func TestSyslogPlan_TimestampRFC3339(t *testing.T) {
 	}
 }
 
+// Pre-formatted BSD timestamp emitted verbatim (RFC 3164 §4.1.2).
+// When Format=bsd and Timestamp is a non-RFC3339 string, encodeBSD emits it
+// verbatim rather than reformatting. This guards the verbatim branch in
+// planner.go:634-639 (timestampWritten flag) against regression — e.g. a
+// change that drops timestampWritten would append the auto-generated "now"
+// timestamp after the user value, corrupting the payload.
+func TestSyslogPlan_BSD_PreFormattedTimestampVerbatim(t *testing.T) {
+	p := NewPlanner()
+	spec := validSyslogSpec()
+	spec.Syslog.Format = "bsd"
+	spec.Syslog.Version = 0 // BSD has no VERSION field
+	spec.Syslog.Timestamp = "Jan  1 00:00:01"
+	cfgs := drain(mustPlan(t, p, spec))
+	// The pre-formatted timestamp must appear verbatim in the payload,
+	// exactly once (no duplicate auto-generated timestamp appended).
+	body := string(cfgs[0].Payload)
+	if !strings.Contains(body, "Jan  1 00:00:01") {
+		t.Errorf("payload missing verbatim BSD timestamp, got %q", body)
+	}
+	// Count occurrences: the user timestamp must appear exactly once. A
+	// broken timestampWritten flag would emit it once verbatim AND then
+	// again from the now-UTC branch, or emit only the now-UTC value.
+	if n := strings.Count(body, "Jan  1 00:00:01"); n != 1 {
+		t.Errorf("verbatim BSD timestamp appears %d times, want 1; payload=%q", n, body)
+	}
+}
+
 // --- Plan: STRUCTURED-DATA ---
 
 // Testcase 1.8.1.1: StructuredData=`[origin ip="192.0.2.1"]` -> 24 bytes pre-frame

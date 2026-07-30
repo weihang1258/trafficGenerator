@@ -498,6 +498,18 @@ func emitSIPMedia(
 	}
 	dir := media.Direction
 	if dir == "" {
+		// Derive the RTP direction from the SDP body's directional
+		// media attribute (a=sendonly / a=recvonly / a=sendrecv) per
+		// RFC 3264 §5.1. We scan the WHOLE dialog (same limitation as
+		// scanSDPMediaPorts) for the first a= direction attribute; the
+		// INVITE's attribute describes what the offerer (caller) does:
+		// sendonly → caller sends → "up"; recvonly → caller receives →
+		// callee sends → "down"; sendrecv → bidirectional, default "up".
+		// When no a= attribute is present, parseSDPDirection returns ""
+		// and we fall back to the original "up" default.
+		dir = scanSDPDirection(spec.SIP.Dialog)
+	}
+	if dir == "" {
 		dir = "up"
 	}
 
@@ -611,6 +623,55 @@ func parseSDPMediaPort(body string) uint16 {
 		return 0
 	}
 	return uint16(p)
+}
+
+// sdpDirectionRe matches an SDP "a=<direction>" attribute line per RFC 4566
+// §6.4.1 + RFC 3264 §5.1. The direction is one of sendonly / recvonly /
+// sendrecv / inactive. The SDP attribute line format is "a=<value>" (with an
+// equals sign, NOT a space) per RFC 4566 §5.13: "a=<attribute>" or
+// "a=<attribute>:<value>". We match case-insensitively and anchor the line
+// end so "a=sendonly\r\nfoo" doesn't spuriously match a hypothetical
+// "a=sendonlyx". The `[ \t]*` before the line terminator tolerates trailing
+// whitespace; `\r?$` accepts CRLF or bare LF.
+var sdpDirectionRe = regexp.MustCompile(`(?im)^[ \t]*a=(sendonly|recvonly|sendrecv|inactive)[ \t]*\r?$`)
+
+// parseSDPDirection scans an SDP body for the first directional media
+// attribute (a=sendonly / a=recvonly / a=sendrecv / a=inactive) and returns
+// the RTP flow direction the offerer's attribute implies:
+//
+//   - "sendonly": the offerer (caller, who sent the INVITE) SENDS media, so
+//     RTP flows caller→callee = "up".
+//   - "recvonly": the offerer only RECEIVES, so the answerer (callee) sends
+//     → RTP flows callee→caller = "down".
+//   - "sendrecv": bidirectional; a single SIPMedia models one direction, so
+//     we return "up" (the caller-side stream default).
+//   - "inactive": no media flows either way per RFC 3264 §5.1. We return ""
+//     (empty) so the caller (emitSIPMedia) can decide; the current contract
+//     is that one SIPMedia always emits frames, so "" falls through to the
+//     existing "up" default rather than silently suppressing RTP. A future
+//     enhancement could make inactive skip the sub-flow.
+//   - absent: no a= direction attribute. Returns "" (caller defaults to "up").
+//
+// The mapping comes from RFC 3264 §5.1: the direction attribute describes
+// what the offerer (INVITE sender) will do with media. sendonly from the
+// offerer means the offerer sends; recvonly means the offerer wants to
+// receive (so the answerer sends).
+func parseSDPDirection(body string) string {
+	m := sdpDirectionRe.FindStringSubmatch(body)
+	if m == nil {
+		return ""
+	}
+	switch strings.ToLower(m[1]) {
+	case "sendonly":
+		return "up"
+	case "recvonly":
+		return "down"
+	case "sendrecv":
+		return "up"
+	case "inactive":
+		return "" // fall through to caller's default ("up")
+	}
+	return ""
 }
 
 // scanSDPMediaPorts walks the SIP dialog and returns (invitePort, ok200Port)
@@ -730,6 +791,38 @@ func scanSDPMediaPorts(dialog []core.SIPMessage) (invitePort, ok200Port uint16) 
 		// explicit media.DstPort override.
 	}
 	return invitePort, ok200Port
+}
+
+// scanSDPDirection walks the SIP dialog searching for the first SDP body
+// that carries a directional media attribute (a=sendonly / a=recvonly /
+// a=sendrecv / a=inactive) and returns the implied RTP flow direction
+// (via parseSDPDirection). Returns "" when no a= attribute is present in
+// any body, so the caller falls back to its existing default ("up").
+//
+// We scan INVITE and ACK bodies (the offerer-side messages per RFC 3264
+// §5.1 — the direction attribute describes what the offerer, i.e. the
+// INVITE/ACK sender, will do with media). 200-OK answerer bodies are NOT
+// scanned: the answerer's a= attribute may flip direction per RFC 3264
+// §6.1 (an answerer can answer sendonly→recvonly), but modeling that
+// requires correlating offer/answer pairs — the user controls the final
+// direction via media.Direction when they need answerer-driven semantics.
+//
+// KNOWN LIMITATION (mirrors scanSDPMediaPorts): this scans the WHOLE
+// dialog, not just the prefix up to the current EmitMedia point, so a
+// re-INVITE's a= attribute affects the first emit too (future-bleed).
+// Use explicit media.Direction to override.
+func scanSDPDirection(dialog []core.SIPMessage) string {
+	for _, msg := range dialog {
+		// Only offerer-side messages describe the offerer's direction.
+		// INVITE is the initial offer; ACK is the delayed-offer offer.
+		if msg.Method != "INVITE" && msg.Method != "ACK" {
+			continue
+		}
+		if d := parseSDPDirection(msg.Body); d != "" {
+			return d
+		}
+	}
+	return ""
 }
 
 // effectiveTTLOf returns the spec's TTL or DefaultTTL if unset. Kept here

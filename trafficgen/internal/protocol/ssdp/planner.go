@@ -448,7 +448,7 @@ func buildHostHeader(host string, port uint16) string {
 //
 // NOTIFY * HTTP/1.1\r\n
 // HOST: <host>\r\n
-// [CACHE-CONTROL: max-age=<N>\r\n] (alive only)
+// [CACHE-CONTROL: max-age=<N>\r\n] (alive/update, omitted for byebye)
 // [LOCATION: <url>\r\n] (alive/update only, if Location is set)
 // NT: <search_target>\r\n
 // NTS: ssdp:<type>\r\n
@@ -456,6 +456,8 @@ func buildHostHeader(host string, port uint16) string {
 // USN: <usn>\r\n
 // [BOOTID.UPNP.ORG: <n>\r\n] (alive/update only, if BootID > 0)
 // [CONFIGID.UPNP.ORG: <n>\r\n] (alive/update only, if ConfigID > 0)
+// [NEXTBOOTID.UPNP.ORG: <n>\r\n] (update only, if NextBootID > 0)
+// [SEARCHPORT.UPNP.ORG: <n>\r\n] (update only, if SearchPort > 0)
 // \r\n
 func buildSSDPNotify(cfg *core.SSDPConfig, spec core.FlowSpec, hostHeader, multicastGroup string) []byte {
 	var b strings.Builder
@@ -468,8 +470,9 @@ func buildSSDPNotify(cfg *core.SSDPConfig, spec core.FlowSpec, hostHeader, multi
 	b.WriteString(hostHeader)
 	b.WriteString("\r\n")
 
-	// CACHE-CONTROL: max-age (alive only).
-	if cfg.MessageType == "alive" {
+	// CACHE-CONTROL: max-age (alive and update per UPnP DA 1.1 §1.2.3 /
+	// design §3.3: update carries MAX-AGE as an optional header).
+	if cfg.MessageType != "byebye" {
 		maxAge := cfg.MaxAge
 		if maxAge <= 0 {
 			maxAge = DefaultMaxAge
@@ -514,6 +517,20 @@ func buildSSDPNotify(cfg *core.SSDPConfig, spec core.FlowSpec, hostHeader, multi
 	// CONFIGID.UPNP.ORG (alive/update only, if ConfigID > 0).
 	if cfg.MessageType != "byebye" && cfg.ConfigID > 0 {
 		b.WriteString(fmt.Sprintf("CONFIGID.UPNP.ORG: %d\r\n", cfg.ConfigID))
+	}
+
+	// NEXTBOOTID.UPNP.ORG (update only, if NextBootID > 0).
+	// Per UPnP DA 1.1 §1.2.3: ssdp:update carries NEXTBOOTID to indicate
+	// the new boot ID when it changes during the configuration update.
+	if cfg.MessageType == "update" && cfg.NextBootID > 0 {
+		b.WriteString(fmt.Sprintf("NEXTBOOTID.UPNP.ORG: %d\r\n", cfg.NextBootID))
+	}
+
+	// SEARCHPORT.UPNP.ORG (update only, if SearchPort > 0).
+	// Per UPnP DA 1.1 §1.2.3: ssdp:update carries SEARCHPORT to indicate
+	// the port on which the device listens for M-SEARCH after the update.
+	if cfg.MessageType == "update" && cfg.SearchPort > 0 {
+		b.WriteString(fmt.Sprintf("SEARCHPORT.UPNP.ORG: %d\r\n", cfg.SearchPort))
 	}
 
 	// Empty line (头结束标记).

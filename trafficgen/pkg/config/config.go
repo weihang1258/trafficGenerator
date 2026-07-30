@@ -246,9 +246,9 @@ func expandEnv(s string) string {
 func setDefaults(v *viper.Viper) {
 	// Server defaults
 	v.SetDefault("server.host", "0.0.0.0")
-	v.SetDefault("server.port", 8080)
+	v.SetDefault("server.port", 8082)
 	v.SetDefault("server.mode", "release")
-	v.SetDefault("server.allowed_origins", []string{"http://localhost:3000", "http://localhost:8080"})
+	v.SetDefault("server.allowed_origins", []string{"http://localhost:3000", "http://localhost:8082"})
 
 	// Database defaults
 	v.SetDefault("database.type", "sqlite")

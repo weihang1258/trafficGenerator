@@ -105,9 +105,11 @@ const (
 	// client's IDLE command per RFC 2177 §3.
 	IDLEContuation = "+ idling\r\n"
 
-	// IDLEDone is the client's DONE terminator per RFC 2177 §4.
-	// When DoneTag is empty, the planner emits this verbatim; when
-	// DoneTag is set, the planner emits "<DoneTag> DONE\r\n".
+	// IDLEDone is the client's DONE terminator per RFC 2177 §4. The
+	// client ALWAYS sends DONE bare as "DONE\r\n" with no tag prefix —
+	// DONE is a continuation response to the server's "+" prompt, not a
+	// tagged command. The tag belongs only on the server's tagged
+	// completion response (provided separately via DoneResponse).
 	IDLEDone = "DONE\r\n"
 
 	// AuthCancelLine is the client's AUTHENTICATE cancellation line
@@ -548,7 +550,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		//   1. client "IDLE\r\n" (using the cmd's tag or auto)
 		//   2. server "+ idling\r\n" continuation
 		//   3. each IDLE.PushResponses as server push
-		//   4. client "DONE\r\n" (or "<DoneTag> DONE\r\n")
+		//   4. client "DONE\r\n" (bare, no tag — DONE is a continuation,
+		//      never a tagged command per RFC 2177 §4)
 		//   5. server done-response (typically "<tag> OK IDLE terminated")
 		//   6. optional server timeout BYE per ServerTimeoutBehavior
 		emitIDLE := func(cmd core.IMAPCommand, tag string) {
@@ -567,18 +570,15 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 
 			// 4. Client DONE.
-			doneTag := idle.DoneTag
-			if doneTag == "" {
-				doneTag = tag
-			}
-			var doneLine string
-			if doneTag == tag {
-				// RFC 2177 §4: DONE is untagged (no tag prefix).
-				doneLine = IDLEDone
-			} else {
-				doneLine = doneTag + " DONE\r\n"
-			}
-			clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, []byte(doneLine))
+			// RFC 2177 §4: DONE is a continuation response to the
+			// server's "+" prompt, NOT a tagged command. So the client
+			// always sends the bare "DONE\r\n" with NO tag prefix,
+			// regardless of any DoneTag. The tag belongs only on the
+			// server's tagged completion response (step 5 below, via
+			// DoneResponse). The earlier code emitted "<DoneTag> DONE\r\n"
+			// when DoneTag differed from the cmd's tag — that was a
+			// spec-violating tagged DONE.
+			clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, []byte(IDLEDone))
 
 			// 5. Server done response.
 			if idle.DoneResponse != "" {

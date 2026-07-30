@@ -820,8 +820,10 @@ func framePacket(seq uint8, body []byte) []byte {
 //
 // mysql_native_password:
 //
-//	xor_stage = SHA1(password) XOR SHA1(scramble + SHA1(SHA1(password)))
-//	resp      = SHA1(xor_stage)
+//	HASH1   = SHA1(password)
+//	HASH2   = SHA1(HASH1)
+//	stage2  = SHA1(scramble + HASH2)
+//	resp    = HASH1 XOR stage2
 //
 // caching_sha2_password fast path:
 //
@@ -853,23 +855,32 @@ func computeAuthResponse(plugin string, password, scramble []byte) []byte {
 
 // mysqlNativePassword returns the 20-byte mysql_native_password response.
 //
-// SHA1(password) XOR SHA1(scramble + SHA1(SHA1(password))) is the
-// "stage 1" of the protocol; the final response is SHA1(stage1).
+// Per the MySQL 4.1+ native_password plugin (MySQL source sql/auth/password.c
+// Scramble / hash_password_algorithm):
+//
+//	HASH1 = SHA1(password)
+//	HASH2 = SHA1(HASH1)
+//	stage2 = SHA1(scramble + HASH2)
+//	response = HASH1 XOR stage2
+//
+// The response IS the XOR value directly — there is NO final SHA1 over the
+// XOR. An earlier version of this function applied an extra `SHA1(xor)`,
+// producing an incorrect 20-byte digest that no real MySQL server would
+// accept.
 func mysqlNativePassword(password, scramble []byte) []byte {
 	if len(password) == 0 {
 		return make([]byte, 20)
 	}
-	sha1P := sha1.Sum(password)
-	sha1Sha1P := sha1.Sum(sha1P[:])
+	sha1P := sha1.Sum(password)          // HASH1 = SHA1(password)
+	sha1Sha1P := sha1.Sum(sha1P[:])      // HASH2 = SHA1(HASH1)
 	buf := append([]byte{}, scramble...)
-	buf = append(buf, sha1Sha1P[:]...)
-	sha1Step := sha1.Sum(buf)
+	buf = append(buf, sha1Sha1P[:]...)   // scramble + HASH2
+	sha1Step := sha1.Sum(buf)            // SHA1(scramble + HASH2)
 	xor := make([]byte, 20)
 	for i := 0; i < 20; i++ {
-		xor[i] = sha1P[i] ^ sha1Step[i]
+		xor[i] = sha1P[i] ^ sha1Step[i] // HASH1 XOR SHA1(scramble + HASH2)
 	}
-	resp := sha1.Sum(xor)
-	return resp[:]
+	return xor
 }
 
 // cachingSHA2PasswordFast returns the 32-byte caching_sha2_password

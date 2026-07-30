@@ -508,19 +508,29 @@ func buildNTPPacket(cfg *core.NTPConfig, refTS, originTS, receiveTS, transmitTS 
 // buildControlRequest builds an 8-byte Mode=6 control header (RFC 5906 §4)
 // followed by ControlData. The control header layout:
 //
-//	Byte 0: Version(2) | LI(2) | Mode(4)   (Version=2, Mode=6)
+//	Byte 0: LI(2) | VN(3) | Mode(3)   -- standard NTP byte 0 (RFC 5905 §7.3),
+//	         Mode=6 in the low 3 bits, VN holds the NTP version (3 or 4).
+//	         The control protocol reuses the standard NTP header byte 0; it
+//	         does NOT carry a separate 2-bit "control version" field.
 //	Byte 1: Sequence
 //	Byte 2: Implementation
 //	Byte 3: Request Code
 //	Bytes 4-5: (Error(1) | More(1) | StatusWord(14))   -- 16-bit big-endian
 //	Bytes 6-7: Data Size (uint16, big-endian)
 //	Bytes 8+: Data (ControlData, length = Data Size)
+//
+// Note: an earlier revision packed byte 0 as Version(2)|LI(2)|Mode(4) per
+// design_ntp.md §2.3. That is non-standard: a real NTP stack reads byte 0
+// as LI(2)|VN(3)|Mode(3), so the old packing produced VN=0 (invalid) and a
+// wrong LI. The standard packing below matches RFC 1305 / RFC 5906 wire
+// format (Mode=6 recoverable in the low 3 bits, VN in bits 5-3).
 func buildControlRequest(cfg *core.NTPConfig, seq uint8) []byte {
 	dataLen := len(cfg.ControlData)
 	totalLen := ControlHeaderLen + dataLen
 	buf := make([]byte, totalLen)
-	// Version=2 (control protocol), LI=user-provided, Mode=6.
-	buf[0] = ((2 & 0x03) << 6) | ((cfg.LeapIndicator & 0x03) << 4) | (ModeControl & 0x0F)
+	// Standard NTP byte 0: LI(2) | VN(3) | Mode(3). LI=user-provided,
+	// VN=cfg.Version (3 or 4), Mode=6 (control).
+	buf[0] = ((cfg.LeapIndicator & 0x03) << 6) | ((cfg.Version & 0x07) << 3) | (ModeControl & 0x07)
 	buf[1] = seq
 	buf[2] = cfg.Implementation
 	buf[3] = cfg.RequestCode

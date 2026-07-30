@@ -248,7 +248,8 @@ func TestOpenVPN_TLSCrypt(t *testing.T) {
 func TestOpenVPN_TLSCryptV2(t *testing.T) {
 	// Scenario 5 extension: tls-crypt-v2
 	// Config: tls_crypt=true, tls_crypt_v2=true, version=2
-	// Expected: wrapped_key includes wrapped_key_id (4 bytes) + length prefix (2 bytes)
+	// Expected: wrapped_key includes length prefix (2 bytes) + wrapped_key_id (4 bytes)
+	// Per design §2.5.1: length_prefix comes BEFORE wrapped_key_id.
 	spec := defaultOpenVPNSpec()
 	spec.OpenVPN.TLSCrypt = true
 	spec.OpenVPN.TLSCryptV2 = true
@@ -268,23 +269,23 @@ func TestOpenVPN_TLSCryptV2(t *testing.T) {
 
 	clientPkt := packets[0].Payload
 	// After opcode(1) + session_id(3) + packet_id(1) = 5 bytes,
-	// tls-crypt-v2: wrapped_key_id(4) + length_prefix(2) + auth-tag(32) + IV(16) + cipher_key(32)
-	// wrapped_key_id = 0x00000001
+	// tls-crypt-v2: length_prefix(2) + wrapped_key_id(4) + auth-tag(32) + IV(16) + cipher_key(32)
 	// length prefix = 0x0050 (80)
+	// wrapped_key_id = 0x00000001
 	wrapStart := 5
-	if len(clientPkt) < wrapStart+4+2+80 {
+	if len(clientPkt) < wrapStart+2+4+80 {
 		t.Fatalf("client reset too short for tls-crypt-v2 wrap: %d bytes", len(clientPkt))
 	}
-	// Check wrapped_key_id = 1
-	if clientPkt[wrapStart] != 0x00 || clientPkt[wrapStart+1] != 0x00 ||
-		clientPkt[wrapStart+2] != 0x00 || clientPkt[wrapStart+3] != 0x01 {
-		t.Errorf("wrapped_key_id: expected 0x00000001, got 0x%02X%02X%02X%02X",
-			clientPkt[wrapStart], clientPkt[wrapStart+1], clientPkt[wrapStart+2], clientPkt[wrapStart+3])
-	}
-	// Check length prefix = 80 (0x0050)
-	if clientPkt[wrapStart+4] != 0x00 || clientPkt[wrapStart+5] != 0x50 {
+	// Check length prefix = 80 (0x0050) at offset wrapStart
+	if clientPkt[wrapStart] != 0x00 || clientPkt[wrapStart+1] != 0x50 {
 		t.Errorf("length prefix: expected 0x0050, got 0x%02X%02X",
-			clientPkt[wrapStart+4], clientPkt[wrapStart+5])
+			clientPkt[wrapStart], clientPkt[wrapStart+1])
+	}
+	// Check wrapped_key_id = 1 at offset wrapStart+2
+	if clientPkt[wrapStart+2] != 0x00 || clientPkt[wrapStart+3] != 0x00 ||
+		clientPkt[wrapStart+4] != 0x00 || clientPkt[wrapStart+5] != 0x01 {
+		t.Errorf("wrapped_key_id: expected 0x00000001, got 0x%02X%02X%02X%02X",
+			clientPkt[wrapStart+2], clientPkt[wrapStart+3], clientPkt[wrapStart+4], clientPkt[wrapStart+5])
 	}
 }
 
@@ -757,7 +758,10 @@ func TestOpenVPN_StaticKeyMode(t *testing.T) {
 func TestOpenVPN_ExitNotify(t *testing.T) {
 	// Scenario 16: Explicit exit notify
 	// Config: exit_notify_count=3
-	// Expected: 3 exit_notify packets after data
+	// Expected: 3 exit_notify packets after data, each framed as a P_CONTROL
+	// message (opcode + key_id + session_id + packet_id + type=0x05).
+	// Per design §2.10.5: exit_notify is NOT a bare 0x05 byte - it is
+	// carried inside a P_CONTROL message with proper framing.
 	spec := defaultOpenVPNSpec()
 	spec.OpenVPN.ExitNotifyCount = 3
 	spec.OpenVPN.DataPacketCount = 1
@@ -775,10 +779,21 @@ func TestOpenVPN_ExitNotify(t *testing.T) {
 		t.Fatalf("expected at least 7 packets (2 control + 2 data + 3 exit_notify), got %d", len(packets))
 	}
 
-	// Last 3 packets should be exit_notify (payload = {0x05})
+	// Last 3 packets should be exit_notify: framed P_CONTROL with type=0x05
 	for i := len(packets) - 3; i < len(packets); i++ {
-		if len(packets[i].Payload) != 1 || packets[i].Payload[0] != 0x05 {
-			t.Errorf("exit_notify packet %d: expected payload [0x05], got %v", i, packets[i].Payload)
+		pkt := packets[i].Payload
+		// Must start with a P_CONTROL opcode (high 3 bits = 1-6, not bare 0x05)
+		if len(pkt) < 2 {
+			t.Errorf("exit_notify packet %d: payload too short (%d bytes)", i, len(pkt))
+			continue
+		}
+		opcode := pkt[0] >> 5
+		if opcode < 1 || opcode > 6 {
+			t.Errorf("exit_notify packet %d: expected P_CONTROL opcode (1-6) in high bits, got opcode=%d (0x%02X)", i, opcode, pkt[0])
+		}
+		// Last byte must be 0x05 (exit_notify type)
+		if pkt[len(pkt)-1] != 0x05 {
+			t.Errorf("exit_notify packet %d: expected last byte 0x05, got 0x%02X", i, pkt[len(pkt)-1])
 		}
 	}
 }

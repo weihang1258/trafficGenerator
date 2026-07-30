@@ -626,7 +626,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				pppBytes = append(pppBytes, ppp.Data...)
 			}
 
-			payload := buildDataMessage(version, localTunID, localSesID, localSesID32, pppBytes)
+			payload := buildDataMessage(version, localTunID, localSesID, localSesID32, cfg.Cookie, pppBytes)
 
 			if !emit(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, payload) {
 				return
@@ -836,20 +836,38 @@ func buildControlMessage(version uint8, tunID, sesID16 uint16, sesID32 uint32, n
 //
 // For v2 (RFC 2661 §3.1): TunID + SesID + PPP payload, no Length/Ns/Nr/Offset.
 // For v3 (RFC 3931 §3.1): Flags (1) + Ver (1) + SessionID (4) + optional
-// Cookie + L2 payload.
-func buildDataMessage(version uint8, localTunID uint16, localSesID uint16, localSesID32 uint32, pppPayload []byte) []byte {
+// Cookie (0/4/8/16 bytes, per cfg.Cookie length) + L2 payload.
+//
+// The v3 Flags byte encodes the Cookie size in bits 5-4 (0x00=no cookie,
+// 0x20=4 bytes, 0x40=8 bytes, 0x60=16 bytes). The Cookie field, when
+// present, is written immediately after the Session ID per RFC 3931 §3.1.
+func buildDataMessage(version uint8, localTunID uint16, localSesID uint16, localSesID32 uint32, cookie []byte, pppPayload []byte) []byte {
 	if version == VersionL2TPv3 {
 		// v3 data header: 6 bytes (Flags + Ver + 32-bit Session ID).
 		hdr := make([]byte, 6)
-		// v3 flags: low 4 bits = 0, high 4 bits reserved. Ver=3 in low byte
-		// (byte 1 = 0x03).
-		hdr[0] = 0
+		// v3 flags byte: bits 5-4 = Cookie Size (0/4/8/16 -> 0/1/2/3),
+		// low 4 bits = 0, high 4 bits reserved. Ver=3 in low byte (byte 1 = 0x03).
+		switch len(cookie) {
+		case 4:
+			hdr[0] = v3FlagCookieSize4
+		case 8:
+			hdr[0] = v3FlagCookieSize8
+		case 16:
+			hdr[0] = v3FlagCookieSize16
+		default:
+			// 0 (no cookie) or any unexpected length -> no cookie bits.
+			hdr[0] = 0
+		}
 		hdr[1] = VersionL2TPv3
 		binary.BigEndian.PutUint32(hdr[2:6], localSesID32)
-		// Append optional cookie (if Cookie field set on cfg). Caller
-		// must inject the cookie before invoking this; we receive pppPayload
-		// as-is here. Cookie is supported at caller-side via cfg.Cookie.
-		return append(hdr, pppPayload...)
+		// Per RFC 3931 §3.1, the Cookie field follows the Session ID when
+		// the Cookie Size flags are non-zero. Validation upstream ensures
+		// len(cookie) is one of 0/4/8/16.
+		out := make([]byte, 0, 6+len(cookie)+len(pppPayload))
+		out = append(out, hdr...)
+		out = append(out, cookie...)
+		out = append(out, pppPayload...)
+		return out
 	}
 
 	// v2 data message: TunID (2) + SesID (2) + PPP payload.

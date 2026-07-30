@@ -1458,6 +1458,132 @@ func TestEncodeSKF_BasicStructure(t *testing.T) {
 	}
 }
 
+// TestPlan_SKFFragmentation tests that when FragmentationSupported is
+// enabled and an encrypted message's payload exceeds FragmentThreshold,
+// the planner emits multiple IKE datagrams each carrying one SKF (type 53)
+// payload, with FragmentNumber starting at 1 and TotalFragments consistent
+// across the set (RFC 7383 §2).
+//
+// This is a regression test: previously buildIKEMessageBytes returned
+// (bytes, 1, 1) unconditionally and emitMessage never split, so an
+// oversized AUTH payload produced a single unfragmented datagram despite
+// FragmentationSupported being set.
+func TestPlan_SKFFragmentation(t *testing.T) {
+	spec := validBaseSpec()
+	spec.IKE.Scenario = "fragmented_auth"
+	spec.IKE.FragmentationSupported = true
+	spec.IKE.FragmentThreshold = 200 // small threshold to force many fragments
+	pkts := mustPlan(t, spec)
+
+	// Find the AUTH-phase encrypted messages (direction "up" after INIT).
+	// The fragmented_auth scenario emits: INIT_REQ, INIT_RESP, AUTH_REQ,
+	// AUTH_RESP. Both AUTH messages carry a 5000-byte OpaqueData payload,
+	// which far exceeds the 200-byte threshold and MUST be fragmented.
+	type frag struct {
+		fragNum  uint16
+		totalNum uint16
+		nextPl   uint8
+	}
+	var fragSets = map[string][]frag{} // direction -> fragment list
+	for _, p := range pkts {
+		if len(p.Payload) < IKEHeaderLen {
+			continue
+		}
+		// Only inspect messages whose IKE Header Next Payload = SKF (53).
+		if p.Payload[16] != PayloadSKF {
+			continue
+		}
+		// Parse the single SKF payload.
+		// Generic Payload Header at offset 28: Next(1) + Critical(1) + Length(2).
+		if len(p.Payload) < IKEHeaderLen+GenericHeaderLen {
+			continue
+		}
+		genLen := binary.BigEndian.Uint16(p.Payload[IKEHeaderLen+2 : IKEHeaderLen+4])
+		if int(genLen) < GenericHeaderLen+4 || IKEHeaderLen+int(genLen) > len(p.Payload) {
+			continue
+		}
+		skfBody := p.Payload[IKEHeaderLen+GenericHeaderLen : IKEHeaderLen+int(genLen)]
+		if len(skfBody) < 4 {
+			continue
+		}
+		fragSets[p.Direction] = append(fragSets[p.Direction], frag{
+			fragNum:  binary.BigEndian.Uint16(skfBody[0:2]),
+			totalNum: binary.BigEndian.Uint16(skfBody[2:4]),
+			nextPl:   p.Payload[16],
+		})
+	}
+
+	if len(fragSets) == 0 {
+		t.Fatalf("expected at least one SKF fragment set, got 0 (FragmentationSupported=%v, FragmentThreshold=%d)",
+			spec.IKE.FragmentationSupported, spec.IKE.FragmentThreshold)
+	}
+
+	for dir, fs := range fragSets {
+		if len(fs) < 2 {
+			t.Errorf("direction %s: expected >=2 SKF fragments, got %d", dir, len(fs))
+			continue
+		}
+		// FragmentNumber must start at 1 and increment by 1.
+		for i, f := range fs {
+			want := uint16(i + 1)
+			if f.fragNum != want {
+				t.Errorf("direction %s: fragment[%d] FragmentNumber = %d, want %d", dir, i, f.fragNum, want)
+			}
+		}
+		// TotalFragments must be consistent across the set and equal len(fs).
+		for i, f := range fs {
+			if f.totalNum != uint16(len(fs)) {
+				t.Errorf("direction %s: fragment[%d] TotalFragments = %d, want %d", dir, i, f.totalNum, len(fs))
+			}
+		}
+		// IKE Header Next Payload must be PayloadSKF (53).
+		for i, f := range fs {
+			if f.nextPl != PayloadSKF {
+				t.Errorf("direction %s: fragment[%d] IKE Header Next Payload = %d, want %d (SKF)", dir, i, f.nextPl, PayloadSKF)
+			}
+		}
+	}
+}
+
+// TestPlan_SKFFragmentation_SharesSPI verifies that all SKF fragments of
+// one IKE message share the same InitiatorSPI / ResponderSPI / Message ID
+// (RFC 7383 §2: fragments share the IKE Header SPI and Message ID).
+func TestPlan_SKFFragmentation_SharesSPI(t *testing.T) {
+	spec := validBaseSpec()
+	spec.IKE.Scenario = "fragmented_auth"
+	spec.IKE.FragmentationSupported = true
+	spec.IKE.FragmentThreshold = 200
+	pkts := mustPlan(t, spec)
+
+	// Collect the SKF-bearing packets for the AUTH_REQ direction ("up").
+	var upFrags []core.PacketConfig
+	for _, p := range pkts {
+		if p.Direction != "up" || len(p.Payload) < IKEHeaderLen {
+			continue
+		}
+		if p.Payload[16] == PayloadSKF {
+			upFrags = append(upFrags, p)
+		}
+	}
+	if len(upFrags) < 2 {
+		t.Fatalf("need >=2 SKF fragments in 'up' direction, got %d", len(upFrags))
+	}
+	firstSPIi := binary.BigEndian.Uint64(upFrags[0].Payload[0:8])
+	firstSPIr := binary.BigEndian.Uint64(upFrags[0].Payload[8:16])
+	firstMsgID := binary.BigEndian.Uint32(upFrags[0].Payload[20:24])
+	for i, p := range upFrags {
+		if binary.BigEndian.Uint64(p.Payload[0:8]) != firstSPIi {
+			t.Errorf("frag[%d] SPIi differs from frag[0]", i)
+		}
+		if binary.BigEndian.Uint64(p.Payload[8:16]) != firstSPIr {
+			t.Errorf("frag[%d] SPIr differs from frag[0]", i)
+		}
+		if binary.BigEndian.Uint32(p.Payload[20:24]) != firstMsgID {
+			t.Errorf("frag[%d] MessageID differs from frag[0]", i)
+		}
+	}
+}
+
 func TestEncodeID_IPv4(t *testing.T) {
 	id := &core.IKEIdentity{
 		IDType: 1, // IPv4

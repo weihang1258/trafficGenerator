@@ -6,6 +6,7 @@ package l2tp
 // state machine + 13 business scenarios + 5 data scenarios + concurrency.
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"testing"
@@ -1351,6 +1352,108 @@ func TestL2TPv3_DataHeader(t *testing.T) {
 	// v3 flags byte 0 = 0 (no cookie size), byte 1 = 0x03 (Ver=3).
 	if last[0] != 0 || last[1] != 0x03 {
 		t.Errorf("v3 flags = %02x %02x, want 00 03", last[0], last[1])
+	}
+}
+
+// 3.8.2: L2TPv3 data message with a 4-byte Cookie emits the Cookie bytes
+// immediately after the Session ID, and the Flags byte encodes cookie
+// size = 4 (bits 5-4 = 0b01 -> 0x20). Per RFC 3931 §3.1 the Cookie field
+// MUST follow the Session ID when the Cookie-Length flags are non-zero.
+//
+// This is a regression test: an earlier version validated Cookie length
+// but never WROTE the Cookie bytes into the data message, so the 4-byte
+// cookie [01 02 03 04] was silently dropped.
+func TestL2TPv3_DataMessageEmitsCookie(t *testing.T) {
+	p := NewPlanner()
+	spec := validL2TPv2Spec()
+	spec.L2TP.Version = VersionL2TPv3
+	spec.L2TP.LocalSessionID32 = 0xCAFEBABE
+	spec.L2TP.Cookie = []byte{0x01, 0x02, 0x03, 0x04}
+	spec.L2TP.Scenarios = []core.L2TPStep{
+		{Type: stepSCCRQ}, {Type: stepSCCRP}, {Type: stepSCCCN},
+	}
+	spec.L2TP.PPPFrames = []core.L2TPPPPFrame{
+		{Protocol: 0x0021, Data: []byte("payload")},
+	}
+	configs := mustPlan(t, p, spec)
+	last := configs[len(configs)-1].Payload
+	if len(last) < 6+4 {
+		t.Fatalf("v3 data with cookie too short: %d bytes", len(last))
+	}
+	// Flags byte must encode Cookie Size = 4 (0x20).
+	if last[0] != v3FlagCookieSize4 {
+		t.Errorf("v3 flags = 0x%02x, want 0x%02x (cookie size 4)", last[0], v3FlagCookieSize4)
+	}
+	if last[1] != 0x03 {
+		t.Errorf("v3 ver = 0x%02x, want 0x03", last[1])
+	}
+	// Session ID at offset 2..6.
+	if binary.BigEndian.Uint32(last[2:6]) != 0xCAFEBABE {
+		t.Errorf("v3 session id = 0x%08X, want 0xCAFEBABE", binary.BigEndian.Uint32(last[2:6]))
+	}
+	// Cookie must appear at offset 6..10 (immediately after Session ID).
+	cookie := last[6:10]
+	if !bytes.Equal(cookie, []byte{0x01, 0x02, 0x03, 0x04}) {
+		t.Errorf("v3 cookie bytes = %x, want 01020304 (RFC 3931 §3.1: Cookie follows Session ID)", cookie)
+	}
+}
+
+// 3.8.3: L2TPv3 data message with an 8-byte Cookie emits 8 cookie bytes
+// and the Flags byte encodes cookie size = 8 (0x40).
+func TestL2TPv3_DataMessageEmits8ByteCookie(t *testing.T) {
+	p := NewPlanner()
+	spec := validL2TPv2Spec()
+	spec.L2TP.Version = VersionL2TPv3
+	cookie := []byte{0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE}
+	spec.L2TP.Cookie = cookie
+	spec.L2TP.Scenarios = []core.L2TPStep{
+		{Type: stepSCCRQ}, {Type: stepSCCRP}, {Type: stepSCCCN},
+	}
+	spec.L2TP.PPPFrames = []core.L2TPPPPFrame{
+		{Protocol: 0x0021, Data: []byte("x")},
+	}
+	configs := mustPlan(t, p, spec)
+	last := configs[len(configs)-1].Payload
+	if len(last) < 6+8 {
+		t.Fatalf("v3 data with 8-byte cookie too short: %d bytes", len(last))
+	}
+	if last[0] != v3FlagCookieSize8 {
+		t.Errorf("v3 flags = 0x%02x, want 0x%02x (cookie size 8)", last[0], v3FlagCookieSize8)
+	}
+	got := last[6 : 6+8]
+	if !bytes.Equal(got, cookie) {
+		t.Errorf("v3 8-byte cookie = %x, want %x", got, cookie)
+	}
+}
+
+// 3.8.4: L2TPv3 data message with a 16-byte Cookie emits 16 cookie bytes
+// and the Flags byte encodes cookie size = 16 (0x60).
+func TestL2TPv3_DataMessageEmits16ByteCookie(t *testing.T) {
+	p := NewPlanner()
+	spec := validL2TPv2Spec()
+	spec.L2TP.Version = VersionL2TPv3
+	cookie := []byte{
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+	}
+	spec.L2TP.Cookie = cookie
+	spec.L2TP.Scenarios = []core.L2TPStep{
+		{Type: stepSCCRQ}, {Type: stepSCCRP}, {Type: stepSCCCN},
+	}
+	spec.L2TP.PPPFrames = []core.L2TPPPPFrame{
+		{Protocol: 0x0021, Data: []byte("y")},
+	}
+	configs := mustPlan(t, p, spec)
+	last := configs[len(configs)-1].Payload
+	if len(last) < 6+16 {
+		t.Fatalf("v3 data with 16-byte cookie too short: %d bytes", len(last))
+	}
+	if last[0] != v3FlagCookieSize16 {
+		t.Errorf("v3 flags = 0x%02x, want 0x%02x (cookie size 16)", last[0], v3FlagCookieSize16)
+	}
+	got := last[6 : 6+16]
+	if !bytes.Equal(got, cookie) {
+		t.Errorf("v3 16-byte cookie = %x, want %x", got, cookie)
 	}
 }
 

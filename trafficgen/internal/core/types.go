@@ -365,6 +365,20 @@ type DNSConfig struct {
 	QueryType  uint16 `json:"query_type"`  // A=1, AAAA=28
 	IsResponse bool   `json:"is_response"` // was "response"
 	ResponseIP string `json:"response_ip,omitempty"`
+
+	// TxID is the 16-bit DNS Transaction ID (RFC 1035 §4.1.1). The client
+	// chooses it; the response MUST echo it. 0 (unset) → planner uses the
+	// historical default 0x1234 for backward compatibility.
+	TxID uint16 `json:"txid,omitempty"`
+
+	// EDNS0 OPT pseudo-record controls (RFC 6891). When EDNS0Enabled is
+	// true the planner appends an OPT RR to the Additional section of the
+	// query (ARCOUNT=1). UDPPayloadSize is the OPT CLASS field (max UDP
+	// payload the client accepts); 0 is treated as 4096 when EDNS0Enabled.
+	// DnssecOK sets the DO bit (bit 15 of the OPT TTL) per RFC 4033.
+	EDNS0Enabled   bool   `json:"edns0_enabled,omitempty"`
+	UDPPayloadSize uint16 `json:"udp_payload_size,omitempty"`
+	DnssecOK       bool   `json:"dnssec_ok,omitempty"`
 }
 
 // ICMPConfig for ICMP protocol.
@@ -727,6 +741,11 @@ type ICMPv6Config struct {
 	Sequence   uint16       `json:"sequence"`
 	Data       []byte       `json:"data"`
 	Pattern    []ICMPv6Step `json:"pattern,omitempty"` // multi-session ping steps
+
+	// FileSource, when set, supplies the ICMPv6 echo data bytes via
+	// PayloadCache.GetOrLoad(src) instead of inline Data. nil = use Data.
+	// Mirrors ICMPConfig.FileSource for consistency with the ICMPv4 planner.
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
 // ICMPv6Step is a single ping within a multi-session ICMPv6 flow. The
@@ -3479,6 +3498,16 @@ type SSDPConfig struct {
 	// ConfigID (设备配置ID). Optional on alive/update (CONFIGID.UPNP.ORG).
 	// 0 -> header omitted.
 	ConfigID uint32 `json:"config_id,omitempty"`
+
+	// NextBootID (新启动ID). Optional on update (NEXTBOOTID.UPNP.ORG header,
+	// UPnP DA 1.1 §1.2.3). When a device sends ssdp:update, NEXTBOOTID.UPNP.ORG
+	// indicates the new boot ID if it is changing. 0 -> header omitted.
+	NextBootID uint32 `json:"next_boot_id,omitempty"`
+
+	// SearchPort (搜索端口). Optional on update (SEARCHPORT.UPNP.ORG header,
+	// UPnP DA 1.1 §1.2.3). Indicates the port on which the device listens for
+	// M-SEARCH responses after the configuration change. 0 -> header omitted.
+	SearchPort uint16 `json:"search_port,omitempty"`
 
 	// ResponseCount. Used by msearch: number of singlecast 200 OK responses
 	// to emit (simulating K devices replying). 0/1 = 1 response. Each

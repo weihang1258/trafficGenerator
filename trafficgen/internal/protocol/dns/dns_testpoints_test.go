@@ -416,7 +416,7 @@ func TestDNSPlan_ContextCancelIgnored(t *testing.T) {
 // --- buildDNSResponse (D21-D23) ---
 
 func TestBuildDNSResponse_ValidIPv4(t *testing.T) {
-	response := buildDNSResponse("example.com", TypeA, "8.8.8.8")
+	response := buildDNSResponse("example.com", TypeA, "8.8.8.8", 0)
 	if len(response) < 56 {
 		t.Fatalf("response len=%d, want >=56 for A record with valid IP", len(response))
 	}
@@ -436,7 +436,7 @@ func TestBuildDNSResponse_ValidIPv4(t *testing.T) {
 }
 
 func TestBuildDNSResponse_InvalidIPFallback(t *testing.T) {
-	response := buildDNSResponse("example.com", TypeA, "bad")
+	response := buildDNSResponse("example.com", TypeA, "bad", 0)
 	if len(response) < 56 {
 		t.Fatalf("response len=%d, want >=56", len(response))
 	}
@@ -448,7 +448,7 @@ func TestBuildDNSResponse_InvalidIPFallback(t *testing.T) {
 }
 
 func TestBuildDNSResponse_EmptyIPFallback(t *testing.T) {
-	response := buildDNSResponse("example.com", TypeA, "")
+	response := buildDNSResponse("example.com", TypeA, "", 0)
 	if len(response) < 56 {
 		t.Fatalf("response len=%d, want >=56", len(response))
 	}
@@ -462,7 +462,7 @@ func TestBuildDNSResponse_EmptyIPFallback(t *testing.T) {
 // D23: AAAA response uses 16-byte RDATA and RDLENGTH=16 when IPv6
 // (ip.To4() returns nil for IPv6, so the planner falls back to ip.To16()).
 func TestBuildDNSResponse_IPv6AAAA_Malformed(t *testing.T) {
-	response := buildDNSResponse("example.com", TypeAAAA, "2001:db8::1")
+	response := buildDNSResponse("example.com", TypeAAAA, "2001:db8::1", 0)
 	// AAAA RDATA should be 16 bytes
 	// Header(12) + question(13+4) + answer(13) + answerType(10) + RDATA(16) = 68
 	if len(response) < 68 {
@@ -558,7 +558,7 @@ func TestEncodeDomainName_EmptyLabels(t *testing.T) {
 // --- CNAME RDATA (Type=5) ---
 
 func TestBuildDNSResponse_CNAME(t *testing.T) {
-	response := buildDNSResponse("example.com", TypeCNAME, "www.example.com")
+	response := buildDNSResponse("example.com", TypeCNAME, "www.example.com", 0)
 	// CNAME RDATA format: encoded domain name.
 	// Header(12) + question(13+4) + answer(13) + answerType(10) + RDATA(encoded target)
 	// www.example.com encodes as [3,w,w,w,7,e,x,a,m,p,l,e,3,c,o,m,0] = 16 bytes
@@ -582,7 +582,7 @@ func TestBuildDNSResponse_CNAME(t *testing.T) {
 }
 
 func TestBuildDNSResponse_CNAME_EmptyTarget(t *testing.T) {
-	response := buildDNSResponse("example.com", TypeCNAME, "")
+	response := buildDNSResponse("example.com", TypeCNAME, "", 0)
 	// Empty target falls back to "target.example.com" (16 bytes encoded)
 	wantSuffix := []byte{6, 't', 'a', 'r', 'g', 'e', 't', 7, 'e', 'x', 'a', 'm', 'p', 'l', 'e', 3, 'c', 'o', 'm', 0}
 	gotSuffix := response[len(response)-len(wantSuffix):]
@@ -594,7 +594,7 @@ func TestBuildDNSResponse_CNAME_EmptyTarget(t *testing.T) {
 // --- MX RDATA (Type=15) ---
 
 func TestBuildDNSResponse_MX(t *testing.T) {
-	response := buildDNSResponse("example.com", TypeMX, "mail.example.com")
+	response := buildDNSResponse("example.com", TypeMX, "mail.example.com", 0)
 	// MX RDATA format: 2-byte preference + encoded domain name
 	// mail.example.com encodes as [4,m,a,i,l,7,e,x,a,m,p,l,e,3,c,o,m,0] = 17 bytes
 	// preference = 10 (0x00, 0x0A)
@@ -617,7 +617,7 @@ func TestBuildDNSResponse_MX(t *testing.T) {
 }
 
 func TestBuildDNSResponse_MX_DefaultPreference(t *testing.T) {
-	response := buildDNSResponse("example.com", TypeMX, "")
+	response := buildDNSResponse("example.com", TypeMX, "", 0)
 	// Empty responseIP falls back to "mail.example.com" with preference 10
 	pref := response[len(response)-20 : len(response)-18]
 	if pref[0] != 0x00 || pref[1] != 0x0A {
@@ -628,7 +628,7 @@ func TestBuildDNSResponse_MX_DefaultPreference(t *testing.T) {
 // --- TXT RDATA (Type=16) ---
 
 func TestBuildDNSResponse_TXT(t *testing.T) {
-	response := buildDNSResponse("example.com", TypeTXT, "hello")
+	response := buildDNSResponse("example.com", TypeTXT, "hello", 0)
 	// TXT RDATA format: 1-byte length prefix + text data = 1+5 = 6 bytes
 	// Total = 12+17+13+10+6 = 58
 	if len(response) < 58 {
@@ -643,7 +643,7 @@ func TestBuildDNSResponse_TXT(t *testing.T) {
 }
 
 func TestBuildDNSResponse_TXT_EmptyString(t *testing.T) {
-	response := buildDNSResponse("example.com", TypeTXT, "")
+	response := buildDNSResponse("example.com", TypeTXT, "", 0)
 	// Empty string RDATA = [0] (1 byte length 0x00)
 	// Total = 12+17+13+10+1 = 53
 	if len(response) < 53 {
@@ -661,7 +661,7 @@ func TestBuildDNSResponse_TXT_LongString(t *testing.T) {
 	for i := range longData {
 		longData[i] = 'a'
 	}
-	response := buildDNSResponse("example.com", TypeTXT, string(longData))
+	response := buildDNSResponse("example.com", TypeTXT, string(longData), 0)
 	// RDATA = 1 byte length + 255 bytes data = 256 bytes
 	// Total = 12+17+13+10+256 = 308
 	if len(response) < 308 {
@@ -678,7 +678,7 @@ func TestBuildDNSResponse_TXT_LongString(t *testing.T) {
 
 func TestBuildDNSQuery_EDNS0Enabled(t *testing.T) {
 	// Query with EDNS0 OPT record: build a DNS query that includes OPT RR.
-	payload := buildDNSQueryWithEDNS0("example.com", TypeA, 4096, true)
+	payload := buildDNSQueryWithEDNS0("example.com", TypeA, 0x1234, 4096, true)
 	// Verify OPT RR is present: TYPE=41 (0x0029) at the end of the payload
 	if len(payload) < 12+17+11 {
 		t.Fatalf("payload too short for EDNS0: %d bytes", len(payload))
@@ -704,7 +704,7 @@ func TestBuildDNSQuery_EDNS0Enabled(t *testing.T) {
 }
 
 func TestBuildDNSQuery_EDNS0Disabled(t *testing.T) {
-	payload := buildDNSQueryWithEDNS0("example.com", TypeA, 0, false)
+	payload := buildDNSQueryWithEDNS0("example.com", TypeA, 0, 0, false)
 	// No OPT RR: payload should be exactly header + question = 12 + 17 = 29 bytes
 	if len(payload) != 29 {
 		t.Fatalf("payload len=%d, want 29 (no OPT RR)", len(payload))
@@ -712,7 +712,7 @@ func TestBuildDNSQuery_EDNS0Disabled(t *testing.T) {
 }
 
 func TestBuildDNSQuery_EDNS0_NoDO(t *testing.T) {
-	payload := buildDNSQueryWithEDNS0("example.com", TypeA, 4096, false)
+	payload := buildDNSQueryWithEDNS0("example.com", TypeA, 0x1234, 4096, false)
 	optStart := 12 + 17
 	doBit := payload[optStart+7] & 0x80
 	if doBit != 0x00 {

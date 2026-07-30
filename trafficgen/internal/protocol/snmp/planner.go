@@ -848,7 +848,7 @@ func buildV3Message(cfg *core.SNMPConfig, requestID uint32, isResponse bool) []b
 		salt := make([]byte, 8)
 		binary.BigEndian.PutUint64(salt, saltHi|saltLo)
 		privParams = salt
-		key := derivePrivKey(cfg.PrivPassword, engineID, cfg.PrivProtocol)
+		key := derivePrivKey(cfg.PrivPassword, engineID, cfg.PrivProtocol, cfg.AuthProtocol)
 		encrypted, err := aesCFBEncrypt(key, salt, scopedPDU)
 		if err == nil {
 			scopedPDUField = encodeOctetString(encrypted)
@@ -996,10 +996,12 @@ func deriveAuthKey(password string, engineID []byte, alg string) []byte {
 }
 
 // derivePrivKey derives the privacy key from the password + engineID using
-// the same KDF as auth (RFC 3414 §3.2). For AES-128 we use the first 16 bytes
-// of the localized key.
-func derivePrivKey(password string, engineID []byte, alg string) []byte {
-	k := deriveAuthKey(password, engineID, "md5") // priv key derivation always uses MD5/SHA-1 KDF
+// the same KDF as auth (RFC 3414 §3.2). The authAlg parameter selects the
+// hash function for the KDF: "md5" for HMAC-MD5 auth, "sha1" for HMAC-SHA-1
+// auth (per RFC 3414: the priv key uses the same hash as the auth key). For
+// AES-128 we use the first 16 bytes of the localized key.
+func derivePrivKey(password string, engineID []byte, alg string, authAlg string) []byte {
+	k := deriveAuthKey(password, engineID, authAlg)
 	switch alg {
 	case "aes128", "des":
 		if len(k) >= 16 {

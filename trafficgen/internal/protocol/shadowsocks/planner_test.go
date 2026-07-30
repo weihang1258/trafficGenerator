@@ -284,7 +284,7 @@ func TestPlan_AEADTagBoundary(t *testing.T) {
 		t.Errorf("salt length=%d, want %d", len(payloads[0]), SaltLen)
 	}
 
-	expectedChunkLen := 2 + 50 + TagLen // 68
+	expectedChunkLen := 2 + TagLen + 50 + TagLen // 84
 	if len(payloads[1]) != expectedChunkLen {
 		t.Errorf("chunk1 length=%d, want %d", len(payloads[1]), expectedChunkLen)
 	}
@@ -301,7 +301,7 @@ func TestPlan_EmptyPayload(t *testing.T) {
 	spec.Shadowsocks.ChunkPayloadSize = 0
 	cfgs := drain(mustPlan(t, p, spec))
 
-	// Find first chunk (after salt) — should be 2 + 0 + 16 = 18 bytes.
+	// Find first chunk (after salt) — should be 2 + 16 + 0 + 16 = 34 bytes.
 	payloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
 	if len(payloads) < 2 {
 		t.Fatalf("expected at least 2 up payloads, got %d", len(payloads))
@@ -309,9 +309,9 @@ func TestPlan_EmptyPayload(t *testing.T) {
 	if len(payloads[0]) != SaltLen {
 		t.Errorf("salt length=%d, want %d", len(payloads[0]), SaltLen)
 	}
-	// Chunk: 2 (len) + 0 (payload) + 16 (tag) = 18 bytes
-	if len(payloads[1]) != 18 {
-		t.Errorf("empty-payload chunk length=%d, want 18", len(payloads[1]))
+	// Chunk: 2 (len) + 16 (len_tag) + 0 (payload) + 16 (tag) = 34 bytes
+	if len(payloads[1]) != 34 {
+		t.Errorf("empty-payload chunk length=%d, want 34", len(payloads[1]))
 	}
 }
 
@@ -447,7 +447,7 @@ func TestPlan_LargePayloadChunked(t *testing.T) {
 	spec.Shadowsocks.ChunkPayloadSize = 1000
 	cfgs := drain(mustPlan(t, p, spec))
 
-	// With MSS=536, chunk = 2 + 1000 + 16 = 1018 bytes
+	// With MSS=536, chunk = 2 + 16 + 1000 + 16 = 1034 bytes
 	// Segments: ceil(1018/536) = 2 segments
 	upPayloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
 	if len(upPayloads) < 3 { // salt (1 segment) + chunk (2 segments) = 3
@@ -466,13 +466,13 @@ func TestPlan_LargePayloadChunked(t *testing.T) {
 		}
 	}
 
-	// Total chunk bytes across segments should equal 2 + 1000 + 16 = 1018
+	// Total chunk bytes across segments should equal 2 + 16 + 1000 + 16 = 1034
 	totalChunkBytes := 0
 	for i := 1; i < len(upPayloads); i++ {
 		totalChunkBytes += len(upPayloads[i])
 	}
-	if totalChunkBytes != 1018 {
-		t.Errorf("total chunk bytes=%d, want 1018", totalChunkBytes)
+	if totalChunkBytes != 1034 {
+		t.Errorf("total chunk bytes=%d, want 1034", totalChunkBytes)
 	}
 }
 
@@ -761,12 +761,12 @@ func TestPlan_AEADChunkLengthEncoding(t *testing.T) {
 	if len(payloads) < 2 {
 		t.Fatalf("expected at least 2 up payloads, got %d", len(payloads))
 	}
-	// Salt(32) + chunk(2+100+16=118) = 150 bytes total
+	// Salt(32) + chunk(2+16+100+16=134) = 150 bytes total
 	if len(payloads[0]) != SaltLen {
 		t.Errorf("salt length=%d, want %d", len(payloads[0]), SaltLen)
 	}
-	if len(payloads[1]) != 118 {
-		t.Errorf("chunk length=%d, want 118 (2+100+16)", len(payloads[1]))
+	if len(payloads[1]) != 134 {
+		t.Errorf("chunk length=%d, want 134 (2+16+100+16)", len(payloads[1]))
 	}
 }
 
@@ -783,9 +783,9 @@ func TestPlan_ChaCha20Cipher(t *testing.T) {
 	if len(payloads) < 2 {
 		t.Fatalf("expected at least 2 up payloads, got %d", len(payloads))
 	}
-	// Chunk: 2 + 50 + 16 = 68 bytes
-	if len(payloads[1]) != 68 {
-		t.Errorf("chunk length=%d, want 68 (2+50+16)", len(payloads[1]))
+	// Chunk: 2 + 16 + 50 + 16 = 84 bytes
+	if len(payloads[1]) != 84 {
+		t.Errorf("chunk length=%d, want 84 (2+16+50+16)", len(payloads[1]))
 	}
 }
 
@@ -802,12 +802,12 @@ func TestPlan_SIP022Cipher(t *testing.T) {
 	if len(payloads) < 2 {
 		t.Fatalf("expected at least 2 up payloads, got %d", len(payloads))
 	}
-	// SIP022 uses same framework as SIP003: salt(32) + chunk(2+100+16=118)
+	// SIP022 uses same framework as SIP003: salt(32) + chunk(2+16+100+16=134)
 	if len(payloads[0]) != SaltLen {
 		t.Errorf("salt length=%d, want %d", len(payloads[0]), SaltLen)
 	}
-	if len(payloads[1]) != 118 {
-		t.Errorf("chunk length=%d, want 118", len(payloads[1]))
+	if len(payloads[1]) != 134 {
+		t.Errorf("chunk length=%d, want 134", len(payloads[1]))
 	}
 }
 
@@ -823,12 +823,12 @@ func TestPlan_DefaultCipher(t *testing.T) {
 	if len(payloads) < 2 {
 		t.Fatalf("expected at least 2 up payloads, got %d", len(payloads))
 	}
-	// salt(32) + chunk(2+100+16=118) = 150 bytes
+	// salt(32) + chunk(2+16+100+16=134) = 150 bytes
 	if len(payloads[0]) != SaltLen {
 		t.Errorf("salt length=%d, want %d", len(payloads[0]), SaltLen)
 	}
-	if len(payloads[1]) != 118 {
-		t.Errorf("chunk length=%d, want 118 (default AEAD cipher)", len(payloads[1]))
+	if len(payloads[1]) != 134 {
+		t.Errorf("chunk length=%d, want 134 (default AEAD cipher)", len(payloads[1]))
 	}
 }
 
@@ -846,10 +846,10 @@ func TestPlan_MultipleChunks(t *testing.T) {
 		t.Fatalf("expected 6 up payloads (salt + 5 chunks), got %d", len(payloads))
 	}
 
-	// Verify each chunk is exactly 2+20+16 = 38 bytes
+	// Verify each chunk is exactly 2+16+20+16 = 54 bytes
 	for i := 1; i < 6; i++ {
-		if len(payloads[i]) != 38 {
-			t.Errorf("chunk[%d] length=%d, want 38", i, len(payloads[i]))
+		if len(payloads[i]) != 54 {
+			t.Errorf("chunk[%d] length=%d, want 54", i, len(payloads[i]))
 		}
 	}
 }
@@ -893,6 +893,92 @@ func TestPlan_FlowID(t *testing.T) {
 			t.Errorf("packet[%d] FlowID=%q, want %q", i, c.FlowID, expected)
 			break
 		}
+	}
+}
+
+// TestPlan_AEADChunkTwoTagsPerChunk verifies that each AEAD chunk has TWO
+// 16-byte auth tags: one after the encrypted length prefix and one after
+// the encrypted payload. Per SIP003, chunk layout is:
+//   [encLen 2B][len_tag 16B][payload N B][payload_tag 16B]
+// Total per chunk = 2 + 16 + N + 16 = 34 + N.
+func TestPlan_AEADChunkTwoTagsPerChunk(t *testing.T) {
+	p := NewPlanner()
+	spec := validTCPSpec()
+	spec.Shadowsocks.Chunks = 1
+	spec.Shadowsocks.ChunkPayloadSize = 50
+	cfgs := drain(mustPlan(t, p, spec))
+
+	payloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
+	if len(payloads) < 2 {
+		t.Fatalf("expected at least 2 up payloads (salt + 1 chunk), got %d", len(payloads))
+	}
+
+	// Salt is 32 bytes
+	if len(payloads[0]) != SaltLen {
+		t.Errorf("salt length=%d, want %d", len(payloads[0]), SaltLen)
+	}
+
+	// AEAD chunk: 2 (encLen) + 16 (len_tag) + 50 (payload) + 16 (payload_tag) = 84
+	chunk := payloads[1]
+	expectedChunkLen := 2 + TagLen + 50 + TagLen // 84
+	if len(chunk) != expectedChunkLen {
+		t.Errorf("chunk length=%d, want %d (2+16+50+16 with TWO auth tags)", len(chunk), expectedChunkLen)
+	}
+
+	// Verify structure: [encLen 2B][len_tag 16B][payload 50B][payload_tag 16B]
+	// encLen at offset 0-1 (random for AEAD)
+	// len_tag at offset 2-17 (16 bytes)
+	// payload at offset 18-67 (50 bytes)
+	// payload_tag at offset 68-83 (16 bytes)
+	if len(chunk) < 2+TagLen+50+TagLen {
+		t.Fatalf("chunk too short: %d bytes", len(chunk))
+	}
+	// The length tag is at offset 2..17
+	// The payload tag is at offset 2+16+50..2+16+50+15 = 68..83
+}
+
+// TestPlan_AEADMultiChunkLargePayload verifies that a payload larger than
+// MaxChunkPayload is split into multiple AEAD chunks, each with two 16-byte
+// auth tags. Total emitted = sum of (2+16 + chunklen + 16) per chunk.
+func TestPlan_AEADMultiChunkLargePayload(t *testing.T) {
+	p := NewPlanner()
+	spec := validTCPSpec()
+	// Set a payload larger than MaxChunkPayload to force multi-chunk splitting.
+	// Use PayloadBytesFormat="zeros" for determinism.
+	spec.Shadowsocks.Chunks = 0 // derive from payload
+	spec.Shadowsocks.ChunkPayloadSize = 0
+	spec.Shadowsocks.PayloadBytesFormat = "zeros"
+	spec.Payload = make([]byte, MaxChunkPayload+5000) // 21383 bytes -> 2 chunks
+
+	cfgs := drain(mustPlan(t, p, spec))
+
+	payloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
+	// Expect: salt(1) + chunk1(1) + chunk2(1) = 3 (assuming no MSS splitting)
+	// With default MSS=1460, chunks may be split into multiple TCP segments.
+	// Salt = 32 bytes (1 segment since 32 < 1460)
+	// Chunk1 = 2+16+16383+16 = 16417 bytes -> ceil(16417/1460) = 12 segments
+	// Chunk2 = 2+16+5000+16 = 5034 bytes -> ceil(5034/1460) = 4 segments
+	// Total up payloads = 1 + 12 + 4 = 17
+	if len(payloads) < 3 {
+		t.Fatalf("expected at least 3 up payloads (salt + 2 chunks), got %d", len(payloads))
+	}
+
+	// Salt is first
+	if len(payloads[0]) != SaltLen {
+		t.Errorf("salt length=%d, want %d", len(payloads[0]), SaltLen)
+	}
+
+	// Total chunk bytes = chunk1 + chunk2
+	// chunk1 = 2 + 16 + 16383 + 16 = 16417
+	// chunk2 = 2 + 16 + 5000 + 16 = 5034
+	// total = 21451
+	totalChunkBytes := 0
+	for i := 1; i < len(payloads); i++ {
+		totalChunkBytes += len(payloads[i])
+	}
+	expectedTotal := (2+TagLen+MaxChunkPayload+TagLen) + (2+TagLen+5000+TagLen)
+	if totalChunkBytes != expectedTotal {
+		t.Errorf("total chunk bytes=%d, want %d (2 chunks with two tags each)", totalChunkBytes, expectedTotal)
 	}
 }
 

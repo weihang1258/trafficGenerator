@@ -11,7 +11,7 @@
 // [username/password sub-negotiation] -> request -> reply.
 // 3. Optional HTTP obfuscation header (some shadowsocks-android forks).
 // 4. Shadowsocks salt: 32 random bytes (skipped for cipher="none").
-// 5. AEAD chunk loop: N chunks, each [encrypted_len(2) + payload(N) + tag(16)].
+// 5. AEAD chunk loop: N chunks, each [encLen(2) + len_tag(16) + payload(N) + payload_tag(16)].
 // cipher="none" omits tag.
 // 6. TCP 4-way teardown (FIN-ACK, ACK, FIN-ACK, ACK).
 //
@@ -493,32 +493,51 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	}
 
 	// --- AEAD Chunk loop (AEAD数据块循环) ---
-	chunks := ss.Chunks
-	if chunks <= 0 {
-		chunks = 1
-	}
-
-	payloadSize := ss.ChunkPayloadSize
-	if payloadSize <= 0 {
-		if len(spec.Payload) > 0 {
-			// Derive chunk size from payload length
-			payloadSize = len(spec.Payload)
-			if payloadSize > MaxChunkPayload {
-				payloadSize = MaxChunkPayload
+	// Determine chunk payload sizes. When Chunks > 0, use explicit count.
+	// When Chunks == 0 and spec.Payload is provided, split the payload into
+	// chunks of MaxChunkPayload (or ChunkPayloadSize if set).
+	var chunkSizes []int
+	if ss.Chunks > 0 {
+		payloadSize := ss.ChunkPayloadSize
+		if payloadSize <= 0 {
+			if len(spec.Payload) > 0 {
+				payloadSize = len(spec.Payload)
+				if payloadSize > MaxChunkPayload {
+					payloadSize = MaxChunkPayload
+				}
+			} else {
+				payloadSize = 0
 			}
-		} else {
-			payloadSize = 0
 		}
+		for i := 0; i < ss.Chunks; i++ {
+			chunkSizes = append(chunkSizes, payloadSize)
+		}
+	} else if len(spec.Payload) > 0 {
+		chunkSize := ss.ChunkPayloadSize
+		if chunkSize <= 0 || chunkSize > MaxChunkPayload {
+			chunkSize = MaxChunkPayload
+		}
+		remaining := len(spec.Payload)
+		for remaining > 0 {
+			sz := chunkSize
+			if sz > remaining {
+				sz = remaining
+			}
+			chunkSizes = append(chunkSizes, sz)
+			remaining -= sz
+		}
+	} else {
+		chunkSizes = append(chunkSizes, ss.ChunkPayloadSize)
 	}
 
-	for i := 0; i < chunks; i++ {
+	for _, sz := range chunkSizes {
 		select {
 		case <-ctx.Done():
 			return
 		default:
 		}
 
-		chunk := buildAEADChunk(ss, payloadSize)
+		chunk := buildAEADChunk(ss, sz)
 		clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, chunk)
 	}
 
@@ -649,8 +668,11 @@ func buildHTTPObfuscation(ss *core.ShadowsocksConfig) []byte {
 }
 
 // buildAEADChunk builds a single AEAD chunk.
-// AEAD chunk layout: [encrypted_len 2B] [encrypted_payload NB] [tag 16B]
-// For cipher="none": [plain_len 2B] [plain_payload NB] (no tag)
+// AEAD chunk layout (SIP003): [encrypted_len 2B][len_tag 16B][encrypted_payload NB][payload_tag 16B]
+// Each chunk has TWO 16-byte auth tags: one for the encrypted length, one for
+// the encrypted payload. Per shadowsocks.org AEAD spec, the length-prefix and
+// the payload are each independently AEAD-encrypted, each producing its own tag.
+// For cipher="none": [plain_len 2B][plain_payload NB] (no tags)
 func buildAEADChunk(ss *core.ShadowsocksConfig, payloadSize int) []byte {
 	cipher := normalizeCipher(ss.Cipher)
 	isAEAD := isAEADCipher(cipher)
@@ -669,37 +691,37 @@ func buildAEADChunk(ss *core.ShadowsocksConfig, payloadSize int) []byte {
 		}
 	}
 
-	// Encrypted length (加密长度): 2 bytes, AEAD output simulation
-	// In real AEAD this is AES-GCM encrypted; we emit random bytes.
-	encLen := make([]byte, 2)
 	if isAEAD {
+		// AEAD chunk: [encLen 2B][len_tag 16B][payload N B][payload_tag 16B]
+		// Encrypted length (加密长度): 2 bytes, AEAD output simulation
+		encLen := make([]byte, 2)
 		rand.Read(encLen)
-	} else {
-		// Plaintext length for none cipher
-		encLen[0] = byte(payloadSize >> 8)
-		encLen[1] = byte(payloadSize)
+
+		// Length auth tag (长度认证标签): 16 bytes
+		lenTag := make([]byte, TagLen)
+		rand.Read(lenTag)
+
+		// Payload auth tag (载荷认证标签): 16 bytes
+		payloadTag := make([]byte, TagLen)
+		rand.Read(payloadTag)
+
+		chunk := make([]byte, 0, 2+TagLen+len(payload)+TagLen)
+		chunk = append(chunk, encLen...)
+		chunk = append(chunk, lenTag...)
+		chunk = append(chunk, payload...)
+		chunk = append(chunk, payloadTag...)
+		return chunk
 	}
 
-	chunk := make([]byte, 0, 2+len(payload)+tagLen(isAEAD))
+	// None cipher: [plain_len 2B][plain_payload NB] (no tags)
+	encLen := make([]byte, 2)
+	encLen[0] = byte(payloadSize >> 8)
+	encLen[1] = byte(payloadSize)
+
+	chunk := make([]byte, 0, 2+len(payload))
 	chunk = append(chunk, encLen...)
 	chunk = append(chunk, payload...)
-
-	// Auth tag (认证标签)
-	if isAEAD {
-		tag := make([]byte, TagLen)
-		rand.Read(tag)
-		chunk = append(chunk, tag...)
-	}
-
 	return chunk
-}
-
-// tagLen returns the tag length for the given cipher.
-func tagLen(isAEAD bool) int {
-	if isAEAD {
-		return TagLen
-	}
-	return 0
 }
 
 // buildUDPPacket builds a single shadowsocks UDP relay packet.

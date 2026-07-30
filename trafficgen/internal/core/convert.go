@@ -119,6 +119,13 @@ func ValidateTask(task Task) error {
 		"sip":  true,
 		"sctp": true,
 		"icmpv6": true,
+		// L7 protocol planners registered in cmd/server/main.go.
+		"ssh": true, "telnet": true, "rdp": true, "redis": true, "ntp": true,
+		"snmp": true, "syslog": true, "smtp": true, "pop3": true, "imap": true,
+		"mysql": true, "postgresql": true, "ike": true, "ike_nat_t": true,
+		"l2tp": true, "tls": true, "openvpn": true, "shadowsocks": true,
+		"vmess": true, "wireguard": true, "dhcp": true, "dhcpv6": true,
+		"mdns": true, "ssdp": true, "grpc": true,
 	}
 
 	if !validProtocols[task.Protocol] {
@@ -141,6 +148,13 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		"tcp": true, "udp": true, "http": true, "dns": true, "icmp": true, "arp": true,
 		"ftp": true, "sip": true, "sctp": true, "icmpv6": true,
 		"replay": true,
+		// L7 protocol planners registered in cmd/server/main.go.
+		"ssh": true, "telnet": true, "rdp": true, "redis": true, "ntp": true,
+		"snmp": true, "syslog": true, "smtp": true, "pop3": true, "imap": true,
+		"mysql": true, "postgresql": true, "ike": true, "ike_nat_t": true,
+		"l2tp": true, "tls": true, "openvpn": true, "shadowsocks": true,
+		"vmess": true, "wireguard": true, "dhcp": true, "dhcpv6": true,
+		"mdns": true, "ssdp": true, "grpc": true,
 	}
 	seenIDs := make(map[string]bool)
 	for i, c := range batch.Classes {

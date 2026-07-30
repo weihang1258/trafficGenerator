@@ -186,14 +186,14 @@ func TestPlanner_PlanWithResponse(t *testing.T) {
 }
 
 func TestBuildDNSQuery(t *testing.T) {
-	query := buildDNSQuery("example.com", 1)
+	query := buildDNSQuery("example.com", 1, 0, false, 0, false)
 
 	// Check minimum size (12 byte header + question)
 	if len(query) < 20 {
 		t.Errorf("Query too short: %d bytes", len(query))
 	}
 
-	// Check transaction ID
+	// Check transaction ID (0 → default 0x1234)
 	if query[0] != 0x12 || query[1] != 0x34 {
 		t.Errorf("Transaction ID should be 0x1234")
 	}

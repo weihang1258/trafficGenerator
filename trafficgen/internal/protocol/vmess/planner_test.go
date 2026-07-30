@@ -2,6 +2,7 @@ package vmess
 
 import (
 	"context"
+	"encoding/binary"
 	"strings"
 	"testing"
 
@@ -468,5 +469,145 @@ func TestVmess_Integration_RSTTermination(t *testing.T) {
 	last := cfgs[len(cfgs)-1]
 	if last.L4.Flags != flagRSTACK {
 		t.Errorf("Last packet flags = %02x, want RST/RSTACK %02x", last.L4.Flags, flagRSTACK)
+	}
+}
+
+// Integration 17: AEAD payload chunking - verify that a non-empty payload
+// is emitted as VMess AEAD length-prefixed chunks:
+//   [2B big-endian length][payload][16B tag] per chunk
+//   + terminating [0x00 0x00][16B tag]
+// A payload longer than MaxChunkPayload produces multiple chunks.
+func TestVmess_Integration_AEADPayloadChunkStructure(t *testing.T) {
+	p := NewPlanner()
+	spec := validVmessSpec()
+	// Use a large MSS to avoid TCP-level segmentation obscuring the chunk structure.
+	spec.TCP.MSS = 65535
+	// Use a payload larger than MaxChunkPayload to force multi-chunk splitting.
+	spec.Vmess.Payload = make([]byte, MaxChunkPayload+5000) // 21383 bytes -> 2 chunks
+	cfgs := drain(mustPlan(t, p, spec))
+
+	// Collect all up PSH-ACKs after the request header (the 1st up PSH-ACK).
+	// The chunked payload follows the request header as subsequent up PSH-ACKs.
+	upPSHACKs := make([][]byte, 0)
+	for _, c := range cfgs {
+		if c.Direction == "up" && c.L4.Flags == flagPSHACK {
+			upPSHACKs = append(upPSHACKs, c.Payload)
+		}
+	}
+	if len(upPSHACKs) < 2 {
+		t.Fatalf("expected at least 2 up PSH-ACKs (request + payload), got %d", len(upPSHACKs))
+	}
+
+	// Concatenate all PSH-ACKs after the request header (index 0 = request header).
+	var chunkedPayload []byte
+	for i := 1; i < len(upPSHACKs); i++ {
+		chunkedPayload = append(chunkedPayload, upPSHACKs[i]...)
+	}
+
+	// Expected structure:
+	// Chunk 1: [2B len=16383][16383B payload][16B tag] = 16401 bytes
+	// Chunk 2: [2B len=5000][5000B payload][16B tag] = 5018 bytes
+	// Terminating: [2B len=0][16B tag] = 18 bytes
+	// Total = 16401 + 5018 + 18 = 21437 bytes
+
+	// Parse chunk 1
+	offset := 0
+	chunk1Len := int(binary.BigEndian.Uint16(chunkedPayload[offset : offset+2]))
+	if chunk1Len != MaxChunkPayload {
+		t.Errorf("chunk1 length field=%d, want %d (MaxChunkPayload)", chunk1Len, MaxChunkPayload)
+	}
+	offset += 2 + chunk1Len + TagLen // skip [2B len][payload][16B tag]
+
+	// Parse chunk 2
+	chunk2Len := int(binary.BigEndian.Uint16(chunkedPayload[offset : offset+2]))
+	if chunk2Len != 5000 {
+		t.Errorf("chunk2 length field=%d, want 5000", chunk2Len)
+	}
+	offset += 2 + chunk2Len + TagLen
+
+	// Parse terminating empty chunk
+	termLen := int(binary.BigEndian.Uint16(chunkedPayload[offset : offset+2]))
+	if termLen != 0 {
+		t.Errorf("terminating chunk length=%d, want 0", termLen)
+	}
+	offset += 2 + TagLen
+
+	// Verify total length
+	if offset != len(chunkedPayload) {
+		t.Errorf("total consumed=%d, payload length=%d (should match)", offset, len(chunkedPayload))
+	}
+}
+
+// Integration 18: AEAD small payload chunking - verify a small payload
+// produces 1 chunk + terminating empty chunk.
+func TestVmess_Integration_AEADSmallPayloadChunkStructure(t *testing.T) {
+	p := NewPlanner()
+	spec := validVmessSpec()
+	spec.Vmess.Payload = []byte("hello") // 5 bytes
+	cfgs := drain(mustPlan(t, p, spec))
+
+	// Find the chunked payload packet (2nd up-direction PSH-ACK).
+	upCount := 0
+	var chunkedPayload []byte
+	for _, c := range cfgs {
+		if c.Direction == "up" && c.L4.Flags == flagPSHACK {
+			upCount++
+			if upCount == 2 {
+				chunkedPayload = c.Payload
+				break
+			}
+		}
+	}
+	if chunkedPayload == nil {
+		t.Fatal("no chunked payload found")
+	}
+
+	// Expected: [2B len=5][5B payload][16B tag] + [2B len=0][16B tag]
+	// Total = 23 + 18 = 41 bytes
+	expectedTotal := 2 + 5 + TagLen + 2 + TagLen
+	if len(chunkedPayload) != expectedTotal {
+		t.Errorf("chunked payload length=%d, want %d", len(chunkedPayload), expectedTotal)
+	}
+
+	// Verify first chunk length = 5
+	chunk1Len := int(binary.BigEndian.Uint16(chunkedPayload[0:2]))
+	if chunk1Len != 5 {
+		t.Errorf("chunk1 length=%d, want 5", chunk1Len)
+	}
+
+	// Verify terminating chunk at offset 2+5+16 = 23
+	termOffset := 2 + 5 + TagLen
+	termLen := int(binary.BigEndian.Uint16(chunkedPayload[termOffset : termOffset+2]))
+	if termLen != 0 {
+		t.Errorf("terminating chunk length=%d, want 0", termLen)
+	}
+}
+
+// Integration 19: AlterID > 255 in Legacy mode is rejected by Validate,
+// not silently truncated. Per design §2.1.0, the alterId field on the wire
+// is 1 byte (0-255). Values > 255 must be rejected with a clear error.
+func TestVmess_Integration_AlterIDOver255Rejected(t *testing.T) {
+	p := NewPlanner()
+	spec := validVmessSpec()
+	spec.Vmess.Encryption = "legacy_aes_128_cfb"
+	spec.Vmess.AlterID = 300 // > 255, would be silently truncated to 44
+	_, err := p.Plan(context.Background(), spec)
+	if err == nil {
+		t.Fatal("Plan should reject AlterID=300 (>255) for Legacy mode")
+	}
+	if !strings.Contains(err.Error(), "alter_id") {
+		t.Errorf("Error should mention alter_id, got: %v", err)
+	}
+}
+
+// Integration 20: AlterID = 255 (max valid) is accepted in Legacy mode.
+func TestVmess_Integration_AlterIDMax255(t *testing.T) {
+	p := NewPlanner()
+	spec := validVmessSpec()
+	spec.Vmess.Encryption = "legacy_aes_128_cfb"
+	spec.Vmess.AlterID = 255 // max valid 1-byte alterId
+	_, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan should accept AlterID=255, got error: %v", err)
 	}
 }

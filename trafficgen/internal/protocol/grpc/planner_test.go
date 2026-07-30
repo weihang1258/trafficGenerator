@@ -237,3 +237,119 @@ func TestPlanner_Plan_Structure(t *testing.T) {
 		t.Errorf("packet %d: want ACK (0x10), got 0x%02x", n-1, configs[n-1].L4.Flags)
 	}
 }
+
+// TestPlanner_Plan_HonorsSpecTCP verifies that the gRPC planner honors
+// spec.TCP for the TCP handshake and teardown, mirroring the TLS/Redis/
+// VMess planner pattern. When spec.TCP is non-nil, the configured
+// WindowSize must drive the TCP window field on every emitted packet
+// (not the hardcoded 65535 default), the configured MSS must appear in
+// the SYN/SYN-ACK TCP options, and the configured InitialSeq must drive
+// the client ISN. When spec.TCP == nil, the defaults (65535/1460/random
+// ISN) are preserved (covered by TestPlanner_Plan_Structure above).
+func TestPlanner_Plan_HonorsSpecTCP(t *testing.T) {
+	p := NewPlanner()
+
+	spec := core.FlowSpec{
+		SrcIP:   "192.168.1.1",
+		DstIP:   "192.168.1.2",
+		SrcPort: 12345,
+		DstPort: 8604,
+		SrcMAC:  "aa:bb:cc:dd:ee:ff",
+		DstMAC:  "11:22:33:44:55:66",
+		TCP: &core.TCPConfig{
+			WindowSize: 32768,
+			MSS:        1400,
+			InitialSeq: 1000,
+		},
+		GRPC: &core.GRPCConfig{
+			Service:          "telemetry.Telemetry",
+			Method:           "Subscribe",
+			CallType:         "unary",
+			RequestMessages:  [][]byte{{0x08, 0x96, 0x01}},
+			ResponseMessages: [][]byte{{0x08, 0x96, 0x01}},
+		},
+	}
+
+	configChan, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+
+	var configs []core.PacketConfig
+	for c := range configChan {
+		configs = append(configs, c)
+	}
+	if len(configs) < 15 {
+		t.Fatalf("expected at least 15 packets, got %d", len(configs))
+	}
+
+	// --- TCP handshake: SYN, SYN-ACK, ACK ---
+	// SYN (packet 0): WindowSize must reflect spec.TCP.WindowSize.
+	if configs[0].L4.WindowSize != 32768 {
+		t.Errorf("SYN WindowSize = %d, want 32768 (spec.TCP.WindowSize)", configs[0].L4.WindowSize)
+	}
+	// SYN must carry an MSS option whose value is spec.TCP.MSS (1400).
+	mssVal := mssOptionValue(configs[0].L4.TCPOptions)
+	if mssVal != 1400 {
+		t.Errorf("SYN MSS option = %d, want 1400 (spec.TCP.MSS)", mssVal)
+	}
+	// SYN must use the configured client ISN.
+	if configs[0].L4.Seq != 1000 {
+		t.Errorf("SYN Seq = %d, want 1000 (spec.TCP.InitialSeq)", configs[0].L4.Seq)
+	}
+	if configs[0].L4.Flags != 0x02 {
+		t.Errorf("SYN Flags = 0x%02x, want 0x02", configs[0].L4.Flags)
+	}
+
+	// SYN-ACK (packet 1): server side, but WindowSize must still reflect
+	// spec.TCP.WindowSize, and the MSS option must be present.
+	if configs[1].L4.WindowSize != 32768 {
+		t.Errorf("SYN-ACK WindowSize = %d, want 32768", configs[1].L4.WindowSize)
+	}
+	if mssOptionValue(configs[1].L4.TCPOptions) != 1400 {
+		t.Errorf("SYN-ACK MSS option = %d, want 1400", mssOptionValue(configs[1].L4.TCPOptions))
+	}
+	if configs[1].L4.Flags != 0x12 {
+		t.Errorf("SYN-ACK Flags = 0x%02x, want 0x12", configs[1].L4.Flags)
+	}
+
+	// ACK (packet 2): no MSS option (non-SYN), but WindowSize honored.
+	if configs[2].L4.WindowSize != 32768 {
+		t.Errorf("ACK WindowSize = %d, want 32768", configs[2].L4.WindowSize)
+	}
+	if len(configs[2].L4.TCPOptions) != 0 {
+		t.Errorf("ACK should have no TCP options, got %d", len(configs[2].L4.TCPOptions))
+	}
+
+	// --- TCP teardown: last 4 packets (FIN-ACK, ACK, FIN-ACK, ACK) ---
+	// WindowSize must be honored on teardown packets too.
+	n := len(configs)
+	for i := n - 4; i < n; i++ {
+		if configs[i].L4.WindowSize != 32768 {
+			t.Errorf("teardown packet %d WindowSize = %d, want 32768", i, configs[i].L4.WindowSize)
+		}
+	}
+
+	// --- A mid-flow PSH-ACK data packet must also honor WindowSize ---
+	// (the emit closure is shared, so this guards against a fix that
+	// only patches SYN/SYN-ACK).
+	for _, c := range configs {
+		if c.L4.Flags == 0x18 { // PSH-ACK
+			if c.L4.WindowSize != 32768 {
+				t.Errorf("PSH-ACK WindowSize = %d, want 32768", c.L4.WindowSize)
+			}
+			break
+		}
+	}
+}
+
+// mssOptionValue extracts the 2-byte big-endian MSS value from a slice of
+// TCP options. Returns 0 if no MSS option is present.
+func mssOptionValue(opts []core.TCPOption) uint16 {
+	for _, o := range opts {
+		if o.Kind == core.TCPOptMSS && len(o.Data) >= 2 {
+			return uint16(o.Data[0])<<8 | uint16(o.Data[1])
+		}
+	}
+	return 0
+}

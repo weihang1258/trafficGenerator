@@ -265,7 +265,9 @@ func TestTC_AllAuthAlgs(t *testing.T) {
 
 // 1.14 explicit-exit-notify
 func TestTC_ExitNotify(t *testing.T) {
-	// TC-OVPN-1.14.1: exit_notify=1, emit 1 packet with type=0x05
+	// TC-OVPN-1.14.1: exit_notify=1, emit 1 framed P_CONTROL message with type=0x05
+	// Per design §2.10.5: exit_notify is carried inside a P_CONTROL message
+	// (opcode + key_id + session_id + packet_id + type=0x05), not a bare 0x05 byte.
 	spec := defaultOpenVPNSpec()
 	spec.OpenVPN.ExitNotifyCount = 1
 	spec.OpenVPN.DataPacketCount = 1
@@ -283,8 +285,17 @@ func TestTC_ExitNotify(t *testing.T) {
 		t.Fatalf("expected at least 5 packets, got %d", len(packets))
 	}
 	lastPkt := packets[len(packets)-1].Payload
-	if len(lastPkt) != 1 || lastPkt[0] != 0x05 {
-		t.Errorf("exit_notify packet: expected [0x05], got %v", lastPkt)
+	// Must start with a P_CONTROL opcode (high 3 bits = 1-6), not bare 0x05.
+	if len(lastPkt) < 2 {
+		t.Fatalf("exit_notify packet: expected at least 2 bytes (opcode + type), got %d", len(lastPkt))
+	}
+	opcode := lastPkt[0] >> 5
+	if opcode < 1 || opcode > 6 {
+		t.Errorf("exit_notify packet: expected P_CONTROL opcode (1-6) in high bits, got opcode=%d (0x%02X)", opcode, lastPkt[0])
+	}
+	// Last byte must be 0x05 (exit_notify type)
+	if lastPkt[len(lastPkt)-1] != 0x05 {
+		t.Errorf("exit_notify packet: expected last byte 0x05, got 0x%02X", lastPkt[len(lastPkt)-1])
 	}
 }
 
@@ -327,16 +338,23 @@ func TestTC_TLSVersion(t *testing.T) {
 // 1.17 tls-crypt-v2 wrapped_key length prefix
 func TestTC_TLSCryptV2LengthPrefix(t *testing.T) {
 	// TC-OVPN-1.17.1: tls_crypt_v2=true, wrapped_key has length prefix 0x0050
+	// Per design §2.5.1: field order is length_prefix(2B) + wrapped_key_id(4B) + auth-tag(32) + IV(16) + cipher_key(32)
 	wrappedKey := buildWrappedKey(true)
-	// wrapped_key_id(4) + length_prefix(2) + auth-tag(32) + IV(16) + cipher_key(32)
-	// = 4 + 2 + 80 = 86
+	// length_prefix(2) + wrapped_key_id(4) + auth-tag(32) + IV(16) + cipher_key(32)
+	// = 2 + 4 + 80 = 86
 	if len(wrappedKey) != 86 {
 		t.Errorf("tls-crypt-v2 wrapped key: expected 86 bytes, got %d", len(wrappedKey))
 	}
-	// length prefix at offset 4: 0x00 0x50
-	if wrappedKey[4] != 0x00 || wrappedKey[5] != 0x50 {
-		t.Errorf("tls-crypt-v2 length prefix: expected 0x0050, got 0x%02X%02X",
-			wrappedKey[4], wrappedKey[5])
+	// length prefix at offset 0: 0x00 0x50
+	if wrappedKey[0] != 0x00 || wrappedKey[1] != 0x50 {
+		t.Errorf("tls-crypt-v2 length prefix: expected 0x0050 at offset 0, got 0x%02X%02X",
+			wrappedKey[0], wrappedKey[1])
+	}
+	// wrapped_key_id at offset 2: 0x00 0x00 0x00 0x01
+	if wrappedKey[2] != 0x00 || wrappedKey[3] != 0x00 ||
+		wrappedKey[4] != 0x00 || wrappedKey[5] != 0x01 {
+		t.Errorf("tls-crypt-v2 wrapped_key_id: expected 0x00000001 at offset 2, got 0x%02X%02X%02X%02X",
+			wrappedKey[2], wrappedKey[3], wrappedKey[4], wrappedKey[5])
 	}
 }
 

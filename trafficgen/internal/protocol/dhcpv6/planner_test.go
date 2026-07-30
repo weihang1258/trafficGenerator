@@ -142,6 +142,7 @@ func TestPlanner_Validate_Basic(t *testing.T) {
 			name: "valid spec",
 			spec: core.FlowSpec{
 				SrcIP: "fe80::1", DstIP: "ff02::1:2",
+				SrcMAC: "00:11:22:33:44:55",
 				DHCPv6: &core.DHCPv6Config{
 					Messages: []core.DHCPv6Message{{MsgType: MsgTypeSolicit}},
 				},
@@ -1590,3 +1591,45 @@ func appendOpt(buf []byte, code uint16, data []byte) []byte {
 
 // fmt is referenced by drainErr consumers (e.g. fmt.Errorf in goroutines).
 var _ = fmt.Errorf
+
+// TestAutoDUID_EmptySrcMAC_ValidateError verifies that when ClientDUID is
+// nil (auto-generation) and SrcMAC is empty, Validate returns a clear error
+// instead of silently producing zero packets (the auto DUID-LLT requires a
+// valid MAC for the LinkLayerAddr field).
+func TestAutoDUID_EmptySrcMAC_ValidateError(t *testing.T) {
+	p := NewPlanner()
+	spec := validSpec()
+	spec.DHCPv6.ClientDUID = nil // force auto-generation
+	spec.SrcMAC = ""             // empty MAC - cannot build DUID-LLT
+	spec.DHCPv6.Messages = []core.DHCPv6Message{
+		{MsgType: MsgTypeSolicit, TransactionID: [3]byte{1, 2, 3}},
+	}
+
+	// Validate should return an error explaining that SrcMAC is required
+	// when ClientDUID is not explicitly set.
+	err := p.Validate(spec)
+	if err == nil {
+		t.Fatalf("Validate returned nil error for auto-ClientDUID with empty SrcMAC; " +
+			"expected a clear validation error")
+	}
+}
+
+// TestAutoDUID_EmptySrcMAC_PlanReturnsError verifies that Plan() returns an
+// error (not a silent zero-packet channel) when auto-ClientDUID cannot
+// succeed due to empty SrcMAC.
+func TestAutoDUID_EmptySrcMAC_PlanReturnsError(t *testing.T) {
+	p := NewPlanner()
+	spec := validSpec()
+	spec.DHCPv6.ClientDUID = nil
+	spec.SrcMAC = ""
+	spec.DHCPv6.Messages = []core.DHCPv6Message{
+		{MsgType: MsgTypeSolicit, TransactionID: [3]byte{1, 2, 3}},
+	}
+
+	ch, err := p.Plan(context.Background(), spec)
+	if err == nil {
+		cfgs := drain(ch)
+		t.Fatalf("Plan returned no error but emitted %d packets; expected a validation "+
+			"error for auto-ClientDUID with empty SrcMAC", len(cfgs))
+	}
+}

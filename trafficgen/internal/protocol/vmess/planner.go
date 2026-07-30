@@ -196,6 +196,12 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	}
 
 	// alterId validation (AlterID验证)
+	// Per design §2.1.0, the alterId field on the wire is 1 byte (0-255).
+	// Values > 255 are silently truncated by byte(v.AlterID), which is a bug.
+	// Reject them with a clear error instead.
+	if enc == "legacy_aes_128_cfb" && v.AlterID > 255 {
+		return fmt.Errorf("vmess: alter_id %d exceeds 1-byte range (max 255) for Legacy mode", v.AlterID)
+	}
 	if isAEADEncryption(enc) && v.AlterID > 0 {
 		// AEAD with alter_id>0: warn but still generate (test expectation: server rejects)
 	}
@@ -529,9 +535,17 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		// If there is user payload data, emit it (请求载荷数据)
 		if len(v.Payload) > 0 {
-			clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, v.Payload)
+			if isAEADEncryption(enc) {
+				// AEAD mode: emit chunked payload [2B len][payload][16B tag]... + terminating [0x00 0x00][16B tag]
+				chunked := buildAEADPayloadChunks(v.Payload)
+				clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, chunked)
+			} else {
+				// Legacy mode: raw payload (no AEAD chunking)
+				clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, v.Payload)
+			}
 		} else if isAEADEncryption(enc) && len(v.Payload) == 0 {
 			// AEAD mode: emit empty chunk frame (2-byte length=0 + 16-byte tag)
+			// This is the terminating zero-length chunk.
 			emptyChunk := make([]byte, 2+TagLen)
 			rand.Read(emptyChunk[2:]) // random tag
 			clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, emptyChunk)
@@ -543,9 +557,16 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		// If there is response payload data, emit it (响应载荷数据)
 		if len(v.ResponsePayload) > 0 {
-			serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, v.ResponsePayload)
+			if isAEADEncryption(enc) {
+				// AEAD mode: emit chunked response payload
+				chunked := buildAEADPayloadChunks(v.ResponsePayload)
+				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, chunked)
+			} else {
+				// Legacy mode: raw response payload
+				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, v.ResponsePayload)
+			}
 		} else if isAEADEncryption(enc) && len(v.ResponsePayload) == 0 {
-			// AEAD mode: emit empty response chunk
+			// AEAD mode: emit empty response chunk (terminating zero-length chunk)
 			emptyChunk := make([]byte, 2+TagLen)
 			rand.Read(emptyChunk[2:])
 			serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, emptyChunk)
@@ -789,6 +810,43 @@ func buildVMessResponseBodyPlain(v *core.VmessConfig, uuidBytes []byte, enc stri
 	}
 
 	return body
+}
+
+// buildAEADPayloadChunks splits payload into VMess AEAD length-prefixed chunks:
+//   [2-byte big-endian length][payload][16-byte AEAD tag]
+// repeated for each chunk (max MaxChunkPayload bytes per chunk), followed by a
+// terminating zero-length chunk [0x00 0x00][16-byte tag] to signal end of stream.
+// The planner simulates encryption (no real key exchange), so tags are random
+// bytes - the KEY requirement is the framing STRUCTURE, not cryptographic validity.
+func buildAEADPayloadChunks(payload []byte) []byte {
+	var buf []byte
+	chunkSize := MaxChunkPayload // 0x3FFF = 16383
+
+	for len(payload) > 0 {
+		n := len(payload)
+		if n > chunkSize {
+			n = chunkSize
+		}
+		chunk := payload[:n]
+		payload = payload[n:]
+
+		// 2-byte big-endian length prefix
+		buf = binary.BigEndian.AppendUint16(buf, uint16(n))
+		// Payload bytes
+		buf = append(buf, chunk...)
+		// 16-byte AEAD auth tag (random for simulation)
+		tag := make([]byte, TagLen)
+		rand.Read(tag)
+		buf = append(buf, tag...)
+	}
+
+	// Terminating zero-length chunk: [0x00 0x00][16-byte tag]
+	buf = append(buf, 0x00, 0x00)
+	tag := make([]byte, TagLen)
+	rand.Read(tag)
+	buf = append(buf, tag...)
+
+	return buf
 }
 
 // buildMUXFrame builds a MUX frame payload.

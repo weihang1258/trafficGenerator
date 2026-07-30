@@ -865,9 +865,9 @@ func TestSSDP_Integration_UpdateNotify(t *testing.T) {
 		t.Errorf("payload missing CONFIGID")
 	}
 
-	// No Cache-Control in update (update不应有Cache-Control).
-	if strings.Contains(payload, "CACHE-CONTROL") {
-		t.Errorf("update should not contain CACHE-CONTROL")
+	// Cache-Control present in update (update应携带CACHE-CONTROL per design §3.3).
+	if !strings.Contains(payload, "CACHE-CONTROL: max-age=1800\r\n") {
+		t.Errorf("update should contain CACHE-CONTROL: max-age=1800")
 	}
 }
 
@@ -1251,5 +1251,87 @@ func TestSSDP_MSearch_UserAgent(t *testing.T) {
 	}
 	if strings.Contains(payload, "SERVER:") {
 		t.Errorf("M-SEARCH should use USER-AGENT, not SERVER")
+	}
+}
+
+// TestSSDP_UpdateNotify_RequiredHeaders verifies that an ssdp:update NOTIFY
+// contains the headers required by UPnP DA 1.1 §1.2.3 and design_ssdp.md §3.3:
+// CACHE-CONTROL: max-age, BOOTID.UPNP.ORG, CONFIGID.UPNP.ORG,
+// NEXTBOOTID.UPNP.ORG, and SEARCHPORT.UPNP.ORG.
+func TestSSDP_UpdateNotify_RequiredHeaders(t *testing.T) {
+	p := NewPlanner()
+	spec := validSSDPSpec()
+	spec.SSDP = &core.SSDPConfig{
+		MessageType: "update",
+		SearchTarget: "upnp:rootdevice",
+		USN:          "uuid:00000000-0000-0000-0000-000000000001::upnp:rootdevice",
+		Location:     "http://192.168.1.50:80/description.xml",
+		MaxAge:       1800,
+		BootID:       2,
+		ConfigID:     3,
+		NextBootID:   5,
+		SearchPort:   49152,
+		RepeatCount:  1,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	if len(cfgs) != 1 {
+		t.Fatalf("update packet count = %d, want 1", len(cfgs))
+	}
+	payload := string(cfgs[0].Payload)
+
+	// CACHE-CONTROL: max-age must be present in update mode (design §3.3).
+	if !strings.Contains(payload, "CACHE-CONTROL: max-age=1800\r\n") {
+		t.Errorf("update NOTIFY missing CACHE-CONTROL: max-age=1800\r\n; payload:\n%s", payload)
+	}
+
+	// NEXTBOOTID.UPNP.ORG must be present in update mode (UPnP DA 1.1 §1.2.3).
+	if !strings.Contains(payload, "NEXTBOOTID.UPNP.ORG: 5\r\n") {
+		t.Errorf("update NOTIFY missing NEXTBOOTID.UPNP.ORG: 5\r\n; payload:\n%s", payload)
+	}
+
+	// SEARCHPORT.UPNP.ORG must be present in update mode (UPnP DA 1.1 §1.2.3).
+	if !strings.Contains(payload, "SEARCHPORT.UPNP.ORG: 49152\r\n") {
+		t.Errorf("update NOTIFY missing SEARCHPORT.UPNP.ORG: 49152\r\n; payload:\n%s", payload)
+	}
+
+	// BOOTID and CONFIGID should still be present.
+	if !strings.Contains(payload, "BOOTID.UPNP.ORG: 2\r\n") {
+		t.Errorf("update NOTIFY missing BOOTID.UPNP.ORG: 2\r\n; payload:\n%s", payload)
+	}
+	if !strings.Contains(payload, "CONFIGID.UPNP.ORG: 3\r\n") {
+		t.Errorf("update NOTIFY missing CONFIGID.UPNP.ORG: 3\r\n; payload:\n%s", payload)
+	}
+}
+
+// TestSSDP_UpdateNotify_OmitsNextBootIDWhenZero verifies that NEXTBOOTID and
+// SEARCHPORT headers are omitted when their config values are 0 (not set).
+func TestSSDP_UpdateNotify_OmitsNextBootIDWhenZero(t *testing.T) {
+	p := NewPlanner()
+	spec := validSSDPSpec()
+	spec.SSDP = &core.SSDPConfig{
+		MessageType: "update",
+		SearchTarget: "upnp:rootdevice",
+		USN:          "uuid:test::upnp:rootdevice",
+		MaxAge:       900,
+		BootID:       1,
+		ConfigID:     2,
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+	if len(cfgs) != 1 {
+		t.Fatalf("update packet count = %d, want 1", len(cfgs))
+	}
+	payload := string(cfgs[0].Payload)
+
+	// CACHE-CONTROL should still be present (MaxAge=900).
+	if !strings.Contains(payload, "CACHE-CONTROL: max-age=900\r\n") {
+		t.Errorf("update NOTIFY missing CACHE-CONTROL: max-age=900\r\n; payload:\n%s", payload)
+	}
+
+	// NEXTBOOTID and SEARCHPORT should be omitted (value=0).
+	if strings.Contains(payload, "NEXTBOOTID.UPNP.ORG") {
+		t.Errorf("update NOTIFY should not contain NEXTBOOTID.UPNP.ORG when NextBootID=0; payload:\n%s", payload)
+	}
+	if strings.Contains(payload, "SEARCHPORT.UPNP.ORG") {
+		t.Errorf("update NOTIFY should not contain SEARCHPORT.UPNP.ORG when SearchPort=0; payload:\n%s", payload)
 	}
 }

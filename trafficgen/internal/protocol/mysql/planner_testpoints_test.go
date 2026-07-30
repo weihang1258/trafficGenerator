@@ -7,6 +7,7 @@ package mysql
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
 	"strings"
@@ -538,7 +539,15 @@ func TestMySQLPoint_1_3_5_2_UsernameEmptyDefaultsToRoot(t *testing.T) {
 	}
 }
 
-// 1.3.6.1: mysql_native_password + password="mypass" + 20-byte scramble -> 20-byte SHA1.
+// 1.3.6.1: mysql_native_password + password="mypass" + 20-byte scramble -> 20-byte XOR response.
+//
+// Per the MySQL native_password algorithm (MySQL source sql/auth/password.c):
+//	HASH1 = SHA1(password)
+//	HASH2 = SHA1(HASH1)
+//	response = HASH1 XOR SHA1(scramble + HASH2)
+// The response IS the XOR value (20 bytes) — there is no final SHA1.
+// An earlier version of the planner applied an extra `SHA1(xor)`, which
+// this test catches by comparing against the independently computed XOR.
 func TestMySQLPoint_1_3_6_1_NativePassword20Bytes(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
@@ -547,16 +556,34 @@ func TestMySQLPoint_1_3_6_1_NativePassword20Bytes(t *testing.T) {
 	spec.MySQL.Scramble = bytes.Repeat([]byte{0x41}, 20)
 	cfgs := drain(mustPlan(t, p, spec))
 	body := cfgs[4].Payload[4:]
-	// auth_response = lenenc-string. With 20-byte SHA1 the lenenc length
-	// is 1 byte (0x14) followed by 20 bytes of digest.
+	// auth_response = lenenc-string. With 20-byte response the lenenc length
+	// is 1 byte (0x14) followed by 20 bytes of the XOR digest.
 	nameStart := 9 + 23
 	authStart := nameStart + len("root\x00") + 1 // +1 for the lenenc 0x14 byte
 	if body[authStart-1] != 0x14 {
 		t.Errorf("auth lenenc=0x%02x, want 0x14 (20)", body[authStart-1])
 	}
 	got := body[authStart : authStart+20]
-	if !allNonZero(got) {
-		t.Errorf("auth response should be 20 non-zero bytes (SHA1 of non-empty password): %x", got)
+
+	// Independently compute the correct mysql_native_password response:
+	// HASH1 XOR SHA1(scramble + SHA1(HASH1)). This MUST equal the planner
+	// output; if the planner applies an extra SHA1 (the old bug), the
+	// bytes will differ.
+	h1 := sha1.Sum([]byte("mypass"))
+	h2 := sha1.Sum(h1[:])
+	buf := append([]byte{}, bytes.Repeat([]byte{0x41}, 20)...)
+	buf = append(buf, h2[:]...)
+	step := sha1.Sum(buf)
+	var want [20]byte
+	for i := 0; i < 20; i++ {
+		want[i] = h1[i] ^ step[i]
+	}
+	if !bytes.Equal(got, want[:]) {
+		t.Errorf("auth response = %x, want %x (HASH1 XOR SHA1(scramble+HASH2))", got, want)
+	}
+	extraSHA1 := sha1.Sum(got)
+	if bytes.Equal(got, extraSHA1[:]) {
+		t.Errorf("auth response equals SHA1(response) — extra-SHA1 bug is back")
 	}
 }
 
@@ -1049,11 +1076,35 @@ func TestMySQLPoint_2_2_4_1_COM_QUIT_Teardown(t *testing.T) {
 
 // --- 2.3 Auth method state machine ---
 
-// 2.3.1.1: mysql_native_password with non-empty password -> 20-byte SHA1 response.
+// 2.3.1.1: mysql_native_password with non-empty password -> 20-byte XOR response.
+// The response equals HASH1 XOR SHA1(scramble + SHA1(HASH1)) directly (no
+// final SHA1). The old assertion only checked len==20, which passed even
+// with the extra-SHA1 bug; we now assert the exact correct bytes.
 func TestMySQLPoint_2_3_1_1_NativePasswordSHA1(t *testing.T) {
-	resp := mysqlNativePassword([]byte("mypass"), bytes.Repeat([]byte{0x41}, 20))
+	password := []byte("mypass")
+	scramble := bytes.Repeat([]byte{0x41}, 20)
+	resp := mysqlNativePassword(password, scramble)
 	if len(resp) != 20 {
 		t.Errorf("native password response len=%d, want 20", len(resp))
+	}
+	// Independently compute the spec-correct response.
+	h1 := sha1.Sum(password)
+	h2 := sha1.Sum(h1[:])
+	buf := append([]byte{}, scramble...)
+	buf = append(buf, h2[:]...)
+	step := sha1.Sum(buf)
+	var want [20]byte
+	for i := 0; i < 20; i++ {
+		want[i] = h1[i] ^ step[i]
+	}
+	if !bytes.Equal(resp, want[:]) {
+		t.Errorf("native password response = %x, want %x (HASH1 XOR SHA1(scramble+HASH2))", resp, want)
+	}
+	// Guard against the extra-SHA1 regression: the response must NOT be
+	// SHA1(response). With the old bug, resp == SHA1(correct_xor).
+	extraSHA1 := sha1.Sum(resp)
+	if bytes.Equal(resp, extraSHA1[:]) {
+		t.Errorf("response equals SHA1(response) — extra-SHA1 bug is back")
 	}
 }
 

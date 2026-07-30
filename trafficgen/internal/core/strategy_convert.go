@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -270,10 +271,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	case "dns":
 		if sub, ok := cfg["dns"].(map[string]interface{}); ok {
 			spec.DNS = &DNSConfig{
-				Domain:     getString(sub, "domain"),
-				QueryType:  uint16(getIntDefault(sub, "query_type", 1)),
-				IsResponse: getBoolWithFallback(sub, "is_response", "response", false),
-				ResponseIP: getString(sub, "response_ip"),
+				Domain:         getString(sub, "domain"),
+				QueryType:      uint16(getIntDefault(sub, "query_type", 1)),
+				IsResponse:     getBoolWithFallback(sub, "is_response", "response", false),
+				ResponseIP:     getString(sub, "response_ip"),
+				TxID:           uint16(getInt(sub, "txid")),
+				EDNS0Enabled:   getBool(sub, "edns0_enabled", false),
+				UDPPayloadSize: uint16(getIntDefault(sub, "udp_payload_size", 4096)),
+				DnssecOK:       getBool(sub, "dnssec_ok", false),
 			}
 		}
 		// DNS overrides the generic port-80 default with its own 53.
@@ -349,6 +354,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				Sequence:   uint16(getIntDefault(sub, "sequence", 1)),
 				Data:       []byte(getStringDefault(sub, "data", "ping")),
 				Pattern:    parseICMPv6Pattern(sub["pattern"]),
+				FileSource: parseFileSource(sub),
 			}
 		}
 		// ICMPv6 does not use ports (it is a Layer 3 protocol like ICMP).
@@ -363,64 +369,64 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	// round-trips (JSON unmarshal test) work before the implementer adds
 	// real field parsing. Implementer replaces the body with real parsing.
 	case "dhcp":
-		if _, ok := cfg["dhcp"].(map[string]interface{}); ok {
-			spec.DHCP = &DHCPConfig{}
+		if sub, ok := cfg["dhcp"].(map[string]interface{}); ok {
+			spec.DHCP = parseDHCPConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 67
 		}
 	case "dhcpv6":
-		if _, ok := cfg["dhcpv6"].(map[string]interface{}); ok {
-			spec.DHCPv6 = &DHCPv6Config{}
+		if sub, ok := cfg["dhcpv6"].(map[string]interface{}); ok {
+			spec.DHCPv6 = parseDHCPv6Config(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 547
 		}
 	case "grpc":
-		if _, ok := cfg["grpc"].(map[string]interface{}); ok {
-			spec.GRPC = &GRPCConfig{}
+		if sub, ok := cfg["grpc"].(map[string]interface{}); ok {
+			spec.GRPC = parseGRPCConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 8604
 		}
 	case "ike":
-		if _, ok := cfg["ike"].(map[string]interface{}); ok {
-			spec.IKE = &IKEConfig{}
+		if sub, ok := cfg["ike"].(map[string]interface{}); ok {
+			spec.IKE = parseIKEConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 500
 		}
 	case "ike_nat_t":
-		if _, ok := cfg["ike_nat_t"].(map[string]interface{}); ok {
-			spec.IKENATT = &IKENATTConfig{}
+		if sub, ok := cfg["ike_nat_t"].(map[string]interface{}); ok {
+			spec.IKENATT = parseIKENATTConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 4500
 		}
 	case "imap":
-		if _, ok := cfg["imap"].(map[string]interface{}); ok {
-			spec.IMAP = &IMAPConfig{}
+		if sub, ok := cfg["imap"].(map[string]interface{}); ok {
+			spec.IMAP = parseIMAPConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 143
 		}
 	case "l2tp":
-		if _, ok := cfg["l2tp"].(map[string]interface{}); ok {
-			spec.L2TP = &L2TPConfig{}
+		if sub, ok := cfg["l2tp"].(map[string]interface{}); ok {
+			spec.L2TP = parseL2TPConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 1701
 		}
 	case "mdns":
-		if _, ok := cfg["mdns"].(map[string]interface{}); ok {
-			spec.MDNS = &MDNSConfig{}
+		if sub, ok := cfg["mdns"].(map[string]interface{}); ok {
+			spec.MDNS = parseMDNSConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 5353
 		}
 	case "mysql":
-		if _, ok := cfg["mysql"].(map[string]interface{}); ok {
-			spec.MySQL = &MySQLConfig{}
+		if sub, ok := cfg["mysql"].(map[string]interface{}); ok {
+			spec.MySQL = parseMySQLConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 3306
@@ -460,15 +466,15 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.DstPort = 123
 		}
 	case "openvpn":
-		if _, ok := cfg["openvpn"].(map[string]interface{}); ok {
-			spec.OpenVPN = &OpenVPNConfig{}
+		if sub, ok := cfg["openvpn"].(map[string]interface{}); ok {
+			spec.OpenVPN = parseOpenVPNConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 1194
 		}
 	case "postgresql":
-		if _, ok := cfg["postgresql"].(map[string]interface{}); ok {
-			spec.PostgreSQL = &PostgreSQLConfig{}
+		if sub, ok := cfg["postgresql"].(map[string]interface{}); ok {
+			spec.PostgreSQL = parsePostgreSQLConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 5432
@@ -488,22 +494,22 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.DstPort = 110
 		}
 	case "rdp":
-		if _, ok := cfg["rdp"].(map[string]interface{}); ok {
-			spec.RDP = &RDPConfig{}
+		if sub, ok := cfg["rdp"].(map[string]interface{}); ok {
+			spec.RDP = parseRDPConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 3389
 		}
 	case "redis":
-		if _, ok := cfg["redis"].(map[string]interface{}); ok {
-			spec.Redis = &RedisConfig{}
+		if sub, ok := cfg["redis"].(map[string]interface{}); ok {
+			spec.Redis = parseRedisConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 6379
 		}
 	case "shadowsocks":
-		if _, ok := cfg["shadowsocks"].(map[string]interface{}); ok {
-			spec.Shadowsocks = &ShadowsocksConfig{}
+		if sub, ok := cfg["shadowsocks"].(map[string]interface{}); ok {
+			spec.Shadowsocks = parseShadowsocksConfig(sub)
 		}
 		// shadowsocks has no canonical port; user must specify.
 	case "smtp":
@@ -558,15 +564,15 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.DstPort = 161
 		}
 	case "ssdp":
-		if _, ok := cfg["ssdp"].(map[string]interface{}); ok {
-			spec.SSDP = &SSDPConfig{}
+		if sub, ok := cfg["ssdp"].(map[string]interface{}); ok {
+			spec.SSDP = parseSSDPConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 1900
 		}
 	case "ssh":
-		if _, ok := cfg["ssh"].(map[string]interface{}); ok {
-			spec.SSH = &SSHConfig{}
+		if sub, ok := cfg["ssh"].(map[string]interface{}); ok {
+			spec.SSH = parseSSHConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 22
@@ -625,20 +631,20 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.DstPort = 23
 		}
 	case "tls":
-		if _, ok := cfg["tls"].(map[string]interface{}); ok {
-			spec.TLS = &TLSConfig{}
+		if sub, ok := cfg["tls"].(map[string]interface{}); ok {
+			spec.TLS = parseTLSConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 443
 		}
 	case "vmess":
-		if _, ok := cfg["vmess"].(map[string]interface{}); ok {
-			spec.Vmess = &VmessConfig{}
+		if sub, ok := cfg["vmess"].(map[string]interface{}); ok {
+			spec.Vmess = parseVmessConfig(sub)
 		}
 		// vmess has no canonical port; user must specify.
 	case "wireguard":
-		if _, ok := cfg["wireguard"].(map[string]interface{}); ok {
-			spec.WireGuard = &WireGuardConfig{}
+		if sub, ok := cfg["wireguard"].(map[string]interface{}); ok {
+			spec.WireGuard = parseWireGuardConfig(sub)
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 51820
@@ -756,6 +762,11 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ICMP.FileSource = iFS
 		}
 	}
+	if spec.ICMPv6 != nil {
+		if i6FS := parseFileSource(getMap(cfg, "icmpv6")); i6FS != nil {
+			spec.ICMPv6.FileSource = i6FS
+		}
+	}
 	// SCTP chunks: FileSource parsing is handled inside parseSCTPChunks
 	// itself (each chunk is constructed there with its FileSource assigned
 	// from the chunk map's "file_source" key). The earlier dispatch loop
@@ -791,6 +802,11 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	}
 	if spec.ICMP != nil {
 		if err := spec.ICMP.FileSource.Validate(); err != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
+		}
+	}
+	if spec.ICMPv6 != nil {
+		if err := spec.ICMPv6.FileSource.Validate(); err != nil {
 			spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
 		}
 	}
@@ -855,6 +871,41 @@ func parseFileSource(cfg map[string]interface{}) *filesystem.FileSource {
 	// If all fields are zero, treat as nil. This prevents a non-nil pointer
 	// to a zero-value FileSource from being serialized as "file_source": {}
 	// and from confusing planners that test `if spec.FileSource != nil`.
+	if fs.File == "" && fs.Literal == "" && fs.Fill == nil && fs.Random == nil {
+		return nil
+	}
+	return fs
+}
+
+// parseFileSourceField reads a "file_source" sub-map from the given map and
+// delegates to parseFileSource for the actual field parsing. Used when the
+// caller already has the protocol-specific sub-map (e.g. inside an IMAP
+// command entry) rather than the top-level cfg.
+func parseFileSourceField(m map[string]interface{}) *filesystem.FileSource {
+	src, ok := m["file_source"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	fs := &filesystem.FileSource{}
+	if v, ok := src["file"].(string); ok {
+		fs.File = v
+	}
+	if v, ok := src["literal"].(string); ok {
+		fs.Literal = v
+	}
+	if fill, ok := src["fill"].(map[string]interface{}); ok {
+		fs.Fill = &filesystem.Fill{
+			Byte:  byte(toInt(fill["byte"])),
+			Bytes: toInt(fill["bytes"]),
+		}
+	}
+	if r, ok := src["random"].(map[string]interface{}); ok {
+		fs.Random = &filesystem.Random{
+			MinBytes: toInt(r["min_bytes"]),
+			MaxBytes: toInt(r["max_bytes"]),
+			Seed:     int64(toInt(r["seed"])),
+		}
+	}
 	if fs.File == "" && fs.Literal == "" && fs.Fill == nil && fs.Random == nil {
 		return nil
 	}
@@ -1078,6 +1129,1891 @@ func parseFTPDataChannel(v interface{}) *FTPDataChannel {
 		dc.Direction = "down"
 	}
 	return dc
+}
+
+// parseSSHConfig converts the JSON-decoded "ssh" sub-map into an *SSHConfig.
+// Returns nil for absent/non-map input. Empty string fields are left empty so
+// the planner can apply its own defaults.
+func parseSSHConfig(m map[string]interface{}) *SSHConfig {
+	if m == nil {
+		return nil
+	}
+	return &SSHConfig{
+		ServerVersion:         getString(m, "server_version"),
+		ClientVersion:         getString(m, "client_version"),
+		KexAlgorithms:         getString(m, "kex_algorithms"),
+		HostKeyAlgorithms:     getString(m, "host_key_algorithms"),
+		EncryptionAlgorithms:  getString(m, "encryption_algorithms"),
+		MACAlgorithms:         getString(m, "mac_algorithms"),
+		CompressionAlgorithms: getString(m, "compression_algorithms"),
+		KEX:                   getString(m, "kex"),
+		AuthMethods:           parseSSHMessages(m["auth_methods"]),
+		ExtInfo:               getBool(m, "ext_info", false),
+		Channels:              parseChannelEntries(m["channels"]),
+		RekeyAfter:            getUint32(m, "rekey_after"),
+		DisconnectOnClose:     getBool(m, "disconnect_on_close", false),
+	}
+}
+
+// parseSSHMessages converts the JSON-decoded "auth_methods" array into a
+// []SSHMessage. Returns nil for absent/non-array input.
+func parseSSHMessages(v interface{}) []SSHMessage {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]SSHMessage, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		msg := SSHMessage{
+			Type:                       getString(m, "type"),
+			Direction:                  getString(m, "direction"),
+			ServiceName:                getString(m, "service_name"),
+			MethodName:                 getString(m, "method_name"),
+			Username:                   getString(m, "username"),
+			Password:                   getString(m, "password"),
+			HasPasswordChange:          getBool(m, "has_password_change", false),
+			NewPassword:                getString(m, "new_password"),
+			PublicKeyAlgorithm:         getString(m, "public_key_algorithm"),
+			PublicKeyBlob:              getByteSlice(m, "public_key_blob"),
+			HasSignature:               getBool(m, "has_signature", false),
+			Signature:                  getByteSlice(m, "signature"),
+			Submethods:                 getString(m, "submethods"),
+			Prompt:                     getString(m, "prompt"),
+			Response:                   getString(m, "response"),
+			AuthMethodsThatCanContinue: getString(m, "auth_methods_that_can_continue"),
+			PartialSuccess:             getBool(m, "partial_success", false),
+			Banner:                     getString(m, "banner"),
+			LanguageTag:                getString(m, "language_tag"),
+			Name:                       getString(m, "name"),
+			Instruction:                getString(m, "instruction"),
+			PromptCount:                getUint32(m, "prompt_count"),
+			Prompts:                    getString(m, "prompts"),
+			Echo:                       getBool(m, "echo", false),
+			NumResponses:               getUint32(m, "num_responses"),
+			Responses:                  getString(m, "responses"),
+			ReasonCode:                 getUint32(m, "reason_code"),
+			Description:                getString(m, "description"),
+			ReceiveSeq:                 getUint32(m, "receive_seq"),
+			AlwaysDisplay:              getBool(m, "always_display", false),
+			Message:                    getString(m, "message"),
+			Data:                       getByteSlice(m, "data"),
+		}
+		out = append(out, msg)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseChannelEntries converts the JSON-decoded "channels" array into a
+// []ChannelEntry. Returns nil for absent/non-array input.
+func parseChannelEntries(v interface{}) []ChannelEntry {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]ChannelEntry, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		entry := ChannelEntry{
+			Type:              getString(m, "type"),
+			Direction:         getString(m, "direction"),
+			SenderChannel:     getUint32(m, "sender_channel"),
+			RecipientChannel:  getUint32(m, "recipient_channel"),
+			ChannelType:       getString(m, "channel_type"),
+			InitialWindowSize: getUint32(m, "initial_window_size"),
+			MaximumPacketSize: getUint32(m, "maximum_packet_size"),
+			DestHost:          getString(m, "dest_host"),
+			DestPort:          getUint32(m, "dest_port"),
+			OriginatorIP:      getString(m, "originator_ip"),
+			OriginatorPort:    getUint32(m, "originator_port"),
+			RequestType:       getString(m, "request_type"),
+			WantReply:         getBool(m, "want_reply", false),
+			Term:              getString(m, "term"),
+			WidthChars:        getUint32(m, "width_chars"),
+			HeightRows:        getUint32(m, "height_rows"),
+			WidthPixels:       getUint32(m, "width_pixels"),
+			HeightPixels:      getUint32(m, "height_pixels"),
+			TTYModes:          getByteSlice(m, "tty_modes"),
+			Command:           getString(m, "command"),
+			EnvVarName:        getString(m, "env_var_name"),
+			EnvVarValue:       getString(m, "env_var_value"),
+			SubsystemName:     getString(m, "subsystem_name"),
+			SignalName:        getString(m, "signal_name"),
+			ExitStatus:        getUint32(m, "exit_status"),
+			Data:              getByteSlice(m, "data"),
+			DataTypeCode:      getUint32(m, "data_type_code"),
+			BytesToAdd:        getUint32(m, "bytes_to_add"),
+			OpenReasonCode:    getUint32(m, "open_reason_code"),
+			OpenReasonText:    getString(m, "open_reason_text"),
+			GlobalRequestName: getString(m, "global_request_name"),
+			Address:           getString(m, "address"),
+			Port:              getUint32(m, "port"),
+			X11AuthProtocol:   getString(m, "x11_auth_protocol"),
+			X11AuthCookie:     getByteSlice(m, "x11_auth_cookie"),
+			X11ScreenNumber:   getUint32(m, "x11_screen_number"),
+			SingleConnection:  getBool(m, "single_connection", false),
+		}
+		out = append(out, entry)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseDHCPConfig converts the JSON-decoded "dhcp" sub-map into a
+// *DHCPConfig. Returns nil for absent/non-map input. Each field maps to a
+// DHCPConfig struct field; per-message overrides live inside parseDHCPMessages.
+// Default field inheritance (DefaultClientIP, DefaultLeaseTime, etc.) is
+// applied by the planner at emit time when message-level overrides are empty.
+func parseDHCPConfig(m map[string]interface{}) *DHCPConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &DHCPConfig{
+		Role:               getString(m, "role"),
+		Xid:                 getUint32(m, "xid"),
+		Messages:            parseDHCPMessages(m["messages"]),
+		ClientMAC:           getString(m, "client_mac"),
+		HType:               uint8(getInt(m, "h_type")),
+		HLen:                uint8(getInt(m, "h_len")),
+		BroadcastFlag:       getBool(m, "broadcast_flag", false),
+		Secs:                getUint16(m, "secs"),
+		Sname:               getString(m, "sname"),
+		File:                getString(m, "file"),
+		DefaultClientIP:     getString(m, "default_client_ip"),
+		DefaultYourIP:       getString(m, "default_your_ip"),
+		DefaultServerIP:     getString(m, "default_server_ip"),
+		DefaultRelayAgentIP: getString(m, "default_relay_agent_ip"),
+		DefaultServerIdentifier: getString(m, "default_server_identifier"),
+		DefaultLeaseTime:    getUint32(m, "default_lease_time"),
+		DefaultT1:           getUint32(m, "default_t1"),
+		DefaultT2:           getUint32(m, "default_t2"),
+		DefaultSubnetMask:   getString(m, "default_subnet_mask"),
+		DefaultRouters:      getStringSlice(m, "default_routers"),
+		DefaultDNS:          getStringSlice(m, "default_dns"),
+		DefaultDomainName:   getString(m, "default_domain_name"),
+		DefaultHostname:     getString(m, "default_hostname"),
+		DefaultDomainSearch: getStringSlice(m, "default_domain_search"),
+		DefaultClientID:     getByteSlice(m, "default_client_id"),
+		DefaultRequestedIP:  getString(m, "default_requested_ip"),
+		DefaultParamRequestList: getUint8Slice(m, "default_param_request_list"),
+		DefaultVendorClass:  getString(m, "default_vendor_class"),
+		DefaultRelayAgentInfo: getByteSlice(m, "default_relay_agent_info"),
+	}
+	return cfg
+}
+
+// parseDHCPMessages converts the "messages" array into []DHCPMessage. Each
+// message carries MessageType + per-message overrides; empty fields inherit
+// from DHCPConfig defaults at emit time.
+func parseDHCPMessages(v interface{}) []DHCPMessage {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]DHCPMessage, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		msg := DHCPMessage{
+			Type:              uint8(getInt(m, "type")),
+			Direction:         getString(m, "direction"),
+			ClientIP:          getString(m, "client_ip"),
+			YourIP:            getString(m, "your_ip"),
+			ServerIP:          getString(m, "server_ip"),
+			RelayAgentIP:      getString(m, "relay_agent_ip"),
+			Hops:              uint8(getInt(m, "hops")),
+			ServerIdentifier:  getString(m, "server_identifier"),
+			LeaseTime:         getUint32(m, "lease_time"),
+			T1:                getUint32(m, "t1"),
+			T2:                getUint32(m, "t2"),
+			SubnetMask:        getString(m, "subnet_mask"),
+			Routers:           getStringSlice(m, "routers"),
+			DNS:               getStringSlice(m, "dns"),
+			DomainName:        getString(m, "domain_name"),
+			Hostname:          getString(m, "hostname"),
+			DomainSearch:      getStringSlice(m, "domain_search"),
+			ClientID:          getByteSlice(m, "client_id"),
+			RequestedIP:       getString(m, "requested_ip"),
+			ParamRequestList:  getUint8Slice(m, "param_request_list"),
+			VendorClass:       getString(m, "vendor_class"),
+			RelayAgentInfo:    getByteSlice(m, "relay_agent_info"),
+			ExtraOptions:      parseDHCPOptions(m["extra_options"]),
+			Broadcast:         getBoolPtr(m, "broadcast"),
+		}
+		out = append(out, msg)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseDHCPOptions converts the "extra_options" array into []DHCPOption.
+func parseDHCPOptions(v interface{}) []DHCPOption {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]DHCPOption, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, DHCPOption{
+			Code: uint8(getInt(m, "code")),
+			Data: getByteSlice(m, "data"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseDHCPv6Config converts the JSON-decoded "dhcpv6" sub-map into a
+// *DHCPv6Config. Returns nil for absent/non-map input.
+func parseDHCPv6Config(m map[string]interface{}) *DHCPv6Config {
+	if m == nil {
+		return nil
+	}
+	cfg := &DHCPv6Config{
+		Messages:     parseDHCPv6Messages(m["messages"]),
+		ClientDUID:    parseDUID(m["client_duid"]),
+		ServerDUID:    parseDUID(m["server_duid"]),
+		RelayConfig:   parseDHCPv6RelayConfig(m["relay_config"]),
+	}
+	return cfg
+}
+
+// parseDHCPv6Messages converts the "messages" array into []DHCPv6Message.
+func parseDHCPv6Messages(v interface{}) []DHCPv6Message {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]DHCPv6Message, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		var txID [3]byte
+		if t := getByteSlice(m, "transaction_id"); len(t) >= 3 {
+			copy(txID[:], t[:3])
+		}
+		msg := DHCPv6Message{
+			MsgType:        uint8(getInt(m, "msg_type")),
+			TransactionID:  txID,
+			Direction:      getString(m, "direction"),
+			Options:        parseDHCPv6Options(m["options"]),
+			RelayFields:    parseDHCPv6RelayFields(m["relay_fields"]),
+		}
+		out = append(out, msg)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseDUID converts a DUID sub-map into *DUID.
+func parseDUID(v interface{}) *DUID {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &DUID{
+		Type:            uint8(getInt(m, "type")),
+		HardwareType:    getUint16(m, "hardware_type"),
+		Time:            getUint32(m, "time"),
+		EnterpriseNum:   getUint32(m, "enterprise_num"),
+		VendorSpecific:  getByteSlice(m, "vendor_specific"),
+		LinkLayerAddr:   getString(m, "link_layer_addr"),
+	}
+}
+
+// parseDHCPv6Options converts an array of {code, data} into []DHCPv6Option.
+func parseDHCPv6Options(v interface{}) []DHCPv6Option {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]DHCPv6Option, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, DHCPv6Option{
+			Code: getUint16(m, "code"),
+			Data: getByteSlice(m, "data"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseDHCPv6RelayFields converts a relay_fields sub-map into *RelayFields.
+func parseDHCPv6RelayFields(v interface{}) *RelayFields {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &RelayFields{
+		HopCount:     uint8(getInt(m, "hop_count")),
+		LinkAddress:  getString(m, "link_address"),
+		PeerAddress:  getString(m, "peer_address"),
+	}
+}
+
+// parseDHCPv6RelayConfig converts a relay_config sub-map into *RelayConfig.
+func parseDHCPv6RelayConfig(v interface{}) *RelayConfig {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &RelayConfig{
+		RelayIP:           getString(m, "relay_ip"),
+		RelayMAC:          getString(m, "relay_mac"),
+		HopCount:          uint8(getInt(m, "hop_count")),
+		InterfaceID:       getByteSlice(m, "interface_id"),
+		IncludeClientMAC:  getBool(m, "include_client_mac", false),
+	}
+}
+
+// parseGRPCConfig converts the JSON-decoded "grpc" sub-map into a
+// *GRPCConfig. Returns nil for absent/non-map input. Request/Response
+// messages accept both raw-bytes arrays ([][]byte) and base64 strings
+// ([]string); the planner decodes base64 at Plan time.
+func parseGRPCConfig(m map[string]interface{}) *GRPCConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &GRPCConfig{
+		Service:               getString(m, "service"),
+		Method:                getString(m, "method"),
+		Authority:             getString(m, "authority"),
+		Scheme:                getString(m, "scheme"),
+		CallType:              getString(m, "call_type"),
+		RequestMessages:       getByteSlices(m, "request_messages"),
+		RequestMessagesB64:    getStringSlice(m, "request_messages_b64"),
+		ResponseMessages:      getByteSlices(m, "response_messages"),
+		ResponseMessagesB64:   getStringSlice(m, "response_messages_b64"),
+		ResponseStatus:        getInt(m, "response_status"),
+		ResponseMessage:       getString(m, "response_message"),
+		Timeout:               getString(m, "timeout"),
+		Encoding:              getString(m, "encoding"),
+		AcceptEncoding:        getString(m, "accept_encoding"),
+		Metadata:              getStringMap(m, "metadata"),
+		UserAgent:             getString(m, "user_agent"),
+		MaxFrameSize:          getUint32(m, "max_frame_size"),
+		InitialWindow:         getUint32(m, "initial_window"),
+		MaxConcurrentStreams:   getUint32(m, "max_concurrent_streams"),
+		HeaderTableSize:       getUint32(m, "header_table_size"),
+		Pings:                 parseGRPCPingConfig(m["pings"]),
+		CancelAfter:           getInt(m, "cancel_after"),
+		GoAwayAfter:           getBool(m, "go_away_after", false),
+		Calls:                 parseGRPCCalls(m["calls"]),
+		FileSource:            parseFileSourceField(m),
+	}
+	return cfg
+}
+
+// parseGRPCPingConfig converts the "pings" sub-map into *GRPCPingConfig.
+func parseGRPCPingConfig(v interface{}) *GRPCPingConfig {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	var opaque [8]byte
+	if b := getByteSlice(m, "opaque_data"); len(b) >= 8 {
+		copy(opaque[:], b[:8])
+	}
+	return &GRPCPingConfig{
+		IntervalMs:  getInt(m, "interval_ms"),
+		Count:        getInt(m, "count"),
+		OpaqueData:   opaque,
+	}
+}
+
+// parseGRPCCalls converts the "calls" array into []GRPCCall.
+func parseGRPCCalls(v interface{}) []GRPCCall {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]GRPCCall, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, GRPCCall{
+			Service:          getString(m, "service"),
+			Method:           getString(m, "method"),
+			CallType:         getString(m, "call_type"),
+			RequestMessages:  getByteSlices(m, "request_messages"),
+			ResponseMessages: getByteSlices(m, "response_messages"),
+			ResponseStatus:   getInt(m, "response_status"),
+			ResponseMessage:  getString(m, "response_message"),
+			Metadata:         getStringMap(m, "metadata"),
+			Timeout:          getString(m, "timeout"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseIKEConfig converts the JSON-decoded "ike" sub-map into *IKEConfig.
+func parseIKEConfig(m map[string]interface{}) *IKEConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &IKEConfig{
+		VersionMajor:            uint8(getIntDefault(m, "version_major", 2)),
+		VersionMinor:            uint8(getIntDefault(m, "version_minor", 0)),
+		InitiatorSPI:            getUint64(m, "initiator_spi"),
+		ResponderSPI:            getUint64(m, "responder_spi"),
+		StartMessageID:          getUint32(m, "start_message_id"),
+		Role:                    getString(m, "role"),
+		Strict:                  getBool(m, "strict", false),
+		FaultInjection:          getBool(m, "fault_injection", false),
+		Messages:                parseIKEMessages(m["messages"]),
+		Scenario:                getString(m, "scenario"),
+		DefaultProposal:         parseIKEProposal(m["default_proposal"]),
+		DefaultDHGroup:          getUint16(m, "default_dh_group"),
+		DefaultNonceSize:        getUint16(m, "default_nonce_size"),
+		DefaultAuthMethod:       uint8(getInt(m, "default_auth_method")),
+		AllowNullAuth:           getBool(m, "allow_null_auth", false),
+		EAPOnly:                 getBool(m, "eap_only", false),
+		FragmentationSupported:  getBool(m, "fragmentation_supported", false),
+		FragmentThreshold:       getUint16(m, "fragment_threshold"),
+		ChildSAs:                parseIKEChildSAs(m["child_sas"]),
+		DPDCount:                getInt(m, "dpd_count"),
+		RetransmitCount:         getInt(m, "retransmit_count"),
+		EncryptMode:             getString(m, "encrypt_mode"),
+		OpaqueKeySeed:           getUint64(m, "opaque_key_seed"),
+	}
+	return cfg
+}
+
+// parseIKEMessages converts the "messages" array into []IKEMessage.
+func parseIKEMessages(v interface{}) []IKEMessage {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]IKEMessage, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		msg := IKEMessage{
+			Direction:              getString(m, "direction"),
+			ExchangeType:            uint8(getInt(m, "exchange_type")),
+			IsResponse:              getBool(m, "is_response", false),
+			FromOriginalInitiator:  getBool(m, "from_original_initiator", false),
+			HigherVersionSupported: getBool(m, "higher_version_supported", false),
+			MessageID:              getUint32Ptr(m, "message_id"),
+			InitiatorSPI:           getUint64Ptr(m, "initiator_spi"),
+			ResponderSPI:           getUint64Ptr(m, "responder_spi"),
+			Payloads:               parseIKEPayloads(m["payloads"]),
+			Encrypted:              parseIKEEncryptedBody(m["encrypted"]),
+			Retransmit:             getInt(m, "retransmit"),
+			DelayMillis:            getInt(m, "delay_ms"),
+			RawLengthOverride:      getUint32Ptr(m, "raw_length_override"),
+			RawNextPayloadOverride: getUint8Ptr(m, "raw_next_payload_override"),
+			RawFlagsOverride:       getUint8Ptr(m, "raw_flags_override"),
+		}
+		out = append(out, msg)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseIKEPayloads converts the "payloads" array into []IKEPayload.
+func parseIKEPayloads(v interface{}) []IKEPayload {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]IKEPayload, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		pl := IKEPayload{
+			Type:                     uint8(getInt(m, "type")),
+			Critical:                 getBool(m, "critical", false),
+			SA:                       parseIKESA(m["sa"]),
+			KE:                       parseIKEKE(m["ke"]),
+			ID:                       parseIKEIdentity(m["id"]),
+			Certificate:              parseIKECertificate(m["certificate"]),
+			CertificateRequest:       parseIKECertificateRequest(m["certificate_request"]),
+			Auth:                     parseIKEAuth(m["auth"]),
+			Nonce:                    getByteSlice(m, "nonce"),
+			Notify:                   parseIKENotify(m["notify"]),
+			Delete:                   parseIKEDelete(m["delete"]),
+			VendorID:                 getByteSlice(m, "vendor_id"),
+			TrafficSelectors:         parseIKETrafficSelectors(m["traffic_selectors"]),
+			Config:                   parseIKEConfiguration(m["config"]),
+			EAP:                      parseIKEEAP(m["eap"]),
+			Fragment:                 parseIKEFragment(m["fragment"]),
+			Raw:                      getByteSlice(m, "raw"),
+			RawLengthOverride:        getUint16Ptr(m, "raw_length_override"),
+			RawNextPayloadOverride:   getUint8Ptr(m, "raw_next_payload_override"),
+		}
+		out = append(out, pl)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseIKEProposal(v interface{}) *IKEProposal {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKEProposal{
+		Number:     uint8(getInt(m, "number")),
+		ProtocolID: uint8(getInt(m, "protocol_id")),
+		SPI:        getByteSlice(m, "spi"),
+		Transforms: parseIKETransforms(m["transforms"]),
+	}
+}
+
+func parseIKETransforms(v interface{}) []IKETransform {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]IKETransform, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, IKETransform{
+			Type:            uint8(getInt(m, "type")),
+			ID:              getUint16(m, "id"),
+			KeyLengthBits:   getUint16(m, "key_length_bits"),
+			RawAttributes:   getByteSlice(m, "raw_attributes"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseIKESA(v interface{}) *IKESA {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKESA{
+		Proposals: parseIKEProposals(m["proposals"]),
+	}
+}
+
+func parseIKEProposals(v interface{}) []IKEProposal {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]IKEProposal, 0, len(arr))
+	for _, item := range arr {
+		if p := parseIKEProposal(item); p != nil {
+			out = append(out, *p)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseIKEKE(v interface{}) *IKEKE {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKEKE{
+		DHGroup:  getUint16(m, "dh_group"),
+		KeyData:  getByteSlice(m, "key_data"),
+	}
+}
+
+func parseIKEIdentity(v interface{}) *IKEIdentity {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKEIdentity{
+		IDType: uint8(getInt(m, "id_type")),
+		Data:   getByteSlice(m, "data"),
+	}
+}
+
+func parseIKECertificate(v interface{}) *IKECertificate {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKECertificate{
+		Encoding: uint8(getInt(m, "encoding")),
+		Data:     getByteSlice(m, "data"),
+	}
+}
+
+func parseIKECertificateRequest(v interface{}) *IKECertificateRequest {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKECertificateRequest{
+		Encoding: uint8(getInt(m, "encoding")),
+		CAs:      getByteSlices(m, "cas"),
+	}
+}
+
+func parseIKEAuth(v interface{}) *IKEAuth {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKEAuth{
+		Method: uint8(getInt(m, "method")),
+		Data:   getByteSlice(m, "data"),
+	}
+}
+
+func parseIKENotify(v interface{}) *IKENotify {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKENotify{
+		ProtocolID:  uint8(getInt(m, "protocol_id")),
+		SPI:         getByteSlice(m, "spi"),
+		MessageType: getUint16(m, "message_type"),
+		Data:        getByteSlice(m, "data"),
+	}
+}
+
+func parseIKEDelete(v interface{}) *IKEDelete {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKEDelete{
+		ProtocolID: uint8(getInt(m, "protocol_id")),
+		SPISize:    uint8(getInt(m, "spi_size")),
+		SPIs:       getByteSlices(m, "spis"),
+	}
+}
+
+func parseIKETrafficSelectors(v interface{}) []IKETrafficSelector {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]IKETrafficSelector, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, IKETrafficSelector{
+			TSType:        uint8(getInt(m, "ts_type")),
+			IPProtocolID:  uint8(getInt(m, "ip_protocol_id")),
+			StartPort:     getUint16(m, "start_port"),
+			EndPort:       getUint16(m, "end_port"),
+			StartAddress:  getByteSlice(m, "start_address"),
+			EndAddress:    getByteSlice(m, "end_address"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseIKEConfiguration(v interface{}) *IKEConfiguration {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKEConfiguration{
+		CFGType:    uint8(getInt(m, "cfg_type")),
+		Attributes: parseIKEConfigAttributes(m["attributes"]),
+	}
+}
+
+func parseIKEConfigAttributes(v interface{}) []IKEConfigAttribute {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]IKEConfigAttribute, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, IKEConfigAttribute{
+			Type:  getUint16(m, "type"),
+			Value: getByteSlice(m, "value"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseIKEEAP(v interface{}) *IKEEAP {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKEEAP{
+		Code:        uint8(getInt(m, "code")),
+		Identifier:  uint8(getInt(m, "identifier")),
+		Type:        getUint8Ptr(m, "type"),
+		Data:        getByteSlice(m, "data"),
+	}
+}
+
+func parseIKEEncryptedBody(v interface{}) *IKEEncryptedBody {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKEEncryptedBody{
+		InnerPayloads: parseIKEPayloads(m["inner_payloads"]),
+		OpaqueData:    getByteSlice(m, "opaque_data"),
+		IVLength:      getUint16(m, "iv_length"),
+		ICVLength:     getUint16(m, "icv_length"),
+		PadTo:         getUint16(m, "pad_to"),
+	}
+}
+
+func parseIKEFragment(v interface{}) *IKEFragment {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IKEFragment{
+		FragmentNumber: getUint16(m, "fragment_number"),
+		TotalFragments: getUint16(m, "total_fragments"),
+		Data:           getByteSlice(m, "data"),
+	}
+}
+
+func parseIKEChildSAs(v interface{}) []IKEChildSA {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]IKEChildSA, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, IKEChildSA{
+			Proposal:     parseIKEProposal(m["proposal"]),
+			TSi:          parseIKETrafficSelectors(m["ts_i"]),
+			TSr:          parseIKETrafficSelectors(m["ts_r"]),
+			EmitSubFlow:  getBool(m, "emit_sub_flow", false),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseIKENATTConfig converts the JSON-decoded "ike_nat_t" sub-map into
+// *IKENATTConfig. Returns nil for absent/non-map input.
+func parseIKENATTConfig(m map[string]interface{}) *IKENATTConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &IKENATTConfig{
+		InitiatorSPI:         getUint64(m, "initiator_spi"),
+		ResponderSPI:         getUint64(m, "responder_spi"),
+		NATDetection:         getBool(m, "nat_detection", false),
+		NATDetectedOnSource:  getBool(m, "nat_detected_on_source", false),
+		NATDetectedOnDest:    getBool(m, "nat_detected_on_dest", false),
+		PortFloat:            getBool(m, "port_float", false),
+		UDPEncapESP:          getBool(m, "udp_encap_esp", false),
+		Keepalive:            parseNATKeepaliveConfig(m["keepalive"]),
+		Retransmit:           parseRetransmitConfig(m["retransmit"]),
+		Dialog:               parseIKENATTMessages(m["dialog"]),
+		ChildSA:              parseESPChildSAConfig(m["child_sa"]),
+	}
+	return cfg
+}
+
+func parseNATKeepaliveConfig(v interface{}) *NATKeepaliveConfig {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &NATKeepaliveConfig{
+		Interval:  getInt(m, "interval"),
+		Count:     getInt(m, "count"),
+		Direction: getString(m, "direction"),
+	}
+}
+
+func parseRetransmitConfig(v interface{}) *RetransmitConfig {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &RetransmitConfig{
+		Timeout:        getInt(m, "timeout"),
+		MaxRetransmits: getInt(m, "max_retransmits"),
+		Backoff:        getFloatDefault(m, "backoff", 0),
+	}
+}
+
+func parseIKENATTMessages(v interface{}) []IKENATTMessage {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]IKENATTMessage, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, IKENATTMessage{
+			Direction:    getString(m, "direction"),
+			ExchangeType: uint8(getInt(m, "exchange_type")),
+			MessageID:    getUint32(m, "message_id"),
+			Payloads:     parseIKENATTPayloads(m["payloads"]),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseIKENATTPayloads(v interface{}) []IKENATTPayload {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]IKENATTPayload, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, IKENATTPayload{
+			Type:    uint8(getInt(m, "type")),
+			SA:      parseIKESA(m["sa"]),
+			KE:      parseIKEKE(m["ke"]),
+			Nonce:   getByteSlice(m, "nonce"),
+			Notify:  parseNotifyPayload(m["notify"]),
+			Raw:     getByteSlice(m, "raw"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseNotifyPayload(v interface{}) *NotifyPayload {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &NotifyPayload{
+		ProtocolID:       uint8(getInt(m, "protocol_id")),
+		SPISize:          uint8(getInt(m, "spi_size")),
+		NotifyMsgType:    getUint16(m, "notify_msg_type"),
+		NotificationData: getByteSlice(m, "notification_data"),
+	}
+}
+
+func parseESPChildSAConfig(v interface{}) *ESPChildSAConfig {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &ESPChildSAConfig{
+		SPIout:      getUint32(m, "spi_out"),
+		SPIin:       getUint32(m, "spi_in"),
+		ESPDataSize: getInt(m, "esp_data_size"),
+		ESPCount:    getInt(m, "esp_count"),
+		Algorithm:   getString(m, "algorithm"),
+		Mode:        getString(m, "mode"),
+	}
+}
+
+// parseIMAPConfig converts the JSON-decoded "imap" sub-map into *IMAPConfig.
+func parseIMAPConfig(m map[string]interface{}) *IMAPConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &IMAPConfig{
+		Banner:              getString(m, "banner"),
+		Commands:            parseIMAPCommands(m["commands"]),
+		IDLE:                parseIMAPIDLE(m["idle"]),
+		PipelinedCommands:   getBool(m, "pipelined_commands", false),
+		AllowUTF8Mailbox:    getBool(m, "allow_utf8_mailbox", false),
+	}
+	return cfg
+}
+
+func parseIMAPCommands(v interface{}) []IMAPCommand {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]IMAPCommand, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		cmd := IMAPCommand{
+			Tag:                   getString(m, "tag"),
+			Cmd:                   getString(m, "cmd"),
+			Responses:             getStringSlice(m, "responses"),
+			LiteralBody:           getString(m, "literal_body"),
+			LiteralBodyB64:        getString(m, "literal_body_b64"),
+			FileSource:            parseFileSourceField(m),
+			EmitIDLE:              getBool(m, "emit_idle", false),
+			CancelAfterResponses:  getInt(m, "cancel_after_responses"),
+			UIDCacheInvalidation:  getBool(m, "uid_cache_invalidation", false),
+		}
+		out = append(out, cmd)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseIMAPIDLE(v interface{}) *IMAPIDLE {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &IMAPIDLE{
+		PushResponses:         getStringSlice(m, "push_responses"),
+		DoneTag:               getString(m, "done_tag"),
+		DoneResponse:          getString(m, "done_response"),
+		ServerTimeoutBehavior: getString(m, "server_timeout_behavior"),
+	}
+}
+
+// parseL2TPConfig converts the JSON-decoded "l2tp" sub-map into *L2TPConfig.
+func parseL2TPConfig(m map[string]interface{}) *L2TPConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &L2TPConfig{
+		Version:           uint8(getInt(m, "version")),
+		Role:              getString(m, "role"),
+		LocalTunnelID:     getUint16(m, "local_tunnel_id"),
+		PeerTunnelID:      getUint16(m, "peer_tunnel_id"),
+		LocalSessionID:    getUint16(m, "local_session_id"),
+		PeerSessionID:     getUint16(m, "peer_session_id"),
+		LocalSessionID32:  getUint32(m, "local_session_id_32"),
+		PeerSessionID32:   getUint32(m, "peer_session_id_32"),
+		HostName:          getString(m, "host_name"),
+		VendorName:        getString(m, "vendor_name"),
+		FirmwareRev:       getUint16(m, "firmware_rev"),
+		FramingCaps:       getUint32(m, "framing_caps"),
+		BearerCaps:        getUint32(m, "bearer_caps"),
+		ReceiveWindowSize: getUint16(m, "receive_window_size"),
+		InitialNs:         getUint16(m, "initial_ns"),
+		TieBreaker:        getUint64(m, "tie_breaker"),
+		ProtocolVersion:   getUint16(m, "protocol_version"),
+		Cookie:            getByteSlice(m, "cookie"),
+		Scenarios:         parseL2TPSteps(m["scenarios"]),
+		HelloInterval:     getInt(m, "hello_interval"),
+		PPPFrames:         parseL2TPPPPFrames(m["ppp_frames"]),
+		CustomAVPs:        parseL2TPAVPs(m["custom_avps"]),
+		ResultCode:        getUint16(m, "result_code"),
+		ErrorCode:         getUint16(m, "error_code"),
+		ErrorMessage:      getString(m, "error_message"),
+	}
+	return cfg
+}
+
+func parseL2TPSteps(v interface{}) []L2TPStep {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]L2TPStep, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, L2TPStep{
+			Type:               getString(m, "type"),
+			Direction:          getString(m, "direction"),
+			AVPs:               parseL2TPAVPs(m["avps"]),
+			TunnelIDOverride:   getUint16Ptr(m, "tunnel_id_override"),
+			SessionIDOverride:  getUint16Ptr(m, "session_id_override"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseL2TPAVPs(v interface{}) []L2TPAVP {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]L2TPAVP, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, L2TPAVP{
+			Mandatory: getBool(m, "mandatory", false),
+			Hidden:    getBool(m, "hidden", false),
+			VendorID:  getUint16(m, "vendor_id"),
+			AttrType:  getUint16(m, "attr_type"),
+			Value:     getByteSlice(m, "value"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseL2TPPPPFrames(v interface{}) []L2TPPPPFrame {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]L2TPPPPFrame, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, L2TPPPPFrame{
+			Protocol:    getUint16(m, "protocol"),
+			Data:        getByteSlice(m, "data"),
+			Direction:   getString(m, "direction"),
+			L2PPPHeader: getBool(m, "l2_ppp_header", false),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseMDNSConfig converts the JSON-decoded "mdns" sub-map into *MDNSConfig.
+func parseMDNSConfig(m map[string]interface{}) *MDNSConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &MDNSConfig{
+		Mode:               getString(m, "mode"),
+		Questions:           parseMDNSQuestions(m["questions"]),
+		Answers:             parseMDNSResourceRecords(m["answers"]),
+		Authorities:         parseMDNSResourceRecords(m["authorities"]),
+		Additionals:         parseMDNSResourceRecords(m["additionals"]),
+		ProbingRepeat:       getInt(m, "probing_repeat"),
+		ProbingInterval:     getInt(m, "probing_interval"),
+		ProbingJitterMax:    getInt(m, "probing_jitter_max"),
+		ProbingJitterSeed:   int64(getInt(m, "probing_jitter_seed")),
+		AnnouncingRepeat:    getInt(m, "announcing_repeat"),
+		AnnouncingInterval:  getInt(m, "announcing_interval"),
+		ResponseDelay:       getInt(m, "response_delay"),
+		MulticastGroup:      getString(m, "multicast_group"),
+		ForceUnicastResponse: getBool(m, "force_unicast_response", false),
+		CacheFlush:          getBoolPtr(m, "cache_flush"),
+		DefaultTTL:          getUint32(m, "default_ttl"),
+		TC:                  getBool(m, "tc", false),
+	}
+	return cfg
+}
+
+func parseMDNSQuestions(v interface{}) []MDNSQuestion {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MDNSQuestion, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, MDNSQuestion{
+			Name:  getString(m, "name"),
+			Type:  getUint16(m, "type"),
+			Class: getUint16(m, "class"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseMDNSResourceRecords(v interface{}) []MDNSResourceRecord {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MDNSResourceRecord, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, MDNSResourceRecord{
+			Name:         getString(m, "name"),
+			Type:         getUint16(m, "type"),
+			Class:        getUint16(m, "class"),
+			TTL:          getUint32(m, "ttl"),
+			IPAddress:    getString(m, "ip_address"),
+			DomainName:   getString(m, "domain_name"),
+			Priority:     getUint16(m, "priority"),
+			Weight:       getUint16(m, "weight"),
+			Port:         getUint16(m, "port"),
+			Target:       getString(m, "target"),
+			TXTEntries:   getStringSlice(m, "txt_entries"),
+			NSECNextName: getString(m, "nsec_next_name"),
+			NSECTypes:    getUint16Slice(m, "nsec_types"),
+			RawRDATA:     getByteSlice(m, "raw_rdata"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseMySQLConfig converts the JSON-decoded "mysql" sub-map into *MySQLConfig.
+func parseMySQLConfig(m map[string]interface{}) *MySQLConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &MySQLConfig{
+		ServerVersion:    getString(m, "server_version"),
+		ThreadID:          getUint32(m, "thread_id"),
+		AuthPlugin:        getString(m, "auth_plugin"),
+		Username:          getString(m, "username"),
+		Password:          getString(m, "password"),
+		Scramble:          getByteSlice(m, "scramble"),
+		Database:          getString(m, "database"),
+		CapabilityFlags:   getUint32(m, "capability_flags"),
+		MaxPacketSize:     getUint32(m, "max_packet_size"),
+		CharacterSet:      uint8(getInt(m, "character_set")),
+		Commands:          parseMySQLCommands(m["commands"]),
+		ServerBypassAuth:  getBool(m, "server_bypass_auth", false),
+	}
+	return cfg
+}
+
+func parseMySQLCommands(v interface{}) []MySQLCommand {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MySQLCommand, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		cmd := MySQLCommand{
+			Opcode:           uint8(getInt(m, "opcode")),
+			Body:             getString(m, "body"),
+			BodyEncoding:     getString(m, "body_encoding"),
+			ReplyMode:        getString(m, "reply_mode"),
+			ReplyBytes:       getString(m, "reply_bytes"),
+			ReplyEncoding:    getString(m, "reply_encoding"),
+			ColDefs:          parseMySQLColDefs(m["col_defs"]),
+			Rows:             parseMySQLRows(m["rows"]),
+			StmtID:           getUint32(m, "stmt_id"),
+			IterationCount:   getUint32(m, "iteration_count"),
+			EmitOkExtended:   getBool(m, "emit_ok_extended", false),
+		}
+		out = append(out, cmd)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseMySQLColDefs(v interface{}) []MySQLColDef {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MySQLColDef, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, MySQLColDef{
+			Catalog:   getString(m, "catalog"),
+			Schema:    getString(m, "schema"),
+			Table:     getString(m, "table"),
+			OrgTable:  getString(m, "org_table"),
+			Name:      getString(m, "name"),
+			OrgName:   getString(m, "org_name"),
+			Charset:   getUint16(m, "charset"),
+			Length:    getUint32(m, "length"),
+			Type:      uint8(getInt(m, "type")),
+			Flags:     getUint16(m, "flags"),
+			Decimals:  uint8(getInt(m, "decimals")),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseMySQLRows(v interface{}) []MySQLRow {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MySQLRow, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		row := MySQLRow{
+			Values:        getStringSlice(m, "values"),
+			ValueEncoding: getString(m, "value_encoding"),
+		}
+		// is_null is a parallel bool array
+		if nulls, ok := m["is_null"].([]interface{}); ok {
+			for _, n := range nulls {
+				if b, ok := n.(bool); ok {
+					row.IsNull = append(row.IsNull, b)
+				}
+			}
+		}
+		out = append(out, row)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseOpenVPNConfig converts the JSON-decoded "openvpn" sub-map into *OpenVPNConfig.
+func parseOpenVPNConfig(m map[string]interface{}) *OpenVPNConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &OpenVPNConfig{
+		Proto:                   getString(m, "proto"),
+		Version:                 getString(m, "version"),
+		KeyID:                   uint8(getInt(m, "key_id")),
+		SessionID:               getUint32(m, "session_id"),
+		TLSAuth:                 getBool(m, "tls_auth", false),
+		TLSCrypt:                getBool(m, "tls_crypt", false),
+		TLSCryptV2:              getBool(m, "tls_crypt_v2", false),
+		DataCipher:              getString(m, "data_cipher"),
+		NCPDisable:              getBool(m, "ncp_disable", false),
+		TLSVersion:              getString(m, "tls_version"),
+		TLSRole:                 getString(m, "tls_role"),
+		SNI:                     getString(m, "sni"),
+		Mssfix:                  getUint16(m, "mssfix"),
+		TLSAuthHMAC:             getByteSlice(m, "tls_auth_hmac"),
+		TLSCryptWrappedKey:      getByteSlice(m, "tls_crypt_wrapped_key"),
+		DataPayload:             getByteSlice(m, "data_payload"),
+		DataPacketCount:         getInt(m, "data_packet_count"),
+		PerformSoftReset:       getBool(m, "perform_soft_reset", false),
+		StaticKeyMode:          getBool(m, "static_key_mode", false),
+		KeyDirection:           uint8(getInt(m, "key_direction")),
+		StaticKey:              getByteSlice(m, "static_key"),
+		AuthUserPass:           getBool(m, "auth_user_pass", false),
+		AuthUser:               getString(m, "auth_user"),
+		AuthPass:               getString(m, "auth_pass"),
+		AuthAlg:                 getString(m, "auth_alg"),
+		FragmentSize:           getUint16(m, "fragment_size"),
+		KeepalivePingInterval:  getUint16(m, "keepalive_ping"),
+		KeepalivePingRestart:   getUint16(m, "keepalive_ping_restart"),
+		ExitNotifyCount:        uint8(getInt(m, "exit_notify_count")),
+		ExitNotifyInterval:     getUint16(m, "exit_notify_interval"),
+		TunMTU:                 getUint16(m, "tun_mtu"),
+	}
+	return cfg
+}
+
+// parsePostgreSQLConfig converts the JSON-decoded "postgresql" sub-map into
+// *PostgreSQLConfig.
+func parsePostgreSQLConfig(m map[string]interface{}) *PostgreSQLConfig {
+	if m == nil {
+		return nil
+	}
+	// ColumnTypes has int->int32 map; we need to fetch values from JSON map
+	var colTypes map[int]int32
+	if v, ok := m["column_types"].(map[string]interface{}); ok && len(v) > 0 {
+		colTypes = make(map[int]int32, len(v))
+		for k, val := range v {
+			var idx int
+			if _, err := fmt.Sscanf(k, "%d", &idx); err != nil {
+				continue
+			}
+			switch n := val.(type) {
+			case float64:
+				colTypes[idx] = int32(n)
+			case json.Number:
+				if j, err := n.Int64(); err == nil {
+					colTypes[idx] = int32(j)
+				}
+			}
+		}
+	}
+	cfg := &PostgreSQLConfig{
+		ProtocolVersion:      int32(getInt(m, "protocol_version")),
+		StartupParams:        getStringMap(m, "startup_params"),
+		AuthMethod:           getString(m, "auth_method"),
+		Username:             getString(m, "username"),
+		Password:             getString(m, "password"),
+		MD5Salt:              getByteSlice(m, "md5_salt"),
+		Operations:           parsePGOperations(m["operations"]),
+		Pipeline:             getBool(m, "pipeline", false),
+		RowCount:             getInt(m, "row_count"),
+		ColumnTypes:          colTypes,
+		NotificationPayload:  getString(m, "notification_payload"),
+		WALDataSize:          getInt(m, "wal_data_size"),
+		EmitHandshake:        getBoolPtr(m, "emit_handshake"),
+		EmitTeardown:         getBoolPtr(m, "emit_teardown"),
+	}
+	return cfg
+}
+
+func parsePGOperations(v interface{}) []PGOperation {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]PGOperation, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		op := PGOperation{
+			Kind:              getString(m, "kind"),
+			SQL:               getString(m, "sql"),
+			Statement:         getString(m, "statement"),
+			Portal:            getString(m, "portal"),
+			Mode:              getString(m, "mode"),
+			MaxRows:           int32(getInt(m, "max_rows")),
+			ParamCount:        getInt(m, "param_count"),
+			ParamValues:       getStringSlice(m, "param_values"),
+			Channel:           getString(m, "channel"),
+			CopyData:          getStringSlice(m, "copy_data"),
+			ReplicationSlot:   getString(m, "replication_slot"),
+			ReplicationLSN:    getString(m, "replication_lsn"),
+			ReplicationKind:   getString(m, "replication_kind"),
+			EmitAsServer:      getBool(m, "emit_as_server", false),
+			NotifyChannel:     getString(m, "notify_channel"),
+			NotifyPayload:     getString(m, "notify_payload"),
+			FunctionOID:       int32(getInt(m, "function_oid")),
+			ResultFormatCode:  int16(getInt(m, "result_format_code")),
+		}
+		// ArgumentFormatCodes is int16 slice
+		if arr, ok := m["argument_format_codes"].([]interface{}); ok {
+			for _, c := range arr {
+				switch n := c.(type) {
+				case float64:
+					op.ArgumentFormatCodes = append(op.ArgumentFormatCodes, int16(n))
+				case json.Number:
+					if j, err := n.Int64(); err == nil {
+						op.ArgumentFormatCodes = append(op.ArgumentFormatCodes, int16(j))
+					}
+				}
+			}
+		}
+		out = append(out, op)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseRDPConfig converts the JSON-decoded "rdp" sub-map into *RDPConfig.
+func parseRDPConfig(m map[string]interface{}) *RDPConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &RDPConfig{
+		SecurityLayer:            getString(m, "security_layer"),
+		RequestedProtocols:       getUint32(m, "requested_protocols"),
+		RestrictedAdmin:          getBool(m, "restricted_admin", false),
+		RedirectedAuth:           getBool(m, "redirected_auth", false),
+		Cookie:                   getString(m, "cookie"),
+		ClientName:               getString(m, "client_name"),
+		ClientBuild:              getUint32(m, "client_build"),
+		KeyboardLayout:           getUint32(m, "keyboard_layout"),
+		KeyboardType:             getUint32(m, "keyboard_type"),
+		KeyboardSubType:          getUint32(m, "keyboard_sub_type"),
+		KeyboardFunctionKey:      getUint32(m, "keyboard_function_key"),
+		DesktopWidth:             getUint16(m, "desktop_width"),
+		DesktopHeight:            getUint16(m, "desktop_height"),
+		ColorDepth:               getUint16(m, "color_depth"),
+		HighColorDepth:           getUint16(m, "high_color_depth"),
+		SupportedColorDepths:     getUint16(m, "supported_color_depths"),
+		ConnectionType:           uint8(getInt(m, "connection_type")),
+		ServerSelectedProtocol:   getUint32(m, "server_selected_protocol"),
+		EncryptionMethods:        getUint32(m, "encryption_methods"),
+		ExtEncryptionMethods:     getUint32(m, "ext_encryption_methods"),
+		Domain:                   getString(m, "domain"),
+		UserName:                 getString(m, "user_name"),
+		Password:                 getString(m, "password"),
+		AlternateShell:           getString(m, "alternate_shell"),
+		WorkingDir:               getString(m, "working_dir"),
+		Channels:                 parseRDPChannels(m["channels"]),
+		AutoLogon:                getBool(m, "auto_logon", false),
+		InfoUnicode:              getBool(m, "info_unicode", false),
+		InfoLogonNotify:          getBool(m, "info_logon_notify", false),
+		InfoCompression:          getBool(m, "info_compression", false),
+		CodePage:                 getUint32(m, "code_page"),
+		Flags2:                   getUint16(m, "flags2"),
+		SkipMCSChannelJoin:       getBool(m, "skip_mcs_channel_join", false),
+		SkipSecurityExchange:     getBool(m, "skip_security_exchange", false),
+		SkipLicense:              getBool(m, "skip_license", false),
+		SkipCapability:           getBool(m, "skip_capability", false),
+		ForceRDPVersion:          getUint32(m, "force_rdp_version"),
+		EncryptionLevel:          getUint32(m, "encryption_level"),
+		EncryptionMethod:         getUint32(m, "encryption_method"),
+		ServerRandom:             getByteSlice(m, "server_random"),
+		ServerCertVersion:        getUint32(m, "server_cert_version"),
+		SecurityExchangeRSAKeyBytes: getInt(m, "security_exchange_rsa_key_bytes"),
+		DataEvents:               parseRDPDataEvents(m["data_events"]),
+		ServerResponses:          parseRDPServerResponses(m["server_responses"]),
+	}
+	return cfg
+}
+
+func parseRDPChannels(v interface{}) []RDPChannel {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]RDPChannel, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, RDPChannel{
+			Name:    getString(m, "name"),
+			Options: getUint32(m, "options"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseRDPDataEvents(v interface{}) []RDPDataEvent {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]RDPDataEvent, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		ev := RDPDataEvent{
+			Type:       getString(m, "type"),
+			Channel:    getString(m, "channel"),
+			Direction:  getString(m, "direction"),
+			Payload:    getByteSlice(m, "payload"),
+			PayloadB64: getString(m, "payload_b64"),
+		}
+		// Decode base64 payload if provided
+		if ev.Payload == nil && ev.PayloadB64 != "" {
+			if b, err := decodeBase64(ev.PayloadB64); err == nil {
+				ev.Payload = b
+			}
+		}
+		out = append(out, ev)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseRDPServerResponses(v interface{}) []RDPServerResponse {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]RDPServerResponse, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, RDPServerResponse{
+			Type:    getString(m, "type"),
+			Payload: getByteSlice(m, "payload"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseRedisConfig converts the JSON-decoded "redis" sub-map into *RedisConfig.
+func parseRedisConfig(m map[string]interface{}) *RedisConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &RedisConfig{
+		Version:           getInt(m, "version"),
+		SkipHello:         getBool(m, "skip_hello", false),
+		Username:          getString(m, "username"),
+		Password:          getString(m, "password"),
+		SelectDB:          getInt(m, "select_db"),
+		ClientName:        getString(m, "client_name"),
+		Commands:          parseRedisCommands(m["commands"]),
+		SubscribeTo:       getStringSlice(m, "subscribe_to"),
+		SubscribePatterns: getStringSlice(m, "subscribe_patterns"),
+		PublishMessages:   parseRedisPublish(m["publish_messages"]),
+		PipelineSize:      getInt(m, "pipeline_size"),
+	}
+	return cfg
+}
+
+func parseRedisCommands(v interface{}) []RedisCommand {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]RedisCommand, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, RedisCommand{
+			Args:        getStringSlice(m, "args"),
+			ArgsBase64:  getStringSlice(m, "args_base64"),
+			Reply:       getString(m, "reply"),
+			AutoReply:   getString(m, "auto_reply"),
+			EmitAsPush:  getBool(m, "emit_as_push", false),
+			Channel:     getString(m, "channel"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseRedisPublish(v interface{}) []RedisPublish {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]RedisPublish, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, RedisPublish{
+			Channel:    getString(m, "channel"),
+			Message:    getString(m, "message"),
+			MessageB64: getString(m, "message_b64"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseShadowsocksConfig converts the JSON-decoded "shadowsocks" sub-map
+// into *ShadowsocksConfig.
+func parseShadowsocksConfig(m map[string]interface{}) *ShadowsocksConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &ShadowsocksConfig{
+		Mode:                getString(m, "mode"),
+		Cipher:              getString(m, "cipher"),
+		SOCKS5Handshake:     getBool(m, "socks5_handshake", false),
+		SOCKS5AuthMethod:   getString(m, "socks5_auth_method"),
+		SOCKS5Username:     getString(m, "socks5_username"),
+		SOCKS5Password:     getString(m, "socks5_password"),
+		SOCKS5Cmd:          getString(m, "socks5_cmd"),
+		SOCKS5DstAddr:      getString(m, "socks5_dst_addr"),
+		SOCKS5DstPort:      getUint16(m, "socks5_dst_port"),
+		SOCKS5BNDAddr:      getString(m, "socks5_bnd_addr"),
+		SOCKS5BNDPort:      getUint16(m, "socks5_bnd_port"),
+		Chunks:              getInt(m, "chunks"),
+		ChunkPayloadSize:   getInt(m, "chunk_payload_size"),
+		Obfuscation:        getString(m, "obfuscation"),
+		ObfMethod:          getString(m, "obf_method"),
+		ObfHeaders:          getStringMap(m, "obf_headers"),
+		PayloadBytesFormat:  getString(m, "payload_bytes_format"),
+		FRAG:                uint8(getInt(m, "frag")),
+		FileSource:          parseFileSourceField(m),
+	}
+	return cfg
+}
+
+// parseSSDPConfig converts the JSON-decoded "ssdp" sub-map into *SSDPConfig.
+func parseSSDPConfig(m map[string]interface{}) *SSDPConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &SSDPConfig{
+		MessageType:          getString(m, "message_type"),
+		SearchTarget:         getString(m, "search_target"),
+		USN:                  getString(m, "usn"),
+		Location:             getString(m, "location"),
+		Server:               getString(m, "server"),
+		MaxAge:               getInt(m, "max_age"),
+		MX:                   getInt(m, "mx"),
+		BootID:               getUint32(m, "boot_id"),
+		ConfigID:             getUint32(m, "config_id"),
+		NextBootID:           getUint32(m, "next_boot_id"),
+		SearchPort:           getUint16(m, "search_port"),
+		ResponseCount:        getInt(m, "response_count"),
+		ResponseDelayMinMs:   getInt(m, "response_delay_min_ms"),
+		ResponseDelayMaxMs:   getInt(m, "response_delay_max_ms"),
+		RepeatCount:          getInt(m, "repeat_count"),
+		Date:                 getString(m, "date"),
+		MulticastGroup:       getString(m, "multicast_group"),
+		OmitExt:              getBool(m, "omit_ext", false),
+		Body:                 getString(m, "body"),
+		EmitContentLength:    getBool(m, "emit_content_length", false),
+		RepeatIntervalMs:     getInt(m, "repeat_interval_ms"),
+	}
+	return cfg
+}
+
+// parseTLSConfig converts the JSON-decoded "tls" sub-map into *TLSConfig.
+func parseTLSConfig(m map[string]interface{}) *TLSConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &TLSConfig{
+		Version:             getString(m, "version"),
+		Role:                getString(m, "role"),
+		SNI:                 getString(m, "sni"),
+		ALPN:                getStringSlice(m, "alpn"),
+		CipherSuites:        getUint16Slice(m, "cipher_suites"),
+		SupportedGroups:     getUint16Slice(m, "supported_groups"),
+		SignatureAlgorithms: getUint16Slice(m, "signature_algorithms"),
+		ClientCertificate:   parseX509Ref(m["client_certificate"]),
+		ServerCertificate:   parseX509Ref(m["server_certificate"]),
+		PSKs:                parsePSKIdentities(m["psks"]),
+		AllowEarlyData:      getBool(m, "allow_early_data", false),
+		AlertPath:           parseAlertStep(m["alert_path"]),
+		OCSPStapling:        getBool(m, "ocsp_stapling", false),
+	}
+	return cfg
+}
+
+func parseX509Ref(v interface{}) *X509Ref {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &X509Ref{
+		Subject:    getString(m, "subject"),
+		San:        getStringSlice(m, "san"),
+		NotBefore:  int64(getInt(m, "not_before")),
+		NotAfter:   int64(getInt(m, "not_after")),
+		KeyType:    getString(m, "key_type"),
+		FileSource: parseFileSourceField(m),
+	}
+}
+
+func parsePSKIdentities(v interface{}) []PSKIdentity {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]PSKIdentity, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, PSKIdentity{
+			Identity:        getByteSlice(m, "identity"),
+			ObfuscatedAge:   getUint32(m, "obfuscated_age"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseAlertStep(v interface{}) *AlertStep {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &AlertStep{
+		After:       getString(m, "after"),
+		Description: uint8(getInt(m, "description")),
+		Level:       uint8(getInt(m, "level")),
+	}
+}
+
+// parseVmessConfig converts the JSON-decoded "vmess" sub-map into *VmessConfig.
+func parseVmessConfig(m map[string]interface{}) *VmessConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &VmessConfig{
+		UUID:             getString(m, "uuid"),
+		AlterID:          getUint16(m, "alter_id"),
+		Encryption:       getString(m, "encryption"),
+		Command:          uint8(getInt(m, "command")),
+		AddressType:      uint8(getInt(m, "address_type")),
+		Address:          getString(m, "address"),
+		Port:             getUint16(m, "port"),
+		HeaderPadLen:     uint8(getInt(m, "header_pad_len")),
+		Payload:          getByteSlice(m, "payload"),
+		ResponsePayload:  getByteSlice(m, "response_payload"),
+		FileSource:       parseFileSourceField(m),
+		Heartbeat:        getBool(m, "heartbeat", false),
+		HeartbeatCount:   getInt(m, "heartbeat_count"),
+		MuxStreams:       parseVmessMuxStreams(m["mux_streams"]),
+	}
+	return cfg
+}
+
+func parseVmessMuxStreams(v interface{}) []VmessMuxStream {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]VmessMuxStream, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, VmessMuxStream{
+			SessionID:   getUint16(m, "session_id"),
+			Frames:      parseVmessMuxFrames(m["frames"]),
+			TargetAddr:  getString(m, "target_addr"),
+			TargetPort:  getUint16(m, "target_port"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseVmessMuxFrames(v interface{}) []VmessMuxFrame {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]VmessMuxFrame, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, VmessMuxFrame{
+			Status:  uint8(getInt(m, "status")),
+			Payload: getByteSlice(m, "payload"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseWireGuardConfig converts the JSON-decoded "wireguard" sub-map into
+// *WireGuardConfig.
+func parseWireGuardConfig(m map[string]interface{}) *WireGuardConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &WireGuardConfig{
+		Role:                    getString(m, "role"),
+		LocalStaticPubKey:       getByteSlice(m, "local_static_pub_key"),
+		PeerStaticPubKey:        getByteSlice(m, "peer_static_pub_key"),
+		LocalEphemeralPubKey:   getByteSlice(m, "local_ephemeral_pub_key"),
+		SenderIndex:             getUint32(m, "sender_index"),
+		PSK:                     getByteSlice(m, "psk"),
+		Cookie:                  getByteSlice(m, "cookie"),
+		InitialCounter:          getUint64(m, "initial_counter"),
+		RekeyAfter:              getUint64(m, "rekey_after"),
+		RekeyAfterTime:          getInt(m, "rekey_after_time"),
+		KeepaliveInterval:       getInt(m, "keepalive_interval"),
+		CookieReplyThreshold:    getInt(m, "cookie_reply_threshold"),
+		TransportPayloads:       getByteSlices(m, "transport_payloads"),
+		FileSource:              parseFileSourceField(m),
+		Direction:               getString(m, "direction"),
+	}
+	return cfg
 }
 
 // parseTelnetDialog converts the JSON-decoded "dialog" array into a
@@ -1472,6 +3408,24 @@ func getUint32(m map[string]interface{}, key string) uint32 {
 	}
 }
 
+// getUint64 reads a uint64 from the map. Supports float64 (JSON decode) and
+// json.Number (UseNumber path); missing key returns 0. Used by IKE SPI fields.
+func getUint64(m map[string]interface{}, key string) uint64 {
+	switch v := m[key].(type) {
+	case float64:
+		return uint64(v)
+	case json.Number:
+		n, _ := v.Int64()
+		return uint64(n)
+	case int:
+		return uint64(v)
+	case int64:
+		return uint64(v)
+	default:
+		return 0
+	}
+}
+
 func getInt(m map[string]interface{}, key string) int {
 	switch v := m[key].(type) {
 	case float64:
@@ -1686,6 +3640,242 @@ func getByteSlice(m map[string]interface{}, key string) []byte {
 // input so the planner skips extension emission. Each extension's Value may
 // be a string (raw bytes) or a number array (each byte 0-255); the planner
 // 0-pads to a 4-byte boundary before emitting.
+// Pointer-typed helpers for fields where the zero value is meaningful
+// (e.g. *bool, *uint32). These return nil when the key is absent, so the
+// planner can distinguish "user did not set" from "user set to 0/false".
+// Used by IKE MessageID/InitiatorSPI/ResponderSPI, PostgreSQL
+// EmitHandshake/EmitTeardown, MDNS CacheFlush, etc.
+
+func getBoolPtr(m map[string]interface{}, key string) *bool {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil
+	}
+	if b, ok := v.(bool); ok {
+		return &b
+	}
+	return nil
+}
+
+func getUint8Ptr(m map[string]interface{}, key string) *uint8 {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil
+	}
+	switch n := v.(type) {
+	case float64:
+		u := uint8(n)
+		return &u
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return nil
+		}
+		u := uint8(i)
+		return &u
+	}
+	return nil
+}
+
+func getUint16Ptr(m map[string]interface{}, key string) *uint16 {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil
+	}
+	switch n := v.(type) {
+	case float64:
+		u := uint16(n)
+		return &u
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return nil
+		}
+		u := uint16(i)
+		return &u
+	}
+	return nil
+}
+
+func getUint32Ptr(m map[string]interface{}, key string) *uint32 {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil
+	}
+	switch n := v.(type) {
+	case float64:
+		u := uint32(n)
+		return &u
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return nil
+		}
+		u := uint32(i)
+		return &u
+	}
+	return nil
+}
+
+func getUint64Ptr(m map[string]interface{}, key string) *uint64 {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil
+	}
+	switch n := v.(type) {
+	case float64:
+		u := uint64(n)
+		return &u
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return nil
+		}
+		u := uint64(i)
+		return &u
+	}
+	return nil
+}
+
+func getInt32Ptr(m map[string]interface{}, key string) *int32 {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil
+	}
+	switch n := v.(type) {
+	case float64:
+		i := int32(n)
+		return &i
+	case json.Number:
+		j, err := n.Int64()
+		if err != nil {
+			return nil
+		}
+		i := int32(j)
+		return &i
+	}
+	return nil
+}
+
+// getUint16Slice reads a JSON array of numbers into a []uint16.
+func getUint16Slice(m map[string]interface{}, key string) []uint16 {
+	arr, ok := m[key].([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]uint16, 0, len(arr))
+	for _, item := range arr {
+		switch n := item.(type) {
+		case float64:
+			out = append(out, uint16(n))
+		case json.Number:
+			if i, err := n.Int64(); err == nil {
+				out = append(out, uint16(i))
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// getUint8Slice reads a JSON array of numbers into a []uint8.
+func getUint8Slice(m map[string]interface{}, key string) []uint8 {
+	arr, ok := m[key].([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]uint8, 0, len(arr))
+	for _, item := range arr {
+		switch n := item.(type) {
+		case float64:
+			out = append(out, uint8(n))
+		case json.Number:
+			if i, err := n.Int64(); err == nil {
+				out = append(out, uint8(i))
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// getStringSlice reads a JSON array of strings into a []string.
+func getStringSlice(m map[string]interface{}, key string) []string {
+	arr, ok := m[key].([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, item := range arr {
+		if s, ok := item.(string); ok && s != "" {
+			out = append(out, s)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// getByteSlices reads a JSON array of byte-array/string entries into a [][]byte.
+// Each entry may be a string (raw bytes) or an array of integers (0-255).
+func getByteSlices(m map[string]interface{}, key string) [][]byte {
+	arr, ok := m[key].([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([][]byte, 0, len(arr))
+	for _, item := range arr {
+		b := parseByteSlice(item)
+		if b != nil {
+			out = append(out, b)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// getInt32MapKeysValues reads a map[int]int32 (used by PostgreSQL ColumnTypes).
+func getInt32MapValues(m map[string]interface{}, key string) map[int]int32 {
+	sub, ok := m[key].(map[string]interface{})
+	if !ok || len(sub) == 0 {
+		return nil
+	}
+	out := make(map[int]int32, len(sub))
+	for k, v := range sub {
+		// JSON keys are strings; parse to int
+		var idx int
+		if _, err := fmt.Sscanf(k, "%d", &idx); err != nil {
+			continue
+		}
+		switch n := v.(type) {
+		case float64:
+			out[idx] = int32(n)
+		case json.Number:
+			if j, err := n.Int64(); err == nil {
+				out[idx] = int32(j)
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// decodeBase64 decodes a standard base64-encoded string. Used by RDP
+// payload_b64 / shadowsocks / IKE raw fields. Returns nil on error (the
+// caller treats nil as "no payload set" which is the correct fallback).
+func decodeBase64(s string) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(s)
+}
+
 func parseNTPExtensions(v interface{}) []NTPExt {
 	arr, ok := v.([]interface{})
 	if !ok || len(arr) == 0 {

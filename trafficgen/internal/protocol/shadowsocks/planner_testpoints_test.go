@@ -648,7 +648,7 @@ func TestSS_1_15_10_Salt_SingleConnection(t *testing.T) {
 	if len(upPayloads[0]) != 32 {
 		t.Errorf("first payload length=%d, want 32 (salt)", len(upPayloads[0]))
 	}
-	// Chunks should not be 32 bytes (they are 2+10+16=28)
+	// Chunks should not be 32 bytes (they are 2+16+10+16=44)
 	for i := 1; i < len(upPayloads); i++ {
 		if len(upPayloads[i]) == 32 {
 			t.Errorf("chunk[%d] length=32, unexpected salt", i)
@@ -669,9 +669,9 @@ func TestSS_1_16_1_EncryptedLen_ZeroPayload(t *testing.T) {
 	cfgs := drain(mustPlan(t, p, spec))
 	upPayloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
 	chunk := upPayloads[1] // after salt
-	// AEAD chunk: 2 (len) + 0 (payload) + 16 (tag) = 18 bytes
-	if len(chunk) != 18 {
-		t.Errorf("chunk length=%d, want 18", len(chunk))
+	// AEAD chunk: 2 (len) + 16 (len_tag) + 0 (payload) + 16 (tag) = 34 bytes
+	if len(chunk) != 34 {
+		t.Errorf("chunk length=%d, want 34", len(chunk))
 	}
 }
 
@@ -685,7 +685,7 @@ func TestSS_1_16_3_EncryptedLen_MaxPayload(t *testing.T) {
 	cfgs := drain(mustPlan(t, p, spec))
 	upPayloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
 	// salt(32) + chunk segments (12 segments)
-	// Total chunk bytes across all segments = 2 + 16383 + 16 = 16401
+	// Total chunk bytes across all segments = 2 + 16 + 16383 + 16 = 16417
 	if len(upPayloads) < 13 {
 		t.Fatalf("expected at least 13 up payloads (salt + 12 segments), got %d", len(upPayloads))
 	}
@@ -693,8 +693,8 @@ func TestSS_1_16_3_EncryptedLen_MaxPayload(t *testing.T) {
 	for i := 1; i < len(upPayloads); i++ {
 		totalChunkBytes += len(upPayloads[i])
 	}
-	if totalChunkBytes != 16401 {
-		t.Errorf("total chunk bytes=%d, want 16401", totalChunkBytes)
+	if totalChunkBytes != 16417 {
+		t.Errorf("total chunk bytes=%d, want 16417", totalChunkBytes)
 	}
 }
 
@@ -712,9 +712,9 @@ func TestSS_1_17_2_EncryptedPayload_1Byte(t *testing.T) {
 	cfgs := drain(mustPlan(t, p, spec))
 	upPayloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
 	chunk := upPayloads[1]
-	// 2 + 1 + 16 = 19 bytes
-	if len(chunk) != 19 {
-		t.Errorf("chunk length=%d, want 19", len(chunk))
+	// 2 + 16 + 1 + 16 = 35 bytes
+	if len(chunk) != 35 {
+		t.Errorf("chunk length=%d, want 35", len(chunk))
 	}
 }
 
@@ -732,9 +732,9 @@ func TestSS_1_18_1_Tag_AES128GCM(t *testing.T) {
 	cfgs := drain(mustPlan(t, p, spec))
 	upPayloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
 	chunk := upPayloads[1]
-	// 2 + 10 + 16 = 28
-	if len(chunk) != 28 {
-		t.Errorf("chunk length=%d, want 28", len(chunk))
+	// 2 + 16 + 10 + 16 = 44
+	if len(chunk) != 44 {
+		t.Errorf("chunk length=%d, want 44", len(chunk))
 	}
 }
 
@@ -925,12 +925,12 @@ func TestSS_1_22_1_Cipher_AES128GCM(t *testing.T) {
 	spec.Shadowsocks.ChunkPayloadSize = 100
 	cfgs := drain(mustPlan(t, p, spec))
 	upPayloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
-	// salt(32) + chunk(2+100+16=118)
+	// salt(32) + chunk(2+16+100+16=134)
 	if len(upPayloads[0]) != 32 {
 		t.Errorf("salt length=%d, want 32", len(upPayloads[0]))
 	}
-	if len(upPayloads[1]) != 118 {
-		t.Errorf("chunk length=%d, want 118", len(upPayloads[1]))
+	if len(upPayloads[1]) != 134 {
+		t.Errorf("chunk length=%d, want 134", len(upPayloads[1]))
 	}
 }
 
@@ -980,12 +980,12 @@ func TestSS_1_22_10_Cipher_EmptyDefault(t *testing.T) {
 	spec.Shadowsocks.ChunkPayloadSize = 100
 	cfgs := drain(mustPlan(t, p, spec))
 	upPayloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
-	// salt(32) + chunk(2+100+16=118)
+	// salt(32) + chunk(2+16+100+16=134)
 	if len(upPayloads[0]) != 32 {
 		t.Errorf("salt length=%d, want 32", len(upPayloads[0]))
 	}
-	if len(upPayloads[1]) != 118 {
-		t.Errorf("chunk length=%d, want 118", len(upPayloads[1]))
+	if len(upPayloads[1]) != 134 {
+		t.Errorf("chunk length=%d, want 134", len(upPayloads[1]))
 	}
 }
 
@@ -1147,10 +1147,10 @@ func TestSS_2_4_1_ChunkLoop_Repeat(t *testing.T) {
 	if len(upPayloads) != 4 {
 		t.Fatalf("expected 4 up payloads, got %d", len(upPayloads))
 	}
-	// Each chunk should be 2+10+16 = 28 bytes
+	// Each chunk should be 2+16+10+16 = 44 bytes
 	for i := 1; i < 4; i++ {
-		if len(upPayloads[i]) != 28 {
-			t.Errorf("chunk[%d] length=%d, want 28", i, len(upPayloads[i]))
+		if len(upPayloads[i]) != 44 {
+			t.Errorf("chunk[%d] length=%d, want 44", i, len(upPayloads[i]))
 		}
 	}
 }
@@ -1256,12 +1256,12 @@ func TestSS_3_2_1_AEAD_AES128GCM(t *testing.T) {
 	spec.Shadowsocks.ChunkPayloadSize = 100
 	cfgs := drain(mustPlan(t, p, spec))
 	upPayloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
-	// salt(32) + chunk(2+100+16=118)
+	// salt(32) + chunk(2+16+100+16=134)
 	if len(upPayloads[0]) != 32 {
 		t.Errorf("salt length=%d, want 32", len(upPayloads[0]))
 	}
-	if len(upPayloads[1]) != 118 {
-		t.Errorf("chunk length=%d, want 118", len(upPayloads[1]))
+	if len(upPayloads[1]) != 134 {
+		t.Errorf("chunk length=%d, want 134", len(upPayloads[1]))
 	}
 }
 
@@ -1277,8 +1277,8 @@ func TestSS_3_3_1_AEAD_AES256GCM(t *testing.T) {
 	if len(upPayloads[0]) != 32 {
 		t.Errorf("salt length=%d, want 32", len(upPayloads[0]))
 	}
-	if len(upPayloads[1]) != 118 {
-		t.Errorf("chunk length=%d, want 118", len(upPayloads[1]))
+	if len(upPayloads[1]) != 134 {
+		t.Errorf("chunk length=%d, want 134", len(upPayloads[1]))
 	}
 }
 
@@ -1294,8 +1294,8 @@ func TestSS_3_4_1_ChaCha20(t *testing.T) {
 	if len(upPayloads[0]) != 32 {
 		t.Errorf("salt length=%d, want 32", len(upPayloads[0]))
 	}
-	if len(upPayloads[1]) != 118 {
-		t.Errorf("chunk length=%d, want 118", len(upPayloads[1]))
+	if len(upPayloads[1]) != 134 {
+		t.Errorf("chunk length=%d, want 134", len(upPayloads[1]))
 	}
 }
 
@@ -1379,8 +1379,8 @@ func TestSS_3_8_1_MultiChunk(t *testing.T) {
 		t.Fatalf("expected 11 up payloads, got %d", len(upPayloads))
 	}
 	for i := 1; i < 11; i++ {
-		if len(upPayloads[i]) != 118 {
-			t.Errorf("chunk[%d] length=%d, want 118", i, len(upPayloads[i]))
+		if len(upPayloads[i]) != 134 {
+			t.Errorf("chunk[%d] length=%d, want 134", i, len(upPayloads[i]))
 		}
 	}
 }
@@ -1435,12 +1435,12 @@ func TestSS_3_13_1_SIP022(t *testing.T) {
 	spec.Shadowsocks.ChunkPayloadSize = 100
 	cfgs := drain(mustPlan(t, p, spec))
 	upPayloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
-	// salt(32) + chunk(2+100+16=118)
+	// salt(32) + chunk(2+16+100+16=134)
 	if len(upPayloads[0]) != 32 {
 		t.Errorf("salt length=%d, want 32", len(upPayloads[0]))
 	}
-	if len(upPayloads[1]) != 118 {
-		t.Errorf("chunk length=%d, want 118", len(upPayloads[1]))
+	if len(upPayloads[1]) != 134 {
+		t.Errorf("chunk length=%d, want 134", len(upPayloads[1]))
 	}
 }
 
@@ -1475,7 +1475,7 @@ func TestSS_3_15_1_MultiPacketLoop(t *testing.T) {
 	if len(upPayloads) != 21 {
 		t.Fatalf("expected 21 up payloads, got %d", len(upPayloads))
 	}
-	expectedChunkLen := 2 + 500 + 16 // 518
+	expectedChunkLen := 2 + 16 + 500 + 16 // 534
 	for i := 1; i < 21; i++ {
 		if len(upPayloads[i]) != expectedChunkLen {
 			t.Errorf("chunk[%d] length=%d, want %d", i, len(upPayloads[i]), expectedChunkLen)
@@ -1511,9 +1511,9 @@ func TestSS_4_1_2_ZeroPayloadChunk(t *testing.T) {
 	cfgs := drain(mustPlan(t, p, spec))
 	upPayloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
 	chunk := upPayloads[1] // after salt
-	// 2 + 0 + 16 = 18
-	if len(chunk) != 18 {
-		t.Errorf("chunk length=%d, want 18", len(chunk))
+	// 2 + 16 + 0 + 16 = 34
+	if len(chunk) != 34 {
+		t.Errorf("chunk length=%d, want 34", len(chunk))
 	}
 }
 
@@ -1543,13 +1543,13 @@ func TestSS_4_2_2_MaxChunkPayload(t *testing.T) {
 	spec.Shadowsocks.ChunkPayloadSize = 16383
 	cfgs := drain(mustPlan(t, p, spec))
 	upPayloads := collectAllPayloadsByDirection(cfgs, "up", 0x18)
-	// Total chunk bytes = 2 + 16383 + 16 = 16401
+	// Total chunk bytes = 2 + 16 + 16383 + 16 = 16417
 	totalChunkBytes := 0
 	for i := 1; i < len(upPayloads); i++ {
 		totalChunkBytes += len(upPayloads[i])
 	}
-	if totalChunkBytes != 16401 {
-		t.Errorf("total chunk bytes=%d, want 16401", totalChunkBytes)
+	if totalChunkBytes != 16417 {
+		t.Errorf("total chunk bytes=%d, want 16417", totalChunkBytes)
 	}
 }
 

@@ -122,7 +122,41 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 		}
 
+		// Resolve ICMPv6 echo data bytes per the FileSource precedence
+		// contract (mirrors the ICMPv4 planner + FTP Task 11):
+		//  1. icmpConfig.FileSource != nil -> PayloadCache.GetOrLoad(ctx, *icmpConfig.FileSource)
+		//  2. else icmpConfig.Data (inline)
+		//
+		// When FileSource is set but no cache is injected, we use the
+		// inline Data (do NOT silently fall through to empty). This is
+		// the "set Data derived from bytes if Data is nil" caveat from
+		// the brief: it applies when FileSource is nil - don't override
+		// user-set Data with empty bytes. When FileSource is non-nil,
+		// FileSource wins (matches ICMPv4 precedence). Production engine
+		// always injects the cache.
+		//
+		// Resolved ONCE here so both the multi-session path and the
+		// legacy single-ping path see the same bytes (the multi-session
+		// path's per-step Data still wins for steps that set Data
+		// explicitly; the top-level FileSource only applies when a step
+		// leaves Data nil).
+		echoData := icmpConfig.Data
+		if icmpConfig.FileSource != nil {
+			pc := core.PayloadCacheFrom(ctx)
+			if pc != nil {
+				if bytes, err := pc.GetOrLoad(ctx, *icmpConfig.FileSource); err == nil {
+					echoData = bytes
+				}
+			}
+		}
+
 		// Multi-session ping path.
+		//
+		// FileSource precedence for steps: when step.Data is nil, fall
+		// back to the top-level resolved echoData (which itself honors
+		// icmpConfig.FileSource). When step.Data is non-nil, the step's
+		// own bytes win (per-step override). This mirrors the ICMPv4
+		// planner's "set Data derived from bytes if Data is nil" caveat.
 		if len(icmpConfig.Pattern) > 0 {
 			packetIndex := uint64(0)
 			for stepIdx, step := range icmpConfig.Pattern {
@@ -130,12 +164,16 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				if seq == 0 {
 					seq = uint16(stepIdx + 1)
 				}
+				stepData := step.Data
+				if stepData == nil {
+					stepData = echoData
+				}
 				stepCfg := &core.ICMPv6Config{
 					Type:       step.Type,
 					Code:       step.Code,
 					Identifier: icmpConfig.Identifier,
 					Sequence:   seq,
-					Data:       step.Data,
+					Data:       stepData,
 				}
 				configChan <- p.buildPacket(
 					spec, flowID, packetIndex, "up",
@@ -150,7 +188,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 						Code:       0,
 						Identifier: icmpConfig.Identifier,
 						Sequence:   seq,
-						Data:       step.Data,
+						Data:       stepData,
 					}
 					configChan <- p.buildPacket(
 						spec, flowID, packetIndex, "down",
@@ -163,11 +201,20 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			return
 		}
 
-		// Legacy single-ping path.
+		// Legacy single-ping path. The echoData resolved above (honoring
+		// FileSource) overrides the inline Data for both the request and
+		// the auto-reply.
+		reqConfig := &core.ICMPv6Config{
+			Type:       icmpConfig.Type,
+			Code:       icmpConfig.Code,
+			Identifier: icmpConfig.Identifier,
+			Sequence:   icmpConfig.Sequence,
+			Data:       echoData,
+		}
 		configChan <- p.buildPacket(
 			spec, flowID, 0, "up",
 			spec.SrcIP, spec.DstIP, spec.SrcMAC, spec.DstMAC,
-			effectiveTTL, now, icmpConfig,
+			effectiveTTL, now, reqConfig,
 		)
 
 		if icmpConfig.Type == TypeEchoRequestV6 {
@@ -176,7 +223,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				Code:       0,
 				Identifier: icmpConfig.Identifier,
 				Sequence:   icmpConfig.Sequence,
-				Data:       icmpConfig.Data,
+				Data:       echoData,
 			}
 			configChan <- p.buildPacket(
 				spec, flowID, 1, "down",

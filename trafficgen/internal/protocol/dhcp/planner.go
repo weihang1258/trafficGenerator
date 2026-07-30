@@ -40,6 +40,16 @@ const (
 	// Broadcast MAC (广播MAC)
 	BroadcastMAC = "ff:ff:ff:ff:ff:ff"
 
+	// DefaultServerMAC is the fallback source MAC for server-role reply
+	// (BOOTREPLY) packets when no server MAC is configured (服务器回退源MAC).
+	// Per RFC 2131 §4.1 the server's reply carries the server interface's
+	// hardware address as the Ethernet source. When the user leaves both
+	// spec.SrcMAC and spec.DstMAC empty (relying on the broadcast fallback),
+	// the server reply's L2 source would otherwise be all-zero
+	// (00:00:00:00:00:00) — a malformed frame. This locally-administered
+	// MAC (locally administered, 本地管理地址, L bit set) avoids that.
+	DefaultServerMAC = "02:00:00:00:00:02"
+
 	// Magic cookie (魔术cookie): 0x63825363
 	MagicCookie = 0x63825363
 
@@ -467,14 +477,47 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				return
 			}
 
-			// Determine L2 MACs for this message based on direction and role
+			// Determine L2 MACs for this message based on direction and role.
+			//
+			// Role=client perspective (the common case): spec.SrcMAC is the
+			// client MAC, spec.DstMAC is the server MAC. Request (up) packets
+			// are src=client/dst=server (or broadcast). Reply (down) packets
+			// are emitted from the server's perspective, so src=server/dst=client
+			// — i.e. the down branch swaps the resolved MACs.
+			//
+			// Role=server perspective: spec.SrcMAC is already the server MAC
+			// and spec.DstMAC is already the client MAC, so the down branch
+			// must NOT swap (swapping would put the client MAC as the reply
+			// source). Pre-fix the down branch swapped unconditionally, which
+			// for role=server produced a reply whose source was the client MAC
+			// and whose destination was all-zero when spec.SrcMAC was empty.
+			//
+			// The resolved srcMAC/dstMAC (from resolveMACs) carry the
+			// BroadcastMAC fallback for an empty destination. But for a server
+			// reply the SOURCE must be a server MAC, never broadcast (broadcast
+			// is destination-only on Ethernet) and never all-zero. So when the
+			// server MAC is empty we fall back to DefaultServerMAC.
 			msgSrcMAC := srcMAC
 			msgDstMAC := dstMAC
 
-			// For server messages, SrcMAC/DstMAC are swapped from client perspective
 			if direction == "down" {
-				msgSrcMAC = spec.DstMAC
-				msgDstMAC = spec.SrcMAC
+				if role == "server" {
+					// Already in server perspective: src=server, dst=client.
+					// No swap; just ensure the server source is non-zero.
+					if msgSrcMAC == "" {
+						msgSrcMAC = DefaultServerMAC
+					}
+				} else {
+					// role=client (or relay): swap so the reply is src=server,
+					// dst=client. The server MAC is the resolved dstMAC; if it
+					// was empty resolveMACs turned it into BroadcastMAC, which
+					// is invalid as a *source* — fall back to DefaultServerMAC.
+					msgSrcMAC = dstMAC
+					msgDstMAC = srcMAC
+					if msgSrcMAC == "" || msgSrcMAC == BroadcastMAC {
+						msgSrcMAC = DefaultServerMAC
+					}
+				}
 			}
 
 			// Override DstMAC for broadcast (广播时覆盖 DstMAC)

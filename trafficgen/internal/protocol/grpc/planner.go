@@ -389,7 +389,14 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 		serverSeq := rand.Uint32()
 
+		// Resolve the TCP window size. Default 65535 (matches the
+		// FTP/HTTP/SIP/POP3 planners). When spec.TCP.WindowSize is set,
+		// honor it on every emitted packet (handshake, data, teardown) -
+		// mirrors internal/protocol/tls, redis, and vmess.
 		winSize := uint16(65535)
+		if spec.TCP != nil && spec.TCP.WindowSize > 0 {
+			winSize = spec.TCP.WindowSize
+		}
 
 		// emit writes one packet to configChan. Mirrors the FTP/HTTP/
 		// SIP/POP3 pattern. Pre-writes Metadata["group_id"] when spec

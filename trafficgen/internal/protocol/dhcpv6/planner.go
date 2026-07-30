@@ -230,6 +230,15 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 
+	// 5b. When ClientDUID is nil (auto-generation via autoClientDUID), the
+	// planner builds a DUID-LLT from spec.SrcMAC. An empty SrcMAC would
+	// produce a DUID with an empty LinkLayerAddr, which serializeDUID
+	// rejects (parseMAC returns "empty MAC"), causing the Plan goroutine
+	// to silently emit zero packets. Catch this early with a clear error.
+	if cfg.ClientDUID == nil && spec.SrcMAC == "" {
+		return fmt.Errorf("dhcpv6: src_mac is required when client_duid is not set (auto DUID-LLT needs a MAC)")
+	}
+
 	// 6. Validate RelayConfig if provided
 	if cfg.RelayConfig != nil {
 		if cfg.RelayConfig.RelayIP == "" {

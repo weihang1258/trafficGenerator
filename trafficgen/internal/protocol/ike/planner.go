@@ -783,6 +783,12 @@ func (o *opaqueRNG) bytes(n int) []byte {
 
 // emitMessage emits all PacketConfigs for one IKEMessage (handles
 // retransmits and SKF fragmentation).
+//
+// When cfg.FragmentationSupported is enabled and the serialized SK payload
+// exceeds cfg.FragmentThreshold, the message is split into multiple IKE
+// datagrams, each carrying one SKF (type 53) payload per RFC 7383. All
+// fragments share the same SPIi/SPIr/Exchange Type/Message ID/Flags; only
+// the IKE Header Length and the SKF Fragment Number differ.
 func emitMessage(
 	ctx context.Context,
 	ch chan<- core.PacketConfig,
@@ -796,6 +802,16 @@ func emitMessage(
 ) {
 	// Build the message payload bytes (header + payloads).
 	bytes, fragCount, fragNum := buildIKEMessageBytes(msg, cfg, rng)
+
+	// If fragmentation is enabled and this message's payload chain exceeds
+	// the threshold, emit one IKE datagram per SKF fragment instead of the
+	// single unfragmented message. Retransmits apply to the whole fragment
+	// set (each fragment is retransmitted together).
+	if cfg.FragmentationSupported && cfg.FragmentThreshold > 0 && msg.Encrypted != nil &&
+		shouldFragment(bytes, cfg.FragmentThreshold) {
+		emitFragmented(ctx, ch, spec, flowID, msg, now, pktIdx, rng, cfg)
+		return
+	}
 
 	// Emit the canonical message + any retransmits (each is byte-identical).
 	copies := msg.Retransmit
@@ -811,6 +827,119 @@ func emitMessage(
 		pc := buildPacketConfig(spec, flowID, msg, *pktIdx, bytes, fragCount, fragNum, now, rng, cfg)
 		ch <- pc
 		*pktIdx++
+	}
+}
+
+// shouldFragment reports whether the serialized IKE message (header +
+// payload chain) exceeds the fragmentation threshold. The threshold is
+// compared against the total IKE message length (IKE Header Length field),
+// matching design_ike.md §4 场景 12 ("SK 超过配置阈值时...切成多个 SKF").
+func shouldFragment(ikeBytes []byte, threshold uint16) bool {
+	return uint16(len(ikeBytes)) > threshold
+}
+
+// emitFragmented splits the SK payload of an encrypted IKE message into
+// SKF fragments and emits one IKE datagram per fragment. Each datagram
+// shares SPIi/SPIr/Exchange Type/Message ID/Flags; the IKE Header Next
+// Payload is PayloadSKF (53), and the IKE Header Length reflects only
+// that fragment's bytes.
+func emitFragmented(
+	ctx context.Context,
+	ch chan<- core.PacketConfig,
+	spec core.FlowSpec,
+	flowID string,
+	msg *core.IKEMessage,
+	now time.Time,
+	pktIdx *uint64,
+	rng *opaqueRNG,
+	cfg core.IKEConfig,
+) {
+	// Re-serialize the SK body so we can split the ciphertext into chunks.
+	skBody := encodeSK(msg.Encrypted, cfg, rng)
+	// Each SKF body = 4 (Fragment Number + Total) + chunk. The SKF Generic
+	// Payload Header adds 4 bytes. The IKE Header adds 28 bytes. So the
+	// per-fragment payload-chunk budget = threshold - 28 (IKE hdr) - 4
+	// (generic hdr) - 4 (SKF fragment header).
+	threshold := int(cfg.FragmentThreshold)
+	perFragment := threshold - IKEHeaderLen - GenericHeaderLen - 4 // 4 = FragmentNumber + TotalFragments
+	if perFragment < 1 {
+		perFragment = 1 // guard against a pathologically small threshold
+	}
+
+	totalFrags := uint16((len(skBody) + perFragment - 1) / perFragment)
+	if totalFrags == 0 {
+		totalFrags = 1
+	}
+
+	// Resolve SPI / header fields shared by all fragments.
+	spii := cfg.InitiatorSPI
+	if msg.InitiatorSPI != nil {
+		spii = *msg.InitiatorSPI
+	}
+	spir := cfg.ResponderSPI
+	if msg.ResponderSPI != nil {
+		spir = *msg.ResponderSPI
+	}
+	msgID := uint32(0)
+	if msg.MessageID != nil {
+		msgID = *msg.MessageID
+	}
+	flags := computeFlags(msg)
+	version := (cfg.VersionMajor << 4) | (cfg.VersionMinor & 0x0F)
+
+	// Emit the canonical set of fragments, then any retransmits (each
+	// retransmit resends the whole fragment set byte-identically).
+	copies := msg.Retransmit
+	if copies == 0 && cfg.RetransmitCount > 0 {
+		copies = cfg.RetransmitCount
+	}
+	for r := 0; r <= copies; r++ {
+		for f := uint16(0); f < totalFrags; f++ {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			start := int(f) * perFragment
+			end := start + perFragment
+			if end > len(skBody) {
+				end = len(skBody)
+			}
+			chunk := skBody[start:end]
+
+			// SKF payload body: FragmentNumber(2) + TotalFragments(2) + Data.
+			skfBody := make([]byte, 4+len(chunk))
+			binary.BigEndian.PutUint16(skfBody[0:2], f+1)
+			binary.BigEndian.PutUint16(skfBody[2:4], totalFrags)
+			copy(skfBody[4:], chunk)
+
+			// Generic Payload Header: Next Payload = 0 (SKF is the only
+			// payload in a fragmented datagram), Critical=0, Length.
+			genHdr := make([]byte, GenericHeaderLen)
+			genHdr[0] = 0 // no next payload
+			binary.BigEndian.PutUint16(genHdr[2:4], uint16(GenericHeaderLen+len(skfBody)))
+
+			// IKE Header.
+			hdr := make([]byte, IKEHeaderLen)
+			binary.BigEndian.PutUint64(hdr[0:8], spii)
+			binary.BigEndian.PutUint64(hdr[8:16], spir)
+			hdr[16] = PayloadSKF // Next Payload = SKF (53)
+			hdr[17] = version
+			hdr[18] = msg.ExchangeType
+			hdr[19] = flags
+			binary.BigEndian.PutUint32(hdr[20:24], msgID)
+			totalLen := uint32(IKEHeaderLen + GenericHeaderLen + len(skfBody))
+			binary.BigEndian.PutUint32(hdr[24:28], totalLen)
+
+			full := make([]byte, 0, len(hdr)+len(genHdr)+len(skfBody))
+			full = append(full, hdr...)
+			full = append(full, genHdr...)
+			full = append(full, skfBody...)
+
+			pc := buildPacketConfig(spec, flowID, msg, *pktIdx, full, totalFrags, f+1, now, rng, cfg)
+			ch <- pc
+			*pktIdx++
+		}
 	}
 }
 

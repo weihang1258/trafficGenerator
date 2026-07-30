@@ -158,11 +158,26 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 
-	// TIMESTAMP: empty or "-" = NILVALUE; non-empty must parse as RFC 3339.
+	// TIMESTAMP validation is format-specific:
+	//   - RFC 5424 (default): empty or "-" = NILVALUE; non-empty must parse
+	//     as RFC 3339 (§6.2.3). The planner emits the value verbatim into the
+	//     RFC 5424 frame.
+	//   - BSD (RFC 3164): empty or "-" = use current time at encode; non-empty
+	//     may be either an RFC 3339 timestamp (re-formatted to "Mmm dd hh:mm:ss"
+	//     by encodeBSD) or a pre-formatted BSD timestamp like "Jan  1 00:00:00".
+	//     A pre-formatted BSD timestamp is accepted as-is and emitted verbatim
+	//     by encodeBSD (which detects the BSD format and skips re-encoding).
+	// Rejecting "Jan  1 00:00:00" here would make every SYSLOG.1.3-style test
+	// fail validation even though the value is the canonical BSD timestamp
+	// format mandated by RFC 3164 §4.1.2.
 	if cfg.Timestamp != "" && cfg.Timestamp != NILVALUE {
-		if _, err := time.Parse(time.RFC3339Nano, cfg.Timestamp); err != nil {
-			return fmt.Errorf("syslog: Timestamp %q not a valid RFC 3339 timestamp (RFC 5424 §6.2.3): %v", cfg.Timestamp, err)
+		if format == "rfc5424" {
+			if _, err := time.Parse(time.RFC3339Nano, cfg.Timestamp); err != nil {
+				return fmt.Errorf("syslog: Timestamp %q not a valid RFC 3339 timestamp (RFC 5424 §6.2.3): %v", cfg.Timestamp, err)
+			}
 		}
+		// For format == "bsd" we accept any non-empty value. encodeBSD handles
+		// both RFC 3339 (re-formatted to BSD) and pre-formatted BSD strings.
 	}
 
 	// HOSTNAME 1-255 bytes (RFC 5424 §6.2.4); no SP allowed.
@@ -599,37 +614,53 @@ func encodeBSD(cfg *core.SyslogConfig, facility, severity uint8) []byte {
 	var b strings.Builder
 	fmt.Fprintf(&b, "<%d>", pri)
 
-	// BSD timestamp: Mmm dd hh:mm:ss. Parse from cfg.Timestamp (RFC 3339);
-	// fall back to NILVALUE-style "?" — RFC 3164 has no NILVALUE, but we
-	// emit a placeholder timestamp to keep the format valid. Use current
-	// time when cfg.Timestamp is empty or "-".
+	// BSD timestamp: Mmm dd hh:mm:ss. The timestamp field accepts:
+	//   - empty / "-" → use current time at emit (RFC 3164 §4.1.2 leaves this
+	//     to the implementation; we pick now-UTC for determinism).
+	//   - RFC 3339 timestamp (e.g. "2026-07-28T10:00:00Z") → re-formatted to
+	//     BSD "Mmm dd hh:mm:ss" via time.Format.
+	//   - Pre-formatted BSD timestamp (e.g. "Jan  1 00:00:00") → emitted
+	//     verbatim. RFC 3164 §4.1.2 mandates this exact layout; the user may
+	//     supply it directly to control the on-wire bytes. We detect the
+	//     pre-formatted form by checking whether time.Parse(RFC3339Nano)
+	//     rejects it; if it does and the value is non-empty/non-"-", we treat
+	//     it as a pre-formatted BSD timestamp and emit it verbatim.
+	timestampWritten := false
 	var t time.Time
-	if cfg.Timestamp != "" && cfg.Timestamp != NILVALUE {
-		if parsed, err := time.Parse(time.RFC3339Nano, cfg.Timestamp); err == nil {
+	ts := cfg.Timestamp
+	if ts != "" && ts != NILVALUE {
+		if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
 			t = parsed
+		} else {
+			// Pre-formatted BSD timestamp: emit verbatim.
+			b.WriteString(ts)
+			b.WriteByte(' ')
+			timestampWritten = true
 		}
 	}
-	if t.IsZero() {
-		t = time.Now().UTC()
-	}
-	// Month abbreviations (Jan-Dec).
-	months := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
-	b.WriteString(months[int(t.Month())-1])
-	b.WriteByte(' ')
-	// Day: space-padded to 2 chars (RFC 3164 §4.1.2: " 1"-"31").
-	day := t.Day()
-	if day < 10 {
+	if !timestampWritten {
+		if t.IsZero() {
+			t = time.Now().UTC()
+		}
+		// Month abbreviations (Jan-Dec).
+		months := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+			"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+		b.WriteString(months[int(t.Month())-1])
 		b.WriteByte(' ')
-		b.WriteByte(byte('0' + day))
-	} else {
-		b.WriteByte(byte('0' + day/10))
-		b.WriteByte(byte('0' + day%10))
+		// Day: space-padded to 2 chars (RFC 3164 §4.1.2: " 1"-"31").
+		day := t.Day()
+		if day < 10 {
+			b.WriteByte(' ')
+			b.WriteByte(byte('0' + day))
+		} else {
+			b.WriteByte(byte('0' + day/10))
+			b.WriteByte(byte('0' + day%10))
+		}
+		b.WriteByte(' ')
+		// Time: hh:mm:ss.
+		b.WriteString(fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second()))
+		b.WriteByte(' ')
 	}
-	b.WriteByte(' ')
-	// Time: hh:mm:ss.
-	b.WriteString(fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second()))
-	b.WriteByte(' ')
 
 	// HOSTNAME (or NILVALUE).
 	b.WriteString(nilOrValue(cfg.Hostname))

@@ -176,10 +176,11 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 
-	// 12. proto=udp requires spec.UDP
-	if proto == "udp" && spec.UDP == nil {
-		return fmt.Errorf("proto=udp requires spec.udp (UDPConfig)")
-	}
+	// 12. proto=udp runs over UDP but the planner doesn't read spec.UDP
+	// (it emits raw datagrams via the L4 dispatcher); only spec.TCP is
+	// consulted, and only in TCP mode. So we don't require spec.UDP here.
+	// The case "openvpn" branch in mapToFlowSpec also doesn't parse cfg["udp"]
+	// into spec.UDP, which would otherwise make every UDP-mode spec fail.
 
 	// 13. proto=tcp requires spec.TCP
 	if proto == "tcp" && spec.TCP == nil {
@@ -465,46 +466,28 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		// --- StaticKeyMode (P2P 静态密钥模式, 无 TLS 握手) ---
 		if cfg.StaticKeyMode {
-			// Build static key payload (StaticKeyNonce 16B + StaticKeyCiphertext + StaticKeyHMAC 20B)
-			staticKey := cfg.StaticKey
-			if len(staticKey) == 0 {
-				staticKey = make([]byte, 256)
-				for i := range staticKey {
-					staticKey[i] = 0xFF
-				}
-			}
+			// Per design §2.10.2 + §6.3: P_DATA_V1 in static key mode contains
+			// KeyDirection(implicit) + StaticKeyNonce(16B) + StaticKeyCiphertext(NB) + StaticKeyHMAC(20B).
+			// P_DATA_V1 header: opcode+key_id(1B) + packet_id(4B BE).
+			// Synth crypto (确定性填充): nonce=0xCC, ciphertext=0xDD, HMAC=0xAA.
 			dataLen := len(dataPayload)
 			if dataLen == 0 {
 				dataLen = 64
 			}
-			// Per design: P_DATA_V1 with KeyDirection + StaticKeyNonce(16B) + StaticKeyCiphertext(N) + StaticKeyHMAC(20B)
-			// In P2P mode, we use synth crypto (确定性填充): nonce=0xCC, ciphertext=0xDD, HMAC=0xAA
-			nonce := make([]byte, 16)
-			for i := range nonce {
-				nonce[i] = 0xCC
-			}
-			ciphertext := make([]byte, dataLen)
-			for i := range ciphertext {
-				ciphertext[i] = 0xDD
-			}
-			hmac := make([]byte, 20)
-			for i := range hmac {
-				hmac[i] = 0xAA
-			}
 
 			// client->server P_DATA_V1
-			clientPayload := buildDataV1(0, keyID, 0 /* packet_id */, dataPayload, dataCipher, hmacLen)
+			clientPayload := buildStaticKeyDataV1(0, keyID, dataLen)
 			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientPayload, 6, clientSeq, serverSeq, 0x18)
 
 			// server->client P_DATA_V1
-			serverPayload := buildDataV1(0, keyID, 0, dataPayload, dataCipher, hmacLen)
+			serverPayload := buildStaticKeyDataV1(0, keyID, dataLen)
 			emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, serverPayload, 6, serverSeq, clientSeq, 0x18)
 
 			// 如果配置了多个数据包, 发送更多 P_DATA_V1
 			for i := 1; i < dataPacketCount; i++ {
-				cp := buildDataV1(uint64(i), keyID, uint64(i), dataPayload, dataCipher, hmacLen)
+				cp := buildStaticKeyDataV1(uint64(i), keyID, dataLen)
 				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, cp, 6, clientSeq, serverSeq, 0x18)
-				sp := buildDataV1(uint64(i), keyID, uint64(i), dataPayload, dataCipher, hmacLen)
+				sp := buildStaticKeyDataV1(uint64(i), keyID, dataLen)
 				emitPacket("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, sp, 6, serverSeq, clientSeq, 0x18)
 			}
 			return
@@ -517,16 +500,33 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		clientHello := buildSynthClientHello(tlsVersion)
 		serverHello := buildSynthServerHello(tlsVersion)
 
-		// --- Step 1: P_CONTROL_HARD_RESET_CLIENT_V2 (opcode=4, 客户端握手) ---
-		clientResetPayload := buildHardResetClientV2(keyID, sessionID, 0, cfg.TLSAuth, cfg.TLSCrypt, cfg.TLSCryptV2, hmacLen, clientHello, isTCP)
+		// --- Step 1: P_CONTROL_HARD_RESET_CLIENT (version-dependent opcode) ---
+		// V1 -> opcode 1 (no session_id, 4B packet_id); V2 -> opcode 4;
+		// V3 -> opcode 6. Design §2.2.1/§2.2.4/§2.2.6.
+		var clientResetPayload []byte
+		switch ver {
+		case "1":
+			clientResetPayload = buildHardResetClientV1(keyID, 0, clientHello)
+		case "3":
+			clientResetPayload = buildHardResetClientV3(keyID, sessionID, 0, cfg.TLSAuth, cfg.TLSCrypt, cfg.TLSCryptV2, hmacLen, clientHello, isTCP)
+		default: // "2"
+			clientResetPayload = buildHardResetClientV2(keyID, sessionID, 0, cfg.TLSAuth, cfg.TLSCrypt, cfg.TLSCryptV2, hmacLen, clientHello, isTCP)
+		}
 		if isTCP {
 			emitTCPData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, &clientSeq, &serverSeq, clientResetPayload)
 		} else {
 			emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientResetPayload, 17, 0, 0, 0)
 		}
 
-		// --- Step 2: P_CONTROL_HARD_RESET_SERVER_V2 (opcode=5, 服务端响应) ---
-		serverResetPayload := buildHardResetServerV2(keyID, sessionID, 0, cfg.TLSAuth, cfg.TLSCrypt, cfg.TLSCryptV2, hmacLen, serverHello, isTCP)
+		// --- Step 2: P_CONTROL_HARD_RESET_SERVER (V1 -> opcode 2; V2/V3 -> opcode 5) ---
+		// Design §2.2.2/§2.2.5. There is no V3-specific server opcode.
+		var serverResetPayload []byte
+		switch ver {
+		case "1":
+			serverResetPayload = buildHardResetServerV1(keyID, 0, serverHello)
+		default: // "2" or "3" — V3 server uses V2 opcode=5
+			serverResetPayload = buildHardResetServerV2(keyID, sessionID, 0, cfg.TLSAuth, cfg.TLSCrypt, cfg.TLSCryptV2, hmacLen, serverHello, isTCP)
+		}
 		if isTCP {
 			emitTCPData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, &serverSeq, &clientSeq, serverResetPayload)
 		} else {
@@ -543,24 +543,32 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			}
 		}
 
-		// --- Step 4: P_DATA_V2 packets (数据通道包) ---
+		// --- Step 4: P_DATA packets (数据通道包) ---
+		// V1 -> P_DATA_V1 (opcode=7); V2/V3 -> P_DATA_V2 (opcode=9).
+		// Design §2.3/§2.4 + state machine §3.1.
+		isV1 := ver == "1"
 		// client->server
 		for i := 0; i < dataPacketCount; i++ {
 			payload := dataPayload
-			// Fragment if enabled (分片处理)
-			encryptedPayload := buildEncryptedPayload(payload, dataCipher, hmacLen)
 
 			var pkt []byte
-			if cfg.FragmentSize > 0 && len(encryptedPayload) > int(cfg.FragmentSize) {
-				// Fragment the data payload (应用层分片)
-				pkt = buildFragmentedDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, cfg.FragmentSize, dataCipher, hmacLen)
+			if isV1 {
+				// buildDataV1 encrypts internally; pass raw payload.
+				pkt = buildDataV1(uint64(i), keyID, uint64(i), payload, dataCipher, hmacLen)
 			} else {
-				// 如果启用了分片但 payload 小于分片大小, 也走 first fragment (单 fragment)
-				if cfg.FragmentSize > 0 {
-					fragFirst := buildFragmentHeader(0, uint16(i), uint16(len(encryptedPayload)))
-					encryptedPayload = append(fragFirst, encryptedPayload...)
+				// Fragment if enabled (分片处理)
+				encryptedPayload := buildEncryptedPayload(payload, dataCipher, hmacLen)
+				if cfg.FragmentSize > 0 && len(encryptedPayload) > int(cfg.FragmentSize) {
+					// Fragment the data payload (应用层分片)
+					pkt = buildFragmentedDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, cfg.FragmentSize, dataCipher, hmacLen)
+				} else {
+					// 如果启用了分片但 payload 小于分片大小, 也走 first fragment (单 fragment)
+					if cfg.FragmentSize > 0 {
+						fragFirst := buildFragmentHeader(0, uint16(i), uint16(len(encryptedPayload)))
+						encryptedPayload = append(fragFirst, encryptedPayload...)
+					}
+					pkt = buildDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, dataCipher, hmacLen)
 				}
-				pkt = buildDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, dataCipher, hmacLen)
 			}
 
 			if isTCP {
@@ -573,17 +581,21 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// server->client
 		for i := 0; i < dataPacketCount; i++ {
 			payload := dataPayload
-			encryptedPayload := buildEncryptedPayload(payload, dataCipher, hmacLen)
 
 			var pkt []byte
-			if cfg.FragmentSize > 0 && len(encryptedPayload) > int(cfg.FragmentSize) {
-				pkt = buildFragmentedDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, cfg.FragmentSize, dataCipher, hmacLen)
+			if isV1 {
+				pkt = buildDataV1(uint64(i), keyID, uint64(i), payload, dataCipher, hmacLen)
 			} else {
-				if cfg.FragmentSize > 0 {
-					fragFirst := buildFragmentHeader(0, uint16(i), uint16(len(encryptedPayload)))
-					encryptedPayload = append(fragFirst, encryptedPayload...)
+				encryptedPayload := buildEncryptedPayload(payload, dataCipher, hmacLen)
+				if cfg.FragmentSize > 0 && len(encryptedPayload) > int(cfg.FragmentSize) {
+					pkt = buildFragmentedDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, cfg.FragmentSize, dataCipher, hmacLen)
+				} else {
+					if cfg.FragmentSize > 0 {
+						fragFirst := buildFragmentHeader(0, uint16(i), uint16(len(encryptedPayload)))
+						encryptedPayload = append(fragFirst, encryptedPayload...)
+					}
+					pkt = buildDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, dataCipher, hmacLen)
 				}
-				pkt = buildDataV2(uint64(i), keyID, peerSessionID, encryptedPayload, dataCipher, hmacLen)
 			}
 
 			if isTCP {
@@ -628,9 +640,13 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 
 		// --- Step 7: ExitNotify (显式退出通知, UDP only) ---
+		// Per design §2.10.5: exit_notify is a P_CONTROL message carrying
+		// 1-byte type=0x05, not a bare 0x05 byte. We frame it as a
+		// P_CONTROL_HARD_RESET_CLIENT_V2 with the exit_notify type in the
+		// payload (the OpenVPN control channel requires an opcode header).
 		if cfg.ExitNotifyCount > 0 {
 			for i := uint8(0); i < cfg.ExitNotifyCount; i++ {
-				exitPayload := []byte{0x05} // type=0x05 (exit_notify)
+				exitPayload := buildExitNotify(keyID, sessionID, uint64(i))
 				emitPacket("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, exitPayload, 17, 0, 0, 0)
 			}
 		}
@@ -655,15 +671,72 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 // --- OpenVPN packet builders (包构建辅助函数) ---
 
+// buildHardResetClientV1 builds the P_CONTROL_HARD_RESET_CLIENT_V1 packet bytes.
+// V1 format (design §2.2.1): opcode+key_id(1B) + packet_id(4B BE) + payload.
+// V1 has no session_id, no HMAC, no tls-crypt (mutually excluded by Validate).
+func buildHardResetClientV1(keyID uint8, packetID uint64, innerPayload []byte) []byte {
+	var b []byte
+	// opcode + key_id: opcode=1, (1<<5)|(keyID&0x1F)
+	b = append(b, (OpcodeHARDResetClientV1<<5)|(keyID&0x1F))
+	// packet_id: 4 bytes BE (V1 uses uint32)
+	pid := uint32(packetID)
+	b = append(b, byte(pid>>24), byte(pid>>16), byte(pid>>8), byte(pid))
+	// inner payload (TLS ClientHello)
+	b = append(b, innerPayload...)
+	return b
+}
+
+// buildHardResetServerV1 builds the P_CONTROL_HARD_RESET_SERVER_V1 packet bytes.
+// V1 format: opcode+key_id(1B) + packet_id(4B BE) + payload.
+func buildHardResetServerV1(keyID uint8, packetID uint64, innerPayload []byte) []byte {
+	var b []byte
+	// opcode + key_id: opcode=2, (2<<5)|(keyID&0x1F)
+	b = append(b, (OpcodeHARDResetServerV1<<5)|(keyID&0x1F))
+	// packet_id: 4 bytes BE
+	pid := uint32(packetID)
+	b = append(b, byte(pid>>24), byte(pid>>16), byte(pid>>8), byte(pid))
+	// inner payload (TLS ServerHello + ...)
+	b = append(b, innerPayload...)
+	return b
+}
+
 // buildHardResetClientV2 builds the P_CONTROL_HARD_RESET_CLIENT_V2 packet bytes.
 // 构建 P_CONTROL_HARD_RESET_CLIENT_V2 包字节.
 func buildHardResetClientV2(keyID uint8, sessionID uint32, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, innerPayload []byte, isTCP bool) []byte {
 	var b []byte
 	// opcode + key_id: opcode=4, (4<<5)|(keyID&0x1F)
-	b = append(b, (4<<5)|(keyID&0x1F))
+	b = append(b, (OpcodeHARDResetClientV2<<5)|(keyID&0x1F))
 	// session_id: 3 bytes BE
 	b = append(b, byte(sessionID>>16), byte(sessionID>>8), byte(sessionID))
 	// packet_id: V2 variadic
+	b = append(b, writePktID(packetID)...)
+	// tls-auth HMAC (if enabled)
+	if tlsAuth {
+		hmac := make([]byte, hmacLen)
+		for i := range hmac {
+			hmac[i] = 0xAA
+		}
+		b = append(b, hmac...)
+	}
+	// tls-crypt wrapped key (if enabled)
+	if tlsCrypt {
+		wrappedKey := buildWrappedKey(tlsCryptV2)
+		b = append(b, wrappedKey...)
+	}
+	// inner payload (TLS ClientHello)
+	b = append(b, innerPayload...)
+	return b
+}
+
+// buildHardResetClientV3 builds the P_CONTROL_HARD_RESET_CLIENT_V3 packet bytes.
+// V3 format (design §2.2.6): like V2 but with opcode=6. key_id limited to 0..7.
+func buildHardResetClientV3(keyID uint8, sessionID uint32, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, innerPayload []byte, isTCP bool) []byte {
+	var b []byte
+	// opcode + key_id: opcode=6, (6<<5)|(keyID&0x1F)
+	b = append(b, (OpcodeHARDResetClientV3<<5)|(keyID&0x1F))
+	// session_id: 3 bytes BE (V3 必须有)
+	b = append(b, byte(sessionID>>16), byte(sessionID>>8), byte(sessionID))
+	// packet_id: V2 variadic (same as V2)
 	b = append(b, writePktID(packetID)...)
 	// tls-auth HMAC (if enabled)
 	if tlsAuth {
@@ -688,7 +761,7 @@ func buildHardResetClientV2(keyID uint8, sessionID uint32, packetID uint64, tlsA
 func buildHardResetServerV2(keyID uint8, sessionID uint32, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, innerPayload []byte, isTCP bool) []byte {
 	var b []byte
 	// opcode + key_id: opcode=5, (5<<5)|(keyID&0x1F)
-	b = append(b, (5<<5)|(keyID&0x1F))
+	b = append(b, (OpcodeHARDResetServerV2<<5)|(keyID&0x1F))
 	// session_id: echo client's session_id (3 bytes BE)
 	b = append(b, byte(sessionID>>16), byte(sessionID>>8), byte(sessionID))
 	// packet_id: V2 variadic
@@ -716,7 +789,7 @@ func buildHardResetServerV2(keyID uint8, sessionID uint32, packetID uint64, tlsA
 func buildSoftReset(newKeyID uint8, sessionID uint32, packetID uint64, tlsAuth, tlsCrypt, tlsCryptV2 bool, hmacLen int, isTCP bool) []byte {
 	var b []byte
 	// opcode + key_id: opcode=3, (3<<5)|(newKeyID&0x1F)
-	b = append(b, (3<<5)|(newKeyID&0x1F))
+	b = append(b, (OpcodeSOFTResetV1<<5)|(newKeyID&0x1F))
 	// session_id: 3 bytes BE
 	b = append(b, byte(sessionID>>16), byte(sessionID>>8), byte(sessionID))
 	// packet_id: V2 variadic
@@ -759,11 +832,61 @@ func buildDataV2(packetID uint64, keyID uint8, peerSessionID uint32, encryptedPa
 func buildDataV1(packetID uint64, keyID uint8, _ uint64, payload []byte, cipher string, hmacLen int) []byte {
 	var b []byte
 	// opcode + key_id: opcode=7, (7<<5)|(keyID&0x1F)
-	b = append(b, (7<<5)|(keyID&0x1F))
+	b = append(b, (OpcodeDATAV1<<5)|(keyID&0x1F))
 	// packet_id: 4 bytes BE (V1 uses uint32)
 	b = append(b, byte(packetID>>24), byte(packetID>>16), byte(packetID>>8), byte(packetID))
 	// encrypted payload
 	b = append(b, buildEncryptedPayload(payload, cipher, hmacLen)...)
+	return b
+}
+
+// buildStaticKeyDataV1 builds a P_DATA_V1 packet for static-key P2P mode.
+// Per design §2.10.2 + §6.3 step 4: the P_DATA_V1 payload in static-key mode
+// contains StaticKeyNonce(16B) + StaticKeyCiphertext(N B) + StaticKeyHMAC(20B),
+// NOT the generic buildEncryptedPayload layout (which assumes TLS-derived keys).
+// Synth crypto: nonce=0xCC, ciphertext=0xDD, HMAC=0xAA (design §4.6).
+func buildStaticKeyDataV1(packetID uint64, keyID uint8, dataLen int) []byte {
+	var b []byte
+	// opcode + key_id: opcode=7, (7<<5)|(keyID&0x1F)
+	b = append(b, (OpcodeDATAV1<<5)|(keyID&0x1F))
+	// packet_id: 4 bytes BE (V1 uses uint32)
+	b = append(b, byte(packetID>>24), byte(packetID>>16), byte(packetID>>8), byte(packetID))
+	// StaticKeyNonce: 16 bytes 0xCC
+	nonce := make([]byte, 16)
+	for i := range nonce {
+		nonce[i] = 0xCC
+	}
+	b = append(b, nonce...)
+	// StaticKeyCiphertext: dataLen bytes 0xDD
+	ciphertext := make([]byte, dataLen)
+	for i := range ciphertext {
+		ciphertext[i] = 0xDD
+	}
+	b = append(b, ciphertext...)
+	// StaticKeyHMAC: 20 bytes 0xAA
+	hmac := make([]byte, 20)
+	for i := range hmac {
+		hmac[i] = 0xAA
+	}
+	b = append(b, hmac...)
+	return b
+}
+
+// buildExitNotify builds a framed exit_notify P_CONTROL message.
+// Per design §2.10.5: exit_notify is carried inside a P_CONTROL message
+// (opcode header + session_id + packet_id) with a 1-byte type=0x05 payload,
+// NOT a bare 0x05 byte. We reuse the V2 control framing (opcode=4) since
+// exit_notify is a client→server control message in the established session.
+func buildExitNotify(keyID uint8, sessionID uint32, packetID uint64) []byte {
+	var b []byte
+	// opcode + key_id: opcode=4 (P_CONTROL_HARD_RESET_CLIENT_V2 framing)
+	b = append(b, (OpcodeHARDResetClientV2<<5)|(keyID&0x1F))
+	// session_id: 3 bytes BE
+	b = append(b, byte(sessionID>>16), byte(sessionID>>8), byte(sessionID))
+	// packet_id: V2 variadic
+	b = append(b, writePktID(packetID)...)
+	// exit_notify type byte
+	b = append(b, 0x05)
 	return b
 }
 
@@ -866,14 +989,18 @@ func buildEncryptedPayload(payload []byte, cipher string, hmacLen int) []byte {
 }
 
 // buildWrappedKey builds the tls-crypt wrapped key (合成 tls-crypt 包裹密钥).
+// Per design §2.5.1 + §2.6: tls-crypt-v2 field order is
+//   length_prefix(2B BE) + wrapped_key_id(4B BE) + auth-tag(32B) + IV(16B) + cipher_key(32B).
+// tls-crypt-v1 omits both the length prefix and wrapped_key_id.
 func buildWrappedKey(tlsCryptV2 bool) []byte {
 	var b []byte
-	// tls-crypt-v2: wrapped_key_id (4 bytes BE) + length prefix (2 bytes BE)
+	// tls-crypt-v2: length prefix (2B BE) FIRST, then wrapped_key_id (4B BE).
+	// Design §2.5.1 byte example: 0x00 0x50 (len=80) then 0x00 0x00 0x00 0x01.
 	if tlsCryptV2 {
+		// length prefix = 80 (32+16+32), covering auth-tag + IV + cipher_key
+		b = append(b, 0x00, 0x50)
 		// wrapped_key_id = 1
 		b = append(b, 0x00, 0x00, 0x00, 0x01)
-		// length prefix = 80 (32+16+32)
-		b = append(b, 0x00, 0x50)
 	}
 	// auth-tag(32) 0xBB filler
 	authTag := make([]byte, 32)
@@ -918,11 +1045,16 @@ func buildSynthClientHello(tlsVersion string) []byte {
 	// extensions length = 0
 	body = append(body, 0x00, 0x00)
 
+	// Handshake header: type(1B) + length(3B). The TLS Record Length field
+	// (RFC 8446 §5.2) covers the entire fragment = handshake header + body,
+	// so it must be len(body) + 4, not len(body).
+	fragmentLen := len(body) + 4
+
 	// TLS Record header
-	record := make([]byte, 0, 5+len(body))
+	record := make([]byte, 0, 5+fragmentLen)
 	record = append(record, 0x16) // ContentType=22 (Handshake)
 	record = append(record, tlsVer[0], tlsVer[1])
-	record = append(record, byte(len(body)>>8), byte(len(body)))
+	record = append(record, byte(fragmentLen>>8), byte(fragmentLen))
 	// Handshake header
 	record = append(record, 0x01) // HandshakeType=1 (ClientHello)
 	record = append(record, byte((len(body))>>16), byte((len(body))>>8), byte(len(body)))
@@ -956,11 +1088,14 @@ func buildSynthServerHello(tlsVersion string) []byte {
 		body = append(body, 0x00, 0x00)
 	}
 
+	// TLS Record Length = handshake header (4B) + body.
+	fragmentLen := len(body) + 4
+
 	// TLS Record header
-	record := make([]byte, 0, 5+len(body))
+	record := make([]byte, 0, 5+fragmentLen)
 	record = append(record, 0x16) // ContentType=22 (Handshake)
 	record = append(record, tlsVer[0], tlsVer[1])
-	record = append(record, byte(len(body)>>8), byte(len(body)))
+	record = append(record, byte(fragmentLen>>8), byte(fragmentLen))
 	// Handshake header
 	record = append(record, 0x02) // HandshakeType=2 (ServerHello)
 	record = append(record, byte((len(body))>>16), byte((len(body))>>8), byte(len(body)))

@@ -356,6 +356,48 @@ func TestICMPPlan_TypeEchoReplyPrimary(t *testing.T) {
 	}
 }
 
+// TestICMPPlan_UnidirectionalTypesNoAutoReply is a regression test for the
+// (false-positive) finding that "auto-reply only triggers on Type=8". Per
+// RFC 792, Echo Request (Type=8) is the ONLY ICMP message type that generates
+// an automatic ICMP reply (Echo Reply, Type=0). All error-reporting types -
+// Destination Unreachable (3), Source Quench (4), Redirect (5),
+// Time Exceeded (11), Parameter Problem (12) - are UNIDIRECTIONAL: they are
+// emitted by routers/gateways in response to IP-layer conditions, never as
+// replies to another ICMP message. Therefore the planner correctly emits no
+// auto-reply for any of these types. This test sweeps all of them to document
+// and lock in the by-design behavior.
+func TestICMPPlan_UnidirectionalTypesNoAutoReply(t *testing.T) {
+	p := NewPlanner()
+	// RFC 792 unidirectional (non-reply-generating) ICMP types.
+	unidirectional := []uint8{
+		3,  // Destination Unreachable
+		4,  // Source Quench
+		5,  // Redirect
+		11, // Time Exceeded
+		12, // Parameter Problem
+	}
+	for _, typ := range unidirectional {
+		spec := validICMPSpec()
+		spec.ICMP.Type = typ
+		spec.ICMP.Code = 0
+		spec.ICMP.Sequence = 9
+		spec.ICMP.Data = []byte("unidirectional")
+		cfgs := drain(mustPlan(t, p, spec))
+		if len(cfgs) != 1 {
+			t.Errorf("Type=%d: got %d configs, want 1 (RFC 792: only Echo Request/Type=8 generates an auto-reply)", typ, len(cfgs))
+			continue
+		}
+		// The single packet is the request itself, direction "up", with the
+		// configured type - no synthesized reply.
+		if cfgs[0].Direction != "up" {
+			t.Errorf("Type=%d: config[0].Direction=%s, want up", typ, cfgs[0].Direction)
+		}
+		if cfgs[0].Payload[0] != typ {
+			t.Errorf("Type=%d: Payload Type=%d, want %d", typ, cfgs[0].Payload[0], typ)
+		}
+	}
+}
+
 // --- Context cancel (I18) ---
 
 // I18: known bug - the ICMP planner goroutine never checks ctx.Done(). With the

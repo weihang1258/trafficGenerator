@@ -223,6 +223,70 @@ func TestNTP_1_15_Mode6Control(t *testing.T) {
 	}
 }
 
+// TestNTP_1_15a_Mode6ControlByte0Layout verifies the Mode=6 control header
+// byte 0 uses the standard NTP LI(2)|VN(3)|Mode(3) layout -- the same layout
+// the ntpd reference implementation packs via PKT_LI_VN_MODE(l, v, m) in
+// ntp.h -- and that the payload is the 8-byte control header (not the 48-byte
+// standard header). This guards against a regression to the non-standard
+// Version(2)|LI(2)|Mode(4) packing described in design_ntp.md §2.3, which the
+// planner already rejects (see planner.go:508-526 comment block).
+//
+// Expected byte 0 values (LI<<6 | VN<<3 | Mode, Mode=6):
+//   LI=0 VN=4 -> 0x26   LI=0 VN=3 -> 0x1e   LI=3 VN=4 -> 0xE6
+func TestNTP_1_15a_Mode6ControlByte0Layout(t *testing.T) {
+	cases := []struct {
+		name    string
+		version uint8
+		li      uint8
+		wantB0  byte
+	}{
+		{"VN4_LI0", 4, 0, 0x26}, // (0<<6)|(4<<3)|6
+		{"VN3_LI0", 3, 0, 0x1e}, // (0<<6)|(3<<3)|6
+		{"VN4_LI3", 4, 3, 0xE6}, // (3<<6)|(4<<3)|6
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			spec := validNTPSpec()
+			spec.NTP = &core.NTPConfig{
+				Mode:          ModeControl,
+				Version:       c.version,
+				LeapIndicator: c.li,
+				Sequence:      1,
+				RequestCode:   1,
+				ControlData:   make([]byte, 4),
+			}
+			cfgs := drain(mustPlan(t, NewPlanner(), spec))
+			if len(cfgs) != 1 {
+				t.Fatalf("len=%d, want 1", len(cfgs))
+			}
+			// Mode=6 must emit the 8-byte control header, NOT the 48-byte
+			// standard header (RFC 1305 App. B / ntpd ntp_control.h).
+			if got := len(cfgs[0].Payload); got != ControlHeaderLen+4 {
+				t.Errorf("payload len=%d, want %d (8-byte control header + 4 data), "+
+					"not the 48-byte standard header", got, ControlHeaderLen+4)
+			}
+			// Byte 0 = LI(2)|VN(3)|Mode(3); Mode=6 must be recoverable from
+			// the low 3 bits.
+			got := cfgs[0].Payload[0]
+			if got&0x07 != ModeControl {
+				t.Errorf("byte[0] low 3 bits = 0x%02x, want Mode=6", got&0x07)
+			}
+			if got != c.wantB0 {
+				t.Errorf("byte[0] = 0x%02x, want 0x%02x (LI=%d VN=%d Mode=6)",
+					got, c.wantB0, c.li, c.version)
+			}
+			// VN must be recoverable from bits 5-3.
+			if vn := (got >> 3) & 0x07; vn != c.version {
+				t.Errorf("byte[0] VN bits = %d, want %d", vn, c.version)
+			}
+			// LI must be recoverable from bits 7-6.
+			if li := (got >> 6) & 0x03; li != c.li {
+				t.Errorf("byte[0] LI bits = %d, want %d", li, c.li)
+			}
+		})
+	}
+}
+
 func TestNTP_1_16_Mode7Private(t *testing.T) {
 	// Mode=7 -> byte[0] low 3 bits = 111
 	spec := validNTPSpec()

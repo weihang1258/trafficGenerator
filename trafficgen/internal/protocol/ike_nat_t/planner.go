@@ -239,6 +239,15 @@ func (p *Planner) runPlan(ctx context.Context, ch chan<- core.PacketConfig, spec
 	// Apply defaults.
 	applied := applyDefaults(cfg)
 
+	// Generate the InitiatorSPI ONCE for the whole IKE SA. All messages in
+	// one IKE SA share the same SPI pair (RFC 7296 §2.1: "the SPI is
+	// created by the initiator and MUST be the same in all subsequent
+	// exchanges of that IKE SA"). An earlier version regenerated a random
+	// SPI per emitted message, violating SA consistency.
+	if applied.InitiatorSPI == 0 {
+		applied.InitiatorSPI = generateSPI()
+	}
+
 	// Resolve message sequence.
 	var msgs []core.IKENATTMessage
 	if len(applied.Dialog) > 0 {
@@ -749,15 +758,24 @@ func buildDefaultDialog(cfg *core.IKENATTConfig, spec core.FlowSpec) []core.IKEN
 		{Type: PayloadKE, KE: &core.IKEKE{DHGroup: 14, KeyData: make([]byte, 256)}},
 		{Type: PayloadNONCE, Nonce: make([]byte, 32)},
 	}
-	if cfg.NATDetection && spir != 0 {
+	if cfg.NATDetection {
+		// Per RFC 7383 / RFC 4306, NAT-D Notify payloads are present in
+		// BOTH the IKE_SA_INIT request AND response, regardless of whether
+		// the ResponderSPI is known yet. In the response, the responder
+		// uses its own freshly-allocated SPIr (which it echoes in the IKE
+		// header). An earlier version gated this on `spir != 0`, which
+		// suppressed NAT-D in the response whenever the caller left
+		// ResponderSPI at 0 -- the common "let the planner pick one" path.
+		natDHashSrcResp := computeNATDHash(spii, spir, net.ParseIP(dstIP), dstPort)
+		natDHashDstResp := computeNATDHash(spii, spir, net.ParseIP(srcIP), srcPort)
 		initRespPayloads = append(initRespPayloads,
 			core.IKENATTPayload{Type: PayloadNOTIFY, Notify: &core.NotifyPayload{
 				ProtocolID: 0, SPISize: 0, NotifyMsgType: NotifyNATDetectionSourceIP,
-				NotificationData: computeNATDHash(spii, spir, net.ParseIP(dstIP), dstPort),
+				NotificationData: natDHashSrcResp,
 			}},
 			core.IKENATTPayload{Type: PayloadNOTIFY, Notify: &core.NotifyPayload{
 				ProtocolID: 0, SPISize: 0, NotifyMsgType: NotifyNATDetectionDestIP,
-				NotificationData: computeNATDHash(spii, spir, net.ParseIP(srcIP), srcPort),
+				NotificationData: natDHashDstResp,
 			}},
 		)
 	}
