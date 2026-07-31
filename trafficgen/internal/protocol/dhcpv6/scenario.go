@@ -108,7 +108,7 @@ func validateScenario(cfg *core.DHCPv6Config) error {
 // every message in that group. Server replies copy the request's XID (also
 // set explicitly to the same value). RECONFIGURE starts a new transaction
 // (its own XID), and the RENEW it triggers uses yet another XID.
-func buildScenarioMessages(cfg *core.DHCPv6Config) []core.DHCPv6Message {
+func buildScenarioMessages(cfg *core.DHCPv6Config, clientDUID, serverDUID *core.DUID) []core.DHCPv6Message {
 	leased := cfg.DefaultLeasedAddr
 	iaid := cfg.DefaultIAID
 	if iaid == 0 {
@@ -422,14 +422,10 @@ func buildScenarioMessages(cfg *core.DHCPv6Config) []core.DHCPv6Message {
 		// so we build them via buildClientServerMessage. The relay messages
 		// themselves don't carry transaction-ids (they use hop-count), so
 		// we leave TransactionID zero on the outer relay messages.
-		clientDUID := cfg.ClientDUID
-		if clientDUID == nil {
-			clientDUID = autoClientDUID("") // best-effort; user should set ClientDUID
-		}
-		serverDUID := cfg.ServerDUID
-		if serverDUID == nil {
-			serverDUID = autoServerDUID()
-		}
+		// clientDUID and serverDUID are resolved by Plan (with spec.SrcMAC
+		// fallback) and passed in; do not re-resolve here with an empty MAC,
+		// which would produce an unserializable DUID and silently fall back
+		// to emitting raw SARR messages instead of relay-wrapped ones.
 		rc := cfg.RelayConfig
 		hop := rc.HopCount
 		if hop == 0 {

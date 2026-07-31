@@ -321,7 +321,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// uses the user-provided Messages list as-is.
 		messages := cfg.Messages
 		if cfg.Scenario != "" {
-			messages = buildScenarioMessages(cfg)
+			messages = buildScenarioMessages(cfg, clientDUID, serverDUID)
 		}
 
 		// Resolve ports and IPs based on direction (per-message basis).
