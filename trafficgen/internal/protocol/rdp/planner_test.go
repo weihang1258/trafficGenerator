@@ -345,8 +345,9 @@ func TestPlanner_Plan_ChannelJoinEmit(t *testing.T) {
 		if cfg.Direction != "up" {
 			continue
 		}
+		pl := unwrapTLSAppData(cfg.Payload)
 		// The MCS reason byte follows TPKT(4) + X.224 DT(3).
-		if len(cfg.Payload) >= 8 && cfg.Payload[7] == MCSChannelJoinRequest {
+		if len(pl) >= 8 && pl[7] == MCSChannelJoinRequest {
 			countCJReq++
 		}
 	}
@@ -375,13 +376,17 @@ func TestPlanner_Plan_ChannelJoinIDsAreCorrect(t *testing.T) {
 	// + channelId(2).
 	var chanIDs []uint16
 	for _, cfg := range configs {
-		if cfg.Direction != "up" || len(cfg.Payload) < 12 {
+		if cfg.Direction != "up" {
 			continue
 		}
-		if cfg.Payload[7] != MCSChannelJoinRequest {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 12 {
 			continue
 		}
-		chanID := uint16(cfg.Payload[10])<<8 | uint16(cfg.Payload[11])
+		if pl[7] != MCSChannelJoinRequest {
+			continue
+		}
+		chanID := uint16(pl[10])<<8 | uint16(pl[11])
 		chanIDs = append(chanIDs, chanID)
 	}
 	wantIDs := []uint16{1003, 1004, 1005}
@@ -442,7 +447,8 @@ func TestPlanner_Plan_DataEventAddsFastPath(t *testing.T) {
 		if cfg.Direction != "up" {
 			continue
 		}
-		if len(cfg.Payload) >= 2 && cfg.Payload[0]&0xC0 == FastPathInputAction {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) >= 2 && pl[0]&0xC0 == FastPathInputAction {
 			found = true
 			break
 		}
@@ -473,13 +479,17 @@ func TestPlanner_Plan_ChannelJoinFailureSkipsChannel(t *testing.T) {
 	// Count down-payloads whose MCS Channel-Join Confirm result byte = 4.
 	countRej := 0
 	for _, cfg := range configs {
-		if cfg.Direction != "down" || len(cfg.Payload) < 13 {
+		if cfg.Direction != "down" {
 			continue
 		}
-		if cfg.Payload[7] != MCSChannelJoinConfirm {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 13 {
 			continue
 		}
-		if cfg.Payload[12] == 4 { // result byte
+		if pl[7] != MCSChannelJoinConfirm {
+			continue
+		}
+		if pl[12] == 4 { // result byte
 			countRej++
 		}
 	}

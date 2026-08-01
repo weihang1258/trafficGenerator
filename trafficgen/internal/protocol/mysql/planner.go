@@ -212,6 +212,19 @@ const capConnectWithDB uint32 = 0x00000008
 // include auth_plugin_name in the Handshake Response.
 const capPluginAuthClientSuppliedData uint32 = 0x00080000
 
+// COM_* command opcodes for the commands the planner special-cases.
+// Values per the MySQL protocol (sql-common/my_command.h). Earlier
+// versions of the design doc and planner used shifted values (0x0f for
+// COM_PING, 0x1a/0x1b/0x1d for COM_STMT_PREPARE/EXECUTE/CLOSE), which
+// made Wireshark dissect the packets as COM_TIME / COM_STMT_RESET /
+// COM_SET_OPTION / COM_DAEMON — fixed per wire-capture verification.
+const (
+	comPing        uint8 = 0x0e // COM_PING: server replies OK
+	comStmtPrepare uint8 = 0x16 // COM_STMT_PREPARE
+	comStmtExecute uint8 = 0x17 // COM_STMT_EXECUTE
+	comStmtClose   uint8 = 0x19 // COM_STMT_CLOSE: no server reply
+)
+
 // Planner implements the MySQL protocol planner.
 type Planner struct{}
 
@@ -298,7 +311,7 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("mysql: Commands[%d].ReplyMode %q not recognized", i, cmd.ReplyMode)
 		}
 		// COM_STMT_EXECUTE requires StmtID.
-		if cmd.Opcode == 0x1b && cmd.StmtID == 0 {
+		if cmd.Opcode == comStmtExecute && cmd.StmtID == 0 {
 			return fmt.Errorf("mysql: Commands[%d] is COM_STMT_EXECUTE but StmtID == 0", i)
 		}
 	}
@@ -468,11 +481,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// --- 5. Each MySQLCommand ---
 		for _, cmd := range mc.Commands {
 			// Client command (up): 4-byte header + opcode + body. When
-			// the opcode is COM_STMT_EXECUTE (0x1b) and Body is empty,
+			// the opcode is COM_STMT_EXECUTE (0x17) and Body is empty,
 			// the planner auto-encodes the request from StmtID +
 			// StmtFlags + IterationCount + StmtParams.
 			var cmdPacket []byte
-			if cmd.Opcode == 0x1b && cmd.Body == "" && cmd.StmtID != 0 {
+			if cmd.Opcode == comStmtExecute && cmd.Body == "" && cmd.StmtID != 0 {
 				cmdPacket = encodeStmtExecuteRequest(cmd)
 			} else {
 				bodyBytes, _ := decodeUserBytes(cmd.Body, cmd.BodyEncoding)
@@ -1281,7 +1294,7 @@ func encodeStmtExecuteRequest(cmd core.MySQLCommand) []byte {
 	}
 
 	buf := make([]byte, 0, 9+bitmapLen+1+2*numParams)
-	buf = append(buf, 0x1b) // COM_STMT_EXECUTE opcode
+	buf = append(buf, comStmtExecute) // COM_STMT_EXECUTE opcode (0x17)
 	buf = append(buf, encodeLEUint32(cmd.StmtID)...)
 	buf = append(buf, cmd.StmtFlags)
 	buf = append(buf, encodeLEUint32(iterCount)...)

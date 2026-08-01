@@ -610,10 +610,12 @@ func TestScenario_Relay(t *testing.T) {
 			t.Errorf("relay config[%d] direction = %s, want %s", i, c.Direction, wantDirs[i])
 		}
 	}
-	// Verify hop-count = 1 at offset 1.
+	// Verify hop-count = 0 at offset 1 (RFC 8415 §19.1.1: relay agent
+	// receiving a client message forwards with hop-count 0; only relay-to-
+	// relay forwarding increments per §19.2.1).
 	for i, c := range cfgs {
-		if c.Payload[1] != 1 {
-			t.Errorf("relay config[%d] hop-count = %d, want 1", i, c.Payload[1])
+		if c.Payload[1] != 0 {
+			t.Errorf("relay config[%d] hop-count = %d, want 0", i, c.Payload[1])
 		}
 	}
 }
@@ -635,6 +637,47 @@ func TestScenario_Relay_InnerSARR(t *testing.T) {
 		}
 		if relayMsg[0] != wantInner[i] {
 			t.Errorf("relay config[%d] inner msg-type = 0x%02x, want 0x%02x", i, relayMsg[0], wantInner[i])
+		}
+	}
+}
+
+// TestScenario_Relay_HopCount verifies the RELAY-FORW/RELAY-REPL hop-count
+// field (payload byte 1) of the relay scenario.
+//
+// RFC 8415 §7.2 (relay agent) / §19.1.1: a relay agent receiving a message
+// directly from a client sets hop-count 0 in the Relay-forward message it
+// sends to the server; only forwarding between relay agents increments it
+// (§19.2.1). So in the single-hop scenario (client → relay → server) the
+// default hop-count MUST be 0, and a user-configured hop_count (>0) models a
+// message that already traversed other relays and is honored verbatim.
+func TestScenario_Relay_HopCount(t *testing.T) {
+	// Default (hop_count unset): hop-count must be 0 per RFC 8415 §19.1.1.
+	spec := scenarioSpec("relay")
+	spec.DHCPv6.RelayConfig = &core.RelayConfig{
+		RelayIP:  "2001:db8::1",
+		RelayMAC: "00:aa:bb:cc:dd:ee",
+	}
+	cfgs := mustPlanScenario(t, spec)
+	if len(cfgs) != 4 {
+		t.Fatalf("relay: expected 4 packets, got %d", len(cfgs))
+	}
+	for i, c := range cfgs {
+		if c.Payload[1] != 0 {
+			t.Errorf("relay config[%d] default hop-count = %d, want 0 (RFC 8415 §19.1.1 single-hop)", i, c.Payload[1])
+		}
+	}
+
+	// Explicit hop_count=2 (multi-hop simulation): honored verbatim.
+	spec2 := scenarioSpec("relay")
+	spec2.DHCPv6.RelayConfig = &core.RelayConfig{
+		RelayIP:  "2001:db8::1",
+		RelayMAC: "00:aa:bb:cc:dd:ee",
+		HopCount: 2,
+	}
+	cfgs2 := mustPlanScenario(t, spec2)
+	for i, c := range cfgs2 {
+		if c.Payload[1] != 2 {
+			t.Errorf("relay config[%d] configured hop-count = %d, want 2", i, c.Payload[1])
 		}
 	}
 }

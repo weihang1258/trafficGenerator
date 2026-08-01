@@ -713,15 +713,24 @@ func encodePDUWithTag(tag byte, requestID uint32, field1, field2 uint8, varBinds
 	if err != nil {
 		return nil, err
 	}
-	body := encodeSequence(idEnc, f1Enc, f2Enc, vbsEnc)
-	// PDU is a Constructed Context-specific tag wrapping the SEQUENCE body.
-	// The body is already a SEQUENCE; we just prepend tag+length.
+	// PDU types are `[N] IMPLICIT SEQUENCE` (RFC 3416 §4.2.1-4.2.7): the
+	// context-specific tag REPLACES the SEQUENCE tag, so the fields are
+	// concatenated directly under the PDU tag -- no inner SEQUENCE wrapper.
+	// (An extra 0x30 here makes Wireshark report "expected INTEGER tag:2 but
+	// found SEQUENCE tag:16".)
+	body := make([]byte, 0, len(idEnc)+len(f1Enc)+len(f2Enc)+len(vbsEnc))
+	body = append(body, idEnc...)
+	body = append(body, f1Enc...)
+	body = append(body, f2Enc...)
+	body = append(body, vbsEnc...)
 	return append([]byte{tag}, append(encodeLength(len(body)), body...)...), nil
 }
 
 // encodeV1TrapPDU encodes an SNMPv1 Trap PDU (tag 0xA4) with the special
 // layout: enterprise OID + agent-addr + generic-trap + specific-trap +
-// time-stamp + varbinds (no request-id/error-status/error-index).
+// time-stamp + varbinds (no request-id/error-status/error-index). Trap-PDU is
+// `[4] IMPLICIT SEQUENCE` (RFC 1157 §4.1.6) -- the 0xA4 tag replaces the
+// SEQUENCE tag, so fields are concatenated directly (no inner SEQUENCE).
 func encodeV1TrapPDU(enterprise string, agentAddr string, genericTrap, specificTrap uint8, timeStamp uint32, varBinds []core.SNMPVarBind) ([]byte, error) {
 	entOID, err := encodeOID(enterprise)
 	if err != nil {
@@ -738,7 +747,10 @@ func encodeV1TrapPDU(enterprise string, agentAddr string, genericTrap, specificT
 	if err != nil {
 		return nil, err
 	}
-	body := encodeSequence(entOID, ipEnc, gtEnc, stEnc, tsEnc, vbsEnc)
+	body := make([]byte, 0, len(entOID)+len(ipEnc)+len(gtEnc)+len(stEnc)+len(tsEnc)+len(vbsEnc))
+	for _, part := range [][]byte{entOID, ipEnc, gtEnc, stEnc, tsEnc, vbsEnc} {
+		body = append(body, part...)
+	}
 	return append([]byte{TagTrapV1}, append(encodeLength(len(body)), body...)...), nil
 }
 

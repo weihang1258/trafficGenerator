@@ -26,7 +26,7 @@ func TestMySQL_PrepareOK_BasicLayout(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1a, Body: "SELECT 1", ReplyMode: "prepare-ok",
+		{Opcode: 0x16, Body: "SELECT 1", ReplyMode: "prepare-ok",
 			StmtID: 1, WarningCount: 0,
 			ColDefs: []core.MySQLColDef{{Name: "1", OrgName: "1", Type: mysqlTypeLongLong, Charset: 33, Length: 1}},
 		},
@@ -74,7 +74,7 @@ func TestMySQL_PrepareOK_WithParams(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1a, Body: "SELECT ?", ReplyMode: "prepare-ok",
+		{Opcode: 0x16, Body: "SELECT ?", ReplyMode: "prepare-ok",
 			StmtID: 7,
 			Params: []core.MySQLColDef{{Name: "?", OrgName: "?", Type: mysqlTypeVarchar, Charset: 33, Length: 255}},
 			ColDefs: []core.MySQLColDef{{Name: "?", OrgName: "?", Type: mysqlTypeVarchar, Charset: 33, Length: 255}},
@@ -107,7 +107,7 @@ func TestMySQL_PrepareOK_NoParamsNoCols(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1a, Body: "DO 1", ReplyMode: "prepare-ok", StmtID: 42},
+		{Opcode: 0x16, Body: "DO 1", ReplyMode: "prepare-ok", StmtID: 42},
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	// Layout: handshake(3) + greeting(1) + response(1) + authOK(1) +
@@ -132,7 +132,7 @@ func TestMySQL_PrepareOK_SeqStartsAtOne(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1a, Body: "SELECT 1", ReplyMode: "prepare-ok", StmtID: 1},
+		{Opcode: 0x16, Body: "SELECT 1", ReplyMode: "prepare-ok", StmtID: 1},
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	if cfgs[7].Payload[3] != 0x01 {
@@ -149,7 +149,7 @@ func TestMySQL_BinaryResult_EmitsColumnDefs(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1b, StmtID: 1, ReplyMode: "binary-result",
+		{Opcode: 0x17, StmtID: 1, ReplyMode: "binary-result",
 			ColDefs: []core.MySQLColDef{
 				{Name: "id", OrgName: "id", Type: mysqlTypeLongLong, Charset: 33, Length: 11},
 				{Name: "name", OrgName: "name", Type: mysqlTypeVarString, Charset: 33, Length: 50},
@@ -198,7 +198,7 @@ func TestMySQL_BinaryResult_RowHeaderZero(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1b, StmtID: 1, ReplyMode: "binary-result",
+		{Opcode: 0x17, StmtID: 1, ReplyMode: "binary-result",
 			ColDefs: []core.MySQLColDef{{Name: "v", OrgName: "v", Type: mysqlTypeTiny, Charset: 33, Length: 4}},
 			Rows:    []core.MySQLRow{{Values: []string{"42"}}},
 		},
@@ -220,7 +220,7 @@ func TestMySQL_BinaryResult_NullBitmapOffset(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1b, StmtID: 1, ReplyMode: "binary-result",
+		{Opcode: 0x17, StmtID: 1, ReplyMode: "binary-result",
 			ColDefs: []core.MySQLColDef{
 				{Name: "a", OrgName: "a", Type: mysqlTypeTiny, Charset: 33, Length: 4},
 				{Name: "b", OrgName: "b", Type: mysqlTypeTiny, Charset: 33, Length: 4},
@@ -242,7 +242,7 @@ func TestMySQL_BinaryResult_LongLong8Bytes(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1b, StmtID: 1, ReplyMode: "binary-result",
+		{Opcode: 0x17, StmtID: 1, ReplyMode: "binary-result",
 			ColDefs: []core.MySQLColDef{{Name: "v", OrgName: "v", Type: mysqlTypeLongLong, Charset: 33, Length: 20}},
 			Rows:    []core.MySQLRow{{Values: []string{"42"}}},
 		},
@@ -270,7 +270,7 @@ func TestMySQL_BinaryResult_StringAsLenenc(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1b, StmtID: 1, ReplyMode: "binary-result",
+		{Opcode: 0x17, StmtID: 1, ReplyMode: "binary-result",
 			ColDefs: []core.MySQLColDef{{Name: "v", OrgName: "v", Type: mysqlTypeVarchar, Charset: 33, Length: 50}},
 			Rows:    []core.MySQLRow{{Values: []string{"hello"}}},
 		},
@@ -436,12 +436,12 @@ func TestMySQL_NoReply_COM_QUIT(t *testing.T) {
 	}
 }
 
-// no-reply for COM_STMT_CLOSE (0x1d) also emits no reply.
+// no-reply for COM_STMT_CLOSE (0x19) also emits no reply.
 func TestMySQL_NoReply_COM_STMT_CLOSE(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1d, Body: string([]byte{0x01, 0x00, 0x00, 0x00}), ReplyMode: "no-reply"},
+		{Opcode: 0x19, Body: string([]byte{0x01, 0x00, 0x00, 0x00}), ReplyMode: "no-reply"},
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	// handshake(3) + greeting(1) + response(1) + authOK(1) + STMT_CLOSE up(1) + teardown(4) = 11.
@@ -459,15 +459,15 @@ func TestMySQL_StmtExecute_AutoEncodeBody(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1b, StmtID: 42, IterationCount: 1, StmtFlags: 0, ReplyMode: "binary-result",
+		{Opcode: 0x17, StmtID: 42, IterationCount: 1, StmtFlags: 0, ReplyMode: "binary-result",
 			ColDefs: []core.MySQLColDef{{Name: "v", OrgName: "v", Type: mysqlTypeLongLong, Charset: 33, Length: 20}},
 		},
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	cmdBody := cfgs[6].Payload[4:] // strip 4-byte header
-	// Expected: 0x1b + stmt_id(4 LE) + flags(1) + iteration_count(4 LE) = 10 bytes (no params).
+	// Expected: 0x17 + stmt_id(4 LE) + flags(1) + iteration_count(4 LE) = 10 bytes (no params).
 	want := []byte{
-		0x1b,
+		0x17,
 		0x2a, 0x00, 0x00, 0x00, // stmt_id=42
 		0x00,             // flags
 		0x01, 0x00, 0x00, 0x00, // iteration_count=1
@@ -482,7 +482,7 @@ func TestMySQL_StmtExecute_AutoEncodeWithParams(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1b, StmtID: 7, IterationCount: 1, ReplyMode: "binary-result",
+		{Opcode: 0x17, StmtID: 7, IterationCount: 1, ReplyMode: "binary-result",
 			ColDefs: []core.MySQLColDef{{Name: "v", OrgName: "v", Type: mysqlTypeLongLong, Charset: 33, Length: 20}},
 			StmtParams: []core.MySQLStmtParam{
 				{Type: mysqlTypeLongLong, Value: "100"},
@@ -491,7 +491,7 @@ func TestMySQL_StmtExecute_AutoEncodeWithParams(t *testing.T) {
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	cmdBody := cfgs[6].Payload[4:]
-	// 0x1b + stmt_id(4) + flags(1) + iter_count(4) +
+	// 0x17 + stmt_id(4) + flags(1) + iter_count(4) +
 	//   null_bitmap(1 byte) + new_params_bind_flag(1) + param_type(2) + value(8 LE) = 22 bytes.
 	if len(cmdBody) != 22 {
 		t.Fatalf("body len=%d, want 22", len(cmdBody))
@@ -519,7 +519,7 @@ func TestMySQL_StmtExecute_NullParam(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1b, StmtID: 1, ReplyMode: "binary-result",
+		{Opcode: 0x17, StmtID: 1, ReplyMode: "binary-result",
 			StmtParams: []core.MySQLStmtParam{{Type: mysqlTypeLongLong, IsNull: true}},
 		},
 	}
@@ -541,11 +541,11 @@ func TestMySQL_StmtExecute_UserBodyTakesPrecedence(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1b, StmtID: 999, Body: "RAW_BODY", ReplyMode: "ok"},
+		{Opcode: 0x17, StmtID: 999, Body: "RAW_BODY", ReplyMode: "ok"},
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	cmdBody := cfgs[6].Payload[4:]
-	want := append([]byte{0x1b}, []byte("RAW_BODY")...)
+	want := append([]byte{0x17}, []byte("RAW_BODY")...)
 	if !bytes.Equal(cmdBody, want) {
 		t.Errorf("body=%x, want %x (raw body)", cmdBody, want)
 	}
@@ -683,7 +683,7 @@ func TestMySQL_Validate_AcceptsNewReplyModes(t *testing.T) {
 	p := NewPlanner()
 	for _, mode := range []string{"ok-custom", "err-custom", "prepare-ok", "no-reply"} {
 		spec := validMySQLSpec()
-		spec.MySQL.Commands = []core.MySQLCommand{{Opcode: 0x0f, ReplyMode: mode}}
+		spec.MySQL.Commands = []core.MySQLCommand{{Opcode: 0x0e, ReplyMode: mode}}
 		if err := p.Validate(spec); err != nil {
 			t.Errorf("ReplyMode=%q: Validate err=%v", mode, err)
 		}
@@ -693,7 +693,7 @@ func TestMySQL_Validate_AcceptsNewReplyModes(t *testing.T) {
 func TestMySQL_Validate_RejectsUnknownMode(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
-	spec.MySQL.Commands = []core.MySQLCommand{{Opcode: 0x0f, ReplyMode: "nonexistent"}}
+	spec.MySQL.Commands = []core.MySQLCommand{{Opcode: 0x0e, ReplyMode: "nonexistent"}}
 	if err := p.Validate(spec); err == nil {
 		t.Errorf("expected error for unknown ReplyMode")
 	}
@@ -767,7 +767,7 @@ func TestMySQL_BinaryResult_PropagatesStatusFlags(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1b, StmtID: 1, ReplyMode: "binary-result",
+		{Opcode: 0x17, StmtID: 1, ReplyMode: "binary-result",
 			ColDefs: []core.MySQLColDef{{Name: "v", OrgName: "v", Type: mysqlTypeLongLong, Charset: 33, Length: 20}},
 			StatusFlags: serverStatusInTrans,
 		},
@@ -792,24 +792,24 @@ func TestMySQL_PreparedStatementFlow_STMT_PREPARE_EXECUTE_CLOSE(t *testing.T) {
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
 		// COM_STMT_PREPARE
-		{Opcode: 0x1a, Body: "SELECT ?", ReplyMode: "prepare-ok",
+		{Opcode: 0x16, Body: "SELECT ?", ReplyMode: "prepare-ok",
 			StmtID: 1,
 			Params: []core.MySQLColDef{{Name: "?", OrgName: "?", Type: mysqlTypeVarchar, Charset: 33, Length: 255}},
 			ColDefs: []core.MySQLColDef{{Name: "?", OrgName: "?", Type: mysqlTypeVarchar, Charset: 33, Length: 255}},
 		},
 		// COM_STMT_EXECUTE (auto-encoded body, binary result)
-		{Opcode: 0x1b, StmtID: 1, ReplyMode: "binary-result",
+		{Opcode: 0x17, StmtID: 1, ReplyMode: "binary-result",
 			ColDefs: []core.MySQLColDef{{Name: "?", OrgName: "?", Type: mysqlTypeVarchar, Charset: 33, Length: 255}},
 			Rows:    []core.MySQLRow{{Values: []string{"hello"}}},
 			StmtParams: []core.MySQLStmtParam{{Type: mysqlTypeVarchar, Value: "hello"}},
 		},
 		// COM_STMT_CLOSE
-		{Opcode: 0x1d, Body: string([]byte{0x01, 0x00, 0x00, 0x00}), ReplyMode: "no-reply"},
+		{Opcode: 0x19, Body: string([]byte{0x01, 0x00, 0x00, 0x00}), ReplyMode: "no-reply"},
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	// Verify that the command opcodes appear in order.
 	// Up commands at cfgs[6], cfgs[13], cfgs[20] (after greeting+auth).
-	expectedOpcodes := []uint8{0x1a, 0x1b, 0x1d}
+	expectedOpcodes := []uint8{0x16, 0x17, 0x19}
 	cmdIdx := 6
 	for i, op := range expectedOpcodes {
 		actualIdx := cmdIdx
@@ -843,7 +843,7 @@ func TestMySQL_StmtExecute_UnsignedFlag(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1b, StmtID: 1, ReplyMode: "binary-result",
+		{Opcode: 0x17, StmtID: 1, ReplyMode: "binary-result",
 			StmtParams: []core.MySQLStmtParam{{Type: mysqlTypeLongLong, Unsigned: true, Value: "100"}},
 		},
 	}

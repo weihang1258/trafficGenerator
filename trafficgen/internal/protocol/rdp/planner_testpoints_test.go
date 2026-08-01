@@ -1812,11 +1812,15 @@ func TestState_NLASkipsSecurityExchange(t *testing.T) {
 	// No Security Exchange PDU should appear (SEC_EXCHANGE_PKT byte 0x80
 	// at the start of any up payload after TPKT(4)+X.224 DT(3) = 7).
 	for _, cfg := range configs {
-		if cfg.Direction != "up" || len(cfg.Payload) < 8 {
+		if cfg.Direction != "up" {
+			continue
+		}
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 8 {
 			continue
 		}
 		// The security exchange starts at offset 7 (after TPKT+X.224 DT).
-		if cfg.Payload[7] == SecExchangePkt&0xFF {
+		if pl[7] == SecExchangePkt&0xFF {
 			t.Errorf("NLA: Security Exchange PDU unexpectedly emitted")
 		}
 	}
@@ -1840,10 +1844,14 @@ func TestState_SkipChannelJoin(t *testing.T) {
 	configs := drainConfigs(t, ch)
 
 	for _, cfg := range configs {
-		if cfg.Direction != "up" || len(cfg.Payload) < 8 {
+		if cfg.Direction != "up" {
 			continue
 		}
-		if cfg.Payload[7] == MCSChannelJoinRequest {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 8 {
+			continue
+		}
+		if pl[7] == MCSChannelJoinRequest {
 			t.Errorf("SkipMCSChannelJoin: Channel-Join Request unexpectedly emitted")
 		}
 	}
@@ -1874,7 +1882,8 @@ func TestState_ChannelsEmitPerChannel(t *testing.T) {
 	// Count Channel-Join Requests.
 	count := 0
 	for _, cfg := range configs {
-		if cfg.Direction == "up" && len(cfg.Payload) >= 8 && cfg.Payload[7] == MCSChannelJoinRequest {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if cfg.Direction == "up" && len(pl) >= 8 && pl[7] == MCSChannelJoinRequest {
 			count++
 		}
 	}
@@ -1900,7 +1909,8 @@ func TestState_EmptyChannelsSkipsStaticCJ(t *testing.T) {
 
 	count := 0
 	for _, cfg := range configs {
-		if cfg.Direction == "up" && len(cfg.Payload) >= 8 && cfg.Payload[7] == MCSChannelJoinRequest {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if cfg.Direction == "up" && len(pl) >= 8 && pl[7] == MCSChannelJoinRequest {
 			count++
 		}
 	}
@@ -1975,8 +1985,9 @@ func TestState_SkipLicense(t *testing.T) {
 		if cfg.Direction != "down" {
 			continue
 		}
+		pl := unwrapTLSAppData(cfg.Payload)
 		// License Request is wrapped in TPKT+X.224 DT, bMsgType at offset 7.
-		if len(cfg.Payload) >= 8 && cfg.Payload[7] == LicenseRequest {
+		if len(pl) >= 8 && pl[7] == LicenseRequest {
 			t.Errorf("SkipLicense: License Request unexpectedly emitted")
 		}
 	}
@@ -2109,13 +2120,17 @@ func TestScenario_MultiChannel(t *testing.T) {
 	// Collect Channel-Join request ChannelIds.
 	ids := map[uint16]bool{}
 	for _, cfg := range configs {
-		if cfg.Direction != "up" || len(cfg.Payload) < 12 {
+		if cfg.Direction != "up" {
 			continue
 		}
-		if cfg.Payload[7] != MCSChannelJoinRequest {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 12 {
 			continue
 		}
-		id := uint16(cfg.Payload[10])<<8 | uint16(cfg.Payload[11])
+		if pl[7] != MCSChannelJoinRequest {
+			continue
+		}
+		id := uint16(pl[10])<<8 | uint16(pl[11])
 		ids[id] = true
 	}
 	for _, want := range []uint16{1003, 1004, 1005, 1006, 1007} {

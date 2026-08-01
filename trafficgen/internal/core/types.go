@@ -1322,7 +1322,8 @@ type RelayConfig struct {
 	RelayIP string `json:"relay_ip"`
 	// RelayMAC: 中继代理的 MAC（用于 L2）。
 	RelayMAC string `json:"relay_mac"`
-	// HopCount: 起始 hop-count，默认 1。
+	// HopCount: 起始 hop-count，默认 0（RFC 8415 §19.1.1：relay 收到客户端
+	// 报文转发时 hop-count 为 0，仅 relay 间多跳转发才递增）。
 	HopCount uint8 `json:"hop_count,omitempty"`
 	// InterfaceID: 中继代理的接口标识（option 18），可为空。
 	InterfaceID []byte `json:"interface_id,omitempty"`
@@ -2866,7 +2867,7 @@ type MySQLCommand struct {
 	StatusFlags  uint16 `json:"status_flags,omitempty"`
 	Warnings     uint16 `json:"warnings,omitempty"`
 
-	// For COM_STMT_EXECUTE request auto-encoding: when Opcode=0x1b and
+	// For COM_STMT_EXECUTE request auto-encoding: when Opcode=0x17 and
 	// Body is empty, the planner auto-encodes the request from StmtID +
 	// StmtFlags + IterationCount + StmtParams. When Body is non-empty,
 	// the user-provided Body takes precedence (raw mode).

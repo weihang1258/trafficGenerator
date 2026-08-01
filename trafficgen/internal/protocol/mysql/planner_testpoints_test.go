@@ -50,7 +50,7 @@ func TestMySQLPoint_1_1_1_4_ZeroPayloadPacket(t *testing.T) {
 	spec := validMySQLSpec()
 	// Replace ping with a raw reply of zero bytes.
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x0f, ReplyMode: "raw", ReplyBytes: "", ReplyEncoding: "hex"},
+		{Opcode: 0x0e, ReplyMode: "raw", ReplyBytes: "", ReplyEncoding: "hex"},
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	// cfgs[7] should be the OK packet (default for empty raw).
@@ -725,44 +725,44 @@ func TestMySQLPoint_1_4_3_4_COM_QUERY_HexBody(t *testing.T) {
 	}
 }
 
-// 1.4.13.1: COM_PING (0x0f) -> 1 byte opcode.
+// 1.4.13.1: COM_PING (0x0e) -> 1 byte opcode.
 func TestMySQLPoint_1_4_13_1_COM_PING(t *testing.T) {
 	p := NewPlanner()
 	cfgs := drain(mustPlan(t, p, validMySQLSpec()))
 	cmd := cfgs[6].Payload
-	if len(cmd) != 5 || cmd[4] != 0x0f {
-		t.Errorf("COM_PING cmd=%x, want 4-byte header + 0x0f", cmd)
+	if len(cmd) != 5 || cmd[4] != 0x0e {
+		t.Errorf("COM_PING cmd=%x, want 4-byte header + 0x0e", cmd)
 	}
 }
 
-// 1.4.18.1: COM_STMT_PREPARE (0x1a) + "SELECT ?\0" body.
+// 1.4.18.1: COM_STMT_PREPARE (0x16) + "SELECT ?\0" body.
 func TestMySQLPoint_1_4_18_1_COM_STMT_PREPARE(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1a, Body: "SELECT ?", ReplyMode: "ok"},
+		{Opcode: 0x16, Body: "SELECT ?", ReplyMode: "ok"},
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	cmd := cfgs[6].Payload
 	body := cmd[4:]
-	want := append([]byte{0x1a}, []byte("SELECT ?")...)
+	want := append([]byte{0x16}, []byte("SELECT ?")...)
 	if !bytes.Equal(body, want) {
 		t.Errorf("COM_STMT_PREPARE body=%x, want %x", body, want)
 	}
 }
 
-// 1.4.21.1: COM_STMT_CLOSE (0x1d) + stmt_id(4) -> 5-byte body.
+// 1.4.21.1: COM_STMT_CLOSE (0x19) + stmt_id(4) -> 5-byte body.
 func TestMySQLPoint_1_4_21_1_COM_STMT_CLOSE(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x1d, Body: string([]byte{0x01, 0x00, 0x00, 0x00}), BodyEncoding: "text", ReplyMode: "ok"},
+		{Opcode: 0x19, Body: string([]byte{0x01, 0x00, 0x00, 0x00}), BodyEncoding: "text", ReplyMode: "ok"},
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	cmd := cfgs[6].Payload
 	body := cmd[4:]
-	if len(body) != 5 || body[0] != 0x1d {
-		t.Errorf("COM_STMT_CLOSE body=%x, want 0x1d + 4-byte stmt_id", body)
+	if len(body) != 5 || body[0] != 0x19 {
+		t.Errorf("COM_STMT_CLOSE body=%x, want 0x19 + 4-byte stmt_id", body)
 	}
 }
 
@@ -1039,7 +1039,7 @@ func TestMySQLPoint_2_2_1_1_QueryOKThenNextCommand(t *testing.T) {
 	spec := validMySQLSpec()
 	spec.MySQL.Commands = []core.MySQLCommand{
 		{Opcode: 0x03, Body: "SELECT 1", ReplyMode: "ok"},
-		{Opcode: 0x0f, ReplyMode: "ok"}, // COM_PING after the query
+		{Opcode: 0x0e, ReplyMode: "ok"}, // COM_PING after the query
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	// Layout: handshake(3) + greeting(1) + response(1) + authOK(1) +
@@ -1246,7 +1246,7 @@ func TestMySQLPoint_4_2_2_SeqID255(t *testing.T) {
 	spec.MySQL.MaxPacketSize = 1 // forces 1-byte chunks
 	// 256 'A' chars -> 256 packets, each with seq 1, 2, ..., 255, 0 (wraps).
 	spec.MySQL.Commands = []core.MySQLCommand{
-		{Opcode: 0x0f, ReplyMode: "raw", ReplyBytes: strings.Repeat("A", 256), ReplyEncoding: "text"},
+		{Opcode: 0x0e, ReplyMode: "raw", ReplyBytes: strings.Repeat("A", 256), ReplyEncoding: "text"},
 	}
 	cfgs := drain(mustPlan(t, p, spec))
 	// Find first down-packet after the command (cfgs[6] = cmd up).
@@ -1353,7 +1353,7 @@ func TestMySQLPoint_6_2_ContextCancel(t *testing.T) {
 	// Generate a large spec to give the planner time to be cancellable.
 	spec.MySQL.Commands = make([]core.MySQLCommand, 1000)
 	for i := range spec.MySQL.Commands {
-		spec.MySQL.Commands[i] = core.MySQLCommand{Opcode: 0x0f, ReplyMode: "ok"}
+		spec.MySQL.Commands[i] = core.MySQLCommand{Opcode: 0x0e, ReplyMode: "ok"}
 	}
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {

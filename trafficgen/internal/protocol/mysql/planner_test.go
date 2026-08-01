@@ -34,7 +34,7 @@ func validMySQLSpec() core.FlowSpec {
 			Username:      "root",
 			Password:      "secret",
 			Commands: []core.MySQLCommand{
-				{Opcode: 0x0f, ReplyMode: "ok"}, // COM_PING
+				{Opcode: 0x0e, ReplyMode: "ok"}, // COM_PING
 			},
 		},
 	}
@@ -152,7 +152,7 @@ func TestMySQLValidate_BadReplyMode(t *testing.T) {
 func TestMySQLValidate_COMStmtExecuteNoStmtID(t *testing.T) {
 	p := NewPlanner()
 	spec := validMySQLSpec()
-	spec.MySQL.Commands = []core.MySQLCommand{{Opcode: 0x1b, ReplyMode: "binary-result"}}
+	spec.MySQL.Commands = []core.MySQLCommand{{Opcode: 0x17, ReplyMode: "binary-result"}}
 	err := p.Validate(spec)
 	if err == nil || !strings.Contains(err.Error(), "StmtID") {
 		t.Errorf("err=%v, want contains 'StmtID'", err)

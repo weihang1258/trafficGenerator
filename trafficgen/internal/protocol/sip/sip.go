@@ -34,6 +34,13 @@
 // did not supply a Content-Length header (matched case-insensitively).
 // This matches the behavior of real SIP stacks, which always set
 // Content-Length on requests with bodies.
+//
+// Dialog header completion: the RFC 3261 mandatory dialog headers
+// (Call-ID, From, To, Via, CSeq — §8.1.1 / §20.8, and Max-Forwards for
+// requests) are auto-appended to messages that omit them, derived from
+// the dialog context (see completeDialogHeaders). The user's own
+// headers always win (user > default > none), and a dialog in which no
+// message carries a Call-ID renders every message verbatim.
 package sip
 
 import (
@@ -200,7 +207,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 
 		// --- SIP dialog (each message becomes one or more PSH-ACK segments) ---
+		var dc dialogCtx
 		for _, msg := range sipConfig.Dialog {
+			completeDialogHeaders(&msg, &dc, spec)
 			payload := renderSIPMessage(msg)
 			if len(payload) == 0 {
 				continue
@@ -305,6 +314,231 @@ func renderSIPMessage(msg core.SIPMessage) []byte {
 	}
 
 	return []byte(b.String())
+}
+
+// dialogCtx tracks the dialog-scoped header values the planner inherits
+// into messages that omit them. RFC 3261 §8.1.1 / §20.8: Call-ID, From,
+// To, Via and CSeq are mandatory in every request and every response,
+// and all messages of one dialog share the dialog's values (the ACK
+// completes the INVITE's dialog — it must carry the INVITE's Call-ID).
+//
+// The context activates on the first Call-ID seen (normally the INVITE)
+// and is only seeded from requests: a response echoes the request it
+// answers — it never defines dialog values. While active, the planner
+// appends the missing mandatory headers to each message; the user's own
+// headers always win (user > default > none). When no message carries a
+// Call-ID the context stays inactive and every message renders verbatim
+// — the planner never invents a Call-ID (a dialog without one is the
+// user's config choice, e.g. digest-auth REGISTER dialogs that supply
+// only From).
+type dialogCtx struct {
+	active      bool   // a Call-ID has been seen in the dialog
+	callID      string // dialog Call-ID (first occurrence wins)
+	from        string // dialog From (first occurrence wins)
+	to          string // dialog To (first occurrence wins)
+	via         string // dialog Via (first occurrence wins; generated when none)
+	maxForwards string // dialog Max-Forwards (first occurrence wins)
+
+	inviteCSeq int    // CSeq number of the most recent INVITE
+	cseqNext   int    // CSeq number of the last non-ACK/CANCEL request (0 before the INVITE)
+	lastCSeq   string // full CSeq line of the last request (responses echo it)
+	lastFrom   string // full From line of the last request (responses echo it)
+	lastTo     string // full To line of the last request (responses echo it)
+	lastVia    string // full Via line of the last request (responses echo it)
+}
+
+// completeDialogHeaders fills the RFC 3261 mandatory headers that a
+// dialog message omits, deriving them from the dialog context carried in
+// dc. Mutates msg.Headers in place (msg is a per-iteration copy in Plan,
+// so the user's SIPConfig.Dialog is untouched). Messages without both
+// Method and StatusCode are left alone — renderSIPMessage emits nothing
+// for them anyway.
+func completeDialogHeaders(msg *core.SIPMessage, dc *dialogCtx, spec core.FlowSpec) {
+	isRequest := msg.Method != ""
+	isResponse := !isRequest && msg.StatusCode != 0
+	if !isRequest && !isResponse {
+		return
+	}
+
+	// Seed the dialog context from request headers (first occurrence
+	// wins). Responses only consume the context.
+	if isRequest {
+		if v, ok := findHeader(msg.Headers, "Call-ID"); ok && dc.callID == "" {
+			dc.callID = v
+			dc.active = true
+		}
+		if v, ok := findHeader(msg.Headers, "From"); ok && dc.from == "" {
+			dc.from = v
+		}
+		if v, ok := findHeader(msg.Headers, "To"); ok && dc.to == "" {
+			dc.to = v
+		}
+		if v, ok := findHeader(msg.Headers, "Via"); ok && dc.via == "" {
+			dc.via = v
+		}
+		if v, ok := findHeader(msg.Headers, "Max-Forwards"); ok && dc.maxForwards == "" {
+			dc.maxForwards = v
+		}
+	}
+
+	if isRequest {
+		completeRequestHeaders(msg, dc, spec)
+	} else if dc.active {
+		completeResponseHeaders(msg, dc)
+	}
+}
+
+// completeRequestHeaders fills the mandatory request headers (RFC 3261
+// §8.1.1: Via, From, To, Call-ID, CSeq, Max-Forwards) that the request
+// omits, and advances the dialog CSeq state.
+//
+// CSeq rules: the CSeq method must match the request's method (§20.16).
+// ACK-for-2xx and CANCEL reuse the INVITE's CSeq number (§13.2.2.4 for
+// the ACK that completes an INVITE; §9.1 for CANCEL — it cancels the
+// INVITE transaction, not a new one). Every other request — including a
+// re-INVITE — starts a new transaction with the next CSeq number
+// (§12.2.1.1, §14.1). A user-supplied CSeq always wins and re-syncs the
+// counters so subsequent fills stay consistent with it.
+func completeRequestHeaders(msg *core.SIPMessage, dc *dialogCtx, spec core.FlowSpec) {
+	if line, ok := findHeader(msg.Headers, "CSeq"); ok {
+		n := parseCSeqNumber(line)
+		switch msg.Method {
+		case "INVITE":
+			dc.inviteCSeq, dc.cseqNext = n, n
+		case "ACK", "CANCEL":
+			// References the INVITE transaction; counters unchanged.
+		default:
+			dc.cseqNext = n
+		}
+		dc.lastCSeq = line
+	} else if dc.active {
+		n := dc.cseqNext
+		switch msg.Method {
+		case "INVITE":
+			if n == 0 {
+				n = 1
+			} else {
+				n++ // re-INVITE: new transaction, next number
+			}
+			dc.inviteCSeq, dc.cseqNext = n, n
+		case "ACK", "CANCEL":
+			n = dc.inviteCSeq
+			if n == 0 {
+				n = 1
+			}
+		default:
+			if n == 0 {
+				n = 1
+			} else {
+				n++
+			}
+			dc.cseqNext = n
+		}
+		line := fmt.Sprintf("CSeq: %d %s", n, msg.Method)
+		msg.Headers = append(msg.Headers, line)
+		dc.lastCSeq = line
+	}
+
+	if !dc.active {
+		return
+	}
+	if _, ok := findHeader(msg.Headers, "Call-ID"); !ok {
+		msg.Headers = append(msg.Headers, dc.callID)
+	}
+	if _, ok := findHeader(msg.Headers, "From"); !ok && dc.from != "" {
+		msg.Headers = append(msg.Headers, dc.from)
+	}
+	if _, ok := findHeader(msg.Headers, "To"); !ok && dc.to != "" {
+		msg.Headers = append(msg.Headers, dc.to)
+	}
+	if _, ok := findHeader(msg.Headers, "Via"); !ok {
+		if dc.via == "" {
+			dc.via = generateVia(spec)
+		}
+		msg.Headers = append(msg.Headers, dc.via)
+	}
+	if _, ok := findHeader(msg.Headers, "Max-Forwards"); !ok {
+		mf := dc.maxForwards
+		if mf == "" {
+			mf = "Max-Forwards: 70" // RFC 3261 §20.22 default
+		}
+		msg.Headers = append(msg.Headers, mf)
+	}
+
+	// The response that answers this request echoes its headers
+	// (RFC 3261 §8.1.3.2) — record them for completeResponseHeaders.
+	dc.lastFrom, _ = findHeader(msg.Headers, "From")
+	dc.lastTo, _ = findHeader(msg.Headers, "To")
+	dc.lastVia, _ = findHeader(msg.Headers, "Via")
+}
+
+// completeResponseHeaders fills the mandatory response headers that the
+// response omits by echoing the request it answers (RFC 3261 §8.1.3.2):
+// same Call-ID, CSeq line (number AND method), From, To and Via.
+func completeResponseHeaders(msg *core.SIPMessage, dc *dialogCtx) {
+	if _, ok := findHeader(msg.Headers, "Call-ID"); !ok {
+		msg.Headers = append(msg.Headers, dc.callID)
+	}
+	if _, ok := findHeader(msg.Headers, "From"); !ok && dc.lastFrom != "" {
+		msg.Headers = append(msg.Headers, dc.lastFrom)
+	}
+	if _, ok := findHeader(msg.Headers, "To"); !ok && dc.lastTo != "" {
+		msg.Headers = append(msg.Headers, dc.lastTo)
+	}
+	if _, ok := findHeader(msg.Headers, "Via"); !ok && dc.lastVia != "" {
+		msg.Headers = append(msg.Headers, dc.lastVia)
+	}
+	if _, ok := findHeader(msg.Headers, "CSeq"); !ok && dc.lastCSeq != "" {
+		msg.Headers = append(msg.Headers, dc.lastCSeq)
+	}
+}
+
+// findHeader returns the full "Name: value" line of the first header
+// with the given name, matched case-insensitively per RFC 3261 §7.3.1
+// (the header name is everything before the first colon). The boolean
+// reports presence; the line is the whole header, e.g.
+// "Call-ID: sip1@example.com". Returns ("", false) when absent.
+func findHeader(headers []string, name string) (string, bool) {
+	for _, h := range headers {
+		idx := strings.Index(h, ":")
+		if idx < 0 {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(h[:idx]), name) {
+			return h, true
+		}
+	}
+	return "", false
+}
+
+// parseCSeqNumber extracts the leading sequence number from a CSeq
+// header line ("CSeq: 1 INVITE" -> 1). Returns 0 when absent or
+// malformed (the caller then falls back to its default numbering).
+func parseCSeqNumber(line string) int {
+	idx := strings.Index(line, ":")
+	if idx < 0 {
+		return 0
+	}
+	n := 0
+	for _, c := range strings.TrimLeft(line[idx+1:], " \t") {
+		if c < '0' || c > '9' {
+			break
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n
+}
+
+// generateVia builds a Via header for the client when the dialog carries
+// none. RFC 3261 §8.1.1.7: the branch parameter MUST begin with the
+// magic cookie "z9hG4bK"; the sent-by field identifies the sender's
+// address:port (bracketed for IPv6 literals per §19.1.1).
+func generateVia(spec core.FlowSpec) string {
+	sentBy := spec.SrcIP
+	if strings.Contains(sentBy, ":") {
+		sentBy = "[" + sentBy + "]"
+	}
+	return fmt.Sprintf("Via: SIP/2.0/TCP %s:%d;branch=z9hG4bK%08x", sentBy, spec.SrcPort, rand.Uint32())
 }
 
 // inferDirection returns "up" for requests (Method set) and "down" for

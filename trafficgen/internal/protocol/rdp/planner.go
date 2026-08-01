@@ -489,10 +489,29 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		// emitData segments payload by MSS and emits each chunk as a
 		// PSH-ACK in the given direction. Returns the new sender seq.
+		// When tlsActive (post-TLS-handshake), every chunk is wrapped in
+		// its own TLS Application Data record (5-byte header + body) so
+		// the wire stays parseable as TLS after the handshake; the 5-byte
+		// header is budgeted against the MSS and the sender seq advances
+		// by the wrapped wire bytes.
+		// tlsActive flips to true after the TLS handshake pair; from then
+		// on every RDP PDU is carried inside a TLS Application Data record
+		// (real RDP over TLS behavior - MS-RDPBCGR §5.4.2). Without the
+		// wrap, Wireshark reports "Ignored Unknown Record" for the raw
+		// TPKT/X.224 PDUs that follow the ServerHello on the now-TLS
+		// connection.
+		tlsActive := false
 		emitData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq uint32, payload []byte) (newSenderSeq uint32, aborted bool) {
-			for _, seg := range segmentByMSS(payload, int(mss)) {
+			maxSeg := int(mss)
+			if tlsActive {
+				maxSeg -= 5 // TLS record header (ContentType+Version+Length)
+			}
+			for _, seg := range segmentByMSS(payload, maxSeg) {
 				if ctx.Err() != nil {
 					return senderSeq, true
+				}
+				if tlsActive {
+					seg = wrapTLSAppData(seg)
 				}
 				emit(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, senderSeq, peerSeq, 0x18, seg)
 				senderSeq += uint32(len(seg))
@@ -551,6 +570,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			if aborted {
 				return
 			}
+			// From here on the connection is TLS: every subsequent RDP PDU
+			// is wrapped in a TLS Application Data record (see emitData).
+			tlsActive = true
 		}
 
 		// --- Phase 4: MCS Connect-Initial (with GCC Connect-Data) ---
@@ -2007,6 +2029,22 @@ func encodeTLSHandshakePlaceholderResponse(cfg *core.RDPConfig) []byte {
 	out[2] = 0x01
 	binary.BigEndian.PutUint16(out[3:5], uint16(len(handshake)))
 	copy(out[5:], handshake)
+	return out
+}
+
+// wrapTLSAppData wraps payload in a TLS Application Data record
+// (ContentType=0x17, Version 0x0303, Length uint16 BE). After the TLS
+// handshake every RDP PDU is carried inside one such record (RFC 8446 §5,
+// MS-RDPBCGR §5.4.2); emitting the raw TPKT/X.224 PDU instead makes
+// Wireshark report "Ignored Unknown Record" (ContentType 0x03 is not a
+// valid TLS record type).
+func wrapTLSAppData(payload []byte) []byte {
+	out := make([]byte, 5+len(payload))
+	out[0] = 0x17 // application_data
+	out[1] = 0x03
+	out[2] = 0x03 // TLS 1.2
+	binary.BigEndian.PutUint16(out[3:5], uint16(len(payload)))
+	copy(out[5:], payload)
 	return out
 }
 

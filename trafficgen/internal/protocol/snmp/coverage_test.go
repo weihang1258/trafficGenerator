@@ -42,13 +42,10 @@ func extractV1TrapFields(msg []byte) (enterpriseOID, agentAddr, genericTrap, spe
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
 	}
-	// rest[0] should be TagTrapV1 (0xA4). Read the PDU TLV.
-	pduVal, _, err := readTLV(rest)
-	if err != nil {
-		return nil, nil, nil, nil, nil, nil, err
-	}
-	// The PDU value is a SEQUENCE wrapping the trap fields.
-	pduBody, _, err := readTLV(pduVal)
+	// rest[0] should be TagTrapV1 (0xA4). Read the PDU TLV; the value IS the
+	// trap fields directly (IMPLICIT SEQUENCE per RFC 1157 §4.1.6 -- the
+	// 0xA4 tag replaces the SEQUENCE tag, no inner SEQUENCE to strip).
+	pduBody, _, err := readTLV(rest)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
 	}
@@ -292,12 +289,10 @@ func extractPDUFields(msg []byte) (tag byte, reqID, field1, field2, varBinds []b
 		return 0, nil, nil, nil, nil, err
 	}
 	tag = rest[0]
-	pduVal, _, err := readTLV(rest)
-	if err != nil {
-		return 0, nil, nil, nil, nil, err
-	}
-	// The PDU value is a SEQUENCE wrapping the fields.
-	pduBody, _, err := readTLV(pduVal)
+	// The PDU value IS the field sequence directly (IMPLICIT SEQUENCE per
+	// RFC 3416 §4.2: the PDU tag replaces the SEQUENCE tag -- no inner
+	// SEQUENCE to strip).
+	pduBody, _, err := readTLV(rest)
 	if err != nil {
 		return 0, nil, nil, nil, nil, err
 	}

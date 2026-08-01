@@ -87,6 +87,16 @@ func classifyPacket(cfg core.PacketConfig) phaseKind {
 		return phaseTLSServerHello
 	}
 
+	// TLS Application Data record: post-handshake PDUs in TLS mode are
+	// wrapped in ContentType=0x17 records (planner.go emitData). Strip the
+	// 5-byte record header and classify the inner payload below.
+	if pl[0] == 0x17 && len(pl) >= 5 && pl[1] == 0x03 {
+		n := int(binary.BigEndian.Uint16(pl[3:5]))
+		if len(pl) >= 5+n {
+			pl = pl[5 : 5+n]
+		}
+	}
+
 	// FastPath Output: action header high 2 bits = 01 (0x40).
 	if pl[0]&0xC0 == 0x40 {
 		return phaseActive
@@ -378,13 +388,17 @@ func TestScenario_FullSession_AutoPopulatesChannels(t *testing.T) {
 	// Expect Channel-Join Requests for I/O (1003) + >=4 static channels.
 	cjIDs := map[uint16]bool{}
 	for _, cfg := range configs {
-		if cfg.Direction != "up" || len(cfg.Payload) < 12 {
+		if cfg.Direction != "up" {
 			continue
 		}
-		if cfg.Payload[7] != MCSChannelJoinRequest {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 12 {
 			continue
 		}
-		id := uint16(cfg.Payload[10])<<8 | uint16(cfg.Payload[11])
+		if pl[7] != MCSChannelJoinRequest {
+			continue
+		}
+		id := uint16(pl[10])<<8 | uint16(pl[11])
 		cjIDs[id] = true
 	}
 	if !cjIDs[1003] {
@@ -421,19 +435,21 @@ func TestScenario_FullSession_AutoPopulatesDataEvents(t *testing.T) {
 	foundFPInput := false
 	foundFPOutput := false
 	for _, cfg := range configs {
-		if len(cfg.Payload) < 2 {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 2 {
 			continue
 		}
 		// FastPath Output: action header high 2 bits = 01 (0x40).
-		if cfg.Payload[0]&0xC0 == 0x40 {
+		if pl[0]&0xC0 == 0x40 {
 			foundFPOutput = true
 		}
-		// FastPath Input (up direction): action high 2 bits = 00.
-		if cfg.Direction == "up" && cfg.Payload[0]&0xC0 == 0x00 && len(cfg.Payload) >= 5 {
-			// Skip TLS record (byte 1 is 0x03).
-			if cfg.Payload[1] == 0x03 {
-				continue
-			}
+		// FastPath Input (up direction): action header high 2 bits = 00,
+		// with a non-zero length byte (TPKT has pl[1]=0x00 reserved) and
+		// NOT a TLS Handshake record (0x16 0x03, not stripped by
+		// unwrapTLSAppData). TPKT/X.224/MCS PDUs all carry pl[1]=0x00 and
+		// are excluded, so this can only match a real FastPath Input PDU.
+		if cfg.Direction == "up" && pl[0]&0xC0 == 0x00 && len(pl) >= 5 &&
+			pl[1] != 0x00 && pl[0] != 0x16 {
 			foundFPInput = true
 		}
 	}
@@ -469,13 +485,17 @@ func TestScenario_MultiChannel_ChannelIDs(t *testing.T) {
 
 	var cjIDs []uint16
 	for _, cfg := range configs {
-		if cfg.Direction != "up" || len(cfg.Payload) < 12 {
+		if cfg.Direction != "up" {
 			continue
 		}
-		if cfg.Payload[7] != MCSChannelJoinRequest {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 12 {
 			continue
 		}
-		id := uint16(cfg.Payload[10])<<8 | uint16(cfg.Payload[11])
+		if pl[7] != MCSChannelJoinRequest {
+			continue
+		}
+		id := uint16(pl[10])<<8 | uint16(pl[11])
 		cjIDs = append(cjIDs, id)
 	}
 	want := []uint16{1003, 1004, 1005, 1006, 1007}
@@ -510,13 +530,17 @@ func TestScenario_MultiChannel_ConfResultsAllZero(t *testing.T) {
 
 	confCount := 0
 	for _, cfg := range configs {
-		if cfg.Direction != "down" || len(cfg.Payload) < 13 {
+		if cfg.Direction != "down" {
 			continue
 		}
-		if cfg.Payload[7] != MCSChannelJoinConfirm {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 13 {
 			continue
 		}
-		result := cfg.Payload[12]
+		if pl[7] != MCSChannelJoinConfirm {
+			continue
+		}
+		result := pl[12]
 		if result != 0 {
 			t.Errorf("Channel-Join Confirm result = %d, want 0 (rt-successful)", result)
 		}
@@ -552,13 +576,17 @@ func TestScenario_ChannelJoinFailure_OneRejected(t *testing.T) {
 
 	countRej := 0
 	for _, cfg := range configs {
-		if cfg.Direction != "down" || len(cfg.Payload) < 13 {
+		if cfg.Direction != "down" {
 			continue
 		}
-		if cfg.Payload[7] != MCSChannelJoinConfirm {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 13 {
 			continue
 		}
-		if cfg.Payload[12] == 4 {
+		if pl[7] != MCSChannelJoinConfirm {
+			continue
+		}
+		if pl[12] == 4 {
 			countRej++
 		}
 	}
@@ -592,23 +620,27 @@ func TestScenario_InputEvents_KeyboardAndMouse(t *testing.T) {
 	foundKbd := false
 	foundMouse := false
 	for _, cfg := range configs {
-		if cfg.Direction != "up" || len(cfg.Payload) < 2 {
+		if cfg.Direction != "up" {
 			continue
 		}
-		if cfg.Payload[0]&0xC0 != 0x00 {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 2 {
 			continue
 		}
-		if cfg.Payload[1] == 0x00 {
+		if pl[0]&0xC0 != 0x00 {
+			continue
+		}
+		if pl[1] == 0x00 {
 			continue // TPKT reserved (not FastPath Input)
 		}
 		// FastPath Input layout (MS-RDPBCGR §2.2.8.1.1.2): header(1) +
 		// length(1) + events. length field includes header+length byte
 		// itself + events. So length=4 means 2-byte keyboard event;
 		// length=8 means 6-byte mouse event.
-		if cfg.Payload[1] == 0x04 { // 1 keyboard event (2 bytes)
+		if pl[1] == 0x04 { // 1 keyboard event (2 bytes)
 			foundKbd = true
 		}
-		if cfg.Payload[1] == 0x08 { // 1 mouse event (6 bytes)
+		if pl[1] == 0x08 { // 1 mouse event (6 bytes)
 			foundMouse = true
 		}
 	}
@@ -644,14 +676,18 @@ func TestScenario_BitmapUpdate_FastPathOutput(t *testing.T) {
 
 	foundBitmap := false
 	for _, cfg := range configs {
-		if cfg.Direction != "down" || len(cfg.Payload) < 4 {
+		if cfg.Direction != "down" {
 			continue
 		}
-		if cfg.Payload[0]&0xC0 != 0x40 { // FastPath Output (action=01)
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 4 {
+			continue
+		}
+		if pl[0]&0xC0 != 0x40 { // FastPath Output (action=01)
 			continue
 		}
 		// updateCode at offset 2, FastPathUpdateBitmap = 0x01.
-		if cfg.Payload[2] == FastPathUpdateBitmap {
+		if pl[2] == FastPathUpdateBitmap {
 			foundBitmap = true
 		}
 	}
@@ -685,20 +721,24 @@ func TestScenario_Disconnect_HasShutdownAndMCSDisconnect(t *testing.T) {
 	// The MCS Disconnect must carry reason byte 0x80 (user-requested).
 	foundDisc := false
 	for _, cfg := range configs {
-		if cfg.Direction != "up" || len(cfg.Payload) < 9 {
+		if cfg.Direction != "up" {
 			continue
 		}
-		if cfg.Payload[0] != TPKTVersion {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 9 {
 			continue
 		}
-		if cfg.Payload[5] != X224DT {
+		if pl[0] != TPKTVersion {
 			continue
 		}
-		if cfg.Payload[7] != MCSDisconnectProviderUltimatum {
+		if pl[5] != X224DT {
 			continue
 		}
-		if cfg.Payload[8] != 0x80 {
-			t.Errorf("Disconnect Ultimatum reason = 0x%x, want 0x80 (user-requested)", cfg.Payload[8])
+		if pl[7] != MCSDisconnectProviderUltimatum {
+			continue
+		}
+		if pl[8] != 0x80 {
+			t.Errorf("Disconnect Ultimatum reason = 0x%x, want 0x80 (user-requested)", pl[8])
 		}
 		foundDisc = true
 	}
@@ -735,13 +775,17 @@ func TestScenario_CLIPRDR_AutoPopulatesCliprdrChannel(t *testing.T) {
 	// Find a Channel-Join Request with ChannelId=1004 (cliprdr).
 	foundCliprdrJoin := false
 	for _, cfg := range configs {
-		if cfg.Direction != "up" || len(cfg.Payload) < 12 {
+		if cfg.Direction != "up" {
 			continue
 		}
-		if cfg.Payload[7] != MCSChannelJoinRequest {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 12 {
 			continue
 		}
-		id := uint16(cfg.Payload[10])<<8 | uint16(cfg.Payload[11])
+		if pl[7] != MCSChannelJoinRequest {
+			continue
+		}
+		id := uint16(pl[10])<<8 | uint16(pl[11])
 		if id == MCSFirstStaticChan {
 			foundCliprdrJoin = true
 		}
@@ -754,12 +798,13 @@ func TestScenario_CLIPRDR_AutoPopulatesCliprdrChannel(t *testing.T) {
 	// the wire (data event or server response).
 	foundFL := false
 	for _, cfg := range configs {
-		if len(cfg.Payload) < 8 {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 8 {
 			continue
 		}
 		// CB_FORMAT_LIST msgType (LE) = 0x02 0x00. We search for the
 		// bytes anywhere in the payload.
-		if bytes.Contains(cfg.Payload, []byte{0x02, 0x00, 0x00, 0x00}) {
+		if bytes.Contains(pl, []byte{0x02, 0x00, 0x00, 0x00}) {
 			foundFL = true
 		}
 	}
@@ -797,13 +842,17 @@ func TestScenario_RDPDR_AutoPopulatesRdpdrChannel(t *testing.T) {
 	// rdpdr, so its channel ID is 1004.)
 	foundRdpdrJoin := false
 	for _, cfg := range configs {
-		if cfg.Direction != "up" || len(cfg.Payload) < 12 {
+		if cfg.Direction != "up" {
 			continue
 		}
-		if cfg.Payload[7] != MCSChannelJoinRequest {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 12 {
 			continue
 		}
-		id := uint16(cfg.Payload[10])<<8 | uint16(cfg.Payload[11])
+		if pl[7] != MCSChannelJoinRequest {
+			continue
+		}
+		id := uint16(pl[10])<<8 | uint16(pl[11])
 		if id == MCSFirstStaticChan {
 			foundRdpdrJoin = true
 		}
@@ -819,7 +868,7 @@ func TestScenario_RDPDR_AutoPopulatesRdpdrChannel(t *testing.T) {
 	// specific assertion would require TPKT/X.224/MCS unwrapping.
 	found := false
 	for _, cfg := range configs {
-		if bytes.Contains(cfg.Payload, []byte{0x04, 0x00}) {
+		if bytes.Contains(unwrapTLSAppData(cfg.Payload), []byte{0x04, 0x00}) {
 			found = true
 			break
 		}
@@ -859,10 +908,14 @@ func TestScenario_ManualConfigOverridesScenario(t *testing.T) {
 	// the user-supplied Channels slice (custom only) wins.
 	countCJ := 0
 	for _, cfg := range configs {
-		if cfg.Direction != "up" || len(cfg.Payload) < 12 {
+		if cfg.Direction != "up" {
 			continue
 		}
-		if cfg.Payload[7] != MCSChannelJoinRequest {
+		pl := unwrapTLSAppData(cfg.Payload)
+		if len(pl) < 12 {
+			continue
+		}
+		if pl[7] != MCSChannelJoinRequest {
 			continue
 		}
 		countCJ++

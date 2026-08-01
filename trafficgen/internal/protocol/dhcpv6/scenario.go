@@ -427,10 +427,13 @@ func buildScenarioMessages(cfg *core.DHCPv6Config, clientDUID, serverDUID *core.
 		// which would produce an unserializable DUID and silently fall back
 		// to emitting raw SARR messages instead of relay-wrapped ones.
 		rc := cfg.RelayConfig
+		// RFC 8415 §7.2 / §19.1.1: a relay agent receiving a message from a
+		// client sets hop-count 0 in the Relay-forward message; only
+		// relay-to-relay forwarding increments it (§19.2.1). The single-hop
+		// scenario (client → relay → server) therefore defaults to 0. A
+		// user-configured hop_count (>0) models a message that already
+		// traversed other relays and is honored verbatim.
 		hop := rc.HopCount
-		if hop == 0 {
-			hop = 1
-		}
 		var out []core.DHCPv6Message
 		for _, m := range inner {
 			innerBytes, err := buildClientServerMessage(m, cfg, clientDUID, serverDUID, innerXID)
