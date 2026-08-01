@@ -39,8 +39,12 @@
 // (Call-ID, From, To, Via, CSeq — §8.1.1 / §20.8, and Max-Forwards for
 // requests) are auto-appended to messages that omit them, derived from
 // the dialog context (see completeDialogHeaders). The user's own
-// headers always win (user > default > none), and a dialog in which no
-// message carries a Call-ID renders every message verbatim.
+// headers always win (user > default > none). A request that omits them
+// entirely still gets them: the planner behaves as a real UAC and
+// GENERATES a Call-ID/From/To/Via/CSeq/Max-Forwards for the dialog
+// (§8.1.1.4 — the UAC MUST generate a Call-ID), so even a headerless
+// INVITE renders Wireshark-clean. Only responses that answer no request
+// (no dialog context exists) render verbatim.
 package sip
 
 import (
@@ -322,17 +326,16 @@ func renderSIPMessage(msg core.SIPMessage) []byte {
 // and all messages of one dialog share the dialog's values (the ACK
 // completes the INVITE's dialog — it must carry the INVITE's Call-ID).
 //
-// The context activates on the first Call-ID seen (normally the INVITE)
-// and is only seeded from requests: a response echoes the request it
-// answers — it never defines dialog values. While active, the planner
-// appends the missing mandatory headers to each message; the user's own
-// headers always win (user > default > none). When no message carries a
-// Call-ID the context stays inactive and every message renders verbatim
-// — the planner never invents a Call-ID (a dialog without one is the
-// user's config choice, e.g. digest-auth REGISTER dialogs that supply
-// only From).
+// The context activates on the first Call-ID — seen in, or generated
+// for, the first request (normally the INVITE) — and is only seeded
+// from requests: a response echoes the request it answers — it never
+// defines dialog values. While active, the planner appends the missing
+// mandatory headers to each message; the user's own headers always win
+// (user > default > none). The context never activates for a dialog
+// that contains no request (only responses), which then renders every
+// message verbatim — a response cannot invent a dialog it answers.
 type dialogCtx struct {
-	active      bool   // a Call-ID has been seen in the dialog
+	active      bool   // a Call-ID exists in the dialog (seen or generated)
 	callID      string // dialog Call-ID (first occurrence wins)
 	from        string // dialog From (first occurrence wins)
 	to          string // dialog To (first occurrence wins)
@@ -352,7 +355,9 @@ type dialogCtx struct {
 // dc. Mutates msg.Headers in place (msg is a per-iteration copy in Plan,
 // so the user's SIPConfig.Dialog is untouched). Messages without both
 // Method and StatusCode are left alone — renderSIPMessage emits nothing
-// for them anyway.
+// for them anyway. A request that omits Call-ID gets a generated one
+// (the UAC's job per RFC 3261 §8.1.1.4), which activates the context —
+// see completeRequestHeaders.
 func completeDialogHeaders(msg *core.SIPMessage, dc *dialogCtx, spec core.FlowSpec) {
 	isRequest := msg.Method != ""
 	isResponse := !isRequest && msg.StatusCode != 0
@@ -392,6 +397,15 @@ func completeDialogHeaders(msg *core.SIPMessage, dc *dialogCtx, spec core.FlowSp
 // §8.1.1: Via, From, To, Call-ID, CSeq, Max-Forwards) that the request
 // omits, and advances the dialog CSeq state.
 //
+// A request that omits Call-ID and finds no dialog context yet gets a
+// GENERATED Call-ID (RFC 3261 §8.1.1.4 — the UAC MUST generate one; a
+// user config that omits the mandatory headers is shorthand for "behave
+// as a real UAC", not "send a bare request-line"), which activates the
+// context so every later dialog message shares it. From/To/Via/Max-
+// Forwards are generated the same way when the dialog context has no
+// values for them (§8.1.1). The user's own headers always win (user >
+// default > none).
+//
 // CSeq rules: the CSeq method must match the request's method (§20.16).
 // ACK-for-2xx and CANCEL reuse the INVITE's CSeq number (§13.2.2.4 for
 // the ACK that completes an INVITE; §9.1 for CANCEL — it cancels the
@@ -400,6 +414,13 @@ func completeDialogHeaders(msg *core.SIPMessage, dc *dialogCtx, spec core.FlowSp
 // (§12.2.1.1, §14.1). A user-supplied CSeq always wins and re-syncs the
 // counters so subsequent fills stay consistent with it.
 func completeRequestHeaders(msg *core.SIPMessage, dc *dialogCtx, spec core.FlowSpec) {
+	// Call-ID is the dialog identifier (§8.1.1.4). Generate it before
+	// the CSeq logic, which needs dc.active for its default numbering.
+	if _, ok := findHeader(msg.Headers, "Call-ID"); !ok && !dc.active {
+		dc.callID = generateCallID(spec)
+		dc.active = true
+	}
+
 	if line, ok := findHeader(msg.Headers, "CSeq"); ok {
 		n := parseCSeqNumber(line)
 		switch msg.Method {
@@ -411,7 +432,10 @@ func completeRequestHeaders(msg *core.SIPMessage, dc *dialogCtx, spec core.FlowS
 			dc.cseqNext = n
 		}
 		dc.lastCSeq = line
-	} else if dc.active {
+	} else {
+		// Every request reaches this point with dc.active true: either a
+		// Call-ID was seen on this or a prior request, or one was just
+		// generated above. So the default CSeq numbering always applies.
 		n := dc.cseqNext
 		switch msg.Method {
 		case "INVITE":
@@ -439,16 +463,19 @@ func completeRequestHeaders(msg *core.SIPMessage, dc *dialogCtx, spec core.FlowS
 		dc.lastCSeq = line
 	}
 
-	if !dc.active {
-		return
-	}
 	if _, ok := findHeader(msg.Headers, "Call-ID"); !ok {
 		msg.Headers = append(msg.Headers, dc.callID)
 	}
-	if _, ok := findHeader(msg.Headers, "From"); !ok && dc.from != "" {
+	if _, ok := findHeader(msg.Headers, "From"); !ok {
+		if dc.from == "" {
+			dc.from = generateFrom(spec)
+		}
 		msg.Headers = append(msg.Headers, dc.from)
 	}
-	if _, ok := findHeader(msg.Headers, "To"); !ok && dc.to != "" {
+	if _, ok := findHeader(msg.Headers, "To"); !ok {
+		if dc.to == "" {
+			dc.to = generateTo(msg, spec)
+		}
 		msg.Headers = append(msg.Headers, dc.to)
 	}
 	if _, ok := findHeader(msg.Headers, "Via"); !ok {
@@ -529,16 +556,57 @@ func parseCSeqNumber(line string) int {
 	return n
 }
 
+// sipHostOf renders an IP address for use inside a SIP header value,
+// bracketing IPv6 literals per RFC 3261 §19.1.1. An empty address falls
+// back to 0.0.0.0 so a headerless request on a spec without SrcIP still
+// renders parseable values.
+func sipHostOf(ip string) string {
+	if ip == "" {
+		return "0.0.0.0"
+	}
+	if strings.Contains(ip, ":") {
+		return "[" + ip + "]"
+	}
+	return ip
+}
+
+// generateCallID builds a Call-ID for a request that omits it. RFC 3261
+// §8.1.1.4: the Call-ID MUST be generated by the UAC — a user config
+// that omits the header is shorthand for "behave as a real UAC", not
+// "send a bare request-line". Format: sip<8hex>@<srcIP> (§20.8: callid
+// = word [ "@" word ]; the source address makes the identifier unique
+// per UAC). The generated value is stored in the dialog context so all
+// messages of the dialog share it.
+func generateCallID(spec core.FlowSpec) string {
+	return fmt.Sprintf("Call-ID: sip%08x@%s", rand.Uint32(), sipHostOf(spec.SrcIP))
+}
+
+// generateFrom builds a From header for a request that omits it: the
+// caller's identity (RFC 3261 §8.1.1.3), derived from the source
+// address — the planner's UAC has no configured identity, so the
+// source address stands in for the address-of-record.
+func generateFrom(spec core.FlowSpec) string {
+	return fmt.Sprintf("From: <sip:user@%s>", sipHostOf(spec.SrcIP))
+}
+
+// generateTo builds a To header for a request that omits it: the
+// callee's address-of-record (RFC 3261 §8.1.1.2). The Request-URI names
+// the callee (§13.2.1), so a sip:/sips: URI is reused as-is; a
+// non-URI/empty Request-URI falls back to the destination address.
+func generateTo(msg *core.SIPMessage, spec core.FlowSpec) string {
+	uri := strings.TrimSpace(msg.URI)
+	if strings.HasPrefix(uri, "sip:") || strings.HasPrefix(uri, "sips:") {
+		return "To: <" + uri + ">"
+	}
+	return fmt.Sprintf("To: <sip:user@%s>", sipHostOf(spec.DstIP))
+}
+
 // generateVia builds a Via header for the client when the dialog carries
 // none. RFC 3261 §8.1.1.7: the branch parameter MUST begin with the
 // magic cookie "z9hG4bK"; the sent-by field identifies the sender's
 // address:port (bracketed for IPv6 literals per §19.1.1).
 func generateVia(spec core.FlowSpec) string {
-	sentBy := spec.SrcIP
-	if strings.Contains(sentBy, ":") {
-		sentBy = "[" + sentBy + "]"
-	}
-	return fmt.Sprintf("Via: SIP/2.0/TCP %s:%d;branch=z9hG4bK%08x", sentBy, spec.SrcPort, rand.Uint32())
+	return fmt.Sprintf("Via: SIP/2.0/TCP %s:%d;branch=z9hG4bK%08x", sipHostOf(spec.SrcIP), spec.SrcPort, rand.Uint32())
 }
 
 // inferDirection returns "up" for requests (Method set) and "down" for

@@ -19,9 +19,11 @@ package sip
 //
 // User-supplied headers always win (user > default > none, matching the
 // HTTP planner's rule). The planner only fills headers that are MISSING,
-// and only when the dialog context provides them: a dialog in which no
-// message carries a Call-ID renders every message verbatim — the planner
-// never invents a Call-ID.
+// from the dialog context or — for requests that omit the mandatory
+// headers entirely — by generating them like a real UAC (RFC 3261
+// §8.1.1.4; see sip_generated_headers_test.go). The one case that still
+// renders verbatim: a dialog with no request at all (only responses),
+// which no context can activate.
 
 import (
 	"context"
@@ -378,21 +380,21 @@ func TestSIPPlan_UserSuppliedHeadersWin(t *testing.T) {
 	}
 }
 
-// TestSIPPlan_DialogWithoutCallIDRendersVerbatim locks the boundary: the
-// planner never invents a Call-ID. When no message in the dialog carries
-// one (digest-auth REGISTER dialogs, bare OPTIONS, etc.), every message
-// renders verbatim — the legacy behavior is preserved and standalone
-// (non-dialog) requests are unaffected.
-func TestSIPPlan_DialogWithoutCallIDRendersVerbatim(t *testing.T) {
+// TestSIPPlan_ResponsesOnlyDialogRendersVerbatim locks the residual
+// boundary of the header completion: only REQUESTS trigger generation
+// (the UAC generates a Call-ID per RFC 3261 §8.1.1.4 — see
+// sip_generated_headers_test.go). A dialog with no request at all
+// (only responses) activates no context — a response echoes the request
+// it answers and never invents one — so every message renders verbatim.
+func TestSIPPlan_ResponsesOnlyDialogRendersVerbatim(t *testing.T) {
 	spec := core.FlowSpec{
 		SrcIP: "10.0.0.1", DstIP: "20.0.0.1",
 		SrcPort: 12005, DstPort: 5060,
 		SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66",
 		SIP: &core.SIPConfig{
 			Dialog: []core.SIPMessage{
-				{Method: "INVITE", URI: "sip:bob@example.com", Direction: "up"},
+				{StatusCode: 100, StatusText: "Trying", Direction: "down"},
 				{StatusCode: 200, StatusText: "OK", Direction: "down"},
-				{Method: "ACK", URI: "sip:bob@example.com", Direction: "up"},
 			},
 		},
 	}
@@ -400,15 +402,14 @@ func TestSIPPlan_DialogWithoutCallIDRendersVerbatim(t *testing.T) {
 	cfgs := drain(mustPlan(t, p, spec))
 	payloads := pshPayloads(cfgs)
 
-	ack := findPayload(payloads, "ACK sip:bob@example.com SIP/2.0")
-	if ack == "" {
-		t.Fatal("ACK payload not found")
+	if len(payloads) != 2 {
+		t.Fatalf("want 2 response payloads, got %d", len(payloads))
 	}
-	if strings.Contains(ack, "Call-ID:") {
-		t.Errorf("ACK must render verbatim (no invented Call-ID), got: %q", ack)
+	if payloads[0] != "SIP/2.0 100 Trying\r\n\r\n" {
+		t.Errorf("100 Trying must render verbatim (no request to echo): %q", payloads[0])
 	}
-	if ack != "ACK sip:bob@example.com SIP/2.0\r\n\r\n" {
-		t.Errorf("ACK payload must be exactly the request-line + CRLF, got: %q", ack)
+	if payloads[1] != "SIP/2.0 200 OK\r\n\r\n" {
+		t.Errorf("200 OK must render verbatim (no request to echo): %q", payloads[1])
 	}
 }
 
