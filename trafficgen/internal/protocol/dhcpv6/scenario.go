@@ -341,13 +341,13 @@ func buildScenarioMessages(cfg *core.DHCPv6Config, clientDUID, serverDUID *core.
 		if len(cfg.DefaultDNSServers) > 0 {
 			replyOpts = append(replyOpts, core.DHCPv6Option{
 				Code: OptRDNSS,
-				Data: BuildRDNSS(3600, cfg.DefaultDNSServers),
+				Data: BuildRDNSS(cfg.DefaultDNSServers), // RFC 3646 §3: no lifetime field
 			})
 		}
 		if len(cfg.DefaultDNSSearch) > 0 {
 			replyOpts = append(replyOpts, core.DHCPv6Option{
 				Code: OptDNSSL,
-				Data: BuildDNSSL(3600, cfg.DefaultDNSSearch),
+				Data: BuildDNSSL(cfg.DefaultDNSSearch), // RFC 3646 §2: no lifetime field
 			})
 		}
 		if len(cfg.DefaultSNTPServers) > 0 {

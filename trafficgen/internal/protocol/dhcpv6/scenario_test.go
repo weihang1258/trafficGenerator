@@ -508,12 +508,12 @@ func TestScenario_InfoRequest(t *testing.T) {
 	if cid := findOption(cfgs[0].Payload, OptClientID); cid == nil {
 		t.Errorf("INFORMATION-REQUEST missing ClientID")
 	}
-	// REPLY carries RDNSS.
+	// REPLY carries RDNSS (RFC 3646 §3: bare address list, no lifetime).
 	rdnss := findOption(cfgs[1].Payload, OptRDNSS)
-	if rdnss == nil || len(rdnss) < 20 {
-		t.Fatalf("REPLY missing RDNSS or too short")
+	if rdnss == nil || len(rdnss) != 16 {
+		t.Fatalf("REPLY RDNSS = %d bytes, want 16 (single address, no lifetime)", len(rdnss))
 	}
-	gotDNS := net.IP(rdnss[4:20])
+	gotDNS := net.IP(rdnss[0:16])
 	if !gotDNS.Equal(net.ParseIP("2001:db8::53")) {
 		t.Errorf("REPLY RDNSS server = %v, want 2001:db8::53", gotDNS)
 	}

@@ -127,12 +127,13 @@ func BuildStatusCode(status uint16, message string) []byte {
 }
 
 // BuildRDNSS builds the wire bytes for an OPTION_RDNSS (option 23).
-// data = lifetime(4) + IPv6-addresses(variable, 16 bytes each).
-func BuildRDNSS(lifetime uint32, servers []string) []byte {
+// data = IPv6-addresses(variable, 16 bytes each). No lifetime field:
+// RFC 3646 §3 defines option 23 as a bare address list (option-len =
+// 16 * number of addresses) — the lifetime found in RFC 6106's RA
+// RDNSS option does not exist here. Prepending one makes Wireshark
+// report "DNS servers address: malformed option".
+func BuildRDNSS(servers []string) []byte {
 	var buf []byte
-	var b4 [4]byte
-	binary.BigEndian.PutUint32(b4[:], lifetime)
-	buf = append(buf, b4[:]...)
 	for _, s := range servers {
 		ip := net.ParseIP(s)
 		if ip == nil {
@@ -147,12 +148,13 @@ func BuildRDNSS(lifetime uint32, servers []string) []byte {
 }
 
 // BuildDNSSL builds the wire bytes for an OPTION_DNSSL (option 24).
-// data = lifetime(4) + domain-names(variable, DNS wire format).
-func BuildDNSSL(lifetime uint32, domains []string) []byte {
+// data = domain-names(variable, RFC 3315 §8.14 DNS wire format). No
+// lifetime field: RFC 3646 §2 defines option 24 as a bare domain list
+// (option-len = total encoded length) — the lifetime found in RFC 6106's
+// RA DNSSL option does not exist here. Prepending one makes Wireshark
+// parse the leading 0x00 as a root-only domain ".".
+func BuildDNSSL(domains []string) []byte {
 	var buf []byte
-	var b4 [4]byte
-	binary.BigEndian.PutUint32(b4[:], lifetime)
-	buf = append(buf, b4[:]...)
 	for _, domain := range domains {
 		buf = append(buf, encodeDNSName(domain)...)
 	}

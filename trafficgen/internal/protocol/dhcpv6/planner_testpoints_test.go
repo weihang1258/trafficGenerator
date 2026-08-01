@@ -1222,7 +1222,7 @@ func TestT1_24_1_RDNSS(t *testing.T) {
 		{
 			MsgType: MsgTypeReply, TransactionID: [3]byte{1, 2, 3},
 			Options: []core.DHCPv6Option{
-				{Code: OptRDNSS, Data: BuildRDNSS(3600, []string{"2001:db8::53"})},
+				{Code: OptRDNSS, Data: BuildRDNSS([]string{"2001:db8::53"})},
 			},
 		},
 	})))
@@ -1231,14 +1231,10 @@ func TestT1_24_1_RDNSS(t *testing.T) {
 	if rd == nil {
 		t.Fatalf("RDNSS not found")
 	}
-	if len(rd) != 20 {
-		t.Errorf("RDNSS data length = %d, want 20 (4+16)", len(rd))
+	if len(rd) != 16 {
+		t.Errorf("RDNSS data length = %d, want 16 (RFC 3646 §3: bare address list, no lifetime)", len(rd))
 	}
-	gotLifetime := binary.BigEndian.Uint32(rd[0:4])
-	if gotLifetime != 3600 {
-		t.Errorf("RDNSS lifetime = %d, want 3600", gotLifetime)
-	}
-	gotIP := net.IP(rd[4:20])
+	gotIP := net.IP(rd[0:16])
 	wantIP := net.ParseIP("2001:db8::53")
 	if !gotIP.Equal(wantIP) {
 		t.Errorf("RDNSS server = %v, want %v", gotIP, wantIP)
@@ -1255,7 +1251,7 @@ func TestT1_25_1_DNSSL(t *testing.T) {
 		{
 			MsgType: MsgTypeReply, TransactionID: [3]byte{1, 2, 3},
 			Options: []core.DHCPv6Option{
-				{Code: OptDNSSL, Data: BuildDNSSL(3600, []string{"example.com"})},
+				{Code: OptDNSSL, Data: BuildDNSSL([]string{"example.com"})},
 			},
 		},
 	})))
@@ -1264,20 +1260,15 @@ func TestT1_25_1_DNSSL(t *testing.T) {
 	if ds == nil {
 		t.Fatalf("DNSSL not found")
 	}
-	if len(ds) < 5 {
-		t.Fatalf("DNSSL too short: %d bytes", len(ds))
-	}
-	gotLifetime := binary.BigEndian.Uint32(ds[0:4])
-	if gotLifetime != 3600 {
-		t.Errorf("DNSSL lifetime = %d, want 3600", gotLifetime)
-	}
-	// Verify wire format: \x07example\x03com\x00
-	if len(ds) < 16 {
-		t.Errorf("DNSSL data length = %d, want >= 16", len(ds))
+	// Verify wire format: \x07example\x03com\x00 (RFC 3646 §2: bare
+	// domain list, no lifetime field — the first byte is the first
+	// label's length).
+	if len(ds) != 13 {
+		t.Errorf("DNSSL data length = %d, want 13 (example.com wire)", len(ds))
 	}
 	// Check label encoding starts with 0x07 (length of "example").
-	if ds[4] != 7 {
-		t.Errorf("DNSSL first label length = %d, want 7", ds[4])
+	if ds[0] != 7 {
+		t.Errorf("DNSSL first label length = %d, want 7", ds[0])
 	}
 }
 

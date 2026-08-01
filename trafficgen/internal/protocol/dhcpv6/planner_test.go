@@ -826,8 +826,8 @@ func TestScenario8_InformationRequest(t *testing.T) {
 			MsgType:       MsgTypeReply,
 			TransactionID: infoXID,
 			Options: []core.DHCPv6Option{
-				{Code: OptRDNSS, Data: BuildRDNSS(3600, []string{"2001:db8::53"})},
-				{Code: OptDNSSL, Data: BuildDNSSL(3600, []string{"example.com"})},
+				{Code: OptRDNSS, Data: BuildRDNSS([]string{"2001:db8::53"})},
+				{Code: OptDNSSL, Data: BuildDNSSL([]string{"example.com"})},
 				{Code: OptSNTP, Data: BuildSNTPServers([]string{"2001:db8::123"})},
 				{Code: OptInfoRefreshTime, Data: BuildInfoRefreshTime(86400)},
 			},
@@ -856,17 +856,14 @@ func TestScenario8_InformationRequest(t *testing.T) {
 		t.Errorf("INFORMATION-REQUEST should not auto-carry ServerID")
 	}
 
-	// Verify REPLY contains RDNSS with the DNS server.
+	// Verify REPLY contains RDNSS with the DNS server (RFC 3646 §3:
+	// bare address list, no lifetime field).
 	rdnss := findOption(cfgs[1].Payload, OptRDNSS)
-	if rdnss == nil || len(rdnss) < 20 {
-		t.Fatalf("REPLY missing RDNSS or too short")
+	if rdnss == nil || len(rdnss) != 16 {
+		t.Fatalf("REPLY missing RDNSS or wrong length %d, want 16", len(rdnss))
 	}
-	// RDNSS: lifetime(4) + IPv6(16). Verify DNS server is 2001:db8::53.
-	gotLifetime := binary.BigEndian.Uint32(rdnss[0:4])
-	if gotLifetime != 3600 {
-		t.Errorf("RDNSS lifetime = %d, want 3600", gotLifetime)
-	}
-	gotDNS := net.IP(rdnss[4:20])
+	// RDNSS: IPv6(16) only. Verify DNS server is 2001:db8::53.
+	gotDNS := net.IP(rdnss[0:16])
 	wantDNS := net.ParseIP("2001:db8::53")
 	if !gotDNS.Equal(wantDNS) {
 		t.Errorf("RDNSS server = %v, want %v", gotDNS, wantDNS)
