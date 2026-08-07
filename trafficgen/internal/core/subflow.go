@@ -102,6 +102,7 @@ func EmitSubFlow(
 		ECN:         parent.ECN,
 		IPFlags:     parent.IPFlags,
 		FragOffset:  parent.FragOffset,
+		HopByHop:    parent.HopByHop,
 		PadMinFrame: parent.PadMinFrame,
 		VLAN:        parent.VLAN,
 	}

@@ -100,6 +100,11 @@ type FlowSpec struct {
 	IPFlags    uint8  `json:"ip_flags,omitempty"` // IPFlagDF / IPFlagMF (was "flags")
 	FragOffset uint16 `json:"frag_offset,omitempty"`
 
+	// HopByHop is the IPv6 hop-by-hop extension header option list (RFC 8200
+	// §4.3). IPv4 traffic must not set it. The builder appends PadN options to
+	// align the header to 8 octets and chains it via NextHeader=0x00.
+	HopByHop []IPv6Option `json:"hop_by_hop,omitempty"`
+
 	// Protocol specific configuration
 	TCP    *TCPConfig    `json:"tcp,omitempty"`
 	UDP    *UDPConfig    `json:"udp,omitempty"`
@@ -111,6 +116,7 @@ type FlowSpec struct {
 	SIP    *SIPConfig    `json:"sip,omitempty"`
 	SCTP   *SCTPConfig   `json:"sctp,omitempty"`
 	ICMPv6 *ICMPv6Config `json:"icmpv6,omitempty"`
+	RTSP   *RTSPConfig   `json:"rtsp,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`
@@ -164,6 +170,11 @@ type FlowSpec struct {
 	// letting the error surface deep in a make([]byte, n) panic.
 	ValidationErrors []string `json:"validation_errors,omitempty"`
 
+	// HasExplicitSrcPort tracks whether the user explicitly provided src_port
+	// in the strategy config. Used by multi-flow scenarios to auto-increment
+	// src_port (simulating ephemeral ports) only when user didn't specify it.
+	HasExplicitSrcPort bool `json:"-"`
+
 	// --- L7 protocol configurations (phase 3 batch). Appended at end per
 	// flowspec_extension.md §2.3 to avoid touching existing field layout.
 	// Each pointer is nil when the protocol is not selected; planners must
@@ -183,10 +194,23 @@ type FlowSpec struct {
 	OpenVPN     *OpenVPNConfig     `json:"openvpn,omitempty"`
 	PostgreSQL  *PostgreSQLConfig  `json:"postgresql,omitempty"`
 	POP3        *POP3Config        `json:"pop3,omitempty"`
+	PPPoE       *PPPoEConfig       `json:"pppoe,omitempty"`
+	PPTP        *PPTPConfig        `json:"pptp,omitempty"`
+	RIP         *RIPConfig         `json:"rip,omitempty"`
+	H323        *H323Config        `json:"h323,omitempty"`
+	GRE         *GREConfig         `json:"gre,omitempty"`
+	MPLS        *MPLSConfig        `json:"mpls,omitempty"`
+	GTP         *GTPConfig         `json:"gtp,omitempty"`
 	RDP         *RDPConfig         `json:"rdp,omitempty"`
+	Radius      *RadiusConfig      `json:"radius,omitempty"`
+	LDAP        *LDAPConfig        `json:"ldap,omitempty"`
+	VNC         *VNCConfig         `json:"vnc,omitempty"`
 	Redis       *RedisConfig       `json:"redis,omitempty"`
 	Shadowsocks *ShadowsocksConfig `json:"shadowsocks,omitempty"`
 	SMTP        *SMTPConfig        `json:"smtp,omitempty"`
+	Socks       *SocksConfig       `json:"socks,omitempty"`
+	MODBUS      *MODBUSConfig      `json:"modbus,omitempty"`
+	RTMP        *RTMPConfig        `json:"rtmp,omitempty"`
 	SNMP        *SNMPConfig        `json:"snmp,omitempty"`
 	SSDP        *SSDPConfig        `json:"ssdp,omitempty"`
 	SSH         *SSHConfig         `json:"ssh,omitempty"`
@@ -195,6 +219,133 @@ type FlowSpec struct {
 	TLS         *TLSConfig         `json:"tls,omitempty"`
 	Vmess       *VmessConfig       `json:"vmess,omitempty"`
 	WireGuard   *WireGuardConfig   `json:"wireguard,omitempty"`
+	NGAP        *NGAPConfig        `json:"ngap,omitempty"`
+	Xmpp        *XmppConfig        `json:"xmpp,omitempty"`
+	DoIP        *DoIPConfig        `json:"doip,omitempty"`
+	TFTP        *TFTPConfig        `json:"tftp,omitempty"`
+	MQTT        *MQTTConfig        `json:"mqtt,omitempty"`
+	ENIP        *ENIPConfig        `json:"enip,omitempty"`
+	SRv6        *SRv6Config        `json:"srv6,omitempty"`
+	SMB         *SMBConfig         `json:"smb,omitempty"`
+	DNP3        *DNP3Config        `json:"dnp3,omitempty"`
+	MCP         *MCPConfig         `json:"mcp,omitempty"`
+	GBT32960    *GBT32960Config    `json:"gbt32960,omitempty"`
+
+	// Metadata is a generic extension map used by protocol packages whose
+	// config types live outside core (avoids an import cycle). NFS, for
+	// example, stores *nfs.NFSConfig under the key "nfs". Protocol
+	// planners that own their config type directly (e.g. SMB via
+	// FlowSpec.SMB) do not use this field. nil = no extension config.
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// MCPConfig holds MCP traffic configuration. MCP is a JSON-RPC 2.0
+// application-layer protocol over stdio (line-delimited JSON) or HTTP+SSE /
+// Streamable HTTP. Each flow is one TCP session: initialize -> operating
+// exchanges -> shutdown. Multi-session uses multi-flow strategy (M
+// independent 4-tuples). This config generates wire bytes only; it does NOT
+// use the modelcontextprotocol/go-sdk (the SDK drives real sessions).
+type MCPConfig struct {
+	Transport          string              `json:"transport,omitempty"`           // "stdio"(default)/"http_sse"/"streamable"
+	BaseURL            string              `json:"base_url,omitempty"`            // HTTP modes; empty="/mcp"
+	SessionID          string              `json:"session_id,omitempty"`          // HTTP modes; Mcp-Session-Id header; empty=auto UUID
+	ProtocolVersion    string              `json:"protocol_version,omitempty"`    // empty="2024-11-05"
+	ClientInfo         MCPClientInfo       `json:"client_info,omitempty"`         // initialize params.clientInfo
+	ServerInfo         MCPServerInfo       `json:"server_info,omitempty"`         // initialize result.serverInfo
+	ClientCapabilities json.RawMessage     `json:"client_capabilities,omitempty"` // empty=default {} (no capabilities)
+	ServerCapabilities json.RawMessage     `json:"server_capabilities,omitempty"` // empty=default {} (no capabilities)
+	Requests           []MCPRequest        `json:"requests,omitempty"`            // client->server requests after initialize
+	Responses          []MCPMessage        `json:"responses,omitempty"`           // server->client; empty=synthesize success
+	Notifications      []MCPNotification   `json:"notifications,omitempty"`       // standalone notifications with Step position
+	Auth               MCPAuth             `json:"auth,omitempty"`                // HTTP auth; empty=no auth header
+	State              MCPState            `json:"state,omitempty"`               // long-task state machine
+	Parts              []MCPPart           `json:"parts,omitempty"`               // multi-part prompts/sampling
+	Metadata           map[string]any      `json:"metadata,omitempty"`            // _meta in requests/responses
+	PushNotification   MCPPushNotification `json:"push_notification,omitempty"`   // tools/call callback URL
+	IDCounter          int                 `json:"id_counter,omitempty"`          // first request id; 0=auto from 1
+	Rounds             int                 `json:"rounds,omitempty"`              // repeat count; 0=1
+	ThinkTime          int                 `json:"think_time,omitempty"`          // ms between rounds
+	Shutdown           *bool               `json:"shutdown,omitempty"`            // nil=true (TCP FIN teardown)
+	ContextID          string              `json:"context_id,omitempty"`          // _meta.contextId (call chain)
+	ParentID           string              `json:"parent_id,omitempty"`           // notifications/progress parentId
+}
+
+// MCPClientInfo describes the MCP client.
+type MCPClientInfo struct {
+	Name    string `json:"name,omitempty"`    // default "trafficgen-client"
+	Version string `json:"version,omitempty"` // default "1.0.0"
+}
+
+// MCPServerInfo describes the MCP server.
+type MCPServerInfo struct {
+	Name    string `json:"name,omitempty"`    // default "trafficgen-server"
+	Version string `json:"version,omitempty"` // default "1.0.0"
+}
+
+// MCPRequest is one client->server JSON-RPC request.
+type MCPRequest struct {
+	ID     int            `json:"id"`               // 0=auto from IDCounter; non-zero=user explicit
+	Method string         `json:"method"`           // "tools/list", "tools/call", ...
+	Params map[string]any `json:"params,omitempty"` // nil=emit {} or omit
+}
+
+// MCPMessage is one server->client message (response or notification).
+type MCPMessage struct {
+	ID     int            `json:"id"`               // 0 for notifications
+	Method string         `json:"method,omitempty"` // set for notifications
+	Result map[string]any `json:"result,omitempty"` // success response
+	Error  *MCPError      `json:"error,omitempty"`  // error response
+	Params map[string]any `json:"params,omitempty"` // notifications
+}
+
+// MCPError is a JSON-RPC error object.
+type MCPError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
+}
+
+// MCPNotification is a standalone notification with stream position.
+type MCPNotification struct {
+	Step   int            `json:"step"`   // 0..len(Requests)
+	Method string         `json:"method"` // "notifications/progress", ...
+	Params map[string]any `json:"params,omitempty"`
+}
+
+// MCPAuth holds HTTP authentication options for MCP.
+type MCPAuth struct {
+	Schemes       []string `json:"schemes,omitempty"`        // ["Bearer","Basic","OAuth2"]
+	Credentials   string   `json:"credentials,omitempty"`    // raw token / user:pass
+	OAuth2Token   string   `json:"oauth2_token,omitempty"`   // placeholder
+	OAuth2Refresh string   `json:"oauth2_refresh,omitempty"` // placeholder
+}
+
+// MCPState is the long-running tools/call state machine.
+type MCPState struct {
+	Initial string `json:"initial,omitempty"` // default "submitted"
+	Final   string `json:"final,omitempty"`   // default "completed"
+}
+
+// MCPPart describes one role/content pair for prompts/sampling multi-part.
+type MCPPart struct {
+	Role    string     `json:"role"` // "user"/"assistant"
+	Content MCPContent `json:"content"`
+}
+
+// MCPContent is one content block (text/image/audio/resource/resource_link).
+type MCPContent struct {
+	Type     string `json:"type"` // text/image/audio/resource/resource_link
+	Text     string `json:"text,omitempty"`
+	Data     string `json:"data,omitempty"` // base64 for image/audio
+	MimeType string `json:"mimeType,omitempty"`
+	URI      string `json:"uri,omitempty"` // resource/resource_link
+	Name     string `json:"name,omitempty"`
+}
+
+// MCPPushNotification is the tools/call callback URL config.
+type MCPPushNotification struct {
+	URL               string `json:"url,omitempty"`
+	VerificationToken string `json:"verification_token,omitempty"`
 }
 
 // SubFlowSpec describes a secondary flow bound to a primary flow. The
@@ -265,6 +416,16 @@ type SubFlowSpec struct {
 type VLAN struct {
 	ID       uint16 `json:"id"`
 	Priority uint8  `json:"priority"`
+}
+
+// IPv6Option is one IPv6 extension header option (RFC 8200 §4.2). Encoded as
+// Type(1 octet) + Opt Data Len(1 octet, the value octet count) + Value.
+// Type 0x00 (Pad1, no Len/Value) and 0x01 (PadN) are emitted by the builder
+// for alignment; hop-by-hop options with unknown types are passed through
+// as-is.
+type IPv6Option struct {
+	Type  uint8  `json:"type"`
+	Value []byte `json:"value,omitempty"`
 }
 
 // TCPConfig for TCP protocol.
@@ -765,6 +926,107 @@ type SIPMedia struct {
 	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
 }
 
+// RTSPConfig for the RTSP protocol. RTSP (RFC 2326) is a session-level
+// control protocol: a single TCP connection on port 554 carries a
+// sequence of control messages (DESCRIBE → 200 OK → SETUP → 200 OK →
+// PLAY → 200 OK → TEARDOWN → 200 OK); media data flows over a separate
+// UDP sub-flow as RTP (RFC 3550) on ports negotiated via the Transport
+// header. The planner emits a TCP handshake, each RTSPMessage in Dialog
+// (as PSH-ACK payload), then a TCP teardown — all within one flow.
+//
+// Header completion (user > auto > none, see completeRTSPHeaders):
+//   - CSeq is mandatory in every message (RFC 2326 §12.17). Auto-assigned
+//     incrementing; a response echoes the CSeq of the request it answers
+//     (reference pcaps: DESCRIBE CSeq:1 → 200 CSeq:1).
+//   - Session is generated by the server in the first SETUP response and
+//     echoed by every later request (§12.37). Reference: 15 hex digits.
+//   - SETUP Transport is derived from Media ports (§12.39):
+//     request client_port=<DstPort>-<DstPort+1>, response adds
+//     server_port=<SrcPort>-<SrcPort+1>.
+//   - Content-Length (and Content-Type: application/sdp) auto-appended
+//     when Body is non-empty.
+//   - PLAY response RTP-Info (§12.33) auto-generated with the same
+//     seq/ssrc/rtptime as the RTP frames emitted after it.
+//
+// Media: when non-nil, the planner emits a UDP sub-flow carrying RTP
+// frames after each message flagged EmitMedia (typically the PLAY
+// response — the server announces the stream in RTP-Info, then the
+// stream flows). The sub-flow shares the parent's GroupID so it routes
+// to the same PacketWorker — wire order = emit order, so RTP frames
+// land between PLAY and TEARDOWN in the pcap, exactly where real media
+// would appear.
+type RTSPConfig struct {
+	Dialog []RTSPMessage `json:"dialog"`
+	Media  *RTSPMedia    `json:"media,omitempty"`
+	// MSS is governed by TCPConfig.MSS. RTSP runs over TCP.
+}
+
+// RTSPMessage is a single message within an RTSP dialog. A request sets
+// Method+URI (e.g. Method="DESCRIBE", URI="rtsp://host/media"); a
+// response sets StatusCode+StatusText (e.g. 200, "OK"). Direction "up"
+// = client→server (request), "down" = server→client (response).
+type RTSPMessage struct {
+	Method     string   `json:"method,omitempty"`      // e.g. "DESCRIBE", "SETUP", "PLAY", "TEARDOWN"
+	URI        string   `json:"uri,omitempty"`         // e.g. "rtsp://host/media"; empty -> "rtsp://<dstIP>/media" (IPv6 bracketed)
+	StatusCode int      `json:"status_code,omitempty"` // e.g. 200; 0 for requests
+	StatusText string   `json:"status_text,omitempty"` // e.g. "OK"; empty for requests
+	Headers    []string `json:"headers,omitempty"`     // each "Name: Value"; CSeq/Session/Transport auto-added when missing
+	Body       string   `json:"body,omitempty"`        // e.g. SDP content; empty = no body
+	Direction  string   `json:"direction,omitempty"`   // "up" or "down"; empty -> planner infers from Method/StatusCode
+
+	// EmitMedia, when true on a message, triggers the planner to emit the
+	// RTP media sub-flow immediately AFTER this message. For byte-fidelity
+	// with real servers (PLAY → 200 OK with RTP-Info → RTP frames), set
+	// EmitMedia on the PLAY *response* — the RTP-Info header is then
+	// auto-generated with the exact seq/ssrc/rtptime of the frames that
+	// follow. When set on a request, the frames are emitted right after
+	// the request and the following response gets no auto RTP-Info (the
+	// stream it would describe has already gone out).
+	EmitMedia bool `json:"emit_media,omitempty"`
+}
+
+// RTSPMedia describes the RTP media plane for an RTSP session. RTP (RFC
+// 3550) runs over UDP on a separate 4-tuple from the RTSP signaling;
+// the ports are negotiated via the SETUP Transport header (the SDP m=
+// line carries port 0 — see reference pcap proto_rtsp.pcap). The
+// planner emits N RTP frames as a UDP sub-flow, each frame = 12-byte
+// RTP header + FrameSize bytes of payload.
+//
+// SrcPort/DstPort: the server-side RTP send port (server_port) and the
+// client-side RTP receive port (client_port). 0 means 5004 (the default
+// RTP port). When Media is non-nil these ports also drive the
+// auto-generated SETUP Transport headers (client_port=DstPort-DstPort+1,
+// server_port=SrcPort-SrcPort+1).
+//
+// Frames: number of RTP packets to emit. Each is one UDP datagram. At
+// 25fps video, Frames=25 models 1 second of one-way media.
+//
+// PayloadType: RTP payload type. RTSP sessions typically negotiate
+// dynamic types 96-127 via the SDP a=rtpmap line (reference: 96/97);
+// static types 0/8/9 are valid too. 0 is a valid PT (PCMU) and is
+// emitted as-is — no defaulting.
+//
+// FrameSize: bytes of media payload per RTP packet (G.711 20ms = 160,
+// video frames typically 1000-1400).
+//
+// Direction: which way RTP frames flow. RTSP servers stream media to
+// the client, so the default is "down" (server→client: src=spec.DstIP,
+// dst=spec.SrcIP). "up" models reverse flows (RTSP push/recording).
+type RTSPMedia struct {
+	SrcPort     uint16 `json:"src_port,omitempty"`     // 0 = 5004 (server-side RTP send port)
+	DstPort     uint16 `json:"dst_port,omitempty"`     // 0 = 5004 (client-side RTP receive port)
+	Frames      int    `json:"frames,omitempty"`       // number of RTP packets; 0 = 1
+	PayloadType uint8  `json:"payload_type,omitempty"` // RTP payload type; 0 = PCMU (valid, no defaulting)
+	SampleRate  uint32 `json:"sample_rate,omitempty"`  // RTP clock rate Hz (8000 audio, 90000 video); informational
+	FrameSize   int    `json:"frame_size,omitempty"`   // 0 = 160 (G.711 20ms)
+	Direction   string `json:"direction,omitempty"`    // "down" (default, server→client) or "up"
+
+	// FileSource, when set, supplies the RTP frame payload bytes via
+	// PayloadCache.GetOrLoad(src) instead of synthesizing zero-filled
+	// payload. nil = synthesize per FrameSize.
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
+}
+
 // SCTPConfig for the SCTP protocol. SCTP (RFC 4960) is a session-level,
 // message-oriented transport carrying IP protocol 132. Unlike TCP's 3-way
 // handshake, SCTP uses a 4-way handshake (INIT → INIT-ACK → COOKIE-ECHO →
@@ -941,6 +1203,43 @@ type L2Config struct {
 	EtherType uint16 `json:"ether_type"` // 0x0800=IPv4, 0x0806=ARP
 	VLAN      *VLAN  `json:"vlan,omitempty"`
 
+	// PPPoE, when non-nil, enables PPP-over-Ethernet encapsulation
+	// (RFC 2516). The builder inserts a 6-byte PPPoE header between the
+	// Ethernet header (with optional VLAN) and the PPP frame, and forces
+	// the EtherType to 0x8863 (Discovery) or 0x8864 (Session Data) based
+	// on PPPoE.Code. When PPPoE.PPPProtocol is 0x0021 (IPv4), the builder
+	// still writes the L3/L4 headers from L3Config/L4Config after the
+	// 2-byte PPP Protocol field; for LCP/IPCP/PAP/CHAP the PPP control
+	// message is carried in Payload with no L3/L4. nil = PPPoE disabled
+	// (the historical behavior — every existing planner leaves this nil).
+	PPPoE *PPPoEConfig `json:"pppoe,omitempty"`
+
+	// GRE, when non-nil, enables GRE encapsulation (RFC 2784/2890). The
+	// builder inserts the GRE header (4-byte base + 4 bytes per C/R/K/S
+	// option) between the outer IP header (which must carry protocol 47)
+	// and the inner payload, and counts it in the outer IP total-length
+	// field. The inner packet (IPv4/IPv6 + TCP/UDP, or ARP) is carried
+	// verbatim in Payload with its checksums already computed — the
+	// builder never interprets it, so L4Config must stay empty. nil = GRE
+	// disabled (the historical behavior — every existing planner leaves
+	// this nil). Mutually exclusive with PPPoE (both are encapsulations
+	// between the Ethernet and IP layers).
+	GRE *GREConfig `json:"gre,omitempty"`
+
+	// MPLS, when non-nil, enables MPLS label-stack encapsulation
+	// (RFC 3031/3032). The builder inserts one 4-byte label entry per
+	// stack level between the Ethernet header (with optional VLAN) and the
+	// inner L3 header, and forces the EtherType to 0x8847 (unicast, RFC
+	// 3032 §3.10) or 0x8848 (multicast, MPLSConfig.Multicast) — ignoring
+	// L2Config.EtherType, which still selects the INNER L3 layout
+	// (0x0800 IPv4 / 0x86DD IPv6; 0 or 0x8847/0x8848 = IPv4). The inner
+	// L3/L4 are written normally from L3Config/L4Config after the label
+	// stack. nil = MPLS disabled (the historical behavior — every existing
+	// planner leaves this nil). Mutually exclusive with GRE and PPPoE
+	// (all three are encapsulations between the Ethernet and IP layers;
+	// their lengths would interleave ambiguously).
+	MPLS *MPLSConfig `json:"mpls,omitempty"`
+
 	// Pad controls padding to MinEthernetFrame (60 bytes, excluding FCS).
 	// nil = pad (default ON — short frames like ARP or small ICMP are padded
 	// so real NICs don't reject them); *true = pad; *false = don't pad
@@ -948,6 +1247,328 @@ type L2Config struct {
 	// Propagated from FlowSpec.PadMinFrame by the worker; planners leave
 	// this nil so the builder applies its default.
 	Pad *bool `json:"pad,omitempty"`
+}
+
+// PPPoEConfig configures PPP-over-Ethernet Session Data or Discovery frames
+// per RFC 2516. It is attached to L2Config.PPPoE so the builder can emit the
+// 6-byte PPPoE header in the same pass as the Ethernet header.
+type PPPoEConfig struct {
+	// Code is the PPPoE code field (RFC 2516 §5). 0x00 = Session Data,
+	// 0x09 = PADI, 0x07 = PADO, 0x19 = PADR, 0x65 = PADS, 0xa7 = PADT.
+	// The builder selects the EtherType (0x8864 Session vs 0x8863
+	// Discovery) from this field.
+	Code uint8 `json:"code"` // 0 = Session Data (default)
+
+	// SessionID is the PPPoE Session ID (RFC 2516 §4). Discovery frames
+	// (PADI/PADR) set it to 0x0000; PADS assigns the value that subsequent
+	// Session Data frames must echo back to keep the session associated.
+	SessionID uint16 `json:"session_id"`
+
+	// PPPProtocol is the 2-byte PPP Protocol field (RFC 1661 §5) carried
+	// immediately after the PPPoE header in Session Data frames. 0x0021 =
+	// IPv4 (the L3/L4 from L3Config/L4Config follows); 0xc021 = LCP,
+	// 0x8021 = IPCP, 0xc023 = PAP, 0xc223 = CHAP (the PPP control message
+	// is in Payload with no L3/L4). 0 = IPv4 when Code=Session Data.
+	PPPProtocol uint16 `json:"ppp_protocol"`
+
+	// PayloadLength overrides the PPPoE Payload_Length field. When 0, the
+	// builder computes it as len(PPP Protocol field) + len(Payload) for
+	// Session Data, or len(Payload) for Discovery TLV tags. The field
+	// MUST equal the bytes following the PPPoE header (excluding the
+	// Ethernet padding), otherwise the receiver mis-frames the stream.
+	PayloadLength uint16 `json:"payload_length,omitempty"`
+
+	// DiscoveryTags is the list of PPPoE Tag-Type/Tag-Length/Tag-Value
+	// tuples carried in Discovery frames (RFC 2516 §5.1-5.4): Service-Name
+	// (0x0101), AC-Name (0x0102), Host-Uniq (0x0103), AC-Cookie (0x0104),
+	// Relay-Session-Id (0x0110), etc. Ignored for Session Data frames.
+	DiscoveryTags []PPPoETag `json:"discovery_tags,omitempty"`
+
+	// --- Session-level fields (driven by the internal/protocol/pppoe
+	// planner; ignored by the builder, which only reads the wire-level
+	// fields above) ---
+
+	// SkipDiscovery, when true, skips the PADI/PADO/PADR/PADS exchange
+	// (RFC 2516 §5.1-5.4) and starts directly at the LCP session phase
+	// with SessionID. false (default) = full Discovery before LCP.
+	SkipDiscovery bool `json:"skip_discovery,omitempty"`
+
+	// ACName is the AC-Name tag (0x0102) the planner puts in PADO.
+	// Empty = "trafficgen".
+	ACName string `json:"ac_name,omitempty"`
+
+	// ServiceName is the Service-Name tag (0x0101) carried in PADI/PADR
+	// and echoed by PADO/PADS. An empty value emits a zero-length
+	// Service-Name tag = "any service" (RFC 2516 §5.2).
+	ServiceName string `json:"service_name,omitempty"`
+
+	// Cookie is the AC-Cookie tag (0x0104) value. PADO carries it; PADR
+	// echoes it verbatim (RFC 2516 §5.4). nil/empty = no cookie tag
+	// emitted.
+	Cookie []byte `json:"cookie,omitempty"`
+
+	// MRU is the LCP Maximum-Receive-Unit option (RFC 1661 §6.1) in the
+	// Configure-Request. 0 = 1492 (the PPPoE payload ceiling per RFC 2516
+	// §7: 1500 - 6-byte PPPoE header - 2-byte PPP Protocol field).
+	MRU uint16 `json:"mru,omitempty"`
+
+	// MagicNumber is the LCP Magic-Number option (RFC 1661 §6.13) value.
+	// 0 = random 4-byte value (RFC 1661: the Magic-Number "MUST be chosen
+	// randomly"); set it explicitly for deterministic tests.
+	MagicNumber uint32 `json:"magic_number,omitempty"`
+
+	// Auth selects the PPP authentication phase after LCP (RFC 1661 §8):
+	// ""/ "none" (default), "pap" (RFC 1334), or "chap" (RFC 1994). PAP
+	// emits Authenticate-Request/Ack; CHAP emits Challenge/Response/
+	// Success. The selected protocol also appears in the LCP
+	// Auth-Protocol option.
+	Auth string `json:"auth,omitempty"`
+
+	// Username / Password are the PAP peer ID / CHAP name (and the
+	// PAP password). Empty = "trafficgen". The planner synthesizes the
+	// CHAP response value (echo of the challenge) — trafficgen does not
+	// compute real MD5 digests.
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+
+	// DataFrames is the number of inner-IPv4 data frames emitted after
+	// the session phase (PPP Protocol 0x0021). 0 = 1.
+	DataFrames int `json:"data_frames,omitempty"`
+
+	// DataPayload is the payload bytes for the inner IPv4 data packets.
+	// nil = spec.Payload.
+	DataPayload []byte `json:"data_payload,omitempty"`
+
+	// InnerProto is the inner IP protocol for data frames: 6=TCP, 17=UDP.
+	// 0 = UDP (or TCP when spec.TCP is set).
+	InnerProto uint8 `json:"inner_proto,omitempty"`
+
+	// DataDirection is the direction of the data frames: "up" (default,
+	// client→server) or "down" (server→client, swaps MACs and inner IPs).
+	DataDirection string `json:"data_direction,omitempty"`
+}
+
+// PPPoETag is a single PPPoE Discovery TLV (RFC 2516 §5.1). Tag-Type (2
+// bytes) + Tag-Length (2 bytes, value length only, NOT counting the 4-byte
+// TLV header) + Tag-Value. Tag-Length=0 with a non-empty value is invalid;
+// Tag-Length>0 with an empty value emits a value-less tag (valid for
+// Service-Name requests per RFC 2516 §5.2).
+type PPPoETag struct {
+	Type  uint16 `json:"type"`
+	Value []byte `json:"value,omitempty"`
+}
+
+// PPPoE tag type values (RFC 2516 §5.1-5.4, §5.6).
+const (
+	PPPoETagEndOfList      uint16 = 0x0000
+	PPPoETagServiceName    uint16 = 0x0101
+	PPPoETagACName         uint16 = 0x0102
+	PPPoETagHostUniq       uint16 = 0x0103
+	PPPoETagACCookie       uint16 = 0x0104
+	PPPoETagVendorSpecific uint16 = 0x0105
+	PPPoETagRelaySessionID uint16 = 0x0110
+	PPPoETagServiceNameErr uint16 = 0x0201
+	PPPoETagACSystemErr    uint16 = 0x0202
+	PPPoETagGenericErr     uint16 = 0x0203
+)
+
+// GREConfig configures GRE (Generic Routing Encapsulation, RFC 2784/2890)
+// tunneling. It is attached to L2Config.GRE so the builder can emit the GRE
+// header between the outer IP header and the inner payload. nil = GRE
+// disabled.
+//
+// The builder (outer-IP + GRE + payload layout) writes the outer IP header
+// with protocol 47 (IPPROTO_GRE), then the GRE header, then copies the inner
+// packet verbatim from PacketConfig.Payload — the inner packet (IPv4/IPv6 +
+// TCP/UDP/ICMP with correct checksums, or a 28-byte ARP message) is
+// assembled by the internal/protocol/gre planner. L4Config must stay empty
+// for GRE frames (the builder rejects it) so writeL4 is never called.
+type GREConfig struct {
+	// ProtocolType is the inner protocol EtherType carried in the GRE
+	// header (RFC 2784 §2): 0x0800 = IPv4, 0x0806 = ARP, 0x86DD = IPv6.
+	// 0 = auto: the planner resolves it per packet (0x0806 for
+	// ARP-over-GRE, 0x86DD for IPv6-over-GRE, 0x0800 otherwise); the
+	// builder defaults 0 to 0x0800.
+	ProtocolType uint16 `json:"protocol_type,omitempty"`
+
+	// Checksum, when true, sets the C bit and emits the Checksum(2) +
+	// Reserved(2) option field (RFC 2784 §2). The checksum is computed per
+	// RFC 2784 §3.1 over the GRE header (Checksum field zeroed) plus the
+	// payload, padded with zero octets to a 4-byte boundary; a computed
+	// 0x0000 is transmitted as 0xFFFF.
+	Checksum bool `json:"checksum,omitempty"`
+
+	// KeyPresent / Key: RFC 2890 Key option (4 bytes), selected by the K
+	// bit. The Key identifies the GRE tunnel — parallel tunnels use
+	// distinct Keys.
+	KeyPresent bool   `json:"key_present,omitempty"`
+	Key        uint32 `json:"key,omitempty"`
+
+	// SequencePresent / Sequence: RFC 2890 Sequence Number option (4
+	// bytes), selected by the S bit. The planner increments the value per
+	// emitted frame.
+	SequencePresent bool   `json:"sequence_present,omitempty"`
+	Sequence        uint32 `json:"sequence,omitempty"`
+
+	// RoutingPresent / Routing: RFC 2784 §2 Routing option, selected by
+	// the R bit. The builder emits a 2-byte Routing Length (counting the
+	// 2-byte header itself + the routing data) followed by the routing
+	// bytes. Routing must be at least 2 bytes and a multiple of 2 bytes —
+	// anything else is rejected by the builder rather than emitting a
+	// corrupt header.
+	RoutingPresent bool   `json:"routing_present,omitempty"`
+	Routing        []byte `json:"routing,omitempty"`
+
+	// --- PPTP mode (RFC 2637 §4.1 enhanced GRE) ---
+	//
+	// PPTP, when true, switches the GRE header to the PPTP-enhanced
+	// variant (RFC 2637 §4.1): the flags word becomes C=0 R=0 K=1 S=1
+	// s=0 Recur=0 A=(AckPresent) Flags=0 Ver=1 (0x3081 with ack), the
+	// Protocol Type is forced to 0x880B (PPP), and the Key field is
+	// redefined as Payload Length (high 16 bits, filled after the payload
+	// is in place) + Call ID (low 16 bits). Sequence Number and
+	// Acknowledgment Number are 32-bit fields. The builder rejects the
+	// standard-mode options (Checksum/RoutingPresent/KeyPresent/
+	// SequencePresent) in PPTP mode — the K/S flags are managed by the
+	// mode itself.
+	PPTP bool `json:"pptp,omitempty"`
+
+	// CallID is the 16-bit Call ID carried in the Key field's low half
+	// (RFC 2637 §1.3.2: the peer's Call ID, used for mux/demux). The
+	// planner sets it per frame.
+	CallID uint16 `json:"pptp_call_id,omitempty"`
+
+	// AckPresent selects the A bit (0x0080) and appends the 32-bit
+	// Acknowledgment Number field (RFC 2637 §4.1). false yields a 12-byte
+	// header (Key+Sequence only). Default true (16-byte header).
+	AckPresent bool `json:"pptp_ack_present,omitempty"`
+
+	// Ack is the 32-bit Acknowledgment Number (RFC 2637 §4.2: the highest
+	// sequence number received from the peer). The planner sets it per
+	// frame; ignored when AckPresent is false.
+	Ack uint32 `json:"pptp_ack,omitempty"`
+
+	// --- Tunnel-level fields (driven by the internal/protocol/gre
+	// planner; ignored by the builder, which only reads the wire-level
+	// fields above) ---
+
+	// InnerSrcIP / InnerDstIP are the inner packet's addresses. Empty =
+	// spec.SrcIP / spec.DstIP. In IP modes the inner packet's IP header
+	// uses them; in ARP mode they must stay empty (the ARP addresses come
+	// from the flow's MAC/IP fields, matching the ARP planner).
+	InnerSrcIP string `json:"inner_src_ip,omitempty"`
+	InnerDstIP string `json:"inner_dst_ip,omitempty"`
+
+	// InnerProto is the inner L4 protocol: 6=TCP, 17=UDP, 1=ICMP (IPv4
+	// mode), 58=ICMPv6 (IPv6 mode). 0 = UDP, or TCP when spec.TCP is set.
+	InnerProto uint8 `json:"inner_proto,omitempty"`
+
+	// InnerTTL is the inner IP TTL (IPv4) / hop limit (IPv6). 0 = 64.
+	InnerTTL uint8 `json:"inner_ttl,omitempty"`
+
+	// InnerIPID is the inner IPv4 Identification of the first frame (0 =
+	// 0; the planner increments it per frame). IPv6 has no IPID — ignored
+	// in IPv6 mode.
+	InnerIPID uint16 `json:"inner_ipid,omitempty"`
+
+	// InnerPayload is the inner L4 payload. nil = spec.Payload.
+	InnerPayload []byte `json:"inner_payload,omitempty"`
+
+	// TCPOptions are the inner TCP options (MSS, Window Scale,
+	// SACK-Permitted, Timestamp, ...), encoded after the 20-byte inner TCP
+	// header. Only used when the inner protocol is TCP. The flow-level
+	// TCPConfig carries Seq/Ack/Flags/WindowSize; the options are
+	// tunnel-scoped here (no shared JSON path sets them elsewhere).
+	TCPOptions []TCPOption `json:"tcp_options,omitempty"`
+
+	// Frames is the number of inner packets emitted (each gets a distinct
+	// inner IPID and GRE sequence). 0 = 1.
+	Frames int `json:"frames,omitempty"`
+
+	// Direction is the flow direction: "up" (default) or "down" (swaps
+	// outer MACs/IPs and inner addresses).
+	Direction string `json:"direction,omitempty"`
+}
+
+// MPLSConfig configures MPLS (MultiProtocol Label Switching, RFC 3031/3032)
+// label-stack encapsulation. It is attached to L2Config.MPLS so the builder
+// can emit the label stack between the Ethernet header (with optional VLAN)
+// and the inner L3 header. nil = MPLS disabled.
+//
+// The builder writes each MPLSLabel as a 4-byte network-order entry (RFC
+// 3032 §3.1): Label(20 bits) | TC(3 bits) | S(1 bit) | TTL(8 bits), top of
+// stack first. The S bit is auto-corrected: the LAST entry is always written
+// with S=1 (bottom of stack, RFC 3032 §2.1: "the stack is one or more
+// entries" and the bottom entry carries S=1), so a user who leaves the
+// bottom entry's S unset (false) still gets a valid stack; an explicit S=true
+// on a NON-bottom entry is a clear contradiction and is rejected by the
+// builder. A TTL of 0 is written as 64 (matching the IP TTL default).
+//
+// The inner L3 is the flow's own packet — L3Config/L4Config select the
+// inner IPv4/IPv6 header and TCP/UDP (or ICMP/ICMPv6 message in Payload)
+// written right after the label stack. The inner L3 header is written with
+// no MPLS awareness: MPLS is a shim between L2 and L3.
+type MPLSConfig struct {
+	// Labels is the label stack in transmission order (RFC 3032 §2.1):
+	// entry 0 = top of stack (the label an ingress LSR pushes first),
+	// last entry = bottom of stack (S bit = 1). At least one entry is
+	// required — an empty stack is rejected by the builder rather than
+	// emitting a bare 0x8847 EtherType with no labels.
+	Labels []MPLSLabel `json:"labels"`
+
+	// Multicast, when true, uses the multicast EtherType 0x8848 (RFC 3032
+	// §3.10); false (default) uses the unicast EtherType 0x8847. The
+	// builder forces the chosen value regardless of L2Config.EtherType.
+	Multicast bool `json:"multicast,omitempty"`
+
+	// --- Tunnel-level fields (driven by the internal/protocol/mpls
+	// planner; ignored by the builder, which only reads the wire-level
+	// fields above) ---
+
+	// InnerProto is the inner L4 protocol: 6=TCP, 17=UDP. 0 = UDP, or TCP
+	// when spec.TCP is set.
+	InnerProto uint8 `json:"inner_proto,omitempty"`
+
+	// InnerPayload is the inner L4 payload. nil = spec.Payload.
+	InnerPayload []byte `json:"inner_payload,omitempty"`
+
+	// Frames is the number of labeled packets emitted (each gets a
+	// distinct inner IP ID). 0 = 1.
+	Frames int `json:"frames,omitempty"`
+
+	// Direction is the flow direction: "up" (default) or "down" (swaps
+	// the MACs and IPs of the labeled packet).
+	Direction string `json:"direction,omitempty"`
+}
+
+// MPLSLabel is a single 4-byte MPLS label stack entry (RFC 3032 §3.1):
+//
+//	0                   1                   2                   3
+//	0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//	|                Label                  | TC |S|       TTL      |
+//	+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//
+// Label(20 bits) + TC(3 bits) + S(1 bit) + TTL(8 bits), serialized as one
+// 32-bit big-endian word per RFC 3032 §3.1.
+type MPLSLabel struct {
+	// Label is the 20-bit label value (RFC 3032 §3.10: 0 = IPv4
+	// Explicit-Null, 16-1048575 = usable labels, reserved values 0-15).
+	// Values above 0xFFFFF are rejected by the builder.
+	Label uint32 `json:"label"`
+
+	// TC is the 3-bit Traffic Class field (RFC 5462, formerly the
+	// Experimental/EXP field). Values above 7 are rejected.
+	TC uint8 `json:"tc,omitempty"`
+
+	// S is the Bottom-of-Stack bit (RFC 3032 §3.1): 1 only on the bottom
+	// entry. The builder auto-corrects the last entry to S=true; an
+	// explicit S=true on a non-bottom entry is rejected.
+	S bool `json:"s,omitempty"`
+
+	// TTL is the 8-bit Time-To-Live field (RFC 3032 §3.1). 0 = 64
+	// (defaulted by the builder, matching the IP TTL default).
+	TTL uint8 `json:"ttl,omitempty"`
 }
 
 // L3Config for Layer 3 (IP).
@@ -968,6 +1589,17 @@ type L3Config struct {
 	// Use IPFlagDF / IPFlagMF constants. Default Flags=IPFlagDF (0x4000).
 	Flags      uint8  `json:"flags,omitempty"`
 	FragOffset uint16 `json:"frag_offset,omitempty"`
+
+	// HopByHop is the IPv6 hop-by-hop extension header option list (RFC 8200
+	// §4.3), mirrored from FlowSpec. Only valid for IPv6.
+	HopByHop []IPv6Option `json:"hop_by_hop,omitempty"`
+
+	// SRH is the IPv6 Segment Routing Header (RFC 8754, Routing Type = 4).
+	// When non-nil, the builder inserts the SRH between the IPv6 fixed header
+	// (NH=43 chaining to the SRH) and the inner L4 payload. Only valid for
+	// IPv6. SRH.SegmentList is in wire order (reversed from user-facing
+	// order; the planner handles that reversal).
+	SRH *SRHConfig `json:"srh,omitempty"`
 }
 
 // IP flags bit positions within the L3Config.Flags field.
@@ -1011,6 +1643,72 @@ const (
 	TCPOptSACKPermit uint8 = 4 // SACK-Permitted
 	TCPOptTimestamp  uint8 = 8 // Timestamp
 )
+
+// DNP3Config configures IEEE 1815-2012 DNP3 traffic.
+type DNP3Config struct {
+	LinkType               string               `json:"link_type,omitempty"`
+	Transport              string               `json:"transport,omitempty"`
+	SrcAddr                uint16               `json:"src_addr,omitempty"`
+	DstAddr                uint16               `json:"dst_addr,omitempty"`
+	LinkFCB                uint8                `json:"link_fcb,omitempty"`
+	LinkFC                 uint8                `json:"link_fc,omitempty"`
+	AppSeq                 uint8                `json:"app_seq,omitempty"`
+	AppFunc                string               `json:"app_func,omitempty"`
+	AppFuncCode            uint8                `json:"app_func_code,omitempty"`
+	AppCON                 uint8                `json:"app_con,omitempty"`
+	Objects                []DNP3Object         `json:"objects,omitempty"`
+	Scenario               string               `json:"scenario,omitempty"`
+	IsEvent                bool                 `json:"is_event,omitempty"`
+	IsUnsolicited          bool                 `json:"is_unsolicited,omitempty"`
+	ConfirmRequired        bool                 `json:"confirm_required,omitempty"`
+	IIN                    uint16               `json:"iin,omitempty"`
+	IINClass1              bool                 `json:"iin_class1,omitempty"`
+	IINClass2              bool                 `json:"iin_class2,omitempty"`
+	IINClass3              bool                 `json:"iin_class3,omitempty"`
+	IINAlreadyExecuting    bool                 `json:"iin_already_executing,omitempty"`
+	IINEventBufferOverflow bool                 `json:"iin_event_buffer_overflow,omitempty"`
+	IINNeedTime            bool                 `json:"iin_need_time,omitempty"`
+	IINDeviceTrouble       bool                 `json:"iin_device_trouble,omitempty"`
+	IINLocalControl        bool                 `json:"iin_local_control,omitempty"`
+	IINBroadcast           bool                 `json:"iin_broadcast,omitempty"`
+	IINDeviceRestart       bool                 `json:"iin_device_restart,omitempty"`
+	IINConfigCorrupt       bool                 `json:"iin_config_corrupt,omitempty"`
+	IINObjectUnknown       bool                 `json:"iin_object_unknown,omitempty"`
+	IINParameterError      bool                 `json:"iin_parameter_error,omitempty"`
+	IINFuncNotSupported    bool                 `json:"iin_func_not_supported,omitempty"`
+	MultiOutstation        *DNP3MultiOutstation `json:"multi_outstation,omitempty"`
+	Handshake              *bool                `json:"handshake,omitempty"`
+	Termination            *bool                `json:"termination,omitempty"`
+	MSS                    uint16               `json:"mss,omitempty"`
+	ThinkTime              int                  `json:"think_time,omitempty"`
+	MalformedCRC           bool                 `json:"malformed_crc,omitempty"`
+	MalformedLength        uint8                `json:"malformed_length,omitempty"`
+	UnknownObject          bool                 `json:"unknown_object,omitempty"`
+	UnknownFunc            bool                 `json:"unknown_func,omitempty"`
+}
+
+type DNP3Object struct {
+	ObjectType uint8       `json:"object_type"`
+	Variation  uint8       `json:"variation"`
+	Qualifier  uint8       `json:"qualifier,omitempty"`
+	IndexRange [2]uint16   `json:"index_range,omitempty"`
+	Count      uint16      `json:"count,omitempty"`
+	Points     []DNP3Point `json:"points,omitempty"`
+	Flags      []uint8     `json:"flags,omitempty"`
+	Times      []uint64    `json:"times,omitempty"`
+}
+
+type DNP3Point struct {
+	Value float64 `json:"value,omitempty"`
+	Index uint16  `json:"index,omitempty"`
+}
+type DNP3MultiOutstation struct {
+	OutstationCount     int      `json:"outstation_count,omitempty"`
+	OutstationAddrStart uint16   `json:"outstation_addr_start,omitempty"`
+	OutstationIPStart   string   `json:"outstation_ip_start,omitempty"`
+	OutstationIPList    []string `json:"outstation_ip_list,omitempty"`
+	SrcPortStart        uint16   `json:"src_port_start,omitempty"`
+}
 
 // BatchSpec for batch traffic generation.
 type BatchSpec struct {
@@ -2320,6 +3018,173 @@ type IMAPIDLE struct {
 	ServerTimeoutBehavior string `json:"server_timeout_behavior,omitempty"`
 }
 
+// GTPConfig holds GTPv1 (GPRS Tunneling Protocol, 通用分组无线业务隧道协议,
+// TS 29.060 / TS 29.281) configuration. GTP is a UDP application-layer
+// protocol with two planes:
+//
+//	GTP-U (user plane, port 2152): T-PDU messages (Type 0xFF) carry an
+//	    inner IP packet — the actual user traffic of a tunnel.
+//	GTP-C (control plane, port 2123): signaling messages (Echo Request
+//	    type 1, Create PDP Context Request type 16, ...) carry Information
+//	    Elements instead of a packet.
+//
+// The GTPv1 message header (TS 29.281 §5.1) is:
+//
+//	Flags(1) + Message Type(1) + Length(2) + TEID(4)
+//	    + [Sequence(2) + N-PDU(1) + Next-Ext-Type(1)]  // iff E|S|PN set
+//	    + [extension header(s)]                        // iff E set
+//	    + payload (inner packet for T-PDU, IEs for GTP-C)
+//
+// Flags = Version(3 bits) | PT(1) | spare(1) | E(1) | S(1) | PN(1). The
+// Length field counts everything after the first 8 octets (Flags + Message
+// Type + Length + TEID) — i.e. the optional block, extension headers and
+// payload — and never counts the TEID itself (verified against
+// /home/pcap_auto/mypcap/idc3/2.gtp_tunneling_udp.pcap: flags 0x32, Length
+// 204 = 4 optional + 200 inner, TEID excluded).
+//
+// The planner decides which messages to emit: when Scenarios is non-empty
+// it emits one GTP-C message per step (a signaling dialog); otherwise it
+// emits Frames T-PDU data messages carrying the inner packet. The GTP
+// message is carried verbatim in PacketConfig.Payload of an outer UDP
+// packet — no builder support is needed (GTP is an L4 application, not an
+// L2/L3 encapsulation).
+type GTPConfig struct {
+	// Mode selects the plane, which sets the default UDP ports: "u" =
+	// GTP-U (default, 2152), "c" = GTP-C (2123). Plan defaults
+	// spec.SrcPort/DstPort to the mode's port when 0.
+	Mode string `json:"mode,omitempty"`
+
+	// Version is the GTP version. GTPv1 = 1 (the default and only
+	// supported version — GTPv0 uses a different header layout and GTPv2
+	// (TS 29.274) is a different protocol; both are rejected by Validate).
+	Version uint8 `json:"version,omitempty"`
+
+	// PT is the Protocol Type flag (bit 4 of Flags): 1 = GTP (default),
+	// 0 = GTP' (the charging variant of TS 32.295).
+	PT uint8 `json:"pt,omitempty"`
+
+	// TEID is the Tunnel Endpoint Identifier (4 bytes, octets 5-8). The
+	// TEID is ALWAYS present in GTPv1 — it is part of the mandatory
+	// 8-octet header (there is no TEID-present flag bit in GTPv1; the
+	// "spare" bit 3 is reserved and stays 0).
+	TEID uint32 `json:"teid,omitempty"`
+
+	// SequencePresent sets the S flag: the 4-octet optional block
+	// (Sequence + N-PDU + Next-Ext-Type) follows the TEID. Data-plane
+	// frames increment Sequence per frame; scenario steps write their
+	// own Sequence verbatim.
+	SequencePresent bool   `json:"sequence_present,omitempty"`
+	Sequence        uint16 `json:"sequence,omitempty"`
+
+	// NPDUPresent sets the PN flag (N-PDU Number carried in the optional
+	// block, TS 29.281 §5.1).
+	NPDUPresent bool  `json:"npdu_present,omitempty"`
+	NPDUValue   uint8 `json:"npdu_value,omitempty"`
+
+	// ExtensionPresent sets the E flag: one extension header (TS 29.281
+	// §5.2.1) follows the optional block:
+	// Next-Ext-Type(1) + Length(1, 4-octet units incl. the Length octet,
+	// excl. the Next-Ext-Type octet) + content padded to a 4-octet
+	// multiple. ExtensionData is the content (max 1018 bytes so the
+	// Length octet fits); the header's own Next-Ext-Type is 0x00 (last).
+	ExtensionPresent bool   `json:"extension_present,omitempty"`
+	ExtensionType    uint8  `json:"extension_type,omitempty"`
+	ExtensionData    []byte `json:"extension_data,omitempty"`
+
+	// Scenarios is the ordered list of GTP-C messages for a signaling
+	// dialog (Echo Request/Response, Create PDP Context, ...). Each step
+	// emits exactly one packet; when non-empty the Frames data plane is
+	// skipped. nil = data plane (Frames T-PDU messages).
+	Scenarios []GTPStep `json:"scenarios,omitempty"`
+
+	// --- Inner packet fields (GTP-U T-PDU data plane; TS 29.060 §7.1
+	// message type 255 carries the user packet verbatim) ---
+
+	// InnerSrcIP / InnerDstIP are the inner packet's addresses. Empty =
+	// spec.SrcIP / spec.DstIP.
+	InnerSrcIP string `json:"inner_src_ip,omitempty"`
+	InnerDstIP string `json:"inner_dst_ip,omitempty"`
+
+	// InnerProto is the inner L4 protocol: 6=TCP, 17=UDP, 1=ICMP (IPv4
+	// inner), 58=ICMPv6 (IPv6 inner). 0 = UDP, or TCP when spec.TCP is
+	// set.
+	InnerProto uint8 `json:"inner_proto,omitempty"`
+
+	// InnerTTL is the inner IP TTL (IPv4) / hop limit (IPv6). 0 = 64.
+	InnerTTL uint8 `json:"inner_ttl,omitempty"`
+
+	// InnerIPID is the inner IPv4 Identification of the first frame (0 =
+	// 0; the planner increments it per frame). IPv6 has no IPID — ignored
+	// in IPv6 mode.
+	InnerIPID uint16 `json:"inner_ipid,omitempty"`
+
+	// InnerPayload is the inner L4 payload. nil = spec.Payload.
+	InnerPayload []byte `json:"inner_payload,omitempty"`
+
+	// TCPOptions are the inner TCP options (MSS, Window Scale, ...),
+	// encoded after the 20-byte inner TCP header like the core builder's
+	// encoder.
+	TCPOptions []TCPOption `json:"tcp_options,omitempty"`
+
+	// Frames is the number of T-PDU data messages emitted (each gets a
+	// distinct inner IP ID and, when SequencePresent, an incremented
+	// sequence). 0 = 1.
+	Frames int `json:"frames,omitempty"`
+
+	// Direction is the flow direction: "up" (default) or "down" (swaps
+	// outer MACs/IPs/ports and inner addresses).
+	Direction string `json:"direction,omitempty"`
+}
+
+// GTPStep is one GTP-C control-plane message of a signaling dialog. Each
+// step emits exactly one packet on the flow's 4-tuple (direction-swapped
+// when the step's direction is "down").
+type GTPStep struct {
+	// MessageType is the GTP message type (TS 29.060 §7.1): 1 = Echo
+	// Request, 2 = Echo Response, 16 = Create PDP Context Request, 17 =
+	// Create PDP Context Response, ... Required (0 is rejected).
+	MessageType uint8 `json:"message_type"`
+
+	// TEIDOverride replaces the config TEID for this step (nil = the
+	// config TEID). Needed because control messages often carry a
+	// different (or zero, pre-assignment) TEID than the data plane.
+	TEIDOverride *uint32 `json:"teid_override,omitempty"`
+
+	// Sequence is the Sequence Number written when SequencePresent is
+	// set. Written verbatim (unlike the data plane's per-frame
+	// increment) — the dialog's sequence numbers are explicit.
+	Sequence uint16 `json:"sequence,omitempty"`
+
+	// Direction is the step's direction: "" = cfg.Direction, then "up".
+	// "down" swaps the outer MACs/IPs/ports so the reply comes from the
+	// peer.
+	Direction string `json:"direction,omitempty"`
+
+	// IEs are the Information Elements of the message (TS 29.060 §7.7.0),
+	// serialized per the Type's format bit (bit 8): Types 0x00–0x7F use the
+	// TV format (Type + Value, no Length octet, fixed-length IEs such as
+	// Recovery); Types 0x80–0xFF use the TLV format (Type + 2-octet
+	// big-endian Length + Value, variable-length IEs such as APN). Appended
+	// after the GTP header. nil = no IEs (e.g. a bare Echo Request).
+	IEs []GTPIE `json:"ies,omitempty"`
+}
+
+// GTPIE is one GTP Information Element (TS 29.060 §7.7.0). The encoding is
+// chosen by the Type's most significant bit: Types 0x00–0x7F (e.g. 1 =
+// Cause, 14 = Recovery, 16 = Tunnel Endpoint Identifier Data I, 17 = TEID
+// Control Plane) are TV format — Type(1 octet) + Value, no Length octet;
+// Types 0x80–0xFF (e.g. 131 = Access Point Name, 133 = GSN Address) are TLV
+// format — Type(1) + Length(2, big-endian, = len(Value)) + Value.
+type GTPIE struct {
+	// Type is the IE type octet (bit 8 selects TV vs TLV encoding).
+	Type uint8 `json:"type"`
+
+	// Value is the IE value. TV IEs have a fixed per-type length (their
+	// Length field is absent); TLV IEs take a 2-octet Length, so Values up
+	// to 65535 bytes are supported.
+	Value []byte `json:"value,omitempty"`
+}
+
 // L2TPConfig holds L2TPv2/v3 (Layer 2 Tunneling Protocol, 二层隧道协议)
 // configuration. L2TP runs over UDP 1701 and models either an L2TP tunnel
 // establishment dialog, an Incoming-Call / Outgoing-Call sequence on top of
@@ -2473,6 +3338,354 @@ type L2TPInnerIP struct {
 	// separate PPP data frame). Each frame gets a distinct inner IPID.
 	// 0 = 1 frame.
 	DataFrames int `json:"data_frames,omitempty"`
+}
+
+// PPTPConfig configures PPTP (Point-to-Point Tunneling Protocol, RFC 2637).
+// It is attached to FlowSpec.PPTP; the internal/protocol/pptp planner emits
+// the TCP control plane (default port 1723) and the GRE data plane (outer IP
+// protocol 47, PPTP-enhanced GRE header per RFC 2637 §4.1) in one flow.
+//
+// Control-plane defaults reproduce the reference pcap byte-for-byte
+// (/home/pcap_auto/llcj_mirror/IP-TCP-10.6.2.41-20.6.2.41-49194-1723-12-10-
+// 1260-980.pcap, PNS=client/PAC=server): SCCRQ/SCCRP 156B, OCRQ 168B, OCRP
+// 32B, SLI 24B, CCRQ 16B, CCDN 148B, StopRQ/StopRP 16B — including the
+// reference implementation quirks (SLI-down peer call id = PNS TCP source
+// port, merged CCRQ+CCDN segment, CCDN carrying the PNS call id in both
+// directions).
+type PPTPConfig struct {
+	// Role selects which role the flow's source side plays. "pns" (default)
+	// = the source side is the PNS (the reference pcap's client, which
+	// initiates SCCRQ/OCRQ); "pac" = the source side is the PAC. The role
+	// determines each control message's direction and call-ID ownership.
+	Role string `json:"role,omitempty"` // "pns" (default) | "pac"
+
+	// Scenario selects the message template: "full" (default: complete
+	// control plane + GRE data + teardown), "control_only" (same without
+	// the GRE data frames), "tunnel_only" (SCCRQ/SCCRP + OCRQ/OCRP only,
+	// no SLI/data), "data_only" (GRE data frames only, no TCP control
+	// plane).
+	Scenario string `json:"scenario,omitempty"`
+
+	// Calls is the number of concurrent calls (multi-session). 0 = 1. Call
+	// i (0-based) uses CallID+i / PeerCallID+i for its messages and data
+	// frames.
+	Calls int `json:"calls,omitempty"`
+
+	// --- SCCRQ parameters (defaults = reference pcap bytes) ---
+
+	// Version is the SCCRQ/SCCRP Protocol Version field (RFC 2637 §2.1).
+	// 0 = 0x0100 (1.0).
+	Version uint16 `json:"version,omitempty"`
+
+	// FramingCaps is the SCCRQ Framing Capabilities field (bit 0 = async,
+	// bit 1 = sync). 0 = 1 (async, the reference value).
+	FramingCaps uint32 `json:"framing_caps,omitempty"`
+
+	// BearerCaps is the SCCRQ Bearer Capabilities field (bit 0 = analog,
+	// bit 1 = digital). 0 = 1 (analog, the reference value).
+	BearerCaps uint32 `json:"bearer_caps,omitempty"`
+
+	// MaxChannels is the SCCRQ Maximum Channels field (reference = 0).
+	MaxChannels uint16 `json:"max_channels,omitempty"`
+
+	// FirmwareRevision is the SCCRQ Firmware Revision field.
+	FirmwareRevision uint16 `json:"firmware_revision,omitempty"`
+
+	// HostName is the SCCRQ/SCCRP Host Name field (64-byte fixed field,
+	// zero-padded; empty = all zeros, the reference value).
+	HostName string `json:"host_name,omitempty"`
+
+	// VendorName is the SCCRQ/SCCRP Vendor Name field (64-byte fixed
+	// field). Default "Microsoft" (the reference value).
+	VendorName string `json:"vendor_name,omitempty"`
+
+	// --- SCCRP response parameters (defaults = reference pcap bytes) ---
+
+	// ScrpResult is the SCCRP Result Code (1 byte, RFC 2637 §2.2).
+	// 0 = 1 (OK).
+	ScrpResult uint8 `json:"scrp_result,omitempty"`
+
+	// ScrpError is the SCCRP Error Code (1 byte). 0 = 0.
+	ScrpError uint8 `json:"scrp_error,omitempty"`
+
+	// ScrpFramingCaps is the SCCRP Framing Capabilities field.
+	// 0 = 2 (sync, the reference value).
+	ScrpFramingCaps uint32 `json:"scrp_framing_caps,omitempty"`
+
+	// ScrpBearerCaps is the SCCRP Bearer Capabilities field.
+	// 0 = 3 (digital+analog, the reference value).
+	ScrpBearerCaps uint32 `json:"scrp_bearer_caps,omitempty"`
+
+	// ScrpFirmwareRev is the SCCRP Firmware Revision field.
+	// 0 = 0x0ece (3790, the reference value).
+	ScrpFirmwareRev uint16 `json:"scrp_firmware_rev,omitempty"`
+
+	// --- Call parameters (OCRQ/OCRP; defaults = reference pcap bytes) ---
+
+	// CallID is this side's (PNS side's) call ID. The reference pcap's PNS
+	// (client) assigns 0xa9c0 in OCRQ; the PAC echoes it back as the Peer
+	// Call ID in OCRP.
+	CallID uint16 `json:"call_id,omitempty"`
+
+	// PeerCallID is the peer's (PAC side's) call ID, assigned by the PAC
+	// in OCRP (reference 0x35c9). Data frames carry the PEER's call ID in
+	// the GRE Key field (RFC 2637 §1.3.2), so PNS-side frames use
+	// PeerCallID and PAC-side frames use CallID.
+	PeerCallID uint16 `json:"peer_call_id,omitempty"`
+
+	// CallSerial is the OCRQ Call Serial Number (reference 3).
+	CallSerial uint16 `json:"call_serial,omitempty"`
+
+	// MinBPS is the OCRQ Minimum BPS. 0 = 300 (the reference value).
+	MinBPS uint32 `json:"min_bps,omitempty"`
+
+	// MaxBPS is the OCRQ Maximum BPS. 0 = 100000000 (the reference value).
+	MaxBPS uint32 `json:"max_bps,omitempty"`
+
+	// BearerType is the OCRQ Bearer Type. 0 = 3 (the reference value).
+	BearerType uint32 `json:"bearer_type,omitempty"`
+
+	// FramingType is the OCRQ Framing Type. 0 = 3 (the reference value).
+	FramingType uint32 `json:"framing_type,omitempty"`
+
+	// WindowSize is the OCRQ Packet Recv Window Size. 0 = 64 (the
+	// reference value).
+	WindowSize uint16 `json:"window_size,omitempty"`
+
+	// PacketDelay is the OCRQ Packet Processing Delay (reference 0).
+	PacketDelay uint16 `json:"packet_delay,omitempty"`
+
+	// PhoneNumber is the OCRQ Phone Number (64-byte fixed field; empty =
+	// all zeros, the reference value). Phone Number Length is auto-filled.
+	PhoneNumber string `json:"phone_number,omitempty"`
+
+	// SubAddress is the OCRQ Sub-Address as a hex string (64-byte fixed
+	// field, zero-padded). Default reproduces the reference pcap's binary
+	// garbage bytes "011f423a6484e94caf72892a29b1d3ab". Empty string = all
+	// zeros.
+	SubAddress string `json:"sub_address,omitempty"`
+
+	// OcrpResult is the OCRP Result Code (1 byte). 0 = 1 (OK).
+	OcrpResult uint8 `json:"ocrp_result,omitempty"`
+
+	// OcrpError is the OCRP Error Code (1 byte). 0 = 0.
+	OcrpError uint8 `json:"ocrp_error,omitempty"`
+
+	// CauseCode is the OCRP Cause Code (failure reason, RFC 2637 §2.4.2).
+	CauseCode uint16 `json:"cause_code,omitempty"`
+
+	// ConnectSpeed is the OCRP Connect Speed. 0 = 14808325 (the reference
+	// value).
+	ConnectSpeed uint32 `json:"connect_speed,omitempty"`
+
+	// OcrpWindowSize is the OCRP Packet Recv Window Size.
+	// 0 = 16384 (the reference value).
+	OcrpWindowSize uint16 `json:"ocrp_window_size,omitempty"`
+
+	// OcrpDelay is the OCRP Packet Processing Delay (reference 0).
+	OcrpDelay uint16 `json:"ocrp_delay,omitempty"`
+
+	// PhysicalChannelID is the OCRP Physical Channel ID.
+	PhysicalChannelID uint32 `json:"physical_channel_id,omitempty"`
+
+	// --- Link parameters (SLI) ---
+
+	// SendACCM / ReceiveACCM are the SLI ACCM values (RFC 2637 §2.7).
+	// 0 = 0xffffffff each (the reference values).
+	SendACCM    uint32 `json:"send_accm,omitempty"`
+	ReceiveACCM uint32 `json:"receive_accm,omitempty"`
+
+	// SLICount is the number of SLI messages per call. 0 = 5 (the
+	// reference pcap alternates up/down/up/down/up).
+	SLICount int `json:"sli_count,omitempty"`
+
+	// SliPeerCallID overrides the SLI Peer Call ID for every SLI.
+	// 0 = auto: PNS-side SLIs use PeerCallID (the peer's call id);
+	// PAC-side SLIs use the PNS side's TCP source port (the reference
+	// pcap quirk: 0xc02a = 49194). Call i adds i when set explicitly.
+	SliPeerCallID uint16 `json:"sli_peer_call_id,omitempty"`
+
+	// --- Teardown parameters ---
+
+	// StopReason is the StopRQ Reason Code. 0 = 1 (the reference value).
+	StopReason uint8 `json:"stop_reason,omitempty"`
+
+	// StopResult / StopError are the StopRP Result/Error Codes.
+	// 0 = 1 / 0 (the reference values).
+	StopResult uint8 `json:"stop_result,omitempty"`
+	StopError  uint8 `json:"stop_error,omitempty"`
+
+	// CcdnResult / CcdnError / CcdnCause are the CCDN Result Code, Error
+	// Code and Cause Code (RFC 2637 §2.13). 0 = 0/0/0 (the reference
+	// values).
+	CcdnResult uint8  `json:"ccdn_result,omitempty"`
+	CcdnError  uint8  `json:"ccdn_error,omitempty"`
+	CcdnCause  uint16 `json:"ccdn_cause,omitempty"`
+
+	// --- Optional control-message segments ---
+
+	// Echo, when true, appends ECRQ (PAC side) → ECRP (PNS side) after
+	// SCCRP (RFC 2637 §2.9: the PAC requests an echo reply).
+	Echo bool `json:"echo,omitempty"`
+
+	// WEN, when true, appends a WAN Error Notification (PAC side, RFC
+	// 2637 §2.11) after the SLI sequence of each call.
+	WEN bool `json:"wen,omitempty"`
+
+	// IncomingCall, when true, appends ICRQ (PAC) → ICRP (PNS) → ICCN
+	// (PAC) after OCRP of each call (RFC 2637 §2.9-2.11, PAC-initiated
+	// incoming call). The reference pcap has no incoming-call segment;
+	// these messages follow the RFC layouts.
+	IncomingCall bool `json:"incoming_call,omitempty"`
+
+	// DialedNumber is the ICRQ Dialed Number field (64-byte fixed, RFC
+	// 2637 §2.9). Empty = all zeros.
+	DialedNumber string `json:"dialed_number,omitempty"`
+
+	// DialingNumber is the ICRQ Dialing Number field (64-byte fixed, RFC
+	// 2637 §2.9). Empty = all zeros.
+	DialingNumber string `json:"dialing_number,omitempty"`
+
+	// --- Data plane (PPTP-GRE, RFC 2637 §4.1) ---
+
+	// DataFrames is the number of GRE data frames emitted by the PNS side
+	// (sequence 0..N-1, ack 0). 0 = 3.
+	DataFrames int `json:"data_frames,omitempty"`
+
+	// DownDataFrames is the number of GRE data frames emitted by the PAC
+	// side (sequence 0..M-1, ack = N-1). 0 = 2.
+	DownDataFrames int `json:"down_data_frames,omitempty"`
+
+	// InnerIP configures the inner IPv4 packet carried in each PPP data
+	// frame (PPP protocol 0x0021, RFC 1661 §6). Nil = planner synthesizes
+	// a default inner IPv4 packet (10.10.10.1 → 10.10.10.2, UDP).
+	InnerIP *PPTPInnerIP `json:"inner_ip,omitempty"`
+}
+
+// PPTPInnerIP describes the inner IPv4 packet encapsulated in PPP data
+// frames (RFC 2637 §4.1 carries PPP; RFC 1661 §6 PPP Protocol 0x0021 =
+// IPv4). The planner builds a complete IPv4 header (with correct checksum)
+// + optional L4 header + payload. Only IPv4 inner packets are supported.
+type PPTPInnerIP struct {
+	// SrcIP is the inner IPv4 source address. Empty = "10.10.10.1".
+	SrcIP string `json:"src_ip,omitempty"`
+	// DstIP is the inner IPv4 destination address. Empty = "10.10.10.2".
+	DstIP string `json:"dst_ip,omitempty"`
+	// Proto is the inner IPv4 protocol number (RFC 790). Supported: 1
+	// (ICMP), 6 (TCP), 17 (UDP). Default 17 (UDP).
+	Proto uint8 `json:"proto,omitempty"`
+	// SrcPort is the inner L4 source port (TCP/UDP only).
+	SrcPort uint16 `json:"src_port,omitempty"`
+	// DstPort is the inner L4 destination port (TCP/UDP only).
+	DstPort uint16 `json:"dst_port,omitempty"`
+	// TTL is the inner IPv4 TTL (RFC 791 §3.1). 0 = 64.
+	TTL uint8 `json:"ttl,omitempty"`
+	// Payload is the inner L4 payload bytes. For TCP, prepended after the
+	// 20-byte TCP header (no options). For UDP, after the 8-byte header.
+	Payload []byte `json:"payload,omitempty"`
+}
+
+// H323Config configures H.323 (ITU-T H.225.0/H.245, multimedia over IP). It
+// is attached to FlowSpec.H323; the internal/protocol/h323 planner emits the
+// three planes in one flow:
+//   - Q.931 call signaling on TCP (default port 1720), each message wrapped
+//     in a 4-byte TPKT header (RFC 1006) followed by PD 0x08 / 2-byte call
+//     reference (MSB = direction flag) / message type / IE chain
+//   - H.245 control tunneled inside Q.931 FACILITY (0x62) messages via the
+//     h245Control field of the PER-encoded H323-UserInformation
+//   - RAS registration on UDP (port 1719, H.225.0 §7) when Ras.Enabled
+//   - RTP media on UDP after CONNECT when Media.Enabled
+//
+// The PER payloads are byte templates extracted from the reference pcap
+// (/home/pcap_auto/llcj_pcap/IP-TCP-20.4.2.46-30.4.2.46-30000-1720-10-10-
+// 2271-1779.pcap, caller=20.4.2.46:30000 / callee=30.4.2.46:1720, direct
+// call without a gatekeeper), reproducing the reference quirks: FACILITY
+// carrying [TCS req + TCS Ack + MSD Ack] in one message, missing MSD
+// request, CRV 0x2584 in both directions (flag toggles), 1440-byte SETUP
+// with 18 fastStart OpenLogicalChannels, "Administrator\0" Display IE.
+// RAS has no reference pcap and is PER-encoded per H.225.0 §7.
+type H323Config struct {
+	// Role selects which role the flow's source side plays. "caller"
+	// (default) = the source side is the calling party (the reference
+	// pcap's 20.4.2.46:30000, which sends SETUP first); "callee" = the
+	// called party (sends CALL PROCEEDING first). The role determines each
+	// message's direction and the call-reference flag bit.
+	Role string `json:"role,omitempty"` // "caller" (default) | "callee"
+
+	// Scenario selects the message template: "full" (default: complete
+	// Q.931 call with the H.245 tunnel + optional RAS/RTP), "tunnel_only"
+	// (Q.931 skeleton only: SETUP/CP/ALERT/CONNECT/RELCOMP, no H.245
+	// FACILITY tunnel), "ras_only" (RAS message pairs only, no Q.931),
+	// "data_only" (RTP media frames only, no signaling).
+	Scenario string `json:"scenario,omitempty"`
+
+	// Crv is the Q.931 call reference value (design_h323.md §4.1).
+	// 0 = 0x2584 (the reference pcap value). Multi-call sessions increment
+	// it per call.
+	Crv uint16 `json:"crv,omitempty"`
+
+	// DisplayName is the Q.931 Display IE string; a NUL terminator is
+	// appended automatically (reference "Administrator"). It does NOT
+	// affect the PER template's embedded h323-ID (kept byte-for-byte).
+	DisplayName string `json:"display_name,omitempty"`
+
+	// Calls is the number of sequential calls (multi-session). 0 = 1. Each
+	// call runs the full cycle (SETUP..RELEASE COMPLETE) before the next
+	// starts; Crv increments per call.
+	Calls int `json:"calls,omitempty"`
+
+	// RewriteAddr rewrites the PER templates' embedded IP/port bytes
+	// (length-preserving: IP 4B, port 2B) to the flow's src/dst addresses.
+	// Off = reproduce the reference pcap bytes exactly.
+	RewriteAddr bool `json:"rewrite_addr,omitempty"`
+
+	// Media configures the RTP data plane (nil = disabled).
+	Media *H323MediaConfig `json:"media,omitempty"`
+
+	// Ras configures the RAS registration plane (nil = disabled).
+	Ras *H323RasConfig `json:"ras,omitempty"`
+}
+
+// H323MediaConfig configures the RTP media plane emitted after CONNECT.
+type H323MediaConfig struct {
+	// Enabled emits Frames RTP frames after CONNECT. Default false.
+	Enabled bool `json:"enabled,omitempty"`
+
+	// SrcPort is the RTP source port. 0 = 5062 (reference OLC mediaChannel).
+	SrcPort uint16 `json:"src_port,omitempty"`
+
+	// DstPort is the RTP destination port. 0 = 5063 (reference OLC
+	// mediaControlChannel).
+	DstPort uint16 `json:"dst_port,omitempty"`
+
+	// Frames is the number of RTP frames. 0 = 10.
+	Frames int `json:"frames,omitempty"`
+
+	// PayloadType is the RTP payload type. 0 = 0 (G.711 uLaw; the
+	// reference speex capability uses dynamic 125).
+	PayloadType uint8 `json:"payload_type,omitempty"`
+
+	// FrameSize is the payload bytes per RTP frame (20 ms G.711 = 160).
+	// 0 = 160.
+	FrameSize int `json:"frame_size,omitempty"`
+}
+
+// H323RasConfig configures the RAS plane (H.225.0 §7, UDP 1719).
+type H323RasConfig struct {
+	// Enabled runs the RAS registration cycle (GRQ→GCF→RRQ→RCF→ARQ→ACF
+	// before the call, DRQ→DCF after it). Default false.
+	Enabled bool `json:"enabled,omitempty"`
+
+	// GatekeeperIP is the gatekeeper address written into rasAddress.
+	// Empty = the reference callee IP 10.12.184.53.
+	GatekeeperIP string `json:"gatekeeper_ip,omitempty"`
+
+	// Port is the RAS UDP port. 0 = 1719.
+	Port uint16 `json:"port,omitempty"`
+
+	// EndpointType is the endpoint type in GRQ/RRQ: "terminal" (default)
+	// or "gateway".
+	EndpointType string `json:"endpoint_type,omitempty"`
 }
 
 // L2TPStep is a single control-message step in the L2TP dialog. Direction
@@ -2871,7 +4084,7 @@ type MySQLCommand struct {
 	// Body is empty, the planner auto-encodes the request from StmtID +
 	// StmtFlags + IterationCount + StmtParams. When Body is non-empty,
 	// the user-provided Body takes precedence (raw mode).
-	StmtFlags  uint8           `json:"stmt_flags,omitempty"`
+	StmtFlags  uint8            `json:"stmt_flags,omitempty"`
 	StmtParams []MySQLStmtParam `json:"stmt_params,omitempty"`
 }
 
@@ -5217,4 +6430,2112 @@ type WireGuardInnerIP struct {
 	// frame gets a distinct inner IPID (IPv4) / Flow Label (IPv6). 0 = 1
 	// frame.
 	DataFrames int `json:"data_frames,omitempty"`
+}
+
+// SocksConfig holds SOCKS proxy protocol configuration. Two versions are
+// supported, selected by Version:
+//
+//   - "socks5" (default, RFC 1928 + RFC 1929): fixed four/five-phase
+//     negotiation on one TCP connection — greeting (up) → method response
+//     (down) → [auth request/response when AuthMethod=password] → request
+//     (up) → reply (down). After a successful reply (Rep=0), Data messages
+//     are tunneled verbatim over the same TCP connection (CONNECT/BIND),
+//     or a UDP relay sub-flow is emitted (Cmd=udp_associate).
+//   - "socks4" (SOCKS4/4a, no RFC): two-phase — request (up) → reply
+//     (down), then tunneled Data. Domain targets use the SOCKS4a
+//     extension (DSTIP=0.0.0.1 + domain after the USERID terminator,
+//     no length prefix, 0x00-terminated). No auth, no UDP.
+//
+// Reference pcaps (llcj dport=1080, 24 files) contain both versions:
+// SOCKS5 sessions are `05 01 00` / `05 00` / `05 01 00 03 0f
+// www.example.com 00 50` / `05 00 00 01 00 00 00 00 00 00` (no data
+// plane); SOCKS4 sessions are `04 01 00 50 5d b8 d8 77 00` /
+// `00 5a df b2 0a b4 9c f9` followed by tunneled HTTP.
+//
+// The signaling phase order is protocol-fixed and auto-generated from the
+// config (unlike RTSP's user-driven Dialog). Data is a list of tunneled
+// application messages emitted after the reply when Rep=0.
+type SocksConfig struct {
+	// Version (版本): "socks5" (default) or "socks4".
+	Version string `json:"version,omitempty"`
+
+	// AuthMethod (认证方法): "no_auth" (default, 0x00) or "password"
+	// (0x02, RFC 1929). SOCKS5 only; SOCKS4 has no auth phase. GSSAPI
+	// (0x01) is not supported.
+	AuthMethod string `json:"auth_method,omitempty"`
+
+	// Username/Password (用户名/密码): used when AuthMethod="password".
+	// Defaults "user"/"pass" when empty.
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+
+	// Cmd (命令): "connect" (default, 0x01), "bind" (0x02), or
+	// "udp_associate" (0x03, SOCKS5 only).
+	Cmd string `json:"cmd,omitempty"`
+
+	// DstAddr/DstPort (目标地址/端口): the CONNECT target. DstAddr may be
+	// an IPv4/IPv6 address (ATYP auto-inferred 1/4) or a domain name
+	// (ATYP=3 for SOCKS5, SOCKS4a for SOCKS4). Empty defaults
+	// "www.example.com":80 (reference pcap target).
+	DstAddr string `json:"dst_addr,omitempty"`
+	DstPort uint16 `json:"dst_port,omitempty"`
+
+	// Rep (回复码): SOCKS5 REP (0-8, 0=success) / SOCKS4 result
+	// (0=granted). 0 emits Data/UDP sub-flow; non-zero suppresses them
+	// (RFC 1928: connection closes on failure).
+	Rep int `json:"rep,omitempty"`
+
+	// BndAddr/BndPort (绑定地址/端口): reply BND.ADDR/BND.PORT. Empty
+	// defaults 0.0.0.0:0 (reference pcap reply bytes).
+	BndAddr string `json:"bnd_addr,omitempty"`
+	BndPort uint16 `json:"bnd_port,omitempty"`
+
+	// UserID (用户标识): SOCKS4 request USERID. Empty emits just the
+	// 0x00 terminator (reference pcap).
+	UserID string `json:"user_id,omitempty"`
+
+	// Data (隧道数据面): tunneled application messages emitted after the
+	// reply when Rep=0, in list order, each as one PSH-ACK segment
+	// (MSS-segmented if oversized). Reference SOCKS4 pcaps carry tunneled
+	// HTTP GET/200 here.
+	Data []SocksDataMessage `json:"data,omitempty"`
+
+	// UDP (UDP中继子面): SOCKS5 udp_associate relay config. When set,
+	// the planner emits UDP datagrams after the reply, each prefixed
+	// with the RFC 1928 §7 header (RSV+FRAG+ATYP+ADDR+PORT).
+	UDP *Socks5UDP `json:"udp,omitempty"`
+}
+
+// SocksDataMessage is one tunneled application message on the SOCKS data
+// plane. Direction "up" = client→proxy (e.g. reference HTTP GET), "down"
+// = proxy→client (HTTP 200 response). Empty Direction defaults "up".
+type SocksDataMessage struct {
+	Direction  string                 `json:"direction,omitempty"`
+	Payload    string                 `json:"payload,omitempty"`
+	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
+}
+
+// Socks5UDP describes the UDP relay sub-flow for SOCKS5 udp_associate
+// (RFC 1928 §7). After the reply, the planner emits Frames UDP datagrams,
+// each = 10-byte relay header (RSV 0x0000 + FRAG 0x00 + ATYP + ADDR +
+// PORT of the relay target) + FrameSize bytes of payload. SrcPort/DstPort
+// are the proxy/relay and client relay ports; Direction "down" (default)
+// = proxy→client.
+type Socks5UDP struct {
+	SrcPort   uint16 `json:"src_port,omitempty"`
+	DstPort   uint16 `json:"dst_port,omitempty"`
+	Frames    int    `json:"frames,omitempty"`
+	FrameSize int    `json:"frame_size,omitempty"`
+	DstAddr   string `json:"dst_addr,omitempty"`
+	Direction string `json:"direction,omitempty"`
+}
+
+// RTMPConfig holds Adobe RTMP (Real-Time Messaging Protocol) 配置.
+// RTMP 是基于 TCP 的流媒体协议 (端口 1935),用于音视频流的推拉.
+// 参考 pcap: llcj_mirror/IP-TCP-20.7.1.84-30.7.1.84-50216-1935-...
+//
+// RTMP 会话流程:
+//  1. TCP 三次握手 (SYN/SYN-ACK/ACK) + TCP 选项 (MSS/WinScale/SACK)
+//  2. RTMP 握手: C0+C1 (客户端, 1537字节) → S0+S1+S2 (服务端, 3073字节) → C2 (客户端, 1536字节)
+//  3. 命令阶段: connect() → Window Ack Size / Set Peer Bandwidth / Stream Begin /
+//     Set Chunk Size / _result() → Window Ack Size → createStream() → Set Buffer Length →
+//     _result() → play()/publish()
+//  4. 数据阶段 (可选): 音视频 chunk 流
+//  5. TCP 四次挥手 (FIN/FIN-ACK/ACK)
+//
+// 所有命令使用 AMF0 (Action Message Format 0) 编码,封装在 RTMP chunk 中.
+// Chunk 格式: 基本头部(1字节) + 消息头部(11/7/3字节) + chunk 数据.
+// 所有 chunk 均使用 type 0 头部 (12字节完整头部, chunk stream ID=3).
+type RTMPConfig struct {
+	// App (应用名): RTMP connect 命令中的 app 属性.
+	// 空值默认为 "live" (参考 pcap 默认值).
+	App string `json:"app,omitempty"`
+
+	// TcURL (TC URL): connect 命令中的 tcUrl 属性.
+	// 空值默认为 "rtmp://<DstIP>/<App>" (自动构造).
+	TcURL string `json:"tc_url,omitempty"`
+
+	// Command (命令类型): "play" (默认,拉流) 或 "publish" (推流).
+	// 决定第三阶段的命令是 play() 还是 publish().
+	Command string `json:"command,omitempty"`
+
+	// StreamName (流名称): play/publish 命令中的流名称.
+	// 空值默认为 "stream" (参考 pcap).
+	StreamName string `json:"stream_name,omitempty"`
+
+	// Data (数据面): 握手和命令阶段完成后的音视频 chunk 列表.
+	// 每个 RTMPDataChunk 作为一条独立的 PSH-ACK TCP 段发送.
+	// MsgType=8 表示音频, MsgType=9 表示视频 (参考 RTMP 规范 §11.4).
+	// 空列表表示无数据面 (仅完成握手和命令).
+	Data []RTMPDataChunk `json:"data,omitempty"`
+}
+
+// RTMPDataChunk 是 RTMP 数据阶段的一条音视频消息.
+// 每条消息封装为一个 RTMP chunk (type 0 头部, 12字节) 通过 TCP 发送.
+// MsgType=8 (0x08) = 音频数据 (Audio Data), MsgType=9 (0x09) = 视频数据 (Video Data).
+// ChunkStreamID 音频默认 4, 视频默认 6 (参考 pcap chunk stream ID 分配).
+type RTMPDataChunk struct {
+	// Direction (方向): "up" = 客户端→服务端 (publish推流),
+	// "down" = 服务端→客户端 (play拉流). 空值默认为 "down".
+	Direction string `json:"direction,omitempty"`
+
+	// MsgType (消息类型): RTMP 消息类型 ID.
+	// 8 (0x08) = 音频数据, 9 (0x09) = 视频数据.
+	// 空值默认为 9 (视频).
+	MsgType uint8 `json:"msg_type,omitempty"`
+
+	// ChunkStreamID (chunk 流 ID): RTMP chunk stream 标识符.
+	// 音频默认 4, 视频默认 6. 0 表示自动选择 (按 MsgType).
+	ChunkStreamID uint8 `json:"chunk_stream_id,omitempty"`
+
+	// Payload (载荷): chunk 数据字节 (不含 RTMP chunk 头部).
+	// 空值自动生成 100 字节随机数据 (模拟音视频帧).
+	Payload []byte `json:"payload,omitempty"`
+}
+
+// NGAPConfig holds NGAP (Next Generation Application Protocol, 5G核心网信令协议)
+// configuration for the NGAP planner. NGAP is defined in 3GPP TS 38.413 and
+// runs over SCTP (端口 38412, PPID=60). It carries signaling between gNB
+// (基站) and AMF (接入管理功能).
+//
+// The planner emits:
+//  1. SCTP 4-way handshake (INIT → INIT-ACK → COOKIE-ECHO → COOKIE-ACK)
+//  2. NG Setup procedure (NGSetupRequest gNB→AMF, NGSetupResponse AMF→gNB)
+//  3. Optional: InitialUEMessage (gNB→AMF)
+//  4. Optional: DownlinkNASTransport (AMF→gNB)
+//  5. Optional: UplinkNASTransport (gNB→AMF)
+//  6. Optional: PDUSessionResourceSetupRequest/Response
+//  7. Optional: UEContextReleaseCommand/Complete
+//  8. SCTP 3-way teardown (SHUTDOWN → SHUTDOWN-ACK → SHUTDOWN-COMPLETE)
+//
+// Messages use simplified ASN.1 PER encoding patterns — recognizable by DPI
+// but not full-compliance with 3GPP TS 38.413 encoding rules. The planner
+// builds correct NGAP-PDU structures: choice index + procedureCode +
+// criticality + protocolIEs.
+//
+// Reference pcap: SCTP_NAS.pcap (1 packet: InitialUEMessage with Registration
+// Request, PPID=60, SCTP ports 38413→38412).
+type NGAPConfig struct {
+	// GlobalRANNodeID (全局RAN节点标识): the gNB identifier carried in
+	// NGSetupRequest. Default: PLMN MCC=460 MNC=01 + gNB ID=0x000001.
+	// The planner builds a simplified but structurally valid
+	// GlobalRANNodeID IE (ProtocolIE id=72, criticality=reject).
+	GlobalRANNodeID *NGAPGlobalRANNodeID `json:"global_ran_node_id,omitempty"`
+
+	// SupportedTAList (支持的TA列表): Tracking Area list carried in
+	// NGSetupRequest. Default: one TAI with PLMN MCC=460 MNC=01, TAC=1.
+	// Each entry has a PLMN identity and one or more TACs.
+	SupportedTAList []NGAPSupportedTA `json:"supported_ta_list,omitempty"`
+
+	// DefaultPagingDRX (默认寻呼DRX): paging DRX (非连续接收) value in
+	// NGSetupRequest. Values: 0=vrf128, 1=vrf256, 2=vrf512, 3=vrf1024.
+	// Default 0 (vrf128).
+	DefaultPagingDRX int `json:"default_paging_drx,omitempty"`
+
+	// AMFName (AMF名称): the AMF name returned in NGSetupResponse.
+	// Default "AMF-TEST-01". Carried as a PrintableString IE.
+	AMFName string `json:"amf_name,omitempty"`
+
+	// UplinkNAS (上行NAS消息): optional NAS-PDU bytes to carry in
+	// UplinkNASTransport after NG Setup completes. The planner wraps
+	// these bytes in a minimal UplinkNASTransport PDU (procedureCode=46).
+	// When nil, no UplinkNASTransport is emitted.
+	UplinkNAS []byte `json:"uplink_nas,omitempty"`
+
+	// DownlinkNAS (下行NAS消息): optional NAS-PDU bytes to carry in
+	// DownlinkNASTransport. The planner emits it as a response from AMF
+	// (procedureCode=4). When nil, no DownlinkNASTransport is emitted.
+	DownlinkNAS []byte `json:"downlink_nas,omitempty"`
+
+	// PDUSessionSetup (PDU会话建立): when non-nil, the planner emits a
+	// PDUSessionResourceSetupRequest (AMF→gNB) followed by a
+	// PDUSessionResourceSetupResponse (gNB→AMF) after NG Setup.
+	PDUSessionSetup *NGAPPDUSessionSetup `json:"pdu_session_setup,omitempty"`
+
+	// UEContextRelease (UE上下文释放): when true, the planner emits a
+	// UEContextReleaseCommand (AMF→gNB) followed by
+	// UEContextReleaseComplete (gNB→AMF) at the end of the session,
+	// before SCTP teardown. Default false.
+	UEContextRelease bool `json:"ue_context_release,omitempty"`
+
+	// RANUENGAPID (RAN UE NGAP ID): the RAN-side UE identifier used in
+	// InitialUEMessage, UplinkNAS, PDUSessionSetup, UEContextRelease.
+	// Default 1.
+	RANUENGAPID uint32 `json:"ran_ue_ngap_id,omitempty"`
+
+	// AMFUENGAPID (AMF UE NGAP ID): the AMF-side UE identifier used in
+	// DownlinkNAS and response messages. Default 1.
+	AMFUENGAPID uint32 `json:"amf_ue_ngap_id,omitempty"`
+
+	// InitialUEMessage (初始UE消息): when true, emit InitialUEMessage
+	// (procedureCode=15) after NG Setup, carrying the NAS-PDU from
+	// InitialNAS (when non-nil) or a minimal Registration Request.
+	InitialUEMessage bool `json:"initial_ue_message,omitempty"`
+
+	// InitialNAS (初始NAS): NAS-PDU bytes for the InitialUEMessage.
+	// When nil and InitialUEMessage=true, the planner builds a minimal
+	// Registration Request NAS-PDU (7e 00 41 79 ...).
+	InitialNAS []byte `json:"initial_nas,omitempty"`
+}
+
+// NGAPGlobalRANNodeID is the gNB identifier (全球RAN节点标识). It carries
+// a PLMN Identity (MCC+MNC, 3 bytes) and a gNB ID (gNB标识, variable length).
+// Default: PLMN=46001 (MCC 460 China, MNC 01 China Unicom), gNB ID=0x000001.
+type NGAPGlobalRANNodeID struct {
+	PLMNMCC int    `json:"plmn_mcc,omitempty"` // Mobile Country Code (移动国家码), default 460
+	PLMNMNC int    `json:"plmn_mnc,omitempty"` // Mobile Network Code (移动网络码), default 1
+	GNBID   uint32 `json:"gnb_id,omitempty"`   // gNB ID (基站标识), default 1
+}
+
+// NGAPSupportedTA is one SupportedTA (支持的跟踪区) entry in NGSetupRequest.
+// Each carries a PLMN Identity and one or more TACs (Tracking Area Codes, 跟踪区码).
+type NGAPSupportedTA struct {
+	PLMNMCC int      `json:"plmn_mcc,omitempty"` // MCC, default 460
+	PLMNMNC int      `json:"plmn_mnc,omitempty"` // MNC, default 1
+	TACs    []uint32 `json:"tacs,omitempty"`     // TAC list, default [1]
+}
+
+// NGAPPDUSessionSetup configures PDUSessionResourceSetup (PDU会话资源建立).
+// The planner emits a Request (AMF→gNB) and a Response (gNB→AMF).
+type NGAPPDUSessionSetup struct {
+	// PDUSessionID (PDU会话ID): 0-255, default 1.
+	PDUSessionID int `json:"pdu_session_id,omitempty"`
+	// NSSAI (网络切片标识): SST (Slice/Service Type, 切片类型) + SD
+	// (Slice Differentiator, 切片区分器). Default SST=1 (eMBB), SD=1.
+	SST int    `json:"sst,omitempty"`
+	SD  uint32 `json:"sd,omitempty"`
+}
+
+// RadiusConfig holds RADIUS (RFC 2865/2866) protocol configuration.
+// RADIUS is a UDP request/response AAA protocol: the NAS (Network Access
+// Server, 网络接入服务器) sends an Access/Accounting request to the server
+// and the server answers with a matching response on the same 4-tuple.
+//
+// Each flow performs Rounds request/response exchanges. The request uses
+// Code/Identifier/Authenticator/Attributes; the response echoes the
+// request Identifier, uses ResponseCode (0 = auto-derived from the
+// request code), and carries ResponseAttributes.
+type RadiusConfig struct {
+	// Code (请求报文类型): 1=Access-Request (default), 3=Access-Reject,
+	// 4=Accounting-Request, 11=Access-Challenge, 12=Status-Server.
+	// Response codes 2/5/13 are rejected at Validate (request side only).
+	Code int `json:"code,omitempty"`
+
+	// Identifier (标识符): 1-byte request ID (RFC 2865 §3). Round n uses
+	// (Identifier+n-1)&0xFF; the response echoes it (reference pcaps echo).
+	Identifier uint8 `json:"identifier,omitempty"`
+
+	// Authenticator (认证子): 16-byte request Authenticator as hex string.
+	// Empty generates a fresh random 16 bytes per round (reference pcaps
+	// vary per packet). The response Authenticator is always random 16
+	// bytes: computing the RFC 2865 §3 MD5 response requires the shared
+	// secret, which trafficgen does not model.
+	Authenticator string `json:"authenticator,omitempty"`
+
+	// Attributes (请求属性): request attribute list, encoded in order.
+	// Empty derives a default set from Code (see DefaultRequestAttrs).
+	Attributes []RadiusAttribute `json:"attributes,omitempty"`
+
+	// ResponseCode (响应报文类型): 0 = auto by request code
+	// (1→2 Access-Accept, 4→5 Accounting-Response, 12→13 Status-Client).
+	// Explicit values must be response codes 2/3/5/11/13 (reference
+	// ipv6_radius pcap uses 3=Access-Reject as a response).
+	ResponseCode uint8 `json:"response_code,omitempty"`
+
+	// ResponseAttributes (响应属性): response attribute list. Reference
+	// pcaps' responses carry none (Length=20).
+	ResponseAttributes []RadiusAttribute `json:"response_attributes,omitempty"`
+
+	// Rounds (轮数): request/response exchange count on the same
+	// 4-tuple (default 1). The reference ipv6_radius pcap performs 3
+	// exchanges per flow with a distinct ID per round.
+	Rounds int `json:"rounds,omitempty"`
+}
+
+// RadiusAttribute is one RADIUS attribute (RFC 2865 §5): Type(1) +
+// Length(1) + Value. Format selects the Value encoding:
+//   - "string" (default): raw UTF-8 bytes
+//   - "ipv4": 4-byte big-endian IPv4 address
+//   - "uint32": 4-byte big-endian unsigned integer
+//   - "hex": hex-decoded bytes
+//
+// When VendorID > 0 the attribute is wrapped as Vendor-Specific (type 26):
+// outer Type=26, outer Length=8+inner value length, 4-byte big-endian
+// VendorID, then inner VSA (VSA Type=Type, VSA Length, VSA Value).
+type RadiusAttribute struct {
+	Type     uint8  `json:"type"`
+	Format   string `json:"format,omitempty"`
+	Value    string `json:"value,omitempty"`
+	VendorID uint32 `json:"vendor_id,omitempty"`
+}
+
+// LDAPConfig holds LDAP (RFC 4511) protocol configuration. LDAP is a
+// BER-encoded directory access protocol over TCP (default port 389): each
+// flow is one TCP session running a bind → search → unbind signaling
+// exchange (the reference pcap is an Active Directory RootDSE query
+// session; its SASL GSS-API messages are Kerberos ciphertext and are not
+// reproducible, so the planner always emits plain BER with simple
+// authentication).
+//
+// Each round performs bindRequest/bindResponse then
+// searchRequest/searchResEntry+searchResDone; unbindRequest is sent once
+// at the end of the last round. Message IDs are Base+3r (bind),
+// Base+3r+1 (search), Base+3r+2 (unbind); responses echo the request ID.
+// Reference pcap wire facts: every BER length uses the long form
+// 0x84+4-byte big-endian (Active Directory client behavior); the default
+// attribute list mirrors the RootDSE query's 15 attributes; default
+// MessageIDBase=2423 + defaults reproduces the 351-byte searchRequest
+// byte-for-byte.
+type LDAPConfig struct {
+	// Rounds (轮数): bind/search exchange count (default 1). unbind is
+	// sent once after the last round.
+	Rounds int `json:"rounds,omitempty"`
+
+	// MessageIDBase (起始消息号): message ID of the first bindRequest
+	// (RFC 4511 §4.1.1 requires a non-zero INTEGER). Must satisfy
+	// Base+3×(Rounds-1)+2 ≤ 0x7FFF.
+	MessageIDBase uint16 `json:"message_id_base,omitempty"`
+
+	// Version (版本): LDAP protocol version (RFC 4511 §4.2.1), 2 or 3.
+	Version int `json:"version,omitempty"`
+
+	// BindDN (绑定名称): bindRequest name; empty = anonymous bind.
+	BindDN string `json:"bind_dn,omitempty"`
+
+	// BindPassword (绑定密码): simple authentication password
+	// (RFC 4511 §4.2.1 simple [0] OCTET STRING). SASL is not modeled.
+	BindPassword string `json:"bind_password,omitempty"`
+
+	// SearchBaseDN (搜索基准): searchRequest baseObject; empty = RootDSE
+	// (the reference pcap queries the RootDSE).
+	SearchBaseDN string `json:"search_base_dn,omitempty"`
+
+	// SearchScope (搜索范围): RFC 4511 §4.5.1.2 scope ENUMERATED:
+	// 0=baseObject (default), 1=singleLevel, 2=wholeSubtree.
+	SearchScope int `json:"search_scope,omitempty"`
+
+	// SizeLimit (数量上限): RFC 4511 §4.5.1.3 sizeLimit INTEGER,
+	// 0 = unlimited.
+	SizeLimit int `json:"size_limit,omitempty"`
+
+	// TimeLimit (时间上限): RFC 4511 §4.5.1.4 timeLimit INTEGER (seconds),
+	// 0 = unlimited. Reference pcap uses 120.
+	TimeLimit int `json:"time_limit,omitempty"`
+
+	// FilterType (过滤器类型): RFC 4511 §4.5.1.7 Filter CHOICE:
+	// "present" (default, tag 0x87) or "equality" (tag 0xa3).
+	FilterType string `json:"filter_type,omitempty"`
+
+	// SearchFilter (过滤属性): attribute name for the filter; default
+	// "objectclass" (reference pcap present filter).
+	SearchFilter string `json:"search_filter,omitempty"`
+
+	// FilterValue (过滤值): equality filter value, forming an
+	// attr=value assertion with SearchFilter.
+	FilterValue string `json:"filter_value,omitempty"`
+
+	// Attributes (属性列表): searchRequest AttributeSelection; empty
+	// defaults to the reference pcap's 15 RootDSE attributes
+	// (subschemaSubentry, dsServiceName, namingContexts, ...,
+	// supportedCapabilities).
+	Attributes []string `json:"attributes,omitempty"`
+
+	// ResultCode (结果码): resultCode for bindResponse and searchResDone
+	// (RFC 4511 §4.1.9 ENUMERATED): 0=success (default), 49=
+	// invalidCredentials, etc. Must be 0-127.
+	ResultCode uint8 `json:"result_code,omitempty"`
+
+	// Unbind (解绑): send unbindRequest (RFC 4511 §4.3, no response)
+	// after the last round. nil = send (default true); the JSON parser
+	// sets false explicitly when the user writes "unbind": false.
+	Unbind *bool `json:"unbind,omitempty"`
+}
+
+// VNCConfig holds VNC/RFB (RFC 6143) protocol configuration. VNC is a
+// remote-framebuffer protocol over TCP (default port 5900): each flow is
+// one session running version negotiation → security handshake → ServerInit
+// (signaling plane) followed by client messages and server framebuffer
+// updates (data plane).
+//
+// Three security paths: 16=Tight (default, reference pcap: tunnel caps +
+// auth caps + interaction caps), 2=VNC Authentication (challenge/response,
+// no caps), 1=None. The reference pcap is a TightVNC session (server name
+// "QTMS:1 (ykaul)", 1024×768, 32bpp) whose handshake messages this planner
+// reproduces byte-for-byte by default; the auth response is DES ciphertext
+// and is emitted as deterministic pseudo-random bytes (default = the
+// reference pcap bytes, seedable via ChallengeSeed/ResponseSeed).
+//
+// Data plane: the client sends key events + SetPixelFormat + SetEncodings +
+// a full-screen FramebufferUpdateRequest, then per round a PointerEvent; the
+// server answers with FramebufferUpdate messages whose rects use raw (0),
+// hextile (5) or xcursor (-240) encodings (reference pcap uses hextile raw
+// tiles and an XCursor blob). Reference-pcap garbage padding bytes are not
+// reproduced (RFC padding is zero).
+type VNCConfig struct {
+	// SecurityType (安全类型): RFC 6143 §7.2.1: 16=Tight (default,
+	// reference pcap), 2=VNC Authentication, 1=None.
+	SecurityType int `json:"security_type,omitempty"`
+
+	// AuthResult (认证结果): SecurityResult u32 (RFC 6143 §7.2.2):
+	// 0=OK (default); 1 or 2 = failure, in which case a reasonLen u32 +
+	// reason string follows and the session ends (no ServerInit).
+	AuthResult int `json:"auth_result,omitempty"`
+
+	// AuthReason (失败原因): failure reason string appended after
+	// AuthResult 1/2.
+	AuthReason string `json:"auth_reason,omitempty"`
+
+	// ShareDesktop (共享桌面): ClientInit shared-flag byte (RFC 6143
+	// §7.3.1). nil = true.
+	ShareDesktop *bool `json:"share_desktop,omitempty"`
+
+	// Width (宽度): ServerInit framebuffer width u16 (default 1024,
+	// reference pcap `04 00`).
+	Width int `json:"width,omitempty"`
+
+	// Height (高度): ServerInit framebuffer height u16 (default 768,
+	// reference pcap `03 00`).
+	Height int `json:"height,omitempty"`
+
+	// ServerName (服务器名): ServerInit name string (default
+	// "QTMS:1 (ykaul)", the reference pcap server); nameLen u32 is
+	// computed automatically.
+	ServerName string `json:"server_name,omitempty"`
+
+	// PixelFormat (像素格式): ServerInit pixel format (RFC 6143 §7.3.3,
+	// 16 bytes). nil = reference pcap default (32bpp/24bit/little-endian
+	// true-color/255/16/8/0).
+	PixelFormat *VNCPixelFormatConfig `json:"pixel_format,omitempty"`
+
+	// InteractionCaps (交互能力): Tight mode Interaction Caps message
+	// (TightVNC extension). nil = reference pcap default (184 bytes: 11
+	// capability records).
+	InteractionCaps *VNCInteractionCapsConfig `json:"interaction_caps,omitempty"`
+
+	// KeyEvents (按键事件): client key events after the handshake
+	// (RFC 6143 §8.4.4). nil = reference pcap's 6 key releases
+	// (0xffe9/0xffe3/0xffe1/0xffea/0xffe4/0xffe2); explicitly empty =
+	// no key events.
+	KeyEvents []VNCKeyEventConfig `json:"key_events,omitempty"`
+
+	// ClientSetPixelFormat (发像素格式): client sends SetPixelFormat
+	// (RFC 6143 §8.1) echoing the server pixel format. nil = true.
+	ClientSetPixelFormat *bool `json:"client_set_pixel_format,omitempty"`
+
+	// ClientSetEncodings (发编码列表): client sends SetEncodings
+	// (RFC 6143 §8.2). nil = true.
+	ClientSetEncodings *bool `json:"client_set_encodings,omitempty"`
+
+	// Encodings (编码列表): SetEncodings list (RFC 6143 §8.2, 4 bytes
+	// each). nil = reference pcap's 15 values (5, 8, 7, 6, 4, 2, 1, 0,
+	// -250, -240, -239, -232, -26, -224, -223).
+	Encodings []int `json:"encodings,omitempty"`
+
+	// Rounds (轮数): data-plane rounds. Each round = client PointerEvent
+	// (up) → server FramebufferUpdate(s) (down). The client sends one
+	// non-incremental full-screen FBU request before the first update and
+	// one incremental request after the last (reference pcap structure).
+	Rounds int `json:"rounds,omitempty"`
+
+	// PointerX (指针X): PointerEvent x coordinate (default 507,
+	// reference pcap `01 fb`).
+	PointerX int `json:"pointer_x,omitempty"`
+
+	// PointerY (指针Y): PointerEvent y coordinate (default 320,
+	// reference pcap `01 40`).
+	PointerY int `json:"pointer_y,omitempty"`
+
+	// PointerButton (指针按钮): PointerEvent button mask (default 0,
+	// reference pcap).
+	PointerButton int `json:"pointer_button,omitempty"`
+
+	// FBUUpdateInterval (更新间隔): server FramebufferUpdates per round
+	// (default 1).
+	FBUUpdateInterval int `json:"fbu_update_interval,omitempty"`
+
+	// InitialFBU (首更新): rects of the first server FramebufferUpdate
+	// after the handshake. nil = reference pcap FBU#1 structure: XCursor
+	// (0,1,12,19) + Hextile full screen (0,0,1024,768).
+	InitialFBU []VNCRectConfig `json:"initial_fbu,omitempty"`
+
+	// UpdateRects (轮更新): rects of each round's FramebufferUpdate. nil
+	// = reference pcap FBU#2 pattern: 2× Hextile 16×16 raw tiles.
+	UpdateRects []VNCRectConfig `json:"update_rects,omitempty"`
+
+	// Bell (铃响): server sends a Bell message (RFC 6143 §9.3, 1 byte)
+	// before each FramebufferUpdate. Default false.
+	Bell bool `json:"bell,omitempty"`
+
+	// SetColourMapEntries (色表): server SetColourMapEntries message
+	// (RFC 6143 §9.2) before each FramebufferUpdate. nil = not sent.
+	SetColourMapEntries *VNCColourMapConfig `json:"set_colour_map_entries,omitempty"`
+
+	// ServerCutText (服务器剪贴板): non-empty sends a ServerCutText
+	// message (RFC 6143 §9.4) before each FramebufferUpdate.
+	ServerCutText string `json:"server_cut_text,omitempty"`
+
+	// ClientCutText (客户端剪贴板): non-empty sends a ClientCutText
+	// message (RFC 6143 §8.5) after the initial FBU request.
+	ClientCutText string `json:"client_cut_text,omitempty"`
+
+	// ChallengeSeed (挑战种子): seed for the 16-byte server challenge;
+	// 0 = reference pcap fixed bytes (byte-exact reproduction).
+	ChallengeSeed uint64 `json:"challenge_seed,omitempty"`
+
+	// ResponseSeed (响应种子): seed for the 16-byte client auth response
+	// (DES ciphertext, not computable; deterministic pseudo-random).
+	// 0 = reference pcap fixed bytes.
+	ResponseSeed uint64 `json:"response_seed,omitempty"`
+}
+
+// VNCPixelFormatConfig holds the RFC 6143 §7.3.3 pixel format (16 bytes).
+type VNCPixelFormatConfig struct {
+	// BitsPerPixel (每像素位数): 8, 16 or 32 (reference pcap 32).
+	BitsPerPixel int `json:"bits_per_pixel,omitempty"`
+
+	// Depth (深度): color depth (reference pcap 24).
+	Depth int `json:"depth,omitempty"`
+
+	// BigEndian (大端): byte-order flag (reference pcap false).
+	BigEndian bool `json:"big_endian,omitempty"`
+
+	// TrueColor (真彩色): true-colour flag (reference pcap true).
+	TrueColor bool `json:"true_color,omitempty"`
+
+	// RedMax (红最大值): red-max u16 (reference pcap 255).
+	RedMax int `json:"red_max,omitempty"`
+
+	// GreenMax (绿最大值): green-max u16 (reference pcap 255).
+	GreenMax int `json:"green_max,omitempty"`
+
+	// BlueMax (蓝最大值): blue-max u16 (reference pcap 255).
+	BlueMax int `json:"blue_max,omitempty"`
+
+	// RedShift (红移位): red-shift (reference pcap 16).
+	RedShift int `json:"red_shift,omitempty"`
+
+	// GreenShift (绿移位): green-shift (reference pcap 8).
+	GreenShift int `json:"green_shift,omitempty"`
+
+	// BlueShift (蓝移位): blue-shift (reference pcap 0).
+	BlueShift int `json:"blue_shift,omitempty"`
+}
+
+// VNCInteractionCapsConfig holds the TightVNC Interaction Caps message:
+// a 4×u16 header (nServerMessageTypes, nClientMessageTypes,
+// nEncodingTypes, pad) followed by capability records of 16 bytes each
+// (code u32 + vendor u8[4] + name u8[8]).
+type VNCInteractionCapsConfig struct {
+	// ServerMsgTypes (服务器消息数): nServerMessageTypes u16 (reference 0).
+	ServerMsgTypes int `json:"server_msg_types,omitempty"`
+
+	// ClientMsgTypes (客户端消息数): nClientMessageTypes u16 (reference
+	// pcap 11 — the QTMS synthetic server lists 11 encoding capabilities
+	// under this counter; reproduced verbatim).
+	ClientMsgTypes int `json:"client_msg_types,omitempty"`
+
+	// EncodingTypes (编码类型数): nEncodingTypes u16 (reference 0).
+	EncodingTypes int `json:"encoding_types,omitempty"`
+
+	// Caps (能力记录): capability records; nil = the reference pcap's 11
+	// records (RRE/HEXTILE/TIGHT/ZRLE/COPYRECT/COMPRLVL/JPEGQLVL/
+	// X11CURSR/RCHCURSR/LASTRECT/NEWFBSIZ).
+	Caps []VNCCapabilityConfig `json:"caps,omitempty"`
+}
+
+// VNCCapabilityConfig is one 16-byte capability record.
+type VNCCapabilityConfig struct {
+	// Code (编码值): capability code u32.
+	Code int `json:"code,omitempty"`
+
+	// Vendor (厂商): 4-byte vendor signature (e.g. "STDV", "TGHT").
+	Vendor string `json:"vendor,omitempty"`
+
+	// Name (名称): 8-byte name signature (e.g. "TIGHT___").
+	Name string `json:"name,omitempty"`
+}
+
+// VNCKeyEventConfig is one RFC 6143 §8.4.4 KeyEvent message.
+type VNCKeyEventConfig struct {
+	// Down (按下): 1 = key down, 0 = key release (reference pcap all
+	// releases).
+	Down bool `json:"down,omitempty"`
+
+	// Key (键值): X11 keysym u32 (e.g. 0xffe9 = Page_Up).
+	Key int `json:"key,omitempty"`
+}
+
+// VNCRectConfig is one FramebufferUpdate rectangle (RFC 6143 §9.1).
+type VNCRectConfig struct {
+	// X (X坐标): rect x u16.
+	X int `json:"x,omitempty"`
+
+	// Y (Y坐标): rect y u16.
+	Y int `json:"y,omitempty"`
+
+	// Width (宽): rect width u16.
+	Width int `json:"width,omitempty"`
+
+	// Height (高): rect height u16.
+	Height int `json:"height,omitempty"`
+
+	// Encoding (编码): "raw" (0), "hextile" (5) or "xcursor" (-240).
+	Encoding string `json:"encoding,omitempty"`
+
+	// HextileTileData (tile数据): hex string of one hextile tile's data
+	// (ctrl + payload), repeated for every tile in the rect. Empty =
+	// default raw tiles (ctrl 0x01 + w×h×4 pixel bytes, reference pcap
+	// FBU#2 pattern).
+	HextileTileData string `json:"hextile_tile_data,omitempty"`
+
+	// XCursorBlob (光标数据): hex string of the XCursor encoding data
+	// (6-byte colors + w×h pixels + mask). Empty = the reference pcap's
+	// fixed 80-byte blob.
+	XCursorBlob string `json:"xcursor_blob,omitempty"`
+}
+
+// VNCColourMapConfig holds the RFC 6143 §9.2 SetColourMapEntries message.
+type VNCColourMapConfig struct {
+	// First (起始索引): first colour index u16.
+	First int `json:"first,omitempty"`
+
+	// Colors (颜色列表): colour values, each a 6-byte hex string (2-byte
+	// red + 2-byte green + 2-byte blue).
+	Colors []string `json:"colors,omitempty"`
+}
+
+// XmppConfig holds XMPP (Extensible Messaging and Presence Protocol,
+// 可扩展消息与存在协议, RFC 6120) configuration. XMPP is a TCP-based
+// XML messaging protocol on port 5222. The planner emits a complete
+// session: TCP handshake → stream open → features → SASL auth → stream
+// restart → resource bind → session → presence → messages → stream close
+// → TCP teardown.
+//
+// Reference pcap: llcj dport=5222 (11 IPv4 + 8 IPv6 sessions, all
+// wire-identical SCRAM-SHA-1 sessions that fail with invalid-authzid).
+// Trafficgen generates the happy path with PLAIN auth by default.
+type XmppConfig struct {
+	// From (来源域名): server domain advertised in stream opening
+	// (RFC 6120 §4.2). Empty defaults "example.com".
+	From string `json:"from,omitempty"`
+
+	// JID (Jabber ID): user identifier for resource binding
+	// (RFC 6120 §7.3). Empty defaults "user@example.com".
+	JID string `json:"jid,omitempty"`
+
+	// Resource (资源名): resource identifier for binding (RFC 6120 §7.7.2).
+	// Empty defaults "trafficgen".
+	Resource string `json:"resource,omitempty"`
+
+	// StreamID (流ID): server-assigned stream identifier echoed in stream
+	// response (RFC 6120 §4.7.3). Empty defaults "a1b2c3d4e5f6".
+	StreamID string `json:"stream_id,omitempty"`
+
+	// AuthMechanism (认证机制): SASL mechanism for authentication
+	// (RFC 6120 §6). Supported values:
+	//   - "PLAIN" (default, RFC 4616): single auth+success exchange
+	//   - "DIGEST-MD5" (RFC 2831): challenge-response exchange
+	//   - "SCRAM-SHA-1" (RFC 5802): multi-step exchange
+	//   - "ANONYMOUS" (RFC 4505): anonymous auth
+	AuthMechanism string `json:"auth_mechanism,omitempty"`
+
+	// Username (用户名): used for PLAIN/DIGEST-MD5/SCRAM-SHA-1 auth.
+	// Empty defaults "user".
+	Username string `json:"username,omitempty"`
+
+	// Password (密码): used for PLAIN/DIGEST-MD5/SCRAM-SHA-1 auth.
+	// Empty defaults "pass".
+	Password string `json:"password,omitempty"`
+
+	// Presence (存在状态): when non-nil, the pointed-to value controls
+	// whether the client sends initial <presence/> after session
+	// establishment (RFC 6121 §4.2). nil = default on (true). Use an
+	// explicit false pointer to disable. This mirrors the PadMinFrame
+	// pattern (nil=default, non-nil=user-explicit).
+	Presence *bool `json:"presence,omitempty"`
+
+	// Messages (消息): XMPP <message> stanzas exchanged after presence,
+	// each as one PSH-ACK segment. Direction "up" = client→server
+	// (default), "down" = server→client.
+	Messages []XmppMessage `json:"messages,omitempty"`
+}
+
+// XmppMessage is one XMPP <message> stanza (消息节) on the data plane.
+// Direction "up" (default) = client→server, "down" = server→client.
+type XmppMessage struct {
+	// Direction (方向): "up" (client→server) or "down" (server→client).
+	// Empty defaults "up".
+	Direction string `json:"direction,omitempty"`
+
+	// To (接收方): JID of the message recipient. Empty defaults
+	// "bob@example.com".
+	To string `json:"to,omitempty"`
+
+	// Body (消息体): content of the <body> element.
+	Body string `json:"body,omitempty"`
+}
+
+// TFTPConfig configures the TFTP (RFC 1350) planner. TFTP runs over UDP:
+// the client picks an ephemeral source port and sends RRQ/WRQ to server
+// port 69; the server picks its own ephemeral TID port for the rest. Both
+// directions of the data plane share the same 4-tuple.
+type TFTPConfig struct {
+	// Mode: "read" (RRQ, 下载, server 发 DATA) or "write" (WRQ, 上传,
+	// client 发 DATA). 大小写不敏感; empty defaults to "read".
+	Mode string `json:"mode"`
+
+	// Filename: file path in RRQ/WRQ. May contain "/" or "\". Empty rejected
+	// by Validate. Max 255 bytes (trafficgen 限制; RFC 1350 未规定上限).
+	Filename string `json:"filename"`
+
+	// TransferMode: "netascii" or "octet" (RFC 1350 §4). 大小写不敏感,
+	// 输出统一小写. "mail" deprecated, rejected. Empty defaults to "octet".
+	TransferMode string `json:"transfer_mode"`
+
+	// BlkSize: blksize option (RFC 2348). 0=do not send (use default 512).
+	// Validate enforces 8 <= BlkSize <= 65464. OACK 回显请求值.
+	BlkSize uint16 `json:"blksize,omitempty"`
+
+	// Timeout: timeout option in seconds (RFC 2349). 0=do not send.
+	// Validate enforces 1 <= Timeout <= 255. 仅语义标记 — trafficgen 不实际
+	// 按超时起重传 (只生成重传序列 via RetransmitBlocks, 见 §4.5).
+	Timeout uint8 `json:"timeout,omitempty"`
+
+	// ClientTSize: tsize option value written into RRQ/WRQ (RFC 2349 §2).
+	// RRQ 模式: RFC 2349 强制客户端写 "0"; 若 ClientTSize>0 或 ServerTSize>0,
+	// RRQ 携带 tsize\0 0\0, 否则不发送 tsize 选项.
+	// WRQ 模式: 客户端写实际文件大小 (ClientTSize).
+	// 同时参与自动追加判定: auto-append 判定 TSize = (ClientTSize>0 ? ClientTSize
+	// : ServerTSize) (非零者优先, 见 §5.1 自动追加规则).
+	ClientTSize uint32 `json:"client_tsize,omitempty"`
+
+	// ServerTSize: tsize value echoed by server in OACK.
+	// RRQ 模式: 服务器回实际文件大小 (ServerTSize).
+	// WRQ 模式: 服务器回显 ClientTSize, ServerTSize 应=0 或==ClientTSize.
+	// 参与自动追加判定 (ClientTSize=0 时采用).
+	ServerTSize uint32 `json:"server_tsize,omitempty"`
+
+	// ServerTID: server's ephemeral port for packets after RRQ/WRQ.
+	// 0=planner picks deterministic ephemeral (49152-65535, RFC 6335) via
+	// FNV-1a(FlowID) so the same spec always yields the same port
+	// (reproducible). When set, Validate enforces 1024 <= ServerTID <= 65535.
+	ServerTID uint16 `json:"server_tid,omitempty"`
+
+	// ErrorCode: inject an ERROR packet with ErrCode=ErrorCode at
+	// ErrorAfterBlock. 统一语义 (R1-CRITICAL-2 修复):
+	//   - ErrorCode>0: 注入 (ErrorAfterBlock=0 → RRQ/WRQ 后立即; >0 → N 块后).
+	//   - ErrorCode==0 且 ErrorAfterBlock>0: 注入 code=0 (ErrorAfterBlock 显式
+	//     表达了注入意图, S8d/T-227 场景).
+	//   - ErrorCode==0 且 ErrorAfterBlock==0: 不注入 (json omitempty 下与"未设置"
+	//     不可区分, 约定为不注入, T-228).
+	// Wire 类型为 uint16 BE (0-8, 见 §3.6 错误码表, 含 RFC 2347 code=8);
+	// Go 类型 uint8. Validate enforces 0 <= ErrorCode <= 8.
+	// 互斥: ServerTIDChange=true 时 ErrorCode 必须=0 (见 §5.3).
+	ErrorCode uint8 `json:"error_code,omitempty"`
+
+	// ErrorMsg: human-readable text in injected ERROR. Empty allowed —
+	// planner then uses the default ErrMsg for ErrCode (见 §5.4 ErrCode→ErrMsg
+	// 表, 含 ErrorCode=0 → "Not defined"). Truncated to 255 bytes on wire.
+	ErrorMsg string `json:"error_msg,omitempty"`
+
+	// ErrorAfterBlock: DATA block# after which ERROR is injected.
+	// 0=immediately after RRQ/WRQ (no DATA). N>0=emit DATA#1..N + ACK#1..N
+	// then inject ERROR from ErrorSide. Validate: ErrorAfterBlock>0 时
+	// BlocksCount 必须显式设 (不允许 derive), 且 ErrorAfterBlock <= BlocksCount.
+	ErrorAfterBlock uint32 `json:"error_after_block,omitempty"`
+
+	// ErrorSide: "server"=server→client (down), "client"=client→server (up).
+	// Empty defaults to "server".
+	ErrorSide string `json:"error_side,omitempty"`
+
+	// BlocksCount: 实际 DATA 块数 (uint32, 允许 > 65535; wire Block# 按 §3.3
+	// 回绕规则编码). 0=derive from data_payload_pattern/payload 数据规模推导
+	// (规则见 §5.1). 不含自动追加的 0 字节末块.
+	BlocksCount uint32 `json:"blocks_count,omitempty"`
+
+	// AutoAppendFinalBlock: when true (default), planner appends a 0-byte
+	// DATA terminator per RFC 1350 §6 whenever the LAST DATA block is a full
+	// block (Data length == BlkSize), i.e. the file size is an exact multiple
+	// of BlkSize — regardless of whether a tsize decision exists (R1-CRITICAL-3
+	// 修复: 无 tsize 满块时默认也追加, 兑现 "默认 true = RFC 1350 §6 合规").
+	// 判定: 末块 Data 长度 == BlkSize 即追加; FinalBlockZero=true 时末块为
+	// 0 字节, 不满足"末块满块", 自动跳过 (§5.3). When false, no auto-append
+	// (非 RFC 合规负向测试). nil = true (默认). 追加后实际块数 > 65535 且
+	// 未开 wrap 时 Validate 报错 (V18).
+	AutoAppendFinalBlock *bool `json:"auto_append_final_block,omitempty"`
+
+	// FinalBlockZero: when true, the LAST DATA block (Block#=BlocksCount,
+	// wire 上按回绕规则计算) carries 0 bytes — 显式 RFC 1350 §6 终止块.
+	// 与 AutoAppendFinalBlock=false 搭配生成"半标准"流; 当自动追加条件也满足时
+	// 不重复追加 (末块已显式). Validate requires BlocksCount >= 1 (derive 不允许).
+	FinalBlockZero bool `json:"final_block_zero,omitempty"`
+
+	// WrapBlockNumber: when true, Block# = (i mod 65536) 回绕 (65535 → 0 → 1),
+	// 允许 BlocksCount > 65535. When false (default), Validate rejects
+	// BlocksCount > 65535.
+	WrapBlockNumber bool `json:"wrap_block_number,omitempty"`
+
+	// DataPayloadPattern: DATA payload bytes. 每块填充为该 slice 循环重复至
+	// BlkSize. 空且 BlocksCount>0 时用确定性 0x00..0xFF 模式. 空且 BlocksCount==0
+	// (derive) 时要求 Payload/FileSource 提供数据规模 (见 §5.1).
+	DataPayloadPattern []byte `json:"data_payload_pattern,omitempty"`
+
+	// IncludeOACK: when true, server sends OACK even with no options
+	// (OACK carries only opcode `00 06`, 2 bytes). Default false. RRQ 模式走
+	// RRQ+OACK 分支 (client 发 ACK#0 后 server 发 DATA#1); WRQ 模式走 WRQ+OACK
+	// 分支 (client 直接发 DATA#1, 无 ACK#0). 见 §4.4.
+	IncludeOACK bool `json:"include_oack,omitempty"`
+
+	// RetransmitBlocks: DATA 重传模拟 (S10). 语义: 列表中的 Block# 的 DATA 在
+	// 初次发送时"丢失", 仅出现重传版本 (每个重传 DATA 后跟对应 ACK#N).
+	// 符合 RFC 1350 §6 重传时序 (重传 DATA 先于其 ACK, 不出现"原 DATA+原 ACK"
+	// 后再重传的异常序列). 每项必须在 [1, BlocksCount]. 互斥于 ServerTIDChange.
+	RetransmitBlocks []uint32 `json:"retransmit_blocks,omitempty"`
+
+	// ServerTIDChange: when true, simulates server switching to ServerTIDNew
+	// at ServerTIDChangeAtBlock. 语义为 trafficgen 扩展行为 (非任何 RFC 标准):
+	// 客户端 (接收方) 检测到源 TID 变为 ServerTIDNew 后, 向新 TID 发 ERROR code=5
+	// (Unknown TID, 表示"包源 TID 与约定不符, 尚未完成迁移"), 随后继续向新 TID
+	// 发 ACK — ERROR code=5 不终止传输 (trafficgen 扩展). 注意: 此行为不符合
+	// RFC 1350 §4 的校验语义 (RFC 1350 下客户端应丢弃新 TID 的包并向错误源回
+	// ERROR(5) 后继续等待旧 TID 上的重传, 不回 ACK; v2.0.1 曾误引 RFC 1783 为
+	// 依据, 但 RFC 1783 实际是 "TFTP Blocksize Option" 与 TID 无关, v2.0.2 已
+	// 撤回该引用). 也非任何 RFC 标准, 仅用于生成器字节序列测试 (模拟 NAT/中间件
+	// 导致的 TID 漂移场景). 互斥于 ErrorCode>0 与 RetransmitBlocks.
+	// 见 §4.3、S9.
+	ServerTIDChange        bool   `json:"server_tid_change,omitempty"`
+	ServerTIDChangeAtBlock uint32 `json:"server_tid_change_at_block,omitempty"`
+	ServerTIDNew           uint16 `json:"server_tid_new,omitempty"`
+
+	// WindowSize: sliding window size for RFC 7440 windowsize option.
+	// 0=do not send (default=1, standard lock-step). Validate enforces 1-65535.
+	// When >1, DATA blocks are sent in windows of this size before waiting for ACK.
+	WindowSize uint16 `json:"windowsize,omitempty"`
+}
+
+// MODBUSConfig holds Modbus TCP (莫迪总线 TCP) configuration.
+// Modbus TCP is an industrial control protocol on TCP port 502.
+// Each transaction = one request PDU + one response PDU, framed by
+// the 7-byte MBAP header (Transaction ID + Protocol ID + Length + Unit ID).
+// The planner emits: TCP handshake → N transactions (request→response)
+// → TCP teardown. Transactions are stateless and independent.
+type MODBUSConfig struct {
+	// UnitID (从站标识符): 0-247, 0=broadcast. nil → default 1.
+	// Uses *uint8 because omitempty on uint8 would swallow 0 (broadcast).
+	UnitID *uint8 `json:"unit_id,omitempty"`
+
+	// SuppressBroadcast (抑制广播响应): true omits response packets
+	// when UnitID=0 (including exception responses).
+	SuppressBroadcast bool `json:"suppress_broadcast,omitempty"`
+
+	// Transactions (事务序列): ordered list of Modbus operations.
+	// nil (JSON missing) → planner injects 1 default transaction
+	// (FC=0x03, addr=0, qty=1).
+	// Explicit empty array [] → only TCP handshake + teardown.
+	Transactions []MODBUSOperation `json:"transactions,omitempty"`
+
+	// MasterCount (并发主站数): number of concurrent masters (clients),
+	// each with an independent 4-tuple (TCP stream). Default 1.
+	MasterCount int `json:"master_count,omitempty"`
+
+	// FlowCount (每主站流数): concurrent flows per master. Default 1.
+	FlowCount int `json:"flow_count,omitempty"`
+
+	// SharedTIDSpace (共享 TID 空间): true → all flows share a continuous
+	// Transaction ID space (global increment across flows).
+	SharedTIDSpace bool `json:"shared_tid_space,omitempty"`
+}
+
+// MODBUSOperation describes a single Modbus transaction (one request + one response).
+type MODBUSOperation struct {
+	// FunctionCode (功能码): 0x01-0x2B, see design §1.3 for the 19-code support set.
+	FunctionCode uint8 `json:"function_code"`
+
+	// ExceptionCode (异常码): non-zero triggers FC|0x80 + ExceptionCode response.
+	// Mutually exclusive with ResponseValues. 0 means normal response.
+	ExceptionCode uint8 `json:"exception_code,omitempty"`
+
+	// StartingAddress (起始地址): 0x0000-0xFFFF. Used by most FCs.
+	StartingAddress uint16 `json:"starting_address,omitempty"`
+
+	// Quantity (数量): FC-specific limits (see §2.7). Ignored for FC 0x17.
+	Quantity uint16 `json:"quantity,omitempty"`
+
+	// ReadAddress/WriteAddress (读写地址): FC 0x17 specific.
+	// WriteAddress=0 falls back to StartingAddress + WriteQuantity (uint16 wrap).
+	ReadAddress  uint16 `json:"read_address,omitempty"`
+	WriteAddress uint16 `json:"write_address,omitempty"`
+
+	// ReadQuantity/WriteQuantity (读写数量): FC 0x17 specific, must be explicit.
+	ReadQuantity  uint16 `json:"read_quantity,omitempty"`
+	WriteQuantity uint16 `json:"write_quantity,omitempty"`
+
+	// WriteValue (写单值): FC 0x05 accepts 0/1/0xFF00/0x0000;
+	// FC 0x06 accepts 0x0000-0xFFFF.
+	WriteValue uint16 `json:"write_value,omitempty"`
+
+	// Values (请求数据): FC-specific request payload after the FC byte.
+	Values []byte `json:"values,omitempty"`
+
+	// ResponseValues (响应数据): overrides auto-derived response PDU bytes
+	// after the FC byte. Mutually exclusive with ExceptionCode.
+	ResponseValues []byte `json:"response_values,omitempty"`
+
+	// SubFunction (子功能): uint16 full width.
+	// FC 0x08: diagnostic sub-function 0x0000-0x0015.
+	// FC 0x2B: low byte is MEI Type (must be 0x0E), high byte must be 0.
+	SubFunction uint16 `json:"sub_function,omitempty"`
+
+	// MaskAnd/MaskOr (掩码): FC 0x16 specific.
+	MaskAnd uint16 `json:"mask_and,omitempty"`
+	MaskOr  uint16 `json:"mask_or,omitempty"`
+
+	// ResponseMode (响应模式): "normal" (default, generate response) or
+	// "no_response" (suppress response packet).
+	ResponseMode string `json:"response_mode,omitempty"`
+
+	// Direction is DEPRECATED; planner ignores it.
+	Direction string `json:"direction,omitempty"`
+}
+
+// RIPConfig holds RIP (Routing Information Protocol) configuration.
+// RIP v1 (RFC 1058), RIP v2 (RFC 2453), RIPng (RFC 2080).
+type RIPConfig struct {
+	// Version: "v1", "v2" (default), "ng". Empty = "v2".
+	Version string `json:"version,omitempty"`
+
+	// Command: "request" (1) or "response" (2). Empty = "response".
+	Command string `json:"command,omitempty"`
+
+	// Domain: 2-byte RIP header field. Default 0.
+	Domain uint16 `json:"domain,omitempty"`
+
+	// Routes: route entries to advertise.
+	Routes []RIPRoute `json:"routes,omitempty"`
+
+	// Auth: authentication config. Only valid for v2.
+	Auth *RIPAuth `json:"auth,omitempty"`
+
+	// Multicast: true uses multicast (v2: 224.0.0.9, ng: FF02::9, v1: broadcast).
+	Multicast bool `json:"multicast,omitempty"`
+
+	// Scenario: controls default route generation ("request_full", "response_default", etc).
+	Scenario string `json:"scenario,omitempty"`
+
+	// Routers: multi-router scenario with independent 4-tuples.
+	Routers []RIPRouter `json:"routers,omitempty"`
+
+	// Rounds: number of update rounds. Default 1.
+	Rounds int `json:"rounds,omitempty"`
+
+	// TriggeredUpdate: true skips Request, sends Response immediately.
+	TriggeredUpdate bool `json:"triggered_update,omitempty"`
+
+	// SplitHorizon: true filters routes with NextHop==DstIP.
+	SplitHorizon bool `json:"split_horizon,omitempty"`
+
+	// PoisonReverse: true sets metric=16 for routes with NextHop==DstIP.
+	PoisonReverse bool `json:"poison_reverse,omitempty"`
+}
+
+// RIPRoute describes a route entry for RIP v1/v2/RIPng.
+type RIPRoute struct {
+	// AFI: Address Family Identifier. 0=auto, 2=IPv4. 0xFFFF reserved for auth.
+	AFI uint16 `json:"afi,omitempty"`
+
+	// RouteTag: 2-byte route tag (v2/ng only).
+	RouteTag uint16 `json:"route_tag,omitempty"`
+
+	// IPAddr: IPv4 or IPv6 address.
+	IPAddr string `json:"ip_addr"`
+
+	// SubnetMask: IPv4 mask (v2 only).
+	SubnetMask string `json:"subnet_mask,omitempty"`
+
+	// PrefixLen: IPv6 prefix length (ng only).
+	PrefixLen uint8 `json:"prefix_len,omitempty"`
+
+	// NextHop: next hop IP. 0.0.0.0/:: = sender is next hop.
+	NextHop string `json:"next_hop,omitempty"`
+
+	// Metric: 1-16 (16 = unreachable).
+	Metric uint8 `json:"metric"`
+}
+
+// RIPAuth describes RIP v2 authentication. Not valid for v1/ng.
+type RIPAuth struct {
+	// Type: "simple" (0x0002) or "md5" (0x0003). Empty = "simple".
+	Type string `json:"type,omitempty"`
+
+	// Password: simple auth password (max 16 bytes).
+	Password string `json:"password,omitempty"`
+
+	// KeyID: MD5 key identifier (1 byte).
+	KeyID uint8 `json:"key_id,omitempty"`
+
+	// AuthDataLen: MD5 digest length. nil = default 16.
+	AuthDataLen *uint8 `json:"auth_data_len,omitempty"`
+
+	// SequenceNumber: MD5 sequence number (4 bytes).
+	SequenceNumber uint32 `json:"sequence_number,omitempty"`
+}
+
+// RIPRouter describes a router instance for multi-router scenarios.
+type RIPRouter struct {
+	// SrcIP: router's source IP. Empty = inherit from FlowSpec.
+	SrcIP string `json:"src_ip,omitempty"`
+
+	// SrcPort: router's source port. Empty = inherit from FlowSpec.
+	SrcPort uint16 `json:"src_port,omitempty"`
+
+	// DstIP: router's destination IP. Empty = inherit from FlowSpec.
+	DstIP string `json:"dst_ip,omitempty"`
+
+	// DstPort: router's destination port. Empty = inherit from FlowSpec.
+	DstPort uint16 `json:"dst_port,omitempty"`
+}
+
+// DoIPConfig holds DOIP (Diagnostic over IP, ISO 13400-2) protocol configuration.
+// DOIP is a vehicle diagnostic protocol over TCP/UDP port 13400, carrying UDS
+// (Unified Diagnostic Services) messages between Tester and ECU.
+//
+// The planner emits:
+//  1. UDP Discovery phase: Vehicle Identification Request/Response (0x0001-0x0004)
+//  2. UDP Entity Status: DoIP Entity Status Request/Response (0x4001-0x4002)
+//  3. UDP Power Mode: Diagnostic Power Mode Request/Response (0x4003-0x4004)
+//  4. TCP Routing Activation: Routing Activation Request/Response (0x0005-0x0006)
+//  5. TCP Diagnostic Messages: Diagnostic Message/Ack/Nack (0x8001-0x8003)
+//  6. TCP Alive Check: Alive Check Request/Response (0x0007-0x0008)
+//  7. Generic NACK: Header NACK (0x0000)
+type DoIPConfig struct {
+	// ProtocolVersion (协议版本): 0x02 for DoIP V2 (default), 0x01 for V1.
+	ProtocolVersion uint8 `json:"protocol_version,omitempty"`
+
+	// SrcIP (源IP): Tester IP (IPv4 or IPv6).
+	SrcIP string `json:"src_ip,omitempty"`
+
+	// DstIP (目的IP): ECU IP (or broadcast address for discovery).
+	DstIP string `json:"dst_ip,omitempty"`
+
+	// SrcPort (源端口): UDP source port (TCP uses ephemeral).
+	SrcPort uint16 `json:"src_port,omitempty"`
+
+	// VIN (车辆识别码): 17-byte ASCII string for vehicle identification.
+	VIN string `json:"vin,omitempty"`
+
+	// LogicalAddress (逻辑地址): ECU logical address (SLA).
+	LogicalAddress uint16 `json:"logical_address,omitempty"`
+
+	// TesterAddress (Tester地址): Tester logical address (SA).
+	TesterAddress uint16 `json:"tester_address,omitempty"`
+
+	// EID (实体标识): 6-byte ECU entity identifier (MAC address).
+	EID string `json:"eid,omitempty"`
+
+	// GID (组标识): 6-byte group identifier.
+	GID string `json:"gid,omitempty"`
+
+	// Discovery (车辆发现): UDP discovery phase configuration.
+	Discovery *DoIPDiscovery `json:"discovery,omitempty"`
+
+	// EntityStatus (实体状态): UDP entity status configuration.
+	EntityStatus *DoIPEntityStatus `json:"entity_status,omitempty"`
+
+	// PowerMode (电源模式): UDP power mode configuration.
+	PowerMode *DoIPPowerMode `json:"power_mode,omitempty"`
+
+	// Activation (路由激活): TCP routing activation configuration.
+	Activation *DoIPActivation `json:"activation,omitempty"`
+
+	// Messages (诊断消息): TCP diagnostic message sequence.
+	Messages []DoIPMessage `json:"messages,omitempty"`
+
+	// AliveCheck (存活检查): TCP alive check configuration.
+	AliveCheck *DoIPAliveCheck `json:"alive_check,omitempty"`
+
+	// GenericNack (通用NACK): Generic header NACK configuration.
+	GenericNack *DoIPGenericNack `json:"generic_nack,omitempty"`
+}
+
+// DoIPDiscovery describes vehicle discovery phase (UDP, PayloadType 0x0001-0x0004).
+type DoIPDiscovery struct {
+	// Direction (方向): "up" = Tester→ECU (0x0001/0x0002/0x0003),
+	// "down" = ECU→Tester (0x0004 announcement).
+	Direction string `json:"direction,omitempty"`
+
+	// RequestType (请求类型): 0x0001=broadcast, 0x0002=with EID, 0x0003=with VIN.
+	RequestType uint16 `json:"request_type,omitempty"`
+
+	// Broadcast (广播): true for broadcast/multicast destination.
+	Broadcast bool `json:"broadcast,omitempty"`
+
+	// AnnouncementCount (公告次数): Number of 0x0004 announcements (default 3).
+	AnnouncementCount uint8 `json:"announcement_count,omitempty"`
+
+	// FurtherActionRequired (后续动作要求): 0x00=none, 0x10=routing activation.
+	FurtherActionRequired uint8 `json:"further_action_required,omitempty"`
+
+	// SyncStatus (同步状态): 0x00=synced, 0x10=not synced.
+	SyncStatus uint8 `json:"sync_status,omitempty"`
+}
+
+// DoIPEntityStatus describes DoIP Entity Status phase (UDP, PayloadType 0x4001-0x4002).
+type DoIPEntityStatus struct {
+	// Direction (方向): "up" = 0x4001 request, "down" = 0x4002 response.
+	Direction string `json:"direction,omitempty"`
+
+	// NodeType (节点类型): 0x00=gateway, 0x01=node.
+	NodeType uint8 `json:"node_type,omitempty"`
+
+	// MaxOpenSockets (最大并发socket数): Maximum concurrent TCP sockets.
+	MaxOpenSockets uint8 `json:"max_open_sockets,omitempty"`
+
+	// CurOpenSockets (当前打开socket数): Currently open TCP sockets.
+	CurOpenSockets uint8 `json:"cur_open_sockets,omitempty"`
+
+	// MaxDataSize (最大数据大小): Maximum single DoIP payload size.
+	MaxDataSize uint32 `json:"max_data_size,omitempty"`
+}
+
+// DoIPPowerMode describes power mode phase (UDP, PayloadType 0x4003-0x4004).
+type DoIPPowerMode struct {
+	// Direction (方向): "up" = 0x4003 request, "down" = 0x4004 response.
+	Direction string `json:"direction,omitempty"`
+
+	// PowerMode (电源模式): 0x00=not ready, 0x01=ready, 0x02=not supported.
+	PowerMode uint8 `json:"power_mode,omitempty"`
+
+	// Broadcast (广播): true for broadcast/multicast.
+	Broadcast bool `json:"broadcast,omitempty"`
+}
+
+// DoIPActivation describes routing activation phase (TCP, PayloadType 0x0005-0x0006).
+type DoIPActivation struct {
+	// Direction (方向): "up" = 0x0005 request, "down" = 0x0006 response.
+	Direction string `json:"direction,omitempty"`
+
+	// ActivationType (激活类型): 0x00=default, 0x01=WWH-OBD, 0xE0-0xFF=OEM.
+	ActivationType uint8 `json:"activation_type,omitempty"`
+
+	// ResponseCode (响应码): 0x10=success, 0x00-0x07=rejected, 0x11=confirmation required.
+	ResponseCode uint8 `json:"response_code,omitempty"`
+
+	// OEMSpecific (OEM特定数据): Variable length OEM data.
+	OEMSpecific []byte `json:"oem_specific,omitempty"`
+
+	// ConfirmationRequired (需要确认): true for 0x11 response requiring re-activation.
+	ConfirmationRequired bool `json:"confirmation_required,omitempty"`
+}
+
+// DoIPMessage describes a diagnostic message (TCP, PayloadType 0x8001-0x8003).
+type DoIPMessage struct {
+	// Direction (方向): "up" = Tester→ECU, "down" = ECU→Tester.
+	Direction string `json:"direction,omitempty"`
+
+	// SourceAddress (源地址): SA (TesterAddress for request).
+	SourceAddress uint16 `json:"source_address,omitempty"`
+
+	// TargetAddress (目标地址): TA (LogicalAddress for request).
+	TargetAddress uint16 `json:"target_address,omitempty"`
+
+	// AckCode (确认码): 0x00=ACK for 0x8002.
+	AckCode uint8 `json:"ack_code,omitempty"`
+
+	// NackCode (否定码): nil=send 0x8002, non-nil=send 0x8003.
+	NackCode *uint8 `json:"nack_code,omitempty"`
+
+	// UserData (用户数据): Raw UDS bytes for 0x8001 or PreviousDiagnosticMessage.
+	UserData []byte `json:"user_data,omitempty"`
+
+	// UDS (UDS报文): Structured UDS data (overrides UserData if set).
+	UDS *DoIPUDS `json:"uds,omitempty"`
+}
+
+// DoIPUDS describes UDS message embedded in diagnostic message.
+type DoIPUDS struct {
+	// ServiceID (服务ID): UDS service identifier.
+	ServiceID uint8 `json:"service_id,omitempty"`
+
+	// IsResponse (是否响应): true for positive response.
+	IsResponse bool `json:"is_response,omitempty"`
+
+	// HasSubFunction (有子功能): auto-detect if nil.
+	HasSubFunction *bool `json:"has_sub_function,omitempty"`
+
+	// SubFunction (子功能): Sub-function byte.
+	SubFunction uint8 `json:"sub_function,omitempty"`
+
+	// DID (数据标识): Data identifier for 0x22/0x2E.
+	DID []byte `json:"did,omitempty"`
+
+	// Data (数据): Service data.
+	Data []byte `json:"data,omitempty"`
+
+	// AddressAndLength (地址和长度): For 0x34 RequestDownload.
+	AddressAndLength []byte `json:"address_and_length,omitempty"`
+
+	// BlockSequenceCounter (块序列计数器): For 0x36 TransferData.
+	BlockSequenceCounter uint8 `json:"block_sequence_counter,omitempty"`
+
+	// TransferData (传输数据): Data block for 0x36.
+	TransferData []byte `json:"transfer_data,omitempty"`
+
+	// Seed (种子): SecurityAccess seed for odd subfunction response.
+	Seed []byte `json:"seed,omitempty"`
+
+	// Key (密钥): SecurityAccess key for even subfunction request.
+	Key []byte `json:"key,omitempty"`
+
+	// NegativeResponseCode (否定响应码): NRC for negative response.
+	NegativeResponseCode uint8 `json:"negative_response_code,omitempty"`
+}
+
+// DoIPAliveCheck describes alive check phase (TCP, PayloadType 0x0007-0x0008).
+type DoIPAliveCheck struct {
+	// Direction (方向): "down" = 0x0007 request, "up" = 0x0008 response.
+	Direction string `json:"direction,omitempty"`
+
+	// SourceAddress (源地址): Tester address for 0x0008.
+	SourceAddress uint16 `json:"source_address,omitempty"`
+}
+
+// DoIPGenericNack describes generic header NACK (PayloadType 0x0000).
+type DoIPGenericNack struct {
+	// NackCode (NACK码): 0x00-0x04 for different error types.
+	NackCode uint8 `json:"nack_code,omitempty"`
+}
+
+// MQTTConfig configures the MQTT protocol planner (3.1.1 / 5.0). Each
+// config drives ONE TCP session (one 4-tuple, one client_id). For multiple
+// concurrent clients use Sessions[] — each becomes an independent flow with
+// its own 4-tuple and FlowID.
+type MQTTConfig struct {
+	// Version (版本): 4 = MQTT 3.1.1 (default), 5 = MQTT 5.0.
+	Version int `json:"version,omitempty"`
+
+	// ClientID (客户端标识): CONNECT payload Client Identifier. Empty =
+	// "trafficgen-<counter6hex>" (deterministic auto-generated per flow via
+	// atomic counter, e.g. "trafficgen-000001" — NOT random, ensures
+	// reproducibility and uniqueness across concurrent tasks). MQTT allows
+	// empty client_id only when Clean Session=true, planner forces Clean
+	// when empty. Validate: Sessions内显式重复client_id → 报错; 跨task自动生成保证唯一.
+	ClientID string `json:"client_id,omitempty"`
+
+	// KeepAlive (保活间隔, seconds): CONNECT Keep Alive field. nil = default
+	// 60 (when both KeepAlive and Sessions are empty). *0 = disable
+	// keepalive (server treats as infinite, planner outputs 0x00 0x00).
+	// *N (N>0) = N seconds. Pointer type distinguishes "omitted → 60"
+	// from "explicit 0 → disabled".
+	KeepAlive *int `json:"keep_alive,omitempty"`
+
+	// CleanSession (3.1.1) / CleanStart (5.0): nil = true (default).
+	// When false, broker should persist session across reconnects.
+	CleanSession *bool `json:"clean_session,omitempty"`
+
+	// Username/Password (认证): CONNECT payload. Empty + non-empty password
+	// rejected at Validate. When both empty, Connect Flags bit7/bit6 = 0.
+	// 5.0 allows Password without Username; 3.1.1 requires Username Flag=0
+	// → Password Flag=0.
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+
+	// Will (遗嘱消息): CONNECT will fields. nil = no will.
+	Will *MQTTWill `json:"will,omitempty"`
+
+	// ConnectAckCode (CONNACK Return/Reason Code): 0 = success (default).
+	// Non-zero suppresses all downstream publish/subscribe messages.
+	// Validate检查取值域: 3.1.1合法值0-5; 5.0精确枚举白名单.
+	ConnectAckCode int `json:"connect_ack_code,omitempty"`
+
+	// ConnectAckSessionPresent (CONNACK Session Present bit): false (default).
+	// Validate强制: CleanSession=true时此字段必须false;
+	// ConnectAckCode≠0时此字段必须false. 违反 → Validate报错.
+	ConnectAckSessionPresent bool `json:"connect_ack_session_present,omitempty"`
+
+	// Subscriptions (订阅列表): emitted as one SUBSCRIBE/SUBACK exchange
+	// immediately after CONNACK. Empty = skip subscribe phase.
+	Subscriptions []MQTTSubscribe `json:"subscriptions,omitempty"`
+
+	// Messages (消息列表): publish/ack exchanges emitted after the subscribe
+	// phase (or directly after CONNACK when no subscriptions). Each entry
+	// drives QoS 0/1/2 packet exchange per its QoS field. Empty = no publish
+	// phase (just CONNECT/CONNACK/PINGREQ/PINGRESP/DISCONNECT).
+	Messages []MQTTMessage `json:"messages,omitempty"`
+
+	// PingAfterMessages (心跳触发): when true, emit PINGREQ/PINGRESP after
+	// the message phase and before DISCONNECT. false (default) = skip.
+	PingAfterMessages bool `json:"ping_after_messages,omitempty"`
+
+	// Disconnect (主动断开): nil = true (default, send DISCONNECT before TCP
+	// teardown); *false = TCP RST/FIN without MQTT DISCONNECT (models
+	// abnormal disconnect — required for will-message scenarios).
+	Disconnect *bool `json:"disconnect,omitempty"`
+
+	// Sessions (多会话列表): when non-empty, the planner emits one flow per
+	// entry (each gets a distinct 4-tuple and FlowID via the SubFlow
+	// mechanism, mirroring SIP/RTSP multi-stream handling). Inheritance
+	// semantics: scalar fields inherit top-level value when session field is
+	// zero/nil; slice fields REPLACE (not append) top-level when session
+	// field is non-nil, and inherit top-level when nil.
+	Sessions []MQTTSession `json:"sessions,omitempty"`
+
+	// Properties (5.0 only): CONNECT-level properties. Ignored when
+	// Version=4. nil = no properties entries. IMPORTANT: in 5.0 the
+	// Properties Length (VBI) is MANDATORY even when there are no
+	// properties — the planner always writes the 0x00 length byte.
+	Properties []MQTTProperty `json:"properties,omitempty"`
+}
+
+// MQTTWill is the CONNECT Will Message configuration.
+type MQTTWill struct {
+	// Topic (遗嘱主题): Will Topic. Empty = error at Validate.
+	Topic string `json:"topic,omitempty"`
+
+	// Payload (遗嘱负载): Will Payload bytes. Empty = zero-length payload
+	// (valid per RFC).
+	Payload string `json:"payload,omitempty"`
+
+	// QoS (遗嘱QoS): 0 (default), 1, or 2. Validated against the QoS table.
+	QoS int `json:"qos,omitempty"`
+
+	// Retain (遗嘱保留): true = broker caches will as retained message.
+	Retain bool `json:"retain,omitempty"`
+
+	// DelayInterval (5.0 only): Will Delay Interval seconds. 0 = publish
+	// immediately on disconnect. Validate: Version=4 + DelayInterval≠0 →
+	// 报错. 编码为 Will Properties段中的 ID 0x18 (Four Byte Integer).
+	DelayInterval int `json:"delay_interval,omitempty"`
+}
+
+// MQTTMessage is one PUBLISH exchange. QoS determines the downstream
+// ack chain: QoS0 → PUBLISH only; QoS1 → PUBLISH+PUBACK; QoS2 →
+// PUBLISH+PUBREC+PUBREL+PUBCOMP. Direction "up" (default) = client→server
+// (client publishes), "down" = server→client (server publishes down to the
+// subscribing client — models broker forwarding a retained/matched message).
+type MQTTMessage struct {
+	Topic     string `json:"topic,omitempty"`     // PUBLISH topic; empty = error (除非 Topic Alias已建映射)
+	Payload   string `json:"payload,omitempty"`   // application message bytes
+	QoS       int    `json:"qos,omitempty"`       // 0 (default), 1, 2
+	Retain    bool   `json:"retain,omitempty"`    // PUBLISH retain flag
+	DUP       bool   `json:"dup,omitempty"`       // PUBLISH dup flag (QoS>0 only)
+	PacketID  uint16 `json:"packet_id,omitempty"` // 0 = auto-increment from 1
+	Direction string `json:"direction,omitempty"` // "up" (default) or "down"
+
+	// Properties (5.0 only): PUBLISH-level properties. Ignored when
+	// MQTTConfig.Version=4.
+	Properties []MQTTProperty `json:"properties,omitempty"`
+}
+
+// MQTTSubscribe is one SUBSCRIBE/SUBACK exchange.
+type MQTTSubscribe struct {
+	// PacketID: SUBSCRIBE packet identifier. 0 = auto-increment.
+	PacketID uint16 `json:"packet_id,omitempty"`
+
+	// Filters (订阅过滤器): topic filter list. Each gets one Reason Code in
+	// SUBACK payload. Empty = error at Validate.
+	Filters []MQTTTopicFilter `json:"filters,omitempty"`
+
+	// AckReasonCodes (SUBACK Reason Codes): one per filter. Empty = all 0x00
+	// (QoS0 granted). Length must match Filters; mismatch = error.
+	AckReasonCodes []int `json:"ack_reason_codes,omitempty"`
+
+	// Properties (5.0 only): SUBSCRIBE-level properties. Whitelist:
+	// 0x0B Subscription Identifier (vbi), 0x26 User Property (stringpair).
+	// Ignored when Version != 5. Subscription Identifier value 0 is
+	// rejected (MQTT 5.0 §3.3.2.3.8 reserves it as a "no subscription"
+	// sentinel).
+	Properties []MQTTProperty `json:"properties,omitempty"`
+}
+
+// MQTTTopicFilter is one topic filter in a SUBSCRIBE.
+type MQTTTopicFilter struct {
+	Filter string `json:"filter,omitempty"` // e.g. "sensor/+", "sport/#", "a/b/c"
+	QoS    int    `json:"qos,omitempty"`    // 0 (default), 1, 2
+
+	// 5.0订阅选项（3.1.1必须为0/默认）
+	NoLocal           bool `json:"no_local,omitempty"`            // bit2, 5.0 only
+	RetainAsPublished bool `json:"retain_as_published,omitempty"` // bit3, 5.0 only
+	RetainHandling    int  `json:"retain_handling,omitempty"`     // bit4-5, 5.0 only, 0/1/2
+}
+
+// MQTTProperty is one MQTT 5.0 property. Identifier is the 5.0 §2.2.2.2
+// Property Identifier. Value is encoded by Format:
+//
+//	"byte"      → 1-byte unsigned (Payload Format Indicator, etc.)
+//	"uint16"    → 2-byte big-endian (Topic Alias, Server Keep Alive, etc.)
+//	"uint32"    → 4-byte big-endian (Session Expiry, Message Expiry, etc.)
+//	"string"    → 2-byte length + UTF-8 bytes (Content Type, Response Topic,
+//	              Reason String)
+//	"binary"    → 2-byte length + raw bytes (Correlation Data)
+//	"stringpair"→ 2-byte len key + 2-byte len value (User Property, repeated)
+//	"vbi"       → Variable Byte Integer (Subscription Identifier)
+//
+// Format "" defaults to "string" (most common).
+type MQTTProperty struct {
+	Identifier int    `json:"identifier"`
+	Format     string `json:"format,omitempty"`
+	Value      string `json:"value,omitempty"` // numeric for byte/uint16/uint32/vbi; text for string; hex for binary; "k\x00v" for stringpair
+}
+
+// MQTTSession overrides the top-level MQTTConfig fields for one client
+// session. Only non-zero/non-empty fields override; absent fields inherit
+// from the parent. Each session becomes an independent TCP 4-tuple (SrcPort
+// auto-increments when HasExplicitSrcPort=false).
+type MQTTSession struct {
+	ClientID          string          `json:"client_id,omitempty"`
+	KeepAlive         *int            `json:"keep_alive,omitempty"`
+	CleanSession      *bool           `json:"clean_session,omitempty"`
+	Username          string          `json:"username,omitempty"`
+	Password          string          `json:"password,omitempty"`
+	Will              *MQTTWill       `json:"will,omitempty"`
+	Subscriptions     []MQTTSubscribe `json:"subscriptions,omitempty"`
+	Messages          []MQTTMessage   `json:"messages,omitempty"`
+	Disconnect        *bool           `json:"disconnect,omitempty"`
+	// Bug fix: changed from `bool` to `*bool` so a session can explicitly
+	// override top-level PingAfterMessages=true to false. Previously the
+	// merge only checked `if s.PingAfterMessages` (true-only), so a
+	// session could never turn off the heartbeat once the top-level set
+	// it on. nil = inherit from top-level, *false = override off,
+	// *true = override on.
+	PingAfterMessages *bool           `json:"ping_after_messages,omitempty"`
+	Properties        []MQTTProperty  `json:"properties,omitempty"`
+
+	// SrcPort/DstPort override: 0 = inherit from FlowSpec / auto-assign.
+	SrcPort uint16 `json:"src_port,omitempty"`
+	DstPort uint16 `json:"dst_port,omitempty"`
+}
+
+// SMBConfig holds SMB2/SMB3 protocol configuration (MS-SMB2). 该配置由
+// internal/protocol/smb 规划的 planner 读取，通过 FlowSpec.SMB 挂载。
+// 完整的 SMB2/SMB3 会话生命周期（协商/认证/树连接/文件操作/拆解）控制。
+type SMBConfig struct {
+	// --- 传输层 ---
+
+	// Transport (传输模式): "direct" (默认, 端口 445 Direct TCP) 或
+	// "netbios" (端口 139, NBSS 前缀). 空默认 direct.
+	Transport string `json:"transport,omitempty"`
+
+	// --- 协商阶段 ---
+
+	// Dialects (方言列表): 客户端支持的 dialect 列表，如
+	// ["0x0202","0x0210","0x0300","0x0302","0x0311"]. 空默认
+	// ["0x0202","0x0210","0x0300","0x0302","0x0311"] (覆盖
+	// SMB2.002/2.1/3.0/3.0.2/3.1.1).
+	// 服务端选中 dialect = 列表最后一个 (假设服务端支持最高版本).
+	Dialects []string `json:"dialects,omitempty"`
+
+	// SelectedDialect (选中方言): 服务端选中的 dialect; 空默认
+	// Dialects 列表最后一个. 用于响应包生成.
+	SelectedDialect string `json:"selected_dialect,omitempty"`
+
+	// ClientGuid (客户端 GUID): 16 字节客户端标识; 空默认随机生成.
+	ClientGuid [16]byte `json:"client_guid,omitempty"`
+
+	// ServerGuid (服务端 GUID): 16 字节服务端标识; 空默认随机生成.
+	ServerGuid [16]byte `json:"server_guid,omitempty"`
+
+	// ClientCapabilities (客户端能力): bitmask; 0 默认
+	// SMB2_GLOBAL_CAP_ENCRYPTION | SMB2_GLOBAL_CAP_DIRECTORY_LEASING (0x03).
+	// 注意: SelectedDialect < 0x0300 (0x0202/0x0210) 时自动清 bit0
+	// (Encryption 仅 SMB3 有意义).
+	ClientCapabilities uint32 `json:"client_capabilities,omitempty"`
+
+	// ServerCapabilities (服务端能力): 同上.
+	ServerCapabilities uint32 `json:"server_capabilities,omitempty"`
+
+	// SecurityMode (安全模式): bit0=SigningEnabled, bit1=SigningRequired.
+	// 0 默认 SigningEnabled (0x01).
+	SecurityMode uint16 `json:"security_mode,omitempty"`
+
+	// SigningRequired (要求签名): true 时 SecurityMode |= 0x02.
+	SigningRequired bool `json:"signing_required,omitempty"`
+
+	// --- 认证阶段 ---
+
+	// AuthMechanism (认证机制): "ntlm" (默认) 或 "kerberos" 或 "anonymous"
+	// 或 "guest". 决定 SESSION_SETUP SecurityBlob 占位内容.
+	AuthMechanism string `json:"auth_mechanism,omitempty"`
+
+	// Username (用户名): NTLM/Kerberos 用户名.
+	Username string `json:"username,omitempty"`
+
+	// Domain (域): NTLM 域名或 Kerberos realm.
+	Domain string `json:"domain,omitempty"`
+
+	// Password (密码): 仅用于占位字段, 不做真实加密.
+	Password string `json:"password,omitempty"`
+
+	// SecurityBlob (安全 Blob): 用户自定义 GSS-API/SPNEGO blob; 设置时
+	// 覆盖 AuthMechanism 自动生成的占位.
+	SecurityBlob []byte `json:"security_blob,omitempty"`
+
+	// AuthRounds (认证轮数): SESSION_SETUP 交换轮数; 0 表示默认
+	// (按机制换算: ntlm→3, kerberos→2, anonymous/guest→1);
+	// 显式非 0 必须在 1-3 且与机制匹配 (ntlm 只能 2 或 3).
+	AuthRounds int `json:"auth_rounds,omitempty"`
+
+	// --- 树连接阶段 ---
+
+	// TreeConnectShare (树连接共享): UNC 路径, 如 "\\server\share" 或
+	// "\\server\IPC$" (命名管道). 空默认 "\\server\share".
+	TreeConnectShare string `json:"tree_connect_share,omitempty"`
+
+	// ShareType (共享类型): 0=DISK、1=PIPE、2=PRINT. 空默认 0.
+	// IPC$ 自动设为 1.
+	ShareType uint8 `json:"share_type,omitempty"`
+
+	// --- 文件操作阶段 ---
+
+	// FilePath (文件路径): CREATE 命令打开的文件名, UTF-8 字符串; planner
+	// 自动转 UTF-16LE. 空默认 "file.txt".
+	FilePath string `json:"file_path,omitempty"`
+
+	// CreateDisposition (打开方式): 0=supersede、1=open、2=create、
+	// 3=open_if、4=overwrite、5=overwrite_if. 空默认 1 (open).
+	CreateDisposition uint8 `json:"create_disposition,omitempty"`
+
+	// AccessMask (访问掩码): 0 默认 0x00120089 (GENERIC_READ +
+	// FILE_READ_DATA + SYNCHRONIZE).
+	AccessMask uint32 `json:"access_mask,omitempty"`
+
+	// FileAttributes (文件属性): 0 默认 0x80 (NORMAL).
+	FileAttributes uint32 `json:"file_attributes,omitempty"`
+
+	// ShareAccess (共享访问): bit0=READ、bit1=WRITE、bit2=DELETE.
+	// 0 默认 0x07 (RWX).
+	ShareAccess uint8 `json:"share_access,omitempty"`
+
+	// CreateOptions (创建选项): 0 默认 0 (普通文件).
+	CreateOptions uint32 `json:"create_options,omitempty"`
+
+	// FileId (文件号): CREATE 响应分配的 16 字节 FileId; 用于后续
+	// READ/WRITE/CLOSE. 全 0 表示由 planner 在 CREATE 响应时随机分配.
+	FileId [16]byte `json:"file_id,omitempty"`
+
+	// --- 操作序列 ---
+
+	// Operations (操作序列): 文件操作列表, 按顺序执行. 每个操作生成
+	// 1 对请求/响应. 空默认 [{OpType:"read", Offset:0, Length:4096}].
+	Operations []SMBOperation `json:"operations,omitempty"`
+
+	// --- SMB3 高级 ---
+
+	// PreauthIntegrityHashAlgorithms (预认证完整性算法列表): SMB3.1.1 才有;
+	// 0x0001=SHA-512. 空默认 [0x0001].
+	PreauthIntegrityHashAlgorithms []uint16 `json:"preauth_integrity_hash_algorithms,omitempty"`
+
+	// EncryptionAlgorithm (加密算法): SMB3.1.1 才有; 0x0001=AES-CCM、
+	// 0x0002=AES-GCM. 0 默认 0x0001.
+	EncryptionAlgorithm uint16 `json:"encryption_algorithm,omitempty"`
+
+	// EncryptionRequired (要求加密): true 时 SessionFlags.EncryptData=1.
+	EncryptionRequired bool `json:"encryption_required,omitempty"`
+
+	// --- 业务控制 ---
+
+	// MaxTransactSize (最大事务大小): 默认 65536 (64KB).
+	MaxTransactSize uint32 `json:"max_transact_size,omitempty"`
+
+	// MaxReadSize (最大读大小): 默认 1048576 (1MB).
+	MaxReadSize uint32 `json:"max_read_size,omitempty"`
+
+	// MaxWriteSize (最大写大小): 默认 1048576 (1MB).
+	MaxWriteSize uint32 `json:"max_write_size,omitempty"`
+
+	// IncludeNegotiate (包含协商): true 默认; false 跳过 NEGOTIATE 阶段.
+	IncludeNegotiate *bool `json:"include_negotiate,omitempty"`
+
+	// PreviousSessionId (上次会话 ID): SESSION_SETUP 请求 PreviousSessionId
+	// 字段（多通道重连时复用上次会话）；0 默认 0（独立会话无重连）.
+	PreviousSessionId uint64 `json:"previous_session_id,omitempty"`
+
+	// IncludeAuth (包含认证): true 默认; false 跳过 SESSION_SETUP.
+	IncludeAuth *bool `json:"include_auth,omitempty"`
+
+	// IncludeTreeConnect (包含树连接): true 默认; false 跳过 TREE_CONNECT.
+	IncludeTreeConnect *bool `json:"include_tree_connect,omitempty"`
+
+	// IncludeTeardown (包含会话拆解): true 默认; false 跳过
+	// TREE_DISCONNECT/LOGOFF.
+	IncludeTeardown *bool `json:"include_teardown,omitempty"`
+
+	// --- 错误注入 (测试用) ---
+
+	// ErrorResponseStatus (错误响应状态码): 非零时所有命令响应返回
+	// 该 NT 状态码 (用于测试异常路径). 0 默认 STATUS_SUCCESS.
+	ErrorResponseStatus uint32 `json:"error_response_status,omitempty"`
+
+	// ErrorOnCommand (在指定命令返回错误): 命令名; 该命令的响应返回
+	// ErrorResponseStatus, 后续命令按 §4.2 跳过规则表决定.
+	ErrorOnCommand string `json:"error_on_command,omitempty"`
+}
+
+// SMBOperation describes a single SMB file operation.
+type SMBOperation struct {
+	OpType        string   `json:"op_type"`
+	Offset        uint64   `json:"offset,omitempty"`
+	Length        uint32   `json:"length,omitempty"`
+	Data          []byte   `json:"data,omitempty"`
+	DataB64       string   `json:"data_b64,omitempty"`
+	FileName      string   `json:"file_name,omitempty"`
+	InfoClass     uint8    `json:"info_class,omitempty"`
+	InfoType      uint8    `json:"info_type,omitempty"`
+	FileInfoClass uint8    `json:"file_info_class,omitempty"`
+	FileId        [16]byte `json:"file_id,omitempty"`
+	MinimumCount  uint32   `json:"minimum_count,omitempty"`
+	Flags         uint32   `json:"flags,omitempty"`
+}
+
+// ENIPConfig holds EtherNet/IP (ENIP, ODVA EtherNet/IP Volume 1 & 2)
+// protocol configuration. ENIP encapsulates CIP over TCP/UDP port 44818.
+// All multi-byte fields are little-endian.
+type ENIPConfig struct {
+	Scenario         string        `json:"scenario,omitempty"`
+	Transport        string        `json:"transport,omitempty"`
+	SessionCount     int           `json:"session_count,omitempty"`
+	FlowCount        int           `json:"flow_count,omitempty"`
+	Commands         []ENIPCommand `json:"commands,omitempty"`
+	IOData           *ENIPIOData   `json:"io_data,omitempty"`
+	VendorID         uint16        `json:"vendor_id,omitempty"`
+	DeviceType       uint16        `json:"device_type,omitempty"`
+	ProductCode      uint16        `json:"product_code,omitempty"`
+	FirmwareMajorRev uint8         `json:"firmware_major_rev,omitempty"`
+	FirmwareMinorRev uint8         `json:"firmware_minor_rev,omitempty"`
+	ProductName      string        `json:"product_name,omitempty"`
+	SerialNumber     uint32        `json:"serial_number,omitempty"`
+	DeviceStatus     uint16        `json:"device_status,omitempty"`
+	DeviceState      uint8         `json:"device_state,omitempty"`
+}
+
+// ENIPCommand represents a single ENIP message command configuration.
+type ENIPCommand struct {
+	Command                     uint16           `json:"command"`
+	Length                      uint16           `json:"length,omitempty"`
+	SessionHandle               uint32           `json:"session_handle,omitempty"`
+	Status                      uint32           `json:"status,omitempty"`
+	SenderContext               uint64           `json:"sender_context,omitempty"`
+	Options                     uint32           `json:"options,omitempty"`
+	Payload                     []byte           `json:"payload,omitempty"`
+	ProtocolVersion             uint16           `json:"protocol_version,omitempty"`
+	OptionFlag                  uint16           `json:"option_flag,omitempty"`
+	InterfaceHandle             uint32           `json:"interface_handle,omitempty"`
+	Timeout                     uint16           `json:"timeout,omitempty"`
+	// PriorityTimeTick 和 TimeoutTicks 是 Forward_Open/Forward_Close 的 CIP 超时参数。
+	PriorityTimeTick            uint8            `json:"priority_time_tick,omitempty"`
+	TimeoutTicks                uint8            `json:"timeout_ticks,omitempty"`
+	CPFItems                    []CPFItem        `json:"cpf_items,omitempty"`
+	CIPService                  uint8            `json:"cip_service,omitempty"`
+	ClassID                     uint16           `json:"class_id,omitempty"`
+	InstanceID                  uint32           `json:"instance_id,omitempty"`
+	AttributeID                 uint16           `json:"attribute_id,omitempty"`
+	ConnSerialNum               uint16           `json:"conn_serial_number,omitempty"`
+	OrigVendorID                uint16           `json:"originator_vendor_id,omitempty"`
+	OrigSerialNum               uint32           `json:"originator_serial_number,omitempty"`
+	O2TConnID                   uint32           `json:"o2t_connection_id,omitempty"`
+	T2OConnID                   uint32           `json:"t2o_connection_id,omitempty"`
+	O2TRPI                      uint32           `json:"o2t_rpi,omitempty"`
+	T2ORPI                      uint32           `json:"t2o_rpi,omitempty"`
+	O2TConnParams               uint32           `json:"o2t_connection_parameters,omitempty"`
+	T2OConnParams               uint32           `json:"t2o_connection_parameters,omitempty"`
+	TransportClassTrigger       uint8            `json:"transport_class_trigger,omitempty"`
+	ConnectionPath              []byte           `json:"connection_path,omitempty"`
+	ConnectionPathSize          uint8            `json:"connection_path_size,omitempty"`
+	ConnectionTimeoutMultiplier uint8            `json:"connection_timeout_multiplier,omitempty"`
+	SubRequests                 []ENIPSubRequest `json:"sub_requests,omitempty"`
+	Direction                   string           `json:"direction,omitempty"`
+	GeneralStatus               uint8            `json:"general_status,omitempty"`
+	AdditionalStatus            []uint16         `json:"additional_status,omitempty"`
+	VendorID                    uint16           `json:"vendor_id,omitempty"`
+	DeviceType                  uint16           `json:"device_type,omitempty"`
+	ProductCode                 uint16           `json:"product_code,omitempty"`
+	FirmwareMajorRev            uint8            `json:"firmware_major_rev,omitempty"`
+	FirmwareMinorRev            uint8            `json:"firmware_minor_rev,omitempty"`
+	ProductName                 string           `json:"product_name,omitempty"`
+	SerialNumber                uint32           `json:"serial_number,omitempty"`
+	DeviceStatus                uint16           `json:"device_status,omitempty"`
+	DeviceState                 uint8            `json:"device_state,omitempty"`
+	SourceCommandIndex          int              `json:"source_command_index,omitempty"`
+	FromResponseField           string           `json:"from_response_field,omitempty"`
+	// ResponsePayload 携带本命令对应响应的原始 ENIP 数据（含 24B ENIP 头）,
+	// 供后续命令通过 FromResponseField/SourceCommandIndex 引用提取字段
+	// （session_handle / o2t_connection_id / t2o_connection_id /
+	// connection_serial_number，见设计 §5.6.1）。请求场景忽略。
+	ResponsePayload             []byte           `json:"-"`
+	// SenderContextPtr 显式强制 SenderContext 值（包括 0）。
+	// 非 nil 时直接采用该值；否则按 SenderContext 非零用其值、
+	// 为零时使用 flow 内递增默认值（设计 §6.13 S12）。
+	SenderContextPtr            *uint64          `json:"-"`
+}
+
+// CPFItem represents a Common Packet Format item.
+type CPFItem struct {
+	TypeID uint16 `json:"type_id"`
+	Length uint16 `json:"length,omitempty"`
+	Data   []byte `json:"data,omitempty"`
+}
+
+// ENIPSubRequest represents a sub-request within a Multiple_Service_Packet.
+type ENIPSubRequest struct {
+	Service     uint8  `json:"service"`
+	ClassID     uint16 `json:"class_id,omitempty"`
+	InstanceID  uint32 `json:"instance_id,omitempty"`
+	AttributeID uint16 `json:"attribute_id,omitempty"`
+	Data        []byte `json:"data,omitempty"`
+}
+
+// ENIPIOData holds implicit I/O messaging configuration.
+type ENIPIOData struct {
+	O2TConnectionID       uint32 `json:"o2t_connection_id,omitempty"`
+	T2OConnectionID       uint32 `json:"t2o_connection_id,omitempty"`
+	SequenceStart         uint16 `json:"sequence_start,omitempty"`
+	SequenceStep          uint16 `json:"sequence_step,omitempty"`
+	FrameCount            int    `json:"frame_count,omitempty"`
+	FrameInterval         uint32 `json:"frame_interval,omitempty"`
+	FrameSize             uint16 `json:"frame_size,omitempty"`
+	Payload               []byte `json:"payload,omitempty"`
+	TransportClassTrigger uint8  `json:"transport_class_trigger,omitempty"`
+	// SourceCommandIndex 指定 o2t_connection_id 来源命令（本 flow 内
+	// source_command_index，设计 §5.6.1）：I/O 帧的 Connection Address
+	// Item 使用该命令响应中提取的 O→T Connection ID（Forward_Open 响应
+	// CIP body offset 0）。nil 表示不使用 from_response（取
+	// O2TConnectionID 字段值）；非 nil 且 O2TConnectionID=0 时由响应提取
+	// 填充。flow 隔离：索引相对本 flow 命令序列。
+	SourceCommandIndex *int `json:"source_command_index,omitempty"`
+	// T2OConnectionID 在 SendUnitData 发包路径（originator→target）不使用
+	// （那是 originator 接收方向的 ID，设计 §3.6/§5.5）。
+}
+
+// SRv6Config configures the SRv6 Segment Routing Header (RFC 8754, IPv6
+// extension header Next Header = 43, Routing Type = 4). When non-nil, the
+// planner emits one IPv6 packet per flow carrying an SRH with the
+// configured Segment List. SRv6 is NOT a standalone transport protocol —
+// it is an IPv6 extension header. See internal/protocol/srv6 for the
+// planner, serializer, and validation rules (design §5.1).
+type SRv6Config struct {
+	// SrcIPv6 is the outer IPv6 source address. Empty = spec.SrcIP.
+	SrcIPv6 string `json:"src_ipv6,omitempty"`
+
+	// DstIPv6 is the outer IPv6 destination as written by the source node.
+	// Empty = SegmentList[0] (user-facing first segment = first to process;
+	// on wire: List[n-1] = highest index). RFC 8754 §4.1: DA = first segment.
+	DstIPv6 string `json:"dst_ipv6,omitempty"`
+
+	// SegmentList is the SR Policy in user-facing processing order. Entry 0
+	// is FIRST segment processed; entry n-1 is LAST (final destination).
+	// Planner REVERSES this list when writing to the wire (RFC 8754 §2).
+	// 1..127 entries (uint8 HdrExtLen limit).
+	SegmentList []string `json:"segment_list"`
+
+	// SegmentsLeft is the Segments Left field. 0 = reached final segment.
+	// Use SegmentsLeftPtr (*uint8) to disambiguate "user explicit 0" from
+	// "user did not set": nil = default len-1, non-nil = explicit.
+	SegmentsLeft    uint8  `json:"segments_left,omitempty"`
+	SegmentsLeftPtr *uint8 `json:"segments_left_ptr,omitempty"`
+
+	// LastEntry is the last Segment List entry index. Source node: len-1
+	// (non-reduced) or len-2 (reduced, RFC 8754 §4.1.1).
+	LastEntry    uint8  `json:"last_entry,omitempty"`
+	LastEntryPtr *uint8 `json:"last_entry_ptr,omitempty"`
+
+	// Reduced indicates reduced SRH (RFC 8754 §4.1.1): omit SegmentList[n-1],
+	// LastEntry = len-2. Default: true when SegType == "end.b6.encaps.red",
+	// false otherwise (design §5.3 S11). An explicit user value overrides the
+	// SegType default.
+	//
+	// ReducedPtr disambiguates "user did not set reduced" from "user set
+	// reduced=false": nil = SegType default, non-nil = explicit value. It is
+	// populated by parseSRv6Config from the same "reduced" JSON key as
+	// Reduced (json:"-" so encoding/json on SRv6Config never sees two fields
+	// with the same tag; SRv6Config is decoded via parseSRv6Config only).
+	// resolveReduced (srv6 package) prefers ReducedPtr, falling back to the
+	// SegType default and then to Reduced for backward compatibility.
+	Reduced    bool  `json:"reduced,omitempty"`
+	ReducedPtr *bool `json:"-"`
+
+	// Flags is the SRH Flags byte. RFC 8754 §2.1: ALL 8 bits Unused
+	// (MUST be 0). HMAC is carried by TLV Type=5, not by a flag bit.
+	Flags uint8 `json:"flags,omitempty"`
+
+	// Tag is the 16-bit SRH Tag. 0 = no tag. Big-endian on wire.
+	Tag uint16 `json:"tag,omitempty"`
+
+	// SegType selects which End* behavior to emulate (RFC 8986 §3.4).
+	SegType string `json:"seg_type,omitempty"`
+
+	// PayloadProtocol is the inner protocol after SRH.
+	// "tcp" / "udp" / "icmpv6" / "ipv6" / "ipv4" / "none".
+	// "ipv6" = NH 41 (End.DX6/B6/etc., RFC 8986 §4.4/§4.13).
+	// "ipv4" = NH 4 (End.DX4/DT4, RFC 8986 §4.5/§4.8).
+	// "none" = NH 59 (No Next Header, RFC 8200 §4.7).
+	PayloadProtocol string `json:"payload_protocol,omitempty"`
+
+	// InnerPayload is the inner payload bytes. nil = spec.Payload.
+	InnerPayload []byte `json:"inner_payload,omitempty"`
+
+	// InnerSrcPort / InnerDstPort are inner L4 ports. 0 = spec.SrcPort /
+	// spec.DstPort.
+	InnerSrcPort uint16 `json:"inner_src_port,omitempty"`
+	InnerDstPort uint16 `json:"inner_dst_port,omitempty"`
+
+	// TLV is the optional TLV list appended after Segment List. Pad1/PadN
+	// are auto-inserted for 8-byte alignment (do not set manually). HMAC
+	// TLV (Type=5) requires 8n alignment (RFC 8754 §2.1.2).
+	TLV []SRv6TLV `json:"tlv,omitempty"`
+
+	// Frames is the number of SRv6 packets emitted. 0 = 1.
+	// Frames does NOT vary SRH content; per-frame SL--/DstIP updates are
+	// expressed by multiple FlowSpecs, never by Frames.
+	Frames int `json:"frames,omitempty"`
+
+	// Direction is "up" (default) or "down" (swaps MACs/IPs/ports AND
+	// reverses SegmentList). Direction=down requires source-node view
+	// (SegmentsLeftPtr MUST be nil).
+	Direction string `json:"direction,omitempty"`
+}
+
+// SRv6TLV is one SRH TLV (RFC 8754 §2.1.1 + §8.2 IANA registry).
+//
+//	0 = Pad1 (auto-inserted, do not set manually)
+//	4 = PadN (auto-inserted, do not set manually)
+//	5 = HMAC (8n alignment, RFC 8754 §2.1.2)
+//	1, 2, 3, 6 = Reserved (MUST NOT be set; HMAC-Sig TLV does NOT exist)
+//	124-126, 252-254 = Experimentation and Test
+//	127, 255 = Reserved
+type SRv6TLV struct {
+	Type  uint8  `json:"type"`
+	Value []byte `json:"value,omitempty"`
+}
+
+// SRHConfig is the IPv6 Segment Routing Header (RFC 8754) wire-level layout
+// that the core builder consumes. The SRv6 planner fills this from the
+// user-facing SRv6Config (which carries SegmentList in user order) by
+// reversing the list and stripping the reduced first entry.
+//
+// All IPv6 address fields are written verbatim — the builder does no
+// validation; the srv6 planner's Validate step is the contract.
+type SRHConfig struct {
+	// NextHeader is the protocol number following the SRH (e.g. 17=UDP,
+	// 6=TCP, 41=IPv6). The IPv6 fixed header's NH field points to the SRH
+	// (43); the SRH's NH carries this value.
+	NextHeader uint8
+
+	// HdrExtLen is the SRH Header Extension Length in 8-octet units minus 1
+	// (RFC 8754 §2.1). Computed as (totalSrhLen/8) - 1.
+	HdrExtLen uint8
+
+	// SegmentsLeft is the segments-left counter (RFC 8754 §4.3.1.1).
+	SegmentsLeft uint8
+
+	// LastEntry is the last segment index in the wire SegmentList.
+	// Non-reduced SRH: len(SegmentList)-1. Reduced SRH: len-2.
+	LastEntry uint8
+
+	// Flags is the SRH Flags byte. RFC 8754 §2.1: ALL 8 bits Unused
+	// (MUST be 0). HMAC is carried by TLV Type=5, not by a flag bit.
+	Flags uint8
+
+	// Tag is the 16-bit SRH Tag. Big-endian on wire.
+	Tag uint16
+
+	// SegmentList is the wire-format Segment List (RFC 8754 §2: REVERSED
+	// from user order; the first entry processed is at the highest index,
+	// the last entry at index 0). For reduced SRH (RFC 8754 §4.1.1) the
+	// first segment (already in DstIP) is omitted, so this list has
+	// len(userList)-1 entries.
+	SegmentList [][16]byte
+
+	// TLV is the optional TLV list after the Segment List. PadN entries are
+	// auto-inserted for 8-byte alignment (RFC 8754 §2.1).
+	TLV []SRv6TLV
+
+	// Reduced marks a reduced SRH (RFC 8754 §4.1.1). The srv6 planner sets
+	// it; the builder needs it to verify HdrExtLen against the wire bytes
+	// (design §7.7 EXC-01) without re-deriving the reduced rule.
+	Reduced bool
+}
+
+// GBT32960Config configures the GBT32960 protocol (GB/T 32960.3-2016
+// 电动汽车远程服务与管理系统技术规范 第3部分：通讯协议). It is
+// attached to FlowSpec.GBT32960; the internal/protocol/gbt32960 planner
+// emits a TCP handshake, a sequence of GBT32960 messages (each as one
+// PSH-ACK payload), and a TCP teardown — all within one flow.
+//
+// A single GBT32960 flow models ONE vehicle (or one platform-as-client
+// session). Multi-vehicle scenarios use multiple FlowSpecs, each with a
+// unique VIN and a distinct 4-tuple (see design §7.11).
+type GBT32960Config struct {
+	// Role (角色) selects the side: "vehicle" (default) or "platform".
+	// vehicle = 车载终端 side (上行 0x01/0x02/0x03/0x04);
+	// platform = 平台侧作为 client 登入上级平台 (0x05/0x06/0x0B).
+	Role string `json:"role,omitempty"`
+
+	// VIN (车辆识别码, Vehicle Identification Number) — 17-byte ASCII.
+	// Shorter values are right-padded with VINPadByte (default 0x00);
+	// longer values trigger V2 error (no silent truncation).
+	// Required when Role="vehicle"; for Role="platform", use PlatformID.
+	// Charset: I/O/Q not allowed (V3b).
+	VIN string `json:"vin,omitempty"`
+
+	// VINPadByte (VIN 补齐字节) — byte used to right-pad VIN shorter
+	// than 17 bytes. Default 0x00; 0x20 supported for some platforms.
+	VINPadByte *byte `json:"vin_pad_byte,omitempty"`
+
+	// SIM (车辆 SIM 号 / ICCID) — up to 20-byte ASCII. Right-padded with 0x00.
+	// Used as the ICCID field of 0x01 vehicle login data unit.
+	SIM string `json:"sim,omitempty"`
+
+	// EncryptRule (数据加密方式): "01"=不加密 (default), "02"=RSA,
+	// "03"=AES128, "04"=SM2, "05"=SM4. Only the field value is emitted;
+	// the planner does NOT actually encrypt the data unit (see §7.10).
+	EncryptRule string `json:"encrypt_rule,omitempty"`
+
+	// LoginSerialNumber (登入流水号) — uint16, range 1-65531. Default 1.
+	LoginSerialNumber int `json:"login_serial_number,omitempty"`
+
+	// LogoutSerialNumber (登出流水号) — uint16, range 1-65531. Per spec
+	// must equal the LoginSerialNumber of the same session. 0 (empty) =
+	// planner uses LoginSerialNumber automatically.
+	LogoutSerialNumber int `json:"logout_serial_number,omitempty"`
+
+	// RechargeableSubsysCount (可充电储能子系统数 n) — n >= 1. Default 1.
+	RechargeableSubsysCount int `json:"rechargeable_subsys_count,omitempty"`
+
+	// RechargeableSubsysCodeLength (可充电储能系统编码长度 m) — m >= 1.
+	// Default 1. Each subsystem code is m bytes.
+	RechargeableSubsysCodeLength int `json:"rechargeable_subsys_code_length,omitempty"`
+
+	// RechargeableSubsysCodes (可充电储能系统编码) — string slice, length
+	// must equal RechargeableSubsysCount. Each entry is right-padded or
+	// truncated to m bytes. Empty = all zeros.
+	RechargeableSubsysCodes []string `json:"rechargeable_subsys_codes,omitempty"`
+
+	// LoginTime (登入时间) — RFC3339 string (timezone required). Empty =
+	// use time.Now() in local timezone (documented as GMT+8).
+	LoginTime string `json:"login_time,omitempty"`
+
+	// LogoutTime (登出时间) — same format as LoginTime. Empty = LoginTime
+	// plus Σ(Reports interval) + 60s (or LoginTime + 60s default).
+	LogoutTime string `json:"logout_time,omitempty"`
+
+	// Reports (实时上报序列) — list of realtime report entries. Each
+	// entry produces one 0x02 message.
+	Reports []GBT32960Report `json:"reports,omitempty"`
+
+	// ReissueReports (补报序列) — list of entries to send as 0x03.
+	ReissueReports []GBT32960Report `json:"reissue_reports,omitempty"`
+
+	// AlarmData (报警数据) — when set, planner emits one info-type 0x07
+	// info body in the next 0x02 message that does not set its own.
+	AlarmData *GBT32960AlarmData `json:"alarm_data,omitempty"`
+
+	// RemoteControl (远程控制响应) — when set, planner emits 0x08 from
+	// platform → vehicle, then 0x0C acknowledgement from vehicle.
+	RemoteControl *GBT32960RemoteControl `json:"remote_control,omitempty"`
+
+	// PlatformLogin (平台登入) — when Role="platform", planner emits
+	// 0x05 → 0x0C → 0x0B × N → 0x06.
+	PlatformLogin *GBT32960PlatformLogin `json:"platform_login,omitempty"`
+
+	// PlatformID (平台唯一识别码) — 17-byte ASCII used as the VIN field
+	// of platform-side messages (0x05/0x06/0x0B). Required when
+	// Role="platform"; empty = 17 bytes of 0x00.
+	PlatformID string `json:"platform_id,omitempty"`
+
+	// PlatformDomain (平台域名) — stored for logging; not emitted in v1.
+	PlatformDomain string `json:"platform_domain,omitempty"`
+
+	// SetPlatformDomain (设置平台域名) — target domain via 0x0A (v1 unused).
+	SetPlatformDomain string `json:"set_platform_domain,omitempty"`
+
+	// ConnectID (连接 ID) — empty = planner auto-generates from 4-tuple.
+	ConnectID string `json:"connect_id,omitempty"`
+
+	// IsTransBatteryData (是否传输电池数据) — default true. When false,
+	// planner emits only vehicle-position info body (0x05).
+	IsTransBatteryData *bool `json:"is_trans_battery_data,omitempty"`
+
+	// HeartbeatCount (心跳次数) — number of 0x0B messages to emit.
+	// Applies only when Role="platform". 0 = no heartbeat.
+	HeartbeatCount int `json:"heartbeat_count,omitempty"`
+
+	// ResponseFlags (应答标志) — overrides 0xFE on the NEXT UPLINK
+	// message's resp field. Use "01"/"02"/"03"/"04" (see §3.12, §7.13).
+	// Empty = 0xFE (normal uplink behavior).
+	ResponseFlags string `json:"response_flags,omitempty"`
+
+	// StatusChangeTrace (状态变更记录) — JSON array of status snapshots
+	// to apply sequentially across Reports. See §7.12.
+	StatusChangeTrace []GBT32960StatusChange `json:"status_change_trace,omitempty"`
+
+	// CustomFields (自定义信息体) — raw hex string for the info-body
+	// portion of 0x02/0x03 data unit. Empty = planner emits a minimal
+	// valid info body (整车数据 0x01 + 18 zero bytes, or 0x05 + 9 zero
+	// bytes when IsTransBatteryData=false). See §3.2.3.
+	CustomFields string `json:"custom_fields,omitempty"`
+
+	// InjectBCCError (注入 BCC 错误) — when true, the planner flips one
+	// bit of the BCC byte on the Nth message (BCCErrorIndex). §7.15.
+	InjectBCCError bool `json:"inject_bcc_error,omitempty"`
+
+	// BCCErrorIndex (BCC 错误注入索引) — 0-based index into the
+	// message sequence. 0 = the first GBT32960 message. Out-of-range
+	// triggers V24 error (computed at Plan time).
+	BCCErrorIndex int `json:"bcc_error_index,omitempty"`
+}
+
+// GBT32960Report is a single realtime or reissue report entry. The
+// planner emits one 0x02 message per entry (0x03 when in
+// ReissueReports). Time defaults to auto-generated sequential stamps.
+type GBT32960Report struct {
+	// Time (采集时间) — RFC3339 (timezone required). Empty = auto-sequence
+	// (previous + 30s, or LoginTime + 30s for first).
+	Time string `json:"time,omitempty"`
+
+	// AlarmData (报警数据) — overrides Config.AlarmData for this entry.
+	AlarmData *GBT32960AlarmData `json:"alarm_data,omitempty"`
+
+	// CustomFields (自定义信息体) — overrides Config.CustomFields.
+	CustomFields string `json:"custom_fields,omitempty"`
+}
+
+// GBT32960AlarmData models the info-type 0x07 alarm data info body.
+// Wire layout (5 bytes): MaxAlarmLevel(1B) + GeneralAlarmFlags(4B BE).
+type GBT32960AlarmData struct {
+	// MaxAlarmLevel (最高报警等级) — 0=无/1=一级/2=二级/3=三级.
+	MaxAlarmLevel uint8 `json:"max_alarm_level"`
+
+	// GeneralAlarmFlags (通用报警标志) — 32-bit big-endian, exactly
+	// 8 hex chars (e.g. "00000002" for bit1 电池高温). See §3.2.1.
+	GeneralAlarmFlags string `json:"general_alarm_flags"`
+}
+
+// GBT32960RemoteControl models the 0x08 control command exchange.
+type GBT32960RemoteControl struct {
+	// ControlType (控制类型): 0x01=远程熄火, 0x02=远程解锁, etc.
+	ControlType uint8 `json:"control_type"`
+
+	// Params (命令参数) — raw hex string, appended after ControlType.
+	Params string `json:"params,omitempty"`
+
+	// ResponseFlags (应答标志) — vehicle's response: "01"=success,
+	// "02"=error, "04"=unsupported. Default "01". Applied to the next
+	// uplink message's resp field (see §3.12).
+	ResponseFlags string `json:"response_flags,omitempty"`
+}
+
+// GBT32960PlatformLogin models the 0x05 platform-as-client login.
+type GBT32960PlatformLogin struct {
+	User       string `json:"user"`                  // 12-byte ASCII
+	Password   string `json:"password"`              // 20-byte ASCII
+	EncryptSeq string `json:"encrypt_seq,omitempty"` // 16-byte ASCII (key version)
+}
+
+// GBT32960StatusChange is one entry in StatusChangeTrace. When the
+// planner processes Reports, each entry first applies the trace's next
+// snapshot, then applies per-report overrides. Fields empty in the
+// snapshot are left unchanged.
+type GBT32960StatusChange struct {
+	AtReportIndex int                `json:"at_report_index"` // 0-based; must be unique
+	AlarmData     *GBT32960AlarmData `json:"alarm_data,omitempty"`
+	CustomFields  string             `json:"custom_fields,omitempty"`
 }

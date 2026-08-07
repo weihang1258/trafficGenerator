@@ -16,41 +16,72 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/mcp"
 	"github.com/trafficgen/trafficgen/internal/output"
+	"github.com/trafficgen/trafficgen/internal/protocol/a2a"
 	"github.com/trafficgen/trafficgen/internal/protocol/arp"
 	"github.com/trafficgen/trafficgen/internal/protocol/dhcp"
 	"github.com/trafficgen/trafficgen/internal/protocol/dhcpv6"
+	"github.com/trafficgen/trafficgen/internal/protocol/dnp3"
 	"github.com/trafficgen/trafficgen/internal/protocol/dns"
+	"github.com/trafficgen/trafficgen/internal/protocol/doip"
+	"github.com/trafficgen/trafficgen/internal/protocol/enip"
 	"github.com/trafficgen/trafficgen/internal/protocol/ftp"
+	"github.com/trafficgen/trafficgen/internal/protocol/gbt32960"
+	"github.com/trafficgen/trafficgen/internal/protocol/gre"
 	"github.com/trafficgen/trafficgen/internal/protocol/grpc"
+	"github.com/trafficgen/trafficgen/internal/protocol/gtp"
+	"github.com/trafficgen/trafficgen/internal/protocol/h323"
 	httpprotocol "github.com/trafficgen/trafficgen/internal/protocol/http"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmpv6"
 	"github.com/trafficgen/trafficgen/internal/protocol/ike"
 	"github.com/trafficgen/trafficgen/internal/protocol/ike_nat_t"
 	"github.com/trafficgen/trafficgen/internal/protocol/imap"
+	"github.com/trafficgen/trafficgen/internal/protocol/jt808"
+	"github.com/trafficgen/trafficgen/internal/protocol/jt809"
+	"github.com/trafficgen/trafficgen/internal/protocol/jtt905"
 	"github.com/trafficgen/trafficgen/internal/protocol/l2tp"
+	"github.com/trafficgen/trafficgen/internal/protocol/ldap"
+	mcpprotocol "github.com/trafficgen/trafficgen/internal/protocol/mcp"
 	"github.com/trafficgen/trafficgen/internal/protocol/mdns"
+	"github.com/trafficgen/trafficgen/internal/protocol/modbus"
+	"github.com/trafficgen/trafficgen/internal/protocol/mpls"
+	"github.com/trafficgen/trafficgen/internal/protocol/mqtt"
 	"github.com/trafficgen/trafficgen/internal/protocol/mysql"
+	"github.com/trafficgen/trafficgen/internal/protocol/nfs"
+	"github.com/trafficgen/trafficgen/internal/protocol/ngap"
 	"github.com/trafficgen/trafficgen/internal/protocol/ntp"
 	"github.com/trafficgen/trafficgen/internal/protocol/openvpn"
 	"github.com/trafficgen/trafficgen/internal/protocol/pop3"
 	"github.com/trafficgen/trafficgen/internal/protocol/postgresql"
+	"github.com/trafficgen/trafficgen/internal/protocol/pppoe"
+	"github.com/trafficgen/trafficgen/internal/protocol/pptp"
+	"github.com/trafficgen/trafficgen/internal/protocol/radius"
 	"github.com/trafficgen/trafficgen/internal/protocol/rdp"
 	"github.com/trafficgen/trafficgen/internal/protocol/redis"
+	"github.com/trafficgen/trafficgen/internal/protocol/rip"
+	"github.com/trafficgen/trafficgen/internal/protocol/rtmp"
+	"github.com/trafficgen/trafficgen/internal/protocol/rtsp"
 	"github.com/trafficgen/trafficgen/internal/protocol/sctp"
 	"github.com/trafficgen/trafficgen/internal/protocol/shadowsocks"
 	"github.com/trafficgen/trafficgen/internal/protocol/sip"
+	"github.com/trafficgen/trafficgen/internal/protocol/smb"
 	"github.com/trafficgen/trafficgen/internal/protocol/smtp"
 	"github.com/trafficgen/trafficgen/internal/protocol/snmp"
-	"github.com/trafficgen/trafficgen/internal/protocol/ssh"
+	"github.com/trafficgen/trafficgen/internal/protocol/socks5"
+	"github.com/trafficgen/trafficgen/internal/protocol/srv6"
 	"github.com/trafficgen/trafficgen/internal/protocol/ssdp"
+	"github.com/trafficgen/trafficgen/internal/protocol/ssh"
 	"github.com/trafficgen/trafficgen/internal/protocol/syslog"
 	"github.com/trafficgen/trafficgen/internal/protocol/tcp"
+	"github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
+	"github.com/trafficgen/trafficgen/internal/protocol/tftp"
 	"github.com/trafficgen/trafficgen/internal/protocol/tls"
 	"github.com/trafficgen/trafficgen/internal/protocol/udp"
 	"github.com/trafficgen/trafficgen/internal/protocol/vmess"
+	"github.com/trafficgen/trafficgen/internal/protocol/vnc"
 	"github.com/trafficgen/trafficgen/internal/protocol/wireguard"
+	"github.com/trafficgen/trafficgen/internal/protocol/xmpp"
 	"github.com/trafficgen/trafficgen/internal/replay"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
@@ -328,6 +359,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(arp.NewPlanner())
 	app.engine.RegisterPlanner(ftp.NewPlanner())
 	app.engine.RegisterPlanner(sip.NewPlanner())
+	app.engine.RegisterPlanner(rtsp.NewPlanner())
 	app.engine.RegisterPlanner(sctp.NewPlanner())
 	app.engine.RegisterPlanner(icmpv6.NewPlanner())
 	app.engine.RegisterPlanner(ntp.NewPlanner())
@@ -342,19 +374,49 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(ike.NewPlanner())
 	app.engine.RegisterPlanner(ike_nat_t.NewPlanner())
 	app.engine.RegisterPlanner(l2tp.NewPlanner())
+	app.engine.RegisterPlanner(pppoe.NewPlanner())
+	app.engine.RegisterPlanner(gre.NewPlanner())
+	app.engine.RegisterPlanner(mpls.NewPlanner())
+	app.engine.RegisterPlanner(gtp.NewPlanner())
 	app.engine.RegisterPlanner(rdp.NewPlanner())
+	app.engine.RegisterPlanner(radius.NewPlanner())
+	app.engine.RegisterPlanner(ldap.NewPlanner())
+	app.engine.RegisterPlanner(vnc.NewPlanner())
+	app.engine.RegisterPlanner(pptp.NewPlanner())
+	app.engine.RegisterPlanner(h323.NewPlanner())
+	app.engine.RegisterPlanner(rtmp.NewPlanner())
 	app.engine.RegisterPlanner(redis.NewPlanner())
 	app.engine.RegisterPlanner(mysql.NewPlanner())
+	app.engine.RegisterPlanner(ngap.NewPlanner())
 	app.engine.RegisterPlanner(postgresql.NewPlanner())
 	app.engine.RegisterPlanner(tls.NewPlanner())
 	app.engine.RegisterPlanner(openvpn.NewPlanner())
 	app.engine.RegisterPlanner(shadowsocks.NewPlanner())
+	app.engine.RegisterPlanner(socks5.NewPlanner())
 	app.engine.RegisterPlanner(vmess.NewPlanner())
 	app.engine.RegisterPlanner(wireguard.NewPlanner())
 	app.engine.RegisterPlanner(dhcp.NewPlanner())
 	app.engine.RegisterPlanner(dhcpv6.NewPlanner())
 	app.engine.RegisterPlanner(mdns.NewPlanner())
 	app.engine.RegisterPlanner(ssdp.NewPlanner())
+	app.engine.RegisterPlanner(xmpp.NewPlanner())
+	app.engine.RegisterPlanner(mqtt.NewPlanner())
+	app.engine.RegisterPlanner(srv6.NewPlanner())
+	app.engine.RegisterPlanner(gbt32960.NewPlanner())
+	app.engine.RegisterPlanner(tftp.NewPlanner())
+	app.engine.RegisterPlanner(jt808.NewPlanner())
+	app.engine.RegisterPlanner(jt809.NewPlanner())
+	app.engine.RegisterPlanner(jtt905.NewPlanner())
+	app.engine.RegisterPlanner(doip.NewPlanner())
+	app.engine.RegisterPlanner(smb.NewPlanner())
+	app.engine.RegisterPlanner(nfs.NewPlanner())
+	app.engine.RegisterPlanner(tds.NewPlanner())
+	app.engine.RegisterPlanner(rip.NewPlanner())
+	app.engine.RegisterPlanner(enip.NewPlanner())
+	app.engine.RegisterPlanner(modbus.NewPlanner())
+	app.engine.RegisterPlanner(dnp3.NewPlanner())
+	app.engine.RegisterPlanner(mcpprotocol.NewPlanner())
+	app.engine.RegisterPlanner(a2a.NewPlanner())
 
 	zap.L().Info("protocols registered",
 		zap.Strings("protocols", app.engine.ListProtocols()),

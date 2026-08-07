@@ -143,10 +143,14 @@ type taskEntry struct {
 	cancel context.CancelFunc
 
 	// Pipeline drain tracking: ConfigWorker sets totalConfigs when done,
-	// OutputWorker increments writtenPackets per write.
-	// Completion fires when writtenPackets >= totalConfigs && totalConfigs > 0.
+	// OutputWorker increments writtenPackets per write, PacketWorker reports
+	// build failures via OnPacketBuildError.
+	// Completion fires when totalConfigs > 0 and every planned config is
+	// accounted for (writtenPackets + errorPackets >= totalConfigs).
 	totalConfigs   int64
 	writtenPackets int64
+	errorPackets   int64
+	firstBuildErr  string
 }
 
 // EngineConfig for engine configuration.
@@ -687,11 +691,17 @@ func (e *Engine) SetTaskTotalConfigs(taskID string, count int64) {
 		return
 	}
 	entry.totalConfigs = count
-	// Complete when planning is done (onTaskDone fired) and all configs have
-	// been written. count == 0 means planning produced no configs (e.g., an
-	// empty batch or all flows failed validation); since onTaskDone already
-	// fired, no more packets will arrive, so complete now with 0 packets.
-	if count == 0 || entry.writtenPackets >= count {
+	// Complete when planning is done (onTaskDone fired) and every planned
+	// config is accounted for (written, or failed to build). count == 0 means
+	// planning produced no configs (e.g., an empty batch or all flows failed
+	// validation); since onTaskDone already fired, no more packets will
+	// arrive, so complete now with 0 packets.
+	if count == 0 || entry.writtenPackets+entry.errorPackets >= count {
+		if entry.errorPackets > 0 {
+			e.taskMu.Unlock()
+			e.FailTask(taskID, fmt.Sprintf("packet build failed: %s", entry.firstBuildErr))
+			return
+		}
 		entry.status.Status = "completed"
 		entry.status.Progress = 100
 		entry.status.CompletedAt = time.Now()
@@ -739,7 +749,14 @@ func (e *Engine) OnPacketWritten(taskID string) {
 		e.taskMu.Unlock()
 		return
 	}
-	if entry.totalConfigs > 0 && entry.writtenPackets >= entry.totalConfigs {
+	if entry.totalConfigs > 0 && entry.writtenPackets+entry.errorPackets >= entry.totalConfigs {
+		// All planned configs accounted for. If any build failed, the task
+		// cannot be reported completed: fail it with the first error.
+		if entry.errorPackets > 0 {
+			e.taskMu.Unlock()
+			e.FailTask(taskID, fmt.Sprintf("packet build failed: %s", entry.firstBuildErr))
+			return
+		}
 		entry.status.Status = "completed"
 		entry.status.Progress = 100
 		entry.status.CompletedAt = time.Now()
@@ -804,6 +821,38 @@ func (e *Engine) FailTask(taskID string, errMsg string) {
 	if e.OnTaskComplete != nil {
 		e.OnTaskComplete(taskID)
 	}
+}
+
+// OnPacketBuildError records a packet that failed to build for a task. The
+// PacketWorker drops failed packets and never calls OnPacketWritten, so a
+// build failure must be accounted for separately: once every planned config
+// is accounted for (written + failed), the task can no longer progress and
+// is failed with the first build error. Without this, a single failed packet
+// wedges the task in "running" forever (completion waited only on
+// writtenPackets >= totalConfigs).
+func (e *Engine) OnPacketBuildError(taskID string, err error) {
+	e.taskMu.Lock()
+	entry, ok := e.taskStore[taskID]
+	if !ok {
+		e.taskMu.Unlock()
+		return
+	}
+	// A stopped task is already terminal (StopTask set "stopped"); do not
+	// record or fail it. Mirrors the OnPacketWritten/FailTask stopped guard.
+	if entry.status.Status == "stopped" {
+		e.taskMu.Unlock()
+		return
+	}
+	entry.errorPackets++
+	if entry.firstBuildErr == "" {
+		entry.firstBuildErr = err.Error()
+	}
+	if entry.totalConfigs > 0 && entry.writtenPackets+entry.errorPackets >= entry.totalConfigs {
+		e.taskMu.Unlock()
+		e.FailTask(taskID, fmt.Sprintf("packet build failed: %s", entry.firstBuildErr))
+		return
+	}
+	e.taskMu.Unlock()
 }
 
 // GetTaskStatus returns the status of a task.

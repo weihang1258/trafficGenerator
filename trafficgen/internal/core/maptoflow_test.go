@@ -3016,3 +3016,267 @@ func TestMapToFlowSpec_HTTP_NewFieldsAbsent(t *testing.T) {
 		t.Errorf("Pipelined=true, want false (absent)")
 	}
 }
+
+// VNC (RFC 6143) converter tests, derived from testcases_vnc.md §8.1-8.8.
+func TestMapToFlowSpec_VNC(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"vnc": map[string]interface{}{
+			"security_type":  float64(2),
+			"width":          float64(800),
+			"height":         float64(600),
+			"server_name":    "test",
+			"rounds":         float64(2),
+			"pointer_x":      float64(100),
+			"pointer_y":      float64(200),
+			"key_events":     []interface{}{map[string]interface{}{"down": float64(1), "key": float64(97)}},
+			"encodings":      []interface{}{float64(0), float64(5)},
+			"initial_fbu":    []interface{}{map[string]interface{}{"x": float64(0), "y": float64(0), "width": float64(16), "height": float64(16), "encoding": "raw"}},
+			"update_rects":   []interface{}{map[string]interface{}{"x": float64(0), "y": float64(0), "width": float64(2), "height": float64(2), "encoding": "raw"}},
+			"challenge_seed": float64(42),
+			"response_seed":  float64(7),
+		},
+	}
+	spec := mapToFlowSpec(raw, "vnc")
+	if spec.VNC == nil {
+		t.Fatalf("spec.VNC is nil")
+	}
+	cfg := spec.VNC
+	if cfg.SecurityType != 2 || cfg.Width != 800 || cfg.Height != 600 || cfg.ServerName != "test" {
+		t.Errorf("base fields = sec %d %dx%d name %q, want 2 800x600 test",
+			cfg.SecurityType, cfg.Width, cfg.Height, cfg.ServerName)
+	}
+	if cfg.Rounds != 2 || cfg.PointerX != 100 || cfg.PointerY != 200 {
+		t.Errorf("interaction = rounds %d ptr %d,%d, want 2 100,200", cfg.Rounds, cfg.PointerX, cfg.PointerY)
+	}
+	if len(cfg.KeyEvents) != 1 || !cfg.KeyEvents[0].Down || cfg.KeyEvents[0].Key != 97 {
+		t.Errorf("key_events = %+v, want [down key=97]", cfg.KeyEvents)
+	}
+	if len(cfg.Encodings) != 2 || cfg.Encodings[0] != 0 || cfg.Encodings[1] != 5 {
+		t.Errorf("encodings = %v, want [0 5]", cfg.Encodings)
+	}
+	if len(cfg.InitialFBU) != 1 || cfg.InitialFBU[0].Width != 16 || cfg.InitialFBU[0].Encoding != "raw" {
+		t.Errorf("initial_fbu = %+v, want 1 raw rect", cfg.InitialFBU)
+	}
+	if len(cfg.UpdateRects) != 1 || cfg.UpdateRects[0].Height != 2 {
+		t.Errorf("update_rects = %+v, want 1 rect", cfg.UpdateRects)
+	}
+	if cfg.ChallengeSeed != 42 || cfg.ResponseSeed != 7 {
+		t.Errorf("seeds = %d/%d, want 42/7", cfg.ChallengeSeed, cfg.ResponseSeed)
+	}
+	// 8.1 dst_port absent → 5900.
+	if spec.DstPort != 5900 {
+		t.Errorf("dst_port = %d, want 5900 default", spec.DstPort)
+	}
+}
+
+// 8.2 explicit dst_port is honored (not clobbered by the 5900 default).
+func TestMapToFlowSpec_VNC_ExplicitDstPort(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"dst_port": float64(5902),
+		"vnc":      map[string]interface{}{"security_type": float64(16)},
+	}
+	spec := mapToFlowSpec(raw, "vnc")
+	if spec.VNC == nil {
+		t.Fatalf("spec.VNC is nil")
+	}
+	if spec.DstPort != 5902 {
+		t.Errorf("dst_port = %d, want 5902", spec.DstPort)
+	}
+}
+
+// 8.3 nil vnc sub-map → nil VNC config (planner's Validate rejects it).
+func TestMapToFlowSpec_VNC_SubMapAbsent(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1"}, "vnc")
+	if spec.VNC != nil {
+		t.Fatalf("spec.VNC = %+v, want nil", spec.VNC)
+	}
+	// 8.1 default port still applies with no sub-map.
+	if spec.DstPort != 5900 {
+		t.Errorf("dst_port = %d, want 5900 default", spec.DstPort)
+	}
+}
+
+// 8.4 explicit zero values are preserved (pointer at 0,0 is legal and must
+// not be replaced by the 507/320 default).
+func TestMapToFlowSpec_VNC_ExplicitZeroPreserved(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"vnc": map[string]interface{}{
+			"pointer_x": float64(0), "pointer_y": float64(0),
+			"rounds": float64(1), "fbu_update_interval": float64(1),
+		},
+	}
+	spec := mapToFlowSpec(raw, "vnc")
+	cfg := spec.VNC
+	if cfg.PointerX != 0 || cfg.PointerY != 0 {
+		t.Errorf("pointer = %d,%d, want 0,0 (explicit zero preserved)", cfg.PointerX, cfg.PointerY)
+	}
+}
+
+// 8.5 security_type=3 → the parse layer preserves the illegal value (it is
+// not a parse-level error); rejection happens in the planner's Validate,
+// which fails the task in the worker (covered by vnc_test.go TestValidate and
+// the worker's plan-error path).
+func TestMapToFlowSpec_VNC_IllegalSecurityPreserved(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"vnc": map[string]interface{}{"security_type": float64(3)},
+	}, "vnc")
+	if spec.VNC == nil || spec.VNC.SecurityType != 3 {
+		t.Fatalf("security_type = %+v, want 3 preserved for planner rejection", spec.VNC)
+	}
+	if len(spec.ValidationErrors) != 0 {
+		t.Fatalf("ValidationErrors = %v, want empty (not a parse-level error)", spec.ValidationErrors)
+	}
+	task := Task{Name: "t", Protocol: "vnc", Spec: spec}
+	if err := ValidateTask(task); err != nil {
+		t.Fatalf("ValidateTask = %v, want nil (protocol is legal; rejection is the planner's job)", err)
+	}
+}
+
+// 8.6 auth_result=5 → same as 8.5: preserved at parse, rejected by the
+// planner's Validate (vnc_test.go TestValidate/auth_result=5).
+func TestMapToFlowSpec_VNC_IllegalAuthResultPreserved(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"vnc": map[string]interface{}{"auth_result": float64(5)},
+	}, "vnc")
+	if spec.VNC == nil || spec.VNC.AuthResult != 5 {
+		t.Fatalf("auth_result = %+v, want 5 preserved for planner rejection", spec.VNC)
+	}
+	if len(spec.ValidationErrors) != 0 {
+		t.Fatalf("ValidationErrors = %v, want empty (not a parse-level error)", spec.ValidationErrors)
+	}
+}
+
+// 8.7 encodings=["abc"] → parse-level error lands in ValidationErrors and the
+// task fails (the planner surfaces them).
+func TestMapToFlowSpec_VNC_InvalidEncodingParseError(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"vnc": map[string]interface{}{"encodings": []interface{}{"abc"}},
+	}, "vnc")
+	if len(spec.ValidationErrors) == 0 {
+		t.Fatalf("expected ValidationErrors from non-numeric encoding, got none")
+	}
+	if !contains(spec.ValidationErrors[0], "invalid vnc encoding") {
+		t.Errorf("ValidationErrors[0] = %q, want invalid-vnc-encoding", spec.ValidationErrors[0])
+	}
+}
+
+// 8.8 unknown protocol name is rejected at task validation.
+func TestValidateTask_VNCx_InvalidProtocol(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"vnc": map[string]interface{}{"security_type": float64(16)},
+	}, "vncx")
+	task := Task{Name: "t", Protocol: "vncx", Spec: spec}
+	if err := ValidateTask(task); err == nil || !contains(err.Error(), "invalid protocol") {
+		t.Fatalf("ValidateTask = %v, want invalid-protocol error", err)
+	}
+}
+
+// PPTP (RFC 2637) converter tests, derived from testcases_pptp.md §8.1-8.5.
+
+// 8.1 dst_port absent → 1723.
+func TestMapToFlowSpec_PPTP_DefaultPort(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"pptp": map[string]interface{}{"role": "pac"},
+	}
+	spec := mapToFlowSpec(raw, "pptp")
+	if spec.PPTP == nil {
+		t.Fatalf("spec.PPTP is nil")
+	}
+	if spec.DstPort != 1723 {
+		t.Errorf("dst_port = %d, want 1723 (RFC 2637 §1)", spec.DstPort)
+	}
+}
+
+// 8.2 role/scenario/calls parse; explicit 0 frame counts survive (the
+// planner emits 0 GRE frames then, unlike the defaults 3/2).
+func TestMapToFlowSpec_PPTP_Fields(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"pptp": map[string]interface{}{
+			"role":             "pac",
+			"scenario":         "data_only",
+			"calls":            float64(2),
+			"data_frames":      float64(0),
+			"down_data_frames": float64(0),
+			"sub_address":      "aabbcc",
+			"inner_ip": map[string]interface{}{
+				"src_ip": "192.168.1.1", "dst_ip": "192.168.1.2",
+				"proto": float64(6), "src_port": float64(1234), "dst_port": float64(80),
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "pptp")
+	cfg := spec.PPTP
+	if cfg == nil {
+		t.Fatalf("spec.PPTP is nil")
+	}
+	if cfg.Role != "pac" || cfg.Scenario != "data_only" || cfg.Calls != 2 {
+		t.Errorf("role/scenario/calls = %q/%q/%d, want pac/data_only/2", cfg.Role, cfg.Scenario, cfg.Calls)
+	}
+	// Explicit zeros survive the parse (getIntPresence) and the planner
+	// honors them (zero frames) — unlike the defaults 3/2.
+	if cfg.DataFrames != 0 || cfg.DownDataFrames != 0 {
+		t.Errorf("data_frames/down_data_frames = %d/%d, want 0/0 (explicit zero)", cfg.DataFrames, cfg.DownDataFrames)
+	}
+	if cfg.SubAddress != "aabbcc" {
+		t.Errorf("sub_address = %q, want aabbcc", cfg.SubAddress)
+	}
+	if cfg.InnerIP == nil || cfg.InnerIP.SrcIP != "192.168.1.1" || cfg.InnerIP.Proto != 6 || cfg.InnerIP.SrcPort != 1234 {
+		t.Errorf("inner_ip = %+v, want src 192.168.1.1 proto 6 port 1234", cfg.InnerIP)
+	}
+}
+
+// 8.3 scenario="bad" → preserved at parse (not a parse-level error);
+// rejection is the planner's Validate job (pptp_test.go TestValidate), which
+// fails the task in the worker.
+func TestMapToFlowSpec_PPTP_IllegalScenarioPreserved(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"pptp": map[string]interface{}{"scenario": "bad"},
+	}, "pptp")
+	if spec.PPTP == nil || spec.PPTP.Scenario != "bad" {
+		t.Fatalf("scenario = %+v, want bad preserved for planner rejection", spec.PPTP)
+	}
+	if len(spec.ValidationErrors) != 0 {
+		t.Fatalf("ValidationErrors = %v, want empty (not a parse-level error)", spec.ValidationErrors)
+	}
+	task := Task{Name: "t", Protocol: "pptp", Spec: spec}
+	if err := ValidateTask(task); err != nil {
+		t.Fatalf("ValidateTask = %v, want nil (protocol is legal; rejection is the planner's job)", err)
+	}
+}
+
+// 8.4 sub_address="zz" (non-hex) → same as 8.3: preserved at parse,
+// rejected by the planner's Validate (pptp_test.go TestValidate).
+func TestMapToFlowSpec_PPTP_IllegalSubAddressPreserved(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"pptp": map[string]interface{}{"sub_address": "zz"},
+	}, "pptp")
+	if spec.PPTP == nil || spec.PPTP.SubAddress != "zz" {
+		t.Fatalf("sub_address = %+v, want zz preserved for planner rejection", spec.PPTP)
+	}
+	if len(spec.ValidationErrors) != 0 {
+		t.Fatalf("ValidationErrors = %v, want empty (not a parse-level error)", spec.ValidationErrors)
+	}
+}
+
+// 8.5 unknown protocol name is rejected at task validation.
+func TestValidateTask_PPTPx_InvalidProtocol(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"pptp": map[string]interface{}{"role": "pns"},
+	}, "ppptx")
+	task := Task{Name: "t", Protocol: "ppptx", Spec: spec}
+	if err := ValidateTask(task); err == nil || !contains(err.Error(), "invalid protocol") {
+		t.Fatalf("ValidateTask = %v, want invalid-protocol error", err)
+	}
+}

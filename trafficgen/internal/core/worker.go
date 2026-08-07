@@ -268,19 +268,31 @@ func (w *ConfigWorker) processTask(task Task) {
 			break
 		}
 
+		// Multi-flow src_port auto-increment: when flowCount > 1 and user didn't
+		// explicitly provide src_port, increment src_port per flow to simulate
+		// ephemeral ports. This prevents 4-tuple collisions that confuse Wireshark
+		// (e.g. "TCP Port numbers reused", "Out-Of-Order"). Each flow gets a unique
+		// 4-tuple, matching real TCP client behavior. User-provided src_port is
+		// always honored (user > default rule).
+		spec := task.Spec
+		if flowCount > 1 && !spec.HasExplicitSrcPort {
+			spec.SrcPort = DefaultSrcPort + uint16(i)
+		}
+
 		// Per-flow shard routing: compute hashKey + gID once for this flow,
 		// then write (shard_idx, group_id) to every packet's Metadata and push
 		// to the matching shard. Same flow -> same shard -> single-goroutine
 		// PacketWorker -> strict FIFO (spec §3.1, §5.4).
-		hashKey, gID := computeHashKey(task.Spec, task, i)
+		hashKey, gID := computeHashKey(spec, task, i)
 		shardIdx := 0
 		if n := len(w.engine.shardedConfigChan); n > 0 {
 			h := maphash.String(w.engine.shardSeed, hashKey)
 			shardIdx = int(h % uint64(n))
 		}
 
-		// Plan packet configs for this flow.
-		configChan, err := planner.Plan(taskCtx, task.Spec)
+		// Plan packet configs for this flow. Use spec (the potentially modified
+		// copy with auto-incremented src_port) instead of task.Spec.
+		configChan, err := planner.Plan(taskCtx, spec)
 		if err != nil {
 			// Release the flows-ceiling slot this iteration reserved: a failed
 			// flow produces no traffic, so it must not permanently consume a
@@ -837,6 +849,13 @@ func (w *PacketWorker) processConfig(config PacketConfig) {
 			zap.Error(err),
 		)
 		atomic.AddInt64(&w.stats.Errors, 1)
+		// Surface the failure to the engine so the task cannot wedge in
+		// "running" waiting for a packet that will never be written.
+		if w.engine != nil {
+			if taskID, ok := config.Metadata["task_id"].(string); ok && taskID != "" {
+				w.engine.OnPacketBuildError(taskID, err)
+			}
+		}
 		return
 	}
 

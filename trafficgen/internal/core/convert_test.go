@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 )
@@ -257,14 +258,15 @@ func TestValidateConfigRanges_TruncationBypass(t *testing.T) {
 // "invalid type" despite having planners on disk and being registered with
 // the engine.
 func TestValidateBatchSpec_AllProtocols(t *testing.T) {
-	// All 35 planners registered in cmd/server/main.go.
+	// All 38 planners registered in cmd/server/main.go.
 	allProtocols := []string{
 		"tcp", "udp", "http", "dns", "icmp", "arp", "ftp", "sip", "sctp", "icmpv6",
 		"replay",
 		"ntp", "snmp", "syslog", "smtp", "pop3", "telnet", "imap", "grpc",
 		"ssh", "ike", "ike_nat_t", "l2tp", "rdp", "redis", "mysql", "postgresql",
 		"tls", "openvpn", "shadowsocks", "vmess", "wireguard", "dhcp", "dhcpv6",
-		"mdns", "ssdp",
+		"mdns", "ssdp", "pppoe", "gre", "mpls", "gtp", "socks5", "radius", "ldap", "vnc",
+		"pptp",
 	}
 	for _, proto := range allProtocols {
 		t.Run(proto, func(t *testing.T) {
@@ -665,5 +667,314 @@ func TestMapToFlowSpec_L2TP_TunnelWithData_Defaults(t *testing.T) {
 	}
 	if spec.L2TP.InnerIP != nil {
 		t.Errorf("InnerIP should be nil when omitted, got %+v", spec.L2TP.InnerIP)
+	}
+}
+
+// TestMapToFlowSpec_PPPoE verifies the JSON-decoded "pppoe" sub-map is
+// parsed into *PPPoEConfig. The wire-level fields (code/session_id/
+// ppp_protocol/payload_length/discovery_tags) feed the builder for
+// single-frame crafting; the session-level fields (skip_discovery/
+// ac_name/service_name/cookie/mru/magic_number/auth/username/password/
+// data_frames/data_payload/inner_proto/data_direction) drive the
+// internal/protocol/pppoe planner. If the converter drops them, the
+// planner silently falls back to defaults and emits a different session.
+func TestMapToFlowSpec_PPPoE(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"pppoe": map[string]interface{}{
+			"code":           float64(0),
+			"session_id":     float64(15),
+			"ppp_protocol":   float64(0xc021),
+			"payload_length": float64(0x0010),
+			"skip_discovery": true,
+			"ac_name":        "bras1",
+			"service_name":   "isp",
+			"cookie":         []interface{}{float64(0xde), float64(0xad), float64(0xbe), float64(0xef)},
+			"mru":            float64(1492),
+			"magic_number":   float64(0x09e5f145),
+			"auth":           "pap",
+			"username":       "alice",
+			"password":       "s3cret",
+			"data_frames":    float64(3),
+			"data_payload":   "hello",
+			"inner_proto":    float64(6),
+			"data_direction": "down",
+			"discovery_tags": []interface{}{
+				map[string]interface{}{"type": float64(0x0101), "value": "isp"},
+				map[string]interface{}{"type": float64(0x0104), "value": []interface{}{float64(1), float64(2)}},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "pppoe")
+	if spec.PPPoE == nil {
+		t.Fatalf("spec.PPPoE is nil")
+	}
+	cfg := spec.PPPoE
+	if cfg.Code != 0 || cfg.SessionID != 15 || cfg.PPPProtocol != 0xc021 || cfg.PayloadLength != 0x0010 {
+		t.Errorf("wire fields = code %d session %d proto 0x%04x len %d, want 0/15/0xc021/0x0010",
+			cfg.Code, cfg.SessionID, cfg.PPPProtocol, cfg.PayloadLength)
+	}
+	if !cfg.SkipDiscovery {
+		t.Errorf("SkipDiscovery = false, want true")
+	}
+	if cfg.ACName != "bras1" || cfg.ServiceName != "isp" {
+		t.Errorf("ACName/ServiceName = %q/%q, want bras1/isp", cfg.ACName, cfg.ServiceName)
+	}
+	if !bytes.Equal(cfg.Cookie, []byte{0xde, 0xad, 0xbe, 0xef}) {
+		t.Errorf("Cookie = % x, want de ad be ef", cfg.Cookie)
+	}
+	if cfg.MRU != 1492 || cfg.MagicNumber != 0x09e5f145 {
+		t.Errorf("MRU/MagicNumber = %d/0x%08x, want 1492/0x09e5f145", cfg.MRU, cfg.MagicNumber)
+	}
+	if cfg.Auth != "pap" || cfg.Username != "alice" || cfg.Password != "s3cret" {
+		t.Errorf("Auth/Username/Password = %q/%q/%q, want pap/alice/s3cret", cfg.Auth, cfg.Username, cfg.Password)
+	}
+	if cfg.DataFrames != 3 || string(cfg.DataPayload) != "hello" || cfg.InnerProto != 6 || cfg.DataDirection != "down" {
+		t.Errorf("data plane = frames %d payload %q proto %d dir %q, want 3/hello/6/down",
+			cfg.DataFrames, cfg.DataPayload, cfg.InnerProto, cfg.DataDirection)
+	}
+	if len(cfg.DiscoveryTags) != 2 {
+		t.Fatalf("DiscoveryTags = %d entries, want 2", len(cfg.DiscoveryTags))
+	}
+	if cfg.DiscoveryTags[0].Type != 0x0101 || string(cfg.DiscoveryTags[0].Value) != "isp" {
+		t.Errorf("DiscoveryTags[0] = %+v, want Service-Name \"isp\"", cfg.DiscoveryTags[0])
+	}
+	if cfg.DiscoveryTags[1].Type != 0x0104 || !bytes.Equal(cfg.DiscoveryTags[1].Value, []byte{1, 2}) {
+		t.Errorf("DiscoveryTags[1] = %+v, want AC-Cookie [1 2]", cfg.DiscoveryTags[1])
+	}
+}
+
+// TestMapToFlowSpec_PPPoE_Absent verifies "pppoe" is nil when the sub-map
+// is absent (no accidental zero-value pointer).
+func TestMapToFlowSpec_PPPoE_Absent(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1"}, "pppoe")
+	if spec.PPPoE != nil {
+		t.Errorf("spec.PPPoE = %+v, want nil when pppoe absent", spec.PPPoE)
+	}
+}
+
+// TestMapToFlowSpec_GRE verifies the JSON-decoded "gre" sub-map is parsed
+// into *GREConfig. The wire-level fields (protocol_type/checksum/
+// key_present/key/sequence_present/sequence/routing_present/routing) feed
+// the builder's GRE header; the tunnel-level fields (inner_src_ip/
+// inner_dst_ip/inner_proto/inner_ttl/inner_ipid/inner_payload/tcp_options/
+// frames/direction) drive the internal/protocol/gre planner. If the
+// converter drops them, the planner silently falls back to defaults and
+// emits a different tunnel.
+func TestMapToFlowSpec_GRE(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"gre": map[string]interface{}{
+			"protocol_type":    float64(0x0806),
+			"checksum":         true,
+			"key_present":      true,
+			"key":              float64(0xdeadbeef),
+			"sequence_present": true,
+			"sequence":         float64(7),
+			"routing_present":  true,
+			"routing":          []interface{}{float64(0x00), float64(0x01), float64(0x02), float64(0x03)},
+			"inner_src_ip":     "192.168.1.1",
+			"inner_dst_ip":     "192.168.1.2",
+			"inner_proto":      float64(6),
+			"inner_ttl":        float64(32),
+			"inner_ipid":       float64(0x1234),
+			"inner_payload":    "hello",
+			"tcp_options": []interface{}{
+				map[string]interface{}{"kind": float64(2), "data": []interface{}{float64(0x05), float64(0xb4)}},
+			},
+			"frames":    float64(3),
+			"direction": "down",
+		},
+	}
+	spec := mapToFlowSpec(raw, "gre")
+	if spec.GRE == nil {
+		t.Fatalf("spec.GRE is nil")
+	}
+	cfg := spec.GRE
+	if cfg.ProtocolType != 0x0806 || !cfg.Checksum || !cfg.KeyPresent || cfg.Key != 0xdeadbeef {
+		t.Errorf("wire flags = proto 0x%04x checksum %v key %v/0x%08x, want 0x0806/true/true/0xdeadbeef",
+			cfg.ProtocolType, cfg.Checksum, cfg.KeyPresent, cfg.Key)
+	}
+	if !cfg.SequencePresent || cfg.Sequence != 7 || !cfg.RoutingPresent || !bytes.Equal(cfg.Routing, []byte{0, 1, 2, 3}) {
+		t.Errorf("seq/routing = present %v/%v seq %d routing % x, want true/true/7/00 01 02 03",
+			cfg.SequencePresent, cfg.RoutingPresent, cfg.Sequence, cfg.Routing)
+	}
+	if cfg.InnerSrcIP != "192.168.1.1" || cfg.InnerDstIP != "192.168.1.2" || cfg.InnerProto != 6 {
+		t.Errorf("inner = %s/%s proto %d, want 192.168.1.1/192.168.1.2/6",
+			cfg.InnerSrcIP, cfg.InnerDstIP, cfg.InnerProto)
+	}
+	if cfg.InnerTTL != 32 || cfg.InnerIPID != 0x1234 || string(cfg.InnerPayload) != "hello" {
+		t.Errorf("inner packet = ttl %d ipid 0x%04x payload %q, want 32/0x1234/hello",
+			cfg.InnerTTL, cfg.InnerIPID, cfg.InnerPayload)
+	}
+	if len(cfg.TCPOptions) != 1 || cfg.TCPOptions[0].Kind != 2 || !bytes.Equal(cfg.TCPOptions[0].Data, []byte{0x05, 0xb4}) {
+		t.Errorf("TCPOptions = %+v, want single MSS 0x05b4 option", cfg.TCPOptions)
+	}
+	if cfg.Frames != 3 || cfg.Direction != "down" {
+		t.Errorf("Frames/Direction = %d/%q, want 3/down", cfg.Frames, cfg.Direction)
+	}
+}
+
+// TestMapToFlowSpec_GRE_Absent verifies "gre" is nil when the sub-map is
+// absent (no accidental zero-value pointer).
+func TestMapToFlowSpec_GRE_Absent(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1"}, "gre")
+	if spec.GRE != nil {
+		t.Errorf("spec.GRE = %+v, want nil when gre absent", spec.GRE)
+	}
+}
+
+// TestMapToFlowSpec_MPLS verifies the JSON-decoded "mpls" sub-map is parsed
+// into *MPLSConfig. The wire-level fields (labels/multicast) feed the
+// builder's label-stack emission; the tunnel-level fields (inner_proto/
+// inner_payload/frames/direction) drive the internal/protocol/mpls planner.
+// If the converter drops them, the planner silently falls back to defaults
+// and emits a different LSP data plane.
+func TestMapToFlowSpec_MPLS(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"mpls": map[string]interface{}{
+			"labels": []interface{}{
+				map[string]interface{}{"label": float64(16), "tc": float64(6), "s": true, "ttl": float64(255)},
+				map[string]interface{}{"label": float64(2859), "ttl": float64(200)},
+			},
+			"multicast":     true,
+			"inner_proto":   float64(6),
+			"inner_payload": "hello",
+			"frames":        float64(3),
+			"direction":     "down",
+		},
+	}
+	spec := mapToFlowSpec(raw, "mpls")
+	if spec.MPLS == nil {
+		t.Fatalf("spec.MPLS is nil")
+	}
+	cfg := spec.MPLS
+	if !cfg.Multicast {
+		t.Errorf("Multicast = false, want true")
+	}
+	if len(cfg.Labels) != 2 {
+		t.Fatalf("Labels = %d entries, want 2", len(cfg.Labels))
+	}
+	if cfg.Labels[0].Label != 16 || cfg.Labels[0].TC != 6 || !cfg.Labels[0].S || cfg.Labels[0].TTL != 255 {
+		t.Errorf("Labels[0] = %+v, want label 16 TC 6 S true TTL 255", cfg.Labels[0])
+	}
+	if cfg.Labels[1].Label != 2859 || cfg.Labels[1].S || cfg.Labels[1].TTL != 200 {
+		t.Errorf("Labels[1] = %+v, want label 2859 S false TTL 200", cfg.Labels[1])
+	}
+	if cfg.InnerProto != 6 || string(cfg.InnerPayload) != "hello" || cfg.Frames != 3 || cfg.Direction != "down" {
+		t.Errorf("tunnel fields = proto %d payload %q frames %d dir %q, want 6/hello/3/down",
+			cfg.InnerProto, cfg.InnerPayload, cfg.Frames, cfg.Direction)
+	}
+}
+
+// TestMapToFlowSpec_MPLS_Absent verifies "mpls" is nil when the sub-map is
+// absent (no accidental zero-value pointer).
+func TestMapToFlowSpec_MPLS_Absent(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1"}, "mpls")
+	if spec.MPLS != nil {
+		t.Errorf("spec.MPLS = %+v, want nil when mpls absent", spec.MPLS)
+	}
+}
+
+// TestMapToFlowSpec_GTP verifies the JSON-decoded "gtp" sub-map is parsed
+// into *GTPConfig. The wire-level fields (mode/version/pt/teid/sequence_
+// present/sequence/npdu_present/npdu_value/extension_present/extension_
+// type/extension_data) drive the GTPv1 message header (TS 29.281 §5.1);
+// the scenario steps and IEs drive the GTP-C dialog; the tunnel-level
+// fields (inner_src_ip/inner_dst_ip/inner_proto/inner_ttl/inner_ipid/
+// inner_payload/tcp_options/frames/direction) drive the GTP-U T-PDU inner
+// packet construction in internal/protocol/gtp. If the converter drops
+// them, the planner silently falls back to defaults and emits a different
+// tunnel.
+func TestMapToFlowSpec_GTP(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"gtp": map[string]interface{}{
+			"mode":              "c",
+			"version":           float64(1),
+			"pt":                float64(1),
+			"teid":              float64(0x002dc715),
+			"sequence_present":  true,
+			"sequence":          float64(0x5ee5),
+			"npdu_present":      true,
+			"npdu_value":        float64(0x77),
+			"extension_present": true,
+			"extension_type":    float64(0x40),
+			"extension_data":    []interface{}{float64(0xaa), float64(0xbb)},
+			"scenarios": []interface{}{
+				map[string]interface{}{
+					"message_type":  float64(0x01),
+					"teid_override": float64(0x1234),
+					"sequence":      float64(10),
+					"direction":     "down",
+					"ies": []interface{}{
+						map[string]interface{}{"type": float64(0x0e), "value": []interface{}{float64(0x80)}},
+					},
+				},
+			},
+			"inner_src_ip":  "192.168.1.1",
+			"inner_dst_ip":  "192.168.1.2",
+			"inner_proto":   float64(6),
+			"inner_ttl":     float64(32),
+			"inner_ipid":    float64(0x1234),
+			"inner_payload": "hello",
+			"tcp_options": []interface{}{
+				map[string]interface{}{"kind": float64(2), "data": []interface{}{float64(0x05), float64(0xb4)}},
+			},
+			"frames":    float64(3),
+			"direction": "down",
+		},
+	}
+	spec := mapToFlowSpec(raw, "gtp")
+	if spec.GTP == nil {
+		t.Fatalf("spec.GTP is nil")
+	}
+	cfg := spec.GTP
+	if cfg.Mode != "c" || cfg.Version != 1 || cfg.PT != 1 || cfg.TEID != 0x002dc715 {
+		t.Errorf("header fields = mode %q ver %d pt %d teid 0x%08x, want c/1/1/0x002dc715",
+			cfg.Mode, cfg.Version, cfg.PT, cfg.TEID)
+	}
+	if !cfg.SequencePresent || cfg.Sequence != 0x5ee5 || !cfg.NPDUPresent || cfg.NPDUValue != 0x77 {
+		t.Errorf("optional flags = seq %v/%d npdu %v/%d, want true/0x5ee5/true/0x77",
+			cfg.SequencePresent, cfg.Sequence, cfg.NPDUPresent, cfg.NPDUValue)
+	}
+	if !cfg.ExtensionPresent || cfg.ExtensionType != 0x40 || !bytes.Equal(cfg.ExtensionData, []byte{0xaa, 0xbb}) {
+		t.Errorf("extension = %v/%d/% x, want true/0x40/aa bb",
+			cfg.ExtensionPresent, cfg.ExtensionType, cfg.ExtensionData)
+	}
+	if len(cfg.Scenarios) != 1 {
+		t.Fatalf("Scenarios = %d entries, want 1", len(cfg.Scenarios))
+	}
+	step := cfg.Scenarios[0]
+	if step.MessageType != 0x01 || step.TEIDOverride == nil || *step.TEIDOverride != 0x1234 ||
+		step.Sequence != 10 || step.Direction != "down" {
+		t.Errorf("step = %+v, want type 1 teid override 0x1234 seq 10 dir down", step)
+	}
+	if len(step.IEs) != 1 || step.IEs[0].Type != 0x0e || !bytes.Equal(step.IEs[0].Value, []byte{0x80}) {
+		t.Errorf("step IEs = %+v, want single Recovery 0x80 IE", step.IEs)
+	}
+	if cfg.InnerSrcIP != "192.168.1.1" || cfg.InnerDstIP != "192.168.1.2" || cfg.InnerProto != 6 {
+		t.Errorf("inner = %s/%s proto %d, want 192.168.1.1/192.168.1.2/6",
+			cfg.InnerSrcIP, cfg.InnerDstIP, cfg.InnerProto)
+	}
+	if cfg.InnerTTL != 32 || cfg.InnerIPID != 0x1234 || string(cfg.InnerPayload) != "hello" {
+		t.Errorf("inner packet = ttl %d ipid 0x%04x payload %q, want 32/0x1234/hello",
+			cfg.InnerTTL, cfg.InnerIPID, cfg.InnerPayload)
+	}
+	if len(cfg.TCPOptions) != 1 || cfg.TCPOptions[0].Kind != 2 || !bytes.Equal(cfg.TCPOptions[0].Data, []byte{0x05, 0xb4}) {
+		t.Errorf("TCPOptions = %+v, want single MSS 0x05b4 option", cfg.TCPOptions)
+	}
+	if cfg.Frames != 3 || cfg.Direction != "down" {
+		t.Errorf("Frames/Direction = %d/%q, want 3/down", cfg.Frames, cfg.Direction)
+	}
+}
+
+// TestMapToFlowSpec_GTP_Absent verifies "gtp" is nil when the sub-map is
+// absent (no accidental zero-value pointer).
+func TestMapToFlowSpec_GTP_Absent(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1"}, "gtp")
+	if spec.GTP != nil {
+		t.Errorf("spec.GTP = %+v, want nil when gtp absent", spec.GTP)
 	}
 }

@@ -109,23 +109,33 @@ func ValidateTask(task Task) error {
 	}
 
 	validProtocols := map[string]bool{
-		"tcp":  true,
-		"udp":  true,
-		"http": true,
-		"dns":  true,
-		"icmp": true,
-		"arp":  true,
-		"ftp":  true,
-		"sip":  true,
-		"sctp": true,
+		"tcp":    true,
+		"udp":    true,
+		"http":   true,
+		"dns":    true,
+		"icmp":   true,
+		"arp":    true,
+		"ftp":    true,
+		"sip":    true,
+		"sctp":   true,
 		"icmpv6": true,
+		"rtsp":   true,
 		// L7 protocol planners registered in cmd/server/main.go.
 		"ssh": true, "telnet": true, "rdp": true, "redis": true, "ntp": true,
 		"snmp": true, "syslog": true, "smtp": true, "pop3": true, "imap": true,
 		"mysql": true, "postgresql": true, "ike": true, "ike_nat_t": true,
 		"l2tp": true, "tls": true, "openvpn": true, "shadowsocks": true,
 		"vmess": true, "wireguard": true, "dhcp": true, "dhcpv6": true,
-		"mdns": true, "ssdp": true, "grpc": true,
+		"mdns": true, "ssdp": true, "grpc": true, "pppoe": true, "gre": true,
+		"mpls": true, "gtp": true, "socks5": true, "radius": true, "ldap": true,
+		"vnc":      true,
+		"pptp":     true,
+		"h323":     true,
+		"xmpp":     true,
+		"rtmp":     true,
+		"ngap":     true,
+		"srv6":     true,
+		"gbt32960": true,
 	}
 
 	if !validProtocols[task.Protocol] {
@@ -146,7 +156,7 @@ func ValidateBatchSpec(batch BatchSpec) error {
 	}
 	validProtocols := map[string]bool{
 		"tcp": true, "udp": true, "http": true, "dns": true, "icmp": true, "arp": true,
-		"ftp": true, "sip": true, "sctp": true, "icmpv6": true,
+		"ftp": true, "sip": true, "sctp": true, "icmpv6": true, "rtsp": true,
 		"replay": true,
 		// L7 protocol planners registered in cmd/server/main.go.
 		"ssh": true, "telnet": true, "rdp": true, "redis": true, "ntp": true,
@@ -154,7 +164,16 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		"mysql": true, "postgresql": true, "ike": true, "ike_nat_t": true,
 		"l2tp": true, "tls": true, "openvpn": true, "shadowsocks": true,
 		"vmess": true, "wireguard": true, "dhcp": true, "dhcpv6": true,
-		"mdns": true, "ssdp": true, "grpc": true,
+		"mdns": true, "ssdp": true, "grpc": true, "pppoe": true, "gre": true,
+		"mpls": true, "gtp": true, "socks5": true, "radius": true, "ldap": true,
+		"vnc":      true,
+		"pptp":     true,
+		"h323":     true,
+		"xmpp":     true,
+		"rtmp":     true,
+		"ngap":     true,
+		"srv6":     true,
+		"gbt32960": true,
 	}
 	seenIDs := make(map[string]bool)
 	for i, c := range batch.Classes {

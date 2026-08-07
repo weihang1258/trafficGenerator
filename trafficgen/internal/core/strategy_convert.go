@@ -184,6 +184,28 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 // "response" -> "is_response" (UDP/DNS, was ambiguous with FTP response
 // bodies). The new name is preferred when present; the legacy name is read
 // as fallback so existing DB rows keep working.
+// mapToFlowSpec converts a strategy config map to a FlowSpec with defaults.
+// Follows "user > default > none" rule for all fields.
+//
+// Default values (from strategy_convert.go constants):
+//   - src_ip: 10.0.0.1 (TEST-NET-1, different /24 for routed flow testing)
+//   - dst_ip: 20.0.0.1 (TEST-NET-1)
+//   - src_mac: 02:00:00:00:00:01 (locally-administered, trafficgen marker)
+//   - dst_mac: 02:00:00:00:00:02 (locally-administered)
+//   - src_port: 12345 (high non-privileged port)
+//   - dst_port: 80 (HTTP default); DNS overrides to 53
+//   - ttl: 64
+//   - dscp: 0x08 (CS1, background traffic, TOS byte 0x20)
+//   - ip_flags: 0x02 (DF=1, matches modern OS TCP defaults)
+//
+// User-provided values (including 0, empty string, or null) override defaults.
+// The presence-check pattern (v, ok := cfg[key]; ok && v != nil) distinguishes
+// "user didn't provide" from "user explicitly provided 0/empty".
+//
+// Multi-flow scenarios: when flowCount > 1 and user didn't explicitly provide
+// src_port, the worker auto-increments src_port per flow (simulating ephemeral
+// ports). This prevents 4-tuple collisions that confuse Wireshark. See
+// worker.go processTask for the increment logic.
 func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	spec := FlowSpec{
 		SrcIP:      defaultString(cfg, "src_ip", DefaultSrcIP),
@@ -198,7 +220,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		ECN:        uint8(getInt(cfg, "ecn")),
 		IPFlags:    defaultIPFlags(cfg),
 		FragOffset: uint16(getInt(cfg, "frag_offset")),
+		HopByHop:   parseHopByHopOptions(cfg["hop_by_hop"]),
 		Payload:    []byte(getString(cfg, "payload")),
+	}
+
+	// Track whether user explicitly provided src_port (for multi-flow auto-increment)
+	if _, ok := cfg["src_port"]; ok && cfg["src_port"] != nil {
+		spec.HasExplicitSrcPort = true
 	}
 
 	// VLAN
@@ -341,6 +369,27 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 5060
 		}
+	case "rtsp":
+		if sub, ok := cfg["rtsp"].(map[string]interface{}); ok {
+			spec.RTSP = &RTSPConfig{
+				Dialog: parseRTSPDialog(sub["dialog"]),
+				Media:  parseRTSPMedia(sub["media"]),
+			}
+		}
+		// RTSP defaults to port 554 (control channel). Only override when
+		// the user did not specify a dst_port — matches DNS/FTP/SIP pattern.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 554
+		}
+	case "rtmp":
+		if sub, ok := cfg["rtmp"].(map[string]interface{}); ok {
+			spec.RTMP = parseRTMPConfig(sub)
+		}
+		// RTMP (Adobe Real-Time Messaging Protocol) 默认端口 1935.
+		// 仅当用户未指定 dst_port 时覆盖 — 与 DNS/FTP/SIP/RTSP 模式一致.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1935
+		}
 	case "sctp":
 		if sub, ok := cfg["sctp"].(map[string]interface{}); ok {
 			spec.SCTP = &SCTPConfig{
@@ -429,6 +478,22 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 1701
 		}
+	case "pppoe":
+		if sub, ok := cfg["pppoe"].(map[string]interface{}); ok {
+			spec.PPPoE = parsePPPoEConfig(sub)
+		}
+	case "gre":
+		if sub, ok := cfg["gre"].(map[string]interface{}); ok {
+			spec.GRE = parseGREConfig(sub)
+		}
+	case "mpls":
+		if sub, ok := cfg["mpls"].(map[string]interface{}); ok {
+			spec.MPLS = parseMPLSConfig(sub)
+		}
+	case "gtp":
+		if sub, ok := cfg["gtp"].(map[string]interface{}); ok {
+			spec.GTP = parseGTPConfig(sub)
+		}
 	case "mdns":
 		if sub, ok := cfg["mdns"].(map[string]interface{}); ok {
 			spec.MDNS = parseMDNSConfig(sub)
@@ -442,6 +507,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 3306
+		}
+	case "ngap":
+		spec.NGAP = parseNGAPConfig(cfg["ngap"])
+		// NGAP default port 38412 (5G核心网信令端口). Only override when
+		// the user did not specify a dst_port — matches DNS/FTP/SIP pattern.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 38412
 		}
 	case "ntp":
 		if sub, ok := cfg["ntp"].(map[string]interface{}); ok {
@@ -521,6 +593,73 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 6379
 		}
+	case "radius":
+		if sub, ok := cfg["radius"].(map[string]interface{}); ok {
+			spec.Radius = parseRadiusConfig(sub)
+		}
+		// RADIUS defaults to 1812 (authentication) or 1813 (accounting)
+		// depending on the request code (RFC 2865 §3 / RFC 2866 §3).
+		// Only override when the user did not specify a dst_port.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1812
+			if sub, ok := cfg["radius"].(map[string]interface{}); ok {
+				if code := getInt(sub, "code"); code == 4 {
+					spec.DstPort = 1813
+				}
+			}
+		}
+	case "ldap":
+		if sub, ok := cfg["ldap"].(map[string]interface{}); ok {
+			spec.LDAP = parseLDAPConfig(sub)
+		}
+		// LDAP defaults to port 389 (RFC 4511). Only override when the
+		// user did not specify a dst_port.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 389
+		}
+	case "vnc":
+		if sub, ok := cfg["vnc"].(map[string]interface{}); ok {
+			// Parse-level errors (e.g. non-numeric encodings entries) are
+			// appended to ValidationErrors so the task fails loudly instead
+			// of silently coercing the value to 0.
+			var errs []string
+			spec.VNC, errs = parseVNCConfig(sub)
+			spec.ValidationErrors = append(spec.ValidationErrors, errs...)
+		}
+		// VNC defaults to port 5900 (RFC 6143 §1.1, range 5900-5909).
+		// Only override when the user did not specify a dst_port.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 5900
+		}
+	case "pptp":
+		if sub, ok := cfg["pptp"].(map[string]interface{}); ok {
+			spec.PPTP = parsePPTPConfig(sub)
+		}
+		// PPTP defaults to port 1723 (RFC 2637 §1, TCP control plane).
+		// Only override when the user did not specify a dst_port.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1723
+		}
+	case "h323":
+		if sub, ok := cfg["h323"].(map[string]interface{}); ok {
+			var errs []string
+			spec.H323, errs = parseH323Config(sub)
+			spec.ValidationErrors = append(spec.ValidationErrors, errs...)
+		}
+		// H.323 defaults to port 1720 (ITU-T H.225.0 §7.3, Q.931 call
+		// signaling). Only override when the user did not specify dst_port.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1720
+		}
+	case "xmpp":
+		if sub, ok := cfg["xmpp"].(map[string]interface{}); ok {
+			spec.Xmpp = parseXmppConfig(sub)
+		}
+		// XMPP defaults to port 5222 (RFC 6120 §13.3, client-to-server).
+		// Only override when the user did not specify a dst_port.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 5222
+		}
 	case "shadowsocks":
 		if sub, ok := cfg["shadowsocks"].(map[string]interface{}); ok {
 			spec.Shadowsocks = parseShadowsocksConfig(sub)
@@ -591,6 +730,16 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// their value wins.
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 161
+		}
+	case "socks5":
+		if sub, ok := cfg["socks"].(map[string]interface{}); ok {
+			spec.Socks = parseSocks5Config(sub)
+		}
+		// SOCKS defaults to port 1080 (canonical proxy port). Only override
+		// when the user did not specify a dst_port - matches DNS/FTP/SIP
+		// pattern.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1080
 		}
 	case "ssdp":
 		if sub, ok := cfg["ssdp"].(map[string]interface{}); ok {
@@ -682,6 +831,33 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 51820
+		}
+	case "srv6":
+		if sub, ok := cfg["srv6"].(map[string]interface{}); ok {
+			spec.SRv6 = parseSRv6Config(sub)
+		}
+	case "gbt32960":
+		if sub, ok := cfg["gbt32960"].(map[string]interface{}); ok {
+			spec.GBT32960 = parseGBT32960Config(sub)
+		}
+		// GBT32960 defaults to port 10020 (GB/T 32960.3-2016 platform
+		// listener). Only override when the user did not specify a dst_port.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 10020
+		}
+	case "tftp":
+		if sub, ok := cfg["tftp"].(map[string]interface{}); ok {
+			spec.TFTP = parseTFTPConfig(sub)
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 69
+		}
+	case "mqtt":
+		if sub, ok := cfg["mqtt"].(map[string]interface{}); ok {
+			spec.MQTT = parseMQTTConfig(sub)
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1883
 		}
 	}
 
@@ -786,6 +962,11 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.SIP.Media.FileSource = mFS
 		}
 	}
+	if spec.RTSP != nil && spec.RTSP.Media != nil {
+		if mFS := parseFileSource(getMap(cfg, "rtsp", "media")); mFS != nil {
+			spec.RTSP.Media.FileSource = mFS
+		}
+	}
 	if spec.HTTP != nil {
 		if hFS := parseFileSource(getMap(cfg, "http")); hFS != nil {
 			spec.HTTP.FileSource = hFS
@@ -847,6 +1028,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	if spec.SCTP != nil {
 		for i := range spec.SCTP.Chunks {
 			if err := spec.SCTP.Chunks[i].FileSource.Validate(); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
+			}
+		}
+	}
+	if spec.Socks != nil {
+		for i := range spec.Socks.Data {
+			if err := spec.Socks.Data[i].FileSource.Validate(); err != nil {
 				spec.ValidationErrors = append(spec.ValidationErrors, err.Error())
 			}
 		}
@@ -975,6 +1163,32 @@ func formatBPS(val float64) string {
 	default:
 		return fmt.Sprintf("%.0f", val)
 	}
+}
+
+// parseHopByHopOptions converts the JSON-decoded "hop_by_hop" value (an
+// array of {type, value} option objects, RFC 8200 §4.2) into a
+// []IPv6Option. Returns nil for absent/non-array input so the builder emits
+// a plain IPv6 header. "value" is the raw option data (the string's bytes).
+func parseHopByHopOptions(v interface{}) []IPv6Option {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]IPv6Option, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, IPv6Option{
+			Type:  uint8(getInt(m, "type")),
+			Value: []byte(getString(m, "value")),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // parseICMPPattern converts the JSON-decoded "pattern" value (an array of
@@ -1627,32 +1841,32 @@ func parseGRPCConfig(m map[string]interface{}) *GRPCConfig {
 		return nil
 	}
 	cfg := &GRPCConfig{
-		Service:              getString(m, "service"),
-		Method:               getString(m, "method"),
-		Authority:            getString(m, "authority"),
-		Scheme:               getString(m, "scheme"),
-		CallType:             getString(m, "call_type"),
-		RequestMessages:      getByteSlices(m, "request_messages"),
-		RequestMessagesB64:   getStringSlice(m, "request_messages_b64"),
-		ResponseMessages:     getByteSlices(m, "response_messages"),
-		ResponseMessagesB64:  getStringSlice(m, "response_messages_b64"),
-		ResponseStatus:       getInt(m, "response_status"),
-		ResponseMessage:      getString(m, "response_message"),
-		Timeout:              getString(m, "timeout"),
-		Encoding:             getString(m, "encoding"),
-		AcceptEncoding:       getString(m, "accept_encoding"),
-		Metadata:             getStringMap(m, "metadata"),
-		UserAgent:            getString(m, "user_agent"),
-		MaxFrameSize:         getUint32(m, "max_frame_size"),
-		InitialWindow:        getUint32(m, "initial_window"),
-		MaxConcurrentStreams: getUint32(m, "max_concurrent_streams"),
-		HeaderTableSize:      getUint32(m, "header_table_size"),
-		Pings:                parseGRPCPingConfig(m["pings"]),
-		CancelAfter:          getInt(m, "cancel_after"),
-		GoAwayAfter:          getBool(m, "go_away_after", false),
+		Service:               getString(m, "service"),
+		Method:                getString(m, "method"),
+		Authority:             getString(m, "authority"),
+		Scheme:                getString(m, "scheme"),
+		CallType:              getString(m, "call_type"),
+		RequestMessages:       getByteSlices(m, "request_messages"),
+		RequestMessagesB64:    getStringSlice(m, "request_messages_b64"),
+		ResponseMessages:      getByteSlices(m, "response_messages"),
+		ResponseMessagesB64:   getStringSlice(m, "response_messages_b64"),
+		ResponseStatus:        getInt(m, "response_status"),
+		ResponseMessage:       getString(m, "response_message"),
+		Timeout:               getString(m, "timeout"),
+		Encoding:              getString(m, "encoding"),
+		AcceptEncoding:        getString(m, "accept_encoding"),
+		Metadata:              getStringMap(m, "metadata"),
+		UserAgent:             getString(m, "user_agent"),
+		MaxFrameSize:          getUint32(m, "max_frame_size"),
+		InitialWindow:         getUint32(m, "initial_window"),
+		MaxConcurrentStreams:  getUint32(m, "max_concurrent_streams"),
+		HeaderTableSize:       getUint32(m, "header_table_size"),
+		Pings:                 parseGRPCPingConfig(m["pings"]),
+		CancelAfter:           getInt(m, "cancel_after"),
+		GoAwayAfter:           getBool(m, "go_away_after", false),
 		WindowUpdateIncrement: getUint32(m, "window_update_increment"),
-		Calls:                parseGRPCCalls(m["calls"]),
-		FileSource:           parseFileSourceField(m),
+		Calls:                 parseGRPCCalls(m["calls"]),
+		FileSource:            parseFileSourceField(m),
 	}
 	return cfg
 }
@@ -1687,15 +1901,15 @@ func parseGRPCCalls(v interface{}) []GRPCCall {
 			continue
 		}
 		out = append(out, GRPCCall{
-			Service:          getString(m, "service"),
-			Method:           getString(m, "method"),
-			CallType:         getString(m, "call_type"),
-			RequestMessages:  getByteSlices(m, "request_messages"),
-			ResponseMessages: getByteSlices(m, "response_messages"),
-			ResponseStatus:   getInt(m, "response_status"),
-			ResponseMessage:  getString(m, "response_message"),
-			Metadata:         getStringMap(m, "metadata"),
-			Timeout:          getString(m, "timeout"),
+			Service:               getString(m, "service"),
+			Method:                getString(m, "method"),
+			CallType:              getString(m, "call_type"),
+			RequestMessages:       getByteSlices(m, "request_messages"),
+			ResponseMessages:      getByteSlices(m, "response_messages"),
+			ResponseStatus:        getInt(m, "response_status"),
+			ResponseMessage:       getString(m, "response_message"),
+			Metadata:              getStringMap(m, "metadata"),
+			Timeout:               getString(m, "timeout"),
 			WindowUpdateIncrement: getUint32(m, "window_update_increment"),
 		})
 	}
@@ -2473,6 +2687,447 @@ func parseL2TPInnerIP(v interface{}) *L2TPInnerIP {
 	}
 }
 
+// parsePPTPConfig converts the JSON-decoded "pptp" sub-map into
+// *PPTPConfig. Numeric fields use getIntPresence: absent = the reference
+// pcap default (design_pptp.md §3), an explicit 0 is preserved — for most
+// fields the planner's resolveDefaults re-applies "0 = use the default"
+// (so explicit values need to be nonzero to take effect), but the frame
+// counts (data_frames/down_data_frames/sli_count) honor an explicit 0
+// (zero frames is a legal config).
+func parsePPTPConfig(m map[string]interface{}) *PPTPConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &PPTPConfig{
+		Role:              getString(m, "role"),
+		Scenario:          getString(m, "scenario"),
+		Calls:             getIntPresence(m, "calls", 1),
+		Version:           uint16(getIntPresence(m, "version", 0x0100)),
+		FramingCaps:       uint32(getIntPresence(m, "framing_caps", 1)),
+		BearerCaps:        uint32(getIntPresence(m, "bearer_caps", 1)),
+		MaxChannels:       getUint16(m, "max_channels"),
+		FirmwareRevision:  getUint16(m, "firmware_revision"),
+		HostName:          getString(m, "host_name"),
+		VendorName:        getStringDefault(m, "vendor_name", "Microsoft"),
+		ScrpResult:        uint8(getIntPresence(m, "scrp_result", 1)),
+		ScrpError:         uint8(getInt(m, "scrp_error")),
+		ScrpFramingCaps:   uint32(getIntPresence(m, "scrp_framing_caps", 2)),
+		ScrpBearerCaps:    uint32(getIntPresence(m, "scrp_bearer_caps", 3)),
+		ScrpFirmwareRev:   uint16(getIntPresence(m, "scrp_firmware_rev", 0x0ece)),
+		CallID:            uint16(getIntPresence(m, "call_id", 0xa9c0)),
+		PeerCallID:        uint16(getIntPresence(m, "peer_call_id", 0x35c9)),
+		CallSerial:        uint16(getIntPresence(m, "call_serial", 3)),
+		MinBPS:            uint32(getIntPresence(m, "min_bps", 300)),
+		MaxBPS:            uint32(getIntPresence(m, "max_bps", 100000000)),
+		BearerType:        uint32(getIntPresence(m, "bearer_type", 3)),
+		FramingType:       uint32(getIntPresence(m, "framing_type", 3)),
+		WindowSize:        uint16(getIntPresence(m, "window_size", 64)),
+		PacketDelay:       getUint16(m, "packet_delay"),
+		PhoneNumber:       getString(m, "phone_number"),
+		SubAddress:        getString(m, "sub_address"),
+		OcrpResult:        uint8(getIntPresence(m, "ocrp_result", 1)),
+		OcrpError:         uint8(getInt(m, "ocrp_error")),
+		CauseCode:         getUint16(m, "cause_code"),
+		ConnectSpeed:      uint32(getIntPresence(m, "connect_speed", 14808325)),
+		OcrpWindowSize:    uint16(getIntPresence(m, "ocrp_window_size", 16384)),
+		OcrpDelay:         getUint16(m, "ocrp_delay"),
+		PhysicalChannelID: getUint32(m, "physical_channel_id"),
+		SendACCM:          uint32(getIntPresence(m, "send_accm", 0xffffffff)),
+		ReceiveACCM:       uint32(getIntPresence(m, "receive_accm", 0xffffffff)),
+		SLICount:          getIntPresence(m, "sli_count", 5),
+		SliPeerCallID:     getUint16(m, "sli_peer_call_id"),
+		StopReason:        uint8(getIntPresence(m, "stop_reason", 1)),
+		StopResult:        uint8(getIntPresence(m, "stop_result", 1)),
+		StopError:         uint8(getInt(m, "stop_error")),
+		CcdnResult:        uint8(getInt(m, "ccdn_result")),
+		CcdnError:         uint8(getInt(m, "ccdn_error")),
+		CcdnCause:         getUint16(m, "ccdn_cause"),
+		Echo:              getBool(m, "echo", false),
+		WEN:               getBool(m, "wen", false),
+		IncomingCall:      getBool(m, "incoming_call", false),
+		DialedNumber:      getString(m, "dialed_number"),
+		DialingNumber:     getString(m, "dialing_number"),
+		DataFrames:        getIntPresence(m, "data_frames", 3),
+		DownDataFrames:    getIntPresence(m, "down_data_frames", 2),
+		InnerIP:           parsePPTPInnerIP(m["inner_ip"]),
+	}
+	return cfg
+}
+
+// parsePPTPInnerIP converts the JSON-decoded "inner_ip" sub-map into
+// *PPTPInnerIP (the inner IPv4 packet config for the PPTP-GRE data plane).
+func parsePPTPInnerIP(v interface{}) *PPTPInnerIP {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &PPTPInnerIP{
+		SrcIP:   getString(m, "src_ip"),
+		DstIP:   getString(m, "dst_ip"),
+		Proto:   uint8(getIntPresence(m, "proto", 17)),
+		SrcPort: getUint16(m, "src_port"),
+		DstPort: getUint16(m, "dst_port"),
+		TTL:     uint8(getIntPresence(m, "ttl", 64)),
+		Payload: getByteSlice(m, "payload"),
+	}
+}
+
+// parseH323Config converts the JSON-decoded "h323" sub-map into *H323Config.
+// Design defaults are applied at parse time via getIntPresence, which keeps
+// explicit 0 values intact so the planner can distinguish "absent" from
+// "explicitly 0" (the same convention PPTP uses for its frame counts).
+//
+// Parse-level errors are returned so the "h323" case can append them to
+// spec.ValidationErrors and fail the task loudly - getInt would silently
+// coerce "abc" to 0.
+func parseH323Config(m map[string]interface{}) (*H323Config, []string) {
+	if m == nil {
+		return nil, nil
+	}
+	var errs []string
+	cfg := &H323Config{
+		Role:        getStringDefault(m, "role", "caller"),
+		Scenario:    getStringDefault(m, "scenario", "full"),
+		Crv:         uint16(getIntPresence(m, "crv", 0x2584)),
+		DisplayName: getStringDefault(m, "display_name", "Administrator"),
+		Calls:       getIntPresence(m, "calls", 1),
+		RewriteAddr: getBool(m, "rewrite_addr", false),
+	}
+	if cfg.Role != "caller" && cfg.Role != "callee" {
+		errs = append(errs, "h323.role must be \"caller\" or \"callee\"")
+	}
+	if cfg.Scenario != "full" && cfg.Scenario != "tunnel_only" &&
+		cfg.Scenario != "ras_only" && cfg.Scenario != "data_only" {
+		errs = append(errs, "h323.scenario must be full|tunnel_only|ras_only|data_only")
+	}
+	if cfg.Calls <= 0 {
+		errs = append(errs, "h323.calls must be >= 1")
+	}
+	if len(cfg.DisplayName) > 254 {
+		errs = append(errs, "h323.display_name must be <= 254 bytes (Display IE length is 1 byte)")
+	}
+	if mm, ok := m["media"].(map[string]interface{}); ok {
+		mc := &H323MediaConfig{
+			Enabled:     getBool(mm, "enabled", false),
+			SrcPort:     uint16(getIntPresence(mm, "src_port", 5062)),
+			DstPort:     uint16(getIntPresence(mm, "dst_port", 5063)),
+			Frames:      getIntPresence(mm, "frames", 10),
+			PayloadType: uint8(getIntPresence(mm, "payload_type", 0)),
+			FrameSize:   getIntPresence(mm, "frame_size", 160),
+		}
+		if mc.Frames < 0 {
+			errs = append(errs, "h323.media.frames must be >= 0")
+		}
+		if mc.FrameSize < 0 {
+			errs = append(errs, "h323.media.frame_size must be >= 0")
+		}
+		cfg.Media = mc
+	}
+	if rm, ok := m["ras"].(map[string]interface{}); ok {
+		rc := &H323RasConfig{
+			Enabled:      getBool(rm, "enabled", false),
+			GatekeeperIP: getStringDefault(rm, "gatekeeper_ip", "10.12.184.53"),
+			Port:         uint16(getIntPresence(rm, "port", 1719)),
+			EndpointType: getStringDefault(rm, "endpoint_type", "terminal"),
+		}
+		if rc.EndpointType != "terminal" && rc.EndpointType != "gateway" {
+			errs = append(errs, "h323.ras.endpoint_type must be terminal|gateway")
+		}
+		cfg.Ras = rc
+	}
+	return cfg, errs
+}
+
+// parseXmppConfig converts the JSON-decoded "xmpp" sub-map into
+// *XmppConfig (解析XMPP配置). Follows the "user > default > none" rule:
+// empty fields stay zero-valued here and get defaulted in the planner.
+func parseXmppConfig(m map[string]interface{}) *XmppConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &XmppConfig{
+		From:          getString(m, "from"),
+		JID:           getString(m, "jid"),
+		Resource:      getString(m, "resource"),
+		StreamID:      getString(m, "stream_id"),
+		AuthMechanism: getString(m, "auth_mechanism"),
+		Username:      getString(m, "username"),
+		Password:      getString(m, "password"),
+		Presence:      getBoolPtr(m, "presence"),
+		Messages:      parseXmppMessages(m["messages"]),
+	}
+	return cfg
+}
+
+// parseXmppMessages converts the JSON-decoded "messages" list into
+// []XmppMessage (解析XMPP消息列表).
+func parseXmppMessages(v interface{}) []XmppMessage {
+	if v == nil {
+		return nil
+	}
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]XmppMessage, 0, len(arr))
+	for _, item := range arr {
+		if m, ok := item.(map[string]interface{}); ok {
+			out = append(out, XmppMessage{
+				Direction: getString(m, "direction"),
+				To:        getString(m, "to"),
+				Body:      getString(m, "body"),
+			})
+		}
+	}
+	return out
+}
+
+// length/discovery_tags) are for the builder when crafting single frames;
+// the session-level fields (skip_discovery/ac_name/service_name/cookie/
+// mru/magic_number/auth/username/password/data_frames/data_payload/
+// inner_proto/data_direction) drive the internal/protocol/pppoe planner's
+// full-session state machine.
+func parsePPPoEConfig(m map[string]interface{}) *PPPoEConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &PPPoEConfig{
+		Code:          uint8(getInt(m, "code")),
+		SessionID:     getUint16(m, "session_id"),
+		PPPProtocol:   getUint16(m, "ppp_protocol"),
+		PayloadLength: getUint16(m, "payload_length"),
+		DiscoveryTags: parsePPPoETags(m["discovery_tags"]),
+		SkipDiscovery: getBool(m, "skip_discovery", false),
+		ACName:        getString(m, "ac_name"),
+		ServiceName:   getString(m, "service_name"),
+		Cookie:        getByteSlice(m, "cookie"),
+		MRU:           getUint16(m, "mru"),
+		MagicNumber:   getUint32(m, "magic_number"),
+		Auth:          getString(m, "auth"),
+		Username:      getString(m, "username"),
+		Password:      getString(m, "password"),
+		DataFrames:    getInt(m, "data_frames"),
+		DataPayload:   getByteSlice(m, "data_payload"),
+		InnerProto:    uint8(getInt(m, "inner_proto")),
+		DataDirection: getString(m, "data_direction"),
+	}
+	return cfg
+}
+
+func parsePPPoETags(v interface{}) []PPPoETag {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]PPPoETag, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, PPPoETag{
+			Type:  getUint16(m, "type"),
+			Value: getByteSlice(m, "value"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseGREConfig converts the JSON-decoded "gre" sub-map into *GREConfig.
+// Wire-level fields (protocol_type/checksum/key_present/key/sequence_
+// present/sequence/routing_present/routing) drive the builder's GRE header
+// emission; the tunnel-level fields (inner_src_ip/inner_dst_ip/inner_proto/
+// inner_ttl/inner_ipid/inner_payload/frames/direction) drive the
+// internal/protocol/gre planner's inner-packet construction.
+func parseGREConfig(m map[string]interface{}) *GREConfig {
+	if m == nil {
+		return nil
+	}
+	return &GREConfig{
+		ProtocolType:    getUint16(m, "protocol_type"),
+		Checksum:        getBool(m, "checksum", false),
+		KeyPresent:      getBool(m, "key_present", false),
+		SequencePresent: getBool(m, "sequence_present", false),
+		Key:             getUint32(m, "key"),
+		Sequence:        getUint32(m, "sequence"),
+		RoutingPresent:  getBool(m, "routing_present", false),
+		Routing:         getByteSlice(m, "routing"),
+		InnerSrcIP:      getString(m, "inner_src_ip"),
+		InnerDstIP:      getString(m, "inner_dst_ip"),
+		InnerProto:      uint8(getInt(m, "inner_proto")),
+		InnerTTL:        uint8(getInt(m, "inner_ttl")),
+		InnerIPID:       getUint16(m, "inner_ipid"),
+		InnerPayload:    getByteSlice(m, "inner_payload"),
+		TCPOptions:      parseGREConfigTCPOptions(m["tcp_options"]),
+		Frames:          getInt(m, "frames"),
+		Direction:       getString(m, "direction"),
+	}
+}
+
+// parseGREConfigTCPOptions converts a JSON-decoded "tcp_options" list into
+// []TCPOption (each entry: kind + optional data), for the inner TCP header
+// of GRE tunnels.
+func parseGREConfigTCPOptions(v interface{}) []TCPOption {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]TCPOption, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, TCPOption{
+			Kind: uint8(getInt(m, "kind")),
+			Data: getByteSlice(m, "data"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseMPLSConfig converts the JSON-decoded "mpls" sub-map into
+// *MPLSConfig. The wire-level fields (labels/multicast) drive the builder's
+// label-stack emission; the tunnel-level fields (inner_proto/
+// inner_payload/frames/direction) drive the internal/protocol/mpls
+// planner's inner-packet construction.
+func parseMPLSConfig(m map[string]interface{}) *MPLSConfig {
+	if m == nil {
+		return nil
+	}
+	return &MPLSConfig{
+		Labels:       parseMPLSLabels(m["labels"]),
+		Multicast:    getBool(m, "multicast", false),
+		InnerProto:   uint8(getInt(m, "inner_proto")),
+		InnerPayload: getByteSlice(m, "inner_payload"),
+		Frames:       getInt(m, "frames"),
+		Direction:    getString(m, "direction"),
+	}
+}
+
+// parseMPLSLabels converts the JSON-decoded "labels" list into []MPLSLabel
+// (each entry: label + optional tc/s/ttl). The list order is the
+// transmission order: entry 0 = top of stack, last entry = bottom of stack
+// (S auto-corrected to 1 by the builder).
+func parseMPLSLabels(v interface{}) []MPLSLabel {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MPLSLabel, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, MPLSLabel{
+			Label: uint32(getInt(m, "label")),
+			TC:    uint8(getInt(m, "tc")),
+			S:     getBool(m, "s", false),
+			TTL:   uint8(getInt(m, "ttl")),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseGTPConfig converts the JSON-decoded "gtp" sub-map into *GTPConfig.
+// The wire-level fields (mode/version/pt/teid/sequence_present/sequence/
+// npdu_present/npdu_value/extension_present/extension_type/extension_data)
+// drive the GTPv1 message header (TS 29.281 §5.1); the scenario steps
+// (scenarios) drive the GTP-C signaling dialog; the tunnel-level fields
+// (inner_src_ip/inner_dst_ip/inner_proto/inner_ttl/inner_ipid/
+// inner_payload/tcp_options/frames/direction) drive the GTP-U T-PDU inner
+// packet construction in internal/protocol/gtp.
+func parseGTPConfig(m map[string]interface{}) *GTPConfig {
+	if m == nil {
+		return nil
+	}
+	return &GTPConfig{
+		Mode:             getString(m, "mode"),
+		Version:          uint8(getInt(m, "version")),
+		PT:               uint8(getInt(m, "pt")),
+		TEID:             getUint32(m, "teid"),
+		SequencePresent:  getBool(m, "sequence_present", false),
+		Sequence:         getUint16(m, "sequence"),
+		NPDUPresent:      getBool(m, "npdu_present", false),
+		NPDUValue:        uint8(getInt(m, "npdu_value")),
+		ExtensionPresent: getBool(m, "extension_present", false),
+		ExtensionType:    uint8(getInt(m, "extension_type")),
+		ExtensionData:    getByteSlice(m, "extension_data"),
+		Scenarios:        parseGTPSteps(m["scenarios"]),
+		InnerSrcIP:       getString(m, "inner_src_ip"),
+		InnerDstIP:       getString(m, "inner_dst_ip"),
+		InnerProto:       uint8(getInt(m, "inner_proto")),
+		InnerTTL:         uint8(getInt(m, "inner_ttl")),
+		InnerIPID:        getUint16(m, "inner_ipid"),
+		InnerPayload:     getByteSlice(m, "inner_payload"),
+		TCPOptions:       parseGREConfigTCPOptions(m["tcp_options"]),
+		Frames:           getInt(m, "frames"),
+		Direction:        getString(m, "direction"),
+	}
+}
+
+// parseGTPSteps converts the JSON-decoded "scenarios" list into []GTPStep
+// (each entry: message_type + optional teid_override/sequence/direction/
+// ies).
+func parseGTPSteps(v interface{}) []GTPStep {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]GTPStep, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, GTPStep{
+			MessageType:  uint8(getInt(m, "message_type")),
+			TEIDOverride: getUint32Ptr(m, "teid_override"),
+			Sequence:     getUint16(m, "sequence"),
+			Direction:    getString(m, "direction"),
+			IEs:          parseGTPIEs(m["ies"]),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseGTPIEs converts the JSON-decoded "ies" list into []GTPIE (each
+// entry: type + value bytes).
+func parseGTPIEs(v interface{}) []GTPIE {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]GTPIE, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, GTPIE{
+			Type:  uint8(getInt(m, "type")),
+			Value: getByteSlice(m, "value"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // parseMDNSConfig converts the JSON-decoded "mdns" sub-map into *MDNSConfig.
 func parseMDNSConfig(m map[string]interface{}) *MDNSConfig {
 	if m == nil {
@@ -2541,35 +3196,35 @@ func parseDNSRRs(v interface{}) []DNSRR {
 			continue
 		}
 		rr := DNSRR{
-			Name:   getString(m, "name"),
-			Type:   getUint16(m, "type"),
-			Class:  getUint16(m, "class"),
-			TTL:    getUint32(m, "ttl"),
-			IP:     getString(m, "ip"),
-			Target: getString(m, "target"),
+			Name:       getString(m, "name"),
+			Type:       getUint16(m, "type"),
+			Class:      getUint16(m, "class"),
+			TTL:        getUint32(m, "ttl"),
+			IP:         getString(m, "ip"),
+			Target:     getString(m, "target"),
 			Preference: getUint16(m, "preference"),
-			Text:   getString(m, "text"),
-			MName:  getString(m, "mname"),
-			RName:  getString(m, "rname"),
-			Serial:  getUint32(m, "serial"),
-			Refresh: getUint32(m, "refresh"),
-			Retry:   getUint32(m, "retry"),
-			Expire:  getUint32(m, "expire"),
-			Minimum: getUint32(m, "minimum"),
-			Priority: getUint16(m, "priority"),
-			Weight:   getUint16(m, "weight"),
-			Port:     getUint16(m, "port"),
-			Order:    getUint16(m, "order"),
-			Flags:    getString(m, "flags"),
-			Service:  getString(m, "service"),
-			Regexp:   getString(m, "regexp"),
-			KeyTag:       getUint16(m, "key_tag"),
-			Algorithm:    uint8(getInt(m, "algorithm")),
-			DigestType:   uint8(getInt(m, "digest_type")),
-			Digest:        getString(m, "digest"),
-			KeyFlags:     getUint16(m, "key_flags"),
-			Protocol:     uint8(getInt(m, "protocol")),
-			PublicKey:    getString(m, "public_key"),
+			Text:       getString(m, "text"),
+			MName:      getString(m, "mname"),
+			RName:      getString(m, "rname"),
+			Serial:     getUint32(m, "serial"),
+			Refresh:    getUint32(m, "refresh"),
+			Retry:      getUint32(m, "retry"),
+			Expire:     getUint32(m, "expire"),
+			Minimum:    getUint32(m, "minimum"),
+			Priority:   getUint16(m, "priority"),
+			Weight:     getUint16(m, "weight"),
+			Port:       getUint16(m, "port"),
+			Order:      getUint16(m, "order"),
+			Flags:      getString(m, "flags"),
+			Service:    getString(m, "service"),
+			Regexp:     getString(m, "regexp"),
+			KeyTag:     getUint16(m, "key_tag"),
+			Algorithm:  uint8(getInt(m, "algorithm")),
+			DigestType: uint8(getInt(m, "digest_type")),
+			Digest:     getString(m, "digest"),
+			KeyFlags:   getUint16(m, "key_flags"),
+			Protocol:   uint8(getInt(m, "protocol")),
+			PublicKey:  getString(m, "public_key"),
 		}
 		out = append(out, rr)
 	}
@@ -3017,7 +3672,7 @@ func parseRDPConfig(m map[string]interface{}) *RDPConfig {
 		ServerRandom:                getByteSlice(m, "server_random"),
 		ServerCertVersion:           getUint32(m, "server_cert_version"),
 		SecurityExchangeRSAKeyBytes: getInt(m, "security_exchange_rsa_key_bytes"),
-		Scenario:                     getString(m, "scenario"),
+		Scenario:                    getString(m, "scenario"),
 		DataEvents:                  parseRDPDataEvents(m["data_events"]),
 		ServerResponses:             parseRDPServerResponses(m["server_responses"]),
 	}
@@ -3198,6 +3853,620 @@ func parseShadowsocksConfig(m map[string]interface{}) *ShadowsocksConfig {
 		FileSource:         parseFileSourceField(m),
 	}
 	return cfg
+}
+
+// parseSocks5Config converts the JSON-decoded "socks" sub-map into
+// *SocksConfig.
+func parseSocks5Config(m map[string]interface{}) *SocksConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &SocksConfig{
+		Version:    getString(m, "version"),
+		AuthMethod: getString(m, "auth_method"),
+		Username:   getString(m, "username"),
+		Password:   getString(m, "password"),
+		Cmd:        getString(m, "cmd"),
+		DstAddr:    getString(m, "dst_addr"),
+		DstPort:    getUint16(m, "dst_port"),
+		Rep:        getInt(m, "rep"),
+		BndAddr:    getString(m, "bnd_addr"),
+		BndPort:    getUint16(m, "bnd_port"),
+		UserID:     getString(m, "user_id"),
+		Data:       parseSocksDataMessages(m["data"]),
+	}
+	if sub, ok := m["udp"].(map[string]interface{}); ok && sub != nil {
+		cfg.UDP = &Socks5UDP{
+			SrcPort:   getUint16(sub, "src_port"),
+			DstPort:   getUint16(sub, "dst_port"),
+			Frames:    getInt(sub, "frames"),
+			FrameSize: getInt(sub, "frame_size"),
+			DstAddr:   getString(sub, "dst_addr"),
+			Direction: getString(sub, "direction"),
+		}
+	}
+	return cfg
+}
+
+// parseSocksDataMessages converts the JSON-decoded "data" array into
+// []SocksDataMessage. Each element's FileSource is parsed inline (SCTP
+// chunk pattern) so index aliasing is impossible.
+func parseSocksDataMessages(v interface{}) []SocksDataMessage {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]SocksDataMessage, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, SocksDataMessage{
+			Direction:  getString(m, "direction"),
+			Payload:    getString(m, "payload"),
+			FileSource: parseFileSourceField(m),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseRTMPConfig converts the JSON-decoded "rtmp" sub-map into *RTMPConfig.
+// RTMP (Adobe Real-Time Messaging Protocol) 配置解析.
+// 空/缺失 map 返回 nil — 与 socks5/radius/vnc 模式一致.
+func parseRTMPConfig(m map[string]interface{}) *RTMPConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &RTMPConfig{
+		App:        getString(m, "app"),
+		TcURL:      getString(m, "tc_url"),
+		Command:    getString(m, "command"),
+		StreamName: getString(m, "stream_name"),
+	}
+	// Parse data plane chunks (数据面 chunk 列表).
+	if data, ok := m["data"]; ok {
+		if arr, ok := data.([]interface{}); ok {
+			for _, item := range arr {
+				chunk, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				dc := RTMPDataChunk{
+					Direction:     getString(chunk, "direction"),
+					MsgType:       uint8(getInt(chunk, "msg_type")),
+					ChunkStreamID: uint8(getInt(chunk, "chunk_stream_id")),
+				}
+				// Payload: support both base64 (payload_b64) and raw string (payload).
+				if b64 := getString(chunk, "payload_b64"); b64 != "" {
+					if decoded, err := decodeBase64(b64); err == nil {
+						dc.Payload = decoded
+					}
+				} else if raw := getString(chunk, "payload"); raw != "" {
+					dc.Payload = []byte(raw)
+				}
+				cfg.Data = append(cfg.Data, dc)
+			}
+		}
+	}
+	return cfg
+}
+
+// parseRadiusConfig converts the JSON-decoded "radius" sub-map into
+// *RadiusConfig. Attributes and response attributes are parsed with
+// parseRadiusAttributes (index-safe, no aliasing).
+func parseRadiusConfig(m map[string]interface{}) *RadiusConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &RadiusConfig{
+		Code:               getInt(m, "code"),
+		Identifier:         uint8(getInt(m, "identifier")),
+		Authenticator:      getString(m, "authenticator"),
+		Attributes:         parseRadiusAttributes(m["attributes"]),
+		ResponseCode:       uint8(getInt(m, "response_code")),
+		ResponseAttributes: parseRadiusAttributes(m["response_attributes"]),
+		Rounds:             getInt(m, "rounds"),
+	}
+	return cfg
+}
+
+// parseRadiusAttributes converts the JSON-decoded attribute array into
+// []RadiusAttribute.
+func parseRadiusAttributes(v interface{}) []RadiusAttribute {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]RadiusAttribute, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, RadiusAttribute{
+			Type:     uint8(getInt(m, "type")),
+			Format:   getString(m, "format"),
+			Value:    getString(m, "value"),
+			VendorID: uint32(getInt(m, "vendor_id")),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseMQTTConfig converts the JSON-decoded "mqtt" sub-map into *MQTTConfig.
+// Pointer fields (KeepAlive *int, CleanSession *bool, Disconnect *bool) use
+// presence-check so explicit 0/false is honored rather than replaced with the
+// default. Slice fields (Messages/Subscriptions/Properties/Will) parse to nil
+// when absent so the planner can distinguish "omitted" from "empty".
+func parseMQTTConfig(m map[string]interface{}) *MQTTConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &MQTTConfig{
+		Version:                  getInt(m, "version"),
+		ClientID:                 getString(m, "client_id"),
+		Username:                 getString(m, "username"),
+		Password:                 getString(m, "password"),
+		ConnectAckCode:           getInt(m, "connect_ack_code"),
+		ConnectAckSessionPresent: getBool(m, "connect_ack_session_present", false),
+		PingAfterMessages:        getBool(m, "ping_after_messages", false),
+		Subscriptions:            parseMQTTSubscriptions(m["subscriptions"]),
+		Messages:                 parseMQTTMessages(m["messages"]),
+		Properties:               parseMQTTProperties(m["properties"]),
+		Sessions:                 parseMQTTSessions(m["sessions"]),
+	}
+	if v, ok := m["keep_alive"]; ok && v != nil {
+		n := getInt(m, "keep_alive")
+		cfg.KeepAlive = &n
+	}
+	if v, ok := m["clean_session"].(bool); ok {
+		b := v
+		cfg.CleanSession = &b
+	}
+	if v, ok := m["disconnect"].(bool); ok {
+		b := v
+		cfg.Disconnect = &b
+	}
+	if sub, ok := m["will"].(map[string]interface{}); ok && sub != nil {
+		cfg.Will = parseMQTTWill(sub)
+	}
+	return cfg
+}
+
+// parseMQTTWill converts the JSON-decoded "will" sub-map into *MQTTWill.
+func parseMQTTWill(m map[string]interface{}) *MQTTWill {
+	if m == nil {
+		return nil
+	}
+	return &MQTTWill{
+		Topic:         getString(m, "topic"),
+		Payload:       getString(m, "payload"),
+		QoS:           getInt(m, "qos"),
+		Retain:        getBool(m, "retain", false),
+		DelayInterval: getInt(m, "delay_interval"),
+	}
+}
+
+// parseMQTTMessages converts the JSON-decoded "messages" array into
+// []MQTTMessage.
+func parseMQTTMessages(v interface{}) []MQTTMessage {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MQTTMessage, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, MQTTMessage{
+			Topic:      getString(m, "topic"),
+			Payload:    getString(m, "payload"),
+			QoS:        getInt(m, "qos"),
+			Retain:     getBool(m, "retain", false),
+			DUP:        getBool(m, "dup", false),
+			PacketID:   uint16(getInt(m, "packet_id")),
+			Direction:  getString(m, "direction"),
+			Properties: parseMQTTProperties(m["properties"]),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseMQTTSubscriptions converts the JSON-decoded "subscriptions" array
+// into []MQTTSubscribe.
+func parseMQTTSubscriptions(v interface{}) []MQTTSubscribe {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MQTTSubscribe, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sub := MQTTSubscribe{
+			PacketID:       uint16(getInt(m, "packet_id")),
+			Filters:        parseMQTTTopicFilters(m["filters"]),
+			AckReasonCodes: parseIntList(m["ack_reason_codes"]),
+		}
+		out = append(out, sub)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseMQTTTopicFilters converts the JSON-decoded "filters" array into
+// []MQTTTopicFilter.
+func parseMQTTTopicFilters(v interface{}) []MQTTTopicFilter {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MQTTTopicFilter, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, MQTTTopicFilter{
+			Filter:            getString(m, "filter"),
+			QoS:               getInt(m, "qos"),
+			NoLocal:           getBool(m, "no_local", false),
+			RetainAsPublished: getBool(m, "retain_as_published", false),
+			RetainHandling:    getInt(m, "retain_handling"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseMQTTProperties converts the JSON-decoded "properties" array into
+// []MQTTProperty.
+func parseMQTTProperties(v interface{}) []MQTTProperty {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MQTTProperty, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, MQTTProperty{
+			Identifier: getInt(m, "identifier"),
+			Format:     getString(m, "format"),
+			Value:      getString(m, "value"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseMQTTSessions converts the JSON-decoded "sessions" array into
+// []MQTTSession. Inherits pointer-field semantics from parseMQTTConfig.
+func parseMQTTSessions(v interface{}) []MQTTSession {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]MQTTSession, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		s := MQTTSession{
+			ClientID:          getString(m, "client_id"),
+			Username:          getString(m, "username"),
+			Password:          getString(m, "password"),
+			// Bug fix: PingAfterMessages is now *bool on MQTTSession so a
+			// session can explicitly override top-level true→false. nil
+			// means "inherit" (do not pass a default), so use getBoolPtr
+			// instead of getBool.
+			PingAfterMessages: getBoolPtr(m, "ping_after_messages"),
+			Subscriptions:     parseMQTTSubscriptions(m["subscriptions"]),
+			Messages:          parseMQTTMessages(m["messages"]),
+			Properties:        parseMQTTProperties(m["properties"]),
+			SrcPort:           uint16(getInt(m, "src_port")),
+			DstPort:           uint16(getInt(m, "dst_port")),
+		}
+		if v, ok := m["keep_alive"]; ok && v != nil {
+			n := getInt(m, "keep_alive")
+			s.KeepAlive = &n
+		}
+		if v, ok := m["clean_session"].(bool); ok {
+			b := v
+			s.CleanSession = &b
+		}
+		if v, ok := m["disconnect"].(bool); ok {
+			b := v
+			s.Disconnect = &b
+		}
+		if sub, ok := m["will"].(map[string]interface{}); ok && sub != nil {
+			s.Will = parseMQTTWill(sub)
+		}
+		out = append(out, s)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseIntList converts the JSON-decoded array into []int (used for
+// AckReasonCodes).
+func parseIntList(v interface{}) []int {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]int, 0, len(arr))
+	for _, item := range arr {
+		switch n := item.(type) {
+		case float64:
+			out = append(out, int(n))
+		case json.Number:
+			i, err := n.Int64()
+			if err == nil {
+				out = append(out, int(i))
+			}
+		case int:
+			out = append(out, n)
+		case int64:
+			out = append(out, int(n))
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseLDAPConfig converts the JSON-decoded "ldap" sub-map into
+// *LDAPConfig. Unbind defaults to true (send unbindRequest at session
+// end); the planner treats nil as true, false as skip.
+func parseLDAPConfig(m map[string]interface{}) *LDAPConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &LDAPConfig{
+		Rounds:        getInt(m, "rounds"),
+		MessageIDBase: uint16(getInt(m, "message_id_base")),
+		Version:       getInt(m, "version"),
+		BindDN:        getString(m, "bind_dn"),
+		BindPassword:  getString(m, "bind_password"),
+		SearchBaseDN:  getString(m, "search_base_dn"),
+		SearchScope:   getInt(m, "search_scope"),
+		SizeLimit:     getInt(m, "size_limit"),
+		TimeLimit:     getInt(m, "time_limit"),
+		FilterType:    getString(m, "filter_type"),
+		SearchFilter:  getString(m, "search_filter"),
+		FilterValue:   getString(m, "filter_value"),
+		Attributes:    parseStringList(m["attributes"]),
+		ResultCode:    uint8(getInt(m, "result_code")),
+	}
+	if b, ok := m["unbind"].(bool); ok {
+		v := b
+		cfg.Unbind = &v
+	}
+	return cfg
+}
+
+// parseVNCConfig converts the JSON-decoded "vnc" sub-map into *VNCConfig.
+// Design defaults are applied at parse time via getIntPresence, which keeps
+// explicit 0 values intact so Validate can reject them (e.g. security_type=0,
+// width=0) and the planner can emit them (e.g. pointer_x=0). nil pointers and
+// nil lists mean "use the structural default" (the planner applies them).
+//
+// Parse-level errors (e.g. non-numeric encodings entries) are returned so
+// the "vnc" case can append them to spec.ValidationErrors and fail the task
+// loudly - getInt would silently coerce "abc" to 0.
+func parseVNCConfig(m map[string]interface{}) (*VNCConfig, []string) {
+	if m == nil {
+		return nil, nil
+	}
+	var errs []string
+	cfg := &VNCConfig{
+		SecurityType:         getIntPresence(m, "security_type", 16),
+		AuthResult:           getInt(m, "auth_result"),
+		AuthReason:           getString(m, "auth_reason"),
+		ShareDesktop:         getBoolPtr(m, "share_desktop"),
+		Width:                getIntPresence(m, "width", 1024),
+		Height:               getIntPresence(m, "height", 768),
+		ServerName:           getStringDefault(m, "server_name", "QTMS:1 (ykaul)"),
+		Rounds:               getIntPresence(m, "rounds", 1),
+		PointerX:             getIntPresence(m, "pointer_x", 507),
+		PointerY:             getIntPresence(m, "pointer_y", 320),
+		PointerButton:        getInt(m, "pointer_button"),
+		FBUUpdateInterval:    getIntPresence(m, "fbu_update_interval", 1),
+		ClientSetPixelFormat: getBoolPtr(m, "client_set_pixel_format"),
+		ClientSetEncodings:   getBoolPtr(m, "client_set_encodings"),
+		Bell:                 getBool(m, "bell", false),
+		ServerCutText:        getString(m, "server_cut_text"),
+		ClientCutText:        getString(m, "client_cut_text"),
+		ChallengeSeed:        getUint64(m, "challenge_seed"),
+		ResponseSeed:         getUint64(m, "response_seed"),
+	}
+	if pm, ok := m["pixel_format"].(map[string]interface{}); ok {
+		cfg.PixelFormat = &VNCPixelFormatConfig{
+			BitsPerPixel: getIntPresence(pm, "bits_per_pixel", 32),
+			Depth:        getIntPresence(pm, "depth", 24),
+			BigEndian:    getBool(pm, "big_endian", false),
+			TrueColor:    getBool(pm, "true_color", true),
+			RedMax:       getIntPresence(pm, "red_max", 255),
+			GreenMax:     getIntPresence(pm, "green_max", 255),
+			BlueMax:      getIntPresence(pm, "blue_max", 255),
+			RedShift:     getIntPresence(pm, "red_shift", 16),
+			GreenShift:   getIntPresence(pm, "green_shift", 8),
+			BlueShift:    getInt(pm, "blue_shift"),
+		}
+	}
+	if cm, ok := m["interaction_caps"].(map[string]interface{}); ok {
+		ic := &VNCInteractionCapsConfig{
+			ServerMsgTypes: getInt(cm, "server_msg_types"),
+			ClientMsgTypes: getIntPresence(cm, "client_msg_types", 11),
+			EncodingTypes:  getInt(cm, "encoding_types"),
+		}
+		if v, ok := cm["caps"]; ok {
+			if arr, ok := v.([]interface{}); ok {
+				caps := make([]VNCCapabilityConfig, 0, len(arr))
+				for _, item := range arr {
+					capm, ok := item.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					caps = append(caps, VNCCapabilityConfig{
+						Code:   getInt(capm, "code"),
+						Vendor: getString(capm, "vendor"),
+						Name:   getString(capm, "name"),
+					})
+				}
+				ic.Caps = caps
+			}
+		}
+		cfg.InteractionCaps = ic
+	}
+	if v, ok := m["key_events"]; ok {
+		if arr, ok := v.([]interface{}); ok {
+			list := make([]VNCKeyEventConfig, 0, len(arr))
+			for _, item := range arr {
+				km, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				list = append(list, VNCKeyEventConfig{
+					Down: getBool(km, "down", false),
+					Key:  getInt(km, "key"),
+				})
+			}
+			cfg.KeyEvents = list
+		}
+	}
+	if v, ok := m["encodings"]; ok {
+		arr, ok := v.([]interface{})
+		if !ok {
+			errs = append(errs, fmt.Sprintf("invalid vnc encoding list %v", v))
+		} else {
+			list := make([]int, 0, len(arr))
+			for _, item := range arr {
+				n, ok := numToInt(item)
+				if !ok {
+					errs = append(errs, fmt.Sprintf("invalid vnc encoding %v", item))
+					continue
+				}
+				list = append(list, n)
+			}
+			cfg.Encodings = list
+		}
+	}
+	if v, ok := m["initial_fbu"]; ok {
+		cfg.InitialFBU = parseVNCRects(v)
+	}
+	if v, ok := m["update_rects"]; ok {
+		cfg.UpdateRects = parseVNCRects(v)
+	}
+	if sm, ok := m["set_colour_map_entries"].(map[string]interface{}); ok {
+		cfg.SetColourMapEntries = &VNCColourMapConfig{
+			First:  getInt(sm, "first"),
+			Colors: parseStringList(sm["colors"]),
+		}
+	}
+	return cfg, errs
+}
+
+// getIntPresence reads an int when the key is present (even 0) and returns
+// def when absent. Unlike getIntDefault, an explicit 0 is preserved so
+// validators can reject it and planners can emit it.
+func getIntPresence(m map[string]interface{}, key string, def int) int {
+	if _, ok := m[key]; ok {
+		return getInt(m, key)
+	}
+	return def
+}
+
+// parseVNCRects converts a JSON array of rect sub-maps into []VNCRectConfig.
+func parseVNCRects(v interface{}) []VNCRectConfig {
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]VNCRectConfig, 0, len(arr))
+	for _, item := range arr {
+		rm, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, VNCRectConfig{
+			X:               getInt(rm, "x"),
+			Y:               getInt(rm, "y"),
+			Width:           getInt(rm, "width"),
+			Height:          getInt(rm, "height"),
+			Encoding:        getString(rm, "encoding"),
+			HextileTileData: getString(rm, "hextile_tile_data"),
+			XCursorBlob:     getString(rm, "xcursor_blob"),
+		})
+	}
+	return out
+}
+
+// numToInt converts a JSON-decoded numeric value to int. Returns false for
+// non-numeric values (strings, bools, nested structures) so callers can
+// report parse-level errors instead of silently coercing to 0.
+func numToInt(v interface{}) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return int(i), true
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	default:
+		return 0, false
+	}
+}
+
+// parseStringList converts a JSON string array into []string.
+func parseStringList(v interface{}) []string {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, item := range arr {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // parseSSDPConfig converts the JSON-decoded "ssdp" sub-map into *SSDPConfig.
@@ -3398,6 +4667,79 @@ func parseWireGuardConfig(m map[string]interface{}) *WireGuardConfig {
 		InnerIP:              parseWireGuardInnerIP(m["inner_ip"]),
 	}
 	return cfg
+}
+
+// parseSRv6Config converts the JSON-decoded "srv6" sub-map into *SRv6Config.
+// The segment_list is the user-facing processing order (entry 0 = first
+// segment); the planner REVERSES it to wire order (RFC 8754 §2). See
+// internal/protocol/srv6 for the planner/validator and design §5.1.
+func parseSRv6Config(m map[string]interface{}) *SRv6Config {
+	if m == nil {
+		return nil
+	}
+	// SegmentsLeft/LastEntry: use *uint8 so nil vs *uint8(0) is
+	// distinguishable (uint8 zero value cannot distinguish "explicit 0"
+	// from "unset").
+	var slPtr *uint8
+	if v, ok := m["segments_left"].(float64); ok {
+		u := uint8(v)
+		slPtr = &u
+	}
+	var lePtr *uint8
+	if v, ok := m["last_entry"].(float64); ok {
+		u := uint8(v)
+		lePtr = &u
+	}
+	return &SRv6Config{
+		SrcIPv6:         getString(m, "src_ipv6"),
+		DstIPv6:         getString(m, "dst_ipv6"),
+		SegmentList:     getStringSlice(m, "segment_list"),
+		SegmentsLeft:    uint8(getInt(m, "segments_left")),
+		SegmentsLeftPtr: slPtr,
+		LastEntry:       uint8(getInt(m, "last_entry")),
+		LastEntryPtr:    lePtr,
+		// ReducedPtr takes precedence over Reduced inside the srv6 package's
+		// resolveReduced: nil = SegType default, non-nil = explicit (incl. an
+		// explicit false). Reduced stays populated for backward compatibility
+		// with code/tests that read it directly. Both are driven by the same
+		// "reduced" key so they never disagree.
+		Reduced:         getBool(m, "reduced", false),
+		ReducedPtr:      getBoolPtr(m, "reduced"),
+		Flags:           uint8(getInt(m, "flags")),
+		Tag:             uint16(getInt(m, "tag")),
+		SegType:         getString(m, "seg_type"),
+		PayloadProtocol: getString(m, "payload_protocol"),
+		InnerPayload:    getByteSlice(m, "inner_payload"),
+		InnerSrcPort:    uint16(getInt(m, "inner_src_port")),
+		InnerDstPort:    uint16(getInt(m, "inner_dst_port")),
+		TLV:             parseSRv6TLVs(m["tlv"]),
+		Frames:          getInt(m, "frames"),
+		Direction:       getString(m, "direction"),
+	}
+}
+
+// parseSRv6TLVs converts the JSON-decoded "tlv" list into []SRv6TLV. Each
+// entry is {type: uint8, value: bytes}.
+func parseSRv6TLVs(v interface{}) []SRv6TLV {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]SRv6TLV, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, SRv6TLV{
+			Type:  uint8(getInt(m, "type")),
+			Value: getByteSlice(m, "value"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // parseWireGuardInnerIP converts the JSON-decoded "inner_ip" sub-map into
@@ -3615,13 +4957,77 @@ func parseSIPMedia(v interface{}) *SIPMedia {
 		return nil
 	}
 	return &SIPMedia{
-		Direction:    getString(m, "direction"),
-		SrcPort:      getUint16(m, "src_port"),
-		DstPort:      getUint16(m, "dst_port"),
-		Frames:       getInt(m, "frames"),
-		PayloadType:  uint8(getInt(m, "payload_type")),
-		SampleRate:   uint32(getInt(m, "sample_rate")),
-		FrameSize:    getInt(m, "frame_size"),
+		Direction:   getString(m, "direction"),
+		SrcPort:     getUint16(m, "src_port"),
+		DstPort:     getUint16(m, "dst_port"),
+		Frames:      getInt(m, "frames"),
+		PayloadType: uint8(getInt(m, "payload_type")),
+		SampleRate:  uint32(getInt(m, "sample_rate")),
+		FrameSize:   getInt(m, "frame_size"),
+	}
+}
+
+// parseRTSPDialog converts the JSON-decoded "dialog" value into a
+// []RTSPMessage. Returns nil for absent/non-array input — the planner then
+// emits only TCP handshake + teardown (an empty RTSP session, which is a
+// valid degenerate test).
+//
+// Each message may carry Method+URI (request) or StatusCode+StatusText
+// (response). Direction is "up" or "down"; when empty, the planner infers
+// it from Method/StatusCode. Headers is a list of "Name: Value" strings;
+// CSeq/Session/Transport/Content-Length are auto-completed by the
+// planner. Body is the optional message body (e.g. SDP).
+func parseRTSPDialog(v interface{}) []RTSPMessage {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]RTSPMessage, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		msg := RTSPMessage{
+			Method:     getString(m, "method"),
+			URI:        getString(m, "uri"),
+			StatusCode: getInt(m, "status_code"),
+			StatusText: getString(m, "status_text"),
+			Direction:  getString(m, "direction"),
+			Body:       getString(m, "body"),
+			EmitMedia:  getBool(m, "emit_media", false),
+		}
+		if headers, ok := m["headers"].([]interface{}); ok {
+			for _, h := range headers {
+				if s, ok := h.(string); ok {
+					msg.Headers = append(msg.Headers, s)
+				}
+			}
+		}
+		out = append(out, msg)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseRTSPMedia converts the JSON-decoded "media" sub-map into a *RTSPMedia.
+// Returns nil for absent/non-map input — the planner then emits only
+// signaling (SETUP Transport headers are left entirely to the user).
+func parseRTSPMedia(v interface{}) *RTSPMedia {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &RTSPMedia{
+		Direction:   getString(m, "direction"),
+		SrcPort:     getUint16(m, "src_port"),
+		DstPort:     getUint16(m, "dst_port"),
+		Frames:      getInt(m, "frames"),
+		PayloadType: uint8(getInt(m, "payload_type")),
+		SampleRate:  uint32(getInt(m, "sample_rate")),
+		FrameSize:   getInt(m, "frame_size"),
 	}
 }
 
@@ -4010,6 +5416,37 @@ func getBool(m map[string]interface{}, key string, def bool) bool {
 	if v, ok := m[key].(bool); ok {
 		return v
 	}
+	// JSON decodes 0/1 to float64; accept them so configs written as
+	// {"down": 1} behave identically to {"down": true} instead of
+	// silently falling back to the default.
+	switch n := m[key].(type) {
+	case float64:
+		if n == 0 {
+			return false
+		}
+		if n == 1 {
+			return true
+		}
+	case json.Number:
+		i, err := n.Int64()
+		if err == nil && (i == 0 || i == 1) {
+			return i == 1
+		}
+	case int:
+		if n == 0 {
+			return false
+		}
+		if n == 1 {
+			return true
+		}
+	case int64:
+		if n == 0 {
+			return false
+		}
+		if n == 1 {
+			return true
+		}
+	}
 	return def
 }
 
@@ -4288,6 +5725,29 @@ func getUint8Slice(m map[string]interface{}, key string) []uint8 {
 	return out
 }
 
+// getUint32Slice reads a JSON array of numbers into a []uint32.
+func getUint32Slice(m map[string]interface{}, key string) []uint32 {
+	arr, ok := m[key].([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]uint32, 0, len(arr))
+	for _, item := range arr {
+		switch n := item.(type) {
+		case float64:
+			out = append(out, uint32(n))
+		case json.Number:
+			if i, err := n.Int64(); err == nil {
+				out = append(out, uint32(i))
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // getStringSlice reads a JSON array of strings into a []string.
 func getStringSlice(m map[string]interface{}, key string) []string {
 	arr, ok := m[key].([]interface{})
@@ -4380,6 +5840,225 @@ func parseNTPExtensions(v interface{}) []NTPExt {
 	}
 	if len(out) == 0 {
 		return nil
+	}
+	return out
+}
+
+// parseNGAPConfig converts the JSON-decoded "ngap" sub-map into *NGAPConfig.
+// NGAP (Next Generation Application Protocol, 5G核心网信令协议) runs over SCTP.
+// nil/empty input returns nil.
+func parseNGAPConfig(v interface{}) *NGAPConfig {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	cfg := &NGAPConfig{
+		AMFName:          getString(m, "amf_name"),
+		DefaultPagingDRX: getInt(m, "default_paging_drx"),
+		RANUENGAPID:      uint32(getInt(m, "ran_ue_ngap_id")),
+		AMFUENGAPID:      uint32(getInt(m, "amf_ue_ngap_id")),
+		InitialUEMessage: getBool(m, "initial_ue_message", false),
+		UEContextRelease: getBool(m, "ue_context_release", false),
+		InitialNAS:       getByteSlice(m, "initial_nas"),
+		DownlinkNAS:      getByteSlice(m, "downlink_nas"),
+		UplinkNAS:        getByteSlice(m, "uplink_nas"),
+	}
+	// Parse GlobalRANNodeID (全局RAN节点标识).
+	if g, ok := m["global_ran_node_id"].(map[string]interface{}); ok {
+		cfg.GlobalRANNodeID = &NGAPGlobalRANNodeID{
+			PLMNMCC: getInt(g, "plmn_mcc"),
+			PLMNMNC: getInt(g, "plmn_mnc"),
+			GNBID:   uint32(getInt(g, "gnb_id")),
+		}
+	}
+	// Parse SupportedTAList (支持的TA列表).
+	if tas, ok := m["supported_ta_list"].([]interface{}); ok {
+		for _, item := range tas {
+			taMap, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			ta := NGAPSupportedTA{
+				PLMNMCC: getInt(taMap, "plmn_mcc"),
+				PLMNMNC: getInt(taMap, "plmn_mnc"),
+			}
+			if tacs, ok := taMap["tacs"].([]interface{}); ok {
+				for _, t := range tacs {
+					ta.TACs = append(ta.TACs, uint32(getInt(map[string]interface{}{"v": t}, "v")))
+				}
+			}
+			cfg.SupportedTAList = append(cfg.SupportedTAList, ta)
+		}
+	}
+	// Parse PDUSessionSetup (PDU会话建立).
+	if ps, ok := m["pdu_session_setup"].(map[string]interface{}); ok {
+		cfg.PDUSessionSetup = &NGAPPDUSessionSetup{
+			PDUSessionID: getInt(ps, "pdu_session_id"),
+			SST:          getInt(ps, "sst"),
+			SD:           uint32(getInt(ps, "sd")),
+		}
+	}
+	return cfg
+}
+
+// parseTFTPConfig converts the JSON-decoded "tftp" sub-map into a
+// *TFTPConfig. Returns nil for absent input so mapToFlowSpec's round-trip
+// (JSON unmarshal test) works before the planner is wired.
+func parseTFTPConfig(m map[string]interface{}) *TFTPConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &TFTPConfig{
+		Mode:                   getString(m, "mode"),
+		Filename:               getString(m, "filename"),
+		TransferMode:           getString(m, "transfer_mode"),
+		BlkSize:                getUint16(m, "blksize"),
+		Timeout:                uint8(getInt(m, "timeout")),
+		ClientTSize:            getUint32(m, "client_tsize"),
+		ServerTSize:            getUint32(m, "server_tsize"),
+		ServerTID:              getUint16(m, "server_tid"),
+		ErrorCode:              uint8(getInt(m, "error_code")),
+		ErrorMsg:               getString(m, "error_msg"),
+		ErrorAfterBlock:        getUint32(m, "error_after_block"),
+		ErrorSide:              getString(m, "error_side"),
+		BlocksCount:            getUint32(m, "blocks_count"),
+		AutoAppendFinalBlock:   getBoolPtr(m, "auto_append_final_block"),
+		FinalBlockZero:         getBool(m, "final_block_zero", false),
+		WrapBlockNumber:        getBool(m, "wrap_block_number", false),
+		DataPayloadPattern:     getByteSlice(m, "data_payload_pattern"),
+		IncludeOACK:            getBool(m, "include_oack", false),
+		RetransmitBlocks:       getUint32Slice(m, "retransmit_blocks"),
+		ServerTIDChange:        getBool(m, "server_tid_change", false),
+		ServerTIDChangeAtBlock: getUint32(m, "server_tid_change_at_block"),
+		ServerTIDNew:           getUint16(m, "server_tid_new"),
+		WindowSize:             getUint16(m, "windowsize"),
+	}
+	return cfg
+}
+
+// parseGBT32960Config converts the JSON-decoded "gbt32960" map into a
+// GBT32960Config. Nested structs (AlarmData, RemoteControl,
+// PlatformLogin, Reports, ReissueReports, StatusChangeTrace) are
+// parsed via JSON marshal/unmarshal round-trip for safety.
+func parseGBT32960Config(m map[string]interface{}) *GBT32960Config {
+	if m == nil {
+		return nil
+	}
+	cfg := &GBT32960Config{
+		Role:                         getString(m, "role"),
+		VIN:                          getString(m, "vin"),
+		SIM:                          getString(m, "sim"),
+		EncryptRule:                  getString(m, "encrypt_rule"),
+		LoginSerialNumber:            getInt(m, "login_serial_number"),
+		LogoutSerialNumber:           getInt(m, "logout_serial_number"),
+		RechargeableSubsysCount:      getInt(m, "rechargeable_subsys_count"),
+		RechargeableSubsysCodeLength: getInt(m, "rechargeable_subsys_code_length"),
+		RechargeableSubsysCodes:      getStringSlice(m, "rechargeable_subsys_codes"),
+		LoginTime:                    getString(m, "login_time"),
+		LogoutTime:                   getString(m, "logout_time"),
+		Reports:                      parseGBT32960Reports(m["reports"]),
+		ReissueReports:               parseGBT32960Reports(m["reissue_reports"]),
+		AlarmData:                    parseGBT32960AlarmData(m["alarm_data"]),
+		RemoteControl:                parseGBT32960RemoteControl(m["remote_control"]),
+		PlatformLogin:                parseGBT32960PlatformLogin(m["platform_login"]),
+		PlatformID:                   getString(m, "platform_id"),
+		PlatformDomain:               getString(m, "platform_domain"),
+		SetPlatformDomain:            getString(m, "set_platform_domain"),
+		ConnectID:                    getString(m, "connect_id"),
+		HeartbeatCount:               getInt(m, "heartbeat_count"),
+		ResponseFlags:                getString(m, "response_flags"),
+		StatusChangeTrace:            parseGBT32960StatusChangeTrace(m["status_change_trace"]),
+		CustomFields:                 getString(m, "custom_fields"),
+		InjectBCCError:               getBool(m, "inject_bcc_error", false),
+		BCCErrorIndex:                getInt(m, "bcc_error_index"),
+	}
+	if v, ok := m["vin_pad_byte"].(float64); ok {
+		b := byte(v)
+		cfg.VINPadByte = &b
+	}
+	if v, ok := m["is_trans_battery_data"].(bool); ok {
+		b := v
+		cfg.IsTransBatteryData = &b
+	}
+	return cfg
+}
+
+// parseGBT32960AlarmData parses the nested alarm_data field.
+func parseGBT32960AlarmData(v interface{}) *GBT32960AlarmData {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &GBT32960AlarmData{
+		MaxAlarmLevel:     uint8(getInt(m, "max_alarm_level")),
+		GeneralAlarmFlags: getString(m, "general_alarm_flags"),
+	}
+}
+
+// parseGBT32960RemoteControl parses the nested remote_control field.
+func parseGBT32960RemoteControl(v interface{}) *GBT32960RemoteControl {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &GBT32960RemoteControl{
+		ControlType:   uint8(getInt(m, "control_type")),
+		Params:        getString(m, "params"),
+		ResponseFlags: getString(m, "response_flags"),
+	}
+}
+
+// parseGBT32960PlatformLogin parses the nested platform_login field.
+func parseGBT32960PlatformLogin(v interface{}) *GBT32960PlatformLogin {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &GBT32960PlatformLogin{
+		User:       getString(m, "user"),
+		Password:   getString(m, "password"),
+		EncryptSeq: getString(m, "encrypt_seq"),
+	}
+}
+
+// parseGBT32960Reports parses the reports/reissue_reports array.
+func parseGBT32960Reports(v interface{}) []GBT32960Report {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]GBT32960Report, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, GBT32960Report{
+			Time:         getString(m, "time"),
+			AlarmData:    parseGBT32960AlarmData(m["alarm_data"]),
+			CustomFields: getString(m, "custom_fields"),
+		})
+	}
+	return out
+}
+
+// parseGBT32960StatusChangeTrace parses the status_change_trace array.
+func parseGBT32960StatusChangeTrace(v interface{}) []GBT32960StatusChange {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]GBT32960StatusChange, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, GBT32960StatusChange{
+			AtReportIndex: getInt(m, "at_report_index"),
+			AlarmData:     parseGBT32960AlarmData(m["alarm_data"]),
+			CustomFields:  getString(m, "custom_fields"),
+		})
 	}
 	return out
 }

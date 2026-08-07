@@ -165,7 +165,20 @@ func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode strin
 		return
 	}
 
-	validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true, "sip": true, "sctp": true, "icmpv6": true}
+	validProtocols := map[string]bool{
+		"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true, "sip": true, "sctp": true, "icmpv6": true, "rtsp": true,
+		// L7 protocol planners registered in cmd/server/main.go (keep in sync
+		// with internal/core/convert.go ValidateTaskSpec).
+		"ssh": true, "telnet": true, "rdp": true, "redis": true, "ntp": true,
+		"snmp": true, "syslog": true, "smtp": true, "pop3": true, "imap": true,
+		"mysql": true, "postgresql": true, "ike": true, "ike_nat_t": true,
+		"l2tp": true, "tls": true, "openvpn": true, "shadowsocks": true,
+		"vmess": true, "wireguard": true, "dhcp": true, "dhcpv6": true,
+		"mdns": true, "ssdp": true, "grpc": true, "pppoe": true, "gre": true,
+		"mpls": true, "gtp": true, "socks5": true, "radius": true, "ldap": true,
+		"vnc": true, "pptp": true, "h323": true, "xmpp": true,
+		"rtmp": true, "ngap": true,
+	}
 	if req.Protocol == "" || !validProtocols[req.Protocol] {
 		BadRequest(c, "invalid or missing protocol: "+req.Protocol)
 		return
@@ -385,7 +398,20 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 			BadRequest(c, err.Error())
 			return
 		}
-		validProtocols := map[string]bool{"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true, "sip": true, "sctp": true, "icmpv6": true}
+		validProtocols := map[string]bool{
+			"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true, "sip": true, "sctp": true, "icmpv6": true, "rtsp": true,
+			// L7 protocol planners registered in cmd/server/main.go (keep in
+			// sync with internal/core/convert.go ValidateTaskSpec).
+			"ssh": true, "telnet": true, "rdp": true, "redis": true, "ntp": true,
+			"snmp": true, "syslog": true, "smtp": true, "pop3": true, "imap": true,
+			"mysql": true, "postgresql": true, "ike": true, "ike_nat_t": true,
+			"l2tp": true, "tls": true, "openvpn": true, "shadowsocks": true,
+			"vmess": true, "wireguard": true, "dhcp": true, "dhcpv6": true,
+			"mdns": true, "ssdp": true, "grpc": true, "pppoe": true, "gre": true,
+			"mpls": true, "gtp": true, "socks5": true, "radius": true, "ldap": true,
+			"vnc": true, "pptp": true, "h323": true, "xmpp": true,
+			"rtmp": true, "ngap": true,
+		}
 		if req.Protocol == "" || !validProtocols[req.Protocol] {
 			BadRequest(c, "invalid or missing protocol: "+req.Protocol)
 			return

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -337,5 +338,93 @@ func TestBufferOverflow_TaskCompletes(t *testing.T) {
 		// Task completed despite buffer overflow dropping packets.
 	case <-time.After(5 * time.Second):
 		t.Fatalf("task did not complete within 5s (buffer overflow stalled completion); elapsed=%v", time.Since(start))
+	}
+}
+
+// TestBuildError_FailsTask verifies a packet build failure cannot wedge the
+// task in "running" forever. The packet worker drops failed packets and never
+// calls OnPacketWritten, so completion waiting only on writtenPackets >=
+// totalConfigs never fires. The engine must account for build failures and
+// fail the task once every planned config is accounted for (written + failed).
+func TestBuildError_FailsTask(t *testing.T) {
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 512, QueueSize: 128,
+	})
+	e.RegisterPlanner(&mockPlanner{name: "tcp"})
+	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) {
+		return nil, fmt.Errorf("simulated build failure")
+	})
+
+	done := make(chan string, 1)
+	e.OnTaskFailed = func(taskID, _ string) { done <- taskID }
+
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer e.Stop()
+
+	task := Task{
+		ID: "build-err-1", Name: "build-error-test", Protocol: "tcp", ClassID: "build-err-1",
+		Spec: FlowSpec{Count: 1},
+	}
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	select {
+	case <-done:
+		// Task failed because the only packet could not be built.
+	case <-time.After(8 * time.Second):
+		t.Fatal("task wedged in running after packet build failure; expected failed")
+	}
+
+	// The failed task must be fully cleaned up (FailTask deletes the store entry).
+	e.taskMu.Lock()
+	_, still := e.taskStore["build-err-1"]
+	e.taskMu.Unlock()
+	if still {
+		t.Error("failed task still present in task store")
+	}
+}
+
+// TestBuildError_MixedWrittenAndFailed verifies the drain accounting when a
+// task has both successful and failed packets: completion fires (as failed)
+// only after ALL planned configs are accounted for, not after the first
+// partial count.
+func TestBuildError_MixedWrittenAndFailed(t *testing.T) {
+	e := NewEngine(EngineConfig{
+		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
+		BufferSize: 512, QueueSize: 128,
+	})
+	e.RegisterPlanner(&mockPlanner{name: "tcp"})
+	var calls int
+	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) {
+		calls++
+		if calls == 2 {
+			return nil, fmt.Errorf("simulated build failure")
+		}
+		return make([]byte, 10), nil
+	})
+
+	done := make(chan string, 1)
+	e.OnTaskFailed = func(taskID, _ string) { done <- taskID }
+
+	if err := e.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer e.Stop()
+
+	task := Task{
+		ID: "build-err-2", Name: "build-error-mixed", Protocol: "tcp", ClassID: "build-err-2",
+		Spec: FlowSpec{Count: 2},
+	}
+	if err := e.SubmitTask(task); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	select {
+	case <-done:
+		// Task failed once the second (failing) packet was accounted for.
+	case <-time.After(8 * time.Second):
+		t.Fatal("mixed written/failed task hung; expected failed")
 	}
 }
