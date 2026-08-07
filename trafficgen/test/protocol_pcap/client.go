@@ -52,7 +52,7 @@ func NewClient(ctx context.Context, endpoint, apiKey string) (*Client, error) {
 		Timeout: 2 * time.Minute,
 	}
 	transport := &mcp.StreamableClientTransport{
-		Endpoint:  endpoint,
+		Endpoint:   endpoint,
 		HTTPClient: cc,
 	}
 	cli := mcp.NewClient(&mcp.Implementation{Name: "protocol-pcap-test", Version: "0.1.0"}, nil)

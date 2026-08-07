@@ -60,6 +60,35 @@ func VerifyPcap(pcapPath string, c Case) []string {
 			problems = append(problems, fmt.Sprintf("field %s on packet %d: got %q, want %q", fa.Field, fa.Packet, got, fa.Value))
 		}
 	}
+	if len(c.Expect.Frames) > 0 {
+		frames, err := hexDumpAll(pcapPath)
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("frames: %v", err))
+		} else {
+			for _, fa := range c.Expect.Frames {
+				if fa.Packet < 1 || fa.Packet > len(frames) {
+					problems = append(problems, fmt.Sprintf("frame: packet %d out of range (file has %d packets)", fa.Packet, len(frames)))
+					continue
+				}
+				want, err := parseHexBytes(fa.Hex)
+				if err != nil {
+					problems = append(problems, fmt.Sprintf("frame packet %d: bad hex %q: %v", fa.Packet, fa.Hex, err))
+					continue
+				}
+				fb := frames[fa.Packet-1].bytes
+				if fa.Offset > len(fb) {
+					problems = append(problems, fmt.Sprintf("frame packet %d: offset %d beyond frame length %d", fa.Packet, fa.Offset, len(fb)))
+					continue
+				}
+				matches, mismatchAt := matchHexOffset(fb, fa.Offset, want)
+				if !matches {
+					problems = append(problems, fmt.Sprintf("frame packet %d offset %d: bytes mismatch at offset %d (got %02x, want %02x)",
+						fa.Packet, fa.Offset, mismatchAt,
+						byteAt(fb, mismatchAt), wantAt(want, mismatchAt-fa.Offset)))
+				}
+			}
+		}
+	}
 	if c.Expect.HasHandshake {
 		if err := expectFirstFlag(pcapPath, "syn"); err != nil {
 			problems = append(problems, err.Error())
@@ -200,4 +229,20 @@ func expectFirstFlag(path, flag string) error {
 		return fmt.Errorf("handshake: first packet flags %q, want %s", flags[0], flag)
 	}
 	return nil
+}
+
+// byteAt returns the byte at i, or 0xff (sentinel) if out of range.
+func byteAt(b []byte, i int) byte {
+	if i < 0 || i >= len(b) {
+		return 0xff
+	}
+	return b[i]
+}
+
+// wantAt returns the wanted byte at i, or 0xff if out of range.
+func wantAt(w []byte, i int) byte {
+	if i < 0 || i >= len(w) {
+		return 0xff
+	}
+	return w[i]
 }

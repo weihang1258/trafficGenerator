@@ -15,19 +15,20 @@ type Case struct {
 	ID       string          `json:"id"`
 	Proto    string          `json:"proto"`
 	Summary  string          `json:"summary"`
-	SpecJSON json.RawMessage `json:"spec_json"` // generate_traffic "config" argument
+	SpecJSON json.RawMessage `json:"spec_json"`        // generate_traffic "config" argument
 	Output   string          `json:"output,omitempty"` // output_type override ("pcap" default)
 	// Expect holds verification hints; verified against the pcap by verify.go.
 	Expect struct {
-		PacketCount  int               `json:"packet_count,omitempty"` // exact expected packet count
-		MinPackets   int               `json:"min_packets,omitempty"`
-		Fields       []FieldAssert     `json:"fields,omitempty"`
-		HasHandshake bool              `json:"has_handshake,omitempty"` // TCP SYN first packet
-		HasPayload   bool              `json:"has_payload,omitempty"`
-		Negotiated   bool              `json:"negotiated,omitempty"`
-		Terminates   bool              `json:"terminates,omitempty"`
-		Directional  bool              `json:"directional,omitempty"` // both directions present
-		Notes        []string          `json:"notes,omitempty"`
+		PacketCount  int           `json:"packet_count,omitempty"` // exact expected packet count
+		MinPackets   int           `json:"min_packets,omitempty"`
+		Fields       []FieldAssert `json:"fields,omitempty"`
+		Frames       []FrameAssert `json:"frames,omitempty"`        // raw byte assertions
+		HasHandshake bool          `json:"has_handshake,omitempty"` // TCP SYN first packet
+		HasPayload   bool          `json:"has_payload,omitempty"`
+		Negotiated   bool          `json:"negotiated,omitempty"`
+		Terminates   bool          `json:"terminates,omitempty"`
+		Directional  bool          `json:"directional,omitempty"` // both directions present
+		Notes        []string      `json:"notes,omitempty"`
 	} `json:"expect,omitempty"`
 }
 
@@ -36,6 +37,13 @@ type FieldAssert struct {
 	Packet int    `json:"packet"`          // 1-based packet index
 	Field  string `json:"field"`           // tshark field name, e.g. "tcp.dstport"
 	Value  string `json:"value,omitempty"` // exact string value; empty means "field present"
+}
+
+// FrameAssert asserts raw bytes of one frame (tshark -x hex dump).
+type FrameAssert struct {
+	Packet int    `json:"packet"`           // 1-based packet index
+	Offset int    `json:"offset,omitempty"` // byte offset into the frame; default 0
+	Hex    string `json:"hex"`              // wanted bytes, e.g. "00 01 63 6f 6e 66 69 67" (prefix match at offset)
 }
 
 // CaseResult is the outcome of driving one case through the MCP server.
