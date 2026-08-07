@@ -1,0 +1,76 @@
+[
+  {
+    "id": "tcp-handshake-basic",
+    "proto": "tcp",
+    "summary": "TCP 完整握手 + 数据 + 终止（默认配置，MSS 1460）",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 80,
+      "count": 1
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "min_packets": 6,
+      "fields": [
+        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
+        {"packet": 1, "field": "tcp.dstport", "value": "80"},
+        {"packet": 1, "field": "ip.src", "value": "10.0.0.1"},
+        {"packet": 1, "field": "ip.dst", "value": "20.0.0.1"},
+        {"packet": 1, "field": "tcp.srcport", "value": "12345"},
+        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
+        {"packet": 3, "field": "tcp.flags", "value": "0x010"}
+      ]
+    }
+  },
+  {
+    "id": "tcp-data-segments",
+    "proto": "tcp",
+    "summary": "TCP 大载荷按 MSS 分片（6000 字节 body → 5 段 PSH-ACK）",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 8080,
+      "count": 1,
+      "payload": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz",
+      "tcp": {
+        "handshake": true,
+        "termination": true
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 9,
+      "notes": ["explicit handshake+termination; payload repeated per RFC; 6000B over MSS 1460"]
+    }
+  },
+  {
+    "id": "tcp-zero-window-custom-mss",
+    "proto": "tcp",
+    "summary": "TCP 自定义 MSS 536 与窗口",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 20000,
+      "dst_port": 81,
+      "count": 1,
+      "tcp": {
+        "mss": 536,
+        "window_size": 4096
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "min_packets": 6,
+      "fields": [
+        {"packet": 1, "field": "tcp.window_size", "value": "4096"}
+      ]
+    }
+  }
+]
