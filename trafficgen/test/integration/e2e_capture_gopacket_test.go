@@ -25,7 +25,7 @@ import (
 
 const (
 	e2eIface      = "enp135s0f0np0"
-	e2ePortGroup  = "33ddf949-b68a-456a-b32b-195690c29f93"
+	e2ePortGroup  = "eb94c12f-0bc1-4021-8e5a-fe5fb64c1c87"
 	e2eBase       = "http://localhost:8080"
 	e2eAdminUser  = "admin"
 	e2eAdminPass  = "admin"

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/trafficgen/trafficgen/internal/api/rest"
 	"github.com/trafficgen/trafficgen/internal/api/websocket"
+	"github.com/trafficgen/trafficgen/pkg/auth"
 	"github.com/trafficgen/trafficgen/pkg/netif"
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/storage"
@@ -28,6 +29,7 @@ type WebSocketTestSuite struct {
 	engine *core.Engine
 	db     *storage.DB
 	wsHub  *websocket.Hub
+	token  string
 }
 
 // SetupSuite 初始化测试套件
@@ -49,6 +51,11 @@ func (suite *WebSocketTestSuite) SetupSuite() {
 			OutputWorkers:  2,
 			BufferSize:     100,
 			QueueSize:      10,
+		},
+		Auth: config.AuthConfig{
+			JWTSecret:    "test-secret",
+			JWTIssuer:    "trafficgen",
+			JWTExpiresIn: 24,
 		},
 	}
 
@@ -101,8 +108,19 @@ func (suite *WebSocketTestSuite) SetupSuite() {
 	assert.NoError(suite.T(), err)
 	suite.server = server
 
+	// Generate a JWT token for WebSocket connections (handler requires auth).
+	token, err := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTIssuer,
+		time.Duration(cfg.Auth.JWTExpiresIn)*time.Hour).GenerateToken("test-user", "test-user", []string{"user"})
+	assert.NoError(suite.T(), err)
+	suite.token = token
+
 	err = engine.Start()
 	assert.NoError(suite.T(), err)
+}
+
+// wsURL builds a WebSocket URL with the auth token for the given httptest server.
+func (suite *WebSocketTestSuite) wsURL(server *httptest.Server) string {
+	return "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?token=" + suite.token
 }
 
 // TearDownSuite 清理测试套件
@@ -128,7 +146,7 @@ func (suite *WebSocketTestSuite) TestWebSocketConnection() {
 	server := httptest.NewServer(suite.server.Router())
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	wsURL := suite.wsURL(server)
 
 	conn, _, err := gorillawebsocket.DefaultDialer.Dial(wsURL, nil)
 	assert.NoError(suite.T(), err)
@@ -146,7 +164,7 @@ func (suite *WebSocketTestSuite) TestWebSocketMessage() {
 	server := httptest.NewServer(suite.server.Router())
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	wsURL := suite.wsURL(server)
 
 	conn, _, err := gorillawebsocket.DefaultDialer.Dial(wsURL, nil)
 	assert.NoError(suite.T(), err)
@@ -172,7 +190,7 @@ func (suite *WebSocketTestSuite) TestWebSocketBroadcast() {
 	server := httptest.NewServer(suite.server.Router())
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	wsURL := suite.wsURL(server)
 
 	// 连接多个客户端
 	conn1, _, err := gorillawebsocket.DefaultDialer.Dial(wsURL, nil)
@@ -222,7 +240,7 @@ func (suite *WebSocketTestSuite) TestWebSocketPingPong() {
 	server := httptest.NewServer(suite.server.Router())
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	wsURL := suite.wsURL(server)
 
 	conn, _, err := gorillawebsocket.DefaultDialer.Dial(wsURL, nil)
 	assert.NoError(suite.T(), err)
@@ -248,7 +266,7 @@ func (suite *WebSocketTestSuite) TestWebSocketMultipleClients() {
 	server := httptest.NewServer(suite.server.Router())
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	wsURL := suite.wsURL(server)
 
 	const clientCount = 5
 	connections := make([]*gorillawebsocket.Conn, clientCount)
@@ -283,7 +301,7 @@ func (suite *WebSocketTestSuite) TestWebSocketDisconnect() {
 	server := httptest.NewServer(suite.server.Router())
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	wsURL := suite.wsURL(server)
 
 	conn, _, err := gorillawebsocket.DefaultDialer.Dial(wsURL, nil)
 	assert.NoError(suite.T(), err)
@@ -309,7 +327,7 @@ func (suite *WebSocketTestSuite) TestWebSocketLargeMessage() {
 	server := httptest.NewServer(suite.server.Router())
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	wsURL := suite.wsURL(server)
 
 	conn, _, err := gorillawebsocket.DefaultDialer.Dial(wsURL, nil)
 	assert.NoError(suite.T(), err)
@@ -341,7 +359,7 @@ func (suite *WebSocketTestSuite) TestWebSocketConcurrentMessages() {
 	server := httptest.NewServer(suite.server.Router())
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	wsURL := suite.wsURL(server)
 
 	conn, _, err := gorillawebsocket.DefaultDialer.Dial(wsURL, nil)
 	assert.NoError(suite.T(), err)
