@@ -24,6 +24,15 @@ type Engine struct {
 
 	// Channels
 	taskChan chan Task
+	// stopChan is a closed-during-stop guard. SubmitTask selects on it so a
+	// concurrent submit racing Engine.Stop cannot send on a closed taskChan
+	// (send-on-closed panic). Never closed in place; rebuilt as an open chan
+	// at Start and swapped for a closed chan at Stop. channelMu guards the
+	// taskChan + stopChan pointer pair so reads and writes of both fields
+	// are atomic across Stop/Start cycles (avoids field-level data race
+	// between SubmitTask reading them and Stop/Start swapping them).
+	stopChan   chan struct{}
+	channelMu  sync.Mutex
 	// packetChan removed: replaced by shardedPacketChan (one per OutputWorker).
 
 	// Sharded config channel: one per PacketWorker. ConfigWorker pushes to
@@ -307,7 +316,10 @@ func (e *Engine) Start() error {
 	e.ctx, e.cancel = context.WithCancel(context.Background())
 
 	// Initialize channels
+	e.channelMu.Lock()
 	e.taskChan = make(chan Task, e.config.QueueSize)
+	e.stopChan = make(chan struct{})
+	e.channelMu.Unlock()
 	e.shardSeed = maphash.MakeSeed()
 	pw := e.config.PacketWorkers
 	if pw <= 0 {
@@ -426,8 +438,14 @@ func (e *Engine) Stop() {
 		e.shardMonitorCancel = nil
 	}
 
-	// Close taskChan so ConfigWorkers stop receiving new tasks
-	close(e.taskChan)
+	// Swap taskChan for a stop guard so a concurrent SubmitTask racing this
+	// Stop selects the stopChan branch instead of sending on a closed
+	// taskChan (send-on-closed panic). The channel is never closed.
+	stopChan := make(chan struct{})
+	close(stopChan)
+	e.channelMu.Lock()
+	e.stopChan = stopChan
+	e.channelMu.Unlock()
 
 	// Cancel engine context (also cancels per-task contexts derived from it)
 	e.cancel()
@@ -640,9 +658,30 @@ func (e *Engine) SubmitTask(task Task) error {
 	e.taskStore[task.ID] = &taskEntry{task: &task, status: status, cancel: cancel}
 	e.taskMu.Unlock()
 
-	// Submit task
+	// Snapshot the channel pair under channelMu so the select below races
+	// neither Stop's swap (which would make the taskChan send land on a
+	// closed channel) nor Start's rebuild. The stopChan guard fires when the
+	// engine stopped between the running check above and this select.
+	e.channelMu.Lock()
+	taskChan := e.taskChan
+	stopChan := e.stopChan
+	e.channelMu.Unlock()
+	if taskChan == nil || stopChan == nil {
+		return fmt.Errorf("engine not running")
+	}
+
+	// Submit task.
 	select {
-	case e.taskChan <- task:
+	case <-stopChan:
+		status.Status = "failed"
+		status.Error = "engine stopped during submit"
+		cancel()
+		e.taskMu.Lock()
+		delete(e.taskStore, task.ID)
+		e.taskMu.Unlock()
+		e.cleanupTaskRateLimiters(task.ID)
+		return fmt.Errorf("engine not running")
+	case taskChan <- task:
 		zap.L().Info("task submitted",
 			zap.String("task_id", task.ID),
 			zap.String("protocol", task.Protocol),
