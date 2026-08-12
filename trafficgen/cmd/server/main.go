@@ -14,6 +14,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/api/rest"
 	"github.com/trafficgen/trafficgen/internal/api/websocket"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/core/layers"
 	"github.com/trafficgen/trafficgen/internal/mcp"
 	"github.com/trafficgen/trafficgen/internal/output"
 	"github.com/trafficgen/trafficgen/internal/protocol/a2a"
@@ -30,7 +31,9 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/grpc"
 	"github.com/trafficgen/trafficgen/internal/protocol/gtp"
 	"github.com/trafficgen/trafficgen/internal/protocol/h323"
-	httpprotocol "github.com/trafficgen/trafficgen/internal/protocol/http"
+	// 空导入：http 包 init 反向注册 http 层生成器（layers.RegisterHTTPGenerator），
+	// ChainPlanner("http") 经此实例化；协议本体由层链驱动。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmpv6"
 	"github.com/trafficgen/trafficgen/internal/protocol/ike"
@@ -72,7 +75,6 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/ssdp"
 	"github.com/trafficgen/trafficgen/internal/protocol/ssh"
 	"github.com/trafficgen/trafficgen/internal/protocol/syslog"
-	"github.com/trafficgen/trafficgen/internal/protocol/tcp"
 	"github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	"github.com/trafficgen/trafficgen/internal/protocol/tftp"
@@ -350,10 +352,15 @@ func (app *Application) initEngine() error {
 		}
 	}
 
-	// Register protocol planners directly to engine
-	app.engine.RegisterPlanner(tcp.NewPlanner())
+	// Register protocol planners directly to engine.
+	// tcp 走层链规划器（方案 C 分层配置 P2a 波 1）：类名 tcp → 层链 [ip, tcp]，
+	// 公共 ip/tcp 层生成器驱动；字节级兼容旧 tcp planner（SYN 选项/窗口/seq 推进）。
+	app.engine.RegisterPlanner(layers.NewChainPlanner("tcp"))
 	app.engine.RegisterPlanner(udp.NewPlanner())
-	app.engine.RegisterPlanner(httpprotocol.NewPlanner())
+	// http 切链式生成器（波 2 方案 A）：[ip→tcp→http] 层链驱动，报文事件流
+	// 经 tcp 层分段，字节与 legacy http.go 一致（126 个 legacy 测试直接调
+	// NewPlanner().Plan 保留回归）。http 包 init 反向注册 http 层生成器。
+	app.engine.RegisterPlanner(layers.NewChainPlanner("http"))
 	app.engine.RegisterPlanner(dns.NewPlanner())
 	app.engine.RegisterPlanner(icmp.NewPlanner())
 	app.engine.RegisterPlanner(arp.NewPlanner())
