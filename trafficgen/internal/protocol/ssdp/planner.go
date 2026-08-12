@@ -92,20 +92,10 @@ func NewPlanner() *Planner {
 // Name returns the protocol name used by the registry.
 func (p *Planner) Name() string { return "ssdp" }
 
-// Validate validates an SSDP flow spec. Read-only: never modifies spec.
-// Default-value filling happens in Plan(), not here.
-func (p *Planner) Validate(spec core.FlowSpec) error {
-	if spec.SrcIP != "" && net.ParseIP(spec.SrcIP) == nil {
-		return fmt.Errorf("ssdp: SrcIP %q is not a valid IP address", spec.SrcIP)
-	}
-	if spec.DstIP != "" && net.ParseIP(spec.DstIP) == nil {
-		return fmt.Errorf("ssdp: DstIP %q is not a valid IP address", spec.DstIP)
-	}
-	if spec.SSDP == nil {
-		return fmt.Errorf("ssdp: SSDP config is required (set spec.ssdp)")
-	}
-	cfg := spec.SSDP
-
+// validateSSDPConfig validates the SSDP protocol config (单一实现：链层
+// 校验器与 legacy Planner.Validate 共用，杜绝双份拷贝漂移——178-green
+// 事故教训)。只校验不默认化。
+func validateSSDPConfig(cfg core.SSDPConfig) error {
 	// MessageType (消息类型) is required.
 	if cfg.MessageType == "" {
 		return fmt.Errorf("ssdp message_type is required")
@@ -172,6 +162,28 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		if cfg.ResponseDelayMaxMs > int(^uint32(0)>>1) {
 			return fmt.Errorf("ssdp response delay exceeds mx")
 		}
+	}
+
+	return nil
+}
+
+// Validate validates an SSDP flow spec. Read-only: never modifies spec.
+// 协议级校验委托 validateSSDPConfig（单一实现：链层校验器与 legacy
+// Planner 共用，杜绝双份拷贝漂移——178-green 事故教训）。
+// Spec 级检查（IP parse、端口）保留于此：legacy Plan 前直校验 spec 原值
+// （端口 0=未设置），链层 validateSpecBase 先默认化端口再调协议校验器。
+func (p *Planner) Validate(spec core.FlowSpec) error {
+	if spec.SrcIP != "" && net.ParseIP(spec.SrcIP) == nil {
+		return fmt.Errorf("ssdp: SrcIP %q is not a valid IP address", spec.SrcIP)
+	}
+	if spec.DstIP != "" && net.ParseIP(spec.DstIP) == nil {
+		return fmt.Errorf("ssdp: DstIP %q is not a valid IP address", spec.DstIP)
+	}
+	if spec.SSDP == nil {
+		return fmt.Errorf("ssdp: SSDP config is required (set spec.ssdp)")
+	}
+	if err := validateSSDPConfig(*spec.SSDP); err != nil {
+		return err
 	}
 
 	// Port validation: SSDP requires dst_port=1900.

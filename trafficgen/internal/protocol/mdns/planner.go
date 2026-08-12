@@ -91,6 +91,96 @@ func NewPlanner() *Planner { return &Planner{} }
 // Name returns the protocol name.
 func (p *Planner) Name() string { return "mdns" }
 
+// validateMDNSConfig validates the MDNSConfig portion of a flow spec
+// (MDNSConfig 子配置校验；与 Validate 同款检查，供波 5 层链注册校验器复用)。
+// 链上校验器接收默认化后的 spec（validateSpecBase 已把 dst 默认 5353、src
+// 允许 0），故端口检查语义为"非零且非 5353 拒绝"，与 legacy Validate 一致。
+func validateMDNSConfig(spec core.FlowSpec) error {
+	if spec.MDNS == nil {
+		return nil
+	}
+	if spec.SrcPort != 0 && spec.SrcPort != MDNSPort {
+		return fmt.Errorf("mdns: source port must be %d (RFC 6762 §5.4)", MDNSPort)
+	}
+	if spec.DstPort != 0 && spec.DstPort != MDNSPort {
+		return fmt.Errorf("mdns: destination port must be %d (RFC 6762 §5.4)", MDNSPort)
+	}
+	m := spec.MDNS
+	mode := m.Mode
+	if mode == "" {
+		mode = "query"
+	}
+	switch mode {
+	case "query", "response", "probe", "announce", "goodbye":
+	default:
+		return fmt.Errorf("mdns: unknown mode %q (must be query/response/probe/announce/goodbye)", m.Mode)
+	}
+	if len(m.Questions) == 0 {
+		if mode == "query" || mode == "probe" {
+			return fmt.Errorf("mdns: %s mode requires at least one question", mode)
+		}
+	} else {
+		for i, q := range m.Questions {
+			if q.Name != "" && strings.HasPrefix(q.Name, ".") {
+				return fmt.Errorf("mdns: Questions[%d].Name %q has leading dot", i, q.Name)
+			}
+			if q.Name != "" {
+				if err := validateQName(q.Name); err != nil {
+					return fmt.Errorf("mdns: Questions[%d].Name %q: %w", i, q.Name, err)
+				}
+			}
+			if q.Type == 0 {
+				return fmt.Errorf("mdns: Questions[%d].Type is 0 (invalid)", i)
+			}
+			if q.Type > 65534 {
+				return fmt.Errorf("mdns: Questions[%d].Type %d is unknown", i, q.Type)
+			}
+			if q.Type >= 65281 && q.Type <= 65534 {
+				return fmt.Errorf("mdns: Questions[%d].Type %d is reserved", i, q.Type)
+			}
+			if q.Class != 0 && q.Class != 1 && q.Class != 0x8000 && q.Class != 0x8001 {
+				if q.Class == 3 {
+					return fmt.Errorf("mdns: Questions[%d].Class %d (CH) is not supported in mDNS, only IN (class 1)", i, q.Class)
+				}
+				return fmt.Errorf("mdns: Questions[%d].Class %d is not supported in mDNS, only IN (class 1)", i, q.Class)
+			}
+		}
+	}
+	if (mode == "response" || mode == "announce" || mode == "goodbye") && len(m.Answers) == 0 {
+		return fmt.Errorf("mdns: %s mode requires at least one answer", mode)
+	}
+	for i, rr := range m.Answers {
+		if err := validateRR(i, rr, "Answers"); err != nil {
+			return err
+		}
+	}
+	for i, rr := range m.Authorities {
+		if err := validateRR(i, rr, "Authorities"); err != nil {
+			return err
+		}
+	}
+	for i, rr := range m.Additionals {
+		if err := validateRR(i, rr, "Additionals"); err != nil {
+			return err
+		}
+	}
+	if m.ProbingJitterMax > MaxProbingJitterMax {
+		return fmt.Errorf("mdns: ProbingJitterMax %d exceeds max %d (RFC 6762 §8.1)", m.ProbingJitterMax, MaxProbingJitterMax)
+	}
+	if m.ProbingJitterMax < 0 {
+		return fmt.Errorf("mdns: ProbingJitterMax must be non-negative")
+	}
+	if m.MulticastGroup != "" {
+		if err := validateMulticastGroup(m.MulticastGroup, spec.SrcIP); err != nil {
+			return err
+		}
+	}
+	if m.TC && mode != "response" && mode != "announce" && mode != "goodbye" {
+		return fmt.Errorf("mdns: TC bit only valid in response modes")
+	}
+	return nil
+}
+
 // Validate validates an mDNS flow spec. Read-only: never modifies spec.
 // Default-value filling happens in Plan(), not here.
 func (p *Planner) Validate(spec core.FlowSpec) error {

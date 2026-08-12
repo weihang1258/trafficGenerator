@@ -12,6 +12,21 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core"
 )
 
+// eventDstOverrideKey is the internal metadata marker the udp generator sets
+// when a terminal event overrides the datagram target (波 5 多播基础设施)。
+// finalEmit consumes it and removes it, so it never leaks into output
+// metadata. Keyed off Metadata (not a field) to keep MessageEvent/PacketConfig
+// untouched beyond the override fields themselves.
+const eventDstOverrideKey = "__event_dst_override__"
+
+// mdnsPort is the mDNS well-known port (RFC 6762 §5.4, 5353)。layers 包内
+// 复刻（不能引用 protocol/mdns 的 MDNSPort——protocol 包反向依赖 layers）。
+const mdnsPort = 5353
+
+// ssdpPort is the SSDP well-known port (1900, UPnP/SSDP)。layers 包内复刻
+// （不能引用 protocol/ssdp 的 DefaultPort——protocol 包反向依赖 layers）。
+const ssdpPort = 1900
+
 // ChainPlanner drives a layer chain to generate a full packet stream
 // (层链规划器)。It implements core.ProtocolPlanner with the same signature as
 // the legacy per-protocol planners, so it can be registered in place of them.
@@ -122,13 +137,24 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 	if spec.SrcPort == 0 {
 		// 协议级源端口默认：独立 transport flow（tcp/udp）无默认，
 		// 必须显式（legacy tcp.go/udp.go 同款）。终结层 udp 链（dns/ntp/
-		// snmp/syslog）由各自 legacy planner 在 Plan 时默认：dns/snmp/
+		// snmp/syslog/mdns）由各自 legacy planner 在 Plan 时默认：dns/snmp/
 		// syslog 源端口沿用 spec（可为 0，legacy 同样带 0 上包）；
 		// ntp 用 30000+(seed%30000) 的确定性临时端口（planner.go:203-206，
-		// seed=IPID 种子，每次 Plan 随机）。
+		// seed=IPID 种子，每次 Plan 随机）；mdns 源端口强制 5353
+		// （RFC 6762 §5.4，legacy planner.go:428-432 同款：spec 为 0 时默认）。
 		switch name {
 		case "ntp":
 			spec.SrcPort = uint16(30000 + (uint32(rand.Uint32()) % 30000))
+		case "mdns":
+			spec.SrcPort = mdnsPort
+		case "ssdp":
+			// SSDP 源端口强制 1900（legacy planner.go:236-239 同款：spec 为
+			// 0 时默认；RFC 6970 规定 SSDP 用 1900）。
+			spec.SrcPort = ssdpPort
+		case "rip":
+			// RIP 源端口 0 保持 0：终结层生成器按 legacy resolveSrcPort 语义
+			// 逐事件解析（单 router Response=520、multi-router=52001+idx、
+			// request_full=52001，rip.go:579-587），不在此默认化。
 		case "dns", "snmp", "syslog":
 			// 允许 0 上包（legacy 语义）
 		default:
@@ -138,10 +164,13 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 	if spec.DstPort == 0 {
 		// 协议级目的端口默认（legacy Plan 时默认，与 strategy_convert 的
 		// mapToFlowSpec 默认值一致）：dns→53、syslog→514（tls 载体 6514）、
-		// snmp→按 PDU 类型（trap/inform 162，其余 161）、ntp→123。
+		// snmp→按 PDU 类型（trap/inform 162，其余 161）、ntp→123、
+		// mdns→5353（legacy mdns planner.go:433-436 同款）。
 		switch name {
 		case "dns":
 			spec.DstPort = 53
+		case "mdns":
+			spec.DstPort = mdnsPort
 		case "syslog":
 			// tls 分支不可达（validator 拒绝 tls 载体，layer_gen.go 同款
 			// 暂缓），保留只为与 legacy 默认一致。
@@ -163,6 +192,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			}
 		case "ntp":
 			spec.DstPort = 123
+		case "ssdp":
+			spec.DstPort = ssdpPort
+		case "rip":
+			// RIP 目的端口 0 保持 0：终结层生成器按版本默认（v1/v2→520、
+			// ng→521，legacy getDstPort 语义），事件携带 DstPort。
 		default:
 			return fmt.Errorf("destination port is required")
 		}
@@ -216,8 +250,16 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 		// 逐包回填（无锁单一 goroutine）：IPID 已在 ip 层生成器写入
 		// （每次 Emit 前写入并自增）；这里只回填 ChainPlanner 持有的元数据。
 		for i := range packets {
-			packets[i].FlowID = flowID(spec)
-			packets[i].PacketIndex = uint64(i)
+			// 事件级 flow 标识（波 5c）：终结层事件可携带 FlowID/PacketIndex
+			// 覆盖（rip legacy 每 router 独立 flowID、request_full 共享 0/1）——
+			// 两者成对，FlowID 非空即事件已覆盖，回填尊重之（否则默认回填
+			// spec 级 flowID + 全局递增索引）。MessageEvent 无独立标记位，
+			// 以 FlowID=="" 判别（udp 层把事件字段直落 PacketConfig，见
+			// generator.go UDPGenerator）。
+			if packets[i].FlowID == "" {
+				packets[i].FlowID = flowID(spec)
+				packets[i].PacketIndex = uint64(i)
+			}
 			packets[i].Timestamp = time.Now()
 		}
 		for _, pkt := range packets {
@@ -405,13 +447,29 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// 不落层 config（ValidateLayerConfig 拒绝未知字段），经 Meta 直传。
 		// UDP 同款：UDPConfig 经 Meta.UDP 直传 udp 层生成器（波 3）。
 		// DNS/NTP/SNMP/Syslog 同款（波 4）：协议配置经 Meta 直传终结层生成器。
+		// MDNS 同款（波 5a）。SSDP 同款（波 5b）：配置 + 默认端口经 Meta 直传
+		// ssdp 层生成器（端口 validateSpecBase 已默认化 1900）。
 		HTTP:   spec.HTTP,
 		UDP:    spec.UDP,
 		DNS:    spec.DNS,
 		NTP:    spec.NTP,
 		SNMP:   spec.SNMP,
 		Syslog: spec.Syslog,
+		MDNS:   spec.MDNS,
+		SSDP:   spec.SSDP,
+		RIP:    spec.RIP,
+		SrcPort: spec.SrcPort,
+		DstPort: spec.DstPort,
 		DstIP:  spec.DstIP,
+		SrcIP:  spec.SrcIP,
+		// DSCP/SrcMAC 直传终结层生成器（波 5c：rip 生成器透传 spec.DSCP——
+		// legacy rip.go:494-498 的 CS6 默认是死参数——与 L2Base 的
+		// spec.SrcMAC）。
+		DSCP:   spec.DSCP,
+		SrcMAC: spec.SrcMAC,
+		// TTL 直传终结层生成器（波 5b）：ssdp 生成器 honor spec.TTL 非零值
+		// （legacy planner.go:282-285 同款），零值回退协议默认 4。
+		TTL: spec.TTL,
 	}
 	// ClassID 由引擎回填（worker.go:317 config.ClassID = task.ClassID）。
 	// Direction 由各层包序列自定（tcp 握手 up 发起）。
@@ -442,19 +500,41 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 	// 4. 出口：包齐 L2/L3 方向装配 + 元数据回填（全量收集于内存）。
 	packets := make([]core.PacketConfig, 0, 64)
 	finalEmit := func(pkt core.PacketConfig) error {
-		pkt.L2 = l2For(pkt.Direction, spec)
-		// 方向相关 src/dst 交换 + flow 级字段。IPID 已由 ip 层生成器写入
-		// （每次 Emit 前写入并自增），这里只换 IP 不换 ID。
-		if pkt.Direction == "down" {
-			pkt.L3.SrcIP, pkt.L3.DstIP = pkt.L3.DstIP, pkt.L3.SrcIP
+		// 波 5 多播覆盖：udp 层事件显式写入 L3.DstIP/L2.DstMAC（多播组/
+		// 广播地址）时，同时写 Metadata[eventDstOverrideKey] 标记，该目标
+		// 是绝对的——不参与 down 交换，MAC 也原样落（多播/广播 MAC 不可
+		// 推导或须保持 legacy 显式值）。无覆盖事件（波 3/4 协议）无标记，
+		// 走下方 legacy 语义。标记消费后移除，不泄漏到输出元数据。
+		_, overrideDst := pkt.Metadata[eventDstOverrideKey]
+		if overrideDst {
+			delete(pkt.Metadata, eventDstOverrideKey)
+			if pkt.L2.DstMAC == "" {
+				pkt.L2.DstMAC = multicastDstMAC(pkt.L3.DstIP)
+				if pkt.L2.DstMAC == "" {
+					pkt.L2.DstMAC = l2For(pkt.Direction, spec).DstMAC
+				}
+			}
+			pkt.L2.SrcMAC = spec.SrcMAC
+			pkt.L2.EtherType = core.EtherTypeFor(pkt.L3.SrcIP)
+			// 多播/广播 TTL 已由 udp 层写入 255（RFC 6762 §11 等；generator.go
+			// 覆盖分支同款），finalEmit 不得再用 ip 层默认 64 覆写。
+		} else {
+			pkt.L2 = l2For(pkt.Direction, spec)
+			// 方向相关 src/dst 交换 + flow 级字段。IPID 已由 ip 层生成器写入
+			// （每次 Emit 前写入并自增），这里只换 IP 不换 ID。
+			if pkt.Direction == "down" {
+				pkt.L3.SrcIP, pkt.L3.DstIP = pkt.L3.DstIP, pkt.L3.SrcIP
+			}
+			pkt.L3.TTL = ipTTL(ipCfg)
 		}
 		// L3 协议号随传输层（tcp=6 / udp=17；legacy L3Base 语义）。
 		// 传输层是链上 ip 之下最后一层：独立 tcp/udp flow 的末层，
 		// 或终结层链（http/dns...）的倒数第二层。
 		pkt.L3.Protocol = transportProtocol(chain)
-		pkt.L3.TTL = ipTTL(ipCfg)
-		// TOS 整字节覆盖（review HIGH-2 修复，legacy L3Base builder.go:158-161
-		// 语义）：spec.TOS != 0 时 DSCP=TOS>>2、ECN=TOS&3，覆盖 DSCP/ECN 直配。
+		// TTL 已按分支赋值（覆盖事件保留 udp 层写入的 255，普通包走
+		// ipTTL）；TOS 整字节覆盖（review HIGH-2 修复，legacy L3Base
+		// builder.go:158-161 语义）：spec.TOS != 0 时 DSCP=TOS>>2、
+		// ECN=TOS&3，覆盖 DSCP/ECN 直配。
 		if spec.TOS != 0 {
 			pkt.L3.DSCP = spec.TOS >> 2
 			pkt.L3.ECN = spec.TOS & 0x03
@@ -628,7 +708,12 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 			if spec.DstIP != "" {
 				cfg["dst"] = spec.DstIP
 			} else {
-				delete(cfg, "dst")
+				// 波 5c：rip 链 spec.DstIP 为空时不删 schema 默认——RIP 生成器
+				// 按版本推导默认目标（v1/v2→224.0.0.9、ng→FF02::9），事件级
+				// 覆盖后 ip 层 dst 覆盖被标记跳过，schema 默认只服务最终回退。
+				if !isRIPChain(chain) {
+					delete(cfg, "dst")
+				}
 			}
 			if spec.TTL != 0 {
 				cfg["ttl"] = uint8(spec.TTL)
@@ -698,6 +783,13 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 // legacy http TCP semantics (忽略 handshake/termination/rst 开关)。
 func isHTTPChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "http"
+}
+
+// isRIPChain reports whether the chain's terminal layer is rip（波 5c）：
+// RIP 链的 ip 层 dst 默认注入豁免（spec.DstIP 为空时保留 schema 默认，RIP
+// 生成器按版本推导默认目标并事件级覆盖，见 applySpecToChain ip 分支）。
+func isRIPChain(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "rip"
 }
 
 // transportProtocol resolves the IP protocol number from the chain's
@@ -884,6 +976,37 @@ func l2For(direction string, spec core.FlowSpec) core.L2Config {
 		l2.VLAN = spec.VLAN
 	}
 	return l2
+}
+
+// multicastDstMAC derives the L2 multicast MAC from a multicast/broadcast IP
+// (波 5 多播基础设施, RFC 1112 §6.4 IPv4 / RFC 2464 §7 IPv6)：IPv4 multicast
+// → 01:00:5e + low 23 bits; IPv6 multicast → 33:33 + low 32 bits; broadcast
+// 255.255.255.255 → ff:ff:ff:ff:ff:ff; non-multicast → empty (caller falls
+// back to l2For). 与 legacy mdns planner 的 multicastDstMAC / ssdp planner
+// resolveMulticastMAC / dhcp BroadcastMAC 语义一致。
+func multicastDstMAC(dstIP string) string {
+	parsed := net.ParseIP(dstIP)
+	if parsed == nil {
+		return ""
+	}
+	if ip4 := parsed.To4(); ip4 != nil {
+		if ip4[0] >= 224 && ip4[0] <= 239 {
+			low23 := (uint32(ip4[1]&0x7f) << 16) | (uint32(ip4[2]) << 8) | uint32(ip4[3])
+			return fmt.Sprintf("01:00:5e:%02x:%02x:%02x",
+				byte(low23>>16), byte(low23>>8), byte(low23))
+		}
+		if ip4[0] == 255 && ip4[1] == 255 && ip4[2] == 255 && ip4[3] == 255 {
+			return "ff:ff:ff:ff:ff:ff"
+		}
+		return ""
+	}
+	if len(parsed) == 16 && parsed[0] == 0xff {
+		low32 := (uint32(parsed[12]) << 24) | (uint32(parsed[13]) << 16) |
+			(uint32(parsed[14]) << 8) | uint32(parsed[15])
+		return fmt.Sprintf("33:33:%02x:%02x:%02x:%02x",
+			byte(low32>>24), byte(low32>>16), byte(low32>>8), byte(low32))
+	}
+	return ""
 }
 
 // ipTTL resolves the effective TTL from the ip layer's completed config

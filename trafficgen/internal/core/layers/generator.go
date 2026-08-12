@@ -91,6 +91,56 @@ type MessageEvent struct {
 	// these entries into the datagram's Metadata; the TCPGenerator ignores
 	// them (legacy tcp 载体不设事件元数据)。
 	Metadata map[string]interface{}
+	// DstIP overrides the datagram's L3 destination (波 5 多播基础设施)。
+	// OverrideDstIP 必须同时为 true 才生效：false → 走链层默认（spec.DstIP，
+	// down 时交换）。true → DstIP 为绝对目标（多播组 224.0.0.251 / 广播
+	// 255.255.255.255），finalEmit 原样落并跳过 down 交换——legacy 多播/
+	// 广播 planner 从不交换组地址。
+	OverrideDstIP bool
+	DstIP         string
+	// DstMAC overrides the datagram's L2 destination (波 5 多播基础设施)。
+	// OverrideDstMAC 必须同时为 true 才生效：false → 链层推导（多播 IP →
+	// 01:00:5e/33:33，否则 l2For 的 spec.DstMAC 并按方向交换）。true →
+	// DstMAC 原样落（如 dhcp 广播 ff:ff:ff:ff:ff:ff）。
+	OverrideDstMAC bool
+	DstMAC         string
+	// TTL overrides the datagram's IP TTL (波 5b)。Zero (0) = chain default
+	// (ipTTL 的 schema 默认 64，或 spec.TTL)。Non-zero = 覆盖事件的目标 TTL
+	// （如 ssdp 恒 4，RFC draft-cai-ssdp-v1-03 §6.2；mdns 恒 255）。
+	// udp 层覆盖分支（OverrideDstIP/MAC 事件）写入后，ip 层与 finalEmit 的
+	// TTL 覆写被覆盖标记跳过，本值保留。
+	TTL uint8
+	// SrcPort overrides the datagram's UDP source port (波 5c：rip 多 router /
+	// well-known 端口语义)。Zero (0) = 传输层 cfg 值（validateSpecBase 默认化）。
+	// Non-zero = 事件的目标源端口（legacy rip.go resolveSrcPort：单 router
+	// Response=520 well-known、multi-router=52001+idx、request_full=52001——
+	// 每 router 独立事件携带各自端口）。up/down 交换以覆盖值为准。
+	SrcPort uint16
+	// SrcIP overrides the datagram's L3 source IP (波 5c：rip 每 router 独立
+	// srcIP——legacy rip.go:461-464 router.SrcIP 回退 spec.SrcIP，多 router
+	// 时各包源 IP 不同，链层 ip 注入的 spec.SrcIP 不适用)。空串 = 链层默认
+	// （ip 层 cfg src 注入 spec.SrcIP）。与 DstIP 覆盖不同：本值仅源 IP，
+	// 不设覆盖标记（无交换语义，udp 层直落 L3.SrcIP）。
+	SrcIP string
+	// DstPort overrides the datagram's UDP destination port (波 5c：rip 版本
+	// 默认端口——ng→521、其余→520，legacy getDstPort；validateSpecBase 对
+	// rip 链不默认化端口，生成器经本字段传递）。Zero (0) = 传输层 cfg 值。
+	DstPort uint16
+	// DSCP overrides the datagram's IP DSCP (波 5c：rip 透传 spec.DSCP——
+	// legacy emitRIPPacket 的 dscp 参数是死参数，实际恒用 spec.DSCP 直配，
+	// 无 CS6 默认；本字段仅为链路完整性，rip 事件恒等于 spec.DSCP)。Zero (0)
+	// = ip 层 schema 默认。事件携带 DSCP 时（OverrideDstIP/MAC 标记包），ip
+	// 层的 dscp 覆写被覆盖标记跳过（与 TTL 对称），本值保留。
+	DSCP uint8
+	// FlowID overrides the packet's flow ID (波 5c：legacy rip 每 router 独立
+	// flowID——"router%d-%s-%s-%d-%d" 含已解析端口与有效目标，rip.go:517-520；
+	// 链层默认回填 flowID(spec) 是 spec 级值，无法表达 per-router 分割与
+	// 已解析端口。空串 = 链层默认。设置时须同时设置 PacketIndex。
+	FlowID string
+	// PacketIndex overrides the packet's per-flow index (波 5c：legacy rip
+	// 每 router 从 0 起、request_full 同 4-tuple 共享 0/1；链层默认回填
+	// 全局递增索引)。nil = 链层默认。设置时须同时设置 FlowID。
+	PacketIndex *uint64
 }
 
 // EventGenerator produces the message-event stream for a terminal
@@ -121,6 +171,9 @@ type FlowMeta struct {
 	// DstIP is the flow destination IP (供终结层生成器构造 Host 头等，
 	// legacy http.go:270 传 spec.DstIP 给 buildHTTPRequestBody)。
 	DstIP string
+	// SrcIP is the flow source IP (波 5：终结层生成器按源 IP 版本选择
+	// 多播组，legacy mdns planner.go:400-405 同款；http 等其它链不使用)。
+	SrcIP string
 	// Events is the transport layer's view of the terminal stream
 	// (传输层 Inner 模式消费的报文事件流)。The ChainPlanner creates it,
 	// the terminal generator writes via req.EmitMsg, the transport
@@ -142,6 +195,34 @@ type FlowMeta struct {
 	// Syslog is the flow's syslog config (注入到 syslog 层生成器，波 4)。
 	// Only set for syslog chains.
 	Syslog *core.SyslogConfig
+	// MDNS is the flow's mdns config (注入到 mdns 层生成器，波 5)。
+	// Only set for mdns chains.
+	MDNS *core.MDNSConfig
+	// SSDP is the flow's ssdp config (注入到 ssdp 层生成器，波 5b)。
+	// Only set for ssdp chains.
+	SSDP *core.SSDPConfig
+	// RIP is the flow's RIP config (注入到 rip 层生成器，波 5c)。
+	// Only set for rip chains.
+	RIP *core.RIPConfig
+	// SrcPort is the flow source port (波 5b：ssdp 生成器默认 src 端口
+	// 1900，legacy planner.go:236-239 同款；波 5c：rip 生成器事件级覆盖
+	// 端口，spec.SrcPort 为 0 时走 legacy resolveSrcPort；其余链不使用)。
+	SrcPort uint16
+	// DstPort is the flow destination port (波 5b：ssdp 生成器默认 dst
+	// 端口 1900，legacy planner.go:230-233 同款；波 5c：rip 生成器按版本
+	// 默认 520/521；其余链不使用)。
+	DstPort uint16
+	// TTL is the flow TTL (波 5b：ssdp 生成器默认 TTL=4，legacy
+	// planner.go:205-208 同款；波 5c：rip 生成器 multicast→1、unicast→
+	// spec.TTL 或 64，legacy rip.go:486-492 同款；零值 = 链层默认 ipTTL)。
+	TTL uint8
+	// DSCP is the flow DSCP (波 5c：rip 生成器透传 spec.DSCP——legacy
+	// rip.go:494-498 的 CS6 默认是死参数，emitRIPPacket 恒用 spec.DSCP 直配；
+	// 零值 = 链层默认 0)。
+	DSCP uint8
+	// SrcMAC is the flow source MAC (波 5c：rip 生成器写入 L2 覆盖事件，
+	// legacy rip.go emitRIPPacket L2Base 的 spec.SrcMAC；其余链不使用)。
+	SrcMAC string
 }
 
 // SessionState is the per-flow state shared by all layer generators
@@ -336,16 +417,28 @@ func (g *IPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 				return nil
 			}
 			// 只在用户显式写了 src/dst 时覆盖（LOW-1：空串/未写 → 保留已有值）。
-			if srcSet {
+			// 多播覆盖事件（波 5）：udp 层已写入绝对 DstIP（多播组/广播）、
+			// SrcIP（波 5c：rip 多 router 独立源，事件级覆盖）、TTL=255
+			// （RFC 6762 §11 等）与 dscp，ip 层不得再覆盖成链层配置的
+			// spec 值——检查事件覆盖标记（finalEmit 消费前一直存在），标记包
+			// 跳过 dst、ttl 与 dscp 覆盖。src 例外：mdns/ssdp 事件只设标记不
+			// 带 SrcIP（udp 层仅当 ev.SrcIP != "" 才写 L3.SrcIP），若按标记
+			// 一律跳过会导致这些事件源 IP 恒空；空串判别即 MessageEvent.SrcIP
+			// 的契约（"空串 = 链层默认"）——事件已覆盖 src 时 L3.SrcIP 非空，
+			// 保留事件值；否则写链层配置的 spec 源。
+			_, overrideDst := pkt.Metadata[eventDstOverrideKey]
+			if srcSet && pkt.L3.SrcIP == "" {
 				pkt.L3.SrcIP = src
 			}
-			if dstSet {
+			if dstSet && !overrideDst {
 				pkt.L3.DstIP = dst
 			}
-			if ttl != 0 {
+			if ttl != 0 && !overrideDst {
 				pkt.L3.TTL = ttl
 			}
-			pkt.L3.DSCP = dscp
+			if !overrideDst {
+				pkt.L3.DSCP = dscp
+			}
 			pkt.L3.ECN = ecn
 			pkt.L3.FragOffset = fragOffset
 			// IPID 每次 Emit 前写入并自增（tcp.go:137-141 语义）。
@@ -870,6 +963,17 @@ func (g *UDPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 				}
 				direction := "up"
 				srcPort, dstPort := cfg.srcPort, cfg.dstPort
+				// 事件级端口覆盖（波 5c：rip 每 router 独立端口 520/52001+idx，
+				// legacy rip.go resolveSrcPort 语义）。覆盖值参与 up/down 交换；
+				// down 方向 DstPort 覆盖映射为源端口（交换后落在 L4.SrcPort，
+				// ip.go:565-566 再交换一次恢复事件值——down 包的目标端口恒为
+				// 对端 spec 端口，如 request_full 的 auto-Response 521→520）。
+				if ev.SrcPort != 0 {
+					srcPort = ev.SrcPort
+				}
+				if ev.DstPort != 0 {
+					dstPort = ev.DstPort
+				}
 				if !ev.Up {
 					direction = "down"
 					srcPort, dstPort = dstPort, srcPort
@@ -878,7 +982,7 @@ func (g *UDPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 				for k, v := range ev.Metadata {
 					evMeta[k] = v
 				}
-				if err := emit(core.PacketConfig{
+				pkt := core.PacketConfig{
 					Direction: direction,
 					L4: core.L4Config{
 						Protocol: "udp",
@@ -887,7 +991,51 @@ func (g *UDPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 					},
 					Payload:  ev.Bytes,
 					Metadata: evMeta,
-				}); err != nil {
+				}
+				// 事件级 flow 标识（波 5c）：rip legacy 每 router 独立 flowID /
+				// request_full 共享 0/1，事件携带则直落（链层回填尊重之）。
+				// FlowID 与 PacketIndex 成对设置（MessageEvent 注释契约）。
+				if ev.FlowID != "" && ev.PacketIndex != nil {
+					pkt.FlowID = ev.FlowID
+					pkt.PacketIndex = *ev.PacketIndex
+				}
+				// 波 5 多播/单播目标覆盖：终结层事件显式指定目标（多播组
+				// 224.0.0.251/239.255.255.250、广播 255.255.255.255，或单播回程
+				// 如 ssdp 200 OK 回控制点 spec.SrcIP）与 TTL（mdns 255 / ssdp 4）
+				// 时，udp 层把覆盖值写入包并置标记。标记让 ip 层与 finalEmit
+				// 跳过 dst/ttl 覆盖与 down 交换——覆盖目标是绝对的。事件不携带
+				// TTL（=0）时保留传输层默认（多播 255，legacy mdns 语义）；
+				// 事件携带 TTL（ssdp 恒 4）时覆盖事件值。IPGenerator 的
+				// ttl!=0 覆盖（spec.TTL 链上若是）与 finalEmit 的 ipTTL 均被
+				// 标记跳过（链层 TTL 只服务独立 transport flow）。
+				if ev.OverrideDstIP {
+					pkt.L3.DstIP = ev.DstIP
+				}
+				// 事件级源 IP（波 5c：rip 每 router 独立 srcIP）。直落 L3，
+				// 无覆盖标记（源从不参与交换）。
+				if ev.SrcIP != "" {
+					pkt.L3.SrcIP = ev.SrcIP
+				}
+				if ev.OverrideDstMAC {
+					pkt.L2.DstMAC = ev.DstMAC
+				}
+				if ev.OverrideDstIP || ev.OverrideDstMAC || ev.TTL != 0 {
+					pkt.Metadata[eventDstOverrideKey] = true
+					pkt.L3.TTL = 255
+					if ev.TTL != 0 {
+						pkt.L3.TTL = ev.TTL
+					}
+				}
+				// 事件级 DSCP（波 5c：rip 透传 spec.DSCP——legacy 的 CS6 默认
+				// 是死参数，事件值恒等于 spec.DSCP）。覆盖标记包（多播/广播/
+				// 指定 TTL）ip 层跳过 dscp 覆写，本值保留；非标记包（单播，
+				// TTL 走链层）ip 层无条件写 schema dscp=0，事件 DSCP 被抹——
+				// 单播 rip 包 DSCP 由 ip 层链路配置写回（spec.DSCP 注入 dscp
+				// 字段），legacy 同款（emitRIPPacket 恒用 spec.DSCP 直配）。
+				if ev.DSCP != 0 && (ev.OverrideDstIP || ev.OverrideDstMAC || ev.TTL != 0) {
+					pkt.L3.DSCP = ev.DSCP
+				}
+				if err := emit(pkt); err != nil {
 					return err
 				}
 			}

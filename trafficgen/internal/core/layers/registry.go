@@ -91,6 +91,23 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "syslog", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
 	})
+	// ---- 波 5：mdns/dhcp/dhcpv6/ssdp/rip（udp 终结层，多播/广播目标经
+	// MessageEvent.DstIP/DstMAC 覆盖；配置经 FlowMeta 直传生成器）。
+	r.Register(LayerSchema{Name: "mdns", Category: CategoryTerminal,
+		DependsOn: []string{"udp"},
+	})
+	r.Register(LayerSchema{Name: "dhcp", Category: CategoryTerminal,
+		DependsOn: []string{"udp"},
+	})
+	r.Register(LayerSchema{Name: "dhcpv6", Category: CategoryTerminal,
+		DependsOn: []string{"udp"},
+	})
+	r.Register(LayerSchema{Name: "ssdp", Category: CategoryTerminal,
+		DependsOn: []string{"udp"},
+	})
+	r.Register(LayerSchema{Name: "rip", Category: CategoryTerminal,
+		DependsOn: []string{"udp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},

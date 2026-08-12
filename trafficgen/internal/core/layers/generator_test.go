@@ -941,6 +941,45 @@ func TestChainPlanner_PacketIndexSequence(t *testing.T) {
 	}
 }
 
+// ---- 波 5c：事件级 SrcPort 覆盖（rip 多 router / well-known 端口语义）----
+// legacy rip.go resolveSrcPort：单 router Response=520（well-known），
+// multi-router=52001+idx，request_full=52001——事件必须能覆盖 udp 层 cfg
+// 的 srcPort（validateSpecBase 已把 0 默认化）。零值 = 不覆盖（保持 cfg）。
+func TestUDPGenerator_EventSrcPortOverride(t *testing.T) {
+	g := &UDPGenerator{}
+	cfg := map[string]interface{}{
+		"src_port": uint16(52001),
+		"dst_port": uint16(520),
+	}
+	events := make(chan MessageEvent, 2)
+	events <- MessageEvent{Up: true, Bytes: []byte("a"), SrcPort: 520} // 覆盖为 well-known
+	events <- MessageEvent{Up: true, Bytes: []byte("b")}              // 不覆盖 → cfg 值
+	close(events)
+	req := &GenRequest{
+		Layer: Layer{Name: "udp", Config: cfg},
+		Sess:  &SessionState{},
+		Meta:  FlowMeta{FlowID: "f1", Events: events},
+	}
+	var out []core.PacketConfig
+	req.Emit = emitCollector(&out)
+	if err := g.Generate(context.Background(), req); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if len(out) != 2 {
+		t.Fatalf("2 events = %d packets, want 2", len(out))
+	}
+	if out[0].L4.SrcPort != 520 {
+		t.Errorf("event[0] SrcPort = %d, want 520 (event override)", out[0].L4.SrcPort)
+	}
+	if out[1].L4.SrcPort != 52001 {
+		t.Errorf("event[1] SrcPort = %d, want 52001 (cfg value, no override)", out[1].L4.SrcPort)
+	}
+	// DstPort 不受事件影响（RIP 无 dst 覆盖需求）。
+	if out[0].L4.DstPort != 520 || out[1].L4.DstPort != 520 {
+		t.Errorf("DstPort = %d/%d, want 520/520 (cfg)", out[0].L4.DstPort, out[1].L4.DstPort)
+	}
+}
+
 // ---- review 回归：udp resolveCfg 不可转换端口必须显式报错 ----
 // 与 TCPGenerator_ResolveCfgRejectsUnconvertibleValue 同款纪律（MEDIUM-1）：
 // src_port/dst_port 存在但无法转 uint16（float64 超界 / 字符串 / 负数）时，
