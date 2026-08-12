@@ -85,6 +85,12 @@ type MessageEvent struct {
 	Up bool
 	// Bytes is the complete protocol message (e.g. full HTTP request/response).
 	Bytes []byte
+	// Metadata carries per-message packet metadata for the transport layer
+	// to merge into the emitted PacketConfig (波 4：syslog 的
+	// syslog_priority/syslog_transport 事件元数据)。The UDPGenerator merges
+	// these entries into the datagram's Metadata; the TCPGenerator ignores
+	// them (legacy tcp 载体不设事件元数据)。
+	Metadata map[string]interface{}
 }
 
 // EventGenerator produces the message-event stream for a terminal
@@ -124,6 +130,18 @@ type FlowMeta struct {
 	// UDP is the flow's UDP config (注入到 udp 层生成器：IsResponse /
 	// DisableChecksum，legacy udp.go 语义)。Only set for udp chains.
 	UDP *core.UDPConfig
+	// DNS is the flow's DNS config (注入到 dns 层生成器，波 4)。
+	// Only set for dns chains.
+	DNS *core.DNSConfig
+	// NTP is the flow's NTP config (注入到 ntp 层生成器，波 4)。
+	// Only set for ntp chains.
+	NTP *core.NTPConfig
+	// SNMP is the flow's SNMP config (注入到 snmp 层生成器，波 4)。
+	// Only set for snmp chains.
+	SNMP *core.SNMPConfig
+	// Syslog is the flow's syslog config (注入到 syslog 层生成器，波 4)。
+	// Only set for syslog chains.
+	Syslog *core.SyslogConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
@@ -838,6 +856,9 @@ func (g *UDPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 
 	// ---- Inner 模式：终结层报文事件流（波 3）----
 	// 每事件 1 数据报：UDP 无分段（IP 层处理碎片），事件方向决定包方向。
+	// 事件的 Metadata（事件级元数据，syslog 波 4）合并进数据报 Metadata，
+	// 优先于传输层自身的 meta() 键（互不重叠：udp_disable_checksum 由
+	// 传输层持有，事件元数据是协议级键）。
 	if req.Meta.Events != nil {
 		for {
 			select {
@@ -853,6 +874,10 @@ func (g *UDPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 					direction = "down"
 					srcPort, dstPort = dstPort, srcPort
 				}
+				evMeta := meta()
+				for k, v := range ev.Metadata {
+					evMeta[k] = v
+				}
 				if err := emit(core.PacketConfig{
 					Direction: direction,
 					L4: core.L4Config{
@@ -861,7 +886,7 @@ func (g *UDPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 						DstPort:  dstPort,
 					},
 					Payload:  ev.Bytes,
-					Metadata: meta(),
+					Metadata: evMeta,
 				}); err != nil {
 					return err
 				}

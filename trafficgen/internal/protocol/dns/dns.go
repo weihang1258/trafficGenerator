@@ -76,6 +76,14 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		spec.DstPort = 53 // Default DNS port
 	}
 
+	return validateDNSConfig(spec)
+}
+
+// validateDNSConfig validates the DNS config portion of a flow spec
+// (DNSConfig 非 nil、transport 合法、rcode ≤ 15、问题来源非空、RR family)。
+// 波 4 起经 layer_gen.go 的 init 注册为 dns 链的协议校验器，与 legacy
+// Validate 共用同一实现（配置部分），保证两条路径拒绝同一批 spec。
+func validateDNSConfig(spec core.FlowSpec) error {
 	// Validate DNS config
 	if spec.DNS == nil {
 		return fmt.Errorf("DNS config is required")

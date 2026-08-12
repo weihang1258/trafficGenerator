@@ -80,6 +80,17 @@ func DefaultRegistry() *Registry {
 			"name":       {Type: "string", Default: "example.com"},
 		},
 	})
+	// ---- 波 4：ntp/snmp/syslog（udp 终结层，配置经 FlowMeta 直传生成器，
+	// 不落层 config——协议配置字段繁多且 ValidateLayerConfig 拒绝未知字段）。
+	r.Register(LayerSchema{Name: "ntp", Category: CategoryTerminal,
+		DependsOn: []string{"udp"},
+	})
+	r.Register(LayerSchema{Name: "snmp", Category: CategoryTerminal,
+		DependsOn: []string{"udp"},
+	})
+	r.Register(LayerSchema{Name: "syslog", Category: CategoryTerminal,
+		DependsOn: []string{"udp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},

@@ -112,6 +112,18 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("ntp: NTP config is required (set spec.ntp)")
 	}
 
+	return validateNTPConfig(spec)
+}
+
+// validateNTPConfig validates the NTP config portion of a flow spec
+// (NTPConfig 非 nil、LI ≤ 3、Version 3/4、Mode 1-7、Stratum ≤ 16、MAC 长度
+// 0/16/20、Extensions ≤ 65531、Mode=6 的 RequestCode ≤ 31 + ControlData
+// ≤ 468)。波 4 起经 layer_gen.go 的 init 注册为 ntp 链的协议校验器，与
+// legacy Validate 共用同一实现（配置部分），保证两条路径拒绝同一批 spec。
+func validateNTPConfig(spec core.FlowSpec) error {
+	if spec.NTP == nil {
+		return fmt.Errorf("ntp: NTP config is required (set spec.ntp)")
+	}
 	cfg := spec.NTP
 
 	// LeapIndicator is a 2-bit field (0-3). Values >3 cannot be encoded in

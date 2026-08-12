@@ -98,6 +98,15 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("syslog: DstIP %q is not a valid IP address", spec.DstIP)
 		}
 	}
+	return validateSyslogConfig(spec)
+}
+
+// validateSyslogConfig validates the SyslogConfig portion of a flow spec
+// (SyslogConfig 非 nil、PRI 范围、format/version/transport/framing、
+// timestamp、字段长度、SD-ELEMENT、UDP 负载上限)。波 4 起经 layer_gen.go
+// 的 init 注册为 syslog 链的协议校验器，与 legacy Validate 共用同一实现
+// （配置部分），保证两条路径拒绝同一批 spec。
+func validateSyslogConfig(spec core.FlowSpec) error {
 	if spec.Syslog == nil {
 		return fmt.Errorf("syslog: config is required")
 	}

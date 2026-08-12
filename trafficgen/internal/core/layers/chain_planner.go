@@ -58,15 +58,33 @@ func (p *ChainPlanner) effectiveRegistry() *Registry {
 // Name returns the protocol name.
 func (p *ChainPlanner) Name() string { return p.name }
 
-// Validate validates a flow spec plus the derived layer chain.
+// Validate validates a flow spec plus the derived layer chain (ProtocolPlanner
+// 接口；结果与 ValidateSpec 一致，丢弃默认化后的 spec)。
 func (p *ChainPlanner) Validate(spec core.FlowSpec) error {
-	if err := validateSpecBase(spec); err != nil {
-		return err
+	_, err := p.ValidateSpec(spec)
+	return err
+}
+
+// ValidateSpec validates a flow spec plus the derived layer chain and
+// returns the spec with protocol-level defaults applied (端口默认等，legacy
+// 各 planner 在 Plan 时同款默认)——调用方（Plan）用默认化后的 spec 驱动链，
+// 保证层 config / 包序列 / flowID 三者端口一致。
+func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
+	if err := validateSpecBase(p.name, &spec); err != nil {
+		return spec, err
+	}
+	// 协议级校验（波 4 起）：终结层协议包经 RegisterLayerValidator 注册
+	// 其 Validate（如 dns 包对 DNSConfig 的检查），链上未注册校验器的层
+	// 跳过。校验器只校验不默认化（默认化由 validateSpecBase 统一负责）。
+	if v := protocolValidator(p.name); v != nil {
+		if err := v(&spec); err != nil {
+			return spec, err
+		}
 	}
 	if err := p.validateChain(); err != nil {
-		return err
+		return spec, err
 	}
-	return nil
+	return spec, nil
 }
 
 // validateChain builds the completed chain and validates it, applying the
@@ -78,8 +96,10 @@ func (p *ChainPlanner) validateChain() error {
 
 // validateSpecBase mirrors the legacy tcp planner's spec checks (IP parse,
 // ports required, MSS bounds) so ChainPlanner rejects the same specs the old
-// planner rejected (tcp_test.go TestPlanner_Validate 负向用例)。
-func validateSpecBase(spec core.FlowSpec) error {
+// planner rejected (tcp_test.go TestPlanner_Validate 负向用例)。波 4 起
+// 对终结层 udp 链（dns/ntp/snmp/syslog）做协议级端口默认（legacy 各
+// planner 在 Plan 时同款默认）。
+func validateSpecBase(name string, spec *core.FlowSpec) error {
 	if spec.SrcIP != "" {
 		if net.ParseIP(spec.SrcIP) == nil {
 			return fmt.Errorf("invalid source IP: %s", spec.SrcIP)
@@ -90,11 +110,62 @@ func validateSpecBase(spec core.FlowSpec) error {
 			return fmt.Errorf("invalid destination IP: %s", spec.DstIP)
 		}
 	}
+	// IP 版本匹配（legacy 各 planner Validate 同款，防 L3 builder 混淆）：
+	// v4-src/v6-dst 混合拒绝。
+	if spec.SrcIP != "" && spec.DstIP != "" {
+		src := net.ParseIP(spec.SrcIP)
+		dst := net.ParseIP(spec.DstIP)
+		if src != nil && dst != nil && (src.To4() != nil) != (dst.To4() != nil) {
+			return fmt.Errorf("SrcIP %s and DstIP %s must be same IP version", spec.SrcIP, spec.DstIP)
+		}
+	}
 	if spec.SrcPort == 0 {
-		return fmt.Errorf("source port is required")
+		// 协议级源端口默认：独立 transport flow（tcp/udp）无默认，
+		// 必须显式（legacy tcp.go/udp.go 同款）。终结层 udp 链（dns/ntp/
+		// snmp/syslog）由各自 legacy planner 在 Plan 时默认：dns/snmp/
+		// syslog 源端口沿用 spec（可为 0，legacy 同样带 0 上包）；
+		// ntp 用 30000+(seed%30000) 的确定性临时端口（planner.go:203-206，
+		// seed=IPID 种子，每次 Plan 随机）。
+		switch name {
+		case "ntp":
+			spec.SrcPort = uint16(30000 + (uint32(rand.Uint32()) % 30000))
+		case "dns", "snmp", "syslog":
+			// 允许 0 上包（legacy 语义）
+		default:
+			return fmt.Errorf("source port is required")
+		}
 	}
 	if spec.DstPort == 0 {
-		return fmt.Errorf("destination port is required")
+		// 协议级目的端口默认（legacy Plan 时默认，与 strategy_convert 的
+		// mapToFlowSpec 默认值一致）：dns→53、syslog→514（tls 载体 6514）、
+		// snmp→按 PDU 类型（trap/inform 162，其余 161）、ntp→123。
+		switch name {
+		case "dns":
+			spec.DstPort = 53
+		case "syslog":
+			// tls 分支不可达（validator 拒绝 tls 载体，layer_gen.go 同款
+			// 暂缓），保留只为与 legacy 默认一致。
+			if spec.Syslog != nil && spec.Syslog.Transport == "tls" {
+				spec.DstPort = 6514
+			} else {
+				spec.DstPort = 514
+			}
+		case "snmp":
+			if spec.SNMP != nil {
+				switch spec.SNMP.PDUType {
+				case 4, 5, 6: // trap v1 / snmpv2 trap / inform
+					spec.DstPort = 162
+				default:
+					spec.DstPort = 161
+				}
+			} else {
+				spec.DstPort = 161
+			}
+		case "ntp":
+			spec.DstPort = 123
+		default:
+			return fmt.Errorf("destination port is required")
+		}
 	}
 	if spec.TCP != nil && spec.TCP.MSS > 0 {
 		if spec.TCP.MSS < MinMSS {
@@ -109,7 +180,8 @@ func validateSpecBase(spec core.FlowSpec) error {
 
 // Plan generates the full packet stream for the flow (驱动整条层链产包)。
 func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {
-	if err := p.Validate(spec); err != nil {
+	spec, err := p.ValidateSpec(spec)
+	if err != nil {
 		return nil, err
 	}
 	chain, err := p.completedChain()
@@ -332,9 +404,14 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// HTTP/DstIP 注入给 http 层生成器（波 2 方案 A）：HTTPConfig 全量字段
 		// 不落层 config（ValidateLayerConfig 拒绝未知字段），经 Meta 直传。
 		// UDP 同款：UDPConfig 经 Meta.UDP 直传 udp 层生成器（波 3）。
-		HTTP:  spec.HTTP,
-		UDP:   spec.UDP,
-		DstIP: spec.DstIP,
+		// DNS/NTP/SNMP/Syslog 同款（波 4）：协议配置经 Meta 直传终结层生成器。
+		HTTP:   spec.HTTP,
+		UDP:    spec.UDP,
+		DNS:    spec.DNS,
+		NTP:    spec.NTP,
+		SNMP:   spec.SNMP,
+		Syslog: spec.Syslog,
+		DstIP:  spec.DstIP,
 	}
 	// ClassID 由引擎回填（worker.go:317 config.ClassID = task.ClassID）。
 	// Direction 由各层包序列自定（tcp 握手 up 发起）。
@@ -567,6 +644,9 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 			}
 		case "udp":
 			// 与 tcp 同构：spec 端口直接注入 udp 层（独立 [ip→udp] flow）。
+			// 终结层链（[ip→udp→dns/ntp/snmp/syslog]，波 4）同款注入：
+			// udp 层生成器从层 config 读端口装配数据报（src/dst 换向用
+			// cfg.srcPort/dstPort，validateSpecBase 已默认化终结层协议端口）。
 			// UDPConfig 无 schema 字段，经 FlowMeta.UDP 直传生成器。
 			cfg["src_port"] = uint16(spec.SrcPort)
 			cfg["dst_port"] = uint16(spec.DstPort)
@@ -646,7 +726,8 @@ func transportProtocol(chain []Layer) uint8 {
 
 // newGenerator instantiates the generator for a chain layer. Only layers with
 // generators implemented can appear in a driven chain (P2a 波 1: ip + tcp;
-// 波 2 方案 A: + http，由 protocol/http 包提供生成器)。
+// 波 2 方案 A: + http，由 protocol/http 包提供生成器；波 4: + dns/ntp/snmp/
+// syslog，由各自协议包经 RegisterLayerGenerator 反向注册)。
 func newGenerator(name string) (LayerGenerator, error) {
 	// 测试注入的生成器优先（测试终结层等）。
 	testGenMu.RLock()
@@ -655,6 +736,15 @@ func newGenerator(name string) (LayerGenerator, error) {
 	if ok {
 		return factory()
 	}
+	// 生产终结层生成器（协议包 init 反向注册，如 http/dns/ntp/snmp/syslog）。
+	if factory, ok := registeredGenerators[name]; ok {
+		return factory()
+	}
+	if name == "http" {
+		// http 层生成器实现在 protocol/http 包（newHTTPGenerator），
+		// 避免 layers → protocol/http 的依赖环（http 依赖 core + layers）。
+		return newHTTPGenerator()
+	}
 	switch name {
 	case "ip":
 		return &IPGenerator{}, nil
@@ -662,12 +752,49 @@ func newGenerator(name string) (LayerGenerator, error) {
 		return &TCPGenerator{}, nil
 	case "udp":
 		return &UDPGenerator{}, nil
-	case "http":
-		// http 层生成器实现在 protocol/http 包（newHTTPGenerator），
-		// 避免 layers → protocol/http 的依赖环（http 依赖 core + layers）。
-		return newHTTPGenerator()
 	}
 	return nil, fmt.Errorf("layers: generator not implemented for layer %q", name)
+}
+
+// registeredGenerators holds production terminal-layer generator factories
+// (生产终结层生成器工厂，由协议包 init 经 RegisterLayerGenerator 注册；
+// 反向注册避免 layers → protocol 包的依赖环，同 http 的
+// RegisterHTTPGenerator 模式)。注册表只读于链驱动路径（init 期写完后
+// 不变），无需锁；测试注入走独立的 testGenerators（testGenMu 保护）。
+var registeredGenerators = map[string]func() (LayerGenerator, error){}
+
+// RegisterLayerGenerator installs a terminal-layer generator factory
+// (注册终结层生成器工厂，由协议包在 init 中调用；波 4 泛化自 http 的
+// RegisterHTTPGenerator——http 保留其专用接口以兼容既有调用方)。
+func RegisterLayerGenerator(name string, factory func() (LayerGenerator, error)) {
+	registeredGenerators[name] = factory
+}
+
+// registeredValidators holds production terminal-layer spec validators
+// (协议级 spec 校验器，由协议包 init 经 RegisterLayerValidator 注册；
+// 校验器接收默认化后的 spec，只校验不修改。未注册校验器的层跳过)。
+var registeredValidators = map[string]func(*core.FlowSpec) error{}
+
+// RegisterLayerValidator installs a terminal-layer spec validator
+// (注册终结层 spec 校验器，由协议包在 init 中调用；波 4 起 ChainPlanner
+// 用它复刻 legacy 各 planner 的 Validate 协议配置检查)。
+func RegisterLayerValidator(name string, v func(*core.FlowSpec) error) {
+	registeredValidators[name] = v
+}
+
+// protocolValidator returns the registered validator for a layer, or nil.
+func protocolValidator(name string) func(*core.FlowSpec) error {
+	return registeredValidators[name]
+}
+
+// NewLayerGenerator returns a fresh generator for a registered layer
+// (等价 newGenerator 的注册表路径，供协议包测试与内部使用)。
+func NewLayerGenerator(name string) (LayerGenerator, error) {
+	factory, ok := registeredGenerators[name]
+	if !ok {
+		return nil, fmt.Errorf("layers: generator %q not registered (protocol package not imported)", name)
+	}
+	return factory()
 }
 
 // newHTTPGenerator is set by the protocol/http package via
@@ -739,6 +866,10 @@ func NewGenRequestForHTTP(spec core.FlowSpec) (*GenRequest, error) {
 
 // l2For assembles the L2 config for a direction: up = spec.SrcMAC→DstMAC,
 // down = swapped; EtherType derived from the source IP (IPv6 flows get 0x86DD)。
+// VLAN 传播（波 4）：spec.VLAN 在终结层链（ntp，legacy planner 显式写
+// spec.VLAN）传播，为统一语义 dns/snmp/syslog 链同样传播（legacy 丢弃，
+// 已声明行为分歧）；独立 tcp/udp 链 legacy 不写 VLAN（tcp.go/udp.go/
+// http.go/dns.go/snmp.go 均无 VLAN），保持不变。
 // 与 tcp.go 每包 L2 装配字节一致。
 func l2For(direction string, spec core.FlowSpec) core.L2Config {
 	l2 := core.L2Config{EtherType: core.EtherTypeFor(spec.SrcIP)}
@@ -748,6 +879,9 @@ func l2For(direction string, spec core.FlowSpec) core.L2Config {
 	} else {
 		l2.SrcMAC = spec.SrcMAC
 		l2.DstMAC = spec.DstMAC
+	}
+	if spec.VLAN != nil {
+		l2.VLAN = spec.VLAN
 	}
 	return l2
 }

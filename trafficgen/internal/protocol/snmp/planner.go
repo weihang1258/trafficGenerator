@@ -162,6 +162,14 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("snmp: DstPort %d out of range [0, 65535]", spec.DstPort)
 	}
 
+	return validateSNMPConfig(spec)
+}
+
+// validateSNMPConfig validates the SNMPConfig portion of a flow spec
+// (SNMPConfig 非 nil、版本、community、v3 USM 字段、PDU 类型、varbinds)。
+// 波 4 起经 layer_gen.go 的 init 注册为 snmp 链的协议校验器，与 legacy
+// Validate 共用同一实现（配置部分），保证两条路径拒绝同一批 spec。
+func validateSNMPConfig(spec core.FlowSpec) error {
 	// SNMPConfig must be present.
 	if spec.SNMP == nil {
 		return fmt.Errorf("snmp: SNMP config is required")

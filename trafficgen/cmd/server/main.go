@@ -22,7 +22,6 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/dhcp"
 	"github.com/trafficgen/trafficgen/internal/protocol/dhcpv6"
 	"github.com/trafficgen/trafficgen/internal/protocol/dnp3"
-	"github.com/trafficgen/trafficgen/internal/protocol/dns"
 	"github.com/trafficgen/trafficgen/internal/protocol/doip"
 	"github.com/trafficgen/trafficgen/internal/protocol/enip"
 	"github.com/trafficgen/trafficgen/internal/protocol/ftp"
@@ -34,6 +33,13 @@ import (
 	// 空导入：http 包 init 反向注册 http 层生成器（layers.RegisterHTTPGenerator），
 	// ChainPlanner("http") 经此实例化；协议本体由层链驱动。
 	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
+	// 空导入：dns/ntp/snmp/syslog 包 init 反向注册终结层生成器 + 校验器
+	// （layers.RegisterLayerGenerator/RegisterLayerValidator，波 4）。无空
+	// 导入则包不被链接进二进制，ChainPlanner("dns") 实例化失败。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmpv6"
 	"github.com/trafficgen/trafficgen/internal/protocol/ike"
@@ -52,7 +58,6 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/mysql"
 	"github.com/trafficgen/trafficgen/internal/protocol/nfs"
 	"github.com/trafficgen/trafficgen/internal/protocol/ngap"
-	"github.com/trafficgen/trafficgen/internal/protocol/ntp"
 	"github.com/trafficgen/trafficgen/internal/protocol/openvpn"
 	"github.com/trafficgen/trafficgen/internal/protocol/pop3"
 	"github.com/trafficgen/trafficgen/internal/protocol/postgresql"
@@ -69,12 +74,10 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/sip"
 	"github.com/trafficgen/trafficgen/internal/protocol/smb"
 	"github.com/trafficgen/trafficgen/internal/protocol/smtp"
-	"github.com/trafficgen/trafficgen/internal/protocol/snmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/socks5"
 	"github.com/trafficgen/trafficgen/internal/protocol/srv6"
 	"github.com/trafficgen/trafficgen/internal/protocol/ssdp"
 	"github.com/trafficgen/trafficgen/internal/protocol/ssh"
-	"github.com/trafficgen/trafficgen/internal/protocol/syslog"
 	"github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	"github.com/trafficgen/trafficgen/internal/protocol/tftp"
@@ -364,7 +367,14 @@ func (app *Application) initEngine() error {
 	// 经 tcp 层分段，字节与 legacy http.go 一致（126 个 legacy 测试直接调
 	// NewPlanner().Plan 保留回归）。http 包 init 反向注册 http 层生成器。
 	app.engine.RegisterPlanner(layers.NewChainPlanner("http"))
-	app.engine.RegisterPlanner(dns.NewPlanner())
+	// dns/ntp/snmp/syslog 切链式生成器（波 4）：[ip→udp→dns/ntp/snmp/syslog]
+	// 层链驱动，各协议包 init 反向注册终结层生成器 + 校验器，事件字节复用
+	// legacy 编码器，字节级兼容旧 planner；chain 校验器拒绝 dns tcp /
+	// syslog tcp/tls（与 legacy 握手语义不同，暂缓）。
+	app.engine.RegisterPlanner(layers.NewChainPlanner("dns"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ntp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("snmp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("syslog"))
 	app.engine.RegisterPlanner(icmp.NewPlanner())
 	app.engine.RegisterPlanner(arp.NewPlanner())
 	app.engine.RegisterPlanner(ftp.NewPlanner())
@@ -372,9 +382,6 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(rtsp.NewPlanner())
 	app.engine.RegisterPlanner(sctp.NewPlanner())
 	app.engine.RegisterPlanner(icmpv6.NewPlanner())
-	app.engine.RegisterPlanner(ntp.NewPlanner())
-	app.engine.RegisterPlanner(snmp.NewPlanner())
-	app.engine.RegisterPlanner(syslog.NewPlanner())
 	app.engine.RegisterPlanner(smtp.NewPlanner())
 	app.engine.RegisterPlanner(pop3.NewPlanner())
 	app.engine.RegisterPlanner(telnet.NewPlanner())
