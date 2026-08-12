@@ -3,6 +3,7 @@
 package layers_test
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -249,7 +250,7 @@ func TestChainPlanner_HTTP_TCPSegConfigIgnored(t *testing.T) {
 // out in bounded time — the http generator must never remain blocked on a
 // full event channel. Review agent (MEDIUM-1) flagged a possible hang when
 // events > eventCh capacity; analysis showed the hang is structurally
-// unreachable today (EmitHTTP's select listens on ctx.Done, the only way a
+// unreachable today (EmitMsg's select listens on ctx.Done, the only way a
 // producer can stall; tcp failure exits promptly and closes the stream), so
 // this test pins the invariant: Plan must return in bounded time even with
 // 200 events (> 64-channel capacity) and a failing tcp layer.
@@ -276,7 +277,7 @@ func TestChainPlanner_HTTP_TCPGenFailAbortsWithoutHang(t *testing.T) {
 
 // TestChainPlanner_HTTP_HTTPGenCancelMidStreamConverges exercises the
 // http-first-failure path (review verifier D3): when the http generator
-// fails mid-stream — its EmitHTTP select hits ctx.Done, the only failure
+// fails mid-stream — its EmitMsg select hits ctx.Done, the only failure
 // path reachable in the wired context — drive's failure handling
 // (lastErr != nil → close(eventCh) → <-tcpDone → close(innerCh) → <-genDone)
 // must converge in bounded time, and the tail sends to out must finish
@@ -288,7 +289,7 @@ func TestChainPlanner_HTTP_HTTPGenCancelMidStreamConverges(t *testing.T) {
 	defer cancel()
 	p := layers.NewChainPlanner("http")
 	spec := httpSpec()
-	spec.HTTP.Transactions = 100 // 200 events; pending EmitHTTP sends at cancel
+	spec.HTTP.Transactions = 100 // 200 events; pending EmitMsg sends at cancel
 	ch, err := p.Plan(ctx, spec)
 	if err != nil {
 		t.Fatalf("Plan() error = %v", err)
@@ -322,5 +323,52 @@ func TestChainPlanner_HTTP_HTTPGenCancelMidStreamConverges(t *testing.T) {
 	}
 	if first.L4.Flags != 0x02 {
 		t.Errorf("packet 0 flags = 0x%x, want 0x02 SYN (http chain handshake ran before cancel)", first.L4.Flags)
+	}
+}
+
+// ---- review CRITICAL 回归：事件模式忽略 spec.Payload ----
+// legacy http planner 从不读 spec.Payload——数据段只有 HTTP 报文。若
+// TCPGenerator 在事件流前先发 Meta.Payload 单 payload 段，http flow 带
+// spec.Payload 时会多出一个非 HTTP PSH-ACK 段（wire 上与 legacy 不兼容，
+// 11 包 vs 9 包）。事件模式（Meta.Events != nil）必须跳过 payload 段。
+func TestChainPlanner_HTTP_SpecPayloadIgnoredInEventMode(t *testing.T) {
+	base := httpSpec()
+
+	withPayload := base
+	withPayload.Payload = []byte("EXTRA-FLOW-PAYLOAD") // 与 HTTP 子配置并存
+
+	p := layers.NewChainPlanner("http")
+	chNo, err := p.Plan(context.Background(), base)
+	if err != nil {
+		t.Fatalf("Plan(base): %v", err)
+	}
+	chYes, err := p.Plan(context.Background(), withPayload)
+	if err != nil {
+		t.Fatalf("Plan(withPayload): %v", err)
+	}
+	var no, yes []core.PacketConfig
+	for c := range chNo {
+		no = append(no, c)
+	}
+	for c := range chYes {
+		yes = append(yes, c)
+	}
+	// 包数与每包 payload 均须一致：EXTRA-FLOW-PAYLOAD 不得出现在任何段里。
+	if len(no) != len(yes) {
+		t.Fatalf("with payload: %d packets, without: %d — payload must be ignored in event mode", len(yes), len(no))
+	}
+	for i := range no {
+		if !bytes.Equal(no[i].Payload, yes[i].Payload) {
+			t.Errorf("packet %d payload differs with/without spec.Payload:\nno   %q\nyes  %q",
+				i, no[i].Payload, yes[i].Payload)
+		}
+	}
+	if len(yes) != 9 {
+		t.Errorf("with payload: %d packets, want 9 (handshake 3 + req/resp 2 + teardown 4)", len(yes))
+	}
+	for i, c := range yes {
+		if bytes.Contains(c.Payload, []byte("EXTRA-FLOW-PAYLOAD")) {
+			t.Errorf("packet %d contains spec.Payload bytes, want ignored in event mode", i)
+		}
 	}
 }

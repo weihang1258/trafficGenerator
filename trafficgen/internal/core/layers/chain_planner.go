@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -28,11 +29,30 @@ import (
 //  7. 逐包回填 FlowID/ClassID/PacketIndex/Timestamp/Direction
 type ChainPlanner struct {
 	name string
+	// registry is the registry used to complete/validate the chain; nil =
+	// DefaultRegistry (测试注入自定义注册表时经 NewChainPlannerWithRegistry 指定)。
+	registry *Registry
 }
 
 // NewChainPlanner creates a chain planner for the named protocol layer.
 func NewChainPlanner(name string) *ChainPlanner {
 	return &ChainPlanner{name: name}
+}
+
+// NewChainPlannerWithRegistry creates a chain planner that completes and
+// validates chains against a custom registry (默认 NewChainPlanner 用
+// DefaultRegistry；测试需要注入自定义层时用它)。The registry is read-only
+// for the planner's lifetime.
+func NewChainPlannerWithRegistry(name string, r *Registry) *ChainPlanner {
+	return &ChainPlanner{name: name, registry: r}
+}
+
+// effectiveRegistry resolves the planner's registry.
+func (p *ChainPlanner) effectiveRegistry() *Registry {
+	if p.registry != nil {
+		return p.registry
+	}
+	return DefaultRegistry()
 }
 
 // Name returns the protocol name.
@@ -96,6 +116,18 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 	if err != nil {
 		return nil, err
 	}
+	// 同步实例化生成器并校验事件接线（review 波 3 修复）：drive 运行在
+	// goroutine 内，其错误被 Plan 的 goroutine 静默吞掉（表现为空流 + nil
+	// err）。结构性错误——生成器不可实例化、终结层事件流配了非 tcp/udp
+	// 传输层——必须在此同步报错，与 Validate 口径一致；drive 只保留运行时
+	// 错误（生成器内部失败、ctx 取消），维持既有"驱动失败 → 空流"契约。
+	gens, err := instantiateGens(chain)
+	if err != nil {
+		return nil, err
+	}
+	if err := assertEventWiring(chain, gens); err != nil {
+		return nil, err
+	}
 
 	out := make(chan core.PacketConfig, 256)
 	go func() {
@@ -104,7 +136,7 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 		// 结束（drive 返回）再 close(out)，否则 close 与 send 并发
 		// （send-on-closed panic，-race 实测复现）。
 		defer close(out)
-		packets, err := p.drive(ctx, chain, spec)
+		packets, err := p.drive(ctx, chain, gens, spec)
 		if err != nil {
 			// 驱动失败：通道随后关闭，包流为空，调用方（worker）会按空流处理。
 			return
@@ -132,7 +164,7 @@ func flowID(spec core.FlowSpec) string {
 // completedChain completes the derived chain and validates it, applying the
 // V4/V5 exemption for the synthesized chain (末层即协议层本身)。
 func (p *ChainPlanner) completedChain() ([]Layer, error) {
-	r := DefaultRegistry()
+	r := p.effectiveRegistry()
 	if !r.Has(p.name) {
 		return nil, fmt.Errorf("layers: unknown layer %q", p.name)
 	}
@@ -155,6 +187,14 @@ func (p *ChainPlanner) completedChain() ([]Layer, error) {
 	}
 	if err := p.validateChainForPlanner(r, chain); err != nil {
 		return nil, err
+	}
+	// 预检生成器可实例化（review：实例化失败曾导致 Plan 静默空流——新层
+	// 已注册但生成器未实现时，错误被驱动阶段吞掉）。终结层与内置层在此
+	// 同步报错，与 Validate 口径一致。
+	for _, l := range chain {
+		if _, err := newGenerator(l.Name); err != nil {
+			return nil, err
+		}
 	}
 	return chain, nil
 }
@@ -225,6 +265,48 @@ func isTerminalEndError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "must end with a terminal layer")
 }
 
+// instantiateGens instantiates the generator for every chain layer, inner →
+// outer (索引对齐 chain：gens[i] 对应 chain[i])。与 completedChain 的预检
+// 合并使用：结构性错误（生成器未实现）在 Plan 同步报错，不再被 drive
+// goroutine 吞掉。
+func instantiateGens(chain []Layer) ([]LayerGenerator, error) {
+	gens := make([]LayerGenerator, len(chain))
+	for i := len(chain) - 1; i >= 0; i-- {
+		gen, err := newGenerator(chain[i].Name)
+		if err != nil {
+			return nil, err
+		}
+		gens[i] = gen
+	}
+	return gens, nil
+}
+
+// assertEventWiring validates the event-wiring contract synchronously
+// (review 波 3 修复)：when the last layer's generator is an event producer
+// (GenEvents != nil), the transport layer beneath it must be a TCP or UDP
+// generator — the only two generators that consume Meta.Events. Any other
+// transport (gre, ...) is a chain-configuration error that must fail Plan
+// synchronously instead of being swallowed by the drive goroutine.
+// 无事件生成器（独立 [ip→tcp]/[ip→udp] flow）时不检查。
+func assertEventWiring(chain []Layer, gens []LayerGenerator) error {
+	if len(chain) < 2 {
+		return nil
+	}
+	lastGen := gens[len(chain)-1]
+	eg, ok := lastGen.(interface{ GenEvents() EventGenerator })
+	if !ok || eg.GenEvents() == nil {
+		return nil
+	}
+	transportLayer := chain[len(chain)-2]
+	switch gens[len(chain)-2].(type) {
+	case *TCPGenerator, *UDPGenerator:
+		return nil
+	default:
+		return fmt.Errorf("layers: layer %q cannot consume terminal events (unsupported transport generator %T)",
+			transportLayer.Name, gens[len(chain)-2])
+	}
+}
+
 // drive instantiates the generators inner→outer, wires the channels, and
 // drives the outermost generator of the chain — which for a standalone tcp
 // flow is the tcp generator itself (终结/传输层驱动整链)。Each packet flows
@@ -234,37 +316,35 @@ func isTerminalEndError(err error) bool {
 // swapped per direction), derives the direction-dependent src/dst IP swap,
 // and backfills FlowID/PacketIndex/Timestamp.
 //
+// gens 由 Plan 同步预实例化并传入（review 波 3 修复：生成器实例化与事件
+// 接线断言的结构性错误同步报错，drive 只承担运行时驱动）。
+//
 // 返回完整包序列（全量收集于内存，review CRITICAL-1 修复）：驱动失败/取消时
 // 返回已收集的包 + 错误；ip 生成器退出后（genDone）drive 才返回，Plan 的
 // goroutine 据此在**所有生产结束后**才 close(out)（消除 send-on-closed 竞态）。
 // 取消路径（ctx.Done）经 select 在 finalEmit 传播，ip goroutine 正常退出，
 // 不会产生泄漏。
-func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, spec core.FlowSpec) ([]core.PacketConfig, error) {
+func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGenerator, spec core.FlowSpec) ([]core.PacketConfig, error) {
 	sess := &SessionState{IPID: uint16(rand.Uint32())}
 	meta := FlowMeta{
 		FlowID:  flowID(spec),
 		Payload: spec.Payload,
 		// HTTP/DstIP 注入给 http 层生成器（波 2 方案 A）：HTTPConfig 全量字段
 		// 不落层 config（ValidateLayerConfig 拒绝未知字段），经 Meta 直传。
+		// UDP 同款：UDPConfig 经 Meta.UDP 直传 udp 层生成器（波 3）。
 		HTTP:  spec.HTTP,
+		UDP:   spec.UDP,
 		DstIP: spec.DstIP,
 	}
 	// ClassID 由引擎回填（worker.go:317 config.ClassID = task.ClassID）。
 	// Direction 由各层包序列自定（tcp 握手 up 发起）。
 
 	// 1. 把 flow 级 spec 值映射进各层 config（手动值 > schema 默认值）。
-	chain = applySpecToChain(chain, spec)
+	chain = p.applySpecToChain(chain, spec)
 
 	// 2. 自内向外实例化生成器；相邻层用通道连接（内层产出 → 外层消费）。
-	gens := make([]LayerGenerator, len(chain))
+	//    gens 已由 Plan 预实例化（instantiateGens），此处直接使用。
 	innerCh := make(chan core.PacketConfig, 256)
-	for i := len(chain) - 1; i >= 0; i-- {
-		gen, err := newGenerator(chain[i].Name)
-		if err != nil {
-			return nil, err
-		}
-		gens[i] = gen
-	}
 
 	// 3. 驱动：最外层生成器（ip）包内层；最内层生成器（tcp 或 http）产出。
 	//    通用模式：外层生成器消费内层通道；最内层生成器不消费 innerCh。
@@ -291,7 +371,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, spec core.FlowS
 		if pkt.Direction == "down" {
 			pkt.L3.SrcIP, pkt.L3.DstIP = pkt.L3.DstIP, pkt.L3.SrcIP
 		}
-		pkt.L3.Protocol = core.ProtocolTCP
+		// L3 协议号随传输层（tcp=6 / udp=17；legacy L3Base 语义）。
+		// 传输层是链上 ip 之下最后一层：独立 tcp/udp flow 的末层，
+		// 或终结层链（http/dns...）的倒数第二层。
+		pkt.L3.Protocol = transportProtocol(chain)
 		pkt.L3.TTL = ipTTL(ipCfg)
 		// TOS 整字节覆盖（review HIGH-2 修复，legacy L3Base builder.go:158-161
 		// 语义）：spec.TOS != 0 时 DSCP=TOS>>2、ECN=TOS&3，覆盖 DSCP/ECN 直配。
@@ -319,8 +402,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, spec core.FlowS
 	}
 
 	// 5. 驱动：先启动外层（消费 innerCh），再驱动内层（往 innerCh 里写）。
-	//    末层若是终结层生成器（http），把其报文事件流接入 tcp 层的
-	//    Meta.HTTPEvents，tcp 层在"单 payload 模式"后消费事件流（波 2 方案 A）。
+	//    末层若是终结层生成器（http/dns/...），把其报文事件流接入传输层的
+	//    Meta.Events，传输层在"单 payload 模式"后消费事件流（波 2 方案 A /
+	//    波 3 泛化）。事件接线的 transport 断言已在 Plan 同步校验
+	//    （assertEventWiring），此处断言必过，只做类型收窄。
 	//    内层序列结束后关闭 innerCh：外层生成器排空后退出（否则 drive
 	//    永远等不到 genDone，Plan 的 goroutine 不返回，worker 的 for-range 挂死）。
 	genDone := make(chan error, 1)
@@ -329,13 +414,16 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, spec core.FlowS
 	lastGen := gens[len(chain)-1]
 	var lastErr error
 
-	// 末层事件生成器（http）与 tcp 层事件通道的接线。
-	if eg, ok := lastGen.(interface{ GenHTTP() HTTPEventGenerator }); ok && eg.GenHTTP() != nil {
-		eventCh := make(chan HTTPEvent, 64)
-		tcpGen := gens[len(chain)-2].(*TCPGenerator)
-		meta.HTTPEvents = eventCh
-		tcpReq := &GenRequest{
-			Layer: chain[len(chain)-2], // tcp 层
+	// 末层事件生成器（http/dns/...）与传输层（tcp/udp）事件通道的接线。
+	// 传输层类型断言保持通用：tcp → TCPGenerator（MSS 分段 + seq/ack），
+	// udp → UDPGenerator（每事件一数据报）。
+	if eg, ok := lastGen.(interface{ GenEvents() EventGenerator }); ok && eg.GenEvents() != nil {
+		eventCh := make(chan MessageEvent, 64)
+		transportLayer := chain[len(chain)-2]
+		transportGen := gens[len(chain)-2]
+		meta.Events = eventCh
+		transportReq := &GenRequest{
+			Layer: transportLayer,
 			Emit: func(pkt core.PacketConfig) error {
 				select {
 				case innerCh <- pkt:
@@ -347,10 +435,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, spec core.FlowS
 			Sess: sess,
 			Meta: meta,
 		}
-		// http 生成器的 EmitHTTP 转发到事件通道。
-		reqForHTTP := &GenRequest{
+		// 终结层生成器的 EmitMsg 转发到事件通道。
+		reqForTerminal := &GenRequest{
 			Layer: chain[len(chain)-1],
-			EmitHTTP: func(ev HTTPEvent) error {
+			EmitMsg: func(ev MessageEvent) error {
 				select {
 				case eventCh <- ev:
 					return nil
@@ -361,19 +449,32 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, spec core.FlowS
 			Sess: sess,
 			Meta: meta,
 		}
-		tcpDone := make(chan error, 1)
-		go func() { tcpDone <- tcpGen.Generate(ctx, tcpReq) }()
-		lastErr = lastGen.Generate(ctx, reqForHTTP)
+		var transport interface {
+			Generate(ctx context.Context, req *GenRequest) error
+		}
+		switch tg := transportGen.(type) {
+		case *TCPGenerator:
+			transport = tg
+		case *UDPGenerator:
+			transport = tg
+		default:
+			// assertEventWiring 已同步拦截，理论不可达。
+			return nil, fmt.Errorf("layers: layer %q cannot consume terminal events (unsupported transport generator %T)",
+				transportLayer.Name, transportGen)
+		}
+		transportDone := make(chan error, 1)
+		go func() { transportDone <- transport.Generate(ctx, transportReq) }()
+		lastErr = lastGen.Generate(ctx, reqForTerminal)
 		close(eventCh)
 		if lastErr != nil {
-			// http 生成器失败：tcp 层仍会排空事件流并完成挥手
-			// （事件流关闭视为数据段结束）。等待其退出，不泄漏。
-			<-tcpDone
+			// 终结层生成器失败：传输层仍会排空事件流（事件流关闭视为
+			// 数据段结束，tcp 进入挥手 / udp 直接结束）。等待其退出，不泄漏。
+			<-transportDone
 			close(innerCh)
 			<-genDone
 			return packets, lastErr
 		}
-		if err := <-tcpDone; err != nil {
+		if err := <-transportDone; err != nil {
 			close(innerCh)
 			<-genDone
 			return packets, err
@@ -415,8 +516,8 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, spec core.FlowS
 // 为 nil 时（独立 tcp flow 无子配置）完全不动 tcp 层 config，让 schema 默认
 // 生效（handshake=true / termination=true / mss=1460 / window_size=65535）——
 // 绝不能把 TCPConfig 零值 false 覆盖成用户意图。
-func applySpecToChain(chain []Layer, spec core.FlowSpec) []Layer {
-	r := DefaultRegistry()
+func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Layer {
+	r := p.effectiveRegistry()
 	out := make([]Layer, len(chain))
 	for i, l := range chain {
 		// 以 schema 默认值为底（手动值 > 默认值：只覆盖用户显式写的）。
@@ -464,6 +565,11 @@ func applySpecToChain(chain []Layer, spec core.FlowSpec) []Layer {
 			if spec.FragOffset != 0 {
 				cfg["frag_offset"] = uint16(spec.FragOffset)
 			}
+		case "udp":
+			// 与 tcp 同构：spec 端口直接注入 udp 层（独立 [ip→udp] flow）。
+			// UDPConfig 无 schema 字段，经 FlowMeta.UDP 直传生成器。
+			cfg["src_port"] = uint16(spec.SrcPort)
+			cfg["dst_port"] = uint16(spec.DstPort)
 		case "tcp":
 			cfg["src_port"] = uint16(spec.SrcPort)
 			cfg["dst_port"] = uint16(spec.DstPort)
@@ -514,15 +620,48 @@ func isHTTPChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "http"
 }
 
+// transportProtocol resolves the IP protocol number from the chain's
+// transport layer (tcp=6 / udp=17)。独立 transport flow（[ip→udp]，传输层即
+// 末层）看末层；终结层链（[ip→tcp→http]）看倒数第二层。无传输层时回退 TCP
+// （理论不可达：transport 层是 ip 的 depends_on 补全必插入）。
+func transportProtocol(chain []Layer) uint8 {
+	if len(chain) > 0 {
+		switch chain[len(chain)-1].Name {
+		case "udp":
+			return core.ProtocolUDP
+		case "tcp":
+			return core.ProtocolTCP
+		}
+	}
+	if len(chain) > 1 {
+		switch chain[len(chain)-2].Name {
+		case "udp":
+			return core.ProtocolUDP
+		case "tcp":
+			return core.ProtocolTCP
+		}
+	}
+	return core.ProtocolTCP
+}
+
 // newGenerator instantiates the generator for a chain layer. Only layers with
 // generators implemented can appear in a driven chain (P2a 波 1: ip + tcp;
 // 波 2 方案 A: + http，由 protocol/http 包提供生成器)。
 func newGenerator(name string) (LayerGenerator, error) {
+	// 测试注入的生成器优先（测试终结层等）。
+	testGenMu.RLock()
+	factory, ok := testGenerators[name]
+	testGenMu.RUnlock()
+	if ok {
+		return factory()
+	}
 	switch name {
 	case "ip":
 		return &IPGenerator{}, nil
 	case "tcp":
 		return &TCPGenerator{}, nil
+	case "udp":
+		return &UDPGenerator{}, nil
 	case "http":
 		// http 层生成器实现在 protocol/http 包（newHTTPGenerator），
 		// 避免 layers → protocol/http 的依赖环（http 依赖 core + layers）。
@@ -550,9 +689,42 @@ func NewHTTPGenerator() (LayerGenerator, error) {
 	return newHTTPGenerator()
 }
 
+// RegisterLayerGeneratorForTest installs a generator factory for a layer
+// name (测试专用：注入测试终结层生成器；生产层经各自包的 init 反向注册，
+// 无需调用)。The factory overrides newGenerator for that name; multiple
+// registrations for the same name replace the previous factory. It returns a
+// cleanup function removing the registration (review 波 3 L1 修复)：测试间
+// 残留注册会污染后续驱动 DefaultRegistry 链的测试，cleanup 消除泄漏。
+// 注册表由 RWMutex 保护：Plan 的 drive goroutine 读 newGenerator 与测试
+// 主 goroutine 注册/注销并发安全（裸 map 并发读写会 fatal error，-race 实测）。
+func RegisterLayerGeneratorForTest(name string, factory func() (LayerGenerator, error)) func() {
+	testGenMu.Lock()
+	defer testGenMu.Unlock()
+	testGenerators[name] = factory
+	return func() { UnregisterLayerGeneratorForTest(name) }
+}
+
+// UnregisterLayerGeneratorForTest removes a test-injected generator factory
+// (测试专用，与 RegisterLayerGeneratorForTest 对称；t.Cleanup 注销消除
+// 测试间残留注册污染)。Concurrent with active Plan goroutines via testGenMu.
+func UnregisterLayerGeneratorForTest(name string) {
+	testGenMu.Lock()
+	defer testGenMu.Unlock()
+	delete(testGenerators, name)
+}
+
+// testGenerators holds test-only generator factories (测试注入的层生成器，
+// 优先级高于内置 newGenerator 分支——仅测试使用，避免给内置表加依赖)。
+// 并发访问由 testGenMu 保护（RegisterLayerGeneratorForTest 的写 + newGenerator
+// 在驱动 goroutine 中的读）。
+var (
+	testGenerators = map[string]func() (LayerGenerator, error){}
+	testGenMu      sync.RWMutex
+)
+
 // NewGenRequestForHTTP builds a GenRequest for a standalone http generator
 // test (供 protocol/http 包测试构造请求)。The spec's HTTP config flows into
-// Meta.HTTP; the returned request's EmitHTTP must be set by the caller.
+// Meta.HTTP; the returned request's EmitMsg must be set by the caller.
 func NewGenRequestForHTTP(spec core.FlowSpec) (*GenRequest, error) {
 	if spec.HTTP == nil {
 		return nil, fmt.Errorf("layers: NewGenRequestForHTTP: spec.HTTP is nil")

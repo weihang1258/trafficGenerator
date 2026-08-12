@@ -940,3 +940,43 @@ func TestChainPlanner_PacketIndexSequence(t *testing.T) {
 		}
 	}
 }
+
+// ---- review 回归：udp resolveCfg 不可转换端口必须显式报错 ----
+// 与 TCPGenerator_ResolveCfgRejectsUnconvertibleValue 同款纪律（MEDIUM-1）：
+// src_port/dst_port 存在但无法转 uint16（float64 超界 / 字符串 / 负数）时，
+// 不得静默跳过（否则端口落 0），必须显式报错。
+func TestUDPGenerator_ResolveCfgRejectsUnconvertiblePort(t *testing.T) {
+	bad := map[string]interface{}{
+		"src_port": "abc",   // 字符串不可转换
+		"dst_port": uint16(53),
+	}
+	g := &UDPGenerator{}
+	req := &GenRequest{
+		Layer: Layer{
+			Name:   "udp",
+			Config: bad,
+		},
+		Sess: &SessionState{},
+		Meta: FlowMeta{FlowID: "f1"},
+	}
+	var out []core.PacketConfig
+	req.Emit = emitCollector(&out)
+	if err := g.Generate(context.Background(), req); err == nil {
+		t.Fatal("Generate() = nil err, want reject unconvertible src_port")
+	}
+
+	badOver := map[string]interface{}{
+		"src_port": uint16(12345),
+		"dst_port": float64(70000), // 合法 float64，超 uint16
+	}
+	req2 := &GenRequest{
+		Layer: Layer{Name: "udp", Config: badOver},
+		Sess:  &SessionState{},
+		Meta:  FlowMeta{FlowID: "f1"},
+	}
+	var out2 []core.PacketConfig
+	req2.Emit = emitCollector(&out2)
+	if err := g.Generate(context.Background(), req2); err == nil {
+		t.Fatal("Generate() = nil err, want reject unconvertible dst_port")
+	}
+}

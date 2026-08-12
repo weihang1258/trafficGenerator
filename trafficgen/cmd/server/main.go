@@ -79,7 +79,6 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	"github.com/trafficgen/trafficgen/internal/protocol/tftp"
 	"github.com/trafficgen/trafficgen/internal/protocol/tls"
-	"github.com/trafficgen/trafficgen/internal/protocol/udp"
 	"github.com/trafficgen/trafficgen/internal/protocol/vmess"
 	"github.com/trafficgen/trafficgen/internal/protocol/vnc"
 	"github.com/trafficgen/trafficgen/internal/protocol/wireguard"
@@ -356,7 +355,11 @@ func (app *Application) initEngine() error {
 	// tcp 走层链规划器（方案 C 分层配置 P2a 波 1）：类名 tcp → 层链 [ip, tcp]，
 	// 公共 ip/tcp 层生成器驱动；字节级兼容旧 tcp planner（SYN 选项/窗口/seq 推进）。
 	app.engine.RegisterPlanner(layers.NewChainPlanner("tcp"))
-	app.engine.RegisterPlanner(udp.NewPlanner())
+	// udp 切链式生成器（波 3）：[ip→udp] 层链驱动，UDPGenerator 字节级兼容
+	// legacy udp planner（request + 可选 response，disable_checksum 经
+	// FlowMeta.UDP 传播）；事件模型泛化为 MessageEvent，dns/ntp 等终结层
+	// 后续接线。
+	app.engine.RegisterPlanner(layers.NewChainPlanner("udp"))
 	// http 切链式生成器（波 2 方案 A）：[ip→tcp→http] 层链驱动，报文事件流
 	// 经 tcp 层分段，字节与 legacy http.go 一致（126 个 legacy 测试直接调
 	// NewPlanner().Plan 保留回归）。http 包 init 反向注册 http 层生成器。

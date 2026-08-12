@@ -67,12 +67,12 @@ func (g *HTTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 	requestBody := resolveRequestBody(hcfg)
 	responseBody := resolveResponseBody(hcfg)
 
-	emit := func(ev layers.HTTPEvent) error {
-		if req.EmitHTTP == nil {
+	emit := func(ev layers.MessageEvent) error {
+		if req.EmitMsg == nil {
 			// 未接线即报错：绝不能静默丢事件（review LOW-4 同款纪律）。
-			return fmt.Errorf("http generator: EmitHTTP is nil (generator not wired to a transport layer)")
+			return fmt.Errorf("http generator: EmitMsg is nil (generator not wired to a transport layer)")
 		}
-		return req.EmitHTTP(ev)
+		return req.EmitMsg(ev)
 	}
 
 	if hcfg.Pipelined {
@@ -85,7 +85,7 @@ func (g *HTTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 			default:
 			}
 			request := buildHTTPRequestBody(hcfg, req.Meta.DstIP, requestBody)
-			if err := emit(layers.HTTPEvent{Up: true, Bytes: []byte(request)}); err != nil {
+			if err := emit(layers.MessageEvent{Up: true, Bytes: []byte(request)}); err != nil {
 				return err
 			}
 		}
@@ -96,7 +96,7 @@ func (g *HTTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 			default:
 			}
 			response := buildHTTPResponseBody(hcfg, responseBody)
-			if err := emit(layers.HTTPEvent{Up: false, Bytes: []byte(response)}); err != nil {
+			if err := emit(layers.MessageEvent{Up: false, Bytes: []byte(response)}); err != nil {
 				return err
 			}
 		}
@@ -111,28 +111,28 @@ func (g *HTTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 		default:
 		}
 		request := buildHTTPRequestBody(hcfg, req.Meta.DstIP, requestBody)
-		if err := emit(layers.HTTPEvent{Up: true, Bytes: []byte(request)}); err != nil {
+		if err := emit(layers.MessageEvent{Up: true, Bytes: []byte(request)}); err != nil {
 			return err
 		}
 		response := buildHTTPResponseBody(hcfg, responseBody)
-		if err := emit(layers.HTTPEvent{Up: false, Bytes: []byte(response)}); err != nil {
+		if err := emit(layers.MessageEvent{Up: false, Bytes: []byte(response)}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// GenHTTP marks this generator as an HTTP event producer (终结层报文事件
+// GenEvents marks this generator as a message event producer (终结层报文事件
 // 生成器，ChainPlanner 经此接线事件流)。
-func (g *HTTPGenerator) GenHTTP() layers.HTTPEventGenerator { return g }
+func (g *HTTPGenerator) GenEvents() layers.EventGenerator { return g }
 
-// EmitEvent is the HTTPEventGenerator interface method, present only to
+// EmitEvent is the EventGenerator interface method, present only to
 // satisfy the producer marker. The ChainPlanner wires events through
-// EmitHTTP (the synchronous callback on GenRequest); calling EmitEvent
+// EmitMsg (the synchronous callback on GenRequest); calling EmitEvent
 // directly is a wiring error — fail loudly instead of silently dropping
 // the event (review LOW-4 fix).
-func (g *HTTPGenerator) EmitEvent(ev layers.HTTPEvent) error {
-	return fmt.Errorf("http generator: EmitEvent is not wired; events flow through GenRequest.EmitHTTP only")
+func (g *HTTPGenerator) EmitEvent(ev layers.MessageEvent) error {
+	return fmt.Errorf("http generator: EmitEvent is not wired; events flow through GenRequest.EmitMsg only")
 }
 
 func init() {

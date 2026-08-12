@@ -40,12 +40,13 @@ type LayerGenerator interface {
 	// per-flow state across layer boundaries; req.Emit delivers each
 	// wrapped packet to the ChainPlanner.
 	Generate(ctx context.Context, req *GenRequest) error
-	// GenHTTP optionally marks a terminal generator that produces message
+	// GenEvents optionally marks a terminal generator that produces message
 	// events (报文事件) for the transport layer instead of raw packets.
-	// Only HTTPGenerator implements it; the ChainPlanner type-asserts and
-	// wires the event channel. A nil return means the generator does not
-	// produce events (falls back to the plain packet path).
-	GenHTTP() HTTPEventGenerator
+	// HTTPGenerator and future terminal generators (dns/ntp/...) implement
+	// it; the ChainPlanner type-asserts and wires the event channel. A nil
+	// return means the generator does not produce events (falls back to the
+	// plain packet path).
+	GenEvents() EventGenerator
 }
 
 // GenRequest carries one layer's generation context (一层生成上下文)。
@@ -66,34 +67,35 @@ type GenRequest struct {
 	// source). Payload carries the flow-level application payload for
 	// transport layers.
 	Meta FlowMeta
-	// EmitHTTP delivers a terminal-layer message event (HTTP 报文事件) to
-	// the transport layer. HTTPGenerator emits request/response byte events
-	// here; TCPGenerator (Inner mode) consumes them from Meta.HTTPEvents
-	// when present and segments them into PSH-ACK packets. The ChainPlanner
-	// wires the two.
-	EmitHTTP func(HTTPEvent) error
+	// EmitMsg delivers a terminal-layer message event (报文事件) to the
+	// transport layer. Terminal generators (http, future dns/ntp/...) emit
+	// message byte events here; the transport generator (TCPGenerator/UDPGenerator
+	// Inner mode) consumes them from Meta.Events when present. The
+	// ChainPlanner wires the two.
+	EmitMsg func(MessageEvent) error
 }
 
-// HTTPEvent is one terminal-layer message in the transport stream
-// (一个 HTTP 报文事件：方向 + 完整报文字节)。The transport layer owns
+// MessageEvent is one terminal-layer message in the transport stream
+// (一个报文事件：方向 + 完整报文字节)。The transport layer owns
 // segmentation and seq/ack; the event only carries the direction and the
 // fully-built message bytes.
-type HTTPEvent struct {
+type MessageEvent struct {
 	// Up is true for the client→server direction (request), false for
 	// server→client (response).
 	Up bool
-	// Bytes is the complete HTTP message (headers + body).
+	// Bytes is the complete protocol message (e.g. full HTTP request/response).
 	Bytes []byte
 }
 
-// HTTPEventGenerator produces the message-event stream for a terminal
-// layer (终结层报文事件生成器)。Implemented by the http layer generator
-// in the protocol package; the ChainPlanner calls EmitEvent for each
-// built message and closes the stream when generation is done.
-type HTTPEventGenerator interface {
-	// EmitEvent delivers one HTTP message event. The ChainPlanner wires
+// EventGenerator produces the message-event stream for a terminal
+// layer (终结层报文事件生成器)。Implemented by terminal-layer generators
+// (e.g. the http generator in the protocol package); the ChainPlanner calls
+// EmitEvent for each built message and closes the stream when generation is
+// done.
+type EventGenerator interface {
+	// EmitEvent delivers one message event. The ChainPlanner wires
 	// it to the transport layer's event channel.
-	EmitEvent(ev HTTPEvent) error
+	EmitEvent(ev MessageEvent) error
 }
 
 // FlowMeta is the per-flow baseline the ChainPlanner passes to every layer
@@ -110,14 +112,18 @@ type FlowMeta struct {
 	// 字段表——HTTPConfig 全量字段不落层 config，避免 ValidateLayerConfig
 	// 的未知字段拒绝)。Only set for http chains.
 	HTTP *core.HTTPConfig
-	// DstIP is the flow destination IP (供 http 层生成器构造 Host 头，
+	// DstIP is the flow destination IP (供终结层生成器构造 Host 头等，
 	// legacy http.go:270 传 spec.DstIP 给 buildHTTPRequestBody)。
 	DstIP string
-	// HTTPEvents is the transport layer's view of the terminal stream
-	// (tcp 层 Inner 模式消费的报文事件流)。The ChainPlanner creates it,
-	// HTTPGenerator writes via req.EmitHTTP, TCPGenerator reads it. When
-	// nil, TCPGenerator keeps the legacy single-payload mode.
-	HTTPEvents <-chan HTTPEvent
+	// Events is the transport layer's view of the terminal stream
+	// (传输层 Inner 模式消费的报文事件流)。The ChainPlanner creates it,
+	// the terminal generator writes via req.EmitMsg, the transport
+	// generator reads it. When nil, the transport generator keeps the
+	// legacy single-payload mode.
+	Events <-chan MessageEvent
+	// UDP is the flow's UDP config (注入到 udp 层生成器：IsResponse /
+	// DisableChecksum，legacy udp.go 语义)。Only set for udp chains.
+	UDP *core.UDPConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
@@ -277,8 +283,8 @@ type IPGenerator struct{}
 // Name returns "ip".
 func (g *IPGenerator) Name() string { return "ip" }
 
-// GenHTTP is unimplemented for the ip layer (ip 层不是终结层，无报文事件)。
-func (g *IPGenerator) GenHTTP() HTTPEventGenerator { return nil }
+// GenEvents is unimplemented for the ip layer (ip 层不是终结层，无报文事件)。
+func (g *IPGenerator) GenEvents() EventGenerator { return nil }
 
 // Generate wraps every packet from Inner with this layer's L3 config.
 // Without Inner (standalone ip? never — ip is never a terminal layer) it
@@ -356,9 +362,9 @@ type TCPGenerator struct{}
 // Name returns "tcp".
 func (g *TCPGenerator) Name() string { return "tcp" }
 
-// GenHTTP is unimplemented for the tcp layer (tcp 是传输层，消费事件流，
+// GenEvents is unimplemented for the tcp layer (tcp 是传输层，消费事件流，
 // 不产出报文事件)。
-func (g *TCPGenerator) GenHTTP() HTTPEventGenerator { return nil }
+func (g *TCPGenerator) GenEvents() EventGenerator { return nil }
 
 // tcpCfg is the resolved TCP layer configuration.
 type tcpCfg struct {
@@ -560,8 +566,11 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	sess.HandshakeDone = true
 
 	// 数据段：payload 按 MSS 分段，每段(up, PSH|ACK) 后紧跟对端 ACK(down)。
+	// 事件模式（Meta.Events != nil）下跳过单 payload 段：终结层（http 等）
+	// 自产报文，legacy http 从不读 spec.Payload，多发包会破坏字节兼容
+	// （review CRITICAL 修复）。
 	payload := req.Meta.Payload
-	if len(payload) > 0 {
+	if len(payload) > 0 && req.Meta.Events == nil {
 		for len(payload) > 0 {
 			segmentSize := len(payload)
 			if segmentSize > mss {
@@ -603,15 +612,15 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 		}
 	}
 
-	// ---- Inner 模式：http 报文事件流（波 2 方案 A）----
-	// 终结层（http）经 req.EmitHTTP 产出"报文事件"（方向 + 完整字节），
+	// ---- Inner 模式：终结层报文事件流（波 2 方案 A）----
+	// 终结层（http）经 req.EmitMsg 产出"报文事件"（方向 + 完整字节），
 	// tcp 层消费后按 http 语义发段：每报文按 MSS 分段，每段 0x18 PSH-ACK，
 	// **段间不跟独立 ACK**（piggyback，ack 字段 = 对端当前 seq），双方向
 	// seq 各自推进。与 legacy http.go:266-357 字节一致（测试精确断言段数
 	// 与无 ACK 插入）。独立 tcp flow（无事件流）走上方旧逻辑。
-	events := req.Meta.HTTPEvents
+	events := req.Meta.Events
 	for events != nil {
-		var ev HTTPEvent
+		var ev MessageEvent
 		var ok bool
 		select {
 		case <-ctx.Done():
@@ -748,6 +757,142 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			},
 		}
 		if err := emit(ack2); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ---- udp 层生成器 ----
+
+// UDPGenerator drives the UDP packet sequence for one flow (udp 层生成器,
+// 字节级复刻 internal/protocol/udp/udp.go 的包序列)。UDP has no handshake,
+// no segmentation, and no teardown: a request (up) always carries the flow
+// payload; a response (down) is emitted only when spec.UDP.IsResponse is set.
+// Two modes mirror the tcp generator's split:
+//   - standalone payload mode: request payload = req.Meta.Payload。
+//   - Inner mode (event-driven): terminal layer events (dns/ntp/...) arrive
+//     on req.Meta.Events; events with Up=true take the up direction, Up=false
+//     the down direction, each emitted as one datagram (no MSS segmentation).
+type UDPGenerator struct{}
+
+// Name returns "udp".
+func (g *UDPGenerator) Name() string { return "udp" }
+
+// GenEvents is unimplemented for the udp layer (udp 是传输层，消费事件流，
+// 不产出报文事件)。
+func (g *UDPGenerator) GenEvents() EventGenerator { return nil }
+
+// udpCfg is the resolved UDP layer configuration.
+type udpCfg struct {
+	srcPort, dstPort uint16
+}
+
+// resolveCfg resolves the UDP layer configuration from the completed layer
+// config. 存在但不可转换的值显式报错返回，绝不静默丢配置（与 tcp 层
+// resolveCfg 同款纪律）。
+func (g *UDPGenerator) resolveCfg(req *GenRequest) (udpCfg, error) {
+	var cfg udpCfg
+	c := req.Layer.Config
+	if v, ok := flowConfigField(c, "src_port"); ok {
+		if p, ok := configUint16(v); ok {
+			cfg.srcPort = p
+		} else {
+			return cfg, fmt.Errorf("udp layer: field \"src_port\" = %v invalid: cannot convert to uint16", v)
+		}
+	}
+	if v, ok := flowConfigField(c, "dst_port"); ok {
+		if p, ok := configUint16(v); ok {
+			cfg.dstPort = p
+		} else {
+			return cfg, fmt.Errorf("udp layer: field \"dst_port\" = %v invalid: cannot convert to uint16", v)
+		}
+	}
+	return cfg, nil
+}
+
+// Generate drives the UDP sequence for one flow. 独立 [ip→udp] flow（无事件
+// 流）发 1 包（request, up），spec.UDP.IsResponse 时再发 1 包（response,
+// down）——顺序与 legacy udp.go Plan 逐字节一致。事件驱动模式（Meta.Events
+// 非 nil，终结层如 dns/ntp 经 EmitMsg 接线）下每事件发 1 数据报，方向随事件；
+// IsResponse 仅作用于独立模式（legacy udp.go 语义：事件流由终结层决定方向）。
+// DisableChecksum 写 L4.Metadata["udp_disable_checksum"]（builder writeUDP
+// :1320-1333 读取）。
+func (g *UDPGenerator) Generate(ctx context.Context, req *GenRequest) error {
+	cfg, err := g.resolveCfg(req)
+	if err != nil {
+		return err
+	}
+	emit := func(pkt core.PacketConfig) error {
+		if req.Emit == nil {
+			return nil
+		}
+		return req.Emit(pkt)
+	}
+	meta := func() map[string]interface{} {
+		// 恒写键（review 波 3 M1 修复）：legacy udp.go 恒写
+		// "udp_disable_checksum": false（false 也是显式键），
+		// 只写 true 会让 false 语义漂移为"缺键"。
+		return map[string]interface{}{"udp_disable_checksum": req.Meta.UDP != nil && req.Meta.UDP.DisableChecksum}
+	}
+
+	// ---- Inner 模式：终结层报文事件流（波 3）----
+	// 每事件 1 数据报：UDP 无分段（IP 层处理碎片），事件方向决定包方向。
+	if req.Meta.Events != nil {
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case ev, ok := <-req.Meta.Events:
+				if !ok {
+					return nil
+				}
+				direction := "up"
+				srcPort, dstPort := cfg.srcPort, cfg.dstPort
+				if !ev.Up {
+					direction = "down"
+					srcPort, dstPort = dstPort, srcPort
+				}
+				if err := emit(core.PacketConfig{
+					Direction: direction,
+					L4: core.L4Config{
+						Protocol: "udp",
+						SrcPort:  srcPort,
+						DstPort:  dstPort,
+					},
+					Payload:  ev.Bytes,
+					Metadata: meta(),
+				}); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// ---- 独立 payload 模式：request + 可选 response ----
+	if err := emit(core.PacketConfig{
+		Direction: "up",
+		L4: core.L4Config{
+			Protocol: "udp",
+			SrcPort:  cfg.srcPort,
+			DstPort:  cfg.dstPort,
+		},
+		Payload:  req.Meta.Payload,
+		Metadata: meta(),
+	}); err != nil {
+		return err
+	}
+	if req.Meta.UDP != nil && req.Meta.UDP.IsResponse {
+		if err := emit(core.PacketConfig{
+			Direction: "down",
+			L4: core.L4Config{
+				Protocol: "udp",
+				SrcPort:  cfg.dstPort,
+				DstPort:  cfg.srcPort,
+			},
+			Payload:  req.Meta.Payload,
+			Metadata: meta(),
+		}); err != nil {
 			return err
 		}
 	}

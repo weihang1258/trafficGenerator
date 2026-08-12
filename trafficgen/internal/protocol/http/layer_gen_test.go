@@ -39,8 +39,8 @@ func TestHTTPLayerGen_EmitsRequestResponseEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGenRequestForHTTP: %v", err)
 	}
-	var events []layers.HTTPEvent
-	req.EmitHTTP = func(ev layers.HTTPEvent) error {
+	var events []layers.MessageEvent
+	req.EmitMsg = func(ev layers.MessageEvent) error {
 		events = append(events, ev)
 		return nil
 	}
@@ -75,8 +75,8 @@ func TestHTTPLayerGen_PipelinedAllRequestsFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGenRequestForHTTP: %v", err)
 	}
-	var events []layers.HTTPEvent
-	req.EmitHTTP = func(ev layers.HTTPEvent) error {
+	var events []layers.MessageEvent
+	req.EmitMsg = func(ev layers.MessageEvent) error {
 		events = append(events, ev)
 		return nil
 	}
@@ -122,8 +122,8 @@ func TestHTTPLayerGen_FileSourceResolvesRequest(t *testing.T) {
 		t.Fatalf("NewGenRequestForHTTP: %v", err)
 	}
 	ctx := core.WithPayloadCache(context.Background(), pc)
-	var events []layers.HTTPEvent
-	req.EmitHTTP = func(ev layers.HTTPEvent) error {
+	var events []layers.MessageEvent
+	req.EmitMsg = func(ev layers.MessageEvent) error {
 		events = append(events, ev)
 		return nil
 	}
