@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"strings"
 
 	"go.uber.org/zap"
 )
@@ -130,6 +131,104 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 			}
 			if s := getInt(sub, "sequence"); s < 0 || s > 65535 {
 				return fmt.Errorf("icmpv6.sequence %d invalid (must be 0-65535)", s)
+			}
+		}
+	case "dnp3":
+		// DNP3 IIN is a uint16 field; parseDNP3Config's getUint16 silently
+		// truncates out-of-range values (0x10000 -> 0), so an out-of-range
+		// config would pass validation and complete the task with the wrong
+		// IIN on the wire (design §7.6.2 T55). Reject before conversion.
+		sub, hasDNP3 := cfg["dnp3"].(map[string]interface{})
+		if !hasDNP3 {
+			return nil
+		}
+		if i := getInt(sub, "iin"); i < 0 || i > 65535 {
+			return fmt.Errorf("dnp3.iin %d invalid (must be 0-65535)", i)
+		}
+	case "tftp":
+		// TFTP fields: most cross-protocol / inter-field checks (V20 mutex,
+		// V9 ErrorAfterBlock constraints, V12 ServerTIDChange mutex) require
+		// the parsed FlowSpec and are enforced by tftp.Planner.Validate at
+		// plan time. This layer catches the simple per-field range / enum
+		// violations that would otherwise reach plan() and hang the task.
+		sub, hasTFTP := cfg["tftp"].(map[string]interface{})
+		if !hasTFTP {
+			return nil
+		}
+		if v, ok := sub["mode"].(string); ok && v != "" {
+			lo := strings.ToLower(strings.TrimSpace(v))
+			if lo != "read" && lo != "write" {
+				return fmt.Errorf("tftp.mode %q invalid (must be read or write)", v)
+			}
+		}
+		if v, ok := sub["transfer_mode"].(string); ok && v != "" {
+			lo := strings.ToLower(strings.TrimSpace(v))
+			if lo == "mail" {
+				return fmt.Errorf("tftp.transfer_mode %q is deprecated and unsupported", v)
+			}
+			if lo != "netascii" && lo != "octet" {
+				return fmt.Errorf("tftp.transfer_mode %q invalid (must be netascii or octet)", v)
+			}
+		}
+		if v, ok := sub["error_side"].(string); ok && v != "" {
+			lo := strings.ToLower(strings.TrimSpace(v))
+			if lo != "server" && lo != "client" {
+				return fmt.Errorf("tftp.error_side %q invalid (must be server or client)", v)
+			}
+		}
+		if b := getInt(sub, "blksize"); b != 0 && (b < 8 || b > 65464) {
+			return fmt.Errorf("tftp.blksize %d out of range (8-65464)", b)
+		}
+		if t := getInt(sub, "timeout"); t != 0 && (t < 1 || t > 255) {
+			return fmt.Errorf("tftp.timeout %d out of range (1-255)", t)
+		}
+		if w := getInt(sub, "windowsize"); w != 0 && (w < 1 || w > 65535) {
+			return fmt.Errorf("tftp.windowsize %d out of range (1-65535)", w)
+		}
+		if e := getInt(sub, "error_code"); e < 0 || e > 8 {
+			return fmt.Errorf("tftp.error_code %d out of range (0-8)", e)
+		}
+		if s := getInt(sub, "server_tid"); s != 0 && s < 1024 {
+			return fmt.Errorf("tftp.server_tid %d in well-known range (<1024)", s)
+		}
+	case "enip":
+		// ENIP EPATH 字段：class_id 是 uint16、instance_id 是 uint32 编码
+		// （设计 §7.3 T-104/T-105）。转换层 getUint16/getUint32 会静默截断
+		// 超范围值（0x10000→0、0x100000000→0），截断后无法按字段编码，
+		// 必须在转换前拒绝。commands 是数组，这里逐项检查 raw map。
+		sub, hasENIP := cfg["enip"].(map[string]interface{})
+		if !hasENIP {
+			return nil
+		}
+		if cmds, ok := sub["commands"].([]interface{}); ok {
+			for i, item := range cmds {
+				cmd, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if c := getInt(cmd, "class_id"); c < 0 || c > 65535 {
+					return fmt.Errorf("enip.commands[%d].class_id out of range: %d (must be 0-65535)", i, c)
+				}
+				if in := getInt(cmd, "instance_id"); in < 0 || in > 4294967295 {
+					return fmt.Errorf("enip.commands[%d].instance_id out of range: %d (must be 0-4294967295)", i, in)
+				}
+			}
+		}
+		// EPATH 字段也出现在 sub_requests 数组（Multiple_Service_Packet），
+		// 转换层 parseENIPSubRequests 同样用 getUint16/getUint32 静默截断，
+		// 必须一并检查。
+		if srs, ok := sub["sub_requests"].([]interface{}); ok {
+			for j, item := range srs {
+				sr, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if c := getInt(sr, "class_id"); c < 0 || c > 65535 {
+					return fmt.Errorf("enip.sub_requests[%d].class_id out of range: %d (must be 0-65535)", j, c)
+				}
+				if in := getInt(sr, "instance_id"); in < 0 || in > 4294967295 {
+					return fmt.Errorf("enip.sub_requests[%d].instance_id out of range: %d (must be 0-4294967295)", j, in)
+				}
 			}
 		}
 	}
