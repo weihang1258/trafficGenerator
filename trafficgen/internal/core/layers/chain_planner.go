@@ -44,6 +44,12 @@ const ssdpPort = 1900
 //  7. 逐包回填 FlowID/ClassID/PacketIndex/Timestamp/Direction
 type ChainPlanner struct {
 	name string
+	// chain is the user-supplied layer chain (P2c: 策略 config 的 layers 键，
+	// 经 ValidateLayers 解析+补全后得到). nil = derive the chain from the
+	// protocol name (legacy synthesized chain). 用户链同样适用 V4 单层豁免
+	// （[tcp] 合法，末层即协议层）——BuildLayersPlanner 负责豁免补全并传入
+	// 已完成链，ChainPlanner 只驱动、不重补。
+	chain []Layer
 	// registry is the registry used to complete/validate the chain; nil =
 	// DefaultRegistry (测试注入自定义注册表时经 NewChainPlannerWithRegistry 指定)。
 	registry *Registry
@@ -52,6 +58,17 @@ type ChainPlanner struct {
 // NewChainPlanner creates a chain planner for the named protocol layer.
 func NewChainPlanner(name string) *ChainPlanner {
 	return &ChainPlanner{name: name}
+}
+
+// NewChainPlannerFromChain creates a chain planner driven by a user-supplied
+// layer chain (P2c 层链驱动生成). The chain is the completed+validated output
+// of ValidateLayers — re-completion is not needed, but the generator
+// precheck and event-wiring checks still run at Plan time. The planner's
+// name is the strategy protocol (whitelist key); generation is driven by the
+// chain, so name and chain's outermost layer may differ for tunnel chains
+// (e.g. name "gre" + chain [ip, gre, ip, tcp, http]).
+func NewChainPlannerFromChain(name string, chain []Layer) *ChainPlanner {
+	return &ChainPlanner{name: name, chain: chain}
 }
 
 // NewChainPlannerWithRegistry creates a chain planner that completes and
@@ -293,6 +310,21 @@ func flowID(spec core.FlowSpec) string {
 // V4/V5 exemption for the synthesized chain (末层即协议层本身)。
 func (p *ChainPlanner) completedChain() ([]Layer, error) {
 	r := p.effectiveRegistry()
+	// P2c: user-supplied chain — already completed+validated by ValidateLayers
+	// (BuildLayersPlanner 补全后传入, CRITICAL-1 修复)。Generator precheck runs
+	// here so a chain containing a layer with no implemented generator fails
+	// Plan synchronously (不静默空流).
+	if p.chain != nil {
+		if len(p.chain) == 0 {
+			return nil, fmt.Errorf("layers: empty layer chain")
+		}
+		for _, l := range p.chain {
+			if _, err := newGenerator(l.Name); err != nil {
+				return nil, err
+			}
+		}
+		return p.chain, nil
+	}
 	if !r.Has(p.name) {
 		return nil, fmt.Errorf("layers: unknown layer %q", p.name)
 	}
@@ -331,9 +363,37 @@ func (p *ChainPlanner) completedChain() ([]Layer, error) {
 // case: CompleteChain's internal validation rejects a transport last layer, so
 // the exemption path rebuilds the chain by iteratively inserting depends_on
 // layers outward (等价 CompleteChain 第一趟；depends_on 只向外插，末层永远是
-// 协议层本身)。
+// 协议层本身)。Synthesized chains start from a bare protocol name and carry
+// no config, so no layer config can be lost.
 func completeSynthesized(r *Registry, name string) []Layer {
 	chain := []Layer{{Name: name}}
+	for changed := true; changed; {
+		changed = false
+		for i := 0; i < len(chain); i++ {
+			s, _ := r.Get(chain[i].Name)
+			for _, dep := range s.DependsOn {
+				if outerHas(chain, i, dep) {
+					continue
+				}
+				chain = append(chain[:i], append([]Layer{{Name: dep}}, chain[i:]...)...)
+				changed = true
+				i++ // 跳过刚插入的层
+			}
+		}
+	}
+	return chain
+}
+
+// completeChainPreservingConfig completes a USER-written chain manually for
+// the V4-exempt single-layer case (P2c): same depends_on-outward insertion as
+// completeSynthesized, but the user's original layer config is preserved on
+// its layer (completeSynthesized starts from a bare protocol name and would
+// drop it). Called when CompleteChain rejects the chain only on the
+// terminal-layer rule; the completed chain drives generation (BuildLayersPlanner),
+// so dropping config would silently generate schema-default packets.
+func completeChainPreservingConfig(r *Registry, user []Layer) []Layer {
+	chain := make([]Layer, len(user))
+	copy(chain, user)
 	for changed := true; changed; {
 		changed = false
 		for i := 0; i < len(chain); i++ {
@@ -709,10 +769,12 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 			// 的合成链，不允许把默认 IP 静默注入包（与 legacy L3Base 一致）。
 			// 安全前提（review 注记）：此处只可能删除 **schema 注入的默认值**
 			// ——合成链（completeSynthesized/CompleteChain 以 {Name:name} 起步）
-			// 的 ip 层 Config 恒为 nil，delete 无对象可删；ChainPlanner 目前
-			// 不驱动用户手写链（手写链只经 registry 校验，不进 applySpecToChain），
-			// 所以 delete 永不触碰用户显式写入的 src/dst。若未来支持手写链，
-			// 需改为按"值 == schema 默认值"精确删除，而不是无差别 delete。
+			// 的 ip 层 Config 恒为 nil，delete 无对象可删；用户手写链（P2c，
+			// NewChainPlannerFromChain 的 p.chain）的 ip 层 config 也可能含
+			// 用户显式 src/dst——spec.SrcIP 空时 delete 会移除它们。用户链
+			// 的 ip 层 config 由 ValidateLayers 校验（V9 字段范围），spec 空
+			// IP 时删掉层 config 的 src/dst 与 legacy "spec IP 空 → L3 空"
+			// 语义一致（用户要固定 IP 应在 flat spec 写 src_ip）。
 			if spec.SrcIP != "" {
 				cfg["src"] = spec.SrcIP
 			} else {

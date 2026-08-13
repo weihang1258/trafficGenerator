@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"hash/maphash"
 	"strings"
@@ -21,6 +22,19 @@ type Engine struct {
 	// replayPlanner handles TrafficClass.Type=="replay" (§16.12). May be nil if
 	// replay isn't wired (then replay classes are rejected).
 	replayPlanner ReplayPlanner
+	// layerPlannerFactory builds a per-task ChainPlanner from a "layers"
+	// config JSON (P2c 层链驱动生成). Injected by the server via
+	// SetLayerPlannerFactory (wired to layers.BuildLayersPlanner in
+	// cmd/server/main.go); nil when layers aren't wired (unit tests).
+	// layerPlanners holds the built planners per task ID; written during
+	// SubmitTask (pre-Start or while running, guarded by taskMu) and read
+	// by ConfigWorkers after Start, so all reads happen after the last
+	// write for any running task (engine adds tasks before the workers
+	// can observe them — SubmitTask and Start are synchronized by the
+	// caller, and per-task ID writes happen-before the task's first
+	// config reaches the worker via the task channel).
+	layerPlannerFactory func(protocol string, layersJSON json.RawMessage) (ProtocolPlanner, error)
+	layerPlanners       map[string]ProtocolPlanner
 
 	// Channels
 	taskChan chan Task
@@ -193,12 +207,32 @@ func NewEngine(config EngineConfig) *Engine {
 		taskStore:     make(map[string]*taskEntry),
 		outputWriters: make(map[string]PacketWriter),
 		dualWriters:   make(map[string]*DualPortWriter),
+		layerPlanners: make(map[string]ProtocolPlanner),
 	}
 }
 
 // RegisterPlanner registers a protocol planner.
 func (e *Engine) RegisterPlanner(planner ProtocolPlanner) {
 	e.planners[planner.Name()] = planner
+}
+
+// SetLayerPlannerFactory wires the injected layer-planner factory (P2c 层链
+// 驱动生成). It builds a per-task ChainPlanner from a raw "layers" config
+// JSON. The server wires it to layers.BuildLayersPlanner in main.go; core
+// itself cannot import layers (layers imports core). Must be called before
+// Start — the factory is read by SubmitTask but never mutated afterwards.
+func (e *Engine) SetLayerPlannerFactory(fn func(protocol string, layersJSON json.RawMessage) (ProtocolPlanner, error)) {
+	e.layerPlannerFactory = fn
+}
+
+// layerPlannerFor returns the per-task ChainPlanner for taskID, or nil when
+// the task has no layers config (legacy protocol-name path). RLock guards the
+// map read against concurrent deletes at task completion (FailTask /
+// SetTaskTotalConfigs / StopTask all hold taskMu when removing entries).
+func (e *Engine) layerPlannerFor(taskID string) ProtocolPlanner {
+	e.taskMu.RLock()
+	defer e.taskMu.RUnlock()
+	return e.layerPlanners[taskID]
 }
 
 // ListProtocols returns all registered protocol names.
@@ -622,6 +656,25 @@ func (e *Engine) SubmitTask(task Task) error {
 		e.getOrCreateFlowCounter(task.ParentTaskID)
 	}
 
+	// P2c 层链驱动生成: a task carrying a "layers" config gets a per-task
+	// ChainPlanner from the injected factory (wired to layers.BuildLayersPlanner
+	// in cmd/server/main.go). The planner is stored under the task ID; the
+	// worker looks it up when dispatching. Errors surface at submit time —
+	// a layers config that cannot be parsed/validated fails the task
+	// submission, never silently generating an empty flow.
+	if task.Layers != nil {
+		if e.layerPlannerFactory == nil {
+			return fmt.Errorf("layers: layer planner factory not wired")
+		}
+		planner, err := e.layerPlannerFactory(task.Protocol, task.Layers)
+		if err != nil {
+			return fmt.Errorf("layers: %w", err)
+		}
+		e.taskMu.Lock()
+		e.layerPlanners[task.ID] = planner
+		e.taskMu.Unlock()
+	}
+
 	// Create per-task context for cancellation. Priority:
 	//  1. batch DurationSeconds
 	//  2. task-level time ceiling (min with strategy Duration)
@@ -654,6 +707,10 @@ func (e *Engine) SubmitTask(task Task) error {
 	task.Ctx = taskCtx
 	status.Status = "running"
 	status.StartedAt = time.Now()
+	// Lock across the store insert and the channel snapshot so a submit that
+	// fails at the channel guard below (engine stopped between the running
+	// check and the snapshot) cleans up everything this task registered —
+	// including the layerPlanners entry inserted above.
 	e.taskMu.Lock()
 	e.taskStore[task.ID] = &taskEntry{task: &task, status: status, cancel: cancel}
 	e.taskMu.Unlock()
@@ -667,6 +724,11 @@ func (e *Engine) SubmitTask(task Task) error {
 	stopChan := e.stopChan
 	e.channelMu.Unlock()
 	if taskChan == nil || stopChan == nil {
+		e.taskMu.Lock()
+		delete(e.taskStore, task.ID)
+		delete(e.layerPlanners, task.ID)
+		e.taskMu.Unlock()
+		e.cleanupTaskRateLimiters(task.ID)
 		return fmt.Errorf("engine not running")
 	}
 
@@ -678,6 +740,7 @@ func (e *Engine) SubmitTask(task Task) error {
 		cancel()
 		e.taskMu.Lock()
 		delete(e.taskStore, task.ID)
+		delete(e.layerPlanners, task.ID)
 		e.taskMu.Unlock()
 		e.cleanupTaskRateLimiters(task.ID)
 		return fmt.Errorf("engine not running")
@@ -695,6 +758,7 @@ func (e *Engine) SubmitTask(task Task) error {
 		// failure doesn't leak them (they were created above before queueing).
 		e.taskMu.Lock()
 		delete(e.taskStore, task.ID)
+		delete(e.layerPlanners, task.ID)
 		e.taskMu.Unlock()
 		e.cleanupTaskRateLimiters(task.ID)
 		return fmt.Errorf("task queue full")
@@ -714,6 +778,7 @@ func (e *Engine) StopTask(taskID string) error {
 	entry.cancel()
 	entry.status.Status = "stopped"
 	entry.status.CompletedAt = time.Now()
+	delete(e.layerPlanners, taskID)
 
 	zap.L().Info("task stopped", zap.String("task_id", taskID))
 	return nil
@@ -746,6 +811,7 @@ func (e *Engine) SetTaskTotalConfigs(taskID string, count int64) {
 		entry.status.CompletedAt = time.Now()
 		entry.cancel()
 		delete(e.taskStore, taskID)
+		delete(e.layerPlanners, taskID)
 		e.taskMu.Unlock()
 		e.cleanupTaskRateLimiters(taskID)
 		zap.L().Info("task completed (totalConfigs set after drain)", zap.String("task_id", taskID), zap.Int64("configs", count))
@@ -801,6 +867,7 @@ func (e *Engine) OnPacketWritten(taskID string) {
 		entry.status.CompletedAt = time.Now()
 		entry.cancel()
 		delete(e.taskStore, taskID)
+		delete(e.layerPlanners, taskID)
 		e.taskMu.Unlock()
 		e.cleanupTaskRateLimiters(taskID)
 		zap.L().Info("task completed (pipeline drained)", zap.String("task_id", taskID))
@@ -848,6 +915,7 @@ func (e *Engine) FailTask(taskID string, errMsg string) {
 	entry.status.CompletedAt = time.Now()
 	entry.cancel()
 	delete(e.taskStore, taskID)
+	delete(e.layerPlanners, taskID)
 	e.taskMu.Unlock()
 	e.cleanupTaskRateLimiters(taskID)
 

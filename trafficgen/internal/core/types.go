@@ -30,6 +30,14 @@ type Task struct {
 	// verbatim to ReplayPlanner.PlanReplay. Not used for synth mode.
 	Replay json.RawMessage `json:"replay,omitempty"`
 
+	// Layers is the raw "layers" config JSON (P2c 层链驱动生成), set when the
+	// strategy config has a "layers" key (strategy_convert.go). nil = derive
+	// the chain from Protocol via the default synthesized path. core cannot
+	// import layers (layers imports core), so this stays raw JSON; the
+	// engine's injected layer-planner factory (SetLayerPlannerFactory,
+	// wired in cmd/server/main.go) parses it into a ChainPlanner.
+	Layers json.RawMessage `json:"-"`
+
 	ClassID    string                 `json:"class_id"`
 	Interface  string                 `json:"interface"`            // output interface name (client side / primary)
 	Interface2 string                 `json:"interface2,omitempty"` // server side (dual-port replay); empty = single
@@ -1682,7 +1690,8 @@ type DNP3Config struct {
 	MSS                    uint16               `json:"mss,omitempty"`
 	ThinkTime              int                  `json:"think_time,omitempty"`
 	MalformedCRC           bool                 `json:"malformed_crc,omitempty"`
-	MalformedLength        uint8                `json:"malformed_length,omitempty"`
+	// MalformedLength 显式覆盖 Length 字节（nil=不覆盖, 0=强制 Length=0x00）。
+	MalformedLength        *uint8               `json:"malformed_length,omitempty"`
 	UnknownObject          bool                 `json:"unknown_object,omitempty"`
 	UnknownFunc            bool                 `json:"unknown_func,omitempty"`
 }
@@ -1701,6 +1710,11 @@ type DNP3Object struct {
 type DNP3Point struct {
 	Value float64 `json:"value,omitempty"`
 	Index uint16  `json:"index,omitempty"`
+	// Status is CROB (Object 12.1) response-only: the 7th byte echoed by the
+	// outstation (IEEE 1815-2012 §5.4.2). Requests MUST NOT carry it (design
+	// §7.6.5 T66); *uint8 distinguishes "absent" from an explicit 0 so a
+	// response echo Status=0 (T68) stays valid.
+	Status *uint8 `json:"status,omitempty"`
 }
 type DNP3MultiOutstation struct {
 	OutstationCount     int      `json:"outstation_count,omitempty"`
@@ -7771,6 +7785,13 @@ type MQTTConfig struct {
 	// abnormal disconnect — required for will-message scenarios).
 	Disconnect *bool `json:"disconnect,omitempty"`
 
+	// DisconnectReason (5.0 only): Reason Code for the DISCONNECT packet
+	// (design §6 S15/T-187). nil = 0 (Normal disconnection). *N = emit
+	// Reason Code N (e.g. 0x8D = 141 Keep Alive timeout, 0x94 = 148 Topic
+	// Alias invalid). Validate: non-nil on Version=4 → error; value must be
+	// in the 5.0 DISCONNECT Reason Code whitelist (§2.11).
+	DisconnectReason *int `json:"disconnect_reason,omitempty"`
+
 	// Sessions (多会话列表): when non-empty, the planner emits one flow per
 	// entry (each gets a distinct 4-tuple and FlowID via the SubFlow
 	// mechanism, mirroring SIP/RTSP multi-stream handling). Inheritance
@@ -7784,6 +7805,13 @@ type MQTTConfig struct {
 	// Properties Length (VBI) is MANDATORY even when there are no
 	// properties — the planner always writes the 0x00 length byte.
 	Properties []MQTTProperty `json:"properties,omitempty"`
+
+	// ConnackProperties (5.0 only): CONNACK-level properties (T-198/199/200).
+	// nil = no properties (Properties Length=0). Supports Maximum QoS (0x24),
+	// Retain Available (0x25), Shared Subscription Available (0x2A), etc.
+	// Validate: Version=4 with non-empty → error; each entry must be in the
+	// CONNACK whitelist (§8.4).
+	ConnackProperties []MQTTProperty `json:"connack_properties,omitempty"`
 }
 
 // MQTTWill is the CONNECT Will Message configuration.
@@ -7882,23 +7910,29 @@ type MQTTProperty struct {
 // from the parent. Each session becomes an independent TCP 4-tuple (SrcPort
 // auto-increments when HasExplicitSrcPort=false).
 type MQTTSession struct {
-	ClientID          string          `json:"client_id,omitempty"`
-	KeepAlive         *int            `json:"keep_alive,omitempty"`
-	CleanSession      *bool           `json:"clean_session,omitempty"`
-	Username          string          `json:"username,omitempty"`
-	Password          string          `json:"password,omitempty"`
-	Will              *MQTTWill       `json:"will,omitempty"`
-	Subscriptions     []MQTTSubscribe `json:"subscriptions,omitempty"`
-	Messages          []MQTTMessage   `json:"messages,omitempty"`
-	Disconnect        *bool           `json:"disconnect,omitempty"`
+	ClientID      string          `json:"client_id,omitempty"`
+	KeepAlive     *int            `json:"keep_alive,omitempty"`
+	CleanSession  *bool           `json:"clean_session,omitempty"`
+	Username      string          `json:"username,omitempty"`
+	Password      string          `json:"password,omitempty"`
+	Will          *MQTTWill       `json:"will,omitempty"`
+	Subscriptions []MQTTSubscribe `json:"subscriptions,omitempty"`
+	Messages      []MQTTMessage   `json:"messages,omitempty"`
+	Disconnect    *bool           `json:"disconnect,omitempty"`
+	// DisconnectReason (5.0 only): per-session override of the top-level
+	// DISCONNECT Reason Code. nil = inherit from top-level.
+	DisconnectReason *int `json:"disconnect_reason,omitempty"`
 	// Bug fix: changed from `bool` to `*bool` so a session can explicitly
 	// override top-level PingAfterMessages=true to false. Previously the
 	// merge only checked `if s.PingAfterMessages` (true-only), so a
 	// session could never turn off the heartbeat once the top-level set
 	// it on. nil = inherit from top-level, *false = override off,
 	// *true = override on.
-	PingAfterMessages *bool           `json:"ping_after_messages,omitempty"`
-	Properties        []MQTTProperty  `json:"properties,omitempty"`
+	PingAfterMessages *bool          `json:"ping_after_messages,omitempty"`
+	Properties        []MQTTProperty `json:"properties,omitempty"`
+	// ConnackProperties (5.0 only): per-session override of the top-level
+	// CONNACK properties. nil = inherit from top-level.
+	ConnackProperties []MQTTProperty `json:"connack_properties,omitempty"`
 
 	// SrcPort/DstPort override: 0 = inherit from FlowSpec / auto-assign.
 	SrcPort uint16 `json:"src_port,omitempty"`
@@ -8109,17 +8143,21 @@ type ENIPConfig struct {
 
 // ENIPCommand represents a single ENIP message command configuration.
 type ENIPCommand struct {
-	Command                     uint16           `json:"command"`
-	Length                      uint16           `json:"length,omitempty"`
-	SessionHandle               uint32           `json:"session_handle,omitempty"`
-	Status                      uint32           `json:"status,omitempty"`
-	SenderContext               uint64           `json:"sender_context,omitempty"`
-	Options                     uint32           `json:"options,omitempty"`
-	Payload                     []byte           `json:"payload,omitempty"`
-	ProtocolVersion             uint16           `json:"protocol_version,omitempty"`
-	OptionFlag                  uint16           `json:"option_flag,omitempty"`
-	InterfaceHandle             uint32           `json:"interface_handle,omitempty"`
-	Timeout                     uint16           `json:"timeout,omitempty"`
+	Command         uint16 `json:"command"`
+	Length          uint16 `json:"length,omitempty"`
+	SessionHandle   uint32 `json:"session_handle,omitempty"`
+	// SessionHandleStrategy 记录 session_handle 配置为策略 map 时的 strategy 键
+	// （如 {"strategy":"inc",...}），仅用于 Validate 拒绝非法策略（设计 §7.3 T-090/091）。
+	// 该字段仅存在于配置解析层，不参与序列化。
+	SessionHandleStrategy string `json:"-"`
+	Status                uint32 `json:"status,omitempty"`
+	SenderContext   uint64 `json:"sender_context,omitempty"`
+	Options         uint32 `json:"options,omitempty"`
+	Payload         []byte `json:"payload,omitempty"`
+	ProtocolVersion uint16 `json:"protocol_version,omitempty"`
+	OptionFlag      uint16 `json:"option_flag,omitempty"`
+	InterfaceHandle uint32 `json:"interface_handle,omitempty"`
+	Timeout         uint16 `json:"timeout,omitempty"`
 	// PriorityTimeTick 和 TimeoutTicks 是 Forward_Open/Forward_Close 的 CIP 超时参数。
 	PriorityTimeTick            uint8            `json:"priority_time_tick,omitempty"`
 	TimeoutTicks                uint8            `json:"timeout_ticks,omitempty"`
@@ -8160,11 +8198,11 @@ type ENIPCommand struct {
 	// 供后续命令通过 FromResponseField/SourceCommandIndex 引用提取字段
 	// （session_handle / o2t_connection_id / t2o_connection_id /
 	// connection_serial_number，见设计 §5.6.1）。请求场景忽略。
-	ResponsePayload             []byte           `json:"-"`
+	ResponsePayload []byte `json:"-"`
 	// SenderContextPtr 显式强制 SenderContext 值（包括 0）。
 	// 非 nil 时直接采用该值；否则按 SenderContext 非零用其值、
 	// 为零时使用 flow 内递增默认值（设计 §6.13 S12）。
-	SenderContextPtr            *uint64          `json:"-"`
+	SenderContextPtr *uint64 `json:"-"`
 }
 
 // CPFItem represents a Common Packet Format item.

@@ -255,6 +255,11 @@ func (r *Registry) ValidateChain(chain []Layer) error {
 // ValidateLayerConfig checks one layer's config values against its schema
 // field ranges（§10.2 V9 字段范围）。Unknown fields are reported too（防拼写错误）。
 // 返回值不区分"显式 0"与"缺失"：只对存在且可转换的值做范围检查（§6.4）。
+// 转换口径与生成器一致（configUint64，MEDIUM 修复）：bool 不是数值，放进
+// 数值字段（window_size/mss/ttl…）必须拒绝——旧实现 asInt64 把 true 当 1
+// 放行，生成器 configUint64 拒绝，错误被驱动 goroutine 吞掉 → 静默空流
+// （与 CRITICAL-1 同类后果）。bool 字段（handshake 等）无数值边界，跳过
+// 数值转换，由生成器 configBool 兜底。
 func (r *Registry) ValidateLayerConfig(l Layer) error {
 	s, ok := r.Get(l.Name)
 	if !ok {
@@ -272,22 +277,23 @@ func (r *Registry) ValidateLayerConfig(l Layer) error {
 			return errf("layers: layer %q: unknown field %q", l.Name, k)
 		}
 		if f.Min == 0 && f.Max == 0 {
-			continue // no numeric bounds declared
+			continue // no numeric bounds declared（bool/字符串字段由生成器转换兜底）
 		}
-		i, ok := asInt64(v)
+		u, ok := configUint64(v)
 		if !ok {
-			// 存在值但不可转换（超 int64 的整数、非整数值）：必须拒绝，
-			// 不得静默跳过（防绕过 V9 范围检查，MEDIUM-2）。
+			// 存在值但不可转换（bool、负值、超 uint64 的整数、非整数值）：
+			// 必须拒绝，不得静默跳过（防绕过 V9 范围检查，MEDIUM-2 修复；
+			// bool 拒绝为 MEDIUM 修复，与生成器 configUint64 口径一致）。
 			return errf("layers: layer %q field %q = %v invalid: not a numeric value in [%d,%d]",
 				l.Name, k, v, f.Min, f.Max)
 		}
-		if i == 0 {
+		if u == 0 {
 			// 显式 0 = "用 schema 默认值"（§6.4 显式 0 ≠ 缺失；与 flat 配置
 			// 校验同款：mss 0 合法 → 生成时用默认 1460）。默认值本身在范围
 			// 内（registry 保证），0 直接放行。
 			continue
 		}
-		if i < f.Min || i > f.Max {
+		if u < uint64(f.Min) || u > uint64(f.Max) {
 			return errf("layers: layer %q field %q = %v invalid: out of range [%d,%d]",
 				l.Name, k, v, f.Min, f.Max)
 		}

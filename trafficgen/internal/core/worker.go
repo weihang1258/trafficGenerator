@@ -159,7 +159,21 @@ func (w *ConfigWorker) processTask(task Task) {
 		zap.Int("planners_count", len(w.planners)),
 	)
 
-	planner, ok := w.planners[task.Protocol]
+	// P2c 层链驱动生成: a task carrying a "layers" config dispatches to its
+	// per-task ChainPlanner (built by the engine's injected layer-planner
+	// factory at SubmitTask) instead of the protocol-name planner. The
+	// per-task planner is authoritative when present — for tunnel chains the
+	// protocol name (e.g. "gre") may not even be a registered protocol
+	// planner, so the per-task lookup runs before the protocol-name one and
+	// cannot be gated on it.
+	var planner ProtocolPlanner
+	ok := false
+	if lp := w.engine.layerPlannerFor(task.ID); lp != nil {
+		planner = lp
+		ok = true
+	} else {
+		planner, ok = w.planners[task.Protocol]
+	}
 	if !ok {
 		zap.L().Error("unknown protocol",
 			zap.String("task_id", task.ID),

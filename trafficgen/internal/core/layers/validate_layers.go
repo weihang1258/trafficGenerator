@@ -3,7 +3,76 @@ package layers
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/trafficgen/trafficgen/internal/core"
 )
+
+// BuildLayersPlanner is the engine's injected layer-planner factory (P2c 层链
+// 驱动生成): parses a raw "layers" config JSON into a per-task ChainPlanner.
+// It re-runs the same parsing + completion + validation as ValidateLayers
+// (strategy-creation-time validation is belt; this is braces — the stored
+// config is trusted data, but a config edited out-of-band, or a layers JSON
+// assembled by a non-validating caller, must still fail loudly at submit
+// rather than silently generate a chain the registry would reject). The
+// returned planner's Name is the effective protocol (given or inferred), so
+// the worker's per-task lookup keys on it consistently with the legacy
+// protocol-name planners. The protocol arg is the strategy's protocol field;
+// when empty it is inferred from the chain (matching ValidateLayers).
+func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.ProtocolPlanner, error) {
+	effective, err := ValidateLayers(layersJSON, protocol)
+	if err != nil {
+		return nil, err
+	}
+	if effective == "" {
+		return nil, fmt.Errorf("layers: no layers config")
+	}
+	var raw []map[string]json.RawMessage
+	if err := json.Unmarshal(layersJSON, &raw); err != nil {
+		return nil, fmt.Errorf("layers: invalid layers JSON: %w", err)
+	}
+	chain := make([]Layer, 0, len(raw))
+	for i, item := range raw {
+		if len(item) != 1 {
+			return nil, fmt.Errorf("layers[%d]: each layer entry must contain exactly one layer name", i)
+		}
+		for name, cfgRaw := range item {
+			var cfg map[string]interface{}
+			if len(cfgRaw) > 0 {
+				if err := json.Unmarshal(cfgRaw, &cfg); err != nil {
+					return nil, fmt.Errorf("layers[%d] (%s): invalid config: %w", i, name, err)
+				}
+			}
+			chain = append(chain, Layer{Name: name, Config: cfg})
+		}
+	}
+	// Precheck generator instantiation so a chain containing a layer with no
+	// implemented generator fails here (submit time), not at Plan time — the
+	// same guard the planner's completedChain runs, surfaced earlier.
+	for _, l := range chain {
+		if _, err := newGenerator(l.Name); err != nil {
+			return nil, err
+		}
+	}
+	// CRITICAL-1 修复：传给 ChainPlanner 的必须是**补全后**的链——Plan 的
+	// drive 从链上找 ip 层装配 L3，未补全的 [tcp] 会报 "no ip layer"，错误被
+	// 驱动 goroutine 吞掉 → 任务报 completed 且 0 包（静默空流）。补全逻辑
+	// 与 ValidateLayers 逐字一致：优先 CompleteChain（保留用户层 config）；
+	// 单层链 legacy 豁免（V4 例外，传输层可作末层）时 CompleteChain 的
+	// validateChain 拒绝末层，回退手动补全（depends_on 只向外插）——但必须
+	// 保留 config 的变体：completeSynthesized 从裸协议名重建，config 全丢，
+	// 会静默生成 schema 默认的包。补全必须在 factory 内完成（链要驱动生成），
+	// 不能留到 Plan（completedChain 的 p.chain 分支无法识别豁免条件）。
+	r := DefaultRegistry()
+	completed, err := r.CompleteChain(chain)
+	if err != nil {
+		exempt := len(chain) == 1 && outerCategory(r, chain[0]) != CategoryTunnel
+		if !(exempt && isTerminalEndError(err)) {
+			return nil, err
+		}
+		completed = completeChainPreservingConfig(r, chain)
+	}
+	return NewChainPlannerFromChain(effective, completed), nil
+}
 
 // ValidateLayers validates a user-supplied layer chain at strategy-creation
 // time (P3, design §10.2 创建时校验清单): parse the "layers" array, complete

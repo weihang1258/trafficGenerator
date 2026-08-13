@@ -985,6 +985,25 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			failedIDs = append(failedIDs, strategy.ID)
 			continue
 		}
+		// P2c 层链驱动生成: strategy config with a "layers" key carries the raw
+		// layers JSON on the task; the engine builds a per-task ChainPlanner
+		// from it at SubmitTask (layers.BuildLayersPlanner, wired in main.go).
+		// Parse failures surface here as a strategy failure — the strategy was
+		// already validated at creation time, so this only fires for a config
+		// edited out-of-band, but it must fail the task loudly, never generate
+		// an empty flow. Replay strategies are skipped: their Config is a
+		// ReplaySpec, not a layer chain, and their tasks carry no protocol.
+		if strategy.Mode != "replay" {
+			var configMap map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(strategy.Config), &configMap); err != nil {
+				log.Printf("error parsing config for strategy %s: %v", strategy.ID, err)
+				failedIDs = append(failedIDs, strategy.ID)
+				continue
+			}
+			if rawLayers, ok := configMap["layers"]; ok {
+				coreTask.Layers = rawLayers
+			}
+		}
 		coreTasks = append(coreTasks, coreTask)
 	}
 

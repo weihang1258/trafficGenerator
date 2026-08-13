@@ -442,6 +442,12 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(mcpprotocol.NewPlanner())
 	app.engine.RegisterPlanner(a2a.NewPlanner())
 
+	// P2c 层链驱动生成: inject the layer-planner factory so tasks carrying a
+	// "layers" config get a per-task ChainPlanner at submit time. core cannot
+	// import layers (layers imports core), so the wiring lives here, where
+	// both packages are imported.
+	app.engine.SetLayerPlannerFactory(layers.BuildLayersPlanner)
+
 	zap.L().Info("protocols registered",
 		zap.Strings("protocols", app.engine.ListProtocols()),
 	)

@@ -471,6 +471,45 @@ func TestValidateLayerConfig_FractionalValueRejected(t *testing.T) {
 	}
 }
 
+// ---- MEDIUM（CRITICAL-1 同类，对抗 review 发现）：字段值类型不一致必须拒绝 ----
+// V9 校验与生成器转换必须同一口径：bool 值（true/false）不能放进数值字段
+// （window_size/ttl/mss/port…）——旧实现 asInt64 把 true 当 1 放行，生成器
+// configUint64 拒绝，错误被驱动 goroutine 吞掉 → 静默空流（与 CRITICAL-1
+// 同类后果）。
+
+func TestValidateLayerConfig_BoolForNumericFieldRejected(t *testing.T) {
+	r := DefaultRegistry()
+	cases := []struct {
+		name string
+		cfg  map[string]interface{}
+	}{
+		{"tcp", map[string]interface{}{"window_size": true}},
+		{"tcp", map[string]interface{}{"mss": false}},
+		{"ip", map[string]interface{}{"ttl": true}},
+	}
+	for _, tc := range cases {
+		err := r.ValidateLayerConfig(Layer{Name: tc.name, Config: tc.cfg})
+		if err == nil {
+			t.Errorf("%s %v: bool for numeric field not rejected", tc.name, tc.cfg)
+		}
+	}
+}
+
+// bool 字段（handshake 等）接受 bool 与 "true"/"false" 字符串，不受影响。
+func TestValidateLayerConfig_BoolFieldStillAccepted(t *testing.T) {
+	r := DefaultRegistry()
+	cases := []map[string]interface{}{
+		{"handshake": true},
+		{"handshake": "true"},
+		{"handshake": "false"},
+	}
+	for _, cfg := range cases {
+		if err := r.ValidateLayerConfig(Layer{Name: "tcp", Config: cfg}); err != nil {
+			t.Errorf("bool field %v rejected: %v", cfg, err)
+		}
+	}
+}
+
 // ---- protocol 字段与层链最外层一致性（V10，解析层做，这里测接口） ----
 
 func TestOutermostLayer(t *testing.T) {
