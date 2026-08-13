@@ -223,6 +223,12 @@ type FlowMeta struct {
 	// DHCPv6 is the flow's DHCPv6 config (注入到 dhcpv6 层生成器，波 5e)。
 	// Only set for dhcpv6 chains.
 	DHCPv6 *core.DHCPv6Config
+	// GRE is the flow's GRE tunnel config (注入到 gre 隧道层生成器，P2e T12)。
+	// Flat 权威（与终结层配置翻译同款 flat-wins）：spec.GRE 非 nil 时全量
+	// 采用（InnerSrcIP/InnerDstIP/InnerTTL/InnerIPID/Sequence 基值...），
+	// 层 config 的 key/checksum/sequence 仅在其为 nil 时生效。Only set for
+	// gre chains.
+	GRE *core.GREConfig
 	// SrcPort is the flow source port (波 5b：ssdp 生成器默认 src 端口
 	// 1900，legacy planner.go:236-239 同款；波 5c：rip 生成器事件级覆盖
 	// 端口，spec.SrcPort 为 0 时走 legacy resolveSrcPort；其余链不使用)。

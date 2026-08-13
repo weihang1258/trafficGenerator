@@ -123,8 +123,30 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 			return spec, err
 		}
 	}
-	if err := p.validateChain(); err != nil {
+	chain, err := p.completedChain()
+	if err != nil {
 		return spec, err
+	}
+	// 隧道层（gre）结构性校验（P2e T12 review HIGH-2）：GRE 只支持 IPv4
+	// 内层（GREGenerator 的 To4 检查 + builder writeGRE 的 ProtocolType
+	// 0x0800 即内层裸 IPv4 包）。IPv6 内层/空地址是**结构性**错误，必须在此
+	// 同步拒绝——drive 期生成器报错会被 Plan goroutine 吞成 0 包空流
+	// （chain_planner.go:266-270 的既有契约），调用方拿到空流而非明确错误。
+	// 校验读 spec 地址（applySpecToChain 把 spec.SrcIP/DstIP 注入每个 ip 层，
+	// 外层与内层同值；flat spec.GRE 的 InnerSrcIP/InnerDstIP 默认即 spec
+	// 地址，同受此约束）。
+	for _, l := range chain {
+		if l.Name != "gre" {
+			continue
+		}
+		if spec.SrcIP == "" || spec.DstIP == "" {
+			return spec, fmt.Errorf("gre chain: inner IPv4 addresses required (tunnel chains derive inner addresses from spec src_ip/dst_ip; empty spec addresses leave no inner addresses)")
+		}
+		if net.ParseIP(spec.SrcIP).To4() == nil || net.ParseIP(spec.DstIP).To4() == nil {
+			return spec, fmt.Errorf("gre chain: IPv6-over-GRE not supported yet (inner addresses %s/%s must be IPv4)",
+				spec.SrcIP, spec.DstIP)
+		}
+		break
 	}
 	return spec, nil
 }
@@ -568,8 +590,13 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 	var ipLayer Layer
 	for i, l := range chain {
 		if l.Name == "ip" {
+			// 隧道链（gre）有两个 ip 层：外层（隧道端点）+ 内层（内层包）。
+			// 外层生成器是链的出口，必须选**第一个**（outermost）ip 层——
+			// 旧实现保留最后一个，对内层 ip 层生成器包帧后 finalEmit 再包
+			// 一层，结构错乱。
 			ipGen = gens[i].(*IPGenerator)
 			ipLayer = chain[i]
+			break
 		}
 	}
 	if ipGen == nil {
@@ -602,7 +629,14 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 			}
 			pkt.L2.EtherType = core.EtherTypeFor(pkt.L3.SrcIP)
 		} else {
+			// 隧道链（gre）：GREGenerator 已把 wire GRE 配置写进 L2.GRE，
+			// l2For 全量重建会覆盖它——重建前先保留，装配后再恢复
+			// （顺序必须如此：先取 gre 再 l2For，反了取到的是 nil）。
+			gre := pkt.L2.GRE
 			pkt.L2 = l2For(pkt.Direction, spec)
+			if gre != nil {
+				pkt.L2.GRE = gre
+			}
 			// 方向相关 src/dst 交换 + flow 级字段。IPID 已由 ip 层生成器写入
 			// （每次 Emit 前写入并自增），这里只换 IP 不换 ID。
 			if pkt.Direction == "down" {
@@ -612,8 +646,11 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		}
 		// L3 协议号随传输层（tcp=6 / udp=17；legacy L3Base 语义）。
 		// 传输层是链上 ip 之下最后一层：独立 tcp/udp flow 的末层，
-		// 或终结层链（http/dns...）的倒数第二层。
-		pkt.L3.Protocol = transportProtocol(chain)
+		// 或终结层链（http/dns...）的倒数第二层。隧道链（gre）由隧道层
+		// 生成器已写入 47（IPPROTO_GRE）——只在 0 时填充，绝不覆盖。
+		if pkt.L3.Protocol == 0 {
+			pkt.L3.Protocol = transportProtocol(chain)
+		}
 		// TTL 已按分支赋值（覆盖事件保留 udp 层写入的 255，普通包走
 		// ipTTL）；TOS 整字节覆盖（review HIGH-2 修复，legacy L3Base
 		// builder.go:158-161 语义）：spec.TOS != 0 时 DSCP=TOS>>2、
@@ -642,39 +679,113 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 	}
 
 	// 5. 驱动：先启动外层（消费 innerCh），再驱动内层（往 innerCh 里写）。
+	//    逐层 goroutine 管线（隧道链 P2e T12 泛化）：外层 ip 生成器消费
+	//    innerCh 并把包交给 finalEmit；其下每层（gre、tcp、udp...）各跑一个
+	//    goroutine，从自己的内层通道消费、经 req.Emit 写入上一层通道。
 	//    末层若是终结层生成器（http/dns/...），把其报文事件流接入传输层的
 	//    Meta.Events，传输层在"单 payload 模式"后消费事件流（波 2 方案 A /
 	//    波 3 泛化）。事件接线的 transport 断言已在 Plan 同步校验
 	//    （assertEventWiring），此处断言必过，只做类型收窄。
 	//    内层序列结束后关闭 innerCh：外层生成器排空后退出（否则 drive
 	//    永远等不到 genDone，Plan 的 goroutine 不返回，worker 的 for-range 挂死）。
+	//    与既有单 ip 层链的差异：泛化后 wrapper 层（gre）也占一个 goroutine
+	//    并从自己的通道排空——ip 层不再"直接"消费传输层产出，而是消费
+	//    wrapper 层的产出（包数、顺序不变，只多一跳通道）。
 	genDone := make(chan error, 1)
 	go func() { genDone <- ipGen.Generate(ctx, ipReq) }()
 
 	lastGen := gens[len(chain)-1]
 	var lastErr error
 
-	// 末层事件生成器（http/dns/...）与传输层（tcp/udp）事件通道的接线。
-	// 传输层类型断言保持通用：tcp → TCPGenerator（MSS 分段 + seq/ack），
-	// udp → UDPGenerator（每事件一数据报）。
-	if eg, ok := lastGen.(interface{ GenEvents() EventGenerator }); ok && eg.GenEvents() != nil {
-		eventCh := make(chan MessageEvent, 64)
-		transportLayer := chain[len(chain)-2]
-		transportGen := gens[len(chain)-2]
-		meta.Events = eventCh
-		transportReq := &GenRequest{
-			Layer: transportLayer,
+	// 6. 管线接线（隧道链 T12 泛化）：每层一条通道，逐层 goroutine 级联。
+	//    transportIdx 是传输层（tcp/udp）索引 = len-2；wrapper 层是链上
+	//    ip 与 transport 之间的隧道层（gre）与内层 ip。既有链（[ip→tcp]/
+	//    [ip→udp]/[ip→tcp→http]）无 wrapper 层，通道形状与旧实现完全相同。
+	//
+	//    通道方向（包从内向外流）：层 i>0 读 pipeCh[i]、写 pipeCh[i-1]
+	//    （更外层的输入）；pipeCh[0] = innerCh（外层 ip 读）；transport
+	//    （i=transportIdx）只写 pipeCh[transportIdx-1]。关闭者 = 写者：
+	//    每通道恰一个关闭者，wrapper goroutine 退出时关闭自己的输出，
+	//    transport 结束后关闭 pipeCh[transportIdx-1]（无 wrapper 时即
+	//    innerCh）。级联拆除：transport 关 → wrapper 排空退出逐层关 →
+	//    最内层 wrapper 关 innerCh → 外层 ip 排空退出。
+	transportIdx := len(chain) - 2
+	// pipeCh 只在有 wrapper 层时存在（[ip→tcp]/[ip→tcp→http] 无 wrapper 不建
+	// 数组）；pipeCh[0]=innerCh 是外层 ip 的输入（gre wrapper 的输出目标）。
+	// transportIdx==0 的 [ip→tcp] 链直接走 transportOut==innerCh，无 pipeCh。
+	pipeCh := make([]chan core.PacketConfig, transportIdx)
+	if transportIdx > 0 {
+		pipeCh[0] = innerCh
+	}
+	wrapperDone := make([]chan error, 0, max(transportIdx-1, 0))
+	for i := 1; i < transportIdx; i++ {
+		ch := make(chan core.PacketConfig, 256)
+		pipeCh[i] = ch
+		// 每层独立 Sess 副本：IPGenerator 写 Sess.IPID，外层 ip（ipGen，
+		// Sess: sess）与内层 ip（本循环内 wrapper）若共享同一指针会并发
+		// 双写（data race）；各层副本从同一基值起步、互不相干。
+		sessLayer := *sess
+		wrapperReq := &GenRequest{
+			Layer: chain[i],
+			Inner: pipeCh[i],
 			Emit: func(pkt core.PacketConfig) error {
+				// 本层产出交给更外层：写 pipeCh[i-1]（下一层输入）。
+				// 注意：不是 ch（= pipeCh[i] 本层输入）——写回自己的输入
+				// 会把包裹循环化且无人消费（曾致 send on closed channel）。
 				select {
-				case innerCh <- pkt:
+				case pipeCh[i-1] <- pkt:
 					return nil
 				case <-ctx.Done():
 					return ctx.Err()
 				}
 			},
-			Sess: sess,
+			Sess: &sessLayer,
 			Meta: meta,
 		}
+		done := make(chan error, 1)
+		wrapperDone = append(wrapperDone, done)
+		go func(req *GenRequest, out chan core.PacketConfig, done chan error) {
+			err := gens[i].Generate(ctx, req)
+			// 级联拆除：本层退出即关闭**自己写入的**通道（pipeCh[i-1]），
+			// 每通道单写者单关闭者——外层排空后退出。
+			close(out)
+			done <- err
+		}(wrapperReq, pipeCh[i-1], done)
+	}
+	// transportOut 是传输层的输出通道（下一层输入）：无 wrapper
+	// （[ip→tcp]/[ip→udp]/[ip→tcp→http]，transportIdx<=1）时即 innerCh——外层
+	// ip 直接消费传输层产出，与旧实现同形状；有 wrapper 时是 wrapper 循环
+	// 创建的最内层 wrapper 的输入通道（pipeCh[transportIdx-1]，如
+	// [ip,gre,ip,tcp,http] 的 transport→内层 ip）。必须在循环后取——
+	// 循环内 pipeCh[transportIdx-1] 尚未就位。
+	transportOut := innerCh
+	if transportIdx > 1 {
+		transportOut = pipeCh[transportIdx-1]
+	}
+	// transportReq 是传输层生成器（tcp/udp）的驱动请求。Layer 按分支区分
+	// （旧实现即如此）：事件分支（末层 http/dns）用 chain[transportIdx]——
+	// tcp/udp 层读自己的层 config（窗口/MSS 等由层 config 携带）；非事件
+	// 分支（独立 tcp/udp flow，[ip→tcp]）用 chain[len-1]——协议层即末层，
+	// 其层 config 是协议参数（src_port/dst_port 等独立 flow 字段）。
+	transportReq := &GenRequest{
+		Layer: chain[transportIdx],
+		Emit: func(pkt core.PacketConfig) error {
+			select {
+			case transportOut <- pkt:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+		Sess: sess,
+		Meta: meta,
+	}
+	// 事件生成器接线（http/dns/... 终结层）：事件流接入传输层 Meta.Events，
+	// 传输层在"单 payload 模式"后消费事件流。
+	if eg, ok := lastGen.(interface{ GenEvents() EventGenerator }); ok && eg.GenEvents() != nil {
+		eventCh := make(chan MessageEvent, 64)
+		meta.Events = eventCh
+		transportReq.Meta = meta
 		// 终结层生成器的 EmitMsg 转发到事件通道。
 		reqForTerminal := &GenRequest{
 			Layer: chain[len(chain)-1],
@@ -692,7 +803,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		var transport interface {
 			Generate(ctx context.Context, req *GenRequest) error
 		}
-		switch tg := transportGen.(type) {
+		switch tg := gens[transportIdx].(type) {
 		case *TCPGenerator:
 			transport = tg
 		case *UDPGenerator:
@@ -700,50 +811,47 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		default:
 			// assertEventWiring 已同步拦截，理论不可达。
 			return nil, fmt.Errorf("layers: layer %q cannot consume terminal events (unsupported transport generator %T)",
-				transportLayer.Name, transportGen)
+				chain[transportIdx].Name, gens[transportIdx])
 		}
 		transportDone := make(chan error, 1)
-		go func() { transportDone <- transport.Generate(ctx, transportReq) }()
+		go func() {
+			err := transport.Generate(ctx, transportReq)
+			// transport 是唯一写者，退出即关闭输出（级联拆除起点）。
+			close(transportOut)
+			transportDone <- err
+		}()
 		lastErr = lastGen.Generate(ctx, reqForTerminal)
 		close(eventCh)
 		if lastErr != nil {
 			// 终结层生成器失败：传输层仍会排空事件流（事件流关闭视为
 			// 数据段结束，tcp 进入挥手 / udp 直接结束）。等待其退出，不泄漏。
 			<-transportDone
-			close(innerCh)
-			<-genDone
-			return packets, lastErr
+		} else if err := <-transportDone; err != nil {
+			lastErr = err
 		}
-		if err := <-transportDone; err != nil {
-			close(innerCh)
-			<-genDone
-			return packets, err
+		// wrapper 层级联排空退出（各自关闭输出），全部等待，不泄漏。
+		for _, done := range wrapperDone {
+			<-done
 		}
-		close(innerCh)
 		if err := <-genDone; err != nil {
 			return packets, err
 		}
-		return packets, nil
+		return packets, lastErr
 	}
 
 	// 无事件生成器：末层直接产包（波 1 的 [ip → tcp] 独立 tcp flow 路径）。
-	tcpReq := &GenRequest{
-		Layer: chain[len(chain)-1], // 末层 = tcp（协议层本身）
-		Emit: func(pkt core.PacketConfig) error {
-			select {
-			case innerCh <- pkt:
-				return nil
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		},
-		Sess: sess,
-		Meta: meta,
-	}
-	lastErr = lastGen.Generate(ctx, tcpReq)
-	close(innerCh)
+	// 非事件分支的 Layer 是末层（协议层本身，旧实现 tcpReq.Layer =
+	// chain[len-1] 语义）——[ip→tcp] 链 transportIdx=0 时 chain[0] 是 ip 层，
+	// TCPGenerator 读它拿不到端口/MSS。
+	transportReq.Layer = chain[len(chain)-1]
+	lastErr = lastGen.Generate(ctx, transportReq)
+	close(transportOut)
 	if lastErr != nil {
 		return packets, lastErr
+	}
+	// wrapper 层级联排空退出（各自关闭输出），全部等待，不泄漏。
+	for _, done := range wrapperDone {
+		<-done
 	}
 	if err := <-genDone; err != nil {
 		return packets, err
