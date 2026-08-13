@@ -69,6 +69,9 @@ func (g *DNSGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 	if err := emit(layers.MessageEvent{Up: true, Bytes: queryMsg}); err != nil {
 		return err
 	}
+	// 响应事件：与 legacy dns.go:301 的 IsResponse gate 语义一致——未配置
+	// is_response 时只发查询包（1 包）。响应构建在事件里按 cfg 分派（单
+	// RR/多 RR 路径，dns.go:307-311 同款）。
 	if !cfg.IsResponse {
 		return nil
 	}

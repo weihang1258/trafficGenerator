@@ -774,12 +774,21 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			} else {
 				direction, seq, ack = "down", serverSeq, clientSeq
 			}
+			// 方向相关端口交换（P2c-3 修复，review 捕获）：事件模式的 down
+			// 段必须与握手/挥手 down 段一致地把 src/dst 端口互换——响应帧
+			// 以对端端口（cfg.dstPort）为源。旧实现恒写 cfg.srcPort/dstPort，
+			// 响应帧源端口是客户端端口（40000 而非 8080），与 legacy
+			// http.go:330（SrcPort: spec.DstPort）不一致。
+			srcPort, dstPort := cfg.srcPort, cfg.dstPort
+			if !ev.Up {
+				srcPort, dstPort = cfg.dstPort, cfg.srcPort
+			}
 			pkt := core.PacketConfig{
 				Direction: direction,
 				L4: core.L4Config{
 					Protocol:   "tcp",
-					SrcPort:    cfg.srcPort,
-					DstPort:    cfg.dstPort,
+					SrcPort:    srcPort,
+					DstPort:    dstPort,
 					Seq:        seq,
 					Ack:        ack,
 					Flags:      FlagPSH | FlagACK,

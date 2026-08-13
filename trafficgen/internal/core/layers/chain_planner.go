@@ -105,6 +105,16 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	if err := validateSpecBase(p.name, &spec); err != nil {
 		return spec, err
 	}
+	// P2c-3 终结层配置翻译（layers 数组的层 config → spec 协议配置）：
+	// 生成器契约是"读已补全的层 config，不读原始 FlowSpec"（generator.go），
+	// 但 http/dns 终结层生成器实际读 req.Meta.HTTP/req.Meta.DNS（= spec 值），
+	// 而 flat 路径（strategy_convert mapToFlowSpec）只读 cfg["http"]/cfg["dns"]
+	// 子映射——layers 数组中的层 config 从不被翻译，{"http":{"method":"POST"}}
+	// 静默回退 GET /、{"dns":{}} 验证失败 "DNS config is required"
+	// （validate_layers.go:112-115 的 validated-but-not-yet-effective）。
+	// 翻译必须在协议级 validator 之前：dns validator 要求 spec.DNS 非 nil，
+	// worker.go:218 的 planner.Validate(task.Spec) 先于 Plan 运行。
+	p.translateTerminalConfig(&spec)
 	// 协议级校验（波 4 起）：终结层协议包经 RegisterLayerValidator 注册
 	// 其 Validate（如 dns 包对 DNSConfig 的检查），链上未注册校验器的层
 	// 跳过。校验器只校验不默认化（默认化由 validateSpecBase 统一负责）。
@@ -739,6 +749,112 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		return packets, err
 	}
 	return packets, nil
+}
+
+// translateTerminalConfig translates the chain's terminal layer config into
+// the flow spec's protocol config (终结层配置翻译)。The chain passed in via
+// NewChainPlannerFromChain carries the user's completed layer configs; the
+// terminal generators (http/dns) read req.Meta.HTTP / req.Meta.DNS (= spec
+// values), NOT the layer config, so without translation
+// {"http":{"method":"POST"}} silently falls back to GET / and {"dns":{}} fails
+// validation with "DNS config is required" (validate_layers.go 的
+// validated-but-not-yet-effective)。
+//
+// Semantics:
+//   - Flat path is authoritative: when spec.HTTP/spec.DNS is already set
+//     (mapToFlowSpec read cfg["http"]/cfg["dns"]), translation is skipped and
+//     the layer config is ignored — flat and layer configs are two ways to
+//     express the same terminal protocol, and a strategy may carry either
+//     (flat wins when both present).
+//   - Only layers with a schema Field 说明书 are translated (http/dns; ftp/
+//     smtp have schema fields but no generators). Other terminal layers
+//     (ntp/snmp/... 无字段) leave the spec untouched.
+//   - Field values come from the layer config with schema defaults applied
+//     (V9 已保证 config 类型合法), falling back to the registry default when
+//     absent — for http, empty strings are left as zero so buildHTTPRequest's
+//     build-time defaults (Method→GET, URI→/, Version→"HTTP/1.1") apply;
+//     for dns, the "name" default "example.com" must be materialized because
+//     buildDNSQuery would encode an empty domain as an empty label.
+func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
+	if len(p.chain) == 0 {
+		return
+	}
+	r := p.effectiveRegistry()
+	term := p.chain[len(p.chain)-1]
+	s, ok := r.Get(term.Name)
+	if !ok {
+		return
+	}
+	if len(s.Fields) == 0 {
+		return
+	}
+	switch term.Name {
+	case "http":
+		if spec.HTTP != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		cfg := completedConfig(s, term.Config)
+		spec.HTTP = &core.HTTPConfig{}
+		if v, ok := configString(cfg["method"]); ok {
+			spec.HTTP.Method = v
+		}
+		if v, ok := configString(cfg["uri"]); ok {
+			spec.HTTP.URI = v
+		}
+		if v, ok := configString(cfg["version"]); ok {
+			// 层 config 的 version 是裸版本号（schema 默认 "1.1"），
+			// HTTPConfig.Version 契约是完整 "HTTP/1.1"（types.go:487；
+			// builder 只默认空串，见 http.go:563-565）——prefix 归一，
+			// 与 flat 路径一致（mapToFlowSpec 从 cfg["http"]["version"] 取
+			// 裸值也是经 builder 渲染成 "HTTP/1.1" 的隐含依赖）。
+			if !strings.HasPrefix(v, "HTTP/") {
+				spec.HTTP.Version = "HTTP/" + v
+			} else {
+				spec.HTTP.Version = v
+			}
+		}
+		if h, ok := cfg["headers"]; ok {
+			if m, ok := h.(map[string]interface{}); ok {
+				spec.HTTP.RequestHeaders = make(map[string]string, len(m))
+				for k, v := range m {
+					spec.HTTP.RequestHeaders[k] = fmt.Sprint(v)
+				}
+			}
+		}
+		if v, ok := configString(cfg["body"]); ok {
+			spec.HTTP.Body = v
+		}
+	case "dns":
+		if spec.DNS != nil {
+			return // flat 权威
+		}
+		cfg := completedConfig(s, term.Config)
+		spec.DNS = &core.DNSConfig{
+			Domain:    "example.com", // schema 默认；buildDNSQuery 不默认空域名
+			QueryType: 1,             // schema 默认（A 记录）
+		}
+		if v, ok := configString(cfg["name"]); ok {
+			spec.DNS.Domain = v
+		}
+		if v, ok := configUint16(cfg["query_type"]); ok {
+			spec.DNS.QueryType = v
+		}
+	}
+}
+
+// completedConfig overlays the user layer config onto the schema defaults
+// (用户层 config > schema 默认值，applySpecToChain 同款语义)。
+func completedConfig(s LayerSchema, user map[string]interface{}) map[string]interface{} {
+	cfg := make(map[string]interface{}, len(s.Fields))
+	for k, f := range s.Fields {
+		if f.Default != nil {
+			cfg[k] = f.Default
+		}
+	}
+	for k, v := range user {
+		cfg[k] = v
+	}
+	return cfg
 }
 
 // applySpecToChain maps flow-level spec values into each layer's config.

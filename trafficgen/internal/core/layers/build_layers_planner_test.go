@@ -6,10 +6,13 @@ package layers_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tcp"
 )
 
@@ -68,5 +71,167 @@ func TestBuildLayersPlanner_PreservesLayerConfig(t *testing.T) {
 		if pkts[i].L4.WindowSize != 8192 {
 			t.Errorf("packet %d window = %d, want 8192 (layer config lost in completion)", i, pkts[i].L4.WindowSize)
 		}
+	}
+}
+
+// ---- P2c-3 失败测试：终结层配置翻译（layers config → spec.HTTP/spec.DNS）----
+// T11 集成测试捕获的 production gap：validate_layers.go:112-115 记录的
+// "validated-but-not-yet-effective"——http/dns 生成器按契约读
+// req.Meta.HTTP/req.Meta.DNS（generator.go:30-33 "Generators read values from
+// here, never from the raw FlowSpec"），但没有任何路径把 layers 数组中的
+// 终结层 config 字段翻译进 spec.HTTP/spec.DNS，导致 {"http":{"method":"POST"}}
+// 静默回退 GET /、{"dns":{}} 验证失败 "DNS config is required"。
+
+// TestBuildLayersPlanner_HTTPLayerConfigFlowsIntoSpec: 层 config 的
+// method/uri/version/headers/body 必须翻译进 spec.HTTP，并落到生成的
+// 报文字节（生成器读 req.Meta.HTTP = spec.HTTP）。
+func TestBuildLayersPlanner_HTTPLayerConfigFlowsIntoSpec(t *testing.T) {
+	p, err := layers.BuildLayersPlanner("http", json.RawMessage(`[{"http":{
+		"method":"POST","uri":"/x","version":"1.1",
+		"headers":{"X-Test":"1"},"body":"hello"}}]`))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "10.0.0.2",
+		SrcPort: 40000, DstPort: 8080,
+	})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var pkts []core.PacketConfig
+	for c := range ch {
+		pkts = append(pkts, c)
+	}
+	if len(pkts) < 6 {
+		t.Fatalf("http chain produced %d packets, want >= 6", len(pkts))
+	}
+	var reqBody []byte
+	var respPort uint16
+	for i, pkt := range pkts {
+		if pkt.Direction == "up" && len(pkt.Payload) > 0 {
+			reqBody = pkt.Payload
+		}
+		if pkt.Direction == "down" && len(pkt.Payload) > 0 {
+			respPort = pkt.L4.SrcPort
+		}
+		_ = i
+	}
+	if reqBody == nil {
+		t.Fatal("no upstream data segment found (http bytes never emitted)")
+	}
+	if !strings.Contains(string(reqBody), "POST /x HTTP/1.1\r\n") {
+		t.Errorf("request line = %q, want POST /x HTTP/1.1 (method/uri/version lost)", string(reqBody))
+	}
+	if !strings.Contains(string(reqBody), "X-Test: 1\r\n") {
+		t.Errorf("request = %q, want user header X-Test: 1 (headers lost)", string(reqBody))
+	}
+	if !strings.Contains(string(reqBody), "hello") {
+		t.Errorf("request = %q, want body hello (body lost)", string(reqBody))
+	}
+	// down 数据段端口必须交换（legacy http.go:330：响应 src = spec.DstPort）。
+	if respPort == 0 {
+		t.Error("no downstream data segment found")
+	} else if respPort != 8080 {
+		t.Errorf("response src port = %d, want 8080 (down direction ports not swapped)", respPort)
+	}
+}
+
+// TestBuildLayersPlanner_DNSLayerConfigFlowsIntoSpec: 层 config 的
+// query_type/name 必须翻译进 spec.DNS 并落到查询字节（DNS 头 QTYPE 字段）。
+// 同时验证翻译发生在协议级 validator 之前：{"dns":{}} 补全链必须能通过
+// Validate（旧实现 spec.DNS 为 nil 报 "DNS config is required"）。
+// 无 is_response 时只产查询包（legacy dns.go:301 的 IsResponse gate；
+// is_response 不在层 schema 字段表，V9 拒绝未知字段，须经 flat spec 配置）。
+func TestBuildLayersPlanner_DNSLayerConfigFlowsIntoSpec(t *testing.T) {
+	p, err := layers.BuildLayersPlanner("dns", json.RawMessage(`[{"dns":{"query_type":28,"name":"www.example.com"}}]`))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	// Validate 必须通过（worker.go:218 planner.Validate(task.Spec) 在 Plan
+	// 之前运行；dns validator 要求 spec.DNS 非 nil）。
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 53}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("Validate: %v (layer config not translated into spec.DNS before validator)", err)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var pkts []core.PacketConfig
+	for c := range ch {
+		pkts = append(pkts, c)
+	}
+	if len(pkts) < 1 {
+		t.Fatalf("dns chain produced 0 packets")
+	}
+	// 查询包：udp 负载（42B 帧 = eth14+ip20+udp8，DNS 头 12B 起）。
+	// DNS 问题段 QTYPE 在头 12B 之后：name 长度前缀 + name + 2B type + 2B class。
+	if len(pkts[0].Payload) < 12+14+4 {
+		t.Fatalf("query payload too short: %d bytes", len(pkts[0].Payload))
+	}
+	pld := pkts[0].Payload
+	if got := pld[12]; got != 3 {
+		t.Errorf("name first label length = %d, want 3 (www)", got)
+	}
+	// name 之后：2B QTYPE + 2B QCLASS。name 编码 = 03 77 77 77 07 65 78 61 6d
+	// 70 6c 65 03 63 6f 6d 00（16B）；QTYPE 偏移 12+16+1=29（先长度 0x1c 再
+	// 值；同验证字面量：offset 28=00 29=1c 30=00 31=01）。
+	if got := uint16(pld[12+16+1])<<8 | uint16(pld[12+16+1+1]); got != 28 {
+		t.Errorf("query type = %d, want 28 (AAAA) (layer config query_type lost)", got)
+	}
+}
+
+// TestBuildLayersPlanner_FlatSpecWinsOverLayerConfig: 策略同时带 flat 协议
+// 子映射（spec.HTTP 非 nil）与 layers 数组时，flat 优先——层 config 被
+// 忽略、不合并（P2c-3 翻译的 flat-authoritative 语义锁定）。若误改成
+// "层字段覆盖 flat"，行为会依赖两者出现顺序，无法解释。
+func TestBuildLayersPlanner_FlatSpecWinsOverLayerConfig(t *testing.T) {
+	p, err := layers.BuildLayersPlanner("http", json.RawMessage(`[{"http":{"method":"POST","uri":"/layer"}}]`))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 40000, DstPort: 8080,
+		HTTP: &core.HTTPConfig{Method: "PUT", URI: "/flat", Version: "HTTP/1.0"},
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var reqBody []byte
+	for c := range ch {
+		if c.Direction == "up" && len(c.Payload) > 0 {
+			reqBody = c.Payload
+		}
+	}
+	if reqBody == nil || !strings.Contains(string(reqBody), "PUT /flat HTTP/1.0\r\n") {
+		t.Errorf("request = %q, want PUT /flat HTTP/1.0 (flat spec must win over layer config)", string(reqBody))
+	}
+}
+
+// TestBuildLayersPlanner_SchemaDefaultsTranslate: 显式配置缺失时翻译必须
+// 填入 schema 默认值（{"http":{}} → GET /、{"dns":{}} → query_type 1）。
+// 生成器按契约读 Meta，不读层 config——默认值必须随翻译落进 spec，
+// 否则空链仍产出零值行为。
+func TestBuildLayersPlanner_SchemaDefaultsTranslate(t *testing.T) {
+	p, err := layers.BuildLayersPlanner("http", json.RawMessage(`[{"http":{}}]`))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 40000, DstPort: 8080,
+	})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var reqBody []byte
+	for c := range ch {
+		if c.Direction == "up" && len(c.Payload) > 0 {
+			reqBody = c.Payload
+		}
+	}
+	if reqBody == nil || !strings.Contains(string(reqBody), "GET / HTTP/1.1") {
+		t.Errorf("request = %q, want GET / HTTP/1.1 (schema defaults not translated)", string(reqBody))
 	}
 }
