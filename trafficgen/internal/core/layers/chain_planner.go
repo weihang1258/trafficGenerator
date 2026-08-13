@@ -148,6 +148,47 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 		}
 		break
 	}
+	// 隧道层（tls）结构性校验（P2e T13）：层链只实现 tls1.3 client 快速路径
+	// （TLSGenerator 的握手 record 序列 = legacy tls1.3 fast path）。其它版本
+	// /角色在链上无实现，必须在此同步拒绝（同 gre HIGH-2 先例：生成器运行时
+	// 报错被 drive 吞成 0 包空流）。
+	for _, l := range chain {
+		if l.Name != "tls" {
+			continue
+		}
+		cfg := l.Config
+		version, _ := cfg["version"].(string)
+		if version == "" {
+			version = "tls1.3"
+		}
+		if version != "tls1.3" {
+			return spec, fmt.Errorf("tls chain: version %q not supported in the layer chain yet (only \"tls1.3\")", version)
+		}
+		role, _ := cfg["role"].(string)
+		if role == "" {
+			role = "client"
+		}
+		if role != "client" {
+			return spec, fmt.Errorf("tls chain: role %q not supported in the layer chain yet (only \"client\")", role)
+		}
+		// SNI 长度上限 253（RFC 1035；legacy Validate 同款，测试点 4.2.1）：
+		// 超长 SNI 使扩展块超 uint16 时 buildClientHello 截断，产出非法
+		// ClientHello（review tls-layer finding 2）。
+		if sni, _ := cfg["sni"].(string); len(sni) > 253 {
+			return spec, fmt.Errorf("tls chain: SNI length %d exceeds max 253 bytes (RFC 1035)", len(sni))
+		}
+		// ALPN 协议名单字节长度前缀（buildALPNExtension 的 byte(len)），
+		// 协议名 >255 字节必然截断，同步拒绝（同 finding 2）。
+		if alpn, _ := cfg["alpn"].([]interface{}); alpn != nil {
+			for _, v := range alpn {
+				s, _ := v.(string)
+				if len(s) > 255 {
+					return spec, fmt.Errorf("tls chain: ALPN protocol name length %d exceeds max 255 bytes", len(s))
+				}
+			}
+		}
+		break
+	}
 	return spec, nil
 }
 
@@ -296,6 +337,27 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 	}
 	if err := assertEventWiring(chain, gens); err != nil {
 		return nil, err
+	}
+	// 事件分支的 transport 配置预检（review transform-wiring F3）：transport
+	// 生成器在 resolveCfg 失败时立即退出，transformCh[1]（64 缓冲）失去
+	// 消费者，变换器转发塞满后同步写者阻塞挂死（直到 ctx 取消才收敛）。
+	// resolveCfg 错误在真实链上可达（V9 对无 Min/Max 边界的字段如
+	// initial_seq 只跳过范围检查，字符串等不可转换值穿透补全到达生成器）。
+	// 预检必须在 Plan 同步执行——drive 运行在 goroutine 内，其错误被吞成
+	// 空流（驱动失败契约），放 drive 里就退化成静默空流而非同步拒绝。
+	if eg, ok := gens[len(chain)-1].(interface{ GenEvents() EventGenerator }); ok && eg.GenEvents() != nil {
+		if idx := transportIndex(gens); idx >= 0 {
+			switch g := gens[idx].(type) {
+			case *TCPGenerator:
+				if _, err := g.resolveCfg(&GenRequest{Layer: chain[idx]}); err != nil {
+					return nil, err
+				}
+			case *UDPGenerator:
+				if _, err := g.resolveCfg(&GenRequest{Layer: chain[idx]}); err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
 
 	out := make(chan core.PacketConfig, 256)
@@ -497,6 +559,10 @@ func instantiateGens(chain []Layer) ([]LayerGenerator, error) {
 // generator — the only two generators that consume Meta.Events. Any other
 // transport (gre, ...) is a chain-configuration error that must fail Plan
 // synchronously instead of being swallowed by the drive goroutine.
+// T13 泛化：transport 按生成器类型定位（tls 链 [ip→tcp→tls→http] 的 tcp 在
+// index 1，不在 len-2——tls 是 transport 之内的事件变换器，不产包）；终结层
+// 与 transport 之间的每层必须是事件变换器（EventTransformer 标记），否则
+// 结构性错误同步拒绝（变换器不实现标记会在 drive 静默透传/关闭事件流）。
 // 无事件生成器（独立 [ip→tcp]/[ip→udp] flow）时不检查。
 func assertEventWiring(chain []Layer, gens []LayerGenerator) error {
 	if len(chain) < 2 {
@@ -507,14 +573,46 @@ func assertEventWiring(chain []Layer, gens []LayerGenerator) error {
 	if !ok || eg.GenEvents() == nil {
 		return nil
 	}
-	transportLayer := chain[len(chain)-2]
-	switch gens[len(chain)-2].(type) {
-	case *TCPGenerator, *UDPGenerator:
-		return nil
-	default:
+	transportIdx := transportIndex(gens)
+	if transportIdx < 0 {
+		// 链中无 TCP/UDP 生成器：终结层相邻内层（len-2）必须能消费事件。
+		// 旧语义（波 3）：该位置不是 tcp/udp → "cannot consume terminal
+		// events"。transportIndex 找不到时必然走 default（否则就会找到）。
 		return fmt.Errorf("layers: layer %q cannot consume terminal events (unsupported transport generator %T)",
-			transportLayer.Name, gens[len(chain)-2])
+			chain[len(chain)-2].Name, gens[len(chain)-2])
 	}
+	// 终结层与 transport 之间的层必须是事件变换器（tls）。
+	for i := transportIdx + 1; i < len(chain)-1; i++ {
+		tr, ok := gens[i].(EventTransformer)
+		if !ok || !tr.TransformEvents() {
+			return fmt.Errorf("layers: layer %q cannot transform terminal events (unsupported transformer %T)",
+				chain[i].Name, gens[i])
+		}
+	}
+	return nil
+}
+
+// transportIndex returns the index of the transport generator (tcp/udp) in
+// gens, or -1. 类型扫描而非 len-2 定位：tls 隧道链 [ip→tcp→tls→http] 的
+// len-2 是 tls（TLS record 是 TCP payload，tls 在 tcp 之内），传输层按
+// 生成器类型唯一确定。
+func transportIndex(gens []LayerGenerator) int {
+	for i, gen := range gens {
+		switch gen.(type) {
+		case *TCPGenerator, *UDPGenerator:
+			return i
+		}
+	}
+	return -1
+}
+
+// layerNames renders the chain names for error messages.
+func layerNames(chain []Layer) string {
+	names := make([]string, len(chain))
+	for i, l := range chain {
+		names[i] = l.Name
+	}
+	return "[" + strings.Join(names, " → ") + "]"
 }
 
 // drive instantiates the generators inner→outer, wires the channels, and
@@ -697,10 +795,14 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 	lastGen := gens[len(chain)-1]
 	var lastErr error
 
-	// 6. 管线接线（隧道链 T12 泛化）：每层一条通道，逐层 goroutine 级联。
-	//    transportIdx 是传输层（tcp/udp）索引 = len-2；wrapper 层是链上
-	//    ip 与 transport 之间的隧道层（gre）与内层 ip。既有链（[ip→tcp]/
-	//    [ip→udp]/[ip→tcp→http]）无 wrapper 层，通道形状与旧实现完全相同。
+	// 6. 管线接线（隧道链 T12/T13 泛化）：每层一条通道，逐层 goroutine 级联。
+	//    transportIdx 是传输层（tcp/udp）索引，按 Category 定位——不能再用
+	//    len-2：tls 隧道链 [ip→tcp→tls→http] 里 len-2 是 tls（tls 在 tcp 之内，
+	//    TLS record 是 TCP payload），传输层是 chain[1]。wrapper 层是链上 ip
+	//    与 transport 之间的隧道层（gre/内层 ip），transport 之内到终结层之间
+	//    的隧道层（tls）是**事件变换器**——它不产包，只变换终结层事件流。
+	//    既有链（[ip→tcp]/[ip→udp]/[ip→tcp→http]）无 wrapper 层，通道形状与
+	//    旧实现完全相同。
 	//
 	//    通道方向（包从内向外流）：层 i>0 读 pipeCh[i]、写 pipeCh[i-1]
 	//    （更外层的输入）；pipeCh[0] = innerCh（外层 ip 读）；transport
@@ -709,7 +811,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 	//    transport 结束后关闭 pipeCh[transportIdx-1]（无 wrapper 时即
 	//    innerCh）。级联拆除：transport 关 → wrapper 排空退出逐层关 →
 	//    最内层 wrapper 关 innerCh → 外层 ip 排空退出。
-	transportIdx := len(chain) - 2
+	transportIdx := transportIndex(gens)
+	if transportIdx < 0 {
+		return nil, fmt.Errorf("layers: chain %s has no transport layer", layerNames(chain))
+	}
 	// pipeCh 只在有 wrapper 层时存在（[ip→tcp]/[ip→tcp→http] 无 wrapper 不建
 	// 数组）；pipeCh[0]=innerCh 是外层 ip 的输入（gre wrapper 的输出目标）。
 	// transportIdx==0 的 [ip→tcp] 链直接走 transportOut==innerCh，无 pipeCh。
@@ -781,17 +886,73 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		Meta: meta,
 	}
 	// 事件生成器接线（http/dns/... 终结层）：事件流接入传输层 Meta.Events，
-	// 传输层在"单 payload 模式"后消费事件流。
+	// 传输层在"单 payload 模式"后消费事件流。T13 泛化（tls 变换器链）：
+	// transport 之内的 CategoryTunnel 层（tls）不产包——它是**事件变换器**，
+	// 经普通 Generate 驱动：从 req.Meta.Events 消费内层终结层事件流，变换
+	// 后（tls 包成 ApplicationData record，握手 record 先注入）经 req.EmitMsg
+	// 转发给更外层。事件流方向（内→外）：终结层 → 变换器链 → transport。
+	// 关闭者 = 写者：终结层结束后关闭最内层变换器输入；变换器退出时关闭
+	// 自己的输出；transport 消费到关闭退出。事件流关闭语义与单终结层一致：
+	// tcp 把关闭视为数据段结束进入挥手。
+	//
+	// 每个变换器持自己的 FlowMeta 副本（Meta.Events = 自己的输入通道）——
+	// 与 T12 的 sessLayer 副本同款：共享 meta 会让所有变换器读同一个输入流。
 	if eg, ok := lastGen.(interface{ GenEvents() EventGenerator }); ok && eg.GenEvents() != nil {
-		eventCh := make(chan MessageEvent, 64)
-		meta.Events = eventCh
+		// 变换器链：transport 之内的层（i ∈ (transportIdx, len-1)）。终结层
+		// 之前可能有多个变换器（[ip→tcp→tls→grpc→http] 式未来链）；当前
+		// 只有 tls。transformers[0] = 最内层变换器（紧邻终结层）。
+		var transformers []LayerGenerator
+		for i := len(chain) - 2; i > transportIdx; i-- {
+			transformers = append(transformers, gens[i])
+		}
+		n := len(transformers)
+		// transformCh[k] = transformers[k] 的输入；transformCh[n] = transport
+		// 的最终事件流。transformCh[0] 的写者 = 终结层（主线程驱动）。
+		transformCh := make([]chan MessageEvent, n+1)
+		for i := range transformCh {
+			transformCh[i] = make(chan MessageEvent, 64)
+		}
+		meta.Events = transformCh[n]
 		transportReq.Meta = meta
-		// 终结层生成器的 EmitMsg 转发到事件通道。
+		// 变换器 goroutine（自最外层向最内层启动；各自阻塞读输入）。
+		transformDone := make([]chan error, n)
+		for k := 0; k < n; k++ {
+			metaK := meta
+			metaK.Events = transformCh[k]
+			layerCfg := chain[transportIdx+1+k] // transformers[k] 的层 config
+			out := transformCh[k+1]
+			done := make(chan error, 1)
+			transformDone[k] = done
+			go func(gen LayerGenerator, layerCfg Layer, metaK FlowMeta, out chan MessageEvent, done chan error) {
+				err := gen.Generate(ctx, &GenRequest{
+					Layer: layerCfg,
+					EmitMsg: func(ev MessageEvent) error {
+						select {
+						case out <- ev:
+							return nil
+						case <-ctx.Done():
+							return ctx.Err()
+						}
+					},
+					Sess: sess,
+					Meta: metaK,
+				})
+				// 级联拆除：本变换器是 out 的唯一写者，退出即关闭。
+				close(out)
+				done <- err
+			}(transformers[k], layerCfg, metaK, out, done)
+		}
+		// 终结层生成器的 EmitMsg 转发到最内层变换器输入（无变换器时即
+		// transport 最终事件流，与旧实现同形状）。
+		// Meta 契约（review T13 LOW-4）：终结层生成器经 Meta 读**配置值**
+		// （Meta.HTTP/DNS/... 与 DstIP 等），绝不读 Meta.Events——Events 已被
+		// 覆写为 transport 的最终事件流（transformCh[n]），终结层读它会把
+		// 自己的输出当输入（自食）。事件流只经 req.EmitMsg 单向流出。
 		reqForTerminal := &GenRequest{
 			Layer: chain[len(chain)-1],
 			EmitMsg: func(ev MessageEvent) error {
 				select {
-				case eventCh <- ev:
+				case transformCh[0] <- ev:
 					return nil
 				case <-ctx.Done():
 					return ctx.Err()
@@ -821,9 +982,30 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 			transportDone <- err
 		}()
 		lastErr = lastGen.Generate(ctx, reqForTerminal)
-		close(eventCh)
+		close(transformCh[0])
+		// 变换器层级联排空退出（各自关闭输出），全部等待，不泄漏。
+		// ctx 取消逃生口（review T13 MED-1）：变换器在错误/取消路径可能
+		// 长时间排空输入或阻塞——等待必须能被 ctx 打断，否则取消/超时
+		// 时 Plan 永久挂死。
+		for _, done := range transformDone {
+			select {
+			case err := <-done:
+				if err != nil && lastErr == nil {
+					lastErr = err
+				}
+			case <-ctx.Done():
+				// 取消逃生口（review T13 MED-1）：变换器阻塞排空时不能挂死。
+				// 返回前必须等 ip 生成器退出（review transform-wiring F2）：
+				// ip goroutine 可能在 finalEmit 里 append(packets)，Plan 的
+				// goroutine 随后遍历 packets——并发读写 slice 头是数据竞态。
+				// 错误路径（err != nil）Plan 本就不发包，但防御性等待保持
+				// "ip 退出后 drive 才返回"契约在所有分支成立（LOW-3 同款）。
+				<-genDone
+				return packets, ctx.Err()
+			}
+		}
 		if lastErr != nil {
-			// 终结层生成器失败：传输层仍会排空事件流（事件流关闭视为
+			// 终结层/变换器失败：传输层仍会排空事件流（事件流关闭视为
 			// 数据段结束，tcp 进入挥手 / udp 直接结束）。等待其退出，不泄漏。
 			<-transportDone
 		} else if err := <-transportDone; err != nil {
@@ -846,15 +1028,20 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 	transportReq.Layer = chain[len(chain)-1]
 	lastErr = lastGen.Generate(ctx, transportReq)
 	close(transportOut)
-	if lastErr != nil {
-		return packets, lastErr
-	}
-	// wrapper 层级联排空退出（各自关闭输出），全部等待，不泄漏。
+	// 先等 wrapper/ip 级联退出再返回（review T13 LOW-3 修复）：提前返回会
+	// 与 ip goroutine 的 finalEmit append 竞态（drive 返回后 Plan goroutine
+	// 遍历 packets 与仍在 append 的 ip goroutine 并发）——关闭协议要求
+	// "ip 生成器退出后（genDone）drive 才返回"在**所有**分支成立。
 	for _, done := range wrapperDone {
 		<-done
 	}
 	if err := <-genDone; err != nil {
-		return packets, err
+		if lastErr == nil {
+			lastErr = err
+		}
+	}
+	if lastErr != nil {
+		return packets, lastErr
 	}
 	return packets, nil
 }

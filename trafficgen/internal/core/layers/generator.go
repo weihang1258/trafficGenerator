@@ -167,6 +167,22 @@ type EventGenerator interface {
 	EmitEvent(ev MessageEvent) error
 }
 
+// EventTransformer marks a tunnel-layer generator that transforms the
+// terminal message-event stream instead of producing packets (事件变换器标记，
+// T13：transport 之内、终结层之外的 CategoryTunnel 层——tls 把终结层事件
+// 字节包成 TLS record 后仍以 MessageEvent 形态转发，不产 PacketConfig)。
+// Such layers are driven via the ordinary Generate entry: they read the
+// inner event stream from req.Meta.Events and forward transformed events
+// via req.EmitMsg. assertEventWiring rejects any layer in that position
+// that does not implement this marker.
+type EventTransformer interface {
+	// TransformEvents reports whether this generator consumes and
+	// transforms the terminal event stream (恒 true for transformers;
+	// the method exists so a plain generator can't satisfy the marker
+	// accidentally).
+	TransformEvents() bool
+}
+
 // FlowMeta is the per-flow baseline the ChainPlanner passes to every layer
 // (每 flow 基线元数据)。
 type FlowMeta struct {
