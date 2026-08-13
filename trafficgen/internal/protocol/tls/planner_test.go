@@ -1,11 +1,14 @@
 package tls
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"strings"
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/pkg/filesystem"
 )
 
 // drain reads all PacketConfig values from ch and returns them as a slice.
@@ -1017,5 +1020,206 @@ func TestTLS_PlanOCSPStapling(t *testing.T) {
 	}
 	if !foundStatusReq {
 		t.Errorf("status_request extension (0x0005) not found in ClientHello")
+	}
+}
+// ===================================================================
+// P2b: TLS 内层委托 — spec.HTTP 非 nil 时, ApplicationData record 的
+// 明文必须是真实 HTTP 请求/响应字节(委托 http 层生成器), 而非合成随机
+// 128 字节。
+// ===================================================================
+
+// 委托测试: flat tls + http sub-config。请求 record 明文含请求行 +
+// Host 头, 响应 record 明文含状态行。方向保留 (请求 up / 响应 down)。
+func TestTLS_Plan_HTTPDelegation(t *testing.T) {
+	p := NewPlanner()
+	spec := validTLSSpec()
+	spec.TLS.Version = "tls1.3"
+	spec.HTTP = &core.HTTPConfig{
+		Method:       "POST",
+		URI:          "/login",
+		Body:         "x=1",
+		ResponseBody: "welcome",
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+
+	var appUp, appDown []byte
+	for _, c := range cfgs {
+		if len(c.Payload) < 5 || c.Payload[0] != contentTypeApplicationData {
+			continue
+		}
+		recLen := binary.BigEndian.Uint16(c.Payload[3:5])
+		plain := c.Payload[5 : 5+recLen]
+		switch c.Direction {
+		case "up":
+			appUp = append(appUp, plain...)
+		case "down":
+			appDown = append(appDown, plain...)
+		}
+	}
+
+	if !bytes.Contains(appUp, []byte("POST /login HTTP/1.1\r\n")) {
+		t.Errorf("request record plaintext missing request line, got %q", appUp)
+	}
+	if !bytes.Contains(appUp, []byte("Host: 192.0.2.2\r\n")) {
+		t.Errorf("request record plaintext missing Host header, got %q", appUp)
+	}
+	if !bytes.Contains(appUp, []byte("x=1")) {
+		t.Errorf("request record plaintext missing body, got %q", appUp)
+	}
+	if !bytes.Contains(appDown, []byte("HTTP/1.1 200 OK\r\n")) {
+		t.Errorf("response record plaintext missing status line, got %q", appDown)
+	}
+	if !bytes.Contains(appDown, []byte("welcome")) {
+		t.Errorf("response record plaintext missing response body, got %q", appDown)
+	}
+
+	// 请求必须来自委托的真实字节: 若仍走合成路径 (128 随机字节),
+	// 上面 5 个 Contains 断言 (完整请求行/Host/状态行等) 在随机字节中
+	// 的命中概率可忽略, 全都会失败。这里的长度下限是补充守卫。
+	if len(appUp) < 16 {
+		t.Errorf("request plaintext too short (%d bytes), want a real HTTP message", len(appUp))
+	}
+}
+
+// 委托边界: 事件被包成独立 record, 方向与事件一一对应 (请求 up /
+// 响应 down), 且响应紧随请求 (interleaved 事务序)。
+func TestTLS_Plan_HTTPDelegation_RecordOrderAndDirection(t *testing.T) {
+	p := NewPlanner()
+	spec := validTLSSpec()
+	spec.TLS.Version = "tls1.3"
+	spec.HTTP = &core.HTTPConfig{
+		Method: "GET", URI: "/",
+		ResponseBody: "OK",
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+
+	var ups, downs int
+	for _, c := range cfgs {
+		if len(c.Payload) < 5 || c.Payload[0] != contentTypeApplicationData {
+			continue
+		}
+		if c.Direction == "up" {
+			ups++
+		} else {
+			downs++
+		}
+	}
+	if ups != 1 || downs != 1 {
+		t.Errorf("AppData records: up=%d down=%d, want 1/1 (one request, one response)", ups, downs)
+	}
+
+	// 委托方向保留: 第一个 AppData record 必须是 up (请求)。
+	for _, c := range cfgs {
+		if len(c.Payload) >= 5 && c.Payload[0] == contentTypeApplicationData {
+			if c.Direction != "up" {
+				t.Errorf("first AppData record direction=%s, want up (request first)", c.Direction)
+			}
+			break
+		}
+	}
+}
+
+// 委托边界: FileSource 经 PayloadCache 解析后作为请求体 (与 legacy
+// http planner 同款, http.go 的跨 flow 数据串扰防护依赖复制配置)。
+func TestTLS_Plan_HTTPDelegation_FileSourceBody(t *testing.T) {
+	p := NewPlanner()
+	fs, err := filesystem.New(t.TempDir())
+	if err != nil {
+		t.Fatalf("filesystem.New: %v", err)
+	}
+	pc := core.NewPayloadCache(fs)
+
+	spec := validTLSSpec()
+	spec.TLS.Version = "tls1.3"
+	spec.HTTP = &core.HTTPConfig{
+		Method:     "PUT",
+		URI:        "/upload",
+		FileSource: &filesystem.FileSource{Literal: "FILE-BYTES"},
+	}
+	ctx := core.WithPayloadCache(context.Background(), pc)
+	ch, err := p.Plan(ctx, spec)
+	if err != nil {
+		t.Fatalf("Plan err=%v", err)
+	}
+	cfgs := drain(ch)
+
+	var appUp []byte
+	for _, c := range cfgs {
+		if len(c.Payload) < 5 || c.Payload[0] != contentTypeApplicationData || c.Direction != "up" {
+			continue
+		}
+		recLen := binary.BigEndian.Uint16(c.Payload[3:5])
+		appUp = append(appUp, c.Payload[5:5+recLen]...)
+	}
+	if !bytes.Contains(appUp, []byte("FILE-BYTES")) {
+		t.Errorf("request record plaintext missing FileSource body, got %q", appUp)
+	}
+}
+
+// 回归守卫: 无 http sub-config 时保持合成路径 (既有测试依赖的固定
+// record 语义, P2b 不得改变无委托行为)。
+func TestTLS_Plan_HTTPDelegation_NoHTTPKeepsSynthAppData(t *testing.T) {
+	p := NewPlanner()
+	cfgs := drain(mustPlan(t, p, validTLSSpec()))
+
+	var appUp, appDown []byte
+	for _, c := range cfgs {
+		if len(c.Payload) < 5 || c.Payload[0] != contentTypeApplicationData {
+			continue
+		}
+		recLen := binary.BigEndian.Uint16(c.Payload[3:5])
+		plain := c.Payload[5 : 5+recLen]
+		if c.Direction == "up" {
+			appUp = append(appUp, plain...)
+		} else {
+			appDown = append(appDown, plain...)
+		}
+	}
+	if len(appUp) != 128 || len(appDown) != 128 {
+		t.Errorf("synth AppData plaintext lengths = %d/%d, want 128/128 (合成回退)",
+			len(appUp), len(appDown))
+	}
+	// 合成路径的明文不应是 HTTP 报文: 合成字节以 0x21 ('!') 开头,
+	// 而 HTTP 方法词 ("GET"/"POST"/...) 必以 ASCII 字母开头。这里断言
+	// 首字节, 是确定性的 (不像 \r\n 子串检查有随机命中风险)。
+	if len(appUp) > 0 && appUp[0] >= 'A' && appUp[0] <= 'Z' {
+		t.Errorf("synth AppData starts with ASCII letter %q — looks like an HTTP method word, want random bytes",
+			appUp[0])
+	}
+}
+
+// 委托边界 (RFC 8446 §5.2): 超过 16385 字节的明文必须拆成多条
+// record, 不能是单条超长 record (uint16 长度域截断) 或 0 字节 record。
+func TestTLS_Plan_HTTPDelegation_LargeBodySplitsRecords(t *testing.T) {
+	p := NewPlanner()
+	spec := validTLSSpec()
+	spec.TLS.Version = "tls1.3"
+	spec.HTTP = &core.HTTPConfig{
+		Method: "PUT", URI: "/big",
+		Body: strings.Repeat("A", maxPlaintextRecord+100),
+	}
+	cfgs := drain(mustPlan(t, p, spec))
+
+	var appUp []byte
+	records := 0
+	for _, c := range cfgs {
+		if len(c.Payload) < 5 || c.Payload[0] != contentTypeApplicationData || c.Direction != "up" {
+			continue
+		}
+		recLen := binary.BigEndian.Uint16(c.Payload[3:5])
+		if recLen == 0 {
+			t.Fatalf("zero-length AppData record at packet index %d", c.PacketIndex)
+		}
+		if int(recLen) > maxPlaintextRecord {
+			t.Fatalf("record plaintext len=%d exceeds RFC 8446 §5.2 max 16385", recLen)
+		}
+		records++
+		appUp = append(appUp, c.Payload[5:5+recLen]...)
+	}
+	if records < 2 {
+		t.Errorf("large request produced %d record(s), want >= 2 (split)", records)
+	}
+	if !bytes.Contains(appUp, []byte(strings.Repeat("A", maxPlaintextRecord))) {
+		t.Errorf("split records do not reassemble to the full body")
 	}
 }

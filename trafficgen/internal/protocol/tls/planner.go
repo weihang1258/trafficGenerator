@@ -34,6 +34,8 @@ import (
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/core/layers"
+	"github.com/trafficgen/trafficgen/internal/protocol/http"
 )
 
 const (
@@ -507,22 +509,95 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				}
 			}
 
-			// ApplicationData (synth encrypted payload)
-			appData := make([]byte, 128)
-			rand.Read(appData)
-			appRecord := buildRecord(contentTypeApplicationData, legacyVersion, appData)
-			if !emitUp(appRecord) {
-				return
-			}
+			// --- Application data (真实内层报文事件或合成回退) ---
+			// P2b 内层委托: spec.HTTP 非 nil 时, 把 HTTP 层生成器产生的
+			// 报文事件 (请求/响应完整字节) 逐条包成 ApplicationData record
+			// 发射, 方向保留。无 http sub-config 时保持原合成 128B 随机
+			// 路径 (既有测试依赖固定语义)。
+			if spec.HTTP != nil {
+				appEvents := make(chan layers.MessageEvent, 8)
+				genReq := &layers.GenRequest{
+					Layer: layers.Layer{Name: "http", Config: map[string]interface{}{}},
+					Meta: layers.FlowMeta{
+						HTTP:  spec.HTTP,
+						DstIP: spec.DstIP,
+					},
+					EmitMsg: func(ev layers.MessageEvent) error {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case appEvents <- ev:
+							return nil
+						}
+					},
+				}
+				genErr := make(chan error, 1)
+				go func() {
+					defer close(appEvents)
+					genErr <- (&http.HTTPGenerator{}).Generate(ctx, genReq)
+				}()
+				delegateLoop:
+				for {
+					var ev layers.MessageEvent
+					var ok bool
+					select {
+					case <-ctx.Done():
+						return
+					case ev, ok = <-appEvents:
+						if !ok {
+							// 事件流关闭 = HTTP 生成完成; 取回生成错误
+							// (生成器报错视为配置错误, 丢弃本 flow 余下
+							// 输出)。error-only 通道: 通道先于 close 写入,
+							// 此处读取不会卡死。
+							select {
+							case <-ctx.Done():
+								return
+							case err := <-genErr:
+								if err != nil {
+									return
+								}
+							}
+							break delegateLoop
+						}
+					}
+					// RFC 8446 §5.2: 单条 record 明文上限 2^14+1 = 16385
+					// 字节 (与 layer_gen.go maxPlaintextRecord 同源)。HTTP
+					// 事件 (如大 FileSource 上传) 可能超过, 拆成多条 record;
+					// 每条仍走 emitUp/emitDown (推进序列号 + PSH|ACK)。
+					plain := ev.Bytes
+					for len(plain) > 0 {
+						chunk := plain
+						if len(chunk) > maxPlaintextRecord {
+							chunk = chunk[:maxPlaintextRecord]
+						}
+						record := buildRecord(contentTypeApplicationData, legacyVersion, chunk)
+						if ev.Up {
+							if !emitUp(record) {
+								return
+							}
+						} else if !emitDown(record) {
+							return
+						}
+						plain = plain[len(chunk):]
+					}
+				}
+			} else {
+				// ApplicationData (synth encrypted payload)
+				appData := make([]byte, 128)
+				rand.Read(appData)
+				appRecord := buildRecord(contentTypeApplicationData, legacyVersion, appData)
+				if !emitUp(appRecord) {
+					return
+				}
 
-			// Server AppData response
-			serverAppData := make([]byte, 128)
-			rand.Read(serverAppData)
-			serverAppRecord := buildRecord(contentTypeApplicationData, legacyVersion, serverAppData)
-			if !emitDown(serverAppRecord) {
-				return
+				// Server AppData response
+				serverAppData := make([]byte, 128)
+				rand.Read(serverAppData)
+				serverAppRecord := buildRecord(contentTypeApplicationData, legacyVersion, serverAppData)
+				if !emitDown(serverAppRecord) {
+					return
+				}
 			}
-
 		} else {
 			// --- TLS 1.2 / 1.1 / 1.0 path ---
 			// ServerHello
