@@ -155,6 +155,13 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// RIP 源端口 0 保持 0：终结层生成器按 legacy resolveSrcPort 语义
 			// 逐事件解析（单 router Response=520、multi-router=52001+idx、
 			// request_full=52001，rip.go:579-587），不在此默认化。
+		case "dhcp":
+			// DHCP 源端口 0 保持 0：终结层生成器按角色解析（client→68、
+			// server/relay→67，dhcp planner.go:643-679 resolvePorts 语义）。
+		case "dhcpv6":
+			// DHCPv6 源端口 0 保持 0：终结层生成器按方向逐事件解析
+			// （up=client 546、down=server 547，dhcpv6 planner.go:435-456
+			// resolveAddrs 语义，IPv6-only 链）。
 		case "dns", "snmp", "syslog":
 			// 允许 0 上包（legacy 语义）
 		default:
@@ -197,6 +204,13 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 		case "rip":
 			// RIP 目的端口 0 保持 0：终结层生成器按版本默认（v1/v2→520、
 			// ng→521，legacy getDstPort 语义），事件携带 DstPort。
+		case "dhcp":
+			// DHCP 目的端口 0 保持 0：终结层生成器按角色解析（client→67、
+			// server/relay→67，dhcp planner.go:643-679 resolvePorts 语义）。
+		case "dhcpv6":
+			// DHCPv6 目的端口 0 保持 0：终结层生成器按方向逐事件解析
+			// （up=server 547、down=client 546，dhcpv6 planner.go:435-456
+			// resolveAddrs 语义）。
 		default:
 			return fmt.Errorf("destination port is required")
 		}
@@ -458,15 +472,22 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		MDNS:   spec.MDNS,
 		SSDP:   spec.SSDP,
 		RIP:    spec.RIP,
+		DHCP:   spec.DHCP,
+		// DHCPv6 同款（波 5e）：配置经 Meta 直传 dhcpv6 层生成器（DUID/
+		// scenario/relay 解析全部在生成器内，planner.go Plan 同款）。
+		DHCPv6:  spec.DHCPv6,
 		SrcPort: spec.SrcPort,
 		DstPort: spec.DstPort,
-		DstIP:  spec.DstIP,
-		SrcIP:  spec.SrcIP,
+		DstIP:   spec.DstIP,
+		SrcIP:   spec.SrcIP,
 		// DSCP/SrcMAC 直传终结层生成器（波 5c：rip 生成器透传 spec.DSCP——
 		// legacy rip.go:494-498 的 CS6 默认是死参数——与 L2Base 的
 		// spec.SrcMAC）。
 		DSCP:   spec.DSCP,
 		SrcMAC: spec.SrcMAC,
+		// DstMAC 直传终结层生成器（波 5d：dhcp 生成器 resolveMACs 缺省回退
+		// BroadcastMAC 前的 spec.DstMAC，与 role!=client 的 chaddr 回退）。
+		DstMAC: spec.DstMAC,
 		// TTL 直传终结层生成器（波 5b）：ssdp 生成器 honor spec.TTL 非零值
 		// （legacy planner.go:282-285 同款），零值回退协议默认 4。
 		TTL: spec.TTL,
@@ -514,10 +535,12 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 					pkt.L2.DstMAC = l2For(pkt.Direction, spec).DstMAC
 				}
 			}
-			pkt.L2.SrcMAC = spec.SrcMAC
+			// 事件级源 MAC（波 5d：dhcp down 方向 reply 源 MAC 按角色交换/
+			// 回退，udp 层已写入事件值）；空（无覆盖事件）→ spec.SrcMAC。
+			if pkt.L2.SrcMAC == "" {
+				pkt.L2.SrcMAC = spec.SrcMAC
+			}
 			pkt.L2.EtherType = core.EtherTypeFor(pkt.L3.SrcIP)
-			// 多播/广播 TTL 已由 udp 层写入 255（RFC 6762 §11 等；generator.go
-			// 覆盖分支同款），finalEmit 不得再用 ip 层默认 64 覆写。
 		} else {
 			pkt.L2 = l2For(pkt.Direction, spec)
 			// 方向相关 src/dst 交换 + flow 级字段。IPID 已由 ip 层生成器写入
@@ -711,7 +734,10 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 				// 波 5c：rip 链 spec.DstIP 为空时不删 schema 默认——RIP 生成器
 				// 按版本推导默认目标（v1/v2→224.0.0.9、ng→FF02::9），事件级
 				// 覆盖后 ip 层 dst 覆盖被标记跳过，schema 默认只服务最终回退。
-				if !isRIPChain(chain) {
+				// 波 5d：dhcp 链同款——DHCP 生成器按角色推导默认目标（缺省
+				// 广播 255.255.255.255，resolveIPs 语义），事件级覆盖后 ip 层
+				// dst 覆盖同样被标记跳过，schema 默认只服务最终回退。
+				if !isRIPChain(chain) && !isDHCPChain(chain) && !isDHCPv6Chain(chain) {
 					delete(cfg, "dst")
 				}
 			}
@@ -790,6 +816,22 @@ func isHTTPChain(chain []Layer) bool {
 // 生成器按版本推导默认目标并事件级覆盖，见 applySpecToChain ip 分支）。
 func isRIPChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "rip"
+}
+
+// isDHCPChain reports whether the chain's terminal layer is dhcp（波 5d）：
+// DHCP 链的 ip 层 dst 默认注入豁免（spec.DstIP 为空时保留 schema 默认，DHCP
+// 生成器按角色推导默认目标——缺省广播 255.255.255.255，resolveIPs 语义——
+// 并事件级覆盖，见 applySpecToChain ip 分支）。
+func isDHCPChain(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "dhcp"
+}
+
+// isDHCPv6Chain reports whether the chain's terminal layer is dhcpv6（波 5e）：
+// DHCPv6 链的 ip 层 dst 默认注入豁免（spec.DstIP 为空时保留 schema 默认，
+// DHCPv6 生成器按 legacy resolveAddrs 语义取 spec.DstIP 直配——IPv6 目的
+// 恒为 spec 值，无广播/组播推导——与 dhcp 同构，见 applySpecToChain ip 分支）。
+func isDHCPv6Chain(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "dhcpv6"
 }
 
 // transportProtocol resolves the IP protocol number from the chain's

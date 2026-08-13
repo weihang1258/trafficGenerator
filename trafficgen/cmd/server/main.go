@@ -19,8 +19,8 @@ import (
 	"github.com/trafficgen/trafficgen/internal/output"
 	"github.com/trafficgen/trafficgen/internal/protocol/a2a"
 	"github.com/trafficgen/trafficgen/internal/protocol/arp"
-	"github.com/trafficgen/trafficgen/internal/protocol/dhcp"
-	"github.com/trafficgen/trafficgen/internal/protocol/dhcpv6"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcpv6"
 	"github.com/trafficgen/trafficgen/internal/protocol/dnp3"
 	"github.com/trafficgen/trafficgen/internal/protocol/doip"
 	"github.com/trafficgen/trafficgen/internal/protocol/enip"
@@ -34,12 +34,11 @@ import (
 	// ChainPlanner("http") 经此实例化；协议本体由层链驱动。
 	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
 	// 空导入：dns/ntp/snmp/syslog 包 init 反向注册终结层生成器 + 校验器
-	// （layers.RegisterLayerGenerator/RegisterLayerValidator，波 4）。无空
-	// 导入则包不被链接进二进制，ChainPlanner("dns") 实例化失败。
+	// （layers.RegisterLayerGenerator/RegisterLayerValidator，波 4）；波 5：
+	// dhcp/dhcpv6/mdns/ssdp/rip 同机制接入公共 udp 层（init 注册
+	// generator+validator）。无空导入则包不被链接进二进制，
+	// ChainPlanner("dns") 实例化失败。
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmpv6"
 	"github.com/trafficgen/trafficgen/internal/protocol/ike"
@@ -51,13 +50,14 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/l2tp"
 	"github.com/trafficgen/trafficgen/internal/protocol/ldap"
 	mcpprotocol "github.com/trafficgen/trafficgen/internal/protocol/mcp"
-	"github.com/trafficgen/trafficgen/internal/protocol/mdns"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
 	"github.com/trafficgen/trafficgen/internal/protocol/modbus"
 	"github.com/trafficgen/trafficgen/internal/protocol/mpls"
 	"github.com/trafficgen/trafficgen/internal/protocol/mqtt"
 	"github.com/trafficgen/trafficgen/internal/protocol/mysql"
 	"github.com/trafficgen/trafficgen/internal/protocol/nfs"
 	"github.com/trafficgen/trafficgen/internal/protocol/ngap"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
 	"github.com/trafficgen/trafficgen/internal/protocol/openvpn"
 	"github.com/trafficgen/trafficgen/internal/protocol/pop3"
 	"github.com/trafficgen/trafficgen/internal/protocol/postgresql"
@@ -66,7 +66,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/radius"
 	"github.com/trafficgen/trafficgen/internal/protocol/rdp"
 	"github.com/trafficgen/trafficgen/internal/protocol/redis"
-	"github.com/trafficgen/trafficgen/internal/protocol/rip"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/rip"
 	"github.com/trafficgen/trafficgen/internal/protocol/rtmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/rtsp"
 	"github.com/trafficgen/trafficgen/internal/protocol/sctp"
@@ -74,10 +74,12 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/sip"
 	"github.com/trafficgen/trafficgen/internal/protocol/smb"
 	"github.com/trafficgen/trafficgen/internal/protocol/smtp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/socks5"
 	"github.com/trafficgen/trafficgen/internal/protocol/srv6"
-	"github.com/trafficgen/trafficgen/internal/protocol/ssdp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
 	"github.com/trafficgen/trafficgen/internal/protocol/ssh"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
 	"github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	"github.com/trafficgen/trafficgen/internal/protocol/tftp"
@@ -375,6 +377,16 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ntp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("snmp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("syslog"))
+	// mdns/ssdp/rip/dhcp/dhcpv6 切链式生成器（波 5a-5e）：[ip→udp→终结层]
+	// 层链驱动，各协议包 init 反向注册终结层生成器 + 校验器，事件字节复用
+	// legacy 编码器；多播覆盖经事件级 L2/L3 覆盖（OverrideDstIP/MAC + TTL），
+	// dhcp/dhcpv6 端口按角色解析（L4PortOverride 免二次交换），字节级兼容
+	// 旧 planner。
+	app.engine.RegisterPlanner(layers.NewChainPlanner("mdns"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ssdp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("rip"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("dhcp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("dhcpv6"))
 	app.engine.RegisterPlanner(icmp.NewPlanner())
 	app.engine.RegisterPlanner(arp.NewPlanner())
 	app.engine.RegisterPlanner(ftp.NewPlanner())
@@ -412,10 +424,6 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(socks5.NewPlanner())
 	app.engine.RegisterPlanner(vmess.NewPlanner())
 	app.engine.RegisterPlanner(wireguard.NewPlanner())
-	app.engine.RegisterPlanner(dhcp.NewPlanner())
-	app.engine.RegisterPlanner(dhcpv6.NewPlanner())
-	app.engine.RegisterPlanner(mdns.NewPlanner())
-	app.engine.RegisterPlanner(ssdp.NewPlanner())
 	app.engine.RegisterPlanner(xmpp.NewPlanner())
 	app.engine.RegisterPlanner(mqtt.NewPlanner())
 	app.engine.RegisterPlanner(srv6.NewPlanner())
@@ -428,7 +436,6 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(smb.NewPlanner())
 	app.engine.RegisterPlanner(nfs.NewPlanner())
 	app.engine.RegisterPlanner(tds.NewPlanner())
-	app.engine.RegisterPlanner(rip.NewPlanner())
 	app.engine.RegisterPlanner(enip.NewPlanner())
 	app.engine.RegisterPlanner(modbus.NewPlanner())
 	app.engine.RegisterPlanner(dnp3.NewPlanner())

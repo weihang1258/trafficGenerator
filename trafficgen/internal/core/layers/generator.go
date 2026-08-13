@@ -116,12 +116,25 @@ type MessageEvent struct {
 	// Response=520 well-known、multi-router=52001+idx、request_full=52001——
 	// 每 router 独立事件携带各自端口）。up/down 交换以覆盖值为准。
 	SrcPort uint16
+	// L4PortOverride marks the event's SrcPort/DstPort as absolute for the
+	// direction (波 5d：dhcp 端口方向无关——legacy planner.go:629-633 对每条
+	// 消息恒写角色解析端口，role=client 的 down reply 线上是 67→68）。设置时
+	// udp 层 down 方向不做交换，直落事件值；否则按既有语义（覆盖值参与
+	// up/down 交换，rip 波 5c 契约）。
+	L4PortOverride bool
 	// SrcIP overrides the datagram's L3 source IP (波 5c：rip 每 router 独立
 	// srcIP——legacy rip.go:461-464 router.SrcIP 回退 spec.SrcIP，多 router
 	// 时各包源 IP 不同，链层 ip 注入的 spec.SrcIP 不适用)。空串 = 链层默认
 	// （ip 层 cfg src 注入 spec.SrcIP）。与 DstIP 覆盖不同：本值仅源 IP，
 	// 不设覆盖标记（无交换语义，udp 层直落 L3.SrcIP）。
 	SrcIP string
+	// SrcMAC overrides the datagram's L2 source MAC (波 5d：dhcp down 方向
+	// 的 reply 源 MAC 按角色交换——role!=server 时 src=spec.DstMAC，空或
+	// 广播回退 DefaultServerMAC=02:00:00:00:00:02，legacy planner.go:552-573
+	// 语义；finalEmit 覆盖分支恒写 spec.SrcMAC，事件值优先)。空串 = 链层
+	// 默认（finalEmit 的 spec.SrcMAC）。仅覆盖标记（OverrideDstIP/MAC/TTL）
+	// 事件生效。
+	SrcMAC string
 	// DstPort overrides the datagram's UDP destination port (波 5c：rip 版本
 	// 默认端口——ng→521、其余→520，legacy getDstPort；validateSpecBase 对
 	// rip 链不默认化端口，生成器经本字段传递）。Zero (0) = 传输层 cfg 值。
@@ -204,6 +217,12 @@ type FlowMeta struct {
 	// RIP is the flow's RIP config (注入到 rip 层生成器，波 5c)。
 	// Only set for rip chains.
 	RIP *core.RIPConfig
+	// DHCP is the flow's DHCP config (注入到 dhcp 层生成器，波 5d)。
+	// Only set for dhcp chains.
+	DHCP *core.DHCPConfig
+	// DHCPv6 is the flow's DHCPv6 config (注入到 dhcpv6 层生成器，波 5e)。
+	// Only set for dhcpv6 chains.
+	DHCPv6 *core.DHCPv6Config
 	// SrcPort is the flow source port (波 5b：ssdp 生成器默认 src 端口
 	// 1900，legacy planner.go:236-239 同款；波 5c：rip 生成器事件级覆盖
 	// 端口，spec.SrcPort 为 0 时走 legacy resolveSrcPort；其余链不使用)。
@@ -223,6 +242,10 @@ type FlowMeta struct {
 	// SrcMAC is the flow source MAC (波 5c：rip 生成器写入 L2 覆盖事件，
 	// legacy rip.go emitRIPPacket L2Base 的 spec.SrcMAC；其余链不使用)。
 	SrcMAC string
+	// DstMAC is the flow destination MAC (波 5d：dhcp 生成器角色解析的
+	// resolveMACs 与 role!=client 的 chaddr 回退读 spec.DstMAC，legacy
+	// planner.go:441-455/716-742 语义；其余链不使用)。
+	DstMAC string
 }
 
 // SessionState is the per-flow state shared by all layer generators
@@ -976,7 +999,14 @@ func (g *UDPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 				}
 				if !ev.Up {
 					direction = "down"
-					srcPort, dstPort = dstPort, srcPort
+					// 波 5d：dhcp 端口方向无关（legacy planner.go:629-633 对
+					// 每条消息恒写角色解析的 srcPort/dstPort，down 包线上也保持
+					// 原值——role=client 的 OFFER/ACK 是 68→67）。L4PortOverride
+					// 事件直落覆盖值，不做 up/down 交换；否则按既有语义
+					// （rip 波 5c：覆盖值参与交换，down 后目标端口为对端端口）。
+					if !ev.L4PortOverride {
+						srcPort, dstPort = dstPort, srcPort
+					}
 				}
 				evMeta := meta()
 				for k, v := range ev.Metadata {
@@ -1018,6 +1048,12 @@ func (g *UDPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 				}
 				if ev.OverrideDstMAC {
 					pkt.L2.DstMAC = ev.DstMAC
+				}
+				// 事件级源 MAC（波 5d：dhcp down 方向 reply 源 MAC 按角色
+				// 交换/回退，事件携带 msgSrcMAC——含 DefaultServerMAC 回退）。
+				// 非空即覆盖（finalEmit 覆盖分支恒写 spec.SrcMAC，事件值优先）。
+				if ev.SrcMAC != "" {
+					pkt.L2.SrcMAC = ev.SrcMAC
 				}
 				if ev.OverrideDstIP || ev.OverrideDstMAC || ev.TTL != 0 {
 					pkt.Metadata[eventDstOverrideKey] = true
