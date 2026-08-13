@@ -4,12 +4,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net"
 	"regexp"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/core/layers"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"gorm.io/gorm"
@@ -102,6 +104,10 @@ func (h *StrategyHandler) Create(c *gin.Context) {
 // is validated as a ReplaySpec instead. Strategy-level flow_control only
 // accepts "time" (flows is unsupported, bps folds into speed.mode).
 func (h *StrategyHandler) createReplayStrategy(c *gin.Context, userID string, req *CreateStrategyRequest) {
+	if _, ok := req.Config["layers"]; ok {
+		BadRequest(c, "layers is not valid for replay strategies (replay config only takes pcap_asset_id/speed/direction/checksum_mode)")
+		return
+	}
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		BadRequest(c, "invalid config format")
@@ -165,6 +171,24 @@ func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode strin
 		return
 	}
 
+	// 层链创建时校验（P3，设计 §10.2）：config 里有 "layers" 键时走层链
+	// 校验 + protocol 推断（§6.2）。必须放在 protocol 白名单之前：protocol
+	// 缺失时由 ValidateLayers 推断最外层协议并回填，白名单才能放行；
+	// 显式 protocol 原样返回（ValidateLayers 保证与最外层一致，V10）。
+	if rawLayers, ok := req.Config["layers"]; ok {
+		layersJSON, err := json.Marshal(rawLayers)
+		if err != nil {
+			BadRequest(c, "invalid layers format: "+err.Error())
+			return
+		}
+		inferred, err := layers.ValidateLayers(layersJSON, req.Protocol)
+		if err != nil {
+			BadRequest(c, err.Error())
+			return
+		}
+		req.Protocol = inferred
+	}
+
 	validProtocols := map[string]bool{
 		"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true, "sip": true, "sctp": true, "icmpv6": true, "rtsp": true,
 		// L7 protocol planners registered in cmd/server/main.go (keep in sync
@@ -178,6 +202,10 @@ func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode strin
 		"mpls": true, "gtp": true, "socks5": true, "radius": true, "ldap": true,
 		"vnc": true, "pptp": true, "h323": true, "xmpp": true,
 		"rtmp": true, "ngap": true,
+		"tftp": true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
+		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
+		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true,
+		"srv6": true, "gbt32960": true,
 	}
 	if req.Protocol == "" || !validProtocols[req.Protocol] {
 		BadRequest(c, "invalid or missing protocol: "+req.Protocol)
@@ -196,6 +224,23 @@ func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode strin
 	if req.FlowControl.Value <= 0 {
 		BadRequest(c, "flow_control value must be positive")
 		return
+	}
+
+	// TFTP batch-level server_tid uniqueness (spec V22/S12, T-066/T-108):
+	// when the strategy's flow_control requests more than one flow and the
+	// config pins an explicit server_tid, every flow of the batch would
+	// share that TID. Per-flow planner.Validate cannot see the batch (it
+	// validates one FlowSpec), so the check lives here where the flow count
+	// and the raw config are both visible.
+	if req.Protocol == "tftp" && req.FlowControl.Type == "flows" && int(req.FlowControl.Value) > 1 {
+		if sub, ok := req.Config["tftp"].(map[string]interface{}); ok {
+			if tv, ok := sub["server_tid"]; ok {
+				if f, ok := tv.(float64); ok && int64(f) > 0 {
+					BadRequest(c, fmt.Sprintf("tftp: server_tid %d conflicts with another flow in the same batch", int64(f)))
+					return
+				}
+			}
+		}
 	}
 
 	configJSON, err := json.Marshal(req.Config)
@@ -370,6 +415,10 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 	// the ownership check (STRAT4-BR2). When mode was empty, validation also
 	// runs before the not-found response (bad input -> 400, good input -> 404).
 	if mode == "replay" {
+		if _, ok := req.Config["layers"]; ok {
+			BadRequest(c, "layers is not valid for replay strategies (replay config only takes pcap_asset_id/speed/direction/checksum_mode)")
+			return
+		}
 		configJSON, err := json.Marshal(req.Config)
 		if err != nil {
 			BadRequest(c, "invalid config format")
@@ -398,6 +447,23 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 			BadRequest(c, err.Error())
 			return
 		}
+		// 层链创建时校验（P3，与 Create 同款，见 createSynthStrategy）：config 里
+		// 有 "layers" 键时走层链校验 + protocol 推断（§6.2）。必须放在 protocol
+		// 白名单之前：protocol 缺失时由 ValidateLayers 推断最外层协议并回填，
+		// 白名单才能放行；显式 protocol 原样返回（V10 已保证一致）。
+		if rawLayers, ok := req.Config["layers"]; ok {
+			layersJSON, err := json.Marshal(rawLayers)
+			if err != nil {
+				BadRequest(c, "invalid layers format: "+err.Error())
+				return
+			}
+			inferred, err := layers.ValidateLayers(layersJSON, req.Protocol)
+			if err != nil {
+				BadRequest(c, err.Error())
+				return
+			}
+			req.Protocol = inferred
+		}
 		validProtocols := map[string]bool{
 			"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true, "sip": true, "sctp": true, "icmpv6": true, "rtsp": true,
 			// L7 protocol planners registered in cmd/server/main.go (keep in
@@ -411,6 +477,10 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 			"mpls": true, "gtp": true, "socks5": true, "radius": true, "ldap": true,
 			"vnc": true, "pptp": true, "h323": true, "xmpp": true,
 			"rtmp": true, "ngap": true,
+		"tftp": true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
+		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
+		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true,
+		"srv6": true, "gbt32960": true,
 		}
 		if req.Protocol == "" || !validProtocols[req.Protocol] {
 			BadRequest(c, "invalid or missing protocol: "+req.Protocol)

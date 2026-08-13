@@ -252,19 +252,6 @@ func (r *Registry) ValidateChain(chain []Layer) error {
 	return r.validateChain(chain)
 }
 
-// CheckOutermost reports whether the given layer name is the outermost layer
-// of the chain, i.e. the first entry (层链最外层，§10.2 V10)。
-func (r *Registry) CheckOutermost(chain []Layer, name string) error {
-	if len(chain) == 0 {
-		return errf("layers: empty layer chain")
-	}
-	outer := chain[0].Name
-	if outer != name {
-		return errf("layers: protocol %q does not match outermost layer %q", name, outer)
-	}
-	return nil
-}
-
 // ValidateLayerConfig checks one layer's config values against its schema
 // field ranges（§10.2 V9 字段范围）。Unknown fields are reported too（防拼写错误）。
 // 返回值不区分"显式 0"与"缺失"：只对存在且可转换的值做范围检查（§6.4）。
@@ -293,6 +280,12 @@ func (r *Registry) ValidateLayerConfig(l Layer) error {
 			// 不得静默跳过（防绕过 V9 范围检查，MEDIUM-2）。
 			return errf("layers: layer %q field %q = %v invalid: not a numeric value in [%d,%d]",
 				l.Name, k, v, f.Min, f.Max)
+		}
+		if i == 0 {
+			// 显式 0 = "用 schema 默认值"（§6.4 显式 0 ≠ 缺失；与 flat 配置
+			// 校验同款：mss 0 合法 → 生成时用默认 1460）。默认值本身在范围
+			// 内（registry 保证），0 直接放行。
+			continue
 		}
 		if i < f.Min || i > f.Max {
 			return errf("layers: layer %q field %q = %v invalid: out of range [%d,%d]",

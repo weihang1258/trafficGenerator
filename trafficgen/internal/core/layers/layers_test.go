@@ -481,25 +481,3 @@ func TestOutermostLayer(t *testing.T) {
 		t.Fatalf("outermost layer = %q, want ip", out[0].Name)
 	}
 }
-
-func TestCheckOutermost_Matches(t *testing.T) {
-	// V10 正向：protocol 与最外层一致 → 通过。
-	r := DefaultRegistry()
-	out := mustComplete(t, r, []Layer{{Name: "gre"}, {Name: "http"}})
-	if err := r.CheckOutermost(out, "ip"); err != nil {
-		t.Fatalf("protocol ip vs outermost ip rejected: %v", err)
-	}
-}
-
-func TestCheckOutermost_Mismatch(t *testing.T) {
-	// T22: protocol 与层链最外层不一致 → 报错。
-	r := DefaultRegistry()
-	out := mustComplete(t, r, []Layer{{Name: "gre"}, {Name: "http"}})
-	err := r.CheckOutermost(out, "gre")
-	if err == nil || !strings.Contains(err.Error(), "does not match outermost layer") {
-		t.Fatalf("protocol gre vs outermost ip not rejected: %v", err)
-	}
-	if !IsValidationError(err) {
-		t.Fatalf("mismatch error is not a validation error: %T %v", err, err)
-	}
-}

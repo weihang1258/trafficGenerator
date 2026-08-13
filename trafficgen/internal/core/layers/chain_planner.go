@@ -339,7 +339,7 @@ func completeSynthesized(r *Registry, name string) []Layer {
 		for i := 0; i < len(chain); i++ {
 			s, _ := r.Get(chain[i].Name)
 			for _, dep := range s.DependsOn {
-				if outerHasLayer(chain, i, dep) {
+				if outerHas(chain, i, dep) {
 					continue
 				}
 				chain = append(chain[:i], append([]Layer{{Name: dep}}, chain[i:]...)...)
@@ -349,16 +349,6 @@ func completeSynthesized(r *Registry, name string) []Layer {
 		}
 	}
 	return chain
-}
-
-// outerHasLayer reports whether a layer named want appears outward of index i.
-func outerHasLayer(chain []Layer, i int, want string) bool {
-	for k := 0; k < i; k++ {
-		if chain[k].Name == want {
-			return true
-		}
-	}
-	return false
 }
 
 // validateChainForPlanner validates the completed chain. The transport layer
