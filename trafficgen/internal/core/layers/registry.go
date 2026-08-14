@@ -129,6 +129,14 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "a2a", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
 	})
+	// ---- P4a：dnp3（tcp 终结层。IEEE 1815-2012——scenario 展开为链路层
+	// 帧序列，TCP 语义（握手/seq-ack/挥手）交给 tcp 层生成器；配置
+	// （scenario/objects/link_fcb...）繁多不落层 config（layers 数组条目
+	// 零负载），经 spec.DNP3 flat 键携带、FlowMeta 直传生成器。UDP 传输
+	// 与 multi_outstation 多流展开不支持（生成器显式拒绝）。
+	r.Register(LayerSchema{Name: "dnp3", Category: CategoryTerminal,
+		DependsOn: []string{"tcp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},

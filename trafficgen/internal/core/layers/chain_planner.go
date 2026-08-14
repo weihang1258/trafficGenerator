@@ -662,6 +662,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// ENIP 同款（P4a）：配置经 Meta 直传 enip 终结层生成器（命令即
 		// 数据段，事件按 buildENIPPacket 逐命令产出，字节级一致）。
 		ENIP:    spec.ENIP,
+		// DNP3 同款（P4a）：配置经 Meta 直传 dnp3 终结层生成器（scenario
+		// 展开逐帧事件，scenarioFrames 复用）。
+		DNP3:    spec.DNP3,
 		SrcPort: spec.SrcPort,
 		DstPort: spec.DstPort,
 		DstIP:   spec.DstIP,

@@ -274,6 +274,9 @@ type FlowMeta struct {
 	// ENIP is the flow's ENIP config (注入到 enip 层生成器，P4a)。Only set
 	// for enip chains.
 	ENIP *core.ENIPConfig
+	// DNP3 is the flow's DNP3 config (注入到 dnp3 层生成器，P4a)。Only set
+	// for dnp3 chains。
+	DNP3 *core.DNP3Config
 }
 
 // SessionState is the per-flow state shared by all layer generators
