@@ -148,6 +148,16 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "doip", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
 	})
+	// ---- P4a：gbt32960（tcp 终结层。GB/T 32960.3-2016——车辆/平台状态机
+	// 展开为逐消息事件（0x01 登入 → 0x0C 确认 → 0x02 上报 ×N → 0x04 登出，
+	// 0x08 控制/0x03 补报 按序插入；平台侧 0x05/0x0B 心跳 ×N/0x06），wire
+	// 字节由 buildMessage 纯函数产出），TCP 语义（握手/seq-ack/挥手）交给
+	// tcp 层生成器；配置（role/vin/reports/remote_control/heartbeat...）繁多
+	// 不落层 config（layers 数组条目零负载），经 spec.GBT32960 flat 键携带、
+	// FlowMeta 直传生成器。
+	r.Register(LayerSchema{Name: "gbt32960", Category: CategoryTerminal,
+		DependsOn: []string{"tcp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},

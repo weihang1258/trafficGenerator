@@ -32,6 +32,11 @@ const ssdpPort = 1900
 // 反向依赖 layers）。
 const doipPort = 13400
 
+// gbtPort is the GBT32960 platform listener port (GB/T 32960.3-2016,
+// 10020)。layers 包内复刻（不能引用 protocol/gbt32960 的 DefaultPort——
+// protocol 包反向依赖 layers）。
+const gbtPort = 10020
+
 // ChainPlanner drives a layer chain to generate a full packet stream
 // (层链规划器)。It implements core.ProtocolPlanner with the same signature as
 // the legacy per-protocol planners, so it can be registered in place of them.
@@ -262,6 +267,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 		case "doip":
 			// DoIP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （0 也上包，emitDoIP 的 srcPort 参数直传），不在此默认化。
+		case "gbt32960":
+			// GBT32960 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （gbt32960.go:672-727 同款：emitTCP 的 srcPort 参数直传），
+			// 不在此默认化。
 		default:
 			return fmt.Errorf("source port is required")
 		}
@@ -313,6 +322,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// DoIP 目的端口默认 13400（legacy Plan 用 DefaultTCPPort，
 			// strategy_convert mapToFlowSpec 同款默认）。
 			spec.DstPort = doipPort
+		case "gbt32960":
+			// GBT32960 目的端口默认 10020（legacy Plan 用 DefaultPort，
+			// strategy_convert mapToFlowSpec 同款默认——用户显式写
+			// dst_port 时已非零不落此分支）。
+			spec.DstPort = gbtPort
 		default:
 			return fmt.Errorf("destination port is required")
 		}
@@ -680,6 +694,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// DoIP 同款（P4a）：配置经 Meta 直传 doip 终结层生成器（阶段逐
 		// 报文事件，build* 纯函数复用）。
 		DoIP:    spec.DoIP,
+		// GBT32960 同款（P4a）：配置经 Meta 直传 gbt32960 终结层生成器
+		// （状态机逐消息事件，buildMessage 纯函数复用）。
+		GBT32960: spec.GBT32960,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,
