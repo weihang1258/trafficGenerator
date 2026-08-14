@@ -656,6 +656,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// DHCPv6 同款（波 5e）：配置经 Meta 直传 dhcpv6 层生成器（DUID/
 		// scenario/relay 解析全部在生成器内，planner.go Plan 同款）。
 		DHCPv6:  spec.DHCPv6,
+		// TFTP 同款（P4a）：配置经 Meta 直传 tftp 终结层生成器（Plan 内
+		// 复刻——同一 Validate/默认化/emit 序列）。
+		TFTP:    spec.TFTP,
 		SrcPort: spec.SrcPort,
 		DstPort: spec.DstPort,
 		DstIP:   spec.DstIP,

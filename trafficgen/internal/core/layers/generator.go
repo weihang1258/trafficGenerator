@@ -268,6 +268,9 @@ type FlowMeta struct {
 	// resolveMACs 与 role!=client 的 chaddr 回退读 spec.DstMAC，legacy
 	// planner.go:441-455/716-742 语义；其余链不使用)。
 	DstMAC string
+	// TFTP is the flow's TFTP config (注入到 tftp 层生成器，P4a)。Only set
+	// for tftp chains.
+	TFTP *core.TFTPConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators

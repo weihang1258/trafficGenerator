@@ -108,6 +108,12 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "rip", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
 	})
+	// ---- P4a：tftp（udp 终结层，配置经 FlowMeta 直传生成器——协议字段
+	// 繁多（mode/filename/blksize/error_code/server_tid...）不落层 config，
+	// ValidateLayerConfig 拒绝未知字段）。
+	r.Register(LayerSchema{Name: "tftp", Category: CategoryTerminal,
+		DependsOn: []string{"udp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},
