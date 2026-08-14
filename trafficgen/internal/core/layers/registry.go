@@ -122,6 +122,13 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "enip", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
 	})
+	// ---- P4a：a2a（tcp 终结层。HTTP/JSON-RPC over TCP——命令即数据段，
+	// TCP 语义（握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；配置
+	// （tasks/auth/http/tcp...）繁多不落层 config（layers 数组条目零负载），
+	// 经 spec.Payload（A2AConfig JSON）携带、FlowMeta.Payload 直传生成器。
+	r.Register(LayerSchema{Name: "a2a", Category: CategoryTerminal,
+		DependsOn: []string{"tcp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},
