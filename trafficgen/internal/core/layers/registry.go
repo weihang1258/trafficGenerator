@@ -181,6 +181,19 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "modbus", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
 	})
+	// ---- P4a：mqtt（tcp 终结层。MQTT 3.1.1/5.0——一次 flow = 一个
+	// 4-tuple 上一条连接 + 一个 client_id 的完整会话：CONNECT → CONNACK →
+	// [SUBSCRIBE/SUBACK]×N → [PUBLISH/QoS ack 交换]×N → [PINGREQ/PINGRESP]
+	// → [Will 发布] → [DISCONNECT]，wire 字节由 build* 纯函数产出），TCP
+	// 语义（握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；配置
+	// （version/client_id/subscriptions/messages/will/connect_ack_code...）
+	// 繁多不落层 config（layers 数组条目零负载），经 spec.MQTT flat 键携带、
+	// FlowMeta 直传生成器；目的端口默认 1883（validateSpecBase）；多流展开
+	// （sessions[] 每项独立 4-tuple + 自动递增 srcPort）不支持（生成器 +
+	// validator 双拒绝）。
+	r.Register(LayerSchema{Name: "mqtt", Category: CategoryTerminal,
+		DependsOn: []string{"tcp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},

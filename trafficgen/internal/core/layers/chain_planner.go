@@ -289,6 +289,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// Modbus 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （planFlow 418-436：多流派生 baseSrcPort+idx；单流 idx=0 时
 			// 即 spec.SrcPort 原值，0 也上包），不在此默认化。
+		case "mqtt":
+			// MQTT 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （emitAll 852-856：Sessions 为空单流直传 spec.SrcPort，0 也
+			// 上包；多流派生不适用——链拒绝多流），不在此默认化。
 		default:
 			return fmt.Errorf("source port is required")
 		}
@@ -361,6 +365,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
 			// dst_port 时已非零不落此分支）。
 			spec.DstPort = 502
+		case "mqtt":
+			// MQTT 目的端口默认 1883（legacy Plan 用 DefaultPort，
+			// strategy_convert mapToFlowSpec 同款默认——用户显式写
+			// dst_port 时已非零不落此分支）。
+			spec.DstPort = 1883
 		default:
 			return fmt.Errorf("destination port is required")
 		}
@@ -737,6 +746,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// MODBUS 同款（P4a）：配置经 Meta 直传 modbus 终结层生成器（事务
 		// 循环逐帧事件，build* 纯函数复用）。
 		MODBUS: spec.MODBUS,
+		// MQTT 同款（P4a）：配置经 Meta 直传 mqtt 终结层生成器（会话序列
+		// 逐帧事件，build* 纯函数复用）。
+		MQTT: spec.MQTT,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,
