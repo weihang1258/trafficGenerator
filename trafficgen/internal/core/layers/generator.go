@@ -283,6 +283,9 @@ type FlowMeta struct {
 	// GBT32960 is the flow's GBT32960 config (注入到 gbt32960 层生成器，
 	// P4a)。Only set for gbt32960 chains。
 	GBT32960 *core.GBT32960Config
+	// MCP is the flow's MCP config (注入到 mcp 层生成器，P4a)。Only set for
+	// mcp chains。
+	MCP *core.MCPConfig
 	// TCP is the flow's TCP config (注入到 tcp 载体终结层生成器，P4a：
 	// doip 0x36 TransferData 分段读 spec.TCP.MSS，legacy doip.go:677-701
 	// 同款)。Only set for tcp-carrier chains。

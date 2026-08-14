@@ -158,6 +158,17 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "gbt32960", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
 	})
+	// ---- P4a：mcp（tcp 终结层。MCP 会话（JSON-RPC 2.0）——initialize →
+	// 请求/响应序列 → 可选挥手，三传输（stdio/http_sse/streamable）均单
+	// TCP 连接：stdio 逐行 JSON，HTTP 模式为 HTTP 帧（GET/POST/DELETE +
+	// SSE push），TCP 语义（握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；
+	// streamable 的 DELETE/204 是应用层帧（带内，非挥手）。配置
+	// （transport/requests/responses/notifications/rounds...）繁多不落层
+	// config（layers 数组条目零负载），经 spec.MCP flat 键携带、FlowMeta
+	// 直传生成器；目的端口默认 stdio→22 / HTTP→8081（validateSpecBase）。
+	r.Register(LayerSchema{Name: "mcp", Category: CategoryTerminal,
+		DependsOn: []string{"tcp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},
