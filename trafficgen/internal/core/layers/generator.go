@@ -286,6 +286,9 @@ type FlowMeta struct {
 	// MCP is the flow's MCP config (注入到 mcp 层生成器，P4a)。Only set for
 	// mcp chains。
 	MCP *core.MCPConfig
+	// MODBUS is the flow's MODBUS config (注入到 modbus 层生成器，P4a)。
+	// Only set for modbus chains。
+	MODBUS *core.MODBUSConfig
 	// TCP is the flow's TCP config (注入到 tcp 载体终结层生成器，P4a：
 	// doip 0x36 TransferData 分段读 spec.TCP.MSS，legacy doip.go:677-701
 	// 同款)。Only set for tcp-carrier chains。

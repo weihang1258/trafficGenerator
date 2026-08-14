@@ -285,6 +285,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 		case "mcp":
 			// MCP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （emit.go emitAppData 的 srcPort 参数直传），不在此默认化。
+		case "modbus":
+			// Modbus 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （planFlow 418-436：多流派生 baseSrcPort+idx；单流 idx=0 时
+			// 即 spec.SrcPort 原值，0 也上包），不在此默认化。
 		default:
 			return fmt.Errorf("source port is required")
 		}
@@ -352,6 +356,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			} else {
 				spec.DstPort = mcpStdioPort
 			}
+		case "modbus":
+			// Modbus 目的端口默认 502（legacy Plan 用 DefaultPort，
+			// strategy_convert mapToFlowSpec 同款默认——用户显式写
+			// dst_port 时已非零不落此分支）。
+			spec.DstPort = 502
 		default:
 			return fmt.Errorf("destination port is required")
 		}
@@ -725,6 +734,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// MCP 同款（P4a）：配置经 Meta 直传 mcp 终结层生成器（会话状态机
 		// 逐消息事件，build* 纯函数复用）。
 		MCP: spec.MCP,
+		// MODBUS 同款（P4a）：配置经 Meta 直传 modbus 终结层生成器（事务
+		// 循环逐帧事件，build* 纯函数复用）。
+		MODBUS: spec.MODBUS,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,

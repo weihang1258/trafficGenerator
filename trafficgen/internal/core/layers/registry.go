@@ -169,6 +169,18 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "mcp", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
 	})
+	// ---- P4a：modbus（tcp 终结层。Modbus TCP——事务序列展开为逐帧事件
+	// （每事务 request MBAP 帧 + 可选 response MBAP 帧，共享 TID），wire
+	// 字节由 buildRequestPDU/buildResponsePDU/BuildMBAPFrame 纯函数产出；
+	// 响应可由 ResponseMode / broadcast suppress / Force Listen Only 抑制），
+	// TCP 语义（握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；配置
+	// （transactions/unit_id/suppress_broadcast/shared_tid_space...）繁多不
+	// 落层 config（layers 数组条目零负载），经 spec.MODBUS flat 键携带、
+	// FlowMeta 直传生成器；目的端口默认 502（validateSpecBase）；多流展开
+	// （master_count/flow_count > 1）不支持（生成器 + validator 双拒绝）。
+	r.Register(LayerSchema{Name: "modbus", Category: CategoryTerminal,
+		DependsOn: []string{"tcp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},
