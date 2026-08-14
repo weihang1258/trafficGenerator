@@ -336,6 +336,14 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// NFS 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （planSession 430-442 同款：emit 的 srcPort 参数直传，0 也
 			// 上包），不在此默认化。
+		case "smb":
+			// SMB 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （emitTCPPacket 的 srcPort 参数直传，0 也上包），不在此
+			// 默认化。
+		case "tds":
+			// TDS 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （tds.go:449 同款：up 帧 srcPort 参数直传，0 也上包），
+			// 不在此默认化。
 		default:
 			return fmt.Errorf("source port is required")
 		}
@@ -418,6 +426,22 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
 			// dst_port 时已非零不落此分支）。
 			spec.DstPort = nfsPort
+		case "smb":
+			// SMB 目的端口默认（strategy_convert.go mapToFlowSpec 同款）：
+			// transport=netbios → 139（NetBIOS Session Service），其余
+			// （direct/空）→ 445（Direct TCP）。legacy Plan 无端口默认
+			// （原值上包），链上默认与 strategy_convert 对齐——用户显式
+			// 写 dst_port 时已非零不落此分支。
+			if spec.SMB != nil && spec.SMB.Transport == "netbios" {
+				spec.DstPort = 139
+			} else {
+				spec.DstPort = 445
+			}
+		case "tds":
+			// TDS 目的端口默认 1433（legacy Plan 用 DefaultPort，
+			// strategy_convert mapToFlowSpec 同款默认——用户显式写
+			// dst_port 时已非零不落此分支）。
+			spec.DstPort = 1433
 		default:
 			return fmt.Errorf("destination port is required")
 		}
@@ -803,6 +827,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// spec.Metadata["nfs"] 原样传递（mapToFlowSpec 存 JSON 解码子 map），
 		// 生成器侧解析。
 		NFS: spec.Metadata["nfs"],
+		// SMB 同款（P4a）：配置经 Meta 直传 smb 终结层生成器（SMB2 会话
+		// NEGOTIATE → SESSION_SETUP → TREE_CONNECT → CREATE → Operations →
+		// CLOSE → TREE_DISCONNECT → LOGOFF 逐 PDU 事件，build* 纯函数复用）。
+		SMB: spec.SMB,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,

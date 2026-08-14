@@ -299,6 +299,11 @@ type FlowMeta struct {
 	// interface{}——经 spec.Metadata["nfs"] 原样传递（strategy_convert.go
 	// mapToFlowSpec 的 nfs case 存 JSON 解码子 map），生成器侧解析。
 	NFS interface{}
+	// SMB is the flow's SMB config (注入到 smb 层生成器，P4a：SMB2 会话
+	// NEGOTIATE/SESSION_SETUP/TREE_CONNECT/CREATE/Operations/CLOSE/
+	// TREE_DISCONNECT/LOGOFF 逐 PDU 事件，build* 纯函数复用)。Only set for
+	// smb chains。
+	SMB *core.SMBConfig
 	// TCP is the flow's TCP config (注入到 tcp 载体终结层生成器，P4a：
 	// doip 0x36 TransferData 分段读 spec.TCP.MSS，legacy doip.go:677-701
 	// 同款)。Only set for tcp-carrier chains。

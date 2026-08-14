@@ -210,6 +210,30 @@ func DefaultRegistry() *Registry {
 		DependsOn:   []string{"tcp"},        // 默认 tcp；用户显式写 udp 层覆盖（补全时替代）
 		TransportOn: []string{"tcp", "udp"}, // 支持的传输层，第一个 = 默认（须与 DependsOn[0] 一致）
 	})
+	// ---- P4a：smb（tcp 终结层。MS-SMB2——会话状态机展开为逐 PDU 事件
+	// （NEGOTIATE → SESSION_SETUP → TREE_CONNECT → CREATE → Operations →
+	// CLOSE → TREE_DISCONNECT → LOGOFF，Include*/ErrorOnCommand/
+	// EncryptionRequired 门控与 legacy Plan 逐命令一致，wire 字节由
+	// buildSMB2Header + build*Body 纯函数产出），TCP 语义（握手/seq-ack/
+	// 挥手/MSS 分段）交给 tcp 层生成器；配置（transport/dialects/operations/
+	// error_on_command...）繁多不落层 config（layers 数组条目零负载），经
+	// spec.SMB flat 键携带、FlowMeta 直传生成器；目的端口默认 445
+	// （transport=netbios → 139，validateSpecBase，strategy_convert 同款）。
+	r.Register(LayerSchema{Name: "smb", Category: CategoryTerminal,
+		DependsOn: []string{"tcp"},
+	})
+	// ---- P4a：tds（tcp 终结层。MS-TDS——PRELOGIN → Login7 → Login response
+	// → sessions（SQL Batch / RPC / TransMgr / Attention）逐报文事件，wire
+	// 字节由 build* 纯函数产出；Login response 等 down 报文按 cfg.PacketSize
+	// 应用层分片（BuildTableResponsePackets，T-148）保留），TCP 语义
+	// （握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；配置（version/
+	// packet_size/sessions/mars/login...）繁多不落层 config（layers 数组条目
+	// 零负载），经 spec.Payload（TDSConfig JSON，strategy_convert.go tds case
+	// 同款）携带、FlowMeta.Payload 直传生成器；目的端口默认 1433
+	// （validateSpecBase）。
+	r.Register(LayerSchema{Name: "tds", Category: CategoryTerminal,
+		DependsOn: []string{"tcp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},
