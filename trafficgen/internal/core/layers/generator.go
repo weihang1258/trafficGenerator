@@ -293,6 +293,12 @@ type FlowMeta struct {
 	// CONNECT/CONNACK/SUBSCRIBE/消息/Will/DISCONNECT 逐帧事件，build* 纯
 	// 函数复用)。Only set for mqtt chains。
 	MQTT *core.MQTTConfig
+	// NFS is the flow's NFS config (注入到 nfs 层生成器，P4a：RPC 调用/回复
+	// 逐事件产出，buildCall/buildReply 纯函数复用)。Only set for nfs chains。
+	// core 无法 import protocol/nfs（protocol 包反向依赖 core），故为
+	// interface{}——经 spec.Metadata["nfs"] 原样传递（strategy_convert.go
+	// mapToFlowSpec 的 nfs case 存 JSON 解码子 map），生成器侧解析。
+	NFS interface{}
 	// TCP is the flow's TCP config (注入到 tcp 载体终结层生成器，P4a：
 	// doip 0x36 TransferData 分段读 spec.TCP.MSS，legacy doip.go:677-701
 	// 同款)。Only set for tcp-carrier chains。

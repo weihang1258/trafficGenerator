@@ -12,11 +12,11 @@ func DefaultRegistry() *Registry {
 	// §4.4: ip 是传输层/隧道层的硬依赖底座，无 depends_on、无 optional_on。
 	r.Register(LayerSchema{Name: "ip", Category: CategoryNetwork,
 		Fields: map[string]FieldSchema{
-			"src":     {Type: "ip", Default: "10.0.0.1"},
-			"dst":     {Type: "ip", Default: "20.0.0.1"},
-			"ttl":     {Type: "uint8", Default: uint8(64), Min: 0, Max: 255},
-			"dscp":    {Type: "uint8", Default: uint8(0), Min: 0, Max: 63},
-			"ecn":     {Type: "uint8", Default: uint8(0), Min: 0, Max: 3},
+			"src":         {Type: "ip", Default: "10.0.0.1"},
+			"dst":         {Type: "ip", Default: "20.0.0.1"},
+			"ttl":         {Type: "uint8", Default: uint8(64), Min: 0, Max: 255},
+			"dscp":        {Type: "uint8", Default: uint8(0), Min: 0, Max: 63},
+			"ecn":         {Type: "uint8", Default: uint8(0), Min: 0, Max: 3},
 			"frag_offset": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 		},
 	})
@@ -29,8 +29,8 @@ func DefaultRegistry() *Registry {
 		},
 	})
 	r.Register(LayerSchema{Name: "vlan", Category: CategoryL2,
-		DependsOn:  []string{"eth"},   // vlan 垫在 eth 上（缺了自动补）
-		OptionalOn: []string{"eth"},   // 可选底座：默认不启用
+		DependsOn:  []string{"eth"}, // vlan 垫在 eth 上（缺了自动补）
+		OptionalOn: []string{"eth"}, // 可选底座：默认不启用
 		Fields: map[string]FieldSchema{
 			"id":       {Type: "uint16", Default: uint16(0), Min: 0, Max: 4095},
 			"priority": {Type: "uint8", Default: uint8(0), Min: 0, Max: 7},
@@ -72,7 +72,7 @@ func DefaultRegistry() *Registry {
 		},
 	})
 	r.Register(LayerSchema{Name: "dns", Category: CategoryTerminal,
-		DependsOn:   []string{"udp"}, // 默认 udp；用户显式写 tcp 层覆盖（补全时替代）
+		DependsOn:   []string{"udp"},        // 默认 udp；用户显式写 tcp 层覆盖（补全时替代）
 		TransportOn: []string{"udp", "tcp"}, // 支持的传输层，第一个 = 默认（须与 DependsOn[0] 一致）
 		OptionalOn:  []string{"tls"},
 		Fields: map[string]FieldSchema{
@@ -194,6 +194,22 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "mqtt", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
 	})
+	// ---- P4a：nfs（双载体终结层。NFSv3/v4 RPC——每 op 一个调用/回复对
+	// （buildCall/buildReply 纯函数产出），MOUNT 程序（v3）与
+	// SETCLIENTID/PUTROOTFH/OPEN_CONFIRM（v4）自动插入同 legacy；默认
+	// tcp 载体（RFC 5531 记录标记 RM 帧，DependsOn[0] 与 TransportOn[0]
+	// 一致），用户显式写 udp 层覆盖（补全时替代；UDP 载体 = 裸 RPC 数据报），
+	// TCP 语义（握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；配置
+	// （version/transport/ops/auth_flavor...）繁多不落层 config（layers 数组
+	// 条目零负载），经 spec.Metadata["nfs"]（flat 键 nfs 的 JSON 解码子 map）
+	// 携带、FlowMeta 直传生成器；目的端口默认 2049（validateSpecBase）；
+	// 多流展开（sessions > 1 自动递增 srcPort）不支持（生成器 + validator
+	// 双拒绝）；载体与 transport 一致性由 ValidateSpec 结构性校验
+	// （chain_planner.go nfsTransportFromMetadata）。
+	r.Register(LayerSchema{Name: "nfs", Category: CategoryTerminal,
+		DependsOn:   []string{"tcp"},        // 默认 tcp；用户显式写 udp 层覆盖（补全时替代）
+		TransportOn: []string{"tcp", "udp"}, // 支持的传输层，第一个 = 默认（须与 DependsOn[0] 一致）
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},
@@ -223,8 +239,8 @@ func DefaultRegistry() *Registry {
 		},
 	})
 	r.Register(LayerSchema{Name: "gre", Category: CategoryTunnel,
-		DependsOn:     []string{"ip"},  // 外层 ip 自动补
-		InnerRequired: []string{"ip"},  // 内层必须从 ip 开始，缺了自动补内层 ip
+		DependsOn:     []string{"ip"}, // 外层 ip 自动补
+		InnerRequired: []string{"ip"}, // 内层必须从 ip 开始，缺了自动补内层 ip
 		Fields: map[string]FieldSchema{
 			"key":      {Type: "uint32", Default: uint32(0)},
 			"checksum": {Type: "bool", Default: false},

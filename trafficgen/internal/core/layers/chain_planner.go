@@ -2,9 +2,11 @@ package layers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -47,6 +49,11 @@ const mcpStdioPort = 22
 // layers 包内复刻（不能引用 protocol/mcp 的 DefaultPortHTTP——protocol 包
 // 反向依赖 layers）。
 const mcpHTTPPort = 8081
+
+// nfsPort is the NFS service port (RFC 5531 §9 / RFC 1813, 2049)。
+// layers 包内复刻（不能引用 protocol/nfs 的 DefaultPort——protocol 包反向
+// 依赖 layers）。
+const nfsPort = 2049
 
 // ChainPlanner drives a layer chain to generate a full packet stream
 // (层链规划器)。It implements core.ProtocolPlanner with the same signature as
@@ -210,6 +217,38 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 		}
 		break
 	}
+	// NFS 载体一致性结构性校验（P4a）：NFS 是双载体终结层——tcp 载体产
+	// RM 记录标记帧（默认），udp 载体产裸 RPC 数据报。链的载体（末层 nfs
+	// 时看倒数第二层）必须与 spec.Metadata["nfs"] 的 transport 一致，否则是
+	// **结构性**错误，必须在此同步拒绝（同 gre/tls HIGH-2 先例：drive 期
+	// 生成器报错会被 Plan goroutine 吞成 0 包空流）。校验读链载体 + 元数据
+	// transport 字符串（不 import protocol/nfs，nfsTransportFromMetadata），
+	// 缺省按 legacy 默认 "tcp"（planSession 438-441 同款）判定：
+	//   - tcp 载体 + transport "udp" → 拒绝（与 udp 载体 + "tcp" 对称）。
+	//   - udp 载体 + transport 缺省/""/"tcp" → 拒绝：空串按 legacy 默认
+	//     "tcp" 处理，会把 TCP RM 记录标记字节写进 UDP 数据报（对 UDP 载荷
+	//     是非法字节）——UDP 载体必须显式 transport "udp"（legacy
+	//     nfs_test.go TestNFS3UDP 同款显式设置）。
+	for _, l := range chain {
+		if l.Name != "nfs" {
+			continue
+		}
+		carrier := "tcp"
+		if len(chain) > 1 && chain[len(chain)-2].Name == "udp" {
+			carrier = "udp"
+		}
+		t, _ := nfsTransportFromMetadata(spec.Metadata["nfs"])
+		if t == "" {
+			t = "tcp" // legacy Plan 同款默认（planSession 438-441）
+		}
+		if carrier == "udp" && t != "udp" {
+			return spec, fmt.Errorf("nfs chain: udp carrier requires nfs transport \"udp\" (got %q; empty defaults to \"tcp\" which would write TCP record-mark bytes on a UDP datagram)", t)
+		}
+		if carrier == "tcp" && t == "udp" {
+			return spec, fmt.Errorf("nfs chain: nfs transport \"udp\" requires a udp carrier (chain carrier is tcp)")
+		}
+		break
+	}
 	return spec, nil
 }
 
@@ -293,6 +332,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// MQTT 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （emitAll 852-856：Sessions 为空单流直传 spec.SrcPort，0 也
 			// 上包；多流派生不适用——链拒绝多流），不在此默认化。
+		case "nfs":
+			// NFS 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （planSession 430-442 同款：emit 的 srcPort 参数直传，0 也
+			// 上包），不在此默认化。
 		default:
 			return fmt.Errorf("source port is required")
 		}
@@ -370,6 +413,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
 			// dst_port 时已非零不落此分支）。
 			spec.DstPort = 1883
+		case "nfs":
+			// NFS 目的端口默认 2049（legacy Plan 用 DefaultPort，
+			// strategy_convert mapToFlowSpec 同款默认——用户显式写
+			// dst_port 时已非零不落此分支）。
+			spec.DstPort = nfsPort
 		default:
 			return fmt.Errorf("destination port is required")
 		}
@@ -724,19 +772,19 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		DHCP:   spec.DHCP,
 		// DHCPv6 同款（波 5e）：配置经 Meta 直传 dhcpv6 层生成器（DUID/
 		// scenario/relay 解析全部在生成器内，planner.go Plan 同款）。
-		DHCPv6:  spec.DHCPv6,
+		DHCPv6: spec.DHCPv6,
 		// TFTP 同款（P4a）：配置经 Meta 直传 tftp 终结层生成器（Plan 内
 		// 复刻——同一 Validate/默认化/emit 序列）。
-		TFTP:    spec.TFTP,
+		TFTP: spec.TFTP,
 		// ENIP 同款（P4a）：配置经 Meta 直传 enip 终结层生成器（命令即
 		// 数据段，事件按 buildENIPPacket 逐命令产出，字节级一致）。
-		ENIP:    spec.ENIP,
+		ENIP: spec.ENIP,
 		// DNP3 同款（P4a）：配置经 Meta 直传 dnp3 终结层生成器（scenario
 		// 展开逐帧事件，scenarioFrames 复用）。
-		DNP3:    spec.DNP3,
+		DNP3: spec.DNP3,
 		// DoIP 同款（P4a）：配置经 Meta 直传 doip 终结层生成器（阶段逐
 		// 报文事件，build* 纯函数复用）。
-		DoIP:    spec.DoIP,
+		DoIP: spec.DoIP,
 		// GBT32960 同款（P4a）：配置经 Meta 直传 gbt32960 终结层生成器
 		// （状态机逐消息事件，buildMessage 纯函数复用）。
 		GBT32960: spec.GBT32960,
@@ -749,6 +797,12 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// MQTT 同款（P4a）：配置经 Meta 直传 mqtt 终结层生成器（会话序列
 		// 逐帧事件，build* 纯函数复用）。
 		MQTT: spec.MQTT,
+		// NFS 同款（P4a）：配置经 Meta 直传 nfs 终结层生成器（RPC 调用/回复
+		// 逐事件产出，buildCall/buildReply 纯函数复用）。interface{}——
+		// core 无法 import protocol/nfs（protocol 包反向依赖 core），经
+		// spec.Metadata["nfs"] 原样传递（mapToFlowSpec 存 JSON 解码子 map），
+		// 生成器侧解析。
+		NFS: spec.Metadata["nfs"],
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,
@@ -1414,6 +1468,43 @@ func transportProtocol(chain []Layer) uint8 {
 		}
 	}
 	return core.ProtocolTCP
+}
+
+// nfsTransportFromMetadata extracts the NFS transport string from the flow
+// metadata (P4a 载体一致性校验用)。core 无法 import protocol/nfs——元数据是
+// spec.Metadata["nfs"]，生成器侧支持 *NFSConfig / map[string]interface{} /
+// json.RawMessage 三种形态，此处只解析 transport 字段（配置缺失/字段缺失/
+// 类型不符 → ""，由调用方按 legacy 默认 "tcp" 处理）。
+func nfsTransportFromMetadata(v interface{}) (string, bool) {
+	switch m := v.(type) {
+	case nil:
+		return "", false
+	case map[string]interface{}:
+		s, ok := m["transport"].(string)
+		return s, ok
+	case json.RawMessage:
+		var tmp struct {
+			Transport string `json:"transport"`
+		}
+		if err := json.Unmarshal(m, &tmp); err != nil {
+			return "", false
+		}
+		return tmp.Transport, tmp.Transport != ""
+	default:
+		// 生成器侧已解析的 *NFSConfig（测试直驱等场景）——反射读字段，
+		// 避免 layers → protocol/nfs 的依赖环。
+		rv := reflect.ValueOf(m)
+		if rv.Kind() == reflect.Ptr {
+			rv = rv.Elem()
+		}
+		if rv.Kind() == reflect.Struct {
+			f := rv.FieldByName("Transport")
+			if f.IsValid() && f.Kind() == reflect.String {
+				return f.String(), f.String() != ""
+			}
+		}
+	}
+	return "", false
 }
 
 // newGenerator instantiates the generator for a chain layer. Only layers with
