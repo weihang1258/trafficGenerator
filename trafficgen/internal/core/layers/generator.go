@@ -271,6 +271,9 @@ type FlowMeta struct {
 	// TFTP is the flow's TFTP config (注入到 tftp 层生成器，P4a)。Only set
 	// for tftp chains.
 	TFTP *core.TFTPConfig
+	// ENIP is the flow's ENIP config (注入到 enip 层生成器，P4a)。Only set
+	// for enip chains.
+	ENIP *core.ENIPConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators

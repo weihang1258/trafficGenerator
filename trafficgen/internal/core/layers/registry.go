@@ -114,6 +114,14 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "tftp", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
 	})
+	// ---- P4a：enip（tcp 终结层，首个 tcp 载体协议。ENIP 命令即数据段
+	// （无握手/终止），TCP 语义（握手/seq-ack/挥手）交给 tcp 层生成器；
+	// 配置（commands/io_data/session_count...）繁多不落层 config（layers
+	// 数组条目零负载），经 flat 键 spec.ENIP 携带、FlowMeta 直传生成器。
+	// UDP I/O 帧不支持（chain 无 UDP 混合流，生成器显式拒绝 IOData）。
+	r.Register(LayerSchema{Name: "enip", Category: CategoryTerminal,
+		DependsOn: []string{"tcp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},

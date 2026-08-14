@@ -659,6 +659,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// TFTP 同款（P4a）：配置经 Meta 直传 tftp 终结层生成器（Plan 内
 		// 复刻——同一 Validate/默认化/emit 序列）。
 		TFTP:    spec.TFTP,
+		// ENIP 同款（P4a）：配置经 Meta 直传 enip 终结层生成器（命令即
+		// 数据段，事件按 buildENIPPacket 逐命令产出，字节级一致）。
+		ENIP:    spec.ENIP,
 		SrcPort: spec.SrcPort,
 		DstPort: spec.DstPort,
 		DstIP:   spec.DstIP,
