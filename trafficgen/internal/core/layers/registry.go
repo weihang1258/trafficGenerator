@@ -137,6 +137,17 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "dnp3", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
 	})
+	// ---- P4a：doip（tcp 终结层。ISO 13400-2 DoIP——routing activation /
+	// diagnostic messages / alive check / generic nack 阶段逐报文事件，
+	// 0x36 TransferData 协议级分段复刻（legacy doip.go:677-701 同款），
+	// TCP 语义（握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；配置
+	// （protocol_version/activation/messages/alive_check...）繁多不落层
+	// config（layers 数组条目零负载），经 spec.DoIP flat 键携带、FlowMeta
+	// 直传生成器。UDP 阶段（Discovery/EntityStatus/PowerMode）与激活失败
+	// 提前终止不支持（生成器显式拒绝）。
+	r.Register(LayerSchema{Name: "doip", Category: CategoryTerminal,
+		DependsOn: []string{"tcp"},
+	})
 	r.Register(LayerSchema{Name: "ftp", Category: CategoryTerminal,
 		DependsOn:  []string{"tcp"},
 		OptionalOn: []string{"tls"},

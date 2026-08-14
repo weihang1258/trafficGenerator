@@ -277,6 +277,13 @@ type FlowMeta struct {
 	// DNP3 is the flow's DNP3 config (注入到 dnp3 层生成器，P4a)。Only set
 	// for dnp3 chains。
 	DNP3 *core.DNP3Config
+	// DoIP is the flow's DoIP config (注入到 doip 层生成器，P4a)。Only set
+	// for doip chains。
+	DoIP *core.DoIPConfig
+	// TCP is the flow's TCP config (注入到 tcp 载体终结层生成器，P4a：
+	// doip 0x36 TransferData 分段读 spec.TCP.MSS，legacy doip.go:677-701
+	// 同款)。Only set for tcp-carrier chains。
+	TCP *core.TCPConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators

@@ -27,6 +27,11 @@ const mdnsPort = 5353
 // （不能引用 protocol/ssdp 的 DefaultPort——protocol 包反向依赖 layers）。
 const ssdpPort = 1900
 
+// doipPort is the DoIP TCP/UDP service port (ISO 13400-2 §7, 13400)。
+// layers 包内复刻（不能引用 protocol/doip 的 DefaultTCPPort——protocol 包
+// 反向依赖 layers）。
+const doipPort = 13400
+
 // ChainPlanner drives a layer chain to generate a full packet stream
 // (层链规划器)。It implements core.ProtocolPlanner with the same signature as
 // the legacy per-protocol planners, so it can be registered in place of them.
@@ -254,6 +259,9 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// resolveAddrs 语义，IPv6-only 链）。
 		case "dns", "snmp", "syslog":
 			// 允许 0 上包（legacy 语义）
+		case "doip":
+			// DoIP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （0 也上包，emitDoIP 的 srcPort 参数直传），不在此默认化。
 		default:
 			return fmt.Errorf("source port is required")
 		}
@@ -301,6 +309,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// DHCPv6 目的端口 0 保持 0：终结层生成器按方向逐事件解析
 			// （up=server 547、down=client 546，dhcpv6 planner.go:435-456
 			// resolveAddrs 语义）。
+		case "doip":
+			// DoIP 目的端口默认 13400（legacy Plan 用 DefaultTCPPort，
+			// strategy_convert mapToFlowSpec 同款默认）。
+			spec.DstPort = doipPort
 		default:
 			return fmt.Errorf("destination port is required")
 		}
@@ -665,6 +677,11 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// DNP3 同款（P4a）：配置经 Meta 直传 dnp3 终结层生成器（scenario
 		// 展开逐帧事件，scenarioFrames 复用）。
 		DNP3:    spec.DNP3,
+		// DoIP 同款（P4a）：配置经 Meta 直传 doip 终结层生成器（阶段逐
+		// 报文事件，build* 纯函数复用）。
+		DoIP:    spec.DoIP,
+		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
+		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,
 		DstPort: spec.DstPort,
 		DstIP:   spec.DstIP,
