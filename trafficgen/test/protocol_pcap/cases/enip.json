@@ -1,0 +1,9430 @@
+[
+ {
+  "id": "enip_nop_heartbeat",
+  "proto": "enip",
+  "summary": "S1/T-002: NOP keepalive 4-byte payload DE AD BE EF, 1 TCP packet, ENIP Length=4, SessionHandle=0x12345678, SenderContext fixed 0",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 0,
+      "session_handle": 305419896,
+      "payload": [
+       222,
+       173,
+       190,
+       239
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x0000"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "4"
+    },
+    {
+     "packet": 4,
+     "field": "enip.session",
+     "value": "0x12345678"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "44818"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "00 00 04 00 78 56 34 12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 de ad be ef"
+    }
+   ],
+   "notes": [
+    "T-002 NOP with payload; SenderContext fixed 0 (M-2), offset 54 = Ethernet(14)+IPv4(20)+TCP(20)",
+    "T-181 (tshark 单命令解析): NOP -> tshark 识别 ENIP NOP (enip.command=0x0000)"
+   ]
+  }
+ },
+ {
+  "id": "enip_listidentity_session_lifecycle",
+  "proto": "enip",
+  "summary": "S3/S4/S12: ListIdentity(0x0063) + RegisterSession(0x0065) + UnRegisterSession(0x0066), SenderContext auto 1,2,3, TCP Seq 100->124->152 (Bug C fix verified)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 99
+     },
+     {
+      "command": 101,
+      "protocol_version": 1
+     },
+     {
+      "command": 102,
+      "session_handle": 305419896
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 10,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "63 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "65 00 04 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "66 00 00 00 78 56 34 12 00 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x0063"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 5,
+     "field": "enip.length",
+     "value": "4"
+    },
+    {
+     "packet": 6,
+     "field": "enip.command",
+     "value": "0x0066"
+    },
+    {
+     "packet": 6,
+     "field": "enip.session",
+     "value": "0x12345678"
+    }
+   ],
+   "notes": [
+    "T-005 ListIdentity Length=0; RegisterSession payload = protocol_version(2B)+reserved(2B); UnRegisterSession 24B",
+    "Bug C fix: TCP Seq 逐包按 payload 长度推进 100->124(+24)->152(+28); 同向 3 包 tshark 可正常重组解析 ENIP 层",
+    "SenderContext 默认递增 1,2,3 (M-1)",
+    "T-183 (tshark 单命令解析): RegisterSession -> tshark 识别 Register Session + SessionHandle"
+   ]
+  }
+ },
+ {
+  "id": "enip_registersession_session_state",
+  "proto": "enip",
+  "summary": "S4+S5/T-071: RegisterSession down 响应 (SessionHandle=0x12345678) 建立 flow 级 session 状态, UnRegisterSession 复用该 session",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 101,
+      "direction": "down",
+      "session_handle": 305419896,
+      "protocol_version": 1
+     },
+     {
+      "command": 102
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "44818"
+    },
+    {
+     "packet": 5,
+     "field": "enip.command",
+     "value": "0x0066"
+    },
+    {
+     "packet": 5,
+     "field": "enip.session",
+     "value": "0x12345678"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "65 00 04 00 78 56 34 12 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "66 00 00 00 78 56 34 12 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-071 变体: RegisterSession 响应后 flow 级 session 状态传递 (enip.go sessionHandle 状态机)",
+    "注意: 此场景 session 复用是 flow 级状态机行为, 非命令级 from_response (Bug B 仍存在, 复现配置见 /tmp/enip_bugb_probe.pcap)",
+    "SenderContext 递增 1,2; up 包 seq_raw=100 (initial_seq)"
+   ]
+  }
+ },
+ {
+  "id": "enip_sendrrdata_get_attribute_single",
+  "proto": "enip",
+  "summary": "S6/T-020-022: SendRRData Get_Attribute_Single, Null+Unconnected CPF, path 20 01 24 01 30 01 (8-bit), ENIP Length=24",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "session_handle": 305419896,
+      "timeout": 10
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "24"
+    },
+    {
+     "packet": 4,
+     "field": "enip.session",
+     "value": "0x12345678"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "6f 00 18 00 78 56 34 12 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "00 00 00 00 0a 00 02 00 00 00 00 00 b2 00 08 00"
+    },
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 03 20 01 24 01 30 01"
+    }
+   ],
+   "notes": [
+    "tshark 实测: Length=24, Unconnected Len=8, path 6B (pathSize=3), CIP 起点 frame@94",
+    "T-184 (tshark 单命令解析): SendRRData -> tshark 识别 CIP Get Attribute Single"
+   ]
+  }
+ },
+ {
+  "id": "enip_forward_open_request",
+  "proto": "enip",
+  "summary": "S7/T-031-042: Forward_Open 0x54, Length=66, O2TRPI=100000, ConnParams=0x0200, TCT=0x80, ConnectionPath 20 04 24 01 2C 02 2C 03",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "session_handle": 305419896,
+      "timeout": 10,
+      "priority_time_tick": 10,
+      "timeout_ticks": 5,
+      "o2t_connection_id": 1,
+      "t2o_connection_id": 2,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_timeout_multiplier": 7,
+      "o2t_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_rpi": 100000,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "66"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "6f 00 42 00 78 56 34 12 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "00 00 00 00 0a 00 02 00 00 00 00 00 b2 00 32 00"
+    },
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "54 02 20 06 24 01"
+    },
+    {
+     "packet": 4,
+     "offset": 100,
+     "hex": "0a 05 01 00 00 00 02 00 00 00 01 00 01 00 01 00 00 00 07 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 122,
+     "hex": "a0 86 01 00 00 02 a0 86 01 00 00 02 80 04 20 04 24 01 2c 02 2c 03"
+    }
+   ],
+   "notes": [
+    "tshark 实测 Forward Open; body: Priority@100 Ticks@102 O2T@103 T2O@107 Serial@111 Vendor@113 OrigSerial@115 Mult@118 Reserved@119 RPI@122 O2TParams@126 T2ORPI@128 T2OParams@132 TCT@134 PathSize@135 Path@136",
+    "T-185 (tshark 单命令解析): Forward_Open -> tshark 识别 Forward Open"
+   ]
+  }
+ },
+ {
+  "id": "enip_get_attributes_all",
+  "proto": "enip",
+  "summary": "T-024: Get_Attributes_All (0x01) Identity class 1 instance 1, Length=22, path 20 01 24 01",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 1,
+      "class_id": 1,
+      "instance_id": 1,
+      "session_handle": 305419896,
+      "timeout": 10
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "22"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "01 02 20 01 24 01"
+    }
+   ],
+   "notes": [
+    "tshark 实测 Length=22（service 1B + pathSize 1B + path 4B + 2B 填充）"
+   ]
+  }
+ },
+ {
+  "id": "enip_set_attribute_single",
+  "proto": "enip",
+  "summary": "T-025: Set_Attribute_Single (0x10) attr 7 value 0x58 (STRING 2B len prefix), Length=25, CIP 10 02 20 01 24 01 30 07 00 01 58",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 16,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 7,
+      "payload": [
+       0,
+       1,
+       88
+      ],
+      "session_handle": 305419896,
+      "timeout": 10
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "27"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "10 03 20 01 24 01 30 07 00 01 58"
+    }
+   ],
+   "notes": [
+    "tshark 实测 Length=25; pathSize=03 (6B 路径含 attr 段); payload 0x58 追加"
+   ]
+  }
+ },
+ {
+  "id": "enip_get_attribute_list",
+  "proto": "enip",
+  "summary": "T-026: Get_Attribute_List (0x03) attrs [1,6], Length=28, CIP 03 02 20 01 24 01 02 00 01 00 06 00",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 3,
+      "class_id": 1,
+      "instance_id": 1,
+      "payload": [
+       1,
+       0,
+       6,
+       0
+      ],
+      "session_handle": 305419896,
+      "timeout": 10
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "28"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "03 02 20 01 24 01 02 00 01 00 06 00"
+    }
+   ],
+   "notes": [
+    "tshark 实测 Length=28; 属性 ID 每项 2B LE 来自 Payload, count=2"
+   ]
+  }
+ },
+ {
+  "id": "enip_multiple_service_packet",
+  "proto": "enip",
+  "summary": "S10/T-055-059: MSP (0x0A) 2 sub-requests attr 1+6, Length=44, offsets 6,14, path 20 00 24 00 (class_id 默认 0)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 10,
+      "session_handle": 305419896,
+      "timeout": 10,
+      "sub_requests": [
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 6
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "44"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0a 02 20 00 24 00 02 00 06 00 0e 00 0e 03 20 01 24 01 30 01 0e 03 20 01 24 01 30 06"
+    }
+   ],
+   "notes": [
+    "tshark 实测: Length=44, offsets 6/14, 子请求 back-to-back 各 8B（含 2B 填充）",
+    "MSP 自身路径 class_id 未显式给 -> 0x00（20 00 24 00）",
+    "T-189 (tshark 单命令解析): Multiple_Service_Packet -> tshark 识别 Multiple Service Packet"
+   ]
+  }
+ },
+ {
+  "id": "enip_large_forward_open",
+  "proto": "enip",
+  "summary": "S14/T-060-062: LargeForward_Open (0x5B) 4-byte ConnParams, Length=70, RPI=100ms, ConnPath 20 04 24 01 2C 02 2C 03",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 91,
+      "session_handle": 305419896,
+      "timeout": 10,
+      "priority_time_tick": 10,
+      "timeout_ticks": 5,
+      "o2t_connection_id": 1,
+      "t2o_connection_id": 2,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_timeout_multiplier": 7,
+      "o2t_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_rpi": 100000,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "70"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "6f 00 46 00 78 56 34 12"
+    },
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "00 00 00 00 0a 00 02 00 00 00 00 00 b2 00 36 00"
+    },
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "5b 02 20 06 24 01"
+    },
+    {
+     "packet": 4,
+     "offset": 100,
+     "hex": "0a 05 01 00 00 00 02 00 00 00 01 00 01 00 01 00 00 00 07 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 122,
+     "hex": "a0 86 01 00 00 02 00 00 a0 86 01 00 00 02 00 00 80 04 20 04 24 01 2c 02 2c 03"
+    }
+   ],
+   "notes": [
+    "tshark 实测 Length=70, Unconnected Len=54; 4B ConnParams 00 02 00 00; body 48B + path 8B + 2B 填充",
+    "T-188 (tshark 单命令解析): LargeForward_Open -> tshark 识别 Large Forward Open"
+   ]
+  }
+ },
+ {
+  "id": "enip_forward_close_triad",
+  "proto": "enip",
+  "summary": "S8/T-047-049: Forward_Close (0x4E) triad (ConnSerial=1, Vendor=1, OrigSerial=1), Length=41, path 20 04 24 01 2C 02 2C 03",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 78,
+      "session_handle": 305419896,
+      "timeout": 10,
+      "priority_time_tick": 10,
+      "timeout_ticks": 5,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "42"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "6f 00 2a 00 78 56 34 12"
+    },
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "00 00 00 00 0a 00 02 00 00 00 00 00 b2 00 1a 00"
+    },
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "4e 02 20 06 24 01 0a 05 01 00 01 00 01 00 00 00 04 00 20 04 24 01 2c 02 2c 03"
+    }
+   ],
+   "notes": [
+    "tshark 实测 Length=41, Unconnected Len=25; Forward_Close body 无 ConnectionID 字段, PathSize=4",
+    "T-186 (tshark 单命令解析): Forward_Close -> tshark 识别 Forward Close"
+   ]
+  }
+ },
+ {
+  "id": "enip_io_connection_udp_full_chain",
+  "proto": "enip",
+  "summary": "S7+S9/T-046-072: Forward_Open -> response(down,O2T=0x55) -> SendUnitData(from_response) -> 2 UDP I/O frames seq 1,2 payload AA BB",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "session_handle": 0,
+      "timeout": 10,
+      "priority_time_tick": 10,
+      "timeout_ticks": 5,
+      "o2t_connection_id": 1,
+      "t2o_connection_id": 2,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_timeout_multiplier": 7,
+      "o2t_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_rpi": 100000,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128
+     },
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       212,
+       0,
+       0,
+       0,
+       85,
+       0,
+       0,
+       0,
+       102,
+       0,
+       0,
+       0,
+       1,
+       0
+      ]
+     },
+     {
+      "command": 112,
+      "timeout": 10,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 2,
+        "data": [
+         1,
+         0
+        ]
+       }
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 2,
+     "sequence_start": 1,
+     "payload": [
+      170,
+      187
+     ],
+     "source_command_index": 1
+    }
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 5,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 1,
+     "field": "enip.length",
+     "value": "66"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.seq_raw",
+     "value": "100"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.ack",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 2,
+     "field": "enip.length",
+     "value": "30"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.srcport",
+     "value": "44818"
+    },
+    {
+     "packet": 3,
+     "field": "enip.command",
+     "value": "0x0070"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.seq_raw",
+     "value": "190"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.ack",
+     "value": "55"
+    },
+    {
+     "packet": 4,
+     "field": "ip.proto",
+     "value": "17"
+    },
+    {
+     "packet": 5,
+     "field": "ip.proto",
+     "value": "17"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 2,
+     "offset": 54,
+     "hex": "6f 00 1e 00 78 56 34 12 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 2,
+     "offset": 78,
+     "hex": "00 00 00 00 00 00 02 00 00 00 00 00 b2 00 0e 00"
+    },
+    {
+     "packet": 2,
+     "offset": 94,
+     "hex": "d4 00 00 00 55 00 00 00 66 00 00 00 01 00"
+    },
+    {
+     "packet": 4,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 55 00 00 00 b1 00 02 00 aa bb"
+    },
+    {
+     "packet": 5,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 55 00 00 00 b1 00 02 00 aa bb"
+    }
+   ],
+   "notes": [
+    "T-046/T-072: io_data O2T ConnID 0x55 从 response CIP body offset 0 提取; UDP 帧 ConnAddr 0x00A1 + ConnectedData 0x00B1, seq 1,2",
+    "Bug C fix: 包1 up seq_raw=100(initial_seq) Len=90; 包2 down serverSeq 随机 ISN Len=54; 包3 up seq_raw=190(100+90) ack=55(1+54) 跨方向推进",
+    "raw payload 命令 body=ifHdl+timeout(未设=0)+count+Null 4B+Unconnected(type+len)+CIP=payload 原样@94",
+    "UDP 帧 senderContext 递增 1,2; 包 3 SendUnitData 现可解析 (Bug C fix)",
+    "T-187 (tshark 单命令解析): SendUnitData -> tshark 识别 Connected Data / Send Unit Data"
+   ]
+  }
+ },
+ {
+  "id": "enip_error_response_status",
+  "proto": "enip",
+  "summary": "S11/T-023: CIP error response (down) General Status 0x0E + AddStatusSize=1, ENIP Status=0, Length=36",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       0,
+       0,
+       0,
+       0,
+       10,
+       0,
+       2,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       142,
+       0,
+       14,
+       1,
+       0,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "36"
+    },
+    {
+     "packet": 4,
+     "field": "enip.status",
+     "value": "0x00000000"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "44818"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "6f 00 24 00 78 56 34 12 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "00 00 00 00 00 00 02 00 00 00 00 00 b2 00 14 00"
+    },
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "00 00 00 00 0a 00 02 00 00 00 00 00 00 00 8e 00 0e 01 00 00"
+    }
+   ],
+   "notes": [
+    "raw payload 命令 body=ifHdl(0)+timeout(0)+count=2+Null 4B+Unconnected(type b2,len=20)+CIP=payload 原样@94",
+    "ENIP Status=0 而 CIP General Status=0x0E; down 方向 src port 44818"
+   ]
+  }
+ },
+ {
+  "id": "enip_forward_open_response_full",
+  "proto": "enip",
+  "summary": "T-043/044/045: Forward_Open success response (down), Reply 0xD4, O2T=0x12345678, T2O=0x87654321, full 26B body",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       212,
+       0,
+       0,
+       0,
+       120,
+       86,
+       52,
+       18,
+       33,
+       67,
+       101,
+       135,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       0,
+       0,
+       160,
+       134,
+       1,
+       0,
+       160,
+       134,
+       1,
+       0,
+       0,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "46"
+    },
+    {
+     "packet": 4,
+     "field": "enip.session",
+     "value": "0x12345678"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "44818"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "6f 00 2e 00 78 56 34 12 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "00 00 00 00 00 00 02 00 00 00 00 00 b2 00 1e 00"
+    },
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "d4 00 00 00 78 56 34 12 21 43 65 87 01 00 01 00 01 00 00 00 a0 86 01 00 a0 86 01 00 00 00"
+    }
+   ],
+   "notes": [
+    "CIP response: Reply=0xD4, O2TConnID=0x12345678 @offset 4, T2OConnID=0x87654321 @offset 8",
+    "ENIP Length=46 = 6B prefix + 2B ItemCount + 4B NullAddr + 4B UnconnData hdr + 30B CIP"
+   ]
+  }
+ },
+ {
+  "id": "enip_listidentity_response",
+  "proto": "enip",
+  "summary": "T-006/007/008/009: ListIdentity response (down), TypeID=0x000C, Vendor=1, ProductName='ENIP Test Device', Revision=1.0",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "payload": [
+       1,
+       0,
+       1,
+       0,
+       2,
+       0,
+       18,
+       175,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       1,
+       0,
+       12,
+       0,
+       1,
+       0,
+       1,
+       0,
+       0,
+       0,
+       120,
+       86,
+       52,
+       18,
+       16,
+       69,
+       78,
+       73,
+       80,
+       32,
+       84,
+       101,
+       115,
+       116,
+       32,
+       68,
+       101,
+       118,
+       105,
+       99,
+       101,
+       4
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "68"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "44818"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "6f 00 44 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "00 00 00 00 00 00 02 00 00 00 00 00 b2 00 34 00"
+    },
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "01 00 01 00 02 00 12 af 00 00 00 00 00 00 00 00 00 00 00 00 01 00 0c 00 01 00 01 00 00 00 78 56 34 12 10 45 4e 49 50 20 54 65 73 74 20 44 65 76 69 63 65 04"
+    }
+   ],
+   "notes": [
+    "T-006/007/008/009: ListIdentity response via SendRRData wrapper",
+    "ENIP header: Command=0x006F, Length=68, SessionHandle=0 (down response, no session yet)",
+    "SendRRData prefix: Interface Handle=0, Timeout=0",
+    "CPF: ItemCount=2 (NullAddress + UnconnectedData)",
+    "NullAddress: TypeID=0x0000, Length=0",
+    "UnconnectedData: TypeID=0x00B2, Length=52 (Identity item)",
+    "Identity item: VendorID=1, DeviceType=0x000C, ProductCode=1, Revision=1.0, SerialNum=0x12345678",
+    "ProductName: SHORT_STRING(0x10=16) + 16 ASCII bytes",
+    "T-182 (tshark 单命令解析): ListIdentity -> tshark 识别 ListIdentity (enip.command=0x0063)"
+   ]
+  }
+ },
+ {
+  "id": "enip_epath_16bit_class",
+  "proto": "enip",
+  "summary": "T-076: EPATH Class 16-bit (0x21), class_id=0x0100, path 21 00 01 24 01 30 01",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 256,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "session_handle": 305419896,
+      "timeout": 10
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "26"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 04 21 00 01 24 01 30 01 00"
+    }
+   ],
+   "notes": [
+    "T-076: EPATH Class 16-bit segment (0x21) when class_id > 0xFF",
+    "Path: 21 00 01 (Class=0x0100 16-bit LE) + 24 01 (Instance=1 8-bit) + 30 01 (Attr=1 8-bit)",
+    "RequestPathSize=4 (8 bytes / 2), padded to even with 00 00",
+    "ENIP Length=26 (6B prefix + 2B count + 4B item1 + 4B item2 header + 10B CIP)"
+   ]
+  }
+ },
+ {
+  "id": "enip_epath_16bit_instance",
+  "proto": "enip",
+  "summary": "T-078: EPATH Instance 16-bit (0x25), instance_id=0x0100, path 20 01 25 00 01 30 01",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 256,
+      "attribute_id": 1,
+      "session_handle": 305419896,
+      "timeout": 10
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "26"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 04 20 01 25 00 01 30 01 00"
+    }
+   ],
+   "notes": [
+    "T-078: EPATH Instance 16-bit segment (0x25) when instance_id > 0xFF",
+    "Path: 20 01 (Class=1 8-bit) + 25 00 01 (Instance=0x0100 16-bit LE) + 30 01 (Attr=1 8-bit)",
+    "RequestPathSize=4 (8 bytes / 2), padded to even"
+   ]
+  }
+ },
+ {
+  "id": "enip_epath_16bit_attribute",
+  "proto": "enip",
+  "summary": "T-080: EPATH Attribute 16-bit (0x31), attribute_id=0x0100, path 20 01 24 01 31 00 01",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 256,
+      "session_handle": 305419896,
+      "timeout": 10
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "26"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 04 20 01 24 01 31 00 01 00"
+    }
+   ],
+   "notes": [
+    "T-080: EPATH Attribute 16-bit segment (0x31) when attribute_id > 0xFF",
+    "Path: 20 01 (Class=1 8-bit) + 24 01 (Instance=1 8-bit) + 31 00 01 (Attr=0x0100 16-bit LE)",
+    "RequestPathSize=4 (8 bytes / 2), padded to even"
+   ]
+  }
+ },
+ {
+  "id": "enip_seq_wraparound_3_frames",
+  "proto": "enip",
+  "summary": "T-074/128: SequenceCounter wraparound, sequence_start=65535, 3 UDP frames seq 65535,0,1",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "udp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 4,
+        "data": [
+         255,
+         255,
+         170,
+         187
+        ]
+       }
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 3,
+     "frame_size": 2,
+     "sequence_start": 65535,
+     "sequence_step": 1,
+     "o2t_connection_id": 1,
+     "payload": [
+      170,
+      187
+     ]
+    }
+   }
+  },
+  "expect": {
+   "packet_count": 4,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "ip.proto",
+     "value": "17"
+    },
+    {
+     "packet": 1,
+     "field": "enip.command",
+     "value": "0x0070"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "70 00 18 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 01 00 00 00 b1 00 04 00 ff ff aa bb"
+    },
+    {
+     "packet": 2,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 01 00 00 00 b1 00 02 00 aa bb"
+    },
+    {
+     "packet": 3,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 01 00 00 00 b1 00 02 00 aa bb"
+    },
+    {
+     "packet": 4,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 01 00 00 00 b1 00 02 00 aa bb"
+    }
+   ],
+   "notes": [
+    "T-074/128: SequenceCounter wraparound, sequence_start=65535",
+    "SendUnitData payload structure: 6B prefix (Interface Handle + Timeout) + CPF",
+    "Packet 1: command frame, SenderContext=01, Seq=0xFFFF",
+    "Packet 2: io_data frame 1, SenderContext=01, Seq=0xFFFF",
+    "Packet 3: io_data frame 2, SenderContext=02, Seq=0x0000 - wraparound",
+    "Packet 4: io_data frame 3, SenderContext=03, Seq=0x0001 - increment"
+   ]
+  }
+ },
+ {
+  "id": "enip_forward_close_response",
+  "proto": "enip",
+  "summary": "T-050: Forward_Close success response (down), Reply 0xCE, GeneralStatus=0",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       206,
+       0,
+       0,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "20"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "44818"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "6f 00 14 00 78 56 34 12 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "00 00 00 00 00 00 02 00 00 00 00 00 b2 00 04 00"
+    },
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "ce 00 00 00"
+    }
+   ],
+   "notes": [
+    "CIP response: Reply=0xCE (Forward_Close), GeneralStatus=0",
+    "ENIP Length=20 = 6B prefix + 2B ItemCount + 4B NullAddr + 4B UnconnData hdr + 4B CIP"
+   ]
+  }
+ },
+ {
+  "id": "enip_reset_service",
+  "proto": "enip",
+  "summary": "T-028: CIP Reset service (0x05), class 1 instance 1, path 20 01 24 01",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 5,
+      "class_id": 1,
+      "instance_id": 1,
+      "session_handle": 305419896,
+      "timeout": 10
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "22"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "05 02 20 01 24 01"
+    }
+   ],
+   "notes": [
+    "T-028: CIP Reset service (0x05) requests device reset",
+    "Path: 20 01 (Class=1) + 24 01 (Instance=1), RequestPathSize=2 (4 bytes / 2)",
+    "ENIP Length=22 (6B prefix + 2B count + 4B item1 + 4B item2 header + 6B CIP)"
+   ]
+  }
+ },
+ {
+  "id": "enip_start_service",
+  "proto": "enip",
+  "summary": "T-029: CIP Start service (0x06), class 1 instance 1, path 20 01 24 01",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 6,
+      "class_id": 1,
+      "instance_id": 1,
+      "session_handle": 305419896,
+      "timeout": 10
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "22"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "06 02 20 01 24 01"
+    }
+   ],
+   "notes": [
+    "T-029: CIP Start service (0x06) starts a device or application",
+    "Same path structure as Reset (service code differs)"
+   ]
+  }
+ },
+ {
+  "id": "enip_stop_service",
+  "proto": "enip",
+  "summary": "T-030: CIP Stop service (0x07), class 1 instance 1, path 20 01 24 01",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 7,
+      "class_id": 1,
+      "instance_id": 1,
+      "session_handle": 305419896,
+      "timeout": 10
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "22"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "07 02 20 01 24 01"
+    }
+   ],
+   "notes": [
+    "T-030: CIP Stop service (0x07) stops a device or application",
+    "Same path structure as Reset/Start (service code differs)"
+   ]
+  }
+ },
+ {
+  "id": "enip_t081_unknown_command",
+  "proto": "enip",
+  "summary": "T-081: unknown command 0x1234 -> Validate reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 4660
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "unknown command 0x1234",
+   "notes": [
+    "Validate negative: task must end in error containing 'unknown command 0x1234'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t082_registersession_cpf",
+  "proto": "enip",
+  "summary": "T-082: RegisterSession with CPF items -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1,
+      "cpf_items": [
+       {
+        "type_id": 0,
+        "length": 0,
+        "data": []
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "RegisterSession must not carry CPF",
+   "notes": [
+    "Validate negative: task must end in error containing 'RegisterSession must not carry CPF'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t083_registersession_pv0",
+  "proto": "enip",
+  "summary": "T-083: RegisterSession protocol_version=0 -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 0
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "protocol_version must be 1, got 0",
+   "notes": [
+    "Validate negative: task must end in error containing 'protocol_version must be 1, got 0'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t120b_registersession_pv2",
+  "proto": "enip",
+  "summary": "T-120b: RegisterSession protocol_version=2 -> reject (OpENer 0x0069)",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 2
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "protocol_version must be 1, got 2",
+   "notes": [
+    "Validate negative: task must end in error containing 'protocol_version must be 1, got 2'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t084_registersession_optionflag",
+  "proto": "enip",
+  "summary": "T-084: RegisterSession option_flag=1 -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1,
+      "option_flag": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "option_flag must be 0",
+   "notes": [
+    "Validate negative: task must end in error containing 'option_flag must be 0'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t086_sendrrdata_nocpf",
+  "proto": "enip",
+  "summary": "T-086: SendRRData with no CPF/cip_service/payload -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "SendRRData requires at least 2 CPF items, a cip_service, or a payload",
+   "notes": [
+    "Validate negative: task must end in error containing 'SendRRData requires at least 2 CPF items, a cip_service, or a payload'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t143_sendrrdata_itemcount1",
+  "proto": "enip",
+  "summary": "T-143: SendRRData cip_service with only 1 user CPF item -> accepted (impl allows when cip_service present; spec expects reject, see impl gap)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "cpf_items": [
+       {
+        "type_id": 0,
+        "length": 0,
+        "data": []
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 4,
+     "field": "enip.cpf.itemcount",
+     "value": "3"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t087_sendrrdata_itemcount1_noservice",
+  "proto": "enip",
+  "summary": "T-087: SendRRData only 1 CPF item and no cip_service -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cpf_items": [
+       {
+        "type_id": 0,
+        "length": 0,
+        "data": []
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "SendRRData requires at least 2 CPF items, a cip_service, or a payload",
+   "notes": [
+    "Validate negative: task must end in error containing 'SendRRData requires at least 2 CPF items, a cip_service, or a payload'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t088_sendunitdata_noaddr",
+  "proto": "enip",
+  "summary": "T-088: SendUnitData missing Connection Address item -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 177,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         170,
+         187
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "SendUnitData requires Connection Address item",
+   "notes": [
+    "Validate negative: task must end in error containing 'SendUnitData requires Connection Address item'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t089_sendunitdata_nodata",
+  "proto": "enip",
+  "summary": "T-089: SendUnitData missing Connected Data item -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "SendUnitData requires Connected Data item",
+   "notes": [
+    "Validate negative: task must end in error containing 'SendUnitData requires Connected Data item'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t093_forwardopen_noconnserial",
+  "proto": "enip",
+  "summary": "T-093: Forward_Open missing conn_serial_number -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "connection_serial_number required for Forward_Open",
+   "notes": [
+    "Validate negative: task must end in error containing 'connection_serial_number required for Forward_Open'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t094_forwardopen_novendor",
+  "proto": "enip",
+  "summary": "T-094: Forward_Open missing originator_vendor_id -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_serial_number": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "originator_vendor_id required for Forward_Open",
+   "notes": [
+    "Validate negative: task must end in error containing 'originator_vendor_id required for Forward_Open'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t095_forwardopen_noorigserial",
+  "proto": "enip",
+  "summary": "T-095: Forward_Open missing originator_serial_number -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "originator_serial_number required for Forward_Open",
+   "notes": [
+    "Validate negative: task must end in error containing 'originator_serial_number required for Forward_Open'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t096_forwardopen_class5",
+  "proto": "enip",
+  "summary": "T-096: TransportClassTrigger=0x05 (class 5) -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "transport_class_trigger": 5
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "invalid transport class 5 (must be 0-3)",
+   "notes": [
+    "Validate negative: task must end in error containing 'invalid transport class 5 (must be 0-3)'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t112_forwardopen_class15",
+  "proto": "enip",
+  "summary": "T-112: TransportClassTrigger=0x0F (class 15) -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "transport_class_trigger": 15
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "invalid transport class 15 (must be 0-3)",
+   "notes": [
+    "Validate negative: task must end in error containing 'invalid transport class 15 (must be 0-3)'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t097_forwardopen_rpi0",
+  "proto": "enip",
+  "summary": "T-097: Forward_Open O2TRPI=0 -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_rpi": 0,
+      "t2o_rpi": 1000
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "RPI must be > 0",
+   "notes": [
+    "Validate negative: task must end in error containing 'RPI must be > 0'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t098_forwardopen_reservedbit",
+  "proto": "enip",
+  "summary": "T-098: O2TConnParams bit12=0x1000 reserved -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_connection_parameters": 4096,
+      "t2o_connection_parameters": 512
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "reserved bit (bit 12) in o2t_connection_parameters must be 0",
+   "notes": [
+    "Validate negative: task must end in error containing 'reserved bit (bit 12) in o2t_connection_parameters must be 0'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t099_forwardclose_notriad",
+  "proto": "enip",
+  "summary": "T-099: Forward_Close missing conn_serial_number -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 78
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "Forward_Close requires connection_serial_number",
+   "notes": [
+    "Validate negative: task must end in error containing 'Forward_Close requires connection_serial_number'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t100_listidentity_cpf",
+  "proto": "enip",
+  "summary": "T-100: ListIdentity request with CPF -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 99,
+      "cpf_items": [
+       {
+        "type_id": 0,
+        "length": 0,
+        "data": []
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ListIdentity request must not carry CPF",
+   "notes": [
+    "Validate negative: task must end in error containing 'ListIdentity request must not carry CPF'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t101_listservices_cpf",
+  "proto": "enip",
+  "summary": "T-101: ListServices request with CPF -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 4,
+      "cpf_items": [
+       {
+        "type_id": 0,
+        "length": 0,
+        "data": []
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ListServices request must not carry CPF",
+   "notes": [
+    "Validate negative: task must end in error containing 'ListServices request must not carry CPF'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t102_listinterfaces_cpf",
+  "proto": "enip",
+  "summary": "T-102: ListInterfaces request with CPF -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 100,
+      "cpf_items": [
+       {
+        "type_id": 0,
+        "length": 0,
+        "data": []
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ListInterfaces request must not carry CPF",
+   "notes": [
+    "Validate negative: task must end in error containing 'ListInterfaces request must not carry CPF'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t103_unregistersession_payload",
+  "proto": "enip",
+  "summary": "T-103: UnRegisterSession with payload -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 102,
+      "payload": [
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "UnRegisterSession must not carry payload or CPF",
+   "notes": [
+    "Validate negative: task must end in error containing 'UnRegisterSession must not carry payload or CPF'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t106_msp_nosubrequests",
+  "proto": "enip",
+  "summary": "T-106: Multiple_Service_Packet with empty sub_requests -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 10,
+      "sub_requests": []
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "Multiple_Service_Packet requires sub_requests",
+   "notes": [
+    "Validate negative: task must end in error containing 'Multiple_Service_Packet requires sub_requests'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t107_msp_65subs",
+  "proto": "enip",
+  "summary": "T-107: Multiple_Service_Packet with 65 sub_requests -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 10,
+      "sub_requests": [
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       },
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1,
+        "attribute_id": 1
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "sub_requests exceeds limit of 64",
+   "notes": [
+    "Validate negative: task must end in error containing 'sub_requests exceeds limit of 64'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t108_io_framesize_65466",
+  "proto": "enip",
+  "summary": "T-108: I/O frame_size=65466 exceeds 65465 -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 2,
+        "data": [
+         1,
+         0
+        ]
+       }
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 1,
+     "frame_size": 65466,
+     "o2t_connection_id": 1
+    }
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "frame_size exceeds 65465",
+   "notes": [
+    "Validate negative: task must end in error containing 'frame_size exceeds 65465'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t109_io_framecount0",
+  "proto": "enip",
+  "summary": "T-109: I/O frame_count=0 -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 2,
+        "data": [
+         1,
+         0
+        ]
+       }
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 0,
+     "o2t_connection_id": 1
+    }
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "enip: io frame_count must be > 0",
+   "notes": [
+    "Validate negative: task must end in error containing 'enip: io frame_count must be > 0'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t110_io_noconnid",
+  "proto": "enip",
+  "summary": "T-110: I/O data with no o2t_connection_id (no from_response) -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 2,
+        "data": [
+         1,
+         0
+        ]
+       }
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 1
+    }
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "enip: io o2t_connection_id is required for I/O data frames",
+   "notes": [
+    "Validate negative: task must end in error containing 'enip: io o2t_connection_id is required for I/O data frames'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t111_timeoutmult8",
+  "proto": "enip",
+  "summary": "T-111: ConnectionTimeoutMultiplier=8 -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_timeout_multiplier": 8,
+      "o2t_rpi": 100000,
+      "t2o_rpi": 100000
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "timeout_multiplier must be 0-7, got 8",
+   "notes": [
+    "Validate negative: task must end in error containing 'timeout_multiplier must be 0-7, got 8'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t113_unknown_scenario",
+  "proto": "enip",
+  "summary": "T-113: unknown scenario -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "scenario": "unknown",
+    "commands": [
+     {
+      "command": 0
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "enip: unknown scenario \"unknown\"",
+   "notes": [
+    "Validate negative: task must end in error containing 'enip: unknown scenario \"unknown\"'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t114_unknown_transport",
+  "proto": "enip",
+  "summary": "T-114: transport=icmp -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "icmp",
+    "commands": [
+     {
+      "command": 0
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "enip: transport must be tcp or udp, got \"icmp\"",
+   "notes": [
+    "Validate negative: task must end in error containing 'enip: transport must be tcp or udp, got \"icmp\"'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t115_dstport_502",
+  "proto": "enip",
+  "summary": "T-115: dst_port=502 -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 502,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 0
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "enip: dst_port must be 44818",
+   "notes": [
+    "Validate negative: task must end in error containing 'enip: dst_port must be 44818'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t116_unknown_typeid",
+  "proto": "enip",
+  "summary": "T-116: CPF item type_id=0x9999 -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 2,
+        "data": [
+         1,
+         0
+        ]
+       },
+       {
+        "type_id": 39321,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "unknown type_id 0x9999",
+   "notes": [
+    "Validate negative: task must end in error containing 'unknown type_id 0x9999'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t117_source_cmd_index_99",
+  "proto": "enip",
+  "summary": "T-117: source_command_index=99 out of range -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1,
+      "direction": "down",
+      "session_handle": 100
+     },
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "from_response_field": "session_handle",
+      "source_command_index": 99
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "source_command_index 99 out of range (0-1)",
+   "notes": [
+    "Validate negative: task must end in error containing 'source_command_index 99 out of range (0-1)'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t118_unknown_fromresp_field",
+  "proto": "enip",
+  "summary": "T-118: unknown from_response field -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1,
+      "direction": "down",
+      "session_handle": 100
+     },
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "from_response_field": "bogus",
+      "source_command_index": 0
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "unknown from_response field \"bogus\"",
+   "notes": [
+    "Validate negative: task must end in error containing 'unknown from_response field \"bogus\"'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t119_sockaddr_len15",
+  "proto": "enip",
+  "summary": "T-119: Sockaddr info item length=15 -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "cpf_items": [
+       {
+        "type_id": 0,
+        "length": 0,
+        "data": []
+       },
+       {
+        "type_id": 32768,
+        "length": 15,
+        "data": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "Sockaddr Info length must be 16",
+   "notes": [
+    "Validate negative: task must end in error containing 'Sockaddr Info length must be 16'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t120a_forwardclose_path_mismatch",
+  "proto": "enip",
+  "summary": "T-120a: Forward_Close path mismatches Forward_Open (same triad) -> reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_path": [
+       32,
+       4,
+       36,
+       1,
+       44,
+       2,
+       44,
+       3
+      ],
+      "o2t_rpi": 100000,
+      "t2o_rpi": 100000
+     },
+     {
+      "command": 111,
+      "cip_service": 78,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_path": [
+       32,
+       4,
+       36,
+       2,
+       44,
+       4,
+       44,
+       5
+      ],
+      "o2t_rpi": 100000,
+      "t2o_rpi": 100000
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "Forward_Close connection path",
+   "notes": [
+    "Validate negative: task must end in error containing 'Forward_Close connection path'"
+   ]
+  }
+ },
+ {
+  "id": "enip_t121_nop_length0",
+  "proto": "enip",
+  "summary": "T-121: NOP minimal, ENIP Length=0",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 0
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x0000"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "00 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t124_sessionhandle_max",
+  "proto": "enip",
+  "summary": "T-124: SessionHandle=0xFFFFFFFF",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 0,
+      "session_handle": 4294967295
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.session",
+     "value": "0xffffffff"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 58,
+     "hex": "ff ff ff ff"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t125_sessionhandle_zero",
+  "proto": "enip",
+  "summary": "T-125: SessionHandle=0x00000000",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 0,
+      "session_handle": 0
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 58,
+     "hex": "00 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t127_sendercontext_max",
+  "proto": "enip",
+  "summary": "T-127: SenderContext=0xFFFFFFFFFFFFFFFF",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 0,
+      "sender_context": 283686952306183
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 66,
+     "hex": "07 06 05 04 03 02 01 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t129_seq_start_7fff",
+  "proto": "enip",
+  "summary": "T-129: I/O frame (no payload, frame_size 缺省=0), Connected Data len=0; seq 不再编码于 UDP I/O 帧 (2026-08 修复)",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "udp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 2,
+        "data": [
+         1,
+         0
+        ]
+       }
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 2,
+     "sequence_start": 32767,
+     "o2t_connection_id": 1
+    }
+   }
+  },
+  "expect": {
+   "packet_count": 3,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "ip.proto",
+     "value": "17"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 2,
+     "offset": 82,
+     "hex": "b1 00 00 00"
+    },
+    {
+     "packet": 3,
+     "offset": 82,
+     "hex": "b1 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t130_seq_step2",
+  "proto": "enip",
+  "summary": "T-130: 3 个 I/O 帧 (no payload), Connected Data len=0; seq 不再编码于 UDP I/O 帧 (2026-08 修复)",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "udp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 2,
+        "data": [
+         1,
+         0
+        ]
+       }
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 3,
+     "sequence_start": 0,
+     "sequence_step": 2,
+     "o2t_connection_id": 1
+    }
+   }
+  },
+  "expect": {
+   "packet_count": 4,
+   "frames": [
+    {
+     "packet": 2,
+     "offset": 82,
+     "hex": "b1 00 00 00"
+    },
+    {
+     "packet": 3,
+     "offset": 82,
+     "hex": "b1 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 82,
+     "hex": "b1 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t131_epath_class8_max",
+  "proto": "enip",
+  "summary": "T-131: EPATH Class 8-bit boundary 0xFF -> 20 FF",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 255,
+      "instance_id": 1,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 03 20 ff 24 01 30 01"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t132_epath_class16_min",
+  "proto": "enip",
+  "summary": "T-132: EPATH Class 16-bit boundary 0x0100 -> 21 00 01",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 256,
+      "instance_id": 1,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 04 21 00 01 24 01 30 01"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t133_epath_instance32",
+  "proto": "enip",
+  "summary": "T-133: EPATH Instance 32-bit 0x10000 -> 26 00 00 01 00 (odd path padded)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 65536,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 05 20 01 26 00 00 01 00 30 01 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t133a_epath_class32_raw",
+  "proto": "enip",
+  "summary": "T-133a: EPATH Class 32-bit (0x22) via Forward_Open raw connection_path",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_rpi": 100000,
+      "t2o_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128,
+      "connection_timeout_multiplier": 7,
+      "connection_path": [
+       34,
+       0,
+       0,
+       1,
+       0,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 135,
+     "hex": "03"
+    },
+    {
+     "packet": 4,
+     "offset": 136,
+     "hex": "22 00 00 01 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t133b_epath_attr32_raw",
+  "proto": "enip",
+  "summary": "T-133b: EPATH Attribute 32-bit (0x32) via Forward_Open raw connection_path",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_rpi": 100000,
+      "t2o_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128,
+      "connection_timeout_multiplier": 7,
+      "connection_path": [
+       50,
+       0,
+       0,
+       1,
+       0,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 136,
+     "hex": "32 00 00 01 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t133c_epath_connpoint8",
+  "proto": "enip",
+  "summary": "T-133c: EPATH Connection Point 8-bit 0x02 -> 2C 02",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_rpi": 100000,
+      "t2o_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128,
+      "connection_timeout_multiplier": 7,
+      "connection_path": [
+       44,
+       2
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 135,
+     "hex": "01"
+    },
+    {
+     "packet": 4,
+     "offset": 136,
+     "hex": "2c 02"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t133d_epath_connpoint16",
+  "proto": "enip",
+  "summary": "T-133d: EPATH Connection Point 16-bit 0x0100 -> 2D 00 01 (padded)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_rpi": 100000,
+      "t2o_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128,
+      "connection_timeout_multiplier": 7,
+      "connection_path": [
+       45,
+       0,
+       1,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 135,
+     "hex": "02"
+    },
+    {
+     "packet": 4,
+     "offset": 136,
+     "hex": "2d 00 01 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t134_rpi_min",
+  "proto": "enip",
+  "summary": "T-134: Forward_Open O2TRPI=1 -> body 01 00 00 00",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_rpi": 1,
+      "t2o_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128,
+      "connection_timeout_multiplier": 7
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 122,
+     "hex": "01 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t135_rpi_max",
+  "proto": "enip",
+  "summary": "T-135: Forward_Open O2TRPI=0xFFFFFFFF",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_rpi": 4294967295,
+      "t2o_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128,
+      "connection_timeout_multiplier": 7
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 122,
+     "hex": "ff ff ff ff"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t136_connparams_6dff",
+  "proto": "enip",
+  "summary": "T-136: Forward_Open O2TConnParams=0x6DFF -> FF 6D",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_rpi": 100000,
+      "t2o_rpi": 100000,
+      "o2t_connection_parameters": 28159,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128,
+      "connection_timeout_multiplier": 7
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 126,
+     "hex": "ff 6d"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t137_large_connparams_max",
+  "proto": "enip",
+  "summary": "T-137: LargeForward_Open O2TConnParams=0xF2FFFFFF (4B)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 91,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_rpi": 100000,
+      "t2o_rpi": 100000,
+      "o2t_connection_parameters": 4076863487,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128,
+      "connection_timeout_multiplier": 7
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 126,
+     "hex": "ff ff ff f2"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t139_pathsize255",
+  "proto": "enip",
+  "summary": "T-139: Connection Path Size=255 (510B path)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_rpi": 100000,
+      "t2o_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128,
+      "connection_timeout_multiplier": 7,
+      "connection_path": [
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1,
+       32,
+       1
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "568"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 135,
+     "hex": "ff"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t140_msp_offset_boundary",
+  "proto": "enip",
+  "summary": "T-140: MSP 2 sub-requests 0B data: Offset[0]=6, Offset[1]=12 (spec's 'both 6' impossible: offset advances by sub-request size)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 10,
+      "class_id": 1,
+      "instance_id": 1,
+      "sub_requests": [
+       {
+        "service": 14,
+        "class_id": 1,
+        "instance_id": 1
+       },
+       {
+        "service": 16,
+        "class_id": 1,
+        "instance_id": 1
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0a 02 20 01 24 01 02 00 06 00 0c 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t141_io_framesize0",
+  "proto": "enip",
+  "summary": "T-141: I/O FrameSize=0 -> Connected Data length=0 (空 payload; seq 不再编码 2026-08)",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "udp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 2,
+        "data": [
+         1,
+         0
+        ]
+       }
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 1,
+     "frame_size": 0,
+     "o2t_connection_id": 1
+    }
+   }
+  },
+  "expect": {
+   "packet_count": 2,
+   "frames": [
+    {
+     "packet": 2,
+     "offset": 82,
+     "hex": "b1 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t142_io_framesize_max",
+  "proto": "enip",
+  "summary": "T-142: I/O FrameSize=65447 -> Connected Data length=65447 (0xFFA7, 无 seq 2026-08)",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "udp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 2,
+        "data": [
+         1,
+         0
+        ]
+       }
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 1,
+     "frame_size": 65447,
+     "o2t_connection_id": 1
+    }
+   }
+  },
+  "expect": {
+   "packet_count": 2,
+   "frames": [
+    {
+     "packet": 2,
+     "offset": 82,
+     "hex": "b1 00 a7 ff"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t144_itemcount4_sockaddr",
+  "proto": "enip",
+  "summary": "T-144: SendRRData ItemCount=4 (Null+Unconnected+Sockaddr O2T+T2O)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "cpf_items": [
+       {
+        "type_id": 32768,
+        "length": 16,
+        "data": [
+         2,
+         0,
+         18,
+         175,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 32769,
+        "length": 16,
+        "data": [
+         2,
+         0,
+         18,
+         175,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.cpf.itemcount",
+     "value": "4"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 84,
+     "hex": "04 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t145_sockaddr_port_max",
+  "proto": "enip",
+  "summary": "T-145: Sockaddr Info SinPort=0xFFFF",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "cpf_items": [
+       {
+        "type_id": 32768,
+        "length": 16,
+        "data": [
+         2,
+         0,
+         255,
+         255,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 108,
+     "hex": "ff ff"
+    },
+    {
+     "packet": 4,
+     "offset": 106,
+     "hex": "02 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t146_sockaddr_ip_max",
+  "proto": "enip",
+  "summary": "T-146: Sockaddr Info SinAddr=255.255.255.255",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "cpf_items": [
+       {
+        "type_id": 32768,
+        "length": 16,
+        "data": [
+         2,
+         0,
+         50,
+         0,
+         255,
+         255,
+         255,
+         255,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 110,
+     "hex": "ff ff ff ff"
+    },
+    {
+     "packet": 4,
+     "offset": 106,
+     "hex": "02 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t147_timeout0",
+  "proto": "enip",
+  "summary": "T-147: SendRRData Timeout=0",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "timeout": 0
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 82,
+     "hex": "00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t148_timeout_max",
+  "proto": "enip",
+  "summary": "T-148: SendRRData Timeout=65535",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "timeout": 65535
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 82,
+     "hex": "ff ff"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t149_ifhandle_nonzero",
+  "proto": "enip",
+  "summary": "T-149: SendRRData InterfaceHandle=0x12345678",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1,
+      "interface_handle": 305419896
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "78 56 34 12"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t151_addstatus_255words",
+  "proto": "enip",
+  "summary": "T-151: CIP Additional Status 255 words (AddStatusSize=0xFF)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       142,
+       0,
+       0,
+       255,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       1,
+       0,
+       18,
+       52
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "532"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "8e 00 00 ff"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t155_epath_odd_pad",
+  "proto": "enip",
+  "summary": "T-155: EPATH odd 7B path padded to 8B (class8+instance16+attr8)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 256,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 04 20 01 25 00 01 30 01 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t156_epath_even",
+  "proto": "enip",
+  "summary": "T-156: EPATH even 8B path no padding (class16+instance8+attr16)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 256,
+      "instance_id": 1,
+      "attribute_id": 256
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 04 21 00 01 24 01 31 00 01"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t160_vendorid_max",
+  "proto": "enip",
+  "summary": "T-160: ListIdentity response VendorID=0xFFFF",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "payload": [
+       1,
+       0,
+       1,
+       0,
+       2,
+       0,
+       18,
+       175,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       255,
+       255,
+       12,
+       0,
+       1,
+       0,
+       1,
+       0,
+       0,
+       0,
+       120,
+       86,
+       52,
+       18,
+       16,
+       69,
+       78,
+       73,
+       80,
+       32,
+       66,
+       111,
+       117,
+       110,
+       100,
+       97,
+       114,
+       121,
+       32,
+       84,
+       101,
+       115,
+       116,
+       32,
+       68,
+       101,
+       118,
+       105,
+       99,
+       101,
+       4
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 114,
+     "hex": "ff ff"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t003_listservices",
+  "proto": "enip",
+  "summary": "T-003: ListServices request (0x0004), Length=0",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 4
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x0004"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "04 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t010_listinterfaces",
+  "proto": "enip",
+  "summary": "T-010: ListInterfaces request (0x0064), Length=0",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 100
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x0064"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "64 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t014_registersession_nocpf",
+  "proto": "enip",
+  "summary": "T-014: RegisterSession payload 4B (pv=1, flag=0), no CPF",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "4"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "01 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t027_set_attribute_list",
+  "proto": "enip",
+  "summary": "T-027: Set_Attribute_List (0x04) attrs [7] value X",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 4,
+      "class_id": 1,
+      "instance_id": 1,
+      "payload": [
+       7,
+       0,
+       0,
+       1,
+       88
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "04 02 20 01 24 01 01 00 07 00 00 01 58"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t063_large_forward_open_response",
+  "proto": "enip",
+  "summary": "T-063: LargeForward_Open response (down) Reply Service=0xDB",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       219,
+       0,
+       0,
+       0,
+       85,
+       0,
+       0,
+       0,
+       102,
+       0,
+       0,
+       0,
+       1,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "44818"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "db 00 00 00 55 00 00 00 66 00 00 00 01 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t064_nop_no_response",
+  "proto": "enip",
+  "summary": "T-064: NOP keepalive generates request only, no response packet",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 0,
+      "payload": [
+       222,
+       173,
+       190,
+       239
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "4"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 78,
+     "hex": "de ad be ef"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t066_identity_attr1",
+  "proto": "enip",
+  "summary": "T-066: Identity object attr 1 read response: VendorID=0x0001",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       142,
+       0,
+       0,
+       0,
+       1,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "8e 00 00 00 01 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t067_identity_attr6",
+  "proto": "enip",
+  "summary": "T-067: Identity object attr 6 read response: SerialNumber 0x12345678",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       142,
+       0,
+       0,
+       0,
+       120,
+       86,
+       52,
+       18
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "8e 00 00 00 78 56 34 12"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t068_tcpip_attr1",
+  "proto": "enip",
+  "summary": "T-068: TCP/IP Interface (0xF5) attr 1 read response: IP 10.0.0.5",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       142,
+       0,
+       0,
+       0,
+       10,
+       0,
+       0,
+       5
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "8e 00 00 00 0a 00 00 05"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t069_ethlink_attr3",
+  "proto": "enip",
+  "summary": "T-069: Ethernet Link (0xF6) attr 3 read response: MAC 6B",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       142,
+       0,
+       0,
+       0,
+       0,
+       16,
+       18,
+       52,
+       86,
+       120
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "8e 00 00 00 00 10 12 34 56 78"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t070_sendercontext_echo",
+  "proto": "enip",
+  "summary": "T-070: SenderContext echo in response (sender_context=0x0102030405060708)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "sender_context": 283686952306183,
+      "payload": [
+       0,
+       0,
+       0,
+       0,
+       10,
+       0,
+       2,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       142,
+       0,
+       14,
+       1,
+       0,
+       0
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 66,
+     "hex": "07 06 05 04 03 02 01 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t073_seq_10_frames",
+  "proto": "enip",
+  "summary": "T-073: 10 I/O frames, payload AA BB per frame, Connected Data len=2 (seq 不再编码于 UDP I/O 帧，2026-08 修复)",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "udp",
+    "commands": [
+     {
+      "command": 112,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         1,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 2,
+        "data": [
+         1,
+         0
+        ]
+       }
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 10,
+     "o2t_connection_id": 1,
+     "payload": [
+      170,
+      187
+     ]
+    }
+   }
+  },
+  "expect": {
+   "packet_count": 11,
+   "fields": [
+    {
+     "packet": 2,
+     "field": "enip.length",
+     "value": "22"
+    },
+    {
+     "packet": 3,
+     "field": "enip.length",
+     "value": "22"
+    },
+    {
+     "packet": 11,
+     "field": "enip.length",
+     "value": "22"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t075_epath_class8",
+  "proto": "enip",
+  "summary": "T-075: EPATH Class 8-bit 0x01 -> 20 01",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 03 20 01 24 01 30 01"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t077_epath_instance8",
+  "proto": "enip",
+  "summary": "T-077: EPATH Instance 8-bit 0x01 -> 24 01",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 2,
+      "instance_id": 1,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 03 20 02 24 01 30 01"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t079_epath_attr8",
+  "proto": "enip",
+  "summary": "T-079: EPATH Attribute 8-bit 0x01 -> 30 01",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 3
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "0e 03 20 01 24 01 30 03"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t217_status_0064",
+  "proto": "enip",
+  "summary": "T-217: ENIP Status=0x0064 InvalidSession",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "status": 100,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.status",
+     "value": "0x00000064"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 62,
+     "hex": "64 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t218_status_0065",
+  "proto": "enip",
+  "summary": "T-218: ENIP Status=0x0065 InvalidLength",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "status": 101,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.status",
+     "value": "0x00000065"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 62,
+     "hex": "65 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t219_status_0069",
+  "proto": "enip",
+  "summary": "T-219: ENIP Status=0x0069 UnsupportedProtocol",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "status": 105,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.status",
+     "value": "0x00000069"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 62,
+     "hex": "69 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t199_scenario_full",
+  "proto": "enip",
+  "summary": "T-199: scenario=full: ListIdentity+RegisterSession+SendRRData chain",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 99
+     },
+     {
+      "command": 101,
+      "protocol_version": 1
+     },
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 10,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x0063"
+    },
+    {
+     "packet": 5,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 6,
+     "field": "enip.command",
+     "value": "0x006f"
+    }
+   ],
+   "notes": [
+    "T-200a (skipped): OpENer 互操作 RegisterSession - 需真实 OpENer 环境, 不可用",
+    "T-200b (skipped): OpENer 互操作 ListIdentity - 需真实 OpENer 环境, 不可用",
+    "T-200c (skipped): OpENer 互操作 Forward_Open - 需真实 OpENer 环境, 不可用",
+    "T-200d (skipped): OpENer 互操作 Forward_Close - 需真实 OpENer 环境, 不可用",
+    "T-200e (skipped): OpENer 互操作 非法 SessionHandle - 需真实 OpENer 环境, 不可用"
+   ]
+  }
+ },
+ {
+  "id": "enip_t157_productname_empty",
+  "proto": "enip",
+  "summary": "T-157: ListIdentity response ProductName empty -> SHORT_STRING len=0x00",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "payload": [
+       1,
+       0,
+       1,
+       0,
+       2,
+       0,
+       18,
+       175,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       1,
+       0,
+       12,
+       0,
+       1,
+       0,
+       1,
+       0,
+       0,
+       0,
+       120,
+       86,
+       52,
+       18,
+       0,
+       4
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "52"
+    },
+    {
+     "packet": 4,
+     "field": "enip.cpf.itemcount",
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 90,
+     "hex": "b2 00 24 00"
+    },
+    {
+     "packet": 4,
+     "offset": 128,
+     "hex": "00 04"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t158_productname_255",
+  "proto": "enip",
+  "summary": "T-158: ListIdentity response ProductName 255B -> SHORT_STRING len=0xFF",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "enip": {}
+    }
+   ],
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "direction": "down",
+      "payload": [
+       1,
+       0,
+       1,
+       0,
+       2,
+       0,
+       18,
+       175,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       1,
+       0,
+       12,
+       0,
+       1,
+       0,
+       1,
+       0,
+       0,
+       0,
+       120,
+       86,
+       52,
+       18,
+       255,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       65,
+       4
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "enip.length",
+     "value": "307"
+    },
+    {
+     "packet": 4,
+     "field": "enip.cpf.itemcount",
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 90,
+     "hex": "b2 00 23 01"
+    },
+    {
+     "packet": 4,
+     "offset": 128,
+     "hex": "ff 41"
+    }
+   ]
+  }
+ },
+ {
+  "id": "enip_t085_registersession_payload5",
+  "proto": "enip",
+  "summary": "T-085: RegisterSession Payload=5B -> Validate reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1,
+      "payload": [
+       1,
+       0,
+       0,
+       0,
+       1
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "payload must be 4 bytes"
+  }
+ },
+ {
+  "id": "enip_t090_sessionhandle_strategy_inc",
+  "proto": "enip",
+  "summary": "T-090: SessionHandle strategy=inc -> Validate reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "session_handle": {
+       "strategy": "inc",
+       "range": [
+        1,
+        100
+       ],
+       "step": 1
+      },
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "session_handle strategy must be fixed or from_response"
+  }
+ },
+ {
+  "id": "enip_t091_sessionhandle_strategy_rand",
+  "proto": "enip",
+  "summary": "T-091: SessionHandle strategy=rand -> Validate reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "session_handle": {
+       "strategy": "rand",
+       "range": [
+        1,
+        100
+       ],
+       "seed": 42
+      },
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 1,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "session_handle strategy must be fixed or from_response"
+  }
+ },
+ {
+  "id": "enip_t092_sendrrdata_cipservice0",
+  "proto": "enip",
+  "summary": "T-092: SendRRData cip_service=0 with Unconnected Data item -> Validate reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cpf_items": [
+       {
+        "type_id": 0,
+        "length": 0,
+        "data": []
+       },
+       {
+        "type_id": 178,
+        "length": 2,
+        "data": [
+         14,
+         0
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "cip_service required for SendRRData with Unconnected Data"
+  }
+ },
+ {
+  "id": "enip_t104_class_id_out_of_range",
+  "proto": "enip",
+  "summary": "T-104: EPATH class_id=0x10000 (out of uint16) -> Validate reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 65536,
+      "instance_id": 1,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "class_id out of range"
+  }
+ },
+ {
+  "id": "enip_t105_instance_id_out_of_range",
+  "proto": "enip",
+  "summary": "T-105: EPATH instance_id=0x100000000 (out of uint32) -> Validate reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 14,
+      "class_id": 1,
+      "instance_id": 4294967296,
+      "attribute_id": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "instance_id out of range"
+  }
+ },
+ {
+  "id": "enip_t120_connpathsize_mismatch",
+  "proto": "enip",
+  "summary": "T-120: connection_path_size=5 with 4B path -> Validate reject",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "o2t_rpi": 100000,
+      "t2o_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128,
+      "connection_timeout_multiplier": 7,
+      "connection_path": [
+       32,
+       4,
+       36,
+       1
+      ],
+      "connection_path_size": 5
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "connection_path_size mismatch"
+  }
+ },
+ {
+  "id": "enip_t161_sessioncount2_senderctx",
+  "proto": "enip",
+  "summary": "T-161/T-176/T-178: SessionCount=2 -> 2 RegisterSession 请求 SenderContext 1,3 (全局递增, 每单元 2 命令) 且各自响应 SessionHandle 0x12345678/0x12345679; 每会话命令序列完整不交叉",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "session_count": 2,
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1
+     },
+     {
+      "command": 101,
+      "direction": "down",
+      "session_handle": 305419896,
+      "protocol_version": 1
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 4,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.srcport",
+     "value": "44818"
+    },
+    {
+     "packet": 3,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.srcport",
+     "value": "12346"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "44818"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 54,
+     "hex": "65 00 04 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 2,
+     "offset": 54,
+     "hex": "65 00 04 00 78 56 34 12 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 3,
+     "offset": 54,
+     "hex": "65 00 04 00 00 00 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "65 00 04 00 79 56 34 12 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-161/T-176: SenderContext 全局递增跨会话 (1,2,3,4)",
+    "T-162: 会话2 独立 handle 0x12345679 (显式 0x12345678+1)"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t162_sessioncount8_handles",
+  "proto": "enip",
+  "summary": "T-162/T-163: SessionCount=8 -> 8 个 RegisterSession 响应, SessionHandle 0x11111111..0x11111118 独立不重复; 8 个独立 TCP 流 (srcPort 12345..12352)",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "session_count": 8,
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1
+     },
+     {
+      "command": 101,
+      "direction": "down",
+      "session_handle": 305419896,
+      "protocol_version": 1
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 16,
+   "fields": [
+    {
+     "packet": 2,
+     "field": "enip.session",
+     "value": "0x12345678"
+    },
+    {
+     "packet": 4,
+     "field": "enip.session",
+     "value": "0x12345679"
+    },
+    {
+     "packet": 6,
+     "field": "enip.session",
+     "value": "0x1234567a"
+    },
+    {
+     "packet": 8,
+     "field": "enip.session",
+     "value": "0x1234567b"
+    },
+    {
+     "packet": 10,
+     "field": "enip.session",
+     "value": "0x1234567c"
+    },
+    {
+     "packet": 12,
+     "field": "enip.session",
+     "value": "0x1234567d"
+    },
+    {
+     "packet": 14,
+     "field": "enip.session",
+     "value": "0x1234567e"
+    },
+    {
+     "packet": 16,
+     "field": "enip.session",
+     "value": "0x1234567f"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.srcport",
+     "value": "12346"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.srcport",
+     "value": "12347"
+    },
+    {
+     "packet": 7,
+     "field": "tcp.srcport",
+     "value": "12348"
+    },
+    {
+     "packet": 9,
+     "field": "tcp.srcport",
+     "value": "12349"
+    },
+    {
+     "packet": 11,
+     "field": "tcp.srcport",
+     "value": "12350"
+    },
+    {
+     "packet": 13,
+     "field": "tcp.srcport",
+     "value": "12351"
+    },
+    {
+     "packet": 15,
+     "field": "tcp.srcport",
+     "value": "12352"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 2,
+     "offset": 54,
+     "hex": "65 00 04 00 78 56 34 12 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "65 00 04 00 79 56 34 12 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "65 00 04 00 7a 56 34 12 00 00 00 00 06 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "65 00 04 00 7b 56 34 12 00 00 00 00 08 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "65 00 04 00 7c 56 34 12 00 00 00 00 0a 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 12,
+     "offset": 54,
+     "hex": "65 00 04 00 7d 56 34 12 00 00 00 00 0c 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 14,
+     "offset": 54,
+     "hex": "65 00 04 00 7e 56 34 12 00 00 00 00 0e 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 16,
+     "offset": 54,
+     "hex": "65 00 04 00 7f 56 34 12 00 00 00 00 10 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-162/T-163: SessionCount=8 -> 8 个 RegisterSession 响应, SessionHandle 0x12345678+u (显式 handle 逐会话 +u) 独立不重复",
+    "8 个独立 TCP 流 (srcPort 12345..12352); 下行为 Handle+u 的 RegisterSession 响应 (offset 54 = ENIP 头)",
+    "SenderContext 全局递增 (包 2 -> 0x02, 包 4 -> 0x04, ... 包 16 -> 0x10)"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t164_flowcount2_forwardopen",
+  "proto": "enip",
+  "summary": "T-164/T-168/T-173: FlowCount=2 -> 2 个 Forward_Open ConnSerialNum 1,2 / O2T 1,3 (S13 交错); down 响应 payload 派生 O2T 0x55,0x57",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "flow_count": 2,
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "session_handle": 0,
+      "timeout": 10,
+      "priority_time_tick": 10,
+      "timeout_ticks": 5,
+      "o2t_connection_id": 1,
+      "t2o_connection_id": 2,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_timeout_multiplier": 7,
+      "o2t_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_rpi": 100000,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128
+     },
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       212,
+       0,
+       0,
+       0,
+       85,
+       0,
+       0,
+       0,
+       102,
+       0,
+       0,
+       0,
+       1,
+       0
+      ]
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 4,
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 94,
+     "hex": "54 02 20 06 24 01 0a 05 01 00 00 00 02 00 00 00 01 00 01 00 01 00 00 00 07 00 00 00 a0 86 01 00 00 02 a0 86 01 00 00 02 80 04 20 04 24 01 2c 02 2c 03"
+    },
+    {
+     "packet": 2,
+     "offset": 94,
+     "hex": "d4 00 00 00 55 00 00 00 66 00 00 00 01 00"
+    },
+    {
+     "packet": 3,
+     "offset": 94,
+     "hex": "54 02 20 06 24 01 0a 05 03 00 00 00 04 00 00 00 02 00 01 00 01 00 00 00 07 00 00 00 a0 86 01 00 00 02 a0 86 01 00 00 02 80 04 20 04 24 01 2c 02 2c 03"
+    },
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "d4 00 00 00 57 00 00 00 68 00 00 00 02 00"
+    }
+   ],
+   "notes": [
+    "T-164: ConnSerialNum 1 vs 2 不同",
+    "T-168: O2T 1 vs 3 不冲突 (S13 2 步交错)",
+    "down 响应 payload 随单元派生 (0x55->0x57)"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t165_flowcount8_connids",
+  "proto": "enip",
+  "summary": "T-165: FlowCount=8 -> 8 个 Forward_Open, O2T 1,3,5,..,15 独立; ConnSerialNum 1..8",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "flow_count": 8,
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "session_handle": 0,
+      "timeout": 10,
+      "priority_time_tick": 10,
+      "timeout_ticks": 5,
+      "o2t_connection_id": 1,
+      "t2o_connection_id": 2,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_timeout_multiplier": 7,
+      "o2t_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_rpi": 100000,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128
+     },
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       212,
+       0,
+       0,
+       0,
+       85,
+       0,
+       0,
+       0,
+       102,
+       0,
+       0,
+       0,
+       1,
+       0
+      ]
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 16,
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 102,
+     "hex": "01 00 00 00 02 00 00 00 01 00"
+    },
+    {
+     "packet": 15,
+     "offset": 102,
+     "hex": "0f 00 00 00 10 00 00 00 08 00"
+    }
+   ],
+   "notes": [
+    "T-165: 8 个独立 ConnectionID (1,3,5,..,15)",
+    "S13: +2 步交错, ConnSerial +1"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t166_2session2flow_io",
+  "proto": "enip",
+  "summary": "T-166: SessionCount=2 x FlowCount=2 -> 4 组 I/O, 4 个独立 (SessionHandle, ConnectionID) 对",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "session_count": 2,
+    "flow_count": 2,
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "session_handle": 0,
+      "timeout": 10,
+      "priority_time_tick": 10,
+      "timeout_ticks": 5,
+      "o2t_connection_id": 1,
+      "t2o_connection_id": 2,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_timeout_multiplier": 7,
+      "o2t_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_rpi": 100000,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128
+     },
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       212,
+       0,
+       0,
+       0,
+       85,
+       0,
+       0,
+       0,
+       102,
+       0,
+       0,
+       0,
+       1,
+       0
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 1,
+     "sequence_start": 1,
+     "payload": [
+      170,
+      187
+     ],
+     "source_command_index": 1
+    }
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 12,
+   "fields": [
+    {
+     "packet": 3,
+     "field": "ip.proto",
+     "value": "17"
+    },
+    {
+     "packet": 6,
+     "field": "ip.proto",
+     "value": "17"
+    },
+    {
+     "packet": 9,
+     "field": "ip.proto",
+     "value": "17"
+    },
+    {
+     "packet": 12,
+     "field": "ip.proto",
+     "value": "17"
+    },
+    {
+     "packet": 3,
+     "field": "udp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 6,
+     "field": "udp.srcport",
+     "value": "12346"
+    },
+    {
+     "packet": 9,
+     "field": "udp.srcport",
+     "value": "12347"
+    },
+    {
+     "packet": 12,
+     "field": "udp.srcport",
+     "value": "12348"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 3,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 55 00 00 00 b1 00 02 00 aa bb"
+    },
+    {
+     "packet": 6,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 57 00 00 00 b1 00 02 00 aa bb"
+    },
+    {
+     "packet": 9,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 59 00 00 00 b1 00 02 00 aa bb"
+    },
+    {
+     "packet": 12,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 5b 00 00 00 b1 00 02 00 aa bb"
+    }
+   ],
+   "notes": [
+    "T-166: 2 会话 × 2 流 = 4 单元, 每单元独立 I/O (UDP srcPort 12345..12348)",
+    "ConnectionID 0x55/0x57/0x59/0x5b (2u 交错), 每流 Seq 独立从 1 起",
+    "I/O 帧 SenderContext = 帧内序号 1 (buildIODataFrames i+1)"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t167_multiflow_seq_from_1",
+  "proto": "enip",
+  "summary": "T-167: FlowCount=2, 每流 2 个 I/O 帧 -> 两流 SequenceCounter 均从 0x0001 开始递增",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "flow_count": 2,
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "session_handle": 0,
+      "timeout": 10,
+      "priority_time_tick": 10,
+      "timeout_ticks": 5,
+      "o2t_connection_id": 1,
+      "t2o_connection_id": 2,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_timeout_multiplier": 7,
+      "o2t_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_rpi": 100000,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128
+     },
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       212,
+       0,
+       0,
+       0,
+       85,
+       0,
+       0,
+       0,
+       102,
+       0,
+       0,
+       0,
+       1,
+       0
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 2,
+     "sequence_start": 1,
+     "payload": [
+      170,
+      187
+     ],
+     "source_command_index": 1
+    }
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 8,
+   "frames": [
+    {
+     "packet": 3,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 55 00 00 00 b1 00 02 00 aa bb"
+    },
+    {
+     "packet": 4,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 55 00 00 00 b1 00 02 00 aa bb"
+    },
+    {
+     "packet": 7,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 57 00 00 00 b1 00 02 00 aa bb"
+    },
+    {
+     "packet": 8,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 57 00 00 00 b1 00 02 00 aa bb"
+    }
+   ],
+   "notes": [
+    "T-167: 每流独立 Seq 计数 (均从 0x0001 起: 流1 1,2; 流2 1,2)",
+    "T-168: 每流独立 O2T ConnectionID (流1 0x55, 流2 0x57)",
+    "I/O 帧 SenderContext = 帧内序号 (1,2), UDP srcPort 12345/12346 独立流"
+   ],
+   "fields": [
+    {
+     "packet": 3,
+     "field": "ip.proto",
+     "value": "17"
+    },
+    {
+     "packet": 4,
+     "field": "ip.proto",
+     "value": "17"
+    },
+    {
+     "packet": 7,
+     "field": "ip.proto",
+     "value": "17"
+    },
+    {
+     "packet": 8,
+     "field": "ip.proto",
+     "value": "17"
+    },
+    {
+     "packet": 3,
+     "field": "udp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 7,
+     "field": "udp.srcport",
+     "value": "12346"
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t169_multisession_tcp_tuples",
+  "proto": "enip",
+  "summary": "T-169: SessionCount=2 (TCP) -> 2 个独立 TCP 流, srcPort 12345/12346, flowID 独立",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "session_count": 2,
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.srcport",
+     "value": "12346"
+    }
+   ],
+   "notes": [
+    "多会话 TCP 4-tuple 独立 (srcPort 不同)"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t170_multiflow_udp_shared_tuple",
+  "proto": "enip",
+  "summary": "T-170: transport=udp, FlowCount=2 -> I/O 帧共享同一 UDP 4-tuple (12345/44818), ConnectionID 0x55/0x57 区分; TCP 命令帧也共享 4-tuple",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "udp",
+    "flow_count": 2,
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "session_handle": 0,
+      "timeout": 10,
+      "priority_time_tick": 10,
+      "timeout_ticks": 5,
+      "o2t_connection_id": 1,
+      "t2o_connection_id": 2,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_timeout_multiplier": 7,
+      "o2t_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_rpi": 100000,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128
+     },
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       212,
+       0,
+       0,
+       0,
+       85,
+       0,
+       0,
+       0,
+       102,
+       0,
+       0,
+       0,
+       1,
+       0
+      ]
+     }
+    ],
+    "io_data": {
+     "frame_count": 1,
+     "sequence_start": 1,
+     "payload": [
+      170,
+      187
+     ],
+     "source_command_index": 1
+    }
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 6,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 2,
+     "field": "udp.srcport",
+     "value": "44818"
+    },
+    {
+     "packet": 3,
+     "field": "udp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 4,
+     "field": "udp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 5,
+     "field": "udp.srcport",
+     "value": "44818"
+    },
+    {
+     "packet": 6,
+     "field": "udp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 1,
+     "field": "enip.session",
+     "value": "0x00000000"
+    },
+    {
+     "packet": 2,
+     "field": "enip.session",
+     "value": "0x12345678"
+    },
+    {
+     "packet": 4,
+     "field": "enip.session",
+     "value": "0x00000000"
+    },
+    {
+     "packet": 5,
+     "field": "enip.session",
+     "value": "0x12345679"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 3,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 55 00 00 00 b1 00 02 00 aa bb"
+    },
+    {
+     "packet": 5,
+     "offset": 42,
+     "hex": "6f 00 1e 00 79 56 34 12 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 b2 00 0e 00 d4 00 00 00 57 00 00 00 68 00 00 00 02 00"
+    },
+    {
+     "packet": 6,
+     "offset": 42,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 a1 00 04 00 57 00 00 00 b1 00 02 00 aa bb"
+    }
+   ],
+   "notes": [
+    "T-170: UDP 共享 4-tuple (srcPort 恒 12345), ConnectionID 0x55 vs 0x57 区分流",
+    "包5 down 响应 payload 随流派生 (O2T 0x57, T2O 0x68, serial 0x02)",
+    "每流独立 Seq 计数 (均从 1 起)"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t172_fromresponse_session_isolated",
+  "proto": "enip",
+  "summary": "T-172: SessionCount=2, NOP 用 from_response 提取 session_handle -> 每会话从自己的 RegisterSession 响应提取 0x12345678/0x12345679, 不交叉",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "session_count": 2,
+    "commands": [
+     {
+      "command": 101,
+      "direction": "down",
+      "session_handle": 305419896,
+      "protocol_version": 1
+     },
+     {
+      "command": 0,
+      "from_response_field": "session_handle",
+      "source_command_index": 0
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 4,
+   "fields": [
+    {
+     "packet": 2,
+     "field": "enip.session",
+     "value": "0x12345678"
+    },
+    {
+     "packet": 4,
+     "field": "enip.session",
+     "value": "0x12345679"
+    },
+    {
+     "packet": 1,
+     "field": "enip.session",
+     "value": "0x12345678"
+    },
+    {
+     "packet": 3,
+     "field": "enip.session",
+     "value": "0x12345679"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 54,
+     "hex": "65 00 04 00 78 56 34 12 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 01 00"
+    },
+    {
+     "packet": 2,
+     "offset": 54,
+     "hex": "00 00 00 00 78 56 34 12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 3,
+     "offset": 54,
+     "hex": "65 00 04 00 79 56 34 12 00 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00 01 00"
+    },
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "00 00 00 00 79 56 34 12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-172: NOP 包 SessionHandle = 本会话响应句柄 (from_response 隔离, 不交叉)",
+    "NOP 帧 = 24B 头无 CPF; RegisterSession 带 Protocol Version 01 00"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t173_fromresponse_flow_isolated",
+  "proto": "enip",
+  "summary": "T-173: FlowCount=2, SendUnitData from_response o2t_connection_id -> 每流从自己的 Forward_Open 响应提取 0x55/0x57",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "flow_count": 2,
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "session_handle": 0,
+      "timeout": 10,
+      "priority_time_tick": 10,
+      "timeout_ticks": 5,
+      "o2t_connection_id": 1,
+      "t2o_connection_id": 2,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_timeout_multiplier": 7,
+      "o2t_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_rpi": 100000,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128
+     },
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       212,
+       0,
+       0,
+       0,
+       85,
+       0,
+       0,
+       0,
+       102,
+       0,
+       0,
+       0,
+       1,
+       0
+      ]
+     },
+     {
+      "command": 112,
+      "timeout": 10,
+      "cpf_items": [
+       {
+        "type_id": 161,
+        "length": 4,
+        "data": [
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "type_id": 177,
+        "length": 2,
+        "data": [
+         1,
+         0
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 6,
+   "frames": [
+    {
+     "packet": 3,
+     "offset": 54,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 0a 00 02 00 a1 00 04 00 00 00 00 00 b1 00 02 00 01 00"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "70 00 16 00 00 00 00 00 00 00 00 00 06 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 0a 00 02 00 a1 00 04 00 00 00 00 00 b1 00 02 00 01 00"
+    }
+   ],
+   "notes": [
+    "T-173: 每流独立响应表 — IOData from_response 引用不交叉",
+    "SendUnitData: session 0, ctx 全局递增 (03,06), ConnAddr 0x00A1 数据 0 (from_response 未指定 o2t_connection_id 提取时的本流值)",
+    "ConnData 0x00B1: seq 1, payload 空"
+   ],
+   "fields": [
+    {
+     "packet": 1,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 2,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 3,
+     "field": "enip.command",
+     "value": "0x0070"
+    },
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 5,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 6,
+     "field": "enip.command",
+     "value": "0x0070"
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t174_unregister_session_matched",
+  "proto": "enip",
+  "summary": "T-174: SessionCount=2 -> 每会话独立 UnRegisterSession, SessionHandle 0x12345678/0x12345679 匹配本会话",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "session_count": 2,
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1
+     },
+     {
+      "command": 101,
+      "direction": "down",
+      "session_handle": 305419896,
+      "protocol_version": 1
+     },
+     {
+      "command": 102
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 6,
+   "fields": [
+    {
+     "packet": 3,
+     "field": "enip.command",
+     "value": "0x0066"
+    },
+    {
+     "packet": 3,
+     "field": "enip.session",
+     "value": "0x12345678"
+    },
+    {
+     "packet": 6,
+     "field": "enip.session",
+     "value": "0x12345679"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 3,
+     "offset": 54,
+     "hex": "66 00 00 00 78 56 34 12 00 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "66 00 00 00 79 56 34 12 00 00 00 00 06 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t175_forward_close_serial_matched",
+  "proto": "enip",
+  "summary": "T-175: FlowCount=2 -> 每流独立 Forward_Close, ConnSerialNum 1/2 与本流 Forward_Open 匹配",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "flow_count": 2,
+    "commands": [
+     {
+      "command": 111,
+      "cip_service": 84,
+      "session_handle": 0,
+      "timeout": 10,
+      "priority_time_tick": 10,
+      "timeout_ticks": 5,
+      "o2t_connection_id": 1,
+      "t2o_connection_id": 2,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1,
+      "connection_timeout_multiplier": 7,
+      "o2t_rpi": 100000,
+      "o2t_connection_parameters": 512,
+      "t2o_rpi": 100000,
+      "t2o_connection_parameters": 512,
+      "transport_class_trigger": 128
+     },
+     {
+      "command": 111,
+      "direction": "down",
+      "session_handle": 305419896,
+      "payload": [
+       212,
+       0,
+       0,
+       0,
+       85,
+       0,
+       0,
+       0,
+       102,
+       0,
+       0,
+       0,
+       1,
+       0
+      ]
+     },
+     {
+      "command": 111,
+      "cip_service": 78,
+      "conn_serial_number": 1,
+      "originator_vendor_id": 1,
+      "originator_serial_number": 1
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 6,
+   "fields": [
+    {
+     "packet": 3,
+     "field": "enip.command",
+     "value": "0x006f"
+    },
+    {
+     "packet": 6,
+     "field": "enip.command",
+     "value": "0x006f"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 3,
+     "offset": 94,
+     "hex": "4e 02 20 06 24 01 00 00 01 00 01 00 01 00 00 00 04 00 20 04 24 01 2c 02 2c 03"
+    },
+    {
+     "packet": 6,
+     "offset": 94,
+     "hex": "4e 02 20 06 24 01 00 00 02 00 01 00 01 00 00 00 04 00 20 04 24 01 2c 02 2c 03"
+    }
+   ],
+   "notes": [
+    "T-175: Forward_Close 每流独立 serial (流1=1, 流2=2)",
+    "CIP body: 4e 02 20 06 24 01 + serial2 + vendor2 + origSerial4 + path"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t176_senderctx_global_inc",
+  "proto": "enip",
+  "summary": "T-176: SessionCount=2, 默认 SenderContext 策略 -> 跨会话全局递增 (1,2,3,4), 包 2 = 包 1 + 1",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "session_count": 2,
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1
+     },
+     {
+      "command": 4
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 4,
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 54,
+     "hex": "65 00 04 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 2,
+     "offset": 54,
+     "hex": "04 00 00 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 3,
+     "offset": 54,
+     "hex": "65 00 04 00 00 00 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "04 00 00 00 00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-176: SenderContext 默认全局递增 (跨会话连续 1,2,3,4)",
+    "RegisterSession up session=0, SendRRData 0x04 session=0 (未指定 handle)"
+   ],
+   "fields": [
+    {
+     "packet": 1,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 2,
+     "field": "enip.command",
+     "value": "0x0004"
+    },
+    {
+     "packet": 3,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x0004"
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t177_senderctx_per_unit",
+  "proto": "enip",
+  "summary": "T-177: FlowCount=2, 显式 sender_context=5 -> 每流独立: 流 1 首包=5, 流 2 首包=6 (显式值+u)",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "flow_count": 2,
+    "commands": [
+     {
+      "command": 4,
+      "sender_context": 5
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 2,
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 54,
+     "hex": "04 00 00 00 00 00 00 00 00 00 00 00 05 00 00 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 2,
+     "offset": 54,
+     "hex": "04 00 00 00 00 00 00 00 00 00 00 00 06 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-177: 显式 SenderContext (5) 每单元 +u -> 5,6",
+    "独立 TCP 流 (srcPort 12345,12346)"
+   ],
+   "fields": [
+    {
+     "packet": 1,
+     "field": "enip.command",
+     "value": "0x0004"
+    },
+    {
+     "packet": 2,
+     "field": "enip.command",
+     "value": "0x0004"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.srcport",
+     "value": "12346"
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_t179_multiflow_order",
+  "proto": "enip",
+  "summary": "T-179: FlowCount=2 -> 每流命令序列完整 (RegisterSession up -> down -> UnRegisterSession), 不交叉",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "flow_count": 2,
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1
+     },
+     {
+      "command": 101,
+      "direction": "down",
+      "session_handle": 305419896,
+      "protocol_version": 1
+     },
+     {
+      "command": 102
+     }
+    ]
+   },
+   "tcp": {
+    "initial_seq": 100
+   }
+  },
+  "expect": {
+   "packet_count": 6,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 2,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 3,
+     "field": "enip.command",
+     "value": "0x0066"
+    },
+    {
+     "packet": 4,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 5,
+     "field": "enip.command",
+     "value": "0x0065"
+    },
+    {
+     "packet": 6,
+     "field": "enip.command",
+     "value": "0x0066"
+    }
+   ],
+   "notes": [
+    "命令 i+1 恒在命令 i 后 (单元内顺序完整)"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_v005_session_count_negative",
+  "proto": "enip",
+  "summary": "V-005: session_count=-1 -> Validate 拒绝 (out of range 1-1000)",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "session_count": -1,
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1
+     },
+     {
+      "command": 101,
+      "direction": "down",
+      "session_handle": 305419896,
+      "protocol_version": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "session_count -1 out of range"
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ },
+ {
+  "id": "enip_v006_flow_count_negative",
+  "proto": "enip",
+  "summary": "V-006: flow_count=101 -> Validate 拒绝 (out of range 1-100)",
+  "spec_json": {
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 12345,
+   "dst_port": 44818,
+   "enip": {
+    "transport": "tcp",
+    "flow_count": 101,
+    "commands": [
+     {
+      "command": 101,
+      "protocol_version": 1
+     },
+     {
+      "command": 101,
+      "direction": "down",
+      "session_handle": 305419896,
+      "protocol_version": 1
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "flow_count 101 out of range"
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 1
+  }
+ }
+]

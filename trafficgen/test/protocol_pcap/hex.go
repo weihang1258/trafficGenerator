@@ -20,15 +20,33 @@ type hexInfo struct {
 func parseTsharkHex(out string) []hexInfo {
 	var frames []hexInfo
 	var cur *hexInfo
+	var skipUntilNewFrame bool
 	for _, line := range strings.Split(out, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
+			// Blank line is a real frame separator: clear both cur and
+			// any pending Reassembled-TCP skip so the next 0000-prefixed
+			// hex block is recognized as a new frame.
 			cur = nil
+			skipUntilNewFrame = false
 			continue
 		}
 		// Non-dump lines (e.g. "Frame 1: ...") separate frames.
 		if !isHexDumpLine(trimmed) {
+			// "Reassembled TCP (N bytes):" preamble is followed by a 0000-
+			// prefixed hex block representing the desegmented payload, NOT a
+			// new frame. Skip its hex lines until we see the next real
+			// frame separator (blank line or "Frame ...").
+			if strings.HasPrefix(trimmed, "Reassembled ") {
+				cur = nil
+				skipUntilNewFrame = true
+				continue
+			}
 			cur = nil
+			skipUntilNewFrame = false
+			continue
+		}
+		if skipUntilNewFrame {
 			continue
 		}
 		fields := strings.Fields(trimmed)
@@ -36,7 +54,7 @@ func parseTsharkHex(out string) []hexInfo {
 			cur = nil
 			continue
 		}
-		off, err := strconv.ParseUint(fields[0], 16, 16)
+		off, err := strconv.ParseUint(fields[0], 16, 32)
 		if err != nil {
 			cur = nil
 			continue
@@ -45,8 +63,16 @@ func parseTsharkHex(out string) []hexInfo {
 			frames = append(frames, hexInfo{frameNo: len(frames) + 1})
 			cur = &frames[len(frames)-1]
 		}
+		// Parse the hex byte columns. tshark -x lines have exactly 16 byte
+		// columns (fewer on the final line) followed by an ASCII gutter. The
+		// gutter may contain tokens that look like 2-char hex (e.g. "00" in
+		// "00 OK", "2e" in ".0.0"), so counting columns is required -- a
+		// length check alone would swallow gutter bytes as frame data.
+		n := 0
 		for _, f := range fields[1:] {
-			// Stop at the ASCII gutter (may lack separators).
+			if n >= 16 {
+				break
+			}
 			if len(f) != 2 {
 				break
 			}
@@ -55,6 +81,7 @@ func parseTsharkHex(out string) []hexInfo {
 				break
 			}
 			cur.bytes = append(cur.bytes, byte(b))
+			n++
 		}
 	}
 	return frames
@@ -65,10 +92,12 @@ func isHexDumpLine(s string) bool {
 	if len(fields) < 2 {
 		return false
 	}
-	if len(fields[0]) != 4 {
+	// tshark -x offset column: 4 hex digits up to offset 0xffff, 5 digits
+	// (00000, 00010, ...) once the frame exceeds 65535 bytes.
+	if n := len(fields[0]); n < 4 || n > 5 {
 		return false
 	}
-	if _, err := strconv.ParseUint(fields[0], 16, 16); err != nil {
+	if _, err := strconv.ParseUint(fields[0], 16, 32); err != nil {
 		return false
 	}
 	// Only the first data token must look like hex; the ASCII gutter at the
@@ -79,7 +108,12 @@ func isHexDumpLine(s string) bool {
 
 // hexDumpAll returns one hexInfo per frame in the pcap.
 func hexDumpAll(path string) ([]hexInfo, error) {
-	cmd := exec.Command("tshark", "-r", path, "-x")
+	// Disable TCP desegmentation so each segment appears as its own frame.
+	// Without this, tshark -x appends "Reassembled TCP (N bytes)" blocks to
+	// frames carrying partial segments; the parser would then treat those
+	// 0000-prefixed hex blocks as new frames, shifting every subsequent
+	// FrameAssert.Packet index by the number of segmented frames in the flow.
+	cmd := exec.Command("tshark", "-r", path, "-x", "-o", "tcp.desegment_tcp_streams:false")
 	var out, errb bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errb

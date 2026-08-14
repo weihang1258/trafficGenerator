@@ -4,6 +4,7 @@
     "proto": "tcp",
     "summary": "TCP 完整握手 + 数据 + 终止（默认配置，MSS 1460）",
     "spec_json": {
+      "layers": [{"tcp": {}}],
       "src_ip": "10.0.0.1",
       "dst_ip": "20.0.0.1",
       "src_port": 12345,
@@ -15,13 +16,41 @@
       "negotiated": true,
       "min_packets": 6,
       "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "80"},
-        {"packet": 1, "field": "ip.src", "value": "10.0.0.1"},
-        {"packet": 1, "field": "ip.dst", "value": "20.0.0.1"},
-        {"packet": 1, "field": "tcp.srcport", "value": "12345"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"}
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "80"
+        },
+        {
+          "packet": 1,
+          "field": "ip.src",
+          "value": "10.0.0.1"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "20.0.0.1"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "12345"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.flags",
+          "value": "0x010"
+        }
       ]
     }
   },
@@ -30,6 +59,7 @@
     "proto": "tcp",
     "summary": "TCP 大载荷按 MSS 分片（6000 字节 body → 5 段 PSH-ACK）",
     "spec_json": {
+      "layers": [{"tcp": {}}],
       "src_ip": "10.0.0.1",
       "dst_ip": "20.0.0.1",
       "src_port": 12345,
@@ -47,7 +77,9 @@
       "terminates": true,
       "has_payload": true,
       "min_packets": 9,
-      "notes": ["explicit handshake+termination; payload repeated per RFC; 6000B over MSS 1460"]
+      "notes": [
+        "explicit handshake+termination; payload repeated per RFC; 6000B over MSS 1460"
+      ]
     }
   },
   {
@@ -55,6 +87,7 @@
     "proto": "tcp",
     "summary": "TCP 自定义 MSS 536 与窗口",
     "spec_json": {
+      "layers": [{"tcp": {}}],
       "src_ip": "10.0.0.1",
       "dst_ip": "20.0.0.1",
       "src_port": 20000,
@@ -69,8 +102,255 @@
       "has_handshake": true,
       "min_packets": 6,
       "fields": [
-        {"packet": 1, "field": "tcp.window_size", "value": "4096"}
+        {
+          "packet": 1,
+          "field": "tcp.window_size",
+          "value": "4096"
+        }
       ]
+    }
+  },
+  {
+    "id": "tcp-validate-mss-too-small",
+    "proto": "tcp",
+    "summary": "Validate-negative：MSS 500 < 536（RFC 879 下限）必须被拒绝",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 80,
+      "count": 1,
+      "tcp": {
+        "mss": 500
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "too small"
+    }
+  },
+  {
+    "id": "tcp-window-size-applies",
+    "proto": "tcp",
+    "summary": "TCP 自定义窗口大小 4096 应用于握手双向（SYN 与 SYN-ACK 均填 winSize，非默认 65535）",
+    "spec_json": {
+      "layers": [{"tcp": {}}],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 30000,
+      "dst_port": 82,
+      "count": 1,
+      "tcp": {
+        "window_size": 4096
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "packet_count": 7,
+      "notes": [
+        "无 payload：3 握手 + 4 终止 = 7 包；SYN/SYN-ACK 未协商 window scale 时 tshark 显示原始窗口值 4096（后续包乘 128 = 524288）"
+      ],
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.window_size",
+          "value": "4096"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.window_size",
+          "value": "4096"
+        }
+      ]
+    }
+  },
+  {
+    "id": "tcp-no-handshake-direct-data",
+    "proto": "tcp",
+    "summary": "TCP 无握手直发数据：handshake=false 跳过 SYN 握手，数据段 PSH-ACK 直发 + 对端 ACK",
+    "spec_json": {
+      "layers": [{"tcp": {}}],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 22222,
+      "dst_port": 82,
+      "count": 1,
+      "payload": "hello-direct-data",
+      "tcp": {
+        "handshake": false,
+        "termination": false
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x018"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.payload",
+          "value": "68656c6c6f2d6469726563742d64617461"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x010"
+        }
+      ]
+    }
+  },
+  {
+    "id": "tcp-initial-seq-deterministic",
+    "proto": "tcp",
+    "summary": "TCP 显式 initial_seq=1000：SYN seq 1000、SYN-ACK ack 1001（确定性 ISN，无 payload）",
+    "spec_json": {
+      "layers": [{"tcp": {}}],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 80,
+      "count": 1,
+      "tcp": {
+        "initial_seq": 1000
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 7,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.seq",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.ack",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.ack",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.seq_raw",
+          "value": "1000"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.ack_raw",
+          "value": "1001"
+        }
+      ],
+      "notes": [
+        "tshark 默认 relative seq：ISN 1000 → 相对 0；seq_raw 保留绝对 1000，断言确定性"
+      ]
+    }
+  },
+  {
+    "id": "tcp-rst-replaces-fin",
+    "proto": "tcp",
+    "summary": "TCP RST 替换 FIN 终止（rst:true 时无 FIN 挥手，RFC 9293 §3.5）",
+    "spec_json": {
+      "layers": [{"tcp": {}}],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 31000,
+      "dst_port": 82,
+      "count": 1,
+      "payload": "rst-replaces-fin-payload-0123",
+      "tcp": {
+        "rst": true
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "packet_count": 6,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.flags",
+          "value": "0x018"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "82"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.flags",
+          "value": "0x010"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.flags",
+          "value": "0x014"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.flags.fin",
+          "value": "0"
+        }
+      ],
+      "notes": [
+        "rst:true 时 planner 用单个 RST-ACK 替换 4 包 FIN 挥手（tcp.go L331 条件 !RST）；6 包 = 3 握手 + 2 数据（PSH-ACK + ACK）+ 1 RST-ACK；terminates 门禁由最后包 RST 满足"
+      ]
+    }
+  },
+  {
+    "id": "tcp-validate-initial-seq-negative",
+    "proto": "tcp",
+    "summary": "Validate-negative：tcp.initial_seq=-1 必须被拒绝（否则 getUint32 截断回绕为 4294967295）",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 80,
+      "count": 1,
+      "tcp": {
+        "initial_seq": -1
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "initial_seq"
+    }
+  },
+  {
+    "id": "tcp-validate-dst-port-out-of-range-reject",
+    "proto": "tcp",
+    "summary": "Validate-negative：dst_port=65536 超出 16 位范围必须被拒绝（否则 getUint16 截断回绕为 0）",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 65536,
+      "count": 1
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "dst_port 65536 invalid"
     }
   }
 ]

@@ -38,7 +38,9 @@ func getenv(k, def string) string {
 
 func init() {
 	if v := os.Getenv("CASE_TIMEOUT_S"); v != "" {
-		fmt.Sscanf(v, "%d", &envTimeout)
+		var s int
+		fmt.Sscanf(v, "%d", &s)
+		envTimeout = time.Duration(s) * time.Second
 	}
 	if v := os.Getenv("CASE_PARALLEL"); v != "" {
 		fmt.Sscanf(v, "%d", &envParallel)
@@ -63,6 +65,11 @@ func loadCases(t *testing.T) map[string][]Case {
 	}
 	cases := map[string][]Case{}
 	for _, f := range files {
+		proto := filepath.Base(f)
+		proto = proto[:len(proto)-len(".json")]
+		if envPerProto != "" && proto != envPerProto {
+			continue
+		}
 		b, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatalf("read %s: %v", f, err)
@@ -70,11 +77,6 @@ func loadCases(t *testing.T) map[string][]Case {
 		var cs []Case
 		if err := json.Unmarshal(b, &cs); err != nil {
 			t.Fatalf("parse %s: %v", f, err)
-		}
-		proto := filepath.Base(f)
-		proto = proto[:len(proto)-len(".json")]
-		if envPerProto != "" && proto != envPerProto {
-			continue
 		}
 		cases[proto] = cs
 	}
@@ -152,6 +154,12 @@ func TestProtocolPcapDrive(t *testing.T) {
 		byProto[res.Proto] = append(byProto[res.Proto], res)
 		switch res.Status {
 		case "pass":
+			// Validate-negative cases have no pcap to verify; they passed
+			// because the task errored as expected.
+			if jobs[i].c.Expect.ExpectError {
+				pass++
+				continue
+			}
 			if probs := VerifyPcap(res.PcapAbsPath, jobs[i].c); len(probs) == 0 {
 				pass++
 				res.Status = "pass"

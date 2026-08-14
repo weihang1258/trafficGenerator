@@ -2,6 +2,7 @@ package protocolpcap
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -48,6 +49,112 @@ func TestParseTsharkHex_NoSeparatorsInAsciiGutter(t *testing.T) {
 	want := []byte{0x00, 0x01, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x74, 0x78, 0x74, 0x00, 0x6f, 0x63, 0x74, 0x65, 0x74, 0x00}
 	if !bytes.Equal(frames[0].bytes, want) {
 		t.Fatalf("bytes mismatch: %x vs %x", frames[0].bytes, want)
+	}
+}
+
+func TestParseTsharkHex_AsciiGutterHexLookalikes(t *testing.T) {
+	// Regression: the ASCII gutter can contain tokens that look like 2-char
+	// hex bytes ("00" in "00 OK", "30 30" digits, "2e"/"30" in ".0.0"). The
+	// parser must count the 16 byte columns, never swallow gutter tokens.
+	out := "0000  48 54 54 50 2f 31 2e 31 20 32 30 30 20 4f 4b 0d   HTTP/1.1 200 OK.\n" +
+		"0010  0a 43 6f 6e 74 65 6e 74 2d 4c 65 6e 67 74 68 3a   .Content-Length:\n" +
+		"0020  20 32 31 38 0d 0a 0d 0a 65 76 65 6e 74 3a 20 65   218....event: e\n" +
+		"0030  6e 64 70 6f 69 6e 74 0a 64 61 74 61 3a 20 2f 6d   ndpoint.data: /m\n" +
+		"0040  63 70 0a 0a 65 76 65 6e 74 3a 20 65 6e 64 70 6f   cp..event: endpo\n"
+	frames := parseTsharkHex(out)
+	if len(frames) != 1 {
+		t.Fatalf("got %d frames, want 1", len(frames))
+	}
+	// 80 wanted bytes: five 16-byte lines. The final line's hex columns end
+	// with "20" (not "65"), so its two trailing columns "65 76" are in the
+	// ASCII gutter and must NOT leak into the frame bytes.
+	if len(frames[0].bytes) != 80 {
+		t.Fatalf("got %d bytes, want 80 (gutter lookalikes must not leak in)", len(frames[0].bytes))
+	}
+	want := []byte("HTTP/1.1 200 OK\r\nContent-Length: 218\r\n\r\nevent: endpoint\ndata: /mcp\n\n" +
+		"event: endpo")
+	if !bytes.Equal(frames[0].bytes, want) {
+		t.Fatalf("bytes mismatch: %q vs %q", frames[0].bytes, want)
+	}
+}
+
+func TestParseTsharkHex_FiveDigitOffsets(t *testing.T) {
+	// Regression: tshark -x emits 5-digit hex offsets (00000, 00010, ...)
+	// once a frame's byte offset reaches 0x10000. Frames >= 65536 bytes
+	// therefore have hex-dump lines whose offset column is 5 chars, not 4.
+	// The parser previously rejected those lines (isHexDumpLine required
+	// exactly 4 chars) AND overflowed on the 16-bit ParseUint for offsets
+	// >= 0x10000, so the entire big frame was silently dropped, shifting
+	// every subsequent FrameAssert packet index by one.
+	//
+	// This mirrors a real 65610-byte gbt32960 frame (gbt_t118_dataunit_65531)
+	// whose dump lines run 00000 -> 10010.
+	frameSmall := "0000  02 00 00 00 00 02 02 00 00 00 00 01 08 00 45 20   ..............E \n" +
+		"0010  00 2a 00 01 40 00 40 06 00 00 0a 00 00 01 0a 00   .*..@.@.........\n" +
+		"0020  00 02 30 39 27 10 00 00 00 00 00 00 50 02 ff ff   ..09'.........P.\n" +
+		"002c  00 00 00 00                                       ....\n"
+	// Build a realistic 65552-byte frame dump: 4097 contiguous lines from
+	// 00000 to 10010, 16 bytes each (tshark never leaves gaps between lines).
+	want := make([]byte, 65552)
+	for i := range want {
+		want[i] = byte(i % 251)
+	}
+	want[0], want[1], want[2], want[3] = 0x23, 0x23, 0x02, 0xfe // gbt32960 start flag + cmd
+	want[0x1000F] = 0x5a                                        // tail spot marker (last byte)
+	var big strings.Builder
+	for off := 0; off < len(want); off += 16 {
+		fmt.Fprintf(&big, "%05x  ", off)
+		for j := 0; j < 16; j++ {
+			fmt.Fprintf(&big, "%02x ", want[off+j])
+		}
+		big.WriteString("  ................\n")
+	}
+	out := "Frame 1: 52 bytes on wire\n" + frameSmall + "\n" +
+		"Frame 2: 65552 bytes on wire\n" + big.String() + "\n" +
+		"Frame 3: 52 bytes on wire\n" + frameSmall
+	frames := parseTsharkHex(out)
+	if len(frames) != 3 {
+		t.Fatalf("got %d frames, want 3 (5-digit-offset frame must not be dropped)", len(frames))
+	}
+	if !bytes.Equal(frames[1].bytes, want) {
+		t.Fatalf("frame2: got %d bytes, want %d (5-digit lines must merge into the frame)", len(frames[1].bytes), len(want))
+	}
+	if len(frames[2].bytes) != 52 {
+		t.Fatalf("frame3: got %d bytes, want 52 (index shift after big frame)", len(frames[2].bytes))
+	}
+}
+
+func TestParseTsharkHex_ReassembledTCPPhantom(t *testing.T) {
+	// Regression: tshark -x appends "Reassembled TCP (N bytes)" hex blocks to
+	// frames carrying partial TCP segments. These blocks start with "0000" and
+	// were being parsed as new frames, shifting every subsequent FrameAssert
+	// packet index. The fix is twofold: (1) hexDumpAll disables TCP
+	// desegmentation so each segment appears as its own frame; (2) the parser
+	// recognizes "Reassembled TCP" preamble lines and stops the current frame.
+	out := "Frame (64 bytes):\n" +
+		"0000  02 00 00 00 00 02 02 00 00 00 00 01 08 00 45 20   ..............E \n" +
+		"0010  00 32 3a 77 40 00 40 06 eb ca 0a 00 00 64 0a 00   .2:w@.@......d..\n" +
+		"0020  00 01 30 39 4e 20 1b 71 15 27 2f bd e2 bd 50 18   ..09N .q.'/...P.\n" +
+		"0030  ff ff ee c9 00 00 05 64 00 80 00 04 01 00 e4 3f   .......d.......?\n" +
+		"Reassembled TCP (13 bytes):\n" +
+		"0000  ff 92 9c 05 64 00 80 00 04 01 00 e4 3f            ....d.......?\n" +
+		"\n" +
+		"0000  02 00 00 00 00 02 02 00 00 00 00 01 08 00 45 20   ..............E \n" +
+		"0010  00 41 3a 78 40 00 40 06 eb ba 0a 00 00 64 0a 00   .A:x@.@......d..\n" +
+		"0020  00 01 30 39 4e 20 1b 71 15 31 2f bd e2 bd 50 18   ..09N .q.1/...P.\n" +
+		"0030  ff ff 28 d4 00 00 05 64 0f d3 00 04 01 00 24 84   ..(....d......$.\n"
+	frames := parseTsharkHex(out)
+	if len(frames) != 2 {
+		t.Fatalf("got %d frames, want 2 (Reassembled TCP phantom must not create a 3rd)", len(frames))
+	}
+	wantLen := 64
+	if len(frames[0].bytes) != wantLen {
+		t.Fatalf("frame1: got %d bytes, want %d (phantom must not be appended)", len(frames[0].bytes), wantLen)
+	}
+	// Frame 2 must start with the new segment's Ethernet header, not the
+	// phantom's first byte (0xff).
+	if frames[1].bytes[0] != 0x02 {
+		t.Fatalf("frame2: first byte = %02x, want 0x02 (phantom bytes leaked into next frame)", frames[1].bytes[0])
 	}
 }
 

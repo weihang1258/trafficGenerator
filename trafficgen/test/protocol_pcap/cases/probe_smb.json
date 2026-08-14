@@ -1,0 +1,1 @@
+[{"id": "probe_explicit_close", "proto": "smb", "summary": "probe: explicit close single close", "spec_json": {"src_ip": "10.0.0.100", "dst_ip": "10.0.0.1", "smb": {"operations": [{"op_type": "close"}]}}, "expect": {"packet_count": 24}}]

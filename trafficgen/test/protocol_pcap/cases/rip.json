@@ -1,0 +1,6393 @@
+[
+  {
+    "id": "rip_tpos1_request_full",
+    "proto": "rip",
+    "summary": "T-POS-1: scenario request_full, v2 multicast -> 2 packets (Request 01 02 00 00 + auto Response 02 02 00 00 with 5 default routes), same 4-tuple",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "command": "request",
+        "scenario": "request_full",
+        "multicast": true,
+        "routes": []
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.command",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "rip.version",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "rip.command",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "rip.family",
+          "value": "2,2,2,2,2"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "520"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "52001"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "01 02 00 00"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "02 02 00 00"
+        }
+      ],
+      "notes": [
+        "design §6.1: request_full sends Request (command=1) then auto Response (command=2) sharing FlowID",
+        "offset 42 = Eth14 + IPv4 20 + UDP 8",
+        "Request payload: command=1 version=2 domain=0 + one RTE family=0 metric=16 (notify request); Response carries default 5 routes"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos1b_user_routes",
+    "proto": "rip",
+    "summary": "T-POS-1 variant: request_full with 1 user route -> Response carries the user route (44B payload: 4B header + 20B Request RTE + 20B route)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "command": "request",
+        "scenario": "request_full",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.1.2.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 2,
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "01 02 00 0000 00 00 0000 00 00 0000 00 00 0000 00 00 0000 00 00 10"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 01 02 00 ff ff ff 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTPOS1bVariant: user route replaces default routes in auto Response (44B payload)",
+        "Request RTE ends 00 10 (family 0, metric 16); Response RTE: family 2, route_tag 0, 10.1.2.0, mask 255.255.255.0, nexthop 0, metric 1"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos4_v1_broadcast",
+    "proto": "rip",
+    "summary": "T-POS-4: v1 multicast -> broadcast 255.255.255.255, 24B payload (4B header + 1 RTE), ttl 1",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v1",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.command",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "rip.version",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "255.255.255.255"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "520"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 01 00 00 00 02 00 00 0a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.4: RIP v1 has no multicast -> broadcast 255.255.255.255 (planner getDstIP v1 always broadcast)",
+        "v1 RTE: family(2) zero(2) ip(4) zero(8) metric(4); metric 1 at payload offset 20+16=36"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos6_multicast_ttl",
+    "proto": "rip",
+    "summary": "T-POS-6: v2 multicast to 224.0.0.9, ttl 1, sport 520, 1 RTE metric 2",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "192.168.5.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "224.0.0.9"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "520"
+        },
+        {
+          "packet": 1,
+          "field": "rip.metric",
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 c0 a8 05 00 ff ff ff 00 00 00 00 00 00 00 00 02"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTPOS6: multicast forces sport 520, ttl 1, dst 224.0.0.9"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos7_rounds",
+    "proto": "rip",
+    "summary": "T-POS-7: rounds=3 -> 3 response packets, one per round",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ],
+        "rounds": 3
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 3,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.command",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "rip.command",
+          "value": "2"
+        },
+        {
+          "packet": 3,
+          "field": "rip.command",
+          "value": "2"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTPOS7: rounds loop emits one packet per round"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos8_simple_auth",
+    "proto": "rip",
+    "summary": "T-POS-8: v2 simple auth (RFC 4822), password secret123 zero-padded to 16B, AFI 0xFFFF type 2",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ],
+        "auth": {
+          "type": "simple",
+          "password": "secret123"
+        }
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.auth.type",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "rip.auth.passwd",
+          "value": "secret123"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 ff ff 00 02 73 65 63 72 65 74 31 32 33 00 00 00 00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.7: auth entry = AFI FFFF + type 0002 + 16B password (zero padded to entry offset 20)",
+        "Route entry follows at payload offset 20"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos9_md5_auth",
+    "proto": "rip",
+    "summary": "T-POS-9: v2 MD5 auth (RFC 4822): auth entry PacketLength 44B + trailer FF FF 00 01 + 16B digest, 1 route, 64B payload",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ],
+        "auth": {
+          "type": "md5",
+          "key_id": 1,
+          "auth_data_len": 16,
+          "sequence_number": 12345
+        }
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.auth.type",
+          "value": "3"
+        },
+        {
+          "packet": 1,
+          "field": "rip.key_id",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "rip.auth_data_len",
+          "value": "16"
+        },
+        {
+          "packet": 1,
+          "field": "rip.seq_num",
+          "value": "12345"
+        },
+        {
+          "packet": 1,
+          "field": "rip.digest_offset",
+          "value": "44"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 ff ff 00 03 00 2c 01 10 00 00 30 39 00 00 00 00 00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 86,
+          "hex": "ff ff 00 01"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTPOS9: payload 64B = 4 header + 20 auth + 20 route + 4 trailer + 16 digest",
+        "PacketLength 44 (0x002c), key_id 1, auth_data_len 16, seq 12345 (0x00003039)",
+        "auth entry at payload 4-23, route at payload 24-43 (frame 42+24=66), trailer at payload 44 (frame 86)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos27_auth_25_routes",
+    "proto": "rip",
+    "summary": "T-POS-27: simple auth + 25 routes -> 524B payload (auth entry + 25 RTE) in a single packet",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.1.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.2.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.3.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.4.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.5.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.6.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.7.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.8.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.9.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.10.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.11.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.12.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.13.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.14.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.15.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.17.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.18.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.19.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.20.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.21.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.22.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.23.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.24.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ],
+        "auth": {
+          "type": "simple",
+          "password": "secret123"
+        }
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.length",
+          "value": "512"
+        },
+        {
+          "packet": 2,
+          "field": "udp.length",
+          "value": "32"
+        },
+        {
+          "packet": 1,
+          "field": "rip.auth.type",
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 ff ff 00 02 73 65 63 72 65 74 31 32 33 00 00 00 00 00 00 00"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTPOS27: 20B auth + 25x20B = 520B entries + 4B header = 524B",
+        "frame len = 14 + 20 + 8 + 524 = 566"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos27b_auth_26_routes",
+    "proto": "rip",
+    "summary": "T-POS-27 variant: simple auth + 26 routes -> 2 packets (524B + 24B), auth only on first",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.1.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.2.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.3.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.4.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.5.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.6.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.7.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.8.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.9.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.10.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.11.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.12.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.13.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.14.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.15.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.17.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.18.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.19.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.20.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.21.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.22.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.23.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.24.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.25.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ],
+        "auth": {
+          "type": "simple",
+          "password": "secret123"
+        }
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.length",
+          "value": "512"
+        },
+        {
+          "packet": 2,
+          "field": "udp.length",
+          "value": "52"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 18 00 00 ff ff 00 00 00 00 00 00 00 00 00 01 00 02 00 00 0a 19 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTPOS27b: 25 RTE + auth in first packet, 1 RTE (10.25.0.0/16 metric 1) in second 24B packet"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos14_ripng",
+    "proto": "rip",
+    "summary": "T-POS-14: RIPng (version ng) multicast FF02::9, port 521/521, header 02 01 00 00, 1 route 2001:db8::/64",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "ng",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 0,
+            "ip_addr": "2001:db8::",
+            "prefix_len": 64,
+            "route_tag": 0,
+            "metric": 1
+          }
+        ]
+      },
+      "src_ip": "2001:db8::1",
+      "dst_ip": "ff02::9",
+      "src_port": 0,
+      "dst_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ripng.cmd",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ripng.version",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ipv6.dst",
+          "value": "ff02::9"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "521"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "521"
+        },
+        {
+          "packet": 1,
+          "field": "ripng.rte.ipv6_prefix",
+          "value": "2001:db8::"
+        },
+        {
+          "packet": 1,
+          "field": "ripng.rte.prefix_length",
+          "value": "64"
+        },
+        {
+          "packet": 1,
+          "field": "ripng.rte.metric",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "02 01 00 00 20 01 0d b8 00 00 00 00 00 00 00 00 00 00 00 00 00 00 40 01"
+        }
+      ],
+      "notes": [
+        "design §6.12: RIPng header cmd=2 ver=1 (0x02010000); payload at Eth14+IPv6 40+UDP 8=62",
+        "RIPng RTE: prefix(16) route_tag(2) prefix_len(1) metric(1); 2001:db8::/64 metric 1 (route_tag 0, prefix_len 64=0x40)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos10_split_horizon",
+    "proto": "rip",
+    "summary": "T-POS-11: unicast split_horizon filters route with next_hop==dst_ip (only 172.16.0.0 survives)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "dst_ip": "192.168.1.1",
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "split_horizon": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1,
+            "next_hop": "192.168.1.2"
+          },
+          {
+            "afi": 2,
+            "ip_addr": "172.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1,
+            "next_hop": "192.168.1.1"
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "192.168.1.1"
+        },
+        {
+          "packet": 1,
+          "field": "rip.family",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "rip.ip",
+          "value": "10.0.0.0"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 00 00 00 ff 00 00 00 c0 a8 01 02 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTPOS11: split horizon drops routes with NextHop==DstIP; 10.0.0.0 (NH 192.168.1.2) filtered, 172.16.0.0 (NH==dst) survives",
+        "unicast: ttl 64 (default), 24B payload with the surviving entry"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos12_poison_reverse",
+    "proto": "rip",
+    "summary": "T-POS-12: unicast poison_reverse -> both entries kept, route with next_hop==dst_ip metric set to 16",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "dst_ip": "192.168.1.1",
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "poison_reverse": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1,
+            "next_hop": "192.168.1.2"
+          },
+          {
+            "afi": 2,
+            "ip_addr": "172.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1,
+            "next_hop": "192.168.1.1"
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "192.168.1.1"
+        },
+        {
+          "packet": 1,
+          "field": "rip.metric",
+          "value": "1,16"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 00 00 00 ff 00 00 00 c0 a8 01 02 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 ac 10 00 00 ff ff 00 00 c0 a8 01 01 00 00 00 10"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTPOS12: both entries kept, 10.0.0.0 (NH!=dst) metric 1, 172.16.0.0 (NH==dst) poisoned to metric 16",
+        "44B payload; poisoned metric 16 at payload offset 40-43 (frame 42+40=82, last 4 bytes of frame 2)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge6_zero_routes",
+    "proto": "rip",
+    "summary": "T-EDGE-6: response with 0 routes (explicit empty routes slice) -> bare 4-byte header payload",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": []
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.command",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "rip.version",
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTEdge6: explicit empty routes slice yields bare 4-byte header (T-EDGE-6)",
+        "an absent routes field would trigger response_default 5 routes instead"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge11_default_route",
+    "proto": "rip",
+    "summary": "T-EDGE-11: default route 0.0.0.0/0 with metric 1 passes through",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "0.0.0.0",
+            "subnet_mask": "0.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.ip",
+          "value": "0.0.0.0"
+        },
+        {
+          "packet": 1,
+          "field": "rip.netmask",
+          "value": "0.0.0.0"
+        },
+        {
+          "packet": 1,
+          "field": "rip.metric",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTEdge11: default route 0.0.0.0/0 is legal and advertised with metric 1"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos33_domain",
+    "proto": "rip",
+    "summary": "T-POS-33: routing domain 1 in header (02 02 00 01)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "domain": 1,
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 01"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTPOS33: domain 1 lands in header bytes 2-3"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr14_multicast_overrides",
+    "proto": "rip",
+    "summary": "T-ERR-14: multicast overrides user DstIP (packet still goes to 224.0.0.9)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "dst_ip": "10.99.99.99",
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "224.0.0.9"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00"
+        }
+      ],
+      "notes": [
+        "rip_test.go TestTErr14: multicast wins over user DstIP (design §8.3 T-ERR-14)",
+        "multicast: dst 224.0.0.9, ttl 1, sport 520"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos5_unicast",
+    "proto": "rip",
+    "summary": "T-POS-5: v2 unicast update to 192.168.1.2, ttl 64, dstport 520, 1 RTE metric 1",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "dst_ip": "192.168.1.2",
+      "rip": {
+        "version": "v2",
+        "command": "response",
+        "multicast": false,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "192.168.1.2"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "64"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "520"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.5: unicast uses user DstIP, TTL=64 (default), DstPort=520",
+        "offset 42 = Eth14 + IPv4 20 + UDP 8"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos10_route_poison",
+    "proto": "rip",
+    "summary": "T-POS-10: route poison metric=16 injected (0x10 in metric field), v2 multicast",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 16
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.metric",
+          "value": "16"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 10"
+        }
+      ],
+      "notes": [
+        "design §6.9: route poison advertises unreachable route metric=16 (0x10)",
+        "metric field at RTE offset 16-19, payload offset 20-23; last 4 bytes 00 00 00 10"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos13_triggered",
+    "proto": "rip",
+    "summary": "T-POS-13: triggered update -> Response only (no Request preamble), rounds=1, metric 16",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "command": "response",
+        "triggered_update": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 16
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.command",
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 10"
+        }
+      ],
+      "notes": [
+        "design §6.11: triggered_update skips Request, sends Response directly; Rounds=1",
+        "wire format identical to ordinary Response (cmd=2, metric=16)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos15_ripng_default",
+    "proto": "rip",
+    "summary": "T-POS-15: RIPng default route ::/0 metric 1 (PrefixLen=0x00)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "ng",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 0,
+            "ip_addr": "::",
+            "prefix_len": 0,
+            "route_tag": 0,
+            "metric": 1
+          }
+        ]
+      },
+      "src_ip": "2001:db8::1",
+      "dst_ip": "ff02::9",
+      "src_port": 0,
+      "dst_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ripng.rte.ipv6_prefix",
+          "value": "::"
+        },
+        {
+          "packet": 1,
+          "field": "ripng.rte.prefix_length",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "ripng.rte.metric",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "02 01 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 82,
+          "hex": "00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.12: RIPng default route Prefix=:: PrefixLen=0 Metric=1",
+        "offset 62 = Eth14 + IPv6 40 + UDP 8; RIPng RTE: 16B prefix + 2B route_tag + 1B prefix_len + 1B metric"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos24_simple_auth_16b",
+    "proto": "rip",
+    "summary": "T-POS-24: simple auth password exactly 16B (no zero padding), AFI FFFF type 2",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ],
+        "auth": {
+          "type": "simple",
+          "password": "0123456789abcdef"
+        }
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.auth.type",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "rip.auth.passwd",
+          "value": "0123456789abcdef"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 ff ff 00 02 30 31 32 33 34 35 36 37 38 39 61 62 63 64 65 66"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.15/T-POS-24: 16B password '0123456789abcdef' fills auth data exactly, no zero padding",
+        "auth entry = AFI FFFF + AuthType 0002 + 16B password; route entry follows at payload offset 20"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos29_version_default",
+    "proto": "rip",
+    "summary": "T-POS-29: version=\"\" defaults to v2 (RIP header version byte=0x02)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.version",
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §3/T-POS-29: empty Version defaults to v2; RIP header byte[1]=0x02"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos32_v1_multicast_broadcast",
+    "proto": "rip",
+    "summary": "T-POS-32: v1 + multicast=true -> broadcast 255.255.255.255, ttl 1, ignores user DstIP",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "dst_ip": "10.99.99.99",
+      "rip": {
+        "version": "v1",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "255.255.255.255"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "rip.version",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 01 00 00 00 02 00 00 0a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §3/T-POS-32: v1 has no multicast -> multicast=true forces broadcast 255.255.255.255",
+        "TTL=1, user DstIP=10.99.99.99 ignored; v1 RTE has no mask/nexthop (8B zeros between IP and metric)",
+        "metric field last 4 bytes 00 00 00 01"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge7_25_entries",
+    "proto": "rip",
+    "summary": "T-EDGE-7: 25 route entries in a single packet (504B payload, no auth)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.1.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.2.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.3.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.4.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.5.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.6.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.7.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.8.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.9.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.10.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.11.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.12.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.13.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.14.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.15.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.17.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.18.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.19.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.20.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.21.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.22.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.23.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.24.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.length",
+          "value": "512"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 00 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 0a 01 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-7: 25 RTE x 20B + 4B header = 504B payload; UDP length = 504+8 = 512",
+        "single packet, no split; routes 10.0.0.0/16 .. 10.24.0.0/16 metric 1",
+        "first RTE @ payload[4:24] (offset 46), second RTE @ payload[24:44] (offset 66)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge19_domain_ffff",
+    "proto": "rip",
+    "summary": "T-EDGE-19: domain=0xFFFF transparent passthrough (header bytes 2-3 = FF FF)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "domain": 65535,
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 ff ff 00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-19: Domain=0xFFFF transparent passthrough, no error",
+        "RIP header bytes 2-3 = FF FF (big-endian uint16)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge10_51_entries",
+    "proto": "rip",
+    "summary": "T-EDGE-10: 51 route entries split 25+25+1, 3 packets",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.1.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.2.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.3.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.4.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.5.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.6.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.7.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.8.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.9.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.10.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.11.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.12.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.13.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.14.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.15.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.17.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.18.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.19.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.20.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.21.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.22.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.23.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.24.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.25.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.26.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.27.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.28.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.29.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.30.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.31.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.32.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.33.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.34.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.35.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.36.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.37.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.38.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.39.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.40.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.41.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.42.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.43.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.44.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.45.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.46.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.47.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.48.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.49.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.50.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 3,
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 00 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 2,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 19 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 3,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 32 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-10: 51 entries -> 25+25+1; packet 3 carries route 10.50.0.0/16"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge12_ip_bcast_err",
+    "proto": "rip",
+    "summary": "T-EDGE-12: route IP 255.255.255.255 rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "255.255.255.255",
+            "subnet_mask": "255.255.255.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "broadcast address cannot be used as route",
+      "notes": [
+        "design §6.14/T-EDGE-12: broadcast address -> Validate error (route[0]: broadcast address cannot be used as route)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge13_mask_zero",
+    "proto": "rip",
+    "summary": "T-EDGE-13: SubnetMask=0.0.0.0 legal, mask bytes 00 00 00 00",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "0.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.netmask",
+          "value": "0.0.0.0"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-13: /0 mask legal, wire mask = 00 00 00 00"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge14_mask_ffff",
+    "proto": "rip",
+    "summary": "T-EDGE-14: SubnetMask=255.255.255.255 host route legal, mask bytes FF FF FF FF",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.255.255",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-14: /32 host mask legal, wire mask = FF FF FF FF"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge15_mask_noncontig",
+    "proto": "rip",
+    "summary": "T-EDGE-15: non-contiguous mask 255.0.0.3 warning, planner passes through bytes FF 00 00 03",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.3",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.netmask",
+          "value": "255.0.0.3"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 00 00 00 ff 00 00 03"
+        },
+        {
+          "packet": 1,
+          "offset": 58,
+          "hex": "00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-15: mask parseable IPv4 -> warning only, no Validate error",
+        "wire mask = FF 00 00 03 at frame offset 54-57 (RTE offset 8-11)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge16_ripng_len0",
+    "proto": "rip",
+    "summary": "T-EDGE-16: RIPng PrefixLen=0 default route legal (prefix 2001:db8::)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "ng",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 0,
+            "ip_addr": "2001:db8::",
+            "prefix_len": 0,
+            "route_tag": 0,
+            "metric": 1
+          }
+        ]
+      },
+      "src_ip": "2001:db8::1",
+      "dst_ip": "ff02::9",
+      "src_port": 0,
+      "dst_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ripng.rte.prefix_length",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "ripng.rte.metric",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "02 01 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "20 01 0d b8 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 82,
+          "hex": "00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-16: prefix_len 0 legal; tag/len/metric at offset 82 = 00 00 00 01"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge17_ripng_len128",
+    "proto": "rip",
+    "summary": "T-EDGE-17: RIPng PrefixLen=128 host route legal, wire 0x80",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "ng",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 0,
+            "ip_addr": "2001:db8::1",
+            "prefix_len": 128,
+            "route_tag": 0,
+            "metric": 1
+          }
+        ]
+      },
+      "src_ip": "2001:db8::1",
+      "dst_ip": "ff02::9",
+      "src_port": 0,
+      "dst_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ripng.rte.prefix_length",
+          "value": "128"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "20 01 0d b8 00 00 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 82,
+          "hex": "00 00 80 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-17: prefix_len 128 (0x80) legal"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge18_ripng_len129_err",
+    "proto": "rip",
+    "summary": "T-EDGE-18: RIPng PrefixLen=129 rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "ng",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 0,
+            "ip_addr": "2001:db8::",
+            "prefix_len": 129,
+            "metric": 1
+          }
+        ]
+      },
+      "src_ip": "2001:db8::1",
+      "dst_ip": "ff02::9",
+      "src_port": 0,
+      "dst_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "prefix_len must be <= 128",
+      "notes": [
+        "design §6.14/T-EDGE-18: prefix_len 129 -> Validate error (route[0]: prefix_len must be <= 128)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge1_metric0_err",
+    "proto": "rip",
+    "summary": "T-EDGE-1: metric=0 rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 0
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "metric must be >= 1",
+      "notes": [
+        "design §6.14/T-EDGE-1: metric 0 -> Validate error at task worker (validation failed: route[0]: metric must be >= 1)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge20_default_routes",
+    "proto": "rip",
+    "summary": "T-EDGE-20: Routes=nil + Scenario omitted -> 5 default routes emitted (frame-level)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 ac 10 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 86,
+          "hex": "00 02 00 00 c0 a8 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 106,
+          "hex": "00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 126,
+          "hex": "00 02 00 00 c0 a8 01 00 ff ff ff 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-20: routes nil + scenario '' -> response_default 5 routes (104B payload)",
+        "RTE order: 10.0.0.0/8, 172.16.0.0/16, 192.168.0.0/16, 0.0.0.0/0, 192.168.1.0/24"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge21_routers_empty",
+    "proto": "rip",
+    "summary": "T-EDGE-21: Routers=[] -> single router == FlowSpec itself, unicast sport 520",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "dst_ip": "20.0.0.1",
+      "rip": {
+        "version": "v2",
+        "routers": [],
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "520"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "520"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "20.0.0.1"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "64"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-21: empty routers -> one router from FlowSpec's own 4-tuple",
+        "unicast response -> sport 520 (well-known), ttl 64, user DstIP 20.0.0.1"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge22_routers_100_inc",
+    "proto": "rip",
+    "summary": "T-EDGE-22: 100 routers + GroupIDStrategy=inc [1,100] -> 100 distinct group ids, 100 packets",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ],
+        "routers": [
+          {
+            "src_ip": "10.0.3.0"
+          },
+          {
+            "src_ip": "10.0.3.1"
+          },
+          {
+            "src_ip": "10.0.3.2"
+          },
+          {
+            "src_ip": "10.0.3.3"
+          },
+          {
+            "src_ip": "10.0.3.4"
+          },
+          {
+            "src_ip": "10.0.3.5"
+          },
+          {
+            "src_ip": "10.0.3.6"
+          },
+          {
+            "src_ip": "10.0.3.7"
+          },
+          {
+            "src_ip": "10.0.3.8"
+          },
+          {
+            "src_ip": "10.0.3.9"
+          },
+          {
+            "src_ip": "10.0.3.10"
+          },
+          {
+            "src_ip": "10.0.3.11"
+          },
+          {
+            "src_ip": "10.0.3.12"
+          },
+          {
+            "src_ip": "10.0.3.13"
+          },
+          {
+            "src_ip": "10.0.3.14"
+          },
+          {
+            "src_ip": "10.0.3.15"
+          },
+          {
+            "src_ip": "10.0.3.16"
+          },
+          {
+            "src_ip": "10.0.3.17"
+          },
+          {
+            "src_ip": "10.0.3.18"
+          },
+          {
+            "src_ip": "10.0.3.19"
+          },
+          {
+            "src_ip": "10.0.3.20"
+          },
+          {
+            "src_ip": "10.0.3.21"
+          },
+          {
+            "src_ip": "10.0.3.22"
+          },
+          {
+            "src_ip": "10.0.3.23"
+          },
+          {
+            "src_ip": "10.0.3.24"
+          },
+          {
+            "src_ip": "10.0.3.25"
+          },
+          {
+            "src_ip": "10.0.3.26"
+          },
+          {
+            "src_ip": "10.0.3.27"
+          },
+          {
+            "src_ip": "10.0.3.28"
+          },
+          {
+            "src_ip": "10.0.3.29"
+          },
+          {
+            "src_ip": "10.0.3.30"
+          },
+          {
+            "src_ip": "10.0.3.31"
+          },
+          {
+            "src_ip": "10.0.3.32"
+          },
+          {
+            "src_ip": "10.0.3.33"
+          },
+          {
+            "src_ip": "10.0.3.34"
+          },
+          {
+            "src_ip": "10.0.3.35"
+          },
+          {
+            "src_ip": "10.0.3.36"
+          },
+          {
+            "src_ip": "10.0.3.37"
+          },
+          {
+            "src_ip": "10.0.3.38"
+          },
+          {
+            "src_ip": "10.0.3.39"
+          },
+          {
+            "src_ip": "10.0.3.40"
+          },
+          {
+            "src_ip": "10.0.3.41"
+          },
+          {
+            "src_ip": "10.0.3.42"
+          },
+          {
+            "src_ip": "10.0.3.43"
+          },
+          {
+            "src_ip": "10.0.3.44"
+          },
+          {
+            "src_ip": "10.0.3.45"
+          },
+          {
+            "src_ip": "10.0.3.46"
+          },
+          {
+            "src_ip": "10.0.3.47"
+          },
+          {
+            "src_ip": "10.0.3.48"
+          },
+          {
+            "src_ip": "10.0.3.49"
+          },
+          {
+            "src_ip": "10.0.3.50"
+          },
+          {
+            "src_ip": "10.0.3.51"
+          },
+          {
+            "src_ip": "10.0.3.52"
+          },
+          {
+            "src_ip": "10.0.3.53"
+          },
+          {
+            "src_ip": "10.0.3.54"
+          },
+          {
+            "src_ip": "10.0.3.55"
+          },
+          {
+            "src_ip": "10.0.3.56"
+          },
+          {
+            "src_ip": "10.0.3.57"
+          },
+          {
+            "src_ip": "10.0.3.58"
+          },
+          {
+            "src_ip": "10.0.3.59"
+          },
+          {
+            "src_ip": "10.0.3.60"
+          },
+          {
+            "src_ip": "10.0.3.61"
+          },
+          {
+            "src_ip": "10.0.3.62"
+          },
+          {
+            "src_ip": "10.0.3.63"
+          },
+          {
+            "src_ip": "10.0.3.64"
+          },
+          {
+            "src_ip": "10.0.3.65"
+          },
+          {
+            "src_ip": "10.0.3.66"
+          },
+          {
+            "src_ip": "10.0.3.67"
+          },
+          {
+            "src_ip": "10.0.3.68"
+          },
+          {
+            "src_ip": "10.0.3.69"
+          },
+          {
+            "src_ip": "10.0.3.70"
+          },
+          {
+            "src_ip": "10.0.3.71"
+          },
+          {
+            "src_ip": "10.0.3.72"
+          },
+          {
+            "src_ip": "10.0.3.73"
+          },
+          {
+            "src_ip": "10.0.3.74"
+          },
+          {
+            "src_ip": "10.0.3.75"
+          },
+          {
+            "src_ip": "10.0.3.76"
+          },
+          {
+            "src_ip": "10.0.3.77"
+          },
+          {
+            "src_ip": "10.0.3.78"
+          },
+          {
+            "src_ip": "10.0.3.79"
+          },
+          {
+            "src_ip": "10.0.3.80"
+          },
+          {
+            "src_ip": "10.0.3.81"
+          },
+          {
+            "src_ip": "10.0.3.82"
+          },
+          {
+            "src_ip": "10.0.3.83"
+          },
+          {
+            "src_ip": "10.0.3.84"
+          },
+          {
+            "src_ip": "10.0.3.85"
+          },
+          {
+            "src_ip": "10.0.3.86"
+          },
+          {
+            "src_ip": "10.0.3.87"
+          },
+          {
+            "src_ip": "10.0.3.88"
+          },
+          {
+            "src_ip": "10.0.3.89"
+          },
+          {
+            "src_ip": "10.0.3.90"
+          },
+          {
+            "src_ip": "10.0.3.91"
+          },
+          {
+            "src_ip": "10.0.3.92"
+          },
+          {
+            "src_ip": "10.0.3.93"
+          },
+          {
+            "src_ip": "10.0.3.94"
+          },
+          {
+            "src_ip": "10.0.3.95"
+          },
+          {
+            "src_ip": "10.0.3.96"
+          },
+          {
+            "src_ip": "10.0.3.97"
+          },
+          {
+            "src_ip": "10.0.3.98"
+          },
+          {
+            "src_ip": "10.0.3.99"
+          }
+        ]
+      },
+      "src_port": 0,
+      "group_id": {
+        "strategy": "inc",
+        "range": [
+          1,
+          100
+        ],
+        "step": 1
+      }
+    },
+    "expect": {
+      "packet_count": 100,
+      "notes": [
+        "design §6.14/T-EDGE-22: group_id inc -> hashKey = gID '1'..'100', flows spread across workers (real concurrency)",
+        "pcap-observable: 100 packets (1 per router); cross-shard packet order is not deterministic, so no per-packet asserts"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge2_metric1",
+    "proto": "rip",
+    "summary": "T-EDGE-2: metric=1 minimum legal, RTE metric bytes 00 00 00 01",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.metric",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-2: metric field = 0x01 at RTE offset 16-19"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge3_metric16",
+    "proto": "rip",
+    "summary": "T-EDGE-3: metric=16 unreachable, RTE metric bytes 00 00 00 10",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 16
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.metric",
+          "value": "16"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 10"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-3: metric field = 0x10 (16, infinity)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge4_metric17_err",
+    "proto": "rip",
+    "summary": "T-EDGE-4: metric=17 rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 17
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "metric must be <= 16",
+      "notes": [
+        "design §6.14/T-EDGE-4: metric 17 -> Validate error (route[0]: metric must be <= 16)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge5_metric255_err",
+    "proto": "rip",
+    "summary": "T-EDGE-5: metric=255 rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 255
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "metric must be <= 16",
+      "notes": [
+        "design §6.14/T-EDGE-5: metric 255 -> Validate error (route[0]: metric must be <= 16)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge8_26_entries",
+    "proto": "rip",
+    "summary": "T-EDGE-8: 26 route entries split 25+1, 2 packets, second packet 1 entry (metric 2 variant)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.1.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.2.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.3.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.4.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.5.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.6.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.7.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.8.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.9.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.10.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.11.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.12.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.13.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.14.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.15.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.16.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.17.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.18.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.19.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.20.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.21.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.22.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.23.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.24.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.25.0.0",
+            "subnet_mask": "255.255.255.0",
+            "metric": 2
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.length",
+          "value": "512"
+        },
+        {
+          "packet": 2,
+          "field": "udp.length",
+          "value": "32"
+        },
+        {
+          "packet": 1,
+          "field": "rip.metric",
+          "value": "2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2"
+        },
+        {
+          "packet": 2,
+          "field": "rip.metric",
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 00 00 00 ff ff ff 00 00 00 00 00 00 00 00 02"
+        },
+        {
+          "packet": 2,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 19 00 00 ff ff ff 00 00 00 00 00 00 00 00 02"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-8: 26 entries -> 25+1, same FlowID",
+        "metric 2 distinguishes this case from T-POS-3 wire (metric 1)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tedge9_50_entries",
+    "proto": "rip",
+    "summary": "T-EDGE-9: 50 route entries split 25+25, 2 packets",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.1.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.2.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.3.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.4.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.5.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.6.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.7.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.8.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.9.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.10.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.11.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.12.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.13.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.14.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.15.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.17.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.18.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.19.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.20.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.21.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.22.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.23.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.24.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.25.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.26.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.27.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.28.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.29.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.30.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.31.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.32.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.33.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.34.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.35.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.36.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.37.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.38.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.39.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.40.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.41.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.42.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.43.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.44.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.45.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.46.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.47.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.48.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.49.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 2,
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 00 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 0a 01 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 2,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 19 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-EDGE-9: 50 entries -> 25+25, both packets 504B payload"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr10_password_17b",
+    "proto": "rip",
+    "summary": "T-ERR-10: simple auth password 17 bytes rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ],
+        "auth": {
+          "type": "simple",
+          "password": "12345678901234567"
+        }
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "simple auth password must be <= 16 bytes",
+      "notes": [
+        "design §6.15/T-ERR-10: 17-byte password -> Validate error (simple auth password must be <= 16 bytes, got 17)"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr11_ip_invalid",
+    "proto": "rip",
+    "summary": "T-ERR-11: route IP 999.1.1.1 (unparseable) rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "999.1.1.1",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid IP address",
+      "notes": [
+        "design §6.15/T-ERR-11: unparseable route IP -> task-level Validate error (route[0]: invalid IP address: 999.1.1.1); strategy create passes (only top-level src/dst IP are checked there)"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr12_mask_invalid",
+    "proto": "rip",
+    "summary": "T-ERR-12: route SubnetMask not-a-mask rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "not-a-mask",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid subnet mask",
+      "notes": [
+        "design §6.15/T-ERR-12: unparseable mask -> Validate error (route[0]: invalid subnet mask: not-a-mask)"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr13_nh_v6",
+    "proto": "rip",
+    "summary": "T-ERR-13: v2 route next_hop IPv6 literal rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "next_hop": "2001:db8::1",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "next_hop must be IPv4",
+      "notes": [
+        "design §6.15/T-ERR-13: v6 next hop on v2 -> Validate error (route[0]: next_hop must be IPv4 for version v2)"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr15_split_poison",
+    "proto": "rip",
+    "summary": "T-ERR-15: split_horizon + poison_reverse warning; unicast keeps both, NH==dst poisoned to metric 16",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "dst_ip": "192.168.1.1",
+      "rip": {
+        "version": "v2",
+        "split_horizon": true,
+        "poison_reverse": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1,
+            "next_hop": "192.168.1.2"
+          },
+          {
+            "afi": 2,
+            "ip_addr": "172.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1,
+            "next_hop": "192.168.1.1"
+          },
+          {
+            "afi": 2,
+            "ip_addr": "192.168.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.metric",
+          "value": "1,16,1"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "192.168.1.1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 00 00 00 ff 00 00 00 c0 a8 01 02 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 ac 10 00 00 ff ff 00 00 c0 a8 01 01 00 00 00 10"
+        },
+        {
+          "packet": 1,
+          "offset": 86,
+          "hex": "00 02 00 00 c0 a8 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.15/T-ERR-15: warning-only combination, Validate passes, PoisonReverse wins over split_horizon skip",
+        "3 entries: NH!=dst kept metric 1, NH==dst poisoned metric 16, no-NH kept metric 1"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr16_router_empty",
+    "proto": "rip",
+    "summary": "T-ERR-16: Routers=[{}] empty element rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ],
+        "routers": [
+          {}
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "at least one field must be non-empty",
+      "notes": [
+        "design §6.15/T-ERR-16: router[0] all fields zero -> Validate error (router[0]: at least one field must be non-empty)"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr17_authdatalen0",
+    "proto": "rip",
+    "summary": "T-ERR-17: MD5 auth_data_len explicitly 0 rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ],
+        "auth": {
+          "type": "md5",
+          "key_id": 1,
+          "auth_data_len": 0,
+          "sequence_number": 12345
+        }
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "md5 auth_data_len must be > 0",
+      "notes": [
+        "design §6.15/T-ERR-17: AuthDataLen ptr(0) -> Validate error; absent key defaults to 16 (covered by T-POS-9)"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr18_multicast_split",
+    "proto": "rip",
+    "summary": "T-ERR-18: split_horizon + multicast warning; multicast skips filtering, both entries kept metric 1",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "split_horizon": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1,
+            "next_hop": "192.168.1.2"
+          },
+          {
+            "afi": 2,
+            "ip_addr": "172.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1,
+            "next_hop": "192.168.1.1"
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.metric",
+          "value": "1,1"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "224.0.0.9"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 00 00 00 ff 00 00 00 c0 a8 01 02 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 ac 10 00 00 ff ff 00 00 c0 a8 01 01 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.15/T-ERR-18: warning-only; multicast has no concrete receiver so filterRoutes is skipped",
+        "both entries present, no poisoning (metrics 1,1)"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr19_afi_ffff_explicit",
+    "proto": "rip",
+    "summary": "T-ERR-19: route AFI=0xFFFF explicit rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 65535,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "AFI=0xFFFF is reserved for authentication",
+      "notes": [
+        "design §6.15/T-ERR-19: AFI 0xFFFF only for auth-triggered entries, user route -> Validate error"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr1_version_v3",
+    "proto": "rip",
+    "summary": "T-ERR-1: version=v3 rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v3",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid version",
+      "notes": [
+        "design §6.15/T-ERR-1: version v3 -> Validate error (invalid version: v3 (allowed: v1, v2, ng))"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr3_command_update",
+    "proto": "rip",
+    "summary": "T-ERR-3: command=update rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "command": "update",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid command",
+      "notes": [
+        "design §6.15/T-ERR-3: command update -> Validate error (invalid command: update (allowed: request, response))"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr5_afi3",
+    "proto": "rip",
+    "summary": "T-ERR-5: route AFI=3 rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 3,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid AFI",
+      "notes": [
+        "design §6.15/T-ERR-5: AFI 3 -> Validate error (route[0]: invalid AFI: 3 (allowed: 0, 2))"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr6_afi_ffff",
+    "proto": "rip",
+    "summary": "T-ERR-6: route AFI=0xFFFF + routes non-empty rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 65535,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.0.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.1.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "AFI=0xFFFF is reserved for authentication",
+      "notes": [
+        "design §6.15/T-ERR-6: AFI 0xFFFF in user routes -> Validate error (reserved for authentication entries only)"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr7_auth_sha256",
+    "proto": "rip",
+    "summary": "T-ERR-7: auth type sha256 rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ],
+        "auth": {
+          "type": "sha256",
+          "password": "secret"
+        }
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid auth type",
+      "notes": [
+        "design §6.15/T-ERR-7: auth type sha256 -> Validate error (invalid auth type: sha256 (allowed: simple, md5))"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr8_auth_v1",
+    "proto": "rip",
+    "summary": "T-ERR-8: auth non-nil + version=v1 rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "v1",
+        "multicast": true,
+        "auth": {
+          "type": "simple",
+          "password": "secret"
+        }
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "RIP v1 does not support authentication",
+      "notes": [
+        "design §6.15/T-ERR-8: v1 + auth -> Validate error (RIP v1 does not support authentication)"
+      ]
+    }
+  },
+  {
+    "id": "rip_terr9_auth_ng",
+    "proto": "rip",
+    "summary": "T-ERR-9: auth non-nil + version=ng rejected by Validate",
+    "spec_json": {
+      "count": 1,
+      "rip": {
+        "version": "ng",
+        "multicast": true,
+        "auth": {
+          "type": "simple",
+          "password": "secret"
+        }
+      },
+      "src_ip": "2001:db8::1",
+      "dst_ip": "ff02::9",
+      "src_port": 0,
+      "dst_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "RIPng does not support authentication",
+      "notes": [
+        "design §6.15/T-ERR-9: ng + auth -> Validate error (RIPng does not support authentication (use IPsec)); src_ip must be IPv6 to reach the auth check"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos16_3_routers",
+    "proto": "rip",
+    "summary": "T-POS-16: 3 routers each with own SrcIP, src ports 52001-52003, same multicast dst 224.0.0.9",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ],
+        "routers": [
+          {
+            "src_ip": "10.0.0.2"
+          },
+          {
+            "src_ip": "10.0.0.3"
+          },
+          {
+            "src_ip": "10.0.0.4"
+          }
+        ]
+      },
+      "src_port": 0,
+      "group_id": {
+        "strategy": "fixed",
+        "value": "rip-tpos16"
+      }
+    },
+    "expect": {
+      "packet_count": 3,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "52001"
+        },
+        {
+          "packet": 1,
+          "field": "ip.src",
+          "value": "10.0.0.2"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "52002"
+        },
+        {
+          "packet": 2,
+          "field": "ip.src",
+          "value": "10.0.0.3"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "52003"
+        },
+        {
+          "packet": 3,
+          "field": "ip.src",
+          "value": "10.0.0.4"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "224.0.0.9"
+        },
+        {
+          "packet": 3,
+          "field": "ip.dst",
+          "value": "224.0.0.9"
+        }
+      ],
+      "notes": [
+        "design §6.13/T-POS-16: multi-router -> src port 52001+routerIdx, distinct FlowID per router",
+        "group_id fixed keeps all flows on one shard so packet order == router order (pcap-observable)",
+        "multicast: all routers share dst 224.0.0.9, ttl 1"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos17_100_routers",
+    "proto": "rip",
+    "summary": "T-POS-17: 100-router stress, GroupIDStrategy=fixed (same worker), 100 packets, src ports 52001-52100",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ],
+        "routers": [
+          {
+            "src_ip": "10.0.1.0"
+          },
+          {
+            "src_ip": "10.0.1.1"
+          },
+          {
+            "src_ip": "10.0.1.2"
+          },
+          {
+            "src_ip": "10.0.1.3"
+          },
+          {
+            "src_ip": "10.0.1.4"
+          },
+          {
+            "src_ip": "10.0.1.5"
+          },
+          {
+            "src_ip": "10.0.1.6"
+          },
+          {
+            "src_ip": "10.0.1.7"
+          },
+          {
+            "src_ip": "10.0.1.8"
+          },
+          {
+            "src_ip": "10.0.1.9"
+          },
+          {
+            "src_ip": "10.0.1.10"
+          },
+          {
+            "src_ip": "10.0.1.11"
+          },
+          {
+            "src_ip": "10.0.1.12"
+          },
+          {
+            "src_ip": "10.0.1.13"
+          },
+          {
+            "src_ip": "10.0.1.14"
+          },
+          {
+            "src_ip": "10.0.1.15"
+          },
+          {
+            "src_ip": "10.0.1.16"
+          },
+          {
+            "src_ip": "10.0.1.17"
+          },
+          {
+            "src_ip": "10.0.1.18"
+          },
+          {
+            "src_ip": "10.0.1.19"
+          },
+          {
+            "src_ip": "10.0.1.20"
+          },
+          {
+            "src_ip": "10.0.1.21"
+          },
+          {
+            "src_ip": "10.0.1.22"
+          },
+          {
+            "src_ip": "10.0.1.23"
+          },
+          {
+            "src_ip": "10.0.1.24"
+          },
+          {
+            "src_ip": "10.0.1.25"
+          },
+          {
+            "src_ip": "10.0.1.26"
+          },
+          {
+            "src_ip": "10.0.1.27"
+          },
+          {
+            "src_ip": "10.0.1.28"
+          },
+          {
+            "src_ip": "10.0.1.29"
+          },
+          {
+            "src_ip": "10.0.1.30"
+          },
+          {
+            "src_ip": "10.0.1.31"
+          },
+          {
+            "src_ip": "10.0.1.32"
+          },
+          {
+            "src_ip": "10.0.1.33"
+          },
+          {
+            "src_ip": "10.0.1.34"
+          },
+          {
+            "src_ip": "10.0.1.35"
+          },
+          {
+            "src_ip": "10.0.1.36"
+          },
+          {
+            "src_ip": "10.0.1.37"
+          },
+          {
+            "src_ip": "10.0.1.38"
+          },
+          {
+            "src_ip": "10.0.1.39"
+          },
+          {
+            "src_ip": "10.0.1.40"
+          },
+          {
+            "src_ip": "10.0.1.41"
+          },
+          {
+            "src_ip": "10.0.1.42"
+          },
+          {
+            "src_ip": "10.0.1.43"
+          },
+          {
+            "src_ip": "10.0.1.44"
+          },
+          {
+            "src_ip": "10.0.1.45"
+          },
+          {
+            "src_ip": "10.0.1.46"
+          },
+          {
+            "src_ip": "10.0.1.47"
+          },
+          {
+            "src_ip": "10.0.1.48"
+          },
+          {
+            "src_ip": "10.0.1.49"
+          },
+          {
+            "src_ip": "10.0.1.50"
+          },
+          {
+            "src_ip": "10.0.1.51"
+          },
+          {
+            "src_ip": "10.0.1.52"
+          },
+          {
+            "src_ip": "10.0.1.53"
+          },
+          {
+            "src_ip": "10.0.1.54"
+          },
+          {
+            "src_ip": "10.0.1.55"
+          },
+          {
+            "src_ip": "10.0.1.56"
+          },
+          {
+            "src_ip": "10.0.1.57"
+          },
+          {
+            "src_ip": "10.0.1.58"
+          },
+          {
+            "src_ip": "10.0.1.59"
+          },
+          {
+            "src_ip": "10.0.1.60"
+          },
+          {
+            "src_ip": "10.0.1.61"
+          },
+          {
+            "src_ip": "10.0.1.62"
+          },
+          {
+            "src_ip": "10.0.1.63"
+          },
+          {
+            "src_ip": "10.0.1.64"
+          },
+          {
+            "src_ip": "10.0.1.65"
+          },
+          {
+            "src_ip": "10.0.1.66"
+          },
+          {
+            "src_ip": "10.0.1.67"
+          },
+          {
+            "src_ip": "10.0.1.68"
+          },
+          {
+            "src_ip": "10.0.1.69"
+          },
+          {
+            "src_ip": "10.0.1.70"
+          },
+          {
+            "src_ip": "10.0.1.71"
+          },
+          {
+            "src_ip": "10.0.1.72"
+          },
+          {
+            "src_ip": "10.0.1.73"
+          },
+          {
+            "src_ip": "10.0.1.74"
+          },
+          {
+            "src_ip": "10.0.1.75"
+          },
+          {
+            "src_ip": "10.0.1.76"
+          },
+          {
+            "src_ip": "10.0.1.77"
+          },
+          {
+            "src_ip": "10.0.1.78"
+          },
+          {
+            "src_ip": "10.0.1.79"
+          },
+          {
+            "src_ip": "10.0.1.80"
+          },
+          {
+            "src_ip": "10.0.1.81"
+          },
+          {
+            "src_ip": "10.0.1.82"
+          },
+          {
+            "src_ip": "10.0.1.83"
+          },
+          {
+            "src_ip": "10.0.1.84"
+          },
+          {
+            "src_ip": "10.0.1.85"
+          },
+          {
+            "src_ip": "10.0.1.86"
+          },
+          {
+            "src_ip": "10.0.1.87"
+          },
+          {
+            "src_ip": "10.0.1.88"
+          },
+          {
+            "src_ip": "10.0.1.89"
+          },
+          {
+            "src_ip": "10.0.1.90"
+          },
+          {
+            "src_ip": "10.0.1.91"
+          },
+          {
+            "src_ip": "10.0.1.92"
+          },
+          {
+            "src_ip": "10.0.1.93"
+          },
+          {
+            "src_ip": "10.0.1.94"
+          },
+          {
+            "src_ip": "10.0.1.95"
+          },
+          {
+            "src_ip": "10.0.1.96"
+          },
+          {
+            "src_ip": "10.0.1.97"
+          },
+          {
+            "src_ip": "10.0.1.98"
+          },
+          {
+            "src_ip": "10.0.1.99"
+          }
+        ]
+      },
+      "src_port": 0,
+      "group_id": {
+        "strategy": "fixed",
+        "value": "rip-tpos17"
+      }
+    },
+    "expect": {
+      "packet_count": 100,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "52001"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "52002"
+        },
+        {
+          "packet": 100,
+          "field": "udp.srcport",
+          "value": "52100"
+        }
+      ],
+      "notes": [
+        "design §6.13/T-POS-17: 100 FlowIDs, GroupIDStrategy fixed -> single shard worker, no panic/-race",
+        "total packets = 100 routers x 1 route = 100; each router sport 52001+idx"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos18_default_routes",
+    "proto": "rip",
+    "summary": "T-POS-18: Routes=nil + Scenario= omitted -> response_default emits 5 default routes (104B payload)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.length",
+          "value": "112"
+        },
+        {
+          "packet": 1,
+          "field": "rip.command",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "rip.family",
+          "value": "2,2,2,2,2"
+        },
+        {
+          "packet": 1,
+          "field": "rip.metric",
+          "value": "1,1,1,1,1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 ac 10 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-POS-18: no routes key + no scenario -> response_default",
+        "5 default routes: 10.0.0.0/8, 172.16.0.0/16, 192.168.0.0/16, 0.0.0.0/0, 192.168.1.0/24",
+        "payload 104B = 4 header + 5 x 20B RTE; udp.length 112"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos1b_request_full_4tuple",
+    "proto": "rip",
+    "summary": "T-POS-1b: request_full auto Response reuses the exact same 4-tuple (src/dst IP+port), 2 packets, Response carries 5 default routes",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "command": "request",
+        "scenario": "request_full",
+        "multicast": true
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.command",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "52001"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "520"
+        },
+        {
+          "packet": 1,
+          "field": "ip.src",
+          "value": "10.0.0.1"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "224.0.0.9"
+        },
+        {
+          "packet": 2,
+          "field": "rip.command",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "52001"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "520"
+        },
+        {
+          "packet": 2,
+          "field": "ip.src",
+          "value": "10.0.0.1"
+        },
+        {
+          "packet": 2,
+          "field": "ip.dst",
+          "value": "224.0.0.9"
+        },
+        {
+          "packet": 2,
+          "field": "rip.family",
+          "value": "2,2,2,2,2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "01 02 00 00"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "02 02 00 00"
+        },
+        {
+          "packet": 2,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 00 00 00 ff 00 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.1/T-POS-1b: auto Response same SrcIP/DstIP/SrcPort/DstPort as Request (no tuple reversal)",
+        "Request sport 52001 (ephemeral), Response keeps 52001; dport 520 both",
+        "Routes absent -> auto Response uses default 5 routes (family 2,2,2,2,2)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos20_50_entries",
+    "proto": "rip",
+    "summary": "T-POS-20: 50 route entries split into 2 packets of 25 each (512B / 512B)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.1.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.2.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.3.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.4.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.5.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.6.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.7.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.8.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.9.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.10.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.11.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.12.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.13.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.14.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.15.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.17.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.18.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.19.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.20.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.21.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.22.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.23.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.24.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.25.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.26.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.27.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.28.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.29.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.30.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.31.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.32.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.33.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.34.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.35.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.36.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.37.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.38.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.39.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.40.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.41.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.42.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.43.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.44.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.45.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.46.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.47.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.48.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.49.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.length",
+          "value": "512"
+        },
+        {
+          "packet": 2,
+          "field": "udp.length",
+          "value": "512"
+        },
+        {
+          "packet": 1,
+          "field": "rip.family",
+          "value": "2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2"
+        },
+        {
+          "packet": 2,
+          "field": "rip.family",
+          "value": "2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "520"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "520"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-POS-20: 50 entries -> 25+25, both packets 504B payload",
+        "udp.length 512 for both; routes 10.0.0.0/16 .. 10.49.0.0/16"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos21_51_entries",
+    "proto": "rip",
+    "summary": "T-POS-21: 51 route entries split into 3 packets 25+25+1",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.1.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.2.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.3.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.4.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.5.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.6.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.7.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.8.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.9.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.10.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.11.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.12.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.13.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.14.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.15.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.17.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.18.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.19.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.20.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.21.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.22.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.23.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.24.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.25.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.26.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.27.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.28.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.29.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.30.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.31.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.32.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.33.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.34.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.35.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.36.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.37.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.38.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.39.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.40.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.41.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.42.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.43.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.44.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.45.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.46.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.47.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.48.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.49.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.50.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 3,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.length",
+          "value": "512"
+        },
+        {
+          "packet": 2,
+          "field": "udp.length",
+          "value": "512"
+        },
+        {
+          "packet": 3,
+          "field": "udp.length",
+          "value": "32"
+        },
+        {
+          "packet": 3,
+          "field": "rip.family",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "520"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "520"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-POS-21: 51 entries -> 25+25+1; packet 3 carries a single RTE (24B payload)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos22_host_mask",
+    "proto": "rip",
+    "summary": "T-POS-22: host route SubnetMask=255.255.255.255 legal, mask bytes FF FF FF FF",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.255.255",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.netmask",
+          "value": "255.255.255.255"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 00 02 00 00 0a 00 00 00 ff ff ff ff 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-POS-22: /32 host mask accepted, wire mask = FF FF FF FF"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos23_ripng_128",
+    "proto": "rip",
+    "summary": "T-POS-23: RIPng host route PrefixLen=128 legal (prefix 2001:db8:1::)",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "ng",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 0,
+            "ip_addr": "2001:db8:1::",
+            "prefix_len": 128,
+            "route_tag": 0,
+            "metric": 1
+          }
+        ]
+      },
+      "src_ip": "2001:db8::1",
+      "dst_ip": "ff02::9",
+      "src_port": 0,
+      "dst_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ripng.rte.ipv6_prefix",
+          "value": "2001:db8:1::"
+        },
+        {
+          "packet": 1,
+          "field": "ripng.rte.prefix_length",
+          "value": "128"
+        },
+        {
+          "packet": 1,
+          "field": "ripng.rte.metric",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "02 01 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "20 01 0d b8 00 01 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 82,
+          "hex": "00 00 80 01"
+        }
+      ],
+      "notes": [
+        "design §6.14/T-POS-23: RIPng prefix_len 128 (0x80) host route legal",
+        "RTE at offset 66 (Eth14+IPv6 40+UDP 8+header 4); tag/len/metric at offset 82"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos25_md5_authdatalen20",
+    "proto": "rip",
+    "summary": "T-POS-25: MD5 AuthDataLen=20 passthrough, trailer 24B, digest placeholder 20B 0xAA, 68B payload",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ],
+        "auth": {
+          "type": "md5",
+          "key_id": 1,
+          "auth_data_len": 20,
+          "sequence_number": 12345
+        }
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.auth.type",
+          "value": "3"
+        },
+        {
+          "packet": 1,
+          "field": "rip.key_id",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "rip.auth_data_len",
+          "value": "20"
+        },
+        {
+          "packet": 1,
+          "field": "rip.seq_num",
+          "value": "12345"
+        },
+        {
+          "packet": 1,
+          "field": "rip.digest_offset",
+          "value": "44"
+        },
+        {
+          "packet": 1,
+          "field": "udp.length",
+          "value": "76"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00 ff ff 00 03 00 2c 01 14 00 00 30 39 00 00 00 00 00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 0a 00 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 86,
+          "hex": "ff ff 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 90,
+          "hex": "aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa"
+        }
+      ],
+      "notes": [
+        "design §6.15/T-POS-25: auth entry byte 11 (offset 42+11=53) = 0x14 = 20 (AuthDataLen)",
+        "payload 68B = 4 header + 20 auth + 20 RTE + 4 trailer + 20 digest; udp.length 76",
+        "trailer header FF FF 00 01 at payload 44 (frame 86), digest starts payload 48 (frame 90)"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos28_8_routers",
+    "proto": "rip",
+    "summary": "T-POS-28: 8 routers concurrent, total packets = 8 x 1 route x 1 round = 8, src ports 52001-52008",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ],
+        "routers": [
+          {
+            "src_ip": "10.0.2.0"
+          },
+          {
+            "src_ip": "10.0.2.1"
+          },
+          {
+            "src_ip": "10.0.2.2"
+          },
+          {
+            "src_ip": "10.0.2.3"
+          },
+          {
+            "src_ip": "10.0.2.4"
+          },
+          {
+            "src_ip": "10.0.2.5"
+          },
+          {
+            "src_ip": "10.0.2.6"
+          },
+          {
+            "src_ip": "10.0.2.7"
+          }
+        ]
+      },
+      "src_port": 0,
+      "group_id": {
+        "strategy": "fixed",
+        "value": "rip-tpos28"
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "52001"
+        },
+        {
+          "packet": 4,
+          "field": "udp.srcport",
+          "value": "52004"
+        },
+        {
+          "packet": 8,
+          "field": "udp.srcport",
+          "value": "52008"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "224.0.0.9"
+        },
+        {
+          "packet": 8,
+          "field": "ip.dst",
+          "value": "224.0.0.9"
+        }
+      ],
+      "notes": [
+        "design §7.6/T-POS-28: aggregate packet count = 8 routers x 1 route = 8 (throughput itself measured by unit test)",
+        "group_id fixed -> deterministic per-router order; each router sport 52001+idx"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos30_command_default",
+    "proto": "rip",
+    "summary": "T-POS-30: Command omitted -> defaults to response, RIP header command byte 0x02",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "rip.command",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "rip.version",
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "02 02 00 00"
+        }
+      ],
+      "notes": [
+        "design §3/T-POS-30: empty command string defaults to response (commandFromString '')"
+      ]
+    }
+  },
+  {
+    "id": "rip_tpos3_26_entries",
+    "proto": "rip",
+    "summary": "T-POS-3: v2 Response 26 entries split into 2 packets 25+1, same FlowID, no auth",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rip": {}
+        }
+      ],
+      "count": 1,
+      "rip": {
+        "version": "v2",
+        "multicast": true,
+        "routes": [
+          {
+            "afi": 2,
+            "ip_addr": "10.0.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.1.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.2.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.3.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.4.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.5.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.6.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.7.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.8.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.9.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.10.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.11.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.12.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.13.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.14.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.15.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.16.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.17.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.18.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.19.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.20.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.21.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.22.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.23.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.24.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          },
+          {
+            "afi": 2,
+            "ip_addr": "10.25.0.0",
+            "subnet_mask": "255.255.0.0",
+            "metric": 1
+          }
+        ]
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.length",
+          "value": "512"
+        },
+        {
+          "packet": 1,
+          "field": "rip.family",
+          "value": "2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2"
+        },
+        {
+          "packet": 2,
+          "field": "udp.length",
+          "value": "32"
+        },
+        {
+          "packet": 2,
+          "field": "rip.family",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "520"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 00 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 66,
+          "hex": "00 02 00 00 0a 01 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        },
+        {
+          "packet": 2,
+          "offset": 46,
+          "hex": "00 02 00 00 0a 19 00 00 ff ff 00 00 00 00 00 00 00 00 00 01"
+        }
+      ],
+      "notes": [
+        "design §6.3/T-POS-3: 25 RTE in packet 1 (504B payload, udp.length 512), 1 RTE in packet 2 (24B, udp.length 32)",
+        "same FlowID across split (planner emitRIPRoutes); pcap cannot show FlowID, asserted via content split"
+      ]
+    }
+  }
+]

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -17,6 +18,10 @@ type Case struct {
 	Summary  string          `json:"summary"`
 	SpecJSON json.RawMessage `json:"spec_json"`        // generate_traffic "config" argument
 	Output   string          `json:"output,omitempty"` // output_type override ("pcap" default)
+	// StrategyFC, when set, is passed as generate_traffic's
+	// "strategy_flow_control" argument (e.g. {"type":"flows","value":N} for
+	// multi-flow cases). Absent = no strategy flow control.
+	StrategyFC *strategyFCInput `json:"strategy_fc,omitempty"`
 	// Expect holds verification hints; verified against the pcap by verify.go.
 	Expect struct {
 		PacketCount  int           `json:"packet_count,omitempty"` // exact expected packet count
@@ -29,6 +34,13 @@ type Case struct {
 		Terminates   bool          `json:"terminates,omitempty"`
 		Directional  bool          `json:"directional,omitempty"` // both directions present
 		Notes        []string      `json:"notes,omitempty"`
+		// ExpectError: when true, the case is a Validate-negative — the MCP
+		// generate_traffic call OR the resulting task is expected to fail/error.
+		// A failure is treated as PASS; a successful completion is FAIL.
+		ExpectError bool `json:"expect_error,omitempty"`
+		// ErrorContains: optional substring that must appear in the error
+		// message for an ExpectError case to pass (empty = any error accepted).
+		ErrorContains string `json:"error_contains,omitempty"`
 	} `json:"expect,omitempty"`
 }
 
@@ -37,6 +49,24 @@ type FieldAssert struct {
 	Packet int    `json:"packet"`          // 1-based packet index
 	Field  string `json:"field"`           // tshark field name, e.g. "tcp.dstport"
 	Value  string `json:"value,omitempty"` // exact string value; empty means "field present"
+	// SameAsPacket: when > 0, asserts this packet's field value equals the
+	// field value on that packet (1-based). Used for persistence assertions on
+	// run-random values (e.g. smb2.sesid / smb2.file_id) that cannot carry a
+	// fixed hex expectation.
+	SameAsPacket int `json:"same_as_packet,omitempty"`
+	// Nonzero: when true, asserts the field value is present and not all-zero
+	// (hex-number fields like smb2.sesid emit "0x0000000000000000" for zero).
+	Nonzero bool `json:"nonzero,omitempty"`
+	// DistinctValues: schedule-independent aggregation assertion for multi-flow
+	// cases. When non-empty, asserts that across ALL packets the field takes
+	// exactly these values (each at least once) and no others. Packet index is
+	// ignored — the multi-flow scheduler interleaves flows non-deterministically,
+	// so fixed packet positions are meaningless for per-flow values.
+	DistinctValues []string `json:"distinct_values,omitempty"`
+	// DistinctExclude: values to skip during DistinctValues aggregation (e.g.
+	// the server-side port on a bidirectional tcp.srcport scan). Only applies
+	// when DistinctValues is non-empty.
+	DistinctExclude []string `json:"distinct_exclude,omitempty"`
 }
 
 // FrameAssert asserts raw bytes of one frame (tshark -x hex dump).
@@ -44,6 +74,13 @@ type FrameAssert struct {
 	Packet int    `json:"packet"`           // 1-based packet index
 	Offset int    `json:"offset,omitempty"` // byte offset into the frame; default 0
 	Hex    string `json:"hex"`              // wanted bytes, e.g. "00 01 63 6f 6e 66 69 67" (prefix match at offset)
+}
+
+// strategyFCInput mirrors the MCP flowControlInput shape
+// (internal/mcp/tools_strategy.go): {"type":"flows","value":N}.
+type strategyFCInput struct {
+	Type  string  `json:"type"`
+	Value float64 `json:"value"`
 }
 
 // CaseResult is the outcome of driving one case through the MCP server.
@@ -116,8 +153,25 @@ func (r *Runner) RunCase(ctx context.Context, c Case, timeout time.Duration) *Ca
 			"pcap_path": absPath,
 		},
 	}
+	if c.StrategyFC != nil {
+		args["strategy_flow_control"] = map[string]any{
+			"type":  c.StrategyFC.Type,
+			"value": c.StrategyFC.Value,
+		}
+	}
 	raw, err := r.Client.CallTool(ctx, "flowb_generate_traffic", args)
 	if err != nil {
+		// Validate-negative: MCP call itself rejected the config.
+		if c.Expect.ExpectError {
+			if ec := c.Expect.ErrorContains; ec != "" && !strings.Contains(err.Error(), ec) {
+				res.Status = "fail"
+				res.Err = fmt.Sprintf("expected error containing %q, got: %v", ec, err)
+				return res
+			}
+			res.Status = "pass"
+			res.Err = ""
+			return res
+		}
 		res.Err = err.Error()
 		return res
 	}
@@ -154,6 +208,12 @@ func (r *Runner) RunCase(ctx context.Context, c Case, timeout time.Duration) *Ca
 		}
 		switch pres.Status {
 		case "completed":
+			// Validate-negative: task should have failed but succeeded.
+			if c.Expect.ExpectError {
+				res.Status = "fail"
+				res.Err = "expected task to error (Validate-negative) but it completed successfully"
+				return res
+			}
 			res.Status = "pass"
 			res.PacketCount = int(pres.PacketsSent)
 			res.PcapRelPath = absPath
@@ -169,6 +229,18 @@ func (r *Runner) RunCase(ctx context.Context, c Case, timeout time.Duration) *Ca
 			}
 			return res
 		case "error", "failed", "stopped":
+			// Validate-negative: task ended in error as expected.
+			if c.Expect.ExpectError {
+				msg := pres.ErrorMessage
+				if ec := c.Expect.ErrorContains; ec != "" && !strings.Contains(msg, ec) {
+					res.Status = "fail"
+					res.Err = fmt.Sprintf("expected error containing %q, got: %s", ec, msg)
+					return res
+				}
+				res.Status = "pass"
+				res.Err = ""
+				return res
+			}
 			res.Err = fmt.Sprintf("task %s ended %s: %s", gres.TaskID, pres.Status, pres.ErrorMessage)
 			return res
 		}

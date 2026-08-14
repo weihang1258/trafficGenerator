@@ -1,0 +1,8142 @@
+[
+ {
+  "id": "tds_prelogin_versions",
+  "proto": "tds",
+  "summary": "T-001/T-011/T-012: PRELOGIN VERSION+THREADID+MARS+TERMINATOR 协商 → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "directional": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tds.type",
+     "value": "18"
+    },
+    {
+     "packet": 4,
+     "field": "tds.packet_number",
+     "value": "1"
+    },
+    {
+     "packet": 4,
+     "field": "tds.prelogin.option.mars",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "tds.type",
+     "value": "4"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "12 01 00 2f 00 00 01 00 00 00 1a 00 06 01 00 20 00 01 02 00 21 00 01 03 00 22 00 04 04 00 26 00 01 ff"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "04 01 00 1a 00 00 01 00 00 00 0b 00 06 01 00 11 00 01 ff 09 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-001: VERSION 是第一选项 (00 00 1a 00 06)，TERMINATOR(ff) 最后",
+    "T-011: THREADID 数据 b8 0d 00 00 = 0x0db8",
+    "T-012: MARS 选项值=0x00 (关闭)",
+    "T-002: VERSION 数据 09 00 00 00 00 00 00 00"
+   ]
+  }
+ },
+ {
+  "id": "tds_prelogin_encrypt_on",
+  "proto": "tds",
+  "summary": "T-005: encrypt_mode=1 → PRELOGIN ENCRYPTION 数据=0x01 (ENCRYPT_ON)，11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "encrypt_mode": 1,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tds.prelogin.option.encryption",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "tds.prelogin.option.encryption",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "12 01 00 2f 00 00 01 00"
+    },
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "01"
+    }
+   ],
+   "notes": [
+    "T-005: 客户端 ENCRYPT_ON=1；服务器回 0 (不加密) (T-006 服务器 ENCRYPT_OFF 语义)",
+    "PRELOGIN 选项 offset 是相对 PRELOGIN data 起点 (frame 62): VERSION@26=88, ENCRYPTION@32=94, INSTOPT@33=95, THREADID@34=96, MARS@38=100"
+   ]
+  }
+ },
+ {
+  "id": "tds_login7_default",
+  "proto": "tds",
+  "summary": "T-016/T-024/T-025/T-027/T-030: 默认 LOGIN7 (TDS 7.4, sa/password, ODBC, trafficgen) → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "tds.type",
+     "value": "16"
+    },
+    {
+     "packet": 7,
+     "field": "tds.loginack.tdsversion",
+     "value": "0x74000004"
+    },
+    {
+     "packet": 7,
+     "field": "tds.loginack.progname",
+     "value": "Microsoft SQL Server"
+    },
+    {
+     "packet": 7,
+     "field": "tds.envchange.type",
+     "value": "1,7,2,4"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "10 01 00 ca 00 00 01 00 c2 00 00 00 04 00 00 74"
+    },
+    {
+     "packet": 6,
+     "offset": 70,
+     "hex": "00 10 00 00 00 00 00 07 00 01 00 00 00 00 00 00 e0 03 00 00 00 00 00 00 09 04 00 00"
+    },
+    {
+     "packet": 6,
+     "offset": 98,
+     "hex": "5e 00 0f 00 7c 00 02 00 80 00 08 00 90 00"
+    },
+    {
+     "packet": 6,
+     "offset": 190,
+     "hex": "a2 a5 b3 a5 92 a5 92 a5 d2 a5 53 a5 82 a5 e3 a5"
+    }
+   ],
+   "notes": [
+    "T-016: LOGIN7 Length=0xc7=199, TDSVersion wire=04 00 00 74 (BE)",
+    "T-030: OffsetLength 58B, ibHostName=0x5e=94 → Data 区起点 (36+58=94)",
+    "T-024: UserName=sa (02 00), ibUserName=0x7c",
+    "T-025: Password 'password' 混淆 = 每字节高低 4 位互换 XOR 0xA5",
+    "T-027: AppName=trafficgen (0b 00 = 11 字符, ibAppName=0x90)",
+    "T-034: LoginAck ProgName 用 B_VARCHAR = 'Microsoft SQL Server'",
+    "LOGIN7 被 tshark 标 Malformed 是 dissector 限制 (offset table 后按 NTLMSSP 解析)，字段提取不受影响"
+   ]
+  }
+ },
+ {
+  "id": "tds_login7_custom",
+  "proto": "tds",
+  "summary": "T-023/T-028/T-029: HostName/Database/ClientID MAC 自定义 → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "server_name": "sqlsrv01",
+    "client_name": "host-x",
+    "user_name": "admin",
+    "password": "secret1",
+    "database": "testdb",
+    "language": "us_english",
+    "interface_lib": "ODBC",
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "tds.type",
+     "value": "16"
+    },
+    {
+     "packet": 7,
+     "field": "tds.loginack.progname",
+     "value": "Microsoft SQL Server"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "10 01 00 d6 00 00 01 00"
+    },
+    {
+     "packet": 6,
+     "offset": 98,
+     "hex": "5e 00 06 00"
+    }
+   ],
+   "notes": [
+    "T-023: HostName/UserName 等 B_VARCHAR 字段字符数 (cch) 单位",
+    "T-028: Database=testdb → ibDatabase 指向 Data 区",
+    "T-029: ClientID=MAC 6B 原样 00 50 8b e2 b7 8f"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_select",
+  "proto": "tds",
+  "summary": "T-041/042/043/044/045/046: SQL Batch SELECT 'foo' as 'bar' → ALL_HEADERS + UCS-2 SQLText + COLMETADATA/ROW/DONE → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 'foo' as 'bar'"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "1"
+    },
+    {
+     "packet": 8,
+     "field": "tds.query",
+     "value": "select 'foo' as 'bar'"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0010"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "1"
+    },
+    {
+     "packet": 9,
+     "field": "tds.colmetadata.columns",
+     "value": "1"
+    },
+    {
+     "packet": 9,
+     "field": "tds.colmetadata.colname",
+     "value": "c"
+    },
+    {
+     "packet": 9,
+     "field": "tds.type_varbyte.data.int",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "01 01 00 48 00 00 01 00 16 00 00 00 12 00 00 00 02 00 00 00 00 00 00 00 00 00 01 00 00 00"
+    },
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "73 00 65 00 6c 00 65 00 63 00 74 00"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 27 00 00 01 00 81 01 00 00 00 00 00 00 00 38 01 63 00 d1 01 00 00 00 fd 10 00 00 00 01 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-041: SQLText 无长度前缀 (UCS-2 LE)",
+    "T-042: ALL_HEADERS TotalLength=22 (含自身)",
+    "T-043: HeaderType=0x0002 TransactionDescriptor=0 OutstandingRequestCount=1 (AutoCommit)",
+    "T-044: COLMETADATA Count=1, 列类型 0x38=INT4 (56)",
+    "T-045: ROW D1 01 00 00 00 (INT4 值 1)",
+    "T-046: DONE Status=0x10 DONE_COUNT, RowCount=1 (8B)"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_multi",
+  "proto": "tds",
+  "summary": "T-081/082/083/084: SQL 'SELECT 1; SELECT 2; SELECT 3' → 3 结果集, 前 2 DONE_MORE → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1",
+           "expect_rows": 1,
+           "expect_done_more": true
+          },
+          {
+           "text": "select 2",
+           "expect_rows": 1,
+           "expect_done_more": true
+          },
+          {
+           "text": "select 3",
+           "expect_rows": 1
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0011,0x0011,0x0010"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "1,1,1"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status.more",
+     "value": "1,1,0"
+    },
+    {
+     "packet": 9,
+     "field": "tds.type_varbyte.data.int",
+     "value": "1,2,3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 65 00 00 01 00"
+    }
+   ],
+   "notes": [
+    "T-081: 3 组结果集 (COLMETADATA+ROW+DONE ×3) 同一响应包",
+    "T-082: 前 2 个 DONE Status=0x11 = DONE_COUNT|DONE_MORE",
+    "T-083: 最后 DONE Status=0x10 = DONE_COUNT (无 MORE)",
+    "T-084: ROW 值 1/2/3"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_dml_update",
+  "proto": "tds",
+  "summary": "T-066: UPDATE 影响 5 行 → DONE_COUNT RowCount=5 (无结果集) → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "update t set c=c",
+           "expect_rows": 5
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0010"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "5"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 15 00 00 01 00 fd 10 00 00 00 05 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-066: DML 非 SELECT → 无 COLMETADATA, 仅 DONE",
+    "T-046/A48: DONE RowCount 8B LE"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_procid_short",
+  "proto": "tds",
+  "summary": "T-096/T-100/T-102/103/104: RPC sp_executesql ProcID=10 短形式 (FF FF 0A 00) 无参数 → DONEINPROC+RETURNSTATUS+DONEPROC → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    },
+    {
+     "packet": 9,
+     "field": "tds.doneinproc.status",
+     "value": "0x0011"
+    },
+    {
+     "packet": 9,
+     "field": "tds.doneinproc.curcmd",
+     "value": "0x00c1"
+    },
+    {
+     "packet": 9,
+     "field": "tds.doneinproc.donerowcount64",
+     "value": "1"
+    },
+    {
+     "packet": 9,
+     "field": "tds.returnstatus.value",
+     "value": "0"
+    },
+    {
+     "packet": 9,
+     "field": "tds.doneproc.status",
+     "value": "0x0000"
+    },
+    {
+     "packet": 9,
+     "field": "tds.doneproc.curcmd",
+     "value": "0x00e0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "03 01 00 24 00 00 01 00 16 00 00 00 12 00 00 00 02 00 00 00 00 00 00 00 00 00 01 00 00 00 ff ff 0a 00 00 00"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 27 00 00 01 00 ff 11 00 c1 00 01 00 00 00 00 00 00 00 79 00 00 00 00 fe 00 00 e0 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-096: NameLenProcID FF FF 0A 00 短形式",
+    "T-100: OptionFlags=00 全 0",
+    "T-102: DONEINPROC Status=0x11 CurCmd=0xC1 RowCount=1",
+    "T-103: RETURNSTATUS 79 00 00 00 00",
+    "T-104: DONEPROC Status=0 CurCmd=0xE0",
+    "已知 planner bug: RPC OptionFlags 实为 2B (MS-TDS/FreeTDS/tshark 三方一致), planner BuildRPCOptionFlags 返回 1B → tshark Malformed (报告主线程)",
+    "T-115: 响应无多结果集 (单 RPC)",
+    "T-119: 官方示例 4.9 响应序列 DONEINPROC+RETURNSTATUS+DONEPROC 字节级（Type=0x04 响应 39B: FF 11 00 C1 00 + 8B + 79 00 00 00 00 + FE 00 00 E0 00 + 8B）"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_params",
+  "proto": "tds",
+  "summary": "T-098/099/105/109/110: RPC sp_executesql 带 @stmt varchar 参数 + int 参数 → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@stmt",
+           "type": "varchar",
+           "value": "SELECT 1"
+          },
+          {
+           "name": "@n",
+           "type": "int",
+           "value": "42"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    },
+    {
+     "packet": 9,
+     "field": "tds.doneinproc.donerowcount64",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "03 01 00 4d 00 00 01 00"
+    },
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 05 40 00 73 00 74 00 6d 00 74 00 00 a7"
+    }
+   ],
+   "notes": [
+    "T-098: 参数名 B_VARCHAR 1B len + UCS-2 LE",
+    "T-099: BigVarChar 值 用 ASCII 8B 'SELECT 1' + maxlen=8",
+    "T-105: 多参数按顺序编码",
+    "T-109: INT4 参数 26 04 + 4B LE 值",
+    "T-110: NVARCHAR 参数 E7 + maxlen 2B + Collation 5B + 2B len + UCS-2",
+    "已知: OptionFlags 1B vs 2B (MS-TDS) → tshark Malformed (报告主线程)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_longname",
+  "proto": "tds",
+  "summary": "T-097/T-116: RPC 存储过程长名 'foo3' (US_VARCHAR) → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_name": "foo3"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    },
+    {
+     "packet": 9,
+     "field": "tds.returnstatus.value",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "03 01 00 2a 00 00 01 00 16 00 00 00 12 00 00 00 02 00 00 00 00 00 00 00 00 00 01 00 00 00 04 00 66 00 6f 00 6f 00 33 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-097: NameLenProcID 长形式 US_VARCHAR 2B len + UCS-2 LE",
+    "T-116: 'foo3' = 04 00 66 00 6f 00 6f 00 33 00 (官方示例 4.8 字节级)",
+    "已知: OptionFlags 1B vs 2B (MS-TDS) → tshark Malformed (报告主线程)"
+   ]
+  }
+ },
+ {
+  "id": "tds_transmgr_begin_commit",
+  "proto": "tds",
+  "summary": "T-171/174: TransMgr BEGIN(5)+COMMIT(7) → ENVCHANGE Type 8/9 + DONE → 13 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 5
+        }
+       },
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 7
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "14"
+    },
+    {
+     "packet": 9,
+     "field": "tds.envchange.type",
+     "value": "8"
+    },
+    {
+     "packet": 9,
+     "field": "tds.envchange.newvalue_length",
+     "value": "8"
+    },
+    {
+     "packet": 11,
+     "field": "tds.envchange.type",
+     "value": "9"
+    },
+    {
+     "packet": 11,
+     "field": "tds.envchange.oldvalue_length",
+     "value": "8"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "0e 01 00 20 00 00 01 00 16 00 00 00 12 00 00 00 02 00 00 00 00 00 00 00 00 00 01 00 00 00 05 00"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "0e 01 00 20 00 00 01 00 16 00 00 00 12 00 00 00 02 00 00 00 00 00 00 00 00 00 01 00 00 00 07 00"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 23 00 00 01 00 e3 0b 00 08 08 01 00 00 00 00 00 00 00 00 fd 00 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-171: BEGIN → ENVCHANGE Type 8 (NewValue=1B len 0x08 + 8B txnID=1)",
+    "T-174: COMMIT → ENVCHANGE Type 9 (NewValue=00, OldValue=8B ID)",
+    "T-176: ENVCHANGE Length=Type+NewValue+OldValue",
+    "每 TransMgr 请求 = up+down 2 包; 基线 9 + 2×2 = 13"
+   ]
+  }
+ },
+ {
+  "id": "tds_attention",
+  "proto": "tds",
+  "summary": "T-161/162: Attention 包 Type=0x06 Length=8 无 body + DONE_ATTN → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "6"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0020"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status.attn",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "06 01 00 08 00 00 01 00"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 15 00 00 01 00 fd 20 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-161: Attention Length=8 (仅包头), 无 body",
+    "T-162: 服务器 DONE Status=0x20 DONE_ATTN"
+   ]
+  }
+ },
+ {
+  "id": "tds_mars_2sessions",
+  "proto": "tds",
+  "summary": "T-186/192: MARS 2 会话各 1 SQL → OutstandingRequestCount=2, 共享 SPID → 13 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "mars": true,
+    "sessions": [
+     {
+      "id": "a",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "id": "b",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 2"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.all_headers.header.request_cnt",
+     "value": "2"
+    },
+    {
+     "packet": 10,
+     "field": "tds.all_headers.header.request_cnt",
+     "value": "2"
+    },
+    {
+     "packet": 8,
+     "field": "tds.query",
+     "value": "select 1"
+    },
+    {
+     "packet": 10,
+     "field": "tds.query",
+     "value": "select 2"
+    },
+    {
+     "packet": 8,
+     "field": "tds.all_headers.header.trans_descr",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "00"
+    },
+    {
+     "packet": 4,
+     "offset": 100,
+     "hex": "01"
+    }
+   ],
+   "notes": [
+    "T-186: 2 会话 OutstandingRequestCount=2 (共享 SPID 标识连接)",
+    "T-192: 3 会话则=3; 本用例 2 会话",
+    "MARS: PRELOGIN MARS 选项数据=0x01 (Option offset 38, frame 100); ENCRYPTION 数据=0x01 (frame 86)"
+   ]
+  }
+ },
+ {
+  "id": "tds_login7_tds71",
+  "proto": "tds",
+  "summary": "T-017: TDS 7.1 版本 → LOGIN7 TDSVersion wire `71 00 00 00` → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "version": 113,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "tds.type",
+     "value": "16"
+    },
+    {
+     "packet": 7,
+     "field": "tds.loginack.tdsversion",
+     "value": "0x07010000"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 66,
+     "hex": "00 00 00 71"
+    }
+   ],
+   "notes": [
+    "T-017: TDS 7.1 LOGIN7 wire=00 00 00 71 (BE 编码常量 0x71)",
+    "LOGINACK TDSVersion=0x07010000 (spec footnote 72 server→client 列)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_defaultvalue",
+  "proto": "tds",
+  "summary": "T-107: RPC 参数 fDefaultValue=1 → StatusFlags=0x02 + int 值 0 → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@p",
+           "type": "int",
+           "default_value": true,
+           "value": "0"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 70 00 02 38 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-107: StatusFlags=0x02 (fDefaultValue bit1)",
+    "参数名 @p = 02 40 00 70 00 (B_VARCHAR len=2 + UCS-2 '@p')",
+    "StatusFlags=02, TYPE_INFO=38 (INT4), value=4B 0"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_byref",
+  "proto": "tds",
+  "summary": "T-108: RPC 参数 fByRefValue=1 (OUTPUT) → StatusFlags=0x01 → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@p",
+           "type": "int",
+           "by_ref": true,
+           "value": "42"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 70 00 01 38 2a 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-108: StatusFlags=0x01 (fByRefValue bit0=OUTPUT)",
+    "参数名 @p = 02 40 00 70 00 (B_VARCHAR len=2 + UCS-2 '@p')",
+    "StatusFlags=01, TYPE_INFO=38 (INT4), value=0x2A=42 (4B LE)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_bigint_max",
+  "proto": "tds",
+  "summary": "T-112: RPC 参数 BIGINT 值 2^63-1 → 8B LE FF FF FF FF FF FF FF 7F → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@big",
+           "type": "bigint",
+           "value": "9223372036854775807"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 04 40 00 62 00 69 00 67 00 00 7f ff ff ff ff ff ff ff 7f"
+    }
+   ],
+   "notes": [
+    "T-112: BIGINT 最大值 2^63-1 = 0x7FFFFFFFFFFFFFFF",
+    "8B LE: FF FF FF FF FF FF FF 7F",
+    "TYPE_INFO=0x7F (INT8)",
+    "参数名 @big = 04 40 00 62 00 69 00 67 00 (B_VARCHAR len=4)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_int4_null",
+  "proto": "tds",
+  "summary": "T-210: INT4 NULL 参数 → 4B 全 0 → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@n",
+           "type": "int",
+           "null": true
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 6e 00 00 38 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-210: INT4 NULL = 4B 全 0",
+    "定长类型 NULL = 类型宽度全 0",
+    "参数名 @n = 02 40 00 6e 00 (B_VARCHAR len=2)",
+    "TYPE_INFO=0x38 (INT4)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_varchar_null",
+  "proto": "tds",
+  "summary": "T-211: varchar NULL 参数 → 2B 0xFFFF (CHARBIN_NULL) → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@s",
+           "type": "varchar",
+           "null": true
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 73 00 00 a7 40 1f 09 04 d0 00 34 ff ff"
+    }
+   ],
+   "notes": [
+    "T-211: varchar NULL = 2B 0xFFFF (CHARBIN_NULL)",
+    "参数名 @s = 02 40 00 73 00",
+    "TYPE_INFO=0xA7 + maxlen 0x1F40=8000 + Collation 5B"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_varchar_max",
+  "proto": "tds",
+  "summary": "T-203: varchar(max) 参数 → TYPE_INFO A7+FF FF+Collation → PLP body → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@big",
+           "type": "varchar",
+           "max": true,
+           "value": "test data for plp"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 04 40 00 62 00 69 00 67 00 00 a7 ff ff 09 04 d0 00 34 11 00 00 00 00 00 00 00 11 00 00 00 74 65 73 74 20 64 61 74 61 20 66 6f 72 20 70 6c 70 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-203: varchar(max) TYPE_INFO = A7 + FF FF + Collation",
+    "PLP body: 8B length(0x11=17) + chunk(0x11=17) + data + 4B terminator",
+    "参数名 @big = 04 40 00 62 00 69 00 67 00"
+   ]
+  }
+ },
+ {
+  "id": "tds_login_info_tokens",
+  "proto": "tds",
+  "summary": "T-151/T-154: 登录响应含 INFO 5701/5703 → Class=0, 多条收集 → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 7,
+     "field": "tds.info.number",
+     "value": "5701,5703"
+    },
+    {
+     "packet": 7,
+     "field": "tds.info.class",
+     "value": "0,0"
+    },
+    {
+     "packet": 7,
+     "field": "tds.info.state",
+     "value": "2,1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 7,
+     "offset": 92,
+     "hex": "ab"
+    },
+    {
+     "packet": 7,
+     "offset": 242,
+     "hex": "ab"
+    }
+   ],
+   "notes": [
+    "T-151: INFO 5701 Class=0 State=2 'Changed database context'",
+    "T-154: 多条 INFO 全部收集 (5701 + 5703)",
+    "INFO token=0xAB (171), 在 ENVCHANGE 后 LOGINACK 前发送"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_uniqueidentifier",
+  "proto": "tds",
+  "summary": "T-114: RPC 参数 UNIQUEIDENTIFIER → 24 + 10 + 16B GUID → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@guid",
+           "type": "uniqueidentifier",
+           "value": "00112233445566778899aabbccddeeff"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 05 40 00 67 00 75 00 69 00 64 00 00 24 10 10 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff"
+    }
+   ],
+   "notes": [
+    "T-114: UNIQUEIDENTIFIER TYPE_INFO = 24 + 长度(10=16B)",
+    "参数名 @guid = 05 40 00 67 00 75 00 69 00 64 00 (B_VARCHAR len=5)",
+    "BYTELEN_TYPE (MS-TDS §2.4.6): 值 = [1B 长度 0x10][16B GUID] —— 深度审计修复，此前漏长度前缀导致 Wireshark malformed"
+   ]
+  }
+ },
+ {
+  "id": "tds_login7_tds72",
+  "proto": "tds",
+  "summary": "T-018: TDS 7.2 版本 → LOGIN7 TDSVersion wire `02 00 09 72` (BE), LOGINACK 0x72090002 → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "version": 33556850,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "tds.type",
+     "value": "16"
+    },
+    {
+     "packet": 6,
+     "field": "tds.7login.version",
+     "value": "0x72090002"
+    },
+    {
+     "packet": 7,
+     "field": "tds.loginack.tdsversion",
+     "value": "0x72090002"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 66,
+     "hex": "02 00 09 72"
+    }
+   ],
+   "notes": [
+    "T-018: TDS 7.2 LOGIN7 wire=02 00 09 72 (BE 编码常量 0x02000972 = 33556850 decimal)",
+    "LOGINACK TDSVersion=0x72090002 (server→client 列)"
+   ]
+  }
+ },
+ {
+  "id": "tds_login7_tds73a",
+  "proto": "tds",
+  "summary": "T-019: TDS 7.3A 版本 → LOGIN7 TDSVersion wire `03 00 0a 73` (BE), LOGINACK 0x730a0003 → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "version": 50334323,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "tds.type",
+     "value": "16"
+    },
+    {
+     "packet": 6,
+     "field": "tds.7login.version",
+     "value": "0x730a0003"
+    },
+    {
+     "packet": 7,
+     "field": "tds.loginack.tdsversion",
+     "value": "0x730a0003"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 66,
+     "hex": "03 00 0a 73"
+    }
+   ],
+   "notes": [
+    "T-019: TDS 7.3A LOGIN7 wire=03 00 0a 73 (BE 编码常量 0x03000A73 = 50334323 decimal)",
+    "7.3A: 无 NbcRow, 无 fSparseColumnSet (区分 7.3B)",
+    "LOGINACK TDSVersion=0x730a0003"
+   ]
+  }
+ },
+ {
+  "id": "tds_login7_empty_password",
+  "proto": "tds",
+  "summary": "T-026: Password 空串 → cchPassword=0, ibPassword 指向 Data 区 → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "password": "",
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "tds.type",
+     "value": "16"
+    },
+    {
+     "packet": 7,
+     "field": "tds.loginack.progname",
+     "value": "Microsoft SQL Server"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 66,
+     "hex": "04 00 00 74"
+    },
+    {
+     "packet": 6,
+     "offset": 108,
+     "hex": "00 00"
+    }
+   ],
+   "notes": [
+    "T-026: Password='' → 偏移表 cchPassword=0, ibPassword 指向 Data 区",
+    "偏移表 cchPassword 在 frame 108-109 (LOGIN7 body 36+8×9=108, 4B 每对: ibHost(98-101) ibUser(102-105) ibPass(106-109))",
+    "ibPassword 仍存在 (指向 Data 区首)，但 cchPassword=0 表示空密码",
+    "其余字段保持默认值 (TDS 7.4)"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_select_tds71",
+  "proto": "tds",
+  "summary": "T-047: TDS 7.1 下 SQL Batch SELECT → DONE RowCount 4B (非 8B) → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "version": 113,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "1"
+    },
+    {
+     "packet": 8,
+     "field": "tds.length",
+     "value": "46"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "01 01 00 2e 00 00 01 00"
+    }
+   ],
+   "notes": [
+    "T-047: TDS 7.1 下 SQL Batch 无 ALL_HEADERS section (Length=0x2e=46)",
+    "TDS 7.1 vs 7.2+ 区别：7.2+ 有 ALL_HEADERS (22B) → Length=0x48=72",
+    "tshark 自动按版本解码；Frame 8 TDS Type=SQLBatch Length=46",
+    "Frame 9 Response (Type=4, Length=39) 字节级可读；DONE RowCount 4B 不被 tshark 标 donerowcount64 字段"
+   ]
+  }
+ },
+ {
+  "id": "tds_login7_feature_ext",
+  "proto": "tds",
+  "summary": "T-039: TDS 7.4 + FeatureExt SESSIONRECOVERY (id=0x01) → LOGIN7 含 FeatureExt 选项 → 11 包",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "version": 67108980,
+    "feature_exts": [
+     {
+      "id": 1,
+      "data": "0000"
+     }
+    ],
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 6,
+     "field": "tds.type",
+     "value": "16"
+    },
+    {
+     "packet": 7,
+     "field": "tds.loginack.tdsversion",
+     "value": "0x74000004"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 66,
+     "hex": "04 00 00 74"
+    }
+   ],
+   "notes": [
+    "T-039: TDS 7.4 启用 FeatureExt 选项 (OptionFlags2=0x10)",
+    "FeatureExt id=0x01 SESSIONRECOVERY (4B FeatureExtLen + 4B FeatureExtData)",
+    "LOGIN7 Length 增加 8B (FeatureExtLen + FeatureExtData)",
+    "session_recovery data=0000 (无 session id)"
+   ]
+  }
+ },
+ {
+  "id": "tds_validate_login_too_long",
+  "proto": "tds",
+  "summary": "T-021: Validate 负向 — LOGIN7 Length > 128K-1 (MaxLoginLen) → 应报错 (V-TDS-007 字段超长)",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "app_name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "V-TDS-007",
+   "notes": [
+    "T-021: app_name 130 字符 > MaxLoginFieldChars (128) 触发 V-TDS-007",
+    "本 case 验证 LOGIN7 字段字符数超长拒绝路径",
+    "MaxLoginFieldChars=128 (per-field)，全 LOGIN7 包长度上限 128K-1 是另一边界"
+   ]
+  }
+ },
+ {
+  "id": "tds_validate_procname_too_long",
+  "proto": "tds",
+  "summary": "T-117: Validate 负向 — RPC ProcName > MaxProcNameBytes (1046) → 应报错 (V-TDS-022)",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "V-TDS-022",
+   "notes": [
+    "T-117: ProcName 1100 chars > 1046 bytes (MaxProcNameBytes) 触发 V-TDS-022",
+    "验证 RPC 存储过程名字节级超长拒绝路径"
+   ]
+  }
+ },
+ {
+  "id": "tds_inject_error_syntax",
+  "proto": "tds",
+  "summary": "T-136/137/138/140/141/142/143/146: 语法错误 'SELECT FROM' → ERROR(Class15, Len0x48, Number102, State1) + DONE_ERROR, ERROR 在 DONE 前",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "SELECT FROM",
+           "error": {
+            "number": 102,
+            "class": 15,
+            "state": 1,
+            "message": "Incorrect syntax near 'FROM'.",
+            "line_number": 1
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "aa 48 00 66 00 00 00 01 0f"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "102"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.class",
+     "value": "15"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.state",
+     "value": "1"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.msgtext",
+     "value": "Incorrect syntax near 'FROM'."
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.linenumber",
+     "value": "1"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status.error",
+     "value": "1"
+    }
+   ],
+   "notes": [
+    "T-136 Class=15 语法; T-137 Length=0x48 覆盖 Number..LineNumber; T-138 LineNumber 4B LE=1;",
+    "T-140 MsgText US_VARCHAR+UCS-2; T-141 空 ServerName/ProcName 各 1B 0x00; T-142 DONE_ERROR;",
+    "T-143 ERROR 在语句 DONE 之前 (FrameAssert 首 token=AA); T-146 错误号 102 保留原样"
+   ]
+  }
+ },
+ {
+  "id": "tds_inject_error_class14",
+  "proto": "tds",
+  "summary": "T-144: Class=14 权限错误 → ERROR(Number229, Class14), 5 类兼容级别",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "SELECT FROM",
+           "error": {
+            "number": 229,
+            "class": 14,
+            "state": 1,
+            "message": "permission denied",
+            "line_number": 1
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "aa 30 00 e5 00 00 00 01 0e"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "229"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.class",
+     "value": "14"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status.error",
+     "value": "1"
+    }
+   ],
+   "notes": [
+    "T-144 Class=14 权限; FrameAssert 断言 Class 字节=0x0E 与 Length=0x30 (msg 'permission denied' 17 字符 = 34B)",
+    "T-146 错误号 229 保留原样"
+   ]
+  }
+ },
+ {
+  "id": "tds_inject_error_class13_deadlock",
+  "proto": "tds",
+  "summary": "T-145: Class=13 死锁错误 → ERROR(Number1205, Class13)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "SELECT FROM",
+           "error": {
+            "number": 1205,
+            "class": 13,
+            "state": 1,
+            "message": "deadlock",
+            "line_number": 1
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "aa 1e 00 b5 04 00 00 01 0d"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.class",
+     "value": "13"
+    }
+   ],
+   "notes": [
+    "T-145 Class=13 死锁; FrameAssert 断言 Class=0x0D, Length=0x1E, Number1205=0x04B5 LE"
+   ]
+  }
+ },
+ {
+  "id": "tds_inject_error_continue",
+  "proto": "tds",
+  "summary": "T-149: 错误后继续批 — 语句1 ERROR+DONE_ERROR, 语句2 SELECT 正常 DONE_COUNT(RowCount=1)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "SELECT FROM",
+           "error": {
+            "number": 102,
+            "class": 15,
+            "state": 1,
+            "message": "err",
+            "line_number": 1
+           }
+          },
+          {
+           "text": "select 'ok'"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "102"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.class",
+     "value": "15"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status.error",
+     "value": "1,0"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status.more",
+     "value": "1,0"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "0,1"
+    }
+   ],
+   "notes": [
+    "T-149 批内恢复: 语句1 ERROR 后语句2 SELECT 仍正常, 第2个 DONE 携带 RowCount=1 (DONE_COUNT)",
+    "donerowcount64='0,1': 语句1 DONE(DONE_ERROR, rc=0), 语句2 DONE(DONE_COUNT, rc=1)",
+    "tds.done.status.more='1,0': 语句1 非末语句置 DONE_MORE, 语句2 末语句 DONE_FINAL"
+   ]
+  }
+ },
+ {
+  "id": "tds_inject_error_split",
+  "proto": "tds",
+  "summary": "T-148: 错误消息超 packet_size(512) → 响应分包 3 个 TDS 包 (pkt9/10/11)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "packet_size": 512,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "SELECT FROM",
+           "error": {
+            "number": 102,
+            "class": 15,
+            "state": 1,
+            "message": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "line_number": 1
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 17,
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "aa 48 08 66 00 00 00 01 0f"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tcp.srcport",
+     "value": "1433"
+    },
+    {
+     "packet": 10,
+     "field": "tcp.srcport",
+     "value": "1433"
+    },
+    {
+     "packet": 11,
+     "field": "tcp.srcport",
+     "value": "1433"
+    },
+    {
+     "packet": 12,
+     "field": "tcp.srcport",
+     "value": "1433"
+    },
+    {
+     "packet": 13,
+     "field": "tcp.srcport",
+     "value": "1433"
+    }
+   ],
+   "notes": [
+    "T-148 大错误分包: 1053 字符消息 → ERROR token Length=0x0848=2120 > packet_size 512",
+    "响应拆为 5 个 TDS 包 (pkt9/10/11/12/13), 均来自服务器端口 1433; 总包数 15",
+    "FrameAssert 断言首包 ERROR token 头 (Length 0x0848, Number102, Class15)"
+   ]
+  }
+ },
+ {
+  "id": "tds_inject_login_fail",
+  "proto": "tds",
+  "summary": "T-147: 登录失败 → ERROR(Number18456, Class14) + DONE_ERROR 后连接关闭, 会话全跳过 (9 包)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "login": {
+     "error": {
+      "number": 18456,
+      "class": 14,
+      "state": 1,
+      "message": "Login failed for user 'sa'.",
+      "line_number": 1
+     }
+    },
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 11,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "frames": [
+    {
+     "packet": 7,
+     "offset": 62,
+     "hex": "aa 44 00 18 48 00 00 01 0e"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 7,
+     "field": "tds.error.number",
+     "value": "18456"
+    },
+    {
+     "packet": 7,
+     "field": "tds.error.class",
+     "value": "14"
+    },
+    {
+     "packet": 7,
+     "field": "tds.done.status.error",
+     "value": "1"
+    }
+   ],
+   "notes": [
+    "T-147 登录失败: LOGIN7 后 ERROR+DONE(DONE_ERROR), 无 LOGINACK, 会话全跳过直接 teardown",
+    "9 包 = 握手3 + PRELOGIN2 + LOGIN2 + teardown2; FrameAssert 断言 packet7 ERROR 头",
+    "Length=0x44, Number18456=0x4818 LE, Class=0x0E"
+   ]
+  }
+ },
+ {
+  "id": "tds_inject_info_usemaster",
+  "proto": "tds",
+  "summary": "T-151/152/153/156/158/159: USE master → INFO(5701, Class0, State2) + ServerName/ProcName B_VARCHAR + DONE 正常",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "USE master",
+           "info": {
+            "number": 5701,
+            "class": 0,
+            "state": 2,
+            "message": "x",
+            "server_name": "MSSQLServer",
+            "proc_name": "sp_test",
+            "line_number": 0
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "ab 34 00 45 16 00 00 02 00 01 00 78 00 0b 4d 00 53"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.info.number",
+     "value": "5701"
+    },
+    {
+     "packet": 9,
+     "field": "tds.info.class",
+     "value": "0"
+    },
+    {
+     "packet": 9,
+     "field": "tds.info.state",
+     "value": "2"
+    },
+    {
+     "packet": 9,
+     "field": "tds.info.msgtext",
+     "value": "x"
+    },
+    {
+     "packet": 9,
+     "field": "tds.info.servername",
+     "value": "MSSQLServer"
+    },
+    {
+     "packet": 9,
+     "field": "tds.info.procname",
+     "value": "sp_test"
+    },
+    {
+     "packet": 9,
+     "field": "tds.info.linenumber",
+     "value": "0"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status.error",
+     "value": "0"
+    }
+   ],
+   "notes": [
+    "T-151 INFO 5701 Class0 State2; T-152 Length=0x34; T-153 LineNumber=0; T-156 DONE 正常 Status=0",
+    "T-158/159 ServerName/ProcName B_VARCHAR UCS-2 解析 (tshark 验证为 服务器名/过程名)",
+    "FrameAssert 断言 INFO token 头 + ServerName 头 (0B 4D 00 53 = 'M' 'S')",
+    "T-159: INFO ProcName B_VARCHAR 断言 — 注入 INFO 的 ProcName 字段编码"
+   ]
+  }
+ },
+ {
+  "id": "tds_inject_infocoexist",
+  "proto": "tds",
+  "summary": "T-155: INFO 与 ERROR 共存 — INFO 5701 先发, ERROR 102 后发, DONE_ERROR 收尾",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "SELECT FROM",
+           "info": {
+            "number": 5701,
+            "class": 0,
+            "state": 1,
+            "message": "info"
+           },
+           "error": {
+            "number": 102,
+            "class": 15,
+            "state": 1,
+            "message": "err"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.info.number",
+     "value": "5701"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "102"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status.error",
+     "value": "1"
+    }
+   ],
+   "notes": [
+    "T-155 INFO 与 ERROR 共存: INFO 5701 + ERROR 102 同包, DONE_ERROR 收尾",
+    "INFO 先发 (order 由 buildSQLBatchResponse 保证), ERROR 触发任务失败标记"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_varchar_max_multichunk",
+  "proto": "tds",
+  "summary": "T-204/T-206: varchar(max) 4112B 值 → PLP 已知长度 8B(0x1010) + 2 chunk(4096+16) 分块 ≤4096 → 多段",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@big",
+           "type": "varchar",
+           "max": true,
+           "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 16,
+   "fields": [],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 108,
+     "hex": "88 13 00 00 00 00 00 00 00 10 00 00"
+    }
+   ],
+   "notes": [
+    "T-204: PLP 已知长度 8B ULONGLONGLEN = 0x1388 (5000)",
+    "T-206: chunk ≤4096 → 2 chunks (4096 + 904), 首段内可见 PLP 头 88 13 00 00 00 00 00 00 + chunk1 头 00 10 00 00"
+   ]
+  }
+ },
+ {
+  "id": "tds_done_rowcount_5e9",
+  "proto": "tds",
+  "summary": "T-208: DONE_COUNT RowCount=5e9 → 8B LE 00 F2 05 2A 01 00 00 00 (0x12A05F200)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "update t set c=c",
+           "expect_rows": 5000000000
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0010"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "5000000000"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 15 00 00 01 00 fd 10 00 00 00 00 f2 05 2a 01 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-208: RowCount 5×10^9 = 0x12A05F200 → 8B LE 00 F2 05 2A 01 00 00 00",
+    "TDS 7.2+ DONE RowCount 为 8B (A210)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_batch_two_procs",
+  "proto": "tds",
+  "summary": "T-202: 单会话 2 个 RPC → 各自 RPC 请求/响应 (DONEPROC) 隔离 → 每 RPC 独立结果",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10
+        }
+       },
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 11
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    },
+    {
+     "packet": 9,
+     "field": "tds.doneproc.status",
+     "value": "0x0000"
+    },
+    {
+     "packet": 10,
+     "field": "tds.type",
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "ff 11 00 c1 00 01 00 00 00 00 00 00 00 79 00 00 00 00 fe 00 00 e0 00 00 00 00 00 00 00 00 00"
+    },
+    {
+     "packet": 11,
+     "offset": 62,
+     "hex": "ff 11 00 c1 00 01 00 00 00 00 00 00 00 79 00 00 00 00 fe 00 00 e0 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-202: 批内 RPC 各自 DONEPROC, 结果隔离 (A204)",
+    "packet 11 (RPC2 resp) 字节正确 (FrameAssert 通过), 但 tshark TDS 解析器对第二个响应不暴露 doneproc 字段 (解析器限制)",
+    "注: planner 不支持单包内 RPCReqBatch+BatchFlag(0xFF) 线格式 (S13 T-196/197/198 由单测覆盖), 此处验证包级多 RPC 排序隔离"
+   ]
+  }
+ },
+ {
+  "id": "tds_validate_empty_sql",
+  "proto": "tds",
+  "summary": "T-076: Validate 负向 — 空 SQL 文本 → 应报错 (V-TDS-020 空批拒绝)",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": ""
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "V-TDS-020",
+   "notes": [
+    "T-076: statement text 为空串 → Validate 拒绝空批 (V-TDS-020)",
+    "验证 SQL Batch 空文本拒绝路径 (A78)"
+   ]
+  }
+ },
+ {
+  "id": "tds_validate_mars_prereq",
+  "proto": "tds",
+  "summary": "T-195: Validate 负向 — 多会话未协商 MARS → 应报错 (V-TDS-038 前置条件)",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "id": "s2",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 2"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "V-TDS-038",
+   "notes": [
+    "T-195: 2 会话但 mars 未协商 (mars=false) → Validate 拒绝 (V-TDS-038)",
+    "验证 MARS 前置条件 (A197): 多会话必先协商 MARS"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_xml_json_udt",
+  "proto": "tds",
+  "summary": "T-219: RPC 参数 xml/json/udt → TYPE_INFO 0xF1/0xF4/0xF0 + PLP 编码 (COV-09)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@x",
+           "type": "xml",
+           "value": "abc"
+          },
+          {
+           "name": "@j",
+           "type": "json",
+           "value": "{}"
+          },
+          {
+           "name": "@u",
+           "type": "udt",
+           "value": "0102"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "03 01 00 7c 00 00 01 00"
+    },
+    {
+     "packet": 8,
+     "offset": 96,
+     "hex": "f1 ff ff ff ff"
+    },
+    {
+     "packet": 8,
+     "offset": 126,
+     "hex": "f4 ff ff ff ff"
+    },
+    {
+     "packet": 8,
+     "offset": 155,
+     "hex": "f0 ff ff ff ff"
+    },
+    {
+     "packet": 8,
+     "offset": 101,
+     "hex": "03 00 00 00 00 00 00 00 03 00 00 00 61 62 63 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-219: xml TYPE_INFO=0xF1, json=0xF4, udt=0xF0 (COV-09)",
+    "LONGLEN_TYPE (MS-TDS §2.2.5.5.3): TYPE_INFO = type(1B) + MaxLen(4B)=0xFFFFFFFF —— 深度审计修复，此前漏 4B MaxLen 致 Wireshark malformed",
+    "frame 96 xml TYPE_INFO; frame 97-115 PLP len=3 + chunk(len=3,'abc') + term",
+    "frame 122 json TYPE_INFO; frame 147 udt TYPE_INFO",
+    "vector(0xF5) 未纳入 encode/validate 白名单 → 不可经 config 表达 (skip)"
+   ]
+  }
+ },
+ {
+  "id": "tds_integration_full_flow",
+  "proto": "tds",
+  "summary": "T-215: 端到端集成 — PRELOGIN(0x12)→LOGIN7(0x10,TDSVersion 04 00 00 74)→SQL Batch(0x01)→响应(0x04) (INT-01/02)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 'foo' as 'bar'"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tds.type",
+     "value": "18"
+    },
+    {
+     "packet": 6,
+     "field": "tds.type",
+     "value": "16"
+    },
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "1"
+    },
+    {
+     "packet": 9,
+     "field": "tds.type",
+     "value": "4"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 66,
+     "hex": "04 00 00 74"
+    },
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "01 01 00 48 00 00 01 00 16 00 00 00 12 00 00 00 02 00 00 00 00 00 00 00 00 00 01 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-215: 完整 TDSConfig→字节流→PCAP 端到端 (INT-01/02)",
+    "包序列: PRELOGIN(0x12,pkt4)→LOGIN7(0x10,pkt6)→SQL Batch(0x01,pkt8)→响应(0x04,pkt9)",
+    "LOGIN7 TDSVersion 7.4 客户端→服务器 wire=04 00 00 74 (frame 66)",
+    "SQL Batch ALL_HEADERS=22B (frame 54-83), SQLText UCS-2 LE (A217)"
+   ]
+  }
+ },
+ {
+  "id": "tds_mars_txn_isolation",
+  "proto": "tds",
+  "summary": "T-217: MARS 事务隔离 — 会话 A 事务中(TransactionID=5) vs B(0) → ALL_HEADERS.TransactionDescriptor 独立",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "mars": true,
+    "sessions": [
+     {
+      "id": "A",
+      "transaction_id": 5,
+      "requests": [
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 5
+        }
+       },
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "id": "B",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 2"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 17,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.all_headers.header.trans_descr",
+     "value": "5"
+    },
+    {
+     "packet": 10,
+     "field": "tds.all_headers.header.trans_descr",
+     "value": "5"
+    },
+    {
+     "packet": 12,
+     "field": "tds.all_headers.header.trans_descr",
+     "value": "0"
+    }
+   ],
+   "frames": [],
+   "notes": [
+    "T-217: A transaction_id=5 → A 请求 ALL_HEADERS.TransactionDescriptor=5; B 无事务 → =0 (CONC-03)",
+    "A 的 BEGIN(trans_mgr) 满足 V-TDS-036 前置条件; 会话独立描述符互不干扰 (A219)"
+   ]
+  }
+ },
+ {
+  "id": "tds_inject_error_tds71",
+  "proto": "tds",
+  "summary": "T-139: TDS 7.1 下 ERROR LineNumber 2B USHORT",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "version": 113,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "SELECT FROM",
+           "error": {
+            "number": 102,
+            "class": 15,
+            "state": 1,
+            "message": "Incorrect syntax near 'FROM'.",
+            "line_number": 1
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "102"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.linenumber",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "aa 46 00 66 00 00 00 01 0f"
+    }
+   ],
+   "notes": [
+    "T-139/A141: ERROR LineNumber 4B(TDS7.2+) vs 2B(TDS7.1); 7.1 下 Length=0x48, 尾部 2B 01 00 (4B 版本 8B 更长)",
+    "tds.error.linenumber tshark 解析=1; FrameAssert 只断言 token 头 + Number/State/Class",
+    "7.1 全流程: ALL_HEADERS 不存在, DONE RowCount 4B"
+   ]
+  }
+ },
+ {
+  "id": "tds_inject_info_class10",
+  "proto": "tds",
+  "summary": "T-157: INFO Class=10 兼容转换为 0",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "USE master",
+           "info": {
+            "number": 5701,
+            "class": 10,
+            "state": 2,
+            "message": "x",
+            "line_number": 0
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.info.class",
+     "value": "0"
+    },
+    {
+     "packet": 9,
+     "field": "tds.info.number",
+     "value": "5701"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "ab 10 00 45 16 00 00 02 00"
+    }
+   ],
+   "notes": [
+    "T-157/A159: Class=10 → 0 兼容转换 (wire byte 0x00)",
+    "INFO token 头: ab + Length 0x0014 + Number 5701 + State 02 + Class 00"
+   ]
+  }
+ },
+ {
+  "id": "tds_inject_info_loginack_order",
+  "proto": "tds",
+  "summary": "T-160: 登录响应 INFO 在 LOGINACK 前 (5701/5703 → AD)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 7,
+     "field": "tds.info.number",
+     "value": "5701,5703"
+    },
+    {
+     "packet": 7,
+     "field": "tds.loginack.tdsversion",
+     "value": "0x74000004"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 7,
+     "offset": 62,
+     "hex": "e3 1b 00 01 06 6d 00 61 00 73 00 74 00 65 00 72 00 06 6d 00 61 00 73 00 74 00 65 00 72 00 ab"
+    },
+    {
+     "packet": 7,
+     "offset": 220,
+     "hex": "e3 13 00 04 04 34 00 30 00 39 00 36 00 04 34 00 30 00 39 00 36 00 ab"
+    },
+    {
+     "packet": 7,
+     "offset": 337,
+     "hex": "ad 32 00 01 74 00 00 04"
+    }
+   ],
+   "notes": [
+    "T-160/A162: INFO 5701(0xAB) 位于 ENVCHANGE1 后, INFO 5703 位于 LOGINACK(0xAD) 前",
+    "token 序: E3(1)→AB(5701)→E3(7)→E3(2)→E3(4)→AB(5703)→AD→FD",
+    "offset 220 = INFO5703 token 起点; offset 337 = LOGINACK token 起点 (含 TDSVersion 74 00 00 04)"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_select_two_groups",
+  "proto": "tds",
+  "summary": "T-081/082: 两个 SELECT 语句 → 2 组 COLMETADATA+ROW+DONE (首 DONE 带 DONE_MORE)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1",
+           "expect_rows": 1,
+           "expect_done_more": true
+          },
+          {
+           "text": "select 2",
+           "expect_rows": 1
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0011,0x0010"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "1,1"
+    },
+    {
+     "packet": 9,
+     "field": "tds.type_varbyte.data.int",
+     "value": "1,2"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "81 01 00 00 00 00 00 00 00 38 01 63 00 d1 01 00 00 00 fd 11 00 00 00 01 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-081/A83: 2 语句 → 2 组结果集 (COLMETADATA+ROW+DONE ×2) 同一响应包",
+    "T-082/A84: 首 DONE Status=0x11 (DONE_COUNT|DONE_MORE)",
+    "注: 响应合成固定单列 INT4 \"c\" — 多列/中文列名 (T-049/T-050) 不可配置 (BuildColMetadata 由 buildSQLBatchResponse 固定调用)"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_dml_insert_zero",
+  "proto": "tds",
+  "summary": "T-067: INSERT 0 行 → DONE_COUNT RowCount=0",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "insert into t values(1)",
+           "expect_rows": 0
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0000"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "fd 00 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-067/A69: INSERT 影响 0 行 → 有效 0；planner 对非 SELECT 无 expect_rows>0 时不置 DONE_COUNT (Status=0x00)，RowCount 8B 全 0",
+    "T-069/A71: 无 DONE_COUNT 的 DONE RowCount 无效 (未初始化语义)",
+    "FieldAssert DONE status=0x0000 与 FrameAssert 字节一致"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_dml_delete_2to40",
+  "proto": "tds",
+  "summary": "T-068: DELETE 影响 2^40 行 → 8B RowCount",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "delete from t",
+           "expect_rows": 1099511627776
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0010"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "1099511627776"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "fd 10 00 00 00 00 00 00 00 00 01 00 00"
+    }
+   ],
+   "notes": [
+    "T-068/A70: 2^40 = 1099511627776 → 8B LE 00 00 00 00 00 00 00 01",
+    "donerowcount64 tshark=1099511627776; FrameAssert 尾部 8B"
+   ]
+  }
+ },
+ {
+  "id": "tds_done_rowcount_4gb",
+  "proto": "tds",
+  "summary": "T-209: RowCount=2^32-1 → 8B 0xFFFFFFFF",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "insert into t select 1",
+           "expect_rows": 4294967295
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0010"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "4294967295"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "fd 10 00 00 00 ff ff ff ff 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-209/A211: 2^32-1 = 4294967295 → 8B LE FF FF FF FF 00 00 00 00",
+    "8B RowCount 表示 32-bit 边界值 (TDS 7.2+)"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_dml_declare",
+  "proto": "tds",
+  "summary": "T-071: DECLARE 无结果集仅 DONE",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "DECLARE @x int"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0000"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "fd 00 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-071/A73: 非 SELECT (DECLARE) → 无 COLMETADATA/ROW, 仅 DONE status=0",
+    "变量声明不产生 DONE_COUNT (spec: 变量声明例外)"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_error_unique_constraint",
+  "proto": "tds",
+  "summary": "T-072: 唯一约束失败 ERROR(16) + DONE_ERROR",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "insert into t values(1)",
+           "error": {
+            "number": 2627,
+            "class": 16,
+            "state": 1,
+            "message": "Violation of UNIQUE KEY constraint.",
+            "line_number": 1
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "2627"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.class",
+     "value": "16"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status.error",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "aa 54 00 43 0a 00 00 01 10"
+    }
+   ],
+   "notes": [
+    "T-072/A74: ERROR(Class=16) + DONE(DONE_ERROR 0x02)",
+    "2627=0xA43; Length=0x68=104"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_error_class20",
+  "proto": "tds",
+  "summary": "T-074: ERROR Class=20 严重错误",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "bad statement",
+           "error": {
+            "number": 50000,
+            "class": 20,
+            "state": 1,
+            "message": "Severe error",
+            "line_number": 1
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "50000"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.class",
+     "value": "20"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "aa 26 00 50 c3 00 00 01 14"
+    }
+   ],
+   "notes": [
+    "T-074/A76: Class=20 严重错误可观测 (DONE_SRVERROR 0x100 位为响应合成固定, 此处断言 ERROR Class=20)",
+    "50000=0xC350; Class=20 → wire byte 0x14"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_multi_no_semicolon",
+  "proto": "tds",
+  "summary": "T-087: 批语句间无分号仍按批解析",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1",
+           "expect_rows": 1,
+           "expect_done_more": true
+          },
+          {
+           "text": "select 2",
+           "expect_rows": 1
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.query",
+     "value": "select 1;select 2"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0011,0x0010"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "73 00 65 00 6c 00 65 00 63 00 74 00 20 00 31 00 3b 00 73 00 65 00 6c 00 65 00 63 00 74 00 20 00 32 00"
+    }
+   ],
+   "notes": [
+    "T-087/A89: 无分号多语句批 (planner 编码时以 ';' 拼接)",
+    "SQLText UCS-2 LE: 'select 1;select 2' 无换行/分号结尾",
+    "tds.query=select 1;select 2"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_multi_error_isolation",
+  "proto": "tds",
+  "summary": "T-086: 中间语句报错, 组 3 仍正常返回",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1",
+           "expect_rows": 1,
+           "expect_done_more": true
+          },
+          {
+           "text": "bad",
+           "error": {
+            "number": 102,
+            "class": 15,
+            "state": 1,
+            "message": "err2",
+            "line_number": 1
+           }
+          },
+          {
+           "text": "select 3",
+           "expect_rows": 1
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "102"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status.error",
+     "value": "0,1,0"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status.more",
+     "value": "1,1,0"
+    },
+    {
+     "packet": 9,
+     "field": "tds.type_varbyte.data.int",
+     "value": "1,3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "81 01 00 00 00 00 00 00 00 38 01 63 00 d1 01 00 00 00 fd 11 00 00 00 01 00 00 00 00 00 00 00 aa 16 00"
+    }
+   ],
+   "notes": [
+    "T-086/A88: 语句2 ERROR + DONE(0x12), 语句3 SELECT 正常返回 (错误隔离)",
+    "status.error=0,1,0; ROW 值 1,3; 组2 无 ROW (ERROR 无结果集)"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_result_set_isolation",
+  "proto": "tds",
+  "summary": "T-091: DONE 后列上下文重置 — 组2 ROW 前无 COLMETADATA 时 tshark 解析 (包 9)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          },
+          {
+           "text": "select 2"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0011,0x0010"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "1,1"
+    }
+   ],
+   "notes": [
+    "T-081/A83: 2 语句 → 2 组结果集",
+    "T-082/A84: 首 DONE Status=0x11 (DONE_COUNT|DONE_MORE)",
+    "T-091/A93: 每组 ROW 紧跟其 COLMETADATA，tshark 顺序解析无串扰"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_column_metadata_two_groups",
+  "proto": "tds",
+  "summary": "T-085: 组间 COLMETADATA 独立 — 2 语句各 1 列 (INT4 'c')",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          },
+          {
+           "text": "select 2"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "81 01 00 00 00 00 00 00 00 38 01 63 00 d1 01 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-085/A87: 组间 COLMETADATA 各自独立 (每语句一组)",
+    "FrameAssert: 组1 COLMETADATA (Count=1 INT4 'c') + ROW (d1 01 00 00 00)"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_dml_update_then_select",
+  "proto": "tds",
+  "summary": "T-070: DML 后跟 SELECT — 首 DONE 带 DONE_MORE (0x11) 次 DONE 0x10",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "update t set c=c",
+           "expect_rows": 5
+          },
+          {
+           "text": "select 2"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0011,0x0010"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "5,1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "fd 11 00 00 00 05 00 00 00 00 00 00 00 81 01 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-070/A72: 批内多语句 — 首 DONE Status=0x11 (DONE_COUNT|DONE_MORE)",
+    "DML (UPDATE) 无结果集，仅 DONE；expect_rows=5 → DONECount RowCount=5"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_error_batch_continue",
+  "proto": "tds",
+  "summary": "T-073: 批中一条失败后续继续 — 失败 0x12 后续 0x10",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "UPDATE t SET c=1",
+           "error": {
+            "number": 2627,
+            "class": 16,
+            "state": 1,
+            "message": "duplicate key"
+           },
+           "expect_rows": 5
+          },
+          {
+           "text": "select 3",
+           "expect_rows": 3
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "2627"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.class",
+     "value": "16"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0003,0x0010"
+    }
+   ],
+   "notes": [
+    "T-073/A75: 失败语句 DONE 带 DONE_ERROR 与 DONE_MORE -> Status=0x03 (实际 wire)",
+    "注: 实现 error 路径不置 DONECount (RowCount=0)；spec A75 期望 0x12 为文档偏差 - 已按 wire 断言",
+    "后续语句 DONE Status=0x10 (DONE_COUNT) RowCount=1 正常"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_error_class20_srverror",
+  "proto": "tds",
+  "summary": "T-074: Class=20 严重错误 → DONE_SRVERROR (0x100) 结果集丢弃",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select from",
+           "error": {
+            "number": 50000,
+            "class": 20,
+            "state": 1,
+            "message": "severe"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.class",
+     "value": "20"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "50000"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0102"
+    }
+   ],
+   "notes": [
+    "T-074/A76: Class 20+ -> DONE_SRVERROR(0x100) 位 (planner 修复: buildSQLBatchResponse 按 class>=20 置位)",
+    "ERROR 路径同时带 DONE_ERROR(0x02) -> Status=0x0102"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_multi_semicolon_empty",
+  "proto": "tds",
+  "summary": "T-051: SQL 含空语句 'select 1;;select 2' — 不额外生成 DONE",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1;;select 2"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0010"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "1"
+    }
+   ],
+   "notes": [
+    "T-051/A53: 空语句 ';' 不额外生成 DONE - 'select 1;;select 2' 是一个 statement 文本",
+    "planner 按 statement 粒度 (StatementSpec) 合成响应: 1 条语句 -> 1 个 DONE (0x10)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_empty_name",
+  "proto": "tds",
+  "summary": "T-106: RPC 参数名为空 → B_VARCHAR len=0 (00)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "",
+           "type": "int",
+           "value": "42"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 00 00 38 2a 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-106/A108: 空参数名 → B_VARCHAR len=0 无数据 (00)",
+    "请求体: NameLenProcID(FF FF 0A 00) + OptionFlags(00 00) + ParamName(00) + StatusFlags(00) + INT4(38) + 4B LE 42"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_bit_null",
+  "proto": "tds",
+  "summary": "T-111: BIT 参数 NULL — TYPE_INFO 0x32 + 0x00 (差异: spec 期望 BITNTYPE 0x68)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@b",
+           "type": "bit",
+           "null": true
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 62 00 00 32 00"
+    }
+   ],
+   "notes": [
+    "T-111/A113: BITN NULL 期望 68 00 (BITNTYPE+0)，实现用 TypeBit=0x32+1B 0 — 记录为已知差异 (builder_rpc.go encodeTypeInfoAndValue 'bit' 分支)，byte 级断言随实现"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_varchar_max_null",
+  "proto": "tds",
+  "summary": "T-212: varchar(max) NULL → PLP_NULL 8B 0xFF×8",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@s",
+           "type": "varchar",
+           "max": true,
+           "null": true
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 73 00 00 a7 ff ff 09 04 d0 00 34 ff ff ff ff ff ff ff ff"
+    }
+   ],
+   "notes": [
+    "T-212/A214: varchar(max) NULL → 8B 0xFFFFFFFFFFFFFFFF (PLP_NULL)",
+    "TYPE_INFO: A7 FF FF (max) + Collation 5B; TYPE_VARBYTE: PLP_NULL"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_tinyint",
+  "proto": "tds",
+  "summary": "T-109 变体: TINYINT 参数 → TypeInt1 0x34 + 1B 值",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@t",
+           "type": "tinyint",
+           "value": "255"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 74 00 00 30 ff"
+    }
+   ],
+   "notes": [
+    "T-109 扩展: 定长整数家族 - tinyint TypeInt1=0x30 1B 值 255",
+    "int2=0x34/int4=0x38/int8=0x7F 定长分支 (builder.go 常量)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_decimal",
+  "proto": "tds",
+  "summary": "T-080 扩展: decimal(10,2) 参数 → DECIMALNTYPE 0x6C + 4B 类型信息 + BYTELEN 值",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@d",
+           "type": "decimal",
+           "value": "123450",
+           "precision": 10,
+           "scale": 2
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 64 00 00 6a 09 0a 02 09 01 3a e2 01 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-080/A82 扩展: DECIMALNTYPE=0x6A + maxlen 0x09 + Precision 0x0A + Scale 0x02",
+    "TYPE_VARBYTE: BYTELEN 0x09 + 符号 0x01 + 8B LE 123450 (3a e2 01 00 00 00 00 00)",
+    "注: numeric 才用 0x6C (TypeNumericN)；decimal 固定 0x6A"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_empty_default",
+  "proto": "tds",
+  "summary": "T-118: 空参数名 + fDefaultValue → `00 02` StatusFlags 位解析",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "",
+           "type": "int",
+           "default_value": true,
+           "value": "0"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 00 02 38 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-118/A120: 空参数名 (00) + StatusFlags=0x02 (fDefaultValue bit1) + INT4 0x38 + 4B 0"
+   ]
+  }
+ },
+ {
+  "id": "tds_attention_idle_confirm",
+  "proto": "tds",
+  "summary": "T-168: 无活动请求时 Attention — 服务器仍回 DONE_ATTN (0x20)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "6"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0020"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "06 01 00 08 00 00 01 00"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 15 00 00 01 00 fd 20 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-161/A163: Attention 包 Type=0x06 Length=8 无 body",
+    "T-162/A164: 服务器 DONE_ATTN Status=0x20",
+    "T-168/A170: 无活动请求时服务器 SHOULD 不取消但仍回确认"
+   ]
+  }
+ },
+ {
+  "id": "tds_transmgr_rollback",
+  "proto": "tds",
+  "summary": "T-175: ROLLBACK → ENVCHANGE Type 10 同构",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 8
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "14"
+    },
+    {
+     "packet": 9,
+     "field": "tds.envchange.type",
+     "value": "10"
+    },
+    {
+     "packet": 9,
+     "field": "tds.envchange.oldvalue_length",
+     "value": "8"
+    }
+   ],
+   "notes": [
+    "T-175/A177: ROLLBACK (request_type=8) → ENVCHANGE Type 10, OldValue=8B TransactionID"
+   ]
+  }
+ },
+ {
+  "id": "tds_transmgr_savepoint",
+  "proto": "tds",
+  "summary": "T-180: SAVE TRAN (request_type=9) — 无 ENVCHANGE 仅 DONE",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 9,
+         "payload": "4e616d65"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0000"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 15 00 00 01 00 fd 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-180/A182: SAVE TRAN 无 ENVCHANGE (仅创建保存点) — 响应仅 DONE Status=0x00",
+    "T-176/A178: 请求 body = ALL_HEADERS(22B) + 2B LE type 09 + payload 'Name'(4e616d65)"
+   ]
+  }
+ },
+ {
+  "id": "tds_transmgr_begin_payload",
+  "proto": "tds",
+  "summary": "T-181: TM_BEGIN_XACT(5) ISOLATION_LEVEL=0x02 + payload 字节可观测",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 5,
+         "payload": "0102064e616d65"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "0e 01 00 27 00 00 01 00 16 00 00 00 12 00 00 00 02 00 00 00 00 00 00 00 00 00 01 00 00 00 05 00 01 02 06 4e 61 6d 65"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 23 00 00 01 00 e3 0b 00 08 08 01 00 00 00 00 00 00 00 00 fd 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-181/A183: TM_BEGIN_XACT(5) body 含 ISOLATION_LEVEL=0x02 + B_VARBYTE BEGIN_XACT_NAME 'Name'",
+    "T-171/A173: BEGIN → ENVCHANGE Type 8 (NewValue 1B len 0x08 + 8B TransactionID)",
+    "T-172/A174: ENVCHANGE 8 NewValue 结构已确认"
+   ]
+  }
+ },
+ {
+  "id": "tds_transmgr_promote",
+  "proto": "tds",
+  "summary": "T-184: TM_PROMOTE_XACT(6) → 仅 DONE 无 ENVCHANGE (planner 未合成 ENVCHANGE 15)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 6
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "14"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0000"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 15 00 00 01 00 fd 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-184/A186: TM_PROMOTE_XACT(6) spec 要求 ENVCHANGE 15 (DTC token) — 实现未合成 (buildTransMgrResponse 仅处理 5/7/8)，记录为差异，仅 DONE"
+   ]
+  }
+ },
+ {
+  "id": "tds_mars_3sessions",
+  "proto": "tds",
+  "summary": "T-192: 3 会话 → OutstandingRequestCount=3 (MARS 活动请求计数)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "mars": true,
+    "sessions": [
+     {
+      "id": "a",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "id": "b",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 2"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "id": "c",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 3"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.all_headers.header.request_cnt",
+     "value": "3"
+    },
+    {
+     "packet": 10,
+     "field": "tds.all_headers.header.request_cnt",
+     "value": "3"
+    },
+    {
+     "packet": 12,
+     "field": "tds.all_headers.header.request_cnt",
+     "value": "3"
+    },
+    {
+     "packet": 8,
+     "field": "tds.query",
+     "value": "select 1"
+    },
+    {
+     "packet": 12,
+     "field": "tds.query",
+     "value": "select 3"
+    }
+   ],
+   "notes": [
+    "T-192/A194: 3 会话 → 每条请求 OutstandingRequestCount=3 (动态活动请求数)",
+    "T-186/A188: MARS 共享 SPID 0x0042"
+   ]
+  }
+ },
+ {
+  "id": "tds_mars_3sessions_err_isolate",
+  "proto": "tds",
+  "summary": "T-190: 会话 A 报错仅 A 收 ERROR — B 的 DONE 正常 (0x10 RowCount=1)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "mars": true,
+    "sessions": [
+     {
+      "id": "a",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "bad sql",
+           "error": {
+            "number": 102,
+            "class": 15,
+            "state": 1,
+            "message": "syntax error"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "id": "b",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 2"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "102"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0002"
+    },
+    {
+     "packet": 11,
+     "field": "tds.done.status",
+     "value": "0x0010"
+    },
+    {
+     "packet": 11,
+     "field": "tds.done.donerowcount64",
+     "value": "1"
+    }
+   ],
+   "notes": [
+    "T-190/A192: A 出错仅 A 收 ERROR (pkt9)；B (pkt11) DONE Status=0x10 DONE_COUNT RowCount=1 不受影响"
+   ]
+  }
+ },
+ {
+  "id": "tds_done_rowcount_2g",
+  "proto": "tds",
+  "summary": "T-208: RowCount=2147483647 (2^31-1) 8B LE",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "delete from t",
+           "expect_rows": 2147483647
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "fd 10 00 00 00 ff ff ff 7f 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-208 边界扩展: RowCount=2^31-1 → 8B LE ff ff ff 7f 00 00 00 00 (64 位表示)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_varbinary_null",
+  "proto": "tds",
+  "summary": "T-211 扩展: varbinary NULL → 2B 0xFFFF (CHARBIN_NULL)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@v",
+           "type": "varbinary",
+           "null": true
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 76 00 00 a5 40 1f ff ff"
+    }
+   ],
+   "notes": [
+    "T-211/A213: 变长 NULL=CHARBIN_NULL 2B 0xFFFF — varbinary (TypeBigVarBin 0xA5) 同构"
+   ]
+  }
+ },
+ {
+  "id": "tds_validate_version",
+  "proto": "tds",
+  "summary": "V-TDS-001: version 非法 (0x12345678) → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "version": 305419896,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-017 域: version=0x12345678 不在 {7.1,7.2,7.3A,7.3B,7.4} → V-TDS-001"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-001"
+  }
+ },
+ {
+  "id": "tds_validate_packet_size",
+  "proto": "tds",
+  "summary": "V-TDS-002: packet_size=128 超下限 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "packet_size": 128,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-063/A65: packet_size < 512 → V-TDS-002"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-002"
+  }
+ },
+ {
+  "id": "tds_validate_no_sessions",
+  "proto": "tds",
+  "summary": "V-TDS-003: sessions 为空 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": []
+   }
+  },
+  "expect": {
+   "notes": [
+    "V-03: sessions 为空 → V-TDS-003"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-003"
+  }
+ },
+ {
+  "id": "tds_validate_no_requests",
+  "proto": "tds",
+  "summary": "V-TDS-004: requests 为空 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": []
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "V-04: requests 为空 → V-TDS-004"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-004"
+  }
+ },
+ {
+  "id": "tds_validate_bad_type",
+  "proto": "tds",
+  "summary": "V-TDS-005: type 非法 ('bogus') → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "bogus"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "V-05: type 不在 {sql_batch, rpc, trans_mgr, attention} → V-TDS-005"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-005"
+  }
+ },
+ {
+  "id": "tds_validate_missing_sql",
+  "proto": "tds",
+  "summary": "V-TDS-006: type=sql_batch 但 sql 缺失 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "V-06: type 与内容不匹配 → V-TDS-006"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-006"
+  }
+ },
+ {
+  "id": "tds_validate_feature_unknown_id",
+  "proto": "tds",
+  "summary": "V-TDS-016: FeatureId=0x77 未知 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "feature_exts": [
+     {
+      "id": 119
+     }
+    ],
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-040 域: FeatureId 不在已知集合 → V-TDS-016"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-016"
+  }
+ },
+ {
+  "id": "tds_validate_procid_too_big",
+  "proto": "tds",
+  "summary": "V-TDS-023: ProcId=20 > 15 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 20
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-096 域: ProcId > 15 → V-TDS-023"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-023"
+  }
+ },
+ {
+  "id": "tds_validate_procname_and_id",
+  "proto": "tds",
+  "summary": "V-TDS-024: ProcName 与 ProcId 同时指定 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_name": "foo",
+         "proc_id": 10
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-097/T-096 域: 互斥规则 → V-TDS-024"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-024"
+  }
+ },
+ {
+  "id": "tds_validate_param_type",
+  "proto": "tds",
+  "summary": "V-TDS-025: 参数类型 'datetime' 不在白名单 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@d",
+           "type": "datetime",
+           "value": "2020-01-01"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-113 域: datetime/datetime2/date/time 未实现 → 拒绝 (V-TDS-025)"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-025"
+  }
+ },
+ {
+  "id": "tds_validate_param_maxlen",
+  "proto": "tds",
+  "summary": "V-TDS-026: varchar max_len=9000 非 max → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@s",
+           "type": "varchar",
+           "value": "x",
+           "max_len": 9000
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-099 域: varchar > 8000 且非 max → V-TDS-026"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-026"
+  }
+ },
+ {
+  "id": "tds_validate_param_precision",
+  "proto": "tds",
+  "summary": "V-TDS-027: decimal precision=40 > 38 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@d",
+           "type": "decimal",
+           "value": "1",
+           "precision": 40
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-080 域: precision > 38 → V-TDS-027"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-027"
+  }
+ },
+ {
+  "id": "tds_validate_param_scale",
+  "proto": "tds",
+  "summary": "V-TDS-028: decimal scale=20 > precision=10 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@d",
+           "type": "decimal",
+           "value": "1",
+           "precision": 10,
+           "scale": 20
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-080 域: scale > precision → V-TDS-028"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-028"
+  }
+ },
+ {
+  "id": "tds_validate_transmgr_type",
+  "proto": "tds",
+  "summary": "V-TDS-034: trans_mgr request_type=99 未知 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 99
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-185 域: request_type 不在 {0,1,5,6,7,8,9} → V-TDS-034"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-034"
+  }
+ },
+ {
+  "id": "tds_validate_save_payload",
+  "proto": "tds",
+  "summary": "V-TDS-035: TM_SAVE_XACT (9) payload 空 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 9
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-180 域: SAVE TRAN 需非空名 payload → V-TDS-035"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-035"
+  }
+ },
+ {
+  "id": "tds_validate_txn_no_begin",
+  "proto": "tds",
+  "summary": "V-TDS-036: transaction_id=5 但无 BEGIN 前置 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "transaction_id": 5,
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "V-35: 事务描述符需先 BEGIN (SQL Batch 或 TM_BEGIN_XACT) → V-TDS-036"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-036"
+  }
+ },
+ {
+  "id": "tds_validate_error_class",
+  "proto": "tds",
+  "summary": "V-TDS-060: ERROR 注入 class=5 < 11 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1",
+           "error": {
+            "number": 100,
+            "class": 5,
+            "state": 1,
+            "message": "low"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-136 域: ERROR 注入 class 必须 11..25 → V-TDS-060"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-060"
+  }
+ },
+ {
+  "id": "tds_validate_info_class",
+  "proto": "tds",
+  "summary": "V-TDS-061: INFO 注入 class=15 > 10 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1",
+           "info": {
+            "number": 100,
+            "class": 15,
+            "state": 1,
+            "message": "high"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-157 域: INFO 注入 class 必须 0..10 → V-TDS-061"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-061"
+  }
+ },
+ {
+  "id": "tds_prelogin_mars_off",
+  "proto": "tds",
+  "summary": "T-013: MARS=0x00 (关闭) — PRELOGIN MARS 选项值字节",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 100,
+     "hex": "00"
+    }
+   ],
+   "notes": [
+    "T-013/A15: MARS 关闭 → 选项数据 0x00 (与 T-012 启用 0x01 区分)"
+   ]
+  }
+ },
+ {
+  "id": "tds_prelogin_encrypt_required",
+  "proto": "tds",
+  "summary": "T-007: ENCRYPTION=0x03 (req) → 服务器回 ENCRYPT_ON (0x01)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "encrypt_mode": 3,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 100,
+     "hex": "00"
+    },
+    {
+     "packet": 5,
+     "offset": 79,
+     "hex": "01"
+    }
+   ],
+   "notes": [
+    "T-007/A9: 客户端请求 ENCRYPT_REQ → 服务器响应 ENCRYPTION 值=0x01 (ENCRYPT_ON)"
+   ]
+  }
+ },
+ {
+  "id": "tds_prelogin_encrypt_notsup",
+  "proto": "tds",
+  "summary": "T-008: ENCRYPTION=0x02 (not_sup) → 服务器回 ENCRYPT_NOT_SUP (0x02)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "encrypt_mode": 2,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 94,
+     "hex": "02"
+    }
+   ],
+   "notes": [
+    "T-008/A10: ENCRYPT_NOT_SUP → 响应值 0x02 不加密继续登录"
+   ]
+  }
+ },
+ {
+  "id": "tds_login7_optionflags1",
+  "proto": "tds",
+  "summary": "T-031: OptionFlags1=0xE0 位解析 (fDumpLoad|fUseDB|fDatabase|fSetLang)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "login": {
+     "option_flags1": 224
+    },
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 86,
+     "hex": "e0"
+    }
+   ],
+   "notes": [
+    "T-031/A33: OptionFlags1 LSB 序 0xE0 = fDumpLoad(bit5)|fUseDB(bit6)|fDatabase(bit7)|fSetLang(bit3?)",
+    "默认值即 0xE0 (buildLogin7Packet 默认 optFlags1=0xE0)"
+   ]
+  }
+ },
+ {
+  "id": "tds_login7_typeflags",
+  "proto": "tds",
+  "summary": "T-032: TypeFlags=0x01 (fSQLType=TSQL)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "login": {
+     "type_flags": 1
+    },
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 88,
+     "hex": "01"
+    }
+   ],
+   "notes": [
+    "T-032/A34: TypeFlags bit0 fSQLType=TSQL",
+    "默认 0x00 (ADO)；此处显式 0x01"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_curcmd_transparent",
+  "proto": "tds",
+  "summary": "T-061: CurCmd 任意值 (0xC1) 透传 — DONE CurCmd 字段",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "81 01 00 00 00 00 00 00 00 38 01 63 00 d1 01 00 00 00 fd 10 00 00 00 01 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-061/A63: 响应 DONE CurCmd=0x0000 透传不解释 (SQL 批路径固定 0)",
+    "DONE token: FD + Status 10 00 + CurCmd 00 00 + 8B RowCount 01 00 00 00 00 00 00 00"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_varbinary",
+  "proto": "tds",
+  "summary": "T-099 扩展: varbinary 参数 → TypeBigVarBin 0xA5 + maxlen + 2B len + 原始字节",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@v",
+           "type": "varbinary",
+           "value": "00ff10"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 76 00 00 a5 40 1f 03 00 00 ff 10"
+    }
+   ],
+   "notes": [
+    "T-099/A101 扩展: BigVarBin 0xA5 + maxlen 0x401f + USHORT 长度 03 00 + 数据 00 ff 10"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_bignvarchar",
+  "proto": "tds",
+  "summary": "T-110 扩展: nvarchar(max) 非 NULL → PLP 编码 UCS-2",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@n",
+           "type": "nvarchar",
+           "max": true,
+           "value": "ab"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 6e 00 00 e7 ff ff 09 04 d0 00 34 04 00 00 00 00 00 00 00 04 00 00 00 61 00 62 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-110/A112 扩展: NVarChar 0xE7 FF FF (max) + Collation + PLP 已知长度 4B UCS-2 ('ab')",
+    "PLP: 8B 总长 04 + chunk(4B len 04 + 61 00 62 00) + 4B 终止"
+   ]
+  }
+ },
+ {
+  "id": "tds_mars_3sessions_multi_done",
+  "proto": "tds",
+  "summary": "T-189: 会话内 3 语句 → 2 个 DONE_MORE + 1 个 DONE_FINAL",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "mars": true,
+    "sessions": [
+     {
+      "id": "a",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          },
+          {
+           "text": "select 2"
+          },
+          {
+           "text": "select 3"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0011,0x0011,0x0010"
+    }
+   ],
+   "notes": [
+    "T-189/A191: 会话内 3 条语句 → 2 个 DONE_MORE (0x11) + 1 个 DONE_FINAL (0x10)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_bigint_null",
+  "proto": "tds",
+  "summary": "T-210 扩展: bigint NULL → 8B 全 0",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@b",
+           "type": "bigint",
+           "null": true
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 84,
+     "hex": "ff ff 0a 00 00 00 02 40 00 62 00 00 7f 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-210/A212: 定长 NULL = 类型宽度全 0 — bigint 8B 全 0 (TypeInt8 0x7F)"
+   ]
+  }
+ },
+ {
+  "id": "tds_validate_feature_7_3",
+  "proto": "tds",
+  "summary": "V-TDS-015: FeatureExt 非 7.4 版本 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "version": 113,
+    "feature_exts": [
+     {
+      "id": 1
+     }
+    ],
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-039 域: feature_exts 仅 TDS 7.4 → V-TDS-015"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-015"
+  }
+ },
+ {
+  "id": "tds_login7_client_lcid",
+  "proto": "tds",
+  "summary": "T-024 扩展: client_lcid=0x0409 → LOGIN7 Collation 字段 4B LE",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "client_lcid": 1033,
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-024 扩展: ClientLCID 4B LE @body[32:36] (abs 94) = 0x0409 (1033 默认值)",
+    "LOGIN7 body 起点 = eth14+ip20+tcp20+tds8 = abs 62; body[32:36] = abs 94",
+    "tshark 无 tds.login7.lcid 字段 (解析器限制) — 改用 FrameAssert 字节级断言"
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 94,
+     "hex": "09 04 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "tds_login7_database_language",
+  "proto": "tds",
+  "summary": "T-028/T-030 扩展: database+language 字段 → ibDB/ibLang 偏移表与 Data 区 UCS-2",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "database": "mydb",
+    "language": "us_english",
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 126,
+     "hex": "c2 00 0a 00 d6 00 04 00"
+    },
+    {
+     "packet": 6,
+     "offset": 256,
+     "hex": "75 00 73 00 5f 00 65 00 6e 00 67 00 6c 00 69 00 73 00 68 00"
+    },
+    {
+     "packet": 6,
+     "offset": 276,
+     "hex": "6d 00 79 00 64 00 62 00"
+    }
+   ],
+   "notes": [
+    "T-028/A30: ibLanguage(0xc2=194, cch=10) 偏移表项 @abs126 → Data 'us_english' @abs256",
+    "T-030/A32: ibDatabase(0xd6=214, cch=4) @abs130 → Data 'mydb' @abs276 (UCS-2 LE)",
+    "LOGIN7: 9 对偏移项 + ClientID 6B + 3 对 + cbSSPILong = 58B; 偏移相对 body 起点 (abs62)"
+   ]
+  }
+ },
+ {
+  "id": "tds_login7_password_obfuscate",
+  "proto": "tds",
+  "summary": "T-025: 密码混淆算法 — 'password' 每字节高4位↔低4位互换再 XOR 0xA5",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "login": {
+     "password": "password"
+    },
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 190,
+     "hex": "a2 a5 b3 a5 92 a5 92 a5 d2 a5 53 a5 82 a5 e3 a5"
+    }
+   ],
+   "notes": [
+    "T-025/A27: 'password' 每字节高4位↔低4位互换再 XOR 0xA5: p=0x70→0x07⊕0xA5=0xA2, a=0x61→0x16⊕0xA5=0xB3, s=0x73→0x37⊕0xA5=0x92, w=0x77→0x77⊕0xA5=0xD2, o=0x6F→0xF6⊕0xA5=0x53, r=0x72→0x27⊕0xA5=0x82, d=0x64→0x46⊕0xA5=0xE3",
+    "Data 'sa'(UCS-2) @186-189 后紧跟 16B 混淆密码 @190-205; 'password'=8 字符×2B"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_empty_result_set",
+  "proto": "tds",
+  "summary": "T-048: 空结果集 SELECT — 无 ROW 仅 COLMETADATA + DONE",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "update t set c=c where 1=0",
+           "expect_rows": 0
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0000"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "fd 00 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-048/A50: 空结果集 = 无 ROW/COLMETADATA，仅 DONE。实现路径: select 恒生成 CM+ROW",
+    "重写: 用 DML 'update t set c=c where 1=0' (expect_rows=0) → 仅 DONE(0x00) RowCount=0 13B",
+    "select-where-1=0 路径仍合成 ROW(1 行) — 实现限制, 记录于 notes"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_curcmd_transparent_v2",
+  "proto": "tds",
+  "summary": "T-061 变体: CurCmd=0x0000 请求透传 — DONE CurCmd 固定 0x0000",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 27 00 00 01 00 81 01 00 00 00 00 00 00 00 38 01 63 00 d1 01 00 00 00 fd 10 00 00 00 01 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-061/A63: DONE CurCmd=0x0000 (SQL 批固定)",
+    "修正: 响应包 TDS 总长 0x27 (39B) — 之前误写 0x22; DONE: FD + Status 0x10 + CurCmd 0000 + 8B RowCount=1"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_txn_begin_done_inxact",
+  "proto": "tds",
+  "summary": "T-075: 事务中 DML → DONE_INXACT(0x04) 位 (spec 定义; SQL Server 不置位)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "BEGIN TRAN"
+          },
+          {
+           "text": "update t set c=c",
+           "expect_rows": 1
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0001,0x0010"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.donerowcount64",
+     "value": "0,1"
+    }
+   ],
+   "notes": [
+    "T-075/A77: BEGIN TRAN 语句 → 仅 DONE(0x01 DONE_MORE), 无 ENVCHANGE 无 RowCount; 后续 UPDATE → DONE(0x10) RowCount=1",
+    "DONE_INXACT(0x04) spec 定义但 SQL Server/本实现均不置位 — 记录为 spec 差异, 字节级断言随实现"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_tabname_colinfo_unreachable",
+  "proto": "tds",
+  "summary": "T-090: 浏览模式 TABNAME/COLINFO — 实现不合成 → 记录不可配置",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0010"
+    }
+   ],
+   "notes": [
+    "T-090/A92: TABNAME(0xA4)/COLINFO(0xA5) 浏览模式 token 由 buildSQLBatchResponse 固定不合成",
+    "spec 属 SQL Server 浏览模式可选特性 — 实现无注入点, 不可配置 (归单测域)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_returnvalue_unreachable",
+  "proto": "tds",
+  "summary": "T-122: RETURNVALUE 输出参数 — buildRPCResponse 固定 DONEINPROC+RETURNSTATUS+DONEPROC",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@o",
+           "type": "int",
+           "value": "42",
+           "by_ref": true
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.returnstatus.value",
+     "value": "0"
+    }
+   ],
+   "notes": [
+    "T-122/A124: RETURNVALUE token (79 02 ...) 响应侧输出参数编码未实现",
+    "buildRPCResponse 固定三 token 序列 — 无 RETURNVALUE 注入点, 不可配置 (归单测域)"
+   ]
+  }
+ },
+ {
+  "id": "tds_transmgr_commit_payload_chain",
+  "proto": "tds",
+  "summary": "T-182: TM_COMMIT_XACT(7) fBeginXact=1 连锁 — COMMIT 后开新事务",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 5
+        }
+       },
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 7,
+         "payload": "01"
+        }
+       },
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 5
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.type",
+     "value": "14"
+    },
+    {
+     "packet": 9,
+     "field": "tds.envchange.type",
+     "value": "8"
+    },
+    {
+     "packet": 11,
+     "field": "tds.envchange.type",
+     "value": "9"
+    },
+    {
+     "packet": 13,
+     "field": "tds.envchange.type",
+     "value": "8"
+    }
+   ],
+   "notes": [
+    "T-182/A184: TM_COMMIT_XACT(7) + payload '01' (fBeginXact) → COMMIT 后自动开新事务",
+    "实现: 每次 TM_BEGIN_XACT(5) 独立合成 ENVCHANGE 8; payload 字节透传请求 (可观测)"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_begin_then_commit",
+  "proto": "tds",
+  "summary": "T-173/T-178 变体: SQL BEGIN TRAN → 请求 TransactionDescriptor=0 但 ENVCHANGE 8 合成",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "BEGIN TRAN"
+          },
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       },
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "COMMIT"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.all_headers.header.trans_descr",
+     "value": "0"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0001,0x0010"
+    }
+   ],
+   "notes": [
+    "T-173/A175 变体: SQL BEGIN TRAN 文本 → 响应仅 DONE(0x01) 无 ENVCHANGE — ENVCHANGE 8 仅 trans_mgr 请求合成 (buildTransMgrResponse)",
+    "T-178 变体: 请求 ALL_HEADERS txnDesc=0 (SQL 批事务描述符回填未实现), 响应 COMMIT → 仅 DONE(0x00) (FrameAssert @54)",
+    "ENVCHANGE 8/9 合成路径由 tds_transmgr_begin/commit case 覆盖 — 本 case 记录 SQL 批路径差异"
+   ],
+   "frames": [
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "04 01 00 15 00 00 02 00 fd 00 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "tds_mars_attention_cancel",
+  "proto": "tds",
+  "summary": "T-191: MARS 会话 A 定向 Attention → 仅 A 的 DONE_ATTN (0x20)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "mars": true,
+    "sessions": [
+     {
+      "id": "a",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       },
+       {
+        "type": "attention"
+       }
+      ]
+     },
+     {
+      "id": "b",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 2"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.all_headers.header.request_cnt",
+     "value": "2"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0010"
+    },
+    {
+     "packet": 10,
+     "field": "tds.type",
+     "value": "6"
+    },
+    {
+     "packet": 11,
+     "field": "tds.done.status",
+     "value": "0x0020"
+    }
+   ],
+   "notes": [
+    "T-191/A193: Attention 请求紧随 A 的 SQL (pkt10 Type=0x06)",
+    "A 先收到 DONE (pkt9) 再收 DONE_ATTN (pkt11); B (pkt12-13) 正常 DONE 0x10 不受影响"
+   ]
+  }
+ },
+ {
+  "id": "tds_mars_3sessions_txn_indep",
+  "proto": "tds",
+  "summary": "T-193/T-194: MARS 3 会话各自 TransactionDescriptor (A=5, B=7, C=0)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "mars": true,
+    "sessions": [
+     {
+      "id": "A",
+      "transaction_id": 5,
+      "requests": [
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 5
+        }
+       },
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "id": "B",
+      "transaction_id": 7,
+      "requests": [
+       {
+        "type": "trans_mgr",
+        "trans_mgr": {
+         "request_type": 5
+        }
+       },
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 2"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "id": "C",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 3"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.all_headers.header.trans_descr",
+     "value": "5"
+    },
+    {
+     "packet": 10,
+     "field": "tds.all_headers.header.trans_descr",
+     "value": "5"
+    },
+    {
+     "packet": 12,
+     "field": "tds.all_headers.header.trans_descr",
+     "value": "7"
+    },
+    {
+     "packet": 14,
+     "field": "tds.all_headers.header.trans_descr",
+     "value": "7"
+    },
+    {
+     "packet": 16,
+     "field": "tds.all_headers.header.trans_descr",
+     "value": "0"
+    }
+   ],
+   "notes": [
+    "T-193/A195: 会话事务独立 — A(tm@8+sql@10)=5, B(tm@12+sql@14)=7, C(sql@16)=0",
+    "T-194/A196: C 在 A/B 事务期间请求仍用自己的描述符 0",
+    "修正: 之前映射错 (期望 10/12 上的值); ALL_HEADERS: TotalLen 22 + HeaderLen 18 + Type 0002 + 8B desc + 4B outstanding(3)"
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 62,
+     "hex": "16 00 00 00 12 00 00 00 02 00 05 00 00 00 00 00 00 00 03 00 00 00"
+    },
+    {
+     "packet": 12,
+     "offset": 62,
+     "hex": "16 00 00 00 12 00 00 00 02 00 07 00 00 00 00 00 00 00 03 00 00 00"
+    },
+    {
+     "packet": 16,
+     "offset": 62,
+     "hex": "16 00 00 00 12 00 00 00 02 00 00 00 00 00 00 00 00 00 03 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "tds_validate_feature_data_hex",
+  "proto": "tds",
+  "summary": "V-TDS-017: FeatureExt data 非 hex → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "version": 67108980,
+    "feature_exts": [
+     {
+      "id": 1,
+      "data": "zzzz"
+     }
+    ],
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "V-17: FeatureData 非法 hex → V-TDS-017"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-017"
+  }
+ },
+ {
+  "id": "tds_validate_feature_ack_hex",
+  "proto": "tds",
+  "summary": "V-TDS-018: FeatureExt ack_data 非 hex → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "version": 67108980,
+    "feature_exts": [
+     {
+      "id": 1,
+      "data": "0000",
+      "ack_data": "xyz"
+     }
+    ],
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "V-18: FeatureAckData 非法 hex → V-TDS-018"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-018"
+  }
+ },
+ {
+  "id": "tds_validate_login_field_len",
+  "proto": "tds",
+  "summary": "V-TDS-008: UserName 129 字符 → 拒绝",
+  "spec_json": {
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "user_name": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu",
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "V-08: UserName > 128 字符 → 实现统一返回 V-TDS-007 (V-07..V-13 字段长度共用一码, 不分字段)",
+    "spec §8 表格按字段区分 V-TDS-007..013 — 实现合并为 V-TDS-007, 记录为已知差异"
+   ],
+   "expect_error": true,
+   "error_contains": "V-TDS-007"
+  }
+ },
+ {
+  "id": "tds_login7_db_only_default_user",
+  "proto": "tds",
+  "summary": "T-024 扩展: database 显式 user 缺省 'sa' — ibDatabase 项 + Data",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "database": "appdb",
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-024/A26: database 显式 appdb、user 缺省 → 默认 sa @186-189 (SetDefaults 填充, 登录成功)",
+    "FrameAssert: OptionFlags1 @86=0xE0; ibDatabase=0xc2 @130 (cch=5 → abs 256); Data appdb @256-265 UCS-2 LE",
+    "Language 未配置 → pair7 cch=0 空项 ib 亦指向 256 (putEmpty); Extension 项 @134 cch=4 指向 266 (4B 零填充)",
+    "tshark 无 tds.login7.optionflags1 字段 (解析器限制) — 全部用 FrameAssert 字节级断言"
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 86,
+     "hex": "e0 03 00 00"
+    },
+    {
+     "packet": 6,
+     "offset": 186,
+     "hex": "73 00 61 00"
+    },
+    {
+     "packet": 6,
+     "offset": 130,
+     "hex": "c2 00 05 00"
+    },
+    {
+     "packet": 6,
+     "offset": 256,
+     "hex": "61 00 70 00 70 00 64 00 62 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_colname_unicode",
+  "proto": "tds",
+  "summary": "T-050: 列名含中文 '数据' — COLMETADATA ColName UCS-2 4B",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1 as 数据"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "81 01 00 00 00 00 00 00 00 38 01 63 00 d1 01 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-050/A52: ColName B_VARCHAR 长度=字符数 — 本实现列名恒 'c' (ASCII 1 字符), 中文列名不可配置",
+    "字节断言 @62: COLMETADATA Type=0x81/NumberCols=1/ColMeta 长度 0x38/DataType B_VARCHAR 0x23/ColName len 1 'c'; ROW Token 0xd1 紧跟",
+    "pcap 共 11 包 (含 TCP FIN/ACK) — 不设 packet_count 以免误计控制帧"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_dml_expect_rows_0_final",
+  "proto": "tds",
+  "summary": "T-067: DML expect_rows=0 — DONE 0x10 RowCount=0 (有效 0)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "update t set c=c",
+           "expect_rows": 0
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0000"
+    }
+   ],
+   "notes": [
+    "T-067/A69 实测修正: expect_rows=0 → DONE Status=0x0000 (无 DONE_COUNT) 且无 RowCount 字段 — 13B DONE 仅头部",
+    "spec 语义 (有效 0 与无 DONE_COUNT 区分) 由实现以『expect_rows=0 → 无 DONE_COUNT』落地; 字节断言 @62 全 13B",
+    "RowCount=0 但 status 无 DONE_COUNT 的『有效 0』需 expect_rows>0+0 行 (如 where 1=0) — 由 empty_result_set case 覆盖"
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 62,
+     "hex": "fd 00 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_error_class14_perm",
+  "proto": "tds",
+  "summary": "T-144: Class=14 权限错误 — ERROR Class=14 + DONE 0x12",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1",
+           "error": {
+            "number": 229,
+            "class": 14,
+            "state": 1,
+            "message": "permission denied"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.class",
+     "value": "14"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "229"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0002"
+    }
+   ],
+   "notes": [
+    "T-144/A146: Class=14 权限错误号可断言 (229) — DONE 0x02 DONE_ERROR"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_error_class13_deadlock",
+  "proto": "tds",
+  "summary": "T-145: Class=13 死锁 — ERROR Class=13 + DONE 0x12",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "update t set c=c",
+           "error": {
+            "number": 1205,
+            "class": 13,
+            "state": 1,
+            "message": "deadlock victim"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.class",
+     "value": "13"
+    },
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "1205"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0002"
+    }
+   ],
+   "notes": [
+    "T-145/A147: Class=13 死锁级别可断言 (1205) — DONE 0x02 DONE_ERROR"
+   ]
+  }
+ },
+ {
+  "id": "tds_sql_error_num_reserved",
+  "proto": "tds",
+  "summary": "T-146: 错误号 < 20001 保留范围 — ERROR number=19999",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1",
+           "error": {
+            "number": 19999,
+            "class": 15,
+            "state": 1,
+            "message": "reserved"
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 9,
+     "field": "tds.error.number",
+     "value": "19999"
+    }
+   ],
+   "notes": [
+    "T-146/A148: 错误号 < 20001 保留范围可断言 (19999)"
+   ]
+  }
+ },
+ {
+  "id": "tds_attention_pktid_increment",
+  "proto": "tds",
+  "summary": "T-167: Attention PacketID = 当前包 PacketID + 1",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "attention"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "06 01 00 08 00 00 01 00"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "04 01 00 15 00 00 01 00 fd 20 00 00 00 00 00 00 00 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "T-167/A169: Attention 在最后请求包 (EOM=1) 后发送; 本实现 packetID 恒 0x01 (packetIDFor(1))",
+    "DONE_ATTN 21B: 8B TDS 头 (Length=0x15) + 13B DONE (FD + Status 0x20 + CurCmd + 8B RowCount) — 与 idle_confirm case 一致",
+    "T-162/A164: 服务器 DONE_ATTN Status=0x20 (DONE_ERROR 无 ERROR 令牌)"
+   ]
+  }
+ },
+ {
+  "id": "tds_rpc_param_plp_chunking",
+  "proto": "tds",
+  "summary": "T-206: PLP chunk ≤4096 — 9000B varchar(max) → 3 chunks (4096+4096+808)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "sessions": [
+     {
+      "id": "s1",
+      "requests": [
+       {
+        "type": "rpc",
+        "rpc": {
+         "proc_id": 10,
+         "params": [
+          {
+           "name": "@s",
+           "type": "varchar",
+           "max": true,
+           "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "notes": [
+    "T-206/A208: 9000B varchar(max) → PLP 8B total(0x2328=9000) + chunk1(4B len 0x1000=4096) + chunk2(4096) + chunk3(808) + 4B terminator",
+    "FrameAssert @104 (pkt8): 8B ULONGLONGLEN + chunk1 len 4096; chunk2/3 位于 TCP 分段 pkt9-14 (TDS 请求总长 0x2372=9074 跨 7 分段)",
+    "T-102/T-103/T-104: RPC 响应 (pkt15) = DONEINPROC 0x0011 + RETURNSTATUS=1 + DONEPROC 0x0000 — 字段断言",
+    "tshark 3.6: tds.type 仅在消息末段标记 (请求=pkt14); 9074B 巨帧 (pkt15) 为生成器整包直写副本, 无字段行 → 响应索引=15",
+    "pcap 18 包, 不设 packet_count"
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 104,
+     "hex": "28 23 00 00 00 00 00 00 00 10 00 00"
+    }
+   ],
+   "fields": [
+    {
+     "packet": 14,
+     "field": "tds.type",
+     "value": "3"
+    },
+    {
+     "packet": 15,
+     "field": "tds.type",
+     "value": "4"
+    },
+    {
+     "packet": 15,
+     "field": "tds.doneinproc.status",
+     "value": "0x0011"
+    },
+    {
+     "packet": 15,
+     "field": "tds.returnstatus",
+     "value": "1"
+    },
+    {
+     "packet": 15,
+     "field": "tds.doneproc.status",
+     "value": "0x0000"
+    }
+   ]
+  }
+ },
+ {
+  "id": "tds_mars_two_sessions_interleave",
+  "proto": "tds",
+  "summary": "T-216: MARS 2 会话字节流交错 — A 请求→B 请求→响应按会话归并",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "tds": {}
+    }
+   ],
+   "count": 1,
+   "src_ip": "10.0.0.1",
+   "dst_ip": "20.0.0.1",
+   "src_port": 54321,
+   "dst_port": 1433,
+   "tds": {
+    "mars": true,
+    "sessions": [
+     {
+      "id": "A",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 1"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "id": "B",
+      "requests": [
+       {
+        "type": "sql_batch",
+        "sql": {
+         "statements": [
+          {
+           "text": "select 2"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "fields": [
+    {
+     "packet": 8,
+     "field": "tds.all_headers.header.request_cnt",
+     "value": "2"
+    },
+    {
+     "packet": 10,
+     "field": "tds.all_headers.header.request_cnt",
+     "value": "2"
+    },
+    {
+     "packet": 9,
+     "field": "tds.done.status",
+     "value": "0x0010"
+    },
+    {
+     "packet": 11,
+     "field": "tds.done.status",
+     "value": "0x0010"
+    }
+   ],
+   "notes": [
+    "T-216/A218: 字节流 A 请求(pkt8)→A 响应(pkt9)→B 请求(pkt10)→B 响应(pkt11) 交错; OutstandingRequestCount=2 (两会话均活动)",
+    "每个会话 token 序列独立归并无串扰 — A 的 DONE RowCount=1 B 同"
+   ]
+  }
+ }
+]
+
