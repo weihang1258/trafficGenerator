@@ -118,6 +118,7 @@ func (s *Server) validateServiceAccount() error {
 // registerTools registers all flowB MCP tools. See docs/mcp-design.md §4.
 func (s *Server) registerTools() {
 	s.registerStrategyTools()
+	s.registerLayerTools()
 	s.registerTaskTools()
 	s.registerWorkflowTools()
 	s.registerSettingsTools()

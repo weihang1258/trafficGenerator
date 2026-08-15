@@ -147,3 +147,28 @@ func TestGenerateTraffic_ConfigSchemaMentionsL2L3Defaults(t *testing.T) {
 	}
 }
 
+// TestManageStrategies_ConfigSchemaMentionsLayerChainFormat verifies the
+// Config description teaches the layer-chain format (P6). Pre-fix the
+// description covered only the legacy flat format, so LLMs never discovered
+// the layers key that triggers backend layer-chain validation.
+func TestManageStrategies_ConfigSchemaMentionsLayerChainFormat(t *testing.T) {
+	got := fieldSchemaDescription(t, "manageStrategiesInput", "Config")
+	for _, want := range []string{"\"layers\"", "layer-chain", "flowb_query_layers", "auto-completed", "depends_on"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("manageStrategiesInput.Config jsonschema = %q; must mention %q (layer-chain format)", got, want)
+		}
+	}
+}
+
+// TestManageStrategies_ConfigSchemaKeepsLegacyDefaults verifies the flat
+// format defaults survived the layer-chain description addition (a regression
+// guard on the existing hints, which LLM calls depend on).
+func TestManageStrategies_ConfigSchemaKeepsLegacyDefaults(t *testing.T) {
+	got := fieldSchemaDescription(t, "manageStrategiesInput", "Config")
+	for _, want := range []string{"src_ip=10.0.0.1", "dst_ip=20.0.0.1", "src_port=12345", "dst_port=80", "group_id", "tcpdump"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("manageStrategiesInput.Config jsonschema = %q; must keep legacy hint %q", got, want)
+		}
+	}
+}
+

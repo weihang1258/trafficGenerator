@@ -3,14 +3,19 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/gopacket/pcapgo"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/core/layers"
 	"github.com/trafficgen/trafficgen/internal/protocol/arp"
 	"github.com/trafficgen/trafficgen/internal/replay"
 	"github.com/trafficgen/trafficgen/internal/storage"
@@ -1408,5 +1413,378 @@ func TestMCP_GenerateTraffic_PadMinFrame_True_ExplicitON(t *testing.T) {
 		if l != 60 {
 			t.Errorf("frame[%d] length = %d, want 60 (explicit pad=true)", i, l)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// §4.x flowb_query_layers — layer registry query (P6)
+// ---------------------------------------------------------------------------
+
+// TestMCP_QueryLayers_ListAll asserts the full registry: every registered
+// layer name appears in the list view. The tool's list is the only surface
+// through which an LLM discovers layer names, so the registry must be
+// complete or layer-chain configs cannot be written.
+func TestMCP_QueryLayers_ListAll(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	_, out, err := env.srv.handleQueryLayers(context.Background(), nil, queryLayersInput{})
+	if err != nil {
+		t.Fatalf("query_layers (list): %v", err)
+	}
+	if out.Action != "query_layers" {
+		t.Errorf("action = %q, want query_layers", out.Action)
+	}
+	var views []map[string]interface{}
+	if err := json.Unmarshal(asRaw(out.Data), &views); err != nil {
+		t.Fatalf("list data not a JSON array: %s (err: %v)", string(asRaw(out.Data)), err)
+	}
+	if len(views) == 0 {
+		t.Fatal("list view is empty")
+	}
+	got := map[string]bool{}
+	for _, v := range views {
+		name, _ := v["name"].(string)
+		got[name] = true
+	}
+	want := layers.DefaultRegistry().List()
+	if len(want) == 0 {
+		t.Fatal("registry is empty")
+	}
+	if len(views) != len(want) {
+		t.Errorf("list view has %d entries, registry has %d (duplicates or extras)", len(views), len(want))
+	}
+	for _, name := range want {
+		if !got[name] {
+			t.Errorf("list view missing registered layer %q", name)
+		}
+	}
+}
+
+// TestMCP_QueryLayers_LookupTCP asserts the single-layer view exposes the
+// tcp schema fields, and that defaults/range bounds appear as JSON numbers
+// (the exact form an LLM must send back as config values).
+func TestMCP_QueryLayers_LookupTCP(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	_, out, err := env.srv.handleQueryLayers(context.Background(), nil, queryLayersInput{Layer: "tcp"})
+	if err != nil {
+		t.Fatalf("query_layers (tcp): %v", err)
+	}
+	var view map[string]interface{}
+	if err := json.Unmarshal(asRaw(out.Data), &view); err != nil {
+		t.Fatalf("tcp data not valid JSON: %s (err: %v)", string(asRaw(out.Data)), err)
+	}
+	if view["name"] != "tcp" {
+		t.Errorf("name = %v, want tcp", view["name"])
+	}
+	if view["category"] != "transport" {
+		t.Errorf("category = %v, want transport", view["category"])
+	}
+	fields, _ := view["fields"].(map[string]interface{})
+	if fields == nil {
+		t.Fatalf("fields missing: %s", string(asRaw(out.Data)))
+	}
+	for _, f := range []string{"src_port", "dst_port", "mss", "window_size", "handshake", "termination", "rst", "initial_seq"} {
+		if _, ok := fields[f]; !ok {
+			t.Errorf("tcp schema missing field %q", f)
+		}
+	}
+	mss, _ := fields["mss"].(map[string]interface{})
+	if mss["default"] != float64(1460) {
+		t.Errorf("mss.default = %v, want 1460 (JSON number)", mss["default"])
+	}
+	if mss["min"] != float64(536) || mss["max"] != float64(65535) {
+		t.Errorf("mss min/max = %v/%v, want 536/65535", mss["min"], mss["max"])
+	}
+}
+
+// TestMCP_QueryLayers_UnknownLayer asserts the negative path: an unknown
+// layer name returns CodeInvalidParams with a helpful message, not a panic
+// or empty data.
+func TestMCP_QueryLayers_UnknownLayer(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	_, _, err := env.srv.handleQueryLayers(context.Background(), nil, queryLayersInput{Layer: "no-such-layer"})
+	if err == nil {
+		t.Fatal("unknown layer returned no error")
+	}
+	var rpcErr *jsonrpc.Error
+	if !errors.As(err, &rpcErr) {
+		t.Fatalf("error type = %T, want *jsonrpc.Error", err)
+	}
+	if rpcErr.Code != jsonrpc.CodeInvalidParams {
+		t.Errorf("code = %v, want CodeInvalidParams", rpcErr.Code)
+	}
+	if !strings.Contains(rpcErr.Message, "no-such-layer") {
+		t.Errorf("message = %q, must name the unknown layer", rpcErr.Message)
+	}
+}
+
+// TestMCP_QueryLayers_ViewMatchesRegistry asserts the emitted view is
+// content-consistent with the registry: every field of the layer appears in
+// the view with the same default/type, and enum-default layers (http, tls)
+// keep their string enum defaults. Byte equality is impossible here — the
+// view is decoded into maps whose key order is random — so this asserts the
+// semantic contract instead.
+func TestMCP_QueryLayers_ViewMatchesRegistry(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	for _, layer := range []string{"ip", "tcp", "http", "tls", "smb", "tftp"} {
+		_, out, err := env.srv.handleQueryLayers(context.Background(), nil, queryLayersInput{Layer: layer})
+		if err != nil {
+			t.Fatalf("query_layers (%s): %v", layer, err)
+		}
+		var view map[string]interface{}
+		if err := json.Unmarshal(asRaw(out.Data), &view); err != nil {
+			t.Fatalf("%s view not valid JSON: %v", layer, err)
+		}
+		fields, _ := view["fields"].(map[string]interface{})
+		if fields == nil {
+			t.Fatalf("%s view missing fields: %s", layer, string(asRaw(out.Data)))
+		}
+
+		schema, ok := layers.DefaultRegistry().Get(layer)
+		if !ok {
+			t.Fatalf("registry has no layer %s", layer)
+		}
+		// The view must not drop or invent fields: both directions of the
+		// field map are compared for equality.
+		if len(fields) != len(schema.Fields) {
+			t.Errorf("%s view exposes %d fields, registry has %d (dropped or invented)", layer, len(fields), len(schema.Fields))
+		}
+		// Dependency fields are the tool's core purpose: an LLM must learn
+		// what a layer sits on. Assert each dependency list survives into the
+		// view (deleting the copy in buildLayerSchemaView must fail here).
+		depOn, _ := view["depends_on"].([]interface{})
+		if !stringSetEqual(depOn, schema.DependsOn) {
+			t.Errorf("%s depends_on = %v, want %v", layer, depOn, schema.DependsOn)
+		}
+		transOn, _ := view["transport_on"].([]interface{})
+		if !stringSetEqual(transOn, schema.TransportOn) {
+			t.Errorf("%s transport_on = %v, want %v", layer, transOn, schema.TransportOn)
+		}
+		optOn, _ := view["optional_on"].([]interface{})
+		if !stringSetEqual(optOn, schema.OptionalOn) {
+			t.Errorf("%s optional_on = %v, want %v", layer, optOn, schema.OptionalOn)
+		}
+		for name, fs := range schema.Fields {
+			v, ok := fields[name]
+			if !ok {
+				t.Errorf("%s view missing field %q", layer, name)
+				continue
+			}
+			fm, _ := v.(map[string]interface{})
+			if fm == nil {
+				t.Errorf("%s field %q not an object: %v", layer, name, v)
+				continue
+			}
+			if fm["type"] != fs.Type {
+				t.Errorf("%s.%s type = %v, want %q", layer, name, fm["type"], fs.Type)
+			}
+			// Defaults re-marshal through interface{}: strings stay strings,
+			// bools stay bools, uint8/16/32 become float64, maps/lists keep
+			// shape. Compare via a JSON round-trip of the Go default.
+			rawDefault, err := json.Marshal(fs.Default)
+			if err != nil {
+				t.Fatalf("%s.%s default marshal: %v", layer, name, err)
+			}
+			gotDefault, err := json.Marshal(fm["default"])
+			if err != nil {
+				t.Fatalf("%s.%s view default marshal: %v", layer, name, err)
+			}
+			// 0 defaults are emitted with omitempty and absent from the view.
+			if string(rawDefault) != "0" && string(rawDefault) != `""` && string(rawDefault) != "false" {
+				if string(gotDefault) != string(rawDefault) {
+					t.Errorf("%s.%s default = %s, want %s", layer, name, string(gotDefault), string(rawDefault))
+				}
+			}
+		}
+	}
+}
+
+// TestMCP_QueryLayers_CreateStrategyWithLayers drives the full path:
+// flowb_query_layers output -> manage_strategies create with a layer-chain
+// config -> strategy persisted with a top-level layers key. Guards against
+// the tool description and the backend validation diverging.
+func TestMCP_QueryLayers_CreateStrategyWithLayers(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	_, lout, err := env.srv.handleQueryLayers(context.Background(), nil, queryLayersInput{})
+	if err != nil {
+		t.Fatalf("query_layers (list): %v", err)
+	}
+	if !strings.Contains(string(asRaw(lout.Data)), `"name":"tcp"`) {
+		t.Fatalf("registry list does not teach the tcp layer: %s", string(asRaw(lout.Data)))
+	}
+
+	_, out, err := env.srv.handleManageStrategies(context.Background(), nil, manageStrategiesInput{
+		Action:   "create",
+		Name:     "layered-s1",
+		Mode:     "synth",
+		Protocol: "http",
+		Config: map[string]interface{}{
+			"layers": []interface{}{
+				map[string]interface{}{"ip": map[string]interface{}{"src": "10.0.0.9"}},
+				map[string]interface{}{"tcp": map[string]interface{}{"dst_port": 8080}},
+				map[string]interface{}{"http": map[string]interface{}{"method": "GET", "uri": "/x"}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create with layers: %v", err)
+	}
+	var created map[string]string
+	json.Unmarshal(asRaw(out.Data), &created)
+	sid := created["id"]
+	if sid == "" {
+		t.Fatal("create with layers did not return id")
+	}
+
+	_, gout, err := env.srv.handleManageStrategies(context.Background(), nil, manageStrategiesInput{
+		Action: "get",
+		ID:     sid,
+	})
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	var stored map[string]interface{}
+	json.Unmarshal(asRaw(gout.Data), &stored)
+	cfg, _ := stored["config"].(map[string]interface{})
+	if _, ok := cfg["layers"]; !ok {
+		t.Fatalf("stored config has no layers key: %s", string(asRaw(gout.Data)))
+	}
+}
+
+// stringSetEqual compares a decoded JSON array ([]interface{} of strings)
+// with a []string, treating them as sets.
+func stringSetEqual(got []interface{}, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	m := map[string]bool{}
+	for _, s := range want {
+		m[s] = true
+	}
+	for _, g := range got {
+		gs, ok := g.(string)
+		if !ok || !m[gs] {
+			return false
+		}
+	}
+	return true
+}
+
+// TestMCP_QueryLayers_TunnelInnerAttached asserts the tunnel nesting view:
+// a tunnel layer (gre) exposes its InnerRequired layer as a nested "inner"
+// entry, and a tunnel with no InnerRequired (tls) has no inner entries.
+// This exercises withTunnelInner, the only untested branch of the tool.
+func TestMCP_QueryLayers_TunnelInnerAttached(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	_, gout, err := env.srv.handleQueryLayers(context.Background(), nil, queryLayersInput{Layer: "gre"})
+	if err != nil {
+		t.Fatalf("query_layers (gre): %v", err)
+	}
+	var greView map[string]interface{}
+	if err := json.Unmarshal(asRaw(gout.Data), &greView); err != nil {
+		t.Fatalf("gre data not valid JSON: %v", err)
+	}
+	inner, _ := greView["inner"].([]interface{})
+	foundIP := false
+	for _, iv := range inner {
+		m, _ := iv.(map[string]interface{})
+		if m["name"] == "ip" {
+			foundIP = true
+		}
+	}
+	if !foundIP {
+		t.Errorf("gre view inner = %v, must nest the InnerRequired ip layer", inner)
+	}
+
+	_, tout, err := env.srv.handleQueryLayers(context.Background(), nil, queryLayersInput{Layer: "tls"})
+	if err != nil {
+		t.Fatalf("query_layers (tls): %v", err)
+	}
+	var tlsView map[string]interface{}
+	if err := json.Unmarshal(asRaw(tout.Data), &tlsView); err != nil {
+		t.Fatalf("tls data not valid JSON: %v", err)
+	}
+	if _, ok := tlsView["inner"]; ok {
+		t.Errorf("tls view inner = %v, want absent (no InnerRequired)", tlsView["inner"])
+	}
+}
+
+// TestMCP_QueryLayers_SDKCallToolNotBase64 is a regression test for a real
+// bug found in review: the handler returned json.RawMessage in the output
+// struct, and the SDK's CallTool path re-marshals the struct, base64-encoding
+// the RawMessage. The LLM would have received a base64 blob instead of the
+// layer list. This drives the full SDK path (CallTool) and asserts the
+// returned content contains real layer JSON, not base64.
+func TestMCP_QueryLayers_SDKCallToolNotBase64(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	ts, session := newHTTPTestServer(t, env, "test-secret", []string{"*"})
+	defer ts.Close()
+	defer session.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	out, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "flowb_query_layers",
+		Arguments: map[string]interface{}{"layer": "tcp"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if out.IsError {
+		t.Fatalf("tool error: %s", out.Content)
+	}
+	// The structured content must embed the actual layer JSON, not a
+	// base64-encoded RawMessage (which would not contain the substring
+	// `"name":"tcp"`). Also must not be "{}" (dataOnly/manage schema quirks).
+	text := ""
+	for _, c := range out.Content {
+		if tc, ok := c.(*mcp.TextContent); ok {
+			text = tc.Text
+			break
+		}
+	}
+	if !strings.Contains(text, `"name":"tcp"`) {
+		t.Errorf("CallTool content missing layer JSON: %q", text)
+	}
+}
+
+// TestMCP_QueryLayers_InvalidChainCreateRejected is a negative-path test:
+// a layer chain that fails validation (two terminal layers) must make
+// manage_strategies create fail. Per CLAUDE.md §2, a happy-path-only create
+// test would pass even if layer-chain validation were gutted.
+func TestMCP_QueryLayers_InvalidChainCreateRejected(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+
+	_, _, err := env.srv.handleManageStrategies(context.Background(), nil, manageStrategiesInput{
+		Action:   "create",
+		Name:     "bad-chain",
+		Mode:     "synth",
+		Protocol: "http",
+		Config: map[string]interface{}{
+			"layers": []interface{}{
+				map[string]interface{}{"ip": map[string]interface{}{}},
+				map[string]interface{}{"tcp": map[string]interface{}{}},
+				map[string]interface{}{"http": map[string]interface{}{}},
+				map[string]interface{}{"dns": map[string]interface{}{}},
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("create with two terminal layers (http+dns) succeeded; layer-chain validation must reject it")
 	}
 }
