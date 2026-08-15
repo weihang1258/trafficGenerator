@@ -55,7 +55,9 @@ func TestVerifyExistingPcaps(t *testing.T) {
 				continue
 			}
 			total++
-			pcap := filepath.Join(pcapRoot, proto, c.ID+".pcap")
+			// 路径必须与 RunCase 一致（用 case 的 proto 字段而非 map key）：
+			// 文件名与 proto 字段可能不同（如 cases/probe_smb.json 声明 proto=smb）。
+			pcap := filepath.Join(pcapRoot, c.Proto, c.ID+".pcap")
 			if _, err := os.Stat(pcap); err != nil {
 				fail++
 				line := fmt.Sprintf("MISSING\t%s\t%s\tpcap missing: %v\n", proto, c.ID, err)
