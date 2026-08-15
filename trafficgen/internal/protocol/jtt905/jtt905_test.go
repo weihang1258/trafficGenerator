@@ -620,3 +620,18 @@ func TestCheckInEmptyPlate(t *testing.T) {
 		}
 	}
 }
+
+// TestPlanRejectsDirectUse (review finding #5): legacy Plan() must return an
+// error instead of an empty channel — an empty channel made engine tasks
+// report "completed" with 0 packets (false completion). PlanWithConfig is the
+// real path.
+func TestPlanRejectsDirectUse(t *testing.T) {
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 10700}
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err == nil {
+		t.Fatal("Plan() returned nil error, want error (use PlanWithConfig)")
+	}
+	if ch != nil {
+		t.Fatalf("Plan() returned a channel, want nil")
+	}
+}

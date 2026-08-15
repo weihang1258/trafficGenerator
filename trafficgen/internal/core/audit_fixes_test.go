@@ -18,6 +18,10 @@ type stubReplayPlanner struct {
 	failErr     error
 	// packets emitted on success: emitted per PlanReplay call before closing the channel.
 	packetsPerCall int
+	// respectFC mirrors the real replay planner's flows-ceiling behavior
+	// (internal/replay/planner.go countFlow): when fc.FlowCounter is non-nil
+	// and the shared counter is already past the ceiling, emit 0 packets.
+	respectFC bool
 }
 
 func (s *stubReplayPlanner) PlanReplay(ctx context.Context, specJSON json.RawMessage, taskID, classID, userID string, fc *ReplayFC) (<-chan PacketConfig, error) {
@@ -27,6 +31,16 @@ func (s *stubReplayPlanner) PlanReplay(ctx context.Context, specJSON json.RawMes
 	_ = json.Unmarshal(specJSON, &spec)
 	if s.failAssetID != "" && spec.PcapAssetID == s.failAssetID {
 		return nil, s.failErr
+	}
+	if s.respectFC && fc != nil && fc.FlowCounter != nil {
+		if atomic.AddInt64(fc.FlowCounter, 1) > fc.Ceiling {
+			// Mirror the real planner's countFlow: mark the ceiling skip
+			// before closing the channel (worker reads fc after the close).
+			fc.SkippedAll = true
+			ch := make(chan PacketConfig)
+			close(ch)
+			return ch, nil
+		}
 	}
 	ch := make(chan PacketConfig, s.packetsPerCall)
 	for i := 0; i < s.packetsPerCall; i++ {

@@ -796,10 +796,10 @@ func (e *Engine) SetTaskTotalConfigs(taskID string, count int64) {
 	}
 	entry.totalConfigs = count
 	// Complete when planning is done (onTaskDone fired) and every planned
-	// config is accounted for (written, or failed to build). count == 0 means
-	// planning produced no configs (e.g., an empty batch or all flows failed
-	// validation); since onTaskDone already fired, no more packets will
-	// arrive, so complete now with 0 packets.
+	// config is accounted for (written, or failed to build). count == 0 is
+	// legal only for time-capped tasks whose deadline fired before the first
+	// config (planners that produce 0 configs without a deadline are failed
+	// by the worker's 0-config guard before reaching here).
 	if count == 0 || entry.writtenPackets+entry.errorPackets >= count {
 		if entry.errorPackets > 0 {
 			e.taskMu.Unlock()

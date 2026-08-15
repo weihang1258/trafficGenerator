@@ -145,8 +145,8 @@ func TestEngine_MaxTasksLimit(t *testing.T) {
 // mockBatchPlanner generates a fixed number of packets per flow regardless of
 // spec.Count, so batch tests can predict packet counts per class.
 type mockBatchPlanner struct {
-	name     string
-	perFlow  int
+	name    string
+	perFlow int
 }
 
 func (m *mockBatchPlanner) Name() string                 { return m.name }
@@ -244,19 +244,22 @@ func TestMixedTraffic_Batch(t *testing.T) {
 	}
 }
 
-// TestTask_ZeroConfigsCompletes verifies that a task producing 0 packet configs
-// still reaches completed status (previously hung because SetTaskTotalConfigs
-// only completed when count > 0). Uses a planner that yields 0 packets per
-// flow so configCount stays 0.
-func TestTask_ZeroConfigsCompletes(t *testing.T) {
+// TestTask_ZeroConfigsFails verifies that a task producing 0 packet configs
+// FAILS instead of hanging (regression for the old silent-completion and
+// the pre-2026-08 hang where SetTaskTotalConfigs only completed when
+// count > 0). A planner that yields 0 packets per flow means the spec's
+// intent (packets) was not realized — reporting completed would mask
+// broken planners (jt808/jt809/jtt905 Plan() stubs).
+func TestTask_ZeroConfigsFails(t *testing.T) {
 	e := NewEngine(EngineConfig{
 		ConfigWorkers: 1, PacketWorkers: 1, OutputWorkers: 1,
 		BufferSize: 64, QueueSize: 32,
 	})
 	e.RegisterPlanner(&fixedPacketsPlanner{name: "tcp", perFlow: 0})
 	e.SetBuildFunc(func(c PacketConfig) ([]byte, error) { return make([]byte, 10), nil })
-	done := make(chan string, 1)
-	e.OnTaskComplete = func(taskID string) { done <- taskID }
+	failed := make(chan string, 1)
+	failMsg := make(chan string, 1)
+	e.OnTaskFailed = func(taskID string, errMsg string) { failed <- taskID; failMsg <- errMsg }
 	if err := e.Start(); err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -268,9 +271,12 @@ func TestTask_ZeroConfigsCompletes(t *testing.T) {
 		t.Fatalf("submit: %v", err)
 	}
 	select {
-	case <-done:
+	case <-failed:
+		if msg := <-failMsg; msg == "" {
+			t.Errorf("zero-config task failed with empty error message")
+		}
 	case <-time.After(3 * time.Second):
-		t.Fatal("zero-config task hung instead of completing")
+		t.Fatal("zero-config task hung instead of failing")
 	}
 }
 

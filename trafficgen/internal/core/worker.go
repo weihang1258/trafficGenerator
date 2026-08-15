@@ -36,10 +36,14 @@ type ProtocolPlanner interface {
 // ReplayFC carries task-level flow-control state that the replay planner
 // consults during plan execution. A nil FlowCounter means "no flows ceiling" --
 // the planner counts but never caps. Ceiling is the max unique flows before
-// new flows are skipped.
+// new flows are skipped. SkippedAll is set by the planner when the ceiling
+// skipped at least one flow; because the planner sets it before closing the
+// output channel, the consumer's read after the channel closes is
+// happens-after the write (channel-close memory ordering) — no atomic needed.
 type ReplayFC struct {
 	FlowCounter *int64 // nil = no flows ceiling
 	Ceiling     int64
+	SkippedAll  bool // set by planner: ceiling skipped >= 1 flow
 }
 
 // ReplayPlanner generates packet configs for a replay TrafficClass (§16.12).
@@ -61,7 +65,7 @@ type ConfigWorker struct {
 	stats         WorkerStats
 	onTaskDone    func(taskID string, err error, count int64)
 	sem           chan struct{} // limits concurrent task processing per worker
-	engine        *Engine // for sharded channels, shardSeed, rate limiters, task-level flow counter
+	engine        *Engine       // for sharded channels, shardSeed, rate limiters, task-level flow counter
 }
 
 // WorkerStats holds worker statistics.
@@ -257,6 +261,15 @@ func (w *ConfigWorker) processTask(task Task) {
 	// exceeded, no more flows are generated.
 	hasFlowCeiling := task.TaskFCType == "flows" && task.ParentTaskID != ""
 	var flowCounter *int64
+	// ceilingHit records whether THIS task's loop exited at the ceiling;
+	// ranFlow records whether THIS task ever scheduled a flow (passed the
+	// ceiling check and called the planner). The 0-config guard exempts the
+	// case where both hold — the ceiling skipped the task before any flow
+	// ran, so 0 configs is the ceiling doing its job, not a broken planner.
+	// These are local facts, never inferred from the shared counter: another
+	// strategy's later consumption could exhaust the counter and retroactively
+	// mask a broken planner's 0 configs (adversarial review finding #1).
+	var ceilingHit, ranFlow bool
 	if hasFlowCeiling {
 		flowCounter = w.engine.getOrCreateFlowCounter(task.ParentTaskID)
 	}
@@ -279,8 +292,10 @@ func (w *ConfigWorker) processTask(task Task) {
 		}
 		// Task-level flows ceiling check.
 		if hasFlowCeiling && atomic.AddInt64(flowCounter, 1) > int64(task.TaskFCValue) {
+			ceilingHit = true
 			break
 		}
+		ranFlow = true
 
 		// Multi-flow src_port auto-increment: when flowCount > 1 and user didn't
 		// explicitly provide src_port, increment src_port per flow to simulate
@@ -375,6 +390,25 @@ func (w *ConfigWorker) processTask(task Task) {
 	atomic.AddInt64(&w.stats.TasksProcessed, 1)
 	atomic.AddInt64(&w.stats.PacketsGenerated, configCount)
 	if w.onTaskDone != nil {
+		// Zero configs means the planner produced no packets despite a
+		// positive flow count — a broken or empty planner (the
+		// jt808/jt809/jtt905 Plan() now fail explicitly). Reporting success
+		// would mask the failure as "completed with 0 packets". Match the
+		// batch path's all-flows-failed semantics: fail the task loudly.
+		// A time-limited task whose deadline expired mid-planning is the
+		// legitimate zero-config case — that path already reported its own
+		// terminal state and returned (line ~272).
+		// A task-level flows ceiling can legitimately skip a strategy task
+		// BEFORE it runs any flow (shared parent counter exhausted by a
+		// sibling — line ~290 breaks with a live context). That is the
+		// ceiling doing its job, not a broken planner, so the 0-config
+		// guard exempts the ceilingHit && !ranFlow case only. If the task
+		// ran a flow (ranFlow) or never hit the ceiling, 0 configs still
+		// mean a broken planner and must fail.
+		if configCount == 0 && taskCtx.Err() == nil && !(ceilingHit && !ranFlow) {
+			w.onTaskDone(task.ID, fmt.Errorf("planner produced 0 packet configs"), 0)
+			return
+		}
 		w.onTaskDone(task.ID, nil, configCount)
 	}
 }
@@ -491,6 +525,22 @@ func (w *ConfigWorker) processReplayTask(task Task) {
 	atomic.AddInt64(&w.stats.TasksProcessed, 1)
 	atomic.AddInt64(&w.stats.PacketsGenerated, configCount)
 	if w.onTaskDone != nil {
+		// A replay that emitted zero configs is a broken replay (e.g. an
+		// asset that failed to load). Report it as a failure instead of
+		// silent completion with 0 packets. The only benign zero-config
+		// replay is a time-capped one whose context expired before any
+		// packet was emitted; treat that as normal completion.
+		// A task-level flows ceiling exhausted by a sibling strategy is
+		// equally benign: the replay planner's countFlow skips flows past
+		// the ceiling with a live context — the ceiling did its job, so do
+		// not report a broken replay. fc.SkippedAll is the planner's exact
+		// signal (set when countFlow actually returned false for some
+		// flow); the counter alone would retroactively mask a genuinely
+		// broken replay that happened to run after the ceiling was hit.
+		if configCount == 0 && taskCtx.Err() == nil && !fc.SkippedAll {
+			w.onTaskDone(task.ID, fmt.Errorf("replay planner produced 0 packet configs"), 0)
+			return
+		}
 		// A time deadline during normal drain is normal completion; an
 		// explicit cancel is an error. If ctx is still alive, the planner
 		// simply exhausted its pcap -- also normal completion.
@@ -566,6 +616,10 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 			go func(c TrafficClass) {
 				defer classWg.Done()
 				classKey := task.ID + ":" + c.ID
+				// Per-class config tally (mirrors the synth-class guard below):
+				// a replay class whose planner emitted zero configs counts as
+				// failed, or an all-zero batch would silently complete.
+				var classConfigs int64
 				configChan, err := w.replayPlanner.PlanReplay(taskCtx, c.Replay, task.ID, classKey, task.UserID, nil)
 				if err != nil {
 					zap.L().Error("replay plan failed", zap.String("task_id", task.ID), zap.String("class_id", c.ID), zap.Error(err))
@@ -598,7 +652,17 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 					case w.engine.shardedConfigChan[shardIdx] <- config:
 						w.engine.shardCounts[shardIdx].Add(1)
 						atomic.AddInt64(&configCount, 1)
+						atomic.AddInt64(&classConfigs, 1)
 					}
+				}
+				// Zero-emission replay class: count as failed unless the
+				// context expired (time-capped batch = legitimate 0-packets).
+				if atomic.LoadInt64(&classConfigs) == 0 && taskCtx.Err() == nil {
+					zap.L().Error("batch replay class produced 0 packet configs, counting as failed",
+						zap.String("task_id", task.ID),
+						zap.String("class_id", c.ID),
+					)
+					atomic.AddInt64(&flowFailures, 1)
 				}
 			}(class)
 			continue
@@ -617,6 +681,23 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 		classWg.Add(1)
 		go func(c TrafficClass, p ProtocolPlanner) {
 			defer classWg.Done()
+			// Per-class config tally. A class whose flows all produced zero
+			// configs (the jt808/jt809/jtt905 Plan() now fail explicitly)
+			// must count as failed, or an all-zero batch would silently
+			// report "completed with 0 packets" — the engine's
+			// all-flows-failed guard never fires because nothing increments
+			// flowFailures.
+			var classConfigs int64
+			// classFailures counts THIS class's per-flow Validate/Plan failures
+			// (mirror of flowFailures, scoped to the class). The zero-emission
+			// guard below must not top up flowFailures with the full FlowCount
+			// (double-counting already-counted failures) nor use the shared
+			// flowFailures value as its baseline — a concurrent sibling class
+			// could increment it between the Load and the Store, and its value
+			// includes failures that belong to other classes (guard review
+			// finding: a mixed batch that actually produced packets was pushed
+			// past the all-flows-failed threshold).
+			var classFailures int64
 
 			spec := mapToFlowSpec(c.Config, c.Type)
 			if c.BPS != "" {
@@ -693,6 +774,7 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 						zap.Error(err),
 					)
 					atomic.AddInt64(&flowFailures, 1)
+					atomic.AddInt64(&classFailures, 1)
 					continue
 				}
 
@@ -706,6 +788,7 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 						zap.Error(err),
 					)
 					atomic.AddInt64(&flowFailures, 1)
+					atomic.AddInt64(&classFailures, 1)
 					continue
 				}
 				for config := range configChan {
@@ -740,8 +823,27 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 					case w.engine.shardedConfigChan[shardIdx] <- config:
 						w.engine.shardCounts[shardIdx].Add(1)
 						atomic.AddInt64(&configCount, 1)
+						atomic.AddInt64(&classConfigs, 1)
 					}
 				}
+			}
+			// All flows ran without emitting a single config — a broken
+			// planner (empty channel) or an unsatisfiable spec. Count the
+			// class as fully failed so the task-level all-flows-failed guard
+			// can report it; a mixed batch keeps the healthy classes' output.
+			// Per-flow failures (Validate/Plan errors) already incremented
+			// flowFailures once per flow, so only top up the difference using
+			// THIS class's own failure count — the shared flowFailures value
+			// includes other classes' failures and races with their
+			// concurrent increments, so it is not a valid baseline (guard
+			// review finding: a mixed batch that actually produced packets
+			// was pushed past the all-failed threshold).
+			if atomic.LoadInt64(&classConfigs) == 0 && taskCtx.Err() == nil {
+				zap.L().Error("batch class produced 0 packet configs, counting as failed",
+					zap.String("task_id", task.ID),
+					zap.String("class_id", c.ID),
+				)
+				atomic.AddInt64(&flowFailures, int64(c.FlowCount)-atomic.LoadInt64(&classFailures))
 			}
 		}(class, planner)
 	}
@@ -791,14 +893,14 @@ func (w *ConfigWorker) GetStats() WorkerStats {
 
 // PacketWorker builds packets from configurations.
 type PacketWorker struct {
-	id         int
-	shardChan  <-chan PacketConfig // own shard of shardedConfigChan
-	buildFunc  func(PacketConfig) ([]byte, error)
-	wg         *sync.WaitGroup
-	ctx        context.Context
-	cancel     context.CancelFunc
-	stats      WorkerStats
-	engine     *Engine // for per-class rate limiter lookup + shardedPacketChan
+	id        int
+	shardChan <-chan PacketConfig // own shard of shardedConfigChan
+	buildFunc func(PacketConfig) ([]byte, error)
+	wg        *sync.WaitGroup
+	ctx       context.Context
+	cancel    context.CancelFunc
+	stats     WorkerStats
+	engine    *Engine // for per-class rate limiter lookup + shardedPacketChan
 }
 
 // NewPacketWorker creates a new packet worker. shardChan is this worker's
@@ -812,13 +914,13 @@ func NewPacketWorker(
 ) *PacketWorker {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &PacketWorker{
-		id:         id,
-		shardChan:  shardChan,
-		buildFunc:  buildFunc,
-		wg:         wg,
-		ctx:        ctx,
-		cancel:     cancel,
-		engine:     engine,
+		id:        id,
+		shardChan: shardChan,
+		buildFunc: buildFunc,
+		wg:        wg,
+		ctx:       ctx,
+		cancel:    cancel,
+		engine:    engine,
 	}
 }
 
@@ -952,14 +1054,14 @@ func (w *PacketWorker) GetStats() WorkerStats {
 
 // OutputWorker handles packet output.
 type OutputWorker struct {
-	id         int
-	shardChan  <-chan PacketOutput // own shard of shardedPacketChan
-	buffer     *PacketBuffer
-	engine     *Engine // for accessing output writers
-	wg         *sync.WaitGroup
-	ctx        context.Context
-	cancel     context.CancelFunc
-	stats      WorkerStats
+	id        int
+	shardChan <-chan PacketOutput // own shard of shardedPacketChan
+	buffer    *PacketBuffer
+	engine    *Engine // for accessing output writers
+	wg        *sync.WaitGroup
+	ctx       context.Context
+	cancel    context.CancelFunc
+	stats     WorkerStats
 
 	// NOTE: Resequencing fields removed; sharded channel guarantees ordering.
 }
@@ -974,13 +1076,13 @@ func NewOutputWorker(
 ) *OutputWorker {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &OutputWorker{
-		id:           id,
-		shardChan:    shardChan,
-		buffer:       buffer,
-		engine:       engine,
-		wg:           wg,
-		ctx:          ctx,
-		cancel:       cancel,
+		id:        id,
+		shardChan: shardChan,
+		buffer:    buffer,
+		engine:    engine,
+		wg:        wg,
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }
 
@@ -1018,7 +1120,6 @@ func (w *OutputWorker) processPacket(out PacketOutput) {
 	// Single PacketWorker guarantees ordering — pass through immediately
 	w.writePacket(out)
 }
-
 
 // writePacket writes a single packet to output writer and buffer.
 func (w *OutputWorker) writePacket(out PacketOutput) {

@@ -145,20 +145,11 @@ func ValidateConfig(cfg *JT808Config) error {
 	return nil
 }
 
-// Plan generates packet configs for a JT808 flow. The config is supplied
-// via PlanWithConfig (the core FlowSpec does not carry a JT808 pointer
-// until the main agent wires the integration; rule: do NOT modify core/*
-// files). Callers should use PlanWithConfig directly.
+// Plan is not supported for JT808: the engine requires a full config which
+// the core FlowSpec cannot carry. Returning an empty channel here made tasks
+// report "completed" with 0 packets. Callers must use PlanWithConfig.
 func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {
-	if err := p.Validate(spec); err != nil {
-		return nil, err
-	}
-	// Without core integration, Plan returns an empty channel — callers
-	// must use PlanWithConfig. This keeps Plan signature-compatible with
-	// the engine's Planner interface for future wiring.
-	ch := make(chan core.PacketConfig)
-	close(ch)
-	return ch, nil
+	return nil, fmt.Errorf("jt808: Plan not supported, use PlanWithConfig or a layers config")
 }
 
 // PlanWithConfig generates packet configs for a JT808 flow using the

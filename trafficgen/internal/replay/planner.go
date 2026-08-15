@@ -188,6 +188,11 @@ func (p *ReplayPlanner) Plan(ctx context.Context, spec ReplaySpec, taskID, class
 			seen[flowID] = true
 			if atomic.AddInt64(fc.FlowCounter, 1) > fc.Ceiling {
 				skipped[flowID] = true
+				// Exact signal for the worker's 0-config guard: the ceiling
+				// (not a broken plan) is why packets were dropped. Written
+				// before the output channel closes, so the consumer's read
+				// after the close is happens-after (channel-close ordering).
+				fc.SkippedAll = true
 				return false
 			}
 		}

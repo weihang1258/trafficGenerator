@@ -143,14 +143,11 @@ func ValidateConfig(cfg *JTT905Config) error {
 	return nil
 }
 
-// Plan returns an empty channel — callers must use PlanWithConfig.
+// Plan is not supported for JTT905: the engine requires a full config which
+// the core FlowSpec cannot carry. Returning an empty channel here made tasks
+// report "completed" with 0 packets. Callers must use PlanWithConfig.
 func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {
-	if err := p.Validate(spec); err != nil {
-		return nil, err
-	}
-	ch := make(chan core.PacketConfig)
-	close(ch)
-	return ch, nil
+	return nil, fmt.Errorf("jtt905: Plan not supported, use PlanWithConfig or a layers config")
 }
 
 // PlanWithConfig generates packet configs for a JTT905 flow. It emits a
