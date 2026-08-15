@@ -50,10 +50,10 @@ func newHTTPTestServer(t *testing.T, env *testMCPEnv, apiKey string, corsOrigins
 }
 
 // ---------------------------------------------------------------------------
-// Test 1: All 14 tools are advertised via tools/list over HTTP
+// Test 1: All 15 tools are advertised via tools/list over HTTP
 // ---------------------------------------------------------------------------
 
-// TestHTTPServer_AllToolsListed verifies all 14 MCP tools appear in the
+// TestHTTPServer_AllToolsListed verifies all 15 MCP tools appear in the
 // tools/list response over a real HTTP transport. This is the LLM's
 // discovery surface -- if a tool is missing, the LLM can't invoke it.
 func TestHTTPServer_AllToolsListed(t *testing.T) {
@@ -73,7 +73,7 @@ func TestHTTPServer_AllToolsListed(t *testing.T) {
 	}
 
 	wantTools := map[string]bool{
-		// 9 domain tools
+		// 10 domain tools
 		"flowb_query_system":       false,
 		"flowb_manage_strategies":  false,
 		"flowb_manage_users":       false,
@@ -83,6 +83,7 @@ func TestHTTPServer_AllToolsListed(t *testing.T) {
 		"flowb_manage_port_groups": false,
 		"flowb_manage_settings":    false,
 		"flowb_manage_tasks":       false,
+		"flowb_query_layers":       false,
 		// 5 workflow tools
 		"flowb_generate_traffic":  false,
 		"flowb_get_task_progress": false,
