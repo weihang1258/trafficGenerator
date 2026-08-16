@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 	"net"
 	"strings"
 	"time"
@@ -233,6 +234,15 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	if spec.DstPort != 0 && spec.DstPort != DefaultPort {
 		return fmt.Errorf("enip: dst_port must be %d", DefaultPort)
 	}
+	// V-005/V-006（设计 §8.1）：SessionCount 1-1000、FlowCount 1-100。
+	// 0 视为默认 1（未配置）；负数与超上限拒绝（否则 Plan 内循环静默
+	// 不展开，任务以 0 包完成）。
+	if cfg.SessionCount < 0 || cfg.SessionCount > 1000 {
+		return fmt.Errorf("enip: session_count %d out of range (1-1000)", cfg.SessionCount)
+	}
+	if cfg.FlowCount < 0 || cfg.FlowCount > 100 {
+		return fmt.Errorf("enip: flow_count %d out of range (1-100)", cfg.FlowCount)
+	}
 
 	for i, cmd := range cfg.Commands {
 		if err := validateCommand(&cmd, i); err != nil {
@@ -298,6 +308,16 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	return nil
 }
 
+// hasCPFItemType reports whether any CPF item carries the given type_id.
+func hasCPFItemType(items []core.CPFItem, typeID uint16) bool {
+	for _, item := range items {
+		if item.TypeID == typeID {
+			return true
+		}
+	}
+	return false
+}
+
 // validateCommand validates a single ENIP command.
 func validateCommand(cmd *core.ENIPCommand, idx int) error {
 	if !knownCommands[cmd.Command] {
@@ -321,6 +341,12 @@ func validateCommand(cmd *core.ENIPCommand, idx int) error {
 		if cmd.OptionFlag != 0 {
 			return fmt.Errorf("enip command[%d]: option_flag must be 0", idx)
 		}
+		// V-085 (design §7.3 T-085): RegisterSession 的 payload 仅能携带
+		// 4 字节会话数据（ProtocolVersion+OptionFlag，见 §4.2.1 S4），
+		// 其余长度不可编码、必须拒绝。
+		if len(cmd.Payload) > 0 && len(cmd.Payload) != 4 {
+			return fmt.Errorf("enip command[%d]: payload must be 4 bytes", idx)
+		}
 	case CmdUnRegisterSession:
 		if len(cmd.CPFItems) > 0 || len(cmd.Payload) > 0 {
 			return fmt.Errorf("enip command[%d]: UnRegisterSession must not carry payload or CPF", idx)
@@ -339,6 +365,12 @@ func validateCommand(cmd *core.ENIPCommand, idx int) error {
 		if cmd.CIPService == 0 && len(cmd.CPFItems) < 2 && len(cmd.Payload) == 0 {
 			return fmt.Errorf("enip command[%d]: SendRRData requires at least 2 CPF items, a cip_service, or a payload", idx)
 		}
+		// V-092 (design §7.3 T-092)：SendRRData 携带 Unconnected Data item
+		// 即声明了 CIP 消息，必须给出 cip_service；cip_service=0（无 CIP
+		// 消息）却携带 Unconnected Data 无法编码，必须拒绝。
+		if cmd.CIPService == 0 && hasCPFItemType(cmd.CPFItems, TypeIDUnconnectedData) {
+			return fmt.Errorf("enip command[%d]: cip_service required for SendRRData with Unconnected Data", idx)
+		}
 	case CmdSendUnitData:
 		// Validate has Connection Address + Connected Data
 		hasAddr, hasData := false, false
@@ -356,6 +388,14 @@ func validateCommand(cmd *core.ENIPCommand, idx int) error {
 		if !hasData {
 			return fmt.Errorf("enip command[%d]: SendUnitData requires Connected Data item", idx)
 		}
+	}
+
+	// V-090/V-091 (design §7.3 T-090/091)：session_handle 仅支持固定值或
+	// from_response 回读（§5.6.1），inc/rand 等流内可变策略无法被
+	// 会话状态机处理，必须拒绝。策略字符串由转换层透传
+	// （ENIPCommand.SessionHandleStrategy，json:"-"）。
+	if s := cmd.SessionHandleStrategy; s != "" && s != "fixed" && s != "from_response" {
+		return fmt.Errorf("enip command[%d]: session_handle strategy must be fixed or from_response, got %q", idx, s)
 	}
 
 	// Validate CPF items
@@ -445,6 +485,14 @@ func validateCommand(cmd *core.ENIPCommand, idx int) error {
 		}
 	}
 
+	// V-120 (design §7.3 T-120)：ConnectionPathSize 必须以字（16 位）为单位，
+	// 等于 ⌈len(ConnectionPath)/2⌉（EPATH 奇数长时补零成字）。显式填写
+	// 与实际路径不符时无法编码，必须拒绝。0（未填）由 planner 自动计算。
+	if len(cmd.ConnectionPath) > 0 && cmd.ConnectionPathSize != 0 &&
+		cmd.ConnectionPathSize != uint8((len(cmd.ConnectionPath)+1)/2) {
+		return fmt.Errorf("enip command[%d]: connection_path_size mismatch", idx)
+	}
+
 	return nil
 }
 
@@ -499,7 +547,6 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	if dstPort == 0 {
 		dstPort = DefaultPort
 	}
-	srcPort := spec.SrcPort
 	ttl := spec.TTL
 	if ttl == 0 {
 		ttl = DefaultTTL
@@ -507,178 +554,303 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 	configChan := make(chan core.PacketConfig, 256)
 
+	// 多会话/多流展开（设计 §7.5 T-161~T-179 + §6.13 S12 + §6.14 S13）：
+	// 总单元数 = sessionCount × flowCount，每单元是一份独立的会话状态机
+	// （SessionHandle、TCP 序列号、响应表、packetIndex）与独立 4-tuple。
+	// 逐单元派生（§6.14 S13 的 2 步交错由 +2u 表达；单元 0 与单单元场景
+	// 字节级一致，既有用例零回归）：
+	//   - SessionHandle/ConnSerialNum +u（T-162/163/164/165/174/175）；
+	//   - O2T/T2O ConnectionID +2u（S13：包 1 O2T=1/T2O=2，包 2 O2T=3/T2O=4）；
+	//   - down Forward_Open 响应 payload 的 O2T/T2O/serial 同步派生，
+	//     from_response 提取得到逐单元不同 ConnectionID（T-168/170/173）；
+	//   - TCP 每单元 srcPort = 显式 srcPort + u（T-169 独立 4-tuple）；
+	//     UDP 共享 4-tuple（T-170，ConnectionID 区分流）；
+	//   - SenderContext：默认全局递增（跨会话跨流连续，T-161/176）；
+	//     显式值 +u（T-177 每单元独立）。
+	sessionCount := cfg.SessionCount
+	if sessionCount <= 0 {
+		sessionCount = 1
+	}
+	flowCount := cfg.FlowCount
+	if flowCount <= 0 {
+		flowCount = 1
+	}
+
+	// senderCtxCounter 是 Plan 调用内共享的 SenderContext 全局递增计数器
+	// （R43 默认策略 = 全局 inc，T-161/176）：跨会话、跨流连续递增。
+	// SenderContextPtr 显式强制时不参与计数。planUnit 接收指针，
+	// 逐单元读取并推进（每命令 +1）。
+	var senderCtxCounter uint64
+
 	go func() {
 		defer close(configChan)
 
-		select {
-		case <-ctx.Done():
+		for s := 0; s < sessionCount; s++ {
+			for f := 0; f < flowCount; f++ {
+				u := s*flowCount + f // 单元序号（0 起）
+				if ctx.Err() != nil {
+					return
+				}
+				p.planUnit(ctx, spec, cfg, configChan, u, flowCount, sessionCount, &senderCtxCounter)
+			}
+		}
+	}()
+
+	return configChan, nil
+}
+
+// planUnit 生成一个会话×流单元的完整命令序列 + I/O 帧（§7.5 展开的
+// 单单元逻辑）。u 是单元序号（0 = 首单元，保持单单元场景字节级一致）。
+// senderCtxCounter 是 Plan 调用级共享的全局 SenderContext 计数器指针。
+func (p *Planner) planUnit(ctx context.Context, spec core.FlowSpec, cfg *core.ENIPConfig,
+	configChan chan<- core.PacketConfig, u, flowCount, sessionCount int,
+	senderCtxCounter *uint64) {
+
+	// Apply defaults
+	dstPort := spec.DstPort
+	if dstPort == 0 {
+		dstPort = DefaultPort
+	}
+	srcPort := spec.SrcPort
+	ttl := spec.TTL
+	if ttl == 0 {
+		ttl = DefaultTTL
+	}
+	// T-169（多会话 TCP 4-tuple 独立）：每单元 srcPort = 显式 srcPort + u。
+	// 仅 TCP 展开（多流 UDP 共享 4-tuple，T-170：所有流用同一 srcPort）；
+	// down 方向端口交换仍基于单元 srcPort。
+	transport := cfg.Transport
+	if transport == "" {
+		transport = "tcp"
+	}
+	l4Proto := "tcp"
+	if transport == "udp" {
+		l4Proto = "udp"
+	} else {
+		srcPort = srcPort + uint16(u)
+	}
+
+	flowID := fmt.Sprintf("enip-%s-%s-%d-%d", spec.SrcIP, spec.DstIP, srcPort, dstPort)
+	now := time.Now()
+	packetIndex := uint64(0)
+	// 每单元独立 SessionHandle 状态机：T-162/163/174 要求 8 个会话 8 个
+	// 独立 SessionHandle、UnRegisterSession 匹配本会话句柄。
+	sessionHandle := uint32(0)
+
+	// TCP 序列号：与 DNP3/MQTT/LDAP 一致，每条命令按方向携带当前 Seq
+	// 并递增（无显式三次握手，ENIP 命令即数据段）。clientSeq 是 up 方向
+	// 的 Seq，serverSeq 是 down 方向的 Seq；对端 Ack = 本方向下一期望
+	// 序列号（已消费字节数 + 1）。可复现：spec.TCP.InitialSeq 覆盖客户端
+	// 初始序列号（与 LDAP/MQTT 相同约定）。
+	clientSeq := uint32(0)
+	if spec.TCP != nil {
+		clientSeq = spec.TCP.InitialSeq
+	}
+	if clientSeq == 0 {
+		clientSeq = uint32(rand.Uint32())
+	}
+	serverSeq := uint32(rand.Uint32())
+	// 每包序列号推进：Flags 含 SYN(0x02)/FIN(0x01) 时 +1，否则 +len(payload)。
+	advanceSeq := func(seq *uint32, flags uint8, payloadLen int) {
+		if flags&0x03 != 0 {
+			*seq++
+		} else {
+			*seq += uint32(payloadLen)
+		}
+	}
+
+	// responseTable 是 (source_command_index → 该命令的响应数据) 两级索引
+	// 的单元内实现（H-2，设计 §5.6.1）：本单元的命令 i 的响应（含
+	// 24B ENIP 头）记录在 responseTable[i]，后续命令通过
+	// (flow_id, source_command_index) 定位提取字段。每单元独立响应表 =
+	// 多会话/多流 from_response 隔离（T-172/173，不交叉引用）。
+	responseTable := make(map[int][]byte)
+
+	// 循环 i 从 0 到 len-1 正向构建；提取 from_response 时使用
+	// 响应表（responseTable[srcIdx]），正向顺序保证引用目标（更早命令）
+	// 已构建。
+	for i, cmd := range cfg.Commands {
+		if ctx.Err() != nil {
 			return
-		default:
 		}
 
-		flowID := fmt.Sprintf("enip-%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
-		now := time.Now()
-		packetIndex := uint64(0)
-		sessionHandle := uint32(0)
-		// senderCtxCounter 是 flow 内 SenderContext 递增计数器（M-1，设计
-		// §6.13 S12）：每条命令默认 SenderContext = 起始值 + 已发包数。
-		senderCtxCounter := uint64(0)
+		// 多单元值派生（§6.14 S13 + T-162~T-177）：在 from_response 注入
+		// 之前复制并平移本单元专属字段（显式值 + 单元偏移）。单元 0
+		// 偏移全为 0，字节级等于单单元行为。派生字段：
+		//   - SessionHandle/ConnSerialNum：+u（T-162/164/174/175）；
+		//   - O2T/T2O ConnectionID：+2u（S13 交错）；
+		//   - SenderContext：显式值 +u（T-177 每单元独立）。
+		cmdCopy := cmd
+		cmdCopy.ConnSerialNum = cmd.ConnSerialNum + uint16(u)
+		cmdCopy.O2TConnID = cmd.O2TConnID + uint32(2*u)
+		cmdCopy.T2OConnID = cmd.T2OConnID + uint32(2*u)
+		if cmd.SenderContext != 0 {
+			cmdCopy.SenderContext = cmd.SenderContext + uint64(u)
+		}
+		// 响应方向命令（down/response）的 SessionHandle +u（T-162/163/174）：
+		// RegisterSession 响应与 UnRegisterSession 响应随单元平移，各会话
+		// 独立句柄。请求方向命令保持用户显式值不变（up 请求如
+		// UnRegisterSession 可携带已注册句柄，T-015/T-174 依赖）。
+		if cmd.Direction == "down" || cmd.Direction == "response" {
+			cmdCopy.SessionHandle = cmd.SessionHandle + uint32(u)
+		}
+		// down Forward_Open 响应 payload 随单元派生（T-168/170/173）：
+		// 响应的 O2T/T2O/ConnSerial 与请求侧同步平移（+2u/+2u/+u），
+		// 否则 from_response 从各单元响应提取到相同的 ConnectionID，
+		// 多流无法区分。仅当 payload 是标准成功响应（MR 头 reply=0xD4、
+		// GeneralStatus=0、AddStatusSize=0，body ≥10B）时派生；其他
+		// payload（错误响应等）保持原样。u=0 时字节级不变。
+		cmdCopy.Payload = deriveForwardOpenResponsePayload(cmd.Payload, u)
 
-		// responseTable 是 (source_command_index → 该命令的响应数据) 两级索引
-		// 的 flow 内实现（H-2，设计 §5.6.1）：本 flow 的命令 i 的响应（含
-		// 24B ENIP 头）记录在 responseTable[i]，后续命令通过
-		// (flow_id, source_command_index) 定位提取字段。
-		responseTable := make(map[int][]byte)
-
-		// 循环 i 从 0 到 len-1 正向构建；提取 from_response 时使用
-		// 响应表（responseTable[srcIdx]），正向顺序保证引用目标（更早命令）
-		// 已构建。
-		for i, cmd := range cfg.Commands {
-			if ctx.Err() != nil {
-				return
-			}
-
-			// from_response 注入（H-2）：若本命令配置了
-			// FromResponseField/SourceCommandIndex，先从引用命令的响应
-			// 提取字段值，注入到命令副本（cmdCopy）后再构建。
-			// 优先级：FromResponseField 注入值 > cmd.SessionHandle 显式值 >
-			// flow 级 sessionHandle。响应表按 (flow_id, source_command_index)
-			// 定位，本 flow 内隔离（设计 §5.6.1）。
-			cmdCopy := cmd
-			if cmd.FromResponseField != "" && cmd.SourceCommandIndex >= 0 &&
-				cmd.SourceCommandIndex < len(cfg.Commands) {
-				if resp := responseTable[cmd.SourceCommandIndex]; len(resp) > 0 {
-					if val, ok := extractFromResponse(resp, cmd.FromResponseField); ok {
-						switch cmd.FromResponseField {
-						case "session_handle":
-							cmdCopy.SessionHandle = val
-						case "o2t_connection_id":
-							cmdCopy.O2TConnID = val
-						case "t2o_connection_id":
-							cmdCopy.T2OConnID = val
-						case "connection_serial_number":
-							cmdCopy.ConnSerialNum = uint16(val)
-						}
+		// from_response 注入（H-2）：若本命令配置了
+		// FromResponseField/SourceCommandIndex，先从引用命令的响应
+		// 提取字段值，注入到命令副本（cmdCopy）后再构建。
+		// 优先级：FromResponseField 注入值 > cmd.SessionHandle 显式值 >
+		// 单元级 sessionHandle。响应表按 (flow_id, source_command_index)
+		// 定位，本单元内隔离（设计 §5.6.1 + T-172/173）。
+		if cmd.FromResponseField != "" && cmd.SourceCommandIndex >= 0 &&
+			cmd.SourceCommandIndex < len(cfg.Commands) {
+			if resp := responseTable[cmd.SourceCommandIndex]; len(resp) > 0 {
+				if val, ok := extractFromResponse(resp, cmd.FromResponseField); ok {
+					switch cmd.FromResponseField {
+					case "session_handle":
+						cmdCopy.SessionHandle = val
+					case "o2t_connection_id":
+						cmdCopy.O2TConnID = val
+					case "t2o_connection_id":
+						cmdCopy.T2OConnID = val
+					case "connection_serial_number":
+						cmdCopy.ConnSerialNum = uint16(val)
 					}
 				}
 			}
+		}
 
-			// Update session handle from the most recent RegisterSession response
-			if cmdCopy.Command == CmdRegisterSession && sessionHandle == 0 {
-				// For request: SessionHandle must be 0 (unregistered).
-				// For response (direction=down): SessionHandle is in cmd.SessionHandle.
-				if cmdCopy.SessionHandle != 0 {
-					sessionHandle = cmdCopy.SessionHandle
+		// Update session handle from the most recent RegisterSession response
+		if cmdCopy.Command == CmdRegisterSession && sessionHandle == 0 {
+			// For request: SessionHandle must be 0 (unregistered).
+			// For response (direction=down): SessionHandle is in cmd.SessionHandle.
+			if cmdCopy.SessionHandle != 0 {
+				sessionHandle = cmdCopy.SessionHandle
+			}
+		}
+
+		// Build the ENIP packet payload。SenderContext 计数经 Plan 级共享
+		// 指针推进（R43 默认全局递增，T-161/176）。
+		enipMsg := buildENIPPacket(&cmdCopy, sessionHandle, cfg, *senderCtxCounter)
+
+		// 记录响应数据：若本命令是响应方向（Direction=down/response），
+		// 将构建的响应报文（含 24B ENIP 头）存入响应表，供后续命令
+		// from_response 提取（H-2）。
+		if cmdCopy.Direction == "down" || cmdCopy.Direction == "response" {
+			responseTable[i] = enipMsg
+		}
+
+		// Determine direction: default "up" (client→server).
+		// ListIdentity/ListServices/ListInterfaces responses and RegisterSession
+		// responses use "down".
+		direction := "up"
+		if cmdCopy.Direction == "down" || cmdCopy.Direction == "response" {
+			direction = "down"
+		}
+
+		srcP, dstP := srcPort, dstPort
+		if direction == "down" {
+			srcP, dstP = dstPort, srcPort
+		}
+
+		// 序列号：up 用 clientSeq，down 用 serverSeq；Ack = 对端当前
+		// Seq（已接收字节后）。flags=PSH+ACK，数据段语义（无握手）。
+		seq := clientSeq
+		ack := serverSeq
+		flags := uint8(tcpPSHACK)
+		if direction == "down" {
+			seq = serverSeq
+			ack = clientSeq
+		}
+		select {
+		case configChan <- core.PacketConfig{
+			FlowID:      flowID,
+			PacketIndex: packetIndex,
+			Direction:   direction,
+			Timestamp:   now,
+			L2: core.L2Config{
+				SrcMAC:    spec.SrcMAC,
+				DstMAC:    spec.DstMAC,
+				EtherType: core.EtherTypeFor(spec.SrcIP),
+			},
+			L3: core.L3Base(spec.SrcIP, spec.DstIP, l4ProtoNumber(l4Proto), ttl, uint16(i+1), spec),
+			L4: core.L4Config{
+				Protocol:   l4Proto,
+				SrcPort:    srcP,
+				DstPort:    dstP,
+				Seq:        seq,
+				Ack:        ack,
+				Flags:      flags,
+				WindowSize: 65535,
+			},
+			Payload: enipMsg,
+		}:
+		case <-ctx.Done():
+			return
+		}
+		if l4Proto == "tcp" {
+			if direction == "up" {
+				advanceSeq(&clientSeq, flags, len(enipMsg))
+			} else {
+				advanceSeq(&serverSeq, flags, len(enipMsg))
+			}
+		}
+		packetIndex++
+		*senderCtxCounter++
+	}
+
+	// Emit I/O data frames if configured
+	if cfg.IOData != nil {
+		// H-2（设计 §5.6.1）：IOData.SourceCommandIndex 指向本单元内
+		// Forward_Open 响应（方向 down），I/O 帧的 O→T Connection ID
+		// 从该响应 CIP body offset 0 提取。单元隔离：响应表按本单元
+		// 命令序列索引。
+		io := *cfg.IOData
+		io.O2TConnectionID = io.O2TConnectionID + uint32(2*u)
+		if io.SourceCommandIndex != nil && *io.SourceCommandIndex >= 0 &&
+			*io.SourceCommandIndex < len(cfg.Commands) {
+			if resp := responseTable[*io.SourceCommandIndex]; len(resp) > 0 {
+				if val, ok := extractFromResponse(resp, "o2t_connection_id"); ok {
+					io.O2TConnectionID = val
 				}
 			}
-
-			// Build the ENIP packet payload
-			enipMsg := buildENIPPacket(&cmdCopy, sessionHandle, cfg, senderCtxCounter)
-
-			// 记录响应数据：若本命令是响应方向（Direction=down/response），
-			// 将构建的响应报文（含 24B ENIP 头）存入响应表，供后续命令
-			// from_response 提取（H-2）。
-			if cmdCopy.Direction == "down" || cmdCopy.Direction == "response" {
-				responseTable[i] = enipMsg
+		}
+		ioFrames := buildIODataFrames(&io, sessionHandle)
+		for _, frame := range ioFrames {
+			if ctx.Err() != nil {
+				return
 			}
-
-			// Determine direction: default "up" (client→server).
-			// ListIdentity/ListServices/ListInterfaces responses and RegisterSession
-			// responses use "down".
-			direction := "up"
-			if cmdCopy.Direction == "down" || cmdCopy.Direction == "response" {
-				direction = "down"
-			}
-
-			// Determine transport protocol: TCP for explicit, UDP for I/O (Class 0/1).
-			transport := cfg.Transport
-			if transport == "" {
-				transport = "tcp"
-			}
-			l4Proto := "tcp"
-			if transport == "udp" {
-				l4Proto = "udp"
-			}
-
-			srcP, dstP := srcPort, dstPort
-			if direction == "down" {
-				srcP, dstP = dstPort, srcPort
-			}
-
 			select {
 			case configChan <- core.PacketConfig{
 				FlowID:      flowID,
 				PacketIndex: packetIndex,
-				Direction:   direction,
+				Direction:   "up",
 				Timestamp:   now,
 				L2: core.L2Config{
 					SrcMAC:    spec.SrcMAC,
 					DstMAC:    spec.DstMAC,
 					EtherType: core.EtherTypeFor(spec.SrcIP),
 				},
-				L3: core.L3Base(spec.SrcIP, spec.DstIP, l4ProtoNumber(l4Proto), ttl, uint16(i+1), spec),
+				L3: core.L3Base(spec.SrcIP, spec.DstIP, 17, ttl, uint16(packetIndex+1), spec),
 				L4: core.L4Config{
-					Protocol: l4Proto,
-					SrcPort:  srcP,
-					DstPort:  dstP,
+					Protocol: "udp",
+					SrcPort:  srcPort,
+					DstPort:  dstPort,
 				},
-				Payload: enipMsg,
+				Payload: frame,
 			}:
 			case <-ctx.Done():
 				return
 			}
 			packetIndex++
-			senderCtxCounter++
 		}
-
-		// Emit I/O data frames if configured
-		if cfg.IOData != nil {
-			// H-2（设计 §5.6.1）：IOData.SourceCommandIndex 指向本 flow 内
-			// Forward_Open 响应（方向 down），I/O 帧的 O→T Connection ID
-			// 从该响应 CIP body offset 0 提取。flow 隔离：响应表按本 flow
-			// 命令序列索引。
-			io := *cfg.IOData
-			if io.SourceCommandIndex != nil && *io.SourceCommandIndex >= 0 &&
-				*io.SourceCommandIndex < len(cfg.Commands) {
-				if resp := responseTable[*io.SourceCommandIndex]; len(resp) > 0 {
-					if val, ok := extractFromResponse(resp, "o2t_connection_id"); ok {
-						io.O2TConnectionID = val
-					}
-				}
-			}
-			ioFrames := buildIODataFrames(&io, sessionHandle)
-			for _, frame := range ioFrames {
-				if ctx.Err() != nil {
-					return
-				}
-				select {
-				case configChan <- core.PacketConfig{
-					FlowID:      flowID,
-					PacketIndex: packetIndex,
-					Direction:   "up",
-					Timestamp:   now,
-					L2: core.L2Config{
-						SrcMAC:    spec.SrcMAC,
-						DstMAC:    spec.DstMAC,
-						EtherType: core.EtherTypeFor(spec.SrcIP),
-					},
-					L3: core.L3Base(spec.SrcIP, spec.DstIP, 17, ttl, uint16(packetIndex+1), spec),
-					L4: core.L4Config{
-						Protocol: "udp",
-						SrcPort:  srcPort,
-						DstPort:  dstPort,
-					},
-					Payload: frame,
-				}:
-				case <-ctx.Done():
-					return
-				}
-				packetIndex++
-			}
-		}
-	}()
-
-	return configChan, nil
+	}
 }
 
 // fromResponseFields 是 from_response 支持的提取字段名（设计 §5.6.1 表）。
@@ -774,8 +946,7 @@ func validateFromResponseConfig(cfg *core.ENIPConfig) error {
 // 之后，见 §3.6；§5.6.1 的偏移即从 CIP body 起算）。提取前校验响应
 // General Status=0（成功），错误响应不得作为 Connection ID 来源
 // （§5.6.1 前置条件）。
-func extractFromResponse(resp []byte, field string) (uint32, bool) {
-	if len(resp) < enipHeaderLen {
+func extractFromResponse(resp []byte, field string) (uint32, bool) {	if len(resp) < enipHeaderLen {
 		return 0, false
 	}
 	switch field {
@@ -815,6 +986,27 @@ func extractFromResponse(resp []byte, field string) (uint32, bool) {
 		}
 	}
 	return 0, false
+}
+
+// deriveForwardOpenResponsePayload 将 down 方向 Forward_Open 响应 payload
+// （MR 头 + CIP body，不含 ENIP 头）按单元偏移派生：O2T/T2O +2u、
+// ConnSerial +u（§6.14 S13 交错，T-168/170/173）。仅当 payload 是标准
+// 成功响应形状时派生：MR 头 4B（replyService=0xD4、Reserved、GeneralStatus=0、
+// AddStatusSize=0）+ body ≥10B（O2T 4B + T2O 4B + ConnSerial 2B）。
+// 其他形状（错误响应、自定义 payload）保持原样；u=0 恒返回原 payload。
+func deriveForwardOpenResponsePayload(payload []byte, u int) []byte {
+	if u == 0 || len(payload) < 14 {
+		return payload
+	}
+	if payload[0] != 0xD4 || payload[2] != 0 || payload[3] != 0 {
+		return payload // 非标准成功响应（reply/GeneralStatus/AddStatusSize 不符）
+	}
+	derived := make([]byte, len(payload))
+	copy(derived, payload)
+	binary.LittleEndian.PutUint32(derived[4:8], binary.LittleEndian.Uint32(payload[4:8])+uint32(2*u))
+	binary.LittleEndian.PutUint32(derived[8:12], binary.LittleEndian.Uint32(payload[8:12])+uint32(2*u))
+	binary.LittleEndian.PutUint16(derived[12:14], binary.LittleEndian.Uint16(payload[12:14])+uint16(u))
+	return derived
 }
 
 // l4ProtoNumber returns the IP protocol number for TCP/UDP.
@@ -998,13 +1190,29 @@ func buildCIPDataForCommand(cmd *core.ENIPCommand, cfg *core.ENIPConfig) []byte 
 		return cip
 
 	case CIPGetAttributeList, CIPSetAttributeList:
-		// Build attribute list request
-		cip := make([]byte, 0, 64)
+		// Get: Payload = AttrIDs 列表（每 2B LE 一个 ID），count = len/2。
+		// Set: Payload = AttrID(2B LE) + 属性数据（类型相关，Identity STRING
+		// 为 2B 长度前缀 + 数据）的混合结构（设计 §3.10；Wireshark
+		// dissect_cip_set_attribute_list_req 按 att_count 读取 AttrID 后由
+		// dissect_cip_attribute 按属性类型消费数据，AttrID 后无 DataSize
+		// 字段）。count = 前段纯 AttrID 个数。
 		reqPath, pathSize := EncodePaddedCIPPath(cmd.ClassID, cmd.InstanceID, 0)
+		cip := make([]byte, 0, 64)
 		cip = append(cip, cmd.CIPService, pathSize)
 		cip = append(cip, reqPath...)
-		// Attribute IDs from Payload (each 2B LE)
-		attrCount := uint16(len(cmd.Payload) / 2)
+		if cmd.CIPService == CIPGetAttributeList {
+			attrCount := uint16(len(cmd.Payload) / 2)
+			cip = append(cip, u16LE(attrCount)...)
+			cip = append(cip, cmd.Payload...)
+			return cip
+		}
+		// Set_Attribute_List: Payload 以 AttrID 开头；对偶数长度取整后
+		// 与整体一致即视为纯 AttrID 列表（get 风格），否则按
+		// AttrID+数据 混合结构：count=1 个 AttrID + 原始数据。
+		attrCount := uint16(1)
+		if len(cmd.Payload) > 0 && len(cmd.Payload)%2 == 0 {
+			attrCount = uint16(len(cmd.Payload) / 2)
+		}
 		cip = append(cip, u16LE(attrCount)...)
 		cip = append(cip, cmd.Payload...)
 		return cip
@@ -1042,8 +1250,11 @@ func buildIODataFrames(io *core.ENIPIOData, sessionHandle uint32) [][]byte {
 	}
 	connID := io.O2TConnectionID
 	for i := 0; i < io.FrameCount; i++ {
-		// Connected Data Item: 2B SequenceCounter + payload (per spec §2.4.1)
-		// ConnectionID belongs in the Connection Address Item (0x00A1), not here.
+		// Connected Data Item: payload 直接作为内容（pcap 回归 2026-08：
+		// UDP I/O 帧不再带 2B SequenceCounter 前缀——未注册 connid 的
+		// UDP I/O 被 Wireshark 按 CIP Message Router 解析，seq+payload
+		// 会构成伪显式消息 → [Malformed Packet: CIP]；见
+		// BuildConnectedDataItem 注释）。ConnectionID 在 0x00A1 item。
 		frameData := io.Payload
 		if len(frameData) == 0 && io.FrameSize > 0 {
 			frameData = make([]byte, io.FrameSize)

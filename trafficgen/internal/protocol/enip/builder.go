@@ -184,10 +184,15 @@ func BuildLargeForwardOpenBody(priorityTimeTick, timeoutTicks uint8,
 }
 
 // BuildForwardCloseBody builds the Forward_Close (0x4E) request body.
+// Layout（Wireshark 3.6.14 dissect_cip_cm_fwd_close_req 固定偏移）：
+//   ptt/tt(2) + ConnSerial(2) + Vendor(2) + OrigSerial(4) +
+//   PathSize(1) + Reserved(1) + ConnectionPath(pathSize*2)
+// Reserved 字节必须有：缺省时 Wireshark 把路径首字节 0x20 误读为 Reserved、
+// 路径只剩 7/8 字节 → [Malformed Packet: CIPCM]。
 func BuildForwardCloseBody(priorityTimeTick, timeoutTicks uint8,
 	connSerialNum, origVendorID uint16, origSerialNum uint32,
 	connPath []byte) []byte {
-	buf := make([]byte, 0, 10+len(connPath))
+	buf := make([]byte, 0, 11+len(connPath))
 	buf = append(buf, priorityTimeTick)
 	buf = append(buf, timeoutTicks)
 	buf = append(buf, u16LE(connSerialNum)...)
@@ -195,6 +200,7 @@ func BuildForwardCloseBody(priorityTimeTick, timeoutTicks uint8,
 	buf = append(buf, u32LE(origSerialNum)...)
 	pathSize := uint8(len(connPath) / 2)
 	buf = append(buf, pathSize)
+	buf = append(buf, 0x00) // Reserved
 	buf = append(buf, connPath...)
 	return buf
 }
@@ -239,6 +245,8 @@ func BuildGetAttributeSingle(classID uint16, instanceID uint32, attrID uint16) [
 }
 
 // BuildSetAttributeSingle builds a Set_Attribute_Single (0x10) request with data.
+// data 是 attribute 的完整 CIP 类型编码（如 STRING = 2B 长度前缀 + 字节，
+// 缺长度前缀时 tshark 报 "Missing string data" → _ws.malformed）。
 func BuildSetAttributeSingle(classID uint16, instanceID uint32, attrID uint16, data []byte) []byte {
 	return BuildCIPRequest(CIPSetAttributeSingle, classID, instanceID, attrID, data)
 }
@@ -338,12 +346,18 @@ func BuildSockaddrInfoItem(port uint16, ip []byte) []byte {
 	return buf
 }
 
-// BuildConnectedDataItem builds a Connected Data item with sequence counter + data.
-// Per spec §2.4.1, the Connected Data Item (0x00B1) carries SequenceCounter(2B LE)
-// followed by payload data. The ConnectionID belongs in the Connection Address Item (0x00A1).
+// BuildConnectedDataItem builds a Connected Data item payload for I/O frames.
+// pcap 回归（2026-08）：UDP I/O 帧的 Connected Data Item (0x00B1) 不再携带
+// 2B SequenceCounter 前缀。Wireshark 3.6.14 对未注册 connid 的 UDP I/O
+// 帧（无匹配 conversation，conn_info==NULL）不调用 class01/class23 解析，
+// 而是把该 item 内容按 CIP Message Router 处理；seq(2B)+payload(≥2B) 恰好
+// 满足最小显式消息条件并被当作服务码解析 → 异常 → [Malformed Packet: CIP]。
+// 真实 Class 1 I/O（transport class 0/1）的 seq counter 由对方按连接上下文
+// 隐含，不带在 UDP 负载中。TCP 显式消息（Class 3）的 seq 由调用方显式构造
+// （CPFItems 字面量），本函数不负责。
 func BuildConnectedDataItem(seqCounter uint16, data []byte) []byte {
-	itemData := make([]byte, 2+len(data))
-	binary.LittleEndian.PutUint16(itemData[0:2], seqCounter)
-	copy(itemData[2:], data)
+	_ = seqCounter // 保留签名兼容；UDP I/O 不编码 seq
+	itemData := make([]byte, len(data))
+	copy(itemData, data)
 	return itemData
 }
