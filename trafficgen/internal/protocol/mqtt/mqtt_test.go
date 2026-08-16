@@ -3,6 +3,7 @@ package mqtt
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -648,6 +649,48 @@ func TestQoS2DownDirection(t *testing.T) {
 	}
 	if !foundComp {
 		t.Error("PUBCOMP not found")
+	}
+}
+
+// T-038 regression: down-direction packets must carry the server's source IP
+// on the wire (spec.DstIP), not the client's. The direction matrix test above
+// only asserted the PacketConfig.Direction field — a down packet whose
+// L3.SrcIP still read spec.SrcIP passed that test but produced a pcap where
+// every packet claims the client's IP (verified via tshark ip.src). Per the
+// testing policy, assert the observable bytes: down packet → src=20.0.0.1,
+// up packet → src=10.0.0.1.
+func TestQoS2DownDirectionWireIPs(t *testing.T) {
+	cfg := &MQTTConfig{
+		Version: 4,
+		Messages: []MQTTMessage{
+			{Topic: "device/cmd", Payload: "on", QoS: 2, Direction: "down", PacketID: 4},
+		},
+	}
+	p := NewPlanner()
+	spec := core.FlowSpec{
+		SrcIP:   "10.0.0.1",
+		DstIP:   "20.0.0.1",
+		SrcPort: 12345,
+		DstPort: 1883,
+		MQTT:    cfg,
+	}
+	ch, err := p.Plan(nil, spec)
+	if err != nil {
+		t.Fatalf("Plan error: %v", err)
+	}
+	var cfgs []core.PacketConfig
+	for c := range ch {
+		cfgs = append(cfgs, c)
+	}
+	for _, c := range cfgs {
+		wantSrc := "10.0.0.1"
+		if c.Direction == "down" {
+			wantSrc = "20.0.0.1"
+		}
+		if c.L3.SrcIP != wantSrc {
+			t.Errorf("packet direction=%s L3.SrcIP=%s, want %s (down packets must swap to the server address)",
+				c.Direction, c.L3.SrcIP, wantSrc)
+		}
 	}
 }
 
@@ -1903,11 +1946,31 @@ func TestSessionKeepAliveExplicitZero(t *testing.T) {
 	t.Error("CONNECT packet not found")
 }
 
-// T-198: 5.0 Maximum QoS property in CONNACK (ID 0x24).
-func TestConnackMaxQoSProperty(t *testing.T) {
-	// CONNACK properties are fixed (planner writes Properties Length=0 in
-	// the current implementation); Maximum QoS / Retain Available / Shared
-	// Sub Available are validated as CONNACK-whitelist properties.
+// T-198/199/200: 5.0 CONNACK properties — Maximum QoS (0x24), Retain
+// Available (0x25), Shared Subscription Available (0x2A) must be emitted
+// after the Properties Length VBI. Previously buildConnack hardcoded
+// Properties Length=0 and dropped any configured CONNACK properties, so
+// T-198/199/200 declared byte outputs (24 01 / 25 00 / 2A 01) could never
+// appear on the wire.
+func TestConnackPropertiesBytes(t *testing.T) {
+	cfg := &MQTTConfig{Version: 5, ConnectAckCode: 0,
+		ConnackProperties: []MQTTProperty{
+			{Identifier: 0x24, Format: "byte", Value: "1"},
+			{Identifier: 0x25, Format: "byte", Value: "0"},
+			{Identifier: 0x2A, Format: "byte", Value: "1"},
+		},
+	}
+	got := buildConnack(cfg)
+	// [20][RL][SP=00][Reason=00][PropsLen VBI=06][24 01][25 00][2A 01]
+	want := []byte{0x20, 0x09, 0x00, 0x00, 0x06, 0x24, 0x01, 0x25, 0x00, 0x2A, 0x01}
+	if !bytes.Equal(got, want) {
+		t.Errorf("CONNACK = %x, want %x", got, want)
+	}
+}
+
+// T-198 companion: empty ConnackProperties still yields Properties Length
+// 0x00 (mandatory in 5.0).
+func TestConnackPropertiesEmptyLenZero(t *testing.T) {
 	cfg := &MQTTConfig{Version: 5, ConnectAckCode: 0}
 	got := buildConnack(cfg)
 	if !bytes.Equal(got, []byte{0x20, 0x03, 0x00, 0x00, 0x00}) {
@@ -2280,7 +2343,7 @@ func TestAutoSrcPortOverflow(t *testing.T) {
 
 	// srcPort near max (65534) + 3 sessions → overflows past 65535.
 	cfg := &MQTTConfig{
-		Version: 4,
+		Version:  4,
 		ClientID: "c1",
 		Sessions: []core.MQTTSession{
 			{ClientID: "s1"},
@@ -2302,7 +2365,7 @@ func TestAutoSrcPortOverflow(t *testing.T) {
 
 	// srcPort below 1024 (not ephemeral) must also error.
 	cfg2 := &MQTTConfig{
-		Version: 4,
+		Version:  4,
 		ClientID: "c1",
 		Sessions: []core.MQTTSession{
 			{ClientID: "s1"},
@@ -2362,5 +2425,289 @@ func TestPropertySubscriptionIDZero(t *testing.T) {
 	spec2 := core.FlowSpec{MQTT: cfg2}
 	if err := p.Validate(spec2); err != nil {
 		t.Errorf("unexpected error for valid Subscription Identifier: %v", err)
+	}
+}
+
+// T-026 regression: an up (client→server) PUBLISH carrying Subscription
+// Identifier 0x0B must be rejected even when the message omits the
+// direction field (empty string = default "up"). Previously the empty
+// direction bypassed the `direction == "up"` check in validateProperties,
+// so a default-direction PUBLISH silently carried a client-only property
+// onto the wire — the error only fired for explicitly set "up".
+func TestUpPublishSubIDRejectedDefaultDirection(t *testing.T) {
+	p := NewPlanner()
+	cfg := &MQTTConfig{
+		Version: 5,
+		Messages: []MQTTMessage{
+			{Topic: "t", Payload: "p", QoS: 0, // Direction omitted → "" → default up
+				Properties: []MQTTProperty{
+					{Identifier: 0x0B, Format: "vbi", Value: "200"},
+				}},
+		},
+	}
+	spec := core.FlowSpec{MQTT: cfg}
+	if err := p.Validate(spec); err == nil {
+		t.Fatal("expected error for up PUBLISH with subscription identifier, got nil")
+	} else if !strings.Contains(err.Error(), "subscription identifier") {
+		t.Errorf("error = %v, want mention of subscription identifier", err)
+	}
+
+	// Explicit "up" must equally be rejected.
+	cfg2 := &MQTTConfig{
+		Version: 5,
+		Messages: []MQTTMessage{
+			{Topic: "t", Payload: "p", QoS: 0, Direction: "up",
+				Properties: []MQTTProperty{
+					{Identifier: 0x0B, Format: "vbi", Value: "200"},
+				}},
+		},
+	}
+	if err := p.Validate(core.FlowSpec{MQTT: cfg2}); err == nil {
+		t.Error("expected error for explicit up PUBLISH with subscription identifier, got nil")
+	}
+
+	// Down PUBLISH with 0x0B must still be accepted (T-141c semantics).
+	cfg3 := &MQTTConfig{
+		Version: 5,
+		Messages: []MQTTMessage{
+			{Topic: "t", Payload: "p", QoS: 0, Direction: "down",
+				Properties: []MQTTProperty{
+					{Identifier: 0x0B, Format: "vbi", Value: "200"},
+				}},
+		},
+	}
+	if err := p.Validate(core.FlowSpec{MQTT: cfg3}); err != nil {
+		t.Errorf("down PUBLISH with subscription identifier should pass, got %v", err)
+	}
+}
+
+// T-187/S15: MQTT 5.0 DISCONNECT must carry a configurable Reason Code
+// (e.g. 0x8D = Keep Alive timeout). Previously buildDisconnect(version, 0)
+// hard-coded Reason=0 and there was no config field to override it.
+func TestDisconnectReasonV5(t *testing.T) {
+	p := NewPlanner()
+	cfg := &MQTTConfig{
+		Version:          5,
+		ClientID:         "timeout-01",
+		DisconnectReason: intPtr(0x8D),
+	}
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "10.0.0.2",
+		SrcPort: 36164, DstPort: 1883,
+		MQTT: cfg,
+	}
+	ch, err := p.Plan(nil, spec)
+	if err != nil {
+		t.Fatalf("Plan error: %v", err)
+	}
+	var cfgs []core.PacketConfig
+	for c := range ch {
+		cfgs = append(cfgs, c)
+	}
+	// The last MQTT payload must be the DISCONNECT carrying 0x8D.
+	lastMQTT := -1
+	for i, c := range cfgs {
+		if len(c.Payload) > 0 {
+			lastMQTT = i
+		}
+	}
+	if lastMQTT < 0 {
+		t.Fatal("no MQTT payload found")
+	}
+	got := cfgs[lastMQTT].Payload
+	want := []byte{0xE0, 0x02, 0x8D, 0x00}
+	if !bytes.Equal(got, want) {
+		t.Errorf("DISCONNECT 5.0 = %x, want %x (Reason 0x8D Keep Alive timeout)", got, want)
+	}
+}
+
+// T-187 variant: Reason Code on a v3.1.1 connection must be rejected
+// (DISCONNECT has no Reason Code in 3.1.1).
+func TestDisconnectReasonV4Rejected(t *testing.T) {
+	p := NewPlanner()
+	cfg := &MQTTConfig{
+		Version:          4,
+		ClientID:         "c1",
+		DisconnectReason: intPtr(0x8D),
+	}
+	spec := core.FlowSpec{MQTT: cfg}
+	if err := p.Validate(spec); err == nil {
+		t.Error("expected error for disconnect_reason on v3.1.1, got nil")
+	}
+}
+
+// T-073: empty topic + Topic Alias=1 on the FIRST message must be rejected
+// (alias mapping not yet established).
+func TestValidateEmptyTopicFirstAliasRejected(t *testing.T) {
+	p := NewPlanner()
+	cfg := &MQTTConfig{
+		Version: 5,
+		Properties: []MQTTProperty{
+			{Identifier: 0x22, Format: "uint16", Value: "1"}, // Topic Alias Maximum=1
+		},
+		Messages: []MQTTMessage{
+			{Topic: "", Payload: "p", QoS: 0, Properties: []MQTTProperty{
+				{Identifier: 0x23, Format: "uint16", Value: "1"}, // Topic Alias=1
+			}},
+		},
+	}
+	spec := core.FlowSpec{MQTT: cfg}
+	if err := p.Validate(spec); err == nil {
+		t.Error("expected error for empty topic with unestablished alias, got nil")
+	}
+}
+
+// T-074: empty topic + Topic Alias=1 is legal once the alias mapping has
+// been established by an earlier PUBLISH with a non-empty topic.
+func TestValidateEmptyTopicAliasReusePasses(t *testing.T) {
+	p := NewPlanner()
+	cfg := &MQTTConfig{
+		Version: 5,
+		Properties: []MQTTProperty{
+			{Identifier: 0x22, Format: "uint16", Value: "1"}, // Topic Alias Maximum=1
+		},
+		Messages: []MQTTMessage{
+			{Topic: "sensor/temp", Payload: "a", QoS: 0, Properties: []MQTTProperty{
+				{Identifier: 0x23, Format: "uint16", Value: "1"}, // establishes alias 1
+			}},
+			{Topic: "", Payload: "b", QoS: 0, Properties: []MQTTProperty{
+				{Identifier: 0x23, Format: "uint16", Value: "1"}, // reuses alias 1
+			}},
+		},
+	}
+	spec := core.FlowSpec{MQTT: cfg}
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("unexpected error for empty topic with established alias: %v", err)
+	}
+}
+
+// T-074b: PUBLISH using a Topic Alias while CONNECT did not declare a
+// Topic Alias Maximum (absent → 0) must be rejected per MQTT 5.0
+// §3.1.2.11.5. Previously the alias-usage validation only tracked
+// establish/reuse state across messages and never checked that the
+// sender advertised an alias maximum — an alias-bearing PUBLISH on a
+// connection that declared none passed validation and put a
+// protocol-invalid packet on the wire.
+func TestValidateTopicAliasWithoutMaximumRejected(t *testing.T) {
+	p := NewPlanner()
+	cfg := &MQTTConfig{
+		Version: 5,
+		// No CONNECT property 0x22 → Topic Alias Maximum defaults to 0.
+		Messages: []MQTTMessage{
+			{Topic: "sensor/temp", Payload: "a", QoS: 0, Properties: []MQTTProperty{
+				{Identifier: 0x23, Format: "uint16", Value: "1"},
+			}},
+		},
+	}
+	spec := core.FlowSpec{MQTT: cfg}
+	err := p.Validate(spec)
+	if err == nil {
+		t.Fatal("expected error for topic alias without CONNECT Topic Alias Maximum, got nil")
+	}
+	if !strings.Contains(err.Error(), "alias") {
+		t.Errorf("error = %v, want mention of topic alias", err)
+	}
+
+	// Control: declaring Maximum=1 makes the same PUBLISH legal.
+	cfg2 := &MQTTConfig{
+		Version: 5,
+		Properties: []MQTTProperty{
+			{Identifier: 0x22, Format: "uint16", Value: "1"},
+		},
+		Messages: []MQTTMessage{
+			{Topic: "sensor/temp", Payload: "a", QoS: 0, Properties: []MQTTProperty{
+				{Identifier: 0x23, Format: "uint16", Value: "1"},
+			}},
+		},
+	}
+	if err := p.Validate(core.FlowSpec{MQTT: cfg2}); err != nil {
+		t.Errorf("unexpected error with declared maximum: %v", err)
+	}
+
+	// Rule 10b second clause: alias value exceeding the declared maximum
+	// (0x22=1) must also be rejected.
+	cfg3 := &MQTTConfig{
+		Version: 5,
+		Properties: []MQTTProperty{
+			{Identifier: 0x22, Format: "uint16", Value: "1"},
+		},
+		Messages: []MQTTMessage{
+			{Topic: "sensor/temp", Payload: "a", QoS: 0, Properties: []MQTTProperty{
+				{Identifier: 0x23, Format: "uint16", Value: "2"},
+			}},
+		},
+	}
+	if err := p.Validate(core.FlowSpec{MQTT: cfg3}); err == nil {
+		t.Fatal("expected error for topic alias 2 > declared maximum 1, got nil")
+	} else if !strings.Contains(err.Error(), "alias") {
+		t.Errorf("error = %v, want mention of topic alias", err)
+	}
+}
+
+// T-113: an empty ClientID forces CleanSession=true on the wire (3.1.1
+// §3.1.3.1: a zero-byte ClientID is only allowed with CleanSession=1) even
+// when the user explicitly configured clean_session=false. The planner
+// resolves the automatic ClientID in emitSessionFlow, so the forced flag
+// must be observable in the emitted CONNECT bytes, not just in
+// buildConnect unit tests.
+func TestEmptyClientIDForcesCleanSessionOnWire(t *testing.T) {
+	p := NewPlanner()
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1",
+		SrcPort: 12345, DstPort: 1883,
+		MQTT: &MQTTConfig{
+			ClientID:     "", // empty → auto-generated
+			CleanSession: boolPtr(false),
+		},
+	}
+	ch, err := p.Plan(nil, spec)
+	if err != nil {
+		t.Fatalf("Plan error: %v", err)
+	}
+	var connect []byte
+	for c := range ch {
+		if len(c.Payload) >= 2 && c.Payload[0] == 0x10 && c.Payload[1] != 0 {
+			connect = c.Payload
+			break
+		}
+	}
+	if connect == nil {
+		t.Fatal("no CONNECT packet found in plan output")
+	}
+	// v4 CONNECT layout: [0x10][RL] [00 04 MQTT] [04] [flags] [KA hi][KA lo]
+	if connect[9]&0x02 == 0 {
+		t.Errorf("CONNECT flags = 0x%02x, want CleanSession bit (0x02) forced set for empty client_id", connect[9])
+	}
+}
+
+// T-120 companion: empty ClientID + Will must keep both the forced
+// CleanSession bit and the Will flags in the emitted CONNECT.
+func TestEmptyClientIDWillFlagsOnWire(t *testing.T) {
+	p := NewPlanner()
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1",
+		SrcPort: 12345, DstPort: 1883,
+		MQTT: &MQTTConfig{
+			ClientID: "", // empty → auto-generated
+			Will:     &MQTTWill{Topic: "t", Payload: "p", QoS: 1},
+		},
+	}
+	ch, err := p.Plan(nil, spec)
+	if err != nil {
+		t.Fatalf("Plan error: %v", err)
+	}
+	var connect []byte
+	for c := range ch {
+		if len(c.Payload) >= 2 && c.Payload[0] == 0x10 && c.Payload[1] != 0 {
+			connect = c.Payload
+			break
+		}
+	}
+	if connect == nil {
+		t.Fatal("no CONNECT packet found in plan output")
+	}
+	want := byte(0x0e) // Clean(0x02) + Will(0x04) + WillQoS1(0x08)
+	if connect[9] != want {
+		t.Errorf("CONNECT flags = 0x%02x, want 0x%02x (forced clean + will qos1)", connect[9], want)
 	}
 }

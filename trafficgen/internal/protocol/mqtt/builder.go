@@ -342,7 +342,16 @@ func buildConnack(cfg *MQTTConfig) []byte {
 
 	// 5.0: Properties Length.
 	if version == 5 {
-		payload = append(payload, 0x00) // Properties Length = 0 (no properties).
+		var props []byte
+		for _, prop := range cfg.ConnackProperties {
+			enc, err := encodeProperty(prop)
+			if err == nil {
+				props = append(props, enc...)
+			}
+		}
+		vbi, _ := encodeVBI(len(props))
+		payload = append(payload, vbi...)
+		payload = append(payload, props...)
 	}
 
 	remainingLen := len(payload)

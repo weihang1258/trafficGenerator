@@ -140,6 +140,39 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return err
 	}
 
+	if cfg.DisconnectReason != nil {
+		if version == 4 {
+			return fmt.Errorf("mqtt: disconnect_reason is 5.0 only")
+		}
+		if !validDisconnectReason(*cfg.DisconnectReason) {
+			return fmt.Errorf("mqtt: invalid disconnect_reason 0x%02X for version 5.0", *cfg.DisconnectReason)
+		}
+	}
+
+	// Track Topic Alias mapping state across messages: a PUBLISH with an
+	// empty Topic Name is only legal when a prior message in the same flow
+	// established the alias with a non-empty topic (design T-073/T-074).
+	// Additionally (rule §8.1 10b, T-074b): using a Topic Alias (0x23) at
+	// all requires CONNECT to have declared a Topic Alias Maximum (0x22)
+	// covering the alias value — absent 0x22, the maximum defaults to 0,
+	// meaning the sender accepts no aliases (5.0 §3.1.2.11.5). This check
+	// was previously missing: an alias-bearing PUBLISH on a connection
+	// that declared no maximum passed validation and put a
+	// protocol-invalid packet on the wire.
+	aliasMax := 0
+	if version == 5 {
+		for _, prop := range cfg.Properties {
+			if prop.Identifier == 0x22 { // Topic Alias Maximum
+				if n, err := parseUint(prop.Value, 16); err == nil && int(n) > aliasMax {
+					aliasMax = int(n)
+				}
+			}
+		}
+	}
+	if err := validateMessageAliases(version, cfg.Messages, aliasMax); err != nil {
+		return err
+	}
+
 	cleanSession := true
 	if cfg.CleanSession != nil {
 		cleanSession = *cfg.CleanSession
@@ -198,6 +231,14 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	}
 	if version == 5 && len(cfg.Properties) > 0 {
 		if err := validateProperties(0x10, cfg.Properties, ""); err != nil {
+			return err
+		}
+	}
+	if version == 4 && len(cfg.ConnackProperties) > 0 {
+		return fmt.Errorf("mqtt: connack_properties are 5.0 only")
+	}
+	if version == 5 && len(cfg.ConnackProperties) > 0 {
+		if err := validateProperties(0x20, cfg.ConnackProperties, ""); err != nil {
 			return err
 		}
 	}
@@ -360,8 +401,39 @@ func validateMergedSession(version int, cfg *MQTTConfig, idx int) error {
 		if err := validateProperties(0x10, cfg.Properties, ""); err != nil {
 			return fmt.Errorf("mqtt: session[%d]: %w", idx, err)
 		}
+		if err := validateProperties(0x20, cfg.ConnackProperties, ""); err != nil {
+			return fmt.Errorf("mqtt: session[%d]: %w", idx, err)
+		}
+	}
+	// Bug fix (T-074b): session messages bypassed the flow-level Topic Alias
+	// rules — a session PUBLISH carrying 0x23 without a declared 0x22
+	// maximum passed validation. Re-run the same alias checks on the merged
+	// config (its Properties are the effective CONNECT properties).
+	aliasMax := 0
+	for _, prop := range cfg.Properties {
+		if prop.Identifier == 0x22 {
+			if n, err := parseUint(prop.Value, 16); err == nil && int(n) > aliasMax {
+				aliasMax = int(n)
+			}
+		}
+	}
+	if err := validateMessageAliases(version, cfg.Messages, aliasMax); err != nil {
+		return fmt.Errorf("mqtt: session[%d]: %w", idx, err)
 	}
 	return nil
+}
+
+func validDisconnectReason(code int) bool {
+	// DISCONNECT 5.0 Reason Code whitelist (design §2.12): 0, 4,
+	// 128-132, 135, 137, 139-144, 147-162.
+	switch code {
+	case 0, 4, 128, 129, 130, 131, 132, 135, 137, 139, 140, 141, 142,
+		143, 144, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156,
+		157, 158, 159, 160, 161, 162:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateConnectAckCode(version, code int) error {
@@ -433,7 +505,12 @@ func validateMessage(version int, msg MQTTMessage) error {
 		return fmt.Errorf("mqtt: invalid message direction %q (allowed: up, down)", msg.Direction)
 	}
 	if msg.Topic == "" {
-		return fmt.Errorf("mqtt: message topic cannot be empty (without topic alias)")
+		// Empty topic is only legal in 5.0 with an established Topic Alias
+		// (checked by the caller with flow-level alias state, T-073/T-074).
+		// validateMessage itself cannot decide — it lacks the alias history.
+		if version != 5 {
+			return fmt.Errorf("mqtt: message topic cannot be empty (without topic alias)")
+		}
 	}
 	if err := validateUTF8("message topic", msg.Topic); err != nil {
 		return err
@@ -453,7 +530,17 @@ func validateMessage(version int, msg MQTTMessage) error {
 		return fmt.Errorf("mqtt: message properties are 5.0 only")
 	}
 	if version == 5 && len(msg.Properties) > 0 {
-		if err := validateProperties(0x30, msg.Properties, msg.Direction); err != nil {
+		// Bug fix (T-026): an omitted direction field ("") means the
+		// default "up", but validateProperties only rejected 0x0B for
+		// the literal string "up" — a default-direction PUBLISH carrying
+		// a Subscription Identifier passed validation and put a
+		// client-only property on the wire. Normalize "" → "up" so the
+		// MQTT-3.3.4-6 prohibition cannot be bypassed.
+		dir := msg.Direction
+		if dir == "" {
+			dir = "up"
+		}
+		if err := validateProperties(0x30, msg.Properties, dir); err != nil {
 			return err
 		}
 	}
@@ -550,6 +637,51 @@ func validateProperties(packetType int, props []MQTTProperty, direction string) 
 		// the broker would reject as a protocol error.
 		if id == 0x0B && prop.Value == "0" {
 			return fmt.Errorf("mqtt: property[%d] subscription identifier cannot be 0", i)
+		}
+	}
+	return nil
+}
+
+// validateMessageAliases enforces the flow-level Topic Alias rules
+// (design §8.1 rule 9 + rule 10b) across a message list:
+//   - rule 9 (T-073): a PUBLISH with an empty Topic Name is only legal when
+//     a prior message established the alias with a non-empty topic;
+//   - rule 10b (T-074b): any use of Topic Alias (0x23) requires CONNECT to
+//     have declared Topic Alias Maximum (0x22) ≥ the alias value, and a
+//     declared maximum of 0 (absent 0x22) forbids aliases entirely.
+//
+// Messages are validated in order because alias establishment is
+// order-dependent. connectProps carries the merged CONNECT properties
+// (0x22 may be declared at top level or per session).
+func validateMessageAliases(version int, messages []core.MQTTMessage, aliasMax int) error {
+	if version != 5 {
+		return nil
+	}
+	aliasEstablished := make(map[int]bool)
+	for _, msg := range messages {
+		if err := validateMessage(version, msg); err != nil {
+			return err
+		}
+		for _, prop := range msg.Properties {
+			if prop.Identifier != 0x23 { // Topic Alias
+				continue
+			}
+			alias, err := parseUint(prop.Value, 16)
+			if err != nil {
+				continue // format error already reported by validateProperties
+			}
+			if aliasMax == 0 {
+				return fmt.Errorf("mqtt: topic alias %d used without CONNECT Topic Alias Maximum (0x22 must be declared, absent defaults to 0)", alias)
+			}
+			if int(alias) > aliasMax {
+				return fmt.Errorf("mqtt: topic alias %d exceeds declared Topic Alias Maximum %d", alias, aliasMax)
+			}
+			if msg.Topic == "" && !aliasEstablished[int(alias)] {
+				return fmt.Errorf("mqtt: empty topic with unestablished topic alias %d (first alias use must carry a topic name)", alias)
+			}
+			if msg.Topic != "" {
+				aliasEstablished[int(alias)] = true
+			}
 		}
 	}
 	return nil
@@ -801,8 +933,14 @@ func mergeSession(top *MQTTConfig, s core.MQTTSession) *MQTTConfig {
 	if s.Disconnect != nil {
 		out.Disconnect = s.Disconnect
 	}
+	if s.DisconnectReason != nil {
+		out.DisconnectReason = s.DisconnectReason
+	}
 	if s.Properties != nil {
 		out.Properties = s.Properties
+	}
+	if s.ConnackProperties != nil {
+		out.ConnackProperties = s.ConnackProperties
 	}
 	return &out
 }
@@ -821,6 +959,14 @@ func emitSessionFlow(ctx context.Context, spec core.FlowSpec, cfg *MQTTConfig, s
 	if cfg.ClientID == "" {
 		resolved := *cfg
 		resolved.ClientID = fmt.Sprintf("trafficgen-%06x", clientIDCounter.Add(1))
+		// Empty ClientID forces CleanSession=true (3.1.1 §3.1.3.1: a
+		// zero-byte ClientID is only allowed with CleanSession=1). The
+		// builder forces this too, but it sees the *resolved* (non-empty)
+		// ClientID, so the planner must force it here — otherwise an
+		// explicit clean_session=false with empty client_id emits a
+		// protocol-invalid CONNECT with flags bit1=0 (T-113/T-120).
+		cs := true
+		resolved.CleanSession = &cs
 		cfg = &resolved
 	}
 
@@ -877,11 +1023,23 @@ func emitSessionFlow(ctx context.Context, spec core.FlowSpec, cfg *MQTTConfig, s
 		if payload == nil {
 			payload = []byte{}
 		}
-		l3 := core.L3Base(spec.SrcIP, spec.DstIP, 6, effectiveTTL, nextIPID(), spec)
+		// Direction swaps the on-wire src/dst: "down" (server→client)
+		// emits from spec.DstIP:spec.DstPort to spec.SrcIP:spec.SrcPort.
+		// Bug fix (T-038/T-039): previously L3/L4 were always built from
+		// spec.SrcIP/SrcPort, so every packet in the pcap claimed the
+		// client's address regardless of Direction — the direction field
+		// was set but the bytes never followed it.
+		srcIP, dstIP := spec.SrcIP, spec.DstIP
+		srcPort, dstPort := spec.SrcPort, spec.DstPort
+		if direction == "down" {
+			srcIP, dstIP = dstIP, srcIP
+			srcPort, dstPort = dstPort, srcPort
+		}
+		l3 := core.L3Base(srcIP, dstIP, 6, effectiveTTL, nextIPID(), spec)
 		l4 := core.L4Config{
 			Protocol:   "tcp",
-			SrcPort:    spec.SrcPort,
-			DstPort:    spec.DstPort,
+			SrcPort:    srcPort,
+			DstPort:    dstPort,
 			Seq:        seq,
 			Ack:        ack,
 			Flags:      flags,
@@ -898,7 +1056,7 @@ func emitSessionFlow(ctx context.Context, spec core.FlowSpec, cfg *MQTTConfig, s
 			L2: core.L2Config{
 				SrcMAC:    spec.SrcMAC,
 				DstMAC:    spec.DstMAC,
-				EtherType: core.EtherTypeFor(spec.SrcIP),
+				EtherType: core.EtherTypeFor(srcIP),
 			},
 			L3:       l3,
 			L4:       l4,
@@ -1022,7 +1180,11 @@ func emitSessionFlow(ctx context.Context, spec core.FlowSpec, cfg *MQTTConfig, s
 		// DISCONNECT (last MQTT packet). Skipped when the CONNACK code != 0
 		// (connection rejected → TCP teardown follows directly).
 		if disconnect {
-			clientSeq = emitData("up", clientSeq, serverSeq, buildDisconnect(version, 0))
+			reason := 0
+			if cfg.DisconnectReason != nil {
+				reason = *cfg.DisconnectReason
+			}
+			clientSeq = emitData("up", clientSeq, serverSeq, buildDisconnect(version, reason))
 		}
 	}
 
