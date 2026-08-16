@@ -147,8 +147,18 @@ func encodeWccData(b []byte) []byte {
 // depends on which set_xxx fields are present.
 func encodeSattr3(b []byte, a *NFSAttributes) []byte {
 	if a == nil {
-		// All fields DONT_CHANGE/false → 24 bytes
-		return appendU32(b, 0) // set_mode
+		// All fields DONT_CHANGE/false → 24 bytes: set_mode(4)
+		// set_uid(4) set_gid(4) set_size(4) set_atime(4) set_mtime(4).
+		// Pre-fix this branch emitted only 4 bytes, so tshark read the
+		// following bytes as the rest of the sattr3 and flagged
+		// [Malformed Packet: NFS].
+		b = appendU32(b, 0) // set_mode
+		b = appendU32(b, 0) // set_uid
+		b = appendU32(b, 0) // set_gid
+		b = appendU32(b, 0) // set_size
+		b = appendU32(b, 0) // set_atime (time_how = SET_TO_SERVER_TIME)
+		b = appendU32(b, 0) // set_mtime (time_how = SET_TO_SERVER_TIME)
+		return b
 	}
 	// set_mode
 	b = appendU32(b, boolToUint32(a.SetMode))
@@ -187,10 +197,11 @@ func encodeSattr3(b []byte, a *NFSAttributes) []byte {
 
 // timeHowFor maps NFSAttributes (Set + *Secs) to the time_how discriminant
 // per §2.8:
-//   SetAtime=false                    → 0 (DONT_CHANGE)
-//   SetAtime=true, AtimeSecs=nil      → 1 (SET_TO_SERVER_TIME, v2.0.4 design)
-//   SetAtime=true, AtimeSecs=0xFFFFFFFF → 1 (SET_TO_SERVER_TIME)
-//   SetAtime=true, AtimeSecs=other    → 2 (SET_TO_CLIENT_TIME)
+//
+//	SetAtime=false                    → 0 (DONT_CHANGE)
+//	SetAtime=true, AtimeSecs=nil      → 1 (SET_TO_SERVER_TIME, v2.0.4 design)
+//	SetAtime=true, AtimeSecs=0xFFFFFFFF → 1 (SET_TO_SERVER_TIME)
+//	SetAtime=true, AtimeSecs=other    → 2 (SET_TO_CLIENT_TIME)
 func timeHowFor(set bool, secs *uint32) uint32 {
 	if !set {
 		return TimeHowDONT_CHANGE
@@ -379,32 +390,33 @@ func encodeRPCCallHeader(b []byte, xid, program, version, procedure uint32,
 // MSG_ACCEPTED branch up to the AcceptState field. After this header the
 // caller writes AcceptState + optional low/high + NFS body.
 func encodeRPCReplyHeaderAccepted(b []byte, xid uint32) []byte {
-	b = appendU32(b, xid)             // XID
-	b = appendU32(b, RPCReply)        // Type = REPLY
-	b = appendU32(b, RPCMsgAccepted)  // ReplyState
-	return encodeAuthNone(b)          // Verifier = AUTH_NONE
+	b = appendU32(b, xid)            // XID
+	b = appendU32(b, RPCReply)       // Type = REPLY
+	b = appendU32(b, RPCMsgAccepted) // ReplyState
+	return encodeAuthNone(b)         // Verifier = AUTH_NONE
 }
 
 // encodeRPCReplyHeaderDenied encodes the RPC REPLY header for the
 // MSG_DENIED branch up to the RejectState field. After this header the
-// caller writes RejectState + (low/high or auth_stat).
+// caller writes RejectState + (mismatch_info | auth_stat).
 //
-// Per RFC 5531 §8 (reply body), the MSG_DENIED branch carries the same
-// verifier field as MSG_ACCEPTED: XID + Type + ReplyState + verifier
-// (AUTH_NONE) + RejectState + (mismatch_info | auth_stat). The verifier
-// was previously omitted, which shifted the RejectState/low/high fields
-// by 8 bytes and made the reply unparseable as RPC (T-163/T-164).
+// Per RFC 5531 §9.2 (reply_body), the verifier field is part of
+// accepted_reply ONLY; denied_reply carries no verifier: msg_type +
+// reply_stat + reject_stat + (mismatch_info | auth_stat). The verifier
+// was previously appended here, shifting RejectState/low/high by 8 bytes
+// and making the reply unparseable by tshark (T-163..T-166).
 func encodeRPCReplyHeaderDenied(b []byte, xid uint32) []byte {
 	b = appendU32(b, xid)
 	b = appendU32(b, RPCReply)
 	b = appendU32(b, RPCMsgDenied)
-	return encodeAuthNone(b) // Verifier = AUTH_NONE (8 bytes: flavor + length)
+	return b // No verifier in denied_reply (RFC 5531 §9.2)
 }
 
 // --- NFSv4 COMPOUND encoders ---
 
 // encodeCompound4Args encodes COMPOUND4args (RFC 7531 §5.2):
-//   tag(utf8str_cs) + minorversion(uint32) + argarray<nfs_argop4>
+//
+//	tag(utf8str_cs) + minorversion(uint32) + argarray<nfs_argop4>
 func encodeCompound4Args(b []byte, tag string, minorversion uint32, ops []encodedOp) []byte {
 	b = appendString(b, tag)
 	b = appendU32(b, minorversion)
@@ -425,7 +437,8 @@ type encodedOp struct {
 // --- COMPOUND reply encoders ---
 
 // encodeCompound4Res encodes COMPOUND4res (RFC 7531 §15.2.3):
-//   status(nfsstat4) + tag(utf8str_cs) + resarray<nfs_resop4>
+//
+//	status(nfsstat4) + tag(utf8str_cs) + resarray<nfs_resop4>
 //
 // truncatedCount: number of ops that should appear in resarray (caller
 // computed from OpStatus and truncation rule §2.7).
@@ -651,12 +664,19 @@ func encodeOPLOCK(args []byte, op *NFSv4CompoundOp) []byte {
 			}
 		}
 	} else {
+		// new_lock_owner=false → lock_owner4 = clientid(uint64) +
+		// state_owner4{seqid(uint32), owner(opaque)} (RFC 7530 §16.10.2).
+		// Pre-fix the seqid was missing and the branch wrote a stateid4
+		// (16B), so tshark consumed the clientid/owner bytes as the
+		// stateid and hit EOF (t111 frame 8 evidence).
 		args = appendU32(args, 0)
 		if op.LockOwner != nil {
 			args = appendU64(args, op.LockOwner.Clientid)
+			args = appendU32(args, op.LockOwner.Seqid)
 			args = appendOpaque(args, op.LockOwner.Owner)
 		} else {
 			args = appendU64(args, 0)
+			args = appendU32(args, 1)
 			args = appendOpaque(args, nil)
 		}
 	}
@@ -794,6 +814,100 @@ func resultGETFH(fh []byte) []byte {
 // resultStateid: returns a stateid4 = seqid(4) + other[12].
 func resultStateid(s *NFSStateid) []byte {
 	return appendStateid(nil, s)
+}
+
+// resultChangeInfo: change_info4 = bool atomic(4) + changeid4 before(8)
+// + changeid4 after(8) = 20 bytes (RFC 7530 §15.1). Pre-fix this wrote
+// only 16 bytes (missing the atomic discriminant), so tshark read the
+// following result fields 4 bytes early and flagged [Malformed Packet:
+// NFS] (t093 frame 9 evidence).
+func resultChangeInfo() []byte {
+	buf := make([]byte, 0, 20)
+	buf = appendU32(buf, 1) // atomic = true
+	buf = appendU64(buf, 0) // changeid before
+	buf = appendU64(buf, 0) // changeid after
+	return buf
+}
+
+// resultOpen: OPEN4resok = stateid4 + change_info4 + result flags +
+// attrset (bitmap4) + open_delegation4 (RFC 7530 §16.17.3). The
+// delegation is always OPEN_DELEGATE_NONE (4-byte discriminant, no
+// follow-on data); the attrset is an empty bitmap. Total =
+// 16 + 20 + 4 + 4 + 4 = 48 bytes. Pre-fix this branch reused the
+// call's input stateid (the reply echoed the 16-byte request stateid,
+// not the server-allocated one), so tshark read the following ops'
+// bytes as change_info/rflags/delegation and hit EOF (t093 frame 9
+// evidence).
+func resultOpen(st *NFSStateid) []byte {
+	buf := make([]byte, 0, 48)
+	buf = appendStateid(buf, st)
+	// append — NOT rebind: resultChangeInfo returns a fresh slice, so
+	// assigning it to buf would discard the stateid already appended.
+	buf = append(buf, resultChangeInfo()...)
+	buf = appendU32(buf, 0) // result flags: 0x00000000
+	buf = encodeBitmap4(buf, nil)
+	buf = appendU32(buf, 0) // open_delegation4 type = OPEN_DELEGATE_NONE
+	return buf
+}
+
+// resultCreate: CREATE4resok = change_info4 + newfh (fh4) + attrsset
+// (bitmap4) (RFC 7530 §16.1.3). The newfh defaults to a 1-byte 0x01
+// handle; attrsset is an empty bitmap.
+func resultCreate() []byte {
+	buf := make([]byte, 0, 40)
+	buf = resultChangeInfo()
+	buf = appendFilehandle(buf, []byte{0x01})
+	return encodeBitmap4(buf, nil)
+}
+
+// resultRemoveRename: REMOVE4resok / RENAME4resok = change_info4 x2
+// (RFC 7530 §16.24.3 / §16.26.3).
+func resultRemoveRename() []byte {
+	buf := make([]byte, 0, 40)
+	buf = resultChangeInfo()
+	return append(buf, resultChangeInfo()...)
+}
+
+// resultSetattr: SETATTR4resok = attrsset (bitmap4) — empty bitmap.
+func resultSetattr() []byte {
+	return encodeBitmap4(nil, nil)
+}
+
+// resultSecinfo: SECINFO4resok = secinfo4<> (RFC 7530 §16.33.2). Each
+// entry: flavor4 + union { flavor_info4 = secinfo_style4 + payload }.
+// AUTH_NONE (flavor 0) and AUTH_SYS (flavor 1, machine name opaque) are
+// emitted as the two common flavors; SECINFO_STYLE4_PARENT = 0.
+func resultSecinfo() []byte {
+	buf := make([]byte, 0, 40)
+	buf = appendU32(buf, 2) // secinfo4 count
+	// AUTH_NONE: flavor + union (secinfo_style4, no payload).
+	buf = appendU32(buf, AuthFlavorNone)
+	buf = appendU32(buf, 0) // SECINFO_STYLE4_PARENT
+	// AUTH_SYS: machine name opaque.
+	buf = appendU32(buf, AuthFlavorSys)
+	buf = appendU32(buf, 0) // SECINFO_STYLE4_PARENT
+	buf = appendOpaque(buf, []byte("trafficgen"))
+	return buf
+}
+
+// encodeOPOpenDowngrade: OPEN_DOWNGRADE4args = open_stateid4 + seqid4 +
+// share_access4 + share_deny4 (RFC 7530 §16.19.2). Pre-fix the
+// encoder had no case, so the op emitted zero args and tshark read the
+// next op's bytes as its stateid (t092 frame evidence).
+func encodeOPOpenDowngrade(args []byte, op *NFSv4CompoundOp) []byte {
+	args = appendStateid(args, op.OpenStateid)
+	args = appendU32(args, op.Seqid)
+	args = appendU32(args, op.ShareAccess)
+	return appendU32(args, op.ShareDeny)
+}
+
+// encodeOPOpenConfirm: OPEN_CONFIRM4args = open_stateid4 + seqid4
+// (RFC 7530 §16.18.2 — stateid FIRST, unlike CLOSE4args which is
+// seqid first). Pre-fix this reused encodeOPCLOSE, which wrote
+// seqid first and hit a misparse in tshark.
+func encodeOPOpenConfirm(args []byte, op *NFSv4CompoundOp) []byte {
+	args = appendStateid(args, op.OpenStateid)
+	return appendU32(args, op.Seqid)
 }
 
 // resultSetClientID: SETCLIENTID4res = clientid4(uint64) +

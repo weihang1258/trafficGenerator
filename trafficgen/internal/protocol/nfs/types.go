@@ -502,8 +502,13 @@ type OpenToLockOwner struct {
 }
 
 // LockOwner represents LOCK4args lock_owner4 (RFC 7531 §5.5).
+// lock_owner4 = clientid4 + state_owner4{seqid4, owner4} (RFC 7530
+// §16.10.2). Pre-fix the seqid was missing, so tshark 3.6 read the
+// lock_owner4 as a 16B stateid4 and consumed the owner bytes (t111
+// frame 8 evidence).
 type LockOwner struct {
 	Clientid uint64 `json:"clientid"`
+	Seqid    uint32 `json:"seqid"`
 	Owner    []byte `json:"owner"`
 }
 

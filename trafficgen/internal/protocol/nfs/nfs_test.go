@@ -428,7 +428,7 @@ func TestNFS4UDPRejected(t *testing.T) {
 		Version:   4,
 		Transport: "udp",
 		Ops: []NFSOp{{
-			Procedure: NFS4ProcCOMPOUND,
+			Procedure:   NFS4ProcCOMPOUND,
 			CompoundOps: []NFSv4CompoundOp{{Opcode: OP_PUTROOTFH}},
 		}},
 	})
@@ -897,7 +897,7 @@ func TestNFS4MinorVersion(t *testing.T) {
 		Version:      4,
 		MinorVersion: &mv,
 		Ops: []NFSOp{{
-			Procedure: NFS4ProcCOMPOUND,
+			Procedure:   NFS4ProcCOMPOUND,
 			CompoundOps: []NFSv4CompoundOp{{Opcode: OP_PUTROOTFH}},
 		}},
 	})
@@ -1031,14 +1031,14 @@ func TestNFS4ShareAccessRange(t *testing.T) {
 		Ops: []NFSOp{{
 			Procedure: NFS4ProcCOMPOUND,
 			CompoundOps: []NFSv4CompoundOp{{
-				Opcode:       OP_OPEN,
-				Seqid:        1,
-				ShareAccess:  0,
-				ShareDeny:    0,
-				Clientid:     1,
-				OpenHow:      &NFSOpenHow{Type: "unchecked"},
-				Claim:        &NFSClaim{Type: "null"},
-				Name:         "f",
+				Opcode:      OP_OPEN,
+				Seqid:       1,
+				ShareAccess: 0,
+				ShareDeny:   0,
+				Clientid:    1,
+				OpenHow:     &NFSOpenHow{Type: "unchecked"},
+				Claim:       &NFSClaim{Type: "null"},
+				Name:        "f",
 			}},
 		}},
 	})
@@ -1184,7 +1184,7 @@ func TestNFS4SessionsClientID(t *testing.T) {
 		SessionsSrcPortBase: 50000,
 		SessionsSrcPortStep: 1,
 		Ops: []NFSOp{{
-			Procedure: NFS4ProcCOMPOUND,
+			Procedure:   NFS4ProcCOMPOUND,
 			CompoundOps: []NFSv4CompoundOp{{Opcode: OP_PUTROOTFH}},
 		}},
 	})
@@ -1484,7 +1484,7 @@ func TestNFS4GETATTRNoFH(t *testing.T) {
 	spec := nfsSpec(t, &NFSConfig{
 		Version: 4,
 		Ops: []NFSOp{{
-			Procedure: NFS4ProcCOMPOUND,
+			Procedure:   NFS4ProcCOMPOUND,
 			CompoundOps: []NFSv4CompoundOp{{Opcode: OP_GETATTR, AttrMask: []uint32{0x10}}},
 		}},
 	})
@@ -1813,7 +1813,7 @@ func TestNFS3CompoundFieldsRejected(t *testing.T) {
 	spec := nfsSpec(t, &NFSConfig{
 		Version: 3,
 		Ops: []NFSOp{{
-			Procedure: NFS3ProcNULL,
+			Procedure:   NFS3ProcNULL,
 			CompoundOps: []NFSv4CompoundOp{{Opcode: OP_PUTROOTFH}},
 		}},
 	})
@@ -1887,7 +1887,7 @@ func TestNFS4InvalidOpcode(t *testing.T) {
 		spec := nfsSpec(t, &NFSConfig{
 			Version: 4,
 			Ops: []NFSOp{{
-				Procedure: NFS4ProcCOMPOUND,
+				Procedure:   NFS4ProcCOMPOUND,
 				CompoundOps: []NFSv4CompoundOp{{Opcode: opc}},
 			}},
 		})
@@ -1901,7 +1901,7 @@ func TestNFS4InvalidOpcode(t *testing.T) {
 		spec := nfsSpec(t, &NFSConfig{
 			Version: 4,
 			Ops: []NFSOp{{
-				Procedure: NFS4ProcCOMPOUND,
+				Procedure:   NFS4ProcCOMPOUND,
 				CompoundOps: []NFSv4CompoundOp{{Opcode: opc}},
 			}},
 		})
@@ -2112,6 +2112,14 @@ func binaryBigEndianU32(b []byte) uint32 {
 	return uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
 }
 
+func binaryBigEndianU64(b []byte) uint64 {
+	if len(b) < 8 {
+		return 0
+	}
+	return uint64(b[0])<<56 | uint64(b[1])<<48 | uint64(b[2])<<40 | uint64(b[3])<<32 |
+		uint64(b[4])<<24 | uint64(b[5])<<16 | uint64(b[6])<<8 | uint64(b[7])
+}
+
 func containsStr(s, sub string) bool {
 	if len(sub) == 0 {
 		return true
@@ -2122,6 +2130,1056 @@ func containsStr(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+// --- Deep-audit fixes (2026-08): pcap malformed regressions ---
+//
+// The following tests are derived from tshark [Malformed Packet: NFS/MOUNT]
+// findings in the pcap drive (cases/nfs.json t001/t053/t059/t060a/t060b/
+// t060c/t092/t093/t097/t099/t100/t111-t118). Each encodes the RFC 1813 /
+// RFC 7531 wire layout the malformed frames violated.
+
+// callPayloadOf finds the first user-op CALL payload in cfgs (skips
+// auto MOUNT call/reply pairs), returning (payload, NFS body offset).
+func callPayloadOf(cfgs []core.PacketConfig) ([]byte, int) {
+	skipNextDown := false
+	for _, c := range cfgs {
+		if len(c.Payload) == 0 || len(c.Payload) < 4 {
+			continue
+		}
+		if c.Direction == "up" {
+			hdr, off, err := ParseRPCCallHeader(c.Payload[4:])
+			if err == nil && hdr.Program == ProgramMount {
+				skipNextDown = true
+				continue
+			}
+			return c.Payload, 4 + off
+		}
+		if skipNextDown {
+			skipNextDown = false
+		}
+	}
+	return nil, 0
+}
+
+// replyPayloadOf finds the first user-op REPLY payload (skips the auto
+// MOUNT call/reply pair and any MOUNT reply after a MOUNT call).
+func replyPayloadOf(cfgs []core.PacketConfig) ([]byte, int) {
+	skipNextDown := false
+	for _, c := range cfgs {
+		if len(c.Payload) == 0 || len(c.Payload) < 4 {
+			continue
+		}
+		if c.Direction == "up" {
+			hdr, _, err := ParseRPCCallHeader(c.Payload[4:])
+			if err == nil && hdr.Program == ProgramMount {
+				skipNextDown = true
+			}
+			continue
+		}
+		if skipNextDown {
+			skipNextDown = false
+			continue
+		}
+		_, off, err := ParseRPCReplyHeader(c.Payload[4:])
+		if err != nil {
+			continue
+		}
+		return c.Payload, 4 + off
+	}
+	return nil, 0
+}
+
+// lastCallPayloadOf finds the LAST user-op CALL payload in cfgs (skips
+// auto MOUNT and auto SETCLIENTID call/reply pairs, which precede the
+// user-configured ops). Returns (payload, NFS body offset).
+//
+// Only up-direction (CALL) payloads update `out`; down (REPLY) frames
+// and unparseable frames (e.g. handshake) leave the previous candidate
+// in place.
+func lastCallPayloadOf(cfgs []core.PacketConfig) ([]byte, int) {
+	var out []byte
+	var off int
+	for _, c := range cfgs {
+		if len(c.Payload) < 4 || c.Direction != "up" {
+			continue
+		}
+		hdr, o, err := ParseRPCCallHeader(c.Payload[4:])
+		if err != nil || hdr.Program == ProgramMount {
+			continue
+		}
+		out = c.Payload
+		off = 4 + o
+	}
+	if out == nil {
+		return nil, 0
+	}
+	return out, off
+}
+
+// argWalkOp is a single op entry while walking a COMPOUND call body:
+// the opcode and the exact slice of its XDR args (0 bytes for no-arg ops).
+type argWalkOp struct {
+	opcode uint32
+	args   []byte
+}
+
+// walkCompoundArgs walks a COMPOUND4args body (starting just past
+// tag + minorversion + opcount) and returns one entry per op with the
+// exact args bytes. The args of the LAST op extend to the end of the
+// body (no delimiter), and per-op widths are taken from the same
+// encoders the planner uses, so a missing case is a test failure rather
+// than silent garbage.
+func walkCompoundArgs(t *testing.T, b []byte) []argWalkOp {
+	t.Helper()
+	var out []argWalkOp
+	for len(b) > 0 {
+		if len(b) < 4 {
+			t.Fatalf("dangling opcode bytes: %x", b)
+		}
+		opcode := binaryBigEndianU32(b)
+		rest := b[4:]
+		var width int
+		switch opcode {
+		case OP_PUTROOTFH, OP_PUTPUBFH, OP_LOOKUPP, OP_READLINK, OP_GETFH:
+			width = 0
+		case OP_PUTFH:
+			if len(rest) < 4 {
+				t.Fatalf("PUTFH args underflow: %x", rest)
+			}
+			width = SkipOpaque(rest)
+		case OP_GETATTR:
+			// bitmap4: length + words — empty in these tests.
+			if len(rest) < 4 {
+				t.Fatalf("GETATTR args underflow: %x", rest)
+			}
+			words := int(binaryBigEndianU32(rest))
+			width = 4 + 4*words
+		case OP_LOOKUP, OP_REMOVE:
+			width = SkipOpaque(rest)
+		case OP_RENAME:
+			if len(rest) < 4 {
+				t.Fatalf("RENAME args underflow: %x", rest)
+			}
+			o := SkipOpaque(rest)
+			if o < 0 {
+				t.Fatalf("RENAME oldname underflow: %x", rest)
+			}
+			nn := SkipOpaque(rest[o:])
+			if nn < 0 {
+				t.Fatalf("RENAME newname underflow: %x", rest[o:])
+			}
+			width = o + nn
+		case OP_SETATTR:
+			// stateid4 (16) + fattr4 (bitmap len + words + attrlist opaque).
+			if len(rest) < 16+4 {
+				t.Fatalf("SETATTR args underflow: %x", rest)
+			}
+			words := int(binaryBigEndianU32(rest[16:]))
+			if len(rest) < 20+4*words+4 {
+				t.Fatalf("SETATTR fattr4 underflow: %x", rest)
+			}
+			attrLen := int(binaryBigEndianU32(rest[20+4*words:]))
+			width = 20 + 4*words + 4 + attrLen + (4-(attrLen%4))%4
+		case OP_READ:
+			// stateid4 + offset(8) + count(4) = 28.
+			width = 28
+		case OP_WRITE:
+			// stateid4 + offset(8) + stable(4) + data opaque.
+			if len(rest) < 28 {
+				t.Fatalf("WRITE args underflow: %x", rest)
+			}
+			width = 28 + SkipOpaque(rest[28:])
+		case OP_OPEN_CONFIRM:
+			// OPEN_CONFIRM4args = open_stateid4 + seqid4 (RFC 7530 §16.18.2).
+			width = 16 + 4
+		case OP_OPEN_DOWNGRADE:
+			// OPEN_DOWNGRADE4args = open_stateid4 + seqid4 + share_access +
+			// share_deny (RFC 7530 §16.19.2).
+			width = 16 + 4 + 4 + 4
+		case OP_CLOSE:
+			// CLOSE4args = seqid4 + open_stateid4 (RFC 7530 §16.2.2).
+			width = 4 + 16
+		case OP_LOCK:
+			// locktype(4) + reclaim(4) + offset(8) + length(8) + locker4.
+			if len(rest) < 24 {
+				t.Fatalf("LOCK args underflow: %x", rest)
+			}
+			if binaryBigEndianU32(rest[20:]) == 1 {
+				// new_lock_owner=true → open_to_lock_owner4 (seqid + open
+				// stateid + lock seqid + lock_owner4) — not covered by the
+				// R10 test; fail loudly rather than mis-slice.
+				t.Fatalf("LOCK new_lock_owner=true unsupported in walker")
+			}
+			// new_lock_owner=false → lock_owner4 = clientid(8) + seqid(4)
+			// + owner opaque (RFC 7530 §16.10.2). LOCK4args = locktype(4)
+			// + reclaim(4) + offset(8) + length(8) + new_lock_owner(4)
+			// + lock_owner4.
+			width = 24 + 4 + 8 + 4 + SkipOpaque(rest[40:])
+		case OP_LOCKU:
+			// locktype(4) + seqid(4) + stateid(16) + offset(8) + length(8).
+			width = 4 + 4 + 16 + 8 + 8
+		case OP_DELEGRETURN:
+			width = 16
+		case OP_CREATE:
+			// objtype (otype4 discriminant 4 + name opaque) + attrs fattr4.
+			if len(rest) < 4 {
+				t.Fatalf("CREATE args underflow: %x", rest)
+			}
+			nm := SkipOpaque(rest[4:])
+			if nm < 0 {
+				t.Fatalf("CREATE name underflow: %x", rest[4:])
+			}
+			width = 4 + nm + 4 + 4 + 4 // attrs: bitmap len 0 + attrlist len 0
+		case OP_OPEN:
+			// seqid(4) + share_access(4) + share_deny(4) + owner(clientid 8
+			// + opaque) + openflag4 + open_claim4. The test opens use
+			// Owner==nil (owner opaque len 0 → 4+0), openflag4 with
+			// opentype=1 + createmode + bitmap len + attrlist len (16),
+			// and CLAIM_NULL (discriminant 4 + name opaque).
+			if len(rest) < 12 {
+				t.Fatalf("OPEN args underflow: %x", rest)
+			}
+			ownerLen := int(binaryBigEndianU32(rest[12:]))
+			if len(rest) < 12+4+ownerLen+4 {
+				t.Fatalf("OPEN owner underflow: %x", rest)
+			}
+			ownerW := 8 + 4 + ownerLen + (4-(ownerLen%4))%4
+			openflag := rest[12+ownerW:]
+			openflagW := openflag4Width(t, openflag)
+			// open_claim4: discriminant(4) + payload.
+			claimDisc := rest[12+ownerW+openflagW:]
+			if len(claimDisc) < 4 {
+				t.Fatalf("OPEN claim underflow: %x", claimDisc)
+			}
+			var claimW int
+			switch binaryBigEndianU32(claimDisc) {
+			case ClaimNULL, ClaimDELEGATE_PREV:
+				claimW = 4 + SkipOpaque(claimDisc[4:])
+			case ClaimPREVIOUS:
+				claimW = 4 + 4
+			case ClaimDELEGATE_CUR:
+				claimW = 4 + 16 + SkipOpaque(claimDisc[20:])
+			default:
+				t.Fatalf("unknown claim type %d", binaryBigEndianU32(claimDisc))
+			}
+			width = 12 + ownerW + openflagW + claimW
+		default:
+			t.Fatalf("walkCompoundArgs: unhandled opcode %d", opcode)
+		}
+		if width < 0 || width > len(rest) {
+			t.Fatalf("opcode %d: args width %d exceeds remaining %d: %x",
+				opcode, width, len(rest), b)
+		}
+		out = append(out, argWalkOp{opcode: opcode, args: rest[:width]})
+		b = rest[width:]
+	}
+	return out
+}
+
+// openflag4Width returns the XDR width of an openflag4 union body.
+// opentype4 NOCREATE (0) → 4 bytes; CREATE (1) → createmode4 (4) +
+// body, where EXCLUSIVE (2) adds an 8-byte createverf4 and
+// UNCHECKED/GUARDED add a createattrs fattr4 (bitmap4 + attrlist4).
+func openflag4Width(t *testing.T, b []byte) int {
+	t.Helper()
+	if len(b) < 4 {
+		t.Fatalf("openflag4 underflow: %x", b)
+	}
+	opentype := binaryBigEndianU32(b)
+	if opentype == OpenTypeNOCREATE {
+		return 4
+	}
+	if len(b) < 8 {
+		t.Fatalf("openflag4 createmode underflow: %x", b)
+	}
+	mode := binaryBigEndianU32(b[4:])
+	if mode == CreatemodeEXCLUSIVE4 {
+		return 4 + 4 + 8
+	}
+	// createattrs: bitmap4 len + words + attrlist4 len + bytes.
+	if len(b) < 12 {
+		t.Fatalf("openflag4 createattrs underflow: %x", b)
+	}
+	words := int(binaryBigEndianU32(b[8:]))
+	if len(b) < 12+4*words+4 {
+		t.Fatalf("openflag4 attrlist underflow: %x", b)
+	}
+	attrLen := int(binaryBigEndianU32(b[12+4*words:]))
+	return 12 + 4*words + 4 + attrLen + (4-(attrLen%4))%4
+}
+
+// userOpOf walks a compound call body and returns the first op that is
+// not an auto-injected helper (a leading PUTROOTFH/PUTFH/PUTPUBFH that
+// was prepended by autoCompletePutRootFH). The return value is nil when
+// no user op remains.
+func userOpOf(t *testing.T, b []byte) *argWalkOp {
+	t.Helper()
+	ops := walkCompoundArgs(t, b)
+	for i := range ops {
+		switch ops[i].opcode {
+		case OP_PUTROOTFH, OP_PUTFH, OP_PUTPUBFH:
+			continue // auto-prepended by autoCompletePutRootFH
+		}
+		return &ops[i]
+	}
+	return nil
+}
+
+// lastReplyPayloadOf finds the LAST user-op REPLY payload in cfgs
+// (skips auto MOUNT and auto SETCLIENTID call/reply pairs, which
+// precede the user-configured ops). Returns (payload, NFS body offset).
+func lastReplyPayloadOf(cfgs []core.PacketConfig) ([]byte, int) {
+	mountUp := false
+	var out []byte
+	var off int
+	for _, c := range cfgs {
+		if len(c.Payload) < 4 {
+			continue
+		}
+		if c.Direction == "up" {
+			hdr, _, err := ParseRPCCallHeader(c.Payload[4:])
+			if err != nil {
+				continue
+			}
+			if hdr.Program == ProgramMount {
+				mountUp = true
+			} else {
+				mountUp = false
+			}
+			continue
+		}
+		if mountUp {
+			mountUp = false
+			continue
+		}
+		out = c.Payload
+		off = 0
+		if _, o, err := ParseRPCReplyHeader(c.Payload[4:]); err == nil {
+			off = 4 + o
+		}
+	}
+	if out == nil {
+		return nil, 0
+	}
+	return out, off
+}
+
+// nfs3ReplyStatusAndOffsets walks a NFSv3 reply's post_op_attr
+// (discriminant + 84B fattr3 when set) and returns the payload offset
+// just past it.
+func nfs3ReplyPostAttrEnd(b []byte) (int, bool) {
+	p := newParser(b)
+	if _, err := p.readU32(); err != nil { // status
+		return 0, false
+	}
+	disc, err := p.readU32()
+	if err != nil {
+		return 0, false
+	}
+	if disc != 0 {
+		if _, err := p.readFixedOpaque(84); err != nil {
+			return 0, false
+		}
+	}
+	return p.i, disc != 0
+}
+
+// R1: MKDIR with a nil attributes block must emit a full 24-byte sattr3
+// (set_mode/set_uid/set_gid/set_size/set_atime/set_mtime — each a
+// discriminant that may or may not be followed by the value, RFC 1813
+// §2.6). Before the fix, nil emitted only 4 bytes, so tshark read
+// garbage and flagged [Malformed Packet: NFS].
+func TestNFS3MKDIREmptySattr3(t *testing.T) {
+	p := NewPlanner()
+	spec := nfsSpec(t, &NFSConfig{
+		Version: 3,
+		Ops: []NFSOp{{
+			Procedure: NFS3ProcMKDIR,
+			Filename:  "d",
+			// Attributes == nil (all DONT_CHANGE) — the sattr3 must
+			// still be the full 24-byte union.
+		}},
+	})
+	cfgs := mustPlan(t, p, spec)
+	payload, off := callPayloadOf(cfgs)
+	if payload == nil {
+		t.Fatal("no user op call found")
+	}
+	body := payload[off:]
+	// body = dirfh(4+n+pad) + name(4+m+pad) + sattr3
+	n := SkipOpaque(body)
+	if n < 0 {
+		t.Fatalf("bad dirfh: %v", n)
+	}
+	m := SkipOpaque(body[n:])
+	if m < 0 {
+		t.Fatalf("bad name: %v", m)
+	}
+	sattr := body[n+m:]
+	if len(sattr) != 24 {
+		t.Errorf("sattr3 length = %d, want 24 (full union; got %x)", len(sattr), sattr)
+	}
+}
+
+// R2: READLINK3resok is post_op_attr FIRST, then the symlink path
+// (RFC 1813 §3.3.6). The old encoder wrote the string then the attr, so
+// tshark read the first 4 bytes of the path as the attributes_follow
+// discriminant and mis-parsed the rest.
+func TestNFS3READLINKReplyOrder(t *testing.T) {
+	p := NewPlanner()
+	spec := nfsSpec(t, &NFSConfig{
+		Version: 3,
+		Ops: []NFSOp{{
+			Procedure:     NFS3ProcREADLINK,
+			SymlinkTarget: "/export/data/link",
+			ReplyStatus:   NFS3OK,
+		}},
+	})
+	cfgs := mustPlan(t, p, spec)
+	payload, off := replyPayloadOf(cfgs)
+	if payload == nil {
+		t.Fatal("no user op reply found")
+	}
+	body := payload[off:]
+	attrEnd, attrPresent := nfs3ReplyPostAttrEnd(body)
+	if !attrPresent {
+		t.Fatalf("expected post_op_attr present at reply start, body=%x", body)
+	}
+	// After the 88-byte post_op_attr (disc + fattr3) must come the
+	// symlink path (length-prefixed string).
+	_, n := ReadOpaqueLen(body[attrEnd:])
+	if n < 0 {
+		t.Fatalf("expected symlink string after post_op_attr, got %x", body[attrEnd:])
+	}
+	path := string(body[attrEnd+4 : attrEnd+4+n])
+	if path != "/export/data/link" {
+		t.Errorf("symlink path = %q, want %q", path, "/export/data/link")
+	}
+}
+
+// R3: LINK3resok = post_op_attr + wcc_data (RFC 1813 §3.3.9). The old
+// encoder wrote neither, so tshark hit EOF right after the status.
+func TestNFS3LINKReplyWccData(t *testing.T) {
+	p := NewPlanner()
+	spec := nfsSpec(t, &NFSConfig{
+		Version: 3,
+		Ops: []NFSOp{{
+			Procedure:   NFS3ProcLINK,
+			LinkDirFh:   []byte{0x10, 0x20, 0x30, 0x40},
+			Newname:     "hardlink",
+			ReplyStatus: NFS3OK,
+		}},
+	})
+	cfgs := mustPlan(t, p, spec)
+	payload, off := replyPayloadOf(cfgs)
+	if payload == nil {
+		t.Fatal("no user op reply found")
+	}
+	body := payload[off:]
+	// status + post_op_attr(88) + wcc_data(92) = 184 bytes.
+	want := 4 + 88 + 92
+	if len(body) != want {
+		t.Errorf("LINK3resok length = %d, want %d (status+post_op_attr+wcc_data)", len(body), want)
+	}
+	// wcc_data = pre_op_attr disc (0) + post_op_attr disc (1) + fattr3 (84)
+	wcc := body[4+88:]
+	if len(wcc) != 92 {
+		t.Fatalf("wcc_data length = %d, want 92", len(wcc))
+	}
+	if binaryBigEndianU32(wcc) != 0 {
+		t.Errorf("wcc_data pre_op_attr discriminant = %d, want 0", binaryBigEndianU32(wcc))
+	}
+	if binaryBigEndianU32(wcc[4:]) != 1 {
+		t.Errorf("wcc_data post_op_attr discriminant = %d, want 1", binaryBigEndianU32(wcc[4:]))
+	}
+}
+
+// R4: FSSTAT/FSINFO/PATHCONF replies must carry their resok fields after
+// post_op_attr (RFC 1813 §3.3.13-15):
+//
+//	fsstat3resok   = obj_attributes + tbytes(8) fbytes(8) abytes(8)
+//	                 tfiles(8) ffiles(8) afiles(8) invarsec(8)
+//	fsinfo3resok   = obj_attributes + rtmax(4) rtpref(4) rtmult(4)
+//	                 wtmax(4) wtpref(4) wtmult(4) dtpref(4)
+//	                 maxfilesize(8) time_delta(8) properties(4)
+//	pathconf3resok = obj_attributes + linkmax(4) name_max(4) no_trunc(4)
+//	                 chown_restricted(4) case_insensitive(4) case_preserving(4)
+//
+// The old encoder wrote only post_op_attr (92 bytes total), so tshark
+// hit EOF after fattr3 and flagged malformed.
+func TestNFS3FSSTATReplyFields(t *testing.T) {
+	p := NewPlanner()
+	spec := nfsSpec(t, &NFSConfig{
+		Version: 3,
+		Ops: []NFSOp{{
+			Procedure:   NFS3ProcFSSTAT,
+			ReplyStatus: NFS3OK,
+		}},
+	})
+	cfgs := mustPlan(t, p, spec)
+	payload, off := replyPayloadOf(cfgs)
+	if payload == nil {
+		t.Fatal("no user op reply found")
+	}
+	body := payload[off:]
+	attrEnd, attrPresent := nfs3ReplyPostAttrEnd(body)
+	if !attrPresent {
+		t.Fatalf("expected post_op_attr, body=%x", body)
+	}
+	if len(body) != attrEnd+56 {
+		t.Errorf("fsstat3resok length = %d, want %d (attr 88 + 7 uint64)",
+			len(body), attrEnd+56)
+	}
+}
+
+func TestNFS3FSINFOReplyFields(t *testing.T) {
+	p := NewPlanner()
+	spec := nfsSpec(t, &NFSConfig{
+		Version: 3,
+		Ops: []NFSOp{{
+			Procedure:   NFS3ProcFSINFO,
+			ReplyStatus: NFS3OK,
+		}},
+	})
+	cfgs := mustPlan(t, p, spec)
+	payload, off := replyPayloadOf(cfgs)
+	if payload == nil {
+		t.Fatal("no user op reply found")
+	}
+	body := payload[off:]
+	attrEnd, attrPresent := nfs3ReplyPostAttrEnd(body)
+	if !attrPresent {
+		t.Fatalf("expected post_op_attr, body=%x", body)
+	}
+	// fsinfo3resok = obj_attributes + rtmax rtpref rtmult wtmax wtpref
+	// wtmult dtpref (7 x uint32) + maxfilesize(8) + time_delta(8)
+	// + properties(4) = 48 bytes (RFC 1813 §3.3.15).
+	if len(body) != attrEnd+48 {
+		t.Fatalf("fsinfo3resok length = %d, want %d (attr 88 + 48)",
+			len(body), attrEnd+48)
+	}
+	res := body[attrEnd:]
+	for i, want := range []uint32{1, 1, 1, 1, 1, 1, 1} {
+		if got := binaryBigEndianU32(res[i*4:]); got != want {
+			t.Errorf("fsinfo field %d = %d, want %d (rtmax rtpref rtmult "+
+				"wtmax wtpref wtmult dtpref all = 1)", i, got, want)
+		}
+	}
+	if got := binaryBigEndianU64(res[28:]); got != 0 {
+		t.Errorf("maxfilesize = %d, want 0", got)
+	}
+	if got := binaryBigEndianU32(res[36:]); got != 0 {
+		t.Errorf("time_delta.seconds = %d, want 0", got)
+	}
+	if got := binaryBigEndianU32(res[40:]); got != 1 {
+		t.Errorf("time_delta.nseconds = %d, want 1", got)
+	}
+	if got := binaryBigEndianU32(res[44:]); got != 0 {
+		t.Errorf("properties = %d, want 0", got)
+	}
+}
+
+func TestNFS3PATHCONFReplyFields(t *testing.T) {
+	p := NewPlanner()
+	spec := nfsSpec(t, &NFSConfig{
+		Version: 3,
+		Ops: []NFSOp{{
+			Procedure:   NFS3ProcPATHCONF,
+			ReplyStatus: NFS3OK,
+		}},
+	})
+	cfgs := mustPlan(t, p, spec)
+	payload, off := replyPayloadOf(cfgs)
+	if payload == nil {
+		t.Fatal("no user op reply found")
+	}
+	body := payload[off:]
+	attrEnd, attrPresent := nfs3ReplyPostAttrEnd(body)
+	if !attrPresent {
+		t.Fatalf("expected post_op_attr, body=%x", body)
+	}
+	// linkmax(4) name_max(4) no_trunc(4) chown_restricted(4)
+	// case_insensitive(4) case_preserving(4) = 24 bytes.
+	if len(body) != attrEnd+24 {
+		t.Errorf("pathconf3resok length = %d, want %d (attr 88 + 24)", len(body), attrEnd+24)
+	}
+}
+
+// R5: reply XID echo — the reply must echo the call XID (RFC 5531 §5.3.1).
+// With default XIDIncr=0 all calls share XID 1; the test uses
+// XIDIncr=1 to prove the per-op increment is applied to both sides.
+func TestNFS3ReplyEchoesCallXID(t *testing.T) {
+	p := NewPlanner()
+	spec := nfsSpec(t, &NFSConfig{
+		Version: 3,
+		Ops: []NFSOp{
+			{Procedure: NFS3ProcNULL},
+			{Procedure: NFS3ProcGETATTR},
+		},
+	})
+	cfgs := mustPlan(t, p, spec)
+	// Collect up/down payloads, skipping MOUNT pairs.
+	var callXIDs, replyXIDs []uint32
+	skipNextDown := false
+	for _, c := range cfgs {
+		if len(c.Payload) < 4 {
+			continue
+		}
+		if c.Direction == "up" {
+			hdr, _, err := ParseRPCCallHeader(c.Payload[4:])
+			if err == nil && hdr.Program == ProgramMount {
+				skipNextDown = true
+				continue
+			}
+			callXIDs = append(callXIDs, binaryBigEndianU32(c.Payload[4:8]))
+			continue
+		}
+		if skipNextDown {
+			skipNextDown = false
+			continue
+		}
+		replyXIDs = append(replyXIDs, binaryBigEndianU32(c.Payload[4:8]))
+	}
+	if len(callXIDs) != 2 || len(replyXIDs) != 2 {
+		t.Fatalf("got %d calls %d replies, want 2/2", len(callXIDs), len(replyXIDs))
+	}
+	for i := range callXIDs {
+		if callXIDs[i] != replyXIDs[i] {
+			t.Errorf("pair %d: call XID %d != reply XID %d", i, callXIDs[i], replyXIDs[i])
+		}
+	}
+}
+
+// R6: OPEN_DOWNGRADE4args = open_stateid4 + seqid4 + share_access4 +
+// share_deny4 (RFC 7530 §16.19.2 — stateid FIRST, then seqid, access,
+// deny). The old encoder had no case, so the op emitted zero args and
+// tshark read the next op's bytes as its stateid (t092 frame evidence).
+func TestNFS4OpenDowngradeArgs(t *testing.T) {
+	p := NewPlanner()
+	spec := nfsSpec(t, &NFSConfig{
+		Version: 4,
+		Ops: []NFSOp{{
+			Procedure: NFS4ProcCOMPOUND,
+			CompoundOps: []NFSv4CompoundOp{
+				{Opcode: OP_OPEN_DOWNGRADE, Seqid: 5, ShareAccess: 2, ShareDeny: 0,
+					OpenStateid: &NFSStateid{Seqid: 3,
+						Other: [12]byte{0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xA0, 0xB0, 0xC0}}},
+			},
+		}},
+	})
+	cfgs := mustPlan(t, p, spec)
+	payload, off := lastCallPayloadOf(cfgs)
+	if payload == nil {
+		t.Fatal("no user op call found")
+	}
+	body := payload[off:]
+	// tag + minorversion + opcount
+	n := SkipOpaque(body)
+	if n < 0 {
+		t.Fatal("bad tag")
+	}
+	p2 := body[n+8:]
+	ops := walkCompoundArgs(t, p2)
+	if len(ops) != 2 || ops[0].opcode != OP_PUTROOTFH || ops[1].opcode != OP_OPEN_DOWNGRADE {
+		t.Fatalf("ops = %+v, want [PUTROOTFH, OPEN_DOWNGRADE]", ops)
+	}
+	args := ops[1].args
+	// open_stateid4 = 16 bytes, FIRST
+	if len(args) < 16 {
+		t.Fatalf("args too short: %x", args)
+	}
+	if binaryBigEndianU32(args) != 3 {
+		t.Errorf("open_stateid seqid = %d, want 3", binaryBigEndianU32(args))
+	}
+	if !bytes.Equal(args[4:16], []byte{0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xA0, 0xB0, 0xC0}) {
+		t.Errorf("open_stateid other = %x", args[4:16])
+	}
+	if len(args) != 28 {
+		t.Errorf("OPEN_DOWNGRADE args length = %d, want 28 (stateid16+seqid4+access4+deny4)", len(args))
+	}
+	if binaryBigEndianU32(args[16:]) != 5 {
+		t.Errorf("seqid = %d, want 5", binaryBigEndianU32(args[16:]))
+	}
+	if binaryBigEndianU32(args[20:]) != 2 {
+		t.Errorf("share_access = %d, want 2", binaryBigEndianU32(args[20:]))
+	}
+	if binaryBigEndianU32(args[24:]) != 0 {
+		t.Errorf("share_deny = %d, want 0", binaryBigEndianU32(args[24:]))
+	}
+}
+
+// R10: LOCK4args with new_lock_owner=false must be locktype + reclaim +
+// offset + length + lock_owner4 (clientid + owner opaque) — NOT a
+// stateid (RFC 7531 §15.13). The old encoder wrote a stateid there, so
+// tshark consumed the clientid/owner bytes as the stateid and hit EOF.
+func TestNFS4LockNewOwnerFalseArgs(t *testing.T) {
+	p := NewPlanner()
+	spec := nfsSpec(t, &NFSConfig{
+		Version: 4,
+		Ops: []NFSOp{{
+			Procedure: NFS4ProcCOMPOUND,
+			CompoundOps: []NFSv4CompoundOp{
+				{Opcode: OP_LOCK, LockType: 1, Reclaim: false, Offset: 0, Length: 100,
+					NewLockOwner: false,
+					LockOwner: &LockOwner{
+						Clientid: 0x3039,
+						Seqid:    1,
+						Owner:    []byte{0x01, 0x01, 0x00, 0x00, 0x00},
+					}},
+			},
+		}},
+	})
+	cfgs := mustPlan(t, p, spec)
+	payload, off := lastCallPayloadOf(cfgs)
+	if payload == nil {
+		t.Fatal("no user op call found")
+	}
+	body := payload[off:]
+	n := SkipOpaque(body)
+	if n < 0 {
+		t.Fatal("bad tag")
+	}
+	ops := walkCompoundArgs(t, body[n+8:])
+	if len(ops) != 2 || ops[0].opcode != OP_PUTROOTFH || ops[1].opcode != OP_LOCK {
+		t.Fatalf("ops = %+v, want [PUTROOTFH, LOCK]", ops)
+	}
+	args := ops[1].args
+	// locktype(4) + reclaim(4) + offset(8) + length(8) = 24
+	if len(args) < 24 {
+		t.Fatalf("LOCK args too short: %x", args)
+	}
+	if binaryBigEndianU32(args) != 1 || binaryBigEndianU32(args[4:]) != 0 {
+		t.Errorf("locktype/reclaim = %d/%d, want 1/0", binaryBigEndianU32(args), binaryBigEndianU32(args[4:]))
+	}
+	if binaryBigEndianU32(args[20:]) != 100 {
+		t.Errorf("length = %d, want 100", binaryBigEndianU32(args[20:]))
+	}
+	rest := args[24:]
+	if len(rest) < 16 {
+		t.Fatalf("missing lock_owner4: %x", rest)
+	}
+	// new_lock_owner(false) discriminant precedes the lock_owner4.
+	if binaryBigEndianU32(rest[:4]) != 0 {
+		t.Errorf("new_lock_owner = %d, want 0 (false)", binaryBigEndianU32(rest[:4]))
+	}
+	if binaryBigEndianU64(rest[4:12]) != 0x3039 {
+		t.Errorf("lock_owner clientid = %x, want 0x3039", binaryBigEndianU64(rest[4:12]))
+	}
+	// lock_owner4 = clientid4 + state_owner4{seqid4, owner4}
+	// (RFC 7530 §16.10.2). Pre-fix the seqid was missing, so tshark 3.6
+	// read lock_owner4 as a 16B stateid4 and consumed the owner bytes,
+	// then hit EOF (t111 frame 8 evidence).
+	if binaryBigEndianU32(rest[12:16]) != 1 {
+		t.Errorf("lock_owner seqid = %d, want 1", binaryBigEndianU32(rest[12:16]))
+	}
+	on := ReadOpaqueLenNoAdvance(rest[16:])
+	if on < 0 {
+		t.Fatalf("bad owner opaque: %x", rest[16:])
+	}
+	if on != 5 {
+		t.Errorf("owner length = %d, want 5", on)
+	}
+}
+
+// R7: OPEN4resok = stateid4 + change_info4 + result flags + attrset +
+// open_delegation4 (RFC 7530 §16.17.3). change_info4 = bool(4) +
+// changeid before(8) + after(8) = 20 bytes, so the resok is
+// 16 + 20 + 4 + 4 + 4 = 48 bytes with the NONE delegation. The old
+// encoder wrote only the stateid, so tshark read the following ops'
+// bytes as change_info/rflags/delegation and hit EOF (t093 frame 9
+// evidence).
+func TestNFS4OpenReplyFull(t *testing.T) {
+	p := NewPlanner()
+	spec := nfsSpec(t, &NFSConfig{
+		Version: 4,
+		Ops: []NFSOp{{
+			Procedure: NFS4ProcCOMPOUND,
+			CompoundOps: []NFSv4CompoundOp{
+				{Opcode: OP_PUTROOTFH},
+				{Opcode: OP_OPEN, Seqid: 1, ShareAccess: 2, ShareDeny: 0,
+					Clientid: 1, OpenHow: &NFSOpenHow{Type: "unchecked"},
+					Claim: &NFSClaim{Type: "null"}, Name: "f"},
+			},
+		}},
+	})
+	cfgs := mustPlan(t, p, spec)
+	payload, off := lastReplyPayloadOf(cfgs)
+	if payload == nil {
+		t.Fatal("no user op reply found")
+	}
+	body := payload[off:]
+	n := SkipOpaque(body) // tag
+	if n < 0 {
+		t.Fatal("bad tag")
+	}
+	res := body[n+8:] // skip minorversion + opcount
+	// The reply's resarray begins with the auto-prepended PUTROOTFH
+	// (opcode + status = 8 bytes); the OPEN resop follows.
+	if len(res) < 8 || binaryBigEndianU32(res) != OP_PUTROOTFH {
+		t.Fatalf("leading resop = %d, want auto PUTROOTFH: %x", binaryBigEndianU32(res), res)
+	}
+	res = res[8:]
+	if len(res) < 8 {
+		t.Fatalf("short reply: %x", res)
+	}
+	if binaryBigEndianU32(res) != OP_OPEN {
+		t.Fatalf("first resop opcode = %d, want OPEN", binaryBigEndianU32(res))
+	}
+	if binaryBigEndianU32(res[4:]) != 0 {
+		t.Fatalf("open status = %d, want 0", binaryBigEndianU32(res[4:]))
+	}
+	// resop4 = opcode(4) + status(4) + result; the reply has NO
+	// minorversion, so the result starts right after opcode+status.
+	rest := res[8:]
+	// stateid4 (16) + change_info4 (20) + rflags (4) + attrset (4) +
+	// delegation (4) = 48
+	if len(rest) < 48 {
+		t.Fatalf("OPEN4resok length = %d, want 48 (stateid16+change_info20+rflags4+attrset4+deleg4), got %x",
+			len(rest), rest)
+	}
+	// change_info4: atomic=1, before=0, after=0
+	if binaryBigEndianU32(rest[16:]) != 1 {
+		t.Errorf("change_info atomic = %d, want 1", binaryBigEndianU32(rest[16:]))
+	}
+	if binaryBigEndianU64(rest[20:28]) != 0 || binaryBigEndianU64(rest[28:36]) != 0 {
+		t.Errorf("change_info before/after = %d/%d, want 0/0",
+			binaryBigEndianU64(rest[20:28]), binaryBigEndianU64(rest[28:36]))
+	}
+	// delegation type discriminant must be OPEN_DELEGATE_NONE (0).
+	if binaryBigEndianU32(rest[44:]) != 0 {
+		t.Errorf("open_delegation4 type = %d, want 0 (NONE)", binaryBigEndianU32(rest[44:]))
+	}
+	// The OPEN introduces a new open-owner, so autoCompleteOpenConfirm
+	// injects a trailing OPEN_CONFIRM resop (opcode + status + stateid16).
+	tail := rest[48:]
+	if len(tail) < 24 {
+		t.Fatalf("missing trailing OPEN_CONFIRM resop: %x", tail)
+	}
+	if binaryBigEndianU32(tail) != OP_OPEN_CONFIRM || binaryBigEndianU32(tail[4:]) != 0 {
+		t.Fatalf("trailing resop = %d/%d, want OPEN_CONFIRM/0: %x",
+			binaryBigEndianU32(tail), binaryBigEndianU32(tail[4:]), tail)
+	}
+	if len(tail) != 24 {
+		t.Errorf("trailing resop length = %d, want 24 (opcode+status+stateid16)", len(tail))
+	}
+}
+
+// SECINFO4resok = secinfo4<> array (RFC 7530 §16.33.2). Each entry:
+// flavor4 + union { flavor_info4 = flavor4 + secinfo_style4 + payload }.
+// Pre-fix encodeCompoundOpResult had no OP_SECINFO case, so the resop
+// carried zero bytes and tshark hit EOF after the op status (t128 frame
+// 9 evidence).
+func TestNFS4SecinfoReply(t *testing.T) {
+	p := NewPlanner()
+	spec := nfsSpec(t, &NFSConfig{
+		Version: 4,
+		Ops: []NFSOp{{
+			Procedure: NFS4ProcCOMPOUND,
+			CompoundOps: []NFSv4CompoundOp{
+				{Opcode: OP_SECINFO, Name: "f"},
+			},
+		}},
+	})
+	cfgs := mustPlan(t, p, spec)
+	payload, off := lastReplyPayloadOf(cfgs)
+	if payload == nil {
+		t.Fatal("no user op reply found")
+	}
+	body := payload[off:]
+	n := SkipOpaque(body) // tag
+	if n < 0 {
+		t.Fatal("bad tag")
+	}
+	res := body[n+8:] // skip minorversion + opcount
+	// The reply's resarray begins with the auto-prepended PUTROOTFH
+	// (opcode + status = 8 bytes); the SECINFO resop follows.
+	if len(res) < 8 || binaryBigEndianU32(res) != OP_PUTROOTFH {
+		t.Fatalf("leading resop = %d, want auto PUTROOTFH: %x", binaryBigEndianU32(res), res)
+	}
+	res = res[8:]
+	if len(res) < 8 || binaryBigEndianU32(res) != OP_SECINFO {
+		t.Fatalf("first resop = %d, want SECINFO: %x", binaryBigEndianU32(res), res)
+	}
+	if binaryBigEndianU32(res[4:]) != 0 {
+		t.Fatalf("secinfo status = %d, want 0", binaryBigEndianU32(res[4:]))
+	}
+	rest := res[8:]
+	// secinfo4<> = count(4) + entries. Each entry = flavor(4) + union{
+	// flavor_info4 = secinfo_style4(4) + payload } (RFC 7530 §16.33.2).
+	if len(rest) < 4 {
+		t.Fatalf("secinfo4 missing: %x", rest)
+	}
+	count := binaryBigEndianU32(rest)
+	if count == 0 {
+		t.Fatalf("secinfo4 count = 0, want >= 1 (RFC 7530 §16.33.2)")
+	}
+	ent := rest[4:]
+	for i := uint32(0); i < count; i++ {
+		if len(ent) < 8 {
+			t.Fatalf("secinfo4 entry %d underflow: %x", i, ent)
+		}
+		flavor := binaryBigEndianU32(ent)
+		if binaryBigEndianU32(ent[4:]) != 0 {
+			t.Errorf("secinfo4 entry %d style = %d, want 0 (PARENT)", i, binaryBigEndianU32(ent[4:]))
+		}
+		switch flavor {
+		case AuthFlavorNone:
+			ent = ent[8:] // style(4) + no payload
+		case AuthFlavorSys:
+			if len(ent) < 12 {
+				t.Fatalf("AUTH_SYS entry underflow: %x", ent)
+			}
+			ml := binaryBigEndianU32(ent[8:])
+			if ml == 0 || len(ent) < 12+int(ml) {
+				t.Fatalf("AUTH_SYS machine name bad: len=%d", ml)
+			}
+			ent = ent[12+int(ml):]
+		default:
+			t.Fatalf("unexpected flavor %d", flavor)
+		}
+	}
+}
+
+// R8: CLOSE4resok / OPEN_CONFIRM4resok / OPEN_DOWNGRADE4resok /
+// LOCK4resok / LOCKU4resok / DELEGRETURN4resok are all stateid4.
+// The old result encoder wrote an op-length prefix (a 4-byte zero) plus
+// the 16-byte stateid (20 bytes total), so tshark read 16 bytes and hit
+// 4 leftover bytes (t093 frame 9 evidence).
+func TestNFS4StateidOnlyReplyOpcodes(t *testing.T) {
+	ops := []uint32{OP_CLOSE, OP_OPEN_CONFIRM, OP_OPEN_DOWNGRADE, OP_LOCK, OP_LOCKU, OP_DELEGRETURN}
+	for _, opcode := range ops {
+		t.Run(fmt.Sprintf("opcode-%d", opcode), func(t *testing.T) {
+			p := NewPlanner()
+			var cop NFSv4CompoundOp
+			switch opcode {
+			case OP_OPEN_CONFIRM:
+				cop = NFSv4CompoundOp{Opcode: opcode, Seqid: 2,
+					OpenStateid: &NFSStateid{Seqid: 2}}
+			case OP_OPEN_DOWNGRADE:
+				cop = NFSv4CompoundOp{Opcode: opcode, Seqid: 1, ShareAccess: 2, ShareDeny: 0,
+					OpenStateid: &NFSStateid{Seqid: 2}}
+			case OP_LOCK, OP_LOCKU:
+				cop = NFSv4CompoundOp{Opcode: opcode, LockType: 1, Offset: 0, Length: 10,
+					OpenStateid: &NFSStateid{Seqid: 2},
+					LockOwner:   &LockOwner{Clientid: 1, Owner: []byte{0xAA}}}
+			case OP_DELEGRETURN:
+				cop = NFSv4CompoundOp{Opcode: opcode,
+					Stateid: &NFSStateid{Seqid: 2}}
+			default: // OP_CLOSE
+				cop = NFSv4CompoundOp{Opcode: opcode, Seqid: 3,
+					OpenStateid: &NFSStateid{Seqid: 2}}
+			}
+			spec := nfsSpec(t, &NFSConfig{
+				Version: 4,
+				Ops: []NFSOp{{
+					Procedure:   NFS4ProcCOMPOUND,
+					CompoundOps: []NFSv4CompoundOp{cop},
+				}},
+			})
+			cfgs := mustPlan(t, p, spec)
+			payload, off := lastReplyPayloadOf(cfgs)
+			if payload == nil {
+				t.Fatal("no user op reply found")
+			}
+			body := payload[off:]
+			n := SkipOpaque(body)
+			if n < 0 {
+				t.Fatal("bad tag")
+			}
+			res := body[n+8:] // status(4) + tag + opcount(4); no minorversion
+			// Skip the auto-prepended PUTROOTFH resop when present.
+			// OPEN_CONFIRM needs no current fh (needsCurrentFH=false), so
+			// its compound has no PUTROOTFH.
+			gotOpcode := binaryBigEndianU32(res)
+			if gotOpcode == OP_PUTROOTFH {
+				res = res[8:]
+				if len(res) < 8 {
+					t.Fatalf("short reply after PUTROOTFH: %x", res)
+				}
+				gotOpcode = binaryBigEndianU32(res)
+			}
+			if len(res) < 8 || gotOpcode != opcode {
+				t.Fatalf("resop opcode = %d, want %d: %x", gotOpcode, opcode, res)
+			}
+			if binaryBigEndianU32(res[4:]) != 0 {
+				t.Fatalf("op status = %d, want 0", binaryBigEndianU32(res[4:]))
+			}
+			rest := res[8:] // opcode(4) + status(4), then the result
+			if len(rest) != 16 {
+				t.Errorf("opcode %d result length = %d, want 16 (stateid4), got %x",
+					opcode, len(rest), rest)
+			}
+		})
+	}
+}
+
+// R9: CREATE4resok = change_info4 + newfh + attrset (RFC 7530 §16.1.3);
+// REMOVE4resok / RENAME4resok = change_info4 + change_info4;
+// SETATTR4resok = attrsset bitmap. change_info4 = 20 bytes (bool +
+// before + after). The old encoder wrote no result body at all, so
+// tshark hit EOF after op status (t097/t099/t100 frame evidence).
+func TestNFS4CreateRemoveRenameSetattrReplies(t *testing.T) {
+	cases := []struct {
+		opcode uint32
+		want   int // expected result body length in bytes
+	}{
+		{OP_CREATE, 20 + 8 + 4}, // change_info(20) + newfh(4+1+3 pad) + attrsset(4)
+		{OP_REMOVE, 20 + 20},    // change_info x2
+		{OP_RENAME, 20 + 20},    // change_info x2
+		{OP_SETATTR, 4},         // attrsset bitmap (empty = len 0)
+	}
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("opcode-%d", tc.opcode), func(t *testing.T) {
+			p := NewPlanner()
+			var cop NFSv4CompoundOp
+			switch tc.opcode {
+			case OP_CREATE:
+				cop = NFSv4CompoundOp{Opcode: OP_CREATE, Name: "newfile",
+					OpenHow: &NFSOpenHow{Type: "unchecked"}}
+			case OP_REMOVE:
+				cop = NFSv4CompoundOp{Opcode: OP_REMOVE, Name: "oldfile"}
+			case OP_RENAME:
+				cop = NFSv4CompoundOp{Opcode: OP_RENAME, Oldname: "a", Newname: "b"}
+			case OP_SETATTR:
+				cop = NFSv4CompoundOp{Opcode: OP_SETATTR, Stateid: &NFSStateid{Seqid: 1}}
+			}
+			spec := nfsSpec(t, &NFSConfig{
+				Version: 4,
+				Ops: []NFSOp{{
+					Procedure:   NFS4ProcCOMPOUND,
+					CompoundOps: []NFSv4CompoundOp{cop},
+				}},
+			})
+			cfgs := mustPlan(t, p, spec)
+			payload, off := lastReplyPayloadOf(cfgs)
+			if payload == nil {
+				t.Fatal("no user op reply found")
+			}
+			body := payload[off:]
+			n := SkipOpaque(body)
+			if n < 0 {
+				t.Fatal("bad tag")
+			}
+			res := body[n+8:]
+			// Skip the auto-prepended PUTROOTFH resop (opcode + status).
+			if len(res) < 8 || binaryBigEndianU32(res) != OP_PUTROOTFH {
+				t.Fatalf("leading resop = %d, want auto PUTROOTFH: %x", binaryBigEndianU32(res), res)
+			}
+			res = res[8:]
+			if len(res) < 8 || binaryBigEndianU32(res) != tc.opcode {
+				t.Fatalf("resop opcode = %d, want %d", binaryBigEndianU32(res), tc.opcode)
+			}
+			if binaryBigEndianU32(res[4:]) != 0 {
+				t.Fatalf("op status = %d, want 0", binaryBigEndianU32(res[4:]))
+			}
+			rest := res[8:] // opcode(4) + status(4), then the result body
+			if len(rest) != tc.want {
+				t.Errorf("opcode %d result length = %d, want %d, got %x",
+					tc.opcode, len(rest), tc.want, rest)
+			}
+		})
+	}
 }
 
 // ensure unused import suppression

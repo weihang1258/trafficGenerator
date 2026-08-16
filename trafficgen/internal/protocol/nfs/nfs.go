@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"net"
 	"time"
@@ -32,14 +33,42 @@ func AttachSpec(spec core.FlowSpec, cfg *NFSConfig) core.FlowSpec {
 }
 
 // GetConfig extracts the *NFSConfig from a FlowSpec. Returns nil when
-// no NFS config is present.
+// no NFS config is present. Accepts either an *NFSConfig attached by
+// AttachSpec, or a JSON-decoded map / json.RawMessage set by the
+// strategy converter (core cannot import this package, so it passes the
+// raw "nfs" sub-config through FlowSpec.Metadata).
 func GetConfig(spec core.FlowSpec) *NFSConfig {
 	if v, ok := spec.Metadata[MetadataKey]; ok {
-		if c, ok := v.(*NFSConfig); ok {
+		switch c := v.(type) {
+		case *NFSConfig:
 			return c
+		case map[string]interface{}:
+			if cfg, err := nfsConfigFromJSONMap(c); err == nil {
+				return cfg
+			}
+		case json.RawMessage:
+			var cfg NFSConfig
+			if err := json.Unmarshal(c, &cfg); err == nil {
+				return &cfg
+			}
 		}
 	}
 	return nil
+}
+
+// nfsConfigFromJSONMap round-trips a JSON-decoded map through encoding/json
+// into an *NFSConfig. All NFSConfig fields carry json tags, so the keys
+// produced by the strategy converter match exactly.
+func nfsConfigFromJSONMap(m map[string]interface{}) (*NFSConfig, error) {
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+	var cfg NFSConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
 }
 
 // Planner implements the core.ProtocolPlanner interface for NFS.
@@ -541,8 +570,8 @@ func (p *Planner) buildOpSequence(cfg *NFSConfig, mountFH []byte, sess int) []NF
 			// Already has SETCLIENTID; append synthetic confirm.
 			confirm := NFSOp{Procedure: NFS4ProcCOMPOUND, Tag: ""}
 			confirm.CompoundOps = []NFSv4CompoundOp{{
-				Opcode:          OP_SETCLIENTID_CONFIRM,
-				Clientid:        uint64(0x10000)*(uint64(sess)+1) + 1,
+				Opcode:           OP_SETCLIENTID_CONFIRM,
+				Clientid:         uint64(0x10000)*(uint64(sess)+1) + 1,
 				ClientidVerifier: [8]byte{},
 			}}
 			out = append([]NFSOp{}, cfg.Ops...)
@@ -1009,8 +1038,54 @@ func encodeNFS3Reply(b []byte, op *NFSOp, cfg *NFSConfig, mountFH []byte) []byte
 	case NFS3ProcGETATTR, NFS3ProcFSSTAT, NFS3ProcFSINFO, NFS3ProcPATHCONF:
 		b = appendU32(b, 1) // post_op_attr.attributes_follow = 1
 		b = append(b, defaultFattr3()...)
+		// FSSTAT/FSINFO/PATHCONF resok fields follow post_op_attr
+		// (RFC 1813 §3.3.13-15). Pre-fix these were missing, so tshark
+		// hit EOF after fattr3 and flagged malformed (t059/t060a/t060b/
+		// t060c frame evidence).
+		switch procedure {
+		case NFS3ProcFSSTAT:
+			// fsstat3resok = obj_attributes + 7 x uint64
+			for i := 0; i < 7; i++ {
+				b = appendU64(b, 0)
+			}
+		case NFS3ProcFSINFO:
+			// fsinfo3resok = obj_attributes + rtmax rtpref rtmult wtmax
+			// wtpref wtmult dtpref (7 x uint32) + maxfilesize(8)
+			// time_delta(8) properties(4) (RFC 1813 §3.3.15). Pre-fix the
+			// encoder wrote only 5 uint32 in the wrong order (rtmax wtmax
+			// rtpref wtpref dtpref = 44B), so tshark read rtmult/wtmult
+			// from maxfilesize/time_delta and hit EOF after time_delta
+			// (t060b frame evidence).
+			b = appendU32(b, 1) // rtmax
+			b = appendU32(b, 1) // rtpref
+			b = appendU32(b, 1) // rtmult
+			b = appendU32(b, 1) // wtmax
+			b = appendU32(b, 1) // wtpref
+			b = appendU32(b, 1) // wtmult
+			b = appendU32(b, 1) // dtpref
+			b = appendU64(b, 0) // maxfilesize
+			b = appendU32(b, 0) // time_delta.seconds
+			b = appendU32(b, 1) // time_delta.nseconds
+			b = appendU32(b, 0) // properties
+		case NFS3ProcPATHCONF:
+			// pathconf3resok = obj_attributes + linkmax(4) name_max(4)
+			// no_trunc(4) chown_restricted(4) case_insensitive(4)
+			// case_preserving(4)
+			b = appendU32(b, 4096) // linkmax
+			b = appendU32(b, 255)  // name_max
+			b = appendU32(b, 1)    // no_trunc
+			b = appendU32(b, 0)    // chown_restricted
+			b = appendU32(b, 1)    // case_insensitive
+			b = appendU32(b, 1)    // case_preserving
+		}
 	case NFS3ProcSETATTR, NFS3ProcREMOVE, NFS3ProcRMDIR, NFS3ProcCOMMIT:
 		// wcc_data (92 bytes): pre_op_attr.discriminant=0 + post_op_attr=1+fattr3
+		b = encodeWccData(b)
+	case NFS3ProcLINK:
+		// LINK3resok = post_op_attr + wcc_data (RFC 1813 §3.3.9).
+		// Pre-fix there was no case, so the reply was just the status
+		// (4 bytes) and tshark hit EOF (t057 frame evidence).
+		b = encodePostOpAttr(b, true)
 		b = encodeWccData(b)
 	case NFS3ProcLOOKUP:
 		// LOOKUP3resok = object fh + obj_attributes + dir_attributes
@@ -1021,12 +1096,16 @@ func encodeNFS3Reply(b []byte, op *NFSOp, cfg *NFSConfig, mountFH []byte) []byte
 		b = append(b, defaultFattr3()...)
 		b = appendU32(b, 0) // dir_attributes.attributes_follow = 0
 	case NFS3ProcACCESS:
-		b = appendU32(b, op.Access)   // supported
-		b = appendU32(b, op.Access)   // access (granted)
+		b = appendU32(b, op.Access) // supported
+		b = appendU32(b, op.Access) // access (granted)
 		b = encodePostOpAttr(b, true)
 	case NFS3ProcREADLINK:
-		b = appendString(b, op.SymlinkTarget)
+		// READLINK3resok = post_op_attr FIRST, then the symlink path
+		// (RFC 1813 §3.3.6). Pre-fix the string came first, so tshark
+		// read the path's first 4 bytes as attributes_follow and
+		// mis-parsed the rest (t053 frame evidence).
 		b = encodePostOpAttr(b, true)
+		b = appendString(b, op.SymlinkTarget)
 	case NFS3ProcREAD:
 		// post_op_attr + count + eof + data
 		b = appendU32(b, 1)
@@ -1276,6 +1355,12 @@ func encodeCompoundOpArgs(cop *NFSv4CompoundOp) []byte {
 		return encodeOPACCESS(nil, cop.Access)
 	case OP_CLOSE:
 		return encodeOPCLOSE(nil, cop.Seqid, cop.OpenStateid)
+	case OP_OPEN_DOWNGRADE:
+		// OPEN_DOWNGRADE4args = open_stateid4 + seqid4 + share_access4 +
+		// share_deny4 (RFC 7530 §16.19.2). Pre-fix there was no case, so
+		// the op emitted zero args and tshark read the next op's bytes
+		// as its stateid (t092 frame evidence).
+		return encodeOPOpenDowngrade(nil, &c)
 	case OP_OPEN:
 		if c.Owner == nil {
 			c.Owner = &NFSLockOwner{Clientid: cid}
@@ -1285,8 +1370,10 @@ func encodeCompoundOpArgs(cop *NFSv4CompoundOp) []byte {
 		}
 		return encodeOPOPEN(nil, &c)
 	case OP_OPEN_CONFIRM:
-		// OPEN_CONFIRM4args = open_stateid4 + seqid4 (RFC 7531 §5.2).
-		return encodeOPCLOSE(nil, cop.Seqid, cop.OpenStateid)
+		// OPEN_CONFIRM4args = open_stateid4 + seqid4 (RFC 7530 §16.18.2,
+		// stateid first — unlike CLOSE4args). Pre-fix this reused
+		// encodeOPCLOSE (seqid first), which tshark misparsed.
+		return encodeOPOpenConfirm(nil, &c)
 	case OP_LOCK:
 		return encodeOPLOCK(nil, &c)
 	case OP_LOCKT:
@@ -1393,7 +1480,21 @@ func encodeCompoundOpResult(cop *NFSv4CompoundOp, openStateid *NFSStateid, sessi
 			fh = []byte{0xAA, 0xBB, 0xCC, 0xDD}
 		}
 		return resultGETFH(fh)
-	case OP_OPEN, OP_OPEN_CONFIRM, OP_OPEN_DOWNGRADE, OP_CLOSE, OP_LOCK,
+	case OP_OPEN:
+		// OPEN4resok = stateid4 + change_info4 + result flags + attrset +
+		// open_delegation4 (RFC 7530 §16.17.3). Pre-fix the result was
+		// only the stateid, so tshark read the following ops' bytes as
+		// change_info/rflags/delegation and hit EOF (t093 frame 9).
+		st := openStateid
+		if st == nil {
+			if cop.OpenStateid != nil {
+				st = cop.OpenStateid
+			} else if cop.Stateid != nil {
+				st = cop.Stateid
+			}
+		}
+		return resultOpen(st)
+	case OP_OPEN_CONFIRM, OP_OPEN_DOWNGRADE, OP_CLOSE, OP_LOCK,
 		OP_LOCKU, OP_DELEGRETURN:
 		// stateid4 = seqid(4) + other[12]; OPEN may use the explicit
 		// OpenReplyStateid if user provided one (§3.5). Otherwise the
@@ -1429,6 +1530,24 @@ func encodeCompoundOpResult(cop *NFSv4CompoundOp, openStateid *NFSStateid, sessi
 	case OP_COMMIT:
 		var verf [8]byte
 		return resultCOMMIT(verf)
+	case OP_CREATE:
+		// CREATE4resok = change_info4 + newfh + attrsset (§16.1.3).
+		// Pre-fix there was no case, so the resop carried zero bytes
+		// and tshark hit EOF after the op status (t097 frame evidence).
+		return resultCreate()
+	case OP_REMOVE, OP_RENAME:
+		// change_info4 x2 (§16.24.3 / §16.26.3). Pre-fix: no case (t099/t100).
+		return resultRemoveRename()
+	case OP_SETATTR:
+		// SETATTR4resok = attrsset bitmap (§16.8.3).
+		return resultSetattr()
+	case OP_SECINFO:
+		// SECINFO4resok = secinfo4<> array, each = flavor4 + union
+		// {flavor_info4 = flavor4 + secinfo_style4 + payload} (RFC 7530
+		// §16.33.2). Pre-fix there was no case, so the resop carried zero
+		// bytes and tshark hit EOF after the op status (t128 frame 9
+		// evidence).
+		return resultSecinfo()
 	}
 	return nil
 }
@@ -1537,7 +1656,7 @@ func (p *Planner) emitTCPFrame(ctx context.Context, out chan<- core.PacketConfig
 			DstMAC:    ifElseStr(dir == "up", spec.DstMAC, spec.SrcMAC),
 			EtherType: 0x0800,
 		},
-		L3:      core.L3Base(ifElseStr(dir == "up", spec.SrcIP, spec.DstIP), ifElseStr(dir == "up", spec.DstIP, spec.SrcIP), 6, 64, ipid, spec),
+		L3: core.L3Base(ifElseStr(dir == "up", spec.SrcIP, spec.DstIP), ifElseStr(dir == "up", spec.DstIP, spec.SrcIP), 6, 64, ipid, spec),
 		L4: core.L4Config{
 			Protocol: "tcp",
 			SrcPort:  ifElseU16(dir == "up", spec.SrcPort, spec.DstPort),
@@ -1574,7 +1693,7 @@ func (p *Planner) emitUDP(ctx context.Context, out chan<- core.PacketConfig,
 			DstMAC:    ifElseStr(dir == "up", spec.DstMAC, spec.SrcMAC),
 			EtherType: 0x0800,
 		},
-		L3:      core.L3Base(ifElseStr(dir == "up", spec.SrcIP, spec.DstIP), ifElseStr(dir == "up", spec.DstIP, spec.SrcIP), 17, 64, ipid, spec),
+		L3: core.L3Base(ifElseStr(dir == "up", spec.SrcIP, spec.DstIP), ifElseStr(dir == "up", spec.DstIP, spec.SrcIP), 17, 64, ipid, spec),
 		L4: core.L4Config{
 			Protocol: "udp",
 			SrcPort:  ifElseU16(dir == "up", spec.SrcPort, spec.DstPort),

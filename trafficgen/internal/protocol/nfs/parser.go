@@ -98,6 +98,46 @@ func (p *parser) readString() (string, error) {
 	return string(b), nil
 }
 
+// ReadOpaqueLen reads the length prefix of an XDR opaque and returns
+// (payloadStartOffset, payloadLen). Returns (-1, -1) on underflow.
+// The offset is relative to the start of b.
+func ReadOpaqueLen(b []byte) (int, int) {
+	if len(b) < 4 {
+		return -1, -1
+	}
+	n := int(binary.BigEndian.Uint32(b[0:4]))
+	if n < 0 || n > len(b)-4 {
+		return -1, -1
+	}
+	return 4, n
+}
+
+// ReadOpaqueLenNoAdvance reads the length prefix of an XDR opaque and
+// returns just the payload length (or -1 on underflow), without
+// advancing any cursor.
+func ReadOpaqueLenNoAdvance(b []byte) int {
+	if len(b) < 4 {
+		return -1
+	}
+	n := int(binary.BigEndian.Uint32(b[0:4]))
+	if n < 0 || n > len(b)-4 {
+		return -1
+	}
+	return n
+}
+
+// SkipOpaque returns the byte offset just past a length-prefixed XDR
+// opaque starting at b[0:] (4-byte length + payload + padding), or -1
+// on underflow.
+func SkipOpaque(b []byte) int {
+	n := ReadOpaqueLenNoAdvance(b)
+	if n < 0 {
+		return -1
+	}
+	pad := (4 - (n % 4)) % 4
+	return 4 + n + pad
+}
+
 // readStateid reads a 16-byte stateid4 (4-byte seqid + 12-byte other).
 func (p *parser) readStateid() (*NFSStateid, error) {
 	seqid, err := p.readU32()
@@ -231,14 +271,18 @@ func ParseRPCReplyHeader(b []byte) (*RPCReplyHeader, int, error) {
 	if h.ReplyState, err = p.readU32(); err != nil {
 		return nil, 0, err
 	}
-	if h.VerfFlavor, err = p.readU32(); err != nil {
-		return nil, 0, err
-	}
-	if h.VerfBodyLen, err = p.readU32(); err != nil {
-		return nil, 0, err
-	}
-	if h.VerfBody, err = p.readBytes(int(h.VerfBodyLen)); err != nil {
-		return nil, 0, err
+	if h.ReplyState == RPCMsgAccepted {
+		// Verifier is part of accepted_reply only (RFC 5531 §9.2);
+		// denied_reply carries no verifier.
+		if h.VerfFlavor, err = p.readU32(); err != nil {
+			return nil, 0, err
+		}
+		if h.VerfBodyLen, err = p.readU32(); err != nil {
+			return nil, 0, err
+		}
+		if h.VerfBody, err = p.readBytes(int(h.VerfBodyLen)); err != nil {
+			return nil, 0, err
+		}
 	}
 	switch h.ReplyState {
 	case RPCMsgAccepted:
@@ -306,12 +350,12 @@ func ParseNFS3GETATTRRes(b []byte) (*NFS3GETATTRRes, error) {
 
 // NFS3READRes is the parsed READ3 reply.
 type NFS3READRes struct {
-	Status   uint32
+	Status      uint32
 	AttrPresent bool
-	Fattr3   []byte
-	Count    uint32
-	EOF      bool
-	Data     []byte
+	Fattr3      []byte
+	Count       uint32
+	EOF         bool
+	Data        []byte
 }
 
 // ParseNFS3READRes parses a READ3 reply.
@@ -401,10 +445,10 @@ func ParseNFS3WRITERes(b []byte) (*NFS3WRITERes, error) {
 
 // NFS3LOOKUPRes is the parsed LOOKUP3 reply.
 type NFS3LOOKUPRes struct {
-	Status       uint32
-	ObjectFH     []byte
+	Status        uint32
+	ObjectFH      []byte
 	ObjAttrFollow bool
-	ObjFattr3    []byte
+	ObjFattr3     []byte
 	DirAttrFollow bool
 }
 
@@ -438,9 +482,9 @@ func ParseNFS3LOOKUPRes(b []byte) (*NFS3LOOKUPRes, error) {
 
 // Compound4Res is the parsed COMPOUND4res structure.
 type Compound4Res struct {
-	Status  uint32
-	Tag     string
-	ResOps  []ParsedResOp
+	Status uint32
+	Tag    string
+	ResOps []ParsedResOp
 }
 
 // ParsedResOp is a single operation result.
