@@ -88,11 +88,27 @@ type SqlBatchSpec struct {
 	Statements []StatementSpec `json:"statements"`
 }
 
+// ErrorSpec injects an ERROR or INFO token into a synthesized server
+// response (design §7.8/§7.9). State/Class are pointers so an explicit 0 is
+// honored (presence-checked): absent → State=1, Class=15 (ERROR, syntax) or
+// 0 (INFO).
+type ErrorSpec struct {
+	Number     int32  `json:"number,omitempty"`
+	State      *byte  `json:"state,omitempty"`
+	Class      *byte  `json:"class,omitempty"`
+	Message    string `json:"message,omitempty"`
+	ServerName string `json:"server_name,omitempty"`
+	ProcName   string `json:"proc_name,omitempty"`
+	LineNumber int64  `json:"line_number,omitempty"`
+}
+
 // StatementSpec is one SQL statement within a batch.
 type StatementSpec struct {
-	Text           string `json:"text"`
-	ExpectRows     int    `json:"expect_rows,omitempty"`
-	ExpectDoneMore bool   `json:"expect_done_more,omitempty"`
+	Text           string     `json:"text"`
+	ExpectRows     int        `json:"expect_rows,omitempty"`
+	ExpectDoneMore bool       `json:"expect_done_more,omitempty"`
+	Error          *ErrorSpec `json:"error,omitempty"` // inject ERROR token (T-136..T-150)
+	Info           *ErrorSpec `json:"info,omitempty"`  // inject INFO token (T-152..T-159)
 }
 
 // RpcSpec is an RPC request (spec §3.4). ProcName (long form, US_VARCHAR)
@@ -147,6 +163,7 @@ type LoginSpec struct {
 	OptionFlags3    *byte             `json:"option_flags3,omitempty"`
 	ClientTimeZone  int32             `json:"client_time_zone,omitempty"`
 	OffsetOverrides map[string]string `json:"offset_overrides,omitempty"`
+	Error           *ErrorSpec        `json:"error,omitempty"` // login failure: ERROR then close (T-147)
 }
 
 // OutcomeSpec asserts expected response behavior (design §9.3). The planner

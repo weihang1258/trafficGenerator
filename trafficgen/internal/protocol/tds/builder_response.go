@@ -199,5 +199,45 @@ func BuildTableResponsePacket(tokens []byte, spid uint16, packetID byte) []byte 
 	return out
 }
 
+// BuildTableResponsePackets wraps a full Type=0x04 response packet, splitting
+// the message into packetSize-bounded packets when it exceeds the negotiated
+// packet size (MS-TDS §2.2.3.2 multi-packet messages; T-148). Intermediate
+// packets carry Status=0x00 and only the final packet has StatusEOM; packet
+// IDs increment mod 256. A packet that fits is returned unchanged.
+func BuildTableResponsePackets(packet []byte, packetSize int) [][]byte {
+	if packetSize <= 0 || len(packet) <= packetSize {
+		return [][]byte{packet}
+	}
+	spid := binary.LittleEndian.Uint16(packet[4:6])
+	pid := packet[6]
+	tokens := packet[8:]
+	maxPayload := packetSize - 8
+	if maxPayload < 1 {
+		return [][]byte{packet}
+	}
+	var out [][]byte
+	remaining := tokens
+	for len(remaining) > 0 {
+		n := len(remaining)
+		if n > maxPayload {
+			n = maxPayload
+		}
+		chunk := remaining[:n]
+		remaining = remaining[n:]
+		status := byte(StatusEOM)
+		if len(remaining) > 0 {
+			status = 0x00
+		}
+		totalLen := 8 + len(chunk)
+		h := PacketHeader(TypeTabularResult, status, totalLen, spid, pid, 0)
+		pkt := make([]byte, totalLen)
+		copy(pkt[:8], h[:])
+		copy(pkt[8:], chunk)
+		out = append(out, pkt)
+		pid = (pid + 1) & 0xFF
+	}
+	return out
+}
+
 // DefaultCollationBytes returns the 5-byte default collation (spec §2.4.5).
 func DefaultCollationBytes() [5]byte { return DefaultCollation }

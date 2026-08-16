@@ -54,42 +54,54 @@ func (p *Planner) Name() string {
 
 // configFromSpec extracts the TDSConfig from a FlowSpec. When Payload is
 // empty a default config is used; otherwise Payload must be valid TDSConfig
-// JSON.
+// JSON. String fields explicitly present in the JSON are honored even when
+// empty (presence-checked, e.g. T-026 empty password → cchPassword=0).
 func configFromSpec(spec core.FlowSpec) (*TDSConfig, error) {
 	cfg := &TDSConfig{}
+	var present map[string]bool
 	if len(spec.Payload) > 0 {
 		if err := json.Unmarshal(spec.Payload, cfg); err != nil {
 			return nil, fmt.Errorf("tds: invalid config JSON in payload: %w", err)
 		}
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(spec.Payload, &raw); err == nil {
+			present = make(map[string]bool, len(raw))
+			for k := range raw {
+				present[k] = true
+			}
+		}
 	}
-	applyDefaults(cfg)
+	applyDefaults(cfg, present)
 	return cfg, nil
 }
 
 // applyDefaults fills zero-valued config fields with the design defaults.
-func applyDefaults(cfg *TDSConfig) {
+// Keys present in the JSON (present[k]=true) are never overridden — an
+// explicit empty string stays empty. A nil present map (no payload, direct
+// callers) applies every default.
+func applyDefaults(cfg *TDSConfig, present map[string]bool) {
 	if cfg.Version == 0 {
 		cfg.Version = TDSVersion74
 	}
 	if cfg.PacketSize == 0 {
 		cfg.PacketSize = DefaultPacketSize
 	}
-	if cfg.AppName == "" {
+	if !present["app_name"] && cfg.AppName == "" {
 		cfg.AppName = "trafficgen"
 	}
-	if cfg.ServerName == "" {
+	if !present["server_name"] && cfg.ServerName == "" {
 		cfg.ServerName = "MSSQLServer"
 	}
-	if cfg.ClientName == "" {
+	if !present["client_name"] && cfg.ClientName == "" {
 		cfg.ClientName = "trafficgen-host"
 	}
-	if cfg.UserName == "" {
+	if !present["user_name"] && cfg.UserName == "" {
 		cfg.UserName = "sa"
 	}
-	if cfg.Password == "" {
+	if !present["password"] && cfg.Password == "" {
 		cfg.Password = "password"
 	}
-	if cfg.InterfaceLib == "" {
+	if !present["interface_lib"] && cfg.InterfaceLib == "" {
 		cfg.InterfaceLib = "ODBC"
 	}
 	if cfg.ClientLCID == 0 {
@@ -179,6 +191,13 @@ func ValidateConfig(cfg *TDSConfig) error {
 			return fmt.Errorf("tds: %s %d chars > %d (V-TDS-007)", f.name, len([]rune(f.value)), MaxLoginFieldChars)
 		}
 	}
+	// V-60: login-failure ERROR injection must use class 11..25 (class 0-10
+	// would be an INFO token; use login.info-style semantics instead).
+	if cfg.Login != nil && cfg.Login.Error != nil {
+		if cfg.Login.Error.Class != nil && *cfg.Login.Error.Class < 11 {
+			return fmt.Errorf("tds: login error class %d < 11 (V-TDS-060)", *cfg.Login.Error.Class)
+		}
+	}
 	// Session validation.
 	for _, s := range cfg.Sessions {
 		if len(s.Requests) == 0 {
@@ -203,6 +222,18 @@ func ValidateConfig(cfg *TDSConfig) error {
 					}
 					if txnBegins(st.Text) {
 						seenBegin = true
+					}
+					// V-60: ERROR 注入 class 必须 11..25 (class 0-10 属 INFO).
+					if st.Error != nil {
+						if st.Error.Class != nil && *st.Error.Class < 11 {
+							return fmt.Errorf("tds: session %q request %d error class %d < 11 (V-TDS-060)", s.ID, ri, *st.Error.Class)
+						}
+					}
+					// V-61: INFO 注入 class 必须 0..10 (class 11+ 属 ERROR).
+					if st.Info != nil {
+						if st.Info.Class != nil && *st.Info.Class > 10 {
+							return fmt.Errorf("tds: session %q request %d info class %d > 10 (V-TDS-061)", s.ID, ri, *st.Info.Class)
+						}
 					}
 				}
 			case RequestRPC:
@@ -422,6 +453,13 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			emitData("down", spec.DstPort, spec.SrcPort, peerSeq, senderSeq, payload)
 			peerSeq += uint32(len(payload))
 		}
+		// downMsg emits a server response, splitting it into packetSize-bounded
+		// TDS packets when it exceeds the negotiated packet size (T-148).
+		downMsg := func(payload []byte) {
+			for _, pkt := range BuildTableResponsePackets(payload, int(cfg.PacketSize)) {
+				down(pkt)
+			}
+		}
 
 		// --- TCP handshake ---
 		emit("up", spec.SrcPort, spec.DstPort, senderSeq, 0, tcpSYN, nil)
@@ -439,9 +477,13 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// --- Login7 (S2) ---
 		login := buildLogin7Packet(cfg)
 		up(login)
-		down(buildLoginResponse(cfg))
+		downMsg(buildLoginResponse(cfg))
 
-		// --- Sessions ---
+		if cfg.Login != nil && cfg.Login.Error != nil {
+			// T-147: 登录失败 — ERROR + DONE(DONE_ERROR) 后连接关闭，跳过全部
+			// 会话直接进入 teardown。
+		} else {
+			// --- Sessions ---
 		// MARS: OutstandingRequestCount 是动态值——该连接上当前活动的请求
 		// 总数 (spec §4.4 MARS 状态机: "每条消息的 OutstandingRequestCount =
 		// 当前该连接上活动请求数")。trafficgen 的 MARS 模型将所有 session 视
@@ -463,32 +505,33 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		for _, sess := range cfg.Sessions {
 			txnDesc := sess.TransactionID
 			sessOutstanding := computeOutstanding()
-			for ri, req := range sess.Requests {
-				switch req.Type {
-				case RequestSQLBatch:
-					payload, err := buildSQLBatchRequest(cfg, req.Sql, txnDesc, sessOutstanding, spid)
-					if err != nil {
-						continue
+				for ri, req := range sess.Requests {
+					switch req.Type {
+					case RequestSQLBatch:
+						payload, err := buildSQLBatchRequest(cfg, req.Sql, txnDesc, sessOutstanding, spid)
+						if err != nil {
+							continue
+						}
+						up(payload)
+						downMsg(buildSQLBatchResponse(cfg, &req, ri))
+					case RequestRPC:
+						payload, err := buildRPCRequest(cfg, req.Rpc, txnDesc, sessOutstanding, spid)
+						if err != nil {
+							continue
+						}
+						up(payload)
+						downMsg(buildRPCResponse(cfg, &req, ri))
+					case RequestTransMgr:
+						payload, err := buildTransMgrRequest(cfg, req.TransMgr, txnDesc, sessOutstanding, spid)
+						if err != nil {
+							continue
+						}
+						up(payload)
+						downMsg(buildTransMgrResponse(cfg, req.TransMgr))
+					case RequestAttention:
+						up(BuildAttention(spid, packetIDFor(1)))
+						downMsg(buildAttentionResponse())
 					}
-					up(payload)
-					down(buildSQLBatchResponse(cfg, &req, ri))
-				case RequestRPC:
-					payload, err := buildRPCRequest(cfg, req.Rpc, txnDesc, sessOutstanding, spid)
-					if err != nil {
-						continue
-					}
-					up(payload)
-					down(buildRPCResponse(cfg, &req, ri))
-				case RequestTransMgr:
-					payload, err := buildTransMgrRequest(cfg, req.TransMgr, txnDesc, sessOutstanding, spid)
-					if err != nil {
-						continue
-					}
-					up(payload)
-					down(buildTransMgrResponse(cfg, req.TransMgr))
-				case RequestAttention:
-					up(BuildAttention(spid, packetIDFor(1)))
-					down(buildAttentionResponse())
 				}
 			}
 		}
@@ -608,7 +651,13 @@ func buildLogin7Packet(cfg *TDSConfig) []byte {
 	// 时服务器无法读取 ibExtension/cbExtension。现改为构建侧自动置位，保证
 	// "FeatureExts 非空 → fExtension=1 → 服务器解析 FeatureExt" 链路闭合。
 	var fe []byte
-	if cfg.Version == TDSVersion74 {
+	// FeatureExt 终止符 0xFF 只允许跟在真实 feature 条目之后（MS-TDS
+	// §2.2.6.4 FEATEXT 布局: [ID+len+data]* + 0xFF）。此前 Version==74 时
+	// 无条件 append 0xFF，使空 FeatureExts 也产出 fe=[0xff]，BuildLogin7
+	// 因而在 offset 表后写 Extension DWORD+1B 数据（c6 00 00 00 ff）；
+	// Wireshark dissect_tds_nt 把第 9 对之后剩余字节当 GSS-API blob 解析，
+	// 非法 BER → "[Malformed Packet: TDS]"（tds_login7_default 等 87 case）。
+	if cfg.Version == TDSVersion74 && len(cfg.FeatureExts) > 0 {
 		for _, f := range cfg.FeatureExts {
 			fe = append(fe, f.ID)
 			var data []byte
@@ -641,6 +690,14 @@ func buildLogin7Packet(cfg *TDSConfig) []byte {
 // --- Login response (S2) ---
 
 func buildLoginResponse(cfg *TDSConfig) []byte {
+	// T-147: 登录失败 — ERROR token + DONE(DONE_ERROR)，随后连接关闭
+	// (Plan 跳过全部会话直接 teardown)。
+	if cfg.Login != nil && cfg.Login.Error != nil {
+		tokens := buildErrorInfoFromSpec(cfg.Login.Error, false, cfg.Version)
+		done, _ := BuildDone(TokenDone, DONEError, 0, 0, true)
+		tokens = append(tokens, done...)
+		return BuildTableResponsePacket(tokens, 0, 1)
+	}
 	var tokens []byte
 	// ENVCHANGE Type 1 Database.
 	tokens = append(tokens, BuildEnvChange(1, EnvChangeBVarChar("master"), EnvChangeBVarChar("master"))...)
@@ -722,13 +779,60 @@ func buildSQLBatchRequest(cfg *TDSConfig, sql *SqlBatchSpec, txnDesc uint64, out
 	return BuildSQLBatch(text, true, txnDesc, outstanding, StatusEOM, spid, 1), nil
 }
 
+// buildErrorInfoFromSpec builds an ERROR (isInfo=false) or INFO token from an
+// injection spec (design §7.8/§7.9). Class defaults: ERROR=15 (syntax),
+// INFO=0; State defaults 1. INFO Class 10 converts to 0 (T-157). LineNumber
+// width follows the version: 4B LE on TDS 7.2+ (T-138), 2B on 7.1 (T-139).
+func buildErrorInfoFromSpec(es *ErrorSpec, isInfo bool, version TDSVersion) []byte {
+	token := byte(TokenError)
+	class := byte(15)
+	if isInfo {
+		token = TokenInfo
+		class = 0
+	}
+	state := byte(1)
+	if es.State != nil {
+		state = *es.State
+	}
+	if es.Class != nil {
+		class = *es.Class
+	}
+	if isInfo && class == 10 {
+		class = 0 // T-157: Class 10 → 0 兼容转换
+	}
+	tok, _ := BuildErrorInfo(token, es.Number, state, class, es.Message, es.ServerName, es.ProcName, es.LineNumber, version != TDSVersion71)
+	return tok
+}
+
 // buildSQLBatchResponse synthesizes the server response for a SQL batch:
 // one result set (COLMETADATA + ROW) per SELECT-ish statement, DONE with
-// DONE_MORE for all but the last statement.
+// DONE_MORE for all but the last statement. Per-statement error/info
+// injection (design §7.8/§7.9) overrides the synthesized result set.
 func buildSQLBatchResponse(cfg *TDSConfig, req *RequestSpec, ri int) []byte {
 	var tokens []byte
 	sql := req.Sql
 	for i, st := range sql.Statements {
+		// INFO 注入 (T-152..T-159): 语句 DONE 之前发送；可与 ERROR 共存
+		// (T-155)，随后 DONE 正常 (T-156)。
+		if st.Info != nil {
+			tokens = append(tokens, buildErrorInfoFromSpec(st.Info, true, cfg.Version)...)
+		}
+		if st.Error != nil {
+			// ERROR 注入 (T-136..T-150): 无结果集, ERROR 在语句 DONE 之前
+			// (T-143), DONE 置 DONE_ERROR (T-142), RowCount=0。
+			tokens = append(tokens, buildErrorInfoFromSpec(st.Error, false, cfg.Version)...)
+			status := uint16(DONEError)
+			// T-074: Class>=20 严重错误 → DONE_SRVERROR(0x100) (A76)。
+			if st.Error.Class != nil && *st.Error.Class >= 20 {
+				status |= DONESrvError
+			}
+			if i < len(sql.Statements)-1 {
+				status |= DONEMore
+			}
+			done, _ := BuildDone(TokenDone, status, 0, 0, true)
+			tokens = append(tokens, done...)
+			continue
+		}
 		if isSelect(st.Text) {
 			// COLMETADATA: one INT4 column "c".
 			cm := BuildColMetadata([]ColMetadataColumn{
@@ -740,13 +844,18 @@ func buildSQLBatchResponse(cfg *TDSConfig, req *RequestSpec, ri int) []byte {
 			binary.LittleEndian.PutUint32(val, uint32(i+1))
 			tokens = append(tokens, BuildRow(val)...)
 		}
-		status := uint16(DONECount)
+		status := uint16(0)
+		rc := int64(0)
+		if isSelect(st.Text) {
+			status |= DONECount
+			rc = 1
+		}
+		if st.ExpectRows > 0 {
+			status |= DONECount
+			rc = int64(st.ExpectRows)
+		}
 		if i < len(sql.Statements)-1 {
 			status |= DONEMore
-		}
-		rc := int64(1)
-		if st.ExpectRows > 0 {
-			rc = int64(st.ExpectRows)
 		}
 		done, _ := BuildDone(TokenDone, status, 0, rc, true)
 		tokens = append(tokens, done...)

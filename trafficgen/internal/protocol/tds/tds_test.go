@@ -6,6 +6,7 @@ package tds
 // parser round-trip.
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
@@ -47,7 +48,7 @@ func tdsSpec(cfg *TDSConfig) core.FlowSpec {
 // defaultCfg returns a config with the defaults the planner applies.
 func defaultCfg() *TDSConfig {
 	cfg := &TDSConfig{}
-	applyDefaults(cfg)
+	applyDefaults(cfg, nil)
 	cfg.Sessions = []SessionSpec{{
 		ID: "s1",
 		Requests: []RequestSpec{{
@@ -295,6 +296,31 @@ func TestLogin7PasswordObfuscation(t *testing.T) {
 	}
 }
 
+func TestLogin7ExplicitEmptyPasswordStaysEmpty(t *testing.T) {
+	// T-026: Password 空 → cchPassword=0, ibPassword 指向 Data 区.
+	// Explicit "" in the JSON payload must be honored (presence-checked
+	// defaulting), not replaced by the "password" default.
+	raw := []byte(`{"password": "", "sessions": [{"id":"s1","requests":[{"type":"attention"}]}]}`)
+	got, err := configFromSpec(core.FlowSpec{Payload: raw})
+	if err != nil {
+		t.Fatalf("configFromSpec: %v", err)
+	}
+	if got.Password != "" {
+		t.Fatalf("Password = %q, want empty (explicit empty must be honored)", got.Password)
+	}
+	// Wire check: LOGIN7 offset table pair 3 (ibPassword/cchPassword, body
+	// offset 46) must carry cchPassword=0.
+	pkt := buildLogin7Packet(got)
+	p, _ := ParsePacket(pkt)
+	res, err := ParseLogin7(p.Body)
+	if err != nil {
+		t.Fatalf("ParseLogin7: %v", err)
+	}
+	if len(res.Password) != 0 {
+		t.Fatalf("wire password length = %d, want 0", len(res.Password))
+	}
+}
+
 func bytesEqual(a, b []byte) bool {
 	if len(a) != len(b) {
 		return false
@@ -493,6 +519,35 @@ func TestRPCProcIDShortForm(t *testing.T) {
 		t.Fatalf("BuildRPCNameProcID: %v", err)
 	}
 	assertHex(t, nameID, "ffff0a00", "ProcID short form")
+}
+
+// MS-TDS §3.4: OptionFlags = fWithRecomp + fNoMetaData + fReuseMetaData +
+// 13 reserved bits = USHORT (2 bytes LE). tshark (dissect_tds_rpc) and
+// FreeTDS both read 2 bytes; a 1-byte emission misaligns the whole RPC
+// stream and marks the packet Malformed.
+func TestRPCOptionFlagsTwoBytes(t *testing.T) {
+	f := BuildRPCOptionFlags(true, true, true)
+	got := []byte{byte(f), byte(f >> 8)}
+	assertHex(t, got, "0700", "OptionFlags with all bits set must be 2B LE")
+	f2 := BuildRPCOptionFlags(false, false, false)
+	got2 := []byte{byte(f2), byte(f2 >> 8)}
+	assertHex(t, got2, "0000", "OptionFlags zero must still emit 2B LE")
+}
+
+// TDS pcap verification: an RPC packet's OptionFlags occupies bytes 2-3 of
+// the RPCReqBatch body (after NameLenProcID), encoded as USHORT LE.
+func TestRPCRequestOptionFlagsTwoBytes(t *testing.T) {
+	rpc := RpcSpec{ProcName: "foo3"}
+	pkt, err := BuildRPCRequest(rpc, true, 0, 1, 0x01, 0, 1)
+	if err != nil {
+		t.Fatalf("BuildRPCRequest: %v", err)
+	}
+	// body = ALL_HEADERS(22) + ProcName long form (2+8=10) + OptionFlags.
+	// OptionFlags at body offset 32 → packet offset 8+32 = 40.
+	if len(pkt) < 42 {
+		t.Fatalf("packet too short: %d", len(pkt))
+	}
+	assertHex(t, pkt[40:42], "0000", "RPC packet OptionFlags at offset 40 must be 2B LE")
 }
 
 func TestRPCProcNameLongForm(t *testing.T) {
@@ -710,6 +765,410 @@ func TestErrorLineNumberWidth(t *testing.T) {
 	}
 }
 
+// --- S8/S9: ERROR/INFO injection (T-136..T-160) ---
+
+func errSpec(number int32, class byte, msg string, line int64) *ErrorSpec {
+	return &ErrorSpec{Number: number, Class: &class, Message: msg, LineNumber: line}
+}
+
+func TestSQLBatchErrorInjection(t *testing.T) {
+	// T-136/137/138/140/141/142/143: 语法错误 "SELECT FROM" →
+	// ERROR Class=15 + DONE(DONE_ERROR), ERROR 在语句 DONE 之前.
+	cfg := defaultCfg()
+	msg := "Incorrect syntax near 'FROM'."
+	cfg.Sessions[0].Requests[0].Sql.Statements = []StatementSpec{{
+		Text: "SELECT FROM",
+		Error: errSpec(102, 15, msg, 1),
+	}}
+	resp := buildSQLBatchResponse(cfg, &cfg.Sessions[0].Requests[0], 0)
+	body := resp[8:]
+	// T-137: Length 字段 = Number..LineNumber 总字节.
+	wantLen := 4 + 1 + 1 + 2 + len(msg)*2 + 1 + 1 + 4
+	// ERROR token: AA + Length + Number(102) + State=1 + Class=15 + US_VARCHAR + B_VARCHAR x2 + LineNumber 4B.
+	wantErr := []byte{TokenError, byte(wantLen), byte(wantLen >> 8), 0x66, 0x00, 0x00, 0x00, 0x01, 0x0F}
+	if len(body) < len(wantErr) || !bytes.Equal(body[:len(wantErr)], wantErr) {
+		t.Fatalf("ERROR head = %X, want %X", body[:min(len(wantErr), len(body))], wantErr)
+	}
+	l := binary.LittleEndian.Uint16(body[1:3])
+	if int(l) != wantLen {
+		t.Fatalf("ERROR Length = %d, want %d", l, wantLen)
+	}
+	// T-140: MsgText US_VARCHAR (2B 长度 + UCS-2).
+	msgLen := binary.LittleEndian.Uint16(body[9:11])
+	if int(msgLen) != len(msg) {
+		t.Fatalf("MsgText len = %d, want %d", msgLen, len(msg))
+	}
+	u := encodeUTF16(msg)
+	if !bytes.Equal(body[11:11+len(u)], u) {
+		t.Fatalf("MsgText UCS-2 mismatch")
+	}
+	// T-141: ServerName/ProcName 空 → 各 1B 0x00.
+	p := 11 + len(u)
+	if body[p] != 0 || body[p+1] != 0 {
+		t.Fatalf("empty names = %X %X, want 00 00", body[p], body[p+1])
+	}
+	// T-138: LineNumber=1 4B LE.
+	if !bytes.Equal(body[p+2:p+6], []byte{1, 0, 0, 0}) {
+		t.Fatalf("LineNumber = %X, want 01 00 00 00", body[p+2:p+6])
+	}
+	// T-143: ERROR 在 DONE 之前; T-142: DONE Status=0x02 (DONE_ERROR).
+	donePos := p + 6
+	if body[donePos] != TokenDone {
+		t.Fatalf("token after ERROR = 0x%02x, want DONE 0xFD", body[donePos])
+	}
+	if st := binary.LittleEndian.Uint16(body[donePos+1 : donePos+3]); st != DONEError {
+		t.Fatalf("DONE Status = 0x%04x, want 0x0002", st)
+	}
+	// Parse round-trip.
+	res, err := ParseResponse(body, true, TDSVersion74)
+	if err != nil {
+		t.Fatalf("ParseResponse: %v", err)
+	}
+	if len(res.Errors) != 1 || res.Errors[0].Number != 102 || res.Errors[0].Class != 15 {
+		t.Fatalf("parsed errors = %+v", res.Errors)
+	}
+}
+
+func TestSQLBatchErrorClassVariants(t *testing.T) {
+	// T-144/145/146: Class=14 权限, Class=13 死锁, 错误号 < 20001 保留范围.
+	for _, tc := range []struct {
+		class byte
+		want  byte
+	}{
+		{14, 0x0E}, // T-144 permission
+		{13, 0x0D}, // T-145 deadlock
+	} {
+		cfg := defaultCfg()
+		cfg.Sessions[0].Requests[0].Sql.Statements = []StatementSpec{{
+			Text:  "SELECT FROM",
+			Error: errSpec(102, tc.class, "x", 0),
+		}}
+		resp := buildSQLBatchResponse(cfg, &cfg.Sessions[0].Requests[0], 0)
+		body := resp[8:]
+		if body[8] != tc.want {
+			t.Fatalf("class byte = 0x%02x, want 0x%02x", body[8], tc.want)
+		}
+		// T-146: 错误号 102 < 20001 原样保留.
+		if n := binary.LittleEndian.Uint32(body[3:7]); n != 102 {
+			t.Fatalf("error number = %d, want 102", n)
+		}
+	}
+}
+
+func TestSQLBatchErrorTDS71LineNumber2B(t *testing.T) {
+	// T-139: TDS 7.1 → LineNumber 2B USHORT.
+	cfg := defaultCfg()
+	cfg.Version = TDSVersion71
+	cfg.Sessions[0].Requests[0].Sql.Statements = []StatementSpec{{
+		Text:  "SELECT FROM",
+		Error: errSpec(102, 15, "x", 1),
+	}}
+	resp := buildSQLBatchResponse(cfg, &cfg.Sessions[0].Requests[0], 0)
+	body := resp[8:]
+	// ERROR token total = 3 + 4 + 1 + 1 + (2+2) + 1 + 1 + 2 = 17.
+	if wantLen := 3 + 4 + 1 + 1 + 2 + 2 + 1 + 1 + 2; len(body) != wantLen+13 {
+		t.Fatalf("7.1 error response len = %d, want %d", len(body), wantLen+13)
+	}
+	// 7.1 LineNumber = 2B: 01 00 (不含 4B 宽度).
+	ln := body[len(body)-13-2 : len(body)-13]
+	if !bytes.Equal(ln, []byte{1, 0}) {
+		t.Fatalf("7.1 LineNumber = %X, want 01 00", ln)
+	}
+}
+
+func TestSQLBatchErrorThenContinue(t *testing.T) {
+	// T-149: 错误后继续批 — 下一语句结果正常, DONE Status=0x10 RowCount=预期值.
+	cfg := defaultCfg()
+	cfg.Sessions[0].Requests[0].Sql.Statements = []StatementSpec{
+		{Text: "SELECT FROM", Error: errSpec(102, 15, "bad syntax", 1)},
+		{Text: "select 2", ExpectRows: 3},
+	}
+	resp := buildSQLBatchResponse(cfg, &cfg.Sessions[0].Requests[0], 0)
+	body := resp[8:]
+	res, err := ParseResponse(body, true, TDSVersion74)
+	if err != nil {
+		t.Fatalf("ParseResponse: %v", err)
+	}
+	if len(res.Errors) != 1 {
+		t.Fatalf("error count = %d, want 1", len(res.Errors))
+	}
+	if len(res.Dones) != 2 {
+		t.Fatalf("done count = %d, want 2", len(res.Dones))
+	}
+	// st1 DONE: DONE_ERROR|DONE_MORE.
+	if st := res.Dones[0].Status; st != DONEError|DONEMore {
+		t.Fatalf("st1 DONE Status = 0x%04x, want 0x0003", st)
+	}
+	// st2 DONE: DONE_COUNT|RowCount=3, 无 DONE_MORE (批最后一条).
+	if st := res.Dones[1].Status; st != DONECount {
+		t.Fatalf("st2 DONE Status = 0x%04x, want 0x0010", st)
+	}
+	if res.Dones[1].RowCount != 3 {
+		t.Fatalf("st2 RowCount = %d, want 3", res.Dones[1].RowCount)
+	}
+}
+
+func TestSQLBatchInfoInjection(t *testing.T) {
+	// T-152/153/156: INFO 5701 Class=0 State=2 + DONE Status=0.
+	cfg := defaultCfg()
+	msg := "Changed database context to 'master'."
+	state := byte(2)
+	class := byte(0)
+	cfg.Sessions[0].Requests[0].Sql.Statements = []StatementSpec{{
+		Text: "USE master",
+		Info: &ErrorSpec{Number: 5701, State: &state, Class: &class, Message: msg, LineNumber: 0},
+	}}
+	resp := buildSQLBatchResponse(cfg, &cfg.Sessions[0].Requests[0], 0)
+	body := resp[8:]
+	// T-152: INFO Length = 0x58 (37 字符消息: 4+1+1+2+74+1+1+4 = 88).
+	if body[0] != TokenInfo {
+		t.Fatalf("first token = 0x%02x, want INFO 0xAB", body[0])
+	}
+	if l := binary.LittleEndian.Uint16(body[1:3]); l != 0x58 {
+		t.Fatalf("INFO Length = 0x%04x, want 0x0058", l)
+	}
+	if !bytes.Equal(body[3:11], []byte{0x45, 0x16, 0x00, 0x00, 0x02, 0x00, 0x25, 0x00}) {
+		t.Fatalf("INFO head = %X, want 45 16 00 00 02 00 25 00", body[3:11])
+	}
+	// T-153: INFO LineNumber=0 4B.
+	u := encodeUTF16(msg)
+	p := 11 + len(u) + 1 + 1
+	if !bytes.Equal(body[p:p+4], []byte{0, 0, 0, 0}) {
+		t.Fatalf("INFO LineNumber = %X, want 00000000", body[p:p+4])
+	}
+	// T-156: INFO 后 DONE Status=0.
+	donePos := p + 4
+	if body[donePos] != TokenDone {
+		t.Fatalf("token after INFO = 0x%02x, want DONE", body[donePos])
+	}
+	if st := binary.LittleEndian.Uint16(body[donePos+1 : donePos+3]); st != 0 {
+		t.Fatalf("DONE Status = 0x%04x, want 0x0000", st)
+	}
+}
+
+func TestSQLBatchInfoServerNameProcName(t *testing.T) {
+	// T-158/159: INFO 带 ServerName/ProcName → B_VARCHAR.
+	cfg := defaultCfg()
+	cfg.Sessions[0].Requests[0].Sql.Statements = []StatementSpec{{
+		Text: "USE master",
+		Info: &ErrorSpec{Number: 5701, Message: "x", ServerName: "MSSQLServer", ProcName: "sp_test"},
+	}}
+	resp := buildSQLBatchResponse(cfg, &cfg.Sessions[0].Requests[0], 0)
+	body := resp[8:]
+	// MsgText "x" (2B) 之后: ServerName B_VARCHAR(0B 4D 53...) + ProcName(07 73 70...).
+	// ServerName = 1B 长度 0x0B + 11 字符 × 2B UCS-2 = 23 字节, ProcName 在其后.
+	p := 3 + 4 + 1 + 1 + 2 + 2
+	if !bytes.Equal(body[p:p+2], []byte{0x0B, 'M'}) {
+		t.Fatalf("ServerName head = %X, want 0B 4D", body[p:p+2])
+	}
+	if !bytes.Equal(body[p+23:p+25], []byte{0x07, 's'}) {
+		t.Fatalf("ProcName head = %X, want 07 73", body[p+23:p+25])
+	}
+}
+
+func TestSQLBatchInfoErrorCoexist(t *testing.T) {
+	// T-155: INFO 与 ERROR 共存 — INFO 先发, ERROR 后发, DONE_ERROR 收尾.
+	cfg := defaultCfg()
+	state := byte(1)
+	cfg.Sessions[0].Requests[0].Sql.Statements = []StatementSpec{{
+		Text:  "SELECT FROM",
+		Info:  &ErrorSpec{Number: 5701, State: &state, Message: "info msg"},
+		Error: errSpec(102, 15, "err msg", 1),
+	}}
+	resp := buildSQLBatchResponse(cfg, &cfg.Sessions[0].Requests[0], 0)
+	body := resp[8:]
+	if body[0] != TokenInfo {
+		t.Fatalf("first token = 0x%02x, want INFO (T-155 顺序)", body[0])
+	}
+	res, err := ParseResponse(body, true, TDSVersion74)
+	if err != nil {
+		t.Fatalf("ParseResponse: %v", err)
+	}
+	if len(res.InfoTokens) != 1 || len(res.Errors) != 1 {
+		t.Fatalf("info=%d error=%d, want 1+1", len(res.InfoTokens), len(res.Errors))
+	}
+	if len(res.Dones) != 1 || res.Dones[0].Status != DONEError {
+		t.Fatalf("DONE = %+v, want DONE_ERROR", res.Dones)
+	}
+}
+
+func TestInfoClass10ConvertsToZero(t *testing.T) {
+	// T-157: INFO Class=10 → wire 0.
+	cfg := defaultCfg()
+	class := byte(10)
+	cfg.Sessions[0].Requests[0].Sql.Statements = []StatementSpec{{
+		Text: "USE master",
+		Info: &ErrorSpec{Number: 5701, Class: &class, Message: "x"},
+	}}
+	resp := buildSQLBatchResponse(cfg, &cfg.Sessions[0].Requests[0], 0)
+	body := resp[8:]
+	if body[8] != 0 {
+		t.Fatalf("INFO class byte = 0x%02x, want 0x00 (T-157)", body[8])
+	}
+}
+
+func TestErrorSpecDefaults(t *testing.T) {
+	// ErrorSpec 缺省: ERROR class=15 state=1; INFO class=0 state=1.
+	tok := buildErrorInfoFromSpec(&ErrorSpec{Number: 102, Message: "x"}, false, TDSVersion74)
+	if tok[0] != TokenError || tok[8] != 15 || tok[7] != 1 {
+		t.Fatalf("ERROR defaults = %X", tok)
+	}
+	tok = buildErrorInfoFromSpec(&ErrorSpec{Number: 5701, Message: "x"}, true, TDSVersion74)
+	if tok[0] != TokenInfo || tok[8] != 0 || tok[7] != 1 {
+		t.Fatalf("INFO defaults = %X", tok)
+	}
+}
+
+func TestLoginErrorResponse(t *testing.T) {
+	// T-147: 登录失败 — ERROR + DONE(DONE_ERROR), 无 LOGINACK; 连接关闭.
+	cfg := defaultCfg()
+	cfg.Login = &LoginSpec{Error: errSpec(18456, 14, "Login failed for user 'sa'.", 1)}
+	resp := buildLoginResponse(cfg)
+	body := resp[8:]
+	if body[0] != TokenError {
+		t.Fatalf("login response first token = 0x%02x, want ERROR", body[0])
+	}
+	if n := binary.LittleEndian.Uint32(body[3:7]); n != 18456 {
+		t.Fatalf("login error number = %d, want 18456", n)
+	}
+	res, err := ParseResponse(body, true, TDSVersion74)
+	if err != nil {
+		t.Fatalf("ParseResponse: %v", err)
+	}
+	if len(res.Errors) != 1 || res.Errors[0].Class != 14 {
+		t.Fatalf("errors = %+v", res.Errors)
+	}
+	if len(res.Dones) != 1 || res.Dones[0].Status != DONEError {
+		t.Fatalf("DONE = %+v, want DONE_ERROR", res.Dones)
+	}
+	// Plan: 无会话包, 流程 = 握手3 + PRELOGIN 2 + LOGIN 2 + teardown 2 = 9 包.
+	pkts := mustPlan(t, &Planner{}, tdsSpec(cfg))
+	if len(pkts) != 9 {
+		t.Fatalf("plan packets = %d, want 9 (login error skips sessions)", len(pkts))
+	}
+	for _, p := range pkts {
+		if p.Direction == "up" && len(p.Payload) > 0 {
+			if p.Payload[0] == TypeSQLBatch || p.Payload[0] == TypeRPC {
+				t.Fatalf("session request emitted after login failure")
+			}
+		}
+	}
+}
+
+func TestLoginErrorSkippedWhenNil(t *testing.T) {
+	// 无 login.error 时行为不变: 正常会话流程 11 包.
+	cfg := defaultCfg()
+	pkts := mustPlan(t, &Planner{}, tdsSpec(cfg))
+	if len(pkts) != 11 {
+		t.Fatalf("plan packets = %d, want 11", len(pkts))
+	}
+}
+
+func TestBuildTableResponsePacketsSplit(t *testing.T) {
+	// T-148: 错误消息超 4K → 分包传输.
+	cfg := defaultCfg()
+	big := strings.Repeat("x", 5000) // 5000 字符 UCS-2 = 10000B
+	cfg.Sessions[0].Requests[0].Sql.Statements = []StatementSpec{{
+		Text:  "SELECT FROM",
+		Error: errSpec(102, 15, big, 1),
+	}}
+	resp := buildSQLBatchResponse(cfg, &cfg.Sessions[0].Requests[0], 0)
+	if len(resp) <= 4096 {
+		t.Fatalf("test message too small: %d", len(resp))
+	}
+	pkts := BuildTableResponsePackets(resp, 4096)
+	if len(pkts) < 2 {
+		t.Fatalf("split count = %d, want >= 2", len(pkts))
+	}
+	var body []byte
+	for i, p := range pkts {
+		if len(p) > 4096 {
+			t.Fatalf("packet %d len %d > 4096", i, len(p))
+		}
+		if len(p) < 8 {
+			t.Fatalf("packet %d too short", i)
+		}
+		if p[0] != TypeTabularResult {
+			t.Fatalf("packet %d type = 0x%02x", i, p[0])
+		}
+		if l := int(binary.BigEndian.Uint16(p[2:4])); l != len(p) {
+			t.Fatalf("packet %d header length %d != actual %d", i, l, len(p))
+		}
+		if i == len(pkts)-1 {
+			if p[1] != StatusEOM {
+				t.Fatalf("last packet status = 0x%02x, want EOM", p[1])
+			}
+		} else if p[1] != 0x00 {
+			t.Fatalf("intermediate packet %d status = 0x%02x, want 0x00", i, p[1])
+		}
+		if i > 0 && p[6] != pkts[i-1][6]+1 {
+			t.Fatalf("packet id not incremental: %d → %d", pkts[i-1][6], p[6])
+		}
+		body = append(body, p[8:]...)
+	}
+	if !bytes.Equal(body, resp[8:]) {
+		t.Fatalf("reassembled tokens differ from original")
+	}
+}
+
+func TestBuildTableResponsePacketsSingle(t *testing.T) {
+	// 不超包大小 → 原样单包.
+	resp := buildSQLBatchResponse(defaultCfg(), &defaultCfg().Sessions[0].Requests[0], 0)
+	pkts := BuildTableResponsePackets(resp, 4096)
+	if len(pkts) != 1 || !bytes.Equal(pkts[0], resp) {
+		t.Fatalf("single packet path changed: %d packets", len(pkts))
+	}
+}
+
+func TestValidateErrorInjectionRules(t *testing.T) {
+	// T-150 代理: 非法注入配置被 Validate 拒绝 (expect_error 负向).
+	p := &Planner{}
+	base := func() *TDSConfig {
+		cfg := defaultCfg()
+		return cfg
+	}
+	// V-TDS-060: ERROR class < 11.
+	cfg := base()
+	cfg.Sessions[0].Requests[0].Sql.Statements[0].Error = errSpec(102, 10, "x", 0)
+	if err := p.Validate(tdsSpec(cfg)); err == nil || !strings.Contains(err.Error(), "V-TDS-060") {
+		t.Fatalf("error class 10: err = %v, want V-TDS-060", err)
+	}
+	// V-TDS-061: INFO class > 10.
+	cfg = base()
+	class := byte(11)
+	cfg.Sessions[0].Requests[0].Sql.Statements[0].Info = &ErrorSpec{Number: 1, Class: &class, Message: "x"}
+	if err := p.Validate(tdsSpec(cfg)); err == nil || !strings.Contains(err.Error(), "V-TDS-061") {
+		t.Fatalf("info class 11: err = %v, want V-TDS-061", err)
+	}
+	// V-TDS-060: login error class < 11.
+	cfg = base()
+	cfg.Login = &LoginSpec{Error: errSpec(18456, 10, "x", 0)}
+	if err := p.Validate(tdsSpec(cfg)); err == nil || !strings.Contains(err.Error(), "V-TDS-060") {
+		t.Fatalf("login error class 10: err = %v, want V-TDS-060", err)
+	}
+	// 合法配置通过.
+	cfg = base()
+	cfg.Sessions[0].Requests[0].Sql.Statements[0].Error = errSpec(102, 15, "x", 0)
+	if err := p.Validate(tdsSpec(cfg)); err != nil {
+		t.Fatalf("valid injection rejected: %v", err)
+	}
+}
+
+func TestParseTruncatedErrorToken(t *testing.T) {
+	// T-150: ERROR token 结构截断 → 协议错误. cut=0 (空 body) 合法解析为空响应.
+	msg := "Incorrect syntax near 'FROM'."
+	tok, _ := BuildErrorInfo(TokenError, 102, 1, 15, msg, "", "", 1, true)
+	for cut := 1; cut < len(tok)-1; cut++ {
+		if _, err := ParseResponse(tok[:cut], true, TDSVersion74); err == nil {
+			t.Fatalf("truncated at %d parsed without error", cut)
+		}
+	}
+	// 完整 token 解析成功.
+	if _, err := ParseResponse(tok, true, TDSVersion74); err != nil {
+		t.Fatalf("full token parse: %v", err)
+	}
+}
+
 // --- S10: Attention (T-161..T-170) ---
 
 func TestAttentionPacket(t *testing.T) {
@@ -888,8 +1347,9 @@ func TestRPCMultiBatch(t *testing.T) {
 		t.Fatalf("BuildRPCBatch: %v", err)
 	}
 	p, _ := ParsePacket(body)
-	// ALL_HEADERS(22) + [FF FF 0A 00 00] + FF + [04 00 66 00 6F 00 6F 00 33 00 00].
-	assertHex(t, p.Body[22:], "ffff0a0000ff040066006f006f00330000", "RPC batch body")
+	// ALL_HEADERS(22) + [FF FF 0A 00 00 00] + FF + [04 00 66 00 6F 00 6F 00 33 00 00 00].
+	// Each RPCReqBatch carries a 2-byte OptionFlags (MS-TDS §3.4 USHORT).
+	assertHex(t, p.Body[22:], "ffff0a000000ff040066006f006f0033000000", "RPC batch body")
 }
 
 // --- S14: PLP (T-203..T-209) ---
@@ -1278,34 +1738,82 @@ func TestPlanTransMgr(t *testing.T) {
 
 func TestPlanXMLParam(t *testing.T) {
 	// T-219: xml/json/udt/vector PLP types.
-	for _, typ := range []string{"xml", "json", "udt"} {
+	for _, typ := range []string{"xml", "json"} {
 		p := ParamSpec{Name: "@p", Type: typ, Value: strPtr("<root/>")}
 		param, err := BuildRPCParam(p)
 		if err != nil {
 			t.Fatalf("%s param: %v", typ, err)
 		}
 		// TYPE_INFO token at [6]: 布局为 bVarChar("@p")(5B: 1B len + 2×2B
-		// UCS-2) + StatusFlags(1B) = 6B 头部, xml/json/udt 的 TYPE_INFO 仅
-		// 1B token。此前误用 [12] (off-by-6)。
+		// UCS-2) + StatusFlags(1B) = 6B 头部。LONGLEN_TYPE (MS-TDS §2.2.5.5.3
+		// 表 LONGLEN_TYPE 行) 的 TYPE_INFO = type(1B) + MaxLen(4B)：
+		// XML/UDT 固定 0xFFFFFFFF（无限长，配合 PLP 数据流）。此前漏发
+		// 4B MaxLen，Wireshark dissect_tds_type_info (packet-tds.c:6460
+		// varlen_len=4) 把 PLP 长度字段前 4B 误读为 MaxLen → 后续全部
+		// 错位 → "[Malformed Packet: TDS]"。
 		var wantTok byte
 		switch typ {
 		case "xml":
 			wantTok = TypeXML
 		case "json":
 			wantTok = TypeJSON
-		case "udt":
-			wantTok = TypeUDT
 		}
 		if param[6] != wantTok {
 			t.Fatalf("%s TYPE_INFO = 0x%02x, want 0x%02x", typ, param[6], wantTok)
 		}
+		// TYPE_VARLEN: 4B MaxLen = 0xFFFFFFFF (PLP 无限长)。
+		if binary.LittleEndian.Uint32(param[7:11]) != 0xFFFFFFFF {
+			t.Fatalf("%s TYPE_VARLEN = 0x%08x, want 0xFFFFFFFF", typ, binary.LittleEndian.Uint32(param[7:11]))
+		}
+		// PLP_BODY 从 [11] 开始: 8B ULONGLONGLEN + chunk(4B len + data) +
+		// 4B PLP_TERMINATOR。
+		plpLen := binary.LittleEndian.Uint64(param[11:19])
+		if plpLen != uint64(len("<root/>")) {
+			t.Fatalf("%s PLP data length = %d, want %d", typ, plpLen, len("<root/>"))
+		}
+		if binary.LittleEndian.Uint32(param[19:23]) != uint32(plpLen) {
+			t.Fatalf("%s PLP chunk length = %d, want %d", typ, binary.LittleEndian.Uint32(param[19:23]), plpLen)
+		}
+		if term := binary.LittleEndian.Uint32(param[23+plpLen : 27+plpLen]); term != 0 {
+			t.Fatalf("%s PLP terminator = %d, want 0", typ, term)
+		}
 	}
-	// NULL PLP = 8B 0xFF: TYPE_INFO 1B 在 [6], PLP 数据从 [7:15] 开始。
-	// 此前误用 [13:21] (off-by-6)。
+	// UDT 值类型为 hex 字符串（getByteSlice/十六进制语义），必须走
+	// buildPLPFromHex 解码而不是把 hex 字符当字面量。T-219 case
+	// tds_rpc_param_xml_json_udt 的 udt value="0102" → 1 字节 0x01 0x02，
+	// PLP len=2 + chunk(04: 02 00 00 00 + 01 02) + terminator=8。
+	// 此前 buildPLPFromHex 误用 hex.DecodeString 丢弃 err 且 err!=nil 时
+	// 得到 nil raw → 2B len64 + terminator (12B)，Wireshark 把终结符前
+	// 的 4B chunklen=0x02000000(33554432) 当后续 chunk → malformed。
+	udt := ParamSpec{Name: "@u", Type: "udt", Value: strPtr("0102")}
+	uparam, err := BuildRPCParam(udt)
+	if err != nil {
+		t.Fatalf("udt param: %v", err)
+	}
+	if uparam[6] != TypeUDT {
+		t.Fatalf("udt TYPE_INFO = 0x%02x, want 0x%02x", uparam[6], TypeUDT)
+	}
+	if binary.LittleEndian.Uint32(uparam[7:11]) != 0xFFFFFFFF {
+		t.Fatalf("udt TYPE_VARLEN = 0x%08x, want 0xFFFFFFFF", binary.LittleEndian.Uint32(uparam[7:11]))
+	}
+	if plpLen := binary.LittleEndian.Uint64(uparam[11:19]); plpLen != 2 {
+		t.Fatalf("udt PLP data length = %d, want 2", plpLen)
+	}
+	if ck := binary.LittleEndian.Uint32(uparam[19:23]); ck != 2 {
+		t.Fatalf("udt PLP chunk length = %d, want 2", ck)
+	}
+	if !bytes.Equal(uparam[23:25], []byte{0x01, 0x02}) {
+		t.Fatalf("udt PLP chunk data = %x, want 0102", uparam[23:25])
+	}
+	if term := binary.LittleEndian.Uint32(uparam[25:29]); term != 0 {
+		t.Fatalf("udt PLP terminator = %d, want 0", term)
+	}
+	// NULL PLP = 8B 0xFF: TYPE_INFO = 1B token + 4B maxlen 在 [6:11],
+	// PLP 数据从 [11:19] 开始。
 	p := ParamSpec{Name: "@p", Type: "xml", IsNull: true}
 	param, _ := BuildRPCParam(p)
-	if binary.LittleEndian.Uint64(param[7:15]) != PLPNull {
-		t.Fatalf("xml NULL = %x, want PLP_NULL", param[7:15])
+	if binary.LittleEndian.Uint64(param[11:19]) != PLPNull {
+		t.Fatalf("xml NULL = %x, want PLP_NULL", param[11:19])
 	}
 }
 
@@ -2037,5 +2545,163 @@ func TestR3NEW03ObfuscatePasswordExplicitParen(t *testing.T) {
 	wantHex := "a2a5b3a592a5"
 	if got := hex.EncodeToString(obf); got != wantHex {
 		t.Fatalf("obf hex = %s, want %s", got, wantHex)
+	}
+}
+
+// TestSQLBatchErrorClass20SrvError — T-074 failing-test-first: Class>=20 严重
+// 错误必须在 DONE 置 DONE_SRVERROR (0x100) 位。当前实现只置 DONE_ERROR(0x02)
+// → 期望 0x0102 而实现给出 0x0002，测试先失败。
+func TestSQLBatchErrorClass20SrvError(t *testing.T) {
+	cfg := defaultCfg()
+	cfg.Sessions[0].Requests[0].Sql.Statements = []StatementSpec{{
+		Text:  "SELECT FROM",
+		Error: errSpec(50000, 20, "severe", 1),
+	}}
+	resp := buildSQLBatchResponse(cfg, &cfg.Sessions[0].Requests[0], 0)
+	body := resp[8:]
+	// 定位 DONE token (ERROR 后第一个 0xFD).
+	donePos := -1
+	for i := 1; i < len(body); i++ {
+		if body[i] == TokenDone {
+			donePos = i
+			break
+		}
+	}
+	if donePos < 0 {
+		t.Fatal("no DONE token after ERROR")
+	}
+	st := binary.LittleEndian.Uint16(body[donePos+1 : donePos+3])
+	if st != DONESrvError|DONEError {
+		t.Fatalf("DONE Status = 0x%04x, want 0x0102 (DONE_SRVERROR|DONE_ERROR)", st)
+	}
+}
+
+// TestRPCParamVarcharMaxNullPLP — T-212 failing-test-first: varchar(max) NULL
+// 参数必须编码为 8B PLP_NULL (0xFF×8)。当前实现 IsNull 先于 Max 判断 →
+// 只输出 2B CHARBIN_NULL (0xFFFF)，测试先失败。
+func TestRPCParamVarcharMaxNullPLP(t *testing.T) {
+	p := ParamSpec{Name: "@s", Type: "varchar", Max: true, IsNull: true}
+	pb, err := BuildRPCParam(p)
+	if err != nil {
+		t.Fatalf("BuildRPCParam: %v", err)
+	}
+	// ParamName B_VARCHAR (1B len + 2×UCS-2 '@s' = 5B) + StatusFlags(1) +
+	// TYPE_INFO(A7 FF FF + Collation 5B = 8B) = 14 字节之后必须是 8B PLP_NULL。
+	wantNull := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+	if len(pb) < 14+8 {
+		t.Fatalf("param len = %d, want >= 22 (PLP_NULL 8B)", len(pb))
+	}
+	if !bytes.Equal(pb[14:22], wantNull) {
+		t.Fatalf("NULL payload = %X, want PLP_NULL %X", pb[14:min(22, len(pb))], wantNull)
+	}
+}
+
+// TestRPCParamNVarCharMaxPLPUCS2 — T-110 扩展 failing-test-first:
+// nvarchar(max) 非 NULL 的 PLP chunk 数据必须是 UCS-2 LE (每字符 2B)。
+// 此前 buildPLPFromString 直接写原始 ASCII → "ab" 编码为 61 62 而非
+// 61 00 62 00 (wire 与 FreeTDS/tshark 期望不符)。
+func TestRPCParamNVarCharMaxPLPUCS2(t *testing.T) {
+	v := "ab"
+	p := ParamSpec{Name: "@n", Type: "nvarchar", Max: true, Value: &v}
+	pb, err := BuildRPCParam(p)
+	if err != nil {
+		t.Fatalf("BuildRPCParam: %v", err)
+	}
+	// 前缀: ParamName B_VARCHAR 5B ('@n' UCS-2) + StatusFlags 1B +
+	// TYPE_INFO (E7 FF FF + Collation 5B = 8B) = 14B。
+	// PLP: 8B 总长 (UCS-2 字节数=4) + chunk(4B len + 数据) + 4B terminator。
+	plp := pb[14:]
+	if binary.LittleEndian.Uint64(plp[0:8]) != 4 {
+		t.Fatalf("PLP total len = %d, want 4 (2 chars × 2B UCS-2)", binary.LittleEndian.Uint64(plp[0:8]))
+	}
+	if binary.LittleEndian.Uint32(plp[8:12]) != 4 {
+		t.Fatalf("PLP chunk len = %d, want 4", binary.LittleEndian.Uint32(plp[8:12]))
+	}
+	if !bytes.Equal(plp[12:16], []byte{0x61, 0x00, 0x62, 0x00}) {
+		t.Fatalf("PLP chunk data = %X, want UCS-2 61 00 62 00", plp[12:16])
+	}
+	if binary.LittleEndian.Uint32(plp[len(plp)-4:]) != 0 {
+		t.Fatalf("PLP terminator missing")
+	}
+}
+
+// 深度审计修复（2026-08-10）：默认 LOGIN7（无 feature_exts）不得在 body
+// 尾部写 Extension DWORD+数据。此前 tds.go 在 Version==TDSVersion74 且
+// FeatureExts 为空时仍 append 终止符 0xFF，导致 fe=[0xff] 非空，
+// BuildLogin7 在 offset 表之后追加 `c6 00 00 00 ff` 5B；Wireshark 的
+// dissect_tds_nt 把第 9 对之后所有剩余字节当 GSS-API blob 解析 → 非法
+// BER → "[Malformed Packet: TDS]"（tds_login7_default / tds_attention 87
+// 个 case 全部命中）。MS-TDS §2.2.6.4: fExtension=0 时 ibExtension 被
+// 忽略，无 feature 时 body 必须恰好以最后一个字符串字段结尾。
+func TestLogin7DefaultNoExtensionTrailingBytes(t *testing.T) {
+	cfg := defaultCfg() // Version 默认 74, FeatureExts 空
+	pkt := buildLogin7Packet(cfg)
+	p, err := ParsePacket(pkt)
+	if err != nil {
+		t.Fatalf("ParsePacket: %v", err)
+	}
+	tail := p.Body[len(p.Body)-8:]
+	if bytes.Contains(tail, []byte{0xc6, 0x00, 0x00, 0x00, 0xff}) {
+		t.Fatalf("default LOGIN7 carries spurious Extension DWORD+0xFF tail: body=%X", p.Body[len(p.Body)-16:])
+	}
+	if p.Body[len(p.Body)-1] == 0xff {
+		t.Fatalf("default LOGIN7 body ends with 0xFF (FeatureExt terminator) without any FeatureExt: body=%X", p.Body[len(p.Body)-16:])
+	}
+}
+
+// 对照组：FeatureExts 非空时 Extension 区必须保留（DWORD 占位 + 数据 + 0xFF）。
+func TestLogin7FeatureExtStillEmitsExtension(t *testing.T) {
+	cfg := defaultCfg()
+	cfg.FeatureExts = []FeatureExt{{
+		ID:   1,
+		Data: "0000",
+	}}
+	pkt := buildLogin7Packet(cfg)
+	p, err := ParsePacket(pkt)
+	if err != nil {
+		t.Fatalf("ParsePacket: %v", err)
+	}
+	if !bytes.Contains(p.Body, []byte{0xc6, 0x00, 0x00, 0x00, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff}) {
+		t.Fatalf("feature-ext LOGIN7 missing Extension block (DWORD=0xC6 + FE ID=1 len=2 data=0000 + 0xFF): body tail=%X", p.Body[len(p.Body)-16:])
+	}
+	// fExtension (OptionFlags3 bit4=0x10) 必须自动置位（BuildLogin7 调用方 tds.go:672）。
+	if p.Body[27]&0x10 == 0 {
+		t.Fatalf("fExtension bit not set, OptionFlags3=0x%02X", p.Body[27])
+	}
+}
+
+// 深度审计修复（2026-08-10）：uniqueidentifier 参数 TYPE_VARBYTE 必须带
+// 1B BYTELEN 前缀（0x10=16B），与 GUID 数据（16B）紧邻。此前直接拼 16B
+// 裸值，Wireshark dissect_tds_type_varbyte 把第一个 GUID 字节误读为长度
+// （0x11→错误 17B 推进 + 数据被读成 "NULL"），随后的 0x10 被当新参数名
+// 长度 → "Malformed Packet: TDS"（tds_rpc_param_uniqueidentifier）。
+// MS-TDS §2.4.6: GUID 属 BYTELEN_TYPE，值 = [len(1B)][16B data]。
+func TestRPCParamUniqueidentifierHasByteLenPrefix(t *testing.T) {
+	pb, err := BuildRPCParam(ParamSpec{
+		Name:  "@guid",
+		Type:  "uniqueidentifier",
+		Value: strPtr("00112233445566778899aabbccddeeff"),
+	})
+	if err != nil {
+		t.Fatalf("BuildRPCParam: %v", err)
+	}
+	want := []byte{
+		0x05, 0x40, 0x00, 0x67, 0x00, 0x75, 0x00, 0x69, 0x00, 0x64, 0x00, // B_VARCHAR @guid
+		0x00,       // StatusFlags
+		0x24, 0x10, // TYPE_INFO: GUID + maxlen 16
+		0x10,       // BYTELEN 16
+		0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, // 16B GUID
+	}
+	if !bytes.Equal(pb, want) {
+		t.Fatalf("BuildRPCParam(guid):\n got %X\nwant %X", pb, want)
+	}
+	// NULL GUID → BYTELEN 0x00 (GEN_NULL)。
+	pbNull, err := BuildRPCParam(ParamSpec{Name: "@g", Type: "uniqueidentifier", IsNull: true})
+	if err != nil {
+		t.Fatalf("BuildRPCParam(null guid): %v", err)
+	}
+	if pbNull[len(pbNull)-1] != 0x00 || pbNull[len(pbNull)-2] != 0x10 {
+		t.Fatalf("null guid tail = %X, want ...24 10 00", pbNull[len(pbNull)-3:])
 	}
 }

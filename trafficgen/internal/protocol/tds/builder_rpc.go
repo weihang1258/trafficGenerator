@@ -29,19 +29,28 @@ func BuildRPCNameProcID(procName string, procID *uint16) ([]byte, error) {
 	return usVarChar(procName), nil
 }
 
-// BuildRPCOptionFlags encodes the RPC OptionFlags byte (spec §3.4).
-func BuildRPCOptionFlags(withRecomp, noMetaData, reuseMetaData bool) byte {
-	var f byte
+// BuildRPCOptionFlags encodes the RPC OptionFlags (spec §3.4). Per MS-TDS
+// the field is USHORT (2 bytes LE): fWithRecomp(bit0) + fNoMetaData(bit1) +
+// fReuseMetaData(bit2) + 13 reserved bits. A 1-byte emission misaligns the
+// RPC stream (tshark/FreeTDS both read 2 bytes).
+func BuildRPCOptionFlags(withRecomp, noMetaData, reuseMetaData bool) uint16 {
+	var f uint16
 	if withRecomp {
-		f |= 0x01
+		f |= 0x0001
 	}
 	if noMetaData {
-		f |= 0x02
+		f |= 0x0002
 	}
 	if reuseMetaData {
-		f |= 0x04
+		f |= 0x0004
 	}
 	return f
+}
+
+// appendRPCOptionFlags appends the 2-byte LE OptionFlags to a body slice.
+func appendRPCOptionFlags(body []byte, withRecomp, noMetaData bool) []byte {
+	f := BuildRPCOptionFlags(withRecomp, noMetaData, false)
+	return append(body, byte(f), byte(f>>8))
 }
 
 // BuildRPCParamStatusFlags encodes the RPC ParameterData StatusFlags byte
@@ -173,7 +182,14 @@ func encodeTypeInfoAndValue(p ParamSpec) (typeInfo, data []byte, err error) {
 		}
 		typeInfo = append(typeInfo, DefaultCollation[:]...)
 		if p.IsNull {
-			data = []byte{0xFF, 0xFF} // CHARBIN_NULL 2B
+			// T-212: varchar(max) NULL → 8B PLP_NULL (0xFF×8)；非 max 才用
+			// 2B CHARBIN_NULL (T-211)。修复: 此前 IsNull 先于 Max 判断，max
+			// NULL 被误编码为 CHARBIN_NULL。
+			if p.Max {
+				data = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF} // PLP_NULL
+			} else {
+				data = []byte{0xFF, 0xFF} // CHARBIN_NULL 2B
+			}
 		} else if p.Max {
 			data = buildPLPFromString(p.Value)
 		} else {
@@ -203,9 +219,22 @@ func encodeTypeInfoAndValue(p ParamSpec) (typeInfo, data []byte, err error) {
 		}
 		typeInfo = append(typeInfo, DefaultCollation[:]...)
 		if p.IsNull {
-			data = []byte{0xFF, 0xFF}
+			// T-212: nvarchar(max) NULL 同样 8B PLP_NULL；非 max 用 CHARBIN_NULL。
+			if p.Max {
+				data = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+			} else {
+				data = []byte{0xFF, 0xFF}
+			}
 		} else if p.Max {
-			data = buildPLPFromString(p.Value)
+			// nvarchar(max) PLP chunk 数据必须为 UCS-2 LE（T-110 语义:
+			// "UCS-2 LE 数据"，每字符 2B）。此前误用 buildPLPFromString →
+			// 原始 ASCII 字节入 chunk，与 tshark/FreeTDS 解析不符
+			// （"ab" → 61 62 而非 61 00 62 00）。
+			var s string
+			if p.Value != nil {
+				s = *p.Value
+			}
+			data = buildPLP(encodeUTF16(s))
 		} else {
 			var s string
 			if p.Value != nil {
@@ -227,7 +256,12 @@ func encodeTypeInfoAndValue(p ParamSpec) (typeInfo, data []byte, err error) {
 			typeInfo = []byte{TypeBigVarBin, byte(maxLen), byte(maxLen >> 8)}
 		}
 		if p.IsNull {
-			data = []byte{0xFF, 0xFF}
+			// T-212: varbinary(max) NULL → 8B PLP_NULL；非 max → CHARBIN_NULL。
+			if p.Max {
+				data = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+			} else {
+				data = []byte{0xFF, 0xFF}
+			}
 		} else if p.Max {
 			data = buildPLPFromHex(p.Value)
 		} else {
@@ -240,7 +274,11 @@ func encodeTypeInfoAndValue(p ParamSpec) (typeInfo, data []byte, err error) {
 			copy(data[2:], raw)
 		}
 	case "xml":
-		typeInfo = []byte{TypeXML}
+		// LONGLEN_TYPE (MS-TDS §2.2.5.5.3): TYPE_INFO = type(1B) +
+		// MaxLen(4B)。XML/UDT 固定 0xFFFFFFFF（无限长，数据用 PLP 流）。
+		// 此前漏发 4B MaxLen，Wireshark 把 PLP 长度前 4B 误读为 MaxLen
+		// → 参数流错位 → "[Malformed Packet: TDS]"。
+		typeInfo = []byte{TypeXML, 0xFF, 0xFF, 0xFF, 0xFF}
 		if p.IsNull {
 			data = make([]byte, 8)
 			for i := range data {
@@ -250,7 +288,7 @@ func encodeTypeInfoAndValue(p ParamSpec) (typeInfo, data []byte, err error) {
 			data = buildPLPFromString(p.Value)
 		}
 	case "json":
-		typeInfo = []byte{TypeJSON}
+		typeInfo = []byte{TypeJSON, 0xFF, 0xFF, 0xFF, 0xFF}
 		if p.IsNull {
 			data = make([]byte, 8)
 			for i := range data {
@@ -260,7 +298,7 @@ func encodeTypeInfoAndValue(p ParamSpec) (typeInfo, data []byte, err error) {
 			data = buildPLPFromString(p.Value)
 		}
 	case "udt":
-		typeInfo = []byte{TypeUDT}
+		typeInfo = []byte{TypeUDT, 0xFF, 0xFF, 0xFF, 0xFF}
 		if p.IsNull {
 			data = make([]byte, 8)
 			for i := range data {
@@ -272,6 +310,7 @@ func encodeTypeInfoAndValue(p ParamSpec) (typeInfo, data []byte, err error) {
 	case "uniqueidentifier", "guid":
 		typeInfo = []byte{TypeGUID, 0x10}
 		if p.IsNull {
+			// BYTELEN_TYPE NULL → GEN_NULL (0x00)。
 			data = []byte{0}
 		} else {
 			raw, e := parseHexValue(p.Value)
@@ -281,7 +320,10 @@ func encodeTypeInfoAndValue(p ParamSpec) (typeInfo, data []byte, err error) {
 			if len(raw) != 16 {
 				return nil, nil, fmt.Errorf("uniqueidentifier must be 16 bytes, got %d", len(raw))
 			}
-			data = raw
+			// BYTELEN_TYPE (MS-TDS §2.4.6): 值 = [1B 长度][数据]。
+			// 此前漏了长度前缀直接拼 16B 裸值，Wireshark 把首字节误读为
+			// 长度 → 后续字节错位 → "[Malformed Packet: TDS]"。
+			data = append([]byte{0x10}, raw...)
 		}
 	case "decimal", "numeric":
 		// DECIMALN/NUMERICNTYPE TYPE_INFO = type(1B) + maxlen(1B) + precision(1B)
@@ -441,7 +483,7 @@ func BuildRPCRequest(rpc RpcSpec, tds7Plus bool, txnDesc uint64, outstanding uin
 		return nil, err
 	}
 	body = append(body, nameID...)
-	body = append(body, BuildRPCOptionFlags(rpc.WithRecomp, rpc.NoMetaData, false))
+	body = appendRPCOptionFlags(body, rpc.WithRecomp, rpc.NoMetaData)
 	for _, p := range rpc.Params {
 		pb, err := BuildRPCParam(p)
 		if err != nil {
@@ -477,7 +519,7 @@ func BuildRPCBatch(batch []RpcSpec, tds7Plus bool, txnDesc uint64, outstanding u
 			return nil, err
 		}
 		body = append(body, nameID...)
-		body = append(body, BuildRPCOptionFlags(rpc.WithRecomp, rpc.NoMetaData, false))
+		body = appendRPCOptionFlags(body, rpc.WithRecomp, rpc.NoMetaData)
 		for _, p := range rpc.Params {
 			pb, err := BuildRPCParam(p)
 			if err != nil {
