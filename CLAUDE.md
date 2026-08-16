@@ -2,24 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Output Token Limit Policy (Mandatory)
-
-**Large outputs must be split into multiple smaller writes. Never attempt to produce a large output in a single tool call.** This rule exists because single tool calls producing large outputs (e.g., a single Write of a 2000+ line document) exceed the 32000 output token limit and cause failures (e.g., "response exceeded the 32000 output token maximum") or apparent hangs. Reading large files is fine (input has no such limit), but output does.
-
-1. **Split large writes**: When writing or modifying a large document/file (e.g., a 2000-line design doc), split the content into chunks of **300-500 lines per Write/Edit call**. Never attempt a single Write/Edit with more than ~1000 lines.
-2. **Sequential chunked writing**: Write section by section (e.g., §1-§2, then §3-§4, ...). Before each chunk, Read the current file tail to confirm the previous chunk landed and determine the append point.
-3. **Apply to all agents**: Sub-agents MUST follow this rule too. When launching a sub-agent for a task that involves writing large files, the prompt MUST include this rule explicitly.
-4. **Incremental edits preferred**: For modifications to an existing large file, prefer many small Edit calls (one section/problem per call) over one large Write. This also makes the diff reviewable.
-5. **Audit reports**: Audit reports should also be written incrementally—write the structure first, then fill in sections, rather than one giant Write.
-
-## Input Read Chunking Policy (Mandatory for Sub-Agents)
-
-**Sub-agents have a smaller context window than the main session (~26.9K tokens effective). Reading a large file in one Read call can exceed this limit and cause the agent to hang or fail.** Large files must be read in chunks.
-
-1. **Read in chunks**: When reading a file larger than ~1000 lines (or ~20K tokens), split into multiple Read calls of **500-700 lines each** (e.g., offset=1,limit=600 → offset=600,limit=600 → ...).
-2. **Apply to all agents**: Sub-agent prompts for tasks involving large files MUST include explicit chunked-reading instructions.
-3. **Read audit reports in chunks too**: Audit reports can be large; read them the same way.
-
 ## Code Modification & Review Policy (Mandatory)
 
 **Any code modification MUST be followed by a code review before considering the work done.** This is a binding workflow rule, not a suggestion:
