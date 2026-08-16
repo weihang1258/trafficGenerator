@@ -1537,9 +1537,13 @@ func calculateUDPChecksum(config PacketConfig, payload []byte) uint16 {
 	sum = sum + (sum >> 16)
 
 	result := ^uint16(sum)
-	// IPv6 UDP MUST NOT have zero checksum (RFC 6936 §2). On IPv4, 0 means
-	// "no checksum" and is legal; on IPv6, 0xFFFF is the substitute.
-	if isV6 && result == 0 {
+	// RFC 768 §4.1: "If the computed checksum is zero, it is transmitted as
+	// all ones". A zero on the wire is indistinguishable from "no checksum"
+	// (RFC 768: "the transmitted checksum is 0 means the sender generated no
+	// checksum"), which makes real checksum verification impossible — tshark
+	// reports status 3 (Not present). Applies to IPv4 and IPv6 alike; IPv6
+	// additionally forbids zero checksums outright (RFC 6936 §2).
+	if result == 0 {
 		result = 0xFFFF
 	}
 	return result

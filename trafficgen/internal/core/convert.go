@@ -136,6 +136,9 @@ func ValidateTask(task Task) error {
 		"ngap":     true,
 		"srv6":     true,
 		"gbt32960": true,
+		"tftp": true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
+		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
+		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true,
 	}
 
 	if !validProtocols[task.Protocol] {
@@ -174,6 +177,9 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		"ngap":     true,
 		"srv6":     true,
 		"gbt32960": true,
+		"tftp": true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
+		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
+		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true,
 	}
 	seenIDs := make(map[string]bool)
 	for i, c := range batch.Classes {

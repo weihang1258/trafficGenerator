@@ -978,3 +978,318 @@ func TestMapToFlowSpec_GTP_Absent(t *testing.T) {
 		t.Errorf("spec.GTP = %+v, want nil when gtp absent", spec.GTP)
 	}
 }
+
+// TestMapToFlowSpec_ENIP_FromResponse verifies the ENIP command converter
+// wires from_response_field / source_command_index into ENIPCommand.
+// Regression guard for a real bug found via pcap drive testing (T-117/T-118):
+// parseENIPCommands dropped both fields, so validateFromResponseConfig (enip
+// planner Plan) never fired — tasks with invalid from_response configs
+// silently completed instead of erroring.
+func TestMapToFlowSpec_ENIP_FromResponse(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"enip": map[string]interface{}{
+			"transport": "tcp",
+			"commands": []interface{}{
+				map[string]interface{}{
+					"command":        float64(111),
+					"direction":      "down",
+					"session_handle": float64(100),
+					"payload":        []interface{}{float64(0), float64(0), float64(0), float64(0)},
+				},
+				map[string]interface{}{
+					"command":              float64(112),
+					"cip_service":          float64(14),
+					"class_id":             float64(1),
+					"instance_id":          float64(1),
+					"attribute_id":         float64(1),
+					"from_response_field":  "session_handle",
+					"source_command_index": float64(0),
+				},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "enip")
+	if spec.ENIP == nil {
+		t.Fatalf("spec.ENIP is nil")
+	}
+	if len(spec.ENIP.Commands) != 2 {
+		t.Fatalf("Commands = %d, want 2", len(spec.ENIP.Commands))
+	}
+	cmd := spec.ENIP.Commands[1]
+	if cmd.FromResponseField != "session_handle" {
+		t.Errorf("FromResponseField = %q, want session_handle (field dropped by converter)", cmd.FromResponseField)
+	}
+	if cmd.SourceCommandIndex != 0 {
+		t.Errorf("SourceCommandIndex = %d, want 0 (field dropped by converter)", cmd.SourceCommandIndex)
+	}
+}
+
+// TestMapToFlowSpec_ENIP_SessionHandleStrategy verifies parseENIPCommands
+// carries session_handle.{strategy} into ENIPCommand.SessionHandleStrategy
+// (T-090/T-091, design §7.3). Before the fix the strategy map silently
+// truncated to session_handle=0 and the inc/rand rejection never fired.
+func TestMapToFlowSpec_ENIP_SessionHandleStrategy(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"enip": map[string]interface{}{
+			"transport": "tcp",
+			"commands": []interface{}{
+				map[string]interface{}{
+					"command": float64(111), "cip_service": float64(14),
+					"session_handle": map[string]interface{}{
+						"strategy": "inc",
+						"range":    []interface{}{float64(1), float64(100)},
+						"step":     float64(1),
+					},
+				},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "enip")
+	if spec.ENIP == nil || len(spec.ENIP.Commands) != 1 {
+		t.Fatalf("ENIP commands = %+v, want 1", spec.ENIP)
+	}
+	cmd := spec.ENIP.Commands[0]
+	if cmd.SessionHandleStrategy != "inc" {
+		t.Errorf("SessionHandleStrategy = %q, want inc (strategy map dropped by converter)", cmd.SessionHandleStrategy)
+	}
+	if err := ValidateProtocolSubConfigs(raw, "enip"); err != nil {
+		t.Errorf("ValidateProtocolSubConfigs should pass raw ranges, got: %v", err)
+	}
+}
+
+// === T-074/T-075: MODBUS transactions absent vs explicit empty array ===
+// The converter must distinguish "key absent" (nil → planner injects the
+// default FC=0x03 transaction, T-074) from `transactions: []` (empty →
+// planner emits zero transactions, handshake+teardown only, T-075).
+func TestMapToFlowSpec_MODBUS_TransactionsAbsentVsEmpty(t *testing.T) {
+	// Absent key: nil, planner injects default transaction.
+	rawAbsent := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"modbus": map[string]interface{}{"unit_id": float64(1)},
+	}
+	spec := mapToFlowSpec(rawAbsent, "modbus")
+	if spec.MODBUS == nil {
+		t.Fatalf("spec.MODBUS is nil")
+	}
+	if spec.MODBUS.Transactions != nil {
+		t.Errorf("absent transactions: got non-nil %v, want nil (T-074 default injection)", spec.MODBUS.Transactions)
+	}
+
+	// Explicit empty array: non-nil empty slice, no default injection.
+	rawEmpty := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"modbus": map[string]interface{}{
+			"unit_id":      float64(1),
+			"transactions": []interface{}{},
+		},
+	}
+	spec = mapToFlowSpec(rawEmpty, "modbus")
+	if spec.MODBUS == nil {
+		t.Fatalf("spec.MODBUS is nil")
+	}
+	if spec.MODBUS.Transactions == nil {
+		t.Fatal("empty transactions: got nil, want non-nil empty slice (T-075 zero transactions)")
+	}
+	if len(spec.MODBUS.Transactions) != 0 {
+		t.Errorf("empty transactions: got %d ops, want 0", len(spec.MODBUS.Transactions))
+	}
+}
+
+// === deep audit 2026-08: FC 0x2B mei_objects/conformity_level must reach
+// the planner via Values (request PDU = 2B 0E <code> <object-id>) ===
+// T-025/T-065/T-068/T-204: a transaction carrying mei_objects or
+// conformity_level without an explicit "values" key must still produce a
+// well-formed Read Device Identification request; otherwise tshark marks
+// frame 4 Malformed (2-byte PDU 2B 0E).
+func TestMapToFlowSpec_MODBUS_FC2BMeiObjectsDeriveRequestValues(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"modbus": map[string]interface{}{
+			"unit_id": float64(1),
+			"transactions": []interface{}{
+				map[string]interface{}{
+					"function_code":     float64(43),
+					"sub_function":      float64(14),
+					"conformity_level":  float64(1),
+					"mei_objects": []interface{}{
+						map[string]interface{}{"object_id": float64(0), "object_value": "TrafficGen"},
+						map[string]interface{}{"object_id": float64(1), "object_value": "v1"},
+					},
+				},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "modbus")
+	if spec.MODBUS == nil || len(spec.MODBUS.Transactions) != 1 {
+		t.Fatalf("expected 1 transaction, got %+v", spec.MODBUS)
+	}
+	op := spec.MODBUS.Transactions[0]
+	// conformity_level=1 → Read Device ID Code=0x01 (Basic);
+	// first mei_object object_id=0 → Object ID=0x00 → Values = 01 00.
+	want := []byte{0x01, 0x00}
+	if len(op.Values) != len(want) {
+		t.Fatalf("Values: got %v (len %d), want %v (len %d)", op.Values, len(op.Values), want, len(want))
+	}
+	for i := range want {
+		if op.Values[i] != want[i] {
+			t.Fatalf("Values[%d]: got 0x%02X, want 0x%02X", i, op.Values[i], want[i])
+		}
+	}
+}
+
+// === deep audit 2026-08: explicit "values" key wins over derived FC 0x2B ===
+func TestMapToFlowSpec_MODBUS_FC2BExplicitValuesPreserved(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"modbus": map[string]interface{}{
+			"unit_id": float64(1),
+			"transactions": []interface{}{
+				map[string]interface{}{
+					"function_code":    float64(43),
+					"sub_function":     float64(14),
+					"values":           []interface{}{float64(4), float64(2)}, // Specific, Object ID=2
+					"conformity_level": float64(3),
+					"mei_objects": []interface{}{
+						map[string]interface{}{"object_id": float64(0), "object_value": "X"},
+					},
+				},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "modbus")
+	op := spec.MODBUS.Transactions[0]
+	want := []byte{0x04, 0x02}
+	if len(op.Values) != len(want) {
+		t.Fatalf("Values: got %v (len %d), want %v (len %d)", op.Values, len(op.Values), want, len(want))
+	}
+	for i := range want {
+		if op.Values[i] != want[i] {
+			t.Fatalf("Values[%d]: got 0x%02X, want 0x%02X", i, op.Values[i], want[i])
+		}
+	}
+}
+
+// === FC 0x2B: mei_objects without conformity_level defaults to code 0x01 ===
+func TestMapToFlowSpec_MODBUS_FC2BMeiObjectsNoConformity(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"modbus": map[string]interface{}{
+			"unit_id": float64(1),
+			"transactions": []interface{}{
+				map[string]interface{}{
+					"function_code": float64(43),
+					"sub_function":  float64(14),
+					"mei_objects": []interface{}{
+						map[string]interface{}{"object_id": float64(0), "object_value": "ACME"},
+					},
+				},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "modbus")
+	op := spec.MODBUS.Transactions[0]
+	want := []byte{0x01, 0x00}
+	if len(op.Values) != len(want) {
+		t.Fatalf("Values: got %v (len %d), want %v (len %d)", op.Values, len(op.Values), want, len(want))
+	}
+	for i := range want {
+		if op.Values[i] != want[i] {
+			t.Fatalf("Values[%d]: got 0x%02X, want 0x%02X", i, op.Values[i], want[i])
+		}
+	}
+}
+
+// === FC 0x2B: starting_address (T-025/S15) maps to Object ID ===
+func TestMapToFlowSpec_MODBUS_FC2BStartingAddressIsObjectID(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"modbus": map[string]interface{}{
+			"unit_id": float64(1),
+			"transactions": []interface{}{
+				map[string]interface{}{
+					"function_code":     float64(43),
+					"sub_function":      float64(14),
+					"starting_address":  float64(1),
+					"quantity":          float64(1),
+					"response_values":   []interface{}{float64(14), float64(1), float64(1), float64(0), float64(0), float64(1), float64(0), float64(4), float64(65), float64(66), float64(67), float64(68)},
+				},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "modbus")
+	op := spec.MODBUS.Transactions[0]
+	want := []byte{0x01, 0x01} // Basic code, Object ID=starting_address=1
+	if len(op.Values) != len(want) {
+		t.Fatalf("Values: got %v (len %d), want %v (len %d)", op.Values, len(op.Values), want, len(want))
+	}
+	for i := range want {
+		if op.Values[i] != want[i] {
+			t.Fatalf("Values[%d]: got 0x%02X, want 0x%02X", i, op.Values[i], want[i])
+		}
+	}
+}
+
+// === deep audit 2026-08: conformity_level 0x04 (Specific) passes through ===
+func TestMapToFlowSpec_MODBUS_FC2BConformitySpecific(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"modbus": map[string]interface{}{
+			"unit_id": float64(1),
+			"transactions": []interface{}{
+				map[string]interface{}{
+					"function_code":    float64(43),
+					"sub_function":     float64(14),
+					"conformity_level": float64(4), // Specific
+					"mei_objects": []interface{}{
+						map[string]interface{}{"object_id": float64(2), "object_value": "X"},
+					},
+				},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "modbus")
+	op := spec.MODBUS.Transactions[0]
+	want := []byte{0x04, 0x02}
+	if len(op.Values) != len(want) {
+		t.Fatalf("Values: got %v (len %d), want %v (len %d)", op.Values, len(op.Values), want, len(want))
+	}
+	for i := range want {
+		if op.Values[i] != want[i] {
+			t.Fatalf("Values[%d]: got 0x%02X, want 0x%02X", i, op.Values[i], want[i])
+		}
+	}
+}
+
+// === deep audit 2026-08: conformity_level 0x81 (Basic+Private) → 0x01 ===
+func TestMapToFlowSpec_MODBUS_FC2BConformityPrivateMasksToBase(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"modbus": map[string]interface{}{
+			"unit_id": float64(1),
+			"transactions": []interface{}{
+				map[string]interface{}{
+					"function_code":    float64(43),
+					"sub_function":     float64(14),
+					"conformity_level": float64(0x81), // Basic + Private
+					"mei_objects": []interface{}{
+						map[string]interface{}{"object_id": float64(0), "object_value": "X"},
+					},
+				},
+			},
+		},
+	}
+	spec := mapToFlowSpec(raw, "modbus")
+	op := spec.MODBUS.Transactions[0]
+	want := []byte{0x01, 0x00}
+	if len(op.Values) != len(want) {
+		t.Fatalf("Values: got %v (len %d), want %v (len %d)", op.Values, len(op.Values), want, len(want))
+	}
+	for i := range want {
+		if op.Values[i] != want[i] {
+			t.Fatalf("Values[%d]: got 0x%02X, want 0x%02X", i, op.Values[i], want[i])
+		}
+	}
+}
+

@@ -3280,3 +3280,83 @@ func TestValidateTask_PPTPx_InvalidProtocol(t *testing.T) {
 		t.Fatalf("ValidateTask = %v, want invalid-protocol error", err)
 	}
 }
+
+// 深度审计修复: DoIP AddressAndLength/TransferData/Data 以十六进制字符串输入
+// (设计 §6.10/T041: "00 44 00 ..."), 此前按 ASCII 原样使用导致 0x34/0x36
+// 报文长度错误。字符串值必须 hex 解码为字节。
+func TestMapToFlowSpec_DoIP_HexStringFields(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"doip": map[string]interface{}{
+			"messages": []interface{}{
+				map[string]interface{}{
+					"direction": "up",
+					"uds": map[string]interface{}{
+						"service_id":          float64(52),
+						"address_and_length":  "00 44 00 00 00 01 00 00 00 10",
+						"transfer_data":       "aabbccdd",
+					},
+				},
+			},
+		},
+	}, "doip")
+	if spec.DoIP == nil || len(spec.DoIP.Messages) != 1 || spec.DoIP.Messages[0].UDS == nil {
+		t.Fatalf("DoIP not parsed: %+v", spec.DoIP)
+	}
+	uds := spec.DoIP.Messages[0].UDS
+	wantAddr := []byte{0x00, 0x44, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x10}
+	if !bytes.Equal(uds.AddressAndLength, wantAddr) {
+		t.Errorf("AddressAndLength = %x, want %x", uds.AddressAndLength, wantAddr)
+	}
+	if !bytes.Equal(uds.TransferData, []byte{0xaa, 0xbb, 0xcc, 0xdd}) {
+		t.Errorf("TransferData = %x, want aabbccdd", uds.TransferData)
+	}
+}
+
+// 数组形式的 Data/TransferData 保持逐字节语义 (hex 解码只作用于字符串)。
+func TestMapToFlowSpec_DoIP_ByteArrayFields(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"doip": map[string]interface{}{
+			"messages": []interface{}{
+				map[string]interface{}{
+					"direction": "up",
+					"uds": map[string]interface{}{
+						"service_id":    float64(39),
+						"seed":          []interface{}{float64(17), float64(34), float64(51), float64(68)},
+						"transfer_data": []interface{}{float64(1), float64(2), float64(3)},
+					},
+				},
+			},
+		},
+	}, "doip")
+	uds := spec.DoIP.Messages[0].UDS
+	if !bytes.Equal(uds.Seed, []byte{0x11, 0x22, 0x33, 0x44}) {
+		t.Errorf("Seed = %x, want 11223344", uds.Seed)
+	}
+	if !bytes.Equal(uds.TransferData, []byte{1, 2, 3}) {
+		t.Errorf("TransferData = %x, want 010203", uds.TransferData)
+	}
+}
+
+// 非 hex 字符串回退为 ASCII (与既有 getByteSlice 语义一致, 不破坏其他协议)。
+func TestMapToFlowSpec_DoIP_NonHexStringFallsBack(t *testing.T) {
+	spec := mapToFlowSpec(map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"doip": map[string]interface{}{
+			"messages": []interface{}{
+				map[string]interface{}{
+					"direction": "up",
+					"uds": map[string]interface{}{
+						"service_id": float64(52),
+						"data":       "hello",
+					},
+				},
+			},
+		},
+	}, "doip")
+	uds := spec.DoIP.Messages[0].UDS
+	if !bytes.Equal(uds.Data, []byte("hello")) {
+		t.Errorf("Data = %x, want ASCII hello", uds.Data)
+	}
+}

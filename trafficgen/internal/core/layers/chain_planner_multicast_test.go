@@ -59,15 +59,20 @@ func TestChainPlanner_Multicast_DstIPOverride(t *testing.T) {
 // explicit DstMAC (e.g. dhcp broadcast ff:ff:ff:ff:ff:ff) lands on L2.DstMAC
 // verbatim, bypassing multicast-IP derivation.
 func TestChainPlanner_Multicast_ExplicitDstMAC(t *testing.T) {
+	bcast := true
 	spec := core.FlowSpec{
 		SrcIP:   "0.0.0.0",
 		DstIP:   "255.255.255.255",
 		SrcPort: 68,
 		DstPort: 67,
 		SrcMAC:  "aa:bb:cc:dd:ee:ff",
-		DstMAC:  "11:22:33:44:55:66",
+		// DstMAC 留空：client 角色 + 广播标志 → resolveMACs 回退
+		// BroadcastMAC（legacy planner.go:723-725 语义），事件显式覆盖落 L2。
 		DHCP: &core.DHCPConfig{
 			Role: "client",
+			Messages: []core.DHCPMessage{
+				{Type: 1, Broadcast: &bcast}, // DISCOVER with 广播标志
+			},
 		},
 	}
 	chain := collectPlanner(t, layers.NewChainPlanner("dhcp"), spec)

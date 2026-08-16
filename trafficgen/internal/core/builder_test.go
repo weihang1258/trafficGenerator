@@ -702,6 +702,77 @@ func TestUDPChecksum_IPv4Unchanged(t *testing.T) {
 	}
 }
 
+// TestUDPChecksum_IPv4ZeroSubstituted covers RFC 768 §4.1: "If the computed
+// checksum is zero, it is transmitted as all ones". The generator must write
+// 0xFFFF when the sum folds to zero — a literal 0x0000 on the wire means "no
+// checksum" (RFC 768 §1: "the transmitted checksum is 0 means the sender
+// generated no checksum"), so tshark reports checksum status 3 (Not present)
+// and real verification is impossible. This is the root cause of the tftp
+// deep-audit bad-checksum frames (e.g. tftp-blocks-65535-short frame 11860):
+// the 5930-byte DATA fold happened to compute to 0 and was written as 0x0000.
+// The IPv4 zero-substitution previously existed only on the IPv6 path.
+func TestUDPChecksum_IPv4ZeroSubstituted(t *testing.T) {
+	srcIP := "10.0.0.1"
+	dstIP := "10.0.0.100"
+	srcPort := uint16(12345)
+	dstPort := uint16(53)
+	// Payload chosen so the 16-bit one's-complement sum folds to exactly
+	// 0xFFFF, i.e. the complement is 0 (verified by the independent fold
+	// below; only payloads with computed checksum 0 are affected).
+	payload := bytes.Repeat([]byte{0x1A}, 426)
+
+	config := PacketConfig{
+		L3: L3Config{SrcIP: srcIP, DstIP: dstIP, Protocol: 17, TTL: 64},
+		L4: L4Config{Protocol: "udp", SrcPort: srcPort, DstPort: dstPort},
+	}
+
+	// 1) The raw checksum of this payload truly computes to 0 (otherwise the
+	// test is vacuous).
+	src := net.ParseIP(srcIP).To4()
+	dst := net.ParseIP(dstIP).To4()
+	udpLen := uint16(8 + len(payload))
+	ph := make([]byte, 12)
+	copy(ph[0:4], src)
+	copy(ph[4:8], dst)
+	ph[9] = 17
+	binary.BigEndian.PutUint16(ph[10:12], udpLen)
+	var sum uint32
+	for i := 0; i < 12; i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(ph[i : i+2]))
+	}
+	sum += uint32(srcPort) + uint32(dstPort) + uint32(udpLen)
+	for i := 0; i < len(payload)-1; i += 2 {
+		sum += uint32(binary.BigEndian.Uint16(payload[i : i+2]))
+	}
+	sum = (sum >> 16) + (sum & 0xffff)
+	sum = sum + (sum >> 16)
+	if raw := ^uint16(sum); raw != 0 {
+		t.Fatalf("test vector does not compute to zero checksum: raw=0x%04x", raw)
+	}
+
+	// 2) The helper must return 0xFFFF, never 0.
+	if got := calculateUDPChecksum(config, payload); got != 0xFFFF {
+		t.Errorf("IPv4 UDP checksum = 0x%04x, want 0xFFFF (RFC 768 zero-substitute)", got)
+	}
+
+	// 3) End-to-end: the wire packet must carry 0xFFFF at UDP offset 6-7.
+	builder := NewBuilder()
+	full := PacketConfig{
+		L2: L2Config{SrcMAC: "aa:bb:cc:dd:ee:ff", DstMAC: "11:22:33:44:55:66", EtherType: 0x0800},
+		L3: L3Config{SrcIP: srcIP, DstIP: dstIP, Protocol: 17, TTL: 64},
+		L4: L4Config{Protocol: "udp", SrcPort: srcPort, DstPort: dstPort},
+		Payload: payload,
+	}
+	packet, err := builder.Build(full)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+	udpStart := 14 + 20 // L2 + IPv4 header, no options
+	if got := binary.BigEndian.Uint16(packet[udpStart+6 : udpStart+8]); got != 0xFFFF {
+		t.Errorf("wire IPv4 UDP cksum = 0x%04x, want 0xFFFF (RFC 768 zero-substitute)", got)
+	}
+}
+
 // TestBuild_IPv6TCPIntegration verifies the full Build() path for an IPv6
 // TCP packet: EtherType 0x86DD, 40-byte IPv6 header at offset 14, Next
 // Header=6 (TCP) at offset 20, and the IPv6 source/destination addresses

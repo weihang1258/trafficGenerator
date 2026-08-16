@@ -2,9 +2,11 @@ package core
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +19,12 @@ import (
 // values (including 0 for numeric fields where 0 is a valid choice) MUST
 // be honored -- defaults only fill in gaps.
 const (
+	// NFSMetadataKey is the FlowSpec.Metadata key used by the NFS planner.
+	// core cannot import protocol/nfs (import cycle), so the strategy
+	// converter writes the raw "nfs" sub-map under this key and
+	// nfs.GetConfig deserializes it.
+	NFSMetadataKey = "nfs"
+
 	// DefaultSrcMAC / DefaultDstMAC: locally-administered IEEE 802 MACs
 	// (02: prefix) so trafficgen packets are visually distinct from real
 	// hosts on the wire. Filter: ether src 02:00:00:00:00:00/16
@@ -255,6 +263,103 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	}
 
+	// Universal HTTP sub-config, mirroring the universal TCP read above.
+	// Before this, cfg["http"] was only read inside case "http", so a
+	// non-HTTP protocol (e.g. tftp, which is UDP-only) silently dropped a
+	// coexisting "http" sub-map: spec.HTTP stayed nil and the planner's
+	// cross-protocol mutual-exclusion check (tftp.go V20
+	// "http field must not be set") was unreachable. Parsing here makes
+	// the V20 checks fire for any protocol, matching the universal TCP
+	// behavior.
+	if sub, ok := cfg["http"].(map[string]interface{}); ok {
+		// Backward compat: pre-rename strategies stored request headers
+		// under the "headers" key. Prefer the new "request_headers" key
+		// when present; fall back to legacy key so existing DB rows do
+		// not silently lose user-configured headers.
+		reqHeaders := getStringMap(sub, "request_headers")
+		if len(reqHeaders) == 0 {
+			reqHeaders = getStringMap(sub, "headers")
+		}
+		spec.HTTP = &HTTPConfig{
+			Method:                   getStringDefault(sub, "method", "GET"),
+			URI:                      getStringDefault(sub, "uri", "/"),
+			Version:                  getString(sub, "version"),
+			RequestHeaders:           reqHeaders,
+			Body:                     getString(sub, "body"),
+			BodyB64:                  getString(sub, "body_b64"),
+			KeepAlive:                getBool(sub, "keep_alive", false),
+			Transactions:             getInt(sub, "transactions"),
+			ThinkTime:                getInt(sub, "think_time"),
+			ResponseHeaders:          getStringMap(sub, "response_headers"),
+			ResponseBody:             getString(sub, "response_body"),
+			ResponseBodyB64:          getString(sub, "response_body_b64"),
+			ResponseStatusCode:       getInt(sub, "response_status_code"),
+			ResponseStatusText:       getString(sub, "response_status_text"),
+			ResponseContentEncoding:  getStringWithFallback(sub, "response_content_encoding", "content_encoding"),
+			RequestContentEncoding:   getString(sub, "request_content_encoding"),
+			RequestTransferEncoding:  getString(sub, "request_transfer_encoding"),
+			ResponseTransferEncoding: getString(sub, "response_transfer_encoding"),
+			ChunkSize:                getInt(sub, "chunk_size"),
+			Pipelined:                getBool(sub, "pipelined", false),
+		}
+	}
+
+	// Universal DNS/FTP/ICMP/SCTP sub-configs, same rationale as the
+	// universal TCP/HTTP reads above: before these, cfg["dns"] etc. were
+	// only read inside their own protocol case, so a non-matching protocol
+	// (e.g. tftp, which is UDP-only) silently dropped coexisting
+	// sub-maps: spec.DNS/FTP/ICMP/SCTP stayed nil and the tftp planner's
+	// cross-protocol mutual-exclusion checks (V20 "dns/ftp/icmp/sctp field
+	// must not be set") were unreachable. Parsing here makes the V20
+	// checks fire for any protocol, matching the universal TCP/HTTP
+	// behavior. All consumers (dns/ftp/icmp/sctp/ngap planners) nil-guard
+	// before use.
+	if sub, ok := cfg["dns"].(map[string]interface{}); ok {
+		spec.DNS = &DNSConfig{
+			Domain:         getString(sub, "domain"),
+			QueryType:      uint16(getIntDefault(sub, "query_type", 1)),
+			IsResponse:     getBoolWithFallback(sub, "is_response", "response", false),
+			ResponseIP:     getString(sub, "response_ip"),
+			TxID:           uint16(getInt(sub, "txid")),
+			EDNS0Enabled:   getBool(sub, "edns0_enabled", false),
+			UDPPayloadSize: uint16(getIntDefault(sub, "udp_payload_size", 4096)),
+			DnssecOK:       getBool(sub, "dnssec_ok", false),
+			Transport:      getString(sub, "transport"),
+			RCode:          uint8(getInt(sub, "rcode")),
+			TTL:            getUint32(sub, "ttl"),
+			Questions:      parseDNSQuestions(sub["questions"]),
+			Answers:        parseDNSRRs(sub["answers"]),
+			Authority:      parseDNSRRs(sub["authority"]),
+		}
+	}
+	if sub, ok := cfg["ftp"].(map[string]interface{}); ok {
+		spec.FTP = &FTPConfig{
+			Banner:      getString(sub, "banner"),
+			Commands:    parseFTPCommands(sub["commands"]),
+			DataChannel: parseFTPDataChannel(sub["data_channel"]),
+		}
+	}
+	if sub, ok := cfg["icmp"].(map[string]interface{}); ok {
+		spec.ICMP = &ICMPConfig{
+			Type:       uint8(getIntDefault(sub, "type", 8)),
+			Code:       uint8(getIntDefault(sub, "code", 0)),
+			Identifier: uint16(getInt(sub, "identifier")),
+			Sequence:   uint16(getIntDefault(sub, "sequence", 1)),
+			Data:       []byte(getStringDefault(sub, "data", "ping")),
+			Pattern:    parseICMPPattern(sub["pattern"]),
+		}
+	}
+	if sub, ok := cfg["sctp"].(map[string]interface{}); ok {
+		spec.SCTP = &SCTPConfig{
+			VerificationTag: getUint32(sub, "verification_tag"),
+			InitiateTag:     getUint32(sub, "initiate_tag"),
+			Chunks:          parseSCTPChunks(sub["chunks"]),
+			Heartbeats:      parseSCTPHeartbeats(sub["heartbeats"]),
+			Abort:           getBool(sub, "abort", false),
+			FragmentSize:    getInt(sub, "fragment_size"),
+		}
+	}
+
 	// Protocol-specific config
 	switch protocol {
 	case "tcp":
@@ -267,74 +372,18 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			}
 		}
 	case "http":
-		if sub, ok := cfg["http"].(map[string]interface{}); ok {
-			// Backward compat: pre-rename strategies stored request headers
-			// under the "headers" key. Prefer the new "request_headers" key
-			// when present; fall back to legacy key so existing DB rows do
-			// not silently lose user-configured headers.
-			reqHeaders := getStringMap(sub, "request_headers")
-			if len(reqHeaders) == 0 {
-				reqHeaders = getStringMap(sub, "headers")
-			}
-			spec.HTTP = &HTTPConfig{
-				Method:                   getStringDefault(sub, "method", "GET"),
-				URI:                      getStringDefault(sub, "uri", "/"),
-				Version:                  getString(sub, "version"),
-				RequestHeaders:           reqHeaders,
-				Body:                     getString(sub, "body"),
-				BodyB64:                  getString(sub, "body_b64"),
-				KeepAlive:                getBool(sub, "keep_alive", false),
-				Transactions:             getInt(sub, "transactions"),
-				ThinkTime:                getInt(sub, "think_time"),
-				ResponseHeaders:          getStringMap(sub, "response_headers"),
-				ResponseBody:             getString(sub, "response_body"),
-				ResponseBodyB64:          getString(sub, "response_body_b64"),
-				ResponseStatusCode:       getInt(sub, "response_status_code"),
-				ResponseStatusText:       getString(sub, "response_status_text"),
-				ResponseContentEncoding:  getStringWithFallback(sub, "response_content_encoding", "content_encoding"),
-				RequestContentEncoding:   getString(sub, "request_content_encoding"),
-				RequestTransferEncoding:  getString(sub, "request_transfer_encoding"),
-				ResponseTransferEncoding: getString(sub, "response_transfer_encoding"),
-				ChunkSize:                getInt(sub, "chunk_size"),
-				Pipelined:                getBool(sub, "pipelined", false),
-			}
-		}
+		// HTTP sub-config already read in the universal section above;
+		// nothing protocol-specific to add.
 		// HTTP defaults to port 80, same as DefaultDstPort. No override
 		// needed here -- mapToFlowSpec's defaultPort call already set it.
 	case "dns":
-		if sub, ok := cfg["dns"].(map[string]interface{}); ok {
-			spec.DNS = &DNSConfig{
-				Domain:         getString(sub, "domain"),
-				QueryType:      uint16(getIntDefault(sub, "query_type", 1)),
-				IsResponse:     getBoolWithFallback(sub, "is_response", "response", false),
-				ResponseIP:     getString(sub, "response_ip"),
-				TxID:           uint16(getInt(sub, "txid")),
-				EDNS0Enabled:   getBool(sub, "edns0_enabled", false),
-				UDPPayloadSize: uint16(getIntDefault(sub, "udp_payload_size", 4096)),
-				DnssecOK:       getBool(sub, "dnssec_ok", false),
-				Transport:      getString(sub, "transport"),
-				RCode:          uint8(getInt(sub, "rcode")),
-				TTL:            getUint32(sub, "ttl"),
-				Questions:      parseDNSQuestions(sub["questions"]),
-				Answers:        parseDNSRRs(sub["answers"]),
-				Authority:      parseDNSRRs(sub["authority"]),
-			}
-		}
+		// DNS sub-config already read in the universal section above.
 		// DNS overrides the generic port-80 default with its own 53.
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 53
 		}
 	case "icmp":
-		if sub, ok := cfg["icmp"].(map[string]interface{}); ok {
-			spec.ICMP = &ICMPConfig{
-				Type:       uint8(getIntDefault(sub, "type", 8)),
-				Code:       uint8(getIntDefault(sub, "code", 0)),
-				Identifier: uint16(getInt(sub, "identifier")),
-				Sequence:   uint16(getIntDefault(sub, "sequence", 1)),
-				Data:       []byte(getStringDefault(sub, "data", "ping")),
-				Pattern:    parseICMPPattern(sub["pattern"]),
-			}
-		}
+		// ICMP sub-config already read in the universal section above.
 	case "arp":
 		if sub, ok := cfg["arp"].(map[string]interface{}); ok {
 			spec.ARP = &ARPConfig{
@@ -344,13 +393,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			}
 		}
 	case "ftp":
-		if sub, ok := cfg["ftp"].(map[string]interface{}); ok {
-			spec.FTP = &FTPConfig{
-				Banner:      getString(sub, "banner"),
-				Commands:    parseFTPCommands(sub["commands"]),
-				DataChannel: parseFTPDataChannel(sub["data_channel"]),
-			}
-		}
+		// FTP sub-config already read in the universal section above.
 		// FTP defaults to port 21 (control channel). Only override when
 		// the user did not specify a dst_port — matches the DNS override
 		// pattern.
@@ -391,16 +434,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.DstPort = 1935
 		}
 	case "sctp":
-		if sub, ok := cfg["sctp"].(map[string]interface{}); ok {
-			spec.SCTP = &SCTPConfig{
-				VerificationTag: getUint32(sub, "verification_tag"),
-				InitiateTag:     getUint32(sub, "initiate_tag"),
-				Chunks:          parseSCTPChunks(sub["chunks"]),
-				Heartbeats:      parseSCTPHeartbeats(sub["heartbeats"]),
-				Abort:           getBool(sub, "abort", false),
-				FragmentSize:    getInt(sub, "fragment_size"),
-			}
-		}
+		// SCTP sub-config already read in the universal section above.
 		// SCTP has no universal default port (common ports: 38412 for NGAP,
 		// 2905 for M3UA, 9 for discard). Unlike HTTP/FTP/SIP, the user must
 		// specify dst_port; otherwise mapToFlowSpec's generic default of
@@ -858,6 +892,90 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 1883
+		}
+	case "modbus":
+		if sub, ok := cfg["modbus"].(map[string]interface{}); ok {
+			spec.MODBUS = parseMODBUSConfig(sub)
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 502
+		}
+	case "rip":
+		if sub, ok := cfg["rip"].(map[string]interface{}); ok {
+			spec.RIP = parseRIPConfig(sub)
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 520
+		}
+	case "dnp3":
+		if sub, ok := cfg["dnp3"].(map[string]interface{}); ok {
+			spec.DNP3 = parseDNP3Config(sub)
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 20000
+		}
+	case "enip":
+		if sub, ok := cfg["enip"].(map[string]interface{}); ok {
+			spec.ENIP = parseENIPConfig(sub)
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 44818
+		}
+	case "doip":
+		if sub, ok := cfg["doip"].(map[string]interface{}); ok {
+			spec.DoIP = parseDoIPConfig(sub)
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 13400
+		}
+	case "smb":
+		if sub, ok := cfg["smb"].(map[string]interface{}); ok {
+			spec.SMB = parseSMBConfig(sub)
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			// NBSS Session Service (transport=netbios) listens on TCP 139;
+			// direct SMB (the default) uses TCP 445.
+			if spec.SMB != nil && spec.SMB.Transport == "netbios" {
+				spec.DstPort = 139
+			} else {
+				spec.DstPort = 445
+			}
+		}
+	case "mcp":
+		if sub, ok := cfg["mcp"].(map[string]interface{}); ok {
+			spec.MCP = parseMCPConfig(sub)
+		}
+	case "tds":
+		// TDS carries its config as TDSConfig JSON in spec.Payload; the
+		// planner unmarshals it (protocol/tds configFromSpec).
+		if sub, ok := cfg["tds"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				spec.Payload = raw
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1433
+		}
+	case "a2a":
+		// A2A carries its config as A2AConfig JSON in spec.Payload; the
+		// planner unmarshals it (protocol/a2a configFromSpec).
+		if sub, ok := cfg["a2a"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				spec.Payload = raw
+			}
+		}
+	case "nfs":
+		// The NFS planner reads *NFSConfig from FlowSpec.Metadata["nfs"].
+		// core cannot import protocol/nfs, so the raw JSON-decoded sub-map
+		// is attached and GetConfig deserializes it (map case).
+		if sub, ok := cfg["nfs"].(map[string]interface{}); ok {
+			if spec.Metadata == nil {
+				spec.Metadata = make(map[string]interface{})
+			}
+			spec.Metadata[NFSMetadataKey] = sub
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 2049
 		}
 	}
 
@@ -4020,6 +4138,7 @@ func parseMQTTConfig(m map[string]interface{}) *MQTTConfig {
 		Subscriptions:            parseMQTTSubscriptions(m["subscriptions"]),
 		Messages:                 parseMQTTMessages(m["messages"]),
 		Properties:               parseMQTTProperties(m["properties"]),
+		ConnackProperties:        parseMQTTProperties(m["connack_properties"]),
 		Sessions:                 parseMQTTSessions(m["sessions"]),
 	}
 	if v, ok := m["keep_alive"]; ok && v != nil {
@@ -4033,6 +4152,10 @@ func parseMQTTConfig(m map[string]interface{}) *MQTTConfig {
 	if v, ok := m["disconnect"].(bool); ok {
 		b := v
 		cfg.Disconnect = &b
+	}
+	if v, ok := m["disconnect_reason"]; ok && v != nil {
+		n := getInt(m, "disconnect_reason")
+		cfg.DisconnectReason = &n
 	}
 	if sub, ok := m["will"].(map[string]interface{}); ok && sub != nil {
 		cfg.Will = parseMQTTWill(sub)
@@ -4101,6 +4224,7 @@ func parseMQTTSubscriptions(v interface{}) []MQTTSubscribe {
 			PacketID:       uint16(getInt(m, "packet_id")),
 			Filters:        parseMQTTTopicFilters(m["filters"]),
 			AckReasonCodes: parseIntList(m["ack_reason_codes"]),
+			Properties:     parseMQTTProperties(m["properties"]),
 		}
 		out = append(out, sub)
 	}
@@ -5275,12 +5399,40 @@ func getStringDefault(m map[string]interface{}, key, def string) string {
 	return def
 }
 
+// parseUintFromString parses a numeric value from a string, supporting both
+// decimal ("3221225524") and hex ("0xC0000034") forms. MCP pcap cases pass
+// status codes and bitmasks as hex strings; without this the uint helpers
+// returned 0 via the default branch, silently dropping the value.
+// Returns (value, ok); ok=false for empty or unparseable strings.
+func parseUintFromString(s string) (uint64, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, false
+	}
+	base := 10
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		s = s[2:]
+		base = 16
+	}
+	n, err := strconv.ParseUint(s, base, 64)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
 func getUint16(m map[string]interface{}, key string) uint16 {
 	switch v := m[key].(type) {
 	case float64:
 		return uint16(v)
 	case json.Number:
 		n, _ := v.Int64()
+		return uint16(n)
+	case string:
+		n, ok := parseUintFromString(v)
+		if !ok {
+			return 0
+		}
 		return uint16(n)
 	default:
 		return 0
@@ -5294,13 +5446,20 @@ func getUint32(m map[string]interface{}, key string) uint32 {
 	case json.Number:
 		n, _ := v.Int64()
 		return uint32(n)
+	case string:
+		n, ok := parseUintFromString(v)
+		if !ok {
+			return 0
+		}
+		return uint32(n)
 	default:
 		return 0
 	}
 }
 
-// getUint64 reads a uint64 from the map. Supports float64 (JSON decode) and
-// json.Number (UseNumber path); missing key returns 0. Used by IKE SPI fields.
+// getUint64 reads a uint64 from the map. Supports float64 (JSON decode),
+// json.Number (UseNumber path), int/int64, and decimal/hex strings
+// (e.g. "0xC0000034"); missing key returns 0. Used by IKE SPI fields.
 func getUint64(m map[string]interface{}, key string) uint64 {
 	switch v := m[key].(type) {
 	case float64:
@@ -5312,6 +5471,12 @@ func getUint64(m map[string]interface{}, key string) uint64 {
 		return uint64(v)
 	case int64:
 		return uint64(v)
+	case string:
+		n, ok := parseUintFromString(v)
+		if !ok {
+			return 0
+		}
+		return n
 	default:
 		return 0
 	}
@@ -5557,6 +5722,37 @@ func getByteSlice(m map[string]interface{}, key string) []byte {
 	return nil
 }
 
+// getHexBytes parses a hex string field into bytes, per the DoIP design
+// doc: AddressAndLength/TransferData 等字段以 "00 44 ..." 十六进制字符串
+// 输入（§6.10/T041），字符串值先 hex 解码；数组值保持逐字节语义。非法 hex
+// 按原样使用（与既有 ASCII 字段兼容）。
+func getHexBytes(m map[string]interface{}, key string) []byte {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil
+	}
+	switch b := v.(type) {
+	case string:
+		s := strings.ReplaceAll(b, " ", "")
+		if s == "" {
+			return nil
+		}
+		if out, err := hex.DecodeString(s); err == nil {
+			return out
+		}
+		return []byte(b)
+	case []interface{}:
+		out := make([]byte, 0, len(b))
+		for _, n := range b {
+			if f, ok := n.(float64); ok {
+				out = append(out, byte(int(f)))
+			}
+		}
+		return out
+	}
+	return nil
+}
+
 // parseNTPExtensions converts the JSON-decoded "extensions" value (an array
 // of {type, value} objects) into a []NTPExt. Returns nil for absent/non-array
 // input so the planner skips extension emission. Each extension's Value may
@@ -5674,6 +5870,28 @@ func getInt32Ptr(m map[string]interface{}, key string) *int32 {
 			return nil
 		}
 		i := int32(j)
+		return &i
+	}
+	return nil
+}
+
+// getIntPtr reads a JSON number into an *int (used for fields whose
+// zero value is meaningful, e.g. ENIPIOData.SourceCommandIndex).
+func getIntPtr(m map[string]interface{}, key string) *int {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil
+	}
+	switch n := v.(type) {
+	case float64:
+		i := int(n)
+		return &i
+	case json.Number:
+		j, err := n.Int64()
+		if err != nil {
+			return nil
+		}
+		i := int(j)
 		return &i
 	}
 	return nil
@@ -6061,4 +6279,844 @@ func parseGBT32960StatusChangeTrace(v interface{}) []GBT32960StatusChange {
 		})
 	}
 	return out
+}
+
+// parseMEIObjects extracts the FC 0x2B "mei_objects" array: the first
+// object's ID seeds the request Object ID; the last object's value seeds
+// the default response object value. Returns (objectID, objValue, present):
+// present=false when the key is absent or not a non-empty array.
+func parseMEIObjects(v interface{}) (uint16, string, bool) {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return 0, "", false
+	}
+	present := false
+	var objID uint16
+	var objValue string
+	first := true
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		present = true
+		// object_id may be a number or a numeric string ("0"); decode both.
+		// Only the FIRST object's ID seeds the request Object ID; later
+		// objects must not overwrite it (they only supply response values).
+		if first {
+			objID = getUint16(m, "object_id")
+			first = false
+		}
+		if s, ok := m["object_value"].(string); ok {
+			objValue = s
+		}
+	}
+	return objID, objValue, present
+}
+
+// parseMODBUSOperations parses the transactions array of a modbus config.
+// Semantics (T-074/T-075): an absent key or non-array value → nil (the
+// planner injects one default FC=0x03 transaction); an explicit empty
+// array "[]" → non-nil empty slice (the planner emits zero transactions,
+// handshake + teardown only).
+//
+// FC 0x2B derivation (deep audit 2026-08): a transaction with
+// mei_objects/conformity_level but no explicit "values" must still produce
+// a well-formed Read Device Identification request PDU (2B 0E <code> <obj>),
+// so Values is derived from conformity_level → Read Device ID Code
+// (0x01/0x02/0x03/0x04 = Basic/Regular/Extended/Specific; 0x81-0x83 →
+// 0x01-0x03) and from the first mei_object's object_id (or starting_address)
+// → Object ID.
+func parseMODBUSOperations(v interface{}) []MODBUSOperation {
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	if len(arr) == 0 {
+		return []MODBUSOperation{}
+	}
+	out := make([]MODBUSOperation, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		op := MODBUSOperation{
+			FunctionCode:   uint8(getInt(m, "function_code")),
+			ExceptionCode:  uint8(getInt(m, "exception_code")),
+			StartingAddress: getUint16(m, "starting_address"),
+			Quantity:       getUint16(m, "quantity"),
+			ReadAddress:    getUint16(m, "read_address"),
+			WriteAddress:   getUint16(m, "write_address"),
+			ReadQuantity:   getUint16(m, "read_quantity"),
+			WriteQuantity:  getUint16(m, "write_quantity"),
+			WriteValue:     getUint16(m, "write_value"),
+			Values:         getByteSlice(m, "values"),
+			ResponseValues: getByteSlice(m, "response_values"),
+			SubFunction:    getUint16(m, "sub_function"),
+			MaskAnd:        getUint16(m, "mask_and"),
+			MaskOr:         getUint16(m, "mask_or"),
+			ResponseMode:   getString(m, "response_mode"),
+			Direction:      getString(m, "direction"),
+		}
+		if op.FunctionCode == 0x2B && len(op.Values) == 0 {
+			// §3.3.17: derive the mandatory Read Device ID Code + Object ID
+			// bytes so the request PDU is well-formed.
+			code := uint8(getInt(m, "conformity_level"))
+			switch {
+			case code >= 0x81 && code <= 0x83:
+				code &= 0x03 // private variants (0x81-0x83) → base level
+			case code >= 0x01 && code <= 0x04:
+				// Basic/Regular/Extended/Specific keep their value.
+			default:
+				code = 0x01 // default Basic
+			}
+			objID, _, meiPresent := parseMEIObjects(m["mei_objects"])
+			if !meiPresent {
+				objID = op.StartingAddress // T-025/S15: starting_address → Object ID
+			}
+			op.Values = []byte{code, uint8(objID)}
+		}
+		out = append(out, op)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseMODBUSConfig converts the JSON-decoded "modbus" sub-map into a
+// core.MODBUSConfig. UnitID is *uint8 so explicit 0 (broadcast) survives
+// JSON decoding.
+func parseMODBUSConfig(m map[string]interface{}) *MODBUSConfig {
+	if m == nil {
+		return nil
+	}
+	return &MODBUSConfig{
+		UnitID:            getUint8Ptr(m, "unit_id"),
+		SuppressBroadcast: getBool(m, "suppress_broadcast", false),
+		Transactions:      parseMODBUSOperations(m["transactions"]),
+		MasterCount:       getInt(m, "master_count"),
+		FlowCount:         getInt(m, "flow_count"),
+		SharedTIDSpace:    getBool(m, "shared_tid_space", false),
+	}
+}
+
+// parseRIPRoutes parses the routes array of a RIP config.
+func parseRIPRoutes(v interface{}) []RIPRoute {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]RIPRoute, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, RIPRoute{
+			AFI:        getUint16(m, "afi"),
+			RouteTag:   getUint16(m, "route_tag"),
+			IPAddr:     getString(m, "ip_addr"),
+			SubnetMask: getString(m, "subnet_mask"),
+			PrefixLen:  uint8(getInt(m, "prefix_len")),
+			NextHop:    getString(m, "next_hop"),
+			Metric:     uint8(getInt(m, "metric")),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseRIPRouters parses the routers array of a RIP config.
+func parseRIPRouters(v interface{}) []RIPRouter {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]RIPRouter, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, RIPRouter{
+			SrcIP:   getString(m, "src_ip"),
+			SrcPort: getUint16(m, "src_port"),
+			DstIP:   getString(m, "dst_ip"),
+			DstPort: getUint16(m, "dst_port"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseRIPConfig converts the JSON-decoded "rip" sub-map into a
+// core.RIPConfig.
+func parseRIPConfig(m map[string]interface{}) *RIPConfig {
+	if m == nil {
+		return nil
+	}
+	return &RIPConfig{
+		Version:         getString(m, "version"),
+		Command:         getString(m, "command"),
+		Domain:          getUint16(m, "domain"),
+		Routes:          parseRIPRoutes(m["routes"]),
+		Auth:            parseRIPAuth(m["auth"]),
+		Multicast:       getBool(m, "multicast", false),
+		Scenario:        getString(m, "scenario"),
+		Routers:         parseRIPRouters(m["routers"]),
+		Rounds:          getInt(m, "rounds"),
+		TriggeredUpdate: getBool(m, "triggered_update", false),
+		SplitHorizon:    getBool(m, "split_horizon", false),
+		PoisonReverse:   getBool(m, "poison_reverse", false),
+	}
+}
+
+// parseRIPAuth parses the auth sub-map of a RIP config.
+func parseRIPAuth(v interface{}) *RIPAuth {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &RIPAuth{
+		Type:           getString(m, "type"),
+		Password:       getString(m, "password"),
+		KeyID:          uint8(getInt(m, "key_id")),
+		AuthDataLen:    getUint8Ptr(m, "auth_data_len"),
+		SequenceNumber: getUint32(m, "sequence_number"),
+	}
+}
+
+// parseDNP3Points parses the points array of a DNP3 object.
+func parseDNP3Points(v interface{}) []DNP3Point {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]DNP3Point, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, DNP3Point{
+			Value:  getFloat64(m, "value"),
+			Index:  getUint16(m, "index"),
+			Status: getUint8Ptr(m, "status"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseDNP3Objects parses the objects array of a DNP3 config.
+func parseDNP3Objects(v interface{}) []DNP3Object {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]DNP3Object, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		var idx [2]uint16
+		if r := getUint16Slice(m, "index_range"); len(r) == 2 {
+			idx = [2]uint16{r[0], r[1]}
+		}
+		out = append(out, DNP3Object{
+			ObjectType: uint8(getInt(m, "object_type")),
+			Variation:  uint8(getInt(m, "variation")),
+			Qualifier:  uint8(getInt(m, "qualifier")),
+			IndexRange: idx,
+			Count:      getUint16(m, "count"),
+			Points:     parseDNP3Points(m["points"]),
+			Flags:      getUint8Slice(m, "flags"),
+			Times:      getUint64Slice(m, "times"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseDNP3MultiOutstation parses the multi_outstation sub-map of a DNP3 config.
+func parseDNP3MultiOutstation(v interface{}) *DNP3MultiOutstation {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &DNP3MultiOutstation{
+		OutstationCount:     getInt(m, "outstation_count"),
+		OutstationAddrStart: getUint16(m, "outstation_addr_start"),
+		OutstationIPStart:   getString(m, "outstation_ip_start"),
+		OutstationIPList:    getStringSlice(m, "outstation_ip_list"),
+		SrcPortStart:        getUint16(m, "src_port_start"),
+	}
+}
+
+// parseDNP3Config converts the JSON-decoded "dnp3" sub-map into a
+// core.DNP3Config.
+func parseDNP3Config(m map[string]interface{}) *DNP3Config {
+	if m == nil {
+		return nil
+	}
+	return &DNP3Config{
+		LinkType:               getString(m, "link_type"),
+		Transport:              getString(m, "transport"),
+		SrcAddr:                getUint16(m, "src_addr"),
+		DstAddr:                getUint16(m, "dst_addr"),
+		LinkFCB:                uint8(getInt(m, "link_fcb")),
+		LinkFC:                 uint8(getInt(m, "link_fc")),
+		AppSeq:                 uint8(getInt(m, "app_seq")),
+		AppFunc:                getString(m, "app_func"),
+		AppFuncCode:            uint8(getInt(m, "app_func_code")),
+		AppCON:                 uint8(getInt(m, "app_con")),
+		Objects:                parseDNP3Objects(m["objects"]),
+		Scenario:               getString(m, "scenario"),
+		IsEvent:                getBool(m, "is_event", false),
+		IsUnsolicited:          getBool(m, "is_unsolicited", false),
+		ConfirmRequired:        getBool(m, "confirm_required", false),
+		IIN:                    getUint16(m, "iin"),
+		IINClass1:              getBool(m, "iin_class1", false),
+		IINClass2:              getBool(m, "iin_class2", false),
+		IINClass3:              getBool(m, "iin_class3", false),
+		IINAlreadyExecuting:    getBool(m, "iin_already_executing", false),
+		IINEventBufferOverflow: getBool(m, "iin_event_buffer_overflow", false),
+		IINNeedTime:            getBool(m, "iin_need_time", false),
+		IINDeviceTrouble:       getBool(m, "iin_device_trouble", false),
+		IINLocalControl:        getBool(m, "iin_local_control", false),
+		IINBroadcast:           getBool(m, "iin_broadcast", false),
+		IINDeviceRestart:       getBool(m, "iin_device_restart", false),
+		IINConfigCorrupt:       getBool(m, "iin_config_corrupt", false),
+		IINObjectUnknown:       getBool(m, "iin_object_unknown", false),
+		IINParameterError:      getBool(m, "iin_parameter_error", false),
+		IINFuncNotSupported:    getBool(m, "iin_func_not_supported", false),
+		MultiOutstation:        parseDNP3MultiOutstation(m["multi_outstation"]),
+		Handshake:              getBoolPtr(m, "handshake"),
+		Termination:            getBoolPtr(m, "termination"),
+		MSS:                    getUint16(m, "mss"),
+		ThinkTime:              getInt(m, "think_time"),
+		MalformedCRC:           getBool(m, "malformed_crc", false),
+		MalformedLength:        getUint8Ptr(m, "malformed_length"),
+		UnknownObject:          getBool(m, "unknown_object", false),
+		UnknownFunc:            getBool(m, "unknown_func", false),
+	}
+}
+
+// getUint64Slice reads a JSON array of numbers into a []uint64.
+func getUint64Slice(m map[string]interface{}, key string) []uint64 {
+	arr, ok := m[key].([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]uint64, 0, len(arr))
+	for _, item := range arr {
+		switch n := item.(type) {
+		case float64:
+			out = append(out, uint64(n))
+		case json.Number:
+			if i, err := n.Int64(); err == nil {
+				out = append(out, uint64(i))
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// getFloat64 reads a JSON number into a float64. Returns 0 when absent.
+func getFloat64(m map[string]interface{}, key string) float64 {
+	switch v := m[key].(type) {
+	case float64:
+		return v
+	case json.Number:
+		f, _ := v.Float64()
+		return f
+	default:
+		return 0
+	}
+}
+
+// parseENIPSubRequests parses the sub_requests array of an ENIP command.
+func parseENIPSubRequests(v interface{}) []ENIPSubRequest {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]ENIPSubRequest, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, ENIPSubRequest{
+			Service:     uint8(getInt(m, "service")),
+			ClassID:     getUint16(m, "class_id"),
+			InstanceID:  getUint32(m, "instance_id"),
+			AttributeID: getUint16(m, "attribute_id"),
+			Data:        getByteSlice(m, "data"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseENIPCPFItems parses the cpf_items array of an ENIP command.
+func parseENIPCPFItems(v interface{}) []CPFItem {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]CPFItem, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, CPFItem{
+			TypeID: getUint16(m, "type_id"),
+			Length: getUint16(m, "length"),
+			Data:   getByteSlice(m, "data"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseENIPCommands parses the commands array of an ENIP config.
+func parseENIPCommands(v interface{}) []ENIPCommand {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]ENIPCommand, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, ENIPCommand{
+			Command:                     getUint16(m, "command"),
+			Length:                      getUint16(m, "length"),
+			SessionHandle:               getUint32(m, "session_handle"),
+			SessionHandleStrategy:       getENIPSessionHandleStrategy(m),
+			Status:                      getUint32(m, "status"),
+			SenderContext:               getUint64(m, "sender_context"),
+			Options:                     getUint32(m, "options"),
+			Payload:                     getByteSlice(m, "payload"),
+			ProtocolVersion:             getUint16(m, "protocol_version"),
+			OptionFlag:                  getUint16(m, "option_flag"),
+			InterfaceHandle:             getUint32(m, "interface_handle"),
+			Timeout:                     getUint16(m, "timeout"),
+			PriorityTimeTick:            uint8(getInt(m, "priority_time_tick")),
+			TimeoutTicks:                uint8(getInt(m, "timeout_ticks")),
+			CPFItems:                    parseENIPCPFItems(m["cpf_items"]),
+			CIPService:                  uint8(getInt(m, "cip_service")),
+			ClassID:                     getUint16(m, "class_id"),
+			InstanceID:                  getUint32(m, "instance_id"),
+			AttributeID:                 getUint16(m, "attribute_id"),
+			ConnSerialNum:               getUint16(m, "conn_serial_number"),
+			OrigVendorID:                getUint16(m, "originator_vendor_id"),
+			OrigSerialNum:               getUint32(m, "originator_serial_number"),
+			O2TConnID:                   getUint32(m, "o2t_connection_id"),
+			T2OConnID:                   getUint32(m, "t2o_connection_id"),
+			O2TRPI:                      getUint32(m, "o2t_rpi"),
+			T2ORPI:                      getUint32(m, "t2o_rpi"),
+			O2TConnParams:               getUint32(m, "o2t_connection_parameters"),
+			T2OConnParams:               getUint32(m, "t2o_connection_parameters"),
+			TransportClassTrigger:       uint8(getInt(m, "transport_class_trigger")),
+			ConnectionPath:              getByteSlice(m, "connection_path"),
+			ConnectionPathSize:          uint8(getInt(m, "connection_path_size")),
+			ConnectionTimeoutMultiplier: uint8(getInt(m, "connection_timeout_multiplier")),
+			SubRequests:                 parseENIPSubRequests(m["sub_requests"]),
+			Direction:                   getString(m, "direction"),
+			GeneralStatus:               uint8(getInt(m, "general_status")),
+			AdditionalStatus:            getUint16Slice(m, "additional_status"),
+			SourceCommandIndex:          getInt(m, "source_command_index"),
+			FromResponseField:           getString(m, "from_response_field"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// getENIPSessionHandleStrategy extracts the strategy key when session_handle
+// is configured as a strategy map ({"strategy":"inc",...} 等)。设计 §7.3
+// T-090/091：session_handle 仅允许 fixed/from_response 策略，inc/rand 等
+// 非法策略由 planner.Validate 拒绝；这里仅透传原始 strategy 字符串，
+// 不吞掉配置（此前 getUint32 对 map 恒返回 0，校验永不触发）。
+func getENIPSessionHandleStrategy(m map[string]interface{}) string {
+	sub, ok := m["session_handle"].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	if s, ok := sub["strategy"].(string); ok {
+		return s
+	}
+	return ""
+}
+func parseENIPIOData(v interface{}) *ENIPIOData {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &ENIPIOData{
+		O2TConnectionID:       getUint32(m, "o2t_connection_id"),
+		T2OConnectionID:       getUint32(m, "t2o_connection_id"),
+		SequenceStart:         getUint16(m, "sequence_start"),
+		SequenceStep:          getUint16(m, "sequence_step"),
+		FrameCount:            getInt(m, "frame_count"),
+		FrameInterval:         getUint32(m, "frame_interval"),
+		FrameSize:             getUint16(m, "frame_size"),
+		Payload:               getByteSlice(m, "payload"),
+		TransportClassTrigger: uint8(getInt(m, "transport_class_trigger")),
+		SourceCommandIndex:    getIntPtr(m, "source_command_index"),
+	}
+}
+
+// parseENIPConfig converts the JSON-decoded "enip" sub-map into a
+// core.ENIPConfig.
+func parseENIPConfig(m map[string]interface{}) *ENIPConfig {
+	if m == nil {
+		return nil
+	}
+	return &ENIPConfig{
+		Scenario:         getString(m, "scenario"),
+		Transport:        getString(m, "transport"),
+		SessionCount:     getInt(m, "session_count"),
+		FlowCount:        getInt(m, "flow_count"),
+		Commands:         parseENIPCommands(m["commands"]),
+		IOData:           parseENIPIOData(m["io_data"]),
+		VendorID:         getUint16(m, "vendor_id"),
+		DeviceType:       getUint16(m, "device_type"),
+		ProductCode:      getUint16(m, "product_code"),
+		FirmwareMajorRev: uint8(getInt(m, "firmware_major_rev")),
+		FirmwareMinorRev: uint8(getInt(m, "firmware_minor_rev")),
+		ProductName:      getString(m, "product_name"),
+		SerialNumber:     getUint32(m, "serial_number"),
+		DeviceStatus:     getUint16(m, "device_status"),
+		DeviceState:      uint8(getInt(m, "device_state")),
+	}
+}
+
+
+// parseDoIPUDS parses the uds sub-map of a DoIP message.
+func parseDoIPUDS(v interface{}) *DoIPUDS {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &DoIPUDS{
+		ServiceID:             uint8(getInt(m, "service_id")),
+		IsResponse:            getBool(m, "is_response", false),
+		HasSubFunction:        getBoolPtr(m, "has_sub_function"),
+		SubFunction:           uint8(getInt(m, "sub_function")),
+		DID:                   getByteSlice(m, "did"),
+		Data:                  getHexBytes(m, "data"),
+		AddressAndLength:      getHexBytes(m, "address_and_length"),
+		BlockSequenceCounter:  uint8(getInt(m, "block_sequence_counter")),
+		TransferData:          getHexBytes(m, "transfer_data"),
+		Seed:                  getByteSlice(m, "seed"),
+		Key:                   getByteSlice(m, "key"),
+		NegativeResponseCode:  uint8(getInt(m, "negative_response_code")),
+	}
+}
+
+// parseDoIPMessages parses the messages array of a DoIP config.
+func parseDoIPMessages(v interface{}) []DoIPMessage {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]DoIPMessage, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		var nackPtr *uint8
+		if v, present := m["nack_code"]; present && v != nil {
+			n := uint8(toInt(v))
+			nackPtr = &n
+		}
+		out = append(out, DoIPMessage{
+			Direction:      getString(m, "direction"),
+			SourceAddress:  getUint16(m, "source_address"),
+			TargetAddress:  getUint16(m, "target_address"),
+			AckCode:        uint8(getInt(m, "ack_code")),
+			NackCode:       nackPtr,
+			UserData:       getByteSlice(m, "user_data"),
+			UDS:            parseDoIPUDS(m["uds"]),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseDoIPDiscovery parses the discovery sub-map of a DoIP config.
+func parseDoIPDiscovery(v interface{}) *DoIPDiscovery {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &DoIPDiscovery{
+		Direction:           getString(m, "direction"),
+		RequestType:         getUint16(m, "request_type"),
+		Broadcast:           getBool(m, "broadcast", false),
+		AnnouncementCount:   uint8(getInt(m, "announcement_count")),
+		FurtherActionRequired: uint8(getInt(m, "further_action_required")),
+		SyncStatus:          uint8(getInt(m, "sync_status")),
+	}
+}
+
+// parseDoIPEntityStatus parses the entity_status sub-map of a DoIP config.
+func parseDoIPEntityStatus(v interface{}) *DoIPEntityStatus {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &DoIPEntityStatus{
+		Direction:      getString(m, "direction"),
+		NodeType:       uint8(getInt(m, "node_type")),
+		MaxOpenSockets: uint8(getInt(m, "max_open_sockets")),
+		CurOpenSockets: uint8(getInt(m, "cur_open_sockets")),
+		MaxDataSize:    getUint32(m, "max_data_size"),
+	}
+}
+
+// parseDoIPPowerMode parses the power_mode sub-map of a DoIP config.
+func parseDoIPPowerMode(v interface{}) *DoIPPowerMode {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &DoIPPowerMode{
+		Direction: getString(m, "direction"),
+		PowerMode: uint8(getInt(m, "power_mode")),
+		Broadcast: getBool(m, "broadcast", false),
+	}
+}
+
+// parseDoIPActivation parses the activation sub-map of a DoIP config.
+func parseDoIPActivation(v interface{}) *DoIPActivation {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &DoIPActivation{
+		Direction:             getString(m, "direction"),
+		ActivationType:        uint8(getInt(m, "activation_type")),
+		ResponseCode:          uint8(getInt(m, "response_code")),
+		OEMSpecific:           getByteSlice(m, "oem_specific"),
+		ConfirmationRequired:  getBool(m, "confirmation_required", false),
+	}
+}
+
+// parseDoIPAliveCheck parses the alive_check sub-map of a DoIP config.
+func parseDoIPAliveCheck(v interface{}) *DoIPAliveCheck {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &DoIPAliveCheck{
+		Direction:     getString(m, "direction"),
+		SourceAddress: getUint16(m, "source_address"),
+	}
+}
+
+// parseDoIPGenericNack parses the generic_nack sub-map of a DoIP config.
+func parseDoIPGenericNack(v interface{}) *DoIPGenericNack {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &DoIPGenericNack{
+		NackCode: uint8(getInt(m, "nack_code")),
+	}
+}
+
+// parseDoIPConfig converts the JSON-decoded "doip" sub-map into a
+// core.DoIPConfig.
+func parseDoIPConfig(m map[string]interface{}) *DoIPConfig {
+	if m == nil {
+		return nil
+	}
+	return &DoIPConfig{
+		ProtocolVersion: uint8(getInt(m, "protocol_version")),
+		SrcIP:           getString(m, "src_ip"),
+		DstIP:           getString(m, "dst_ip"),
+		SrcPort:         getUint16(m, "src_port"),
+		VIN:             getString(m, "vin"),
+		LogicalAddress:  getUint16(m, "logical_address"),
+		TesterAddress:   getUint16(m, "tester_address"),
+		EID:             getString(m, "eid"),
+		GID:             getString(m, "gid"),
+		Discovery:       parseDoIPDiscovery(m["discovery"]),
+		EntityStatus:    parseDoIPEntityStatus(m["entity_status"]),
+		PowerMode:       parseDoIPPowerMode(m["power_mode"]),
+		Activation:      parseDoIPActivation(m["activation"]),
+		Messages:        parseDoIPMessages(m["messages"]),
+		AliveCheck:      parseDoIPAliveCheck(m["alive_check"]),
+		GenericNack:     parseDoIPGenericNack(m["generic_nack"]),
+	}
+}
+
+// parseSMBOperations parses the operations array of an SMB config.
+func parseSMBOperations(v interface{}) []SMBOperation {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]SMBOperation, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, SMBOperation{
+			OpType:        getString(m, "op_type"),
+			Offset:        getUint64(m, "offset"),
+			Length:        getUint32(m, "length"),
+			Data:          getByteSlice(m, "data"),
+			DataB64:       getString(m, "data_b64"),
+			FileName:      getString(m, "file_name"),
+			InfoClass:     uint8(getInt(m, "info_class")),
+			InfoType:      uint8(getInt(m, "info_type")),
+			FileInfoClass: uint8(getInt(m, "file_info_class")),
+			MinimumCount:  getUint32(m, "minimum_count"),
+			Flags:         getUint32(m, "flags"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseSMBConfig converts the JSON-decoded "smb" sub-map into a
+// core.SMBConfig.
+func parseSMBConfig(m map[string]interface{}) *SMBConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &SMBConfig{
+		Transport:                     getString(m, "transport"),
+		Dialects:                      getStringSlice(m, "dialects"),
+		SelectedDialect:               getString(m, "selected_dialect"),
+		ClientCapabilities:            getUint32(m, "client_capabilities"),
+		ServerCapabilities:            getUint32(m, "server_capabilities"),
+		SecurityMode:                  getUint16(m, "security_mode"),
+		SigningRequired:               getBool(m, "signing_required", false),
+		AuthMechanism:                 getString(m, "auth_mechanism"),
+		Username:                      getString(m, "username"),
+		Domain:                        getString(m, "domain"),
+		Password:                      getString(m, "password"),
+		SecurityBlob:                  getByteSlice(m, "security_blob"),
+		AuthRounds:                    getInt(m, "auth_rounds"),
+		TreeConnectShare:              getString(m, "tree_connect_share"),
+		ShareType:                     uint8(getInt(m, "share_type")),
+		FilePath:                      getString(m, "file_path"),
+		CreateDisposition:             uint8(getInt(m, "create_disposition")),
+		AccessMask:                    getUint32(m, "access_mask"),
+		FileAttributes:                getUint32(m, "file_attributes"),
+		ShareAccess:                   uint8(getInt(m, "share_access")),
+		CreateOptions:                 getUint32(m, "create_options"),
+		Operations:                    parseSMBOperations(m["operations"]),
+		PreauthIntegrityHashAlgorithms: getUint16Slice(m, "preauth_integrity_hash_algorithms"),
+		EncryptionAlgorithm:           getUint16(m, "encryption_algorithm"),
+		ErrorOnCommand:                getString(m, "error_on_command"),
+		ErrorResponseStatus:           getUint32(m, "error_response_status"),
+		// Sizes (NBSS 24-bit limit = 16777215)
+		MaxTransactSize: getUint32(m, "max_transact_size"),
+		MaxReadSize:    getUint32(m, "max_read_size"),
+		MaxWriteSize:   getUint32(m, "max_write_size"),
+		// SMB3 高级
+		EncryptionRequired: getBool(m, "encryption_required", false),
+		// 会话拆解控制
+		IncludeNegotiate:   getBoolPtr(m, "include_negotiate"),
+		IncludeAuth:        getBoolPtr(m, "include_auth"),
+		IncludeTreeConnect: getBoolPtr(m, "include_tree_connect"),
+		IncludeTeardown:    getBoolPtr(m, "include_teardown"),
+		PreviousSessionId:  getUint64(m, "previous_session_id"),
+	}
+	// GUIDs: parse if provided as JSON hex string ("01020304...")
+	if g, ok := m["client_guid"].(string); ok && len(g) >= 32 {
+		parseGUIDString(g, &cfg.ClientGuid)
+	}
+	if g, ok := m["server_guid"].(string); ok && len(g) >= 32 {
+		parseGUIDString(g, &cfg.ServerGuid)
+	}
+	if f, ok := m["file_id"].(string); ok && len(f) >= 32 {
+		parseGUIDString(f, &cfg.FileId)
+	}
+	return cfg
+}
+
+// parseGUIDString decodes a 32-char hex string into dst. Invalid hex or wrong
+// length is silently ignored (applyDefaults will fill zeros).
+func parseGUIDString(s string, dst *[16]byte) {
+	s = strings.ReplaceAll(s, "-", "")
+	if len(s) < 32 {
+		return
+	}
+	for i := 0; i < 16; i++ {
+		hi, hOK := hexValue(s[2*i])
+		lo, lOK := hexValue(s[2*i+1])
+		if !hOK || !lOK {
+			return
+		}
+		dst[i] = byte(hi<<4 | lo)
+	}
+}
+
+func hexValue(c byte) (int, bool) {
+	switch {
+	case c >= '0' && c <= '9':
+		return int(c - '0'), true
+	case c >= 'a' && c <= 'f':
+		return int(c-'a') + 10, true
+	case c >= 'A' && c <= 'F':
+		return int(c-'A') + 10, true
+	}
+	return 0, false
+}
+
+
+// parseMCPConfig converts the JSON-decoded "mcp" sub-map into a
+// core.MCPConfig. The config is round-tripped through encoding/json
+// because its nested fields use json.RawMessage / map[string]any whose
+// helpers (getString etc.) cannot represent generic JSON faithfully.
+func parseMCPConfig(m map[string]interface{}) *MCPConfig {
+	if m == nil {
+		return nil
+	}
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return nil
+	}
+	var cfg MCPConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return nil
+	}
+	return &cfg
 }
