@@ -2566,3 +2566,46 @@ func a2aConfigToPayload(cfg *A2AConfig) []byte {
 	b, _ := json.Marshal(cfg)
 	return b
 }
+
+// === T019/T173: AgentCard.skills 空数组合法（V12: skills 0-1024 元素）===
+// 修复：V6 曾强制 len(Skills)>0，与设计文档 V12/T019/T173 矛盾，
+// 空数组任务直接失败（"a2a validate: V6: AgentCard.Skills is required"）。
+func TestPlanner_Validate_EmptySkillsAllowed(t *testing.T) {
+	p := NewPlanner()
+	cfg := &A2AConfig{
+		BaseURL: "https://agent.example.com/a2a",
+		AgentCard: &A2AAgentCard{
+			Name:               "test-agent",
+			Description:        "Test agent",
+			URL:                "https://agent.example.com/a2a",
+			Version:            "1.0.0",
+			ProtocolVersion:    "0.3.0",
+			Capabilities:       &A2AAgentCapabilities{},
+			Skills:             []A2AAgentSkill{},
+			DefaultInputModes:  []string{"text"},
+			DefaultOutputModes: []string{"text"},
+		},
+		Tasks: []A2ATask{
+			{
+				Method: MethodMessageSend,
+				Message: A2AMessage{
+					Role:      "user",
+					Parts:     []A2APart{{Kind: "text", Text: "hello"}},
+					MessageID: "m-001",
+					Kind:      DefaultMessageKind,
+				},
+				RequestID: json.RawMessage(`"req-001"`),
+			},
+		},
+	}
+	spec := core.FlowSpec{
+		SrcIP:   "192.168.1.1",
+		DstIP:   "192.168.1.2",
+		SrcPort: 12345,
+		DstPort: 443,
+		Payload: a2aConfigToPayload(cfg),
+	}
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("空 skills 数组必须合法 (V12: skills 0-1024 元素), got: %v", err)
+	}
+}

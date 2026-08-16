@@ -296,9 +296,7 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		if card.Capabilities == nil {
 			return fmt.Errorf("a2a validate: V6: AgentCard.Capabilities is required")
 		}
-		if len(card.Skills) == 0 {
-			return fmt.Errorf("a2a validate: V6: AgentCard.Skills is required")
-		}
+		// V12: skills 0-1024 元素（空数组合法，T019/T173）。
 		if len(card.DefaultInputModes) == 0 {
 			return fmt.Errorf("a2a validate: V6: AgentCard.DefaultInputModes is required")
 		}
