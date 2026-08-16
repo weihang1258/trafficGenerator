@@ -176,8 +176,8 @@
    "frames": [
     {
      "packet": 1,
-     "offset": 36,
-     "hex": "02 18"
+     "offset": 54,
+     "hex": "02 04 02 18"
     }
    ],
    "notes": [
