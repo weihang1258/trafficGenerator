@@ -36,19 +36,22 @@ type Result struct {
 	Unparseable int            `json:"unparseable"`
 	ByProtocol  map[string]int `json:"by_protocol"`
 
-	// Referenced = legacy targets referenced by >=1 task row (deleted only with Force).
+	// Referenced = legacy targets referenced by >=1 task row (deleted only
+	// with Force). Counted across ALL targets, before -limit truncation, so
+	// it reflects the full delete set; DanglingTasks below is post-limit.
 	Referenced int `json:"referenced"`
 	// Deleted = legacy rows actually deleted.
 	Deleted int `json:"deleted"`
 	// Skipped = classified legacy targets that stay in the DB: referenced
 	// without Force, or beyond the Limit cap.
 	Skipped int `json:"skipped"`
-	// DanglingTasks = distinct tasks referencing >=1 delete target. After an
-	// apply, those tasks fail with HTTP 400 "strategy not found" on Start.
+	// DanglingTasks = distinct tasks referencing >=1 deleted strategy (0 without
+	// Force: referenced strategies are kept). After a force apply, those tasks
+	// fail with HTTP 400 "strategy not found" on Start.
 	DanglingTasks int64 `json:"dangling_tasks"`
 
 	BackupPath string        `json:"backup_path"`
-	Elapsed    time.Duration `json:"elapsed_ms"`
+	Elapsed    time.Duration `json:"elapsed_ns"`
 }
 
 // backupFile is the on-disk JSON backup written before deletion.
@@ -107,22 +110,24 @@ func (c *Cleaner) Run(ctx context.Context, opts Options) (*Result, error) {
 	}
 	res.Scanned = len(rows)
 
-	if opts.Limit > 0 && len(targets) > opts.Limit {
-		targets = targets[:opts.Limit]
-	}
-
-	// Deletion targets = classified legacy targets, minus referenced ones
-	// (kept unless Force; those land in Skipped and are still reported).
+	// Reference data comes from one full scan of the tasks table, parsed in
+	// memory. Per-target LIKE counts would be slow (one query per target), and
+	// an OR-chain of LIKE conditions blows SQLite's expression-tree depth
+	// limit with ~2k targets (reproduced on the live DB).
+	var idx *taskIndex
 	var refs []string
 	if len(targets) > 0 {
-		var dangling int64
-		refs, dangling, err = countTasksReferencing(c.db, targetIDs(targets))
+		idx, err = loadTaskIndex(c.db)
 		if err != nil {
-			return nil, fmt.Errorf("count task references: %w", err)
+			return nil, fmt.Errorf("load task index: %w", err)
 		}
+		refs, _ = idx.referenced(targetIDs(targets))
 		res.Referenced = len(refs)
-		res.DanglingTasks = dangling
 	}
+	// Deletion targets = classified legacy targets, minus referenced ones
+	// (kept unless Force; those land in Skipped and are still reported).
+	// The limit caps ACTUAL deletions: referenced rows are filtered out first,
+	// so the cap is never consumed by rows that would be kept anyway.
 	if !opts.Force && len(refs) > 0 {
 		refSet := make(map[string]bool, len(refs))
 		for _, id := range refs {
@@ -135,6 +140,19 @@ func (c *Cleaner) Run(ctx context.Context, opts Options) (*Result, error) {
 			}
 		}
 		targets = kept
+	}
+	if opts.Limit > 0 && len(targets) > opts.Limit {
+		targets = targets[:opts.Limit]
+	}
+
+	// DanglingTasks counts tasks referencing strategies that are actually
+	// deleted (or would be, in dry-run). Computed against the FINAL target
+	// list: with Force+Limit, tasks referencing beyond-cap strategies survive
+	// and must not be counted. Without Force, referenced rows were filtered
+	// out above, so nothing can dangle.
+	var danglingRefs []string
+	if len(targets) > 0 {
+		danglingRefs, res.DanglingTasks = idx.referenced(targetIDs(targets))
 	}
 
 	if !opts.Apply || len(targets) == 0 {
@@ -157,12 +175,10 @@ func (c *Cleaner) Run(ctx context.Context, opts Options) (*Result, error) {
 	if !opts.NoBackup {
 		refTaskIDs := map[string][]string{}
 		if opts.Force {
-			for _, id := range refs {
-				tids, err := taskIDsByStrategy(c.db, id)
-				if err != nil {
-					return nil, fmt.Errorf("collect task ids for %s: %w", id, err)
-				}
-				refTaskIDs[id] = tids
+			// Only strategies actually in the backup (final targets) get a
+			// mapping; beyond-cap kept rows are not in the backup.
+			for _, id := range danglingRefs {
+				refTaskIDs[id] = idx.taskIDs(id)
 			}
 		}
 		if err := writeBackup(backupPath, targets, refTaskIDs, opts); err != nil {
@@ -171,11 +187,15 @@ func (c *Cleaner) Run(ctx context.Context, opts Options) (*Result, error) {
 		res.BackupPath = backupPath
 	}
 
-	if err := c.deleteTargets(targets); err != nil {
+	deleted, err := c.deleteTargets(targets)
+	if err != nil {
 		return nil, fmt.Errorf("delete strategies: %w", err)
 	}
-	res.Deleted = len(targets)
+	res.Deleted = deleted
 	res.Skipped = res.Legacy + res.Unparseable - res.Deleted
+	if res.Skipped < 0 {
+		res.Skipped = 0
+	}
 	res.Elapsed = time.Since(start)
 	return res, nil
 }
@@ -205,61 +225,88 @@ func targetIDs(rows []storage.StrategyModel) []string {
 	return ids
 }
 
-// countTasksReferencing returns the strategy IDs referenced by >=1 task, and
-// the number of distinct tasks referencing any of them.
-//
-// Task strategy_ids is a JSON array; membership is tested with a quoted LIKE
-// ('%"<id>"%'). Quoting both ends prevents uuid-prefix false positives, and
-// LIKE avoids json_each because the glebarez/sqlite modernc build has no JSON1
-// extension (driver README). A quoted "id" can never appear inside an
-// unrelated array element or a bare string, and real strategy IDs never
-// contain double quotes.
-func countTasksReferencing(db *gorm.DB, ids []string) ([]string, int64, error) {
-	if len(ids) == 0 {
-		return nil, 0, nil
+// taskIndex is an in-memory index of task -> strategy-ids, used for
+// reference counting. It scans the tasks table once and matches strategy IDs
+// against parsed JSON array elements.
+type taskIndex struct {
+	tasks []taskRefs
+}
+
+type taskRefs struct {
+	id     string
+	refs   []string
+	refSet map[string]struct{}
+}
+
+// loadTaskIndex loads every task row's id and strategy_ids and parses the
+// JSON array. Unparseable strategy_ids is treated as "references nothing" —
+// the column is written by the API as a JSON array, and a malformed value
+// cannot contain a valid strategy reference.
+func loadTaskIndex(db *gorm.DB) (*taskIndex, error) {
+	var tasks []storage.TaskModel
+	if err := db.Model(&storage.TaskModel{}).Select("id", "strategy_ids").Find(&tasks).Error; err != nil {
+		return nil, err
+	}
+	idx := &taskIndex{
+		tasks: make([]taskRefs, 0, len(tasks)),
+	}
+	for _, t := range tasks {
+		var ids []string
+		if t.StrategyIDs != "" {
+			if err := json.Unmarshal([]byte(t.StrategyIDs), &ids); err != nil {
+				continue // malformed row: cannot reference anything
+			}
+		}
+		refSet := make(map[string]struct{}, len(ids))
+		for _, id := range ids {
+			refSet[id] = struct{}{}
+		}
+		idx.tasks = append(idx.tasks, taskRefs{id: t.ID, refs: ids, refSet: refSet})
+	}
+	return idx, nil
+}
+
+// referenced returns the strategy IDs referenced by >=1 task, and the number
+// of distinct tasks referencing any of them. Exact match on parsed array
+// elements: no substring false positives, no expression-tree depth limit.
+func (idx *taskIndex) referenced(ids []string) ([]string, int64) {
+	want := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		want[id] = struct{}{}
 	}
 	referenced := []string{}
 	var dangling int64
-	for _, id := range ids {
-		var n int64
-		if err := db.Model(&storage.TaskModel{}).
-			Where("strategy_ids LIKE ?", `%"`+id+`"%`).Count(&n).Error; err != nil {
-			return nil, 0, err
+	seen := make(map[string]struct{})
+	for _, t := range idx.tasks {
+		hit := false
+		for _, rid := range t.refs {
+			if _, ok := want[rid]; ok {
+				hit = true
+				seen[rid] = struct{}{}
+			}
 		}
-		if n > 0 {
+		if hit {
+			dangling++
+		}
+	}
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
 			referenced = append(referenced, id)
 		}
 	}
-	if len(referenced) > 0 {
-		var q *gorm.DB
-		for i, id := range referenced {
-			cond := "strategy_ids LIKE ?"
-			if i == 0 {
-				q = db.Model(&storage.TaskModel{}).Where(cond, `%"`+id+`"%`)
-			} else {
-				q = q.Or(cond, `%"`+id+`"%`)
-			}
-		}
-		if err := q.Count(&dangling).Error; err != nil {
-			return nil, 0, err
-		}
-	}
-	return referenced, dangling, nil
+	return referenced, dangling
 }
 
-// taskIDsByStrategy returns the IDs of all tasks referencing the strategy.
-func taskIDsByStrategy(db *gorm.DB, id string) ([]string, error) {
-	var tasks []storage.TaskModel
-	if err := db.Model(&storage.TaskModel{}).
-		Where("strategy_ids LIKE ?", `%"`+id+`"%`).Find(&tasks).Error; err != nil {
-		return nil, err
+// taskIDs returns the IDs of all tasks referencing the strategy (sorted).
+func (idx *taskIndex) taskIDs(id string) []string {
+	var out []string
+	for _, t := range idx.tasks {
+		if _, ok := t.refSet[id]; ok {
+			out = append(out, t.id)
+		}
 	}
-	ids := make([]string, 0, len(tasks))
-	for _, t := range tasks {
-		ids = append(ids, t.ID)
-	}
-	sort.Strings(ids)
-	return ids, nil
+	sort.Strings(out)
+	return out
 }
 
 // defaultBackupPath returns the timestamped default backup path under
@@ -274,8 +321,14 @@ func defaultBackupPath(now time.Time) (string, error) {
 
 // writeBackup writes the deleted rows as JSON, fsyncs the file, and creates
 // the parent directory on demand. The caller must treat any error as fatal
-// BEFORE deleting anything.
+// BEFORE deleting anything. An existing backup file is never overwritten —
+// overwriting would silently destroy a previous run's restore data.
 func writeBackup(path string, targets []storage.StrategyModel, refTaskIDs map[string][]string, opts Options) error {
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("backup file already exists: %s", path)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create backup dir: %w", err)
@@ -292,7 +345,9 @@ func writeBackup(path string, targets []storage.StrategyModel, refTaskIDs map[st
 	if err != nil {
 		return fmt.Errorf("marshal backup: %w", err)
 	}
-	f, err := os.Create(path)
+	// O_EXCL guards the stat race: two concurrent runs cannot clobber each
+	// other's backup even if both pass the existence check.
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
 	}
@@ -305,8 +360,15 @@ func writeBackup(path string, targets []storage.StrategyModel, refTaskIDs map[st
 
 // deleteTargets deletes the rows in a single transaction, chunked to stay
 // under SQLite's ~999 bind-variable limit. Any chunk error rolls back all.
-func (c *Cleaner) deleteTargets(targets []storage.StrategyModel) error {
-	return c.db.Transaction(func(tx *gorm.DB) error {
+// The returned count is the number of rows actually deleted.
+//
+// Classification is re-verified inside the transaction: a row scanned as
+// legacy may have been converted to the layer-chain format since the scan,
+// and must not be deleted. Rows already gone (concurrently deleted) are
+// skipped, not errors.
+func (c *Cleaner) deleteTargets(targets []storage.StrategyModel) (int, error) {
+	deleted := 0
+	err := c.db.Transaction(func(tx *gorm.DB) error {
 		ids := targetIDs(targets)
 		const chunk = 500
 		for start := 0; start < len(ids); start += chunk {
@@ -314,11 +376,33 @@ func (c *Cleaner) deleteTargets(targets []storage.StrategyModel) error {
 			if end > len(ids) {
 				end = len(ids)
 			}
-			if err := tx.Where("id IN ?", ids[start:end]).
-				Delete(&storage.StrategyModel{}).Error; err != nil {
+			chunkIDs := ids[start:end]
+
+			var rows []storage.StrategyModel
+			if err := tx.Where("id IN ?", chunkIDs).Find(&rows).Error; err != nil {
 				return err
 			}
+			if len(rows) == 0 {
+				continue
+			}
+			var stillLegacy []string
+			for _, s := range rows {
+				switch Classify(s.Mode, s.Config) {
+				case KindLegacy, KindUnparseable:
+					stillLegacy = append(stillLegacy, s.ID)
+				}
+			}
+			if len(stillLegacy) == 0 {
+				continue
+			}
+			res := tx.Where("id IN ?", stillLegacy).
+				Delete(&storage.StrategyModel{})
+			if res.Error != nil {
+				return res.Error
+			}
+			deleted += int(res.RowsAffected)
 		}
 		return nil
 	})
+	return deleted, err
 }

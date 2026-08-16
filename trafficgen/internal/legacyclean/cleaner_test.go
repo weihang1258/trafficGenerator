@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -158,8 +159,8 @@ func TestRun_ReferencedSkippedByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("apply err: %v", err)
 	}
-	if res.Referenced != 1 || res.Deleted != 0 || res.DanglingTasks != 1 {
-		t.Fatalf("result = %+v, want Referenced=1 Deleted=0 DanglingTasks=1", res)
+	if res.Referenced != 1 || res.Deleted != 0 || res.DanglingTasks != 0 {
+		t.Fatalf("result = %+v, want Referenced=1 Deleted=0 DanglingTasks=0 (referenced kept => nothing dangles)", res)
 	}
 	var count int64
 	db.Model(&storage.StrategyModel{}).Where("id = ?", "s1").Count(&count)
@@ -370,6 +371,281 @@ func TestRun_NoBackupSkipsBackup(t *testing.T) {
 	}
 }
 
+func TestRun_BackupExistsRefusesOverwrite(t *testing.T) {
+	db := newTestDB(t)
+	seedStrategy(t, db, "s1", "u1", "synth", "http", flatHTTP)
+	backupPath := filepath.Join(t.TempDir(), "b.json")
+	if err := os.WriteFile(backupPath, []byte("keep"), 0o644); err != nil {
+		t.Fatalf("write blocker backup: %v", err)
+	}
+
+	_, err := New(db).Run(context.Background(), Options{Apply: true, BackupPath: backupPath})
+	if err == nil {
+		t.Fatalf("apply should refuse to overwrite an existing backup file")
+	}
+	content, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("read backup: %v", err)
+	}
+	if string(content) != "keep" {
+		t.Fatalf("existing backup was modified: %q", content)
+	}
+	var count int64
+	db.Model(&storage.StrategyModel{}).Count(&count)
+	if count != 1 {
+		t.Fatalf("rows after refused overwrite = %d, want 1 (zero deletions)", count)
+	}
+}
+
+func TestRun_LimitAppliesAfterReferenceFilter(t *testing.T) {
+	db := newTestDB(t)
+	seedStrategy(t, db, "s1", "u1", "synth", "http", flatHTTP) // referenced, kept
+	seedStrategy(t, db, "s2", "u1", "synth", "http", flatHTTP) // referenced, kept
+	for i := 3; i <= 6; i++ {
+		seedStrategy(t, db, "s"+string(rune('0'+i)), "u1", "synth", "http", flatHTTP)
+	}
+	seedTask(t, db, "t1", `["s1","s2"]`)
+
+	res, err := New(db).Run(context.Background(), Options{Apply: true, Limit: 2, BackupPath: filepath.Join(t.TempDir(), "b.json")})
+	if err != nil {
+		t.Fatalf("apply err: %v", err)
+	}
+	// Limit caps ACTUAL deletions: the 2 referenced are filtered out first,
+	// then the limit takes the first 2 unreferenced (s3, s4).
+	if res.Deleted != 2 || res.Referenced != 2 || res.Skipped != 4 {
+		t.Fatalf("result = %+v, want Deleted=2 Referenced=2 Skipped=4 (2 referenced + 2 beyond limit)", res)
+	}
+	var ids []string
+	db.Model(&storage.StrategyModel{}).Pluck("id", &ids)
+	if len(ids) != 4 {
+		t.Fatalf("remaining rows = %v, want 4 (s1,s2 referenced kept; s5,s6 beyond limit)", ids)
+	}
+}
+
+func TestRun_NegativeLimitMeansNoLimit(t *testing.T) {
+	db := newTestDB(t)
+	for i := 1; i <= 5; i++ {
+		seedStrategy(t, db, "s"+string(rune('0'+i)), "u1", "synth", "http", flatHTTP)
+	}
+
+	res, err := New(db).Run(context.Background(), Options{Apply: true, Limit: -1, BackupPath: filepath.Join(t.TempDir(), "b.json")})
+	if err != nil {
+		t.Fatalf("apply err: %v", err)
+	}
+	if res.Deleted != 5 {
+		t.Fatalf("deleted = %d, want 5 (negative limit treated as no limit)", res.Deleted)
+	}
+}
+
+func TestRun_ForceLimitDanglingOnlyForDeleted(t *testing.T) {
+	db := newTestDB(t)
+	// s1-s3 are referenced and within the limit (deleted); s4-s6 are
+	// referenced but beyond the cap (kept — must NOT count as dangling).
+	for i := 1; i <= 6; i++ {
+		seedStrategy(t, db, "s"+string(rune('0'+i)), "u1", "synth", "http", flatHTTP)
+	}
+	seedTask(t, db, "t1", `["s1"]`)
+	seedTask(t, db, "t2", `["s4"]`)
+	seedTask(t, db, "t3", `["s5","s6"]`)
+
+	res, err := New(db).Run(context.Background(), Options{Apply: true, Force: true, Limit: 3, BackupPath: filepath.Join(t.TempDir(), "b.json")})
+	if err != nil {
+		t.Fatalf("apply err: %v", err)
+	}
+	if res.Deleted != 3 || res.Referenced != 4 {
+		t.Fatalf("result = %+v, want Deleted=3 Referenced=4 (only the 4 within the cap counted; s5/s6 not in the delete set)", res)
+	}
+	// t1 references a deleted strategy; t2/t3 reference surviving ones.
+	if res.DanglingTasks != 1 {
+		t.Fatalf("dangling = %d, want 1 (t2/t3 reference beyond-cap kept strategies)", res.DanglingTasks)
+	}
+	var ids []string
+	db.Model(&storage.StrategyModel{}).Pluck("id", &ids)
+	if len(ids) != 3 {
+		t.Fatalf("remaining rows = %v, want exactly [s4 s5 s6]", ids)
+	}
+	// Backup mapping covers only strategies actually in the backup.
+	raw, err := os.ReadFile(res.BackupPath)
+	if err != nil {
+		t.Fatalf("read backup: %v", err)
+	}
+	var bk backupFile
+	if err := json.Unmarshal(raw, &bk); err != nil {
+		t.Fatalf("unmarshal backup: %v", err)
+	}
+	if len(bk.ReferencedTaskIDs) != 1 {
+		t.Fatalf("referenced_task_ids = %+v, want only {s1:[t1]} (beyond-cap strategies not in backup)", bk.ReferencedTaskIDs)
+	}
+	if tasks := bk.ReferencedTaskIDs["s1"]; len(tasks) != 1 || tasks[0] != "t1" {
+		t.Fatalf("referenced_task_ids[s1] = %v, want [t1]", tasks)
+	}
+}
+
+func TestRun_ForceDryRunCountsDangling(t *testing.T) {
+	db := newTestDB(t)
+	seedStrategy(t, db, "s1", "u1", "synth", "http", flatHTTP)
+	seedTask(t, db, "t1", `["s1"]`)
+
+	res, err := New(db).Run(context.Background(), Options{Force: true, BackupPath: filepath.Join(t.TempDir(), "b.json")})
+	if err != nil {
+		t.Fatalf("dry-run err: %v", err)
+	}
+	// Dry-run reports what WOULD dangle under a forced apply, and deletes nothing.
+	if res.DryRun != true || res.DanglingTasks != 1 || res.Deleted != 0 {
+		t.Fatalf("result = %+v, want DryRun=true DanglingTasks=1 Deleted=0", res)
+	}
+}
+
+func TestRun_EmptyTable(t *testing.T) {
+	db := newTestDB(t)
+
+	res, err := New(db).Run(context.Background(), Options{Apply: true, BackupPath: filepath.Join(t.TempDir(), "b.json")})
+	if err != nil {
+		t.Fatalf("apply err: %v", err)
+	}
+	if res.Scanned != 0 || res.Deleted != 0 || res.Skipped != 0 {
+		t.Fatalf("result = %+v, want all zeros", res)
+	}
+}
+
+func TestRun_CombinedUserProtocolFilter(t *testing.T) {
+	db := newTestDB(t)
+	seedStrategy(t, db, "s1", "u1", "synth", "http", flatHTTP)  // matches both
+	seedStrategy(t, db, "s2", "u2", "synth", "http", flatHTTP)  // wrong user
+	seedStrategy(t, db, "s3", "u1", "synth", "dns", flatHTTP)   // wrong protocol
+	seedStrategy(t, db, "s4", "u2", "synth", "dns", flatHTTP)   // neither
+
+	res, err := New(db).Run(context.Background(), Options{Apply: true, UserID: "u1", Protocol: "http", BackupPath: filepath.Join(t.TempDir(), "b.json")})
+	if err != nil {
+		t.Fatalf("apply err: %v", err)
+	}
+	if res.Deleted != 1 || res.Scanned != 1 {
+		t.Fatalf("result = %+v, want Deleted=1 Scanned=1 (both filters ANDed)", res)
+	}
+	var ids []string
+	db.Model(&storage.StrategyModel{}).Pluck("id", &ids)
+	if len(ids) != 3 {
+		t.Fatalf("remaining rows = %v, want exactly [s2 s3 s4]", ids)
+	}
+}
+
+func TestRun_DefaultBackupPathWired(t *testing.T) {
+	oldDir := "data"
+	t.Cleanup(func() {
+		_ = os.Chdir("/")
+	})
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	_ = oldDir
+	db := newTestDB(t)
+	seedStrategy(t, db, "s1", "u1", "synth", "http", flatHTTP)
+
+	res, err := New(db).Run(context.Background(), Options{Apply: true})
+	if err != nil {
+		t.Fatalf("apply err: %v", err)
+	}
+	if res.BackupPath == "" {
+		t.Fatalf("backup_path empty: default path should be created under data/backups/")
+	}
+	if !strings.Contains(res.BackupPath, "data"+string(filepath.Separator)+"backups"+string(filepath.Separator)) {
+		t.Fatalf("backup path = %q, want under data/backups/", res.BackupPath)
+	}
+	if _, err := os.Stat(res.BackupPath); err != nil {
+		t.Fatalf("backup file missing at %s: %v", res.BackupPath, err)
+	}
+}
+
+func TestRun_LimitKeepsOldestTargets(t *testing.T) {
+	db := newTestDB(t)
+	// gorm's autoCreateTime/autoUpdateTime always stamp the real clock, so
+	// creation order equals insertion order. The ORDER BY (created_at ASC,
+	// id ASC) is then deterministic: insert in an order that DIFFERS from the
+	// id order to prove the limit keeps the oldest rows.
+	for i := 3; i >= 0; i-- {
+		id := "s" + string(rune('1'+i))
+		seedStrategy(t, db, id, "u1", "synth", "http", flatHTTP)
+	}
+
+	res, err := New(db).Run(context.Background(), Options{Apply: true, Limit: 2, BackupPath: filepath.Join(t.TempDir(), "b.json")})
+	if err != nil {
+		t.Fatalf("apply err: %v", err)
+	}
+	if res.Deleted != 2 {
+		t.Fatalf("deleted = %d, want 2", res.Deleted)
+	}
+	// Insertion (and therefore created_at) order: s4, s3, s2, s1 → the oldest
+	// two (s2, s1) are kept; the newest two (s3, s4) are deleted.
+	var ids []string
+	db.Model(&storage.StrategyModel{}).Order("created_at ASC, id ASC").Pluck("id", &ids)
+	if len(ids) != 2 || ids[0] != "s2" || ids[1] != "s1" {
+		t.Fatalf("remaining ids = %v, want [s2 s1] (oldest kept, stable order)", ids)
+	}
+}
+
+func TestDeleteTargets_ChunkedDeleteCountsAll(t *testing.T) {
+	db := newTestDB(t)
+	const n = 1200 // >500: exercises the chunking loop, not just a single chunk
+	targets := make([]storage.StrategyModel, 0, n)
+	for i := 0; i < n; i++ {
+		id := fmt.Sprintf("tgt-%04d", i)
+		seedStrategy(t, db, id, "u1", "synth", "http", flatHTTP)
+		targets = append(targets, storage.StrategyModel{ID: id, Mode: "synth", Config: flatHTTP})
+	}
+
+	deleted, err := New(db).deleteTargets(targets)
+	if err != nil {
+		t.Fatalf("deleteTargets err: %v", err)
+	}
+	if deleted != n {
+		t.Fatalf("deleted = %d, want %d (all chunks + partial tail)", deleted, n)
+	}
+	var count int64
+	db.Model(&storage.StrategyModel{}).Count(&count)
+	if count != 0 {
+		t.Fatalf("rows remaining = %d, want 0", count)
+	}
+}
+
+func TestDeleteTargets_ReVerifiesClassification(t *testing.T) {
+	db := newTestDB(t)
+	seedStrategy(t, db, "s1", "u1", "synth", "http", flatHTTP)
+	seedStrategy(t, db, "s2", "u1", "synth", "http", layered)
+	seedStrategy(t, db, "s3", "u1", "synth", "http", garbage)
+
+	// Simulate the live-DB race: after scanning (s1 flat, s3 unparseable),
+	// s1 is converted to the layered format and s3 to a valid layer chain.
+	if err := db.Model(&storage.StrategyModel{}).Where("id = ?", "s1").Update("config", layered).Error; err != nil {
+		t.Fatalf("convert s1: %v", err)
+	}
+	if err := db.Model(&storage.StrategyModel{}).Where("id = ?", "s3").Update("config", layered).Error; err != nil {
+		t.Fatalf("convert s3: %v", err)
+	}
+
+	// deleteTargets must re-verify classification: only still-legacy rows are
+	// deleted, never rows that became layer-chain in the meantime — and the
+	// returned count must reflect ACTUAL deletions, not attempted ones.
+	deleted, err := New(db).deleteTargets([]storage.StrategyModel{
+		{ID: "s1", Mode: "synth", Config: flatHTTP},
+		{ID: "s2", Mode: "synth", Config: layered},
+		{ID: "s3", Mode: "synth", Config: garbage},
+	})
+	if err != nil {
+		t.Fatalf("deleteTargets err: %v", err)
+	}
+	if deleted != 0 {
+		t.Fatalf("deleted = %d, want 0 (s1 and s3 converted to layer-chain since scan; s2 already layered)", deleted)
+	}
+	if got := db.Model(&storage.StrategyModel{}).Where("id = ?", "s1").Find(&storage.StrategyModel{}).RowsAffected; got != 1 {
+		t.Fatalf("s1 should survive (converted to layer-chain), rows affected = %d", got)
+	}
+	var ids []string
+	db.Model(&storage.StrategyModel{}).Pluck("id", &ids)
+	if len(ids) != 3 {
+		t.Fatalf("remaining ids = %v, want all 3 [s1 s2 s3]", ids)
+	}
+}
+
 func TestRun_UnparseableDeletedAndCounted(t *testing.T) {
 	db := newTestDB(t)
 	seedStrategy(t, db, "s1", "u1", "synth", "http", garbage)
@@ -390,21 +666,65 @@ func TestRun_UnparseableDeletedAndCounted(t *testing.T) {
 
 // ---- reference counting: substring false-positive guard ----
 
-func TestCountTasksReferencing_NoSubstringFalsePositive(t *testing.T) {
+func TestTaskIndex_NoSubstringFalsePositive(t *testing.T) {
 	db := newTestDB(t)
-	seedStrategy(t, db, "abc", "u1", "synth", "http", flatHTTP)
 	seedTask(t, db, "t1", `["abcd"]`) // similar-prefix id, must NOT match "abc"
 	seedTask(t, db, "t2", `["abc"]`)
 
-	refs, n, err := countTasksReferencing(db, []string{"abc"})
+	idx, err := loadTaskIndex(db)
 	if err != nil {
-		t.Fatalf("countTasksReferencing err: %v", err)
+		t.Fatalf("loadTaskIndex err: %v", err)
 	}
+	refs, dangling := idx.referenced([]string{"abc"})
 	if len(refs) != 1 || refs[0] != "abc" {
 		t.Fatalf("referenced = %v, want [abc] (abcd must not match)", refs)
 	}
-	if n != 1 {
-		t.Fatalf("dangling tasks = %d, want 1 (only t2)", n)
+	if dangling != 1 {
+		t.Fatalf("dangling tasks = %d, want 1 (only t2)", dangling)
+	}
+	if got := idx.taskIDs("abc"); len(got) != 1 || got[0] != "t2" {
+		t.Fatalf("taskIDs(abc) = %v, want [t2]", got)
+	}
+}
+
+func TestTaskIndex_MalformedStrategyIDsIgnored(t *testing.T) {
+	db := newTestDB(t)
+	seedTask(t, db, "t1", `not-json`) // malformed: must not match anything
+	seedTask(t, db, "t2", `["abc"]`)
+	seedTask(t, db, "t3", "") // empty: must not match
+
+	idx, err := loadTaskIndex(db)
+	if err != nil {
+		t.Fatalf("loadTaskIndex err: %v", err)
+	}
+	refs, dangling := idx.referenced([]string{"abc"})
+	if len(refs) != 1 || refs[0] != "abc" || dangling != 1 {
+		t.Fatalf("referenced=%v dangling=%d, want [abc]/1", refs, dangling)
+	}
+}
+
+func TestTaskIndex_ManyTargetsNoDepthLimit(t *testing.T) {
+	db := newTestDB(t)
+	// >1000 targets: OR-chaining a LIKE per target exceeds SQLite's
+	// expression-tree depth limit (reproduced on the live DB with 2023
+	// referenced targets: "Expression tree is too large (maximum depth 1000)").
+	const n = 1500
+	ids := make([]string, 0, n)
+	refs := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		id := fmt.Sprintf("tgt-%04d", i)
+		ids = append(ids, id)
+		refs = append(refs, `"`+id+`"`)
+	}
+	seedTask(t, db, "t1", "["+strings.Join(refs, ",")+"]")
+
+	idx, err := loadTaskIndex(db)
+	if err != nil {
+		t.Fatalf("loadTaskIndex err: %v", err)
+	}
+	got, dangling := idx.referenced(ids)
+	if len(got) != n || dangling != 1 {
+		t.Fatalf("referenced=%d dangling=%d, want %d/1", len(got), dangling, n)
 	}
 }
 
