@@ -1,0 +1,47 @@
+[
+  {
+    "id": "xmpp-stream-basic",
+    "proto": "xmpp",
+    "summary": "XMPP (端口 5222) 冒烟：完整 TCP 握手 + XML 流协商 + AUTH PLAIN → 会话建立 (bind/session) → presence → 流关闭 + 终止",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 5222,
+      "count": 1,
+      "xmpp": {}
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 16,
+      "fields": [
+        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
+        {"packet": 1, "field": "tcp.dstport", "value": "5222"},
+        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
+        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
+        {"packet": 10, "field": "xmpp.id", "value": "bind_1"},
+        {"packet": 10, "field": "xmpp.type", "value": "set"},
+        {"packet": 11, "field": "xmpp.id", "value": "bind_1"},
+        {"packet": 11, "field": "xmpp.type", "value": "result"},
+        {"packet": 12, "field": "xmpp.id", "value": "sess_1"},
+        {"packet": 12, "field": "xmpp.type", "value": "set"},
+        {"packet": 13, "field": "xmpp.id", "value": "sess_1"},
+        {"packet": 13, "field": "xmpp.type", "value": "result"}
+      ],
+      "frames": [
+        {"packet": 10, "offset": 54, "hex": "3c 69 71 20 74 79 70 65 3d 27 73 65 74 27 20 69 64 3d 27 62 69 6e 64 5f 31 27"},
+        {"packet": 14, "offset": 54, "hex": "3c 70 72 65 73 65 6e 63 65 2f 3e"},
+        {"packet": 15, "offset": 54, "hex": "3c 2f 73 74 72 65 61 6d 3a 73 74 72 65 61 6d 3e"}
+      ],
+      "notes": [
+        "f4/f5 流头 (stream:stream to/from example.com version 1.0)；f6 AUTH PLAIN；f7 SUCCESS；f8/f9 流重启；f10 IQ bind_1 set (resource trafficgen)；f11 bind_1 result；f12 sess_1 set；f13 sess_1 result；f14 presence 自闭合标签；f15/f16 '</stream:stream>' 流结束",
+        "f15/f16 有 tshark 'Closing an unopened tag' 专家标记（_ws.malformed）——字节级验证 '</stream:stream>' 为合法 XMPP 流终止 (RFC 6120 §4.5)；verify.go isMalformedWhitelisted 对 xmpp- 前缀白名单",
+        "f4/5/8/9 专家 'Unknown attribute' 为 Note 级别（tshark 对 stream 头属性的宽松解析），非 malformed，无需白名单",
+        "19 帧 = 3 握手 + 13 数据 + 3 终止（双 FIN + ACK）"
+      ]
+    }
+  }
+]

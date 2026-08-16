@@ -1,0 +1,53 @@
+[
+ {
+  "id": "gre_basic_ipv4",
+  "proto": "gre",
+  "summary": "smoke: basic GRE (no flags, proto 0x0800) carrying inner IPv4/UDP -> 1 frame; tshark auto-parses GRE",
+  "spec_json": {
+   "count": 1,
+   "gre": {}
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "gre.flags_and_version",
+     "value": "0x0000"
+    },
+    {
+     "packet": 1,
+     "field": "gre.proto",
+     "value": "0x0800"
+    },
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "80"
+    },
+    {
+     "packet": 1,
+     "field": "udp.srcport",
+     "value": "12345"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 34,
+     "hex": "00 00 08 00"
+    },
+    {
+     "packet": 1,
+     "offset": 66,
+     "hex": "30 39 00 50"
+    }
+   ],
+   "notes": [
+    "GRE header at offset 34 (eth14+ip20): flags 0000, protocol 0x0800 (auto-resolved IPv4 inner), verified against /tmp/probe-iana/gre.pcap",
+    "inner L4 is UDP with flow default ports (src 12345, dst 80)",
+    "内层 UDP src 12345 (0x3039) dst 80 (0x0050) 在 GRE 头之后 offset 66 逐字节断言"
+   ]
+  }
+ }
+]

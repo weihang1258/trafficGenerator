@@ -1,0 +1,134 @@
+[
+ {
+  "id": "dhcp_smoke_01",
+  "proto": "dhcp",
+  "summary": "冒烟：DHCP DORA（Discover/Offer/Request/ACK）。src 保持 flow 默认 12345、目的端口取 IANA 67/68（resolvePorts 只回退零值），your_ip/server_id 来自默认配置，共 4 包",
+  "spec_json": {
+   "dhcp": {
+    "scenario": "dora",
+    "default_your_ip": "192.168.1.100",
+    "default_server_identifier": "192.168.1.1"
+   }
+  },
+  "expect": {
+   "packet_count": 4,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "67"
+    },
+    {
+     "packet": 1,
+     "field": "dhcp.type",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "dhcp.option.dhcp",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "dhcp.flags",
+     "value": "0x0000"
+    },
+    {
+     "packet": 2,
+     "field": "dhcp.type",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "dhcp.option.dhcp",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "dhcp.ip.your",
+     "value": "192.168.1.100"
+    },
+    {
+     "packet": 2,
+     "field": "dhcp.option.dhcp_server_id",
+     "value": "192.168.1.1"
+    },
+    {
+     "packet": 3,
+     "field": "dhcp.option.dhcp",
+     "value": "3"
+    },
+    {
+     "packet": 3,
+     "field": "dhcp.option.requested_ip_address",
+     "value": "192.168.1.100"
+    },
+    {
+     "packet": 4,
+     "field": "dhcp.type",
+     "value": "2"
+    },
+    {
+     "packet": 4,
+     "field": "dhcp.option.dhcp",
+     "value": "5"
+    },
+    {
+     "packet": 4,
+     "field": "dhcp.ip.your",
+     "value": "192.168.1.100"
+    },
+    {
+     "packet": 1,
+     "field": "dhcp.hw.mac_addr",
+     "value": "02:00:00:00:00:01"
+    },
+    {
+     "packet": 2,
+     "field": "dhcp.hw.mac_addr",
+     "value": "02:00:00:00:00:01"
+    },
+    {
+     "packet": 3,
+     "field": "dhcp.hw.mac_addr",
+     "value": "02:00:00:00:00:01"
+    },
+    {
+     "packet": 4,
+     "field": "dhcp.hw.mac_addr",
+     "value": "02:00:00:00:00:01"
+    }
+   ],
+   "notes": [
+    "RFC 2131 §4.4：DORA 消息类型 option 53 值 1/2/3/5；op 字段（dhcp.type）1=BOOTREQUEST、2=BOOTREPLY",
+    "resolvePorts：spec 端口优先——flow src_port 默认 12345（非 0）使 server 角色下行 src 保持 12345，端口方向无关（layer_gen L4PortOverride 注释明示）；故下行只断言 dhcp.* 字段，不断言 udp.srcport=67（实测 12345）",
+    "your_ip（yiaddr）与服务端标识（option 54）由默认配置确定；flags=0x0000（广播位未设）",
+    "eth.dst/ip.dst 不断言（探针实测下行目标为 02:00:00:00:00:02 非全广播，存在已知差异）；MAC 02:00:00:00:00:01 与探针一致",
+    "DORA 四包 xid 全为 e5 71 cf 52（RFC 2131 §4.1 同一交换 xid 一致）——xid 偏移 46 (op/htype/hlen/hops 之后 4 字节)，逐字节断言四帧一致",
+    "dhcp.hw.mac_addr (chaddr) 四包全为 02:00:00:00:00:01"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 46,
+     "hex": "e5 71 cf 52"
+    },
+    {
+     "packet": 2,
+     "offset": 46,
+     "hex": "e5 71 cf 52"
+    },
+    {
+     "packet": 3,
+     "offset": 46,
+     "hex": "e5 71 cf 52"
+    },
+    {
+     "packet": 4,
+     "offset": 46,
+     "hex": "e5 71 cf 52"
+    }
+   ]
+  }
+ }
+]

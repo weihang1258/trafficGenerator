@@ -1,0 +1,92 @@
+[
+  {
+    "id": "ike_smoke_01",
+    "proto": "ike",
+    "summary": "冒烟：IKEv2 空配置 → standard_v2（IKE_SA_INIT + IKE_AUTH 各一对）。显式 src_port=12345（客户端临时端口，planner 禁止 500 作源端口），dst 默认 500，共 4 包",
+    "spec_json": {
+      "src_port": 12345,
+      "ike": {}
+    },
+    "expect": {
+      "packet_count": 4,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "500"
+        },
+        {
+          "packet": 1,
+          "field": "isakmp.mjver",
+          "value": "0x02"
+        },
+        {
+          "packet": 1,
+          "field": "isakmp.mnver",
+          "value": "0x00"
+        },
+        {
+          "packet": 1,
+          "field": "isakmp.exchangetype",
+          "value": "34"
+        },
+        {
+          "packet": 1,
+          "field": "isakmp.flags",
+          "value": "0x08"
+        },
+        {
+          "packet": 1,
+          "field": "isakmp.length",
+          "value": "376"
+        },
+        {
+          "packet": 2,
+          "field": "isakmp.exchangetype",
+          "value": "34"
+        },
+        {
+          "packet": 2,
+          "field": "isakmp.flags",
+          "value": "0x20"
+        },
+        {
+          "packet": 3,
+          "field": "isakmp.exchangetype",
+          "value": "35"
+        },
+        {
+          "packet": 3,
+          "field": "isakmp.flags",
+          "value": "0x08"
+        },
+        {
+          "packet": 3,
+          "field": "isakmp.length",
+          "value": "225"
+        },
+        {
+          "packet": 4,
+          "field": "isakmp.exchangetype",
+          "value": "35"
+        },
+        {
+          "packet": 4,
+          "field": "isakmp.flags",
+          "value": "0x20"
+        },
+        {
+          "packet": 4,
+          "field": "isakmp.length",
+          "value": "225"
+        }
+      ],
+      "notes": [
+        "RFC 7296 §1.4：IKE_SA_INIT=34、IKE_AUTH=35；flags 0x08=Initiator、0x20=Responder",
+        "validate 拒绝 SrcPort==500（客户端必须用临时端口 >1024），dst 默认 500；src_port=0 无默认化 → 显式 12345 与探针一致",
+        "cookie（SPI）为随机值 → 仅断言存在性可跳过（不断言）；payload 载荷顺序 SA/KE/Nonce 不逐字节断言",
+        "tshark 探针实测：4 帧 exchangetype/flags/length 与上表一致（SA_INIT 376B、AUTH 225B），mjver=2、mnver=0"
+      ]
+    }
+  }
+]

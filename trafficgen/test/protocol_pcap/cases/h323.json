@@ -1,0 +1,46 @@
+[
+  {
+    "id": "h323-q931-basic",
+    "proto": "h323",
+    "summary": "H.323 (端口 1720) 冒烟：完整 TCP 握手 + Q.931 呼叫控制 SETUP → CALL PROCEEDING → FACILITY/ALERTING → CONNECT → RELEASE COMPLETE + 终止",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1720,
+      "count": 1,
+      "h323": {}
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 15,
+      "fields": [
+        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
+        {"packet": 1, "field": "tcp.dstport", "value": "1720"},
+        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
+        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
+        {"packet": 4, "field": "q931.message_type", "value": "0x05"},
+        {"packet": 5, "field": "q931.message_type", "value": "0x02"},
+        {"packet": 6, "field": "q931.message_type", "value": "0x62"},
+        {"packet": 7, "field": "q931.message_type", "value": "0x01"},
+        {"packet": 11, "field": "q931.message_type", "value": "0x07"},
+        {"packet": 12, "field": "q931.message_type", "value": "0x5a"},
+        {"packet": 13, "field": "q931.message_type", "value": "0x5a"}
+      ],
+      "frames": [
+        {"packet": 4, "offset": 54, "hex": "03 00 00 1d 08 02 25 84 05 04 03 90 90 a3 28 0d 41 64 6d 69 6e 69 73 74 72 61 74 6f 72"},
+        {"packet": 11, "offset": 54, "hex": "03 00 00 1d 08 02 a5 84 07"},
+        {"packet": 12, "offset": 54, "hex": "03 00 00 18 08 02 25 84 5a 28 0d 41 64 6d 69 6e 69 73 74 72 61 74 6f 72"}
+      ],
+      "notes": [
+        "H.323 RAS 之上为 Q.931 (ITU-T Q.931 / H.225.0)：TPKT (03 len) + len u16 + 0x08 discriminator + callref 02 25 84 + message type: 0x05=SETUP, 0x02=CALL PROCEEDING, 0x62=FACILITY, 0x01=ALERTING, 0x07=CONNECT, 0x5a=RELEASE COMPLETE",
+        "f4 SETUP 含 Bearer capability (03 90 90 a3) + displayName 'Administrator' (28 0d) (H.225.0 displayIE UTF8)；callref 0x2584 发起方向 (bit7=0)，f11 CONNECT 回 0xa584 终止方向；f11 负载止于 message type (0x07)，displayIE 在 f12 RELEASE COMPLETE 前独立成帧",
+        "f6/f8-10 FACILITY 用于 H.245 地址协商；16 帧 = 3 握手 + 10 数据 + 3 终止（双 FIN + ACK）",
+        "q931.message_type 输出 0x 前缀十六进制；callref 值确定性 (0x2584)"
+      ]
+    }
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "ldap-bind-search-basic",
+    "proto": "ldap",
+    "summary": "LDAP (端口 389) 冒烟：完整 TCP 握手 + bindRequest(0) → bindResponse(1) → searchRequest(3) → searchResEntry(4) → unbind(2) + 终止",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 389,
+      "count": 1,
+      "ldap": {}
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 12,
+      "fields": [
+        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
+        {"packet": 1, "field": "tcp.dstport", "value": "389"},
+        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
+        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
+        {"packet": 4, "field": "ldap.protocolOp", "value": "0"},
+        {"packet": 4, "field": "ldap.messageID", "value": "1"},
+        {"packet": 5, "field": "ldap.protocolOp", "value": "1"},
+        {"packet": 5, "field": "ldap.resultCode", "value": "0"},
+        {"packet": 6, "field": "ldap.protocolOp", "value": "3"},
+        {"packet": 6, "field": "ldap.scope", "value": "0"},
+        {"packet": 6, "field": "ldap.filter", "value": "7"},
+        {"packet": 7, "field": "ldap.protocolOp", "value": "4"},
+        {"packet": 8, "field": "ldap.protocolOp", "value": "5"},
+        {"packet": 8, "field": "ldap.resultCode", "value": "0"},
+        {"packet": 9, "field": "ldap.protocolOp", "value": "2"}
+      ],
+      "frames": [
+        {"packet": 4, "offset": 54, "hex": "30 84 00 00 00 10 02 01 01 60 84 00 00 00 07 02 01 03 04 00 80 00"},
+        {"packet": 5, "offset": 54, "hex": "30 84 00 00 00 10 02 01 01 61 84 00 00 00 07 0a 01 00 04 00 04 00"},
+        {"packet": 6, "offset": 54, "hex": "30 84 00 00 01 58 02 01 02 63 84 00 00 01 4f"},
+        {"packet": 9, "offset": 54, "hex": "30 84 00 00 00 05 02 01 03 42 00"}
+      ],
+      "notes": [
+        "LDAPMessage: BER SEQUENCE(0x30) + 长度(0x84 长形式) + messageID + protocolOp 应用标签 (0x60=bindRequest, 0x61=bindResponse, 0x63=searchRequest, 0x64=searchResEntry, 0x65=searchResDone, 0x42=unbindRequest) (RFC 4511 §4.2/4.5)",
+        "f4 bindRequest msgID 1 版本 3 简单认证；f5 bindResponse resultCode 0=success；f6 searchRequest msgID 2 (objectClass=* 7=present)；f7 searchResEntry；f8 searchResDone 0；f9 unbindRequest msgID 3",
+        "f6 为 348 字节大包 (搜索树返回多项)；13 帧 = 3 握手 + 6 数据 + 4 终止"
+      ]
+    }
+  }
+]

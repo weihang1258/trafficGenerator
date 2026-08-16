@@ -1,0 +1,63 @@
+[
+  {
+    "id": "mpls_single_label_ipv4",
+    "proto": "mpls",
+    "summary": "smoke: single label stack (label 100, TTL 64) over inner IPv4/UDP -> 1 frame; tshark auto-parses MPLS (eth.type 0x8847)",
+    "spec_json": {
+      "count": 1,
+      "mpls": {
+        "labels": [
+          {
+            "label": 100
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "eth.type",
+          "value": "0x8847"
+        },
+        {
+          "packet": 1,
+          "field": "mpls.label",
+          "value": "100"
+        },
+        {
+          "packet": 1,
+          "field": "mpls.exp",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "mpls.bottom",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "mpls.ttl",
+          "value": "64"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "80"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 14,
+          "hex": "00 06 41 40"
+        }
+      ],
+      "notes": [
+        "label entry wire (RFC 3032 3.1): label 100<<12 | S=1<<8 | TTL 64 -> 0x00064140, verified against /tmp/probe-iana/mpls.pcap (probe used key 'value' so label=0, wire 00 00 01 40; this case uses the real key 'label' -> 00 06 41 40)",
+        "inner L4 is UDP with flow default ports (src 12345, dst 80); tshark auto-parses MPLS and the inner IP/UDP"
+      ]
+    }
+  }
+]

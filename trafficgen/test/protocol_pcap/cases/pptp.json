@@ -1,0 +1,52 @@
+[
+  {
+    "id": "pptp-control-gre-basic",
+    "proto": "pptp",
+    "summary": "PPTP (端口 1723) 冒烟：完整 TCP 握手 + 控制面 Start/Outgoing-Call/Set-Link-Info/Call-Clear + GRE 数据面 (PPP) + 终止",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1723,
+      "count": 1,
+      "pptp": {}
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 22,
+      "fields": [
+        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
+        {"packet": 1, "field": "tcp.dstport", "value": "1723"},
+        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
+        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
+        {"packet": 4, "field": "pptp.type", "value": "1"},
+        {"packet": 4, "field": "pptp.magic_cookie", "value": "0x1a2b3c4d"},
+        {"packet": 4, "field": "pptp.control_message_type", "value": "1"},
+        {"packet": 5, "field": "pptp.control_message_type", "value": "2"},
+        {"packet": 6, "field": "pptp.control_message_type", "value": "7"},
+        {"packet": 7, "field": "pptp.control_message_type", "value": "8"},
+        {"packet": 8, "field": "pptp.control_message_type", "value": "15"},
+        {"packet": 18, "field": "pptp.control_message_type", "value": "12"},
+        {"packet": 20, "field": "pptp.control_message_type", "value": "13"},
+        {"packet": 21, "field": "pptp.control_message_type", "value": "3"},
+        {"packet": 22, "field": "pptp.control_message_type", "value": "4"},
+        {"packet": 13, "field": "gre.proto", "value": "0x880b"},
+        {"packet": 13, "field": "ppp.protocol", "value": "0x0021"}
+      ],
+      "frames": [
+        {"packet": 4, "offset": 54, "hex": "00 9c 00 01 1a 2b 3c 4d 00 01 00 00 01 00"},
+        {"packet": 6, "offset": 54, "hex": "00 a8 00 01 1a 2b 3c 4d 00 07 00 00 a9 c0 00 03"},
+        {"packet": 21, "offset": 54, "hex": "00 10 00 01 1a 2b 3c 4d 00 03 00 00 01 00"}
+      ],
+      "notes": [
+        "PPTP 控制面帧头 (RFC 2637 §3.2): 长度 u16 + magic cookie 1a2b3c4d + 控制消息类型 u16: 1=Start-Control-Connection-Request, 2=Reply, 7=Outgoing-Call-Request, 8=Outgoing-Call-Reply, 15=Set-Link-Info, 12=Call-Clear-Request, 13=Call-Disconnect-Notify, 3=Stop-Control-Connection-Request, 4=Reply",
+        "f13-17 GRE 数据面 (协议 0x880b=PPP, 增强 GRE v1) 内封装 PPP IPCP (0x0021) 10.10.10.1/10.10.10.2；26 帧 = 12 控制 + 5 GRE + 4 终止 + 5 握手/连接控制",
+        "f6 Outgoing-Call-Request call_id=43456 (0xa9c0) serial=3；f7 Reply call_id=13769 peer=43456 result=1；f21 Stop 请求 reason=1",
+        "PPTP 控制消息为确定性字段，不涉及随机会话 ID"
+      ]
+    }
+  }
+]

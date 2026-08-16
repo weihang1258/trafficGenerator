@@ -1,0 +1,75 @@
+[
+  {
+    "id": "vnc-small-rects-basic",
+    "proto": "vnc",
+    "summary": "VNC (端口 5900) 冒烟：Tight 握手 + 认证 + 小矩形 FBU 交互（帧数 < 100，默认全屏探针 2190 帧不可用）",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 5900,
+      "count": 1,
+      "vnc": {
+        "initial_fbu": [
+          {"x": 0, "y": 1, "width": 12, "height": 19, "encoding": "xcursor"},
+          {"x": 0, "y": 0, "width": 12, "height": 19, "encoding": "hextile"}
+        ],
+        "update_rects": [
+          {"x": 0, "y": 0, "width": 12, "height": 19, "encoding": "hextile"}
+        ],
+        "rounds": 1
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "packet_count": 33,
+      "fields": [
+        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
+        {"packet": 1, "field": "tcp.dstport", "value": "5900"},
+        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
+        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
+        {"packet": 4, "field": "vnc.server_proto_ver", "value": "003.008"},
+        {"packet": 5, "field": "vnc.client_proto_ver", "value": "003.008"},
+        {"packet": 6, "field": "vnc.security_type", "value": "2,16"},
+        {"packet": 7, "field": "vnc.client_security_type", "value": "16"},
+        {"packet": 13, "field": "vnc.auth_result", "value": "0"},
+        {"packet": 14, "field": "vnc.share_desktop_flag", "value": "1"},
+        {"packet": 15, "field": "vnc.desktop_name", "value": "QTMS:1 (ykaul)"},
+        {"packet": 15, "field": "vnc.width", "value": "1024"},
+        {"packet": 15, "field": "vnc.height", "value": "768"},
+        {"packet": 17, "field": "vnc.client_message_type", "value": "0"},
+        {"packet": 18, "field": "vnc.client_message_type", "value": "2"},
+        {"packet": 19, "field": "vnc.client_message_type", "value": "4"},
+        {"packet": 19, "field": "vnc.key", "value": "0x0000ffe9"},
+        {"packet": 20, "field": "vnc.key", "value": "0x0000ffe3"},
+        {"packet": 21, "field": "vnc.key", "value": "0x0000ffe1"},
+        {"packet": 22, "field": "vnc.key", "value": "0x0000ffea"},
+        {"packet": 23, "field": "vnc.key", "value": "0x0000ffe4"},
+        {"packet": 24, "field": "vnc.key", "value": "0x0000ffe2"},
+        {"packet": 25, "field": "vnc.client_message_type", "value": "3"},
+        {"packet": 26, "field": "vnc.server_message_type", "value": "0"},
+        {"packet": 26, "field": "vnc.fb_update_num_rects", "value": "2"},
+        {"packet": 27, "field": "vnc.client_message_type", "value": "5"},
+        {"packet": 28, "field": "vnc.server_message_type", "value": "0"},
+        {"packet": 29, "field": "vnc.client_message_type", "value": "3"},
+        {"packet": 29, "field": "vnc.update_req_incremental", "value": "1"}
+      ],
+      "frames": [
+        {"packet": 25, "offset": 54, "hex": "03 00 00 00 00 00 04 00 03 00"},
+        {"packet": 26, "offset": 54, "hex": "00 00 00 02 00 00 00 01 00 0c 00 13 ff ff ff 10"},
+        {"packet": 28, "offset": 54, "hex": "00 00 00 01 00 00 00 00 00 0c 00 13 00 00 00 05"},
+        {"packet": 29, "offset": 54, "hex": "03 01 00 00 00 00 04 00 03 00"}
+      ],
+      "notes": [
+        "小矩形配置使 33 帧完成会话（默认 initial_fbu 全屏 hextile 1024x768 + 2×16x16 update_rects + rounds=2144 产生 2190 帧 / 3.3MB，不适用于冒烟断言）；矩形字段名来自 core.VNCRectConfig JSON tags: x/y/width/height/encoding",
+        "f26 初始 FBU 2 矩形: XCursor(0,1,12,19) (encoding -240 = ff ff ff 10) + hextile(0,0,12,19)；hextile 12x19 → 6 个 8x8 平铺 (0x01 ctrl + 原始像素) 总载荷 6x65+6=396B → 1 帧",
+        "f27 PointerEvent(5) → f28 FBU(1 rect, hextile 12x19) → f29 增量 FBU 请求 (03 01...) → f30-33 终止 (FIN-ACK/ACK/FIN-ACK/ACK)",
+        "key_events 默认 6 键 (0xffe9 Page_Up/0xffe3 Home/0xffe1 Left/0xffea Page_Down/0xffe4 End/0xffe2 Right) 全 down=0；key_down 字段 tshark 不输出 (only_if_no_other_fields)，按键按下状态用 hex 帧断言",
+        "f4/f5 版本交换 'RFB 003.008' (hex '52 46 42 20 30 30 33 2e 30 30 38'); 默认 Tight 安全类型 16"
+      ]
+    }
+  }
+]

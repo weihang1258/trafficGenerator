@@ -1,0 +1,47 @@
+[
+  {
+    "id": "syslog_smoke_01",
+    "proto": "syslog",
+    "summary": "冒烟：syslog RFC5424 消息（空配置）。顶层不设端口 → 默认 dst 514（IANA），facility=1(2)/level=6(Info)，共 1 包",
+    "spec_json": {
+      "syslog": {}
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "514"
+        },
+        {
+          "packet": 1,
+          "field": "syslog.facility",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "syslog.level",
+          "value": "6"
+        },
+        {
+          "packet": 1,
+          "field": "syslog.msg",
+          "value": "1 - - - - - -"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "3c 31 34 3e 31 20 2d 20 2d 20 2d 20 2d 20 2d 20 2d"
+        }
+      ],
+      "notes": [
+        "RFC 5424 §6：PRI=<facility*8+severity>，<14>=facility 1(user) severity 6(info)；VERSION=1",
+        "顶层未设端口：dst 默认 514（strategy_convert）、src 保持 flow 默认 12345，不断言",
+        "tshark 探针实测：facility=1、level=6、msg='1 - - - - - -'、帧偏移 42 处 '<14>1 - - - - - -'；msg 尾部含 0x00 终止符故仅做帧前缀断言"
+      ]
+    }
+  }
+]

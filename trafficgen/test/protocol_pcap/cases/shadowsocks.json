@@ -1,0 +1,39 @@
+[
+  {
+    "id": "shadowsocks_default_tcp",
+    "proto": "shadowsocks",
+    "summary": "smoke: shadowsocks TCP mode (aes-256-gcm) over port 8388; salt (32B) then one AEAD chunk (34B); encrypted stream is random, only structural assertions",
+    "spec_json": {
+      "count": 1,
+      "dst_port": 8388,
+      "shadowsocks": {}
+    },
+    "expect": {
+      "min_packets": 9,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "8388"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "32"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.len",
+          "value": "34"
+        }
+      ],
+      "notes": [
+        "frame 4 = 32B random salt (aes-256-gcm), frame 5 = 34B AEAD chunk (2B enc length + 16B tag + payload + 16B tag), verified against /tmp/probe-iana/shadowsocks.pcap",
+        "encrypted bytes are random by design (salt 32B crypto/rand + ciphertext) -- hex assertions are impossible; only structural tcp.len assertions",
+        "no shadowsocks tshark dissector; also no malformed flags on valid encrypted traffic"
+      ]
+    }
+  }
+]

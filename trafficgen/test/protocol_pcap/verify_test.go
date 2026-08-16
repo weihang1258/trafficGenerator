@@ -50,7 +50,7 @@ func TestExpertCheck_WhitelistedCasesPass(t *testing.T) {
 	} {
 		pcap := pcapRoot + "/" + tc.proto + "/" + tc.caseID + ".pcap"
 		requirePcap(t, pcap)
-		if probs := checkExpertInfo(pcap, tc.caseID); len(probs) != 0 {
+		if probs := checkExpertInfo(pcap, tc.caseID, nil); len(probs) != 0 {
 			t.Errorf("case %s: unexpected expert problems: %v", tc.caseID, probs)
 		}
 	}
@@ -202,7 +202,7 @@ func TestVerifyPcap_MalformedReportedWithoutWhitelist(t *testing.T) {
 	// different (non-whitelisted) case id.
 	pcap := pcapRoot + "/nfs/nfs_t001_v3_null_mount.pcap"
 	requirePcap(t, pcap)
-	probs := checkExpertInfo(pcap, "some_other_nfs_case")
+	probs := checkExpertInfo(pcap, "some_other_nfs_case", nil)
 	found := false
 	for _, p := range probs {
 		if strings.Contains(p, "malformed") {
@@ -211,5 +211,22 @@ func TestVerifyPcap_MalformedReportedWithoutWhitelist(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected malformed report for non-whitelisted id, got %v", probs)
+	}
+}
+
+func TestDecodeAs_PropagatesToFieldExtraction(t *testing.T) {
+	// DecodeAs must reach the field-extraction path (tsharkFieldValues /
+	// runTshark), not just expert/hex paths: a heuristic dissector that
+	// claims the flow's port would otherwise shadow the field and make
+	// extraction return nothing. Smoke: tsharkFieldValues with decodeAs
+	// appends the -d flags and still returns the wanted field.
+	pcap := pcapRoot + "/tftp/tftp-rrq-short-aa100.pcap"
+	requirePcap(t, pcap)
+	vals, err := tsharkFieldValues(pcap, "udp.srcport", []string{"udp.port==69,tftp"})
+	if err != nil {
+		t.Fatalf("tsharkFieldValues with decodeAs: %v", err)
+	}
+	if len(vals) == 0 {
+		t.Fatal("no values extracted with decodeAs present")
 	}
 }

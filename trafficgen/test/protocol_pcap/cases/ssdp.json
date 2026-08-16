@@ -1,0 +1,84 @@
+[
+  {
+    "id": "ssdp_smoke_01",
+    "proto": "ssdp",
+    "summary": "冒烟：SSDP M-SEARCH（src_port=0 使 planner 用 1900）→ 自动响应 200 OK，双向均 1900/1900（IANA），共 2 包",
+    "spec_json": {
+      "ssdp": {
+        "message_type": "msearch",
+        "search_target": "ssdp:all"
+      },
+      "src_port": 0
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "1900"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1900"
+        },
+        {
+          "packet": 1,
+          "field": "http.request.method",
+          "value": "M-SEARCH"
+        },
+        {
+          "packet": 1,
+          "field": "http.request.version",
+          "value": "HTTP/1.1"
+        },
+        {
+          "packet": 1,
+          "field": "http.request.uri",
+          "value": "*"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1900"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "1900"
+        },
+        {
+          "packet": 2,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 2,
+          "field": "http.response.version",
+          "value": "HTTP/1.1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "4d 2d 53 45 41 52 43 48 20 2a 20 48 54 54 50 2f 31 2e 31 0d 0a 48 4f 53 54 3a 20 32 33 39 2e 32 35 35 2e 32 35 35 2e 32 35 30 3a 31 39 30 30 0d 0a 4d 41 4e 3a 20 22 73 73 64 70 3a 64 69 73 63 6f 76 65 72 22 0d 0a 4d 58 3a 20 33 0d 0a 53 54 3a 20 73 73 64 70 3a 61 6c 6c 0d 0a"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "48 54 54 50 2f 31 2e 31 20 32 30 30 20 4f 4b 0d 0a 43 41 43 48 45 2d 43 4f 4e 54 52 4f 4c 3a 20 6d 61 78 2d 61 67 65 3d 31 38 30 30 0d 0a 45 58 54 3a 0d 0a 53 54 3a 20 73 73 64 70 3a 61 6c 6c 0d 0a"
+        }
+      ],
+      "notes": [
+        "UPnP SSDP（RFC 6970 §4）：M-SEARCH 行 'M-SEARCH * HTTP/1.1'；HOST 239.255.255.250:1900、MAN \"ssdp:discover\"、MX 3、ST ssdp:all",
+        "响应 200 OK（HTTP/1.1），CACHE-CONTROL max-age=1800、ST ssdp:all；EXPIRE 随机 → 不断言",
+        "显式 src_port=0 关键：mapToFlowSpec 默认 src=12345（validate 拒绝非 1900 源端口），planner 遇 0 才取 1900；目的地址 239.255.255.250",
+        "tshark 探针实测：两帧均 1900/1900，请求/响应首行与上表一致；Expert Chat 消息（HTTP over UDP）无害",
+        "帧断言覆盖 HTTP 头字节（offset 42）：请求 HOST/MAN/MX/ST 完整、响应 CACHE-CONTROL/EXT/ST——tshark http dissector 不解析 ST/MAN/MX 为独立字段（探针实测无 http.st/http.host 字段），故用原始字节验证 spec 配置（search_target ssdp:all）真的上了线",
+        "ip.dst 不断言：planner 不改 L3 目标（探针实测 20.0.0.1），HOST 头才是 SSDP 语义多播目标"
+      ]
+    }
+  }
+]

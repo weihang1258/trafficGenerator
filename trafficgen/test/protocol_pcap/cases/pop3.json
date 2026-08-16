@@ -1,0 +1,131 @@
+[
+  {
+    "id": "pop3_smoke_01",
+    "proto": "pop3",
+    "summary": "POP3 会话冒烟：显式 banner + USER/PASS/QUIT 命令（types.go POP3Config，RFC 1939 §3/§5），空配置只产握手+终止（设计行为），本 case 用显式消息配置驱动数据帧",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 13000,
+      "dst_port": 110,
+      "count": 1,
+      "pop3": {
+        "banner": "+OK POP3 server ready",
+        "commands": [
+          {
+            "cmd": "USER alice",
+            "response": "+OK alice"
+          },
+          {
+            "cmd": "PASS secret",
+            "response": "+OK Logged in"
+          },
+          {
+            "cmd": "QUIT",
+            "response": "+OK bye"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 14,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "110"
+        },
+        {
+          "packet": 4,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        },
+        {
+          "packet": 4,
+          "field": "pop.response.description",
+          "value": "POP3 server ready"
+        },
+        {
+          "packet": 5,
+          "field": "pop.request.command",
+          "value": "USER"
+        },
+        {
+          "packet": 5,
+          "field": "pop.request.parameter",
+          "value": "alice"
+        },
+        {
+          "packet": 6,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        },
+        {
+          "packet": 6,
+          "field": "pop.response.description",
+          "value": "alice"
+        },
+        {
+          "packet": 7,
+          "field": "pop.request.command",
+          "value": "PASS"
+        },
+        {
+          "packet": 7,
+          "field": "pop.request.parameter",
+          "value": "secret"
+        },
+        {
+          "packet": 8,
+          "field": "pop.response.description",
+          "value": "Logged in"
+        },
+        {
+          "packet": 9,
+          "field": "pop.request.command",
+          "value": "QUIT"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.indicator",
+          "value": "+OK"
+        },
+        {
+          "packet": 10,
+          "field": "pop.response.description",
+          "value": "bye"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "2b 4f 4b 20 50 4f 50 33 20 73 65 72 76 65 72 20 72 65 61 64 79 0d 0a"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "55 53 45 52 20 61 6c 69 63 65 0d 0a"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "50 41 53 53 20 73 65 63 72 65 74 0d 0a"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "2b 4f 4b 20 62 79 65 0d 0a"
+        }
+      ],
+      "notes": [
+        "MCP 生成验证（2026-08-16, /tmp/verify-cases/pop3/pop3_smoke_01.pcap）：14 帧 = 3 握手 + banner + 3 命令×2 + 4 终止，_ws.malformed 全空",
+        "pop 字段实测：pop.request 完整行字段为空（tshark 3.6 只填子字段 command/parameter），pop.response 行字段亦空，断言用子字段",
+        "单行响应自动补 CRLF（POP3Command.Multiline=false 默认）：帧字节 'USER alice\\r\\n' 等与 tcp.payload 逐字节核对",
+        "QUIT 请求帧 9 无 response（planner 只发命令，响应在帧 10）"
+      ]
+    }
+  }
+]

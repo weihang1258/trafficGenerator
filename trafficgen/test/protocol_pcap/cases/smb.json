@@ -192,6 +192,21 @@
      "packet": 25,
      "field": "smb2.tid",
      "value": "0x00000001"
+    },
+    {
+     "packet": 19,
+     "field": "smb2.cmd",
+     "value": "8"
+    },
+    {
+     "packet": 22,
+     "field": "smb2.cmd",
+     "value": "8"
+    },
+    {
+     "packet": 25,
+     "field": "smb2.cmd",
+     "value": "8"
     }
    ],
    "frames": [
@@ -212,7 +227,9 @@
     "READ resp 4096B 被 MSS 1460 分段: p16=req, p17=头+数据(1460B), p18/p19=纯数据段",
     "SMB2 头 64B 位于帧 58 (54+4 NBSS); 命令体位于帧 122 (58+64)",
     "context: preauth @170 (01 00 28 00), encryption @212 (02 00 08 00)",
-    "sesid 由 planner 跨 task 递增分配, 不写死具体值; 断言仅要求存在"
+    "sesid 由 planner 跨 task 递增分配, 不写死具体值; 断言仅要求存在",
+    "会话上下文跨 packet 传递断言：p7/p12 sesid 0x0000000000000216 非空（value=\"\" 在框架中=必须存在）",
+    "READ 响应分段序列 p19/p22/p25 cmd=8 全链覆盖"
    ]
   }
  },

@@ -1,0 +1,68 @@
+[
+  {
+    "id": "wireguard_smoke_01",
+    "proto": "wireguard",
+    "summary": "冒烟：WireGuard 握手（空配置）。顶层不设端口 → dst 默认 51820（IANA）、src 保持 flow 默认 12345；initiator→responder→transport（type 1/2/4），共 3 包",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "count": 1,
+      "wireguard": {}
+    },
+    "expect": {
+      "packet_count": 3,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "51820"
+        },
+        {
+          "packet": 1,
+          "field": "wg.type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "wg.sender",
+          "value": "0x00000001"
+        },
+        {
+          "packet": 2,
+          "field": "wg.type",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "wg.sender",
+          "value": "0x00000002"
+        },
+        {
+          "packet": 2,
+          "field": "wg.receiver",
+          "value": "0x00000001"
+        },
+        {
+          "packet": 3,
+          "field": "wg.type",
+          "value": "4"
+        },
+        {
+          "packet": 3,
+          "field": "wg.receiver",
+          "value": "0x00000002"
+        },
+        {
+          "packet": 3,
+          "field": "wg.counter",
+          "value": "0"
+        }
+      ],
+      "notes": [
+        "WireGuard 协议：type 1=handshake initiation、2=response、4=transport data（Noise 握手消息序）",
+        "顶层未设端口：dst 默认 51820（strategy_convert 覆盖）、src 保持 flow 默认 12345；wg 索引/随机数不断言",
+        "tshark 探针实测：type/sender/receiver/counter 与上表一致（probe 同为 12345→51820）"
+      ]
+    }
+  }
+]

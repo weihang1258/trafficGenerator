@@ -1,0 +1,141 @@
+[
+  {
+    "id": "ftp_smoke_01",
+    "proto": "ftp",
+    "summary": "FTP 控制通道冒烟：显式 banner + USER/PASS/QUIT 命令（types.go FTPConfig，RFC 959 §4.1），空配置只产握手+终止（设计行为），本 case 用显式消息配置驱动数据帧",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 21,
+      "count": 1,
+      "ftp": {
+        "banner": "220 FTP server ready",
+        "commands": [
+          {
+            "cmd": "USER anonymous",
+            "response": "331 Anonymous login ok"
+          },
+          {
+            "cmd": "PASS guest",
+            "response": "230 Logged in"
+          },
+          {
+            "cmd": "QUIT",
+            "response": "221 Goodbye"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 14,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "21"
+        },
+        {
+          "packet": 4,
+          "field": "ftp.response.code",
+          "value": "220"
+        },
+        {
+          "packet": 4,
+          "field": "ftp.response.arg",
+          "value": "FTP server ready"
+        },
+        {
+          "packet": 5,
+          "field": "ftp.request.command",
+          "value": "USER"
+        },
+        {
+          "packet": 5,
+          "field": "ftp.request.arg",
+          "value": "anonymous"
+        },
+        {
+          "packet": 6,
+          "field": "ftp.response.code",
+          "value": "331"
+        },
+        {
+          "packet": 6,
+          "field": "ftp.response.arg",
+          "value": "Anonymous login ok"
+        },
+        {
+          "packet": 7,
+          "field": "ftp.request.command",
+          "value": "PASS"
+        },
+        {
+          "packet": 7,
+          "field": "ftp.request.arg",
+          "value": "guest"
+        },
+        {
+          "packet": 8,
+          "field": "ftp.response.code",
+          "value": "230"
+        },
+        {
+          "packet": 8,
+          "field": "ftp.response.arg",
+          "value": "Logged in"
+        },
+        {
+          "packet": 9,
+          "field": "ftp.request.command",
+          "value": "QUIT"
+        },
+        {
+          "packet": 10,
+          "field": "ftp.response.code",
+          "value": "221"
+        },
+        {
+          "packet": 10,
+          "field": "ftp.response.arg",
+          "value": "Goodbye"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.payload",
+          "value": ""
+        },
+        {
+          "packet": 10,
+          "field": "tcp.payload",
+          "value": ""
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "32 32 30 20"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "55 53 45 52 20 61 6e 6f 6e 79 6d 6f 75 73 0d 0a"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "32 32 31 20 47 6f 6f 64 62 79 65 0d 0a"
+        }
+      ],
+      "notes": [
+        "MCP 生成验证（2026-08-16, /tmp/verify-cases/ftp/ftp_smoke_01.pcap）：14 帧 = 3 握手 + banner + 3 命令×2 + 4 终止，_ws.malformed 全空",
+        "帧字节：packet 4 banner '220 FTP server ready\\r\\n'、packet 5 'USER anonymous\\r\\n'、packet 10 '221 Goodbye\\r\\n'，payload 均从 offset 54 起（Eth14+IPv4 20+TCP 20）",
+        "tshark 3.6 ftp dissector 对 21 端口生效（review 交叉验证实测）：4=banner 220、5=USER、6=331、7=PASS、8=230、9=QUIT、10=221 全字段断言——spec 配置的全部命令与响应逐条上线",
+        "tcp.payload 空 value = presence 断言（banner/QUIT 响应帧必须有负载）"
+      ]
+    }
+  }
+]

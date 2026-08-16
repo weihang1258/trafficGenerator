@@ -1,0 +1,89 @@
+[
+  {
+    "id": "rdp_tcp3389_x224_mcs",
+    "proto": "rdp",
+    "summary": "smoke: RDP over TCP 3389; X.224 connection request/confirm + MCS Connect Initial (27 frames incl. handshake and FIN); LBMSRS heuristic dissector claims frame 9-10 -> decode_as echo forces data",
+    "spec_json": {
+      "count": 1,
+      "rdp": {}
+    },
+    "decode_as": [
+      "tcp.port==3389,echo"
+    ],
+    "expect": {
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "3389"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "19"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.len",
+          "value": "19"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.len",
+          "value": "361"
+        },
+        {
+          "packet": 9,
+          "field": "tcp.len",
+          "value": "8"
+        },
+        {
+          "packet": 10,
+          "field": "tcp.len",
+          "value": "11"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "03 00 00 13 0e e0"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "03 00 00 13 0e d0"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "03 00 01 69 02 f0 00"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "03 00 00 0a 02 f0 00"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "03 00 00 08 02 f0 00"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "03 00 00 0b 02 f0 00"
+        }
+      ],
+      "notes": [
+        "TPKT header (03 00) at offset 54 with X.224/MCS payloads: conn-req 0e e0, conn-cond 0e d0, MCS Connect Initial 02 f0 00 + 01 69 (361B), MCS 0a/0b/08 fragments; all verified against /tmp/probe-iana/rdp.pcap",
+        "decode_as echo: LBMSRS (tcp port 3389 heuristic) claims valid MCS frames 9-10 -> tshark reports [Malformed Packet: LBMSRS]; forcing echo suppresses it (frames clean) while tcp.* fields still parse",
+        "no tcp.port==3389 dissector registered in tshark 3.6 (only udp.port 3389 rdpudp), so X.224/MCS bytes are asserted at raw frame level"
+      ]
+    }
+  }
+]

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "telnet-basic-session",
+    "proto": "telnet",
+    "summary": "Telnet (端口 23) 冒烟：完整 TCP 握手 + 选项协商 + login 提示/输入 + 命令回显 + 终止",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 23,
+      "count": 1,
+      "telnet": {}
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "min_packets": 12,
+      "fields": [
+        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
+        {"packet": 1, "field": "tcp.dstport", "value": "23"},
+        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
+        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
+        {"packet": 6, "field": "telnet.data", "value": "login:"},
+        {"packet": 7, "field": "telnet.data", "value": "alice\\r\\n"},
+        {"packet": 8, "field": "telnet.data", "value": "$"},
+        {"packet": 9, "field": "telnet.data", "value": "exit\\r\\n"}
+      ],
+      "frames": [
+        {"packet": 4, "offset": 54, "hex": "ff fb 03"},
+        {"packet": 5, "offset": 54, "hex": "ff fd 03"},
+        {"packet": 6, "offset": 54, "hex": "6c 6f 67 69 6e 3a 20"},
+        {"packet": 7, "offset": 54, "hex": "61 6c 69 63 65 0d 0a"},
+        {"packet": 8, "offset": 54, "hex": "24 20"},
+        {"packet": 9, "offset": 54, "hex": "65 78 69 74 0d 0a"}
+      ],
+      "notes": [
+        "f4 服务器 'Will Echo' (IAC ff fb 03)；f5 客户端 'Do Echo' (ff fd 03) (RFC 854 §3)；f6 login 提示；f7 用户输入 alice\\r\\n；f8 shell 提示 $；f9 exit\\r\\n",
+        "telnet.data 对 IAC 帧 (f4/f5) 输出空串（纯选项协商无数据）；tshark 对 telnet.data 会 trim 尾部空白——'login: ' 显示为 'login:'（真实字节含 0x20，由 f6/f8 帧断言逐字节覆盖）；f7/f9 的 \\r\\n 显示为字面反斜杠转义序列（逐字节验证 '61 6c 69 63 65 0d 0a'）",
+        "数据帧均 ≤61B 故不用 has_payload（frames 断言已覆盖）；13 帧 = 3 握手 + 6 数据 + 4 终止"
+      ]
+    }
+  }
+]

@@ -1,0 +1,61 @@
+[
+  {
+    "id": "grpc-basic-call",
+    "proto": "grpc",
+    "summary": "gRPC (端口 80, HTTP/2) 冒烟：完整 TCP 握手 + HTTP/2 SETTINGS/HEADERS/DATA/GOAWAY + 终止",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 80,
+      "count": 1,
+      "grpc": {
+        "service": "svc",
+        "method": "m"
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 13,
+      "fields": [
+        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
+        {"packet": 1, "field": "tcp.dstport", "value": "80"},
+        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
+        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
+        {"packet": 4, "field": "http2.type", "value": "4"},
+        {"packet": 5, "field": "http2.type", "value": "4,4"},
+        {"packet": 6, "field": "http2.type", "value": "4"},
+        {"packet": 6, "field": "http2.flags", "value": "0x01"},
+        {"packet": 7, "field": "http2.type", "value": "1"},
+        {"packet": 7, "field": "http2.headers.method", "value": "POST"},
+        {"packet": 7, "field": "http2.headers.path", "value": "/svc/m"},
+        {"packet": 7, "field": "http2.headers.scheme", "value": "http"},
+        {"packet": 7, "field": "http2.headers.authority", "value": "20.0.0.1:80"},
+        {"packet": 8, "field": "http2.type", "value": "0"},
+        {"packet": 8, "field": "grpc.compressed_flag", "value": "0"},
+        {"packet": 8, "field": "grpc.message_length", "value": "0"},
+        {"packet": 9, "field": "http2.type", "value": "1"},
+        {"packet": 9, "field": "http2.headers.status", "value": "200"},
+        {"packet": 10, "field": "http2.type", "value": "1"},
+        {"packet": 11, "field": "http2.type", "value": "7"}
+      ],
+      "frames": [
+        {"packet": 4, "offset": 54, "hex": "50 52 49 20 2a 20 48 54 54 50 2f 32 2e 30 0d 0a 0d 0a 53 4d 0d 0a 0d 0a"},
+        {"packet": 8, "offset": 54, "hex": "00 00 05 00 01 00 00 00 01 00 00 00 00"},
+        {"packet": 9, "offset": 54, "hex": "00 00 01 01 04 00 00 00 01 88"},
+        {"packet": 10, "offset": 54, "hex": "00 00 1e 01 05 00 00 00 01 40 0b 67 72 70 63 2d 73 74 61 74 75 73 01 30 40 0c 67 72 70 63 2d 6d 65 73 73 61 67 65 00"},
+        {"packet": 11, "offset": 54, "hex": "00 00 08 07 00 00 00 00 00 00 00 00 01 00 00 00 00"}
+      ],
+      "notes": [
+        "gRPC 走 HTTP/2 明文 (h2c)：f4 客户端魔法串 'PRI * HTTP/2.0\\r\\n\\r\\nSM\\r\\n\\r\\n' + SETTINGS；f5 SETTINGS+ACK；f6 SETTINGS ACK；f7 HEADERS (:method POST :path /svc/m :scheme http :authority 20.0.0.1:80 content-type application/grpc te trailers user-agent grpc-trafficgen/1.0 grpc-encoding identity grpc-accept-encoding identity gzip)",
+        "HTTP/2 帧头 9B = length(3)+type(1)+flags(1)+stream-id(4)；f8 DATA 帧头 00 00 05 00 01 00 00 00 01 (len 5, type 0, flags 0x01=END_STREAM) 后紧跟 gRPC 5B 消息头 (compressed 0 + length 0) 与空 payload——14 字节全部断言；f9 HEADERS :status 200 (帧头 00 00 01 01 04 00 00 00 01 + HPACK 块 88=:status: 200)；f10 HEADERS grpc-status: 0 (帧头 len 0x00001e, type 1, flags 0x05=END_HEADERS|END_STREAM) + HPACK 00 40 0b 67 72 70 63 2d 73 74 61 74 75 73 01 30 40 0c 67 72 70 63 2d 6d 65 73 73 61 67 65 00 (grpc-message 空串) 全部断言；f11 GOAWAY (len 0x000008, type 7, Last-Stream 1, NO_ERROR 0)",
+        "tshark 在 f9/f10 帧末尾追加 'Decompressed Header' HPACK 展开块 (0000 起头)——verify.go parseTsharkHex 跳过该块，帧字节只取原始 TCP 段 (offset 54)",
+        "gRPC 设计默认端口 8604 非 IANA 80，显式 dst_port 80；15 帧 = 3 握手 + 8 数据 + 4 终止；f12-f15 为 ACK/FIN 序列",
+        "tshark 将 12345→80 判定为 h2c 需要 HTTP/2 解析器；PRI 魔法串逐字节确定"
+      ]
+    }
+  }
+]

@@ -74,7 +74,9 @@
     "T-001: VERSION 是第一选项 (00 00 1a 00 06)，TERMINATOR(ff) 最后",
     "T-011: THREADID 数据 b8 0d 00 00 = 0x0db8",
     "T-012: MARS 选项值=0x00 (关闭)",
-    "T-002: VERSION 数据 09 00 00 00 00 00 00 00"
+    "T-002: VERSION 数据 09 00 00 00 00 00 00 00",
+    "f4 完整头 12 01 00 2f 00 00 01 00 00 00 1a ...：类型 0x12 (PRELOGIN)、状态 0x01、长度 0x002f (47)、SPID 0x0000、packetID 0x01、窗口 0x00 00",
+    "Prelogin 选项表在 10B 头后：0x1a VERSION 0x06 0x01 0x00 0x20、0x01 ENCRYPTION 0x02 0x00 0x21、0x03 NONCE 0x22 0x00 0x04、0x04 TERMINATOR 0x26 0x00 0x01 0xff；THREADID 0x0db8 在选项表之后"
    ]
   }
  },
@@ -8139,4 +8141,3 @@
   }
  }
 ]
-

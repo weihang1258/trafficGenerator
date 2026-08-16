@@ -1,0 +1,48 @@
+[
+  {
+    "id": "socks5-connect-basic",
+    "proto": "socks5",
+    "summary": "SOCKS5 (端口 1080) 冒烟：完整 TCP 握手 + 方法协商 → CONNECT 请求/响应 + 终止",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1080,
+      "count": 1,
+      "socks": {}
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "min_packets": 9,
+      "fields": [
+        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
+        {"packet": 1, "field": "tcp.dstport", "value": "1080"},
+        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
+        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
+        {"packet": 4, "field": "socks.version", "value": "5"},
+        {"packet": 4, "field": "socks.auth_method", "value": "0"},
+        {"packet": 5, "field": "socks.version", "value": "5"},
+        {"packet": 6, "field": "socks.version", "value": "5"},
+        {"packet": 6, "field": "socks.command", "value": "1"},
+        {"packet": 6, "field": "socks.port", "value": "80"},
+        {"packet": 7, "field": "socks.version", "value": "5"},
+        {"packet": 7, "field": "socks.dst", "value": "0.0.0.0"},
+        {"packet": 7, "field": "socks.port", "value": "0"}
+      ],
+      "frames": [
+        {"packet": 4, "offset": 54, "hex": "05 01 00"},
+        {"packet": 5, "offset": 54, "hex": "05 00"},
+        {"packet": 6, "offset": 54, "hex": "05 01 00 03 0f 77 77 77 2e 65 78 61 6d 70 6c 65 2e 63 6f 6d 00 50"},
+        {"packet": 7, "offset": 54, "hex": "05 00 00 01 00 00 00 00 00 00"}
+      ],
+      "notes": [
+        "f4 客户端方法协商: VER 5 + 方法数 1 + 0x00=NO AUTH；f5 服务器接受 0x00；f6 CONNECT www.example.com:80 (ATYP 3=域名)；f7 响应成功 0x00 + BND.ADDR 0.0.0.0:0 (RFC 1928 §6 BND 可为空)",
+        "域名 www.example.com 长 15 字节 (0x0f)；端口 80 = 0x0050；socks.port 是 tshark 的 SOCKS 端口字段（无 socks.dstport）",
+        "10 帧 = 3 握手 + 4 数据 + 3 终止（双 FIN 后 ACK，f8=0x0011 f9=0x0011 f10=0x0010）；数据帧均 ≤76B 故不用 has_payload（frames 断言已覆盖）",
+        "spec key 为 'socks'（非 'socks5'，registry 子映射键）"
+      ]
+    }
+  }
+]

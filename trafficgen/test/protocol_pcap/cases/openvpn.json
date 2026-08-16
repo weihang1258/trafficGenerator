@@ -1,0 +1,79 @@
+[
+  {
+    "id": "openvpn_udp1194_reset_data",
+    "proto": "openvpn",
+    "summary": "smoke: OpenVPN UDP 1194: P_CONTROL_HARD_RESET_CLIENT_V2 (frame 1) + SERVER_V2 (frame 2) + 10 P_DATA_V2 (frames 3-12); sessionid persists across the dialog",
+    "spec_json": {
+      "count": 1,
+      "openvpn": {}
+    },
+    "expect": {
+      "min_packets": 12,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1194"
+        },
+        {
+          "packet": 1,
+          "field": "openvpn.opcode",
+          "value": "0x07"
+        },
+        {
+          "packet": 2,
+          "field": "openvpn.opcode",
+          "value": "0x08"
+        },
+        {
+          "packet": 3,
+          "field": "openvpn.opcode",
+          "value": "0x09"
+        },
+        {
+          "packet": 1,
+          "field": "openvpn.keyid",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "openvpn.sessionid",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "openvpn.sessionid",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 3,
+          "field": "openvpn.peerid",
+          "nonzero": true
+        },
+        {
+          "packet": 4,
+          "field": "openvpn.peerid",
+          "same_as_packet": 3
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "38"
+        },
+        {
+          "packet": 3,
+          "offset": 42,
+          "hex": "48"
+        }
+      ],
+      "notes": [
+        "opcode byte at offset 42 (eth14+ip20+udp8): 0x38 = (0x07<<3)|keyid 0 (HARD_RESET_CLIENT_V2), 0x48 = (0x09<<3)|0 (P_DATA_V2), verified against /tmp/probe-iana/openvpn.pcap",
+        "default DataPacketCount=5 per direction -> 10 data frames + 2 control = 12 frames; tshark prints opcode in hex (0x07/0x08/0x09), keyid decimal 0",
+        "sessionid is run-random (rand.Uint64) but generated once per flow -> same on frames 1-2 (same_as_packet); peerid run-random but constant across data frames (same_as_packet)",
+        "udp.port 1194 is IANA-registered to openvpn -> auto-parses, no decode_as needed; TLS handshake bytes inside control frames are also random-ish (session-id based), only structural assertions"
+      ]
+    }
+  }
+]

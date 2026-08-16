@@ -1,0 +1,42 @@
+[
+  {
+    "id": "rtsp-options-basic",
+    "proto": "rtsp",
+    "summary": "RTSP (端口 554) 冒烟：完整 TCP 握手 + OPTIONS 请求（唯一确定性方法）+ 终止",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 554,
+      "count": 1,
+      "rtsp": {
+        "dialog": [
+          {"method": "OPTIONS"}
+        ]
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 7,
+      "fields": [
+        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
+        {"packet": 1, "field": "tcp.dstport", "value": "554"},
+        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
+        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
+        {"packet": 4, "field": "rtsp.method", "value": "OPTIONS"},
+        {"packet": 4, "field": "rtsp.url", "value": "rtsp://20.0.0.1/media"}
+      ],
+      "frames": [
+        {"packet": 4, "offset": 54, "hex": "4f 50 54 49 4f 4e 53 20 72 74 73 70 3a 2f 2f 32 30 2e 30 2e 30 2e 31 2f 6d 65 64 69 61 20 52 54 53 50 2f 31 2e 30 0d 0a 43 53 65 71 3a 20 31 0d 0a 0d 0a"}
+      ],
+      "notes": [
+        "f4 为唯一数据帧（OPTIONS 无服务器响应，8 帧 = 3 握手 + 1 请求 + 4 终止）",
+        "CSeq 确定性 = 1（设计对话框序号自 1 起）；tshark 无 rtsp.cseq 字段（仅 method/url/status），故用帧字节断言 CSeq 头",
+        "CSeq/User-Agent 等头按设计输出"
+      ]
+    }
+  }
+]

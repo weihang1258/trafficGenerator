@@ -1,0 +1,55 @@
+[
+  {
+    "id": "postgresql-query-basic",
+    "proto": "postgresql",
+    "summary": "PostgreSQL (端口 5432) 冒烟：完整 TCP 握手 + 启动消息 → 认证 → 参数 → SELECT 1 查询 → 终止",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 5432,
+      "count": 1,
+      "postgresql": {
+        "operations": [
+          {"kind": "query", "sql": "SELECT 1"}
+        ]
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 19,
+      "fields": [
+        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
+        {"packet": 1, "field": "tcp.dstport", "value": "5432"},
+        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
+        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
+        {"packet": 4, "field": "pgsql.type", "value": "Startup message"},
+        {"packet": 5, "field": "pgsql.type", "value": "Authentication request"},
+        {"packet": 5, "field": "pgsql.authtype", "value": "0"},
+        {"packet": 6, "field": "pgsql.type", "value": "Parameter status"},
+        {"packet": 13, "field": "pgsql.type", "value": "Backend key data"},
+        {"packet": 14, "field": "pgsql.type", "value": "Ready for query"},
+        {"packet": 15, "field": "pgsql.type", "value": "Simple query"},
+        {"packet": 15, "field": "pgsql.query", "value": "SELECT 1"},
+        {"packet": 16, "field": "pgsql.type", "value": "Row description"},
+        {"packet": 17, "field": "pgsql.type", "value": "Data row"},
+        {"packet": 18, "field": "pgsql.type", "value": "Command completion"},
+        {"packet": 18, "field": "pgsql.tag", "value": "SELECT 1"},
+        {"packet": 19, "field": "pgsql.type", "value": "Ready for query"}
+      ],
+      "frames": [
+        {"packet": 4, "offset": 54, "hex": "00 00 00 09 00 03 00 00 00"},
+        {"packet": 15, "offset": 54, "hex": "51 00 00 00 0d 53 45 4c 45 43 54 20 31"},
+        {"packet": 17, "offset": 54, "hex": "44 00 00 00 0e 00 01 00 00 00 04 00 00 00 2a"}
+      ],
+      "notes": [
+        "f4 Startup: len 9 + version_major 3 + version_minor 0；f5 认证请求 (authtype 0=OK 无需密码)；f6-12 参数状态 (server_version/client_encoding/DateStyle 等)",
+        "f15 Simple query 'SELECT 1'；f16 Row description 1 列；f17 Data row 值 42 (0x2a)；f18 Command completion tag 'SELECT 1'；f19 Ready for query (status I)",
+        "23 帧 = 3 握手 + 16 数据 + 4 终止；pgsql.* 是 Wireshark PostgreSQL 解析器字段前缀（非 postgresql.*）"
+      ]
+    }
+  }
+]

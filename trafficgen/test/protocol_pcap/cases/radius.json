@@ -1,0 +1,91 @@
+[
+  {
+    "id": "radius_smoke_01",
+    "proto": "radius",
+    "summary": "冒烟：RADIUS Access-Request（空配置）→ 自动响应 Access-Accept。顶层不设端口 → dst 默认 1812（IANA）、src 保持 flow 默认 12345，请求含 User-Name AVP，共 2 包",
+    "spec_json": {
+      "radius": {}
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1812"
+        },
+        {
+          "packet": 1,
+          "field": "radius.code",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "radius.id",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "radius.length",
+          "value": "26"
+        },
+        {
+          "packet": 1,
+          "field": "radius.req",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "radius.avp.type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "radius.avp.length",
+          "value": "6"
+        },
+        {
+          "packet": 2,
+          "field": "radius.code",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "radius.id",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "radius.rsp",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "radius.reqframe",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "radius.length",
+          "value": "20"
+        },
+        {
+          "packet": 2,
+          "field": "radius.authenticator",
+          "nonzero": true
+        },
+        {
+          "packet": 1,
+          "field": "radius.authenticator",
+          "nonzero": true
+        }
+      ],
+      "notes": [
+        "RFC 2865 §3：Code/ID/Length/Authenticator 固定头；Code 1=Access-Request、2=Access-Accept",
+        "autoResponse 规则（design §3）：code 1 → 2，响应同 4-tuple 回包；id 复刻请求 id=0",
+        "顶层未设端口：dst 默认 1812（strategy_convert 覆盖）、src 保持 flow 默认 12345；随机 Authenticator 不断言值但必须非零（nonzero，review 发现响应体损坏只断言 code=2 仍通过）",
+        "tshark 探针实测：请求 length=26 含 User-Name(1) AVP 长 6；响应 length=20 无属性、rsp=1、reqframe=1；端口 12345→1812 双向交换"
+      ]
+    }
+  }
+]

@@ -1,0 +1,78 @@
+[
+  {
+    "id": "redis_ping_select_pong",
+    "proto": "redis",
+    "summary": "smoke: RESP inline PING with auto_reply pong over TCP 6379; default SelectDB=0 emits SELECT 0 +OK first, then PING +PONG (handshake + 4 data frames + FIN)",
+    "spec_json": {
+      "count": 1,
+      "redis": {
+        "commands": [
+          {
+            "args": [
+              "PING"
+            ],
+            "auto_reply": "pong"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 8,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "6379"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "23"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.len",
+          "value": "5"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.len",
+          "value": "14"
+        },
+        {
+          "packet": 7,
+          "field": "tcp.len",
+          "value": "7"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "2a 32 0d 0a 24 36 0d 0a 53 45 4c 45 43 54 0d 0a 24 31 0d 0a 30 0d 0a"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "2b 4f 4b 0d 0a"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "2a 31 0d 0a 24 34 0d 0a 50 49 4e 47 0d 0a"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "2b 50 4f 4e 47 0d 0a"
+        }
+      ],
+      "notes": [
+        "tcp payload at offset 54 (eth14+ip20+tcp20); RESP encoding verified against /tmp/probe-iana/redis.pcap: SELECT 0 = *2\\r\\n$6\\r\\nSELECT\\r\\n$1\\r\\n0\\r\\n (23B), +OK\\r\\n (5B), PING = *1\\r\\n$4\\r\\nPING\\r\\n (14B), +PONG\\r\\n (7B)",
+        "tshark 3.6 has no redis over TCP dissector; RESP bytes are asserted at raw frame level and via tcp.len"
+      ]
+    }
+  }
+]

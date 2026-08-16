@@ -1,0 +1,169 @@
+[
+  {
+    "id": "imap_smoke_01",
+    "proto": "imap",
+    "summary": "IMAP 会话冒烟：显式 banner + LOGIN/LIST/LOGOUT 命令（types.go IMAPConfig，RFC 9051 §2.2），tag 自动生成 A001/A002/A003，空配置只产握手+终止（设计行为）",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 14000,
+      "dst_port": 143,
+      "count": 1,
+      "imap": {
+        "banner": "* OK IMAP ready",
+        "commands": [
+          {
+            "cmd": "LOGIN alice secret",
+            "responses": [
+              "A001 OK LOGIN completed"
+            ]
+          },
+          {
+            "cmd": "LIST \"\" \"*\"",
+            "responses": [
+              "* LIST (\\Inbox) \"\" INBOX",
+              "A002 OK LIST completed"
+            ]
+          },
+          {
+            "cmd": "LOGOUT",
+            "responses": [
+              "* BYE Logging out",
+              "A003 OK LOGOUT completed"
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 16,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "143"
+        },
+        {
+          "packet": 4,
+          "field": "imap.line",
+          "value": "* OK IMAP ready\\r\\n"
+        },
+        {
+          "packet": 5,
+          "field": "imap.tag",
+          "value": "A001"
+        },
+        {
+          "packet": 5,
+          "field": "imap.command",
+          "value": "LOGIN"
+        },
+        {
+          "packet": 5,
+          "field": "imap.isrequest",
+          "value": "1"
+        },
+        {
+          "packet": 6,
+          "field": "imap.response",
+          "value": "A001 OK LOGIN completed"
+        },
+        {
+          "packet": 6,
+          "field": "imap.response.status",
+          "value": "OK"
+        },
+        {
+          "packet": 6,
+          "field": "imap.response_tag",
+          "value": "A001"
+        },
+        {
+          "packet": 7,
+          "field": "imap.tag",
+          "value": "A002"
+        },
+        {
+          "packet": 7,
+          "field": "imap.command",
+          "value": "LIST"
+        },
+        {
+          "packet": 8,
+          "field": "imap.line",
+          "value": "* LIST (\\Inbox) \"\" INBOX\\r\\n"
+        },
+        {
+          "packet": 9,
+          "field": "imap.response",
+          "value": "A002 OK LIST completed"
+        },
+        {
+          "packet": 10,
+          "field": "imap.tag",
+          "value": "A003"
+        },
+        {
+          "packet": 10,
+          "field": "imap.command",
+          "value": "LOGOUT"
+        },
+        {
+          "packet": 11,
+          "field": "imap.line",
+          "value": "* BYE Logging out\\r\\n"
+        },
+        {
+          "packet": 12,
+          "field": "imap.response",
+          "value": "A003 OK LOGOUT completed"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "2a 20 4f 4b 20 49 4d 41 50 20 72 65 61 64 79 0d 0a"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "41 30 30 31 20 4c 4f 47 49 4e 20 61 6c 69 63 65 20 73 65 63 72 65 74 0d 0a"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "41 30 30 32 20 4c 49 53 54 20 22 22 20 22 2a 22 0d 0a"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "2a 20 4c 49 53 54 20 28 5c 49 6e 62 6f 78 29 20 22 22 20 49 4e 42 4f 58 0d 0a"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "41 30 30 33 20 4c 4f 47 4f 55 54 0d 0a"
+        },
+        {
+          "packet": 11,
+          "offset": 54,
+          "hex": "2a 20 42 59 45 20 4c 6f 67 67 69 6e 67 20 6f 75 74 0d 0a"
+        },
+        {
+          "packet": 12,
+          "offset": 54,
+          "hex": "41 30 30 33 20 4f 4b 20 4c 4f 47 4f 55 54 20 63 6f 6d 70 6c 65 74 65 64 0d 0a"
+        }
+      ],
+      "notes": [
+        "MCP 生成验证（2026-08-16, /tmp/verify-cases/imap/imap_smoke_01.pcap）：16 帧 = 3 握手 + banner + 3 命令 + 8 响应 + 4 终止，_ws.malformed 全空",
+        "tag 自动生成实测：A001/A002/A003（IMAPCommand.Tag 空时 planner 自增）；imap.response 含 untagged '* LIST' 与 tagged 'A002 OK LIST completed'",
+        "imap.line 带转义 \\r\\n 字面值（tshark imap.line 含 CRLF），imap.response 为去 CRLF 后的行",
+        "帧字节与 tcp.payload 十六进制逐字节核对：tag/命令/untagged 响应完整覆盖"
+      ]
+    }
+  }
+]

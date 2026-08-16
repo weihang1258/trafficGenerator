@@ -1,0 +1,103 @@
+[
+  {
+    "id": "pppoe_discovery_session_lcp",
+    "proto": "pppoe",
+    "summary": "smoke: PPPoE discovery PADI/PADO/PADR/PADS + session LCP configure-req/ack + one IPv4 data frame (7 frames); tshark auto-parses pppoed/pppoes",
+    "spec_json": {
+      "count": 1,
+      "pppoe": {}
+    },
+    "expect": {
+      "min_packets": 7,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "eth.type",
+          "value": "0x8863"
+        },
+        {
+          "packet": 1,
+          "field": "pppoe.code",
+          "value": "0x09"
+        },
+        {
+          "packet": 2,
+          "field": "pppoe.code",
+          "value": "0x07"
+        },
+        {
+          "packet": 3,
+          "field": "pppoe.code",
+          "value": "0x19"
+        },
+        {
+          "packet": 4,
+          "field": "pppoe.code",
+          "value": "0x65"
+        },
+        {
+          "packet": 4,
+          "field": "pppoe.session_id",
+          "value": "0x0001"
+        },
+        {
+          "packet": 5,
+          "field": "eth.type",
+          "value": "0x8864"
+        },
+        {
+          "packet": 5,
+          "field": "pppoe.code",
+          "value": "0x00"
+        },
+        {
+          "packet": 5,
+          "field": "pppoe.session_id",
+          "value": "0x0001"
+        },
+        {
+          "packet": 5,
+          "field": "ppp.protocol",
+          "value": "0xc021"
+        },
+        {
+          "packet": 6,
+          "field": "ppp.protocol",
+          "value": "0xc021"
+        },
+        {
+          "packet": 7,
+          "field": "ppp.protocol",
+          "value": "0x0021"
+        },
+        {
+          "packet": 7,
+          "field": "udp.dstport",
+          "value": "80"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 14,
+          "hex": "11 09 00 00 00 04"
+        },
+        {
+          "packet": 5,
+          "offset": 14,
+          "hex": "11 00 00 01 00 10"
+        },
+        {
+          "packet": 5,
+          "offset": 20,
+          "hex": "c0 21 01 01 00 0e"
+        }
+      ],
+      "notes": [
+        "PPPoE header at offset 14: ver/type 0x11, code (PADI 0x09 -> PADS 0x65 -> session 0x00), session_id (0 -> 1 at PADS), payload length; verified against /tmp/probe-iana/pppoe.pcap",
+        "LCP Configure-Request/Ack at offset 20: ppp proto 0xc021, code 0x01, id 0x01, len 0x000e; magic number bytes (05 06 ...) are crypto/rand random, not asserted",
+        "session data frames 5-6 carry LCP, frame 7 carries IPv4/UDP (flow default ports)"
+      ]
+    }
+  }
+]

@@ -158,6 +158,67 @@ func TestParseTsharkHex_ReassembledTCPPhantom(t *testing.T) {
 	}
 }
 
+func TestParseTsharkHex_DecompressedHeaderPhantom(t *testing.T) {
+	// Regression (grpc case): tshark -x appends "Decompressed Header (N bytes):"
+	// hex blocks to frames carrying HPACK-compressed HTTP/2 HEADERS. These
+	// blocks start with "0000" and were being parsed as new frames, shifting
+	// every subsequent FrameAssert packet index.
+	out := "Frame (199 bytes):\n" +
+		"0000  02 00 00 00 00 02 02 00 00 00 00 01 08 00 45 20   ..............E \n" +
+		"0010  00 b9 68 65 40 00 40 06 b3 b8 0a 00 00 01 14 00   ..he@.@.........\n" +
+		"Decompressed Header (248 bytes):\n" +
+		"0000  00 00 00 07 3a 6d 65 74 68 6f 64 00 00 00 04 50   ....:method....P\n" +
+		"0010  4f 53 54 00 00 00 07 3a 73 63 68 65 6d 65 00 00   OST....:scheme..\n" +
+		"\n" +
+		"0000  02 00 00 00 00 02 02 00 00 00 00 01 08 00 45 20   ..............E \n" +
+		"0010  00 36 68 66 40 00 40 06 b4 3a 0a 00 00 01 14 00   .6hf@.@..:......\n" +
+		"0020  00 01 30 39 00 50 e8 e4 32 72 28 69 9f 8a 50 18   ..09.P..2r(i..P.\n"
+	frames := parseTsharkHex(out)
+	if len(frames) != 2 {
+		t.Fatalf("got %d frames, want 2 (Decompressed Header phantom must not create a 3rd)", len(frames))
+	}
+	// Frame 1 ends at the original 2 dump lines (32 bytes); the decompressed
+	// header block (len 0x100 > frame len) must not be appended to it.
+	if len(frames[0].bytes) != 32 {
+		t.Fatalf("frame1: got %d bytes, want 32 (phantom must not be appended)", len(frames[0].bytes))
+	}
+	// Frame 2 must start with the new segment's Ethernet header, not the
+	// decompressed header's first byte (0x00).
+	if frames[1].bytes[0] != 0x02 {
+		t.Fatalf("frame2: first byte = %02x, want 0x02 (phantom bytes leaked into next frame)", frames[1].bytes[0])
+	}
+}
+
+func TestParseTsharkHex_UnchunkedRTMPPhantom(t *testing.T) {
+	// Regression (rtmp case): tshark -x appends "Unchunked RTMP (N bytes):"
+	// hex blocks to frames carrying RTMP chunks (message re-assembly across
+	// segments). These blocks start with "0000" and were being parsed as new
+	// frames, shifting every subsequent FrameAssert packet index.
+	out := "Frame (131 bytes):\n" +
+		"0000  02 00 00 00 00 02 02 00 00 00 00 01 08 00 45 20   ..............E \n" +
+		"0010  00 75 00 04 40 00 40 06 1c 5e 0a 00 00 01 14 00   .u..@.@..^......\n" +
+		"Unchunked RTMP (1537 bytes):\n" +
+		"0000  03 a1 83 1a c3 00 00 00 00 ae 95 fe b0 53 7f 70   .............S.p\n" +
+		"0010  d0 20 6d 25 e9 ef 9c f4 5d 77 f1 f0 ec 43 cc e0   . m%....]w...C..\n" +
+		"\n" +
+		"0000  02 00 00 00 00 02 02 00 00 00 00 01 08 00 45 20   ..............E \n" +
+		"0010  00 3a 00 05 40 00 40 06 1c 93 0a 00 00 01 14 00   .:..@.@.........\n"
+	frames := parseTsharkHex(out)
+	if len(frames) != 2 {
+		t.Fatalf("got %d frames, want 2 (Unchunked RTMP phantom must not create a 3rd)", len(frames))
+	}
+	// Frame 1 ends at the original 2 dump lines (32 bytes); the unchunked
+	// block must not be appended to it.
+	if len(frames[0].bytes) != 32 {
+		t.Fatalf("frame1: got %d bytes, want 32 (phantom must not be appended)", len(frames[0].bytes))
+	}
+	// Frame 2 must start with the new segment's Ethernet header, not the
+	// unchunked payload's first byte (0x03).
+	if frames[1].bytes[0] != 0x02 {
+		t.Fatalf("frame2: first byte = %02x, want 0x02 (phantom bytes leaked into next frame)", frames[1].bytes[0])
+	}
+}
+
 func TestParseHexBytes(t *testing.T) {
 	cases := []struct {
 		in   string

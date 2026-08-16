@@ -1,0 +1,117 @@
+[
+  {
+    "id": "l2tp_smoke_01",
+    "proto": "l2tp",
+    "summary": "冒烟：L2TPv2 tunnel_with_data。顶层不设端口 → dst 默认 1701（IANA）、src 保持 flow 默认 12345；建隧道 SCCRQ/SCCRP/SCCCN + ICRQ/ICRP/ICCN + PPP 数据帧 + StopCCN，共 8 包",
+    "spec_json": {
+      "l2tp": {
+        "scenario": "tunnel_with_data"
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1701"
+        },
+        {
+          "packet": 1,
+          "field": "l2tp.type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "l2tp.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "l2tp.tunnel",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "l2tp.session",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "l2tp.Ns",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "l2tp.Nr",
+          "value": "1"
+        },
+        {
+          "packet": 3,
+          "field": "l2tp.Ns",
+          "value": "1"
+        },
+        {
+          "packet": 8,
+          "field": "l2tp.type",
+          "value": "1"
+        },
+        {
+          "packet": 8,
+          "field": "l2tp.Ns",
+          "value": "4"
+        },
+        {
+          "packet": 1,
+          "field": "l2tp.avp.message_type",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "l2tp.avp.message_type",
+          "value": "2"
+        },
+        {
+          "packet": 3,
+          "field": "l2tp.avp.message_type",
+          "value": "3"
+        },
+        {
+          "packet": 4,
+          "field": "l2tp.avp.message_type",
+          "value": "9"
+        },
+        {
+          "packet": 5,
+          "field": "l2tp.avp.message_type",
+          "value": "10"
+        },
+        {
+          "packet": 6,
+          "field": "l2tp.avp.message_type",
+          "value": "11"
+        },
+        {
+          "packet": 8,
+          "field": "l2tp.avp.message_type",
+          "value": "4"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 7,
+          "offset": 42,
+          "hex": "00 01 00 00 ff 03 00 21"
+        }
+      ],
+      "notes": [
+        "RFC 2661 §4.1：控制消息 T=1（type 1）、数据消息 T=0（type 0）；v2 头含 TunnelID/SessionID/Ns/Nr",
+        "tunnel_with_data = 6 步控制（SCCRQ/SCCRP/SCCCN/ICRQ/ICRP/ICCN）+ 1 数据帧 + StopCCN = 8 帧；TunnelID 默认 1，tunnel 级消息 SessionID=0",
+        "第 7 帧为数据帧：TunID=1 + SesID=0 + PPP 0xFF03 前导 + Protocol 0x0021（IPv4）+ 内层 IPv4 10.10.10.1→10.10.10.2 UDP；数据帧 tshark 不填 l2tp.type（探针实测为空）→ type=0 由帧断言覆盖（offset 42 '00 01 00 00' 首比特 T=0）",
+        "Ns/Nr 值从探针实测（0,0,1,2,1,3,4 / 0,1,1,1,3,2,2），仅抽查关键步避免脆弱；tshark 探针实测 8 帧全部一致",
+        "顶层未设端口：dst 默认 1701（strategy_convert）、src 保持 flow 默认 12345",
+        "控制消息顺序全断言（l2tp.avp.message_type）：1 SCCRQ → 2 SCCRP → 3 SCCCN → 9 ICRQ → 10 ICRP → 11 ICCN → (数据帧) → 4 StopCCN（RFC 2661 §4.3.1 Message Type AVP 值），消息顺序错乱即失败"
+      ]
+    }
+  }
+]

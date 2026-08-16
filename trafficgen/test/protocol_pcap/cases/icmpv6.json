@@ -1,0 +1,88 @@
+[
+  {
+    "id": "icmpv6_smoke_01",
+    "proto": "icmpv6",
+    "summary": "冒烟：ICMPv6 Echo Request → 自动 Reply（IPv6 链路，src_ip/dst_ip 显式）。type 128/129、code 0、id/seq 固定 1，共 2 包",
+    "spec_json": {
+      "src_ip": "2001:db8::1",
+      "dst_ip": "2001:db8::2",
+      "icmpv6": {}
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "icmpv6.type",
+          "value": "128"
+        },
+        {
+          "packet": 1,
+          "field": "icmpv6.code",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "icmpv6.echo.identifier",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "icmpv6.echo.sequence_number",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ipv6.src",
+          "value": "2001:db8::1"
+        },
+        {
+          "packet": 1,
+          "field": "ipv6.dst",
+          "value": "2001:db8::2"
+        },
+        {
+          "packet": 1,
+          "field": "ipv6.hlim",
+          "value": "64"
+        },
+        {
+          "packet": 2,
+          "field": "icmpv6.type",
+          "value": "129"
+        },
+        {
+          "packet": 2,
+          "field": "icmpv6.code",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "icmpv6.echo.identifier",
+          "value": "0x0001"
+        },
+        {
+          "packet": 2,
+          "field": "icmpv6.echo.sequence_number",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "ipv6.src",
+          "value": "2001:db8::2"
+        },
+        {
+          "packet": 2,
+          "field": "ipv6.dst",
+          "value": "2001:db8::1"
+        }
+      ],
+      "notes": [
+        "RFC 4443 §4.1：type 128=Echo Request、129=Echo Reply，code=0；identifier/sequence 回显不变",
+        "ICMPv6 需要 IPv6 链路 → src_ip/dst_ip 必须为 IPv6 地址（validate 要求）；默认 TTL=64",
+        "自动回复（auto-reply）：应答交换 src/dst，id/seq 复刻请求值",
+        "tshark 探针实测：全部值与上表一致，校验和状态 good（1）"
+      ]
+    }
+  }
+]

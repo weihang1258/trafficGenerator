@@ -33,11 +33,16 @@ func parseTsharkHex(out string) []hexInfo {
 		}
 		// Non-dump lines (e.g. "Frame 1: ...") separate frames.
 		if !isHexDumpLine(trimmed) {
-			// "Reassembled TCP (N bytes):" preamble is followed by a 0000-
-			// prefixed hex block representing the desegmented payload, NOT a
-			// new frame. Skip its hex lines until we see the next real
-			// frame separator (blank line or "Frame ...").
-			if strings.HasPrefix(trimmed, "Reassembled ") {
+			// tshark -x can append extra hex blocks after a frame's own dump:
+			// "Reassembled TCP (N bytes):" (desegmented payload), "Decompressed
+			// Header (N bytes):" (HPACK-decompressed HTTP/2 headers) and
+			// "Unchunked RTMP (N bytes):" (RTMP chunk re-assembly) are followed
+			// by a 0000-prefixed hex block that does NOT represent a new frame.
+			// Skip their hex lines until the next real frame separator (blank
+			// line or "Frame ...").
+			if strings.HasPrefix(trimmed, "Reassembled ") ||
+				strings.HasPrefix(trimmed, "Decompressed ") ||
+				strings.HasPrefix(trimmed, "Unchunked ") {
 				cur = nil
 				skipUntilNewFrame = true
 				continue
@@ -107,13 +112,17 @@ func isHexDumpLine(s string) bool {
 }
 
 // hexDumpAll returns one hexInfo per frame in the pcap.
-func hexDumpAll(path string) ([]hexInfo, error) {
+func hexDumpAll(path string, decodeAs []string) ([]hexInfo, error) {
 	// Disable TCP desegmentation so each segment appears as its own frame.
 	// Without this, tshark -x appends "Reassembled TCP (N bytes)" blocks to
 	// frames carrying partial segments; the parser would then treat those
 	// 0000-prefixed hex blocks as new frames, shifting every subsequent
 	// FrameAssert.Packet index by the number of segmented frames in the flow.
-	cmd := exec.Command("tshark", "-r", path, "-x", "-o", "tcp.desegment_tcp_streams:false")
+	full := []string{"-r", path, "-x", "-o", "tcp.desegment_tcp_streams:false"}
+	for _, d := range decodeAs {
+		full = append(full, "-d", d)
+	}
+	cmd := exec.Command("tshark", full...)
 	var out, errb bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errb

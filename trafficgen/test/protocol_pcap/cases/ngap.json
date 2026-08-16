@@ -1,0 +1,44 @@
+[
+  {
+    "id": "ngap-sctp-setup-basic",
+    "proto": "ngap",
+    "summary": "NGAP over SCTP (端口 38412) 冒烟：SCTP 4 路握手 + NGSetup (procedureCode 21, PPID 60) + SHUTDOWN 拆链",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 38412,
+      "count": 1,
+      "ngap": {}
+    },
+    "expect": {
+      "has_payload": true,
+      "min_packets": 9,
+      "fields": [
+        {"packet": 1, "field": "sctp.srcport", "value": "12345"},
+        {"packet": 1, "field": "sctp.dstport", "value": "38412"},
+        {"packet": 1, "field": "sctp.chunk_type", "value": "1"},
+        {"packet": 2, "field": "sctp.chunk_type", "value": "2"},
+        {"packet": 3, "field": "sctp.chunk_type", "value": "10"},
+        {"packet": 4, "field": "sctp.chunk_type", "value": "11"},
+        {"packet": 5, "field": "sctp.data_payload_proto_id", "value": "60"},
+        {"packet": 5, "field": "ngap.procedureCode", "value": "21"},
+        {"packet": 6, "field": "ngap.procedureCode", "value": "21"},
+        {"packet": 6, "field": "sctp.data_payload_proto_id", "value": "60"},
+        {"packet": 7, "field": "sctp.chunk_type", "value": "7"},
+        {"packet": 8, "field": "sctp.chunk_type", "value": "8"},
+        {"packet": 9, "field": "sctp.chunk_type", "value": "14"}
+      ],
+      "frames": [
+        {"packet": 5, "offset": 62, "hex": "00 15 00 00 03 00 48 00 0b 00 08 08 60 f4 10 04 00 00"},
+        {"packet": 6, "offset": 62, "hex": "01 15 01 00 01 00 01 00 0b 41 4d 46 2d 54 45 53 54 2d 30 31"}
+      ],
+      "notes": [
+        "NGAP 运行于 SCTP (RFC 7552 §6)：f1-4 为 INIT(1)/INIT_ACK(2)/COOKIE_ECHO(10)/COOKIE_ACK(11) 四路握手；f5 NGSetup 请求、f6 NGSetup 响应 (AMFName 'AMF-TEST-01')；f7-9 SHUTDOWN(7)/SHUTDOWN_ACK(8)/SHUTDOWN_COMPLETE(14)",
+        "SCTP DATA chunk PPID 60 (0x3c) = NGAP (TS 38.412)；f5 NGAP-PDU 首字节 0x00=initiatingMessage，procedureCode 21=id-NGSetup",
+        "无 TCP → 不使用 negotiated/terminates（SCTP 无 SYN/FIN 语义）；terminates 语义由 SHUTDOWN 序列覆盖",
+        "ngap 设计默认端口 38412 (SCTP)；9 帧 = 4 握手 + 2 DATA + 3 SHUTDOWN"
+      ]
+    }
+  }
+]

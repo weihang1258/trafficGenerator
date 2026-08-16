@@ -22,6 +22,10 @@ type Case struct {
 	// "strategy_flow_control" argument (e.g. {"type":"flows","value":N} for
 	// multi-flow cases). Absent = no strategy flow control.
 	StrategyFC *strategyFCInput `json:"strategy_fc,omitempty"`
+	// DecodeAs: extra tshark -d decode hints applied when verifying this case
+	// (e.g. {"udp.port==80,isakmp"} for ike_nat_t probes whose ports are not
+	// IANA well-known). Appended after the framework's fixed decode rules.
+	DecodeAs []string `json:"decode_as,omitempty"`
 	// Expect holds verification hints; verified against the pcap by verify.go.
 	Expect struct {
 		PacketCount  int           `json:"packet_count,omitempty"` // exact expected packet count

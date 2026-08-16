@@ -1,0 +1,56 @@
+[
+  {
+    "id": "ntp_smoke_01",
+    "proto": "ntp",
+    "summary": "冒烟：NTPv4 client 请求（空配置）。顶层不设端口 → 默认 dst 123（IANA），VN=4/Mode=3/Stratum=0，共 1 包",
+    "spec_json": {
+      "ntp": {}
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "123"
+        },
+        {
+          "packet": 1,
+          "field": "ntp.flags.vn",
+          "value": "4"
+        },
+        {
+          "packet": 1,
+          "field": "ntp.flags.mode",
+          "value": "3"
+        },
+        {
+          "packet": 1,
+          "field": "ntp.flags.li",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "ntp.stratum",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "ntp.ppoll",
+          "value": "6"
+        },
+        {
+          "packet": 1,
+          "field": "ntp.xmt",
+          "nonzero": true
+        }
+      ],
+      "notes": [
+        "RFC 5905 §7.3：LI/VN/Mode 首字节、Stratum、Poll 为固定头字段；client 请求 Mode=3、VN=4",
+        "顶层未设端口：dst 默认 123（strategy_convert）、src 保持 flow 默认 12345，不断言；随机传输时间戳（ntp.xmt 动态）不断言具体值",
+        "ntp.xmt nonzero：请求必须携带当前时间戳（探针实测非零）；refid/rootdelay/org 空配置恒 0（客户端未同步，探针实测）故不断言",
+        "tshark 探针实测：vn=4、mode=3、li=0、stratum=0、ppoll=6、dstport=123"
+      ]
+    }
+  }
+]

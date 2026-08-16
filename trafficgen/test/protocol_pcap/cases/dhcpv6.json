@@ -1,0 +1,141 @@
+[
+ {
+  "id": "dhcpv6_smoke_01",
+  "proto": "dhcpv6",
+  "summary": "冒烟：DHCPv6 SARR（Solicit/Advertise/Request/Reply，IPv6 链路，src_mac 必填）。顶层不设端口 → dst 默认 547（IANA）、src 保持 flow 默认 12345，leased addr 2001:db8::100，共 4 包",
+  "spec_json": {
+   "src_ip": "2001:db8::1",
+   "dst_ip": "2001:db8::2",
+   "src_mac": "aa:bb:cc:dd:ee:ff",
+   "dhcpv6": {
+    "scenario": "sarr",
+    "default_leased_addr": "2001:db8::100"
+   }
+  },
+  "expect": {
+   "packet_count": 4,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "547"
+    },
+    {
+     "packet": 1,
+     "field": "dhcpv6.msgtype",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "ipv6.hlim",
+     "value": "64"
+    },
+    {
+     "packet": 1,
+     "field": "ipv6.src",
+     "value": "2001:db8::1"
+    },
+    {
+     "packet": 1,
+     "field": "eth.src",
+     "value": "aa:bb:cc:dd:ee:ff"
+    },
+    {
+     "packet": 2,
+     "field": "dhcpv6.msgtype",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "dhcpv6.iaaddr.ip",
+     "value": "2001:db8::100"
+    },
+    {
+     "packet": 2,
+     "field": "ipv6.src",
+     "value": "2001:db8::2"
+    },
+    {
+     "packet": 3,
+     "field": "dhcpv6.msgtype",
+     "value": "3"
+    },
+    {
+     "packet": 3,
+     "field": "ipv6.src",
+     "value": "2001:db8::1"
+    },
+    {
+     "packet": 4,
+     "field": "dhcpv6.msgtype",
+     "value": "7"
+    },
+    {
+     "packet": 4,
+     "field": "dhcpv6.iaaddr.ip",
+     "value": "2001:db8::100"
+    },
+    {
+     "packet": 1,
+     "field": "dhcpv6.xid",
+     "value": "0x2603a1"
+    },
+    {
+     "packet": 2,
+     "field": "dhcpv6.xid",
+     "value": "0x2603a1"
+    },
+    {
+     "packet": 3,
+     "field": "dhcpv6.xid",
+     "value": "0x2603a1"
+    },
+    {
+     "packet": 4,
+     "field": "dhcpv6.xid",
+     "value": "0x2603a1"
+    },
+    {
+     "packet": 1,
+     "field": "ipv6.dst",
+     "value": "2001:db8::2"
+    },
+    {
+     "packet": 3,
+     "field": "ipv6.dst",
+     "value": "2001:db8::2"
+    }
+   ],
+   "notes": [
+    "RFC 8415 §6.4/7：msgtype 1=Solicit、2=Advertise、3=Request、7=Reply",
+    "resolveAddrs 按方向交换端口/IP：src 保持 flow 默认 12345（非 0 故不触发 546 默认），dst 默认 547（strategy_convert）；src_mac 必填（DUID-LLT 由 MAC 生成，validate 拒绝缺失）",
+    "IA_NA 地址（option 5）由 default_leased_addr 确定；端口断言仅 udp.dstport=547",
+    "tshark 探针实测：msgtype/iaaddr/ipv6.src 交换/eth.src 与上表一致；hlim=64",
+    "SARR 四包 xid 全为 0x2603a1（RFC 8415 同一交换 xid 一致）——xid 偏移 46 (msgtype 1B + 3B)，字节+字段双断言",
+    "Solicit/Request 目的为单播 2001:db8::2（流量生成器允许单播；RFC 8415 §7.2 标准用 ff02::1:2 多播）"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 46,
+     "hex": "26 03 a1"
+    },
+    {
+     "packet": 2,
+     "offset": 46,
+     "hex": "26 03 a1"
+    },
+    {
+     "packet": 3,
+     "offset": 46,
+     "hex": "26 03 a1"
+    },
+    {
+     "packet": 4,
+     "offset": 46,
+     "hex": "26 03 a1"
+    }
+   ]
+  }
+ }
+]
