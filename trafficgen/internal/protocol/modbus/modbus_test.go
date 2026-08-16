@@ -3,6 +3,7 @@
 package modbus
 
 import (
+	"context"
 	"encoding/binary"
 	"testing"
 
@@ -379,6 +380,33 @@ func TestT025_ReadDeviceIdentification(t *testing.T) {
 		0x00, 0x04, 0x41, 0x42, 0x43, 0x44,
 	}
 	assertBytes(t, "response PDU", expectedResp, respPDU)
+}
+
+// === T-025b: FC=0x2B request default Read Code + Object ID (deep audit fix) ===
+// A FC 0x2B/0x0E Read Device Identification request without explicit Values
+// must still carry the mandatory Read Device ID Code + Object ID bytes
+// (PDU = 2B 0E 01 00), otherwise tshark marks the frame Malformed.
+// Design §3.3.17: request = FC(1) + MEI Type(1) + Read Device ID Code(1) +
+// Object ID(1); default code=0x01 (Basic), object ID=0x00.
+func TestT025b_MEIRequestDefaultsReadCodeObjectID(t *testing.T) {
+	op := &core.MODBUSOperation{
+		FunctionCode: 0x2B,
+		SubFunction:  0x000E, // MEI Type 0x0E
+		// no Values: must default to 01 00
+	}
+	reqPDU := buildRequestPDU(op)
+	assertBytes(t, "request PDU", []byte{0x2B, 0x0E, 0x01, 0x00}, reqPDU)
+}
+
+// === T-025c: FC=0x2B request with explicit Values is preserved ===
+func TestT025c_MEIRequestExplicitValuesPreserved(t *testing.T) {
+	op := &core.MODBUSOperation{
+		FunctionCode: 0x2B,
+		SubFunction:  0x000E,
+		Values:       []byte{0x02, 0x01}, // Regular code, Object ID=1
+	}
+	reqPDU := buildRequestPDU(op)
+	assertBytes(t, "request PDU", []byte{0x2B, 0x0E, 0x02, 0x01}, reqPDU)
 }
 
 // === T-027: FC=0x17 Read/Write Multiple Registers ===
@@ -1813,5 +1841,69 @@ func TestT118_FC14ItemRecordLengthZero(t *testing.T) {
 	p := NewPlanner()
 	if err := p.validateOperation(op, &core.MODBUSConfig{}); err == nil {
 		t.Error("expected error for record length=0 (V-114)")
+	}
+}
+
+// === T-020-RV: FC=0x14 合法响应通过 validateResponseValues (R3-C1) ===
+// T-020 的 ResponseValues 直接调 buildResponsePDU 绕过校验；这里走
+// validateOperation 全路径，验证 item 长度公式 = 1 + FRL（File Response
+// Length 含 RefType 在内的记录数据字节数，设计文档 §11.4 R3-C1）。
+func TestT020RV_FC14ValidResponsePassesValidation(t *testing.T) {
+	op := &core.MODBUSOperation{
+		FunctionCode: 0x14,
+		Values: []byte{ // 1 item: RefType(0x06) + File(0001) + Record(0000) + RecLen(0002)
+			0x06, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02,
+		},
+		ResponseValues: []byte{ // BC=6, item: FileRespLen=0x05(=1+2*RL) + RefType=0x06 + RecordData(4B)
+			0x06, 0x05, 0x06, 0x12, 0x34, 0x56, 0x78,
+		},
+	}
+	p := NewPlanner()
+	if err := p.validateOperation(op, &core.MODBUSConfig{}); err != nil {
+		t.Errorf("T-020 合法 FC 0x14 响应必须通过校验 (item 长度 = 1+FRL), got %v", err)
+	}
+}
+
+// === T-075: Transactions=[] (empty, non-nil) → 0 transactions ===
+// JSON `transactions: []` must convert to a non-nil empty slice so the
+// planner does NOT inject the default FC=0x03 transaction: the flow is
+// handshake (3) + teardown (4) only = 7 packets, zero modbus payloads.
+// Regression test for the convert-time `[]` → nil collapse (T-074 default
+// injection was wrongly triggered for explicit empty arrays).
+func TestT075_EmptyTransactionsZeroRequests(t *testing.T) {
+	cfg := &core.MODBUSConfig{
+		UnitID:       u8ptr(1),
+		Transactions: []core.MODBUSOperation{}, // non-nil empty
+	}
+	spec := core.FlowSpec{
+		SrcIP:   "10.0.0.1",
+		DstIP:   "20.0.0.1",
+		SrcMAC:  "02:00:00:00:00:01",
+		DstMAC:  "02:00:00:00:00:02",
+		SrcPort: 20000,
+		DstPort: 502,
+		MODBUS:  cfg,
+	}
+	p := NewPlanner()
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	modbusPayloads := 0
+	total := 0
+	for pc := range ch {
+		total++
+		if len(pc.Payload) > 0 {
+			modbusPayloads++
+		}
+	}
+	if total != 7 {
+		t.Errorf("packet count = %d, want 7 (3 handshake + 4 teardown, T-075)", total)
+	}
+	if modbusPayloads != 0 {
+		t.Errorf("modbus payload packets = %d, want 0 (no default FC=0x03 injection)", modbusPayloads)
 	}
 }

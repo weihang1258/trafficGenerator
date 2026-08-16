@@ -655,13 +655,14 @@ func validateResponseValues(op *core.MODBUSOperation) error {
 			return fmt.Errorf("response_values length for FC 0x11 must be 2 + N (slave id + run indicator)")
 		}
 	case 0x14:
-		// Outer Byte Count(1) + items; every item = 2 + 2*RL (R3-C1).
+		// Outer Byte Count(1) + items; item = File Response Length(1) +
+		// RefType(1) + Record Data(FRL-1), so itemLen = 1 + FRL (R3-C1).
 		items := op.ResponseValues[1:]
 		if len(items)%2 != 0 {
 			return fmt.Errorf("response_values length for FC 0x14 must be 1 + sum(item lengths)")
 		}
 		for i := 0; i+1 < len(items); {
-			itemLen := 2 + 2*(int(items[i])-1)
+			itemLen := 1 + int(items[i])
 			if itemLen < 2 || i+itemLen > len(items) {
 				return fmt.Errorf("response_values length for FC 0x14 must be 1 + sum(item lengths)")
 			}
@@ -910,10 +911,19 @@ func buildReadFIFORequest(op *core.MODBUSOperation) []byte {
 }
 
 func buildMEIRequest(op *core.MODBUSOperation) []byte {
-	pdu := make([]byte, 2+len(op.Values))
+	// §3.3.17: FC 0x2B/0x0E Read Device Identification request PDU =
+	// FC(1) + MEI Type(1) + Read Device ID Code(1) + Object ID(1).
+	// When Values is absent the mandatory code+object bytes must still be
+	// emitted (default Read Code=0x01 Basic, Object ID=0x00), otherwise
+	// tshark marks the frame Malformed (deep audit 2026-08).
+	data := op.Values
+	if len(data) == 0 {
+		data = []byte{0x01, 0x00}
+	}
+	pdu := make([]byte, 2+len(data))
 	pdu[0] = op.FunctionCode
 	pdu[1] = uint8(op.SubFunction & 0xFF) // MEI Type
-	copy(pdu[2:], op.Values)
+	copy(pdu[2:], data)
 	return pdu
 }
 
