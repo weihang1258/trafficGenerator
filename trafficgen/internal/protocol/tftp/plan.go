@@ -47,12 +47,6 @@ func (p *Planner) emit(
 	hasOptions := anyOptionSet(reqOpts)
 	hasOACK := hasOptions || cfg.IncludeOACK
 
-	// Build retransmit set for O(1) lookup.
-	retransmitSet := make(map[uint32]bool, len(cfg.RetransmitBlocks))
-	for _, b := range cfg.RetransmitBlocks {
-		retransmitSet[b] = true
-	}
-
 	// 1. Emit RRQ or WRQ (up, client → server:69).
 	rrqPayload := buildRRQWRQ(opcodeForMode(isRead), cfg.Filename, cfg.TransferMode, reqOpts)
 	idx = emitPacket(ctx, configChan, spec, cfg, flowID, idx, "up",
@@ -158,13 +152,13 @@ func (p *Planner) emit(
 		blockNum := wireBlockNum(i, cfg.WrapBlockNumber)
 		dataPkt := buildDATA(blockNum, data)
 
-		// Retransmit: skip the original DATA for retransmitted blocks (S10).
-		if retransmitSet[i] {
-			// Original is "lost"; only the retransmit appears.
-		} else {
-			idx = emitPacket(ctx, configChan, spec, cfg, flowID, idx, dataDir,
-				dataSrcPort, dataDstPort, dataPkt, isRead, i)
-		}
+		// Retransmit (S10, §4.5): the original DATA for block i is "lost" —
+		// only the retransmit DATA appears, at the same position the original
+		// would have occupied (the retransmit IS the transfer packet for that
+		// block). Emit the retransmit DATA in every case; the block is present
+		// exactly once in the sequence, with bytes identical to the original.
+		idx = emitPacket(ctx, configChan, spec, cfg, flowID, idx, dataDir,
+			dataSrcPort, dataDstPort, dataPkt, isRead, i)
 
 		// TID change: emit ERROR(5) from client to new TID, then ACK to new TID.
 		if cfg.ServerTIDChange && i == cfg.ServerTIDChangeAtBlock {
@@ -288,24 +282,27 @@ func emitPacket(
 		return idx
 	default:
 	}
+	// Server→client (down) packets swap source/destination at L2 and L3 so
+	// the flow reads as the server (dst) talking back to the client (src);
+	// without the swap tshark cannot associate the TFTP session (TSXID).
+	srcMAC, dstMAC := spec.SrcMAC, spec.DstMAC
+	srcIP, dstIP := spec.SrcIP, spec.DstIP
+	if direction == "down" {
+		srcMAC, dstMAC = spec.DstMAC, spec.SrcMAC
+		srcIP, dstIP = spec.DstIP, spec.SrcIP
+	}
 	pc := core.PacketConfig{
 		FlowID:      flowID,
 		PacketIndex: idx,
 		ClassID:     "",
 		Direction:   direction,
 		L2: core.L2Config{
-			SrcMAC:    spec.SrcMAC,
-			DstMAC:    spec.DstMAC,
+			SrcMAC:    srcMAC,
+			DstMAC:    dstMAC,
 			EtherType: core.EtherTypeFor(spec.SrcIP),
 			VLAN:      spec.VLAN,
 		},
-		L3: core.L3Config{
-			SrcIP: spec.SrcIP,
-			DstIP: spec.DstIP,
-			TTL:   effectiveTTL(spec.TTL),
-			DSCP:  spec.DSCP,
-			ECN:   spec.ECN,
-		},
+		L3: core.L3Base(srcIP, dstIP, core.ProtocolUDP, effectiveTTL(spec.TTL), uint16(idx&0xffff), *spec),
 		L4: core.L4Config{
 			Protocol: "udp",
 			SrcPort:  srcPort,

@@ -37,7 +37,34 @@ func mustPlan(t *testing.T, p *Planner, spec core.FlowSpec) []core.PacketConfig 
 	if err != nil {
 		t.Fatalf("Plan returned error: %v", err)
 	}
-	return drain(ch)
+	cfgs := drain(ch)
+	// Regression guards for the two wire-format bugs found via pcap review:
+	// (1) L3.Protocol must be UDP(17) with DF set, else tshark cannot decode;
+	// (2) down-direction packets must swap L2/L3 src/dst so the server is
+	// seen talking back to the client (TSXID association).
+	for i, c := range cfgs {
+		if c.L3.Protocol != core.ProtocolUDP {
+			t.Fatalf("packet[%d] L3.Protocol = %d, want %d (UDP)", i, c.L3.Protocol, core.ProtocolUDP)
+		}
+		if c.L3.Flags&core.IPFlagDF == 0 {
+			t.Fatalf("packet[%d] L3.Flags = %#x, want DF bit (%#x) set", i, c.L3.Flags, core.IPFlagDF)
+		}
+		wantSrcIP, wantDstIP := spec.SrcIP, spec.DstIP
+		wantSrcMAC, wantDstMAC := spec.SrcMAC, spec.DstMAC
+		if c.Direction == "down" {
+			wantSrcIP, wantDstIP = spec.DstIP, spec.SrcIP
+			wantSrcMAC, wantDstMAC = spec.DstMAC, spec.SrcMAC
+		}
+		if c.L3.SrcIP != wantSrcIP || c.L3.DstIP != wantDstIP {
+			t.Fatalf("packet[%d] (%s) L3 %s->%s, want %s->%s",
+				i, c.Direction, c.L3.SrcIP, c.L3.DstIP, wantSrcIP, wantDstIP)
+		}
+		if c.L2.SrcMAC != wantSrcMAC || c.L2.DstMAC != wantDstMAC {
+			t.Fatalf("packet[%d] (%s) L2 %s->%s, want %s->%s",
+				i, c.Direction, c.L2.SrcMAC, c.L2.DstMAC, wantSrcMAC, wantDstMAC)
+		}
+	}
+	return cfgs
 }
 
 func mustFailValidate(t *testing.T, p *Planner, spec core.FlowSpec, wantErr string) {
@@ -59,6 +86,7 @@ func tftpSpec(cfg *core.TFTPConfig) core.FlowSpec {
 		DstPort: 69,
 		SrcMAC:  "aa:bb:cc:dd:ee:ff",
 		DstMAC:  "11:22:33:44:55:66",
+		IPFlags: core.IPFlagDF, // direct-construction path: DF default must be explicit
 	}
 	spec.TFTP = cfg
 	return spec
@@ -671,6 +699,148 @@ func TestDeriveBlocksCount_FromPattern(t *testing.T) {
 	}
 	if len(got[1]) != 516 {
 		t.Errorf("DATA#1 length = %d, want 516 (4 + 512)", len(got[1]))
+	}
+}
+
+// T-113: 单块重传（S10）— retransmit_blocks=[2], blocks_count=3, pattern=0xAA。
+// spec（06-tftp-design.md T-113）：RRQ → DATA#1/ACK#1 → DATA#2(重传)/ACK#2 →
+// DATA#3/ACK#3 → DATA#4(0B)/ACK#4，共 9 包。DATA#2 仅重传版本出现 1 次
+// （无"原 DATA#2+原 ACK#2"），重传字节与原块相同（§4.5）。
+func TestS10_RetransmitSingleBlock(t *testing.T) {
+	autoAppend := true
+	cfg := &core.TFTPConfig{
+		Mode:                 "read",
+		Filename:             "retrans.bin",
+		TransferMode:         "octet",
+		BlocksCount:          3,
+		DataPayloadPattern:   bytes.Repeat([]byte{0xAA}, 512),
+		RetransmitBlocks:     []uint32{2},
+		AutoAppendFinalBlock: &autoAppend,
+	}
+	cfgs := mustPlan(t, NewPlanner(), tftpSpec(cfg))
+	got := udpPayloads(cfgs)
+
+	// RRQ + 4×DATA + 4×ACK = 9 包
+	if len(got) != 9 {
+		t.Fatalf("got %d packets, want 9 (RRQ + 4 DATA + 4 ACK, DATA#2 retransmit only)", len(got))
+	}
+
+	wantRRQ := "000172657472616e732e62696e006f6374657400"
+	if hexStr(got[0]) != wantRRQ {
+		t.Errorf("RRQ = %s, want %s", hexStr(got[0]), wantRRQ)
+	}
+
+	// DATA#1: 00 03 00 01 + 512B
+	if hexStr(got[1][:4]) != "00030001" || len(got[1]) != 516 {
+		t.Errorf("DATA#1 = %s(len %d), want opcode 0003 block 0001 516B", hexStr(got[1]), len(got[1]))
+	}
+	// ACK#1
+	if hexStr(got[2]) != "00040001" {
+		t.Errorf("ACK#1 = %s, want 00040001", hexStr(got[2]))
+	}
+	// DATA#2(重传): 00 03 00 02 + 512B — 必须出现（原实现跳过重传 DATA）
+	if hexStr(got[3][:4]) != "00030002" || len(got[3]) != 516 {
+		t.Errorf("DATA#2(retransmit) = %s(len %d), want opcode 0003 block 0002 516B", hexStr(got[3]), len(got[3]))
+	}
+	// ACK#2
+	if hexStr(got[4]) != "00040002" {
+		t.Errorf("ACK#2 = %s, want 00040002", hexStr(got[4]))
+	}
+	// DATA#3
+	if hexStr(got[5][:4]) != "00030003" || len(got[5]) != 516 {
+		t.Errorf("DATA#3 = %s(len %d), want opcode 0003 block 0003 516B", hexStr(got[5]), len(got[5]))
+	}
+	// ACK#3
+	if hexStr(got[6]) != "00040003" {
+		t.Errorf("ACK#3 = %s, want 00040003", hexStr(got[6]))
+	}
+	// DATA#4(0B 自动追加) / ACK#4
+	if hexStr(got[7]) != "00030004" || len(got[7]) != 4 {
+		t.Errorf("DATA#4(0B) = %s(len %d), want 00030004 with 0-byte payload", hexStr(got[7]), len(got[7]))
+	}
+	if hexStr(got[8]) != "00040004" {
+		t.Errorf("ACK#4 = %s, want 00040004", hexStr(got[8]))
+	}
+
+	// §4.5：重传不改变字节 — DATA#2 字节与无重传时的 DATA#2 相同。
+	// 单独用相同配置（无 RetransmitBlocks）生成参考序列比对。
+	cfgRef := &core.TFTPConfig{
+		Mode:                 "read",
+		Filename:             "retrans.bin",
+		TransferMode:         "octet",
+		BlocksCount:          3,
+		DataPayloadPattern:   bytes.Repeat([]byte{0xAA}, 512),
+		AutoAppendFinalBlock: &autoAppend,
+	}
+	ref := udpPayloads(mustPlan(t, NewPlanner(), tftpSpec(cfgRef)))
+	if len(ref) != 9 {
+		t.Fatalf("reference: got %d packets, want 9", len(ref))
+	}
+	if !bytes.Equal(got[3][4:], ref[3][4:]) {
+		t.Errorf("DATA#2 retransmit payload differs from reference (bytes must be identical per §4.5)")
+	}
+}
+
+// T-114: 多块重传 — retransmit_blocks=[1,3], blocks_count=4, pattern=0xAA。
+// spec：RRQ + 4 块（#1/#3 为重传版本）+ 自动追加 DATA#5(0B)/ACK#5。
+// DATA#1、DATA#3 各 1 次（重传）；DATA#2/#4 正常。
+func TestS10_RetransmitMultipleBlocks(t *testing.T) {
+	autoAppend := true
+	cfg := &core.TFTPConfig{
+		Mode:                 "read",
+		Filename:             "retrans_m.bin",
+		TransferMode:         "octet",
+		BlocksCount:          4,
+		DataPayloadPattern:   bytes.Repeat([]byte{0xAA}, 512),
+		RetransmitBlocks:     []uint32{1, 3},
+		AutoAppendFinalBlock: &autoAppend,
+	}
+	cfgs := mustPlan(t, NewPlanner(), tftpSpec(cfg))
+	got := udpPayloads(cfgs)
+
+	// RRQ + 5×DATA + 5×ACK = 11 包
+	if len(got) != 11 {
+		t.Fatalf("got %d packets, want 11 (RRQ + 5 DATA + 5 ACK, #1/#3 retransmit only)", len(got))
+	}
+
+	// DATA#1(重传) 必须出现
+	if hexStr(got[1][:4]) != "00030001" || len(got[1]) != 516 {
+		t.Errorf("DATA#1(retransmit) = %s(len %d), want 00030001 516B", hexStr(got[1]), len(got[1]))
+	}
+	// ACK#1
+	if hexStr(got[2]) != "00040001" {
+		t.Errorf("ACK#1 = %s, want 00040001", hexStr(got[2]))
+	}
+	// DATA#2 正常
+	if hexStr(got[3][:4]) != "00030002" {
+		t.Errorf("DATA#2 = %s, want 00030002", hexStr(got[3]))
+	}
+	// ACK#2
+	if hexStr(got[4]) != "00040002" {
+		t.Errorf("ACK#2 = %s, want 00040002", hexStr(got[4]))
+	}
+	// DATA#3(重传) 必须出现
+	if hexStr(got[5][:4]) != "00030003" || len(got[5]) != 516 {
+		t.Errorf("DATA#3(retransmit) = %s(len %d), want 00030003 516B", hexStr(got[5]), len(got[5]))
+	}
+	// ACK#3
+	if hexStr(got[6]) != "00040003" {
+		t.Errorf("ACK#3 = %s, want 00040003", hexStr(got[6]))
+	}
+	// DATA#4 正常
+	if hexStr(got[7][:4]) != "00030004" {
+		t.Errorf("DATA#4 = %s, want 00030004", hexStr(got[7]))
+	}
+	// ACK#4
+	if hexStr(got[8]) != "00040004" {
+		t.Errorf("ACK#4 = %s, want 00040004", hexStr(got[8]))
+	}
+	// DATA#5(0B 自动追加) / ACK#5
+	if hexStr(got[9]) != "00030005" || len(got[9]) != 4 {
+		t.Errorf("DATA#5(0B) = %s(len %d), want 00030005 4B", hexStr(got[9]), len(got[9]))
+	}
+	if hexStr(got[10]) != "00040005" {
+		t.Errorf("ACK#5 = %s, want 00040005", hexStr(got[10]))
 	}
 }
 
