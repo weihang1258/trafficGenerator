@@ -4326,6 +4326,13 @@ func parseMQTTSessions(v interface{}) []MQTTSession {
 			b := v
 			s.Disconnect = &b
 		}
+		// Bug fix: session-level disconnect_reason was silently dropped, so a
+		// session override never reached the planner's whitelist check.
+		// Same pattern as the top-level field: nil means "inherit".
+		if v, ok := m["disconnect_reason"]; ok && v != nil {
+			n := getInt(m, "disconnect_reason")
+			s.DisconnectReason = &n
+		}
 		if sub, ok := m["will"].(map[string]interface{}); ok && sub != nil {
 			s.Will = parseMQTTWill(sub)
 		}

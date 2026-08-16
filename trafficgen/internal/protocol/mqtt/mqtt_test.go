@@ -2536,6 +2536,62 @@ func TestDisconnectReasonV4Rejected(t *testing.T) {
 	}
 }
 
+// T-187 session gap: per-session DisconnectReason bypasses the top-level
+// whitelist. mergeSession copies the override into the effective config and
+// buildDisconnect emits it verbatim, so an out-of-whitelist code (0x7F, e.g.
+// reserved 5.0 §3.14.2.1) would put a protocol-invalid DISCONNECT on the wire.
+func TestDisconnectReasonV5InvalidWhitelist(t *testing.T) {
+	p := NewPlanner()
+	cfg := &MQTTConfig{
+		Version: 5,
+		// Top-level has NO DisconnectReason — only the session override.
+		ClientID: "c1",
+		Sessions: []core.MQTTSession{
+			{ClientID: "s1", DisconnectReason: intPtr(0x7F)},
+		},
+	}
+	spec := core.FlowSpec{MQTT: cfg}
+	if err := p.Validate(spec); err == nil {
+		t.Error("expected error for session disconnect_reason 0x7F outside 5.0 whitelist, got nil")
+	}
+}
+
+// T-187 session gap: per-session DisconnectReason on a 3.1.1 connection must
+// be rejected like the top-level field (DISCONNECT has no Reason Code in
+// 3.1.1). Previously only the top-level field was checked.
+func TestDisconnectReasonV4SessionRejected(t *testing.T) {
+	p := NewPlanner()
+	cfg := &MQTTConfig{
+		Version: 4,
+		ClientID: "c1",
+		Sessions: []core.MQTTSession{
+			{ClientID: "s1", DisconnectReason: intPtr(0x8D)},
+		},
+	}
+	spec := core.FlowSpec{MQTT: cfg}
+	if err := p.Validate(spec); err == nil {
+		t.Error("expected error for session disconnect_reason on v3.1.1, got nil")
+	}
+}
+
+// T-187 session gap, negative control: a session that inherits the top-level
+// reason must pass — the whitelist check must not reject nil/inherited values.
+func TestDisconnectReasonV5SessionValidControl(t *testing.T) {
+	p := NewPlanner()
+	cfg := &MQTTConfig{
+		Version:          5,
+		ClientID:         "c1",
+		DisconnectReason: intPtr(0x8D), // top-level valid
+		Sessions: []core.MQTTSession{
+			{ClientID: "s1", Messages: []MQTTMessage{{Topic: "t/1", Payload: "a", QoS: 0}}},
+		},
+	}
+	spec := core.FlowSpec{MQTT: cfg}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("valid session (inherited reason) rejected: %v", err)
+	}
+}
+
 // T-073: empty topic + Topic Alias=1 on the FIRST message must be rejected
 // (alias mapping not yet established).
 func TestValidateEmptyTopicFirstAliasRejected(t *testing.T) {

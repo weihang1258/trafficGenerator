@@ -405,6 +405,19 @@ func validateMergedSession(version int, cfg *MQTTConfig, idx int) error {
 			return fmt.Errorf("mqtt: session[%d]: %w", idx, err)
 		}
 	}
+	// Bug fix (T-074c): merged session validation previously skipped the
+	// DisconnectReason rules. mergeSession copies the session override into
+	// the effective config and buildDisconnect emits it verbatim, so an
+	// out-of-whitelist code would put a protocol-invalid DISCONNECT on the
+	// wire. Same rules as the top-level check.
+	if cfg.DisconnectReason != nil {
+		if version == 4 {
+			return fmt.Errorf("mqtt: session[%d] disconnect_reason is 5.0 only", idx)
+		}
+		if !validDisconnectReason(*cfg.DisconnectReason) {
+			return fmt.Errorf("mqtt: session[%d] invalid disconnect_reason 0x%02X for version 5.0", idx, *cfg.DisconnectReason)
+		}
+	}
 	// Bug fix (T-074b): session messages bypassed the flow-level Topic Alias
 	// rules — a session PUBLISH carrying 0x23 without a declared 0x22
 	// maximum passed validation. Re-run the same alias checks on the merged
@@ -898,6 +911,9 @@ func emitAll(ctx context.Context, spec core.FlowSpec, configChan chan<- core.Pac
 // mergeSession merges top-level config with a session's overrides following
 // the inheritance rules: scalar fields inherit when the session field is
 // zero/nil; slice fields REPLACE when non-nil and inherit when nil.
+// Disconnect and DisconnectReason are both merged here and consumed from the
+// merged config at the emit site (emitSessionFlow), so session overrides of
+// the teardown and its reason code take effect.
 func mergeSession(top *MQTTConfig, s core.MQTTSession) *MQTTConfig {
 	out := *top // shallow copy; slices are nil-safe because we replace/inherit below
 	if s.ClientID != "" {
