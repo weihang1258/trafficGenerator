@@ -248,9 +248,27 @@ func buildInitializeRequest(id int, protocolVersion string, clientInfo core.MCPC
 // logging/completion; the caller MUST explicitly set ServerCapabilities
 // if capabilities are desired. This mirrors buildInitializeRequest's
 // behavior for the client side (both omit capabilities when absent).
+//
+// protocolVersion is the SERVER's version: per design §7.1 / T11 the
+// response must reflect the server's supported protocol version (the
+// planner passes the server version, which is at most 2024-11-05), never
+// echo a newer client-requested version.
 func buildInitializeResponse(id int, protocolVersion string, serverInfo core.MCPServerInfo, serverCaps json.RawMessage) ([]byte, error) {
 	if protocolVersion == "" {
 		protocolVersion = DefaultProtocolVersion
+	}
+	// Capability clamp: the server implementation supports only the baseline
+	// 2024-11-05 protocol. A caller-requested newer version (2025-03-26 /
+	// 2025-06-18) is downgraded to the server maximum rather than echoed.
+	// Kept as a defensive invariant independent of the planner call site.
+	for _, v := range []string{DefaultProtocolVersion, "2025-03-26", "2025-06-18"} {
+		if protocolVersion == v {
+			break
+		}
+		if protocolVersion == "2025-03-26" || protocolVersion == "2025-06-18" {
+			protocolVersion = DefaultProtocolVersion
+			break
+		}
 	}
 	if serverInfo.Name == "" {
 		serverInfo.Name = "trafficgen-server"

@@ -39,17 +39,17 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	if cfg.ProtocolVersion == "" {
 		cfg.ProtocolVersion = DefaultProtocolVersion
 	}
-	if cfg.ClientInfo.Name == "" {
-		cfg.ClientInfo.Name = "trafficgen-client"
-	}
-	if cfg.ClientInfo.Version == "" {
-		cfg.ClientInfo.Version = "1.0.0"
+	// Server-side protocol version: the server (trafficgen) speaks only the
+	// baseline 2024-11-05. Per design §7.1 / T11 the initialize RESPONSE must
+	// downgrade to the server's supported version rather than echo the
+	// client's request. The REQUEST still carries the client's version
+	// (buildInitializeRequest uses cfg.ProtocolVersion).
+	serverVersion := DefaultProtocolVersion
+	if cfg.ServerInfo.Version == "" {
+		cfg.ServerInfo.Version = "1.0.0"
 	}
 	if cfg.ServerInfo.Name == "" {
 		cfg.ServerInfo.Name = "trafficgen-server"
-	}
-	if cfg.ServerInfo.Version == "" {
-		cfg.ServerInfo.Version = "1.0.0"
 	}
 	if len(cfg.Requests) == 0 {
 		cfg.Requests = append([]core.MCPRequest(nil), DefaultRequestSequence...)
@@ -139,8 +139,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 		emitAppData(ctx, out, spec, dstPort, flowID, "up", ttl, ps, framePayload(cfg.Transport, initReq))
 
-		// 3. initialize response (same id).
-		initResp, err := buildInitializeResponse(initID, cfg.ProtocolVersion, cfg.ServerInfo, cfg.ServerCapabilities)
+		// 3. initialize response (same id, server downgrades protocol version).
+		initResp, err := buildInitializeResponse(initID, serverVersion, cfg.ServerInfo, cfg.ServerCapabilities)
 		if err != nil {
 			sendErr(fmt.Errorf("mcp: build initialize response: %w", err))
 			return

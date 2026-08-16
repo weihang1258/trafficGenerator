@@ -274,7 +274,9 @@ func planHTTPSSE(ctx context.Context, out chan<- core.PacketConfig, spec core.Fl
 	// endpoint 事件指定的 URI").
 	initID := ps.idCounter
 	ps.idCounter++
-	initResp, err := buildInitializeResponse(initID, cfg.ProtocolVersion, cfg.ServerInfo, cfg.ServerCapabilities)
+	// Server-side version: the server speaks only 2024-11-05 (design
+	// §7.1 / T11 downgrade); the REQUEST carries the client version.
+	initResp, err := buildInitializeResponse(initID, DefaultProtocolVersion, cfg.ServerInfo, cfg.ServerCapabilities)
 	if err != nil {
 		sendErr(fmt.Errorf("mcp: build initialize response: %w", err))
 		return
@@ -413,8 +415,8 @@ func planStreamable(ctx context.Context, out chan<- core.PacketConfig, spec core
 	emitAppData(ctx, out, spec, dstPort, flowID, "up", ttl, ps, postInit)
 
 	// initialize response: 200 OK + application/json body (simple
-	// request/response scenario, §A.3).
-	initResp, err := buildInitializeResponse(initID, cfg.ProtocolVersion, cfg.ServerInfo, cfg.ServerCapabilities)
+	// request/response scenario, §A.3). Server version per §7.1 / T11.
+	initResp, err := buildInitializeResponse(initID, DefaultProtocolVersion, cfg.ServerInfo, cfg.ServerCapabilities)
 	if err != nil {
 		sendErr(fmt.Errorf("mcp: build initialize response: %w", err))
 		return

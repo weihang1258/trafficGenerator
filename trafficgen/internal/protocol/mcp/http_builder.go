@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -32,10 +33,15 @@ func buildHTTPRequest(method, path, host string, headers map[string]string, body
 	sb.WriteString("Host: ")
 	sb.WriteString(host)
 	sb.WriteString("\r\n")
-	for k, v := range headers {
+	keys := make([]string, 0, len(headers))
+	for k := range headers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
 		sb.WriteString(k)
 		sb.WriteString(": ")
-		sb.WriteString(v)
+		sb.WriteString(headers[k])
 		sb.WriteString("\r\n")
 	}
 	if len(body) > 0 {
@@ -58,10 +64,15 @@ func buildHTTPResponse(statusCode int, statusText string, headers map[string]str
 	sb.WriteByte(' ')
 	sb.WriteString(statusText)
 	sb.WriteString("\r\n")
-	for k, v := range headers {
+	keys := make([]string, 0, len(headers))
+	for k := range headers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
 		sb.WriteString(k)
 		sb.WriteString(": ")
-		sb.WriteString(v)
+		sb.WriteString(headers[k])
 		sb.WriteString("\r\n")
 	}
 	if len(body) > 0 {

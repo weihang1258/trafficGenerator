@@ -783,6 +783,44 @@ func TestPlan_ProtocolVersionDowngrade(t *testing.T) {
 	}
 }
 
+// TestPlan_ProtocolVersionDowngrade_ServerClamp verifies design §7.1 / T11:
+// when the client requests a protocol version newer than the server's
+// supported maximum (2024-11-05), the initialize RESPONSE must carry the
+// server's own version (downgrade), not echo the client's version.
+// This test pins the spec requirement and guards the planner's clamp.
+func TestPlan_ProtocolVersionDowngrade_ServerClamp(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1",
+		DstIP: "10.0.0.2",
+		MCP: &core.MCPConfig{
+			Transport:       TransportStdio,
+			ProtocolVersion: "2025-06-18", // client's requested version
+			Requests:        []core.MCPRequest{{Method: "ping"}},
+		},
+	}
+	ch, err := (&Planner{}).Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan error: %v", err)
+	}
+	pkts := drain(ch)
+
+	reqBytes := findPayload(pkts, []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize"`))
+	if reqBytes == nil {
+		t.Fatalf("initialize request not found")
+	}
+	if !strings.Contains(string(reqBytes), `"protocolVersion":"2025-06-18"`) {
+		t.Errorf("client request must carry 2025-06-18, got: %s", string(reqBytes))
+	}
+
+	respBytes := findPayload(pkts, []byte(`{"jsonrpc":"2.0","id":1,"result":`))
+	if respBytes == nil {
+		t.Fatalf("initialize response not found")
+	}
+	if !strings.Contains(string(respBytes), `"protocolVersion":"2024-11-05"`) {
+		t.Errorf("server response must downgrade to 2024-11-05 (design §7.1 / T11), got: %s", string(respBytes))
+	}
+}
+
 // --- T58/T96: HTTP+SSE complete session — GET before POST, endpoint event ---
 
 func TestPlan_HTTPSSE_GetBeforePost(t *testing.T) {
