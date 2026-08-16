@@ -68,12 +68,16 @@ func TestPGValidate_ValidSpec(t *testing.T) {
 	}
 }
 
-func TestPGValidate_NilConfigOK(t *testing.T) {
+func TestPGValidate_NilConfigRejected(t *testing.T) {
 	p := NewPlanner()
 	spec := validPGSpec()
 	spec.PostgreSQL = nil
-	if err := p.Validate(spec); err != nil {
-		t.Errorf("nil PG config should be accepted: %v", err)
+	err := p.Validate(spec)
+	if err == nil {
+		t.Fatalf("nil PG config should be rejected: got nil error")
+	}
+	if !strings.Contains(err.Error(), "postgresql:") || !strings.Contains(err.Error(), "config") {
+		t.Errorf("err=%v, want contains 'postgresql:' and 'config'", err)
 	}
 }
 
@@ -799,16 +803,25 @@ func TestPGPlan_ReplicationStartEmitsCopyBoth(t *testing.T) {
 	}
 }
 
-// TestPGPlan_NilPostgresReturnsEmptyChannel verifies the planner
-// gracefully no-ops when PostgreSQL is nil (caller asked for a different
-// protocol; the engine shouldn't get duplicate packets).
-func TestPGPlan_NilPostgresReturnsEmptyChannel(t *testing.T) {
+// TestPGPlan_NilPostgresFails verifies that Plan rejects a nil
+// PostgreSQL config instead of silently producing 0 packet configs.
+// A nil config used to yield an empty channel, which made tasks report
+// "completed" with 0 packets (the engine 0-config guard at worker.go
+// now surfaces this as "planner produced 0 packet configs"; the planner
+// itself must fail fast with a descriptive error).
+func TestPGPlan_NilPostgresFails(t *testing.T) {
 	p := NewPlanner()
 	spec := validPGSpec()
 	spec.PostgreSQL = nil
-	cfgs := drain(mustPlan(t, p, spec))
-	if len(cfgs) != 0 {
-		t.Errorf("expected 0 cfgs, got %d", len(cfgs))
+	ch, err := p.Plan(context.Background(), spec)
+	if err == nil {
+		t.Fatalf("Plan with nil PostgreSQL config: got nil error, want error")
+	}
+	if !strings.Contains(err.Error(), "postgresql:") || !strings.Contains(err.Error(), "config") {
+		t.Errorf("err=%v, want contains 'postgresql:' and 'config'", err)
+	}
+	if ch != nil {
+		t.Errorf("Plan returned non-nil channel with error; want nil")
 	}
 }
 

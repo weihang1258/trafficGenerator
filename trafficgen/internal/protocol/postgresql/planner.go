@@ -211,11 +211,8 @@ func (p *Planner) Name() string { return "postgresql" }
 // spec. Per validate_conventions.md §1.1, default-value filling happens
 // in Plan(), not here.
 func (p *Planner) Validate(spec core.FlowSpec) error {
-	// If PostgreSQL is nil, the caller asked for a different protocol.
-	// Validate is a no-op so the registry can probe planners without
-	// pulling in their config.
 	if spec.PostgreSQL == nil {
-		return nil
+		return fmt.Errorf("postgresql: config is required (set spec.postgresql or use a layers config)")
 	}
 
 	// IP validity (read-only; "" = use default filled by Plan).
@@ -319,19 +316,14 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	if err := p.Validate(spec); err != nil {
 		return nil, err
 	}
-
-	// If PostgreSQL is nil, the caller asked for a different protocol.
-	// Return an empty channel so the engine can move on without
-	// double-emitting packets.
-	emitCfg := spec.PostgreSQL != nil
+	if spec.PostgreSQL == nil {
+		return nil, fmt.Errorf("postgresql: config is required (set spec.postgresql or use a layers config)")
+	}
 
 	configChan := make(chan core.PacketConfig, 256)
 
 	go func() {
 		defer close(configChan)
-		if !emitCfg {
-			return
-		}
 
 		cfg := fillDefaults(spec.PostgreSQL)
 		state := &runState{

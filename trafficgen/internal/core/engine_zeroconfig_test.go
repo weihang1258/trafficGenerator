@@ -28,9 +28,9 @@ func (m *ctxBlockingPlanner) Plan(ctx context.Context, spec FlowSpec) (<-chan Pa
 
 // emptyChannelPlanner validates OK but yields zero configs — modeling the
 // broken Plan() stubs (jt808/jt809/jtt905, worker.go:175 dispatches to
-// planners[task.Protocol], whose Plan returns a closed channel) and any
-// planner whose flow genuinely produces no packets (e.g. postgresql with a
-// nil spec.PostgreSQL).
+// planners[task.Protocol], whose Plan returns a closed channel). A planner
+// whose flow genuinely produces no packets has no valid fallback today:
+// planners must fail fast (e.g. postgresql rejects a nil spec.PostgreSQL).
 type emptyChannelPlanner struct{ name string }
 
 func (m *emptyChannelPlanner) Name() string                 { return m.name }
