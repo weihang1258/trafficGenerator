@@ -981,8 +981,18 @@ func serializeUDS(uds *core.DoIPUDS) []byte {
 			hasSubFunc = true
 		}
 	}
-
-	if hasSubFunc {
+	// 深度审计修复: ISO 14229-1 0x10/0x11/0x27/0x31/0x3E 的 SubFunction 列为
+	// "Always"(必选字段)。此前 HasSubFunction=false 时直接跳过该字节, 生成
+	// 单字节 SID 报文, Wireshark UDS dissector 越界读取 → "[Malformed Packet:
+	// UDS]"。设计文档 §8.4 明确 "HasSubFunction=false 时仍输出 (sub-function
+	// 是必需字段)" — 实现与文档不一致。hasSubFunc 仅控制 *是否输出*, 对
+	// 必选 sub-function 的服务, false 时仍须输出 SubFunction 字节。
+	subFuncRequired := false
+	switch uds.ServiceID {
+	case 0x10, 0x11, 0x27, 0x31, 0x3E:
+		subFuncRequired = true
+	}
+	if hasSubFunc || subFuncRequired {
 		b = append(b, uds.SubFunction)
 	}
 

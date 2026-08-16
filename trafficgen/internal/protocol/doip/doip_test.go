@@ -548,6 +548,87 @@ func TestT016_DiagnosticMessage(t *testing.T) {
 	}
 }
 
+// 深度审计修复: ISO 14229-1 0x10/0x11/0x27/0x31/0x3E 的 SubFunction 列为
+// "Always"(必选字段)。HasSubFunction=false 时也必须输出 sub-function 字节,
+// 否则 Wireshark UDS dissector 越界读取 → "[Malformed Packet: UDS]"。
+func TestT016B_SubFunctionRequiredWhenExplicitlyDisabled(t *testing.T) {
+	p := NewPlanner()
+	spec := makeDoIPSpec()
+	spec.DoIP.Activation = &core.DoIPActivation{ResponseCode: 0x10}
+	falseVal := false
+	spec.DoIP.Messages = []core.DoIPMessage{
+		{Direction: "up", UDS: &core.DoIPUDS{ServiceID: 0x10, HasSubFunction: &falseVal, SubFunction: 0x03}},
+	}
+	spec.TCP = &core.TCPConfig{MSS: 1460}
+
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan failed: %v", err)
+	}
+	packets := drainChan(ch)
+
+	var found bool
+	for _, pkt := range packets {
+		if len(pkt.Payload) < 14 {
+			continue
+		}
+		pt := uint16(pkt.Payload[2])<<8 | uint16(pkt.Payload[3])
+		if pt != PTDiagnosticMessage {
+			continue
+		}
+		found = true
+		// DoIP 0x8001 header 12B + UDS payload: SID 0x10 + sub-function 0x03
+		// (sub-function is REQUIRED for 0x10 even with HasSubFunction=false).
+		if !bytes.Equal(pkt.Payload[12:14], []byte{0x10, 0x03}) {
+			t.Errorf("UDS want [10 03] (sub-function required), got %x", pkt.Payload[12:14])
+		}
+	}
+	if !found {
+		t.Fatal("0x8001 packet not found")
+	}
+}
+
+// 对照: 0x22 ReadDataByIdentifier 没有 sub-function, HasSubFunction=false 时
+// 应输出 [22 <DID>], 不得追加 sub-function 字节。
+func TestT016C_NoSubFunctionForSID22(t *testing.T) {
+	p := NewPlanner()
+	spec := makeDoIPSpec()
+	spec.DoIP.Activation = &core.DoIPActivation{ResponseCode: 0x10}
+	falseVal := false
+	spec.DoIP.Messages = []core.DoIPMessage{
+		{Direction: "up", UDS: &core.DoIPUDS{ServiceID: 0x22, HasSubFunction: &falseVal, DID: []byte{0xF1, 0x90}}},
+	}
+	spec.TCP = &core.TCPConfig{MSS: 1460}
+
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan failed: %v", err)
+	}
+	packets := drainChan(ch)
+
+	var found bool
+	for _, pkt := range packets {
+		if len(pkt.Payload) < 15 {
+			continue
+		}
+		pt := uint16(pkt.Payload[2])<<8 | uint16(pkt.Payload[3])
+		if pt != PTDiagnosticMessage {
+			continue
+		}
+		found = true
+		// 0x22 无 sub-function: [22 F1 90], 长度恰为 3.
+		if !bytes.Equal(pkt.Payload[12:15], []byte{0x22, 0xF1, 0x90}) {
+			t.Errorf("UDS want [22 f1 90], got %x", pkt.Payload[12:15])
+		}
+		if len(pkt.Payload) != 15 {
+			t.Errorf("UDS length want 3, got %d", len(pkt.Payload)-12)
+		}
+	}
+	if !found {
+		t.Fatal("0x8001 packet not found")
+	}
+}
+
 // T017: 0x8002 Ack.
 func TestT017_DiagnosticMessageAck(t *testing.T) {
 	p := NewPlanner()
