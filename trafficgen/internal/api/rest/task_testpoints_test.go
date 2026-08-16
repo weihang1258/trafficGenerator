@@ -673,11 +673,33 @@ func TestTaskStart_DBError(t *testing.T) {
 
 func TestTaskStart_AlreadyRunning(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h, r, db, _ := newTaskTestServer(t)
+	h, r, db, e := newTaskTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/tasks/:id/start", h.Start)
+	sid := createTestStrategy(t, db, "test-user", "s1", "tcp")
+	sidsJSON, _ := json.Marshal([]string{sid})
 	taskID := uuid.New().String()
-	db.Create(&storage.TaskModel{ID: taskID, UserID: "test-user", Name: "t1", Status: "running"})
+	db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "t1", Status: "running",
+		StrategyIDs: string(sidsJSON),
+		OutputType:  "pcap", OutputConfig: `{"pcap_path":"/tmp/already.pcap"}`,
+	})
+	// The engine must genuinely own the task for the "already running" guard
+	// to fire (a stale DB status with no engine task is reconciled instead).
+	ct, err := core.StrategyModelToTask(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "t1",
+		StrategyIDs: string(sidsJSON),
+		OutputType:  "pcap", OutputConfig: `{"pcap_path":"/tmp/already.pcap"}`,
+	}, &storage.StrategyModel{
+		ID: sid, UserID: "test-user", Name: "s1", Protocol: "tcp",
+		Config: `{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"}`, Mode: "synth",
+	}, "")
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	if err := e.SubmitTask(*ct); err != nil {
+		t.Fatalf("submit precondition: %v", err)
+	}
 
 	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil)
 	w := httptest.NewRecorder()
@@ -689,16 +711,35 @@ func TestTaskStart_AlreadyRunning(t *testing.T) {
 
 func TestTaskStart_OptimisticLock(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h, r, db, _ := newTaskTestServer(t)
+	h, r, db, e := newTaskTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/tasks/:id/start", h.Start)
+	sid := createTestStrategy(t, db, "test-user", "s1", "tcp")
+	sidsJSON, _ := json.Marshal([]string{sid})
 	taskID := uuid.New().String()
-	db.Create(&storage.TaskModel{ID: taskID, UserID: "test-user", Name: "t1", Status: "pending"})
-	// Pre-change status to "running" so the handler's "already running" guard
-	// fires. A true optimistic-lock race (WHERE status=pending matches 0 rows
-	// after a concurrent change) cannot be simulated in a unit test without
-	// intercepting the DB layer. This test documents the "already running"
-	// guard instead.
+	db.Create(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "t1", Status: "pending",
+		StrategyIDs: string(sidsJSON),
+		OutputType:  "pcap", OutputConfig: `{"pcap_path":"/tmp/lock.pcap"}`,
+	})
+	// Simulate a concurrent start that already owns the engine task, then
+	// pre-change status to "running" so the handler's "already running"
+	// guard fires (a true optimistic-lock race — WHERE status=pending matches
+	// 0 rows — cannot be simulated without intercepting the DB layer).
+	ct, err := core.StrategyModelToTask(&storage.TaskModel{
+		ID: taskID, UserID: "test-user", Name: "t1",
+		StrategyIDs: string(sidsJSON),
+		OutputType:  "pcap", OutputConfig: `{"pcap_path":"/tmp/lock.pcap"}`,
+	}, &storage.StrategyModel{
+		ID: sid, UserID: "test-user", Name: "s1", Protocol: "tcp",
+		Config: `{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"}`, Mode: "synth",
+	}, "")
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	if err := e.SubmitTask(*ct); err != nil {
+		t.Fatalf("submit precondition: %v", err)
+	}
 	db.Model(&storage.TaskModel{}).Where("id = ?", taskID).Update("status", "running")
 
 	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil)

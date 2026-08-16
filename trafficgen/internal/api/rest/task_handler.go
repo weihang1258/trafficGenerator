@@ -36,6 +36,12 @@ type TaskHandler struct {
 	progressMu        sync.Mutex
 }
 
+// startSubmitHook is a test-only hook. When non-nil it is invoked after
+// every engine task is submitted, letting tests deterministically simulate
+// the engine completing/failing a task in the pre-fix "starting"-status
+// window. Always nil in production.
+var startSubmitHook func()
+
 // NewTaskHandler creates a new task handler and registers engine callbacks.
 func NewTaskHandler(db *storage.DB, engine *core.Engine, wsHandler *websocket.Handler) *TaskHandler {
 	return NewTaskHandlerWithCallbacks(db, engine, wsHandler, true)
@@ -882,10 +888,47 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		return
 	}
 
-	// Check if task is already running
+	// Check if task is already running. A DB status of "running"/"starting"
+	// normally means the engine owns the task — but if the engine taskStore
+	// no longer has it (the task finished or failed while the client was
+	// disconnected / polling timed out, or the server restarted), the DB
+	// record is stale. Instead of rejecting the start forever, reconcile the
+	// DB status and fall through to the restart path below. Batch tasks are
+	// always treated as already-running: they are auto-started on creation
+	// and cannot be restarted (rejected below).
 	if task.Status == "running" || task.Status == "starting" {
-		BadRequest(c, "task is already running")
-		return
+		if task.BatchConfig != "" || engineTaskStillRunning(h, &task) {
+			BadRequest(c, "task is already running")
+			return
+		}
+		// Stale DB status: no engine task exists. Repair the record so the
+		// run appears in history: a recorded engine failure becomes
+		// "failed", otherwise the task finished — mark "completed".
+		h.failMu.Lock()
+		var failMsgs []string
+		for _, sid := range taskStrategyIDs(&task) {
+			eid := fmt.Sprintf("%s-%s", task.ID, sid)
+			if errMsg, ok := h.failedTasks[eid]; ok {
+				failMsgs = append(failMsgs, fmt.Sprintf("%s: %s", eid, errMsg))
+				delete(h.failedTasks, eid)
+			}
+		}
+		if errMsg, ok := h.failedTasks[task.ID]; ok {
+			failMsgs = append(failMsgs, fmt.Sprintf("%s: %s", task.ID, errMsg))
+			delete(h.failedTasks, task.ID)
+		}
+		h.failMu.Unlock()
+
+		if len(failMsgs) > 0 {
+			task.Status = "failed"
+			task.ErrorMessage = fmt.Sprintf("output error: %v", failMsgs)
+		} else {
+			task.Status = "completed"
+		}
+		now := currentTime()
+		task.CompletedAt = &now
+		h.db.Save(&task)
+		log.Printf("task %s reconciled stale status -> %s before restart", task.ID, task.Status)
 	}
 
 	// Optimistic lock: atomically set status to prevent concurrent starts
@@ -1136,8 +1179,20 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		log.Printf("warning: %d/%d output writers failed: %v", len(writerErrors), len(coreTasks), writerErrors)
 	}
 
+	// Mark the task running BEFORE submitting engine tasks. A config worker
+	// can consume the task and fail it (planning/validation error) the moment
+	// SubmitTask returns -- onEngineTaskComplete then reads the DB record and
+	// must see "running" (not "starting") or it bails and the failure is
+	// clobbered by the late "running" save below, wedging the task in
+	// "running" forever.
+	task.Status = "running"
+	now := currentTime()
+	task.StartedAt = &now
+	h.db.Save(&task)
+
 	// Submit all engine tasks
 	var submittedIDs []string
+	var lastFailureReason string
 	for _, ct := range coreTasks {
 		// Skip tasks whose output writer failed
 		skip := false
@@ -1156,14 +1211,25 @@ func (h *TaskHandler) Start(c *gin.Context) {
 			h.engine.UnregisterOutputWriter(ct.ID)
 			h.engine.UnregisterDualWriter(ct.ID)
 			failedIDs = append(failedIDs, ct.ID)
+			lastFailureReason = err.Error()
 			continue
 		}
 		submittedIDs = append(submittedIDs, ct.ID)
 	}
 
+	if startSubmitHook != nil {
+		startSubmitHook()
+	}
+
 	if len(submittedIDs) == 0 {
 		task.Status = "error"
 		task.ErrorMessage = "failed to start any strategy"
+		if len(failedIDs) > 0 {
+			// Include the underlying per-strategy failure reason (e.g.
+			// "invalid spec: mss 100 too small") so the caller can see why
+			// the start failed instead of a generic message.
+			task.ErrorMessage += fmt.Sprintf(" (last failure: %s)", lastFailureReason)
+		}
 		h.db.Save(&task)
 		// Clean up flow-control state created during the failed SubmitTask attempts
 		// (parent rate bucket + shared flow counter). Without this, a task that
@@ -1172,11 +1238,6 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		InternalError(c, task.ErrorMessage)
 		return
 	}
-
-	task.Status = "running"
-	now := currentTime()
-	task.StartedAt = &now
-	h.db.Save(&task)
 
 	// Reserve ports for port_group output
 	if task.OutputType == "port_group" {
@@ -1204,6 +1265,27 @@ func (h *TaskHandler) Start(c *gin.Context) {
 	SuccessWithMessage(c, "task started", map[string]interface{}{
 		"engine_task_ids": submittedIDs,
 	})
+}
+
+// taskStrategyIDs parses the StrategyIDs JSON column. A corrupt value returns
+// an empty slice; callers treat that as "no engine tasks" for stale checks.
+func taskStrategyIDs(task *storage.TaskModel) []string {
+	var ids []string
+	json.Unmarshal([]byte(task.StrategyIDs), &ids)
+	return ids
+}
+
+// engineTaskStillRunning reports whether any engine task for the task still
+// exists in the engine taskStore. Engine task IDs are "{taskID}-{strategyID}"
+// (batch tasks use plain taskID but are handled separately). If the engine
+// has no record for any of them, the DB status is stale.
+func engineTaskStillRunning(h *TaskHandler, task *storage.TaskModel) bool {
+	for _, sid := range taskStrategyIDs(task) {
+		if _, err := h.engine.GetTaskStatus(fmt.Sprintf("%s-%s", task.ID, sid)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // Stop stops a task.

@@ -243,14 +243,14 @@ func TestStrategyCreate_UnsupportedProtocol(t *testing.T) {
 	h, r, _ := newStrategyTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/strategies", h.Create)
-	body := `{"name":"s1","protocol":"dnp3","config":{"src_ip":"10.0.0.1"}}`
+	body := `{"name":"s1","protocol":"nosuchproto","config":{"src_ip":"10.0.0.1"}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "invalid or missing protocol: dnp3") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "invalid or missing protocol: nosuchproto") { t.Errorf("msg=%q", msg) }
 }
 
 func TestStrategyCreate_BadSubConfig(t *testing.T) {
@@ -948,4 +948,26 @@ func TestStrategyListTasks_DBError(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+}
+// TestStrategyCreate_TFTPTIDConflict (spec T-066/T-108, V22): a TFTP strategy
+// whose config pins server_tid and whose flow_control type=flows value>1
+// would generate multiple flows with the SAME server TID. Per spec S12 the
+// batch-level server_tid uniqueness check (V22) must reject this at strategy
+// creation time.
+func TestStrategyCreate_TFTPTIDConflict(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, r, _ := newStrategyTestServer(t)
+	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
+	r.POST("/strategies", h.Create)
+	body := `{"name":"s1","protocol":"tftp","config":{"tftp":{"server_tid":60000}},"flow_control":{"type":"flows","value":2}}`
+	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 400 {
+		t.Fatalf("status=%d, want 400 (server_tid conflicts across flows must be rejected)", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "conflicts with another flow") {
+		t.Fatalf("body=%q, want 'conflicts with another flow'", w.Body.String())
+	}
 }
