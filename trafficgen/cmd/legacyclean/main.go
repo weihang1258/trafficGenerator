@@ -22,15 +22,16 @@ import (
 
 	sqlite "github.com/glebarez/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"github.com/trafficgen/trafficgen/internal/legacyclean"
 )
 
-// forceHint returns a hint when referenced strategies would be kept by a plain
-// apply (they are deleted only with -force).
-func forceHint(res *legacyclean.Result) string {
+// skippedHint explains why some legacy rows would not be deleted: referenced
+// (kept without -force) and/or beyond the -limit cap.
+func skippedHint(res *legacyclean.Result) string {
 	if res.Skipped > 0 {
-		return fmt.Sprintf(" (skipped=%d: referenced by tasks, kept without -force)", res.Skipped)
+		return fmt.Sprintf(" (skipped=%d: referenced by tasks and/or beyond -limit)", res.Skipped)
 	}
 	return ""
 }
@@ -58,7 +59,10 @@ func main() {
 	)
 	flag.Parse()
 
-	gormDB, err := gorm.Open(sqlite.Open(*dbPath), &gorm.Config{})
+	// Silent logger: gorm's default prints SLOW SQL / SQL errors to STDOUT,
+	// which would break the -json "stdout is only JSON" contract and duplicate
+	// error output in human mode.
+	gormDB, err := gorm.Open(sqlite.Open(*dbPath), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "open db %s: %v\n", *dbPath, err)
 		os.Exit(1)
@@ -91,13 +95,14 @@ func main() {
 			Dangling    int64          `json:"dangling_tasks"`
 			ByProtocol  map[string]int `json:"by_protocol"`
 			BackupPath  string         `json:"backup_path"`
-			ElapsedMS   int64          `json:"elapsed_ms"`
+			NoBackup    bool           `json:"no_backup"`
+			ElapsedNS   int64          `json:"elapsed_ns"`
 		}{
 			DryRun: res.DryRun, Scanned: res.Scanned, Legacy: res.Legacy,
 			LayerChain: res.LayerChain, Unparseable: res.Unparseable,
 			Referenced: res.Referenced, Deleted: res.Deleted, Skipped: res.Skipped,
 			Dangling: res.DanglingTasks, ByProtocol: res.ByProtocol,
-			BackupPath: res.BackupPath, ElapsedMS: res.Elapsed.Milliseconds(),
+			BackupPath: res.BackupPath, NoBackup: *noBackup, ElapsedNS: res.Elapsed.Nanoseconds(),
 		}
 		raw, err := json.MarshalIndent(out, "", "  ")
 		if err != nil {
@@ -137,9 +142,9 @@ func printHuman(res *legacyclean.Result, noBackup bool) {
 		fmt.Println("backup         skipped (-no-backup)")
 	}
 	if res.DryRun {
-		// Skipped > 0 in dry-run means referenced targets kept without -force;
-		// they would not be deleted by a plain apply.
+		// Skipped > 0 in dry-run means referenced targets kept without -force
+		// and/or rows beyond -limit; neither would be deleted by a plain apply.
 		fmt.Printf("dry-run: %d legacy strategies would be deleted; pass -apply to delete%s\n",
-			res.Legacy+res.Unparseable-res.Skipped, forceHint(res))
+			res.Legacy+res.Unparseable-res.Skipped, skippedHint(res))
 	}
 }
