@@ -42,10 +42,11 @@ func emitCreatePDU(
 	}
 	var respBody []byte
 	if errorResponse {
-		// T140a: error response keeps StructureSize=89 (LE 0x59 0x00) + zeros
-		respBody = make([]byte, 8)
-		respBody[0] = 0x59
-		respBody[1] = 0x00
+		// T140a: error response keeps the full 88B fixed part
+		// (StructureSize=89) — dissect_smb2_error_response continues parsing
+		// the fixed part when StructureSize != 9, so an 8-byte body was
+		// flagged [Malformed Packet: SMB2].
+		respBody = buildCreateErrorResponseBody()
 	} else {
 		respBody = buildCreateResponseBody(0, 1, session.fileID)
 	}

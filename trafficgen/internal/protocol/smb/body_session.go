@@ -93,3 +93,14 @@ func buildTreeConnectResponseBody(
 	binary.LittleEndian.PutUint32(body[12:16], maximalAccess)
 	return body
 }
+
+// buildTreeConnectErrorResponseBody returns the full 16-byte fixed part of a
+// TREE_CONNECT error response (StructureSize=16, all fields zeroed). The SMB2
+// dissector parses the fixed part whenever StructureSize != 9, so a short
+// body yields [Malformed Packet: SMB2] on ErrorOnCommand=tree_connect pcaps.
+func buildTreeConnectErrorResponseBody() []byte {
+	body := make([]byte, 16)
+	body[0] = 0x10 // StructureSize = 16 (LE)
+	body[1] = 0x00
+	return body
+}

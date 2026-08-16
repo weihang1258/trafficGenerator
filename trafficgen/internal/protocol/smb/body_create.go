@@ -75,3 +75,14 @@ func buildCreateResponseBody(
 	// CreateContextsLength (84-87) = 0
 	return body
 }
+
+// buildCreateErrorResponseBody returns the full 88-byte fixed part of a
+// CREATE error response (StructureSize=89, all fields zeroed). The SMB2
+// dissector parses the fixed part whenever StructureSize != 9, so a short
+// body yields [Malformed Packet: SMB2] on ErrorOnCommand=create pcaps.
+func buildCreateErrorResponseBody() []byte {
+	body := make([]byte, 88)
+	body[0] = 0x59 // StructureSize = 89 (0x0059 LE)
+	body[1] = 0x00
+	return body
+}

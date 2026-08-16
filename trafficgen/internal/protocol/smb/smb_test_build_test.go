@@ -291,3 +291,65 @@ func TestBuildLockRequestBody(t *testing.T) {
 		t.Errorf("LockCount = %d, want 1", count)
 	}
 }
+
+// TestBuildNegotiateErrorResponseBody_FullFixedPart verifies the NEGOTIATE
+// error response carries the full 64-byte fixed part (MS-SMB2 §2.2.4). The
+// SMB2 dissector continues parsing the fixed part whenever StructureSize != 9
+// (dissect_smb2_error_response in packet-smb2.c), so a 4-byte body causes
+// [Malformed Packet: SMB2] on every ErrorOnCommand=negotiate pcap.
+func TestBuildNegotiateErrorResponseBody_FullFixedPart(t *testing.T) {
+	body := buildNegotiateErrorResponseBody()
+	if len(body) != 64 {
+		t.Fatalf("len = %d, want 64 (full fixed part)", len(body))
+	}
+	if body[0] != 0x41 || body[1] != 0x00 {
+		t.Errorf("StructureSize = %X %X, want 41 00", body[0], body[1])
+	}
+	// SecurityBufferOffset (56-57) must be 128 and SecurityBufferLength 0.
+	if off := binary.LittleEndian.Uint16(body[56:58]); off != 128 {
+		t.Errorf("SecurityBufferOffset = %d, want 128", off)
+	}
+	if l := binary.LittleEndian.Uint16(body[58:60]); l != 0 {
+		t.Errorf("SecurityBufferLength = %d, want 0", l)
+	}
+	// NegotiateContextOffset must be 0 (no contexts).
+	if off := binary.LittleEndian.Uint32(body[60:64]); off != 0 {
+		t.Errorf("NegotiateContextOffset = %d, want 0", off)
+	}
+}
+
+// TestBuildTreeConnectErrorResponseBody_FullFixedPart verifies the
+// TREE_CONNECT error response carries the full 16-byte fixed part
+// (MS-SMB2 §2.2.9). StructureSize != 9 makes the dissector parse the fixed
+// part, and the old 4-byte body produced [Malformed Packet: SMB2].
+func TestBuildTreeConnectErrorResponseBody_FullFixedPart(t *testing.T) {
+	body := buildTreeConnectErrorResponseBody()
+	if len(body) != 16 {
+		t.Fatalf("len = %d, want 16 (full fixed part)", len(body))
+	}
+	if body[0] != 0x10 || body[1] != 0x00 {
+		t.Errorf("StructureSize = %X %X, want 10 00", body[0], body[1])
+	}
+}
+
+// TestBuildCreateErrorResponseBody_FullFixedPart verifies the CREATE error
+// response carries the full 88-byte fixed part (MS-SMB2 §2.2.14).
+// StructureSize = 89 makes the dissector parse all fixed fields; the old
+// 8-byte body produced [Malformed Packet: SMB2] on ErrorOnCommand=create
+// pcaps.
+func TestBuildCreateErrorResponseBody_FullFixedPart(t *testing.T) {
+	body := buildCreateErrorResponseBody()
+	if len(body) != 88 {
+		t.Fatalf("len = %d, want 88 (full fixed part)", len(body))
+	}
+	if body[0] != 0x59 || body[1] != 0x00 {
+		t.Errorf("StructureSize = %X %X, want 59 00", body[0], body[1])
+	}
+	// CreateContextsOffset (80-83) must be 0, CreateContextsLength (84-87) 0.
+	if off := binary.LittleEndian.Uint32(body[80:84]); off != 0 {
+		t.Errorf("CreateContextsOffset = %d, want 0", off)
+	}
+	if l := binary.LittleEndian.Uint32(body[84:88]); l != 0 {
+		t.Errorf("CreateContextsLength = %d, want 0", l)
+	}
+}

@@ -195,6 +195,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 				// Operations loop
 				opsErrored := false
+				closeOpEmitted := false
 				for _, op := range wcfg.Operations {
 					opErrored := false
 					switch op.OpType {
@@ -225,6 +226,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 								flowID, configChan, false)
 						}
 					case "close":
+						closeOpEmitted = true
 						if stopAfter == "close" {
 							opErrored = true
 							opsErrored = true
@@ -270,8 +272,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				}
 
 				// §4 state machine: CLOSE is mandatory teardown after Operations,
-				// unless CLOSE was already emitted as the errored command.
-				closeAlreadyEmitted := opsErrored && stopAfter == "close"
+				// unless a CLOSE was already emitted — either as the errored
+				// command, or as an explicit "close" operation.
+				closeAlreadyEmitted := (opsErrored && stopAfter == "close") || closeOpEmitted
 				if !closeAlreadyEmitted {
 					emitClosePDU(ctx, spec, session, wcfg, &clientSeq, &serverSeq,
 						mss, effectiveTTL, &now, &packetIndex, nextIPID,

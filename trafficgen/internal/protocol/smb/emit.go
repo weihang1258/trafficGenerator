@@ -177,12 +177,21 @@ func segmentByMSS(payload []byte, mss int) [][]byte {
 	return segs
 }
 
-// buildNegotiateErrorResponseBody returns a 4-byte minimal error body.
+// buildNegotiateErrorResponseBody returns the full 64-byte fixed part of a
+// NEGOTIATE response (StructureSize=65, no security blob, no contexts).
+//
+// The SMB2 dissector (packet-smb2.c dissect_smb2_error_response) continues
+// parsing the fixed part whenever StructureSize != 9; the old 4-byte body
+// produced [Malformed Packet: SMB2] on every ErrorOnCommand=negotiate pcap.
 func buildNegotiateErrorResponseBody() []byte {
-	body := make([]byte, 4)
+	body := make([]byte, 64)
 	body[0] = 0x41 // StructureSize = 65
 	body[1] = 0x00
-	body[2] = 0x00
-	body[3] = 0x00
+	// SecurityBufferOffset (56-57) = 128: points just past the 64B fixed
+	// part (header-relative, matching buildNegotiateResponseBody), with
+	// SecurityBufferLength = 0.
+	body[56] = 0x80
+	body[57] = 0x00
+	// NegotiateContextOffset (60-63) = 0: no contexts follow.
 	return body
 }

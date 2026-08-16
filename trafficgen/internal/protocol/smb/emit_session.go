@@ -197,8 +197,9 @@ func emitTreeConnectPDU(
 	}
 	var respBody []byte
 	if errorResponse {
-		respBody = make([]byte, 4)
-		respBody[0] = 0x10
+		// Full 16B fixed part: dissect_smb2_error_response keeps parsing when
+		// StructureSize != 9; the old 4-byte body was flagged malformed.
+		respBody = buildTreeConnectErrorResponseBody()
 	} else {
 		respBody = buildTreeConnectResponseBody(cfg.ShareType, 0, 0, 0x001F1FFF)
 	}

@@ -529,3 +529,31 @@ func TestApplyDefaults_ExplicitZeroCreateDisposition(t *testing.T) {
 		t.Errorf("空配置 CreateDisposition = %d, want 1 (open)", empty.CreateDisposition)
 	}
 }
+
+// TestPlan_ExplicitCloseSingleClose verifies that an explicit "close"
+// operation emits exactly one CLOSE pair — the implicit teardown CLOSE must
+// not duplicate it (design §4.2: CLOSE 是拆解命令; §4.1 状态机单次 CLOSE)。
+func TestPlan_ExplicitCloseSingleClose(t *testing.T) {
+	spec := testSpecWith(func(c *SMBConfig) {
+		c.Operations = []SMBOperation{{OpType: "close"}}
+	})
+	packets := collectPlan(t, spec)
+
+	closeReqs := 0
+	for _, p := range packets {
+		if p.L4.Flags != 0x18 || p.Direction != "up" || len(p.Payload) < 72 {
+			continue
+		}
+		parsed, err := ParsePDU(p.Payload, true)
+		if err != nil {
+			continue
+		}
+		if parsed.Command == CmdClose {
+			closeReqs++
+		}
+	}
+	if closeReqs != 1 {
+		t.Errorf("T101 复现: 显式 close 操作后 CLOSE req 数量 = %d, want 1 (隐式 CLOSE 不得重复)",
+			closeReqs)
+	}
+}
