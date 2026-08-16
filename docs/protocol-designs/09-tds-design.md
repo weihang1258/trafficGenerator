@@ -1,7 +1,7 @@
-# TDS 设计文档（v3.0.1）
+# TDS 设计文档（v3.0.2）
 
 > **协议**: Tabular Data Stream (TDS)（表格数据流）— Microsoft SQL Server 客户端-服务器协议
-> **文档版本**: v3.0.1（2026-08-04；基于 MS-TDS v20260617 官方规范全文重写，v3.0.0 基础上修复 4 轮并行审计的 CRITICAL/HIGH 问题，详见 §11 修订记录）
+> **文档版本**: v3.0.2（2026-08-08；v3.0.1 基础上修正 RPC OptionFlags 字节数 —— MS-TDS §3.4 为 USHORT 2B，tshark/FreeTDS 均按 2B 读取，详见 §11 修订记录）
 > **规范版本**: MS-TDS v20260617（修订版 42.0，2026-06-17 发布）
 > **测试用例**: 220 条（T-001 ~ T-220；v3.0.0 的 214 条基础上补充 6 条集成/并发/类型覆盖用例）
 > **HexDump 场景**: S1-S15 共 15 个
@@ -478,7 +478,7 @@ NameLenProcID = ProcName / (ProcIDSwitch ProcID)
 ProcName      = US_VARCHAR          ; 2B 长度 + UCS-2 LE；名称 ≤ 1046 字节
 ProcIDSwitch  = %xFF %xFF           ; 短形式开关
 ProcID        = USHORT              ; 特殊存储过程 ID（Sp_Cursor=1 ... Sp_Unprepare=15，Sp_ExecuteSql=10）
-OptionFlags   = 1B                  ; fWithRecomp(bit0) + fNoMetaData(bit1) + fReuseMetaData(bit2) + 13 保留
+OptionFlags   = USHORT              ; 2B LE：fWithRecomp(bit0) + fNoMetaData(bit1) + fReuseMetaData(bit2) + 13 保留（MS-TDS §3.4；tshark/FreeTDS 均按 2B 读取，1B 会致流错位）
 BatchFlag     = %xFF                ; TDS 7.2+；下一 RPC 开始（0x80 为 7.2 之前）
 NoExecFlag    = %xFE                ; 前一个 RPC 不执行，返回错误 + DONEPROC 后继续
 ```
@@ -1324,7 +1324,7 @@ DONE: FD + 0x0010(DONE_COUNT) + CurCmd=0 + RowCount=1
 ALL_HEADERS: TotalLength=0x16, TransactionDescriptor=1, OutstandingRequestCount=0
 RPCReqBatch:
   NameLenProcID: FF FF 0A 00            ; ProcIDSwitch + ProcID=10 (sp_executesql)
-  OptionFlags: 00                       ; 无选项
+  OptionFlags: 00 00                   ; 无选项（USHORT LE，MS-TDS §3.4）
   ParameterData 1 (@stmt):
     ParamName: 05 "@stmt"               ; B_VARCHAR: 1B BYTELEN=5 + 10B UCS-2 LE 名称
     StatusFlags: 00
@@ -1334,28 +1334,28 @@ RPCReqBatch:
 
 > **v3.0.0 → v3.0.1 修正（H-7/H-8）**：
 > - v3.0.0 HexDump 中 BigVarChar(A7) 类型却用 UCS-2 LE 编码（"SELECT 1" 16B），与规范 BigVarChar 是 MBCS/ASCII 类型矛盾。v3.0.1 改为 ASCII "SELECT 1"（8B），maxlen 改为 8，USHORTCHARBINLEN 改为 8。
-> - v3.0.0 HexDump 实际字节数 73B 与 Length 字段 0x41=65 不符（v3.0.0 文字声称 "65 ✓" 但其实 73≠65）。v3.0.1 修正后字节构成：22(ALL_HEADERS)+4(ProcIDSwitch+ProcID)+1(OptionFlags)+11(ParamName B_VARCHAR)+1(StatusFlags)+8(TYPE_INFO)+10(ParamLenData) = 57B = body，Length = 8+57 = 65 = 0x41 ✓。
+> - v3.0.0 HexDump 实际字节数 73B 与 Length 字段 0x41=65 不符（v3.0.0 文字声称 "65 ✓" 但其实 73≠65）。v3.0.1 修正后字节构成：22(ALL_HEADERS)+4(ProcIDSwitch+ProcID)+2(OptionFlags)+11(ParamName B_VARCHAR)+1(StatusFlags)+8(TYPE_INFO)+10(ParamLenData) = 58B = body，Length = 8+58 = 66 = 0x42 ✓。
 
-**HexDump**（请求，修正后，共 0x41 = 65 字节）：
+**HexDump**（请求，修正后，共 0x42 = 66 字节）：
 ```
-03 01 00 41 00 00 01 00  16 00 00 00 12 00 00 00
+03 01 00 42 00 00 01 00  16 00 00 00 12 00 00 00
 02 00 00 00 00 00 00 00  00 01 00 00 00 00 FF FF
-0A 00 00 05 40 00 73 00  74 00 6D 00 74 00 00 A7
-08 00 09 04 D0 00 34 08  00 53 45 4C 45 43 54 20
-31
+0A 00 00 00 05 40 00 73  00 74 00 6D 00 74 00 00
+A7 08 00 09 04 D0 00 34  08 00 53 45 4C 45 43 54
+20 31
 ```
 
-**Length 校验**（逐字段核算，body 共 57 字节 = 65-8）：
+**Length 校验**（逐字段核算，body 共 58 字节 = 66-8）：
 - 包头 8B（Type+Status+Length BE+SPID+PacketID+Window）
 - ALL_HEADERS 22B：TotalLength(4)=16 00 00 00 + HeaderLength(4)=12 00 00 00 + HeaderType(2)=02 00 + TransactionDescriptor(8)=01 00 00 00 00 00 00 00 + OutstandingRequestCount(4)=00 00 00 00 = 22B ✓
 - ProcIDSwitch(2)=FF FF + ProcID(2)=0A 00 = 4B
-- OptionFlags(1)=00 = 1B
+- OptionFlags(2)=00 00 = 2B（USHORT LE，MS-TDS §3.4）
 - ParamName B_VARCHAR(1+10)=05 40 00 73 00 74 00 6D 00 74 00 = 11B（BYTELEN=5 + 10B UCS-2"@stmt"）
 - StatusFlags(1)=00 = 1B
 - TYPE_INFO(8)=A7 08 00 09 04 D0 00 34 = 1B(BigVarChar) + 2B(maxlen=8 LE) + 5B(Collation) = 8B
 - ParamLenData(10)=08 00 53 45 4C 45 43 54 20 31 = 2B(USHORTCHARBINLEN=8 LE) + 8B(ASCII "SELECT 1") = 10B
-- body 合计 = 22+4+1+11+1+8+10 = 57B ✓
-- 包头 Length（BE `00 41`）= 0x0041 = 65 = 8 + 57 ✓
+- body 合计 = 22+4+2+11+1+8+10 = 58B ✓
+- 包头 Length（BE `00 42`）= 0x0042 = 66 = 8 + 58 ✓
 
 **响应字段构成**（sp_executesql 执行后，返回 1 列 INT4 结果集 + DONEPROC）：
 ```
@@ -1394,19 +1394,19 @@ DONEPROC: FE + Status=0x0000 + CurCmd=0x00E0 + RowCount=0
 ALL_HEADERS: TotalLength=0x16, TransactionDescriptor=1, OutstandingRequestCount=0
 RPCReqBatch:
   NameLenProcID: 04 00 + "foo3"（US_VARCHAR: 04 00 66 00 6F 00 6F 00 33 00）
-  OptionFlags: 00
+  OptionFlags: 00 00                ; 无选项（USHORT LE，MS-TDS §3.4）
   ParameterData:
     ParamMetaData: 00（空名 B_VARCHAR）02（fDefaultValue）26 02（INTNTYPE len=2）
     ParamLenData: 00（NULL/空数据）
 ```
 
-**HexDump**（请求，官方示例 4.8，共 0x2F = 47 字节）：
+**HexDump**（请求，官方示例 4.8 结构 + 2B OptionFlags，共 0x30 = 48 字节）：
 ```
-03 01 00 2F 00 00 01 00  16 00 00 00 12 00 00 00
+03 01 00 30 00 00 01 00  16 00 00 00 12 00 00 00
 02 00 00 00 00 00 00 00  00 01 00 00 00 00 04 00
 66 00 6F 00 6F 00 33 00  00 00 00 02 26 02 00
 ```
-**Length 校验**：`0x002F` = 47 = 8 + 39。body = 22（ALL_HEADERS）+ 2+8（ProcName）+ 1（OptionFlags）+ 1（ParamName len 0）+ 1（StatusFlags）+ 1+1（TYPE_INFO 26+02）+ 1（ParamLenData len 0）+ 1（00?）= 39 ✓（官方示例参数名 00 后直接 StatusFlags 02，无双 00）
+**Length 校验**：`0x0030` = 48 = 8 + 40。body = 22（ALL_HEADERS）+ 2+8（ProcName）+ 2（OptionFlags）+ 1（ParamName len 0）+ 1（StatusFlags）+ 2（TYPE_INFO 26+02）+ 1（ParamLenData len 0）= 40 ✓（官方示例 4.8 为 1B OptionFlags，v3.0.2 修正为 MS-TDS §3.4 的 2B USHORT）
 
 **响应字段构成**（官方示例 4.9）：
 ```
@@ -1723,20 +1723,20 @@ body = 15（COLMETADATA：1+2+4+2+1+1+4）+ 5+5+5 + 13 = 43 → Length = 51 = 0x
 ```
 包头: Type=0x03 Status=0x01 SPID=0 PacketID=1 Window=0
 ALL_HEADERS: TotalLength=0x16, TransactionDescriptor=0, OutstandingRequestCount=1
-RPCReqBatch 1: FF FF 0A 00 | 00                    ; sp_executesql 无参数
+RPCReqBatch 1: FF FF 0A 00 | 00 00                 ; sp_executesql 无参数（OptionFlags 2B）
 BatchFlag: FF
-RPCReqBatch 2: 04 00 66 00 6F 00 6F 00 33 00 | 00  ; foo3 无参数
+RPCReqBatch 2: 04 00 66 00 6F 00 6F 00 33 00 | 00 00  ; foo3 无参数（OptionFlags 2B）
 ```
-body = 22 + (2+2+1) + 1 + (2+8+1) = 39 → Length = 47 = 0x2F
+body = 22 + (2+2+2) + 1 + (2+8+2) = 41 → Length = 49 = 0x31
 
-**HexDump**（请求，共 0x2F = 47 字节）：
+**HexDump**（请求，共 0x31 = 49 字节）：
 ```
-03 01 00 2F 00 00 01 00  16 00 00 00 12 00 00 00
+03 01 00 31 00 00 01 00  16 00 00 00 12 00 00 00
 02 00 00 00 00 00 00 00  00 00 00 00 00 01 00 00
-00 00 FF FF 0A 00 00 FF  04 00 66 00 6F 00 6F 00
-33 00 00
+00 00 FF FF 0A 00 00 00  FF 04 00 66 00 6F 00 6F
+00 33 00 00 00
 ```
-**Length 校验**：`0x002F` = 47 = 8 + 39 ✓
+**Length 校验**：`0x0031` = 49 = 8 + 41 ✓
 
 **响应字段构成**（每个 RPC 返回 DONEPROC；第 1 个 DONEPROC 带 DONE_RPCINBATCH=0x80 + DONE_MORE，最后 DONEPROC 不带）：
 ```
@@ -2342,6 +2342,18 @@ trafficgen 将 TDS 协议能力映射到统一任务模型：
 ---
 
 ## §11. 修订记录
+
+### v3.0.2（2026-08-08）— RPC OptionFlags 字节数修正
+
+**修复动因**：pcap 测试（test/protocol_pcap）中 tshark 将所有 RPC 包标记为 Malformed —— `tds.procid.value` 字段无法解析。根因：设计文档与实现均将 RPC OptionFlags 编码为 1B，但 MS-TDS §3.4 定义为 **USHORT（2B LE）**：fWithRecomp(bit0) + fNoMetaData(bit1) + fReuseMetaData(bit2) + 13 保留位。tshark `dissect_tds_rpc` 与 FreeTDS `tds_submit_rpc` 均按 2B 读取，1B 发射导致整条 RPC 流错位。
+
+**修正内容**：
+- §3.4 RPCReqBatch 语法：OptionFlags = 1B → **USHORT（2B LE）**。
+- §6 S6/S7/S13 HexDump 请求：OptionFlags 补 1 字节 `00`，Length 与逐字段核算同步更新（S6: 0x41→0x42、S7: 0x2F→0x30、S13: 0x2F→0x31）。
+- 实现 `builder_rpc.go`: `BuildRPCOptionFlags` 返回 `byte`→`uint16`，调用点经 `appendRPCOptionFlags` 写 2B LE。
+- 新增单测 `TestRPCOptionFlagsTwoBytes` / `TestRPCRequestOptionFlagsTwoBytes`。
+
+**规范核实依据**：MS-TDS §3.4 `OptionFlags = fWithRecomp fNoMetaData fReuseMetaData 13FRESERVEDBIT`（16 bits）。
 
 ### v3.0.1（2026-08-04）— 4 轮并行审计 CRITICAL + HIGH 问题修复
 

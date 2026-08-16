@@ -223,9 +223,11 @@ IIN 字节 2（低字节）位定义（IEEE 1815-2012 §5.2.3 表 5-7）：
 | 8 | Immediate Freeze, No Ack | 主→外 | 立即冻结，无需 ACK。 |
 | 9 | Freeze and Clear | 主→外 | 冻结并清零指定计数器。 |
 | 10 | Freeze and Clear, No Ack | 主→外 | 冻结并清零，无需 ACK。 |
-| 13 | Respond | 外→主 | 响应主站请求。 |
-| 14 | Unsolicited Respond | 外→主 | 主动非请求响应。 |
-| 15 | Confirm | 主→外 | 应用层确认（ACK 应用层分片或 Unsolicited Respond）。注意：FC=15 Confirm 只能主站→外设（主站确认外设的 Unsolicited Respond），外设→主站的确认是链路层 ACK（FC=0），不是应用层 Confirm。 |
+| 13 | Cold Restart | 主→外 | 冷重启（外设完全重启）。IEEE 1815-2012 §5.1.3.1 中 13=Cold Restart（此前误写 129）。 |
+| 14 | Warm Restart | 主→外 | 热重启（外设应用层重启）。IEEE 1815-2012 中 14=Warm Restart（此前误写 130）。 |
+| 0x81 (129) | Respond | 外→主 | 响应主站请求。IEEE 1815-2012 中 0x81=Respond（此前误写 13）。 |
+| 0x82 (130) | Unsolicited Respond | 外→主 | 主动非请求响应。IEEE 1815-2012 中 0x82=Unsolicited Respond（此前误写 14）。 |
+| 0x00 (0) | Confirm | 主→外 | 应用层确认（ACK 应用层分片或 Unsolicited Respond）。IEEE 1815-2012 中 Confirm=0x00（此前误写 15）。注意：Confirm 只能主站→外设（主站确认外设的 Unsolicited Respond），外设→主站的确认是链路层 ACK（FC=0），不是应用层 Confirm。 |
 | 20 | Enable Unsolicited | 主→外 | 启用非请求响应。 |
 | 21 | Disable Unsolicited | 主→外 | 禁用非请求响应。 |
 | 22 | Assign Class | 主→外 | 分配对象到 Class 0/1/2/3。 |
@@ -467,8 +469,8 @@ type DNP3Config struct {
     // respond and class 1/2/3 responses. Default false (static objects).
     IsEvent bool `json:"is_event,omitempty"`
 
-    // IsUnsolicited (是否非请求响应): when true, frame's App FC=14
-    // (Unsolicited Respond). Master must send Confirm (FC=15) back.
+    // IsUnsolicited (是否非请求响应): when true, frame's App FC=0x82
+    // (Unsolicited Respond). Master must send Confirm (FC=0x00) back.
     // Default false.
     IsUnsolicited bool `json:"is_unsolicited,omitempty"`
 
@@ -480,7 +482,7 @@ type DNP3Config struct {
     // --- Response-side fields (Outstation side or Master confirm) ---
 
     // IIN (内部指示位): 2-byte Internal Indications for response frames
-    // (FC=13 respond / FC=14 unsolicited respond). Byte 1 high, byte 2
+    // (FC=0x81 respond / FC=0x82 unsolicited respond). Byte 1 high, byte 2
     // low, big-endian order on wire. Default 0x0000 (no events, no
     // errors). Use IINClass1/IINClass2/IINClass3 booleans for shorthand.
     IIN uint16 `json:"iin,omitempty"`
@@ -718,7 +720,7 @@ type DNP3MultiOutstation struct {
                          │                    │  AppSeq=0
                          └─────────┬──────────┘
                                    │ receive ACK (link)
-                                   │ receive Respond (App FC=13, AppSeq=0)
+                                   │ receive Respond (App FC=0x81, AppSeq=0)
                                    ▼
                          ┌────────────────────┐
                          │   GOT_RESPONSE     │  parse IIN + objects
@@ -746,10 +748,10 @@ type DNP3MultiOutstation struct {
 ```
    LINK_READY → SEND_SELECT  (App FC=3, Obj=12.1, control code)
               ← ACK
-              ← Respond (App FC=13, Obj=12.1 echo, IIN=0)
+              ← Respond (App FC=0x81, Obj=12.1 echo, IIN=0)
               → SEND_OPERATE (App FC=4, same AppSeq as Select, Obj=12.1, control code)
               ← ACK
-              ← Respond (App FC=13, Obj=12.1 final, IIN=0)
+              ← Respond (App FC=0x81, Obj=12.1 final, IIN=0)
               → CLOSE
 ```
 
@@ -757,8 +759,8 @@ type DNP3MultiOutstation struct {
 
 ```
    主站侧:
-   IDLE → receive Unsolicited Respond (App FC=14, CON=1)
-        → send Confirm (App FC=15, AppSeq=echo)
+   IDLE → receive Unsolicited Respond (App FC=0x82, CON=1)
+        → send Confirm (App FC=0x00, AppSeq=echo)
         → IDLE (or process event data)
 ```
 
@@ -770,11 +772,11 @@ type DNP3MultiOutstation struct {
         → LINK_READY
    LINK_READY → receive User Data (FC=3, App FC=read)
               → send ACK (link)
-              → send Respond (App FC=13, AppSeq=echo, Obj=...)
+              → send Respond (App FC=0x81, AppSeq=echo, Obj=...)
               → IDLE/LINK_READY
    LINK_READY → (event triggered, IsUnsolicited=true)
-              → send Unsolicited Respond (App FC=14, CON=1)
-              → receive Confirm (App FC=15)
+              → send Unsolicited Respond (App FC=0x82, CON=1)
+              → receive Confirm (App FC=0x00)
               → IDLE
    LINK_READY → receive Direct Operate (App FC=5)
               → send ACK + Respond (echo control)
@@ -790,7 +792,7 @@ type DNP3MultiOutstation struct {
 
 ```
    fragment 0: FIR=1, FIN=0, CON=1, AppSeq=N
-              → Master sends Confirm (App FC=15, AppSeq=N)
+              → Master sends Confirm (App FC=0x00, AppSeq=N)
    fragment 1: FIR=0, FIN=0, CON=1, AppSeq=N
               → Master sends Confirm
    ...
@@ -865,7 +867,7 @@ buildAppFrame(ac, fc, objects []DNP3Object) []byte:
 | 4 | down | PSH\|ACK | ACK（10B 链路帧） |
 | 5 | up | PSH\|ACK | User Data（链路 FC=3，App FC=1 read，Obj=60.1） |
 | 6 | down | PSH\|ACK | ACK（链路 FC=0） |
-| 7 | down | PSH\|ACK | User Data（链路 FC=3，App FC=13 respond，IIN + Obj=1.1/30.1/...） |
+| 7 | down | PSH\|ACK | User Data（链路 FC=3，App FC=0x81 respond，IIN + Obj=1.1/30.1/...） |
 | 8 | up | PSH\|ACK | ACK（链路 FC=0） |
 | 9 | up | FIN\|ACK | — |
 | 10 | down | ACK | — |
@@ -939,7 +941,7 @@ buildAppFrame(ac, fc, objects []DNP3Object) []byte:
 | 0 | up | Reset Link → (down) ACK |
 | 1 | up | User Data，链路 FC=3，App FC=1 read，Obj=60.1 Class 0（Qual=0x06 all） |
 | 2 | down | ACK（链路层） |
-| 3 | down | User Data，链路 FC=3，App FC=13 respond，IIN=0x0000，多 Object（1.1, 30.1, 20.1, ...） |
+| 3 | down | User Data，链路 FC=3，App FC=0x81 respond，IIN=0x0000，多 Object（1.1, 30.1, 20.1, ...） |
 | 4 | up | ACK（链路层） |
 
 应用层请求帧字节示例（AppSeq=2，沿用 §6.3 read_class123 合并方案中的 AppSeq；§6.2 read_class0 单 AppSeq=0 见下文）：
@@ -1074,9 +1076,9 @@ C2 02 50 01 00 07 07 01
 | # | 方向 | App 内容 |
 |---|------|---------|
 | 0 | up | App FC=3 select，AppSeq=3，Obj=12.1 CROB（Control Relay Output Block），index=5 |
-| 1 | down | ACK + Respond，App FC=13，AppSeq=3，IIN=0，Obj=12.1 echo |
+| 1 | down | ACK + Respond，App FC=0x81，AppSeq=3，IIN=0，Obj=12.1 echo |
 | 2 | up | App FC=4 operate，**AppSeq=3（与 select 相同）**，Obj=12.1 CROB，index=5（与 select 相同的控制码） |
-| 3 | down | ACK + Respond，App FC=13，**AppSeq=3（与 select 相同）**，IIN=0，Obj=12.1 final |
+| 3 | down | ACK + Respond，App FC=0x81，**AppSeq=3（与 select 相同）**，IIN=0，Obj=12.1 final |
 
 CROB（Control Relay Output Block）请求帧数据格式（**6 字节**，IEEE 1815-2012 §3-2.6.1）：
 
@@ -1134,7 +1136,7 @@ C3 03 0C 01 00 05 05 03 01 64 00 FF FF
 | # | 方向 | App 内容 |
 |---|------|---------|
 | 0 | up | App FC=5 direct_operate，AppSeq=5，Obj=12.1 CROB，index=5 |
-| 1 | down | ACK + Respond，App FC=13，AppSeq=5，IIN=0，Obj=12.1 final |
+| 1 | down | ACK + Respond，App FC=0x81，AppSeq=5，IIN=0，Obj=12.1 final |
 
 Direct Operate No Ack（App FC=6）的差异：外设不响应。用于广播（DstAddr=0xFFFF）。
 
@@ -1160,7 +1162,7 @@ Direct Operate No Ack（App FC=6）的差异：外设不响应。用于广播（
 | # | 方向 | App 内容 |
 |---|------|---------|
 | 0 | up | App FC=9 freeze_clear，AppSeq=6，Obj=20.1 Counter 32-bit（Qual=0x06 全部对象） |
-| 1 | down | ACK + Respond，App FC=13，AppSeq=6，IIN=0 |
+| 1 | down | ACK + Respond，App FC=0x81，AppSeq=6，IIN=0 |
 
 应用层请求字节：
 
@@ -1206,8 +1208,8 @@ C6 09 14 01 06
 | # | 方向 | 链路/App 内容 |
 |---|------|---------------|
 | 0 | up | （TCP 握手 if needed） |
-| 1 | up | User Data，链路 FC=4（no confirm），App FC=14 unsolicited_respond，CON=1，AppSeq=0，IIN=0x4000（Class 1 事件，byte1=0x40），Obj=10.2 Binary Output Event without Time |
-| 2 | down | User Data，App FC=15 confirm，AppSeq=0 |
+| 1 | up | User Data，链路 FC=4（no confirm），App FC=0x82 unsolicited_respond，CON=1，AppSeq=0，IIN=0x4000（Class 1 事件，byte1=0x40），Obj=10.2 Binary Output Event without Time |
+| 2 | down | User Data，App FC=0x00 confirm，AppSeq=0 |
 
 应用层 unsolicited 字节：
 
@@ -1252,7 +1254,7 @@ C0 0F
 | # | 方向 | App 内容 |
 |---|------|---------|
 | 0 | up | App FC=20 enable_unsolicited，AppSeq=7，Obj=60.2/60.3/60.4（启用 class 1/2/3 的非请求） |
-| 1 | down | ACK + Respond，App FC=13，AppSeq=7，IIN=0 |
+| 1 | down | ACK + Respond，App FC=0x81，AppSeq=7，IIN=0 |
 
 应用层请求字节：
 
@@ -1289,7 +1291,7 @@ C7 14 3C 02 06 3C 03 06 3C 04 06
 | # | 方向 | App 内容 |
 |---|------|---------|
 | 0 | up | App FC=22 assign_class，AppSeq=8，Obj=1.0 Binary Input（all variations），index 0~9，Class=1 |
-| 1 | down | ACK + Respond，App FC=13，AppSeq=8，IIN=0 |
+| 1 | down | ACK + Respond，App FC=0x81，AppSeq=8，IIN=0 |
 
 Class 编码：Assign Class 的 Object 1.0 数据区每个点 1 字节，值为 0/1/2/3 表示该点属于哪个 Class。
 
@@ -1312,7 +1314,7 @@ Class 编码：Assign Class 的 Object 1.0 数据区每个点 1 字节，值为 
 | # | 方向 | App 内容 |
 |---|------|---------|
 | 0 | up | App FC=23 delay_measurement，AppSeq=9，无 Object |
-| 1 | down | ACK + Respond，App FC=13，AppSeq=9，Obj=52.2 Time Delay Fine（外设返回处理时延） |
+| 1 | down | ACK + Respond，App FC=0x81，AppSeq=9，Obj=52.2 Time Delay Fine（外设返回处理时延） |
 
 应用层请求字节：
 
@@ -1342,7 +1344,7 @@ C9 17
 | # | 方向 | App 内容 |
 |---|------|---------|
 | 0 | up | App FC=129 cold_restart，AppSeq=10 |
-| 1 | down | ACK + Respond，App FC=13，AppSeq=10，Obj=51.1 Time Delay Coarse（外设返回重启所需时长，秒） |
+| 1 | down | ACK + Respond，App FC=0x81，AppSeq=10，Obj=51.1 Time Delay Coarse（外设返回重启所需时长，秒） |
 | 2 | （silence） | 外设模拟重启，无后续帧 |
 
 应用层请求字节：
@@ -1391,7 +1393,7 @@ CA 81
 
 | # | 方向 | App 内容 |
 |---|------|---------|
-| 0 | down | Respond，App FC=13，AppSeq=0，3 个 Object Header 顺序排列 |
+| 0 | down | Respond，App FC=0x81，AppSeq=0，3 个 Object Header 顺序排列 |
 
 应用层响应字节（示意）：
 
@@ -1660,7 +1662,7 @@ T20a 仅验证 CRC16/DNP 标准算法对整段输入的结果；T20b 独立验�
 
 | # | 用例名 | 输入 | 期望 |
 |---|--------|------|------|
-| T83 | TestDNP3Plan_FragmentConfirmMid | 250B 应用层数据 × 4 片，CON=1 | 每个分片后跟一个 Confirm 帧（FC=15, AppSeq=同片）：fragment 0（FIR=1,FIN=0,CON=1）后 Confirm；中间片（FIR=0,FIN=0,CON=1）后 Confirm；最后一片（FIR=0,FIN=1,CON=0）后无 Confirm |
+| T83 | TestDNP3Plan_FragmentConfirmMid | 250B 应用层数据 × 4 片，CON=1 | 每个分片后跟一个 Confirm 帧（FC=0x00, AppSeq=同片）：fragment 0（FIR=1,FIN=0,CON=1）后 Confirm；中间片（FIR=0,FIN=0,CON=1）后 Confirm；最后一片（FIR=0,FIN=1,CON=0）后无 Confirm |
 
 #### 7.6.12 多外设跨外设乱序实测（CLAUDE.md §6 并发正确性）
 
@@ -1684,8 +1686,8 @@ T20a 仅验证 CRC16/DNP 标准算法对整段输入的结果；T20b 独立验�
 - [ ] CRC16 字段小端序
 - [ ] 16 字节分块：最后一块不足 16B 时仍按实际字节数计算 CRC
 - [ ] 应用控制字节 FIR/FIN/CON/Seq 位偏移正确（bit7=FIR, bit6=FIN, bit5=CON, bit4-0=Seq）
-- [ ] App FC=13 respond 与 FC=14 unsolicited 的 IIN 字段紧跟 FC 之后
-- [ ] App FC=15 confirm 不携带 Object Header
+- [ ] App FC=0x81 respond 与 FC=0x82 unsolicited 的 IIN 字段紧跟 FC 之后
+- [ ] App FC=0x00 confirm 不携带 Object Header
 - [ ] Object Header 的 Qualifier 字段决定 Range 字段长度（0x06 无 range，0x00 2B range，0x01 4B range）
 - [ ] CROB（Obj 12.1）请求帧数据 6 字节格式正确（Code+Count+OnTime+OffTime，无 Status；响应帧 7 字节含 Status）
 
@@ -1930,7 +1932,7 @@ DNP3 实现需通过以下测试矩阵（参考其他协议实现）：
 | 审计编号 | 严重度 | 修复内容 | 文档章节 |
 |---------|--------|----------|---------|
 | N-DNP3-1 | MEDIUM | 将原 T20 拆为 T20a（空数据、单字节 0x00、9B ASCII "123456789" 三个整段 CRC16/DNP 标准算法向量）和 T20b（16B 单块、17B 跨块的各块 CRC 独立计算），并增加语义分隔说明，禁止将跨块结果表述为 17B 整体 CRC。已用 Python CRC16/DNP 算法（poly=0x3D65 refin/refout true xorout=0xFFFF）重新核对全部期望值：空→0xFFFF、`\x00`→0xFFFF、`"123456789"`→0xEA82；分块：16B 全 0→0xFFFF、1B 0xFF→0xEDCA。早期版本误标"0123456789"→0xEA82（实际是 9B "123456789" 才输出 0xEA82）。 | §7.2、§8.1 |
-| N-DNP3-2 | LOW | 删除原 T67a（与 T68 测试主题重叠）：原 T67a（OperateCROBStatusEcho）与 T68（SelectCROBResponseEcho）均测试 CROB Status 回显语义，主题重复。v1.1.2 已删除 T67a，仅保留 T68（select 响应 echo，FC=13）。最终 85 条编号位（T1-T85），不另计 T20a/T20b 子用例为独立计数。 | §7、§8.4、§9.7 |
+| N-DNP3-2 | LOW | 删除原 T67a（与 T68 测试主题重叠）：原 T67a（OperateCROBStatusEcho）与 T68（SelectCROBResponseEcho）均测试 CROB Status 回显语义，主题重复。v1.1.2 已删除 T67a，仅保留 T68（select 响应 echo，FC=0x81）。最终 85 条编号位（T1-T85），不另计 T20a/T20b 子用例为独立计数。 | §7、§8.4、§9.7 |
 | N-DNP3-3 | LOW（新增） | 修复 §6.2/§6.3/§6.8 IIN 字节错误：早期版本把 "Class 1 Events" 误标 IIN=0x0100，实际应按 §2.4.3 表 byte1 bit6=0x40 → uint16 高字节 0x40 即 IIN=0x4000。已修正 read_class0、read_class123、unsolicited 三处例子字节与期望。同步修复 T18/T19/T25 期望字节 0x4000。 | §6.2、§6.3、§6.8、§7.2 |
 | N-DNP3-4 | LOW（新增） | 修复 IIN shorthand 注释位号错误：§3 IINNeedTime 注释由 "byte 1 bit 2" 改为 "byte 1 bit 3, mask 0x08"；T37 期望字节 1 由 0x44 改为 0x48（Class1=0x40 + NeedTime=0x08）；T51 BROADCAST 由 byte1=0x01 改为 byte1=0x80（bit7=0x80）；T53 期望字节 1=0x7A、字节 2=0x7C（按 §2.4.3 表逐位 OR）；T54 raw IIN 由 0x0100 改为 0x4000；§6.16 NeedTime 行 bit2 改为 bit3。 | §3、§6.16、§7.6.2 |
 | N-DNP3-5 | LOW（新增） | T21 TCP 4-way 挥手包数修复：由 4 改为 6（FIN/ACK/FIN/ACK + 中途状态）。T77 Length 字节算数修复：由 9 改为 0x0D（11B User Data + 2B 块 CRC = 13 = 0x0D）。T20b 与 T79 期望 CRC 同步按 Python 实测值纠正（0xFFFF/0xFFFF+0xEDCA）。 | §7.3、§7.6.8 |
