@@ -12,10 +12,22 @@ func scenarioFrames(c *core.DNP3Config) ([]plannedFrame, error) {
 	master := c.LinkType != "outstation"
 	src,dst:=c.SrcAddr,c.DstAddr
 	if src==0&&dst==0 { if master {src,dst=1,1024}else{src,dst=1024,1} }
+	// Wireshark 的 DNP3 dissector 对走 transport 解析路径的功能码
+	// （0x02 Test Link / 0x03 User Data / 0x04 Unconfirmed User Data，0x00/0x09/0x0B
+	// 跳过解析）用 data_len = dl_len - 5 计算数据区：Length<6 时数据区为 0，
+	// 空 AL tvb 抛 "Malformed Packet: DNP 3.0"。真实设备的最小 User Data 帧
+	// 也是 tr(1)+app_ctl(1)+func(1)+≥1B = 5B 数据区（Length=6），故 app 数据
+	// 不足 4B 时补 0x00 至 4B。
+	padApp := func(app []byte) []byte {
+		if len(app) >= 4 { return app }
+		out := make([]byte, 4)
+		copy(out, app)
+		return out
+	}
 	build:=func(direction string, control byte, app []byte)(plannedFrame,error){
 		fdst,fsrc:=dst,src; if direction=="down" {fdst,fsrc=src,dst}
-		b,err:=BuildLinkFrame(control,fdst,fsrc,app); if err!=nil{return plannedFrame{},err}
-		if c.MalformedLength!=0 {b[2]=c.MalformedLength}
+		b,err:=BuildLinkFrame(control,fdst,fsrc,padApp(app)); if err!=nil{return plannedFrame{},err}
+		if c.MalformedLength!=nil {b[2]=*c.MalformedLength}
 		if c.MalformedCRC {b[len(b)-1]^=1}
 		return plannedFrame{direction,b},nil
 	}
@@ -23,8 +35,12 @@ func scenarioFrames(c *core.DNP3Config) ([]plannedFrame, error) {
 	linkFC:=func(def uint8)uint8{if c.LinkFC!=0{return c.LinkFC};return def}
 	fcbToggle := func() bool { fcb := c.LinkFCB == 1; c.LinkFCB ^= 1; return fcb }
 	var frames []plannedFrame
-	reset:=func()error{if err:=add(&frames,"up",BuildControl(true,true,false,false,linkFC(LinkReset)),nil);err!=nil{return err};return add(&frames,"down",BuildControl(false,false,false,false,LinkReset),nil)}
-	ack:=func(direction string)error{return add(&frames,direction,BuildControl(direction=="up",false,false,false,LinkReset),nil)}
+	// IEEE 1815: 链路层最小 Length=5（≥1 字节用户数据 + CRC）。真实 reset
+	// 帧携带 3 字节全零用户数据（opendnp3 惯例），否则 tshark/Wireshark
+	// dissector 对 Length<5 报 "Malformed Packet: DNP 3.0"。
+	resetPad := []byte{0, 0, 0}
+	reset:=func()error{if err:=add(&frames,"up",BuildControl(true,true,false,false,linkFC(LinkReset)),resetPad);err!=nil{return err};return add(&frames,"down",BuildControl(false,false,false,false,LinkReset),resetPad)}
+	ack:=func(direction string)error{return add(&frames,direction,BuildControl(direction=="up",false,false,false,LinkReset),resetPad)}
 	request:=func(fc,seq uint8,objects []core.DNP3Object,con bool)error{
 		app,err:=BuildAppFrame(BuildAppControl(true,true,con,seq),fc,0,objects);if err!=nil{return err}
 		return add(&frames,"up",BuildControl(true,true,fcbToggle(),true,linkFC(LinkUserConfirm)),app)

@@ -33,8 +33,19 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	for i, o := range c.Objects {
 		if o.Qualifier != 0 && o.Qualifier != 1 && o.Qualifier != 6 && o.Qualifier != 7 && o.Qualifier != 8 && o.Qualifier != 0x17 && o.Qualifier != 0x28 { return fmt.Errorf("dnp3: object %d invalid qualifier 0x%02X", i, o.Qualifier) }
 		if o.IndexRange[0] > o.IndexRange[1] { return fmt.Errorf("dnp3: object %d index start exceeds stop", i) }
+		if o.Qualifier == 0x00 && (o.IndexRange[0] > 255 || o.IndexRange[1] > 255) { return fmt.Errorf("dnp3: object %d qualifier 0x00 index exceeds 255", i) }
+		if o.Qualifier == 0x17 { for _, p := range o.Points { if p.Index > 255 { return fmt.Errorf("dnp3: object %d qualifier 0x17 point index %d exceeds 255", i, p.Index) } } }
 		if o.ObjectType == 20 && o.Variation > 2 { return fmt.Errorf("dnp3: object 20 variation must be 1 (32-bit) or 2 (16-bit)") }
 		if isResponse(c) && o.Variation == 0 { return fmt.Errorf("dnp3: response frame must use concrete Variation, not 0") }
+		// CROB Status (design §7.6.5 T66): Status is response-only, echoed by
+		// the outstation. A request frame carrying it would emit the 7-byte
+		// form instead of the 6-byte form (encodePoint appends Status only
+		// for responses), silently dropping the field — reject instead.
+		if o.ObjectType == 12 && o.Variation == 1 && !isResponse(c) {
+			for _, p := range o.Points {
+				if p.Status != nil { return fmt.Errorf("dnp3: CROB request must not carry Status field; Status is response-only") }
+			}
+		}
 	}
 	if m := c.MultiOutstation; m != nil {
 		if m.OutstationCount <= 0 { return fmt.Errorf("dnp3: outstation_count must be > 0") }
@@ -49,7 +60,7 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 }
 
 func isResponse(c *core.DNP3Config) bool {
-	return c.LinkType == "outstation" || c.AppFunc == "respond" || c.AppFunc == "unsolicited_respond" || c.Scenario == "unsolicited" || c.Scenario == "multi_object_response"
+	return c.LinkType == "outstation" || c.AppFunc == "respond" || c.AppFunc == "unsolicited_respond" || c.Scenario == "unsolicited" || c.Scenario == "multi_object_response" || c.Scenario == "respond"
 }
 
 // Plan expands canonical scenarios into TCP segments or UDP datagrams.

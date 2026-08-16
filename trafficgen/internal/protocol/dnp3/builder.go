@@ -140,7 +140,9 @@ func encodePoint(out []byte, obj core.DNP3Object, n int, function uint8, respons
 	case obj.ObjectType == 12 && obj.Variation == 1:
 		code := byte(p.Value); if code == 0 && p.Value != 0 { code = 3 }
 		out = append(out, code, 1, 100, 0, 0xFF, 0xFF)
-		if response { out = append(out, 0) }
+		// 响应回显 Status（IEEE 1815-2012 §5.4.2，设计 §7.6.5 T68）：
+		// 显式配置的 Status 优先，否则回显 0（成功）。
+		if response { s := byte(0); if p.Status != nil { s = *p.Status }; out = append(out, s) }
 	case obj.ObjectType == 10:
 		out = append(out, flagAt(obj, n), byte(p.Value))
 	case obj.ObjectType == 20 || obj.ObjectType == 21 || obj.ObjectType == 30 || obj.ObjectType == 40:

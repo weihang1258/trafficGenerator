@@ -36,16 +36,16 @@ const (
 	AppFreezeNoAck           uint8 = 8
 	AppFreezeClear           uint8 = 9
 	AppFreezeClearNoAck      uint8 = 10
-	AppRespond               uint8 = 13
-	AppUnsolicitedRespond    uint8 = 14
-	AppConfirm               uint8 = 15
+	AppRespond               uint8 = 0x81 // 129: IEEE 1815-2012
+	AppUnsolicitedRespond    uint8 = 0x82 // 130: IEEE 1815-2012
+	AppConfirm               uint8 = 0x00 // IEEE 1815-2012
 	AppEnableUnsolicited     uint8 = 20
 	AppDisableUnsolicited    uint8 = 21
 	AppAssignClass           uint8 = 22
 	AppDelayMeasurement      uint8 = 23
 	AppRecordCurrentTime     uint8 = 24
-	AppColdRestart           uint8 = 129
-	AppWarmRestart           uint8 = 130
+	AppColdRestart           uint8 = 0x0D // 13: IEEE 1815-2012
+	AppWarmRestart           uint8 = 0x0E // 14: IEEE 1815-2012
 	AppInitializeData        uint8 = 131
 	AppInitializeApplication uint8 = 132
 )
