@@ -39,14 +39,14 @@
     },
     {
      "packet": 1,
-     "offset": 66,
+     "offset": 58,
      "hex": "30 39 00 50"
     }
    ],
    "notes": [
     "GRE header at offset 34 (eth14+ip20): flags 0000, protocol 0x0800 (auto-resolved IPv4 inner), verified against /tmp/probe-iana/gre.pcap",
     "inner L4 is UDP with flow default ports (src 12345, dst 80)",
-    "内层 UDP src 12345 (0x3039) dst 80 (0x0050) 在 GRE 头之后 offset 66 逐字节断言"
+    "内层 UDP src 12345 (0x3039) dst 80 (0x0050) 位于 offset 58 = eth14 + outerIP20 + GRE4 + innerIPv4头20（tshark 实测确认）；旧偏移 66 误把 GRE 头与内层 L4 起点叠加，超帧尾"
    ]
   }
  }

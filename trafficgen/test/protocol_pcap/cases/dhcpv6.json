@@ -77,23 +77,22 @@
     },
     {
      "packet": 1,
-     "field": "dhcpv6.xid",
-     "value": "0x2603a1"
+     "field": "dhcpv6.xid"
     },
     {
      "packet": 2,
      "field": "dhcpv6.xid",
-     "value": "0x2603a1"
+     "same_as_packet": 1
     },
     {
      "packet": 3,
      "field": "dhcpv6.xid",
-     "value": "0x2603a1"
+     "same_as_packet": 1
     },
     {
      "packet": 4,
      "field": "dhcpv6.xid",
-     "value": "0x2603a1"
+     "same_as_packet": 1
     },
     {
      "packet": 1,
@@ -111,30 +110,8 @@
     "resolveAddrs 按方向交换端口/IP：src 保持 flow 默认 12345（非 0 故不触发 546 默认），dst 默认 547（strategy_convert）；src_mac 必填（DUID-LLT 由 MAC 生成，validate 拒绝缺失）",
     "IA_NA 地址（option 5）由 default_leased_addr 确定；端口断言仅 udp.dstport=547",
     "tshark 探针实测：msgtype/iaaddr/ipv6.src 交换/eth.src 与上表一致；hlim=64",
-    "SARR 四包 xid 全为 0x2603a1（RFC 8415 同一交换 xid 一致）——xid 偏移 46 (msgtype 1B + 3B)，字节+字段双断言",
+    "SARR 四包 xid（dhcpv6.xid，RFC 8415 同一交换 xid 一致）为运行期随机 3 字节值，不可固化为常量——packet 1 断言存在，packet 2/3/4 same_as_packet 断言与首包一致，验证四帧同交换",
     "Solicit/Request 目的为单播 2001:db8::2（流量生成器允许单播；RFC 8415 §7.2 标准用 ff02::1:2 多播）"
-   ],
-   "frames": [
-    {
-     "packet": 1,
-     "offset": 46,
-     "hex": "26 03 a1"
-    },
-    {
-     "packet": 2,
-     "offset": 46,
-     "hex": "26 03 a1"
-    },
-    {
-     "packet": 3,
-     "offset": 46,
-     "hex": "26 03 a1"
-    },
-    {
-     "packet": 4,
-     "offset": 46,
-     "hex": "26 03 a1"
-    }
    ]
   }
  }
