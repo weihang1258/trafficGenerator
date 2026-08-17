@@ -19803,14 +19803,43 @@
             "text"
           ]
         },
-        "tasks": []
+        "tasks": [
+          {
+            "method": "tasks/get",
+            "requestId": "req-t212",
+            "taskId": "task-212",
+            "response": {
+              "result": {
+                "id": "task-212",
+                "kind": "task",
+                "status": {
+                  "state": "completed",
+                  "timestamp": "2026-08-09T11:00:00Z"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "directional": true,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 266,
+          "hex": "22 70 72 6f 74 6f 63 6f 6c 56 65 72 73 69 6f 6e 22 3a 22 30 2e 33 2e 30 22"
+        }
+      ],
       "notes": [
-        "T212: 与 T015 等价断言（protocolVersion 字段）",
+        "T212: 与 T015 等价断言（protocolVersion=0.3.0 字段）",
         "T212 覆盖补全",
-        "layer-chain: a2a generator rejects empty task lists (layer_gen.go:65); engine reports the task completed with 0 packets (planner error swallowed), so no wire assertions apply"
+        "T212: Discover 响应 = json.Marshal(A2AAgentCard 结构体) → 字段按声明序（name,description,url,version,protocolVersion,...）",
+        "offset 266: 帧偏移(Eth14+IP20+TCP20=54 头) + HTTP 响应头(含 Content-Length: 381) 之后的 JSON 体 protocolVersion 键值对",
+        "T212: 非 expect_error；补 tasks/get 最小任务使 Discover 流量真实落线（layer_gen 空任务列表会被拒绝）"
       ]
     }
   },
@@ -20528,13 +20557,41 @@
             "text"
           ]
         },
-        "tasks": []
+        "tasks": [
+          {
+            "method": "tasks/get",
+            "requestId": "req-t100",
+            "taskId": "task-100",
+            "response": {
+              "result": {
+                "id": "task-100",
+                "kind": "task",
+                "status": {
+                  "state": "completed",
+                  "timestamp": "2026-08-09T11:00:00Z"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "directional": true,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 400,
+          "hex": "22 61 70 69 2d 6b 65 79 22 3a 7b 22 69 6e 22 3a 22 68 65 61 64 65 72 22 2c 22 6e 61 6d 65 22 3a 22 58 2d 41 50 49 2d 4b 65 79 22 2c 22 74 79 70 65 22 3a 22 61 70 69 4b 65 79 22 7d"
+        }
+      ],
       "notes": [
-        "T100: securitySchemes apiKey 完整字段",
-        "layer-chain: a2a generator rejects empty task lists (layer_gen.go:65); engine reports the task completed with 0 packets (planner error swallowed), so no wire assertions apply"
+        "T100: securitySchemes apiKey 完整字段（type apiKey / in header / name X-API-Key）",
+        "T100: 非 expect_error；补 tasks/get 最小任务使 Discover 流量真实落线",
+        "T100: 等价断言参考 a2a_t213（securitySchemes map 键排序 in/name/type）"
       ]
     }
   },
@@ -20586,13 +20643,41 @@
             "text"
           ]
         },
-        "tasks": []
+        "tasks": [
+          {
+            "method": "tasks/get",
+            "requestId": "req-t101",
+            "taskId": "task-101",
+            "response": {
+              "result": {
+                "id": "task-101",
+                "kind": "task",
+                "status": {
+                  "state": "completed",
+                  "timestamp": "2026-08-09T11:00:00Z"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "directional": true,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 400,
+          "hex": "22 6f 61 75 74 68 22 3a 7b 22 66 6c 6f 77 73 22 3a 7b 22 63 6c 69 65 6e 74 43 72 65 64 65 6e 74 69 61 6c 73 22 3a 7b 22 74 6f 6b 65 6e 55 72 6c 22 3a 22 68 74 74 70 73 3a 2f 2f 61 75 74 68 2e 65 78 61 6d 70 6c 65 2e 63 6f 6d 2f 74 6f 6b 65 6e 22 7d 7d 2c 22 74 79 70 65 22 3a 22 6f 61 75 74 68 32 22 7d"
+        }
+      ],
       "notes": [
-        "T101: securitySchemes oauth2 完整字段",
-        "layer-chain: a2a generator rejects empty task lists (layer_gen.go:65); engine reports the task completed with 0 packets (planner error swallowed), so no wire assertions apply"
+        "T101: securitySchemes oauth2 完整字段（type oauth2 / flows.clientCredentials.tokenUrl）",
+        "T101: 非 expect_error；补 tasks/get 最小任务使 Discover 流量真实落线",
+        "T101: securitySchemes openapi-style map 键排序（flows,type）"
       ]
     }
   },

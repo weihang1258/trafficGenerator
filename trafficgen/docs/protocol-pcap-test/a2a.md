@@ -79,8 +79,8 @@ Cases: 185 — pass 185, fail 0, error 0
 | a2a_t096_apikey_query | T096: API Key 认证（query 参数） | pass | 9 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t096_apikey_query.pcap) |
 | a2a_t097_oauth2_bearer | T097: OAuth2 认证 → Authorization: Bearer | pass | 9 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t097_oauth2_bearer.pcap) |
 | a2a_t098_oidc_bearer | T098: OpenID Connect 认证 → Authorization: Bearer | pass | 9 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t098_oidc_bearer.pcap) |
-| a2a_t100_security_apikey | T100: AgentCard.securitySchemes apiKey（type=apiKey,in=header,name=X-API-Key） | pass | 0 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t100_security_apikey.pcap) |
-| a2a_t101_security_oauth2 | T101: AgentCard.securitySchemes oauth2（type=oauth2,flows.clientCredentials） | pass | 0 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t101_security_oauth2.pcap) |
+| a2a_t100_security_apikey | T100: AgentCard.securitySchemes apiKey（type=apiKey,in=header,name=X-API-Key） | pass | 11 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t100_security_apikey.pcap) |
+| a2a_t101_security_oauth2 | T101: AgentCard.securitySchemes oauth2（type=oauth2,flows.clientCredentials） | pass | 11 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t101_security_oauth2.pcap) |
 | a2a_t103_none_no_auth | T103: Auth.Scheme=none 不带 Authorization 头 | pass | 9 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t103_none_no_auth.pcap) |
 | a2a_t104_auth_required_state | T104: 响应状态 auth-required，status.message 含认证说明 | pass | 9 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t104_auth_required_state.pcap) |
 | a2a_t105_state_machine_success | T105/T108: 状态机 submitted→working→completed 经典成功路径（SSE 流） | pass | 9 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t105_state_machine_success.pcap) |
@@ -157,7 +157,7 @@ Cases: 185 — pass 185, fail 0, error 0
 | a2a_t209_bearer_e2e | T209: AgentCard.securitySchemes → Bearer 认证全流程 | pass | 11 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t209_bearer_e2e.pcap) |
 | a2a_t210_tshark_json_rpc | T210: tshark 解析 A2A JSON-RPC（POST body 解析为 JSON） | pass | 9 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t210_tshark_json_rpc.pcap) |
 | a2a_t211_tshark_sse | T211: tshark 解析 SSE 流（http.file_data 含 data: JSON-RPC） | pass | 9 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t211_tshark_sse.pcap) |
-| a2a_t212_protocol_version | T212/T015: AgentCard.protocolVersion 字段（Discover 响应 JSON 含 protocolVersion=0.3.0） | pass | 0 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t212_protocol_version.pcap) |
+| a2a_t212_protocol_version | T212/T015: AgentCard.protocolVersion 字段（Discover 响应 JSON 含 protocolVersion=0.3.0） | pass | 11 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t212_protocol_version.pcap) |
 | a2a_t212a_additional_interfaces | T212a/T212b: AgentCard.additionalInterfaces + preferredTransport | pass | 11 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t212a_additional_interfaces.pcap) |
 | a2a_t213_securityschemes_map | T213: AgentCard.securitySchemes map（与 T016 等价） | pass | 11 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t213_securityschemes_map.pcap) |
 | a2a_t214_security_array | T214: AgentCard.security 数组（与 T017 等价） | pass | 11 | [pcap](/tmp/mcp-pcaps/a2a/a2a_t214_security_array.pcap) |

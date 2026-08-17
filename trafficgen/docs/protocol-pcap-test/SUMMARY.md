@@ -1,9 +1,10 @@
 # Protocol Pcap Test Results
 
-Run at 2026-08-16 19:29:26 — 43 total cases, 43 pass, 0 fail, 0 error
+Run at 2026-08-18 00:28:40 — 228 total cases, 228 pass, 0 fail, 0 error
 
 | Protocol | Cases | Pass | Fail | Error |
 |----------|-------|------|------|-------|
+| a2a | 185 | 185 | 0 | 0 |
 | dhcp | 1 | 1 | 0 | 0 |
 | dhcpv6 | 1 | 1 | 0 | 0 |
 | dns | 1 | 1 | 0 | 0 |
