@@ -169,7 +169,7 @@
 
 1. 每个协议必须同时产出 design（代码设计文档）、testcase（用例设计文档）和 `cases/<proto>.json`；三方 ID、场景、包数、偏移和断言必须一致。
 2. 每个协议必须执行两条独立的对抗审查：
-   - **代码逻辑审查**：逐项对照 planner、builder、validator、registry、传输层、请求/响应派生、状态、多流、多会话、错误传播、MCP、pcap/NIC 输出和 tshark/FrameAssert 断言；区分已实现、文档/实现不一致和待实现边界。
+   - **代码设计逻辑审查**：对 design、testcase、cases JSON 三件套，审查设计文档中描述的 planner、builder、validator、registry、传输层、请求/响应派生、状态、多流、多会话、错误传播、MCP、pcap/NIC 输出和 tshark/FrameAssert 断言是否自洽、与规范一致、可实现；区分文档自洽、文档内部矛盾/与规范不一致和待实现边界。是否存在 Go 代码实现不属于文档阶段审查范围，记录为待实现边界。
    - **用例覆盖审查**：从 RFC/官方规范和 design 每一行反向推导用例，检查字段编码、边界、截断、溢出、载体、方向、状态迁移、异常、IPv4/IPv6、多流、多会话和每个错误分支。
 3. 用例必须拆到不可再分的原子颗粒度：一个 case 只证明一个独立行为、规范分支或错误路径；综合冒烟 case 不能替代原子覆盖；每个 case 必须有可观察断言。
 4. 每个 confirmed finding 必须先补最小失败用例/断言，再修改实现或三件套；修改后必须 review、测试并重新执行两条对抗审查，直到 confirmed findings 为零。

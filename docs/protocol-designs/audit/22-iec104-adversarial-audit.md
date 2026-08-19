@@ -2,7 +2,8 @@
 
 > 审查日期：2026-08-19
 > 审查范围：`22-iec104-design.md`、`22-iec104-testcase.md`、`trafficgen/test/protocol_pcap/cases/iec104.json`、实际代码和共享 pcap/MCP 断言。
-> 审查状态：代码逻辑 3 轮、用例覆盖 2 轮；末轮 clean。IEC104 当前未实现/注册，不能宣称 pcap 已通过。
+> **审查口径**：本报告为文档阶段审查，审查对象是 design/testcase/cases 三件套的质量与自洽性。是否存在 Go 代码实现、layer 是否注册、planner/builder/validator 是否存在，属于后续实现阶段，不作为文档阶段验收缺陷。报告中"未实现/未注册"类条目记录为后续实现阶段接入契约与待实现边界，不阻断文档验收；字段布局、wire 契约、断言可观察性、原子覆盖类 findings 属文档缺陷，须在文档阶段修复。
+> 审查状态：代码设计逻辑 3 轮、用例覆盖 2 轮；末轮 clean。IEC104 当前未实现/注册（记录为待实现边界，非文档缺陷），不能宣称 pcap 已通过。
 
 ## 1. 代码逻辑审查
 

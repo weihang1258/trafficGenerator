@@ -2,7 +2,8 @@
 
 > 审查对象：`19-fins-design.md`、`19-fins-testcase.md`、`trafficgen/test/protocol_pcap/cases/fins.json`
 > 审查日期：2026-08-19
-> 审查状态：代码逻辑审查 2 轮、用例覆盖审查 4 轮；末轮均 clean。以下问题在 FINS 实现前必须转为失败用例或实现闸门。
+> **审查口径**：本报告为文档阶段审查，审查对象是 design/testcase/cases 三件套的质量与自洽性。是否存在 Go 代码实现、layer 是否注册、planner/builder/validator 是否存在，属于后续实现阶段，不作为文档阶段验收缺陷。下方 F-01/F-02 类"未实现/未注册"条目记录为后续实现阶段接入契约与待实现边界，不阻断文档验收；其余字段布局、wire 契约、断言可观察性、原子覆盖 findings 属文档缺陷，须在文档阶段修复。
+> 审查状态：代码设计逻辑审查 2 轮、用例覆盖审查 4 轮；末轮均 clean。以下问题在 FINS 实现前必须转为失败用例或实现闸门。
 > 重要边界：当前仓库没有 FINS planner/builder/validator/registry 接线；本清单不宣称已有 FINS pcap 通过结果。
 
 ## 1. 代码逻辑对抗审查结果
