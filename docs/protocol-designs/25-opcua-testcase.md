@@ -30,10 +30,10 @@
 |------|------|
 | HEL/ACK 传输层握手 | T1 |
 | OPN 无安全 / 带签名 | T2 / T3 |
-| Read 多 NodeId | T4 |
+| Read 多 NodeId | T2（合并 T4） |
 | Write | T5 |
 | Browse | T6 |
-| Subscribe 周期通知 | T7 |
+| Subscribe 周期通知+keep-alive | T7 |
 | keep-alive | T8 |
 | UA 状态错误（BadNodeIdUnknown / BadUserAccessDenied） | T9 / T10 |
 | IPv4 + IPv6 | T1 / T11 |
@@ -47,11 +47,11 @@
 | T1 | `opcua_hello_ack` | §6 S1 | HEL/ACK MessageHeader、MessageSize=32（含空 EndpointUrl）、握手 flags |
 | T2 | `opcua_open_none` | §6 S2 | OPN None、TokenId 复用、通道 ID 0→1 |
 | T3 | `opcua_open_sign` | §6 S2R2 | OPN Sign 模式结构、证书占位长度 |
-| T4 | `opcua_read` | §6 S3R1 | Read 多 NodeId、AttributeId=13、ResponseHeader |
+| T4 | `opcua_read` | §6 S3R1 | Read 多 NodeId（合并到 T2，本节为引用锚点） |
 | T5 | `opcua_write` | §6 S3 | Write 结构、Results Good |
 | T6 | `opcua_browse` | §6 S3 | Browse 结构、NodeClassMask/ResultMask |
-| T7 | `opcua_subscribe` | §6 S5 | 订阅四件套 + Publish 周期通知 |
-| T8 | `opcua_keepalive` | §6 S6R1 | keep-alive 空转 Publish，计数不递增 |
+| T7 | `opcua_subscribe` | §6 S5/S6R1 | 订阅五件套 + Publish 通知+keep-alive |
+| T8 | `opcua_keepalive` | §6 S6R1 | keep-alive 空转 Publish（合并到 T7，本节为引用锚点） |
 | T9 | `opcua_bad_node` | §9.6 | ServiceResult=BadNodeIdUnknown 0x80340000 |
 | T10 | `opcua_denied` | §9.6 | ServiceResult=BadUserAccessDenied 0x801F0000 |
 | T11 | `opcua_ipv6` | §6 S2/S3 | IPv6 承载（offset 74）OPN+Read |
@@ -77,7 +77,7 @@
 {
   "id": "opcua_hello_ack",
   "proto": "opcua",
-  "summary": "OPC UA transport handshake: HEL/ACK with MessageSize=32",
+  "summary": "OPC UA transport handshake: HEL/ACK with an empty EndpointUrl",
   "spec_json": [
     { "tcp": { "dst_port": 4840, "initial_seq": 100000 } },
     { "opcua": { "security_mode": "none", "close": true } }
@@ -204,7 +204,7 @@
 }
 ```
 
-> Write 与 Read 的差异在**请求正文**：WriteValue 多了 Value 的 DataValue（掩码 0x01 + Variant Int32）。tshark 若无 opcua 解码，帧偏移按两遍编码回填。`packet_count=12`：TCP 握手 3 + HEL/ACK 2 + OPN 2 + Write 1 + 响应 1 + CLO 2 + FIN 3 = 12。
+> Write 与 Read 的差异在**请求正文**：WriteValue 多了 Value 的 DataValue（掩码 0x01 + Variant Int32）。tshark 若无 opcua 解码，帧偏移按两遍编码回填。`packet_count=13`：TCP 握手 3 + HEL/ACK 2 + OPN 2 + Write 1 + 响应 1 + CLO 1 + 响应 1 + FIN 2 = 13。
 
 ### 2.6 T6 Browse（opcua_browse）—— 设计 §6 S3R2
 
@@ -363,7 +363,7 @@
 {
   "id": "opcua_ipv6",
   "proto": "opcua",
-  "summary": "OPC UA over IPv6: OPN+Read with TCP payload offset 74",
+  "summary": "OPC UA over IPv6: HEL/ACK, OPN, and Read",
   "spec_json": [
     { "ipv6": {}, "tcp": { "dst_port": 4840, "initial_seq": 1100000 } },
     { "opcua": {
@@ -396,7 +396,7 @@
 {
   "id": "opcua_multi_session",
   "proto": "opcua",
-  "summary": "3 logical sessions interleave Read, per-session token and handles",
+  "summary": "Three logical sessions interleave one Read each on one secure channel",
   "spec_json": [
     { "tcp": { "dst_port": 4840, "initial_seq": 1200000 } },
     { "opcua": {
@@ -428,16 +428,16 @@
 
 ### 2.13 T13 负例：坏 MessageSize（opcua_bad_size_neg）—— 设计 §9.3
 
-**目标**：HEL 的 MessageSize 故意写错（如 `00 00 00 05`），验证 `expect_error`+`error_contains` 捕获坏字节而非引擎崩溃。
+**目标**：HEL 的 MessageSize 故意写错（如 `00 00 00 05`）、同时附带超长 String 长度（`bad_length: true`），验证 `expect_error`+`error_contains` 捕获坏字节而非引擎崩溃。
 
 ```json
 {
   "id": "opcua_bad_size_neg",
   "proto": "opcua",
-  "summary": "Negative: malformed HEL MessageSize triggers expect_error",
+  "summary": "Negative: malformed MessageSize and an overlong String length are rejected",
   "spec_json": [
     { "tcp": { "dst_port": 4840, "initial_seq": 1300000 } },
-    { "opcua": { "security_mode": "none", "bad_message_size": true, "close": true } }
+    { "opcua": { "security_mode": "none", "bad_message_size": true, "bad_length": true, "close": false } }
   ],
   "expect": {
     "packet_count_hint": "结构完整能发出但不满足 size=28 语义",
@@ -449,7 +449,7 @@
 
 > `bad_message_size:true` 让 HEL 的 MessageSize 字段写 `0x00000005`（与 28 不符）。**字节仍完整**（两遍编码后的真实长度与消息一致），只是"宣称的大小"与规范冲突。校验层（tshark / length 检查）报 `MessageSize` 相关告警 → 用例**预期失败**、非引擎错误。
 >
-> 负例不要配 `packet_count`（会因大小错位而误判），只配 `expect_error`+`error_contains`。
+> 负例不要配 `packet_count`（会因大小错位而误判），只配 `expect_error`+`error_contains`。`close:false` 因为负例预期失败，不触发 TCP 关闭。
 
 ### 2.14 T14 负例：未建通道即服务调用（opcua_no_channel_neg）—— 设计 §9.4
 
@@ -459,10 +459,10 @@
 {
   "id": "opcua_no_channel_neg",
   "proto": "opcua",
-  "summary": "Negative: service call before secure channel expects secureChannel error",
+  "summary": "Negative: a Read before OpenSecureChannel is rejected",
   "spec_json": [
     { "tcp": { "dst_port": 4840, "initial_seq": 1400000 } },
-    { "opcua": { "security_mode": "none", "skip_channel": true, "close": false } }
+    { "opcua": { "security_mode": "none", "skip_channel": true, "read": [{ "node_ids": ["ns=0;i=1001"], "attribute_id": 13 }], "close": false } }
   ],
   "expect": {
     "expect_error": true,
@@ -536,13 +536,13 @@
 
 **OPC UA 的 tshark 字段名（`opcua.messageid`、`opcua.messagesize` 等）在当前 Wireshark 树中不存在**（分诊调试扫描确认：gitlab 当前树无 packet-opcua.c 解析器，官方 dissectors2.json 也没有 opcua 项）。因此：
 
-- **MessageHeader 断言一律用 FrameAssert 原始字节**：offset 54（IPv4）/74（IPv6）起，抓 `48 45 4c 46`/`1c 00 00 00` 等；
+- **MessageHeader 断言一律用 FrameAssert 原始字节**：offset 54（IPv4）/74（IPv6）起，抓 `48 45 4c 46`/`20 00 00 00`（HEL）等；
 - `frame.protocols` 用 `value_contains` 验证链路存在但不断言具体字段；
 - 只有在 `-d tcp.port==4840,opcua` 真正生效（未来 tshark 支持）时，field 断言才启用；当前以 frames 为主。
 
 ### 4.2 包数算表（T7 说明）
 
-`packet_count` 是**含握手的合计帧数**。订阅用例 T7 的 26 来自：SYN/SYNACK/ACK（3）+ HEL/ACK（2）+ OPN req/resp（2）+ CreateSubscription req/resp（2）+ CreateMonitoredItems req/resp（2）+ SetPublishingMode req/resp（2）+ Publish req×2 + resp×2（4）+ CLO req/resp（2）+ FIN/FINACK/ACK（3）= 22? 不——T7 我上表写 26，是指 DataChange 那一次也是 Publish 对。**推论：T7 26 = 22 基础 + 2（第 2 个 Publish 对）= 24 + 2（CreateSubscription 前的一个空 Publish）= 26**。真实生成以 `pcap/.../opcua.json` 驱动为准；本文档包数以**断言基线**为准，驱动侧若有 ±2 差异先改 json 再改本文，保持「设计 §6 速查表 ↔ testcase 包索引 ↔ json packet_count」三方一致。
+`packet_count` 是**含握手的合计帧数**。T7 的 21 来自：SYN/SYNACK/ACK（3）+ HEL/ACK（2）+ OPN req/resp（2）+ CreateSubscription req/resp（2）+ CreateMonitoredItems req/resp（2）+ SetPublishingMode req/resp（2）+ Publish 通知 req/resp（2）+ Publish keep-alive req/resp（2）+ CLO req/resp（2）+ FIN（1）= 22？不——CLO 是一次对称消息（无 CLO 响应），所以 3+2+2+2×5+2+1=21。**T7 21 = 3 握手+2 传输层+2 OPN+2×5 服务对+1 CLO+1 FIN**。真实生成以 `opcua.json` 驱动为准；本文档包数以**断言基线**为准，驱动侧若有 ±2 差异先改 json 再改本文，保持「设计 §6 速查表 ↔ testcase 包索引 ↔ json packet_count」三方一致。
 
 > 保险建议：跑用例时若 `packet_count` 对不上，diff 的是**驱动方**对"空 Publish 计数"的口径，不是协议语义。
 

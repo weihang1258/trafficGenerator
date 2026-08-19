@@ -10,12 +10,12 @@
 
 | 维度 | 结论 |
 |------|------|
-| 设计规范自洽性 | **存在 CRITICAL 缺陷**：HEL 消息缺少 EndpointUrl 字段，AuthToken 编码偏移错误，CLO 响应方向理解错误 |
+| 设计规范自洽性 | **存在 CRITICAL 缺陷**：HEL 消息缺少 EndpointUrl 字段，AuthToken 编码偏移错误，CLO 响应方向理解错误，SecurityPolicy URI 域名错误 |
 | 三件套一致性 | **存在 CRITICAL 不一致**：design ↔ testcase 包数大面积不匹配；testcase ↔ JSON 帧断言、包数、spec_json 多处冲突 |
 | 用例覆盖完整性 | **存在 MAJOR 缺口**：T4(opcua_read) 和 T8(opcua_keepalive) 在 JSON 中缺失 |
 | 待实现边界 | 已标注，合理 |
 
-**严重度分布**：CRITICAL 7 | MAJOR 5 | MINOR 5
+**严重度分布**：CRITICAL 8 | MAJOR 5 | MINOR 5
 
 ---
 
@@ -49,16 +49,20 @@
 
 **问题描述**：设计文档将无会话的 AuthenticationToken（TwoByte NodeId 0）编码为单字节 `00`（偏移 72），但 OPC UA Part 6 §5.2.2.9 定义 TwoByte NodeId 格式为 `00`（掩码字节）+ `id`（标识符字节），共 2 字节。id=0 时线上为 `00 00`。
 
+**交叉核实**：设计文档 §2.8 NodeId 表中明确写着 "TwoByte（两字节）：id: Byte（1B，ns=0）"，即设计文档自身承认 TwoByte 是掩码+id 共 2 字节。掩码 0x00 + id 0 在线上为 `00 00`。设计内部自相矛盾。
+
+**佐证**：设计文档 §2.13 编码示例汇总中 `NodeId ns=0;i=1` = `00 01`（2 字节）——同一文档内部确认 TwoByte NodeId 是 2 字节。而 S3R1 中又把 TwoByte 0 写成 1 字节 `00`，直接矛盾。
+
 **影响**：
 - 偏移 72 标注为 `00`（1 字节），实际应为 `00 00`（2 字节）
 - 后续 Timestamp 偏移从 73 变为 74，此后所有偏移 +1
 - 设计文档载荷计算 "1（AuthToken）" 应为 "2（AuthToken）"，总载荷从 80 变为 81
-- 测试点如果使用设计文档的偏移断言（如 `offset 99` 的 `0100e903`），实际偏移应为 100 而非 99
+- testcase 文档 T4 的 `offset 99`（`0100e903`）引用自设计文档 S3R1，按修正后偏移应为 100 而非 99
 
 **修复建议**：
 1. 修正 S3R1 HexDump 中 AuthToken 为 `00 00`，调整后续所有偏移
 2. 修正载荷计数公式
-3. 由于 testcase 文档 T4 的 `offset 99` 引用自设计文档，需同步修正
+3. testcase 文档 T4 的 `offset 99` 同步修正为 `offset 100`
 
 ---
 
@@ -149,7 +153,28 @@
 
 ---
 
-### MAJOR-01：OPCUAConfig 缺少 error_inject 字段（设计 §5.2）
+### CRITICAL-08：SecurityPolicy URI 域名错误且长度不符实际
+
+**文件**：25-opcua-design.md §4.2，第 457-461 行
+
+**问题描述**：设计文档声称 SecurityPolicy URI 使用 `opc.tcp://` 协议前缀，且 None 为 70 字节、Basic256Sha256 为 102 字节。但 OPC Foundation 规范（Part 7 §6.2）和 open62541 实际使用的 URI 为 `http://opcfoundation.org/UA/SecurityPolicy#None`（47 字节）和 `http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256`（57 字节）。
+
+实际字节长度验证：
+- `http://opcfoundation.org/UA/SecurityPolicy#None` = 47 字节
+- `http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256` = 57 字节
+- 设计声称 None=70 字节、Basic256Sha256=102 字节（均错误）
+
+**影响**：
+- 设计 §4.2 表格中 SecurityPolicyUri 长度字段全部错误
+- 设计 §3.5 大小计算表 OPN 请求/响应的 MessageSize 全部错误
+- 设计 §6 S2R1/S2R2 的 HexDump 偏移标注全部错误（PolicyUri 实际 47B 而非 70B）
+- 实现如按设计文档编码，会生成不被 Wireshark 识别的 SecurityPolicy URI
+
+**修复建议**：
+1. 修正 SecurityPolicy URI 为标准的 `http://opcfoundation.org/UA/SecurityPolicy#None`（47B）和 `#Basic256Sha256`（57B）
+2. 重新计算 §3.5 大小表
+3. 重新计算 §6 S2R1/S2R2 的 HexDump 偏移
+4. 补充黄金向量中的 URI 编码示例
 
 **文件**：25-opcua-design.md §5.2，第 558-585 行
 
@@ -272,7 +297,7 @@
 | B6 | 真实密码学（Sign 模式） | 设计已标注"零填充占位"，实现阶段不要求真实 RSA 签名 |
 | B7 | ERR 消息生成 | 生成器当前不产生 ERR 消息，仅靠 expect_error 捕获 |
 | B8 | 多流双 TCP 连接 | 设计未覆盖，需后续补 |
-| B9 | tshark opcua 解码器 | 当前 Wireshark 无 packet-opcua.c，所有断言靠 FrameAssert 原始字节 |
+| B9 | tshark opcua 解码器 | 当前 Wireshark 无 packet-opcua.c，所有断言靠 FrameAssert 原始字节。搜索确认：Wireshark 官方 dissectors 列表中无 `opcua` 条目，`-d tcp.port==4840,opcua` 在当前版本无效。这与 testcase 文档 §4.1 的描述一致。
 
 ---
 
