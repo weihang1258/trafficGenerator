@@ -1,0 +1,939 @@
+[
+  {
+    "id": "tns_connect_accept",
+    "proto": "tns",
+    "summary": "S1/T-TNS-S1: CONNECT→ACCEPT→TTC data; TCP 1521",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1521,
+      "tns": {
+        "events": [
+          {
+            "type": "CONNECT",
+            "direction": "c2s",
+            "payload_profile": "connect_basic"
+          },
+          {
+            "type": "ACCEPT",
+            "direction": "s2c",
+            "payload_profile": "accept_basic"
+          },
+          {
+            "type": "DATA",
+            "direction": "c2s",
+            "payload_profile": "ttc_connect",
+            "data_flags": 0
+          },
+          {
+            "type": "DATA",
+            "direction": "s2c",
+            "payload_profile": "ttc_accept",
+            "data_flags": 0
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "tns.type",
+          "value": "2"
+        },
+        {
+          "packet": 6,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 7,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "tns.length",
+          "nonzero": true
+        },
+        {
+          "packet": 5,
+          "field": "tns.reserved",
+          "value": "0"
+        },
+        {
+          "packet": 6,
+          "field": "tns.data_flags",
+          "value": "0"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 58,
+          "hex": "01"
+        },
+        {
+          "packet": 5,
+          "offset": 58,
+          "hex": "02"
+        },
+        {
+          "packet": 6,
+          "offset": 58,
+          "hex": "06"
+        },
+        {
+          "packet": 6,
+          "offset": 62,
+          "hex": "00 00"
+        },
+        {
+          "packet": 7,
+          "offset": 59,
+          "hex": "00"
+        }
+      ],
+      "notes": []
+    },
+    "notes": []
+  },
+  {
+    "id": "tns_refuse",
+    "proto": "tns",
+    "summary": "S2/T-TNS-S2: CONNECT→REFUSE; no DATA",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1521,
+      "tns": {
+        "events": [
+          {
+            "type": "CONNECT",
+            "direction": "c2s",
+            "payload_profile": "connect_basic"
+          },
+          {
+            "type": "REFUSE",
+            "direction": "s2c",
+            "payload_profile": "refuse_basic"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "tns.type",
+          "value": "4"
+        },
+        {
+          "packet": 5,
+          "field": "tns.length",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 58,
+          "hex": "04"
+        }
+      ],
+      "notes": []
+    },
+    "notes": []
+  },
+  {
+    "id": "tns_redirect",
+    "proto": "tns",
+    "summary": "S3/T-TNS-S3: CONNECT→REDIRECT; no reconnect",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1521,
+      "tns": {
+        "events": [
+          {
+            "type": "CONNECT",
+            "direction": "c2s",
+            "payload_profile": "connect_basic"
+          },
+          {
+            "type": "REDIRECT",
+            "direction": "s2c",
+            "payload_profile": "redirect_basic"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "tns.type",
+          "value": "5"
+        },
+        {
+          "packet": 5,
+          "field": "tns.length",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 58,
+          "hex": "05"
+        }
+      ],
+      "notes": []
+    },
+    "notes": []
+  },
+  {
+    "id": "tns_ttc_sqlnet_session",
+    "proto": "tns",
+    "summary": "S4/T-TNS-S4: TTC and SQL*Net profile sequence, flags zero",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1521,
+      "tns": {
+        "events": [
+          {
+            "type": "CONNECT",
+            "direction": "c2s",
+            "payload_profile": "connect_basic"
+          },
+          {
+            "type": "ACCEPT",
+            "direction": "s2c",
+            "payload_profile": "accept_basic"
+          },
+          {
+            "type": "DATA",
+            "direction": "c2s",
+            "payload_profile": "ttc_connect",
+            "data_flags": 0
+          },
+          {
+            "type": "DATA",
+            "direction": "s2c",
+            "payload_profile": "ttc_accept",
+            "data_flags": 0
+          },
+          {
+            "type": "DATA",
+            "direction": "c2s",
+            "payload_profile": "sqlnet_request",
+            "data_flags": 0
+          },
+          {
+            "type": "DATA",
+            "direction": "s2c",
+            "payload_profile": "sqlnet_response",
+            "data_flags": 0
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 7,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 8,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 9,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 6,
+          "field": "tns.data_flags",
+          "value": "0"
+        },
+        {
+          "packet": 9,
+          "field": "tns.packet_checksum",
+          "value": "0"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 58,
+          "hex": "06"
+        },
+        {
+          "packet": 8,
+          "offset": 62,
+          "hex": "00 00"
+        },
+        {
+          "packet": 9,
+          "offset": 60,
+          "hex": "00 00"
+        }
+      ],
+      "notes": []
+    },
+    "notes": []
+  },
+  {
+    "id": "tns_ipv6_connect",
+    "proto": "tns",
+    "summary": "S5/T-TNS-S5: IPv6 CONNECT→ACCEPT",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "2001:db8::1",
+      "dst_ip": "2001:db8::2",
+      "src_port": 12345,
+      "dst_port": 1521,
+      "tns": {
+        "events": [
+          {
+            "type": "CONNECT",
+            "direction": "c2s",
+            "payload_profile": "connect_basic"
+          },
+          {
+            "type": "ACCEPT",
+            "direction": "s2c",
+            "payload_profile": "accept_basic"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.version",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "1521"
+        },
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "tns.type",
+          "value": "2"
+        },
+        {
+          "packet": 4,
+          "field": "tns.packet_checksum",
+          "value": "0"
+        },
+        {
+          "packet": 5,
+          "field": "tns.header_checksum",
+          "value": "0"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 78,
+          "hex": "01"
+        },
+        {
+          "packet": 5,
+          "offset": 78,
+          "hex": "02"
+        }
+      ],
+      "notes": []
+    },
+    "notes": []
+  },
+  {
+    "id": "tns_multi_session",
+    "proto": "tns",
+    "summary": "S6/T-TNS-S6: two independent CONNECT→ACCEPT sessions",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "dst_port": 1521,
+      "tns": {
+        "sessions": [
+          {
+            "src_port": 12345,
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s",
+                "payload_profile": "connect_basic"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c",
+                "payload_profile": "accept_basic"
+              }
+            ]
+          },
+          {
+            "src_port": 12346,
+            "events": [
+              {
+                "type": "CONNECT",
+                "direction": "c2s",
+                "payload_profile": "connect_basic"
+              },
+              {
+                "type": "ACCEPT",
+                "direction": "s2c",
+                "payload_profile": "accept_basic"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 18,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 0,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "12345",
+            "12346"
+          ],
+          "distinct_exclude": [
+            "1521"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "1521"
+          ],
+          "distinct_exclude": [
+            "12345",
+            "12346"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "tns.type",
+          "distinct_values": [
+            "1",
+            "2"
+          ]
+        }
+      ],
+      "notes": [
+        "S6: flow ordering is scheduler-dependent; distinct_values aggregate over both streams."
+      ]
+    },
+    "notes": [
+      "S6: flow ordering is scheduler-dependent; distinct_values aggregate over both streams."
+    ]
+  },
+  {
+    "id": "tns_header_fields",
+    "proto": "tns",
+    "summary": "S7/T-TNS-S7: complete public header fields and DATA flags",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1521,
+      "tns": {
+        "events": [
+          {
+            "type": "CONNECT",
+            "direction": "c2s",
+            "payload_profile": "connect_basic"
+          },
+          {
+            "type": "ACCEPT",
+            "direction": "s2c",
+            "payload_profile": "accept_basic"
+          },
+          {
+            "type": "DATA",
+            "direction": "c2s",
+            "payload_profile": "ttc_connect",
+            "data_flags": 0
+          },
+          {
+            "type": "DATA",
+            "direction": "s2c",
+            "payload_profile": "ttc_accept",
+            "data_flags": 0
+          }
+        ],
+        "checksum_mode": "disabled"
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tns.length",
+          "nonzero": true
+        },
+        {
+          "packet": 4,
+          "field": "tns.packet_checksum",
+          "value": "0"
+        },
+        {
+          "packet": 4,
+          "field": "tns.type",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "tns.reserved",
+          "value": "0"
+        },
+        {
+          "packet": 4,
+          "field": "tns.header_checksum",
+          "value": "0"
+        },
+        {
+          "packet": 5,
+          "field": "tns.length",
+          "nonzero": true
+        },
+        {
+          "packet": 5,
+          "field": "tns.packet_checksum",
+          "value": "0"
+        },
+        {
+          "packet": 5,
+          "field": "tns.type",
+          "value": "2"
+        },
+        {
+          "packet": 5,
+          "field": "tns.reserved",
+          "value": "0"
+        },
+        {
+          "packet": 5,
+          "field": "tns.header_checksum",
+          "value": "0"
+        },
+        {
+          "packet": 6,
+          "field": "tns.length",
+          "nonzero": true
+        },
+        {
+          "packet": 6,
+          "field": "tns.packet_checksum",
+          "value": "0"
+        },
+        {
+          "packet": 6,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 6,
+          "field": "tns.reserved",
+          "value": "0"
+        },
+        {
+          "packet": 6,
+          "field": "tns.header_checksum",
+          "value": "0"
+        },
+        {
+          "packet": 7,
+          "field": "tns.length",
+          "nonzero": true
+        },
+        {
+          "packet": 7,
+          "field": "tns.packet_checksum",
+          "value": "0"
+        },
+        {
+          "packet": 7,
+          "field": "tns.type",
+          "value": "6"
+        },
+        {
+          "packet": 7,
+          "field": "tns.reserved",
+          "value": "0"
+        },
+        {
+          "packet": 7,
+          "field": "tns.header_checksum",
+          "value": "0"
+        },
+        {
+          "packet": 6,
+          "field": "tns.data_flags",
+          "value": "0"
+        },
+        {
+          "packet": 7,
+          "field": "tns.data_flags",
+          "value": "0"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 56,
+          "hex": "00 00"
+        },
+        {
+          "packet": 4,
+          "offset": 58,
+          "hex": "01"
+        },
+        {
+          "packet": 4,
+          "offset": 59,
+          "hex": "00"
+        },
+        {
+          "packet": 4,
+          "offset": 60,
+          "hex": "00 00"
+        },
+        {
+          "packet": 6,
+          "offset": 62,
+          "hex": "00 00"
+        }
+      ],
+      "notes": []
+    },
+    "notes": []
+  },
+  {
+    "id": "tns_neg_udp",
+    "proto": "tns",
+    "summary": "N1: UDP carrier rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "dst_port": 1521,
+      "tns": {
+        "events": [
+          {
+            "type": "CONNECT",
+            "direction": "c2s",
+            "payload_profile": "connect_basic"
+          },
+          {
+            "type": "ACCEPT",
+            "direction": "s2c",
+            "payload_profile": "accept_basic"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "tcp"
+    },
+    "notes": [
+      "N1: UDP carrier rejected"
+    ]
+  },
+  {
+    "id": "tns_neg_packet_type",
+    "proto": "tns",
+    "summary": "N2: unknown packet type rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1521,
+      "tns": {
+        "events": [
+          {
+            "type": 127,
+            "direction": "c2s",
+            "payload_profile": "connect_basic"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "type"
+    },
+    "notes": [
+      "N2: unknown packet type rejected"
+    ]
+  },
+  {
+    "id": "tns_neg_length",
+    "proto": "tns",
+    "summary": "N3: packet length below 8 rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1521,
+      "tns": {
+        "events": [
+          {
+            "type": "CONNECT",
+            "direction": "c2s",
+            "payload_profile": "connect_basic"
+          },
+          {
+            "type": "ACCEPT",
+            "direction": "s2c",
+            "payload_profile": "accept_basic"
+          }
+        ],
+        "wire_fault": {
+          "kind": "length",
+          "value": 7
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    },
+    "notes": [
+      "N3: packet length below 8 rejected"
+    ]
+  },
+  {
+    "id": "tns_neg_checksum",
+    "proto": "tns",
+    "summary": "N4: nonzero checksum conflicts with disabled mode",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1521,
+      "tns": {
+        "events": [
+          {
+            "type": "CONNECT",
+            "direction": "c2s",
+            "payload_profile": "connect_basic"
+          },
+          {
+            "type": "ACCEPT",
+            "direction": "s2c",
+            "payload_profile": "accept_basic"
+          }
+        ],
+        "checksum_mode": "disabled",
+        "wire_fault": {
+          "kind": "packet_checksum",
+          "value": 1
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "checksum"
+    },
+    "notes": [
+      "N4: nonzero checksum conflicts with disabled mode"
+    ]
+  },
+  {
+    "id": "tns_neg_data_flags",
+    "proto": "tns",
+    "summary": "N5: nonzero DATA flags rejected in v1",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tns": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 1521,
+      "tns": {
+        "events": [
+          {
+            "type": "CONNECT",
+            "direction": "c2s",
+            "payload_profile": "connect_basic"
+          },
+          {
+            "type": "ACCEPT",
+            "direction": "s2c",
+            "payload_profile": "accept_basic"
+          },
+          {
+            "type": "DATA",
+            "direction": "c2s",
+            "payload_profile": "ttc_connect",
+            "data_flags": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "data_flags"
+    },
+    "notes": [
+      "N5: nonzero DATA flags rejected in v1"
+    ]
+  }
+]
