@@ -175,3 +175,30 @@ JSON 中 `tp.payload_length` 设为 `2500` 但这只是声明值，实际 wire �
 3. **SubscribeAck 缺 Option（H3）**：S6 场景缺少 Option（IPv4 Endpoint），这与 S5 的对称性不符。
 4. **IPv6 SD Option 未覆盖（H4）**：IPv6 用例只测了 REQUEST/RESPONSE，未测 SD IPv6 Endpoint Option。
 5. 其余 finding 均为断言补充、进制标注、包位风险等，可在实现阶段一并修复。
+---
+
+## 修复状态（文档阶段，2026-08-20）
+
+| Finding | 状态 | 处理与边界 |
+|---------|------|-----------|
+| C1 | 已修复 | design §6 S5 与 testcase/JSON FrameAssert 使用 16B Entry；Entry Array Length=0x10，Entry 末字节 Reserved 明确为 00。 |
+| C2 | 已修复 | IPv4 Endpoint Option 使用大端 Length `00 09`；12B 完整 Option 为 `01 00 09 00 14 00 00 c8 00 11 77 1a`。 |
+| H1 | 已修复 | S5 包1 Length=0x20（32），包2 Length=0x2c（44）；两包 SD Entries Length=0x10（16），并逐字节写出计算式。 |
+| H2 | 已修复（文档/用例） | `someip_tp_segments` 的 JSON payload 改为 2500 个显式、可复现的 0..255 循环字节，`tp.payload_length=2500` 与数组长度一致；设计与 testcase 不再以 4B 骨架冒充 2500B。Go 层未实现，未宣称运行期通过。 |
+| H3 | 已澄清边界 | 按当前设计选择规范允许的最小 SubscribeEventgroupAck：Ack 不引用 Option。design/testcase/JSON 均明确这是无 Option 原子行为；带 Endpoint Option 的 Ack 未覆盖，不能从本 case 推导已覆盖。 |
+| H4 | 已修复（文档/用例） | 新增独立 `someip_sd_ipv6` 原子 case，验证 IPv6 载体上的 OfferService 与 Option type=0x06、地址、端口；不与 IPv6 方法调用混合。Go 层/运行期注册仍是待实现边界。 |
+| M1 | 已修复 | S5 Find/Offer 两个 Entry 均补 `minorver=0` 断言，并在字段表注明 tshark 十进制。 |
+| M2 | 已修复 | Subscribe 包补 `instanceid=0x0001`。 |
+| M3 | 已修复（断言输入） | `someip_neg_session` 改为 `session_start=0` 且 `session_inc=0`，并在文档说明非递增触发；实际 Validate 行为待 Go 实现。 |
+| L1 | 已修复 | testcase 字段速查表明确 `someipsd.entry.ttl` 为十进制，`0xFFFFFF` 写作 `16777215`；design 同步。 |
+| L2 | 已修复 | `someip_sd_find_offer`、`someip_sd_subscribe` 的 SD 报文均补 `someip.serviceid=0xffff`。 |
+| L3 | 已修复（框架边界） | TCP case 删除硬编码 packet 4/5 的 SOME/IP 断言，保留握手、SYN、端口、`min_packets` 等可靠 observable assertions；文档明确框架不能按 SOME/IP 字段选择包，未伪造“packet 1 是数据包”。 |
+
+### 未决待实现边界
+
+1. SOME/IP 尚未在 Go layer registry/运行期 planner 中注册；因此本阶段只验收三件套内部规范、字节计算、原子用例与断言可观察性，不把未注册视为文档缺陷。
+2. `someip_sd_ipv6` 的 IPv6 Option wire/解析是否在未来实现中与当前 schema 完整接线，需实现阶段以 tshark 与 builder 端到端核验；本阶段不伪造通过结果。
+3. S6 仅覆盖无 Option 的最小 Ack；带 Endpoint Option 的 SubscribeEventgroupAck 是未覆盖的独立变体，未来需单独 case 并重算长度/索引。
+4. TCP SOME/IP 数据段按内容筛选的断言器当前缺失；本阶段只保留稳定的 TCP 握手/端口/包数观测，不把 packet 序号当作协议语义。
+
+> 本表是修复状态而非“所有问题已 clean”声明；以上待实现边界仍保持未决。
