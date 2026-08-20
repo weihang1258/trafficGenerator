@@ -1,0 +1,1726 @@
+[
+  {
+    "id": "ospf_hello_dr_bdr",
+    "proto": "ospf",
+    "summary": "T-OSPF-S1: Hello with mask, timers, priority, DR/BDR and one neighbor (24B header + 20B body + 4B neighbor)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "hello",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0",
+        "network_mask": "255.255.255.0",
+        "hello_interval": 10,
+        "dead_interval": 40,
+        "options": 2,
+        "priority": 1,
+        "designated_router": "10.0.0.2",
+        "backup_designated_router": "10.0.0.3",
+        "neighbors": [
+          "2.2.2.2"
+        ],
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "profile": "rfc2328_ipv4"
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "48"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.router_id",
+          "value": "1.1.1.1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.area_id",
+          "value": "0.0.0.0"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.hello.network_mask",
+          "value": "255.255.255.0"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.hello.hello_interval",
+          "value": "10"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.hello.dead_interval",
+          "value": "40"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.hello.priority",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.hello.designated_router",
+          "value": "10.0.0.2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.hello.backup_designated_router",
+          "value": "10.0.0.3"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.hello.neighbor",
+          "value": "2.2.2.2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.checksum",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 01 00 30"
+        }
+      ],
+      "notes": [
+        "OSPFv2 header is 24 bytes; Hello body (mask, timers, options, priority, DR, BDR) is 20 bytes; each neighbor Router ID adds 4 bytes.",
+        "DR/BDR and neighbor IDs are explicit Hello fields; they are not inferred from the multicast destination."
+      ]
+    }
+  },
+  {
+    "id": "ospf_hello_neighbors",
+    "proto": "ospf",
+    "summary": "T-OSPF-S2: Hello neighbor list grows by one Router ID per four bytes (48 -> 52)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "hello",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0",
+        "network_mask": "255.255.255.0",
+        "hello_interval": 10,
+        "dead_interval": 40,
+        "options": 2,
+        "priority": 1,
+        "designated_router": "10.0.0.2",
+        "backup_designated_router": "10.0.0.3",
+        "neighbors": [
+          "2.2.2.2",
+          "3.3.3.3"
+        ],
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "profile": "rfc2328_ipv4"
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "52"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.hello.neighbor",
+          "value": "2.2.2.2,3.3.3.3"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.hello.neighbor_count",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.area_id",
+          "value": "0.0.0.0"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 01 00 34"
+        }
+      ],
+      "notes": [
+        "Length is 24-byte header + 20-byte Hello body + 8-byte neighbor list."
+      ]
+    }
+  },
+  {
+    "id": "ospf_dbd_master",
+    "proto": "ospf",
+    "summary": "T-OSPF-S3: Database Description master with I/M/MS bits and one Router-LSA header",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "db_description",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0",
+        "interface_mtu": 1500,
+        "options": 2,
+        "flags": {
+          "init": true,
+          "more": true,
+          "master": true
+        },
+        "dd_sequence": 100,
+        "lsa_headers": [
+          {
+            "age": 1,
+            "lsa_type": 1,
+            "link_state_id": "1.1.1.1",
+            "advertising_router": "1.1.1.1",
+            "sequence": "0x80000001",
+            "checksum_mode": "auto",
+            "length": 36
+          }
+        ],
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "profile": "rfc2328_ipv4"
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "52"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.db_description.interface_mtu",
+          "value": "1500"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.db_description.flags",
+          "value": "0x07"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.db_description.dd_sequence",
+          "value": "100"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.link_state_id",
+          "value": "1.1.1.1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.advertising_router",
+          "value": "1.1.1.1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 02 00 34"
+        }
+      ],
+      "notes": [
+        "DBD fixed body is 8 bytes; one 20-byte LSA header yields total length 52.",
+        "I/M/MS flag bits are asserted for this explicit fixture only."
+      ]
+    }
+  },
+  {
+    "id": "ospf_dbd_slave",
+    "proto": "ospf",
+    "summary": "T-OSPF-S4: Database Description slave clears I/M/MS and advances the DD sequence",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "db_description",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0",
+        "interface_mtu": 1500,
+        "options": 2,
+        "flags": {
+          "init": false,
+          "more": false,
+          "master": false
+        },
+        "dd_sequence": 101,
+        "lsa_headers": [
+          {
+            "age": 1,
+            "lsa_type": 1,
+            "link_state_id": "1.1.1.1",
+            "advertising_router": "1.1.1.1",
+            "sequence": "0x80000001",
+            "checksum_mode": "auto",
+            "length": 36
+          }
+        ],
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "profile": "rfc2328_ipv4"
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "52"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.db_description.flags",
+          "value": "0x00"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.db_description.dd_sequence",
+          "value": "101"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.type",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 02 00 34"
+        }
+      ],
+      "notes": [
+        "The slave case is separate so flag/state semantics are not hidden behind the master case."
+      ]
+    }
+  },
+  {
+    "id": "ospf_lsr_router_lsa",
+    "proto": "ospf",
+    "summary": "T-OSPF-S5: Link State Request asks for a Router-LSA by type, LSID and advertising Router ID",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "link_state_request",
+        "router_id": "2.2.2.2",
+        "area_id": "0.0.0.0",
+        "requests": [
+          {
+            "lsa_type": 1,
+            "link_state_id": "1.1.1.1",
+            "advertising_router": "1.1.1.1"
+          }
+        ],
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "profile": "rfc2328_ipv4"
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "3"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "36"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsr.request.type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsr.request.link_state_id",
+          "value": "1.1.1.1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsr.request.advertising_router",
+          "value": "1.1.1.1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.checksum",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 03 00 24"
+        }
+      ],
+      "notes": [
+        "One LSR request is 12 bytes after the 24-byte OSPF header."
+      ]
+    }
+  },
+  {
+    "id": "ospf_lsr_network_lsa",
+    "proto": "ospf",
+    "summary": "T-OSPF-S6: Link State Request asks for a Network-LSA (LSID = DR interface address)",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "link_state_request",
+        "router_id": "2.2.2.2",
+        "area_id": "0.0.0.0",
+        "requests": [
+          {
+            "lsa_type": 2,
+            "link_state_id": "10.0.0.2",
+            "advertising_router": "1.1.1.1"
+          }
+        ],
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "profile": "rfc2328_ipv4"
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "3"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "36"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsr.request.type",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsr.request.link_state_id",
+          "value": "10.0.0.2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsr.request.advertising_router",
+          "value": "1.1.1.1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 03 00 24"
+        }
+      ],
+      "notes": [
+        "Network-LSA LSID is the DR interface address, distinct from the Router-LSA LSID."
+      ]
+    }
+  },
+  {
+    "id": "ospf_lsu_router_lsa",
+    "proto": "ospf",
+    "summary": "T-OSPF-S7: Link State Update carries one basic Router-LSA with one link",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "link_state_update",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0",
+        "lsas": [
+          {
+            "age": 1,
+            "options": 0,
+            "lsa_type": 1,
+            "link_state_id": "1.1.1.1",
+            "advertising_router": "1.1.1.1",
+            "sequence": "0x80000001",
+            "checksum_mode": "auto",
+            "length": 36,
+            "flags": 0,
+            "links": [
+              {
+                "link_id": "10.0.0.2",
+                "link_data": "255.255.255.0",
+                "link_type": 2,
+                "metric": 10
+              }
+            ]
+          }
+        ],
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "profile": "rfc2328_ipv4"
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "4"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "64"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsu.lsa_count",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.length",
+          "value": "36"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.router.flags",
+          "value": "0x00"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.router.link_count",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.router.link.type",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.router.link.metric",
+          "value": "10"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.checksum",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 04 00 40"
+        }
+      ],
+      "notes": [
+        "LSU body is 4-byte LSA count + 36-byte Router-LSA; Router-LSA length includes its own 20-byte header."
+      ]
+    }
+  },
+  {
+    "id": "ospf_lsu_network_lsa",
+    "proto": "ospf",
+    "summary": "T-OSPF-S8: Link State Update carries one Network-LSA with mask and two attached routers",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "link_state_update",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0",
+        "lsas": [
+          {
+            "age": 1,
+            "options": 0,
+            "lsa_type": 2,
+            "link_state_id": "10.0.0.2",
+            "advertising_router": "1.1.1.1",
+            "sequence": "0x80000001",
+            "checksum_mode": "auto",
+            "length": 32,
+            "network_mask": "255.255.255.0",
+            "attached_routers": [
+              "1.1.1.1",
+              "2.2.2.2"
+            ]
+          }
+        ],
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "profile": "rfc2328_ipv4"
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "4"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "60"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsu.lsa_count",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.type",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.link_state_id",
+          "value": "10.0.0.2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.length",
+          "value": "32"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.network.mask",
+          "value": "255.255.255.0"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.network.attached_router",
+          "value": "1.1.1.1,2.2.2.2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 04 00 3c"
+        }
+      ],
+      "notes": [
+        "Network-LSA body is 4-byte mask + 4 bytes per attached Router ID; with two routers the LSA is 32 bytes and the LSU 60 bytes."
+      ]
+    }
+  },
+  {
+    "id": "ospf_lsack",
+    "proto": "ospf",
+    "summary": "T-OSPF-S9: Link State Acknowledgment carries Router-LSA and Network-LSA headers",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "link_state_acknowledgment",
+        "router_id": "2.2.2.2",
+        "area_id": "0.0.0.0",
+        "lsa_headers": [
+          {
+            "age": 1,
+            "lsa_type": 1,
+            "link_state_id": "1.1.1.1",
+            "advertising_router": "1.1.1.1",
+            "sequence": "0x80000001",
+            "checksum_mode": "auto",
+            "length": 36
+          },
+          {
+            "age": 2,
+            "lsa_type": 2,
+            "link_state_id": "10.0.0.2",
+            "advertising_router": "1.1.1.1",
+            "sequence": "0x80000001",
+            "checksum_mode": "auto",
+            "length": 32
+          }
+        ],
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "profile": "rfc2328_ipv4"
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "5"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "64"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsack.lsa_count",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.type",
+          "value": "1,2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.link_state_id",
+          "value": "1.1.1.1,10.0.0.2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.length",
+          "value": "36,32"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.checksum",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 05 00 40"
+        }
+      ],
+      "notes": [
+        "LSAck carries only 20-byte LSA headers; two headers yield length 24+40=64."
+      ]
+    }
+  },
+  {
+    "id": "ospf_neighbor_full_exchange",
+    "proto": "ospf",
+    "summary": "T-OSPF-S10: atomic Hello/DBD/LSR/LSU/LSAck exchange progresses Init -> ExStart -> Exchange -> Loading -> Full",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "profile": "rfc2328_ipv4",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0",
+        "events": [
+          {
+            "kind": "hello",
+            "direction": "c2s",
+            "neighbor_state": "Init",
+            "router_id": "1.1.1.1",
+            "area_id": "0.0.0.0",
+            "network_mask": "255.255.255.0",
+            "hello_interval": 10,
+            "dead_interval": 40,
+            "priority": 1,
+            "designated_router": "10.0.0.2",
+            "backup_designated_router": "10.0.0.3",
+            "neighbors": [
+              "2.2.2.2"
+            ]
+          },
+          {
+            "kind": "db_description",
+            "direction": "c2s",
+            "neighbor_state": "ExStart",
+            "flags": {
+              "init": true,
+              "more": true,
+              "master": true
+            },
+            "dd_sequence": 100,
+            "lsa_headers": []
+          },
+          {
+            "kind": "db_description",
+            "direction": "s2c",
+            "neighbor_state": "Exchange",
+            "flags": {
+              "init": false,
+              "more": true,
+              "master": false
+            },
+            "dd_sequence": 101,
+            "lsa_headers": [
+              {
+                "lsa_type": 1,
+                "link_state_id": "1.1.1.1",
+                "advertising_router": "1.1.1.1",
+                "length": 36
+              }
+            ]
+          },
+          {
+            "kind": "link_state_request",
+            "direction": "c2s",
+            "neighbor_state": "Loading",
+            "requests": [
+              {
+                "lsa_type": 1,
+                "link_state_id": "1.1.1.1",
+                "advertising_router": "1.1.1.1"
+              }
+            ]
+          },
+          {
+            "kind": "link_state_update",
+            "direction": "s2c",
+            "neighbor_state": "Loading",
+            "lsas": [
+              {
+                "age": 1,
+                "options": 0,
+                "lsa_type": 1,
+                "link_state_id": "1.1.1.1",
+                "advertising_router": "1.1.1.1",
+                "sequence": "0x80000001",
+                "checksum_mode": "auto",
+                "length": 36,
+                "flags": 0,
+                "links": [
+                  {
+                    "link_id": "10.0.0.2",
+                    "link_data": "255.255.255.0",
+                    "link_type": 2,
+                    "metric": 10
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "link_state_acknowledgment",
+            "direction": "c2s",
+            "neighbor_state": "Full",
+            "lsa_headers": [
+              {
+                "lsa_type": 1,
+                "link_state_id": "1.1.1.1",
+                "advertising_router": "1.1.1.1",
+                "length": 36
+              }
+            ]
+          }
+        ],
+        "auth_type": 0,
+        "checksum_mode": "auto"
+      }
+    },
+    "expect": {
+      "packet_count": 6,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "ospf.type",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "ospf.neighbor_state",
+          "value": "ExStart"
+        },
+        {
+          "packet": 3,
+          "field": "ospf.neighbor_state",
+          "value": "Exchange"
+        },
+        {
+          "packet": 4,
+          "field": "ospf.type",
+          "value": "3"
+        },
+        {
+          "packet": 4,
+          "field": "ospf.neighbor_state",
+          "value": "Loading"
+        },
+        {
+          "packet": 5,
+          "field": "ospf.type",
+          "value": "4"
+        },
+        {
+          "packet": 5,
+          "field": "ospf.lsu.lsa_count",
+          "value": "1"
+        },
+        {
+          "packet": 6,
+          "field": "ospf.type",
+          "value": "5"
+        },
+        {
+          "packet": 6,
+          "field": "ospf.neighbor_state",
+          "value": "Full"
+        },
+        {
+          "packet": 6,
+          "field": "ospf.lsack.lsa_count",
+          "value": "1"
+        }
+      ],
+      "notes": [
+        "Each event is one raw IPv4 OSPF packet in this no-MSS fixture: packet_count is 6, not a TCP handshake formula.",
+        "Neighbor state is session observability; wire-visible type/flags/LSA fields are asserted independently."
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 01"
+        },
+        {
+          "packet": 2,
+          "offset": 34,
+          "hex": "02 02"
+        },
+        {
+          "packet": 3,
+          "offset": 34,
+          "hex": "02 02"
+        },
+        {
+          "packet": 4,
+          "offset": 34,
+          "hex": "02 03"
+        },
+        {
+          "packet": 5,
+          "offset": 34,
+          "hex": "02 04"
+        },
+        {
+          "packet": 6,
+          "offset": 34,
+          "hex": "02 05"
+        }
+      ]
+    }
+  },
+  {
+    "id": "ospf_ipv4_transport",
+    "proto": "ospf",
+    "summary": "T-OSPF-S11: IPv4 transport uses protocol 89, TTL 1, explicit Router ID and area",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.9",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "hello",
+        "router_id": "10.10.10.10",
+        "area_id": "0.0.0.1",
+        "network_mask": "255.255.255.0",
+        "hello_interval": 5,
+        "dead_interval": 20,
+        "options": 0,
+        "priority": 0,
+        "designated_router": "0.0.0.0",
+        "backup_designated_router": "0.0.0.0",
+        "neighbors": [],
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "profile": "rfc2328_ipv4"
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "44"
+        },
+        {
+          "packet": 1,
+          "field": "ip.version",
+          "value": "4"
+        },
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "224.0.0.5"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.router_id",
+          "value": "10.10.10.10"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.area_id",
+          "value": "0.0.0.1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.checksum",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 01 00 2c"
+        }
+      ],
+      "notes": [
+        "OSPFv2 is carried directly in IPv4 with protocol number 89; there are no UDP/TCP ports."
+      ]
+    }
+  },
+  {
+    "id": "ospf_checksum_length",
+    "proto": "ospf",
+    "summary": "T-OSPF-S12: auto checksum and packet/LSA lengths cover the encoded Router-LSA bytes",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.6",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "link_state_update",
+        "router_id": "3.3.3.3",
+        "area_id": "0.0.0.2",
+        "lsas": [
+          {
+            "age": 1,
+            "options": 0,
+            "lsa_type": 1,
+            "link_state_id": "1.1.1.1",
+            "advertising_router": "1.1.1.1",
+            "sequence": "0x80000001",
+            "checksum_mode": "auto",
+            "length": 36,
+            "flags": 0,
+            "links": [
+              {
+                "link_id": "10.0.0.2",
+                "link_data": "255.255.255.0",
+                "link_type": 2,
+                "metric": 10
+              }
+            ]
+          }
+        ],
+        "auth_type": 0,
+        "checksum_mode": "auto",
+        "profile": "rfc2328_ipv4"
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "directional": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.proto",
+          "value": "89"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.version",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.type",
+          "value": "4"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "64"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "64"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.checksum",
+          "nonzero": true
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.length",
+          "value": "36"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.header.checksum",
+          "nonzero": true
+        },
+        {
+          "packet": 1,
+          "field": "ospf.area_id",
+          "value": "0.0.0.2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.router_id",
+          "value": "3.3.3.3"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 34,
+          "hex": "02 04 00 40"
+        }
+      ],
+      "notes": [
+        "Checksum bytes are computed over the encoded message after all lengths and IDs are filled; the contract asserts non-zero checksum rather than an unverified constant."
+      ]
+    }
+  },
+  {
+    "id": "ospf_neg_udp",
+    "proto": "ospf",
+    "summary": "T-OSPF-N1: UDP carrier is rejected; OSPFv2 requires IPv4 protocol 89",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "packet_type": "hello"
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "ip"
+    }
+  },
+  {
+    "id": "ospf_neg_ipv6_v2",
+    "proto": "ospf",
+    "summary": "T-OSPF-N2: IPv6 OSPFv2 config cannot reuse the IPv4 RFC2328 profile; RFC5340 has its own header/profile",
+    "spec_json": {
+      "layers": [
+        {
+          "ipv6": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "2001:db8::1",
+      "dst_ip": "ff02::5",
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "profile": "rfc2328_ipv4",
+        "packet_type": "hello",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0"
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "rfc5340"
+    }
+  },
+  {
+    "id": "ospf_neg_version",
+    "proto": "ospf",
+    "summary": "T-OSPF-N3: unsupported OSPF version with an IPv4 profile is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 3,
+        "profile": "rfc2328_ipv4",
+        "packet_type": "hello",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0"
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "version"
+    }
+  },
+  {
+    "id": "ospf_neg_type",
+    "proto": "ospf",
+    "summary": "T-OSPF-N4: packet type outside Hello/DBD/LSR/LSU/LSAck is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "profile": "rfc2328_ipv4",
+        "packet_type": "unknown",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0"
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "type"
+    }
+  },
+  {
+    "id": "ospf_neg_length",
+    "proto": "ospf",
+    "summary": "T-OSPF-N5: declared packet length inconsistent with encoded body is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "profile": "rfc2328_ipv4",
+        "packet_type": "hello",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0",
+        "wire_fault": {
+          "kind": "declared_length",
+          "value": "smaller_than_header"
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "ospf_neg_area",
+    "proto": "ospf",
+    "summary": "T-OSPF-N6: malformed area ID is rejected rather than defaulted",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "profile": "rfc2328_ipv4",
+        "packet_type": "hello",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0",
+        "wire_fault": {
+          "kind": "area_id",
+          "value": "malformed"
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "area"
+    }
+  },
+  {
+    "id": "ospf_neg_router_id",
+    "proto": "ospf",
+    "summary": "T-OSPF-N7: malformed Router ID is rejected rather than silently replaced",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "224.0.0.5",
+      "ttl": 1,
+      "count": 1,
+      "ospf": {
+        "version": 2,
+        "profile": "rfc2328_ipv4",
+        "packet_type": "hello",
+        "router_id": "not-an-ip",
+        "area_id": "0.0.0.0"
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "router"
+    }
+  },
+  {
+    "id": "ospf_ipv6_rfc5340_boundary",
+    "proto": "ospf",
+    "summary": "T-OSPF-N8: RFC5340 OSPFv3 has an independent IPv6 profile and is not generated by the RFC2328 IPv4 contract",
+    "spec_json": {
+      "layers": [
+        {
+          "ipv6": {}
+        },
+        {
+          "ospf": {}
+        }
+      ],
+      "src_ip": "2001:db8::1",
+      "dst_ip": "ff02::5",
+      "count": 1,
+      "ospf": {
+        "version": 3,
+        "profile": "rfc5340_ipv6",
+        "packet_type": "hello",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0",
+        "wire_fault": {
+          "kind": "profile_boundary",
+          "value": "design_only"
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "rfc5340"
+    }
+  }
+]
