@@ -1,0 +1,841 @@
+[
+  {
+    "id": "mongodb_query_reply",
+    "proto": "mongodb",
+    "summary": "S1: OP_QUERY followed by OP_REPLY with responseTo correlation",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 100,
+            "response_to": 0,
+            "opcode": "OP_QUERY",
+            "namespace": "test.users",
+            "flags": 0,
+            "skip": 0,
+            "return_count": 1,
+            "query": {
+              "x": 1
+            }
+          },
+          {
+            "direction": "s2c",
+            "request_id": 101,
+            "response_to": 100,
+            "opcode": "OP_REPLY",
+            "flags": 0,
+            "cursor_id": 0,
+            "starting_from": 0,
+            "returned": 1,
+            "documents": [
+              {
+                "x": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "27017"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.srcport",
+          "value": "27017"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "33 00 00 00 64 00 00 00 00 00 00 00 d4 07 00 00"
+        },
+        {
+          "packet": 4,
+          "offset": 93,
+          "hex": "0c 00 00 00 10 78 00 01 00 00 00 00"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "30 00 00 00 65 00 00 00 64 00 00 00 01 00 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "mongodb_write_ops",
+    "proto": "mongodb",
+    "summary": "S2: atomic legacy write and cursor operation messages",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 110,
+            "response_to": 0,
+            "opcode": "OP_INSERT",
+            "namespace": "test.users",
+            "flags": 0,
+            "documents": [
+              {
+                "x": 1
+              },
+              {
+                "_id": "a"
+              }
+            ]
+          },
+          {
+            "direction": "c2s",
+            "request_id": 120,
+            "response_to": 0,
+            "opcode": "OP_UPDATE",
+            "namespace": "test.users",
+            "zero": 0,
+            "flags": 2,
+            "selector": {
+              "x": 1
+            },
+            "update": {}
+          },
+          {
+            "direction": "c2s",
+            "request_id": 130,
+            "response_to": 0,
+            "opcode": "OP_DELETE",
+            "namespace": "test.users",
+            "zero": 0,
+            "flags": 1,
+            "selector": {
+              "x": 1
+            }
+          },
+          {
+            "direction": "c2s",
+            "request_id": 140,
+            "response_to": 0,
+            "opcode": "OP_GET_MORE",
+            "namespace": "test.users",
+            "zero": 0,
+            "return_count": 2,
+            "cursor_id": 72623859790382856
+          },
+          {
+            "direction": "c2s",
+            "request_id": 150,
+            "response_to": 0,
+            "opcode": "OP_KILL_CURSORS",
+            "zero": 0,
+            "cursor_ids": [
+              72623859790382856
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "27017"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "3b 00 00 00 6e 00 00 00 00 00 00 00 d2 07 00 00"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "34 00 00 00 78 00 00 00 00 00 00 00 d1 07 00 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "2f 00 00 00 82 00 00 00 00 00 00 00 d6 07 00 00"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "2b 00 00 00 8c 00 00 00 00 00 00 00 d5 07 00 00"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "20 00 00 00 96 00 00 00 00 00 00 00 d7 07 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "mongodb_bson_types",
+    "proto": "mongodb",
+    "summary": "S3: OP_INSERT carrying all supported BSON basic types",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 170,
+            "response_to": 0,
+            "opcode": "OP_INSERT",
+            "namespace": "test.users",
+            "flags": 0,
+            "documents": [
+              {
+                "fixture": "typed"
+              }
+            ],
+            "bson_fixture_hex": "65 00 00 00 01 64 00 00 00 00 00 00 00 f8 3f 10 69 00 f9 ff ff ff 12 6c 00 08 07 06 05 04 03 02 01 02 73 00 02 00 00 00 41 00 08 62 00 01 0a 6e 00 05 62 69 6e 00 02 00 00 00 00 01 02 04 61 72 72 00 15 00 00 00 10 30 00 07 00 00 00 02 31 00 02 00 00 00 78 00 00 03 64 6f 63 00 08 00 00 00 0a 62 00 00 00"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "27017"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "84 00 00 00 aa 00 00 00 00 00 00 00 d2 07 00 00"
+        },
+        {
+          "packet": 4,
+          "offset": 85,
+          "hex": "65 00 00 00 01 64 00 00 00 00 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "mongodb_empty_boundary",
+    "proto": "mongodb",
+    "summary": "S4: legal minimum five-byte empty BSON selector",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 160,
+            "response_to": 0,
+            "opcode": "OP_QUERY",
+            "namespace": "test.users",
+            "flags": 0,
+            "skip": 0,
+            "return_count": 1,
+            "query": {}
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "27017"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "2c 00 00 00 a0 00 00 00 00 00 00 00 d4 07 00 00"
+        },
+        {
+          "packet": 4,
+          "offset": 93,
+          "hex": "05 00 00 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "mongodb_ipv6",
+    "proto": "mongodb",
+    "summary": "S5: IPv6 OP_QUERY and OP_REPLY preserve MongoDB header layout",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "2001:db8::1",
+      "dst_ip": "2001:db8::2",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 180,
+            "response_to": 0,
+            "opcode": "OP_QUERY",
+            "namespace": "test.users",
+            "flags": 0,
+            "skip": 0,
+            "return_count": 1,
+            "query": {
+              "x": 1
+            }
+          },
+          {
+            "direction": "s2c",
+            "request_id": 181,
+            "response_to": 180,
+            "opcode": "OP_REPLY",
+            "flags": 0,
+            "cursor_id": 0,
+            "starting_from": 0,
+            "returned": 1,
+            "documents": [
+              {
+                "x": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.version",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "27017"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 74,
+          "hex": "33 00 00 00 b4 00 00 00 00 00 00 00 d4 07 00 00"
+        },
+        {
+          "packet": 5,
+          "offset": 74,
+          "hex": "30 00 00 00 b5 00 00 00 b4 00 00 00 01 00 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "mongodb_multi_session",
+    "proto": "mongodb",
+    "summary": "S6: two independent sessions retain request and response correlation",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "sessions": [
+          {
+            "src_port": 12345,
+            "messages": [
+              {
+                "direction": "c2s",
+                "request_id": 200,
+                "response_to": 0,
+                "opcode": "OP_QUERY",
+                "namespace": "test.users",
+                "flags": 0,
+                "skip": 0,
+                "return_count": 1,
+                "query": {
+                  "x": 1
+                }
+              },
+              {
+                "direction": "s2c",
+                "request_id": 201,
+                "response_to": 200,
+                "opcode": "OP_REPLY",
+                "flags": 0,
+                "cursor_id": 0,
+                "starting_from": 0,
+                "returned": 1,
+                "documents": [
+                  {
+                    "x": 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "src_port": 12346,
+            "messages": [
+              {
+                "direction": "c2s",
+                "request_id": 300,
+                "response_to": 0,
+                "opcode": "OP_QUERY",
+                "namespace": "test.users",
+                "flags": 0,
+                "skip": 0,
+                "return_count": 1,
+                "query": {
+                  "x": 1
+                }
+              },
+              {
+                "direction": "s2c",
+                "request_id": 301,
+                "response_to": 300,
+                "opcode": "OP_REPLY",
+                "flags": 0,
+                "cursor_id": 0,
+                "starting_from": 0,
+                "returned": 1,
+                "documents": [
+                  {
+                    "x": 1
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 18,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "value": "27017"
+        },
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "12345",
+            "12346"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "mongodb_message_header",
+    "proto": "mongodb",
+    "summary": "S7: all four little-endian message header fields",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 190,
+            "response_to": 0,
+            "opcode": "OP_INSERT",
+            "namespace": "test.users",
+            "flags": 0,
+            "documents": [
+              {
+                "x": 1
+              },
+              {
+                "_id": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "27017"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "3b 00 00 00 be 00 00 00 00 00 00 00 d2 07 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "mongodb_neg_truncated_header",
+    "proto": "mongodb",
+    "summary": "N1: header shorter than 16 bytes is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 400,
+            "response_to": 0,
+            "opcode": "OP_QUERY",
+            "namespace": "test.users",
+            "flags": 0,
+            "skip": 0,
+            "return_count": 1,
+            "query": {
+              "x": 1
+            }
+          }
+        ],
+        "wire_fault": {
+          "kind": "truncate_header",
+          "value": 10
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "truncated"
+    }
+  },
+  {
+    "id": "mongodb_neg_short_length",
+    "proto": "mongodb",
+    "summary": "N2: messageLength below header size is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 401,
+            "response_to": 0,
+            "opcode": "OP_QUERY",
+            "namespace": "test.users",
+            "flags": 0,
+            "skip": 0,
+            "return_count": 1,
+            "query": {
+              "x": 1
+            }
+          }
+        ],
+        "wire_fault": {
+          "kind": "message_length",
+          "value": 15
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "mongodb_neg_oversize",
+    "proto": "mongodb",
+    "summary": "N3: messageLength beyond configured limit is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 402,
+            "response_to": 0,
+            "opcode": "OP_QUERY",
+            "namespace": "test.users",
+            "flags": 0,
+            "skip": 0,
+            "return_count": 1,
+            "query": {
+              "x": 1
+            }
+          }
+        ],
+        "wire_fault": {
+          "kind": "message_limit",
+          "value": "over_limit"
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "limit"
+    }
+  },
+  {
+    "id": "mongodb_neg_bad_opcode",
+    "proto": "mongodb",
+    "summary": "N4: unknown opcode is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 403,
+            "response_to": 0,
+            "opcode": 2147483647,
+            "namespace": "test.users",
+            "flags": 0,
+            "skip": 0,
+            "return_count": 1,
+            "query": {
+              "x": 1
+            }
+          }
+        ],
+        "wire_fault": {
+          "kind": "opcode",
+          "value": 2147483647
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "opcode"
+    }
+  },
+  {
+    "id": "mongodb_neg_bson_length",
+    "proto": "mongodb",
+    "summary": "N5: BSON length beyond message boundary is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 404,
+            "response_to": 0,
+            "opcode": "OP_INSERT",
+            "namespace": "test.users",
+            "flags": 0,
+            "documents": [
+              {
+                "x": 1
+              }
+            ]
+          }
+        ],
+        "wire_fault": {
+          "kind": "bson_length",
+          "value": 1000
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "bson"
+    }
+  },
+  {
+    "id": "mongodb_neg_udp_carrier",
+    "proto": "mongodb",
+    "summary": "N6: UDP carrier is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "mongodb": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 27017,
+      "mongodb": {
+        "messages": [
+          {
+            "direction": "c2s",
+            "request_id": 405,
+            "response_to": 0,
+            "opcode": "OP_QUERY",
+            "namespace": "test.users",
+            "flags": 0,
+            "skip": 0,
+            "return_count": 1,
+            "query": {
+              "x": 1
+            }
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "tcp"
+    }
+  }
+]
