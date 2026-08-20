@@ -142,7 +142,7 @@ ISO 8073 TP0 over TCP。每个 TPDU 由"LI + 类型 + 参数"构成，LI（Lengt
 | 类型 | TPDU 类型字节 | LI 典型值 | 方向 | 用途 |
 | --- | --- | --- | --- | --- |
 | CR（Connect Request）| 0xE0 | 0x0F | 客户端→服务器 | 传输连接请求 |
-| CC（Connect Confirm）| 0xD0 | 0x0D | 服务器→客户端 | 传输连接确认 |
+| CC（Connect Confirm）| 0xD0 | 0x0F | 服务器→客户端 | 传输连接确认（含三项协商选项） |
 | DT（Data）| 0xF0 | 0x02 | 双向 | 用户数据 |
 | DR（Disconnect Request） | 0x80 | - | 双向 | 拆除（本版本可选）|
 | DC（Disconnect Confirm） | 0x82 | - | 双向 | 拆除（本版本可选；ER 也使用 0x82，按上下文区分）|
@@ -891,7 +891,7 @@ type MMSSequence struct {
 | 6 | C→S | **DT1**：会话 CONNECT → 表示 CP → ACSE AARQ → MMS Initiate-RequestPDU | cotp.type=0x0f(DT), eot=0x80 |
 | 7 | S→C | **DT2**：会话 CONNECT ACK → 表示 CPA → ACSE AARE → MMS Initiate-ResponsePDU | cotp.type=0x0f(DT) |
 
-> 名称约定：`CR`=连接请求 TPDU，`CC`=连接确认 TPDU，`DT`=数据 TPDU。CR 独立成帧（不承载会话/表示/ACSE），承载层叠协议栈的是第 5、6 帧的 DT —— 这是 RFC 1006 客户端实现的确定行为，测试包索引必须据此定位（testcase 文档同步采用 1-based 帧号）。
+> 名称约定：`CR`=连接请求 TPDU，`CC`=连接确认 TPDU，`DT`=数据 TPDU。CR 独立成帧（不承载会话/表示/ACSE），承载层叠协议栈的是第 6、7 帧的 DT —— 这是 RFC 1006 客户端实现的确定行为，测试包索引必须据此定位（testcase 文档同步采用 1-based 帧号）。
 
 ### 6.2 Frame 4 CR / Frame 5 CC 逐字节
 
@@ -1002,9 +1002,9 @@ a4 16                 | mms-init-request-detail 长 0x16=22
 
 RFC 1006/ISO 9506/IEC 61850-8-1 公开布局如下，均已本地验证：
 
-1. **COTP/TPKT 层**：使用 libiec61850`iso_cotp/cotp.c` 的 CR/CC/DT 编码 + 本地 tshark 3.6.14 回溯（`-Y cotp.type`、`cotp.li`、`cotp.srcref/destref`、`cotp.tpdu_size`、`cotp.src-tsap/dst-tsap`、`tpkt.version/length`），实测帧 3/4/5 字段全部命中上述值——见 `/tmp/mms3.pcap` 验证记录。
+1. **COTP/TPKT 层**：使用 libiec61850`iso_cotp/cotp.c` 的 CR/CC/DT 编码 + 本地 tshark 3.6.14 回溯（`-Y cotp.type`、`cotp.li`、`cotp.srcref/destref`、`cotp.tpdu_size`、`cotp.src-tsap/dst-tsap`、`tpkt.version/length`），实测帧 4/5/6 字段全部命中上述值——见 `/tmp/mms3.pcap` 验证记录。
 2. **会话/表示/ACSE/MMS 内层**：本地 tshark 无法配置 OSI 内层解码（`-d tcp.port==102,mms` 与 `:cotp` 均被拒；`-d tcp.port==102,tpkt` 挂起），故内层字节以 **Wireshark 解析器源码（packet-mms.c 各 *_sequence 标签）** + **libiec61850 编码函数**（acse.c / mms_client_initiate.c / iso_presentation.c 等）为权威；两者互为独立的第二来源。测试 JSON 中内层用 FrameAssert 原始字节比对。
-3. **FrameAssert 策略**：`cases/mms.json` 的断言模式 = tshark 字段断言（COTP/TPKT）+ FrameAssert 十六进制断言（内层，偏移 54）。帧内 MMS 部分不带 TCP 载荷之外的值，字节即上表。
+3. **FrameAssert 策略**：`cases/mms.json` 的断言模式 = tshark 字段断言（COTP/TPKT）+ FrameAssert 十六进制断言（TPKT 载荷起点 IPv4 偏移 54；MMS 顶层起点 61）。帧内 MMS 部分不带 TCP 载荷之外的值，字节即上表。
 
 ### 6.6 Read 多类型响应（帧内 MMS 段示例）
 
@@ -1013,10 +1013,10 @@ ReadResponse 的 `mms_read_multi_type` 用例实际返回五项 Data（boolean/i
 ```ber
 # packet 9，IPv4 TCP 载荷从帧 offset 54 起；TPKT(4)+COTP DT(3) 后 MMS 从 offset 61 起
 03 00 00 ... 02 f0 80
-  a1 7f {                           Confirmed-ResponsePDU
+  a1 81 81 {                           Confirmed-ResponsePDU
     02 01 01                         invokeID = 1
-    a4 53 {                           confirmed Read response
-      a1 51 {                         listOfAccessResult
+    a4 55 {                           confirmed Read response
+      a1 53 {                         listOfAccessResult
         83 01 ff                      boolean TRUE
         85 01 2a                      integer 42
         86 01 07                      unsigned 7
@@ -1027,7 +1027,7 @@ ReadResponse 的 `mms_read_multi_type` 用例实际返回五项 Data（boolean/i
   }
 ```
 
-长度校验：五项 Data 总长 `3+3+3+4+6=19=0x13`；`a1 51` 的 0x51 还包含五项及其外围结构；按实际编码逐层回填得到 `a4 53`、`a1 51`、顶层 `a1 7f`。cases/testcase 使用同一片段，帧首偏移为 61（前缀）和 71（Data）。
+长度校验：五项 Data 总长 `3+3+3+4+6=19=0x13`；`a1 53` 的 0x53 还包含五项及其外围结构；按实际编码逐层回填得到 `a4 55`、`a1 53`、顶层 `a1 81 81`。cases/testcase 使用同一片段，帧首偏移为 61（前缀）和 71（Data）。
 
 ### 6.7 Write 响应 / Identify / GetNameList / InformationReport 内层字节
 

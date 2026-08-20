@@ -229,7 +229,7 @@
         {
           "packet": 9,
           "offset": 61,
-          "hex": "a1 7f 02 01 01 a4 53 a1 51"
+          "hex": "a1 81 81 02 01 01 a4 55 a1 53"
         },
         {
           "packet": 9,
@@ -296,11 +296,6 @@
         },
         {
           "packet": 8,
-          "offset": 61,
-          "hex": "a0"
-        },
-        {
-          "packet": 8,
           "offset": 66,
           "hex": "a5"
         },
@@ -311,13 +306,18 @@
         },
         {
           "packet": 9,
+          "offset": 66,
+          "hex": "a5 08 a0 06 80 01 00 80 01 00"
+        },
+        {
+          "packet": 8,
           "offset": 61,
-          "hex": "a1"
+          "hex": "a0"
         },
         {
           "packet": 9,
-          "offset": 66,
-          "hex": "a5 08 a0 06 80 01 00 80 01 00"
+          "offset": 61,
+          "hex": "a1"
         }
       ]
     }
@@ -425,11 +425,6 @@
         },
         {
           "packet": 8,
-          "offset": 61,
-          "hex": "a0"
-        },
-        {
-          "packet": 8,
           "offset": 66,
           "hex": "a1"
         },
@@ -447,6 +442,11 @@
           "packet": 9,
           "offset": 66,
           "hex": "a1"
+        },
+        {
+          "packet": 8,
+          "offset": 61,
+          "hex": "a0"
         }
       ]
     }
@@ -494,6 +494,11 @@
           "hex": "03 00"
         },
         {
+          "packet": 9,
+          "offset": 54,
+          "hex": "03 00 00"
+        },
+        {
           "packet": 8,
           "offset": 61,
           "hex": "a0"
@@ -505,23 +510,8 @@
         },
         {
           "packet": 9,
-          "offset": 54,
-          "hex": "03 00 00"
-        },
-        {
-          "packet": 9,
           "offset": 61,
           "hex": "a1"
-        },
-        {
-          "packet": 9,
-          "offset": 66,
-          "hex": "a2"
-        },
-        {
-          "packet": 8,
-          "offset": 66,
-          "hex": "a2"
         },
         {
           "packet": 9,
@@ -582,6 +572,16 @@
           "hex": "03 00"
         },
         {
+          "packet": 9,
+          "offset": 54,
+          "hex": "03 00 00"
+        },
+        {
+          "packet": 9,
+          "offset": 82,
+          "hex": "87 01 02"
+        },
+        {
           "packet": 8,
           "offset": 61,
           "hex": "a0"
@@ -593,11 +593,6 @@
         },
         {
           "packet": 9,
-          "offset": 54,
-          "hex": "03 00 00"
-        },
-        {
-          "packet": 9,
           "offset": 61,
           "hex": "a1"
         },
@@ -605,11 +600,6 @@
           "packet": 9,
           "offset": 66,
           "hex": "a2"
-        },
-        {
-          "packet": 9,
-          "offset": 82,
-          "hex": "87 01 02"
         }
       ]
     }
@@ -828,6 +818,21 @@
         },
         {
           "packet": 15,
+          "offset": 61,
+          "hex": "a0"
+        },
+        {
+          "packet": 15,
+          "offset": 63,
+          "hex": "02 01 01"
+        },
+        {
+          "packet": 17,
+          "offset": 61,
+          "hex": "a0"
+        },
+        {
+          "packet": 17,
           "offset": 63,
           "hex": "02 01 01"
         },
@@ -870,7 +875,8 @@
     ],
     "expect": {
       "expect_error": true,
-      "error_contains": "name"
+      "error_contains": "name",
+      "frames": []
     }
   }
 ]

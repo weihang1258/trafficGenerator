@@ -167,7 +167,7 @@
 
 - **C-1 已修复**：设计 2.10、5.1/5.2 明确 `objects[].name`（item-identifier）编码后最多 32 字节；testcase 与 cases 新增 `mms_validate_reject`，使用已支持的 `objects[].name` 超长输入并要求 `expect_error=true`，未伪造未支持字段。
 - **C-2 已修复**：design 6、testcase 1.2 与 cases 统一 `frames[].offset` 为含以太网帧首的 0-based 偏移；IPv4/IPv6 正例分别增加 `ip.version` 与 `tcp.dstport=102` 锚点。VLAN、IPv4 选项或 TCP 选项导致头长变化时，文档明确固定偏移不适用。
-- **H-1/H-4 已修复**：三件套统一 ISO 9506-2 `utcTime` 为 `91 04 65 bb 87 c0`（1706788800 秒，2024-02-01T12:00:00Z），ReadResponse 长度回填为 `a1 7f` / `a4 53` / `a1 51`，数据帧 offset 保持 66；不再使用 14 字节 ASCII。
+- **H-1/H-4 已修复**：三件套统一 ISO 9506-2 `utcTime` 为 `91 04 65 bb 87 c0`（1706788800 秒，2024-02-01T12:00:00Z），ReadResponse 长度回填为 `a1 81 81` / `a4 55` / `a1 53`，并同步 61/71 offsets，数据帧 offset 为 71（IPv4 TPKT+COTP 后的 MMS Data 起点）；不再使用 14 字节 ASCII。
 - **H-2 已修复**：design 2.8 增加顶层 PDU 标签与服务 CHOICE 标签的上下文说明；identify testcase/cases 在服务标签前增加顶层 `a0`/`a1` 锚点。
 - **H-3 已修复**：testcase 对 CPA 结果列表只保留现行 `30 0d` 双项字节口径，删除与 `a5 12` 混用的注释；附录统一 `TPKT.length` 术语并显式列出 ACK 帧。
 - **H-5 边界已明确**：IPv6 testcase/cases 增加 `ip.version=6`、`tcp.dstport=102`；该用例只验证 IPv6 头导致的载荷偏移平移，不宣称验证 planner 单边生成无法观察的 CC 回显。
