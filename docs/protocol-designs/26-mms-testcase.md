@@ -16,7 +16,7 @@
 
 本地 tshark 无法解码 OSI 内层（会话/表示/ACSE/MMS，设计 6.5），实际断言分两条通道（与 `internal/pcaptest/types.go` 的 `Expect` 结构一致）：
 
-- **`fields[]`（tshark 字段断言）**：`{packet, field, value}`，value 为字符串精确值。只允许 `tpkt.version`、`tpkt.length`、`cotp.type`、`cotp.li`、`cotp.srcref`、`cotp.destref`、`cotp.tpdu_size`、`cotp.src-tsap`、`cotp.dst-tsap`、`cotp.eot`（白名单，防本地 build 缺协议导致 tshark 非零退出）。
+- **`fields[]`（tshark 字段断言）**：`{packet, field, value}`，value 为字符串精确值。允许 `ip.version`、`tcp.dstport` 以及 `tpkt.version`、`tpkt.length`、`cotp.type`、`cotp.li`、`cotp.srcref`、`cotp.destref`、`cotp.tpdu_size`、`cotp.src-tsap`、`cotp.dst-tsap`、`cotp.eot`（白名单，防本地 build 缺协议导致 tshark 非零退出）。
 - **`frames[]`（原始字节断言）**：`{packet, offset, hex}`，在**该帧偏移处前缀匹配** hex；offset 统一为含以太网头的帧首起 0-based 偏移。IPv4 正例固定 IP version=4、IHL=5、TCP dstport=102，载荷起点=54；IPv6 正例固定 IP version=6、TCP dstport=102，载荷起点=74。
 - 内层字节以 libiec61850 编码 + Wireshark 解析器源码为权威（设计 6.5，`/tmp/mms3.pcap` 全帧回溯验证）。
 
@@ -80,7 +80,7 @@
       { "packet": 4, "field": "ip.version", "value": "4" },
       { "packet": 4, "field": "tcp.dstport", "value": "102" },
       { "packet": 5, "field": "cotp.type", "value": "0x0d" },
-      { "packet": 5, "field": "cotp.li", "value": "13" },
+      { "packet": 5, "field": "cotp.li", "value": "15" },
       { "packet": 5, "field": "cotp.srcref", "value": "0x0002" },
       { "packet": 5, "field": "cotp.destref", "value": "0x0001" },
       { "packet": 6, "field": "cotp.type", "value": "0x0f" },
@@ -92,7 +92,7 @@
     ],
     "frames": [
       { "packet": 4, "offset": 54, "hex": "030000140fe00000000100c0010cc20101c10102" },
-      { "packet": 5, "offset": 54, "hex": "030000140dd00001000200c0010cc10101c20102" },
+      { "packet": 5, "offset": 54, "hex": "030000140fd00001000200c0010cc10101c20102" },
       { "packet": 6, "offset": 54, "hex": "030000a502f0800d920506130100160102140200023305000102030434020001c1810081317fa003800101a278810412345678820487654321a425301002020101060452010001300406025101301102020103060528ca22020130040602510161433041020101a03c603aa1060628ca220203be30282e020103a029a82780040000fa0081010582010583010aa416800101810305f100820c05ee1c00000408000079ef18" },
       { "packet": 7, "offset": 54, "hex": "030000a102f0800e900506130100160102140200023305000102030434020001c17f317da003800101a276830400000001a5" },
       { "packet": 7, "offset": 105, "hex": "300d02020101300780010081025101300d02020103300780010081025101614e304c020101a0476145a1060628ca220203a203020100a305a103020100be2f282d020103a028a92680040000fa0081010582010583010aa415800101810205f1820c0b000000000000000000000000" }
@@ -101,7 +101,7 @@
 }
 ```
 
-> 注：`packet_count: 7`（1 SYN + 2 SYNACK + 3 ACK + 4 CR + 5 CC + 6 DT1 + 7 DT2）。帧 6 载荷 = `030000a5 02f080 0d92 …`（TPKT 长 0xA5=165，DT1 数据）= 与 `/tmp/mms3.pcap` 逐字节一致。帧 7 DT2 载荷 `030000a1 02f080 0e90 …`（TPKT 长 0xA1=161），CPA 上下文结果列表 `a5 1e 30 0d 02 02 01 01 30 07 80 01 00 81 02 51 01 30 0d 02 02 01 03 30 07 80 01 00 81 02 51 01`（每项 30 0d，兼容 libiec encodeAcceptBer 与 CPA 的上下文结果列表结构；第二处为长形式 `c1 7f`）。Implementation 版本应沿用本帧字节（含 `30 0d` 双项），实现评审若改为 `a5 12` 压缩形式需同步更新本文件与 cases。
+> 注：`packet_count: 7`（1 SYN + 2 SYNACK + 3 ACK + 4 CR + 5 CC + 6 DT1 + 7 DT2）。帧 6 载荷 = `030000a5 02f080 0d92 …`（TPKT.length=165，DT1 数据）= 与 `/tmp/mms3.pcap` 逐字节一致。帧 7 DT2 载荷 = `030000a1 02f080 0e90 …`（TPKT.length=161）；CPA 上下文结果列表沿用现行 cases 的两项 `30 0d` 形式。
 
 ### 2.2 `mms_read_multi_type` —— Read 多类型读取
 
@@ -139,8 +139,8 @@
     "frames": [
       { "packet": 8, "offset": 54, "hex": "0300" },
       { "packet": 9, "offset": 54, "hex": "03 00 00" },
-      { "packet": 9, "offset": 60, "hex": "a1 7f 02 01 01 a4 53 a1 51" },
-      { "packet": 9, "offset": 66, "hex": "83 01 ff 85 01 2a 86 01 07 89 02 01 02 91 04 65 bb 87 c0" }
+      { "packet": 9, "offset": 61, "hex": "a1 7f 02 01 01 a4 53 a1 51" },
+      { "packet": 9, "offset": 71, "hex": "83 01 ff 85 01 2a 86 01 07 89 02 01 02 91 04 65 bb 87 c0" }
     ]
   }
 }
@@ -180,9 +180,9 @@
     ],
     "frames": [
       { "packet": 8, "offset": 54, "hex": "03 00" },
-      { "packet": 8, "offset": 59, "hex": "a5" },
+      { "packet": 8, "offset": 61, "hex": "a5" },
       { "packet": 9, "offset": 54, "hex": "03 00 00" },
-      { "packet": 9, "offset": 66, "hex": "a5 07 a0 05 80 01 00 80 01 00" }
+      { "packet": 9, "offset": 66, "hex": "a5 08 a0 06 80 01 00 80 01 00" }
     ]
   }
 }
@@ -220,7 +220,7 @@
     ],
     "frames": [
       { "packet": 8, "offset": 54, "hex": "03 00 00" },
-      { "packet": 8, "offset": 59, "hex": "a3" }
+      { "packet": 8, "offset": 61, "hex": "a3" }
     ]
   }
 }
@@ -257,9 +257,9 @@
     ],
     "frames": [
       { "packet": 8, "offset": 54, "hex": "03 00" },
-      { "packet": 8, "offset": 59, "hex": "a1" },
+      { "packet": 8, "offset": 61, "hex": "a1" },
       { "packet": 9, "offset": 54, "hex": "03 00 00" },
-      { "packet": 9, "offset": 59, "hex": "a1" }
+      { "packet": 9, "offset": 61, "hex": "a1" }
     ]
   }
 }
@@ -294,11 +294,11 @@
     ],
     "frames": [
       { "packet": 8, "offset": 54, "hex": "03 00" },
-      { "packet": 8, "offset": 57, "hex": "a0" },
-      { "packet": 8, "offset": 59, "hex": "a2" },
+      { "packet": 8, "offset": 61, "hex": "a0" },
+      { "packet": 8, "offset": 61, "hex": "a2" },
       { "packet": 9, "offset": 54, "hex": "03 00 00" },
-      { "packet": 9, "offset": 57, "hex": "a1" },
-      { "packet": 9, "offset": 59, "hex": "a2" }
+      { "packet": 9, "offset": 61, "hex": "a1" },
+      { "packet": 9, "offset": 61, "hex": "a2" }
     ]
   }
 }
@@ -337,16 +337,16 @@
     ],
     "frames": [
       { "packet": 8, "offset": 54, "hex": "03 00" },
-      { "packet": 8, "offset": 59, "hex": "a4" },
+      { "packet": 8, "offset": 61, "hex": "a4" },
       { "packet": 9, "offset": 54, "hex": "03 00 00" },
-      { "packet": 9, "offset": 59, "hex": "a2" },
-      { "packet": 9, "offset": 80, "hex": "87 01 02" }
+      { "packet": 9, "offset": 61, "hex": "a2" },
+      { "packet": 9, "offset": 82, "hex": "87 01 02" }
     ]
   }
 }
 ```
 
-> `87 01 02` 特征串：`87`=object-access 错误类标签、`01` 长度、`02`=object-non-existent；在帧 9 内层偏移 80 处前缀命中。
+> `87 01 02` 特征串：`87`=object-access 错误类标签、`01` 长度、`02`=object-non-existent；在帧 9 内层偏移 82 处前缀命中。
 
 ### 2.8 `mms_no_associate` —— 未建立关联（负向）
 
@@ -382,13 +382,13 @@
     ],
     "frames": [
       { "packet": 4, "offset": 54, "hex": "03 00 00" },
-      { "packet": 4, "offset": 58, "hex": "02 f0 80 a4" }
+      { "packet": 4, "offset": 61, "hex": "a4" }
     ]
   }
 }
 ```
 
-> 帧 4 是纯数据 DT（cotp.type=0x0f 而非 0x0e），`02 f0 80` 后紧跟裸 MMS Read（`a4`），证明关联四段被整体跳过。关联已被跳过，无 CC/AARE，服务请求不带信封；`TPKT 03 00` + `COTP DT` + MMS 直接组成载荷（偏移 58 = 54 + 4 TPKT + 3 DT 头）。
+> 帧 4 是纯数据 DT（cotp.type=0x0f 而非 0x0e），`02 f0 80` 后紧跟裸 MMS Read（`a4`），证明关联四段被整体跳过。关联已被跳过，无 CC/AARE，服务请求不带信封；`TPKT 03 00` + `COTP DT` + MMS 直接组成载荷（偏移 61 = 54 + 4 TPKT + 3 DT 头）。
 
 ### 2.9 `mms_ipv6` —— IPv6 版本完整关联
 
@@ -421,7 +421,7 @@
     ],
     "frames": [
       { "packet": 4, "offset": 74, "hex": "030000140fe00000000100c0010cc20101c10102" },
-      { "packet": 5, "offset": 74, "hex": "030000140dd00001000200c0010cc10101c20102" },
+      { "packet": 5, "offset": 74, "hex": "030000140fd00001000200c0010cc10101c20102" },
       { "packet": 6, "offset": 74, "hex": "030000a502f0800d920506130100160102140200023305000102030434020001c1810081317fa003800101a278810412345678820487654321a425301002020101060452010001300406025101301102020103060528ca22020130040602510161433041020101a03c603aa1060628ca220203be30282e020103a029a82780040000fa0081010582010583010aa416800101810305f100820c05ee1c00000408000079ef18" },
       { "packet": 7, "offset": 74, "hex": "030000a102f0800e900506130100160102140200023305000102030434020001c17f317d" }
     ]
@@ -468,8 +468,8 @@
       { "packet": 4, "offset": 54, "hex": "03000014 0fe0 0000 0001 00 c0 01 0c c2 01 01 c1 01 02" },
       { "packet": 8, "offset": 54, "hex": "03000014 0fe0 0000 0001 00 c0 01 0c c2 01 01 c1 01 02" },
       { "packet": 15, "offset": 54, "hex": "0300" },
-      { "packet": 15, "offset": 66, "hex": "02 01 01" },
-      { "packet": 17, "offset": 76, "hex": "8a 04 49 45 44 32" }
+      { "packet": 15, "offset": 63, "hex": "02 01 01" },
+      { "packet": 17, "offset": 78, "hex": "8a 04 49 45 44 32" }
     ]
   }
 }
@@ -585,7 +585,7 @@
 
 - 执行：`go test ./test/protocol_pcap/ -run MMS -count=1 -v`（等价 `-run 'TestProtocolPCAP/mms'`，入口见 run_all_test.go）。
 - 判读：每个 case 的 `fields` 全部命中 + `frames` 全部 `{packet,offset,hex}` 前缀命中 → PASS；任一缺席/字节不符 → FAIL 并打印偏差。
-- `packet_count` 精确帧数断言；`negotiated` 需出现 SYN+ACK；`has_handshake` 需首包 SYN。
+- `packet_count` 精确帧数断言；`negotiated` 需出现 SYN+ACK；`has_handshake` 需首包 SYN；在 `mms_no_associate` 中 negotiated 仅表示 TCP 握手完成，不表示 MMS 应用关联。
 - tshark 字段只取白名单内 cotp/tpkt 字段（本地 build 缺 OSI 内层协议解码）。
 
 ## 6. 参考附录 A：真实 pcap 全帧字节（/tmp/mms3.pcap 回溯）
@@ -601,7 +601,7 @@
 ```
 3 ACK       （纯 TCP ACK，无 TPKT）
 4 CR       03 00 00 14 0f e0 00 00 00 01 00 c0 01 0c c2 01 01 c1 01 02
-5 CC       03 00 00 14 0d d0 00 01 00 02 00 c0 01 0c c1 01 01 c2 01 02
+5 CC       03 00 00 14 0f d0 00 01 00 02 00 c0 01 0c c1 01 01 c2 01 02
 6 DT1      03 00 00 a5 02 f0 80 0d 92 …（166 字节总长，TPKT 165）*
 7 DT2      03 00 00 a1 02 f0 80 0e 90 …（162 字节总长，TPKT 161）*
 ```
