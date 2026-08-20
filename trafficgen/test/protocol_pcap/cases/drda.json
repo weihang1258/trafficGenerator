@@ -1,0 +1,737 @@
+[
+  {
+    "id": "drda_excsat",
+    "proto": "drda",
+    "summary": "T-DRDA-001/S1：TCP 446 与 EXCSAT→EXCSATRD 关联建立",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "drda": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 446,
+      "count": 1,
+      "drda": {
+        "association": "excsat",
+        "correlator_start": 1,
+        "ccsid": 1208
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "446"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.ddmid",
+          "value": "0xd0"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.format",
+          "value": "0x01"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.rqscrr",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.length",
+          "value": "10"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.length2",
+          "value": "4"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.codepoint",
+          "value": "0x1041"
+        },
+        {
+          "packet": 5,
+          "field": "drda.ddm.codepoint",
+          "value": "0x1443"
+        },
+        {
+          "packet": 5,
+          "field": "drda.ddm.rqscrr",
+          "same_as_packet": 4
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 0a d0 01 00 01 00 04 10 41"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "00 0a d0 01 00 01 00 04 14 43"
+        }
+      ],
+      "notes": [
+        "DDM 10 字节头与无参数代码点；TCP 载荷偏移=54。"
+      ]
+    }
+  },
+  {
+    "id": "drda_security_check",
+    "proto": "drda",
+    "summary": "T-DRDA-002/S2：EXCSAT、ACCSEC、SECCHK 及响应顺序",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "drda": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 446,
+      "count": 1,
+      "drda": {
+        "association": "security",
+        "correlator_start": 1,
+        "ccsid": 1208,
+        "security_user": "TESTUSR",
+        "security_token": [
+          1,
+          2,
+          3,
+          4
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "drda.ddm.codepoint",
+          "value": "0x1041"
+        },
+        {
+          "packet": 6,
+          "field": "drda.ddm.codepoint",
+          "value": "0x106d"
+        },
+        {
+          "packet": 7,
+          "field": "drda.ddm.codepoint",
+          "value": "0x14ac"
+        },
+        {
+          "packet": 8,
+          "field": "drda.ddm.codepoint",
+          "value": "0x106e"
+        },
+        {
+          "packet": 9,
+          "field": "drda.ddm.codepoint",
+          "value": "0x1219"
+        },
+        {
+          "packet": 8,
+          "field": "drda.ddm.rqscrr",
+          "value": "3"
+        },
+        {
+          "packet": 9,
+          "field": "drda.ddm.rqscrr",
+          "same_as_packet": 8
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 56,
+          "hex": "d0 01 00 02"
+        },
+        {
+          "packet": 7,
+          "offset": 56,
+          "hex": "d0 01 00 02"
+        },
+        {
+          "packet": 8,
+          "offset": 56,
+          "hex": "d0 01 00 03"
+        },
+        {
+          "packet": 9,
+          "offset": 56,
+          "hex": "d0 01 00 03"
+        }
+      ],
+      "notes": [
+        "应用数据包为 EXCSAT/EXCSATRD、ACCSEC/ACCSECRD、SECCHK/SECCHKRM；占位 token 不是真实密码。"
+      ]
+    }
+  },
+  {
+    "id": "drda_database_connect",
+    "proto": "drda",
+    "summary": "T-DRDA-003/S3：ACCRDB 关系数据库关联成功",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "drda": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 446,
+      "count": 1,
+      "drda": {
+        "association": "database",
+        "correlator_start": 1,
+        "ccsid": 1208,
+        "security_user": "TESTUSR",
+        "security_token": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "rdb_name": "SAMPLE"
+      }
+    },
+    "expect": {
+      "packet_count": 15,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 10,
+          "field": "tcp.dstport",
+          "value": "446"
+        },
+        {
+          "packet": 10,
+          "field": "drda.ddm.codepoint",
+          "value": "0x2001"
+        },
+        {
+          "packet": 10,
+          "field": "drda.ddm.rqscrr",
+          "value": "4"
+        },
+        {
+          "packet": 11,
+          "field": "drda.ddm.codepoint",
+          "value": "0x2201"
+        },
+        {
+          "packet": 11,
+          "field": "drda.ddm.rqscrr",
+          "same_as_packet": 10
+        }
+      ],
+      "frames": [
+        {
+          "packet": 10,
+          "offset": 62,
+          "hex": "20 01"
+        },
+        {
+          "packet": 11,
+          "offset": 62,
+          "hex": "22 01"
+        }
+      ],
+      "notes": [
+        "ACCRDBRM 成功后才进入 RDB_ASSOCIATED。"
+      ]
+    }
+  },
+  {
+    "id": "drda_sql_success",
+    "proto": "drda",
+    "summary": "T-DRDA-004/S4：SQLDTA→SQLCARD 成功 SQLCODE=0",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "drda": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 446,
+      "count": 1,
+      "drda": {
+        "association": "sql",
+        "correlator_start": 1,
+        "ccsid": 1208,
+        "rdb_name": "SAMPLE",
+        "sql": {
+          "data": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "code": 0,
+          "state": "00000",
+          "diagnostic": ""
+        }
+      }
+    },
+    "expect": {
+      "packet_count": 17,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 16,
+          "field": "drda.ddm.codepoint",
+          "value": "0x2412"
+        },
+        {
+          "packet": 17,
+          "field": "drda.ddm.codepoint",
+          "value": "0x2408"
+        },
+        {
+          "packet": 17,
+          "field": "drda.ddm.rqscrr",
+          "same_as_packet": 16
+        },
+        {
+          "packet": 17,
+          "field": "tcp.len",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 16,
+          "offset": 62,
+          "hex": "24 12"
+        },
+        {
+          "packet": 17,
+          "offset": 62,
+          "hex": "24 08"
+        }
+      ],
+      "notes": [
+        "SQLCARD 的 SQLCODE=0、SQLSTATE=00000 必须由实现提供可观察字段或重组字节断言。"
+      ]
+    }
+  },
+  {
+    "id": "drda_sql_error",
+    "proto": "drda",
+    "summary": "T-DRDA-005/S5：SQLDTA→SQLCARD 负 SQLCODE 错误结果",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "drda": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 446,
+      "count": 1,
+      "drda": {
+        "association": "sql",
+        "correlator_start": 1,
+        "ccsid": 1208,
+        "rdb_name": "SAMPLE",
+        "sql": {
+          "data": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "code": -204,
+          "state": "42704",
+          "diagnostic": "missing object"
+        }
+      }
+    },
+    "expect": {
+      "packet_count": 17,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 16,
+          "field": "drda.ddm.codepoint",
+          "value": "0x2412"
+        },
+        {
+          "packet": 17,
+          "field": "drda.ddm.codepoint",
+          "value": "0x2408"
+        },
+        {
+          "packet": 17,
+          "field": "drda.ddm.rqscrr",
+          "same_as_packet": 16
+        },
+        {
+          "packet": 17,
+          "field": "tcp.len",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 16,
+          "offset": 62,
+          "hex": "24 12"
+        },
+        {
+          "packet": 17,
+          "offset": 62,
+          "hex": "24 08"
+        }
+      ],
+      "notes": [
+        "SQLCARD 的 SQLCODE=-204、SQLSTATE=42704 是应用错误，不应转成 task/config error。"
+      ]
+    }
+  },
+  {
+    "id": "drda_dss_min_length",
+    "proto": "drda",
+    "summary": "T-DRDA-006/S6：DDM length=10、length2=4 最小无参数边界",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "drda": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 446,
+      "count": 1,
+      "drda": {
+        "association": "excsat",
+        "ccsid": 1208,
+        "correlator_start": 1,
+        "dss_length": 10,
+        "dss_segments": [
+          {
+            "format": 1,
+            "correlator": 1,
+            "length": 10,
+            "length2": 4,
+            "code_point": 4161
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "drda.ddm.length",
+          "value": "10"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.length2",
+          "value": "4"
+        },
+        {
+          "packet": 5,
+          "field": "drda.ddm.length",
+          "value": "10"
+        },
+        {
+          "packet": 5,
+          "field": "drda.ddm.length2",
+          "value": "4"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 0a d0 01 00 01 00 04 10 41"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "00 0a d0 01 00 01 00 04 14 43"
+        }
+      ],
+      "notes": [
+        "验证最小 DDM，不把空 DSS 当作成功业务阶段。"
+      ]
+    }
+  },
+  {
+    "id": "drda_ipv6_excsat",
+    "proto": "drda",
+    "summary": "T-DRDA-007/S7：IPv6 上 EXCSAT，DRDA 字节保持不变",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "drda": {}
+        }
+      ],
+      "src_ip": "2001:db8::1",
+      "dst_ip": "2001:db8::2",
+      "src_port": 12345,
+      "dst_port": 446,
+      "count": 1,
+      "drda": {
+        "association": "excsat",
+        "correlator_start": 1,
+        "ccsid": 1208
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.version",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "ipv6.src",
+          "value": "2001:db8::1"
+        },
+        {
+          "packet": 4,
+          "field": "ipv6.dst",
+          "value": "2001:db8::2"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "446"
+        },
+        {
+          "packet": 4,
+          "field": "drda.ddm.codepoint",
+          "value": "0x1041"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 74,
+          "hex": "00 0a d0 01 00 01 00 04 10 41"
+        },
+        {
+          "packet": 5,
+          "offset": 74,
+          "hex": "00 0a d0 01 00 01 00 04 14 43"
+        }
+      ],
+      "notes": [
+        "IPv6 载荷偏移=14+40+20=74。"
+      ]
+    }
+  },
+  {
+    "id": "drda_multi_session",
+    "proto": "drda",
+    "summary": "T-DRDA-008/S8：两条独立 TCP 会话，各自 correlator 从 1 开始",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "drda": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 446,
+      "count": 1,
+      "drda": {
+        "association": "excsat",
+        "ccsid": 1208,
+        "sessions": [
+          {
+            "id": "s1",
+            "src_port": 12345,
+            "correlator_start": 1
+          },
+          {
+            "id": "s2",
+            "src_port": 12346,
+            "correlator_start": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 18,
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "12345",
+            "12346"
+          ],
+          "distinct_exclude": [
+            "446"
+          ]
+        },
+        {
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "446"
+          ]
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 0a d0 01 00 01 00 04 10 41"
+        }
+      ],
+      "notes": [
+        "两个 4-tuple/状态机独立；按 session 顺序输出仅是当前确定性契约。"
+      ]
+    }
+  },
+  {
+    "id": "drda_dss_length_mismatch",
+    "proto": "drda",
+    "summary": "T-DRDA-009：DSS/DDM 显式长度与编码长度不一致时拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "drda": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 446,
+      "count": 1,
+      "drda": {
+        "association": "excsat",
+        "dss_length": 11,
+        "dss_segments": [
+          {
+            "format": 1,
+            "correlator": 1,
+            "length": 10,
+            "length2": 4,
+            "code_point": 4161
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "dss_length"
+    }
+  },
+  {
+    "id": "drda_udp_rejected",
+    "proto": "drda",
+    "summary": "T-DRDA-010：UDP 载体被 drda 层依赖校验拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "drda": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 446,
+      "count": 1,
+      "drda": {
+        "association": "excsat"
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "tcp"
+    }
+  }
+]
