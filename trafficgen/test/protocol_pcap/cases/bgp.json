@@ -1,0 +1,1273 @@
+[
+  {
+    "id": "bgp_connect",
+    "proto": "bgp",
+    "summary": "S1: TCP/179 connect without BGP application events",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": []
+      }
+    },
+    "expect": {
+      "packet_count": 7,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": false
+    },
+    "notes": [
+      "No OPEN or KEEPALIVE is inserted implicitly."
+    ]
+  },
+  {
+    "id": "bgp_open_keepalive",
+    "proto": "bgp",
+    "summary": "S2: OPEN exchange then bidirectional KEEPALIVE",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "c2s"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "s2c"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "179"
+        },
+        {
+          "packet": 4,
+          "field": "bgp.type",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "bgp.open.version",
+          "value": "4"
+        },
+        {
+          "packet": 5,
+          "field": "bgp.type",
+          "value": "1"
+        },
+        {
+          "packet": 6,
+          "field": "bgp.type",
+          "value": "4"
+        },
+        {
+          "packet": 7,
+          "field": "bgp.type",
+          "value": "4"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 1d 01 04 fc 00 00 5a c0 00 02 01 00"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 1d 01 04 fd 00 00 5a c0 00 02 02 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 13 04"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 13 04"
+        }
+      ]
+    },
+    "notes": [
+      "OPEN optional parameters length is zero; no capability bytes are claimed."
+    ]
+  },
+  {
+    "id": "bgp_update_attributes",
+    "proto": "bgp",
+    "summary": "S3: IPv4 UPDATE with ORIGIN AS_PATH NEXT_HOP MED LOCAL_PREF COMMUNITIES",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "c2s"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "s2c"
+          },
+          {
+            "kind": "update",
+            "direction": "c2s",
+            "withdrawn_prefixes": [],
+            "nlri": [
+              "203.0.113.0/24"
+            ],
+            "attributes": {
+              "origin": 0,
+              "as_path": [
+                64512
+              ],
+              "next_hop": "192.0.2.1",
+              "multi_exit_disc": 100,
+              "local_pref": 100,
+              "communities": [
+                "NO_EXPORT"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "bgp.type",
+          "value": "2"
+        },
+        {
+          "packet": 8,
+          "field": "bgp.update.withdrawn_routes.length",
+          "value": "0"
+        },
+        {
+          "packet": 8,
+          "field": "bgp.update.path_attributes.length",
+          "value": "39"
+        },
+        {
+          "packet": 8,
+          "field": "bgp.update.path_attribute.origin",
+          "value": "0"
+        },
+        {
+          "packet": 8,
+          "field": "bgp.update.path_attribute.next_hop",
+          "value": "192.0.2.1"
+        },
+        {
+          "packet": 8,
+          "field": "bgp.update.path_attribute.multi_exit_disc",
+          "value": "100"
+        },
+        {
+          "packet": 8,
+          "field": "bgp.update.path_attribute.local_pref",
+          "value": "100"
+        },
+        {
+          "packet": 8,
+          "field": "bgp.prefix_length",
+          "value": "24"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 42 02 00 00 00 27 40 01 01 00 40 02 04 02 01 fc 00 40 03 04 c0 00 02 01 80 04 04 00 00 00 64 40 05 04 00 00 00 64 c0 08 04 ff ff ff 01 18 cb 00 71"
+        }
+      ]
+    }
+  },
+  {
+    "id": "bgp_update_withdraw",
+    "proto": "bgp",
+    "summary": "S4: UPDATE withdrawing an IPv4 /24 route",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "c2s"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "s2c"
+          },
+          {
+            "kind": "update",
+            "direction": "c2s",
+            "withdrawn_prefixes": [
+              "203.0.113.0/24"
+            ],
+            "nlri": [],
+            "attributes": {}
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "bgp.type",
+          "value": "2"
+        },
+        {
+          "packet": 8,
+          "field": "bgp.update.withdrawn_routes.length",
+          "value": "4"
+        },
+        {
+          "packet": 8,
+          "field": "bgp.update.path_attributes.length",
+          "value": "0"
+        },
+        {
+          "packet": 8,
+          "field": "bgp.prefix_length",
+          "value": "24"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 1b 02 00 04 18 cb 00 71 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "bgp_notification_hold_expired",
+    "proto": "bgp",
+    "summary": "S5: NOTIFICATION Hold Timer Expired then TCP termination",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "notification",
+            "direction": "s2c",
+            "error_code": 4,
+            "error_subcode": 0
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 10,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "bgp.type",
+          "value": "3"
+        },
+        {
+          "packet": 6,
+          "field": "bgp.notify.major_error",
+          "value": "4"
+        },
+        {
+          "packet": 6,
+          "field": "bgp.notify.minor_error_expired",
+          "value": "0"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 15 03 04 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "bgp_hold_time_zero",
+    "proto": "bgp",
+    "summary": "S6: OPEN hold time zero is observable and valid",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 0,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "c2s"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "s2c"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "bgp.open.holdtime",
+          "value": "0"
+        },
+        {
+          "packet": 5,
+          "field": "bgp.open.holdtime",
+          "value": "90"
+        },
+        {
+          "packet": 6,
+          "field": "bgp.type",
+          "value": "4"
+        },
+        {
+          "packet": 7,
+          "field": "bgp.type",
+          "value": "4"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 1d 01 04 fc 00 00 00 c0 00 02 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 13 04"
+        }
+      ]
+    }
+  },
+  {
+    "id": "bgp_ipv4_nlri_32",
+    "proto": "bgp",
+    "summary": "S7: IPv4 /32 NLRI prefix byte boundary",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "c2s"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "s2c"
+          },
+          {
+            "kind": "update",
+            "direction": "c2s",
+            "withdrawn_prefixes": [],
+            "nlri": [
+              "192.0.2.1/32"
+            ],
+            "attributes": {
+              "origin": 0,
+              "as_path": [
+                64512
+              ],
+              "next_hop": "192.0.2.1",
+              "multi_exit_disc": 100,
+              "local_pref": 100,
+              "communities": [
+                "NO_EXPORT"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "bgp.type",
+          "value": "2"
+        },
+        {
+          "packet": 8,
+          "field": "bgp.prefix_length",
+          "value": "32"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 43 02 00 00 00 27 40 01 01 00 40 02 04 02 01 fc 00 40 03 04 c0 00 02 01 80 04 04 00 00 00 64 40 05 04 00 00 00 64 c0 08 04 ff ff ff 01 20 c0 00 02 01"
+        }
+      ]
+    }
+  },
+  {
+    "id": "bgp_ipv6_transport",
+    "proto": "bgp",
+    "summary": "S8: IPv6 TCP transport with RFC 4271 IPv4 BGP identifier",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "2001:db8::1",
+      "dst_ip": "2001:db8::2",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "c2s"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "s2c"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.version",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "179"
+        },
+        {
+          "packet": 4,
+          "field": "bgp.open.identifier",
+          "value": "192.0.2.1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 74,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 1d 01 04 fc 00 00 5a c0 00 02 01 00"
+        },
+        {
+          "packet": 6,
+          "offset": 74,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 13 04"
+        }
+      ]
+    }
+  },
+  {
+    "id": "bgp_multi_session",
+    "proto": "bgp",
+    "summary": "S9: two independent BGP sessions",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "sessions": [
+          {
+            "src_port": 12345,
+            "events": [
+              {
+                "kind": "open",
+                "direction": "c2s",
+                "version": 4,
+                "my_as": 64512,
+                "hold_time": 90,
+                "identifier": "192.0.2.1"
+              },
+              {
+                "kind": "open",
+                "direction": "s2c",
+                "version": 4,
+                "my_as": 64513,
+                "hold_time": 90,
+                "identifier": "192.0.2.2"
+              },
+              {
+                "kind": "keepalive",
+                "direction": "c2s"
+              },
+              {
+                "kind": "keepalive",
+                "direction": "s2c"
+              }
+            ]
+          },
+          {
+            "src_port": 12346,
+            "events": [
+              {
+                "kind": "open",
+                "direction": "c2s",
+                "version": 4,
+                "my_as": 64512,
+                "hold_time": 90,
+                "identifier": "192.0.2.1"
+              },
+              {
+                "kind": "open",
+                "direction": "s2c",
+                "version": 4,
+                "my_as": 64513,
+                "hold_time": 90,
+                "identifier": "192.0.2.2"
+              },
+              {
+                "kind": "keepalive",
+                "direction": "c2s"
+              },
+              {
+                "kind": "keepalive",
+                "direction": "s2c"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 22,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 0,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "12345",
+            "12346"
+          ],
+          "distinct_exclude": [
+            "179"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "179"
+          ]
+        }
+      ]
+    },
+    "notes": [
+      "Packet interleaving is scheduler-dependent; aggregate port assertions are used."
+    ]
+  },
+  {
+    "id": "bgp_keepalive_length_boundary",
+    "proto": "bgp",
+    "summary": "S10: minimum legal BGP length 19 KEEPALIVE",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "c2s"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "s2c"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "bgp.length",
+          "value": "19"
+        },
+        {
+          "packet": 6,
+          "field": "bgp.type",
+          "value": "4"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 13 04"
+        }
+      ]
+    }
+  },
+  {
+    "id": "bgp_neg_udp",
+    "proto": "bgp",
+    "summary": "N1: UDP carrier rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": []
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "tcp"
+    }
+  },
+  {
+    "id": "bgp_neg_mp_reach_profile",
+    "proto": "bgp",
+    "summary": "N2: unimplemented MP_REACH IPv6 profile rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_mp_reach_ipv6_pending",
+        "events": []
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "profile"
+    }
+  },
+  {
+    "id": "bgp_neg_marker",
+    "proto": "bgp",
+    "summary": "N3: non-all-ones marker rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "wire_fault",
+            "direction": "c2s",
+            "fault_kind": "marker"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "marker"
+    }
+  },
+  {
+    "id": "bgp_neg_length",
+    "proto": "bgp",
+    "summary": "N4: invalid message length rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "wire_fault",
+            "direction": "c2s",
+            "fault_kind": "length",
+            "value": 18
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "bgp_neg_type",
+    "proto": "bgp",
+    "summary": "N5: unknown BGP message type rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "wire_fault",
+            "direction": "c2s",
+            "fault_kind": "type",
+            "value": 9
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "type"
+    }
+  },
+  {
+    "id": "bgp_neg_version",
+    "proto": "bgp",
+    "summary": "N6: OPEN version other than 4 rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 3,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "version"
+    }
+  },
+  {
+    "id": "bgp_neg_as",
+    "proto": "bgp",
+    "summary": "N7: My AS outside two-octet range rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 70000,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "as"
+    }
+  },
+  {
+    "id": "bgp_neg_state",
+    "proto": "bgp",
+    "summary": "N8: UPDATE before OPEN exchange rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "update",
+            "direction": "c2s",
+            "withdrawn_prefixes": [],
+            "nlri": [
+              "203.0.113.0/24"
+            ],
+            "attributes": {
+              "origin": 0,
+              "as_path": [
+                64512
+              ],
+              "next_hop": "192.0.2.1",
+              "multi_exit_disc": 100,
+              "local_pref": 100,
+              "communities": [
+                "NO_EXPORT"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "state"
+    }
+  },
+  {
+    "id": "bgp_neg_address",
+    "proto": "bgp",
+    "summary": "N9: IPv6 NLRI in IPv4 profile rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "bgp": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 179,
+      "bgp": {
+        "wire_profile": "bgp_rfc4271_ipv4_unicast",
+        "events": [
+          {
+            "kind": "open",
+            "direction": "c2s",
+            "version": 4,
+            "my_as": 64512,
+            "hold_time": 90,
+            "identifier": "192.0.2.1"
+          },
+          {
+            "kind": "open",
+            "direction": "s2c",
+            "version": 4,
+            "my_as": 64513,
+            "hold_time": 90,
+            "identifier": "192.0.2.2"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "c2s"
+          },
+          {
+            "kind": "keepalive",
+            "direction": "s2c"
+          },
+          {
+            "kind": "update",
+            "direction": "c2s",
+            "withdrawn_prefixes": [],
+            "nlri": [
+              "2001:db8::/32"
+            ],
+            "attributes": {}
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "address"
+    }
+  }
+]
