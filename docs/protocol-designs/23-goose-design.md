@@ -159,6 +159,8 @@ EtherType 之后是 **8 字节 GOOSE 帧头**，全部大端（与 SV 同构）�
 
 **Length 口径**：`GOOSE 头 Length = 8 + APDU 全长`（计从 APPID 起，含本字段后的 4 字节保留 + APDU）。libiec61850 `GoosePublisher_publish`：`gooseLength = payloadLength + 8`，`payloadLength` = savPdu 式完整 goosePdu 长度。**SV 的 Length 也是同口径**，两协议头结构完全同构。
 
+> **当前文档基线具体值**：默认长引用场景采用 `61 81 <content-length>` 长形式。心跳 APDU content=173、APDU total=176，因此 GOOSE Length=184 (`0x00b8`)；VLAN 单成员场景 content=160、APDU total=163，因此 GOOSE Length=171 (`0x00ab`)。每个 JSON case 的 Length 以其实际 data 成员和 BER 长度形式逐一重算。
+
 **Reserve1 位 15（仿真位 S-bit）**：调试/仿真流标记；v1 默认 0（真实流）。注意该位与 APDU 内 `test`（测试标志）是**两个不同字段**（前者在帧头的 Reserved 内，后者在 APDU 内，§3）。
 
 ### 2.5 ASN.1 BER 编码的 goosePdu 与 APDU 完整标签表
@@ -235,18 +237,18 @@ GOOSE 帧（以太网直承，不足 60 字节最小以太网帧长则尾部加 
  20/24          Reserve2       2          BE     0
  ------------------------------------------------------------------------------
  22/26 goosePdu (APDU, ASN.1 BER)
-        61 <L>  goosePdu [APPLICATION 1]                      构造
+        61 81 <L>  goosePdu [APPLICATION 1]（内容长度 >127 时的长形式）
            80 <L> <gocbRef 字符串>         gocbRef            [0] VisibleString
-           81 04 <4 字节>                  timeAllowedToLive  [1] 整数
+           81 02 <2 字节>                  timeAllowedToLive  [1] 整数（500 示例）
            82 <L> <datSet 字符串>          datSet             [2] VisibleString
            83 <L> <goID 字符串>            goID（可选）       [3] VisibleString
            84 08 <8 字节 CP 时间>          t（时间戳）        [4] UtcTime
-           85 04 <4 字节>                  stNum              [5] 整数
-           86 04 <4 字节>                  sqNum              [6] 整数
+           85 01..04 <最小整数>             stNum              [5] 整数
+           86 01..04 <最小整数>             sqNum              [6] 整数
            87 01 <00|01>                   test（测试标志）   [7] BOOLEAN
-           88 04 <4 字节>                  confRev(配置版本)  [8] 整数
+           88 01..04 <最小整数>             confRev(配置版本)  [8] 整数
            89 01 <00|01>                   ndsCom(送修标志)   [9] BOOLEAN
-           8a <L> <2-4 字节>               numDatSetEntries   [10] 整数
+           8a <L> <最小整数>                numDatSetEntries   [10] 整数
            ab <L>                          allData            [11] 构造
                <成员 1 Data BER><成员 2 Data BER>...
 ```
@@ -715,7 +717,7 @@ ab 19                      allData 内容长 25（0x19；示例 5 成员实际�
 
 **场景**：任何一帧（如 S1 帧）剥离 L2 后**全帧没有 IP 头**。
 
-- `frame.protocols == "eth:goose"`（无 vlan）/ `"eth:vlan:goose"`（有 vlan），**不得含 "ip"**
+- `frame.protocols` 只用于辅助观察：有 GOOSE 解析器时可能显示 `eth:goose`/`eth:vlan:goose`，无解析器时可能显示 `eth:data`；不能用固定字符串相等断言，核心证据是 EtherType `88 b8` + APDU 起点 `61`，且协议链不含 `ip`
 - 帧第 0x0C-0x0D 字节是 `88 b8` 而不是 `08 00`/`86 dd`
 - 无 20 字节 IPv4 头（首字节 0x45）、无端口号
 - FrameAssert offset 12 hex `88 b8`、offset 22 起 hex `61`（APDU 首字节非 0x45）

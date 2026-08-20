@@ -59,7 +59,7 @@
         {
           "packet": 1,
           "field": "goose.length",
-          "value": "183"
+          "value": "184"
         },
         {
           "packet": 1,
@@ -651,7 +651,7 @@
         {
           "packet": 1,
           "offset": 20,
-          "hex": "00 aa"
+          "hex": "00 ab"
         },
         {
           "packet": 1,
@@ -661,7 +661,7 @@
       ],
       "notes": [
         "VLAN header sits between MACs and EtherType; TCI = prio(4)<<13 | dei(1b) | vid 100 = 0x8064",
-        "all APDU offsets shift by +4 vs the non-VLAN case (offset 26 here vs 22); GOOSE Length @20 = 00 aa (170) proves design 9.4 VLAN formula: 188 - 18 - 8 = 162 = APDU (Length = 8 + 162)"
+        "all APDU offsets shift by +4 vs the non-VLAN case (offset 26 here vs 22); GOOSE Length @20 = 00 ab (171) proves design 9.4 VLAN formula: frame length - 18 - 8 = APDU; APDU content=160, long-form header=3, APDU total=163, Length=8+163=171"
       ]
     }
   },

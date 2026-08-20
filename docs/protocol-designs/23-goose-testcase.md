@@ -136,7 +136,7 @@ tshark -G fields | grep -c '\bgoose\.'   # >0 则启用 goose.* 断言；=0 则�
 - **期望**：
   - `packet_count == 3`（或 `min_packets==3`）
   - fields（tshark goose.* 可用时）：
-    - packet 1 `goose.appid` == 0x1000
+    - packet 1 `goose.appid` == 0x1000、`goose.length` == 184
     - packet 1 `goose.stNum` == 1；packet 2/3 `goose.stNum` `same_as_packet=1`（stNum 恒同）
     - packet 1 `goose.sqNum` == 1、packet 2 == 2、packet 3 == 3（递增）
     - packet 1 `goose.confRev` == 1；packet 2/3 `same_as_packet=1`
@@ -145,16 +145,17 @@ tshark -G fields | grep -c '\bgoose\.'   # >0 则启用 goose.* 断言；=0 则�
   - frames（**无 goose 解析器时的兜底主断言**）：
     - packet 1 offset 12 hex `88 b8`（EtherType）
     - packet 1 offset 14 hex `10 00`（APPID）
-    - packet 1 offset 22 hex `61`（APDU 首字节）
-    - packet 1 offset 22 起逐字段标签核对：`61 <L> 80 <L> ...`（用长 hex 片段覆盖 gocbRef 头 + `85 04 00 00 00 01` stNum + `86 04 ...` sqNum + `87 01 00` test + `88 04 00 00 00 01` confRev + `89 01 00` ndsCom + `8a 01 03` num + `ab` allData）
-- **关键断言**：三帧 stNum 恒 1、sqNum 1/2/3 逐一观测；Length 精确（8+APDU）；BER 标签逐字节核对（不依赖 tshark goose）。
+    - packet 1 offset 16 hex `00 b8`（Length=184）
+    - packet 1 offset 22 hex `61 81 ad`（APDU 长形式，content=173）
+    - packet 1 offset 25 hex `80 29`（gocbRef 起点）、offset 68 `81 02 01 f4`（TAL）、offset 162 `85 01 01`（stNum）、offset 177 `8a 01 03 ab 10`（num/allData）
+- **关键断言**：三帧 stNum 恒 1、sqNum 1/2/3 逐一观测；Length=184 精确；BER 长形式和逐字段偏移必须与 JSON 一致。
 
 ### 4.2 T-GSE-S1-02：帧头字段（APPID/Reserve1/Reserve2）
 
 - **依据**：§2.4
 - **配置**：同 S1-01
 - **期望**：
-  - frames：packet 1 offset 14 hex `10 00 <LENhi><LENlo> 00 00 00 00`（APPID + Length + Reserve1 + Reserve2 完整 8 字节）
+  - frames：packet 1 offset 14 hex `10 00 00 b8 00 00 00 00`（APPID + Length=184 + Reserve1/2；GOOSE 头完整 8 字节）
   - tshark goose.*：`goose.reserve1 == 0`、`goose.reserve2 == 0`
 - **关键断言**：GOOSE 头 8 字节逐一对上（FrameAssert 兜底，防"字段解析但字节错"）。
 
@@ -173,7 +174,7 @@ tshark -G fields | grep -c '\bgoose\.'   # >0 则启用 goose.* 断言；=0 则�
 - **配置**：同 S2-01
 - **期望**：
   - fields：packet 1 `goose.stNum`==1、`goose.sqNum`==1；packet 2 `goose.stNum`==2、**`goose.sqNum`==0**（重置！）
-  - frames：packet 2 offset 对应 sqNum 段 hex `86 04 00 00 00 00`（sqNum=0）
+  - frames：packet 2 offset 165 hex `86 01 00`（sqNum=0 的最小 BER 编码）
 - **关键断言**：变化瞬间 stNum+1、sqNum 由 1 重置为 **0**（不是 1）——强制覆盖项，防止实现把 sqNum 顺序递增而漏重置。
 
 ### 4.5 T-GSE-S3-01：test 置位
@@ -200,8 +201,8 @@ tshark -G fields | grep -c '\bgoose\.'   # >0 则启用 goose.* 断言；=0 则�
 - **配置**：`vlan_enabled:true`, `vlan_id:100`, `vlan_priority:4`
 - **期望**：
   - fields（若可用）：`vlan.id` == 100；`vlan.priority` == 4
-  - frames：packet 1 offset 12 hex `81 00 80 64 88 b8`（TPID + TCI 0x8064 + EtherType；§6.4 TCI 计算）
-- **关键断言**：VLAN 头插在 EtherType 前且 TPID/TCI 精确；APDU 偏移整体 +4（FrameAssert offset 26 起 `61`）。
+  - frames：packet 1 offset 12 hex `81 00 80 64 88 b8`（TPID + TCI 0x8064 + EtherType；§6.4 TCI 计算）；offset 20 hex `00 ab`（GOOSE Length=171）
+- **关键断言**：VLAN 头插在 EtherType 前且 TPID/TCI 精确；APDU 偏移整体 +4（FrameAssert offset 26 起 `61`）。长形式 `61 81 a0` 的内容长度为 160，APDU total=163，Length=8+163=171。
 
 ### 4.8 T-GSE-S5-01：多类型数据值（Boolean/Integer/Real/FloatingPoint/BitString 各 >1）
 
@@ -224,7 +225,7 @@ tshark -G fields | grep -c '\bgoose\.'   # >0 则启用 goose.* 断言；=0 则�
 - **依据**：§3.1/§6.6（S6）
 - **配置**：复用 T-GSE-S1-01 的帧
 - **期望**：
-  - fields：`frame.protocols` 不含 `ip`（含 `eth:goose` 的均不含 `ip`；若无 goose 解析器则 `frame.protocols` 为 `eth:data` 之类，断言不含 `ip`）
+  - fields：`frame.protocols` 不含 `ip`（有解析器时可能为 `eth:goose`，无解析器时可能为 `eth:data`；不使用固定字符串相等断言）
   - frames：packet 1 offset 12 hex `88 b8`（EtherType 是 GOOSE 不是 0x0800/0x86dd）；offset 22 hex `61`（APDU 首字节非 0x45）
 - **关键断言**：EtherType 层独立证明无 IP；字段断言 `frame.protocols` 传达"无 ip 层"。
 
@@ -320,7 +321,7 @@ tshark -G fields | grep -c '\bgoose\.'   # >0 则启用 goose.* 断言；=0 则�
 # 有 goose 解析器时
 tshark -r out.pcap -Y goose -T fields -e goose.appid -e goose.stNum \
   -e goose.sqNum -e goose.confRev -e goose.numDatSetEntries \
-  -e goose.test_links -e goose.ndsCom -e goose.allData
+  -e goose.test -e goose.simulation -e goose.ndsCom -e goose.allData
 
 # 无 goose 解析器时（验证原始字节兜底）
 tshark -r out.pcap -x | head -60   # 逐字节看 APDU BER 标签
@@ -364,7 +365,7 @@ tshark -r out.pcap -Y goose -T fields -e goose.sqNum
 |---------|----------|----------------------|-------------|
 | `goose_heartbeat` | T-GSE-S1-01/02 | Static 心跳；`tal_ms:500`、`t0_ms:1000`、`appid:4096`(0x1000)；data=[int32 1234, binary_time, int32 5678] | `min_packets:3`；stNum/bps sqNum 序列、confRev/TAL same/值；frames 14 起 APPID+头+APDU 标签 |
 | `goose_retransmit` | T-GSE-S2-01 | EventSeq 单次变化；`tmax_ms:2`、`retransmits:5` | fields stNum==2 sqNum 0..5；pk2/pk3 allData 段 hex 相同 |
-| `goose_dataset_change` | T-GSE-S2-02 | 同上事件变化 | pk1 sqNum==1、pk2 **sqNum==0**、stNum 1→2；frames `86 04 00 00 00 00` |
+| `goose_dataset_change` | T-GSE-S2-02 | 同上事件变化 | pk1 sqNum==1、pk2 **sqNum==0**、stNum 1→2；frames `86 01 00`（最小 BER） |
 | `goose_test_flag` | T-GSE-S3-01 | `test:true` 心跳 2 帧 | frames `87 01 01`；goose.simulation 真 |
 | `goose_ndscom_flag` | T-GSE-S3-02 | `nds_com:true` 心跳 2 帧 | frames `89 01 01`；goose.ndsCom 真 |
 | `goose_vlan` | T-GSE-S4-01 | `vlan_enabled:true`、`vlan_id:100`、`vlan_priority:4` | frames offset 12 `81 00 80 64 88 b8`；offset 26 `61`（APDU 右移 4） |
