@@ -182,6 +182,7 @@
       { "packet": 8, "offset": 54, "hex": "03 00" },
       { "packet": 8, "offset": 61, "hex": "a5" },
       { "packet": 9, "offset": 54, "hex": "03 00 00" },
+      { "packet": 9, "offset": 61, "hex": "a1" },
       { "packet": 9, "offset": 66, "hex": "a5 08 a0 06 80 01 00 80 01 00" }
     ]
   }
@@ -257,9 +258,11 @@
     ],
     "frames": [
       { "packet": 8, "offset": 54, "hex": "03 00" },
-      { "packet": 8, "offset": 61, "hex": "a1" },
+      { "packet": 8, "offset": 61, "hex": "a0" },
+      { "packet": 8, "offset": 66, "hex": "a1" },
       { "packet": 9, "offset": 54, "hex": "03 00 00" },
-      { "packet": 9, "offset": 61, "hex": "a1" }
+      { "packet": 9, "offset": 61, "hex": "a1" },
+      { "packet": 9, "offset": 66, "hex": "a1" }
     ]
   }
 }
@@ -295,10 +298,10 @@
     "frames": [
       { "packet": 8, "offset": 54, "hex": "03 00" },
       { "packet": 8, "offset": 61, "hex": "a0" },
-      { "packet": 8, "offset": 61, "hex": "a2" },
+      { "packet": 8, "offset": 66, "hex": "a2" },
       { "packet": 9, "offset": 54, "hex": "03 00 00" },
       { "packet": 9, "offset": 61, "hex": "a1" },
-      { "packet": 9, "offset": 61, "hex": "a2" }
+      { "packet": 9, "offset": 66, "hex": "a2" }
     ]
   }
 }
@@ -337,9 +340,11 @@
     ],
     "frames": [
       { "packet": 8, "offset": 54, "hex": "03 00" },
-      { "packet": 8, "offset": 61, "hex": "a4" },
+      { "packet": 8, "offset": 61, "hex": "a0" },
+      { "packet": 8, "offset": 66, "hex": "a4" },
       { "packet": 9, "offset": 54, "hex": "03 00 00" },
-      { "packet": 9, "offset": 61, "hex": "a2" },
+      { "packet": 9, "offset": 61, "hex": "a1" },
+      { "packet": 9, "offset": 66, "hex": "a2" },
       { "packet": 9, "offset": 82, "hex": "87 01 02" }
     ]
   }
@@ -515,7 +520,7 @@
 | `mms_service_error` | 8, 9 | C/S | Confirmed-ErrorPDU a2 … 87 01 02 |
 | `mms_no_associate` | 4 起数据帧 | C | 帧 4 偏移 58 直接 `02 f0 80 a4`（纯 DT 无关联）|
 | `mms_ipv6` | 1-7 | C/S | 偏移 74 断言同 2.1 |
-| `mms_multi_session` | A 4, B 8 | C/S | 两路 CR 独立；两路服务请求 invokeID=1 且对象域 IED1/IED2 可区分 |
+| `mms_multi_session` | A 4, B 8；服务请求 A=15、B=17 | C/S | 两路 CR 独立；两路服务请求 invokeID=1 且对象域 IED1/IED2 可区分；packet_count=18 |
 
 ## 4. 覆盖清单（相对设计文档）
 
@@ -555,7 +560,7 @@
 | service_error | 2 | 5 |
 | no_associate | 2 | 2 |
 | ipv6 | 5 | 3 |
-| multi_session | 2 | 5 |
+| multi_session | 2 | 7 |
 | validate_reject | 0 | 0 |
 | 合计 | 39 | 38 |
 
