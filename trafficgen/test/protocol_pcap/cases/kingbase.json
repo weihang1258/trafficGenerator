@@ -1,0 +1,1075 @@
+[
+  {
+    "id": "kingbase_connect",
+    "proto": "kingbase",
+    "summary": "S1: TCP 54321 connect and normal termination",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": []
+      }
+    },
+    "expect": {
+      "packet_count": 7,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "54321"
+        }
+      ]
+    },
+    "notes": [
+      "connect is transport-only; no application message is implied"
+    ],
+    "decode_as": [
+      "tcp.port==54321,pgsql"
+    ]
+  },
+  {
+    "id": "kingbase_startup",
+    "proto": "kingbase",
+    "summary": "S2: PostgreSQL-compatible Startup message",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "test",
+            "database": "test"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "54321"
+        },
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "nonzero": true
+        }
+      ]
+    },
+    "notes": [],
+    "decode_as": [
+      "tcp.port==54321,pgsql"
+    ]
+  },
+  {
+    "id": "kingbase_auth_success",
+    "proto": "kingbase",
+    "summary": "S3: Startup, authentication exchange, and Ready",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "test",
+            "database": "test"
+          },
+          {
+            "kind": "auth_request",
+            "direction": "s2c",
+            "profile": "auth_profile_defined"
+          },
+          {
+            "kind": "auth_response",
+            "direction": "c2s",
+            "profile": "auth_profile_defined",
+            "result": "success"
+          },
+          {
+            "kind": "ready",
+            "direction": "s2c",
+            "profile": "ready_idle"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 6,
+          "field": "pgsql.type",
+          "value": "Authentication response"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "52"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "70"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "5a"
+        }
+      ]
+    },
+    "notes": [],
+    "decode_as": [
+      "tcp.port==54321,pgsql"
+    ]
+  },
+  {
+    "id": "kingbase_query_success",
+    "proto": "kingbase",
+    "summary": "S4: Simple query success outer semantics",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "test",
+            "database": "test"
+          },
+          {
+            "kind": "auth_request",
+            "direction": "s2c",
+            "profile": "auth_profile_defined"
+          },
+          {
+            "kind": "auth_response",
+            "direction": "c2s",
+            "profile": "auth_profile_defined",
+            "result": "success"
+          },
+          {
+            "kind": "ready",
+            "direction": "s2c",
+            "profile": "ready_idle"
+          },
+          {
+            "kind": "query",
+            "direction": "c2s",
+            "profile": "query_simple_v3",
+            "sql": "SELECT 1"
+          },
+          {
+            "kind": "row_description",
+            "direction": "s2c",
+            "profile": "row_description_outer"
+          },
+          {
+            "kind": "data_row",
+            "direction": "s2c",
+            "profile": "data_row_outer"
+          },
+          {
+            "kind": "command_complete",
+            "direction": "s2c",
+            "profile": "command_complete_outer",
+            "tag": "SELECT 1"
+          },
+          {
+            "kind": "ready",
+            "direction": "s2c",
+            "profile": "ready_idle"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 16,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Simple query"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.query",
+          "value": "SELECT 1"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.type",
+          "value": "Row description"
+        },
+        {
+          "packet": 10,
+          "field": "pgsql.type",
+          "value": "Data row"
+        },
+        {
+          "packet": 11,
+          "field": "pgsql.type",
+          "value": "Command completion"
+        },
+        {
+          "packet": 12,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "51"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "54"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "44"
+        },
+        {
+          "packet": 11,
+          "offset": 54,
+          "hex": "43"
+        },
+        {
+          "packet": 12,
+          "offset": 54,
+          "hex": "5a"
+        }
+      ]
+    },
+    "notes": [
+      "query result is represented by atomic Row description/Data row/Command completion events; private column and row bytes are intentionally not fixed"
+    ],
+    "decode_as": [
+      "tcp.port==54321,pgsql"
+    ]
+  },
+  {
+    "id": "kingbase_query_error",
+    "proto": "kingbase",
+    "summary": "S5: Simple query error response and Ready",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "test",
+            "database": "test"
+          },
+          {
+            "kind": "auth_request",
+            "direction": "s2c",
+            "profile": "auth_profile_defined"
+          },
+          {
+            "kind": "auth_response",
+            "direction": "c2s",
+            "profile": "auth_profile_defined",
+            "result": "success"
+          },
+          {
+            "kind": "ready",
+            "direction": "s2c",
+            "profile": "ready_idle"
+          },
+          {
+            "kind": "query",
+            "direction": "c2s",
+            "profile": "query_simple_v3",
+            "sql": "SELECT missing_column FROM missing_table"
+          },
+          {
+            "kind": "query_error",
+            "direction": "s2c",
+            "profile": "query_error_outer",
+            "result": "error"
+          },
+          {
+            "kind": "ready",
+            "direction": "s2c",
+            "profile": "ready_idle"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.type",
+          "value": "Simple query"
+        },
+        {
+          "packet": 8,
+          "field": "pgsql.query",
+          "value": "SELECT missing_column FROM missing_table"
+        },
+        {
+          "packet": 9,
+          "field": "pgsql.type",
+          "value": "Error response"
+        },
+        {
+          "packet": 10,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "51"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "45"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "5a"
+        }
+      ]
+    },
+    "notes": [],
+    "decode_as": [
+      "tcp.port==54321,pgsql"
+    ]
+  },
+  {
+    "id": "kingbase_ipv4",
+    "proto": "kingbase",
+    "summary": "S6: IPv4 compatible session",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "test",
+            "database": "test"
+          },
+          {
+            "kind": "auth_request",
+            "direction": "s2c",
+            "profile": "auth_profile_defined"
+          },
+          {
+            "kind": "auth_response",
+            "direction": "c2s",
+            "profile": "auth_profile_defined",
+            "result": "success"
+          },
+          {
+            "kind": "ready",
+            "direction": "s2c",
+            "profile": "ready_idle"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ip.version",
+          "value": "4"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "54321"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "52"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "70"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "5a"
+        }
+      ]
+    },
+    "notes": [],
+    "decode_as": [
+      "tcp.port==54321,pgsql"
+    ]
+  },
+  {
+    "id": "kingbase_ipv6",
+    "proto": "kingbase",
+    "summary": "S7: IPv6 compatible session",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "2001:db8::1",
+      "dst_ip": "2001:db8::2",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "test",
+            "database": "test"
+          },
+          {
+            "kind": "auth_request",
+            "direction": "s2c",
+            "profile": "auth_profile_defined"
+          },
+          {
+            "kind": "auth_response",
+            "direction": "c2s",
+            "profile": "auth_profile_defined",
+            "result": "success"
+          },
+          {
+            "kind": "ready",
+            "direction": "s2c",
+            "profile": "ready_idle"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.version",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "54321"
+        },
+        {
+          "packet": 5,
+          "field": "pgsql.type",
+          "value": "Authentication request"
+        },
+        {
+          "packet": 7,
+          "field": "pgsql.type",
+          "value": "Ready for query"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 74,
+          "hex": "52"
+        },
+        {
+          "packet": 6,
+          "offset": 74,
+          "hex": "70"
+        },
+        {
+          "packet": 7,
+          "offset": 74,
+          "hex": "5a"
+        }
+      ]
+    },
+    "notes": [],
+    "decode_as": [
+      "tcp.port==54321,pgsql"
+    ]
+  },
+  {
+    "id": "kingbase_multi_session",
+    "proto": "kingbase",
+    "summary": "S8: two independent compatible sessions",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "sessions": [
+          {
+            "src_port": 12345,
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "profile": "auth_profile_defined"
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "profile": "auth_profile_defined",
+                "result": "success"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "profile": "ready_idle"
+              }
+            ]
+          },
+          {
+            "src_port": 12346,
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "profile": "auth_profile_defined"
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "profile": "auth_profile_defined",
+                "result": "success"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "profile": "ready_idle"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 22,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": null,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "12345",
+            "12346"
+          ],
+          "distinct_exclude": [
+            "54321"
+          ]
+        },
+        {
+          "packet": null,
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "54321"
+          ],
+          "distinct_exclude": [
+            "12345",
+            "12346"
+          ]
+        }
+      ]
+    },
+    "notes": [
+      "per-session event ordering is asserted by implementation; global packet order is not"
+    ],
+    "decode_as": [
+      "tcp.port==54321,pgsql"
+    ]
+  },
+  {
+    "id": "kingbase_length_boundary",
+    "proto": "kingbase",
+    "summary": "S9: minimum non-empty Startup parameters",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "u",
+            "database": "d"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "pgsql.type",
+          "value": "Startup message"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "nonzero": true
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "54321"
+        }
+      ]
+    },
+    "notes": [],
+    "decode_as": [
+      "tcp.port==54321,pgsql"
+    ]
+  },
+  {
+    "id": "kingbase_neg_udp",
+    "proto": "kingbase",
+    "summary": "N1: UDP carrier is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "test",
+            "database": "test"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "tcp"
+    },
+    "notes": []
+  },
+  {
+    "id": "kingbase_neg_port",
+    "proto": "kingbase",
+    "summary": "N2: nonstandard destination port is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54322,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "test",
+            "database": "test"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "54321"
+    },
+    "notes": []
+  },
+  {
+    "id": "kingbase_neg_profile",
+    "proto": "kingbase",
+    "summary": "N3: unknown wire profile is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "unknown_profile",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "test",
+            "database": "test"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "profile"
+    },
+    "notes": []
+  },
+  {
+    "id": "kingbase_neg_state",
+    "proto": "kingbase",
+    "summary": "N4: query before Ready is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "query",
+            "direction": "c2s",
+            "profile": "query_simple_v3",
+            "sql": "SELECT 1"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "state"
+    },
+    "notes": []
+  },
+  {
+    "id": "kingbase_neg_truncated",
+    "proto": "kingbase",
+    "summary": "N5: truncated Startup length is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "test",
+            "database": "test"
+          }
+        ],
+        "wire_fault": {
+          "kind": "truncate_startup",
+          "value": 1
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    },
+    "notes": []
+  },
+  {
+    "id": "kingbase_neg_oversize",
+    "proto": "kingbase",
+    "summary": "N6: message over implementation limit is rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "kingbase": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 54321,
+      "kingbase": {
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": [
+          {
+            "kind": "startup",
+            "direction": "c2s",
+            "profile": "startup_v3",
+            "user": "test",
+            "database": "test"
+          }
+        ],
+        "wire_fault": {
+          "kind": "message_limit",
+          "value": "over_limit"
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "limit"
+    },
+    "notes": []
+  }
+]
