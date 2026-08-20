@@ -10,14 +10,14 @@
 
 ### 1.1 本文档目的
 
-本文档是 MMS 协议的测试规格：给出 10 条 pcap 用例的完整 JSON 块、包序号索引表，以及相对设计文档的覆盖清单。每条用例断言"成功路径的确定字节 + 包序"或"负向路径的确定拒绝字节"，全部来自设计文档第 6 章（HexDump）与第 3 章（消息结构），并与 `cases/mms.json`（真实运行文件）逐字节一致，不新增设计未定义的行为。
+本文档是 MMS 协议的测试规格：给出 11 条 pcap 用例的完整 JSON 块、包序号索引表，以及相对设计文档的覆盖清单。每条用例断言"成功路径的确定字节 + 包序"或"负向路径的确定拒绝字节"，全部来自设计文档第 6 章（HexDump）与第 3 章（消息结构），并与 `cases/mms.json`（真实运行文件）逐字节一致，不新增设计未定义的行为。
 
 ### 1.2 断言体制（重要）
 
 本地 tshark 无法解码 OSI 内层（会话/表示/ACSE/MMS，设计 6.5），实际断言分两条通道（与 `internal/pcaptest/types.go` 的 `Expect` 结构一致）：
 
 - **`fields[]`（tshark 字段断言）**：`{packet, field, value}`，value 为字符串精确值。只允许 `tpkt.version`、`tpkt.length`、`cotp.type`、`cotp.li`、`cotp.srcref`、`cotp.destref`、`cotp.tpdu_size`、`cotp.src-tsap`、`cotp.dst-tsap`、`cotp.eot`（白名单，防本地 build 缺协议导致 tshark 非零退出）。
-- **`frames[]`（原始字节断言）**：`{packet, offset, hex}`，在**该帧偏移处前缀匹配** hex；offset 语义为帧首字节（含以太）起的偏移，IPv4 TCP 载荷起点 = 54（14 以太 + 20 IP + 20 TCP）。
+- **`frames[]`（原始字节断言）**：`{packet, offset, hex}`，在**该帧偏移处前缀匹配** hex；offset 统一为含以太网头的帧首起 0-based 偏移。IPv4 正例固定 IP version=4、IHL=5、TCP dstport=102，载荷起点=54；IPv6 正例固定 IP version=6、TCP dstport=102，载荷起点=74。
 - 内层字节以 libiec61850 编码 + Wireshark 解析器源码为权威（设计 6.5，`/tmp/mms3.pcap` 全帧回溯验证）。
 
 ### 1.3 连接建立的真实帧序（关键，与 design 6.1 对齐）
@@ -77,6 +77,8 @@
       { "packet": 4, "field": "cotp.tpdu_size", "value": "4096" },
       { "packet": 4, "field": "cotp.src-tsap", "value": "0x02" },
       { "packet": 4, "field": "cotp.dst-tsap", "value": "0x01" },
+      { "packet": 4, "field": "ip.version", "value": "4" },
+      { "packet": 4, "field": "tcp.dstport", "value": "102" },
       { "packet": 5, "field": "cotp.type", "value": "0x0d" },
       { "packet": 5, "field": "cotp.li", "value": "13" },
       { "packet": 5, "field": "cotp.srcref", "value": "0x0002" },
@@ -107,7 +109,7 @@
 | --- | --- |
 | 覆盖 | 设计 2.9、3.3、5.3、6.6：5 个对象（boolean/integer/unsigned/octetString/utcTime）一次 Read |
 | 包序 | 关联（1-7）后：8 = ReadReq, 9 = ReadResp |
-| 断言 | ReadReq invokeID 1；ReadResp 内层标签 83/85/86/89/91 + `a1` ConfirmedResponse |
+| 断言 | ReadReq invokeID 1；ReadResp 内层标签 83/85/86/89/91 + `a1` ConfirmedResponse；utcTime 为 4 字节大端秒 `91 04 65 bb 87 c0` |
 
 ```json
 {
@@ -122,7 +124,7 @@
           { "domain": "IED1", "name": "MMXU1.TotW.mag.f", "datatype": "integer", "value": 42 },
           { "domain": "IED1", "name": "MMXU1.TotW.mag.u", "datatype": "unsigned", "value": 7 },
           { "domain": "IED1", "name": "LLN0.Mod.stVal", "datatype": "octetString", "value": "0102" },
-          { "domain": "IED1", "name": "LLN0.Beh.stVal", "datatype": "utcTime", "value": "20240201120000" }
+          { "domain": "IED1", "name": "LLN0.Beh.stVal", "datatype": "utcTime", "value": 1706788800 }
         ],
         "enableRead": true,
         "sequence": { "steps": ["read"] }
@@ -137,14 +139,14 @@
     "frames": [
       { "packet": 8, "offset": 54, "hex": "0300" },
       { "packet": 9, "offset": 54, "hex": "03 00 00" },
-      { "packet": 9, "offset": 60, "hex": "a1 8b 02 01 01 a4 5f a1 5d" },
-      { "packet": 9, "offset": 66, "hex": "83 01 ff 85 01 2a 86 01 07 89 02 01 02 91 0e 32 30 32 34 30 32 30 31 31 32 30 30 30 30" }
+      { "packet": 9, "offset": 60, "hex": "a1 7f 02 01 01 a4 53 a1 51" },
+      { "packet": 9, "offset": 66, "hex": "83 01 ff 85 01 2a 86 01 07 89 02 01 02 91 04 65 bb 87 c0" }
     ]
   }
 }
 ```
 
-> 帧 9 响应 `a1 8b {02 01 01 a4 5f {a1 5d {五项}}}`：Confirmed-ResponsePDU 标签 `a1`，invokeID 回显 1，listOfAccessResult 内 5 个 Data（`83 01 ff` boolean、`85 01 2a` integer、`86 01 07` unsigned、`89 02 01 02` octet、`91 0e …` utcTime）。`8b/5f/5d` 为长度（占位推导值，最终以实现回填长度为准，见 6 附录 C）。
+> 帧 9 响应 `a1 7f 02 01 01 a4 53 a1 51 {五项}`：顶层 Confirmed-ResponsePDU 标签为 `a1`，invokeID 回显 1，Read 响应服务标签为 `a4`，listOfAccessResult 标签为 `a1`。五项 Data 的总长度为 19 字节（`0x13`），其中 utcTime 为 `91 04 65 bb 87 c0`；`7f/53/51` 为按实际四字节 UTC Time 回填后的确定长度，不是占位值。
 
 ### 2.3 `mms_write_success` —— Write 全表成功
 
@@ -230,7 +232,7 @@
 | --- | --- |
 | 覆盖 | 设计 3.3、6.7：GetNameList 请求（vmdSpecific scope=80 00），响应 listOfIdentifier |
 | 包序 | 关联后：8 = Req, 9 = Resp |
-| 断言 | 请求 ConfirmedRequestPDU 标签 a1；响应标签 a1 |
+| 断言 | 请求顶层 Confirmed-RequestPDU=`a0` 后服务标签 `a1`；响应顶层 Confirmed-ResponsePDU=`a1` 后服务标签 `a1` |
 
 ```json
 {
@@ -269,7 +271,7 @@
 | --- | --- |
 | 覆盖 | 设计 3.3、6.7：Identify 请求（a2 00），响应 vendor/model/revision |
 | 包序 | 关联后：8 = Req, 9 = Resp |
-| 断言 | 请求 ConfirmedRequestPDU 标签 a2；响应标签 a2 |
+| 断言 | 请求顶层 Confirmed-RequestPDU=`a0` 后服务标签 `a2`；响应顶层 Confirmed-ResponsePDU=`a1` 后服务标签 `a2` |
 
 ```json
 {
@@ -292,8 +294,10 @@
     ],
     "frames": [
       { "packet": 8, "offset": 54, "hex": "03 00" },
+      { "packet": 8, "offset": 57, "hex": "a0" },
       { "packet": 8, "offset": 59, "hex": "a2" },
       { "packet": 9, "offset": 54, "hex": "03 00 00" },
+      { "packet": 9, "offset": 57, "hex": "a1" },
       { "packet": 9, "offset": 59, "hex": "a2" }
     ]
   }
@@ -409,6 +413,8 @@
     "fields": [
       { "packet": 4, "field": "cotp.type", "value": "0x0e" },
       { "packet": 4, "field": "cotp.srcref", "value": "0x0001" },
+      { "packet": 4, "field": "ip.version", "value": "6" },
+      { "packet": 4, "field": "tcp.dstport", "value": "102" },
       { "packet": 4, "field": "tpkt.length", "value": "20" },
       { "packet": 6, "field": "cotp.type", "value": "0x0f" },
       { "packet": 6, "field": "tpkt.length", "value": "165" }
@@ -460,13 +466,39 @@
     ],
     "frames": [
       { "packet": 4, "offset": 54, "hex": "03000014 0fe0 0000 0001 00 c0 01 0c c2 01 01 c1 01 02" },
-      { "packet": 8, "offset": 54, "hex": "03000014 0fe0 0000 0001 00 c0 01 0c c2 01 01 c1 01 02" }
+      { "packet": 8, "offset": 54, "hex": "03000014 0fe0 0000 0001 00 c0 01 0c c2 01 01 c1 01 02" },
+      { "packet": 15, "offset": 54, "hex": "0300" },
+      { "packet": 15, "offset": 66, "hex": "02 01 01" },
+      { "packet": 17, "offset": 76, "hex": "8a 04 49 45 44 32" }
     ]
   }
 }
 ```
 
-> COTP 引用只需"连接内唯一"，两路都可 srcRef=1（设计 4.3）；invokeID 各自从 1 递增——planner 按连接分组产出（8.2）。
+> COTP 引用只需"连接内唯一"，两路都可 srcRef=1（设计 4.3）；invokeID 各自从 1 递增。在当前确定调度（A 服务请求帧 15、B 服务请求帧 17）下，两路服务请求均出现 `02 01 01`，B 路请求另含 `8a 04 49 45 44 32`，从而观察 invokeID 隔离与对象区分；若实现采用交错调度，须按该内容匹配对应帧。
+
+### 2.11 `mms_validate_reject` —— 超长对象名配置拒绝
+
+```json
+{
+  "id": "mms_validate_reject",
+  "proto": "mms",
+  "summary": "MMS negative: validator rejects item-identifier encoding longer than 32 bytes",
+  "spec_json": [
+    { "tcp": { "dst_port": 102 } },
+    { "mms": {
+        "objects": [
+          { "domain": "IED1", "name": "THIS_ITEM_IDENTIFIER_IS_WAY_TOO_LONG_01", "datatype": "boolean" }
+        ],
+        "enableRead": true,
+        "sequence": { "steps": ["read"] }
+    } }
+  ],
+  "expect": { "expect_error": true, "error_contains": "name" }
+}
+```
+
+此用例在 pcap 驱动层验证创建任务即被拒绝，不产出数据包；它不伪造未实现的服务字段。
 
 ---
 
@@ -483,7 +515,7 @@
 | `mms_service_error` | 8, 9 | C/S | Confirmed-ErrorPDU a2 … 87 01 02 |
 | `mms_no_associate` | 4 起数据帧 | C | 帧 4 偏移 58 直接 `02 f0 80 a4`（纯 DT 无关联）|
 | `mms_ipv6` | 1-7 | C/S | 偏移 74 断言同 2.1 |
-| `mms_multi_session` | A 4, B 8 | C/S | 两路 CR 独立 |
+| `mms_multi_session` | A 4, B 8 | C/S | 两路 CR 独立；两路服务请求 invokeID=1 且对象域 IED1/IED2 可区分 |
 
 ## 4. 覆盖清单（相对设计文档）
 
@@ -523,8 +555,9 @@
 | service_error | 2 | 5 |
 | no_associate | 2 | 2 |
 | ipv6 | 5 | 3 |
-| multi_session | 2 | 2 |
-| 合计 | 37 | 35 |
+| multi_session | 2 | 5 |
+| validate_reject | 0 | 0 |
+| 合计 | 39 | 38 |
 
 ### 4.3 强制覆盖核对（原始需求 → 用例）
 
@@ -539,12 +572,12 @@
 | 服务拒绝错误 | `mms_service_error` |
 | IPv4 + IPv6 | `mms_connect_establish` + `mms_ipv6` |
 | 多会话 | `mms_multi_session` |
-| 负路径 expect_error（未建立连接一类）| `mms_no_associate`（纯负向无 `expect_error` 标志，因服务帧合法组装但无关联；非法 BER/超长/未知服务的 validate 拒绝路径为单测用例，非 pcap 用例，见设计 9.3）|
+| 负路径 expect_error（配置校验）| `mms_validate_reject`（超长 item-identifier，expect_error=true）；`mms_no_associate` 仍是可组装但无关联的运行时负向 |
 
 ### 4.4 已知限制
 
 - tshark 无法解码 OSI 内层（本地 3.6.14），内层只能 `frames` 原始字节断言，不能按字段断言（设计 6.5 论证）。
-- `mms_read_multi_type` 等用例的帧 9 长度字段（`8b/5f/5d`）为占位推导，实现定稿后需按 6 附录 C 回填并同步 cases。
+- `mms_read_multi_type` 的帧 9 长度字段与 utcTime 字节已按 4 字节秒值回填；后续实现若改变 specificationWithResult 语义，必须同步更新 6 附录 C 与 cases。
 - `mms_fragmented_dt`、`mms_name_list_paging` 等预留用例仍属设计 10.2（未实现）。
 - `structure` datatype 未单列 pcap 用例（设计 6.6 给出路由字节，实施覆盖于单测）。
 
@@ -566,13 +599,14 @@
 
 数据帧（4-7）载荷起始（offset 54）：
 ```
+3 ACK       （纯 TCP ACK，无 TPKT）
 4 CR       03 00 00 14 0f e0 00 00 00 01 00 c0 01 0c c2 01 01 c1 01 02
 5 CC       03 00 00 14 0d d0 00 01 00 02 00 c0 01 0c c1 01 01 c2 01 02
 6 DT1      03 00 00 a5 02 f0 80 0d 92 …（166 字节总长，TPKT 165）*
 7 DT2      03 00 00 a1 02 f0 80 0e 90 …（162 字节总长，TPKT 161）*
 ```
 
-> `*` TPKT.lenth 含 4 字节头（165 = 4 + 2(DT) + 159 载荷；161 = 4 + 2 + 155）。DT2 载荷 155 字节 = 会话 CONNECT-ACK(0x0e) + 表示 CPA(0x31) + ACSE AARE(0x61) + MMS Initiate-Resp(0xa9)。
+> `*` TPKT.length 含 4 字节头（165 = 4 + 2(DT) + 159 载荷；161 = 4 + 2 + 155）。DT2 载荷 155 字节 = 会话 CONNECT-ACK(0x0e) + 表示 CPA(0x31) + ACSE AARE(0x61) + MMS Initiate-Resp(0xa9)。
 
 ## 7. 参考附录 B：各用例 invokeID / 帧号总表
 
@@ -616,7 +650,7 @@ variableAccessSpecification = `a1 <L> { a0 <L> { … } }`
 
 ReadRequest = `a0 <L> { 02 01 <inv>  a4 <L> { [80 01 01 specWithResult] a1 <L> { … } } }`
 ReadResponse = `a1 <L> { 02 01 <inv>  a4 <L> { a1 <L> { listOfAccessResult } } }`
-Data 各项：`83 01 ff`、`85 01 2a`、`86 01 07`、`89 02 01 02`、`91 0e <20240201120000 14 ASCII 字节>`。
+Data 各项：`83 01 ff`、`85 01 2a`、`86 01 07`、`89 02 01 02`、`91 04 65 bb 87 c0（1706788800 秒，2024-02-01T12:00:00Z）`。
 
 > 长度逐级回填后即得确定十六进制；写 cases 时按本附录逐步算长度，禁止猜值（实现定稿后需重新核算 `<L>` 并同步 cases/testcase 文档）。
 

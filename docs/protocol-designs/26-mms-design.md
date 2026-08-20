@@ -1006,16 +1006,26 @@ RFC 1006/ISO 9506/IEC 61850-8-1 公开布局如下，均已本地验证：
 
 ### 6.6 Read 多类型响应（帧内 MMS 段示例）
 
-ReadResponse 的 listOfAccessResult 字节（对应 5.3 五个变量一次性读取）：
+ReadResponse 的 `mms_read_multi_type` 用例实际返回五项 Data（boolean/integer/unsigned/octetString/utcTime），其确定 BER 片段为：
 
+```ber
+# packet 9，IPv4 TCP 载荷从帧 offset 54 起；TPKT(4)+COTP DT(3) 后 MMS 从 offset 61 起
+03 00 00 ... 02 f0 80
+  a1 81 81 {                         Confirmed-ResponsePDU
+    02 01 01                         invokeID = 1
+    a4 55 {                           confirmed Read response
+      a1 53 {                         listOfAccessResult
+        83 01 ff                      boolean TRUE
+        85 01 2a                      integer 42
+        86 01 07                      unsigned 7
+        89 02 01 02                   octet-string "0102"
+        91 04 65 bb 87 c0              utcTime = 1706788800 seconds
+      }
+    }
+  }
 ```
-a1 <L> 02 01 <inv> a4 <L> a1 <L>
-  83 01 ff                        boolean TRUE
-  85 01 2a                        integer 42
-  86 01 07                        unsigned 7
-  89 02 01 02                     octet-string "0102"
-  a2 0a { 89 03 61 62 63 85 01 64 }   structure{ "abc", 100 }
-```
+
+长度校验：五项 Data 总长 `3+3+3+4+6=19=0x13`；`a1 53` 的 0x53 还包含五项及其外围结构；按实际编码逐层回填得到 `a4 55`、顶层 `a1 81 81`。cases/testcase 使用同一片段，帧首偏移为 60（前缀）和 67（Data）。
 
 ### 6.7 Write 响应 / Identify / GetNameList / InformationReport 内层字节
 
@@ -1150,7 +1160,7 @@ type MMSFrame struct {
 
 ### 9.2 关联拒绝（AARE result ≠ 0）
 
-`associate-result`：0=accepted，1=rejected-permanent，2=rejected-transient。负向预留：`a2 03 02 01 02 a3 05 a1 03 02 01 01`（永久拒绝 + acse-service-user + 应用上下文名不受支持）。首版默认 accepted，负向用 `noAssociate` 表达"未建立关联"。
+`associate-result`：0=accepted，1=rejected-permanent，2=rejected-transient。负向预留：`a2 03 02 01 01 a3 05 a1 03 02 01 01`（associate-result=1，永久拒绝 + acse-service-user + 应用上下文名不受支持）。首版默认 accepted，负向用 `noAssociate` 表达"未建立关联"。
 
 ### 9.3 编码层错误（BER 非法 / 配置非法）
 
