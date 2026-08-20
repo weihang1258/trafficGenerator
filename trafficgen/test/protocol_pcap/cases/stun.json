@@ -1,0 +1,1855 @@
+[
+  {
+    "id": "stun_binding_udp_request",
+    "proto": "stun",
+    "summary": "UDP/IPv4 Binding request with 20-byte header",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "3478"
+        },
+        {
+          "packet": 1,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.type.class",
+          "value": "0x0000"
+        },
+        {
+          "packet": 1,
+          "field": "stun.type.method",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.length",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "stun.cookie",
+          "value": "21:12:a4:42"
+        },
+        {
+          "packet": 1,
+          "field": "stun.id",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 00 21 12 a4 42"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_binding_udp_success_ipv4",
+    "proto": "stun",
+    "summary": "UDP Binding success with IPv4 XOR/MAPPED address",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          },
+          {
+            "kind": "success",
+            "direction": "s2c",
+            "attributes": [
+              {
+                "type": "xor-mapped-address",
+                "family": "ipv4",
+                "address": "203.0.113.7",
+                "port": 50000
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.id",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.type",
+          "value": "0x0101"
+        },
+        {
+          "packet": 2,
+          "field": "stun.type.class",
+          "value": "0x0100"
+        },
+        {
+          "packet": 2,
+          "field": "stun.type.method",
+          "value": "0x0001"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.type",
+          "value": "0x0020"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.family",
+          "value": "0x01"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.ipv4-xord",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.port-xord",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.id",
+          "same_as_packet": 1
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "01 01 00 0c 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 62,
+          "hex": "00 20 00 08 00 01"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_binding_udp_success_ipv6",
+    "proto": "stun",
+    "summary": "UDP/IPv6 Binding success with IPv6 XOR address",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "2001:db8::10",
+      "dst_ip": "2001:db8::20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          },
+          {
+            "kind": "success",
+            "direction": "s2c",
+            "attributes": [
+              {
+                "type": "xor-mapped-address",
+                "family": "ipv6",
+                "address": "2001:db8::77",
+                "port": 50001
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ipv6.nxt",
+          "value": "17"
+        },
+        {
+          "packet": 1,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.id",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.type",
+          "value": "0x0101"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.type",
+          "value": "0x0020"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.family",
+          "value": "0x02"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.ipv6-xord",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.port-xord",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.id",
+          "same_as_packet": 1
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "00 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 62,
+          "hex": "01 01 00 18 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 82,
+          "hex": "00 20 00 14 00 02"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_binding_udp_error",
+    "proto": "stun",
+    "summary": "UDP Binding error with ERROR-CODE and UNKNOWN-ATTRIBUTES",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          },
+          {
+            "kind": "error",
+            "direction": "s2c",
+            "attributes": [
+              {
+                "type": "error-code",
+                "code": 401,
+                "reason": "Unauthorized"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.id",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.type",
+          "value": "0x0111"
+        },
+        {
+          "packet": 2,
+          "field": "stun.type.class",
+          "value": "0x0110"
+        },
+        {
+          "packet": 2,
+          "field": "stun.type.method",
+          "value": "0x0001"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.type",
+          "value": "0x0009"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.error.class",
+          "value": "4"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.error",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.error.reason",
+          "value": "Unauthorized"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.type",
+          "value": "0x000a"
+        },
+        {
+          "packet": 2,
+          "field": "stun.id",
+          "same_as_packet": 1
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "01 11 00 1c 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 62,
+          "hex": "00 09 00 10 00 00 04 01"
+        },
+        {
+          "packet": 2,
+          "offset": 82,
+          "hex": "00 0a 00 02 80 22 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_binding_tcp_request",
+    "proto": "stun",
+    "summary": "TCP Binding request with STUN TCP message framing",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 41000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 8,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "3478"
+        },
+        {
+          "packet": 4,
+          "field": "stun.tcp_frame_length",
+          "nonzero": true
+        },
+        {
+          "packet": 4,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 4,
+          "field": "stun.length",
+          "value": "0"
+        },
+        {
+          "packet": 4,
+          "field": "stun.cookie",
+          "value": "21:12:a4:42"
+        },
+        {
+          "packet": 4,
+          "field": "stun.id",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 01 00 00 21 12 a4 42"
+        }
+      ],
+      "has_handshake": true,
+      "terminates": true
+    }
+  },
+  {
+    "id": "stun_binding_tls_session",
+    "proto": "stun",
+    "summary": "TLS carrier session; STUN remains encrypted without keys",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tls": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 42000,
+      "dst_port": 5349,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 16,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "5349"
+        },
+        {
+          "packet": 4,
+          "field": "tls.record.content_type",
+          "value": "22"
+        },
+        {
+          "packet": 4,
+          "field": "tls.record.length",
+          "nonzero": true
+        },
+        {
+          "packet": 5,
+          "field": "tls.record.content_type",
+          "value": "23"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "16 03 03 00 05"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "17 03 03 00 10"
+        }
+      ],
+      "has_handshake": true,
+      "terminates": true
+    }
+  },
+  {
+    "id": "stun_auth_attributes",
+    "proto": "stun",
+    "summary": "Binding request authentication context attributes",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s",
+            "attributes": [
+              {
+                "type": "username",
+                "value": "alice"
+              },
+              {
+                "type": "realm",
+                "value": "example.org"
+              },
+              {
+                "type": "nonce",
+                "value": "server-nonce"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.type",
+          "value": "0x0006"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.username",
+          "value": "alice"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.type",
+          "value": "0x0014"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.realm",
+          "value": "example.org"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.type",
+          "value": "0x0015"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.nonce",
+          "value": "server-nonce"
+        },
+        {
+          "packet": 1,
+          "field": "stun.length",
+          "value": "44"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 2c 21 12 a4 42"
+        },
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "00 06 00 05 61 6c 69 63 65"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_integrity_fingerprint",
+    "proto": "stun",
+    "summary": "MESSAGE-INTEGRITY and FINGERPRINT computed at runtime",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s",
+            "attributes": [
+              {
+                "type": "username",
+                "value": "alice"
+              },
+              {
+                "type": "realm",
+                "value": "example.org"
+              },
+              {
+                "type": "nonce",
+                "value": "server-nonce"
+              },
+              {
+                "type": "message-integrity",
+                "key": "password"
+              },
+              {
+                "type": "fingerprint"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.type",
+          "value": "0x0008"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.hmac",
+          "nonzero": true
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.type",
+          "value": "0x8028"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.crc32",
+          "nonzero": true
+        },
+        {
+          "packet": 1,
+          "field": "stun.cookie",
+          "value": "21:12:a4:42"
+        },
+        {
+          "packet": 1,
+          "field": "stun.length",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 4c 21 12 a4 42"
+        },
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "00 06 00 05 61 6c 69 63 65"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_attribute_padding",
+    "proto": "stun",
+    "summary": "Attribute length and 32-bit zero padding",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s",
+            "attributes": [
+              {
+                "type": "username",
+                "value": "bob"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.type",
+          "value": "0x0006"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.length",
+          "value": "3"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.username",
+          "value": "bob"
+        },
+        {
+          "packet": 1,
+          "field": "stun.length",
+          "value": "8"
+        },
+        {
+          "packet": 1,
+          "field": "stun.id",
+          "nonzero": true
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 08 21 12 a4 42"
+        },
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "00 06 00 03 62 6f 62 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_retransmission",
+    "proto": "stun",
+    "summary": "UDP retransmission repeats the same transaction",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s",
+            "retransmit": false
+          },
+          {
+            "kind": "request",
+            "direction": "c2s",
+            "retransmit": true
+          },
+          {
+            "kind": "success",
+            "direction": "s2c"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 3,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.id",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 2,
+          "field": "stun.id",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 3,
+          "field": "stun.type",
+          "value": "0x0101"
+        },
+        {
+          "packet": 3,
+          "field": "stun.id",
+          "same_as_packet": 1
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "00 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 3,
+          "offset": 42,
+          "hex": "01 01 00 00 21 12 a4 42"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_multi_transaction_udp",
+    "proto": "stun",
+    "summary": "Multiple isolated UDP Binding transactions",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s",
+            "transaction_group": "tx1"
+          },
+          {
+            "kind": "request",
+            "direction": "c2s",
+            "transaction_group": "tx1"
+          },
+          {
+            "kind": "success",
+            "direction": "s2c",
+            "transaction_group": "tx2"
+          },
+          {
+            "kind": "error",
+            "direction": "s2c",
+            "transaction_group": "tx2"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 4,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.id",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 2,
+          "field": "stun.id",
+          "nonzero": true
+        },
+        {
+          "packet": 3,
+          "field": "stun.type",
+          "value": "0x0101"
+        },
+        {
+          "packet": 3,
+          "field": "stun.id",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 4,
+          "field": "stun.type",
+          "value": "0x0111"
+        },
+        {
+          "packet": 4,
+          "field": "stun.id",
+          "same_as_packet": 2
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "00 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 3,
+          "offset": 42,
+          "hex": "01 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 4,
+          "offset": 42,
+          "hex": "01 11 00 00 21 12 a4 42"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_multi_transaction_tcp",
+    "proto": "stun",
+    "summary": "Multiple transactions on one TCP session",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 43000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s",
+            "transaction_group": "tx1"
+          },
+          {
+            "kind": "success",
+            "direction": "s2c",
+            "transaction_group": "tx1"
+          },
+          {
+            "kind": "request",
+            "direction": "c2s",
+            "transaction_group": "tx2"
+          },
+          {
+            "kind": "error",
+            "direction": "s2c",
+            "transaction_group": "tx2"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 12,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "3478"
+        },
+        {
+          "packet": 4,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 4,
+          "field": "stun.id",
+          "nonzero": true
+        },
+        {
+          "packet": 6,
+          "field": "stun.type",
+          "value": "0x0101"
+        },
+        {
+          "packet": 6,
+          "field": "stun.id",
+          "same_as_packet": 4
+        },
+        {
+          "packet": 8,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 8,
+          "field": "stun.id",
+          "nonzero": true
+        },
+        {
+          "packet": 10,
+          "field": "stun.type",
+          "value": "0x0111"
+        },
+        {
+          "packet": 10,
+          "field": "stun.id",
+          "same_as_packet": 8
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "01 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "00 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "01 11 00 00 21 12 a4 42"
+        }
+      ],
+      "has_handshake": true,
+      "terminates": true
+    }
+  },
+  {
+    "id": "stun_ipv6_address_attributes",
+    "proto": "stun",
+    "summary": "IPv6 outer carrier and both address-family attributes",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "2001:db8::10",
+      "dst_ip": "2001:db8::20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          },
+          {
+            "kind": "success",
+            "direction": "s2c",
+            "attributes": [
+              {
+                "type": "mapped-address",
+                "family": "ipv4",
+                "address": "192.0.2.55",
+                "port": 50002
+              },
+              {
+                "type": "xor-mapped-address",
+                "family": "ipv6",
+                "address": "2001:db8::55",
+                "port": 50002
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ipv6.nxt",
+          "value": "17"
+        },
+        {
+          "packet": 2,
+          "field": "ipv6.nxt",
+          "value": "17"
+        },
+        {
+          "packet": 2,
+          "field": "stun.type",
+          "value": "0x0101"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.family",
+          "value": "0x01"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.ipv4",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.type",
+          "value": "0x0020"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.family",
+          "value": "0x02"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.ipv6-xord",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.id",
+          "same_as_packet": 1
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "00 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 62,
+          "hex": "01 01 00 24 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 82,
+          "hex": "00 01 00 08 00 01"
+        },
+        {
+          "packet": 2,
+          "offset": 94,
+          "hex": "00 20 00 14 00 02"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_rfc8489_profile",
+    "proto": "stun",
+    "summary": "RFC 8489 compatible Binding profile",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc8489_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s",
+            "attributes": [
+              {
+                "type": "username",
+                "value": "u@example.org"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 1,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.type.class",
+          "value": "0x0000"
+        },
+        {
+          "packet": 1,
+          "field": "stun.type.method",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.att.username",
+          "value": "u@example.org"
+        },
+        {
+          "packet": 1,
+          "field": "stun.cookie",
+          "value": "21:12:a4:42"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 00 21 12 a4 42"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_binding_mapped_both",
+    "proto": "stun",
+    "summary": "MAPPED-ADDRESS and XOR-MAPPED-ADDRESS comparison",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          },
+          {
+            "kind": "success",
+            "direction": "s2c",
+            "attributes": [
+              {
+                "type": "mapped-address",
+                "family": "ipv4",
+                "address": "192.0.2.99",
+                "port": 50003
+              },
+              {
+                "type": "xor-mapped-address",
+                "family": "ipv4",
+                "address": "192.0.2.99",
+                "port": 50003
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "has_payload": true,
+      "directional": false,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "stun.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 1,
+          "field": "stun.id",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.type",
+          "value": "0x0101"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.type",
+          "value": "0x0001"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.ipv4",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.type",
+          "value": "0x0020"
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.ipv4-xord",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.port",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.att.port-xord",
+          "nonzero": true
+        },
+        {
+          "packet": 2,
+          "field": "stun.id",
+          "same_as_packet": 1
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 42,
+          "hex": "00 01 00 00 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 42,
+          "hex": "01 01 00 18 21 12 a4 42"
+        },
+        {
+          "packet": 2,
+          "offset": 62,
+          "hex": "00 01 00 08 00 01"
+        },
+        {
+          "packet": 2,
+          "offset": 74,
+          "hex": "00 20 00 08 00 01"
+        }
+      ]
+    }
+  },
+  {
+    "id": "stun_neg_header_short",
+    "proto": "stun",
+    "summary": "STUN header shorter than 20 bytes",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ],
+        "wire_fault": {
+          "kind": "header_short",
+          "declared_bytes": 19
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "header"
+    }
+  },
+  {
+    "id": "stun_neg_type_reserved_bits",
+    "proto": "stun",
+    "summary": "Reserved message type bits set",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ],
+        "wire_fault": {
+          "kind": "type_reserved_bits",
+          "type": 3
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "type"
+    }
+  },
+  {
+    "id": "stun_neg_length_alignment",
+    "proto": "stun",
+    "summary": "Message Length is not 4-byte aligned",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ],
+        "wire_fault": {
+          "kind": "length_alignment",
+          "declared_length": 3
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "stun_neg_length_overrun",
+    "proto": "stun",
+    "summary": "Message Length exceeds payload",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ],
+        "wire_fault": {
+          "kind": "length_overrun",
+          "declared_length": 64
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "stun_neg_bad_cookie",
+    "proto": "stun",
+    "summary": "Magic Cookie is invalid",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ],
+        "wire_fault": {
+          "kind": "cookie",
+          "cookie": "0x00000000"
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "cookie"
+    }
+  },
+  {
+    "id": "stun_neg_attribute_length",
+    "proto": "stun",
+    "summary": "Attribute length or padding overruns message",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ],
+        "wire_fault": {
+          "kind": "attribute_length",
+          "declared_length": 5
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "attribute"
+    }
+  },
+  {
+    "id": "stun_neg_bad_integrity",
+    "proto": "stun",
+    "summary": "MESSAGE-INTEGRITY verification fails",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ],
+        "wire_fault": {
+          "kind": "integrity",
+          "key": "wrong-password"
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "integrity"
+    }
+  },
+  {
+    "id": "stun_neg_transport_mismatch",
+    "proto": "stun",
+    "summary": "Carrier and STUN framing mismatch",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ],
+        "wire_fault": {
+          "kind": "transport",
+          "carrier": "udp",
+          "framing": "tcp"
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "transport"
+    }
+  },
+  {
+    "id": "stun_neg_turn_boundary",
+    "proto": "stun",
+    "summary": "TURN or RFC 5780 method enters Binding profile",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "stun": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 3478,
+      "stun": {
+        "profile": "rfc5389_binding",
+        "method": "binding",
+        "events": [
+          {
+            "kind": "request",
+            "direction": "c2s"
+          }
+        ],
+        "wire_fault": {
+          "kind": "turn_boundary",
+          "method": "allocate"
+        }
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "turn"
+    }
+  }
+]
