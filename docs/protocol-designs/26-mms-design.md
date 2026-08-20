@@ -170,7 +170,7 @@ ISO 8073 TP0 over TCP。每个 TPDU 由"LI + 类型 + 参数"构成，LI（Lengt
 
 ### 2.4 会话层（层 3，可裁剪）
 
-会话层用 SPDU（Session Protocol Data Unit，会话协议数据单元）。本实现默认**裁剪会话层**（见 2.6 配置说明），即会话 SPDU 不产生，COTP DT 直接承载表示层。若开启会话层（`mms.session: true`），则：
+会话层用 SPDU（Session Protocol Data Unit，会话协议数据单元）。本版本的 canonical 关联序列默认产生会话 SPDU（CONNECT/CONNECT ACK），并由 COTP DT 承载；会话层裁剪属于后续扩展，不纳入当前 pcap 用例。
 
 **CONNECT SPDU（类型字节 0x0D）**：
 
@@ -470,10 +470,12 @@ CPA 的上下文结果列表（Context Definition Result List，CDRL，标签 a5
 
 ```ber
 a5 <len> {
-  30 0d { 02 01 01   30 07 { 80 01 00  81 02 51 01 } }  结果项：accepted + 传输语法
-  30 0d { 02 01 03   30 07 { 80 01 00  81 02 51 01 } }
+  30 0d { 02 02 01 01   30 07 { 80 01 00  81 02 51 01 } }  结果项：accepted + 传输语法
+  30 0d { 02 02 01 03   30 07 { 80 01 00  81 02 51 01 } }
 }
-```
+
+
+> 当前 canonical 字节仍沿用 `cases/mms.json` 的真实 CPA 片段：结果项的上下文标识按现行 pcap 为 `02 02 01 01`/`02 02 01 03`；早期简写不作为当前断言模板。```
 
 ### 3.3 数据服务组（确认服务，经 Confirmed-RequestPDU/ResponsePDU）
 
