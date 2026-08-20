@@ -4,41 +4,147 @@
     "proto": "mms",
     "summary": "MMS complete association: TCP handshake + COTP CR/CC + DT(SPDU/CP/AARQ/ACSE/MMS Initiate) both directions",
     "spec_json": [
-      { "tcp": { "dst_port": 102 } },
-      { "mms": {} }
+      {
+        "tcp": {
+          "dst_port": 102
+        }
+      },
+      {
+        "mms": {}
+      }
     ],
     "expect": {
       "packet_count": 7,
       "negotiated": true,
       "has_handshake": true,
       "fields": [
-        { "packet": 4, "field": "cotp.type", "value": "0x0e" },
-        { "packet": 4, "field": "cotp.li", "value": "15" },
-        { "packet": 4, "field": "cotp.srcref", "value": "0x0001" },
-        { "packet": 4, "field": "cotp.destref", "value": "0x0000" },
-        { "packet": 4, "field": "cotp.tpdu_size", "value": "4096" },
-        { "packet": 4, "field": "cotp.src-tsap", "value": "0x02" },
-        { "packet": 4, "field": "cotp.dst-tsap", "value": "0x01" },
-        { "packet": 4, "field": "ip.version", "value": "4" },
-        { "packet": 4, "field": "tcp.dstport", "value": "102" },
-        { "packet": 5, "field": "cotp.type", "value": "0x0d" },
-        { "packet": 5, "field": "cotp.li", "value": "13" },
-        { "packet": 5, "field": "cotp.srcref", "value": "0x0002" },
-        { "packet": 5, "field": "cotp.destref", "value": "0x0001" },
-        { "packet": 5, "field": "cotp.tpdu_size", "value": "4096" },
-        { "packet": 6, "field": "cotp.type", "value": "0x0f" },
-        { "packet": 6, "field": "cotp.eot", "value": "1" },
-        { "packet": 6, "field": "cotp.li", "value": "2" },
-        { "packet": 6, "field": "tpkt.length", "value": "165" },
-        { "packet": 7, "field": "cotp.type", "value": "0x0f" },
-        { "packet": 7, "field": "cotp.eot", "value": "1" }
+        {
+          "packet": 4,
+          "field": "cotp.type",
+          "value": "0x0e"
+        },
+        {
+          "packet": 4,
+          "field": "cotp.li",
+          "value": "15"
+        },
+        {
+          "packet": 4,
+          "field": "cotp.srcref",
+          "value": "0x0001"
+        },
+        {
+          "packet": 4,
+          "field": "cotp.destref",
+          "value": "0x0000"
+        },
+        {
+          "packet": 4,
+          "field": "cotp.tpdu_size",
+          "value": "4096"
+        },
+        {
+          "packet": 4,
+          "field": "cotp.src-tsap",
+          "value": "0x02"
+        },
+        {
+          "packet": 4,
+          "field": "cotp.dst-tsap",
+          "value": "0x01"
+        },
+        {
+          "packet": 4,
+          "field": "ip.version",
+          "value": "4"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "102"
+        },
+        {
+          "packet": 5,
+          "field": "cotp.type",
+          "value": "0x0d"
+        },
+        {
+          "packet": 5,
+          "field": "cotp.li",
+          "value": "15"
+        },
+        {
+          "packet": 5,
+          "field": "cotp.srcref",
+          "value": "0x0002"
+        },
+        {
+          "packet": 5,
+          "field": "cotp.destref",
+          "value": "0x0001"
+        },
+        {
+          "packet": 5,
+          "field": "cotp.tpdu_size",
+          "value": "4096"
+        },
+        {
+          "packet": 6,
+          "field": "cotp.type",
+          "value": "0x0f"
+        },
+        {
+          "packet": 6,
+          "field": "cotp.eot",
+          "value": "1"
+        },
+        {
+          "packet": 6,
+          "field": "cotp.li",
+          "value": "2"
+        },
+        {
+          "packet": 6,
+          "field": "tpkt.length",
+          "value": "165"
+        },
+        {
+          "packet": 7,
+          "field": "cotp.type",
+          "value": "0x0f"
+        },
+        {
+          "packet": 7,
+          "field": "cotp.eot",
+          "value": "1"
+        }
       ],
       "frames": [
-        { "packet": 4, "offset": 54, "hex": "030000140fe00000000100c0010cc20101c10102" },
-        { "packet": 5, "offset": 54, "hex": "030000140dd00001000200c0010cc10101c20102" },
-        { "packet": 6, "offset": 54, "hex": "030000a502f0800d920506130100160102140200023305000102030434020001c1810081317fa003800101a278810412345678820487654321a425301002020101060452010001300406025101301102020103060528ca22020130040602510161433041020101a03c603aa1060628ca220203be30282e020103a029a82780040000fa0081010582010583010aa416800101810305f100820c05ee1c00000408000079ef18" },
-        { "packet": 7, "offset": 54, "hex": "030000a102f0800e900506130100160102140200023305000102030434020001c17f317da003800101a276830400000001a5" },
-        { "packet": 7, "offset": 105, "hex": "30 0d 02 02 01 01 30 07 80 01 00 81 02 51 01 30 0d 02 02 01 03 30 07 80 01 00 81 02 51 01 61 4e 30 4c 02 01 01 a0 47 61 45 a1 06 06 28 ca 22 02 03 a2 03 02 01 00 a3 05 a1 03 02 01 00 be 2f 28 2d 02 01 03 a0 28 a9 26 80 04 00 00 fa 00 81 01 05 82 01 05 83 01 0a a4 15 80 01 01 81 02 05 f1 82 0c 0b 00 00 00 00 00 00 00 00 00 00 00" }
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "030000140fe00000000100c0010cc20101c10102"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "030000140fd00001000200c0010cc10101c20102"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "030000a502f0800d920506130100160102140200023305000102030434020001c1810081317fa003800101a278810412345678820487654321a425301002020101060452010001300406025101301102020103060528ca22020130040602510161433041020101a03c603aa1060628ca220203be30282e020103a029a82780040000fa0081010582010583010aa416800101810305f100820c05ee1c00000408000079ef18"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "030000a102f0800e900506130100160102140200023305000102030434020001c17f317da003800101a276830400000001a5"
+        },
+        {
+          "packet": 7,
+          "offset": 105,
+          "hex": "30 0d 02 02 01 01 30 07 80 01 00 81 02 51 01 30 0d 02 02 01 03 30 07 80 01 00 81 02 51 01 61 4e 30 4c 02 01 01 a0 47 61 45 a1 06 06 28 ca 22 02 03 a2 03 02 01 00 a3 05 a1 03 02 01 00 be 2f 28 2d 02 01 03 a0 28 a9 26 80 04 00 00 fa 00 81 01 05 82 01 05 83 01 0a a4 15 80 01 01 81 02 05 f1 82 0c 0b 00 00 00 00 00 00 00 00 00 00 00"
+        }
       ]
     }
   },
@@ -47,30 +153,89 @@
     "proto": "mms",
     "summary": "MMS Read: one request, five multi-type variables (boolean/integer/unsigned/octetString/utcTime)",
     "spec_json": [
-      { "tcp": { "dst_port": 102 } },
-      { "mms": {
+      {
+        "tcp": {
+          "dst_port": 102
+        }
+      },
+      {
+        "mms": {
           "objects": [
-            { "domain": "IED1", "name": "GGIO1.SPCSO1.stVal", "datatype": "boolean", "value": true },
-            { "domain": "IED1", "name": "MMXU1.TotW.mag.f", "datatype": "integer", "value": 42 },
-            { "domain": "IED1", "name": "MMXU1.TotW.mag.u", "datatype": "unsigned", "value": 7 },
-            { "domain": "IED1", "name": "LLN0.Mod.stVal", "datatype": "octetString", "value": "0102" },
-            { "domain": "IED1", "name": "LLN0.Beh.stVal", "datatype": "utcTime", "value": 1706788800 }
+            {
+              "domain": "IED1",
+              "name": "GGIO1.SPCSO1.stVal",
+              "datatype": "boolean",
+              "value": true
+            },
+            {
+              "domain": "IED1",
+              "name": "MMXU1.TotW.mag.f",
+              "datatype": "integer",
+              "value": 42
+            },
+            {
+              "domain": "IED1",
+              "name": "MMXU1.TotW.mag.u",
+              "datatype": "unsigned",
+              "value": 7
+            },
+            {
+              "domain": "IED1",
+              "name": "LLN0.Mod.stVal",
+              "datatype": "octetString",
+              "value": "0102"
+            },
+            {
+              "domain": "IED1",
+              "name": "LLN0.Beh.stVal",
+              "datatype": "utcTime",
+              "value": 1706788800
+            }
           ],
           "enableRead": true,
-          "sequence": { "steps": ["read"] }
-      } }
+          "sequence": {
+            "steps": [
+              "read"
+            ]
+          }
+        }
+      }
     ],
     "expect": {
       "negotiated": true,
       "fields": [
-        { "packet": 8, "field": "cotp.type", "value": "0x0f" },
-        { "packet": 9, "field": "cotp.type", "value": "0x0f" }
+        {
+          "packet": 8,
+          "field": "cotp.type",
+          "value": "0x0f"
+        },
+        {
+          "packet": 9,
+          "field": "cotp.type",
+          "value": "0x0f"
+        }
       ],
       "frames": [
-        { "packet": 8, "offset": 54, "hex": "0300" },
-        { "packet": 9, "offset": 54, "hex": "03 00 00" },
-        { "packet": 9, "offset": 60, "hex": "a1 81 02 01 01 a4 55 a1 53" },
-        { "packet": 9, "offset": 66, "hex": "83 01 ff 85 01 2a 86 01 07 89 02 01 02 91 04 65 bb 87 c0" }
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "0300"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "03 00 00"
+        },
+        {
+          "packet": 9,
+          "offset": 61,
+          "hex": "a1 7f 02 01 01 a4 53 a1 51"
+        },
+        {
+          "packet": 9,
+          "offset": 71,
+          "hex": "83 01 ff 85 01 2a 86 01 07 89 02 01 02 91 04 65 bb 87 c0"
+        }
       ]
     }
   },
@@ -79,27 +244,81 @@
     "proto": "mms",
     "summary": "MMS Write: write full variable list, response success list (80 01 00 each)",
     "spec_json": [
-      { "tcp": { "dst_port": 102 } },
-      { "mms": {
+      {
+        "tcp": {
+          "dst_port": 102
+        }
+      },
+      {
+        "mms": {
           "objects": [
-            { "domain": "IED1", "name": "GGIO1.SPCSO1.stVal", "datatype": "boolean", "value": false },
-            { "domain": "IED1", "name": "MMXU1.TotW.mag.f", "datatype": "integer", "value": 100 }
+            {
+              "domain": "IED1",
+              "name": "GGIO1.SPCSO1.stVal",
+              "datatype": "boolean",
+              "value": false
+            },
+            {
+              "domain": "IED1",
+              "name": "MMXU1.TotW.mag.f",
+              "datatype": "integer",
+              "value": 100
+            }
           ],
           "enableWrite": true,
-          "sequence": { "steps": ["write"] }
-      } }
+          "sequence": {
+            "steps": [
+              "write"
+            ]
+          }
+        }
+      }
     ],
     "expect": {
       "negotiated": true,
       "fields": [
-        { "packet": 8, "field": "cotp.type", "value": "0x0f" },
-        { "packet": 9, "field": "cotp.type", "value": "0x0f" }
+        {
+          "packet": 8,
+          "field": "cotp.type",
+          "value": "0x0f"
+        },
+        {
+          "packet": 9,
+          "field": "cotp.type",
+          "value": "0x0f"
+        }
       ],
       "frames": [
-        { "packet": 8, "offset": 54, "hex": "03 00" },
-        { "packet": 8, "offset": 59, "hex": "a5" },
-        { "packet": 9, "offset": 54, "hex": "03 00 00" },
-        { "packet": 9, "offset": 66, "hex": "a5 07 a0 05 80 01 00 80 01 00" }
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "03 00"
+        },
+        {
+          "packet": 8,
+          "offset": 61,
+          "hex": "a0"
+        },
+        {
+          "packet": 8,
+          "offset": 66,
+          "hex": "a5"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "03 00 00"
+        },
+        {
+          "packet": 9,
+          "offset": 61,
+          "hex": "a1"
+        },
+        {
+          "packet": 9,
+          "offset": 66,
+          "hex": "a5 08 a0 06 80 01 00 80 01 00"
+        }
       ]
     }
   },
@@ -108,23 +327,51 @@
     "proto": "mms",
     "summary": "MMS InformationReport: server-push UnconfirmedPDU (a3), no response frame",
     "spec_json": [
-      { "tcp": { "dst_port": 102 } },
-      { "mms": {
+      {
+        "tcp": {
+          "dst_port": 102
+        }
+      },
+      {
+        "mms": {
           "objects": [
-            { "domain": "IED1", "name": "GGIO1.SPCSO1.stVal", "datatype": "boolean", "value": true }
+            {
+              "domain": "IED1",
+              "name": "GGIO1.SPCSO1.stVal",
+              "datatype": "boolean",
+              "value": true
+            }
           ],
           "enableInformationReport": true,
-          "sequence": { "steps": ["report"], "injectOn": 1 }
-      } }
+          "sequence": {
+            "steps": [
+              "report"
+            ],
+            "injectOn": 1
+          }
+        }
+      }
     ],
     "expect": {
       "negotiated": true,
       "fields": [
-        { "packet": 8, "field": "cotp.type", "value": "0x0f" }
+        {
+          "packet": 8,
+          "field": "cotp.type",
+          "value": "0x0f"
+        }
       ],
       "frames": [
-        { "packet": 8, "offset": 54, "hex": "03 00 00" },
-        { "packet": 8, "offset": 59, "hex": "a3" }
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "03 00 00"
+        },
+        {
+          "packet": 8,
+          "offset": 61,
+          "hex": "a3"
+        }
       ]
     }
   },
@@ -133,26 +380,74 @@
     "proto": "mms",
     "summary": "MMS GetNameList: request vmdSpecific scope, response listOfIdentifier",
     "spec_json": [
-      { "tcp": { "dst_port": 102 } },
-      { "mms": {
+      {
+        "tcp": {
+          "dst_port": 102
+        }
+      },
+      {
+        "mms": {
           "objects": [
-            { "domain": "IED1", "name": "GGIO1.SPCSO1.stVal", "datatype": "boolean" }
+            {
+              "domain": "IED1",
+              "name": "GGIO1.SPCSO1.stVal",
+              "datatype": "boolean"
+            }
           ],
           "enableGetNameList": true,
-          "sequence": { "steps": ["getnmlist"] }
-      } }
+          "sequence": {
+            "steps": [
+              "getnmlist"
+            ]
+          }
+        }
+      }
     ],
     "expect": {
       "negotiated": true,
       "fields": [
-        { "packet": 8, "field": "cotp.type", "value": "0x0f" },
-        { "packet": 9, "field": "cotp.type", "value": "0x0f" }
+        {
+          "packet": 8,
+          "field": "cotp.type",
+          "value": "0x0f"
+        },
+        {
+          "packet": 9,
+          "field": "cotp.type",
+          "value": "0x0f"
+        }
       ],
       "frames": [
-        { "packet": 8, "offset": 54, "hex": "03 00" },
-        { "packet": 8, "offset": 59, "hex": "a1" },
-        { "packet": 9, "offset": 54, "hex": "03 00 00" },
-        { "packet": 9, "offset": 59, "hex": "a1" }
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "03 00"
+        },
+        {
+          "packet": 8,
+          "offset": 61,
+          "hex": "a0"
+        },
+        {
+          "packet": 8,
+          "offset": 66,
+          "hex": "a1"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "03 00 00"
+        },
+        {
+          "packet": 9,
+          "offset": 61,
+          "hex": "a1"
+        },
+        {
+          "packet": 9,
+          "offset": 66,
+          "hex": "a1"
+        }
       ]
     }
   },
@@ -161,24 +456,78 @@
     "proto": "mms",
     "summary": "MMS Identify: response vendor/model/revision",
     "spec_json": [
-      { "tcp": { "dst_port": 102 } },
-      { "mms": {
+      {
+        "tcp": {
+          "dst_port": 102
+        }
+      },
+      {
+        "mms": {
           "iedName": "FAKE8150",
           "enableIdentify": true,
-          "sequence": { "steps": ["identify"] }
-      } }
+          "sequence": {
+            "steps": [
+              "identify"
+            ]
+          }
+        }
+      }
     ],
     "expect": {
       "negotiated": true,
       "fields": [
-        { "packet": 8, "field": "cotp.type", "value": "0x0f" },
-        { "packet": 9, "field": "cotp.type", "value": "0x0f" }
+        {
+          "packet": 8,
+          "field": "cotp.type",
+          "value": "0x0f"
+        },
+        {
+          "packet": 9,
+          "field": "cotp.type",
+          "value": "0x0f"
+        }
       ],
       "frames": [
-        { "packet": 8, "offset": 54, "hex": "03 00" },
-        { "packet": 8, "offset": 59, "hex": "a2" },
-        { "packet": 9, "offset": 54, "hex": "03 00 00" },
-        { "packet": 9, "offset": 59, "hex": "a2" }
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "03 00"
+        },
+        {
+          "packet": 8,
+          "offset": 61,
+          "hex": "a0"
+        },
+        {
+          "packet": 8,
+          "offset": 66,
+          "hex": "a2"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "03 00 00"
+        },
+        {
+          "packet": 9,
+          "offset": 61,
+          "hex": "a1"
+        },
+        {
+          "packet": 9,
+          "offset": 66,
+          "hex": "a2"
+        },
+        {
+          "packet": 8,
+          "offset": 66,
+          "hex": "a2"
+        },
+        {
+          "packet": 9,
+          "offset": 66,
+          "hex": "a2"
+        }
       ]
     }
   },
@@ -187,29 +536,81 @@
     "proto": "mms",
     "summary": "MMS negative: read non-existent object -> Confirmed-ErrorPDU (access/object-non-existent)",
     "spec_json": [
-      { "tcp": { "dst_port": 102 } },
-      { "mms": {
+      {
+        "tcp": {
+          "dst_port": 102
+        }
+      },
+      {
+        "mms": {
           "objects": [
-            { "domain": "IED1", "name": "NONEXIST.obj", "datatype": "boolean" }
+            {
+              "domain": "IED1",
+              "name": "NONEXIST.obj",
+              "datatype": "boolean"
+            }
           ],
           "enableRead": true,
           "errorClassName": "access",
           "errorValue": 2,
-          "sequence": { "steps": ["read"] }
-      } }
+          "sequence": {
+            "steps": [
+              "read"
+            ]
+          }
+        }
+      }
     ],
     "expect": {
       "negotiated": true,
       "fields": [
-        { "packet": 8, "field": "cotp.type", "value": "0x0f" },
-        { "packet": 9, "field": "cotp.type", "value": "0x0f" }
+        {
+          "packet": 8,
+          "field": "cotp.type",
+          "value": "0x0f"
+        },
+        {
+          "packet": 9,
+          "field": "cotp.type",
+          "value": "0x0f"
+        }
       ],
       "frames": [
-        { "packet": 8, "offset": 54, "hex": "03 00" },
-        { "packet": 8, "offset": 59, "hex": "a4" },
-        { "packet": 9, "offset": 54, "hex": "03 00 00" },
-        { "packet": 9, "offset": 59, "hex": "a2" },
-        { "packet": 9, "offset": 80, "hex": "87 01 02" }
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "03 00"
+        },
+        {
+          "packet": 8,
+          "offset": 61,
+          "hex": "a0"
+        },
+        {
+          "packet": 8,
+          "offset": 66,
+          "hex": "a4"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "03 00 00"
+        },
+        {
+          "packet": 9,
+          "offset": 61,
+          "hex": "a1"
+        },
+        {
+          "packet": 9,
+          "offset": 66,
+          "hex": "a2"
+        },
+        {
+          "packet": 9,
+          "offset": 82,
+          "hex": "87 01 02"
+        }
       ]
     }
   },
@@ -218,27 +619,60 @@
     "proto": "mms",
     "summary": "MMS negative: noAssociate=true skips four-way association, service frames only",
     "spec_json": [
-      { "tcp": { "dst_port": 102 } },
-      { "mms": {
+      {
+        "tcp": {
+          "dst_port": 102
+        }
+      },
+      {
+        "mms": {
           "objects": [
-            { "domain": "IED1", "name": "GGIO1.SPCSO1.stVal", "datatype": "boolean", "value": true }
+            {
+              "domain": "IED1",
+              "name": "GGIO1.SPCSO1.stVal",
+              "datatype": "boolean",
+              "value": true
+            }
           ],
           "enableRead": true,
-          "association": { "noAssociate": true },
-          "sequence": { "steps": ["read"] }
-      } }
+          "association": {
+            "noAssociate": true
+          },
+          "sequence": {
+            "steps": [
+              "read"
+            ]
+          }
+        }
+      }
     ],
     "expect": {
       "min_packets": 5,
       "negotiated": true,
       "has_handshake": true,
       "fields": [
-        { "packet": 4, "field": "cotp.type", "value": "0x0f" },
-        { "packet": 4, "field": "cotp.eot", "value": "1" }
+        {
+          "packet": 4,
+          "field": "cotp.type",
+          "value": "0x0f"
+        },
+        {
+          "packet": 4,
+          "field": "cotp.eot",
+          "value": "1"
+        }
       ],
       "frames": [
-        { "packet": 4, "offset": 54, "hex": "03 00 00" },
-        { "packet": 4, "offset": 58, "hex": "02 f0 80 a4" }
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "03 00 00"
+        },
+        {
+          "packet": 4,
+          "offset": 61,
+          "hex": "a4"
+        }
       ]
     }
   },
@@ -247,26 +681,77 @@
     "proto": "mms",
     "summary": "MMS over IPv6: full association with payload offset 74",
     "spec_json": [
-      { "tcp": { "dst_port": 102 } },
-      { "ipv6": {}, "mms": {} }
+      {
+        "tcp": {
+          "dst_port": 102
+        }
+      },
+      {
+        "ipv6": {},
+        "mms": {}
+      }
     ],
     "expect": {
       "negotiated": true,
       "has_handshake": true,
       "fields": [
-        { "packet": 4, "field": "cotp.type", "value": "0x0e" },
-        { "packet": 4, "field": "cotp.srcref", "value": "0x0001" },
-        { "packet": 4, "field": "ip.version", "value": "6" },
-        { "packet": 4, "field": "tcp.dstport", "value": "102" },
-        { "packet": 4, "field": "tpkt.length", "value": "20" },
-        { "packet": 6, "field": "cotp.type", "value": "0x0f" },
-        { "packet": 6, "field": "tpkt.length", "value": "165" }
+        {
+          "packet": 4,
+          "field": "cotp.type",
+          "value": "0x0e"
+        },
+        {
+          "packet": 4,
+          "field": "cotp.srcref",
+          "value": "0x0001"
+        },
+        {
+          "packet": 4,
+          "field": "ip.version",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "102"
+        },
+        {
+          "packet": 4,
+          "field": "tpkt.length",
+          "value": "20"
+        },
+        {
+          "packet": 6,
+          "field": "cotp.type",
+          "value": "0x0f"
+        },
+        {
+          "packet": 6,
+          "field": "tpkt.length",
+          "value": "165"
+        }
       ],
       "frames": [
-        { "packet": 4, "offset": 74, "hex": "030000140fe00000000100c0010cc20101c10102" },
-        { "packet": 5, "offset": 74, "hex": "030000140dd00001000200c0010cc10101c20102" },
-        { "packet": 6, "offset": 74, "hex": "030000a502f0800d920506130100160102140200023305000102030434020001c1810081317fa003800101a278810412345678820487654321a425301002020101060452010001300406025101301102020103060528ca22020130040602510161433041020101a03c603aa1060628ca220203be30282e020103a029a82780040000fa0081010582010583010aa416800101810305f100820c05ee1c00000408000079ef18" },
-        { "packet": 7, "offset": 74, "hex": "030000a102f0800e900506130100160102140200023305000102030434020001c17f317d" }
+        {
+          "packet": 4,
+          "offset": 74,
+          "hex": "030000140fe00000000100c0010cc20101c10102"
+        },
+        {
+          "packet": 5,
+          "offset": 74,
+          "hex": "030000140fd00001000200c0010cc10101c20102"
+        },
+        {
+          "packet": 6,
+          "offset": 74,
+          "hex": "030000a502f0800d920506130100160102140200023305000102030434020001c1810081317fa003800101a278810412345678820487654321a425301002020101060452010001300406025101301102020103060528ca22020130040602510161433041020101a03c603aa1060628ca220203be30282e020103a029a82780040000fa0081010582010583010aa416800101810305f100820c05ee1c00000408000079ef18"
+        },
+        {
+          "packet": 7,
+          "offset": 74,
+          "hex": "030000a102f0800e900506130100160102140200023305000102030434020001c17f317d"
+        }
       ]
     }
   },
@@ -275,46 +760,113 @@
     "proto": "mms",
     "summary": "MMS multi-session: two independent TCP associations each complete CR/CC",
     "spec_json": [
-      { "tcp": { "dst_port": 102 } },
-      { "mms": {
+      {
+        "tcp": {
+          "dst_port": 102
+        }
+      },
+      {
+        "mms": {
           "objects": [
-            { "domain": "IED1", "name": "GGIO1.SPCSO1.stVal", "datatype": "boolean" }
+            {
+              "domain": "IED1",
+              "name": "GGIO1.SPCSO1.stVal",
+              "datatype": "boolean"
+            }
           ],
           "enableRead": true,
           "multiSession": [
-            { "objects": [ { "domain": "IED2", "name": "MMXU1.TotW.mag.f", "datatype": "integer", "value": 5 } ] }
+            {
+              "objects": [
+                {
+                  "domain": "IED2",
+                  "name": "MMXU1.TotW.mag.f",
+                  "datatype": "integer",
+                  "value": 5
+                }
+              ]
+            }
           ],
-          "sequence": { "steps": ["read"] }
-      } }
+          "sequence": {
+            "steps": [
+              "read"
+            ]
+          }
+        }
+      }
     ],
     "expect": {
       "negotiated": true,
       "has_handshake": true,
       "fields": [
-        { "packet": 4, "field": "cotp.type", "value": "0x0e" },
-        { "packet": 8, "field": "cotp.type", "value": "0x0e" }
+        {
+          "packet": 4,
+          "field": "cotp.type",
+          "value": "0x0e"
+        },
+        {
+          "packet": 8,
+          "field": "cotp.type",
+          "value": "0x0e"
+        }
       ],
       "frames": [
-        { "packet": 4, "offset": 54, "hex": "03000014 0fe0 0000 0001 00 c0 01 0c c2 01 01 c1 01 02" },
-        { "packet": 8, "offset": 54, "hex": "03000014 0fe0 0000 0001 00 c0 01 0c c2 01 01 c1 01 02" },
-        { "packet": 15, "offset": 54, "hex": "0300" },
-        { "packet": 15, "offset": 66, "hex": "02 01 01" },
-        { "packet": 17, "offset": 76, "hex": "8a 04 49 45 44 32" }
-      ]
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "03000014 0fe0 0000 0001 00 c0 01 0c c2 01 01 c1 01 02"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "03000014 0fe0 0000 0001 00 c0 01 0c c2 01 01 c1 01 02"
+        },
+        {
+          "packet": 15,
+          "offset": 54,
+          "hex": "0300"
+        },
+        {
+          "packet": 15,
+          "offset": 63,
+          "hex": "02 01 01"
+        },
+        {
+          "packet": 17,
+          "offset": 78,
+          "hex": "8a 04 49 45 44 32"
+        }
+      ],
+      "packet_count": 18
     }
-  }  ,{
+  },
+  {
     "id": "mms_validate_reject",
     "proto": "mms",
     "summary": "MMS negative: validator rejects an item-identifier whose UTF-8 encoding exceeds 32 bytes",
     "spec_json": [
-      { "tcp": { "dst_port": 102 } },
-      { "mms": {
+      {
+        "tcp": {
+          "dst_port": 102
+        }
+      },
+      {
+        "mms": {
           "objects": [
-            { "domain": "IED1", "name": "THIS_ITEM_IDENTIFIER_IS_WAY_TOO_LONG_01", "datatype": "boolean" }
+            {
+              "domain": "IED1",
+              "name": "THIS_ITEM_IDENTIFIER_IS_WAY_TOO_LONG_01",
+              "datatype": "boolean"
+            }
           ],
           "enableRead": true,
-          "sequence": { "steps": ["read"] }
-      } }
+          "sequence": {
+            "steps": [
+              "read"
+            ]
+          }
+        }
+      }
     ],
     "expect": {
       "expect_error": true,

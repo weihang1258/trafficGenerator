@@ -913,7 +913,7 @@ tshark 验证：`cotp.type=0x0e`、`cotp.li=15`、`cotp.srcref=0x0001`、`cotp.d
 
 ```
 03 00 00 14  | TPKT 总长 20
-0d          | COTP LI=13
+0f          | COTP LI=15
 d0          | TPDU type = CC (0xD0)
 00 01       | destination-reference = 0x0001
 00 02       | source-reference = 0x0002
@@ -1011,10 +1011,10 @@ ReadResponse 的 `mms_read_multi_type` 用例实际返回五项 Data（boolean/i
 ```ber
 # packet 9，IPv4 TCP 载荷从帧 offset 54 起；TPKT(4)+COTP DT(3) 后 MMS 从 offset 61 起
 03 00 00 ... 02 f0 80
-  a1 81 81 {                         Confirmed-ResponsePDU
+  a1 7f {                           Confirmed-ResponsePDU
     02 01 01                         invokeID = 1
-    a4 55 {                           confirmed Read response
-      a1 53 {                         listOfAccessResult
+    a4 53 {                           confirmed Read response
+      a1 51 {                         listOfAccessResult
         83 01 ff                      boolean TRUE
         85 01 2a                      integer 42
         86 01 07                      unsigned 7
@@ -1025,7 +1025,7 @@ ReadResponse 的 `mms_read_multi_type` 用例实际返回五项 Data（boolean/i
   }
 ```
 
-长度校验：五项 Data 总长 `3+3+3+4+6=19=0x13`；`a1 53` 的 0x53 还包含五项及其外围结构；按实际编码逐层回填得到 `a4 55`、顶层 `a1 81 81`。cases/testcase 使用同一片段，帧首偏移为 60（前缀）和 67（Data）。
+长度校验：五项 Data 总长 `3+3+3+4+6=19=0x13`；`a1 51` 的 0x51 还包含五项及其外围结构；按实际编码逐层回填得到 `a4 53`、`a1 51`、顶层 `a1 7f`。cases/testcase 使用同一片段，帧首偏移为 61（前缀）和 71（Data）。
 
 ### 6.7 Write 响应 / Identify / GetNameList / InformationReport 内层字节
 
@@ -1052,7 +1052,7 @@ Confirmed-Error：a2 <L> {02 01 <inv> a2 <L> {a0 <L> {8x 01 <v> [a3 …]}}}
 | `mms_connect_establish` | 完整关联：TCP 三次握手 → CR → CC → DT1(会话/表示/ACSE/MMS Initiate) → 反向关联响应 | 2.2-2.11, 3.1, 6.1-6.3 | 1 SYN, 2 SYNACK, 3 ACK, 4 CR, 5 CC, 6 DT1, 7 DT2 |
 | `mms_read_multi_type` | Read：5 个变量多类型（boolean/integer/unsigned/octetString/utcTime）| 2.9, 3.3, 5.3, 6.6 | 关联建立后 8 = ReadReq, 9 = ReadResp |
 | `mms_write_success` | Write：写全表返 success（80 01 00）| 3.3, 6.7 | 8 = WriteReq, 9 = WriteResp |
-| `mms_information_report` | InformationReport 未确认 PDU 上送 | 2.9, 3.4, 6.7 | 11 = Report（无响应）|
+| `mms_information_report` | InformationReport 未确认 PDU 上送 | 2.9, 3.4, 6.7 | 8 = Report（无响应）|
 | `mms_getnamelist` | GetNameList：listOfIdentifier | 3.3, 6.7 | 8 = Req, 9 = Resp |
 | `mms_identify` | Identify：vendor/model/revision | 3.3, 6.7 | 8 = Req, 9 = Resp |
 | `mms_service_error` | 负向：读不存在的对象 → Confirmed-ErrorPDU（access/object-non-existent）| 3.5, 6.7, 9.1 | 8 = ReadReq, 9 = Err |
@@ -1067,10 +1067,10 @@ Confirmed-Error：a2 <L> {02 01 <inv> a2 <L> {a0 <L> {8x 01 <v> [a3 …]}}}
 
 | 设计要点 | 用例（可多条）|
 | --- | --- |
-| COTP CR 独立成帧（第 6.1 节关键决策）| `mms_connect_establish`（帧 3 纯 CR）|
+| COTP CR 独立成帧（第 6.1 节关键决策）| `mms_connect_establish`（帧 4 纯 CR）|
 | TPKT 长含头、COTP LI | `mms_connect_establish`（tpkt.length/cotp.li 断言）|
 | Initiate-RequestPDU 内嵌 AARQ/EXTERNAL（indirect-ref 3）| `mms_connect_establish`（FrameAssert 6.3 字节）|
-| 关联响应 Initiate-ResponsePDU（a9）| `mms_connect_establish`（帧 6）与 `mms_ipv6` |
+| 关联响应 Initiate-ResponsePDU（a9）| `mms_connect_establish`（帧 7）与 `mms_ipv6` |
 | 数据服务直到关联后才发生（时序）| 各服务用例的包序（关联后编号）|
 | Read 多类型一次返回 | `mms_read_multi_type` |
 | Write 成功每项 80 01 00 | `mms_write_success` |

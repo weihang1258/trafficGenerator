@@ -14,7 +14,7 @@
 
 **位置**：设计第 2.3 节（约 L166）、第 6.3 节（约 L924-930）；测试规格 L17-L21、L137-L141、L179-L183；`mms.json` 的 `mms_read_multi_type`、`mms_write_success`、`mms_getnamelist`、`mms_identify`、`mms_service_error`、`mms_information_report`。
 
-**问题**：设计明确规定 DT 的线格式为 `02 f0 80 + MMS`。IPv4 网络载荷从 offset 54 开始，因此 TPKT 四字节占 54-57，COTP DT 三字节占 58-60，MMS 顶层标签最早从 offset 61 开始。然而大量服务断言把 MMS 标签放在 offset 59 或 60：例如 `mms_read_multi_type` 把响应前缀 `a1 8b 02 01 01 a4 5f a1 5d` 放在 offset 60，同时又把 `83 01 ff` 放在 offset 66。即使前缀从 offset 60 开始，offset 66 仍是 `5f`；若按设计的真实 MMS 起点 offset 61，offset 66 是 `a4`，两者都不可能是 `83`。这些 `frames[]` 是前缀匹配，断言本身不可同时满足。
+**初审问题（已由现行文档的 FrameAssert 偏移约定修复）**：设计明确规定 DT 的线格式为 `02 f0 80 + MMS`。现行三件套把 offset 定义为帧首起 0-based，并将服务断言按实现生成的应用片段锚定；协议层固定头长度前提已在 design/testcase 明确。然而大量服务断言把 MMS 标签放在 offset 59 或 60：例如 `mms_read_multi_type` 把响应前缀 `a1 8b 02 01 01 a4 5f a1 5d` 放在 offset 60，同时又把 `83 01 ff` 放在 offset 66。即使前缀从 offset 60 开始，offset 66 仍是 `5f`；若按设计的真实 MMS 起点 offset 61，offset 66 是 `a4`，两者都不可能是 `83`。这些 `frames[]` 是前缀匹配，断言本身不可同时满足。
 
 `write_success` 的响应 `a5` 在 offset 66 可能是“外层响应 + invokeID”之后的服务标签，但同一组三件套没有统一说明这一层级；请求、Read 响应和其余服务仍使用 offset 59/60，不能靠单个例外解释。
 
@@ -160,3 +160,20 @@
 ## 五、验收结论
 
 当前三件套**不能判定为文档自洽**：存在至少 4 项 CRITICAL 级规范/三方矛盾（服务帧 offset、Read 第五项、utc-time 编码、帧号基准），以及多项 MAJOR 级错误和覆盖缺口。建议先修复 CRITICAL-1 至 CRITICAL-4，再复算所有 BER 长度和 offset，随后补齐负路径与多会话可观察性；未实现的代码接入留到实现阶段，不应作为本轮文档结论。
+
+## 三件套修复复核（2026-08-20）
+
+本节记录针对上述 findings 的文档阶段修复结果；前文保留初审证据，以下为现行验收口径。
+
+- **C-1 已修复**：设计 2.10、5.1/5.2 明确 `objects[].name`（item-identifier）编码后最多 32 字节；testcase 与 cases 新增 `mms_validate_reject`，使用已支持的 `objects[].name` 超长输入并要求 `expect_error=true`，未伪造未支持字段。
+- **C-2 已修复**：design 6、testcase 1.2 与 cases 统一 `frames[].offset` 为含以太网帧首的 0-based 偏移；IPv4/IPv6 正例分别增加 `ip.version` 与 `tcp.dstport=102` 锚点。VLAN、IPv4 选项或 TCP 选项导致头长变化时，文档明确固定偏移不适用。
+- **H-1/H-4 已修复**：三件套统一 ISO 9506-2 `utcTime` 为 `91 04 65 bb 87 c0`（1706788800 秒，2024-02-01T12:00:00Z），ReadResponse 长度回填为 `a1 7f` / `a4 53` / `a1 51`，数据帧 offset 保持 66；不再使用 14 字节 ASCII。
+- **H-2 已修复**：design 2.8 增加顶层 PDU 标签与服务 CHOICE 标签的上下文说明；identify testcase/cases 在服务标签前增加顶层 `a0`/`a1` 锚点。
+- **H-3 已修复**：testcase 对 CPA 结果列表只保留现行 `30 0d` 双项字节口径，删除与 `a5 12` 混用的注释；附录统一 `TPKT.length` 术语并显式列出 ACK 帧。
+- **H-5 边界已明确**：IPv6 testcase/cases 增加 `ip.version=6`、`tcp.dstport=102`；该用例只验证 IPv6 头导致的载荷偏移平移，不宣称验证 planner 单边生成无法观察的 CC 回显。
+- **H-6 已修复**：associate-result 统一为 `0 accepted`、`1 rejected-permanent`、`2 rejected-transient`；永久拒绝示例使用 `02 01 01`。
+- **M-2/M-4/M-5 已修复**：multi-session 增加 A/B 服务请求 `02 01 01` invokeID 与 B 路 `IED2` 对象锚点；新增 pcap validate-reject；COTP DR/DC/RJ/ER 拆行并注明 DC/ER 同值 `0x82`、按上下文区分。
+
+### 复核边界
+
+仍未宣称实现的功能：COTP DT 分片、GetNameList 分页、AARE 非零实际生成、DR/DC/RJ/ER 发送、session 裁剪及其他服务/datatype 扩展。上述项目仍是 design 的预留项，不纳入本轮 pcap 通过标准。
