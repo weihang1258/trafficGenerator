@@ -189,27 +189,7 @@ func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode strin
 		req.Protocol = inferred
 	}
 
-	validProtocols := map[string]bool{
-		"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true, "sip": true, "sctp": true, "icmpv6": true, "rtsp": true,
-		// L7 protocol planners registered in cmd/server/main.go (keep in sync
-		// with internal/core/convert.go ValidateTaskSpec).
-		"ssh": true, "telnet": true, "rdp": true, "redis": true, "ntp": true,
-		"snmp": true, "syslog": true, "smtp": true, "pop3": true, "imap": true,
-		"mysql": true, "postgresql": true, "ike": true, "ike_nat_t": true,
-		"l2tp": true, "tls": true, "openvpn": true, "shadowsocks": true,
-		"vmess": true, "wireguard": true, "dhcp": true, "dhcpv6": true,
-		"mdns": true, "ssdp": true, "grpc": true, "pppoe": true, "gre": true,
-		"mpls": true, "gtp": true, "socks5": true, "radius": true, "ldap": true,
-		"vnc": true, "pptp": true, "h323": true, "xmpp": true,
-		"rtmp": true, "ngap": true,
-		"tftp": true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
-		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
-		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true,
-		"stun": true, "cql": true, "cflow": true, "someip": true, "coap": true, "s7": true, "iec104": true, "bgp": true, "opcua": true, "mms": true, "moxa": true, "drda": true, "thrift": true, "tns": true, "mongodb": true, "dameng": true, "kingbase": true,
-		"srv6": true, "gbt32960": true, "http_flv": true, "hls": true, "hds": true,
-		"rtmfp": true, "amqp": true,
-	}
-	if req.Protocol == "" || !validProtocols[req.Protocol] {
+	if req.Protocol == "" || !core.IsAllowedProtocol(req.Protocol) {
 		BadRequest(c, "invalid or missing protocol: "+req.Protocol)
 		return
 	}
@@ -466,26 +446,7 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 			}
 			req.Protocol = inferred
 		}
-		validProtocols := map[string]bool{
-			"tcp": true, "udp": true, "http": true, "arp": true, "icmp": true, "dns": true, "ftp": true, "sip": true, "sctp": true, "icmpv6": true, "rtsp": true,
-			// L7 protocol planners registered in cmd/server/main.go (keep in
-			// sync with internal/core/convert.go ValidateTaskSpec).
-			"ssh": true, "telnet": true, "rdp": true, "redis": true, "ntp": true,
-			"snmp": true, "syslog": true, "smtp": true, "pop3": true, "imap": true,
-			"mysql": true, "postgresql": true, "ike": true, "ike_nat_t": true,
-			"l2tp": true, "tls": true, "openvpn": true, "shadowsocks": true,
-			"vmess": true, "wireguard": true, "dhcp": true, "dhcpv6": true,
-			"mdns": true, "ssdp": true, "grpc": true, "pppoe": true, "gre": true,
-			"mpls": true, "gtp": true, "socks5": true, "radius": true, "ldap": true,
-			"vnc": true, "pptp": true, "h323": true, "xmpp": true,
-			"rtmp": true, "ngap": true,
-		"tftp": true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
-		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
-		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true,
-		"stun": true, "cql": true, "cflow": true, "someip": true, "coap": true, "s7": true, "iec104": true, "bgp": true, "opcua": true, "mms": true, "moxa": true, "drda": true, "thrift": true, "tns": true, "mongodb": true, "dameng": true, "kingbase": true,
-		"srv6": true, "gbt32960": true, "http_flv": true, "hls": true, "hds": true,
-		}
-		if req.Protocol == "" || !validProtocols[req.Protocol] {
+		if req.Protocol == "" || !core.IsAllowedProtocol(req.Protocol) {
 			BadRequest(c, "invalid or missing protocol: "+req.Protocol)
 			return
 		}

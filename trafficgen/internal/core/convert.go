@@ -108,44 +108,7 @@ func ValidateTask(task Task) error {
 		return ValidateReplaySpec(task.Replay)
 	}
 
-	validProtocols := map[string]bool{
-		"tcp":   true,
-		"udp":   true,
-		"http":  true,
-		"dns":   true,
-		"icmp":  true,
-		"arp":   true,
-		"goose": true, "sv": true,
-		"ftp":    true,
-		"sip":    true,
-		"sctp":   true,
-		"icmpv6": true,
-		"rtsp":   true,
-		// L7 protocol planners registered in cmd/server/main.go.
-		"ssh": true, "telnet": true, "rdp": true, "redis": true, "ntp": true,
-		"snmp": true, "syslog": true, "smtp": true, "pop3": true, "imap": true,
-		"mysql": true, "postgresql": true, "ike": true, "ike_nat_t": true,
-		"l2tp": true, "tls": true, "openvpn": true, "shadowsocks": true,
-		"vmess": true, "wireguard": true, "dhcp": true, "dhcpv6": true,
-		"mdns": true, "ssdp": true, "grpc": true, "pppoe": true, "gre": true,
-		"mpls": true, "gtp": true, "socks5": true, "radius": true, "ldap": true,
-		"vnc":      true,
-		"pptp":     true,
-		"h323":     true,
-		"xmpp":     true,
-		"rtmp":     true,
-		"ngap":     true,
-		"srv6":     true,
-		"gbt32960": true,
-		"tftp":     true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
-		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
-		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true, "stun": true, "cflow": true, "moxa": true, "someip": true, "drda": true, "thrift": true, "tns": true, "mongodb": true, "dameng": true, "kingbase": true, "cql": true,
-		"http_flv": true, "hls": true, "hds": true,
-		"rtmfp":    true,
-		"amqp":     true,
-	}
-
-	if !validProtocols[task.Protocol] {
+	if !IsAllowedProtocol(task.Protocol) {
 		return fmt.Errorf("invalid protocol: %s", task.Protocol)
 	}
 
@@ -161,33 +124,6 @@ func ValidateBatchSpec(batch BatchSpec) error {
 	if len(batch.Classes) == 0 {
 		return fmt.Errorf("batch must contain at least one traffic class")
 	}
-	validProtocols := map[string]bool{
-		"tcp": true, "udp": true, "http": true, "dns": true, "icmp": true, "arp": true, "goose": true, "sv": true,
-		"ftp": true, "sip": true, "sctp": true, "icmpv6": true, "rtsp": true,
-		"replay": true,
-		// L7 protocol planners registered in cmd/server/main.go.
-		"ssh": true, "telnet": true, "rdp": true, "redis": true, "ntp": true,
-		"snmp": true, "syslog": true, "smtp": true, "pop3": true, "imap": true,
-		"mysql": true, "postgresql": true, "ike": true, "ike_nat_t": true,
-		"l2tp": true, "tls": true, "openvpn": true, "shadowsocks": true,
-		"vmess": true, "wireguard": true, "dhcp": true, "dhcpv6": true,
-		"mdns": true, "ssdp": true, "grpc": true, "pppoe": true, "gre": true,
-		"mpls": true, "gtp": true, "socks5": true, "radius": true, "ldap": true,
-		"vnc":      true,
-		"pptp":     true,
-		"h323":     true,
-		"xmpp":     true,
-		"rtmp":     true,
-		"ngap":     true,
-		"srv6":     true,
-		"gbt32960": true,
-		"tftp":     true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
-		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
-		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true, "stun": true, "cflow": true, "moxa": true, "someip": true, "drda": true, "thrift": true, "tns": true, "mongodb": true, "dameng": true, "kingbase": true, "cql": true,
-		"http_flv": true, "hls": true, "hds": true,
-		"rtmfp":    true,
-		"amqp":     true,
-	}
 	seenIDs := make(map[string]bool)
 	for i, c := range batch.Classes {
 		if c.ID == "" {
@@ -197,7 +133,7 @@ func ValidateBatchSpec(batch BatchSpec) error {
 			return fmt.Errorf("class[%d] %s: duplicate class id (ids must be unique within a batch)", i, c.ID)
 		}
 		seenIDs[c.ID] = true
-		if !validProtocols[c.Type] {
+		if !IsAllowedProtocol(c.Type) {
 			return fmt.Errorf("class[%d] %s: invalid type %s", i, c.ID, c.Type)
 		}
 		// Replay classes don't use FlowCount/FlowSpec -- they replay a pcap
