@@ -116,3 +116,6 @@ trafficgen/cmd/server/tg-server-new
 trafficgen/tg-server-new
 trafficgen/test/cases-w/
 *.bak
+*.bak-root/
+*.bak-pre-*
+*.bak-root2/
