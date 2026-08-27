@@ -1,11 +1,11 @@
 # 协议扩展实现设计文档归档索引
 
 **生成时间**：2026-08-03
-**更新日期**：2026-08-11（新增 18 号文档：方案 C 分层配置架构）
-**对照规范**：9.4.1.38 协议扩展信息上报（32 个扩展协议表）
-**项目已实现协议数**：66 个（见 `internal/protocol/` 目录，`cmd/server/main.go:354-420` 注册）
-**本次未实现协议数**：17 个
-**本次归档文档总数**：1 个清单 + 16 个设计文档 + 12 个审计文档 = 29 份
+**更新日期**：2026-08-25（补充 HTTP-FLV、AMQP 已完成实现）
+**对照规范**：9.4.1.38 协议扩展信息上报（32 个扩展协议表）及 `docs/protocol-designs/00-unimplemented-list.md`
+**项目已实现协议数**：68 个（见 `internal/protocol/` 目录，`cmd/server/main.go:354-420` 注册；19–77 号为待实现设计契约，不代表 Go 层已注册）
+**本次未实现协议数**：71 项（其中 64 项为完整实现范围，7 项为半实现/组合边界）
+**本次归档文档总数**：1 个清单 + 134 个设计/用例文档 + 94 个审计文件 = 229 份（审计文件含历史修订版）
 
 ---
 
@@ -13,10 +13,11 @@
 
 | 类别 | 文件数 | 总行数 | 说明 |
 |------|--------|--------|------|
-| 未实现清单 | 1 | 94 | 17 个未实现协议分类与优先级 |
-| 设计文档 | 16 | ~19000 | 17 个协议的实现方案 + 测试用例（部分协议合并文档）+ 配置架构设计 |
-| 审计文档 | 12 | ~10000 | 交叉对抗审计报告，发现 370+ 问题 |
-| **合计** | **29** | **~29000** | — |
+| 未实现清单 | 1 | 94 | 72 个未实现协议/边界分类与优先级 |
+| 设计文档 | 75 | 54,253 | 1–18 既有设计 + 19–77 协议实现方案 |
+| 用例文档 | 59 | 10,871 | 19–77 协议对应的测试契约 |
+| 审计文档 | 94 | 37,535 | 历史及交叉对抗审计报告（含修订版） |
+| **合计** | **229** | **102,753** | 1 清单 + 75 设计 + 59 用例 + 94 审计 |
 
 ---
 
@@ -90,14 +91,86 @@
 |------|------|------|------|
 | [`18-layer-config-design.md`](18-layer-config-design.md) | 方案 C 分层配置架构 | 752 | 层链 + schema + 自动补全 + 递归生成 + 校验 + 迁移（v1.3.0，2026-08-11） |
 
-### 3.10 设计文档合计
+## 3.10 路由/组播/信令扩展协议（9 个，18 份文档）
+
+| 编号 | 设计与用例 | 协议 | 用例数 | 对抗审计 |
+|------|------------|------|--------|----------|
+| 36 | [`36-bgp-design.md`](36-bgp-design.md) / [`36-bgp-testcase.md`](36-bgp-testcase.md) | BGP（边界网关协议，RFC 4271） | 19 | [`audit/36-bgp-adversarial-audit.md`](audit/36-bgp-adversarial-audit.md) |
+| 37 | [`37-ospf-design.md`](37-ospf-design.md) / [`37-ospf-testcase.md`](37-ospf-testcase.md) | OSPF（开放最短路径优先，RFC 2328） | 20 | [`audit/37-ospf-adversarial-audit.md`](audit/37-ospf-adversarial-audit.md) |
+| 38 | [`38-isis-design.md`](38-isis-design.md) / [`38-isis-testcase.md`](38-isis-testcase.md) | ISIS（中间系统到中间系统，ISO 10589） | 25 | [`audit/38-isis-adversarial-audit.md`](audit/38-isis-adversarial-audit.md) |
+| 39 | [`39-igmp-design.md`](39-igmp-design.md) / [`39-igmp-testcase.md`](39-igmp-testcase.md) | IGMP（因特网组管理协议，RFC 1112/2236/3376） | 25 | [`audit/39-igmp-adversarial-audit.md`](audit/39-igmp-adversarial-audit.md) |
+| 40 | [`40-pim-design.md`](40-pim-design.md) / [`40-pim-testcase.md`](40-pim-testcase.md) | PIM（协议无关组播，RFC 7761） | 24 | [`audit/40-pim-adversarial-audit.md`](audit/40-pim-adversarial-audit.md) |
+| 41 | [`41-ldp-design.md`](41-ldp-design.md) / [`41-ldp-testcase.md`](41-ldp-testcase.md) | LDP（标签分发协议，RFC 5036） | 25 | [`audit/41-ldp-adversarial-audit.md`](audit/41-ldp-adversarial-audit.md) |
+| 42 | [`42-pcep-design.md`](42-pcep-design.md) / [`42-pcep-testcase.md`](42-pcep-testcase.md) | PCEP（路径计算元素通信协议，RFC 5440） | 24 | [`audit/42-pcep-adversarial-audit.md`](audit/42-pcep-adversarial-audit.md) |
+| 43 | [`43-cflow-design.md`](43-cflow-design.md) / [`43-cflow-testcase.md`](43-cflow-testcase.md) | cflow（NetFlow v9/IPFIX，RFC 3954/7011） | 22 | [`audit/43-cflow-adversarial-audit.md`](audit/43-cflow-adversarial-audit.md) |
+| 44 | [`44-stun-design.md`](44-stun-design.md) / [`44-stun-testcase.md`](44-stun-testcase.md) | STUN（NAT 会话穿越工具，RFC 5389/8489） | 24 | [`audit/44-stun-adversarial-audit.md`](audit/44-stun-adversarial-audit.md) |
+
+### 3.11 工控/数据库扩展协议（17 个，34 份文档）
+
+| 编号 | 设计与用例 | 协议 | 用例数 | 对抗审计 |
+|------|------------|------|--------|----------|
+| 19 | [`19-fins-design.md`](19-fins-design.md) / [`19-fins-testcase.md`](19-fins-testcase.md) | FINS（欧姆龙 PLC 通信） | 14 | [`audit/19-fins-adversarial-audit.md`](audit/19-fins-adversarial-audit.md) |
+| 20 | [`20-coap-design.md`](20-coap-design.md) / [`20-coap-testcase.md`](20-coap-testcase.md) | CoAP（受约束应用协议，RFC 7252） | 16 | [`audit/20-coap-adversarial-audit.md`](audit/20-coap-adversarial-audit.md) |
+| 21 | [`21-s7-design.md`](21-s7-design.md) / [`21-s7-testcase.md`](21-s7-testcase.md) | S7（西门子 S7comm） | 14 | [`audit/21-s7-adversarial-audit.md`](audit/21-s7-adversarial-audit.md) |
+| 22 | [`22-iec104-design.md`](22-iec104-design.md) / [`22-iec104-testcase.md`](22-iec104-testcase.md) | IEC104（IEC 60870-5-104） | 16 | [`audit/22-iec104-adversarial-audit.md`](audit/22-iec104-adversarial-audit.md) |
+| 23 | [`23-goose-design.md`](23-goose-design.md) / [`23-goose-testcase.md`](23-goose-testcase.md) | GOOSE（IEC 61850 快速事件报文） | 12 | [`audit/23-goose-adversarial-audit.md`](audit/23-goose-adversarial-audit.md) |
+| 24 | [`24-sv-design.md`](24-sv-design.md) / [`24-sv-testcase.md`](24-sv-testcase.md) | SV（IEC 61850 采样值） | 12 | [`audit/24-sv-adversarial-audit.md`](audit/24-sv-adversarial-audit.md) |
+| 25 | [`25-opcua-design.md`](25-opcua-design.md) / [`25-opcua-testcase.md`](25-opcua-testcase.md) | OPC UA（工业互操作） | 12 | [`audit/25-opcua-adversarial-audit.md`](audit/25-opcua-adversarial-audit.md) |
+| 26 | [`26-mms-design.md`](26-mms-design.md) / [`26-mms-testcase.md`](26-mms-testcase.md) | MMS（制造报文规范） | 11 | [`audit/26-mms-adversarial-audit.md`](audit/26-mms-adversarial-audit.md) |
+| 27 | [`27-moxa-design.md`](27-moxa-design.md) / [`27-moxa-testcase.md`](27-moxa-testcase.md) | Moxa-Nport（串口服务器协议） | 13 | [`audit/27-moxa-adversarial-audit.md`](audit/27-moxa-adversarial-audit.md) |
+| 28 | [`28-someip-design.md`](28-someip-design.md) / [`28-someip-testcase.md`](28-someip-testcase.md) | SOME/IP（车载服务中间件） | 16 | [`audit/28-someip-adversarial-audit.md`](audit/28-someip-adversarial-audit.md) |
+| 29 | [`29-drda-design.md`](29-drda-design.md) / [`29-drda-testcase.md`](29-drda-testcase.md) | DRDA（DB2 分布式关系数据库架构） | 10 | [`audit/29-drda-adversarial-audit.md`](audit/29-drda-adversarial-audit.md) |
+| 30 | [`30-thrift-design.md`](30-thrift-design.md) / [`30-thrift-testcase.md`](30-thrift-testcase.md) | Thrift（跨语言 RPC 框架） | 13 | [`audit/30-thrift-adversarial-audit.md`](audit/30-thrift-adversarial-audit.md) |
+| 31 | [`31-tns-design.md`](31-tns-design.md) / [`31-tns-testcase.md`](31-tns-testcase.md) | TNS（Oracle SQL*Net） | 12 | [`audit/31-tns-adversarial-audit.md`](audit/31-tns-adversarial-audit.md) |
+| 32 | [`32-mongodb-design.md`](32-mongodb-design.md) / [`32-mongodb-testcase.md`](32-mongodb-testcase.md) | MongoDB wire protocol | 13 | [`audit/32-mongodb-adversarial-audit.md`](audit/32-mongodb-adversarial-audit.md) |
+| 33 | [`33-dameng-design.md`](33-dameng-design.md) / [`33-dameng-testcase.md`](33-dameng-testcase.md) | Dameng（达梦数据库） | 14 | [`audit/33-dameng-adversarial-audit.md`](audit/33-dameng-adversarial-audit.md) |
+| 34 | [`34-kingbase-design.md`](34-kingbase-design.md) / [`34-kingbase-testcase.md`](34-kingbase-testcase.md) | KingBase（人大金仓数据库） | 15 | [`audit/34-kingbase-adversarial-audit.md`](audit/34-kingbase-adversarial-audit.md) |
+| 35 | [`35-cql-design.md`](35-cql-design.md) / [`35-cql-testcase.md`](35-cql-testcase.md) | CQL（Cassandra 查询语言协议） | 17 | [`audit/35-cql-adversarial-audit.md`](audit/35-cql-adversarial-audit.md) |
+
+### 3.12 流媒体/实时消息扩展协议（33 个，66 份文档）
+
+| 编号 | 设计与用例 | 协议 | 用例数 | 对抗审计 |
+|------|------------|------|--------|----------|
+| 45 | [`45-http-flv-design.md`](45-http-flv-design.md) / [`45-http-flv-testcase.md`](45-http-flv-testcase.md) | HTTP-FLV（HTTP 传输的 Flash 视频流） | 15 | ✅ 已实现（15/15 pcap 通过） |
+| 46 | [`46-hls-design.md`](46-hls-design.md) / [`46-hls-testcase.md`](46-hls-testcase.md) | HLS（HTTP 直播流，RFC 8216） | 24（契约） | ✅ 已实现（24/24 pcap 通过） |
+| 47 | [`47-hds-design.md`](47-hds-design.md) / [`47-hds-testcase.md`](47-hds-testcase.md) | HDS（Adobe HTTP 动态流） | 18（契约） | 待审计 |
+| 48 | [`48-rtmfp-design.md`](48-rtmfp-design.md) / [`48-rtmfp-testcase.md`](48-rtmfp-testcase.md) | RTMFP（实时消息传输协议） | 24（契约） | ✅ 已实现（24/24 pcap 通过） |
+| 49 | [`49-amqp-design.md`](49-amqp-design.md) / [`49-amqp-testcase.md`](49-amqp-testcase.md) | AMQP（高级消息队列协议，AMQP 0-9-1） | 20（契约） | ✅ 已实现（20/20 pcap 通过） |
+| 50 | [`50-openwire-design.md`](50-openwire-design.md) / [`50-openwire-testcase.md`](50-openwire-testcase.md) | OpenWire（ActiveMQ 原生线协议） | 24（契约） | 待审计 |
+| 51 | [`51-ams-design.md`](51-ams-design.md) / [`51-ams-testcase.md`](51-ams-testcase.md) | AMS（Apache ActiveMQ 管理协议） | 20（契约） | 待审计 |
+| 52 | [`52-swarm-design.md`](52-swarm-design.md) / [`52-swarm-testcase.md`](52-swarm-testcase.md) | Swarm（去中心化 P2P 存储协议） | 20（契约） | 待审计 |
+| 53 | [`53-gnutella-design.md`](53-gnutella-design.md) / [`53-gnutella-testcase.md`](53-gnutella-testcase.md) | Gnutella（分布式点对点文件检索协议） | 20（契约） | 待审计 |
+| 54 | [`54-vxlan-design.md`](54-vxlan-design.md) / [`54-vxlan-testcase.md`](54-vxlan-testcase.md) | VXLAN（虚拟可扩展局域网，RFC 7348） | 20（契约） | 待审计 |
+| 55 | [`55-nvgre-design.md`](55-nvgre-design.md) / [`55-nvgre-testcase.md`](55-nvgre-testcase.md) | NVGRE（网络虚拟化 GRE，RFC 7637） | 20（契约） | 待审计 |
+| 56 | [`56-geneve-design.md`](56-geneve-design.md) / [`56-geneve-testcase.md`](56-geneve-testcase.md) | GENEVE（通用网络虚拟化封装，RFC 8926） | 20（契约） | 待审计 |
+| 57 | [`57-sstp-design.md`](57-sstp-design.md) / [`57-sstp-testcase.md`](57-sstp-testcase.md) | SSTP（安全套接字隧道协议，MS-SSTP） | 20（契约） | 待审计 |
+| 58 | [`58-dtls-design.md`](58-dtls-design.md) / [`58-dtls-testcase.md`](58-dtls-testcase.md) | DTLS（数据报传输层安全，RFC 4347/6347） | 20（契约） | 待审计 |
+| 59 | [`59-kerberos-design.md`](59-kerberos-design.md) / [`59-kerberos-testcase.md`](59-kerberos-testcase.md) | KERBEROS（Kerberos V5，RFC 4120/6113） | 20（契约） | 待审计 |
+| 60 | [`60-ntlm-design.md`](60-ntlm-design.md) / [`60-ntlm-testcase.md`](60-ntlm-testcase.md) | NTLM（NT LAN Manager，MS-NLMP/NTLMv2） | 20（契约） | 待审计 |
+| 61 | [`61-spnego-design.md`](61-spnego-design.md) / [`61-spnego-testcase.md`](61-spnego-testcase.md) | SPNEGO（简单和受保护的 GSS-API 协商，RFC 4178） | 20（契约） | 待审计 |
+| 62 | [`62-ocsp-design.md`](62-ocsp-design.md) / [`62-ocsp-testcase.md`](62-ocsp-testcase.md) | OCSP（在线证书状态协议，RFC 6960/8954） | 20（契约） | 待审计 |
+| 63 | [`63-dcerpc-design.md`](63-dcerpc-design.md) / [`63-dcerpc-testcase.md`](63-dcerpc-testcase.md) | DCERPC（分布式计算环境远程过程调用，DCE/RPC over TCP） | 20（契约） | 待审计 |
+| 64 | [`64-cwmp-design.md`](64-cwmp-design.md) / [`64-cwmp-testcase.md`](64-cwmp-testcase.md) | CWMP（CPE WAN 管理协议，TR-069） | 20（契约） | 待审计 |
+| 65 | [`65-bacnet-design.md`](65-bacnet-design.md) / [`65-bacnet-testcase.md`](65-bacnet-testcase.md) | BACnet（楼宇自动化控制网络） | 20（契约） | 待审计 |
+| 66 | [`66-doh-design.md`](66-doh-design.md) / [`66-doh-testcase.md`](66-doh-testcase.md) | DOH（DNS over HTTPS，RFC 8484） | 20（契约） | 待审计 |
+| 67 | [`67-onvif-design.md`](67-onvif-design.md) / [`67-onvif-testcase.md`](67-onvif-testcase.md) | ONVIF（网络视频接口论坛） | 20（契约） | 待审计 |
+| 68 | [`68-hl7-design.md`](68-hl7-design.md) / [`68-hl7-testcase.md`](68-hl7-testcase.md) | HL7（医疗信息交换标准） | 20（契约） | 待审计 |
+| 69 | [`69-nmea-design.md`](69-nmea-design.md) / [`69-nmea-testcase.md`](69-nmea-testcase.md) | NMEA（海用电子设备接口） | 20（契约） | 待审计 |
+| 70 | [`70-megaco-design.md`](70-megaco-design.md) / [`70-megaco-testcase.md`](70-megaco-testcase.md) | Megaco/H.248（媒体网关控制，含 h248/mgcp/megaco） | 20（契约） | 待审计 |
+| 71 | [`71-mmse-design.md`](71-mmse-design.md) / [`71-mmse-testcase.md`](71-mmse-testcase.md) | MMSE（彩信协议） | 20（契约） | 待审计 |
+| 72 | [`72-edp-design.md`](72-edp-design.md) / [`72-edp-testcase.md`](72-edp-testcase.md) | EDP（物联网设备数据协议） | 20（契约） | 待审计 |
+| 73 | [`73-ethmining-design.md`](73-ethmining-design.md) / [`73-ethmining-testcase.md`](73-ethmining-testcase.md) | ETHMining（以太坊挖矿协议） | 20（契约） | 待审计 |
+| 74 | [`74-xmrmining-design.md`](74-xmrmining-design.md) / [`74-xmrmining-testcase.md`](74-xmrmining-testcase.md) | XMRMining（门罗币挖矿协议） | 20（契约） | 待审计 |
+| 75 | [`75-stratum-design.md`](75-stratum-design.md) / [`75-stratum-testcase.md`](75-stratum-testcase.md) | Stratum（矿池通信协议） | 20（契约） | 待审计 |
+| 76 | [`76-getwork-design.md`](76-getwork-design.md) / [`76-getwork-testcase.md`](76-getwork-testcase.md) | GetWork（比特币工作分配协议） | 20（契约） | 待审计 |
+| 77 | [`77-gbt-design.md`](77-gbt-design.md) / [`77-gbt-testcase.md`](77-gbt-testcase.md) | GBT（GetBlockTemplate，比特币区块模板） | 20（契约） | 待审计 |
 
 | 维度 | 数值 |
 |------|------|
-| 设计文档数 | 16 |
-| 覆盖协议数 | 17 + 配置架构 1 |
-| 总行数 | ~19000 |
-| 测试用例总数 | ~1175 |
+| 设计文档数 | 75 |
+| 用例文档数 | 59 |
+| 覆盖协议数 | 17 个既有归档协议 + 59 个新增设计协议 + 配置架构 1 |
+| 测试用例总数 | 2,617（`trafficgen/test/protocol_pcap/cases/*.json` 当前统计，含未注册协议占位） |
 
 ---
 
@@ -213,10 +286,11 @@
 
 ### 6.3 文档命名规则
 
-- 设计文档：`NN-<protocol>-design.md`，NN 为 00-17 编号
-- 审计文档：`NN-<protocol>-audit.md`，位于 `audit/` 子目录
-- 多协议合并文档：`NN-MM-<proto1>-<proto2>-design.md`，审计同命名规则
-- 文档编号与 `00-unimplemented-list.md` 表格编号一致
+- 设计文档：`NN-<protocol>-design.md`，NN 为 00–77 编号；19–77 为新增协议设计契约，Go 层尚未全部实现。
+- 用例文档：`NN-<protocol>-testcase.md`，与对应设计文档同号。
+- 审计文档：`NN-<protocol>-adversarial-audit.md`，位于 `audit/` 子目录；旧归档的 `*-audit.md` 文件继续保留。
+- 多协议合并文档：`NN-MM-<proto1>-<proto2>-design.md`，审计同命名规则。
+- 文档编号与 `00-unimplemented-list.md` 表格编号一致；18 号保留给层链配置架构。
 
 ---
 
@@ -227,13 +301,13 @@
 | 归档目录 | `/home/weihang/trafficGenerator/docs/protocol-designs/` |
 | 审计子目录 | `/home/weihang/trafficGenerator/docs/protocol-designs/audit/` |
 | 归档时间 | 2026-08-03 |
-| 索引更新时间 | 2026-08-11 |
+| 索引更新时间 | 2026-08-21 |
 | 对照规范 | 9.4.1.38 协议扩展信息上报（32 个扩展协议表） |
 | 项目已实现 | 66 个协议 |
-| 本次新增 | 17 个协议（设计 + 审计）+ 1 个配置架构设计 |
-| 总文档数 | 29 份（1 清单 + 16 设计 + 12 审计） |
-| 总行数 | ~29000 行 |
-| 总测试用例数 | ~1175 条 |
+| 本次新增 | 59 个协议（设计 + 用例）+ 1 个配置架构设计 |
+| 总文档数 | 229 份（1 清单 + 75 设计 + 59 用例 + 94 审计文件） |
+| 总行数 | 以当前文件为准 |
+| 总测试用例数 | 2,617 条（`trafficgen/test/protocol_pcap/cases/*.json`） |
 | 审计发现问题 | 399 个（73 CRITICAL + 109 HIGH + 128 MEDIUM + 89 LOW） |
 
 ---

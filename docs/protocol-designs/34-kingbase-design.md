@@ -1,9 +1,10 @@
 # KingBase（人大金仓）数据库协议设计
 
-> 版本：v1.0.0（设计阶段）  
+> 版本：v1.1.0（改写为 postgresql 层 dialect 变体）  
 > 日期：2026-08-20  
-> 状态：仅设计与用例契约；`kingbase` 层尚未实现，本稿不宣称 MCP（Model Context Protocol，模型上下文协议）套件可以运行。  
-> 配套文件：`docs/protocol-designs/34-kingbase-testcase.md`、`trafficgen/test/protocol_pcap/cases/kingbase.json`、`docs/protocol-designs/audit/34-kingbase-adversarial-audit.md`
+> 修订：2026-08-26（v1.1.0，见 §7 修订记录）  
+> 状态：仅设计与用例契约。kingbase 现为 **postgresql 层的 dialect 变体**，复用 postgresql 的 PostgreSQL v3 wire（Startup/typed message/事件语义）；代码层面**独立 `kingbase` 层已撤销**，不再注册到 layer registry，而是作为 postgresql 层的 `dialect="kingbase"` 值（见 §1/§2/§4）。  
+> 配套文件：`docs/protocol-designs/34-kingbase-testcase.md`、`trafficgen/test/protocol_pcap/cases/kingbase.json`
 
 ## 1. 范围、证据等级和 profile（档案）边界
 
@@ -22,9 +23,9 @@ KingBase（人大金仓）KingbaseES 数据库客户端通常通过 TCP 连接�
 
 不变式：
 
-1. `kingbase` 终结层只能承载在 TCP 上；UDP、裸 IP、缺少 TCP 或不完整层链必须拒绝。
-2. 默认 `dst_port=54321`；非标准端口不是隐式兼容入口，除非未来设计明确增加 profile 和显式开关。
-3. `wire_profile` 决定版本/兼容模式；同一会话不能混用 PostgreSQL-compatible 与 native profile。
+1. postgresql 层（`dialect=kingbase`）只能承载在 TCP 上；UDP、裸 IP、缺少 TCP 或不完整层链必须拒绝。`dialect=kingbase` **不是独立层**，而是 postgresql 层的变体值（target：`[ip, tcp, postgresql]` + `postgresql.dialect="kingbase"`）。
+2. 默认 `dst_port=54321`（dialect=kingbase，对比 dialect=postgresql 默认 5432）；端口由 postgresql 层据 dialect 生成 FieldContract（→tcp.dst_port=54321），非标准端口不是隐式兼容入口，除非未来设计明确增加 profile 和显式开关。
+3. `wire_profile` 决定版本/兼容模式（postgresql 层字段）；同一会话不能混用 PostgreSQL-compatible 与 native profile。
 4. 一个 session（会话）由独立四元组标识；认证状态、请求序列和响应关联不得跨流混用。
 5. TCP 三次握手、应用数据段和正常 FIN 终止由公共 TCP 层负责；应用事件不隐式增加未配置的 ACK 或服务端事件。
 6. 应用 payload 超过 MSS（最大报文段长度）时可能被 TCP 分段；固定 frame offset（帧偏移）只适用于对应实际 segment，不代表 TCP stream（流）偏移。
@@ -32,27 +33,33 @@ KingBase（人大金仓）KingbaseES 数据库客户端通常通过 TCP 连接�
 
 ## 2. 层链、端口和 profile
 
+kingbase = **postgresql 层的 dialect 变体**，因此不写独立 `kingbase` 层，而是写 `[ip, tcp, postgresql]` + `postgresql.dialect="kingbase"`：
+
 ```json
-{"layers":[{"tcp":{}},{"kingbase":{}}]}
+{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":12345}},{"postgresql":{"dialect":"kingbase"}}]}
 ```
 
-`kingbase` 是 TCP 终结层，默认配置如下：
+postgresql 层（dialect=kingbase）默认配置：
 
 ```json
 {
-  "layers": [{"tcp": {}}, {"kingbase": {}}],
-  "src_ip": "10.0.0.1",
-  "dst_ip": "20.0.0.1",
-  "src_port": 12345,
-  "dst_port": 54321,
-  "kingbase": {
-    "wire_profile": "kingbase_es_v8_pg_compatible",
-    "events": []
-  }
+  "layers": [
+    {"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}},
+    {"tcp": {"src_port": 12345}},
+    {"postgresql": {
+        "dialect": "kingbase",
+        "wire_profile": "kingbase_es_v8_pg_compatible",
+        "events": []
+    }}
+  ]
 }
 ```
 
-profile 只是选择编码模板的稳定名称：
+- `src_ip`/`dst_ip` 归位到 ip 层 `src`/`dst`；`src_port` 归位到 tcp 层；`dst_port` **不写**——由 postgresql 层据 dialect 生成 FieldContract 写入（dialect=kingbase → 54321；dialect=postgresql → 5432）。
+- 不再有顶层平铺 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`kingbase` 子块（G1）。
+- `dialect` 是 postgresql 层的字段：`kingbase` 时按 KingBase 变体取默认端口 54321 与 KingBase profile；缺省 `postgresql`。
+
+`wire_profile` 仍是选择编码模板的稳定名称（postgresql 层字段）：
 
 | profile | 语义 | v1 状态 |
 |---|---|---|
@@ -64,6 +71,8 @@ profile 只是选择编码模板的稳定名称：
 `wire_profile` 与事件内 `profile` 分层：前者选择会话版本/兼容模式，后者选择事件类别的已登记模板（例如 `startup_v3`、`auth_profile_defined`、`query_simple_v3`）。事件 profile 不得覆盖会话 wire profile 的版本边界。
 
 ## 3. PostgreSQL-compatible 外层语义
+
+本节是 postgresql 层（`dialect=kingbase` 时）的共享 wire 语义：kingbase 不另造 wire，直接复用 postgresql 的 PG v3 外层（Startup、typed message、事件序列）。以下类别与顺序在 `dialect=kingbase` 下同样成立；差异只在默认端口（54321）与 `wire_profile`。
 
 ### 3.1 Startup message（启动消息）
 
@@ -117,14 +126,12 @@ TCP handshake → Startup → Authentication request/response → Ready
 
 ## 4. 配置契约
 
+用 postgresql 层 + `dialect="kingbase"`；不再有独立 `kingbase` 层/子块：
+
 ```json
 {
-  "layers": [{"tcp": {}}, {"kingbase": {}}],
-  "src_ip": "10.0.0.1",
-  "dst_ip": "20.0.0.1",
-  "src_port": 12345,
-  "dst_port": 54321,
-  "kingbase": {
+  "layers": [{"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}}, {"tcp": {"src_port": 12345}}, {"postgresql": {
+    "dialect": "kingbase",
     "wire_profile": "kingbase_es_v8_pg_compatible",
     "events": [
       {"kind": "startup", "direction": "c2s", "profile": "startup_v3", "user": "test", "database": "test"},
@@ -137,12 +144,12 @@ TCP handshake → Startup → Authentication request/response → Ready
       {"kind": "command_complete", "direction": "s2c", "profile": "command_complete_outer", "tag": "SELECT 1"},
       {"kind": "ready", "direction": "s2c", "profile": "ready_idle"}
     ]
-  }
-}
+  }}]}
 ```
 
 | 键 | 类型 | 默认/约束 | 语义 |
 |---|---|---|---|
+| `dialect` | string | `postgresql`；可改 `kingbase` | 内容/端口变体键；`kingbase` 时默认端口 54321 且 profile 需为 KingBase 兼容模板 |
 | `wire_profile` | string | 必填；必须登记 | 版本/兼容模式选择；不直接编码到 wire |
 | `events` | array | 可为空；按序 | 应用层语义事件 |
 | `kind` | enum | 见 §3.3 | 事件类别；编码模板由 profile 选择 |
@@ -154,8 +161,8 @@ TCP handshake → Startup → Authentication request/response → Ready
 
 校验规则：
 
-1. `layers` 必须包含 TCP 终结层并在其后包含 `kingbase`；UDP/缺 TCP 拒绝。
-2. 目的端口默认 54321；本版端口负例验证非标准端口被拒绝。
+1. `layers` 必须含 postgresql 层（`dialect=kingbase`）且其承载层为 TCP；UDP/缺 TCP 拒绝。**kingbase 不再作为独立层注册**——若配置出现 `{"kingbase":{}}` 层，按未知/已撤销层拒绝（应改为 postgresql 层 + dialect=kingbase）。
+2. 目的端口默认 54321（dialect=kingbase）；**领域校验强制 54321**——`dialect=kingbase` 下即使用户显式写 `tcp.dst_port` 为其他值（如 54322）也被拒绝（端口负例 `kingbase_neg_port` 验证）。依据：字段优先级只决定**合法值域内的默认值**（需求 §1.6），用户显式 > FieldContract 不覆盖领域合法性——超出合法值域由校验拒绝。
 3. 未登记 `wire_profile` 或事件 profile 拒绝；不得回退到 PostgreSQL 或任意随机 payload。
 4. Startup length 小于最小外层长度、声明长度超过实际编码长度或超出实现上限时拒绝；长度必须按编码字节计算，不按字符数。
 5. 认证响应、Query、Terminate 等状态事件只能在 profile 允许的状态出现；未 Ready 即 Query 的配置拒绝。
@@ -163,6 +170,8 @@ TCP handshake → Startup → Authentication request/response → Ready
 7. 失败在 planner/validator（校验器）边界传播为 task error；不能输出空 PCAP 后报告成功。
 
 ## 5. 包数、偏移和场景映射
+
+以下场景一律用 `[ip, tcp, postgresql]` + `postgresql.dialect="kingbase"` 表达；包数、偏移、锚点与 v1.0 一致（端口均为 dialect=kingbase 决定的 54321）。
 
 小 payload、无额外 TCP option、每个应用事件一个 TCP 数据段时：
 
@@ -194,7 +203,7 @@ IPv4 无 TCP option 时应用 payload 起点为 Ethernet 14 + IPv4 20 + TCP 20 =
 
 后续实现必须：
 
-1. 注册 TCP→KingBase layer，默认端口 54321，并让层链校验拒绝 UDP/缺 TCP。
+1. 注册 TCP→PostgreSQL（postgresql）终结层（`depends_on=[tcp]`，FieldContract→`tcp.dst_port`），并将 `dialect="kingbase"` 作为该层的变体字段（默认端口 54321）；层链校验拒绝 UDP/缺 TCP。**不再注册独立 `kingbase` 层**——旧 `kingbase` 层从 layer registry 移除/废弃，配置一律走 postgresql 层 + dialect=kingbase。
 2. 将版本和兼容模式绑定到显式 profile；每个 profile 有官方规范或可复现 PCAP 依据。
 3. 对 Startup/type+length 外层、R/p/Z/Q/E 类别分别写失败优先单测；长度按编码字节数回填并验证边界。
 4. 让 API→engine→PCAP 集成路径传播未知 profile、状态、载体、截断和超限错误。
@@ -205,4 +214,5 @@ IPv4 无 TCP option 时应用 payload 起点为 Ethernet 14 + IPv4 20 + TCP 20 =
 
 ## 7. 修订记录
 
+- v1.1.0（2026-08-26）：按「`18-layer-config-design.md` v1.5.0 + 配置层级链优化需求 §7 F4（变体=profile）」改写——kingbase 由独立 TCP 终结层收敛为 **postgresql 层的 dialect 变体**（配置 `[ip, tcp, postgresql]` + `postgresql.dialect="kingbase"`，默认端口 54321，对比 dialect=postgresql 默认 5432）；不再注册独立 `kingbase` 层；端口改由 postgresql 层 FieldContract→`tcp.dst_port` 表达（据 dialect 取 5432/54321）；§3 PG v3 外层语义保留为 postgresql 层（dialect=kingbase 时）的共享 wire；§4 配置契约/校验规则、§6 实现要求相应调整。
 - v1.0.0（2026-08-20）：建立 KingBase 三件套设计契约；固定 TCP/54321、PostgreSQL-compatible 外层事件语义、IPv4/IPv6、多会话、长度和状态负例；以 profile 隔离版本/兼容模式并明确不编造私有字节。

@@ -1,20 +1,23 @@
 # KingBase（人大金仓）测试用例设计
 
-> 版本：v1.0.0（设计阶段）  
+> 版本：v1.1.0（dialect 变体，postgresql 层）  
 > 日期：2026-08-20  
+> 修订：2026-08-26（v1.1.0，见 §7 修订记录）  
 > 配套设计：`docs/protocol-designs/34-kingbase-design.md`  
 > 机器契约：`trafficgen/test/protocol_pcap/cases/kingbase.json`  
-> 状态：`kingbase` 层尚未实现；本文定义实现后的 PCAP（抓包文件）断言，不宣称当前套件可运行。
+> 状态：kingbase 的用例以 **postgresql 层 + `dialect="kingbase"`** 表达（复用 postgresql 的 PostgreSQL v3 wire）；代码层面独立 `kingbase` 层已撤销，本文定义实现后的 PCAP（抓包文件）断言，不宣称当前套件可运行。
 
 ## 1. 测试原则
 
 用例从设计 §1（证据等级/profile）、§2（TCP/端口）、§3（Startup 和 typed message 外层）、§4（配置校验）及 §5（包数/偏移）逐项派生。正例必须有 `packet_count`、TCP 握手/终止断言和至少一个 observable（可观察）`fields` 或 `frames`；负例的 `expect` **只能**有 `expect_error` 与 `error_contains`，不对失败 PCAP 作结构断言。
 
-所有正例显式使用 `wire_profile=kingbase_es_v8_pg_compatible`，该名称是版本化实现契约，不是线上字符串。PostgreSQL-compatible 外层允许观察 `pgsql.type`、`pgsql.query` 和传输字段；认证子类型、密码摘要、错误字段、KingBase 私有扩展和参数值不写固定 hex。Startup 只用 tshark 的 `pgsql.type=Startup message`、端口和非空 payload 断言，避免把未核实的参数长度变成伪精确 fixture。
+所有正例以 **postgresql 层 + `dialect="kingbase"`** 表达（`layers: [ip, tcp, postgresql]`，`dst_port` 由 dialect 经 FieldContract 决定 54321），并显式使用 `wire_profile=kingbase_es_v8_pg_compatible`，该名称是版本化实现契约，不是线上字符串。PostgreSQL-compatible 外层允许观察 `pgsql.type`、`pgsql.query` 和传输字段；认证子类型、密码摘要、错误字段、KingBase 私有扩展和参数值不写固定 hex。Startup 只用 tshark 的 `pgsql.type=Startup message`、端口和非空 payload 断言，避免把未核实的参数长度变成伪精确 fixture。
 
 无 TCP option 且应用事件一段时，`packet_count=3+应用事件数+4`；IPv4 应用起点 54，IPv6 起点 74。frame offset 只用于已知的外层 type 字节：Startup 无 type，不在 offset 54 伪造 type；typed message 的 type 位于起点（54/74）。
 
 ## 2. 用例索引和包数
+
+> 每个用例的 spec_json 均写为 `layers: [{"ip":{"src","dst"}}, {"tcp":{"src_port"}}, {"postgresql":{"dialect":"kingbase","wire_profile":...,"events":[...]}}]`；不再出现顶层平铺 `src_ip`/`dst_port`/`kingbase` 子块，也不出现独立 `kingbase` 层。
 
 | # | id | 类型 | 覆盖 | 应用事件 | 包数 |
 |---:|---|---|---|---:|---:|
@@ -78,8 +81,8 @@ IPv4、目的端口 54321，事件为 Startup、Authentication request、Authent
 
 | id | 输入故障 | `error_contains` |
 |---|---|---|
-| `kingbase_neg_udp` | `layers=[udp,kingbase]` | `tcp` |
-| `kingbase_neg_port` | `dst_port=54322` | `54321` |
+| `kingbase_neg_udp` | `layers=[ip,udp,postgresql]`（dialect=kingbase） | `tcp` |
+| `kingbase_neg_port` | `tcp.dst_port=54322`（dialect=kingbase 强制 54321） | `54321` |
 | `kingbase_neg_profile` | `wire_profile=unknown_profile` | `profile` |
 | `kingbase_neg_state` | 首个应用事件直接为 Query | `state` |
 | `kingbase_neg_truncated` | Startup `wire_fault.kind=truncate_startup` | `length` |
@@ -102,4 +105,5 @@ IPv4、目的端口 54321，事件为 Startup、Authentication request、Authent
 
 ## 7. 修订记录
 
+- v1.1.0（2026-08-26）：按 `34-kingbase-design.md` v1.1.0（postgresql 层 dialect 变体）同步改写——用例由独立 `kingbase` 层 + 顶层平铺，改为 `layers: [ip, tcp, postgresql]` + `postgresql.dialect="kingbase"`；负例 `kingbase_neg_udp` 改为 `[ip,udp,postgresql]`，`kingbase_neg_port` 改为 `tcp.dst_port=54322`。15 个用例 id、包数、断言语义（packet_count/fields/frames/decode_as `tcp.port==54321,pgsql`）全部不变。
 - v1.0.0（2026-08-20）：建立 9 个正例和 6 个负例；覆盖 TCP connect/Startup/auth/query success/query error、IPv4/IPv6、多会话、长度边界及负例，并以 profile 隔离版本/兼容模式。

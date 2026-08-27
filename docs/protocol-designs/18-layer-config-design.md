@@ -1,8 +1,8 @@
 # 方案 C：分层配置架构设计
 
-> 版本：v1.3.0（P1 review 修订版）
+> 版本：v1.5.0（FieldContract/dialect 引入修订版）
 > 设计日期：2026-08-11
-> 修订日期：2026-08-11（v1.3.0，参见修订记录）
+> 修订日期：2026-08-26（v1.5.0，参见修订记录）
 > 范围：把当前"扁平协议字典 + 顶层平铺字段"的配置架构，重写为"层链（layers，层列表）+ schema（说明书）"的分层配置架构
 > 实现位置：`trafficgen/internal/core/`（schema 定义、层注册表、校验）、`trafficgen/internal/core/strategy_convert.go`（配置解析重写）、各 `internal/protocol/<proto>/`（层生成器适配）
 > 配套决策：本文档是设计稿，实现细节（层注册表全量字段、迁移计划、测试计划）在评审后补充
@@ -53,7 +53,7 @@
 - 任意层任意组合：GRE 里可以放 HTTP、DNS、FTP；TLS 里可以放 HTTP、SMTP
 - 空配置自动补全依赖链：写 `{"http":{}}` 就自动生成 `[ip → tcp → http]`
 - 每层有 schema（说明书）：字段 + 默认值 + 依赖声明，缺省自动用默认值
-- 手动配置值 > schema 默认值（用户写什么用什么）
+- 取值优先级（三级）：用户显式配置值 > FieldContract 契约值 > schema 默认值（用户写什么用什么；显式 0 ≠ 缺失，见 §3.5/§8）
 
 ### 1.3 约定（通俗表达）
 
@@ -78,7 +78,7 @@
 | G3 | 自由拼装 | 任意层任意组合，层与层之间通过 schema 声明依赖，互不硬编码 |
 | G4 | 手动/自动双写法 | 手动 = 写全每层；自动 = 只写核心层，系统查 schema 补齐依赖链 |
 | G5 | 每层有 schema | 字段 + 类型 + 默认值 + 依赖 + 约束，集中注册在层注册表 |
-| G6 | 优先级明确 | 手动配置值 > schema 默认值，同层内生效 |
+| G6 | 优先级明确 | 用户显式配置值 > FieldContract 契约值 > schema 默认值（三级，含显式 0 ≠ 缺失），见 §3.5/§8 |
 | G7 | 递归生成 | 从最内层往外生成字节，每层 = 本层头 + 内层字节 |
 
 ### 2.2 非目标
@@ -120,11 +120,13 @@
 
 每层有一张 schema，声明该层：
 
-- **字段**：类型 + 默认值 + 范围
+- **字段**（Fields）：类型 + 默认值 + 范围
 - **硬依赖**（depends_on）：这层下面缺什么就自动补什么（默认启用）
 - **可选底座**（optional_on）：这层可以垫在什么上面，但系统永不自动补（默认不启用）
 - **内层要求**（inner_required）：隧道层专用，内层必须从什么层开始
 - **角色**：终结层 / 隧道层 / 传输层 / 二层层
+- **字段契约**（FieldContract，维度二）：该层决定"它紧邻外层邻居层"（直接承载它的那层）的**某个字段**的值。形如 `{ "<直接承载我的层>.<字段>": "<常量值>" }`，目标层 = 直接承载我的邻居层（不是最外层），值是常量（含按 profile / 传输层取不同常量；本期不做动态字段引用）。例：`http` 模板 → `{ "tcp.dst_port": "80" }`；`dns` → `{ "udp.dst_port": "53" }`；`postgresql` → `{ "tcp.dst_port": "5432" }`（dialect=kingbase 时为 `"54321"`）。
+- **内容/端口变体**（dialect）：某层可以是另一父层的**变体**，变体**不当独立层**，而是父层的一个 `dialect` 字段值（如 `postgresql` 层的 `dialect="kingbase"`，据 dialect 选不同端口/编码模板）。变体改变父层 FieldContract 的契约值（如 kingbase → 54321），但不改变"值是常量"这一性质。
 
 ### 3.4 手动 / 自动双写法
 
@@ -135,7 +137,7 @@
 
 ### 3.5 优先级
 
-**手动配置值 > schema 默认值**。同层内生效，不跨层覆盖。
+**用户显式配置值 > FieldContract 契约值 > schema 字段默认值**（三级，跨层生效）。同层内字段按此优先级取值；FieldContract 由骑在该层上的终结/隧道层写入（见 §8）。**显式写 0 ≠ 字段缺失**：用户写 `"dst_port": 0` 是刻意发 0，不是缺省（§6.4）。
 
 ### 3.6 一个包只有一个终结层
 
@@ -164,9 +166,12 @@ type LayerSchema struct {
     OptionalOn     []string           // 可选底座：默认不启用，写了才生效
     InnerRequired  []string           // 隧道层专用：内层起点，缺了自动补
     Fields         map[string]FieldSchema  // 字段：类型+默认值+范围
+    FieldContract  map[string]string       // 字段契约：{ "<直接承载我的层>.<字段>": "<常量值>" }（维度二，跨层字段传播）
     Constraints    []Constraint       // 校验规则（字段范围、层间约束）
 }
 ```
+
+`FieldContract` 的值是常量；key 是"直接承载我的层名.字段名"（紧邻外层邻居层）。变体（dialect，如 `postgresql` 层的 `dialect="kingbase"`）通过改变该契约的常量值生效（`tcp.dst_port` 从 `"5432"` 变 `"54321"`），不改变"值是常量"的性质。
 
 ### 4.2 schema 模板
 
@@ -224,6 +229,16 @@ tcp:                     # 传输层
     mss: 1460
     window_size: 65535
     handshake: true
+
+postgresql:              # 终结层，共享 wire（可被 dialect 变体复用）
+  category: 终结层
+  depends_on: [tcp]      # 必须承载在 TCP 上
+  field_contract: { "tcp.dst_port": "5432" }    # 直接承载层 tcp 写 5432；dialect=kingbase 时契约值为 "54321"
+  fields:
+    wire_profile: postgresql_v3   # 会话版本/兼容模式编码模板
+    dialect: postgresql           # 内容/端口变体键：可改为 "kingbase"（据 dialect 选端口 54321）
+    events: []                    # Startup/Auth/Ready/Query/... 事件序列（默认行为模板见下）
+    ...
 ```
 
 ### 4.4 层注册表内容（完整）
@@ -239,6 +254,7 @@ tcp:                     # 传输层
 | udp | 传输层 | ip | — | — | 0（由上层决定） |
 | http | 终结层 | tcp | tls（默认不启用） | — | 80 |
 | dns | 终结层 | udp（默认；可选 tcp） | tls（默认不启用） | — | 53 |
+| postgresql | 终结层 | tcp | — | — | 5432（dialect=kingbase 时 54321） |
 | ftp | 终结层 | tcp | tls（默认不启用） | — | 21 |
 | smtp | 终结层 | tcp | tls（默认不启用） | — | 25 |
 | tls | 隧道层 | tcp | — | —（内层任意终结层） | 443 |
@@ -247,7 +263,7 @@ tcp:                     # 传输层
 | pppoe | 二层层 | — | — | — | — |
 | … | … | … | … | … | … |
 
-**注**：vlan 的 `optional_on: [eth]` 表示"vlan 垫在 eth 上"（默认不启用，用户写 vlan 时自动补 eth）；dns 的 `depends_on` 默认为 udp，用户可显式写 tcp 层覆盖（`{"dns":{}, "tcp":{}}` → `[ip → tcp → dns]`，**已实现**：schema 的 `TransportOn` 字段声明可用传输层，补全时用户显式写的可用传输层替代默认传输层，校验同样遵循）。**`https` 组合层已撤销**（见 §4.6），本表不含 https。
+**注**：vlan 的 `optional_on: [eth]` 表示"vlan 垫在 eth 上"（默认不启用，用户写 vlan 时自动补 eth）；dns 的 `depends_on` 默认为 udp，用户可显式写 tcp 层覆盖（`{"dns":{}, "tcp":{}}` → `[ip → tcp → dns]`，**已实现**：schema 的 `TransportOn` 字段声明可用传输层，补全时用户显式写的可用传输层替代默认传输层，校验同样遵循）。**`https` 组合层已撤销**（见 §4.6），本表不含 https。**dialect 变体不当独立层**：`kingbase` 不作本表一层，它是 `postgresql` 层的 `dialect="kingbase"` 值（复用 postgresql 的 PG v3 wire，默认端口 54321，见 §4.3 schema 示例与 §3.3）。
 
 ### 4.5 TLS 接线现状（重要约束）
 
@@ -337,7 +353,7 @@ tcp:                     # 传输层
 
 层内字段沿用现有配置字段名（`src_ip`、`dst_port`、`ttl`、`mss`、`window_size`……），但**按层归位**：`src_ip` 在 `ip` 层内、`src_port` 在 `tcp`/`udp` 层内、`method` 在 `http` 层内。
 
-**tcp 层的端口默认 0** = "由上层协议决定"（http 用 80、tls 用 443、dns 用 53）；上层终结层的 schema 声明默认端口，生成时填入。
+**tcp 层的端口默认 0** = "由上层协议决定"（http 用 80、tls 用 443、dns 用 53、postgresql 用 5432 / kingbase 54321）；上层终结层的 **FieldContract** 声明默认端口，生成时填入（§3.3/§4.1/§8）。
 
 ### 6.4 显式 0 ≠ 缺失
 
@@ -472,9 +488,20 @@ http+tls 手写：
 
 ## 8. 配置优先级
 
-### 8.1 规则
+### 8.1 规则（三级）
 
-**手动显式配置值 > schema 默认值**。层级越靠内层的手动配置，只影响那一层，不覆盖外层。
+字段 f 的值，按下列优先级**从高到低**取：
+
+```
+① 用户显式写 f                → 用户值（含显式 0；"显式 0 ≠ 缺失"，§6.4）
+② 直接承载层的 FieldContract → 契约常量值（如 http 骑 tcp 时写 tcp.dst_port=80）
+③ 该层模板自身 fields 默认   → 模板默认（如 tcp 模板 dst_port 默认 0）
+```
+
+- ② 依赖 ①：用户显式写了目标字段时，② 不覆盖 ①；① 没写时才由 ② 决定（如 http 骑上来把 tcp.dst_port 填 80）。
+- ② 只写**直接承载层**（紧邻外层邻居层）的**单个字段**，不跨层、不覆盖更外层。
+- ③ 由该层模板补全（§7 R2）。
+- **层级越靠内层的手动配置，只影响那一层，不覆盖外层**（层与层之间只传递字节，不传递配置值）。
 
 ### 8.2 举例
 
@@ -482,8 +509,8 @@ http+tls 手写：
 {
   "layers": [
     { "ip": { "src": "10.0.0.1" } },            // 手动：src 用 10.0.0.1；dst 没写 → schema 默认 20.0.0.1
-    { "tcp": { "mss": 1460 } },                 // 手动：mss 用 1460；窗口没写 → 65535
-    { "http": {} }                              // 空 → method=GET、uri=/、version=1.1 全默认
+    { "tcp": { "mss": 1460 } },                 // 手动：mss 用 1460；src_port 没写 → 模板默认 0；dst_port 由上层 FieldContract 填
+    { "http": {} }                              // 空 → method=GET、uri=/、version=1.1 全默认；http 的 FieldContract 把 tcp.dst_port 填 80
   ]
 }
 ```
@@ -494,6 +521,7 @@ http+tls 手写：
 - **不跨层覆盖**：内层 http 的 GET 不会影响外层 ip 的 src
 - **层链是"每层独立取值"**：层与层之间只传递字节，不传递配置值
 - **显式 0 ≠ 缺失**（§6.4）：用户写 `"dst_port": 0` 用 0，没写才用默认
+- **FieldContract 只填承载字段**：终结层/隧道层的 FieldContract 只写"紧邻外层邻居层"的单个字段（如 tcp.dst_port），不传播到更外层
 
 ---
 
@@ -573,7 +601,7 @@ gre 的 inner_required=[ip] 自动补内层 ip 后，内层 IP/TCP 字段（src/
 
 | # | 规则 | 说明 |
 |---|------|------|
-| R1 | 默认端口补全 | 终结层 schema 声明的默认端口（http 80、tls 443）填入下层 tcp |
+| R1 | 默认端口补全 | 终结层 schema 的 FieldContract 声明的默认端口（http 80、tls 443、postgresql 5432 / dialect=kingbase 54321）填入下层 tcp |
 | R2 | 字段默认值补全 | 未写的字段按 schema 默认值填 |
 | R3 | 依赖链补全 | 硬依赖缺失时自动插入（§7） |
 
@@ -688,7 +716,7 @@ tcp/http 用默认，ip 层手动指定。
 | T3 | 层链补全：gre 空配置 → [ip, gre, ip, tcp, http]（双层 ip） | §7.4 |
 | T4 | 层链补全：tls 手写 → [ip, tcp, tls, http]，tls 不自动补 | §7.1 |
 | T5 | 可选底座默认不启用：`{"http":{}}` 生成 http 非 https | §7.1 |
-| T6 | 手动配置值 > schema 默认值（同层） | §8.1 |
+| T6 | 取值优先级三级：用户显式配置值 > FieldContract 契约值 > schema 默认值（同层） | §8.1 |
 | T7 | 显式 0 ≠ 缺失（`dst_port:0` 用 0，没写用默认） | §6.4 |
 | T8 | 同层多实例：双层 vlan 顺序即身份（外层 0x88a8 内层 0x8100） | §5.3 |
 | T9 | 校验 V1-V10 逐条：非法层名、终结层重复、传输层当末层、隧道层当末层、字段范围…… | §10.2 |
@@ -758,3 +786,4 @@ tcp/http 用默认，ip 层手动指定。
 | v1.2.0 | 2026-08-11 | P1 实现修订：§7.3 伪代码依赖方向定稿（depends_on 在外层，外层包内层）——与 §12 全部示例一致（v1.1.0 的"下方/内层方向"与示例矛盾）；第一趟改为迭代直到稳定；§7.4 推演重写（gre 补内层 ip 是第二趟 inner_required 的结果）；§7.5 不变量 #1/#6 修正方向表述 |
 | v1.3.0 | 2026-08-11 | P1 review 修订：实现"传输层替代"（§4.4 注记落地）——schema 新增 `TransportOn` 字段（可用传输层，第一个=默认）；补全第一趟与校验 V8 遵循替代（用户显式写可用传输层时不再补默认，如 `{"dns":{}, "tcp":{}}` → `[ip → tcp → dns]`）；修复注册表 TransportOn 顺序与 DependsOn[0] 不一致导致的替代失效 |
 | v1.4.0 | 2026-08-15 | P2-P6 实现修订：§10.2 新增层链路径（`layers` 键 + `ValidateLayers`）；§11.2 决策落地——存量策略不迁移、不兼容解析、直接删除；P5 清理工具 `cmd/legacyclean`（分类：层链/遗留/畸形/replay，dry-run 默认 + backup 先行 + 单事务删除，实测 2023 遗留 + 1264 层链）；P6 MCP 同步——`manageStrategiesInput.Config` 教学层链格式、新增 `flowb_query_layers` 注册表查询工具（33 层字段/默认值/依赖 + 隧道内层嵌套）；协议推断语义定稿：**最外层**非骨架层（跳 ip/eth/vlan/mpls/pppoe/tcp/udp），隧道链推断隧道名（`[ip,gre,ip,tcp,http]` → `gre`），显式 protocol 必须与推断一致否则 V10 拒绝 |
+| v1.5.0 | 2026-08-26 | 引入 **FieldContract（维度二，跨层字段契约）** 与 **dialect（内容/端口变体）**：§3.3/§3.5/§8 优先级从"手动 > 默认"升级为**三级**（用户显式 > FieldContract 值 > 模板默认；显式 0 ≠ 缺失）；§4.1 `LayerSchema` 新增 `FieldContract map[string]string`；§4.3/§4.4 增补 `postgresql` 共享 wire 层（终结层，depends_on=[tcp]，FieldContract→tcp.dst_port=5432，据 dialect 选端口）并明确 **kingbase 作 postgresql 的 dialect 变体、不当独立层**；§10.3 R1 端口补全改由 FieldContract 表达 |
