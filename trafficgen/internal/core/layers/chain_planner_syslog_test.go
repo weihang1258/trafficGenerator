@@ -185,15 +185,16 @@ func TestChainPlanner_Syslog_DefaultPort(t *testing.T) {
 }
 
 // TestChainPlanner_Syslog_ValidateNegative mirrors the legacy Validate
-// contract: nil Syslog config, bad facility/severity, bsd+rfc5424 conflict,
-// tcp/tls transport rejected by the chain (deferred, 与 dns tcp 相同)。
+// contract: nil Syslog config now defaults (P0b-2), bad facility/severity,
+// bsd+rfc5424 conflict, tcp/tls transport rejected by the chain (deferred,
+// 与 dns tcp 相同)。
 func TestChainPlanner_Syslog_ValidateNegative(t *testing.T) {
 	p := layers.NewChainPlanner("syslog")
 
 	spec := syslogSpec()
 	spec.Syslog = nil
-	if err := p.Validate(spec); err == nil {
-		t.Error("Validate(nil Syslog config) = nil, want error")
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("Validate(nil Syslog config) = %v, want nil (default flow, P0b-2)", err)
 	}
 
 	spec = syslogSpec()

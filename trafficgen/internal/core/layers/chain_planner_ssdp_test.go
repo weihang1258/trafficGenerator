@@ -357,11 +357,11 @@ func TestChainPlanner_SSDP_IPv6(t *testing.T) {
 func TestChainPlanner_SSDP_ValidateNegative(t *testing.T) {
 	p := layers.NewChainPlanner("ssdp")
 
-	// nil config → error (与 mdns 不同：ssdp config 必填)。
+	// nil config → 默认化产默认流（P0b-2；与 mdns 对齐）。
 	spec := ssdpSpec()
 	spec.SSDP = nil
-	if err := p.Validate(spec); err == nil {
-		t.Error("Validate(nil SSDP) = nil, want error")
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("Validate(nil SSDP) = %v, want nil (default flow, P0b-2)", err)
 	}
 
 	spec = ssdpSpec()

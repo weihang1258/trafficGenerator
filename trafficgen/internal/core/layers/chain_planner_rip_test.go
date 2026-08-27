@@ -508,10 +508,10 @@ func TestChainPlanner_RIP_RIPng(t *testing.T) {
 func TestChainPlanner_RIP_ValidateNegative(t *testing.T) {
 	p := layers.NewChainPlanner("rip")
 
-	// nil config → error。
+	// nil config → 默认化产默认流（P0b-2）。
 	spec := ripSpec(nil)
-	if err := p.Validate(spec); err == nil {
-		t.Error("Validate(nil RIP) = nil, want error")
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("Validate(nil RIP) = %v, want nil (default flow, P0b-2)", err)
 	}
 
 	// 非法版本。

@@ -214,15 +214,15 @@ func TestChainPlanner_SNMP_DefaultPorts(t *testing.T) {
 }
 
 // TestChainPlanner_SNMP_ValidateNegative mirrors the legacy Validate contract:
-// nil SNMP config, bad version, PDUType 8, empty varbinds for Get, malformed
-// OID must fail.
+// nil SNMP config now defaults (P0b-2), bad version, PDUType 8, empty varbinds
+// for Get, malformed OID must fail.
 func TestChainPlanner_SNMP_ValidateNegative(t *testing.T) {
 	p := layers.NewChainPlanner("snmp")
 
 	spec := snmpSpec()
 	spec.SNMP = nil
-	if err := p.Validate(spec); err == nil {
-		t.Error("Validate(nil SNMP config) = nil, want error")
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("Validate(nil SNMP config) = %v, want nil (default flow, P0b-2)", err)
 	}
 
 	spec = snmpSpec()

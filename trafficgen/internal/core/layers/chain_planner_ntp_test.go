@@ -265,14 +265,15 @@ func TestChainPlanner_NTP_DefaultPorts(t *testing.T) {
 }
 
 // TestChainPlanner_NTP_ValidateNegative mirrors the legacy Validate contract:
-// nil NTP config, bad version, reserved mode 0, bad MAC length must fail.
+// nil NTP config now defaults (P0b-2), bad version, reserved mode 0, bad MAC
+// length must fail.
 func TestChainPlanner_NTP_ValidateNegative(t *testing.T) {
 	p := layers.NewChainPlanner("ntp")
 
 	spec := ntpSpec()
 	spec.NTP = nil
-	if err := p.Validate(spec); err == nil {
-		t.Error("Validate(nil NTP config) = nil, want error")
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("Validate(nil NTP config) = %v, want nil (default flow, P0b-2)", err)
 	}
 
 	spec = ntpSpec()
