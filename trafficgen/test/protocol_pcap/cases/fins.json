@@ -69,7 +69,7 @@
         {
           "packet": 2,
           "field": "omron.icf",
-          "value": "0xC1"
+          "value": "0xc1"
         },
         {
           "packet": 2,
@@ -151,7 +151,7 @@
         {
           "packet": 4,
           "field": "omron.tcp.error_code",
-          "value": "0"
+          "value": "0x00000000"
         },
         {
           "packet": 4,
@@ -171,7 +171,7 @@
         {
           "packet": 5,
           "field": "omron.icf",
-          "value": "0xC1"
+          "value": "0xc1"
         },
         {
           "packet": 5,
@@ -295,7 +295,7 @@
         {
           "packet": 1,
           "field": "omron.memory.area.read",
-          "value": "0xB0"
+          "value": "0xb0"
         },
         {
           "packet": 1,
@@ -359,12 +359,12 @@
         {
           "packet": 1,
           "field": "omron.memory.area.read",
-          "value": "0xB1"
+          "value": "0xb1"
         },
         {
           "packet": 1,
           "field": "omron.memory.address",
-          "value": "0x000A"
+          "value": "0x000a"
         },
         {
           "packet": 2,
@@ -412,7 +412,7 @@
         {
           "packet": 1,
           "field": "omron.memory.area.read",
-          "value": "0xB2"
+          "value": "0xb2"
         },
         {
           "packet": 1,
@@ -529,7 +529,7 @@
         {
           "packet": 1,
           "field": "omron.memory.area.read",
-          "value": "0xDC"
+          "value": "0xdc"
         },
         {
           "packet": 1,
@@ -758,7 +758,7 @@
         {
           "packet": 2,
           "field": "omron.icf",
-          "value": "0xC1"
+          "value": "0xc1"
         },
         {
           "packet": 2,
