@@ -4,18 +4,17 @@
 **来源**：对需求清单（约 145 项）与 `trafficgen/internal/protocol/`（60+ planner）及层链 registry（`internal/core/layers/registry.go`, 33 层）逐项核对后的差异清单。
 **上一版（2026-08-03）说明**：该版列的 17 项（GBT32960/JT808/JT809/JTT905/DOIP/TFTP/SMB/NFS/TDS/RIP/DNP3/ENIP/MODBUS/MQTT/SRV6/MCP/A2A）现已全部实现，故整体重写。
 
-## 未实现总数：72 项
+## 未实现总数：63 项
 
 按业务领域分组。标注"半实现"的表示存在载体或配置字段，但不能独立/组合生成目标协议流量。
 
-### A. 流媒体 / 视频容器（4 项）
+### A. 流媒体 / 视频容器（3 项）
 
 | # | 协议 | 说明 | 载体 |
 |---|------|------|------|
-| 1 | HTTP FLV | Flash 视频容器，走 HTTP 分发 | HTTP |
-| 2 | HLS | Apple 直播流（.m3u8 分片清单） | HTTP |
-| 3 | HDS | Adobe HTTP 动态流 | HTTP |
-| 4 | RTMFP | Flash P2P 实时媒体流（RTMP 的 UDP 变体） | UDP |
+| 1 | ~~HLS~~ | Apple 直播流（.m3u8 分片清单） | HTTP | ✅ 已实现 |
+| 2 | HDS | Adobe HTTP 动态流 | HTTP |
+| 3 | ~~RTMFP~~ | Flash P2P 实时媒体流（RTMP 的 UDP 变体） | UDP | ✅ 已实现 |
 
 ### B. 工控 / SCADA / 车载 / 电力（10 项）
 
@@ -28,27 +27,27 @@
 | 9 | IEC 61850-SV | 采样值报文 | 以太网组播 |
 | 10 | IEC 61850-MMS | 制造报文规范 | TCP |
 | 11 | S7 | 西门子 S7comm PLC 协议 | TCP(102) |
-| 12 | Moxa-Nport | 串口服务器透传协议 | 串口/TCP |
-| 13 | SOME-IP | 车载 SOA 中间件（AUTOSAR） | UDP/TCP |
+| 12 | ~~Moxa-Nport~~ | 串口服务器透传协议 | 串口/TCP | ✅ 已实现 |
+| 13 | ~~SOME-IP~~ | 车载 SOA 中间件（AUTOSAR） | UDP/TCP | ✅ 已实现 |
 | 14 | IEC104 | IEC 60870-5-104 电力远动规约 | TCP(2404) |
 
 ### C. 数据库（7 项）
 
 | # | 协议 | 说明 | 载体 |
 |---|------|------|------|
-| 15 | DRDA | DB2 分布式关系数据库架构 | TCP |
-| 16 | Thrift | Apache 跨语言 RPC 框架 | TCP |
-| 17 | TNS | Oracle 网络服务（SQL*Net） | TCP(1521) |
-| 18 | MongoDB | MongoDB wire protocol | TCP(27017) |
-| 19 | Dameng | 达梦数据库 | TCP |
-| 20 | KingBase | 人大金仓数据库 | TCP |
-| 21 | CQL | Cassandra 查询语言协议 | TCP(9042) |
+| 15 | ~~DRDA~~ | DB2 分布式关系数据库架构 | TCP | ✅ 已实现 |
+| 16 | ~~Thrift~~ | Apache 跨语言 RPC 框架 | TCP | ✅ 已实现 |
+| 17 | ~~TNS~~ | Oracle 网络服务（SQL*Net） | TCP(1521) | ✅ 已实现 |
+| 18 | ~~MongoDB~~ | MongoDB wire protocol | TCP(27017) | ✅ 已实现 |
+| 19 | ~~Dameng~~ | 达梦数据库 | TCP | ✅ 已实现 |
+| 20 | ~~KingBase~~ | 人大金仓数据库 | TCP | ✅ 已实现 |
+| 21 | ~~CQL~~ | Cassandra 查询语言协议 | TCP(9042) | ✅ 已实现 |
 
 ### D. 消息 / P2P（5 项）
 
 | # | 协议 | 说明 | 载体 |
 |---|------|------|------|
-| 22 | AMQP | 高级消息队列协议（RabbitMQ） | TCP(5672) |
+| 22 | ~~AMQP~~ | 高级消息队列协议（RabbitMQ） | TCP(5672) | ✅ 已实现 |
 | 23 | OpenWire | ActiveMQ 原生态 wire 协议 | TCP |
 | 24 | AMS | Apache ActiveMQ 管理协议 | TCP |
 | 25 | Swarm | 去中心化 P2P 存储协议 | UDP/TCP |
@@ -63,8 +62,8 @@
 | 29 | ISIS | 中间系统到中间系统路由协议 | L2 直接承载 |
 | 30 | IGMP | 因特网组管理协议（组播成员管理） | IP 协议号 2 |
 | 31 | PIM | 协议无关组播 | IP 协议号 103 |
-| 32 | LDP | 标签分发协议（MPLS 控制面） | UDP/TCP(646) |
-| 33 | PCEP | 路径计算元素通信协议 | TCP(4189) |
+| 32 | ~~LDP~~ | 标签分发协议（MPLS 控制面） | UDP/TCP(646) | ✅ 已实现 |
+| 33 | ~~PCEP~~ | 路径计算元素通信协议 | TCP(4189) | ✅ 已实现 |
 | 34 | cflow | NetFlow 变体流量统计 | UDP |
 | 35 | STUN | NAT 会话穿越工具（RFC 5389） | UDP(3478) |
 | 36 | TPKT | RFC 1006 传输封装（仅作 H.323 内部封装，无独立层） | TCP |
@@ -157,9 +156,9 @@
 | 批次 | 内容 | 项数 | 备注 |
 |---|---|---|---|
 | B1 工控/SCADA/电力 | FINS、OPC UA、CoAP、GOOSE、SV、MMS、S7、Moxa-Nport、SOME-IP、IEC104 | 10 | 与既有 dnp3/modbus/enip 同域，复用经验 |
-| B2 数据库 | DRDA、Thrift、TNS、MongoDB、Dameng、KingBase、CQL | 7 | 与既有 tds/mysql/postgresql/redis 同域 |
-| B3 路由/组播/信令 | BGP、OSPF、ISIS、IGMP、PIM、LDP、PCEP、cflow、STUN、TPKT、echo、GIOP、RDMA | 13 | TPKT/echo 需先定是否建成独立层 |
-| B4 流媒体+消息/P2P | HTTP FLV、HLS、HDS、RTMFP、AMQP、OpenWire、AMS、Swarm、Gnutella | 9 | 流媒体多依赖 HTTP 层载体现有实现 |
+| B2 数据库 | ~~DRDA~~、~~Thrift~~、~~TNS~~、~~MongoDB~~、~~Dameng~~、~~KingBase~~、~~CQL~~ | 7 | ✅ 全部实现 |
+| B3 路由/组播/信令 | BGP、OSPF、ISIS、IGMP、PIM、~~LDP~~、~~PCEP~~、cflow、STUN、TPKT、echo、GIOP、RDMA | 13 | LDP/PCEP ✅ 已实现，其余 11 项待实现 |
+| B4 流媒体+消息/P2P | ~~HLS~~、HDS、~~RTMFP~~、~~AMQP~~、OpenWire、AMS、Swarm、Gnutella | 8 | HLS/RTMFP/AMQP ✅ 已实现，其余待实现 |
 | B5 隧道/封装/安全 | VXLAN、NVGRE、GENEVE、SSTP、DTLS、KERBEROS、ntlm、spnego、ocsp、dcerpc | 10 | 隧道类与既有 vxlan/geneve 机制可复用 GRE/VXLAN 封装 |
 | B6 应用/物联网/管理+挖矿 | Cwmp、BACnet、DOH、ONVIF、HL7、NMEA、h248/mgcp/megaco（1 planner）、mmse、EDP、ETHMining、XMRMining、stratum、GetWork、GBT | 16 | h248 合并后 14 个 planner；挖矿多基于 HTTP/JSON-RPC |
 
