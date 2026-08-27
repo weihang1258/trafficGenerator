@@ -449,6 +449,9 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// MQTT 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （emitAll 852-856：Sessions 为空单流直传 spec.SrcPort，0 也
 			// 上包；多流派生不适用——链拒绝多流），不在此默认化。
+		case "redis":
+			// Redis 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （emitData 闭包直传 spec.SrcPort，0 也上包），不在此默认化。
 		case "nfs":
 			// NFS 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （planSession 430-442 同款：emit 的 srcPort 参数直传，0 也
@@ -457,6 +460,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// SMB 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （emitTCPPacket 的 srcPort 参数直传，0 也上包），不在此
 			// 默认化。
+		case "smtp":
+			// SMTP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （planner.go:215 同款：SYN 的 srcPort 直传，0 也上包），
+			// 不在此默认化。
 		case "tds":
 			// TDS 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （tds.go:449 同款：up 帧 srcPort 参数直传，0 也上包），
@@ -563,6 +570,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
 			// dst_port 时已非零不落此分支）。
 			spec.DstPort = 1883
+		case "redis":
+			// Redis 目的端口默认 6379（legacy Plan 用 DefaultPort，
+			// strategy_convert mapToFlowSpec 同款默认——用户显式写
+			// dst_port 时已非零不落此分支）。
+			spec.DstPort = 6379
 		case "nfs":
 			// NFS 目的端口默认 2049（legacy Plan 用 DefaultPort，
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
@@ -1012,38 +1024,44 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// core 无法 import protocol/nfs（protocol 包反向依赖 core），经
 		// spec.Metadata["nfs"] 原样传递（mapToFlowSpec 存 JSON 解码子 map），
 		// 生成器侧解析。
-		NFS:      spec.Metadata["nfs"],
-		FINS:     spec.Metadata["fins"],
-		S7:       spec.S7,
-		IEC104:   spec.IEC104,
-		GOOSE:    spec.GOOSE,
-		SV:       spec.SV,
-		OPCUA:    spec.OPCUA,
-		MMS:      spec.MMS,
-		BGP:      spec.BGP,
-		STUN:     spec.STUN,
-		HTTPFLV:  spec.HTTPFLV,
-		HLS:      spec.HLS,
-			HDS:      spec.HDS,
-		MOXA:     spec.MOXA,
-		SOMEIP:   spec.SOMEIP,
-		DRDA:     spec.DRDA,
-		Thrift:   spec.Thrift,
-		TNS:      spec.TNS,
-		MongoDB:  spec.MongoDB,
-		Dameng:   spec.Dameng,
-		KingBase: spec.KingBase,
+		NFS:        spec.Metadata["nfs"],
+		FINS:       spec.Metadata["fins"],
+		S7:         spec.S7,
+		IEC104:     spec.IEC104,
+		GOOSE:      spec.GOOSE,
+		SV:         spec.SV,
+		OPCUA:      spec.OPCUA,
+		MMS:        spec.MMS,
+		BGP:        spec.BGP,
+		STUN:       spec.STUN,
+		HTTPFLV:    spec.HTTPFLV,
+		HLS:        spec.HLS,
+		HDS:        spec.HDS,
+		MOXA:       spec.MOXA,
+		SOMEIP:     spec.SOMEIP,
+		DRDA:       spec.DRDA,
+		Thrift:     spec.Thrift,
+		TNS:        spec.TNS,
+		MongoDB:    spec.MongoDB,
+		Dameng:     spec.Dameng,
+		KingBase:   spec.KingBase,
 		PostgreSQL: spec.PostgreSQL,
-		CQL:      spec.CQL,
-		LDP:      spec.LDP,
-		PCEP:     spec.PCEP,
-		CFlow:    spec.CFlow,
-		AMQP:     spec.AMQP,
-		RTMFP:    spec.RTMFP,
+		CQL:        spec.CQL,
+		LDP:        spec.LDP,
+		PCEP:       spec.PCEP,
+		CFlow:      spec.CFlow,
+		AMQP:       spec.AMQP,
+		RTMFP:      spec.RTMFP,
 		// SMB 同款（P4a）：配置经 Meta 直传 smb 终结层生成器（SMB2 会话
 		// NEGOTIATE → SESSION_SETUP → TREE_CONNECT → CREATE → Operations →
 		// CLOSE → TREE_DISCONNECT → LOGOFF 逐 PDU 事件，build* 纯函数复用）。
 		SMB: spec.SMB,
+		// SMTP 同款（P3）：配置经 Meta 直传 smtp 终结层生成器（banner + Dialog
+		// 命令/响应对逐事件产出，buildSMTPEmailBody 纯函数复用）。
+		SMTP: spec.SMTP,
+		// Redis 同款（P3）：配置经 Meta 直传 redis 终结层生成器（RESP 会话
+		// 逐帧事件，encodeRESP* 纯函数复用）。
+		Redis: spec.Redis,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,

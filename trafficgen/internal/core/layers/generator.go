@@ -332,20 +332,28 @@ type FlowMeta struct {
 	// req.Meta.PostgreSQL 的 Events/Sessions，dialect 决定端口 5432/54321）。
 	PostgreSQL *core.PostgreSQLConfig
 	CQL        *core.CQLConfig
-	LDP      *core.LDPConfig
-	PCEP     *core.PCEPConfig
-	CFlow    *core.CFlowConfig
-		RTMFP    *core.RTMFPConfig
-		AMQP     *core.AMQPConfig
+	LDP        *core.LDPConfig
+	PCEP       *core.PCEPConfig
+	CFlow      *core.CFlowConfig
+	RTMFP      *core.RTMFPConfig
+	AMQP       *core.AMQPConfig
 	// SMB is the flow's SMB config (注入到 smb 层生成器，P4a：SMB2 会话
 	// NEGOTIATE/SESSION_SETUP/TREE_CONNECT/CREATE/Operations/CLOSE/
 	// TREE_DISCONNECT/LOGOFF 逐 PDU 事件，build* 纯函数复用)。Only set for
 	// smb chains。
 	SMB *core.SMBConfig
+	// SMTP is the flow's SMTP config (注入到 smtp 终结层生成器，P3：banner +
+	// Dialog 命令/响应对逐事件产出，字节与 legacy Plan 数据帧一致)。Only set
+	// for smtp chains。
+	SMTP *core.SMTPConfig
 	// TCP is the flow's TCP config (注入到 tcp 载体终结层生成器，P4a：
 	// doip 0x36 TransferData 分段读 spec.TCP.MSS，legacy doip.go:677-701
 	// 同款)。Only set for tcp-carrier chains。
 	TCP *core.TCPConfig
+	// Redis is the flow's Redis config (注入到 redis 终结层生成器：RESP
+	// 2/3 会话逐帧事件，encodeRESPArray/encodeSubConfirm/resolveReply 纯
+	// 函数复用)。Only set for redis chains。
+	Redis *core.RedisConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators

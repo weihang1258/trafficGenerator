@@ -583,12 +583,17 @@ func DefaultRegistry() *Registry {
 		},
 	})
 	r.Register(LayerSchema{Name: "smtp", Category: CategoryTerminal,
-		DependsOn:  []string{"tcp"},
-		OptionalOn: []string{"tls"},
+		DependsOn:     []string{"tcp"},
+		OptionalOn:    []string{"tls"},
+		FieldContract: map[string]string{"tcp.dst_port": "25"}, // RFC 5321 §3.1；用户显式非标准端口优先（提交 587 / SMTPS 465），不强制
 		Fields: map[string]FieldSchema{
 			"from": {Type: "string", Default: "sender@example.com"},
 			"to":   {Type: "string", Default: "recipient@example.com"},
 		},
+	})
+	r.Register(LayerSchema{Name: "redis", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "6379"}, // RFC 默认 6379；用户显式非标准端口优先，不强制
 	})
 
 	// ---- 隧道层（tunnel）----
