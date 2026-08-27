@@ -429,7 +429,7 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// DHCPv6 源端口 0 保持 0：终结层生成器按方向逐事件解析
 			// （up=client 546、down=server 547，dhcpv6 planner.go:435-456
 			// resolveAddrs 语义，IPv6-only 链）。
-		case "dns", "snmp", "syslog", "stun", "rtmfp", "wireguard", "l2tp", "gtp":
+		case "dns", "snmp", "syslog", "stun", "rtmfp", "wireguard", "l2tp", "gtp", "ike_nat_t":
 			// 允许 0 上包（legacy 语义）
 		case "doip":
 			// DoIP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
@@ -558,6 +558,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// Validate 允许 DstPort=0 或 500——用户显式写 dst_port 且非 0/500
 			// 时由 ike Validate 拒绝，不在此分支）。
 			spec.DstPort = 500
+		case "ike_nat_t":
+			// IKE-NAT-T 目的端口默认 4500（RFC 3948 NATTPort；legacy Plan 内
+			// NATTPort=4500 同款——用户显式写 dst_port 时已非零不落此分支）。
+			spec.DstPort = 4500
 		case "ldp":
 			spec.DstPort = 646
 		case "pcep":
@@ -1129,6 +1133,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// IKE 同款（P3）：配置经 Meta 直传 ike 终结层生成器（IKE 消息序列 +
 		// ESP 数据面，buildIKEMessageBytes 纯函数复用）。
 		IKE: spec.IKE,
+		// IKE-NAT-T 同款（P3）：配置经 Meta 直传 ike_nat_t 终结层生成器
+		// （端口浮动 + Non-ESP Marker 的 NAT 穿透 IKE 消息序列，build*
+		// 纯函数复用）。
+		IKENATT: spec.IKENATT,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,

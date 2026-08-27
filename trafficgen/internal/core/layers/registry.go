@@ -322,6 +322,14 @@ func DefaultRegistry() *Registry {
 		DependsOn:     []string{"udp"},
 		FieldContract: map[string]string{"udp.dst_port": "500"}, // RFC 7296 默认 500；用户显式非标准端口须为 0/500（ike Validate 强制），不强制覆盖
 	})
+	// ---- ike_nat_t（udp 终结层。IKEv2 NAT-T——端口浮动 + Non-ESP Marker 的
+	// NAT 穿透变体，wire 字节由 buildIKENATTMessage 纯函数产出）。UDP 语义
+	// 交给 udp 层生成器；配置经 spec.IKENATT flat 键携带、FlowMeta 直传
+	// 生成器（tftp 重放模式）；目的端口默认 4500（RFC 3948 NATTPort）。
+	r.Register(LayerSchema{Name: "ike_nat_t", Category: CategoryTerminal,
+		DependsOn:     []string{"udp"},
+		FieldContract: map[string]string{"udp.dst_port": "4500"}, // RFC 3948 默认 4500；用户显式非标准端口优先，不强制
+	})
 	// ---- amqp（tcp 终结层。AMQP 0-9-1——高级消息队列协议，TCP 承载的
 	// 消息队列 wire 协议，8-byte protocol header → METHOD/HEADER/BODY/
 	// HEARTBEAT frame 序列，frame layout 为

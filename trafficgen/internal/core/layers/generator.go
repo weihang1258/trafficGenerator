@@ -381,6 +381,10 @@ type FlowMeta struct {
 	// ESP 数据面，buildIKEMessageBytes/buildESPPacket 纯函数复用)。Only set
 	// for ike chains。
 	IKE *core.IKEConfig
+	// IKENATT is the flow's IKE-NAT-T config (注入到 ike_nat_t 终结层生成器：
+	// 端口浮动 + Non-ESP Marker 的 NAT 穿透 IKE 消息序列，buildIKENATTMessage
+	// 纯函数复用)。Only set for ike_nat_t chains。
+	IKENATT *core.IKENATTConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
