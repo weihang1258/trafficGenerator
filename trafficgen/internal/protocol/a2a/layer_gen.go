@@ -30,6 +30,7 @@ import (
 
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
+	"github.com/trafficgen/trafficgen/internal/protocol/jsonrpc"
 )
 
 // A2AGenerator is the a2a terminal-layer generator.
@@ -144,20 +145,20 @@ func (g *A2AGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 				rawID := unmarshalID(task.RequestID)
 				resolvedID := resolveIDForOutput(rawID)
 				respMap := map[string]any{
-					"jsonrpc": "2.0",
+					"jsonrpc": jsonrpc.Version,
 					"error":   errObj,
 					"id":      resolvedID,
 				}
-				respBody, _ = json.Marshal(respMap)
+				respBody, _ = jsonrpc.Marshal(respMap)
 			} else {
 				rawID := unmarshalID(task.RequestID)
 				resolvedID := resolveIDForOutput(rawID)
 				respMap := map[string]any{
-					"jsonrpc": "2.0",
+					"jsonrpc": jsonrpc.Version,
 					"result":  json.RawMessage(task.Response.Result),
 					"id":      resolvedID,
 				}
-				respBody, _ = json.Marshal(respMap)
+				respBody, _ = jsonrpc.Marshal(respMap)
 			}
 			statusCode := task.Response.StatusCode
 			if statusCode == 0 {

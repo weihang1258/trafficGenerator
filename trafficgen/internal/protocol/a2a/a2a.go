@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/protocol/jsonrpc"
 )
 
 // Planner implements the A2A protocol planner.
@@ -629,20 +630,20 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					rawID := unmarshalID(task.RequestID)
 					resolvedID := resolveIDForOutput(rawID)
 					respMap := map[string]any{
-						"jsonrpc": "2.0",
+						"jsonrpc": jsonrpc.Version,
 						"error":   errObj,
 						"id":      resolvedID,
 					}
-					respBody, _ = json.Marshal(respMap)
+					respBody, _ = jsonrpc.Marshal(respMap)
 				} else {
 					rawID := unmarshalID(task.RequestID)
 					resolvedID := resolveIDForOutput(rawID)
 					respMap := map[string]any{
-						"jsonrpc": "2.0",
+						"jsonrpc": jsonrpc.Version,
 						"result":  json.RawMessage(task.Response.Result),
 						"id":      resolvedID,
 					}
-					respBody, _ = json.Marshal(respMap)
+					respBody, _ = jsonrpc.Marshal(respMap)
 				}
 				statusCode := task.Response.StatusCode
 				if statusCode == 0 {
@@ -984,12 +985,12 @@ func buildJSONRPCRequest(cfg *A2AConfig, task A2ATask, method string) []byte {
 	reqID := resolveIDForOutput(unmarshalID(task.RequestID))
 
 	req := map[string]any{
-		"jsonrpc": "2.0",
+		"jsonrpc": jsonrpc.Version,
 		"method":  method,
 		"params":  params,
 		"id":      reqID,
 	}
-	b, _ := json.Marshal(req)
+	b, _ := jsonrpc.Marshal(req)
 	return b
 }
 
@@ -1025,11 +1026,11 @@ func buildSSEResponse(cfg *A2AConfig, task A2ATask) []byte {
 			continue
 		}
 		resp := map[string]any{
-			"jsonrpc": "2.0",
+			"jsonrpc": jsonrpc.Version,
 			"id":      reqID,
 			"result":  result,
 		}
-		b, _ := json.Marshal(resp)
+		b, _ := jsonrpc.Marshal(resp)
 		sb.WriteString("data: ")
 		sb.Write(b)
 		sb.WriteString("\n\n")

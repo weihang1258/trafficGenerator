@@ -4,9 +4,10 @@ package a2a
 // These are used by the planner and can be used independently for testing.
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/trafficgen/trafficgen/internal/protocol/jsonrpc"
 )
 
 // BuildJSONRPCRequest builds a JSON-RPC 2.0 request.
@@ -15,12 +16,12 @@ func BuildJSONRPCRequest(method string, params map[string]any, id any) []byte {
 		id = "req-001"
 	}
 	req := map[string]any{
-		"jsonrpc": "2.0",
+		"jsonrpc": jsonrpc.Version,
 		"method":  method,
 		"params":  params,
 		"id":      id,
 	}
-	b, _ := json.Marshal(req)
+	b, _ := jsonrpc.Marshal(req)
 	return b
 }
 
@@ -30,11 +31,11 @@ func BuildJSONRPCResponse(result map[string]any, id any) []byte {
 		id = "req-001"
 	}
 	resp := map[string]any{
-		"jsonrpc": "2.0",
+		"jsonrpc": jsonrpc.Version,
 		"result":  result,
 		"id":      id,
 	}
-	b, _ := json.Marshal(resp)
+	b, _ := jsonrpc.Marshal(resp)
 	return b
 }
 
@@ -51,11 +52,11 @@ func BuildJSONRPCError(code int, message string, data any, id any) []byte {
 		errObj["data"] = data
 	}
 	resp := map[string]any{
-		"jsonrpc": "2.0",
+		"jsonrpc": jsonrpc.Version,
 		"error":   errObj,
 		"id":      id,
 	}
-	b, _ := json.Marshal(resp)
+	b, _ := jsonrpc.Marshal(resp)
 	return b
 }
 

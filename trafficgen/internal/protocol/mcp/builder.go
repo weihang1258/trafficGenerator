@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/protocol/jsonrpc"
 )
 
 // buildRequest builds a JSON-RPC 2.0 request object as a single JSON object
@@ -25,7 +25,7 @@ func buildRequest(id int, method string, params map[string]any, emitEmptyParams 
 		return nil, fmt.Errorf("mcp: method is required")
 	}
 	obj := map[string]any{
-		"jsonrpc": DefaultJSONRPCVersion,
+		"jsonrpc": jsonrpc.Version,
 		"method":  method,
 	}
 	// id: emit number for non-negative ints (most common case).
@@ -35,7 +35,7 @@ func buildRequest(id int, method string, params map[string]any, emitEmptyParams 
 	} else if emitEmptyParams {
 		obj["params"] = map[string]any{}
 	}
-	return marshalJSONOrdered(obj, "jsonrpc", "id", "method", "params", "result", "error")
+	return jsonrpc.MarshalOrdered(obj, "jsonrpc", "id", "method", "params", "result", "error")
 }
 
 // buildNotification builds a JSON-RPC 2.0 notification object (no id).
@@ -47,7 +47,7 @@ func buildNotification(method string, params map[string]any, emitEmptyParams boo
 		return nil, fmt.Errorf("mcp: notification method is required")
 	}
 	obj := map[string]any{
-		"jsonrpc": DefaultJSONRPCVersion,
+		"jsonrpc": jsonrpc.Version,
 		"method":  method,
 	}
 	if params != nil {
@@ -55,7 +55,7 @@ func buildNotification(method string, params map[string]any, emitEmptyParams boo
 	} else if emitEmptyParams {
 		obj["params"] = map[string]any{}
 	}
-	return marshalJSONOrdered(obj, "jsonrpc", "method", "params")
+	return jsonrpc.MarshalOrdered(obj, "jsonrpc", "method", "params")
 }
 
 // buildSuccessResponse builds a JSON-RPC 2.0 success response with a result.
@@ -65,11 +65,11 @@ func buildSuccessResponse(id int, result map[string]any) ([]byte, error) {
 		result = map[string]any{}
 	}
 	obj := map[string]any{
-		"jsonrpc": DefaultJSONRPCVersion,
+		"jsonrpc": jsonrpc.Version,
 		"id":      id,
 		"result":  result,
 	}
-	return marshalJSONOrdered(obj, "jsonrpc", "id", "result", "error")
+	return jsonrpc.MarshalOrdered(obj, "jsonrpc", "id", "result", "error")
 }
 
 // buildErrorResponse builds a JSON-RPC 2.0 error response. id is required;
@@ -83,126 +83,16 @@ func buildErrorResponse(id any, code int, message string, data any) ([]byte, err
 		errObj["data"] = data
 	}
 	obj := map[string]any{
-		"jsonrpc": DefaultJSONRPCVersion,
+		"jsonrpc": jsonrpc.Version,
 		"id":      id,
 		"error":   errObj,
 	}
-	return marshalJSONOrdered(obj, "jsonrpc", "id", "error", "result")
+	return jsonrpc.MarshalOrdered(obj, "jsonrpc", "id", "error", "result")
 }
 
-// marshalJSONOrdered marshals m as JSON with keys ordered by `order` first
-// (in the given order), then any remaining keys in sorted order. This
-// gives deterministic output that matches the design appendix A examples
-// (e.g. "jsonrpc","id","method","params"). Empty string in order = skip.
-func marshalJSONOrdered(m map[string]any, order ...string) ([]byte, error) {
-	buf := &bytes.Buffer{}
-	buf.WriteByte('{')
-	first := true
-	seen := make(map[string]bool, len(m))
-	// Emit ordered keys first.
-	for _, k := range order {
-		v, ok := m[k]
-		if !ok {
-			continue
-		}
-		if !first {
-			buf.WriteByte(',')
-		}
-		first = false
-		seen[k] = true
-		kb, err := json.Marshal(k)
-		if err != nil {
-			return nil, err
-		}
-		buf.Write(kb)
-		buf.WriteByte(':')
-		vb, err := marshalValue(v)
-		if err != nil {
-			return nil, err
-		}
-		buf.Write(vb)
-	}
-	// Emit remaining keys in sorted order.
-	extra := make([]string, 0, len(m))
-	for k := range m {
-		if !seen[k] {
-			extra = append(extra, k)
-		}
-	}
-	sortStrings(extra)
-	for _, k := range extra {
-		if !first {
-			buf.WriteByte(',')
-		}
-		first = false
-		kb, err := json.Marshal(k)
-		if err != nil {
-			return nil, err
-		}
-		buf.Write(kb)
-		buf.WriteByte(':')
-		vb, err := marshalValue(m[k])
-		if err != nil {
-			return nil, err
-		}
-		buf.Write(vb)
-	}
-	buf.WriteByte('}')
-	return buf.Bytes(), nil
-}
-
-// marshalValue marshals a JSON value, using integer encoding for int types
-// (matches spec examples like "id":1 not "id":1.0).
-func marshalValue(v any) ([]byte, error) {
-	switch t := v.(type) {
-	case nil:
-		return []byte("null"), nil
-	case int:
-		return []byte(strconv.FormatInt(int64(t), 10)), nil
-	case int64:
-		return []byte(strconv.FormatInt(t, 10)), nil
-	case uint16:
-		return []byte(strconv.FormatUint(uint64(t), 10)), nil
-	case uint32:
-		return []byte(strconv.FormatUint(uint64(t), 10)), nil
-	case string:
-		return json.Marshal(t)
-	case bool:
-		if t {
-			return []byte("true"), nil
-		}
-		return []byte("false"), nil
-	case map[string]any:
-		return marshalJSONOrdered(t)
-	case []any:
-		buf := &bytes.Buffer{}
-		buf.WriteByte('[')
-		for i, e := range t {
-			if i > 0 {
-				buf.WriteByte(',')
-			}
-			eb, err := marshalValue(e)
-			if err != nil {
-				return nil, err
-			}
-			buf.Write(eb)
-		}
-		buf.WriteByte(']')
-		return buf.Bytes(), nil
-	default:
-		return json.Marshal(t)
-	}
-}
-
-// sortStrings sorts a string slice in ascending order (small helper to
-// avoid pulling in "sort" for one call site).
-func sortStrings(s []string) {
-	for i := 1; i < len(s); i++ {
-		for j := i; j > 0 && s[j-1] > s[j]; j-- {
-			s[j-1], s[j] = s[j], s[j-1]
-		}
-	}
-}
+// marshalJSONOrdered and marshalValue were factored into the shared
+// internal/protocol/jsonrpc package (jsonrpc.MarshalOrdered / its private
+// marshalValue) so mcp and a2a share one JSON-RPC serializer.
 
 // buildInitializeRequest builds the default initialize request body
 // (design §7.1 / Appendix A.1). protocolVersion defaults to "2024-11-05".

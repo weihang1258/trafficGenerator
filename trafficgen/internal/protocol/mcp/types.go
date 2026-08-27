@@ -8,6 +8,7 @@ package mcp
 
 import (
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/protocol/jsonrpc"
 )
 
 // Transport modes for MCP (design §2.3-§2.5).
@@ -104,7 +105,8 @@ var DefaultRequestSequence = []core.MCPRequest{
 const DefaultProtocolVersion = "2024-11-05"
 
 // DefaultJSONRPCVersion is the JSON-RPC 2.0 protocol version literal.
-const DefaultJSONRPCVersion = "2.0"
+// Alias for jsonrpc.Version so the version is defined in one place.
+const DefaultJSONRPCVersion = jsonrpc.Version
 
 // DefaultSessionIDLength is the hex character length for auto-generated
 // session IDs (design §4.3 / §6.5; 32 hex chars = 16 bytes / 128 bits).
