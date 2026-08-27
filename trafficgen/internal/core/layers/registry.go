@@ -671,6 +671,10 @@ func DefaultRegistry() *Registry {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "3389"}, // RDP 默认 3389（MS-RDPBCGR §1.3）；用户显式写 3389 不强制，写其它值由 rdp Validate 拒绝
 	})
+	r.Register(LayerSchema{Name: "vmess", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "443"}, // VMess 默认 443（V2Ray 惯例）；用户显式非标准端口优先，不强制
+	})
 
 	// ---- 隧道层（tunnel）----
 	r.Register(LayerSchema{Name: "tls", Category: CategoryTunnel,

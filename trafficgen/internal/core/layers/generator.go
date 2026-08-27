@@ -400,6 +400,10 @@ type FlowMeta struct {
 	// 数据报序列 P_CONTROL/P_DATA，build* 纯函数复用)。Only set for openvpn
 	// chains。
 	OpenVPN *core.OpenVPNConfig
+	// Vmess is the flow's VMess config (注入到 vmess 终结层生成器：TCP-mode
+	// request/response AEAD 帧序列，build* 纯函数复用)。Only set for vmess
+	// chains。
+	Vmess *core.VmessConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators

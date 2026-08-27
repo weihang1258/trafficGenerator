@@ -485,6 +485,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// RDP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （planner.go 同款：SYN/PDU 帧 srcPort 直传，0 也上包），
 			// 不在此默认化。
+		case "vmess":
+			// VMess 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （planner.go 同款：SYN/帧 srcPort 直传，0 也上包），
+			// 不在此默认化。
 		case "tds":
 			// TDS 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （tds.go:449 同款：up 帧 srcPort 参数直传，0 也上包），
@@ -657,6 +661,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// DstPort 必须 0 或 3389——用户显式写 3389 不落此分支，写其它
 			// 值由 rdp Validate 拒绝）。
 			spec.DstPort = 3389
+		case "vmess":
+			// VMess 目的端口默认 443（legacy DefaultPort=443；strategy_convert
+			// mapToFlowSpec 无默认（用户须指定），链上给默认以支持裸链——用户
+			// 显式写 dst_port 时已非零不落此分支）。
+			spec.DstPort = 443
 		case "nfs":
 			// NFS 目的端口默认 2049（legacy Plan 用 DefaultPort，
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
@@ -1181,6 +1190,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// OpenVPN 同款（P3）：UDP 数据报序列 P_CONTROL/P_DATA 事件，
 		// build* 纯函数复用。Only set for openvpn chains。
 		OpenVPN: spec.OpenVPN,
+		// VMess 同款（P3）：TCP-mode request/response AEAD 帧序列事件，
+		// build* 纯函数复用。Only set for vmess chains。
+		Vmess:   spec.Vmess,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,
