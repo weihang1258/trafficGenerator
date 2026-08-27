@@ -1966,6 +1966,11 @@ func newGenerator(name string) (LayerGenerator, error) {
 		return &TCPGenerator{}, nil
 	case "udp":
 		return &UDPGenerator{}, nil
+	case "eth":
+		// eth 是 L2 占位层（goose/sv 链 [eth→goose/sv]）：L2 头由终结层
+		// 生成器自行构建完整 PacketConfig（含 SrcMAC/DstMAC/EtherType），
+		// eth 层只要求可实例化、不产包（Generate 直通返回 nil）。
+		return &ethPlaceholderGenerator{}, nil
 	case "goose":
 		if factory, ok := registeredGenerators["goose"]; ok {
 			return factory()
@@ -1978,6 +1983,19 @@ func newGenerator(name string) (LayerGenerator, error) {
 	}
 	return nil, fmt.Errorf("layers: generator not implemented for layer %q", name)
 }
+
+// ethPlaceholderGenerator is the L2 eth-layer generator (goose/sv 链
+// [eth→goose/sv] 的占位层). 终结层生成器自行构建完整 PacketConfig（含
+// SrcMAC/DstMAC/EtherType），eth 层只需可实例化、不产包——Generate 直通。
+type ethPlaceholderGenerator struct{}
+
+func (*ethPlaceholderGenerator) Name() string { return "eth" }
+
+func (*ethPlaceholderGenerator) Generate(ctx context.Context, req *GenRequest) error {
+	return nil
+}
+
+func (*ethPlaceholderGenerator) GenEvents() EventGenerator { return nil }
 
 // registeredGenerators holds production terminal-layer generator factories
 // (生产终结层生成器工厂，由协议包 init 经 RegisterLayerGenerator 注册；
