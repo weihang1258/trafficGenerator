@@ -1293,3 +1293,100 @@ func TestMapToFlowSpec_MODBUS_FC2BConformityPrivateMasksToBase(t *testing.T) {
 	}
 }
 
+
+// TestMapToFlowSpec_L2OnlyProtocolsSkipIPDefaults verifies that L2-only
+// terminal protocols (goose/sv) do not receive the default src_ip/dst_ip/
+// src_port/dst_port (10.0.0.1/20.0.0.1/12345/80). Those are fake values on a
+// chain with no IP layer (DependsOn eth) and the terminal layer's "L2 only"
+// validator rejects them — so mapToFlowSpec must leave them empty/zero unless
+// the user explicitly writes them (the validator would then treat the explicit
+// IP/port as an L2-only violation).
+//
+// Regression guard: prior to this fix mapToFlowSpec unconditionally filled the
+// defaults, so every goose/sv case failed validation with "is Layer 2 only and
+// must not use IP or transport fields" even though the spec had no IP at all.
+// This is the framework-level "chain auto-fill conflict" (P3 T4.2/T4.3).
+func TestMapToFlowSpec_L2OnlyProtocolsSkipIPDefaults(t *testing.T) {
+	for _, proto := range []string{"goose", "sv"} {
+		t.Run(proto, func(t *testing.T) {
+			raw := map[string]interface{}{
+				"layers": []interface{}{
+					map[string]interface{}{"eth": map[string]interface{}{}},
+					map[string]interface{}{proto: map[string]interface{}{}},
+				},
+			}
+			spec := mapToFlowSpec(raw, proto)
+			if spec.SrcIP != "" {
+				t.Errorf("SrcIP = %q, want empty (L2-only)", spec.SrcIP)
+			}
+			if spec.DstIP != "" {
+				t.Errorf("DstIP = %q, want empty (L2-only)", spec.DstIP)
+			}
+			if spec.SrcPort != 0 {
+				t.Errorf("SrcPort = %d, want 0 (L2-only)", spec.SrcPort)
+			}
+			if spec.DstPort != 0 {
+				t.Errorf("DstPort = %d, want 0 (L2-only)", spec.DstPort)
+			}
+		})
+	}
+}
+
+// TestMapToFlowSpec_L2OnlyProtocolsPreserveExplicitValues verifies that an
+// L2-only protocol still honors an explicitly-written src/dst (the terminal
+// layer's validator decides whether an IP on an L2-only chain is an error —
+// the converter must not silently drop a user value).
+func TestMapToFlowSpec_L2OnlyProtocolsPreserveExplicitValues(t *testing.T) {
+	raw := map[string]interface{}{
+		"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+		"src_port": float64(1234), "dst_port": float64(5678),
+		"goose": map[string]interface{}{},
+	}
+	spec := mapToFlowSpec(raw, "goose")
+	if spec.SrcIP != "10.0.0.1" || spec.DstIP != "20.0.0.1" {
+		t.Errorf("explicit IPs lost: SrcIP=%q DstIP=%q", spec.SrcIP, spec.DstIP)
+	}
+	if spec.SrcPort != 1234 || spec.DstPort != 5678 {
+		t.Errorf("explicit ports lost: SrcPort=%d DstPort=%d", spec.SrcPort, spec.DstPort)
+	}
+}
+
+// TestMapToFlowSpec_L2OnlyTopLevelCountFallsBack verifies that the config
+// top-level `count` (the case-author's frame count for L2-only protocols
+// without flow_control) is propagated into GOOSE/SV config Count when the
+// sub-map omits it. Regression guard: goose/sv cases put `count: N` at config
+// top level, but mapToFlowSpec only read it from the sub-map, so
+// GOOSEConfig.Count/SVConfig.Count stayed 0 and the generator emitted a single
+// frame instead of N.
+func TestMapToFlowSpec_L2OnlyTopLevelCountFallsBack(t *testing.T) {
+	raw := map[string]interface{}{
+		"count": float64(3),
+		"layers": []interface{}{
+			map[string]interface{}{"eth": map[string]interface{}{}},
+			map[string]interface{}{"goose": map[string]interface{}{}},
+		},
+		"goose": map[string]interface{}{"gocb_ref": "g", "dat_set": "d"},
+	}
+	spec := mapToFlowSpec(raw, "goose")
+	if spec.GOOSE == nil {
+		t.Fatal("spec.GOOSE is nil")
+	}
+	if spec.GOOSE.Count != 3 {
+		t.Errorf("GOOSE.Count = %d, want 3 (top-level count fallback)", spec.GOOSE.Count)
+	}
+}
+
+// TestMapToFlowSpec_SVTopLevelCountFallsBack mirrors the goose case for sv.
+func TestMapToFlowSpec_SVTopLevelCountFallsBack(t *testing.T) {
+	raw := map[string]interface{}{
+		"count": float64(4),
+		"sv":    map[string]interface{}{"sv_id": "I", "appid": 0x4000},
+	}
+	spec := mapToFlowSpec(raw, "sv")
+	if spec.SV == nil {
+		t.Fatal("spec.SV is nil")
+	}
+	if spec.SV.Count != 4 {
+		t.Errorf("SV.Count = %d, want 4 (top-level count fallback)", spec.SV.Count)
+	}
+}

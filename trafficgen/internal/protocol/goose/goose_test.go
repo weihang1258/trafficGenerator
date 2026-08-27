@@ -38,8 +38,8 @@ func TestPlannerRejectsInvalidGOOSEConfiguration(t *testing.T) {
 	}{
 		{"appid", func(c *core.GOOSEConfig) { c.APPID = 0x4000 }, "appid"},
 		{"control block", func(c *core.GOOSEConfig) { c.GOCBRef = "" }, "gocb_ref"},
-		{"data type", func(c *core.GOOSEConfig) { c.Data[0].Type = "int32" }, "boolean"},
-		{"data value", func(c *core.GOOSEConfig) { c.Data[0].Value = "true" }, "boolean"},
+		{"bad type", func(c *core.GOOSEConfig) { c.Data = append(c.Data, core.GOOSEData{Type: "bogus"}) }, "unsupported data type"},
+		{"no members", func(c *core.GOOSEConfig) { c.Data = nil }, "at least one"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

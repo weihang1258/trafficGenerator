@@ -214,6 +214,39 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 // src_port, the worker auto-increments src_port per flow (simulating ephemeral
 // ports). This prevents 4-tuple collisions that confuse Wireshark. See
 // worker.go processTask for the increment logic.
+// isL2OnlyProtocol reports whether the protocol is an L2-only terminal layer
+// (goose/sv: DependsOn eth, no ip/tcp/udp 承载层). These ride directly on eth
+// with no L3/L4, so mapToFlowSpec must not fill the default src_ip/dst_ip/
+// src_port/dst_port (10.0.0.1/20.0.0.1/12345/80) — those are fake values on a
+// chain without an IP layer and get rejected by the terminal layer's "L2 only"
+// validator. goose/sv are L2-only by nature; any chain that adds an ip/tcp
+// layer is itself invalid and left to the validator to reject.
+func isL2OnlyProtocol(protocol string) bool {
+	switch protocol {
+	case "goose", "sv":
+		return true
+	}
+	return false
+}
+
+// defaultL2String mirrors defaultString for L2-only chains: user value when
+// present AND non-nil, def when absent. For L2-only chains def is "" (no IP).
+func defaultL2String(cfg map[string]interface{}, key string, l2Only bool, def string) string {
+	if l2Only {
+		def = ""
+	}
+	return defaultString(cfg, key, def)
+}
+
+// defaultL2Port mirrors defaultPort for L2-only chains: user value when present
+// AND non-nil, def when absent. For L2-only chains def is 0 (no port).
+func defaultL2Port(cfg map[string]interface{}, key string, l2Only bool, def uint16) uint16 {
+	if l2Only {
+		def = 0
+	}
+	return defaultPort(cfg, key, def)
+}
+
 // extractLayerSrcDst returns the explicit src/dst addresses from the ip layer
 // of a layers-chain config (分层架构: IP 属于 ip 层，层链的 IP 真相在
 // layers[ip].src/dst，而 flat src_ip/dst_ip 是 legacy 默认). Returns empty
@@ -239,11 +272,16 @@ func extractLayerSrcDst(layersVal interface{}) (src, dst string) {
 }
 
 func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
+	// L2-only 链（goose/sv：DependsOn eth，无 ip/tcp/udp 承载层）没有 L3/L4，
+	// 填默认的 src_ip/dst_ip/src_port/dst_port 是假值（10.0.0.1/20.0.0.1/
+	// 12345/80），且会被终结层"L2 only"校验拒收。此时默认应为空/0，仅保留
+	// 用户显式值（显式写 IP/port 交由终结层校验拒绝）。
+	l2Only := isL2OnlyProtocol(protocol)
 	spec := FlowSpec{
-		SrcIP:      defaultString(cfg, "src_ip", DefaultSrcIP),
-		DstIP:      defaultString(cfg, "dst_ip", DefaultDstIP),
-		SrcPort:    defaultPort(cfg, "src_port", DefaultSrcPort),
-		DstPort:    defaultPort(cfg, "dst_port", DefaultDstPort),
+		SrcIP:      defaultL2String(cfg, "src_ip", l2Only, DefaultSrcIP),
+		DstIP:      defaultL2String(cfg, "dst_ip", l2Only, DefaultDstIP),
+		SrcPort:    defaultL2Port(cfg, "src_port", l2Only, DefaultSrcPort),
+		DstPort:    defaultL2Port(cfg, "dst_port", l2Only, DefaultDstPort),
 		SrcMAC:     defaultMAC(cfg, "src_mac", DefaultSrcMAC),
 		DstMAC:     defaultMAC(cfg, "dst_mac", DefaultDstMAC),
 		TTL:        uint8(getIntDefault(cfg, "ttl", 64)),
@@ -517,9 +555,22 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["goose"].(map[string]interface{}); ok {
 			spec.GOOSE = parseGOOSEConfig(sub)
 		}
+		if spec.GOOSE != nil && spec.GOOSE.Count == 0 {
+			// 帧数权威在 config 顶层 `count`（用例惯例：goose/sv 无
+			// flow_control，顶层 count 即单流帧数）。goose 子映射未写
+			// count 时回填，保证生成器按 spec.GOOSE.Count 发帧。
+			if n := getInt(cfg, "count"); n > 0 {
+				spec.GOOSE.Count = n
+			}
+		}
 	case "sv":
 		if sub, ok := cfg["sv"].(map[string]interface{}); ok {
 			spec.SV = parseSVConfig(sub)
+		}
+		if spec.SV != nil && spec.SV.Count == 0 {
+			if n := getInt(cfg, "count"); n > 0 {
+				spec.SV.Count = n
+			}
 		}
 	case "ftp":
 		// FTP sub-config already read in the universal section above.

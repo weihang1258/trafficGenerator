@@ -3,7 +3,9 @@ package goose
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -41,13 +43,12 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("goose state counters must not overflow")
 	}
 	if len(c.Data) == 0 {
-		return fmt.Errorf("goose exactly one boolean allData member is required")
+		return fmt.Errorf("goose at least one allData member is required")
 	}
-	if len(c.Data) != 1 || c.Data[0].Type != "boolean" {
-		return fmt.Errorf("goose supports exactly one boolean allData member")
-	}
-	if _, ok := c.Data[0].Value.(bool); !ok && c.Data[0].Value != nil {
-		return fmt.Errorf("goose boolean member value must be boolean")
+	for _, m := range c.Data {
+		if !isValidDataMember(m) {
+			return fmt.Errorf("goose unsupported data type %q", m.Type)
+		}
 	}
 	if spec.SrcIP != "" || spec.DstIP != "" || spec.SrcPort != 0 || spec.DstPort != 0 {
 		return fmt.Errorf("goose is Layer 2 only and must not use IP or transport fields")
@@ -79,6 +80,9 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		st, sq := c.StartSTNum, c.StartSQNum
 		if st == 0 {
 			st = 1
+		}
+		if sq == 0 {
+			sq = 1
 		}
 		dst := c.DstMAC
 		if dst == "" {
@@ -136,13 +140,215 @@ func boolVal(v bool) []byte {
 }
 func strVal(v string) []byte { return []byte(v) }
 
-func BuildPayload(c *core.GOOSEConfig, st, sq uint32) ([]byte, error) {
-	data := c.Boolean
-	if len(c.Data) != 1 || c.Data[0].Type != "boolean" {
-		return nil, fmt.Errorf("goose supports exactly one boolean member")
+// intVal encodes a signed integer with minimal big-endian bytes (含符号位,
+// design §3.6 最小编码). Zero → single 0x00 byte.
+func intVal(v int64) []byte {
+	if v == 0 {
+		return []byte{0}
 	}
-	if v, ok := c.Data[0].Value.(bool); ok {
-		data = v
+	var b [8]byte
+	binary.BigEndian.PutUint64(b[:], uint64(v))
+	i := 0
+	for i < 7 {
+		// keep the sign-bearing byte: skip leading 0x00 (followed by <0x80)
+		// and leading 0xff (followed by >=0x80).
+		if b[i] == 0x00 && b[i+1] < 0x80 {
+			i++
+		} else if b[i] == 0xff && b[i+1] >= 0x80 {
+			i++
+		} else {
+			break
+		}
+	}
+	return append([]byte(nil), b[i:]...)
+}
+
+// uint64Val encodes an unsigned integer with minimal big-endian bytes.
+func uint64Val(v uint64) []byte {
+	if v == 0 {
+		return []byte{0}
+	}
+	var b [8]byte
+	binary.BigEndian.PutUint64(b[:], v)
+	i := 0
+	for i < 7 && b[i] == 0 {
+		i++
+	}
+	return append([]byte(nil), b[i:]...)
+}
+
+// bitStringVal encodes a bit string from a hex string (e.g. "fe"). First byte
+// is the number of unused bits in the final byte (0 when byte-aligned).
+func bitStringVal(v interface{}) []byte {
+	s := toString(v)
+	var raw []byte
+	nibble := byte(0)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		var val byte
+		switch {
+		case c >= '0' && c <= '9':
+			val = c - '0'
+		case c >= 'a' && c <= 'f':
+			val = c - 'a' + 10
+		case c >= 'A' && c <= 'F':
+			val = c - 'A' + 10
+		default:
+			continue
+		}
+		if i%2 == 0 {
+			nibble = val << 4
+		} else {
+			raw = append(raw, nibble|val)
+		}
+	}
+	if len(s)%2 == 1 {
+		raw = append(raw, nibble)
+	}
+	// byte-aligned -> 0 unused bits.
+	return append([]byte{0}, raw...)
+}
+
+// encodeFloat32 encodes an IEC 61850 FLOAT32 (format-width 32, exponent-width 8)
+// per design §3.7: length 5, 1 exponent sign + 1 mantissa sign + 6 exponent +
+// 4 mantissa bytes. Uses IEEE 754 single-precision bits.
+func encodeFloat32(v float32) []byte {
+	bits := math.Float32bits(v)
+	return []byte{byte(bits >> 24), byte(bits >> 16), byte(bits >> 8), byte(bits)}
+}
+
+// binaryTimeVal returns a 6-byte binary time (design §3.6 0x8C).
+func binaryTimeVal() []byte {
+	return make([]byte, 6)
+}
+
+// utcTimeVal returns an 8-byte CP time (design §3.6 0x91).
+func utcTimeVal() []byte {
+	t := time.Now()
+	ms := t.UnixMilli()
+	return utcTimeBytes(ms)
+}
+
+func utcTimeBytes(ms int64) []byte {
+	// 8 bytes: 4-byte seconds + 2-byte milliseconds + reserved(2). CP time is
+	// not day-of-year based; here we use a compact epoch encoding.
+	b := make([]byte, 8)
+	if ms >= 0 {
+		sec := ms / 1000
+		milli := ms % 1000
+		b[0] = byte(sec >> 24)
+		b[1] = byte(sec >> 16)
+		b[2] = byte(sec >> 8)
+		b[3] = byte(sec)
+		b[4] = byte(milli >> 8)
+		b[5] = byte(milli)
+	}
+	return b
+}
+
+func toInt64(v interface{}) (int64, error) {
+	switch n := v.(type) {
+	case int:
+		return int64(n), nil
+	case int8:
+		return int64(n), nil
+	case int16:
+		return int64(n), nil
+	case int32:
+		return int64(n), nil
+	case int64:
+		return n, nil
+	case float64:
+		return int64(n), nil
+	case json.Number:
+		return n.Int64()
+	default:
+		return 0, fmt.Errorf("cannot convert %T to int64", v)
+	}
+}
+
+func toUint64(v interface{}) (uint64, error) {
+	switch n := v.(type) {
+	case int:
+		return uint64(n), nil
+	case int32:
+		return uint64(n), nil
+	case int64:
+		return uint64(n), nil
+	case uint32:
+		return uint64(n), nil
+	case uint64:
+		return n, nil
+	case float64:
+		return uint64(n), nil
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return 0, err
+		}
+		return uint64(i), nil
+	default:
+		return 0, fmt.Errorf("cannot convert %T to uint64", v)
+	}
+}
+
+func toFloat32(v interface{}) (float32, bool) {
+	switch n := v.(type) {
+	case float32:
+		return n, true
+	case float64:
+		return float32(n), true
+	case int:
+		return float32(n), true
+	case int32:
+		return float32(n), true
+	case int64:
+		return float32(n), true
+	case json.Number:
+		f, err := n.Float64()
+		if err != nil {
+			return 0, false
+		}
+		return float32(f), true
+	default:
+		return 0, false
+	}
+}
+
+func toString(v interface{}) string {
+	switch s := v.(type) {
+	case string:
+		return s
+	case fmt.Stringer:
+		return s.String()
+	case nil:
+		return ""
+	default:
+		return fmt.Sprintf("%v", s)
+	}
+}
+
+// isValidDataMember reports whether the member type is supported (design §3.8).
+func isValidDataMember(m core.GOOSEData) bool {
+	switch m.Type {
+	case "boolean", "bit_string", "int32", "int64", "uint32", "uint64",
+		"float32", "octet_string", "visible_string", "binary_time", "utc_time":
+		return true
+	default:
+		return false
+	}
+}
+
+func BuildPayload(c *core.GOOSEConfig, st, sq uint32) ([]byte, error) {
+	if len(c.Data) == 0 {
+		return nil, fmt.Errorf("goose at least one data member is required")
+	}
+	// goID (0x83) 是可选字段（Wireshark dissector BER_FLAGS_OPTIONAL），但
+	// IEC 61850 工具惯例将其缺省为与 gocbRef 相同——用例也按 goID=gocbRef
+	// 校验 APDU 偏移。空时回填 gocbRef，保证帧长与字节对齐稳定。
+	goID := c.GOID
+	if goID == "" {
+		goID = c.GOCBRef
 	}
 	now := time.Now()
 	ts := make([]byte, 8)
@@ -151,15 +357,25 @@ func BuildPayload(c *core.GOOSEConfig, st, sq uint32) ([]byte, error) {
 	apduContent = append(apduContent, tlv(0x80, strVal(c.GOCBRef))...)
 	apduContent = append(apduContent, tlv(0x81, uintVal(c.TALMs))...)
 	apduContent = append(apduContent, tlv(0x82, strVal(c.DatSet))...)
-	apduContent = append(apduContent, tlv(0x83, strVal(c.GOID))...)
+	apduContent = append(apduContent, tlv(0x83, strVal(goID))...)
 	apduContent = append(apduContent, tlv(0x84, ts)...)
-	apduContent = append(apduContent, tlv(0x85, boolVal(c.Test))...)
-	apduContent = append(apduContent, tlv(0x86, uintVal(st))...)
-	apduContent = append(apduContent, tlv(0x87, boolVal(c.NDSCom))...)
+	apduContent = append(apduContent, tlv(0x85, uintVal(st))...)
+	apduContent = append(apduContent, tlv(0x86, uintVal(sq))...)
+	apduContent = append(apduContent, tlv(0x87, boolVal(c.Test))...)
 	apduContent = append(apduContent, tlv(0x88, uintVal(c.ConfRev))...)
-	apduContent = append(apduContent, tlv(0x89, uintVal(sq))...)
-	apduContent = append(apduContent, tlv(0x8a, []byte{1})...)
-	apduContent = append(apduContent, tlv(0xab, tlv(0x83, boolVal(data)))...)
+	apduContent = append(apduContent, tlv(0x89, boolVal(c.NDSCom))...)
+	apduContent = append(apduContent, tlv(0x8a, uintVal(uint32(len(c.Data))))...)
+
+	// Encode allData members per MMS Data BER table (design §3.6).
+	var allData []byte
+	for _, m := range c.Data {
+		mb, err := encodeDataMember(m)
+		if err != nil {
+			return nil, err
+		}
+		allData = append(allData, mb...)
+	}
+	apduContent = append(apduContent, tlv(0xab, allData)...)
 	apdu := tlv(0x61, apduContent)
 	if len(apdu)+8 > 0xffff {
 		return nil, fmt.Errorf("goose payload too large")
@@ -168,6 +384,51 @@ func BuildPayload(c *core.GOOSEConfig, st, sq uint32) ([]byte, error) {
 	binary.BigEndian.PutUint16(hdr[0:2], c.APPID)
 	binary.BigEndian.PutUint16(hdr[2:4], uint16(len(apdu)+8))
 	return append(hdr, apdu...), nil
+}
+
+// encodeDataMember encodes one GOOSE allData member using MMS Data BER tags
+// (design §3.6/3.7): boolean=0x83, bit_string=0x84, int32/int64=0x85,
+// uint32/uint64=0x86, float32=0x87, octet_string=0x89, visible_string=0x8A,
+// binary_time=0x8C, utc_time=0x91.
+func encodeDataMember(m core.GOOSEData) ([]byte, error) {
+	switch m.Type {
+	case "boolean":
+		v, ok := m.Value.(bool)
+		if !ok {
+			return nil, fmt.Errorf("goose boolean member %q value must be boolean", m.Name)
+		}
+		return tlv(0x83, boolVal(v)), nil
+	case "bit_string":
+		return tlv(0x84, bitStringVal(m.Value)), nil
+	case "int32", "int64":
+		v, err := toInt64(m.Value)
+		if err != nil {
+			return nil, err
+		}
+		return tlv(0x85, intVal(v)), nil
+	case "uint32", "uint64":
+		v, err := toUint64(m.Value)
+		if err != nil {
+			return nil, err
+		}
+		return tlv(0x86, uint64Val(v)), nil
+	case "float32":
+		v, ok := toFloat32(m.Value)
+		if !ok {
+			return nil, fmt.Errorf("goose float member %q value must be numeric", m.Name)
+		}
+		return tlv(0x87, encodeFloat32(v)), nil
+	case "octet_string":
+		return tlv(0x89, strVal(toString(m.Value))), nil
+	case "visible_string":
+		return tlv(0x8a, strVal(toString(m.Value))), nil
+	case "binary_time":
+		return tlv(0x8c, binaryTimeVal()), nil
+	case "utc_time":
+		return tlv(0x91, utcTimeVal()), nil
+	default:
+		return nil, fmt.Errorf("goose unsupported data type %q", m.Type)
+	}
 }
 
 type Generator struct{}
@@ -188,6 +449,9 @@ func (g *Generator) Generate(ctx context.Context, req *layers.GenRequest) error 
 		st = 1
 	}
 	sq := c.StartSQNum
+	if sq == 0 {
+		sq = 1
+	}
 	dst := c.DstMAC
 	if dst == "" {
 		dst = DefaultDstMAC

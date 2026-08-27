@@ -753,7 +753,16 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			defer close(out)
 			gen := gens[len(gens)-1]
 			req := &GenRequest{Meta: flowMetaFor(spec), Emit: func(pkt core.PacketConfig) error {
-				pkt.L2 = l2For(pkt.Direction, spec)
+				// 保留生成器已装配的 L2（含 VLAN）：goose/sv 的 VLAN 来自
+				// 配置 vlan_enabled，由生成器写入 pkt.L2.VLAN。不能用
+				// l2For 覆盖——l2For 读 spec.VLAN（顶层的 vlan 键），而
+				// goose/sv 的 VLAN 在协议子映射里，spec.VLAN 恒 nil，
+				// 覆盖会丢掉 VLAN 标签。
+				if pkt.L2.SrcMAC == "" {
+					l2 := l2For(pkt.Direction, spec)
+					pkt.L2.SrcMAC = l2.SrcMAC
+					pkt.L2.DstMAC = l2.DstMAC
+				}
 				if p.name == "sv" {
 					pkt.L2.EtherType = core.EtherTypeSV
 				}
