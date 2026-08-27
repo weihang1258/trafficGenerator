@@ -429,7 +429,7 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// DHCPv6 源端口 0 保持 0：终结层生成器按方向逐事件解析
 			// （up=client 546、down=server 547，dhcpv6 planner.go:435-456
 			// resolveAddrs 语义，IPv6-only 链）。
-		case "dns", "snmp", "syslog", "stun", "rtmfp", "wireguard":
+		case "dns", "snmp", "syslog", "stun", "rtmfp", "wireguard", "l2tp":
 			// 允许 0 上包（legacy 语义）
 		case "doip":
 			// DoIP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
@@ -538,6 +538,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
 			// dst_port 时已非零不落此分支）。
 			spec.DstPort = 51820
+		case "l2tp":
+			// L2TP 目的端口默认 1701（RFC 2661；legacy Plan 内
+			// effectiveDstPort==0→DefaultPort 同款——validate 返回明确值，
+			// 用户显式写 dst_port 时已非零不落此分支）。
+			spec.DstPort = 1701
 		case "ldp":
 			spec.DstPort = 646
 		case "pcep":
@@ -1100,6 +1105,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// WireGuard 同款（P3）：配置经 Meta 直传 wireguard 终结层生成器
 		// （UDP 数据报序列，build* 纯函数复用）。
 		WireGuard: spec.WireGuard,
+		// L2TP 同款（P3）：配置经 Meta 直传 l2tp 终结层生成器（UDP 隧道
+		// 控制/PPP 数据报文列，build* 纯函数复用）。
+		L2TP: spec.L2TP,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,

@@ -298,6 +298,14 @@ func DefaultRegistry() *Registry {
 		DependsOn:     []string{"udp"},
 		FieldContract: map[string]string{"udp.dst_port": "51820"}, // 用户显式非标准端口优先，不强制
 	})
+	// ---- l2tp（udp 终结层。L2TPv2/v3——LAC/LNS 间 UDP 隧道控制消息 + PPP
+	// 数据帧序列，wire 字节由 buildControlMessage/buildDataMessage 纯函数
+	// 产出）。UDP 语义交给 udp 层生成器；配置经 spec.L2TP flat 键携带、
+	// FlowMeta 直传生成器（tftp 重放模式）；源/目的端口 Plan 内默认 1701。
+	r.Register(LayerSchema{Name: "l2tp", Category: CategoryTerminal,
+		DependsOn:     []string{"udp"},
+		FieldContract: map[string]string{"udp.dst_port": "1701"}, // RFC 2661 默认 1701；用户显式非标准端口优先，不强制
+	})
 	// ---- amqp（tcp 终结层。AMQP 0-9-1——高级消息队列协议，TCP 承载的
 	// 消息队列 wire 协议，8-byte protocol header → METHOD/HEADER/BODY/
 	// HEARTBEAT frame 序列，frame layout 为

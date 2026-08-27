@@ -369,6 +369,10 @@ type FlowMeta struct {
 	// WireGuard is the flow's WireGuard config (注入到 wireguard 终结层生成器：
 	// UDP 数据报序列，build* 纯函数复用)。Only set for wireguard chains。
 	WireGuard *core.WireGuardConfig
+	// L2TP is the flow's L2TP config (注入到 l2tp 终结层生成器：UDP 隧道控制/
+	// PPP 数据报文列，buildControlMessage/buildDataMessage 纯函数复用)。
+	// Only set for l2tp chains。
+	L2TP *core.L2TPConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
