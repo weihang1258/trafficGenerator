@@ -115,3 +115,4 @@ trafficgen/web/package-lock.json
 trafficgen/cmd/server/tg-server-new
 trafficgen/tg-server-new
 trafficgen/test/cases-w/
+*.bak

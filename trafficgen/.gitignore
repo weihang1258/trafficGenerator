@@ -18,3 +18,8 @@ trafficgen
 
 # Ignore actual config file (use templates)
 configs/config.yaml
+
+# Backup/scratch dirs (not deliverables)
+*.bak-root/
+*.bak-root2/
+*.bak-pre-*/

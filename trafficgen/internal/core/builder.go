@@ -11,9 +11,11 @@ import (
 )
 
 const (
-	EtherTypeIPv4 = 0x0800
-	EtherTypeARP  = 0x0806
-	EtherTypeIPv6 = 0x86DD
+	EtherTypeIPv4  = 0x0800
+	EtherTypeARP   = 0x0806
+	EtherTypeGOOSE = 0x88B8
+	EtherTypeSV    = 0x88BA
+	EtherTypeIPv6  = 0x86DD
 
 	// PPPoE EtherTypes (RFC 2516 §4). The Ethernet EtherType selects the
 	// PPPoE stage: 0x8863 = Discovery (PADI/PADO/PADR/PADS/PADT), 0x8864 =
