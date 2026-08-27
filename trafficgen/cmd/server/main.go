@@ -29,6 +29,7 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/fins"
 	"github.com/trafficgen/trafficgen/internal/protocol/ftp"
 	"github.com/trafficgen/trafficgen/internal/protocol/gbt32960"
+	"github.com/trafficgen/trafficgen/internal/protocol/goose"
 	"github.com/trafficgen/trafficgen/internal/protocol/gre"
 	"github.com/trafficgen/trafficgen/internal/protocol/grpc"
 	"github.com/trafficgen/trafficgen/internal/protocol/gtp"
@@ -55,7 +56,10 @@ import (
 	// dhcp/dhcpv6/mdns/ssdp/rip 同机制接入公共 udp 层（init 注册
 	// generator+validator）。无空导入则包不被链接进二进制，
 	// ChainPlanner("dns") 实例化失败。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/cflow"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/dameng"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/drda"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmpv6"
 	"github.com/trafficgen/trafficgen/internal/protocol/ike"
@@ -66,18 +70,13 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/jtt905"
 	"github.com/trafficgen/trafficgen/internal/protocol/l2tp"
 	"github.com/trafficgen/trafficgen/internal/protocol/ldap"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ldp"
 	mcpprotocol "github.com/trafficgen/trafficgen/internal/protocol/mcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mms"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/moxa"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/someip"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/drda"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/thrift"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/tns"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/mongodb"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/dameng"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/cflow"
 	"github.com/trafficgen/trafficgen/internal/protocol/modbus"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/mongodb"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/moxa"
 	"github.com/trafficgen/trafficgen/internal/protocol/mpls"
 	"github.com/trafficgen/trafficgen/internal/protocol/mqtt"
 	"github.com/trafficgen/trafficgen/internal/protocol/mysql"
@@ -86,6 +85,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/opcua"
 	"github.com/trafficgen/trafficgen/internal/protocol/openvpn"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/pcep"
 	"github.com/trafficgen/trafficgen/internal/protocol/pop3"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/postgresql" // init 注册 postgresql 层生成器 + 校验器（kingbase 是其 dialect 变体）
 	"github.com/trafficgen/trafficgen/internal/protocol/pppoe"
@@ -104,17 +104,20 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/smtp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/socks5"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/someip"
 	"github.com/trafficgen/trafficgen/internal/protocol/srv6"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
 	"github.com/trafficgen/trafficgen/internal/protocol/ssh"
 	"github.com/trafficgen/trafficgen/internal/protocol/sv"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/thrift"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/tns"
 	// 空导入：stun 包 init 反向注册终结层生成器 + 校验器
 	// （layers.RegisterLayerGenerator/RegisterLayerValidator）。无空导入则包
 	// 不被链接进二进制，ChainPlanner("stun") 实例化失败。
-	_ "github.com/trafficgen/trafficgen/internal/protocol/stun"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/rtmfp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/amqp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/rtmfp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/stun"
 	"github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	"github.com/trafficgen/trafficgen/internal/protocol/tftp"
@@ -437,6 +440,8 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ntp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("snmp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("syslog"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ldp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("pcep"))
 	// mdns/ssdp/rip/dhcp/dhcpv6 切链式生成器（波 5a-5e）：[ip→udp→终结层]
 	// 层链驱动，各协议包 init 反向注册终结层生成器 + 校验器，事件字节复用
 	// legacy 编码器；多播覆盖经事件级 L2/L3 覆盖（OverrideDstIP/MAC + TTL），
@@ -447,6 +452,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dhcp"))
 	app.engine.RegisterPlanner(sv.NewPlanner())
+	app.engine.RegisterPlanner(goose.NewPlanner())
 	app.engine.RegisterPlanner(icmp.NewPlanner())
 	app.engine.RegisterPlanner(arp.NewPlanner())
 	app.engine.RegisterPlanner(ftp.NewPlanner())
