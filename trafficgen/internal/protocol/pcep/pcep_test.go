@@ -695,7 +695,7 @@ func TestValidateConfigIPv6InIPv4Profile(t *testing.T) {
 				Endpoint: &core.PCEPEndpoint{SourceIPv6: "2001:db8::10", DestinationIPv6: "2001:db8::20"}},
 		},
 	})
-	if err == nil || !strings.Contains(err.Error(), "IPv6 endpoint in IPv4 profile") {
+	if err == nil || !strings.Contains(err.Error(), "IPv6 endpoint in IPv4 address family profile") {
 		t.Fatalf("expected IPv6 endpoint error, got %v", err)
 	}
 }

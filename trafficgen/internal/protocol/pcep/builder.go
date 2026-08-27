@@ -677,10 +677,13 @@ func ValidateConfig(cfg *core.PCEPConfig) error {
 		return fmt.Errorf("pcep: unknown profile %q", cfg.Profile)
 	}
 
-	validKinds := []string{"open", "keepalive", "pcreq", "pcrep", "pcntf", "pcerr", "unknown"}
+	validKinds := []string{"open", "keepalive", "pcreq", "pcrep", "pcntf", "pcerr"}
 	for i, ev := range cfg.Events {
 		if ev.Kind == "" {
 			return fmt.Errorf("pcep: event %d: kind is required", i)
+		}
+		if ev.Kind == "unknown" {
+			return fmt.Errorf("pcep: event %d: unknown message type %d is not supported", i, ev.MessageType)
 		}
 		if ev.Direction != "c2s" && ev.Direction != "s2c" {
 			return fmt.Errorf("pcep: event %d: direction must be c2s or s2c", i)
@@ -719,15 +722,31 @@ func ValidateConfig(cfg *core.PCEPConfig) error {
 				}
 			}
 		}
+		// Check for illegal object_length (must be >= 4 and 4-byte aligned).
+		if ev.Objects != nil {
+			for _, raw := range ev.Objects {
+				var obj struct {
+					ObjectLength int `json:"object_length"`
+				}
+				if err := json.Unmarshal(raw, &obj); err != nil {
+					continue
+				}
+				if obj.ObjectLength != 0 {
+					if obj.ObjectLength < 4 || obj.ObjectLength%4 != 0 {
+						return fmt.Errorf("pcep: event %d: object_length %d is invalid (must be >= 4 and 4-byte aligned)", i, obj.ObjectLength)
+					}
+				}
+			}
+		}
 		// Check address family consistency
 		if cfg.Profile == "pcep_rfc5440_ipv4" && ev.Endpoint != nil {
 			if ev.Endpoint.SourceIPv6 != "" || ev.Endpoint.DestinationIPv6 != "" {
-				return fmt.Errorf("pcep: event %d: IPv6 endpoint in IPv4 profile", i)
+				return fmt.Errorf("pcep: event %d: IPv6 endpoint in IPv4 address family profile", i)
 			}
 		}
 		if cfg.Profile == "pcep_rfc5440_ipv6" && ev.Endpoint != nil {
 			if ev.Endpoint.SourceIPv4 != "" || ev.Endpoint.DestinationIPv4 != "" {
-				return fmt.Errorf("pcep: event %d: IPv4 endpoint in IPv6 profile", i)
+				return fmt.Errorf("pcep: event %d: IPv4 endpoint in IPv6 address family profile", i)
 			}
 		}
 	}
