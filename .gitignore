@@ -110,3 +110,8 @@ trafficgen/web/package-lock.json
 # Local server binary (cmd/server build output)
 /server
 /trafficgen/server
+
+# Compiled server binary + scratch case dir (not deliverables)
+trafficgen/cmd/server/tg-server-new
+trafficgen/tg-server-new
+trafficgen/test/cases-w/
