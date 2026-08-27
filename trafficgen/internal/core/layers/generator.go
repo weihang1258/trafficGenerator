@@ -358,6 +358,10 @@ type FlowMeta struct {
 	// 命令/响应对逐事件产出，buildMailDropResponse/buildTopResponse 纯函数
 	// 复用)。Only set for pop3 chains。
 	POP3 *core.POP3Config
+	// IMAP is the flow's IMAP config (注入到 imap 终结层生成器：greeting +
+	// 命令/literal/IDLE 逐事件产出，formatCommandLine/constructMIMEBody 纯
+	// 函数复用)。Only set for imap chains。
+	IMAP *core.IMAPConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
