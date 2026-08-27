@@ -33,19 +33,19 @@ const (
 	msgPCInitiate uint8 = 12
 )
 
-// Object classes.
+// Object classes (RFC 5440 + RFC 8231).
 const (
-	objOpen     uint8 = 1
-	objRP       uint8 = 2
-	objEndpoint uint8 = 4
-	objNotif    uint8 = 5
-	objMetric   uint8 = 6
-	objERO      uint8 = 7
-	objRRO      uint8 = 8
-	objLSPA     uint8 = 9
-	objError    uint8 = 10
-	objLSP      uint8 = 21
-	objSRP      uint8 = 24
+	objOpen      uint8 = 1
+	objRP        uint8 = 2
+	objEndpoint  uint8 = 4
+	objNotif     uint8 = 12
+	objMetric    uint8 = 6
+	objERO       uint8 = 7
+	objRRO       uint8 = 8
+	objLSPA      uint8 = 9
+	objError     uint8 = 13
+	objLSP       uint8 = 32
+	objSRP       uint8 = 33
 )
 
 // TLV types for OPEN object.
@@ -103,7 +103,8 @@ func objectFlags(raw json.RawMessage) (pFlag, iFlag bool) {
 }
 
 // buildObjectHeader builds a PCEP object header.
-// Byte 1: OT(2 bits, MSB) | R(1) | P(1) | I(1) | R(3)
+// Byte 1: Object-Type(4 bits, high nibble) | Flags(4 bits, low nibble).
+// Wireshark MASK_OBJ_TYPE=0xF0; P flag=0x2 (bit 1), I flag=0x1 (bit 0).
 func buildObjectHeader(objClass, objType uint8, pFlag, iFlag bool, bodyLen uint16) []byte {
 	// Round body to 4-byte alignment
 	aligned := bodyLen
@@ -112,12 +113,12 @@ func buildObjectHeader(objClass, objType uint8, pFlag, iFlag bool, bodyLen uint1
 	}
 	totalLen := objHdrLen + aligned
 
-	b1 := (objType & 0x03) << 6 // OT in bits 0-1 (MSB)
+	b1 := (objType & 0x0F) << 4 // Object-Type in bits 4-7 (high nibble)
 	if pFlag {
-		b1 |= 0x10 // P flag in bit 3
+		b1 |= 0x02 // P flag in bit 1
 	}
 	if iFlag {
-		b1 |= 0x08 // I flag in bit 4
+		b1 |= 0x01 // I flag in bit 0
 	}
 
 	buf := make([]byte, objHdrLen)
@@ -147,43 +148,46 @@ func pad4(buf []byte) []byte {
 
 // BuildOpenMsg builds an Open message.
 func BuildOpenMsg(keepalive, deadtime, sid uint8, capabilities []core.PCEPCapability) []byte {
-	// Fixed body: Ver|Flags(1) + Keepalive(1) + DeadTimer(1) + SID(4) = 7 bytes
-	body := make([]byte, 0, 7)
-	body = append(body, 0x10) // Ver=1 << 4 | Flags=0 → 0x10
-	body = append(body, keepalive)
-	body = append(body, deadtime)
-	sidBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(sidBytes, uint32(sid))
-	body = append(body, sidBytes...)
+	// Open 对象体最小 4 字节（Wireshark OPEN_OBJ_MIN_LEN=4）：
+	// PCEP-Version(3 bits, mask 0xE0) | Flags(5 bits, mask 0x1F) + Keepalive(1)
+	// + DeadTimer(1) + SID(1, 单字节)。SID 为 uint8，只写 1 字节。
+	body := make([]byte, 4)
+	body[0] = 0x20 // Ver=1 << 5(高3位) | Flags=0 → 0x20
+	body[1] = keepalive
+	body[2] = deadtime
+	body[3] = sid
 
 	// Append capability TLVs
 	for _, cap := range capabilities {
 		switch cap.Kind {
 		case "stateful_pce":
 			// RFC 8231 §5.1: Stateful-PCE-Capability TLV (type 16), 4-byte flags.
+			// Wireshark: U=0x00000001 (bit0), S=0x00000002 (bit1) of the 32-bit flags.
 			flags := make([]byte, 4)
 			if cap.LSPUpdate {
-				flags[0] |= 0x80 // U bit (LSR): LSP-UPDATE-CAPABILITY
+				flags[3] |= 0x01 // U (LSP-UPDATE-CAPABILITY)
+			}
+			if cap.IncludeDBVersion {
+				flags[3] |= 0x02 // S (INCLUDE-DB-VERSION)
 			}
 			body = append(body, buildTLV(tlvStatefulPCE, flags)...)
 			// RFC 8231 §5.2: When include_db_version is set, emit TLV 17 (Sync)
 			// alongside TLV 16 as a single capability entry.
 			if cap.IncludeDBVersion {
 				syncFlags := make([]byte, 4)
-				syncFlags[0] |= 0x80 // D bit: Include-DB-Version
+				syncFlags[3] |= 0x02 // S (INCLUDE-DB-VERSION)
 				body = append(body, buildTLV(tvlSyncCap, syncFlags)...)
 			}
 		case "sync":
 			// RFC 8231 §5.2: Stateful-PCE-Capability (Sync) TLV (type 17), 4-byte flags.
 			flags := make([]byte, 4)
 			if cap.IncludeDBVersion {
-				flags[0] |= 0x80 // D bit: Include-DB-Version
+				flags[3] |= 0x02 // S (INCLUDE-DB-VERSION)
 			}
 			body = append(body, buildTLV(tvlSyncCap, flags)...)
 		}
 	}
 
-	body = pad4(body)
 	obj := buildObjectHeader(objOpen, 1, false, false, uint16(len(body)))
 	obj = append(obj, body...)
 	msg := buildCommonHeader(msgOpen, uint16(hdrLen+len(obj)))
@@ -206,25 +210,24 @@ func BuildPCRepMsg(objs [][]byte) []byte {
 }
 
 // BuildPCNtfMsg builds a PCNtf message.
+// Notification object body (min 4): Reserved(1) + Flags(1) + Type(1) + Value(1).
 func BuildPCNtfMsg(ntype, nvalue uint16) []byte {
-	// Notification object body: Flags(1) + Reserved(1) + Type(2) + Value(4)
-	body := make([]byte, 8)
-	body[2] = byte(ntype >> 8)
-	body[3] = byte(ntype)
-	binary.BigEndian.PutUint32(body[4:8], uint32(nvalue))
-	obj := buildObjectHeader(objNotif, 1, false, false, 8)
+	body := make([]byte, 4)
+	body[2] = byte(ntype)
+	body[3] = byte(nvalue)
+	obj := buildObjectHeader(objNotif, 1, false, false, 4)
 	obj = append(obj, body...)
 	msg := buildCommonHeader(msgPCNtf, uint16(hdrLen+len(obj)))
 	return append(msg, obj...)
 }
 
 // BuildPCErrMsg builds a PCErr message.
+// PCEP-ERROR object body (min 4): Reserved(1) + Flags(1) + Error-Type(1) + Error-Value(1).
 func BuildPCErrMsg(etype, evalue uint16) []byte {
-	// PCEP-ERROR object body: Reserved(2) + Error-Type(2) + Error-Value(4) = 8 bytes
-	body := make([]byte, 8)
-	binary.BigEndian.PutUint16(body[2:4], etype)
-	binary.BigEndian.PutUint32(body[4:8], uint32(evalue))
-	obj := buildObjectHeader(objError, 1, false, false, 8)
+	body := make([]byte, 4)
+	body[2] = byte(etype)
+	body[3] = byte(evalue)
+	obj := buildObjectHeader(objError, 1, false, false, 4)
 	obj = append(obj, body...)
 	msg := buildCommonHeader(msgPCErr, uint16(hdrLen+len(obj)))
 	return append(msg, obj...)
@@ -241,50 +244,47 @@ func buildMultiObjMsg(msgType uint8, objs [][]byte) []byte {
 }
 
 // BuildRPObject builds an RP object.
+// Wireshark RP_OBJ_MIN_LEN=8: Reserved(1) + Flags(3, P=0x000100) + Request-ID(4).
 func BuildRPObject(requestID uint32, pFlag, iFlag bool) []byte {
-	// RP body: Flags(1) + Reserved(1) + Request-ID(4) + Reserved(4) + Reserved(2) = 12 bytes
-	body := make([]byte, 12)
+	body := make([]byte, 8)
+	// P flag in 24-bit flags field (body[1:4]); PCEP_RP_P=0x000100 → bit16,
+	// which is the MSB of the 3rd byte (body[3] bit0). I flag is not defined
+	// in the RP body flags (it lives on the object header), so only P is set.
 	if pFlag {
-		body[0] |= 0x80 // P flag in bit 0 (MSB)
+		body[3] |= 0x01 // PCEP_RP_P = 0x000100 → body[3] bit 0
 	}
-	if iFlag {
-		body[0] |= 0x40 // I flag in bit 1
-	}
-	binary.BigEndian.PutUint32(body[2:6], requestID)
-	obj := buildObjectHeader(objRP, 1, pFlag, iFlag, 12)
+	binary.BigEndian.PutUint32(body[4:8], requestID)
+	obj := buildObjectHeader(objRP, 1, pFlag, iFlag, 8)
 	obj = append(obj, body...)
-	// Recompute total length with aligned body
-	totalLen := objHdrLen + 12 // 12 is already 4-byte aligned
-	binary.BigEndian.PutUint16(obj[2:4], uint16(totalLen))
 	return obj
 }
 
 // BuildEndpointObjectIPv4 builds an IPv4 END-POINT object.
+// Wireshark END_POINT_IPV4_OBJ_LEN=8: Source(4) + Destination(4). No reserved.
 func BuildEndpointObjectIPv4(src, dst string) []byte {
-	// Body: Source(4) + Destination(4) + Reserved(4) = 12 bytes
-	body := make([]byte, 12)
+	body := make([]byte, 8)
 	if s := net.ParseIP(src).To4(); s != nil {
 		copy(body[0:4], s)
 	}
 	if d := net.ParseIP(dst).To4(); d != nil {
 		copy(body[4:8], d)
 	}
-	obj := buildObjectHeader(objEndpoint, 1, false, false, 12)
+	obj := buildObjectHeader(objEndpoint, 1, false, false, 8)
 	obj = append(obj, body...)
 	return obj
 }
 
 // BuildEndpointObjectIPv6 builds an IPv6 END-POINT object.
+// Wireshark END_POINT_IPV6_OBJ_LEN=32: Source(16) + Destination(16). No reserved.
 func BuildEndpointObjectIPv6(src, dst string) []byte {
-	// Body: Source(16) + Destination(16) + Reserved(4) = 36 bytes
-	body := make([]byte, 36)
+	body := make([]byte, 32)
 	if s := net.ParseIP(src).To16(); s != nil {
 		copy(body[0:16], s)
 	}
 	if d := net.ParseIP(dst).To16(); d != nil {
 		copy(body[16:32], d)
 	}
-	obj := buildObjectHeader(objEndpoint, 2, false, false, 36)
+	obj := buildObjectHeader(objEndpoint, 2, false, false, 32)
 	obj = append(obj, body...)
 	return obj
 }
@@ -317,30 +317,33 @@ func BuildRROObject(subobjects []pcepSubobject) []byte {
 func buildSubobject(sub pcepSubobject, isERO bool) []byte {
 	switch sub.Type {
 	case "ipv4":
-		// IPv4 subobject: Type(1) + Length(1) + Addr(4) + PrefixLen(1) + Attrib(1) = 8 bytes
+		// IPv4 subobject: Type(1, mask 0x7f + L=0x80) + Length(1) + Addr(4) +
+		// PrefixLen(1) + Padding(1) = 8 bytes. For ERO the L flag (loose/strict)
+		// lives in bit 7 of the type byte (Mask_L=0x80).
 		buf := make([]byte, 8)
-		buf[0] = 1 // IPv4 subobject type
+		buf[0] = 1 // IPv4 subobject type (mask 0x7f)
+		if sub.L && isERO {
+			buf[0] |= 0x80 // L flag (loose hop), Mask_L = 0x80
+		}
 		buf[1] = 8 // Length
 		if a := net.ParseIP(sub.Address).To4(); a != nil {
 			copy(buf[2:6], a)
 		}
 		buf[6] = sub.PrefixLength
-		if sub.L {
-			buf[7] |= 0x80 // L flag in bit 0 (MSB) of attributes
-		}
 		return buf
 	case "ipv6":
-		// IPv6 subobject: Type(1) + Length(1) + Addr(16) + PrefixLen(1) + Attrib(1) = 20 bytes
+		// IPv6 subobject: Type(1, mask 0x7f + L=0x80) + Length(1) + Addr(16) +
+		// PrefixLen(1) + Padding(1) = 20 bytes.
 		buf := make([]byte, 20)
-		buf[0] = 2  // IPv6 subobject type
+		buf[0] = 2  // IPv6 subobject type (mask 0x7f)
+		if sub.L && isERO {
+			buf[0] |= 0x80 // L flag (loose hop), Mask_L = 0x80
+		}
 		buf[1] = 20 // Length
 		if a := net.ParseIP(sub.Address).To16(); a != nil {
 			copy(buf[2:18], a)
 		}
 		buf[18] = sub.PrefixLength
-		if sub.L {
-			buf[19] |= 0x80 // L flag in bit 0 (MSB) of attributes
-		}
 		return buf
 	default:
 		return nil
@@ -348,16 +351,17 @@ func buildSubobject(sub pcepSubobject, isERO bool) []byte {
 }
 
 // BuildMetricObject builds a Metric object.
+// Wireshark METRIC_OBJ_LEN=8: Reserved(2) + Flags(1, C=0x02, B=0x01) +
+// Type(1) + Value(4, IEEE float).
 func BuildMetricObject(mtype uint8, cFlag, bFlag bool, value float64) []byte {
-	// Metric body: Flags(1) + Reserved(1) + Metric-Type(2) + Value(4 = IEEE float) = 8 bytes
 	body := make([]byte, 8)
 	if cFlag {
-		body[0] |= 0x80 // C flag in bit 0 (MSB)
+		body[2] |= 0x02 // C flag
 	}
 	if bFlag {
-		body[0] |= 0x40 // B flag in bit 1
+		body[2] |= 0x01 // B flag
 	}
-	binary.BigEndian.PutUint16(body[2:4], uint16(mtype))
+	body[3] = mtype
 	binary.BigEndian.PutUint32(body[4:8], math.Float32bits(float32(value)))
 	obj := buildObjectHeader(objMetric, 1, false, false, 8)
 	obj = append(obj, body...)
@@ -365,56 +369,59 @@ func BuildMetricObject(mtype uint8, cFlag, bFlag bool, value float64) []byte {
 }
 
 // BuildLSPObject builds an LSP object (RFC 8231).
+// Wireshark OBJ_LSP_MIN_LEN=4: PLSP-ID(3 bytes, mask 0xFFFFF0 → value<<4) +
+// Flags(1 byte: D=0x01, S=0x02, R=0x04, A=0x08, C=0x80).
 func BuildLSPObject(plspID uint32, flags map[string]bool) []byte {
-	// LSP body: PLSP-ID(4 bytes, lower 20 bits) + Reserved(4) + Flags(4) = 12 bytes
-	body := make([]byte, 12)
-	// PLSP-ID in lower 20 bits of first 4 bytes
-	binary.BigEndian.PutUint32(body[0:4], plspID&0x000FFFFF)
-	// Flags in bytes 8-11
-	f := body[8:]
+	body := make([]byte, 4)
+	// PLSP-ID is 20 bits in the high bits of 3 bytes: store value << 4.
+	val := (plspID & 0xFFFFF) << 4
+	body[0] = byte(val >> 16)
+	body[1] = byte(val >> 8)
+	body[2] = byte(val)
 	if flags["delegate"] {
-		f[0] |= 0x80 // bit 0 (MSB)
-	}
-	if flags["remove"] {
-		f[0] |= 0x40 // bit 1
-	}
-	if flags["administrative"] {
-		f[0] |= 0x20 // bit 2
+		body[3] |= 0x01 // D
 	}
 	if flags["sync"] {
-		f[0] |= 0x10 // bit 3
+		body[3] |= 0x02 // S
+	}
+	if flags["remove"] {
+		body[3] |= 0x04 // R
+	}
+	if flags["administrative"] {
+		body[3] |= 0x08 // A
 	}
 	if flags["create"] {
-		f[0] |= 0x08 // bit 4
+		body[3] |= 0x80 // C
 	}
-	obj := buildObjectHeader(objLSP, 1, false, false, 12)
+	obj := buildObjectHeader(objLSP, 1, false, false, 4)
 	obj = append(obj, body...)
 	return obj
 }
 
 // BuildSRPObject builds an SRP object (RFC 8231).
+// Wireshark OBJ_SRP_MIN_LEN=8: Flags(4, R=0x00000001) + SRP-ID-number(4).
 func BuildSRPObject(idNumber uint32, flags map[string]bool) []byte {
-	// SRP body: SRP-ID(4) + Flags(4) = 8 bytes
 	body := make([]byte, 8)
-	binary.BigEndian.PutUint32(body[0:4], idNumber)
 	if flags["remove"] {
-		body[4] |= 0x80 // bit 0 (MSB)
+		body[3] |= 0x01 // R (bit0 of 32-bit flags field)
 	}
+	binary.BigEndian.PutUint32(body[4:8], idNumber)
 	obj := buildObjectHeader(objSRP, 1, false, false, 8)
 	obj = append(obj, body...)
 	return obj
 }
 
-// BuildLSPAObject builds an LSPA object.
+// BuildLSPAObject builds an LSPA object (RFC 5440).
+// Wireshark LSPA_OBJ_MIN_LEN=16: ExcludeAny(4) + IncludeAny(4) + IncludeAll(4) +
+// SetupPriority(1) + HoldingPriority(1) + Flags(1, L=0x01) + Reserved(1).
 func BuildLSPAObject(lFlag bool, setupPriority, holdingPriority uint8) []byte {
-	// LSPA body: Reserved(4) + Setup(1) + Holding(1) + Attributes(2) = 8 bytes
-	body := make([]byte, 8)
-	body[4] = setupPriority
-	body[5] = holdingPriority
+	body := make([]byte, 16)
+	body[12] = setupPriority
+	body[13] = holdingPriority
 	if lFlag {
-		body[7] |= 0x80 // L flag in bit 0 (MSB) of attributes
+		body[14] |= 0x01 // PCEP_LSPA_L
 	}
-	obj := buildObjectHeader(objLSPA, 1, false, false, 8)
+	obj := buildObjectHeader(objLSPA, 1, false, false, 16)
 	obj = append(obj, body...)
 	return obj
 }

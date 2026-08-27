@@ -29,47 +29,41 @@ func hx(s string) []byte { return hexStr(s) }
 
 func TestBuildOpenMsg(t *testing.T) {
 	pdu := BuildOpenMsg(30, 120, 7, nil)
-	// Common header: 20 01 00 10 (Version=0x20, MsgType=1, Length=16)
-	// OPEN object: Class=1, OT=1 (0x40), P=0, I=0, Length=12
-	// Body: 10 1E 78 00 00 00 07 00 (Ver|Flags=0x10, KA=30, DT=120, SID=7, pad=0)
-	if len(pdu) != 16 {
-		t.Fatalf("BuildOpenMsg len=%d, want 16\nhex: %s", len(pdu), hex.EncodeToString(pdu))
+	// Wireshark-verified encoding (OPEN_OBJ_MIN_LEN=4): SID is 1 byte.
+	// Common header: 20 01 00 0c (Version=0x20, MsgType=1, Length=12)
+	// OPEN object: Class=1, Type=1 (0x10), Len=8; Body: 20 1e 78 07
+	if len(pdu) != 12 {
+		t.Fatalf("BuildOpenMsg len=%d, want 12\nhex: %s", len(pdu), hex.EncodeToString(pdu))
 	}
-	if pdu[0] != 0x20 || pdu[1] != 0x01 || pdu[2] != 0x00 || pdu[3] != 0x10 {
-		t.Fatalf("Open header = %02x %02x %02x %02x, want 20 01 00 10",
+	if pdu[0] != 0x20 || pdu[1] != 0x01 || pdu[2] != 0x00 || pdu[3] != 0x0c {
+		t.Fatalf("Open header = %02x %02x %02x %02x, want 20 01 00 0c",
 			pdu[0], pdu[1], pdu[2], pdu[3])
 	}
-	// Object class = 1 (OPEN), OT=1
-	if pdu[4] != 1 || pdu[5] != 0x40 {
-		t.Fatalf("Open object header = %02x %02x, want 01 40", pdu[4], pdu[5])
+	// Object class = 1 (OPEN), Type=1 in high nibble
+	if pdu[4] != 1 || pdu[5] != 0x10 {
+		t.Fatalf("Open object header = %02x %02x, want 01 10", pdu[4], pdu[5])
 	}
-	// Object-Length = 12
-	if pdu[6] != 0 || pdu[7] != 12 {
-		t.Fatalf("Open object length = %d, want 12", uint16(pdu[6])<<8|uint16(pdu[7]))
+	// Object-Length = 8
+	if pdu[6] != 0 || pdu[7] != 8 {
+		t.Fatalf("Open object length = %d, want 8", uint16(pdu[6])<<8|uint16(pdu[7]))
 	}
-	// Body: Ver|Flags=0x10, KA=30(0x1E), DT=120(0x78), SID=7
-	if pdu[8] != 0x10 || pdu[9] != 0x1E || pdu[10] != 0x78 {
-		t.Fatalf("Open body flags/ka/dt = %02x %02x %02x, want 10 1E 78",
+	// Body: Ver=0x20 (Ver=1<<5), KA=30(0x1E), DT=120(0x78), SID=7 (1 byte)
+	if pdu[8] != 0x20 || pdu[9] != 0x1E || pdu[10] != 0x78 {
+		t.Fatalf("Open body flags/ka/dt = %02x %02x %02x, want 20 1E 78",
 			pdu[8], pdu[9], pdu[10])
 	}
-	// SID = 7 in bytes 11-14
-	if pdu[11] != 0 || pdu[12] != 0 || pdu[13] != 0 || pdu[14] != 7 {
-		t.Fatalf("Open SID bytes = %02x %02x %02x %02x, want 00 00 00 07",
-			pdu[11], pdu[12], pdu[13], pdu[14])
-	}
-	// Padding byte
-	if pdu[15] != 0 {
-		t.Fatalf("Open pad = %02x, want 00", pdu[15])
+	if pdu[11] != 7 {
+		t.Fatalf("Open SID byte = %02x, want 07", pdu[11])
 	}
 }
 
 func TestBuildOpenMsgSID8(t *testing.T) {
 	pdu := BuildOpenMsg(30, 120, 8, nil)
-	if len(pdu) != 16 {
-		t.Fatalf("BuildOpenMsg SID8 len=%d, want 16", len(pdu))
+	if len(pdu) != 12 {
+		t.Fatalf("BuildOpenMsg SID8 len=%d, want 12", len(pdu))
 	}
-	if pdu[14] != 8 {
-		t.Fatalf("Open SID = %d, want 8", pdu[14])
+	if pdu[11] != 8 {
+		t.Fatalf("Open SID = %d, want 8", pdu[11])
 	}
 }
 
@@ -103,12 +97,14 @@ func TestBuildPCReqMsg(t *testing.T) {
 		t.Fatalf("PCReq msg type = %d, want 6", pdu[1])
 	}
 	// Check RP request_id
-	// Find RP object in the PCReq payload
+	// Find RP object in the PCReq payload.
+	// RP object: Class=2, Type=1 (high nibble 0x10) | P flag (0x02) = 0x12,
+	// body: Reserved(1) + Flags(3) + RequestID(4) → RequestID at body offset 4.
 	foundRP := false
 	for i := 0; i < len(pdu)-6; i++ {
-		if pdu[i] == 2 && pdu[i+1] == 0x50 { // RP class=2, OT=1, P=1, I=0
+		if pdu[i] == 2 && pdu[i+1] == 0x12 { // RP class=2, Type=1, P=1, I=0
 			foundRP = true
-			rid := uint32(pdu[i+6])<<24 | uint32(pdu[i+7])<<16 | uint32(pdu[i+8])<<8 | uint32(pdu[i+9])
+			rid := uint32(pdu[i+8])<<24 | uint32(pdu[i+9])<<16 | uint32(pdu[i+10])<<8 | uint32(pdu[i+11])
 			if rid != 1001 {
 				t.Fatalf("RP request_id = %d, want 1001", rid)
 			}
@@ -121,9 +117,9 @@ func TestBuildPCReqMsg(t *testing.T) {
 	// Check endpoint IPv4 addresses
 	foundEP := false
 	for i := 0; i < len(pdu)-8; i++ {
-		// Look for endpoint object (class=4)
-		if pdu[i] == 4 && pdu[i+1]&0xC0 == 0x40 {
-			// Check source IP
+		// Look for endpoint object (class=4, type=1 → byte1 & 0xF0 == 0x10)
+		if pdu[i] == 4 && pdu[i+1]&0xF0 == 0x10 {
+			// Source IP at body offset 0
 			if pdu[i+4] == 192 && pdu[i+5] == 0 && pdu[i+6] == 2 && pdu[i+7] == 10 {
 				foundEP = true
 			}
@@ -136,12 +132,12 @@ func TestBuildPCReqMsg(t *testing.T) {
 	// Check ERO subobject IPv4 address
 	foundERO := false
 	for i := 0; i < len(pdu)-6; i++ {
-		if pdu[i] == 7 && (pdu[i+1]&0xC0) == 0x40 {
+		if pdu[i] == 7 && (pdu[i+1]&0xF0) == 0x10 {
 			// ERO object - check subobject
 			subStart := i + 4 // after object header
-			if subStart+2 < len(pdu) && pdu[subStart] == 1 && pdu[subStart+1] == 8 {
-				// Check L flag
-				if pdu[subStart+7]&0x80 != 0 {
+			if subStart+2 < len(pdu) && pdu[subStart]&0x7F == 1 && pdu[subStart+1] == 8 {
+				// L flag on the type byte (Mask_L = 0x80)
+				if pdu[subStart]&0x80 != 0 {
 					foundERO = true
 				}
 			}
@@ -188,53 +184,51 @@ func TestBuildPCErrMsg(t *testing.T) {
 }
 
 func TestBuildRPObjectFlags(t *testing.T) {
-	// Test P and I flags
+	// Test P and I flags on the object header.
+	// Object header byte 1: Type=1 (0x10 high nibble), P=0x02, I=0x01.
 	obj := BuildRPObject(8501, true, true)
-	// Object header byte 1: OT=1 (0x40), P=1 (0x10), I=1 (0x08) = 0x58
 	if len(obj) < 2 {
 		t.Fatalf("RP object too short")
 	}
-	if obj[1] != 0x58 {
-		t.Fatalf("RP object header byte 1 = %02x, want 58 (OT=1, P=1, I=1)", obj[1])
+	if obj[1] != 0x13 {
+		t.Fatalf("RP object header byte 1 = %02x, want 13 (Type=1, P=1, I=1)", obj[1])
 	}
 }
 
 func TestBuildLSPObject(t *testing.T) {
 	flags := map[string]bool{"delegate": true, "create": true, "administrative": true}
 	obj := BuildLSPObject(77, flags)
-	if len(obj) < 4 {
-		t.Fatalf("LSP object too short: %d", len(obj))
+	if len(obj) != 8 {
+		t.Fatalf("LSP object length=%d, want 8", len(obj))
 	}
-	if obj[0] != 21 {
-		t.Fatalf("LSP object class = %d, want 21", obj[0])
+	if obj[0] != 32 {
+		t.Fatalf("LSP object class = %d, want 32", obj[0])
 	}
-	// Check PLSP-ID = 77 in lower 20 bits
-	plsp := uint32(obj[4])<<24 | uint32(obj[5])<<16 | uint32(obj[6])<<8 | uint32(obj[7])
-	if plsp&0x000FFFFF != 77 {
-		t.Fatalf("LSP PLSP-ID = %d, want 77", plsp)
+	// PLSP-ID = 77 << 4 in 3 bytes (mask 0xFFFFF0)
+	plsp := uint32(obj[4])<<16 | uint32(obj[5])<<8 | uint32(obj[6])
+	if (plsp >> 4) != 77 {
+		t.Fatalf("LSP PLSP-ID = %d, want 77", plsp>>4)
 	}
-	// Check flags: delegate=bit 0 MSB, administrative=bit 2, create=bit 4
-	if obj[12]&0x80 == 0 {
+	// Flags: delegate=0x01, administrative=0x08, create=0x80
+	if obj[7]&0x01 == 0 {
 		t.Fatal("LSP delegate flag not set")
 	}
-	if obj[12]&0x20 == 0 {
+	if obj[7]&0x08 == 0 {
 		t.Fatal("LSP administrative flag not set")
 	}
-	if obj[12]&0x08 == 0 {
+	if obj[7]&0x80 == 0 {
 		t.Fatal("LSP create flag not set")
 	}
 }
 
 func TestBuildSRPObject(t *testing.T) {
 	obj := BuildSRPObject(9001, nil)
-	if len(obj) < 4 {
-		t.Fatalf("SRP object too short: %d", len(obj))
+	// SRP object: class=33, body = Flags(4) + SRP-ID(4)
+	if obj[0] != 33 {
+		t.Fatalf("SRP object class = %d, want 33", obj[0])
 	}
-	if obj[0] != 24 {
-		t.Fatalf("SRP object class = %d, want 24", obj[0])
-	}
-	// Check SRP-ID = 9001
-	srpID := uint32(obj[4])<<24 | uint32(obj[5])<<16 | uint32(obj[6])<<8 | uint32(obj[7])
+	// SRP-ID at body offset 4
+	srpID := uint32(obj[8])<<24 | uint32(obj[9])<<16 | uint32(obj[10])<<8 | uint32(obj[11])
 	if srpID != 9001 {
 		t.Fatalf("SRP ID = %d, want 9001", srpID)
 	}
@@ -242,21 +236,21 @@ func TestBuildSRPObject(t *testing.T) {
 
 func TestBuildLSPAObject(t *testing.T) {
 	obj := BuildLSPAObject(true, 3, 4)
-	if len(obj) < 4 {
-		t.Fatalf("LSPA object too short: %d", len(obj))
+	if len(obj) != 20 {
+		t.Fatalf("LSPA object length=%d, want 20", len(obj))
 	}
 	if obj[0] != 9 {
 		t.Fatalf("LSPA object class = %d, want 9", obj[0])
 	}
-	// Check setup=3, holding=4
-	if obj[8] != 3 {
-		t.Fatalf("LSPA setup_priority = %d, want 3", obj[8])
+	// Setup=3, Holding=4 at body offsets 12, 13 → object offsets 16, 17
+	if obj[16] != 3 {
+		t.Fatalf("LSPA setup_priority = %d, want 3", obj[16])
 	}
-	if obj[9] != 4 {
-		t.Fatalf("LSPA holding_priority = %d, want 4", obj[9])
+	if obj[17] != 4 {
+		t.Fatalf("LSPA holding_priority = %d, want 4", obj[17])
 	}
-	// Check L flag
-	if obj[11]&0x80 == 0 {
+	// L flag at body offset 14 → object offset 18 (mask 0x01)
+	if obj[18]&0x01 == 0 {
 		t.Fatal("LSPA L flag not set")
 	}
 }
@@ -269,38 +263,36 @@ func TestBuildMetricObject(t *testing.T) {
 	if objLen != 12 {
 		t.Fatalf("Metric object length = %d, want 12", objLen)
 	}
-	// Check C flag in body byte 0 (offset 4 = obj header 4 + body byte 0)
-	if obj[4]&0x80 == 0 {
+	// C flag at body offset 2 (mask 0x02) → object offset 6
+	if obj[6]&0x02 == 0 {
 		t.Fatal("Metric C flag not set")
 	}
-	// Check type
-	metricType := uint16(obj[6])<<8 | uint16(obj[7])
-	if metricType != 1 {
-		t.Fatalf("Metric type = %d, want 1", metricType)
+	// Type at body offset 3 → object offset 7
+	if obj[7] != 1 {
+		t.Fatalf("Metric type = %d, want 1", obj[7])
 	}
 
 	// Metric type 2, B flag, value 20.0
 	obj2 := BuildMetricObject(2, false, true, 20.0)
-	if obj2[4]&0x40 == 0 {
+	if obj2[6]&0x01 == 0 {
 		t.Fatal("Metric B flag not set")
 	}
-	metricType2 := uint16(obj2[6])<<8 | uint16(obj2[7])
-	if metricType2 != 2 {
-		t.Fatalf("Metric type = %d, want 2", metricType2)
+	if obj2[7] != 2 {
+		t.Fatalf("Metric type = %d, want 2", obj2[7])
 	}
 }
 
 func TestBuildIPv6Endpoint(t *testing.T) {
 	obj := BuildEndpointObjectIPv6("2001:db8::10", "2001:db8::20")
-	if len(obj) < 4 {
-		t.Fatalf("IPv6 endpoint too short: %d", len(obj))
+	if len(obj) != 36 {
+		t.Fatalf("IPv6 endpoint length=%d, want 36", len(obj))
 	}
 	if obj[0] != 4 {
 		t.Fatalf("Endpoint object class = %d, want 4", obj[0])
 	}
-	// Object type for IPv6 = 2
-	if obj[1]&0xC0 != 0x80 {
-		t.Fatalf("Endpoint object type = %02x, want 80 (OT=2)", obj[1]&0xC0)
+	// Object type for IPv6 = 2 in high nibble
+	if obj[1]&0xF0 != 0x20 {
+		t.Fatalf("Endpoint object type = %02x, want 0x20 (OT=2)", obj[1]&0xF0)
 	}
 }
 
@@ -311,12 +303,11 @@ func TestBuildIPv6Subobject(t *testing.T) {
 	if len(ero) < 8 {
 		t.Fatalf("ERO with IPv6 too short: %d", len(ero))
 	}
-	// Check subobject type = 2 (IPv6) and L flag
+	// Subobject type = 2 (IPv6), L flag on the type byte (Mask_L=0x80)
 	found := false
 	for i := 0; i < len(ero)-2; i++ {
-		if ero[i] == 2 && ero[i+1] == 20 {
-			// IPv6 subobject with L flag
-			if ero[i+19]&0x80 != 0 {
+		if ero[i]&0x7F == 2 && ero[i+1] == 20 {
+			if ero[i]&0x80 != 0 {
 				found = true
 			}
 		}
@@ -337,13 +328,13 @@ func TestBuildStatefulOpen(t *testing.T) {
 	if pdu[1] != 1 {
 		t.Fatalf("Stateful Open msg type = %d, want 1", pdu[1])
 	}
-	// Length should be larger than basic Open (16) due to TLVs
+	// Basic Open is 12 bytes; stateful adds TLV 16 (8) + TLV 17 (8) = 28 bytes.
 	msgLen := uint16(pdu[2])<<8 | uint16(pdu[3])
-	if msgLen <= 16 {
-		t.Fatalf("Stateful Open msg_length = %d, want > 16", msgLen)
+	if msgLen != 28 {
+		t.Fatalf("Stateful Open msg_length = %d, want 28", msgLen)
 	}
-	// Find TLV 16 (Stateful-PCE-Capability) and TLV 17 (Sync-Capability) in the body
-	// Body starts after object header (4 bytes) at offset 8
+	// TLV 16 (Stateful-PCE-Capability) and TLV 17 (Sync-Capability) in the body.
+	// Body starts after object header (4 bytes) + OPEN body (4 bytes) = offset 8.
 	bodyStart := 8
 	foundTLV16 := false
 	foundTLV17 := false
@@ -351,16 +342,19 @@ func TestBuildStatefulOpen(t *testing.T) {
 		tlvType := uint16(pdu[i])<<8 | uint16(pdu[i+1])
 		if tlvType == 16 {
 			foundTLV16 = true
-			// Check U bit (LSP-UPDATE-CAPABILITY) in first value byte
-			if pdu[i+4]&0x80 == 0 {
+			// U bit at value byte 3 (flags[3] & 0x01)
+			if pdu[i+4+3]&0x01 == 0 {
 				t.Fatal("TLV 16 missing U bit (lsp_update)")
+			}
+			// S bit at value byte 3 (flags[3] & 0x02)
+			if pdu[i+4+3]&0x02 == 0 {
+				t.Fatal("TLV 16 missing S bit (include_db_version)")
 			}
 		}
 		if tlvType == 17 {
 			foundTLV17 = true
-			// Check D bit (Include-DB-Version) in first value byte
-			if pdu[i+4]&0x80 == 0 {
-				t.Fatal("TLV 17 missing D bit (include_db_version)")
+			if pdu[i+4+3]&0x02 == 0 {
+				t.Fatal("TLV 17 missing S bit (include_db_version)")
 			}
 		}
 	}
@@ -918,10 +912,10 @@ func TestPlannerStatefulLSP(t *testing.T) {
 	if pkt.Payload[1] != 6 {
 		t.Fatalf("packet 6 type = %d, want 6", pkt.Payload[1])
 	}
-	// Check for LSP object (class 21)
+	// Check for LSP object (class 32)
 	foundLSP := false
 	for i := 0; i < len(pkt.Payload)-4; i++ {
-		if pkt.Payload[i] == 21 {
+		if pkt.Payload[i] == 32 {
 			foundLSP = true
 			break
 		}
@@ -956,23 +950,23 @@ func TestPlannerErrorPropagation(t *testing.T) {
 
 func TestHexOpenMsg(t *testing.T) {
 	// Verify the exact hex for Open message as expected by pcep.json
-	// Frame hex: 20 01 00 10
+	// Frame hex: 20 01 00 0c (corrected — OPEN body is 4 bytes, not 8)
 	pdu := BuildOpenMsg(30, 120, 7, nil)
-	if pdu[0] != 0x20 || pdu[1] != 0x01 || pdu[2] != 0x00 || pdu[3] != 0x10 {
-		t.Fatalf("Open header = %02x %02x %02x %02x, want 20 01 00 10",
+	if pdu[0] != 0x20 || pdu[1] != 0x01 || pdu[2] != 0x00 || pdu[3] != 0x0c {
+		t.Fatalf("Open header = %02x %02x %02x %02x, want 20 01 00 0c",
 			pdu[0], pdu[1], pdu[2], pdu[3])
 	}
-	// msg_length = 16
+	// msg_length = 12
 	msgLen := uint16(pdu[2])<<8 | uint16(pdu[3])
-	if msgLen != 16 {
-		t.Fatalf("Open msg_length = %d, want 16", msgLen)
+	if msgLen != 12 {
+		t.Fatalf("Open msg_length = %d, want 12", msgLen)
 	}
-	// OPEN object header: Class=1, OT=1 (0x40), Length=12
+	// OPEN object header: Class=1, Type=1 (0x10), Length=8
 	if pdu[4] != 1 {
 		t.Fatalf("Open object class = %d, want 1", pdu[4])
 	}
-	if pdu[5] != 0x40 {
-		t.Fatalf("Open object header byte1 = %02x, want 40 (OT=1, P=0, I=0)", pdu[5])
+	if pdu[5] != 0x10 {
+		t.Fatalf("Open object header byte1 = %02x, want 10 (Type=1, P=0, I=0)", pdu[5])
 	}
 }
 
@@ -1032,19 +1026,19 @@ func TestHexPCErrMsg(t *testing.T) {
 func TestObjectFlags(t *testing.T) {
 	// pcep.obj.hdr.flags.p and pcep.obj.hdr.flags.i
 	obj := BuildRPObject(8501, true, true)
-	// Object header byte 1: OT=1 (0x40) | P=1 (0x10) | I=1 (0x08) = 0x58
-	if obj[1] != 0x58 {
-		t.Fatalf("Object header byte 1 = %02x, want 0x58 (P=1, I=1)", obj[1])
+	// Object header byte 1: Type=1 (0x10) | P=1 (0x02) | I=1 (0x01) = 0x13
+	if obj[1] != 0x13 {
+		t.Fatalf("Object header byte 1 = %02x, want 0x13 (P=1, I=1)", obj[1])
 	}
 	// Object header byte 1 P flag only
 	obj2 := BuildRPObject(8501, true, false)
-	if obj2[1] != 0x50 {
-		t.Fatalf("Object header byte 1 = %02x, want 0x50 (P=1, I=0)", obj2[1])
+	if obj2[1] != 0x12 {
+		t.Fatalf("Object header byte 1 = %02x, want 0x12 (P=1, I=0)", obj2[1])
 	}
 	// Object header byte 1 I flag only
 	obj3 := BuildRPObject(8501, false, true)
-	if obj3[1] != 0x48 {
-		t.Fatalf("Object header byte 1 = %02x, want 0x48 (P=0, I=1)", obj3[1])
+	if obj3[1] != 0x11 {
+		t.Fatalf("Object header byte 1 = %02x, want 0x11 (P=0, I=1)", obj3[1])
 	}
 }
 
@@ -1053,19 +1047,19 @@ func TestObjectFlags(t *testing.T) {
 func TestMetricFlags(t *testing.T) {
 	// C flag + type 1 + value 12.5
 	obj := BuildMetricObject(1, true, false, 12.5)
-	if obj[4]&0x80 == 0 {
+	if obj[6]&0x02 == 0 {
 		t.Fatal("Metric C flag not set")
 	}
-	if obj[4]&0x40 != 0 {
+	if obj[6]&0x01 != 0 {
 		t.Fatal("Metric B flag should not be set")
 	}
 
 	// B flag + type 2 + value 20.0
 	obj2 := BuildMetricObject(2, false, true, 20.0)
-	if obj2[4]&0x40 == 0 {
+	if obj2[6]&0x01 == 0 {
 		t.Fatal("Metric B flag not set")
 	}
-	if obj2[4]&0x80 != 0 {
+	if obj2[6]&0x02 != 0 {
 		t.Fatal("Metric C flag should not be set")
 	}
 }

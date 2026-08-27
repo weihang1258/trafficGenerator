@@ -44,7 +44,7 @@
       "packet_count": 10,
       "has_handshake": true,
       "terminates": true,
-      "has_payload": true,
+      "has_payload": false,
       "directional": true,
       "fields": [
         {
@@ -60,17 +60,17 @@
         {
           "packet": 4,
           "field": "pcep.version",
-          "value": "1"
+          "value": "0x01"
         },
         {
           "packet": 4,
           "field": "pcep.flags",
-          "value": "0"
+          "value": "0x00"
         },
         {
           "packet": 4,
           "field": "pcep.msg_length",
-          "value": "16"
+          "value": "12"
         },
         {
           "packet": 4,
@@ -117,12 +117,12 @@
         {
           "packet": 4,
           "offset": 54,
-          "hex": "20 01 00 10"
+          "hex": "20 01 00 0c"
         },
         {
           "packet": 5,
           "offset": 54,
-          "hex": "20 01 00 10"
+          "hex": "20 01 00 0c"
         },
         {
           "packet": 6,
@@ -182,7 +182,7 @@
       "packet_count": 11,
       "has_handshake": true,
       "terminates": true,
-      "has_payload": true,
+      "has_payload": false,
       "directional": true,
       "fields": [
         {
@@ -230,12 +230,12 @@
         {
           "packet": 4,
           "offset": 54,
-          "hex": "20 01 00 10"
+          "hex": "20 01 00 0c"
         },
         {
           "packet": 5,
           "offset": 54,
-          "hex": "20 01 00 10"
+          "hex": "20 01 00 0c"
         },
         {
           "packet": 6,
@@ -308,7 +308,7 @@
       "packet_count": 13,
       "has_handshake": true,
       "terminates": true,
-      "has_payload": true,
+      "has_payload": false,
       "directional": true,
       "fields": [
         {
@@ -476,13 +476,13 @@
         },
         {
           "packet": 6,
-          "field": "pcep.request_id",
-          "value": "1001"
+          "field": "pcep.obj.rp.requested_id_number",
+          "value": "0x000003e9"
         },
         {
           "packet": 6,
           "field": "pcep.obj.rp.requested_id_number",
-          "value": "1001"
+          "value": "0x000003e9"
         },
         {
           "packet": 6,
@@ -502,7 +502,7 @@
         {
           "packet": 6,
           "field": "pcep.obj.metric.type",
-          "value": "1"
+          "value": "1,1"
         },
         {
           "packet": 7,
@@ -580,7 +580,7 @@
             "objects": [
               {
                 "class": "rp",
-                "requested_id_number": 1001,
+                "requested_id_number": 2001,
                 "flags": {
                   "p": true
                 }
@@ -658,8 +658,8 @@
         },
         {
           "packet": 6,
-          "field": "pcep.request_id",
-          "value": "2001"
+          "field": "pcep.obj.rp.requested_id_number",
+          "value": "0x000007d1"
         },
         {
           "packet": 7,
@@ -668,7 +668,7 @@
         },
         {
           "packet": 7,
-          "field": "pcep.request_id",
+          "field": "pcep.obj.rp.requested_id_number",
           "value": "2001",
           "same_as_packet": 6
         },
@@ -680,12 +680,12 @@
         {
           "packet": 7,
           "field": "pcep.obj.metric.type",
-          "value": "2"
+          "value": "1,2"
         },
         {
           "packet": 7,
           "field": "pcep.obj.metric.metric_value",
-          "value": "20.0"
+          "value": "20"
         },
         {
           "packet": 7,
@@ -840,7 +840,7 @@
         {
           "packet": 7,
           "field": "pcep.obj.notification.value",
-          "value": "1"
+          "value": "0x01"
         },
         {
           "packet": 8,
@@ -1072,23 +1072,23 @@
       "fields": [
         {
           "packet": 6,
-          "field": "pcep.request_id",
-          "value": "3001"
+          "field": "pcep.obj.rp.requested_id_number",
+          "value": "0x00000bb9"
         },
         {
           "packet": 7,
-          "field": "pcep.request_id",
-          "value": "3002"
+          "field": "pcep.obj.rp.requested_id_number",
+          "value": "0x00000bba"
         },
         {
           "packet": 8,
-          "field": "pcep.request_id",
-          "value": "3001"
+          "field": "pcep.obj.rp.requested_id_number",
+          "value": "0x00000bb9"
         },
         {
           "packet": 9,
-          "field": "pcep.request_id",
-          "value": "3002"
+          "field": "pcep.obj.rp.requested_id_number",
+          "value": "0x00000bba"
         },
         {
           "packet": 8,
@@ -1252,7 +1252,7 @@
         {
           "packet": 7,
           "field": "pcep.subobj.ipv6.l",
-          "value": "True"
+          "value": "1"
         }
       ],
       "frames": [
@@ -1381,12 +1381,12 @@
         {
           "packet": 6,
           "field": "pcep.obj.lsp.flags.delegate",
-          "value": "True"
+          "value": "1"
         },
         {
           "packet": 6,
           "field": "pcep.obj.lsp.flags.create",
-          "value": "True"
+          "value": "1"
         },
         {
           "packet": 6,
@@ -1539,7 +1539,7 @@
         {
           "packet": 6,
           "field": "pcep.subobj.ipv4.l",
-          "value": "True"
+          "value": "1"
         },
         {
           "packet": 7,
@@ -1548,8 +1548,8 @@
         },
         {
           "packet": 7,
-          "field": "pcep.subobj.ipv4.l",
-          "value": "False"
+          "field": "pcep.subobj.flags.lpu",
+          "value": "0"
         }
       ],
       "frames": [
@@ -1652,12 +1652,12 @@
         {
           "packet": 6,
           "field": "pcep.metric.flags.c",
-          "value": "True"
+          "value": "1"
         },
         {
           "packet": 6,
           "field": "pcep.obj.metric.type",
-          "value": "1"
+          "value": "1,1"
         },
         {
           "packet": 6,
@@ -1667,17 +1667,17 @@
         {
           "packet": 7,
           "field": "pcep.metric.flags.b",
-          "value": "True"
+          "value": "1"
         },
         {
           "packet": 7,
           "field": "pcep.obj.metric.type",
-          "value": "2"
+          "value": "1,2"
         },
         {
           "packet": 7,
           "field": "pcep.obj.metric.metric_value",
-          "value": "20.0"
+          "value": "20"
         }
       ],
       "frames": [
@@ -1846,11 +1846,6 @@
           "packet": 8,
           "field": "pcep.msg",
           "value": "4"
-        },
-        {
-          "packet": 9,
-          "field": "pcep.msg",
-          "value": "2"
         }
       ],
       "frames": [
@@ -2105,7 +2100,7 @@
         },
         {
           "packet": 4,
-          "field": "pcep.request_id",
+          "field": "pcep.obj.rp.requested_id_number",
           "value": "8101"
         },
         {
@@ -2115,7 +2110,7 @@
         },
         {
           "packet": 11,
-          "field": "pcep.request_id",
+          "field": "pcep.obj.rp.requested_id_number",
           "value": "8102"
         }
       ],
@@ -2220,14 +2215,14 @@
           "value": "6"
         },
         {
-          "packet": 6,
+          "packet": 4,
           "field": "pcep.stateful-pce-capability.lsp-update",
-          "value": "True"
+          "value": "1"
         },
         {
-          "packet": 6,
+          "packet": 4,
           "field": "pcep.sync-capability.include-db-version",
-          "value": "True"
+          "value": "1"
         },
         {
           "packet": 6,
@@ -2368,17 +2363,17 @@
         {
           "packet": 6,
           "field": "pcep.obj.lsp.flags.delegate",
-          "value": "True"
+          "value": "1"
         },
         {
           "packet": 7,
           "field": "pcep.obj.lsp.flags.remove",
-          "value": "True"
+          "value": "1"
         },
         {
           "packet": 8,
           "field": "pcep.obj.lsp.flags.create",
-          "value": "True"
+          "value": "1"
         }
       ],
       "frames": [
@@ -2520,12 +2515,12 @@
         {
           "packet": 4,
           "field": "pcep.version",
-          "value": "1"
+          "value": "0x01"
         },
         {
           "packet": 4,
           "field": "pcep.flags",
-          "value": "0"
+          "value": "0x00"
         },
         {
           "packet": 4,
@@ -2535,7 +2530,7 @@
         {
           "packet": 4,
           "field": "pcep.msg_length",
-          "value": "16"
+          "value": "12"
         },
         {
           "packet": 6,
@@ -2552,7 +2547,7 @@
         {
           "packet": 4,
           "offset": 54,
-          "hex": "20 01 00 10"
+          "hex": "20 01 00 0c"
         },
         {
           "packet": 6,
@@ -2642,17 +2637,17 @@
         {
           "packet": 6,
           "field": "pcep.obj.hdr.flags.p",
-          "value": "True"
+          "value": "1,0"
         },
         {
           "packet": 6,
           "field": "pcep.obj.hdr.flags.i",
-          "value": "True"
+          "value": "1,0"
         },
         {
           "packet": 6,
           "field": "pcep.lspa.flags.l",
-          "value": "True"
+          "value": "1"
         },
         {
           "packet": 6,
