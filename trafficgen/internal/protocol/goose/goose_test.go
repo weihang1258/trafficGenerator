@@ -103,3 +103,66 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// TestPlannerRetransmitSequence verifies the event_seq state machine: one
+// initial heartbeat (st=1 sq=1), then a change burst (st=2 sq=0 +
+// retransmits frames sq 1..N), then heartbeat resumes. Guards the P3 T4.2
+// goose_retransmit case sequence.
+func TestPlannerRetransmitSequence(t *testing.T) {
+	cfg := validConfig()
+	cfg.Count = 8
+	cfg.EventSeq = []core.GOOSEEventSeq{{DataIdx: 0, DelayMs: 5, Retransmits: 5}}
+	ch, err := (&Planner{}).Plan(context.Background(), core.FlowSpec{SrcMAC: "aa:bb:cc:dd:ee:01", GOOSE: cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stNums, sqNums []int
+	for p := range ch {
+		st, _ := extractGooseCounter(p.Payload, 0x85)
+		sq, _ := extractGooseCounter(p.Payload, 0x86)
+		stNums = append(stNums, st)
+		sqNums = append(sqNums, sq)
+	}
+	wantSt := []int{1, 2, 2, 2, 2, 2, 2, 2}
+	wantSq := []int{1, 0, 1, 2, 3, 4, 5, 6}
+	if len(stNums) != len(wantSt) {
+		t.Fatalf("frames=%d want %d", len(stNums), len(wantSt))
+	}
+	for i := range wantSt {
+		if stNums[i] != wantSt[i] || sqNums[i] != wantSq[i] {
+			t.Errorf("frame %d: st=%d sq=%d, want st=%d sq=%d", i+1, stNums[i], sqNums[i], wantSt[i], wantSq[i])
+		}
+	}
+}
+
+// extractGooseCounter returns the integer value of the BER member with the
+// given tag from a GOOSE payload (stNum=0x85, sqNum=0x86). Returns 0 if the
+// tag is absent (unexpected); the test fails via the value assertion.
+func extractGooseCounter(payload []byte, tag byte) (int, error) {
+	for i := 0; i+2 < len(payload); i++ {
+		if payload[i] != tag {
+			continue
+		}
+		ln := int(payload[i+1])
+		if i+2+ln <= len(payload) {
+			v := 0
+			for _, b := range payload[i+2 : i+2+ln] {
+				v = v<<8 | int(b)
+			}
+			return v, nil
+		}
+	}
+	return 0, nil
+}
+
+// TestPlannerRejectsNonContiguousSqNum verifies that an event_seq with
+// sqnum_step > 1 (non-contiguous jump) is rejected — the neg_sqnum negative
+// case (P3 T4.2 validation gap).
+func TestPlannerRejectsNonContiguousSqNum(t *testing.T) {
+	cfg := validConfig()
+	cfg.EventSeq = []core.GOOSEEventSeq{{DataIdx: 0, DelayMs: 5, Retransmits: 2, SqNumStep: 2}}
+	err := (&Planner{}).Validate(core.FlowSpec{GOOSE: cfg})
+	if err == nil || !strings.Contains(err.Error(), "sqNum") {
+		t.Fatalf("err=%v want sqNum rejection", err)
+	}
+}

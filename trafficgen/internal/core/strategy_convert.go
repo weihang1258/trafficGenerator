@@ -7636,5 +7636,17 @@ func parseGOOSEConfig(m map[string]interface{}) *GOOSEConfig {
 			}
 		}
 	}
+	if seq, ok := m["event_seq"].([]interface{}); ok {
+		for _, raw := range seq {
+			if item, ok := raw.(map[string]interface{}); ok {
+				b.EventSeq = append(b.EventSeq, GOOSEEventSeq{
+					DataIdx:     getInt(item, "data_idx"),
+					DelayMs:     getInt(item, "delay_ms"),
+					Retransmits: getInt(item, "retransmits"),
+					SqNumStep:   getInt(item, "sqnum_step"),
+				})
+			}
+		}
+	}
 	return b
 }

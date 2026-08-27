@@ -1055,6 +1055,23 @@ type GOOSEConfig struct {
 	VLANEnabled  bool        `json:"vlan_enabled,omitempty"`
 	VLANID       uint16      `json:"vlan_id,omitempty"`
 	VLANPriority uint8       `json:"vlan_priority,omitempty"`
+	// EventSeq is the GOOSE dataset-change/retransmit sequence. Each entry
+	// models one state-change burst: stNum bumps, sqNum resets to 0, then
+	// `retransmits` fast-retransmit frames follow (sqNum 0..retransmits).
+	// After the burst, heartbeat resumes with sqNum continuing.
+	EventSeq []GOOSEEventSeq `json:"event_seq,omitempty"`
+}
+
+// GOOSEEventSeq describes one GOOSE dataset-change event and its fast
+// retransmit burst (design T-GSE-S2). DataIdx selects the changed allData
+// member; DelayMs is the inter-frame delay; Retransmits is the number of
+// fast-retransmit frames in the burst; SqNumStep (negative tests) asserts the
+// sqNum step — a value != 1 violates monotonicity and must be rejected.
+type GOOSEEventSeq struct {
+	DataIdx     int `json:"data_idx,omitempty"`
+	DelayMs     int `json:"delay_ms,omitempty"`
+	Retransmits int `json:"retransmits,omitempty"`
+	SqNumStep   int `json:"sqnum_step,omitempty"`
 }
 
 // SVData describes one integer sampled-value channel.

@@ -39,8 +39,11 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	if c.ConfRev == 0 {
 		return fmt.Errorf("goose conf_rev must be non-zero")
 	}
-	if c.StartSTNum == ^uint32(0) || c.StartSQNum == ^uint32(0) {
-		return fmt.Errorf("goose state counters must not overflow")
+	if c.StartSTNum == ^uint32(0) {
+		return fmt.Errorf("goose stNum must not overflow (got 0x%08x)", c.StartSTNum)
+	}
+	if c.StartSQNum == ^uint32(0) {
+		return fmt.Errorf("goose sqNum must not overflow (got 0x%08x)", c.StartSQNum)
 	}
 	if len(c.Data) == 0 {
 		return fmt.Errorf("goose at least one allData member is required")
@@ -48,6 +51,13 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	for _, m := range c.Data {
 		if !isValidDataMember(m) {
 			return fmt.Errorf("goose unsupported data type %q", m.Type)
+		}
+	}
+	// event_seq 的 sqNum 步进必须为 1（GOOSE 单调 +1 重传契约）；>1 表示
+	// 非连续跳号，负例 neg_sqnum 用它校验"该拒未拒"缺口。
+	for _, ev := range c.EventSeq {
+		if ev.SqNumStep > 1 {
+			return fmt.Errorf("goose sqNum step %d violates monotonic +1 (got; retransmit burst must be contiguous)", ev.SqNumStep)
 		}
 	}
 	if spec.SrcIP != "" || spec.DstIP != "" || spec.SrcPort != 0 || spec.DstPort != 0 {
@@ -84,27 +94,21 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		if sq == 0 {
 			sq = 1
 		}
-		dst := c.DstMAC
-		if dst == "" {
-			dst = DefaultDstMAC
-		}
-		vlan := spec.VLAN
-		if c.VLANEnabled {
-			vlan = &core.VLAN{ID: c.VLANID, Priority: c.VLANPriority}
-		}
-		for i := 0; i < count; i++ {
-			payload, err := BuildPayload(&c, st, sq)
-			if err != nil {
-				return
+		emit := func(pkt core.PacketConfig) error {
+			pkt.FlowID = fmt.Sprintf("goose-%s-%s", spec.SrcMAC, c.DstMAC)
+			pkt.Timestamp = time.Now()
+			if pkt.FlowID == "goose--" {
+				pkt.FlowID = fmt.Sprintf("goose-%s-%s", spec.SrcMAC, DefaultDstMAC)
 			}
-			pkt := core.PacketConfig{FlowID: fmt.Sprintf("goose-%s-%s", spec.SrcMAC, dst), PacketIndex: uint64(i), Direction: "up", Timestamp: time.Now(), L2: core.L2Config{SrcMAC: spec.SrcMAC, DstMAC: dst, EtherType: core.EtherTypeGOOSE, VLAN: vlan}, L4: core.L4Config{Protocol: "goose"}, Payload: payload}
 			select {
 			case out <- pkt:
+				return nil
 			case <-ctx.Done():
-				return
+				return ctx.Err()
 			}
-			sq++
 		}
+		// PackageIndex 递增由 emitGooseFrames 按发送序补（用局部计数）。
+		_ = emitGooseFrames(ctx, emit, &c, count, st, sq, spec.SrcMAC)
 	}()
 	return out, nil
 }
@@ -457,19 +461,67 @@ func (g *Generator) Generate(ctx context.Context, req *layers.GenRequest) error 
 		dst = DefaultDstMAC
 	}
 	src := req.Meta.SrcMAC
-	for i := 0; i < count; i++ {
+	return emitGooseFrames(ctx, req.Emit, c, count, st, sq, src)
+}
+
+// emitGooseFrames drives the GOOSE frame sequence per the event_seq model
+// (P3 T4.2): one initial heartbeat, then for each event_seq entry a state-
+// change burst (stNum bumps, sqNum resets to 0, then `retransmits` fast-
+// retransmit frames sqNum=1..retransmits), then remaining heartbeats continue
+// sqNum. Matches cases goose_retransmit/goose_dataset_change.
+func emitGooseFrames(ctx context.Context, emit func(core.PacketConfig) error, c *core.GOOSEConfig, count int, st, sq uint32, src string) error {
+	v := (*core.VLAN)(nil)
+	if c.VLANEnabled {
+		v = &core.VLAN{ID: c.VLANID, Priority: c.VLANPriority}
+	}
+	dst := c.DstMAC
+	if dst == "" {
+		dst = DefaultDstMAC
+	}
+	send := func(st, sq uint32) error {
 		b, err := BuildPayload(c, st, sq)
 		if err != nil {
 			return err
 		}
-		v := (*core.VLAN)(nil)
-		if c.VLANEnabled {
-			v = &core.VLAN{ID: c.VLANID, Priority: c.VLANPriority}
-		}
 		p := core.PacketConfig{Direction: "up", L2: core.L2Config{SrcMAC: src, DstMAC: dst, EtherType: core.EtherTypeGOOSE, VLAN: v}, L4: core.L4Config{Protocol: "goose"}, Payload: b}
-		if err := req.Emit(p); err != nil {
+		return emit(p)
+	}
+	emitted := 0
+	// 首帧心跳（若有 event_seq，事件前的固定 1 帧心跳；无则全心跳）。
+	preEvent := 1
+	if len(c.EventSeq) == 0 {
+		preEvent = 0
+	}
+	for emitted < count && emitted < preEvent {
+		if err := send(st, sq); err != nil {
 			return err
 		}
+		emitted++
+		sq++
+	}
+	// 事件爆发：每个 event_seq 触发 stNum++、sqNum 复位 0，播 retransmits+1
+	// 帧（sqNum 0..retransmits）。
+	for _, ev := range c.EventSeq {
+		if emitted >= count {
+			break
+		}
+		st++
+		sq = 0
+		frames := ev.Retransmits + 1
+		for j := 0; j < frames && emitted < count; j++ {
+			if err := send(st, sq); err != nil {
+				return err
+			}
+			emitted++
+			sq++
+		}
+	}
+	// 剩余帧为心跳，sqNum 继续自增。
+	for emitted < count {
+		if err := send(st, sq); err != nil {
+			return err
+		}
+		emitted++
 		sq++
 	}
 	return nil
