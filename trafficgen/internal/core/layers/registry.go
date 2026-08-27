@@ -653,6 +653,10 @@ func DefaultRegistry() *Registry {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "8604"}, // gRPC telemetry_8604 惯例；用户显式非标准端口优先，不强制（gRPC 本身不强制端口）
 	})
+	r.Register(LayerSchema{Name: "ssh", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "22"}, // SSH IANA 22；用户显式非标准端口优先，不强制
+	})
 
 	// ---- 隧道层（tunnel）----
 	r.Register(LayerSchema{Name: "tls", Category: CategoryTunnel,

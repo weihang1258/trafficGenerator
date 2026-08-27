@@ -389,6 +389,10 @@ type FlowMeta struct {
 	// preface + SETTINGS + 逐 call HEADERS/DATA/trailers 逐帧事件，buildFrame/
 	// buildDataFrameStream 纯函数复用)。Only set for grpc chains。
 	GRPC *core.GRPCConfig
+	// SSH is the flow's SSH config (注入到 ssh 终结层生成器：version exchange
+	// + KEXINIT/KEXDH + NEWKEYS + userauth + channel 逐 BPP 帧事件，
+	// encode*/buildBPP 纯函数复用)。Only set for ssh chains。
+	SSH *core.SSHConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
