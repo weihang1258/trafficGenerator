@@ -373,6 +373,10 @@ type FlowMeta struct {
 	// PPP 数据报文列，buildControlMessage/buildDataMessage 纯函数复用)。
 	// Only set for l2tp chains。
 	L2TP *core.L2TPConfig
+	// GTP is the flow's GTP config (注入到 gtp 终结层生成器：GTP-U/C 隧道
+	// 报文序列，buildGTPMessage/buildInnerIPv4Packet 纯函数复用)。Only set
+	// for gtp chains。
+	GTP *core.GTPConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators

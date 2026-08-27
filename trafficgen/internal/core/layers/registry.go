@@ -306,6 +306,14 @@ func DefaultRegistry() *Registry {
 		DependsOn:     []string{"udp"},
 		FieldContract: map[string]string{"udp.dst_port": "1701"}, // RFC 2661 默认 1701；用户显式非标准端口优先，不强制
 	})
+	// ---- gtp（udp 终结层。GTP-U/GTP-C——UDP 承载的隧道协议，GTP header +
+	// 内层 IP 包，wire 字节由 buildGTPMessage/buildInnerIPv4Packet 纯函数
+	// 产出）。UDP 语义交给 udp 层生成器；配置经 spec.GTP flat 键携带、
+	// FlowMeta 直传生成器（tftp 重放模式）；目的端口按 Mode 默认
+	// （u=2152/c=2123，Plan 内 resolve，无固定 FieldContract）。
+	r.Register(LayerSchema{Name: "gtp", Category: CategoryTerminal,
+		DependsOn: []string{"udp"},
+	})
 	// ---- amqp（tcp 终结层。AMQP 0-9-1——高级消息队列协议，TCP 承载的
 	// 消息队列 wire 协议，8-byte protocol header → METHOD/HEADER/BODY/
 	// HEARTBEAT frame 序列，frame layout 为
