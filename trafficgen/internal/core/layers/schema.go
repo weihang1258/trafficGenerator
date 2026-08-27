@@ -100,6 +100,21 @@ type LayerSchema struct {
 	InnerRequired []string
 	// Fields is the field 说明书 keyed by config key.
 	Fields map[string]FieldSchema
+	// TransformEvents marks a terminal-layer schema that can also act as an
+	// event transformer (http_flv 链 [ip→tcp→http→http_flv] 中 http 层既是独立
+	// 终结层也是变换器：http_flv 终结层产 FLV body 事件 → http 变换器包装为
+	// HTTP GET/200 帧 → tcp 分段)。标记为 true 的层在 validateChain 的终结层
+	// 唯一性检查（V2）中被排除计数，因为它在 transformer 模式下不充当终结层，
+	// 但 V4 末层必须是终结层的检查不受影响（standalone http 仍可当末层）。
+	TransformEvents bool
+	// FieldContract is the cross-layer field contract (维度二，跨层字段契约，
+	// design §1.3/§4.1): a map of "<直接承载我的层名>.<字段>" → "<常量值>".
+	// The target layer is the DIRECTLY-carrying neighbor (紧邻外层邻居层), not
+	// the outermost. The value is a constant (including profile/dialect-selected
+	// constants — the variant changes the contract value, not "constant").
+	// Example: postgresql → {"tcp.dst_port": "5432"}; the dialect=kingbase
+	// variant overrides the value to "54321" (see effectiveFieldContract).
+	FieldContract map[string]string
 	// Constraints carries chain-level rules beyond the implicit category
 	// rules (terminal unique, transport unique, tunnel-not-terminal, ...).
 	Constraints []Constraint

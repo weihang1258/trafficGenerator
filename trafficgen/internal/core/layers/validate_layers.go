@@ -88,9 +88,9 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 //
 // V10/推断的"最外层"语义（§6.1 完整示例 [ip, gre, ip, tcp, http] +
 // protocol "gre"）：最外层 = 补全后链上第一个非脚手架层——L3/L2/传输层
-// （ip/eth/vlan/mpls/pppoe/tcp/udp）是承载骨架，不算用户意图；gre/tls/
-// http/dns 等用户协议层才算。全链都是骨架（独立 [ip→tcp] 传输 flow）
-// 时回退末层。
+// （ip/eth/vlan/mpls/pppoe/tcp/udp）与隧道层 tls 是承载骨架，不算用户
+// 意图；gre/http/dns 等用户协议层才算。全链都是骨架（独立 [ip→tcp] 传输
+// flow）时回退末层。
 //
 // 单层链（[tcp]、[http]…）是 legacy 每协议风格——类名即末层，传输层当
 // 末层合法（V4 豁免，ChainPlanner 合成链同口径）。隧道层单层（[tls]、
@@ -186,6 +186,35 @@ func ValidateLayers(layersJSON json.RawMessage, protocol string) (string, error)
 	outermost := outermostProtocol(completed)
 	if protocol != "" {
 		if outermost != protocol {
+			// 隧道层特例：protocol 显式指定为隧道层（如 "tls"）时，最外层是
+			// 内层协议（如 "http"），因为隧道层在 outermostProtocol 中被跳过
+			// （tls 承载骨架、非用户协议意图）。仅当 protocol 是隧道层且确实
+			// 在链上时允许该不匹配。
+			if schema, ok := r.Get(protocol); ok && schema.Category == CategoryTunnel {
+				found := false
+				for _, l := range completed {
+					if l.Name == protocol {
+						found = true
+						break
+					}
+				}
+				if found {
+					return protocol, nil
+				}
+			}
+			// 变换器特例：protocol 是 TransformEvents 标记层（如 http 之于
+			// http_flv 链 [ip→tcp→http→http_flv]），在链上非末层位置充当事件
+			// 变换器（不产自己的协议报文）。与 tls 承载骨架同类豁免。
+			// 豁免必须校验位置：仅当 protocol 层出现在**非末层**位置才成立
+			// ——若它当末层（如 [ip,gre,ip,tcp,http] + protocol "http"），
+			// 它是真正的终结层而非变换器，V10 应照常拒绝不匹配。
+			if schema, ok := r.Get(protocol); ok && schema.TransformEvents {
+				for i, l := range completed {
+					if l.Name == protocol && i < len(completed)-1 {
+						return protocol, nil
+					}
+				}
+			}
 			return "", errf("layers: protocol %q does not match outermost layer %q", protocol, outermost)
 		}
 		return protocol, nil // 显式 protocol 原样返回（调用方仅 protocol=="" 时回填）
@@ -194,13 +223,15 @@ func ValidateLayers(layersJSON json.RawMessage, protocol string) (string, error)
 }
 
 // outermostProtocol resolves the strategy's protocol from a completed chain:
-// the outermost layer that is not L3/L2/transport scaffolding (承载骨架，
-// §6.1 完整示例 [ip, gre, ip, tcp, http] + protocol "gre")。全链都是骨架
-// （独立 [ip→tcp] 传输 flow）时回退末层。
+// the outermost layer that is not L3/L2/transport scaffolding (承载骨架,
+// §6.1 完整示例 [ip, gre, ip, tcp, http] + protocol "gre")。tls 是隧道层
+// （隧道必须包内层 V6），作为 TLS 承载的协议（如 tls→stun）并非用户协议
+// 意图，同样计入骨架被跳过；gre 例外——它是自成一体的用户协议层，不跳过。
+// 全链都是骨架（独立 [ip→tcp] 传输 flow）时回退末层。
 func outermostProtocol(completed []Layer) string {
 	for i := range completed {
 		switch completed[i].Name {
-		case "ip", "eth", "vlan", "mpls", "pppoe", "tcp", "udp":
+		case "ip", "eth", "vlan", "mpls", "pppoe", "tcp", "udp", "tls", "http":
 			continue
 		}
 		return completed[i].Name

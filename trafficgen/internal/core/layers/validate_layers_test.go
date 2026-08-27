@@ -43,10 +43,28 @@ func TestValidateLayers_UnknownLayer(t *testing.T) {
 }
 
 // T18 (V2): duplicated terminal layer → error.
+// 用 s7（无 TransformEvents 标记的终结层）验证 V2：两个 s7 终结层 → 重复。
+// http 是 TransformEvents=true 的特例（见 T18b），不用它测 V2。
 func TestValidateLayers_DuplicateTerminal(t *testing.T) {
-	_, err := ValidateLayers(mustRaw(t, `[{"http":{}},{"ip":{}},{"http":{}}]`), "")
+	_, err := ValidateLayers(mustRaw(t, `[{"s7":{}},{"ip":{}},{"s7":{}}]`), "")
 	if err == nil || !strings.Contains(err.Error(), "duplicated") {
-		t.Errorf("duplicate http: want error mentioning duplicated, got %v", err)
+		t.Errorf("duplicate s7: want error mentioning duplicated, got %v", err)
+	}
+}
+
+// T18b (V2 变换器豁免)：http_flv 链 [ip→tcp→http→http_flv] 中 http 是事件
+// 变换器（非终结层位置），唯一的终结层是 http_flv → 合法，不得报 duplicated。
+func TestValidateLayers_HTTPFLVChainNotDuplicate(t *testing.T) {
+	_, err := ValidateLayers(mustRaw(t, `[{"ip":{}},{"tcp":{}},{"http":{}},{"http_flv":{}}]`), "")
+	if err != nil {
+		t.Errorf("[ip,tcp,http,http_flv]: want ok, got %v", err)
+	}
+	// 变换器豁免只认"非末层"位置：两个 http_flv 终结层（无论位置）仍是重复。
+	// 注意 http 在变换器位置且末层是 http_flv 时合法，但两个 http_flv 任意
+	// 位置都违反唯一终结层。
+	_, err = ValidateLayers(mustRaw(t, `[{"ip":{}},{"tcp":{}},{"http":{}},{"http_flv":{}},{"http_flv":{}}]`), "")
+	if err == nil || !strings.Contains(err.Error(), "duplicated") {
+		t.Errorf("two http_flv terminals: want error mentioning duplicated, got %v", err)
 	}
 }
 

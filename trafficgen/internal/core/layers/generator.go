@@ -51,6 +51,10 @@ type LayerGenerator interface {
 
 // GenRequest carries one layer's generation context (一层生成上下文)。
 type GenRequest struct {
+	// Chain is the completed layer chain for this flow (已补全的层链, 各层名
+	// 从外到内 ip→udp→stun）。Generators inspect it to determine the carrier
+	// transport (stun 生成器据此加 TCP 帧头)。
+	Chain []Layer
 	// Layer is this layer's config, already completed with schema defaults
 	// (已补全、已应用 schema 默认值)。Generators read values from here, never
 	// from the raw FlowSpec.
@@ -203,6 +207,9 @@ type FlowMeta struct {
 	// SrcIP is the flow source IP (波 5：终结层生成器按源 IP 版本选择
 	// 多播组，legacy mdns planner.go:400-405 同款；http 等其它链不使用)。
 	SrcIP string
+	// CoAP is the flow's CoAP config (注入到 coap 层生成器)。
+	// Only set for coap chains.
+	CoAP *core.CoAPConfig
 	// Events is the transport layer's view of the terminal stream
 	// (传输层 Inner 模式消费的报文事件流)。The ChainPlanner creates it,
 	// the terminal generator writes via req.EmitMsg, the transport
@@ -299,6 +306,37 @@ type FlowMeta struct {
 	// interface{}——经 spec.Metadata["nfs"] 原样传递（strategy_convert.go
 	// mapToFlowSpec 的 nfs case 存 JSON 解码子 map），生成器侧解析。
 	NFS interface{}
+	// FINS is the flow's FINS config (注入到 fins 层生成器)。
+	FINS     interface{}
+	S7       *core.S7Config
+	IEC104   *core.IEC104Config
+	BGP      *core.BGPConfig
+	OPCUA    *core.OPCUAConfig
+	MMS      *core.MMSConfig
+	GOOSE    *core.GOOSEConfig
+	SV       *core.SVConfig
+	STUN     *core.STUNConfig
+	HTTPFLV  *core.HTTPFLVConfig
+	HLS      *core.HLSConfig
+	HDS      *core.HDSConfig
+	MOXA     *core.MOXAConfig
+	SOMEIP   *core.SOMEIPConfig
+	DRDA     *core.DRDAConfig
+	Thrift   *core.ThriftConfig
+	TNS      *core.TNSConfig
+	MongoDB  *core.MongoDBConfig
+	Dameng   *core.DamengConfig
+	KingBase *core.KingBaseConfig
+	// PostgreSQL is the flow's PostgreSQL config (注入到 postgresql 终结层生成器，
+	// P0a：共享 PG v3 wire 层，kingbase 是其 dialect 变体——共享层读
+	// req.Meta.PostgreSQL 的 Events/Sessions，dialect 决定端口 5432/54321）。
+	PostgreSQL *core.PostgreSQLConfig
+	CQL        *core.CQLConfig
+	LDP      *core.LDPConfig
+	PCEP     *core.PCEPConfig
+	CFlow    *core.CFlowConfig
+		RTMFP    *core.RTMFPConfig
+		AMQP     *core.AMQPConfig
 	// SMB is the flow's SMB config (注入到 smb 层生成器，P4a：SMB2 会话
 	// NEGOTIATE/SESSION_SETUP/TREE_CONNECT/CREATE/Operations/CLOSE/
 	// TREE_DISCONNECT/LOGOFF 逐 PDU 事件，build* 纯函数复用)。Only set for
@@ -677,6 +715,8 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 		req.Sess = sess
 	}
 	// seq 初始化：clientSeq = InitialSeq（schema，0 则随机），serverSeq = 随机。
+	// 多会话（P0a postgresql/kingbase）支持每条独立 TCP 连接：每条连接的 seq
+	// 由 handshake 闭包重新初始化（独立连接 seq 互不共享）；单连接路径字节级不变。
 	clientSeq := cfg.initialSeq
 	if clientSeq == 0 {
 		clientSeq = rand.Uint32()
@@ -696,61 +736,148 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 		return req.Emit(pkt)
 	}
 
-	// 握手（schema 默认 true）：SYN(up, 0x02) → SYN-ACK(down, 0x12) → ACK(up, 0x10)。
-	if cfg.handshake {
+	// handshake 闭包：为一条连接发出 SYN(up,0x02)→SYN-ACK(down,0x12)→ACK(up,0x10)
+	// （schema 默认 true）。srcPort 是该连接的客户端源端口（单连接 = cfg.srcPort；
+	// 多会话 = 每个 session 的 SrcPort）。每次调用重新初始化该连接 seq，字节序列
+	// 与 legacy 单连接握手完全一致（P0a 多会话边界复用于新连接握手）。
+	handshake := func(srcPort uint16) error {
+		if !cfg.handshake {
+			return nil
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
-		pkt := core.PacketConfig{
+		clientSeq = cfg.initialSeq
+		if clientSeq == 0 {
+			clientSeq = rand.Uint32()
+		}
+		serverSeq = rand.Uint32()
+		if err := emit(core.PacketConfig{
 			Direction: "up",
 			L4: core.L4Config{
 				Protocol:   "tcp",
-				SrcPort:    cfg.srcPort,
+				SrcPort:    srcPort,
 				DstPort:    cfg.dstPort,
 				Seq:        clientSeq,
 				Flags:      FlagSYN,
 				WindowSize: winSize,
 				TCPOptions: synOpts,
 			},
-		}
-		if err := emit(pkt); err != nil {
+		}); err != nil {
 			return err
 		}
 		clientSeq++
-		pkt = core.PacketConfig{
+		if err := emit(core.PacketConfig{
 			Direction: "down",
 			L4: core.L4Config{
 				Protocol:   "tcp",
 				SrcPort:    cfg.dstPort,
-				DstPort:    cfg.srcPort,
+				DstPort:    srcPort,
 				Seq:        serverSeq,
 				Ack:        clientSeq,
 				Flags:      FlagSYN | FlagACK,
 				WindowSize: winSize,
 				TCPOptions: synOpts,
 			},
-		}
-		if err := emit(pkt); err != nil {
+		}); err != nil {
 			return err
 		}
 		serverSeq++
-		pkt = core.PacketConfig{
+		if err := emit(core.PacketConfig{
 			Direction: "up",
 			L4: core.L4Config{
 				Protocol:   "tcp",
-				SrcPort:    cfg.srcPort,
+				SrcPort:    srcPort,
 				DstPort:    cfg.dstPort,
 				Seq:        clientSeq,
 				Ack:        serverSeq,
 				Flags:      FlagACK,
 				WindowSize: winSize,
 			},
-		}
-		if err := emit(pkt); err != nil {
+		}); err != nil {
 			return err
 		}
+		return nil
+	}
+
+	// teardown 闭包：为一条连接发出 FIN|ACK(up)→ACK(down)→FIN|ACK(down)→ACK(up)
+	// 挥手（schema 默认 true）。srcPort 是该连接的客户端源端口，字节序列与 legacy
+	// 单连接挥手完全一致（P0a 多会话边界复用于挥旧连接）。
+	teardown := func(srcPort uint16) error {
+		if !cfg.termination {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if err := emit(core.PacketConfig{
+			Direction: "up",
+			L4: core.L4Config{
+				Protocol:   "tcp",
+				SrcPort:    srcPort,
+				DstPort:    cfg.dstPort,
+				Seq:        clientSeq,
+				Ack:        serverSeq,
+				Flags:      FlagFIN | FlagACK,
+				WindowSize: winSize,
+			},
+		}); err != nil {
+			return err
+		}
+		clientSeq++
+		if err := emit(core.PacketConfig{
+			Direction: "down",
+			L4: core.L4Config{
+				Protocol:   "tcp",
+				SrcPort:    cfg.dstPort,
+				DstPort:    srcPort,
+				Seq:        serverSeq,
+				Ack:        clientSeq,
+				Flags:      FlagACK,
+				WindowSize: winSize,
+			},
+		}); err != nil {
+			return err
+		}
+		if err := emit(core.PacketConfig{
+			Direction: "down",
+			L4: core.L4Config{
+				Protocol:   "tcp",
+				SrcPort:    cfg.dstPort,
+				DstPort:    srcPort,
+				Seq:        serverSeq,
+				Ack:        clientSeq,
+				Flags:      FlagFIN | FlagACK,
+				WindowSize: winSize,
+			},
+		}); err != nil {
+			return err
+		}
+		serverSeq++
+		if err := emit(core.PacketConfig{
+			Direction: "up",
+			L4: core.L4Config{
+				Protocol:   "tcp",
+				SrcPort:    srcPort,
+				DstPort:    cfg.dstPort,
+				Seq:        clientSeq,
+				Ack:        serverSeq,
+				Flags:      FlagACK,
+				WindowSize: winSize,
+			},
+		}); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// 初始连接握手（schema 默认 true）：单连接路径以 cfg.srcPort 建连。
+	if err := handshake(cfg.srcPort); err != nil {
+		return err
 	}
 	// 会话状态回写：握手完成后 server 侧 seq 即固定（Sess 供外层/隧道层或
 	// 后续驱动读取；挥手用到的也是这个 serverSeq）。回写在 RST 检查之前
@@ -815,6 +942,12 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// seq 各自推进。与 legacy http.go:266-357 字节一致（测试精确断言段数
 	// 与无 ACK 插入）。独立 tcp flow（无事件流）走上方旧逻辑。
 	events := req.Meta.Events
+	// curSrcPort 是"当前 TCP 连接"的客户端源端口（P0a 多会话边界判定）。
+	// 初始连接以 cfg.srcPort 建连；事件携带 SrcPort 覆盖且 != curSrcPort 时视为
+	// 新会话（独立连接）：先挥旧连接，再握新连接，端口用事件携带值。现有终结层
+	// （http/dns 等）不设 SrcPort 覆盖（=0 → 回退 cfg.srcPort），故单连接路径
+	// 永不走边界分支，字节级不变。
+	curSrcPort := cfg.srcPort
 	for events != nil {
 		var ev MessageEvent
 		var ok bool
@@ -826,6 +959,20 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 				events = nil // 终结层关闭：数据段结束，进入挥手
 				continue
 			}
+		}
+		// 会话边界：事件源端口覆盖 != 当前连接端口 → 新连接（挥旧握新）。
+		evSrc := ev.SrcPort
+		if evSrc == 0 {
+			evSrc = cfg.srcPort
+		}
+		if evSrc != curSrcPort {
+			if err := teardown(curSrcPort); err != nil {
+				return err
+			}
+			if err := handshake(evSrc); err != nil {
+				return err
+			}
+			curSrcPort = evSrc
 		}
 		segments := segmentByMSS(ev.Bytes, mss)
 		for _, seg := range segments {
@@ -840,10 +987,11 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			// 段必须与握手/挥手 down 段一致地把 src/dst 端口互换——响应帧
 			// 以对端端口（cfg.dstPort）为源。旧实现恒写 cfg.srcPort/dstPort，
 			// 响应帧源端口是客户端端口（40000 而非 8080），与 legacy
-			// http.go:330（SrcPort: spec.DstPort）不一致。
-			srcPort, dstPort := cfg.srcPort, cfg.dstPort
+			// http.go:330（SrcPort: spec.DstPort）不一致。多会话用 evSrc
+			// 替代 cfg.srcPort（该连接的真实客户端源端口）。
+			srcPort, dstPort := evSrc, cfg.dstPort
 			if !ev.Up {
-				srcPort, dstPort = cfg.dstPort, cfg.srcPort
+				srcPort, dstPort = cfg.dstPort, evSrc
 			}
 			pkt := core.PacketConfig{
 				Direction: direction,
@@ -896,72 +1044,10 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	}
 
 	// 挥手：FIN|ACK(up) → ACK(down) → FIN|ACK(down) → ACK(up)。
+	// 多会话（P0a）：以"最后一条连接"的客户端源端口挥手（curSrcPort 已跟踪；
+	// 单连接/无事件路径 curSrcPort 恒为 cfg.srcPort，字节级不变）。
 	if cfg.termination {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-		fin1 := core.PacketConfig{
-			Direction: "up",
-			L4: core.L4Config{
-				Protocol:   "tcp",
-				SrcPort:    cfg.srcPort,
-				DstPort:    cfg.dstPort,
-				Seq:        clientSeq,
-				Ack:        serverSeq,
-				Flags:      FlagFIN | FlagACK,
-				WindowSize: winSize,
-			},
-		}
-		if err := emit(fin1); err != nil {
-			return err
-		}
-		clientSeq++
-		ack1 := core.PacketConfig{
-			Direction: "down",
-			L4: core.L4Config{
-				Protocol:   "tcp",
-				SrcPort:    cfg.dstPort,
-				DstPort:    cfg.srcPort,
-				Seq:        serverSeq,
-				Ack:        clientSeq,
-				Flags:      FlagACK,
-				WindowSize: winSize,
-			},
-		}
-		if err := emit(ack1); err != nil {
-			return err
-		}
-		fin2 := core.PacketConfig{
-			Direction: "down",
-			L4: core.L4Config{
-				Protocol:   "tcp",
-				SrcPort:    cfg.dstPort,
-				DstPort:    cfg.srcPort,
-				Seq:        serverSeq,
-				Ack:        clientSeq,
-				Flags:      FlagFIN | FlagACK,
-				WindowSize: winSize,
-			},
-		}
-		if err := emit(fin2); err != nil {
-			return err
-		}
-		serverSeq++
-		ack2 := core.PacketConfig{
-			Direction: "up",
-			L4: core.L4Config{
-				Protocol:   "tcp",
-				SrcPort:    cfg.srcPort,
-				DstPort:    cfg.dstPort,
-				Seq:        clientSeq,
-				Ack:        serverSeq,
-				Flags:      FlagACK,
-				WindowSize: winSize,
-			},
-		}
-		if err := emit(ack2); err != nil {
+		if err := teardown(curSrcPort); err != nil {
 			return err
 		}
 	}

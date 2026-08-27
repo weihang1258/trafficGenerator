@@ -217,8 +217,9 @@ func TestValidate_UnknownLayer(t *testing.T) {
 }
 
 func TestValidate_TerminalDuplicated(t *testing.T) {
-	// V2: 终结层唯一。
-	mustError(t, DefaultRegistry(), []Layer{{Name: "http"}, {Name: "ip"}, {Name: "tcp"}, {Name: "http"}},
+	// V2: 终结层唯一。用 s7（无 TransformEvents 标记的终结层）验证。
+	// http 有 TransformEvents=true 豁免，不适用此测试。
+	mustError(t, DefaultRegistry(), []Layer{{Name: "s7"}, {Name: "ip"}, {Name: "tcp"}, {Name: "s7"}},
 		"terminal layer")
 }
 

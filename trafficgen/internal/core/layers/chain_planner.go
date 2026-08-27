@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -217,6 +218,25 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 		}
 		break
 	}
+	// FINS carrier validation: TCP carries Frame Send envelopes; UDP carries raw FINS frames.
+	for _, l := range chain {
+		if l.Name != "fins" {
+			continue
+		}
+		carrier := "tcp"
+		if len(chain) > 1 && chain[len(chain)-2].Name == "udp" {
+			carrier = "udp"
+		}
+		t, _ := finsTransportFromMetadata(spec.Metadata["fins"])
+		if t == "" {
+			t = carrier
+			setFinsTransport(spec.Metadata["fins"], carrier)
+		}
+		if carrier != t {
+			return spec, fmt.Errorf("fins chain: %s carrier requires fins transport %q (got %q)", carrier, carrier, t)
+		}
+		break
+	}
 	// NFS 载体一致性结构性校验（P4a）：NFS 是双载体终结层——tcp 载体产
 	// RM 记录标记帧（默认），udp 载体产裸 RPC 数据报。链的载体（末层 nfs
 	// 时看倒数第二层）必须与 spec.Metadata["nfs"] 的 transport 一致，否则是
@@ -249,7 +269,101 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 		}
 		break
 	}
+	// PostgreSQL carrier + port validation (P0a 共享 PG v3 wire 层，depends_on=tcp)。
+	// 端口由 postgresql 层 FieldContract 驱动（design §1.3/§10.3 R1）：
+	//   - dialect=postgresql → tcp.dst_port=5432；dialect=kingbase → 54321。
+	//   - 用户显式写 tcp.dst_port 时，域校验强制等于该 dialect 的契约端口
+	//     （§1.6 "优先级 vs 领域校验"：超出合法值域仍由 validator 拒绝）——
+	//     dialect=kingbase 下写 54322 → 拒绝，报错含 "54321"。
+	//   - 未显式写时，把 spec.DstPort 设为契约端口（applySpecToChain 据此装配
+	//     tcp 层 dst_port，flowID/包序列端口三者一致）。
+	// 载体：postgresql 只承载在 TCP 上；链中存在 UDP 传输层 → 拒绝（UDP 载体
+	// 负例 kingbase_neg_udp，报错含 "tcp"）。
+	for _, l := range chain {
+		if l.Name != "postgresql" {
+			continue
+		}
+		termCfg := l.Config
+		dialect := "postgresql"
+		if v, ok := termCfg["dialect"].(string); ok && v != "" {
+			dialect = v
+		}
+		// 载体检查：链上任意 udp 层 → 拒绝（postgresql 只走 tcp）。
+		if hasLayer(chain, "udp") {
+			return spec, fmt.Errorf("postgresql chain: carrier must be tcp (found udp; postgresql/kingbase only ride on tcp)")
+		}
+		contractPort := fieldContractDstPort(chain, p.effectiveRegistry())
+		if contractPort == 0 {
+			// 理论不可达（postgresql schema FieldContract 恒有 tcp.dst_port），
+			// 防御性回退。
+			contractPort = 5432
+		}
+		if dialect == "kingbase" {
+			contractPort = 54321
+		}
+		// 用户显式写 tcp.dst_port → 域校验须等于契约端口。
+		if len(chain) >= 2 && chain[len(chain)-2].Name == "tcp" {
+			if v, ok := chain[len(chain)-2].Config["dst_port"]; ok && v != nil {
+				if up, ok := configUint16(v); ok && up != 0 && up != contractPort {
+					return spec, fmt.Errorf("postgresql chain: destination port %d is not the default %d (dialect=%s)", up, contractPort, dialect)
+				}
+			}
+		}
+		// 未显式写 → 以契约端口为准（FieldContract 驱动，非硬编码 case）。
+		spec.DstPort = contractPort
+		break
+	}
+	// 通用 FieldContract 端口应用（P0b-1 通用化，design §1.3/§10.3 R2）：
+	// switch 未覆盖且用户未显式写的层（amqp/bgp/dameng/drda/hds/hls/http/
+	// http_flv/iec104/mongodb/s7/thrift/tns），其目的端口由 terminal 层
+	// FieldContract 的 <carrier>.dst_port 常量补齐（fieldContractDstPort 读
+	// tcp/udp 两载体）。若契约也未声明，才报 destination port is required。
+	//
+	// 只对 switch **未覆盖**的层生效：validateSpecBase 的 DstPort switch 已
+	// 处理所有 case 层（含 rip/dhcp/dhcpv6 刻意保持 0、由生成器按版本/角色/
+	// 方向运行时解析）。这些层即使后续补了 FieldContract，也不应被此处静态
+	// 契约覆盖——否则会破坏生成器的动态端口解析。
+	if spec.DstPort == 0 && !validateBaseDstPortHandled(p.name) {
+		// 用户显式写 transport 层 dst_port（层数组 [ip,tcp(,http),<term>] 的
+		// tcp/http 条目）→ 尊重用户值（用户显式 > FieldContract，设计 §8 优先级，
+		// review P2 修复）。不落此契约块，并把用户值回填 spec.DstPort 保证
+		// flowID / applySpecToChain / 包序列端口三者一致。
+		carrierIdx := len(chain) - 2
+		if carrierIdx >= 0 {
+			if v, ok := chain[carrierIdx].Config["dst_port"]; ok && v != nil {
+				if up, ok := configUint16(v); ok && up != 0 {
+					spec.DstPort = up
+				}
+			}
+		}
+		if spec.DstPort == 0 {
+			if cp := fieldContractDstPort(chain, p.effectiveRegistry()); cp != 0 {
+				spec.DstPort = cp
+			} else {
+				return spec, fmt.Errorf("destination port is required")
+			}
+		}
+	}
 	return spec, nil
+}
+
+// validateBaseDstPortHandled reports whether name's destination-port semantics
+// are handled outside the generic FieldContract application in ValidateSpec
+// (chain_planner.go). True for the DstPort switch cases AND for layers
+// validateSpecBase exempts entirely (goose/sv: eth terminal layers with no
+// port concept — DstPort==0 is legal). The generic FieldContract application
+// must NOT touch any of these, or it would overwrite dynamic-port layers
+// (rip/dhcp/dhcpv6 resolve port at runtime) or reject port-less layers
+// (goose/sv).
+func validateBaseDstPortHandled(name string) bool {
+	switch name {
+	case "opcua", "mms", "fins", "coap", "dns", "mdns", "syslog", "snmp",
+		"ntp", "ssdp", "stun", "rtmfp", "ldp", "pcep", "cflow", "rip", "dhcp",
+		"dhcpv6", "doip", "gbt32960", "mcp", "modbus", "mqtt", "nfs", "smb",
+		"tds", "moxa", "someip", "postgresql", "goose", "sv":
+		return true
+	}
+	return false
 }
 
 // validateChain builds the completed chain and validates it, applying the
@@ -265,6 +379,9 @@ func (p *ChainPlanner) validateChain() error {
 // 对终结层 udp 链（dns/ntp/snmp/syslog）做协议级端口默认（legacy 各
 // planner 在 Plan 时同款默认）。
 func validateSpecBase(name string, spec *core.FlowSpec) error {
+	if name == "goose" || name == "sv" {
+		return nil
+	}
 	if spec.SrcIP != "" {
 		if net.ParseIP(spec.SrcIP) == nil {
 			return fmt.Errorf("invalid source IP: %s", spec.SrcIP)
@@ -312,7 +429,7 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// DHCPv6 源端口 0 保持 0：终结层生成器按方向逐事件解析
 			// （up=client 546、down=server 547，dhcpv6 planner.go:435-456
 			// resolveAddrs 语义，IPv6-only 链）。
-		case "dns", "snmp", "syslog":
+		case "dns", "snmp", "syslog", "stun", "rtmfp":
 			// 允许 0 上包（legacy 语义）
 		case "doip":
 			// DoIP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
@@ -344,6 +461,8 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// TDS 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （tds.go:449 同款：up 帧 srcPort 参数直传，0 也上包），
 			// 不在此默认化。
+		case "moxa":
+		// Moxa 源端口 0 保持 0：透传单连接，多流由 worker 递增。
 		default:
 			return fmt.Errorf("source port is required")
 		}
@@ -354,6 +473,14 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 		// snmp→按 PDU 类型（trap/inform 162，其余 161）、ntp→123、
 		// mdns→5353（legacy mdns planner.go:433-436 同款）。
 		switch name {
+		case "opcua":
+			spec.DstPort = 4840
+		case "mms":
+			spec.DstPort = 102
+		case "fins":
+			spec.DstPort = 9600
+		case "coap":
+			spec.DstPort = 5683
 		case "dns":
 			spec.DstPort = 53
 		case "mdns":
@@ -381,6 +508,21 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			spec.DstPort = 123
 		case "ssdp":
 			spec.DstPort = ssdpPort
+		case "stun":
+			// STUN 目的端口默认 3478（UDP）或 5349（TLS，TCP 载体下终结层为
+			// tls 时——validateSpecBase 405-417 同款默认；TLS 链 dst_port 5349
+			// 由用例显式写，这里只补裸 stun 链的默认）。
+			spec.DstPort = 3478
+		case "rtmfp":
+			// RTMFP 目的端口默认 1935（Adobe RTMFP 标准；strategy_convert
+			// mapToFlowSpec 同款默认——用户显式写 dst_port 时已非零不落此分支）。
+			spec.DstPort = 1935
+		case "ldp":
+			spec.DstPort = 646
+		case "pcep":
+			spec.DstPort = 4189
+		case "cflow":
+			spec.DstPort = 2055
 		case "rip":
 			// RIP 目的端口 0 保持 0：终结层生成器按版本默认（v1/v2→520、
 			// ng→521，legacy getDstPort 语义），事件携带 DstPort。
@@ -442,8 +584,22 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
 			// dst_port 时已非零不落此分支）。
 			spec.DstPort = 1433
+		case "moxa":
+			spec.DstPort = 4800
+		case "someip":
+			spec.DstPort = 30490
+		case "postgresql":
+			// PostgreSQL 目的端口由 postgresql 层 FieldContract 驱动（T2 维度二，
+			// design §1.3/§10.3 R1）：dialect=postgresql→5432、kingbase→54321。
+			// 这里不放 default——validateSpecBase 先于契约块（272-315）运行，
+			// 若在此拒绝 0 会挡住契约赋值。保持 0，让契约块写入契约端口。
 		default:
-			return fmt.Errorf("destination port is required")
+			// 不在此报错——switch 未覆盖的层（amqp/bgp/dameng/drda/hds/hls/http/
+			// http_flv/iec104/mongodb/s7/thrift/tns）其目的端口由 terminal 层
+			// FieldContract 的 <carrier>.dst_port 常量声明（design §1.3/§10.3
+			// R2 通用化）。validateSpecBase 无 chain 无法读契约，故保持 0 继续，
+			// 由 ValidateSpec 主函数构建链后经 fieldContractDstPort 统一补齐；
+			// 若契约也未声明，才在主函数报"destination port is required"。
 		}
 	}
 	if spec.TCP != nil && spec.TCP.MSS > 0 {
@@ -478,6 +634,33 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 	}
 	if err := assertEventWiring(chain, gens); err != nil {
 		return nil, err
+	}
+
+	if p.name == "sv" || p.name == "goose" {
+		out := make(chan core.PacketConfig, 256)
+		go func() {
+			defer close(out)
+			gen := gens[len(gens)-1]
+			req := &GenRequest{Meta: flowMetaFor(spec), Emit: func(pkt core.PacketConfig) error {
+				pkt.L2 = l2For(pkt.Direction, spec)
+				if p.name == "sv" {
+					pkt.L2.EtherType = core.EtherTypeSV
+				}
+				if p.name == "goose" {
+					pkt.L2.EtherType = core.EtherTypeGOOSE
+				}
+				pkt.L3 = core.L3Config{}
+				pkt.L4.Protocol = p.name
+				select {
+				case out <- pkt:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}}
+			_ = gen.Generate(ctx, req)
+		}()
+		return out, nil
 	}
 	// 事件分支的 transport 配置预检（review transform-wiring F3）：transport
 	// 生成器在 resolveCfg 失败时立即退出，transformCh[1]（64 缓冲）失去
@@ -535,8 +718,11 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 	return out, nil
 }
 
-// flowID mirrors the legacy per-flow ID format (tcp.go:89, http.go:89):
-// "srcIP-dstIP-srcPort-dstPort"（每 flow 唯一标识）。
+func flowMetaFor(spec core.FlowSpec) FlowMeta {
+	return FlowMeta{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, SV: spec.SV, GOOSE: spec.GOOSE}
+}
+
+// flowID mirrors the legacy per-flow ID format// "srcIP-dstIP-srcPort-dstPort"（每 flow 唯一标识）。
 func flowID(spec core.FlowSpec) string {
 	return fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
 }
@@ -826,7 +1012,34 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// core 无法 import protocol/nfs（protocol 包反向依赖 core），经
 		// spec.Metadata["nfs"] 原样传递（mapToFlowSpec 存 JSON 解码子 map），
 		// 生成器侧解析。
-		NFS: spec.Metadata["nfs"],
+		NFS:      spec.Metadata["nfs"],
+		FINS:     spec.Metadata["fins"],
+		S7:       spec.S7,
+		IEC104:   spec.IEC104,
+		GOOSE:    spec.GOOSE,
+		SV:       spec.SV,
+		OPCUA:    spec.OPCUA,
+		MMS:      spec.MMS,
+		BGP:      spec.BGP,
+		STUN:     spec.STUN,
+		HTTPFLV:  spec.HTTPFLV,
+		HLS:      spec.HLS,
+			HDS:      spec.HDS,
+		MOXA:     spec.MOXA,
+		SOMEIP:   spec.SOMEIP,
+		DRDA:     spec.DRDA,
+		Thrift:   spec.Thrift,
+		TNS:      spec.TNS,
+		MongoDB:  spec.MongoDB,
+		Dameng:   spec.Dameng,
+		KingBase: spec.KingBase,
+		PostgreSQL: spec.PostgreSQL,
+		CQL:      spec.CQL,
+		LDP:      spec.LDP,
+		PCEP:     spec.PCEP,
+		CFlow:    spec.CFlow,
+		AMQP:     spec.AMQP,
+		RTMFP:    spec.RTMFP,
 		// SMB 同款（P4a）：配置经 Meta 直传 smb 终结层生成器（SMB2 会话
 		// NEGOTIATE → SESSION_SETUP → TREE_CONNECT → CREATE → Operations →
 		// CLOSE → TREE_DISCONNECT → LOGOFF 逐 PDU 事件，build* 纯函数复用）。
@@ -923,7 +1136,13 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// 传输层是链上 ip 之下最后一层：独立 tcp/udp flow 的末层，
 		// 或终结层链（http/dns...）的倒数第二层。隧道链（gre）由隧道层
 		// 生成器已写入 47（IPPROTO_GRE）——只在 0 时填充，绝不覆盖。
-		if pkt.L3.Protocol == 0 {
+		if p.name == "goose" || isGOOSEChain(chain) || p.name == "sv" || isSVChain(chain) {
+			pkt.L2.EtherType = core.EtherTypeSV
+			if p.name == "goose" || isGOOSEChain(chain) {
+				pkt.L2.EtherType = core.EtherTypeGOOSE
+			}
+			pkt.L3 = core.L3Config{}
+		} else if pkt.L3.Protocol == 0 {
 			pkt.L3.Protocol = transportProtocol(chain)
 		}
 		// TTL 已按分支赋值（覆盖事件保留 udp 层写入的 255，普通包走
@@ -946,6 +1165,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 	}
 
 	ipReq := &GenRequest{
+		Chain: chain,
 		Layer: ipLayer,
 		Inner: innerCh,
 		Emit:  finalEmit,
@@ -1008,6 +1228,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// 双写（data race）；各层副本从同一基值起步、互不相干。
 		sessLayer := *sess
 		wrapperReq := &GenRequest{
+			Chain: chain,
 			Layer: chain[i],
 			Inner: pipeCh[i],
 			Emit: func(pkt core.PacketConfig) error {
@@ -1050,6 +1271,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 	// 分支（独立 tcp/udp flow，[ip→tcp]）用 chain[len-1]——协议层即末层，
 	// 其层 config 是协议参数（src_port/dst_port 等独立 flow 字段）。
 	transportReq := &GenRequest{
+		Chain: chain,
 		Layer: chain[transportIdx],
 		Emit: func(pkt core.PacketConfig) error {
 			select {
@@ -1126,6 +1348,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// 覆写为 transport 的最终事件流（transformCh[n]），终结层读它会把
 		// 自己的输出当输入（自食）。事件流只经 req.EmitMsg 单向流出。
 		reqForTerminal := &GenRequest{
+			Chain: chain,
 			Layer: chain[len(chain)-1],
 			EmitMsg: func(ev MessageEvent) error {
 				select {
@@ -1257,10 +1480,68 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 	if !ok {
 		return
 	}
+	if term.Name == "bgp" && spec.BGP == nil {
+		spec.BGP = &core.BGPConfig{}
+	}
+	if term.Name == "pcep" && spec.PCEP == nil {
+		spec.PCEP = &core.PCEPConfig{}
+	}
+	if term.Name == "ldp" && spec.LDP == nil {
+		spec.LDP = &core.LDPConfig{}
+	}
+	if term.Name == "cflow" && spec.CFlow == nil {
+		spec.CFlow = &core.CFlowConfig{}
+	}
+	if term.Name == "http_flv" && spec.HTTPFLV == nil {
+		spec.HTTPFLV = &core.HTTPFLVConfig{}
+	}
+	if term.Name == "http_flv" && spec.HTTPFLV != nil {
+		// 默认模板：空 Flags → 0x05 (audio+video)，空 Tags → onMetaData + AAC + AVC
+		if spec.HTTPFLV.Flags == 0 {
+			spec.HTTPFLV.Flags = 0x05
+		}
+		if spec.HTTPFLV.Tags == nil {
+			spec.HTTPFLV.Tags = []core.FLVTag{
+				{Type: "script", Timestamp: 0},
+				{Type: "audio", Timestamp: 0, Data: []byte{0x11, 0x90}},
+				{Type: "video", Timestamp: 0, Data: []byte{0x01, 0x42, 0x00, 0x1e, 0xff, 0xe1, 0x00, 0x1c, 0x67, 0x42, 0x00, 0x1e, 0x99, 0xa0, 0x0b, 0xf0, 0xf1, 0x70, 0x11, 0x00, 0x00, 0x03, 0x00, 0x01, 0x00, 0x00, 0x03, 0x00, 0x32, 0x0f, 0x16, 0x32, 0x78, 0x80, 0x01, 0x00, 0x07, 0x68, 0xeb, 0xe3, 0xcb, 0x22, 0xc0}},
+			}
+		}
+		if spec.HTTPFLV.Rounds == 0 {
+			spec.HTTPFLV.Rounds = 1
+		}
+	}
+	if term.Name == "hls" && spec.HLS == nil {
+		spec.HLS = &core.HLSConfig{}
+	}
+	if term.Name == "hls" && spec.HLS != nil {
+		for i, s := range spec.HLS.Sessions {
+			if s.Rounds == 0 {
+				spec.HLS.Sessions[i].Rounds = 1
+			}
+		}
+	}
+	if term.Name == "hds" && spec.HDS == nil {
+		spec.HDS = &core.HDSConfig{}
+	}
+	if term.Name == "hds" && spec.HDS != nil {
+		for i, s := range spec.HDS.Sessions {
+			if s.Rounds == 0 {
+				spec.HDS.Sessions[i].Rounds = 1
+			}
+		}
+	}
 	if len(s.Fields) == 0 {
 		return
 	}
 	switch term.Name {
+	case "goose":
+		return
+	case "mms":
+		if spec.MMS == nil {
+			spec.MMS = &core.MMSConfig{}
+		}
+		return
 	case "http":
 		if spec.HTTP != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略
@@ -1310,6 +1591,34 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		}
 		if v, ok := configUint16(cfg["query_type"]); ok {
 			spec.DNS.QueryType = v
+		}
+	case "postgresql":
+		if spec.PostgreSQL != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// 层 config（dialect/wire_profile/events/sessions/wire_fault）经 JSON
+		// 往返解码为 core.PostgreSQLConfig：json tag 覆盖全部字段（含
+		// events[].authtype *int32），比逐字段 map 取值更忠实。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			return // 理论不可达（config 已是 JSON 可编码 map）
+		}
+		var pg core.PostgreSQLConfig
+		if err := json.Unmarshal(raw, &pg); err == nil {
+			// 默认值兜底：schema 默认已由 completedConfig 填充，这里再显式
+			// 断言 dialect/wire_profile 非空（transcribe 防御）。
+			if pg.Dialect == "" {
+				pg.Dialect = "postgresql"
+			}
+			if pg.WireProfile == "" {
+				pg.WireProfile = "postgresql_v3"
+			}
+			spec.PostgreSQL = &pg
+		} else {
+			// config 含非 JSON 可编码值（极端）→ 用一个最小默认，让后续
+			// validator 报错而不是静默空流。
+			spec.PostgreSQL = &core.PostgreSQLConfig{Dialect: "postgresql", WireProfile: "postgresql_v3"}
 		}
 	}
 }
@@ -1447,6 +1756,14 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 // isHTTPChain reports whether the chain's terminal layer is http
 // (http 链判定：末层即协议层）。Used by applySpecToChain to force the
 // legacy http TCP semantics (忽略 handshake/termination/rst 开关)。
+func isGOOSEChain(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "goose"
+}
+
+func isSVChain(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "sv"
+}
+
 func isHTTPChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "http"
 }
@@ -1498,6 +1815,40 @@ func transportProtocol(chain []Layer) uint8 {
 	return core.ProtocolTCP
 }
 
+// hasLayer reports whether the chain contains a layer named name.
+func hasLayer(chain []Layer, name string) bool {
+	for _, l := range chain {
+		if l.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// fieldContractDstPort resolves the terminal layer's FieldContract-driven
+// destination port for the chain's transport layer (design §1.3/§10.3 R1).
+// It reads the terminal layer's EffectiveFieldContract (dialect overrides
+// applied) for a "tcp.dst_port"/"udp.dst_port" key and parses the constant to
+// uint16. Returns 0 when the terminal declares no such contract.
+func fieldContractDstPort(chain []Layer, r *Registry) uint16 {
+	if len(chain) == 0 {
+		return 0
+	}
+	fc := r.EffectiveFieldContract(chain[len(chain)-1])
+	if fc == nil {
+		return 0
+	}
+	for _, key := range []string{"tcp.dst_port", "udp.dst_port"} {
+		if v, ok := fc[key]; ok {
+			n, err := strconv.ParseUint(v, 10, 16)
+			if err == nil {
+				return uint16(n)
+			}
+		}
+	}
+	return 0
+}
+
 // nfsTransportFromMetadata extracts the NFS transport string from the flow
 // metadata (P4a 载体一致性校验用)。core 无法 import protocol/nfs——元数据是
 // spec.Metadata["nfs"]，生成器侧支持 *NFSConfig / map[string]interface{} /
@@ -1535,7 +1886,59 @@ func nfsTransportFromMetadata(v interface{}) (string, bool) {
 	return "", false
 }
 
-// newGenerator instantiates the generator for a chain layer. Only layers with
+func setFinsTransport(v interface{}, transport string) {
+	switch m := v.(type) {
+	case map[string]interface{}:
+		m["transport"] = transport
+	default:
+		if v == nil {
+			return
+		}
+		rv := reflect.ValueOf(v)
+		if rv.Kind() != reflect.Ptr || rv.IsNil() {
+			return
+		}
+		field := rv.Elem().FieldByName("Transport")
+		if field.IsValid() && field.CanSet() && field.Kind() == reflect.String {
+			field.SetString(transport)
+		}
+	}
+}
+
+func finsTransportFromMetadata(v interface{}) (string, bool) {
+	switch m := v.(type) {
+	case map[string]interface{}:
+		s, ok := m["transport"].(string)
+		return s, ok
+	case json.RawMessage:
+		var raw struct {
+			Transport string `json:"transport"`
+		}
+		if err := json.Unmarshal(m, &raw); err != nil {
+			return "", false
+		}
+		return raw.Transport, raw.Transport != ""
+	default:
+		if v == nil {
+			return "", false
+		}
+		rv := reflect.ValueOf(v)
+		if rv.Kind() == reflect.Ptr {
+			if rv.IsNil() {
+				return "", false
+			}
+			rv = rv.Elem()
+		}
+		if rv.Kind() == reflect.Struct {
+			field := rv.FieldByName("Transport")
+			if field.IsValid() && field.Kind() == reflect.String {
+				return field.String(), field.String() != ""
+			}
+		}
+	}
+	return "", false
+}
+
 // generators implemented can appear in a driven chain (P2a 波 1: ip + tcp;
 // 波 2 方案 A: + http，由 protocol/http 包提供生成器；波 4: + dns/ntp/snmp/
 // syslog，由各自协议包经 RegisterLayerGenerator 反向注册)。
@@ -1563,6 +1966,15 @@ func newGenerator(name string) (LayerGenerator, error) {
 		return &TCPGenerator{}, nil
 	case "udp":
 		return &UDPGenerator{}, nil
+	case "goose":
+		if factory, ok := registeredGenerators["goose"]; ok {
+			return factory()
+		}
+	}
+	if name == "sv" {
+		if factory, ok := registeredGenerators["sv"]; ok {
+			return factory()
+		}
 	}
 	return nil, fmt.Errorf("layers: generator not implemented for layer %q", name)
 }

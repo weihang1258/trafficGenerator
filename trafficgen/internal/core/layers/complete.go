@@ -238,6 +238,19 @@ func hasAnyOuter(chain []Layer, i int, wants []string) bool {
 	return false
 }
 
+// transportNames returns the transport layer names (tcp/udp) in chain order,
+// used by V3 duplicate-transport error messages.
+func transportNames(chain []Layer) []string {
+	var names []string
+	for _, l := range chain {
+		switch l.Name {
+		case "tcp", "udp":
+			names = append(names, l.Name)
+		}
+	}
+	return names
+}
+
 // chainString renders the chain for error messages (层链文本表示)。
 func chainString(chain []Layer) string {
 	names := make([]string, len(chain))
@@ -339,16 +352,24 @@ func (r *Registry) validateChain(chain []Layer) error {
 	}
 
 	// ---- 第二遍：唯一性（V2 终结层、V3 传输层）----
+	// V2 例外：schema.TransformEvents=true 的层（http）在变换器位置不充当终结层
+	// ——http_flv 链 [ip→tcp→http→http_flv] 中 http 在倒数第二层（非末层）是
+	// 变换器、http_flv 是唯一终结层，不能因计数重复拒绝。standalone http 作为
+	// 末层（[ip→tcp→http]）仍计入——V4 保证末层必须是终结层，TransformEvents
+	// 标记只豁免"非末层的变换器位置"，不豁免末层。
 	terminalCount := 0
 	terminalSeen := ""
 	transportCount := 0
-	for _, l := range chain {
+	for i, l := range chain {
 		schema, ok := r.Get(l.Name)
 		if !ok {
 			continue // V1 already reported
 		}
 		switch schema.Category {
 		case CategoryTerminal:
+			if schema.TransformEvents && i < len(chain)-1 {
+				continue // 非末层变换器位置（http_flv 上方的 http）不计终结层
+			}
 			terminalCount++
 			terminalSeen = l.Name
 		case CategoryTransport:
@@ -359,8 +380,10 @@ func (r *Registry) validateChain(chain []Layer) error {
 		return errf("layers: terminal layer %q duplicated (%d terminal layers)", terminalSeen, terminalCount)
 	}
 	// V3: 传输层全链唯一——计数而非按层名去重（两个同名 tcp 也是重复）。
+	// 报错带传输层名（如 udp→tcp duplicate 含 "tcp"），供 postgresql 的
+	// UDP 载体负例（kingbase_neg_udp）断言 error_contains "tcp"。
 	if transportCount > 1 {
-		return errf("layers: transport layer duplicated (%d transport layers)", transportCount)
+		return errf("layers: transport layer duplicated (%d transport layers: %s)", transportCount, strings.Join(transportNames(chain), ", "))
 	}
 
 	// ---- 第三遍：顺序必须符合依赖（V8 + 隧道层内层起点）----
