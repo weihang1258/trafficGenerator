@@ -2,6 +2,7 @@ package rest
 
 import (
 	"runtime"
+	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -64,7 +65,8 @@ func (h *SystemHandler) GetStatus(c *gin.Context) {
 // GetProtocols returns the list of supported protocols.
 // GET /api/v1/system/protocols
 func (h *SystemHandler) GetProtocols(c *gin.Context) {
-	protocols := []string{"tcp", "udp", "http", "dns", "icmp", "arp", "ftp", "sip", "sctp", "icmpv6", "cflow"}
+	protocols := h.engine.ListProtocols()
+	sort.Strings(protocols)
 	Success(c, protocols)
 }
 

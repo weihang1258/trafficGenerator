@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"net/http/httptest"
 	"strings"
@@ -1538,6 +1539,10 @@ func newSystemTestServer(t *testing.T) (*SystemHandler, *gin.Engine) {
 func TestSystemProtocols_List(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, r := newSystemTestServer(t)
+	// GetProtocols must reflect the engine's registered planners (auto-sync),
+	// not a hand-copied table. Register two planners and assert they appear.
+	h.engine.RegisterPlanner(&stubPlanner{name: "zebra_test"})
+	h.engine.RegisterPlanner(&stubPlanner{name: "alpha_test"})
 	r.GET("/system/protocols", h.GetProtocols)
 	req := httptest.NewRequest("GET", "/system/protocols", nil)
 	w := httptest.NewRecorder()
@@ -1547,7 +1552,8 @@ func TestSystemProtocols_List(t *testing.T) {
 	if code != 0 { t.Errorf("code=%d", code) }
 	var protocols []string
 	json.Unmarshal(data, &protocols)
-	expected := []string{"tcp", "udp", "http", "dns", "icmp", "arp", "ftp", "sip", "sctp", "icmpv6", "cflow"}
+	// Auto-sync: the list matches the registered planners, sorted.
+	expected := []string{"alpha_test", "zebra_test"}
 	if len(protocols) != len(expected) { t.Errorf("got %v, want %v", protocols, expected) }
 	for i, p := range expected {
 		if i < len(protocols) && protocols[i] != p {
@@ -1606,3 +1612,19 @@ func TestReadyCheck_Public(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code == 401 { t.Errorf("ready should be public, got 401") }
 }
+// stubPlanner is a minimal core.ProtocolPlanner used to verify that
+// GetProtocols auto-syncs to the engine's registered planners rather than
+// returning a hand-copied table.
+type stubPlanner struct {
+	name string
+}
+
+func (s *stubPlanner) Name() string { return s.name }
+
+func (s *stubPlanner) Plan(_ context.Context, _ core.FlowSpec) (<-chan core.PacketConfig, error) {
+	ch := make(chan core.PacketConfig)
+	close(ch)
+	return ch, nil
+}
+
+func (s *stubPlanner) Validate(_ core.FlowSpec) error { return nil }
