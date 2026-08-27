@@ -181,9 +181,14 @@ func uint64Val(v uint64) []byte {
 	return append([]byte(nil), b[i:]...)
 }
 
-// bitStringVal encodes a bit string from a hex string (e.g. "fe"). First byte
-// is the number of unused bits in the final byte (0 when byte-aligned).
-func bitStringVal(v interface{}) []byte {
+// bitStringVal encodes a BIT STRING from a hex string (e.g. "fe") and an
+// optional bit_length (meaningful bits). BER BIT STRING: first content octet
+// is the count of unused bits in the final byte, followed by the packed bits
+// left-aligned. bit_length L -> unused = 8-(L%8) (0 when byte-aligned); the
+// bits are left-aligned in the final byte (e.g. "0f" with bit_length 4 ->
+// unused=4, packed=Nibble<<4 = 0xf0). When bit_length is 0, all hex bits are
+// byte-aligned (unused=0).
+func bitStringVal(v interface{}, bitLength int) []byte {
 	s := toString(v)
 	var raw []byte
 	nibble := byte(0)
@@ -209,8 +214,23 @@ func bitStringVal(v interface{}) []byte {
 	if len(s)%2 == 1 {
 		raw = append(raw, nibble)
 	}
-	// byte-aligned -> 0 unused bits.
-	return append([]byte{0}, raw...)
+	// bit_length: meaningful bits count. The final byte keeps its low
+	// (bit_length%8) meaningful bits and left-aligns them (BER BIT STRING
+	// left-packs), reporting 8-(bit_length%8) unused trailing bits. E.g.
+	// "0f" bit_length=4 -> keep low nibble 0xf, <<4 -> 0xf0, unused=4.
+	unused := 0
+	if bitLength > 0 {
+		remainIdx := bitLength % 8
+		if remainIdx == 0 {
+			unused = 0
+		} else {
+			unused = 8 - remainIdx
+			if len(raw) > 0 {
+				raw[len(raw)-1] = (raw[len(raw)-1] & (0xff >> (8 - remainIdx))) << unused
+			}
+		}
+	}
+	return append([]byte{byte(unused)}, raw...)
 }
 
 // encodeFloat32 encodes an IEC 61850 FLOAT32 (format-width 32, exponent-width 8)
@@ -403,7 +423,7 @@ func encodeDataMember(m core.GOOSEData) ([]byte, error) {
 		}
 		return tlv(0x83, boolVal(v)), nil
 	case "bit_string":
-		return tlv(0x84, bitStringVal(m.Value)), nil
+		return tlv(0x84, bitStringVal(m.Value, m.BitLength)), nil
 	case "int32", "int64":
 		v, err := toInt64(m.Value)
 		if err != nil {

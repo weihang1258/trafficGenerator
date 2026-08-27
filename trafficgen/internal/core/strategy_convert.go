@@ -7632,7 +7632,7 @@ func parseGOOSEConfig(m map[string]interface{}) *GOOSEConfig {
 	if data, ok := m["data"].([]interface{}); ok {
 		for _, raw := range data {
 			if item, ok := raw.(map[string]interface{}); ok {
-				b.Data = append(b.Data, GOOSEData{Name: getString(item, "name"), Type: getString(item, "type"), Value: item["value"]})
+				b.Data = append(b.Data, GOOSEData{Name: getString(item, "name"), Type: getString(item, "type"), Value: item["value"], BitLength: getInt(item, "bit_length")})
 			}
 		}
 	}

@@ -1034,6 +1034,11 @@ type GOOSEData struct {
 	Name  string      `json:"name,omitempty"`
 	Type  string      `json:"type"`
 	Value interface{} `json:"value,omitempty"`
+	// BitLength is the number of meaningful bits in a bit_string member
+	// (IEC 61850 BIT STRING). Encoded as leading unused-bit count: for
+	// bit_length L, the final byte carries 8-(L%8) trailing zeros and the
+	// first content byte reports 8-(L%8) unused bits (0 when byte-aligned).
+	BitLength int `json:"bit_length,omitempty"`
 }
 
 // GOOSEConfig configures a minimal IEC 61850 GOOSE Ethernet frame sequence.

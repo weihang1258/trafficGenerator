@@ -130,7 +130,7 @@
         },
         {
           "packet": 1,
-          "offset": 24,
+          "offset": 25,
           "hex": "80 29"
         },
         {
@@ -633,7 +633,7 @@
         },
         {
           "packet": 1,
-          "field": "eth.type",
+          "field": "vlan.etype",
           "value": "0x88b8"
         }
       ],

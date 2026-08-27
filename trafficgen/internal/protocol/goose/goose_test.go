@@ -166,3 +166,43 @@ func TestPlannerRejectsNonContiguousSqNum(t *testing.T) {
 		t.Fatalf("err=%v want sqNum rejection", err)
 	}
 }
+
+// TestGOOSEDataMemberBitStringEncoding verifies the BIT STRING member uses
+// IEC 61850 left-packing with the configured bit_length (unused-bits count in
+// the first content octet). Guards goose_multitype/multidataset s2 (0f/4 ->
+// 04 f0): a plain hex-parse would emit 04 0f (unpacked), failing tshark.
+func TestGOOSEDataMemberBitStringEncoding(t *testing.T) {
+	cfg := validConfig()
+	cfg.Data = []core.GOOSEData{
+		{Name: "s1", Type: "bit_string", Value: "fe", BitLength: 8},
+		{Name: "s2", Type: "bit_string", Value: "0f", BitLength: 4},
+	}
+	payload, err := BuildPayload(cfg, 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// find the allData block (0xab tag) and check the two bit_string members.
+	var allData []byte
+	for i := 0; i < len(payload); i++ {
+		if payload[i] == 0xab {
+			ln := int(payload[i+1])
+			if i+2+ln <= len(payload) {
+				allData = payload[i+2 : i+2+ln]
+			}
+			break
+		}
+	}
+	if len(allData) == 0 {
+		t.Fatal("no allData block")
+	}
+	// expect: 84 02 00 fe 84 02 04 f0 (byte-aligned + left-packed nibble)
+	want := []byte{0x84, 0x02, 0x00, 0xfe, 0x84, 0x02, 0x04, 0xf0}
+	if len(allData) < len(want) {
+		t.Fatalf("allData too short: % x", allData)
+	}
+	for i := range want {
+		if allData[i] != want[i] {
+			t.Errorf("allData[%d]=0x%02x want 0x%02x", i, allData[i], want[i])
+		}
+	}
+}
