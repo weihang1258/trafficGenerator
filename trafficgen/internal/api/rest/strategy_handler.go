@@ -205,7 +205,9 @@ func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode strin
 		"tftp": true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
 		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
 		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true,
-		"srv6": true, "gbt32960": true,
+		"stun": true, "cql": true, "cflow": true, "someip": true, "coap": true, "s7": true, "iec104": true, "bgp": true, "opcua": true, "mms": true, "moxa": true, "drda": true, "thrift": true, "tns": true, "mongodb": true, "dameng": true, "kingbase": true,
+		"srv6": true, "gbt32960": true, "http_flv": true, "hls": true, "hds": true,
+		"rtmfp": true, "amqp": true,
 	}
 	if req.Protocol == "" || !validProtocols[req.Protocol] {
 		BadRequest(c, "invalid or missing protocol: "+req.Protocol)
@@ -480,7 +482,8 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 		"tftp": true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
 		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
 		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true,
-		"srv6": true, "gbt32960": true,
+		"stun": true, "cql": true, "cflow": true, "someip": true, "coap": true, "s7": true, "iec104": true, "bgp": true, "opcua": true, "mms": true, "moxa": true, "drda": true, "thrift": true, "tns": true, "mongodb": true, "dameng": true, "kingbase": true,
+		"srv6": true, "gbt32960": true, "http_flv": true, "hls": true, "hds": true,
 		}
 		if req.Protocol == "" || !validProtocols[req.Protocol] {
 			BadRequest(c, "invalid or missing protocol: "+req.Protocol)

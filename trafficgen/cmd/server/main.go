@@ -19,20 +19,37 @@ import (
 	"github.com/trafficgen/trafficgen/internal/output"
 	"github.com/trafficgen/trafficgen/internal/protocol/a2a"
 	"github.com/trafficgen/trafficgen/internal/protocol/arp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/bgp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/coap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcpv6"
 	"github.com/trafficgen/trafficgen/internal/protocol/dnp3"
 	"github.com/trafficgen/trafficgen/internal/protocol/doip"
 	"github.com/trafficgen/trafficgen/internal/protocol/enip"
+	"github.com/trafficgen/trafficgen/internal/protocol/fins"
 	"github.com/trafficgen/trafficgen/internal/protocol/ftp"
 	"github.com/trafficgen/trafficgen/internal/protocol/gbt32960"
 	"github.com/trafficgen/trafficgen/internal/protocol/gre"
 	"github.com/trafficgen/trafficgen/internal/protocol/grpc"
 	"github.com/trafficgen/trafficgen/internal/protocol/gtp"
 	"github.com/trafficgen/trafficgen/internal/protocol/h323"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/iec104"
 	// 空导入：http 包 init 反向注册 http 层生成器（layers.RegisterHTTPGenerator），
 	// ChainPlanner("http") 经此实例化；协议本体由层链驱动。
 	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
+	// 空导入：http_flv 包 init 注册终结层生成器 + 校验器
+	// （layers.RegisterLayerGenerator/RegisterLayerValidator）。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/http_flv"
+	// 空导入：hls 包 init 注册终结层生成器 + 校验器
+	// （layers.RegisterLayerGenerator/RegisterLayerValidator，[ip→tcp→http→hls]
+	// 链：hls 终结层产 playlist/segment/key body 事件，http 层 EventTransformer
+	// 包装为 HTTP GET/响应帧）。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/hls"
+	// 空导入：hds 包 init 注册终结层生成器 + 校验器
+	// （layers.RegisterLayerGenerator/RegisterLayerValidator，[ip→tcp→http→hds]
+	// 链：hds 终结层产 F4M manifest/bootstrap/F4F fragment body 事件，http 层
+	// EventTransformer 包装为 HTTP GET/响应帧）。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/hds"
 	// 空导入：dns/ntp/snmp/syslog 包 init 反向注册终结层生成器 + 校验器
 	// （layers.RegisterLayerGenerator/RegisterLayerValidator，波 4）；波 5：
 	// dhcp/dhcpv6/mdns/ssdp/rip 同机制接入公共 udp 层（init 注册
@@ -51,6 +68,15 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/ldap"
 	mcpprotocol "github.com/trafficgen/trafficgen/internal/protocol/mcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/mms"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/moxa"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/someip"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/drda"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/thrift"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/tns"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/mongodb"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/dameng"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/cflow"
 	"github.com/trafficgen/trafficgen/internal/protocol/modbus"
 	"github.com/trafficgen/trafficgen/internal/protocol/mpls"
 	"github.com/trafficgen/trafficgen/internal/protocol/mqtt"
@@ -58,9 +84,10 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/nfs"
 	"github.com/trafficgen/trafficgen/internal/protocol/ngap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/opcua"
 	"github.com/trafficgen/trafficgen/internal/protocol/openvpn"
 	"github.com/trafficgen/trafficgen/internal/protocol/pop3"
-	"github.com/trafficgen/trafficgen/internal/protocol/postgresql"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/postgresql" // init 注册 postgresql 层生成器 + 校验器（kingbase 是其 dialect 变体）
 	"github.com/trafficgen/trafficgen/internal/protocol/pppoe"
 	"github.com/trafficgen/trafficgen/internal/protocol/pptp"
 	"github.com/trafficgen/trafficgen/internal/protocol/radius"
@@ -69,6 +96,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/rip"
 	"github.com/trafficgen/trafficgen/internal/protocol/rtmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/rtsp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/s7"
 	"github.com/trafficgen/trafficgen/internal/protocol/sctp"
 	"github.com/trafficgen/trafficgen/internal/protocol/shadowsocks"
 	"github.com/trafficgen/trafficgen/internal/protocol/sip"
@@ -79,7 +107,14 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/srv6"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
 	"github.com/trafficgen/trafficgen/internal/protocol/ssh"
+	"github.com/trafficgen/trafficgen/internal/protocol/sv"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
+	// 空导入：stun 包 init 反向注册终结层生成器 + 校验器
+	// （layers.RegisterLayerGenerator/RegisterLayerValidator）。无空导入则包
+	// 不被链接进二进制，ChainPlanner("stun") 实例化失败。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/stun"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/rtmfp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/amqp"
 	"github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	"github.com/trafficgen/trafficgen/internal/protocol/tftp"
@@ -369,10 +404,35 @@ func (app *Application) initEngine() error {
 	// 经 tcp 层分段，字节与 legacy http.go 一致（126 个 legacy 测试直接调
 	// NewPlanner().Plan 保留回归）。http 包 init 反向注册 http 层生成器。
 	app.engine.RegisterPlanner(layers.NewChainPlanner("http"))
+	// http_flv 切链式生成器（[ip→tcp→http→http_flv] 层链驱动）：http_flv 终结
+	// 层生成 FLV body 事件，http 层 EventTransformer 包装为 HTTP GET/200 帧，
+	// tcp 层分段。http_flv 包 init 反向注册终结层生成器 + 校验器。
+	app.engine.RegisterPlanner(layers.NewChainPlanner("http_flv"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("hls"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("hds"))
 	// dns/ntp/snmp/syslog 切链式生成器（波 4）：[ip→udp→dns/ntp/snmp/syslog]
 	// 层链驱动，各协议包 init 反向注册终结层生成器 + 校验器，事件字节复用
 	// legacy 编码器，字节级兼容旧 planner；chain 校验器拒绝 dns tcp /
 	// syslog tcp/tls（与 legacy 握手语义不同，暂缓）。
+	app.engine.RegisterPlanner(layers.NewChainPlanner("coap"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("s7"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("iec104"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("bgp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("opcua"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("mms"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("moxa"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("drda"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("thrift"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("tns"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("mongodb"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("dameng"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("postgresql")) // 共享 PG v3 wire 层（kingbase 作 dialect 变体，不再独立注册）
+	app.engine.RegisterPlanner(layers.NewChainPlanner("cql"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("someip"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("stun"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("rtmfp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("amqp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("cflow"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dns"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ntp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("snmp"))
@@ -386,7 +446,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ssdp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dhcp"))
-	app.engine.RegisterPlanner(layers.NewChainPlanner("dhcpv6"))
+	app.engine.RegisterPlanner(sv.NewPlanner())
 	app.engine.RegisterPlanner(icmp.NewPlanner())
 	app.engine.RegisterPlanner(arp.NewPlanner())
 	app.engine.RegisterPlanner(ftp.NewPlanner())
@@ -417,7 +477,6 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(redis.NewPlanner())
 	app.engine.RegisterPlanner(mysql.NewPlanner())
 	app.engine.RegisterPlanner(ngap.NewPlanner())
-	app.engine.RegisterPlanner(postgresql.NewPlanner())
 	app.engine.RegisterPlanner(tls.NewPlanner())
 	app.engine.RegisterPlanner(openvpn.NewPlanner())
 	app.engine.RegisterPlanner(shadowsocks.NewPlanner())
@@ -435,6 +494,8 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(doip.NewPlanner())
 	app.engine.RegisterPlanner(smb.NewPlanner())
 	app.engine.RegisterPlanner(nfs.NewPlanner())
+	app.engine.RegisterPlanner(ftp.NewPlanner())
+	app.engine.RegisterPlanner(fins.NewPlanner())
 	app.engine.RegisterPlanner(tds.NewPlanner())
 	app.engine.RegisterPlanner(enip.NewPlanner())
 	app.engine.RegisterPlanner(modbus.NewPlanner())
