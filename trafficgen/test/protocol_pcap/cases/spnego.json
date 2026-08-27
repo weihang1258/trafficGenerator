@@ -1,0 +1,28 @@
+[
+  {
+    "id": "spnego_neg_unregistered",
+    "proto": "spnego",
+    "summary": "SPNEGO layer is not registered yet; reject at layer validation",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "spnego": {}
+        }
+      ],
+      "src_ip": "192.0.2.61",
+      "dst_ip": "198.51.100.61",
+      "src_port": 45061,
+      "dst_port": 445
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown layer",
+      "notes": [
+        "Design-only gate: spnego is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+      ]
+    }
+  }
+]

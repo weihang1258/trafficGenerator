@@ -1,25 +1,29 @@
 [
   {
     "id": "kingbase_connect",
-    "proto": "kingbase",
-    "summary": "S1: TCP 54321 connect and normal termination",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — S1: TCP 54321 connect and normal termination",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": []
+          }
         }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": []
-      }
+      ]
     },
     "expect": {
       "packet_count": 7,
@@ -43,33 +47,37 @@
   },
   {
     "id": "kingbase_startup",
-    "proto": "kingbase",
-    "summary": "S2: PostgreSQL-compatible Startup message",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — S2: PostgreSQL-compatible Startup message",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "test",
-            "database": "test"
+          "tcp": {
+            "src_port": 12345
           }
-        ]
-      }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 8,
@@ -101,49 +109,53 @@
   },
   {
     "id": "kingbase_auth_success",
-    "proto": "kingbase",
-    "summary": "S3: Startup, authentication exchange, and Ready",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — S3: Startup, authentication exchange, and Ready",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "test",
-            "database": "test"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "s2c",
-            "profile": "auth_profile_defined"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "c2s",
-            "profile": "auth_profile_defined",
-            "result": "success"
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c",
-            "profile": "ready_idle"
+          "tcp": {
+            "src_port": 12345
           }
-        ]
-      }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "profile": "auth_profile_defined"
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "profile": "auth_profile_defined",
+                "result": "success"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "profile": "ready_idle"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -164,7 +176,7 @@
         {
           "packet": 6,
           "field": "pgsql.type",
-          "value": "Authentication response"
+          "value": "Password message"
         },
         {
           "packet": 7,
@@ -197,76 +209,80 @@
   },
   {
     "id": "kingbase_query_success",
-    "proto": "kingbase",
-    "summary": "S4: Simple query success outer semantics",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — S4: Simple query success outer semantics",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "test",
-            "database": "test"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "s2c",
-            "profile": "auth_profile_defined"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "c2s",
-            "profile": "auth_profile_defined",
-            "result": "success"
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c",
-            "profile": "ready_idle"
-          },
-          {
-            "kind": "query",
-            "direction": "c2s",
-            "profile": "query_simple_v3",
-            "sql": "SELECT 1"
-          },
-          {
-            "kind": "row_description",
-            "direction": "s2c",
-            "profile": "row_description_outer"
-          },
-          {
-            "kind": "data_row",
-            "direction": "s2c",
-            "profile": "data_row_outer"
-          },
-          {
-            "kind": "command_complete",
-            "direction": "s2c",
-            "profile": "command_complete_outer",
-            "tag": "SELECT 1"
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c",
-            "profile": "ready_idle"
+          "tcp": {
+            "src_port": 12345
           }
-        ]
-      }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "profile": "auth_profile_defined"
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "profile": "auth_profile_defined",
+                "result": "success"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "profile": "ready_idle"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "profile": "query_simple_v3",
+                "sql": "SELECT 1"
+              },
+              {
+                "kind": "row_description",
+                "direction": "s2c",
+                "profile": "row_description_outer"
+              },
+              {
+                "kind": "data_row",
+                "direction": "s2c",
+                "profile": "data_row_outer"
+              },
+              {
+                "kind": "command_complete",
+                "direction": "s2c",
+                "profile": "command_complete_outer",
+                "tag": "SELECT 1"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "profile": "ready_idle"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 16,
@@ -357,66 +373,70 @@
   },
   {
     "id": "kingbase_query_error",
-    "proto": "kingbase",
-    "summary": "S5: Simple query error response and Ready",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — S5: Simple query error response and Ready",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "test",
-            "database": "test"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "s2c",
-            "profile": "auth_profile_defined"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "c2s",
-            "profile": "auth_profile_defined",
-            "result": "success"
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c",
-            "profile": "ready_idle"
-          },
-          {
-            "kind": "query",
-            "direction": "c2s",
-            "profile": "query_simple_v3",
-            "sql": "SELECT missing_column FROM missing_table"
-          },
-          {
-            "kind": "query_error",
-            "direction": "s2c",
-            "profile": "query_error_outer",
-            "result": "error"
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c",
-            "profile": "ready_idle"
+          "tcp": {
+            "src_port": 12345
           }
-        ]
-      }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "profile": "auth_profile_defined"
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "profile": "auth_profile_defined",
+                "result": "success"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "profile": "ready_idle"
+              },
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "profile": "query_simple_v3",
+                "sql": "SELECT missing_column FROM missing_table"
+              },
+              {
+                "kind": "query_error",
+                "direction": "s2c",
+                "profile": "query_error_outer",
+                "result": "error"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "profile": "ready_idle"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 14,
@@ -452,7 +472,7 @@
         {
           "packet": 9,
           "field": "pgsql.type",
-          "value": "Error response"
+          "value": "Error"
         },
         {
           "packet": 10,
@@ -485,49 +505,53 @@
   },
   {
     "id": "kingbase_ipv4",
-    "proto": "kingbase",
-    "summary": "S6: IPv4 compatible session",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — S6: IPv4 compatible session",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "test",
-            "database": "test"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "s2c",
-            "profile": "auth_profile_defined"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "c2s",
-            "profile": "auth_profile_defined",
-            "result": "success"
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c",
-            "profile": "ready_idle"
+          "tcp": {
+            "src_port": 12345
           }
-        ]
-      }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "profile": "auth_profile_defined"
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "profile": "auth_profile_defined",
+                "result": "success"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "profile": "ready_idle"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -581,49 +605,53 @@
   },
   {
     "id": "kingbase_ipv6",
-    "proto": "kingbase",
-    "summary": "S7: IPv6 compatible session",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — S7: IPv6 compatible session",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "2001:db8::1",
-      "dst_ip": "2001:db8::2",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "test",
-            "database": "test"
-          },
-          {
-            "kind": "auth_request",
-            "direction": "s2c",
-            "profile": "auth_profile_defined"
-          },
-          {
-            "kind": "auth_response",
-            "direction": "c2s",
-            "profile": "auth_profile_defined",
-            "result": "success"
-          },
-          {
-            "kind": "ready",
-            "direction": "s2c",
-            "profile": "ready_idle"
+          "tcp": {
+            "src_port": 12345
           }
-        ]
-      }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              },
+              {
+                "kind": "auth_request",
+                "direction": "s2c",
+                "profile": "auth_profile_defined"
+              },
+              {
+                "kind": "auth_response",
+                "direction": "c2s",
+                "profile": "auth_profile_defined",
+                "result": "success"
+              },
+              {
+                "kind": "ready",
+                "direction": "s2c",
+                "profile": "ready_idle"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 11,
@@ -677,82 +705,86 @@
   },
   {
     "id": "kingbase_multi_session",
-    "proto": "kingbase",
-    "summary": "S8: two independent compatible sessions",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — S8: two independent compatible sessions",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "sessions": [
-          {
-            "src_port": 12345,
-            "events": [
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "sessions": [
               {
-                "kind": "startup",
-                "direction": "c2s",
-                "profile": "startup_v3",
-                "user": "test",
-                "database": "test"
+                "src_port": 12345,
+                "events": [
+                  {
+                    "kind": "startup",
+                    "direction": "c2s",
+                    "profile": "startup_v3",
+                    "user": "test",
+                    "database": "test"
+                  },
+                  {
+                    "kind": "auth_request",
+                    "direction": "s2c",
+                    "profile": "auth_profile_defined"
+                  },
+                  {
+                    "kind": "auth_response",
+                    "direction": "c2s",
+                    "profile": "auth_profile_defined",
+                    "result": "success"
+                  },
+                  {
+                    "kind": "ready",
+                    "direction": "s2c",
+                    "profile": "ready_idle"
+                  }
+                ]
               },
               {
-                "kind": "auth_request",
-                "direction": "s2c",
-                "profile": "auth_profile_defined"
-              },
-              {
-                "kind": "auth_response",
-                "direction": "c2s",
-                "profile": "auth_profile_defined",
-                "result": "success"
-              },
-              {
-                "kind": "ready",
-                "direction": "s2c",
-                "profile": "ready_idle"
-              }
-            ]
-          },
-          {
-            "src_port": 12346,
-            "events": [
-              {
-                "kind": "startup",
-                "direction": "c2s",
-                "profile": "startup_v3",
-                "user": "test",
-                "database": "test"
-              },
-              {
-                "kind": "auth_request",
-                "direction": "s2c",
-                "profile": "auth_profile_defined"
-              },
-              {
-                "kind": "auth_response",
-                "direction": "c2s",
-                "profile": "auth_profile_defined",
-                "result": "success"
-              },
-              {
-                "kind": "ready",
-                "direction": "s2c",
-                "profile": "ready_idle"
+                "src_port": 12346,
+                "events": [
+                  {
+                    "kind": "startup",
+                    "direction": "c2s",
+                    "profile": "startup_v3",
+                    "user": "test",
+                    "database": "test"
+                  },
+                  {
+                    "kind": "auth_request",
+                    "direction": "s2c",
+                    "profile": "auth_profile_defined"
+                  },
+                  {
+                    "kind": "auth_response",
+                    "direction": "c2s",
+                    "profile": "auth_profile_defined",
+                    "result": "success"
+                  },
+                  {
+                    "kind": "ready",
+                    "direction": "s2c",
+                    "profile": "ready_idle"
+                  }
+                ]
               }
             ]
           }
-        ]
-      }
+        }
+      ]
     },
     "expect": {
       "packet_count": 22,
@@ -793,33 +825,37 @@
   },
   {
     "id": "kingbase_length_boundary",
-    "proto": "kingbase",
-    "summary": "S9: minimum non-empty Startup parameters",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — S9: minimum non-empty Startup parameters",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "u",
-            "database": "d"
+          "tcp": {
+            "src_port": 12345
           }
-        ]
-      }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "u",
+                "database": "d"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 8,
@@ -851,33 +887,37 @@
   },
   {
     "id": "kingbase_neg_udp",
-    "proto": "kingbase",
-    "summary": "N1: UDP carrier is rejected",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — N1: UDP carrier is rejected",
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "test",
-            "database": "test"
+          "udp": {
+            "src_port": 12345
           }
-        ]
-      }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -887,33 +927,38 @@
   },
   {
     "id": "kingbase_neg_port",
-    "proto": "kingbase",
-    "summary": "N2: nonstandard destination port is rejected",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — N2: nonstandard destination port is rejected",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54322,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "test",
-            "database": "test"
+          "tcp": {
+            "src_port": 12345,
+            "dst_port": 54322
           }
-        ]
-      }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -923,33 +968,37 @@
   },
   {
     "id": "kingbase_neg_profile",
-    "proto": "kingbase",
-    "summary": "N3: unknown wire profile is rejected",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — N3: unknown wire profile is rejected",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "unknown_profile",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "test",
-            "database": "test"
+          "tcp": {
+            "src_port": 12345
           }
-        ]
-      }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "unknown_profile",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -959,32 +1008,36 @@
   },
   {
     "id": "kingbase_neg_state",
-    "proto": "kingbase",
-    "summary": "N4: query before Ready is rejected",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — N4: query before Ready is rejected",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "query",
-            "direction": "c2s",
-            "profile": "query_simple_v3",
-            "sql": "SELECT 1"
+          "tcp": {
+            "src_port": 12345
           }
-        ]
-      }
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "query",
+                "direction": "c2s",
+                "profile": "query_simple_v3",
+                "sql": "SELECT 1"
+              }
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -994,37 +1047,41 @@
   },
   {
     "id": "kingbase_neg_truncated",
-    "proto": "kingbase",
-    "summary": "N5: truncated Startup length is rejected",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — N5: truncated Startup length is rejected",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "test",
-            "database": "test"
+          "tcp": {
+            "src_port": 12345
           }
-        ],
-        "wire_fault": {
-          "kind": "truncate_startup",
-          "value": 1
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              }
+            ],
+            "wire_fault": {
+              "kind": "truncate_startup",
+              "value": 1
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -1034,37 +1091,41 @@
   },
   {
     "id": "kingbase_neg_oversize",
-    "proto": "kingbase",
-    "summary": "N6: message over implementation limit is rejected",
+    "proto": "postgresql",
+    "summary": "postgresql dialect=kingbase — N6: message over implementation limit is rejected",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
         },
         {
-          "kingbase": {}
-        }
-      ],
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 54321,
-      "kingbase": {
-        "wire_profile": "kingbase_es_v8_pg_compatible",
-        "events": [
-          {
-            "kind": "startup",
-            "direction": "c2s",
-            "profile": "startup_v3",
-            "user": "test",
-            "database": "test"
+          "tcp": {
+            "src_port": 12345
           }
-        ],
-        "wire_fault": {
-          "kind": "message_limit",
-          "value": "over_limit"
+        },
+        {
+          "postgresql": {
+            "dialect": "kingbase",
+            "wire_profile": "kingbase_es_v8_pg_compatible",
+            "events": [
+              {
+                "kind": "startup",
+                "direction": "c2s",
+                "profile": "startup_v3",
+                "user": "test",
+                "database": "test"
+              }
+            ],
+            "wire_fault": {
+              "kind": "message_limit",
+              "value": "over_limit"
+            }
+          }
         }
-      }
+      ]
     },
     "expect": {
       "expect_error": true,

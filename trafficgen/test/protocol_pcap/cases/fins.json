@@ -1,0 +1,925 @@
+[
+  {
+    "id": "fins_udp_dm_read",
+    "proto": "fins",
+    "summary": "T-001: FINS/UDP 内存区读-响应往返（DM D100 读 2 字），请求 ICF=0x81/响应 ICF=0xC1，SID=0x01 回显，10.0.0.1:1234<->20.0.0.1:9600",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1234,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "dm",
+            "address": 100,
+            "items": 2
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "omron.icf",
+          "value": "0x81"
+        },
+        {
+          "packet": 1,
+          "field": "omron.sid",
+          "value": "0x01"
+        },
+        {
+          "packet": 1,
+          "field": "omron.command",
+          "value": "0x0101"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.area.read",
+          "value": "0x82"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.address",
+          "value": "0x0064"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.numitems",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "9600"
+        },
+        {
+          "packet": 2,
+          "field": "omron.icf",
+          "value": "0xC1"
+        },
+        {
+          "packet": 2,
+          "field": "omron.sid",
+          "value": "0x01"
+        },
+        {
+          "packet": 2,
+          "field": "omron.response.code",
+          "value": "0x0000"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "9600"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "1234"
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §3.4/§6 S1：请求 FINS 帧=10头+2命令码+6参数(UDP offset 42 起)",
+        "omron.response.data 为非空 bytes 存在性断言(2 字) 可用 nonzero",
+        "高位大端：area=0x82、address=0x0064"
+      ]
+    }
+  },
+  {
+    "id": "fins_tcp_read",
+    "proto": "fins",
+    "summary": "T-002: FINS/TCP Frame Send 读取（D100 读 2 字），FINS/TCP 头 'FINS' magic+length=26+command=0x00000002+error=0，TCP 9600，带握手；omron.tcp.command 与 omron.command 隔离验证",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1235,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "tcp",
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "dm",
+            "address": 100,
+            "items": 2
+          }
+        ]
+      }
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "min_packets": 7,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "omron.tcp.magic",
+          "value": "0x46494e53"
+        },
+        {
+          "packet": 4,
+          "field": "omron.tcp.length",
+          "value": "26"
+        },
+        {
+          "packet": 4,
+          "field": "omron.tcp.command",
+          "value": "0x00000002"
+        },
+        {
+          "packet": 4,
+          "field": "omron.tcp.error_code",
+          "value": "0"
+        },
+        {
+          "packet": 4,
+          "field": "omron.icf",
+          "value": "0x81"
+        },
+        {
+          "packet": 4,
+          "field": "omron.command",
+          "value": "0x0101"
+        },
+        {
+          "packet": 5,
+          "field": "omron.tcp.length",
+          "value": "26"
+        },
+        {
+          "packet": 5,
+          "field": "omron.icf",
+          "value": "0xC1"
+        },
+        {
+          "packet": 5,
+          "field": "omron.response.code",
+          "value": "0x0000"
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §2.7：FINS/TCP 头=magic(4)+length(4)+command(4)+error(4)，共 16B；length=26 为完整 FINS/TCP 负载长度（command+error+FINS frame），不含前 8B",
+        "packet 4=首个数据段（请求），packet 5=响应；TCP 握手占 1-3",
+        "omron.tcp.command=0x00000002 (Frame Send) ≠ omron.command=0x0101"
+      ]
+    }
+  },
+  {
+    "id": "fins_udp_ipv6_read",
+    "proto": "fins",
+    "summary": "T-003: FINS/UDP 内存区读 over IPv6（2001:db8::1 -> 2001:db8::2:9600，DM D100 读 1 字），FINS 载荷与 IPv4 字节级一致",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "2001:db8::1",
+      "dst_ip": "2001:db8::2",
+      "src_port": 1236,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "dm",
+            "address": 100,
+            "items": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ipv6.src",
+          "value": "2001:db8::1"
+        },
+        {
+          "packet": 1,
+          "field": "ipv6.dst",
+          "value": "2001:db8::2"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "9600"
+        },
+        {
+          "packet": 1,
+          "field": "omron.command",
+          "value": "0x0101"
+        },
+        {
+          "packet": 1,
+          "field": "omron.icf",
+          "value": "0x81"
+        },
+        {
+          "packet": 2,
+          "field": "ipv6.src",
+          "value": "2001:db8::2"
+        },
+        {
+          "packet": 2,
+          "field": "omron.response.code",
+          "value": "0x0000"
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §2.8/§6 S9：FINS/UDP 帧无附加头，载荷与 IP 版本无关",
+        "请求/响应 swap src/dst；FrameAssert offset 62（eth14+ip640+udp8）"
+      ]
+    }
+  },
+  {
+    "id": "fins_cio_read_word",
+    "proto": "fins",
+    "summary": "T-004: CIO 区字读（CIO0 读 1 字），omron.memory.area.read=0xB0（CIO 字码），响应 2 字节数据",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1237,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "cio",
+            "address": 0,
+            "items": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "omron.memory.area.read",
+          "value": "0xB0"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.address",
+          "value": "0x0000"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.numitems",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "omron.response.code",
+          "value": "0x0000"
+        },
+        {
+          "packet": 2,
+          "field": "omron.response.data",
+          "nonzero": true
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §2.2：CIO 字码=0xB0、位码=0x30（CS1 口径）",
+        "响应数据 2 字节 = items×2；帧 offset 42"
+      ]
+    }
+  },
+  {
+    "id": "fins_wr_read_word",
+    "proto": "fins",
+    "summary": "T-005: WR 工作区字读（W10 读 1 字），omron.memory.area.read=0xB1、address=0x000A",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1238,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "wr",
+            "address": 10,
+            "items": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "omron.memory.area.read",
+          "value": "0xB1"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.address",
+          "value": "0x000A"
+        },
+        {
+          "packet": 2,
+          "field": "omron.response.code",
+          "value": "0x0000"
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §2.2：WR 字码=0xB1；address=10 → 0x000A 大端"
+      ]
+    }
+  },
+  {
+    "id": "fins_hr_read_word",
+    "proto": "fins",
+    "summary": "T-006: HR 保持区字读（H5 读 2 字），omron.memory.area.read=0xB2、address=0x0005、numitems=2，响应数据 4 字节",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1239,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "hr",
+            "address": 5,
+            "items": 2
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "omron.memory.area.read",
+          "value": "0xB2"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.address",
+          "value": "0x0005"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.numitems",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "omron.response.code",
+          "value": "0x0000"
+        },
+        {
+          "packet": 2,
+          "field": "omron.response.data",
+          "nonzero": true
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §2.2：HR 字码=0xB2；响应数据 = 2×2 = 4 字节"
+      ]
+    }
+  },
+  {
+    "id": "fins_tc_read_pv",
+    "proto": "fins",
+    "summary": "T-007: TC 定时器/计数器 PV 字读（TC0 读 1 字），omron.memory.area.read=0x89（PV 字码）",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1240,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "tc_pv",
+            "address": 0,
+            "items": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "omron.memory.area.read",
+          "value": "0x89"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.address",
+          "value": "0x0000"
+        },
+        {
+          "packet": 2,
+          "field": "omron.response.code",
+          "value": "0x0000"
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §2.2：TC PV 字码=0x89；TC Completion Flag 位码=0x09 另一口径",
+        "TC 地址含定时器/计数器编号"
+      ]
+    }
+  },
+  {
+    "id": "fins_ir_read_word",
+    "proto": "fins",
+    "summary": "T-008: IR 索引寄存器字读（IR0 读 1 字），omron.memory.area.read=0xDC（CS1 Index Register）",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1241,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "ir",
+            "address": 0,
+            "items": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "omron.memory.area.read",
+          "value": "0xDC"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.address",
+          "value": "0x0000"
+        },
+        {
+          "packet": 2,
+          "field": "omron.response.code",
+          "value": "0x0000"
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §2.2：IR 无位口径、仅字码 0xDC（CS1）"
+      ]
+    }
+  },
+  {
+    "id": "fins_hr_read_bit",
+    "proto": "fins",
+    "summary": "T-009: HR 位域读（H10 的 bit2/3 读 2 bit），omron.memory.area.read=0x32（HR 位码）、address.bits=0x02、numitems=2，响应数据 2 字节 01 00（FrameAssert 校验位数据每 bit 1 字节）",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1242,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "hr",
+            "address": 16,
+            "bit": 2,
+            "items": 2,
+            "data": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "omron.memory.area.read",
+          "value": "0x32"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.address",
+          "value": "0x0010"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.address.bits",
+          "value": "0x02"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.numitems",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "omron.response.code",
+          "value": "0x0000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 2,
+          "offset": 56,
+          "hex": "01 00"
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §2.3/§3.7：位读响应每 bit 1 字节(0x00/0x01)；HR 位码=0x32",
+        "FrameAssert offset 56 = UDP 帧尾 2 字节（42+12头+2命令码+2结束码=58，末2B）",
+        "data 配置为读响应的期望位值 [1,0] → bit2=ON、bit3=OFF"
+      ]
+    }
+  },
+  {
+    "id": "fins_cio_write_bit",
+    "proto": "fins",
+    "summary": "T-010: CIO 位域写（CIO0 bit3 起写 2 bit ON/OFF），omron.memory.area.read=0x30、address.bits=0x03、numitems=2，写请求数据 01 00，响应无数据",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1243,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "commands": [
+          {
+            "command": 258,
+            "memory_area": "cio",
+            "address": 0,
+            "bit": 3,
+            "items": 2,
+            "data": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "omron.command",
+          "value": "0x0102"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.area.read",
+          "value": "0x30"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.address",
+          "value": "0x0000"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.address.bits",
+          "value": "0x03"
+        },
+        {
+          "packet": 1,
+          "field": "omron.memory.numitems",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "omron.response.code",
+          "value": "0x0000"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "01 00"
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §3.6：位写请求 NC=2、DC=2、数据每 bit 1 字节；FINS 帧=10+2+10=22 字节",
+        "FrameAssert offset 62 = UDP 帧 42+头10+命令码2+寻址4+NC2+DC2=62 起 2 字节数据",
+        "写入数据 [1,0] → bit3=ON、bit4=OFF"
+      ]
+    }
+  },
+  {
+    "id": "fins_clock_read_bcd",
+    "proto": "fins",
+    "summary": "T-012: Clock Read（0x0701）无参数请求 + BCD 响应（世纪20/年26/月08/日18/时14/分30/秒00/星期02）；Wireshark 对 0x0701 响应不解析结束码，用 FrameAssert 校验",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1244,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "commands": [
+          {
+            "command": 1793,
+            "clock": {
+              "century": 20,
+              "year": 26,
+              "month": 8,
+              "day": 18,
+              "hour": 14,
+              "minute": 30,
+              "second": 0,
+              "weekday": 2
+            }
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "omron.command",
+          "value": "0x0701"
+        },
+        {
+          "packet": 1,
+          "field": "omron.sid",
+          "value": "0x01"
+        },
+        {
+          "packet": 2,
+          "field": "omron.icf",
+          "value": "0xC1"
+        },
+        {
+          "packet": 2,
+          "field": "omron.command",
+          "value": "0x0701"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 2,
+          "offset": 54,
+          "hex": "00 00 20 26 08 18 14 30 00 02"
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §3.10/§6 S7：响应 FINS 帧=10头+2命令码+2结束码+8 BCD=22 字节",
+        "Wireshark 0x0701 分支不解析结束码（packet-omron-fins.c），故响应断言全用 FrameAssert",
+        "BCD 小时=0x14（BCD SID 强制覆盖点，SID 本身为普通字节 0x01）",
+        "请求帧=10+2=12 字节；FrameAssert 校验请求无参数（12 字节后无内容）"
+      ]
+    }
+  },
+  {
+    "id": "fins_sessions_two",
+    "proto": "fins",
+    "summary": "T-020: 多会话 sessions=2 双流（各 DM D100 读 1 字），每流 SID 独立从 0x01 递增、跨流不串号；聚合断言 + 每流独立 src_port",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1245,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "sessions": 2,
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "dm",
+            "address": 100,
+            "items": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 4,
+      "fields": [
+        {
+          "packet": 0,
+          "field": "omron.sid",
+          "distinct_values": [
+            "0x01"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "udp.srcport",
+          "nonzero": true
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §4.4/§6 S10：sessions=2 → 2 并行流各 1 请求+1 响应",
+        "多流调度非确定：固定包位断言无意义，用 distinct_values 聚合（每流 SID=0x01 互不干扰）",
+        "引擎给每流独立 src_port（含 DistinctValues 断言中不做 srcport 全集），跨流可辨识",
+        "若后续命令序列 2 请求，则 SID distinct={0x01,0x02} 且流内不减——当前单请求证明无串号"
+      ]
+    }
+  },
+  {
+    "id": "fins_sessions_three",
+    "proto": "fins",
+    "summary": "T-021: 多会话 sessions=3 聚合断言（omron.sid DistinctValues={0x01}；端口全集不作断言，调度无关）",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1246,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "sessions": 3,
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "dm",
+            "address": 100,
+            "items": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 6,
+      "fields": [
+        {
+          "packet": 0,
+          "field": "omron.sid",
+          "distinct_values": [
+            "0x01"
+          ]
+        }
+      ],
+      "notes": [
+        "19-fins-design.md §4.4：sessions=3 → 3 流 × 2 包 = 6 包",
+        "distinct_values 为调度无关聚合断言（Testing Policy §6 并发正确性）",
+        "src_port 因多流系统分配可能复用——不做全集断言，只保证 SID 无串号"
+      ]
+    }
+  },
+  {
+    "id": "fins_sessions_neg_area",
+    "proto": "fins",
+    "summary": "T-023: 多会话负路径——sessions=2 且命令内存区非法 'xyz_bad'，Validate 必须拒绝（任务失败），禁止 0 包静默通过",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "fins": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 1247,
+      "dst_port": 9600,
+      "fins": {
+        "transport": "udp",
+        "sessions": 2,
+        "commands": [
+          {
+            "command": 257,
+            "memory_area": "xyz_bad",
+            "address": 0,
+            "items": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "memory area",
+      "notes": [
+        "19-fins-design.md §9 E-01：非法内存区 Validate 拒绝",
+        "多会话场景同样必须走完整校验——验证 Validate 与多流生成路径链路（Testing Policy §4）"
+      ]
+    }
+  }
+]

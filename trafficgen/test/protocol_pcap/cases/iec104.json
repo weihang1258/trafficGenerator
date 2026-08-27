@@ -1,0 +1,551 @@
+[
+  {
+    "id": "iec104_startdt_msp",
+    "proto": "iec104",
+    "summary": "STARTDT 激活后发送 M_SP_NA_1 单点遥信并以 S 帧确认",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.0.1",
+      "dst_ip": "10.104.0.2",
+      "src_port": 31001,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 1,
+        "startdt": true,
+        "stopdt": true,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "up", "kind": "i", "type_id": 1, "cause": 3, "ioa": 1, "siq": 1},
+          {"direction": "down", "kind": "s", "rx": 1},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "fields": [
+        {"packet": 4, "field": "tcp.dstport", "value": "2404"},
+        {"packet": 5, "field": "tcp.srcport", "value": "2404"},
+        {"packet": 6, "field": "iec60870_104.apdulen", "value": "4"}
+      ],
+      "frames": [
+        {"packet": 4, "offset": 54, "hex": "68 04 07 00 00 00"},
+        {"packet": 5, "offset": 54, "hex": "68 04 0b 00 00 00"},
+        {"packet": 6, "offset": 54, "hex": "68 0e 00 00 00 00 01 01 03 00 01 00 01 00 00 01"},
+        {"packet": 7, "offset": 54, "hex": "68 04 01 00 02 00"}
+      ],
+      "notes": ["APCI 起始字符为 0x68；IPv4 无选项时 TCP 负载中的 APDU 偏移为 54。"]
+    }
+  },
+  {
+    "id": "iec104_polling",
+    "proto": "iec104",
+    "summary": "三轮总召唤周期轮询，每轮返回单点信息并发送 S 确认",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.1.1",
+      "dst_ip": "10.104.1.2",
+      "src_port": 31002,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 7,
+        "startdt": true,
+        "stopdt": true,
+        "poll": {
+          "count": 3,
+          "interval_ms": 1000,
+          "request": {"type_id": 100, "cause": 6, "ioa": 0, "qoi": 20},
+          "response": [{"type_id": 1, "cause": 20, "ioa": 1, "siq": 1}]
+        },
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "up", "kind": "i", "type_id": 100, "cause": 6, "ioa": 0, "qoi": 20},
+          {"direction": "down", "kind": "i", "type_id": 1, "cause": 20, "ioa": 1, "siq": 1},
+          {"direction": "up", "kind": "s", "rx": 1},
+          {"direction": "up", "kind": "i", "type_id": 100, "cause": 6, "ioa": 0, "qoi": 20},
+          {"direction": "down", "kind": "i", "type_id": 1, "cause": 20, "ioa": 1, "siq": 1},
+          {"direction": "up", "kind": "s", "rx": 2},
+          {"direction": "up", "kind": "i", "type_id": 100, "cause": 6, "ioa": 0, "qoi": 20},
+          {"direction": "down", "kind": "i", "type_id": 1, "cause": 20, "ioa": 1, "siq": 1},
+          {"direction": "up", "kind": "s", "rx": 3},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 20,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "frames": [
+        {"packet": 6, "offset": 54, "hex": "68 0b 00 00 00 00 64 01 06 00 07 00 14"},
+        {"packet": 7, "offset": 54, "hex": "68 0e 02 00 00 00 01 01 14 00 07 00 01 00 00 01"},
+        {"packet": 8, "offset": 54, "hex": "68 04 01 00 02 00"}
+      ],
+      "notes": ["poll.count=3；每轮 C_IC_NA_1 的 QOI=20，响应 COT=20。"]
+    }
+  },
+  {
+    "id": "iec104_m_me_na_type9",
+    "proto": "iec104",
+    "summary": "类型 9 M_ME_NA_1 归一化遥测，验证 16 位小端值和 QDS",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.2.1",
+      "dst_ip": "10.104.2.2",
+      "src_port": 31003,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 2,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "down", "kind": "i", "type_id": 9, "cause": 3, "ioa": 16, "value": 4660, "qds": 0},
+          {"direction": "up", "kind": "s", "rx": 1},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "frames": [
+        {"packet": 6, "offset": 54, "hex": "68 10 00 00 00 00 09 01 03 00 02 00 10 00 00 34 12 00"}
+      ],
+      "notes": ["TypeID=9；NVA=0x1234 按低字节在前编码为 34 12，随后为 QDS=00。"]
+    }
+  },
+  {
+    "id": "iec104_timed_measurement",
+    "proto": "iec104",
+    "summary": "带 CP56Time2a 的类型 34 归一化遥测，时间字段只做结构验证",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.3.1",
+      "dst_ip": "10.104.3.2",
+      "src_port": 31004,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 3,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "down", "kind": "i", "type_id": 34, "cause": 3, "ioa": 17, "value": 100, "qds": 0, "time": "2026-08-18T12:34:56.789Z"},
+          {"direction": "up", "kind": "s", "rx": 1},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "frames": [
+        {"packet": 6, "offset": 54, "hex": "68 17 00 00 00 00 22 01 03 00 03 00 11 00 00"}
+      ],
+      "notes": ["CP56Time2a 的 7 字节由运行时编码；用例不把墙钟字段硬编码为固定常量。"]
+    }
+  },
+  {
+    "id": "iec104_timed_single_point",
+    "proto": "iec104",
+    "summary": "类型 30 M_SP_TB_1 带 CP56Time2a 单点突发事件",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.4.1",
+      "dst_ip": "10.104.4.2",
+      "src_port": 31005,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 4,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "down", "kind": "i", "type_id": 30, "cause": 3, "ioa": 21, "siq": 1, "time": "2026-08-18T12:35:00.000Z"},
+          {"direction": "up", "kind": "s", "rx": 1},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "frames": [
+        {"packet": 6, "offset": 54, "hex": "68 15 00 00 00 00 1e 01 03 00 04 00 15 00 00 01"}
+      ],
+      "notes": ["TypeID=30 代表带 CP56Time2a 单点信息；SIQ 位于 IOA 后，CP56Time2a 紧随 SIQ。"]
+    }
+  },
+  {
+    "id": "iec104_single_command",
+    "proto": "iec104",
+    "summary": "C_SC_NA_1 单点命令选择与执行确认",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.5.1",
+      "dst_ip": "10.104.5.2",
+      "src_port": 31006,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 5,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "up", "kind": "i", "type_id": 45, "cause": 6, "ioa": 22, "value": 1, "select": true},
+          {"direction": "down", "kind": "i", "type_id": 45, "cause": 7, "ioa": 22, "value": 1, "select": true},
+          {"direction": "up", "kind": "s", "rx": 1},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "frames": [
+        {"packet": 6, "offset": 54, "hex": "68 0e 00 00 00 00 2d 01 06 00 05 00 16 00 00 81"},
+        {"packet": 7, "offset": 54, "hex": "68 0e 02 00 00 00 2d 01 07 00 05 00 16 00 00 81"}
+      ],
+      "notes": ["SCO 的 bit7 为 Select/Execute 标志；选择和执行不是两个不同 TypeID。"]
+    }
+  },
+  {
+    "id": "iec104_double_command_timed",
+    "proto": "iec104",
+    "summary": "C_DC_TA_1 带时标双点命令，验证 DCO 和 TypeID=59",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.6.1",
+      "dst_ip": "10.104.6.2",
+      "src_port": 31007,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 6,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "up", "kind": "i", "type_id": 59, "cause": 6, "ioa": 23, "value": 2, "select": false, "time": "2026-08-18T12:36:00.000Z"},
+          {"direction": "down", "kind": "i", "type_id": 59, "cause": 7, "ioa": 23, "value": 2, "select": false, "time": "2026-08-18T12:36:00.000Z"},
+          {"direction": "up", "kind": "s", "rx": 1},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "frames": [
+        {"packet": 6, "offset": 54, "hex": "68 15 00 00 00 00 3b 01 06 00 06 00 17 00 00 02"},
+        {"packet": 7, "offset": 54, "hex": "68 15 02 00 00 00 3b 01 07 00 06 00 17 00 00 02"}
+      ],
+      "notes": ["TypeID=59 为带 CP56Time2a 的双点命令；时间字段不以固定字节断言。"]
+    }
+  },
+  {
+    "id": "iec104_u_frames",
+    "proto": "iec104",
+    "summary": "U 格式 STARTDT、TESTFR、STOPDT 激活与确认",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.7.1",
+      "dst_ip": "10.104.7.2",
+      "src_port": 31008,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 7,
+        "testfr": true,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "up", "kind": "testfr_act"},
+          {"direction": "down", "kind": "testfr_con"},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "fields": [
+        {"packet": 4, "field": "iec60870_104.apdulen", "value": "4"},
+        {"packet": 6, "field": "iec60870_104.apdulen", "value": "4"}
+      ],
+      "frames": [
+        {"packet": 4, "offset": 54, "hex": "68 04 07 00 00 00"},
+        {"packet": 5, "offset": 54, "hex": "68 04 0b 00 00 00"},
+        {"packet": 6, "offset": 54, "hex": "68 04 43 00 00 00"},
+        {"packet": 7, "offset": 54, "hex": "68 04 83 00 00 00"},
+        {"packet": 8, "offset": 54, "hex": "68 04 13 00 00 00"},
+        {"packet": 9, "offset": 54, "hex": "68 04 23 00 00 00"}
+      ],
+      "notes": ["U 帧不消耗 N(S)/N(R)；TESTFR con 必须对应之前的 TESTFR act。"]
+    }
+  },
+  {
+    "id": "iec104_s_ack",
+    "proto": "iec104",
+    "summary": "I 帧交换后使用 S 格式确认接收序号",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.8.1",
+      "dst_ip": "10.104.8.2",
+      "src_port": 31009,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 8,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "up", "kind": "i", "type_id": 100, "cause": 6, "ioa": 0, "qoi": 20},
+          {"direction": "down", "kind": "i", "type_id": 1, "cause": 20, "ioa": 1, "siq": 1},
+          {"direction": "up", "kind": "s", "rx": 1},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 14,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "frames": [
+        {"packet": 8, "offset": 54, "hex": "68 04 01 00 02 00"}
+      ],
+      "notes": ["S 格式控制域为 01 00 加 N(R) 左移一位后的小端编码；该 S 帧确认一个 down I 帧。"]
+    }
+  },
+  {
+    "id": "iec104_spontaneous_event",
+    "proto": "iec104",
+    "summary": "被控站突发上报 M_SP_NA_1，主站回 S 帧",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.9.1",
+      "dst_ip": "10.104.9.2",
+      "src_port": 31010,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 9,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "down", "kind": "i", "type_id": 1, "cause": 3, "ioa": 90, "siq": 1},
+          {"direction": "up", "kind": "s", "rx": 1},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "fields": [{"packet": 6, "field": "tcp.srcport", "value": "2404"}],
+      "frames": [
+        {"packet": 6, "offset": 54, "hex": "68 0e 00 00 00 00 01 01 03 00 09 00 5a 00 00 01"}
+      ],
+      "notes": ["COT=3 表示 spontaneous；该信息由被控站方向主动发送。"]
+    }
+  },
+  {
+    "id": "iec104_ipv6",
+    "proto": "iec104",
+    "summary": "IPv6 TCP 2404 承载相同 APCI/ASDU，验证 IPv6 头偏移",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "2001:db8:104::1",
+      "dst_ip": "2001:db8:104::2",
+      "src_port": 31011,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 10,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "down", "kind": "i", "type_id": 3, "cause": 3, "ioa": 2, "diq": 2},
+          {"direction": "up", "kind": "s", "rx": 1},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "fields": [
+        {"packet": 4, "field": "ipv6.dst", "value": "2001:db8:104::2"},
+        {"packet": 6, "field": "tcp.dstport", "value": "2404"}
+      ],
+      "frames": [
+        {"packet": 6, "offset": 74, "hex": "68 0e 00 00 00 00 03 01 03 00 0a 00 02 00 00 02"}
+      ],
+      "notes": ["IPv6 无扩展头时 APDU 偏移为 Ethernet14 + IPv6 40 + TCP20 = 74。"]
+    }
+  },
+  {
+    "id": "iec104_multi_flow",
+    "proto": "iec104",
+    "summary": "三个独立 IEC104 会话，分别执行 STARTDT、遥信、S 确认和 STOPDT",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.20.1",
+      "dst_ip": "10.104.20.2",
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "common_address": 20,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "up", "kind": "i", "type_id": 1, "cause": 3, "ioa": 1, "siq": 1},
+          {"direction": "down", "kind": "s", "rx": 1},
+          {"direction": "up", "kind": "stopdt_act"},
+          {"direction": "down", "kind": "stopdt_con"}
+        ]
+      }
+    },
+    "strategy_fc": {"type": "flows", "value": 3},
+    "expect": {
+      "min_packets": 39,
+      "has_handshake": true,
+      "has_payload": true,
+      "directional": true,
+      "terminates": true,
+      "fields": [
+        {"field": "tcp.srcport", "distinct_values": ["12345", "12346", "12347"], "distinct_exclude": ["2404"]},
+        {"field": "tcp.dstport", "distinct_values": ["2404"], "distinct_exclude": ["12345", "12346", "12347"]}
+      ],
+      "notes": ["三条 flow 的 TCP 序号和 IEC104 N(S)/N(R) 独立；distinct_values 扫描全部报文，不用于定位交织后的业务帧。"]
+    }
+  },
+  {
+    "id": "iec104_neg_control",
+    "proto": "iec104",
+    "summary": "负向：使用未知 U 控制域，必须在 Validate 阶段拒绝",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.30.1",
+      "dst_ip": "10.104.30.2",
+      "src_port": 31101,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "events": [{"direction": "up", "kind": "u", "control": "ff 00 00 00"}]
+      }
+    },
+    "expect": {"expect_error": true, "error_contains": "control"}
+  },
+  {
+    "id": "iec104_neg_unknown_type",
+    "proto": "iec104",
+    "summary": "负向：ASDU TypeID=250 不在支持白名单",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.31.1",
+      "dst_ip": "10.104.31.2",
+      "src_port": 31102,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "up", "kind": "i", "type_id": 250, "cause": 6, "ioa": 1, "value": 0}
+        ]
+      }
+    },
+    "expect": {"expect_error": true, "error_contains": "unknown type_id"}
+  },
+  {
+    "id": "iec104_neg_oversize_apdu",
+    "proto": "iec104",
+    "summary": "负向：ASDU 使 APCI 长度超过单字节上限",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.32.1",
+      "dst_ip": "10.104.32.2",
+      "src_port": 31103,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "max_apdu_length": 254,
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "up", "kind": "i", "type_id": 1, "cause": 6, "ioa": 1, "siq": 1, "repeat": 300}
+        ]
+      }
+    },
+    "expect": {"expect_error": true, "error_contains": "APDU too long"}
+  },
+  {
+    "id": "iec104_neg_ioa",
+    "proto": "iec104",
+    "summary": "负向：IOA 超过 24 位信息对象地址范围",
+    "spec_json": {
+      "layers": [{"tcp": {}}, {"iec104": {}}],
+      "src_ip": "10.104.33.1",
+      "dst_ip": "10.104.33.2",
+      "src_port": 31104,
+      "dst_port": 2404,
+      "iec104": {
+        "role": "master",
+        "events": [
+          {"direction": "up", "kind": "startdt_act"},
+          {"direction": "down", "kind": "startdt_con"},
+          {"direction": "up", "kind": "i", "type_id": 45, "cause": 6, "ioa": 16777216, "value": 1}
+        ]
+      }
+    },
+    "expect": {"expect_error": true, "error_contains": "IOA"}
+  }
+]

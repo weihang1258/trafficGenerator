@@ -1,0 +1,1405 @@
+[
+  {
+    "id": "hls_master_basic_ipv4",
+    "proto": "hls",
+    "summary": "HLS master playlist over IPv4 HTTP",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "master",
+            "uri": "/live/master.m3u8",
+            "variants": [
+              {
+                "uri": "/live/low.m3u8",
+                "bandwidth": 800000,
+                "resolution": "640x360"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/master.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_media_target_duration",
+    "proto": "hls",
+    "summary": "HLS media playlist target duration and segments",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40001,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/live/low.m3u8",
+            "playlist_type": "media",
+            "target_duration": 6,
+            "segments": [
+              {
+                "uri": "/seg/1.ts",
+                "duration": 5.0
+              },
+              {
+                "uri": "/seg/2.ts",
+                "duration": 6.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/low.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_media_sequence",
+    "proto": "hls",
+    "summary": "HLS media sequence and ordered segments",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40002,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/live/seq.m3u8",
+            "media_sequence": 42,
+            "target_duration": 6,
+            "segments": [
+              {
+                "uri": "/seg/42.ts",
+                "duration": 5.0
+              },
+              {
+                "uri": "/seg/43.ts",
+                "duration": 5.4
+              },
+              {
+                "uri": "/seg/44.ts",
+                "duration": 6.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/seq.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_discontinuity",
+    "proto": "hls",
+    "summary": "HLS discontinuity sequence boundary",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40003,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/live/disc.m3u8",
+            "media_sequence": 10,
+            "discontinuity_sequence": 3,
+            "target_duration": 6,
+            "segments": [
+              {
+                "uri": "/seg/10.ts",
+                "duration": 5.0
+              },
+              {
+                "uri": "/seg/11.ts",
+                "duration": 5.0,
+                "discontinuity": true
+              },
+              {
+                "uri": "/seg/12.ts",
+                "duration": 5.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/disc.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_byterange",
+    "proto": "hls",
+    "summary": "HLS explicit and implicit byte ranges",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40004,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/live/range.m3u8",
+            "target_duration": 6,
+            "segments": [
+              {
+                "uri": "/media.mp4",
+                "duration": 5.0,
+                "byte_range": {
+                  "length": 1000,
+                  "offset": 0
+                },
+                "resource_length": 1800
+              },
+              {
+                "uri": "/media.mp4",
+                "duration": 5.0,
+                "byte_range": {
+                  "length": 800
+                },
+                "resource_length": 1800
+              }
+            ]
+          },
+          {
+            "kind": "segment",
+            "uri": "/media.mp4"
+          },
+          {
+            "kind": "segment",
+            "uri": "/media.mp4"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/range.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_aes128_key",
+    "proto": "hls",
+    "summary": "HLS AES-128 key and IV association",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40005,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "session_id": "live",
+            "uri": "/live/encrypted.m3u8",
+            "target_duration": 6,
+            "body": "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"/keys/live.key\",IV=0x0000000000000000000000000000002A\n#EXTINF:5.0,\n/seg/1.ts\n#EXT-X-KEY:METHOD=NONE\n",
+            "segments": [
+              {
+                "uri": "/seg/1.ts",
+                "duration": 5.0,
+                "key_ref": "/keys/live.key"
+              }
+            ]
+          },
+          {
+            "kind": "key",
+            "session_id": "live",
+            "uri": "/keys/live.key",
+            "key": {
+              "method": "AES-128",
+              "uri": "/keys/live.key",
+              "iv": "0x0000000000000000000000000000002a"
+            },
+            "response_body_b64": "AQIDBAUGBwgJCAsMDQ4PEA"
+          },
+          {
+            "kind": "segment",
+            "session_id": "live",
+            "uri": "/seg/1.ts",
+            "response_status_code": 200,
+            "response_body_b64": "AQIDBAUGBwgJCAsMDQ4PEA",
+            "key_ref": "/keys/live.key"
+          },
+          {
+            "kind": "key",
+            "session_id": "live",
+            "uri": "/keys/none.key",
+            "key": {
+              "method": "NONE"
+            }
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 15,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/encrypted.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_live_refresh",
+    "proto": "hls",
+    "summary": "HLS live sliding window refresh",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40006,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "live": {
+          "window": 3,
+          "refresh_count": 1,
+          "refresh_interval": 6
+        },
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/live/live.m3u8",
+            "media_sequence": 100,
+            "target_duration": 6,
+            "segments": [
+              {
+                "uri": "/seg/100.ts",
+                "duration": 5.0
+              },
+              {
+                "uri": "/seg/101.ts",
+                "duration": 5.0
+              },
+              {
+                "uri": "/seg/102.ts",
+                "duration": 5.0
+              }
+            ]
+          },
+          {
+            "kind": "refresh",
+            "uri": "/live/live.m3u8",
+            "media_sequence": 101,
+            "target_duration": 6,
+            "segments": [
+              {
+                "uri": "/seg/101.ts",
+                "duration": 5.0
+              },
+              {
+                "uri": "/seg/102.ts",
+                "duration": 5.0
+              },
+              {
+                "uri": "/seg/103.ts",
+                "duration": 5.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/live.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_llhls_parts",
+    "proto": "hls",
+    "summary": "HLS low-latency parts and preload hint",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40007,
+      "dst_port": 80,
+      "hls": {
+        "profile": "apple_ll_hls",
+        "ll_hls": {
+          "part_target": 0.333,
+          "server_control": "CAN-SKIP-UNTIL=6.0,PART-HOLD-BACK=0.666"
+        },
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/live/ll.m3u8",
+            "target_duration": 2,
+            "media_sequence": 101,
+            "segments": [
+              {
+                "uri": "/seg/101.ts",
+                "duration": 2.0
+              }
+            ],
+            "parts": [
+              {
+                "uri": "/p/101.1.m4s",
+                "duration": 0.333,
+                "independent": true
+              }
+            ],
+            "preload_hint": {
+              "type": "PART",
+              "uri": "/p/101.2.m4s"
+            }
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/ll.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_master_renditions",
+    "proto": "hls",
+    "summary": "HLS master audio rendition association",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40008,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "master",
+            "uri": "/live/master.m3u8",
+            "renditions": [
+              {
+                "type": "AUDIO",
+                "group_id": "aud",
+                "name": "main",
+                "default": true,
+                "autoselect": true,
+                "uri": "/audio.m3u8"
+              }
+            ],
+            "variants": [
+              {
+                "uri": "/video.m3u8",
+                "bandwidth": 1200000,
+                "audio": "aud"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/master.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_fmp4_init_map",
+    "proto": "hls",
+    "summary": "HLS fragmented MP4 initialization map",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40009,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/live/fmp4.m3u8",
+            "target_duration": 6,
+            "map": {
+              "uri": "/init.mp4",
+              "byte_range": {
+                "length": 720,
+                "offset": 0
+              },
+              "resource_length": 720
+            },
+            "independent_segments": true,
+            "segments": [
+              {
+                "uri": "/seg/1.m4s",
+                "duration": 5.0
+              },
+              {
+                "uri": "/seg/2.m4s",
+                "duration": 5.0
+              }
+            ],
+            "resource_responses": [
+              {
+                "kind": "map",
+                "uri": "/init.mp4",
+                "response_status_code": 200,
+                "response_content_type": "video/mp4",
+                "resource_length": 720,
+                "byte_range": {
+                  "length": 720,
+                  "offset": 0
+                }
+              },
+              {
+                "kind": "segment",
+                "uri": "/seg/1.m4s",
+                "response_status_code": 200,
+                "response_content_type": "video/mp4"
+              },
+              {
+                "kind": "segment",
+                "uri": "/seg/2.m4s",
+                "response_status_code": 200,
+                "response_content_type": "video/mp4"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/fmp4.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_vod_endlist",
+    "proto": "hls",
+    "summary": "HLS VOD playlist with ENDLIST",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40010,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/vod/movie.m3u8",
+            "playlist_type": "media",
+            "playlist_mode": "VOD",
+            "target_duration": 6,
+            "segments": [
+              {
+                "uri": "/vod/1.ts",
+                "duration": 5.0
+              },
+              {
+                "uri": "/vod/2.ts",
+                "duration": 5.0
+              }
+            ],
+            "endlist": true
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/vod/movie.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_empty_and_truncated",
+    "proto": "hls",
+    "summary": "HLS empty and truncated playlist rejection boundary",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40011,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/bad/empty.m3u8",
+            "body": ""
+          }
+        ],
+        "truncate_body": true
+      }
+    },
+    "expect": {
+      "min_packets": 6
+    }
+  },
+  {
+    "id": "hls_invalid_tag",
+    "proto": "hls",
+    "summary": "HLS invalid tag and attribute rejection boundary",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40012,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/bad/tag.m3u8",
+            "target_duration": 6,
+            "segments": [
+              {
+                "uri": "",
+                "duration": 5.0
+              }
+            ]
+          }
+        ],
+        "bad_tag": "EXTINF"
+      }
+    },
+    "expect": {
+      "min_packets": 6
+    }
+  },
+  {
+    "id": "hls_ipv6_media",
+    "proto": "hls",
+    "summary": "HLS media playlist over IPv6 HTTP",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "2001:db8:46::10",
+      "dst_ip": "2001:db8:46::20",
+      "src_port": 40013,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/v6/live.m3u8",
+            "target_duration": 6,
+            "media_sequence": 7,
+            "segments": [
+              {
+                "uri": "/v6/7.ts",
+                "duration": 5.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/v6/live.m3u8"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_multi_session",
+    "proto": "hls",
+    "summary": "HLS two isolated sessions",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40014,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "master",
+            "session_id": "a",
+            "src_port": 40014,
+            "uri": "/a/master.m3u8",
+            "variants": [
+              {
+                "uri": "/a/media.m3u8",
+                "bandwidth": 800000
+              }
+            ]
+          },
+          {
+            "kind": "master",
+            "session_id": "b",
+            "src_port": 40015,
+            "uri": "/b/master.m3u8",
+            "variants": [
+              {
+                "uri": "/b/media.m3u8",
+                "bandwidth": 900000
+              }
+            ]
+          },
+          {
+            "kind": "master",
+            "session_id": "a",
+            "src_port": 40016,
+            "uri": "/a/reconnect.m3u8",
+            "variants": [
+              {
+                "uri": "/a/reconnect-media.m3u8",
+                "bandwidth": 800000
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_http_errors",
+    "proto": "hls",
+    "summary": "HLS explicit HTTP error responses",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40015,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/live/missing.m3u8",
+            "response_status_code": 404
+          },
+          {
+            "kind": "segment",
+            "uri": "/seg/gone.ts",
+            "response_status_code": 410
+          },
+          {
+            "kind": "refresh",
+            "uri": "/live/rate.m3u8",
+            "response_status_code": 429
+          },
+          {
+            "kind": "segment",
+            "uri": "/seg/error.ts",
+            "response_status_code": 503
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 6
+    }
+  },
+  {
+    "id": "hls_uri_encoding",
+    "proto": "hls",
+    "summary": "HLS URI query and percent encoding",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40016,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "segment",
+            "uri": "/live/seg%2F01.ts?token=a%2Bb",
+            "response_status_code": 200
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/seg%2F01.ts?token=a%2Bb"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hls_neg_missing_extm3u",
+    "proto": "hls",
+    "summary": "Reject playlist without EXT-M3U",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40017,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/bad/no-header.m3u8"
+          }
+        ],
+        "missing_extm3u": true
+      }
+    },
+    "expect": {
+      "min_packets": 6
+    }
+  },
+  {
+    "id": "hls_neg_target_duration",
+    "proto": "hls",
+    "summary": "Reject invalid target duration",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40018,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/bad/target.m3u8",
+            "target_duration": 2,
+            "segments": [
+              {
+                "uri": "/seg/1.ts",
+                "duration": 2.5
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 6
+    }
+  },
+  {
+    "id": "hls_neg_sequence_regress",
+    "proto": "hls",
+    "summary": "Reject live media sequence regression",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40019,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "live": {
+          "refresh_count": 1
+        },
+        "sessions": [
+          {
+            "kind": "refresh",
+            "uri": "/bad/sequence.m3u8",
+            "media_sequence": 10,
+            "target_duration": 6,
+            "segments": [
+              {
+                "uri": "/seg/10.ts",
+                "duration": 5.0
+              }
+            ]
+          },
+          {
+            "kind": "refresh",
+            "uri": "/bad/sequence.m3u8",
+            "media_sequence": 9,
+            "target_duration": 6,
+            "segments": [
+              {
+                "uri": "/seg/9.ts",
+                "duration": 5.0
+              }
+            ]
+          }
+        ],
+        "sequence_regress": true
+      }
+    },
+    "expect": {
+      "min_packets": 6
+    }
+  },
+  {
+    "id": "hls_neg_byterange",
+    "proto": "hls",
+    "summary": "Reject invalid HLS byte range",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40020,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/bad/range.m3u8",
+            "target_duration": 6,
+            "segments": [
+              {
+                "uri": "/a.mp4",
+                "duration": 5.0,
+                "byte_range": {
+                  "length": 999999,
+                  "offset": 0
+                }
+              },
+              {
+                "uri": "/b.mp4",
+                "duration": 5.0,
+                "byte_range": {
+                  "length": 10
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 6
+    }
+  },
+  {
+    "id": "hls_neg_key",
+    "proto": "hls",
+    "summary": "Reject inconsistent AES key configuration",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40021,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "key",
+            "uri": "/keys/bad.key",
+            "key": {
+              "method": "AES-128",
+              "uri": "",
+              "iv": "0x01"
+            }
+          },
+          {
+            "kind": "media",
+            "uri": "/bad/key.m3u8",
+            "segments": [
+              {
+                "uri": "/seg/1.ts",
+                "duration": 5.0,
+                "key_ref": "/keys/other.key"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 6
+    }
+  },
+  {
+    "id": "hls_neg_ll_profile",
+    "proto": "hls",
+    "summary": "Reject LL-HLS tags in baseline profile",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40022,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "ll_hls": {},
+        "sessions": [
+          {
+            "kind": "media",
+            "uri": "/bad/ll.m3u8",
+            "parts": [
+              {
+                "uri": "/p/1.m4s",
+                "duration": 0.333
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 6
+    }
+  },
+  {
+    "id": "hls_neg_session_state",
+    "proto": "hls",
+    "summary": "Reject cross-session HLS state reference",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hls": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40023,
+      "dst_port": 80,
+      "hls": {
+        "profile": "rfc8216_v7",
+        "sessions": [
+          {
+            "kind": "media",
+            "session_id": "a",
+            "uri": "/a/live.m3u8",
+            "media_sequence": 1,
+            "segments": [
+              {
+                "uri": "/a/1.ts",
+                "duration": 5.0,
+                "key_ref": "session-b:/keys/key"
+              }
+            ]
+          },
+          {
+            "kind": "segment",
+            "session_id": "b",
+            "uri": "/b/1.ts",
+            "response_status_code": 200
+          }
+        ],
+        "cross_session_ref": true
+      }
+    },
+    "expect": {
+      "min_packets": 6
+    }
+  }
+]

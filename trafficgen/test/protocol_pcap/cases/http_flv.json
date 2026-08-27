@@ -1,0 +1,618 @@
+[
+  {
+    "id": "http_flv_get_header",
+    "proto": "http_flv",
+    "summary": "IPv4/TCP GET request with URI, Host, HTTP/1.1",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {}
+    },
+    "expect": {
+      "packet_count": 9,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "80"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/test.flv"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "47 45 54 20 2f 6c 69 76 65 2f 74 65 73 74 2e 66 6c 76 20 48 54 54 50 2f 31 2e 31 0d 0a"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_header_flags",
+    "proto": "http_flv",
+    "summary": "HTTP 200, Content-Type video/x-flv, FLV header signature",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {}
+    },
+    "expect": {
+      "packet_count": 9,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 5,
+          "field": "http.content_type",
+          "value": "video/x-flv"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 119,
+          "hex": "43 6f 6e 6e 65 63 74 69 6f 6e 3a 20 63 6c 6f 73 65 0d 0a 0d"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_script_tag",
+    "proto": "http_flv",
+    "summary": "AMF0 onMetaData script tag with DataSize and PreviousTagSize",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {}
+    },
+    "expect": {
+      "packet_count": 9,
+      "directional": true,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 132,
+          "hex": "6c 6f 73 65 0d 0a 0d 0a 46 4c 56 01 05 00 00 00 09 00 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_audio_aac",
+    "proto": "http_flv",
+    "summary": "AAC sequence header audio tag with SoundFormat=10",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {}
+    },
+    "expect": {
+      "packet_count": 9,
+      "directional": true,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 139,
+          "hex": "0a 46 4c 56 01 05 00 00 00 09 00 00 00 00 12 00 00 8b 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_video_avc",
+    "proto": "http_flv",
+    "summary": "AVC sequence header video tag with keyframe+AVC header",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {}
+    },
+    "expect": {
+      "packet_count": 9,
+      "directional": true,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 146,
+          "hex": "00 00 09 00 00 00 00 12 00 00 8b 00 00 00 00 00 00 00 02 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_empty_tag",
+    "proto": "http_flv",
+    "summary": "Empty script tag with DataSize=0, 11+4 bytes on wire",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {
+        "flags": 1,
+        "tags": [
+          {
+            "type": "script",
+            "timestamp": 0,
+            "data": []
+          }
+        ],
+        "rounds": 1
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "directional": true,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 119,
+          "hex": "43 6f 6e 6e 65 63 74 69 6f 6e 3a 20 63 6c 6f 73 65 0d 0a 0d"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_minimal_tags",
+    "proto": "http_flv",
+    "summary": "All three tag types with minimal valid data",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {}
+    },
+    "expect": {
+      "packet_count": 9,
+      "directional": true,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 132,
+          "hex": "6c 6f 73 65 0d 0a 0d 0a 46 4c 56 01 05 00 00 00 09 00 00 00"
+        },
+        {
+          "packet": 5,
+          "offset": 139,
+          "hex": "0a 46 4c 56 01 05 00 00 00 09 00 00 00 00 12 00 00 8b 00 00"
+        },
+        {
+          "packet": 5,
+          "offset": 146,
+          "hex": "00 00 09 00 00 00 00 12 00 00 8b 00 00 00 00 00 00 00 02 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_tag_boundary",
+    "proto": "http_flv",
+    "summary": "24-bit DataSize boundary with DataSizeOverride",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {
+        "flags": 5,
+        "tags": [
+          {
+            "type": "script",
+            "timestamp": 0,
+            "data": [
+              2,
+              0,
+              10,
+              111,
+              110,
+              77,
+              101,
+              116,
+              97,
+              68,
+              97,
+              116,
+              97,
+              8,
+              0,
+              0,
+              0,
+              1,
+              0,
+              8,
+              100,
+              117,
+              114,
+              97,
+              116,
+              105,
+              111,
+              110,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              9
+            ],
+            "data_size_override": 65536
+          }
+        ],
+        "rounds": 1
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "directional": true,
+      "frames": [
+        {
+          "packet": 5,
+          "offset": 132,
+          "hex": "6f 73 65 0d 0a 0d 0a 46 4c 56 01 05 00 00 00 09 00 00 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_keep_alive",
+    "proto": "http_flv",
+    "summary": "Two GET/200 transactions on same tcp.stream with keep-alive",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {
+        "flags": 5,
+        "rounds": 2
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_multi_session",
+    "proto": "http_flv",
+    "summary": "Multiple independent TCP sessions with isolated state",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {}
+    },
+    "expect": {
+      "packet_count": 9,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_ipv6",
+    "proto": "http_flv",
+    "summary": "IPv6/TCP, Next Header=6, FLV bytes identical to IPv4",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "2001:db8::1",
+      "dst_ip": "2001:db8::2",
+      "http_flv": {}
+    },
+    "expect": {
+      "packet_count": 9,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ipv6.nxt",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "80"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_multi_stream",
+    "proto": "http_flv",
+    "summary": "Multiple streams with StreamID=0",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {}
+    },
+    "expect": {
+      "packet_count": 9,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_flv_neg_truncated_tag",
+    "proto": "http_flv",
+    "summary": "Unknown tag type rejected by validator",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {
+        "tags": [
+          {
+            "type": "unknown",
+            "timestamp": 0
+          }
+        ],
+        "rounds": 1
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "tag"
+    }
+  },
+  {
+    "id": "http_flv_neg_length_mismatch",
+    "proto": "http_flv",
+    "summary": "Rounds < 0 rejected by validator",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {
+        "flags": 5,
+        "rounds": -1
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "rounds"
+    }
+  },
+  {
+    "id": "http_flv_neg_validate",
+    "proto": "http_flv",
+    "summary": "Flags with reserved bits rejected by validator",
+    "spec_json": {
+      "layers": [
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/live/test.flv",
+            "version": "HTTP/1.1"
+          }
+        },
+        {
+          "http_flv": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "http_flv": {
+        "flags": 255,
+        "rounds": 1
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "flags"
+    }
+  }
+]

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "stratum_neg_unregistered",
+    "proto": "stratum",
+    "summary": "Stratum layer is not registered yet; reject at layer validation",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "stratum": {}
+        }
+      ],
+      "src_ip": "192.0.2.75",
+      "dst_ip": "198.51.100.75",
+      "src_port": 4075,
+      "dst_port": 3333
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown layer",
+      "notes": [
+        "Design-only gate: stratum is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+      ]
+    }
+  }
+]

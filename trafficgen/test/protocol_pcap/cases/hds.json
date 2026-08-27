@@ -1,0 +1,1262 @@
+[
+  {
+    "id": "hds_manifest_ipv4",
+    "proto": "hds",
+    "summary": "HDS F4M manifest over IPv4 HTTP",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41000,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "manifest",
+            "uri": "/live/channel.f4m"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel.f4m"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_bootstrap_abst",
+    "proto": "hds",
+    "summary": "HDS bootstrap abst box via base64",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41001,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "bootstrap",
+            "uri": "/live/channel.bootstrap"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel.bootstrap"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_asrt_segment_runs",
+    "proto": "hds",
+    "summary": "HDS asrt segment run table",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41002,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                },
+                {
+                  "segment": 1,
+                  "fragment": 2,
+                  "timestamp": 2000,
+                  "duration": 2000,
+                  "body": "BBBB"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "bootstrap",
+            "uri": "/live/channel.bootstrap"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_afrt_fragment_runs",
+    "proto": "hds",
+    "summary": "HDS afrt fragment run table",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41003,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                },
+                {
+                  "segment": 1,
+                  "fragment": 2,
+                  "timestamp": 2000,
+                  "duration": 2000,
+                  "body": "BBBB"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "bootstrap",
+            "uri": "/live/channel.bootstrap"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_fragment_f4f",
+    "proto": "hds",
+    "summary": "HDS F4F fragment box",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41004,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "fragment",
+            "uri": "/live/channel/Seg1-Frag1"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel/Seg1-Frag1"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_manifest_bootstrap_fragment",
+    "proto": "hds",
+    "summary": "HDS full state machine: manifest \u2192 bootstrap \u2192 fragment",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41005,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "manifest",
+            "uri": "/live/channel.f4m"
+          },
+          {
+            "kind": "bootstrap",
+            "uri": "/live/channel.bootstrap"
+          },
+          {
+            "kind": "fragment",
+            "uri": "/live/channel/Seg1-Frag1"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel.f4m"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 6,
+          "field": "http.request.uri",
+          "value": "/live/channel.bootstrap"
+        },
+        {
+          "packet": 8,
+          "field": "http.request.uri",
+          "value": "/live/channel/Seg1-Frag1"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_keepalive_fragments",
+    "proto": "hds",
+    "summary": "HDS keep-alive multi-fragment",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41006,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                },
+                {
+                  "segment": 1,
+                  "fragment": 2,
+                  "timestamp": 2000,
+                  "duration": 2000,
+                  "body": "BBBB"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "fragment",
+            "uri": "/live/channel/Seg1-Frag1"
+          },
+          {
+            "kind": "fragment",
+            "uri": "/live/channel/Seg1-Frag2"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel/Seg1-Frag1"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 6,
+          "field": "http.request.uri",
+          "value": "/live/channel/Seg1-Frag2"
+        },
+        {
+          "packet": 7,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_multi_session",
+    "proto": "hds",
+    "summary": "HDS two isolated sessions",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41007,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "manifest",
+            "uri": "/live/session_a.f4m"
+          },
+          {
+            "kind": "manifest",
+            "uri": "/live/session_b.f4m"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/session_a.f4m"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 6,
+          "field": "http.request.uri",
+          "value": "/live/session_b.f4m"
+        },
+        {
+          "packet": 7,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_ipv6",
+    "proto": "hds",
+    "summary": "HDS manifest over IPv6 HTTP",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "2001:db8:47::10",
+      "dst_ip": "2001:db8:47::20",
+      "src_port": 41008,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "manifest",
+            "uri": "/live/channel.f4m"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel.f4m"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_mss_reassembly",
+    "proto": "hds",
+    "summary": "HDS with MSS segmentation",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "mss": 536
+          }
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41009,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "manifest",
+            "uri": "/live/channel.f4m"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 8,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel.f4m"
+        },
+        {
+          "packet": 6,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_live_update",
+    "proto": "hds",
+    "summary": "HDS live bootstrap update",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41010,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "bootstrap",
+            "uri": "/live/channel.bootstrap"
+          },
+          {
+            "kind": "bootstrap",
+            "uri": "/live/channel.bootstrap"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel.bootstrap"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 6,
+          "field": "http.request.uri",
+          "value": "/live/channel.bootstrap"
+        },
+        {
+          "packet": 7,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_vod_end",
+    "proto": "hds",
+    "summary": "HDS VOD end of stream",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41011,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": false,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "recorded",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "AAAA"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "manifest",
+            "uri": "/live/channel.f4m"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel.f4m"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_boundary_box",
+    "proto": "hds",
+    "summary": "HDS boundary box sizes",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41012,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": [
+            {
+              "stream_id": "main",
+              "href": "channel",
+              "bitrate": 800,
+              "bootstrap_info_id": "b0",
+              "fragments": [
+                {
+                  "segment": 1,
+                  "fragment": 1,
+                  "timestamp": 0,
+                  "duration": 2000,
+                  "body": "X"
+                }
+              ]
+            }
+          ],
+          "bootstrap_infos": [
+            {
+              "id": "b0",
+              "profile": "named",
+              "base64": "AAAAf2Fic3QAAAAAAAAAAQAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAGWFzcnQAAAAAAAAAAAEAAAABAAAAAgEAAAA1YWZydAAAAAAAAAPoAAAAAAIAAAABAAAAAAAAAAAAAAfQAAAAAgAAAAAAAAfQAAAH0A=="
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "fragment",
+            "uri": "/live/channel/Seg1-Frag1"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/live/channel/Seg1-Frag1"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "hds_neg_manifest",
+    "proto": "hds",
+    "summary": "HDS negative: empty manifest",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41013,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "",
+          "stream_type": "",
+          "media": []
+        },
+        "sessions": [
+          {
+            "kind": "manifest",
+            "uri": "/live/bad.f4m"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "manifest"
+    }
+  },
+  {
+    "id": "hds_neg_bootstrap",
+    "proto": "hds",
+    "summary": "HDS negative: bootstrap missing media",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41014,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "empty",
+          "stream_type": "live",
+          "uri": "/live/bad.f4m",
+          "media": []
+        },
+        "sessions": [
+          {
+            "kind": "bootstrap",
+            "uri": "/live/bad.bootstrap"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "bootstrap"
+    }
+  },
+  {
+    "id": "hds_neg_fragment",
+    "proto": "hds",
+    "summary": "HDS negative: fragment no fragments",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41015,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "empty",
+          "stream_type": "live",
+          "uri": "/live/bad.f4m",
+          "media": [
+            {
+              "stream_id": "x",
+              "href": "bad",
+              "bitrate": 100,
+              "bootstrap_info_id": "b0"
+            }
+          ]
+        },
+        "sessions": [
+          {
+            "kind": "fragment",
+            "uri": "/live/bad/Seg1-Frag1"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "fragment"
+    }
+  },
+  {
+    "id": "hds_neg_session_state",
+    "proto": "hds",
+    "summary": "HDS negative: unknown kind",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "hds": {}
+        }
+      ],
+      "src_ip": "192.0.2.47",
+      "dst_ip": "198.51.100.47",
+      "src_port": 41016,
+      "dst_port": 80,
+      "hds": {
+        "profile": "hds_http1",
+        "keep_alive": true,
+        "manifest": {
+          "id": "channel-1",
+          "stream_type": "live",
+          "uri": "/live/channel.f4m",
+          "media": []
+        },
+        "sessions": [
+          {
+            "kind": "unknown",
+            "uri": "/live/bad.f4m"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown"
+    }
+  }
+]

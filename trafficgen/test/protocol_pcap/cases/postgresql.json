@@ -4,16 +4,43 @@
     "proto": "postgresql",
     "summary": "PostgreSQL (端口 5432) 冒烟：完整 TCP 握手 + 启动消息 → 认证 → 参数 → SELECT 1 查询 → 终止",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5432,
-      "count": 1,
-      "postgresql": {
-        "operations": [
-          {"kind": "query", "sql": "SELECT 1"}
-        ]
-      }
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12345
+          }
+        },
+        {
+          "postgresql": {
+            "dialect": "postgresql",
+            "wire_profile": "postgresql_v3",
+            "events": [
+              {"kind": "startup", "direction": "c2s", "profile": "startup_v3"},
+              {"kind": "auth_request", "direction": "s2c", "profile": "auth_profile_defined", "authtype": 0},
+              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
+              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
+              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
+              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
+              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
+              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
+              {"kind": "parameter_status", "direction": "s2c", "profile": "parameter_status_outer"},
+              {"kind": "backend_key_data", "direction": "s2c", "profile": "backend_key_data_outer"},
+              {"kind": "ready", "direction": "s2c", "profile": "ready_idle"},
+              {"kind": "query", "direction": "c2s", "profile": "query_simple_v3", "sql": "SELECT 1"},
+              {"kind": "row_description", "direction": "s2c", "profile": "row_description_outer"},
+              {"kind": "data_row", "direction": "s2c", "profile": "data_row_outer"},
+              {"kind": "command_complete", "direction": "s2c", "profile": "command_complete_outer", "tag": "SELECT 1"},
+              {"kind": "ready", "direction": "s2c", "profile": "ready_idle"}
+            ]
+          }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -48,7 +75,8 @@
       "notes": [
         "f4 Startup: len 9 + version_major 3 + version_minor 0；f5 认证请求 (authtype 0=OK 无需密码)；f6-12 参数状态 (server_version/client_encoding/DateStyle 等)",
         "f15 Simple query 'SELECT 1'；f16 Row description 1 列；f17 Data row 值 42 (0x2a)；f18 Command completion tag 'SELECT 1'；f19 Ready for query (status I)",
-        "23 帧 = 3 握手 + 16 数据 + 4 终止；pgsql.* 是 Wireshark PostgreSQL 解析器字段前缀（非 postgresql.*）"
+        "23 帧 = 3 握手 + 16 数据 + 4 终止；pgsql.* 是 Wireshark PostgreSQL 解析器字段前缀（非 postgresql.*）",
+        "严格分层：layers=[ip,tcp,postgresql]，dialect=postgresql；dst_port 不变式由 postgresql 层 FieldContract→tcp.dst_port=5432 补齐（未在 tcp 层显式写 dst_port）"
       ]
     }
   }

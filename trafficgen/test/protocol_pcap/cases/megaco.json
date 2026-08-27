@@ -1,0 +1,25 @@
+[
+  {
+    "id": "megaco_neg_unregistered",
+    "proto": "megaco",
+    "summary": "Megaco/H.248 layer is not registered yet; reject at layer validation",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "megaco": {}
+        }
+      ],
+      "src_ip": "192.0.2.70",
+      "dst_ip": "198.51.100.70",
+      "src_port": 40070,
+      "dst_port": 2944
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown layer"
+    }
+  }
+]

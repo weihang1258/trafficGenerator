@@ -1,0 +1,25 @@
+[
+  {
+    "id": "nvgre_neg_unregistered",
+    "proto": "nvgre",
+    "summary": "NVGRE layer is not registered yet; reject at layer validation",
+    "spec_json": {
+      "layers": [
+        {"ip": {}},
+        {"gre": {}},
+        {"nvgre": {}}
+      ],
+      "src_ip": "192.0.2.55",
+      "dst_ip": "198.51.100.55",
+      "src_port": 0,
+      "dst_port": 0
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown layer",
+      "notes": [
+        "Design-only gate: nvgre is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove this placeholder and add the semantic cases in testcase order."
+      ]
+    }
+  }
+]

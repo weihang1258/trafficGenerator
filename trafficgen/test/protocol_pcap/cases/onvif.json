@@ -1,0 +1,28 @@
+[
+  {
+    "id": "onvif_neg_unregistered",
+    "proto": "onvif",
+    "summary": "ONVIF layer is not registered yet; reject at layer validation",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "onvif": {}
+        }
+      ],
+      "src_ip": "192.0.2.67",
+      "dst_ip": "198.51.100.67",
+      "src_port": 4067,
+      "dst_port": 80
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown layer"
+    }
+  }
+]

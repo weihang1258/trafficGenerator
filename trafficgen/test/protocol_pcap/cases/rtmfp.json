@@ -1,0 +1,1950 @@
+[
+  {
+    "id": "rtmfp_handshake_ipv4",
+    "proto": "rtmfp",
+    "summary": "RTMFP IPv4 UDP handshake and session establishment",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40000,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "role": "initiator",
+        "sessions": [
+          {
+            "session_id": 1,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "cookie",
+                "direction": "s2c"
+              },
+              {
+                "kind": "session_confirm",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40000"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40000"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "40000"
+        },
+        {
+          "packet": 4,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 4,
+          "field": "udp.srcport",
+          "value": "40000"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_handshake_ipv6",
+    "proto": "rtmfp",
+    "summary": "RTMFP IPv6 UDP handshake",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "2001:db8:48::10",
+      "dst_ip": "2001:db8:48::20",
+      "src_port": 40001,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "role": "initiator",
+        "sessions": [
+          {
+            "session_id": 2,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "session_confirm",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40001"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40001"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40001"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_reliable_flow",
+    "proto": "rtmfp",
+    "summary": "RTMFP reliable flow with ACK",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40002,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "sessions": [
+          {
+            "session_id": 3,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 1,
+                "message": "fixture",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ack",
+                "flow_id": 1,
+                "sequence": 1,
+                "direction": "s2c"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40002"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40002"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40002"
+        },
+        {
+          "packet": 4,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 4,
+          "field": "udp.dstport",
+          "value": "40002"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_unreliable_flow",
+    "proto": "rtmfp",
+    "summary": "RTMFP unreliable flow without implicit retransmission",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40003,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "sessions": [
+          {
+            "session_id": 4,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "unreliable",
+                "flow_id": 2,
+                "message": "datagram",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40003"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40003"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40003"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_retransmission",
+    "proto": "rtmfp",
+    "summary": "RTMFP reliable retransmission keeps sequence",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40004,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "sessions": [
+          {
+            "session_id": 5,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 7,
+                "message": "retry",
+                "direction": "c2s"
+              },
+              {
+                "kind": "retransmit",
+                "flow_id": 1,
+                "sequence": 7,
+                "message": "retry",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ack",
+                "flow_id": 1,
+                "sequence": 7,
+                "direction": "s2c"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40004"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40004"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40004"
+        },
+        {
+          "packet": 4,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 4,
+          "field": "udp.srcport",
+          "value": "40004"
+        },
+        {
+          "packet": 5,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 5,
+          "field": "udp.dstport",
+          "value": "40004"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_fragment_reassembly",
+    "proto": "rtmfp",
+    "summary": "RTMFP three-fragment message reassembly",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40005,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "sessions": [
+          {
+            "session_id": 6,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "fragment",
+                "flow_id": 1,
+                "sequence": 8,
+                "fragment": {
+                  "index": 0,
+                  "count": 3,
+                  "total_length": 9,
+                  "payload": "abc"
+                },
+                "direction": "c2s"
+              },
+              {
+                "kind": "fragment",
+                "flow_id": 1,
+                "sequence": 8,
+                "fragment": {
+                  "index": 1,
+                  "count": 3,
+                  "total_length": 9,
+                  "payload": "def"
+                },
+                "direction": "c2s"
+              },
+              {
+                "kind": "fragment",
+                "flow_id": 1,
+                "sequence": 8,
+                "fragment": {
+                  "index": 2,
+                  "count": 3,
+                  "total_length": 9,
+                  "payload": "ghi"
+                },
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40005"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40005"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40005"
+        },
+        {
+          "packet": 4,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 4,
+          "field": "udp.srcport",
+          "value": "40005"
+        },
+        {
+          "packet": 5,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 5,
+          "field": "udp.srcport",
+          "value": "40005"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_ping_pong",
+    "proto": "rtmfp",
+    "summary": "RTMFP explicit ping pong keepalive",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40006,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "sessions": [
+          {
+            "session_id": 7,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "ping",
+                "direction": "c2s"
+              },
+              {
+                "kind": "pong",
+                "direction": "s2c"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40006"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40006"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40006"
+        },
+        {
+          "packet": 4,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 4,
+          "field": "udp.dstport",
+          "value": "40006"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_close",
+    "proto": "rtmfp",
+    "summary": "RTMFP close lifecycle",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40007,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "sessions": [
+          {
+            "session_id": 8,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 1,
+                "message": "last",
+                "direction": "c2s"
+              },
+              {
+                "kind": "close",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40007"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40007"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40007"
+        },
+        {
+          "packet": 4,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 4,
+          "field": "udp.srcport",
+          "value": "40007"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_multi_flow",
+    "proto": "rtmfp",
+    "summary": "RTMFP multiple isolated flows",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40008,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "sessions": [
+          {
+            "session_id": 9,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 1,
+                "message": "audio",
+                "direction": "c2s"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 2,
+                "sequence": 1,
+                "message": "video",
+                "direction": "c2s"
+              },
+              {
+                "kind": "unreliable",
+                "flow_id": 3,
+                "message": "metadata",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40008"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40008"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40008"
+        },
+        {
+          "packet": 4,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 4,
+          "field": "udp.srcport",
+          "value": "40008"
+        },
+        {
+          "packet": 5,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 5,
+          "field": "udp.srcport",
+          "value": "40008"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_multi_session",
+    "proto": "rtmfp",
+    "summary": "RTMFP isolated sessions on distinct ports",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40009,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "sessions": [
+          {
+            "session_id": 10,
+            "src_port": 40009,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 1,
+                "message": "a",
+                "direction": "c2s"
+              }
+            ]
+          },
+          {
+            "session_id": 11,
+            "src_port": 40010,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 1,
+                "message": "b",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40009"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40009"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40009"
+        },
+        {
+          "packet": 4,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 4,
+          "field": "udp.srcport",
+          "value": "40010"
+        },
+        {
+          "packet": 5,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 5,
+          "field": "udp.dstport",
+          "value": "40010"
+        },
+        {
+          "packet": 6,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 6,
+          "field": "udp.srcport",
+          "value": "40010"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_loss_and_ack_ranges",
+    "proto": "rtmfp",
+    "summary": "RTMFP loss fixture and ACK range",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40011,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "sessions": [
+          {
+            "session_id": 12,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 1,
+                "message": "one",
+                "direction": "c2s"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 3,
+                "message": "three",
+                "direction": "c2s"
+              },
+              {
+                "kind": "ack",
+                "flow_id": 1,
+                "ranges": [
+                  [
+                    1,
+                    1
+                  ],
+                  [
+                    3,
+                    3
+                  ]
+                ],
+                "direction": "s2c"
+              },
+              {
+                "kind": "retransmit",
+                "flow_id": 1,
+                "sequence": 2,
+                "message": "two",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40011"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40011"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40011"
+        },
+        {
+          "packet": 4,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 4,
+          "field": "udp.srcport",
+          "value": "40011"
+        },
+        {
+          "packet": 5,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 5,
+          "field": "udp.dstport",
+          "value": "40011"
+        },
+        {
+          "packet": 6,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 6,
+          "field": "udp.srcport",
+          "value": "40011"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_binary_payload",
+    "proto": "rtmfp",
+    "summary": "RTMFP deterministic binary payload",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40012,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "sessions": [
+          {
+            "session_id": 13,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 1,
+                "message_b64": "UkZN",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40012"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40012"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40012"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_low_latency_profile",
+    "proto": "rtmfp",
+    "summary": "RTMFP explicit low latency profile",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40013,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_low_latency",
+        "role": "initiator",
+        "sessions": [
+          {
+            "session_id": 14,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "unreliable",
+                "flow_id": 1,
+                "message": "low-latency",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40013"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40013"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40013"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_ipv4_ipv6_same_payload",
+    "proto": "rtmfp",
+    "summary": "RTMFP same logical payload across address families",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40014,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "sessions": [
+          {
+            "session_id": 15,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 1,
+                "message": "same",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40014"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40014"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40014"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_keepalive_bounded",
+    "proto": "rtmfp",
+    "summary": "RTMFP bounded keepalive and close",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40015,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "keepalive_interval": 5,
+        "ping_count": 2,
+        "sessions": [
+          {
+            "session_id": 17,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "ping",
+                "direction": "c2s"
+              },
+              {
+                "kind": "pong",
+                "direction": "s2c"
+              },
+              {
+                "kind": "ping",
+                "direction": "c2s"
+              },
+              {
+                "kind": "pong",
+                "direction": "s2c"
+              },
+              {
+                "kind": "close",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "40015"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "40015"
+        },
+        {
+          "packet": 3,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 3,
+          "field": "udp.srcport",
+          "value": "40015"
+        },
+        {
+          "packet": 4,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 4,
+          "field": "udp.dstport",
+          "value": "40015"
+        },
+        {
+          "packet": 5,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 5,
+          "field": "udp.srcport",
+          "value": "40015"
+        },
+        {
+          "packet": 6,
+          "field": "udp.srcport",
+          "value": "1935"
+        },
+        {
+          "packet": 6,
+          "field": "udp.dstport",
+          "value": "40015"
+        },
+        {
+          "packet": 7,
+          "field": "udp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 7,
+          "field": "udp.srcport",
+          "value": "40015"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmfp_neg_short_header",
+    "proto": "rtmfp",
+    "summary": "Reject RTMFP short header",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40016,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "wire_fault": {
+          "kind": "short_header"
+        },
+        "sessions": [
+          {
+            "session_id": 18,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "header"
+    }
+  },
+  {
+    "id": "rtmfp_neg_length_overrun",
+    "proto": "rtmfp",
+    "summary": "Reject RTMFP message length overrun",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40017,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "wire_fault": {
+          "kind": "bad_length",
+          "declared": 999,
+          "actual": 2
+        },
+        "sessions": [
+          {
+            "session_id": 19,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "length"
+    }
+  },
+  {
+    "id": "rtmfp_neg_cookie_session",
+    "proto": "rtmfp",
+    "summary": "Reject cookie and session mismatch",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40018,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "wire_fault": {
+          "kind": "session_mismatch"
+        },
+        "sessions": [
+          {
+            "session_id": 20,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c",
+                "session_id": 21
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "session"
+    }
+  },
+  {
+    "id": "rtmfp_neg_sequence_regress",
+    "proto": "rtmfp",
+    "summary": "Reject reliable sequence regression",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40019,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "wire_fault": {
+          "kind": "sequence_regress"
+        },
+        "sessions": [
+          {
+            "session_id": 21,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 2,
+                "message": "two",
+                "direction": "c2s"
+              },
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 1,
+                "message": "one",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "sequence"
+    }
+  },
+  {
+    "id": "rtmfp_neg_fragment_gap",
+    "proto": "rtmfp",
+    "summary": "Reject missing RTMFP fragment",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40020,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "wire_fault": {
+          "kind": "fragment_gap"
+        },
+        "sessions": [
+          {
+            "session_id": 22,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "fragment",
+                "flow_id": 1,
+                "sequence": 1,
+                "fragment": {
+                  "index": 0,
+                  "count": 3,
+                  "total_length": 9,
+                  "payload": "abc"
+                }
+              },
+              {
+                "kind": "fragment",
+                "flow_id": 1,
+                "sequence": 1,
+                "fragment": {
+                  "index": 2,
+                  "count": 3,
+                  "total_length": 9,
+                  "payload": "ghi"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "fragment"
+    }
+  },
+  {
+    "id": "rtmfp_neg_ack_unknown",
+    "proto": "rtmfp",
+    "summary": "Reject ACK for unknown sequence",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40021,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "wire_fault": {
+          "kind": "ack_unknown"
+        },
+        "sessions": [
+          {
+            "session_id": 23,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              },
+              {
+                "kind": "ack",
+                "flow_id": 1,
+                "sequence": 99,
+                "direction": "s2c"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "ack"
+    }
+  },
+  {
+    "id": "rtmfp_neg_state_order",
+    "proto": "rtmfp",
+    "summary": "Reject RTMFP state order violation",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40022,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "wire_fault": {
+          "kind": "state_order"
+        },
+        "sessions": [
+          {
+            "session_id": 24,
+            "events": [
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "sequence": 1,
+                "message": "before hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "close",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "state"
+    }
+  },
+  {
+    "id": "rtmfp_neg_profile_carrier",
+    "proto": "rtmfp",
+    "summary": "Reject invalid RTMFP profile or carrier",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40023,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "unknown_profile",
+        "role": "invalid",
+        "sessions": [
+          {
+            "session_id": 25,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "profile"
+    }
+  },
+  {
+    "id": "rtmfp_neg_session_leak",
+    "proto": "rtmfp",
+    "summary": "Reject cross-session flow state reference",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "rtmfp": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "src_port": 40024,
+      "dst_port": 1935,
+      "rtmfp": {
+        "profile": "rtmfp_baseline",
+        "wire_fault": {
+          "kind": "session_leak"
+        },
+        "sessions": [
+          {
+            "session_id": 26,
+            "events": [
+              {
+                "kind": "hello",
+                "direction": "c2s"
+              },
+              {
+                "kind": "hello_ack",
+                "direction": "s2c"
+              }
+            ]
+          },
+          {
+            "session_id": 27,
+            "events": [
+              {
+                "kind": "reliable",
+                "flow_id": 1,
+                "session_id": 26,
+                "sequence": 1,
+                "message": "leaked",
+                "direction": "c2s"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "session"
+    }
+  }
+]

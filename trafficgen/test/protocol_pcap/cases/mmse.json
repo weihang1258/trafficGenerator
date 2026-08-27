@@ -1,0 +1,25 @@
+[
+  {
+    "id": "mmse_neg_unregistered",
+    "proto": "mmse",
+    "summary": "MMSE layer is not registered yet; reject at layer validation",
+    "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "mmse": {}
+        }
+      ],
+      "src_ip": "192.0.2.71",
+      "dst_ip": "198.51.100.71",
+      "src_port": 4071,
+      "dst_port": 9201
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown layer"
+    }
+  }
+]

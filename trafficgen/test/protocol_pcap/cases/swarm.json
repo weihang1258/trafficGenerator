@@ -1,0 +1,28 @@
+[
+  {
+    "id": "swarm_neg_unregistered",
+    "proto": "swarm",
+    "summary": "Swarm layer is not registered yet; reject at layer validation",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "swarm": {}
+        }
+      ],
+      "src_ip": "192.0.2.52",
+      "dst_ip": "198.51.100.52",
+      "src_port": 42052,
+      "dst_port": 1634
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown layer",
+      "notes": [
+        "Design-only gate: swarm is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the semantic cases in testcase order."
+      ]
+    }
+  }
+]

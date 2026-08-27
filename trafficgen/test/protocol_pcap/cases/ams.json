@@ -1,0 +1,28 @@
+[
+  {
+    "id": "ams_neg_unregistered",
+    "proto": "ams",
+    "summary": "AMS layer is not registered yet; reject at layer validation",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ams": {}
+        }
+      ],
+      "src_ip": "192.0.2.51",
+      "dst_ip": "198.51.100.51",
+      "src_port": 42051,
+      "dst_port": 61616
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown layer",
+      "notes": [
+        "Design-only gate: ams is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the semantic cases in testcase order."
+      ]
+    }
+  }
+]

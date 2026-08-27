@@ -1,0 +1,31 @@
+[
+  {
+    "id": "doh_neg_unregistered",
+    "proto": "doh",
+    "summary": "DOH layer is not registered yet; reject at layer validation",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "http": {}
+        },
+        {
+          "doh": {}
+        }
+      ],
+      "src_ip": "192.0.2.66",
+      "dst_ip": "198.51.100.66",
+      "src_port": 42066,
+      "dst_port": 443
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown layer",
+      "notes": [
+        "Design-only gate: doh is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+      ]
+    }
+  }
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "ntlm_neg_unregistered",
+    "proto": "ntlm",
+    "summary": "NTLM layer is not registered yet; reject at layer validation",
+    "spec_json": {
+      "layers": [
+        {"ip": {}},
+        {"tcp": {}},
+        {"ntlm": {}}
+      ],
+      "src_ip": "192.0.2.60",
+      "dst_ip": "198.51.100.60",
+      "src_port": 45600,
+      "dst_port": 445,
+      "ntlm": {
+        "profile": "smb2",
+        "version": "ntlmv2",
+        "outer": "none"
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown layer",
+      "notes": [
+        "Design-only gate: ntlm is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove this placeholder and add the 14 positive and 6 negative semantic cases in testcase order."
+      ]
+    }
+  }
+]
