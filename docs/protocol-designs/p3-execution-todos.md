@@ -36,7 +36,7 @@
 - [x] **T2.5**（依赖 T0.1）哨兵测试：`TestAllowedProtocolsStable`（锁 95 集）+ `TestNegativeOnlyPlaceholdersRejected`（锁 32 纯负向占位须继续被拒）
 - [ ] **T2.6** s7/bgp/coap/iec104/opcua/mms 白名单接通后重跑，残留真实实现 bug 移交 T4 对应条目
 
-> **T2 成果**：F5 单源化将 4 处手抄白名单收敛为 `internal/core/protocols.go` 单一 `allowedProtocols`（95 名）+ `IsAllowedProtocol()`；哨兵测试锁定完整性。验证：原四表并集 92 全保留（0 遗漏）+ engine 注册集全覆盖（0 缺失）。ldp/pcep/goose/sv/fins 从"全被 invalid protocol 拒"到"部分通过 + 字段 bug 显形"。**既有回归**：`TestStart_*` ×3 为 pre-existing（task_stale_test.go，与白名单无关）；`TestSystemProtocols_List` 是 system.go 与测试的 cflow 漂移（已顺手修复，加 cflow 到期望集）。
+> **T2 成果**：F5 单源化将 4 处手抄白名单收敛为 `internal/core/protocols.go` 单一 `allowedProtocols`（95 名）+ `IsAllowedProtocol()`；哨兵测试锁定完整性。验证：原四表并集 92 全保留（0 遗漏）+ engine 注册集全覆盖（0 缺失）。ldp/pcep/goose/sv/fins 从"全被 invalid protocol 拒"到"部分通过 + 字段 bug 显形"。**既有回归**：`TestStart_*` ×3 为 pre-existing（task_stale_test.go，与白名单无关）；**R1 纠偏**：`TestSystemProtocols_List` 的 cflow 漂移不是"加 cflow 到期望集"能修的——手抄表 `system.go` 才是病灶，按 T0.5 决议改为自动同步引擎注册表（commit 7c307b5）。
 
 ## T3 · 配置翻译与用例形状（桶🅒，44 例）
 
@@ -67,7 +67,10 @@
 > 新顺序原则：**一处修复能救活最多用例的先做**。每条纪律：设计/testcase 文档为仲裁 → 先写失败测试 → 修复 → 自审+review → 单独 commit。
 
 - [ ] **T4.0** driver fail/error 自动落盘"期望 vs 实测"工单 + tshark 渲染书写规范沉淀 + SUMMARY 合并写【F8 已确认】
-- [ ] **T4.1** 🔥 pcep 编码器根治（簇②，预计救活 ~17 例）
+- [x] **T4.1** 🔥 pcep 编码器根治（簇②，3/24→22/24，远超 ~17 预期）【commit 0cc2ca5 + 3a69a0a】
+  - 根因：对象头 Object-Type 位错位(bit6-7→高nibble 0xF0)+各对象 body 布局错误+LSP/SRP class 错(21/24→32/33)+stateful TLV flag 位错(0x80→0x01/0x02)，对照 packet-pcep.c 逐一修正
+  - 校验补全：object_length 须>=4且4对齐 / 拒 unknown 事件 / address family 文案
+  - **剩 2 例需设计确认**：①`pcep_neg_session_id`(open c2s SID7/s2c SID99)——设计与正例 open_keepalive(c2s7/s2c8 也是"不一致"却合法)冲突，按"不同 SID 即拒"会破坏正例，SID 语义需设计仲裁；②`pcep_multi_session`(spec_json 顶层 sessions[] 数组)——层链 `[tcp,pcep]` 读 spec.PCEP=nil→"config is required"，sessions 结构解析缺口(集群⑦)
 - [ ] **T4.2** goose 过严校验器（簇③）
 - [ ] **T4.3** sv 链式 L2 冲突（簇③，兼为 T5 探路）
 - [ ] **T4.4** fins 剩余：BCD 时钟编码 + 多会话上限（1 例产品修 + 2 例并入 T3）
