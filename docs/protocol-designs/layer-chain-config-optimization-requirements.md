@@ -1,7 +1,8 @@
 # 配置层级链架构优化调整 · 需求文档（v1）
 
-> 版本：v1.0（2026-08-25，基于多轮沟通确认）
-> 承接：`18-layer-config-design.md`（方案 C 分层配置架构，v1.4.0）
+> 版本：**v1.1**（2026-08-27，P3 开工前修订）：按全量套件实证校准失败清单与根因（§2.3 D / §4）、新增机制决策点 F5–F8（§7，待确认）、验收标准增补第 9 条（§6）。
+> 版本历史：v1.0（2026-08-25，基于多轮沟通确认）
+> 承接：`18-layer-config-design.md`（方案 C 分层配置架构，v1.5.0）
 > 目标：把当前"层链骨架 + 顶层平铺地址/端口 + 协议 flat 键直传"的**混合态**，收敛为"**每协议层自带默认配置模板**"的严格分层模型，并消除重复造轮子、统一非独立协议的层规划。
 > 范围：**所有协议遵循的统一整体调整**（协议全集见 §2.3，不分批）。本次只收敛**已实现**部分；试点批次只是执行顺序。可并行则并行。
 
@@ -178,25 +179,37 @@ mcp    模板 → 按 profile 选**直接承载层**：stdio→tcp（逐行 JSON
 
 #### D. 待归位 / 未注册（本次**不含**，单列 P3）
 
-| 协议 | 现状 | 失败 |
-|---|---|---|
-| isis/ospf/pim/igmp | 层**未注册** | unknown layer "X" |
-| ldp/pcep/fins/goose/sv/dhcpv6 | 有层但 **planner 未接入** | invalid/missing protocol |
+> **v1.1 校准（2026-08-27）**：失败签名与根因按全量套件实证修正（基线快照：116 协议 / 2666 用例 / 2340 绿，24 协议未绿共 **326 例** = fail 116 + error 210）。
+> 另记备查：v1.0 之后**计划外**补注册了约 20 个"已实现但未注册"的尾部协议（l2tp/wireguard/gtp/mysql/imap/pop3/smtp/redis/ike/ike_nat_t/grpc/ssh/rdp/openvpn/vmess/shadowsocks 等），现已全绿、不在本表。
+
+| 协议 | 用例 | 现状 | 失败签名 | 实测根因 |
+|---|---|---|---|---|
+| igmp/ospf/isis/pim | 25/20/25/24 | **零 Go 实现**（仅设计文档+用例 JSON） | `unknown layer "X"` | `internal/protocol/{igmp,ospf,isis,pim}` 包不存在；registry 无 schema |
+| dhcpv6 | 1 | 层已注册但 planner 未接线 | `unknown protocol: dhcpv6` | main.go 注释声明切链式（波5e），但 `RegisterPlanner(NewChainPlanner("dhcpv6"))` 注册行缺失 |
+| ldp/pcep | 25+24 | ChainPlanner 已注册(main.go)，准入缺 | `invalid or missing protocol` | REST 白名单缺 + convert.go 双白名单缺 |
+| goose/sv | 12+12 | legacy planner 已注册(main.go:454/455) | `invalid or missing protocol` | 仅 REST 白名单缺（convert.go 已有 goose/sv） |
+| fins | 14 | legacy planner 已注册(main.go:504) | `invalid or missing protocol` | REST 与 convert.go 双缺 |
 
 > **D 类 = 真正未归位**（层未注册 / planner 未接入），本次**不含**（单列 P3）。凡已注册 planner 的协议（哪怕半集成报错 / 半通）= **已实现、纳入本次**，见下。
 
 **已实现但半集成 / 半通（纳入本次，但要修）**：
 
-| 协议 | 现状 | 失败 |
-|---|---|---|
-| s7/bgp/coap/iec104 | 层链,报错 | invalid protocol |
-| opcua/mms/drda/thrift | 层链,报错 | config required |
-| mongodb/someip/tns/cql | 层链,半通 | src_port/包数/字段 bug |
-| kingbase/dameng | 层链,半通 | §2.3 C（试点，不重复列出） |
+| 协议 | 用例 → 通过 | 失败签名 | 实测根因 |
+|---|---|---|---|
+| s7/bgp/coap/iec104 | 14→5 ·19→2 ·16→0 ·16→0 | task 层 `invalid protocol` | **convert.go worker 白名单缺**（REST/main.go 均已有）；接线后剩余错误再按实现 bug 排 |
+| opcua/mms | 12→0 ·11→0 | `config required` 族 | **用例形状笔误为主嫌**：case `spec_json` 为数组而非对象，MCP `mapString` 对非 map 返回 nil → Config required 拒绝 |
+| drda/thrift | 10→1 ·13→1 | `config required` 族 | 真实配置翻译缺陷（Go 包完整存在），逐字段核对翻译路径 |
+| mongodb/someip/tns/cql | 13→12 ·16→7 ·12→5 ·17→1 | src_port 去重/包数/字段名 bug | 实现 bug，逐例排错（mongodb 仅差 1 例） |
+| dameng | 14→6 | 半通（§2.3 C 试点遗留） | 保持独立层策略不变（F4），仅修生成/校验差异；kingbase 已随 postgresql dialect 全绿(16/16)，不再列 |
+| tls | 1→0 | 握手基本用例失败 | 回归单例，先复跑定位再修 |
+
+> **失败性质分布（P3 执行依据）**：326 个未通过中，**集成一致性类 ≈71%**（232 例：白名单漂移/planner 接线/配置翻译/用例形状——同一准入事实在 REST×2、worker×2、main.go、registry 多处各存一份导致漂移）、**协议从零实现类 ≈29%**（94 例：igmp/ospf/isis/pim）。故 P3 执行次序 = **先接线**（成本最低，立即转绿 5~6 协议并让真 bug 显形）→ 修翻译/形状 → 逐例排错 → 按宿主模式样板从零实现四路由协议（§7 F6）。
 
 ---
 
 ## 3. 当前实现缺口（要修的）
+
+> **v1.1 状态注（2026-08-27）**：本节为 v1.0 时点的缺口快照。其中 §3.2 的"15 层有 Fields"统计与 §3.4 的"无 FieldContract 字段"已被 P0b/P1a **部分闭环**（FieldContract/dialect 已落地、大量壳层已有默认流）；§3.4 所述 `translateTerminalConfig` 手写逐例的尾巴仍在。以下保留原文备查，**勿当作现状断言**。
 
 ### 3.1 混合态：地址/端口仍顶层平铺
 
@@ -235,16 +248,20 @@ mcp    模板 → 按 profile 选**直接承载层**：stdio→tcp（逐行 JSON
 
 ## 4. 尚未归位/层链未跑通的协议（定论见 §2.3 D）
 
-> §2.3 D 已给出定论：**真正未归位**（层未注册 / planner 未接入）本次不含、单列 P3；**已注册 planner 的半集成/半通**= 已实现、纳入本次。本表为失败签名速查。
+> §2.3 D v1.1 已给出定论与实测根因；本表为速查版。
 
-| 层链缺口 | 协议 | 失败签名 |
+**全量套件基线（2026-08-26 快照）**：116 协议 / 2666 用例 / **2340 绿（87.8%）** / **24 协议未绿，失败 326 例**。
+
+| 桶 | 协议 | 失败签名 → 实测根因 |
 |---|---|---|
-| 层未注册 | igmp、isis、ospf、pim | `unknown layer "X"` |
-| 协议未进 planner/白名单 | ldp、pcep、fins、goose、sv、dhcpv6 | `invalid/missing protocol: X` |
-| 配置翻译缺失 | mms、opcua、drda、thrift | `config is required` |
-| 半集成 + 实现 bug | s7、bgp、coap、iec104、mongodb、someip、tns、cql | src_port 去重/包数/字段名/校验和 |
+| 🅐 从零实现（94 例） | igmp、ospf、isis、pim | `unknown layer "X"` —— 无 Go 包 / 无 registry schema |
+| 🅑 接线缺失（88 例，接线即通） | dhcpv6、ldp、pcep、goose、sv、fins | `unknown protocol` / `invalid or missing protocol` —— 注册行缺失或白名单缺项 |
+| 🅒 翻译/形状（44 例） | opcua、mms、drda、thrift | `config required` 族 —— opcua/mms 为 spec_json 形状笔误主嫌；drda/thrift 为真实翻译缺陷 |
+| 🅓 半集成实现 bug（99 例） | coap、iec104、bgp、s7、cql、tns、someip、dameng、mongodb | convert 白名单缺（前四者）/ 包数·字段·去重实现 bug |
+| 🅔 回归单例（1 例） | tls | 握手基本用例失败，复跑定位 |
 
-> 这些是方案 C P2「协议按层归位」的剩余段。因 45 个空壳层 + 无模板是**共性**，补齐模板通常会顺带让"半集成报错"类跑通；真正未归位（层未注册 / planner 未接入）仍需单独补注册，单列 P3。
+> 桶和：94 + 88 + 44 + 99 + 1 = 326。
+> v1.0 曾判断"补齐模板通常会顺带让半集成报错类跑通"。**实证修正**：模板缺失不是半集成类的主因；约 71% 失败源自"同一准入事实在 REST×2 / worker×2 / main.go / registry 多处各存一份"的漂移与实现细节 bug。因此 P3 第一刀是**准入一致性接线 + 哨兵锁定**（§7 F5），其次翻译/形状（§7 F7），再逐例排错；四路由协议按宿主模式样板实现（§7 F6）。
 
 ---
 
@@ -281,6 +298,7 @@ mcp    模板 → 按 profile 选**直接承载层**：stdio→tcp（逐行 JSON
 6. **非独立协议统一层规划**：HTTP 内容载体 / DB 兼容 / 挖矿族 / RTMP 变体 / 厂商隧道 各归位到父层 + 内容变体。
 7. **解析从模板来**：不再靠顶层平铺 `spec.X` 直传注入；层内字段权威。
 8. **全量套件不回归**：收敛后已跑通协议不回归；§2.3 D 未归位 / 半集成协议优先转绿（P3）。
+9. **准入一致性与用例质量门禁**（依赖 §7 F5/F7 确认后生效）：同一协议在 REST 白名单、worker convert 白名单、planner 注册、registry 四处的准入结论一致并由哨兵测试锁定；`cases/*.json` 通过 schema lint 后方可入库跑批。
 
 ---
 
@@ -292,6 +310,13 @@ mcp    模板 → 按 profile 选**直接承载层**：stdio→tcp（逐行 JSON
 - **【决策点 F3 · 按 profile 选载体】**mcp/a2a "骑 http"：a2a 纯 HTTP 可整体改骑 http；**mcp 需按 profile 选载体**（stdio→tcp 逐行 JSON，http/streamable→http 层），非一刀切。
 - **三类改动默认成立**：本次所有协议/层改动 = 设计文档 + 代码 + 用例，缺一不可（用户已确认，§5.1 固化）。
 - **【决策点 F4 · 已确认选 (a) 变体=profile】**kingbase 骑 postgresql 时端口 54321 传不下去（postgresql FieldContract 写死 5432）。**确认**：kingbase **不当独立层**，作 postgresql 层的 **dialect 变体** → 配置 `[ip,tcp,postgresql]` + `postgresql.dialect=kingbase`，postgresql 模板据 dialect 默认端口 54321。**不打破"值=常量"**。已按此改写 §2.3 C kingbase 行 / §2.2 DB 行 / §2.3 共用零件第1点。
+
+以下为 P3 开工前新增的机制决策点（2026-08-27 提案，**待确认**）：
+
+- **【决策点 F5 · 提案待确认】白名单单源化 + 一致性哨兵测试**：同一协议的准入结论分散在 REST 两处表、worker convert.go 两处表、main.go 注册、registry 六道门，已实际发生漂移（commit 81cefc7 注册了 ldp/pcep planner 却因 REST 缺表被拒；dhcpv6 注释声明切链式但注册行丢失；s7/bgp/coap/iec104/opcua/mms REST 有而 worker 无）。最低限度做法：抽单一导出定义并在 CI 加哨兵断言四方集合相等；理想态做法：`RegisterPlanner` 注册即准入，删手抄表。
+- **【决策点 F6 · 提案待确认】宿主模式（carrier mode）样板化**：把"终结层直发"沉淀为两种标准样板——**ip 直发**（ip.proto=2/89/103，用于 igmp/ospf/pim）、**L2 直发**（goose/sv 为已验证先例；isis 走 eth 终结、LLC 封装细节在其各自阶段1 定稿）。样板一节补进 `18-layer-config-design.md` §5 后，四路由协议照样板实现，避免再造混合态旁路。
+- **【决策点 F7 · 提案待确认】用例资产 lint 进门**：`cases/*.json` 跑前 schema 校验（proto 必须已知、spec_json 必须是对象且键 ∈ registry、expect 字段名可被 tshark 解析）。原则：**修数据优于工具容错**——MCP `mapString` 对数组返回 nil 引爆 opcua/mms 属测例形状笔误，不靠工具兼容数组掩盖。
+- **【决策点 F8 · 提案待确认】失败工单与结果文档卫生**：pcap 驱动对 fail/error 用例自动落盘"期望断言 vs tshark 实测值"对照文件；SUMMARY 改合并写（单协议跑批不得覆盖全量汇总）。
 
 ---
 
