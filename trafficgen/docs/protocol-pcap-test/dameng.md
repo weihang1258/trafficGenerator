@@ -1,0 +1,55 @@
+# dameng Pcap Test Results
+
+Cases: 14 — pass 6, fail 8, error 0
+
+| Case | Summary | Status | Packets | Pcap |
+|------|---------|--------|---------|------|
+| dameng_auth_success | S2: connect and authentication success | fail | 10 | `dameng/dameng_auth_success.pcap` |
+| dameng_connect | S1: TCP 5236 connect event | fail | 8 | `dameng/dameng_connect.pcap` |
+| dameng_ipv4 | S6: IPv4 authenticated SQL session | fail | 12 | `dameng/dameng_ipv4.pcap` |
+| dameng_ipv6 | S7: IPv6 authenticated SQL session | pass | 12 | [pcap](dameng/dameng_ipv6.pcap) |
+| dameng_length_boundary | S5: profile minimum non-empty payload boundary | fail | 12 | `dameng/dameng_length_boundary.pcap` |
+| dameng_multi_session | S8: two independent authenticated sessions | fail | 13 | `dameng/dameng_multi_session.pcap` |
+| dameng_neg_oversize | N6: message over implementation limit is rejected | pass | 0 | [pcap]() |
+| dameng_neg_port | N2: nonstandard destination port is rejected | fail | 0 | `` |
+| dameng_neg_profile | N3: unknown wire profile is rejected | pass | 0 | [pcap]() |
+| dameng_neg_state | N4: SQL before authentication is rejected | pass | 0 | [pcap]() |
+| dameng_neg_truncated | N5: truncated application message is rejected | pass | 0 | [pcap]() |
+| dameng_neg_udp | N1: UDP carrier is rejected | pass | 0 | [pcap]() |
+| dameng_sql_error | S4: SQL error response remains a distinct event | fail | 12 | `dameng/dameng_sql_error.pcap` |
+| dameng_sql_success | S3: authenticated SELECT success | fail | 12 | `dameng/dameng_sql_success.pcap` |
+
+## Failures
+
+### dameng_auth_success — S2: connect and authentication success
+
+verify: has_payload: no packet with frame.len > 80
+
+### dameng_connect — S1: TCP 5236 connect event
+
+verify: has_payload: no packet with frame.len > 80
+
+### dameng_ipv4 — S6: IPv4 authenticated SQL session
+
+verify: has_payload: no packet with frame.len > 80
+
+### dameng_length_boundary — S5: profile minimum non-empty payload boundary
+
+verify: has_payload: no packet with frame.len > 80
+
+### dameng_multi_session — S8: two independent authenticated sessions
+
+verify: count: got 13 packets, want 20; field tcp.srcport: distinct values mismatch (want [12345 12346]; missing [12346]; unexpected []); has_payload: no packet with frame.len > 80
+
+### dameng_neg_port — N2: nonstandard destination port is rejected
+
+expected task to be rejected but it completed
+
+### dameng_sql_error — S4: SQL error response remains a distinct event
+
+verify: has_payload: no packet with frame.len > 80
+
+### dameng_sql_success — S3: authenticated SELECT success
+
+verify: has_payload: no packet with frame.len > 80
+

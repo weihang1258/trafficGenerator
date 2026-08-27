@@ -5,117 +5,117 @@ Cases: 115 — pass 115, fail 0, error 0
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
 | doip_ack_code_0x01 | T052/T188: 0x8002 AckCode=0x01 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_alive_mid_messages | T115: AliveCheck 插入 Messages 中间 → 0x0007 在诊断包后 12 包 | pass | 14 | [pcap](/tmp/mcp-pcaps/doip/doip_alive_mid_messages.pcap) |
-| doip_alive_response | T112/T120a: AliveCheck.Direction=up → 0x0008 心跳应答(SA=0x0E80, PL=2) 1 包 | pass | 10 | [pcap](/tmp/mcp-pcaps/doip/doip_alive_response.pcap) |
-| doip_alive_sa_consistent | T113: 0x0008 SA 与 0x0005 SA 一致 (0x0E80) → 通过 9 包 | pass | 10 | [pcap](/tmp/mcp-pcaps/doip/doip_alive_sa_consistent.pcap) |
+| doip_alive_mid_messages | T115: AliveCheck 插入 Messages 中间 → 0x0007 在诊断包后 12 包 | pass | 14 | [pcap](doip/doip_alive_mid_messages.pcap) |
+| doip_alive_response | T112/T120a: AliveCheck.Direction=up → 0x0008 心跳应答(SA=0x0E80, PL=2) 1 包 | pass | 10 | [pcap](doip/doip_alive_response.pcap) |
+| doip_alive_sa_consistent | T113: 0x0008 SA 与 0x0005 SA 一致 (0x0E80) → 通过 9 包 | pass | 10 | [pcap](doip/doip_alive_sa_consistent.pcap) |
 | doip_alive_sa_mismatch | T114: 0x0008 SA=0x1111 与 TesterAddress 不一致 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_announce_1 | T072: AnnouncementCount=1 → 仅 1 次公告 (vs 默认 3 次) 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_announce_1.pcap) |
-| doip_at_0x01 | T022a: ActivationType=0x01 (WWH-OBD) → 0x0005+0x0006 成功激活 8 包 | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_at_0x01.pcap) |
+| doip_announce_1 | T072: AnnouncementCount=1 → 仅 1 次公告 (vs 默认 3 次) 1 包 | pass | 1 | [pcap](doip/doip_announce_1.pcap) |
+| doip_at_0x01 | T022a: ActivationType=0x01 (WWH-OBD) → 0x0005+0x0006 成功激活 8 包 | pass | 9 | [pcap](doip/doip_at_0x01.pcap) |
 | doip_at_0x02 | T022c: ActivationType=0x02 Reserved → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_at_0xe0 | T022b: ActivationType=0xE0 (OEM) → 0x0005 AT=0xE0 成功激活 8 包 | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_at_0xe0.pcap) |
-| doip_big_transfer_segmented | T184: 大文件 TransferData MSS 分段 → 0x36 多段 0x8001 (BlockSeq 递增) | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_big_transfer_segmented.pcap) |
+| doip_at_0xe0 | T022b: ActivationType=0xE0 (OEM) → 0x0005 AT=0xE0 成功激活 8 包 | pass | 9 | [pcap](doip/doip_at_0xe0.pcap) |
+| doip_big_transfer_segmented | T184: 大文件 TransferData MSS 分段 → 0x36 多段 0x8001 (BlockSeq 递增) | pass | 11 | [pcap](doip/doip_big_transfer_segmented.pcap) |
 | doip_dir_invalid | T157: Direction="invalid" → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_dir_upper | T156: Direction="UP" 大小写不敏感 → 等价 up 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_dir_upper.pcap) |
-| doip_eid_from_default_mac | T084/T085: EID 空 + DstMAC 缺省(02:00:00:00:00:02) → 公告 EID=020000000002 3 包 | pass | 3 | [pcap](/tmp/mcp-pcaps/doip/doip_eid_from_default_mac.pcap) |
-| doip_eid_from_dstmac | T083/T198: EID 空 + DstMAC=00:11:22:33:44:55 → 公告 EID=001122334455 3 包 | pass | 3 | [pcap](/tmp/mcp-pcaps/doip/doip_eid_from_dstmac.pcap) |
+| doip_dir_upper | T156: Direction="UP" 大小写不敏感 → 等价 up 1 包 | pass | 1 | [pcap](doip/doip_dir_upper.pcap) |
+| doip_eid_from_default_mac | T084/T085: EID 空 + DstMAC 缺省(02:00:00:00:00:02) → 公告 EID=020000000002 3 包 | pass | 3 | [pcap](doip/doip_eid_from_default_mac.pcap) |
+| doip_eid_from_dstmac | T083/T198: EID 空 + DstMAC=00:11:22:33:44:55 → 公告 EID=001122334455 3 包 | pass | 3 | [pcap](doip/doip_eid_from_dstmac.pcap) |
 | doip_eid_invalid_mac | T085 variant: EID 空 + DstMAC=invalid → MCP 拒绝 (MAC 格式校验前置) 0 包 | pass | 0 | [pcap]() |
 | doip_eid_oversized_mac | T086: EID 空 + DstMAC 过长 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
 | doip_eid_short | T088: EID 长度非 6B → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
 | doip_entity_cur_gt_max | T098: Cur=3 > Max=2 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_entity_cur_le_max | T097: Cur=1 ≤ Max=2 → 通过 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_entity_cur_le_max.pcap) |
-| doip_entity_gateway | T093: NodeType=0x00 Gateway → 0x4002 NodeType=0x00 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_entity_gateway.pcap) |
-| doip_entity_maxdata_0 | T100: MaxDataSize=0 → 0x4002 MaxData=0 通过 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_entity_maxdata_0.pcap) |
+| doip_entity_cur_le_max | T097: Cur=1 ≤ Max=2 → 通过 1 包 | pass | 1 | [pcap](doip/doip_entity_cur_le_max.pcap) |
+| doip_entity_gateway | T093: NodeType=0x00 Gateway → 0x4002 NodeType=0x00 1 包 | pass | 1 | [pcap](doip/doip_entity_gateway.pcap) |
+| doip_entity_maxdata_0 | T100: MaxDataSize=0 → 0x4002 MaxData=0 通过 1 包 | pass | 1 | [pcap](doip/doip_entity_maxdata_0.pcap) |
 | doip_entity_nodetype_0x02 | T095: NodeType=0x02 Reserved → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_entity_sockets_255 | T096: MaxOpenSockets=0xFF 边界 → 0x4002 MaxSockets=0xFF 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_entity_sockets_255.pcap) |
-| doip_far_0x10 | T074: FurtherActionRequired=0x10 (Centralized security) 公告 3 包 | pass | 3 | [pcap](/tmp/mcp-pcaps/doip/doip_far_0x10.pcap) |
+| doip_entity_sockets_255 | T096: MaxOpenSockets=0xFF 边界 → 0x4002 MaxSockets=0xFF 1 包 | pass | 1 | [pcap](doip/doip_entity_sockets_255.pcap) |
+| doip_far_0x10 | T074: FurtherActionRequired=0x10 (Centralized security) 公告 3 包 | pass | 3 | [pcap](doip/doip_far_0x10.pcap) |
 | doip_far_0x11 | T075: FurtherActionRequired=0x11 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
 | doip_far_0x20 | T076: FurtherActionRequired=0x20 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
 | doip_far_0x40 | T077: FurtherActionRequired=0x40 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_full_flow_22 | T171/T200: 完整流程 22 包 (Discovery+Entity+激活+4×诊断+心跳×2+挥手) | pass | 21 | [pcap](/tmp/mcp-pcaps/doip/doip_full_flow_22.pcap) |
-| doip_full_flow_22_ipv6 | T138/T177: IPv6 全流程 22 包 → 帧偏移 74/62 | pass | 16 | [pcap](/tmp/mcp-pcaps/doip/doip_full_flow_22_ipv6.pcap) |
-| doip_generic_nack_0x00 | T121: 0x0000 NackCode=0x00 Incorrect Pattern → 通过 9 包 | pass | 10 | [pcap](/tmp/mcp-pcaps/doip/doip_generic_nack_0x00.pcap) |
-| doip_generic_nack_0x02 | T123: 0x0000 NackCode=0x02 Message Too Large → 通过 9 包 | pass | 10 | [pcap](/tmp/mcp-pcaps/doip/doip_generic_nack_0x02.pcap) |
-| doip_generic_nack_0x03 | T124: 0x0000 NackCode=0x03 Out of Memory → 通过 9 包 | pass | 10 | [pcap](/tmp/mcp-pcaps/doip/doip_generic_nack_0x03.pcap) |
-| doip_generic_nack_0x04 | T125: 0x0000 NackCode=0x04 Invalid Payload Length → 通过 9 包 | pass | 10 | [pcap](/tmp/mcp-pcaps/doip/doip_generic_nack_0x04.pcap) |
+| doip_full_flow_22 | T171/T200: 完整流程 22 包 (Discovery+Entity+激活+4×诊断+心跳×2+挥手) | pass | 21 | [pcap](doip/doip_full_flow_22.pcap) |
+| doip_full_flow_22_ipv6 | T138/T177: IPv6 全流程 22 包 → 帧偏移 74/62 | pass | 16 | [pcap](doip/doip_full_flow_22_ipv6.pcap) |
+| doip_generic_nack_0x00 | T121: 0x0000 NackCode=0x00 Incorrect Pattern → 通过 9 包 | pass | 10 | [pcap](doip/doip_generic_nack_0x00.pcap) |
+| doip_generic_nack_0x02 | T123: 0x0000 NackCode=0x02 Message Too Large → 通过 9 包 | pass | 10 | [pcap](doip/doip_generic_nack_0x02.pcap) |
+| doip_generic_nack_0x03 | T124: 0x0000 NackCode=0x03 Out of Memory → 通过 9 包 | pass | 10 | [pcap](doip/doip_generic_nack_0x03.pcap) |
+| doip_generic_nack_0x04 | T125: 0x0000 NackCode=0x04 Invalid Payload Length → 通过 9 包 | pass | 10 | [pcap](doip/doip_generic_nack_0x04.pcap) |
 | doip_generic_nack_0x05 | T126: 0x0000 NackCode=0x05 Reserved → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_ipv6_activation | T132-T134: IPv6 路由激活流程 (src=fe80::1, dst=fe80::2) 8 包 | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_ipv6_activation.pcap) |
-| doip_ipv6_alive | T135: IPv6 心跳 → 0x0007 over IPv6 9 包 | pass | 10 | [pcap](/tmp/mcp-pcaps/doip/doip_ipv6_alive.pcap) |
-| doip_ipv6_discovery | T131: IPv6 Discovery 广播 0x0001 (src=fe80::1, dst=ff02::1) 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_ipv6_discovery.pcap) |
-| doip_ipv6_entity | T137: IPv6 Entity Status → 0x4002 over IPv6 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_ipv6_entity.pcap) |
-| doip_ipv6_v1 | T140: IPv6+V1 公告 → PV=0x01 over IPv6 3 包 | pass | 3 | [pcap](/tmp/mcp-pcaps/doip/doip_ipv6_v1.pcap) |
-| doip_la_0x0000 | T158: LogicalAddress=0 边界 → 默认回退 0x0001 → 0x0006 CLA=0x0001 8 包 | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_la_0x0000.pcap) |
-| doip_la_ffff | T159: LogicalAddress=0xFFFF 边界值 → 0x0006 CLA=0xFFFF 通过 8 包 | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_la_ffff.pcap) |
-| doip_maxdata_4000 | T064: UserData=102B ≤ MaxDataSize=4095 → 通过 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_maxdata_4000.pcap) |
+| doip_ipv6_activation | T132-T134: IPv6 路由激活流程 (src=fe80::1, dst=fe80::2) 8 包 | pass | 9 | [pcap](doip/doip_ipv6_activation.pcap) |
+| doip_ipv6_alive | T135: IPv6 心跳 → 0x0007 over IPv6 9 包 | pass | 10 | [pcap](doip/doip_ipv6_alive.pcap) |
+| doip_ipv6_discovery | T131: IPv6 Discovery 广播 0x0001 (src=fe80::1, dst=ff02::1) 1 包 | pass | 1 | [pcap](doip/doip_ipv6_discovery.pcap) |
+| doip_ipv6_entity | T137: IPv6 Entity Status → 0x4002 over IPv6 1 包 | pass | 1 | [pcap](doip/doip_ipv6_entity.pcap) |
+| doip_ipv6_v1 | T140: IPv6+V1 公告 → PV=0x01 over IPv6 3 包 | pass | 3 | [pcap](doip/doip_ipv6_v1.pcap) |
+| doip_la_0x0000 | T158: LogicalAddress=0 边界 → 默认回退 0x0001 → 0x0006 CLA=0x0001 8 包 | pass | 9 | [pcap](doip/doip_la_0x0000.pcap) |
+| doip_la_ffff | T159: LogicalAddress=0xFFFF 边界值 → 0x0006 CLA=0xFFFF 通过 8 包 | pass | 9 | [pcap](doip/doip_la_ffff.pcap) |
+| doip_maxdata_4000 | T064: UserData=102B ≤ MaxDataSize=4095 → 通过 10 包 | pass | 11 | [pcap](doip/doip_maxdata_4000.pcap) |
 | doip_maxdata_5000 | T065/T197: UserData=5000B > MaxDataSize=4095 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
 | doip_messages_without_activation | T163: 无 Activation 直接 Messages → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_mss_fallback | T148: MSS=0 fallback 1460 → 0x36 大传输单帧不分割 16 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_mss_fallback.pcap) |
+| doip_mss_fallback | T148: MSS=0 fallback 1460 → 0x36 大传输单帧不分割 16 包 | pass | 11 | [pcap](doip/doip_mss_fallback.pcap) |
 | doip_nack_0x00 | T060: 0x8003 NackCode=0x00 Reserved → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
 | doip_nack_0x01 | T061: 0x8003 NackCode=0x01 Reserved → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_nack_0x03 | T057: 0x8003 NackCode=0x03 (Unknown TA) → 通过 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_nack_0x03.pcap) |
-| doip_nack_0x04 | T058: 0x8003 NackCode=0x04 (Too Large) → 通过 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_nack_0x04.pcap) |
-| doip_nack_0x06 | T059: 0x8003 NackCode=0x06 (Target Unreachable) → 通过 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_nack_0x06.pcap) |
+| doip_nack_0x03 | T057: 0x8003 NackCode=0x03 (Unknown TA) → 通过 10 包 | pass | 11 | [pcap](doip/doip_nack_0x03.pcap) |
+| doip_nack_0x04 | T058: 0x8003 NackCode=0x04 (Too Large) → 通过 10 包 | pass | 11 | [pcap](doip/doip_nack_0x04.pcap) |
+| doip_nack_0x06 | T059: 0x8003 NackCode=0x06 (Target Unreachable) → 通过 10 包 | pass | 11 | [pcap](doip/doip_nack_0x06.pcap) |
 | doip_nack_0x09 | T062: 0x8003 NackCode=0x09 Reserved → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_no_discovery_direct_activation | T162: 无 Discovery 直接 Activation → TCP 握手+激活 8 包 | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_no_discovery_direct_activation.pcap) |
-| doip_oem_255b | T154: OEM-specific=255B → 0x0005 PayloadLength=262 8 包 | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_oem_255b.pcap) |
-| doip_pm_0x00 | T103: PowerMode=0x00 Not Ready → 0x4004 PM=0x00 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_pm_0x00.pcap) |
-| doip_pm_0x02 | T105: PowerMode=0x02 Not Supported → 0x4004 PM=0x02 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_pm_0x02.pcap) |
+| doip_no_discovery_direct_activation | T162: 无 Discovery 直接 Activation → TCP 握手+激活 8 包 | pass | 9 | [pcap](doip/doip_no_discovery_direct_activation.pcap) |
+| doip_oem_255b | T154: OEM-specific=255B → 0x0005 PayloadLength=262 8 包 | pass | 9 | [pcap](doip/doip_oem_255b.pcap) |
+| doip_pm_0x00 | T103: PowerMode=0x00 Not Ready → 0x4004 PM=0x00 1 包 | pass | 1 | [pcap](doip/doip_pm_0x00.pcap) |
+| doip_pm_0x02 | T105: PowerMode=0x02 Not Supported → 0x4004 PM=0x02 1 包 | pass | 1 | [pcap](doip/doip_pm_0x02.pcap) |
 | doip_pm_0x03 | T106: PowerMode=0x03 Reserved → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_pm_broadcast_ipv4 | T107: PowerMode 广播 IPv4 → DstIP=255.255.255.255 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_pm_broadcast_ipv4.pcap) |
-| doip_pm_broadcast_ipv6 | T108/T132: PowerMode 广播 IPv6 → DstIP=ff02::1, DstMAC=33:33:00:00:00:01 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_pm_broadcast_ipv6.pcap) |
-| doip_pm_unicast | T109: PowerMode 单播 → DstIP=spec.DstIP 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_pm_unicast.pcap) |
-| doip_power_mode | T014+T015: 0x4003 电源模式请求(无载荷) 单发; direction=up 不发 0x4004 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_power_mode.pcap) |
-| doip_power_mode_after_teardown | T166: PowerMode 与 TCP 挥手顺序 → 实测 UDP 0x4004 在 TCP FIN 前 (阶段序差异) | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_power_mode_after_teardown.pcap) |
-| doip_power_mode_response | T102: PowerMode.Direction 缺省(down) → 0x4004 电源模式应答(PM=0x01, PL=1) 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_power_mode_response.pcap) |
-| doip_pv_0x00 | T141: ProtocolVersion=0x00 → Validate 拒绝 (ExpectError) | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_pv_0x00.pcap) |
+| doip_pm_broadcast_ipv4 | T107: PowerMode 广播 IPv4 → DstIP=255.255.255.255 1 包 | pass | 1 | [pcap](doip/doip_pm_broadcast_ipv4.pcap) |
+| doip_pm_broadcast_ipv6 | T108/T132: PowerMode 广播 IPv6 → DstIP=ff02::1, DstMAC=33:33:00:00:00:01 1 包 | pass | 1 | [pcap](doip/doip_pm_broadcast_ipv6.pcap) |
+| doip_pm_unicast | T109: PowerMode 单播 → DstIP=spec.DstIP 1 包 | pass | 1 | [pcap](doip/doip_pm_unicast.pcap) |
+| doip_power_mode | T014+T015: 0x4003 电源模式请求(无载荷) 单发; direction=up 不发 0x4004 | pass | 1 | [pcap](doip/doip_power_mode.pcap) |
+| doip_power_mode_after_teardown | T166: PowerMode 与 TCP 挥手顺序 → 实测 UDP 0x4004 在 TCP FIN 前 (阶段序差异) | pass | 9 | [pcap](doip/doip_power_mode_after_teardown.pcap) |
+| doip_power_mode_response | T102: PowerMode.Direction 缺省(down) → 0x4004 电源模式应答(PM=0x01, PL=1) 1 包 | pass | 1 | [pcap](doip/doip_power_mode_response.pcap) |
+| doip_pv_0x00 | T141: ProtocolVersion=0x00 → Validate 拒绝 (ExpectError) | pass | 9 | [pcap](doip/doip_pv_0x00.pcap) |
 | doip_pv_0x03 | T142: ProtocolVersion=0x03 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
 | doip_pv_0xff | T143: ProtocolVersion=0xFF → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_rc_0x01 | T021b: ResponseCode=0x01 (Unknown SA) → 激活失败 ECU FIN → 7 包 | pass | 7 | [pcap](/tmp/mcp-pcaps/doip/doip_rc_0x01.pcap) |
-| doip_rc_0x04 | T021c: ResponseCode=0x04 (Missing Auth) → 0x0006 RC=0x04 激活失败 7 包 | pass | 7 | [pcap](/tmp/mcp-pcaps/doip/doip_rc_0x04.pcap) |
-| doip_rc_0x05 | T021d: ResponseCode=0x05 (Rejected Confirmation) → 0x0006 RC=0x05 激活失败 7 包 | pass | 7 | [pcap](/tmp/mcp-pcaps/doip/doip_rc_0x05.pcap) |
-| doip_rc_0x07 | T021e: ResponseCode=0x07 (TLS Required) → 0x0006 RC=0x07 激活失败 7 包 | pass | 7 | [pcap](/tmp/mcp-pcaps/doip/doip_rc_0x07.pcap) |
-| doip_rc_0x11_confirm | T021f/T027: RC=0x11 + ConfirmationRequired=true 二次确认 0x0005×2+0x0006×2 → 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_rc_0x11_confirm.pcap) |
+| doip_rc_0x01 | T021b: ResponseCode=0x01 (Unknown SA) → 激活失败 ECU FIN → 7 包 | pass | 7 | [pcap](doip/doip_rc_0x01.pcap) |
+| doip_rc_0x04 | T021c: ResponseCode=0x04 (Missing Auth) → 0x0006 RC=0x04 激活失败 7 包 | pass | 7 | [pcap](doip/doip_rc_0x04.pcap) |
+| doip_rc_0x05 | T021d: ResponseCode=0x05 (Rejected Confirmation) → 0x0006 RC=0x05 激活失败 7 包 | pass | 7 | [pcap](doip/doip_rc_0x05.pcap) |
+| doip_rc_0x07 | T021e: ResponseCode=0x07 (TLS Required) → 0x0006 RC=0x07 激活失败 7 包 | pass | 7 | [pcap](doip/doip_rc_0x07.pcap) |
+| doip_rc_0x11_confirm | T021f/T027: RC=0x11 + ConfirmationRequired=true 二次确认 0x0005×2+0x0006×2 → 10 包 | pass | 11 | [pcap](doip/doip_rc_0x11_confirm.pcap) |
 | doip_rc_0x12 | T021g: ResponseCode=0x12 Reserved → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_s10_big_transfer | S10: 0x34 RequestDownload + 0x36 TransferData + 0x37 RequestTransferExit (首块不完整 → 0x36 段化); AddressAndLength/TransferData hex 解码 | pass | 19 | [pcap](/tmp/mcp-pcaps/doip/doip_s10_big_transfer.pcap) |
-| doip_s11_activation_fail | S11/T026: RC=0x00 Unknown SA → 激活失败, 无诊断消息, ECU 主动 FIN 关闭 → 7 包 | pass | 7 | [pcap](/tmp/mcp-pcaps/doip/doip_s11_activation_fail.pcap) |
-| doip_s15_full_diag_flow | S15/T171: 完整流程 18 包: 公告×3 + 握手 + 激活 + 3×诊断 + 心跳 + 挥手 | pass | 18 | [pcap](/tmp/mcp-pcaps/doip/doip_s15_full_diag_flow.pcap) |
-| doip_s15_full_diag_flow_22 | T161/T183: 5 阶段完整流程含 EntityStatus 双向 → 22 包 | pass | 21 | [pcap](/tmp/mcp-pcaps/doip/doip_s15_full_diag_flow_22.pcap) |
-| doip_s1_discovery_broadcast | S1/T003+T006: Discovery direction=down → 0x0004 公告×3 (VIN 17B+LA+EID+GID+FAR+Sync=33B) | pass | 3 | [pcap](/tmp/mcp-pcaps/doip/doip_s1_discovery_broadcast.pcap) |
-| doip_s1_variant_request_up | T003 variant: Discovery direction=up request_type=0x0001 广播发现(无载荷) 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_s1_variant_request_up.pcap) |
-| doip_s2_routing_activation | S2/T008+T009: TCP 握手 + 0x0005(SA=0x0E80,AT=0x00,PL=7) + 0x0006(RC=0x10,PL=9) + 挥手中 FIN×3 → 8 包 | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_s2_routing_activation.pcap) |
-| doip_s2_variant_oem4b | T023: OEM-specific=4B(ASCII) → 0x0005 PayloadLength=15, 0x0006=17 | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_s2_variant_oem4b.pcap) |
-| doip_s3_diag_uds10 | S3/T016+T017: 0x8001(SA=0x0E80,TA=0x0001,UDS 10 03) + 0x8002 Ack(PL=7,PrevDiag=10 03) | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_s3_diag_uds10.pcap) |
-| doip_s4_diag_nack | S4/T018: 0x8001(UDS 22 F1 90) + 0x8003 Nack(NackCode=0x02,PL=10,PrevDiag=22 F1 90) | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_s4_diag_nack.pcap) |
-| doip_s5_alive_check | S5/T010+T011: 0x0007 心跳请求(无载荷) 单发; direction=down 不发 0x0008 | pass | 10 | [pcap](/tmp/mcp-pcaps/doip/doip_s5_alive_check.pcap) |
-| doip_s7_entity_status | S7/T012+T013: 0x4001 请求(无载荷) 单发; direction=up 不发 0x4002 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_s7_entity_status.pcap) |
-| doip_s7b_entity_down_default | T091/T092 variant: EntityStatus direction 缺省(down) → 仅 0x4002 应答 1 包 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_s7b_entity_down_default.pcap) |
-| doip_s8_generic_nack | S8/T019: 0x0000 Generic NACK (NackCode=0x01 Unknown Payload Type, PL=1) 经 TCP | pass | 10 | [pcap](/tmp/mcp-pcaps/doip/doip_s8_generic_nack.pcap) |
-| doip_sa_consistent | T028/T030: 0x8001 SA=TA=默认 与激活地址一致 → 通过 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_sa_consistent.pcap) |
+| doip_s10_big_transfer | S10: 0x34 RequestDownload + 0x36 TransferData + 0x37 RequestTransferExit (首块不完整 → 0x36 段化); AddressAndLength/TransferData hex 解码 | pass | 19 | [pcap](doip/doip_s10_big_transfer.pcap) |
+| doip_s11_activation_fail | S11/T026: RC=0x00 Unknown SA → 激活失败, 无诊断消息, ECU 主动 FIN 关闭 → 7 包 | pass | 7 | [pcap](doip/doip_s11_activation_fail.pcap) |
+| doip_s15_full_diag_flow | S15/T171: 完整流程 18 包: 公告×3 + 握手 + 激活 + 3×诊断 + 心跳 + 挥手 | pass | 18 | [pcap](doip/doip_s15_full_diag_flow.pcap) |
+| doip_s15_full_diag_flow_22 | T161/T183: 5 阶段完整流程含 EntityStatus 双向 → 22 包 | pass | 21 | [pcap](doip/doip_s15_full_diag_flow_22.pcap) |
+| doip_s1_discovery_broadcast | S1/T003+T006: Discovery direction=down → 0x0004 公告×3 (VIN 17B+LA+EID+GID+FAR+Sync=33B) | pass | 3 | [pcap](doip/doip_s1_discovery_broadcast.pcap) |
+| doip_s1_variant_request_up | T003 variant: Discovery direction=up request_type=0x0001 广播发现(无载荷) 1 包 | pass | 1 | [pcap](doip/doip_s1_variant_request_up.pcap) |
+| doip_s2_routing_activation | S2/T008+T009: TCP 握手 + 0x0005(SA=0x0E80,AT=0x00,PL=7) + 0x0006(RC=0x10,PL=9) + 挥手中 FIN×3 → 8 包 | pass | 9 | [pcap](doip/doip_s2_routing_activation.pcap) |
+| doip_s2_variant_oem4b | T023: OEM-specific=4B(ASCII) → 0x0005 PayloadLength=15, 0x0006=17 | pass | 9 | [pcap](doip/doip_s2_variant_oem4b.pcap) |
+| doip_s3_diag_uds10 | S3/T016+T017: 0x8001(SA=0x0E80,TA=0x0001,UDS 10 03) + 0x8002 Ack(PL=7,PrevDiag=10 03) | pass | 11 | [pcap](doip/doip_s3_diag_uds10.pcap) |
+| doip_s4_diag_nack | S4/T018: 0x8001(UDS 22 F1 90) + 0x8003 Nack(NackCode=0x02,PL=10,PrevDiag=22 F1 90) | pass | 11 | [pcap](doip/doip_s4_diag_nack.pcap) |
+| doip_s5_alive_check | S5/T010+T011: 0x0007 心跳请求(无载荷) 单发; direction=down 不发 0x0008 | pass | 10 | [pcap](doip/doip_s5_alive_check.pcap) |
+| doip_s7_entity_status | S7/T012+T013: 0x4001 请求(无载荷) 单发; direction=up 不发 0x4002 | pass | 1 | [pcap](doip/doip_s7_entity_status.pcap) |
+| doip_s7b_entity_down_default | T091/T092 variant: EntityStatus direction 缺省(down) → 仅 0x4002 应答 1 包 | pass | 1 | [pcap](doip/doip_s7b_entity_down_default.pcap) |
+| doip_s8_generic_nack | S8/T019: 0x0000 Generic NACK (NackCode=0x01 Unknown Payload Type, PL=1) 经 TCP | pass | 10 | [pcap](doip/doip_s8_generic_nack.pcap) |
+| doip_sa_consistent | T028/T030: 0x8001 SA=TA=默认 与激活地址一致 → 通过 10 包 | pass | 11 | [pcap](doip/doip_sa_consistent.pcap) |
 | doip_sa_mismatch | T029: 0x8001 SA=0x1111 与 TesterAddress 不一致 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_sa_zero_boundary | T189: 0x8001 SA=0x0000 (显式) → 通过 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_sa_zero_boundary.pcap) |
+| doip_sa_zero_boundary | T189: 0x8001 SA=0x0000 (显式) → 通过 10 包 | pass | 11 | [pcap](doip/doip_sa_zero_boundary.pcap) |
 | doip_sync_0x01 | T080: SyncStatus=0x01 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_sync_0x10 | T079: SyncStatus=0x10 (Not synced) → 公告 Sync=0x10 3 包 | pass | 3 | [pcap](/tmp/mcp-pcaps/doip/doip_sync_0x10.pcap) |
-| doip_t004_eid_request | T004: 0x0002 EID 发现请求, Payload=6B EID, PayloadLength=6 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_t004_eid_request.pcap) |
-| doip_t005_vin_request | T005: 0x0003 VIN 发现请求, Payload=17B VIN, PayloadLength=17 | pass | 1 | [pcap](/tmp/mcp-pcaps/doip/doip_t005_vin_request.pcap) |
-| doip_ta_0x0000 | T160: TesterAddress=0x0000 边界 → 0x0005 SA=0x0E80 (默认回退) 8 包 | pass | 9 | [pcap](/tmp/mcp-pcaps/doip/doip_ta_0x0000.pcap) |
-| doip_ta_ffff_boundary | T190: 0x8001 TA=0xFFFF 与 LogicalAddress 冲突 → 实现要求一致 (impl 差异) 8 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_ta_ffff_boundary.pcap) |
-| doip_termination_false | T195: Termination=false → 无 FIN 挥手 5 包 | pass | 5 | [pcap](/tmp/mcp-pcaps/doip/doip_termination_false.pcap) |
-| doip_uds_10_nosubfunc_false | T193: 0x10 HasSubFunction=false 仍必须输出 sub-function=0x03 (§8.4 必需字段) → 生成 10 03, PayloadLength=0x06 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_uds_10_nosubfunc_false.pcap) |
-| doip_uds_22_response_sid | T050/负向修复: 0x22 响应 = RSID(0x62)+DID(2B)+dataRecord; data 十六进制解码为 01 02 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_uds_22_response_sid.pcap) |
+| doip_sync_0x10 | T079: SyncStatus=0x10 (Not synced) → 公告 Sync=0x10 3 包 | pass | 3 | [pcap](doip/doip_sync_0x10.pcap) |
+| doip_t004_eid_request | T004: 0x0002 EID 发现请求, Payload=6B EID, PayloadLength=6 | pass | 1 | [pcap](doip/doip_t004_eid_request.pcap) |
+| doip_t005_vin_request | T005: 0x0003 VIN 发现请求, Payload=17B VIN, PayloadLength=17 | pass | 1 | [pcap](doip/doip_t005_vin_request.pcap) |
+| doip_ta_0x0000 | T160: TesterAddress=0x0000 边界 → 0x0005 SA=0x0E80 (默认回退) 8 包 | pass | 9 | [pcap](doip/doip_ta_0x0000.pcap) |
+| doip_ta_ffff_boundary | T190: 0x8001 TA=0xFFFF 与 LogicalAddress 冲突 → 实现要求一致 (impl 差异) 8 包 | pass | 11 | [pcap](doip/doip_ta_ffff_boundary.pcap) |
+| doip_termination_false | T195: Termination=false → 无 FIN 挥手 5 包 | pass | 5 | [pcap](doip/doip_termination_false.pcap) |
+| doip_uds_10_nosubfunc_false | T193: 0x10 HasSubFunction=false 仍必须输出 sub-function=0x03 (§8.4 必需字段) → 生成 10 03, PayloadLength=0x06 | pass | 11 | [pcap](doip/doip_uds_10_nosubfunc_false.pcap) |
+| doip_uds_22_response_sid | T050/负向修复: 0x22 响应 = RSID(0x62)+DID(2B)+dataRecord; data 十六进制解码为 01 02 | pass | 11 | [pcap](doip/doip_uds_22_response_sid.pcap) |
 | doip_uds_22_subfunction | T192: UDS 0x22 + HasSubFunction=true → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_uds_27_even_response | T036: UDS 0x27 偶数响应无 key → UserData=67 02 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_uds_27_even_response.pcap) |
+| doip_uds_27_even_response | T036: UDS 0x27 偶数响应无 key → UserData=67 02 10 包 | pass | 11 | [pcap](doip/doip_uds_27_even_response.pcap) |
 | doip_uds_27_even_response_key | T037: UDS 0x27 偶数响应 + Key 非空 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_uds_27_odd_response | T035: UDS 0x27 奇数响应带 seed → UserData=67 01 11 22 33 44 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_uds_27_odd_response.pcap) |
-| doip_uds_27_seed_request | T033: UDS 0x27 0x01 请求 seed → 0x8001 UserData=27 01 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_uds_27_seed_request.pcap) |
-| doip_uds_27_send_key | T034: UDS 0x27 0x02 发送 key=55 66 77 88 → UserData=27 02 55 66 77 88 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_uds_27_send_key.pcap) |
-| doip_uds_3e_tester_present | T043: UDS 0x3E TesterPresent sub_function=0 → 0x8001+0x8002 Ack 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_uds_3e_tester_present.pcap) |
-| doip_uds_blockseq_wrap | T039/T040: 0x36 BlockSeq 回绕 n=256→0x00, n=257→0x01 → 4 包 | pass | 15 | [pcap](/tmp/mcp-pcaps/doip/doip_uds_blockseq_wrap.pcap) |
-| doip_uds_nrc | T045/T046: UDS 0x22 NRC=0x11 → UserData=7F 22 11 (NRC 优先 IsResponse) 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_uds_nrc.pcap) |
-| doip_uds_nrc_0x00 | T047: UDS NRC=0x00 → Validate 拒绝 (ExpectError) | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_uds_nrc_0x00.pcap) |
-| doip_uds_nrc_0x7f | T049: UDS NRC=0x7F 边界 → UserData=7F 22 7F 通过 10 包 | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_uds_nrc_0x7f.pcap) |
+| doip_uds_27_odd_response | T035: UDS 0x27 奇数响应带 seed → UserData=67 01 11 22 33 44 10 包 | pass | 11 | [pcap](doip/doip_uds_27_odd_response.pcap) |
+| doip_uds_27_seed_request | T033: UDS 0x27 0x01 请求 seed → 0x8001 UserData=27 01 10 包 | pass | 11 | [pcap](doip/doip_uds_27_seed_request.pcap) |
+| doip_uds_27_send_key | T034: UDS 0x27 0x02 发送 key=55 66 77 88 → UserData=27 02 55 66 77 88 10 包 | pass | 11 | [pcap](doip/doip_uds_27_send_key.pcap) |
+| doip_uds_3e_tester_present | T043: UDS 0x3E TesterPresent sub_function=0 → 0x8001+0x8002 Ack 10 包 | pass | 11 | [pcap](doip/doip_uds_3e_tester_present.pcap) |
+| doip_uds_blockseq_wrap | T039/T040: 0x36 BlockSeq 回绕 n=256→0x00, n=257→0x01 → 4 包 | pass | 15 | [pcap](doip/doip_uds_blockseq_wrap.pcap) |
+| doip_uds_nrc | T045/T046: UDS 0x22 NRC=0x11 → UserData=7F 22 11 (NRC 优先 IsResponse) 10 包 | pass | 11 | [pcap](doip/doip_uds_nrc.pcap) |
+| doip_uds_nrc_0x00 | T047: UDS NRC=0x00 → Validate 拒绝 (ExpectError) | pass | 11 | [pcap](doip/doip_uds_nrc_0x00.pcap) |
+| doip_uds_nrc_0x7f | T049: UDS NRC=0x7F 边界 → UserData=7F 22 7F 通过 10 包 | pass | 11 | [pcap](doip/doip_uds_nrc_0x7f.pcap) |
 | doip_uds_nrc_0xff | T048: UDS NRC=0xFF → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
 | doip_uds_unknown_sid | T191: UDS ServiceID=0xFF 未知 → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
-| doip_userdata_empty | 负向: user_data=[] (空 0x8001, 无 UDS 服务) → Wireshark malformed(预期) | pass | 11 | [pcap](/tmp/mcp-pcaps/doip/doip_userdata_empty.pcap) |
-| doip_v1_announce_32b | T082: V1 公告 PayloadLength=32 (无 SyncStatus) 3 包 | pass | 3 | [pcap](/tmp/mcp-pcaps/doip/doip_v1_announce_32b.pcap) |
+| doip_userdata_empty | 负向: user_data=[] (空 0x8001, 无 UDS 服务) → Wireshark malformed(预期) | pass | 11 | [pcap](doip/doip_userdata_empty.pcap) |
+| doip_v1_announce_32b | T082: V1 公告 PayloadLength=32 (无 SyncStatus) 3 包 | pass | 3 | [pcap](doip/doip_v1_announce_32b.pcap) |
 | doip_v1_oem | T025: V1 + OEM-specific 非 nil → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
 | doip_v1_pm | T110: V1 + PowerMode 非 nil → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
 | doip_vin_short | T090: VIN 长度非 17B → Validate 拒绝 (ExpectError) | pass | 0 | [pcap]() |
