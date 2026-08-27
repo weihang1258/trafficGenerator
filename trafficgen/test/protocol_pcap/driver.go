@@ -9,83 +9,18 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/trafficgen/trafficgen/internal/pcaptest"
 )
 
-// Case is one test case extracted from a protocol design doc §7 table.
-type Case struct {
-	ID       string          `json:"id"`
-	Proto    string          `json:"proto"`
-	Summary  string          `json:"summary"`
-	SpecJSON json.RawMessage `json:"spec_json"`        // generate_traffic "config" argument
-	Output   string          `json:"output,omitempty"` // output_type override ("pcap" default)
-	// StrategyFC, when set, is passed as generate_traffic's
-	// "strategy_flow_control" argument (e.g. {"type":"flows","value":N} for
-	// multi-flow cases). Absent = no strategy flow control.
-	StrategyFC *strategyFCInput `json:"strategy_fc,omitempty"`
-	// DecodeAs: extra tshark -d decode hints applied when verifying this case
-	// (e.g. {"udp.port==80,isakmp"} for ike_nat_t probes whose ports are not
-	// IANA well-known). Appended after the framework's fixed decode rules.
-	DecodeAs []string `json:"decode_as,omitempty"`
-	// Expect holds verification hints; verified against the pcap by verify.go.
-	Expect struct {
-		PacketCount  int           `json:"packet_count,omitempty"` // exact expected packet count
-		MinPackets   int           `json:"min_packets,omitempty"`
-		Fields       []FieldAssert `json:"fields,omitempty"`
-		Frames       []FrameAssert `json:"frames,omitempty"`        // raw byte assertions
-		HasHandshake bool          `json:"has_handshake,omitempty"` // TCP SYN first packet
-		HasPayload   bool          `json:"has_payload,omitempty"`
-		Negotiated   bool          `json:"negotiated,omitempty"`
-		Terminates   bool          `json:"terminates,omitempty"`
-		Directional  bool          `json:"directional,omitempty"` // both directions present
-		Notes        []string      `json:"notes,omitempty"`
-		// ExpectError: when true, the case is a Validate-negative — the MCP
-		// generate_traffic call OR the resulting task is expected to fail/error.
-		// A failure is treated as PASS; a successful completion is FAIL.
-		ExpectError bool `json:"expect_error,omitempty"`
-		// ErrorContains: optional substring that must appear in the error
-		// message for an ExpectError case to pass (empty = any error accepted).
-		ErrorContains string `json:"error_contains,omitempty"`
-	} `json:"expect,omitempty"`
-}
-
-// FieldAssert asserts one tshark field value at one packet offset.
-type FieldAssert struct {
-	Packet int    `json:"packet"`          // 1-based packet index
-	Field  string `json:"field"`           // tshark field name, e.g. "tcp.dstport"
-	Value  string `json:"value,omitempty"` // exact string value; empty means "field present"
-	// SameAsPacket: when > 0, asserts this packet's field value equals the
-	// field value on that packet (1-based). Used for persistence assertions on
-	// run-random values (e.g. smb2.sesid / smb2.file_id) that cannot carry a
-	// fixed hex expectation.
-	SameAsPacket int `json:"same_as_packet,omitempty"`
-	// Nonzero: when true, asserts the field value is present and not all-zero
-	// (hex-number fields like smb2.sesid emit "0x0000000000000000" for zero).
-	Nonzero bool `json:"nonzero,omitempty"`
-	// DistinctValues: schedule-independent aggregation assertion for multi-flow
-	// cases. When non-empty, asserts that across ALL packets the field takes
-	// exactly these values (each at least once) and no others. Packet index is
-	// ignored — the multi-flow scheduler interleaves flows non-deterministically,
-	// so fixed packet positions are meaningless for per-flow values.
-	DistinctValues []string `json:"distinct_values,omitempty"`
-	// DistinctExclude: values to skip during DistinctValues aggregation (e.g.
-	// the server-side port on a bidirectional tcp.srcport scan). Only applies
-	// when DistinctValues is non-empty.
-	DistinctExclude []string `json:"distinct_exclude,omitempty"`
-}
-
-// FrameAssert asserts raw bytes of one frame (tshark -x hex dump).
-type FrameAssert struct {
-	Packet int    `json:"packet"`           // 1-based packet index
-	Offset int    `json:"offset,omitempty"` // byte offset into the frame; default 0
-	Hex    string `json:"hex"`              // wanted bytes, e.g. "00 01 63 6f 6e 66 69 67" (prefix match at offset)
-}
-
-// strategyFCInput mirrors the MCP flowControlInput shape
-// (internal/mcp/tools_strategy.go): {"type":"flows","value":N}.
-type strategyFCInput struct {
-	Type  string  `json:"type"`
-	Value float64 `json:"value"`
-}
+// Case / FieldAssert / FrameAssert / StrategyFC 类型委托给共享包 pcaptest
+//（internal/pcaptest/types.go），保证 MCP 工具与 go test 跑同一套断言结构，
+// 避免双份实现漂移。struct 字段布局与原定义一致，既有测试的匿名内联
+// Expect 构造仍然编译。
+type Case = pcaptest.Case
+type FieldAssert = pcaptest.FieldAssert
+type FrameAssert = pcaptest.FrameAssert
+type StrategyFC = pcaptest.StrategyFC
 
 // CaseResult is the outcome of driving one case through the MCP server.
 type CaseResult struct {
@@ -228,7 +163,7 @@ func (r *Runner) RunCase(ctx context.Context, c Case, timeout time.Duration) *Ca
 			}
 			// stats.packets_sent is not persisted to the task record, so
 			// count actual packets from the pcap file.
-			if n, err := pcapPacketCount(res.PcapAbsPath); err == nil {
+			if n, err := pcaptest.PacketCount(res.PcapAbsPath); err == nil {
 				res.PacketCount = n
 			}
 			return res

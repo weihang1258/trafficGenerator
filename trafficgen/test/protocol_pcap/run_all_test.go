@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
@@ -52,8 +51,10 @@ func init() {
 	envForce = os.Getenv("CASE_FORCE") == "1"
 }
 
-// loadCases reads all cases/<proto>.json files. The cases dir defaults to the
-// package's own cases/ directory (test cwd is the package dir).
+// loadCases reads all cases/<proto>.json files and returns them keyed by
+// protocol. The loader is kept so the test can count/discover cases before
+// handing the directory to flowb_run_protocol_suite (the actual loading and
+// verification happens server-side in that tool).
 func loadCases(t *testing.T) map[string][]Case {
 	casesDir := envCasesDir
 	if !filepath.IsAbs(casesDir) && !dirExists(casesDir) {
@@ -83,15 +84,113 @@ func loadCases(t *testing.T) map[string][]Case {
 	return cases
 }
 
-// TestProtocolPcapDrive is the main driver test. It connects to the MCP
-// server, runs each case (concurrently, bounded by envParallel), verifies
-// each pcap with tshark, and writes docs/protocol-pcap-test/<proto>.md.
+// resolveCasesDir returns the absolute cases directory the suite tool should
+// read (the tool resolves relative paths against the MCP server's cwd, so the
+// test passes an explicit absolute path).
+func resolveCasesDir() string {
+	casesDir := envCasesDir
+	if !filepath.IsAbs(casesDir) && !dirExists(casesDir) {
+		casesDir = "cases"
+	}
+	if abs, err := filepath.Abs(casesDir); err == nil {
+		return abs
+	}
+	return casesDir
+}
+
+func buildSuiteArgs(caseDir string) map[string]any {
+	args := map[string]any{
+		"case_dir":      caseDir,
+		"output_type":   "pcap",
+		"output_config": map[string]any{"pcap_path": envPcapRoot},
+		"parallel":      envParallel,
+		"timeout_s":     int(envTimeout.Seconds()),
+		"max_cases":     envMaxCases,
+	}
+	if envPerProto != "" {
+		args["proto"] = envPerProto
+	}
+	return args
+}
+
+// suiteToolResult mirrors flowb_run_protocol_suite's JSON payload.
+type suiteToolResult struct {
+	Total   int             `json:"total"`
+	Pass    int             `json:"pass"`
+	Fail    int             `json:"fail"`
+	Error   int             `json:"error"`
+	PerCase []suiteToolCase `json:"per_case,omitempty"`
+}
+
+// suiteToolCase mirrors flowb_run_protocol_case's per-case verdict JSON.
+type suiteToolCase struct {
+	CaseID      string   `json:"case_id"`
+	Proto       string   `json:"proto"`
+	Summary     string   `json:"summary,omitempty"`
+	Status      string   `json:"status"`
+	Reason      string   `json:"reason,omitempty"`
+	PacketCount int      `json:"packet_count,omitempty"`
+	PcapPath    string   `json:"pcap_path,omitempty"`
+	TaskID      string   `json:"task_id,omitempty"`
+	Failures    []string `json:"failures,omitempty"`
+	DurationMs  int64    `json:"duration_ms"`
+}
+
+// runSuiteViaMCP drives flowb_run_protocol_suite through the MCP server and
+// returns the tool's aggregate results. All case loading, traffic generation,
+// terminal polling, and tshark verification happen server-side (CLAUDE.md
+// "所有测试经 MCP 执行"); this test only asserts the returned statistics.
+func runSuiteViaMCP(ctx context.Context, t *testing.T) (*suiteToolResult, error) {
+	r, err := NewRunner(ctx, envEndpoint, envAPIKey, envPcapRoot)
+	if err != nil {
+		return nil, fmt.Errorf("connect MCP: %w", err)
+	}
+	defer r.Close()
+
+	if _, err := r.Client.CallTool(ctx, "flowb_query_system", map[string]any{"action": "health"}); err != nil {
+		return nil, fmt.Errorf("MCP health check failed: %w", err)
+	}
+	// full suite（全部/数千用例）串行经一次 HTTP 往返完成，默认 2m 单请求超时
+	// 不够。按用例数预算：未设上限时给足 30m 兜底，有上限时按批次估（外层
+	// ctx 仍兜底）。
+	reqTimeout := 30 * time.Minute
+	if envMaxCases > 0 {
+		parallel := envParallel
+		if parallel < 1 {
+			parallel = 1
+		}
+		reqTimeout = envTimeout * time.Duration(max(1, envMaxCases/parallel+1))
+	}
+	r.Client.SetTimeout(reqTimeout)
+
+	args := buildSuiteArgs(resolveCasesDir())
+	raw, err := r.Client.CallTool(ctx, "flowb_run_protocol_suite", args)
+	if err != nil {
+		return nil, fmt.Errorf("run suite: %w", err)
+	}
+	var out suiteToolResult
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("parse suite result: %w (raw=%s)", err, raw)
+	}
+	return &out, nil
+}
+
+// TestProtocolPcapDrive is the main driver test. It feeds the cases directory
+// to the MCP server's flowb_run_protocol_suite tool, which loads the cases,
+// generates traffic, writes pcap files, runs tshark verification, and returns
+// aggregate pass/fail/error stats. This test asserts only those tool-returned
+// stats, so go test and any MCP client (Claude Code / external tools) run the
+// exact same assertions (CLAUDE.md "所有测试经 MCP 执行").
 //
 // Usage:
 //
-//	go test -run TestProtocolPcapDrive ./test/protocol_pcap/ -v
+//	go test -run TestProtocolPcapDrive ./test/protocol_pcap/ -v -timeout 3600s
 //	CASE_PROTO=tcp go test -run TestProtocolPcapDrive ./test/protocol_pcap/ -v
 //	CASE_MAX=5 CASE_PROTO=tcp go test ... # smoke
+//
+// The full suite (~2100 cases) needs -timeout 3600s: the server-side suite
+// takes 7-10+ minutes, and go test's default 10m budget panics mid-run
+// (test timed out after 10m0s) even though the client timeout is ample.
 func TestProtocolPcapDrive(t *testing.T) {
 	cases := loadCases(t)
 	if len(cases) == 0 {
@@ -106,80 +205,52 @@ func TestProtocolPcapDrive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
-	r, err := NewRunner(ctx, envEndpoint, envAPIKey, envPcapRoot)
+	out, err := runSuiteViaMCP(ctx, t)
 	if err != nil {
-		t.Fatalf("connect MCP: %v", err)
-	}
-	defer r.Close()
-
-	if _, err := r.Client.CallTool(ctx, "flowb_query_system", map[string]any{"action": "health"}); err != nil {
-		t.Fatalf("MCP health check failed: %v", err)
+		t.Fatalf("suite via MCP: %v", err)
 	}
 
-	type job struct {
-		proto string
-		c     Case
-	}
-	var jobs []job
-	for proto, cs := range cases {
-		for _, c := range cs {
-			if envMaxCases > 0 && len(jobs) >= envMaxCases {
-				break
-			}
-			jobs = append(jobs, job{proto, c})
+	// Convert tool verdicts into the doc-writing format.
+	results := make([]*CaseResult, len(out.PerCase))
+	for i, pc := range out.PerCase {
+		res := &CaseResult{
+			CaseID:      pc.CaseID,
+			Proto:       pc.Proto,
+			Summary:     pc.Summary,
+			Status:      pc.Status,
+			TaskID:      pc.TaskID,
+			PcapAbsPath: pc.PcapPath,
+			PacketCount: pc.PacketCount,
 		}
-		if envMaxCases > 0 && len(jobs) >= envMaxCases {
-			break
-		}
-	}
-
-	results := make([]*CaseResult, len(jobs))
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, envParallel)
-	for i, j := range jobs {
-		wg.Add(1)
-		go func(i int, j job) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			results[i] = r.RunCase(ctx, j.c, envTimeout)
-		}(i, j)
-	}
-	wg.Wait()
-
-	// Verify pcaps and classify.
-	pass, fail, errCount := 0, 0, 0
-	byProto := map[string][]*CaseResult{}
-	for i, res := range results {
-		byProto[res.Proto] = append(byProto[res.Proto], res)
-		switch res.Status {
-		case "pass":
-			// Validate-negative cases have no pcap to verify; they passed
-			// because the task errored as expected.
-			if jobs[i].c.Expect.ExpectError {
-				pass++
-				continue
-			}
-			if probs := VerifyPcap(res.PcapAbsPath, jobs[i].c); len(probs) == 0 {
-				pass++
-				res.Status = "pass"
+		if pc.PcapPath != "" {
+			if rel, derr := filepath.Rel(envPcapRoot, pc.PcapPath); derr == nil {
+				res.PcapRelPath = rel
 			} else {
-				res.Status = "fail"
-				res.Err = "verify: " + joinProbs(probs)
-				fail++
+				res.PcapRelPath = pc.PcapPath
 			}
-		case "fail":
-			fail++
-		default:
-			errCount++
 		}
+		if pc.Status != "pass" {
+			switch {
+			case len(pc.Failures) > 0:
+				res.Err = pc.Reason + ": " + joinProbs(pc.Failures)
+			case pc.Reason != "":
+				res.Err = pc.Reason
+			default:
+				res.Err = "status " + pc.Status
+			}
+		}
+		results[i] = res
 	}
 
-	if err := writeDocs(byProto, pass, fail, errCount, total); err != nil {
+	byProto := map[string][]*CaseResult{}
+	for _, res := range results {
+		byProto[res.Proto] = append(byProto[res.Proto], res)
+	}
+	if err := writeDocs(byProto, out.Pass, out.Fail, out.Error, out.Total); err != nil {
 		t.Errorf("write docs: %v", err)
 	}
 
-	t.Logf("RESULT: %d pass, %d fail, %d error (of %d)", pass, fail, errCount, total)
+	t.Logf("RESULT: %d pass, %d fail, %d error (of %d)", out.Pass, out.Fail, out.Error, out.Total)
 	for proto, rs := range byProto {
 		t.Logf("  %-8s %d/%d", proto, countStatus(rs, "pass"), len(rs))
 	}
@@ -188,14 +259,52 @@ func TestProtocolPcapDrive(t *testing.T) {
 			t.Errorf("[%s] %s: %s", res.Proto, res.CaseID, res.Err)
 		}
 	}
-	if fail+errCount > 0 {
-		t.Fatalf("%d cases failed verification or errored", fail+errCount)
+	if out.Fail+out.Error > 0 {
+		t.Fatalf("%d cases failed verification or errored", out.Fail+out.Error)
 	}
 }
 
 func dirExists(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && st.IsDir()
+}
+func TestResolveCasesDirUsesLoaderFallback(t *testing.T) {
+	old := envCasesDir
+	defer func() { envCasesDir = old }()
+	envCasesDir = "missing"
+
+	got := resolveCasesDir()
+	want, err := filepath.Abs("cases")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("resolveCasesDir() = %q, want loader fallback %q", got, want)
+	}
+}
+
+func TestBuildSuiteArgsPassesPcapRoot(t *testing.T) {
+	oldRoot, oldProto, oldParallel, oldTimeout, oldMax := envPcapRoot, envPerProto, envParallel, envTimeout, envMaxCases
+	defer func() {
+		envPcapRoot, envPerProto, envParallel, envTimeout, envMaxCases = oldRoot, oldProto, oldParallel, oldTimeout, oldMax
+	}()
+	envPcapRoot = filepath.Join(t.TempDir(), "pcaps")
+	envPerProto = "arp"
+	envParallel = 3
+	envTimeout = 17 * time.Second
+	envMaxCases = 9
+
+	args := buildSuiteArgs("/tmp/cases")
+	output, ok := args["output_config"].(map[string]any)
+	if !ok {
+		t.Fatalf("output_config = %#v, want object", args["output_config"])
+	}
+	if output["pcap_path"] != envPcapRoot {
+		t.Fatalf("output_config.pcap_path = %#v, want %q", output["pcap_path"], envPcapRoot)
+	}
+	if args["case_dir"] != "/tmp/cases" || args["proto"] != "arp" || args["parallel"] != 3 || args["max_cases"] != 9 {
+		t.Fatalf("unexpected suite args: %#v", args)
+	}
 }
 
 func countStatus(rs []*CaseResult, s string) int {
@@ -291,5 +400,3 @@ func writeDocs(byProto map[string][]*CaseResult, pass, fail, errCount, total int
 func sanitize(s string) string {
 	return strings.ReplaceAll(s, "|", "\\|")
 }
-
-var _ = context.Background

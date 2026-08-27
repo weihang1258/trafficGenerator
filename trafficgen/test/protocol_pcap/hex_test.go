@@ -25,16 +25,16 @@ func TestParseTsharkHex(t *testing.T) {
 	if len(frames) != 2 {
 		t.Fatalf("got %d frames, want 2", len(frames))
 	}
-	if frames[0].frameNo != 1 || frames[1].frameNo != 2 {
-		t.Fatalf("frame numbers = %d, %d, want 1, 2", frames[0].frameNo, frames[1].frameNo)
+	if frames[0].FrameNo != 1 || frames[1].FrameNo != 2 {
+		t.Fatalf("frame numbers = %d, %d, want 1, 2", frames[0].FrameNo, frames[1].FrameNo)
 	}
 	want := []byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x02, 0x02, 0x00, 0x00, 0x00, 0x00, 0x01, 0x08, 0x00, 0x45, 0x20,
 		0x00, 0x34, 0x23, 0x03, 0x40, 0x00, 0x40, 0x06, 0xf9, 0x9f, 0x0a, 0x00, 0x00, 0x01, 0x14, 0x00,
 		0x00, 0x01, 0x30, 0x39, 0x00, 0x50, 0x45, 0xc8, 0xf3, 0x21, 0x00, 0x00, 0x00, 0x00, 0x80, 0x02,
 		0xff, 0xff, 0xe3, 0xa0, 0x00, 0x00, 0x02, 0x04, 0x05, 0xb4, 0x03, 0x03, 0x07, 0x04, 0x02, 0x01,
 		0x01, 0x01}
-	if !bytes.Equal(frames[0].bytes, want) {
-		t.Fatalf("frame1 bytes mismatch: got %d bytes, want %d", len(frames[0].bytes), len(want))
+	if !bytes.Equal(frames[0].Bytes, want) {
+		t.Fatalf("frame1 bytes mismatch: got %d bytes, want %d", len(frames[0].Bytes), len(want))
 	}
 }
 
@@ -47,8 +47,8 @@ func TestParseTsharkHex_NoSeparatorsInAsciiGutter(t *testing.T) {
 		t.Fatalf("got %d frames, want 1", len(frames))
 	}
 	want := []byte{0x00, 0x01, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x74, 0x78, 0x74, 0x00, 0x6f, 0x63, 0x74, 0x65, 0x74, 0x00}
-	if !bytes.Equal(frames[0].bytes, want) {
-		t.Fatalf("bytes mismatch: %x vs %x", frames[0].bytes, want)
+	if !bytes.Equal(frames[0].Bytes, want) {
+		t.Fatalf("bytes mismatch: %x vs %x", frames[0].Bytes, want)
 	}
 }
 
@@ -68,13 +68,13 @@ func TestParseTsharkHex_AsciiGutterHexLookalikes(t *testing.T) {
 	// 80 wanted bytes: five 16-byte lines. The final line's hex columns end
 	// with "20" (not "65"), so its two trailing columns "65 76" are in the
 	// ASCII gutter and must NOT leak into the frame bytes.
-	if len(frames[0].bytes) != 80 {
-		t.Fatalf("got %d bytes, want 80 (gutter lookalikes must not leak in)", len(frames[0].bytes))
+	if len(frames[0].Bytes) != 80 {
+		t.Fatalf("got %d bytes, want 80 (gutter lookalikes must not leak in)", len(frames[0].Bytes))
 	}
 	want := []byte("HTTP/1.1 200 OK\r\nContent-Length: 218\r\n\r\nevent: endpoint\ndata: /mcp\n\n" +
 		"event: endpo")
-	if !bytes.Equal(frames[0].bytes, want) {
-		t.Fatalf("bytes mismatch: %q vs %q", frames[0].bytes, want)
+	if !bytes.Equal(frames[0].Bytes, want) {
+		t.Fatalf("bytes mismatch: %q vs %q", frames[0].Bytes, want)
 	}
 }
 
@@ -116,11 +116,11 @@ func TestParseTsharkHex_FiveDigitOffsets(t *testing.T) {
 	if len(frames) != 3 {
 		t.Fatalf("got %d frames, want 3 (5-digit-offset frame must not be dropped)", len(frames))
 	}
-	if !bytes.Equal(frames[1].bytes, want) {
-		t.Fatalf("frame2: got %d bytes, want %d (5-digit lines must merge into the frame)", len(frames[1].bytes), len(want))
+	if !bytes.Equal(frames[1].Bytes, want) {
+		t.Fatalf("frame2: got %d bytes, want %d (5-digit lines must merge into the frame)", len(frames[1].Bytes), len(want))
 	}
-	if len(frames[2].bytes) != 52 {
-		t.Fatalf("frame3: got %d bytes, want 52 (index shift after big frame)", len(frames[2].bytes))
+	if len(frames[2].Bytes) != 52 {
+		t.Fatalf("frame3: got %d bytes, want 52 (index shift after big frame)", len(frames[2].Bytes))
 	}
 }
 
@@ -148,13 +148,13 @@ func TestParseTsharkHex_ReassembledTCPPhantom(t *testing.T) {
 		t.Fatalf("got %d frames, want 2 (Reassembled TCP phantom must not create a 3rd)", len(frames))
 	}
 	wantLen := 64
-	if len(frames[0].bytes) != wantLen {
-		t.Fatalf("frame1: got %d bytes, want %d (phantom must not be appended)", len(frames[0].bytes), wantLen)
+	if len(frames[0].Bytes) != wantLen {
+		t.Fatalf("frame1: got %d bytes, want %d (phantom must not be appended)", len(frames[0].Bytes), wantLen)
 	}
 	// Frame 2 must start with the new segment's Ethernet header, not the
 	// phantom's first byte (0xff).
-	if frames[1].bytes[0] != 0x02 {
-		t.Fatalf("frame2: first byte = %02x, want 0x02 (phantom bytes leaked into next frame)", frames[1].bytes[0])
+	if frames[1].Bytes[0] != 0x02 {
+		t.Fatalf("frame2: first byte = %02x, want 0x02 (phantom bytes leaked into next frame)", frames[1].Bytes[0])
 	}
 }
 
@@ -179,13 +179,13 @@ func TestParseTsharkHex_DecompressedHeaderPhantom(t *testing.T) {
 	}
 	// Frame 1 ends at the original 2 dump lines (32 bytes); the decompressed
 	// header block (len 0x100 > frame len) must not be appended to it.
-	if len(frames[0].bytes) != 32 {
-		t.Fatalf("frame1: got %d bytes, want 32 (phantom must not be appended)", len(frames[0].bytes))
+	if len(frames[0].Bytes) != 32 {
+		t.Fatalf("frame1: got %d bytes, want 32 (phantom must not be appended)", len(frames[0].Bytes))
 	}
 	// Frame 2 must start with the new segment's Ethernet header, not the
 	// decompressed header's first byte (0x00).
-	if frames[1].bytes[0] != 0x02 {
-		t.Fatalf("frame2: first byte = %02x, want 0x02 (phantom bytes leaked into next frame)", frames[1].bytes[0])
+	if frames[1].Bytes[0] != 0x02 {
+		t.Fatalf("frame2: first byte = %02x, want 0x02 (phantom bytes leaked into next frame)", frames[1].Bytes[0])
 	}
 }
 
@@ -209,13 +209,13 @@ func TestParseTsharkHex_UnchunkedRTMPPhantom(t *testing.T) {
 	}
 	// Frame 1 ends at the original 2 dump lines (32 bytes); the unchunked
 	// block must not be appended to it.
-	if len(frames[0].bytes) != 32 {
-		t.Fatalf("frame1: got %d bytes, want 32 (phantom must not be appended)", len(frames[0].bytes))
+	if len(frames[0].Bytes) != 32 {
+		t.Fatalf("frame1: got %d bytes, want 32 (phantom must not be appended)", len(frames[0].Bytes))
 	}
 	// Frame 2 must start with the new segment's Ethernet header, not the
 	// unchunked payload's first byte (0x03).
-	if frames[1].bytes[0] != 0x02 {
-		t.Fatalf("frame2: first byte = %02x, want 0x02 (phantom bytes leaked into next frame)", frames[1].bytes[0])
+	if frames[1].Bytes[0] != 0x02 {
+		t.Fatalf("frame2: first byte = %02x, want 0x02 (phantom bytes leaked into next frame)", frames[1].Bytes[0])
 	}
 }
 

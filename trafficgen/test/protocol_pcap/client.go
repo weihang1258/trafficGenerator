@@ -63,6 +63,12 @@ func NewClient(ctx context.Context, endpoint, apiKey string) (*Client, error) {
 	return &Client{sess: sess, cc: cc}, nil
 }
 
+// SetTimeout adjusts the per-request HTTP timeout. The default 2m suits
+// single-case calls; suite runs over many cases need more headroom.
+func (c *Client) SetTimeout(d time.Duration) {
+	c.cc.Timeout = d
+}
+
 // Close terminates the MCP session.
 func (c *Client) Close() {
 	if c.sess == nil {
