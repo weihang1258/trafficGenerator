@@ -9,24 +9,30 @@
 
 ## T0 · 决策门（用户输入，不阻塞 T1）
 
-- [ ] **T0.1** 确认 F5【白名单单源化 + 一致性哨兵测试】——解锁 T2.5
-- [ ] **T0.2** 确认 F6【宿主模式样板化】——决定 T5 实现方式与设计文档增节
-- [ ] **T0.3** 确认 F7【用例资产 lint 进门】——影响 T3.1/T3.2 修复方式与验收第 9 条生效（未确认前按默认"修数据"路线走）
-- [ ] **T0.4** 确认 F8【失败工单 + SUMMARY 合并写】——建议在 T4 开工前落（直接决定 T4 排错效率）
+- [x] **T0.1** 确认 F5【白名单单源化 + 一致性哨兵测试】（已确认选(a) 单源+哨兵）——解锁 T2.5
+- [ ] **T0.2** 确认 F6【宿主模式样板化】（待 T5 前再确认）——决定 T5 实现方式与设计文档增节
+- [x] **T0.3** 确认 F7【用例资产 lint 进门】（已确认先修数据、lint 后置）——T3 按"修数据"主路线；lint 待 T4 前落
+- [x] **T0.4** 确认 F8【失败工单 + SUMMARY 合并写】（已确认 T4 前落）——建议在 T4 开工前落
+
+<!-- 评审注：F5 单源化涉及 extract 白名单导出定义，务必在 T2 统一评审时核查 REST/worker 引用位置不遗漏（共 4 处读取），以免"单一事实源"反而漏掉某处读取路径。 -->
 
 ## T1 · dhcpv6 接线（桶🅑，1 例）
 
-- [ ] **T1.1** `cmd/server/main.go` 波5e 注释块处补 `app.engine.RegisterPlanner(layers.NewChainPlanner("dhcpv6"))` + 自审（注释与代码一致化）
-- [ ] **T1.2** `CASE_PROTO=dhcpv6` 跑批验证 1/1 绿 → commit
+- [x] **T1.1** `cmd/server/main.go` 波5e 注释块处补 `app.engine.RegisterPlanner(layers.NewChainPlanner("dhcpv6"))` + 自审（注释与代码一致化）【commit b43b253】
+- [x] **T1.2** `CASE_PROTO=dhcpv6` 跑批验证 1/1 绿 → commit
 
-## T2 · 准入白名单补齐（桶🅑，87 例）
+> 运维提示：pcap 驱动连 `http://127.0.0.1:8081/mcp` 的 dev server（非刚编译的后端）。改 `cmd/server/*.go` 后必须先重建二进制并重启 server（停 pid→起 `nohup ./cmd/server/tg-server-new -config configs/config.dev.yaml`），否则用例仍跑旧进程。日志 `/tmp/tg-server-<user>.log`（注意原 `/tmp/tg-server-new.log` 为 root 属主不可写）。
 
-- [ ] **T2.1** REST `strategy_handler.go` 两处白名单（约 :195 与 :489）补 ldp/pcep/fins/goose/sv
-- [ ] **T2.2** worker `convert.go` ValidateTaskSpec 补 ldp/pcep/fins + s7/bgp/coap/iec104/opcua/mms
-- [ ] **T2.3** worker `convert.go` ValidateBatchSpec 同步补齐同一集合
-- [ ] **T2.4** 单协议跑批转绿：ldp(25)/pcep(24)/goose(12)/sv(12)/fins(14)，全绿后 commit
-- [ ] **T2.5**（依赖 T0.1）哨兵测试 `TestProtocolWhitelistConsistency`：REST×2 ≡ convert×2 ≡ engine 注册集，故意抽掉一项验证其能红再恢复（失败先行）
+## T2 · 准入白名单补齐（桶🅑，接线即通）
+
+- [x] **T2.1** REST `strategy_handler.go` 两处白名单 → 改引用 `core.IsAllowedProtocol`【commit b43b253 之后另行 F5 提交】
+- [x] **T2.2** worker `convert.go` ValidateTaskSpec → 改引用单一事实源
+- [x] **T2.3** worker `convert.go` ValidateBatchSpec → 改引用单一事实源
+- [x] **T2.4** 单协议跑批：单源化后 ldp 3/pcep 3/goose 1/sv 4/fins 5 突破准入（0→×），真实字段 bug 显形 → 移交 T4【见 T2.6】
+- [x] **T2.5**（依赖 T0.1）哨兵测试：`TestAllowedProtocolsStable`（锁 95 集）+ `TestNegativeOnlyPlaceholdersRejected`（锁 32 纯负向占位须继续被拒）
 - [ ] **T2.6** s7/bgp/coap/iec104/opcua/mms 白名单接通后重跑，残留真实实现 bug 移交 T4 对应条目
+
+> **T2 成果**：F5 单源化将 4 处手抄白名单收敛为 `internal/core/protocols.go` 单一 `allowedProtocols`（95 名）+ `IsAllowedProtocol()`；哨兵测试锁定完整性。验证：原四表并集 92 全保留（0 遗漏）+ engine 注册集全覆盖（0 缺失）。ldp/pcep/goose/sv/fins 从"全被 invalid protocol 拒"到"部分通过 + 字段 bug 显形"。**既有回归**：`TestStart_*` ×3 为 pre-existing（task_stale_test.go，与白名单无关）；`TestSystemProtocols_List` 是 system.go 与测试的 cflow 漂移（已顺手修复，加 cflow 到期望集）。
 
 ## T3 · 配置翻译与用例形状（桶🅒，44 例）
 

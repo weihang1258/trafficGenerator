@@ -313,10 +313,10 @@ mcp    模板 → 按 profile 选**直接承载层**：stdio→tcp（逐行 JSON
 
 以下为 P3 开工前新增的机制决策点（2026-08-27 提案，**待确认**）：
 
-- **【决策点 F5 · 提案待确认】白名单单源化 + 一致性哨兵测试**：同一协议的准入结论分散在 REST 两处表、worker convert.go 两处表、main.go 注册、registry 六道门，已实际发生漂移（commit 81cefc7 注册了 ldp/pcep planner 却因 REST 缺表被拒；dhcpv6 注释声明切链式但注册行丢失；s7/bgp/coap/iec104/opcua/mms REST 有而 worker 无）。最低限度做法：抽单一导出定义并在 CI 加哨兵断言四方集合相等；理想态做法：`RegisterPlanner` 注册即准入，删手抄表。
-- **【决策点 F6 · 提案待确认】宿主模式（carrier mode）样板化**：把"终结层直发"沉淀为两种标准样板——**ip 直发**（ip.proto=2/89/103，用于 igmp/ospf/pim）、**L2 直发**（goose/sv 为已验证先例；isis 走 eth 终结、LLC 封装细节在其各自阶段1 定稿）。样板一节补进 `18-layer-config-design.md` §5 后，四路由协议照样板实现，避免再造混合态旁路。
-- **【决策点 F7 · 提案待确认】用例资产 lint 进门**：`cases/*.json` 跑前 schema 校验（proto 必须已知、spec_json 必须是对象且键 ∈ registry、expect 字段名可被 tshark 解析）。原则：**修数据优于工具容错**——MCP `mapString` 对数组返回 nil 引爆 opcua/mms 属测例形状笔误，不靠工具兼容数组掩盖。
-- **【决策点 F8 · 提案待确认】失败工单与结果文档卫生**：pcap 驱动对 fail/error 用例自动落盘"期望断言 vs tshark 实测值"对照文件；SUMMARY 改合并写（单协议跑批不得覆盖全量汇总）。
+- **【决策点 F5 · 已确认选(a) 单源+哨兵】**白名单单源化 + 一致性哨兵测试：同一协议的准入结论分散在 REST 两处表、worker convert.go 两处表、main.go 注册、registry 六道门，已实际发生漂移（commit 81cefc7 注册了 ldp/pcep planner 却因 REST 缺表被拒；dhcpv6 注释声明切链式但注册行丢失；s7/bgp/coap/iec104/opcua/mms REST 有而 worker 无）。**确认做法**：抽一个导出定义作为唯一事实源，REST/worker 引用它；加 CI 哨兵测试锁定四方集合一致。理想态"注册即准入、删手抄表"本期不采用（改动最大、触及现有读取位置，风险与工作量最高，留作后续独立项）。
+- **【决策点 F6 · 待 T5 前再确认】**宿主模式（carrier mode）样板化：把"终结层直发"沉淀为两种标准样板——**ip 直发**（ip.proto=2/89/103，用于 igmp/ospf/pim）、**L2 直发**（goose/sv 为已验证先例；isis 走 eth 终结、LLC 封装细节在其各自阶段1 定稿）。样板一节补进 `18-layer-config-design.md` §5 后，四路由协议照样板实现，避免再造混合态旁路。
+- **【决策点 F7 · 已确认选(a) 先修数据、lint 后置】**用例资产 lint 进门：`cases/*.json` 跑前 schema 校验（proto 必须已知、spec_json 必须是对象且键 ∈ registry、expect 字段名可被 tshark 解析）。**确认做法**：T3 先按"修数据优于工具容错"原则修正 opcua/mms 形状（MCP `mapString` 对数组返回 nil 属测例形状笔误，不靠工具兼容数组掩盖）；lint 工具后置，待 T4 排错开始前再落地（避免阻塞当前改动）。
+- **【决策点 F8 · 已确认选(a) T4 前落】**失败工单与结果文档卫生：pcap 驱动对 fail/error 用例自动落盘"期望断言 vs tshark 实测值"对照文件；SUMMARY 改合并写（单协议跑批不得覆盖全量汇总）。**确认做法**：T4 排错开工前先落地工具化（显著提速条 T4 十项排错）。
 
 ---
 
