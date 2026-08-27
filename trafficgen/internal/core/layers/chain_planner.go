@@ -473,6 +473,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// SMTP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （planner.go:215 同款：SYN 的 srcPort 直传，0 也上包），
 			// 不在此默认化。
+		case "grpc":
+			// gRPC 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （planner.go 同款：SYN/HTTP2 帧 srcPort 直传，0 也上包），
+			// 不在此默认化。
 		case "tds":
 			// TDS 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （tds.go:449 同款：up 帧 srcPort 参数直传，0 也上包），
@@ -625,6 +629,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// MySQL 目的端口默认 3306（legacy DefaultPort 同款——用户显式
 			// 写 dst_port 时已非零不落此分支）。
 			spec.DstPort = 3306
+		case "grpc":
+			// gRPC 目的端口默认 8604（telemetry_8604；legacy DefaultPort
+			// 同款——用户显式写 dst_port 时已非零不落此分支，与
+			// strategy_convert mapToFlowSpec 默认一致）。
+			spec.DstPort = 8604
 		case "nfs":
 			// NFS 目的端口默认 2049（legacy Plan 用 DefaultPort，
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
@@ -1137,6 +1146,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// （端口浮动 + Non-ESP Marker 的 NAT 穿透 IKE 消息序列，build*
 		// 纯函数复用）。
 		IKENATT: spec.IKENATT,
+		// gRPC 同款（P3）：HTTP/2 preface + SETTINGS + 逐 call HEADERS/DATA/
+		// trailers 逐帧事件，buildFrame/buildDataFrameStream 纯函数复用。
+		GRPC:    spec.GRPC,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,

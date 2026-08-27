@@ -385,6 +385,10 @@ type FlowMeta struct {
 	// 端口浮动 + Non-ESP Marker 的 NAT 穿透 IKE 消息序列，buildIKENATTMessage
 	// 纯函数复用)。Only set for ike_nat_t chains。
 	IKENATT *core.IKENATTConfig
+	// GRPC is the flow's gRPC config (注入到 grpc 终结层生成器：HTTP/2
+	// preface + SETTINGS + 逐 call HEADERS/DATA/trailers 逐帧事件，buildFrame/
+	// buildDataFrameStream 纯函数复用)。Only set for grpc chains。
+	GRPC *core.GRPCConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
