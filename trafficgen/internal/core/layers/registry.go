@@ -290,6 +290,14 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "rtmfp", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
 	})
+	// ---- wireguard（udp 终结层。WireGuard——Noise_IKpsk2 发送发起/响应/
+	// cookie/传输数据报文序列）。UDP 语义（数据报/checksum）交给 udp 层
+	// 生成器；配置经 spec.WireGuard flat 键携带、FlowMeta 直传生成器（tftp
+	// 重放模式：生成器复用 legacy Plan）；目的端口默认 51820。
+	r.Register(LayerSchema{Name: "wireguard", Category: CategoryTerminal,
+		DependsOn:     []string{"udp"},
+		FieldContract: map[string]string{"udp.dst_port": "51820"}, // 用户显式非标准端口优先，不强制
+	})
 	// ---- amqp（tcp 终结层。AMQP 0-9-1——高级消息队列协议，TCP 承载的
 	// 消息队列 wire 协议，8-byte protocol header → METHOD/HEADER/BODY/
 	// HEARTBEAT frame 序列，frame layout 为

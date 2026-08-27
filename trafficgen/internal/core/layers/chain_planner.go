@@ -429,7 +429,7 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// DHCPv6 源端口 0 保持 0：终结层生成器按方向逐事件解析
 			// （up=client 546、down=server 547，dhcpv6 planner.go:435-456
 			// resolveAddrs 语义，IPv6-only 链）。
-		case "dns", "snmp", "syslog", "stun", "rtmfp":
+		case "dns", "snmp", "syslog", "stun", "rtmfp", "wireguard":
 			// 允许 0 上包（legacy 语义）
 		case "doip":
 			// DoIP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
@@ -533,6 +533,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// RTMFP 目的端口默认 1935（Adobe RTMFP 标准；strategy_convert
 			// mapToFlowSpec 同款默认——用户显式写 dst_port 时已非零不落此分支）。
 			spec.DstPort = 1935
+		case "wireguard":
+			// WireGuard 目的端口默认 51820（legacy DefaultPort=51820，
+			// strategy_convert mapToFlowSpec 同款默认——用户显式写
+			// dst_port 时已非零不落此分支）。
+			spec.DstPort = 51820
 		case "ldp":
 			spec.DstPort = 646
 		case "pcep":
@@ -1092,6 +1097,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// MySQL 同款（P3）：配置经 Meta 直传 mysql 终结层生成器（Greeting →
 		// auth → 命令逐事件产出，encode*/buildReplyPackets 纯函数复用）。
 		MySQL: spec.MySQL,
+		// WireGuard 同款（P3）：配置经 Meta 直传 wireguard 终结层生成器
+		// （UDP 数据报序列，build* 纯函数复用）。
+		WireGuard: spec.WireGuard,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,

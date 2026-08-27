@@ -366,6 +366,9 @@ type FlowMeta struct {
 	// auth → 命令/回复逐事件产出，encode* 纯函数复用)。Only set for mysql
 	// chains。
 	MySQL *core.MySQLConfig
+	// WireGuard is the flow's WireGuard config (注入到 wireguard 终结层生成器：
+	// UDP 数据报序列，build* 纯函数复用)。Only set for wireguard chains。
+	WireGuard *core.WireGuardConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
