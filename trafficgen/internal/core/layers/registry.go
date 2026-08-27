@@ -625,6 +625,11 @@ func DefaultRegistry() *Registry {
 	})
 
 	// ---- 二层层：mpls / pppoe（占位，P2 补字段）----
+	// 注意：不能照搬 gre 隧道表达——MPLS 线上格式是 Eth + 标签栈 + 内层 IP
+	// （无外层 IP 头，RFC 3031/3032），DependsOn:["ip"] 会补出错误的外层
+	// IP 头；core builder 从 L2Config.MPLS 原生写标签栈，链式表达需要新的
+	// shim 层机制，属 P2 工作项。未写生成器 → 链式配置干净拒绝
+	// （generator not implemented），legacy planner 路径不受影响。
 	r.Register(LayerSchema{Name: "mpls", Category: CategoryL2})
 	r.Register(LayerSchema{Name: "pppoe", Category: CategoryL2})
 
