@@ -128,6 +128,7 @@ func (s *Server) registerTools() {
 	s.registerUserTools()
 	s.registerAuthTools()
 	s.registerPcapTools()
+	s.registerTestDriveTools()
 	s.registerFilesystemTool()
 }
 

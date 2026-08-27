@@ -79,90 +79,27 @@ func (s *Server) registerWorkflowTools() {
 }
 
 func (s *Server) handleGenerateTraffic(ctx context.Context, req *mcp.CallToolRequest, in generateTrafficInput) (*mcp.CallToolResult, generateTrafficOutput, error) {
-	start := time.Now()
-	stratH := rest.NewStrategyHandler(s.db)
-	taskH := rest.NewTaskHandlerWithCallbacks(s.db, s.engine, nil, false)
-
-	// Step 1: create strategy (mode=synth).
-	stratBody := mustMarshal(map[string]interface{}{
-		"name":         in.TaskName,
-		"mode":         "synth",
-		"protocol":     in.Protocol,
-		"config":       in.Config,
-		"flow_control": in.StrategyFlowControl,
-	})
-	stratResp, err := s.callHandler(ctx, stratBody, "", nil, stratH.Create)
-	if err != nil {
-		s.auditLog(req, "flowb_generate_traffic", time.Since(start), "error", "create strategy: "+err.Error())
-		return nil, generateTrafficOutput{}, err
-	}
-	var stratID idResponse
-	if err := json.Unmarshal(stratResp.Data, &stratID); err != nil {
-		s.auditLog(req, "flowb_generate_traffic", time.Since(start), "error", "parse strategy id: "+err.Error())
-		return nil, generateTrafficOutput{}, &jsonrpc.Error{
-			Code:    jsonrpc.CodeInternalError,
-			Message: fmt.Sprintf("create strategy returned unparseable data: %s", string(stratResp.Data)),
+	run := s.createAndRunStrategy(ctx, req, "flowb_generate_traffic",
+		in.TaskName, in.Protocol, in.Config,
+		in.StrategyFlowControl, in.TaskFlowControl,
+		in.OutputType, in.OutputConfig)
+	if run.Err != nil {
+		// createAndRunStrategy already audit-logged each failing step. Preserve
+		// the pre-refactor partial-progress semantics: strategy_created vs
+		// created vs running.
+		status := "strategy_created"
+		if run.StrategyID != "" && run.TaskID != "" {
+			status = "created"
 		}
-	}
-	if stratID.ID == "" {
-		s.auditLog(req, "flowb_generate_traffic", time.Since(start), "error", "empty strategy id")
-		return nil, generateTrafficOutput{}, &jsonrpc.Error{
-			Code:    jsonrpc.CodeInternalError,
-			Message: fmt.Sprintf("create strategy returned empty id: %s", string(stratResp.Data)),
-		}
-	}
-
-	// Step 2: create task referencing the new strategy.
-	// On failure we return StrategyID + status="strategy_created" so the LLM
-	// can retry the task-creation step (or fall back to flowb_manage_tasks
-	// action=create with the strategy_id). This matches ReplayPcap's behavior.
-	taskBody := mustMarshal(map[string]interface{}{
-		"name":          in.TaskName,
-		"strategy_ids":  []string{stratID.ID},
-		"output_type":   in.OutputType,
-		"output_config": in.OutputConfig,
-		"flow_control":  in.TaskFlowControl,
-	})
-	taskResp, err := s.callHandler(ctx, taskBody, "", nil, taskH.Create)
-	if err != nil {
-		s.auditLog(req, "flowb_generate_traffic", time.Since(start), "error", "create task: "+err.Error())
-		return nil, generateTrafficOutput{StrategyID: stratID.ID, Status: "strategy_created"}, err
-	}
-	var taskID idResponse
-	if err := json.Unmarshal(taskResp.Data, &taskID); err != nil {
-		s.auditLog(req, "flowb_generate_traffic", time.Since(start), "error", "parse task id: "+err.Error())
-		return nil, generateTrafficOutput{StrategyID: stratID.ID, Status: "strategy_created"}, &jsonrpc.Error{
-			Code:    jsonrpc.CodeInternalError,
-			Message: fmt.Sprintf("create task returned unparseable data: %s", string(taskResp.Data)),
-		}
-	}
-	if taskID.ID == "" {
-		s.auditLog(req, "flowb_generate_traffic", time.Since(start), "error", "empty task id")
-		return nil, generateTrafficOutput{StrategyID: stratID.ID, Status: "strategy_created"}, &jsonrpc.Error{
-			Code:    jsonrpc.CodeInternalError,
-			Message: fmt.Sprintf("create task returned empty id: %s", string(taskResp.Data)),
-		}
-	}
-
-	// Step 3: start the task. The REST handler validates strategies, sets up
-	// output writers, submits engine tasks, and updates DB status to "running".
-	// R-F2 invariant (replay original/multiplier + bps task FC) is enforced
-	// inside Start via validateReplayBPSConflict -- synth mode never triggers it.
-	// On Start failure we still return task_id+strategy_id (status="created")
-	// so the LLM can retry via flowb_manage_tasks(action=start, id=task_id).
-	if _, err := s.callHandler(ctx, nil, taskID.ID, nil, taskH.Start); err != nil {
-		s.auditLog(req, "flowb_generate_traffic", time.Since(start), "error", "start task: "+err.Error())
 		return nil, generateTrafficOutput{
-			TaskID:     taskID.ID,
-			StrategyID: stratID.ID,
-			Status:     "created",
-		}, err
+			StrategyID: run.StrategyID,
+			TaskID:     run.TaskID,
+			Status:     status,
+		}, run.Err
 	}
-
-	s.auditLog(req, "flowb_generate_traffic", time.Since(start), "success", "")
 	return nil, generateTrafficOutput{
-		TaskID:     taskID.ID,
-		StrategyID: stratID.ID,
+		StrategyID: run.StrategyID,
+		TaskID:     run.TaskID,
 		Status:     "running",
 	}, nil
 }
