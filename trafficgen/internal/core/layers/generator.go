@@ -393,6 +393,9 @@ type FlowMeta struct {
 	// + KEXINIT/KEXDH + NEWKEYS + userauth + channel 逐 BPP 帧事件，
 	// encode*/buildBPP 纯函数复用)。Only set for ssh chains。
 	SSH *core.SSHConfig
+	// RDP is the flow's RDP config (注入到 rdp 终结层生成器：X.224/MCS/security
+	// PDU 序列逐帧事件，encode* 纯函数复用)。Only set for rdp chains。
+	RDP *core.RDPConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators

@@ -481,6 +481,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// SSH 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （planner.go 同款：SYN/BPP 帧 srcPort 直传，0 也上包），
 			// 不在此默认化。
+		case "rdp":
+			// RDP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （planner.go 同款：SYN/PDU 帧 srcPort 直传，0 也上包），
+			// 不在此默认化。
 		case "tds":
 			// TDS 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （tds.go:449 同款：up 帧 srcPort 参数直传，0 也上包），
@@ -643,6 +647,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// mapToFlowSpec 同款默认——用户显式写 dst_port 时已非零不落
 			// 此分支）。
 			spec.DstPort = 22
+		case "rdp":
+			// RDP 目的端口默认 3389（MS-RDPBCGR §1.3；legacy Validate 强制
+			// DstPort 必须 0 或 3389——用户显式写 3389 不落此分支，写其它
+			// 值由 rdp Validate 拒绝）。
+			spec.DstPort = 3389
 		case "nfs":
 			// NFS 目的端口默认 2049（legacy Plan 用 DefaultPort，
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
@@ -1161,6 +1170,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// SSH 同款（P3）：version exchange + KEXINIT/KEXDH + NEWKEYS + userauth
 		// + channel 逐 BPP 帧事件，encode*/buildBPP 纯函数复用。
 		SSH:     spec.SSH,
+		// RDP 同款（P3）：X.224/MCS/security PDU 序列逐帧事件，encode* 纯函数
+		// 复用。Only set for rdp chains。
+		RDP:     spec.RDP,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,
