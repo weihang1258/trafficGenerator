@@ -362,6 +362,10 @@ type FlowMeta struct {
 	// 命令/literal/IDLE 逐事件产出，formatCommandLine/constructMIMEBody 纯
 	// 函数复用)。Only set for imap chains。
 	IMAP *core.IMAPConfig
+	// MySQL is the flow's MySQL config (注入到 mysql 终结层生成器：Greeting →
+	// auth → 命令/回复逐事件产出，encode* 纯函数复用)。Only set for mysql
+	// chains。
+	MySQL *core.MySQLConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators

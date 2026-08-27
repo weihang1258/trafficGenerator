@@ -458,6 +458,9 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 		case "imap":
 			// IMAP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （emitData/emit 直传，0 也上包），不在此默认化。
+		case "mysql":
+			// MySQL 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （emitMySQLUp/Down 直传，0 也上包），不在此默认化。
 		case "nfs":
 			// NFS 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （planSession 430-442 同款：emit 的 srcPort 参数直传，0 也
@@ -589,6 +592,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// IMAP 目的端口默认 143（RFC 3501，legacy DefaultPort=143 同款——
 			// 用户显式写 dst_port 时已非零不落此分支）。
 			spec.DstPort = 143
+		case "mysql":
+			// MySQL 目的端口默认 3306（legacy DefaultPort 同款——用户显式
+			// 写 dst_port 时已非零不落此分支）。
+			spec.DstPort = 3306
 		case "nfs":
 			// NFS 目的端口默认 2049（legacy Plan 用 DefaultPort，
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
@@ -1082,6 +1089,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// IMAP 同款（P3）：配置经 Meta 直传 imap 终结层生成器（greeting +
 		// 命令/literal/IDLE 逐事件产出，formatCommandLine 纯函数复用）。
 		IMAP: spec.IMAP,
+		// MySQL 同款（P3）：配置经 Meta 直传 mysql 终结层生成器（Greeting →
+		// auth → 命令逐事件产出，encode*/buildReplyPackets 纯函数复用）。
+		MySQL: spec.MySQL,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,

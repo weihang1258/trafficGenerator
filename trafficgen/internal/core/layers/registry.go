@@ -605,6 +605,10 @@ func DefaultRegistry() *Registry {
 		OptionalOn:    []string{"tls"},
 		FieldContract: map[string]string{"tcp.dst_port": "143"}, // RFC 3501 默认 143；用户显式非标准端口优先（IMAPS 993），不强制
 	})
+	r.Register(LayerSchema{Name: "mysql", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "3306"}, // MySQL 默认 3306；用户显式非标准端口优先，不强制
+	})
 
 	// ---- 隧道层（tunnel）----
 	r.Register(LayerSchema{Name: "tls", Category: CategoryTunnel,
