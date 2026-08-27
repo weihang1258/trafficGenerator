@@ -71,7 +71,19 @@
   - 根因：对象头 Object-Type 位错位(bit6-7→高nibble 0xF0)+各对象 body 布局错误+LSP/SRP class 错(21/24→32/33)+stateful TLV flag 位错(0x80→0x01/0x02)，对照 packet-pcep.c 逐一修正
   - 校验补全：object_length 须>=4且4对齐 / 拒 unknown 事件 / address family 文案
   - **剩 2 例需设计确认**：①`pcep_neg_session_id`(open c2s SID7/s2c SID99)——设计与正例 open_keepalive(c2s7/s2c8 也是"不一致"却合法)冲突，按"不同 SID 即拒"会破坏正例，SID 语义需设计仲裁；②`pcep_multi_session`(spec_json 顶层 sessions[] 数组)——层链 `[tcp,pcep]` 读 spec.PCEP=nil→"config is required"，sessions 结构解析缺口(集群⑦)
-- [ ] **T4.2** goose 过严校验器（簇③）
+- [x] **T4.2** goose 过严校验器（簇③）【commit 0eeee5e + 6ebf59a + 063c7d9 + 待提交】
+  - 根因：mapToFlowSpec 给 L2-only 链（goose/sv）填默认 src_ip/dst_ip/
+    src_port/dst_port（10.0.0.1/20.0.0.1/12345/80 假值），被 "L2 only" 校验
+    拒收——框架级"链式补层冲突"。修复：L2-only 协议不填默认 + 顶层 count 回填。
+  - chain_planner: goose/sv Emit 保留生成器 VLAN，不 l2For 覆盖。
+  - 编码对齐 Wireshark packet-goose.c：多类型 allData（boolean/int/uint/
+    float/bit_string/visible_string/binary_time/utc_time）、PDU tag 0x85-0x89
+    修正、INTEG 最小编码、bit_string 左对齐（bit_length）、FLOAT32 IEC
+    5 字节（0x08 前缀 + IEEE 754）、goID 缺省回填 gocbRef。
+  - event_seq 重传状态机（stNum++/sqNum 复位 0/重传帧）+ sqNum 连续性
+    校验（neg_sqnum 该拒已拒）+ stNum/sqNum 溢出文案。
+  - **结果：1/12 → 12/12 全绿**；回归测试 L2 默认值/顶层 count/重传序列/
+    bit_string 编码/neg_sqnum 拒收。
 - [ ] **T4.3** sv 链式 L2 冲突（簇③，兼为 T5 探路）
 - [ ] **T4.4** fins 剩余：BCD 时钟编码 + 多会话上限（1 例产品修 + 2 例并入 T3）
 - [ ] **T4.5** ldp 分簇清扫：⑤事件词汇 → ④字段编码 → UDP hello 子路径 → ⑥补校验

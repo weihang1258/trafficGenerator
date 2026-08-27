@@ -233,12 +233,14 @@ func bitStringVal(v interface{}, bitLength int) []byte {
 	return append([]byte{byte(unused)}, raw...)
 }
 
-// encodeFloat32 encodes an IEC 61850 FLOAT32 (format-width 32, exponent-width 8)
-// per design §3.7: length 5, 1 exponent sign + 1 mantissa sign + 6 exponent +
-// 4 mantissa bytes. Uses IEEE 754 single-precision bits.
+// encodeFloat32 encodes an IEC 61850 FLOAT32 / FloatingPoint member
+// (Wireshark dissect_goose_FloatingPoint): 5 bytes, first byte = exponent
+// width (SINGLE_FLOAT_EXP_BITS=0x08) followed by 4 bytes IEEE 754
+// single-precision. Wireshark reads bytes 1-4 as IEEE 754 when byte0==8,
+// populating goose.float_value. So the 5-byte value for 2.5 = 08 40 20 00 00.
 func encodeFloat32(v float32) []byte {
 	bits := math.Float32bits(v)
-	return []byte{byte(bits >> 24), byte(bits >> 16), byte(bits >> 8), byte(bits)}
+	return []byte{0x08, byte(bits >> 24), byte(bits >> 16), byte(bits >> 8), byte(bits)}
 }
 
 // binaryTimeVal returns a 6-byte binary time (design §3.6 0x8C).

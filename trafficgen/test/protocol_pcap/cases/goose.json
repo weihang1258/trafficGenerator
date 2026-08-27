@@ -769,7 +769,7 @@
         },
         {
           "packet": 1,
-          "field": "goose.real",
+          "field": "goose.float_value",
           "value": "2.5"
         }
       ],
