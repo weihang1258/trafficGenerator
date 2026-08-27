@@ -354,6 +354,10 @@ type FlowMeta struct {
 	// 2/3 会话逐帧事件，encodeRESPArray/encodeSubConfirm/resolveReply 纯
 	// 函数复用)。Only set for redis chains。
 	Redis *core.RedisConfig
+	// POP3 is the flow's POP3 config (注入到 pop3 终结层生成器：banner +
+	// 命令/响应对逐事件产出，buildMailDropResponse/buildTopResponse 纯函数
+	// 复用)。Only set for pop3 chains。
+	POP3 *core.POP3Config
 }
 
 // SessionState is the per-flow state shared by all layer generators

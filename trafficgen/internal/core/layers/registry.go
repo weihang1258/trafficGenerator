@@ -595,6 +595,11 @@ func DefaultRegistry() *Registry {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "6379"}, // RFC 默认 6379；用户显式非标准端口优先，不强制
 	})
+	r.Register(LayerSchema{Name: "pop3", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		OptionalOn:    []string{"tls"},
+		FieldContract: map[string]string{"tcp.dst_port": "110"}, // RFC 1939 默认 110；用户显式非标准端口优先（POP3S 995），不强制
+	})
 
 	// ---- 隧道层（tunnel）----
 	r.Register(LayerSchema{Name: "tls", Category: CategoryTunnel,

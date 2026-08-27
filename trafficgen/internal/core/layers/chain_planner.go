@@ -452,6 +452,9 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 		case "redis":
 			// Redis 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （emitData 闭包直传 spec.SrcPort，0 也上包），不在此默认化。
+		case "pop3":
+			// POP3 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
+			// （emitData/emit 直传，0 也上包），不在此默认化。
 		case "nfs":
 			// NFS 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （planSession 430-442 同款：emit 的 srcPort 参数直传，0 也
@@ -575,6 +578,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
 			// dst_port 时已非零不落此分支）。
 			spec.DstPort = 6379
+		case "pop3":
+			// POP3 目的端口默认 110（RFC 1939，legacy DefaultPort 同款——
+			// 用户显式写 dst_port 时已非零不落此分支）。
+			spec.DstPort = 110
 		case "nfs":
 			// NFS 目的端口默认 2049（legacy Plan 用 DefaultPort，
 			// strategy_convert mapToFlowSpec 同款默认——用户显式写
@@ -1062,6 +1069,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// Redis 同款（P3）：配置经 Meta 直传 redis 终结层生成器（RESP 会话
 		// 逐帧事件，encodeRESP* 纯函数复用）。
 		Redis: spec.Redis,
+		// POP3 同款（P3）：配置经 Meta 直传 pop3 终结层生成器（banner + 命令/
+		// 响应对逐事件产出，buildMailDropResponse/buildTopResponse 纯函数复用）。
+		POP3: spec.POP3,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,
