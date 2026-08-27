@@ -675,6 +675,10 @@ func DefaultRegistry() *Registry {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "443"}, // VMess 默认 443（V2Ray 惯例）；用户显式非标准端口优先，不强制
 	})
+	r.Register(LayerSchema{Name: "shadowsocks", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "8388"}, // Shadowsocks 默认 8388；用户显式非标准端口优先，不强制
+	})
 
 	// ---- 隧道层（tunnel）----
 	r.Register(LayerSchema{Name: "tls", Category: CategoryTunnel,

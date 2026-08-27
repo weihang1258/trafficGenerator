@@ -404,6 +404,10 @@ type FlowMeta struct {
 	// request/response AEAD 帧序列，build* 纯函数复用)。Only set for vmess
 	// chains。
 	Vmess *core.VmessConfig
+	// Shadowsocks is the flow's Shadowsocks config (注入到 shadowsocks 终结层
+	// 生成器：TCP-mode AEAD 帧序列 + 可选 SOCKS5/HTTP 混淆，build* 纯函数复用)。
+	// Only set for shadowsocks chains。
+	Shadowsocks *core.ShadowsocksConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
