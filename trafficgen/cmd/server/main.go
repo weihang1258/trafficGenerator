@@ -451,6 +451,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ssdp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dhcp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("dhcpv6"))
 	app.engine.RegisterPlanner(sv.NewPlanner())
 	app.engine.RegisterPlanner(goose.NewPlanner())
 	app.engine.RegisterPlanner(icmp.NewPlanner())
