@@ -50,7 +50,7 @@ type SSHGenerator struct{}
 func (g *SSHGenerator) Name() string { return "ssh" }
 
 // Generate produces one message event per SSH wire frame in legacy Plan order
-//（server version → client version → KEXINIT → KEXDH → NEWKEYS → [EXT_INFO] →
+// （server version → client version → KEXINIT → KEXDH → NEWKEYS → [EXT_INFO] →
 // SERVICE → USERAUTH → channel → [DISCONNECT]）。TCP 层生成器负责握手/seq-ack/
 // 挥手/MSS 分段。
 func (g *SSHGenerator) Generate(ctx context.Context, req *layers.GenRequest) error {
