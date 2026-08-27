@@ -306,6 +306,16 @@ func DefaultRegistry() *Registry {
 		DependsOn:     []string{"udp"},
 		FieldContract: map[string]string{"udp.dst_port": "1701"}, // RFC 2661 默认 1701；用户显式非标准端口优先，不强制
 	})
+	// ---- openvpn（udp 终结层。OpenVPN——UDP 承载的加密隧道协议，P_CONTROL/
+	// P_DATA 数据报序列，wire 字节由 build* 纯函数产出）。UDP 语义交给 udp 层
+	// 生成器；配置经 spec.OpenVPN flat 键携带、FlowMeta 直传生成器（tftp 重放
+	// 模式）。default proto=udp（端口 1194）；proto=tcp 链上不支持（OpenVPN-
+	// over-TCP 用 2 字节长度前缀 + TLS 包裹，udp 层无等价物）——validator 显式
+	// 拒绝 TCP 模式。
+	r.Register(LayerSchema{Name: "openvpn", Category: CategoryTerminal,
+		DependsOn:     []string{"udp"},
+		FieldContract: map[string]string{"udp.dst_port": "1194"}, // OpenVPN 默认 1194；用户显式非标准端口优先，不强制
+	})
 	// ---- gtp（udp 终结层。GTP-U/GTP-C——UDP 承载的隧道协议，GTP header +
 	// 内层 IP 包，wire 字节由 buildGTPMessage/buildInnerIPv4Packet 纯函数
 	// 产出）。UDP 语义交给 udp 层生成器；配置经 spec.GTP flat 键携带、

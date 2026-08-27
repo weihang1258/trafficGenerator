@@ -555,6 +555,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// effectiveDstPort==0→DefaultPort 同款——validate 返回明确值，
 			// 用户显式写 dst_port 时已非零不落此分支）。
 			spec.DstPort = 1701
+		case "openvpn":
+			// OpenVPN 目的端口默认 1194（legacy DefaultPort=1194，
+			// strategy_convert mapToFlowSpec 同款默认——用户显式写
+			// dst_port 时已非零不落此分支）。
+			spec.DstPort = 1194
 		case "gtp":
 			// GTP 目的端口按平面默认（TS 29.281 §5.1 / TS 29.060 §6）：
 			// Mode=c → 2123，其余（u/空）→ 2152。legacy Plan 内
@@ -1173,6 +1178,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// RDP 同款（P3）：X.224/MCS/security PDU 序列逐帧事件，encode* 纯函数
 		// 复用。Only set for rdp chains。
 		RDP:     spec.RDP,
+		// OpenVPN 同款（P3）：UDP 数据报序列 P_CONTROL/P_DATA 事件，
+		// build* 纯函数复用。Only set for openvpn chains。
+		OpenVPN: spec.OpenVPN,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,

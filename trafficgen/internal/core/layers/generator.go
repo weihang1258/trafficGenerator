@@ -396,6 +396,10 @@ type FlowMeta struct {
 	// RDP is the flow's RDP config (注入到 rdp 终结层生成器：X.224/MCS/security
 	// PDU 序列逐帧事件，encode* 纯函数复用)。Only set for rdp chains。
 	RDP *core.RDPConfig
+	// OpenVPN is the flow's OpenVPN config (注入到 openvpn 终结层生成器：UDP
+	// 数据报序列 P_CONTROL/P_DATA，build* 纯函数复用)。Only set for openvpn
+	// chains。
+	OpenVPN *core.OpenVPNConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
