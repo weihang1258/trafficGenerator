@@ -1081,10 +1081,18 @@ type GOOSEEventSeq struct {
 
 // SVData describes one integer sampled-value channel.
 type SVData struct {
-	Name    string `json:"name,omitempty"`
-	Type    string `json:"type"`
-	InstMag int32  `json:"inst_mag,omitempty"`
-	Quality uint32 `json:"quality,omitempty"`
+	Name    string  `json:"name,omitempty"`
+	Type    string  `json:"type"`
+	InstMag int32   `json:"inst_mag,omitempty"`
+	// InstMagF holds the float value for float32 channels (inst_mag as a
+	// float, e.g. 1.5). The encoder emits its IEEE 754 single-precision bits.
+	InstMagF float32 `json:"-"`
+	Quality  uint32  `json:"quality,omitempty"`
+	// HasQuality reports whether the quality field was explicitly provided.
+	// When set, the seqData member is 8 bytes (value+quality); when absent,
+	// 4 bytes (value only) — non-9-2LE custom datasets omit per-channel
+	// quality (sv_custom_dataset).
+	HasQuality bool `json:"-"`
 }
 
 // SVConfig configures a minimal IEC 61850-9-2 sampled-values stream.

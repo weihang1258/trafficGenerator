@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"math"
+
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
 	"time"
@@ -40,8 +42,8 @@ func validate(s core.FlowSpec) error {
 		return fmt.Errorf("sv data is required")
 	}
 	for _, d := range c.Data {
-		if d.Type != "int32" {
-			return fmt.Errorf("sv data type %q unsupported; only int32 is supported", d.Type)
+		if d.Type != "int32" && d.Type != "float32" {
+			return fmt.Errorf("sv data type %q unsupported; only int32 and float32 are supported", d.Type)
 		}
 	}
 	if s.SrcIP != "" || s.DstIP != "" || s.SrcPort != 0 || s.DstPort != 0 {
@@ -64,8 +66,12 @@ func (*Planner) Plan(ctx context.Context, s core.FlowSpec) (<-chan core.PacketCo
 	out := make(chan core.PacketConfig, n)
 	go func() {
 		defer close(out)
+		step := 1
+		if c.DoubleSend {
+			step = 2
+		}
 		for i := 0; i < n; i++ {
-			p, err := packet(s, c, uint16(i%int(c.SamplesPerCycle)))
+			p, err := packet(s, c, uint16((i/step)%int(c.SamplesPerCycle)))
 			if err != nil {
 				return
 			}
@@ -73,13 +79,6 @@ func (*Planner) Plan(ctx context.Context, s core.FlowSpec) (<-chan core.PacketCo
 			case out <- p:
 			case <-ctx.Done():
 				return
-			}
-			if c.DoubleSend {
-				select {
-				case out <- p:
-				case <-ctx.Done():
-					return
-				}
 			}
 		}
 	}()
@@ -111,29 +110,45 @@ func BuildPayload(c *core.SVConfig, cnt uint16) ([]byte, error) {
 	if c == nil {
 		return nil, fmt.Errorf("sv config is required")
 	}
-	asdu := []byte{}
-	asdu = append(asdu, tlv(0x80, []byte(c.SVID))...)
-	asdu = append(asdu, tlv(0x81, []byte(c.DatSet))...)
+	asduFields := []byte{}
+	asduFields = append(asduFields, tlv(0x80, []byte(c.SVID))...)
+	if c.DatSet != "" {
+		asduFields = append(asduFields, tlv(0x81, []byte(c.DatSet))...)
+	}
 	var x [2]byte
 	binary.BigEndian.PutUint16(x[:], cnt)
-	asdu = append(asdu, tlv(0x82, x[:])...)
+	asduFields = append(asduFields, tlv(0x82, x[:])...)
 	var r [4]byte
 	binary.BigEndian.PutUint32(r[:], c.ConfRev)
-	asdu = append(asdu, tlv(0x83, r[:])...)
-	asdu = append(asdu, tlv(0x85, []byte{c.SMPSynch})...)
+	asduFields = append(asduFields, tlv(0x83, r[:])...)
+	asduFields = append(asduFields, tlv(0x85, []byte{c.SMPSynch})...)
 	if c.SMPRate > 0 {
 		binary.BigEndian.PutUint16(x[:], c.SMPRate)
-		asdu = append(asdu, tlv(0x86, x[:])...)
+		asduFields = append(asduFields, tlv(0x86, x[:])...)
 	}
-	data := make([]byte, 0, len(c.Data)*4)
+	// seqData: 每通道值 4 字节 + 可选 quality 4 字节。带 quality 的通道为
+	// 8 字节（标准 9-2LE，4i4v）；无 quality 的通道为 4 字节（非 9-2LE
+	// 自定义数据集，sv_custom_dataset）。float32 通道值按 IEEE 754 单精度
+	// 字节（tests/sv.json 1.5=0x3fc00000）。
+	data := make([]byte, 0, len(c.Data)*8)
 	for _, d := range c.Data {
 		var v [4]byte
-		binary.BigEndian.PutUint32(v[:], uint32(d.InstMag))
+		if d.Type == "float32" {
+			binary.BigEndian.PutUint32(v[:], math.Float32bits(d.InstMagF))
+		} else {
+			binary.BigEndian.PutUint32(v[:], uint32(d.InstMag))
+		}
 		data = append(data, v[:]...)
+		if d.HasQuality {
+			var q [4]byte
+			binary.BigEndian.PutUint32(q[:], d.Quality)
+			data = append(data, q[:]...)
+		}
 	}
-	asdu = append(asdu, tlv(0x87, data)...)
-	body := tlv(0x30, asdu)
-	apdu := tlv(0x60, append(tlv(0x80, []byte{1}), body...))
+	asduFields = append(asduFields, tlv(0x87, data)...)
+	asdu := tlv(0x30, asduFields)
+	seqASDU := tlv(0xa2, asdu)
+	apdu := tlv(0x60, append(tlv(0x80, []byte{1}), seqASDU...))
 	p := make([]byte, 8)
 	binary.BigEndian.PutUint16(p[:2], c.APPID)
 	binary.BigEndian.PutUint16(p[2:4], uint16(len(p)+len(apdu)))
@@ -153,18 +168,21 @@ func (g *Generator) Generate(ctx context.Context, req *layers.GenRequest) error 
 	if n <= 0 {
 		n = 1
 	}
+	// double_send: 每样本连发 2 帧（同一 smpCnt），frame count = c.Count。
+	// 样本索引按步进分组：no-double 每帧即一样本；double 两帧共享一
+	// 样本（smpCnt 0,0,1,1,...）。总帧数恒为 n。
+	step := 1
+	if c.DoubleSend {
+		step = 2
+	}
 	for i := 0; i < n; i++ {
-		p, e := packet(core.FlowSpec{SrcMAC: req.Meta.SrcMAC}, *c, uint16(i%int(c.SamplesPerCycle)))
+		sampleIdx := uint16((i / step) % int(c.SamplesPerCycle))
+		p, e := packet(core.FlowSpec{SrcMAC: req.Meta.SrcMAC}, *c, sampleIdx)
 		if e != nil {
 			return e
 		}
 		if e = req.Emit(p); e != nil {
 			return e
-		}
-		if c.DoubleSend {
-			if e = req.Emit(p); e != nil {
-				return e
-			}
 		}
 	}
 	return nil

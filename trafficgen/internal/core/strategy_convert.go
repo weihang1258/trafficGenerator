@@ -7612,7 +7612,15 @@ func parseSVConfig(m map[string]interface{}) *SVConfig {
 	if a, ok := m["data"].([]interface{}); ok {
 		for _, v := range a {
 			if x, ok := v.(map[string]interface{}); ok {
-				c.Data = append(c.Data, SVData{Name: getString(x, "name"), Type: getString(x, "type"), InstMag: int32(getInt(x, "inst_mag")), Quality: uint32(getInt(x, "quality"))})
+				typ := getString(x, "type")
+				d := SVData{Name: getString(x, "name"), Type: typ, InstMag: int32(getInt(x, "inst_mag")), Quality: uint32(getInt(x, "quality"))}
+				if _, ok := x["quality"]; ok {
+					d.HasQuality = true
+				}
+				if typ == "float32" {
+					d.InstMagF = float32(getFloat64(x, "inst_mag"))
+				}
+				c.Data = append(c.Data, d)
 			}
 		}
 	}

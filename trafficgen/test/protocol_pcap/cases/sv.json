@@ -7,8 +7,12 @@
       "count": 3,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -22,39 +26,139 @@
         "dst_mac": "01:0c:cd:04:00:01",
         "vlan_enabled": false,
         "data": [
-          {"name": "I_A", "type": "int32", "quality": 0},
-          {"name": "I_B", "type": "int32", "quality": 0},
-          {"name": "I_C", "type": "int32", "quality": 0},
-          {"name": "I_N", "type": "int32", "quality": 0},
-          {"name": "V_A", "type": "int32", "quality": 0},
-          {"name": "V_B", "type": "int32", "quality": 0},
-          {"name": "V_C", "type": "int32", "quality": 0},
-          {"name": "V_N", "type": "int32", "quality": 0}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "quality": 0
+          },
+          {
+            "name": "I_B",
+            "type": "int32",
+            "quality": 0
+          },
+          {
+            "name": "I_C",
+            "type": "int32",
+            "quality": 0
+          },
+          {
+            "name": "I_N",
+            "type": "int32",
+            "quality": 0
+          },
+          {
+            "name": "V_A",
+            "type": "int32",
+            "quality": 0
+          },
+          {
+            "name": "V_B",
+            "type": "int32",
+            "quality": 0
+          },
+          {
+            "name": "V_C",
+            "type": "int32",
+            "quality": 0
+          },
+          {
+            "name": "V_N",
+            "type": "int32",
+            "quality": 0
+          }
         ]
       }
     },
     "expect": {
       "packet_count": 3,
       "fields": [
-        { "packet": 1, "field": "sv.appid", "value": "0x4000" },
-        { "packet": 1, "field": "sv.length", "value": "112" },
-        { "packet": 1, "field": "sv.reserve1", "value": "0" },
-        { "packet": 1, "field": "sv.reserve2", "value": "0" },
-        { "packet": 1, "field": "sv.svID", "value": "xxxxMUnn01" },
-        { "packet": 1, "field": "sv.smpCnt", "value": "0" },
-        { "packet": 2, "field": "sv.smpCnt", "value": "1" },
-        { "packet": 3, "field": "sv.smpCnt", "value": "2" },
-        { "packet": 1, "field": "sv.confRev", "value": "1" },
-        { "packet": 2, "field": "sv.confRev", "same_as_packet": 1 },
-        { "packet": 1, "field": "sv.smpSynch", "value": "2" },
-        { "packet": 1, "field": "sv.smpRate", "value": "4000" },
-        { "packet": 1, "field": "sv.noASDU", "value": "1" }
+        {
+          "packet": 1,
+          "field": "sv.appid",
+          "value": "0x4000"
+        },
+        {
+          "packet": 1,
+          "field": "sv.length",
+          "value": "112"
+        },
+        {
+          "packet": 1,
+          "field": "sv.reserve1",
+          "value": "0x0000"
+        },
+        {
+          "packet": 1,
+          "field": "sv.reserve2",
+          "value": "0x0000"
+        },
+        {
+          "packet": 1,
+          "field": "sv.svID",
+          "value": "xxxxMUnn01"
+        },
+        {
+          "packet": 1,
+          "field": "sv.smpCnt",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "sv.smpCnt",
+          "value": "1"
+        },
+        {
+          "packet": 3,
+          "field": "sv.smpCnt",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "sv.confRev",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "sv.confRev",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 1,
+          "field": "sv.smpSynch",
+          "value": "2"
+        },
+        {
+          "packet": 1,
+          "field": "sv.smpRate",
+          "value": "4000"
+        },
+        {
+          "packet": 1,
+          "field": "sv.noASDU",
+          "value": "1"
+        }
       ],
       "frames": [
-        { "packet": 1, "offset": 14, "hex": "40 00 00 70 00 00 00 00" },
-        { "packet": 1, "offset": 22, "hex": "60 66 80 01 01 a2 61 30 5f" },
-        { "packet": 1, "offset": 31, "hex": "80 0a 78 78 78 78 4d 55 6e 6e 30 31" },
-        { "packet": 1, "offset": 43, "hex": "82 02 00 00 83 04 00 00 00 01 85 01 02 86 02 0f a0 87 40" }
+        {
+          "packet": 1,
+          "offset": 14,
+          "hex": "40 00 00 70 00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 22,
+          "hex": "60 66 80 01 01 a2 61 30 5f"
+        },
+        {
+          "packet": 1,
+          "offset": 31,
+          "hex": "80 0a 78 78 78 78 4d 55 6e 6e 30 31"
+        },
+        {
+          "packet": 1,
+          "offset": 43,
+          "hex": "82 02 00 00 83 04 00 00 00 01 85 01 02 86 02 0f a0 87 40"
+        }
       ],
       "notes": [
         "frame = 14 eth + 8 SV hdr + 104 APDU = 126B; SV Length field counts from APPID: 8 + 104 = 112 = 0x70 (10B svID; old 4B-SV01 template was wrong, see sv_4i4v/sv_custom_dataset frames renumbered +6/+12)",
@@ -70,8 +174,12 @@
       "count": 6,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -84,28 +192,84 @@
         "double_send": true,
         "vlan_enabled": false,
         "data": [
-          {"name": "I_A", "type": "int32", "quality": 0}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "quality": 0
+          }
         ]
       }
     },
     "expect": {
       "packet_count": 6,
       "fields": [
-        { "packet": 1, "field": "sv.smpCnt", "value": "0" },
-        { "packet": 2, "field": "sv.smpCnt", "value": "0" },
-        { "packet": 3, "field": "sv.smpCnt", "value": "1" },
-        { "packet": 4, "field": "sv.smpCnt", "value": "1" },
-        { "packet": 5, "field": "sv.smpCnt", "value": "2" },
-        { "packet": 6, "field": "sv.smpCnt", "value": "2" },
-        { "packet": 2, "field": "sv.confRev", "same_as_packet": 1 }
+        {
+          "packet": 1,
+          "field": "sv.smpCnt",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "sv.smpCnt",
+          "value": "0"
+        },
+        {
+          "packet": 3,
+          "field": "sv.smpCnt",
+          "value": "1"
+        },
+        {
+          "packet": 4,
+          "field": "sv.smpCnt",
+          "value": "1"
+        },
+        {
+          "packet": 5,
+          "field": "sv.smpCnt",
+          "value": "2"
+        },
+        {
+          "packet": 6,
+          "field": "sv.smpCnt",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "sv.confRev",
+          "same_as_packet": 1
+        }
       ],
       "frames": [
-        { "packet": 1, "offset": 0, "hex": "01 0c cd 04 00 01" },
-        { "packet": 1, "offset": 14, "hex": "40 00 00 38 00 00 00 00" },
-        { "packet": 1, "offset": 22, "hex": "60 2e 80 01 01 a2 29 30 27" },
-        { "packet": 2, "offset": 0, "hex": "01 0c cd 04 00 01" },
-        { "packet": 2, "offset": 14, "hex": "40 00 00 38 00 00 00 00" },
-        { "packet": 2, "offset": 22, "hex": "60 2e 80 01 01 a2 29 30 27" }
+        {
+          "packet": 1,
+          "offset": 0,
+          "hex": "01 0c cd 04 00 01"
+        },
+        {
+          "packet": 1,
+          "offset": 14,
+          "hex": "40 00 00 38 00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 22,
+          "hex": "60 2e 80 01 01 a2 29 30 27"
+        },
+        {
+          "packet": 2,
+          "offset": 0,
+          "hex": "01 0c cd 04 00 01"
+        },
+        {
+          "packet": 2,
+          "offset": 14,
+          "hex": "40 00 00 38 00 00 00 00"
+        },
+        {
+          "packet": 2,
+          "offset": 22,
+          "hex": "60 2e 80 01 01 a2 29 30 27"
+        }
       ],
       "notes": [
         "same smpCnt twice = redundancy report; the two frames differ only in frame number, content bytes identical (design §4.6/§6.2)",
@@ -121,8 +285,12 @@
       "count": 6,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -135,19 +303,47 @@
         "double_send": false,
         "vlan_enabled": false,
         "data": [
-          {"name": "I_A", "type": "int32", "quality": 0}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "quality": 0
+          }
         ]
       }
     },
     "expect": {
       "packet_count": 6,
       "fields": [
-        { "packet": 1, "field": "sv.smpCnt", "value": "0" },
-        { "packet": 2, "field": "sv.smpCnt", "value": "1" },
-        { "packet": 3, "field": "sv.smpCnt", "value": "2" },
-        { "packet": 4, "field": "sv.smpCnt", "value": "3" },
-        { "packet": 5, "field": "sv.smpCnt", "value": "0" },
-        { "packet": 6, "field": "sv.smpCnt", "value": "1" }
+        {
+          "packet": 1,
+          "field": "sv.smpCnt",
+          "value": "0"
+        },
+        {
+          "packet": 2,
+          "field": "sv.smpCnt",
+          "value": "1"
+        },
+        {
+          "packet": 3,
+          "field": "sv.smpCnt",
+          "value": "2"
+        },
+        {
+          "packet": 4,
+          "field": "sv.smpCnt",
+          "value": "3"
+        },
+        {
+          "packet": 5,
+          "field": "sv.smpCnt",
+          "value": "0"
+        },
+        {
+          "packet": 6,
+          "field": "sv.smpCnt",
+          "value": "1"
+        }
       ],
       "notes": [
         "wrap is samples_per_cycle-1 -> 0, never reaching samples_per_cycle (4); stream continues after wrap (design §4.3/§6.3)",
@@ -163,8 +359,12 @@
       "count": 3,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -174,7 +374,11 @@
         "smp_synch": 2,
         "vlan_enabled": false,
         "data": [
-          {"name": "I_A", "type": "int32", "quality": 0}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "quality": 0
+          }
         ]
       }
     },
@@ -195,8 +399,12 @@
       "count": 4,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -209,17 +417,37 @@
         "double_send": false,
         "vlan_enabled": false,
         "data": [
-          {"name": "I_A", "type": "int32", "quality": 0}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "quality": 0
+          }
         ]
       }
     },
     "expect": {
       "min_packets": 4,
       "fields": [
-        { "packet": 1, "field": "sv.smpSynch", "value": "2" },
-        { "packet": 2, "field": "sv.smpSynch", "same_as_packet": 1 },
-        { "packet": 3, "field": "sv.smpSynch", "same_as_packet": 1 },
-        { "packet": 4, "field": "sv.smpSynch", "same_as_packet": 1 }
+        {
+          "packet": 1,
+          "field": "sv.smpSynch",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "sv.smpSynch",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 3,
+          "field": "sv.smpSynch",
+          "same_as_packet": 1
+        },
+        {
+          "packet": 4,
+          "field": "sv.smpSynch",
+          "same_as_packet": 1
+        }
       ],
       "notes": [
         "smpSynch 2 = global clock (PTP synchronized); value is stable per-frame, not an event (design §4.4/§6.4)",
@@ -235,8 +463,12 @@
       "count": 3,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -246,7 +478,11 @@
         "smp_synch": 5,
         "vlan_enabled": false,
         "data": [
-          {"name": "I_A", "type": "int32", "quality": 0}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "quality": 0
+          }
         ]
       }
     },
@@ -267,8 +503,12 @@
       "count": 1,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -281,30 +521,102 @@
         "double_send": false,
         "vlan_enabled": false,
         "data": [
-          {"name": "I_A", "type": "int32", "quality": 0, "inst_mag": 30},
-          {"name": "I_B", "type": "int32", "quality": 0, "inst_mag": 45},
-          {"name": "I_C", "type": "int32", "quality": 0, "inst_mag": 60},
-          {"name": "I_N", "type": "int32", "quality": 0, "inst_mag": 75},
-          {"name": "V_A", "type": "int32", "quality": 0, "inst_mag": 90},
-          {"name": "V_B", "type": "int32", "quality": 0, "inst_mag": 105},
-          {"name": "V_C", "type": "int32", "quality": 0, "inst_mag": 120},
-          {"name": "V_N", "type": "int32", "quality": 0, "inst_mag": 135}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "quality": 0,
+            "inst_mag": 30
+          },
+          {
+            "name": "I_B",
+            "type": "int32",
+            "quality": 0,
+            "inst_mag": 45
+          },
+          {
+            "name": "I_C",
+            "type": "int32",
+            "quality": 0,
+            "inst_mag": 60
+          },
+          {
+            "name": "I_N",
+            "type": "int32",
+            "quality": 0,
+            "inst_mag": 75
+          },
+          {
+            "name": "V_A",
+            "type": "int32",
+            "quality": 0,
+            "inst_mag": 90
+          },
+          {
+            "name": "V_B",
+            "type": "int32",
+            "quality": 0,
+            "inst_mag": 105
+          },
+          {
+            "name": "V_C",
+            "type": "int32",
+            "quality": 0,
+            "inst_mag": 120
+          },
+          {
+            "name": "V_N",
+            "type": "int32",
+            "quality": 0,
+            "inst_mag": 135
+          }
         ]
       }
     },
     "expect": {
       "min_packets": 1,
       "fields": [
-        { "packet": 1, "field": "eth.type", "value": "0x88ba" },
-        { "packet": 1, "field": "frame.protocols", "value": "eth:sv" },
-        { "packet": 1, "field": "sv.smpCnt", "value": "0" }
+        {
+          "packet": 1,
+          "field": "eth.type",
+          "value": "0x88ba"
+        },
+        {
+          "packet": 1,
+          "field": "frame.protocols",
+          "value": "eth:ethertype:sv"
+        },
+        {
+          "packet": 1,
+          "field": "sv.smpCnt",
+          "value": "0"
+        }
       ],
       "frames": [
-        { "packet": 1, "offset": 12, "hex": "88 ba" },
-        { "packet": 1, "offset": 60, "hex": "87 40" },
-        { "packet": 1, "offset": 62, "hex": "00 00 00 1e 00 00 00 00 00 00 00 2d 00 00 00 00" },
-        { "packet": 1, "offset": 94, "hex": "00 00 00 5a 00 00 00 00 00 00 00 69 00 00 00 00" },
-        { "packet": 1, "offset": 118, "hex": "00 00 00 87 00 00 00 00" }
+        {
+          "packet": 1,
+          "offset": 12,
+          "hex": "88 ba"
+        },
+        {
+          "packet": 1,
+          "offset": 60,
+          "hex": "87 40"
+        },
+        {
+          "packet": 1,
+          "offset": 62,
+          "hex": "00 00 00 1e 00 00 00 00 00 00 00 2d 00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 94,
+          "hex": "00 00 00 5a 00 00 00 00 00 00 00 69 00 00 00 00"
+        },
+        {
+          "packet": 1,
+          "offset": 118,
+          "hex": "00 00 00 87 00 00 00 00"
+        }
       ],
       "notes": [
         "no-IP proof: offset 12 is EtherType 0x88ba (not 0x0800/0x86dd), frame.protocols == eth:sv with no ip segment (design §6.7)",
@@ -322,8 +634,12 @@
       "count": 1,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -335,20 +651,44 @@
         "double_send": false,
         "vlan_enabled": false,
         "data": [
-          {"name": "I_A", "type": "int32", "inst_mag": 30},
-          {"name": "V_A", "type": "float32", "inst_mag": 1.5}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "inst_mag": 30
+          },
+          {
+            "name": "V_A",
+            "type": "float32",
+            "inst_mag": 1.5
+          }
         ]
       }
     },
     "expect": {
       "min_packets": 1,
       "fields": [
-        { "packet": 1, "field": "sv.svID", "value": "xxxxMUnn01" },
-        { "packet": 1, "field": "sv.smpCnt", "value": "0" },
-        { "packet": 1, "field": "sv.smpSynch", "value": "2" }
+        {
+          "packet": 1,
+          "field": "sv.svID",
+          "value": "xxxxMUnn01"
+        },
+        {
+          "packet": 1,
+          "field": "sv.smpCnt",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "sv.smpSynch",
+          "value": "2"
+        }
       ],
       "frames": [
-        { "packet": 1, "offset": 56, "hex": "87 08 00 00 00 1e 3f c0 00 00" }
+        {
+          "packet": 1,
+          "offset": 56,
+          "hex": "87 08 00 00 00 1e 3f c0 00 00"
+        }
       ],
       "notes": [
         "no smpRate config -> the 0x86 field is absent entirely; FrameAssert offset 56 shows seqData tag 0x87 directly after smpSynch (no 0x86 between) (design §6.6)",
@@ -366,8 +706,12 @@
       "count": 1,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -382,20 +726,44 @@
         "vlan_id": 100,
         "vlan_priority": 4,
         "data": [
-          {"name": "I_A", "type": "int32", "quality": 0}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "quality": 0
+          }
         ]
       }
     },
     "expect": {
       "min_packets": 1,
       "fields": [
-        { "packet": 1, "field": "vlan.id", "value": "100" },
-        { "packet": 1, "field": "vlan.priority", "value": "4" },
-        { "packet": 1, "field": "eth.type", "value": "0x88ba" },
-        { "packet": 1, "field": "frame.protocols", "value": "eth:vlan:sv" }
+        {
+          "packet": 1,
+          "field": "vlan.id",
+          "value": "100"
+        },
+        {
+          "packet": 1,
+          "field": "vlan.priority",
+          "value": "4"
+        },
+        {
+          "packet": 1,
+          "field": "vlan.etype",
+          "value": "0x88ba"
+        },
+        {
+          "packet": 1,
+          "field": "frame.protocols",
+          "value": "eth:ethertype:vlan:ethertype:sv"
+        }
       ],
       "frames": [
-        { "packet": 1, "offset": 12, "hex": "81 00 80 64 88 ba" }
+        {
+          "packet": 1,
+          "offset": 12,
+          "hex": "81 00 80 64 88 ba"
+        }
       ],
       "notes": [
         "TCI = priority(4)<<13 + DEI(0)<<12 + VID(100) = 0x8000 + 0x64 = 0x8064 (design §2.2/§6.8)",
@@ -411,8 +779,12 @@
       "count": 100,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -425,14 +797,22 @@
         "double_send": false,
         "vlan_enabled": false,
         "data": [
-          {"name": "I_A", "type": "int32", "quality": 0}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "quality": 0
+          }
         ]
       }
     },
     "expect": {
       "min_packets": 100,
       "fields": [
-        { "packet": 1, "field": "sv.smpCnt", "value": "0" }
+        {
+          "packet": 1,
+          "field": "sv.smpCnt",
+          "value": "0"
+        }
       ],
       "notes": [
         "100 frames at period 250us; captures of long streams assert frame.time_delta ~250us (+/- tolerance) and frame.time_relative monotonic (design §4.8/§6.9)",
@@ -448,8 +828,12 @@
       "count": 3,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -459,7 +843,11 @@
         "smp_synch": 2,
         "vlan_enabled": false,
         "data": [
-          {"name": "I_A", "type": "int32", "quality": 0}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "quality": 0
+          }
         ]
       }
     },
@@ -480,8 +868,12 @@
       "count": 3,
       "src_mac": "aa:bb:cc:dd:ee:03",
       "layers": [
-        { "eth": {} },
-        { "sv": {} }
+        {
+          "eth": {}
+        },
+        {
+          "sv": {}
+        }
       ],
       "sv": {
         "sv_id": "xxxxMUnn01",
@@ -491,7 +883,11 @@
         "smp_synch": 2,
         "vlan_enabled": false,
         "data": [
-          {"name": "I_A", "type": "int32", "quality": 0}
+          {
+            "name": "I_A",
+            "type": "int32",
+            "quality": 0
+          }
         ]
       }
     },

@@ -139,10 +139,33 @@ func TestGeneratorSVEmitsEventAndDoubleSend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 4 {
+	// double_send = frame count (2)，每样本连发两帧（同一 smpCnt）。
+	if len(got) != 2 {
 		t.Fatalf("events=%d", len(got))
 	}
 	if got[0].L2.EtherType != core.EtherTypeSV || got[1].Payload[8] != got[0].Payload[8] {
 		t.Fatalf("double-send mismatch")
+	}
+}
+
+// TestBuildPayloadSeqDataQualityDependentLayout verifies the seqData member
+// size depends on whether a channel carries quality: with quality -> 8 bytes
+// (value+quality, standard 9-2LE); without -> 4 bytes (value only, non-9-2LE
+// custom dataset). Guards sv_4i4v (8B) vs sv_custom_dataset (4B).
+func TestBuildPayloadSeqDataQualityDependentLayout(t *testing.T) {
+	noQ := validSV()
+	noQ.Data[0].InstMag = 0x1e
+	p, _ := BuildPayload(noQ, 0)
+	if !bytes.Contains(p, []byte{0x87, 0x04, 0x00, 0x00, 0x00, 0x1e}) {
+		t.Fatalf("no-quality seqData=%x", p)
+	}
+
+	withQ := validSV()
+	withQ.Data[0].InstMag = 0x1e
+	withQ.Data[0].HasQuality = true
+	withQ.Data[0].Quality = 0
+	p2, _ := BuildPayload(withQ, 0)
+	if !bytes.Contains(p2, []byte{0x87, 0x08, 0x00, 0x00, 0x00, 0x1e, 0x00, 0x00, 0x00, 0x00}) {
+		t.Fatalf("with-quality seqData=%x", p2)
 	}
 }
