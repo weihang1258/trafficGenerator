@@ -98,7 +98,7 @@ func ValidateProtocolSubConfigs(cfg map[string]interface{}, protocol string) err
 				return fmt.Errorf("arp.operation %d invalid (must be 0-65535)", o)
 			}
 		}
-	case "http", "ftp", "sip":
+	case "http", "ftp", "sip", "amqp":
 		// HTTP/FTP/SIP run over TCP (SIP also over UDP). MSS for payload
 		// segmentation is governed by tcp.mss — validate here so users
 		// can't smuggle out-of-range values past validation (the tcp case

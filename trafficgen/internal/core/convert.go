@@ -109,12 +109,13 @@ func ValidateTask(task Task) error {
 	}
 
 	validProtocols := map[string]bool{
-		"tcp":    true,
-		"udp":    true,
-		"http":   true,
-		"dns":    true,
-		"icmp":   true,
-		"arp":    true,
+		"tcp":   true,
+		"udp":   true,
+		"http":  true,
+		"dns":   true,
+		"icmp":  true,
+		"arp":   true,
+		"goose": true, "sv": true,
 		"ftp":    true,
 		"sip":    true,
 		"sctp":   true,
@@ -136,9 +137,12 @@ func ValidateTask(task Task) error {
 		"ngap":     true,
 		"srv6":     true,
 		"gbt32960": true,
-		"tftp": true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
+		"tftp":     true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
 		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
-		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true,
+		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true, "stun": true, "cflow": true, "moxa": true, "someip": true, "drda": true, "thrift": true, "tns": true, "mongodb": true, "dameng": true, "kingbase": true, "cql": true,
+		"http_flv": true, "hls": true, "hds": true,
+		"rtmfp":    true,
+		"amqp":     true,
 	}
 
 	if !validProtocols[task.Protocol] {
@@ -158,7 +162,7 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		return fmt.Errorf("batch must contain at least one traffic class")
 	}
 	validProtocols := map[string]bool{
-		"tcp": true, "udp": true, "http": true, "dns": true, "icmp": true, "arp": true,
+		"tcp": true, "udp": true, "http": true, "dns": true, "icmp": true, "arp": true, "goose": true, "sv": true,
 		"ftp": true, "sip": true, "sctp": true, "icmpv6": true, "rtsp": true,
 		"replay": true,
 		// L7 protocol planners registered in cmd/server/main.go.
@@ -177,9 +181,12 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		"ngap":     true,
 		"srv6":     true,
 		"gbt32960": true,
-		"tftp": true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
+		"tftp":     true, "modbus": true, "mqtt": true, "dnp3": true, "rip": true,
 		"smb": true, "nfs": true, "tds": true, "doip": true, "enip": true,
-		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true,
+		"jt808": true, "jt809": true, "jtt905": true, "a2a": true, "mcp": true, "mcpprotocol": true, "stun": true, "cflow": true, "moxa": true, "someip": true, "drda": true, "thrift": true, "tns": true, "mongodb": true, "dameng": true, "kingbase": true, "cql": true,
+		"http_flv": true, "hls": true, "hds": true,
+		"rtmfp":    true,
+		"amqp":     true,
 	}
 	seenIDs := make(map[string]bool)
 	for i, c := range batch.Classes {

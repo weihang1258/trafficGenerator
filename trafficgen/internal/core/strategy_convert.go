@@ -214,6 +214,30 @@ func StrategyModelToTask(taskModel *storage.TaskModel, strategy *storage.Strateg
 // src_port, the worker auto-increments src_port per flow (simulating ephemeral
 // ports). This prevents 4-tuple collisions that confuse Wireshark. See
 // worker.go processTask for the increment logic.
+// extractLayerSrcDst returns the explicit src/dst addresses from the ip layer
+// of a layers-chain config (分层架构: IP 属于 ip 层，层链的 IP 真相在
+// layers[ip].src/dst，而 flat src_ip/dst_ip 是 legacy 默认). Returns empty
+// strings for chains that do not explicitly write ip.src/dst. layersVal is the
+// decoded "layers" array: []interface{}{map[string]interface{}{"ip": {...}}, ...}.
+func extractLayerSrcDst(layersVal interface{}) (src, dst string) {
+	arr, _ := layersVal.([]interface{})
+	for _, item := range arr {
+		layer, _ := item.(map[string]interface{})
+		ipCfg, _ := layer["ip"].(map[string]interface{})
+		if ipCfg == nil {
+			continue
+		}
+		if s, _ := ipCfg["src"].(string); s != "" {
+			src = s
+		}
+		if d, _ := ipCfg["dst"].(string); d != "" {
+			dst = d
+		}
+		return src, dst
+	}
+	return "", ""
+}
+
 func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	spec := FlowSpec{
 		SrcIP:      defaultString(cfg, "src_ip", DefaultSrcIP),
@@ -235,6 +259,21 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	// Track whether user explicitly provided src_port (for multi-flow auto-increment)
 	if _, ok := cfg["src_port"]; ok && cfg["src_port"] != nil {
 		spec.HasExplicitSrcPort = true
+	}
+
+	// 层链 IP 真相在 layers[ip].src/dst（分层架构：IP 属于 ip 层）。flat
+	// src_ip/dst_ip 是 legacy 默认（10.0.0.1/20.0.0.1），层链显式写 ip 层
+	// src/dst（含 IPv6）时必须以此为准，否则默认 IPv4 会顶掉层里的显式
+	// IPv6 地址（EtherType 也据此选 IPv6）。空值保留 spec 默认。
+	if layersVal, ok := cfg["layers"]; ok {
+		if src, dst := extractLayerSrcDst(layersVal); src != "" || dst != "" {
+			if src != "" {
+				spec.SrcIP = src
+			}
+			if dst != "" {
+				spec.DstIP = dst
+			}
+		}
 	}
 
 	// VLAN
@@ -362,6 +401,88 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 
 	// Protocol-specific config
 	switch protocol {
+	case "stun":
+		if sub, ok := cfg["stun"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v STUNConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "stun: "+err.Error())
+				} else {
+					spec.STUN = &v
+				}
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 3478
+		}
+	case "rtmfp":
+			if sub, ok := cfg["rtmfp"].(map[string]interface{}); ok {
+				if raw, err := json.Marshal(sub); err == nil {
+					var v RTMFPConfig
+					if err := json.Unmarshal(raw, &v); err != nil {
+						spec.ValidationErrors = append(spec.ValidationErrors, "rtmfp: "+err.Error())
+					} else {
+						spec.RTMFP = &v
+					}
+				}
+			}
+			// RTMFP (Adobe Real-Time Media Flow Protocol) 默认端口 1935.
+			// 仅当用户未指定 dst_port 时覆盖 — 与 DNS/FTP/SIP/RTSP 模式一致.
+			if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+				spec.DstPort = 1935
+			}
+	case "amqp":
+		if sub, ok := cfg["amqp"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v AMQPConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "amqp: "+err.Error())
+				} else {
+					spec.AMQP = &v
+				}
+			}
+		}
+		// AMQP (Advanced Message Queuing Protocol) 默认端口 5672.
+		// 仅当用户未指定 dst_port 时覆盖 — 与 DNS/FTP/SIP/RTSP 模式一致.
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 5672
+		}
+	case "http_flv":
+		if sub, ok := cfg["http_flv"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v HTTPFLVConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "http_flv: "+err.Error())
+				} else {
+					spec.HTTPFLV = &v
+				}
+			}
+		}
+		// http_flv 依赖 http 层，目的端口 80 默认由 http 层处理，不在此默认化。
+	case "hls":
+		if sub, ok := cfg["hls"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v HLSConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "hls: "+err.Error())
+				} else {
+					spec.HLS = &v
+				}
+			}
+		}
+		// hls 依赖 http 层，目的端口 80 默认由 http 层处理，不在此默认化。
+	case "hds":
+		if sub, ok := cfg["hds"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v HDSConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "hds: "+err.Error())
+				} else {
+					spec.HDS = &v
+				}
+			}
+		}
+		// hds 依赖 http 层，目的端口 80 默认由 http 层处理，不在此默认化。
 	case "tcp":
 		// TCP sub-config already read above; nothing protocol-specific to add.
 	case "udp":
@@ -391,6 +512,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				TargetMAC: getString(sub, "target_mac"),
 				TargetIP:  getString(sub, "target_ip"),
 			}
+		}
+	case "goose":
+		if sub, ok := cfg["goose"].(map[string]interface{}); ok {
+			spec.GOOSE = parseGOOSEConfig(sub)
+		}
+	case "sv":
+		if sub, ok := cfg["sv"].(map[string]interface{}); ok {
+			spec.SV = parseSVConfig(sub)
 		}
 	case "ftp":
 		// FTP sub-config already read in the universal section above.
@@ -964,6 +1093,93 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				spec.Payload = raw
 			}
 		}
+	case "mms":
+		if sub, ok := cfg["mms"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v MMSConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "mms: "+err.Error())
+			} else {
+				spec.MMS = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 102
+		}
+	case "opcua":
+		if sub, ok := cfg["opcua"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v OPCUAConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "opcua: "+err.Error())
+			} else {
+				spec.OPCUA = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 4840
+		}
+	case "s7":
+		if sub, ok := cfg["s7"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v S7Config
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "s7: "+err.Error())
+			} else {
+				spec.S7 = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 102
+		}
+	case "iec104":
+		if sub, ok := cfg["iec104"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v IEC104Config
+				if json.Unmarshal(raw, &v) == nil {
+					spec.IEC104 = &v
+				}
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 2404
+		}
+	case "bgp":
+		if sub, ok := cfg["bgp"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v BGPConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "bgp: "+err.Error())
+				} else {
+					spec.BGP = &v
+				}
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 179
+		}
+	case "coap":
+		if sub, ok := cfg["coap"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var coap CoAPConfig
+				if json.Unmarshal(raw, &coap) == nil {
+					spec.CoAP = &coap
+				}
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 5683
+		}
+	case "fins":
+		if sub, ok := cfg["fins"].(map[string]interface{}); ok {
+			if spec.Metadata == nil {
+				spec.Metadata = make(map[string]interface{})
+			}
+			spec.Metadata["fins"] = sub
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 9600
+		}
 	case "nfs":
 		// The NFS planner reads *NFSConfig from FlowSpec.Metadata["nfs"].
 		// core cannot import protocol/nfs, so the raw JSON-decoded sub-map
@@ -976,6 +1192,126 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 2049
+		}
+	case "moxa":
+		if sub, ok := cfg["moxa"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v MOXAConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "moxa: "+err.Error())
+			} else {
+				spec.MOXA = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 4800
+		}
+	case "someip":
+		if sub, ok := cfg["someip"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v SOMEIPConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "someip: "+err.Error())
+			} else {
+				spec.SOMEIP = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 30490
+		}
+	case "tns":
+		if sub, ok := cfg["tns"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v TNSConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "tns: "+err.Error())
+			} else {
+				spec.TNS = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1521
+		}
+	case "mongodb":
+		if sub, ok := cfg["mongodb"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v MongoDBConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "mongodb: "+err.Error())
+			} else {
+				spec.MongoDB = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 27017
+		}
+	case "dameng":
+		if sub, ok := cfg["dameng"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v DamengConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "dameng: "+err.Error())
+			} else {
+				spec.Dameng = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 5236
+		}
+		// case "kingbase" 已收敛：kingbase 不再独立解析，改由 postgresql 层 +
+		// dialect=kingbase 表达（18-layer-config-design.md §2.2/§4.3/§7 F4）。
+		// 配置走 case "postgresql"（spec.PostgreSQL，dialect=kingbase）。
+	case "cql":
+		if sub, ok := cfg["cql"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v CQLConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "cql: "+err.Error())
+			} else {
+				spec.CQL = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 9042
+		}
+	case "ldp":
+		if sub, ok := cfg["ldp"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v LDPConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "ldp: "+err.Error())
+			} else {
+				spec.LDP = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 646
+		}
+	case "pcep":
+		if sub, ok := cfg["pcep"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v PCEPConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "pcep: "+err.Error())
+			} else {
+				spec.PCEP = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 4189
+		}
+	case "cflow":
+		if sub, ok := cfg["cflow"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v CFlowConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "cflow: "+err.Error())
+			} else {
+				spec.CFlow = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 2055
 		}
 	}
 
@@ -3645,8 +3981,102 @@ func parsePostgreSQLConfig(m map[string]interface{}) *PostgreSQLConfig {
 		WALDataSize:         getInt(m, "wal_data_size"),
 		EmitHandshake:       getBoolPtr(m, "emit_handshake"),
 		EmitTeardown:        getBoolPtr(m, "emit_teardown"),
+		Dialect:             getString(m, "dialect"),
+		WireProfile:         getString(m, "wire_profile"),
+		Events:              parsePostgreSQLEvents(m["events"]),
+		Sessions:            parsePostgreSQLSessions(m["sessions"]),
+		WireFault:           rawMessageFrom(m, "wire_fault"),
 	}
 	return cfg
+}
+
+// parsePostgreSQLEvents converts the JSON-decoded "events" value (an array of
+// {kind, direction, profile, authtype, name, value, pid, secret, sql, tag, ...}
+// objects) into a []PostgreSQLEvent for the shared postgresql layer's
+// event-driven generator. Returns nil for absent/non-array input.
+func parsePostgreSQLEvents(v interface{}) []PostgreSQLEvent {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]PostgreSQLEvent, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		ev := PostgreSQLEvent{
+			Kind:      getString(m, "kind"),
+			Direction: getString(m, "direction"),
+			Profile:   getString(m, "profile"),
+			User:      getString(m, "user"),
+			Database:  getString(m, "database"),
+			Result:    getString(m, "result"),
+			SQL:       getString(m, "sql"),
+			Tag:       getString(m, "tag"),
+			Name:      getString(m, "name"),
+			Value:     getString(m, "value"),
+			PID:       int32(getInt(m, "pid")),
+			Secret:    int32(getInt(m, "secret")),
+		}
+		if _, ok := m["authtype"]; ok {
+			at := int32(getInt(m, "authtype"))
+			ev.Authtype = &at
+		}
+		out = append(out, ev)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parsePostgreSQLSessions converts the JSON-decoded "sessions" value (an array
+// of {src_port, events} objects) into a []PostgreSQLSession. Returns nil for
+// absent/non-array input.
+func parsePostgreSQLSessions(v interface{}) []PostgreSQLSession {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]PostgreSQLSession, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		evs := parsePostgreSQLEvents(m["events"])
+		out = append(out, PostgreSQLSession{
+			SrcPort: uint16(getInt(m, "src_port")),
+			Events:  evs,
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// rawMessageFrom extracts a json.RawMessage from m[key] when present (map or
+// raw JSON string). Returns nil when absent/null.
+func rawMessageFrom(m map[string]interface{}, key string) json.RawMessage {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return nil
+	}
+	switch val := v.(type) {
+	case map[string]interface{}:
+		if b, err := json.Marshal(val); err == nil {
+			return b
+		}
+	case string:
+		if val != "" {
+			return json.RawMessage(val)
+		}
+	case json.RawMessage:
+		return val
+	}
+	return nil
 }
 
 func parsePGOperations(v interface{}) []PGOperation {
@@ -4300,9 +4730,9 @@ func parseMQTTSessions(v interface{}) []MQTTSession {
 			continue
 		}
 		s := MQTTSession{
-			ClientID:          getString(m, "client_id"),
-			Username:          getString(m, "username"),
-			Password:          getString(m, "password"),
+			ClientID: getString(m, "client_id"),
+			Username: getString(m, "username"),
+			Password: getString(m, "password"),
 			// Bug fix: PingAfterMessages is now *bool on MQTTSession so a
 			// session can explicitly override top-level true→false. nil
 			// means "inherit" (do not pass a default), so use getBoolPtr
@@ -6349,22 +6779,22 @@ func parseMODBUSOperations(v interface{}) []MODBUSOperation {
 			continue
 		}
 		op := MODBUSOperation{
-			FunctionCode:   uint8(getInt(m, "function_code")),
-			ExceptionCode:  uint8(getInt(m, "exception_code")),
+			FunctionCode:    uint8(getInt(m, "function_code")),
+			ExceptionCode:   uint8(getInt(m, "exception_code")),
 			StartingAddress: getUint16(m, "starting_address"),
-			Quantity:       getUint16(m, "quantity"),
-			ReadAddress:    getUint16(m, "read_address"),
-			WriteAddress:   getUint16(m, "write_address"),
-			ReadQuantity:   getUint16(m, "read_quantity"),
-			WriteQuantity:  getUint16(m, "write_quantity"),
-			WriteValue:     getUint16(m, "write_value"),
-			Values:         getByteSlice(m, "values"),
-			ResponseValues: getByteSlice(m, "response_values"),
-			SubFunction:    getUint16(m, "sub_function"),
-			MaskAnd:        getUint16(m, "mask_and"),
-			MaskOr:         getUint16(m, "mask_or"),
-			ResponseMode:   getString(m, "response_mode"),
-			Direction:      getString(m, "direction"),
+			Quantity:        getUint16(m, "quantity"),
+			ReadAddress:     getUint16(m, "read_address"),
+			WriteAddress:    getUint16(m, "write_address"),
+			ReadQuantity:    getUint16(m, "read_quantity"),
+			WriteQuantity:   getUint16(m, "write_quantity"),
+			WriteValue:      getUint16(m, "write_value"),
+			Values:          getByteSlice(m, "values"),
+			ResponseValues:  getByteSlice(m, "response_values"),
+			SubFunction:     getUint16(m, "sub_function"),
+			MaskAnd:         getUint16(m, "mask_and"),
+			MaskOr:          getUint16(m, "mask_or"),
+			ResponseMode:    getString(m, "response_mode"),
+			Direction:       getString(m, "direction"),
 		}
 		if op.FunctionCode == 0x2B && len(op.Values) == 0 {
 			// §3.3.17: derive the mandatory Read Device ID Code + Object ID
@@ -6824,7 +7254,6 @@ func parseENIPConfig(m map[string]interface{}) *ENIPConfig {
 	}
 }
 
-
 // parseDoIPUDS parses the uds sub-map of a DoIP message.
 func parseDoIPUDS(v interface{}) *DoIPUDS {
 	m, ok := v.(map[string]interface{})
@@ -6832,18 +7261,18 @@ func parseDoIPUDS(v interface{}) *DoIPUDS {
 		return nil
 	}
 	return &DoIPUDS{
-		ServiceID:             uint8(getInt(m, "service_id")),
-		IsResponse:            getBool(m, "is_response", false),
-		HasSubFunction:        getBoolPtr(m, "has_sub_function"),
-		SubFunction:           uint8(getInt(m, "sub_function")),
-		DID:                   getByteSlice(m, "did"),
-		Data:                  getHexBytes(m, "data"),
-		AddressAndLength:      getHexBytes(m, "address_and_length"),
-		BlockSequenceCounter:  uint8(getInt(m, "block_sequence_counter")),
-		TransferData:          getHexBytes(m, "transfer_data"),
-		Seed:                  getByteSlice(m, "seed"),
-		Key:                   getByteSlice(m, "key"),
-		NegativeResponseCode:  uint8(getInt(m, "negative_response_code")),
+		ServiceID:            uint8(getInt(m, "service_id")),
+		IsResponse:           getBool(m, "is_response", false),
+		HasSubFunction:       getBoolPtr(m, "has_sub_function"),
+		SubFunction:          uint8(getInt(m, "sub_function")),
+		DID:                  getByteSlice(m, "did"),
+		Data:                 getHexBytes(m, "data"),
+		AddressAndLength:     getHexBytes(m, "address_and_length"),
+		BlockSequenceCounter: uint8(getInt(m, "block_sequence_counter")),
+		TransferData:         getHexBytes(m, "transfer_data"),
+		Seed:                 getByteSlice(m, "seed"),
+		Key:                  getByteSlice(m, "key"),
+		NegativeResponseCode: uint8(getInt(m, "negative_response_code")),
 	}
 }
 
@@ -6865,13 +7294,13 @@ func parseDoIPMessages(v interface{}) []DoIPMessage {
 			nackPtr = &n
 		}
 		out = append(out, DoIPMessage{
-			Direction:      getString(m, "direction"),
-			SourceAddress:  getUint16(m, "source_address"),
-			TargetAddress:  getUint16(m, "target_address"),
-			AckCode:        uint8(getInt(m, "ack_code")),
-			NackCode:       nackPtr,
-			UserData:       getByteSlice(m, "user_data"),
-			UDS:            parseDoIPUDS(m["uds"]),
+			Direction:     getString(m, "direction"),
+			SourceAddress: getUint16(m, "source_address"),
+			TargetAddress: getUint16(m, "target_address"),
+			AckCode:       uint8(getInt(m, "ack_code")),
+			NackCode:      nackPtr,
+			UserData:      getByteSlice(m, "user_data"),
+			UDS:           parseDoIPUDS(m["uds"]),
 		})
 	}
 	if len(out) == 0 {
@@ -6887,12 +7316,12 @@ func parseDoIPDiscovery(v interface{}) *DoIPDiscovery {
 		return nil
 	}
 	return &DoIPDiscovery{
-		Direction:           getString(m, "direction"),
-		RequestType:         getUint16(m, "request_type"),
-		Broadcast:           getBool(m, "broadcast", false),
-		AnnouncementCount:   uint8(getInt(m, "announcement_count")),
+		Direction:             getString(m, "direction"),
+		RequestType:           getUint16(m, "request_type"),
+		Broadcast:             getBool(m, "broadcast", false),
+		AnnouncementCount:     uint8(getInt(m, "announcement_count")),
 		FurtherActionRequired: uint8(getInt(m, "further_action_required")),
-		SyncStatus:          uint8(getInt(m, "sync_status")),
+		SyncStatus:            uint8(getInt(m, "sync_status")),
 	}
 }
 
@@ -6931,11 +7360,11 @@ func parseDoIPActivation(v interface{}) *DoIPActivation {
 		return nil
 	}
 	return &DoIPActivation{
-		Direction:             getString(m, "direction"),
-		ActivationType:        uint8(getInt(m, "activation_type")),
-		ResponseCode:          uint8(getInt(m, "response_code")),
-		OEMSpecific:           getByteSlice(m, "oem_specific"),
-		ConfirmationRequired:  getBool(m, "confirmation_required", false),
+		Direction:            getString(m, "direction"),
+		ActivationType:       uint8(getInt(m, "activation_type")),
+		ResponseCode:         uint8(getInt(m, "response_code")),
+		OEMSpecific:          getByteSlice(m, "oem_specific"),
+		ConfirmationRequired: getBool(m, "confirmation_required", false),
 	}
 }
 
@@ -7027,36 +7456,36 @@ func parseSMBConfig(m map[string]interface{}) *SMBConfig {
 		return nil
 	}
 	cfg := &SMBConfig{
-		Transport:                     getString(m, "transport"),
-		Dialects:                      getStringSlice(m, "dialects"),
-		SelectedDialect:               getString(m, "selected_dialect"),
-		ClientCapabilities:            getUint32(m, "client_capabilities"),
-		ServerCapabilities:            getUint32(m, "server_capabilities"),
-		SecurityMode:                  getUint16(m, "security_mode"),
-		SigningRequired:               getBool(m, "signing_required", false),
-		AuthMechanism:                 getString(m, "auth_mechanism"),
-		Username:                      getString(m, "username"),
-		Domain:                        getString(m, "domain"),
-		Password:                      getString(m, "password"),
-		SecurityBlob:                  getByteSlice(m, "security_blob"),
-		AuthRounds:                    getInt(m, "auth_rounds"),
-		TreeConnectShare:              getString(m, "tree_connect_share"),
-		ShareType:                     uint8(getInt(m, "share_type")),
-		FilePath:                      getString(m, "file_path"),
-		CreateDisposition:             uint8(getInt(m, "create_disposition")),
-		AccessMask:                    getUint32(m, "access_mask"),
-		FileAttributes:                getUint32(m, "file_attributes"),
-		ShareAccess:                   uint8(getInt(m, "share_access")),
-		CreateOptions:                 getUint32(m, "create_options"),
-		Operations:                    parseSMBOperations(m["operations"]),
+		Transport:                      getString(m, "transport"),
+		Dialects:                       getStringSlice(m, "dialects"),
+		SelectedDialect:                getString(m, "selected_dialect"),
+		ClientCapabilities:             getUint32(m, "client_capabilities"),
+		ServerCapabilities:             getUint32(m, "server_capabilities"),
+		SecurityMode:                   getUint16(m, "security_mode"),
+		SigningRequired:                getBool(m, "signing_required", false),
+		AuthMechanism:                  getString(m, "auth_mechanism"),
+		Username:                       getString(m, "username"),
+		Domain:                         getString(m, "domain"),
+		Password:                       getString(m, "password"),
+		SecurityBlob:                   getByteSlice(m, "security_blob"),
+		AuthRounds:                     getInt(m, "auth_rounds"),
+		TreeConnectShare:               getString(m, "tree_connect_share"),
+		ShareType:                      uint8(getInt(m, "share_type")),
+		FilePath:                       getString(m, "file_path"),
+		CreateDisposition:              uint8(getInt(m, "create_disposition")),
+		AccessMask:                     getUint32(m, "access_mask"),
+		FileAttributes:                 getUint32(m, "file_attributes"),
+		ShareAccess:                    uint8(getInt(m, "share_access")),
+		CreateOptions:                  getUint32(m, "create_options"),
+		Operations:                     parseSMBOperations(m["operations"]),
 		PreauthIntegrityHashAlgorithms: getUint16Slice(m, "preauth_integrity_hash_algorithms"),
-		EncryptionAlgorithm:           getUint16(m, "encryption_algorithm"),
-		ErrorOnCommand:                getString(m, "error_on_command"),
-		ErrorResponseStatus:           getUint32(m, "error_response_status"),
+		EncryptionAlgorithm:            getUint16(m, "encryption_algorithm"),
+		ErrorOnCommand:                 getString(m, "error_on_command"),
+		ErrorResponseStatus:            getUint32(m, "error_response_status"),
 		// Sizes (NBSS 24-bit limit = 16777215)
 		MaxTransactSize: getUint32(m, "max_transact_size"),
-		MaxReadSize:    getUint32(m, "max_read_size"),
-		MaxWriteSize:   getUint32(m, "max_write_size"),
+		MaxReadSize:     getUint32(m, "max_read_size"),
+		MaxWriteSize:    getUint32(m, "max_write_size"),
 		// SMB3 高级
 		EncryptionRequired: getBool(m, "encryption_required", false),
 		// 会话拆解控制
@@ -7108,7 +7537,6 @@ func hexValue(c byte) (int, bool) {
 	return 0, false
 }
 
-
 // parseMCPConfig converts the JSON-decoded "mcp" sub-map into a
 // core.MCPConfig. The config is round-tripped through encoding/json
 // because its nested fields use json.RawMessage / map[string]any whose
@@ -7126,4 +7554,36 @@ func parseMCPConfig(m map[string]interface{}) *MCPConfig {
 		return nil
 	}
 	return &cfg
+}
+
+func parseSVConfig(m map[string]interface{}) *SVConfig {
+	c := &SVConfig{SVID: getString(m, "sv_id"), DatSet: getString(m, "dat_set"), APPID: uint16(getInt(m, "appid")), ConfRev: uint32(getInt(m, "conf_rev")), SamplesPerCycle: uint16(getInt(m, "samples_per_cycle")), SMPSynch: uint8(getInt(m, "smp_synch")), SMPRate: uint16(getInt(m, "smp_rate")), PeriodUS: getInt(m, "period_us"), Count: getInt(m, "count"), DstMAC: getString(m, "dst_mac"), DoubleSend: getBool(m, "double_send", false), VLANEnabled: getBool(m, "vlan_enabled", false), VLANID: uint16(getInt(m, "vlan_id")), VLANPriority: uint8(getInt(m, "vlan_priority"))}
+	if a, ok := m["data"].([]interface{}); ok {
+		for _, v := range a {
+			if x, ok := v.(map[string]interface{}); ok {
+				c.Data = append(c.Data, SVData{Name: getString(x, "name"), Type: getString(x, "type"), InstMag: int32(getInt(x, "inst_mag")), Quality: uint32(getInt(x, "quality"))})
+			}
+		}
+	}
+	return c
+}
+func parseGOOSEConfig(m map[string]interface{}) *GOOSEConfig {
+	b := &GOOSEConfig{
+		APPID: uint16(getInt(m, "appid")), GOCBRef: getString(m, "gocb_ref"),
+		DatSet: getString(m, "dat_set"), GOID: getString(m, "go_id"),
+		TALMs: uint32(getInt(m, "tal_ms")), ConfRev: uint32(getInt(m, "conf_rev")),
+		StartSTNum: uint32(getInt(m, "start_stnum")), StartSQNum: uint32(getInt(m, "start_sqnum")),
+		Test: getBool(m, "test", false), NDSCom: getBool(m, "nds_com", false),
+		Boolean: getBool(m, "boolean", false), Count: getInt(m, "count"),
+		DstMAC: getString(m, "dst_mac"), VLANEnabled: getBool(m, "vlan_enabled", false),
+		VLANID: uint16(getInt(m, "vlan_id")), VLANPriority: uint8(getInt(m, "vlan_priority")),
+	}
+	if data, ok := m["data"].([]interface{}); ok {
+		for _, raw := range data {
+			if item, ok := raw.(map[string]interface{}); ok {
+				b.Data = append(b.Data, GOOSEData{Name: getString(item, "name"), Type: getString(item, "type"), Value: item["value"]})
+			}
+		}
+	}
+	return b
 }

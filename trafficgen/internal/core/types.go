@@ -84,7 +84,1006 @@ type TaskStats struct {
 	PacketsFailed int64   `json:"packets_failed"`
 }
 
-// FlowSpec defines the specification for a traffic flow.
+// BGPConfig configures a minimal RFC 4271 BGP session over TCP.
+type BGPConfig struct {
+	Transport    string `json:"transport,omitempty"`
+	Version      uint8  `json:"version,omitempty"`
+	ASN          uint32 `json:"asn,omitempty"`
+	HoldTime     uint16 `json:"hold_time,omitempty"`
+	Identifier   string `json:"identifier,omitempty"`
+	Marker       []byte `json:"marker,omitempty"`
+	Length       uint16 `json:"length,omitempty"`
+	WireProfile  string `json:"wire_profile,omitempty"`
+	Capabilities []byte `json:"capabilities,omitempty"`
+	Update       []byte `json:"update,omitempty"`
+	Notification []byte `json:"notification,omitempty"`
+}
+
+// IEC104Config configures an IEC 60870-5-104 session.
+type IEC104Config struct {
+	Transport                string          `json:"transport,omitempty"`
+	Role                     string          `json:"role,omitempty"`
+	CommonAddress            uint16          `json:"common_address,omitempty"`
+	StartDT                  bool            `json:"startdt,omitempty"`
+	StopDT                   bool            `json:"stopdt,omitempty"`
+	Events                   []IEC104Event   `json:"events,omitempty"`
+	Commands                 []IEC104Command `json:"commands,omitempty"`
+	TypeID                   uint8           `json:"type_id,omitempty"`
+	Cause                    uint8           `json:"cause,omitempty"`
+	InformationObjectAddress uint32          `json:"ioa,omitempty"`
+	Value                    int32           `json:"value,omitempty"`
+	SIQ                      uint8           `json:"siq,omitempty"`
+	QDS                      uint8           `json:"qds,omitempty"`
+	DIQ                      uint8           `json:"diq,omitempty"`
+	SCO                      uint8           `json:"sco,omitempty"`
+	DCO                      uint8           `json:"dco,omitempty"`
+	QOI                      uint8           `json:"qoi,omitempty"`
+	Select                   bool            `json:"select,omitempty"`
+	Time                     string          `json:"time,omitempty"`
+	MaxAPDULength            uint16          `json:"max_apdu_length,omitempty"`
+	Repeat                   int             `json:"repeat,omitempty"`
+}
+
+type IEC104Event struct {
+	Direction string `json:"direction,omitempty"`
+	Kind      string `json:"kind,omitempty"`
+	TypeID    uint8  `json:"type_id,omitempty"`
+	Cause     uint8  `json:"cause,omitempty"`
+	IOA       uint32 `json:"ioa,omitempty"`
+	Value     int32  `json:"value,omitempty"`
+	RX        uint16 `json:"rx,omitempty"`
+	SIQ       uint8  `json:"siq,omitempty"`
+	QDS       uint8  `json:"qds,omitempty"`
+	DIQ       uint8  `json:"diq,omitempty"`
+	SCO       uint8  `json:"sco,omitempty"`
+	DCO       uint8  `json:"dco,omitempty"`
+	QOI       uint8  `json:"qoi,omitempty"`
+	Select    bool   `json:"select,omitempty"`
+	Time      string `json:"time,omitempty"`
+}
+
+type IEC104Command struct {
+	TypeID                   uint8  `json:"type_id,omitempty"`
+	Cause                    uint8  `json:"cause,omitempty"`
+	CommonAddress            uint16 `json:"common_address,omitempty"`
+	InformationObjectAddress uint32 `json:"ioa,omitempty"`
+	Value                    int32  `json:"value,omitempty"`
+}
+
+// STUNConfig configures an RFC 5389/8489 Binding transaction. One config is an
+// ordered event sequence (Events); a single event can carry attributes and a
+// wire fault drives the negative cases.
+type STUNConfig struct {
+	Profile   string      `json:"profile,omitempty"`
+	Method    string      `json:"method,omitempty"`
+	Events    []STUNEvent `json:"events,omitempty"`
+	WireFault *STUNFault  `json:"wire_fault,omitempty"`
+}
+
+// STUNEvent is one STUN message in a transaction sequence.
+type STUNEvent struct {
+	Kind             string          `json:"kind,omitempty"`
+	Direction        string          `json:"direction,omitempty"`
+	Attributes       []STUNAttribute `json:"attributes,omitempty"`
+	Retransmit       bool            `json:"retransmit,omitempty"`
+	TransactionGroup string          `json:"transaction_group,omitempty"`
+}
+
+// STUNAttribute is one STUN attribute descriptor carried by an event.
+type STUNAttribute struct {
+	Type    string `json:"type,omitempty"`
+	Value   string `json:"value,omitempty"`
+	Family  string `json:"family,omitempty"`
+	Address string `json:"address,omitempty"`
+	Port    uint16 `json:"port,omitempty"`
+	Key     string `json:"key,omitempty"`
+	Code    uint16 `json:"code,omitempty"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+// STUNFault is a wire fault injected for negative test cases.
+type STUNFault struct {
+	Kind           string `json:"kind,omitempty"`
+	DeclaredBytes  uint16 `json:"declared_bytes,omitempty"`
+	DeclaredLength uint16 `json:"declared_length,omitempty"`
+	Type           uint16 `json:"type,omitempty"`
+	Cookie         string `json:"cookie,omitempty"`
+	Key            string `json:"key,omitempty"`
+	Carrier        string `json:"carrier,omitempty"`
+	Framing        string `json:"framing,omitempty"`
+	Method         string `json:"method,omitempty"`
+}
+
+// RTMFPConfig configures an Adobe RTMFP (Real-Time Media Flow Protocol) UDP
+// session. It drives a session/event state machine producing deterministic
+// wire bytes for handshake, reliable/unreliable data, fragment, ack, ping/pong,
+// and close. Wire faults are injected for negative test cases.
+type RTMFPConfig struct {
+	Profile           string          `json:"profile,omitempty"`            // rtmfp_baseline, rtmfp_low_latency
+	Role              string          `json:"role,omitempty"`               // initiator, responder
+	KeepaliveInterval int             `json:"keepalive_interval,omitempty"` // seconds between pings
+	PingCount         int             `json:"ping_count,omitempty"`         // max ping/pong rounds
+	WireFault         *RTMFPFault     `json:"wire_fault,omitempty"`         // negative test only
+	Sessions          []RTMFPSession  `json:"sessions,omitempty"`
+}
+
+// RTMFPSession is one independent RTMFP session with its own cookie/session ID.
+type RTMFPSession struct {
+	SessionID uint32        `json:"session_id,omitempty"`
+	SrcPort   uint16        `json:"src_port,omitempty"` // override source port (multi-session)
+	Events    []RTMFPEvent  `json:"events,omitempty"`
+}
+
+// RTMFPEvent is one RTMFP message in a session event sequence.
+type RTMFPEvent struct {
+	Kind       string          `json:"kind,omitempty"`        // hello/hello_ack/cookie/session_confirm/reliable/unreliable/fragment/ack/ping/pong/close/error
+	Direction  string          `json:"direction,omitempty"`   // c2s, s2c
+	FlowID     uint32          `json:"flow_id,omitempty"`
+	Sequence   uint32          `json:"sequence,omitempty"`
+	Message    string          `json:"message,omitempty"`     // text payload
+	MessageB64 string          `json:"message_b64,omitempty"` // base64 payload (takes precedence)
+	Cookie     string          `json:"cookie,omitempty"`      // explicit cookie bytes (hex)
+	SessionID  *uint32         `json:"session_id,omitempty"`  // override session ID for this event
+	Ranges     [][2]uint32     `json:"ranges,omitempty"`      // ACK ranges: [[start,end],...]
+	Fragment   *RTMFPFragment  `json:"fragment,omitempty"`
+}
+
+// RTMFPFragment carries fragment metadata for reassembly.
+type RTMFPFragment struct {
+	Index       uint32 `json:"index,omitempty"`
+	Count       uint32 `json:"count,omitempty"`
+	TotalLength uint32 `json:"total_length,omitempty"`
+	Payload     string `json:"payload,omitempty"`
+}
+
+// RTMFPFault is a wire fault injected for negative test cases.
+type RTMFPFault struct {
+	Kind    string `json:"kind,omitempty"`     // short_header, bad_length, session_mismatch, sequence_regress, fragment_gap, ack_unknown, state_order, session_leak
+	Declared uint32 `json:"declared,omitempty"` // declared length/count
+	Actual  uint32 `json:"actual,omitempty"`    // actual length/count
+}
+
+// AMQPConfig configures an AMQP 0-9-1 connection/channel session over TCP
+// ([ip, tcp, amqp]). The generator emits protocol header + frame events
+// (METHOD/HEADER/BODY/HEARTBEAT) per connection event sequence; TCP framing,
+// handshake and termination are provided by the tcp layer generator.
+type AMQPConfig struct {
+	Profile     string           `json:"profile,omitempty"` // amqp091_rabbitmq, amqp091_minimal, amqp091_tls_boundary(未来)
+	FrameMax    uint32           `json:"frame_max,omitempty"`
+	ChannelMax  uint16           `json:"channel_max,omitempty"`
+	Heartbeat   uint16           `json:"heartbeat,omitempty"`
+	Connections []AMQPConnection `json:"connections,omitempty"`
+	WireFault   string           `json:"wire_fault,omitempty"` // negative test only
+}
+
+// AMQPConnection is one AMQP connection with its own 4-tuple, handshake,
+// channel table and delivery/consumer state. 4-tuple overrides the flow
+// baseline when non-zero.
+type AMQPConnection struct {
+	SrcIP   string      `json:"src_ip,omitempty"`
+	DstIP   string      `json:"dst_ip,omitempty"`
+	SrcPort uint16      `json:"src_port,omitempty"`
+	DstPort uint16      `json:"dst_port,omitempty"`
+	Events  []AMQPEvent `json:"events,omitempty"`
+}
+
+// AMQPEvent is one AMQP wire exchange in a connection event sequence.
+// Kind selects the byte builder: protocol_header, method, header, body,
+// heartbeat, close, close_ok.
+type AMQPEvent struct {
+	Kind      string `json:"kind,omitempty"`      // protocol_header/method/header/body/heartbeat
+	Direction string `json:"direction,omitempty"` // c2s, s2c
+	Channel   uint16 `json:"channel,omitempty"`
+	ClassID   uint16 `json:"class_id,omitempty"`
+	MethodID  uint16 `json:"method_id,omitempty"`
+	// Arguments are method arguments (encoding order per class/method table).
+	// Body holds body bytes (or hex when body_hex set). It is typed `any`
+	// rather than []byte so a plain string like "Hello!" is NOT base64-
+	// decoded by json.Unmarshal (Go decodes []byte JSON fields from base64).
+	// resolveBody converts string / []byte / nil to the wire bytes.
+	Arguments  map[string]any `json:"arguments,omitempty"`
+	Properties map[string]any `json:"properties,omitempty"`
+	Body       any            `json:"body,omitempty"`
+	BodyHex    string         `json:"body_hex,omitempty"` // hex body, takes precedence over Body
+	BodySizeOverride *uint64  `json:"body_size_override,omitempty"` // negative test only
+}
+
+// HTTPFLVConfig configures an HTTP-FLV session (HTTP/1.1 GET carrying FLV
+// byte stream over http layer). HTTP framing (method/URI/headers) is handled
+// by the http layer; http_flv only controls the FLV byte content.
+// Multi-session is expressed by multiple flows, not by a Sessions count.
+type HTTPFLVConfig struct {
+	Flags     uint8    `json:"flags,omitempty"`      // audio=0x04, video=0x01; 0 → 0x05 (both)
+	Tags      []FLVTag `json:"tags,omitempty"`       // 空 → 默认模板 (onMetaData + AAC + AVC)
+	Rounds    int      `json:"rounds,omitempty"`     // HTTP GET/200 轮数；0 → 1
+	WireFault string   `json:"wire_fault,omitempty"` // negative test only
+}
+
+// FLVTag is one FLV tag in an HTTP-FLV stream.
+type FLVTag struct {
+	Type                 string  `json:"type,omitempty"`                   // script/audio/video
+	Timestamp            uint32  `json:"timestamp,omitempty"`
+	Data                 []byte  `json:"data,omitempty"`
+	DataSizeOverride     *uint32 `json:"data_size_override,omitempty"`     // negative test only
+	PreviousSizeOverride *uint32 `json:"previous_size_override,omitempty"` // negative test only
+}
+
+// HLSConfig configures an HLS (HTTP Live Streaming, RFC 8216) session.
+// The http layer's transformer mode wraps HLS body events in HTTP GET/200
+// frames; hls only controls the playlist/segment bytes.
+type HLSConfig struct {
+	Profile           string         `json:"profile,omitempty"`              // rfc8216_v7 / apple_ll_hls
+	Sessions          []HLSSession   `json:"sessions,omitempty"`             // ordered session events
+	Live              *HLSLive       `json:"live,omitempty"`                 // live sliding window
+	LLHLS             *HLSLLHLS      `json:"ll_hls,omitempty"`               // LL-HLS (apple_ll_hls only)
+	WireFault         string         `json:"wire_fault,omitempty"`           // negative test only
+	EmptyBody         bool           `json:"empty_body,omitempty"`           // negative test only
+	MissingExtM3U     bool           `json:"missing_extm3u,omitempty"`       // negative test only
+	BadTag            string         `json:"bad_tag,omitempty"`              // negative test only
+	BadBandwidth      bool           `json:"bad_bandwidth,omitempty"`        // negative test only
+	TruncateBody      bool           `json:"truncate_body,omitempty"`        // negative test only
+	InvalidURI        bool           `json:"invalid_uri,omitempty"`          // negative test only
+	KeyMismatch       bool           `json:"key_mismatch,omitempty"`         // negative test only
+	SequenceRegress   bool           `json:"sequence_regress,omitempty"`     // negative test only
+	DiscontinuityIncr bool           `json:"discontinuity_incr,omitempty"`   // negative test only
+	LLWithoutProfile  bool           `json:"ll_without_profile,omitempty"`   // negative test only
+	CrossSessionRef   bool           `json:"cross_session_ref,omitempty"`    // negative test only
+}
+
+// HLSSession is one HLS event: master/media/refresh/segment/key.
+type HLSSession struct {
+	Kind                string            `json:"kind,omitempty"`                 // master/media/refresh/segment/key
+	SessionID           string            `json:"session_id,omitempty"`           // default session when empty
+	URI                 string            `json:"uri,omitempty"`                  // playlist/segment/key resource URI
+	PlaylistType        string            `json:"playlist_type,omitempty"`        // master/media
+	PlaylistMode        string            `json:"playlist_mode,omitempty"`        // EVENT/VOD
+	TargetDuration      float64           `json:"target_duration,omitempty"`      // #EXT-X-TARGETDURATION
+	MediaSequence       int               `json:"media_sequence,omitempty"`       // #EXT-X-MEDIA-SEQUENCE
+	MediaSequenceEnd    *int              `json:"media_sequence_end,omitempty"`   // target sequence for refresh regression check
+	DiscontinuitySeq    int               `json:"discontinuity_sequence,omitempty"`
+	Segments            []HLSSegment      `json:"segments,omitempty"`             // ordered segment entries
+	Variants            []HLSVariant      `json:"variants,omitempty"`             // master variants
+	Renditions          []HLSRendition    `json:"renditions,omitempty"`           // EXT-X-MEDIA groups
+	Key                 *HLSKey           `json:"key,omitempty"`                  // AES-128 key
+	Parts               []HLSPart         `json:"parts,omitempty"`                // LL-HLS partial segments
+	PreloadHint         *HLSPreloadHint   `json:"preload_hint,omitempty"`         // LL-HLS preload
+	Map                 *HLSMap           `json:"map,omitempty"`                  // fMP4 init map
+	Body                string            `json:"body,omitempty"`                 // explicit playlist body (negative fixtures)
+	ResponseStatusCode  int               `json:"response_status_code,omitempty"` // 200/206/404/...
+	ResponseContentType string            `json:"response_content_type,omitempty"`
+	ResponseBody        string            `json:"response_body,omitempty"`
+	ResponseBodyB64     string            `json:"response_body_b64,omitempty"`
+	ByteRange           *HLSByteRange     `json:"byte_range,omitempty"`
+	ResourceLength      int               `json:"resource_length,omitempty"`
+	PlaylistContentType string            `json:"playlist_content_type,omitempty"`
+	IndependentSegments bool              `json:"independent_segments,omitempty"`
+	Endlist             bool              `json:"endlist,omitempty"`
+	Rounds              int               `json:"rounds,omitempty"` // HTTP GET/200 rounds; 0 → 1
+}
+
+// HLSSegment is one media segment entry in a playlist.
+type HLSSegment struct {
+	URI              string        `json:"uri,omitempty"`
+	Duration         float64       `json:"duration,omitempty"`
+	Title            string        `json:"title,omitempty"`
+	ByteRange        *HLSByteRange `json:"byte_range,omitempty"`
+	KeyRef           string        `json:"key_ref,omitempty"`
+	Discontinuity    bool          `json:"discontinuity,omitempty"`
+	ProgramDateTime  string        `json:"program_date_time,omitempty"`
+}
+
+// HLSVariant is one #EXT-X-STREAM-INF variant of a master playlist.
+type HLSVariant struct {
+	URI              string `json:"uri,omitempty"`
+	Bandwidth        int    `json:"bandwidth,omitempty"`
+	AverageBandwidth int    `json:"average_bandwidth,omitempty"`
+	Codecs           string `json:"codecs,omitempty"`
+	Resolution       string `json:"resolution,omitempty"`
+	FrameRate        string `json:"frame_rate,omitempty"`
+	Audio            string `json:"audio,omitempty"`
+}
+
+// HLSRendition is one #EXT-X-MEDIA rendition group.
+type HLSRendition struct {
+	Type        string `json:"type,omitempty"` // AUDIO/VIDEO/SUBTITLES/CLOSED-CAPTIONS
+	GroupID     string `json:"group_id,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Default     *bool  `json:"default,omitempty"`
+	AutoSelect  *bool  `json:"autoselect,omitempty"`
+	URI         string `json:"uri,omitempty"`
+}
+
+// HLSByteRange is one #EXT-X-BYTERANGE range.
+type HLSByteRange struct {
+	Length int `json:"length,omitempty"`
+	Offset int `json:"offset,omitempty"`
+}
+
+// HLSKey is one #EXT-X-KEY encryption directive.
+type HLSKey struct {
+	Method string `json:"method,omitempty"` // AES-128 / NONE
+	URI    string `json:"uri,omitempty"`
+	IV     string `json:"iv,omitempty"` // 0x... 128-bit hex
+}
+
+// HLSPart is one LL-HLS partial segment entry.
+type HLSPart struct {
+	URI         string  `json:"uri,omitempty"`
+	Duration    float64 `json:"duration,omitempty"`
+	Independent *bool   `json:"independent,omitempty"`
+}
+
+// HLSPreloadHint is one LL-HLS #EXT-X-PRELOAD-HINT entry.
+type HLSPreloadHint struct {
+	Type string `json:"type,omitempty"` // PART / MAP
+	URI  string `json:"uri,omitempty"`
+}
+
+// HLSMap is one #EXT-X-MAP fMP4 init segment directive.
+type HLSMap struct {
+	URI       string        `json:"uri,omitempty"`
+	ByteRange *HLSByteRange `json:"byte_range,omitempty"`
+}
+
+// HLSLive is the live sliding-window configuration.
+type HLSLive struct {
+	Window         int `json:"window,omitempty"`
+	RefreshCount   int `json:"refresh_count,omitempty"`
+	RefreshInterval int `json:"refresh_interval,omitempty"`
+}
+
+// HDSConfig configures an HDS (Adobe HTTP Dynamic Streaming) session.
+// The http layer's transformer mode wraps HDS body events in HTTP GET/200
+// frames; hds only controls the manifest/bootstrap/fragment bytes.
+type HDSConfig struct {
+	Profile   string       `json:"profile,omitempty"`    // hds_http1
+	Sessions  []HDSSession `json:"sessions,omitempty"`   // ordered session events
+	Method    string       `json:"method,omitempty"`     // default GET
+	Version   string       `json:"version,omitempty"`    // default HTTP/1.1
+	KeepAlive bool         `json:"keep_alive,omitempty"` // default true
+	Manifest  *HDSManifest `json:"manifest,omitempty"`   // manifest config
+	WireFault string       `json:"wire_fault,omitempty"` // negative test injection
+}
+
+// HDSSession is one HDS event: manifest/bootstrap/fragment.
+type HDSSession struct {
+	Kind        string `json:"kind,omitempty"`          // manifest/bootstrap/fragment
+	URI         string `json:"uri,omitempty"`           // resource URI
+	ManifestURI string `json:"manifest_uri,omitempty"`  // manifest URI for bootstrap/fragment ref
+	SrcPort     int    `json:"src_port,omitempty"`      // override source port (multi-session)
+	Rounds      int    `json:"rounds,omitempty"`        // HTTP GET/200 rounds; 0 → 1
+}
+
+// HDSManifest is the F4M manifest configuration.
+type HDSManifest struct {
+	ID            string            `json:"id,omitempty"`
+	StreamType    string            `json:"stream_type,omitempty"`     // live or recorded
+	URI           string            `json:"uri,omitempty"`             // manifest request URI
+	Media         []HDSMedia        `json:"media,omitempty"`
+	BootstrapInfos []HDSBootstrapInfo `json:"bootstrap_infos,omitempty"`
+}
+
+// HDSMedia is one media entry in the manifest.
+type HDSMedia struct {
+	StreamID        string        `json:"stream_id,omitempty"`
+	Href            string        `json:"href,omitempty"`
+	URL             string        `json:"url,omitempty"`
+	Bitrate         uint32        `json:"bitrate,omitempty"`
+	BootstrapInfoID string        `json:"bootstrap_info_id,omitempty"`
+	Fragments       []HDSFragment `json:"fragments,omitempty"`
+	BootstrapBytes  string        `json:"bootstrap_bytes,omitempty"` // base64 bootstrap for inline
+}
+
+// HDSBootstrapInfo is one bootstrap info entry in the manifest.
+type HDSBootstrapInfo struct {
+	ID      string `json:"id,omitempty"`
+	Profile string `json:"profile,omitempty"` // "named"
+	Base64  string `json:"base64,omitempty"`  // base64-encoded bootstrap box bytes
+	URL     string `json:"url,omitempty"`
+}
+
+// HDSFragment is one media fragment.
+type HDSFragment struct {
+	Segment   uint32 `json:"segment,omitempty"`
+	Fragment  uint32 `json:"fragment,omitempty"`
+	Timestamp uint64 `json:"timestamp,omitempty"`
+	Duration  uint32 `json:"duration,omitempty"`
+	Body      string `json:"body,omitempty"`       // text body
+	BodyB64   string `json:"body_b64,omitempty"`   // base64 body
+}
+
+// HLSLLHLS is the LL-HLS profile configuration.
+type HLSLLHLS struct {
+	PartTarget      float64 `json:"part_target,omitempty"`
+	ServerControl   string  `json:"server_control,omitempty"`
+}
+
+// LDPConfig configures a minimal RFC 5036 LDP session.
+type LDPConfig struct {
+	Transport          string     `json:"transport,omitempty"`
+	WireProfile        string     `json:"wire_profile,omitempty"`
+	Carrier            string     `json:"carrier,omitempty"`
+	Events             []LDPEvent `json:"events,omitempty"`
+	LSRID              string     `json:"lsr_id,omitempty"`
+	LabelSpace         uint16     `json:"label_space,omitempty"`
+	HoldTime           uint16     `json:"hold_time,omitempty"`
+	Targeted           bool       `json:"targeted,omitempty"`
+	KeepaliveTime      uint16     `json:"keepalive_time,omitempty"`
+	LabelControl       string     `json:"label_control,omitempty"`
+	LabelAdvertisement string     `json:"label_advertisement,omitempty"`
+	FaultKind          string     `json:"fault_kind,omitempty"`
+}
+
+// LDPEvent is one LDP protocol event.
+type LDPEvent struct {
+	Kind          string   `json:"kind,omitempty"`
+	Direction     string   `json:"direction,omitempty"`
+	MessageID     uint32   `json:"message_id,omitempty"`
+	LSRID         string   `json:"lsr_id,omitempty"`
+	ReceiverLSRID string   `json:"receiver_lsr_id,omitempty"`
+	HoldTime      uint16   `json:"hold_time,omitempty"`
+	KeepaliveTime uint16   `json:"keepalive_time,omitempty"`
+	Targeted      bool     `json:"targeted,omitempty"`
+	FEC           string   `json:"fec,omitempty"`
+	PrefixLength  uint8    `json:"prefix_length,omitempty"`
+	Label         uint32   `json:"label,omitempty"`
+	Addresses     []string `json:"addresses,omitempty"`
+	StatusCode    uint32   `json:"status_code,omitempty"`
+}
+
+// PCEPConfig configures a minimal RFC 5440 PCEP session.
+type PCEPConfig struct {
+	Transport string      `json:"transport,omitempty"`
+	Profile   string      `json:"profile,omitempty"`
+	Events    []PCEPEvent `json:"events,omitempty"`
+}
+
+// PCEPEvent is one PCEP protocol event.
+type PCEPEvent struct {
+	Kind         string            `json:"kind,omitempty"`
+	Direction    string            `json:"direction,omitempty"`
+	Keepalive    uint8             `json:"keepalive,omitempty"`
+	Deadtime     uint8             `json:"deadtime,omitempty"`
+	SID          uint8             `json:"sid,omitempty"`
+	RequestID    uint32            `json:"request_id,omitempty"`
+	MessageType  uint8             `json:"message_type,omitempty"`
+	Endpoint     *PCEPEndpoint     `json:"endpoint,omitempty"`
+	Objects      []json.RawMessage `json:"objects,omitempty"`
+	Capabilities []PCEPCapability  `json:"capabilities,omitempty"`
+	WireFault    *PCEPFault        `json:"wire_fault,omitempty"`
+}
+
+// PCEPEndpoint represents an endpoint in PCEP events.
+type PCEPEndpoint struct {
+	SourceIPv4      string `json:"source_ipv4,omitempty"`
+	DestinationIPv4 string `json:"destination_ipv4,omitempty"`
+	SourceIPv6      string `json:"source_ipv6,omitempty"`
+	DestinationIPv6 string `json:"destination_ipv6,omitempty"`
+}
+
+// PCEPCapability represents a PCEP capability TLV (e.g. stateful PCE).
+type PCEPCapability struct {
+	Kind             string `json:"kind,omitempty"`
+	LSPUpdate        bool   `json:"lsp_update,omitempty"`
+	IncludeDBVersion bool   `json:"include_db_version,omitempty"`
+}
+
+// PCEPFault represents a wire fault injection for negative test cases.
+type PCEPFault struct {
+	Kind     string `json:"kind,omitempty"`
+	Declared uint16 `json:"declared,omitempty"`
+}
+
+// CFlowConfig configures a cflow export packet/message (NetFlow v9 RFC 3954
+// or IPFIX RFC 7011). One flow = UDP export packet(s); a single config emits
+// one Export Packet (v9) / Message (IPFIX) unless Exporters/Sessions fan out.
+type CFlowConfig struct {
+	Profile             string          `json:"profile,omitempty"`
+	Version             uint16          `json:"version,omitempty"`
+	SourceID            uint32          `json:"source_id,omitempty"`
+	Sequence            uint32          `json:"sequence,omitempty"`
+	SysUptime           uint32          `json:"sys_uptime,omitempty"`
+	ObservationDomainID uint32          `json:"observation_domain_id,omitempty"`
+	ExportTime          uint32          `json:"export_time,omitempty"`
+	UnixSecs            uint32          `json:"unix_secs,omitempty"`
+	Templates           []CFlowTemplate `json:"templates,omitempty"`
+	Records             []CFlowRecord   `json:"records,omitempty"`
+	Sets                []CFlowSet      `json:"sets,omitempty"`
+	Options             *CFlowOptions   `json:"options,omitempty"`
+	Exporters           []CFlowExporter `json:"exporters,omitempty"`
+	Sessions            []CFlowSession  `json:"sessions,omitempty"`
+	WireFault           *CFlowFault     `json:"wire_fault,omitempty"`
+}
+
+// CFlowTemplate is one Template/Options Template descriptor.
+type CFlowTemplate struct {
+	Kind         string       `json:"kind,omitempty"`
+	TemplateID   uint16       `json:"template_id,omitempty"`
+	Fields       []CFlowField `json:"fields,omitempty"`
+	ScopeFields  []CFlowField `json:"scope_fields,omitempty"`
+	OptionFields []CFlowField `json:"option_fields,omitempty"`
+	FieldCount   uint16       `json:"field_count,omitempty"`
+	WireFault    *CFlowFault  `json:"wire_fault,omitempty"`
+}
+
+// CFlowField is one field descriptor in a template.
+type CFlowField struct {
+	ElementID uint16 `json:"element_id,omitempty"`
+	Length    uint16 `json:"length,omitempty"`
+	PEN       uint32 `json:"pen,omitempty"`
+}
+
+// CFlowRecord is one data record referencing a registered template.
+type CFlowRecord struct {
+	TemplateID uint16                 `json:"template_id,omitempty"`
+	Record     map[string]interface{} `json:"record,omitempty"`
+}
+
+// CFlowSet is a raw set (negative case: data set without a template).
+type CFlowSet struct {
+	ID      uint16        `json:"id,omitempty"`
+	Records []CFlowRecord `json:"records,omitempty"`
+}
+
+// CFlowOptions carries timeout/sampling metadata used by Options Templates
+// or v9 options-like fields.
+type CFlowOptions struct {
+	ActiveTimeout    uint16 `json:"active_timeout,omitempty"`
+	InactiveTimeout  uint16 `json:"inactive_timeout,omitempty"`
+	SamplingInterval uint16 `json:"sampling_interval,omitempty"`
+}
+
+// CFlowExporter describes a second exporter (v9 source ID or IPFIX OD ID).
+type CFlowExporter struct {
+	SourceID            uint32          `json:"source_id,omitempty"`
+	ObservationDomainID uint32          `json:"observation_domain_id,omitempty"`
+	Templates           []CFlowTemplate `json:"templates,omitempty"`
+	Records             []CFlowRecord   `json:"records,omitempty"`
+}
+
+// CFlowSession describes a second UDP session (different src port).
+type CFlowSession struct {
+	SrcPort   uint16          `json:"src_port,omitempty"`
+	SourceID  uint32          `json:"source_id,omitempty"`
+	Templates []CFlowTemplate `json:"templates,omitempty"`
+	Records   []CFlowRecord   `json:"records,omitempty"`
+}
+
+// CFlowFault is a wire fault injection for negative test cases.
+type CFlowFault struct {
+	Kind     string `json:"kind,omitempty"`
+	Value    uint16 `json:"value,omitempty"`
+	Declared uint16 `json:"declared,omitempty"`
+	Fields   uint16 `json:"fields,omitempty"`
+	Version  uint16 `json:"version,omitempty"`
+}
+
+// MOXAConfig configures Moxa NPort transparent passthrough (TCP Server mode).
+// One flow = an ordered stream of serial byte blocks, each mapped to a
+// MessageEvent (direction + bytes) by the terminal generator; TCP semantics
+// (handshake/seq-ack/teardown/MSS segmentation) are owned by the tcp layer.
+type MOXAConfig struct {
+	Stream   []MOXAStreamBlock `json:"stream,omitempty"`
+	Pack     uint32            `json:"pack_ms,omitempty"`
+	Sessions int               `json:"sessions,omitempty"`
+}
+
+// MOXAStreamBlock is one block in a MOXA serial byte stream.
+type MOXAStreamBlock struct {
+	Direction  string `json:"direction,omitempty"`
+	Payload    string `json:"payload,omitempty"`
+	PayloadB64 string `json:"payload_b64,omitempty"`
+}
+
+// SOMEIPConfig configures a SOME/IP session (AUTOSAR PRS, UDP/TCP carrier).
+// Flat keys (spec.SOMEIP.*) drive the message header, SD/TP sub-configs, and
+// event lists. Auto-response generates REQUEST→RESPONSE pairs.
+type SOMEIPConfig struct {
+	ServiceID        uint16          `json:"service_id,omitempty"`
+	MethodID         uint16          `json:"method_id,omitempty"`
+	ClientID         uint16          `json:"client_id,omitempty"`
+	SessionStart     uint16          `json:"session_start,omitempty"`
+	SessionInc       uint16          `json:"session_inc,omitempty"`
+	ProtocolVersion  uint8           `json:"protocol_version,omitempty"`
+	InterfaceVersion uint8           `json:"interface_version,omitempty"`
+	MessageType      string          `json:"message_type,omitempty"`
+	ReturnCode       uint8           `json:"return_code,omitempty"`
+	AutoResponse     *bool           `json:"auto_response,omitempty"`
+	Direction        string          `json:"direction,omitempty"`
+	Payload          []byte          `json:"payload,omitempty"`
+	SD               *SOMEIPSDConfig `json:"sd,omitempty"`
+	TP               *SOMEIPTPConfig `json:"tp,omitempty"`
+	Events           []SOMEIPEvent   `json:"events,omitempty"`
+}
+
+// ThriftConfig configures an Apache Thrift Binary Protocol session (TCP 9090).
+type ThriftConfig struct {
+	Transport string          `json:"transport,omitempty"`
+	Messages  []ThriftMessage `json:"messages,omitempty"`
+}
+
+// ThriftMessage is one Thrift RPC message.
+type ThriftMessage struct {
+	Type      string           `json:"type,omitempty"`
+	Method    string           `json:"method,omitempty"`
+	SeqID     int32            `json:"seqid,omitempty"`
+	Args      []ThriftField    `json:"args,omitempty"`
+	Result    []ThriftField    `json:"result,omitempty"`
+	Exception *ThriftException `json:"exception,omitempty"`
+}
+
+// ThriftField is a single struct field in Thrift Binary Protocol.
+type ThriftField struct {
+	ID    int16       `json:"id,omitempty"`
+	Type  string      `json:"type,omitempty"`
+	Value interface{} `json:"value,omitempty"`
+}
+
+// ThriftException carries TApplicationException fields.
+type ThriftException struct {
+	Message string `json:"message,omitempty"`
+	Type    int32  `json:"type,omitempty"`
+}
+
+// TNSEvent is one TNS protocol event (CONNECT/ACCEPT/REFUSE/REDIRECT/DATA).
+type TNSEvent struct {
+	Type           interface{} `json:"type,omitempty"` // string or int for negative tests
+	Direction      string      `json:"direction,omitempty"`
+	PayloadProfile string      `json:"payload_profile,omitempty"`
+	DataFlags      uint16      `json:"data_flags,omitempty"`
+}
+
+// TNSSession is a single TNS session with its own source port and events.
+type TNSSession struct {
+	SrcPort uint16     `json:"src_port,omitempty"`
+	Events  []TNSEvent `json:"events,omitempty"`
+}
+
+// TNSConfig configures a TNS (Oracle Net, TCP 1521) session.
+type TNSConfig struct {
+	Events       []TNSEvent      `json:"events,omitempty"`
+	Sessions     []TNSSession    `json:"sessions,omitempty"`
+	ChecksumMode string          `json:"checksum_mode,omitempty"`
+	Reconnect    bool            `json:"reconnect,omitempty"`
+	WireFault    json.RawMessage `json:"wire_fault,omitempty"`
+}
+
+// MongoDBMessage is one MongoDB wire protocol message.
+type MongoDBMessage struct {
+	Direction      string                   `json:"direction,omitempty"`
+	RequestID      int32                    `json:"request_id,omitempty"`
+	ResponseTo     int32                    `json:"response_to,omitempty"`
+	Opcode         interface{}              `json:"opcode,omitempty"` // string or int for negative tests
+	Namespace      string                   `json:"namespace,omitempty"`
+	Flags          int32                    `json:"flags,omitempty"`
+	Skip           int32                    `json:"skip,omitempty"`
+	ReturnCount    int32                    `json:"return_count,omitempty"`
+	Zero           int32                    `json:"zero,omitempty"`
+	Documents      []map[string]interface{} `json:"documents,omitempty"`
+	Selector       map[string]interface{}   `json:"selector,omitempty"`
+	Update         map[string]interface{}   `json:"update,omitempty"`
+	Query          map[string]interface{}   `json:"query,omitempty"`
+	CursorID       int64                    `json:"cursor_id,omitempty"`
+	CursorIDs      []int64                  `json:"cursor_ids,omitempty"`
+	StartingFrom   int32                    `json:"starting_from,omitempty"`
+	Returned       int32                    `json:"returned,omitempty"`
+	BSONFixtureHex string                   `json:"bson_fixture_hex,omitempty"`
+}
+
+// MongoDBSession is a single MongoDB session with its own source port and messages.
+type MongoDBSession struct {
+	SrcPort  uint16           `json:"src_port,omitempty"`
+	Messages []MongoDBMessage `json:"messages,omitempty"`
+}
+
+// MongoDBConfig configures a MongoDB wire protocol session (TCP 27017).
+type MongoDBConfig struct {
+	Messages       []MongoDBMessage `json:"messages,omitempty"`
+	Sessions       []MongoDBSession `json:"sessions,omitempty"`
+	BSONFixtureHex string           `json:"bson_fixture_hex,omitempty"`
+	WireFault      json.RawMessage  `json:"wire_fault,omitempty"`
+}
+
+// DamengEvent is one Dameng database protocol event.
+type DamengEvent struct {
+	Kind      string `json:"kind,omitempty"`
+	Direction string `json:"direction,omitempty"`
+	Profile   string `json:"profile,omitempty"`
+	Username  string `json:"username,omitempty"`
+	Result    string `json:"result,omitempty"`
+	SQL       string `json:"sql,omitempty"`
+}
+
+// DamengSession is a single Dameng session with its own source port and events.
+type DamengSession struct {
+	SrcPort uint16        `json:"src_port,omitempty"`
+	Events  []DamengEvent `json:"events,omitempty"`
+}
+
+// DamengConfig configures a Dameng database session (TCP 5236).
+type DamengConfig struct {
+	WireProfile string          `json:"wire_profile,omitempty"`
+	Events      []DamengEvent   `json:"events,omitempty"`
+	Sessions    []DamengSession `json:"sessions,omitempty"`
+	PayloadSize string          `json:"payload_size,omitempty"`
+	WireFault   json.RawMessage `json:"wire_fault,omitempty"`
+}
+
+// KingBaseEvent is one KingBase database protocol event.
+type KingBaseEvent struct {
+	Kind      string `json:"kind,omitempty"`
+	Direction string `json:"direction,omitempty"`
+	Profile   string `json:"profile,omitempty"`
+	User      string `json:"user,omitempty"`
+	Database  string `json:"database,omitempty"`
+	Result    string `json:"result,omitempty"`
+	SQL       string `json:"sql,omitempty"`
+	Tag       string `json:"tag,omitempty"`
+}
+
+// KingBaseSession is a single KingBase session with its own source port and events.
+type KingBaseSession struct {
+	SrcPort uint16          `json:"src_port,omitempty"`
+	Events  []KingBaseEvent `json:"events,omitempty"`
+}
+
+// KingBaseConfig configures a KingBase database session (TCP 54321).
+type KingBaseConfig struct {
+	WireProfile string            `json:"wire_profile,omitempty"`
+	Events      []KingBaseEvent   `json:"events,omitempty"`
+	Sessions    []KingBaseSession `json:"sessions,omitempty"`
+	WireFault   json.RawMessage   `json:"wire_fault,omitempty"`
+}
+
+// CQLEvent is one CQL/Cassandra native protocol event.
+type CQLEvent struct {
+	Kind        string                 `json:"kind,omitempty"`
+	Direction   string                 `json:"direction,omitempty"`
+	Flags       uint8                  `json:"flags,omitempty"`
+	Stream      int16                  `json:"stream,omitempty"`
+	Options     map[string]interface{} `json:"options,omitempty"`
+	Mechanism   string                 `json:"mechanism,omitempty"`
+	Bytes       []byte                 `json:"bytes,omitempty"`
+	Query       string                 `json:"query,omitempty"`
+	Consistency uint16                 `json:"consistency,omitempty"`
+	QueryFlags  uint32                 `json:"query_flags,omitempty"`
+	ResultKind  string                 `json:"result_kind,omitempty"`
+	PreparedID  string                 `json:"prepared_id,omitempty"`
+	Code        int32                  `json:"code,omitempty"`
+	Message     string                 `json:"message,omitempty"`
+}
+
+// CQLSession is a single CQL session with its own source port and events.
+type CQLSession struct {
+	SrcPort uint16     `json:"src_port,omitempty"`
+	Events  []CQLEvent `json:"events,omitempty"`
+}
+
+// CQLConfig configures a CQL/Cassandra native protocol session (TCP 9042).
+type CQLConfig struct {
+	WireProfile string          `json:"wire_profile,omitempty"`
+	Events      []CQLEvent      `json:"events,omitempty"`
+	Sessions    []CQLSession    `json:"sessions,omitempty"`
+	WireFault   json.RawMessage `json:"wire_fault,omitempty"`
+}
+
+// SOMEIPSDConfig configures a SOME/IP-SD (Service Discovery) message.
+type SOMEIPSDConfig struct {
+	Type         string         `json:"type,omitempty"`
+	ServiceID    uint16         `json:"service_id,omitempty"`
+	InstanceID   uint16         `json:"instance_id,omitempty"`
+	MajorVersion uint8          `json:"major_version,omitempty"`
+	MinorVersion uint32         `json:"minor_version,omitempty"`
+	TTL          uint32         `json:"ttl,omitempty"`
+	EventgroupID uint16         `json:"eventgroup_id,omitempty"`
+	Counter      uint8          `json:"counter,omitempty"`
+	Options      []SOMEIPOption `json:"options,omitempty"`
+}
+
+// SOMEIPOption is an SD Option entry.
+type SOMEIPOption struct {
+	Type  uint8  `json:"type,omitempty"`
+	IP    string `json:"ip,omitempty"`
+	Port  uint16 `json:"port,omitempty"`
+	Proto string `json:"proto,omitempty"`
+}
+
+// SOMEIPTPConfig configures SOME/IP-TP segmentation.
+type SOMEIPTPConfig struct {
+	Enabled       bool `json:"enabled,omitempty"`
+	SegmentSize   int  `json:"segment_size,omitempty"`
+	PayloadLength int  `json:"payload_length,omitempty"`
+}
+
+// SOMEIPEvent is one message in a multi-method/event sequence.
+type SOMEIPEvent struct {
+	MethodID    uint16 `json:"method_id,omitempty"`
+	MessageType string `json:"message_type,omitempty"`
+	ReturnCode  uint8  `json:"return_code,omitempty"`
+	Direction   string `json:"direction,omitempty"`
+	Payload     []byte `json:"payload,omitempty"`
+}
+
+// DRDAConfig configures a DRDA session (IBM Distributed Relational Database Architecture, TCP 446).
+type DRDAConfig struct {
+	Transport       string         `json:"transport,omitempty"`
+	SessionStart    int            `json:"session_start,omitempty"`
+	CCSID           uint16         `json:"ccsid,omitempty"`
+	CorrelatorStart uint16         `json:"correlator_start,omitempty"`
+	CorrelatorInc   uint16         `json:"correlator_inc,omitempty"`
+	SecurityUser    string         `json:"security_user,omitempty"`
+	SecurityToken   []byte         `json:"security_token,omitempty"`
+	RDBName         string         `json:"rdb_name,omitempty"`
+	SQL             *DRDASQLConfig `json:"sql,omitempty"`
+	DSSSegments     []DRDASegment  `json:"dss_segments,omitempty"`
+}
+
+// DRDASQLConfig configures SQLDTA/SQLCARD in DRDA.
+type DRDASQLConfig struct {
+	Statement  string `json:"statement,omitempty"`
+	Data       []byte `json:"data,omitempty"`
+	SQLCode    int32  `json:"code,omitempty"`
+	SQLState   string `json:"state,omitempty"`
+	Diagnostic string `json:"diagnostic,omitempty"`
+}
+
+// DRDASegment is a user-defined DSS/DDM segment.
+type DRDASegment struct {
+	Format     uint16      `json:"format,omitempty"`
+	Correlator uint16      `json:"correlator,omitempty"`
+	CodePoint  uint16      `json:"code_point,omitempty"`
+	Parameters []DRDAParam `json:"parameters,omitempty"`
+}
+
+// DRDAParam is a single DDM parameter (length+code_point+data).
+type DRDAParam struct {
+	CodePoint uint16 `json:"code_point,omitempty"`
+	Data      []byte `json:"data,omitempty"`
+}
+
+// OPCUAConfig configures a minimal OPC UA TCP session.
+type OPCUAConfig struct {
+	Transport      string `json:"transport,omitempty"`
+	SecurityMode   string `json:"security_mode,omitempty"`
+	Read           bool   `json:"read,omitempty"`
+	Close          bool   `json:"close,omitempty"`
+	SkipChannel    bool   `json:"skip_channel,omitempty"`
+	BadMessageSize bool   `json:"bad_message_size,omitempty"`
+	BadLength      bool   `json:"bad_length,omitempty"`
+}
+
+// MMSConfig configures an IEC 61850 MMS session over TCP.
+type MMSConfig struct {
+	Transport               string                `json:"transport,omitempty"`
+	Association             *MMSAssociationConfig `json:"association,omitempty"`
+	IEDName                 string                `json:"iedName,omitempty"`
+	Objects                 []MMSObjectConfig     `json:"objects,omitempty"`
+	EnableRead              bool                  `json:"enableRead,omitempty"`
+	EnableWrite             bool                  `json:"enableWrite,omitempty"`
+	EnableInformationReport bool                  `json:"enableInformationReport,omitempty"`
+	EnableGetNameList       bool                  `json:"enableGetNameList,omitempty"`
+	EnableIdentify          bool                  `json:"enableIdentify,omitempty"`
+	Sequence                *MMSSequence          `json:"sequence,omitempty"`
+	ErrorClassName          string                `json:"errorClassName,omitempty"`
+	ErrorValue              int                   `json:"errorValue,omitempty"`
+}
+
+type MMSAssociationConfig struct {
+	LocalDetail           uint32 `json:"localDetail,omitempty"`
+	MaxOutstandingCalling uint8  `json:"maxOutstandingCalling,omitempty"`
+	MaxOutstandingCalled  uint8  `json:"maxOutstandingCalled,omitempty"`
+	NestingLevel          uint8  `json:"nestingLevel,omitempty"`
+	ServicesSupported     string `json:"servicesSupported,omitempty"`
+	NoAssociate           bool   `json:"noAssociate,omitempty"`
+}
+
+type MMSObjectConfig struct {
+	Domain   string      `json:"domain,omitempty"`
+	Name     string      `json:"name"`
+	Datatype string      `json:"datatype"`
+	Value    interface{} `json:"value,omitempty"`
+	Members  []MMSMember `json:"members,omitempty"`
+}
+
+type MMSMember struct {
+	Name     string      `json:"name,omitempty"`
+	Datatype string      `json:"datatype"`
+	Value    interface{} `json:"value,omitempty"`
+}
+
+type MMSSequence struct {
+	Steps    []string `json:"steps"`
+	Loop     int      `json:"loop,omitempty"`
+	StepGap  int      `json:"stepGap,omitempty"`
+	InjectOn int      `json:"injectOn,omitempty"`
+}
+
+type S7Config struct {
+	Transport string      `json:"transport,omitempty"`
+	Sessions  int         `json:"sessions,omitempty"`
+	PDURef    uint16      `json:"pdu_ref,omitempty"`
+	PDUSize   uint16      `json:"pdu_size,omitempty"`
+	Commands  []S7Command `json:"commands,omitempty"`
+}
+
+// S7Command describes one S7 job and its optional response.
+type S7Command struct {
+	Kind       string   `json:"kind,omitempty"`
+	ROSCTR     uint8    `json:"rosctr,omitempty"`
+	PDURef     uint16   `json:"pdu_ref,omitempty"`
+	Items      []S7Item `json:"items,omitempty"`
+	Values     []byte   `json:"values,omitempty"`
+	ErrorClass uint8    `json:"error_class,omitempty"`
+	ErrorCode  uint8    `json:"error_code,omitempty"`
+}
+
+// S7Item describes an S7ANY variable specification.
+type S7Item struct {
+	Area          uint8  `json:"area,omitempty"`
+	DBNumber      uint16 `json:"db_number,omitempty"`
+	Address       uint32 `json:"address,omitempty"`
+	Bit           uint8  `json:"bit,omitempty"`
+	TransportSize uint8  `json:"transport_size,omitempty"`
+	Length        uint16 `json:"length,omitempty"`
+	Data          []byte `json:"data,omitempty"`
+}
+
+// GOOSEData describes one supported IEC 61850 GOOSE allData member.
+// The minimal generator accepts exactly one boolean member.
+type GOOSEData struct {
+	Name  string      `json:"name,omitempty"`
+	Type  string      `json:"type"`
+	Value interface{} `json:"value,omitempty"`
+}
+
+// GOOSEConfig configures a minimal IEC 61850 GOOSE Ethernet frame sequence.
+type GOOSEConfig struct {
+	APPID        uint16      `json:"appid"`
+	GOCBRef      string      `json:"gocb_ref"`
+	DatSet       string      `json:"dat_set"`
+	GOID         string      `json:"go_id,omitempty"`
+	TALMs        uint32      `json:"tal_ms"`
+	ConfRev      uint32      `json:"conf_rev"`
+	StartSTNum   uint32      `json:"start_stnum,omitempty"`
+	StartSQNum   uint32      `json:"start_sqnum,omitempty"`
+	Test         bool        `json:"test,omitempty"`
+	NDSCom       bool        `json:"nds_com,omitempty"`
+	Boolean      bool        `json:"boolean,omitempty"`
+	Data         []GOOSEData `json:"data,omitempty"`
+	Count        int         `json:"count,omitempty"`
+	DstMAC       string      `json:"dst_mac,omitempty"`
+	VLANEnabled  bool        `json:"vlan_enabled,omitempty"`
+	VLANID       uint16      `json:"vlan_id,omitempty"`
+	VLANPriority uint8       `json:"vlan_priority,omitempty"`
+}
+
+// SVData describes one integer sampled-value channel.
+type SVData struct {
+	Name    string `json:"name,omitempty"`
+	Type    string `json:"type"`
+	InstMag int32  `json:"inst_mag,omitempty"`
+	Quality uint32 `json:"quality,omitempty"`
+}
+
+// SVConfig configures a minimal IEC 61850-9-2 sampled-values stream.
+type SVConfig struct {
+	SVID            string   `json:"sv_id"`
+	DatSet          string   `json:"dat_set,omitempty"`
+	APPID           uint16   `json:"appid"`
+	ConfRev         uint32   `json:"conf_rev"`
+	SamplesPerCycle uint16   `json:"samples_per_cycle"`
+	SMPSynch        uint8    `json:"smp_synch"`
+	SMPRate         uint16   `json:"smp_rate,omitempty"`
+	PeriodUS        int      `json:"period_us,omitempty"`
+	Data            []SVData `json:"data,omitempty"`
+	Count           int      `json:"count,omitempty"`
+	DstMAC          string   `json:"dst_mac,omitempty"`
+	DoubleSend      bool     `json:"double_send,omitempty"`
+	VLANEnabled     bool     `json:"vlan_enabled,omitempty"`
+	VLANID          uint16   `json:"vlan_id,omitempty"`
+	VLANPriority    uint8    `json:"vlan_priority,omitempty"`
+}
+
 type FlowSpec struct {
 	// Four-tuple
 	SrcIP   string `json:"src_ip"`
@@ -114,17 +1113,43 @@ type FlowSpec struct {
 	HopByHop []IPv6Option `json:"hop_by_hop,omitempty"`
 
 	// Protocol specific configuration
-	TCP    *TCPConfig    `json:"tcp,omitempty"`
-	UDP    *UDPConfig    `json:"udp,omitempty"`
-	HTTP   *HTTPConfig   `json:"http,omitempty"`
-	DNS    *DNSConfig    `json:"dns,omitempty"`
-	ICMP   *ICMPConfig   `json:"icmp,omitempty"`
-	ARP    *ARPConfig    `json:"arp,omitempty"`
-	FTP    *FTPConfig    `json:"ftp,omitempty"`
-	SIP    *SIPConfig    `json:"sip,omitempty"`
-	SCTP   *SCTPConfig   `json:"sctp,omitempty"`
-	ICMPv6 *ICMPv6Config `json:"icmpv6,omitempty"`
-	RTSP   *RTSPConfig   `json:"rtsp,omitempty"`
+	TCP      *TCPConfig      `json:"tcp,omitempty"`
+	UDP      *UDPConfig      `json:"udp,omitempty"`
+	HTTP     *HTTPConfig     `json:"http,omitempty"`
+	DNS      *DNSConfig      `json:"dns,omitempty"`
+	ICMP     *ICMPConfig     `json:"icmp,omitempty"`
+	ARP      *ARPConfig      `json:"arp,omitempty"`
+	FTP      *FTPConfig      `json:"ftp,omitempty"`
+	SIP      *SIPConfig      `json:"sip,omitempty"`
+	SCTP     *SCTPConfig     `json:"sctp,omitempty"`
+	ICMPv6   *ICMPv6Config   `json:"icmpv6,omitempty"`
+	RTSP     *RTSPConfig     `json:"rtsp,omitempty"`
+	CoAP     *CoAPConfig     `json:"coap,omitempty"`
+	S7       *S7Config       `json:"s7,omitempty"`
+	IEC104   *IEC104Config   `json:"iec104,omitempty"`
+	BGP      *BGPConfig      `json:"bgp,omitempty"`
+	OPCUA    *OPCUAConfig    `json:"opcua,omitempty"`
+	MMS      *MMSConfig      `json:"mms,omitempty"`
+	GOOSE    *GOOSEConfig    `json:"goose,omitempty"`
+	SV       *SVConfig       `json:"sv,omitempty"`
+	STUN     *STUNConfig     `json:"stun,omitempty"`
+	HTTPFLV  *HTTPFLVConfig  `json:"http_flv,omitempty"`
+	HLS      *HLSConfig      `json:"hls,omitempty"`
+		HDS      *HDSConfig      `json:"hds,omitempty"`
+	MOXA     *MOXAConfig     `json:"moxa,omitempty"`
+	SOMEIP   *SOMEIPConfig   `json:"someip,omitempty"`
+	DRDA     *DRDAConfig     `json:"drda,omitempty"`
+	Thrift   *ThriftConfig   `json:"thrift,omitempty"`
+	TNS      *TNSConfig      `json:"tns,omitempty"`
+	MongoDB  *MongoDBConfig  `json:"mongodb,omitempty"`
+	Dameng   *DamengConfig   `json:"dameng,omitempty"`
+	KingBase *KingBaseConfig `json:"kingbase,omitempty"`
+	CQL      *CQLConfig      `json:"cql,omitempty"`
+	LDP      *LDPConfig      `json:"ldp,omitempty"`
+	PCEP     *PCEPConfig     `json:"pcep,omitempty"`
+	CFlow    *CFlowConfig    `json:"cflow,omitempty"`
+	RTMFP    *RTMFPConfig    `json:"rtmfp,omitempty"`
+	AMQP     *AMQPConfig     `json:"amqp,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`
@@ -1691,9 +2716,9 @@ type DNP3Config struct {
 	ThinkTime              int                  `json:"think_time,omitempty"`
 	MalformedCRC           bool                 `json:"malformed_crc,omitempty"`
 	// MalformedLength 显式覆盖 Length 字节（nil=不覆盖, 0=强制 Length=0x00）。
-	MalformedLength        *uint8               `json:"malformed_length,omitempty"`
-	UnknownObject          bool                 `json:"unknown_object,omitempty"`
-	UnknownFunc            bool                 `json:"unknown_func,omitempty"`
+	MalformedLength *uint8 `json:"malformed_length,omitempty"`
+	UnknownObject   bool   `json:"unknown_object,omitempty"`
+	UnknownFunc     bool   `json:"unknown_func,omitempty"`
 }
 
 type DNP3Object struct {
@@ -4489,7 +5514,70 @@ type OpenVPNInnerIP struct {
 //
 // COPY / replication / LISTEN are modeled via scenario names in
 // Operations — see the Operations field docs.
+// PostgreSQLEvent is a single PostgreSQL v3 wire event for the shared
+// postgresql layer's event-driven generator (layer_gen.go). It is the
+// terminal-layer event carring the kind/direction/profile that the generator
+// turns into PG v3 bytes. Richer than KingBaseEvent: it carries the
+// auth sub-type (authtype), parameter-status name/value, and backend-key
+// pid/secret so the postgresql layer can emit profile-complete events.
+type PostgreSQLEvent struct {
+	Kind      string `json:"kind,omitempty"`
+	Direction string `json:"direction,omitempty"`
+	Profile   string `json:"profile,omitempty"`
+	User      string `json:"user,omitempty"`
+	Database  string `json:"database,omitempty"`
+	Result    string `json:"result,omitempty"`
+	SQL       string `json:"sql,omitempty"`
+	Tag       string `json:"tag,omitempty"`
+	// Authtype is the int32 auth sub-type for "auth_request" (0=OK, 3=cleartext,
+	// 5=md5, 10=sasl). Pointer so an explicit authtype=0 (AuthenticationOk) is
+	// distinguishable from an absent default (which the generator maps to
+	// cleartext). nil = absent.
+	Authtype *int32 `json:"authtype,omitempty"`
+	// Name/Value carry ParameterStatus name/value; empty → generator uses a
+	// default parameter list (a cycled index).
+	Name  string `json:"name,omitempty"`
+	Value string `json:"value,omitempty"`
+	// PID/Secret carry BackendKeyData; 0 → generator default (12345/67890).
+	PID    int32 `json:"pid,omitempty"`
+	Secret int32 `json:"secret,omitempty"`
+}
+
+// PostgreSQLSession is a single postgresql-layer session with its own source
+// port and events (dialect=kingbase multi-session case).
+type PostgreSQLSession struct {
+	SrcPort uint16           `json:"src_port,omitempty"`
+	Events  []PostgreSQLEvent `json:"events,omitempty"`
+}
+
+// PostgreSQLConfig configures a PostgreSQL v3 wire session (TCP 5432 for
+// dialect=postgresql, 54321 for dialect=kingbase). It is the shared config for
+// the postgresql terminal layer; kingbase is a dialect variant of the same
+// layer (design §2.2/§4.3), so it reuses this config with Dialect="kingbase".
 type PostgreSQLConfig struct {
+	// Dialect selects the content/port variant of the shared PG v3 wire layer:
+	// "postgresql" (default port 5432) or "kingbase" (default port 54321).
+	Dialect string `json:"dialect,omitempty"`
+
+	// WireProfile selects the version/compatibility-mode template name. For
+	// dialect=postgresql this is "postgresql_v3"; for dialect=kingbase it is a
+	// KingBase-compatible profile (e.g. "kingbase_es_v8_pg_compatible"). It is
+	// NOT encoded into the wire bytes directly; it selects the event-encoding
+	// template set.
+	WireProfile string `json:"wire_profile,omitempty"`
+
+	// Events is the ordered application-event sequence (Startup/Auth/Ready/
+	// Query/...). Empty with no sessions = TCP-connect-only flow.
+	Events []PostgreSQLEvent `json:"events,omitempty"`
+
+	// Sessions, when non-empty, carries independent sessions (each with its own
+	// src_port and event flow). Mutually exclusive with Events in practice.
+	Sessions []PostgreSQLSession `json:"sessions,omitempty"`
+
+	// WireFault drives the negative-path planner/validator boundary faults
+	// (wire_fault). Only for negative cases; not a legal wire frame.
+	WireFault json.RawMessage `json:"wire_fault,omitempty"`
+
 	// ProtocolVersion: 0x00030000 (3.0, default) or 0x00030001 (3.1
 	// with pipeline). 0 defaults to 3.0.
 	ProtocolVersion int32 `json:"protocol_version,omitempty"`
@@ -8143,21 +9231,21 @@ type ENIPConfig struct {
 
 // ENIPCommand represents a single ENIP message command configuration.
 type ENIPCommand struct {
-	Command         uint16 `json:"command"`
-	Length          uint16 `json:"length,omitempty"`
-	SessionHandle   uint32 `json:"session_handle,omitempty"`
+	Command       uint16 `json:"command"`
+	Length        uint16 `json:"length,omitempty"`
+	SessionHandle uint32 `json:"session_handle,omitempty"`
 	// SessionHandleStrategy 记录 session_handle 配置为策略 map 时的 strategy 键
 	// （如 {"strategy":"inc",...}），仅用于 Validate 拒绝非法策略（设计 §7.3 T-090/091）。
 	// 该字段仅存在于配置解析层，不参与序列化。
 	SessionHandleStrategy string `json:"-"`
 	Status                uint32 `json:"status,omitempty"`
-	SenderContext   uint64 `json:"sender_context,omitempty"`
-	Options         uint32 `json:"options,omitempty"`
-	Payload         []byte `json:"payload,omitempty"`
-	ProtocolVersion uint16 `json:"protocol_version,omitempty"`
-	OptionFlag      uint16 `json:"option_flag,omitempty"`
-	InterfaceHandle uint32 `json:"interface_handle,omitempty"`
-	Timeout         uint16 `json:"timeout,omitempty"`
+	SenderContext         uint64 `json:"sender_context,omitempty"`
+	Options               uint32 `json:"options,omitempty"`
+	Payload               []byte `json:"payload,omitempty"`
+	ProtocolVersion       uint16 `json:"protocol_version,omitempty"`
+	OptionFlag            uint16 `json:"option_flag,omitempty"`
+	InterfaceHandle       uint32 `json:"interface_handle,omitempty"`
+	Timeout               uint16 `json:"timeout,omitempty"`
 	// PriorityTimeTick 和 TimeoutTicks 是 Forward_Open/Forward_Close 的 CIP 超时参数。
 	PriorityTimeTick            uint8            `json:"priority_time_tick,omitempty"`
 	TimeoutTicks                uint8            `json:"timeout_ticks,omitempty"`
