@@ -159,9 +159,10 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 
-	// 2. DHCPv6 config is required
+	// 2. DHCPv6 config is optional — empty config defaults to a single SOLICIT
+	// (P0b-2：空配置默认化产默认流)。
 	if spec.DHCPv6 == nil {
-		return fmt.Errorf("dhcpv6: config is required")
+		return nil
 	}
 	cfg := spec.DHCPv6
 
@@ -304,6 +305,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		defer close(configChan)
 
 		cfg := spec.DHCPv6
+		if cfg == nil {
+			// P0b-2：空配置默认化（Generate 同款：单 SOLICIT）。
+			cfg = &core.DHCPv6Config{Messages: []core.DHCPv6Message{{MsgType: MsgTypeSolicit}}}
+			spec.DHCPv6 = cfg
+		}
 
 		// Resolve DUIDs (解析 DUID)
 		clientDUID := cfg.ClientDUID

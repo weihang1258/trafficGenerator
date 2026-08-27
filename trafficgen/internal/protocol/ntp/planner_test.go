@@ -57,14 +57,14 @@ func TestPlanner_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "missing NTP config",
+			name: "empty NTP config defaults to a flow",
 			spec: core.FlowSpec{
 				SrcIP:   "192.168.1.1",
 				DstIP:   "192.168.1.2",
 				SrcPort: 12345,
 				DstPort: 123,
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "invalid source IP",

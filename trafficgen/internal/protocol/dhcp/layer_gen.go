@@ -45,7 +45,9 @@ func (g *DHCPGenerator) Name() string { return "dhcp" }
 func (g *DHCPGenerator) Generate(ctx context.Context, req *layers.GenRequest) error {
 	cfg := req.Meta.DHCP
 	if cfg == nil {
-		return fmt.Errorf("dhcp generator: DHCP config is nil (spec.dhcp required)")
+		// P0b-2：空配置默认化并产默认流（client 角色单 DISCOVER）。与
+		// Planner.Plan 的默认化一致。
+		cfg = &core.DHCPConfig{Role: "client", Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}}}
 	}
 	copied := *cfg
 	cfg = &copied
@@ -248,9 +250,6 @@ func (g *DHCPGenerator) EmitEvent(ev layers.MessageEvent) error {
 // Validate wraps the legacy dhcp.Planner.Validate (单一校验实现，178-green
 // 教训)：链层与 legacy 共用同一份校验，杜绝漂移。
 func (g *DHCPGenerator) Validate(spec *core.FlowSpec) error {
-	if spec.DHCP == nil {
-		return fmt.Errorf("dhcp config is required")
-	}
 	return (&Planner{}).Validate(*spec)
 }
 
@@ -259,9 +258,6 @@ func init() {
 		return &DHCPGenerator{}, nil
 	})
 	layers.RegisterLayerValidator("dhcp", func(spec *core.FlowSpec) error {
-		if spec.DHCP == nil {
-			return fmt.Errorf("dhcp config is required")
-		}
 		return (&Planner{}).Validate(*spec)
 	})
 }

@@ -107,8 +107,10 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 // 的 init 注册为 syslog 链的协议校验器，与 legacy Validate 共用同一实现
 // （配置部分），保证两条路径拒绝同一批 spec。
 func validateSyslogConfig(spec core.FlowSpec) error {
+	// P0b-2：空配置不再报错——Generate 已默认化 `&core.SyslogConfig{}` 并产默认
+	// 流（RFC5424 单条）。此处允许 nil，仅保留非 nil config 的字段校验。
 	if spec.Syslog == nil {
-		return fmt.Errorf("syslog: config is required")
+		return nil
 	}
 	cfg := spec.Syslog
 
@@ -354,6 +356,12 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
 
 		cfg := spec.Syslog
+		// P0b-2：空配置默认化（Validate 已允许 nil，Generate 同款）。写回
+		// spec.Syslog——emitUDP/emitTCP 的 Metadata 直接读 spec.Syslog。
+		if cfg == nil {
+			cfg = &core.SyslogConfig{}
+			spec.Syslog = cfg
+		}
 		// Apply defaults per validate_conventions.md §1.3 (in Plan goroutine,
 		// not Validate).
 		facility := cfg.Facility

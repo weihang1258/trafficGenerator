@@ -114,9 +114,10 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 
-	// 2. DHCP config is required
+	// 2. DHCP config is optional — empty config defaults to a single DISCOVER
+	// (P0b-2：空配置默认化产默认流)。
 	if spec.DHCP == nil {
-		return fmt.Errorf("DHCP config is required")
+		return nil
 	}
 
 	dhcp := spec.DHCP
@@ -398,6 +399,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		defer close(configChan)
 
 		dhcp := spec.DHCP
+		if dhcp == nil {
+			// P0b-2：空配置默认化（Generate 同款：client 角色单 DISCOVER）。
+			dhcp = &core.DHCPConfig{Role: "client", Messages: []core.DHCPMessage{{Type: MsgTypeDiscover}}}
+			spec.DHCP = dhcp
+		}
 		role := dhcp.Role
 		if role == "" {
 			role = "client"

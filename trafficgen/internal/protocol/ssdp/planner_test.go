@@ -767,17 +767,13 @@ func TestSSDP_Validate_InvalidPort(t *testing.T) {
 	}
 }
 
-// Integration 13: Validate error for nil SSDP config.
+// Integration 13: Validate accepts nil SSDP config (P0b-2: 空配置默认化产默认流).
 func TestSSDP_Validate_NilConfig(t *testing.T) {
 	p := NewPlanner()
 	spec := validSSDPSpec()
 	spec.SSDP = nil
-	err := p.Validate(spec)
-	if err == nil {
-		t.Errorf("expected error for nil SSDP config, got nil")
-	}
-	if err != nil && !strings.Contains(err.Error(), "SSDP config is required") {
-		t.Errorf("unexpected error: %v", err)
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("empty config should default to a flow, got err: %v", err)
 	}
 }
 
@@ -1333,5 +1329,22 @@ func TestSSDP_UpdateNotify_OmitsNextBootIDWhenZero(t *testing.T) {
 	}
 	if strings.Contains(payload, "SEARCHPORT.UPNP.ORG") {
 		t.Errorf("update NOTIFY should not contain SEARCHPORT.UPNP.ORG when SearchPort=0; payload:\n%s", payload)
+	}
+}
+
+func TestSSDP_EmptyConfigProducesDefaultFlow(t *testing.T) {
+	// P0b-2：空 config（nil SSDP）默认化（alive NOTIFY），Plan 产默认流。
+	p := NewPlanner()
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "239.255.255.250", SrcPort: 1900, DstPort: 1900}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("empty config Plan err: %v", err)
+	}
+	n := 0
+	for range ch {
+		n++
+	}
+	if n == 0 {
+		t.Fatal("empty config produced 0 packets")
 	}
 }

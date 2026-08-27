@@ -170,9 +170,10 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 // 波 4 起经 layer_gen.go 的 init 注册为 snmp 链的协议校验器，与 legacy
 // Validate 共用同一实现（配置部分），保证两条路径拒绝同一批 spec。
 func validateSNMPConfig(spec core.FlowSpec) error {
-	// SNMPConfig must be present.
+	// P0b-2：空配置不再报错——Generate 已默认化 `&core.SNMPConfig{}` 并产默认
+	// 流（v1 GET）。此处允许 nil，仅保留非 nil config 的字段校验。
 	if spec.SNMP == nil {
-		return fmt.Errorf("snmp: SNMP config is required")
+		return nil
 	}
 	cfg := spec.SNMP
 
@@ -315,6 +316,11 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		defer close(configChan)
 
 		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
+
+		// P0b-2：空配置默认化（Validate 已允许 nil）。默认 v1 GET 请求。
+		if spec.SNMP == nil {
+			spec.SNMP = &core.SNMPConfig{Version: VersionSNMPv1, PDUType: PDUGetRequest}
+		}
 
 		// Default port: 161 for query PDUs, 162 for trap/inform PDUs.
 		effectiveDstPort := spec.DstPort

@@ -54,7 +54,9 @@ func (g *DHCPv6Generator) Name() string { return "dhcpv6" }
 func (g *DHCPv6Generator) Generate(ctx context.Context, req *layers.GenRequest) error {
 	cfg := req.Meta.DHCPv6
 	if cfg == nil {
-		return fmt.Errorf("dhcpv6 generator: DHCPv6 config is nil (spec.dhcpv6 required)")
+		// P0b-2：空配置默认化并产默认流（单 SOLICIT）。与 Planner.Plan
+		// 的默认化一致。
+		cfg = &core.DHCPv6Config{Messages: []core.DHCPv6Message{{MsgType: MsgTypeSolicit}}}
 	}
 	copied := *cfg
 	cfg = &copied
@@ -180,9 +182,6 @@ func (g *DHCPv6Generator) EmitEvent(ev layers.MessageEvent) error {
 // Validate wraps the legacy dhcpv6.Planner.Validate（单一校验实现，178-green
 // 教训）：链层与 legacy 共用同一份校验，杜绝漂移。
 func (g *DHCPv6Generator) Validate(spec *core.FlowSpec) error {
-	if spec.DHCPv6 == nil {
-		return fmt.Errorf("dhcpv6 config is required")
-	}
 	return (&Planner{}).Validate(*spec)
 }
 
@@ -191,9 +190,6 @@ func init() {
 		return &DHCPv6Generator{}, nil
 	})
 	layers.RegisterLayerValidator("dhcpv6", func(spec *core.FlowSpec) error {
-		if spec.DHCPv6 == nil {
-			return fmt.Errorf("dhcpv6 config is required")
-		}
 		return (&Planner{}).Validate(*spec)
 	})
 }

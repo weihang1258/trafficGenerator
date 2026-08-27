@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"strings"
 	"testing"
 	"time"
 
@@ -1171,17 +1170,13 @@ func TestNTP_6_5_ServerMACsSwappedOnDirectionDown(t *testing.T) {
 	}
 }
 
-// TestNTP_7_ValidateErrorFormat checks that errors include the protocol
-// prefix per validate_conventions.md §5.1.
+// TestNTP_7_ValidateErrorFormat checks that nil NTP config is accepted
+// (P0b-2: 空配置默认化产默认流)。
 func TestNTP_7_ValidateErrorFormat(t *testing.T) {
 	p := NewPlanner()
 	spec := validNTPSpec()
 	spec.NTP = nil
-	err := p.Validate(spec)
-	if err == nil {
-		t.Fatal("expected error for nil NTP config")
-	}
-	if !strings.HasPrefix(err.Error(), "ntp: ") {
-		t.Errorf("error prefix = %q, want 'ntp: '", err.Error())
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("empty config should default to a flow, got err=%v", err)
 	}
 }

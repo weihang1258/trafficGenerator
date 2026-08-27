@@ -1456,3 +1456,24 @@ func TestTEdge22_ManyRouters(t *testing.T) {
 		t.Errorf("router 99 SrcPort = %d, want %d", cfgs[99].L4.SrcPort, 52001+99)
 	}
 }
+
+func TestEmptyConfigProducesDefaultFlow(t *testing.T) {
+	// P0b-2：空 config（nil RIP）默认化（v2 response_default 5 路由），
+	// Validate/Plan 产默认流。
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "224.0.0.9", SrcPort: 520, DstPort: 520}
+	p := Planner{}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("empty config Validate err: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("empty config Plan err: %v", err)
+	}
+	n := 0
+	for range ch {
+		n++
+	}
+	if n == 0 {
+		t.Fatal("empty config produced 0 packets")
+	}
+}

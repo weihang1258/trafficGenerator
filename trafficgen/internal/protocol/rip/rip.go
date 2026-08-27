@@ -105,9 +105,10 @@ func commandFromString(cmd string) (uint8, error) {
 
 // Validate validates a RIP flow spec.
 func (p *Planner) Validate(spec core.FlowSpec) error {
-	// Check RIP config exists
+	// P0b-2：空配置不再报错——Generate/Plan 已默认化并产默认流
+	// （v2 response_default 5 条示例路由）。允许 nil。
 	if spec.RIP == nil {
-		return fmt.Errorf("rip config is required")
+		return nil
 	}
 	cfg := spec.RIP
 
@@ -393,6 +394,12 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	}
 
 	cfg := spec.RIP
+	if cfg == nil {
+		// P0b-2：空配置默认化（Generate 同款：v2 response_default）。写回
+		// spec.RIP——emitRIPPacket 直接读 spec.RIP.Auth。
+		cfg = &core.RIPConfig{Version: "v2"}
+		spec.RIP = cfg
+	}
 
 	configChan := make(chan core.PacketConfig, 256)
 

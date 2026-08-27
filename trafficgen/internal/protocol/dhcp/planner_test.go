@@ -69,11 +69,11 @@ func TestPlanner_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "missing DHCP config",
+			name: "missing DHCP config defaults to a flow",
 			spec: core.FlowSpec{
 				SrcIP: "0.0.0.0", DstIP: "255.255.255.255",
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "IPv6 src ip rejected",
@@ -1583,5 +1583,23 @@ func TestPlan_InferredDirection(t *testing.T) {
 				t.Errorf("type %d direction = %s, want %s", tt.msgType, configs[0].Direction, tt.expected)
 			}
 		})
+	}
+}
+
+func TestEmptyConfigProducesDefaultFlow(t *testing.T) {
+	// P0b-2：空 config（nil DHCP）默认化（client 角色单 DISCOVER），
+	// Validate/Plan 产默认流。
+	p := NewPlanner()
+	spec := core.FlowSpec{SrcIP: "0.0.0.0", DstIP: "255.255.255.255", SrcMAC: "aa:bb:cc:dd:ee:ff"}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("empty config Plan err: %v", err)
+	}
+	n := 0
+	for range ch {
+		n++
+	}
+	if n == 0 {
+		t.Fatal("empty config produced 0 packets")
 	}
 }

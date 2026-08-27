@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/core/layers"
 )
 
 func TestPlanner_Name(t *testing.T) {
@@ -41,13 +42,12 @@ func TestPlanner_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "missing SNMP config",
+			name: "empty config defaults to a flow",
 			spec: core.FlowSpec{
 				SrcIP: "192.168.1.1", DstIP: "192.168.1.2",
 				SrcPort: 12345, DstPort: 161,
 			},
-			wantErr: true,
-			errSub:  "SNMP config is required",
+			wantErr: false,
 		},
 		{
 			name: "invalid SrcIP",
@@ -418,5 +418,22 @@ func TestPlanner_PlanContextCancel(t *testing.T) {
 	// emit (which may already be in the buffer). At most 1 packet expected.
 	if len(configs) > 1 {
 		t.Errorf("Expected at most 1 packet after pre-cancelled ctx, got %d", len(configs))
+	}
+}
+
+func TestGeneratorEmptyConfigProducesDefaultFlow(t *testing.T) {
+	var events []layers.MessageEvent
+	err := (&SNMPGenerator{}).Generate(context.Background(), &layers.GenRequest{
+		Meta:    layers.FlowMeta{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 161},
+		EmitMsg: func(ev layers.MessageEvent) error { events = append(events, ev); return nil },
+	})
+	if err != nil {
+		t.Fatalf("empty config Generate err: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("empty config produced 0 events")
+	}
+	if !events[0].Up {
+		t.Errorf("events[0].Up = false, want true")
 	}
 }

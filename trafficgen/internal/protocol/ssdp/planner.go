@@ -179,10 +179,13 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	if spec.DstIP != "" && net.ParseIP(spec.DstIP) == nil {
 		return fmt.Errorf("ssdp: DstIP %q is not a valid IP address", spec.DstIP)
 	}
-	if spec.SSDP == nil {
-		return fmt.Errorf("ssdp: SSDP config is required (set spec.ssdp)")
+	cfg := spec.SSDP
+	if cfg == nil {
+		// P0b-2：空配置不再报错——Generate/Plan 已默认化并产默认流
+		// （alive + nt upnp:rootdevice）。允许 nil，仅保留非 nil config 校验。
+		return nil
 	}
-	if err := validateSSDPConfig(*spec.SSDP); err != nil {
+	if err := validateSSDPConfig(*cfg); err != nil {
 		return err
 	}
 
@@ -212,6 +215,10 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		defer close(out)
 
 		cfg := spec.SSDP
+		if cfg == nil {
+			// P0b-2：空配置默认化（Generate 同款：alive NOTIFY）。
+			cfg = &core.SSDPConfig{MessageType: "alive", SearchTarget: "upnp:rootdevice"}
+		}
 
 		// Effective defaults (applied here, not in Validate, per conventions).
 		effectiveTTL := spec.TTL

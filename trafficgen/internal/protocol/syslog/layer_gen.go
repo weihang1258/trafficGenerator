@@ -130,7 +130,7 @@ func init() {
 		if err := validateSyslogConfig(*spec); err != nil {
 			return err
 		}
-		if spec.Syslog.Transport == "tcp" || spec.Syslog.Transport == "tls" {
+		if spec.Syslog != nil && (spec.Syslog.Transport == "tcp" || spec.Syslog.Transport == "tls") {
 			return fmt.Errorf("syslog: %s transport not supported by the layer chain yet (udp only; tcp/tls deferred)", spec.Syslog.Transport)
 		}
 		return nil

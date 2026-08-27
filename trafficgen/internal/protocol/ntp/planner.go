@@ -107,9 +107,10 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 	}
 
-	// NTP config is required.
+	// P0b-2：空配置不再报错——Generate/Plan 已默认化 `&core.NTPConfig{Mode:
+	// ModeClient}` 并产默认流（NTPv4 client 请求）。此处允许 nil。
 	if spec.NTP == nil {
-		return fmt.Errorf("ntp: NTP config is required (set spec.ntp)")
+		return nil
 	}
 
 	return validateNTPConfig(spec)
@@ -121,8 +122,9 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 // ≤ 468)。波 4 起经 layer_gen.go 的 init 注册为 ntp 链的协议校验器，与
 // legacy Validate 共用同一实现（配置部分），保证两条路径拒绝同一批 spec。
 func validateNTPConfig(spec core.FlowSpec) error {
+	// P0b-2：空配置允许（Generate/Plan 默认化）。仅保留非 nil config 校验。
 	if spec.NTP == nil {
-		return fmt.Errorf("ntp: NTP config is required (set spec.ntp)")
+		return nil
 	}
 	cfg := spec.NTP
 
@@ -221,7 +223,13 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 		// Effective NTP config: shallow-copy so we can apply defaults without
 		// mutating the caller's spec.NTP.
-		cfg := *spec.NTP
+		var cfg core.NTPConfig
+		if spec.NTP == nil {
+			// P0b-2：空配置默认化（Generate 同款：默认 NTPv4 client 请求）。
+			cfg = core.NTPConfig{Mode: ModeClient, Version: DefaultVersion}
+		} else {
+			cfg = *spec.NTP
+		}
 		// Version=0 means "user did not set" -> default 4. Mode is guaranteed
 		// non-zero by Validate (which rejects the reserved Mode=0).
 		if cfg.Version == 0 {

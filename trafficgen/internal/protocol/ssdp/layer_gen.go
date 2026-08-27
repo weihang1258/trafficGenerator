@@ -44,7 +44,9 @@ func (g *SSDPGenerator) Name() string { return "ssdp" }
 func (g *SSDPGenerator) Generate(ctx context.Context, req *layers.GenRequest) error {
 	cfg := req.Meta.SSDP
 	if cfg == nil {
-		return fmt.Errorf("ssdp generator: SSDP config is nil (spec.ssdp required)")
+		// P0b-2：空配置默认化并产默认流（alive NOTIFY）。与 Planner.Plan
+		// 的默认化一致。
+		cfg = &core.SSDPConfig{MessageType: "alive", SearchTarget: "upnp:rootdevice"}
 	}
 	copied := *cfg
 	cfg = &copied
@@ -253,11 +255,10 @@ func init() {
 		return &SSDPGenerator{}, nil
 	})
 	layers.RegisterLayerValidator("ssdp", func(spec *core.FlowSpec) error {
-		if spec.SSDP == nil {
-			return fmt.Errorf("ssdp: SSDP config is required (set spec.ssdp)")
-		}
-		if err := validateSSDPConfig(*spec.SSDP); err != nil {
-			return err
+		if spec.SSDP != nil {
+			if err := validateSSDPConfig(*spec.SSDP); err != nil {
+				return err
+			}
 		}
 		// Port validation（legacy planner.go:254-261 同款）：validateSpecBase
 		// 已把端口 0 默认化为 1900，此处校验"非 1900"拒绝。

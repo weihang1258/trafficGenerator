@@ -906,16 +906,20 @@ func TestPoint_2_1_2_UDP_ValidateFail_NilChannel(t *testing.T) {
 }
 
 func TestPoint_2_1_3_UDP_NilConfig_NilChannel(t *testing.T) {
-	// spec.Syslog=nil -> ERROR, channel nil.
+	// spec.Syslog=nil -> 空配置默认化，Plan 产默认流（P0b-2）。
 	p := NewPlanner()
 	spec := validSyslogSpec()
 	spec.Syslog = nil
 	ch, err := p.Plan(context.Background(), spec)
-	if err == nil {
-		t.Fatal("expected error")
+	if err != nil {
+		t.Fatalf("empty config Plan err: %v", err)
 	}
-	if ch != nil {
-		t.Error("expected nil channel")
+	n := 0
+	for range ch {
+		n++
+	}
+	if n == 0 {
+		t.Fatal("expected at least 1 packet from empty config")
 	}
 }
 
@@ -1112,13 +1116,12 @@ func TestPoint_3_14_3_SignBlocks_Base64(t *testing.T) {
 // --- 4.x Data scenarios ---
 
 func TestPoint_4_1_1_SyslogConfigNil_Fails(t *testing.T) {
-	// spec.Syslog=nil -> Validate fails.
+	// spec.Syslog=nil -> Validate 允许（空配置默认化，P0b-2）。
 	p := NewPlanner()
 	spec := validSyslogSpec()
 	spec.Syslog = nil
-	err := p.Validate(spec)
-	if err == nil {
-		t.Error("nil Syslog should fail Validate")
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("empty config Validate err: %v", err)
 	}
 }
 

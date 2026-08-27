@@ -70,9 +70,8 @@ func TestSyslogValidate_NilConfig(t *testing.T) {
 	p := NewPlanner()
 	spec := validSyslogSpec()
 	spec.Syslog = nil
-	err := p.Validate(spec)
-	if err == nil || !strings.Contains(err.Error(), "syslog") || !strings.Contains(err.Error(), "required") {
-		t.Errorf("err=%v, want contains 'syslog' and 'required'", err)
+	if err := p.Validate(spec); err != nil {
+		t.Errorf("Empty config should default to a flow, got err=%v", err)
 	}
 }
 

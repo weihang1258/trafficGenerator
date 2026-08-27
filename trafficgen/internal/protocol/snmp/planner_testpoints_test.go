@@ -1203,13 +1203,13 @@ func TestIntegration_Name(t *testing.T) {
 	}
 }
 
-// 7.4: Planner.Validate(nil-SNMP) returns error
+// 7.4: Planner.Validate(nil-SNMP) is allowed (empty config → default flow)
 func TestIntegration_ValidateNilConfig(t *testing.T) {
 	p := NewPlanner()
 	spec := core.FlowSpec{SrcIP: "1.1.1.1", DstIP: "2.2.2.2"}
 	err := p.Validate(spec)
-	if err == nil {
-		t.Error("Validate should error when SNMP config is nil")
+	if err != nil {
+		t.Errorf("Validate should accept nil SNMP config (default flow): %v", err)
 	}
 }
 

@@ -47,7 +47,9 @@ func (g *RIPGenerator) Name() string { return "rip" }
 func (g *RIPGenerator) Generate(ctx context.Context, req *layers.GenRequest) error {
 	cfg := req.Meta.RIP
 	if cfg == nil {
-		return fmt.Errorf("rip generator: RIP config is nil (spec.rip required)")
+		// P0b-2：空配置默认化并产默认流（v2 response_default）。与
+		// Planner.Plan 的默认化一致。
+		cfg = &core.RIPConfig{Version: "v2"}
 	}
 	copied := *cfg
 	cfg = &copied
@@ -308,9 +310,6 @@ func (g *RIPGenerator) EmitEvent(ev layers.MessageEvent) error {
 // Validate wraps the legacy rip.Planner.Validate (单一校验实现，178-green
 // 教训)：链层与 legacy 共用同一份校验，杜绝漂移。
 func (g *RIPGenerator) Validate(spec *core.FlowSpec) error {
-	if spec.RIP == nil {
-		return fmt.Errorf("rip config is required")
-	}
 	return (&Planner{}).Validate(*spec)
 }
 
@@ -319,9 +318,6 @@ func init() {
 		return &RIPGenerator{}, nil
 	})
 	layers.RegisterLayerValidator("rip", func(spec *core.FlowSpec) error {
-		if spec.RIP == nil {
-			return fmt.Errorf("rip config is required")
-		}
 		return (&Planner{}).Validate(*spec)
 	})
 }

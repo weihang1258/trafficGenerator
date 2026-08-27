@@ -150,11 +150,11 @@ func TestPlanner_Validate_Basic(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "missing config",
+			name: "missing config defaults to a flow",
 			spec: core.FlowSpec{
 				SrcIP: "fe80::1", DstIP: "ff02::1:2",
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "empty messages",
@@ -1628,5 +1628,26 @@ func TestAutoDUID_EmptySrcMAC_PlanReturnsError(t *testing.T) {
 		cfgs := drain(ch)
 		t.Fatalf("Plan returned no error but emitted %d packets; expected a validation "+
 			"error for auto-ClientDUID with empty SrcMAC", len(cfgs))
+	}
+}
+
+func TestEmptyConfigProducesDefaultFlow(t *testing.T) {
+	// P0b-2：空 config（nil DHCPv6）默认化（单 SOLICIT），Validate/Plan
+	// 产默认流。
+	p := NewPlanner()
+	spec := core.FlowSpec{SrcIP: "fe80::1", DstIP: "ff02::1:2", SrcMAC: "00:11:22:33:44:55"}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("empty config Validate err: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("empty config Plan err: %v", err)
+	}
+	n := 0
+	for range ch {
+		n++
+	}
+	if n == 0 {
+		t.Fatal("empty config produced 0 packets")
 	}
 }
