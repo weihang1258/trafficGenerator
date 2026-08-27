@@ -377,6 +377,10 @@ type FlowMeta struct {
 	// 报文序列，buildGTPMessage/buildInnerIPv4Packet 纯函数复用)。Only set
 	// for gtp chains。
 	GTP *core.GTPConfig
+	// IKE is the flow's IKE config (注入到 ike 终结层生成器：IKE 消息序列 +
+	// ESP 数据面，buildIKEMessageBytes/buildESPPacket 纯函数复用)。Only set
+	// for ike chains。
+	IKE *core.IKEConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators

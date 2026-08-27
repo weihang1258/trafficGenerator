@@ -553,6 +553,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			} else {
 				spec.DstPort = 2152
 			}
+		case "ike":
+			// IKE 目的端口默认 500（RFC 7296 §1.2；legacy DefaultPort=500，
+			// Validate 允许 DstPort=0 或 500——用户显式写 dst_port 且非 0/500
+			// 时由 ike Validate 拒绝，不在此分支）。
+			spec.DstPort = 500
 		case "ldp":
 			spec.DstPort = 646
 		case "pcep":
@@ -1121,6 +1126,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// GTP 同款（P3）：配置经 Meta 直传 gtp 终结层生成器（GTP-U/C 隧道
 		// 报文序列，buildGTPMessage/buildInnerIPv4Packet 纯函数复用）。
 		GTP: spec.GTP,
+		// IKE 同款（P3）：配置经 Meta 直传 ike 终结层生成器（IKE 消息序列 +
+		// ESP 数据面，buildIKEMessageBytes 纯函数复用）。
+		IKE: spec.IKE,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,

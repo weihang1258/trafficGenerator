@@ -314,6 +314,14 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "gtp", Category: CategoryTerminal,
 		DependsOn: []string{"udp"},
 	})
+	// ---- ike（udp 终结层。IKEv1/v2——UDP 承载的密钥交换协议：IKE 消息序列
+	// + 可选 ESP 数据面，wire 字节由 buildIKEMessageBytes 纯函数产出）。UDP
+	// 语义交给 udp 层生成器；配置经 spec.IKE flat 键携带、FlowMeta 直传
+	// 生成器（tftp 重放模式）；目的端口默认 500（RFC 7296 §1.2）。
+	r.Register(LayerSchema{Name: "ike", Category: CategoryTerminal,
+		DependsOn:     []string{"udp"},
+		FieldContract: map[string]string{"udp.dst_port": "500"}, // RFC 7296 默认 500；用户显式非标准端口须为 0/500（ike Validate 强制），不强制覆盖
+	})
 	// ---- amqp（tcp 终结层。AMQP 0-9-1——高级消息队列协议，TCP 承载的
 	// 消息队列 wire 协议，8-byte protocol header → METHOD/HEADER/BODY/
 	// HEARTBEAT frame 序列，frame layout 为
