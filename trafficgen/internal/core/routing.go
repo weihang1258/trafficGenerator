@@ -7,22 +7,44 @@ package core
 // ---- IGMP (IP proto 2) ----
 
 // IGMPConfig configures one IGMP message (RFC 1112 v1 / RFC 2236 v2 /
-// RFC 3376 v3). A single flow emits one query/report/leave.
+// RFC 3376 v3). A single flow emits one query/report/leave, or an event
+// sequence when Events is set (top-level `events` in the case JSON).
 type IGMPConfig struct {
-	Profile         string        `json:"profile,omitempty"`          // v1|v2|v3
-	Kind            string        `json:"kind,omitempty"`             // query|report|leave
-	Group           string        `json:"group,omitempty"`            // group address
-	MaxResponseTime int           `json:"max_response_time,omitempty"`// v2 max resp (deciseconds) or v3 MRC
-	MaxResponseCode int           `json:"max_response_code,omitempty"`// v3 raw MRC byte
-	SFlag           int           `json:"s_flag,omitempty"`           // v3 S bit (suppress router-side)
-	QRV             int           `json:"qrv,omitempty"`              // v3 QRV (robustness var)
-	QQIC            int           `json:"qqic,omitempty"`             // v3 QQIC
-	Records         []IGMPRecord  `json:"records,omitempty"`          // v3 group records
-	Sources         []string      `json:"sources,omitempty"`          // v3 source list (record or top-level)
-	SourceCount     int           `json:"source_count,omitempty"`     // v3 explicit source count (wire_fault test)
-	ChecksumMode    string        `json:"checksum_mode,omitempty"`    // ""|invalid|zero
-	WireFault       *IGMPWireFault `json:"wire_fault,omitempty"`      // fault injection
-	AddressFamily   string        `json:"address_family,omitempty"`   // ipv4|ipv6 (ipv6 rejected)
+	Profile         string          `json:"profile,omitempty"`          // v1|v2|v3
+	Kind            string          `json:"kind,omitempty"`             // query|report|leave
+	Group           string          `json:"group,omitempty"`            // group address
+	MaxResponseTime int             `json:"max_response_time,omitempty"`// v2 max resp (deciseconds) or v3 MRC
+	MaxResponseCode int             `json:"max_response_code,omitempty"`// v3 raw MRC byte
+	SFlag           int             `json:"s_flag,omitempty"`           // v3 S bit (suppress router-side)
+	QRV             int             `json:"qrv,omitempty"`              // v3 QRV (robustness var)
+	QQIC            int             `json:"qqic,omitempty"`             // v3 QQIC
+	Records         []IGMPRecord    `json:"records,omitempty"`          // v3 group records
+	Sources         []string        `json:"sources,omitempty"`          // v3 source list (record or top-level)
+	SourceCount     int             `json:"source_count,omitempty"`     // v3 explicit source count (wire_fault test)
+	ChecksumMode    string          `json:"checksum_mode,omitempty"`    // ""|invalid|zero
+	WireFault       *IGMPWireFault  `json:"wire_fault,omitempty"`       // fault injection
+	AddressFamily   string          `json:"address_family,omitempty"`   // ipv4|ipv6 (ipv6 rejected)
+	Events          []IGMPEvent     `json:"events,omitempty"`           // multi-message sequence
+}
+
+// IGMPEvent is one message in an IGMP event sequence (v1/v2/v3
+// query/report/leave). `state`/`session`/`retransmit` select the message
+// variant; each event is emitted as one full packet.
+type IGMPEvent struct {
+	Profile         string       `json:"profile,omitempty"`
+	Kind            string       `json:"kind,omitempty"`
+	Group           string       `json:"group,omitempty"`
+	State           string       `json:"state,omitempty"`     // querying|member|leaving
+	Session         string       `json:"session,omitempty"`   // multi-group grouping
+	Retransmit      bool         `json:"retransmit,omitempty"`// retransmitted report
+	Records         []IGMPRecord `json:"records,omitempty"`   // v3 group records
+	Sources         []string     `json:"sources,omitempty"`
+	MaxResponseTime int          `json:"max_response_time,omitempty"`
+	MaxResponseCode int          `json:"max_response_code,omitempty"`
+	SFlag           int          `json:"s_flag,omitempty"`
+	QRV             int          `json:"qrv,omitempty"`
+	QQIC            int          `json:"qqic,omitempty"`
+	ChecksumMode    string       `json:"checksum_mode,omitempty"`
 }
 
 // IGMPRecord is a v3 Group Record (mode-change/allow/block).

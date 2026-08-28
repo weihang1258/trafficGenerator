@@ -582,6 +582,21 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				spec.IGMP = &v
 			}
 		}
+		// igmp 的 profile_matrix/retransmit_state/multi_group_sessions 用例把
+		// `events` 放在顶层（而非 igmp 子映射内）：逐一解析为 IGMPEvent 序列
+		// 填充 spec.IGMP.Events。无 igmp 子映射时先建一个空的 IGMPConfig。
+		if evs, ok := cfg["events"].([]interface{}); ok && len(evs) > 0 {
+			if spec.IGMP == nil {
+				spec.IGMP = &IGMPConfig{}
+			}
+			b, _ := json.Marshal(evs)
+			var v []IGMPEvent
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "igmp events: "+err.Error())
+			} else {
+				spec.IGMP.Events = v
+			}
+		}
 	case "ospf":
 		if sub, ok := cfg["ospf"].(map[string]interface{}); ok {
 			b, _ := json.Marshal(sub)
