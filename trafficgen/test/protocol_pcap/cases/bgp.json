@@ -125,7 +125,7 @@
         {
           "packet": 5,
           "offset": 54,
-          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 1d 01 04 fd 00 00 5a c0 00 02 02 00"
+          "hex": "ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 00 1d 01 04 fc 01 00 5a c0 00 02 02 00"
         },
         {
           "packet": 6,

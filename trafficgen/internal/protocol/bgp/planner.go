@@ -25,7 +25,78 @@ func (Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("bgp: transport %q invalid; BGP requires tcp", transport)
 		}
 	}
-	return ValidateConfig(spec.BGP)
+	// Legacy fields are still validated for direct (non-events) usage.
+	if err := ValidateConfig(spec.BGP); err != nil {
+		return err
+	}
+	return validateSessionConfig(spec.BGP)
+}
+
+// validateSessionConfig validates config-level invariants that apply whether
+// the events are on the top level or inside a session: profile, sessions>1),
+// then each event's internal consistency and sequence state machine. When a
+// single session is present, that session's events are the effective sequence.
+func validateSessionConfig(cfg *BGPConfig) error {
+	if cfg == nil {
+		return nil
+	}
+	if len(cfg.Sessions) > 1 {
+		return fmt.Errorf("bgp: sessions (%d) multi-stream expansion is not supported on a layer chain (one flow per chain)", len(cfg.Sessions))
+	}
+	events := cfg.Events
+	if len(cfg.Sessions) == 1 {
+		events = cfg.Sessions[0].Events
+	}
+	return validateEventSequence(events)
+}
+
+// validateEventSequence enforces the RFC 4271 adjacency state machine (design
+// §4) over the ordered event sequence: opens come first (a pair), keepalive/
+// update only after the open exchange, notification is terminal, and each
+// event's own config is internally valid.
+func validateEventSequence(events []core.BGPEvent) error {
+	if events == nil {
+		return nil
+	}
+	openSeen := false
+	openCount := 0
+	opened := false // an open preceded a processed event; used to reject opens after
+	for i := range events {
+		ev := &events[i]
+		if err := validateEventConfig(ev); err != nil {
+			return err
+		}
+		switch ev.Kind {
+		case "open":
+			// Opens are the only events allowed before the exchange is done;
+			// keepalive/update/notification all require the open exchange.
+			if opened {
+				return fmt.Errorf("bgp: open after application events started (state violation)")
+			}
+			openSeen = true
+			openCount++
+		case "keepalive", "update":
+			opened = true
+			if !openSeen {
+				return fmt.Errorf("bgp: %s before OPEN exchange completed (state violation)", ev.Kind)
+			}
+		case "notification":
+			if !openSeen {
+				return fmt.Errorf("bgp: notification before OPEN exchange completed (state violation)")
+			}
+			// Notification must be the last BGP application event (§4).
+			if i != len(events)-1 {
+				return fmt.Errorf("bgp: notification must be the last application event")
+			}
+		}
+	}
+	// §4: opens must appear as a pair (one per direction) before the exchange is
+	// considered complete. A connect-only session (zero events) is permitted,
+	// but if opens exist they must be a pair.
+	if openCount > 0 && openCount != 2 {
+		return fmt.Errorf("bgp: OPEN exchange requires exactly two OPEN messages (one per direction), got %d", openCount)
+	}
+	return nil
 }
 
 func (p Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {
@@ -36,14 +107,12 @@ func (p Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pack
 	if bgpCfg == nil {
 		bgpCfg = &BGPConfig{}
 	}
-	cfg := normalized(bgpCfg)
-	open, err := BuildOpen(&cfg)
-	if err != nil {
-		return nil, err
+	events := bgpCfg.Events
+	if len(bgpCfg.Sessions) == 1 {
+		events = bgpCfg.Sessions[0].Events
 	}
-	ka, err := BuildKeepalive()
-	if err != nil {
-		return nil, err
+	if events == nil {
+		events = defaultDualEvents(bgpCfg)
 	}
 	out := make(chan core.PacketConfig, 16)
 	go func() {
@@ -65,8 +134,16 @@ func (p Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pack
 		if !emit(true, nil, 2) || !emit(false, nil, 0x12) || !emit(true, nil, 0x10) {
 			return
 		}
-		if !emit(true, open, 0x18) || !emit(false, open, 0x18) || !emit(true, ka, 0x18) || !emit(false, ka, 0x18) || !emit(true, ka, 0x18) || !emit(false, ka, 0x18) {
-			return
+		for i := range events {
+			ev := &events[i]
+			msg, err := BuildEvent(*ev)
+			if err != nil {
+				return
+			}
+			up := ev.Direction != "s2c"
+			if !emit(up, msg, 0x18) {
+				return
+			}
 		}
 		emit(true, nil, 0x11)
 		emit(false, nil, 0x11)

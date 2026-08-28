@@ -85,18 +85,57 @@ type TaskStats struct {
 }
 
 // BGPConfig configures a minimal RFC 4271 BGP session over TCP.
+// Events is the ordered application-event sequence (design §2). Sessions
+// carries multi-session expansion (each with its own source port); it is a
+// T3 framework multi-flow topic and the layer chain rejects sessions>1.
 type BGPConfig struct {
-	Transport    string `json:"transport,omitempty"`
-	Version      uint8  `json:"version,omitempty"`
-	ASN          uint32 `json:"asn,omitempty"`
-	HoldTime     uint16 `json:"hold_time,omitempty"`
-	Identifier   string `json:"identifier,omitempty"`
-	Marker       []byte `json:"marker,omitempty"`
-	Length       uint16 `json:"length,omitempty"`
-	WireProfile  string `json:"wire_profile,omitempty"`
-	Capabilities []byte `json:"capabilities,omitempty"`
-	Update       []byte `json:"update,omitempty"`
-	Notification []byte `json:"notification,omitempty"`
+	Transport    string       `json:"transport,omitempty"`
+	Version      uint8        `json:"version,omitempty"`
+	ASN          uint32       `json:"asn,omitempty"`
+	HoldTime     uint16       `json:"hold_time,omitempty"`
+	Identifier   string       `json:"identifier,omitempty"`
+	Marker       []byte       `json:"marker,omitempty"`
+	Length       uint16       `json:"length,omitempty"`
+	WireProfile  string       `json:"wire_profile,omitempty"`
+	Capabilities []byte       `json:"capabilities,omitempty"`
+	Update       []byte       `json:"update,omitempty"`
+	Notification []byte       `json:"notification,omitempty"`
+	Events       []BGPEvent   `json:"events,omitempty"`
+	Sessions     []BGPSession `json:"sessions,omitempty"`
+}
+
+// BGPEvent is one BGP application event in the ordered sequence. Only the
+// fields relevant to the event's kind are meaningful; the rest stay zero.
+type BGPEvent struct {
+	Kind              string               `json:"kind,omitempty"`               // open/keepalive/update/notification/wire_fault
+	Direction         string               `json:"direction,omitempty"`          // c2s, s2c
+	Version           uint8                `json:"version,omitempty"`            // OPEN version
+	MyAS              uint32               `json:"my_as,omitempty"`              // OPEN My AS (moved to uint32 so 2-octet overflow is rejected by validation, not silently wrapped by JSON)
+	HoldTime          uint16               `json:"hold_time,omitempty"`          // OPEN hold time
+	Identifier        string               `json:"identifier,omitempty"`         // OPEN BGP identifier (IPv4)
+	WithdrawnPrefixes []string             `json:"withdrawn_prefixes,omitempty"` // UPDATE withdrawn routes
+	NLRI              []string             `json:"nlri,omitempty"`               // UPDATE NLRI prefixes
+	Attributes        *BGPUpdateAttributes `json:"attributes,omitempty"`         // UPDATE path attributes
+	ErrorCode         uint8                `json:"error_code,omitempty"`         // NOTIFICATION error code
+	ErrorSubcode      uint8                `json:"error_subcode,omitempty"`      // NOTIFICATION error subcode
+	FaultKind         string               `json:"fault_kind,omitempty"`         // wire_fault: marker/length/type
+	Value             *uint16              `json:"value,omitempty"`              // wire_fault: injected value (length/type)
+}
+
+// BGPUpdateAttributes are the RFC 4271 path attributes carried by an UPDATE.
+type BGPUpdateAttributes struct {
+	Origin        *uint8   `json:"origin,omitempty"`          // ORIGIN: 0 IGP / 1 EGP / 2 INCOMPLETE (pointer so IGP=0 is distinguishable from absent)
+	ASPath        []uint16 `json:"as_path,omitempty"`         // AS_SEQUENCE list (2-octet ASNs)
+	NextHop       string   `json:"next_hop,omitempty"`        // NEXT_HOP IPv4 address
+	MultiExitDisc uint32   `json:"multi_exit_disc,omitempty"` // MULTI_EXIT_DISC metric
+	LocalPref     uint32   `json:"local_pref,omitempty"`      // LOCAL_PREF preference
+	Communities   []string `json:"communities,omitempty"`     // COMMUNITIES (e.g. NO_EXPORT)
+}
+
+// BGPSession is one independent BGP session with its own source port and events.
+type BGPSession struct {
+	SrcPort uint16     `json:"src_port,omitempty"`
+	Events  []BGPEvent `json:"events,omitempty"`
 }
 
 // IEC104Config configures an IEC 60870-5-104 session.
@@ -199,33 +238,33 @@ type STUNFault struct {
 // wire bytes for handshake, reliable/unreliable data, fragment, ack, ping/pong,
 // and close. Wire faults are injected for negative test cases.
 type RTMFPConfig struct {
-	Profile           string          `json:"profile,omitempty"`            // rtmfp_baseline, rtmfp_low_latency
-	Role              string          `json:"role,omitempty"`               // initiator, responder
-	KeepaliveInterval int             `json:"keepalive_interval,omitempty"` // seconds between pings
-	PingCount         int             `json:"ping_count,omitempty"`         // max ping/pong rounds
-	WireFault         *RTMFPFault     `json:"wire_fault,omitempty"`         // negative test only
-	Sessions          []RTMFPSession  `json:"sessions,omitempty"`
+	Profile           string         `json:"profile,omitempty"`            // rtmfp_baseline, rtmfp_low_latency
+	Role              string         `json:"role,omitempty"`               // initiator, responder
+	KeepaliveInterval int            `json:"keepalive_interval,omitempty"` // seconds between pings
+	PingCount         int            `json:"ping_count,omitempty"`         // max ping/pong rounds
+	WireFault         *RTMFPFault    `json:"wire_fault,omitempty"`         // negative test only
+	Sessions          []RTMFPSession `json:"sessions,omitempty"`
 }
 
 // RTMFPSession is one independent RTMFP session with its own cookie/session ID.
 type RTMFPSession struct {
-	SessionID uint32        `json:"session_id,omitempty"`
-	SrcPort   uint16        `json:"src_port,omitempty"` // override source port (multi-session)
-	Events    []RTMFPEvent  `json:"events,omitempty"`
+	SessionID uint32       `json:"session_id,omitempty"`
+	SrcPort   uint16       `json:"src_port,omitempty"` // override source port (multi-session)
+	Events    []RTMFPEvent `json:"events,omitempty"`
 }
 
 // RTMFPEvent is one RTMFP message in a session event sequence.
 type RTMFPEvent struct {
-	Kind       string          `json:"kind,omitempty"`        // hello/hello_ack/cookie/session_confirm/reliable/unreliable/fragment/ack/ping/pong/close/error
-	Direction  string          `json:"direction,omitempty"`   // c2s, s2c
-	FlowID     uint32          `json:"flow_id,omitempty"`
-	Sequence   uint32          `json:"sequence,omitempty"`
-	Message    string          `json:"message,omitempty"`     // text payload
-	MessageB64 string          `json:"message_b64,omitempty"` // base64 payload (takes precedence)
-	Cookie     string          `json:"cookie,omitempty"`      // explicit cookie bytes (hex)
-	SessionID  *uint32         `json:"session_id,omitempty"`  // override session ID for this event
-	Ranges     [][2]uint32     `json:"ranges,omitempty"`      // ACK ranges: [[start,end],...]
-	Fragment   *RTMFPFragment  `json:"fragment,omitempty"`
+	Kind       string         `json:"kind,omitempty"`      // hello/hello_ack/cookie/session_confirm/reliable/unreliable/fragment/ack/ping/pong/close/error
+	Direction  string         `json:"direction,omitempty"` // c2s, s2c
+	FlowID     uint32         `json:"flow_id,omitempty"`
+	Sequence   uint32         `json:"sequence,omitempty"`
+	Message    string         `json:"message,omitempty"`     // text payload
+	MessageB64 string         `json:"message_b64,omitempty"` // base64 payload (takes precedence)
+	Cookie     string         `json:"cookie,omitempty"`      // explicit cookie bytes (hex)
+	SessionID  *uint32        `json:"session_id,omitempty"`  // override session ID for this event
+	Ranges     [][2]uint32    `json:"ranges,omitempty"`      // ACK ranges: [[start,end],...]
+	Fragment   *RTMFPFragment `json:"fragment,omitempty"`
 }
 
 // RTMFPFragment carries fragment metadata for reassembly.
@@ -238,9 +277,9 @@ type RTMFPFragment struct {
 
 // RTMFPFault is a wire fault injected for negative test cases.
 type RTMFPFault struct {
-	Kind    string `json:"kind,omitempty"`     // short_header, bad_length, session_mismatch, sequence_regress, fragment_gap, ack_unknown, state_order, session_leak
+	Kind     string `json:"kind,omitempty"`     // short_header, bad_length, session_mismatch, sequence_regress, fragment_gap, ack_unknown, state_order, session_leak
 	Declared uint32 `json:"declared,omitempty"` // declared length/count
-	Actual  uint32 `json:"actual,omitempty"`    // actual length/count
+	Actual   uint32 `json:"actual,omitempty"`   // actual length/count
 }
 
 // AMQPConfig configures an AMQP 0-9-1 connection/channel session over TCP
@@ -281,11 +320,11 @@ type AMQPEvent struct {
 	// rather than []byte so a plain string like "Hello!" is NOT base64-
 	// decoded by json.Unmarshal (Go decodes []byte JSON fields from base64).
 	// resolveBody converts string / []byte / nil to the wire bytes.
-	Arguments  map[string]any `json:"arguments,omitempty"`
-	Properties map[string]any `json:"properties,omitempty"`
-	Body       any            `json:"body,omitempty"`
-	BodyHex    string         `json:"body_hex,omitempty"` // hex body, takes precedence over Body
-	BodySizeOverride *uint64  `json:"body_size_override,omitempty"` // negative test only
+	Arguments        map[string]any `json:"arguments,omitempty"`
+	Properties       map[string]any `json:"properties,omitempty"`
+	Body             any            `json:"body,omitempty"`
+	BodyHex          string         `json:"body_hex,omitempty"`           // hex body, takes precedence over Body
+	BodySizeOverride *uint64        `json:"body_size_override,omitempty"` // negative test only
 }
 
 // HTTPFLVConfig configures an HTTP-FLV session (HTTP/1.1 GET carrying FLV
@@ -301,7 +340,7 @@ type HTTPFLVConfig struct {
 
 // FLVTag is one FLV tag in an HTTP-FLV stream.
 type FLVTag struct {
-	Type                 string  `json:"type,omitempty"`                   // script/audio/video
+	Type                 string  `json:"type,omitempty"` // script/audio/video
 	Timestamp            uint32  `json:"timestamp,omitempty"`
 	Data                 []byte  `json:"data,omitempty"`
 	DataSizeOverride     *uint32 `json:"data_size_override,omitempty"`     // negative test only
@@ -312,64 +351,64 @@ type FLVTag struct {
 // The http layer's transformer mode wraps HLS body events in HTTP GET/200
 // frames; hls only controls the playlist/segment bytes.
 type HLSConfig struct {
-	Profile           string         `json:"profile,omitempty"`              // rfc8216_v7 / apple_ll_hls
-	Sessions          []HLSSession   `json:"sessions,omitempty"`             // ordered session events
-	Live              *HLSLive       `json:"live,omitempty"`                 // live sliding window
-	LLHLS             *HLSLLHLS      `json:"ll_hls,omitempty"`               // LL-HLS (apple_ll_hls only)
-	WireFault         string         `json:"wire_fault,omitempty"`           // negative test only
-	EmptyBody         bool           `json:"empty_body,omitempty"`           // negative test only
-	MissingExtM3U     bool           `json:"missing_extm3u,omitempty"`       // negative test only
-	BadTag            string         `json:"bad_tag,omitempty"`              // negative test only
-	BadBandwidth      bool           `json:"bad_bandwidth,omitempty"`        // negative test only
-	TruncateBody      bool           `json:"truncate_body,omitempty"`        // negative test only
-	InvalidURI        bool           `json:"invalid_uri,omitempty"`          // negative test only
-	KeyMismatch       bool           `json:"key_mismatch,omitempty"`         // negative test only
-	SequenceRegress   bool           `json:"sequence_regress,omitempty"`     // negative test only
-	DiscontinuityIncr bool           `json:"discontinuity_incr,omitempty"`   // negative test only
-	LLWithoutProfile  bool           `json:"ll_without_profile,omitempty"`   // negative test only
-	CrossSessionRef   bool           `json:"cross_session_ref,omitempty"`    // negative test only
+	Profile           string       `json:"profile,omitempty"`            // rfc8216_v7 / apple_ll_hls
+	Sessions          []HLSSession `json:"sessions,omitempty"`           // ordered session events
+	Live              *HLSLive     `json:"live,omitempty"`               // live sliding window
+	LLHLS             *HLSLLHLS    `json:"ll_hls,omitempty"`             // LL-HLS (apple_ll_hls only)
+	WireFault         string       `json:"wire_fault,omitempty"`         // negative test only
+	EmptyBody         bool         `json:"empty_body,omitempty"`         // negative test only
+	MissingExtM3U     bool         `json:"missing_extm3u,omitempty"`     // negative test only
+	BadTag            string       `json:"bad_tag,omitempty"`            // negative test only
+	BadBandwidth      bool         `json:"bad_bandwidth,omitempty"`      // negative test only
+	TruncateBody      bool         `json:"truncate_body,omitempty"`      // negative test only
+	InvalidURI        bool         `json:"invalid_uri,omitempty"`        // negative test only
+	KeyMismatch       bool         `json:"key_mismatch,omitempty"`       // negative test only
+	SequenceRegress   bool         `json:"sequence_regress,omitempty"`   // negative test only
+	DiscontinuityIncr bool         `json:"discontinuity_incr,omitempty"` // negative test only
+	LLWithoutProfile  bool         `json:"ll_without_profile,omitempty"` // negative test only
+	CrossSessionRef   bool         `json:"cross_session_ref,omitempty"`  // negative test only
 }
 
 // HLSSession is one HLS event: master/media/refresh/segment/key.
 type HLSSession struct {
-	Kind                string            `json:"kind,omitempty"`                 // master/media/refresh/segment/key
-	SessionID           string            `json:"session_id,omitempty"`           // default session when empty
-	URI                 string            `json:"uri,omitempty"`                  // playlist/segment/key resource URI
-	PlaylistType        string            `json:"playlist_type,omitempty"`        // master/media
-	PlaylistMode        string            `json:"playlist_mode,omitempty"`        // EVENT/VOD
-	TargetDuration      float64           `json:"target_duration,omitempty"`      // #EXT-X-TARGETDURATION
-	MediaSequence       int               `json:"media_sequence,omitempty"`       // #EXT-X-MEDIA-SEQUENCE
-	MediaSequenceEnd    *int              `json:"media_sequence_end,omitempty"`   // target sequence for refresh regression check
-	DiscontinuitySeq    int               `json:"discontinuity_sequence,omitempty"`
-	Segments            []HLSSegment      `json:"segments,omitempty"`             // ordered segment entries
-	Variants            []HLSVariant      `json:"variants,omitempty"`             // master variants
-	Renditions          []HLSRendition    `json:"renditions,omitempty"`           // EXT-X-MEDIA groups
-	Key                 *HLSKey           `json:"key,omitempty"`                  // AES-128 key
-	Parts               []HLSPart         `json:"parts,omitempty"`                // LL-HLS partial segments
-	PreloadHint         *HLSPreloadHint   `json:"preload_hint,omitempty"`         // LL-HLS preload
-	Map                 *HLSMap           `json:"map,omitempty"`                  // fMP4 init map
-	Body                string            `json:"body,omitempty"`                 // explicit playlist body (negative fixtures)
-	ResponseStatusCode  int               `json:"response_status_code,omitempty"` // 200/206/404/...
-	ResponseContentType string            `json:"response_content_type,omitempty"`
-	ResponseBody        string            `json:"response_body,omitempty"`
-	ResponseBodyB64     string            `json:"response_body_b64,omitempty"`
-	ByteRange           *HLSByteRange     `json:"byte_range,omitempty"`
-	ResourceLength      int               `json:"resource_length,omitempty"`
-	PlaylistContentType string            `json:"playlist_content_type,omitempty"`
-	IndependentSegments bool              `json:"independent_segments,omitempty"`
-	Endlist             bool              `json:"endlist,omitempty"`
-	Rounds              int               `json:"rounds,omitempty"` // HTTP GET/200 rounds; 0 → 1
+	Kind                string          `json:"kind,omitempty"`               // master/media/refresh/segment/key
+	SessionID           string          `json:"session_id,omitempty"`         // default session when empty
+	URI                 string          `json:"uri,omitempty"`                // playlist/segment/key resource URI
+	PlaylistType        string          `json:"playlist_type,omitempty"`      // master/media
+	PlaylistMode        string          `json:"playlist_mode,omitempty"`      // EVENT/VOD
+	TargetDuration      float64         `json:"target_duration,omitempty"`    // #EXT-X-TARGETDURATION
+	MediaSequence       int             `json:"media_sequence,omitempty"`     // #EXT-X-MEDIA-SEQUENCE
+	MediaSequenceEnd    *int            `json:"media_sequence_end,omitempty"` // target sequence for refresh regression check
+	DiscontinuitySeq    int             `json:"discontinuity_sequence,omitempty"`
+	Segments            []HLSSegment    `json:"segments,omitempty"`             // ordered segment entries
+	Variants            []HLSVariant    `json:"variants,omitempty"`             // master variants
+	Renditions          []HLSRendition  `json:"renditions,omitempty"`           // EXT-X-MEDIA groups
+	Key                 *HLSKey         `json:"key,omitempty"`                  // AES-128 key
+	Parts               []HLSPart       `json:"parts,omitempty"`                // LL-HLS partial segments
+	PreloadHint         *HLSPreloadHint `json:"preload_hint,omitempty"`         // LL-HLS preload
+	Map                 *HLSMap         `json:"map,omitempty"`                  // fMP4 init map
+	Body                string          `json:"body,omitempty"`                 // explicit playlist body (negative fixtures)
+	ResponseStatusCode  int             `json:"response_status_code,omitempty"` // 200/206/404/...
+	ResponseContentType string          `json:"response_content_type,omitempty"`
+	ResponseBody        string          `json:"response_body,omitempty"`
+	ResponseBodyB64     string          `json:"response_body_b64,omitempty"`
+	ByteRange           *HLSByteRange   `json:"byte_range,omitempty"`
+	ResourceLength      int             `json:"resource_length,omitempty"`
+	PlaylistContentType string          `json:"playlist_content_type,omitempty"`
+	IndependentSegments bool            `json:"independent_segments,omitempty"`
+	Endlist             bool            `json:"endlist,omitempty"`
+	Rounds              int             `json:"rounds,omitempty"` // HTTP GET/200 rounds; 0 → 1
 }
 
 // HLSSegment is one media segment entry in a playlist.
 type HLSSegment struct {
-	URI              string        `json:"uri,omitempty"`
-	Duration         float64       `json:"duration,omitempty"`
-	Title            string        `json:"title,omitempty"`
-	ByteRange        *HLSByteRange `json:"byte_range,omitempty"`
-	KeyRef           string        `json:"key_ref,omitempty"`
-	Discontinuity    bool          `json:"discontinuity,omitempty"`
-	ProgramDateTime  string        `json:"program_date_time,omitempty"`
+	URI             string        `json:"uri,omitempty"`
+	Duration        float64       `json:"duration,omitempty"`
+	Title           string        `json:"title,omitempty"`
+	ByteRange       *HLSByteRange `json:"byte_range,omitempty"`
+	KeyRef          string        `json:"key_ref,omitempty"`
+	Discontinuity   bool          `json:"discontinuity,omitempty"`
+	ProgramDateTime string        `json:"program_date_time,omitempty"`
 }
 
 // HLSVariant is one #EXT-X-STREAM-INF variant of a master playlist.
@@ -385,12 +424,12 @@ type HLSVariant struct {
 
 // HLSRendition is one #EXT-X-MEDIA rendition group.
 type HLSRendition struct {
-	Type        string `json:"type,omitempty"` // AUDIO/VIDEO/SUBTITLES/CLOSED-CAPTIONS
-	GroupID     string `json:"group_id,omitempty"`
-	Name        string `json:"name,omitempty"`
-	Default     *bool  `json:"default,omitempty"`
-	AutoSelect  *bool  `json:"autoselect,omitempty"`
-	URI         string `json:"uri,omitempty"`
+	Type       string `json:"type,omitempty"` // AUDIO/VIDEO/SUBTITLES/CLOSED-CAPTIONS
+	GroupID    string `json:"group_id,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Default    *bool  `json:"default,omitempty"`
+	AutoSelect *bool  `json:"autoselect,omitempty"`
+	URI        string `json:"uri,omitempty"`
 }
 
 // HLSByteRange is one #EXT-X-BYTERANGE range.
@@ -427,8 +466,8 @@ type HLSMap struct {
 
 // HLSLive is the live sliding-window configuration.
 type HLSLive struct {
-	Window         int `json:"window,omitempty"`
-	RefreshCount   int `json:"refresh_count,omitempty"`
+	Window          int `json:"window,omitempty"`
+	RefreshCount    int `json:"refresh_count,omitempty"`
 	RefreshInterval int `json:"refresh_interval,omitempty"`
 }
 
@@ -447,19 +486,19 @@ type HDSConfig struct {
 
 // HDSSession is one HDS event: manifest/bootstrap/fragment.
 type HDSSession struct {
-	Kind        string `json:"kind,omitempty"`          // manifest/bootstrap/fragment
-	URI         string `json:"uri,omitempty"`           // resource URI
-	ManifestURI string `json:"manifest_uri,omitempty"`  // manifest URI for bootstrap/fragment ref
-	SrcPort     int    `json:"src_port,omitempty"`      // override source port (multi-session)
-	Rounds      int    `json:"rounds,omitempty"`        // HTTP GET/200 rounds; 0 → 1
+	Kind        string `json:"kind,omitempty"`         // manifest/bootstrap/fragment
+	URI         string `json:"uri,omitempty"`          // resource URI
+	ManifestURI string `json:"manifest_uri,omitempty"` // manifest URI for bootstrap/fragment ref
+	SrcPort     int    `json:"src_port,omitempty"`     // override source port (multi-session)
+	Rounds      int    `json:"rounds,omitempty"`       // HTTP GET/200 rounds; 0 → 1
 }
 
 // HDSManifest is the F4M manifest configuration.
 type HDSManifest struct {
-	ID            string            `json:"id,omitempty"`
-	StreamType    string            `json:"stream_type,omitempty"`     // live or recorded
-	URI           string            `json:"uri,omitempty"`             // manifest request URI
-	Media         []HDSMedia        `json:"media,omitempty"`
+	ID             string             `json:"id,omitempty"`
+	StreamType     string             `json:"stream_type,omitempty"` // live or recorded
+	URI            string             `json:"uri,omitempty"`         // manifest request URI
+	Media          []HDSMedia         `json:"media,omitempty"`
 	BootstrapInfos []HDSBootstrapInfo `json:"bootstrap_infos,omitempty"`
 }
 
@@ -488,14 +527,14 @@ type HDSFragment struct {
 	Fragment  uint32 `json:"fragment,omitempty"`
 	Timestamp uint64 `json:"timestamp,omitempty"`
 	Duration  uint32 `json:"duration,omitempty"`
-	Body      string `json:"body,omitempty"`       // text body
-	BodyB64   string `json:"body_b64,omitempty"`   // base64 body
+	Body      string `json:"body,omitempty"`     // text body
+	BodyB64   string `json:"body_b64,omitempty"` // base64 body
 }
 
 // HLSLLHLS is the LL-HLS profile configuration.
 type HLSLLHLS struct {
-	PartTarget      float64 `json:"part_target,omitempty"`
-	ServerControl   string  `json:"server_control,omitempty"`
+	PartTarget    float64 `json:"part_target,omitempty"`
+	ServerControl string  `json:"server_control,omitempty"`
 }
 
 // LDPConfig configures a minimal RFC 5036 LDP session.
@@ -1008,14 +1047,14 @@ type S7Config struct {
 
 // S7Command describes one S7 job and its optional response.
 type S7Command struct {
-	Kind       string    `json:"kind,omitempty"`
-	ROSCTR     uint8     `json:"rosctr,omitempty"`
-	PDURef     uint16    `json:"pdu_ref,omitempty"`
-	Items      []S7Item  `json:"items,omitempty"`
+	Kind   string   `json:"kind,omitempty"`
+	ROSCTR uint8    `json:"rosctr,omitempty"`
+	PDURef uint16   `json:"pdu_ref,omitempty"`
+	Items  []S7Item `json:"items,omitempty"`
 	// Value holds per-item write data bytes. JSON shape is [][]byte (one entry
 	// per S7ANY item, each entry the value bytes), e.g. [[1]] for a single-bit
 	// M100.0 write. Decoded from the case's "value" key.
-	Value    [][]byte `json:"value,omitempty"`
+	Value [][]byte `json:"value,omitempty"`
 	// ErrClass/ErrCode are the negative-path Ack_Data error class/code (json
 	// keys err_class/err_code per the case files).
 	ErrClass *uint8 `json:"err_class,omitempty"`
@@ -1023,9 +1062,9 @@ type S7Command struct {
 	// ForceROSCTR injects an illegal ROSCTR for validate-negative cases.
 	ForceROSCTR *uint8 `json:"force_rosctr,omitempty"`
 	// PadPDULen faults the TPKT/S7 length agreement for validate-negative cases.
-	PadPDULen  *bool  `json:"pad_pdu_len,omitempty"`
-	SzlID      uint16 `json:"szl_id,omitempty"`
-	SzlIndex   uint16 `json:"szl_index,omitempty"`
+	PadPDULen *bool  `json:"pad_pdu_len,omitempty"`
+	SzlID     uint16 `json:"szl_id,omitempty"`
+	SzlIndex  uint16 `json:"szl_index,omitempty"`
 }
 
 // S7Item describes an S7ANY variable specification.
@@ -1092,9 +1131,9 @@ type GOOSEEventSeq struct {
 
 // SVData describes one integer sampled-value channel.
 type SVData struct {
-	Name    string  `json:"name,omitempty"`
-	Type    string  `json:"type"`
-	InstMag int32   `json:"inst_mag,omitempty"`
+	Name    string `json:"name,omitempty"`
+	Type    string `json:"type"`
+	InstMag int32  `json:"inst_mag,omitempty"`
 	// InstMagF holds the float value for float32 channels (inst_mag as a
 	// float, e.g. 1.5). The encoder emits its IEEE 754 single-precision bits.
 	InstMagF float32 `json:"-"`
@@ -1176,7 +1215,7 @@ type FlowSpec struct {
 	STUN     *STUNConfig     `json:"stun,omitempty"`
 	HTTPFLV  *HTTPFLVConfig  `json:"http_flv,omitempty"`
 	HLS      *HLSConfig      `json:"hls,omitempty"`
-		HDS      *HDSConfig      `json:"hds,omitempty"`
+	HDS      *HDSConfig      `json:"hds,omitempty"`
 	MOXA     *MOXAConfig     `json:"moxa,omitempty"`
 	SOMEIP   *SOMEIPConfig   `json:"someip,omitempty"`
 	DRDA     *DRDAConfig     `json:"drda,omitempty"`
@@ -5587,7 +5626,7 @@ type PostgreSQLEvent struct {
 // PostgreSQLSession is a single postgresql-layer session with its own source
 // port and events (dialect=kingbase multi-session case).
 type PostgreSQLSession struct {
-	SrcPort uint16           `json:"src_port,omitempty"`
+	SrcPort uint16            `json:"src_port,omitempty"`
 	Events  []PostgreSQLEvent `json:"events,omitempty"`
 }
 
