@@ -33,7 +33,7 @@
       "fields": [
         {"packet": 4, "field": "tcp.dstport", "value": "2404"},
         {"packet": 5, "field": "tcp.srcport", "value": "2404"},
-        {"packet": 6, "field": "iec60870_104.apdulen", "value": "4"}
+        {"packet": 6, "field": "iec60870_104.apdulen", "value": "14"}
       ],
       "frames": [
         {"packet": 4, "offset": 54, "hex": "68 04 07 00 00 00"},
@@ -89,8 +89,8 @@
       "directional": true,
       "terminates": true,
       "frames": [
-        {"packet": 6, "offset": 54, "hex": "68 0b 00 00 00 00 64 01 06 00 07 00 14"},
-        {"packet": 7, "offset": 54, "hex": "68 0e 02 00 00 00 01 01 14 00 07 00 01 00 00 01"},
+        {"packet": 6, "offset": 54, "hex": "68 0e 00 00 00 00 64 01 06 00 07 00 00 00 00 14"},
+        {"packet": 7, "offset": 54, "hex": "68 0e 00 00 02 00 01 01 14 00 07 00 01 00 00 01"},
         {"packet": 8, "offset": 54, "hex": "68 04 01 00 02 00"}
       ],
       "notes": ["poll.count=3；每轮 C_IC_NA_1 的 QOI=20，响应 COT=20。"]
@@ -233,7 +233,7 @@
       "terminates": true,
       "frames": [
         {"packet": 6, "offset": 54, "hex": "68 0e 00 00 00 00 2d 01 06 00 05 00 16 00 00 81"},
-        {"packet": 7, "offset": 54, "hex": "68 0e 02 00 00 00 2d 01 07 00 05 00 16 00 00 81"}
+        {"packet": 7, "offset": 54, "hex": "68 0e 00 00 02 00 2d 01 07 00 05 00 16 00 00 81"}
       ],
       "notes": ["SCO 的 bit7 为 Select/Execute 标志；选择和执行不是两个不同 TypeID。"]
     }
@@ -270,7 +270,7 @@
       "terminates": true,
       "frames": [
         {"packet": 6, "offset": 54, "hex": "68 15 00 00 00 00 3b 01 06 00 06 00 17 00 00 02"},
-        {"packet": 7, "offset": 54, "hex": "68 15 02 00 00 00 3b 01 07 00 06 00 17 00 00 02"}
+        {"packet": 7, "offset": 54, "hex": "68 15 00 00 02 00 3b 01 07 00 06 00 17 00 00 02"}
       ],
       "notes": ["TypeID=59 为带 CP56Time2a 的双点命令；时间字段不以固定字节断言。"]
     }
@@ -423,7 +423,7 @@
       "terminates": true,
       "fields": [
         {"packet": 4, "field": "ipv6.dst", "value": "2001:db8:104::2"},
-        {"packet": 6, "field": "tcp.dstport", "value": "2404"}
+        {"packet": 4, "field": "tcp.dstport", "value": "2404"}
       ],
       "frames": [
         {"packet": 6, "offset": 74, "hex": "68 0e 00 00 00 00 03 01 03 00 0a 00 02 00 00 02"}

@@ -94,7 +94,7 @@ func TestBuildInformationEncodesIEC104TypeSpecificFields(t *testing.T) {
 		{
 			name: "interrogation",
 			cfg:  &IEC104Config{TypeID: TypeCICNa, Cause: 6, CommonAddress: 7, InformationObjectAddress: 0, QOI: 20},
-			want: "680b0000000064010600070014",
+			want: "680e0000000064010600070000000014",
 		},
 		{
 			name: "single command select",

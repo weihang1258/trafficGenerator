@@ -234,3 +234,40 @@ func TestHavePayload_ForCoAPChecksPayloadField(t *testing.T) {
 		}
 	}
 }
+
+// TestHavePayload_ForIEC104ChecksAPDUPresence: IEC104 帧天然小（60~70B），
+// frame.len 恒 < 80，旧实现用 frame.len>80 作代理判断恒判"无负载"。IEC104 的
+// PDU（I/U/S 帧）由 iec60870_104.apdulen 标记：非空必有一个 IEC104 PDU 存在，
+// 而纯 TCP 握手/挥手帧（apdulen 为空）不携带任何 IEC104 负载。设计 testcase
+// 22-iec104-testcase.md 在 iec104_u_frames（纯 U 控制帧）也置 has_payload=true，
+// 所以语义是"IEC104 PDU 存在"，非"ASDU 数据帧存在"。
+func TestHavePayload_ForIEC104ChecksAPDUPresence(t *testing.T) {
+	p := pcapRoot + "/iec104/iec104_u_frames.pcap"
+	requirePcap(t, p)
+	c := Case{
+		ID:    "iec104_u_frames",
+		Proto: "iec104",
+		Expect: Expect{HasPayload: true},
+	}
+	problems := VerifyPcap(p, c)
+	for _, pr := range problems {
+		if strings.Contains(pr, "has_payload") {
+			t.Fatalf("iec104 has_payload false-failure (PDU present but frame <80): %s", pr)
+		}
+	}
+	// 负路径：纯 TCP 握手（无任何 IEC104 PDU）必须失败。tcp-handshake-basic 只有
+	// SYN/SYN-ACK/ACK/FIN，iec60870_104.apdulen 全程为空。
+	p2 := pcapRoot + "/tcp/tcp-handshake-basic.pcap"
+	requirePcap(t, p2)
+	c2 := Case{ID: "iec104-nopdu", Proto: "iec104", Expect: Expect{HasPayload: true}}
+	probs := VerifyPcap(p2, c2)
+	found := false
+	for _, pr := range probs {
+		if strings.Contains(pr, "has_payload") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("iec104 has_payload on pure-TCP pcap must fail, got %v", probs)
+	}
+}

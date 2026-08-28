@@ -37,7 +37,7 @@ func (g *IEC104Generator) Generate(ctx context.Context, req *layers.GenRequest) 
 			if event.Direction == "down" {
 				eventTx, eventRx = downTx, upTx
 			}
-			b, err := buildEventWithSequence(event, eventTx, eventRx)
+			b, err := buildEventWithSequence(event, eventTx, eventRx, cfg.CommonAddress)
 			if err != nil {
 				return err
 			}
@@ -88,14 +88,14 @@ func (g *IEC104Generator) Generate(ctx context.Context, req *layers.GenRequest) 
 	return nil
 }
 
-func buildEventWithSequence(event IEC104Event, tx, rx uint16) ([]byte, error) {
+func buildEventWithSequence(event IEC104Event, tx, rx uint16, commonAddress uint16) ([]byte, error) {
 	if event.Kind == "i" {
-		return BuildInformation(&IEC104Config{TypeID: event.TypeID, Cause: event.Cause, InformationObjectAddress: event.IOA, Value: event.Value, SIQ: event.SIQ, QDS: event.QDS, DIQ: event.DIQ, SCO: event.SCO, DCO: event.DCO, QOI: event.QOI, Select: event.Select, Time: event.Time}, tx, rx)
+		return BuildInformation(&IEC104Config{TypeID: event.TypeID, Cause: event.Cause, CommonAddress: commonAddress, InformationObjectAddress: event.IOA, Value: event.Value, SIQ: event.SIQ, QDS: event.QDS, DIQ: event.DIQ, SCO: event.SCO, DCO: event.DCO, QOI: event.QOI, Select: event.Select, Time: event.Time}, tx, rx)
 	}
-	return buildEvent(event)
+	return buildEvent(event, commonAddress)
 }
 
-func buildEvent(event IEC104Event) ([]byte, error) {
+func buildEvent(event IEC104Event, commonAddress uint16) ([]byte, error) {
 	switch event.Kind {
 	case "startdt_act":
 		return BuildUFrame(UStartDTAct)
@@ -112,7 +112,7 @@ func buildEvent(event IEC104Event) ([]byte, error) {
 	case "s":
 		return BuildSFrame(event.RX)
 	case "i":
-		return BuildInformation(&IEC104Config{TypeID: event.TypeID, Cause: event.Cause, InformationObjectAddress: event.IOA, Value: event.Value, SIQ: event.SIQ, QDS: event.QDS, DIQ: event.DIQ, SCO: event.SCO, DCO: event.DCO, QOI: event.QOI, Select: event.Select, Time: event.Time}, 0, 0)
+		return BuildInformation(&IEC104Config{TypeID: event.TypeID, Cause: event.Cause, CommonAddress: commonAddress, InformationObjectAddress: event.IOA, Value: event.Value, SIQ: event.SIQ, QDS: event.QDS, DIQ: event.DIQ, SCO: event.SCO, DCO: event.DCO, QOI: event.QOI, Select: event.Select, Time: event.Time}, 0, 0)
 	default:
 		return nil, fmt.Errorf("iec104 generator: unsupported event kind %q", event.Kind)
 	}

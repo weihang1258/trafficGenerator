@@ -233,6 +233,22 @@ func checkHasPayload(pcapPath string, c Case) error {
 		}
 		return fmt.Errorf("no CoAP message with non-zero payload_length (payload field absent or 0)")
 	}
+	// IEC104 PDU 天然小（60~70B），frame.len 恒 < 80，不能用帧长作代理。PDU 是否
+	// 存在由 iec60870_104.apdulen 标记：非空 = 至少一个 IEC104 PDU（I/U/S 帧），
+	// 纯 TCP 握手/挥手帧该字段为空。设计 22-iec104-testcase.md 在纯 U 控制帧
+	// （iec104_u_frames）也置 has_payload=true，故语义为"PDU 存在"。
+	if c.Proto == "iec104" {
+		vals, err := FieldValues(pcapPath, "iec60870_104.apdulen", c.DecodeAs)
+		if err != nil {
+			return err
+		}
+		for _, v := range vals {
+			if v != "" {
+				return nil
+			}
+		}
+		return fmt.Errorf("no IEC104 PDU (iec60870_104.apdulen absent; only TCP handshake)")
+	}
 	lens, err := FieldValues(pcapPath, "frame.len", c.DecodeAs)
 	if err != nil {
 		return err
@@ -377,6 +393,13 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 	case caseID == "enip_seq_wraparound_3_frames":
 		return true
 	case caseID == "tds_rpc_param_xml_json_udt", caseID == "doip_userdata_empty", caseID == "modbus-fc99-exemption":
+		return true
+	// S7comm 错误头伪影：对"错误头+空数据"的 Ack_Data（parlg=1 参数为函数码、
+	// datlg=0、errcls/errcod 非零），packet-s7comm.c 的 Write Var 分支读不存在的
+	// 数据区 → "[Malformed Packet: S7COMM]"（设计 §9.3 S12 帧 15 已文档化）。
+	// 字节级已对探针 pcap 验证：errcls=0x04/errcod=0x01/param=0x05，字段 tshark
+	// 仍正确解析（errcls/errcod/func），仅 dissector 残留。属已知伪影非帧缺陷。
+	case caseID == "s7_error_class_code":
 		return true
 	// 5. RTMP/XMPP/TLS dissector 对字节级合法帧的伪影（2026-08 冒烟用例，
 	//    已对探针 pcap 验证）：RTMP dissector 的 AMF 递归守卫在嵌套 _result

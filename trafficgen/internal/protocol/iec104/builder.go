@@ -99,7 +99,6 @@ func buildASDU(cfg *IEC104Config) ([]byte, error) {
 		}
 		out = append(out, stamp...)
 	case TypeCICNa:
-		out = out[:len(out)-3]
 		out = append(out, cfg.QOI)
 	}
 	return out, nil
