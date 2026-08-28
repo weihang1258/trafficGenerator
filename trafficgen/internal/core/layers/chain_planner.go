@@ -798,8 +798,17 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			defer close(out)
 			gen := gens[len(gens)-1]
 			sess := &SessionState{IPID: uint16(rand.Uint32())}
+			meta := flowMetaFor(spec)
+			// raw-IP 生成器需要 SrcIP/DstIP/TTL（构造 L3 头）与协议配置。
+			// flowMetaFor 只含 SrcMAC/DstMAC/SV/GOOSE——其余字段在此补齐。
+			meta.SrcIP = spec.SrcIP
+			meta.DstIP = spec.DstIP
+			meta.TTL = spec.TTL
+			meta.IGMP = spec.IGMP
+			meta.OSPF = spec.OSPF
+			meta.PIM = spec.PIM
 			req := &GenRequest{
-				Meta:  flowMetaFor(spec),
+				Meta:  meta,
 				Sess:  sess,
 				Emit: func(pkt core.PacketConfig) error {
 					if pkt.Direction == "down" {
@@ -902,7 +911,7 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 }
 
 func flowMetaFor(spec core.FlowSpec) FlowMeta {
-	return FlowMeta{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, SV: spec.SV, GOOSE: spec.GOOSE}
+	return FlowMeta{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, SV: spec.SV, GOOSE: spec.GOOSE, ISIS: spec.ISIS}
 }
 
 // flowID mirrors the legacy per-flow ID format// "srcIP-dstIP-srcPort-dstPort"（每 flow 唯一标识）。
