@@ -1,6 +1,7 @@
 package tns
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -145,16 +146,21 @@ func TestBuildPacketConnect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Length = 8 + len("connect_basic") = 8 + 13 = 21
-	if len(pkt) != 21 {
-		t.Fatalf("len=%d want 21", len(pkt))
+	// Minimal connect_common body: header(8) + 16 prefix + 10 (len/off/max/flags)
+	// + 24 (trace fields) + 48 connect_data = 8+98 = 106.
+	if len(pkt) != 106 {
+		t.Fatalf("len=%d want 106", len(pkt))
 	}
 	if pkt[4] != TypeConnect {
 		t.Fatalf("type=%02x want %02x", pkt[4], TypeConnect)
 	}
-	// payload at offset 8
-	if string(pkt[8:]) != "connect_basic" {
-		t.Fatalf("payload=%q want connect_basic", pkt[8:])
+	// length field at offset 0 = total packet length.
+	if got := binary.BigEndian.Uint16(pkt[0:2]); got != 106 {
+		t.Fatalf("length=%d want 106", got)
+	}
+	// Body must not echo the ASCII profile name (design §3.1).
+	if bytes.Contains(pkt[8:], []byte("connect_basic")) {
+		t.Fatalf("body must not contain ASCII profile name")
 	}
 }
 
@@ -164,14 +170,15 @@ func TestBuildPacketAccept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pkt) != 8+12 {
-		t.Fatalf("len=%d want %d", len(pkt), 8+12)
+	// header(8) + 16 prefix + accept_data_length(2) + offset(2) = 28.
+	if len(pkt) != 28 {
+		t.Fatalf("len=%d want 28", len(pkt))
 	}
 	if pkt[4] != TypeAccept {
 		t.Fatalf("type=%02x want %02x", pkt[4], TypeAccept)
 	}
-	if string(pkt[8:]) != "accept_basic" {
-		t.Fatalf("payload=%q want accept_basic", pkt[8:])
+	if bytes.Contains(pkt[8:], []byte("accept_basic")) {
+		t.Fatalf("body must not contain ASCII profile name")
 	}
 }
 
@@ -184,8 +191,12 @@ func TestBuildPacketRefuse(t *testing.T) {
 	if pkt[4] != TypeRefuse {
 		t.Fatalf("type=%02x want %02x", pkt[4], TypeRefuse)
 	}
-	if string(pkt[8:]) != "refuse_basic" {
-		t.Fatalf("payload=%q want refuse_basic", pkt[8:])
+	// header(8) + refuse user/system(2) + refuse_data_length(2) + pad(4) = 16.
+	if len(pkt) != 16 {
+		t.Fatalf("len=%d want 16", len(pkt))
+	}
+	if bytes.Contains(pkt[8:], []byte("refuse_basic")) {
+		t.Fatalf("body must not contain ASCII profile name")
 	}
 }
 
@@ -198,8 +209,12 @@ func TestBuildPacketRedirect(t *testing.T) {
 	if pkt[4] != TypeRedirect {
 		t.Fatalf("type=%02x want %02x", pkt[4], TypeRedirect)
 	}
-	if string(pkt[8:]) != "redirect_basic" {
-		t.Fatalf("payload=%q want redirect_basic", pkt[8:])
+	// header(8) + redirect_data_length(2) + pad(2) = 12.
+	if len(pkt) != 12 {
+		t.Fatalf("len=%d want 12", len(pkt))
+	}
+	if bytes.Contains(pkt[8:], []byte("redirect_basic")) {
+		t.Fatalf("body must not contain ASCII profile name")
 	}
 }
 
@@ -209,9 +224,9 @@ func TestBuildPacketData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// DATA: header(8) + data_flags(2) + payload(11) = 21
-	if len(pkt) != 21 {
-		t.Fatalf("len=%d want 21", len(pkt))
+	// DATA: header(8) + data_flags(2) + payload(0) = 10.
+	if len(pkt) != 10 {
+		t.Fatalf("len=%d want 10", len(pkt))
 	}
 	if pkt[4] != TypeData {
 		t.Fatalf("type=%02x want %02x", pkt[4], TypeData)
@@ -219,10 +234,6 @@ func TestBuildPacketData(t *testing.T) {
 	// data_flags at offset 8
 	if got := binary.BigEndian.Uint16(pkt[8:10]); got != 0 {
 		t.Fatalf("data_flags=%04x want 0000", got)
-	}
-	// payload at offset 10
-	if string(pkt[10:]) != "ttc_connect" {
-		t.Fatalf("payload=%q want ttc_connect", pkt[10:])
 	}
 }
 
@@ -236,14 +247,17 @@ func TestBuildPacketDataNonzeroFlags(t *testing.T) {
 }
 
 func TestBuildPacketEmptyProfile(t *testing.T) {
-	// Empty profile defaults to "tns"
+	// Empty profile still builds a valid connect_common body (not the ASCII "tns").
 	ev := core.TNSEvent{Type: "CONNECT", PayloadProfile: ""}
 	pkt, err := buildPacket(ev)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(pkt[8:]) != "tns" {
-		t.Fatalf("payload=%q want tns", pkt[8:])
+	if len(pkt) != 106 {
+		t.Fatalf("len=%d want 106", len(pkt))
+	}
+	if bytes.Contains(pkt[8:], []byte("tns")) {
+		t.Fatalf("body must not contain ASCII profile name")
 	}
 }
 
@@ -313,15 +327,6 @@ func TestEventTypeUnknown(t *testing.T) {
 	_, err = eventType(ev)
 	if err == nil || !strings.Contains(err.Error(), "unknown packet type") {
 		t.Fatalf("err=%v want unknown packet type", err)
-	}
-}
-
-func TestProfilePayload(t *testing.T) {
-	if got := profilePayload("connect_basic"); string(got) != "connect_basic" {
-		t.Fatalf("got %q want connect_basic", got)
-	}
-	if got := profilePayload(""); string(got) != "tns" {
-		t.Fatalf("got %q want tns", got)
 	}
 }
 
@@ -617,16 +622,17 @@ func TestPlanS1ConnectAcceptData(t *testing.T) {
 	}
 	// Verify wire format at offset 54 + 4 = 58 (CONNECT type byte)
 	// Header: [length(2)][checksum(2)][type(1)][reserved(1)][hdr_checksum(2)]
-	// CONNECT: length=0x0015 (8+13), checksum=0x0000, type=01, reserved=00, hdr_checksum=0x0000
-	// Combined: 0015 0000 01 00 0000
+	// CONNECT: length=0x006a (106 = 8 header + 98 connect_common body),
+	// checksum=0x0000, type=01, reserved=00, hdr_checksum=0x0000.
 	hdr := pkts[3].Payload[:8]
-	wantHdr := "0015000001000000"
+	wantHdr := "006a000001000000"
 	if hex(hdr) != wantHdr {
 		t.Fatalf("CONNECT header hex=%s want %s", hex(hdr), wantHdr)
 	}
-	// DATA header: length=0x0015 (8+2+11), checksum=0x0000, type=06, reserved=00, hdr_checksum=0x0000
+	// DATA header: length=0x000a (10 = 8 + 2 data_flags + 0 payload),
+	// checksum=0x0000, type=06, reserved=00, hdr_checksum=0x0000
 	hdr = pkts[5].Payload[:8]
-	wantDataHdr := "0015000006000000"
+	wantDataHdr := "000a000006000000"
 	if hex(hdr) != wantDataHdr {
 		t.Fatalf("DATA header hex=%s want %s", hex(hdr), wantDataHdr)
 	}
