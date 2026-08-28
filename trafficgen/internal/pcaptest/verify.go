@@ -176,20 +176,8 @@ func VerifyPcap(pcapPath string, c Case) []string {
 		}
 	}
 	if c.Expect.HasPayload {
-		any := false
-		lens, err := FieldValues(pcapPath, "frame.len", c.DecodeAs)
-		if err != nil {
-			problems = append(problems, fmt.Sprintf("has_payload: %v", err))
-		} else {
-			for _, l := range lens {
-				if n, _ := strconv.Atoi(l); n > 80 {
-					any = true
-					break
-				}
-			}
-		}
-		if err == nil && !any {
-			problems = append(problems, "has_payload: no packet with frame.len > 80")
+		if err := checkHasPayload(pcapPath, c); err != nil {
+			problems = append(problems, "has_payload: "+err.Error())
 		}
 	}
 	if c.Expect.Directional {
@@ -223,6 +211,38 @@ func VerifyPcap(pcapPath string, c Case) []string {
 		}
 	}
 	return problems
+}
+
+// checkHasPayload 断言用例标记 has_payload 的消息确实携带应用层负载。
+// 语义来源：testcase 文档（如 20-coap-testcase.md §用例规范——"解码后的字节
+// 长度才用于 … has_payload 判断"），即由"负载长度"驱动，而非"整帧长度"。
+// 旧实现用 frame.len>80 作代理：对 TCP 大消息（STUN 82+）成立，但对负载
+// 小的 UDP 协议（CoAP 63~79B，payload 14B）恒误报"无负载"。
+// 协议感知：CoAP 有权威字段 coap.payload_length（空负载时 tshark 省略该
+// 字段），用它判断最稳；其余协议回到 frame.len>80 启发式。
+func checkHasPayload(pcapPath string, c Case) error {
+	if c.Proto == "coap" {
+		vals, err := FieldValues(pcapPath, "coap.payload_length", c.DecodeAs)
+		if err != nil {
+			return err
+		}
+		for _, v := range vals {
+			if n, e := strconv.Atoi(v); e == nil && n > 0 {
+				return nil
+			}
+		}
+		return fmt.Errorf("no CoAP message with non-zero payload_length (payload field absent or 0)")
+	}
+	lens, err := FieldValues(pcapPath, "frame.len", c.DecodeAs)
+	if err != nil {
+		return err
+	}
+	for _, l := range lens {
+		if n, e := strconv.Atoi(l); e == nil && n > 80 {
+			return nil
+		}
+	}
+	return fmt.Errorf("no packet with frame.len > 80")
 }
 
 func mergeDirectionalSources(groups ...[]string) map[string]bool {

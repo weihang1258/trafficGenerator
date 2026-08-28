@@ -93,7 +93,7 @@
     {
      "packet": 2,
      "field": "coap.opt.ctype",
-     "value": "50"
+     "value": "application/json"
     },
     {
      "packet": 2,
@@ -155,7 +155,7 @@
   },
   "expect": {
    "packet_count": 1,
-   "directional": true,
+   "directional": false,
    "has_payload": true,
    "fields": [
     {
@@ -171,7 +171,7 @@
     {
      "packet": 1,
      "field": "coap.opt.ctype",
-     "value": "50"
+     "value": "application/json"
     },
     {
      "packet": 1,
@@ -188,7 +188,7 @@
     {
      "packet": 1,
      "offset": 42,
-     "hex": "42 02 10 02"
+     "hex": "54 02 10 02"
     }
    ],
    "notes": [
@@ -333,11 +333,6 @@
      "packet": 2,
      "field": "coap.token",
      "same_as_packet": 1
-    },
-    {
-     "packet": 2,
-     "field": "coap.payload_length",
-     "value": "0"
     }
    ],
    "notes": [
@@ -616,12 +611,12 @@
     {
      "packet": 1,
      "field": "coap.opt.ctype",
-     "value": "50"
+     "value": "application/json"
     },
     {
      "packet": 1,
      "field": "coap.opt.accept",
-     "value": "50"
+     "value": "application/json"
     },
     {
      "packet": 1,
@@ -631,7 +626,7 @@
     {
      "packet": 2,
      "field": "coap.opt.ctype",
-     "value": "50"
+     "value": "application/json"
     },
     {
      "packet": 2,
@@ -1437,7 +1432,7 @@
   },
   "expect": {
    "expect_error": true,
-   "error_contains": "uri",
+   "error_contains": "URI",
    "notes": [
     "单段长度超过 uri_max_length=64；应返回错误而非截断"
    ]

@@ -214,3 +214,23 @@ func TestTCPFlagBits_HasTCPFlag(t *testing.T) {
 		t.Error("HasTCPFlag(zz) must be false")
 	}
 }
+
+// TestHavePayload_ForCoAPChecksPayloadField: has_payload 的语义按 testcase
+// 文档是"消息携带负载（由解码后负载长度驱动）"，而非"整帧超阈值"。CoAP 消息
+// 负载小（如 14B），frame.len 常 < 80（63~67），旧实现用 frame.len>80 作代理
+// 判断恒判"无负载"——这是误伤。CoAP 应检查 coap.payload_length 字段非零。
+func TestHavePayload_ForCoAPChecksPayloadField(t *testing.T) {
+	p := pcapRoot + "/coap/coap_con_get.pcap"
+	requirePcap(t, p)
+	c := Case{
+		ID:    "coap_con_get",
+		Proto: "coap",
+		Expect: Expect{HasPayload: true},
+	}
+	problems := VerifyPcap(p, c)
+	for _, pr := range problems {
+		if strings.Contains(pr, "has_payload") {
+			t.Fatalf("coap has_payload false-failure (payload present but frame <80): %s", pr)
+		}
+	}
+}
