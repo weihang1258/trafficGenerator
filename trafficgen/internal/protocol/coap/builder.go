@@ -12,6 +12,7 @@ const (
 	optContentFormat = 12
 	optURIQuery      = 15
 	optAccept        = 17
+	optBlock2        = 23
 )
 
 type option struct {
@@ -19,7 +20,14 @@ type option struct {
 	value  []byte
 }
 
+// BuildMessage builds a CoAP message. typeOverride (nil = default) forces the
+// message Type bits when the default CON/NON/ACK inference is insufficient —
+// used for Observe NON/CON notifications and empty ACKs.
 func BuildMessage(cfg *CoAPConfig, response bool) ([]byte, error) {
+	return buildMessageTyped(cfg, response, nil)
+}
+
+func buildMessageTyped(cfg *CoAPConfig, response bool, typeOverride *uint8) ([]byte, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("coap: config is nil")
 	}
@@ -46,13 +54,20 @@ func BuildMessage(cfg *CoAPConfig, response bool) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+	} else if cfg.Confirmable {
+		msgType = 0
 	} else if cfg.Response != nil && !*cfg.Response {
 		msgType = 1
+	}
+	if typeOverride != nil {
+		msgType = *typeOverride
 	}
 	if cfg.Code != 0 && !response {
 		code = cfg.Code
 	}
-	if code == 0 {
+	// Empty messages (code 0) are only valid as ACK (2) or RST (3): design
+	// §3.3. A CON/NON with code 0 is malformed and must be rejected.
+	if code == 0 && (typeOverride == nil || (msgType != 2 && msgType != 3)) {
 		return nil, fmt.Errorf("coap: code is invalid")
 	}
 	out := make([]byte, 4, 4+len(token))
@@ -69,7 +84,7 @@ func BuildMessage(cfg *CoAPConfig, response bool) ([]byte, error) {
 			opts = append(opts, option{optURIQuery, []byte(q)})
 		}
 		if cfg.Observe != nil {
-			opts = append(opts, option{optObserve, uintBytes32(cfg.Observe.Sequence)})
+			opts = append(opts, option{optObserve, uintBytes32(cfg.Observe.StartSequence)})
 		}
 		if cfg.ContentFormat != 0 {
 			opts = append(opts, option{optContentFormat, uintBytes(cfg.ContentFormat)})
@@ -77,8 +92,19 @@ func BuildMessage(cfg *CoAPConfig, response bool) ([]byte, error) {
 		if cfg.Accept != nil {
 			opts = append(opts, option{optAccept, uintBytes(*cfg.Accept)})
 		}
-	} else if cfg.ResponseContentFormat != 0 {
-		opts = append(opts, option{optContentFormat, uintBytes(cfg.ResponseContentFormat)})
+		if cfg.Block2 != nil {
+			opts = append(opts, option{optBlock2, block2Value(cfg.Block2.Number, cfg.Block2.More, cfg.Block2.SizeExp)})
+		}
+	} else {
+		if cfg.ResponseContentFormat != 0 {
+			opts = append(opts, option{optContentFormat, uintBytes(cfg.ResponseContentFormat)})
+		}
+		if cfg.Observe != nil {
+			opts = append(opts, option{optObserve, uintBytes32(cfg.Observe.StartSequence)})
+		}
+		if cfg.ResponseBlock2 != nil {
+			opts = append(opts, option{optBlock2, block2Value(cfg.ResponseBlock2.Number, cfg.ResponseBlock2.More, cfg.ResponseBlock2.SizeExp)})
+		}
 	}
 	sort.SliceStable(opts, func(i, j int) bool { return opts[i].number < opts[j].number })
 	prev := uint16(0)
@@ -152,6 +178,27 @@ func uintBytes32(v uint32) []byte {
 		i++
 	}
 	return b[i:]
+}
+
+// block2Value encodes an RFC 7959 Block option value: (Number<<4)|(More<<3)|SZX,
+// returned as the minimal big-endian byte sequence. A Block2 option always has
+// ≥1 byte (its value is never zero-length).
+func block2Value(num uint32, more bool, szx uint8) []byte {
+	v := (num << 4) | (b2u(more) << 3) | uint32(szx&0x7)
+	var b [4]byte
+	binary.BigEndian.PutUint32(b[:], v)
+	i := 0
+	for i < 3 && b[i] == 0 {
+		i++
+	}
+	return b[i:]
+}
+
+func b2u(b bool) uint32 {
+	if b {
+		return 1
+	}
+	return 0
 }
 func encodeOption(delta, length uint16) []byte {
 	d, de := optionNibble(delta)

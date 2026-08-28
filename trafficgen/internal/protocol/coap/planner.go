@@ -79,15 +79,22 @@ func (p Planner) Validate(spec core.FlowSpec) error {
 			return err
 		}
 	}
-	if cfg.Retransmit != nil && cfg.Retransmit.Count < 0 {
-		return fmt.Errorf("coap: retransmit count cannot be negative")
+	if cfg.Retransmit != nil && cfg.Retransmit.MaxRetransmit > 4 {
+		return fmt.Errorf("coap: max retransmit %d exceeds RFC 7252 MAX_RETRANSMIT (4)", cfg.Retransmit.MaxRetransmit)
 	}
-	if cfg.Observe != nil && cfg.Observe.Notifications < 0 {
-		return fmt.Errorf("coap: observe notifications cannot be negative")
+	if cfg.Observe != nil {
+		if cfg.Observe.NotifyCount > 0 && len(cfg.Observe.NotificationTypes) > 0 && uint32(len(cfg.Observe.NotificationTypes)) != cfg.Observe.NotifyCount {
+			return fmt.Errorf("coap: notification_types length (%d) must equal notify_count (%d)", len(cfg.Observe.NotificationTypes), cfg.Observe.NotifyCount)
+		}
+		for _, t := range cfg.Observe.NotificationTypes {
+			if t != "NON" && t != "CON" {
+				return fmt.Errorf("coap: notification type %q must be NON or CON", t)
+			}
+		}
 	}
 	for _, b := range append(responseBlocks(cfg), blockConfigValues(cfg)...) {
-		if b.Size != 0 && (b.Size < 16 || b.Size > 1024 || b.Size&(b.Size-1) != 0) {
-			return fmt.Errorf("coap: block size must be a power of two from 16 to 1024")
+		if b.SizeExp > 6 {
+			return fmt.Errorf("coap: block size exponent %d must be 0-6 (SZX=7 reserved)", b.SizeExp)
 		}
 	}
 	return nil
@@ -97,9 +104,7 @@ func validRequestCode(c uint8) bool { return c >= 1 && c <= 4 }
 func responseBlocks(cfg *CoAPConfig) []BlockConfig {
 	out := make([]BlockConfig, 0, len(cfg.ResponseBlocks))
 	for _, b := range cfg.ResponseBlocks {
-		if b.Block2 != nil {
-			out = append(out, *b.Block2)
-		}
+		out = append(out, BlockConfig{Number: b.Number, More: b.More, SizeExp: b.SizeExp})
 	}
 	return out
 }

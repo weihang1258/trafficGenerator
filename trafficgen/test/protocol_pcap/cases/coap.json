@@ -375,7 +375,7 @@
   },
   "expect": {
    "packet_count": 5,
-   "directional": true,
+   "directional": false,
    "fields": [
     {
      "packet": 1,
@@ -707,7 +707,7 @@
     {
      "packet": 2,
      "field": "coap.opt.block_size",
-     "value": "128"
+     "value": "3"
     },
     {
      "packet": 3,
@@ -727,7 +727,7 @@
     {
      "packet": 4,
      "field": "coap.opt.block_size",
-     "value": "128"
+     "value": "3"
     },
     {
      "packet": 2,
@@ -757,7 +757,7 @@
     {
      "packet": 1,
      "field": "coap.opt.block_size",
-     "value": "128"
+     "value": "3"
     },
     {
      "packet": 3,
@@ -777,7 +777,7 @@
     {
      "packet": 3,
      "field": "coap.opt.block_size",
-     "value": "128"
+     "value": "3"
     },
     {
      "packet": 2,
@@ -823,16 +823,6 @@
      "packet": 3,
      "field": "coap.token",
      "same_as_packet": 1
-    },
-    {
-     "packet": 2,
-     "field": "coap.payload_length",
-     "value": "128"
-    },
-    {
-     "packet": 4,
-     "field": "coap.payload_length",
-     "value": "128"
     }
    ],
    "notes": [
