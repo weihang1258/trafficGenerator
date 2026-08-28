@@ -1,6 +1,6 @@
 # mongodb Pcap Test Results
 
-Cases: 13 — pass 12, fail 1, error 0
+Cases: 13 — pass 12, fail 0, error 1
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -8,7 +8,7 @@ Cases: 13 — pass 12, fail 1, error 0
 | mongodb_empty_boundary | S4: legal minimum five-byte empty BSON selector | pass | 8 | [pcap](mongodb/mongodb_empty_boundary.pcap) |
 | mongodb_ipv6 | S5: IPv6 OP_QUERY and OP_REPLY preserve MongoDB header layout | pass | 9 | [pcap](mongodb/mongodb_ipv6.pcap) |
 | mongodb_message_header | S7: all four little-endian message header fields | pass | 8 | [pcap](mongodb/mongodb_message_header.pcap) |
-| mongodb_multi_session | S6: two independent sessions retain request and response correlation | fail | 9 | `mongodb/mongodb_multi_session.pcap` |
+| mongodb_multi_session | S6: two independent sessions retain request and response correlation | error | 0 | `` |
 | mongodb_neg_bad_opcode | N4: unknown opcode is rejected | pass | 0 | [pcap]() |
 | mongodb_neg_bson_length | N5: BSON length beyond message boundary is rejected | pass | 0 | [pcap]() |
 | mongodb_neg_oversize | N3: messageLength beyond configured limit is rejected | pass | 0 | [pcap]() |
@@ -22,5 +22,5 @@ Cases: 13 — pass 12, fail 1, error 0
 
 ### mongodb_multi_session — S6: two independent sessions retain request and response correlation
 
-verify: count: got 9 packets, want 18; field tcp.dstport: packet 0 out of range (file has 9 packets); field tcp.srcport: distinct values mismatch (want [12345 12346]; missing [12346]; unexpected [27017(x4)])
+task ended failed: output error: [239f9a0c-a64a-430a-b25f-9109e7c3dc4e-70cd6806-cd28-4422-8f8f-42624d4ee7eb: planner produced 0 packet configs]
 

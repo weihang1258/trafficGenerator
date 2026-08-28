@@ -33,8 +33,15 @@ func (g *MongoDBGenerator) Generate(ctx context.Context, req *layers.GenRequest)
 		// 与 Planner.Plan 的默认化一致——默认产一条 OP_QUERY 报文事件。
 		cfg = &core.MongoDBConfig{Messages: []core.MongoDBMessage{{Opcode: "OP_QUERY"}}}
 	}
+	// A single layer-chain generator emits ONE flow per chain (one src_port).
+	// Multi-session expansion each with its own 4-tuple requires the framework
+	// SubFlow mechanism (a T3 concern), so reject it rather than silently
+	// emitting only session[0]'s messages — matching mqtt/nfs/modbus.
+	if len(cfg.Sessions) > 1 {
+		return fmt.Errorf("mongodb generator: sessions (%d) multi-stream expansion is not supported on a layer chain (one flow per chain)", len(cfg.Sessions))
+	}
 	msgs := cfg.Messages
-	if len(cfg.Sessions) > 0 {
+	if len(cfg.Sessions) == 1 {
 		msgs = cfg.Sessions[0].Messages
 	}
 	for _, m := range msgs {
