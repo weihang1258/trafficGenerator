@@ -1134,6 +1134,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// 生成器侧解析。
 		NFS:        spec.Metadata["nfs"],
 		FINS:       spec.Metadata["fins"],
+		// CoAP 同款（P4a）：配置经 Meta 直传 coap 终结层生成器（请求 + 可选
+		// ACK 响应两事件，BuildMessage 纯函数复用）。缺这行时 req.Meta.CoAP
+		// 恒 nil → 生成器回退默认 GET/无响应 → 所有 coap 链只发 1 包。
+		CoAP:       spec.CoAP,
 		S7:         spec.S7,
 		IEC104:     spec.IEC104,
 		GOOSE:      spec.GOOSE,
