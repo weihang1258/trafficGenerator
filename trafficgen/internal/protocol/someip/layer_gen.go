@@ -75,6 +75,23 @@ func (g *SOMEIPGenerator) Generate(ctx context.Context, req *layers.GenRequest) 
 	// 事件序列（events 数组）——逐条展开
 	if len(cfg.Events) > 0 {
 		sess := sessionStart
+		autoResp := true
+		if cfg.AutoResponse != nil {
+			autoResp = *cfg.AutoResponse
+		}
+		// If the top-level message_type names a request (e.g. S4:
+		// message_type:"request" + events:[ERROR]), emit that request FIRST,
+		// without auto-response — the events carry its explicit response (the
+		// ERROR reuses the same session, no increment). The auto-response rule
+		// below applies only to REQUEST events inside the events array (S7).
+		if cfg.MessageType != "" {
+			if top, topOK := msgTypeFromString(cfg.MessageType); topOK && top == MTRequest {
+				if err := emitMessage(ctx, req.EmitMsg, serviceID, methodID, clientID, sess,
+					protocolVer, ifaceVer, MTRequest, cfg.ReturnCode, cfg.Payload, true); err != nil {
+					return err
+				}
+			}
+		}
 		for i, ev := range cfg.Events {
 			mtype, ok := msgTypeFromString(ev.MessageType)
 			if !ok {
@@ -99,6 +116,13 @@ func (g *SOMEIPGenerator) Generate(ctx context.Context, req *layers.GenRequest) 
 			if err := emitMessage(ctx, req.EmitMsg, serviceID, mt, clientID, sess,
 				protocolVer, ifaceVer, mtype, ev.ReturnCode, payload, up); err != nil {
 				return err
+			}
+			// auto_response: REQUEST->RESPONSE (down)
+			if autoResp && mtype == MTRequest && up {
+				if err := emitMessage(ctx, req.EmitMsg, serviceID, mt, clientID, sess,
+					protocolVer, ifaceVer, MTResponse, 0, payload, false); err != nil {
+					return err
+				}
 			}
 			sess += sessionInc
 		}
@@ -175,8 +199,9 @@ func (g *SOMEIPGenerator) generateSD(ctx context.Context, req *layers.GenRequest
 	// FindService/Subscribe 是 up（client→SD）；OfferService/SubscribeAck 是 down。
 	switch sdType {
 	case SDEntryFind, SDEntrySubscribe:
-		// up
-		msg, err := buildSDMessage(sdType, serviceID, instanceID, majorVer, sd.MinorVersion, ttl, flags, sd.EventgroupID, sd.Counter, options, clientID, sessionStart)
+		// up。Find/Subscribe 是发现请求（通常广播、不带 endpoint Option）；endpoint
+		// Option 落在 Offer/Ack 应答上（AUTOSAR）。请求侧不发 Option。
+		msg, err := buildSDMessage(sdType, serviceID, instanceID, majorVer, sd.MinorVersion, ttl, flags, sd.EventgroupID, sd.Counter, nil, clientID, sessionStart)
 		if err != nil {
 			return err
 		}
@@ -208,42 +233,43 @@ func (g *SOMEIPGenerator) generateSD(ctx context.Context, req *layers.GenRequest
 	}
 }
 
-// generateTP segments a long payload into TP segments (§3.5).
+// generateTP segments a long payload into TP segments (§3.5). Each segment
+// carries the full SOME/IP header (type = baseType|TP), a 4-byte TP header
+// (offset=0 for the first, running byte offset for later ones; more-bit on
+// every non-final segment), then that segment's payload bytes.
 func (g *SOMEIPGenerator) generateTP(ctx context.Context, req *layers.GenRequest, cfg *core.SOMEIPConfig, serviceID, methodID, clientID, sessionID uint16, protocolVer, interfaceVer, baseType byte, payload []byte) error {
 	tp := cfg.TP
 	segmentSize := tp.SegmentSize
 	if segmentSize <= 0 {
 		return fmt.Errorf("someip: tp segment_size must be > 0")
 	}
-	payloadLen := tp.PayloadLength
-	if payloadLen <= 0 {
-		payloadLen = len(payload)
-	}
-	// Offered Length = 16 + 原载荷总长（§3.5）
-	offeredLen := uint32(16 + payloadLen)
 	tpMsgType := msgTypeForTP(baseType)
+	total := len(payload)
 
-	// 首段：完整消息头 + TP 头 + 首段载荷
-	single := buildTPHeader(offeredLen, 0, true)
-	// 包1 header: Service/Method/Client/Session/Length=8+8+segmentLen
-	first := buildHeader(serviceID, methodID, clientID, sessionID, protocolVer, interfaceVer, tpMsgType, 0, 8+segmentSize)
-	first = append(first, single...)
-	first = append(first, payload[:min(segmentSize, len(payload))]...)
+	// First segment: SOME/IP header + 4B TP header (offset=0, more=1) + data.
+	firstData := payload[:min(segmentSize, total)]
+	more := len(firstData) < total
+	first := buildHeader(serviceID, methodID, clientID, sessionID, protocolVer, interfaceVer, tpMsgType, 0, 4+len(firstData))
+	first = append(first, buildTPHeader(0, more)...)
+	first = append(first, firstData...)
 	if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: true, Bytes: first}); err != nil {
 		return err
 	}
 
-	// 后续段：只 TP 头 + 段载荷
-	segID := byte(1)
-	for off := segmentSize; off < len(payload); off += segmentSize {
-		end := min(off+segmentSize, len(payload))
-		more := end < len(payload)
-		seg := buildTPHeader(offeredLen, segID, more)
-		seg = append(seg, payload[off:end]...)
-		if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: true, Bytes: seg}); err != nil {
+	// Subsequent segments: SOME/IP header + 4B TP header (offset = cumulative
+	// data bytes so far, more=0 on the final segment) + segment data.
+	run := len(firstData)
+	for off := segmentSize; off < total; off += segmentSize {
+		end := min(off+segmentSize, total)
+		data := payload[off:end]
+		more := end < total
+		hdr := buildHeader(serviceID, methodID, clientID, sessionID, protocolVer, interfaceVer, tpMsgType, 0, 4+len(data))
+		hdr = append(hdr, buildTPHeader(uint32(run), more)...)
+		hdr = append(hdr, data...)
+		if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: true, Bytes: hdr}); err != nil {
 			return err
 		}
-		segID++
+		run += len(data)
 	}
 	return nil
 }

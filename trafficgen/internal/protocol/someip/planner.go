@@ -26,11 +26,13 @@ func (Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("someip: service_id must be nonzero")
 		}
 	}
-	// V2: Session ID must be valid (non-zero if session_start is set, or non-zero via default)
-	if cfg.SessionStart == 0 && cfg.SessionInc == 0 && cfg.SD == nil && len(cfg.Events) == 0 {
-		// Single message - session_start defaults to 1, so this is OK
-	} else if cfg.SessionStart == 0 && (cfg.SessionInc == 0) {
-		// Only reject if both are explicitly 0 (non-incrementing)
+	// V2: Session ID must be valid — a session that cannot increment
+	// (session_start != 0 && session_inc == 0) is rejected as "invalid session_id"
+	// (design §9.1 V2, someip_neg_session: error_contains "invalid session_id").
+	// The default single-message flow (both unset -> 0,0, defaulted to 1/1 inside
+	// Plan) is legitimate and must NOT be rejected here.
+	if cfg.SessionStart != 0 && cfg.SessionInc == 0 {
+		return fmt.Errorf("someip: invalid session_id")
 	}
 	// V3: Message Type must be valid
 	if cfg.MessageType != "" {
@@ -160,6 +162,22 @@ func (p Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pack
 			if cfg.AutoResponse != nil {
 				autoResp = *cfg.AutoResponse
 			}
+			// If the top-level message_type names a request (e.g. S4:
+			// message_type:"request" + events:[ERROR]), emit that request FIRST,
+			// without auto-response — the events carry its explicit response
+			// (the ERROR uses the same session). Do NOT increment the session here:
+			// the first event (the ERROR) is the response to this request and must
+			// reuse its SessionID (same_as_packet). The auto-response rule below
+			// applies only to REQUEST events inside the events array (S7).
+			if cfg.MessageType != "" {
+				top, topOK := msgTypeFromString(cfg.MessageType)
+				if topOK && top == MTRequest {
+					msg := buildMessage(serviceID, methodID, clientID, sess, 1, 1, MTRequest, 0, cfg.Payload)
+					if !emit(true, msg, 0) {
+						return
+					}
+				}
+			}
 			for _, ev := range cfg.Events {
 				mt, _ := msgTypeFromString(ev.MessageType)
 				mtID := ev.MethodID
@@ -201,36 +219,38 @@ func (p Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pack
 
 		// TP segmentation
 		if cfg.TP != nil && cfg.TP.Enabled && len(cfg.Payload) > cfg.TP.SegmentSize {
-			payloadLen := cfg.TP.PayloadLength
-			if payloadLen <= 0 {
-				payloadLen = len(cfg.Payload)
-			}
-			offeredLen := uint32(16 + payloadLen)
 			tpMsgType := msgTypeForTP(baseType)
 			segSize := cfg.TP.SegmentSize
+			total := len(cfg.Payload)
 
-			// First segment: header + TP header + segment data
-			first := buildHeader(serviceID, methodID, clientID, sessionStart, 1, 1, tpMsgType, 0, 8+segSize)
-			first = append(first, buildTPHeader(offeredLen, 0, true)...)
-			first = append(first, cfg.Payload[:min(segSize, len(cfg.Payload))]...)
+			// First segment: SOME/IP header (type=0x20 TP variant) + 4B TP header
+			// (offset=0, more=1) + first segSize payload bytes.
+			firstData := cfg.Payload[:min(segSize, total)]
+			more := len(firstData) < total
+			first := buildHeader(serviceID, methodID, clientID, sessionStart, 1, 1, tpMsgType, 0, 4+len(firstData))
+			first = append(first, buildTPHeader(0, more)...)
+			first = append(first, firstData...)
 			if !emit(true, first, 0) {
 				return
 			}
 
-			// Subsequent segments: only TP header + data
-			segID := byte(1)
-			for off := segSize; off < len(cfg.Payload); off += segSize {
+			// Subsequent segments: SOME/IP header + 4B TP header (offset = cumulative
+			// data bytes so far, more=0 on the final segment) + segment data.
+			run := len(firstData)
+			for off := segSize; off < total; off += segSize {
 				end := off + segSize
-				if end > len(cfg.Payload) {
-					end = len(cfg.Payload)
+				if end > total {
+					end = total
 				}
-				more := end < len(cfg.Payload)
-				seg := buildTPHeader(offeredLen, segID, more)
-				seg = append(seg, cfg.Payload[off:end]...)
-				if !emit(true, seg, 0) {
+				data := cfg.Payload[off:end]
+				more := end < total
+				hdr := buildHeader(serviceID, methodID, clientID, sessionStart, 1, 1, tpMsgType, 0, 4+len(data))
+				hdr = append(hdr, buildTPHeader(uint32(run), more)...)
+				hdr = append(hdr, data...)
+				if !emit(true, hdr, 0) {
 					return
 				}
-				segID++
+				run += len(data)
 			}
 			return
 		}
@@ -271,19 +291,14 @@ func buildSDMessageFromConfig(cfg *core.SOMEIPConfig) ([]byte, error) {
 	if ttl == 0 {
 		ttl = 0xFFFFFF
 	}
-	var options []SDOption
-	for _, o := range sd.Options {
-		optType := o.Type
-		if optType == 0 {
-			optType = SDOptionIPv4Endpoint
-		}
-		options = append(options, SDOption{Type: optType, IP: o.IP, Port: o.Port, Proto: o.Proto})
-	}
 	clientID := cfg.ClientID
 	if clientID == 0 {
 		clientID = 1
 	}
-	return buildSDMessage(sdType, serviceID, instanceID, majorVer, sd.MinorVersion, ttl, 0, sd.EventgroupID, sd.Counter, options, clientID, 1)
+	// FindService/SubscribeEventgroup are discovery REQUESTS (typically broadcast
+	// with no endpoint option); the endpoint option lives on the Offer/Ack
+	// response (see buildSDResponse). So the request side emits no options.
+	return buildSDMessage(sdType, serviceID, instanceID, majorVer, sd.MinorVersion, ttl, 0, sd.EventgroupID, sd.Counter, nil, clientID, 1)
 }
 
 // buildSDResponse builds the auto-response SD message (Offer/SubscribeAck).

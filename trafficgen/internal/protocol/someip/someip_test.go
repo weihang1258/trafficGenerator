@@ -66,6 +66,23 @@ func TestValidateRejectsServiceIDZero(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsNonIncrementingSession(t *testing.T) {
+	// V2: session_start 非 0 而 session_inc=0（Session ID 不递增）必须被拒。
+	err := (Planner{}).Validate(core.FlowSpec{SOMEIP: &core.SOMEIPConfig{
+		ServiceID: 0x1234, MethodID: 1, SessionStart: 1, SessionInc: 0,
+	}})
+	if err == nil || !strings.Contains(err.Error(), "invalid session_id") {
+		t.Fatalf("err=%v want invalid session_id", err)
+	}
+	// 默认单消息（两者都未设 -> 0,0，由 Plan 默认化为 1/1）必须通过。
+	err = (Planner{}).Validate(core.FlowSpec{SOMEIP: &core.SOMEIPConfig{
+		ServiceID: 0x1234, MethodID: 1, MessageType: "request",
+	}})
+	if err != nil {
+		t.Fatalf("default session (0,0) should be valid, got %v", err)
+	}
+}
+
 func TestValidateRejectsInvalidMessageType(t *testing.T) {
 	// V3: message_type=5 不在枚举
 	err := (Planner{}).Validate(core.FlowSpec{SOMEIP: &core.SOMEIPConfig{
@@ -369,9 +386,13 @@ func TestLayerGeneratorSDMessage(t *testing.T) {
 	if got := binary.BigEndian.Uint32(events[0].Bytes[20:24]); got != 16 {
 		t.Fatalf("entries length=%d want 16", got)
 	}
-	// ttl in entry at offset 24+8=32
-	if events[0].Bytes[32] != 0xFF || events[0].Bytes[33] != 0xFF || events[0].Bytes[34] != 0xFF {
-		t.Fatalf("find ttl=%02x%02x%02x", events[0].Bytes[32], events[0].Bytes[33], events[0].Bytes[34])
+	// serviceid at entry[4:6] = 0x1234, instanceid at [6:8] = 0x0001
+	if binary.BigEndian.Uint16(events[0].Bytes[28:30]) != 0x1234 {
+		t.Fatalf("entry serviceid=%x", binary.BigEndian.Uint16(events[0].Bytes[28:30]))
+	}
+	// ttl 0xFFFFFF at entry[9:12]; entry starts at 24, so [33:36]
+	if events[0].Bytes[33] != 0xFF || events[0].Bytes[34] != 0xFF || events[0].Bytes[35] != 0xFF {
+		t.Fatalf("find ttl=%02x%02x%02x", events[0].Bytes[33], events[0].Bytes[34], events[0].Bytes[35])
 	}
 }
 
@@ -402,33 +423,37 @@ func TestLayerGeneratorSDWithOption(t *testing.T) {
 		t.Fatalf("events=%d want 1 (offer 单发)", len(events))
 	}
 	msg := events[0].Bytes
-	// someip length = 8 + 8(SD头) + 16(entry) + 12(option) = 44 (0x2c)
-	if got := binary.BigEndian.Uint32(msg[4:8]); got != 44 {
-		t.Fatalf("length=%d want 44", got)
+	// someip length = 8 + 8(SD头) + 16(entry) + 4(options_len) + 12(option) = 48 (0x30)
+	if got := binary.BigEndian.Uint32(msg[4:8]); got != 48 {
+		t.Fatalf("length=%d want 48", got)
 	}
-	// option starts at 16+8+16 = 40: Type=01 Length=0009
-	if msg[40] != 0x01 {
-		t.Fatalf("option type=%02x", msg[40])
+	// options length at 40:44 = 12
+	if got := binary.BigEndian.Uint32(msg[40:44]); got != 12 {
+		t.Fatalf("options length=%d want 12", got)
 	}
-	if binary.BigEndian.Uint16(msg[41:43]) != 9 {
-		t.Fatalf("option length=%d want 9", binary.BigEndian.Uint16(msg[41:43]))
+	// option at 44: Length(2BE)=0009 first, then Type=0x04, then Reserved(1)
+	if binary.BigEndian.Uint16(msg[44:46]) != 9 {
+		t.Fatalf("option length=%d want 9", binary.BigEndian.Uint16(msg[44:46]))
 	}
-	// addr 20.0.0.200 at 44-47
-	if msg[44] != 20 || msg[45] != 0 || msg[46] != 0 || msg[47] != 200 {
-		t.Fatalf("option addr=%d.%d.%d.%d", msg[44], msg[45], msg[46], msg[47])
+	if msg[46] != 0x04 {
+		t.Fatalf("option type=%02x want 0x04 (IPv4 Endpoint wire)", msg[46])
 	}
-	// proto=17 port=30490 (0x771a)
-	if msg[49] != 0x11 {
-		t.Fatalf("option proto=%02x", msg[49])
+	// addr 20.0.0.200 at 48-51
+	if msg[48] != 20 || msg[49] != 0 || msg[50] != 0 || msg[51] != 200 {
+		t.Fatalf("option addr=%d.%d.%d.%d", msg[48], msg[49], msg[50], msg[51])
 	}
-	if binary.BigEndian.Uint16(msg[50:52]) != 30490 {
-		t.Fatalf("option port=%d", binary.BigEndian.Uint16(msg[50:52]))
+	// proto=17 (0x11) at 52, port=30490 (0x771a) at 53:55
+	if msg[53] != 0x11 {
+		t.Fatalf("option proto=%02x", msg[53])
+	}
+	if binary.BigEndian.Uint16(msg[54:56]) != 30490 {
+		t.Fatalf("option port=%d", binary.BigEndian.Uint16(msg[54:56]))
 	}
 }
 
 func TestPlanTPSegmentation(t *testing.T) {
-	// S8: 2500B payload segment_size=1400 → 2 段
-	pl := make([]byte, 2500)
+	// S8: 2560B payload segment_size=1408 → 2 段 (1408+1152), 16 对齐
+	pl := make([]byte, 2560)
 	for i := range pl {
 		pl[i] = byte(i % 256)
 	}
@@ -437,7 +462,7 @@ func TestPlanTPSegmentation(t *testing.T) {
 		SOMEIP: &core.SOMEIPConfig{
 			ServiceID: 0x1234, MethodID: 0x0001, ClientID: 0x0001,
 			MessageType: "request", Payload: pl,
-			TP: &core.SOMEIPTPConfig{Enabled: true, SegmentSize: 1400, PayloadLength: 2500},
+			TP: &core.SOMEIPTPConfig{Enabled: true, SegmentSize: 1408, PayloadLength: 2560},
 		},
 	})
 	if err != nil {
@@ -450,35 +475,26 @@ func TestPlanTPSegmentation(t *testing.T) {
 	if len(pkts) != 2 {
 		t.Fatalf("packets=%d want 2", len(pkts))
 	}
-	// 首段：type=0x20 (TP_REQUEST), TP offered length = 2516
+	// 首段：type=0x20 (TP_REQUEST), TP header 4B: offset=0, more=1 (raw 0x00000001)
 	if pkts[0].Payload[14] != 0x20 {
 		t.Fatalf("pkt0 type=%02x want 0x20", pkts[0].Payload[14])
 	}
-	// TP header at payload offset 16: offered len 4B + seg id + more
-	tp := pkts[0].Payload[16:]
-	if got := binary.BigEndian.Uint32(tp[0:4]); got != 2516 {
-		t.Fatalf("offered len=%d want 2516", got)
+	if got := binary.BigEndian.Uint32(pkts[0].Payload[16:20]); got != 0x00000001 {
+		t.Fatalf("pkt0 tp header=%08x want 00000001 (offset 0 + more)", got)
 	}
-	if tp[4] != 0 {
-		t.Fatalf("seg id=%d want 0", tp[4])
+	// 首段 data len = 1408 (16B header + 4B TP header + 1408 data)
+	if len(pkts[0].Payload)-20 != 1408 {
+		t.Fatalf("pkt0 seg data len=%d want 1408", len(pkts[0].Payload)-20)
 	}
-	if tp[5]&0x01 != 1 {
-		t.Fatalf("more flag=%02x want bit0 set", tp[5])
+	// 末段：type=0x20, TP header raw=1408 (more=0 → 0x00000580)
+	if got := binary.BigEndian.Uint32(pkts[1].Payload[16:20]); got != 1408 {
+		t.Fatalf("pkt1 tp header=%08x want %08x (offset 1408, more=0)", got, 1408)
 	}
-	// 首段 data len = 1400
-	if len(pkts[0].Payload)-24 != 1400 {
-		t.Fatalf("pkt0 seg data len=%d want 1400", len(pkts[0].Payload)-24)
+	if got := binary.BigEndian.Uint32(pkts[1].Payload[4:8]); got != 8+4+1152 {
+		t.Fatalf("pkt1 length=%d want %d", got, 8+4+1152)
 	}
-	// 末段：only TP header, seg id=1, more=0, data=1100
-	if len(pkts[1].Payload)-8 != 1100 {
-		t.Fatalf("pkt1 seg data len=%d want 1100", len(pkts[1].Payload)-8)
-	}
-	tp2 := pkts[1].Payload[:8]
-	if tp2[4] != 1 {
-		t.Fatalf("pkt1 seg id=%d want 1", tp2[4])
-	}
-	if tp2[5]&0x01 != 0 {
-		t.Fatalf("pkt1 more flag=%02x want 0", tp2[5])
+	if len(pkts[1].Payload)-20 != 1152 {
+		t.Fatalf("pkt1 seg data len=%d want 1152", len(pkts[1].Payload)-20)
 	}
 }
 
