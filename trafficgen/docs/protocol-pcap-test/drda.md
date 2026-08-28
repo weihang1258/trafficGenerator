@@ -19,37 +19,37 @@ Cases: 10 — pass 1, fail 1, error 8
 
 ### drda_database_connect — T-DRDA-003/S3：ACCRDB 关系数据库关联成功
 
-task ended failed: output error: [88564c91-2455-456d-b683-ae2caf211b52-c83071fd-c5d5-4d6c-915a-dc1ffa0d0645: validation failed: drda: config is required]
+task ended failed: output error: [585b0612-2e2b-4941-bb9d-3ff9bb26f0bb-8c077a1e-0e37-4291-a434-c182753600a8: validation failed: drda: config is required]
 
 ### drda_dss_length_mismatch — T-DRDA-009：DSS/DDM 显式长度与编码长度不一致时拒绝
 
-rejected but error "output error: [9678166c-79b5-427c-b28b-e86d4820c695-762e2ab4-c029-45db-9779-b3a5ee42adad: validation failed: drda: config is required]" does not contain "dss_length"
+rejected but error "output error: [a11b5f1f-ed55-4507-b269-75cbdb8a0cd3-8df5b910-38a4-4ae3-a91a-5e9f769a534e: validation failed: drda: config is required]" does not contain "dss_length"
 
 ### drda_dss_min_length — T-DRDA-006/S6：DDM length=10、length2=4 最小无参数边界
 
-task ended failed: output error: [c5eb72b4-3603-4967-a36d-4890ef3128c1-2bf75d8a-f388-4000-b5a8-14a2d9c7c453: validation failed: drda: config is required]
+task ended failed: output error: [0b1f0a57-7d44-497e-95db-5880ab5a6275-a35bd2cb-94ad-4ab6-b353-d08528bdcd02: validation failed: drda: config is required]
 
 ### drda_excsat — T-DRDA-001/S1：TCP 446 与 EXCSAT→EXCSATRD 关联建立
 
-task ended failed: output error: [29b94117-42a0-41c5-8c61-a74c08a64052-9f5200b1-f1b9-46ef-a9db-e3d8ab081d17: validation failed: drda: config is required]
+task ended failed: output error: [2ac7fa40-472e-482e-8b9b-d729da5fffc3-5ed52a1a-c3e9-41aa-9e86-9edca00ee915: validation failed: drda: config is required]
 
 ### drda_ipv6_excsat — T-DRDA-007/S7：IPv6 上 EXCSAT，DRDA 字节保持不变
 
-task ended failed: output error: [468bb53a-de8b-41fb-aa33-5a7163089ad6-2a6720ef-860a-45d5-805e-a1139a3cd16f: validation failed: drda: config is required]
+task ended failed: output error: [68b9086c-2206-4a35-8e39-582f9c8eac77-46861c12-3fd1-434f-b42a-98b40ceaf2e5: validation failed: drda: config is required]
 
 ### drda_multi_session — T-DRDA-008/S8：两条独立 TCP 会话，各自 correlator 从 1 开始
 
-task ended failed: output error: [2ae36b5e-0eaa-4b15-abc6-c8326dce6080-c75e7c83-9028-4f27-9fb2-800100fbbfc5: validation failed: drda: config is required]
+task ended failed: output error: [43da1708-6c67-4b98-b6e5-d6f61025757f-9dfaa45c-734d-42a1-8211-b3051ef4ff75: validation failed: drda: config is required]
 
 ### drda_security_check — T-DRDA-002/S2：EXCSAT、ACCSEC、SECCHK 及响应顺序
 
-task ended failed: output error: [d305b0d8-25e7-469f-b01f-65a505fe6855-4ba9a200-c7f1-47df-bc78-3b96a412a096: validation failed: drda: config is required]
+task ended failed: output error: [65d82db1-7341-4545-85b4-a845900df00b-500a6950-df0f-4f97-880f-7dd070fbe569: validation failed: drda: config is required]
 
 ### drda_sql_error — T-DRDA-005/S5：SQLDTA→SQLCARD 负 SQLCODE 错误结果
 
-task ended failed: output error: [fd7888db-e202-4fef-87d6-7a6a81e94c82-d916b040-6357-48ae-a486-2c178cd21b5c: validation failed: drda: config is required]
+task ended failed: output error: [bfffd08c-6cf2-4cdb-8597-0a923d620391-6b7ac837-0f16-4c04-a088-71d62fc4454b: validation failed: drda: config is required]
 
 ### drda_sql_success — T-DRDA-004/S4：SQLDTA→SQLCARD 成功 SQLCODE=0
 
-task ended failed: output error: [7a7dd4b2-3539-44d1-812d-9a649c0717ac-5575f8ac-f27a-4b20-a331-708df078c187: validation failed: drda: config is required]
+task ended failed: output error: [01c1c1c8-e1e2-4490-83c4-981713a4f77b-c621da06-8007-45d2-ac94-44b83c1945d4: validation failed: drda: config is required]
 
