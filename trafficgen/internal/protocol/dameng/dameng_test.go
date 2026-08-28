@@ -2,6 +2,7 @@ package dameng
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -312,6 +313,36 @@ func TestValidateDamengValid(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateDamengDefaultPort(t *testing.T) {
+	// DM8 固定端口 5236（dameng_neg_port）：非默认端口必须被拒绝，错误须含 5236。
+	err := (Planner{}).Validate(core.FlowSpec{
+		Dameng: &core.DamengConfig{
+			WireProfile: "dm8_profile_pending",
+			Events:      []core.DamengEvent{{Kind: "connect", Direction: "c2s", Profile: "connect_default"}},
+		},
+		DstPort: 5237,
+	})
+	if err == nil {
+		t.Fatal("Validate(non-default port) err=nil, want reject")
+	}
+	if !strings.Contains(err.Error(), "5236") {
+		t.Fatalf("err=%v want port 5236 mention", err)
+	}
+	// 默认端口 0（交由 Plan 默认化）与显式 5236 都必须通过。
+	for _, dp := range []uint16{0, 5236} {
+		err := (Planner{}).Validate(core.FlowSpec{
+			Dameng: &core.DamengConfig{
+				WireProfile: "dm8_profile_pending",
+				Events:      []core.DamengEvent{{Kind: "connect", Direction: "c2s", Profile: "connect_default"}},
+			},
+			DstPort: dp,
+		})
+		if err != nil {
+			t.Fatalf("Validate(dst_port=%d) err=%v, want accept", dp, err)
+		}
 	}
 }
 

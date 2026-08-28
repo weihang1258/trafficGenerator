@@ -53,6 +53,9 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	if !knownProfiles[cfg.WireProfile] {
 		return fmt.Errorf("dameng: unknown wire profile %q", cfg.WireProfile)
 	}
+	if spec.DstPort != 0 && spec.DstPort != DefaultPort {
+		return fmt.Errorf("dameng: destination port %d is not the default %d", spec.DstPort, DefaultPort)
+	}
 	if len(cfg.Events) == 0 && len(cfg.Sessions) == 0 {
 		return fmt.Errorf("dameng: at least one event or session required")
 	}
