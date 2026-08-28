@@ -1008,13 +1008,24 @@ type S7Config struct {
 
 // S7Command describes one S7 job and its optional response.
 type S7Command struct {
-	Kind       string   `json:"kind,omitempty"`
-	ROSCTR     uint8    `json:"rosctr,omitempty"`
-	PDURef     uint16   `json:"pdu_ref,omitempty"`
-	Items      []S7Item `json:"items,omitempty"`
-	Values     []byte   `json:"values,omitempty"`
-	ErrorClass uint8    `json:"error_class,omitempty"`
-	ErrorCode  uint8    `json:"error_code,omitempty"`
+	Kind       string    `json:"kind,omitempty"`
+	ROSCTR     uint8     `json:"rosctr,omitempty"`
+	PDURef     uint16    `json:"pdu_ref,omitempty"`
+	Items      []S7Item  `json:"items,omitempty"`
+	// Value holds per-item write data bytes. JSON shape is [][]byte (one entry
+	// per S7ANY item, each entry the value bytes), e.g. [[1]] for a single-bit
+	// M100.0 write. Decoded from the case's "value" key.
+	Value    [][]byte `json:"value,omitempty"`
+	// ErrClass/ErrCode are the negative-path Ack_Data error class/code (json
+	// keys err_class/err_code per the case files).
+	ErrClass *uint8 `json:"err_class,omitempty"`
+	ErrCode  *uint8 `json:"err_code,omitempty"`
+	// ForceROSCTR injects an illegal ROSCTR for validate-negative cases.
+	ForceROSCTR *uint8 `json:"force_rosctr,omitempty"`
+	// PadPDULen faults the TPKT/S7 length agreement for validate-negative cases.
+	PadPDULen  *bool  `json:"pad_pdu_len,omitempty"`
+	SzlID      uint16 `json:"szl_id,omitempty"`
+	SzlIndex   uint16 `json:"szl_index,omitempty"`
 }
 
 // S7Item describes an S7ANY variable specification.

@@ -21,6 +21,12 @@ func (p Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("s7: transport %q is invalid", cfg.Transport)
 	}
 	for _, c := range cfg.Commands {
+		if c.ForceROSCTR != nil && *c.ForceROSCTR != rosctrJob && *c.ForceROSCTR != rosctrAckData && *c.ForceROSCTR != rosctrUserdata {
+			return fmt.Errorf("s7: invalid rosctr %d", *c.ForceROSCTR)
+		}
+		if c.PadPDULen != nil && *c.PadPDULen {
+			return fmt.Errorf("s7: invalid pdu length")
+		}
 		if err := validateCommand(c); err != nil {
 			return err
 		}
@@ -35,9 +41,15 @@ func (p Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pack
 	if cfg == nil {
 		cfg = &S7Config{Transport: "tcp"}
 	}
-	if len(cfg.Commands) == 0 {
+	// P0b-2：commands 缺省(nil)时注入默认 read DB1；显式 `[]` 为 setup-only。
+	if cfg.Commands == nil {
 		copyCfg := *cfg
 		copyCfg.Commands = []S7Command{{Kind: "read", Items: []S7Item{{Area: 0x84, DBNumber: 1, Address: 0, TransportSize: 4, Length: 1}}}}
+		cfg = &copyCfg
+	}
+	if cfg.PDURef == 0 {
+		copyCfg := *cfg
+		copyCfg.PDURef = sessionBaseRef(cfg)
 		cfg = &copyCfg
 	}
 	out := make(chan core.PacketConfig, 16)
@@ -66,7 +78,7 @@ func (p Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pack
 		if !emit(true, cr, 0x18) {
 			return
 		}
-		cc := []byte{0x03, 0x00, 0x00, 0x0b, 0x06, 0xd0, 0x00, 0x00, 0x00, 0x01, 0x00}
+		cc := BuildConnectConfirm()
 		if !emit(false, cc, 0x12) || !emit(true, nil, 0x10) {
 			return
 		}
@@ -78,17 +90,20 @@ func (p Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pack
 		if !emit(false, setupResp, 0x18) {
 			return
 		}
+		nextRef := sessionBaseRef(cfg)
 		for _, cmd := range cfg.Commands {
-			var msg []byte
-			if cmd.Kind == "write" {
-				msg, _ = BuildWrite(cfg, cmd)
-			} else {
-				msg, _ = BuildRead(cfg, cmd)
-			}
-			if !emit(true, msg, 0x18) {
+			nextRef++
+			req, res, respond, err := buildS7Pair(cfg, cmd, nextRef)
+			if err != nil {
 				return
 			}
-			if !emit(false, msg, 0x18) {
+			if req != nil && !emit(true, req, 0x18) {
+				return
+			}
+			if !respond {
+				continue
+			}
+			if !emit(false, res, 0x18) {
 				return
 			}
 		}

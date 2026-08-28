@@ -30,14 +30,14 @@ func TestBuildSetupAndReadMessages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if hex.EncodeToString(setup) != "0300001902f08032"+"010000020000080000f0000001000101e0" {
+	if hex.EncodeToString(setup) != "0300001902f08032"+"010000000200080000f0000001000101e0" {
 		t.Fatalf("setup = %x", setup)
 	}
 	read, err := BuildRead(cfg, cfg.Commands[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	if hex.EncodeToString(read) != "0300002002f08032"+"0100000300000e00010401120a1004000100018400000000" {
+	if hex.EncodeToString(read) != "0300002002f08032"+"0100000003000e00010401120a1004000100018400000000" {
 		t.Fatalf("read = %x", read)
 	}
 }
@@ -87,6 +87,17 @@ func TestPlannerEmitsS7SessionAndLayerGeneratorEvents(t *testing.T) {
 	}
 	if len(events) < 6 || !events[0].Up || events[1].Up {
 		t.Fatalf("events = %#v", events)
+	}
+}
+
+func TestLayerGeneratorRejectsMultiSession(t *testing.T) {
+	// sessions>1 requires the framework SubFlow mechanism (T3); the layer-gen
+	// generator must reject rather than silently emit only session[0]'s frames —
+	// matching mongodb/mqtt/nfs/modbus (杜绝静默错包).
+	cfg := &S7Config{Sessions: 2, Commands: []S7Command{{Kind: "read", Items: []S7Item{{Area: 0x84, DBNumber: 1, Address: 0, TransportSize: 4, Length: 1}}}}}
+	err := (&S7Generator{}).Generate(context.Background(), &layers.GenRequest{Meta: layers.FlowMeta{S7: cfg, SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 102}, EmitMsg: func(ev layers.MessageEvent) error { return nil }})
+	if err == nil || !contains(err.Error(), "multi-stream") {
+		t.Fatalf("Generate error = %v, want multi-stream rejection", err)
 	}
 }
 
