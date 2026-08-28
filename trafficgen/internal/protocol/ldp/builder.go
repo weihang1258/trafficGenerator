@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 )
@@ -13,8 +14,8 @@ import (
 const (
 	ldpVersion    = 1
 	pduHdrLen     = 10
-	msgHdrLen     = 8  // U+Type(2) + Length(2) + MessageID(4)
-	tlvHdrLen     = 4  // U/F+Type(2) + Length(2)
+	msgHdrLen     = 8 // U+Type(2) + Length(2) + MessageID(4)
+	tlvHdrLen     = 4 // U/F+Type(2) + Length(2)
 	defaultLSRID  = "192.0.2.1"
 	defaultHold   = 15
 	defaultKA     = 30
@@ -23,26 +24,26 @@ const (
 
 // Message types.
 const (
-	msgNotification    uint16 = 0x0001
-	msgHello           uint16 = 0x0100
-	msgInitialization  uint16 = 0x0200
-	msgKeepAlive       uint16 = 0x0201
-	msgAddress         uint16 = 0x0300
-	msgLabelMapping    uint16 = 0x0400
-	msgLabelRequest    uint16 = 0x0401
-	msgLabelWithdraw   uint16 = 0x0402
-	msgLabelRelease    uint16 = 0x0403
+	msgNotification   uint16 = 0x0001
+	msgHello          uint16 = 0x0100
+	msgInitialization uint16 = 0x0200
+	msgKeepAlive      uint16 = 0x0201
+	msgAddress        uint16 = 0x0300
+	msgLabelMapping   uint16 = 0x0400
+	msgLabelRequest   uint16 = 0x0401
+	msgLabelWithdraw  uint16 = 0x0402
+	msgLabelRelease   uint16 = 0x0403
 )
 
 // TLV types.
 const (
-	tlvFEC                uint16 = 0x0100
-	tlvAddressList        uint16 = 0x0101
-	tlvGenericLabel       uint16 = 0x0200
-	tlvStatus             uint16 = 0x0300
-	tlvHelloParams        uint16 = 0x0400
-	tlvSessionParams      uint16 = 0x0500
-	tlvTransportAddress   uint16 = 0x0401
+	tlvFEC              uint16 = 0x0100
+	tlvAddressList      uint16 = 0x0101
+	tlvGenericLabel     uint16 = 0x0200
+	tlvStatus           uint16 = 0x0300
+	tlvHelloParams      uint16 = 0x0400
+	tlvSessionParams    uint16 = 0x0500
+	tlvTransportAddress uint16 = 0x0401
 )
 
 // FEC element types.
@@ -134,7 +135,7 @@ func BuildInitialization(keepaliveTime uint16, labelAdvert string, lsrID, receiv
 	binary.BigEndian.PutUint16(params[0:2], ldpVersion)
 	binary.BigEndian.PutUint16(params[2:4], keepaliveTime)
 	params[4] = byte(ad << 6) // Label Advertisement Discipline in the 2 high bits
-	params[5] = 0              // Path Vector Limit = 0
+	params[5] = 0             // Path Vector Limit = 0
 	binary.BigEndian.PutUint16(params[6:8], defaultMaxPDU)
 	if r := net.ParseIP(receiverLSRID).To4(); r != nil {
 		copy(params[8:12], r)
@@ -223,10 +224,20 @@ func BuildLabelRelease(prefix string, prefixLen uint8, label uint32) []byte {
 }
 
 // BuildNotification builds a Notification message body.
-func BuildNotification(statusCode uint32) []byte {
-	// Status TLV: Status Code(4) with E/F bits
-	val := make([]byte, 4)
-	binary.BigEndian.PutUint32(val, statusCode)
+//
+// Per RFC 5036 §3.5.3.1 the Status TLV value is 10 bytes:
+//
+//	Status Code (4) | Message ID (4) | Message Type (2)
+//
+// The Message ID / Message Type identify the message being reported on; a
+// standalone Notification (e.g. Shutdown) has no triggering message, so both
+// are 0. tshark's LDP dissector rejects a Status TLV that is not exactly 10
+// bytes ("length is %d, should be 10"), so we must always emit the full form.
+func BuildNotification(statusCode, msgID uint32, msgType uint16) []byte {
+	val := make([]byte, 10)
+	binary.BigEndian.PutUint32(val[0:4], statusCode)
+	binary.BigEndian.PutUint32(val[4:8], msgID)
+	binary.BigEndian.PutUint16(val[8:10], msgType)
 	return buildTLV(tlvStatus, val)
 }
 
@@ -280,12 +291,24 @@ func BuildLabelReleasePDU(lsrID string, labelSpace uint16, msgID uint32, prefix 
 
 // BuildNotificationPDU builds a complete PDU for Notification.
 func BuildNotificationPDU(lsrID string, labelSpace uint16, msgID uint32, statusCode uint32) []byte {
-	body := BuildNotification(statusCode)
+	// The Status TLV carries the *reported* message ID + type. A standalone
+	// Shutdown notification has no triggering message, so both are 0.
+	body := BuildNotification(statusCode, 0, 0)
 	return BuildPDU(lsrID, labelSpace, msgNotification, msgID, body)
 }
 
 // resolveFEC parses a FEC string like "203.0.113.0/24" into prefix and length.
 func resolveFEC(fec string) (string, uint8, error) {
+	// net.ParseCIDR rejects prefix lengths > 32 with a generic "invalid CIDR
+	// address" error, which makes prefix-bounds validation messages opaque.
+	// Inspect the /len suffix first so out-of-range prefixes surface a clear
+	// "prefix length out of range" error instead.
+	if slash := strings.LastIndexByte(fec, '/'); slash >= 0 {
+		var plen int
+		if _, err := fmt.Sscanf(fec[slash+1:], "%d", &plen); err == nil && plen > 32 {
+			return "", 0, fmt.Errorf("ldp: FEC prefix length %d out of range (max 32)", plen)
+		}
+	}
 	ip, ipnet, err := net.ParseCIDR(fec)
 	if err != nil {
 		return "", 0, fmt.Errorf("ldp: invalid FEC %q: %w", fec, err)
@@ -299,7 +322,7 @@ func CheckFault(faultKind string) error {
 	switch faultKind {
 	case "":
 		return nil
-	case "pdu_length", "message_length", "tlv_length", "label_bounds", "unknown_message":
+	case "pdu_length", "message_length", "tlv_length", "label_bounds", "unknown_message", "checksum":
 		return fmt.Errorf("ldp: fault injection %q", faultKind)
 	default:
 		return fmt.Errorf("ldp: unknown fault kind %q", faultKind)
@@ -416,6 +439,7 @@ func ValidateConfig(cfg *core.LDPConfig) error {
 			return err
 		}
 	}
+	seenInit := false
 	for i, ev := range cfg.Events {
 		if ev.Kind == "" {
 			return fmt.Errorf("ldp: event %d: kind is required", i)
@@ -430,6 +454,14 @@ func ValidateConfig(cfg *core.LDPConfig) error {
 		if (ev.Kind == "label_mapping" || ev.Kind == "label_request" || ev.Kind == "label_withdraw" || ev.Kind == "label_release") && ev.FEC == "" {
 			return fmt.Errorf("ldp: event %d: FEC is required for %s", i, ev.Kind)
 		}
+		if ev.FEC != "" {
+			// Validate the prefix bound at validation time so an out-of-range
+			// /len (e.g. /33) is rejected with a clear "prefix" error rather
+			// than surfacing as "planner produced 0 packet configs" later.
+			if _, _, err := resolveFEC(ev.FEC); err != nil {
+				return err
+			}
+		}
 		if ev.Kind == "label_mapping" && ev.Label == 0 {
 			return fmt.Errorf("ldp: event %d: label is required for label_mapping", i)
 		}
@@ -438,6 +470,16 @@ func ValidateConfig(cfg *core.LDPConfig) error {
 		}
 		if ev.Kind == "hello" && ev.HoldTime == 0 {
 			ev.HoldTime = defaultHold
+		}
+		// RFC 5036 §2.5.4: KeepAlive implies an established session, which
+		// requires a prior Initialization exchange. A config whose first
+		// message is KeepAlive (no Initialization seen) is an invalid state
+		// sequence and must be rejected, not emitted.
+		if ev.Kind == "keepalive" && !seenInit {
+			return fmt.Errorf("ldp: event %d: keepalive before initialization (invalid session state)", i)
+		}
+		if ev.Kind == "initialization" {
+			seenInit = true
 		}
 	}
 	return nil

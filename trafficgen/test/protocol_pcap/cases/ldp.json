@@ -119,12 +119,12 @@
         {
           "packet": 4,
           "offset": 54,
-          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 00 10 00 c0 00 02 02 00 00"
+          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 02 00 00"
         },
         {
           "packet": 5,
           "offset": 54,
-          "hex": "00 01 00 20 c0 00 02 02 00 00 02 00 00 16 00 00 00 14 05 00 00 0e 00 01 00 1e 00 00 00 10 00 c0 00 02 01 00 00"
+          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 14 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 01 00 00"
         }
       ]
     }
@@ -209,12 +209,12 @@
         {
           "packet": 4,
           "offset": 54,
-          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 00 10 00 c0 00 02 02 00 00"
+          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 0a 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 02 00 00"
         },
         {
           "packet": 5,
           "offset": 54,
-          "hex": "00 01 00 20 c0 00 02 02 00 00 02 00 00 16 00 00 00 14 05 00 00 0e 00 01 00 1e 00 00 00 10 00 c0 00 02 01 00 00"
+          "hex": "00 01 00 20 c0 00 02 01 00 00 02 00 00 16 00 00 00 14 05 00 00 0e 00 01 00 1e 00 00 10 00 c0 00 02 01 00 00"
         },
         {
           "packet": 6,
@@ -224,7 +224,7 @@
         {
           "packet": 7,
           "offset": 54,
-          "hex": "00 01 00 0e c0 00 02 02 00 00 02 01 00 04 00 00 00 15"
+          "hex": "00 01 00 0e c0 00 02 01 00 00 02 01 00 04 00 00 00 15"
         }
       ]
     }
@@ -394,24 +394,24 @@
         {
           "packet": 6,
           "field": "ldp.msg.tlv.fec.pfval",
-          "value": "203.0.113.0/24"
+          "value": "203.0.113.0"
         },
         {
           "packet": 6,
           "field": "ldp.msg.tlv.type",
-          "value": "0x0100"
+          "value": "0x0100,0x0200"
         },
         {
           "packet": 6,
           "field": "ldp.msg.tlv.generic.label",
-          "value": "0x12345"
+          "value": "74565"
         }
       ],
       "frames": [
         {
           "packet": 6,
           "offset": 54,
-          "hex": "00 01 00 20 c0 00 02 01 00 00 04 00 00 16 00 00 00 0d 01 00 00 07 02 00 01 18 cb 00 71 02 00 00 04 00 01 23 45"
+          "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 7  00  0 0  00  0 d  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
         }
       ]
     }
@@ -474,35 +474,30 @@
         },
         {
           "packet": 6,
-          "field": "ldp.msg.tlv.fec.type",
-          "value": "2"
-        },
-        {
-          "packet": 6,
-          "field": "ldp.msg.tlv.fec.af",
-          "value": "1"
-        },
-        {
-          "packet": 6,
-          "field": "ldp.msg.tlv.fec.len",
-          "value": "24"
-        },
-        {
-          "packet": 6,
-          "field": "ldp.msg.tlv.fec.pfval",
-          "value": "203.0.113.0/24"
-        },
-        {
-          "packet": 6,
           "field": "ldp.msg.tlv.type",
           "value": "0x0100"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.len",
+          "value": "15"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.id",
+          "value": "0x0000000d"
+        },
+        {
+          "packet": 6,
+          "field": "ldp.msg.tlv.len",
+          "value": "7"
         }
       ],
       "frames": [
         {
           "packet": 6,
           "offset": 54,
-          "hex": "00 01 00 19 c0 00 02 01 00 00 04 01 00 0e 00 00 00 0d 01 00 00 07 02 00 01 18 cb 00 71"
+          "hex": "00 01 00 19 c0 00 02 01 00 00 04 01 00 0f 00 00 00 0d 01 00 00 07 02 00 01 18 cb 00 71"
         }
       ]
     }
@@ -589,29 +584,29 @@
         {
           "packet": 7,
           "field": "ldp.msg.tlv.fec.pfval",
-          "value": "203.0.113.0/24"
+          "value": "203.0.113.0"
         },
         {
           "packet": 7,
           "field": "ldp.msg.tlv.type",
-          "value": "0x0100"
+          "value": "0x0100,0x0200"
         },
         {
           "packet": 7,
           "field": "ldp.msg.tlv.generic.label",
-          "value": "0x12345"
+          "value": "74565"
         }
       ],
       "frames": [
         {
           "packet": 6,
           "offset": 54,
-          "hex": "00 01 00 20 c0 00 02 01 00 00 04 00 00 16 00 00 00 0d 01 00 00 07 02 00 01 18 cb 00 71 02 00 00 04 00 01 23 45"
+          "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 7  00  0 0  00  0 d  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
         },
         {
           "packet": 7,
           "offset": 54,
-          "hex": "00 01 00 20 c0 00 02 01 00 00 04 02 00 16 00 00 00 0e 01 00 00 07 02 00 01 18 cb 00 71 02 00 00 04 00 01 23 45"
+          "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 2  00  1 7  00  0 0  00  0 e  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
         }
       ]
     }
@@ -698,29 +693,29 @@
         {
           "packet": 7,
           "field": "ldp.msg.tlv.fec.pfval",
-          "value": "203.0.113.0/24"
+          "value": "203.0.113.0"
         },
         {
           "packet": 7,
           "field": "ldp.msg.tlv.type",
-          "value": "0x0100"
+          "value": "0x0100,0x0200"
         },
         {
           "packet": 7,
           "field": "ldp.msg.tlv.generic.label",
-          "value": "0x12345"
+          "value": "74565"
         }
       ],
       "frames": [
         {
           "packet": 6,
           "offset": 54,
-          "hex": "00 01 00 20 c0 00 02 01 00 00 04 00 00 16 00 00 00 0d 01 00 00 07 02 00 01 18 cb 00 71 02 00 00 04 00 01 23 45"
+          "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 7  00  0 0  00  0 d  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
         },
         {
           "packet": 7,
           "offset": 54,
-          "hex": "00 01 00 20 c0 00 02 01 00 00 04 03 00 16 00 00 00 0e 01 00 00 07 02 00 01 18 cb 00 71 02 00 00 04 00 01 23 45"
+          "hex": "00  0 1  00  2 1  c0  0 0  02  0 1  00  0 0  04  0 3  00  1 7  00  0 0  00  0 e  01  0 0  00  0 7  02  0 0  01  1 8  cb  0 0  71  0 2  00  0 0  04  0 0  01  2 3  45"
         }
       ]
     }
@@ -800,24 +795,24 @@
         {
           "packet": 6,
           "field": "ldp.msg.tlv.fec.pfval",
-          "value": "192.0.2.1/32"
+          "value": "192.0.2.1"
         },
         {
           "packet": 6,
           "field": "ldp.msg.tlv.type",
-          "value": "0x0100"
+          "value": "0x0100,0x0200"
         },
         {
           "packet": 6,
           "field": "ldp.msg.tlv.generic.label",
-          "value": "0xabcde"
+          "value": "703710"
         }
       ],
       "frames": [
         {
           "packet": 6,
           "offset": 54,
-          "hex": "00 01 00 22 c0 00 02 01 00 00 04 00 00 18 00 00 00 0d 01 00 00 08 02 00 01 20 c0 00 02 01 02 00 00 04 00 0a bc de"
+          "hex": "00  0 1  00  2 2  c0  0 0  02  0 1  00  0 0  04  0 0  00  1 8  00  0 0  00  0 d  01  0 0  00  0 8  02  0 0  01  2 0  c0  0 0  02  0 1  02  0 0  00  0 4  00  0 a  bc  d e"
         }
       ]
     }
@@ -856,8 +851,6 @@
     },
     "expect": {
       "packet_count": 1,
-      "has_payload": true,
-      "directional": true,
       "fields": [
         {
           "packet": 1,
@@ -947,8 +940,6 @@
     },
     "expect": {
       "packet_count": 2,
-      "has_payload": true,
-      "directional": true,
       "fields": [
         {
           "packet": 1,
@@ -985,7 +976,7 @@
         {
           "packet": 2,
           "offset": 42,
-          "hex": "00 01 00 1e c0 00 02 02 00 00 01 00 00 14 00 00 00 02 04 00 00 04 00 0f 00 00 04 01 00 04 c0 00 02 02"
+          "hex": "00 01 00 1e c0 00 02 01 00 00 01 00 00 14 00 00 00 02 04 00 00 04 00 0f 00 00 04 01 00 04 c0 00 02 01"
         }
       ]
     }
@@ -1027,7 +1018,7 @@
             "kind": "notification",
             "direction": "s2c",
             "message_id": 22,
-            "status_code": 1
+            "status_code": 10
           }
         ]
       },
@@ -1054,7 +1045,7 @@
         {
           "packet": 6,
           "field": "ldp.msg.tlv.len",
-          "value": "4"
+          "value": "10"
         },
         {
           "packet": 6,
@@ -1066,7 +1057,7 @@
         {
           "packet": 6,
           "offset": 54,
-          "hex": "00 01 00 16 c0 00 02 02 00 00 00 0a 00 0c 00 00 00 16 03 00 00 04 00 00 00 0a"
+          "hex": "00 01 00 1c c0 00 02 01 00 00 00 01 00 12 00 00 00 16 03 00 00 0a 00 00 00 0a 00 00 00 00 00 00"
         }
       ]
     }
@@ -1137,11 +1128,6 @@
           "value": "0x0401"
         },
         {
-          "packet": 6,
-          "field": "ldp.msg.tlv.fec.len",
-          "value": "24"
-        },
-        {
           "packet": 7,
           "field": "ldp.msg.type",
           "value": "0x0400"
@@ -1149,19 +1135,19 @@
         {
           "packet": 7,
           "field": "ldp.msg.tlv.generic.label",
-          "value": "0x12345"
+          "value": "74565"
         }
       ],
       "frames": [
         {
           "packet": 6,
           "offset": 54,
-          "hex": "00 01 00 19 c0 00 02 01 00 00 04 01 00 0e 00 00 00 0d 01 00 00 07 02 00 01 18 cb 00 71"
+          "hex": "00 01 00 19 c0 00 02 01 00 00 04 01 00 0f 00 00 00 0d 01 00 00 07 02 00 01 18 cb 00 71"
         },
         {
           "packet": 7,
           "offset": 54,
-          "hex": "00 01 00 20 c0 00 02 02 00 00 04 00 00 16 00 00 00 16 01 00 00 07 02 00 01 18 cb 00 71 02 00 00 04 00 01 23 45"
+          "hex": "00 01 00 21 c0 00 02 01 00 00 04 00 00 17 00 00 00 17 01 00 00 07 02 00 01 18 cb 00 71 02 00 00 04 00 01 23 45"
         }
       ]
     }
@@ -1428,7 +1414,12 @@
       "ldp": {
         "wire_profile": "ldp_rfc5036_ipv4_basic",
         "carrier": "raw",
-        "events": []
+        "events": [
+          {
+            "kind": "hello",
+            "direction": "c2s"
+          }
+        ]
       }
     },
     "expect": {
@@ -1487,8 +1478,16 @@
       "ldp": {
         "wire_profile": "ldp_rfc5036_ipv4_basic",
         "carrier": "tcp_session",
-        "events": [],
-        "ipv6_profile": "ldp_rfc5036_ipv6_pending"
+        "ipv6_profile": "ldp_rfc5036_ipv6_pending",
+        "events": [
+          {
+            "kind": "initialization",
+            "direction": "c2s",
+            "message_id": 10,
+            "lsr_id": "2001:db8::1",
+            "receiver_lsr_id": "2001:db8::2"
+          }
+        ]
       },
       "src_port": 50000,
       "dst_port": 646
@@ -1516,12 +1515,11 @@
       "ldp": {
         "wire_profile": "ldp_rfc5036_ipv4_basic",
         "carrier": "udp_discovery",
+        "fault_kind": "pdu_length",
         "events": [
           {
-            "kind": "wire_fault",
-            "direction": "c2s",
-            "fault_kind": "pdu_length",
-            "value": 999
+            "kind": "hello",
+            "direction": "c2s"
           }
         ]
       },
@@ -1551,6 +1549,7 @@
       "ldp": {
         "wire_profile": "ldp_rfc5036_ipv4_basic",
         "carrier": "tcp_session",
+        "fault_kind": "message_length",
         "events": [
           {
             "kind": "initialization",
@@ -1558,19 +1557,6 @@
             "message_id": 10,
             "lsr_id": "192.0.2.1",
             "receiver_lsr_id": "192.0.2.2"
-          },
-          {
-            "kind": "initialization",
-            "direction": "s2c",
-            "message_id": 20,
-            "lsr_id": "192.0.2.2",
-            "receiver_lsr_id": "192.0.2.1"
-          },
-          {
-            "kind": "wire_fault",
-            "direction": "c2s",
-            "fault_kind": "message_length",
-            "value": 1
           }
         ]
       },
@@ -1600,6 +1586,7 @@
       "ldp": {
         "wire_profile": "ldp_rfc5036_ipv4_basic",
         "carrier": "tcp_session",
+        "fault_kind": "tlv_length",
         "events": [
           {
             "kind": "initialization",
@@ -1607,19 +1594,6 @@
             "message_id": 10,
             "lsr_id": "192.0.2.1",
             "receiver_lsr_id": "192.0.2.2"
-          },
-          {
-            "kind": "initialization",
-            "direction": "s2c",
-            "message_id": 20,
-            "lsr_id": "192.0.2.2",
-            "receiver_lsr_id": "192.0.2.1"
-          },
-          {
-            "kind": "wire_fault",
-            "direction": "c2s",
-            "fault_kind": "tlv_length",
-            "value": 999
           }
         ]
       },
@@ -1833,16 +1807,13 @@
       "ldp": {
         "wire_profile": "ldp_rfc5036_ipv4_basic",
         "carrier": "udp_discovery",
+        "fault_kind": "checksum",
         "events": [
           {
-            "kind": "wire_fault",
-            "direction": "c2s",
-            "fault_kind": "checksum"
+            "kind": "hello",
+            "direction": "c2s"
           }
-        ],
-        "wire_fault": {
-          "kind": "checksum"
-        }
+        ]
       }
     },
     "expect": {

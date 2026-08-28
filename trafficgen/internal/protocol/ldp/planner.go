@@ -3,6 +3,7 @@ package ldp
 import (
 	"context"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -17,7 +18,28 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	if spec.LDP == nil {
 		return fmt.Errorf("ldp: config is required")
 	}
-	return ValidateConfig(spec.LDP)
+	if err := ValidateConfig(spec.LDP); err != nil {
+		return err
+	}
+	// RFC 5036 §2.5.2: Link Hello discovery datagrams are sent to/from LDP
+	// discovery port 646 on both ends. Reject any other source port for the
+	// udp_discovery carrier so a misconfigured hello (e.g. src_port 645) is
+	// caught rather than emitted on a bogus port.
+	if spec.LDP.Carrier == "udp_discovery" && spec.SrcPort != 0 && spec.SrcPort != 646 {
+		return fmt.Errorf("ldp: udp_discovery source port must be 646, got %d", spec.SrcPort)
+	}
+	// RFC 5036 is IPv4-only; an IPv6 transport with the IPv4 basic profile
+	// must be rejected rather than silently emitting G-machine addresses that
+	// the IPv4 wire format cannot represent. Guard this at the spec level so
+	// the profile is never silently mixed into IPv6.
+	if spec.SrcIP != "" {
+		if ip := net.ParseIP(spec.SrcIP); ip != nil && ip.To4() == nil && spec.LDP.WireProfile == "" {
+			return fmt.Errorf("ldp: IPv6 transport requires an explicit ldp_rfc5036_ipv6 profile")
+		} else if ip != nil && ip.To4() == nil && spec.LDP.WireProfile == "ldp_rfc5036_ipv4_basic" {
+			return fmt.Errorf("ldp: profile %q cannot carry IPv6 transport", spec.LDP.WireProfile)
+		}
+	}
+	return nil
 }
 
 func (p Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.PacketConfig, error) {

@@ -145,12 +145,6 @@ func TestBuildLabelReleaseIPV4(t *testing.T) {
 func TestBuildNotificationPDU(t *testing.T) {
 	// S11: notification status=1 (Shutdown), from s2c (lsr=192.0.2.2)
 	pdu := BuildNotificationPDU("192.0.2.2", 0, 22, 1)
-	// Status TLV: type=0x0300, len=4, value=0x00000001 -> but case expects 0x0000000a
-	// Wait, the case expects status code 0x0000000a (10) not 1. Let me check the case...
-	// Case S11: status_code=1, but frame hex shows 0x0000000a... That's inconsistent.
-	// Actually looking at the frame hex: 00 01 00 16 c0 00 02 02 00 00 00 0a 00 0c 00 00 00 16 03 00 00 04 00 00 00 0a
-	// The status code is 0x0000000a at the end. But the case says status_code: 1.
-	// Hmm, the case might have a different value. Let me just test with status=1 for now.
 	msgType := uint16(pdu[10])<<8 | uint16(pdu[11])
 	if msgType != 0x0001 {
 		t.Fatalf("msg type=0x%04x want 0x0001", msgType)
@@ -158,12 +152,21 @@ func TestBuildNotificationPDU(t *testing.T) {
 }
 
 func TestBuildNotificationStatusCode(t *testing.T) {
-	// Build with explicit status code 10
+	// Build with explicit status code 10. Per RFC 5036 §3.5.3.1 the Status TLV
+	// value is 10 bytes (Status Code 4 + Message ID 4 + Message Type 2); tshark
+	// rejects any other length. SameSubtree offset: hdr(10)+msgHdr(8)+tlvHdr(4)=22.
 	pdu := BuildNotificationPDU("192.0.2.2", 0, 22, 10)
-	// Status TLV value at offset: hdr(10) + msgHdr(8) + tlvHdr(4) = 22
+	if got := len(pdu); got != 32 {
+		t.Fatalf("pdu len=%d want 32 (10+8+4+10)", got)
+	}
 	sc := uint32(pdu[22])<<24 | uint32(pdu[23])<<16 | uint32(pdu[24])<<8 | uint32(pdu[25])
 	if sc != 10 {
 		t.Fatalf("status code=%d want 10", sc)
+	}
+	// Status TLV length field must be 10.
+	stlvLen := uint16(pdu[20])<<8 | uint16(pdu[21])
+	if stlvLen != 10 {
+		t.Fatalf("status tlv len=%d want 10", stlvLen)
 	}
 }
 
@@ -202,8 +205,8 @@ func TestPlannerTCPInitSequence(t *testing.T) {
 func TestPlannerUDPHello(t *testing.T) {
 	// S9: single targeted UDP hello
 	cfg := &core.LDPConfig{
-		LSRID:   "192.0.2.1",
-		Carrier: "udp_discovery",
+		LSRID:    "192.0.2.1",
+		Carrier:  "udp_discovery",
 		Targeted: true,
 		Events: []core.LDPEvent{
 			{Kind: "hello", Direction: "c2s", MessageID: 1, HoldTime: 15, LSRID: "192.0.2.1"},
@@ -602,5 +605,95 @@ func TestNormalizeLDPConfig(t *testing.T) {
 	}
 	if cfg.LabelAdvertisement != "downstream_unsolicited" {
 		t.Fatalf("LabelAdvertisement=%q", cfg.LabelAdvertisement)
+	}
+}
+
+// --- T4.5 ldp 校验补全回归测试 ---
+
+func TestValidateRejectsKeepaliveBeforeInit(t *testing.T) {
+	// neg_state: a KeepAlive first event (no prior Initialization) is an invalid
+	// RFC 5036 §2.5.4 session state and must be rejected.
+	cfg := testConfig()
+	cfg.Events = []core.LDPEvent{testEvent("keepalive", "c2s", 1)}
+	if err := ValidateConfig(cfg); err == nil || !strings.Contains(err.Error(), "state") {
+		t.Fatalf("err=%v want keepalive-before-init rejection", err)
+	}
+}
+
+func TestValidateAcceptsKeepaliveAfterInit(t *testing.T) {
+	// KeepAlive AFTER an Initialization is a valid state sequence.
+	cfg := testConfig()
+	cfg.Events = []core.LDPEvent{
+		testEvent("initialization", "c2s", 10),
+		testEvent("initialization", "s2c", 20),
+		testEvent("keepalive", "c2s", 11),
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatalf("err=%v want nil", err)
+	}
+}
+
+func TestValidateRejectsUDPDiscoveryNon646Port(t *testing.T) {
+	// neg_port: UDP discovery hellos must use source port 646 (RFC 5036 §2.5.2).
+	cfg := testConfig()
+	cfg.Carrier = "udp_discovery"
+	cfg.Events = []core.LDPEvent{testEvent("hello", "c2s", 1)}
+	if err := (Planner{}).Validate(core.FlowSpec{SrcIP: "192.0.2.1", DstIP: "192.0.2.2", SrcPort: 645, LDP: cfg}); err == nil || !strings.Contains(err.Error(), "port") {
+		t.Fatalf("err=%v want udp_discovery 646 port rejection", err)
+	}
+	if err := (Planner{}).Validate(core.FlowSpec{SrcIP: "192.0.2.1", DstIP: "192.0.2.2", SrcPort: 646, LDP: cfg}); err != nil {
+		t.Fatalf("646 port err=%v want nil", err)
+	}
+}
+
+func TestValidateRejectsPrefixOver32(t *testing.T) {
+	// neg_prefix_bounds: a /33 FEC must be rejected with a "prefix" error at
+	// validation time (not deferred to "planner produced 0 packet configs").
+	cfg := testConfig()
+	cfg.Events = []core.LDPEvent{
+		testEvent("initialization", "c2s", 10),
+		testEvent("initialization", "s2c", 20),
+		{Kind: "label_request", Direction: "c2s", MessageID: 13, FEC: "203.0.113.0/33"},
+	}
+	if err := ValidateConfig(cfg); err == nil || !strings.Contains(err.Error(), "prefix") {
+		t.Fatalf("err=%v want prefix-out-of-range rejection", err)
+	}
+}
+
+func TestValidateRejectsChecksumFaultKind(t *testing.T) {
+	// neg_checksum: fault_kind=checksum is a recognized injection kind and must
+	// be rejected (fault injection forces validation failure).
+	cfg := testConfig()
+	cfg.Carrier = "udp_discovery"
+	cfg.FaultKind = "checksum"
+	cfg.Events = []core.LDPEvent{testEvent("hello", "c2s", 1)}
+	if err := ValidateConfig(cfg); err == nil || !strings.Contains(err.Error(), "checksum") {
+		t.Fatalf("err=%v want checksum fault rejection", err)
+	}
+}
+
+func TestValidateRejectsIPv6WithIPv4Profile(t *testing.T) {
+	// neg_ipv6_profile: IPv6 transport + IPv4 basic profile must be rejected,
+	// not silently mixed.
+	cfg := testConfig()
+	cfg.WireProfile = "ldp_rfc5036_ipv4_basic"
+	cfg.Events = []core.LDPEvent{
+		{Kind: "initialization", Direction: "c2s", MessageID: 10, LSRID: "2001:db8::1", ReceiverLSRID: "2001:db8::2"},
+	}
+	if err := (Planner{}).Validate(core.FlowSpec{SrcIP: "2001:db8::1", DstIP: "2001:db8::2", LDP: cfg}); err == nil || !strings.Contains(err.Error(), "profile") {
+		t.Fatalf("err=%v want IPv6+IPv4-profile rejection", err)
+	}
+}
+
+func TestBuildNotificationStatusTLVTenBytes(t *testing.T) {
+	// notification: Status TLV value must be exactly 10 bytes (Status Code 4 +
+	// Message ID 4 + Message Type 2) per RFC 5036 §3.5.3.1; tshark rejects any
+	// other length.
+	body := BuildNotification(10, 0, 0)
+	if len(body) != 14 { // tlv hdr (4) + 10
+		t.Fatalf("status tlv len=%d want 14", len(body))
+	}
+	if got := uint16(body[2])<<8 | uint16(body[3]); got != 10 {
+		t.Fatalf("status tlv length field=%d want 10", got)
 	}
 }

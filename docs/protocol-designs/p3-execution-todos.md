@@ -94,14 +94,38 @@
   - 用例校准（①）：reserve1/2→0x0000、frame.protocols 按 tshark 输出、
     sv_vlan eth.type→vlan.etype。
   - **结果：sv 0/12 → 12/12 全绿**。
-- [x] **T4.4** fins 剩余：BCD 时钟编码 + 多会话上限（1 例产品修 + 2 例并入 T3）【commit 待补】
+- [x] **T4.4** fins 剩余：BCD 时钟编码 + 多会话上限（1 例产品修 + 2 例并入 T3）【commit 49d62bf】
   - BCD 时钟产品修：Wireshark omron-fins dissector（3.6.14/master）把 0x0701 时钟读**
     响应**解析为 2 结束码 + **7 字节时钟**（年/月/日/时/分/秒/星期），**无世纪字段**。
     旧编码器多写 1 字节世纪 → dissector offset 不推进 → 帧判 malformed。修：去掉世纪字节。
   - 用例校准：帧断言 offset 54 `00 00 20 26 08 18 14 30 00 02` → `00 00 26 08 18 14 30 00 02`。
   - **fins 11/14 → 12/14**；`fins_sessions_two/three`（sessions>1 链式多流展开）是框架级多流
     限制（mqtt/nfs/modbus 同款拒绝），**并入 T3** 框架多流课题。
-- [ ] **T4.5** ldp 分簇清扫：⑤事件词汇 → ④字段编码 → UDP hello 子路径 → ⑥补校验
+- [x] **T4.5** ldp 分簇清扫：⑤事件词汇 → ④字段编码 → UDP hello 子路径 → ⑥补校验【commit 待补】
+  - **3/25 → 23/25 全绿（除 2 例框架多流并入 T3）**。
+  - ✅ ① 期望格式校准（tshark 渲染基准）：fec.pfval 不带 /len（tshark 只输出裸前缀，用
+    fec.len 字段携带长度）；tlv.type 为消息内全部 TLV 类型逗号拼接（0x0100,0x0200）；
+    generic.label 十进制（74565/703710，非 0x12345）；帧断言 PDU/Message Length 差 1
+    （编码正确，期望值多写/少写 0x01）。
+  - ✅ **tshark 3.6.14 LDP FEC-only dissector 伪影**：packet-ldp.c dissect_tlv_fec 在
+    dispatch 前无条件读 op_length=tvb_get_bits16(offset+8)，对 IPv4 Prefix FEC（/24=7B）
+    该读取点永远在 FEC 元素末端之外 2 字节。若 FEC TLV 是消息最后一个 TLV（Label
+    Request 必须 FEC-only）→ offset+8 越 tvb 终点 → BoundsError → malformed；若后面有
+    Label TLV（Mapping/Withdraw/Release）则读取点落在其后 TLV 头内 → 正常。编码正确
+    （RFC 5036 §3.4.1.1/§3.5.1），非帧缺陷。已入 pcaptest whitelist（verify.go）。
+  - ✅ **Status TLV 10 字节产品修**（notification）：RFC 5036 §3.5.3.1 Status TLV =
+    Status Code(4)+Message ID(4)+Message Type(2)=10 字节；旧实现只发 4 字节状态码 →
+    tshark "length is 4, should be 10" → status.data 空。修 BuildNotification 扩为全 10 字节。
+    用例改为 status_code=10(Shutdown)，期望 status.data=0x0000000a。
+  - ✅ ⑤ 事件词汇/形状：wire_fault 不是合法事件 kind——故障注入走 `ldp.fault_kind` 顶层键
+    （CheckFault 识别 pdu_length/message_length/tlv_length/label_bounds/unknown_message/
+    checksum）。用例由 wire_fault 事件改 shape 为顶层 fault_kind。
+  - ✅ ⑥ 补校验：neg_port（udp_discovery 源端口必须 646）；neg_state（keepalive 前必须
+    initialization）；neg_prefix_bounds（/33 前缀在 Validate 时以 "prefix" 错误拒绝，而非
+    延迟到 planner 0 包）；neg_ipv6_profile（IPv6 传输 + IPv4 basic profile 拒绝混用）；
+    neg_carrier/neg_checksum 走顶层 fault_kind/carrier 校验。
+  - **ldp_dual_adjacency / ldp_tcp_multi_session**（adjacencies/sessions 多邻接多会话）是框架
+    级多流展开限制（同 fins_sessions），**并入 T3**。
 - [ ] **T4.6** mongodb（差 1 例）
 - [ ] **T4.7** s7/bgp/coap/iec104（白名单已通，排真实错）
 - [ ] **T4.8** tns/dameng/someip/cql

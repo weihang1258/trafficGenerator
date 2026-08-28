@@ -372,6 +372,17 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 	//    §3.2 变长编码。是 tshark dissector 限制，非帧缺陷。
 	case caseID == "cflow_ipfix_variable_length_ie":
 		return true
+	// 7. LDP FEC-only dissector 伪影（tshark 3.6.14 缺陷，字节级已对
+	//    /tmp/mcp-pcaps/ldp/ 探针验证）：packet-ldp.c dissect_tlv_fec 在
+	//    dispatch 前无条件读 op_length=tvb_get_bits16(offset+8)，对 IPv4
+	//    Prefix FEC 该读取点永远在 FEC 元素（type+af+len+prefix, 7B /24）
+	//    末端之外 2 字节。若 FEC TLV 是消息里最后一个 TLV（Label Request
+	//    必须 FEC-only），offset+8 越过 tvb 终点 → BoundsError → malformed；
+	//    若后面跟着 Label TLV（Label Mapping/Withdraw/Release）则读取点落在
+	//    其后 TLV 头内 → 解码正常。编码正确（RFC 5036 §3.4.1.1 / §3.5.1），
+	//    是 dissector 读越界，非帧缺陷。
+	case caseID == "ldp_label_request_ipv4", caseID == "ldp_ordered_dod_allocation":
+		return true
 	case caseID == "rtmp-connect-play-basic" && artifactMatchesExact("Loop in AMF dissection"),
 		caseID == "xmpp-stream-basic" && artifactMatchesExact("Closing an unopened tag"),
 		(caseID == "tls-handshake-basic" || caseID == "stun_binding_tls_session") && (artifactMatchesPrefix("BER Error") || flagMatchesExact("[Malformed Packet: TLS]")):
