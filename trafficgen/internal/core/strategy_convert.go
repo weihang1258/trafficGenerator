@@ -572,6 +572,46 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				spec.SV.Count = n
 			}
 		}
+	case "igmp":
+		if sub, ok := cfg["igmp"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v IGMPConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "igmp: "+err.Error())
+			} else {
+				spec.IGMP = &v
+			}
+		}
+	case "ospf":
+		if sub, ok := cfg["ospf"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v OSPFConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "ospf: "+err.Error())
+			} else {
+				spec.OSPF = &v
+			}
+		}
+	case "pim":
+		if sub, ok := cfg["pim"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v PIMConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "pim: "+err.Error())
+			} else {
+				spec.PIM = &v
+			}
+		}
+	case "isis":
+		if sub, ok := cfg["isis"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v ISISConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "isis: "+err.Error())
+			} else {
+				spec.ISIS = &v
+			}
+		}
 	case "ftp":
 		// FTP sub-config already read in the universal section above.
 		// FTP defaults to port 21 (control channel). Only override when

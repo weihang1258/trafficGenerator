@@ -360,7 +360,8 @@ func validateBaseDstPortHandled(name string) bool {
 	case "opcua", "mms", "fins", "coap", "dns", "mdns", "syslog", "snmp",
 		"ntp", "ssdp", "stun", "rtmfp", "ldp", "pcep", "cflow", "rip", "dhcp",
 		"dhcpv6", "doip", "gbt32960", "mcp", "modbus", "mqtt", "nfs", "smb",
-		"tds", "moxa", "someip", "postgresql", "goose", "sv":
+		"tds", "moxa", "someip", "postgresql", "goose", "sv",
+		"igmp", "ospf", "pim", "isis":
 		return true
 	}
 	return false
@@ -379,7 +380,8 @@ func (p *ChainPlanner) validateChain() error {
 // 对终结层 udp 链（dns/ntp/snmp/syslog）做协议级端口默认（legacy 各
 // planner 在 Plan 时同款默认）。
 func validateSpecBase(name string, spec *core.FlowSpec) error {
-	if name == "goose" || name == "sv" {
+	if name == "goose" || name == "sv" || name == "isis" {
+		// L2-only 终结层（goose/sv/isis）：无 IP/端口概念，直接放行。
 		return nil
 	}
 	if spec.SrcIP != "" {
@@ -747,7 +749,7 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 		return nil, err
 	}
 
-	if p.name == "sv" || p.name == "goose" {
+	if p.name == "sv" || p.name == "goose" || p.name == "isis" {
 		out := make(chan core.PacketConfig, 256)
 		go func() {
 			defer close(out)
@@ -769,6 +771,9 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 				if p.name == "goose" {
 					pkt.L2.EtherType = core.EtherTypeGOOSE
 				}
+				if p.name == "isis" {
+					pkt.L2.EtherType = core.EtherTypeISIS
+				}
 				pkt.L3 = core.L3Config{}
 				pkt.L4.Protocol = p.name
 				select {
@@ -778,6 +783,64 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 					return ctx.Err()
 				}
 			}}
+			_ = gen.Generate(ctx, req)
+		}()
+		return out, nil
+	}
+	// raw-IP 终结层链（[ip→igmp/ospf/pim]，P3 T5）：无 tcp/udp 传输层，
+	// drive 的 transportIndex 必然 -1 → "chain has no transport layer"。与
+	// goose/sv L2-only 分支同构：终结层生成器直接产完整包（自设 L3.SrcIP/
+	// DstIP/Protocol + Payload），finalEmit 只补 L2 + TTL/DSCP。L3.Protocol
+	// 恒非 0（生成器按协议固写 2/89/103），finalEmit 的"仅 0 时填充"不会覆盖。
+	if isRawIPChain(p.name, chain) {
+		out := make(chan core.PacketConfig, 256)
+		go func() {
+			defer close(out)
+			gen := gens[len(gens)-1]
+			sess := &SessionState{IPID: uint16(rand.Uint32())}
+			req := &GenRequest{
+				Meta:  flowMetaFor(spec),
+				Sess:  sess,
+				Emit: func(pkt core.PacketConfig) error {
+					if pkt.Direction == "down" {
+						pkt.L3.SrcIP, pkt.L3.DstIP = pkt.L3.DstIP, pkt.L3.SrcIP
+					}
+					if pkt.L2.SrcMAC == "" {
+						l2 := l2For(pkt.Direction, spec)
+						pkt.L2.SrcMAC = l2.SrcMAC
+						pkt.L2.DstMAC = l2.DstMAC
+					}
+					if pkt.L2.DstMAC == "" {
+						pkt.L2.DstMAC = multicastDstMAC(pkt.L3.DstIP)
+					}
+					if pkt.L2.EtherType == 0 {
+						pkt.L2.EtherType = core.EtherTypeFor(pkt.L3.SrcIP)
+					}
+					if spec.TOS != 0 {
+						pkt.L3.DSCP = spec.TOS >> 2
+						pkt.L3.ECN = spec.TOS & 0x03
+					} else {
+						pkt.L3.DSCP = spec.DSCP
+						pkt.L3.ECN = spec.ECN
+					}
+					pkt.L3.Flags = spec.IPFlags
+					pkt.L3.FragOffset = spec.FragOffset
+					pkt.L3.HopByHop = spec.HopByHop
+					if pkt.L3.TTL == 0 {
+						pkt.L3.TTL = spec.TTL
+					}
+					if pkt.FlowID == "" {
+						pkt.FlowID = flowID(spec)
+					}
+					pkt.Timestamp = time.Now()
+					select {
+					case out <- pkt:
+						return nil
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				},
+			}
 			_ = gen.Generate(ctx, req)
 		}()
 		return out, nil
@@ -1164,6 +1227,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		CFlow:      spec.CFlow,
 		AMQP:       spec.AMQP,
 		RTMFP:      spec.RTMFP,
+		IGMP:       spec.IGMP,
+		OSPF:       spec.OSPF,
+		PIM:        spec.PIM,
+		ISIS:       spec.ISIS,
 		// SMB 同款（P4a）：配置经 Meta 直传 smb 终结层生成器（SMB2 会话
 		// NEGOTIATE → SESSION_SETUP → TREE_CONNECT → CREATE → Operations →
 		// CLOSE → TREE_DISCONNECT → LOGOFF 逐 PDU 事件，build* 纯函数复用）。
@@ -1937,6 +2004,21 @@ func isSVChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "sv"
 }
 
+// isRawIPChain reports whether the chain's terminal layer is a raw-IP routing
+// protocol (P3 T5: [ip→igmp/ospf/pim]) with no tcp/udp transport. These emit
+// full packets via the terminal generator (drive's transportIndex would be -1,
+// so they need a dedicated branch like the goose/sv L2-only path).
+func isRawIPChain(name string, chain []Layer) bool {
+	if len(chain) == 0 {
+		return false
+	}
+	switch chain[len(chain)-1].Name {
+	case "igmp", "ospf", "pim":
+		return true
+	}
+	return name == "igmp" || name == "ospf" || name == "pim"
+}
+
 func isHTTPChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "http"
 }
@@ -1966,7 +2048,8 @@ func isDHCPv6Chain(chain []Layer) bool {
 
 // transportProtocol resolves the IP protocol number from the chain's
 // transport layer (tcp=6 / udp=17)。独立 transport flow（[ip→udp]，传输层即
-// 末层）看末层；终结层链（[ip→tcp→http]）看倒数第二层。无传输层时回退 TCP
+// 末层）看末层；终结层链（[ip→tcp→http]）看倒数第二层。raw-IP 终结层
+// （[ip→igmp/ospf/pim]）看末层协议号（2/89/103）。无传输层时回退 TCP
 // （理论不可达：transport 层是 ip 的 depends_on 补全必插入）。
 func transportProtocol(chain []Layer) uint8 {
 	if len(chain) > 0 {
@@ -1975,6 +2058,12 @@ func transportProtocol(chain []Layer) uint8 {
 			return core.ProtocolUDP
 		case "tcp":
 			return core.ProtocolTCP
+		case "igmp":
+			return core.ProtocolIGMP
+		case "ospf":
+			return core.ProtocolOSPF
+		case "pim":
+			return core.ProtocolPIM
 		}
 	}
 	if len(chain) > 1 {
@@ -1983,6 +2072,12 @@ func transportProtocol(chain []Layer) uint8 {
 			return core.ProtocolUDP
 		case "tcp":
 			return core.ProtocolTCP
+		case "igmp":
+			return core.ProtocolIGMP
+		case "ospf":
+			return core.ProtocolOSPF
+		case "pim":
+			return core.ProtocolPIM
 		}
 	}
 	return core.ProtocolTCP

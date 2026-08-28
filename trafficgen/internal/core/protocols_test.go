@@ -20,11 +20,11 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"a2a", "amqp", "arp", "bgp", "cflow", "coap", "cql", "dameng",
 		"dhcp", "dhcpv6", "dnp3", "dns", "doip", "drda", "enip", "fins",
 		"ftp", "gbt32960", "goose", "gre", "grpc", "gtp", "h323", "hds",
-		"hls", "http", "http_flv", "icmp", "icmpv6", "iec104", "ike",
-		"ike_nat_t", "imap", "jt808", "jt809", "jtt905", "kingbase", "l2tp",
+		"hls", "http", "http_flv", "icmp", "icmpv6", "iec104", "igmp", "ike",
+		"ike_nat_t", "imap", "isis", "jt808", "jt809", "jtt905", "kingbase", "l2tp",
 		"ldap", "ldp", "mcp", "mcpprotocol", "mdns", "mms", "modbus",
 		"mongodb", "moxa", "mpls", "mqtt", "mysql", "nfs", "ngap", "ntp",
-		"opcua", "openvpn", "pcep", "pop3", "postgresql", "pppoe", "pptp",
+		"opcua", "openvpn", "ospf", "pcep", "pim", "pop3", "postgresql", "pppoe", "pptp",
 		"radius", "rdp", "redis", "replay", "rip", "rtmfp", "rtmp", "rtsp",
 		"s7", "sctp", "shadowsocks", "sip", "smb", "smtp", "snmp", "socks5",
 		"someip", "srv6", "ssdp", "ssh", "stun", "sv", "syslog", "tcp",
@@ -57,9 +57,9 @@ func TestAllowedProtocolsStable(t *testing.T) {
 func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 	negativeOnly := []string{
 		"ams", "bacnet", "cwmp", "dcerpc", "doh", "dtls", "edp", "ethmining",
-		"gbt", "geneve", "getwork", "gnutella", "hl7", "igmp", "isis",
+		"gbt", "geneve", "getwork", "gnutella", "hl7",
 		"kerberos", "megaco", "mmse", "nmea", "ntlm", "nvgre", "ocsp",
-		"onvif", "openwire", "ospf", "pim", "spnego", "sstp", "stratum",
+		"onvif", "openwire", "spnego", "sstp", "stratum",
 		"swarm", "vxlan", "xmrmining",
 	}
 	for _, name := range negativeOnly {

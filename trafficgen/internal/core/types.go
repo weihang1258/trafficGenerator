@@ -1344,6 +1344,13 @@ type FlowSpec struct {
 	MCP         *MCPConfig         `json:"mcp,omitempty"`
 	GBT32960    *GBT32960Config    `json:"gbt32960,omitempty"`
 
+	// Routing protocols (P3 T5; igmp/ospf/pim are raw-IP [ip,<proto>], isis is
+	// L2-only LLC [eth,isis]). Appended per flowspec_extension.md §2.3.
+	IGMP *IGMPConfig `json:"igmp,omitempty"`
+	OSPF *OSPFConfig `json:"ospf,omitempty"`
+	PIM  *PIMConfig  `json:"pim,omitempty"`
+	ISIS *ISISConfig `json:"isis,omitempty"`
+
 	// Metadata is a generic extension map used by protocol packages whose
 	// config types live outside core (avoids an import cycle). NFS, for
 	// example, stores *nfs.NFSConfig under the key "nfs". Protocol
@@ -2360,6 +2367,24 @@ type L2Config struct {
 	// Propagated from FlowSpec.PadMinFrame by the worker; planners leave
 	// this nil so the builder applies its default.
 	Pad *bool `json:"pad,omitempty"`
+
+	// LLC, when non-nil, encodes the frame as IEEE 802.3 with an 802.2 LLC
+	// header instead of an EtherType (the ISO 10589 IS-IS LLC carrier). The
+	// builder writes DstMAC(6)+SrcMAC(6)+Length(2)+DSAP(1)+SSAP(1)+Control(1)
+	// before the PDU (in Payload) — the Length field is 0 (the builder fills
+	// the actual PDU length at build time, replacing the EtherType slot). nil
+	// = EtherType carrier. Mutually exclusive with PPPoE/GRE/MPLS.
+	LLC *LLCConfig `json:"llc,omitempty"`
+}
+
+// LLCConfig selects the IEEE 802.3 + 802.2 LLC carrier used by the IS-IS LLC
+// wire profile (ISO 10589). The builder replaces the EtherType slot (bytes
+// 12-13) with the 802.3 Length field = length of the LLC+PDU bytes that follow,
+// then writes DSAP/SSAP/Control. The PDU itself is the PacketConfig Payload.
+type LLCConfig struct {
+	DSAP    uint8 `json:"dsap,omitempty"`    // source/target service access point; ISO 10589 uses 0xFE
+	SSAP    uint8 `json:"ssap,omitempty"`
+	Control uint8 `json:"control,omitempty"` // 0x03 = unnumbered info; IS-IS uses 0x03
 }
 
 // PPPoEConfig configures PPP-over-Ethernet Session Data or Discovery frames

@@ -31,6 +31,10 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/ftp"
 	"github.com/trafficgen/trafficgen/internal/protocol/gbt32960"
 	"github.com/trafficgen/trafficgen/internal/protocol/goose"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/igmp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/isis"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ospf"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/pim"
 	"github.com/trafficgen/trafficgen/internal/protocol/gre"
 	"github.com/trafficgen/trafficgen/internal/protocol/grpc"
 	"github.com/trafficgen/trafficgen/internal/protocol/gtp"
@@ -458,6 +462,13 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(goose.NewPlanner())
 	app.engine.RegisterPlanner(icmp.NewPlanner())
 	app.engine.RegisterPlanner(arp.NewPlanner())
+	// raw-IP 路由终结层（P3 T5）：igmp/ospf/pim 是 [ip,<proto>] 链（无 tcp/udp
+	// 传输层，L3.Protocol=2/89/103 由 ChainPlanner 的 raw-IP 分支处理）；
+	// isis 是 L2-only [eth,isis] LLC 链。
+	app.engine.RegisterPlanner(layers.NewChainPlanner("igmp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ospf"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("pim"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("isis"))
 	app.engine.RegisterPlanner(ftp.NewPlanner())
 	app.engine.RegisterPlanner(sip.NewPlanner())
 	app.engine.RegisterPlanner(rtsp.NewPlanner())

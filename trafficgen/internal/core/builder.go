@@ -16,6 +16,7 @@ const (
 	EtherTypeGOOSE = 0x88B8
 	EtherTypeSV    = 0x88BA
 	EtherTypeIPv6  = 0x86DD
+	EtherTypeISIS  = 0x8870
 
 	// PPPoE EtherTypes (RFC 2516 §4). The Ethernet EtherType selects the
 	// PPPoE stage: 0x8863 = Discovery (PADI/PADO/PADR/PADS/PADT), 0x8864 =
@@ -55,6 +56,9 @@ const (
 	ProtocolUDP    = 17
 	ProtocolSCTP   = 132
 	ProtocolICMPv6 = 58
+	ProtocolIGMP   = 2
+	ProtocolOSPF   = 89
+	ProtocolPIM    = 103
 
 	// ProtocolGRE is the IP protocol number for GRE encapsulation
 	// (RFC 2784 §4: "GRE packets are encapsulated in IP datagrams" with
@@ -196,6 +200,12 @@ func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 		l3Len = IPv6HeaderLen
 	}
 	l2Len := 14
+	if config.L2.LLC != nil {
+		// IEEE 802.3 length + 802.2 LLC header (DSAP/SSAP/Control) that
+		// follows the Ethernet header: Eth(14) + LLC(3). The PDU is the
+		// Payload starting at offset 17.
+		l2Len = 17
+	}
 	if config.L2.VLAN != nil {
 		l2Len = 18
 	}
@@ -353,7 +363,18 @@ func (b *Builder) Build(config PacketConfig) ([]byte, error) {
 		ipLen -= greLen
 	}
 
-	b.writeL2(packet[0:l2End], config, pppoePayloadLen)
+	// LLC length field = bytes after the 14-byte Ethernet header (802.2 LLC
+	// header + PDU). For the isis LLC carrier l3Len/l4Len are 0, so this is
+	// just len(payloadBytes).
+	var llcPayloadLen uint16
+	if config.L2.LLC != nil {
+		// LLC(3) + PDU. When the payload is the complete LLC+PDU (l3/l4=0)
+		// this equals len(payloadBytes); when L3/L4 follow (not the isis case)
+		// the length must also cover them.
+		llcPayloadLen = uint16(len(payloadBytes) + l3Len + l4Len)
+	}
+
+	b.writeL2(packet[0:l2End], config, pppoePayloadLen, llcPayloadLen)
 	if l3Len > 0 {
 		b.writeL3(packet[l2End:l2End+ipLen], config, l4Len+len(payloadBytes)+greLen+hbhoLen+srhLen)
 		if greLen > 0 {
@@ -937,7 +958,7 @@ func l4Length(config PacketConfig) int {
 // case forcing the corresponding EtherType. pppoePayloadLen is the value for
 // the PPPoE Payload_Length field, computed by Build (0 when PPPoE is
 // disabled).
-func (b *Builder) writeL2(dst []byte, config PacketConfig, pppoePayloadLen uint16) {
+func (b *Builder) writeL2(dst []byte, config PacketConfig, pppoePayloadLen uint16, llcPayloadLen uint16) {
 	dstMAC, err := net.ParseMAC(config.L2.DstMAC)
 	if err != nil && config.L2.DstMAC != "" {
 		zap.L().Warn("invalid dst MAC address", zap.String("mac", config.L2.DstMAC), zap.Error(err))
@@ -951,6 +972,18 @@ func (b *Builder) writeL2(dst []byte, config PacketConfig, pppoePayloadLen uint1
 	}
 	if len(srcMAC) == 6 {
 		copy(dst[6:12], srcMAC)
+	}
+	// LLC carrier (IEEE 802.3 + 802.2, IS-IS iso10589_llc): bytes 12-13 hold
+	// the 802.3 Length field (LLC + PDU), NOT an EtherType; the LLC DSAP/
+	// SSAP/Control header follows at bytes 14-16, and the PDU is the Payload.
+	if config.L2.LLC != nil {
+		binary.BigEndian.PutUint16(dst[12:14], llcPayloadLen)
+		if len(dst) >= 17 {
+			dst[14] = config.L2.LLC.DSAP
+			dst[15] = config.L2.LLC.SSAP
+			dst[16] = config.L2.LLC.Control
+		}
+		return
 	}
 	etherType := config.L2.EtherType
 	if etherType == 0 {
