@@ -11,26 +11,26 @@ import (
 
 // MongoDB wire protocol opcodes.
 const (
-	OpReply        = 1
-	OpUpdate       = 2001
-	OpInsert       = 2002
-	OpQuery        = 2004
-	OpGetMore      = 2005
-	OpDelete       = 2006
-	OpKillCursors  = 2007
+	OpReply       = 1
+	OpUpdate      = 2001
+	OpInsert      = 2002
+	OpQuery       = 2004
+	OpGetMore     = 2005
+	OpDelete      = 2006
+	OpKillCursors = 2007
 )
 
 // BSON element type constants.
 const (
-	BSONDouble   byte = 0x01
-	BSONString   byte = 0x02
-	BSONDoc      byte = 0x03
-	BSONArray    byte = 0x04
-	BSONBinary   byte = 0x05
-	BSONBool     byte = 0x08
-	BSONNull     byte = 0x0A
-	BSONInt32    byte = 0x10
-	BSONInt64    byte = 0x12
+	BSONDouble byte = 0x01
+	BSONString byte = 0x02
+	BSONDoc    byte = 0x03
+	BSONArray  byte = 0x04
+	BSONBinary byte = 0x05
+	BSONBool   byte = 0x08
+	BSONNull   byte = 0x0A
+	BSONInt32  byte = 0x10
+	BSONInt64  byte = 0x12
 )
 
 // HeaderSize is the MongoDB wire protocol header size.
