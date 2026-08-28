@@ -381,7 +381,11 @@ func BuildFrameWithConfig(cfg *FINSConfig, cmd FINSCommand, response bool, sid u
 			if clock == nil {
 				clock = &FINSClock{Century: 20, Year: 26, Month: 8, Day: 18, Hour: 14, Minute: 30, Weekday: 2}
 			}
-			frame = append(frame, bcd(clock.Century), bcd(clock.Year), bcd(clock.Month), bcd(clock.Day), bcd(clock.Hour), bcd(clock.Minute), bcd(clock.Second), bcd(clock.Weekday))
+			// Wireshark omron-fins dissector parses a 0x0701 clock-read response as
+			// 7 clock bytes (year, month, date, hour, minute, second, weekday) with
+			// NO century byte. Emitting a century byte leaves offset unconsumed and
+			// tshark flags the frame malformed.
+			frame = append(frame, bcd(clock.Year), bcd(clock.Month), bcd(clock.Day), bcd(clock.Hour), bcd(clock.Minute), bcd(clock.Second), bcd(clock.Weekday))
 		}
 		return frame, nil
 	}

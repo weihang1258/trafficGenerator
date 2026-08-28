@@ -84,8 +84,23 @@
     校验（neg_sqnum 该拒已拒）+ stNum/sqNum 溢出文案。
   - **结果：1/12 → 12/12 全绿**；回归测试 L2 默认值/顶层 count/重传序列/
     bit_string 编码/neg_sqnum 拒收。
-- [ ] **T4.3** sv 链式 L2 冲突（簇③，兼为 T5 探路）
-- [ ] **T4.4** fins 剩余：BCD 时钟编码 + 多会话上限（1 例产品修 + 2 例并入 T3）
+- [x] **T4.3** sv 链式 L2 冲突（簇③，兼为 T5 探路）【commit 8c7be03】
+  - 框架 L2 修复复用 goose（T4.2 的 mapToFlowSpec 不填默认 IP + Emit 保留
+    VLAN），sv 不再被 "L2 only" 拒。
+  - sv 编码根治：ASDU 嵌套缺 0xa2 seqASDU/内层 0x30 导致 tshark 判全帧
+    malformed；seqData 值4字节+可选quality4字节（带 quality=8/通道，无
+    quality=4/通道，sv_custom_dataset 非 9-2LE）；float32 IEEE 754；double_send
+    帧数=c.Count。
+  - 用例校准（①）：reserve1/2→0x0000、frame.protocols 按 tshark 输出、
+    sv_vlan eth.type→vlan.etype。
+  - **结果：sv 0/12 → 12/12 全绿**。
+- [x] **T4.4** fins 剩余：BCD 时钟编码 + 多会话上限（1 例产品修 + 2 例并入 T3）【commit 待补】
+  - BCD 时钟产品修：Wireshark omron-fins dissector（3.6.14/master）把 0x0701 时钟读**
+    响应**解析为 2 结束码 + **7 字节时钟**（年/月/日/时/分/秒/星期），**无世纪字段**。
+    旧编码器多写 1 字节世纪 → dissector offset 不推进 → 帧判 malformed。修：去掉世纪字节。
+  - 用例校准：帧断言 offset 54 `00 00 20 26 08 18 14 30 00 02` → `00 00 26 08 18 14 30 00 02`。
+  - **fins 11/14 → 12/14**；`fins_sessions_two/three`（sessions>1 链式多流展开）是框架级多流
+    限制（mqtt/nfs/modbus 同款拒绝），**并入 T3** 框架多流课题。
 - [ ] **T4.5** ldp 分簇清扫：⑤事件词汇 → ④字段编码 → UDP hello 子路径 → ⑥补校验
 - [ ] **T4.6** mongodb（差 1 例）
 - [ ] **T4.7** s7/bgp/coap/iec104（白名单已通，排真实错）

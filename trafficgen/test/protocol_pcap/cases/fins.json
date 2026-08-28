@@ -770,11 +770,11 @@
         {
           "packet": 2,
           "offset": 54,
-          "hex": "00 00 20 26 08 18 14 30 00 02"
+          "hex": "00 00 26 08 18 14 30 00 02"
         }
       ],
       "notes": [
-        "19-fins-design.md §3.10/§6 S7：响应 FINS 帧=10头+2命令码+2结束码+8 BCD=22 字节",
+        "Wireshark omron-fins dissector 0x0701 response = 10头+2命令码+2结束码+7 BCD(年/月/日/时/分/秒/星期)=21 字节，无世纪字段(century只进配置不上线)",
         "Wireshark 0x0701 分支不解析结束码（packet-omron-fins.c），故响应断言全用 FrameAssert",
         "BCD 小时=0x14（BCD SID 强制覆盖点，SID 本身为普通字节 0x01）",
         "请求帧=10+2=12 字节；FrameAssert 校验请求无参数（12 字节后无内容）"

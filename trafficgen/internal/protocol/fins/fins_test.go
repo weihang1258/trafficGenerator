@@ -282,7 +282,12 @@ func TestPlanClockReadUsesBCDResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []byte{0x00, 0x00, 0x20, 0x26, 0x08, 0x18, 0x14, 0x30, 0x00, 0x02}
+	// Wireshark omron-fins dissector (3.6.14 / master) parses a 0x0701 clock-read
+	// response as exactly: 2-byte command (0x0701) + 2-byte end code + 7-byte
+	// clock (year, month, date, hour, minute, second, weekday). There is NO
+	// century byte in the FINS clock response; emitting one makes `offset` never
+	// advance and tshark marks the frame malformed.
+	want := []byte{0x07, 0x01, 0x00, 0x00, 0x26, 0x08, 0x18, 0x14, 0x30, 0x00, 0x02}
 	if !bytes.HasSuffix(packets[1].Payload, want) {
 		t.Fatalf("clock response = % X, want BCD suffix % X", packets[1].Payload, want)
 	}
