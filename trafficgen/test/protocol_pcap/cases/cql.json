@@ -557,7 +557,7 @@
             "direction": "c2s",
             "query": "SELECT 1",
             "consistency": 1,
-            "query_flags": 0,
+            "query_flags": 2,
             "flags": 2
           },
           {

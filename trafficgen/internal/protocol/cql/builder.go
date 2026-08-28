@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 )
@@ -26,19 +27,19 @@ const (
 
 // Version bytes: request has direction bit clear; response sets 0x80.
 const (
-	ReqV4 = 0x04
+	ReqV4  = 0x04
 	RespV4 = 0x84
-	ReqV5 = 0x05
+	ReqV5  = 0x05
 	RespV5 = 0x85
 )
 
 // Header flag bits (§1).
 const (
-	FlagCompression  = 0x01
-	FlagTracing      = 0x02
+	FlagCompression   = 0x01
+	FlagTracing       = 0x02
 	FlagCustomPayload = 0x04
-	FlagWarning      = 0x08
-	FlagBeta         = 0x10
+	FlagWarning       = 0x08
+	FlagBeta          = 0x10
 )
 
 // Result kinds (§3.1). VOID is the only kind stably encoded in v1.
@@ -49,7 +50,6 @@ const (
 // maxFrameBytes is the implementation's frame size cap (§5 上限).
 const maxFrameBytes = 256 * 1024
 
-// opcodeForKind maps a config event kind to its opcode byte.
 // opcodeForKind maps a config event kind to its opcode byte.
 func opcodeForKind(kind string) (byte, bool) {
 	switch kind {
@@ -89,7 +89,7 @@ func versionForProfile(profile string) (byte, byte, error) {
 	case "cql_v5":
 		return ReqV5, RespV5, nil
 	}
-	return 0, 0, fmt.Errorf("cql: unsupported wire profile %q (want cql_v4|cql_v4_auth|cql_v5)", profile)
+	return 0, 0, fmt.Errorf("cql: unsupported wire profile version %q (want cql_v4|cql_v4_auth|cql_v5)", profile)
 }
 
 // dirVersion picks the version byte for an event's direction: c2s request uses
@@ -182,9 +182,9 @@ func buildStringMapBody(options map[string]interface{}) []byte {
 		return appendU16(nil, 0)
 	}
 	b := appendU16(nil, uint16(len(options)))
-	for k, v := range options {
+	for _, k := range sortedKeys(options) {
 		b = appendString(b, k)
-		b = appendString(b, fmt.Sprint(v))
+		b = appendString(b, fmt.Sprint(options[k]))
 	}
 	return b
 }
@@ -196,15 +196,36 @@ func buildStringMultimapBody(options map[string]interface{}) []byte {
 		return appendU16(nil, 0)
 	}
 	b := appendU16(nil, uint16(len(options)))
-	for k, v := range options {
+	for _, k := range sortedKeys(options) {
 		b = appendString(b, k)
-		vals := multiValues(v)
+		vals := multiValues(options[k])
 		b = appendU16(b, uint16(len(vals)))
 		for _, val := range vals {
 			b = appendString(b, val)
 		}
 	}
 	return b
+}
+
+// sortedKeys returns the map's string keys in a deterministic order so the
+// emitted string map / string multimap is reproducible: CQL_VERSION always
+// leads (it is conventionally first in STARTUP/SUPPORTED), then the remaining
+// keys lexicographically. The pcap cases pin the bytes with CQL_VERSION first;
+// a plain sort.Strings would put COMPRESSION ahead of CQL_VERSION ('C'<'Q').
+func sortedKeys(options map[string]interface{}) []string {
+	keys := make([]string, 0, len(options))
+	for k := range options {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for i, k := range keys {
+		if k == "CQL_VERSION" {
+			copy(keys[1:i+1], keys[0:i])
+			keys[0] = k
+			break
+		}
+	}
+	return keys
 }
 
 // multiValues normalizes a SUPPORTED multimap value (string or []interface{})

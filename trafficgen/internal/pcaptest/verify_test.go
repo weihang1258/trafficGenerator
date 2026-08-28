@@ -223,8 +223,8 @@ func TestHavePayload_ForCoAPChecksPayloadField(t *testing.T) {
 	p := pcapRoot + "/coap/coap_con_get.pcap"
 	requirePcap(t, p)
 	c := Case{
-		ID:    "coap_con_get",
-		Proto: "coap",
+		ID:     "coap_con_get",
+		Proto:  "coap",
 		Expect: Expect{HasPayload: true},
 	}
 	problems := VerifyPcap(p, c)
@@ -245,8 +245,8 @@ func TestHavePayload_ForIEC104ChecksAPDUPresence(t *testing.T) {
 	p := pcapRoot + "/iec104/iec104_u_frames.pcap"
 	requirePcap(t, p)
 	c := Case{
-		ID:    "iec104_u_frames",
-		Proto: "iec104",
+		ID:     "iec104_u_frames",
+		Proto:  "iec104",
 		Expect: Expect{HasPayload: true},
 	}
 	problems := VerifyPcap(p, c)
@@ -269,5 +269,45 @@ func TestHavePayload_ForIEC104ChecksAPDUPresence(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("iec104 has_payload on pure-TCP pcap must fail, got %v", probs)
+	}
+}
+
+// TestHavePayload_ForDamengAndCQLChecksTCPLen: dameng/cql PDU 天然小（<80B），
+// frame.len 恒 < 80，旧实现用 frame.len>80 作代理判断恒判"无负载"。应用层数据帧
+// 的 tcp.len>0，纯 TCP 握手/挥手帧 tcp.len=0——用 tcp.len 判断，而非整帧长。
+func TestHavePayload_ForDamengAndCQLChecksTCPLen(t *testing.T) {
+	cases := []struct {
+		proto string
+		id    string
+		pcap  string
+	}{
+		{"dameng", "dameng_auth_success", pcapRoot + "/dameng/dameng_auth_success.pcap"},
+		{"cql", "cql_length_boundary", pcapRoot + "/cql/cql_length_boundary.pcap"},
+	}
+	for _, tc := range cases {
+		requirePcap(t, tc.pcap)
+		c := Case{ID: tc.id, Proto: tc.proto, Expect: Expect{HasPayload: true}}
+		problems := VerifyPcap(tc.pcap, c)
+		for _, pr := range problems {
+			if strings.Contains(pr, "has_payload") {
+				t.Fatalf("%s has_payload false-failure (payload present but frame <80): %s", tc.proto, pr)
+			}
+		}
+	}
+	// 负路径：纯 TCP 握手（无任何应用载荷，tcp.len 全程 0）必须失败。
+	p2 := pcapRoot + "/tcp/tcp-handshake-basic.pcap"
+	requirePcap(t, p2)
+	for _, proto := range []string{"dameng", "cql"} {
+		c2 := Case{ID: proto + "-nopayload", Proto: proto, Expect: Expect{HasPayload: true}}
+		probs := VerifyPcap(p2, c2)
+		found := false
+		for _, pr := range probs {
+			if strings.Contains(pr, "has_payload") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s has_payload on pure-TCP pcap must fail, got %v", proto, probs)
+		}
 	}
 }

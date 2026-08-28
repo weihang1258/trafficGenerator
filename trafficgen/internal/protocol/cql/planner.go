@@ -21,9 +21,10 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	if cfg == nil {
 		return fmt.Errorf("cql: config is required")
 	}
-	if len(cfg.Events) == 0 && len(cfg.Sessions) == 0 {
-		return fmt.Errorf("cql: at least one event or session required")
-	}
+	// 空 events+sessions = connect-only 会话（TCP 9042 握手+挥手，0 应用帧，7
+	// 包），与 cql_connect 用例契约一致（P0b-2 默认流，has_payload=false）。
+	// 不再拒绝空 events —— 否则 cql_connect 及 cql_neg_*（events:[]+wire_fault/
+	// 坏 profile）都会卡在这道未达具体校验的早退门。
 	if len(cfg.Events) > 0 && len(cfg.Sessions) > 0 {
 		return fmt.Errorf("cql: events and sessions are mutually exclusive")
 	}

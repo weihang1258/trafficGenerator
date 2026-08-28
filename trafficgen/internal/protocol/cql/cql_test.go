@@ -74,8 +74,8 @@ func TestBuildFrameSupported(t *testing.T) {
 	ev := core.CQLEvent{
 		Kind: "supported", Direction: "s2c",
 		Options: map[string]interface{}{
-			"CQL_VERSION":  []interface{}{"3.0.0"},
-			"COMPRESSION":  []interface{}{"snappy", "lz4"},
+			"CQL_VERSION": []interface{}{"3.0.0"},
+			"COMPRESSION": []interface{}{"snappy", "lz4"},
 		},
 	}
 	frame, err := buildFrame(ReqV4, RespV4, ev)
@@ -297,17 +297,19 @@ func TestValidateCQLUnknownProfile(t *testing.T) {
 			},
 		},
 	})
-	if err == nil || !strings.Contains(err.Error(), `unsupported wire profile "cql_v3"`) {
-		t.Fatalf("err=%v want unsupported wire profile", err)
+	if err == nil || !strings.Contains(err.Error(), `unsupported wire profile version "cql_v3"`) {
+		t.Fatalf("err=%v want unsupported wire profile version", err)
 	}
 }
 
-func TestValidateCQLEventsRequired(t *testing.T) {
+func TestValidateCQLAllowsEmptyEvents(t *testing.T) {
+	// P0b-2：空 events+sessions = connect-only 会话（TCP 9042 握手+挥手，7 包，
+	// has_payload=false），与 cql_connect 用例契约一致。不再拒绝空 events。
 	err := (Planner{}).Validate(core.FlowSpec{
 		CQL: &core.CQLConfig{WireProfile: "cql_v4"},
 	})
-	if err == nil || err.Error() != "cql: at least one event or session required" {
-		t.Fatalf("err=%v want at least one event or session", err)
+	if err != nil {
+		t.Fatalf("empty events should be valid (connect-only), got %v", err)
 	}
 }
 
@@ -1148,5 +1150,43 @@ func TestCQLRegister(t *testing.T) {
 	}
 	if gen.Name() != "cql" {
 		t.Fatalf("name=%q want cql", gen.Name())
+	}
+}
+
+func TestStringMapBodyDeterministicOrder(t *testing.T) {
+	// CQL STARTUP/SUPPORTED 的 string map / multimap 必须确定性编码；Go map 迭代
+	// 随机，逐字节断言依赖排序。sortedKeys 恒把 CQL_VERSION 放最前（契约约定），其余
+	// 按字典序：故 CQL_VERSION 先于 COMPRESSION。
+	opts := map[string]interface{}{"COMPRESSION": "snappy", "CQL_VERSION": "5.0.0"}
+	body := buildStringMapBody(opts)
+	want := parseHex("00 02 00 0b 43 51 4c 5f 56 45 52 53 49 4f 4e 00 05 35 2e 30 2e 30 00 0b 43 4f 4d 50 52 45 53 53 49 4f 4e 00 06 73 6e 61 70 70 79")
+	if hexStr(body) != hexStr(want) {
+		t.Fatalf("string map body not deterministic: got %s want %s", hexStr(body), hexStr(want))
+	}
+}
+
+func TestVersionForProfileRejectsUnknownWithVersionKeyword(t *testing.T) {
+	// cql_neg_version：cql_v3 未登记，错误须含 "version" 关键词。
+	_, _, err := versionForProfile("cql_v3")
+	if err == nil || !strings.Contains(err.Error(), "version") {
+		t.Fatalf("err=%v want version keyword", err)
+	}
+}
+
+func TestPlannerEmptyEventsProducesConnectFlow(t *testing.T) {
+	// P0b-2：空 events = connect-only 会话，Plan 产 3 握手 + 0 应用帧 + 4 挥手 = 7 包。
+	ch, err := (Planner{}).Plan(context.Background(), core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 9042,
+		CQL: &core.CQLConfig{WireProfile: "cql_v4"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for range ch {
+		count++
+	}
+	if count != 7 {
+		t.Fatalf("packets=%d want 7 (connect-only)", count)
 	}
 }

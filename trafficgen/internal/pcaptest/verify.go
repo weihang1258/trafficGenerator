@@ -249,6 +249,22 @@ func checkHasPayload(pcapPath string, c Case) error {
 		}
 		return fmt.Errorf("no IEC104 PDU (iec60870_104.apdulen absent; only TCP handshake)")
 	}
+	// Dameng/CQL PDU 天然小（<80B），frame.len 恒 < 80，不能用帧长作代理。应用
+	// 载荷存在性由 tcp.len（TCP payload 字节数）标记：真正的数据帧 tcp.len>0，
+	// 纯握手/挥手帧 tcp.len=0。dameng 设计（30-dameng-testcase）与 cql 设计
+	// （35-cql-testcase）都把 has_payload 语义定成"存在一个携带应用层数据的帧"。
+	if c.Proto == "dameng" || c.Proto == "cql" {
+		vals, err := FieldValues(pcapPath, "tcp.len", c.DecodeAs)
+		if err != nil {
+			return err
+		}
+		for _, v := range vals {
+			if n, e := strconv.Atoi(v); e == nil && n > 0 {
+				return nil
+			}
+		}
+		return fmt.Errorf("no %s payload (tcp.len 0 everywhere; only TCP handshake/teardown)", c.Proto)
+	}
 	lens, err := FieldValues(pcapPath, "frame.len", c.DecodeAs)
 	if err != nil {
 		return err
