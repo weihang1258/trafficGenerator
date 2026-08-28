@@ -126,7 +126,7 @@
     neg_carrier/neg_checksum 走顶层 fault_kind/carrier 校验。
   - **ldp_dual_adjacency / ldp_tcp_multi_session**（adjacencies/sessions 多邻接多会话）是框架
     级多流展开限制（同 fins_sessions），**并入 T3**。
-- [x] **T4.6** mongodb（差 1 例）【commit 待补】
+- [x] **T4.6** mongodb（差 1 例）【commit a6483b2】
   - **12/13 绿**；唯一剩 `mongodb_multi_session`（sessions>1，两独立会话各独立 src_port）。
   - 产品修：mongodb layer_gen 对 sessions>1 原本**静默只发 session[0]**（9 包而非 18 包）——
     改为与 mqtt/nfs/modbus 一致**拒绝多流展开**（"multi-stream expansion is not supported on a
