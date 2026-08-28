@@ -101,7 +101,7 @@
   - 用例校准：帧断言 offset 54 `00 00 20 26 08 18 14 30 00 02` → `00 00 26 08 18 14 30 00 02`。
   - **fins 11/14 → 12/14**；`fins_sessions_two/three`（sessions>1 链式多流展开）是框架级多流
     限制（mqtt/nfs/modbus 同款拒绝），**并入 T3** 框架多流课题。
-- [x] **T4.5** ldp 分簇清扫：⑤事件词汇 → ④字段编码 → UDP hello 子路径 → ⑥补校验【commit 待补】
+- [x] **T4.5** ldp 分簇清扫：⑤事件词汇 → ④字段编码 → UDP hello 子路径 → ⑥补校验【commit 0a0ed13】
   - **3/25 → 23/25 全绿（除 2 例框架多流并入 T3）**。
   - ✅ ① 期望格式校准（tshark 渲染基准）：fec.pfval 不带 /len（tshark 只输出裸前缀，用
     fec.len 字段携带长度）；tlv.type 为消息内全部 TLV 类型逗号拼接（0x0100,0x0200）；
