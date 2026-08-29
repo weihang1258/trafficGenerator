@@ -28,17 +28,28 @@ func (g *BGPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 	if err := validateSessionConfig(cfg); err != nil {
 		return err
 	}
-	// sessions>1 多流展开需要框架 SubFlow 机制（T3）；比照 mongodb/mqtt/nfs
-	// 显式拒绝而非静默只发 session[0] 的错包。sessions==1 时提升该 session 的
-	// events 为事件源（镜像 mongodb layer_gen: Sessions[0] 提升），否则单 session
-	// 的事件会被静默丢弃而回退到默认流（错包）。
+	// 多会话展开（P0a 模式，同 postgresql/tns/mongodb）：每条 session 一条
+	// 独立 TCP 连接，session 源端口带上事件，tcp 层据 SrcPort 判定会话边界
+	// （挥旧握新）。sessions==1 时提升该 session 的 events（既有契约：单
+	// session 事件不被静默丢弃）。
 	if len(cfg.Sessions) > 1 {
-		return fmt.Errorf("bgp generator: sessions (%d) multi-stream expansion is not supported on a layer chain (one flow per chain)", len(cfg.Sessions))
+		for _, s := range cfg.Sessions {
+			if err := emitEvents(ctx, cfg, s.Events, s.SrcPort, req); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	events := cfg.Events
 	if len(cfg.Sessions) == 1 {
 		events = cfg.Sessions[0].Events
 	}
+	return emitEvents(ctx, cfg, events, 0, req)
+}
+
+// emitEvents encodes and emits one event list; srcPort is the session's TCP
+// source port override (0 = default flow port).
+func emitEvents(ctx context.Context, cfg *BGPConfig, events []core.BGPEvent, srcPort uint16, req *layers.GenRequest) error {
 	if events == nil {
 		// P0b-2：events 字段缺省(nil)时产默认流（open→open→ka→ka→ka→ka，
 		// 与既有默认化契约一致）；显式 `events: []` 表示 connect-only 会话。
@@ -49,7 +60,7 @@ func (g *BGPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			return req.EmitMsg(layers.MessageEvent{Up: up, Bytes: b})
+			return req.EmitMsg(layers.MessageEvent{Up: up, Bytes: b, SrcPort: srcPort})
 		}
 	}
 	for i := range events {

@@ -33,17 +33,27 @@ func (g *MongoDBGenerator) Generate(ctx context.Context, req *layers.GenRequest)
 		// 与 Planner.Plan 的默认化一致——默认产一条 OP_QUERY 报文事件。
 		cfg = &core.MongoDBConfig{Messages: []core.MongoDBMessage{{Opcode: "OP_QUERY"}}}
 	}
-	// A single layer-chain generator emits ONE flow per chain (one src_port).
-	// Multi-session expansion each with its own 4-tuple requires the framework
-	// SubFlow mechanism (a T3 concern), so reject it rather than silently
-	// emitting only session[0]'s messages — matching mqtt/nfs/modbus.
-	if len(cfg.Sessions) > 1 {
-		return fmt.Errorf("mongodb generator: sessions (%d) multi-stream expansion is not supported on a layer chain (one flow per chain)", len(cfg.Sessions))
+	// 多会话展开（P0a 模式，同 postgresql/kingbase/tns）：每条 session 一条
+	// 独立 TCP 连接，session 源端口带上事件，tcp 层据 SrcPort 判定会话边界
+	// （挥旧握新）。session[0] 端口 == 顶层 src_port（或框架默认）时不触发
+	// 边界，字节序列与单会话完全一致。
+	if len(cfg.Sessions) > 0 {
+		for _, s := range cfg.Sessions {
+			for _, m := range s.Messages {
+				payload, err := buildMessage(m)
+				if err != nil {
+					return err
+				}
+				op, _ := resolveOpcode(m.Opcode)
+				up := opcodeDirection(op) != "s2c"
+				if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: up, Bytes: payload, SrcPort: s.SrcPort}); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
 	}
 	msgs := cfg.Messages
-	if len(cfg.Sessions) == 1 {
-		msgs = cfg.Sessions[0].Messages
-	}
 	for _, m := range msgs {
 		payload, err := buildMessage(m)
 		if err != nil {

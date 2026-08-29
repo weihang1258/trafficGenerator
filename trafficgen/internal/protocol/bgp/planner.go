@@ -40,8 +40,16 @@ func validateSessionConfig(cfg *BGPConfig) error {
 	if cfg == nil {
 		return nil
 	}
+	// 多会话：每条 session 独立跑事件序列状态机（layer_gen 按 P0a 模式
+	// 逐 session 发 SrcPort，tcp 层挥旧握新）。空 Events 的单 session 仍走
+	// 提升路径（与既有 sessions==1 契约一致）。
 	if len(cfg.Sessions) > 1 {
-		return fmt.Errorf("bgp: sessions (%d) multi-stream expansion is not supported on a layer chain (one flow per chain)", len(cfg.Sessions))
+		for i, s := range cfg.Sessions {
+			if err := validateEventSequence(s.Events); err != nil {
+				return fmt.Errorf("bgp: session %d: %w", i, err)
+			}
+		}
+		return nil
 	}
 	events := cfg.Events
 	if len(cfg.Sessions) == 1 {

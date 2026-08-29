@@ -507,13 +507,23 @@
       "fields": [
         {
           "field": "tcp.dstport",
-          "value": "27017"
+          "packet": 0,
+          "distinct_values": [
+            "27017"
+          ],
+          "distinct_exclude": [
+            "12345",
+            "12346"
+          ]
         },
         {
           "field": "tcp.srcport",
           "distinct_values": [
             "12345",
             "12346"
+          ],
+          "distinct_exclude": [
+            "27017"
           ]
         }
       ]

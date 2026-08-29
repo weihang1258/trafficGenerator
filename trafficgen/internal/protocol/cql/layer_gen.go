@@ -35,24 +35,27 @@ func (g *CQLGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 	if err != nil {
 		return err
 	}
-	collect := func(events []core.CQLEvent) error {
+	// srcPort 是 session 的 TCP 源端口覆盖（0 = 默认流端口）。
+	collect := func(events []core.CQLEvent, srcPort uint16) error {
 		for _, ev := range events {
 			payload, err := buildFrame(reqVer, respVer, ev)
 			if err != nil {
 				return err
 			}
 			up := ev.Direction != "s2c"
-			if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: up, Bytes: payload}); err != nil {
+			if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: up, Bytes: payload, SrcPort: srcPort}); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
 	if len(cfg.Events) > 0 {
-		return collect(cfg.Events)
+		return collect(cfg.Events, 0)
 	}
+	// 每条 session 一条独立 TCP 连接（P0a 模式）：session 源端口带上事件，
+	// tcp 层据 SrcPort 判定会话边界（挥旧握新）。
 	for _, s := range cfg.Sessions {
-		if err := collect(s.Events); err != nil {
+		if err := collect(s.Events, s.SrcPort); err != nil {
 			return err
 		}
 	}

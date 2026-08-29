@@ -808,6 +808,10 @@
           "field": "tcp.dstport",
           "distinct_values": [
             "179"
+          ],
+          "distinct_exclude": [
+            "12345",
+            "12346"
           ]
         }
       ]

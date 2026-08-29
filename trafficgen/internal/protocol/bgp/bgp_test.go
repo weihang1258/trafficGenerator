@@ -426,26 +426,50 @@ func TestPlannerRejectsOpenAfterEstablished(t *testing.T) {
 	}
 }
 
-func TestPlannerRejectsMultiSession(t *testing.T) {
-	// 设计 §2：sessions>1 多流展开是框架 SubFlow 课题（T3）；显式拒绝。
+func TestPlannerValidatesMultiSessionSequence(t *testing.T) {
+	// 多会话：每条 session 独立跑事件序列状态机；session[1] 缺 open 对应被拒
+	//（状态机校验逐 session 作用，错误带 session 前缀）。
 	cfg := &BGPConfig{WireProfile: "bgp_rfc4271_ipv4_unicast", Sessions: []core.BGPSession{
-		{SrcPort: 12345, Events: []core.BGPEvent{{Kind: "open", Direction: "c2s"}}},
-		{SrcPort: 12346, Events: []core.BGPEvent{{Kind: "open", Direction: "c2s"}}},
+		{SrcPort: 12345, Events: []core.BGPEvent{
+			{Kind: "open", Direction: "c2s"},
+			{Kind: "open", Direction: "s2c"},
+		}},
+		{SrcPort: 12346, Events: []core.BGPEvent{
+			{Kind: "keepalive", Direction: "c2s"}, // open 未交换 → 状态机拒
+		}},
 	}}
 	err := (Planner{}).Validate(core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", BGP: cfg})
-	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "multi-stream") {
-		t.Fatalf("err=%v want multi-stream", err)
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "session 1") {
+		t.Fatalf("err=%v want session 1 sequence rejection", err)
 	}
 }
 
-func TestGeneratorRejectsMultiSession(t *testing.T) {
+func TestGeneratorMultiSessionSrcPorts(t *testing.T) {
+	// 多会话展开（P0a 模式）：每条 session 的事件带上 SrcPort，tcp 层据其
+	// 判定会话边界（挥旧握新）。
 	cfg := &BGPConfig{WireProfile: "bgp_rfc4271_ipv4_unicast", Sessions: []core.BGPSession{
-		{SrcPort: 12345, Events: []core.BGPEvent{{Kind: "open", Direction: "c2s"}}},
-		{SrcPort: 12346, Events: []core.BGPEvent{{Kind: "open", Direction: "c2s"}}},
+		{SrcPort: 12345, Events: []core.BGPEvent{
+			{Kind: "open", Direction: "c2s"},
+			{Kind: "open", Direction: "s2c"},
+		}},
+		{SrcPort: 12346, Events: []core.BGPEvent{
+			{Kind: "open", Direction: "c2s"},
+			{Kind: "open", Direction: "s2c"},
+		}},
 	}}
-	err := (&BGPGenerator{}).Generate(context.Background(), &layers.GenRequest{Meta: layers.FlowMeta{BGP: cfg}, EmitMsg: func(layers.MessageEvent) error { return nil }})
-	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "multi-stream") {
-		t.Fatalf("err=%v want multi-stream", err)
+	var ports []uint16
+	err := (&BGPGenerator{}).Generate(context.Background(), &layers.GenRequest{
+		Meta: layers.FlowMeta{BGP: cfg},
+		EmitMsg: func(ev layers.MessageEvent) error {
+			ports = append(ports, ev.SrcPort)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Generate multi-session: %v", err)
+	}
+	if len(ports) != 4 || ports[0] != 12345 || ports[3] != 12346 {
+		t.Fatalf("event src ports=%v want two sessions [12345 12346]", ports)
 	}
 }
 

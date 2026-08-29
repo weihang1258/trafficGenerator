@@ -676,6 +676,9 @@
           "distinct_values": [
             "12345",
             "12346"
+          ],
+          "distinct_exclude": [
+            "9042"
           ]
         },
         {

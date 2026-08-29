@@ -48,7 +48,9 @@ func (g *TNSGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 			if err != nil {
 				return err
 			}
-			if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: evUp(ev), Bytes: evBytes}); err != nil {
+			// 每条 session 一条独立 TCP 连接：把 session 源端口带上事件，tcp 层
+			// 据 SrcPort 判定会话边界（P0a 多会话模式，同 postgresql/kingbase）。
+			if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: evUp(ev), Bytes: evBytes, SrcPort: s.SrcPort}); err != nil {
 				return err
 			}
 		}

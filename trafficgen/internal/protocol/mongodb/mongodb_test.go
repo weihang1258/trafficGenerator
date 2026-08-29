@@ -719,21 +719,28 @@ func TestPlanIPv6(t *testing.T) {
 var _ = time.Now
 var _ = binary.LittleEndian
 
-func TestLayerGeneratorRejectsMultiSession(t *testing.T) {
-	// mongodb_multi_session: a layer chain generates ONE flow per chain, so
-	// sessions>1 (multi-stream expansion with per-session src_port) is rejected
-	// rather than silently emitting only session[0] — matching mqtt/nfs/modbus.
+func TestLayerGeneratorMultiSessionSrcPorts(t *testing.T) {
+	// mongodb_multi_session: each session is an independent TCP connection —
+	// events carry the session's src_port (P0a pattern, postgresql/tns parity)
+	// so the tcp layer tears down and re-handshakes per session boundary.
 	cfg := &core.MongoDBConfig{Sessions: []core.MongoDBSession{
 		{SrcPort: 12345, Messages: []core.MongoDBMessage{{Opcode: "OP_QUERY"}}},
 		{SrcPort: 12346, Messages: []core.MongoDBMessage{{Opcode: "OP_QUERY"}}},
 	}}
+	var ports []uint16
 	gen := &MongoDBGenerator{}
 	req := &layers.GenRequest{
-		Meta:    layers.FlowMeta{MongoDB: cfg},
-		EmitMsg: func(ev layers.MessageEvent) error { return nil },
+		Meta: layers.FlowMeta{MongoDB: cfg},
+		EmitMsg: func(ev layers.MessageEvent) error {
+			ports = append(ports, ev.SrcPort)
+			return nil
+		},
 	}
-	if err := gen.Generate(context.Background(), req); err == nil || !strings.Contains(err.Error(), "multi-stream") {
-		t.Fatalf("Generate multi-session err=%v want multi-stream rejection", err)
+	if err := gen.Generate(context.Background(), req); err != nil {
+		t.Fatalf("Generate multi-session: %v", err)
+	}
+	if len(ports) != 2 || ports[0] != 12345 || ports[1] != 12346 {
+		t.Fatalf("event src ports=%v want [12345 12346]", ports)
 	}
 }
 
