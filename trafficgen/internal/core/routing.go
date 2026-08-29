@@ -128,6 +128,8 @@ type OSPFLSA struct {
 	Length           int        `json:"length,omitempty"`
 	Flags            int        `json:"flags,omitempty"`
 	Links            []OSPFLink `json:"links,omitempty"`
+	NetworkMask      string     `json:"network_mask,omitempty"`       // type-2 network LSA mask
+	AttachedRouters  []string   `json:"attached_routers,omitempty"`   // type-2 network LSA attached routers
 }
 
 // OSPFRequest is a Link State Request entry.
