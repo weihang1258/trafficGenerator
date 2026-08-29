@@ -120,11 +120,29 @@ func TestFINSGeneratorHonorsCancellation(t *testing.T) {
 	}
 }
 
-func TestFINSLayerValidatorRejectsMultiSession(t *testing.T) {
+func TestFINSLayerValidatorAcceptsMultiSession(t *testing.T) {
+	// count 型多会话（P0a 模式）合法：sessions=2 由生成器逐会话展开独立端口，
+	// validator 不再拒绝。
 	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 1234, DstPort: DefaultPort, Metadata: map[string]interface{}{MetadataKey: &FINSConfig{Sessions: 2}}}
-	err := layers.NewChainPlanner("fins").Validate(spec)
-	if err == nil || !strings.Contains(err.Error(), "sessions") {
-		t.Fatalf("validator error = %v, want sessions error", err)
+	if err := layers.NewChainPlanner("fins").Validate(spec); err != nil {
+		t.Fatalf("validator error = %v, want nil (multi-session legal)", err)
+	}
+}
+
+func TestFINSLayerGeneratorMultiSessionSrcPorts(t *testing.T) {
+	// 生成器逐会话发事件，UDP 源端口 = 顶层 src_port + i。
+	cfg := &FINSConfig{Sessions: 2, Commands: []FINSCommand{{Command: CommandMemoryAreaRead, MemoryArea: "dm", Address: 100, Items: 2}}}
+	var ports []uint16
+	gen := &FINSGenerator{}
+	req := &layers.GenRequest{
+		Meta:    layers.FlowMeta{FINS: cfg, SrcPort: 1245},
+		EmitMsg: func(ev layers.MessageEvent) error { ports = append(ports, ev.SrcPort); return nil },
+	}
+	if err := gen.Generate(context.Background(), req); err != nil {
+		t.Fatalf("Generate multi-session: %v", err)
+	}
+	if len(ports) < 4 || ports[0] != 1245 || ports[len(ports)-1] != 1246 {
+		t.Fatalf("event src ports=%v, want session 1 on 1245 and session 2 on 1246", ports)
 	}
 }
 

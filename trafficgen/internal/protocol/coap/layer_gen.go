@@ -1,6 +1,7 @@
 package coap
 
 import (
+	"encoding/base64"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -172,6 +173,53 @@ func (g *CoAPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 		return nil
 	}
 
+	// --- 多会话（P0a 模式的 UDP 形态）：每会话一组 token/mid/源IP/源端口，
+	// 事件携带 SrcPort/SrcIP 逐事件覆盖（udp 层支持），无握手无挥旧 —--
+	if len(cfg.SessionSrcPorts) > 0 {
+		for i := range cfg.SessionSrcPorts {
+			var tok []byte
+			if i < len(cfg.Tokens) {
+				tok = decodeToken(cfg.Tokens[i])
+			}
+			var mid uint16
+			if i < len(cfg.MessageIDs) {
+				mid = cfg.MessageIDs[i]
+			} else {
+				mid = baseMid + uint16(i)
+			}
+			var srcIP string
+			if i < len(cfg.SessionSrcIPs) {
+				srcIP = cfg.SessionSrcIPs[i]
+			}
+			srcPort := cfg.SessionSrcPorts[i]
+
+			reqCfg := *cfg
+			reqCfg.MessageID = mid
+			reqCfg.Token = tok
+			reqMsg, err := BuildMessage(&reqCfg, false)
+			if err != nil {
+				return err
+			}
+			if err := emit(ctx, req.EmitMsg, layers.MessageEvent{Up: true, Bytes: reqMsg, SrcPort: srcPort, SrcIP: srcIP}); err != nil {
+				return err
+			}
+			respCfg := *cfg
+			respCfg.MessageID = mid
+			respCfg.Token = tok
+			respMsg, err := BuildMessage(&respCfg, true)
+			if err != nil {
+				return err
+			}
+			// 响应帧源端口 = 服务端口（5683），目的端口 = 会话客户端口：
+			// down 帧同样携带 SrcPort——udp 层把覆盖值参与 up/down 端口交换，
+			// down 包 L4.DstPort 落会话客户端口（up 包 L4.SrcPort 同值）。
+			if err := emit(ctx, req.EmitMsg, layers.MessageEvent{Up: false, Bytes: respMsg, SrcPort: srcPort, SrcIP: srcIP}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	// --- 默认单请求 + 单响应（现有行为） ---
 	request, err := BuildMessage(cfg, false)
 	if err != nil {
@@ -247,6 +295,17 @@ func effectivePort(port uint16) uint16 {
 		return port
 	}
 	return 1
+}
+
+// decodeToken decodes a base64 (std encoding) token string from the session
+// token list; nil on decode failure (the message builder treats nil token
+// with TokenLength 0 as "no token").
+func decodeToken(s string) []byte {
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil
+	}
+	return b
 }
 
 func init() {

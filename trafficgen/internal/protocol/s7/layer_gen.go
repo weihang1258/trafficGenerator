@@ -22,11 +22,34 @@ func (g *S7Generator) Generate(ctx context.Context, req *layers.GenRequest) erro
 		// 时）。与 Planner.Plan 的默认化一致——默认 read DB1 在下方补。
 		cfg = &S7Config{Transport: "tcp"}
 	}
-	// 每条 layer chain 只产一个流（一个 src_port）；多会话各自独立四元组需要
-	// 框架 SubFlow 机制（T3 课题）。比照着 mongodb/mqtt/nfs/modbus 显式拒绝，
-	// 而非静默只发 session[0] 的错包。
-	if cfg.Sessions > 1 {
-		return fmt.Errorf("s7 generator: sessions (%d) multi-stream expansion is not supported on a layer chain (one flow per chain)", cfg.Sessions)
+	// count 型多会话（P0a 模式）：sessions=N 每会话一条独立 TCP 连接，源端口
+	// = 顶层 src_port + i（legacy planner 的老语义），事件带上 SrcPort 供 tcp
+	// 层判定会话边界（挥旧握新）。
+	n := cfg.Sessions
+	if n < 1 {
+		n = 1
+	}
+	for i := 0; i < n; i++ {
+		var srcPort uint16
+		if n > 1 {
+			base := req.Meta.SrcPort
+			if base == 0 {
+				base = 12345
+			}
+			srcPort = base + uint16(i)
+		}
+		if err := emitSession(ctx, cfg, srcPort, req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// emitSession emits one S7 session (connection setup + commands); srcPort is
+// the session's TCP source port override (0 = default flow port).
+func emitSession(ctx context.Context, cfg *S7Config, srcPort uint16, req *layers.GenRequest) error {
+	emit := func(up bool, b []byte) error {
+		return emitS7Event(ctx, req.EmitMsg, layers.MessageEvent{Up: up, Bytes: b, SrcPort: srcPort})
 	}
 	// P0b-2：空配置默认化并产默认流——仅当 commands 字段**缺省**(nil)时注入默认
 	// read DB1；显式 `commands: []` 表示 setup-only 会话（业务命令为空），不注入。
@@ -46,25 +69,25 @@ func (g *S7Generator) Generate(ctx context.Context, req *layers.GenRequest) erro
 	if err != nil {
 		return err
 	}
-	if err := emitS7Event(ctx, req.EmitMsg, layers.MessageEvent{Up: true, Bytes: cr}); err != nil {
+	if err := emit(true, cr); err != nil {
 		return err
 	}
 	cc := BuildConnectConfirm()
-	if err := emitS7Event(ctx, req.EmitMsg, layers.MessageEvent{Up: false, Bytes: cc}); err != nil {
+	if err := emit(false, cc); err != nil {
 		return err
 	}
 	setup, err := BuildSetup(cfg, false)
 	if err != nil {
 		return err
 	}
-	if err := emitS7Event(ctx, req.EmitMsg, layers.MessageEvent{Up: true, Bytes: setup}); err != nil {
+	if err := emit(true, setup); err != nil {
 		return err
 	}
 	setupResponse, err := BuildSetup(cfg, true)
 	if err != nil {
 		return err
 	}
-	if err := emitS7Event(ctx, req.EmitMsg, layers.MessageEvent{Up: false, Bytes: setupResponse}); err != nil {
+	if err := emit(false, setupResponse); err != nil {
 		return err
 	}
 	// PduRef is a per-session counter starting at the base (setup is the first
@@ -77,14 +100,14 @@ func (g *S7Generator) Generate(ctx context.Context, req *layers.GenRequest) erro
 			return err
 		}
 		if msg != nil {
-			if err := emitS7Event(ctx, req.EmitMsg, layers.MessageEvent{Up: true, Bytes: msg}); err != nil {
+			if err := emit(true, msg); err != nil {
 				return err
 			}
 		}
 		if !respond {
 			continue // keep-alive has no response
 		}
-		if err := emitS7Event(ctx, req.EmitMsg, layers.MessageEvent{Up: false, Bytes: resp}); err != nil {
+		if err := emit(false, resp); err != nil {
 			return err
 		}
 	}

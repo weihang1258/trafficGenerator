@@ -734,13 +734,16 @@
       "tcp.port==102,tpkt"
     ],
     "expect": {
-      "packet_count": 18,
+      "packet_count": 26,
       "fields": [
         {
           "field": "tcp.srcport",
           "distinct_values": [
             "12345",
             "12346"
+          ],
+          "distinct_exclude": [
+            "102"
           ]
         },
         {

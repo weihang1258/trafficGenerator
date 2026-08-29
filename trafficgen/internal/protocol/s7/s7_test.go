@@ -90,14 +90,23 @@ func TestPlannerEmitsS7SessionAndLayerGeneratorEvents(t *testing.T) {
 	}
 }
 
-func TestLayerGeneratorRejectsMultiSession(t *testing.T) {
-	// sessions>1 requires the framework SubFlow mechanism (T3); the layer-gen
-	// generator must reject rather than silently emit only session[0]'s frames —
-	// matching mongodb/mqtt/nfs/modbus (杜绝静默错包).
+func TestLayerGeneratorMultiSessionSrcPorts(t *testing.T) {
+	// count 型多会话（P0a 模式）：sessions=2 每会话一条独立 TCP 连接，事件
+	// 源端口 = 顶层 src_port + i，tcp 层据 SrcPort 判定会话边界（挥旧握新）。
 	cfg := &S7Config{Sessions: 2, Commands: []S7Command{{Kind: "read", Items: []S7Item{{Area: 0x84, DBNumber: 1, Address: 0, TransportSize: 4, Length: 1}}}}}
-	err := (&S7Generator{}).Generate(context.Background(), &layers.GenRequest{Meta: layers.FlowMeta{S7: cfg, SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 102}, EmitMsg: func(ev layers.MessageEvent) error { return nil }})
-	if err == nil || !contains(err.Error(), "multi-stream") {
-		t.Fatalf("Generate error = %v, want multi-stream rejection", err)
+	var ports []uint16
+	err := (&S7Generator{}).Generate(context.Background(), &layers.GenRequest{
+		Meta: layers.FlowMeta{S7: cfg, SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 102},
+		EmitMsg: func(ev layers.MessageEvent) error {
+			ports = append(ports, ev.SrcPort)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Generate multi-session: %v", err)
+	}
+	if len(ports) < 2 || ports[0] != 12345 || ports[len(ports)-1] != 12346 {
+		t.Fatalf("event src ports=%v, want session 1 on 12345 and session 2 on 12346", ports)
 	}
 }
 

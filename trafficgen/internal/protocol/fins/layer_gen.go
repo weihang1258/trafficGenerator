@@ -32,10 +32,38 @@ func (g *FINSGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 	if len(cfg.Commands) == 0 {
 		cfg.Commands = []FINSCommand{{Command: CommandMemoryAreaRead, MemoryArea: "dm", Address: 100, Items: 2}}
 	}
+	// count 型多会话（P0a 模式）：sessions=N 每会话一条独立流，UDP 源端口 =
+	// 顶层 src_port + i（事件带 SrcPort，udp 层逐事件覆盖；TCP 会话则由 tcp
+	// 层挥旧握新）。每会话 SID 序列独立从基准起。
+	sessions := cfg.Sessions
+	if sessions < 1 {
+		sessions = 1
+	}
 	sid := cfg.SID
 	if sid == 0 {
 		sid = 1
 	}
+	for i := 0; i < sessions; i++ {
+		var srcPort uint16
+		if sessions > 1 {
+			base := req.Meta.SrcPort
+			if base == 0 {
+				base = 1245
+			}
+			srcPort = base + uint16(i)
+		}
+		if err := emitSessionCommands(ctx, cfg, req, transport, sid, srcPort); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// emitSessionCommands emits the command/response sequence for one session.
+// sidSeed is the session's starting SID; srcPort the session's source port
+// override (0 = default flow port).
+func emitSessionCommands(ctx context.Context, cfg *FINSConfig, req *layers.GenRequest, transport string, sidSeed byte, srcPort uint16) error {
+	sid := sidSeed
 	for _, command := range cfg.Commands {
 		select {
 		case <-ctx.Done():
@@ -57,7 +85,7 @@ func (g *FINSGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 			if transport == "tcp" {
 				response = wrapTCP(response)
 			}
-			if err := emitMessage(ctx, req.EmitMsg, layers.MessageEvent{Up: false, Bytes: response}); err != nil {
+			if err := emitMessage(ctx, req.EmitMsg, layers.MessageEvent{Up: false, Bytes: response, SrcPort: srcPort}); err != nil {
 				return err
 			}
 		} else {
@@ -68,7 +96,7 @@ func (g *FINSGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 			if transport == "tcp" {
 				request = wrapTCP(request)
 			}
-			if err := emitMessage(ctx, req.EmitMsg, layers.MessageEvent{Up: true, Bytes: request}); err != nil {
+			if err := emitMessage(ctx, req.EmitMsg, layers.MessageEvent{Up: true, Bytes: request, SrcPort: srcPort}); err != nil {
 				return err
 			}
 			if command.ExpectResponse == nil || *command.ExpectResponse {
@@ -79,7 +107,7 @@ func (g *FINSGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 				if transport == "tcp" {
 					response = wrapTCP(response)
 				}
-				if err := emitMessage(ctx, req.EmitMsg, layers.MessageEvent{Up: false, Bytes: response}); err != nil {
+				if err := emitMessage(ctx, req.EmitMsg, layers.MessageEvent{Up: false, Bytes: response, SrcPort: srcPort}); err != nil {
 					return err
 				}
 			}
@@ -142,12 +170,6 @@ func configFromMeta(value interface{}) (*FINSConfig, error) {
 func init() {
 	layers.RegisterLayerGenerator("fins", func() (layers.LayerGenerator, error) { return &FINSGenerator{}, nil })
 	layers.RegisterLayerValidator("fins", func(spec *core.FlowSpec) error {
-		if err := (&Planner{}).Validate(*spec); err != nil {
-			return err
-		}
-		if cfg := GetConfig(*spec); cfg != nil && cfg.Sessions > 1 {
-			return fmt.Errorf("fins: sessions (%d) multi-stream expansion is not supported on a layer chain (one flow per chain)", cfg.Sessions)
-		}
-		return nil
+		return (&Planner{}).Validate(*spec)
 	})
 }
