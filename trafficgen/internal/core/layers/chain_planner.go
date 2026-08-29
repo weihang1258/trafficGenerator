@@ -501,6 +501,8 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// 不在此默认化。
 		case "moxa":
 		// Moxa 源端口 0 保持 0：透传单连接，多流由 worker 递增。
+		case "igmp", "ospf", "pim", "isis":
+			// raw-IP 路由终结层（P3 T5）：无端口概念，源/目的端口 0 保持 0。
 		default:
 			return fmt.Errorf("source port is required")
 		}

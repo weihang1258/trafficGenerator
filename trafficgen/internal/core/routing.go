@@ -49,7 +49,7 @@ type IGMPEvent struct {
 
 // IGMPRecord is a v3 Group Record (mode-change/allow/block).
 type IGMPRecord struct {
-	RecordType int      `json:"record_type,omitempty"` // 1=include,2=exclude,3=change_include,4=change_exclude,5=allow_new,6=block_old
+	RecordType string   `json:"record_type,omitempty"` // mode_is_include|mode_is_exclude|change_to_include_mode|change_to_exclude_mode|allow_new_sources|block_old_sources
 	Group      string   `json:"group,omitempty"`
 	Sources    []string `json:"sources,omitempty"`
 }
