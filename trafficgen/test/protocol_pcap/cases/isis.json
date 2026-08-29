@@ -36,53 +36,58 @@
       "fields": [
         {
           "packet": 1,
-          "field": "isis.nlpid",
+          "field": "isis.irpd",
           "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.header_length",
-          "value": "8"
+          "field": "isis.len",
+          "value": "27"
         },
         {
           "packet": 1,
-          "field": "isis.id_length",
+          "field": "isis.sysid_len",
           "value": "6"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.type",
           "value": "15"
         },
         {
           "packet": 1,
-          "field": "isis.circuit_type",
-          "value": "1"
+          "field": "isis.hello.circuit_type",
+          "value": "0x01"
         },
         {
           "packet": 1,
-          "field": "isis.source_id",
-          "value": "0102.03040506"
+          "field": "isis.hello.source_id",
+          "value": "0102.0304.0506"
         },
         {
           "packet": 1,
-          "field": "isis.holding_timer",
+          "field": "isis.hello.holding_timer",
           "value": "30"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_length",
+          "field": "isis.hello.pdu_length",
           "value": "33"
         },
         {
           "packet": 1,
-          "field": "isis.area_address",
-          "value": "49.0001"
+          "field": "isis.hello.priority",
+          "value": "100"
         },
         {
           "packet": 1,
-          "field": "isis.lan_id",
+          "field": "isis.hello.lan_id",
           "value": "0102.0304.0506.01"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.area_address",
+          "value": "03490001"
         }
       ],
       "frames": [
@@ -99,7 +104,7 @@
         {
           "packet": 1,
           "offset": 17,
-          "hex": "83 08 01 06 0f 01 00 00"
+          "hex": "83 1b 01 06 0f 01 00 00"
         }
       ]
     }
@@ -141,53 +146,58 @@
       "fields": [
         {
           "packet": 1,
-          "field": "isis.nlpid",
+          "field": "isis.irpd",
           "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.header_length",
-          "value": "8"
+          "field": "isis.len",
+          "value": "27"
         },
         {
           "packet": 1,
-          "field": "isis.id_length",
+          "field": "isis.sysid_len",
           "value": "6"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.type",
           "value": "16"
         },
         {
           "packet": 1,
-          "field": "isis.circuit_type",
-          "value": "2"
+          "field": "isis.hello.circuit_type",
+          "value": "0x02"
         },
         {
           "packet": 1,
-          "field": "isis.source_id",
-          "value": "0a0b0c0d0e0f"
+          "field": "isis.hello.source_id",
+          "value": "0a0b.0c0d.0e0f"
         },
         {
           "packet": 1,
-          "field": "isis.priority",
-          "value": "64"
+          "field": "isis.hello.holding_timer",
+          "value": "45"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_length",
+          "field": "isis.hello.pdu_length",
           "value": "33"
         },
         {
           "packet": 1,
-          "field": "eth.dst",
-          "value": "01:80:c2:00:00:15"
+          "field": "isis.hello.priority",
+          "value": "64"
         },
         {
           "packet": 1,
-          "field": "isis.lan_id",
+          "field": "isis.hello.lan_id",
           "value": "0a0b.0c0d.0e0f.02"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.area_address",
+          "value": "03490002"
         }
       ],
       "frames": [
@@ -204,7 +214,7 @@
         {
           "packet": 1,
           "offset": 17,
-          "hex": "83 08 01 06 10 01 00 00"
+          "hex": "83 1b 01 06 10 01 00 00"
         }
       ]
     }
@@ -246,43 +256,58 @@
       "fields": [
         {
           "packet": 1,
-          "field": "isis.nlpid",
+          "field": "isis.irpd",
           "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.header_length",
-          "value": "8"
+          "field": "isis.len",
+          "value": "27"
         },
         {
           "packet": 1,
-          "field": "isis.id_length",
+          "field": "isis.sysid_len",
           "value": "6"
         },
         {
           "packet": 1,
-          "field": "eth.type",
-          "value": "0x8870"
-        },
-        {
-          "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.type",
           "value": "15"
         },
         {
           "packet": 1,
-          "field": "isis.circuit_type",
-          "value": "1"
+          "field": "isis.hello.circuit_type",
+          "value": "0x01"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_length",
+          "field": "isis.hello.source_id",
+          "value": "0102.0304.0506"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.holding_timer",
+          "value": "30"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.pdu_length",
           "value": "33"
         },
         {
           "packet": 1,
-          "field": "isis.lan_id",
+          "field": "isis.hello.priority",
+          "value": "100"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.lan_id",
           "value": "0102.0304.0506.01"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.area_address",
+          "value": "03490001"
         }
       ],
       "frames": [
@@ -294,11 +319,8 @@
         {
           "packet": 1,
           "offset": 14,
-          "hex": "83 08 01 06 0f 01 00 00"
+          "hex": "fe fe 03 83 1b 01 06 0f 01"
         }
-      ],
-      "notes": [
-        "The raw EtherType/PDU bytes prove the L2-direct carrier; parser protocol labels are not required."
       ]
     }
   },
@@ -339,48 +361,58 @@
       "fields": [
         {
           "packet": 1,
-          "field": "isis.nlpid",
+          "field": "isis.irpd",
           "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.header_length",
-          "value": "8"
+          "field": "isis.len",
+          "value": "27"
         },
         {
           "packet": 1,
-          "field": "isis.id_length",
+          "field": "isis.sysid_len",
           "value": "6"
         },
         {
           "packet": 1,
-          "field": "eth.type",
-          "value": "0x8870"
-        },
-        {
-          "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.type",
           "value": "16"
         },
         {
           "packet": 1,
-          "field": "isis.circuit_type",
-          "value": "2"
+          "field": "isis.hello.circuit_type",
+          "value": "0x02"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_length",
+          "field": "isis.hello.source_id",
+          "value": "0a0b.0c0d.0e0f"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.holding_timer",
+          "value": "45"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.pdu_length",
           "value": "33"
         },
         {
           "packet": 1,
-          "field": "eth.dst",
-          "value": "01:80:c2:00:00:15"
+          "field": "isis.hello.priority",
+          "value": "64"
         },
         {
           "packet": 1,
-          "field": "isis.lan_id",
+          "field": "isis.hello.lan_id",
           "value": "0a0b.0c0d.0e0f.02"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.area_address",
+          "value": "03490002"
         }
       ],
       "frames": [
@@ -392,7 +424,7 @@
         {
           "packet": 1,
           "offset": 14,
-          "hex": "83 08 01 06 10 01 00 00"
+          "hex": "fe fe 03 83 1b 01 06 10 01"
         }
       ]
     }
@@ -440,28 +472,33 @@
       "fields": [
         {
           "packet": 1,
-          "field": "isis.nlpid",
+          "field": "isis.irpd",
           "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.header_length",
-          "value": "8"
+          "field": "isis.len",
+          "value": "27"
         },
         {
           "packet": 1,
-          "field": "isis.id_length",
+          "field": "isis.sysid_len",
           "value": "6"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.type",
           "value": "18"
         },
         {
           "packet": 1,
           "field": "isis.lsp.pdu_length",
-          "value": "40"
+          "value": "39"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.remaining_life",
+          "value": "120"
         },
         {
           "packet": 1,
@@ -470,28 +507,18 @@
         },
         {
           "packet": 1,
-          "field": "isis.lsp.sequence",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "isis.lsp.circuit_type",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "isis.tlv.type",
-          "value": "1,132"
-        },
-        {
-          "packet": 1,
-          "field": "isis.ipv4_interface_address",
-          "value": "192.0.2.1"
+          "field": "isis.lsp.sequence_number",
+          "value": "0x00000001"
         },
         {
           "packet": 1,
           "field": "isis.lsp.checksum",
-          "nonzero": true
+          "value": "0xb792"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.is_type",
+          "value": "1"
         }
       ],
       "frames": [
@@ -508,7 +535,7 @@
         {
           "packet": 1,
           "offset": 17,
-          "hex": "83 08 01 06 12 01 00 00 00 28"
+          "hex": "83 1b 01 06 12 01 00 00"
         }
       ]
     }
@@ -552,53 +579,53 @@
       "fields": [
         {
           "packet": 1,
-          "field": "isis.nlpid",
+          "field": "isis.irpd",
           "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.header_length",
-          "value": "8"
+          "field": "isis.len",
+          "value": "27"
         },
         {
           "packet": 1,
-          "field": "isis.id_length",
+          "field": "isis.sysid_len",
           "value": "6"
         },
         {
           "packet": 1,
-          "field": "eth.type",
-          "value": "0x8870"
-        },
-        {
-          "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.type",
           "value": "20"
         },
         {
           "packet": 1,
           "field": "isis.lsp.pdu_length",
-          "value": "46"
+          "value": "45"
         },
         {
           "packet": 1,
-          "field": "isis.lsp.circuit_type",
-          "value": "2"
+          "field": "isis.lsp.remaining_life",
+          "value": "120"
         },
         {
           "packet": 1,
-          "field": "isis.tlv.type",
-          "value": "232"
+          "field": "isis.lsp.lsp_id",
+          "value": "0a0b.0c0d.0e0f.00-01"
         },
         {
           "packet": 1,
-          "field": "isis.ipv6_interface_address",
-          "value": "2001:db8::1"
+          "field": "isis.lsp.sequence_number",
+          "value": "0x00000007"
         },
         {
           "packet": 1,
           "field": "isis.lsp.checksum",
-          "nonzero": true
+          "value": "0xdeea"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.is_type",
+          "value": "2"
         }
       ],
       "frames": [
@@ -610,7 +637,7 @@
         {
           "packet": 1,
           "offset": 14,
-          "hex": "83 08 01 06 14 01 00 00 00 2e"
+          "hex": "fe fe 03 83 1b 01 06 14 01"
         }
       ]
     }
@@ -658,43 +685,53 @@
       "fields": [
         {
           "packet": 1,
-          "field": "isis.nlpid",
+          "field": "isis.irpd",
           "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.header_length",
-          "value": "8"
+          "field": "isis.len",
+          "value": "27"
         },
         {
           "packet": 1,
-          "field": "isis.id_length",
+          "field": "isis.sysid_len",
           "value": "6"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.type",
           "value": "18"
         },
         {
           "packet": 1,
           "field": "isis.lsp.pdu_length",
-          "value": "40"
+          "value": "39"
         },
         {
           "packet": 1,
-          "field": "isis.tlv.type",
-          "value": "1,132"
+          "field": "isis.lsp.remaining_life",
+          "value": "120"
         },
         {
           "packet": 1,
-          "field": "isis.tlv.length",
-          "value": "3,4"
+          "field": "isis.lsp.lsp_id",
+          "value": "0102.0304.0506.00-00"
         },
         {
           "packet": 1,
-          "field": "isis.lsp.sequence",
-          "value": "2"
+          "field": "isis.lsp.sequence_number",
+          "value": "0x00000002"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.checksum",
+          "value": "0xb593"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.is_type",
+          "value": "1"
         }
       ],
       "frames": [
@@ -706,7 +743,7 @@
         {
           "packet": 1,
           "offset": 14,
-          "hex": "83 08 01 06 12 01 00 00 00 28"
+          "hex": "fe fe 03 83 1b 01 06 12 01"
         }
       ]
     }
@@ -747,28 +784,33 @@
       "fields": [
         {
           "packet": 1,
-          "field": "isis.nlpid",
+          "field": "isis.irpd",
           "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.header_length",
-          "value": "8"
+          "field": "isis.len",
+          "value": "33"
         },
         {
           "packet": 1,
-          "field": "isis.id_length",
+          "field": "isis.sysid_len",
           "value": "6"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.type",
           "value": "24"
         },
         {
           "packet": 1,
           "field": "isis.csnp.pdu_length",
-          "value": "50"
+          "value": "51"
+        },
+        {
+          "packet": 1,
+          "field": "isis.csnp.source_id",
+          "value": "0102.0304.0506"
         },
         {
           "packet": 1,
@@ -782,12 +824,7 @@
         },
         {
           "packet": 1,
-          "field": "isis.snp.lsp_entry_count",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "isis.tlv.type",
+          "field": "isis.csnp.clv.type",
           "value": "9"
         }
       ],
@@ -795,7 +832,7 @@
         {
           "packet": 1,
           "offset": 12,
-          "hex": "00 35"
+          "hex": "00 36"
         },
         {
           "packet": 1,
@@ -805,7 +842,7 @@
         {
           "packet": 1,
           "offset": 17,
-          "hex": "83 08 01 06 18 01 00 00 00 32"
+          "hex": "83 21 01 06 18 01 00 00"
         }
       ]
     }
@@ -844,47 +881,37 @@
       "fields": [
         {
           "packet": 1,
-          "field": "isis.nlpid",
+          "field": "isis.irpd",
           "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.header_length",
-          "value": "8"
+          "field": "isis.len",
+          "value": "17"
         },
         {
           "packet": 1,
-          "field": "isis.id_length",
+          "field": "isis.sysid_len",
           "value": "6"
         },
         {
           "packet": 1,
-          "field": "eth.type",
-          "value": "0x8870"
-        },
-        {
-          "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.type",
           "value": "27"
         },
         {
           "packet": 1,
           "field": "isis.psnp.pdu_length",
-          "value": "34"
+          "value": "35"
         },
         {
           "packet": 1,
           "field": "isis.psnp.source_id",
-          "value": "0a0b0c0d0e0f"
+          "value": "0a0b.0c0d.0e0f"
         },
         {
           "packet": 1,
-          "field": "isis.snp.lsp_entry_count",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "isis.tlv.type",
+          "field": "isis.psnp.clv.type",
           "value": "9"
         }
       ],
@@ -897,7 +924,7 @@
         {
           "packet": 1,
           "offset": 14,
-          "hex": "83 08 01 06 1b 01 00 00 00 22"
+          "hex": "fe fe 03 83 11 01 06 1b 01"
         }
       ]
     }
@@ -941,58 +968,53 @@
       "fields": [
         {
           "packet": 1,
-          "field": "isis.nlpid",
+          "field": "isis.irpd",
           "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.header_length",
-          "value": "8"
+          "field": "isis.len",
+          "value": "27"
         },
         {
           "packet": 1,
-          "field": "isis.id_length",
+          "field": "isis.sysid_len",
           "value": "6"
         },
         {
           "packet": 1,
-          "field": "eth.type",
-          "value": "0x8870"
-        },
-        {
-          "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.type",
           "value": "18"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_length",
-          "value": "34"
-        },
-        {
-          "packet": 1,
           "field": "isis.lsp.pdu_length",
-          "value": "34"
+          "value": "33"
         },
         {
           "packet": 1,
-          "field": "isis.lsp.remaining_lifetime",
+          "field": "isis.lsp.remaining_life",
           "value": "300"
         },
         {
           "packet": 1,
-          "field": "isis.lsp.sequence",
-          "value": "270544960"
+          "field": "isis.lsp.lsp_id",
+          "value": "0102.0304.0506.00-00"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.sequence_number",
+          "value": "0x10203040"
         },
         {
           "packet": 1,
           "field": "isis.lsp.checksum",
-          "nonzero": true
+          "value": "0x7e7e"
         },
         {
           "packet": 1,
-          "field": "isis.tlv.length",
-          "value": "4"
+          "field": "isis.lsp.is_type",
+          "value": "1"
         }
       ],
       "frames": [
@@ -1004,7 +1026,7 @@
         {
           "packet": 1,
           "offset": 14,
-          "hex": "83 08 01 06 12 01 00 00 00 22"
+          "hex": "fe fe 03 83 1b 01 06 12 01"
         }
       ]
     }
@@ -1047,28 +1069,33 @@
       "fields": [
         {
           "packet": 1,
-          "field": "isis.nlpid",
+          "field": "isis.irpd",
           "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.header_length",
-          "value": "8"
+          "field": "isis.len",
+          "value": "27"
         },
         {
           "packet": 1,
-          "field": "isis.id_length",
+          "field": "isis.sysid_len",
           "value": "6"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.type",
           "value": "20"
         },
         {
           "packet": 1,
-          "field": "isis.source_id",
-          "value": "112233445566"
+          "field": "isis.lsp.pdu_length",
+          "value": "35"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.remaining_life",
+          "value": "90"
         },
         {
           "packet": 1,
@@ -1077,23 +1104,18 @@
         },
         {
           "packet": 1,
-          "field": "isis.tlv.type",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "isis.area_address",
-          "value": "49.0002.0003"
-        },
-        {
-          "packet": 1,
-          "field": "isis.pdu_length",
-          "value": "36"
+          "field": "isis.lsp.sequence_number",
+          "value": "0x00000009"
         },
         {
           "packet": 1,
           "field": "isis.lsp.checksum",
-          "nonzero": true
+          "value": "0x0629"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.is_type",
+          "value": "2"
         }
       ],
       "frames": [
@@ -1110,7 +1132,7 @@
         {
           "packet": 1,
           "offset": 17,
-          "hex": "83 08 01 06 14 01 00 00 00 24"
+          "hex": "83 1b 01 06 14 01 00 00"
         }
       ]
     }
@@ -1209,48 +1231,198 @@
       "fields": [
         {
           "packet": 1,
-          "field": "eth.type",
-          "value": "0x8870"
+          "field": "isis.irpd",
+          "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.len",
+          "value": "27"
+        },
+        {
+          "packet": 1,
+          "field": "isis.sysid_len",
+          "value": "6"
+        },
+        {
+          "packet": 1,
+          "field": "isis.type",
           "value": "15"
         },
         {
           "packet": 1,
-          "field": "isis.neighbor_state",
-          "value": "Initializing"
+          "field": "isis.hello.circuit_type",
+          "value": "0x01"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.source_id",
+          "value": "0102.0304.0506"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.holding_timer",
+          "value": "30"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.pdu_length",
+          "value": "33"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.priority",
+          "value": "64"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.lan_id",
+          "value": "0102.0304.0506.01"
+        },
+        {
+          "packet": 1,
+          "field": "isis.hello.area_address",
+          "value": "03490001"
         },
         {
           "packet": 2,
-          "field": "isis.pdu_type",
+          "field": "isis.irpd",
+          "value": "0x83"
+        },
+        {
+          "packet": 2,
+          "field": "isis.len",
+          "value": "27"
+        },
+        {
+          "packet": 2,
+          "field": "isis.sysid_len",
+          "value": "6"
+        },
+        {
+          "packet": 2,
+          "field": "isis.type",
           "value": "15"
         },
         {
           "packet": 2,
-          "field": "isis.neighbor_state",
-          "value": "Up"
+          "field": "isis.hello.circuit_type",
+          "value": "0x01"
+        },
+        {
+          "packet": 2,
+          "field": "isis.hello.source_id",
+          "value": "0102.0304.0506"
+        },
+        {
+          "packet": 2,
+          "field": "isis.hello.holding_timer",
+          "value": "30"
+        },
+        {
+          "packet": 2,
+          "field": "isis.hello.pdu_length",
+          "value": "33"
+        },
+        {
+          "packet": 2,
+          "field": "isis.hello.priority",
+          "value": "64"
+        },
+        {
+          "packet": 2,
+          "field": "isis.hello.lan_id",
+          "value": "0102.0304.0506.01"
+        },
+        {
+          "packet": 2,
+          "field": "isis.hello.area_address",
+          "value": "03490001"
         },
         {
           "packet": 3,
-          "field": "isis.pdu_type",
+          "field": "isis.irpd",
+          "value": "0x83"
+        },
+        {
+          "packet": 3,
+          "field": "isis.len",
+          "value": "27"
+        },
+        {
+          "packet": 3,
+          "field": "isis.sysid_len",
+          "value": "6"
+        },
+        {
+          "packet": 3,
+          "field": "isis.type",
           "value": "18"
         },
         {
           "packet": 3,
-          "field": "isis.neighbor_state",
-          "value": "Up"
+          "field": "isis.lsp.pdu_length",
+          "value": "33"
+        },
+        {
+          "packet": 3,
+          "field": "isis.lsp.remaining_life",
+          "value": "120"
+        },
+        {
+          "packet": 3,
+          "field": "isis.lsp.lsp_id",
+          "value": "0102.0304.0506.00-00"
+        },
+        {
+          "packet": 3,
+          "field": "isis.lsp.sequence_number",
+          "value": "0x00000001"
+        },
+        {
+          "packet": 3,
+          "field": "isis.lsp.checksum",
+          "value": "0x5e3e"
+        },
+        {
+          "packet": 3,
+          "field": "isis.lsp.is_type",
+          "value": "1"
         },
         {
           "packet": 4,
-          "field": "isis.pdu_type",
+          "field": "isis.irpd",
+          "value": "0x83"
+        },
+        {
+          "packet": 4,
+          "field": "isis.len",
+          "value": "17"
+        },
+        {
+          "packet": 4,
+          "field": "isis.sysid_len",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "isis.type",
           "value": "26"
         },
         {
           "packet": 4,
-          "field": "isis.neighbor_state",
-          "value": "Up"
+          "field": "isis.psnp.pdu_length",
+          "value": "35"
+        },
+        {
+          "packet": 4,
+          "field": "isis.psnp.source_id",
+          "value": "0102.0304.0506"
+        },
+        {
+          "packet": 4,
+          "field": "isis.psnp.clv.type",
+          "value": "9"
         }
       ],
       "frames": [
@@ -1262,7 +1434,7 @@
         {
           "packet": 1,
           "offset": 14,
-          "hex": "83 08 01 06 0f"
+          "hex": "fe fe 03 83 1b 01 06 0f 01"
         },
         {
           "packet": 2,
@@ -1272,7 +1444,7 @@
         {
           "packet": 2,
           "offset": 14,
-          "hex": "83 08 01 06 0f"
+          "hex": "fe fe 03 83 1b 01 06 0f 01"
         },
         {
           "packet": 3,
@@ -1282,7 +1454,7 @@
         {
           "packet": 3,
           "offset": 14,
-          "hex": "83 08 01 06 12"
+          "hex": "fe fe 03 83 1b 01 06 12 01"
         },
         {
           "packet": 4,
@@ -1292,11 +1464,8 @@
         {
           "packet": 4,
           "offset": 14,
-          "hex": "83 08 01 06 1a"
+          "hex": "fe fe 03 83 11 01 06 1a 01"
         }
-      ],
-      "notes": [
-        "No implicit response is inserted; state is session metadata."
       ]
     }
   },
@@ -1370,38 +1539,123 @@
       "fields": [
         {
           "packet": 1,
-          "field": "eth.type",
-          "value": "0x8870"
+          "field": "isis.irpd",
+          "value": "0x83"
         },
         {
           "packet": 1,
-          "field": "isis.pdu_type",
+          "field": "isis.len",
+          "value": "27"
+        },
+        {
+          "packet": 1,
+          "field": "isis.sysid_len",
+          "value": "6"
+        },
+        {
+          "packet": 1,
+          "field": "isis.type",
           "value": "18"
         },
         {
           "packet": 1,
-          "field": "isis.address_profile",
-          "value": "ipv4_basic"
+          "field": "isis.lsp.pdu_length",
+          "value": "33"
         },
         {
           "packet": 1,
-          "field": "isis.tlv.type",
+          "field": "isis.lsp.remaining_life",
+          "value": "120"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.lsp_id",
+          "value": "0102.0304.0506.00-00"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.sequence_number",
+          "value": "0x00000001"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.checksum",
+          "value": "0x5e3e"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.is_type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "isis.lsp.clv.type",
           "value": "132"
         },
         {
+          "packet": 1,
+          "field": "isis.lsp.clv_ipv4_int_addr",
+          "value": "192.0.2.1"
+        },
+        {
           "packet": 2,
-          "field": "isis.pdu_type",
+          "field": "isis.irpd",
+          "value": "0x83"
+        },
+        {
+          "packet": 2,
+          "field": "isis.len",
+          "value": "27"
+        },
+        {
+          "packet": 2,
+          "field": "isis.sysid_len",
+          "value": "6"
+        },
+        {
+          "packet": 2,
+          "field": "isis.type",
           "value": "20"
         },
         {
           "packet": 2,
-          "field": "isis.address_profile",
-          "value": "ipv6_basic"
+          "field": "isis.lsp.pdu_length",
+          "value": "45"
         },
         {
           "packet": 2,
-          "field": "isis.tlv.type",
+          "field": "isis.lsp.remaining_life",
+          "value": "120"
+        },
+        {
+          "packet": 2,
+          "field": "isis.lsp.lsp_id",
+          "value": "0102.0304.0506.00-01"
+        },
+        {
+          "packet": 2,
+          "field": "isis.lsp.sequence_number",
+          "value": "0x00000002"
+        },
+        {
+          "packet": 2,
+          "field": "isis.lsp.checksum",
+          "value": "0x22e2"
+        },
+        {
+          "packet": 2,
+          "field": "isis.lsp.is_type",
+          "value": "2"
+        },
+        {
+          "packet": 2,
+          "field": "isis.lsp.clv.type",
           "value": "232"
+        },
+        {
+          "packet": 2,
+          "field": "isis.lsp.clv_ipv6_int_addr",
+          "value": "2001:db8::1"
         }
       ],
       "frames": [
@@ -1413,7 +1667,7 @@
         {
           "packet": 1,
           "offset": 14,
-          "hex": "83 08 01 06 12"
+          "hex": "fe fe 03 83 1b 01 06 12 01"
         },
         {
           "packet": 2,
@@ -1423,7 +1677,7 @@
         {
           "packet": 2,
           "offset": 14,
-          "hex": "83 08 01 06 14"
+          "hex": "fe fe 03 83 1b 01 06 14 01"
         }
       ]
     }

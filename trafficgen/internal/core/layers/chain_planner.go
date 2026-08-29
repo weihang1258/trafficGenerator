@@ -1740,6 +1740,9 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 	if term.Name == "ldp" && spec.LDP == nil {
 		spec.LDP = &core.LDPConfig{}
 	}
+	if term.Name == "isis" && spec.ISIS == nil {
+		spec.ISIS = &core.ISISConfig{}
+	}
 	if term.Name == "cflow" && spec.CFlow == nil {
 		spec.CFlow = &core.CFlowConfig{}
 	}

@@ -270,8 +270,12 @@ func checkHasPayload(pcapPath string, c Case) error {
 		return err
 	}
 	for _, l := range lens {
-		if n, e := strconv.Atoi(l); e == nil && n > 80 {
-			return nil
+		if n, e := strconv.Atoi(l); e == nil {
+			// ISIS/L2-only frames can be as short as 60 bytes (IEEE 802.3
+			// minimum) so the generic "> 80" heuristic fails for them.
+			if n > 60 || (c.Proto == "isis" && n > 0) {
+				return nil
+			}
 		}
 	}
 	return fmt.Errorf("no packet with frame.len > 80")

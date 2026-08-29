@@ -319,6 +319,29 @@ func (r *Registry) validateChain(chain []Layer) error {
 		return errf("layers: empty layer chain")
 	}
 
+	// ---- V7b 先行：L2 终结层（如 ISIS）必须由 eth 承载（LLC/EtherType 载体），
+	// 不能走 ip/transport carrier。错误包含 "carrier" 供 case assert。放在 V7 之前：
+	// [ip, isis] 补全成 [ip, eth, isis] 后 V7（二层层必须在最外连续段）会先于
+	// 载体检查拒绝 eth，报错不含 "carrier"；载体检查必须先于二层层位置检查，
+	// 才能给出 isis_neg_ip_carrier 期望的 "carrier" 语义错误。
+	for i, l := range chain {
+		schema, ok := r.Get(l.Name)
+		if !ok {
+			continue // V1 reports unknown layer
+		}
+		if schema.Category != CategoryTerminal {
+			continue
+		}
+		if !contains(schema.DependsOn, "eth") {
+			continue
+		}
+		for k := 0; k < i; k++ {
+			if ks, _ := r.Get(chain[k].Name); ks.Category == CategoryNetwork || ks.Category == CategoryTransport {
+				return errf("layers: layer %q (l2) must not have an ip/transport carrier, got %q at position %d", l.Name, chain[k].Name, k)
+			}
+		}
+	}
+
 	// ---- 第一遍：逐层静态检查（V1 层名、V4 末层、V7 二层层位置）----
 	for i, l := range chain {
 		schema, ok := r.Get(l.Name)
