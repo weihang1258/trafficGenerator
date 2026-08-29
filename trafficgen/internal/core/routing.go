@@ -325,6 +325,10 @@ type ISISEvent struct {
 
 // ISISWireFault injects a wire fault.
 type ISISWireFault struct {
-	Kind  string `json:"kind,omitempty"` // mixed_carrier|checksum|declared_length
-	Value string `json:"value,omitempty"`
+	Kind         string `json:"kind,omitempty"`          // mixed_carrier|checksum|declared_length|header|level_type|length
+	Value        string `json:"value,omitempty"`         // generic payload
+	HeaderLength int    `json:"header_length,omitempty"` // header fault
+	PDULength    int    `json:"pdu_length,omitempty"`    // length fault
+	PDUType      int    `json:"pdu_type,omitempty"`      // level_type fault
+	CircuitType  int    `json:"circuit_type,omitempty"`  // level_type fault
 }
