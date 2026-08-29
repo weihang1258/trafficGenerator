@@ -258,7 +258,7 @@ type PIMInnerIPv4 struct {
 // PIMWireFault injects a wire fault.
 type PIMWireFault struct {
 	Kind                string `json:"kind,omitempty"` // checksum|length|type|address_family
-	Value               string `json:"value,omitempty"`
+	Value               int    `json:"value,omitempty"`
 	DeclaredTotalLength int    `json:"declared_total_length,omitempty"`
 }
 
