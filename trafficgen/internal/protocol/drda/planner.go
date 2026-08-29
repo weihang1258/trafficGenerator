@@ -27,6 +27,19 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	if spec.DstIP != "" && net.ParseIP(spec.DstIP) == nil {
 		return fmt.Errorf("drda: invalid destination IP")
 	}
+	// dss_length negative-path injection: a declared DSS length that
+	// mismatches the segment's own length field (or is smaller than the
+	// 6-byte fixed header) is a wire fault — reject.
+	if cfg.DSSLength != 0 {
+		if cfg.DSSLength < 6 {
+			return fmt.Errorf("drda: dss_length %d is invalid (smaller than the 6-byte DSS header)", cfg.DSSLength)
+		}
+		for _, seg := range cfg.DSSSegments {
+			if seg.Length != 0 && seg.Length != cfg.DSSLength {
+				return fmt.Errorf("drda: dss_length %d mismatches segment length %d", cfg.DSSLength, seg.Length)
+			}
+		}
+	}
 	return nil
 }
 
@@ -150,7 +163,15 @@ func buildDefaultSegments(cfg *core.DRDAConfig, correlatorStart, corrInc uint16)
 	// Always EXCSAT
 	segs = append(segs, DRDASegment{CodePoint: CPEXCSAT, Correlator: next()})
 
-	if cfg.Transport == "excsat" {
+	// association 档位截断（case JSON 权威键）：excsat=1 对、security=3 对、
+	// database/sql=完整序列。旧实现读 cfg.Transport，但用例从没写过它，
+	// 导致每例都发满 4 对（count 15 vs 期望 9/13）。
+	assoc := cfg.Association
+	if assoc == "" {
+		assoc = cfg.Transport // legacy 别名
+	}
+
+	if assoc == "excsat" {
 		return segs
 	}
 
@@ -172,7 +193,7 @@ func buildDefaultSegments(cfg *core.DRDAConfig, correlatorStart, corrInc uint16)
 		},
 	})
 
-	if cfg.Transport == "security" {
+	if assoc == "security" {
 		return segs
 	}
 

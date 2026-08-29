@@ -324,34 +324,34 @@
       "directional": true,
       "fields": [
         {
-          "packet": 16,
+          "packet": 12,
           "field": "drda.ddm.codepoint",
           "value": "0x2412"
         },
         {
-          "packet": 17,
+          "packet": 13,
           "field": "drda.ddm.codepoint",
           "value": "0x2408"
         },
         {
-          "packet": 17,
+          "packet": 13,
           "field": "drda.ddm.rqscrr",
-          "same_as_packet": 16
+          "same_as_packet": 13
         },
         {
-          "packet": 17,
+          "packet": 13,
           "field": "tcp.len",
           "nonzero": true
         }
       ],
       "frames": [
         {
-          "packet": 16,
+          "packet": 12,
           "offset": 62,
           "hex": "24 12"
         },
         {
-          "packet": 17,
+          "packet": 13,
           "offset": 62,
           "hex": "24 08"
         }
@@ -406,34 +406,34 @@
       "directional": true,
       "fields": [
         {
-          "packet": 16,
+          "packet": 12,
           "field": "drda.ddm.codepoint",
           "value": "0x2412"
         },
         {
-          "packet": 17,
+          "packet": 13,
           "field": "drda.ddm.codepoint",
           "value": "0x2408"
         },
         {
-          "packet": 17,
+          "packet": 13,
           "field": "drda.ddm.rqscrr",
-          "same_as_packet": 16
+          "same_as_packet": 13
         },
         {
-          "packet": 17,
+          "packet": 13,
           "field": "tcp.len",
           "nonzero": true
         }
       ],
       "frames": [
         {
-          "packet": 16,
+          "packet": 12,
           "offset": 62,
           "hex": "24 12"
         },
         {
-          "packet": 17,
+          "packet": 13,
           "offset": 62,
           "hex": "24 08"
         }
@@ -655,6 +655,10 @@
           "field": "tcp.dstport",
           "distinct_values": [
             "446"
+          ],
+          "distinct_exclude": [
+            "12345",
+            "12346"
           ]
         }
       ],

@@ -575,6 +575,17 @@ type PCEPConfig struct {
 	Transport string      `json:"transport,omitempty"`
 	Profile   string      `json:"profile,omitempty"`
 	Events    []PCEPEvent `json:"events,omitempty"`
+	// Sessions enables multi-session expansion (P0a pattern): each session
+	// gets its own TCP connection (src_port) and replays its events; the TCP
+	// generator's connection-boundary mechanism tears down the previous
+	// connection when SrcPort changes.
+	Sessions []PCEPSession `json:"sessions,omitempty"`
+}
+
+// PCEPSession is one independent TCP session in a multi-session PCEP config.
+type PCEPSession struct {
+	SrcPort uint16      `json:"src_port,omitempty"`
+	Events  []PCEPEvent `json:"events,omitempty"`
 }
 
 // PCEPEvent is one PCEP protocol event.
@@ -946,6 +957,14 @@ type SOMEIPEvent struct {
 // DRDAConfig configures a DRDA session (IBM Distributed Relational Database Architecture, TCP 446).
 type DRDAConfig struct {
 	Transport       string         `json:"transport,omitempty"`
+	// Association bounds the default exchange sequence (case JSON key):
+	// "excsat" = EXCSAT pair only, "security" = through SECCHK, "database" =
+	// through ACCRDB, "sql" = through SQLDTA/SQLCARD. Empty = full sequence.
+	Association     string         `json:"association,omitempty"`
+	// DSSLength is a declared DSS header length override used by negative-path
+	// cases (dss_length_mismatch): a declared length smaller than the fixed
+	// 6-byte DSS header is a wire fault and is rejected at validation.
+	DSSLength       int            `json:"dss_length,omitempty"`
 	SessionStart    int            `json:"session_start,omitempty"`
 	CCSID           uint16         `json:"ccsid,omitempty"`
 	CorrelatorStart uint16         `json:"correlator_start,omitempty"`
@@ -955,6 +974,17 @@ type DRDAConfig struct {
 	RDBName         string         `json:"rdb_name,omitempty"`
 	SQL             *DRDASQLConfig `json:"sql,omitempty"`
 	DSSSegments     []DRDASegment  `json:"dss_segments,omitempty"`
+	// Sessions enables multi-session expansion (P0a pattern): each session
+	// is an independent TCP connection with its own src_port and correlator
+	// sequence restarting from CorrelatorStart.
+	Sessions []DRDASession `json:"sessions,omitempty"`
+}
+
+// DRDASession is one independent TCP session in a multi-session DRDA config.
+type DRDASession struct {
+	ID              string `json:"id,omitempty"`
+	SrcPort         uint16 `json:"src_port,omitempty"`
+	CorrelatorStart uint16 `json:"correlator_start,omitempty"`
 }
 
 // DRDASQLConfig configures SQLDTA/SQLCARD in DRDA.
@@ -966,10 +996,15 @@ type DRDASQLConfig struct {
 	Diagnostic string `json:"diagnostic,omitempty"`
 }
 
-// DRDASegment is a user-defined DSS/DDM segment.
+// DRDASegment is a user-defined DSS/DDM segment. Length/Length2 are the
+// declared DSS field values; the encoder still computes them from the body,
+// and Validate cross-checks them against DSSLength (declared-vs-encoded
+// mismatch = wire fault).
 type DRDASegment struct {
 	Format     uint16      `json:"format,omitempty"`
 	Correlator uint16      `json:"correlator,omitempty"`
+	Length     int         `json:"length,omitempty"`
+	Length2    int         `json:"length2,omitempty"`
 	CodePoint  uint16      `json:"code_point,omitempty"`
 	Parameters []DRDAParam `json:"parameters,omitempty"`
 }

@@ -1406,6 +1406,19 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 4189
 		}
+	case "drda":
+		if sub, ok := cfg["drda"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v DRDAConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "drda: "+err.Error())
+			} else {
+				spec.DRDA = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 446
+		}
 	case "cflow":
 		if sub, ok := cfg["cflow"].(map[string]interface{}); ok {
 			b, _ := json.Marshal(sub)

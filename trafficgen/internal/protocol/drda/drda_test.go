@@ -3,6 +3,7 @@ package drda
 import (
 	"context"
 	"encoding/binary"
+	"strings"
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -375,4 +376,27 @@ func hex(b []byte) string {
 		out[i*2+1] = digits[v&0xf]
 	}
 	return string(out)
+}
+func TestValidateDSSLengthConsistency(t *testing.T) {
+	seg := core.DRDASegment{Format: 1, Correlator: 1, Length: 10, Length2: 4, CodePoint: 4161}
+
+	// 声明 dss_length 与段 length 一致 → 放行
+	ok := core.FlowSpec{DRDA: &core.DRDAConfig{DSSLength: 10, DSSSegments: []core.DRDASegment{seg}}}
+	if err := (Planner{}).Validate(ok); err != nil {
+		t.Fatalf("matching dss_length should pass, got %v", err)
+	}
+
+	// 声明 dss_length 与段 length 不一致 → 拒绝（锚点 dss_length）
+	bad := core.FlowSpec{DRDA: &core.DRDAConfig{DSSLength: 11, DSSSegments: []core.DRDASegment{seg}}}
+	err := (Planner{}).Validate(bad)
+	if err == nil || !strings.Contains(err.Error(), "dss_length") {
+		t.Fatalf("mismatched dss_length should be rejected with dss_length anchor, got %v", err)
+	}
+
+	// dss_length < 6 → 拒绝
+	small := core.FlowSpec{DRDA: &core.DRDAConfig{DSSLength: 5}}
+	err = (Planner{}).Validate(small)
+	if err == nil || !strings.Contains(err.Error(), "dss_length") {
+		t.Fatalf("dss_length < 6 should be rejected, got %v", err)
+	}
 }

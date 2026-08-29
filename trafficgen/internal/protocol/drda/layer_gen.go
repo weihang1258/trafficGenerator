@@ -36,6 +36,27 @@ func (g *DRDAGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 		corrInc = 1
 	}
 
+	// 多会话展开（P0a 模式）：每条 session 一条独立 TCP 连接，session 源端口
+	// 带上事件，tcp 层据 SrcPort 判定会话边界（挥旧握新）；correlator 每会话
+	// 从 CorrelatorStart 重起。
+	if len(cfg.Sessions) > 0 {
+		for _, sess := range cfg.Sessions {
+			start := sess.CorrelatorStart
+			if start == 0 {
+				start = correlator
+			}
+			if err := emitSegments(ctx, cfg, req, start, corrInc, sess.SrcPort); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return emitSegments(ctx, cfg, req, correlator, corrInc, 0)
+}
+
+// emitSegments encodes and emits the DSS segment sequence; srcPort is the
+// session's TCP source port override (0 = default flow port).
+func emitSegments(ctx context.Context, cfg *DRDAConfig, req *layers.GenRequest, correlator, corrInc uint16, srcPort uint16) error {
 	var segs []DRDASegment
 	if len(cfg.DSSSegments) > 0 {
 		segs = cfg.DSSSegments
@@ -56,7 +77,7 @@ func (g *DRDAGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 		if err != nil {
 			return err
 		}
-		if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: true, Bytes: ddm}); err != nil {
+		if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: true, Bytes: ddm, SrcPort: srcPort}); err != nil {
 			return err
 		}
 		// response (down)
@@ -83,7 +104,7 @@ func (g *DRDAGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 			if err != nil {
 				return err
 			}
-			if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: false, Bytes: resp}); err != nil {
+			if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: false, Bytes: resp, SrcPort: srcPort}); err != nil {
 				return err
 			}
 		}
