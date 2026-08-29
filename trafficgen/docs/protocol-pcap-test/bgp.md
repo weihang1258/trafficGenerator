@@ -1,6 +1,6 @@
 # bgp Pcap Test Results
 
-Cases: 19 — pass 18, fail 0, error 1
+Cases: 19 — pass 19, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -9,7 +9,7 @@ Cases: 19 — pass 18, fail 0, error 1
 | bgp_ipv4_nlri_32 | S7: IPv4 /32 NLRI prefix byte boundary | pass | 12 | [pcap](bgp/bgp_ipv4_nlri_32.pcap) |
 | bgp_ipv6_transport | S8: IPv6 TCP transport with RFC 4271 IPv4 BGP identifier | pass | 11 | [pcap](bgp/bgp_ipv6_transport.pcap) |
 | bgp_keepalive_length_boundary | S10: minimum legal BGP length 19 KEEPALIVE | pass | 11 | [pcap](bgp/bgp_keepalive_length_boundary.pcap) |
-| bgp_multi_session | S9: two independent BGP sessions | error | 0 | `` |
+| bgp_multi_session | S9: two independent BGP sessions | pass | 22 | [pcap](bgp/bgp_multi_session.pcap) |
 | bgp_neg_address | N9: IPv6 NLRI in IPv4 profile rejected | pass | 0 | [pcap]() |
 | bgp_neg_as | N7: My AS outside two-octet range rejected | pass | 0 | [pcap]() |
 | bgp_neg_length | N4: invalid message length rejected | pass | 0 | [pcap]() |
@@ -23,10 +23,3 @@ Cases: 19 — pass 18, fail 0, error 1
 | bgp_open_keepalive | S2: OPEN exchange then bidirectional KEEPALIVE | pass | 11 | [pcap](bgp/bgp_open_keepalive.pcap) |
 | bgp_update_attributes | S3: IPv4 UPDATE with ORIGIN AS_PATH NEXT_HOP MED LOCAL_PREF COMMUNITIES | pass | 12 | [pcap](bgp/bgp_update_attributes.pcap) |
 | bgp_update_withdraw | S4: UPDATE withdrawing an IPv4 /24 route | pass | 12 | [pcap](bgp/bgp_update_withdraw.pcap) |
-
-## Failures
-
-### bgp_multi_session — S9: two independent BGP sessions
-
-task ended failed: output error: [b4fd2e63-7ac7-4186-8ea4-15d80b454f19-da040a6b-fd7b-4157-b125-f13d2ce63faf: validation failed: bgp: sessions (2) multi-stream expansion is not supported on a layer chain (one flow per chain)]
-

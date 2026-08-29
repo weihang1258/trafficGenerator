@@ -34,9 +34,9 @@ Cases: 25 — pass 23, fail 0, error 2
 
 ### ldp_dual_adjacency — S14: basic and targeted discovery adjacencies plus TCP session
 
-task ended failed: output error: [5457ab09-be34-4f36-b7ec-986a79d95288-46b53368-606b-42ed-b8ea-d3a8e24a4714: validation failed: ldp: at least one event required]
+task ended failed: output error: [ab080fe0-335b-4cb0-b669-54066f0e59a2-0a67c38f-b2d6-4b22-86f0-d6fa04440a5a: validation failed: ldp: at least one event required]
 
 ### ldp_tcp_multi_session — S13: two independent parallel TCP/646 LDP sessions
 
-task ended failed: output error: [e7bbd519-36d3-47a8-8e24-c3ba644628a2-fbcb6f82-a7f4-4e46-a2b2-691ebdf2e46a: validation failed: ldp: at least one event required]
+task ended failed: output error: [27e859f4-b2d2-45e2-b9f3-7f647eee4480-41cdc324-10a0-4833-ab71-75f38683e2fb: validation failed: ldp: at least one event required]
 
