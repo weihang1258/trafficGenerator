@@ -50,7 +50,7 @@ func TestChainPlannerPCEPSmoke(t *testing.T) {
 		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 1234,
 		PCEP: &core.PCEPConfig{
 			Transport: "tcp",
-			Events:    []core.PCEPEvent{{Kind: "open", Direction: "c2s"}},
+			Events:    []core.PCEPEvent{{Kind: "open", Direction: "c2s", SID: 7}},
 		},
 	}
 	ch, err := layers.NewChainPlanner("pcep").Plan(context.Background(), spec)

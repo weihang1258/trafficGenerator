@@ -946,8 +946,15 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	}
 
 	// 初始连接握手（schema 默认 true）：单连接路径以 cfg.srcPort 建连。
-	if err := handshake(cfg.srcPort); err != nil {
-		return err
+	// 事件模式下握手延迟到事件循环首事件：多会话流（pcep 40001/40002）的
+	// 首事件端口 != cfg.srcPort，若先建默认连接会多出一条"握手+挥手"空连接
+	// （29 vs 22 包回归）；单连接事件流首事件端口回退 cfg.srcPort，与原
+	// 先握手后消费事件字节级一致。
+	eventMode := req.Meta.Events != nil
+	if !eventMode {
+		if err := handshake(cfg.srcPort); err != nil {
+			return err
+		}
 	}
 	// 会话状态回写：握手完成后 server 侧 seq 即固定（Sess 供外层/隧道层或
 	// 后续驱动读取；挥手用到的也是这个 serverSeq）。回写在 RST 检查之前
@@ -1018,6 +1025,9 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// （http/dns 等）不设 SrcPort 覆盖（=0 → 回退 cfg.srcPort），故单连接路径
 	// 永不走边界分支，字节级不变。
 	curSrcPort := cfg.srcPort
+	// 事件模式下连接尚未建立（握手延迟到首事件）；空事件流（终结层没发事件
+	// 就关闭）时补默认连接，保持"握手+挥手"空连接的旧行为。
+	connected := !eventMode
 	for events != nil {
 		var ev MessageEvent
 		var ok bool
@@ -1035,7 +1045,14 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 		if evSrc == 0 {
 			evSrc = cfg.srcPort
 		}
-		if evSrc != curSrcPort {
+		if !connected {
+			// 首个事件建立首条连接（端口 = 事件携带值）。
+			if err := handshake(evSrc); err != nil {
+				return err
+			}
+			connected = true
+			curSrcPort = evSrc
+		} else if evSrc != curSrcPort {
 			if err := teardown(curSrcPort); err != nil {
 				return err
 			}
@@ -1090,6 +1107,14 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// RST|ACK(up) 代替挥手（RFC 9293 §3.5）。
 	// 与 legacy tcp.go:306-328 一致：RST 分支只产出 RST 包，不提前 return——
 	// 状态回写已在上方完成，emit 错误照常传播（review HIGH-1 修复）。
+	// 空事件流（connected==false）：先补默认连接握手，维持旧行为
+	// （握手+RST/挥手空连接）。
+	if !connected && !cfg.rst && cfg.handshake {
+		if err := handshake(cfg.srcPort); err != nil {
+			return err
+		}
+		connected = true
+	}
 	if cfg.rst {
 		select {
 		case <-ctx.Done():
