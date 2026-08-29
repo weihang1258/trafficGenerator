@@ -539,18 +539,43 @@ type HLSLLHLS struct {
 
 // LDPConfig configures a minimal RFC 5036 LDP session.
 type LDPConfig struct {
-	Transport          string     `json:"transport,omitempty"`
-	WireProfile        string     `json:"wire_profile,omitempty"`
-	Carrier            string     `json:"carrier,omitempty"`
-	Events             []LDPEvent `json:"events,omitempty"`
-	LSRID              string     `json:"lsr_id,omitempty"`
-	LabelSpace         uint16     `json:"label_space,omitempty"`
-	HoldTime           uint16     `json:"hold_time,omitempty"`
-	Targeted           bool       `json:"targeted,omitempty"`
-	KeepaliveTime      uint16     `json:"keepalive_time,omitempty"`
-	LabelControl       string     `json:"label_control,omitempty"`
-	LabelAdvertisement string     `json:"label_advertisement,omitempty"`
-	FaultKind          string     `json:"fault_kind,omitempty"`
+	Transport          string         `json:"transport,omitempty"`
+	WireProfile        string         `json:"wire_profile,omitempty"`
+	Carrier            string         `json:"carrier,omitempty"`
+	Events             []LDPEvent     `json:"events,omitempty"`
+	Sessions           []LDPSession   `json:"sessions,omitempty"`
+	Adjacencies        []LDPAdjacency `json:"adjacencies,omitempty"`
+	LSRID              string         `json:"lsr_id,omitempty"`
+	LabelSpace         uint16         `json:"label_space,omitempty"`
+	HoldTime           uint16         `json:"hold_time,omitempty"`
+	Targeted           bool           `json:"targeted,omitempty"`
+	KeepaliveTime      uint16         `json:"keepalive_time,omitempty"`
+	LabelControl       string         `json:"label_control,omitempty"`
+	LabelAdvertisement string         `json:"label_advertisement,omitempty"`
+	FaultKind          string         `json:"fault_kind,omitempty"`
+}
+
+// LDPSession is one independent TCP session in a multi-session LDP config
+// (P0a pattern A: sessions[] inside the protocol config).
+type LDPSession struct {
+	SrcPort  uint16     `json:"src_port,omitempty"`
+	SrcLSRID string     `json:"src_lsr_id,omitempty"`
+	DstLSRID string     `json:"dst_lsr_id,omitempty"`
+	Events   []LDPEvent `json:"events,omitempty"`
+}
+
+// LDPAdjacency is one adjacency in a dual-adjacency LDP config: either a
+// UDP discovery adjacency (single Hello PDU) or a TCP session adjacency
+// (full event sequence on its own connection).
+type LDPAdjacency struct {
+	Kind      string     `json:"kind,omitempty"`      // basic|targeted|session
+	Carrier   string     `json:"carrier,omitempty"`   // udp_discovery|tcp_session
+	Direction string     `json:"direction,omitempty"` // c2s|s2c
+	MessageID uint32     `json:"message_id,omitempty"`
+	Targeted  bool       `json:"targeted,omitempty"`
+	SrcPort   uint16     `json:"src_port,omitempty"`
+	DstPort   uint16     `json:"dst_port,omitempty"`
+	Events    []LDPEvent `json:"events,omitempty"`
 }
 
 // LDPEvent is one LDP protocol event.
@@ -984,11 +1009,11 @@ type SOMEIPEvent struct {
 
 // DRDAConfig configures a DRDA session (IBM Distributed Relational Database Architecture, TCP 446).
 type DRDAConfig struct {
-	Transport       string         `json:"transport,omitempty"`
+	Transport string `json:"transport,omitempty"`
 	// Association bounds the default exchange sequence (case JSON key):
 	// "excsat" = EXCSAT pair only, "security" = through SECCHK, "database" =
 	// through ACCRDB, "sql" = through SQLDTA/SQLCARD. Empty = full sequence.
-	Association     string         `json:"association,omitempty"`
+	Association string `json:"association,omitempty"`
 	// DSSLength is a declared DSS header length override used by negative-path
 	// cases (dss_length_mismatch): a declared length smaller than the fixed
 	// 6-byte DSS header is a wire fault and is rejected at validation.
@@ -2445,7 +2470,7 @@ type L2Config struct {
 // 12-13) with the 802.3 Length field = length of the LLC+PDU bytes that follow,
 // then writes DSAP/SSAP/Control. The PDU itself is the PacketConfig Payload.
 type LLCConfig struct {
-	DSAP    uint8 `json:"dsap,omitempty"`    // source/target service access point; ISO 10589 uses 0xFE
+	DSAP    uint8 `json:"dsap,omitempty"` // source/target service access point; ISO 10589 uses 0xFE
 	SSAP    uint8 `json:"ssap,omitempty"`
 	Control uint8 `json:"control,omitempty"` // 0x03 = unnumbered info; IS-IS uses 0x03
 }

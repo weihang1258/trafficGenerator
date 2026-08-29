@@ -747,8 +747,12 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 	if err != nil {
 		return nil, err
 	}
-	if err := assertEventWiring(chain, gens); err != nil {
-		return nil, err
+	// 混合载体链（[ip→ldp] dual_adjacency）：终结层自产完整包，不消费
+	// Meta.Events（无传输层），跳过事件接线断言。
+	if !isCarrierMixedChain(p.name, chain) {
+		if err := assertEventWiring(chain, gens); err != nil {
+			return nil, err
+		}
 	}
 
 	if p.name == "sv" || p.name == "goose" || p.name == "isis" {
@@ -794,6 +798,53 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 	// goose/sv L2-only 分支同构：终结层生成器直接产完整包（自设 L3.SrcIP/
 	// DstIP/Protocol + Payload），finalEmit 只补 L2 + TTL/DSCP。L3.Protocol
 	// 恒非 0（生成器按协议固写 2/89/103），finalEmit 的"仅 0 时填充"不会覆盖。
+	// 双载体终结层链（[ip→ldp] dual_adjacency）：与 raw-IP 分支同构——
+	// 无 tcp/udp 传输层，终结层生成器自产完整包（UDP Hello 与 TCP 会话
+	// 混合，自设 L3/L4/Payload），finalEmit 只补 L2/TTL。
+	if isCarrierMixedChain(p.name, chain) && spec.LDP != nil && len(spec.LDP.Adjacencies) > 0 {
+		out := make(chan core.PacketConfig, 256)
+		go func() {
+			defer close(out)
+			gen := gens[len(gens)-1]
+			sess := &SessionState{IPID: uint16(rand.Uint32())}
+			meta := flowMetaFor(spec)
+			meta.SrcIP = spec.SrcIP
+			meta.DstIP = spec.DstIP
+			meta.TTL = spec.TTL
+			meta.LDP = spec.LDP
+			req := &GenRequest{
+				Meta:  meta,
+				Sess:  sess,
+				Emit: func(pkt core.PacketConfig) error {
+					// 方向交换由生成器完成（down 帧 L3/L4 已按发送方翻转）；
+					// 这里只补 MAC/EtherType/TTL/时间戳，不再交换 IP。
+					if pkt.L2.SrcMAC == "" {
+						l2 := l2For(pkt.Direction, spec)
+						pkt.L2.SrcMAC = l2.SrcMAC
+						pkt.L2.DstMAC = l2.DstMAC
+					}
+					if pkt.L2.EtherType == 0 {
+						pkt.L2.EtherType = core.EtherTypeFor(pkt.L3.SrcIP)
+					}
+					if pkt.L3.TTL == 0 {
+						pkt.L3.TTL = spec.TTL
+					}
+					if pkt.FlowID == "" {
+						pkt.FlowID = flowID(spec)
+					}
+					pkt.Timestamp = time.Now()
+					select {
+					case out <- pkt:
+						return nil
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				},
+			}
+			_ = gen.Generate(ctx, req)
+		}()
+		return out, nil
+	}
 	if isRawIPChain(p.name, chain) {
 		out := make(chan core.PacketConfig, 256)
 		go func() {
@@ -2031,6 +2082,24 @@ func isRawIPChain(name string, chain []Layer) bool {
 		return true
 	}
 	return name == "igmp" || name == "ospf" || name == "pim"
+}
+
+// isCarrierMixedChain reports whether the terminal layer self-drives mixed
+// UDP+TCP carriers (ldp dual_adjacency: UDP discovery Hello + TCP session on
+// one flow). Like raw-IP chains, the [ip, ldp] chain has no transport layer
+// and the terminal generator assembles complete packets.
+func isCarrierMixedChain(name string, chain []Layer) bool {
+	if name != "ldp" {
+		return false
+	}
+	// 用户显式写 tcp 传输层 → 由事件路径负责（plain event path）；合成链
+	// 携带的 udp 层（ldp DependsOn）不算——dual_adjacency 自产完整包。
+	for _, l := range chain {
+		if l.Name == "tcp" {
+			return false
+		}
+	}
+	return true
 }
 
 func isHTTPChain(chain []Layer) bool {

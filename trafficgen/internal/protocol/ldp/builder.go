@@ -340,13 +340,19 @@ func parseLSRID(lsrID string) string {
 // parseLDPConfig parses LDP events from the config and returns PDU bytes.
 // Used by both the planner and the generator.
 func parseLDPConfig(cfg *core.LDPConfig) ([][]byte, []bool, error) {
+	return parseLDPEvents(cfg, cfg.Events, cfg.LSRID)
+}
+
+// parseLDPEvents encodes an event list; lsrID is the PDU LSR identifier the
+// events default to (top-level LSRID, or the session's src_lsr_id).
+func parseLDPEvents(cfg *core.LDPConfig, events []core.LDPEvent, lsrIDStr string) ([][]byte, []bool, error) {
 	var payloads [][]byte
 	var ups []bool
 
-	lsrID := parseLSRID(cfg.LSRID)
+	lsrID := parseLSRID(lsrIDStr)
 	labelSpace := cfg.LabelSpace
 
-	for _, ev := range cfg.Events {
+	for _, ev := range events {
 		up := ev.Direction == "c2s"
 		mid := ev.MessageID
 		var pdu []byte
@@ -371,6 +377,7 @@ func parseLDPConfig(cfg *core.LDPConfig) ([][]byte, []bool, error) {
 			if receiver == "" {
 				receiver = ev.LSRID
 			}
+			_ = receiver
 			pdu = BuildInitPDU(lsrID, labelSpace, mid, ka, cfg.LabelAdvertisement, receiver)
 		case "keepalive":
 			pdu = BuildKeepAlivePDU(lsrID, labelSpace, mid)
@@ -420,16 +427,60 @@ func parseLDPConfig(cfg *core.LDPConfig) ([][]byte, []bool, error) {
 	return payloads, ups, nil
 }
 
+// validateEventKinds rejects unknown event kinds up front (shared by
+// top-level, session, and adjacency event lists).
+func validateEventKinds(events []core.LDPEvent) error {
+	for _, ev := range events {
+		switch ev.Kind {
+		case "hello", "initialization", "keepalive", "address",
+			"label_mapping", "label_request", "label_withdraw",
+			"label_release", "notification":
+		default:
+			return fmt.Errorf("ldp: unknown event kind %q", ev.Kind)
+		}
+	}
+	return nil
+}
+
 // ValidateConfig validates the LDP config.
 func ValidateConfig(cfg *core.LDPConfig) error {
 	if cfg == nil {
 		return fmt.Errorf("ldp: config is required")
 	}
-	if len(cfg.Events) == 0 {
+	hasSessions := len(cfg.Sessions) > 0
+	hasAdjacencies := len(cfg.Adjacencies) > 0
+	if len(cfg.Events) == 0 && !hasSessions && !hasAdjacencies {
 		return fmt.Errorf("ldp: at least one event required")
 	}
-	if cfg.Carrier != "udp_discovery" && cfg.Carrier != "tcp_session" && cfg.Carrier != "" {
+	switch cfg.Carrier {
+	case "udp_discovery", "tcp_session", "dual_adjacency", "":
+	default:
 		return fmt.Errorf("ldp: unknown carrier %q", cfg.Carrier)
+	}
+	for i, sess := range cfg.Sessions {
+		if len(sess.Events) == 0 {
+			return fmt.Errorf("ldp: session %d has no events", i)
+		}
+		if err := validateEventKinds(sess.Events); err != nil {
+			return err
+		}
+	}
+	for i, adj := range cfg.Adjacencies {
+		switch adj.Carrier {
+		case "udp_discovery":
+			if adj.Kind != "basic" && adj.Kind != "targeted" {
+				return fmt.Errorf("ldp: adjacency %d unknown kind %q", i, adj.Kind)
+			}
+		case "tcp_session":
+			if len(adj.Events) == 0 {
+				return fmt.Errorf("ldp: adjacency %d (session) has no events", i)
+			}
+			if err := validateEventKinds(adj.Events); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("ldp: adjacency %d unknown carrier %q", i, adj.Carrier)
+		}
 	}
 	if cfg.LabelAdvertisement != "" && cfg.LabelAdvertisement != "downstream_unsolicited" && cfg.LabelAdvertisement != "downstream_on_demand" {
 		return fmt.Errorf("ldp: unknown label advertisement %q", cfg.LabelAdvertisement)
