@@ -3,16 +3,18 @@
     "id": "mms_connect_establish",
     "proto": "mms",
     "summary": "MMS complete association: TCP handshake + COTP CR/CC + DT(SPDU/CP/AARQ/ACSE/MMS Initiate) both directions",
-    "spec_json": [
-      {
-        "tcp": {
-          "dst_port": 102
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {}
         }
-      },
-      {
-        "mms": {}
-      }
-    ],
+      ]
+    },
     "expect": {
       "packet_count": 7,
       "negotiated": true,
@@ -152,55 +154,57 @@
     "id": "mms_read_multi_type",
     "proto": "mms",
     "summary": "MMS Read: one request, five multi-type variables (boolean/integer/unsigned/octetString/utcTime)",
-    "spec_json": [
-      {
-        "tcp": {
-          "dst_port": 102
-        }
-      },
-      {
-        "mms": {
-          "objects": [
-            {
-              "domain": "IED1",
-              "name": "GGIO1.SPCSO1.stVal",
-              "datatype": "boolean",
-              "value": true
-            },
-            {
-              "domain": "IED1",
-              "name": "MMXU1.TotW.mag.f",
-              "datatype": "integer",
-              "value": 42
-            },
-            {
-              "domain": "IED1",
-              "name": "MMXU1.TotW.mag.u",
-              "datatype": "unsigned",
-              "value": 7
-            },
-            {
-              "domain": "IED1",
-              "name": "LLN0.Mod.stVal",
-              "datatype": "octetString",
-              "value": "0102"
-            },
-            {
-              "domain": "IED1",
-              "name": "LLN0.Beh.stVal",
-              "datatype": "utcTime",
-              "value": 1706788800
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "GGIO1.SPCSO1.stVal",
+                "datatype": "boolean",
+                "value": true
+              },
+              {
+                "domain": "IED1",
+                "name": "MMXU1.TotW.mag.f",
+                "datatype": "integer",
+                "value": 42
+              },
+              {
+                "domain": "IED1",
+                "name": "MMXU1.TotW.mag.u",
+                "datatype": "unsigned",
+                "value": 7
+              },
+              {
+                "domain": "IED1",
+                "name": "LLN0.Mod.stVal",
+                "datatype": "octetString",
+                "value": "0102"
+              },
+              {
+                "domain": "IED1",
+                "name": "LLN0.Beh.stVal",
+                "datatype": "utcTime",
+                "value": 1706788800
+              }
+            ],
+            "enableRead": true,
+            "sequence": {
+              "steps": [
+                "read"
+              ]
             }
-          ],
-          "enableRead": true,
-          "sequence": {
-            "steps": [
-              "read"
-            ]
           }
         }
-      }
-    ],
+      ]
+    },
     "expect": {
       "negotiated": true,
       "fields": [
@@ -243,37 +247,39 @@
     "id": "mms_write_success",
     "proto": "mms",
     "summary": "MMS Write: write full variable list, response success list (80 01 00 each)",
-    "spec_json": [
-      {
-        "tcp": {
-          "dst_port": 102
-        }
-      },
-      {
-        "mms": {
-          "objects": [
-            {
-              "domain": "IED1",
-              "name": "GGIO1.SPCSO1.stVal",
-              "datatype": "boolean",
-              "value": false
-            },
-            {
-              "domain": "IED1",
-              "name": "MMXU1.TotW.mag.f",
-              "datatype": "integer",
-              "value": 100
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "GGIO1.SPCSO1.stVal",
+                "datatype": "boolean",
+                "value": false
+              },
+              {
+                "domain": "IED1",
+                "name": "MMXU1.TotW.mag.f",
+                "datatype": "integer",
+                "value": 100
+              }
+            ],
+            "enableWrite": true,
+            "sequence": {
+              "steps": [
+                "write"
+              ]
             }
-          ],
-          "enableWrite": true,
-          "sequence": {
-            "steps": [
-              "write"
-            ]
           }
         }
-      }
-    ],
+      ]
+    },
     "expect": {
       "negotiated": true,
       "fields": [
@@ -326,32 +332,34 @@
     "id": "mms_information_report",
     "proto": "mms",
     "summary": "MMS InformationReport: server-push UnconfirmedPDU (a3), no response frame",
-    "spec_json": [
-      {
-        "tcp": {
-          "dst_port": 102
-        }
-      },
-      {
-        "mms": {
-          "objects": [
-            {
-              "domain": "IED1",
-              "name": "GGIO1.SPCSO1.stVal",
-              "datatype": "boolean",
-              "value": true
-            }
-          ],
-          "enableInformationReport": true,
-          "sequence": {
-            "steps": [
-              "report"
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "GGIO1.SPCSO1.stVal",
+                "datatype": "boolean",
+                "value": true
+              }
             ],
-            "injectOn": 1
+            "enableInformationReport": true,
+            "sequence": {
+              "steps": [
+                "report"
+              ],
+              "injectOn": 1
+            }
           }
         }
-      }
-    ],
+      ]
+    },
     "expect": {
       "negotiated": true,
       "fields": [
@@ -379,30 +387,32 @@
     "id": "mms_getnamelist",
     "proto": "mms",
     "summary": "MMS GetNameList: request vmdSpecific scope, response listOfIdentifier",
-    "spec_json": [
-      {
-        "tcp": {
-          "dst_port": 102
-        }
-      },
-      {
-        "mms": {
-          "objects": [
-            {
-              "domain": "IED1",
-              "name": "GGIO1.SPCSO1.stVal",
-              "datatype": "boolean"
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "GGIO1.SPCSO1.stVal",
+                "datatype": "boolean"
+              }
+            ],
+            "enableGetNameList": true,
+            "sequence": {
+              "steps": [
+                "getnmlist"
+              ]
             }
-          ],
-          "enableGetNameList": true,
-          "sequence": {
-            "steps": [
-              "getnmlist"
-            ]
           }
         }
-      }
-    ],
+      ]
+    },
     "expect": {
       "negotiated": true,
       "fields": [
@@ -455,24 +465,26 @@
     "id": "mms_identify",
     "proto": "mms",
     "summary": "MMS Identify: response vendor/model/revision",
-    "spec_json": [
-      {
-        "tcp": {
-          "dst_port": 102
-        }
-      },
-      {
-        "mms": {
-          "iedName": "FAKE8150",
-          "enableIdentify": true,
-          "sequence": {
-            "steps": [
-              "identify"
-            ]
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "iedName": "FAKE8150",
+            "enableIdentify": true,
+            "sequence": {
+              "steps": [
+                "identify"
+              ]
+            }
           }
         }
-      }
-    ],
+      ]
+    },
     "expect": {
       "negotiated": true,
       "fields": [
@@ -525,32 +537,34 @@
     "id": "mms_service_error",
     "proto": "mms",
     "summary": "MMS negative: read non-existent object -> Confirmed-ErrorPDU (access/object-non-existent)",
-    "spec_json": [
-      {
-        "tcp": {
-          "dst_port": 102
-        }
-      },
-      {
-        "mms": {
-          "objects": [
-            {
-              "domain": "IED1",
-              "name": "NONEXIST.obj",
-              "datatype": "boolean"
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "NONEXIST.obj",
+                "datatype": "boolean"
+              }
+            ],
+            "enableRead": true,
+            "errorClassName": "access",
+            "errorValue": 2,
+            "sequence": {
+              "steps": [
+                "read"
+              ]
             }
-          ],
-          "enableRead": true,
-          "errorClassName": "access",
-          "errorValue": 2,
-          "sequence": {
-            "steps": [
-              "read"
-            ]
           }
         }
-      }
-    ],
+      ]
+    },
     "expect": {
       "negotiated": true,
       "fields": [
@@ -608,34 +622,36 @@
     "id": "mms_no_associate",
     "proto": "mms",
     "summary": "MMS negative: noAssociate=true skips four-way association, service frames only",
-    "spec_json": [
-      {
-        "tcp": {
-          "dst_port": 102
-        }
-      },
-      {
-        "mms": {
-          "objects": [
-            {
-              "domain": "IED1",
-              "name": "GGIO1.SPCSO1.stVal",
-              "datatype": "boolean",
-              "value": true
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "GGIO1.SPCSO1.stVal",
+                "datatype": "boolean",
+                "value": true
+              }
+            ],
+            "enableRead": true,
+            "association": {
+              "noAssociate": true
+            },
+            "sequence": {
+              "steps": [
+                "read"
+              ]
             }
-          ],
-          "enableRead": true,
-          "association": {
-            "noAssociate": true
-          },
-          "sequence": {
-            "steps": [
-              "read"
-            ]
           }
         }
-      }
-    ],
+      ]
+    },
     "expect": {
       "min_packets": 5,
       "negotiated": true,
@@ -670,17 +686,19 @@
     "id": "mms_ipv6",
     "proto": "mms",
     "summary": "MMS over IPv6: full association with payload offset 74",
-    "spec_json": [
-      {
-        "tcp": {
-          "dst_port": 102
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "ipv6": {},
+          "mms": {}
         }
-      },
-      {
-        "ipv6": {},
-        "mms": {}
-      }
-    ],
+      ]
+    },
     "expect": {
       "negotiated": true,
       "has_handshake": true,
@@ -749,42 +767,44 @@
     "id": "mms_multi_session",
     "proto": "mms",
     "summary": "MMS multi-session: two independent TCP associations each complete CR/CC",
-    "spec_json": [
-      {
-        "tcp": {
-          "dst_port": 102
-        }
-      },
-      {
-        "mms": {
-          "objects": [
-            {
-              "domain": "IED1",
-              "name": "GGIO1.SPCSO1.stVal",
-              "datatype": "boolean"
-            }
-          ],
-          "enableRead": true,
-          "multiSession": [
-            {
-              "objects": [
-                {
-                  "domain": "IED2",
-                  "name": "MMXU1.TotW.mag.f",
-                  "datatype": "integer",
-                  "value": 5
-                }
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "GGIO1.SPCSO1.stVal",
+                "datatype": "boolean"
+              }
+            ],
+            "enableRead": true,
+            "multiSession": [
+              {
+                "objects": [
+                  {
+                    "domain": "IED2",
+                    "name": "MMXU1.TotW.mag.f",
+                    "datatype": "integer",
+                    "value": 5
+                  }
+                ]
+              }
+            ],
+            "sequence": {
+              "steps": [
+                "read"
               ]
             }
-          ],
-          "sequence": {
-            "steps": [
-              "read"
-            ]
           }
         }
-      }
-    ],
+      ]
+    },
     "expect": {
       "negotiated": true,
       "has_handshake": true,
@@ -849,30 +869,32 @@
     "id": "mms_validate_reject",
     "proto": "mms",
     "summary": "MMS negative: validator rejects an item-identifier whose UTF-8 encoding exceeds 32 bytes",
-    "spec_json": [
-      {
-        "tcp": {
-          "dst_port": 102
-        }
-      },
-      {
-        "mms": {
-          "objects": [
-            {
-              "domain": "IED1",
-              "name": "THIS_ITEM_IDENTIFIER_IS_WAY_TOO_LONG_01",
-              "datatype": "boolean"
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 102
+          }
+        },
+        {
+          "mms": {
+            "objects": [
+              {
+                "domain": "IED1",
+                "name": "THIS_ITEM_IDENTIFIER_IS_WAY_TOO_LONG_01",
+                "datatype": "boolean"
+              }
+            ],
+            "enableRead": true,
+            "sequence": {
+              "steps": [
+                "read"
+              ]
             }
-          ],
-          "enableRead": true,
-          "sequence": {
-            "steps": [
-              "read"
-            ]
           }
         }
-      }
-    ],
+      ]
+    },
     "expect": {
       "expect_error": true,
       "error_contains": "name",
