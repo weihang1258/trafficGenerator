@@ -467,7 +467,9 @@ func parseGenID(s string) (uint32, error) {
 
 // buildInnerIPv4 builds a minimal, valid inner IPv4 datagram for a register
 // message. The inner header carries src/dst and a UDP (proto 17) payload; the
-// payload bytes come from inner.PayloadHex.
+// payload bytes come from inner.PayloadHex. A full 8-byte UDP header precedes
+// the payload: declaring proto=UDP without the UDP header makes tshark mark
+// the inner packet malformed ("[Malformed Packet: UDP]").
 func buildInnerIPv4(inner *core.PIMInnerIPv4) ([]byte, error) {
 	if inner == nil {
 		return nil, nil
@@ -485,14 +487,19 @@ func buildInnerIPv4(inner *core.PIMInnerIPv4) ([]byte, error) {
 		return nil, err
 	}
 	const headerLen = 20
-	pkt := make([]byte, headerLen+len(payload))
+	const udpLen = 8
+	pkt := make([]byte, headerLen+udpLen+len(payload))
 	pkt[0] = 0x45 // version 4, IHL 5
-	binary.BigEndian.PutUint16(pkt[2:4], uint16(headerLen+len(payload)))
+	binary.BigEndian.PutUint16(pkt[2:4], uint16(headerLen+udpLen+len(payload)))
 	pkt[8] = 64 // TTL
 	pkt[9] = core.ProtocolUDP
 	copy(pkt[12:16], src)
 	copy(pkt[16:20], dst)
-	copy(pkt[headerLen:], payload)
+	// UDP header (src/dst port 0, length, checksum 0 — IPv4 allows 0x0000).
+	binary.BigEndian.PutUint16(pkt[20:22], 0)
+	binary.BigEndian.PutUint16(pkt[22:24], 0)
+	binary.BigEndian.PutUint16(pkt[24:26], uint16(udpLen+len(payload)))
+	copy(pkt[headerLen+udpLen:], payload)
 	// IPv4 header checksum over the 20-byte header (RFC 791).
 	hdr := pkt[:headerLen]
 	var sum uint32

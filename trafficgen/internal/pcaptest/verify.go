@@ -253,7 +253,7 @@ func checkHasPayload(pcapPath string, c Case) error {
 	// 载荷存在性由 tcp.len（TCP payload 字节数）标记：真正的数据帧 tcp.len>0，
 	// 纯握手/挥手帧 tcp.len=0。dameng 设计（30-dameng-testcase）与 cql 设计
 	// （35-cql-testcase）都把 has_payload 语义定成"存在一个携带应用层数据的帧"。
-	if c.Proto == "dameng" || c.Proto == "cql" {
+	if c.Proto == "dameng" || c.Proto == "cql" || c.Proto == "drda" {
 		vals, err := FieldValues(pcapPath, "tcp.len", c.DecodeAs)
 		if err != nil {
 			return err
@@ -265,6 +265,23 @@ func checkHasPayload(pcapPath string, c Case) error {
 		}
 		return fmt.Errorf("no %s payload (tcp.len 0 everywhere; only TCP handshake/teardown)", c.Proto)
 	}
+	// 路由协议（igmp/ospf/pim）是 raw-IP 链，报文恒小（IGMP 8B 报文+20B IP
+	// = 28B，frame.len 恒 < 80），不能用帧长作代理。存在性由协议自身的报文
+	// 类型字段标记：非空 = 至少一个协议 PDU（raw-IP 链每个发出的包都是该
+	// 协议报文，无异帧污染）。
+	if c.Proto == "igmp" || c.Proto == "ospf" || c.Proto == "pim" {
+		field := map[string]string{"igmp": "igmp.type", "ospf": "ospf.msg", "pim": "pim.type"}[c.Proto]
+		vals, err := FieldValues(pcapPath, field, c.DecodeAs)
+		if err != nil {
+			return err
+		}
+		for _, v := range vals {
+			if v != "" {
+				return nil
+			}
+		}
+		return fmt.Errorf("no %s PDU (%s absent)", c.Proto, field)
+	}
 	lens, err := FieldValues(pcapPath, "frame.len", c.DecodeAs)
 	if err != nil {
 		return err
@@ -272,8 +289,11 @@ func checkHasPayload(pcapPath string, c Case) error {
 	for _, l := range lens {
 		if n, e := strconv.Atoi(l); e == nil {
 			// ISIS/L2-only frames can be as short as 60 bytes (IEEE 802.3
-			// minimum) so the generic "> 80" heuristic fails for them.
-			if n > 60 || (c.Proto == "isis" && n > 0) {
+			// minimum) so the generic "> 80" heuristic fails for them — the
+			// isis branch is protocol-specific and must not relax the generic
+			// threshold (a 66-byte TCP handshake with timestamps is NOT a
+			// payload-bearing frame).
+			if n > 80 || (c.Proto == "isis" && n > 0) {
 				return nil
 			}
 		}

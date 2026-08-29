@@ -335,15 +335,24 @@ func TestRegister(t *testing.T) {
 	if got := binary.BigEndian.Uint32(msg[4:8]); got != 0 {
 		t.Fatalf("register flags=%08x want 0", got)
 	}
-	// inner IPv4: version/IHL, total len = 20+4=24.
+	// inner IPv4: version/IHL, total len = 20(IP)+8(UDP)+4(payload)=32.
 	if msg[8] != 0x45 {
 		t.Fatalf("inner version/ihl=%02x want 45", msg[8])
 	}
-	if got := binary.BigEndian.Uint16(msg[10:12]); got != 24 {
-		t.Fatalf("inner total len=%d want 24", got)
+	if got := binary.BigEndian.Uint16(msg[10:12]); got != 32 {
+		t.Fatalf("inner total len=%d want 32", got)
 	}
-	// inner payload: hex "deadbeef" at 28..32.
-	if got := hex.EncodeToString(msg[28:32]); got != "deadbeef" {
+	// inner UDP header (8 bytes at 28..36): proto 17, ports 0, len = 8+4=12.
+	// msg layout: PIM(4) + flags(4) + inner IP(20) + UDP(8) + payload(4).
+	if msg[17] != core.ProtocolUDP {
+		t.Fatalf("inner ip proto=%d want 17 (UDP)", msg[17])
+	}
+	// UDP length is at inner IP 20+4..20+6 = msg[8+24:8+26] = msg[32:34].
+	if got := binary.BigEndian.Uint16(msg[32:34]); got != 12 {
+		t.Fatalf("inner udp length=%d want 12", got)
+	}
+	// inner payload: hex "deadbeef" at 36..40.
+	if got := hex.EncodeToString(msg[36:40]); got != "deadbeef" {
 		t.Fatalf("inner payload=%s want deadbeef", got)
 	}
 }

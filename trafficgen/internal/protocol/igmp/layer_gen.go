@@ -8,6 +8,42 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core/layers"
 )
 
+// dstFor resolves the IPv4 destination for an IGMP message per RFC 1112
+// (v1) / RFC 2236 (v2) / RFC 3376 (v3):
+//
+//   - query, general (group empty or 0.0.0.0) → 224.0.0.1
+//   - query, group-specific / source-specific → the group itself
+//   - report v1/v2 → the group itself (RFC 1112 §3 / RFC 2236 §4.2)
+//   - report v3 → 224.0.0.22 (RFC 3376 §4.2)
+//   - leave (v2) → 224.0.0.2 (RFC 2236 §6)
+//
+// The case JSON (test/protocol_pcap/cases/igmp.json) is the arbitration
+// authority: every positive case's expected ip.dst matches this table.
+func dstFor(kind, profile, group string) string {
+	switch kind {
+	case "leave":
+		return "224.0.0.2"
+	case "report":
+		if profile == "v3" {
+			return "224.0.0.22"
+		}
+		// v1/v2 membership report → the group itself. Both "" and "0.0.0.0"
+		// mean "no group configured"; fall back to ALL-HOSTS rather than
+		// emitting an unusable 0.0.0.0 destination (parity with the query
+		// branch).
+		if group == "" || group == "0.0.0.0" {
+			return "224.0.0.1"
+		}
+		return group
+	case "query":
+		if group == "" || group == "0.0.0.0" {
+			return "224.0.0.1"
+		}
+		return group
+	}
+	return "224.0.0.1"
+}
+
 type IGMPGenerator struct{}
 
 func (g *IGMPGenerator) Name() string                     { return "igmp" }
@@ -59,7 +95,7 @@ func (g *IGMPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 			if err != nil {
 				return fmt.Errorf("igmp: events[%d] %v", i, err)
 			}
-			if err := emit(ev.Group, msg); err != nil {
+			if err := emit(dstFor(ev.Kind, ev.Profile, ev.Group), msg); err != nil {
 				return err
 			}
 		}
@@ -85,7 +121,7 @@ func (g *IGMPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 	if err != nil {
 		return err
 	}
-	return emit(group, msg)
+	return emit(dstFor(kind, profile, group), msg)
 }
 
 func init() {

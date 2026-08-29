@@ -24,12 +24,39 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	if cfg.Profile == "rfc5340_ipv6" || cfg.Version == 3 {
 		return fmt.Errorf("ospf: version/profile uses rfc5340 (OSPFv3, IPv6) which is rejected here; use OSPFv2 rfc2328_ipv4")
 	}
+	// IPv6 addressing is N/A for OSPFv2 (RFC 2328, IPv4 only). A flow whose
+	// src/dst is an IPv6 address cannot be carried on IPv4 protocol 89; the
+	// neg_ipv6_v2 case (IPv6 + version=2 + rfc2328_ipv4) asserts this with the
+	// "rfc5340" anchor (OSPFv3 is the IPv6 variant).
+	if spec.SrcIP != "" && net.ParseIP(spec.SrcIP).To4() == nil {
+		return fmt.Errorf("ospf: IPv6 source address (rfc5340/OSPFv3 is IPv6; OSPFv2 rfc2328_ipv4 requires IPv4)")
+	}
+	if spec.DstIP != "" && net.ParseIP(spec.DstIP).To4() == nil {
+		return fmt.Errorf("ospf: IPv6 destination address (rfc5340/OSPFv3 is IPv6; OSPFv2 rfc2328_ipv4 requires IPv4)")
+	}
+	// Carrier rejection (design §6 载体): OSPFv2 rides directly on IPv4
+	// protocol 89 with no TCP/UDP ports. A wire_fault kind "carrier" is the
+	// planner-boundary injection for the neg_udp case (T-OSPF-N1): the UDP
+	// carrier config is rejected here, error anchored "ip".
+	if cfg.WireFault != nil && cfg.WireFault.Kind == "carrier" {
+		return fmt.Errorf("ospf: UDP/TCP carrier is invalid for OSPFv2 (carrier must be ip protocol 89, no transport ports)")
+	}
 	if cfg.Version != 0 && cfg.Version != 2 {
 		return fmt.Errorf("ospf: version %d must be 2 (OSPFv2 IPv4)", cfg.Version)
 	}
-	// packet_type invalid → error contains "type".
-	if _, err := packetTypeFromString(cfg.PacketType); err != nil {
-		return fmt.Errorf("ospf: %v", err)
+	// packet_type invalid → error contains "type". An empty packet_type is
+	// legal when the config carries an event sequence (ospf.events): the
+	// generator's event branch ignores PacketType entirely (layer_gen.go
+	// "Event sequence" branch, before buildFromConfig). When both events and
+	// a non-empty packet_type are present the packet_type is ignored — same
+	// event-authoritative semantics. A single-message config (no events)
+	// still requires a valid packet_type.
+	if cfg.PacketType != "" {
+		if _, err := packetTypeFromString(cfg.PacketType); err != nil {
+			return fmt.Errorf("ospf: %v", err)
+		}
+	} else if len(cfg.Events) == 0 {
+		return fmt.Errorf("ospf: invalid packet_type %q (set packet_type for a single message or events for a sequence)", cfg.PacketType)
 	}
 	// router_id malformed → error contains "router".
 	if cfg.RouterID != "" && net.ParseIP(cfg.RouterID).To4() == nil {

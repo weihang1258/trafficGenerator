@@ -26,8 +26,12 @@ func (Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("igmp: IPv6 is N/A")
 	}
 	// Destination must be multicast (224.0.0.0/4) for reports/leaves; general
-	// queries use 224.0.0.1.
-	if spec.DstIP != "" {
+	// queries use 224.0.0.1. Event sequences (cfg.Events) derive their
+	// per-message destination from each event's kind/profile/group (validated
+	// below in the events loop), so the top-level DstIP check is skipped —
+	// otherwise the flat spec default (20.0.0.1) would wrongly reject
+	// event-driven cases that omit dst_ip.
+	if len(cfg.Events) == 0 && spec.DstIP != "" {
 		dip := net.ParseIP(spec.DstIP).To4()
 		if dip == nil {
 			return fmt.Errorf("igmp: non-multicast destination (must be IPv4 multicast)")
@@ -43,6 +47,19 @@ func (Planner) Validate(spec core.FlowSpec) error {
 	// profile/kind mismatch.
 	if _, _, err := profileKind(cfg); err != nil {
 		return err
+	}
+	// wire_fault negative-path injection: the spec requests an on-wire fault
+	// (wrong IP protocol / bad checksum), which the generator must NOT emit —
+	// reject at validation (IGMPWireFault kinds protocol|checksum; the other
+	// kinds record|source_count|group are already rejected by the v3 record /
+	// source-count checks below).
+	if cfg.WireFault != nil {
+		switch cfg.WireFault.Kind {
+		case "protocol":
+			return fmt.Errorf("igmp: IP Protocol 2 required (wire_fault protocol)")
+		case "checksum":
+			return fmt.Errorf("igmp: invalid checksum requested (wire_fault checksum)")
+		}
 	}
 	// checksum_mode must be a known value.
 	switch cfg.ChecksumMode {

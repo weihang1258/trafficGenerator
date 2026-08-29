@@ -272,7 +272,7 @@ func TestHavePayload_ForIEC104ChecksAPDUPresence(t *testing.T) {
 	}
 }
 
-// TestHavePayload_ForDamengAndCQLChecksTCPLen: dameng/cql PDU 天然小（<80B），
+// TestHavePayload_ForDamengAndCQLChecksTCPLen: dameng/cql/drda PDU 天然小（<80B），
 // frame.len 恒 < 80，旧实现用 frame.len>80 作代理判断恒判"无负载"。应用层数据帧
 // 的 tcp.len>0，纯 TCP 握手/挥手帧 tcp.len=0——用 tcp.len 判断，而非整帧长。
 func TestHavePayload_ForDamengAndCQLChecksTCPLen(t *testing.T) {
@@ -283,6 +283,7 @@ func TestHavePayload_ForDamengAndCQLChecksTCPLen(t *testing.T) {
 	}{
 		{"dameng", "dameng_auth_success", pcapRoot + "/dameng/dameng_auth_success.pcap"},
 		{"cql", "cql_length_boundary", pcapRoot + "/cql/cql_length_boundary.pcap"},
+		{"drda", "drda_database_connect", pcapRoot + "/drda/drda_database_connect.pcap"},
 	}
 	for _, tc := range cases {
 		requirePcap(t, tc.pcap)
@@ -297,8 +298,51 @@ func TestHavePayload_ForDamengAndCQLChecksTCPLen(t *testing.T) {
 	// 负路径：纯 TCP 握手（无任何应用载荷，tcp.len 全程 0）必须失败。
 	p2 := pcapRoot + "/tcp/tcp-handshake-basic.pcap"
 	requirePcap(t, p2)
-	for _, proto := range []string{"dameng", "cql"} {
+	for _, proto := range []string{"dameng", "cql", "drda"} {
 		c2 := Case{ID: proto + "-nopayload", Proto: proto, Expect: Expect{HasPayload: true}}
+		probs := VerifyPcap(p2, c2)
+		found := false
+		for _, pr := range probs {
+			if strings.Contains(pr, "has_payload") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s has_payload on pure-TCP pcap must fail, got %v", proto, probs)
+		}
+	}
+}
+
+// TestHavePayload_ForRoutingProtocolsChecksPdu: igmp/ospf/pim 是 raw-IP 链，
+// 报文恒小（IGMP 8B+20B IP=28B，frame.len 恒 < 80），不能用整帧长作 has_payload
+// 代理。存在性由协议自身的报文类型字段（igmp.type/ospf.msg/pim.type）标记：
+// 非空 = 至少一个该协议 PDU。
+func TestHavePayload_ForRoutingProtocolsChecksPdu(t *testing.T) {
+	cases := []struct {
+		proto string
+		id    string
+		pcap  string
+	}{
+		{"igmp", "igmp_v1_general_query", pcapRoot + "/igmp/igmp_v1_general_query.pcap"},
+		{"ospf", "ospf_hello_dr_bdr", pcapRoot + "/ospf/ospf_hello_dr_bdr.pcap"},
+		{"pim", "pim_sm_hello_options", pcapRoot + "/pim/pim_sm_hello_options.pcap"},
+	}
+	for _, tc := range cases {
+		requirePcap(t, tc.pcap)
+		c := Case{ID: tc.id, Proto: tc.proto, Expect: Expect{HasPayload: true}}
+		problems := VerifyPcap(tc.pcap, c)
+		for _, pr := range problems {
+			if strings.Contains(pr, "has_payload") {
+				t.Fatalf("%s has_payload false-failure (PDU present but frame <80): %s", tc.proto, pr)
+			}
+		}
+	}
+	// 负路径：纯 TCP 握手（无任何 raw-IP 路由报文，igmp.type/ospf.msg/pim.type 全空）
+	// 必须失败。
+	p2 := pcapRoot + "/tcp/tcp-handshake-basic.pcap"
+	requirePcap(t, p2)
+	for _, proto := range []string{"igmp", "ospf", "pim"} {
+		c2 := Case{ID: proto + "-nopdu", Proto: proto, Expect: Expect{HasPayload: true}}
 		probs := VerifyPcap(p2, c2)
 		found := false
 		for _, pr := range probs {

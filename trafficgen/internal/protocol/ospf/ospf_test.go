@@ -213,3 +213,59 @@ func containsOspf(s, sub string) bool {
 	}
 	return false
 }
+
+func TestValidateRejectsIPv6Addressing(t *testing.T) {
+	err := (Planner{}).Validate(core.FlowSpec{
+		SrcIP: "2001:db8::1", DstIP: "ff02::5",
+		OSPF: &core.OSPFConfig{Version: 2, PacketType: "hello"},
+	})
+	if err == nil || !containsOspf(err.Error(), "rfc5340") {
+		t.Fatalf("err=%v want rfc5340", err)
+	}
+}
+
+func TestValidateRejectsIPv6DstOnly(t *testing.T) {
+	// IPv4 source with an IPv6 destination must hit the dedicated dst branch
+	// (src check passes, dst check rejects) — covers planner.go's DstIP path.
+	err := (Planner{}).Validate(core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "ff02::5",
+		OSPF: &core.OSPFConfig{Version: 2, PacketType: "hello"},
+	})
+	if err == nil || !containsOspf(err.Error(), "rfc5340") {
+		t.Fatalf("err=%v want rfc5340", err)
+	}
+}
+
+func TestValidateRejectsCarrierWireFault(t *testing.T) {
+	err := (Planner{}).Validate(core.FlowSpec{OSPF: &core.OSPFConfig{
+		Version: 2, PacketType: "hello", WireFault: &core.OSPFWireFault{Kind: "carrier", Value: "udp"},
+	}})
+	if err == nil || !containsOspf(err.Error(), "ip") {
+		t.Fatalf("err=%v want 'ip'", err)
+	}
+}
+
+func TestValidateEventsOnlyConfig(t *testing.T) {
+	// Events-only config (packet_type empty) must pass validation: the
+	// generator's event branch ignores PacketType entirely.
+	cfg := &core.OSPFConfig{
+		Version: 2, RouterID: "1.1.1.1", AreaID: "0.0.0.0",
+		Events: []core.OSPFEvent{
+			{Kind: "hello"},
+			{Kind: "db_description"},
+			{Kind: "link_state_request"},
+			{Kind: "link_state_update"},
+			{Kind: "link_state_acknowledgment"},
+		},
+	}
+	if err := (Planner{}).Validate(core.FlowSpec{OSPF: cfg}); err != nil {
+		t.Fatalf("events-only config must validate: %v", err)
+	}
+}
+
+func TestValidateRejectsEmptyConfigNoEvents(t *testing.T) {
+	err := (Planner{}).Validate(core.FlowSpec{OSPF: &core.OSPFConfig{Version: 2}})
+	if err == nil || !containsOspf(err.Error(), "type") {
+		t.Fatalf("err=%v want 'type'", err)
+	}
+}

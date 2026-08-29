@@ -38,7 +38,7 @@
     },
     "expect": {
       "packet_count": 1,
-      "directional": true,
+      "directional": false,
       "has_payload": true,
       "fields": [
         {
@@ -53,13 +53,13 @@
         },
         {
           "packet": 1,
-          "field": "ospf.version",
-          "value": "2"
+          "field": "ospf.msg",
+          "value": "1"
         },
         {
           "packet": 1,
-          "field": "ospf.type",
-          "value": "1"
+          "field": "ospf.version",
+          "value": "2"
         },
         {
           "packet": 1,
@@ -68,7 +68,7 @@
         },
         {
           "packet": 1,
-          "field": "ospf.router_id",
+          "field": "ospf.srcrouter",
           "value": "1.1.1.1"
         },
         {
@@ -88,12 +88,12 @@
         },
         {
           "packet": 1,
-          "field": "ospf.hello.dead_interval",
+          "field": "ospf.hello.router_dead_interval",
           "value": "40"
         },
         {
           "packet": 1,
-          "field": "ospf.hello.priority",
+          "field": "ospf.hello.router_priority",
           "value": "1"
         },
         {
@@ -108,7 +108,7 @@
         },
         {
           "packet": 1,
-          "field": "ospf.hello.neighbor",
+          "field": "ospf.hello.active_neighbor",
           "value": "2.2.2.2"
         },
         {
@@ -170,7 +170,7 @@
     },
     "expect": {
       "packet_count": 1,
-      "directional": true,
+      "directional": false,
       "has_payload": true,
       "fields": [
         {
@@ -185,13 +185,13 @@
         },
         {
           "packet": 1,
-          "field": "ospf.version",
-          "value": "2"
+          "field": "ospf.msg",
+          "value": "1"
         },
         {
           "packet": 1,
-          "field": "ospf.type",
-          "value": "1"
+          "field": "ospf.version",
+          "value": "2"
         },
         {
           "packet": 1,
@@ -200,13 +200,8 @@
         },
         {
           "packet": 1,
-          "field": "ospf.hello.neighbor",
+          "field": "ospf.hello.active_neighbor",
           "value": "2.2.2.2,3.3.3.3"
-        },
-        {
-          "packet": 1,
-          "field": "ospf.hello.neighbor_count",
-          "value": "2"
         },
         {
           "packet": 1,
@@ -274,7 +269,7 @@
     },
     "expect": {
       "packet_count": 1,
-      "directional": true,
+      "directional": false,
       "has_payload": true,
       "fields": [
         {
@@ -289,12 +284,12 @@
         },
         {
           "packet": 1,
-          "field": "ospf.version",
+          "field": "ospf.msg",
           "value": "2"
         },
         {
           "packet": 1,
-          "field": "ospf.type",
+          "field": "ospf.version",
           "value": "2"
         },
         {
@@ -304,32 +299,32 @@
         },
         {
           "packet": 1,
-          "field": "ospf.db_description.interface_mtu",
+          "field": "ospf.db.interface_mtu",
           "value": "1500"
         },
         {
           "packet": 1,
-          "field": "ospf.db_description.flags",
+          "field": "ospf.dbd",
           "value": "0x07"
         },
         {
           "packet": 1,
-          "field": "ospf.db_description.dd_sequence",
+          "field": "ospf.db.dd_sequence",
           "value": "100"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.type",
+          "field": "ospf.lsa",
           "value": "1"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.link_state_id",
+          "field": "ospf.lsa.id",
           "value": "1.1.1.1"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.advertising_router",
+          "field": "ospf.advrouter",
           "value": "1.1.1.1"
         }
       ],
@@ -394,7 +389,7 @@
     },
     "expect": {
       "packet_count": 1,
-      "directional": true,
+      "directional": false,
       "has_payload": true,
       "fields": [
         {
@@ -409,12 +404,12 @@
         },
         {
           "packet": 1,
-          "field": "ospf.version",
+          "field": "ospf.msg",
           "value": "2"
         },
         {
           "packet": 1,
-          "field": "ospf.type",
+          "field": "ospf.version",
           "value": "2"
         },
         {
@@ -424,17 +419,17 @@
         },
         {
           "packet": 1,
-          "field": "ospf.db_description.flags",
+          "field": "ospf.dbd",
           "value": "0x00"
         },
         {
           "packet": 1,
-          "field": "ospf.db_description.dd_sequence",
+          "field": "ospf.db.dd_sequence",
           "value": "101"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.type",
+          "field": "ospf.lsa",
           "value": "1"
         }
       ],
@@ -486,7 +481,7 @@
     },
     "expect": {
       "packet_count": 1,
-      "directional": true,
+      "directional": false,
       "has_payload": true,
       "fields": [
         {
@@ -501,13 +496,13 @@
         },
         {
           "packet": 1,
-          "field": "ospf.version",
-          "value": "2"
+          "field": "ospf.msg",
+          "value": "3"
         },
         {
           "packet": 1,
-          "field": "ospf.type",
-          "value": "3"
+          "field": "ospf.version",
+          "value": "2"
         },
         {
           "packet": 1,
@@ -516,17 +511,17 @@
         },
         {
           "packet": 1,
-          "field": "ospf.lsr.request.type",
+          "field": "ospf.lsa",
           "value": "1"
         },
         {
           "packet": 1,
-          "field": "ospf.lsr.request.link_state_id",
+          "field": "ospf.link_state_id",
           "value": "1.1.1.1"
         },
         {
           "packet": 1,
-          "field": "ospf.lsr.request.advertising_router",
+          "field": "ospf.advrouter",
           "value": "1.1.1.1"
         },
         {
@@ -583,7 +578,7 @@
     },
     "expect": {
       "packet_count": 1,
-      "directional": true,
+      "directional": false,
       "has_payload": true,
       "fields": [
         {
@@ -598,13 +593,13 @@
         },
         {
           "packet": 1,
-          "field": "ospf.version",
-          "value": "2"
+          "field": "ospf.msg",
+          "value": "3"
         },
         {
           "packet": 1,
-          "field": "ospf.type",
-          "value": "3"
+          "field": "ospf.version",
+          "value": "2"
         },
         {
           "packet": 1,
@@ -613,17 +608,17 @@
         },
         {
           "packet": 1,
-          "field": "ospf.lsr.request.type",
+          "field": "ospf.lsa",
           "value": "2"
         },
         {
           "packet": 1,
-          "field": "ospf.lsr.request.link_state_id",
+          "field": "ospf.link_state_id",
           "value": "10.0.0.2"
         },
         {
           "packet": 1,
-          "field": "ospf.lsr.request.advertising_router",
+          "field": "ospf.advrouter",
           "value": "1.1.1.1"
         }
       ],
@@ -689,7 +684,7 @@
     },
     "expect": {
       "packet_count": 1,
-      "directional": true,
+      "directional": false,
       "has_payload": true,
       "fields": [
         {
@@ -704,13 +699,13 @@
         },
         {
           "packet": 1,
-          "field": "ospf.version",
-          "value": "2"
+          "field": "ospf.msg",
+          "value": "4"
         },
         {
           "packet": 1,
-          "field": "ospf.type",
-          "value": "4"
+          "field": "ospf.version",
+          "value": "2"
         },
         {
           "packet": 1,
@@ -719,42 +714,47 @@
         },
         {
           "packet": 1,
-          "field": "ospf.lsu.lsa_count",
+          "field": "ospf.ls.number_of_lsas",
           "value": "1"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.type",
+          "field": "ospf.lsa",
           "value": "1"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.length",
+          "field": "ospf.lsa.length",
           "value": "36"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.router.flags",
+          "field": "ospf.v2.router.lsa.flags",
           "value": "0x00"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.router.link_count",
+          "field": "ospf.lsa.number_of_links",
           "value": "1"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.router.link.type",
+          "field": "ospf.lsa.router.linkid",
+          "value": "10.0.0.2"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.lsa.router.linktype",
           "value": "2"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.router.link.metric",
+          "field": "ospf.lsa.router.metric0",
           "value": "10"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.checksum",
+          "field": "ospf.lsa.chksum",
           "nonzero": true
         }
       ],
@@ -816,7 +816,7 @@
     },
     "expect": {
       "packet_count": 1,
-      "directional": true,
+      "directional": false,
       "has_payload": true,
       "fields": [
         {
@@ -831,13 +831,13 @@
         },
         {
           "packet": 1,
-          "field": "ospf.version",
-          "value": "2"
+          "field": "ospf.msg",
+          "value": "4"
         },
         {
           "packet": 1,
-          "field": "ospf.type",
-          "value": "4"
+          "field": "ospf.version",
+          "value": "2"
         },
         {
           "packet": 1,
@@ -846,32 +846,32 @@
         },
         {
           "packet": 1,
-          "field": "ospf.lsu.lsa_count",
+          "field": "ospf.ls.number_of_lsas",
           "value": "1"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.type",
+          "field": "ospf.lsa",
           "value": "2"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.link_state_id",
+          "field": "ospf.lsa.id",
           "value": "10.0.0.2"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.length",
+          "field": "ospf.lsa.length",
           "value": "32"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.network.mask",
+          "field": "ospf.lsa.network.netmask",
           "value": "255.255.255.0"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.network.attached_router",
+          "field": "ospf.lsa.network.attchrtr",
           "value": "1.1.1.1,2.2.2.2"
         }
       ],
@@ -936,7 +936,7 @@
     },
     "expect": {
       "packet_count": 1,
-      "directional": true,
+      "directional": false,
       "has_payload": true,
       "fields": [
         {
@@ -951,13 +951,13 @@
         },
         {
           "packet": 1,
-          "field": "ospf.version",
-          "value": "2"
+          "field": "ospf.msg",
+          "value": "5"
         },
         {
           "packet": 1,
-          "field": "ospf.type",
-          "value": "5"
+          "field": "ospf.version",
+          "value": "2"
         },
         {
           "packet": 1,
@@ -966,22 +966,17 @@
         },
         {
           "packet": 1,
-          "field": "ospf.lsack.lsa_count",
-          "value": "2"
-        },
-        {
-          "packet": 1,
-          "field": "ospf.lsa.header.type",
+          "field": "ospf.lsa",
           "value": "1,2"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.link_state_id",
+          "field": "ospf.lsa.id",
           "value": "1.1.1.1,10.0.0.2"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.length",
+          "field": "ospf.lsa.length",
           "value": "36,32"
         },
         {
@@ -1145,62 +1140,82 @@
         },
         {
           "packet": 1,
-          "field": "ospf.version",
-          "value": "2"
-        },
-        {
-          "packet": 1,
-          "field": "ospf.type",
+          "field": "ospf.msg",
           "value": "1"
         },
         {
+          "packet": 1,
+          "field": "ospf.packet_length",
+          "value": "48"
+        },
+        {
+          "packet": 1,
+          "field": "ospf.hello.active_neighbor",
+          "value": "2.2.2.2"
+        },
+        {
           "packet": 2,
-          "field": "ospf.type",
+          "field": "ospf.msg",
           "value": "2"
         },
         {
           "packet": 2,
-          "field": "ospf.neighbor_state",
-          "value": "ExStart"
+          "field": "ospf.dbd",
+          "value": "0x07"
+        },
+        {
+          "packet": 2,
+          "field": "ospf.db.dd_sequence",
+          "value": "100"
         },
         {
           "packet": 3,
-          "field": "ospf.neighbor_state",
-          "value": "Exchange"
+          "field": "ospf.msg",
+          "value": "2"
+        },
+        {
+          "packet": 3,
+          "field": "ospf.dbd",
+          "value": "0x02"
+        },
+        {
+          "packet": 3,
+          "field": "ospf.db.dd_sequence",
+          "value": "101"
+        },
+        {
+          "packet": 3,
+          "field": "ospf.lsa",
+          "value": "1"
         },
         {
           "packet": 4,
-          "field": "ospf.type",
+          "field": "ospf.msg",
           "value": "3"
         },
         {
           "packet": 4,
-          "field": "ospf.neighbor_state",
-          "value": "Loading"
+          "field": "ospf.lsa",
+          "value": "1"
         },
         {
           "packet": 5,
-          "field": "ospf.type",
+          "field": "ospf.msg",
           "value": "4"
         },
         {
           "packet": 5,
-          "field": "ospf.lsu.lsa_count",
+          "field": "ospf.ls.number_of_lsas",
           "value": "1"
         },
         {
           "packet": 6,
-          "field": "ospf.type",
+          "field": "ospf.msg",
           "value": "5"
         },
         {
           "packet": 6,
-          "field": "ospf.neighbor_state",
-          "value": "Full"
-        },
-        {
-          "packet": 6,
-          "field": "ospf.lsack.lsa_count",
+          "field": "ospf.lsa",
           "value": "1"
         }
       ],
@@ -1279,7 +1294,7 @@
     },
     "expect": {
       "packet_count": 1,
-      "directional": true,
+      "directional": false,
       "has_payload": true,
       "fields": [
         {
@@ -1294,12 +1309,22 @@
         },
         {
           "packet": 1,
+          "field": "ip.version",
+          "value": "4"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "224.0.0.5"
+        },
+        {
+          "packet": 1,
           "field": "ospf.version",
           "value": "2"
         },
         {
           "packet": 1,
-          "field": "ospf.type",
+          "field": "ospf.msg",
           "value": "1"
         },
         {
@@ -1309,27 +1334,7 @@
         },
         {
           "packet": 1,
-          "field": "ip.version",
-          "value": "4"
-        },
-        {
-          "packet": 1,
-          "field": "ip.proto",
-          "value": "89"
-        },
-        {
-          "packet": 1,
-          "field": "ip.ttl",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "ip.dst",
-          "value": "224.0.0.5"
-        },
-        {
-          "packet": 1,
-          "field": "ospf.router_id",
+          "field": "ospf.srcrouter",
           "value": "10.10.10.10"
         },
         {
@@ -1405,7 +1410,7 @@
     },
     "expect": {
       "packet_count": 1,
-      "directional": true,
+      "directional": false,
       "has_payload": true,
       "fields": [
         {
@@ -1425,13 +1430,8 @@
         },
         {
           "packet": 1,
-          "field": "ospf.type",
+          "field": "ospf.msg",
           "value": "4"
-        },
-        {
-          "packet": 1,
-          "field": "ospf.packet_length",
-          "value": "64"
         },
         {
           "packet": 1,
@@ -1445,12 +1445,12 @@
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.length",
+          "field": "ospf.lsa.length",
           "value": "36"
         },
         {
           "packet": 1,
-          "field": "ospf.lsa.header.checksum",
+          "field": "ospf.lsa.chksum",
           "nonzero": true
         },
         {
@@ -1460,7 +1460,7 @@
         },
         {
           "packet": 1,
-          "field": "ospf.router_id",
+          "field": "ospf.srcrouter",
           "value": "3.3.3.3"
         }
       ],
@@ -1483,7 +1483,7 @@
     "spec_json": {
       "layers": [
         {
-          "udp": {}
+          "ip": {}
         },
         {
           "ospf": {}
@@ -1495,7 +1495,14 @@
       "count": 1,
       "ospf": {
         "version": 2,
-        "packet_type": "hello"
+        "profile": "rfc2328_ipv4",
+        "packet_type": "hello",
+        "router_id": "1.1.1.1",
+        "area_id": "0.0.0.0",
+        "wire_fault": {
+          "kind": "carrier",
+          "value": "udp"
+        }
       }
     },
     "expect": {
@@ -1510,7 +1517,7 @@
     "spec_json": {
       "layers": [
         {
-          "ipv6": {}
+          "ip": {}
         },
         {
           "ospf": {}
@@ -1697,7 +1704,7 @@
     "spec_json": {
       "layers": [
         {
-          "ipv6": {}
+          "ip": {}
         },
         {
           "ospf": {}
@@ -1711,11 +1718,7 @@
         "profile": "rfc5340_ipv6",
         "packet_type": "hello",
         "router_id": "1.1.1.1",
-        "area_id": "0.0.0.0",
-        "wire_fault": {
-          "kind": "profile_boundary",
-          "value": "design_only"
-        }
+        "area_id": "0.0.0.0"
       }
     },
     "expect": {
