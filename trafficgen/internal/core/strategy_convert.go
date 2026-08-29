@@ -1419,6 +1419,19 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 446
 		}
+	case "thrift":
+		if sub, ok := cfg["thrift"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(sub)
+			var v ThriftConfig
+			if err := json.Unmarshal(b, &v); err != nil {
+				spec.ValidationErrors = append(spec.ValidationErrors, "thrift: "+err.Error())
+			} else {
+				spec.Thrift = &v
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 9090
+		}
 	case "cflow":
 		if sub, ok := cfg["cflow"].(map[string]interface{}); ok {
 			b, _ := json.Marshal(sub)
