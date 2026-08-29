@@ -1842,6 +1842,52 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 	switch term.Name {
 	case "goose":
 		return
+	case "opcua":
+		if spec.OPCUA != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		cfg := completedConfig(s, term.Config)
+		spec.OPCUA = &core.OPCUAConfig{}
+		if v, ok := configString(cfg["security_mode"]); ok {
+			spec.OPCUA.SecurityMode = v
+		}
+		if v, ok := cfg["read"].([]interface{}); ok {
+			spec.OPCUA.Read = decodeNodeOps(v)
+		}
+		if v, ok := cfg["write"].([]interface{}); ok {
+			spec.OPCUA.Write = decodeNodeOps(v)
+		}
+		if v, ok := cfg["browse"].([]interface{}); ok {
+			spec.OPCUA.Browse = decodeNodeOps(v)
+		}
+		if v, ok := cfg["subscription"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(v)
+			var sc core.OPCUASubConfig
+			json.Unmarshal(b, &sc)
+			spec.OPCUA.Subscription = &sc
+		}
+		if v, ok := cfg["error_inject"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(v)
+			var ei core.OPCUAErrInject
+			json.Unmarshal(b, &ei)
+			spec.OPCUA.ErrorInject = &ei
+		}
+		if v, ok := cfg["sessions"].(float64); ok {
+			spec.OPCUA.Sessions = int(v)
+		}
+		if v, ok := cfg["close"].(bool); ok {
+			spec.OPCUA.Close = v
+		}
+		if v, ok := cfg["skip_channel"].(bool); ok {
+			spec.OPCUA.SkipChannel = v
+		}
+		if v, ok := cfg["bad_message_size"].(bool); ok {
+			spec.OPCUA.BadMessageSize = v
+		}
+		if v, ok := cfg["bad_length"].(bool); ok {
+			spec.OPCUA.BadLength = v
+		}
+		return
 	case "mms":
 		if spec.MMS == nil {
 			spec.MMS = &core.MMSConfig{}
@@ -1926,6 +1972,23 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.PostgreSQL = &core.PostgreSQLConfig{Dialect: "postgresql", WireProfile: "postgresql_v3"}
 		}
 	}
+}
+
+// decodeNodeOps converts a layer-config list of node operations into
+// OPCUANodeRead values (read/write/browse share the shape).
+func decodeNodeOps(v []interface{}) []core.OPCUANodeRead {
+	ops := make([]core.OPCUANodeRead, 0, len(v))
+	for _, item := range v {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		b, _ := json.Marshal(m)
+		var op core.OPCUANodeRead
+		json.Unmarshal(b, &op)
+		ops = append(ops, op)
+	}
+	return ops
 }
 
 // completedConfig overlays the user layer config onto the schema defaults

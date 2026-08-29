@@ -1070,13 +1070,45 @@ type DRDAParam struct {
 
 // OPCUAConfig configures a minimal OPC UA TCP session.
 type OPCUAConfig struct {
-	Transport      string `json:"transport,omitempty"`
-	SecurityMode   string `json:"security_mode,omitempty"`
-	Read           bool   `json:"read,omitempty"`
-	Close          bool   `json:"close,omitempty"`
-	SkipChannel    bool   `json:"skip_channel,omitempty"`
-	BadMessageSize bool   `json:"bad_message_size,omitempty"`
-	BadLength      bool   `json:"bad_length,omitempty"`
+	Transport    string           `json:"transport,omitempty"`
+	SecurityMode string           `json:"security_mode,omitempty"`
+	Read         []OPCUANodeRead  `json:"read,omitempty"`
+	Write        []OPCUANodeRead  `json:"write,omitempty"`
+	Browse       []OPCUANodeRead  `json:"browse,omitempty"`
+	Subscription *OPCUASubConfig  `json:"subscription,omitempty"`
+	Sessions     int              `json:"sessions,omitempty"`
+	ErrorInject  *OPCUAErrInject  `json:"error_inject,omitempty"`
+	Close        bool             `json:"close,omitempty"`
+	SkipChannel  bool             `json:"skip_channel,omitempty"`
+	// BadMessageSize / BadLength are negative-test injections: Validate
+	// rejects them (the faulted spec must never produce traffic).
+	BadMessageSize bool `json:"bad_message_size,omitempty"`
+	BadLength      bool `json:"bad_length,omitempty"`
+}
+
+// OPCUANodeRead is one node-scoped service operation (read/write/browse op
+// with its target node list and attribute).
+type OPCUANodeRead struct {
+	NodeIDs     []string `json:"node_ids,omitempty"`
+	AttributeID uint32   `json:"attribute_id,omitempty"`
+}
+
+// OPCUASubConfig configures the subscription scenario (create + monitored
+// items + publish_count publishes + keepalives).
+type OPCUASubConfig struct {
+	PublishingIntervalMs uint32   `json:"publishing_interval_ms,omitempty"`
+	PublishCount         int      `json:"publish_count,omitempty"`
+	PublishIntervalMs    uint32   `json:"publish_interval_ms,omitempty"`
+	KeepAlive            bool     `json:"keep_alive,omitempty"`
+	MaxKeepAliveCount    uint32   `json:"max_keep_alive_count,omitempty"`
+	MonitoredNodes       []string `json:"monitored_nodes,omitempty"`
+}
+
+// OPCUAErrInject injects a service-level error into the MSG response
+// (bad_node → BadNodeIdUnknown, denied → BadUserAccessDenied).
+type OPCUAErrInject struct {
+	Op   string `json:"op,omitempty"`
+	Node string `json:"node,omitempty"`
 }
 
 // MMSConfig configures an IEC 61850 MMS session over TCP.

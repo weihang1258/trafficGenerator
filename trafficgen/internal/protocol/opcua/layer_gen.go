@@ -20,19 +20,14 @@ func (g *OPCUAGenerator) Generate(ctx context.Context, req *layers.GenRequest) e
 	if req == nil || req.EmitMsg == nil {
 		return fmt.Errorf("opcua generator: EmitMsg is nil")
 	}
-	if req.Meta.OPCUA == nil {
+	cfg := req.Meta.OPCUA
+	if cfg == nil {
 		// P0b-2：空配置默认化并产默认流（security none + read + close）。
-		// 与 Planner.Plan 的默认化一致。
-		req.Meta.OPCUA = &core.OPCUAConfig{Read: true, Close: true}
+		cfg = &core.OPCUAConfig{Close: true}
 	}
-	spec := core.FlowSpec{OPCUA: req.Meta.OPCUA, SrcIP: req.Meta.SrcIP, DstIP: req.Meta.DstIP, SrcPort: req.Meta.SrcPort, DstPort: req.Meta.DstPort}
-	var events []layers.MessageEvent
-	ch, err := (Planner{}).Plan(ctx, spec)
+	events, err := buildEvents(cfg)
 	if err != nil {
 		return err
-	}
-	for pkt := range ch {
-		events = append(events, layers.MessageEvent{Up: pkt.Direction == "up", Bytes: pkt.Payload})
 	}
 	for _, ev := range events {
 		select {
@@ -40,7 +35,7 @@ func (g *OPCUAGenerator) Generate(ctx context.Context, req *layers.GenRequest) e
 			return ctx.Err()
 		default:
 		}
-		if err := req.EmitMsg(ev); err != nil {
+		if err := req.EmitMsg(layers.MessageEvent{Up: ev.Up, Bytes: ev.Bytes}); err != nil {
 			return err
 		}
 	}

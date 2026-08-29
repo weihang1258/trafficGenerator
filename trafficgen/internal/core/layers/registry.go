@@ -402,7 +402,12 @@ func DefaultRegistry() *Registry {
 	})
 	r.Register(LayerSchema{Name: "opcua", Category: CategoryTerminal, DependsOn: []string{"tcp"}, Fields: map[string]FieldSchema{
 		"security_mode":    {Type: "string", Default: "none"},
-		"read":             {Type: "bool", Default: true},
+		"read":             {Type: "list", Default: []interface{}{}},
+		"write":            {Type: "list", Default: []interface{}{}},
+		"browse":           {Type: "list", Default: []interface{}{}},
+		"subscription":     {Type: "object"},
+		"sessions":         {Type: "int", Default: 0, Min: 0, Max: 0},
+		"error_inject":     {Type: "object"},
 		"close":            {Type: "bool", Default: true},
 		"skip_channel":     {Type: "bool", Default: false},
 		"bad_message_size": {Type: "bool", Default: false},

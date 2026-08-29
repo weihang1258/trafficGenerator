@@ -1,695 +1,695 @@
 [
-  {
-    "id": "opcua_hello_ack",
-    "proto": "opcua",
-    "summary": "OPC UA transport handshake: HEL/ACK with an empty EndpointUrl",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 100000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "none",
-            "close": true
-          }
-        }
-      ]
+ {
+  "id": "opcua_hello_ack",
+  "proto": "opcua",
+  "summary": "OPC UA transport handshake: HEL/ACK with an empty EndpointUrl",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 100000
+     }
     },
-    "expect": {
-      "packet_count": 11,
-      "has_handshake": true,
-      "terminates": true,
-      "fields": [
-        {
-          "packet": 4,
-          "field": "tcp.dstport",
-          "value": "4840"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "48454c46 20000000"
-        },
-        {
-          "packet": 5,
-          "offset": 54,
-          "hex": "41434b46 1c000000"
-        },
-        {
-          "packet": 6,
-          "offset": 54,
-          "hex": "4f504e46"
-        },
-        {
-          "packet": 8,
-          "offset": 54,
-          "hex": "434c4f46"
-        }
-      ],
-      "notes": [
-        "HEL contains five UInt32 fields plus an empty EndpointUrl String, so MessageSize is 32; ACK contains only the five UInt32 fields, so MessageSize is 28."
-      ]
+    {
+     "opcua": {
+      "security_mode": "none",
+      "close": true
+     }
     }
+   ]
   },
-  {
-    "id": "opcua_open_none",
-    "proto": "opcua",
-    "summary": "OpenSecureChannel with SecurityPolicy None followed by a multi-NodeId Read",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 200000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "none",
-            "read": [
-              {
-                "node_ids": [
-                  "ns=0;i=1001",
-                  "ns=0;i=1002"
-                ],
-                "attribute_id": 13
-              }
-            ],
-            "close": true
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 13,
-      "terminates": true,
-      "frames": [
-        {
-          "packet": 6,
-          "offset": 54,
-          "hex": "4f504e46"
-        },
-        {
-          "packet": 6,
-          "offset": 62,
-          "hex": "00000000"
-        },
-        {
-          "packet": 7,
-          "offset": 54,
-          "hex": "4f504e46"
-        },
-        {
-          "packet": 7,
-          "offset": 62,
-          "hex": "01000000"
-        },
-        {
-          "packet": 8,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 8,
-          "offset": 62,
-          "hex": "01000000"
-        },
-        {
-          "packet": 8,
-          "offset": 66,
-          "hex": "e8030000"
-        },
-        {
-          "packet": 10,
-          "offset": 54,
-          "hex": "434c4f46"
-        }
-      ],
-      "notes": [
-        "The two ReadValueId entries are ns=0 FourByte NodeIds 1001 and 1002. TokenId 1000 from the OPN response is reused in the MSG request."
-      ]
+  "expect": {
+   "packet_count": 13,
+   "has_handshake": true,
+   "terminates": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "4840"
     }
-  },
-  {
-    "id": "opcua_open_sign",
-    "proto": "opcua",
-    "summary": "OpenSecureChannel with Basic256Sha256 Sign structure",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 300000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "sign",
-            "close": true
-          }
-        }
-      ]
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "48454c46 20000000"
     },
-    "expect": {
-      "packet_count": 11,
-      "terminates": true,
-      "frames": [
-        {
-          "packet": 6,
-          "offset": 54,
-          "hex": "4f504e46"
-        },
-        {
-          "packet": 6,
-          "offset": 62,
-          "hex": "00000000"
-        },
-        {
-          "packet": 7,
-          "offset": 54,
-          "hex": "4f504e46"
-        },
-        {
-          "packet": 7,
-          "offset": 62,
-          "hex": "01000000"
-        },
-        {
-          "packet": 8,
-          "offset": 54,
-          "hex": "434c4f46"
-        }
-      ],
-      "notes": [
-        "This is a structural Sign case. It does not assert that placeholder signature bytes are cryptographically verifiable."
-      ]
-    }
-  },
-  {
-    "id": "opcua_write",
-    "proto": "opcua",
-    "summary": "Write one node Value attribute and return a service response",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 500000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "none",
-            "write": [
-              {
-                "node_ids": [
-                  "ns=0;i=1001"
-                ],
-                "attribute_id": 13
-              }
-            ],
-            "close": true
-          }
-        }
-      ]
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "41434b46 1c000000"
     },
-    "expect": {
-      "packet_count": 13,
-      "terminates": true,
-      "frames": [
-        {
-          "packet": 8,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 8,
-          "offset": 62,
-          "hex": "01000000"
-        },
-        {
-          "packet": 8,
-          "offset": 66,
-          "hex": "e8030000"
-        },
-        {
-          "packet": 9,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 10,
-          "offset": 54,
-          "hex": "434c4f46"
-        }
-      ],
-      "notes": [
-        "The request contains a WriteValue with a DataValue/Variant value; the response contains a WriteResponse result array."
-      ]
-    }
-  },
-  {
-    "id": "opcua_browse",
-    "proto": "opcua",
-    "summary": "Browse the ObjectsFolder with forward references",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 600000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "none",
-            "browse": [
-              {
-                "node_ids": [
-                  "ns=0;i=85"
-                ],
-                "attribute_id": 0
-              }
-            ],
-            "close": true
-          }
-        }
-      ]
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "4f504e46"
     },
-    "expect": {
-      "packet_count": 13,
-      "terminates": true,
-      "frames": [
-        {
-          "packet": 8,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 8,
-          "offset": 62,
-          "hex": "01000000"
-        },
-        {
-          "packet": 8,
-          "offset": 66,
-          "hex": "e8030000"
-        },
-        {
-          "packet": 9,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 10,
-          "offset": 54,
-          "hex": "434c4f46"
-        }
-      ],
-      "notes": [
-        "The BrowseDescription uses ObjectsFolder ns=0;i=85 and forward direction; mask defaults are documented in the testcase specification."
-      ]
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "434c4f46"
     }
-  },
-  {
-    "id": "opcua_subscribe",
-    "proto": "opcua",
-    "summary": "Create a subscription, monitor one node, publish one notification, then one keep-alive",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 700000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "none",
-            "subscription": {
-              "publishing_interval_ms": 1000,
-              "publish_count": 2,
-              "publish_interval_ms": 1000,
-              "keep_alive": true,
-              "max_keep_alive_count": 100,
-              "monitored_nodes": [
-                "ns=0;i=1001"
-              ]
-            },
-            "close": true
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 21,
-      "terminates": true,
-      "frames": [
-        {
-          "packet": 8,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 10,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 12,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 14,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 16,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 18,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 20,
-          "offset": 54,
-          "hex": "434c4f46"
-        }
-      ],
-      "notes": [
-        "The five request/response pairs are CreateSubscription, CreateMonitoredItems, SetPublishingMode, Publish with a notification, and Publish keep-alive. CLO is one symmetric message and has no CLO response."
-      ]
-    }
-  },
-  {
-    "id": "opcua_bad_node",
-    "proto": "opcua",
-    "summary": "Read an unknown node and return BadNodeIdUnknown 0x80340000",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 900000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "none",
-            "read": [
-              {
-                "node_ids": [
-                  "ns=0;i=9999"
-                ],
-                "attribute_id": 13
-              }
-            ],
-            "error_inject": {
-              "op": "bad_node",
-              "node": "ns=0;i=9999"
-            },
-            "close": true
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 13,
-      "terminates": true,
-      "frames": [
-        {
-          "packet": 8,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 9,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 10,
-          "offset": 54,
-          "hex": "434c4f46"
-        }
-      ],
-      "notes": [
-        "The response ServiceResult must be StatusCode BadNodeIdUnknown (0x80340000), encoded on the wire as 00 00 34 80. Its absolute offset is intentionally not hard-coded because RequestHeader timestamps and arrays are variable-length."
-      ]
-    }
-  },
-  {
-    "id": "opcua_denied",
-    "proto": "opcua",
-    "summary": "Write an unauthorized node and return BadUserAccessDenied 0x801F0000",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 1000000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "none",
-            "write": [
-              {
-                "node_ids": [
-                  "ns=0;i=1001"
-                ],
-                "attribute_id": 13
-              }
-            ],
-            "error_inject": {
-              "op": "denied"
-            },
-            "close": true
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 13,
-      "terminates": true,
-      "frames": [
-        {
-          "packet": 8,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 9,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 10,
-          "offset": 54,
-          "hex": "434c4f46"
-        }
-      ],
-      "notes": [
-        "The response ServiceResult must be StatusCode BadUserAccessDenied (0x801F0000), encoded on the wire as 00 00 1f 80. Its absolute offset is intentionally not hard-coded for the same reason as the bad-node case."
-      ]
-    }
-  },
-  {
-    "id": "opcua_ipv6",
-    "proto": "opcua",
-    "summary": "OPC UA over IPv6: HEL/ACK, OPN, and Read",
-    "spec_json": {
-      "layers": [
-        {
-          "ipv6": {},
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 1100000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "none",
-            "read": [
-              {
-                "node_ids": [
-                  "ns=0;i=1001"
-                ],
-                "attribute_id": 13
-              }
-            ],
-            "close": true
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 13,
-      "terminates": true,
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 74,
-          "hex": "48454c46 20000000"
-        },
-        {
-          "packet": 5,
-          "offset": 74,
-          "hex": "41434b46 1c000000"
-        },
-        {
-          "packet": 6,
-          "offset": 74,
-          "hex": "4f504e46"
-        },
-        {
-          "packet": 8,
-          "offset": 74,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 10,
-          "offset": 74,
-          "hex": "434c4f46"
-        }
-      ]
-    }
-  },
-  {
-    "id": "opcua_multi_session",
-    "proto": "opcua",
-    "summary": "Three logical sessions interleave one Read each on one secure channel",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 1200000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "none",
-            "sessions": 3,
-            "read": [
-              {
-                "node_ids": [
-                  "ns=1;i=1001"
-                ],
-                "attribute_id": 13
-              }
-            ],
-            "close": true
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 17,
-      "terminates": true,
-      "frames": [
-        {
-          "packet": 8,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 10,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 12,
-          "offset": 54,
-          "hex": "4d534746"
-        },
-        {
-          "packet": 14,
-          "offset": 54,
-          "hex": "434c4f46"
-        }
-      ],
-      "notes": [
-        "sessions=3 denotes three logical session contexts on one TCP connection; the three Read request/response pairs are interleaved and each keeps its own AuthenticationToken and RequestHandle space."
-      ]
-    }
-  },
-  {
-    "id": "opcua_bad_size_neg",
-    "proto": "opcua",
-    "summary": "Negative: malformed MessageSize and an overlong String length are rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 1300000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "none",
-            "bad_message_size": true,
-            "bad_length": true,
-            "close": false
-          }
-        }
-      ]
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "MessageSize",
-      "notes": [
-        "The generator must reject the malformed transport length before treating the overlong String/ByteString length as a valid field. No exact packet count is asserted for this negative case."
-      ]
-    }
-  },
-  {
-    "id": "opcua_no_channel_neg",
-    "proto": "opcua",
-    "summary": "Negative: a Read before OpenSecureChannel is rejected",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {
-            "dst_port": 4840,
-            "initial_seq": 1400000
-          }
-        },
-        {
-          "opcua": {
-            "security_mode": "none",
-            "skip_channel": true,
-            "read": [
-              {
-                "node_ids": [
-                  "ns=0;i=1001"
-                ],
-                "attribute_id": 13
-              }
-            ],
-            "close": false
-          }
-        }
-      ]
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "secureChannel",
-      "notes": [
-        "The semantic error is BadSecureChannelIdInvalid (0x80870000); the case is a validation/generation negative and does not assert a server response packet."
-      ]
-    }
+   ],
+   "notes": [
+    "HEL contains five UInt32 fields plus an empty EndpointUrl String, so MessageSize is 32; ACK contains only the five UInt32 fields, so MessageSize is 28."
+   ]
   }
+ },
+ {
+  "id": "opcua_open_none",
+  "proto": "opcua",
+  "summary": "OpenSecureChannel with SecurityPolicy None followed by a multi-NodeId Read",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 200000
+     }
+    },
+    {
+     "opcua": {
+      "security_mode": "none",
+      "read": [
+       {
+        "node_ids": [
+         "ns=0;i=1001",
+         "ns=0;i=1002"
+        ],
+        "attribute_id": 13
+       }
+      ],
+      "close": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 15,
+   "terminates": true,
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "4f504e46"
+    },
+    {
+     "packet": 6,
+     "offset": 62,
+     "hex": "00000000"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "4f504e46"
+    },
+    {
+     "packet": 7,
+     "offset": 62,
+     "hex": "01000000"
+    },
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 8,
+     "offset": 62,
+     "hex": "01000000"
+    },
+    {
+     "packet": 8,
+     "offset": 66,
+     "hex": "e8030000"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "434c4f46"
+    }
+   ],
+   "notes": [
+    "The two ReadValueId entries are ns=0 FourByte NodeIds 1001 and 1002. TokenId 1000 from the OPN response is reused in the MSG request."
+   ]
+  }
+ },
+ {
+  "id": "opcua_open_sign",
+  "proto": "opcua",
+  "summary": "OpenSecureChannel with Basic256Sha256 Sign structure",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 300000
+     }
+    },
+    {
+     "opcua": {
+      "security_mode": "sign",
+      "close": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 13,
+   "terminates": true,
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "4f504e46"
+    },
+    {
+     "packet": 6,
+     "offset": 62,
+     "hex": "00000000"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "4f504e46"
+    },
+    {
+     "packet": 7,
+     "offset": 62,
+     "hex": "01000000"
+    },
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "434c4f46"
+    }
+   ],
+   "notes": [
+    "This is a structural Sign case. It does not assert that placeholder signature bytes are cryptographically verifiable."
+   ]
+  }
+ },
+ {
+  "id": "opcua_write",
+  "proto": "opcua",
+  "summary": "Write one node Value attribute and return a service response",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 500000
+     }
+    },
+    {
+     "opcua": {
+      "security_mode": "none",
+      "write": [
+       {
+        "node_ids": [
+         "ns=0;i=1001"
+        ],
+        "attribute_id": 13
+       }
+      ],
+      "close": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 15,
+   "terminates": true,
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 8,
+     "offset": 62,
+     "hex": "01000000"
+    },
+    {
+     "packet": 8,
+     "offset": 66,
+     "hex": "e8030000"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "434c4f46"
+    }
+   ],
+   "notes": [
+    "The request contains a WriteValue with a DataValue/Variant value; the response contains a WriteResponse result array."
+   ]
+  }
+ },
+ {
+  "id": "opcua_browse",
+  "proto": "opcua",
+  "summary": "Browse the ObjectsFolder with forward references",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 600000
+     }
+    },
+    {
+     "opcua": {
+      "security_mode": "none",
+      "browse": [
+       {
+        "node_ids": [
+         "ns=0;i=85"
+        ],
+        "attribute_id": 0
+       }
+      ],
+      "close": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 15,
+   "terminates": true,
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 8,
+     "offset": 62,
+     "hex": "01000000"
+    },
+    {
+     "packet": 8,
+     "offset": 66,
+     "hex": "e8030000"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "434c4f46"
+    }
+   ],
+   "notes": [
+    "The BrowseDescription uses ObjectsFolder ns=0;i=85 and forward direction; mask defaults are documented in the testcase specification."
+   ]
+  }
+ },
+ {
+  "id": "opcua_subscribe",
+  "proto": "opcua",
+  "summary": "Create a subscription, monitor one node, publish one notification, then one keep-alive",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 700000
+     }
+    },
+    {
+     "opcua": {
+      "security_mode": "none",
+      "subscription": {
+       "publishing_interval_ms": 1000,
+       "publish_count": 2,
+       "publish_interval_ms": 1000,
+       "keep_alive": true,
+       "max_keep_alive_count": 100,
+       "monitored_nodes": [
+        "ns=0;i=1001"
+       ]
+      },
+      "close": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 23,
+   "terminates": true,
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 12,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 14,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 16,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 18,
+     "offset": 54,
+     "hex": "434c4f46"
+    }
+   ],
+   "notes": [
+    "The five request/response pairs are CreateSubscription, CreateMonitoredItems, SetPublishingMode, Publish with a notification, and Publish keep-alive. CLO is one symmetric message and has no CLO response."
+   ]
+  }
+ },
+ {
+  "id": "opcua_bad_node",
+  "proto": "opcua",
+  "summary": "Read an unknown node and return BadNodeIdUnknown 0x80340000",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 900000
+     }
+    },
+    {
+     "opcua": {
+      "security_mode": "none",
+      "read": [
+       {
+        "node_ids": [
+         "ns=0;i=9999"
+        ],
+        "attribute_id": 13
+       }
+      ],
+      "error_inject": {
+       "op": "bad_node",
+       "node": "ns=0;i=9999"
+      },
+      "close": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 15,
+   "terminates": true,
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "434c4f46"
+    }
+   ],
+   "notes": [
+    "The response ServiceResult must be StatusCode BadNodeIdUnknown (0x80340000), encoded on the wire as 00 00 34 80. Its absolute offset is intentionally not hard-coded because RequestHeader timestamps and arrays are variable-length."
+   ]
+  }
+ },
+ {
+  "id": "opcua_denied",
+  "proto": "opcua",
+  "summary": "Write an unauthorized node and return BadUserAccessDenied 0x801F0000",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 1000000
+     }
+    },
+    {
+     "opcua": {
+      "security_mode": "none",
+      "write": [
+       {
+        "node_ids": [
+         "ns=0;i=1001"
+        ],
+        "attribute_id": 13
+       }
+      ],
+      "error_inject": {
+       "op": "denied"
+      },
+      "close": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 15,
+   "terminates": true,
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "434c4f46"
+    }
+   ],
+   "notes": [
+    "The response ServiceResult must be StatusCode BadUserAccessDenied (0x801F0000), encoded on the wire as 00 00 1f 80. Its absolute offset is intentionally not hard-coded for the same reason as the bad-node case."
+   ]
+  }
+ },
+ {
+  "id": "opcua_ipv6",
+  "proto": "opcua",
+  "summary": "OPC UA over IPv6: HEL/ACK, OPN, and Read",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8::1",
+      "dst": "2001:db8::2"
+     }
+    },
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 1100000
+     }
+    },
+    {
+     "opcua": {
+      "security_mode": "none",
+      "read": [
+       {
+        "node_ids": [
+         "ns=0;i=1001"
+        ],
+        "attribute_id": 13
+       }
+      ],
+      "close": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 15,
+   "terminates": true,
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 74,
+     "hex": "48454c46 20000000"
+    },
+    {
+     "packet": 5,
+     "offset": 74,
+     "hex": "41434b46 1c000000"
+    },
+    {
+     "packet": 6,
+     "offset": 74,
+     "hex": "4f504e46"
+    },
+    {
+     "packet": 8,
+     "offset": 74,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 10,
+     "offset": 74,
+     "hex": "434c4f46"
+    }
+   ]
+  }
+ },
+ {
+  "id": "opcua_multi_session",
+  "proto": "opcua",
+  "summary": "Three logical sessions interleave one Read each on one secure channel",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 1200000
+     }
+    },
+    {
+     "opcua": {
+      "security_mode": "none",
+      "sessions": 3,
+      "read": [
+       {
+        "node_ids": [
+         "ns=1;i=1001"
+        ],
+        "attribute_id": 13
+       }
+      ],
+      "close": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 19,
+   "terminates": true,
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 12,
+     "offset": 54,
+     "hex": "4d534746"
+    },
+    {
+     "packet": 14,
+     "offset": 54,
+     "hex": "434c4f46"
+    }
+   ],
+   "notes": [
+    "sessions=3 denotes three logical session contexts on one TCP connection; the three Read request/response pairs are interleaved and each keeps its own AuthenticationToken and RequestHandle space."
+   ]
+  }
+ },
+ {
+  "id": "opcua_bad_size_neg",
+  "proto": "opcua",
+  "summary": "Negative: malformed MessageSize and an overlong String length are rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 1300000
+     }
+    },
+    {
+     "opcua": {
+      "security_mode": "none",
+      "bad_message_size": true,
+      "bad_length": true,
+      "close": false
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "MessageSize",
+   "notes": [
+    "The generator must reject the malformed transport length before treating the overlong String/ByteString length as a valid field. No exact packet count is asserted for this negative case."
+   ]
+  }
+ },
+ {
+  "id": "opcua_no_channel_neg",
+  "proto": "opcua",
+  "summary": "Negative: a Read before OpenSecureChannel is rejected",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {
+      "dst_port": 4840,
+      "initial_seq": 1400000
+     }
+    },
+    {
+     "opcua": {
+      "security_mode": "none",
+      "skip_channel": true,
+      "read": [
+       {
+        "node_ids": [
+         "ns=0;i=1001"
+        ],
+        "attribute_id": 13
+       }
+      ],
+      "close": false
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "secureChannel",
+   "notes": [
+    "The semantic error is BadSecureChannelIdInvalid (0x80870000); the case is a validation/generation negative and does not assert a server response packet."
+   ]
+  }
+ }
 ]
