@@ -187,7 +187,10 @@ type PIMEvent struct {
 	GenerationID     string            `json:"generation_id,omitempty"` // "0x01020304"
 	DRPriority       int               `json:"dr_priority,omitempty"`
 	LANPruneDelay    *PIMLANPruneDelay `json:"lan_prune_delay,omitempty"`
-	Retransmission   int               `json:"retransmission,omitempty"`
+	// Retransmission is a semantic flag: "this event is a retransmission of the
+	// previous same-kind event". It does not alter the wire bytes (the PDU is
+	// identical to the original), so bool matches the case JSON (true/false).
+	Retransmission   bool              `json:"retransmission,omitempty"`
 	UpstreamNeighbor string            `json:"upstream_neighbor,omitempty"`
 	Groups           []PIMGroup        `json:"groups,omitempty"`
 	State            string            `json:"state,omitempty"` // no_info|join|prune
