@@ -748,8 +748,9 @@ type SOMEIPConfig struct {
 
 // ThriftConfig configures an Apache Thrift Binary Protocol session (TCP 9090).
 type ThriftConfig struct {
-	Transport string          `json:"transport,omitempty"`
-	Messages  []ThriftMessage `json:"messages,omitempty"`
+	Transport string           `json:"transport,omitempty"`
+	Messages  []ThriftMessage  `json:"messages,omitempty"`
+	WireFault *ThriftWireFault `json:"wire_fault,omitempty"`
 }
 
 // ThriftMessage is one Thrift RPC message.
@@ -760,6 +761,9 @@ type ThriftMessage struct {
 	Args      []ThriftField    `json:"args,omitempty"`
 	Result    []ThriftField    `json:"result,omitempty"`
 	Exception *ThriftException `json:"exception,omitempty"`
+	// TypeCode overrides Type with a raw message-type byte (negative tests:
+	// out-of-range codes must be rejected).
+	TypeCode int `json:"type_code,omitempty"`
 }
 
 // ThriftField is a single struct field in Thrift Binary Protocol.
@@ -767,6 +771,30 @@ type ThriftField struct {
 	ID    int16       `json:"id,omitempty"`
 	Type  string      `json:"type,omitempty"`
 	Value interface{} `json:"value,omitempty"`
+	// TypeCode overrides Type with a raw TType byte (negative tests).
+	TypeCode int `json:"type_code,omitempty"`
+	// Container field declarations (LIST/SET/MAP).
+	ElemType  string           `json:"elem_type,omitempty"`
+	KeyType   string           `json:"key_type,omitempty"`
+	ValueType string           `json:"value_type,omitempty"`
+	Values    []interface{}    `json:"values,omitempty"`
+	Entries   []ThriftMapEntry `json:"entries,omitempty"`
+	// ValueB64 carries BINARY field bytes base64-encoded.
+	ValueB64 []byte `json:"value_b64,omitempty"`
+}
+
+// ThriftMapEntry is one MAP key/value pair.
+type ThriftMapEntry struct {
+	Key   interface{} `json:"key,omitempty"`
+	Value interface{} `json:"value,omitempty"`
+}
+
+// ThriftWireFault is a negative-test wire fault injection (rejected in
+// Validate — the faulted spec must never produce traffic).
+type ThriftWireFault struct {
+	Kind    string `json:"kind,omitempty"`     // truncate|negative_length|negative_container_count
+	At      string `json:"at,omitempty"`       // truncate: string_bytes|...
+	FieldID int16  `json:"field_id,omitempty"` // negative_length/negative_container_count
 }
 
 // ThriftException carries TApplicationException fields.

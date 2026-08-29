@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+
+	"github.com/trafficgen/trafficgen/internal/core"
 )
 
 // TType constants (§2.1).
@@ -96,11 +98,11 @@ func buildMessage(mt byte, method string, seqid int32, body []byte) []byte {
 }
 
 // buildField writes a single struct field: type(1) + id(i16) + value.
-func buildField(id int16, typeByte byte, value interface{}) ([]byte, error) {
+func buildField(id int16, typeByte byte, f core.ThriftField) ([]byte, error) {
 	b := make([]byte, 0, 3)
 	b = append(b, typeByte)
 	b = appendI16(b, id)
-	vb, err := encodeValue(typeByte, value)
+	vb, err := encodeValue(typeByte, f)
 	if err != nil {
 		return nil, err
 	}
@@ -108,8 +110,21 @@ func buildField(id int16, typeByte byte, value interface{}) ([]byte, error) {
 	return b, nil
 }
 
-// encodeValue encodes a value of the given TType.
-func encodeValue(typeByte byte, value interface{}) ([]byte, error) {
+// fieldTypeInfo resolves a field's effective TType: TypeCode override wins
+// (negative tests inject out-of-range codes); otherwise the declared type
+// string. ok=false on unknown type strings.
+func fieldTypeInfo(f core.ThriftField) (byte, bool) {
+	if f.TypeCode != 0 {
+		return byte(f.TypeCode), true
+	}
+	return typeCode(f.Type)
+}
+
+// encodeValue encodes a value of the given TType; f carries container
+// declarations (elem_type/key_type/value_type/values/entries) and BINARY
+// bytes for the structured field forms.
+func encodeValue(typeByte byte, f core.ThriftField) ([]byte, error) {
+	value := f.Value
 	switch typeByte {
 	case TBool:
 		v, _ := toBool(value)
@@ -134,6 +149,12 @@ func encodeValue(typeByte byte, value interface{}) ([]byte, error) {
 	case TI64:
 		return appendI64(nil, int64(toInt(value))), nil
 	case TString:
+		if len(f.ValueB64) > 0 {
+			b := make([]byte, 4+len(f.ValueB64))
+			binary.BigEndian.PutUint32(b[0:4], uint32(len(f.ValueB64)))
+			copy(b[4:], f.ValueB64)
+			return b, nil
+		}
 		s := fmt.Sprint(value)
 		b := make([]byte, 4+len(s))
 		binary.BigEndian.PutUint32(b[0:4], uint32(len(s)))
@@ -142,18 +163,20 @@ func encodeValue(typeByte byte, value interface{}) ([]byte, error) {
 	case TStruct:
 		return nil, fmt.Errorf("thrift: struct encoding not supported directly")
 	case TList, TSet:
-		arr, ok := value.([]interface{})
+		arr := f.Values
+		if arr == nil {
+			if v, ok := value.([]interface{}); ok {
+				arr = v
+			}
+		}
+		et, ok := typeCode(f.ElemType)
 		if !ok {
-			return nil, fmt.Errorf("thrift: list/set requires array")
+			et = TBool
 		}
-		if len(arr) == 0 {
-			return []byte{typeByte, 0, 0, 0, 0}, nil
-		}
-		elemType := byte(TBool) // default
-		b := []byte{elemType}
+		b := []byte{et}
 		b = appendI32(b, int32(len(arr)))
 		for _, item := range arr {
-			eb, err := encodeValue(elemType, item)
+			eb, err := encodeValue(et, core.ThriftField{Value: item})
 			if err != nil {
 				return nil, err
 			}
@@ -161,17 +184,25 @@ func encodeValue(typeByte byte, value interface{}) ([]byte, error) {
 		}
 		return b, nil
 	case TMap:
-		m, ok := value.(map[string]interface{})
+		kt, ok := typeCode(f.KeyType)
 		if !ok {
-			return nil, fmt.Errorf("thrift: map requires object")
+			kt = TString
 		}
-		keyType := byte(TString)
-		valType := byte(TI32)
-		b := []byte{keyType, valType}
-		b = appendI32(b, int32(len(m)))
-		for k, v := range m {
-			kb, _ := encodeValue(TString, k)
-			vb, _ := encodeValue(valType, v)
+		vt, ok := typeCode(f.ValueType)
+		if !ok {
+			vt = TI32
+		}
+		b := []byte{kt, vt}
+		b = appendI32(b, int32(len(f.Entries)))
+		for _, e := range f.Entries {
+			kb, err := encodeValue(kt, core.ThriftField{Value: e.Key})
+			if err != nil {
+				return nil, err
+			}
+			vb, err := encodeValue(vt, core.ThriftField{Value: e.Value})
+			if err != nil {
+				return nil, err
+			}
 			b = append(b, kb...)
 			b = append(b, vb...)
 		}

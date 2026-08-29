@@ -31,7 +31,7 @@ func (g *ThriftGenerator) Generate(ctx context.Context, req *layers.GenRequest) 
 		c.Messages = []core.ThriftMessage{{Type: "CALL", Method: "ping", SeqID: 1}}
 		cfg = &c
 	}
-	for _, m := range cfg.Messages {
+	for i, m := range cfg.Messages {
 		mt, _ := msgType(m.Type)
 		body, err := buildMessageBody(mt, m.Args, m.Result, m.Exception)
 		if err != nil {
@@ -42,8 +42,30 @@ func (g *ThriftGenerator) Generate(ctx context.Context, req *layers.GenRequest) 
 		if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: up, Bytes: payload}); err != nil {
 			return err
 		}
+		// RPC 响应语义（case thrift_containers/scalar_types 期望 9 包）：
+		// CALL 无显式 REPLY/EXCEPTION 响应时自动补空 REPLY（同 method/
+		// seqid，body 仅 STOP）；ONEWAY 单向不补，EXCEPTION 本身是响应。
+		if mt == MCall && !hasMatchingResponse(cfg.Messages, i, m) {
+			reply := buildMessage(MReply, m.Method, m.SeqID, []byte{TStop})
+			if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: false, Bytes: reply}); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
+}
+
+// hasMatchingResponse reports whether a later message responds to the CALL at
+// index i (REPLY or EXCEPTION with the same method and seqid).
+func hasMatchingResponse(msgs []core.ThriftMessage, i int, call core.ThriftMessage) bool {
+	for j := i + 1; j < len(msgs); j++ {
+		m := msgs[j]
+		mt, _ := msgType(m.Type)
+		if (mt == MReply || mt == MException) && m.Method == call.Method && m.SeqID == call.SeqID {
+			return true
+		}
+	}
+	return false
 }
 
 func emitSel(ctx context.Context, emit func(layers.MessageEvent) error, ev layers.MessageEvent) error {

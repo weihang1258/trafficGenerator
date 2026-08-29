@@ -194,7 +194,7 @@ func TestBuildMessageOneway(t *testing.T) {
 
 func TestBuildFieldBool(t *testing.T) {
 	// BOOL id=1 value=true
-	b, err := buildField(1, TBool, true)
+	b, err := buildField(1, TBool, core.ThriftField{Value: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestBuildFieldBool(t *testing.T) {
 
 func TestBuildFieldI32(t *testing.T) {
 	// I32 id=0 value=42
-	b, err := buildField(0, TI32, 42)
+	b, err := buildField(0, TI32, core.ThriftField{Value: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +233,7 @@ func TestBuildFieldI32(t *testing.T) {
 }
 
 func TestBuildFieldString(t *testing.T) {
-	b, err := buildField(1, TString, "hello")
+	b, err := buildField(1, TString, core.ThriftField{Value: "hello"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestBuildFieldString(t *testing.T) {
 }
 
 func TestBuildFieldDouble(t *testing.T) {
-	b, err := buildField(3, TDouble, 3.14)
+	b, err := buildField(3, TDouble, core.ThriftField{Value: 3.14})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestBuildFieldDouble(t *testing.T) {
 }
 
 func TestBuildFieldI64(t *testing.T) {
-	b, err := buildField(0, TI64, int64(10000000000))
+	b, err := buildField(0, TI64, core.ThriftField{Value: int64(10000000000)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +285,7 @@ func TestBuildFieldI64(t *testing.T) {
 }
 
 func TestBuildFieldI16(t *testing.T) {
-	b, err := buildField(2, TI16, int16(-42))
+	b, err := buildField(2, TI16, core.ThriftField{Value: int16(-42)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +298,7 @@ func TestBuildFieldI16(t *testing.T) {
 }
 
 func TestBuildFieldByte(t *testing.T) {
-	b, err := buildField(0, TByte, 0x7f)
+	b, err := buildField(0, TByte, core.ThriftField{Value: 0x7f})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +314,7 @@ func TestBuildFieldList(t *testing.T) {
 	// LIST of I16 values [10, 20, 30]
 	// encodeValue for TList currently uses TBool as default elem type
 	// This tests the encoding path
-	b, err := buildField(0, TList, []interface{}{int64(10), int64(20), int64(30)})
+	b, err := buildField(0, TList, core.ThriftField{Values: []interface{}{int64(10), int64(20), int64(30)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,9 +327,19 @@ func TestBuildFieldList(t *testing.T) {
 	}
 }
 
+// mapFieldFixture adapts the legacy map[string]interface{} fixture to the
+// ThriftField entries form (declared STRING/I32).
+func mapFieldFixture(m map[string]interface{}) core.ThriftField {
+	f := core.ThriftField{KeyType: "STRING", ValueType: "I32"}
+	for k, v := range m {
+		f.Entries = append(f.Entries, core.ThriftMapEntry{Key: k, Value: v})
+	}
+	return f
+}
+
 func TestBuildFieldMap(t *testing.T) {
 	m := map[string]interface{}{"key1": int64(100), "key2": int64(200)}
-	b, err := buildField(0, TMap, m)
+	b, err := buildField(0, TMap, mapFieldFixture(m))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +359,7 @@ func TestBuildFieldMap(t *testing.T) {
 }
 
 func TestBuildFieldSet(t *testing.T) {
-	b, err := buildField(0, TSet, []interface{}{int64(1), int64(2), int64(3)})
+	b, err := buildField(0, TSet, core.ThriftField{Values: []interface{}{int64(1), int64(2), int64(3)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,7 +369,7 @@ func TestBuildFieldSet(t *testing.T) {
 }
 
 func TestBuildFieldListEmpty(t *testing.T) {
-	b, err := buildField(0, TList, []interface{}{})
+	b, err := buildField(0, TList, core.ThriftField{Values: []interface{}{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,7 +385,7 @@ func TestBuildFieldListEmpty(t *testing.T) {
 func TestBuildFieldListOfStrings(t *testing.T) {
 	// Even though default elem type is TBool, we can still exercise the code path
 	// with a list of bool-convertible values
-	b, err := buildField(0, TList, []interface{}{true, false, true})
+	b, err := buildField(0, TList, core.ThriftField{Values: []interface{}{true, false, true}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -535,23 +545,36 @@ func TestToFloat64(t *testing.T) {
 }
 
 func TestBuildFieldUnknownType(t *testing.T) {
-	_, err := buildField(0, 0x01, nil)
+	_, err := buildField(0, 0x01, core.ThriftField{})
 	if err == nil {
 		t.Fatalf("expected error for unknown type")
 	}
 }
 
-func TestBuildFieldListNonArray(t *testing.T) {
-	_, err := buildField(0, TList, "not an array")
-	if err == nil || !strings.Contains(err.Error(), "requires array") {
-		t.Fatalf("err=%v want 'requires array'", err)
+func TestBuildFieldListDeclaredShape(t *testing.T) {
+	// Container encoding is driven by declared metadata (Values), not the
+	// Value shape; a bare Value is ignored and the declared empty list wins.
+	b, err := buildField(0, TList, core.ThriftField{Value: "not an array", Values: []interface{}{int64(7)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b) != 9 { // type+id+elemType+count(1)+i64 value(8)
+		t.Fatalf("len=%d want 9", len(b))
 	}
 }
 
-func TestBuildFieldMapNonMap(t *testing.T) {
-	_, err := buildField(0, TMap, "not a map")
-	if err == nil || !strings.Contains(err.Error(), "requires object") {
-		t.Fatalf("err=%v want 'requires object'", err)
+func TestBuildFieldMapDeclaredShape(t *testing.T) {
+	f := core.ThriftField{Value: "not a map", KeyType: "STRING", ValueType: "I32",
+		Entries: []core.ThriftMapEntry{{Key: "a", Value: 7}}}
+	b, err := buildField(0, TMap, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b[3] != TString || b[4] != TI32 {
+		t.Fatalf("key/val type=%02x/%02x want %02x/%02x", b[3], b[4], TString, TI32)
+	}
+	if got := binary.BigEndian.Uint32(b[5:9]); got != 1 {
+		t.Fatalf("count=%d want 1", got)
 	}
 }
 
@@ -1111,4 +1134,187 @@ func collectPackets(ch <-chan core.PacketConfig, max int) []core.PacketConfig {
 		}
 	}
 	return pkts
+}
+// --- Case-derived tests (T3 batch 3): auto-REPLY, type_code/wire_fault
+// rejection, container encoding from declared metadata ---
+
+func TestGenerateAutoReplyForUnmatchedCall(t *testing.T) {
+	// case thrift_containers/scalar_types: CALL without explicit response ->
+	// auto empty REPLY (9 packets: 3 hs + 2 payload + 4 teardown in Plan path).
+	var events []layers.MessageEvent
+	err := (&ThriftGenerator{}).Generate(context.Background(), &layers.GenRequest{
+		Meta: layers.FlowMeta{Thrift: &core.ThriftConfig{Messages: []core.ThriftMessage{
+			{Type: "CALL", Method: "ping", SeqID: 1},
+		}}},
+		EmitMsg: func(ev layers.MessageEvent) error { events = append(events, ev); return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("events=%d want 2 (CALL + auto REPLY)", len(events))
+	}
+	if events[0].Up != true || events[1].Up != false {
+		t.Fatalf("directions=%v/%v want up/down", events[0].Up, events[1].Up)
+	}
+	// auto REPLY: version_type low byte 02, same method/seqid, body STOP only
+	if got := binary.BigEndian.Uint32(events[1].Bytes[0:4]); got != 0x80010002 {
+		t.Fatalf("reply version_type=%08x want 80010002", got)
+	}
+	if got := binary.BigEndian.Uint32(events[1].Bytes[12:16]); got != 1 {
+		t.Fatalf("reply seqid=%d want 1", got)
+	}
+	if len(events[1].Bytes) != 17 { // 12 header + 4 name + 1 STOP
+		t.Fatalf("reply len=%d want 17", len(events[1].Bytes))
+	}
+}
+
+func TestGenerateNoAutoReplyForExplicitResponse(t *testing.T) {
+	// case thrift_call_reply: CALL + explicit REPLY -> no extra events.
+	var events []layers.MessageEvent
+	err := (&ThriftGenerator{}).Generate(context.Background(), &layers.GenRequest{
+		Meta: layers.FlowMeta{Thrift: &core.ThriftConfig{Messages: []core.ThriftMessage{
+			{Type: "CALL", Method: "add", SeqID: 1, Args: []core.ThriftField{{ID: 1, Type: "I32", Value: 1}}},
+			{Type: "REPLY", Method: "add", SeqID: 1, Result: []core.ThriftField{{ID: 0, Type: "I32", Value: 3}}},
+		}}},
+		EmitMsg: func(ev layers.MessageEvent) error { events = append(events, ev); return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("events=%d want 2 (no auto reply)", len(events))
+	}
+}
+
+func TestGenerateNoAutoReplyForOneway(t *testing.T) {
+	// case thrift_oneway_call: ONEWAY is fire-and-forget -> single event.
+	var events []layers.MessageEvent
+	err := (&ThriftGenerator{}).Generate(context.Background(), &layers.GenRequest{
+		Meta: layers.FlowMeta{Thrift: &core.ThriftConfig{Messages: []core.ThriftMessage{
+			{Type: "ONEWAY", Method: "notify", SeqID: 4},
+		}}},
+		EmitMsg: func(ev layers.MessageEvent) error { events = append(events, ev); return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("events=%d want 1 (oneway has no response)", len(events))
+	}
+}
+
+func TestValidateRejectsBadMessageTypeCode(t *testing.T) {
+	// case thrift_neg_bad_message_type: type_code 9 must be rejected with the
+	// case's error_contains anchor "invalid message type".
+	err := (Planner{}).Validate(core.FlowSpec{Thrift: &core.ThriftConfig{Messages: []core.ThriftMessage{
+		{TypeCode: 9, Method: "bad", SeqID: 1},
+	}}})
+	if err == nil || !strings.Contains(err.Error(), "invalid message type") {
+		t.Fatalf("err=%v want 'invalid message type'", err)
+	}
+}
+
+func TestValidateRejectsUnknownFieldTypeCode(t *testing.T) {
+	// case thrift_neg_unknown_type: field type_code 99 rejected with anchor
+	// "unknown field type".
+	err := (Planner{}).Validate(core.FlowSpec{Thrift: &core.ThriftConfig{Messages: []core.ThriftMessage{
+		{Type: "CALL", Method: "bad", SeqID: 1, Args: []core.ThriftField{{ID: 1, TypeCode: 99}}},
+	}}})
+	if err == nil || !strings.Contains(err.Error(), "unknown field type") {
+		t.Fatalf("err=%v want 'unknown field type'", err)
+	}
+}
+
+func TestValidateRejectsWireFaults(t *testing.T) {
+	// cases thrift_neg_truncated / _negative_length / _negative_container_count
+	tests := []struct {
+		wf   core.ThriftWireFault
+		want string
+	}{
+		{core.ThriftWireFault{Kind: "truncate", At: "string_bytes"}, "truncated"},
+		{core.ThriftWireFault{Kind: "negative_length", FieldID: 1}, "negative length"},
+		{core.ThriftWireFault{Kind: "negative_container_count", FieldID: 1}, "negative container count"},
+	}
+	for _, tc := range tests {
+		err := (Planner{}).Validate(core.FlowSpec{Thrift: &core.ThriftConfig{
+			Messages:  []core.ThriftMessage{{Type: "CALL", Method: "x", SeqID: 1}},
+			WireFault: &tc.wf,
+		}})
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("wf %+v: err=%v want %q", tc.wf, err, tc.want)
+		}
+	}
+}
+
+func TestBuildFieldContainersFromDeclaredMetadata(t *testing.T) {
+	// case thrift_containers: LIST(I16)[1,-2] / MAP(STRING,I32){a:7} / SET(STRING)[x,y]
+	lst, err := buildField(1, TList, core.ThriftField{ElemType: "I16", Values: []interface{}{1, -2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "0f000106000000020001fffe" // LIST id=1 elem=I16 count=2 [1, -2]
+	if hex(lst) != want {
+		t.Fatalf("list hex=%s want %s", hex(lst), want)
+	}
+	mp, err := buildField(2, TMap, core.ThriftField{KeyType: "STRING", ValueType: "I32",
+		Entries: []core.ThriftMapEntry{{Key: "a", Value: 7}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = "0d00020d080000000100000001610000000 7"
+	want = "0d00020b0800000001000000016100000007" // MAP id=2 kt=STRING vt=I32 count=1 "a"=7
+	if hex(mp) != want {
+		t.Fatalf("map hex=%s want %s", hex(mp), want)
+	}
+	st, err := buildField(3, TSet, core.ThriftField{ElemType: "STRING", Values: []interface{}{"x", "y"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = "0e00030b000000020000000178000000017 9"
+	want = "0e00030b0000000200000001780000000179" // SET id=3 elem=STRING count=2 x,y
+	if hex(st) != want {
+		t.Fatalf("set hex=%s want %s", hex(st), want)
+	}
+}
+
+func TestBuildFieldBinaryFromB64(t *testing.T) {
+	// case thrift_scalar_types: BINARY value_b64 "AP8=" -> bytes 0x00 0xff
+	b, err := buildField(8, TString, core.ThriftField{ValueB64: []byte{0x00, 0xff}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "0b00080000000200ff" // STRING id=8 len=2 00 ff
+	if hex(b) != want {
+		t.Fatalf("hex=%s want %s", hex(b), want)
+	}
+}
+
+func TestPlanScalarTypesPacketCount(t *testing.T) {
+	// case thrift_scalar_types end-to-end: CALL(8 scalar fields) -> 9 packets.
+	ch, err := (Planner{}).Plan(context.Background(), core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12345, DstPort: 9090,
+		Thrift: &core.ThriftConfig{Messages: []core.ThriftMessage{
+			{Type: "CALL", Method: "scalars", SeqID: 1, Args: []core.ThriftField{
+				{ID: 1, Type: "BOOL", Value: true},
+				{ID: 2, Type: "BYTE", Value: -1},
+				{ID: 3, Type: "DOUBLE", Value: 3.5},
+				{ID: 4, Type: "I16", Value: -2},
+				{ID: 5, Type: "I32", Value: -3},
+				{ID: 6, Type: "I64", Value: -4},
+				{ID: 7, Type: "STRING", Value: "x"},
+				{ID: 8, Type: "BINARY", ValueB64: []byte{0x00, 0xff}},
+			}},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for range ch {
+		n++
+	}
+	if n != 9 {
+		t.Fatalf("packets=%d want 9", n)
+	}
 }

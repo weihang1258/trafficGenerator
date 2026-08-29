@@ -253,7 +253,7 @@ func checkHasPayload(pcapPath string, c Case) error {
 	// 载荷存在性由 tcp.len（TCP payload 字节数）标记：真正的数据帧 tcp.len>0，
 	// 纯握手/挥手帧 tcp.len=0。dameng 设计（30-dameng-testcase）与 cql 设计
 	// （35-cql-testcase）都把 has_payload 语义定成"存在一个携带应用层数据的帧"。
-	if c.Proto == "dameng" || c.Proto == "cql" || c.Proto == "drda" {
+	if c.Proto == "dameng" || c.Proto == "cql" || c.Proto == "drda" || c.Proto == "thrift" {
 		vals, err := FieldValues(pcapPath, "tcp.len", c.DecodeAs)
 		if err != nil {
 			return err
