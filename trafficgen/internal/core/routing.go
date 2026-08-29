@@ -178,44 +178,88 @@ type PIMConfig struct {
 	WireFault    *PIMWireFault `json:"wire_fault,omitempty"`
 }
 
-// PIMEvent is one PIM message.
+// PIMEvent is one PIM message (RFC 7761).
 type PIMEvent struct {
-	Kind             string     `json:"kind,omitempty"` // hello|join_prune|bootstrap|candidate_rp_adv|register|register_stop|assert|df_election
-	Direction        string     `json:"direction,omitempty"`
-	Holdtime         int        `json:"holdtime,omitempty"`
-	HelloInterval    int        `json:"hello_interval,omitempty"`
-	GenerationID     string     `json:"generation_id,omitempty"` // "0x01020304"
-	DRPriority       int        `json:"dr_priority,omitempty"`
-	UpstreamNeighbor string     `json:"upstream_neighbor,omitempty"`
-	Groups           []PIMGroup `json:"groups,omitempty"`
-	State            string     `json:"state,omitempty"` // no_info|join|prune
-	BSR              string     `json:"bsr,omitempty"`
-	BSRPriority      int        `json:"bsr_priority,omitempty"`
-	HashMaskLength   int        `json:"hash_mask_length,omitempty"`
-	RPSets           []PIMGroup `json:"rp_sets,omitempty"`
-	RP               string     `json:"rp,omitempty"`
-	RPPriority       int        `json:"rp_priority,omitempty"`
-	GroupPrefixes    []PIMGroup `json:"group_prefixes,omitempty"`
-	RegisterFlags    int        `json:"register_flags,omitempty"`
-	InnerIPv4        string     `json:"inner_ipv4,omitempty"` // encapsulated packet
-	Group            string     `json:"group,omitempty"`
-	Source           string     `json:"source,omitempty"`
-	RptBit           bool       `json:"rpt_bit,omitempty"`
-	MetricPreference int        `json:"metric_preference,omitempty"`
-	RouteMetric      int        `json:"route_metric,omitempty"`
-	Neighbor         string     `json:"neighbor,omitempty"` // df_election
+	Kind             string            `json:"kind,omitempty"` // hello|join_prune|bootstrap|candidate_rp_adv|register|register_stop|assert|df_election
+	Direction        string            `json:"direction,omitempty"`
+	Holdtime         int               `json:"holdtime,omitempty"`
+	HelloInterval    int               `json:"hello_interval,omitempty"`
+	GenerationID     string            `json:"generation_id,omitempty"` // "0x01020304"
+	DRPriority       int               `json:"dr_priority,omitempty"`
+	LANPruneDelay    *PIMLANPruneDelay `json:"lan_prune_delay,omitempty"`
+	Retransmission   int               `json:"retransmission,omitempty"`
+	UpstreamNeighbor string            `json:"upstream_neighbor,omitempty"`
+	Groups           []PIMGroup        `json:"groups,omitempty"`
+	State            string            `json:"state,omitempty"` // no_info|join|prune
+	BSR              string            `json:"bsr,omitempty"`
+	BSRPriority      int               `json:"bsr_priority,omitempty"`
+	HashMaskLength   int               `json:"hash_mask_length,omitempty"`
+	RPSets           []PIMRPSet        `json:"rp_sets,omitempty"`
+	RP               string            `json:"rp,omitempty"`
+	RPPriority       int               `json:"rp_priority,omitempty"`
+	GroupPrefixes    []string          `json:"group_prefixes,omitempty"`
+	RegisterFlags    *PIMRegisterFlags `json:"register_flags,omitempty"`
+	InnerIPv4        *PIMInnerIPv4     `json:"inner_ipv4,omitempty"` // encapsulated packet (register)
+	Group            string            `json:"group,omitempty"`
+	Source           string            `json:"source,omitempty"`
+	RptBit           bool              `json:"rpt_bit,omitempty"`
+	MetricPreference int               `json:"metric_preference,omitempty"`
+	RouteMetric      int               `json:"route_metric,omitempty"`
+	Neighbor         string            `json:"neighbor,omitempty"` // df_election
+	WireFault        *PIMWireFault     `json:"wire_fault,omitempty"`
 }
 
-// PIMGroup is a group/source set in join/prune/bootstrap/RP-set.
+// PIMLANPruneDelay is the LAN Prune Delay hello option (propagation+override).
+type PIMLANPruneDelay struct {
+	TBit        bool `json:"t_bit,omitempty"`
+	Propagation int  `json:"propagation_delay,omitempty"`
+	Override    int  `json:"override_interval,omitempty"`
+}
+
+// PIMGroup is a group/source set in a join/prune message.
 type PIMGroup struct {
-	Group  string `json:"group,omitempty"`
-	Source string `json:"source,omitempty"`
+	Group         string      `json:"group,omitempty"`
+	JoinedSources []PIMSource `json:"joined_sources,omitempty"`
+	PrunedSources []PIMSource `json:"pruned_sources,omitempty"`
+}
+
+// PIMSource is a source (S) or wildcard (*) in a join/prune group.
+type PIMSource struct {
+	Source   string `json:"source,omitempty"`
+	Wildcard bool   `json:"wildcard,omitempty"`
+}
+
+// PIMRPSet is one group-prefix → RP set in a bootstrap message.
+type PIMRPSet struct {
+	GroupPrefix string  `json:"group_prefix,omitempty"` // "239.0.0.0/8"
+	RPs         []PIMRP `json:"rps,omitempty"`
+}
+
+// PIMRP is one RP entry in a bootstrap group set.
+type PIMRP struct {
+	RP       string `json:"rp,omitempty"`
+	Priority int    `json:"priority,omitempty"`
+	Holdtime int    `json:"holdtime,omitempty"`
+}
+
+// PIMRegisterFlags are the register-message flags (border/null).
+type PIMRegisterFlags struct {
+	BorderBit    bool `json:"border_bit,omitempty"`
+	NullRegister bool `json:"null_register,omitempty"`
+}
+
+// PIMInnerIPv4 is the encapsulated inner IPv4 packet in a register message.
+type PIMInnerIPv4 struct {
+	Src        string `json:"src,omitempty"`
+	Dst        string `json:"dst,omitempty"`
+	PayloadHex string `json:"payload_hex,omitempty"`
 }
 
 // PIMWireFault injects a wire fault.
 type PIMWireFault struct {
-	Kind  string `json:"kind,omitempty"`
-	Value string `json:"value,omitempty"`
+	Kind                string `json:"kind,omitempty"` // checksum|length|type|address_family
+	Value               string `json:"value,omitempty"`
+	DeclaredTotalLength int    `json:"declared_total_length,omitempty"`
 }
 
 // ---- ISIS (L2-only, LLC) ----
@@ -276,6 +320,7 @@ type ISISEvent struct {
 	Partition         int       `json:"partition,omitempty"`
 	CircuitType       int       `json:"circuit_type,omitempty"`
 	ChecksumMode      string    `json:"checksum_mode,omitempty"`
+	AddressProfile    string    `json:"address_profile,omitempty"` // ipv4_basic|ipv6_basic
 }
 
 // ISISWireFault injects a wire fault.
