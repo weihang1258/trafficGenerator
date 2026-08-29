@@ -1873,22 +1873,22 @@
     "proto": "pcep",
     "summary": "Two independent TCP sessions",
     "spec_json": {
-      "sessions": [
+      "layers": [
         {
-          "layers": [
-            {
-              "tcp": {}
-            },
-            {
-              "pcep": {}
-            }
-          ],
-          "src_ip": "192.0.2.10",
-          "dst_ip": "192.0.2.20",
-          "src_port": 40001,
-          "dst_port": 4189,
-          "pcep": {
-            "profile": "pcep_rfc5440_ipv4",
+          "tcp": {}
+        },
+        {
+          "pcep": {}
+        }
+      ],
+      "src_ip": "192.0.2.10",
+      "dst_ip": "192.0.2.20",
+      "dst_port": 4189,
+      "pcep": {
+        "profile": "pcep_rfc5440_ipv4",
+        "sessions": [
+          {
+            "src_port": 40001,
             "events": [
               {
                 "kind": "open",
@@ -1915,7 +1915,7 @@
                 "objects": [
                   {
                     "class": "rp",
-                    "requested_id_number": 1001,
+                    "requested_id_number": 8101,
                     "flags": {
                       "p": true
                     }
@@ -1977,23 +1977,9 @@
                 ]
               }
             ]
-          }
-        },
-        {
-          "layers": [
-            {
-              "tcp": {}
-            },
-            {
-              "pcep": {}
-            }
-          ],
-          "src_ip": "192.0.2.10",
-          "dst_ip": "192.0.2.20",
-          "src_port": 40002,
-          "dst_port": 4189,
-          "pcep": {
-            "profile": "pcep_rfc5440_ipv4",
+          },
+          {
+            "src_port": 40002,
             "events": [
               {
                 "kind": "open",
@@ -2020,7 +2006,7 @@
                 "objects": [
                   {
                     "class": "rp",
-                    "requested_id_number": 1001,
+                    "requested_id_number": 8102,
                     "flags": {
                       "p": true
                     }
@@ -2083,8 +2069,8 @@
               }
             ]
           }
-        }
-      ]
+        ]
+      }
     },
     "expect": {
       "packet_count": 22,
@@ -2099,19 +2085,19 @@
           "value": "7"
         },
         {
-          "packet": 4,
+          "packet": 6,
           "field": "pcep.obj.rp.requested_id_number",
-          "value": "8101"
+          "value": "0x00001fa5"
         },
         {
-          "packet": 11,
+          "packet": 15,
           "field": "pcep.obj.open.sid",
           "value": "22"
         },
         {
-          "packet": 11,
+          "packet": 17,
           "field": "pcep.obj.rp.requested_id_number",
-          "value": "8102"
+          "value": "0x00001fa6"
         }
       ],
       "frames": [
@@ -2121,7 +2107,7 @@
           "hex": "20 01"
         },
         {
-          "packet": 11,
+          "packet": 15,
           "offset": 54,
           "hex": "20 01"
         }
@@ -2877,7 +2863,7 @@
   {
     "id": "pcep_neg_session_id",
     "proto": "pcep",
-    "summary": "Session ID drift",
+    "summary": "OPEN with reserved session id 0 rejected (RFC 5440 7.3)",
     "spec_json": {
       "layers": [
         {
@@ -2906,7 +2892,7 @@
             "direction": "s2c",
             "keepalive": 30,
             "deadtime": 120,
-            "sid": 99
+            "sid": 0
           }
         ]
       }

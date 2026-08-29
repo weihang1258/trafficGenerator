@@ -428,10 +428,16 @@ func BuildLSPAObject(lFlag bool, setupPriority, holdingPriority uint8) []byte {
 
 // parsePCEPConfig parses PCEP events from the config and returns PDU bytes.
 func parsePCEPConfig(cfg *core.PCEPConfig) ([][]byte, []bool, error) {
+	return parsePCEPEvents(cfg.Events, cfg.Profile)
+}
+
+// parsePCEPEvents converts a PCEP event list into wire PDUs (+ direction
+// flags). profile only affects pcreq/pcrep object defaults.
+func parsePCEPEvents(events []core.PCEPEvent, profile string) ([][]byte, []bool, error) {
 	var payloads [][]byte
 	var ups []bool
 
-	for i, ev := range cfg.Events {
+	for i, ev := range events {
 		up := ev.Direction == "c2s"
 		var pdu []byte
 
@@ -457,14 +463,14 @@ func parsePCEPConfig(cfg *core.PCEPConfig) ([][]byte, []bool, error) {
 			pdu = BuildKeepAliveMsg()
 
 		case "pcreq":
-			objs, err := parseObjects(ev.Objects, ev.Endpoint, ev.RequestID, cfg.Profile)
+			objs, err := parseObjects(ev.Objects, ev.Endpoint, ev.RequestID, profile)
 			if err != nil {
 				return nil, nil, fmt.Errorf("pcep: pcreq: %w", err)
 			}
 			pdu = BuildPCReqMsg(objs)
 
 		case "pcrep":
-			objs, err := parseObjects(ev.Objects, ev.Endpoint, ev.RequestID, cfg.Profile)
+			objs, err := parseObjects(ev.Objects, ev.Endpoint, ev.RequestID, profile)
 			if err != nil {
 				return nil, nil, fmt.Errorf("pcep: pcrep: %w", err)
 			}
@@ -668,7 +674,9 @@ func ValidateConfig(cfg *core.PCEPConfig) error {
 	if cfg == nil {
 		return fmt.Errorf("pcep: config is required")
 	}
-	if len(cfg.Events) == 0 {
+	// Multi-session mode: each session carries its own events; the top-level
+	// Events list may be empty.
+	if len(cfg.Events) == 0 && len(cfg.Sessions) == 0 {
 		return fmt.Errorf("pcep: at least one event required")
 	}
 
@@ -677,35 +685,64 @@ func ValidateConfig(cfg *core.PCEPConfig) error {
 		return fmt.Errorf("pcep: unknown profile %q", cfg.Profile)
 	}
 
-	validKinds := []string{"open", "keepalive", "pcreq", "pcrep", "pcntf", "pcerr"}
+	if err := validatePCEPEvents(cfg.Events, cfg, ""); err != nil {
+		return err
+	}
+	// RFC 5440 §7.3: the OPEN Session-ID is assigned by the sender (PCC/PCE
+	// independently) and 0 is reserved/invalid. Both sides need not match
+	// (positive case uses 7/8), so drift alone is not an error — a zero SID is.
 	for i, ev := range cfg.Events {
+		if ev.Kind == "open" && ev.SID == 0 {
+			return fmt.Errorf("pcep: event %d: session id 0 is invalid (RFC 5440 §7.3, sender-assigned non-zero)", i)
+		}
+	}
+	for i, s := range cfg.Sessions {
+		if s.SrcPort == 0 {
+			return fmt.Errorf("pcep: session %d: src_port is required", i)
+		}
+		if len(s.Events) == 0 {
+			return fmt.Errorf("pcep: session %d: at least one event required", i)
+		}
+		if err := validatePCEPEvents(s.Events, cfg, fmt.Sprintf("session %d: event ", i)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validatePCEPEvents checks one event list against the config's profile.
+// prefix ("event N" / "session N: event M") scopes error messages.
+func validatePCEPEvents(events []core.PCEPEvent, cfg *core.PCEPConfig, prefix string) error {
+	validKinds := []string{"open", "keepalive", "pcreq", "pcrep", "pcntf", "pcerr"}
+	for i, ev := range events {
 		if ev.Kind == "" {
-			return fmt.Errorf("pcep: event %d: kind is required", i)
+			return fmt.Errorf("pcep: %s%d: kind is required", prefix, i)
 		}
 		if ev.Kind == "unknown" {
-			return fmt.Errorf("pcep: event %d: unknown message type %d is not supported", i, ev.MessageType)
+			return fmt.Errorf("pcep: %s%d: unknown message type %d is not supported", prefix, i, ev.MessageType)
 		}
 		if ev.Direction != "c2s" && ev.Direction != "s2c" {
-			return fmt.Errorf("pcep: event %d: direction must be c2s or s2c", i)
+			return fmt.Errorf("pcep: %s%d: direction must be c2s or s2c", prefix, i)
 		}
 		if !slices.Contains(validKinds, ev.Kind) {
-			return fmt.Errorf("pcep: event %d: unknown kind %q", i, ev.Kind)
+			return fmt.Errorf("pcep: %s%d: unknown kind %q", prefix, i, ev.Kind)
 		}
 		if ev.Kind == "keepalive" && len(ev.Objects) > 0 {
-			return fmt.Errorf("pcep: event %d: keepalive must not have objects", i)
+			return fmt.Errorf("pcep: %s%d: keepalive must not have objects", prefix, i)
 		}
 	}
 
 	// Check profile-specific constraints
 	isStateful := cfg.Profile == "pcep_rfc8231_stateful" || cfg.Profile == "pcep_rfc8281_delegation"
-	for i, ev := range cfg.Events {
+	for i, ev := range events {
 		if ev.Kind == "open" {
 			continue
 		}
 		// Wire fault injection check
 		if ev.WireFault != nil {
 			if err := CheckFault(ev.WireFault.Kind); err != nil {
-				return fmt.Errorf("pcep: event %d: %w", i, err)
+				return fmt.Errorf("pcep: %s%d: %w", prefix, i, err)
 			}
 		}
 		// Check for stateful-only objects in base profile
@@ -718,7 +755,7 @@ func ValidateConfig(cfg *core.PCEPConfig) error {
 					continue
 				}
 				if obj.Class == "lsp" || obj.Class == "srp" {
-					return fmt.Errorf("pcep: event %d: %s object requires stateful profile", i, obj.Class)
+					return fmt.Errorf("pcep: %s%d: %s object requires stateful profile", prefix, i, obj.Class)
 				}
 			}
 		}
@@ -733,7 +770,7 @@ func ValidateConfig(cfg *core.PCEPConfig) error {
 				}
 				if obj.ObjectLength != 0 {
 					if obj.ObjectLength < 4 || obj.ObjectLength%4 != 0 {
-						return fmt.Errorf("pcep: event %d: object_length %d is invalid (must be >= 4 and 4-byte aligned)", i, obj.ObjectLength)
+						return fmt.Errorf("pcep: %s%d: object_length %d is invalid (must be >= 4 and 4-byte aligned)", prefix, i, obj.ObjectLength)
 					}
 				}
 			}
@@ -741,12 +778,12 @@ func ValidateConfig(cfg *core.PCEPConfig) error {
 		// Check address family consistency
 		if cfg.Profile == "pcep_rfc5440_ipv4" && ev.Endpoint != nil {
 			if ev.Endpoint.SourceIPv6 != "" || ev.Endpoint.DestinationIPv6 != "" {
-				return fmt.Errorf("pcep: event %d: IPv6 endpoint in IPv4 address family profile", i)
+				return fmt.Errorf("pcep: %s%d: IPv6 endpoint in IPv4 address family profile", prefix, i)
 			}
 		}
 		if cfg.Profile == "pcep_rfc5440_ipv6" && ev.Endpoint != nil {
 			if ev.Endpoint.SourceIPv4 != "" || ev.Endpoint.DestinationIPv4 != "" {
-				return fmt.Errorf("pcep: event %d: IPv4 endpoint in IPv6 address family profile", i)
+				return fmt.Errorf("pcep: %s%d: IPv4 endpoint in IPv6 address family profile", prefix, i)
 			}
 		}
 	}

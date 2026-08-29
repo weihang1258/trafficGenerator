@@ -106,6 +106,24 @@ func (g *PCEPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 	if cfg == nil {
 		return fmt.Errorf("pcep: config is required")
 	}
+	// Multi-session expansion (P0a pattern, mirrors postgresql): each session
+	// carries its own src_port; MessageEvent.SrcPort drives the TCP
+	// generator's connection boundary (teardown old + handshake new).
+	if len(cfg.Sessions) > 0 {
+		for i, s := range cfg.Sessions {
+			payloads, ups, err := parsePCEPEvents(s.Events, cfg.Profile)
+			if err != nil {
+				return fmt.Errorf("pcep: sessions[%d] %w", i, err)
+			}
+			for j, pdu := range payloads {
+				ev := layers.MessageEvent{Up: ups[j], Bytes: pdu, SrcPort: s.SrcPort}
+				if err := emitSel(ctx, req.EmitMsg, ev); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
 	payloads, ups, err := parsePCEPConfig(cfg)
 	if err != nil {
 		return err
