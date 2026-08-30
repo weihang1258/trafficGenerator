@@ -1123,6 +1123,7 @@ type MMSConfig struct {
 	EnableGetNameList       bool                  `json:"enableGetNameList,omitempty"`
 	EnableIdentify          bool                  `json:"enableIdentify,omitempty"`
 	Sequence                *MMSSequence          `json:"sequence,omitempty"`
+	MultiSession            []MMSConfig           `json:"multiSession,omitempty"`
 	ErrorClassName          string                `json:"errorClassName,omitempty"`
 	ErrorValue              int                   `json:"errorValue,omitempty"`
 }

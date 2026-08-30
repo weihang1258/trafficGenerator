@@ -679,6 +679,11 @@ type tcpCfg struct {
 	mss              uint16
 	windowSize       uint16
 	initialSeq       uint32
+	// concurrent enables per-SrcPort connection state in event mode: each
+	// distinct event SrcPort gets its own handshake on first use and its
+	// seq state is restored on return (mms 并发会话；drda 默认语义仍是
+	// 挥旧握新，concurrent=false).
+	concurrent bool
 }
 
 // resolveCfg resolves the TCP layer configuration from the completed layer
@@ -754,6 +759,13 @@ func (g *TCPGenerator) resolveCfg(req *GenRequest) (tcpCfg, error) {
 			return cfg, errInvalid("initial_seq", v)
 		}
 	}
+	if v, ok := flowConfigField(c, "concurrent"); ok {
+		if b, ok := configBool(v); ok {
+			cfg.concurrent = b
+		} else {
+			return cfg, errInvalid("concurrent", v)
+		}
+	}
 	cfg.mss = effectiveMSS(cfg.mss)
 	return cfg, nil
 }
@@ -763,7 +775,7 @@ func fieldType(field string) string {
 	switch field {
 	case "initial_seq":
 		return "uint32"
-	case "handshake", "termination", "rst":
+	case "handshake", "termination", "rst", "concurrent":
 		return "bool"
 	default:
 		return "uint16"
@@ -1028,6 +1040,13 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// 事件模式下连接尚未建立（握手延迟到首事件）；空事件流（终结层没发事件
 	// 就关闭）时补默认连接，保持"握手+挥手"空连接的旧行为。
 	connected := !eventMode
+	// 并发会话模式（cfg.concurrent）：按客户端 SrcPort 维护独立连接状态。
+	// 首次见某端口 → 握手建连；切换回已建立的端口 → 恢复其 seq 状态（不挥手
+	// 不握手）。concurrent=false 时沿用 P0a 挥旧握新语义，行为不变。
+	type tcpConn struct {
+		clientSeq, serverSeq uint32
+	}
+	conns := map[uint16]*tcpConn{}
 	for events != nil {
 		var ev MessageEvent
 		var ok bool
@@ -1040,12 +1059,24 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 				continue
 			}
 		}
-		// 会话边界：事件源端口覆盖 != 当前连接端口 → 新连接（挥旧握新）。
+		// 会话边界：事件源端口覆盖 != 当前连接端口 → 新连接（挥旧握新或并发恢复）。
 		evSrc := ev.SrcPort
 		if evSrc == 0 {
 			evSrc = cfg.srcPort
 		}
-		if !connected {
+		if cfg.concurrent {
+			if _, seen := conns[evSrc]; !seen {
+				if err := handshake(evSrc); err != nil {
+					return err
+				}
+				conns[evSrc] = &tcpConn{clientSeq: clientSeq, serverSeq: serverSeq}
+			} else {
+				c := conns[evSrc]
+				clientSeq, serverSeq = c.clientSeq, c.serverSeq
+			}
+			connected = true
+			curSrcPort = evSrc
+		} else if !connected {
 			// 首个事件建立首条连接（端口 = 事件携带值）。
 			if err := handshake(evSrc); err != nil {
 				return err
@@ -1101,6 +1132,10 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			} else {
 				serverSeq += uint32(len(seg))
 			}
+		}
+		// 并发会话：本事件推进后的 seq 状态写回该端口的连接状态。
+		if cfg.concurrent {
+			conns[evSrc].clientSeq, conns[evSrc].serverSeq = clientSeq, serverSeq
 		}
 	}
 

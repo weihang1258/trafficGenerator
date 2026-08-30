@@ -1889,8 +1889,60 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		}
 		return
 	case "mms":
-		if spec.MMS == nil {
-			spec.MMS = &core.MMSConfig{}
+		if spec.MMS != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		cfg := completedConfig(s, term.Config)
+		spec.MMS = &core.MMSConfig{}
+		if v, ok := configString(cfg["iedName"]); ok {
+			spec.MMS.IEDName = v
+		}
+		if v, ok := cfg["objects"].([]interface{}); ok {
+			b, _ := json.Marshal(v)
+			var objs []core.MMSObjectConfig
+			if json.Unmarshal(b, &objs) == nil {
+				spec.MMS.Objects = objs
+			}
+		}
+		if v, ok := cfg["enableRead"].(bool); ok {
+			spec.MMS.EnableRead = v
+		}
+		if v, ok := cfg["enableWrite"].(bool); ok {
+			spec.MMS.EnableWrite = v
+		}
+		if v, ok := cfg["enableInformationReport"].(bool); ok {
+			spec.MMS.EnableInformationReport = v
+		}
+		if v, ok := cfg["enableGetNameList"].(bool); ok {
+			spec.MMS.EnableGetNameList = v
+		}
+		if v, ok := cfg["enableIdentify"].(bool); ok {
+			spec.MMS.EnableIdentify = v
+		}
+		if v, ok := cfg["association"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(v)
+			var a core.MMSAssociationConfig
+			json.Unmarshal(b, &a)
+			spec.MMS.Association = &a
+		}
+		if v, ok := cfg["multiSession"].([]interface{}); ok {
+			b, _ := json.Marshal(v)
+			var ms []core.MMSConfig
+			if json.Unmarshal(b, &ms) == nil {
+				spec.MMS.MultiSession = ms
+			}
+		}
+		if v, ok := cfg["sequence"].(map[string]interface{}); ok {
+			b, _ := json.Marshal(v)
+			var sq core.MMSSequence
+			json.Unmarshal(b, &sq)
+			spec.MMS.Sequence = &sq
+		}
+		if v, ok := configString(cfg["errorClassName"]); ok {
+			spec.MMS.ErrorClassName = v
+		}
+		if v, ok := cfg["errorValue"].(float64); ok {
+			spec.MMS.ErrorValue = int(v)
 		}
 		return
 	case "http":
@@ -2081,6 +2133,26 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 		case "tcp":
 			cfg["src_port"] = uint16(spec.SrcPort)
 			cfg["dst_port"] = uint16(spec.DstPort)
+			// mms 链强制并发会话语义（同 http 链强制 legacy 模式）：MMS 关联
+			// 会话不挥 TCP 手（设计 §6.1 connect_establish 7 帧止于 DT2；所有
+			// case 包数均不含 FIN），multiSession 是并发会话（按 SrcPort 保持
+			// 独立连接，事件循环恢复 seq 状态）。层链 case（cases/mms.json）
+			// 没有顶层 tcp 子映射 → spec.TCP 为 nil，注入必须在 nil 检查之外。
+			if isMMSChain(chain) {
+				if t := spec.TCP; t != nil {
+					if t.MSS != 0 {
+						cfg["mss"] = uint16(t.MSS)
+					}
+					if t.WindowSize != 0 {
+						cfg["window_size"] = uint16(t.WindowSize)
+					}
+					if t.InitialSeq != 0 {
+						cfg["initial_seq"] = t.InitialSeq
+					}
+				}
+				cfg["termination"] = false
+				cfg["concurrent"] = true
+			}
 			if t := spec.TCP; t != nil {
 				// http 链强制 legacy http 语义（review LOW-3 修复）：legacy
 				// http.go 只读 spec.TCP 的 MSS/InitialSeq（http.go:126-151），
@@ -2167,6 +2239,12 @@ func isCarrierMixedChain(name string, chain []Layer) bool {
 
 func isHTTPChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "http"
+}
+
+// isMMSChain reports whether the chain's terminal layer is mms（mms 链强制
+// 并发会话 TCP 语义：termination=false + concurrent=true）。
+func isMMSChain(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "mms"
 }
 
 // isRIPChain reports whether the chain's terminal layer is rip（波 5c）：

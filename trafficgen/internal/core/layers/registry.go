@@ -49,6 +49,8 @@ func DefaultRegistry() *Registry {
 			"termination": {Type: "bool", Default: true},
 			"rst":         {Type: "bool", Default: false},
 			"initial_seq": {Type: "uint32", Default: uint32(0)},
+			// concurrent: 事件模式按 SrcPort 维护并发连接状态（mms 多会话）。
+			"concurrent": {Type: "bool", Default: false},
 		},
 	})
 	r.Register(LayerSchema{Name: "udp", Category: CategoryTransport,
@@ -413,7 +415,20 @@ func DefaultRegistry() *Registry {
 		"bad_message_size": {Type: "bool", Default: false},
 		"bad_length":       {Type: "bool", Default: false},
 	}})
-	r.Register(LayerSchema{Name: "mms", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
+	r.Register(LayerSchema{Name: "mms", Category: CategoryTerminal, DependsOn: []string{"tcp"}, Fields: map[string]FieldSchema{
+		"iedName":              {Type: "string"},
+		"objects":              {Type: "list", Default: []interface{}{}},
+		"enableRead":           {Type: "bool", Default: false},
+		"enableWrite":          {Type: "bool", Default: false},
+		"enableInformationReport": {Type: "bool", Default: false},
+		"enableGetNameList":    {Type: "bool", Default: false},
+		"enableIdentify":       {Type: "bool", Default: false},
+		"multiSession":         {Type: "list", Default: []interface{}{}},
+		"association":          {Type: "object"},
+		"sequence":             {Type: "object"},
+		"errorClassName":       {Type: "string"},
+		"errorValue":           {Type: "int", Default: 0, Min: 0, Max: 255},
+	}})
 	r.Register(LayerSchema{Name: "moxa", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "someip", Category: CategoryTerminal, DependsOn: []string{"udp"}, TransportOn: []string{"udp", "tcp"}})
 	r.Register(LayerSchema{Name: "drda", Category: CategoryTerminal, DependsOn: []string{"tcp"},

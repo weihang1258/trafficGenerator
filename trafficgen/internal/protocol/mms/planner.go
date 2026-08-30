@@ -98,8 +98,9 @@ func (p Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pack
 		}
 		cfg := spec.MMS
 		if cfg == nil {
-			// P0b-2：空配置默认化（Generate 同款：association + read）。
-			cfg = &core.MMSConfig{EnableRead: true}
+			// P0b-2：空配置默认化（Generate 同款：association-only，设计 §6.1
+			// connect_establish 7 帧，不默认 read）。
+			cfg = &core.MMSConfig{}
 		}
 		a := cfg.Association
 		no := a != nil && a.NoAssociate

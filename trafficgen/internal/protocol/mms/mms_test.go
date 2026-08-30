@@ -88,7 +88,7 @@ func TestBuildAssociateMatchesCanonicalAcknowledge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := hex.DecodeString("030000a102f0800e900506130100160102140200023305000102030434020001c17f317da003800101a276830400000001a5")
+	want, err := hex.DecodeString("030000a102f0800e900506130100160102140200023305000102030434020001c17f317da003800101a276830400000001a51e300d02020101300780010081025101300d02020103300780010081025101614e304c020101a0476145a1060628ca220203a203020100a305a103020100be2f282d020103a028a92680040000fa0081010582010583010aa415800101810205f1820c0b0000000000000000000000")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,8 +198,12 @@ func TestBuildAssociateHasSessionAndPresentationWrappers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsSubslice(got, []byte{0xc1, 0x81, 0x00, 0x81}) {
-		t.Fatalf("missing SPDU/session user-data wrapper: %x", got)
+	// Request envelope: c1 + marker 0x81 + 2-byte length + CP (reference
+	// capture form; the 2-byte length = bytes remaining after it, i.e. the
+	// whole CP element starting at offset 36).
+	want := []byte{0xc1, 0x81, byte((len(got) - 36) >> 8), byte(len(got) - 36), 0x31}
+	if !containsSubslice(got, want) {
+		t.Fatalf("missing SPDU/session user-data wrapper (want %x): %x", want, got)
 	}
 }
 
@@ -226,12 +230,12 @@ func TestBuildMMSServicePayloads(t *testing.T) {
 		got  []byte
 		want []byte
 	}{
-		{"read request", mustService(BuildReadRequest(cfg, 1)), []byte{0xa0, 0xa4, 0x8a}},
+		{"read request", mustService(BuildReadRequest(cfg, 1)), []byte{0xa0, 0xa4, 0x1a}},
 		{"read response", mustService(BuildReadResponse(cfg, 1)), []byte{0xa1, 0xa4, 0x83, 0x85, 0x89}},
 		{"write request", mustService(BuildWriteRequest(cfg, 1)), []byte{0xa0, 0xa5, 0x83, 0x85}},
-		{"write response", mustService(BuildWriteResponse(cfg, 1)), []byte{0xa1, 0xa5, 0x80, 0x01, 0x00}},
+		{"write response", mustService(BuildWriteResponse(cfg, 1)), []byte{0xa1, 0xa5, 0x81}},
 		{"name list request", mustService(BuildGetNameListRequest(1)), []byte{0xa0, 0xa1, 0x80, 0x00}},
-		{"name list response", mustService(BuildGetNameListResponse(cfg, 1)), []byte{0xa1, 0xa1, 0x8a}},
+		{"name list response", mustService(BuildGetNameListResponse(cfg, 1)), []byte{0xa1, 0xa1, 0x1a}},
 		{"identify request", mustService(BuildIdentifyRequest(1)), []byte{0xa0, 0xa2, 0x00}},
 		{"identify response", mustService(BuildIdentifyResponse(cfg, 1)), []byte{0xa1, 0xa2, 0x80, 0x81, 0x82}},
 		{"information report", mustService(BuildInformationReport(cfg)), []byte{0xa3, 0xa0, 0x83}},
@@ -461,5 +465,43 @@ func TestEmptyConfigProducesDefaultFlow(t *testing.T) {
 	}
 	if len(events) == 0 {
 		t.Fatal("empty config generated 0 events")
+	}
+}
+
+func TestGeneratorMultiSessionExpansion(t *testing.T) {
+	// case mms_multi_session: 2 concurrent associations on separate TCP
+	// connections — session A carries SrcPort 40000, session B 40001;
+	// interleaved phases: CR/CC ×2, associate pair ×2, services ×2 (mms
+	// concurrent-session semantics; tcp layer keeps independent connections
+	// per SrcPort, no teardown between phases).
+	var events []layers.MessageEvent
+	err := (&MMSGenerator{}).Generate(context.Background(), &layers.GenRequest{
+		Meta: layers.FlowMeta{MMS: &core.MMSConfig{
+			Objects:       []core.MMSObjectConfig{{Domain: "IED1", Name: "GGIO1.SPCSO1.stVal", Datatype: "boolean"}},
+			EnableRead:    true,
+			MultiSession:  []core.MMSConfig{{Objects: []core.MMSObjectConfig{{Domain: "IED2", Name: "MMXU1.TotW.mag.f", Datatype: "integer", Value: 5}}}},
+			Sequence:      &core.MMSSequence{Steps: []string{"read"}},
+		}},
+		EmitMsg: func(ev layers.MessageEvent) error { events = append(events, ev); return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 12 { // 2 sessions × 6 events (CR,CC,Assoc,AssocResp,readReq,readResp)
+		t.Fatalf("events=%d want 12", len(events))
+	}
+	// 交错序（tcp 层握手延迟到首事件，CR_B 触发 hsB 插在 CR_A 后）：
+	// CR_A CR_B CC_A CC_B DT1_A DT1_B DT2_A DT2_B svcA req resp svcB req resp
+	// （case 侧把 hsB 的 3 个握手包插在 4 与 8 之间，事件序即此）。会话 0
+	// 不带 SrcPort 覆盖（默认流端口），会话 1 = 40001。
+	wantSrc := []uint16{0, 40001, 0, 40001, 0, 40001, 0, 40001, 0, 0, 40001, 40001}
+	wantDir := []bool{true, true, false, false, true, true, false, false, true, false, true, false}
+	for i, ev := range events {
+		if ev.SrcPort != wantSrc[i] {
+			t.Fatalf("event %d SrcPort=%d want %d", i, ev.SrcPort, wantSrc[i])
+		}
+		if ev.Up != wantDir[i] {
+			t.Fatalf("event %d Up=%v want %v", i, ev.Up, wantDir[i])
+		}
 	}
 }
