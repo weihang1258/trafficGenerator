@@ -56,7 +56,8 @@ func (g *DamengGenerator) Generate(ctx context.Context, req *layers.GenRequest) 
 			if err != nil {
 				return err
 			}
-			if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: up, Bytes: evBytes}); err != nil {
+			// tcp 层据 SrcPort 判定会话边界（0 = 默认流端口）。
+			if err := emitSel(ctx, req.EmitMsg, layers.MessageEvent{Up: up, Bytes: evBytes, SrcPort: s.SrcPort}); err != nil {
 				return err
 			}
 		}

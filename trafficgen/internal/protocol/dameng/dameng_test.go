@@ -650,6 +650,34 @@ func TestPlanDamengIPv6(t *testing.T) {
 	}
 }
 
+func TestGeneratorMultiSessionUsesPerSessionSrcPort(t *testing.T) {
+	// 回归（dameng_multi_session case）：sessions 循环原本不带 s.SrcPort，
+	// 两个会话全走默认流端口 → 第二会话 tcp.srcport 缺失、包数 13/20。
+	var events []layers.MessageEvent
+	err := (&DamengGenerator{}).Generate(context.Background(), &layers.GenRequest{
+		Meta: layers.FlowMeta{
+			SrcPort: 12345,
+			Dameng: &core.DamengConfig{
+				WireProfile: "dm8_profile_pending",
+				Sessions: []core.DamengSession{
+					{SrcPort: 12345, Events: []core.DamengEvent{{Kind: "connect"}}},
+					{SrcPort: 12346, Events: []core.DamengEvent{{Kind: "connect"}}},
+				},
+			},
+		},
+		EmitMsg: func(ev layers.MessageEvent) error { events = append(events, ev); return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("events=%d want 2 (one per session)", len(events))
+	}
+	if events[0].SrcPort != 12345 || events[1].SrcPort != 12346 {
+		t.Fatalf("src ports=%d,%d want 12345,12346", events[0].SrcPort, events[1].SrcPort)
+	}
+}
+
 func TestPlanDamengMultiSession(t *testing.T) {
 	// S8: two independent sessions → 20 packets
 	spec := core.FlowSpec{
