@@ -1,11 +1,11 @@
 # ldp Pcap Test Results
 
-Cases: 25 — pass 23, fail 0, error 2
+Cases: 25 — pass 25, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
 | ldp_address_ipv4 | S3: IPv4 Address message after session initialization | pass | 10 | [pcap](ldp/ldp_address_ipv4.pcap) |
-| ldp_dual_adjacency | S14: basic and targeted discovery adjacencies plus TCP session | error | 0 | `` |
+| ldp_dual_adjacency | S14: basic and targeted discovery adjacencies plus TCP session | pass | 12 | [pcap](ldp/ldp_dual_adjacency.pcap) |
 | ldp_label_mapping_host32 | S8: IPv4 /32 host-route Label Mapping | pass | 10 | [pcap](ldp/ldp_label_mapping_host32.pcap) |
 | ldp_label_mapping_ipv4 | S4: IPv4 /24 Label Mapping with Generic Label | pass | 10 | [pcap](ldp/ldp_label_mapping_ipv4.pcap) |
 | ldp_label_release_ipv4 | S7: IPv4 /24 Label Release after Mapping | pass | 11 | [pcap](ldp/ldp_label_release_ipv4.pcap) |
@@ -26,17 +26,6 @@ Cases: 25 — pass 23, fail 0, error 2
 | ldp_ordered_dod_allocation | S12: downstream-on-demand ordered label request/mapping | pass | 11 | [pcap](ldp/ldp_ordered_dod_allocation.pcap) |
 | ldp_tcp_initialization | S1: TCP/646 session Initialization in both directions | pass | 9 | [pcap](ldp/ldp_tcp_initialization.pcap) |
 | ldp_tcp_keepalive | S2: Initialization followed by bidirectional KeepAlive | pass | 11 | [pcap](ldp/ldp_tcp_keepalive.pcap) |
-| ldp_tcp_multi_session | S13: two independent parallel TCP/646 LDP sessions | error | 0 | `` |
+| ldp_tcp_multi_session | S13: two independent parallel TCP/646 LDP sessions | pass | 22 | [pcap](ldp/ldp_tcp_multi_session.pcap) |
 | ldp_udp_parallel_hellos | S10: basic discovery Hellos in both directions | pass | 2 | [pcap](ldp/ldp_udp_parallel_hellos.pcap) |
 | ldp_udp_targeted_hello | S9: targeted UDP/646 Hello with transport address | pass | 1 | [pcap](ldp/ldp_udp_targeted_hello.pcap) |
-
-## Failures
-
-### ldp_dual_adjacency — S14: basic and targeted discovery adjacencies plus TCP session
-
-task ended failed: output error: [ab080fe0-335b-4cb0-b669-54066f0e59a2-0a67c38f-b2d6-4b22-86f0-d6fa04440a5a: validation failed: ldp: at least one event required]
-
-### ldp_tcp_multi_session — S13: two independent parallel TCP/646 LDP sessions
-
-task ended failed: output error: [27e859f4-b2d2-45e2-b9f3-7f647eee4480-41cdc324-10a0-4833-ab71-75f38683e2fb: validation failed: ldp: at least one event required]
-
