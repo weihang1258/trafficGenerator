@@ -82,6 +82,13 @@ type ChainPlanner struct {
 	// registry is the registry used to complete/validate the chain; nil =
 	// DefaultRegistry (测试注入自定义注册表时经 NewChainPlannerWithRegistry 指定)。
 	registry *Registry
+	// completed caches completedChain() (T23: it re-derived + revalidated the
+	// chain on every Plan — pure function of name/chain/registry, so cached
+	// under mu; Plan may run concurrently on one planner instance from
+	// multiple engine workers).
+	mu        sync.Mutex
+	completed []Layer
+	completedErr error
 }
 
 // NewChainPlanner creates a chain planner for the named protocol layer.
@@ -973,8 +980,26 @@ func flowID(spec core.FlowSpec) string {
 }
 
 // completedChain completes the derived chain and validates it, applying the
-// V4/V5 exemption for the synthesized chain (末层即协议层本身)。
+// V4/V5 exemption for the synthesized chain (末层即协议层本身)。Result is
+// cached — a pure function of (name, chain, registry); callers must not
+// mutate the returned slice or its layers' Config maps (applySpecToChain
+// copies per-Plan, so the cached chain is never written).
 func (p *ChainPlanner) completedChain() ([]Layer, error) {
+	p.mu.Lock()
+	if p.completed != nil || p.completedErr != nil {
+		chain, err := p.completed, p.completedErr
+		p.mu.Unlock()
+		return chain, err
+	}
+	p.mu.Unlock()
+	chain, err := p.completedChainUncached()
+	p.mu.Lock()
+	p.completed, p.completedErr = chain, err
+	p.mu.Unlock()
+	return chain, err
+}
+
+func (p *ChainPlanner) completedChainUncached() ([]Layer, error) {
 	r := p.effectiveRegistry()
 	// P2c: user-supplied chain — already completed+validated by ValidateLayers
 	// (BuildLayersPlanner 补全后传入, CRITICAL-1 修复)。Generator precheck runs

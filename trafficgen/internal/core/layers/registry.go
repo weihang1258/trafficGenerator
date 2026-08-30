@@ -1,11 +1,29 @@
 package layers
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
+
+// defaultRegistryOnce builds the built-in registry exactly once. T23 profiled
+// DefaultRegistry as 32% of chain-path allocation — it was rebuilt (100+
+// Register calls) on every Plan. The registry is read-only after construction
+// (Get/Has/List only); callers needing a custom registry build their own via
+// NewRegistry.
+var (
+	defaultRegistryOnce sync.Once
+	defaultRegistry     *Registry
+)
 
 // DefaultRegistry returns the built-in layer registry (层注册表，§4.4)。
 // 字段默认值与现有实现对齐（strategy_convert.go / types.go）。
 // 完整字段表见实现计划；此处先注册公共层与常用协议层。
 func DefaultRegistry() *Registry {
+	defaultRegistryOnce.Do(buildDefaultRegistry)
+	return defaultRegistry
+}
+
+func buildDefaultRegistry() {
 	r := NewRegistry()
 
 	// ---- 网络层（ip）----
@@ -746,7 +764,7 @@ func DefaultRegistry() *Registry {
 	r.Register(LayerSchema{Name: "mpls", Category: CategoryL2})
 	r.Register(LayerSchema{Name: "pppoe", Category: CategoryL2})
 
-	return r
+	defaultRegistry = r
 }
 
 // Verify registry contents at init (defensive: catches typo'd depends_on).
