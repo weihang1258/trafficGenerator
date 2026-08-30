@@ -1,6 +1,6 @@
 # dameng Pcap Test Results
 
-Cases: 14 — pass 13, fail 1, error 0
+Cases: 14 — pass 14, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -9,7 +9,7 @@ Cases: 14 — pass 13, fail 1, error 0
 | dameng_ipv4 | S6: IPv4 authenticated SQL session | pass | 12 | [pcap](dameng/dameng_ipv4.pcap) |
 | dameng_ipv6 | S7: IPv6 authenticated SQL session | pass | 12 | [pcap](dameng/dameng_ipv6.pcap) |
 | dameng_length_boundary | S5: profile minimum non-empty payload boundary | pass | 12 | [pcap](dameng/dameng_length_boundary.pcap) |
-| dameng_multi_session | S8: two independent authenticated sessions | fail | 13 | `dameng/dameng_multi_session.pcap` |
+| dameng_multi_session | S8: two independent authenticated sessions | pass | 20 | [pcap](dameng/dameng_multi_session.pcap) |
 | dameng_neg_oversize | N6: message over implementation limit is rejected | pass | 0 | [pcap]() |
 | dameng_neg_port | N2: nonstandard destination port is rejected | pass | 0 | [pcap]() |
 | dameng_neg_profile | N3: unknown wire profile is rejected | pass | 0 | [pcap]() |
@@ -18,10 +18,3 @@ Cases: 14 — pass 13, fail 1, error 0
 | dameng_neg_udp | N1: UDP carrier is rejected | pass | 0 | [pcap]() |
 | dameng_sql_error | S4: SQL error response remains a distinct event | pass | 12 | [pcap](dameng/dameng_sql_error.pcap) |
 | dameng_sql_success | S3: authenticated SELECT success | pass | 12 | [pcap](dameng/dameng_sql_success.pcap) |
-
-## Failures
-
-### dameng_multi_session — S8: two independent authenticated sessions
-
-verify: count: got 13 packets, want 20; field tcp.srcport: distinct values mismatch (want [12345 12346]; missing [12346]; unexpected [])
-
