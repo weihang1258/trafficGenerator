@@ -37,7 +37,10 @@ func TestMCP_QuerySystem_Status(t *testing.T) {
 }
 
 func TestMCP_QuerySystem_Protocols(t *testing.T) {
-	env := setupMCPTest(t)
+	env := setupMCPTestWithPlanner(t, &mockMCPPlanner{name: "udp"})
+	// 包级跑时其他测试会注册额外 planner；本测试自己注册 udp 保证独立
+	// 可跑（原先依赖包内其他测试注册的 "udp"，单跑时报 missing "udp"）。
+	env.eng.RegisterPlanner(&mockMCPPlanner{name: "tcp"})
 	defer env.cleanup()
 
 	_, out, err := env.srv.handleQuerySystem(context.Background(), nil, querySystemInput{

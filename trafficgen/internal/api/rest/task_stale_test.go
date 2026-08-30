@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +38,18 @@ func createLongRunningStrategy(t *testing.T, db *storage.DB, userID, name, proto
 	return id
 }
 
+// stalePcapPath returns a writable pcap output path under the user's home
+// (hardcoded /tmp paths break on machines where a root-owned leftover of the
+// same name exists — open() for write fails with permission denied).
+func stalePcapPath(t *testing.T, name string) string {
+	t.Helper()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("user home: %v", err)
+	}
+	return filepath.Join(home, ".cache", "tg-rest-tests", name)
+}
+
 // TestStart_StaleRunning_EngineTaskMissing_AllowsRestart verifies the
 // stale-running reconciliation: when the DB task status is "running" but the
 // engine taskStore no longer has any engine task for it (the task completed or
@@ -59,7 +73,7 @@ func TestStart_StaleRunning_EngineTaskMissing_AllowsRestart(t *testing.T) {
 	db.Create(&storage.TaskModel{
 		ID: taskID, UserID: "test-user", Name: "t1",
 		Status: "running", StrategyIDs: string(sidsJSON),
-		OutputType: "pcap", OutputConfig: `{"pcap_path":"/tmp/stale.pcap"}`,
+		OutputType: "pcap", OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "stale.pcap") + `"}`,
 	})
 
 	// Precondition: the engine task is already gone (stale DB status).
@@ -109,7 +123,7 @@ func TestStart_StaleRunning_EngineTaskMissing_NoFailure_RepairsCompleted(t *test
 	db.Create(&storage.TaskModel{
 		ID: taskID, UserID: "test-user", Name: "t1",
 		Status: "running", StrategyIDs: string(sidsJSON),
-		OutputType: "pcap", OutputConfig: `{"pcap_path":"/tmp/stale4.pcap"}`,
+		OutputType: "pcap", OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "stale4.pcap") + `"}`,
 	})
 
 	// First Start: reconciles stale running -> completed (no failure recorded),
@@ -193,7 +207,7 @@ func TestStart_StaleStarting_EngineTaskMissing_ReconcilesFailed(t *testing.T) {
 	db.Create(&storage.TaskModel{
 		ID: taskID, UserID: "test-user", Name: "t1",
 		Status: "starting", StrategyIDs: string(sidsJSON),
-		OutputType: "pcap", OutputConfig: `{"pcap_path":"/tmp/stale2.pcap"}`,
+		OutputType: "pcap", OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "stale2.pcap") + `"}`,
 	})
 	// Simulate a failure recorded by the engine callback before the client
 	// disconnected: failedTasks holds the engine task's error message.
@@ -233,12 +247,12 @@ func TestStart_GenuinelyRunning_StillRejected(t *testing.T) {
 	db.Create(&storage.TaskModel{
 		ID: taskID, UserID: "test-user", Name: "t1",
 		Status: "running", StrategyIDs: string(sidsJSON),
-		OutputType: "pcap", OutputConfig: `{"pcap_path":"/tmp/stale3.pcap"}`,
+		OutputType: "pcap", OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "stale3.pcap") + `"}`,
 	})
 	// Precondition: engine task IS present (genuinely running).
 	ct, err := core.StrategyModelToTask(&storage.TaskModel{
 		ID: taskID, UserID: "test-user", Name: "t1", StrategyIDs: string(sidsJSON),
-		OutputType: "pcap", OutputConfig: `{"pcap_path":"/tmp/stale3.pcap"}`,
+		OutputType: "pcap", OutputConfig: `{"pcap_path":"` + stalePcapPath(t, "stale3.pcap") + `"}`,
 	}, &storage.StrategyModel{
 		ID: sid, UserID: "test-user", Name: "s1", Protocol: "tcp",
 		Config: `{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"}`, Mode: "synth",

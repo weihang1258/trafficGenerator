@@ -383,6 +383,21 @@ func (r *Registry) validateChain(chain []Layer) error {
 	terminalCount := 0
 	terminalSeen := ""
 	transportCount := 0
+	// 变换器豁免的前提：链中真有层依赖该终结层（http_flv→http）。只看
+	// "非末层位置" 会把 [ip,tcp,http,dns] 的 http 也豁免掉（dns 不依赖
+	// http，http 是货真价实的第二个终结层），两个终结层被静默放行成
+	// dns-only 流。
+	dependedOn := func(self int, name string) bool {
+		for k, inner := range chain {
+			if k == self || inner.Name == name {
+				continue
+			}
+			if s, ok := r.Get(inner.Name); ok && contains(s.DependsOn, name) {
+				return true
+			}
+		}
+		return false
+	}
 	for i, l := range chain {
 		schema, ok := r.Get(l.Name)
 		if !ok {
@@ -390,8 +405,8 @@ func (r *Registry) validateChain(chain []Layer) error {
 		}
 		switch schema.Category {
 		case CategoryTerminal:
-			if schema.TransformEvents && i < len(chain)-1 {
-				continue // 非末层变换器位置（http_flv 上方的 http）不计终结层
+			if schema.TransformEvents && i < len(chain)-1 && dependedOn(i, l.Name) {
+				continue // 变换器位置（http_flv 上方的 http）不计终结层
 			}
 			terminalCount++
 			terminalSeen = l.Name

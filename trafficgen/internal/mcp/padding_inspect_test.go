@@ -32,12 +32,17 @@ import (
 // This test does NOT delete the pcap files — they stay on disk for manual
 // inspection. Skip with -test.run deselect if the directory is unwanted.
 func TestMCP_Padding_InspectBytes(t *testing.T) {
-	outDir := "/tmp/padding-verify"
-	if err := os.RemoveAll(outDir); err != nil && !os.IsNotExist(err) {
-		t.Fatalf("remove old outDir: %v", err)
+	// 落到家目录下唯一的运行子目录：硬编码 /tmp 固定目录会在残留了 root
+	// 属主旧产物的机器上撞权限（无法清理/写入别人的文件）。旧产物不删
+	// （可能属他人），本轮产物写进 ~/.cache/padding-verify/run-<ts>。
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skipf("no home dir: %v", err)
 	}
+	base := filepath.Join(home, ".cache", "padding-verify")
+	outDir := filepath.Join(base, fmt.Sprintf("run-%d", time.Now().UnixNano()))
 	if err := os.MkdirAll(outDir, 0755); err != nil {
-		t.Fatalf("mkdir outDir: %v", err)
+		t.Fatalf("mkdir outDir %s: %v", outDir, err)
 	}
 
 	cases := []struct {

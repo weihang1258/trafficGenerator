@@ -50,6 +50,14 @@ func TestValidateLayers_DuplicateTerminal(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "duplicated") {
 		t.Errorf("duplicate s7: want error mentioning duplicated, got %v", err)
 	}
+	// TransformEvents 豁免只给真正的变换器链（内层依赖该层，如
+	// http_flv→http）；[http, dns] 的 dns 不依赖 http，http 在非末层就是
+	// 第二个终结层，必须报 duplicated（回归：豁免曾按"非末层位置"一刀切，
+	// http+dns 链被静默放行成 dns-only）。
+	_, err = ValidateLayers(mustRaw(t, `[{"ip":{}},{"tcp":{}},{"http":{}},{"dns":{}}]`), "")
+	if err == nil || !strings.Contains(err.Error(), "duplicated") {
+		t.Errorf("http+dns: want error mentioning duplicated, got %v", err)
+	}
 }
 
 // T18b (V2 变换器豁免)：http_flv 链 [ip→tcp→http→http_flv] 中 http 是事件
