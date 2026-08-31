@@ -368,7 +368,11 @@ func validateBaseDstPortHandled(name string) bool {
 		"ntp", "ssdp", "stun", "rtmfp", "ldp", "pcep", "cflow", "rip", "dhcp",
 		"dhcpv6", "doip", "gbt32960", "mcp", "modbus", "mqtt", "nfs", "smb",
 		"tds", "moxa", "someip", "postgresql", "goose", "sv",
-		"igmp", "ospf", "pim", "isis":
+		"igmp", "ospf", "pim", "isis",
+		// B4 nvgre：无传输层、无端口概念（raw-IP 同款），目的端口 0 合法。
+		// vxlan/geneve 不在豁免名单——它们的默认 4789/6081 走 FieldContract
+		// 通用块（validateBaseDstPortHandled 之外的 amqp/bgp 同款）。
+		"nvgre":
 		return true
 	}
 	return false
@@ -438,8 +442,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// DHCPv6 源端口 0 保持 0：终结层生成器按方向逐事件解析
 			// （up=client 546、down=server 547，dhcpv6 planner.go:435-456
 			// resolveAddrs 语义，IPv6-only 链）。
-		case "dns", "snmp", "syslog", "stun", "rtmfp", "wireguard", "l2tp", "gtp", "ike_nat_t":
-			// 允许 0 上包（legacy 语义）
+		case "dns", "snmp", "syslog", "stun", "rtmfp", "wireguard", "l2tp", "gtp", "ike_nat_t",
+			"vxlan", "geneve":
+			// 允许 0 上包（legacy 语义；vxlan/geneve B4 封装类同款——用例
+			// 显式写源端口，空配置默认 0 数据报照样封装）
 		case "doip":
 			// DoIP 源端口 0 保持 0：legacy Plan 用 spec.SrcPort 原值
 			// （0 也上包，emitDoIP 的 srcPort 参数直传），不在此默认化。
@@ -508,8 +514,9 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// 不在此默认化。
 		case "moxa":
 		// Moxa 源端口 0 保持 0：透传单连接，多流由 worker 递增。
-		case "igmp", "ospf", "pim", "isis":
-			// raw-IP 路由终结层（P3 T5）：无端口概念，源/目的端口 0 保持 0。
+		case "igmp", "ospf", "pim", "isis", "nvgre":
+			// raw-IP 路由终结层（P3 T5）与 nvgre（B4 封装类，同样无传输层）
+			// ：无端口概念，源/目的端口 0 保持 0。
 		default:
 			return fmt.Errorf("source port is required")
 		}
@@ -867,6 +874,7 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			meta.IGMP = spec.IGMP
 			meta.OSPF = spec.OSPF
 			meta.PIM = spec.PIM
+			meta.NVGRE = spec.NVGRE
 			req := &GenRequest{
 				Meta:  meta,
 				Sess:  sess,
@@ -1374,6 +1382,11 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// SOCKS 同款（J 组）：greeting/method/auth/request/reply 信令 + 隧道
 		// 数据面事件，build* 纯函数复用。Only set for socks5 chains。
 		Socks: spec.Socks,
+		// VXLAN/Geneve/NVGRE 同款（B4 封装类）：配置经 Meta 直传终结层
+		// 生成器（vxlan/geneve 逐数据报事件 + udp 载体；nvgre 自产完整包）。
+		VXLAN:  spec.VXLAN,
+		Geneve: spec.Geneve,
+		NVGRE:  spec.NVGRE,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,
@@ -2282,18 +2295,20 @@ func isSVChain(chain []Layer) bool {
 }
 
 // isRawIPChain reports whether the chain's terminal layer is a raw-IP routing
-// protocol (P3 T5: [ip→igmp/ospf/pim]) with no tcp/udp transport. These emit
-// full packets via the terminal generator (drive's transportIndex would be -1,
-// so they need a dedicated branch like the goose/sv L2-only path).
+// protocol (P3 T5: [ip→igmp/ospf/pim]) with no tcp/udp transport, or the B4
+// nvgre terminal layer ([ip→nvgre], self-built outer IP proto 47 + L2.GRE).
+// These emit full packets via the terminal generator (drive's transportIndex
+// would be -1, so they need a dedicated branch like the goose/sv L2-only
+// path).
 func isRawIPChain(name string, chain []Layer) bool {
 	if len(chain) == 0 {
 		return false
 	}
 	switch chain[len(chain)-1].Name {
-	case "igmp", "ospf", "pim":
+	case "igmp", "ospf", "pim", "nvgre":
 		return true
 	}
-	return name == "igmp" || name == "ospf" || name == "pim"
+	return name == "igmp" || name == "ospf" || name == "pim" || name == "nvgre"
 }
 
 // isCarrierMixedChain reports whether the terminal layer self-drives mixed

@@ -1010,6 +1010,52 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 1080
 		}
+	case "vxlan":
+		// B4 封装类：VXLAN（RFC 7348）配置 json 往返解析（stun 同款——
+		// 结构体字段即契约，未知字段拒绝进 ValidationErrors）。目的端口
+		// 4789（IANA 指派；FieldContract 同值兜底，用户显式写优先）。
+		if sub, ok := cfg["vxlan"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v VXLANConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "vxlan: "+err.Error())
+				} else {
+					spec.VXLAN = &v
+				}
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 4789
+		}
+	case "geneve":
+		// B4 封装类：GENEVE（RFC 8926）配置 json 往返解析。目的端口 6081
+		// （IANA 指派；FieldContract 同值兜底）。
+		if sub, ok := cfg["geneve"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v GeneveConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "geneve: "+err.Error())
+				} else {
+					spec.Geneve = &v
+				}
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 6081
+		}
+	case "nvgre":
+		// B4 封装类：NVGRE（RFC 7637）配置 json 往返解析。无传输层（IP
+		// proto 47），无端口默认。
+		if sub, ok := cfg["nvgre"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v NVGREConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "nvgre: "+err.Error())
+				} else {
+					spec.NVGRE = &v
+				}
+			}
+		}
 	case "ssdp":
 		if sub, ok := cfg["ssdp"].(map[string]interface{}); ok {
 			spec.SSDP = parseSSDPConfig(sub)

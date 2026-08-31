@@ -80,6 +80,9 @@ import (
 	mcpprotocol "github.com/trafficgen/trafficgen/internal/protocol/mcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mms"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/geneve"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/nvgre"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/vxlan"
 	"github.com/trafficgen/trafficgen/internal/protocol/modbus"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mongodb"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/moxa"
@@ -428,6 +431,9 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("iec104"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("bgp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("opcua"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("vxlan"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("nvgre"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("geneve"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mms"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("moxa"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("drda"))

@@ -30,6 +30,8 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"someip", "srv6", "ssdp", "ssh", "stun", "sv", "syslog", "tcp",
 		"tds", "telnet", "tftp", "thrift", "tls", "tns", "udp", "vmess",
 		"vnc", "wireguard", "xmpp",
+		// B4 封装类：layer/planner 注册后准入（占位用例同步替换）。
+		"vxlan", "nvgre", "geneve",
 	}
 	sort.Strings(want)
 
@@ -57,10 +59,10 @@ func TestAllowedProtocolsStable(t *testing.T) {
 func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 	negativeOnly := []string{
 		"ams", "bacnet", "cwmp", "dcerpc", "doh", "dtls", "edp", "ethmining",
-		"gbt", "geneve", "getwork", "gnutella", "hl7",
-		"kerberos", "megaco", "mmse", "nmea", "ntlm", "nvgre", "ocsp",
+		"gbt", "getwork", "gnutella", "hl7",
+		"kerberos", "megaco", "mmse", "nmea", "ntlm", "ocsp",
 		"onvif", "openwire", "spnego", "sstp", "stratum",
-		"swarm", "vxlan", "xmrmining",
+		"swarm", "xmrmining",
 	}
 	for _, name := range negativeOnly {
 		if IsAllowedProtocol(name) {

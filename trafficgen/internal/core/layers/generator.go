@@ -412,6 +412,18 @@ type FlowMeta struct {
 	// greeting/method/auth/request/reply 信令 + 隧道数据面，build* 纯函数
 	// 复用)。Only set for socks5 chains.
 	Socks *core.SocksConfig
+	// VXLAN is the flow's VXLAN config (注入到 vxlan 终结层生成器：8-byte
+	// VXLAN 头 + 内层 Ethernet 帧逐数据报事件，B4 封装类)。Only set for
+	// vxlan chains.
+	VXLAN *core.VXLANConfig
+	// Geneve is the flow's GENEVE config (注入到 geneve 终结层生成器：
+	// 8-byte 基础头 + options + 内层帧逐数据报事件，B4 封装类)。Only set
+	// for geneve chains.
+	Geneve *core.GeneveConfig
+	// NVGRE is the flow's NVGRE config (注入到 nvgre 终结层生成器：自产
+	// 完整包——外层 IP proto 47 + L2.GRE TEB(0x6558) + 内层帧 payload，
+	// B4 封装类)。Only set for nvgre chains.
+	NVGRE *core.NVGREConfig
 	// IGMP/OSPF/PIM/ISIS is the flow's routing config (注入到各自终结层生成器，
 	// P3 T5：igmp/ospf/pim 是 raw-IP [ip,<proto>] 链，isis 是 L2-only
 	// [eth,isis] 链；生成器经 req.Meta.<XXX> 读协议配置逐事件产包)。Only set

@@ -17,6 +17,10 @@ const (
 	EtherTypeSV    = 0x88BA
 	EtherTypeIPv6  = 0x86DD
 	EtherTypeISIS  = 0x8870
+	// EtherTypeTEB is Transparent Ethernet Bridging (0x6558): the GRE
+	// Protocol Type used by NVGRE (RFC 7637 §3) and GENEVE (RFC 8926 §5)
+	// to carry a complete inner Ethernet frame.
+	EtherTypeTEB = 0x6558
 
 	// PPPoE EtherTypes (RFC 2516 §4). The Ethernet EtherType selects the
 	// PPPoE stage: 0x8863 = Discovery (PADI/PADO/PADR/PADS/PADT), 0x8864 =
@@ -504,8 +508,13 @@ func validateGREConfig(gre *GREConfig, config PacketConfig, effectiveEtherType u
 	switch gre.ProtocolType {
 	case 0, EtherTypeIPv4, EtherTypeARP, EtherTypeIPv6:
 		// ok (0 = auto: defaulted to 0x0800 by writeGRE)
+	case EtherTypeTEB:
+		// Transparent Ethernet Bridging (0x6558) — NVGRE (RFC 7637 §3) /
+		// GENEVE-style Ethernet payload carrier. Payload must be a
+		// complete inner Ethernet frame (emitted by the nvgre terminal
+		// generator; the builder carries it verbatim).
 	default:
-		return fmt.Errorf("gre: ProtocolType 0x%04x not in supported list (allowed: 0x0800 IPv4, 0x0806 ARP, 0x86DD IPv6, 0 = IPv4)", gre.ProtocolType)
+		return fmt.Errorf("gre: ProtocolType 0x%04x not in supported list (allowed: 0x0800 IPv4, 0x0806 ARP, 0x86DD IPv6, 0x6558 TEB, 0 = IPv4)", gre.ProtocolType)
 	}
 	// PPTP mode (RFC 2637 §4.1) redefines the GRE header: the flags word
 	// carries K/S/A/Ver (the standard-mode option bits are reserved),

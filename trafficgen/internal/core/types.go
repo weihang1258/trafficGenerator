@@ -1472,6 +1472,13 @@ type FlowSpec struct {
 	PIM  *PIMConfig  `json:"pim,omitempty"`
 	ISIS *ISISConfig `json:"isis,omitempty"`
 
+	// Encapsulation terminal layers (B4; vxlan/geneve are UDP-terminal
+	// [ip,udp,<proto>], nvgre is raw-IP [ip,nvgre] with self-built outer
+	// IP + L2.GRE). See encapsulation.go.
+	VXLAN  *VXLANConfig  `json:"vxlan,omitempty"`
+	Geneve *GeneveConfig `json:"geneve,omitempty"`
+	NVGRE  *NVGREConfig  `json:"nvgre,omitempty"`
+
 	// Metadata is a generic extension map used by protocol packages whose
 	// config types live outside core (avoids an import cycle). NFS, for
 	// example, stores *nfs.NFSConfig under the key "nfs". Protocol

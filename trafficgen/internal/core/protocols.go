@@ -43,6 +43,9 @@ var allowedProtocols = map[string]bool{
 	"tds": true, "telnet": true, "tftp": true, "thrift": true,
 	"tls": true, "tns": true, "udp": true, "vmess": true,
 	"vnc": true, "wireguard": true, "xmpp": true,
+	// B4 封装类（vxlan/nvgre/geneve）：注册 layer/planner 后准入（占位
+	// 用例同步替换为 20 语义用例，protocols_test 哨兵同步摘除）。
+	"vxlan": true, "nvgre": true, "geneve": true,
 }
 
 // IsAllowedProtocol reports whether name is an accepted traffic protocol.

@@ -781,6 +781,35 @@ func buildDefaultRegistry() {
 		},
 	})
 
+	// ---- B4 封装类（vxlan / nvgre / geneve）----
+	// vxlan（udp 终结层。RFC 7348——8-byte VXLAN 头（I flag 0x08 + VNI
+	// 24-bit）+ 内层 Ethernet 帧，wire 字节由 vxlan 生成器产出）。UDP 语义
+	// 交给 udp 层生成器；配置经 spec.VXLAN flat 键携带、FlowMeta 直传生成
+	// 器（gtp 同款）；目的端口 4789（IANA 指派，FieldContract 默认）。
+	r.Register(LayerSchema{Name: "vxlan", Category: CategoryTerminal,
+		DependsOn:     []string{"udp"},
+		FieldContract: map[string]string{"udp.dst_port": "4789"},
+	})
+	// nvgre（raw-IP 终结层。RFC 7637——生成器自产完整包：外层 IP proto 47 +
+	// GRE 头（K=1、ProtocolType 0x6558 TEB、Key=VSID<<8|FlowID，经
+	// L2Config.GRE 由 builder writeGRE 序列化）+ 内层 Ethernet 帧 payload。
+	// 与设计稿 [ip,gre,nvgre] 的文档化分歧：gre 隧道层生成器要求内层包链
+	// （req.Inner 产 L3/L4 包）且 ProtocolType 限 0x0800/0x0806/0x86DD，
+	// NVGRE 的内层是裸 Ethernet 帧——无法复用，故 [ip,nvgre] 直连、由
+	// nvgre 生成器自写外层 IP + L2.GRE。无传输层、无端口概念。
+	r.Register(LayerSchema{Name: "nvgre", Category: CategoryTerminal,
+		DependsOn: []string{"ip"},
+	})
+	// geneve（udp 终结层。RFC 8926——8-byte GENEVE 基础头（Ver/OptLen +
+	// OAM/Critical flags + Protocol Type + VNI）+ 4-byte-unit options + 内层
+	// Ethernet 帧，wire 字节由 geneve 生成器产出）。UDP 语义交给 udp 层生成
+	// 器；配置经 spec.Geneve flat 键携带、FlowMeta 直传生成器；目的端口
+	// 6081（IANA 指派，FieldContract 默认）。
+	r.Register(LayerSchema{Name: "geneve", Category: CategoryTerminal,
+		DependsOn:     []string{"udp"},
+		FieldContract: map[string]string{"udp.dst_port": "6081"},
+	})
+
 	// ---- 二层层：mpls / pppoe（占位，P2 补字段）----
 	// 注意：不能照搬 gre 隧道表达——MPLS 线上格式是 Eth + 标签栈 + 内层 IP
 	// （无外层 IP 头，RFC 3031/3032），DependsOn:["ip"] 会补出错误的外层
