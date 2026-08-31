@@ -1,11 +1,167 @@
 package core
 
+import (
+	"encoding/binary"
+	"fmt"
+	"net"
+)
+
 // B4 封装类（VXLAN / NVGRE / GENEVE）的层链配置结构（RFC 7348 / 7637 / 8926）。
 // 配置从 spec_json 顶层协议键（"vxlan"/"nvgre"/"geneve"）经 strategy_convert
 // 的 json 往返解析（stun/gtp 同款），经 FlowMeta 直传终结层生成器。内层
 // Ethernet fixture 三协议共用（EncapEthernetFixture）：生成器据 fixture 构造
 // 完整内层帧字节（MAC + 可选 802.1Q + EtherType + 内层 IP 头（校验和正确）
 // + payload）。
+
+// 内层帧构造常量（三封装协议共用）：内层 IP 用不可深度解析的协议号，避免
+// tshark 把 payload dissect 成 spurious malformed 伪影。
+const (
+	// EncapInnerProtoIPv4 is the inner IPv4 protocol number (253,
+	// RFC 3692 experimentation) used in encapsulated inner headers.
+	EncapInnerProtoIPv4 = 253
+	// EncapInnerIPv6NoNextHdr is IPv6 No Next Header (59) for inner IPv6.
+	EncapInnerIPv6NoNextHdr = 59
+	// encapVLANTPID is the 802.1Q TPID.
+	encapVLANTPID = 0x8100
+)
+
+// BuildEncapEthernetFrame assembles a complete inner Ethernet frame from the
+// shared fixture: DstMAC(6) | SrcMAC(6) | [802.1Q(4)] | EtherType(2) |
+// inner L3 | payload（三封装协议共用的内层帧构造器；逻辑与 nvgre 包内已
+// 提交实现一致）。内层 IPv4 头带正确校验和（tshark 对错误校验和报
+// expert info，会导致用例失败）；内层 IPv6 Next Header = 59。
+func BuildEncapEthernetFrame(fix *EncapEthernetFixture) ([]byte, error) {
+	if err := ValidateEncapFixture(fix, "encap"); err != nil {
+		return nil, err
+	}
+	dstMAC, _ := net.ParseMAC(fix.DstMAC)
+	srcMAC, _ := net.ParseMAC(fix.SrcMAC)
+
+	isV6 := fix.EtherType == "ipv6" || fix.EtherType == "vlan_ipv6"
+	payloadLen := len(fix.Payload)
+
+	var l3 []byte
+	if isV6 {
+		l3 = make([]byte, 40)
+		l3[0] = 6 << 4
+		binary.BigEndian.PutUint16(l3[4:6], uint16(payloadLen))
+		l3[6] = EncapInnerIPv6NoNextHdr
+		l3[7] = 64
+		copy(l3[8:24], net.ParseIP(fix.SrcIP).To16())
+		copy(l3[24:40], net.ParseIP(fix.DstIP).To16())
+	} else {
+		l3 = make([]byte, 20)
+		l3[0] = 0x45
+		binary.BigEndian.PutUint16(l3[2:4], uint16(20+payloadLen))
+		l3[8] = 64
+		l3[9] = EncapInnerProtoIPv4
+		copy(l3[12:16], net.ParseIP(fix.SrcIP).To4())
+		copy(l3[16:20], net.ParseIP(fix.DstIP).To4())
+		binary.BigEndian.PutUint16(l3[10:12], EncapIPv4HeaderChecksum(l3))
+	}
+
+	frame := make([]byte, 0, len(dstMAC)+len(srcMAC)+4+2+len(l3)+payloadLen)
+	frame = append(frame, dstMAC...)
+	frame = append(frame, srcMAC...)
+	if fix.EtherType == "vlan_ipv4" || fix.EtherType == "vlan_ipv6" {
+		tci := uint16(fix.VLANPriority&0x7)<<13 | fix.VLANID&0x0fff
+		frame = append(frame, byte(encapVLANTPID>>8), byte(encapVLANTPID&0xff))
+		frame = append(frame, byte(tci>>8), byte(tci))
+	}
+	if isV6 {
+		frame = append(frame, 0x86, 0xdd)
+	} else {
+		frame = append(frame, 0x08, 0x00)
+	}
+	frame = append(frame, l3...)
+	frame = append(frame, fix.Payload...)
+	return frame, nil
+}
+
+// EncapIPv4HeaderChecksum computes the RFC 1071 header checksum over a
+// 20-byte IPv4 header with a zeroed checksum field（调用方写回）。
+func EncapIPv4HeaderChecksum(hdr []byte) uint16 {
+	var sum uint32
+	for i := 0; i+1 < len(hdr); i += 2 {
+		if i == 10 {
+			continue
+		}
+		sum += uint32(binary.BigEndian.Uint16(hdr[i : i+2]))
+	}
+	for sum>>16 != 0 {
+		sum = (sum & 0xffff) + (sum >> 16)
+	}
+	return uint16(^sum)
+}
+
+// ValidateEncapFixture rejects inner Ethernet fixture faults shared by the
+// three encapsulation layers: unparseable MACs, an unknown ether_type, a VID
+// beyond 12 bits, a PCP beyond 3 bits, an inner IP family mismatching the
+// ether_type, and an unparseable inner IP. Boundary values (VID=0/4095,
+// PCP=0/7, broadcast/multicast MACs, empty payload) are legal and must NOT
+// be rejected. errPrefix（如 "vxlan"/"nvgre"/"geneve"）进错误消息开头。
+func ValidateEncapFixture(fix *EncapEthernetFixture, errPrefix string) error {
+	if fix == nil {
+		return nil
+	}
+	srcMAC, err := net.ParseMAC(fix.SrcMAC)
+	if err != nil || len(srcMAC) != 6 {
+		return fmt.Errorf("%s: inner src_mac %q is not a valid 6-byte MAC", errPrefix, fix.SrcMAC)
+	}
+	dstMAC, err := net.ParseMAC(fix.DstMAC)
+	if err != nil || len(dstMAC) != 6 {
+		return fmt.Errorf("%s: inner dst_mac %q is not a valid 6-byte MAC", errPrefix, fix.DstMAC)
+	}
+	isV6 := false
+	switch fix.EtherType {
+	case "ipv4":
+	case "ipv6":
+		isV6 = true
+	case "vlan_ipv4":
+	case "vlan_ipv6":
+		isV6 = true
+	default:
+		return fmt.Errorf("%s: inner ether_type %q not in {ipv4, ipv6, vlan_ipv4, vlan_ipv6}", errPrefix, fix.EtherType)
+	}
+	if fix.VLANID > 0x0fff {
+		return fmt.Errorf("%s: inner vlan_id %d exceeds the 12-bit VID range 0..4095 (IEEE 802.1Q)", errPrefix, fix.VLANID)
+	}
+	if fix.VLANPriority > 7 {
+		return fmt.Errorf("%s: inner vlan_priority %d exceeds the 3-bit PCP range 0..7 (IEEE 802.1Q)", errPrefix, fix.VLANPriority)
+	}
+	checkFamily := func(kind, addr string) error {
+		ip := net.ParseIP(addr)
+		if ip == nil {
+			return fmt.Errorf("%s: inner %s %q is not a valid IP address", errPrefix, kind, addr)
+		}
+		if (ip.To4() != nil) == isV6 {
+			want := "IPv4"
+			if isV6 {
+				want = "IPv6"
+			}
+			return fmt.Errorf("%s: inner address family mismatch: ether_type %q requires %s %s, got %q", errPrefix, fix.EtherType, want, kind, addr)
+		}
+		return nil
+	}
+	if err := checkFamily("src_ip", fix.SrcIP); err != nil {
+		return err
+	}
+	if err := checkFamily("dst_ip", fix.DstIP); err != nil {
+		return err
+	}
+	// 外层 IPv4 total length 16-bit 不回绕的上界。开销取 UDP 载体最坏值：
+	// 14 eth + 20 outer ip + 8 UDP + 8 隧道基础头（vxlan/geneve）；nvgre 的
+	// GRE 载体（4+4 Key）实际 42——按 50 校验只是略保守，不会误拒真实用例。
+	overhead := 14 + 20 + 8 + 8
+	l3Len := 20
+	if isV6 {
+		l3Len = 40
+	}
+	if max := 0xffff - overhead - l3Len; len(fix.Payload) > max {
+		return fmt.Errorf("%s: inner payload length %d exceeds the encapsulation limit %d (outer IPv4 total length must not wrap around)", errPrefix, len(fix.Payload), max)
+	}
+	return nil
+}
 
 // EncapEthernetFixture is the inner Ethernet frame fixture shared by the
 // VXLAN / NVGRE / GENEVE terminal layers（内层以太网帧 fixture，三封装协议
@@ -52,6 +208,10 @@ type VXLANDatagram struct {
 	SrcPort uint16                `json:"src_port,omitempty"`
 	Up      *bool                 `json:"up,omitempty"`
 	Inner   *EncapEthernetFixture `json:"inner,omitempty"`
+	// UDPSumZero makes this datagram's IPv4 UDP checksum 0x0000（RFC 768
+	// 合法零校验和档位，udp_checksum_profiles 用例；事件级
+	// udp_disable_checksum 元数据）。
+	UDPSumZero bool `json:"udp_checksum_zero,omitempty"`
 }
 
 // VXLANConfig is the vxlan terminal-layer config（RFC 7348）：外层 ip+udp
