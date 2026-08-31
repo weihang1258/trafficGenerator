@@ -18,13 +18,14 @@
       "src_ip": "192.0.2.66",
       "dst_ip": "198.51.100.66",
       "src_port": 42066,
-      "dst_port": 443
+      "dst_port": 80
     },
     "expect": {
       "expect_error": true,
       "error_contains": "unknown layer",
       "notes": [
-        "Design-only gate: doh is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+        "Design-only gate: doh is not registered in the layer registry; this placeholder is not part of the 38 semantic IDs (24 positive + 14 negative per docs/protocol-designs/66-doh-design.md §9). A future registration must remove it and add the 38 semantic cases in testcase order (docs/protocol-designs/66-doh-testcase.md §2).",
+        "dst_port=80 matches the doh_http1_plain main profile plaintext debug port (docs §2); the placeholder itself never emits packets, doc consistency takes priority (review item M9)."
       ]
     }
   }
