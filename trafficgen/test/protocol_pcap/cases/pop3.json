@@ -127,5 +127,70 @@
         "QUIT 请求帧 9 无 response（planner 只发命令，响应在帧 10）"
       ]
     }
+  },
+  {
+    "id": "pop3_over_tls",
+    "summary": "POP3S：TLS 载体上的 POP3 会话（[tcp,tls,pop3] 层链，995 POP3S 端口），tls 握手后 pop.request/response 命令交互",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tls": {}
+        },
+        {
+          "pop3": {
+            "banner": "+OK POP3 server ready",
+            "commands": [
+              {
+                "cmd": "USER alice",
+                "response": "+OK alice"
+              },
+              {
+                "cmd": "PASS secret",
+                "response": "+OK Logged in"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "+OK bye"
+              }
+            ]
+          }
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 13000,
+      "dst_port": 995
+    },
+    "expect": {
+      "has_handshake": true,
+      "has_payload": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "995"
+        },
+        {
+          "packet": 4,
+          "field": "tls.record.content_type",
+          "value": "22"
+        },
+        {
+          "packet": 4,
+          "field": "tls.record.length",
+          "nonzero": true
+        }
+      ]
+    },
+    "notes": [
+      "模式参照 stun_binding_tls_session（tls.record.content_type=22 handshake）",
+      "pop3 层已有 OptionalOn: tls（registry.go:703，J 组组合层缺口本只在用例）",
+      "TLS 握手帧数与 stun_binding_tls_session 一致（前 3 帧握手 + 帧 4 起 TLS record）"
+    ],
+    "proto": "pop3"
   }
 ]

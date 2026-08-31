@@ -13,6 +13,8 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core/layers"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/mqtt"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/pop3"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tcp"
 )
 
@@ -233,5 +235,92 @@ func TestBuildLayersPlanner_SchemaDefaultsTranslate(t *testing.T) {
 	}
 	if reqBody == nil || !strings.Contains(string(reqBody), "GET / HTTP/1.1") {
 		t.Errorf("request = %q, want GET / HTTP/1.1 (schema defaults not translated)", string(reqBody))
+	}
+}
+
+// TestBuildLayersPlanner_POP3LayerConfigFlowsIntoSpec: pop3 层 config
+// （banner/commands）必须翻译成 spec.POP3——pop3 生成器按契约读 Meta.POP3，
+// 层 config 不翻译则空配置生成 0 载荷（J 组 POP3S：[tcp,tls,pop3] 链）。
+func TestBuildLayersPlanner_POP3LayerConfigFlowsIntoSpec(t *testing.T) {
+	p, err := layers.BuildLayersPlanner("pop3", json.RawMessage(`[{"pop3":{"banner":"+OK ready","commands":[{"cmd":"USER bob","response":"+OK bob"}]}}]`))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 110}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var payloads []string
+	for c := range ch {
+		if len(c.Payload) > 0 {
+			payloads = append(payloads, string(c.Payload))
+		}
+	}
+	foundBanner, foundCmd := false, false
+	for _, pl := range payloads {
+		if strings.Contains(pl, "+OK ready") {
+			foundBanner = true
+		}
+		if strings.Contains(pl, "USER bob") {
+			foundCmd = true
+		}
+	}
+	if !foundBanner {
+		t.Errorf("banner missing from payloads: %q (layer config not translated into spec.POP3)", payloads)
+	}
+	if !foundCmd {
+		t.Errorf("USER command missing from payloads: %q", payloads)
+	}
+}
+
+// TestBuildLayersPlanner_MQTTLayerConfigFlowsIntoSpec: mqtt 层 config
+// （client_id）必须翻译成 spec.MQTT——mqtt 生成器按契约读 Meta.MQTT
+// （J 组 MQTTS：[tcp,tls,mqtt] 链）。
+func TestBuildLayersPlanner_MQTTLayerConfigFlowsIntoSpec(t *testing.T) {
+	p, err := layers.BuildLayersPlanner("mqtt", json.RawMessage(`[{"mqtt":{"client_id":"tls-client-9"}}]`))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 8883}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var connect []byte
+	for c := range ch {
+		if c.Direction == "up" && len(c.Payload) > 0 && c.Payload[0] == 0x10 {
+			connect = c.Payload
+			break
+		}
+	}
+	if connect == nil {
+		t.Fatalf("no MQTT CONNECT frame emitted")
+	}
+	// CONNECT variable header: protocol name "MQTT" at offset 2 (after the
+	// 2-byte remaining length; short header fits one byte).
+	if !strings.Contains(string(connect), "tls-client-9") {
+		t.Errorf("CONNECT = %q, want client_id tls-client-9 (layer config not translated into spec.MQTT)", connect)
+	}
+}
+
+// TestBuildLayersPlanner_TLSOptionalNotAutoInserted: mqtt/pop3 的 tls
+// OptionalOn 永不自动补——[mqtt] 单层链生成普通 mqtt（无 tls 层），
+// MQTTS 必须显式写 [tcp,tls,mqtt]。
+func TestBuildLayersPlanner_TLSOptionalNotAutoInserted(t *testing.T) {
+	for _, name := range []string{"mqtt", "pop3"} {
+		completed, err := layers.ValidateLayers(json.RawMessage(`[{"`+name+`":{}}]`), name)
+		if err != nil {
+			t.Fatalf("%s: ValidateLayers: %v", name, err)
+		}
+		if strings.Contains(completed, "tls") {
+			t.Errorf("%s: chain %q unexpectedly contains tls (OptionalOn must not auto-complete)", name, completed)
+		}
 	}
 }

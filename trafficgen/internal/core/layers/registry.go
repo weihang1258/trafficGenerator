@@ -233,7 +233,8 @@ func buildDefaultRegistry() {
 	// （sessions[] 每项独立 4-tuple + 自动递增 srcPort）不支持（生成器 +
 	// validator 双拒绝）。
 	r.Register(LayerSchema{Name: "mqtt", Category: CategoryTerminal,
-		DependsOn: []string{"tcp"},
+		DependsOn:  []string{"tcp"},
+		OptionalOn: []string{"tls"}, // MQTTS：显式写 tls 层启用，默认不启用（J 组组合层）
 		Fields: map[string]FieldSchema{
 			"version":                     {Type: "int", Default: 0, Min: 0, Max: 0},
 			"client_id":                   {Type: "string", Default: ""},
@@ -248,7 +249,7 @@ func buildDefaultRegistry() {
 			"messages":                    {Type: "list", Default: []interface{}{}},
 			"ping_after_messages":         {Type: "bool", Default: false},
 			"disconnect":                  {Type: "bool", Default: true},
-			"disconnect_reason":           {Type: "int", Default: 0, Min: 0, Max: 0},
+			"disconnect_reason":           {Type: "int"}, // nil = 不发（缺省不进 config map；Default 0 会被解码成非 nil *int，误触 5.0-only 校验）
 			"sessions":                    {Type: "list", Default: []interface{}{}},
 			"properties":                  {Type: "list", Default: []interface{}{}},
 			"connack_properties":          {Type: "list", Default: []interface{}{}},
@@ -701,6 +702,11 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		OptionalOn:    []string{"tls"},
 		FieldContract: map[string]string{"tcp.dst_port": "110"}, // RFC 1939 默认 110；用户显式非标准端口优先（POP3S 995），不强制
+		Fields: map[string]FieldSchema{
+			"banner":   {Type: "string", Default: ""},
+			"commands": {Type: "list", Default: []interface{}{}},
+			"mailbox":  {Type: "object"},
+		},
 	})
 	r.Register(LayerSchema{Name: "imap", Category: CategoryTerminal,
 		DependsOn:     []string{"tcp"},

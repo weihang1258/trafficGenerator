@@ -2048,6 +2048,38 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			// validator 报错而不是静默空流。
 			spec.PostgreSQL = &core.PostgreSQLConfig{Dialect: "postgresql", WireProfile: "postgresql_v3"}
 		}
+	case "pop3":
+		if spec.POP3 != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// 层 config（banner/commands/mailbox）经 JSON 往返解码为
+		// core.POP3Config（J 组 POP3S：[tcp,tls,pop3] 链）。生成器对 nil
+		// config 已走默认空会话，但 validator/单测要求翻译发生在校验前。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			return
+		}
+		var pc core.POP3Config
+		if err := json.Unmarshal(raw, &pc); err == nil {
+			spec.POP3 = &pc
+		}
+	case "mqtt":
+		if spec.MQTT != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// 层 config 经 JSON 往返解码为 core.MQTTConfig（J 组 MQTTS：
+		// [tcp,tls,mqtt] 链）。mqtt validator 要求 spec.MQTT 非 nil，
+		// 空层 config 也必须翻译出非 nil config（与 opcua 分支同款）。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			return
+		}
+		var mc core.MQTTConfig
+		if err := json.Unmarshal(raw, &mc); err == nil {
+			spec.MQTT = &mc
+		}
 	}
 }
 
