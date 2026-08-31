@@ -46,9 +46,10 @@ var allowedProtocols = map[string]bool{
 	// B4 封装类（vxlan/nvgre/geneve）：注册 layer/planner 后准入（占位
 	// 用例同步替换为 20 语义用例，protocols_test 哨兵同步摘除）。
 	"vxlan": true, "nvgre": true, "geneve": true,
-	// B5 消息中间件（openwire）：注册 layer/planner 后准入（占位用例同步
-	// 替换为 24 语义用例，protocols_test 哨兵同步摘除）。
+	// B5 消息中间件（openwire/ams）：注册 layer/planner 后准入（占位用例
+	// 同步替换为语义用例，protocols_test 哨兵同步摘除）。
 	"openwire": true,
+	"ams": true,
 }
 
 // IsAllowedProtocol reports whether name is an accepted traffic protocol.

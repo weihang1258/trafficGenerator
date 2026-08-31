@@ -255,8 +255,9 @@ func checkHasPayload(pcapPath string, c Case) error {
 	// （35-cql-testcase）都把 has_payload 语义定成"存在一个携带应用层数据的帧"。
 	// OpenWire 命令帧同样天然小（ShutdownInfo 全帧 64B、WireFormatInfo 全帧
 	// 恰 80B——通用 ">80" 判 false），不能用帧长作代理。tcp.len>0 判定与
-	// dameng/cql/thrift 同款。
-	if c.Proto == "dameng" || c.Proto == "cql" || c.Proto == "drda" || c.Proto == "thrift" || c.Proto == "openwire" {
+	// dameng/cql/thrift 同款。AMS 管理帧同为小帧（最小 22B、典型 <80B），
+	// 且 tshark 无该协议 dissector，不存在协议字段可查。
+	if c.Proto == "dameng" || c.Proto == "cql" || c.Proto == "drda" || c.Proto == "thrift" || c.Proto == "openwire" || c.Proto == "ams" {
 		vals, err := FieldValues(pcapPath, "tcp.len", c.DecodeAs)
 		if err != nil {
 			return err

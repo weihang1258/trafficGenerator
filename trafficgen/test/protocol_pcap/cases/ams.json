@@ -1,28 +1,1552 @@
 [
-  {
-    "id": "ams_neg_unregistered",
-    "proto": "ams",
-    "summary": "AMS layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "ams": {}
-        }
+ {
+  "id": "ams_frame_header_ipv4",
+  "proto": "ams",
+  "summary": "S1: TCP/IPv4 61616 最小 HELLO 协商，帧头 Length/Version/Type/Flags 与 FrameEnd(ae5a)",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 9,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "61616"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "00000035010100010000000000000000000000000001000a616d732d636c69656e7400020011616d735f6d616e6167656d656e745f7631ae5a"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "000000330102000200000000000000000000000000020011616d735f6d616e6167656d656e745f7631001200020000001100020010ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "4=HELLO(57B)，5=HELLO_OK(55B)；Length 不含自身 4 字节；尾标记 ae5a。"
+  ]
+ },
+ {
+  "id": "ams_handshake_auth",
+  "proto": "ams",
+  "summary": "S2: HELLO→HELLO_OK→AUTH→AUTH_OK 四步握手，认证只带 credential 引用",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 11,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "value": "42051"
+    },
+    {
+     "packet": 7,
+     "field": "tcp.dstport",
+     "value": "42051"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "00000035010100010000000000000000000000000001000a616d732d636c69656e7400020011616d735f6d616e6167656d656e745f7631ae5a"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "000000330102000200000000000000000000000000020011616d735f6d616e6167656d656e745f7631001200020000001100020010ae5a"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "0000002701030001000000000000000000000000000400037265660005000a637265642d7265662d31ae5a"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "0000001801040002000000000000000000000000002300020000ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "4=HELLO,5=HELLO_OK,6=AUTH,7=AUTH_OK；方向 request(0001)/response(0002) 交替。"
+  ]
+ },
+ {
+  "id": "ams_session_open_close",
+  "proto": "ams",
+  "summary": "S3: 认证后 OPEN_SESSION/OPEN_OK→CLOSE_SESSION/CLOSE_OK，关闭后终止",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
       ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session",
+          "session_name": "mgmt"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "close_session"
+         },
+         {
+          "kind": "close_ok"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "0000001a01050001000000010000000000000000001000046d676d74ae5a"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "0000001e01060002000000010000000000000000002300020000001100020010ae5a"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "0000001201070001000000010000000000000000ae5a"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "0000001201080002000000010000000000000000ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "8=open_session(SessionID=1,session_name mgmt),9=open_ok,12=close,13=close_ok(空payload 22B)。"
+  ]
+ },
+ {
+  "id": "ams_command_response",
+  "proto": "ams",
+  "summary": "S4: broker.info COMMAND→RESPONSE，CorrelationID 77 头字段配对",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "command",
+          "correlation_id": 77,
+          "command": "broker.info",
+          "resource": "broker"
+         },
+         {
+          "kind": "response",
+          "correlation_id": 77,
+          "status": 0
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "0000002b0120000100000001000000000000004d0020000b62726f6b65722e696e666f0021000662726f6b6572ae5a"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "000000180121000200000001000000000000004d002300020000ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "10=COMMAND(corr 77=0x4d),11=RESPONSE(status 0) 同 corr。"
+  ]
+ },
+ {
+  "id": "ams_message_ack",
+  "proto": "ams",
+  "summary": "S5: ack-required MESSAGE→MESSAGE_ACK，ack_for 关联 message_id",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "message",
+          "message_id": 500,
+          "sequence": 1,
+          "message_kind": "event",
+          "delivery_mode": 1,
+          "payload": "aGVsbG8tYW1z"
+         },
+         {
+          "kind": "message_ack",
+          "ack_for": 500,
+          "ack_status": 0
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "00000045011000050000000100000000000000000030000800000000000001f4003100056576656e7400320001010033000800000000000000010034000968656c6c6f2d616d73ae5a"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "00000024011100020000000100000000000000000040000800000000000001f4004100020000ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "10=MESSAGE(delivery_mode=1→flags 0005)，11=MESSAGE_ACK(ack_for 500=0x1f4)。"
+  ]
+ },
+ {
+  "id": "ams_event_retransmission",
+  "proto": "ams",
+  "summary": "S6: 显式重传复用同一 message_id/sequence/payload，不伪造新消息",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "message",
+          "message_id": 7,
+          "sequence": 1,
+          "message_kind": "event",
+          "payload": "cnQ="
+         },
+         {
+          "kind": "message",
+          "message_id": 7,
+          "sequence": 1,
+          "message_kind": "event",
+          "payload": "cnQ="
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "0000003e01100001000000010000000000000000003000080000000000000007003100056576656e740032000100003300080000000000000001003400027274ae5a"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "0000003e01100001000000010000000000000000003000080000000000000007003100056576656e740032000100003300080000000000000001003400027274ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "10/11 两帧字节完全一致（同 message_id 7、sequence 1、payload rt）。"
+  ]
+ },
+ {
+  "id": "ams_ping_pong",
+  "proto": "ams",
+  "summary": "S7: session 内显式 PING→PONG（空 payload 最小帧，无自动保活注入）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "ping",
+          "correlation_id": 3
+         },
+         {
+          "kind": "pong",
+          "correlation_id": 3
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "0000001201300001000000010000000000000003ae5a"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "0000001201310002000000010000000000000003ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "10=PING/11=PONG 均 22B（Length=18 最小帧），corr 3 配对。"
+  ]
+ },
+ {
+  "id": "ams_multi_session",
+  "proto": "ams",
+  "summary": "S8: 单 TCP 连接双 SessionID 独立状态（corr/sequence/ack 隔离）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "command",
+          "correlation_id": 1,
+          "command": "queue.inspect",
+          "resource": "orders"
+         },
+         {
+          "kind": "response",
+          "correlation_id": 1,
+          "status": 0
+         }
+        ]
+       },
+       {
+        "session_id": 2,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "message",
+          "message_id": 21,
+          "sequence": 1,
+          "message_kind": "alert",
+          "delivery_mode": 1,
+          "payload": "czI="
+         },
+         {
+          "kind": "message_ack",
+          "ack_for": 21,
+          "ack_status": 0
+         },
+         {
+          "kind": "close_session"
+         },
+         {
+          "kind": "close_ok"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 21,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "0000001201050001000000010000000000000000ae5a"
+    },
+    {
+     "packet": 12,
+     "offset": 54,
+     "hex": "0000001201050001000000020000000000000000ae5a"
+    },
+    {
+     "packet": 15,
+     "offset": 54,
+     "hex": "0000002401110002000000020000000000000000004000080000000000000015004100020000ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "8=sess1 open(SessionID=1)，12=sess2 open(SessionID=2)，15=sess2 message_ack(ack_for 21)。"
+  ]
+ },
+ {
+  "id": "ams_multi_stream",
+  "proto": "ams",
+  "summary": "S9: 两个 TCP 四元组（42051/42053）各自完成握手+会话+命令，状态不串用",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "command",
+          "correlation_id": 1,
+          "command": "connection.list",
+          "resource": "broker"
+         },
+         {
+          "kind": "response",
+          "correlation_id": 1,
+          "status": 0
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "src_port": 42053,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "command",
+          "correlation_id": 1,
+          "command": "connection.list",
+          "resource": "broker"
+         },
+         {
+          "kind": "response",
+          "correlation_id": 1,
+          "status": 0
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 30,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.srcport",
+     "distinct_values": [
+      "42051",
+      "42053"
+     ],
+     "distinct_exclude": [
+      "61616"
+     ]
+    }
+   ],
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "0000002f012000010000000100000000000000010020000f636f6e6e656374696f6e2e6c6973740021000662726f6b6572ae5a"
+    },
+    {
+     "packet": 25,
+     "offset": 54,
+     "hex": "0000002f012000010000000100000000000000010020000f636f6e6e656374696f6e2e6c6973740021000662726f6b6572ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "每连接 3 握手+8 帧+4 挥手=15；p10/p25 为两连接的 COMMAND 帧（同 corr/sid 字节一致）。"
+  ]
+ },
+ {
+  "id": "ams_ipv6",
+  "proto": "ams",
+  "summary": "S10: IPv6/TCP 61616 同一 HELLO fixture，ipv6.nxt=6、payload offset 74",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "2001:db8:51::10",
+   "dst_ip": "2001:db8:51::20",
+   "src_port": 42052,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 9,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "ipv6.nxt",
+     "value": "6"
+    },
+    {
+     "packet": 4,
+     "field": "ipv6.src",
+     "value": "2001:db8:51::10"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 74,
+     "hex": "00000035010100010000000000000000000000000001000a616d732d636c69656e7400020011616d735f6d616e6167656d656e745f7631ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "应用帧字节与 v4 版一致（ams_frame_header_ipv4 同帧），仅外层地址族与 offset 变化。"
+  ]
+ },
+ {
+  "id": "ams_ipv4_ipv6_same_payload",
+  "proto": "ams",
+  "summary": "S11: 双栈连接各自完成 HELLO 协商，应用帧字节一致（连接级显式地址自驱链）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42054,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42054,
       "src_ip": "192.0.2.51",
       "dst_ip": "198.51.100.51",
-      "src_port": 42051,
-      "dst_port": 61616
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: ams is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the semantic cases in testcase order."
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       }
       ]
+     },
+     {
+      "src_port": 42055,
+      "src_ip": "2001:db8:51::10",
+      "dst_ip": "2001:db8:51::20",
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 18,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "ip.version",
+     "distinct_values": [
+      "4",
+      "6"
+     ]
     }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "00000035010100010000000000000000000000000001000a616d732d636c69656e7400020011616d735f6d616e6167656d656e745f7631ae5a"
+    },
+    {
+     "packet": 13,
+     "offset": 74,
+     "hex": "00000035010100010000000000000000000000000001000a616d732d636c69656e7400020011616d735f6d616e6167656d656e745f7631ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "自驱链每连接 9 包；p4(v4,offset54)/p13(v6,offset74) 同一 HELLO 帧字节。"
+  ]
+ },
+ {
+  "id": "ams_tlv_and_binary_payload",
+  "proto": "ams",
+  "summary": "S12: TLV 边界与二进制 body/payload（base64 配置、线上裸字节）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "command",
+          "correlation_id": 9,
+          "command": "queue.inspect",
+          "resource": "orders",
+          "body": "AP8Q"
+         },
+         {
+          "kind": "message",
+          "message_id": 31,
+          "sequence": 1,
+          "message_kind": "binary",
+          "payload": "3q2+7wAB"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "00000034012000010000000100000000000000090020000d71756575652e696e7370656374002100066f72646572730022000300ff10ae5a"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "000000430110000100000001000000000000000000300008000000000000001f0031000662696e617279003200010000330008000000000000000100340006deadbeef0001ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "10=COMMAND(body 00ff10)，11=MESSAGE(payload deadbeef0001)；线上为解码后二进制。"
+  ]
+ },
+ {
+  "id": "ams_mss_frame_reassembly",
+  "proto": "ams",
+  "summary": "S13: 3000B payload 帧跨 MSS 三段（1460/1460/143），按 Length 重组",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "message",
+          "message_id": 9,
+          "sequence": 1,
+          "message_kind": "bulk",
+          "payload": "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFB"
+         },
+         {
+          "kind": "message_ack",
+          "ack_for": 9,
+          "ack_status": 0
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 17,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 10,
+     "field": "tcp.len",
+     "value": "1460"
+    },
+    {
+     "packet": 11,
+     "field": "tcp.len",
+     "value": "1460"
+    },
+    {
+     "packet": 12,
+     "field": "tcp.len",
+     "value": "143"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "00000bf3011000010000000100000000"
+    }
+   ]
+  },
+  "notes": [
+   "消息帧 3063B（Length 0x0bf3=3059）；p10-12 三段；帧头断言 length/version/type/flags/sid 前缀。"
+  ]
+ },
+ {
+  "id": "ams_frame_boundary",
+  "proto": "ams",
+  "summary": "S14: Length=18 最小帧、零长 TLV、uint64 安全整数边界值与显式关闭",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "ping",
+          "correlation_id": 9007199254740991
+         },
+         {
+          "kind": "pong",
+          "correlation_id": 9007199254740991
+         },
+         {
+          "kind": "message",
+          "message_id": 1,
+          "message_kind": "",
+          "sequence": 9007199254740991
+         },
+         {
+          "kind": "message_ack",
+          "ack_for": 1,
+          "ack_status": 0,
+          "ack_range_end": 9007199254740991
+         },
+         {
+          "kind": "close_session"
+         },
+         {
+          "kind": "close_ok"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 19,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "000000120130000100000001001fffffffffffffae5a"
+    },
+    {
+     "packet": 12,
+     "offset": 54,
+     "hex": "000000330110000100000001000000000000000000300008000000000000000100310000003200010000330008001fffffffffffffae5a"
+    },
+    {
+     "packet": 13,
+     "offset": 54,
+     "hex": "000000300111000200000001000000000000000000400008000000000000000100410002000000420008001fffffffffffffae5a"
+    }
+   ]
+  },
+  "notes": [
+   "10=PING(corr 2^53-1=0x001FFFFFFFFFFFFF)，12=MESSAGE(零长 message_kind TLV 0034 前缀 0031 0000)，13=ACK(range_end 同边界)。"
+  ]
+ },
+ {
+  "id": "ams_neg_frame_encoding",
+  "proto": "ams",
+  "summary": "N1: wire_fault bad_version → version/frame 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "wire_fault": "bad_version"
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "version"
   }
+ },
+ {
+  "id": "ams_neg_handshake_state",
+  "proto": "ams",
+  "summary": "N2: 首帧非 HELLO（直接 AUTH）→ hello/handshake 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "auth"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "hello"
+  }
+ },
+ {
+  "id": "ams_neg_session_reference",
+  "proto": "ams",
+  "summary": "N3: 会话未打开先发 command → session 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "command",
+          "correlation_id": 1,
+          "command": "c",
+          "resource": "r"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "session"
+  }
+ },
+ {
+  "id": "ams_neg_correlation_response",
+  "proto": "ams",
+  "summary": "N4: RESPONSE 无对应 COMMAND → correlation/response 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "response",
+          "correlation_id": 5
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "correlation"
+  }
+ },
+ {
+  "id": "ams_neg_message_ack",
+  "proto": "ams",
+  "summary": "N5: MESSAGE_ACK 引用未发送 message → message/ack 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "connections": [
+     {
+      "src_port": 42051,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "message_ack",
+          "ack_for": 9
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "message"
+  }
+ },
+ {
+  "id": "ams_neg_tlv_length",
+  "proto": "ams",
+  "summary": "N6: wire_fault tlv_overrun → tlv/field/length 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "ams": {}
+    }
+   ],
+   "src_ip": "192.0.2.51",
+   "dst_ip": "198.51.100.51",
+   "src_port": 42051,
+   "dst_port": 61616,
+   "ams": {
+    "wire_fault": "tlv_overrun"
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "tlv"
+  }
+ }
 ]

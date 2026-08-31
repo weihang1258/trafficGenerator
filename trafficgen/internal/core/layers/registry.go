@@ -826,6 +826,23 @@ func buildDefaultRegistry() {
 		},
 	})
 
+	// ---- B5 消息中间件（ams）----
+	// ams（tcp 终结层。ActiveMQ Management Service——本项目 AMS wire
+	// profile：Length|Version|Type|Flags|SessionID|CorrelationID|TLV|
+	// FrameEnd(ae5a)，wire 字节由 ams 生成器产出；tshark 无该协议
+	// dissector——61616 上的 openwire 启发式不会命中 AMS 帧字节（magic
+	// 检查不匹配），断言走 TCP 字段与帧字节）。TCP 语义交给 tcp 层生成器；
+	// 配置经 spec.AMS flat 键携带、FlowMeta 直传生成器；目的端口 61616
+	//（FieldContract 默认）。连接声明显式 src_ip/dst_ip 时生成器自产完整包
+	//（双栈/多流用例，openwire 自驱分支同款）。
+	r.Register(LayerSchema{Name: "ams", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "61616"},
+		Fields: map[string]FieldSchema{
+			"profile": {Type: "string", Default: "ams_management_v1"},
+		},
+	})
+
 	// ---- 二层层：mpls / pppoe（占位，P2 补字段）----
 	// 注意：不能照搬 gre 隧道表达——MPLS 线上格式是 Eth + 标签栈 + 内层 IP
 	// （无外层 IP 头，RFC 3031/3032），DependsOn:["ip"] 会补出错误的外层

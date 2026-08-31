@@ -859,12 +859,14 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 		}()
 		return out, nil
 	}
-	// OpenWire 双栈自驱链（[ip→tcp→openwire] + 连接级显式 src_ip/dst_ip）：
+	// B5 终结层双栈自驱链（[ip→tcp→openwire/ams] + 连接级显式 src_ip/dst_ip）：
 	// 显式地址的连接（如 v6）无法经事件路径——L3 家族恒随 spec 的 ip 层，
 	// down 交换也只认 spec 地址。生成器整体自产完整 TCP 包（每连接独立
 	// 握手/命令段/挥手，L3 按连接家族装配），finalEmit 只补 MAC/EtherType/
 	// 时间戳——与 ldp dual_adjacency 分支同构（方向交换由生成器完成）。
-	if p.name == "openwire" && spec.OpenWire != nil && openwireNeedsSelfDrive(spec.OpenWire) {
+	openwireSelf := p.name == "openwire" && spec.OpenWire != nil && openwireNeedsSelfDrive(spec.OpenWire)
+	amsSelf := p.name == "ams" && spec.AMS != nil && amsNeedsSelfDrive(spec.AMS)
+	if openwireSelf || amsSelf {
 		out := make(chan core.PacketConfig, 256)
 		go func() {
 			defer close(out)
@@ -878,6 +880,7 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			meta.TTL = spec.TTL
 			meta.FlowID = flowID(spec)
 			meta.OpenWire = spec.OpenWire
+			meta.AMS = spec.AMS
 			index := uint64(0)
 			req := &GenRequest{
 				Meta: meta,
@@ -1366,6 +1369,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		DRDA:       spec.DRDA,
 		Thrift:     spec.Thrift,
 		OpenWire:   spec.OpenWire,
+		AMS:        spec.AMS,
 		TNS:        spec.TNS,
 		MongoDB:    spec.MongoDB,
 		Dameng:     spec.Dameng,
@@ -2386,8 +2390,18 @@ func isCarrierMixedChain(name string, chain []Layer) bool {
 
 // openwireNeedsSelfDrive reports whether any openwire connection declares
 // its own L3 addresses（双栈自驱触发条件——显式地址连接无法经 v4 spec 的
-// ip 层事件路径，见 Plan 的 openwire 自驱分支）。
+// ip 层事件路径，见 Plan 的 B5 自驱分支）。
 func openwireNeedsSelfDrive(cfg *core.OpenWireConfig) bool {
+	for i := range cfg.Connections {
+		if cfg.Connections[i].SrcIP != "" || cfg.Connections[i].DstIP != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// amsNeedsSelfDrive is the AMS same-shape trigger (B5 双栈/多流自驱)。
+func amsNeedsSelfDrive(cfg *core.AMSConfig) bool {
 	for i := range cfg.Connections {
 		if cfg.Connections[i].SrcIP != "" || cfg.Connections[i].DstIP != "" {
 			return true

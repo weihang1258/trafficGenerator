@@ -1072,6 +1072,22 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 61616
 		}
+	case "ams":
+		// B5：AMS（ActiveMQ Management）TCP 终结层配置 json 往返解析。目的
+		// 端口 61616（FieldContract 同值兜底，用户显式写优先）。
+		if sub, ok := cfg["ams"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v AMSConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "ams: "+err.Error())
+				} else {
+					spec.AMS = &v
+				}
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 61616
+		}
 	case "ssdp":
 		if sub, ok := cfg["ssdp"].(map[string]interface{}); ok {
 			spec.SSDP = parseSSDPConfig(sub)

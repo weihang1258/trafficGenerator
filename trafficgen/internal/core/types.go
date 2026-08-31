@@ -924,6 +924,92 @@ type OpenWireWireFault struct {
 	Kind string `json:"kind,omitempty"` // short_frame|length_overrun|bad_type
 }
 
+// AMSConfig configures an ActiveMQ Management Service (AMS) management
+// session (TCP 61616，本项目 AMS wire profile——Length|Version|Type|Flags|
+// SessionID|CorrelationID|TLV payload|FrameEnd)。帧字段语义见
+// docs/protocol-designs/51-ams-design.md §3–§7。
+type AMSConfig struct {
+	// Profile names the wire profile; "" → ams_management_v1。未知 profile 拒绝。
+	Profile string `json:"profile,omitempty"`
+	// FrameMax caps the encoded frame size (Length 字段上界，0 = 4096 默认)。
+	FrameMax uint32 `json:"frame_max,omitempty"`
+	// Heartbeat is the negotiated keepalive seconds (HELLO_OK 回显，0 = 禁用)。
+	Heartbeat uint16 `json:"heartbeat,omitempty"`
+	// ClientName is the HELLO client_name TLV（缺省 ams-client）。
+	ClientName string `json:"client_name,omitempty"`
+	// AuthMethod/CredentialRef are the AUTH TLVs（缺省 ref / cred-ref-1；
+	// 不在线发送明文密码——设计 §4）。
+	AuthMethod   string `json:"auth_method,omitempty"`
+	CredentialRef string `json:"credential_ref,omitempty"`
+	// SessionLimit is the uint16 server session limit（HELLO_OK 回显）。
+	SessionLimit uint16 `json:"session_limit,omitempty"`
+	// Connections 有序连接数组；每连接独立 TCP 四元组与独立状态。
+	Connections []AMSConnection `json:"connections,omitempty"`
+	// WireFault 负例故障注入口（validator 消费，注入即拒绝）。
+	WireFault string `json:"wire_fault,omitempty"`
+}
+
+// AMSConnection is one TCP connection: 连接级握手帧（hello/auth，SessionID=0）
+// 加上若干管理会话。
+type AMSConnection struct {
+	SrcIP   string `json:"src_ip,omitempty"`
+	DstIP   string `json:"dst_ip,omitempty"`
+	SrcPort uint16 `json:"src_port,omitempty"`
+	DstPort uint16 `json:"dst_port,omitempty"`
+	// Events is the connection-level pre-session sequence（HELLO/AUTH 交换，
+	// 线上 SessionID=0）。
+	Events []AMSEvent `json:"events,omitempty"`
+	// Sessions 有序管理会话；SessionID 在连接内唯一，状态独立。
+	Sessions []AMSSession `json:"sessions,omitempty"`
+}
+
+// AMSSession is one management session (SessionID 逻辑流键)。
+type AMSSession struct {
+	SessionID uint32      `json:"session_id,omitempty"`
+	Events    []AMSEvent  `json:"events,omitempty"`
+}
+
+// AMSEvent is one AMS frame in sequence order. Kind selects the frame type;
+// 显式 Type/Flags 可覆盖推导值（负例与特殊 fixture 用）。
+type AMSEvent struct {
+	// Kind: hello|hello_ok|auth|auth_ok|open_session|open_ok|close_session|
+	// close_ok|message|message_ack|command|response|ping|pong|error。
+	Kind string `json:"kind,omitempty"`
+	// Direction c2s|s2c；缺省按 kind 推导（_ok/pong/response/message_ack/
+	// error→s2c，其余 c2s）。
+	Direction string `json:"direction,omitempty"`
+	// Type overrides the kind-derived frame type byte。
+	Type int `json:"type,omitempty"`
+	// Flags overrides the kind-derived flags (bit0 request/bit1 response/
+	// bit2 ack-required)。
+	Flags int `json:"flags,omitempty"`
+	// CorrelationID is the frame header correlation (COMMAND/RESPONSE 配对)。
+	CorrelationID uint64 `json:"correlation_id,omitempty"`
+	// MessageID/Sequence/AckFor are MESSAGE/MESSAGE_ACK 关联键。
+	MessageID uint64 `json:"message_id,omitempty"`
+	Sequence  uint64 `json:"sequence,omitempty"`
+	AckFor    uint64 `json:"ack_for,omitempty"`
+	// Command/Resource are the COMMAND TLVs；Body 是可选 0x0022 body。
+	Command  string `json:"command,omitempty"`
+	Resource string `json:"resource,omitempty"`
+	Body     []byte `json:"body,omitempty"`
+	// Status is the RESPONSE/OPEN_OK uint16 status TLV。
+	Status int `json:"status,omitempty"`
+	// Message fields：MessageKind (0x0031)、DeliveryMode (0x0032)、
+	// Payload (0x0034 opaque)。
+	MessageKind  string `json:"message_kind,omitempty"`
+	DeliveryMode int    `json:"delivery_mode,omitempty"`
+	Payload      []byte `json:"payload,omitempty"`
+	// Ack fields：AckStatus (0x0041)、AckRangeEnd (0x0042)。
+	AckStatus   int    `json:"ack_status,omitempty"`
+	AckRangeEnd uint64 `json:"ack_range_end,omitempty"`
+	// Error fields：ErrorCode (0x00f0)、ErrorText (0x00f1)。
+	ErrorCode int    `json:"error_code,omitempty"`
+	ErrorText string `json:"error_text,omitempty"`
+	// SessionName is the optional OPEN_SESSION 0x0010 TLV。
+	SessionName string `json:"session_name,omitempty"`
+}
+
 // TNSEvent is one TNS protocol event (CONNECT/ACCEPT/REFUSE/REDIRECT/DATA).
 type TNSEvent struct {
 	Type           interface{} `json:"type,omitempty"` // string or int for negative tests
@@ -1438,6 +1524,7 @@ type FlowSpec struct {
 	DRDA     *DRDAConfig     `json:"drda,omitempty"`
 	Thrift   *ThriftConfig   `json:"thrift,omitempty"`
 	OpenWire *OpenWireConfig `json:"openwire,omitempty"`
+	AMS      *AMSConfig      `json:"ams,omitempty"`
 	TNS      *TNSConfig      `json:"tns,omitempty"`
 	MongoDB  *MongoDBConfig  `json:"mongodb,omitempty"`
 	Dameng   *DamengConfig   `json:"dameng,omitempty"`
