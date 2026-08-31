@@ -151,7 +151,7 @@
 | 61 | [`61-spnego-design.md`](61-spnego-design.md) / [`61-spnego-testcase.md`](61-spnego-testcase.md) | SPNEGO（简单和受保护的 GSS-API 协商，RFC 4178） | 20（契约） | 待审计 |
 | 62 | [`62-ocsp-design.md`](62-ocsp-design.md) / [`62-ocsp-testcase.md`](62-ocsp-testcase.md) | OCSP（在线证书状态协议，RFC 6960/8954） | 20（契约） | 待审计 |
 | 63 | [`63-dcerpc-design.md`](63-dcerpc-design.md) / [`63-dcerpc-testcase.md`](63-dcerpc-testcase.md) | DCERPC（分布式计算环境远程过程调用，DCE/RPC over TCP） | 20（契约） | 待审计 |
-| 64 | [`64-cwmp-design.md`](64-cwmp-design.md) / [`64-cwmp-testcase.md`](64-cwmp-testcase.md) | CWMP（CPE WAN 管理协议，TR-069） | 20（契约） | 待审计 |
+| 64 | [`64-cwmp-design.md`](64-cwmp-design.md) / [`64-cwmp-testcase.md`](64-cwmp-testcase.md) | CWMP（CPE WAN 管理协议，TR-069） | 20（契约） | 审查 clean（v2.1） |
 | 65 | [`65-bacnet-design.md`](65-bacnet-design.md) / [`65-bacnet-testcase.md`](65-bacnet-testcase.md) | BACnet（楼宇自动化控制网络） | 20（契约） | 待审计 |
 | 66 | [`66-doh-design.md`](66-doh-design.md) / [`66-doh-testcase.md`](66-doh-testcase.md) | DOH（DNS over HTTPS，RFC 8484） | 38（契约） | 审查 clean |
 | 67 | [`67-onvif-design.md`](67-onvif-design.md) / [`67-onvif-testcase.md`](67-onvif-testcase.md) | ONVIF（网络视频接口论坛） | 32（契约） | 审查 clean |

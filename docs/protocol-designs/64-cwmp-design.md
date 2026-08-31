@@ -1,8 +1,8 @@
 # CWMP（CPE 广域网管理协议 / TR-069）设计契约
 
-> 版本：v2.0.0（设计阶段）
-> 日期：2026-08-31
-> 状态：**尚未实现**；本文定义实现后的 PCAP（抓包文件）断言，不宣称当前测试套件可运行，不修改 Go（编程语言）/MCP（模型上下文协议）实现。
+> 版本：v2.1.1（设计阶段）
+> 日期：2026-09-01
+> 状态：**尚未实现**；本文定义实现后的 PCAP（抓包文件）断言，不宣称当前测试套件可运行，不修改 Go（编程语言）/MCP（模型上下文协议）实现。**独立隔离对抗审查已完成**（v2.1.1 定稿：独立审查 agent 三向审计 23 项清单（2C/8M/13N）→ 修复 → 复验发现 N01-N03 → 二轮修复 → 二轮复验 clean；审查/修复记录见 §10 修订记录 v2.0.0–v2.1.1）。
 > 配套文件：`docs/protocol-designs/64-cwmp-testcase.md`、`trafficgen/test/protocol_pcap/cases/cwmp.json`
 > 规范基线：宽带论坛 **TR-069 Issue 1 Amendment 6 Corrigendum 1**（CPE WAN Management Protocol，2020-06，下称 TR-069，按章节号引用）；SOAP 1.1（W3C NOTE-soap-20000508，TR-069 参考文献 [12]）；RFC 7616（HTTP Digest，[9]）、RFC 6265（Cookie，[11]）、RFC 7235（HTTP 认证，[8]）；IANA 服务端口登记（[20]，端口 7547）。
 
@@ -62,13 +62,15 @@
 | `cwmp:SessionTimeout` | 仅 CPE→ACS 且仅 Inform | 0 | 建议会话超时秒数（≥30） |
 | `cwmp:SupportedCWMPVersions` / `cwmp:UseCWMPVersion` | Inform / InformResponse 侧 | 0 / 1 | CWMP 1.3+ 版本协商；本版 fixture 不使用 |
 
+> 本版 fixture **不产生、不解析** `cwmp:HoldRequests`（Table 4 标注已 DEPRECATED，CPE 必须支持但不要求本版 fixture 生成）与 `cwmp:SessionTimeout`（仅 Inform 可带且仅 CPE→ACS，本版 Inform 不带）：二者声明为显式不使用，planner 不得隐式生成或要求解析。
+
 ### 3.3 HTTP 层规则（§3.4.1、§3.4.2、§3.4.4–3.4.6）
 
 - 含 SOAP envelope 的 HTTP 请求/响应：`Content-Type: text/xml`（可带 charset）；**含 SOAP 响应或 SOAP Fault 的请求，`SOAPAction` 头必须存在且无值（无引号）**，写作 `SOAPAction:`；空 HTTP POST **不得**带 SOAPAction、**不得**带 Content-Type（§3.4.1）。
 - 承载任何 CWMP payload 的 HTTP 响应必须用状态码 200；**空 HTTP 响应必须用 204 No Content**（§3.4.6）。
 - 会话 cookie：ACS SHOULD 使用会话 cookie、CPE 必须支持并逐请求回带（§3.4.2 引 RFC 6265）。
 - 认证：非 TLS 会话 ACS 必须用 HTTP 摘要认证（§3.4.4），CPE/ACS 必须支持 RFC 7616 `qop="auth"` 与 MD5/MD5-sess（§3.4.5）；CPE 用户名推荐 `<OUI>-<ProductClass>-<SerialNumber>` 格式并按 RFC 3986 百分号编码（§3.4.4）。文件传输服务器可用 basic 或 digest（§3.4.3）。
-- HTTP 重定向：CPE 必须支持 302/307，最多连续 5 次，重定向 URL 不得持久化（§3.4.2）。
+- HTTP 重定向：CPE 必须支持 302/307，最多连续 5 次，重定向 URL 不得持久化（§3.4.2）。**本版 fixture 不产生 302/307 重定向**：重定向响应由 ACS 侧部署触发，生成器无重定向响应源，声明不适用（见 §8）。
 
 ### 3.4 SOAP Fault 结构（§3.5）
 
@@ -88,11 +90,11 @@ Fault 只能作为对 SOAP 请求的响应出现，不得响应另一个响应�
 | `TransferComplete` | `CommandKey`、`FaultStruct{FaultCode 0=成功；非 0 ∈ {9001,9002,9010,9011,9012,9014–9020}（Table 43）, FaultString}`、`StartTime`、`CompleteTime` | 无参数 | A.3.3.2 Table 41–43 |
 | `Reboot` | `CommandKey`(string(32)) | 无参数；CPE 必须先完成会话再重启 | A.3.2.9 Table 35–36 |
 
-下载完成指示三途径（A.3.2.8）：① DownloadResponse Status=0 直接成功；② 同会话后续 TransferComplete；③ **后续新会话** TransferComplete（Status=1 时必须补发）。事件码表（§3.7.1.5 Table 8）本版取值域：`0 BOOTSTRAP`、`1 BOOT`、`2 PERIODIC`、`3 SCHEDULED`、`4 VALUE CHANGE`、`5 KICKED`、`6 CONNECTION REQUEST`、`7 TRANSFER COMPLETE`、`8 DIAGNOSTICS COMPLETE`、`10 AUTONOMOUS TRANSFER COMPLETE`、`12 AUTONOMOUS DU STATE CHANGE COMPLETE`、`M <方法>`（`M Download`/`M Reboot`/`M Upload`/`M ScheduleDownload`，CommandKey 随事件携带，A.3.3.1 Table 37 注）；`"7 TRANSFER COMPLETE" + "M Download"` 等同因事件必须同 Inform 携带（§3.7.1.5）。
+下载完成指示三途径（A.3.2.8）：① DownloadResponse Status=0 直接成功；② 同会话后续 TransferComplete；③ **后续新会话** TransferComplete（Status=1 时必须补发）。**三途径由 `cwmp_download_transfer_complete` 三段 fixture 全覆盖**（用例 §4.6：段 A=途径①、段 B=途径② 同会话、段 C=途径③ 跨会话），不再只有途径③有用例。事件码表（§3.7.1.5 Table 8）值域共 14 项（`0 BOOTSTRAP`、`1 BOOT`、`2 PERIODIC`、`3 SCHEDULED`、`4 VALUE CHANGE`、`5 KICKED`、`6 CONNECTION REQUEST`、`7 TRANSFER COMPLETE`、`8 DIAGNOSTICS COMPLETE`、`10 AUTONOMOUS TRANSFER COMPLETE`、`12 AUTONOMOUS DU STATE CHANGE COMPLETE`、`M Download`/`M Reboot`/`M Upload`/`M ScheduleDownload`，CommandKey 随 M 事件携带，A.3.3.1 Table 37 注）；**本版 fixture 实现子集（9 项）**：`0 BOOTSTRAP`（现网首次连接最常见，`cwmp_inform_event_codes` 首跑即断言）、`1 BOOT`、`2 PERIODIC`、`4 VALUE CHANGE`、`6 CONNECTION REQUEST`、`7 TRANSFER COMPLETE`、`M Download`、`M Reboot`、`M Upload`，与用例覆盖表（设计 §9 / 用例 §2）逐项一致；未实现项 `3 SCHEDULED`、`5 KICKED`、`8 DIAGNOSTICS COMPLETE`、`10 AUTONOMOUS TRANSFER COMPLETE`、`12 AUTONOMOUS DU STATE CHANGE COMPLETE`、`M ScheduleDownload` 不进正例，非法值组合仍进负例 20（cwmp_neg_length 锚 `value`）。`"7 TRANSFER COMPLETE" + "M Download"` 等同因事件必须同 Inform 携带（§3.7.1.5）。
 
 ### 3.6 错误码值域（A.5.1 Table 87 / A.5.2 Table 88）
 
-CPE 侧：9000 Method not supported、9001 Request denied、9002 Internal error、9003 Invalid arguments、9004 Resources exceeded、9005 Invalid Parameter name、9006 Invalid Parameter type、9007 Invalid Parameter value、9008 Non-writable Parameter、9009 Notification rejected、9010 File transfer failure、9011 Upload failure、9012 File transfer server authentication failure、9013 Unsupported protocol for file transfer（9014–9020 细分传输失败；9800–9899 厂商自定义）。ACS 侧：8000–8005（Method not supported / Request denied / Internal error / Invalid arguments / Resources exceeded / **Retry request**——收到 8005 必须原样重发请求，§3.7.1.6）、8006，8800–8899 厂商自定义。
+CPE 侧：9000 Method not supported、9001 Request denied、9002 Internal error、9003 Invalid arguments、9004 Resources exceeded、9005 Invalid Parameter name、9006 Invalid Parameter type、9007 Invalid Parameter value、9008 Non-writable Parameter、9009 Notification rejected、9010 File transfer failure、9011 Upload failure、9012 File transfer server authentication failure、9013 Unsupported protocol for file transfer（9014–9020 细分传输失败；9800–9899 厂商自定义）。ACS 侧：8000–8005（Method not supported / Request denied / Internal error / Invalid arguments / Resources exceeded / **Retry request**——收到 8005 必须原样重发请求且不得改变任何内容，§3.7.1.6）、8006，8800–8899 厂商自定义。**本版对 ACS 侧错误覆盖子集**：8005 由 `cwmp_fault_soap` 段 B 正例断言（ACS 对 Inform 回 8005 → CPE 原样重发 Inform（`cwmp:ID` 同值、内容逐字节一致）→ ACS 正常 InformResponse）；8002 仅用于段 A 的"Inform 收非 8005 Fault→会话失败终止"正例；其余 ACS 侧错误码（8000、8001、8003、8004、8006）本版不产生（fixture 无该故障触发路径）；非法 FaultCode 值仍进负例 20（`value` 锚）。
 
 ## 4. 业务场景分析（现网典型场景与五层覆盖）
 
@@ -101,13 +103,15 @@ CPE 侧：9000 Method not supported、9001 Request denied、9002 Internal error�
 | 现网场景 | 事务交互 | 驱动顺序 | 对应用例 |
 |---|---|---|---|
 | ① 周期 Inform（最常见：PeriodicInformInterval 触发，§3.2.1） | TCP→POST Inform(2 PERIODIC)→200 InformResponse→空 POST→204→FIN | CPE 驱动全程（§3.7.1 Table 7） | `cwmp_inform_ipv4` |
-| ② 参数读写长会话（§3.7.3 Figure 3 原型） | Inform→空 POST→ACS 在响应里发 GetParameterValues→CPE POST 响应→ACS 发 SetParameterValues→CPE POST 响应→空 POST→204 | CPE 驱动 HTTP、ACS 驱动 SOAP 请求（§3.7.2 Table 10） | `cwmp_http_keepalive_multi_transaction` |
+| ② 参数读写长会话（§3.7.3 Figure 3 原型） | Inform→空 POST→ACS 在响应里发 GetParameterNames/GetParameterValues→CPE POST 响应→ACS 发 SetParameterValues→CPE POST 响应→空 POST→204 | CPE 驱动 HTTP、ACS 驱动 SOAP 请求（§3.7.2 Table 10）；图 3 读段由 `cwmp_get_parameter_values`（用例 4，GetParameterNames+GetParameterValues）、写段由 `cwmp_set_parameter_values`（用例 5）、同连接多事务交替由 `cwmp_http_keepalive_multi_transaction`（用例 11）分载 | `cwmp_get_parameter_values`（读）、`cwmp_set_parameter_values`（写）、`cwmp_http_keepalive_multi_transaction`（多事务交替） |
 | ③ ACS 主动连接请求（§3.2.2） | ACS→CPE HTTP GET(:7547)→401 digest 挑战→GET+Authorization→200 空体→CPE 30 秒内新会话 Inform(6 CONNECTION REQUEST) | 反向连接（连接边界反应性成分）后转 CPE 驱动 | `cwmp_connection_request` |
-| ④ 配置/固件升级全流程（§3.4.3+A.3.2.8+A.3.3.2） | 会话 1：Inform→ACS 发 Download→DownloadResponse(1)→空 POST→204；**副连接**：CPE→文件服务器 HTTP GET（流关联）；会话 2：Inform(7 TRANSFER COMPLETE+M Download)→TransferComplete(CommandKey+FaultStruct)→TransferCompleteResponse | 主会话驱动副连接（主从关系），跨会话靠 CommandKey 关联 | `cwmp_download_transfer_complete`、`cwmp_download_flow_correlation` |
-| ⑤ 日志/配置上报（A.4.1.5） | 会话 1：Inform→ACS 发 Upload→UploadResponse(1)；会话 2：TransferComplete | 同 ④ | `cwmp_upload_transfer_complete` |
-| ⑥ 远程重启（A.3.2.9+§3.7.1.5） | 会话 1：Inform→ACS 发 Reboot(CommandKey)→RebootResponse→终止会话后才重启；会话 2：Inform(1 BOOT+M Reboot，CommandKey 同值) | 跨会话 CommandKey 关联 | `cwmp_reboot_command_key` |
+| ④ 配置/固件升级全流程（§3.4.3+A.3.2.8+A.3.3.2） | 会话 1：Inform→ACS 发 Download→DownloadResponse(1)→**204（不关连接）**→**副连接插入**（CPE→文件服务器 HTTP GET，流关联；位置：DownloadResponse 之后、主会话空 POST 之前，主会话挥手最后，见 §5 流关联）→空 POST→204；会话 2：Inform(7 TRANSFER COMPLETE+M Download)→TransferComplete(CommandKey+FaultStruct)→TransferCompleteResponse→空 POST→204 | 主会话驱动副连接（主从关系），跨会话靠 CommandKey 关联；下载完成三途径全覆盖于用例 6 | `cwmp_download_transfer_complete`（三途径）、`cwmp_download_flow_correlation`（副连接时序） |
+| ⑤ 日志/配置上报（A.4.1.5） | 会话 1：Inform→ACS 发 Upload→UploadResponse(1)→空 POST→204；会话 2：Inform→TransferComplete→TransferCompleteResponse→空 POST→204 | 同 ④ | `cwmp_upload_transfer_complete` |
+| ⑥ 远程重启（A.3.2.9+§3.7.1.5） | 会话 1：Inform→ACS 发 Reboot(CommandKey)→RebootResponse→空 POST→204（终止会话后才重启）；会话 2：Inform(1 BOOT+M Reboot，CommandKey 同值)→空 POST→204 | 跨会话 CommandKey 关联 | `cwmp_reboot_command_key` |
 
-**五层覆盖逐层结论**：功能层——baseline RPC 正例覆盖 Inform/InformResponse、GetParameterValues、GetParameterNames、SetParameterValues、GetRPCMethods、Download/Upload/TransferComplete、Reboot、Fault 与空请求/响应终止；每类错误（配置/线格式/状态机/关联/长度）至少一条负例（§7）。性能层——大 SOAP 体跨 MSS 分段重组（`cwmp_mss_large_soap`）+ 32KB envelope 下限 + 参数长度上界断言。数据场景层——事件码枚举、FileType 枚举、Status 0/1、FaultCode 值域、ParameterKey 空/非空、FileSize=0、MaxEnvelopes=1、XML 转义与百分号编码。地址与流层——IPv4/IPv6 独立 fixture、单流基线、Download 副连接**流关联**、多会话双四元组；**多流（一个会话内部并发流）显式不适用**：§3.4.6 禁止 pipelining，一个 CWMP 会话内只有严格交替的单 HTTP 事务流。业务层——周期上报、ACS 主动排查、批量参数管理、升级、上报、重启均为现网日常，优先于教科书全方法遍历。
+**五层覆盖逐层结论**：功能层——baseline RPC 正例覆盖 Inform/InformResponse、GetParameterValues、GetParameterNames、SetParameterValues、GetRPCMethods、Download（三完成途径）/Upload/TransferComplete、Reboot、Fault（含 8005 重发与 Inform Fault 终止）与空请求/响应终止；每类错误（配置/线格式/状态机/关联/长度）至少一条负例（§7）。性能层——大 SOAP 体跨 MSS 分段重组（`cwmp_mss_large_soap`：envelope ≥32768 字节、默认 MSS 1460、约 23 段，`http.content_length` 断言）+ 32KB envelope 下限 + 参数长度上界断言。数据场景层——事件码枚举（9 项实现子集）、FileType 枚举（代表值 1/3 + 其余入负例非法值）、Status 0/1、FaultCode 值域、faultcode Client/Server 二值、ParameterKey 空/非空（含 32 字符上界）、FileSize=0、DelaySeconds=0/非 0（非 0 时同会话不得执行副连接/TransferComplete，段 C 断言）、Event 数组满 64、MaxEnvelopes=1、string(256/64/32) 上界、XML 转义（`&amp;`）、OUI 六位大写十六进制、dateTime 带时区偏移、用户名百分号编码（§8 逐项断言归属）。地址与流层——IPv4/IPv6 独立 fixture、单流基线、Download 副连接**流关联**、多会话双四元组；**多流（一个会话内部并发流）显式不适用**：§3.4.6 禁止 pipelining，一个 CWMP 会话内只有严格交替的单 HTTP 事务流。业务层——周期上报、ACS 主动排查、批量参数管理、升级、上报、重启均为现网日常，优先于教科书全方法遍历。
+
+**次要合法行为显式不适用声明（均不设正例用例，亦不得进负例，§7 防误报同步）**：① HTTP 重定向 302/307（§3.4.2）——重定向响应由 ACS 侧部署触发，本版生成器无重定向响应源，声明不适用；② HTTP chunked 传输编码（§2 允许 chunked 界定边界）——本版所有 HTTP 实体一律用 Content-Length 界定（边界可预算、断言可执行），chunked 不进 fixture；③ CPE 已在会话时对 Connection Request 回 503（§3.2.2）——本版 CR fixture 均取 CPE 空闲态（401→200 成功路径），不模拟"会话占用"窗口，声明不适用；④ 失败会话重试（§3.2.1.1）——本版 Inform 会话均为成功会话（RetryCount=0），不产生失败→重试序列；⑤ 文件服务器 basic/digest 认证（§3.4.3）——本版副连接文件服务器为公开 URL（无 401 挑战，见 `cwmp_download_flow_correlation`），basic/digest 认证分支不进 fixture；⑥ `X_<VENDOR>_Method` 厂商扩展 RPC（§1/A.3.1.1）——透传能力已声明于 §1，本版无厂商扩展 fixture。
 
 ## 5. 消息/事务模型与状态机
 
@@ -120,14 +124,14 @@ CPE 侧会话状态机（§3.7.1）：
 | `TransportReady` | TCP 建立后首个 HTTP POST | 首笔 SOAP 事务必须是 Inform（含 HTTP 认证挑战时先补 Authorization） |
 | `InformPending` | 200 InformResponse | `cwmp:ID` 与 Inform 相同；MaxEnvelopes=1 |
 | `CpeRequests` | CPE 有待发请求时 POST 请求；否则空 POST（Table 7） | 空 POST 无 SOAPAction/Content-Type；发出后本会话不得再发请求（§3.7.1.3） |
-| `AcsRequests` | ACS 请求随 HTTP 响应到达→CPE 下一 POST 必须是其 Response | 不得响应响应、不得响应 Fault（§3.5） |
-| `Faulted` | 非 Inform 事务收到 Fault | **会话继续**（§3.7.1.4）；Inform 收到非 8005 Fault→会话失败终止 |
+| `AcsRequests` | ACS 请求随 HTTP 响应到达→CPE 下一 POST 必须是其 Response | 不得响应另一个响应、不得响应 Fault（§3.5）；违规进负例 18（锚 `session`/`state`） |
+| `Faulted` | 非 Inform 事务收到 Fault | **会话继续**（§3.7.1.4，正例 `cwmp_fault_soap` 段 B 断言）；Inform 收到 8005→原样重发 Inform（`cwmp_fault_soap` 段 B 第 1-2 对事务）；Inform 收到非 8005 Fault→**会话失败终止**（正例 `cwmp_fault_soap` 段 A 断言：无空 POST、无后续事务，直接挥手） |
 | `Terminating` | 空 POST 后等空响应（204） | 双方 Table 7/Table 10 条件全满足后才关连接 |
 | `Closed` | TCP FIN | 关闭后不得产生新业务帧；失败会话按 §3.2.1.1 重试 |
 
-ACS 侧对称（§3.7.2 Table 10）：CPE 请求未决时响应；CPE 无请求且 ACS 有请求时在响应里发请求；均无则空 HTTP 响应（204）。
+ACS 侧对称（§3.7.2 Table 10）：CPE 请求未决时响应；CPE 无请求且 ACS 有请求时在响应里发请求；均无则空 HTTP 响应（204）。**会话收尾教义：每个正常会话以空 POST/204 对收尾**——204 只有在应答空 POST 时才终止会话；应答 DownloadResponse、SetParameterValuesResponse 等**非空 POST** 的 204 表示 ACS 无后续请求，会话继续（用例 11 中段 204 为佐证），直至收尾的空 POST/204 对。
 
-**流关联**（控制流派生数据流的主从关系）：① Download/Upload 的文件传输副连接——§3.4.3 允许同连接、第二连接、终止会话后传输三种方式；URL 与 ACS 不同域/端口时只能后两种，本版 fixture 取"第二连接"：CPE 以新源端口向文件服务器发起独立 HTTP GET/PUT，主会话保持。副连接由主会话 Download 事务的 URL/CommandKey 驱动，配置以 `driven_by` 显式声明主从（§6）。② Connection Request 反向连接——ACS 作为 HTTP 客户端连 CPE（连接边界反应性成分），认证成功后 CPE 在 30 秒内**另起** CPE→ACS 会话（§3.2.2），两个连接四元组与角色均不同。多会话（多个独立连接、状态不串用）与流关联不是同一维度：`cwmp_multi_session` 证明前者，`cwmp_download_flow_correlation` 证明后者。
+**流关联**（控制流派生数据流的主从关系）：① Download/Upload 的文件传输副连接——§3.4.3 允许同连接、第二连接、终止会话后传输三种方式；URL 与 ACS 不同域/端口时只能后两种，本版 fixture 取"第二连接"：CPE 以新源端口向文件服务器发起独立 HTTP GET/PUT，主会话保持。副连接由主会话 Download 事务的 URL/CommandKey 驱动，配置以 `driven_by` 显式声明主从（§6）。**副连接在多会话展开中的插入位置（唯一确定）**：紧跟主会话 DownloadResponse 事务之后、主会话空 POST 之前发起并完成（副连接自身：握手→GET/200→挥手），完成后主会话才继续空 POST→204→挥手——主会话挥手是整个主会话块的最后一帧组；主会话对 DownloadResponse 的应答帧同为 204（不关连接：应答非空 POST 的 204 不终止会话，见 ACS 侧收尾教义），会话以收尾的空 POST/204 对终止。多会话包号 = 各块顺次之和（主会话块内嵌副连接块，下一会话握手包号 = 前一会话块总包数 + 1）。② Connection Request 反向连接——ACS 作为 HTTP 客户端连 CPE（连接边界反应性成分），认证成功后 CPE 在 30 秒内**另起** CPE→ACS 会话（§3.2.2），两个连接四元组与角色均不同。多会话（多个独立连接、状态不串用）与流关联不是同一维度：`cwmp_multi_session` 证明前者，`cwmp_download_flow_correlation` 证明后者。
 
 ## 6. 配置 typedef（JSON 形状示例，非 Go 代码）
 
@@ -184,9 +188,9 @@ ACS 侧对称（§3.7.2 Table 10）：CPE 请求未决时响应；CPE 无请求�
 | 负例 ID | 故障输入（方向） | `error_contains` 候选锚词 |
 |---|---|---|
 | `cwmp_neg_config` | 配置错：profile/namespace 版本不匹配（如 SOAP 1.2 命名空间）、层链缺 http（tcp→cwmp 直连）、端口/载体声明矛盾 | `profile`、`namespace`、`carrier` 或 `port` |
-| `cwmp_neg_http_wire` | HTTP 线格式错：方法非 POST、SOAPAction 非空值、Content-Type 非 text/xml、Content-Length 与实体不符、401 挑战后 Authorization 缺失/摘要错仍继续 | `http`、`method`、`auth` 或 `content-type` |
+| `cwmp_neg_http_wire` | HTTP 线格式错：方法非 POST、SOAPAction 非空值、Content-Type 非 text/xml、Content-Length 与实体不符、401 挑战后 Authorization 缺失或摘要错仍继续 | `http`、`method`、`auth` 或 `content-type` |
 | `cwmp_neg_xml_soap` | SOAP/XML 线格式错：XML 截断/不合法、envelope 命名空间错、Body 缺失、响应缺 `Response` 后缀、Fault 结构不符（faultstring≠`CWMP fault`、detail 缺 cwmp:Fault） | `xml`、`soap`、`envelope` 或 `fault` |
-| `cwmp_neg_session_state` | 状态机错：非 Inform 首事务、空 POST 后继续发请求、CPE 发送 ACS 方法（方向错）、Fault 后继续同事务、会话未终止即重启 | `session`、`state` 或 `sequence` |
+| `cwmp_neg_session_state` | 状态机错：非 Inform 首事务、空 POST 后继续发请求、CPE 发送 ACS 方法（方向错）、Fault 后继续同事务、Fault 响应 Fault、响应另一个响应、会话未终止即重启 | `session`、`state` 或 `sequence` |
 | `cwmp_neg_correlation` | 关联错：响应 `cwmp:ID` 与请求不匹配、TransferComplete CommandKey 无来源 Download/Upload、`driven_by` 副连接引用不存在的事务/字段 | `id`、`command` 或 `correlation` |
 | `cwmp_neg_length` | 长度/值域错：参数名 >256、CommandKey >32、事件码/FaultCode/FileType 非法值、Event 数组 >64、超长实体截断 | `length`、`parameter` 或 `value` |
 
@@ -194,7 +198,7 @@ ACS 侧对称（§3.7.2 Table 10）：CPE 请求未决时响应；CPE 无请求�
 
 ## 8. 边界
 
-大 SOAP 体：MSS 分段后必须按 Content-Length/重组流还原 envelope 再断言（`cwmp_mss_large_soap` 用 ≥3000 字节 ParameterList 跨 3 个 TCP 分段）；envelope 尺寸下限 32768 字节（§3.5），生成器不得按未限定长度分配。地址族：IPv4/IPv6 用独立 fixture，同一逻辑 envelope 的 SOAP 字节必须一致，仅外层 IP 头与偏移（54/74）不同。多会话：≥2 个独立四元组，`cwmp:ID` 计数、cookie、DeviceId、事务状态互不串用；会话间包序按多会话展开。参数/值域边界：空 ParameterList、空 ParameterKey（合法且必须保持为空）、Event 数组空/满（64）、FileSize=0、DelaySeconds=0/非 0、string(256)/string(64)/string(32) 上界、OUI 六位大写十六进制、dateTime 必须带时区偏移、XML 转义（`&amp;` 等）与用户名百分号编码（§3.4.4）。不得产生回绕长度或超量分配。
+大 SOAP 体：MSS 分段后必须按 Content-Length/重组流还原 envelope 再断言（`cwmp_mss_large_soap` 用 ≥32768 字节 SOAP envelope——其 ParameterList ≥32768 字节，**默认 MSS 1460、不压 MSS**，段数 = ceil(envelope 总长/1460) ≈ 23 段；断言 `http.content_length` = envelope 实际字节长且 ≥32768，覆盖 §3.5 的 32KB envelope 下限）；生成器不得按未限定长度分配。地址族：IPv4/IPv6 用独立 fixture，同一逻辑 envelope 的 SOAP 字节必须一致，仅外层 IP 头与偏移（54/74）不同（v6 fixture 取 src `2001:db8::65`、dst `2001:db8::1`、dst_port 7547）。多会话：≥2 个独立四元组，`cwmp:ID` 计数、cookie、DeviceId、事务状态互不串用；会话间包序按多会话展开，副连接按 §5 流关联插入。参数/值域边界**逐项断言归属**（正例均落实，不再是无用例声明）：空 ParameterList（`cwmp_inform_event_codes` fixture 3，无 `ParameterValueStruct` hex）、空 ParameterKey（`cwmp_set_parameter_values` 第 1 笔 SetParameterValues，合法且保持为空）、Event 数组满 64（`cwmp_inform_event_codes` fixture 4）、FileSize=0（`cwmp_download_transfer_complete` 段 A，0=大小未知）、DelaySeconds=0（段 B，同会话可执行）/非 0（段 C，同会话不得执行副连接与 TransferComplete）、string(256) 参数名上界（`cwmp_get_parameter_values`）、string(64) DeviceId 字段上界（`cwmp_inform_event_codes` fixture 1）、string(32) CommandKey/ParameterKey 上界（`cwmp_set_parameter_values`/`cwmp_download_transfer_complete`）、OUI 六位大写十六进制（`cwmp_inform_event_codes` fixture 1，`^[0-9A-F]{6}$`）、dateTime 必带时区偏移（`cwmp_inform_event_codes` fixture 1，CurrentTime 含 `+hh:mm`/`-hh:mm`）、XML 转义（`&amp;` 等，`cwmp_inform_event_codes` fixture 1 的参数值）、用户名百分号编码（§3.4.4，`cwmp_connection_request` 的 `http.authorization` 含 `%20` 编码值）。HTTP 重定向 302/307、chunked、CR 忙 503、失败会话重试、文件服务器 basic/digest、`X_` 厂商 RPC 见 §4 不适用声明。不得产生回绕长度或超量分配。
 
 ## 9. 原子 ID 与完成定义
 
@@ -203,19 +207,19 @@ ACS 侧对称（§3.7.2 Table 10）：CPE 请求未决时响应；CPE 无请求�
 | # | ID | 类型 | 覆盖 |
 |---:|---|---|---|
 | 1 | `cwmp_inform_ipv4` | 正 | IPv4/7547 单流基线：Inform(2 PERIODIC)→InformResponse→空 POST→204 |
-| 2 | `cwmp_inform_event_codes` | 正 | 事件码值域与组合（1 BOOT+M Reboot、4 VALUE CHANGE、7 TRANSFER COMPLETE+M Download）、DeviceId/ParameterList |
-| 3 | `cwmp_connection_request` | 正 | ACS→CPE GET/401 digest/200 空体 + 新会话 Inform(6 CONNECTION REQUEST) |
-| 4 | `cwmp_get_parameter_values` | 正 | GetParameterValues 与 GetParameterNames 事务（数组编码、部分路径、Writable） |
-| 5 | `cwmp_set_parameter_values` | 正 | SetParameterValues：ParameterKey、Status 0/1 边界 |
-| 6 | `cwmp_download_transfer_complete` | 正 | Download→DownloadResponse(1)→新会话 TransferComplete（CommandKey 跨会话关联） |
-| 7 | `cwmp_download_flow_correlation` | 正 | 流关联：Download 驱动独立副连接 HTTP GET 文件服务器 |
-| 8 | `cwmp_upload_transfer_complete` | 正 | Upload→UploadResponse(1)→新会话 TransferComplete |
+| 2 | `cwmp_inform_event_codes` | 正 | 事件码实现子集 9 项中本用例断言 5 项（0 BOOTSTRAP+1 BOOT、4 VALUE CHANGE、7 TRANSFER COMPLETE+M Download）；其余 4 项：2 PERIODIC 见用例 1、1 BOOT+M Reboot 见用例 9、6 CONNECTION REQUEST 见用例 3、M Upload 见用例 8。另断言 Event 数组满 64、DeviceId string(64/6) 上界、OUI 大写十六进制、dateTime 时区偏移、XML 转义、空 ParameterList |
+| 3 | `cwmp_connection_request` | 正 | ACS→CPE GET/401 digest（`qop="auth"`）/200 空体 + 新会话 Inform(6 CONNECTION REQUEST)；用户名百分号编码 |
+| 4 | `cwmp_get_parameter_values` | 正 | GetParameterValues 与 GetParameterNames 事务（数组编码、部分路径、Writable、string(256) 参数名上界） |
+| 5 | `cwmp_set_parameter_values` | 正 | 两笔 SetParameterValues 事务：Status 0/1 各一次；ParameterKey 空（合法保持空）与 32 字符上界各一次 |
+| 6 | `cwmp_download_transfer_complete` | 正 | 下载完成三途径全覆盖（A.3.2.8）：段 A=①DownloadResponse Status=0 直接成功、段 B=②同会话 TransferComplete、段 C=③新会话 TransferComplete（CommandKey 跨会话关联）；FileSize=0、DelaySeconds=0/非 0、CommandKey 32 上界、FileType 代表值 1/3 |
+| 7 | `cwmp_download_flow_correlation` | 正 | 流关联：Download 驱动独立副连接 HTTP GET 文件服务器；副连接插在 DownloadResponse 之后、主会话空 POST 之前、主会话挥手最后（§5） |
+| 8 | `cwmp_upload_transfer_complete` | 正 | Upload→UploadResponse(1)→新会话 Inform(7 TRANSFER COMPLETE+M Upload)→TransferComplete |
 | 9 | `cwmp_reboot_command_key` | 正 | Reboot→RebootResponse→新会话 Inform(1 BOOT+M Reboot，CommandKey 同值) |
-| 10 | `cwmp_fault_soap` | 正 | SOAP Fault/CWMP Fault 900x 结构（faultstring=CWMP fault、detail、SetParameterValuesFault）且会话继续 |
+| 10 | `cwmp_fault_soap` | 正 | 段 A：Inform 收非 8005 Fault→会话失败终止（faultcode Server、FaultCode 8002）；段 B：Inform 收 8005→原样重发（ID 同值）→SetParameterValues 触发 Fault（faultcode Client、主码 9003+SetParameterValuesFault 逐参数 9007、faultstring=CWMP fault）→非 Inform Fault 后会话继续 |
 | 11 | `cwmp_http_keepalive_multi_transaction` | 正 | 同连接多事务（Inform→GetRPCMethods→SetParameterValues→空 POST→204），无 pipelining |
-| 12 | `cwmp_ipv6` | 正 | IPv6 单流 Inform 会话（ipv6.nxt=6、offset 74） |
+| 12 | `cwmp_ipv6` | 正 | IPv6 单流 Inform 会话（src `2001:db8::65`、dst `2001:db8::1`、dst_port=7547；ipv6.nxt=6、offset 74） |
 | 13 | `cwmp_multi_session` | 正 | 多会话展开双四元组，ID/cookie/状态不串用 |
-| 14 | `cwmp_mss_large_soap` | 正 | 大 SOAP 体跨 MSS 分段重组 |
+| 14 | `cwmp_mss_large_soap` | 正 | 大 SOAP 体跨 MSS 分段重组：envelope ≥32768 字节、默认 MSS 1460、≈23 段，`http.content_length` 断言 32KB 下限 |
 | 15 | `cwmp_neg_config` | 负 | 配置错（profile/namespace/层链/端口） |
 | 16 | `cwmp_neg_http_wire` | 负 | HTTP 线格式错（method/SOAPAction/Content-Type/长度/auth） |
 | 17 | `cwmp_neg_xml_soap` | 负 | SOAP/XML 线格式错（namespace/envelope/Fault 结构） |
@@ -223,9 +227,11 @@ ACS 侧对称（§3.7.2 Table 10）：CPE 请求未决时响应；CPE 无请求�
 | 19 | `cwmp_neg_correlation` | 负 | 关联错（ID 错配、CommandKey 无来源、副连接主从不符） |
 | 20 | `cwmp_neg_length` | 负 | 长度/值域错（上界越界、非法枚举、截断） |
 
-完成定义：注册 `tcp→http→cwmp` 层链；逐字段生成 §3 的 SOAP envelope/Header/Fault 与 HTTP 头；Inform/RPC/Fault/空请求响应、Connection Request、Download 副连接流关联、多会话展开、IPv4/IPv6、MSS 分段与边界均可观测；20 个语义 ID 正负断言与错误传播完成；未注册阶段只接受 `unknown layer` 占位。
+完成定义：注册 `tcp→http→cwmp` 层链；逐字段生成 §3 的 SOAP envelope/Header/Fault 与 HTTP 头；Inform/RPC/Fault（含 8005 重发与 Inform Fault 终止）/空请求响应、Connection Request、Download 三完成途径与副连接流关联（插入位置可观测）、多会话展开、IPv4/IPv6、MSS 分段（≥32768 字节 envelope、默认 MSS 1460）与 §8 逐项边界断言均可观测；20 个语义 ID 正负断言与错误传播完成；未注册阶段只接受 `unknown layer` 占位。
 
 ## 10. 修订记录
 
 - v1.0.0（2026-08-20）：旧稿首版（14 正 + 6 负：含 https_tls_opaque、pcap_nic_consistency、multi_flow_dynamic_fields 等 ID）。
 - v2.0.0（2026-08-31）：按《协议设计文档与用例文档需求文档 v1》三向对抗审查流程重写，取代 2026-08-20 旧契约稿（旧稿见 git 历史）。对照 TR-069 Issue 1 Amendment 6 Corrigendum 1 全文逐节校准（新增章节级出处：§3.4.1 SOAPAction/Content-Type 规则、§3.4.6 空 204/禁 pipelining、§3.5 Table 4 Header 与 Fault 结构、§3.7.1.5 Table 8 事件码、A.3.3.1 Table 37–39 Inform、A.3.2.8 Download 三完成途径、A.5.1/A.5.2 错误码表）；按统一术语重排 20 个语义 ID——删除 `pcap_nic_consistency`（测试方法非协议语义）、`multi_flow_dynamic_fields`（CWMP 禁 pipelining，多流不适用）、`https_tls_opaque`（降为 §1 未注册边界声明），新增流关联（`cwmp_download_flow_correlation`）、多事务（`cwmp_http_keepalive_multi_transaction`）、多会话展开（`cwmp_multi_session`）、性能（`cwmp_mss_large_soap`）与独立 v4/v6 用例；新增 §4 业务场景分析（五层逐层）、§5 状态机与事务模型、§6 JSON 配置 typedef。三向对抗审查 2 轮：第 1 轮修正 InformResponse 独立成例造成的覆盖重叠（并入 inform_ipv4/事件码用例）、补 MSS 性能用例缺口、Connection Request 401 从"负例"归位为正例路径；第 2 轮规范回对抽查 FaultCode 表/事件码组合/32KB 下限/7547 端口语义，结论 clean。
+- v2.1.0（2026-09-01）：依据《协议设计文档与用例文档需求文档 v1.1》（§3 独立子代理隔离对抗审查；64-cwmp 按 v1.0 完成后补本轮隔离审查），独立子代理隔离对抗审查 23 项问题清单（2 CRITICAL / 8 MAJOR / 13 MINOR）修复轮，全部 CRITICAL/MAJOR 关闭、MINOR 项关闭或显式声明。关键修复：**X01**（CRITICAL）`cwmp_fault_soap` 的 SetParameterValuesFault 改由 ACS 触发 SetParameterValues 的独立事务承载（原错误挂在 GetParameterValues Fault 帧），段 B 重排为 4 对事务 = 15 包；**X02**（CRITICAL）删除"MSS 压 536"自相矛盾配置，`cwmp_mss_large_soap` 改用默认 MSS 1460；**X03** 副连接插入位置唯一确定（DownloadResponse 之后、主会话空 POST 之前、主会话挥手最后），§5/§8 与用例公式同步；**X04** envelope 拉到 ≥32768 字节（覆盖 32KB 下限）并断言 `http.content_length`；**X05** 下载完成三途径全部入 `cwmp_download_transfer_complete`（段 A/B/C）；**X06** 补 8005 原样重发正例（段 B 前两对）与 Inform 非 8005 Fault 会话失败终止正例（段 A）；**X07** HoldRequests/SessionTimeout 显式声明 fixture 不使用；**X08** 事件码 14 项取值域声明本版实现子集 9 项并补 `0 BOOTSTRAP` 正例；**X09/X10** 零/空/满与编码边界逐项落到具体用例断言（§8 断言归属表）；**X15/X19** 负例故障输入统一为两文档并集（补"Fault 响应 Fault""响应另一个响应""摘要错"）；**X16** 场景②对齐用例 4/5/11 分载；**X18/X20** 次要合法行为（302/307、chunked、CR 忙 503、失败会话重试、文件服务器认证、X_ 厂商 RPC）逐项显式不适用声明；**X21** 契约引用改 v1.1；**X22** digest 断言升级含 `qop="auth"`；**X11** FileType 补代表值 1/3；**X12** faultcode Client/Server 二值断言；**X13** `cwmp_set_parameter_values` 改 15 包（4 对）；**X14** `cwmp_inform_event_codes` 改四次 fixture 与列举一致；**X17** IPv6 目的地址明确 `2001:db8::1`、`dst_port=7547`（消除地址与端口混写笔误）。**X23**（MINOR，原子性拆分）case 4 已拆为两会话块（GetParameterNames/GetParameterValues 各一独立会话，26 包）；case 10 拆为两段（段 A Inform Fault 终止、段 B 8005 重发+SetParameterValuesFault）、case 6 三段、case 2 四次 fixture，均按段独立 packet_count 与断言。case 13 多维度合一拆不动：多会话展开是单一规格点（§5），ID/cookie/DeviceId/状态不串用是同一行为的多个可观测断言面，逐维度单独设例需以 2 会话重复铺陈且要新增 ID——20 个语义 ID 与 §9/用例 §2/JSON 三方顺序契约为脚本核验的固定结构，拆分即破坏契约；按需求 §7"复合用例既是原子用例的顺次组合"处理并在此注明。
+- v2.1.1（2026-09-01）：复验不通过修复轮（N01/N02/N03）。**N01**（CRITICAL）删除全部"200 空体（非 204）"提法（§5 流关联末句、§4 场景④），DownloadResponse 等非空 POST 的应答统一为 204——空 HTTP 响应必须 204（§3.4.6，本文 §3.3 已钉死）；依据 §5 Terminating 钉死教义：204 只有在应答空 POST 时才终止会话，应答非空 POST 的 204 会话继续（用例 11 中段 204 佐证）。**N02**（MAJOR）统一会话收尾为"空 POST/204 对收尾"（§5 新增教义句），A 式（最后非空 POST 被 204 应答后直接挥手）全部改 B 式并全表重算 packet_count：用例 2 → 44（4×11）、用例 4 → 30（两会话各 +2）、用例 5 → 17、用例 6 → 69（段 A 15、段 B 26、段 C 28）、用例 8 → 28、用例 9 → 26、用例 10 → 28（段 B 19，"不许两式混用"同样适用）、用例 13 → 30（第二会话握手包号改 16）、用例 7/11 包数不变（仅 DownloadResponse 应答与中段 204 措辞改 204）。Connection Request 的 200 空体保留（§3.2.2 CR 成功应答即 200 无体，非会话空响应范畴）。**N03**（MINOR）v2.0.0 修订条目的需求文档引用改回 v1（该轮实际按 v1.0 完成提交），v1.1 引用仅保留于 v2.1.0 及本条目。
