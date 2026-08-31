@@ -157,7 +157,7 @@
 | 67 | [`67-onvif-design.md`](67-onvif-design.md) / [`67-onvif-testcase.md`](67-onvif-testcase.md) | ONVIF（网络视频接口论坛） | 32（契约） | 审查 clean |
 | 68 | [`68-hl7-design.md`](68-hl7-design.md) / [`68-hl7-testcase.md`](68-hl7-testcase.md) | HL7（医疗信息交换标准） | 25（契约） | 审查 clean |
 | 69 | [`69-nmea-design.md`](69-nmea-design.md) / [`69-nmea-testcase.md`](69-nmea-testcase.md) | NMEA（海用电子设备接口） | 20（契约） | 待审计 |
-| 70 | [`70-megaco-design.md`](70-megaco-design.md) / [`70-megaco-testcase.md`](70-megaco-testcase.md) | Megaco/H.248（媒体网关控制，含 h248/mgcp/megaco） | 20（契约） | 待审计 |
+| 70 | [`70-megaco-design.md`](70-megaco-design.md) / [`70-megaco-testcase.md`](70-megaco-testcase.md) | Megaco/H.248（媒体网关控制，含 h248/mgcp/megaco） | 23（契约） | 审查 clean |
 | 71 | [`71-mmse-design.md`](71-mmse-design.md) / [`71-mmse-testcase.md`](71-mmse-testcase.md) | MMSE（彩信协议） | 20（契约） | 待审计 |
 | 72 | [`72-edp-design.md`](72-edp-design.md) / [`72-edp-testcase.md`](72-edp-testcase.md) | EDP（物联网设备数据协议） | 39（契约） | 审查 clean |
 | 73 | [`73-ethmining-design.md`](73-ethmining-design.md) / [`73-ethmining-testcase.md`](73-ethmining-testcase.md) | ETHMining（以太坊挖矿协议） | 20（契约） | 待审计 |
