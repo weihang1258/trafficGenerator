@@ -154,7 +154,7 @@
 | 64 | [`64-cwmp-design.md`](64-cwmp-design.md) / [`64-cwmp-testcase.md`](64-cwmp-testcase.md) | CWMP（CPE WAN 管理协议，TR-069） | 20（契约） | 待审计 |
 | 65 | [`65-bacnet-design.md`](65-bacnet-design.md) / [`65-bacnet-testcase.md`](65-bacnet-testcase.md) | BACnet（楼宇自动化控制网络） | 20（契约） | 待审计 |
 | 66 | [`66-doh-design.md`](66-doh-design.md) / [`66-doh-testcase.md`](66-doh-testcase.md) | DOH（DNS over HTTPS，RFC 8484） | 20（契约） | 待审计 |
-| 67 | [`67-onvif-design.md`](67-onvif-design.md) / [`67-onvif-testcase.md`](67-onvif-testcase.md) | ONVIF（网络视频接口论坛） | 20（契约） | 待审计 |
+| 67 | [`67-onvif-design.md`](67-onvif-design.md) / [`67-onvif-testcase.md`](67-onvif-testcase.md) | ONVIF（网络视频接口论坛） | 32（契约） | 审查 clean |
 | 68 | [`68-hl7-design.md`](68-hl7-design.md) / [`68-hl7-testcase.md`](68-hl7-testcase.md) | HL7（医疗信息交换标准） | 20（契约） | 待审计 |
 | 69 | [`69-nmea-design.md`](69-nmea-design.md) / [`69-nmea-testcase.md`](69-nmea-testcase.md) | NMEA（海用电子设备接口） | 20（契约） | 待审计 |
 | 70 | [`70-megaco-design.md`](70-megaco-design.md) / [`70-megaco-testcase.md`](70-megaco-testcase.md) | Megaco/H.248（媒体网关控制，含 h248/mgcp/megaco） | 20（契约） | 待审计 |
