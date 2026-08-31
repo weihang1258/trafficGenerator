@@ -1,9 +1,10 @@
 # mqtt Pcap Test Results
 
-Cases: 168 — pass 168, fail 0, error 0
+Cases: 169 — pass 169, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
+| mqtt_over_tls | MQTTS：TLS 载体上的 MQTT 连接会话（[tcp,tls,mqtt] 层链，8883 IANA 端口），tls.record.content_type=23 application_data 内承载 MQTT CONNECT | pass | 17 | [pcap](mqtt/mqtt_over_tls.pcap) |
 | mqtt_s10_multi_session | S10/T-063: 3 会话并发独立流(每流 10 包, PUBLISH a/b/c) | pass | 30 | [pcap](mqtt/mqtt_s10_multi_session.pcap) |
 | mqtt_s12_v5_properties | S12/T-185: MQTT 5.0 CONNECT Properties(SessionExpiry+TopicAliasMax+UserProp) + PUBLISH ContentType/TopicAlias(11 包) | pass | 12 | [pcap](mqtt/mqtt_s12_v5_properties.pcap) |
 | mqtt_s13_auth | S13/T-186: Username/Password 认证(ConnectFlags=0xC2, 9 包:3 握手+CONNECT+CONNACK+DISCONNECT+3 挥手) | pass | 10 | [pcap](mqtt/mqtt_s13_auth.pcap) |
