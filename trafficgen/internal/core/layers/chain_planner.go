@@ -1371,6 +1371,9 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// Shadowsocks 同款（P3）：TCP-mode AEAD 帧序列 + 可选 SOCKS5/HTTP 混淆
 		// 事件，build* 纯函数复用。Only set for shadowsocks chains。
 		Shadowsocks: spec.Shadowsocks,
+		// SOCKS 同款（J 组）：greeting/method/auth/request/reply 信令 + 隧道
+		// 数据面事件，build* 纯函数复用。Only set for socks5 chains。
+		Socks: spec.Socks,
 		// TCP 同款（P4a）：doip 0x36 分段读 spec.TCP.MSS。
 		TCP:     spec.TCP,
 		SrcPort: spec.SrcPort,
@@ -2079,6 +2082,23 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		var mc core.MQTTConfig
 		if err := json.Unmarshal(raw, &mc); err == nil {
 			spec.MQTT = &mc
+		}
+	case "socks5":
+		if spec.Socks != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// 层 config（version/auth_method/dst_addr/data/udp）经 JSON 往返
+		// 解码为 core.SocksConfig（J 组 SOCKS5-over-TLS：[tcp,tls,socks5]
+		// 链）。socks5 validator 要求 spec.Socks 非 nil，空层 config 也
+		// 必须翻译出非 nil config（与 mqtt 分支同款）。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			return
+		}
+		var sc core.SocksConfig
+		if err := json.Unmarshal(raw, &sc); err == nil {
+			spec.Socks = &sc
 		}
 	}
 }

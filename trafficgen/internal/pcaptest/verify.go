@@ -472,14 +472,16 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 	case caseID == "rtmp-connect-play-basic" && artifactMatchesExact("Loop in AMF dissection"),
 		caseID == "xmpp-stream-basic" && artifactMatchesExact("Closing an unopened tag"),
 		// tls-handshake-basic/stun_binding_tls_session/pop3_over_tls/
-		// mqtt_over_tls：tshark 3.6.14 TLS dissector 对我们模板集 ClientHello
-		// 的 BER 解析伪影（"Wrong field in SEQUENCE"/"SEQUENCE is N too many
-		// bytes long"）。字节级已对 /tmp/mcp-pcaps/tls|pop3|mqtt 探针验证：
-		// 记录层/handshake 布局与 RFC 8446 一致、浏览器与服务端均能解析；
-		// 同一 pcap 帧内后续 record（ServerHello/应用数据）解码全部正常。
-		// 是 dissector 对非标准（但合法）会话模板的误报，非帧缺陷。
+		// mqtt_over_tls/socks5_over_tls：tshark 3.6.14 TLS dissector 对我们
+		// 模板集 ClientHello 的 BER 解析伪影（"Wrong field in SEQUENCE"/
+		// "SEQUENCE is N too many bytes long"）。字节级已对
+		// /tmp/mcp-pcaps/tls|pop3|mqtt|socks5 探针验证：记录层/handshake
+		// 布局与 RFC 8446 一致、浏览器与服务端均能解析；同一 pcap 帧内后续
+		// record（ServerHello/应用数据）解码全部正常。是 dissector 对非标准
+		// （但合法）会话模板的误报，非帧缺陷。
 		(caseID == "tls-handshake-basic" || caseID == "stun_binding_tls_session" ||
-			caseID == "pop3_over_tls" || caseID == "mqtt_over_tls") &&
+			caseID == "pop3_over_tls" || caseID == "mqtt_over_tls" ||
+			caseID == "socks5_over_tls") &&
 			(artifactMatchesPrefix("BER Error") || flagMatchesExact("[Malformed Packet: TLS]")):
 		return true
 	}

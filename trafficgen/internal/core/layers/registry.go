@@ -737,6 +737,26 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "8388"}, // Shadowsocks 默认 8388；用户显式非标准端口优先，不强制
 	})
+	r.Register(LayerSchema{Name: "socks5", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		OptionalOn:    []string{"tls"}, // SOCKS5-over-TLS：显式写 tls 层启用，默认不启用（J 组组合层）
+		FieldContract: map[string]string{"tcp.dst_port": "1080"}, // SOCKS 默认 1080；用户显式非标准端口优先，不强制
+		Fields: map[string]FieldSchema{
+			"version":     {Type: "string", Default: ""},
+			"auth_method": {Type: "string", Default: ""},
+			"username":    {Type: "string", Default: ""},
+			"password":    {Type: "string", Default: ""},
+			"cmd":         {Type: "string", Default: ""},
+			"dst_addr":    {Type: "string", Default: ""},
+			"dst_port":    {Type: "int"},
+			"rep":         {Type: "int"},
+			"bnd_addr":    {Type: "string", Default: ""},
+			"bnd_port":    {Type: "int"},
+			"user_id":     {Type: "string", Default: ""},
+			"data":        {Type: "list", Default: []interface{}{}},
+			"udp":         {Type: "object"},
+		},
+	})
 
 	// ---- 隧道层（tunnel）----
 	r.Register(LayerSchema{Name: "tls", Category: CategoryTunnel,

@@ -123,9 +123,9 @@
 |---|------|------|------|
 | 66 | SNTP | 仅 `default_sntp_servers` 配置字段（strategy_convert.go:1849），无独立 planner | SNTP 是 NTP 简化版，可复用 NTP；无独立实现 |
 | 67 | RTP / RTCP | 无独立 planner/目录，仅在 RTSP 数据面内产生（rtsp.go:366 注释佐证） | 无独立入口，无法单独生成 RTP/RTCP 流 |
-| 68 | POP3S | pop3 层无 `OptionalOn: tls` | 层链 tls 只挂了 http/ftp/smtp/dns（registry.go:65,77,239,247） |
-| 69 | MQTTS | mqtt 层无 `OptionalOn: tls` | 同上 |
-| 70 | SOCKS5 over TLS | socks5 层无 `OptionalOn: tls` | 同上 |
+| 68 | POP3S | **已实现**（2026-08-31，cb397df）：pop3 层补 `OptionalOn: tls` + Fields + translate 分支，pop3_over_tls 用例 2/2 | — |
+| 69 | MQTTS | **已实现**（2026-08-31，cb397df）：mqtt 层补 `OptionalOn: tls` + translate 分支，mqtt_over_tls 用例（mqtt 169/169） | — |
+| 70 | SOCKS5 over TLS | **已实现**（2026-08-31）：socks5 层注册（OptionalOn: tls）+ SOCKS5Generator 层生成器 + translate 分支，socks5_over_tls 用例 2/2 | — |
 | 71 | SFTP | 只有 SSH 载体，无 SFTP 子协议 planner | 需 SSH file transfer 子协议 |
 
 ## 备注

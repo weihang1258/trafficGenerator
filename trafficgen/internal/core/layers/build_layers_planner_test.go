@@ -15,6 +15,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mqtt"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/pop3"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/socks5"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tcp"
 )
 
@@ -322,5 +323,58 @@ func TestBuildLayersPlanner_TLSOptionalNotAutoInserted(t *testing.T) {
 		if strings.Contains(completed, "tls") {
 			t.Errorf("%s: chain %q unexpectedly contains tls (OptionalOn must not auto-complete)", name, completed)
 		}
+	}
+}
+
+// TestBuildLayersPlanner_SOCKS5LayerConfigFlowsIntoSpec: socks5 层 config
+// （version/auth_method/dst_addr）必须翻译成 spec.Socks——socks5 生成器按
+// 契约读 Meta.Socks，greeting/request 字节由层 config 驱动（J 组
+// SOCKS5-over-TLS：[tcp,tls,socks5] 链）。
+func TestBuildLayersPlanner_SOCKS5LayerConfigFlowsIntoSpec(t *testing.T) {
+	p, err := layers.BuildLayersPlanner("socks5", json.RawMessage(`[{"socks5":{"auth_method":"password","username":"alice","password":"secret","dst_addr":"target.example.com","dst_port":8080}}]`))
+	if err != nil {
+		t.Fatalf("BuildLayersPlanner: %v", err)
+	}
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 50000, DstPort: 1080}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var payloads []string
+	for c := range ch {
+		if len(c.Payload) > 0 {
+			payloads = append(payloads, string(c.Payload))
+		}
+	}
+	// greeting `05 01 02`（password 方法），auth 请求含 "alice"/"secret"，
+	// request 含域名 target.example.com。
+	if len(payloads) == 0 {
+		t.Fatal("no payloads emitted")
+	}
+	if payloads[0] != "\x05\x01\x02" {
+		t.Errorf("greeting = %q, want \\x05\\x01\\x02 (auth_method password not translated)", payloads[0])
+	}
+	joined := strings.Join(payloads, "|")
+	if !strings.Contains(joined, "alice") || !strings.Contains(joined, "secret") {
+		t.Errorf("auth request missing credentials in payloads: %q", payloads)
+	}
+	if !strings.Contains(joined, "target.example.com") {
+		t.Errorf("request missing dst_addr in payloads: %q", payloads)
+	}
+}
+
+// TestBuildLayersPlanner_SOCKS5TLSOptionalNotAutoInserted: socks5 的 tls
+// OptionalOn 永不自动补——[socks5] 单层链生成普通 socks5（无 tls 层），
+// SOCKS5-over-TLS 必须显式写 [tcp,tls,socks5]。
+func TestBuildLayersPlanner_SOCKS5TLSOptionalNotAutoInserted(t *testing.T) {
+	completed, err := layers.ValidateLayers(json.RawMessage(`[{"socks5":{}}]`), "socks5")
+	if err != nil {
+		t.Fatalf("ValidateLayers: %v", err)
+	}
+	if strings.Contains(completed, "tls") {
+		t.Errorf("chain %q unexpectedly contains tls (OptionalOn must not auto-complete)", completed)
 	}
 }

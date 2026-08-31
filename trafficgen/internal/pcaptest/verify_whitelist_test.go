@@ -22,6 +22,8 @@ func TestIsMalformedWhitelistedScopesProtocolCasesAndFlags(t *testing.T) {
 		{"tls multi-expert BER errors", "pop3_over_tls",
 			"BER Error: Wrong field in SEQUENCE: expected class:UNIVERSAL(0) tag:16(SEQUENCE) but found class:UNIVERSAL(0) tag:18,BER Error: SEQUENCE is 12 too many bytes long", true},
 		{"tls flag with ws suffix", "mqtt_over_tls", "[Malformed Packet: TLS],_ws.malformed", true},
+		{"tls multi-expert on socks5", "socks5_over_tls",
+			"BER Error: Wrong field in SEQUENCE: expected class:UNIVERSAL(0) tag:16(SEQUENCE) but found class:CONTEXT(2) tag:0,BER Error: SEQUENCE is 6 too many bytes long", true},
 		{"tls generic exception flag", "mqtt_over_tls", "_ws.malformed", false},
 		{"tls BER error on non-whitelisted case", "ftps_over_tls", "BER Error: Wrong field in SEQUENCE", false},
 	}

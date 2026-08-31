@@ -17,25 +17,93 @@
       "terminates": true,
       "min_packets": 9,
       "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "1080"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
-        {"packet": 4, "field": "socks.version", "value": "5"},
-        {"packet": 4, "field": "socks.auth_method", "value": "0"},
-        {"packet": 5, "field": "socks.version", "value": "5"},
-        {"packet": 6, "field": "socks.version", "value": "5"},
-        {"packet": 6, "field": "socks.command", "value": "1"},
-        {"packet": 6, "field": "socks.port", "value": "80"},
-        {"packet": 7, "field": "socks.version", "value": "5"},
-        {"packet": 7, "field": "socks.dst", "value": "0.0.0.0"},
-        {"packet": 7, "field": "socks.port", "value": "0"}
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "1080"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.flags",
+          "value": "0x010"
+        },
+        {
+          "packet": 4,
+          "field": "socks.version",
+          "value": "5"
+        },
+        {
+          "packet": 4,
+          "field": "socks.auth_method",
+          "value": "0"
+        },
+        {
+          "packet": 5,
+          "field": "socks.version",
+          "value": "5"
+        },
+        {
+          "packet": 6,
+          "field": "socks.version",
+          "value": "5"
+        },
+        {
+          "packet": 6,
+          "field": "socks.command",
+          "value": "1"
+        },
+        {
+          "packet": 6,
+          "field": "socks.port",
+          "value": "80"
+        },
+        {
+          "packet": 7,
+          "field": "socks.version",
+          "value": "5"
+        },
+        {
+          "packet": 7,
+          "field": "socks.dst",
+          "value": "0.0.0.0"
+        },
+        {
+          "packet": 7,
+          "field": "socks.port",
+          "value": "0"
+        }
       ],
       "frames": [
-        {"packet": 4, "offset": 54, "hex": "05 01 00"},
-        {"packet": 5, "offset": 54, "hex": "05 00"},
-        {"packet": 6, "offset": 54, "hex": "05 01 00 03 0f 77 77 77 2e 65 78 61 6d 70 6c 65 2e 63 6f 6d 00 50"},
-        {"packet": 7, "offset": 54, "hex": "05 00 00 01 00 00 00 00 00 00"}
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "05 01 00"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "05 00"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "05 01 00 03 0f 77 77 77 2e 65 78 61 6d 70 6c 65 2e 63 6f 6d 00 50"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "05 00 00 01 00 00 00 00 00 00"
+        }
       ],
       "notes": [
         "f4 客户端方法协商: VER 5 + 方法数 1 + 0x00=NO AUTH；f5 服务器接受 0x00；f6 CONNECT www.example.com:80 (ATYP 3=域名)；f7 响应成功 0x00 + BND.ADDR 0.0.0.0:0 (RFC 1928 §6 BND 可为空)",
@@ -44,5 +112,64 @@
         "spec key 为 'socks'（非 'socks5'，registry 子映射键）"
       ]
     }
+  },
+  {
+    "id": "socks5_over_tls",
+    "proto": "socks5",
+    "summary": "SOCKS5-over-TLS：TLS 载体上的 SOCKS5 信令（[tcp,tls,socks5] 层链，1080 端口），tls 握手后 greeting/method/request/reply 信令字节",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "tls": {}
+        },
+        {
+          "socks5": {
+            "auth_method": "password",
+            "username": "alice",
+            "password": "secret",
+            "dst_addr": "target.example.com",
+            "dst_port": 8080
+          }
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 13000,
+      "dst_port": 1080
+    },
+    "expect": {
+      "has_handshake": true,
+      "has_payload": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "1080"
+        },
+        {
+          "packet": 4,
+          "field": "tls.record.content_type",
+          "value": "22"
+        },
+        {
+          "packet": 4,
+          "field": "tls.record.length",
+          "nonzero": true
+        }
+      ]
+    },
+    "notes": [
+      "J 组组合层：socks5 层 OptionalOn: tls（registry.go）——显式写 tls 层启用 over-TLS，默认不启用",
+      "信令字节经 TLS record 封装（application_data），socks.version 断言不适用于加密记录——用 tls.record.content_type 校验",
+      "帧 4 是 tls 握手（content_type=22）；pop3_over_tls/mqtt_over_tls 同款模式",
+      "decode_as: 1080 端口默认被 tshark SOCKS dissector 抢解析，须强制 TLS 解码才能断言 tls.record 字段"
+    ],
+    "decode_as": [
+      "tcp.port==1080,tls"
+    ]
   }
 ]

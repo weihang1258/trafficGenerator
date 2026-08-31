@@ -408,6 +408,10 @@ type FlowMeta struct {
 	// 生成器：TCP-mode AEAD 帧序列 + 可选 SOCKS5/HTTP 混淆，build* 纯函数复用)。
 	// Only set for shadowsocks chains。
 	Shadowsocks *core.ShadowsocksConfig
+	// Socks is the flow's SOCKS proxy config (注入到 socks5 终结层生成器：
+	// greeting/method/auth/request/reply 信令 + 隧道数据面，build* 纯函数
+	// 复用)。Only set for socks5 chains.
+	Socks *core.SocksConfig
 	// IGMP/OSPF/PIM/ISIS is the flow's routing config (注入到各自终结层生成器，
 	// P3 T5：igmp/ospf/pim 是 raw-IP [ip,<proto>] 链，isis 是 L2-only
 	// [eth,isis] 链；生成器经 req.Meta.<XXX> 读协议配置逐事件产包)。Only set
