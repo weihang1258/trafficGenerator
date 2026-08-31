@@ -1088,6 +1088,22 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 61616
 		}
+	case "swarm":
+		// B5：Swarm discovery/storage 双承载配置 json 往返解析。目的端口
+		// 1634（FieldContract 同值兜底，用户显式写优先）。
+		if sub, ok := cfg["swarm"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v SwarmConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "swarm: "+err.Error())
+				} else {
+					spec.Swarm = &v
+				}
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 1634
+		}
 	case "ssdp":
 		if sub, ok := cfg["ssdp"].(map[string]interface{}); ok {
 			spec.SSDP = parseSSDPConfig(sub)

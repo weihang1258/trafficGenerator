@@ -33,7 +33,7 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		// B4 封装类：layer/planner 注册后准入（占位用例同步替换）。
 		"vxlan", "nvgre", "geneve",
 		// B5 消息中间件：layer/planner 注册后准入（占位用例同步替换）。
-		"openwire", "ams",
+		"openwire", "ams", "swarm",
 	}
 	sort.Strings(want)
 
@@ -64,7 +64,7 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		"gbt", "getwork", "gnutella", "hl7",
 		"kerberos", "megaco", "mmse", "nmea", "ntlm", "ocsp",
 		"onvif", "spnego", "sstp", "stratum",
-		"swarm", "xmrmining",
+		"xmrmining",
 	}
 	for _, name := range negativeOnly {
 		if IsAllowedProtocol(name) {

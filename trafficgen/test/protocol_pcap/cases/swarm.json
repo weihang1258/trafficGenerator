@@ -1,28 +1,1512 @@
 [
-  {
-    "id": "swarm_neg_unregistered",
-    "proto": "swarm",
-    "summary": "Swarm layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
+ {
+  "id": "swarm_discovery_ipv4",
+  "proto": "swarm",
+  "summary": "S1: UDP/IPv4 discovery PING/PONG（SWD1 datagram，nonce 关联）",
+  "spec_json": {
+   "layers": [
+    {
+     "udp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "discovery": {
+     "src_port": 42052,
+     "events": [
+      {
+       "kind": "ping",
+       "nonce": 4822678189205111,
+       "endpoints": [
         {
-          "tcp": {}
-        },
-        {
-          "swarm": {}
+         "address_family": 1,
+         "port": 1634,
+         "address": "CgAACQ=="
         }
+       ]
+      },
+      {
+       "kind": "pong",
+       "nonce": 4822678189205111,
+       "endpoints": [
+        {
+         "address_family": 1,
+         "port": 1634,
+         "address": "CgAACQ=="
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "expect": {
+   "packet_count": 2,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "1634"
+    },
+    {
+     "packet": 1,
+     "field": "udp.srcport",
+     "value": "42052"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "535744310034010100112233445566770102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20010106620a000009ae5a"
+    },
+    {
+     "packet": 2,
+     "offset": 42,
+     "hex": "535744310034010200112233445566770102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20010106620a000009ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "datagram = Magic SWD1 + Length(52=45+7) + Kind/Nonce/NodeID32/EndpointCount + AF|Port|Addr + ae5a；UDP 无握手，每事件一包。"
+  ]
+ },
+ {
+  "id": "swarm_handshake_tcp_ipv4",
+  "proto": "swarm",
+  "summary": "S2: TCP/IPv4 storage HELLO/HELLO_OK/AUTH/AUTH_OK 四步握手",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 11,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "1634"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "5357533100000079011000010000000000000000000000000000000000000000000100000010737761726d5f73746f726167655f763100020000000f6368756e6b732c6d616e69666573740003000000200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200004000000080000000000000000ae5a"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "535753310000004a011100020000000000000000000000000000000000000000000100000010737761726d5f73746f726167655f76310011000000040000100000100000000200080012000000020000ae5a"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "53575331000000400112000100000000000000000000000000000000000000000003000000200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20ae5a"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "535753310000001a011300020000000000000000000000000000000000000000ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "4=HELLO(profile/capability/node_id/nonce)，6=AUTH(node_id)；flags request/response 交替。"
+  ]
+ },
+ {
+  "id": "swarm_session_open_close",
+  "proto": "swarm",
+  "summary": "S3: 认证后 OPEN_SESSION/OPEN_OK→CLOSE/CLOSE_OK，关闭后终止",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
       ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "close"
+         },
+         {
+          "kind": "close_ok"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "535753310000001a011400010000000000000001000000000000000000000000ae5a"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "535753310000002c011500020000000000000001000000000000000000000000001000000002000800110000000400001000ae5a"
+    },
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "535753310000001a011600010000000000000001000000000000000000000000ae5a"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "535753310000001a011700020000000000000001000000000000000000000000ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "8=open_session(SessionID=1 头字段)，10=close，11=close_ok（空 payload Length=26）。"
+  ]
+ },
+ {
+  "id": "swarm_chunk_store",
+  "proto": "swarm",
+  "summary": "S4: content-addressed STORE/STORE_OK（chunk_address 32B + size + payload）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "store",
+          "correlation_id": 1,
+          "chunk_size": 64,
+          "payload": "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQQ=="
+         },
+         {
+          "kind": "store_ok",
+          "correlation_id": 1
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "5357533100000090012000010000000000000001000000000000000000000001002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0021000000040000004000230000004041414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141ae5a"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "535753310000001a012100020000000000000001000000000000000000000001ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "10=STORE(addr 000102…1f, size 64, payload 64×'A')，11=STORE_OK 同 corr=1。"
+  ]
+ },
+ {
+  "id": "swarm_chunk_retrieve",
+  "proto": "swarm",
+  "summary": "S5: RETRIEVE→CHUNK 同 CorrelationID，chunk 携带地址与二进制载荷",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "retrieve",
+          "correlation_id": 2
+         },
+         {
+          "kind": "chunk",
+          "correlation_id": 2,
+          "payload": "3q2+7wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhs="
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "5357533100000040012200010000000000000001000000000000000000000002002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1fae5a"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "5357533100000074012300020000000000000001000000000000000000000002002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0041000000080000000000000000002300000020deadbeef000102030405060708090a0b0c0d0e0f101112131415161718191a1bae5a"
+    }
+   ]
+  },
+  "notes": [
+   "10=RETRIEVE(corr 2)，11=CHUNK(corr 2, addr, 32B binary payload)。"
+  ]
+ },
+ {
+  "id": "swarm_chunk_delivery_ack",
+  "proto": "swarm",
+  "summary": "S6: ack-required STORE（flags bit2）→ MESSAGE_ACK ack_for=message_id",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "store",
+          "correlation_id": 3,
+          "message_id": 77,
+          "delivery_mode": 1,
+          "chunk_size": 16,
+          "payload": "QkJCQkJCQkJCQkJCQkJCQg=="
+         },
+         {
+          "kind": "message_ack",
+          "ack_for": 77,
+          "ack_status": 0
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 15,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "5357533100000060012000050000000000000001000000000000000000000003002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0021000000040000001000230000001042424242424242424242424242424242ae5a"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "5357533100000030012500020000000000000001000000000000000000000000004200000008000000000000004d0043000000020000ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "10=STORE(flags 0005=request|ack-required)，11=MESSAGE_ACK(ack_for 77=0x4d)。"
+  ]
+ },
+ {
+  "id": "swarm_manifest_exchange",
+  "proto": "swarm",
+  "summary": "S7: MANIFEST 携带 manifest_root（32B）与 manifest_entry",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "manifest",
+          "correlation_id": 4,
+          "manifest_entry": "QkJCQkJCQkJCQkJCQkJCQg=="
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 14,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "5357533100000056012400010000000000000001000000000000000000000004003000000020f000f000f000f000f000f000f000f000f000f000f000f000f000f000f000f00000310000001042424242424242424242424242424242ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "10=MANIFEST(root f000…00, entry 16B)，corr=4。"
+  ]
+ },
+ {
+  "id": "swarm_stream_multiplex",
+  "proto": "swarm",
+  "summary": "S8: 单会话双 StreamID（store/store_ok@1 与 retrieve/chunk@2），流状态隔离",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         }
+        ],
+        "streams": [
+         {
+          "stream_id": 1,
+          "events": [
+           {
+            "kind": "store",
+            "correlation_id": 1,
+            "chunk_size": 9,
+            "payload": "ZnJhZ2RhdGEh"
+           },
+           {
+            "kind": "store_ok",
+            "correlation_id": 1
+           }
+          ]
+         },
+         {
+          "stream_id": 2,
+          "events": [
+           {
+            "kind": "retrieve",
+            "correlation_id": 2
+           },
+           {
+            "kind": "chunk",
+            "correlation_id": 2,
+            "payload": "3q2+7wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhs="
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 17,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "5357533100000059012000010000000000000001000000010000000000000001002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00210000000400000009002300000009667261676461746121ae5a"
+    },
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "535753310000001a012100020000000000000001000000010000000000000001ae5a"
+    },
+    {
+     "packet": 12,
+     "offset": 54,
+     "hex": "5357533100000040012200010000000000000001000000020000000000000002002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1fae5a"
+    },
+    {
+     "packet": 13,
+     "offset": 54,
+     "hex": "5357533100000074012300020000000000000001000000020000000000000002002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0041000000080000000000000000002300000020deadbeef000102030405060708090a0b0c0d0e0f101112131415161718191a1bae5a"
+    }
+   ]
+  },
+  "notes": [
+   "帧头 StreamID 字段隔离：10=store@1，11=store_ok@1，12=retrieve@2，13=chunk@2（事件按 stream 块序展开）；corr 按流独立。"
+  ]
+ },
+ {
+  "id": "swarm_multi_session",
+  "proto": "swarm",
+  "summary": "S9: 单连接双 SessionID（各自 store/retrieve），会话状态隔离",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "store",
+          "correlation_id": 1,
+          "chunk_size": 16,
+          "payload": "QkJCQkJCQkJCQkJCQkJCQg=="
+         },
+         {
+          "kind": "store_ok",
+          "correlation_id": 1
+         }
+        ]
+       },
+       {
+        "session_id": 2,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "retrieve",
+          "correlation_id": 2
+         },
+         {
+          "kind": "chunk",
+          "correlation_id": 2,
+          "payload": "3q2+7wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhs="
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 19,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "535753310000001a011400010000000000000001000000000000000000000000ae5a"
+    },
+    {
+     "packet": 12,
+     "offset": 54,
+     "hex": "535753310000001a011400010000000000000002000000000000000000000000ae5a"
+    },
+    {
+     "packet": 15,
+     "offset": 54,
+     "hex": "5357533100000074012300020000000000000002000000000000000000000002002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0041000000080000000000000000002300000020deadbeef000102030405060708090a0b0c0d0e0f101112131415161718191a1bae5a"
+    }
+   ]
+  },
+  "notes": [
+   "帧头 SessionID：8=sess1 open，12=sess2 open，15=sess2 chunk；corr/ACK 按会话独立。"
+  ]
+ },
+ {
+  "id": "swarm_ipv6",
+  "proto": "swarm",
+  "summary": "S10: UDP/IPv6 discovery 同一 fixture，ipv6.nxt=17、payload offset 62",
+  "spec_json": {
+   "layers": [
+    {
+     "udp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "2001:db8:52::10",
+   "dst_ip": "2001:db8:52::20",
+   "src_port": 42053,
+   "dst_port": 1634,
+   "swarm": {
+    "discovery": {
+     "src_port": 42053,
+     "events": [
+      {
+       "kind": "ping",
+       "nonce": 4822678189205111,
+       "endpoints": [
+        {
+         "address_family": 1,
+         "port": 1634,
+         "address": "CgAACQ=="
+        }
+       ]
+      },
+      {
+       "kind": "pong",
+       "nonce": 4822678189205111,
+       "endpoints": [
+        {
+         "address_family": 1,
+         "port": 1634,
+         "address": "CgAACQ=="
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "expect": {
+   "packet_count": 2,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "ipv6.nxt",
+     "value": "17"
+    },
+    {
+     "packet": 1,
+     "field": "ipv6.src",
+     "value": "2001:db8:52::10"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 62,
+     "hex": "535744310034010100112233445566770102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20010106620a000009ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "应用 datagram 字节与 v4 版一致，仅外层地址族与 offset 改变。"
+  ]
+ },
+ {
+  "id": "swarm_ipv4_ipv6_same_payload",
+  "proto": "swarm",
+  "summary": "S11: 双栈 TCP storage 各自完成 HELLO 协商，帧字节一致（连接级显式地址自驱链）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42054,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42054,
       "src_ip": "192.0.2.52",
       "dst_ip": "198.51.100.52",
-      "src_port": 42052,
-      "dst_port": 1634
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: swarm is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the semantic cases in testcase order."
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       }
       ]
+     },
+     {
+      "src_port": 42055,
+      "src_ip": "2001:db8:52::10",
+      "dst_ip": "2001:db8:52::20",
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 18,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "ip.version",
+     "distinct_values": [
+      "4",
+      "6"
+     ]
     }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "5357533100000079011000010000000000000000000000000000000000000000000100000010737761726d5f73746f726167655f763100020000000f6368756e6b732c6d616e69666573740003000000200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200004000000080000000000000000ae5a"
+    },
+    {
+     "packet": 13,
+     "offset": 74,
+     "hex": "5357533100000079011000010000000000000000000000000000000000000000000100000010737761726d5f73746f726167655f763100020000000f6368756e6b732c6d616e69666573740003000000200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200004000000080000000000000000ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "自驱链每连接 9 包；p4(v4,54)/p13(v6,74) 同一 HELLO 帧字节。"
+  ]
+ },
+ {
+  "id": "swarm_binary_chunk",
+  "proto": "swarm",
+  "summary": "S12: binary chunk payload（base64 配置、线上裸字节 0xdeadbeef…）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "store",
+          "correlation_id": 6,
+          "chunk_size": 32,
+          "payload": "3q2+7wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhs="
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 14,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "5357533100000070012000010000000000000001000000000000000000000006002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00210000000400000020002300000020deadbeef000102030405060708090a0b0c0d0e0f101112131415161718191a1bae5a"
+    }
+   ]
+  },
+  "notes": [
+   "STORE payload 为解码后二进制（deadbeef0001…1b），非 base64 文本。"
+  ]
+ },
+ {
+  "id": "swarm_fragment_reassembly",
+  "proto": "swarm",
+  "summary": "S13: 大 chunk 双 CHUNK 分片（flags bit3，index 0/1 共享 corr/addr/sequence）",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "retrieve",
+          "correlation_id": 5
+         },
+         {
+          "kind": "chunk",
+          "correlation_id": 5,
+          "fragment_index": 0,
+          "fragment_count": 2,
+          "sequence": 1,
+          "payload": "MDEyMzQ1Njc4OQ=="
+         },
+         {
+          "kind": "chunk",
+          "correlation_id": 5,
+          "fragment_index": 1,
+          "fragment_count": 2,
+          "sequence": 1,
+          "payload": "YWJjZGVmZ2g="
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 16,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 11,
+     "offset": 54,
+     "hex": "535753310000006e0123000a0000000000000001000000000000000000000005002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00440000000200000045000000020002004100000008000000000000000100230000000a30313233343536373839ae5a"
+    },
+    {
+     "packet": 12,
+     "offset": 54,
+     "hex": "535753310000006c0123000a0000000000000001000000000000000000000005002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0044000000020001004500000002000200410000000800000000000000010023000000086162636465666768ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "11=CHUNK frag0(10B)，12=CHUNK frag1(8B)；两帧同 corr=5/sequence=1，flags 含 0x0008。"
+  ]
+ },
+ {
+  "id": "swarm_frame_boundary",
+  "proto": "swarm",
+  "summary": "S14: Length=26 最小帧、chunk_size=0、零长 payload TLV、2^53-1 correlation 边界",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "ping",
+          "correlation_id": 9007199254740991
+         },
+         {
+          "kind": "pong",
+          "correlation_id": 9007199254740991
+         },
+         {
+          "kind": "store",
+          "correlation_id": 9007199254740991,
+          "chunk_size": 0
+         },
+         {
+          "kind": "close"
+         },
+         {
+          "kind": "close_ok"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "packet_count": 18,
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "frames": [
+    {
+     "packet": 10,
+     "offset": 54,
+     "hex": "535753310000001a01300001000000000000000100000000001fffffffffffffae5a"
+    },
+    {
+     "packet": 12,
+     "offset": 54,
+     "hex": "535753310000005001200001000000000000000100000000001fffffffffffff002000000020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00210000000400000000002300000000ae5a"
+    }
+   ]
+  },
+  "notes": [
+   "10=PING/11=PONG（总帧 34B=Length 26 最小），12=STORE(chunk_size 0 + 零长 chunk_payload TLV)；corr 全部 2^53-1。"
+  ]
+ },
+ {
+  "id": "swarm_neg_frame_encoding",
+  "proto": "swarm",
+  "summary": "N1: wire_fault bad_version → version/frame 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "wire_fault": "bad_version",
+    "discovery": {
+     "src_port": 42052,
+     "events": [
+      {
+       "kind": "ping"
+      }
+     ]
+    }
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "version"
   }
+ },
+ {
+  "id": "swarm_neg_handshake_state",
+  "proto": "swarm",
+  "summary": "N2: 首帧非 HELLO（直接 AUTH）→ hello/handshake 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "auth"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "hello"
+  }
+ },
+ {
+  "id": "swarm_neg_chunk_integrity",
+  "proto": "swarm",
+  "summary": "N3: chunk_payload 长度 ≠ chunk_size → chunk/length 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "store",
+          "correlation_id": 1,
+          "chunk_size": 10,
+          "payload": "YWJj"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "chunk"
+  }
+ },
+ {
+  "id": "swarm_neg_session_reference",
+  "proto": "swarm",
+  "summary": "N4: 会话未打开先发 store → session/connection 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "store",
+          "correlation_id": 1,
+          "chunk_size": 1,
+          "payload": "eA=="
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "session"
+  }
+ },
+ {
+  "id": "swarm_neg_ack_correlation",
+  "proto": "swarm",
+  "summary": "N5: MESSAGE_ACK 引用未知 message → ack/correlation 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1634,
+   "swarm": {
+    "connections": [
+     {
+      "src_port": 42052,
+      "events": [
+       {
+        "kind": "hello"
+       },
+       {
+        "kind": "hello_ok"
+       },
+       {
+        "kind": "auth"
+       },
+       {
+        "kind": "auth_ok"
+       }
+      ],
+      "sessions": [
+       {
+        "session_id": 1,
+        "events": [
+         {
+          "kind": "open_session"
+         },
+         {
+          "kind": "open_ok"
+         },
+         {
+          "kind": "message_ack",
+          "ack_for": 9
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ack"
+  }
+ },
+ {
+  "id": "swarm_neg_transport_profile",
+  "proto": "swarm",
+  "summary": "N6: 非 1634 目的端口 → port 拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "tcp": {}
+    },
+    {
+     "swarm": {}
+    }
+   ],
+   "src_ip": "192.0.2.52",
+   "dst_ip": "198.51.100.52",
+   "src_port": 42052,
+   "dst_port": 1635,
+   "swarm": {
+    "discovery": {
+     "src_port": 42052,
+     "events": [
+      {
+       "kind": "ping"
+      }
+     ]
+    }
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "port"
+  }
+ }
 ]

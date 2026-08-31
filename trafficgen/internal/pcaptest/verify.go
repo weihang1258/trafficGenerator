@@ -269,6 +269,27 @@ func checkHasPayload(pcapPath string, c Case) error {
 		}
 		return fmt.Errorf("no %s payload (tcp.len 0 everywhere; only TCP handshake/teardown)", c.Proto)
 	}
+	// Swarm 双承载（B5）：TCP storage 帧用 tcp.len（同上）；UDP discovery
+	// datagram 用 udp.length（含 8B UDP 头，>8 即有 SWD1 载荷）。
+	if c.Proto == "swarm" {
+		if vals, err := FieldValues(pcapPath, "tcp.len", c.DecodeAs); err == nil {
+			for _, v := range vals {
+				if n, e := strconv.Atoi(v); e == nil && n > 0 {
+					return nil
+				}
+			}
+		}
+		vals, err := FieldValues(pcapPath, "udp.length", c.DecodeAs)
+		if err != nil {
+			return err
+		}
+		for _, v := range vals {
+			if n, e := strconv.Atoi(v); e == nil && n > 8 {
+				return nil
+			}
+		}
+		return fmt.Errorf("no swarm payload (tcp.len 0 and udp.length<=8 everywhere)")
+	}
 	// 路由协议（igmp/ospf/pim）是 raw-IP 链，报文恒小（IGMP 8B 报文+20B IP
 	// = 28B，frame.len 恒 < 80），不能用帧长作代理。存在性由协议自身的报文
 	// 类型字段标记：非空 = 至少一个协议 PDU（raw-IP 链每个发出的包都是该

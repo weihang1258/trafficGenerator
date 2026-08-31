@@ -843,6 +843,23 @@ func buildDefaultRegistry() {
 		},
 	})
 
+	// ---- B5 消息中间件（swarm）----
+	// swarm（双承载终结层。UDP discovery SWD1 datagram + TCP storage SWS1
+	// frame——本项目 wire profile，wire 字节由 swarm 生成器产出；tshark 无
+	// 该协议 dissector，断言走 TCP/UDP 字段与帧字节）。ldp 同款 TransportOn
+	// 双载体：DependsOn udp（discovery 链），storage 链显式写 tcp；配置经
+	// spec.Swarm flat 键携带、FlowMeta 直传生成器；目的端口 1634（设计 §2，
+	// FieldContract 默认）。连接声明显式 src_ip/dst_ip 时生成器自产完整包
+	//（双栈用例，B5 自驱分支同款）。
+	r.Register(LayerSchema{Name: "swarm", Category: CategoryTerminal,
+		DependsOn:     []string{"udp"},
+		TransportOn:   []string{"udp", "tcp"},
+		FieldContract: map[string]string{"udp.dst_port": "1634", "tcp.dst_port": "1634"},
+		Fields: map[string]FieldSchema{
+			"profile": {Type: "string", Default: "swarm_storage_v1"},
+		},
+	})
+
 	// ---- 二层层：mpls / pppoe（占位，P2 补字段）----
 	// 注意：不能照搬 gre 隧道表达——MPLS 线上格式是 Eth + 标签栈 + 内层 IP
 	// （无外层 IP 头，RFC 3031/3032），DependsOn:["ip"] 会补出错误的外层

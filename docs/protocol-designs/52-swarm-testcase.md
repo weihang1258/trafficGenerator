@@ -4,7 +4,7 @@
 > 日期：2026-08-20
 > 配套设计：`docs/protocol-designs/52-swarm-design.md`
 > 机器契约：`trafficgen/test/protocol_pcap/cases/swarm.json`
-> 状态：`swarm` 层尚未注册；本文定义实现后的 PCAP（抓包文件）断言，不宣称当前 suite（测试套件）可运行。
+> 状态：✅ 已实现并全绿（2026-08-31，20/20 驱动用例）。`swarm` 层/planner 已注册（ldp 同款 TransportOn 双载体：UDP discovery / TCP storage）；正例 14 项按 PCAP 断言运行（无 tshark dissector，走 TCP/UDP 字段与帧字节），负例 6 项保持严格错误断言。占位条目已由语义用例替换。
 
 ## 1. 测试原则和未注册边界
 

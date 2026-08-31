@@ -82,6 +82,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mms"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/geneve"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ams"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/swarm"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/openwire"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nvgre"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/vxlan"
@@ -438,6 +439,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("geneve"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("openwire"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ams"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("swarm"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mms"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("moxa"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("drda"))

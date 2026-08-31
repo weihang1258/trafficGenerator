@@ -1010,6 +1010,116 @@ type AMSEvent struct {
 	SessionName string `json:"session_name,omitempty"`
 }
 
+// SwarmConfig configures the Swarm storage/discovery wire profile (B5)：
+// UDP discovery（[ip,udp,swarm]，SWD1 datagram）与 TCP storage（[ip,tcp,swarm]，
+// SWS1 frame）两种承载。帧布局见 docs/protocol-designs/52-swarm-design.md §3。
+type SwarmConfig struct {
+	// Profile names the wire profile; "" → swarm_storage_v1。未知 profile 拒绝。
+	Profile string `json:"profile,omitempty"`
+	// Discovery is the UDP discovery plane (配置即走 udp 链)。
+	Discovery *SwarmDiscovery `json:"discovery,omitempty"`
+	// FrameMax caps the storage frame size (Length 上界，0 = 4096 默认)。
+	FrameMax uint32 `json:"frame_max,omitempty"`
+	// Heartbeat is the negotiated keepalive seconds (HELLO_OK 回显，0 = 禁用)。
+	Heartbeat uint16 `json:"heartbeat,omitempty"`
+	// NodeIDHex is the 32-byte node identity (discovery 与握手 TLV 共用，
+	// 缺省 0102…20；必须是 64 个 hex 字符且非全零)。
+	NodeIDHex string `json:"node_id_hex,omitempty"`
+	// Capability is the HELLO capability TLV (缺省 chunks,manifest)。
+	Capability string `json:"capability,omitempty"`
+	// SessionLimit/MaxFrame are the HELLO_OK 协商限制回显 (缺省 8 / 4096)。
+	SessionLimit uint16 `json:"session_limit,omitempty"`
+	MaxFrame     uint32 `json:"max_frame,omitempty"`
+	// Connections 有序 TCP storage 连接 (配置即走 tcp 链)。
+	Connections []SwarmConnection `json:"connections,omitempty"`
+	// WireFault 负例故障注入口 (validator 消费，注入即拒绝)。
+	WireFault string `json:"wire_fault,omitempty"`
+}
+
+// SwarmDiscovery is the UDP discovery plane：ping/pong/announcement datagrams。
+type SwarmDiscovery struct {
+	SrcPort uint16 `json:"src_port,omitempty"`
+	DstPort uint16 `json:"dst_port,omitempty"`
+	// Events is the datagram sequence (每事件一个 UDP datagram)。
+	Events []SwarmEvent `json:"events,omitempty"`
+}
+
+// SwarmConnection is one TCP storage connection。
+type SwarmConnection struct {
+	SrcPort uint16 `json:"src_port,omitempty"`
+	DstPort uint16 `json:"dst_port,omitempty"`
+	SrcIP   string `json:"src_ip,omitempty"`
+	DstIP   string `json:"dst_ip,omitempty"`
+	// Events is the connection-level pre-session sequence (HELLO/AUTH 交换)。
+	Events []SwarmEvent `json:"events,omitempty"`
+	// Sessions 有序存储会话；SessionID 在连接内唯一。
+	Sessions []SwarmSession `json:"sessions,omitempty"`
+}
+
+// SwarmSession is one storage session (SessionID 逻辑流键)。
+type SwarmSession struct {
+	SessionID uint64         `json:"session_id,omitempty"`
+	Events    []SwarmEvent   `json:"events,omitempty"`
+	Streams   []SwarmStream  `json:"streams,omitempty"`
+}
+
+// SwarmStream is one multiplexed stream inside a session (StreamID 键)。
+type SwarmStream struct {
+	StreamID uint32       `json:"stream_id,omitempty"`
+	Events   []SwarmEvent `json:"events,omitempty"`
+}
+
+// SwarmEvent is one Swarm frame (discovery 或 storage) in sequence order。
+type SwarmEvent struct {
+	// Kind: discovery—ping|pong|announce；storage—hello|hello_ok|auth|auth_ok|
+	// open_session|open_ok|close|close_ok|store|store_ok|retrieve|chunk|
+	// manifest|message_ack|ping|pong|error。
+	Kind string `json:"kind,omitempty"`
+	// Direction c2s|s2c；缺省按 kind 推导（_ok/pong/chunk/store_ok/
+	// message_ack/error→s2c，其余 c2s）。
+	Direction string `json:"direction,omitempty"`
+	// CorrelationID is the storage frame header correlation。
+	CorrelationID uint64 `json:"correlation_id,omitempty"`
+	// MessageID/Sequence/AckFor/AckStatus are message/ack 关联 TLVs。
+	MessageID uint64 `json:"message_id,omitempty"`
+	Sequence  uint64 `json:"sequence,omitempty"`
+	AckFor    uint64 `json:"ack_for,omitempty"`
+	AckStatus int    `json:"ack_status,omitempty"`
+	// Chunk fields：ChunkAddress (32B hex)、ChunkSize、ChunkOffset、
+	// Payload (chunk_payload / manifest_entry / binary body)。
+	ChunkAddress string `json:"chunk_address,omitempty"`
+	ChunkSize    uint32 `json:"chunk_size,omitempty"`
+	ChunkOffset  uint32 `json:"chunk_offset,omitempty"`
+	Payload      []byte `json:"payload,omitempty"`
+	// Fragment fields (CHUNK 分片)。
+	FragmentIndex int `json:"fragment_index,omitempty"`
+	FragmentCount int `json:"fragment_count,omitempty"`
+	// Manifest fields：ManifestRoot (32B hex)、ManifestEntry (opaque)。
+	ManifestRoot  string `json:"manifest_root,omitempty"`
+	ManifestEntry []byte `json:"manifest_entry,omitempty"`
+	// Discovery fields：Nonce (uint64 request/response 关联)、
+	// Endpoints (0x03 announcement / ping 附带)。
+	Nonce     uint64          `json:"nonce,omitempty"`
+	Endpoints []SwarmEndpoint `json:"endpoints,omitempty"`
+	// DeliveryMode 1 = ack-required (STORE/CHUNK flags bit2)。
+	DeliveryMode int `json:"delivery_mode,omitempty"`
+	// Error fields。
+	ErrorCode int    `json:"error_code,omitempty"`
+	ErrorText string `json:"error_text,omitempty"`
+	// Type/Flags override the kind-derived bytes (特殊 fixture 用)。
+	Type  int `json:"type,omitempty"`
+	Flags int `json:"flags,omitempty"`
+}
+
+// SwarmEndpoint is one discovery endpoint (AddressFamily|Port|Address)。
+type SwarmEndpoint struct {
+	// AddressFamily 1 = IPv4 (4B)，2 = IPv6 (16B)；Address 为裸地址字节
+	//（JSON base64）。
+	AddressFamily int    `json:"address_family,omitempty"`
+	Port          uint16 `json:"port,omitempty"`
+	Address       []byte `json:"address,omitempty"`
+}
+
 // TNSEvent is one TNS protocol event (CONNECT/ACCEPT/REFUSE/REDIRECT/DATA).
 type TNSEvent struct {
 	Type           interface{} `json:"type,omitempty"` // string or int for negative tests
@@ -1525,6 +1635,7 @@ type FlowSpec struct {
 	Thrift   *ThriftConfig   `json:"thrift,omitempty"`
 	OpenWire *OpenWireConfig `json:"openwire,omitempty"`
 	AMS      *AMSConfig      `json:"ams,omitempty"`
+	Swarm    *SwarmConfig    `json:"swarm,omitempty"`
 	TNS      *TNSConfig      `json:"tns,omitempty"`
 	MongoDB  *MongoDBConfig  `json:"mongodb,omitempty"`
 	Dameng   *DamengConfig   `json:"dameng,omitempty"`

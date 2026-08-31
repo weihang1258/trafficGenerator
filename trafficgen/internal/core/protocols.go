@@ -50,6 +50,7 @@ var allowedProtocols = map[string]bool{
 	// 同步替换为语义用例，protocols_test 哨兵同步摘除）。
 	"openwire": true,
 	"ams": true,
+	"swarm": true,
 }
 
 // IsAllowedProtocol reports whether name is an accepted traffic protocol.
