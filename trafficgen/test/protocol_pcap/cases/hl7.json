@@ -21,7 +21,7 @@
       "expect_error": true,
       "error_contains": "unknown layer",
       "notes": [
-        "Design-only gate: hl7 is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+        "Design-only gate: hl7 is not registered in the layer registry; this placeholder is not part of the 25 semantic IDs. A future registration must remove it and add the 18 positive and 7 negative semantic cases in testcase order."
       ]
     }
   }
