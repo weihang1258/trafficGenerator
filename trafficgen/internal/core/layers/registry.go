@@ -860,6 +860,21 @@ func buildDefaultRegistry() {
 		},
 	})
 
+	// ---- B5 消息中间件（gnutella）----
+	// gnutella（tcp 终结层。Gnutella 0.6 HTTP-like 握手 + 23B 二进制消息
+	//（MessageID|Descriptor|TTL|Hops|PayloadLength LE），wire 字节由
+	// gnutella 生成器产出；tshark 无该协议 dissector，断言走 TCP 字段与
+	// 帧字节）。配置经 spec.Gnutella flat 键携带、FlowMeta 直传生成器；
+	// 目的端口 6346（FieldContract 默认）。连接声明显式 src_ip/dst_ip 时
+	// 生成器自产完整包（B5 自驱分支同款）。
+	r.Register(LayerSchema{Name: "gnutella", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "6346"},
+		Fields: map[string]FieldSchema{
+			"profile": {Type: "string", Default: "gnutella_v060"},
+		},
+	})
+
 	// ---- 二层层：mpls / pppoe（占位，P2 补字段）----
 	// 注意：不能照搬 gre 隧道表达——MPLS 线上格式是 Eth + 标签栈 + 内层 IP
 	// （无外层 IP 头，RFC 3031/3032），DependsOn:["ip"] 会补出错误的外层

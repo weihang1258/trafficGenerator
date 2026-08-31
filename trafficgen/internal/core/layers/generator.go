@@ -332,7 +332,10 @@ type FlowMeta struct {
 	AMS *core.AMSConfig
 	// Swarm is the flow's Swarm config (注入到 swarm 终结层生成器：discovery
 	// datagram 或 storage frame 逐事件产出，B5)。Only set for swarm chains.
-	Swarm    *core.SwarmConfig
+	Swarm *core.SwarmConfig
+	// Gnutella is the flow's Gnutella config (注入到 gnutella 终结层生成器：
+	// 握手+消息逐事件产出；连接级显式地址时走自驱完整包分支，B5)。
+	Gnutella *core.GnutellaConfig
 	TNS      *core.TNSConfig
 	MongoDB  *core.MongoDBConfig
 	Dameng   *core.DamengConfig

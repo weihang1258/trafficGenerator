@@ -71,6 +71,10 @@ MessageID(16) | Descriptor(1) | TTL(1) | Hops(1) | PayloadLength(4) | Payload(N)
 | `PUSH` | ServentID(16)、FileIndex(4)、IPv4/IPv6 Address、Port(2) | QueryHit 的 ServentID/file index/目标节点 |
 | `VENDOR` | VendorID(4)、Selector(2)、Version(2)、Payload | 扩展 ID、长度和同一 MessageID |
 
+Gnutella GDF 的 payload 内多字节整数（Port、MinSpeed、Speed、FileIndex、FileSize、Files、KB、Vendor 的 Selector/Version）一律小端（Intel 序，与 `PayloadLength` 端序一致）；地址字段为裸网络序字节，GUID/ServentID 为裸字节。
+
+tshark 3.6.14 的 packet-gnutella.c 对规范正确的 QUERY_HIT 存在解析缺陷：dissector 把每个 Hit 建模为 `Index|Size|Name\0|Extra\0`，规范布局（无 per-hit Extra、结尾 16 字节 ServentID）使 Extra 的 NUL 扫描越过 payload 末端，随后无条件再读 16 字节 ServentID → 越界异常 → malformed 伪影（Count/Port/IP/Speed/Hit 的 Index/Size/Name 仍全部正确解析；大小端双向探针均复现，与端序无关）。生成器不改帧迁就 dissector；PCAP 校验层将该伪影列入白名单（`pcaptest.IsMalformedWhitelisted`，openwire 先例同款）。
+
 Gnutella 0.6 的 PONG、QUERY_HIT 和 PUSH 地址字段必须由 profile 显式声明 IPv4 或 IPv6 编码；不得因 outer address family（外层地址族）自动改变 payload 字段长度。`QUERY_HIT.Hits` 必须等于 result 项数，`PUSH.FileIndex` 为无符号 uint32，ServentID 和 QueryHit 目标一致。
 
 转发语义是显式事件：节点只能转发配置中声明的 Ping/Query 或响应，不自动为每条 message 生成无限 fan-out。转发副本复用 MessageID，TTL 减一、Hops 加一；TTL 为零的消息不得继续转发。重复 MessageID 可由 profile 定义去重，但测试不能把重复消息误当新查询。
@@ -191,3 +195,4 @@ IPv4 outer EtherType 为 `0x0800`；IPv6 outer EtherType 为 `0x86dd`，TCP Next
 ## 10. 修订记录
 
 - v1.0.0（2026-08-20）：建立 Gnutella TCP handshake/message wire profile，覆盖邻居发现、检索、命中、Push、Vendor、TTL/hops、IPv4/IPv6、多流、多连接、MSS、边界和 20 个正负语义 ID；当前仅提交设计与用例契约，不修改 Go 实现。
+- v1.1.0（2026-08-31）：B5 实现落地（backlog #26，20/20 驱动用例全绿）；§4 钉死 payload 多字节字段端序为小端（GDF Intel 序，含 Vendor Selector/Version），并记录 tshark QUERY_HIT dissector 读越界缺陷与 `IsMalformedWhitelisted` 白名单处理。

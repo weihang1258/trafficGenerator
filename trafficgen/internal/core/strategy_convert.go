@@ -1104,6 +1104,21 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 1634
 		}
+	case "gnutella":
+		// B5：Gnutella TCP 终结层配置 json 往返解析。目的端口 6346。
+		if sub, ok := cfg["gnutella"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v GnutellaConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "gnutella: "+err.Error())
+				} else {
+					spec.Gnutella = &v
+				}
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 6346
+		}
 	case "ssdp":
 		if sub, ok := cfg["ssdp"].(map[string]interface{}); ok {
 			spec.SSDP = parseSSDPConfig(sub)

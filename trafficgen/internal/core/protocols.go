@@ -51,6 +51,7 @@ var allowedProtocols = map[string]bool{
 	"openwire": true,
 	"ams": true,
 	"swarm": true,
+	"gnutella": true,
 }
 
 // IsAllowedProtocol reports whether name is an accepted traffic protocol.

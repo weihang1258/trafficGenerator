@@ -256,8 +256,9 @@ func checkHasPayload(pcapPath string, c Case) error {
 	// OpenWire 命令帧同样天然小（ShutdownInfo 全帧 64B、WireFormatInfo 全帧
 	// 恰 80B——通用 ">80" 判 false），不能用帧长作代理。tcp.len>0 判定与
 	// dameng/cql/thrift 同款。AMS 管理帧同为小帧（最小 22B、典型 <80B），
-	// 且 tshark 无该协议 dissector，不存在协议字段可查。
-	if c.Proto == "dameng" || c.Proto == "cql" || c.Proto == "drda" || c.Proto == "thrift" || c.Proto == "openwire" || c.Proto == "ams" {
+	// 且 tshark 无该协议 dissector，不存在协议字段可查。Gnutella 23B 二进制
+	// 消息帧更小（最小 PING 全帧 23B），握手 ASCII 帧才上百字节，同走 tcp.len。
+	if c.Proto == "dameng" || c.Proto == "cql" || c.Proto == "drda" || c.Proto == "thrift" || c.Proto == "openwire" || c.Proto == "ams" || c.Proto == "gnutella" {
 		vals, err := FieldValues(pcapPath, "tcp.len", c.DecodeAs)
 		if err != nil {
 			return err
@@ -523,6 +524,20 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 		return true
 	case caseID == "openwire_message_body_segmentation" &&
 		(strings.Contains(flag, "_ws.malformed") || strings.HasPrefix(expert, "Expected:")):
+		return true
+	// 9. Gnutella QueryHit dissector 缺陷（tshark 3.6.14，字节级已对
+	//    /tmp/exp_qh_* 探针验证，2026-08）：packet-gnutella.c 把每个 Hit
+	//    建模为 Index|Size|Name\0|Extra\0，Extra 的 NUL 扫描在规范正确的
+	//    QueryHit（无 per-hit extra、结尾 16B ServentID）上扫不到终止符，
+	//    hit_offset 越过 payload 末端后仍无条件再读 16B ServentID →
+	//    BoundsError → "[Malformed Packet: GNUTELLA]"。Count/Port/IP/Speed/
+	//    Hit 的 Index/Size/Name 仍全部正确解析；小端/大端探针均复现，与
+	//    字节序无关（是 dissector 读越界，非帧缺陷）。规范布局（GDF 0.6，
+	//    ServentID 收尾）不改帧迁就 dissector，按 openwire 先例白名单。
+	case (caseID == "gnutella_query_queryhit" || caseID == "gnutella_push" ||
+		caseID == "gnutella_multi_queryhit" || caseID == "gnutella_mss_message_reassembly" ||
+		caseID == "gnutella_frame_boundary") &&
+		strings.Contains(flag, "[Malformed Packet: GNUTELLA]"):
 		return true
 	}
 	return false

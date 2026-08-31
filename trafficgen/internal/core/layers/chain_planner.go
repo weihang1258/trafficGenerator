@@ -867,7 +867,8 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 	openwireSelf := p.name == "openwire" && spec.OpenWire != nil && openwireNeedsSelfDrive(spec.OpenWire)
 	amsSelf := p.name == "ams" && spec.AMS != nil && amsNeedsSelfDrive(spec.AMS)
 	swarmSelf := p.name == "swarm" && spec.Swarm != nil && swarmNeedsSelfDrive(spec.Swarm)
-	if openwireSelf || amsSelf || swarmSelf {
+	gnutellaSelf := p.name == "gnutella" && spec.Gnutella != nil && gnutellaNeedsSelfDrive(spec.Gnutella)
+	if openwireSelf || amsSelf || swarmSelf || gnutellaSelf {
 		out := make(chan core.PacketConfig, 256)
 		go func() {
 			defer close(out)
@@ -883,6 +884,7 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			meta.OpenWire = spec.OpenWire
 			meta.AMS = spec.AMS
 			meta.Swarm = spec.Swarm
+			meta.Gnutella = spec.Gnutella
 			index := uint64(0)
 			req := &GenRequest{
 				Meta: meta,
@@ -1373,6 +1375,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		OpenWire:   spec.OpenWire,
 		AMS:        spec.AMS,
 		Swarm:      spec.Swarm,
+		Gnutella:   spec.Gnutella,
 		TNS:        spec.TNS,
 		MongoDB:    spec.MongoDB,
 		Dameng:     spec.Dameng,
@@ -2395,6 +2398,16 @@ func isCarrierMixedChain(name string, chain []Layer) bool {
 // its own L3 addresses（双栈自驱触发条件——显式地址连接无法经 v4 spec 的
 // ip 层事件路径，见 Plan 的 B5 自驱分支）。
 func openwireNeedsSelfDrive(cfg *core.OpenWireConfig) bool {
+	for i := range cfg.Connections {
+		if cfg.Connections[i].SrcIP != "" || cfg.Connections[i].DstIP != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// gnutellaNeedsSelfDrive is the Gnutella same-shape trigger (B5 双栈自驱)。
+func gnutellaNeedsSelfDrive(cfg *core.GnutellaConfig) bool {
 	for i := range cfg.Connections {
 		if cfg.Connections[i].SrcIP != "" || cfg.Connections[i].DstIP != "" {
 			return true

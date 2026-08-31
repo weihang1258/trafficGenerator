@@ -1111,6 +1111,89 @@ type SwarmEvent struct {
 	Flags int `json:"flags,omitempty"`
 }
 
+// GnutellaConfig configures the Gnutella wire profile (B5)：TCP 6346 上的
+// Gnutella 0.6 HTTP-like 握手 + 23 字节二进制消息（MessageID(16)|Descriptor|
+// TTL|Hops|PayloadLength(LE, 4)|Payload）。见 docs/protocol-designs/
+// 53-gnutella-design.md §3–§5。
+type GnutellaConfig struct {
+	// Profile names the wire profile; "" → gnutella_v060（IPv4 地址字段
+	// 4B）；gnutella_ipv6_v1 → 地址字段 16B。未知 profile 拒绝。
+	Profile string `json:"profile,omitempty"`
+	// FrameMax caps the message size (PayloadLength 上界，0 = 4096 默认)。
+	FrameMax uint32 `json:"frame_max,omitempty"`
+	// ClientHeaders/ServerHeaders are the握手能力头（缺省 User-Agent/
+	// X-Query-Routing/X-Ultrapeer/X-Node；键按字典序稳定输出）。
+	ClientHeaders map[string]string `json:"client_headers,omitempty"`
+	ServerHeaders map[string]string `json:"server_headers,omitempty"`
+	// Connections 有序连接；每连接独立握手与消息状态。
+	Connections []GnutellaConn `json:"connections,omitempty"`
+	// WireFault 负例故障注入口 (validator 消费，注入即拒绝)。
+	WireFault string `json:"wire_fault,omitempty"`
+}
+
+// GnutellaConn is one TCP connection：握手事件 + 业务消息事件。
+type GnutellaConn struct {
+	SrcPort uint16 `json:"src_port,omitempty"`
+	DstPort uint16 `json:"dst_port,omitempty"`
+	SrcIP   string `json:"src_ip,omitempty"`
+	DstIP   string `json:"dst_ip,omitempty"`
+	// Events 有序事件（connect/ok + 业务消息）。
+	Events []GnutellaEvent `json:"events,omitempty"`
+}
+
+// GnutellaResult is one QUERY_HIT result entry (FileIndex(4)|FileSize(4)|
+// FileName NUL-terminated)。
+type GnutellaResult struct {
+	FileIndex uint32 `json:"file_index,omitempty"`
+	FileSize  uint32 `json:"file_size,omitempty"`
+	Name      string `json:"name,omitempty"`
+}
+
+// GnutellaEvent is one handshake frame or binary message in sequence order。
+type GnutellaEvent struct {
+	// Kind: connect|ok|refuse（握手）|ping|pong|query|query_hit|push|vendor
+	//（业务）。未知 kind 拒绝。
+	Kind string `json:"kind,omitempty"`
+	// Direction c2s|s2c；缺省按 kind 推导（ok/pong/query_hit/refuse→s2c）。
+	Direction string `json:"direction,omitempty"`
+	// Headers are the handshake capability lines（connect/ok 事件）。
+	Headers map[string]string `json:"headers,omitempty"`
+	// MessageID is the 16-byte GUID of this message（pong 与 ping 相同）。
+	MessageID []byte `json:"message_id,omitempty"`
+	// TTL/Hops are the header bytes（转发副本 ttl-1/hops+1）。
+	TTL uint8 `json:"ttl,omitempty"`
+	Hops uint8 `json:"hops,omitempty"`
+	// QueryID references the QUERY GUID（query_hit 事件）。
+	QueryID []byte `json:"query_id,omitempty"`
+	// ServentID is the 16-byte servant identity（query_hit/push）。
+	ServentID []byte `json:"servent_id,omitempty"`
+	// FileIndex is the PUSH file index (uint32 边界可用满)。
+	FileIndex uint32 `json:"file_index,omitempty"`
+	// Criteria is the QUERY search text（NUL 终止上线）。
+	Criteria string `json:"criteria,omitempty"`
+	// MinSpeed is the QUERY min speed (uint16)。
+	MinSpeed uint16 `json:"min_speed,omitempty"`
+	// Pong fields：PongPort/PongAddress/Files/KB。
+	PongPort    uint16 `json:"pong_port,omitempty"`
+	PongAddress []byte `json:"pong_address,omitempty"`
+	Files       uint32 `json:"files,omitempty"`
+	KB          uint32 `json:"kb,omitempty"`
+	// QueryHit fields：Hits/HitPort/HitAddress/Speed/Results。
+	Hits       int              `json:"hits,omitempty"`
+	HitPort    uint16           `json:"hit_port,omitempty"`
+	HitAddress []byte           `json:"hit_address,omitempty"`
+	Speed      uint32           `json:"speed,omitempty"`
+	Results    []GnutellaResult `json:"results,omitempty"`
+	// Push fields：PushAddress/PushPort。
+	PushAddress []byte `json:"push_address,omitempty"`
+	PushPort    uint16 `json:"push_port,omitempty"`
+	// Vendor fields：VendorID(4 chars)/Selector/Version/Payload。
+	VendorID string `json:"vendor_id,omitempty"`
+	Selector uint16 `json:"selector,omitempty"`
+	Version  uint16 `json:"version,omitempty"`
+	Payload  []byte `json:"payload,omitempty"`
+}
+
 // SwarmEndpoint is one discovery endpoint (AddressFamily|Port|Address)。
 type SwarmEndpoint struct {
 	// AddressFamily 1 = IPv4 (4B)，2 = IPv6 (16B)；Address 为裸地址字节
@@ -1636,6 +1719,7 @@ type FlowSpec struct {
 	OpenWire *OpenWireConfig `json:"openwire,omitempty"`
 	AMS      *AMSConfig      `json:"ams,omitempty"`
 	Swarm    *SwarmConfig    `json:"swarm,omitempty"`
+	Gnutella *GnutellaConfig `json:"gnutella,omitempty"`
 	TNS      *TNSConfig      `json:"tns,omitempty"`
 	MongoDB  *MongoDBConfig  `json:"mongodb,omitempty"`
 	Dameng   *DamengConfig   `json:"dameng,omitempty"`
