@@ -1056,6 +1056,22 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				}
 			}
 		}
+	case "openwire":
+		// B5：OpenWire（ActiveMQ）TCP 终结层配置 json 往返解析。目的端口
+		// 61616（ActiveMQ 默认；FieldContract 同值兜底，用户显式写优先）。
+		if sub, ok := cfg["openwire"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v OpenWireConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "openwire: "+err.Error())
+				} else {
+					spec.OpenWire = &v
+				}
+			}
+		}
+		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
+			spec.DstPort = 61616
+		}
 	case "ssdp":
 		if sub, ok := cfg["ssdp"].(map[string]interface{}); ok {
 			spec.SSDP = parseSSDPConfig(sub)

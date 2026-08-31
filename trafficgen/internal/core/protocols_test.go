@@ -32,6 +32,8 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"vnc", "wireguard", "xmpp",
 		// B4 封装类：layer/planner 注册后准入（占位用例同步替换）。
 		"vxlan", "nvgre", "geneve",
+		// B5 消息中间件：layer/planner 注册后准入（占位用例同步替换）。
+		"openwire",
 	}
 	sort.Strings(want)
 
@@ -61,7 +63,7 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		"ams", "bacnet", "cwmp", "dcerpc", "doh", "dtls", "edp", "ethmining",
 		"gbt", "getwork", "gnutella", "hl7",
 		"kerberos", "megaco", "mmse", "nmea", "ntlm", "ocsp",
-		"onvif", "openwire", "spnego", "sstp", "stratum",
+		"onvif", "spnego", "sstp", "stratum",
 		"swarm", "xmrmining",
 	}
 	for _, name := range negativeOnly {

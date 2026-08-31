@@ -828,6 +828,102 @@ type ThriftException struct {
 	Type    int32  `json:"type,omitempty"`
 }
 
+// OpenWireConfig configures an ActiveMQ OpenWire session (TCP 61616, loose
+// encoding, non-cached — tshark 3.6.14 的解析口径只支持 loose）。每个连接
+// 独立 TCP 四元组与实体表；事件按序产出为 OpenWire command 帧。
+type OpenWireConfig struct {
+	// Profile names the negotiated wire profile; "" → activemq_openwire_v12.
+	// 未知 profile 拒绝（neg_carrier_profile 锚词）。
+	Profile string `json:"profile,omitempty"`
+	// WireFormat is the negotiated wire format (version/tight/cache)。本版
+	// 只生成 loose + 非 cached（tshark 对 tight 直接放弃解析）。
+	WireFormat *OpenWireWireFormat `json:"wire_format,omitempty"`
+	// Connections 有序连接数组；每连接独立 TCP 连接（事件 SrcPort 边界）。
+	Connections []OpenWireConnection `json:"connections,omitempty"`
+	// WireFault 负例故障注入口（validator 消费，注入即拒绝）。
+	WireFault *OpenWireWireFault `json:"wire_fault,omitempty"`
+}
+
+// OpenWireWireFormat is the negotiated wire format block. TightEncoding/
+// CacheEnabled 只接受 false（tshark 3.6.14 对 tight 编码放弃解析；cached
+// 对象引用启发式误判风险）——true 必须拒绝。
+type OpenWireWireFormat struct {
+	Version       int  `json:"version,omitempty"`
+	TightEncoding bool `json:"tight_encoding,omitempty"`
+	CacheEnabled  bool `json:"cache_enabled,omitempty"`
+}
+
+// OpenWireConnection is one TCP connection's command sequence. SrcIP/DstIP
+// 显式声明时该配置走自驱完整包路径（双栈用例——v6 连接无法经 v4 spec 的
+// ip 层）；SrcPort 是该连接的客户端源端口（事件模式经 MessageEvent.SrcPort
+// 驱动 TCPGenerator 的会话边界）。
+type OpenWireConnection struct {
+	ConnectionID int    `json:"connection_id,omitempty"`
+	ClientID     string `json:"client_id,omitempty"`
+	SrcPort      uint16 `json:"src_port,omitempty"`
+	SrcIP        string `json:"src_ip,omitempty"`
+	DstIP        string `json:"dst_ip,omitempty"`
+	Events       []OpenWireEvent `json:"events,omitempty"`
+}
+
+// OpenWireEvent is one OpenWire command in sequence order.
+type OpenWireEvent struct {
+	// Kind selects the command: wire_format_info|connection_info|connection_ack|
+	// session_info|producer_info|consumer_info|message|dispatch|ack|transaction|
+	// response|exception|remove|shutdown。未知 kind 拒绝（neg_unknown_command）。
+	Kind string `json:"kind,omitempty"`
+	// Direction c2s|s2c；缺省按 kind 推导（message/ack/connection_info 等
+	// c2s，dispatch/connection_ack/response/exception s2c）。
+	Direction string `json:"direction,omitempty"`
+	// SessionID/ProducerID/ConsumerID 是连接内实体标识（线上 SessionId.value/
+	// ProducerId.value/ConsumerId.value 与其 sessionId 字段）。
+	SessionID  uint64 `json:"session_id,omitempty"`
+	ProducerID uint64 `json:"producer_id,omitempty"`
+	ConsumerID uint64 `json:"consumer_id,omitempty"`
+	// Destination is "queue://name" or "topic://name"（其它前缀拒绝）。
+	Destination string `json:"destination,omitempty"`
+	// MessageID is the logical correlation key across message/dispatch/ack.
+	MessageID string `json:"message_id,omitempty"`
+	// AckMode auto|client|individual|dups_ok（consumer/ack 事件）。
+	AckMode string `json:"ack_mode,omitempty"`
+	// Prefetch is the ConsumerInfo prefetch size（缺省 1000）。
+	Prefetch int `json:"prefetch,omitempty"`
+	// Persistent is the Message persistent flag（显式声明，缺省 false）。
+	Persistent bool `json:"persistent,omitempty"`
+	// Priority is the Message priority（0-9，缺省 4）。
+	Priority int `json:"priority,omitempty"`
+	// Body/BodyB64 is the Message content（二选一，Base64 优先）。
+	Body    string `json:"body,omitempty"`
+	BodyB64 []byte `json:"body_b64,omitempty"`
+	// Transaction 边界事件（kind=transaction）。
+	Transaction *OpenWireTransaction `json:"transaction,omitempty"`
+	// CorrelationID is the explicit Response/ExceptionResponse correlation；
+	// 缺省关联最近一条 c2s command。显式值必须命中已发出的客户端命令
+	// （neg_correlation）。
+	CorrelationID int  `json:"correlation_id,omitempty"`
+	Exception     string `json:"exception,omitempty"`
+	// Redelivery is the MessageDispatch redelivery counter（显式声明）。
+	Redelivery int `json:"redelivery,omitempty"`
+	// MessageCount is the MessageAck count（缺省 1）。
+	MessageCount int `json:"message_count,omitempty"`
+	// CommandID overrides the auto-assigned command id（线上 4 字节命令号）。
+	CommandID int `json:"command_id,omitempty"`
+	// ResponseRequired overrides the default (c2s→1, s2c→0)。
+	ResponseRequired *bool `json:"response_required,omitempty"`
+}
+
+// OpenWireTransaction is a transaction boundary (begin/commit/rollback)。
+type OpenWireTransaction struct {
+	ID   uint64 `json:"id,omitempty"`
+	Kind string `json:"kind,omitempty"` // begin|commit|rollback
+}
+
+// OpenWireWireFault is a negative-test wire fault injection（validator 消费
+// ——注入即拒绝，不是线上字段）。
+type OpenWireWireFault struct {
+	Kind string `json:"kind,omitempty"` // short_frame|length_overrun|bad_type
+}
+
 // TNSEvent is one TNS protocol event (CONNECT/ACCEPT/REFUSE/REDIRECT/DATA).
 type TNSEvent struct {
 	Type           interface{} `json:"type,omitempty"` // string or int for negative tests
@@ -1341,6 +1437,7 @@ type FlowSpec struct {
 	SOMEIP   *SOMEIPConfig   `json:"someip,omitempty"`
 	DRDA     *DRDAConfig     `json:"drda,omitempty"`
 	Thrift   *ThriftConfig   `json:"thrift,omitempty"`
+	OpenWire *OpenWireConfig `json:"openwire,omitempty"`
 	TNS      *TNSConfig      `json:"tns,omitempty"`
 	MongoDB  *MongoDBConfig  `json:"mongodb,omitempty"`
 	Dameng   *DamengConfig   `json:"dameng,omitempty"`

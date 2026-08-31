@@ -4,7 +4,7 @@
 > 日期：2026-08-20
 > 配套设计：`docs/protocol-designs/50-openwire-design.md`
 > 机器契约：`trafficgen/test/protocol_pcap/cases/openwire.json`
-> 状态：`openwire` 层尚未注册；本文定义实现后的 PCAP（抓包文件）断言，不宣称当前 suite（测试套件）可运行。
+> 状态：✅ 已实现并全绿（2026-08-31，24/24 驱动用例）。`openwire` 层/planner 已注册；正例 15 项按 PCAP 断言运行，负例 9 项保持严格错误断言。占位条目已由语义用例替换（实际交付 24 例：15 正 + 9 负）。
 
 ## 1. 测试原则与执行边界
 

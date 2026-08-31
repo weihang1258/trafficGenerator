@@ -859,6 +859,60 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 		}()
 		return out, nil
 	}
+	// OpenWire 双栈自驱链（[ip→tcp→openwire] + 连接级显式 src_ip/dst_ip）：
+	// 显式地址的连接（如 v6）无法经事件路径——L3 家族恒随 spec 的 ip 层，
+	// down 交换也只认 spec 地址。生成器整体自产完整 TCP 包（每连接独立
+	// 握手/命令段/挥手，L3 按连接家族装配），finalEmit 只补 MAC/EtherType/
+	// 时间戳——与 ldp dual_adjacency 分支同构（方向交换由生成器完成）。
+	if p.name == "openwire" && spec.OpenWire != nil && openwireNeedsSelfDrive(spec.OpenWire) {
+		out := make(chan core.PacketConfig, 256)
+		go func() {
+			defer close(out)
+			gen := gens[len(gens)-1]
+			sess := &SessionState{IPID: uint16(rand.Uint32())}
+			meta := flowMetaFor(spec)
+			meta.SrcIP = spec.SrcIP
+			meta.DstIP = spec.DstIP
+			meta.SrcPort = spec.SrcPort
+			meta.DstPort = spec.DstPort
+			meta.TTL = spec.TTL
+			meta.FlowID = flowID(spec)
+			meta.OpenWire = spec.OpenWire
+			index := uint64(0)
+			req := &GenRequest{
+				Meta: meta,
+				Sess: sess,
+				Emit: func(pkt core.PacketConfig) error {
+					// 方向交换由生成器完成（down 帧 L3/L4 已按发送方翻转）；
+					// 这里只补 MAC/EtherType/时间戳与序号回填。
+					if pkt.L2.SrcMAC == "" {
+						l2 := l2For(pkt.Direction, spec)
+						pkt.L2.SrcMAC = l2.SrcMAC
+						pkt.L2.DstMAC = l2.DstMAC
+					}
+					if pkt.L2.EtherType == 0 {
+						pkt.L2.EtherType = core.EtherTypeFor(pkt.L3.SrcIP)
+					}
+					pkt.Timestamp = time.Now()
+					if pkt.FlowID == "" {
+						pkt.FlowID = flowID(spec)
+					}
+					if pkt.PacketIndex == 0 {
+						pkt.PacketIndex = index
+					}
+					index++
+					select {
+					case out <- pkt:
+						return nil
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				},
+			}
+			_ = gen.Generate(ctx, req)
+		}()
+		return out, nil
+	}
 	if isRawIPChain(p.name, chain) {
 		out := make(chan core.PacketConfig, 256)
 		go func() {
@@ -1311,6 +1365,7 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		SOMEIP:     spec.SOMEIP,
 		DRDA:       spec.DRDA,
 		Thrift:     spec.Thrift,
+		OpenWire:   spec.OpenWire,
 		TNS:        spec.TNS,
 		MongoDB:    spec.MongoDB,
 		Dameng:     spec.Dameng,
@@ -2327,6 +2382,18 @@ func isCarrierMixedChain(name string, chain []Layer) bool {
 		}
 	}
 	return true
+}
+
+// openwireNeedsSelfDrive reports whether any openwire connection declares
+// its own L3 addresses（双栈自驱触发条件——显式地址连接无法经 v4 spec 的
+// ip 层事件路径，见 Plan 的 openwire 自驱分支）。
+func openwireNeedsSelfDrive(cfg *core.OpenWireConfig) bool {
+	for i := range cfg.Connections {
+		if cfg.Connections[i].SrcIP != "" || cfg.Connections[i].DstIP != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func isHTTPChain(chain []Layer) bool {

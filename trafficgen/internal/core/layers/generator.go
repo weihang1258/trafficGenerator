@@ -323,7 +323,11 @@ type FlowMeta struct {
 	SOMEIP   *core.SOMEIPConfig
 	DRDA     *core.DRDAConfig
 	Thrift   *core.ThriftConfig
-	TNS      *core.TNSConfig
+	// OpenWire is the flow's OpenWire config (注入到 openwire 终结层生成器：
+	// ActiveMQ loose 命令序列逐事件产出；连接级显式地址时走自驱完整包分支，
+	// B5)。Only set for openwire chains.
+	OpenWire  *core.OpenWireConfig
+	TNS       *core.TNSConfig
 	MongoDB  *core.MongoDBConfig
 	Dameng   *core.DamengConfig
 	KingBase *core.KingBaseConfig

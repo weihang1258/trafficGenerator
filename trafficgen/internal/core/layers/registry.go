@@ -810,6 +810,22 @@ func buildDefaultRegistry() {
 		FieldContract: map[string]string{"udp.dst_port": "6081"},
 	})
 
+	// ---- B5 消息中间件（openwire）----
+	// openwire（tcp 终结层。ActiveMQ OpenWire——[4B length][1B type]
+	// loose 命令序列，wire 字节由 openwire 生成器产出）。TCP 语义交给 tcp
+	// 层生成器（握手/MSS 分段/挥手/事件级 SrcPort 会话边界）；配置经
+	// spec.OpenWire flat 键携带、FlowMeta 直传生成器；目的端口 61616
+	//（ActiveMQ 默认，FieldContract 默认；tshark 走启发式识别——每连接
+	// 首命令必须是 WireFormatInfo）。连接声明显式 src_ip/dst_ip 时生成器
+	// 自产完整包（双栈用例，ldp dual_adjacency 分支同款）。
+	r.Register(LayerSchema{Name: "openwire", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "61616"},
+		Fields: map[string]FieldSchema{
+			"profile": {Type: "string", Default: "activemq_openwire_v12"},
+		},
+	})
+
 	// ---- 二层层：mpls / pppoe（占位，P2 补字段）----
 	// 注意：不能照搬 gre 隧道表达——MPLS 线上格式是 Eth + 标签栈 + 内层 IP
 	// （无外层 IP 头，RFC 3031/3032），DependsOn:["ip"] 会补出错误的外层

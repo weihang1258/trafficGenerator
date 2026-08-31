@@ -253,7 +253,10 @@ func checkHasPayload(pcapPath string, c Case) error {
 	// 载荷存在性由 tcp.len（TCP payload 字节数）标记：真正的数据帧 tcp.len>0，
 	// 纯握手/挥手帧 tcp.len=0。dameng 设计（30-dameng-testcase）与 cql 设计
 	// （35-cql-testcase）都把 has_payload 语义定成"存在一个携带应用层数据的帧"。
-	if c.Proto == "dameng" || c.Proto == "cql" || c.Proto == "drda" || c.Proto == "thrift" {
+	// OpenWire 命令帧同样天然小（ShutdownInfo 全帧 64B、WireFormatInfo 全帧
+	// 恰 80B——通用 ">80" 判 false），不能用帧长作代理。tcp.len>0 判定与
+	// dameng/cql/thrift 同款。
+	if c.Proto == "dameng" || c.Proto == "cql" || c.Proto == "drda" || c.Proto == "thrift" || c.Proto == "openwire" {
 		vals, err := FieldValues(pcapPath, "tcp.len", c.DecodeAs)
 		if err != nil {
 			return err
@@ -483,6 +486,21 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 			caseID == "pop3_over_tls" || caseID == "mqtt_over_tls" ||
 			caseID == "socks5_over_tls") &&
 			(artifactMatchesPrefix("BER Error") || flagMatchesExact("[Malformed Packet: TLS]")):
+		return true
+	// 8. OpenWire dissector 对合法帧的伪影（tshark 3.6.14，字节级已对
+	//    /tmp/ow-* 探针验证，2026-08）：openwire_exception_response 的
+	//    ExceptionResponse 携带合法 THROWABLE（class=java.lang.
+	//    IllegalStateException、message、depth）——packet-openwire.c 的
+	//    THROWABLE 分支在自定义类型之上多读 1B 类型标记，class 之后即报
+	//    BoundsError → "[Malformed Packet: OpenWire]"（throwable 字段仍正确
+	//    解析，仅剩余字段对不齐）。openwire_message_body_segmentation 的
+	//    4000B 消息跨 MSS 分 3 段，dissector 不做 TCP 重组，首段（携带
+	//    length 前缀）在 length 结束前即被 tvb 切断 → 同样 malformed。两者
+	//    均为 dissector 限制，非帧缺陷。
+	case caseID == "openwire_exception_response" && strings.Contains(flag, "[Malformed Packet: OpenWire]"):
+		return true
+	case caseID == "openwire_message_body_segmentation" &&
+		(strings.Contains(flag, "_ws.malformed") || strings.HasPrefix(expert, "Expected:")):
 		return true
 	}
 	return false

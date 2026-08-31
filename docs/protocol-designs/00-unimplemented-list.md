@@ -48,7 +48,7 @@
 | # | 协议 | 说明 | 载体 |
 |---|------|------|------|
 | 22 | ~~AMQP~~ | 高级消息队列协议（RabbitMQ） | TCP(5672) | ✅ 已实现 |
-| 23 | OpenWire | ActiveMQ 原生态 wire 协议 | TCP |
+| 23 | ~~OpenWire~~ | ActiveMQ 原生态 wire 协议 | TCP | ✅ 已实现 |
 | 24 | AMS | Apache ActiveMQ 管理协议 | TCP |
 | 25 | Swarm | 去中心化 P2P 存储协议 | UDP/TCP |
 | 26 | Gnutella | P2P 文件共享协议 | TCP |
@@ -158,7 +158,7 @@
 | B1 工控/SCADA/电力 | FINS、OPC UA、CoAP、GOOSE、SV、MMS、S7、Moxa-Nport、SOME-IP、IEC104 | 10 | 与既有 dnp3/modbus/enip 同域，复用经验 |
 | B2 数据库 | ~~DRDA~~、~~Thrift~~、~~TNS~~、~~MongoDB~~、~~Dameng~~、~~KingBase~~、~~CQL~~ | 7 | ✅ 全部实现 |
 | B3 路由/组播/信令 | BGP、OSPF、ISIS、IGMP、PIM、~~LDP~~、~~PCEP~~、cflow、STUN、TPKT、echo、GIOP、RDMA | 13 | LDP/PCEP ✅ 已实现，其余 11 项待实现 |
-| B4 流媒体+消息/P2P | ~~HLS~~、HDS、~~RTMFP~~、~~AMQP~~、OpenWire、AMS、Swarm、Gnutella | 8 | HLS/RTMFP/AMQP ✅ 已实现，其余待实现 |
+| B4 流媒体+消息/P2P | ~~HLS~~、HDS、~~RTMFP~~、~~AMQP~~、~~OpenWire~~、AMS、Swarm、Gnutella | 8 | HLS/RTMFP/AMQP/OpenWire ✅ 已实现，其余待实现 |
 | B5 隧道/封装/安全 | VXLAN、NVGRE、GENEVE、SSTP、DTLS、KERBEROS、ntlm、spnego、ocsp、dcerpc | 10 | 隧道类与既有 vxlan/geneve 机制可复用 GRE/VXLAN 封装 |
 | B6 应用/物联网/管理+挖矿 | Cwmp、BACnet、DOH、ONVIF、HL7、NMEA、h248/mgcp/megaco（1 planner）、mmse、EDP、ETHMining、XMRMining、stratum、GetWork、GBT | 16 | h248 合并后 14 个 planner；挖矿多基于 HTTP/JSON-RPC |
 

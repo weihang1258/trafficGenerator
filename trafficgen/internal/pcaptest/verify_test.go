@@ -298,7 +298,7 @@ func TestHavePayload_ForDamengAndCQLChecksTCPLen(t *testing.T) {
 	// 负路径：纯 TCP 握手（无任何应用载荷，tcp.len 全程 0）必须失败。
 	p2 := pcapRoot + "/tcp/tcp-handshake-basic.pcap"
 	requirePcap(t, p2)
-	for _, proto := range []string{"dameng", "cql", "drda"} {
+	for _, proto := range []string{"dameng", "cql", "drda", "thrift"} {
 		c2 := Case{ID: proto + "-nopayload", Proto: proto, Expect: Expect{HasPayload: true}}
 		probs := VerifyPcap(p2, c2)
 		found := false
