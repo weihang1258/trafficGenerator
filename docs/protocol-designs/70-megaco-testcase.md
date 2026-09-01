@@ -1,62 +1,118 @@
 # Megaco/H.248（媒体网关控制协议，文本编码）测试用例契约
 
-> 版本：v1.1.0（设计阶段）
+> 版本：v1.2.0（测试用例）
 > 日期：2026-09-01
-> 配套设计：`docs/protocol-designs/70-megaco-design.md`
+> 配套设计：`docs/protocol-designs/70-megaco-design.md`（v1.2.0）
 > 机器契约：`trafficgen/test/protocol_pcap/cases/megaco.json`
-> 状态：仅设计与 PCAP（抓包文件）/NIC（网卡）用例契约；`megaco`/`h248`/`mgcp` 层尚未注册，不修改 Go（编程语言）实现，不宣称当前 suite（测试套件）可运行。**独立隔离对抗审查已完成**（v1.1.0 定稿：独立审查 agent 三向审计 22 项清单（2 高危/2 中高危/18 中低）→ 修复 → 复验新发现 R1-R5 → 二轮修复 → 二轮复验 clean + S1 备忘闭合；审查/修复记录见 §8 修订记录）。
-> 本版按 `protocol-doc-requirements.md` v1.0（2026-08-31）强制契约重写，取代 2026-08-21 旧稿；与旧稿/任务口径冲突处一律以规范为准（见 §8 修订记录）。
+> 状态：按《协议设计文档与用例文档需求文档 v1.3》完成独立对抗重审（审查员 rr-megaco：行为面 114 点，✓79/半8/✗27；confirmed findings 5 MAJOR C 项 + 2 MAJOR D 项 + 约 20 MINOR + 4 N 项），本版为修复轮产物：23 条 → **77 条（46 正 + 31 负）**，待 rr-megaco 复验。记录见 §9。
+> 规范基线：RFC 3525 / ITU-T H.248.1 (03/2002)，文本编码（Annex B.2 ABNF）；TPKT 成帧 RFC 1006 / RFC 3525 Annex D.2（SHALL）；端口 IANA `megaco-h248 2944`、`h248-binary 2945`、`mgcp-gateway 2427`。
 
 ## 1. 测试原则和未注册边界
 
-用例从设计 §2–§9 逐项派生，共 23 个唯一语义 ID：17 个正例、6 个负例。当前 JSON 只保留一个 `megaco_neg_unregistered` 注册前置占位：`proto=megaco`、`expect_error=true`、`error_contains` 精确为 `unknown layer`；该占位不计入 23 个语义 ID，不得把拒绝、0 包或空 PCAP 报告为 Megaco 行为通过。注册后移除占位，再按本文 §2 顺序补入 17 个正例与 6 个负例。
+用例按《需求文档 v1.3》从规范（RFC 3525 文本编码）与设计 §2–§8 派生：**可测试行为面全枚举**（消息/事务/动作/命令四层 × 描述符值域 × 事务关联 × 边界 × 错误分支 × 载体 × 场景 × 交互），用例 = 不可再分的测试点（本版 77 条 = 46 正 + 31 负，对应 rr-megaco 枚举的 114 行为面点，比率约 1.5 点/例）。**ID 权威 = 本文 §2**；依据列标注出处，不要求与设计章节一对一映射。**pcap 与 port_group/NIC 两种输出路径使用同一份用例契约**（同一 ID、同一断言、同一包数，C-2，与 64-cwmp/66-doh/67-onvif/68-hl7 同形）。
+
+当前 JSON 只保留 `megaco_neg_unregistered` 注册前置占位：`proto=megaco`、`expect_error=true`、`error_contains` 精确为 `unknown layer`；占位不计入 77 个语义 ID，不得把拒绝、0 包或空 PCAP 报告为 Megaco 行为通过。注册后移除占位，按本文 §2 顺序补入 46 个正例与 31 个负例。
 
 **机器契约**：`trafficgen/test/protocol_pcap/cases/megaco.json`（第二阶段生成，本版不写文件）。`proto` 固定为 `megaco`，不得用 `h248`/`mgcp`；三入口别名由 planner 归一。
 
-**未注册边界**：`megaco`、`h248`、`mgcp` 层均未注册。当前唯一合法 JSON 条目是 `megaco_neg_unregistered`；注册前的拒绝、0 包或空 PCAP 不是协议行为通过。TSHARK 实测（本机 3.6.14）：megaco 文本 dissector 绑定 2944 端口、字段族 `megaco.*` 齐全（设计 §3.9 清单）；2427 端口绑定的是 `mgcp` dissector——`megaco_udp_2427_mgcp_alias` 用例实现后证据在"decode_as 强制 megaco"与"offset 42 起始行/命令 token 字节断言"二选一，case JSON 实现时定并同步设计/testcase/audit。
+**TSHARK 实测基线（本机 3.6.14）**：megaco 文本 dissector 绑定 2944 端口、字段族 `megaco.*` 齐全（§3 清单与设计 §3.9 实测一致，含 `reservevalue/reservegroup/terminationstate`）；2427 端口绑定的是 `mgcp` dissector——`megaco_udp_2427_mgcp_alias` 用例证据在"decode_as 强制 megaco（`-d udp.port==2427,megaco`）"与"offset 42 起始行/命令 token 字节断言"二选一，case JSON 实现时定并同步四件套。**非 2944 端口实测不自动按 megaco 解码**：非默认端口用例（若有）的 fields 断言须带 `-d` DecodeAs 提示或全 frames hex 断言。
 
-**基线**：RFC 3525 / ITU-T H.248.1 (03/2002)，文本编码（Annex B.2 ABNF），主线 profile `megaco_v1_text`。动态值（transactionId、数值 ContextID、媒体 SDP 地址/端口、时间戳）不硬编码：用 `nonzero`、`same_as_packet`、`distinct_values`、包间关系与稳定 token 字节断言；TerminationID、DigitMap 内容、Reason 文本、mId 属预配置值，允许 fixture 显式给出。不做"媒体已建立""编解码协商成功"等超出控制面的断言；没有 RTP 层实现时，Local/Remote SDP 只作 `megaco.localdescriptor`/`megaco.remotedescriptor` 存在性与文本前缀断言。
+**动态值不硬编码**：transactionId、数值 ContextID、媒体 SDP 地址/端口、时间戳为运行期/策略值——用 `nonzero`、`same_as_packet`、`distinct_values`、包间关系与稳定 token 字节断言。**边界固化 carve-out**（§4 各边界例声明）：被测规格点即边界值本身的用例允许 fixture 显式固化（TerminationID 恰 64、transactionId 恰 4294967295、定时器恰 99、ContextID 4294967293、transid 0、StreamID 65535、Version 2 位形态）。不做"媒体已建立""编解码协商成功"等超出控制面的断言。
 
-**包数约定**（设计 §9）：UDP 每消息一包；TCP = 3（SYN/SYN-ACK/ACK）+ N（承载 TPKT PDU 字节的分段数）+ 4（双向 FIN/ACK）。约定数字是实现基线，若实现采用不同 ACK 合并或分段方式，须同步更新四件套，不得把约定数字当 RFC 消息数。
+**包数约定**（设计 §9）：UDP 每消息一包；TCP = 3（握手）+ N（承载 TPKT PDU 字节的分段数）+ 4（双向 FIN/ACK 挥手）。约定数字是实现基线，若实现采用不同 ACK 合并或分段方式，须同步更新四件套，不得把约定数字当 RFC 消息数。
 
-**TPKT 成帧**（设计 §2）：TCP 载体每条消息前置 RFC 1006 TPKT 头 4B（`版本=0x03`、`保留=0x00`、`总长度 2B 大端 = 4B 头 + Megaco 消息长度`），Megaco 文本起点 offset **58（IPv4）/78（IPv6）**；消息定界依据 TPKT 长度域，文本语法仅作内容验证。决策依据（v1.1.0）：RFC 3525 Annex D.2 为 SHALL，现网 H.248 over TCP 实态即 TPKT，tshark 规范解析路径也是 TPKT 分支——按规范采用，不做"声明偏离"。UDP 承载不变（一数据报一消息，无 TPKT，offset 42/62 不变）。
+**TPKT 成帧**（设计 §2）：TCP 载体每条消息前置 RFC 1006 TPKT 头 4B（`版本=0x03`、`保留=0x00`、`总长度 2B 大端 = 4B 头 + Megaco 消息长度`），Megaco 文本起点 offset **58（IPv4）/78（IPv6）**；消息定界依据 TPKT 长度域，文本语法仅作内容验证。UDP 一数据报一消息（无 TPKT，offset 42/62）。
 
-**多会话包号规则**（设计 §8）：多会话展开按序整块回放，第二会话起点 = 前会话总包数 + 1（如用例 12：第一会话 4 包，第二会话从包 5 起、共 6 包）。
+**多会话/并发包号规则**（设计 §8）：多会话展开按序整块回放，第二会话起点 = 前会话总包数 + 1（如 `megaco_udp_ipv4_multi_session`：第一会话 4 包共 2 消息，第二会话 6 包共 3 消息、起点 = 包 5）；`concurrent: true` 并发会话交错回放（C-3 翻案纳入，`megaco_udp_ipv4_concurrent_sessions`）——并发只作用于生成器级多连接交错，两会话各自事务配对与状态隔离断言不放宽。
 
 ## 2. 原子用例索引
 
-| # | ID | 类型 | 载体 | 覆盖 | 设计依据（设计 §） | 约定 packet_count |
+| # | ID | 类型 | 载体 | 覆盖 | 依据 | 包数 |
 |---:|---|---|---|---|---|---:|
-| 1 | `megaco_udp_ipv4_registration` | 正 | UDP/IPv4 | MG 注册 SC(Restart,ROOT)+Services、Reply 事务关联、单流基线 | §2、§3.2、§3.5、§3.6、§5.2、§9 | 2 |
-| 2 | `megaco_udp_ipv6_failover` | 正 | UDP/IPv6 | SC(Failover)+Reason 909、IPv6 offset 62 | §3.6、§5.2、§8、§9 | 2 |
-| 3 | `megaco_tcp_ipv4_dual_transaction` | 正 | TCP/IPv4 | 同消息双事务、T2 首错停止（430 后第二命令不执行）、事务/动作级错误描述符 | §2(TPKT)、§3.2、§3.4、§3.5、§5.1、§5.2、§7、§9 | 9 |
-| 4 | `megaco_tcp_ipv6_call_flow` | 正 | TCP/IPv6 | 编程→建连(Add+Local SDP)→回填(两条 Modify Remote)→拆连(Subtract+Statistics)，多消息事务依赖 | §3.3、§3.5、§4、§5.2、§8、§9 | 15 |
-| 5 | `megaco_udp_ipv4_notify_events` | 正 | UDP/IPv4 | Events(RequestID) 编程→Notify(ObservedEvents 同 RequestID)→Reply | §3.5、§4、§5.1、§9 | 4 |
-| 6 | `megaco_udp_ipv4_audit_wildcard` | 正 | UDP/IPv4 | 同消息双事务 O-AV(ROOT)+W-AC(*)，O-/W- 前缀，ROOT 与通配区分 | §3.4、§3.5、§3.7、§9 | 2 |
-| 7 | `megaco_udp_ipv4_handoff` | 正 | UDP/IPv4 | 两会话 handoff：SC HandOff+Reason 903+MgcIdToTry / SC HandOff+Reason 903，`peer_mid` 区分 MGC，多会话展开 | §3.6、§4、§5.2、§6、§8、§9 | 4 |
-| 8 | `megaco_udp_ipv4_abbrev_tokens` | 正 | UDP/IPv4 | 缩写 token：`!/1`、`T`、`C`、`MF`、`E`、`P`；注册对+Modify{Events} 对；大小写不敏感 | §3.1、§3.4、§3.5、§9 | 4 |
-| 9 | `megaco_udp_ipv4_move_media` | 正 | UDP/IPv4 | Move 命令 + 完整 Media 描述符（LocalControl+Local/Remote SDP、StreamID）、前置 Add 建连对 | §3.4、§3.5、§5.2、§9 | 4 |
-| 10 | `megaco_udp_ipv4_large_digitmap` | 正 | UDP/IPv4 | 大 DigitMap 长消息单数据报承载、Events/Signals | §3.5、§8、§9 | 2 |
-| 11 | `megaco_tcp_ipv4_mss_reassembly` | 正 | TCP/IPv4 | 长 TPKT PDU 跨 TCP 分段（小 MSS）、按 TPKT 长度域切分重组 | §2、§3.10、§8、§9 | 11 |
-| 12 | `megaco_udp_ipv4_multi_session` | 正 | UDP/IPv4 | 多会话双四元组状态隔离（会话 2：Events 编程对+Notify 对），第二会话起点=前会话包数+1 | §4、§5.2、§8、§9 | 10 |
-| 13 | `megaco_tcp_ipv4_pending_immack` | 正 | TCP/IPv4 | T→PN{}→Reply(IA)→K 单点（同请求 ID），At-Most-Once 三方握手，帧字节形态前缀 | §3.2、§5.1、§5.2、§9 | 11 |
-| 14 | `megaco_udp_2427_mgcp_alias` | 正 | UDP/IPv4 | 入口名 `mgcp`+默认 2427+同一文本线格式注册对，三名合一 | §1、§2、§3.9、§9 | 2 |
-| 15 | `megaco_udp_ipv4_termid_max_length` | 正 | UDP/IPv4 | TerminationID 恰 64 字符（pathNAME 上界） | §3.7、§8、§9 | 2 |
-| 16 | `megaco_udp_ipv4_transid_max` | 正 | UDP/IPv4 | transactionId 恰 4294967295（UINT32 上界，边界固化 carve-out） | §3.2、§8、§9 | 2 |
-| 17 | `megaco_udp_ipv4_digitmap_timer_max` | 正 | UDP/IPv4 | DigitMap 定时器恰 99（1-99 上界） | §3.5、§8、§9 | 2 |
-| 18 | `megaco_neg_encoding_mismatch` | 负 | — | 编码声明与载荷不一致 | §7 | — |
-| 19 | `megaco_neg_message_syntax` | 负 | — | 起始行/版本/mId/消息体语法错 | §7 | — |
-| 20 | `megaco_neg_command_state` | 负 | — | 命令-状态机/CHOOSE 侧别/未创建引用 | §7 | — |
-| 21 | `megaco_neg_transaction_pairing` | 负 | — | transactionId 配对/重复/K 覆盖集校验错 | §7 | — |
-| 22 | `megaco_neg_length_truncation` | 负 | — | 截断/长度与数值上界（64 字符 TerminationID、UINT32 越界、ContextID 保留值、定时器越界） | §7 | — |
-| 23 | `megaco_neg_carrier_port` | 负 | — | 载体/端口/入口名-编码组合非法 | §7 | — |
-| 24 | `megaco_neg_unregistered` | 占位 | — | 层注册前置占位，不计语义覆盖 | §1 未注册边界 | — |
+| 1 | `megaco_udp_ipv4_registration` | 正 | UDP/IPv4 | MG 注册 SC(Restart,ROOT)+Services、Reply 事务关联、单流基线 | 设计§2/§3.2/§3.5/§3.6/§5.2 | 2 |
+| 2 | `megaco_udp_ipv6_failover` | 正 | UDP/IPv6 | SC(Failover)+Reason 909、IPv6 offset 62 | 设计§3.6/§5.2/§8 | 2 |
+| 3 | `megaco_tcp_ipv4_dual_transaction` | 正 | TCP/IPv4 | 同消息双事务、T2 首错停止（430 后第二命令不执行）、事务/动作级错误描述符 | 设计§2(TPKT)/§3.2/§3.4/§3.5/§5.1/§5.2/§7 | 9 |
+| 4 | `megaco_tcp_ipv6_call_flow` | 正 | TCP/IPv6 | 编程→建连→回填→拆连多消息事务依赖 | 设计§3.3/§3.5/§4/§5.2/§8 | 15 |
+| 5 | `megaco_udp_ipv4_notify_events` | 正 | UDP/IPv4 | Events(RequestID) 编程→Notify(ObservedEvents 同 RequestID)→Reply | 设计§3.5/§4/§5.1 | 4 |
+| 6 | `megaco_udp_ipv4_audit_wildcard` | 正 | UDP/IPv4 | 同消息双事务 O-AV(ROOT)+W-AC(*)、O-/W- 前缀 | 设计§3.4/§3.5/§3.7 | 2 |
+| 7 | `megaco_udp_ipv4_handoff` | 正 | UDP/IPv4 | 两会话 handoff：SC HandOff+Reason 903+MgcIdToTry / 纯 HandOff | 设计§3.6/§4/§5.2/§6/§8 | 4 |
+| 8 | `megaco_udp_ipv4_abbrev_tokens` | 正 | UDP/IPv4 | 缩写 token：`!/1`、T/C/SC/SV/MF/E/P；大小写不敏感 | 设计§3.1/§3.4/§3.5 | 4 |
+| 9 | `megaco_udp_ipv4_move_media` | 正 | UDP/IPv4 | Move 命令+完整 Media 描述符、前置 Add 建连对 | 设计§3.4/§3.5/§5.2 | 4 |
+| 10 | `megaco_udp_ipv4_large_digitmap` | 正 | UDP/IPv4 | 大 DigitMap 长消息单数据报承载 | 设计§3.5/§8 | 2 |
+| 11 | `megaco_tcp_ipv4_mss_reassembly` | 正 | TCP/IPv4 | 长 TPKT PDU 跨 TCP 分段、按 TPKT 长度域切分重组 | 设计§2/§3.10/§8 | 11 |
+| 12 | `megaco_udp_ipv4_multi_session` | 正 | UDP/IPv4 | 多会话双四元组状态隔离（会话 2 Events 编程+Notify） | 设计§4/§5.2/§8 | 10 |
+| 13 | `megaco_tcp_ipv4_pending_immack` | 正 | TCP/IPv4 | T→PN{}→Reply(IA)→K 单点三方握手 | 设计§3.2/§5.1/§5.2 | 11 |
+| 14 | `megaco_udp_2427_mgcp_alias` | 正 | UDP/IPv4 | 入口名 mgcp+默认 2427+同一文本线格式（三名合一） | 设计§1/§2/§3.9 | 2 |
+| 15 | `megaco_udp_ipv4_termid_max_length` | 正 | UDP/IPv4 | TerminationID 恰 64 字符（pathNAME 上界） | 设计§3.7/§8 | 2 |
+| 16 | `megaco_udp_ipv4_transid_max` | 正 | UDP/IPv4 | transactionId 恰 4294967295（UINT32 上界，边界固化 carve-out） | 设计§3.2/§8 | 2 |
+| 17 | `megaco_udp_ipv4_digitmap_timer_max` | 正 | UDP/IPv4 | DigitMap T 定时器恰 99（1-99 上界；D-4 口径：T:0 为禁用启动定时器的合法语义不归越界） | RFC 3525 §7.1.14+设计§3.5 v1.2 | 2 |
+| 18 | `megaco_udp_ipv4_termination_state` | 正 | UDP/IPv4 | TerminationState 描述符：ServiceStates/EventBufferControl（C-5） | RFC 3525 §7.1.5+设计§3.5 | 2 |
+| 19 | `megaco_udp_ipv4_version_negotiation` | 正 | UDP/IPv4 | 版本协商：MG Services 提议 Version=2、Reply 回 Version=1 低版胜出（C-6） | RFC 3525 §11.3+设计§4 场景 1 | 2 |
+| 20 | `megaco_udp_ipv4_method_graceful` | 正 | UDP/IPv4 | SC Method=Graceful + Delay 参数（C-7） | RFC 3525 §7.2.8/§7.1.13 | 2 |
+| 21 | `megaco_udp_ipv4_method_forced` | 正 | UDP/IPv4 | SC Method=Forced（C-7 方法值域第二补值） | RFC 3525 §7.2.8 | 2 |
+| 22 | `megaco_udp_ipv4_method_disconnected` | 正 | UDP/IPv4 | SC Method=Disconnected（MG 重连原 MGC，C-7 第三补值） | RFC 3525 §7.2.8/§11.5 | 2 |
+| 23 | `megaco_udp_ipv4_whitespace_comment_variants` | 正 | UDP/IPv4 | 空白/注释变体：`;` 注释、CR-only EOL、多 LWSP（C-9） | RFC 3525 Annex B（SEP/EOL/LWSP/COMMENT） | 2 |
+| 24 | `megaco_udp_ipv4_mid_address_port` | 正 | UDP/IPv4 | mId 带端口形态 `[192.0.2.10]:2944`（C-10 第一补形） | RFC 3525 Annex B（mId 四形态） | 2 |
+| 25 | `megaco_udp_ipv4_mid_devicename` | 正 | UDP/IPv4 | mId deviceName（pathNAME）形态（C-10 第二补形） | RFC 3525 Annex B | 2 |
+| 26 | `megaco_tcp_ipv4_transaction_level_error` | 正 | TCP/IPv4 | 事务级 errorDescriptor：Reply=id{Error=411{...}} 整事务错（C-11） | RFC 3525 Annex B（transactionReply errorDescriptor 分支） | 9 |
+| 27 | `megaco_tcp_ipv4_ack_range` | 正 | TCP/IPv4 | K 区间形态 `K{<a>-<b>}`（C-12） | RFC 3525 Annex B/D.1.2.2 | 12 |
+| 28 | `megaco_udp_ipv4_transid_zero_error_reply` | 正 | UDP/IPv4 | transactionId 0：缺 ID 请求的错误 Reply（C-13） | RFC 3525 §8.1.1 | 1 |
+| 29 | `megaco_udp_ipv4_reserved_value_group` | 正 | UDP/IPv4 | LocalControl ReservedValue/ReservedGroup=ON/OFF（C-14 第一项） | RFC 3525 §7.1.7 | 2 |
+| 30 | `megaco_udp_ipv4_eventbuffer_descriptor` | 正 | UDP/IPv4 | EventBuffer 描述符（C-14 第二项） | RFC 3525 §7.1.10 | 2 |
+| 31 | `megaco_udp_ipv4_mode_sendonly` | 正 | UDP/IPv4 | LocalControl Mode=SendOnly（值域 SO，C-15） | RFC 3525 §7.1.7 | 2 |
+| 32 | `megaco_udp_ipv4_mode_inactive` | 正 | UDP/IPv4 | LocalControl Mode=Inactive（值域 IN，C-15） | RFC 3525 §7.1.7 | 2 |
+| 33 | `megaco_udp_ipv4_mode_loopback` | 正 | UDP/IPv4 | LocalControl Mode=Loopback（值域 LB，C-15） | RFC 3525 §7.1.7 | 2 |
+| 34 | `megaco_udp_ipv4_audit_item_domain` | 正 | UDP/IPv4 | Audit auditItem 值域扩展（Media/Signals/DigitMap/Statistics，C-15） | RFC 3525 §7.1.12 | 2 |
+| 35 | `megaco_udp_ipv4_signals_types` | 正 | UDP/IPv4 | Signals 信号类型 OO/TO/BR + SignalList（C-15） | RFC 3525 §7.1.11 | 2 |
+| 36 | `megaco_udp_ipv4_error_code_431` | 正 | UDP/IPv4 | 错误码 431：通配无匹配（C-16） | RFC 3525 §7.2.5/错误码注册 | 2 |
+| 37 | `megaco_udp_ipv4_error_code_442` | 正 | UDP/IPv4 | 错误码 442：命令语法错（C-16） | RFC 3525 错误码注册 | 2 |
+| 38 | `megaco_udp_ipv4_services_delay_timestamp` | 正 | UDP/IPv4 | Services Delay/TimeStamp 参数（C-17） | RFC 3525 §7.1.13 | 2 |
+| 39 | `megaco_udp_ipv4_context_id_high_boundary` | 正 | UDP/IPv4 | ContextID 近似上界（0xFFFFFFFD 正例，C-18） | RFC 3525 §8.1.2（保留值注释） | 2 |
+| 40 | `megaco_udp_ipv4_version_two_digits` | 正 | UDP/IPv4 | 起始行 Version 2 位数字形态（语法 1*2DIGIT 上界，C-18 carve-out） | RFC 3525 Annex B（Version=1*2DIGIT） | 2 |
+| 41 | `megaco_udp_ipv4_streamid_max` | 正 | UDP/IPv4 | StreamID UINT16 上界 65535（C-18） | RFC 3525 §7.1.6 | 2 |
+| 42 | `megaco_udp_ipv4_embed_events` | 正 | UDP/IPv4 | Events 嵌套描述符（Embed，C-19） | RFC 3525 §7.1.9（嵌套 eventsDescriptor） | 2 |
+| 43 | `megaco_udp_ipv4_events_no_requestid` | 正 | UDP/IPv4 | Events 无 RequestID 形态（ABNF 可选，C-19） | RFC 3525 Annex B（EventsToken [EQUAL RequestID] 可选） | 2 |
+| 44 | `megaco_udp_ipv4_registration_redirect` | 正 | UDP/IPv4 | 注册改派流：Reply 带 ServiceChangeMgcId → MG 转向新 MGC 重发注册（C-20） | RFC 3525 §11.2 | 4 |
+| 45 | `megaco_udp_ipv4_concurrent_sessions` | 正 | UDP/IPv4 | 并发会话交错回放（C-3 翻案纳入） | 设计§4 v1.2（cwmp⑦/doh/onvif 同判例） | 4 |
+| 46 | `megaco_udp_ipv4_digitmap_z_timer` | 正 | UDP/IPv4 | DigitMap Z 修饰符（digitMapLetter 长时长修饰符，Timer 口径 100ms-9.9s）（D-4） | RFC 3525 Annex B（digitMapLetter=Z） | 2 |
+| 47 | `megaco_neg_encoding_text_as_ber` | 负 | — | `encoding=ber` 声明而载荷为文本字节 | 设计§1/§3.8 | — |
+| 48 | `megaco_neg_encoding_port_mismatch` | 负 | — | text 编码声明配 2945（BER 默认端口） | 设计§2 | — |
+| 49 | `megaco_neg_syntax_start_line` | 负 | — | 起始行 MegacopToken 缺失/拼错（非 `MEGACO`/`!`） | RFC 3525 Annex B | — |
+| 50 | `megaco_neg_syntax_version_zero` | 负 | — | 起始行版本为 `0` | 设计§3.1 | — |
+| 51 | `megaco_neg_syntax_version_three_digits` | 负 | — | 起始行版本 3 位数字（Version=1*2DIGIT 越界） | RFC 3525 Annex B | — |
+| 52 | `megaco_neg_syntax_mid_missing` | 负 | — | mId 缺失（起始行后直接 messageBody） | 设计§3.1 | — |
+| 53 | `megaco_neg_syntax_mid_invalid` | 负 | — | mId 非法形式（四形态之外） | 设计§3.1 | — |
+| 54 | `megaco_neg_syntax_body_form` | 负 | — | messageBody 既非事务表也非 errorDescriptor | RFC 3525 Annex B | — |
+| 55 | `megaco_neg_syntax_services_missing_params` | 负 | — | Services 缺必选 Method/Reason（描述符必选参数） | RFC 3525 §7.1.13 | — |
+| 56 | `megaco_neg_command_pre_registration` | 负 | — | 注册前发非 SC 命令（505 语义，§9.1 规则 6） | RFC 3525 §9.1 | — |
+| 57 | `megaco_neg_command_modify_nonexistent` | 负 | — | 未 Add 先 Modify/Subtract 不存在终结点 | 设计§5.2 | — |
+| 58 | `megaco_neg_command_reply_choose_all` | 负 | — | reply 动作使用 `$`/`*` context（CHOOSE/ALL 仅请求侧） | 设计§3.3 | — |
+| 59 | `megaco_neg_command_uncreated_context` | 负 | — | 引用未创建的数值 Context | 设计§5.2 | — |
+| 60 | `megaco_neg_command_first_error_continues` | 负 | — | 同事务首命令失败后第二命令（无 O-）响应仍出现（首错后仍执行） | RFC 3525 §8 | — |
+| 61 | `megaco_neg_pairing_reply_id_mismatch` | 负 | — | Reply transactionId 与请求不等 | 设计§5.1 | — |
+| 62 | `megaco_neg_pairing_pending_id_mismatch` | 负 | — | Pending transactionId 与请求不等 | 设计§5.1 | — |
+| 63 | `megaco_neg_pairing_duplicate_transid` | 负 | — | 同会话重复 transactionId（作用域唯一性） | 设计§5.1 | — |
+| 64 | `megaco_neg_pairing_ack_unconfirmed` | 负 | — | `K` 确认未发生/未确认过的事务（覆盖集 ⊄ 已确认集合） | 设计§3.2 | — |
+| 65 | `megaco_neg_pairing_ia_without_pending` | 负 | — | `ImmAckRequired` 出现在未回过 Pending 的事务 | 设计§5.2 | — |
+| 66 | `megaco_neg_pairing_observed_requestid` | 负 | — | ObservedEvents RequestID 与生效 Events RequestID 不匹配 | RFC 3525 §7.1.9/§7.1.17 | — |
+| 67 | `megaco_neg_length_message_truncated` | 负 | — | 消息截断（messageBody 未闭合/尾部缺失） | 设计§7 | — |
+| 68 | `megaco_neg_length_termid_over_64` | 负 | — | TerminationID 超 64 字符（pathNAME 上界） | RFC 3525 §6.2.2 | — |
+| 69 | `megaco_neg_length_transid_over_uint32` | 负 | — | transactionId >4294967295（UINT32 越界） | 设计§3.2 | — |
+| 70 | `megaco_neg_length_digitmap_timer` | 负 | — | DigitMap 定时器越界：T>99 或 S/L 为 0（D-4 口径：T:0 为合法禁用语义不归越界） | RFC 3525 §7.1.14 | — |
+| 71 | `megaco_neg_length_context_reserved` | 负 | — | ContextID 取保留值 0/0xFFFFFFFE/0xFFFFFFFF 作具体 Context | RFC 3525 §8.1.2 | — |
+| 72 | `megaco_neg_carrier_layer_mismatch` | 负 | — | 层链 udp/tcp 与配置声明不符 | 设计§2 | — |
+| 73 | `megaco_neg_carrier_entry_port_encoding` | 负 | — | 入口名-端口-编码组合非法（text 配 2945、mgcp 别名配非法载体） | 设计§2 | — |
+| 74 | `megaco_neg_carrier_invalid_port` | 负 | — | 非法端口号（0/65536） | 设计§2 | — |
+| 75 | `megaco_neg_carrier_return_address` | 负 | — | 会话四元组与请求源地址不符（响应回程校验失败，§9） | RFC 3525 §9 | — |
+| 76 | `megaco_neg_carrier_udp_mtu_exceeded` | 负 | — | UDP 载体消息长 > MTU−头开销（validator 拒绝或要求改 TCP，不静默截断，C-8） | RFC 3525 Annex D.1+设计§8 | — |
+| 77 | `megaco_neg_services_address_mgcidtotry_conflict` | 负 | — | Services 同时携带 ServiceChangeAddress 与 MgcIdToTry（ABNF at most one of either，C-17） | RFC 3525 §7.1.13 | — |
+| 78 | `megaco_neg_unregistered` | 占位 | — | 层注册前置占位，不计语义覆盖 | §1 未注册边界 | — |
 
 ## 3. 线上编码与偏移断言
 
-文本消息从应用起点开始。无 VLAN、无 IP options、无 TCP options 时：UDP/IPv4 offset 42（Eth 14 + IPv4 20 + UDP 8）、UDP/IPv6 offset 62；TCP 载荷起点 54（IPv4）/74（IPv6）前置 RFC 1006 TPKT 头 4B（`版本=0x03`、`保留=0x00`、`总长度 2B 大端 = 4 + 消息长度`），Megaco 文本起点 **58（IPv4）/78（IPv6）**（设计 §2）。UDP 一数据报一消息（无 TPKT）；TCP 先按字节流重组，再按 **TPKT 长度域**切分消息（Annex D.2 SHALL），文本语法（起始行到 messageBody 闭合）仅用于内容验证，segment 边界不等于消息边界。
+文本消息从应用起点开始。无 VLAN、无 IP options、无 TCP options 时：UDP/IPv4 offset 42（Eth 14 + IPv4 20 + UDP 8）、UDP/IPv6 offset 62；TCP 载荷起点 54（IPv4）/74（IPv6）前置 RFC 1006 TPKT 头 4B（`版本=0x03`、`保留=0x00`、`总长度 2B 大端 = 4 + 消息长度`），Megaco 文本起点 **58（IPv4）/78（IPv6）**。UDP 一数据报一消息（无 TPKT）；TCP 先按字节流重组，再按 **TPKT 长度域**切分消息（Annex D.2 SHALL），文本语法（起始行到 messageBody 闭合）仅用于内容验证，segment 边界不等于消息边界。
 
-起始行稳定前缀两形：`MEGACO/1 `（长形）与 `!/1 `（缩写形）；其后是 `mId`：`<domain>`（尖括号域名）、`[IPv4]`/`[IPv6]`（方括号地址）、`[IPv4]:端口`（带端口）、或 deviceName pathNAME。消息级示例（RFC 3525 Appendix I 风格）：
+起始行稳定前缀两形：`MEGACO/1 `（长形）与 `!/1 `（缩写形）；其后是 `mId` 四形式：`domainAddress`（`[IPv4]`/`[IPv6]`，可带 `:端口`）、`domainName`（`<域名>` 尖括号）、`mtpAddress`（`MTP{...}` 花括号，本版不用）、`deviceName`（pathNAME 裸 token）。空白/注释高度自由（`SEP = (WSP / EOL / COMMENT) LWSP`、`COMMENT = ";" ... EOL`）：解析断言不得依赖固定行宽或空白形态（用例 23）。消息级示例（RFC 3525 Appendix I 风格）：
 
 ```text
 MEGACO/1 [192.0.2.10] Transaction = 10003 {
@@ -72,70 +128,211 @@ MEGACO/1 [192.0.2.10] Transaction = 10003 {
 }
 ```
 
-实现后证据以 tshark 实测字段为准（`tshark -G fields | grep megaco` 已核，见设计 §3.9）：`megaco.start_token`（起始行 token）、`megaco.version`、`megaco.mId`、`megaco.transaction`（方向）、`megaco.transid`、`megaco.context`/`megaco.ctx`、`megaco.ctx.term`、`megaco.command`、`megaco.termid`、`megaco.requestid`、`megaco.digitmap`、`megaco.mode`、`megaco.streamid`、`megaco.error_code`、`megaco.error_string`、`megaco.localdescriptor`/`megaco.remotedescriptor` 等。**字段断言使用实测格式**（如 `megaco.transid` 为 FT_UINT32 十进制、`megaco.version` 为 FT_STRING）；不得臆造未实测字段名/格式。端口 2944 自动按 megaco 解码；2427 按 §1 规则处理。
+实现后证据以 tshark 实测字段为准（`tshark -G fields | grep megaco` 已核，与设计 §3.9 同一清单）：`megaco.start_token`、`megaco.version`、`megaco.mId`、`megaco.transaction`（方向）、`megaco.transid`、`megaco.context`/`megaco.ctx`/`megaco.ctx.term`、`megaco.command`、`megaco.command_optional`、`megaco.wildcard_response`、`megaco.termid`、`megaco.requestid`、`megaco.media`、`megaco.localcontroldescriptor`、`megaco.mode`、`megaco.streamid`、`megaco.servicestates`、`megaco.eventbuffercontrol`、`megaco.reservevalue`、`megaco.reservegroup`、`megaco.terminationstate`、`megaco.localdescriptor`/`megaco.remotedescriptor`、`megaco.events`、`megaco.observedevents`、`megaco.signal`、`megaco.digitmap`、`megaco.statistics`、`megaco.packagesdescriptor`、`megaco.pkgdname`、`megaco.audit`/`megaco.audititem`、`megaco.error`/`megaco.error_code`/`megaco.error_string`。**字段断言使用实测格式**（`megaco.transid` FT_UINT32 十进制、`megaco.version` FT_STRING）；不得臆造未实测字段名/格式。端口 2944 自动按 megaco 解码；2427 按 §1 规则处理。dissector 已知行为（断言校准）：`PN` 消息 `megaco.transaction` 也置 `Reply`、`K` 区间 transid 只取首个数——Pending 与 `K` 断言按帧字节前缀处理（用例 13/27）。
 
 ## 4. 正例逐项断言契约
 
-1. **`megaco_udp_ipv4_registration`**（UDP/IPv4/2944，MG→MGC→MG 两消息，packet_count=2）：请求起始行 `MEGACO/1 `、mId 恒定；`megaco.transid` 存在（nonzero）、`megaco.command=ServiceChange`、`megaco.ctx.term=ROOT`、Services 含 `Method=Restart` 与 `Reason="901 Cold Boot"`、Profile/ServiceChangeAddress/Version 存在；Reply 事务 ID 与请求 `same_as_packet` 关联（`megaco.transid` request/reply 相等），Reply 含 `ServiceChange=ROOT` 且带 `Profile`/`Version`；`has_payload` 每包成立。
-2. **`megaco_udp_ipv6_failover`**（UDP/IPv6/2944，packet_count=2）：`ip.version=6`（或 `ipv6.*` 断言）、offset 62 起文本；起始行 `MEGACO/1`；SC `Method=Failover`、`Reason="909 MGC Impending Failure"`；Reply 关联同用例 1 规则；`megaco.transid` 两包同值。
-3. **`megaco_tcp_ipv4_dual_transaction`**（TCP/IPv4/2944，packet_count=9 = 3+N+4，N=2：1 请求消息（双事务）+ 1 响应消息；实现按实际分段数同步；帧字节 `[54..57] = 03 00 <len_hi> <len_lo>`——TPKT 头，总长域 = 4+消息长度；Megaco 文本自 offset 58 起）：先断言 TCP 握手（tcp.flags SYN/SYN-ACK/ACK 各一）；同一条 Megaco 消息内两个事务 `T1{...}`、`T2{...}`，`megaco.transid` `distinct_values` 恰两个；T1 为 `AuditValue` ROOT 成功；T2 为两条命令：首命令 `AuditValue = A9999 {Audit{Events}}` 引用不存在终结点，Reply 内携带 `Error = 430 {"Unknown TerminationID"}` 类 errorDescriptor（`megaco.error_code=430`）；第二命令 `AuditValue = ROOT {Audit {Packages}}` 因**首错停止**不执行（第二命令选 ROOT 审计——不依赖终结点存在性，避免与 §5.2"Modify 不存在终结点→拒绝"校验冲突）——断言 T2 的 actionReply 仅含 errorDescriptor、无第二条命令响应（以 T2 的 transactionId 前缀定位其回应区间，帧字节断言该区间无第二条 `AuditValue` 响应回文；`megaco.error_code=430` 在 Reply 消息中恰一次）。事件级错误返回是合法协议行为，不是负例；两条 Reply 聚合在单条消息中；`megaco.transid` request/reply 配对正确。本例为**事务/动作级错误描述符正例**（Error 430 在 Reply 事务体内；真消息级 Error 本版声明不覆盖，设计 §7）。握手包不承载 Megaco 字节。
-4. **`megaco_tcp_ipv6_call_flow`**（TCP/IPv6/2944，packet_count=15 = 3 握手 + 8 段（4 请求消息 + 4 Reply 各一 TPKT PDU）+ 4 挥手；实现按实际分段同步；帧字节 `[74..77] = 03 00 <len_hi> <len_lo>`（TPKT 头），文本自 offset 78 起）：同一控制关联内 4 个顺序事务（多消息依赖）：①`Modify = A4444` 于 NULL context 编程（Events 含 RequestID、Signals）；②`Context = $ { Add = A4444, Add = $ {Media{Stream=1{LocalControl{Mode=ReceiveOnly}, Local{SDP(含 $)}}}} }` 建连，Reply 回具体数值 ContextID（`megaco.ctx` 数值、A4444 之外新增终结点）与填充后 Local（地址/端口/`RTP/AVP`）；③两条命令回填 `Modify = A4444 {Remote{SDP(对端媒体)}}, Modify = A4445 {Remote{SDP(对端媒体)}}`——单命令单 TerminationID，`A4444/A4445` 整串是一个 pathNAME（分层终结点命名），不能当两终结点通配（设计 §3.7）；④`Subtract = A4444, Subtract = A4445` 拆连，Subtract Reply 可携带 `megaco.statistics`。断言：`ipv6.nxt=6`（TCP）、offset 78、事务 ID 严格递增/不重复、每个 Reply transactionId 与请求 `same_as_packet`、`megaco.mode=ReceiveOnly`、`megaco.streamid=1`、`megaco.localdescriptor`/`megaco.remotedescriptor` 存在（`megaco.localdescriptor` 为 FT_NONE 时改以 SDP 文本与 offset 字节前缀断言）；CHOOSE `$` 只出现在请求侧。会话 `role=mgc`：初始即 `Registered` 等价态（设计 §5.2 初始状态规则），首事件 Modify 合法。
-5. **`megaco_udp_ipv4_notify_events`**（UDP/IPv4，packet_count=4，四个消息 4 包）：①MGC `Modify = A4444 {Events = 2222 {al/of}}`；②Reply；③MG `Notify = A4444 {ObservedEvents = 2222 {al/of(...)}}`，ObservedEvents 的 RequestID 与①的 Events RequestID **same_as_packet 同值**（`megaco.requestid` 两包相等）；④Reply。断言 `megaco.command` 序列 Modify/Notify、`megaco.events`/`megaco.observedevents` 存在、事件项 `al/of` 与时间戳字段存在。
-6. **`megaco_udp_ipv4_audit_wildcard`**（UDP/IPv4，packet_count=2，双事务聚合单消息）：同一消息内 `T1{Context=- {O-AuditValue = ROOT {Audit {Packages}}}}`、`T2{Context=* {W-AuditCapability = * {Audit {Events}}}}`；断言 `megaco.transid` 恰两个 distinct、命令 AV 与 AC 并存（八命令含 AC）、`megaco.ctx.term=ROOT` 与通配 `*` 均可解析、`O-` 前缀使 `megaco.command_optional` 存在、`W-` 前缀使 `megaco.wildcard_response` 存在（通配汇总响应；两字段出现侧别实现后按实测校准）、Reply 对 ROOT 与 `*` 分别返回（ROOT 与 ALL 不混同——设计 §8）。
-7. **`megaco_udp_ipv4_handoff`**（UDP/IPv4，packet_count=4，两事件编排会话，多会话展开）：会话 1（MG↔MGC1）2 包：MGC1 `ServiceChange = ROOT {Services{Method=HandOff, Reason="903 MGC Directed Change", MgcIdToTry=<mgc-2.example.net>}}`（s2c；Services 的 Method 与 Reason 均 REQUIRED，设计 §3.6/§7.1.13）+ Reply；会话 2（MG↔MGC2）2 包、起点 = 2+1 = 包 3：MG `ServiceChange = ROOT {Services{Method=HandOff, Reason="903 MGC Directed Change"}}`（c2s）+ Reply。断言：两会话各自独立事务 ID 空间、mId 按方向分别恒定（本例两会话 role=mg——c2s 全部消息 mId = 会话 `mid`（MG 的 mId 两会话相同——同一网关）、s2c 全部消息 mId = 会话 `peer_mid`（会话 1 与会话 2 显式给不同值，即 MGC1/MGC2 的 mId 不同；role=mgc 会话的方向映射相反，设计 §5.1/§6）、未写时按设计 §6 自动派生 `[dst_ip]`，显式值优先）、`megaco.mId` 与四元组对应、Reason 903 两会话均存在。
-8. **`megaco_udp_ipv4_abbrev_tokens`**（UDP/IPv4，packet_count=4，两对消息）：注册对改用全缩写与混合大小写：起始行 `!/1 [192.0.2.10]`、`T<transid>{C=-{SC=ROOT{SV{MT=Restart,RE="901 Cold Boot"}}}}`、回复 `P<transid>{...}`；再加一对编程消息 `T<transid>{C=-{MF=A4444{E=2222{al/of}}}}` + `P<transid>{...}`（缩写 MF/E 落地，设计 §3.4/§3.5；transid 运行期动态分配，不写进断言，§7.7）；断言 `megaco.start_token=!/1`（或等价实测值）、命令 token 缩写解析为 ServiceChange/Modify（`megaco.command` 字段语义不变）、`megaco.events` 存在、大小写不敏感变体（如 `context`/`Context`）不被误判。
-9. **`megaco_udp_ipv4_move_media`**（UDP/IPv4，packet_count=4，4 消息 4 包：Add 建连对 + Move 对）：消息 1-2 `Context = $ { Add = A4445 {Media{...}} }` + Reply，建立源 Context 并得到具体 ContextID；消息 3-4 `Context = $ { Move = A4445 {Media{Stream=1{LocalControl{Mode=SendReceive}, Local{SDP}, Remote{SDP}}}} }` 移至新上下文 + Reply；断言 `megaco.command=Move`、`megaco.mode=SendReceive`、`megaco.streamid=1`、Local/Remote SDP 文本存在、Reply 回具体 ContextID（$ 仅请求侧）；Move 命令与 Add/Modify 同参数结构（设计 §3.4）。
-10. **`megaco_udp_ipv4_large_digitmap`**（UDP/IPv4，packet_count=2）：单数据报承载含长 DigitMap 的 `Modify`（`DigitMap = Dialplan0 {(0 | 00 | [1-7]xxx | 8xxxxxxx | Fxxxxxxx | Exx | 91xxxxxxxxxx | 9011x.)}` 类，>1KB 文本）与 Events/Signals 引用；Reply 回。断言：`udp.length` 覆盖整条消息、`megaco.digitmap` 存在（FT_STRING 全值或前缀字节断言）、无截断；UDP 一数据报一消息边界成立。
-11. **`megaco_tcp_ipv4_mss_reassembly`**（TCP/IPv4/2944，packet_count=11 = 3 握手 + 4 段（请求跨 2 段 + 响应跨 2 段，共 4 段承载 TPKT PDU 字节）+ 4 挥手；实现按实际分段同步）：设置小 MSS 使同一条长消息（如含大 Media/SDP 的 Add，整条 TPKT PDU）跨多个 TCP segment；断言先按 `tcp.stream` 重组字节流，再**按 TPKT 长度域切分出完整消息**（每条 TPKT PDU 自带 4B 头与总长，可跨段；帧字节 `[54..57] = 03 00 <len_hi> <len_lo>`，TPKT 头只出现在首段），最后按文本语法验证内容完整（起始行+messageBody 闭合）——定界依据是 TPKT 长度域，文本语法仅验证（设计 §2/§8）；`megaco.transid` 唯一、`megaco.command=Add`、Local SDP 文本完整；不得按 segment 边界拆消息。
-12. **`megaco_udp_ipv4_multi_session`**（UDP/IPv4，packet_count=10，两个事件编排会话）：会话 1（四元组 A，src_port 40001）4 包：注册对 + 编程 Modify 对；会话 2（四元组 B，src_port 40002）6 包、起点 = 4+1 = 包 5：另一组注册对 + Events 编程对 + Notify 对——Notify 的 ObservedEvents 必须有前置 Events 编程（RequestID 关联，RFC 3525 §7.2.7、设计 §4 场景 3；无前置编程会触发负例 21 的 RequestID 校验，故 Notify 前必须显式编排 Events 对）。断言：两会话四元组 distinct（src/dst 端口）、`megaco.transid` 各自独立（允许数值重叠但按会话/四元组隔离）、终结点/Events RequestID 映射不串用（会话 1 的 `A4444` 与会话 2 的 `B5555` 互不引用）、包号符合多会话展开规则。
-13. **`megaco_tcp_ipv4_pending_immack`**（TCP/IPv4，packet_count=11 = 3 握手 + 4 应用消息分段（T、PN、Reply(IA)、K 各一 TPKT PDU，帧字节 `[54..57] = 03 00 <len_hi> <len_lo>`、文本自 offset 58 起）+ 4 挥手；实现按实际分段同步）：长事务演示：`T{...}` 请求 → 对端 `PN{<同请求ID>}` → 最终 `Reply` 带 `ImmAckRequired` 前缀（`P<同请求ID>{IA,...}`）→ 请求方 `K{<同请求ID>}`（单点；区间形式 `K{a-b}` 合法但本例不用——dissector 对区间 transid 只取首个数，设计 §3.2/§3.9）。断言：PN/Reply/Ack 的 `megaco.transid` 与请求 `same_as_packet`（transactionId 运行期动态分配，不把数值写进断言，§7.7）；`K` 覆盖集 ⊆ 本会话已确认事务集合（单点即该已确认事务，设计 §3.2 校验规则）；**帧字节形态前缀区分四形态**（offset 58 起）：请求段以 `T` 开头、Pending 段以 `PN` 开头、Reply 段以 `P`+数字开头、Ack 段以 `K{` 开头——只断言事务形态 token 字节，不固化 transactionId 数值。dissector 已知行为注记：`PN` 消息的 `megaco.transaction` 字段也置 `Reply`（值域 {Request, Reply, TransactionResponseAck, Error}），四形态区分以帧字节形态前缀为准、不依赖 `megaco.transaction` 取值（设计 §3.9）。At-Most-Once 语义（Annex D.1.2.2/D.1.4）由 `events[]` 事件序列显式编排、不自动派生。
-14. **`megaco_udp_2427_mgcp_alias`**（UDP/IPv4，入口名 `mgcp`，packet_count=2）：默认 `dst_port=2427`；与用例 1 同结构的注册对（同一文本线格式、同一 `MEGACO/1` 起始行）；证据按 §1 二选一（decode_as `udp.port==2427,megaco` 后的 `megaco.*` 字段，或 offset 42 起始行 + `ServiceChange`/`ROOT`/`Services` token 字节断言）。断言端口=2427、别名归一后语义与 H.248 相同——**不产生 MGCP 本体线格式**（CRCX/MDCX 等超出合并范围，设计 §1）。
-15. **`megaco_udp_ipv4_termid_max_length`**（UDP/IPv4，packet_count=2）：`Modify = <64 字符 pathNAME> {Events = 2222 {al/of}}`（终结点串 = `A` + 63 位数字，恰好 64 字符——§3.7 pathNAME 上界）+ Reply；断言 `megaco.termid` 存在且帧字节中该终结点串恰 64 字符（≤64 合法、>64 归负例 22）、`megaco.command=Modify`、Reply 与请求 `same_as_packet` 关联。
-16. **`megaco_udp_ipv4_transid_max`**（UDP/IPv4，packet_count=2）：请求与 Reply 的 transactionId 恰为 `4294967295`（UINT32 上界——边界用例显式固化边界值，设计 §6/§8 carve-out，不属"冒充动态值"）；断言 `megaco.transid=4294967295` 两包同值（`same_as_packet`）、起始行与命令 token 正常解析；>4294967295 归负例 22。
-17. **`megaco_udp_ipv4_digitmap_timer_max`**（UDP/IPv4，packet_count=2）：`Modify = A4444 {DigitMap = Dm99 {T:99, (0|00|1xxx)}}`（定时器 T 恰 99——§3.5 定时器 1-99 上界）+ Reply；断言帧字节含 `T:99` 文本（DigitMap 值内）、`megaco.digitmap` 存在、`megaco.command=Modify`；定时器 >99 归负例 22。
+约定 packet_count 见 §2 表；以下 fields/frames 为最低断言集，实现期可增不可减。默认 fixture 地址 `192.0.2.10 → 192.0.2.4`、UDP/TCP `2944`；各例标注的 fixture 定值以帧字节 ASCII/token 断言；TCP 例含握手/挥手包且握手包不承载 Megaco 字节。
 
-**正例总则**：每条实现后至少含 `packet_count`/`min_packets`、载体与方向断言、`has_payload`、可观察 fields、稳定 frames（起始行与关键 token 字节前缀）；动态值只用关联断言。合法 505/406 等"事件级错误返回"是正例行为——本版覆盖于用例 3 的事务/动作级 Error 描述符；真消息级 errorDescriptor（messageBody=errorDescriptor）本版不设正例，设计 §7 有显式声明；只有配置、线格式、状态机、关联、长度错误进入负例（设计 §7）。
+1. **`megaco_udp_ipv4_registration`**（UDP/IPv4，packet_count=2）：请求起始行 `MEGACO/1 `、mId 恒定；`megaco.transid` nonzero、`megaco.command=ServiceChange`、`megaco.ctx.term=ROOT`、Services 含 `Method=Restart` 与 `Reason="901 Cold Boot"`、Profile/ServiceChangeAddress/Version 存在；Reply 事务 ID 与请求 same_as_packet，Reply 含 `ServiceChange=ROOT` 且带 Profile/Version。
+2. **`megaco_udp_ipv6_failover`**（UDP/IPv6，packet_count=2）：`ip.version=6`、offset 62 起文本；SC `Method=Failover`、`Reason="909 MGC Impending Failure"`；Reply 关联同 #1；`megaco.transid` 两包同值。
+3. **`megaco_tcp_ipv4_dual_transaction`**（TCP/IPv4，packet_count=9）：TCP 握手三包；TPKT 头 `[54..57] = 03 00 <len_hi> <len_lo>`、文本 offset 58；同消息双事务 `T1{}`/`T2{}`、`megaco.transid` distinct 恰两值；T1=AuditValue ROOT 成功；T2 首命令 `AuditValue = A9999 {Audit{Events}}`（不存在终结点）→ Reply 内 `Error = 430 {"Unknown TerminationID"}`（`megaco.error_code=430`）；第二命令 `AuditValue = ROOT` 因首错停止不执行——**断言按包级字节包含原语（D-6/N-4 修正）**：重组后 T2 回应全形文本（自 `P<id2>{` 至配对 `}`）内不含第二段 `AuditValue` 响应回文（字节串包含断言，不以「区间」表述）、`megaco.error_code=430` 在 Reply 消息中恰一次。事件级错误是合法协议行为非负例；两 Reply 聚合单消息。
+4. **`megaco_tcp_ipv6_call_flow`**（TCP/IPv6，packet_count=15）：TPKT `[74..77]`、文本 offset 78；四顺序事务：①NULL context 编程 Modify（Events+Signals）；②`Context=${Add=A4444,Add=${Media{Stream=1{LocalControl{Mode=ReceiveOnly},Local{SDP(含 $)}}}}}` 建连、Reply 回具体 ContextID 与填充 Local；③两条 Modify Remote 回填（A4444、A4445 单命令单 TerminationID）；④Subtract×2 拆连（可回 Statistics）；`ipv6.nxt=6`、事务 ID 递增不重复、每 Reply same_as、`megaco.mode=ReceiveOnly`、`megaco.streamid=1`、CHOOSE `$` 仅请求侧；role=mgc 初始 Registered 等价态。
+5. **`megaco_udp_ipv4_notify_events`**（UDP/IPv4，packet_count=4）：四消息：Modify 编程 Events=2222→Reply→Notify（ObservedEvents=2222 同 RequestID，`megaco.requestid` same_as）→Reply；`megaco.command` 序列 Modify/Notify、`megaco.events`/`megaco.observedevents`、`al/of` 与时间戳存在。
+6. **`megaco_udp_ipv4_audit_wildcard`**（UDP/IPv4，packet_count=2）：`T1{Context=-{O-AuditValue=ROOT{Audit{Packages}}}}`、`T2{Context=*{W-AuditCapability=*{Audit{Events}}}}`；transid 恰两 distinct、AV/AC 并存、`megaco.ctx.term=ROOT` 与通配可解析、`megaco.command_optional`/`megaco.wildcard_response` 存在。
+7. **`megaco_udp_ipv4_handoff`**（UDP/IPv4，packet_count=4）：会话 1（MG↔MGC1）：MGC1 SC HandOff+Reason 903+MgcIdToTry+Reply；会话 2（MG↔MGC2，起点=包 3）：MG SC HandOff+Reason 903+Reply；两会话事务 ID 空间独立、mId 按方向恒定（peer_mid 区分 MGC1/MGC2）、Reason 903 两会话存在。
+8. **`megaco_udp_ipv4_abbrev_tokens`**（UDP/IPv4，packet_count=4）：注册对全缩写+混合大小写、`megaco.start_token=!/1`；编程对 `MF=A4444{E=2222{al/of}}`；命令缩写解析语义不变、`megaco.events` 存在、大小写变体不误判。
+9. **`megaco_udp_ipv4_move_media`**（UDP/IPv4，packet_count=4）：Add 建连对（得具体 ContextID）+ Move 对（Media{Stream=1{LocalControl{Mode=SendReceive},Local/Remote SDP}}）；`megaco.command=Move`、`megaco.mode=SendReceive`、`megaco.streamid=1`、Reply 回具体 ContextID。
+10. **`megaco_udp_ipv4_large_digitmap`**（UDP/IPv4，packet_count=2）：>1KB DigitMap 的 Modify 单数据报承载；`udp.length` 覆盖整条消息、`megaco.digitmap` 存在、无截断、UDP 一数据报一消息。
+11. **`megaco_tcp_ipv4_mss_reassembly`**（TCP/IPv4，packet_count=11）：小 MSS 使长 Add（大 Media/SDP）TPKT PDU 跨多段；按 `tcp.stream` 重组后按 TPKT 长度域切分（`[54..57]=03 00 <len>`、TPKT 头只出现首段）；文本语法验证完整；`megaco.transid` 唯一、`megaco.command=Add`、Local SDP 完整。
+12. **`megaco_udp_ipv4_multi_session`**（UDP/IPv4，packet_count=10）：会话 1：注册对+编程 Modify 对（4 包）；会话 2（起点=包 5）：注册对+Events 编程对+Notify 对（6 包）；四元组 distinct、transid 按会话隔离、终结点/RequestID 映射不串用。
+13. **`megaco_tcp_ipv4_pending_immack`**（TCP/IPv4，packet_count=11）：四应用消息各一 TPKT PDU；PN/Reply/K 的 transid 与请求 same_as；K 覆盖集⊆已确认事务集合；帧字节形态前缀（`T`/`PN`/`P`+数字/`K{`）区分四形态（dissector Pending 也置 Reply——已知行为注记）；IA 仅在回过 PN 后。
+14. **`megaco_udp_2427_mgcp_alias`**（UDP/IPv4，packet_count=2）：注册对同构；证据走 decode_as（`-d udp.port==2427,megaco`）或 offset 42 起始行/token 字节断言；不产生 MGCP 本体线格式。
+15. **`megaco_udp_ipv4_termid_max_length`**（UDP/IPv4，packet_count=2）：`Modify = A+63 位数字（恰 64）{Events=2222{al/of}}`+Reply；帧字节中终结点串恰 64 字符、`megaco.termid` 存在、Reply same_as。
+16. **`megaco_udp_ipv4_transid_max`**（UDP/IPv4，packet_count=2）：请求与 Reply 的 transactionId 恰 `4294967295`；`megaco.transid=4294967295` 两包同值。
+17. **`megaco_udp_ipv4_digitmap_timer_max`**（UDP/IPv4，packet_count=2）：`Modify = A4444 {DigitMap = Dm99 {T:99, (0|00|1xxx)}}`+Reply；帧字节含 `T:99`、`megaco.digitmap` 存在；越界负例限定为 T>99 与 S/L 的 0。
+18. **`megaco_udp_ipv4_termination_state`**（UDP/IPv4，packet_count=2）：`Modify = A4444 {Media{TerminationState{ServiceStates=Test, EventBufferControl=LockStep}}}`+Reply；断言 `megaco.servicestates=Test`（TE）、`megaco.eventbuffercontrol=LockStep`（SP）、`megaco.terminationstate` 存在——实测字段在正确嵌套下填充（rr-megaco pcap 实证）。
+19. **`megaco_udp_ipv4_version_negotiation`**（UDP/IPv4，packet_count=2）：注册 SC Services 携带 `Version=2`（MG 提议其支持的最高版本）；Reply 回 `Version=1`（MGC 选择较低版本——低版胜出）；两包起始行均 `MEGACO/1`；断言帧字节请求侧含 `Version=2`、Reply 侧含 `Version=1`、`megaco.version` 起始行值=1。
+20. **`megaco_udp_ipv4_method_graceful`**（UDP/IPv4，packet_count=2）：`SC = ROOT {Services{Method=Graceful, Reason="900 Service Restored", Delay=30}}`+Reply；`megaco.command=ServiceChange`、帧字节含 `Graceful` 与 `Delay=30`。
+21. **`megaco_udp_ipv4_method_forced`**（UDP/IPv4，packet_count=2）：`SC = ROOT {Services{Method=Forced, Reason="908 MG Impending Failure"}}`+Reply；帧字节含 `Forced`。
+22. **`megaco_udp_ipv4_method_disconnected`**（UDP/IPv4，packet_count=2）：`SC = ROOT {Services{Method=Disconnected, Reason="900 Service Restored"}}`+Reply；帧字节含 `Disconnected`。
+23. **`megaco_udp_ipv4_whitespace_comment_variants`**（UDP/IPv4，packet_count=2）：注册请求内注入 `; comment` 注释行、CR-only 行尾与连续多空格；解析不因空白形态差异误判（起始行/命令/描述符字段断言与 #1 一致）。
+24. **`megaco_udp_ipv4_mid_address_port`**（UDP/IPv4，packet_count=2）：注册对 mId 用 `[IP]:port` 形态；`megaco.mId` 存在且帧字节含 `]:2944`；同一会话内 mId 恒定。
+25. **`megaco_udp_ipv4_mid_devicename`**（UDP/IPv4，packet_count=2）：注册对 mId 用 deviceName（如 `mgw-1.example.net` pathNAME 形态，非尖括号域名）；`megaco.mId` 存在、恒定。
+26. **`megaco_tcp_ipv4_transaction_level_error`**（TCP/IPv4，packet_count=9）：packet_count=9=3+2+4（请求+Reply 两 TPKT PDU）；TPKT 头/offset 断言同 #3。请求引用不存在 Context → Reply 为 `Reply<id>{Error = 411 {"Unknown ContextID"}}`（事务级 errorDescriptor 分支，无 actionReply 体）；`megaco.error_code=411`——与 #3 动作级（Reply 事务体内 Error）分立。
+27. **`megaco_tcp_ipv4_ack_range`**（TCP/IPv4，packet_count=12）：packet_count=12=3+5+4（T+Reply ×2 = 4 PDU + K 1 PDU）。会话内先发生两笔已确认事务（各自 T→Reply），第三消息 `K{<a>-<b>}` 覆盖两已确认事务（区间，帧字节以 `K{` 开头 + 区间 `-` 文本存在）；dissector 对区间 transid 只取首个数（已知行为注记）——断言以帧字节前缀与区间文本为准，不固化 transactionId 数值；K 覆盖集 ⊆ 已确认事务集合（§3.2 校验）。
+28. **`megaco_udp_ipv4_transid_zero_error_reply`**（UDP/IPv4，packet_count=1）：MG 对无法解析 TransactionID 的请求回错误 Reply、其 transactionId 恰为 `0`（保留值）；帧字节含 `Reply 0 {`/等价缩写、`megaco.transid=0`——0 作错误 Reply 的合法保留用途（与 ContextID 保留值负例分立）。
+29. **`megaco_udp_ipv4_reserved_value_group`**（UDP/IPv4，packet_count=2）：`Modify = A4444 {Media{Stream=1{LocalControl{Mode=SendReceive, RV=ON, RG=OFF}}}}`+Reply；`megaco.reservevalue`/`megaco.reservegroup`（实测字段）与 `ON`/`OFF` 文本存在。
+30. **`megaco_udp_ipv4_eventbuffer_descriptor`**（UDP/IPv4，packet_count=2）：`Modify = A4444 {EventBuffer {al/of}}`+Reply；`megaco.eventbuffercontrol` 之外的事件缓冲描述符存在性断言（描述符 token 字节 `EventBuffer`/`EB`）。
+31. **`megaco_udp_ipv4_mode_sendonly`**（UDP/IPv4，packet_count=2）：`LocalControl{Mode=SendOnly}`+Reply；`megaco.mode` 断言（缩写 SO 等价）。
+32. **`megaco_udp_ipv4_mode_inactive`**（UDP/IPv4，packet_count=2）：`LocalControl{Mode=Inactive}`+Reply；`megaco.mode` 断言。
+33. **`megaco_udp_ipv4_mode_loopback`**（UDP/IPv4，packet_count=2）：`LocalControl{Mode=Loopback}`+Reply；`megaco.mode` 断言。
+34. **`megaco_udp_ipv4_audit_item_domain`**（UDP/IPv4，packet_count=2）：`AV = A4444 {Audit{Media, Signals, DigitMap, Statistics}}`+Reply；`megaco.audititem` 多值存在（值域扫描，与 #6 的 Packages/Events 分立补值）。
+35. **`megaco_udp_ipv4_signals_types`**（UDP/IPv4，packet_count=2）：`Modify = A4444 {Signals{cg/bt(to=100), SignalList=1{al/ri(br)}}}` 类（OO/TO/BR 三类型+SignalList 分组）+Reply；`megaco.signal` 存在、SignalList 编号帧字节存在。
+36. **`megaco_udp_ipv4_error_code_431`**（UDP/IPv4，packet_count=2）：`AV = R13/9/* {Audit{Events}}`（通配无匹配终结点）→ Reply `Error = 431 {"No TerminationID matched a wildcard"}`；`megaco.error_code=431`。
+37. **`megaco_udp_ipv4_error_code_442`**（UDP/IPv4，packet_count=2）：Modify 携带非法命令参数（事件级合法错误形态）→ Reply `Error = 442 {"Syntax Error in Command"}`；`megaco.error_code=442`——与负例线格式校验（validator 拒绝）分立：本例为线格式合法、语义错的设备回包。
+38. **`megaco_udp_ipv4_services_delay_timestamp`**（UDP/IPv4，packet_count=2）：SC Services 携带 `Delay=60` 与 `TimeStamp=20260901T12000000`（yyyymmddThhmmssss 形态）+Reply；帧字节含两参数文本。
+39. **`megaco_udp_ipv4_context_id_high_boundary`**（UDP/IPv4，packet_count=2）：MG Reply 回具体 ContextID `4294967293`（0xFFFFFFFD，紧邻保留值 0xFFFFFFFE 的合法上界）；`megaco.ctx` 数值断言——保留值 0/4294967294/4294967295 作具体 Context 归负例。
+40. **`megaco_udp_ipv4_version_two_digits`**（UDP/IPv4，packet_count=2）：fixture 起始行 `MEGACO/11`（2 位数字语法合法上界形态；语法层 carve-out 正例——语义层主口径仍 v1，本例只断言解析不因 2 位数字拒绝，不做 MGC 语义裁决断言）；`megaco.version` 断言、消息正常解析——与版本 `0`/3 位数字负例分立。
+41. **`megaco_udp_ipv4_streamid_max`**（UDP/IPv4，packet_count=2）：`Media{Stream=65535{LocalControl{Mode=SendReceive}}}`+Reply；`megaco.streamid=65535`；>65535 归负例（UINT16 上界）。
+42. **`megaco_udp_ipv4_embed_events`**（UDP/IPv4，packet_count=2）：`Modify = A4444 {Events=2222{dd/ce{dd(Dialplan0)}, Embed{Events=2223{al/of}}}}` 类嵌套+Reply；嵌套描述符帧字节存在、外内层 RequestID 各自可断言。
+43. **`megaco_udp_ipv4_events_no_requestid`**（UDP/IPv4，packet_count=2）：`Modify = A4444 {Events{al/of}}`（无 `= RequestID`）+Reply——合法形态；与 #5 带 RequestID 形态分立。
+44. **`megaco_udp_ipv4_registration_redirect`**（UDP/IPv4，packet_count=4）：会话 1（MG↔MGC1）：MG 注册 SC+Reply **携带 ServiceChangeMgcId**（拒绝/改派）；会话 2（MG↔MGC2，起点=包 3）：MG 向新 MGC 重发注册 SC+Reply（无 MgcIdToTry=接受）；与 #7 HandOff 语境分立（冷启动改派）；两会话 transid 独立。
+45. **`megaco_udp_ipv4_concurrent_sessions`**（UDP/IPv4，packet_count=4）：`concurrent: true` 双四元组交错（两 MG-MGC 控制关联，H.248 多关联并发是现网常态）；断言两 `会话` 交错但各自事务配对完整、transid 空间/mId/Events RequestID 互不串用。
+46. **`megaco_udp_ipv4_digitmap_z_timer`**（UDP/IPv4，packet_count=2）：`DigitMap = DmZ {(0|Z0|1x)}`（`Z` 为数字串内 digitMapLetter 长时长修饰符；Timer 注释：Z 单位 100ms、上界 9.9s）+Reply；帧字节含 `Z0` 分支、`megaco.digitmap` 存在。
+
+**正例总则**：每条实现后至少含 `packet_count`/`min_packets`、载体与方向断言、`has_payload`、可观察 fields、稳定 frames（起始行与关键 token 字节前缀）；动态值只用关联断言。合法协议事件（事件级/事务级 errorDescriptor、`transid 0` 错误 Reply、边界固化 carve-out、空白/注释变体、`concurrent` 交错、`ack` 区间）均为正例形态；只有配置、线格式、状态机、关联、长度、描述符参数错误进入负例（§5）。消息级 errorDescriptor（messageBody=errorDescriptor）本版不设正例，设计 §7 有显式声明。
 
 ## 5. 负例契约
 
-负例必须在 planner/validator 阶段失败并传播为 task error，不得产出成功 PCAP、`completed/0 packet` 或只剩传输层外壳的假成功。执行期 `expect` 严格只有 `{"expect_error","error_contains"}` 两个键，不添加 `packet_count`、`notes`、`min_packets`、`fields` 或 `frames`。锚词与设计 §7 表一一对应：
+负例必须在 planner/validator 阶段失败并传播为 task error，不得产出成功 PCAP、`completed/0 packet` 或只剩传输层外壳的假成功。执行期 `expect` 严格只有 `{"expect_error","error_contains"}` 两个键，不添加 `packet_count`、`notes`、`min_packets`、`fields` 或 `frames`。**逐故障输入原子拆分：一行一例，钉死该行注入的单一 `wire_fault`/配置变异**（C-1）；主锚词钉死（N-4），与设计 §7 表一一对应（31 行同序）：
 
-| ID | 类别 | 故障输入 | `error_contains`（主锚词，可并列备选） |
-|---|---|---|---|
-| `megaco_neg_encoding_mismatch` | 配置/编码错 | `encoding=ber` 而载荷为文本字节（或反之）；BER 声明配 2944 文本端口 | `encoding`（备 `ber`/`text`） |
-| `megaco_neg_message_syntax` | 线格式错 | 起始行损坏（MegacopToken 缺失/拼错）、版本 `0` 或 3 位数字、mId 缺失或非法形式、消息体既非事务表也非错误描述符、Services 缺必选 Method/Reason（描述符必选参数缺失） | `message`（备 `version`/`mid`/`syntax`） |
-| `megaco_neg_command_state` | 状态机错 | 注册前发非 SC 命令（错误 505 语义）；未 Add 先 Modify/Subtract 不存在终结点；reply 动作使用 `$`/`*` context；引用未创建 Context；同事务首命令失败后第二命令（无 O- 前缀）响应仍出现在 Reply（首错后仍执行） | `command`（备 `state`/`context`/`termination`） |
-| `megaco_neg_transaction_pairing` | 关联错 | Reply/Pending transactionId 与请求不等；同会话重复 transactionId；`K` 确认从未确认过的事务（覆盖集 ⊄ 已确认事务集合，设计 §3.2 校验规则）；`ImmAckRequired` 出现在未回过 Pending 的事务（IA 前提校验，设计 §5.2）；ObservedEvents RequestID 与 Events 不匹配 | `transaction`（备 `reply`/`correlation`/`ack`） |
-| `megaco_neg_length_truncation` | 长度错 | 消息截断（messageBody 未闭合/尾部缺失）、TerminationID 超 64 字符、transactionId 超 UINT32（>4294967295）、digitMap 定时器越界、ContextID 取保留值 0/0xFFFFFFFE/0xFFFFFFFF 作具体 Context | `length`（备 `truncat`/`limit`） |
-| `megaco_neg_carrier_port` | 配置/载体错 | 层链 udp/tcp 与配置不符；入口名-端口-编码组合非法（text 配 2945、mgcp 别名配 TCP 2427 之外的载体声明）；非法端口号；会话四元组与请求源地址不符（响应回程地址校验失败） | `carrier`（备 `port`/`profile`） |
-| `megaco_neg_unregistered` | 注册前置 | `proto=megaco` 且 layers 含未注册 `megaco` | **`unknown layer`** |
+| # | ID | `wire_fault` 注入口 | 故障输入（单一注入） | 主锚词（备选） |
+|---:|---|---|---|---|
+| 47 | `megaco_neg_encoding_text_as_ber` | `encoding_text_as_ber` | `encoding=ber` 声明而载荷为文本字节 | `encoding`（ber/text） |
+| 48 | `megaco_neg_encoding_port_mismatch` | `encoding_port_mismatch` | text 编码声明配 2945（BER 默认端口） | `encoding`（port） |
+| 49 | `megaco_neg_syntax_start_line` | `syntax_start_line` | 起始行 MegacopToken 缺失/拼错（非 `MEGACO`/`!`） | `message`（syntax） |
+| 50 | `megaco_neg_syntax_version_zero` | `syntax_version_zero` | 起始行版本为 `0` | `version`（message） |
+| 51 | `megaco_neg_syntax_version_three_digits` | `syntax_version_three_digits` | 起始行版本 3 位数字（Version=1*2DIGIT 越界） | `version`（message） |
+| 52 | `megaco_neg_syntax_mid_missing` | `syntax_mid_missing` | mId 缺失（起始行后直接 messageBody） | `mid`（message） |
+| 53 | `megaco_neg_syntax_mid_invalid` | `syntax_mid_invalid` | mId 非法形式（四形态之外） | `mid`（message） |
+| 54 | `megaco_neg_syntax_body_form` | `syntax_body_form` | messageBody 既非事务表也非 errorDescriptor | `message`（syntax） |
+| 55 | `megaco_neg_syntax_services_missing_params` | `syntax_services_missing_params` | Services 缺必选 Method/Reason（描述符必选参数） | `message`（services） |
+| 56 | `megaco_neg_command_pre_registration` | `command_pre_registration` | 注册前发非 SC 命令（505 语义，§9.1 规则 6） | `command`（state） |
+| 57 | `megaco_neg_command_modify_nonexistent` | `command_modify_nonexistent` | 未 Add 先 Modify/Subtract 不存在终结点 | `command`（termination） |
+| 58 | `megaco_neg_command_reply_choose_all` | `command_reply_choose_all` | reply 动作使用 `$`/`*` context（CHOOSE/ALL 仅请求侧） | `command`（context） |
+| 59 | `megaco_neg_command_uncreated_context` | `command_uncreated_context` | 引用未创建的数值 Context | `command`（context） |
+| 60 | `megaco_neg_command_first_error_continues` | `command_first_error_continues` | 同事务首命令失败后第二命令（无 O-）响应仍出现（首错后仍执行） | `command`（state） |
+| 61 | `megaco_neg_pairing_reply_id_mismatch` | `pairing_reply_id_mismatch` | Reply transactionId 与请求不等 | `transaction`（reply） |
+| 62 | `megaco_neg_pairing_pending_id_mismatch` | `pairing_pending_id_mismatch` | Pending transactionId 与请求不等 | `transaction`（pending） |
+| 63 | `megaco_neg_pairing_duplicate_transid` | `pairing_duplicate_transid` | 同会话重复 transactionId（作用域唯一性） | `transaction`（duplicate） |
+| 64 | `megaco_neg_pairing_ack_unconfirmed` | `pairing_ack_unconfirmed` | `K` 确认未发生/未确认过的事务（覆盖集 ⊄ 已确认集合） | `transaction`（ack） |
+| 65 | `megaco_neg_pairing_ia_without_pending` | `pairing_ia_without_pending` | `ImmAckRequired` 出现在未回过 Pending 的事务 | `transaction`（ack） |
+| 66 | `megaco_neg_pairing_observed_requestid` | `pairing_observed_requestid` | ObservedEvents RequestID 与生效 Events RequestID 不匹配 | `transaction`（requestid） |
+| 67 | `megaco_neg_length_message_truncated` | `length_message_truncated` | 消息截断（messageBody 未闭合/尾部缺失） | `length`（truncat） |
+| 68 | `megaco_neg_length_termid_over_64` | `length_termid_over_64` | TerminationID 超 64 字符（pathNAME 上界） | `length`（limit） |
+| 69 | `megaco_neg_length_transid_over_uint32` | `length_transid_over_uint32` | transactionId >4294967295（UINT32 越界） | `length`（limit） |
+| 70 | `megaco_neg_length_digitmap_timer` | `length_digitmap_timer` | DigitMap 定时器越界：T>99 或 S/L 为 0（D-4 口径：T:0 为合法禁用语义不归越界） | `length`（timer） |
+| 71 | `megaco_neg_length_context_reserved` | `length_context_reserved` | ContextID 取保留值 0/0xFFFFFFFE/0xFFFFFFFF 作具体 Context | `length`（context） |
+| 72 | `megaco_neg_carrier_layer_mismatch` | `carrier_layer_mismatch` | 层链 udp/tcp 与配置声明不符 | `carrier`（layer） |
+| 73 | `megaco_neg_carrier_entry_port_encoding` | `carrier_entry_port_encoding` | 入口名-端口-编码组合非法（text 配 2945、mgcp 别名配非法载体） | `carrier`（profile） |
+| 74 | `megaco_neg_carrier_invalid_port` | `carrier_invalid_port` | 非法端口号（0/65536） | `port`（carrier） |
+| 75 | `megaco_neg_carrier_return_address` | `carrier_return_address` | 会话四元组与请求源地址不符（响应回程校验失败，§9） | `carrier`（address） |
+| 76 | `megaco_neg_carrier_udp_mtu_exceeded` | `carrier_udp_mtu_exceeded` | UDP 载体消息长 > MTU−头开销（validator 拒绝或要求改 TCP，不静默截断，C-8） | `length`（mtu） |
+| 77 | `megaco_neg_services_address_mgcidtotry_conflict` | `services_address_mgcidtotry_conflict` | Services 同时携带 ServiceChangeAddress 与 MgcIdToTry（ABNF at most one of either，C-17） | `services`（exclusive） |
 
-负例不能用"0 包"、空 PCAP 或任务成功替代错误传播；动态 ID 缺失/错配不能由 planner 自动补齐。
+合法协议事件不进负例（防误报）：事件级/事务级 errorDescriptor（430/411/431/442）、`transid 0` 错误 Reply、边界固化值、空白/注释变体、`K` 区间、`concurrent` 交错、IPv4/IPv6、缩写 token。负例不得污染合法格式：每条故障只改变对应一项协议前提；错误保留最具体来源，不得自动补齐缺失 ID 或重排命令成合法顺序。事件级错误（用例 3）与设备回包语义错误（用例 36/37，线格式合法、语义错）是正例；负例注入全部发生在**生成器配置/validator 阶段**，不产生线字节。
 
-## 6. 五层覆盖映射
+## 6. 五层覆盖映射（v1.3 行为面对照，按 ID 引用防错位）
 
-| 层面 | 用例落点 | 说明 |
+| 层面 | 用例 ID | 说明 |
 |---|---|---|
-| 功能 | 正 1-17；负 18-23 | 八命令：SC(1,2,7,8,12,14)、Modify(4,5,8,10,12,15)、Add(4,9)、Subtract(4)、Move(9)、Notify(5,12)、AV(3,6)+AC(6)、O-/W- 前缀(6)；事务四形态：Request/Reply 全体、Pending+ResponseAck(13)；描述符：Media/Local/Remote(4,9,11)、Events(4,5,8,10,12)、Signals(4,10)、DigitMap(10,17)、ObservedEvents(5)、Services(1,2,7)、Statistics(4)、Packages/Audit(6)、Error(3)；状态流转：注册→编程→建连→拆连(4)、handoff(7)、长事务三方握手(13)；负例六类各 ≥1 |
-| 性能 | 10、11、13 | 长消息（TPKT PDU）跨 TCP 分段、按 TPKT 长度域切分重组（MSS，11）；大 DigitMap 单数据报（10）；长事务 Pending/IA/K 往返（13）；消息长度上界受 MTU/MSS 约束（设计 §3.10/§8） |
-| 数据场景 | 1/2/3/4/6/7/8/9、15-17 | Reason/Profile/Version 引号串与数值域（1/2/7）；错误码 430 事件级返回（3）；O-/W- 前缀（6）与通配 `-/$/*`（4,6,9）；缩写 token 与大小写变体（8）；正向边界值：TerminationID 恰 64 字符（15）、transactionId 恰 4294967295（16）、DigitMap 定时器恰 99（17） |
-| 地址与流 | 1、2、3、4、14；流关联显式不适用 | v4 全量 + v6(2,4)；UDP(1,2,5-10,12,14-17)与 TCP(3,4,11,13)；单流基线(1)；**流关联不适用**：Megaco 为控制面，不派生 RTP 媒体数据面，媒体仅作 SDP/描述符存在性断言（设计 §4.1） |
-| 业务 | 1、2、4、5、6、7、9、12、13、14 | 注册(1,14)、呼叫建立命令序列(4,9)、Notify 上报(5)、Audit 巡检(6)、handoff/failover(2,7)、多会话(12)、多事务（同消息双事务 3/6、会话内多消息依赖 4、长事务三方握手 13） |
+| 功能 | 命令族（1-23/29-46 中各命令例）、事务形态（3/13/26/27/28）、描述符族（4/5/9/10/12/17/18/29/30/34/35/41/42/43/46）、负例 47-77 | 八命令全覆盖：SC（1/2/7/8/19/20/21/22/38/44）、Modify（4/5/12/15/17/18/23/29/31/32/33/41/42/43/46）、Add/Subtract（4/9）、Move（9）、Notify（5/12）、AV/AC（3/6/34/36/37）、O-/W- 前缀（6）；事务四形态：Request/Reply 全体、Pending+IA+K（13）与 K 区间（27）；错误描述符两级：动作级（3）+ 事务级（26）、`transid 0` 错误 Reply（28）；TerminationState（18）、RV/RG（29）、EventBuffer（30）、Embed/无 RequestID Events（42/43）补描述符盲区；负例 31 行逐故障输入（编码×2、线格式×7、状态机×5、关联×6、长度×6、载体×4、描述符参数×1） |
+| 性能 | 10、11、13、27 + 负例 76 | 大 DigitMap 单数据报（10）；长 TPKT PDU 跨 MSS 分段重组（11）；长事务 PN/IA/K 往返（13）；K 区间（27）；UDP 超 MTU 拒绝（负例 76） |
+| 数据场景 | 值域（20-22/29/31-35/37/38/46）、边界族（15/16/17/28/39/40/41）、编码变体（8/23/24/25） | Mode SO/IN/LB（31-33）+ RC/SR（4/9）；RV/RG（29）；auditItem 值域（34）；Signals OO/TO/BR+SignalList（35）；Method 值域 Graceful/Forced/Disconnected（20-22）；错误码 431/442（36/37）；Delay/TimeStamp（38）；Z 修饰符（46）；边界：TerminationID 恰 64（15）、transid 恰 UINT32 上界（16）、定时器恰 99（17）、transid 0（28）、ContextID 0xFFFFFFFD（39）、Version 2 位（40）、StreamID 65535（41）；缩写/大小写（8）、空白/注释（23）、mId 四形态之二（24/25） |
+| 地址与流 | 1（单流基线）、2/4（v6）、45（并发）、7/12/44（多会话）；流关联显式不适用 | v4 全量 + v6（2/4）；UDP（1/2/5-10/12/14-46 中 UDP 例）与 TCP（3/4/11/13/26/27）；**并发会话翻案纳入**（45，`concurrent: true` 交错）；多会话（7/12/44）；**流关联不适用保留**：控制面不派生 RTP 媒体数据面（设计 §4.1） |
+| 业务 | 注册（1/14/19/44）、呼叫（4/9）、上报（5/12）、巡检（6/34）、故障切换（2/7/21/22）、并发运营（45） | 冷启动注册+版本协商（1/19）、改名合一（14）、注册改派（44）、呼叫建立与媒体搬移（4/9）、事件上报（5/12）、Audit 巡检（6/34）、handoff/failover/disconnected（2/7/21/22）、多会话并行（7/12）、并发关联（45） |
 
-## 7. 机器契约与三方一致性
+## 7. 机器契约与静态检查
 
 1. 运行 `python3 -m json.tool trafficgen/test/protocol_pcap/cases/megaco.json`，确认当前 JSON 恰有一个 `megaco_neg_unregistered`：`proto=megaco`、`expect_error=true`、`error_contains` 精确为 `unknown layer`。
-2. 设计 §9、本文 §2、注册后的 `megaco.json`、audit 保持同一 23 个语义 ID、同一顺序、17 正例 + 6 负例；当前 JSON 另有不计语义覆盖的注册前置占位。
-3. 17 个正例实现后均有 `packet_count`/`min_packets`、载体、方向、编码、动态关联（nonzero/same_as_packet/distinct/包间关系）与可观察字段；6 个负例 `expect` 键集合恰为 `{expect_error,error_contains}`，packet_count 为 `—`。
-4. 线上断言以 tshark 实测为准：`tshark -G fields | grep -E 'megaco\.'`（设计 §3.9 已核）；2944 自动解码；2427 按 §1 规则（decode_as 或字节断言）。不得伪造未实测 `megaco.*` 字段名/格式。
+2. **ID 权威 = 本文 §2**：设计 §7/§9、注册后的 `megaco.json`、audit 与本文 §2 保持同一 77 个语义 ID、同一顺序（46 正 + 31 负）；当前 JSON 另有不计语义覆盖的注册前置占位。
+3. 46 个正例实现后均有 `packet_count`/`min_packets`、载体、方向、动态关联（nonzero/same_as_packet/distinct/包间关系）与可观察字段；31 个负例 `expect` 键集合恰为 `{expect_error,error_contains}`，packet_count 为 `—`；`wire_fault` 注入口与 §5 表逐行一致。
+4. 线上断言以 tshark 实测为准（§3 清单，与设计 §3.9 一致）；2944 自动解码；2427 按 §1 规则（decode_as 或字节断言）。不得伪造未实测 `megaco.*` 字段名/格式。
 5. 文本按 ABNF 语法边界校验：起始行、事务/动作/命令/描述符层级、LWSP/EOL/注释与大小写规则；SDP 内容大小写敏感且 `}` 转义（设计 §3）。
-6. UDP 保留数据报边界（一数据报一消息，无 TPKT）；TCP 先按字节流重组、再按 TPKT 长度域切分消息（文本语法验证，Annex D.2 SHALL）；MSS 分段不改变 TPKT PDU 边界。
-7. 动态 transactionId/ContextID/媒体值只用 presence/nonzero/same_as_packet/distinct/类型长度，不枚举固定运行期 ID。
-8. 负例覆盖配置错/线格式错/状态机错/关联错/长度错/载体端口错六类并传播为 task error；`unknown layer` 占位不得冒充协议语义负例已执行。
+6. UDP 保留数据报边界（一数据报一消息，无 TPKT，超 MTU 拒绝——负例 76）；TCP 先按字节流重组、再按 TPKT 长度域切分消息（Annex D.2 SHALL）；MSS 分段不改变 TPKT PDU 边界。
+7. 动态 transactionId/ContextID/媒体值只用 presence/nonzero/same_as_packet/distinct/类型长度，不枚举固定运行期 ID；边界固化 carve-out 用例（§1 清单）除外。
+8. **pcap/NIC 双输出**：两输出路径共用本契约（同一 cases JSON、同一 tshark 字段/frames 断言），NIC 路径抓包口差异不改变断言语义（C-2）。
+9. 负例覆盖 31 个可实现故障输入并逐行传播为 task error；`unknown layer` 占位不得冒充协议语义负例已执行。
 
-## 8. 修订记录
+## 8. 三方一致性表
 
-- v1.0.0（2026-08-31）：按 `protocol-doc-requirements.md` v1.0 强制契约重写，取代 2026-08-21 旧稿。两文档独立、统一术语（事件编排会话/多会话展开/事务/锚词）、14 正例 + 6 负例 + 1 占位、四层偏移（42/62/54/74）、UDP 每消息一包与 TCP 3+N+4 包数约定、多会话第二会话起点 = 前会话包数 + 1。正例 ID 统一 `megaco_` 前缀（旧稿为 `h248_` 前缀）；BER 从正例移除、降为负例锚点（`megaco_neg_encoding_mismatch`）；补充 tshark 实测证据与 2427 端口 mgcp dissector 绑定事实。
-- 三向交叉审计（2026-08-31）2 轮，修复项与设计 §10 同步：①用例 3 T2 改为 AuditValue 不存在终结点（避免与负例 17 语义重叠、覆盖 Error 描述符正例）；②用例 6 并入 AuditCapability 与 Audit 描述符；③用例 9 并入 Move 命令（packet_count 2→4）；④用例 5 扩为 4 消息（补 Events 编程事务）使 RequestID 关联可断言；⑤用例 11 包数调整为 3+N+4 表达式（11 = 3+4+4）；⑥负例锚词表与设计 §7 完全对齐（负例 17 主锚词 `command`）；⑦规范回对：补 505/406 语义到负例 17、补 `ImmAckRequired` 前提（仅回过 Pending 的最终 Reply）、修正 Reason 为 quotedString 必选。
-- 独立隔离审查修复：v1.1.0（2026-09-01）按独立审查员 22 项问题清单（F1–F22）逐项关闭（与设计 §10 v1.1.0 同轮）：①TCP 载体采用 TPKT 成帧（决策依据 RFC 3525 Annex D.2 SHALL + RFC 1006 头 4B；现网实态与 tshark 规范路径均为 TPKT）：文本起点 58/78、帧字节 `[54..57]/[74..77]=03 00 <len>` 断言、消息定界改 TPKT 长度域，用例 3/4/11/13 偏移与断言 +4 重算（F1）；②用例 7 会话 1 Services 补必选 Reason="903 MGC Directed Change"（F3）；③用例 4 回填改两条 Modify 单 TerminationID（F4）；④O-/W- 并入用例 6，断言 `megaco.command_optional`/`megaco.wildcard_response`（F5）；⑤用例 8 补 Modify{Events} 对，packet_count 2→4（F7）；⑥§2 索引表增"设计依据"列（F8）；⑦新增正向边界用例 15-17（TerminationID 恰 64 字符 / transactionId 恰 4294967295 / 定时器恰 99，F18），语义 ID 20→23（17 正+6 负），负例顺延为 18-23；⑧用例 3 T2 改两命令断言"首错停止"、措辞改"事务/动作级错误描述符"，消息级 Error 声明不覆盖（设计 §7，F12/F13）；⑨负例 22 补 ContextID 保留值故障输入（F12）；⑩用例 13 改单点 `K{9998}`、帧字节前缀断言、dissector 已知行为注记（Pending 也置 "Reply"、区间 transid 只取首数，F14/F20），"被显式事件驱动"改"由 events[] 事件序列显式编排、不自动派生"（F15）；⑪删除用例 6 不可判定断言（"与后续任意状态兼容"，F19）；⑫§2 占位行与设计 §9 表同构（F21）；⑬§6 覆盖映射两表以用例正文为真值重算（F6）。
-- 复验修复 R1-R5（2026-09-01，独立审查复验轮）：①R1 用例 12 会话 2 补 Events 编程对（Notify 前置编程，RequestID 关联，RFC 3525 §7.2.7），packet_count 8→10，Events 落点 +12（§6）；②R2 用例 13 帧字节断言裁为形态前缀（`T`/`PN`/`P`+数字/`K{`）、叙事改 `<同请求ID>` 占位，不再固化 transactionId 数值（§7.7）；③R3 §6 数据场景落点补 7；④R4 负例 19 补"Services 缺必选 Method/Reason"、负例 21 补"IA 无前置 PN"、负例 23 补"会话四元组与请求源地址不符"——§5.2 第 4 列锚词全部可由负例触达（设计 §7 同步）；⑤R5 用例 3 T2 第二命令改 `AuditValue = ROOT`（不依赖终结点存在性，不与"Modify 不存在终结点"校验冲突），首错停止断言改"T2 回应区间无第二条命令响应 + `megaco.error_code=430` 恰一次"。
+设计 §7（负例表）/§9、本文 §2、实现后 `megaco.json` 保持同一 77 个语义 ID、同一顺序（当前 JSON 另有占位，不计入）：
+
+```text
+megaco_udp_ipv4_registration
+megaco_udp_ipv6_failover
+megaco_tcp_ipv4_dual_transaction
+megaco_tcp_ipv6_call_flow
+megaco_udp_ipv4_notify_events
+megaco_udp_ipv4_audit_wildcard
+megaco_udp_ipv4_handoff
+megaco_udp_ipv4_abbrev_tokens
+megaco_udp_ipv4_move_media
+megaco_udp_ipv4_large_digitmap
+megaco_tcp_ipv4_mss_reassembly
+megaco_udp_ipv4_multi_session
+megaco_tcp_ipv4_pending_immack
+megaco_udp_2427_mgcp_alias
+megaco_udp_ipv4_termid_max_length
+megaco_udp_ipv4_transid_max
+megaco_udp_ipv4_digitmap_timer_max
+megaco_udp_ipv4_termination_state
+megaco_udp_ipv4_version_negotiation
+megaco_udp_ipv4_method_graceful
+megaco_udp_ipv4_method_forced
+megaco_udp_ipv4_method_disconnected
+megaco_udp_ipv4_whitespace_comment_variants
+megaco_udp_ipv4_mid_address_port
+megaco_udp_ipv4_mid_devicename
+megaco_tcp_ipv4_transaction_level_error
+megaco_tcp_ipv4_ack_range
+megaco_udp_ipv4_transid_zero_error_reply
+megaco_udp_ipv4_reserved_value_group
+megaco_udp_ipv4_eventbuffer_descriptor
+megaco_udp_ipv4_mode_sendonly
+megaco_udp_ipv4_mode_inactive
+megaco_udp_ipv4_mode_loopback
+megaco_udp_ipv4_audit_item_domain
+megaco_udp_ipv4_signals_types
+megaco_udp_ipv4_error_code_431
+megaco_udp_ipv4_error_code_442
+megaco_udp_ipv4_services_delay_timestamp
+megaco_udp_ipv4_context_id_high_boundary
+megaco_udp_ipv4_version_two_digits
+megaco_udp_ipv4_streamid_max
+megaco_udp_ipv4_embed_events
+megaco_udp_ipv4_events_no_requestid
+megaco_udp_ipv4_registration_redirect
+megaco_udp_ipv4_concurrent_sessions
+megaco_udp_ipv4_digitmap_z_timer
+megaco_neg_encoding_text_as_ber
+megaco_neg_encoding_port_mismatch
+megaco_neg_syntax_start_line
+megaco_neg_syntax_version_zero
+megaco_neg_syntax_version_three_digits
+megaco_neg_syntax_mid_missing
+megaco_neg_syntax_mid_invalid
+megaco_neg_syntax_body_form
+megaco_neg_syntax_services_missing_params
+megaco_neg_command_pre_registration
+megaco_neg_command_modify_nonexistent
+megaco_neg_command_reply_choose_all
+megaco_neg_command_uncreated_context
+megaco_neg_command_first_error_continues
+megaco_neg_pairing_reply_id_mismatch
+megaco_neg_pairing_pending_id_mismatch
+megaco_neg_pairing_duplicate_transid
+megaco_neg_pairing_ack_unconfirmed
+megaco_neg_pairing_ia_without_pending
+megaco_neg_pairing_observed_requestid
+megaco_neg_length_message_truncated
+megaco_neg_length_termid_over_64
+megaco_neg_length_transid_over_uint32
+megaco_neg_length_digitmap_timer
+megaco_neg_length_context_reserved
+megaco_neg_carrier_layer_mismatch
+megaco_neg_carrier_entry_port_encoding
+megaco_neg_carrier_invalid_port
+megaco_neg_carrier_return_address
+megaco_neg_carrier_udp_mtu_exceeded
+megaco_neg_services_address_mgcidtotry_conflict
+```
+
+## 9. 修订记录
+
+- v1.0.0（2026-08-31）：按 `protocol-doc-requirements.md` v1.0 强制契约重写，取代 2026-08-21 旧稿。两文档独立、统一术语（事件编排会话/多会话展开/事务/锚词）、14 正例 + 6 负例 + 1 占位、四层偏移（42/62/54/74）、UDP 每消息一包与 TCP 3+N+4 包数约定、多会话第二会话起点 = 前会话包数 + 1。正例 ID 统一 `megaco_` 前缀；BER 从正例移除、降为负例锚点；补充 tshark 实测证据与 2427 端口 mgcp dissector 绑定事实。
+- 三向交叉审计（2026-08-31）2 轮：用例 3 T2 改 AuditValue 不存在终结点并覆盖 Error 描述符正例；用例 6 并入 AuditCapability；用例 9 并入 Move；用例 5 扩 4 消息使 RequestID 关联可断言；负例锚词表与设计 §7 对齐；规范回对补 505/406 语义与 `ImmAckRequired` 前提。
+- 独立隔离审查修复：v1.1.0（2026-09-01）按独立审查员 22 项问题清单（F1–F22）逐项关闭：TCP 载体采用 TPKT 成帧（文本起点 58/78、帧字节 `[54..57]/[74..77]=03 00 <len>` 断言、定界改 TPKT 长度域）；用例 7 补必选 Reason；用例 4 回填改两条 Modify；O-/W- 并入用例 6；用例 8 补 Modify{Events} 对；§2 增"设计依据"列；新增正向边界用例 15-17（语义 ID 20→23）；用例 3 改"首错停止"两命令断言；负例 22 补 ContextID 保留值；用例 13 改单点 K、帧字节形态前缀断言、dissector 已知行为注记；删除用例 6 不可判定断言；§2 占位行与设计 §9 表同构；§6 覆盖映射重算。
+- 复验修复 R1-R5（2026-09-01，独立审查复验轮）：R1 用例 12 会话 2 补 Events 编程对（Notify 前置编程），packet_count 8→10；R2 用例 13 帧字节断言裁为形态前缀、不固化 transactionId；R3 §6 数据场景落点补 7；R4 负例 19/21/23 各补故障输入使 §5.2 第 4 列锚词全部可触达；R5 用例 3 T2 第二命令改 `AuditValue = ROOT`。
+- v1.2.0（2026-09-01，v1.3 重审修复轮）：rr-megaco 行为面 114 点全枚举重审（5 MAJOR C + 2 MAJOR D + 约 20 MINOR + 4 N）后重出：23 条 → **77 条（46 正 + 31 负）**。关键修复：**D-1**（CRITICAL）废除"23 个唯一语义 ID"固化契约——ID 权威改本文 §2，设计 §9 改为覆盖图景+权威指针；**C-2**（CRITICAL）负例逐故障输入原子拆分 6→31 行（一行一例单一注入、主锚词钉死、`wire_fault` 枚举扩 31 值三方同序）；**C-1/C-3** 并发会话翻案纳入（45，`concurrent: true` 交错回放；流关联/多流不适用声明合理保留）；**C-4** pcap/NIC 双输出声明（§1/§7.8）；**C-5/D-2** TerminationState 补例（18：ServiceStates/EventBufferControl 实测字段断言）；**C-6** 版本协商例（19：Services Version=2 提议、Reply Version=1 低版胜出）；**C-7** Method 值域补 Graceful/Forced/Disconnected（20-22）；**C-8** UDP 超 MTU 拒绝负例（76）；**C-9** 空白/注释变体例（23）；**C-10** mId 四形态补 `[IP]:port` 与 deviceName（24/25）；**C-11** 事务级 errorDescriptor 例（26，与 3 动作级分立）；**C-12** K 区间例（27，帧字节前缀断言绕开 dissector 区间首数行为）；**C-13** `transid 0` 错误 Reply 例（28）；**C-14** RV/RG（29）+EventBuffer（30）；**C-15** Mode 值域 SO/IN/LB（31-33）+auditItem 值域（34）+Signals OO/TO/BR+SignalList（35）；**C-16** 错误码 431/442（36/37）；**C-17** Services Delay/TimeStamp（38）+ServiceChangeAddress↔MgcIdToTry 互斥负例（77）；**C-18** 边界相邻值（39 ContextID 0xFFFFFFFD / 40 Version 2 位 / 41 StreamID 65535）；**C-19** Embed（42）+Events 无 RequestID（43）；**C-20** 注册改派流（44，Reply 携 ServiceChangeMgcId→转向新 MGC 重发）；**D-3/N-1** `mtpAddress` 形态改 `MTP{...}` 花括号（§3/设计 §3.1）；**D-4/N-3** DigitMap `T:0` 为禁用启动定时器的合法语义（设计 §3.5/§8 口径修正），越界负例限定 T>99 与 S/L 为 0（70），补 Z 修饰符例（46）；**D-5/N-2** 错误码出处改"部分正文引用、其余 H.248.8/IANA 注册"（设计 §3.5/§3.6）；**D-6/N-4** 用例 3 首错停止断言改包级字节包含原语（不以"区间"表述）；**N-5** tshark 字段清单补实测存在字段（`reservevalue/reservegroup/terminationstate`）。扩量正例：17 既有例全保留（3 断言修正、17 D-4 口径微调）+ 新增 29 例（18-46）。
