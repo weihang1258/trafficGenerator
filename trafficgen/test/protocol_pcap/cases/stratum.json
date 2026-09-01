@@ -21,7 +21,7 @@
       "expect_error": true,
       "error_contains": "unknown layer",
       "notes": [
-        "Design-only gate: stratum is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
+        "Design-only gate: stratum is not registered in the layer registry; this placeholder is not part of the 40 semantic IDs. A future registration must remove it and add the 29 positive and 11 negative semantic cases in testcase order (docs/protocol-designs/75-stratum-testcase.md §2). Counts corrected in docs v2.1.0."
       ]
     }
   }
