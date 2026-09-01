@@ -2,7 +2,7 @@
 
 > 版本：v2.2.1（设计阶段）
 > 日期：2026-08-31
-> 状态：**v1.1 隔离审查已 clean**（v2.0.1）；现按《需求文档 v1.3》完成重审扩面修复（独立审查员 rr-doh：行为面约 135 点，2 CRITICAL + 7 MAJOR + MINOR 全项落地），配套用例 v3.0.0，**待复验**。记录见 §10。
+> 状态：**v1.1 隔离审查已 clean**（v2.0.1）；按《需求文档 v1.3》完成重审扩面修复（独立审查员 rr-doh：行为面约 135 点）与三轮复验收敛（三轮 12/14 CLOSED + 文字残留），现 v2.2.1，配套用例 v3.0.2，**待第四轮关单复验**。记录见 §10。
 > 配套文件：`docs/protocol-designs/66-doh-testcase.md`、`trafficgen/test/protocol_pcap/cases/doh.json`（当前 JSON 仅含注册前置占位，本版不写文件、不改代码；占位 dst_port 已与主 profile 对齐为 80）
 > 规范基线：**RFC 8484**（DNS Queries over HTTPS，2018-10，按章节号引用）；**RFC 1035**（DOMAIN NAMES - IMPLEMENTATION AND SPECIFICATION，§3.1/§3.2/§4.1.1/§4.1.2 QNAME 与 wire 格式）；RFC 4648（base64url，§5）；RFC 7230（HTTP/1.1 消息语法与路由，§6.3 长连接/§6.3.2 禁 pipelining）；RFC 7231（HTTP/1.1 语义，§6.5.1 400/§6.5.4 404/§6.5.13 415）；RFC 9110（HTTP 语义，Cache-Control 缓存头）。
 > 修订记录：v2.2.1（2026-09-01，rr-doh 二轮复验遗留小修）：N4 §6 wire_fault 枚举 22→26 值（清 carrier，并入 layer_chain/port_conflict；补 dns_id_range/ttl_range/qtype_token），§7 表头/表尾同步 26；D6 §5 事务定义残留引证 §6.3.1→§6.3.2；N5 非 2xx 响应头集合引证改「本版 fixture 决策，无 RFC 强制」；N6 §3.1「dns 为唯一查询参数」补 400 多参数正例除外条款；N9 配套用例计数改 110（v3.0.2）；N12 SVCB AliasForm fixture 形状钉死为 svc.example.net 真实目标名（根目标退化语义不采用）。v2.2.0（2026-09-01）：按《需求文档 v1.3》重审扩面（rr-doh 清单全落地）：新增 pcap/NIC 双输出契约声明、RST 不适用声明、端口变体覆盖声明、RCODE 值域全列（0/1/2/3/4/5/15 编排）、HTTPS/SVCB Answer RDATA 规格（RFC 9460）、SOA 负缓存规格（RFC 2308）、非 2xx 响应头集合钉死、GET Content-Type 泄漏规则、并发会话翻案纳入覆盖、大请求 MSS 不适用声明、65535 上界独立负例、RFC 7230 §6.3.1→§6.3.2 引证校正、§9 ID 权威改用例文档 §2；配套用例 38→110 条（v3.0.2，另行修订记录）。v2.0.1（2026-08-31）：按独立对抗审查 24 项清单修复（4C/5H/9M/6L），关键项：错误状态码出处改 RFC 7231+本版映射决策、§5.2 错引更正并如实声明明文偏差、负例表去重与 wire_fault 14 值对齐、401/415/406 retry 语义改正、packet_count 公式统一为 3+N+4（详见 §10）。v2.0.0（2026-08-31）：按《协议设计文档与用例文档需求文档 v1.1》独立隔离审查流程重写/review，取代 2026-08-20 旧稿（旧稿见 git 历史）。
@@ -36,7 +36,7 @@
 | `doh_http1_plain` | 80 | 明文调试链路；端口可由配置显式覆盖（如 8080），planner 不得静默改写 |
 | `doh_https_boundary` | 443 | 仅边界声明；未解密时不得断言 HTTP/DNS 内容 |
 
-**端口变体覆盖声明（v2.2）**：非默认端口（如 8080）为显式正例落点（`doh_port_nondefault`，POST 与 GET 各一）——profile 默认 80，端口由配置覆盖、planner 不得静默改写（上行表格注记），断言 `tcp.dst_port` + 全栈语义与默认端口基线一致。
+**端口变体覆盖声明（v2.2）**：非默认端口（如 8080）为显式正例落点（`doh_port_nondefault`，POST 与 GET 各一）——profile 默认 80，端口由配置覆盖、planner 不得静默改写（上行表格注记），断言 `tcp.dstport` + 全栈语义与默认端口基线一致。
 
 **固定偏移**：无 VLAN（虚拟局域网）、无 IP options、无 TCP options 时，HTTP 起行起点为 IPv4 offset（偏移）54（Ethernet 14 + IPv4 20 + TCP 20）、IPv6 offset 74（14 + IPv6 40 + TCP 20）。**DNS wire 在 HTTP body 内，偏移不固定**——DNS 内容从 body 起始字节开始，而 body 起点 = 54/74 + 该 fixture 固定 HTTP 头集合的字节长（头集合由配置钉死，偏移可预算）；因此 DNS 断言以 `http.file_data`（body 内容）+ tshark 内层解码字段 + frames 的 body 起始偏移表达，不以固定帧偏移表达。HTTP 消息边界由 Content-Length 界定，**TCP 分段边界不是 HTTP/DNS 消息边界**（RFC 7230 §3.2/§3.3.2）。
 

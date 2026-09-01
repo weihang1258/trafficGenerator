@@ -2,7 +2,7 @@
 
 > 版本：v3.0.2（测试用例，v1.3 行为面全枚举重出 + 复验修复轮）
 > 日期：2026-08-31
-> 配套设计：`docs/protocol-designs/66-doh-design.md`（v2.2.0）
+> 配套设计：`docs/protocol-designs/66-doh-design.md`（v2.2.1）
 > 机器契约：`trafficgen/test/protocol_pcap/cases/doh.json`（proto key：`doh`；本版不写文件，当前 JSON 仅含注册前置占位；占位 dst_port 已对齐主 profile 明文端口 80）
 > 状态：**v1.1 隔离审查已 clean**（v2.0.1）；现按《需求文档 v1.3》完成行为面全枚举重出（rr-doh 审查清单全落地），**待复验**。
 > 修订记录：v3.0.2（2026-09-01）：复验修复轮（N1-N12 逐项落地、删重复例 #85、§6 改 ID 引用，110 条）。v3.0.1（2026-09-01）：rr-doh 全清单对账 78→111 条。v3.0.0（2026-09-01）：行为面全枚举重出 38→78 条。v2.0.1（2026-08-31）：按独立对抗审查 24 项清单修复（4C/5H/9M/6L），关键项：`dns.count.auth_rr`/`add_rr` 单数化、根名 labels=1、packet_count 公式统一（8→9、多事务 13、双流 18）、用例 5 补 AA/TC/Z/NSCOUNT/ARCOUNT 断言、用例 1 精确长度改 nonzero、用例 15 改逐请求 keep-alive 断言、§5 表补 wire_fault 列（详见 §9）。v2.0.0（2026-08-31）：按《协议设计文档与用例文档需求文档 v1.1》独立隔离审查流程重写/review，取代 2026-08-20 旧稿（旧稿见 git 历史）。
@@ -176,8 +176,8 @@
 22. **`doh_port_nondefault_post`**（TCP/IPv4，packet_count=9）：`tcp.dstport=8080`；其余断言面同 #1（端口由配置覆盖，planner 不得静默改写）。
 23. **`doh_port_nondefault_get`**（TCP/IPv4，packet_count=9）：`tcp.dstport=8080`；其余断言面同 #2。
 24. **`doh_concurrent_sessions`**（TCP/IPv4×2，packet_count=18）：双 `tcp.stream` 交错回放；DNS ID/QNAME/事务状态互不串用；两会话各自完整请求/响应对。
-25. **`doh_b64_residue_1`**（TCP/IPv4，packet_count=9）：QNAME 单字符 `a`（wire=12+3+4=19，19 mod 3=1）；query 参数值恰 26 字符、无 padding；响应 `http.content_length=19`。
-26. **`doh_b64_residue_2`**（TCP/IPv4，packet_count=9）：QNAME `ab`（wire=20，20 mod 3=2）；参数值恰 27 字符、无 padding；响应 `http.content_length=20`。（余 0 形态见 #2 wire 33→44）
+25. **`doh_b64_residue_1`**（TCP/IPv4，packet_count=9）：QNAME 单字符 `a`（wire=12+3+4=19，19 mod 3=1）；query 参数值恰 26 字符、无 padding；响应 `http.content_length=19`、**ANCOUNT=0（空 Answer，`dns.count.answers=0`，fixture 声明）**。
+26. **`doh_b64_residue_2`**（TCP/IPv4，packet_count=9）：QNAME `ab`（wire=20，20 mod 3=2）；参数值恰 27 字符、无 padding；响应 `http.content_length=20`、**ANCOUNT=0（空 Answer，`dns.count.answers=0`，fixture 声明）**。（余 0 形态见 #2 wire 33→44）
 27. **`doh_dns_rcode_formerr`**（TCP/IPv4，packet_count=9）：`dns.flags.rcode=1`、`http.response.code=200`、`dns.count.answers=0`。
 28. **`doh_dns_rcode_notimp`**（TCP/IPv4，packet_count=9）：`dns.flags.rcode=4`、`dns.count.answers=0`。
 29. **`doh_dns_rcode_refused`**（TCP/IPv4，packet_count=9）：`dns.flags.rcode=5`、`dns.count.answers=0`。
@@ -243,32 +243,32 @@
 
 | # | ID | `wire_fault` 注入口 | 故障输入 | 主锚词（备选） | 依据 |
 |---:|---|---|---|---|---|
-| 0 | `doh_neg_query_missing` | `query_missing` | GET 配置缺 `dns` 参数（URI 无 query） | `dns`（备选 query/parameter） | RFC 8484 §4.1+设计§7 |
-| 1 | `doh_neg_base64_invalid` | `base64` | base64url 含非法字符（`+`/`/`/非字母表字节） | `base64`（备选 url/decode） | RFC 4648 §5+设计§7 |
-| 2 | `doh_neg_base64_padding` | `padding` | base64url 带 `=` padding | `base64`（备选 padding/url） | RFC 8484 §6+设计§7 |
-| 3 | `doh_neg_base64_truncated` | `b64_short` | base64url 解码产出 <12B（解码链） | `decode`（备选 truncate/length） | 设计§3.4/§7 |
-| 4 | `doh_neg_dns_header_short` | `dns_header_short` | POST body 原始 <12B（不经解码链） | `dns`（备选 header/length） | RFC 1035 §4.1.1+设计§7 |
-| 5 | `doh_neg_dns_qdcount_zero` | `qdcount` | QDCOUNT=0（本版 validator 决策） | `question`（备选 qdcount/dns） | 设计§7 决策 |
-| 6 | `doh_neg_dns_qname_overflow` | `qname` | QNAME>255 或单标签>63 | `qname`（备选 label/length） | RFC 1035 §3.1+设计§7 |
-| 7 | `doh_neg_dns_question_truncated` | `question_truncated` | Question 缺零标签终止/QTYPE/QCLASS 截断 | `question`（备选 wire/length） | RFC 1035 §4.1.2+设计§7 |
-| 8 | `doh_neg_content_type` | `content_type` | Content-Type 非 application/dns-message | `content-type`（备选 media/type） | RFC 8484 §6+设计§7 |
-| 9 | `doh_neg_method` | `method` | 方法非 POST/GET | `method`（备选 http） | RFC 8484 §4.1+设计§7 |
-| 10 | `doh_neg_content_length` | `content_length` | POST Content-Length≠wire 字节/无 body | `content-length`（备选 length/body/dns） | RFC 7230 §3.3.2+设计§7 |
-| 11 | `doh_neg_layer_chain_missing_http` | `layer_chain` | 层链缺 http（tcp→doh 直连） | `carrier`（备选 layer） | 设计§2/§7 |
-| 12 | `doh_neg_port_conflict` | `port_conflict` | 端口/载体声明矛盾（明文 profile 配 443 等） | `port`（备选 carrier） | 设计§2/§7 |
-| 13 | `doh_neg_response_id` | `response_id` | 响应 DNS ID≠请求 ID | `id`（备选 match/correlation） | RFC 1035 §4.1.1+设计§7 |
-| 14 | `doh_neg_response_question` | `response_question` | 响应 Question 错配/2xx 无 DNS 体 | `question`（备选 match/body/wire） | RFC 8484 §4.2.1+设计§7 |
-| 15 | `doh_neg_wire_over_max` | `wire_over_max` | 声明 DNS wire 总长 >65535 | `length`（备选 max/wire） | RFC 8484 §6+设计§8 |
-| 16 | `doh_neg_opcode_nonzero` | `opcode_nonzero` | Opcode≠0（本版仅 QUERY） | `opcode`（备选 value） | RFC 1035 §4.1.1+设计§3.2 |
-| 17 | `doh_neg_get_content_type` | `get_content_type` | GET 事务声明 Content-Type 头（无 body 载体禁） | `content-type`（备选 get/header） | RFC 7230 §3.3.2+设计§3.1 |
-| 18 | `doh_neg_response_qr` | `response_qr` | 响应事件声明 QR=0（响应必须 QR=1） | `response`（备选 qr/flag） | RFC 1035 §4.1.1+设计§5 |
-| 19 | `doh_neg_z_nonzero` | `z_nonzero` | Z 保留位非 0 | `z`（备选 flag/value） | RFC 1035 §4.1.1+设计§3.2 |
-| 20 | `doh_neg_rdlength_mismatch` | `rdlength_mismatch` | Answer RDLENGTH≠RDATA 实际字节 | `rdlength`（备选 length/answer） | RFC 1035 §4.1.3+设计§3.3 |
-| 21 | `doh_neg_ancount_mismatch` | `ancount_mismatch` | ANCOUNT≠声明答案数 | `ancount`（备选 count） | RFC 1035 §4.1.1+设计§3.2 |
-| 22 | `doh_neg_qdcount_multi` | `qdcount_multi` | QDCOUNT>1（本版恒 1） | `qdcount`（备选 question） | 设计§3.2 决策 |
-| 23 | `doh_neg_dns_id_range` | `dns_id_range` | dns_id 声明 65536（16-bit 上界 +1 越界） | `id`（备选 range/value） | RFC 1035 §4.1.1+需求v1.3 边界相邻值 |
-| 24 | `doh_neg_ttl_range` | `ttl_range` | TTL 声明 4294967296（2^32 越界） | `ttl`（备选 range/value） | RFC 1035 §4.1.3+需求v1.3 边界相邻值 |
-| 25 | `doh_neg_qtype_token` | `qtype_token` | qtype/qclass 非数字 token（BOGUS） | `qtype`（备选 value/token） | RFC 1035 §3.2.2+设计§3.3 v2.2 决策 |
+| 1 | `doh_neg_query_missing` | `query_missing` | GET 配置缺 `dns` 参数（URI 无 query） | `dns`（备选 query/parameter） | RFC 8484 §4.1+设计§7 |
+| 2 | `doh_neg_base64_invalid` | `base64` | base64url 含非法字符（`+`/`/`/非字母表字节） | `base64`（备选 url/decode） | RFC 4648 §5+设计§7 |
+| 3 | `doh_neg_base64_padding` | `padding` | base64url 带 `=` padding | `base64`（备选 padding/url） | RFC 8484 §6+设计§7 |
+| 4 | `doh_neg_base64_truncated` | `b64_short` | base64url 解码产出 <12B（解码链） | `decode`（备选 truncate/length） | 设计§3.4/§7 |
+| 5 | `doh_neg_dns_header_short` | `dns_header_short` | POST body 原始 <12B（不经解码链） | `dns`（备选 header/length） | RFC 1035 §4.1.1+设计§7 |
+| 6 | `doh_neg_dns_qdcount_zero` | `qdcount` | QDCOUNT=0（本版 validator 决策） | `question`（备选 qdcount/dns） | 设计§7 决策 |
+| 7 | `doh_neg_dns_qname_overflow` | `qname` | QNAME>255 或单标签>63 | `qname`（备选 label/length） | RFC 1035 §3.1+设计§7 |
+| 8 | `doh_neg_dns_question_truncated` | `question_truncated` | Question 缺零标签终止/QTYPE/QCLASS 截断 | `question`（备选 wire/length） | RFC 1035 §4.1.2+设计§7 |
+| 9 | `doh_neg_content_type` | `content_type` | Content-Type 非 application/dns-message | `content-type`（备选 media/type） | RFC 8484 §6+设计§7 |
+| 10 | `doh_neg_method` | `method` | 方法非 POST/GET | `method`（备选 http） | RFC 8484 §4.1+设计§7 |
+| 11 | `doh_neg_content_length` | `content_length` | POST Content-Length≠wire 字节/无 body | `content-length`（备选 length/body/dns） | RFC 7230 §3.3.2+设计§7 |
+| 12 | `doh_neg_layer_chain_missing_http` | `layer_chain` | 层链缺 http（tcp→doh 直连） | `carrier`（备选 layer） | 设计§2/§7 |
+| 13 | `doh_neg_port_conflict` | `port_conflict` | 端口/载体声明矛盾（明文 profile 配 443 等） | `port`（备选 carrier） | 设计§2/§7 |
+| 14 | `doh_neg_response_id` | `response_id` | 响应 DNS ID≠请求 ID | `id`（备选 match/correlation） | RFC 1035 §4.1.1+设计§7 |
+| 15 | `doh_neg_response_question` | `response_question` | 响应 Question 错配/2xx 无 DNS 体 | `question`（备选 match/body/wire） | RFC 8484 §4.2.1+设计§7 |
+| 16 | `doh_neg_wire_over_max` | `wire_over_max` | 声明 DNS wire 总长 >65535 | `length`（备选 max/wire） | RFC 8484 §6+设计§8 |
+| 17 | `doh_neg_opcode_nonzero` | `opcode_nonzero` | Opcode≠0（本版仅 QUERY） | `opcode`（备选 value） | RFC 1035 §4.1.1+设计§3.2 |
+| 18 | `doh_neg_get_content_type` | `get_content_type` | GET 事务声明 Content-Type 头（无 body 载体禁） | `content-type`（备选 get/header） | RFC 7230 §3.3.2+设计§3.1 |
+| 19 | `doh_neg_response_qr` | `response_qr` | 响应事件声明 QR=0（响应必须 QR=1） | `response`（备选 qr/flag） | RFC 1035 §4.1.1+设计§5 |
+| 20 | `doh_neg_z_nonzero` | `z_nonzero` | Z 保留位非 0 | `z`（备选 flag/value） | RFC 1035 §4.1.1+设计§3.2 |
+| 21 | `doh_neg_rdlength_mismatch` | `rdlength_mismatch` | Answer RDLENGTH≠RDATA 实际字节 | `rdlength`（备选 length/answer） | RFC 1035 §4.1.3+设计§3.3 |
+| 22 | `doh_neg_ancount_mismatch` | `ancount_mismatch` | ANCOUNT≠声明答案数 | `ancount`（备选 count） | RFC 1035 §4.1.1+设计§3.2 |
+| 23 | `doh_neg_qdcount_multi` | `qdcount_multi` | QDCOUNT>1（本版恒 1） | `qdcount`（备选 question） | 设计§3.2 决策 |
+| 24 | `doh_neg_dns_id_range` | `dns_id_range` | dns_id 声明 65536（16-bit 上界 +1 越界） | `id`（备选 range/value） | RFC 1035 §4.1.1+需求v1.3 边界相邻值 |
+| 25 | `doh_neg_ttl_range` | `ttl_range` | TTL 声明 4294967296（2^32 越界） | `ttl`（备选 range/value） | RFC 1035 §4.1.3+需求v1.3 边界相邻值 |
+| 26 | `doh_neg_qtype_token` | `qtype_token` | qtype/qclass 非数字 token（BOGUS） | `qtype`（备选 value/token） | RFC 1035 §3.2.2+设计§3.3 v2.2 决策 |
 
 **合并说明（C4 修复保留）**：`body_missing`/`http200_no_dns` 分支不设独立 ID（由 `content_length`/`response_question` 覆盖）。**原 `doh_neg_carrier_port` 拆为 `doh_neg_layer_chain_missing_http`/`doh_neg_port_conflict` 两原子例（v3.0.1）**。v2.2 扩面合计 26 行，与设计 §7 一一对应、同序。
 
@@ -287,7 +287,7 @@
 ## 7. 机器契约与静态检查
 
 1. `python3 -m json.tool trafficgen/test/protocol_pcap/cases/doh.json` 通过；当前数组恰含 1 条 `doh_neg_unregistered`：`proto=doh`、层链 `[{"tcp":{},{"http":{},{"doh":{}}]`、`expect_error=true`、`error_contains` 精确为 `unknown layer`。
-2. 实现注册 `doh` 层后：移除占位，按 §2 顺序补入 111 个语义用例（85 正 + 26 负）；ID、顺序与本文 §2 一致（脚本核验）；设计行/待实现边界不得写入 JSON ID 集合。
+2. 实现注册 `doh` 层后：移除占位，按 §2 顺序补入 110 个语义用例（84 正 + 26 负）；ID、顺序与本文 §2 一致（脚本核验）；设计行/待实现边界不得写入 JSON ID 集合。
 3. 正例每条含 `packet_count`（或 `min_packets`）+ `fields` + `frames`；`fields` 只用 §1 实测存在的 tshark 字段，不伪造 `doh.*`；DNS 断言走 `http.file_data` + 自动内层 `dns.*` 双通道；GET 请求侧 DNS 用 `http.request.uri.query.parameter` + frames hex。`packet_count` 按 §1 公式 3+N+4。
 4. 负例 `expect` 键集合恰为 `{expect_error, error_contains}`；error_contains 取 §5 表主锚词（注册时钉死）。
 5. 断言包号跨会话/连接时用 `tcp.stream`+会话起点规则；动态值用 `same_as_packet`/`distinct_values`/`nonzero`。
@@ -295,7 +295,7 @@
 
 ## 8. 三方一致性表
 
-设计 §9（ID 权威=本文 §2）、本文 §2、实现后 `doh.json` 保持同一 111 个语义 ID、同一顺序（当前 JSON 另有占位，不计入）：
+设计 §9（ID 权威=本文 §2）、本文 §2、实现后 `doh.json` 保持同一 110 个语义 ID、同一顺序（当前 JSON 另有占位，不计入）：
 
 ```text
 doh_post_ipv4_http11
@@ -412,7 +412,7 @@ doh_neg_qtype_token
 
 ## 9. 修订记录
 
-- v3.0.1（2026-09-01，rr-doh 全清单对账轮）：按 rr-doh ①枚举全表（135 点）/②C0–C11/③D1–D12 逐条落地。**C 清单**：C1 非默认端口（25/26）、C2 GET 余数边界（`doh_get_qname_max` 271B≡1/`doh_get_root_query` 17B≡2）、C3 拆 SOA wire 形状与 max-age 恰值两例、C4 RST 不适用声明（设计 §4）、C5 RCODE 1/4/5/15、C6 dns_id/ttl 越界负例、C7 TXT/MX + 未知 token validator 决策（`doh_neg_qtype_token`）、C8 Host 默认断言入 #1、C9 RD=0/RA=0/AA=1、C10 max-age 多答案取最小实 fixture、C11 混合事务（#51）+ 负例 36 拆两 ID。**D 清单**：D1 双输出契约、D2 65535 负例、D3 SVCB RDATA、D4 非 2xx 头集合、D5 v1.1 口径清除、D6 §6.3.2 引证、D7 GET CL:0 改显式偏差声明、D8 Terminating 写死 FIN、D9 锚词注册钉死规则、D10 混合流 Content-Type 缺席断言改独立流（tshark 3.6.14 会话级泄漏实测）、D11 补 §2.3.4、D12 边界双变体拆原子例（TTL/QNAME/ID 各两例）。**双载体展开**：20 个 GET 变体（Question/Answer/RCODE/标志/负缓存/端口族）。计数 78 → **111（85 正 + 26 负）**；`doh_neg_carrier_port` 拆为 `doh_neg_layer_chain_missing_http`/`doh_neg_port_conflict`。
 - v3.0.2（2026-09-01，复验修复轮）：rr-doh 二轮复验 22/24 CLOSED + 新 finding 逐项修复——**N1** 非默认端口断言 `tcp.dst_port`→`tcp.dstport`（3.6.14 实名）并补入 §1 字段白名单；**N2** 根名 GET b64 24→23 字符（17B≡2 恰为 23；24 是带 padding 的禁止形态）+ 删同形状重复例 doh_get_min_frame；**N3** AA=1 flags `84 00`→`85 80`（保留基线 RD=1/RA=1）；**C8** #1 补 `http.host=198.51.100.66` 默认断言；**N6** 配合设计除外条款（400 多参数正例编排）；**N7** rd_zero GET 改断言 fixture 预计算 b64 定值；**N8** §6 五层映射改 ID 引用（防重排错位）；**N11** ID 相邻值方向标注修正（1=最小+1、65534=最大-1）、soa 例载体列修复、余数例补 ANCOUNT=0 fixture 声明；**N12** svcb_alias 目标名根→svc.example.net（真实 AliasMode 形态，RDLENGTH 19）。计数 111→**110（84 正 + 26 负）**。
+- v3.0.1（2026-09-01，rr-doh 全清单对账轮）：按 rr-doh ①枚举全表（135 点）/②C0–C11/③D1–D12 逐条落地。**C 清单**：C1 非默认端口（25/26）、C2 GET 余数边界（`doh_get_qname_max` 271B≡1/`doh_get_root_query` 17B≡2）、C3 拆 SOA wire 形状与 max-age 恰值两例、C4 RST 不适用声明（设计 §4）、C5 RCODE 1/4/5/15、C6 dns_id/ttl 越界负例、C7 TXT/MX + 未知 token validator 决策（`doh_neg_qtype_token`）、C8 Host 默认断言入 #1、C9 RD=0/RA=0/AA=1、C10 max-age 多答案取最小实 fixture、C11 混合事务（#51）+ 负例 36 拆两 ID。**D 清单**：D1 双输出契约、D2 65535 负例、D3 SVCB RDATA、D4 非 2xx 头集合、D5 v1.1 口径清除、D6 §6.3.2 引证、D7 GET CL:0 改显式偏差声明、D8 Terminating 写死 FIN、D9 锚词注册钉死规则、D10 混合流 Content-Type 缺席断言改独立流（tshark 3.6.14 会话级泄漏实测）、D11 补 §2.3.4、D12 边界双变体拆原子例（TTL/QNAME/ID 各两例）。**双载体展开**：20 个 GET 变体（Question/Answer/RCODE/标志/负缓存/端口族）。计数 78 → **111（85 正 + 26 负）**；`doh_neg_carrier_port` 拆为 `doh_neg_layer_chain_missing_http`/`doh_neg_port_conflict`。
 - v3.0.0（2026-09-01）：按《需求文档 v1.3》行为面全枚举重出（独立审查员 rr-doh：行为面约 135 点、实测复核全部 tshark 字段与"实测"声明）。38 条 → **78 条（56 正 + 22 负）**，新增「依据」列（RFC 优先）。扩面：非默认端口（25/26）、并发会话翻案（27）、base64url 余 1/余 2（28/29）、RCODE 值域 1/4/5/15（30–33）、RD=0/RA=0/AA=1（34–36）、ID/TTL/QNAME 相邻值（37–39，需求 v1.3 边界相邻值）、QTYPE TXT/MX/QCLASS CHAOS（40–42）、AAAA/CNAME 链/多答案/SVCB AnswerForm+AliasForm/TXT 串段答案（43–48）、SOA 负缓存（49）、Age 头（50）、混合 GET/POST 泄漏断言（51）、Host 显式（52）、400 多参数（53）、Accept 缺失（54）、Connection: close（55）、最小 GET（56）；负例 +8：65535 上界/Opcode/GET Content-Type/响应 QR/Z 位/RDLENGTH/ANCOUNT/QDCOUNT>1（71–78）；锚词改「主锚词（备选）」钉死。§1 改 v1.3 派生语言+三件套纪律+pcap/NIC 双输出；§6 五层映射重排；§8 三方一致性表重生成。设计配套升 v2.2.0（另行修订记录）。
 - v2.0.1（2026-08-31）：按独立对抗审查 24 项问题清单修复（4C/5H/9M/6L），状态改为"修复完成，待原审查员复验关闭"。关键修复：①【C1】§1 字段清单与用例 5：`dns.count.auth_rrs`/`add_rrs` 改单数 `dns.count.auth_rr`/`add_rr`（`tshark -G fields` 实证只有单数）；②【C2】用例 9 根名断言 `dns.count.labels=0` 改 `=1`（实测 tshark 把根标签计为 1）；③【H3】packet_count 公式统一为 3+N+4（N=分段数）：单事务 8→**9**（旧"8=3+1+4"漏计响应分段）、用例 15 = 3+2N+4 → **13 = 7+2×3**、双流用例 14/22/23 = 9+9=**18**、用例 24 = **18**（第二会话握手包号 9→10）——以引擎 teardown 4 帧 + 同引擎 hls/http_flv 已实现用例实测（9/11/13/15 等差 2）为据；④【M1】用例 5 补 AA/TC/Z/NSCOUNT/ARCOUNT 断言（按 tshark 发射帧分布：TC/Z/COUNT 落请求帧、AA 落响应帧）；⑤【H2】用例 15 断言改"每笔请求均带 keep-alive、末笔按配置"（设计 §5 钉死策略）；⑥【H1】用例 18/19/20 与 `response.status` 非 2xx 通道对齐；⑦【M6】用例 23 标注 RFC 8484 §4.1 ID=0 SHOULD 与有意偏离；⑧【M8】用例 1 的 `http.content_length=33` 改 nonzero（精确值归用例 16 专断）；⑨【H5】§5 表补 `wire_fault` 注入口列（14 值与设计 §6/§7 枚举一一对应）；⑩【C4】§5 表并入 body_missing/http200_no_dns 分支锚词，14 行与设计 §7/§9 三方同序；⑪【M2】§6 与设计 §8 同步声明 65535 上界由实现校验、测试用 QNAME 255+MSS 分段代理；⑫【L6】§1 挥手 4 帧旁注"实现期校准值，非 RFC 消息数"；⑬用例 22 变体 A 长度修正 80→**81**（12+65+4，实测 http.content_length=81；含长度前缀与根标签）并按两变体建流改 18；⑭ §1 字段清单补 `dns.flags.authoritative`/`truncated`/`z`/`dns.count.labels`。
