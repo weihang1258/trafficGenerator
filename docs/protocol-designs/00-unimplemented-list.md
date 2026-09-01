@@ -111,11 +111,11 @@
 
 | # | 协议 | 说明 | 载体 |
 |---|------|------|------|
-| 61 | ETHMining | 以太坊挖矿协议 | HTTP/JSON-RPC |
-| 62 | XMRMining | 门罗币挖矿协议 | TCP |
-| 63 | stratum | 矿池通信协议（仅配置字段，无 planner） | TCP |
-| 64 | GetWork | 比特币挖矿工作分配协议 | 自定义 |
-| 65 | GetBlockTemplate(GBT) | 比特币区块模板获取协议 | 自定义 |
+| 61 | ETHMining | 以太坊挖矿协议（ethash stratum，NiceHash EthereumStratum v1.0.0 R2） | TCP/JSON（JSON-RPC 类行式消息） |
+| 62 | XMRMining | 门罗币挖矿协议（XMR stratum，xmrig/xmrig-proxy spec） | TCP/JSON（JSON-RPC 类行式消息） |
+| 63 | stratum | 比特币矿池通信协议（Stratum v1 + BIP310 扩展） | TCP/JSON（JSON-RPC 类行式消息） |
+| 64 | GetWork | 比特币旧版工作分配协议（Bitcoin Core getwork，HTTP POST 承载） | HTTP/JSON-RPC |
+| 65 | GetBlockTemplate(GBT) | 比特币区块模板获取协议（Bitcoin Core getblocktemplate，BIP 22/23，HTTP POST 承载） | HTTP/JSON-RPC |
 
 ### J. 半实现 / 需组合但当前组合不上（7 项）
 
@@ -160,7 +160,7 @@
 | B3 路由/组播/信令 | BGP、OSPF、ISIS、IGMP、PIM、~~LDP~~、~~PCEP~~、cflow、STUN、TPKT、echo、GIOP、RDMA | 13 | LDP/PCEP ✅ 已实现，其余 11 项待实现 |
 | B4 流媒体+消息/P2P | ~~HLS~~、HDS、~~RTMFP~~、~~AMQP~~、~~OpenWire~~、~~AMS~~、~~Swarm~~、~~Gnutella~~ | 8 | HLS/RTMFP/AMQP/OpenWire/AMS/Swarm/Gnutella ✅ 已实现，其余（HDS）待实现 |
 | B5 隧道/封装/安全 | VXLAN、NVGRE、GENEVE、SSTP、DTLS、KERBEROS、ntlm、spnego、ocsp、dcerpc | 10 | 隧道类与既有 vxlan/geneve 机制可复用 GRE/VXLAN 封装 |
-| B6 应用/物联网/管理+挖矿 | Cwmp、BACnet、DOH、ONVIF、HL7、NMEA、h248/mgcp/megaco（1 planner）、mmse、EDP、ETHMining、XMRMining、stratum、GetWork、GBT | 16 | h248 合并后 14 个 planner；挖矿多基于 HTTP/JSON-RPC |
+| B6 应用/物联网/管理+挖矿 | Cwmp、BACnet、DOH、ONVIF、HL7、NMEA、h248/mgcp/megaco（1 planner）、mmse、EDP、ETHMining、XMRMining、stratum、GetWork、GBT | 16 | h248 合并后 14 个 planner；挖矿族：ETHMining/XMRMining/stratum 为 TCP 行式 JSON（JSON-RPC 类），GetWork/GBT 为 HTTP JSON-RPC |
 
 ## 协议级文档、用例与对抗审查要求（2026-08-19 新增）
 
