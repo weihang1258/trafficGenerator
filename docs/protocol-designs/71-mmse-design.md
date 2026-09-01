@@ -1,8 +1,8 @@
 # MMSE（多媒体消息服务封装，Multimedia Messaging Service Encapsulation）设计契约
 
-> 版本：v2.0.1（设计阶段）
-> 日期：2026-09-01
-> 状态：**独立隔离对抗审查已完成**（v2.0.1 定稿：独立审查 agent 三向审计 10 项清单（2M/8N）→ 修复 → 复验 9.5/10 → 复验新发现 R1 修复 → 抽查确认 clean；审查/修复记录见 §10 修订记录 v2.0.0/v2.0.1）。
+> 版本：v2.1.0（设计阶段）
+> 日期：2026-09-02
+> 状态：**v2.1.0 修复稿——按独立隔离审查（rr，v1.3 行为面全枚举：138 点，1 CRITICAL + 4 MAJOR + 2 MINOR + 6 note）逐项修复，38 → 100 条（45 正 + 55 负），待审查者复验关闭**（流程按《协议设计文档与用例文档需求文档》v1.3 §3；v2.0.1 轮已 clean 关单，本轮为新契约 v1.3 的扩量修复轮；本文不自行宣称已通过对抗审查）。
 > 配套文件：`docs/protocol-designs/71-mmse-testcase.md`、`trafficgen/test/protocol_pcap/cases/mmse.json`（当前 JSON 仅含注册前置占位，本版不写文件、不改代码）
 > 规范基线：WAP 论坛 **WAP-209-MMSEncapsulation-20020105-a**（Multimedia Messaging Service Encapsulation，2002-01-05，MMS 1.0 基线，下称 WAP-209，按章节号引用，全文已取回核对）；**OMA-MMS-ENC v1.1/v1.2/v1.3**（OMA 继任版，MMS 1.1+ 扩展 PDU 与字段：m-read-rec-ind、X-Mms-Retrieve-Status、X-Mms-Read-Status 等）；WAP-206-MMSCTR-20020115-a（MMS Client Transactions，事务流图 Figure 3/4/5 出处）；WAP-230-WSP-20010705-a（无线会话协议——**编码原语与 multipart 结构的规则来源**，其承载本身是本版边界，见 §1）；RFC 2387（multipart/related）、RFC 822（消息头与地址）、RFC 2616/7230（HTTP/1.1）、RFC 2045/2046（MIME）。
 > 修订记录：v2.0.0（2026-09-01）：按《协议设计文档与用例文档需求文档 v1.1》重写，取代 2026-08-21 旧稿（旧稿见 git 历史）。**规范编号更正**：任务口径"WAP-230-MMS-ENC 1.3（2003-01）"经档案索引核实不存在——WAP-230 是 WSP 规范编号，MMS 封装规范为 WAP-209（1.0，2002-01）及 OMA-MMS-ENC（1.1–1.3）继任版；本文按实际文档引用。
@@ -23,7 +23,9 @@
 
 **未注册边界**：当前仓库没有注册 `mmse` layer（层）、planner（规划器）、validator（校验器）或生成器。`cases/mmse.json` 只保留一个不计入语义 ID 的注册前置占位 `mmse_neg_unregistered`（`expect_error=true`、`error_contains` 精确为 `unknown layer`）。占位的拒绝、0 包或空 PCAP 不得报告为 MMSE 行为通过；注册后按本文 §9 与用例文档 §2 的同一顺序替换为语义用例。MMS 1.1 扩展 PDU m-read-orig-ind（0x88）/m-forward-req（0x89）/m-forward-conf（0x8A）、MMS 1.2/1.3 扩展 PDU（m-mbox-store/view/upload/delete/delete-conf 系列，线码 0x8B–0x93）与 Reply-Charging 字段族（0x9C–0x9F）本版不实现—— read-orig/forward 无现网部署实例、mailbox 系列现网已废弃、Reply-Charging 未在中国运营商网络部署；PDU 类型值域表（§3.7）中保留其定义但标注"本版不产生"。**归口**：已分配但本版不产生的 PDU 值（0x88–0x93）或 Reply-Charging 字段族出现在配置时，按 §7 `mmse_neg_unknown_pdu_type` / `mmse_neg_value_range` 显式拒绝（不静默转换、不假成功）。
 
-**编码形态产生范围（显式声明）**：本版**产生**——Text-string 裸形态与 Value-length+charset 形态（charset 恒 106=UTF-8）、Text-string **Quote 形态**（首字符为分隔符时前置 0x7F，§3.3；用例 `mmse_text_string_quote`）、From **insert-address-token** 形态（§3.4；用例 `mmse_from_insert_token`）。本版**不产生**——空串 Text-string（仅 0x00 终止）、Application-header 扩展头（§3.4 末行）、charset 非 106 值（含 1000=UCS-2、17 等）：生成器无对应编码路径，配置声明时按 §7 `mmse_neg_value_range` 归口拒绝。§3.7 值域表为协议全集；已实现形态内未进入本版用例的合法枚举值（如 Priority=Low、Status=Rejected/Unrecognised）仍为合法协议值，但不构成本版覆盖声明（§4 实测集合收窄）。
+**编码形态产生范围（显式声明）**：本版**产生**——Text-string 裸形态与 Value-length+charset 形态（charset 恒 106=UTF-8）、Text-string **Quote 形态**（首字符为分隔符时前置 0x7F，§3.3；用例 `mmse_text_string_quote`）、From **insert-address-token** 形态（§3.4；用例 `mmse_from_insert_token`）。本版**不产生**——空串 Text-string（仅 0x00 终止）、Application-header 扩展头（§3.4 末行）、charset 非 106 值（含 1000=UCS-2、17 等）：生成器无对应编码路径，配置声明时按 §7 `mmse_neg_value_range` 归口拒绝。§3.7 值域表为协议全集；已实现形态内未进入本版用例的合法枚举值（如 Status=Rejected/Unrecognised）仍为合法协议值，但不构成本版覆盖声明（§4 实测集合收窄）。**本版不产生（追加声明）**：X-Mms-Response-Status 的 1.1+ 瞬态段（0xC0–0xC4）与永久段（0xE0–0xEA）——值域表（§3.7）保留定义，本版 fixture 只产生 1.0 九值（0x80–0x88，正例 `mmse_send_conf_ok`/`mmse_send_conf_error`/`mmse_response_status_error_values`）；multipart/mixed（本版消息体恒 multipart/related，§3.6 声明）；地址模型 WINA 注册扩展类型（本版仅 PLMN/IPv4/IPv6/邮箱四形态，§3.7）；**高码段扩展头族**（X-Mms-Previously-Sent-By/Forward-Count、Store 族等，§3.4 声明，C-7）——配置注入各自归口 §7 对应负例行拒绝。
+
+**输出契约（pcap/NIC 双输出，C-2）**：本契约的用例同时服务于 pcap（离线抓包文件）与 port_group/NIC（网卡输出，实测口 enp135s0f0np0）两种输出路径——两路径共用同一份 cases JSON、同一 tshark 字段/帧字节断言集与包数约定，不设仅单路径可用的断言；NIC 路径经 tcpdump 捕获（用例级 `nic_capture` 开关）后以同一断言集核验，网卡 checksum offload 不影响本契约（断言不含 IP/TCP 校验和字段）；MSS 分段、多会话与并发在两路径均按 `tcp.stream` 重组或区分（与 64-cwmp/66-doh/68-hl7 同形）。
 
 **动态值不硬编码**：Transaction-ID、Message-ID、multipart 附件内容、日期时间戳为运行期或配置值。断言策略：Transaction-ID / Message-ID 用 `same_as_packet`（关联断言）与 `nonzero`；日期用 `nonzero`（绝对时间显示含本地时区，不稳定）；附件内容用 `nonzero` + frames hex（magic bytes 前缀）；其余值域字段（message-type / status / class / priority 等）为预配置枚举值，允许 fixture 显式给出精确值。
 
@@ -31,7 +33,7 @@
 
 推荐层链为 `[tcp, http, mmse]`（引擎自动补 `ip`；IPv6 写 `[ipv6, tcp, http, mmse]`）。HTTP 语义（请求行/响应行/头/Content-Length/keep-alive）由 `http` 层承载，`mmse` 终结层在其上产出 MMS PDU 字节与事务序列。
 
-端口：MMSC URL 端口按部署配置（现网常见 80 或 8002）；本版 fixture 统一 `dst_port=80`。端口可被配置覆盖，planner 不得静默改写。M-Notification/M-Delivery 回放连接（MMSC→MS 方向）由配置显式给四元组，无隐式端口推导。
+端口：MMSC URL 端口按部署配置（现网常见 80 或 8002）；本版 fixture 默认 `dst_port=80`，非默认端口正例 `mmse_port_nondefault`（dst_port=8002，断言集同基线）。端口可被配置覆盖，planner 不得静默改写。**非默认端口断言通道**：MMSE 解码由 HTTP `Content-Type: application/vnd.wap.mms-message` 触发（tshark 按 Content-Type 下钻内层），**与端口无关、无 DecodeAs 依赖**——8002 端口上 http+mmse 全自动解出（实测：`frame.protocols=eth:ethertype:ip:tcp:http:mmse`，C-5）。M-Notification/M-Delivery 回放连接（MMSC→MS 方向）由配置显式给四元组，无隐式端口推导。
 
 固定偏移：无 VLAN、IP options、TCP options 时，HTTP 起行起点为 IPv4 offset（偏移）54（Ethernet 14 + IPv4 20 + TCP 20）、IPv6 offset 74（14 + IPv6 40 + TCP 20）。**MMS PDU 在 HTTP body 内，偏移不固定**——PDU 起点 = 54/74 + 该 fixture 固定 HTTP 头集合的字节长（头集合由配置钉死，偏移可预算：`PDU 起点 = 54/74 + len(请求行/状态行 + 固定头集合 + CRLF 空行)`）。PDU 内部偏移见 §3.2/§3.3（首字段固定在 PDU offset 0）。HTTP 消息边界由 Content-Length 界定，**TCP 分段边界不是 HTTP/MMS 消息边界**（RFC 7230 §3.3.2；跨 MSS 用例见 §8）。
 
@@ -91,7 +93,7 @@ PDU = 8C <msg-type-octet>                      ; offset 0-1 固定
 |---:|---|---|---|---|---|
 | 0x8C | X-Mms-Message-Type | 单字节枚举 | §3.7 表 | 全部（M） | §7.2.14 |
 | 0x98 | X-Mms-Transaction-ID | Text-string | 唯一标识；规范无长度上界，**生成器策略上界 32B** | 全部（仅 m-delivery-ind 无此字段；retrieve-conf 中为必选，WAP-209 §7.3 表 5 标注 M） | §7.2.26、表 5 |
-| 0x8D | X-Mms-MMS-Version | Short-integer（高 nibble 主版本 1–7、低 nibble 次版本 0–14；仅主版本时低 nibble=15） | 0x10=1.0、0x13=1.3；本版默认 1.2（线码 0x92） | 全部（M） | §7.2.16 |
+| 0x8D | X-Mms-MMS-Version | Short-integer（高 nibble 主版本 1–7、低 nibble 次版本 0–14；仅主版本时低 nibble=15） | **线码口径（N-1）**：0x90=1.0、0x92=1.2、0x93=1.3（线码 = 0x80|(主<<4|次)；值例 `mmse_version_10`/`mmse_version_13`）；本版默认 1.2 | 全部（M） | §7.2.16 |
 | 0x85 | Date | Long-integer（秒） | — | send-req O / retrieve-conf M / delivery-ind M | §7.2.5、表 1/5/7 |
 | 0x89 | From | `Value-length (0x80 Address-present-token Encoded-string-value \| 0x81 Insert-address-token)` | insert-token=1B 值体 | send-req M / notification O / retrieve-conf O | §7.2.11 |
 | 0x97 | To | Encoded-string-value | §8 地址模型 | send-req O（To/Cc/Bcc 至少一）/ retrieve-conf O / delivery-ind M | §7.2.25 |
@@ -119,6 +121,8 @@ PDU = 8C <msg-type-octet>                      ; offset 0-1 固定
 | — | Application-header | `Token-text Application-specific-value`（RFC 822 扩展头） | — | 各 PDU O（本版不产生，§1 声明） | §7.1 |
 
 **tshark 显示名注意**（实测，tshark 3.6.14）：PDU 携带 0x90 头且 MMS-Version 显式 ≥1.1（线码 0x91+）时字段显示为 `mmse.read_report`；仅在版本头缺失（tshark 默认按 1.0）时显示 `mmse.read_reply`。本版 fixture 恒携带版本头（1.2），断言一律用 `mmse.read_report`。
+
+**高码段扩展头族（本版不产生，C-7）**：0x9F 之后仍有 m-mbox/forward 专用扩展头族——X-Mms-Previously-Sent-By / X-Mms-Previously-Sent-Date（值含 Forward-Count 子计数，OMA-MMS-ENC 1.1，m-forward-req 专用；tshark 实测存在 `mmse.previously_sent_by`/`mmse.previously_sent_date` 字段与 `previously_sent_by.forward_count` 子字段）与 Store 族（实测线码 0xA6 解出 X-Mms-Store-Status-Text）等。该族头只随本版不产生的 PDU 系列（m-forward/m-mbox，§1）出现，本版不产生、不设正例；配置注入归口 §7 `mmse_neg_value_previously_sent` 拒绝（线码不在此钉死，负例按字段名注入）。
 
 ### 3.5 PDU 逐个规格（字段集与总长度公式；必选性出自 WAP-209 表 1–7）
 
@@ -164,6 +168,10 @@ part 的 Content-type-value：有 WSP 媒体码的用 Short-integer——text/pl
 
 **长度自洽不变式**（validator 逐条校验，负例 §7）：`headersLen` 覆盖 part 头全部字节（含 Value-length 前缀）；`dataLen` = part 数据字节数；`Σ` 各 part 累计 + len(Uintvar(partNum)) = body 总长 = HTTP `Content-Length` − PDU 头部长。**部件数上界**：本版 partNum ≤ 127（此时 Uintvar 恒 1B，上式即"+1"；>127 的配置按 §7 长度错归口拒绝）。start 参数引用的 Content-ID 必须存在于某 part 头。
 
+**实现警告（N-6，实测）**：part 头的 name/charset **参数**必须编在该 part 的 Content-type-value 的 Value-length **之内**（`Value-length( 媒体码 *(参数) )`）；直接放在 part 头层会被 WSP 解码器按头字段码解析（实测 0x85→Age、0x81→Accept-Charset，触发 Invalid header value warning）——本节伪码即正确形态，实现期照此编码。
+
+**multipart/mixed 不产生（C-6④）**：本版消息体恒为 multipart/related（媒体码 0xB3，WAP-209 §6.1.1 SMIL 演示形态）；multipart/mixed 为合法规范形态，但现网 MM1 提交/取回均以 related+SMIL 为规范形态，本版不产生、不设用例，配置声明 mixed 归口 §7 值域负例拒绝。
+
 ### 3.7 值域与状态码（WAP-209 §7.2；MMS 1.1/1.2 扩展值出自 OMA-MMS-ENC，tshark 值表一致）
 
 **X-Mms-Message-Type**（§7.2.14）：0x80 m-send-req、0x81 m-send-conf、0x82 m-notification-ind、0x83 m-notifyresp-ind、0x84 m-retrieve-conf、0x85 m-acknowledge-ind、0x86 m-delivery-ind、0x87 m-read-rec-ind、0x88 m-read-orig-ind（1.1）、0x89 m-forward-req、0x8A m-forward-conf（1.1）、0x8B–0x93 m-mbox 系列（1.2，本版不产生）。
@@ -192,7 +200,7 @@ part 的 Content-type-value：有 WSP 媒体码的用 Short-integer——text/pl
 | ⑥ 长连接多事务（现网 MMSC 会话复用） | 同连接 提交→取回→确认 严格配对 | 事件编排，无 pipelining | `mmse_http_keepalive_multi_transaction` |
 | ⑦ 多终端并行（发送方+接收方并行、多 UA） | 独立四元组各自全链 | 多会话展开 | `mmse_multi_session` |
 
-**五层覆盖逐层结论**：功能层——8 类 PDU 各一正例（m-send-req/m-send-conf 双分支/notification/notifyresp/retrieve-conf/acknowledge/delivery-ind/read-rec-ind），每类错误分支负例（§7：配置/线格式/状态机/关联/长度/值域 11 条）。性能层——大 multipart 跨 MSS 分段重组（`mmse_mss_large_multipart`）、Value-length>30 的 0x1F+Uintvar 形态、Long-integer 3B/4B、附件尺寸上界。数据场景层——Response-Status 两值例（Ok / Error-service-denied）、Status **实测三值**（Retrieved / Expired / Deferred；Rejected / Unrecognised 及 1.1+ 值本版不产生、不构成本版覆盖声明，§1）、Read-Status 两值、Message-Class 四值、Priority **实测两值**（Normal 基线 / High 可选头例）、Sender-Visibility 两值（Show 基线 / Hide 可选头例）、Yes/No 族、版本号 1.2 编码、编码变体（Text-string 裸 / VL+charset / Quote 三形态、From 地址 / insert-token 两形态、绝对相对时间、地址四形态；空串 / Application-header 扩展头 / charset 高值本版不产生，§1 声明）、非法值拒绝。地址与流层——IPv4/IPv6 独立 fixture、单流基线、多会话双四元组；**流关联（控制流派生数据流）显式不适用**：MM1 消息体在带内（multipart 在 PDU body 内传输），无控制流派生媒体/数据流，WAP-209/WAP-206 全文无流关联概念；**多流（会话内部并发流）显式不适用**：本版仅 HTTP/1.1，单连接内请求/响应严格配对（RFC 7230 §6.3），无并发流概念。业务层——提交/立即取回/延迟取回/递送报告/读取报告全链、长连接多事务、多终端并行均为现网日常（AOSP 事务服务同款流程），优先于教科书全 PDU 遍历。
+**五层覆盖逐层结论**：功能层——8 类 PDU 各一正例（m-send-req/m-send-conf 双分支/notification/notifyresp/retrieve-conf/acknowledge/delivery-ind/read-rec-ind），每类错误分支负例（§7：**55 行逐故障输入原子拆分**，C-4）。性能层——大 multipart 跨 MSS 分段重组（`mmse_mss_large_multipart`、`mmse_uintvar_max_4b`）、Value-length>30 的 0x1F+Uintvar 形态、Long-integer 3B/4B、附件尺寸上界、**恰等上界五例**（TID 32B/Long-int 4B 满值/Uintvar 4B 载荷/Value-length 30/partNum 127，C-6①）。数据场景层——Response-Status **1.0 九值全**（Ok + 8 错误分支，`mmse_send_conf_ok`/`mmse_send_conf_error`/`mmse_response_status_error_values`；1.1+ 段本版不产生、§1 收窄声明，C-6③）、Status **实测三值**（Retrieved / Expired / Deferred；Rejected / Unrecognised 及 1.1+ 值本版不产生、不构成本版覆盖声明，§1）、Read-Status 两值、Message-Class 四值、Priority **三值全**（Low/Normal/High，C-6②）、Sender-Visibility 两值（Show 基线 / Hide 可选头例）、Yes/No 族、版本号 1.2 编码、编码变体（Text-string 裸 / VL+charset / Quote 三形态、From 地址 / insert-token 两形态、绝对相对时间、地址四形态；空串 / Application-header 扩展头 / charset 高值本版不产生，§1 声明）、非法值拒绝。地址与流层——IPv4/IPv6 独立 fixture、单流基线、多会话双四元组、**并发会话（C-1 翻案纳入，`mmse_concurrent_sessions`）**、非默认端口 8002（`mmse_port_nondefault`，C-5）；**流关联（控制流派生数据流）显式不适用**：MM1 消息体在带内（multipart 在 PDU body 内传输），无控制流派生媒体/数据流，WAP-209/WAP-206 全文无流关联概念；**多流（会话内部并发流）显式不适用**：本版仅 HTTP/1.1，单连接内请求/响应严格配对（RFC 7230 §6.3），无并发流概念。业务层——提交/立即取回/延迟取回/递送报告/读取报告全链、长连接多事务、多终端并行均为现网日常（AOSP 事务服务同款流程），优先于教科书全 PDU 遍历。
 
 ## 5. 消息/事务模型与状态机
 
@@ -211,7 +219,11 @@ part 的 Content-type-value：有 WSP 媒体码的用 Short-integer——text/pl
 
 **确定性**：同一配置必然产出同一字节序列（Transaction-ID/Message-ID/日期为配置显式值或带 seed 的策略值；无墙钟依赖）。
 
-**自动派生规则**（引擎自动补出的内容，逐条）：①`http` 层自动补 HTTP 请求行/状态行与通用头（Host/Content-Type/Content-Length/Connection），Content-Length 恒等于 PDU/multipart 编码后字节数；头可被事件 `http` 子映射覆盖。②`mmse` 层按 §3.2 顺序规则自动排序首三头（Message-Type/Transaction-ID/MMS-Version）并把 Content-Type 置于最后。③取回事务的 GET URI 自动取自通知事件的 content_location 字段（配置内引用，非跨会话隐式状态）。④连接边界：事件序列中源端口/角色变化触发新 TCP 连接；多会话展开第二会话包号起点 = 前会话总包数 + 1。并发会话（`concurrent: true`）本版不适用——MM1 各事务独立短连接即可表达，双会话用多会话展开。
+**自动派生规则**（引擎自动补出的内容，逐条）：①`http` 层自动补 HTTP 请求行/状态行与通用头（Host/Content-Type/Content-Length/Connection），Content-Length 恒等于 PDU/multipart 编码后字节数；头可被事件 `http` 子映射覆盖。②`mmse` 层按 §3.2 顺序规则自动排序首三头（Message-Type/Transaction-ID/MMS-Version）并把 Content-Type 置于最后。③取回事务的 GET URI 自动取自通知事件的 content_location 字段（配置内引用，非跨会话隐式状态）。④连接边界：事件序列中源端口/角色变化触发新 TCP 连接；多会话展开第二会话包号起点 = 前会话总包数 + 1。**并发会话（`concurrent: true`）纳入覆盖**（v2.1.0 翻案，C-1）：HTTP/1.1 单连接内请求/响应严格配对约束的是单个会话内部的事务交替，不约束生成器级多连接交错——正例 `mmse_concurrent_sessions` 双 UA 四元组并发交错回放（cwmp⑦/doh#24/onvif#56/hl7#26/megaco#45/bacnet#47 同判例）；流关联/多流不适用声明（§4）不受影响、保留。
+
+**终止与异常中断（C-3）**：本协议挥手统一 FIN/ACK×2 正常序列（`Terminating`→`Closed`）；`mmse`/`http` 层**不产生 RST**——RST 属传输层注入面，非 MM1 协议语义，异常中断场景不设用例（与 64-cwmp/66-doh/68-hl7 同形）；`Closed` 后不产生新业务帧（正例 `mmse_no_frames_after_fin` 断言包数恰 8、FIN 位与末 ACK 后无 `tcp.len>0` 帧、全帧无 RST）。
+
+**重连/重试不适用（C-6⑤）**：WAP-209/WAP-206 未定义 MM1 应用层重连或重试语义——事务失败由 Response-Status/Status 业务状态表达（§3.7），连接断开即会话终态；本版不实现、不设用例（重连属传输层编排面，非本协议语义）。
 
 ## 6. 配置 typedef（JSON 形状示例，非 Go 代码）
 
@@ -275,27 +287,71 @@ part 的 Content-type-value：有 WSP 媒体码的用 Short-integer——text/pl
 }
 ```
 
-形状要点：`sessions[]` = 统一术语的**事件编排会话**（每个自带四元组与角色 `ua`/`mmsc` 及事件序列；多会话展开按序整块回放，第二会话包号起点 = 前会话总包数 + 1）；`events[]` = 会话的**事件序列**，元素为一笔 MM1 事务一侧的 PDU（kind 覆盖 send_req / send_conf / notification_ind / notifyresp_ind / retrieve（GET，引擎自动从引用的通知事件取 content_location）/ retrieve_conf / acknowledge_ind / delivery_ind / read_rec_ind）；上例含三个会话：UA 提交链、MMSC 方向 `mmsc` 会话回放 m-notification-ind（§1 回放语义）、`ua` 会话 POST m-notifyresp-ind（AOSP NotifyRespTransaction 同款方向）；响应侧 PDU 内容同样显式声明（声明式），HTTP 传输骨架由 `http` 层自动补齐（自动应答反应性成分）；`from` 支持 `{"address": ...}` 与 `{"insert_token": true}` 两形态（§3.4 From）；`expiry`/`delivery_time` 支持 `{"relative": 秒}` 与 `{"absolute": epoch}`；`mms_version` 默认 "1.2"；`wire_fault` 仅负例注入口（取值见 §7），不得成为线上字段。**Transaction-ID 策略上界 32B**（WAP-209 无规范上界，此为生成器策略，validator 强制）。通知事件即用例 `mmse_notification_ind` fixture：其 PDU 逐字节复算 = **99B**（§3.5 工作例），HTTP Content-Length 恒等于该值。
+形状要点：`sessions[]` = 统一术语的**事件编排会话**（每个自带四元组与角色 `ua`/`mmsc` 及事件序列；多会话展开按序整块回放，第二会话包号起点 = 前会话总包数 + 1）；`events[]` = 会话的**事件序列**，元素为一笔 MM1 事务一侧的 PDU（kind 覆盖 send_req / send_conf / notification_ind / notifyresp_ind / retrieve（GET，引擎自动从引用的通知事件取 content_location）/ retrieve_conf / acknowledge_ind / delivery_ind / read_rec_ind）；上例含三个会话：UA 提交链、MMSC 方向 `mmsc` 会话回放 m-notification-ind（§1 回放语义）、`ua` 会话 POST m-notifyresp-ind（AOSP NotifyRespTransaction 同款方向）；响应侧 PDU 内容同样显式声明（声明式），HTTP 传输骨架由 `http` 层自动补齐（自动应答反应性成分）；`from` 支持 `{"address": ...}` 与 `{"insert_token": true}` 两形态（§3.4 From）；`expiry`/`delivery_time` 支持 `{"relative": 秒}` 与 `{"absolute": epoch}`；`mms_version` 默认 "1.2"；`wire_fault` 仅负例注入口，**取值恰 55 个、与 §7 表 55 行、用例文档 §5 的 55 个负例三方一一对应同序（v2.1.0 逐故障输入原子拆分，C-4；每行恰注入一个故障，可机械核验）**：`carrier_no_http`、`carrier_content_type`、`carrier_port`、`carrier_profile`、`head_order_tid_first`、`head_order_version_missing`、`head_first_not_8c`、`pdu_type_unassigned`、`pdu_type_unsupported`、`content_type_missing`、`body_on_bodyless`、`mandatory_from`、`mandatory_recipients`、`mandatory_notif_class`、`mandatory_notif_size`、`mandatory_notif_expiry`、`mandatory_notif_location`、`mandatory_response_status`、`mandatory_delivery_msgid`、`mandatory_delivery_to`、`mandatory_delivery_date`、`mandatory_delivery_status`、`multipart_headers_len`、`multipart_data_len`、`multipart_partnum_zero`、`multipart_partnum_mismatch`、`multipart_start_dangling`、`multipart_partnum_over`、`tid_send_conf`、`tid_notifyresp`、`tid_acknowledge`、`msgid_delivery`、`msgid_read_rec`、`sequence_ack_first`、`sequence_notifyresp_orphan`、`sequence_conf_orphan`、`sequence_response_first`、`length_content_length`、`length_long_int_over`、`length_long_int_zero`、`length_uintvar_over`、`length_value_length`、`length_tid_over`、`value_priority`、`value_status`、`value_message_class`、`value_response_status`、`value_read_status`、`value_yesno`、`value_reply_charging`、`value_empty_string`、`value_application_header`、`value_charset`、`value_previously_sent`、`value_notif_expiry_absolute`，不得成为线上字段。**Transaction-ID 策略上界 32B**（WAP-209 无规范上界，此为生成器策略，validator 强制）。通知事件即用例 `mmse_notification_ind` fixture：其 PDU 逐字节复算 = **99B**（§3.5 工作例），HTTP Content-Length 恒等于该值。
 
 ## 7. 错误处理（负例锚词表）
 
-以下输入必须由 planner/validator 拒绝并传播为 task error（任务错误），不得产出成功 PCAP、`completed/0 packet` 或仅 TCP/HTTP 外壳的假成功。锚词（anchor word）为 `error_contains` 断言字面值，与用例文档 §5 一一对应：
+以下输入必须由 planner/validator 拒绝并传播为 task error（任务错误），不得产出成功 PCAP、`completed/0 packet` 或仅 TCP/HTTP 外壳的假成功。**逐故障输入原子拆分（C-4）：一行一例、钉死单一 `wire_fault` 注入**；`error_contains` **主锚词钉死为字面值（备选括注，供实现期校准；废除多选式列表，C-4b）**，validator 错误文案必须包含主锚词，与用例文档 §5 逐行同序同词（§6 wire_fault 枚举三方一一对应）：
 
-| 负例 ID | 故障输入（方向） | `error_contains` 候选锚词 |
-|---|---|---|
-| `mmse_neg_carrier_config` | 配置错：层链缺 http（tcp→mmse 直连）、承载 Content-Type 非 application/vnd.wap.mms-message、端口/载体矛盾、profile 未定义值 | `carrier`、`content-type`、`layer` 或 `port` |
-| `mmse_neg_pdu_head_order` | 线格式错：首三头缺序（如 Transaction-ID 先于 Message-Type、MMS-Version 缺失）、首字段非 0x8C | `order`、`header` 或 `message-type` |
-| `mmse_neg_unknown_pdu_type` | 线格式/值域错：X-Mms-Message-Type 值未分配（0x00–0x7F 或 >0x93），**或已分配但本版不产生值（0x88–0x93，§1 边界）——两类同归口本行** | `message-type`、`unknown` 或 `pdu` |
-| `mmse_neg_missing_content_type` | 线格式错：m-send-req/m-retrieve-conf 缺最后的 Content-Type 头；无体 PDU（notification/notifyresp/acknowledge/delivery/read-rec）声明了 content 或 Content-Type | `content-type` 或 `body` |
-| `mmse_neg_multipart_structure` | 线格式错：headersLen/dataLen 越界（超出 body 剩余字节）、partNum=0 但声明了 parts、partNum 与实际 part 数不符、start 参数引用不存在的 Content-ID（§5 MUST 规则） | `multipart`、`part` 或 `start` |
-| `mmse_neg_mandatory_missing` | 必选缺失：send-req 的 To/Cc/Bcc 全缺或 From 缺失；notification 缺 Message-Class/Message-Size/Expiry/Content-Location；send-conf 缺 Response-Status；delivery-ind 缺 Message-ID/To/Date/Status | `mandatory`、`missing` 或 `field` |
-| `mmse_neg_tid_correlation` | 关联错：send-conf/notifyresp/acknowledge 的 Transaction-ID 与对应请求不一致（§5 取材规则） | `transaction`、`correlation` 或 `match` |
-| `mmse_neg_msgid_correlation` | 关联错：delivery-ind / read-rec-ind 的 Message-ID 无来源 send-conf（跨事务回指断裂） | `message-id`、`correlation` 或 `match` |
-| `mmse_neg_sequence` | 状态机错：acknowledge 先于 retrieve、notifyresp 无前置 notification、send-conf 无前置 send-req、同一连接响应与请求顺序违反严格配对 | `sequence`、`state` 或 `order` |
-| `mmse_neg_length` | 长度错：HTTP Content-Length ≠ PDU 编码字节数、Long-integer 长度字节 >4 或 =0、Uintvar >4B 载荷、Value-length 与实际值长不符、Transaction-ID >32B（策略上界） | `length`、`uintvar` 或 `overflow` |
-| `mmse_neg_value_range` | 值域错：Priority/Status/Response-Status/Message-Class/Read-Status/Yes-No 族取未定义值（如 priority=0x83、status=0x8F）；**Reply-Charging 字段族（0x9C–0x9F）或本版不产生编码形态（空串 / Application-header / charset≠106，§1 声明）出现在配置——同归口本行** | `value`、`range` 或 `status` |
+| 负例 ID | `wire_fault` 注入口（55 值） | 故障输入（单一注入） | `error_contains` 主锚词（备选） | 依据 |
+|---|---|---|---|---|
+| `mmse_neg_carrier_no_http` | `carrier_no_http` | 层链缺 http（tcp→mmse 直连） | `layer`（carrier） | §1/§2 |
+| `mmse_neg_carrier_content_type` | `carrier_content_type` | 承载 Content-Type 非 application/vnd.wap.mms-message | `content-type`（carrier） | §3.1 |
+| `mmse_neg_carrier_port` | `carrier_port` | 端口/载体矛盾（如 WSP 端口 9200 配 http 层） | `port`（carrier） | §1/§2 |
+| `mmse_neg_carrier_profile` | `carrier_profile` | profile 取未定义值（含 WSP 承载 profile） | `carrier`（profile） | §1 |
+| `mmse_neg_head_order_tid_first` | `head_order_tid_first` | Transaction-ID 头先于 Message-Type（首三头缺序） | `order`（header） | §3.2 |
+| `mmse_neg_head_order_version_missing` | `head_order_version_missing` | 首三头缺 MMS-Version | `header`（order） | §3.2 |
+| `mmse_neg_head_first_not_8c` | `head_first_not_8c` | 首字段码非 0x8C | `message-type`（header） | §3.2 |
+| `mmse_neg_pdu_type_unassigned` | `pdu_type_unassigned` | Message-Type 取未分配值（如 0x7F、>0x93） | `unknown`（message-type） | §3.7 |
+| `mmse_neg_pdu_type_unsupported` | `pdu_type_unsupported` | 已分配但本版不产生值（如 0x8B m-mbox 系） | `message-type`（unsupported） | §1/§3.7 |
+| `mmse_neg_content_type_missing` | `content_type_missing` | m-send-req 缺最后的 Content-Type 头 | `content-type`（body） | §3.2/§3.5 |
+| `mmse_neg_body_on_bodyless` | `body_on_bodyless` | 无体 PDU（m-notifyresp-ind）声明 content 或 Content-Type | `body`（content-type） | §3.5 |
+| `mmse_neg_mandatory_from` | `mandatory_from` | m-send-req 缺 From | `mandatory`（missing） | 表 1 |
+| `mmse_neg_mandatory_recipients` | `mandatory_recipients` | m-send-req 的 To/Cc/Bcc 全缺 | `mandatory`（missing） | 表 1 |
+| `mmse_neg_mandatory_notif_class` | `mandatory_notif_class` | m-notification-ind 缺 Message-Class | `mandatory`（missing） | 表 3 |
+| `mmse_neg_mandatory_notif_size` | `mandatory_notif_size` | m-notification-ind 缺 Message-Size | `mandatory`（missing） | 表 3 |
+| `mmse_neg_mandatory_notif_expiry` | `mandatory_notif_expiry` | m-notification-ind 缺 Expiry | `mandatory`（missing） | 表 3 |
+| `mmse_neg_mandatory_notif_location` | `mandatory_notif_location` | m-notification-ind 缺 Content-Location | `mandatory`（missing） | 表 3 |
+| `mmse_neg_mandatory_response_status` | `mandatory_response_status` | m-send-conf 缺 Response-Status | `response-status`（mandatory） | 表 2 |
+| `mmse_neg_mandatory_delivery_msgid` | `mandatory_delivery_msgid` | m-delivery-ind 缺 Message-ID | `mandatory`（missing） | 表 7 |
+| `mmse_neg_mandatory_delivery_to` | `mandatory_delivery_to` | m-delivery-ind 缺 To | `mandatory`（missing） | 表 7 |
+| `mmse_neg_mandatory_delivery_date` | `mandatory_delivery_date` | m-delivery-ind 缺 Date | `mandatory`（missing） | 表 7 |
+| `mmse_neg_mandatory_delivery_status` | `mandatory_delivery_status` | m-delivery-ind 缺 Status | `mandatory`（missing） | 表 7 |
+| `mmse_neg_multipart_headers_len` | `multipart_headers_len` | part headersLen 越界（超出 body 剩余字节） | `multipart`（headers） | §3.6 |
+| `mmse_neg_multipart_data_len` | `multipart_data_len` | part dataLen 越界（超出 body 剩余字节） | `data`（multipart） | §3.6 |
+| `mmse_neg_multipart_partnum_zero` | `multipart_partnum_zero` | partNum=0 但声明了 parts | `part`（multipart） | §3.6 |
+| `mmse_neg_multipart_partnum_mismatch` | `multipart_partnum_mismatch` | partNum 与实际 part 数不符 | `part`（multipart） | §3.6 |
+| `mmse_neg_multipart_start_dangling` | `multipart_start_dangling` | start 参数引用不存在的 Content-ID | `start`（multipart） | §3.6/WAP-209 §6.1.1 |
+| `mmse_neg_multipart_partnum_over` | `multipart_partnum_over` | partNum=128（>127 部件数上界） | `overflow`（partnum） | §3.6/§8 |
+| `mmse_neg_tid_send_conf` | `tid_send_conf` | send-conf 的 Transaction-ID 与请求侧不一致 | `transaction`（correlation） | §5 |
+| `mmse_neg_tid_notifyresp` | `tid_notifyresp` | notifyresp 的 Transaction-ID 与通知不一致 | `transaction`（correlation） | §5 |
+| `mmse_neg_tid_acknowledge` | `tid_acknowledge` | acknowledge 的 Transaction-ID 与前一个 retrieve 不一致 | `transaction`（correlation） | §5/表 6 |
+| `mmse_neg_msgid_delivery` | `msgid_delivery` | delivery-ind 的 Message-ID 无来源 send-conf（回指断裂） | `message-id`（correlation） | §5/§6.5 |
+| `mmse_neg_msgid_read_rec` | `msgid_read_rec` | read-rec-ind 的 Message-ID 无来源 send-conf | `message-id`（correlation） | §5 |
+| `mmse_neg_sequence_ack_first` | `sequence_ack_first` | acknowledge 先于 retrieve | `sequence`（state） | §5 |
+| `mmse_neg_sequence_notifyresp_orphan` | `sequence_notifyresp_orphan` | notifyresp 无前置 notification | `sequence`（state） | §5 |
+| `mmse_neg_sequence_conf_orphan` | `sequence_conf_orphan` | send-conf 无前置 send-req | `sequence`（state） | §5 |
+| `mmse_neg_sequence_response_first` | `sequence_response_first` | 同连接响应先于请求（违反严格配对） | `order`（sequence） | §5 |
+| `mmse_neg_length_content_length` | `length_content_length` | HTTP Content-Length ≠ PDU 编码字节数 | `length`（content-length） | §3.1/§5 |
+| `mmse_neg_length_long_int_over` | `length_long_int_over` | Long-integer 长度字节 >4（如 05） | `long-integer`（length） | §3.3 |
+| `mmse_neg_length_long_int_zero` | `length_long_int_zero` | Long-integer 长度字节 =0 | `long-integer`（length） | §3.3 |
+| `mmse_neg_length_uintvar_over` | `length_uintvar_over` | Uintvar 载荷 >4B（第 5 字节） | `uintvar`（length） | §3.3 |
+| `mmse_neg_length_value_length` | `length_value_length` | Value-length 与实际值长不符 | `value-length`（length） | §3.3 |
+| `mmse_neg_length_tid_over` | `length_tid_over` | Transaction-ID 33B（>32B 策略上界） | `transaction-id`（overflow） | §3.4/§8 |
+| `mmse_neg_value_priority` | `value_priority` | Priority=0x83（域外） | `priority`（value） | §3.7 |
+| `mmse_neg_value_status` | `value_status` | X-Mms-Status=0x8F（域外） | `status`（value） | §3.7 |
+| `mmse_neg_value_message_class` | `value_message_class` | Message-Class=0x84（域外） | `message-class`（value） | §3.7 |
+| `mmse_neg_value_response_status` | `value_response_status` | Response-Status=0x89（1.0 域外） | `response-status`（value） | §3.7 |
+| `mmse_neg_value_read_status` | `value_read_status` | Read-Status=0x82（域外） | `read-status`（value） | §3.7 |
+| `mmse_neg_value_yesno` | `value_yesno` | Delivery-Report=0x82（Yes/No 域外） | `delivery-report`（value） | §3.7 |
+| `mmse_neg_value_reply_charging` | `value_reply_charging` | Reply-Charging 字段族（0x9C–0x9F）出现在配置 | `reply-charging`（value） | §1/§3.4 |
+| `mmse_neg_value_empty_string` | `value_empty_string` | Subject 空串（仅 0x00 终止，本版不产生形态） | `text-string`（value） | §1/§3.3 |
+| `mmse_neg_value_application_header` | `value_application_header` | Application-header 扩展头（本版不产生形态） | `application-header`（value） | §1/§3.4 |
+| `mmse_neg_value_charset` | `value_charset` | charset=1000（≠106，本版不产生形态） | `charset`（value） | §1/§3.3 |
+| `mmse_neg_value_previously_sent` | `value_previously_sent` | X-Mms-Previously-Sent-By/Forward-Count 头族出现在配置（本版不产生） | `previously-sent`（value） | §3.4 高码段声明 |
+| `mmse_neg_value_notif_expiry_abs` | `value_notif_expiry_absolute` | 通知 Expiry 用绝对形态（表 3 仅 interval） | `expiry`（value） | §3.4/表 3 |
 
-**不得误报为 planner error 的合法协议事件**：m-send-conf 错误 Response-Status（业务错误响应是正例形态，`mmse_send_conf_error`）、m-delivery-ind Status=Expired（过期是合法状态值）、m-notifyresp Deferred（延迟取回合法路径）、From insert-address-token（1B 合法形态，正例 `mmse_from_insert_token`）、Text-string Quote 形态（首字符分隔符前置 0x7F，正例 `mmse_text_string_quote`）、MMS 1.0/1.1 混用（§6.7 同主版本互通，但本版 fixture 统一 1.2）、To/Cc/Bcc 多实例（任意数量合法）。**接收侧互操作反应不进用例也不进负例**（§3.7 显式不适用声明）；Application-header / 空串 / charset 高值已按 §1 声明归口 `mmse_neg_value_range` 拒绝，不再列为本条合法事件。只有配置、线格式、长度、值域或关联错误进入负例。
+**不得误报为 planner error 的合法协议事件**：m-send-conf 错误 Response-Status（业务错误响应是正例形态——1.0 九值全为合法配置，`mmse_send_conf_error`/`mmse_response_status_error_values`）、m-delivery-ind Status=Expired（过期是合法状态值）、m-notifyresp Deferred（延迟取回合法路径）、From insert-address-token（正例 `mmse_from_insert_token`）、Text-string Quote 形态（正例 `mmse_text_string_quote`）、Priority=Low（正例 `mmse_priority_low`）、Report-Allowed=No（正例 `mmse_report_allowed_no`）、MMS 1.0/1.1/1.3 版本混用（§6.7 同主版本互通；值例 `mmse_version_10`/`mmse_version_13`）、To/Cc/Bcc 多实例与仅 Cc 收件人（正例 `mmse_addressing_types`/`mmse_send_req_cc_only`）、非默认端口 8002（正例 `mmse_port_nondefault`）、Content-ID 角括号 warning（tshark 实测伪影）。**接收侧互操作反应不进用例也不进负例**（§3.7 显式不适用声明）；本版不产生形态/字段族（空串、Application-header、charset≠106、Reply-Charging、Previously-Sent-By 族、高码段头族、multipart/mixed）按 §1/§3.4/§3.6 声明逐项归口本表对应负例行拒绝。只有配置、线格式、长度、值域或关联错误进入负例。
 
 ## 8. 边界
 
@@ -310,50 +366,11 @@ part 的 Content-type-value：有 WSP 媒体码的用 Short-integer——text/pl
 
 ## 9. 原子 ID 与完成定义
 
-设计、testcase 与未来 `mmse.json` 必须使用同一组唯一语义 ID、同一顺序（原子用例：一个用例只验证一个协议行为——每类 PDU、每个值域组、每个编码原语形态、每条关联规则、每个错误分支各一；数量由协议结构决定，不设约 20 条基线）。共 **38 条：27 正例 + 11 负例**。
+**ID 权威（v1.3 行为面全枚举，C-6⑦）**：语义用例 ID 清单以**用例文档 §2/§5 为唯一权威**（v2.1.0 起按 rr 审查行为面 138 点扩量：**100 条 = 45 正例 + 55 负例**）；本节不再维护 ID 逐条表（v2.0.x 的 38 ID 表见 git 历史）。设计、用例文档与未来 `mmse.json` 使用同一组唯一 ID 与顺序；当前 JSON 另有不计入的 `mmse_neg_unregistered` 占位。约定 packet_count（正例）：POST+200 单事务 = 8（3 握手 + 2 消息帧 + 3 挥手）；GET+200 = 8；多事务 keep-alive = 3+2M+3；多会话/并发 = 各会话之和；跨 MSS = 7 + ceil(消息总长/MSS)。实现期以实际输出校准，断言以 fields/frames 为准。
 
-| # | ID | 类型 | 覆盖（设计 §） |
-|---:|---|---|---|
-| 1 | `mmse_send_req_ipv4` | 正 | §3.5/§4①：m-send-req 必选集 + multipart.related 完整体，POST/IPv4 单流基线（Sender-Visibility=Show 显式值例） |
-| 2 | `mmse_send_conf_ok` | 正 | §3.5/§5：m-send-conf Ok、TID same_as、Message-ID 生成；HTTP 200 ≠ MMS 状态 |
-| 3 | `mmse_send_conf_error` | 正 | §3.7/§4①：Response-Status 错误分支（Error-service-denied）+ Response-Text |
-| 4 | `mmse_notification_ind` | 正 | §3.5/§4②：通知必选集 + From 可选头（PDU 总长 99B 逐字节复算，§3.5 工作例） |
-| 5 | `mmse_retrieve_conf_immediate` | 正 | §3.5/§4②：立即取回（Figure 4）GET→200，TID 复用通知 |
-| 6 | `mmse_notifyresp_deferred` | 正 | §3.5/§4③：通知确认 Deferred + Report-Allowed，TID same_as 通知 |
-| 7 | `mmse_acknowledge_ind` | 正 | §3.5/§4③：延迟链尾确认，TID same_as 取回新事务（Figure 5 全链） |
-| 8 | `mmse_delivery_ind_retrieved` | 正 | §3.5/§4④：递送报告必选集（无 TID），Message-ID same_as send-conf，Status=Retrieved |
-| 9 | `mmse_delivery_ind_expired` | 正 | §3.7/§4④：Status=Expired 值域变体 |
-| 10 | `mmse_read_rec_ind` | 正 | §3.5/§4⑤：读取报告（1.1 PDU）Read-Status=Read，Message-ID 关联 |
-| 11 | `mmse_read_status_deleted` | 正 | §3.7：Read-Status=Deleted-without-being-read 变体 |
-| 12 | `mmse_message_class_values` | 正 | §3.7：Message-Class 四值域（Personal/Advertisement/Informational/Auto） |
-| 13 | `mmse_encoding_text_string` | 正 | §3.3/§3.4：Encoded-string-value 两形态（裸 Text-string 与 VL+charset106+UTF-8） |
-| 14 | `mmse_text_string_quote` | 正 | §3.3：Text-string Quote 形态（首字符为分隔符时前置 0x7F） |
-| 15 | `mmse_encoding_long_integer` | 正 | §3.3：Long-integer 大端（Date 4B / Message-Size 3B，定宽补零策略） |
-| 16 | `mmse_encoding_value_length_uintvar` | 正 | §3.3：Value-length>30（0x1F+Uintvar）与 Uintvar part 长度 |
-| 17 | `mmse_time_absolute_form` | 正 | §3.3/§3.4：Expiry/Delivery-Time 绝对 token（0x80+Date-value）形态 |
-| 18 | `mmse_send_req_optional_headers` | 正 | §3.4：可选头全集（Cc/Bcc 多收件人、Sender-Visibility=Hide、Priority=High、Delivery-Time 出现） |
-| 19 | `mmse_from_insert_token` | 正 | §3.4/§3.5：From insert-address-token 形态（1B 值体） |
-| 20 | `mmse_addressing_types` | 正 | §3.7：地址模型四形态（/TYPE=PLMN、/TYPE=IPv4、/TYPE=IPv6、RFC822 邮箱，多 To 实例） |
-| 21 | `mmse_multipart_related_root` | 正 | §3.6：multipart/related 父层 start/type 参数与 SMIL 根部件（RFC 2387） |
-| 22 | `mmse_multipart_part_headers` | 正 | §3.6：part 头编码（charset/name 参数、Content-ID/Content-Location、text 子解析） |
-| 23 | `mmse_multipart_media_part` | 正 | §3.6：媒体 part（image/jpeg well-known 码、magic bytes、无 charset） |
-| 24 | `mmse_http_keepalive_multi_transaction` | 正 | §5/§4⑥：同连接多事务（提交+取回+确认）严格配对、Content-Length 自洽 |
-| 25 | `mmse_ipv6` | 正 | §2/§8：IPv6 单流（ipv6.nxt=6、offset 74、PDU 字节同 v4） |
-| 26 | `mmse_multi_session` | 正 | §5/§4⑦：多会话展开双四元组（发送链+接收回放链），TID/MsgID 不串用 |
-| 27 | `mmse_mss_large_multipart` | 正 | §8/§3.6：大 multipart 跨 MSS ≥3 段重组后完整 |
-| 28 | `mmse_neg_carrier_config` | 负 | §7：配置错（层链/Content-Type/端口） |
-| 29 | `mmse_neg_pdu_head_order` | 负 | §7：首三头顺序违反 |
-| 30 | `mmse_neg_unknown_pdu_type` | 负 | §7：Message-Type 未分配值或本版不产生值（0x88–0x93） |
-| 31 | `mmse_neg_missing_content_type` | 负 | §7：有体 PDU 缺 Content-Type / 无体 PDU 带体 |
-| 32 | `mmse_neg_multipart_structure` | 负 | §7：multipart 结构错（长度越界、start 无引用、part 数不符） |
-| 33 | `mmse_neg_mandatory_missing` | 负 | §7：必选字段缺失 |
-| 34 | `mmse_neg_tid_correlation` | 负 | §7：Transaction-ID 关联错配 |
-| 35 | `mmse_neg_msgid_correlation` | 负 | §7：Message-ID 无来源（跨事务回指断裂） |
-| 36 | `mmse_neg_sequence` | 负 | §7：事务顺序错（ack 先于 retrieve 等） |
-| 37 | `mmse_neg_length` | 负 | §7：长度错（Content-Length/Long-integer/Uintvar/Value-length/TID 上界） |
-| 38 | `mmse_neg_value_range` | 负 | §7：枚举值域外取值、不产生形态/字段族归口拒绝 |
+**正例簇级图景**：8 类 PDU 各一例 + 值域变体（Message-Class 四值 / Priority 三值 / Read-Status 两值 / Yes-No 族 / Status 三值收窄 / Response-Status 1.0 九值 / 版本 1.0-1.2-1.3）；编码原语（Text-string 裸/charset/Quote 三形态、From 两形态、Long-integer 4B/3B、Uintvar、Value-length 短/长形态、绝对/相对时间 token、地址四形态）；multipart（父层 start/type、part 头、媒体码 jpeg+gif、长度自洽不变式、最小通知体）；事务关联（TID×5 对、MsgID×2 对）；状态机（严格配对、GET URI 自动派生、Closed 终态）；边界恰等五例（TID 32B / Long-int 4B 满值 / Uintvar 4B 载荷 / Value-length 30 / partNum 127）；载体（v4 / v6 / 8002 非默认端口 / keep-alive 多事务 / MSS 分段）；会话（多会话展开、并发交错）。**负例簇级图景**：§7 表 55 行逐故障输入（carrier 4 / 头序 3 / PDU 类型 2 / Content-Type 2 / 必选缺失 11 / multipart 6 / TID 关联 3 / MsgID 关联 2 / 顺序 4 / 长度 6 / 值域与不产生形态 12）。
 
-完成定义：注册 `tcp→http→mmse` 层链；逐字段生成并验证 §3 的 PDU 编码（首三头顺序、Content-Type 收尾、值域）、multipart/SMIL/附件、§5 事务关联与状态机、§7 错误传播；38 个语义 ID 正负断言完成；未注册阶段只接受 `unknown layer` 占位。
+**完成定义**：注册 `tcp→http→mmse` 层链；逐字段生成并验证 §3 的 PDU 编码（首三头顺序、Content-Type 收尾、值域）、multipart/SMIL/附件、§5 事务关联与状态机、§7 错误传播（55 行主锚词）；100 个语义 ID 正负断言完成；未注册阶段只接受 `unknown layer` 占位；pcap/NIC 双输出共用本契约（§1 输出契约段，C-2）。
 
 ## 10. 修订记录
 
@@ -370,3 +387,14 @@ part 的 Content-type-value：有 WSP 媒体码的用 Short-integer——text/pl
   - **M09**：用例 14（重排后 #15）`8e 03 00 12 c0` 依赖未钉死策略 → §3.3 显式 Long-integer **定宽补零策略**（Date-value 恒 4B、Delta-seconds 与 Message-Size 恒 3B；注明与 WSP 最小编码的区别及选择理由）；§3.5 速查、§8 上界表同步。
   - **M10**：§3.6 "+1（partNum）"在 >127 parts 失效 → 改为 `+len(Uintvar(partNum))` + 本版部件数上界 ≤ 127（§8 上界表同步；>127 归口 `mmse_neg_length`）。
   - 索引顺序同步：设计 §9 27 正 + 11 负 = **38**（用例 §2 三方表 §8 一致）。
+
+- v2.1.0（2026-09-02，v1.3 重审修复轮）：独立隔离审查（rr，按《需求文档》v1.3 行为面全枚举 138 点：✓76/半10/✗52）后逐项修复，38 → **100 条（45 正 + 55 负）**：
+  - **C-4（CRITICAL）**：§7 负例表逐故障输入原子拆分 11 → **55 行**（一行一例单一 `wire_fault` 注入），主锚词钉死字面值（备选括注，废除"或"式列表）；§6 `wire_fault` 枚举 55 值与 §7 表、用例 §5 三方同序一一对应（C-4b/C-4c 同闭）。
+  - **C-1**：并发会话翻案纳入——§5 删"本版不适用"、正例 `mmse_concurrent_sessions`（cwmp⑦/doh#24/onvif#56/hl7#26/megaco#45/bacnet#47 同判例）；流关联/多流不适用声明保留。
+  - **C-2**：§1 新增 pcap/NIC 双输出契约段（同一 cases JSON、同一断言集、checksum offload 不影响）。
+  - **C-5**：非默认端口正例 `mmse_port_nondefault`（dst_port=8002）+ §2 声明"断言通道经 HTTP Content-Type 触发、与端口无关、无 DecodeAs 依赖"（审查员实测背书）。
+  - **C-6**：扩量子项——①恰等上界五正例（`mmse_tid_max_32`/`mmse_long_integer_max_4b`/`mmse_uintvar_max_4b`/`mmse_value_length_max_30`/`mmse_partnum_max_127`）；②Priority=Low（`mmse_priority_low`，三值闭合）；③Response-Status 1.0 其余 7 错误值正例（`mmse_response_status_error_values`）+ 1.1+ 段（0xC0–0xC4/0xE0–0xEA）§1 收窄声明；④multipart/mixed §3.6 不产生声明；⑤重连/重试 §5 不适用声明；⑥版本 1.0/1.3 值例（`mmse_version_10`/`mmse_version_13`）；⑦§9 改"ID 权威 = 用例文档 §2/§5"、删双源逐条表改簇级图景。另补：GET URI 自动派生、Closed 终态无新帧、multipart 长度不变式、Report-Allowed=No、仅 Cc 收件人、通知最小体 71B 反向复算、image/gif 媒体码。
+  - **C-3**：§5 终止与异常中断声明（FIN/ACK×2 统一、不产生 RST）。
+  - **C-7**：§3.4 补高码段扩展头族声明（X-Mms-Previously-Sent-By/Forward-Count、Store 族——tshark 实测字段存在；本版不产生，负例 `mmse_neg_value_previously_sent` 归口）。
+  - **N-1**：§3.4 版本行统一线码口径（0x90/0x92/0x93）；**N-6**：§3.6 补"part 头参数必须编在 Content-type-value VL 内"实现警告（实测 0x85→Age 误解析）。另有通知 Expiry 绝对形态负例（表 3 仅 interval，`mmse_neg_value_notif_expiry_abs`）、partNum=128 越界负例（M10 上界归口）。
+  - 用例侧同步：N-2（v6 地址改 `2001:db8:bb::71`）、N-3（"版本字段码 0x8D（值 0x92）"）、N-4（#12/#13/#38 单 ID 单 spec 形态钉死）。
