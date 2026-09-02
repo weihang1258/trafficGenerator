@@ -34,6 +34,8 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"vxlan", "nvgre", "geneve",
 		// B5 消息中间件：layer/planner 注册后准入（占位用例同步替换）。
 		"openwire", "ams", "swarm", "gnutella",
+		// B6（77-gbt）：layer/planner 注册后准入（占位用例同步替换）。
+		"gbt",
 	}
 	sort.Strings(want)
 
@@ -61,7 +63,7 @@ func TestAllowedProtocolsStable(t *testing.T) {
 func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 	negativeOnly := []string{
 		"bacnet", "cwmp", "dcerpc", "doh", "dtls", "edp", "ethmining",
-		"gbt", "getwork", "hl7",
+		"getwork", "hl7",
 		"kerberos", "megaco", "mmse", "nmea", "ntlm", "ocsp",
 		"onvif", "spnego", "sstp", "stratum",
 		"xmrmining",

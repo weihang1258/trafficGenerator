@@ -182,7 +182,7 @@
 50. **`gbt_rst_interrupt`**（5 = 3+1+1）：握手 3 + 请求 1 + RST 1（`tcp.flags.reset=1`）——无响应 body、无 FIN。
 51. **`gbt_no_frames_after_fin`**（9）：单事务 + FIN×2——包数恰 9、末帧后无 `tcp.len>0` 帧、全流无 RST。
 52. **`gbt_dual_family`**（18 = 9+9）：v4 + v6 会话各单事务——`ip.version` 各 4/6、两流状态独立。
-53. **`gbt_template_large_mss`**（12 = 3+1+4+4）：大模板（3×740 hex data，响应 body 5512B）单响应跨 4 段——按 `tcp.stream` 重组后断 CL=5512、json.key 含三 tx 元素 data 键、各段 `tcp.len` 之和 = 5512+96=5608（头）。
+53. **`gbt_template_large_mss`**（12 = 3+1+4+4）：大模板（3×740 hex data，响应 body 5512B）单响应跨 4 段——按 `tcp.stream` 重组后断 CL=5512、json.key 含三 tx 元素 data 键、各段 `tcp.len` 之和 = 5512+96=5609（头）。
 
 ## 5. 负例契约
 

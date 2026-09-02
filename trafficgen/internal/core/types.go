@@ -1730,6 +1730,7 @@ type FlowSpec struct {
 	CFlow    *CFlowConfig    `json:"cflow,omitempty"`
 	RTMFP    *RTMFPConfig    `json:"rtmfp,omitempty"`
 	AMQP     *AMQPConfig     `json:"amqp,omitempty"`
+	GBT      *GBTConfig      `json:"gbt,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`

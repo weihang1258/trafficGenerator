@@ -445,6 +445,10 @@ type FlowMeta struct {
 	OSPF *core.OSPFConfig
 	PIM  *core.PIMConfig
 	ISIS *core.ISISConfig
+	// GBT is the flow's gbt config (注入到 gbt 终结层生成器，B6：BIP 22/23
+	// JSON-RPC over HTTP；sessions[]/events[] 逐事件产完整 HTTP 帧，http 层
+	// 透传转发)。Only set for gbt chains。
+	GBT *core.GBTConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
@@ -1076,6 +1080,8 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 		clientSeq, serverSeq uint32
 	}
 	conns := map[uint16]*tcpConn{}
+	// connOrder 记录并发连接的首见序（流结束时按此序统一挥手）。
+	var connOrder []uint16
 	for events != nil {
 		var ev MessageEvent
 		var ok bool
@@ -1099,6 +1105,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 					return err
 				}
 				conns[evSrc] = &tcpConn{clientSeq: clientSeq, serverSeq: serverSeq}
+				connOrder = append(connOrder, evSrc)
 			} else {
 				c := conns[evSrc]
 				clientSeq, serverSeq = c.clientSeq, c.serverSeq
@@ -1205,7 +1212,20 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// 挥手：FIN|ACK(up) → ACK(down) → FIN|ACK(down) → ACK(up)。
 	// 多会话（P0a）：以"最后一条连接"的客户端源端口挥手（curSrcPort 已跟踪；
 	// 单连接/无事件路径 curSrcPort 恒为 cfg.srcPort，字节级不变）。
+	// 并发会话模式：全部已建连接按首见序统一挥手（B6 gbt 并发正例——每条
+	// 连接各 4 包 FIN×2×ACK；mms 等终止性语义不受影响：termination=false 的
+	// 链本就不走本分支）。
 	if cfg.termination {
+		if cfg.concurrent && len(connOrder) > 0 {
+			for _, p := range connOrder {
+				c := conns[p]
+				clientSeq, serverSeq = c.clientSeq, c.serverSeq
+				if err := teardown(p); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		if err := teardown(curSrcPort); err != nil {
 			return err
 		}

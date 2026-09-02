@@ -521,6 +521,19 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			}
 		}
 		// hds 依赖 http 层，目的端口 80 默认由 http 层处理，不在此默认化。
+	case "gbt":
+		if sub, ok := cfg["gbt"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v GBTConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "gbt: "+err.Error())
+				} else {
+					spec.GBT = &v
+				}
+			}
+		}
+		// gbt 依赖 http 层，目的端口 8332 由 FieldContract（tcp.dst_port）补齐，
+		// 不在此默认化。
 	case "tcp":
 		// TCP sub-config already read above; nothing protocol-specific to add.
 	case "udp":

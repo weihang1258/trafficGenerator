@@ -52,6 +52,9 @@ var allowedProtocols = map[string]bool{
 	"ams": true,
 	"swarm": true,
 	"gnutella": true,
+	// B6（77-gbt）：注册 layer/planner 后准入（占位用例同步替换为 81 语义
+	// 用例，protocols_test 哨兵同步摘除）。
+	"gbt": true,
 }
 
 // IsAllowedProtocol reports whether name is an accepted traffic protocol.

@@ -59,8 +59,46 @@ func (g *HTTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 	if req.Meta.HDS != nil {
 		return g.generateHDSTransformer(ctx, req)
 	}
+	// 透传变换器模式（B6 HTTP-RPC 族 [ip→tcp→http→gbt/…]）：gbt 等 HTTP
+	// JSON-RPC 终结层的事件字节已是完整 HTTP 帧（请求行/状态行/头/体按各自
+	// 契约钉死），http 层不重包装，原样转发到 tcp——与 http_flv/hls/hds 的
+	// "内层产 body、http 包帧"分工不同（那些内层只有 body 语义）。检测入口
+	// 同款：Meta 里存在该族的终结层配置即进入透传。
+	if isHTTPRPCInner(req.Meta) {
+		return g.generateForwardTransformer(ctx, req)
+	}
 	// 终结层模式（既有行为分派到老逻辑）
 	return g.generateTerminal(ctx, req)
+}
+
+// isHTTPRPCInner reports whether the inner terminal layer emits pre-framed
+// HTTP messages that must be forwarded verbatim (identity transformer).
+func isHTTPRPCInner(meta layers.FlowMeta) bool {
+	return meta.GBT != nil
+}
+
+// generateForwardTransformer forwards the inner terminal stream's events
+// verbatim (透传变换器)：每事件经 EmitMsg 原样转发，流关闭即结束。事件字节
+// 是内层已构造好的完整 HTTP 帧方向与字节，tcp 层照常分段/握手/挥手。
+func (g *HTTPGenerator) generateForwardTransformer(ctx context.Context, req *layers.GenRequest) error {
+	if req.EmitMsg == nil {
+		return fmt.Errorf("http generator: EmitMsg is nil (forward transformer mode)")
+	}
+	events := req.Meta.Events
+	for events != nil {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ev, ok := <-events:
+			if !ok {
+				return nil
+			}
+			if err := req.EmitMsg(ev); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // generateTerminal is the original terminal-layer Generate body (见上文注释

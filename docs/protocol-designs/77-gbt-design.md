@@ -112,7 +112,7 @@
 | 模板响应 body（18 键模板 576B） | `30+N+576` | **607B**（id=1） |
 | 普通模板响应 body（14 必选键模板 457B） | `30+N+457` | 488B（id=1，无可选族） |
 | 1-tx 模板响应 body（模板 853B） | `30+N+853` | 884B（id=1） |
-| 大模板响应 body（3×740 hex data 模板 5481B） | `30+N+5481` | **5512B**（id=1，HTTP 全长 5608B 跨 4 MSS 段） |
+| 大模板响应 body（3×740 hex data 模板 5481B） | `30+N+5481` | **5512B**（id=1，HTTP 全长 5609B 跨 4 MSS 段） |
 | 接受（null）/proposal 通过（true）响应 body | `30+N+4` | 35B（id=4/3） |
 | 拒绝理由响应 body（reason 带引号 20B） | `30+N+20` | 51B（prev-blk-not-found，id=4） |
 | 500 错误响应 body（error 对象 59B） | `29+N+59` | 89B（id=5） |
