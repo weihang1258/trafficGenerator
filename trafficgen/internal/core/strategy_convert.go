@@ -534,6 +534,19 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// gbt 依赖 http 层，目的端口 8332 由 FieldContract（tcp.dst_port）补齐，
 		// 不在此默认化。
+	case "getwork":
+		if sub, ok := cfg["getwork"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v GetWorkConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "getwork: "+err.Error())
+				} else {
+					spec.GetWork = &v
+				}
+			}
+		}
+		// getwork 依赖 http 层，目的端口 8332 由 FieldContract（tcp.dst_port）
+		// 补齐，不在此默认化。
 	case "tcp":
 		// TCP sub-config already read above; nothing protocol-specific to add.
 	case "udp":

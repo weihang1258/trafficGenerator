@@ -449,6 +449,9 @@ type FlowMeta struct {
 	// JSON-RPC over HTTP；sessions[]/events[] 逐事件产完整 HTTP 帧，http 层
 	// 透传转发)。Only set for gbt chains。
 	GBT *core.GBTConfig
+	// GetWork is the flow's getwork config (注入到 getwork 终结层生成器，
+	// B6：Bitcoin legacy getwork JSON-RPC over HTTP；同款透传转发)。
+	GetWork *core.GetWorkConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators

@@ -429,6 +429,14 @@ func buildDefaultRegistry() {
 		DependsOn:      []string{"http"},
 		FieldContract:  map[string]string{"tcp.dst_port": "8332"},
 	})
+	// getwork（Bitcoin legacy getwork JSON-RPC over HTTP）：终结层事件已含
+	// 完整 HTTP 帧（请求/响应钉死头序），http 层以透传变换器转发（identity
+	// transformer）。全部协议配置经 spec.GetWork（顶层 "getwork" 子映射）注入，
+	// 层 config 恒空；8332 端口经 FieldContract 供通用应用补齐。
+	r.Register(LayerSchema{Name: "getwork", Category: CategoryTerminal,
+		DependsOn:      []string{"http"},
+		FieldContract:  map[string]string{"tcp.dst_port": "8332"},
+	})
 	r.Register(LayerSchema{Name: "opcua", Category: CategoryTerminal, DependsOn: []string{"tcp"}, Fields: map[string]FieldSchema{
 		"security_mode":    {Type: "string", Default: "none"},
 		"read":             {Type: "list", Default: []interface{}{}},

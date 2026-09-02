@@ -134,6 +134,10 @@ import (
 	// 空导入：gbt 包 init 反向注册终结层生成器 + 校验器（B6：BIP 22/23
 	// JSON-RPC over HTTP，[ip→tcp→http→gbt] 链，http 层透传转发）。
 	_ "github.com/trafficgen/trafficgen/internal/protocol/gbt"
+	// 空导入：getwork 包 init 反向注册终结层生成器 + 校验器（B6：Bitcoin
+	// legacy getwork JSON-RPC over HTTP，[ip→tcp→http→getwork] 链，同款透传
+	// 转发）。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/getwork"
 	"github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	"github.com/trafficgen/trafficgen/internal/protocol/tftp"
@@ -457,6 +461,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("someip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stun"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("gbt"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("getwork"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rtmfp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("amqp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cflow"))

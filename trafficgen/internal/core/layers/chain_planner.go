@@ -1394,6 +1394,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// GBT 同款（B6）：sessions[]/events[] 配置经 Meta 直传 gbt 终结层
 		// 生成器（每事件一笔事务一侧的完整 HTTP 帧字节；http 层透传转发）。
 		GBT: spec.GBT,
+		// GetWork 同款（B6）：sessions[]/events[] 配置经 Meta 直传 getwork
+		// 终结层生成器（每事件一笔事务一侧的完整 HTTP 帧字节；http 层透传
+		// 转发）。
+		GetWork: spec.GetWork,
 		// SMB 同款（P4a）：配置经 Meta 直传 smb 终结层生成器（SMB2 会话
 		// NEGOTIATE → SESSION_SETUP → TREE_CONNECT → CREATE → Operations →
 		// CLOSE → TREE_DISCONNECT → LOGOFF 逐 PDU 事件，build* 纯函数复用）。

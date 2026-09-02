@@ -83,7 +83,7 @@
 
 ### 3.4 fixture 常量与字节基线（G-12：全量钉死，逐字节可复算）
 
-**fixture 常量**：IPv4 `192.0.2.76:4076 → 198.51.100.76:8332`；IPv6 `2001:db8::76 → 2001:db8:100:76`（端口同）；非默认端口例 9332；auth `user:pass` → `Authorization: Basic dXNlcjpwYXNz`；id 数字序列 1/2/3…、字符串例 `"rpc-001"`；`data_work = "00000020" + "11"×32 + "22"×32 + "66dead00" + "1b0404cb" + "00000000"(nonce) + "00"×48`（256 hex）；`data_submit` 同 data_work 仅 nonce 位改 `"2f9f2e1d"`；`target = "00000000" + "ffff" + "00"×26`（8+4+52 = 64 hex）；`midstate = "33"×32`（64 hex）；`hash1 = "00000080" + "00"×56 + "80020000"`（128 hex，legacy 常量）；500 错误 `{"code":-32601,"message":"method not found"}`。
+**fixture 常量**：IPv4 `192.0.2.76:4076 → 198.51.100.76:8332`；IPv6 `2001:db8::76 → 2001:db8:100:76`（端口同；实现取合法字面 `2001:db8::100:76`——四组无 `::` 缩写非法，gbt 判例）；非默认端口例 9332；auth `user:pass` → `Authorization: Basic dXNlcjpwYXNz`；id 数字序列 1/2/3…、字符串例 `"rpc-001"`；`data_work = "00000020" + "11"×32 + "22"×32 + "66dead00" + "1b0404cb" + "00000000"(nonce) + "00"×48`（256 hex）；`data_submit` 同 data_work 仅 nonce 位改 `"2f9f2e1d"`；`target = "00000000" + "ffff" + "00"×26`（8+4+52 = 64 hex）；`midstate = "33"×32`（64 hex）；`hash1 = "00000080" + "00"×56 + "80020000"`（128 hex，legacy 常量）；500 错误 `{"code":-32601,"message":"method not found"}`。
 
 **核心消息长度公式**（紧凑 1.0 形态；N = len(id 字面)）：
 
@@ -93,7 +93,7 @@
 | work 响应 body | `78 + N + 256+64+64+128`（= `78+N+512`） | 591B（id=1） |
 | 提交请求 body | `40 + N + 256` | 297B（id=2） |
 | 布尔提交响应 body | `34 + N`（true）/ `35 + N`（false） | 35B/36B（id=2） |
-| 对象提交响应 body | `60 + N + len(status) + len(share_id)` | 73B（status=accepted/share_id=sh-0001，id=2） |
+| 对象提交响应 body | `57 + N + len(status) + len(share_id)` | 73B（status=accepted/share_id=sh-0001，id=2） |
 | 500 错误响应 body | `52 + N + len(code 字面) + len(message)` | 75B（id=3，code=-32601/message=method not found） |
 | 基线 HTTP 请求全长 | 头 156（含 Authorization）+ body | **195B** |
 | 基线 HTTP 响应全长 | 头 96 + body | **687B** |

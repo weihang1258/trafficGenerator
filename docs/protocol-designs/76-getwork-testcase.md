@@ -110,7 +110,7 @@
 ## 4. 正例逐项断言契约
 
 1. **`getwork_request_ipv4_8332`**（9 = 3+2+4）：帧 4 请求（offset 54 起）——`http.request.method=POST`、`http.file_data` = 基线 body 39B、Content-Length=39、id 配对（json.path=/id 与响应同值）；帧 5 响应 `http.response.code=200`、CL=591。
-2. **`getwork_request_ipv6_8332`**（9）：同 1 断言集 + `ipv6.nxt=6`、HTTP 起行 offset 74、fixture 地址 `2001:db8::76→2001:db8:100:76`、不出现 v4 地址。
+2. **`getwork_request_ipv6_8332`**（9）：同 1 断言集 + `ipv6.nxt=6`、HTTP 起行 offset 74、fixture 地址 `2001:db8::76→2001:db8::100:76`（文档简写 2001:db8:100:76 的合法字面）、不出现 v4 地址。
 3. **`getwork_port80`**（9）：`tcp.dstport=80`、Host `198.51.100.76:80`、其余同 1——端口只作载体，不作唯一识别。
 4. **`getwork_port_nondefault_9332`**（9）：`tcp.dstport=9332`（配置显式声明）、免 DecodeAs 断言集与 1 全同（§1 基线②）。
 5. **`getwork_uri_variant`**（9）：请求行 `POST /rpc HTTP/1.1`、Host 同步——断言 `http.request.uri=/rpc` 等值与 frames hex 请求行区 `504F5354202F72706320`。
