@@ -455,6 +455,10 @@ type FlowMeta struct {
 	// Stratum is the flow's stratum config (注入到 stratum 终结层生成器，
 	// B6：比特币 Stratum v1 行式 JSON over TCP；每事件一条行/一对请求响应)。
 	Stratum *core.StratumConfig
+	// ETHMining is the flow's ethmining config (注入到 ethmining 终结层生成器，
+	// 73-ethmining v2.0.2：以太坊挖矿 stratum 行式 JSON over TCP；每事件
+	// 一条行/一对请求响应，[tcp→ethmining] 直连)。
+	ETHMining *core.ETHMiningConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators

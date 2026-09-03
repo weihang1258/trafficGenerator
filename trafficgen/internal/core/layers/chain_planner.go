@@ -1402,6 +1402,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// 终结层生成器（每事件一条行/一对请求响应行；[tcp→stratum] 直连，
 		// 无 http 层）。
 		Stratum: spec.Stratum,
+		// ETHMining 同款（73-ethmining v2.0.2：sessions[]/events[] 配置
+		// 经 Meta 直传 ethmining 终结层生成器；每事件一条行/一对请求响应
+		// 行；[tcp→ethmining] 直连，无 http 层）。
+		ETHMining: spec.ETHMining,
 		// SMB 同款（P4a）：配置经 Meta 直传 smb 终结层生成器（SMB2 会话
 		// NEGOTIATE → SESSION_SETUP → TREE_CONNECT → CREATE → Operations →
 		// CLOSE → TREE_DISCONNECT → LOGOFF 逐 PDU 事件，build* 纯函数复用）。

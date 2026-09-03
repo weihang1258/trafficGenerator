@@ -40,6 +40,8 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"getwork",
 		// B6（75-stratum）：layer/planner 注册后准入（占位用例同步替换）。
 		"stratum",
+		// 73-ethmining：layer/planner 注册后准入（占位用例同步替换为 32 语义用例）。
+		"ethmining",
 	}
 	sort.Strings(want)
 
@@ -66,7 +68,7 @@ func TestAllowedProtocolsStable(t *testing.T) {
 // flipping its "should be rejected" case to a false pass.
 func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 	negativeOnly := []string{
-		"bacnet", "cwmp", "dcerpc", "doh", "dtls", "edp", "ethmining",
+		"bacnet", "cwmp", "dcerpc", "doh", "dtls", "edp",
 		"hl7",
 		"kerberos", "megaco", "mmse", "nmea", "ntlm", "ocsp",
 		"onvif", "spnego", "sstp",

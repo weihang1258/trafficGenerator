@@ -1,12 +1,14 @@
 [
   {
-    "id": "ethmining_neg_unregistered",
+    "id": "ethmining_subscribe_ipv4",
     "proto": "ethmining",
-    "summary": "ETHMining layer is not registered yet; reject at layer validation",
+    "summary": "IPv4 baseline: subscribe request/response",
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "tcp": {
+            "dst_port": 4444
+          }
         },
         {
           "ethmining": {}
@@ -15,14 +17,1626 @@
       "src_ip": "192.0.2.73",
       "dst_ip": "198.51.100.73",
       "src_port": 4073,
-      "dst_port": 8545
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9
+    }
+  },
+  {
+    "id": "ethmining_extranonce_subscribe",
+    "proto": "ethmining",
+    "summary": "Extranonce subscribe: subscribe + mining.extranonce.subscribe (true)",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "extranonce_subscribe",
+                "id": 2
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11
+    }
+  },
+  {
+    "id": "ethmining_authorize",
+    "proto": "ethmining",
+    "summary": "Authorize success: subscribe + mining.authorize (result=true)",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11
+    }
+  },
+  {
+    "id": "ethmining_authorize_reject",
+    "proto": "ethmining",
+    "summary": "Authorize reject: mining.authorize with error[24] Unauthorized user",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": false,
+                "error_code": 24,
+                "error_msg": "Unauthorized user"
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 11
+    }
+  },
+  {
+    "id": "ethmining_notify_job",
+    "proto": "ethmining",
+    "summary": "Notify job: set_difficulty + notify clean=false (4-element full line)",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13
+    }
+  },
+  {
+    "id": "ethmining_notify_clean_jobs",
+    "proto": "ethmining",
+    "summary": "Notify clean_jobs=true variant",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": true
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13
+    }
+  },
+  {
+    "id": "ethmining_set_difficulty",
+    "proto": "ethmining",
+    "summary": "Set difficulty 0.5 (minimum response line 36B via authorize, 60B notify)",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 13
+    }
+  },
+  {
+    "id": "ethmining_set_difficulty_default",
+    "proto": "ethmining",
+    "summary": "Default difficulty: no set_difficulty before first notify (1.0 fallback)",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 12
+    }
+  },
+  {
+    "id": "ethmining_set_difficulty_update",
+    "proto": "ethmining",
+    "summary": "Difficulty update: 0.5 then 5000012.0, each diff applies to following job",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 5000012.0
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488ab",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
+                "clean_jobs": false
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 15
+    }
+  },
+  {
+    "id": "ethmining_set_extranonce",
+    "proto": "ethmining",
+    "summary": "Extranonce rotation: extranonce.subscribe + set_extranonce(a2eea0,3B) + submit 5B nonce (complement 8B)",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "extranonce_subscribe",
+                "id": 2
+              },
+              {
+                "kind": "authorize",
+                "id": 3,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "set_extranonce",
+                "new_extranonce": "a2eea0"
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488ab",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
+                "clean_jobs": false
+              },
+              {
+                "kind": "submit",
+                "id": 4,
+                "username": "test",
+                "job_id": "bf0488ab",
+                "miner_nonce": "cfae7df760",
+                "result": true
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 18
+    }
+  },
+  {
+    "id": "ethmining_submit_accept",
+    "proto": "ethmining",
+    "summary": "Submit accept: full mining flow, submit with result=true",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              },
+              {
+                "kind": "submit",
+                "id": 3,
+                "username": "test",
+                "job_id": "bf0488aa",
+                "miner_nonce": "6a909d9bbc0f",
+                "result": true
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 15
+    }
+  },
+  {
+    "id": "ethmining_submit_reject",
+    "proto": "ethmining",
+    "summary": "Submit reject: submit with result=false + error[-1] Job not found",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              },
+              {
+                "kind": "submit",
+                "id": 3,
+                "username": "test",
+                "job_id": "bf0488aa",
+                "miner_nonce": "6a909d9bbc0f",
+                "result": false,
+                "error_code": -1,
+                "error_msg": "Job not found"
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 15
+    }
+  },
+  {
+    "id": "ethmining_id_correlation",
+    "proto": "ethmining",
+    "summary": "ID correlation: arbitrary id sequence 100/101/102, paired by value",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 100,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 101,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              },
+              {
+                "kind": "submit",
+                "id": 102,
+                "username": "test",
+                "job_id": "bf0488aa",
+                "miner_nonce": "6a909d9bbc0f",
+                "result": true
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 15
+    }
+  },
+  {
+    "id": "ethmining_extranonce_max3",
+    "proto": "ethmining",
+    "summary": "Extranonce 3B max: subscribe a2eea0 + submit 5B minernonce (8B total nonce)",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "a2eea0"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              },
+              {
+                "kind": "submit",
+                "id": 3,
+                "username": "test",
+                "job_id": "bf0488aa",
+                "miner_nonce": "cfae7df760",
+                "result": true
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 15
+    }
+  },
+  {
+    "id": "ethmining_hex_prefix",
+    "proto": "ethmining",
+    "summary": "Hex prefix 0x dialect: session-wide 0x prefix on extranonce/job/seed/header/nonce",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "hex_prefix": "0x",
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "0x080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "0xbf0488aa",
+                "seed_hash": "0xabad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "0x645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              },
+              {
+                "kind": "submit",
+                "id": 3,
+                "username": "test",
+                "job_id": "0xbf0488aa",
+                "miner_nonce": "0x6a909d9bbc0f",
+                "result": true
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 15
+    }
+  },
+  {
+    "id": "ethmining_long_username",
+    "proto": "ethmining",
+    "summary": "Long username 68 chars: authorize + submit reuse same long username",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "00112233445566778899aabbccddeeff00112233.rig-north-01-cabinet3-slot7",
+                "password": "x",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              },
+              {
+                "kind": "submit",
+                "id": 3,
+                "username": "00112233445566778899aabbccddeeff00112233.rig-north-01-cabinet3-slot7",
+                "job_id": "bf0488aa",
+                "miner_nonce": "6a909d9bbc0f",
+                "result": true
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 15
+    }
+  },
+  {
+    "id": "ethmining_line_packing",
+    "proto": "ethmining",
+    "summary": "Line packing: set_difficulty+notify merged into 259B one segment (2 LF)",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5,
+                "pack_next": true
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 12
+    }
+  },
+  {
+    "id": "ethmining_mss_large_jobid",
+    "proto": "ethmining",
+    "summary": "MSS large job_id: 1500 hex chars (1691B notify crosses MSS 1460 into 2 segments)",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 14
+    }
+  },
+  {
+    "id": "ethmining_ipv6",
+    "proto": "ethmining",
+    "summary": "IPv6: 2001:db8::73 -> 2001:db8::100:73, IPv6 fixtures",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "2001:db8::73",
+      "dst_ip": "2001:db8::100:73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9
+    }
+  },
+  {
+    "id": "ethmining_multi_session",
+    "proto": "ethmining",
+    "summary": "Multi-session: two miners on distinct src_ports, distinct en/username/job",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              },
+              {
+                "kind": "submit",
+                "id": 3,
+                "username": "test",
+                "job_id": "bf0488aa",
+                "miner_nonce": "6a909d9bbc0f",
+                "result": true
+              }
+            ],
+            "src_port": 4073
+          },
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "1f0a"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test2",
+                "password": "x",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 2.0
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488ab",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
+                "clean_jobs": false
+              },
+              {
+                "kind": "submit",
+                "id": 3,
+                "username": "test2",
+                "job_id": "bf0488ab",
+                "miner_nonce": "6a909d9bbc0f",
+                "result": true
+              }
+            ],
+            "src_port": 4074
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 30
+    }
+  },
+  {
+    "id": "ethmining_mining_lifecycle",
+    "proto": "ethmining",
+    "summary": "Mining lifecycle: subscribe->authorize->diff->notify+submit(A)->notify+submit(B) on one TCP stream",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              },
+              {
+                "kind": "authorize",
+                "id": 2,
+                "username": "test",
+                "password": "password",
+                "result": true
+              },
+              {
+                "kind": "set_difficulty",
+                "difficulty": 0.5
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488aa",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "645cf20198c2f3861e947d4f67e3ab63b7b2e24dcc9095bd9123e7b33371f6cc",
+                "clean_jobs": false
+              },
+              {
+                "kind": "submit",
+                "id": 3,
+                "username": "test",
+                "job_id": "bf0488aa",
+                "miner_nonce": "6a909d9bbc0f",
+                "result": true
+              },
+              {
+                "kind": "notify",
+                "job_id": "bf0488ab",
+                "seed_hash": "abad8f99f3918bf903c6a909d9bbc0fdfa5a2f4b9cb1196175ec825c6610126c",
+                "header_hash": "fc12eb20c58158071c956316cdcd12a22dd8bf126ac4aee559f0ffe4df11f279",
+                "clean_jobs": false
+              },
+              {
+                "kind": "submit",
+                "id": 4,
+                "username": "test",
+                "job_id": "bf0488ab",
+                "miner_nonce": "68765fccd712",
+                "result": true
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 18
+    }
+  },
+  {
+    "id": "ethmining_custom_port",
+    "proto": "ethmining",
+    "summary": "Non-default port 3353: ethmining lines identical to baseline, port not in wire",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 3353
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 3353,
+      "ethmining": {
+        "sessions": [
+          {
+            "events": [
+              {
+                "kind": "subscribe",
+                "id": 1,
+                "user_agent": "MinerName/1.0.0",
+                "protocol": "EthereumStratum/1.0.0",
+                "subscription_id": "ae6812eb4cd7735a302a8a9dd95cf71f",
+                "extranonce": "080c"
+              }
+            ],
+            "src_port": 4073
+          }
+        ]
+      }
+    },
+    "expect": {
+      "packet_count": 9
+    }
+  },
+  {
+    "id": "ethmining_neg_json",
+    "proto": "ethmining",
+    "summary": "Negative: invalid JSON (truncated/malformed), rejected at validator",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "wire_fault": "json",
+        "sessions": []
+      }
     },
     "expect": {
       "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: ethmining is not registered in the layer registry; this placeholder is not part of the 20 semantic IDs. A future registration must remove it and add the 14 positive and 6 negative semantic cases in testcase order."
-      ]
+      "error_contains": "json"
+    }
+  },
+  {
+    "id": "ethmining_neg_framing",
+    "proto": "ethmining",
+    "summary": "Negative: missing LF / CRLF / length prefix framing, rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "wire_fault": "framing",
+        "sessions": []
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "framing"
+    }
+  },
+  {
+    "id": "ethmining_neg_method",
+    "proto": "ethmining",
+    "summary": "Negative: unknown method or direction violation, rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "wire_fault": "method",
+        "sessions": []
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "method"
+    }
+  },
+  {
+    "id": "ethmining_neg_params",
+    "proto": "ethmining",
+    "summary": "Negative: wrong params count/types (subscribe 1-elem, clean_jobs non-bool, set_ext 2-elem), rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "wire_fault": "params",
+        "sessions": []
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "params"
+    }
+  },
+  {
+    "id": "ethmining_neg_hex",
+    "proto": "ethmining",
+    "summary": "Negative: invalid hex (odd length / 0x prefix mixing / extranonce>3B / complement mismatch / non-hex char), rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "wire_fault": "hex",
+        "sessions": []
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "hex"
+    }
+  },
+  {
+    "id": "ethmining_neg_state",
+    "proto": "ethmining",
+    "summary": "Negative: state machine violation (submit before subscribe, close then submit), rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "wire_fault": "state",
+        "sessions": []
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "state"
+    }
+  },
+  {
+    "id": "ethmining_neg_id_correlation",
+    "proto": "ethmining",
+    "summary": "Negative: id mismatch or pseudo id or intra-session id reuse, rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "wire_fault": "id",
+        "sessions": []
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "id"
+    }
+  },
+  {
+    "id": "ethmining_neg_job_correlation",
+    "proto": "ethmining",
+    "summary": "Negative: submit job not from session or worker mismatch, rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "wire_fault": "job",
+        "sessions": []
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "job"
+    }
+  },
+  {
+    "id": "ethmining_neg_carrier",
+    "proto": "ethmining",
+    "summary": "Negative: carrier mismatch (missing tcp / UDP / port mismatch), rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "wire_fault": "carrier",
+        "sessions": []
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "carrier"
+    }
+  },
+  {
+    "id": "ethmining_neg_error_propagation",
+    "proto": "ethmining",
+    "summary": "Negative: validator error swallowed / completed/0 packets, rejected",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {
+            "dst_port": 4444
+          }
+        },
+        {
+          "ethmining": {}
+        }
+      ],
+      "src_ip": "192.0.2.73",
+      "dst_ip": "198.51.100.73",
+      "src_port": 4073,
+      "dst_port": 4444,
+      "ethmining": {
+        "wire_fault": "propagation",
+        "sessions": []
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "propagat"
     }
   }
 ]

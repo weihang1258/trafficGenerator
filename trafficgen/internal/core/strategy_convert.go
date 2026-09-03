@@ -560,6 +560,19 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// stratum 依赖 tcp 层，目的端口 3333 由 FieldContract（tcp.dst_port）
 		// 补齐，不在此默认化。
+	case "ethmining":
+		if sub, ok := cfg["ethmining"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v ETHMiningConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "ethmining: "+err.Error())
+				} else {
+					spec.ETHMining = &v
+				}
+			}
+		}
+		// ethmining 依赖 tcp 层，目的端口 4444 由 FieldContract（tcp.dst_port）
+		// 补齐，非默认端口（3353 等）由用户显式覆盖。
 	case "tcp":
 		// TCP sub-config already read above; nothing protocol-specific to add.
 	case "udp":

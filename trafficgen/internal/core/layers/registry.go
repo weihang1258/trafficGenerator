@@ -438,6 +438,16 @@ func buildDefaultRegistry() {
 		DependsOn:      []string{"tcp"},
 		FieldContract:  map[string]string{"tcp.dst_port": "3333"},
 	})
+	// ethmining（以太坊挖矿 stratum 协议，EthereumStratum/1.0.0）：终结层
+	// 事件为行式 JSON（LF 边界、紧凑形态），[tcp→ethmining] 直连（ip 层由依
+	// 赖补全自动插入）。协议配置经 spec.ETHMining（顶层 "ethmining" 子映射）
+	// 注入，层 config 恒空；4444 端口经 FieldContract 供通用应用补齐（非默认
+	// 端口 3353 由用户显式覆盖，正例 22）。无 ethmining dissector，断言全
+	// 走 tcp.payload/frames（设计 §2 实测基线）。
+	r.Register(LayerSchema{Name: "ethmining", Category: CategoryTerminal,
+		DependsOn:      []string{"tcp"},
+		FieldContract:  map[string]string{"tcp.dst_port": "4444"},
+	})
 	// getwork（Bitcoin legacy getwork JSON-RPC over HTTP）：终结层事件已含
 	// 完整 HTTP 帧（请求/响应钉死头序），http 层以透传变换器转发（identity
 	// transformer）。全部协议配置经 spec.GetWork（顶层 "getwork" 子映射）注入，

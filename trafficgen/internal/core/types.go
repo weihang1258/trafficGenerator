@@ -1733,6 +1733,7 @@ type FlowSpec struct {
 	GBT      *GBTConfig      `json:"gbt,omitempty"`
 	GetWork  *GetWorkConfig  `json:"getwork,omitempty"`
 	Stratum  *StratumConfig  `json:"stratum,omitempty"`
+	ETHMining *ETHMiningConfig `json:"ethmining,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`
