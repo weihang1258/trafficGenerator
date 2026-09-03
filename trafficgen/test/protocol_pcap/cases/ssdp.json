@@ -2,13 +2,21 @@
   {
     "id": "ssdp_smoke_01",
     "proto": "ssdp",
-    "summary": "冒烟：SSDP M-SEARCH（src_port=0 使 planner 用 1900）→ 自动响应 200 OK，双向均 1900/1900（IANA），共 2 包",
+    "summary": "[chain] 冒烟：SSDP M-SEARCH（src_port=0 使 planner 用 1900）→ 自动响应 200 OK，双向均 1900/1900（IANA），共 2 包",
     "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "ssdp": {}
+        }
+      ],
+      "src_port": 0,
       "ssdp": {
         "message_type": "msearch",
         "search_target": "ssdp:all"
-      },
-      "src_port": 0
+      }
     },
     "expect": {
       "packet_count": 2,
@@ -77,7 +85,8 @@
         "显式 src_port=0 关键：mapToFlowSpec 默认 src=12345（validate 拒绝非 1900 源端口），planner 遇 0 才取 1900；目的地址 239.255.255.250",
         "tshark 探针实测：两帧均 1900/1900，请求/响应首行与上表一致；Expert Chat 消息（HTTP over UDP）无害",
         "帧断言覆盖 HTTP 头字节（offset 42）：请求 HOST/MAN/MX/ST 完整、响应 CACHE-CONTROL/EXT/ST——tshark http dissector 不解析 ST/MAN/MX 为独立字段（探针实测无 http.st/http.host 字段），故用原始字节验证 spec 配置（search_target ssdp:all）真的上了线",
-        "ip.dst 不断言：planner 不改 L3 目标（探针实测 20.0.0.1），HOST 头才是 SSDP 语义多播目标"
+        "ip.dst 不断言：planner 不改 L3 目标（探针实测 20.0.0.1），HOST 头才是 SSDP 语义多播目标",
+        "layers chain style: [udp,ssdp]; src_port moved to top-level"
       ]
     }
   }

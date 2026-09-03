@@ -2,8 +2,16 @@
   {
     "id": "mdns_smoke_01",
     "proto": "mdns",
-    "summary": "冒烟：mDNS 查询（x.local A 记录）。顶层不设端口 → 双向均 5353（IANA），多播 224.0.0.251、IP TTL=255（RFC 6762 §11），共 1 包",
+    "summary": "[chain] 冒烟：mDNS 查询（x.local A 记录）。顶层不设端口 → 双向均 5353（IANA），多播 224.0.0.251、IP TTL=255（RFC 6762 §11），共 1 包",
     "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "mdns": {}
+        }
+      ],
       "src_ip": "10.0.0.1",
       "dst_ip": "20.0.0.1",
       "src_port": 5353,
@@ -72,7 +80,8 @@
         "RFC 6762 §5.1：事务 ID 必须为 0；查询头 flags=0x0000（QR=0）",
         "RFC 6762 §11：mDNS 多播包 IP TTL 必须 255；目的地址 224.0.0.251",
         "顶层未设端口时 dst 默认 5353（strategy_convert 覆盖）但 src 保持 flow 默认 12345 → validate 拒绝（RFC 6762 §5.4 源端口必须 5353）；故显式 src_port: 5353",
-        "tshark 探针实测：src=5353、dst=5353、ip.dst=224.0.0.251、ttl=255、qry x.local/type 1/class 0x0001；偏移 42 DNS 头+问题区与帧断言逐字节一致"
+        "tshark 探针实测：src=5353、dst=5353、ip.dst=224.0.0.251、ttl=255、qry x.local/type 1/class 0x0001；偏移 42 DNS 头+问题区与帧断言逐字节一致",
+        "layers chain style: [udp,mdns]; top-level fields preserved"
       ]
     }
   }

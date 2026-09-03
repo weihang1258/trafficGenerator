@@ -2,8 +2,16 @@
   {
     "id": "dns_smoke_01",
     "proto": "dns",
-    "summary": "冒烟：DNS 单查询（example.com A 记录）。顶层不设端口 → 默认 dst 53（IANA），txid 默认 0x1234、QR=0、RD=1，共 1 包",
+    "summary": "[chain] 冒烟：DNS 单查询（example.com A 记录）。顶层不设端口 → 默认 dst 53（IANA），txid 默认 0x1234、QR=0、RD=1，共 1 包",
     "spec_json": {
+      "layers": [
+        {
+          "udp": {}
+        },
+        {
+          "dns": {}
+        }
+      ],
       "dns": {
         "domain": "example.com"
       }
@@ -55,7 +63,8 @@
       "notes": [
         "RFC 1035 §4.1：DNS header 固定字段（ID/QR/RD/QDCOUNT），此处 ID 默认 0x1234 确定值",
         "顶层未设端口：dst 默认 53（strategy_convert）、src 保持 flow 默认 12345，不断言",
-        "tshark 探针实测：flags=0x0100、qry.name=example.com、qry.type=1、qry.class=0x0001、id=0x1234"
+        "tshark 探针实测：flags=0x0100、qry.name=example.com、qry.type=1、qry.class=0x0001、id=0x1234",
+        "layers chain style: [udp,dns]; DNS sub-config stays in spec_json['dns']"
       ]
     }
   }
