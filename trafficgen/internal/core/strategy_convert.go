@@ -441,135 +441,59 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	switch protocol {
 	case "stun":
 		if sub, ok := cfg["stun"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v STUNConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "stun: "+err.Error())
-				} else {
-					spec.STUN = &v
-				}
-			}
+			parseSubconfigJSON[*STUNConfig](&spec, sub, "stun", &spec.STUN)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 3478
-		}
+		setDefaultDstPort(&spec, cfg, 3478)
 	case "rtmfp":
-			if sub, ok := cfg["rtmfp"].(map[string]interface{}); ok {
-				if raw, err := json.Marshal(sub); err == nil {
-					var v RTMFPConfig
-					if err := json.Unmarshal(raw, &v); err != nil {
-						spec.ValidationErrors = append(spec.ValidationErrors, "rtmfp: "+err.Error())
-					} else {
-						spec.RTMFP = &v
-					}
-				}
-			}
-			// RTMFP (Adobe Real-Time Media Flow Protocol) 默认端口 1935.
-			// 仅当用户未指定 dst_port 时覆盖 — 与 DNS/FTP/SIP/RTSP 模式一致.
-			if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-				spec.DstPort = 1935
-			}
+		if sub, ok := cfg["rtmfp"].(map[string]interface{}); ok {
+			parseSubconfigJSON[*RTMFPConfig](&spec, sub, "rtmfp", &spec.RTMFP)
+		}
+		// RTMFP (Adobe Real-Time Media Flow Protocol) 默认端口 1935.
+		// 仅当用户未指定 dst_port 时覆盖 — 与 DNS/FTP/SIP/RTSP 模式一致.
+		setDefaultDstPort(&spec, cfg, 1935)
 	case "amqp":
 		if sub, ok := cfg["amqp"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v AMQPConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "amqp: "+err.Error())
-				} else {
-					spec.AMQP = &v
-				}
-			}
+			parseSubconfigJSON[*AMQPConfig](&spec, sub, "amqp", &spec.AMQP)
 		}
 		// AMQP (Advanced Message Queuing Protocol) 默认端口 5672.
 		// 仅当用户未指定 dst_port 时覆盖 — 与 DNS/FTP/SIP/RTSP 模式一致.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 5672
-		}
+		setDefaultDstPort(&spec, cfg, 5672)
 	case "http_flv":
 		if sub, ok := cfg["http_flv"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v HTTPFLVConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "http_flv: "+err.Error())
-				} else {
-					spec.HTTPFLV = &v
-				}
-			}
+			parseSubconfigJSON[*HTTPFLVConfig](&spec, sub, "http_flv", &spec.HTTPFLV)
 		}
 		// http_flv 依赖 http 层，目的端口 80 默认由 http 层处理，不在此默认化。
 	case "hls":
 		if sub, ok := cfg["hls"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v HLSConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "hls: "+err.Error())
-				} else {
-					spec.HLS = &v
-				}
-			}
+			parseSubconfigJSON[*HLSConfig](&spec, sub, "hls", &spec.HLS)
 		}
 		// hls 依赖 http 层，目的端口 80 默认由 http 层处理，不在此默认化。
 	case "hds":
 		if sub, ok := cfg["hds"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v HDSConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "hds: "+err.Error())
-				} else {
-					spec.HDS = &v
-				}
-			}
+			parseSubconfigJSON[*HDSConfig](&spec, sub, "hds", &spec.HDS)
 		}
 		// hds 依赖 http 层，目的端口 80 默认由 http 层处理，不在此默认化。
 	case "gbt":
 		if sub, ok := cfg["gbt"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v GBTConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "gbt: "+err.Error())
-				} else {
-					spec.GBT = &v
-				}
-			}
+			parseSubconfigJSON[*GBTConfig](&spec, sub, "gbt", &spec.GBT)
 		}
 		// gbt 依赖 http 层，目的端口 8332 由 FieldContract（tcp.dst_port）补齐，
 		// 不在此默认化。
 	case "getwork":
 		if sub, ok := cfg["getwork"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v GetWorkConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "getwork: "+err.Error())
-				} else {
-					spec.GetWork = &v
-				}
-			}
+			parseSubconfigJSON[*GetWorkConfig](&spec, sub, "getwork", &spec.GetWork)
 		}
 		// getwork 依赖 http 层，目的端口 8332 由 FieldContract（tcp.dst_port）
 		// 补齐，不在此默认化。
 	case "stratum":
 		if sub, ok := cfg["stratum"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v StratumConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "stratum: "+err.Error())
-				} else {
-					spec.Stratum = &v
-				}
-			}
+			parseSubconfigJSON[*StratumConfig](&spec, sub, "stratum", &spec.Stratum)
 		}
 		// stratum 依赖 tcp 层，目的端口 3333 由 FieldContract（tcp.dst_port）
 		// 补齐，不在此默认化。
 	case "ethmining":
 		if sub, ok := cfg["ethmining"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v ETHMiningConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "ethmining: "+err.Error())
-				} else {
-					spec.ETHMining = &v
-				}
-			}
+			parseSubconfigJSON[*ETHMiningConfig](&spec, sub, "ethmining", &spec.ETHMining)
 		}
 		// ethmining 依赖 tcp 层，目的端口 4444 由 FieldContract（tcp.dst_port）
 		// 补齐，非默认端口（3353 等）由用户显式覆盖。
@@ -624,13 +548,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	case "igmp":
 		if sub, ok := cfg["igmp"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v IGMPConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "igmp: "+err.Error())
-			} else {
-				spec.IGMP = &v
-			}
+			parseSubconfigJSON[*IGMPConfig](&spec, sub, "igmp", &spec.IGMP)
 		}
 		// igmp 的 profile_matrix/retransmit_state/multi_group_sessions 用例把
 		// `events` 放在顶层（而非 igmp 子映射内）：逐一解析为 IGMPEvent 序列
@@ -649,42 +567,22 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	case "ospf":
 		if sub, ok := cfg["ospf"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v OSPFConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "ospf: "+err.Error())
-			} else {
-				spec.OSPF = &v
-			}
+			parseSubconfigJSON[*OSPFConfig](&spec, sub, "ospf", &spec.OSPF)
 		}
 	case "pim":
 		if sub, ok := cfg["pim"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v PIMConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "pim: "+err.Error())
-			} else {
-				spec.PIM = &v
-			}
+			parseSubconfigJSON[*PIMConfig](&spec, sub, "pim", &spec.PIM)
 		}
 	case "isis":
 		if sub, ok := cfg["isis"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v ISISConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "isis: "+err.Error())
-			} else {
-				spec.ISIS = &v
-			}
+			parseSubconfigJSON[*ISISConfig](&spec, sub, "isis", &spec.ISIS)
 		}
 	case "ftp":
 		// FTP sub-config already read in the universal section above.
 		// FTP defaults to port 21 (control channel). Only override when
 		// the user did not specify a dst_port — matches the DNS override
 		// pattern.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 21
-		}
+		setDefaultDstPort(&spec, cfg, 21)
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
@@ -694,9 +592,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// SIP defaults to port 5060 (signaling). Only override when the
 		// user did not specify a dst_port — matches DNS/FTP pattern.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 5060
-		}
+		setDefaultDstPort(&spec, cfg, 5060)
 	case "rtsp":
 		if sub, ok := cfg["rtsp"].(map[string]interface{}); ok {
 			spec.RTSP = &RTSPConfig{
@@ -706,18 +602,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// RTSP defaults to port 554 (control channel). Only override when
 		// the user did not specify a dst_port — matches DNS/FTP/SIP pattern.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 554
-		}
+		setDefaultDstPort(&spec, cfg, 554)
 	case "rtmp":
 		if sub, ok := cfg["rtmp"].(map[string]interface{}); ok {
 			spec.RTMP = parseRTMPConfig(sub)
 		}
 		// RTMP (Adobe Real-Time Messaging Protocol) 默认端口 1935.
 		// 仅当用户未指定 dst_port 时覆盖 — 与 DNS/FTP/SIP/RTSP 模式一致.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 1935
-		}
+		setDefaultDstPort(&spec, cfg, 1935)
 	case "sctp":
 		// SCTP sub-config already read in the universal section above.
 		// SCTP has no universal default port (common ports: 38412 for NGAP,
@@ -765,37 +657,27 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["grpc"].(map[string]interface{}); ok {
 			spec.GRPC = parseGRPCConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 8604
-		}
+		setDefaultDstPort(&spec, cfg, 8604)
 	case "ike":
 		if sub, ok := cfg["ike"].(map[string]interface{}); ok {
 			spec.IKE = parseIKEConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 500
-		}
+		setDefaultDstPort(&spec, cfg, 500)
 	case "ike_nat_t":
 		if sub, ok := cfg["ike_nat_t"].(map[string]interface{}); ok {
 			spec.IKENATT = parseIKENATTConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 4500
-		}
+		setDefaultDstPort(&spec, cfg, 4500)
 	case "imap":
 		if sub, ok := cfg["imap"].(map[string]interface{}); ok {
 			spec.IMAP = parseIMAPConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 143
-		}
+		setDefaultDstPort(&spec, cfg, 143)
 	case "l2tp":
 		if sub, ok := cfg["l2tp"].(map[string]interface{}); ok {
 			spec.L2TP = parseL2TPConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 1701
-		}
+		setDefaultDstPort(&spec, cfg, 1701)
 	case "pppoe":
 		if sub, ok := cfg["pppoe"].(map[string]interface{}); ok {
 			spec.PPPoE = parsePPPoEConfig(sub)
@@ -821,16 +703,12 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["mysql"].(map[string]interface{}); ok {
 			spec.MySQL = parseMySQLConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 3306
-		}
+		setDefaultDstPort(&spec, cfg, 3306)
 	case "ngap":
 		spec.NGAP = parseNGAPConfig(cfg["ngap"])
 		// NGAP default port 38412 (5G核心网信令端口). Only override when
 		// the user did not specify a dst_port — matches DNS/FTP/SIP pattern.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 38412
-		}
+		setDefaultDstPort(&spec, cfg, 38412)
 	case "ntp":
 		if sub, ok := cfg["ntp"].(map[string]interface{}); ok {
 			spec.NTP = &NTPConfig{
@@ -869,16 +747,12 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["openvpn"].(map[string]interface{}); ok {
 			spec.OpenVPN = parseOpenVPNConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 1194
-		}
+		setDefaultDstPort(&spec, cfg, 1194)
 	case "postgresql":
 		if sub, ok := cfg["postgresql"].(map[string]interface{}); ok {
 			spec.PostgreSQL = parsePostgreSQLConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 5432
-		}
+		setDefaultDstPort(&spec, cfg, 5432)
 	case "pop3":
 		if sub, ok := cfg["pop3"].(map[string]interface{}); ok {
 			spec.POP3 = &POP3Config{
@@ -890,23 +764,17 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// POP3 defaults to port 110 per RFC 1939 §6. Only override when
 		// the user did not specify a dst_port - matches the DNS/FTP/SIP
 		// override pattern.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 110
-		}
+		setDefaultDstPort(&spec, cfg, 110)
 	case "rdp":
 		if sub, ok := cfg["rdp"].(map[string]interface{}); ok {
 			spec.RDP = parseRDPConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 3389
-		}
+		setDefaultDstPort(&spec, cfg, 3389)
 	case "redis":
 		if sub, ok := cfg["redis"].(map[string]interface{}); ok {
 			spec.Redis = parseRedisConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 6379
-		}
+		setDefaultDstPort(&spec, cfg, 6379)
 	case "radius":
 		if sub, ok := cfg["radius"].(map[string]interface{}); ok {
 			spec.Radius = parseRadiusConfig(sub)
@@ -929,9 +797,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// LDAP defaults to port 389 (RFC 4511). Only override when the
 		// user did not specify a dst_port.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 389
-		}
+		setDefaultDstPort(&spec, cfg, 389)
 	case "vnc":
 		if sub, ok := cfg["vnc"].(map[string]interface{}); ok {
 			// Parse-level errors (e.g. non-numeric encodings entries) are
@@ -943,18 +809,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// VNC defaults to port 5900 (RFC 6143 §1.1, range 5900-5909).
 		// Only override when the user did not specify a dst_port.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 5900
-		}
+		setDefaultDstPort(&spec, cfg, 5900)
 	case "pptp":
 		if sub, ok := cfg["pptp"].(map[string]interface{}); ok {
 			spec.PPTP = parsePPTPConfig(sub)
 		}
 		// PPTP defaults to port 1723 (RFC 2637 §1, TCP control plane).
 		// Only override when the user did not specify a dst_port.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 1723
-		}
+		setDefaultDstPort(&spec, cfg, 1723)
 	case "h323":
 		if sub, ok := cfg["h323"].(map[string]interface{}); ok {
 			var errs []string
@@ -963,18 +825,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// H.323 defaults to port 1720 (ITU-T H.225.0 §7.3, Q.931 call
 		// signaling). Only override when the user did not specify dst_port.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 1720
-		}
+		setDefaultDstPort(&spec, cfg, 1720)
 	case "xmpp":
 		if sub, ok := cfg["xmpp"].(map[string]interface{}); ok {
 			spec.Xmpp = parseXmppConfig(sub)
 		}
 		// XMPP defaults to port 5222 (RFC 6120 §13.3, client-to-server).
 		// Only override when the user did not specify a dst_port.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 5222
-		}
+		setDefaultDstPort(&spec, cfg, 5222)
 	case "shadowsocks":
 		if sub, ok := cfg["shadowsocks"].(map[string]interface{}); ok {
 			spec.Shadowsocks = parseShadowsocksConfig(sub)
@@ -992,9 +850,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// the user did not specify a dst_port - matches the DNS/FTP
 		// pattern. Submission (587) and SMTPS (465) are also valid but
 		// the user must set dst_port explicitly for those.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 25
-		}
+		setDefaultDstPort(&spec, cfg, 25)
 	case "snmp":
 		if sub, ok := cfg["snmp"].(map[string]interface{}); ok {
 			// Version is presence-checked: 0 is a legitimate value (SNMPv1,
@@ -1046,118 +902,55 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// SOCKS defaults to port 1080 (canonical proxy port). Only override
 		// when the user did not specify a dst_port - matches DNS/FTP/SIP
 		// pattern.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 1080
-		}
+		setDefaultDstPort(&spec, cfg, 1080)
 	case "vxlan":
 		// B4 封装类：VXLAN（RFC 7348）配置 json 往返解析（stun 同款——
 		// 结构体字段即契约，未知字段拒绝进 ValidationErrors）。目的端口
 		// 4789（IANA 指派；FieldContract 同值兜底，用户显式写优先）。
 		if sub, ok := cfg["vxlan"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v VXLANConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "vxlan: "+err.Error())
-				} else {
-					spec.VXLAN = &v
-				}
-			}
+			parseSubconfigJSON[*VXLANConfig](&spec, sub, "vxlan", &spec.VXLAN)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 4789
-		}
+		setDefaultDstPort(&spec, cfg, 4789)
 	case "geneve":
 		// B4 封装类：GENEVE（RFC 8926）配置 json 往返解析。目的端口 6081
 		// （IANA 指派；FieldContract 同值兜底）。
 		if sub, ok := cfg["geneve"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v GeneveConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "geneve: "+err.Error())
-				} else {
-					spec.Geneve = &v
-				}
-			}
+			parseSubconfigJSON[*GeneveConfig](&spec, sub, "geneve", &spec.Geneve)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 6081
-		}
+		setDefaultDstPort(&spec, cfg, 6081)
 	case "nvgre":
 		// B4 封装类：NVGRE（RFC 7637）配置 json 往返解析。无传输层（IP
 		// proto 47），无端口默认。
 		if sub, ok := cfg["nvgre"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v NVGREConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "nvgre: "+err.Error())
-				} else {
-					spec.NVGRE = &v
-				}
-			}
+			parseSubconfigJSON[*NVGREConfig](&spec, sub, "nvgre", &spec.NVGRE)
 		}
 	case "openwire":
 		// B5：OpenWire（ActiveMQ）TCP 终结层配置 json 往返解析。目的端口
 		// 61616（ActiveMQ 默认；FieldContract 同值兜底，用户显式写优先）。
 		if sub, ok := cfg["openwire"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v OpenWireConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "openwire: "+err.Error())
-				} else {
-					spec.OpenWire = &v
-				}
-			}
+			parseSubconfigJSON[*OpenWireConfig](&spec, sub, "openwire", &spec.OpenWire)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 61616
-		}
+		setDefaultDstPort(&spec, cfg, 61616)
 	case "ams":
 		// B5：AMS（ActiveMQ Management）TCP 终结层配置 json 往返解析。目的
 		// 端口 61616（FieldContract 同值兜底，用户显式写优先）。
 		if sub, ok := cfg["ams"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v AMSConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "ams: "+err.Error())
-				} else {
-					spec.AMS = &v
-				}
-			}
+			parseSubconfigJSON[*AMSConfig](&spec, sub, "ams", &spec.AMS)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 61616
-		}
+		setDefaultDstPort(&spec, cfg, 61616)
 	case "swarm":
 		// B5：Swarm discovery/storage 双承载配置 json 往返解析。目的端口
 		// 1634（FieldContract 同值兜底，用户显式写优先）。
 		if sub, ok := cfg["swarm"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v SwarmConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "swarm: "+err.Error())
-				} else {
-					spec.Swarm = &v
-				}
-			}
+			parseSubconfigJSON[*SwarmConfig](&spec, sub, "swarm", &spec.Swarm)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 1634
-		}
+		setDefaultDstPort(&spec, cfg, 1634)
 	case "gnutella":
 		// B5：Gnutella TCP 终结层配置 json 往返解析。目的端口 6346。
 		if sub, ok := cfg["gnutella"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v GnutellaConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "gnutella: "+err.Error())
-				} else {
-					spec.Gnutella = &v
-				}
-			}
+			parseSubconfigJSON[*GnutellaConfig](&spec, sub, "gnutella", &spec.Gnutella)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 6346
-		}
+		setDefaultDstPort(&spec, cfg, 6346)
 	case "ssdp":
 		if sub, ok := cfg["ssdp"].(map[string]interface{}); ok {
 			spec.SSDP = parseSSDPConfig(sub)
@@ -1167,9 +960,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["ssh"].(map[string]interface{}); ok {
 			spec.SSH = parseSSHConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 22
-		}
+		setDefaultDstPort(&spec, cfg, 22)
 	case "syslog":
 		if sub, ok := cfg["syslog"].(map[string]interface{}); ok {
 			spec.Syslog = &SyslogConfig{
@@ -1211,16 +1002,12 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// Telnet defaults to port 23 (RFC 854). Only override when the
 		// user did not specify a dst_port — matches the DNS/FTP override
 		// pattern.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 23
-		}
+		setDefaultDstPort(&spec, cfg, 23)
 	case "tls":
 		if sub, ok := cfg["tls"].(map[string]interface{}); ok {
 			spec.TLS = parseTLSConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 443
-		}
+		setDefaultDstPort(&spec, cfg, 443)
 	case "vmess":
 		if sub, ok := cfg["vmess"].(map[string]interface{}); ok {
 			spec.Vmess = parseVmessConfig(sub)
@@ -1230,9 +1017,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["wireguard"].(map[string]interface{}); ok {
 			spec.WireGuard = parseWireGuardConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 51820
-		}
+		setDefaultDstPort(&spec, cfg, 51820)
 	case "srv6":
 		if sub, ok := cfg["srv6"].(map[string]interface{}); ok {
 			spec.SRv6 = parseSRv6Config(sub)
@@ -1243,9 +1028,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// GBT32960 defaults to port 10020 (GB/T 32960.3-2016 platform
 		// listener). Only override when the user did not specify a dst_port.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 10020
-		}
+		setDefaultDstPort(&spec, cfg, 10020)
 	case "tftp":
 		if sub, ok := cfg["tftp"].(map[string]interface{}); ok {
 			spec.TFTP = parseTFTPConfig(sub)
@@ -1255,9 +1038,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["mqtt"].(map[string]interface{}); ok {
 			spec.MQTT = parseMQTTConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 1883
-		}
+		setDefaultDstPort(&spec, cfg, 1883)
 	case "modbus":
 		if sub, ok := cfg["modbus"].(map[string]interface{}); ok {
 			spec.MODBUS = parseMODBUSConfig(sub)
@@ -1267,30 +1048,22 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["rip"].(map[string]interface{}); ok {
 			spec.RIP = parseRIPConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 520
-		}
+		setDefaultDstPort(&spec, cfg, 520)
 	case "dnp3":
 		if sub, ok := cfg["dnp3"].(map[string]interface{}); ok {
 			spec.DNP3 = parseDNP3Config(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 20000
-		}
+		setDefaultDstPort(&spec, cfg, 20000)
 	case "enip":
 		if sub, ok := cfg["enip"].(map[string]interface{}); ok {
 			spec.ENIP = parseENIPConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 44818
-		}
+		setDefaultDstPort(&spec, cfg, 44818)
 	case "doip":
 		if sub, ok := cfg["doip"].(map[string]interface{}); ok {
 			spec.DoIP = parseDoIPConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 13400
-		}
+		setDefaultDstPort(&spec, cfg, 13400)
 	case "smb":
 		if sub, ok := cfg["smb"].(map[string]interface{}); ok {
 			spec.SMB = parseSMBConfig(sub)
@@ -1316,9 +1089,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				spec.Payload = raw
 			}
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 1433
-		}
+		setDefaultDstPort(&spec, cfg, 1433)
 	case "a2a":
 		// A2A carries its config as A2AConfig JSON in spec.Payload; the
 		// planner unmarshals it (protocol/a2a configFromSpec).
@@ -1329,69 +1100,29 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	case "mms":
 		if sub, ok := cfg["mms"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v MMSConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "mms: "+err.Error())
-			} else {
-				spec.MMS = &v
-			}
+			parseSubconfigJSON[*MMSConfig](&spec, sub, "mms", &spec.MMS)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 102
-		}
+		setDefaultDstPort(&spec, cfg, 102)
 	case "opcua":
 		if sub, ok := cfg["opcua"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v OPCUAConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "opcua: "+err.Error())
-			} else {
-				spec.OPCUA = &v
-			}
+			parseSubconfigJSON[*OPCUAConfig](&spec, sub, "opcua", &spec.OPCUA)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 4840
-		}
+		setDefaultDstPort(&spec, cfg, 4840)
 	case "s7":
 		if sub, ok := cfg["s7"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v S7Config
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "s7: "+err.Error())
-			} else {
-				spec.S7 = &v
-			}
+			parseSubconfigJSON[*S7Config](&spec, sub, "s7", &spec.S7)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 102
-		}
+		setDefaultDstPort(&spec, cfg, 102)
 	case "iec104":
 		if sub, ok := cfg["iec104"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v IEC104Config
-				if json.Unmarshal(raw, &v) == nil {
-					spec.IEC104 = &v
-				}
-			}
+			parseSubconfigJSON[*IEC104Config](&spec, sub, "iec104", &spec.IEC104)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 2404
-		}
+		setDefaultDstPort(&spec, cfg, 2404)
 	case "bgp":
 		if sub, ok := cfg["bgp"].(map[string]interface{}); ok {
-			if raw, err := json.Marshal(sub); err == nil {
-				var v BGPConfig
-				if err := json.Unmarshal(raw, &v); err != nil {
-					spec.ValidationErrors = append(spec.ValidationErrors, "bgp: "+err.Error())
-				} else {
-					spec.BGP = &v
-				}
-			}
+			parseSubconfigJSON[*BGPConfig](&spec, sub, "bgp", &spec.BGP)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 179
-		}
+		setDefaultDstPort(&spec, cfg, 179)
 	case "coap":
 		if sub, ok := cfg["coap"].(map[string]interface{}); ok {
 			if raw, err := json.Marshal(sub); err == nil {
@@ -1401,9 +1132,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				}
 			}
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 5683
-		}
+		setDefaultDstPort(&spec, cfg, 5683)
 	case "fins":
 		if sub, ok := cfg["fins"].(map[string]interface{}); ok {
 			if spec.Metadata == nil {
@@ -1411,9 +1140,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			}
 			spec.Metadata["fins"] = sub
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 9600
-		}
+		setDefaultDstPort(&spec, cfg, 9600)
 	case "nfs":
 		// The NFS planner reads *NFSConfig from FlowSpec.Metadata["nfs"].
 		// core cannot import protocol/nfs, so the raw JSON-decoded sub-map
@@ -1424,155 +1151,65 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			}
 			spec.Metadata[NFSMetadataKey] = sub
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 2049
-		}
+		setDefaultDstPort(&spec, cfg, 2049)
 	case "moxa":
 		if sub, ok := cfg["moxa"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v MOXAConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "moxa: "+err.Error())
-			} else {
-				spec.MOXA = &v
-			}
+			parseSubconfigJSON[*MOXAConfig](&spec, sub, "moxa", &spec.MOXA)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 4800
-		}
+		setDefaultDstPort(&spec, cfg, 4800)
 	case "someip":
 		if sub, ok := cfg["someip"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v SOMEIPConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "someip: "+err.Error())
-			} else {
-				spec.SOMEIP = &v
-			}
+			parseSubconfigJSON[*SOMEIPConfig](&spec, sub, "someip", &spec.SOMEIP)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 30490
-		}
+		setDefaultDstPort(&spec, cfg, 30490)
 	case "tns":
 		if sub, ok := cfg["tns"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v TNSConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "tns: "+err.Error())
-			} else {
-				spec.TNS = &v
-			}
+			parseSubconfigJSON[*TNSConfig](&spec, sub, "tns", &spec.TNS)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 1521
-		}
+		setDefaultDstPort(&spec, cfg, 1521)
 	case "mongodb":
 		if sub, ok := cfg["mongodb"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v MongoDBConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "mongodb: "+err.Error())
-			} else {
-				spec.MongoDB = &v
-			}
+			parseSubconfigJSON[*MongoDBConfig](&spec, sub, "mongodb", &spec.MongoDB)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 27017
-		}
+		setDefaultDstPort(&spec, cfg, 27017)
 	case "dameng":
 		if sub, ok := cfg["dameng"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v DamengConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "dameng: "+err.Error())
-			} else {
-				spec.Dameng = &v
-			}
+			parseSubconfigJSON[*DamengConfig](&spec, sub, "dameng", &spec.Dameng)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 5236
-		}
+		setDefaultDstPort(&spec, cfg, 5236)
 		// case "kingbase" 已收敛：kingbase 不再独立解析，改由 postgresql 层 +
 		// dialect=kingbase 表达（18-layer-config-design.md §2.2/§4.3/§7 F4）。
 		// 配置走 case "postgresql"（spec.PostgreSQL，dialect=kingbase）。
 	case "cql":
 		if sub, ok := cfg["cql"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v CQLConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "cql: "+err.Error())
-			} else {
-				spec.CQL = &v
-			}
+			parseSubconfigJSON[*CQLConfig](&spec, sub, "cql", &spec.CQL)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 9042
-		}
+		setDefaultDstPort(&spec, cfg, 9042)
 	case "ldp":
 		if sub, ok := cfg["ldp"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v LDPConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "ldp: "+err.Error())
-			} else {
-				spec.LDP = &v
-			}
+			parseSubconfigJSON[*LDPConfig](&spec, sub, "ldp", &spec.LDP)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 646
-		}
+		setDefaultDstPort(&spec, cfg, 646)
 	case "pcep":
 		if sub, ok := cfg["pcep"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v PCEPConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "pcep: "+err.Error())
-			} else {
-				spec.PCEP = &v
-			}
+			parseSubconfigJSON[*PCEPConfig](&spec, sub, "pcep", &spec.PCEP)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 4189
-		}
+		setDefaultDstPort(&spec, cfg, 4189)
 	case "drda":
 		if sub, ok := cfg["drda"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v DRDAConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "drda: "+err.Error())
-			} else {
-				spec.DRDA = &v
-			}
+			parseSubconfigJSON[*DRDAConfig](&spec, sub, "drda", &spec.DRDA)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 446
-		}
+		setDefaultDstPort(&spec, cfg, 446)
 	case "thrift":
 		if sub, ok := cfg["thrift"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v ThriftConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "thrift: "+err.Error())
-			} else {
-				spec.Thrift = &v
-			}
+			parseSubconfigJSON[*ThriftConfig](&spec, sub, "thrift", &spec.Thrift)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 9090
-		}
+		setDefaultDstPort(&spec, cfg, 9090)
 	case "cflow":
 		if sub, ok := cfg["cflow"].(map[string]interface{}); ok {
-			b, _ := json.Marshal(sub)
-			var v CFlowConfig
-			if err := json.Unmarshal(b, &v); err != nil {
-				spec.ValidationErrors = append(spec.ValidationErrors, "cflow: "+err.Error())
-			} else {
-				spec.CFlow = &v
-			}
+			parseSubconfigJSON[*CFlowConfig](&spec, sub, "cflow", &spec.CFlow)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 2055
-		}
+		setDefaultDstPort(&spec, cfg, 2055)
 	}
 
 	// GroupID: optional strategy for cross-flow ordering. When cfg has
