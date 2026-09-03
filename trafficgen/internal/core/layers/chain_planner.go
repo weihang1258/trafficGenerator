@@ -372,7 +372,9 @@ func validateBaseDstPortHandled(name string) bool {
 		// B4 nvgre：无传输层、无端口概念（raw-IP 同款），目的端口 0 合法。
 		// vxlan/geneve 不在豁免名单——它们的默认 4789/6081 走 FieldContract
 		// 通用块（validateBaseDstPortHandled 之外的 amqp/bgp 同款）。
-		"nvgre":
+		"nvgre",
+		// stateless UDP protocols: ports defaulted by the DstPort switch above.
+		"tftp", "radius":
 		return true
 	}
 	return false
@@ -562,6 +564,20 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			spec.DstPort = 123
 		case "ssdp":
 			spec.DstPort = ssdpPort
+		case "tftp":
+			// TFTP 目的端口默认 69（RFC 1350 well-known TID；
+			// strategy_convert mapToFlowSpec 同款默认——用户显式写
+			// dst_port 时已非零不落此分支）。
+			spec.DstPort = 69
+		case "radius":
+			// RADIUS 目的端口默认 1812 (authentication) / 1813 (accounting)
+			// per RFC 2865 §3 / RFC 2866 §3; 选 1813 仅当 RADIUS code=4
+			// (Accounting-Request)。strategy_convert mapToFlowSpec 同款默认。
+			if spec.Radius != nil && spec.Radius.Code == 4 {
+				spec.DstPort = 1813
+			} else {
+				spec.DstPort = 1812
+			}
 		case "stun":
 			// STUN 目的端口默认 3478（UDP）或 5349（TLS，TCP 载体下终结层为
 			// tls 时——validateSpecBase 405-417 同款默认；TLS 链 dst_port 5349

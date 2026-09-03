@@ -68,8 +68,10 @@ func TestMapToFlowSpec_DNSDefaultPort(t *testing.T) {
 	if spec.DNS == nil || spec.DNS.Domain != "example.com" {
 		t.Errorf("DNS = %+v", spec.DNS)
 	}
-	if spec.DstPort != 53 {
-		t.Errorf("DNS default DstPort = %d, want 53", spec.DstPort)
+	// 端口默认已收敛至 ChainPlanner.ValidateSpec（统一架构 v3：
+	// mapToFlowSpec 只产通用默认 80，协议级 53 由链规划器补齐）。
+	if spec.DstPort != DefaultDstPort {
+		t.Errorf("DNS default DstPort = %d, want %d (generic; 53 applied by chain planner)", spec.DstPort, DefaultDstPort)
 	}
 }
 
@@ -713,8 +715,10 @@ func TestMapToFlowSpec_DefaultDstPort_DNSOverridesTo53(t *testing.T) {
 		"dns":    map[string]interface{}{"domain": "example.com"},
 	}
 	spec := mapToFlowSpec(cfg, "dns")
-	if spec.DstPort != 53 {
-		t.Errorf("DNS DstPort=%d, want 53 (protocol-specific override)", spec.DstPort)
+	// 端口默认已收敛至 ChainPlanner.ValidateSpec：mapToFlowSpec 产通用
+	// 默认 80，DNS 53 由链规划器在 Plan 时补齐（不再有第二处 53 默认）。
+	if spec.DstPort != DefaultDstPort {
+		t.Errorf("DNS DstPort=%d, want %d (generic default; 53 applied by chain planner)", spec.DstPort, DefaultDstPort)
 	}
 }
 
@@ -982,8 +986,10 @@ func TestMapToFlowSpec_DNSDstPortNullOverridesTo53(t *testing.T) {
 		"dns":      map[string]interface{}{"domain": "example.com"},
 	}
 	spec := mapToFlowSpec(cfg, "dns")
-	if spec.DstPort != 53 {
-		t.Errorf("DNS DstPort=%d, want 53 (null should fall back to DNS-specific default)", spec.DstPort)
+	// 端口默认已收敛至 ChainPlanner.ValidateSpec：mapToFlowSpec 产通用默认
+	// 80（含 nil dst_port 走 defaultPort），DNS 53 由链规划器在 Plan 时补齐。
+	if spec.DstPort != DefaultDstPort {
+		t.Errorf("DNS DstPort=%d, want %d (generic default; 53 applied by chain planner)", spec.DstPort, DefaultDstPort)
 	}
 }
 

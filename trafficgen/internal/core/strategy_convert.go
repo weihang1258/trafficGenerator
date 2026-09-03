@@ -589,10 +589,8 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// needed here -- mapToFlowSpec's defaultPort call already set it.
 	case "dns":
 		// DNS sub-config already read in the universal section above.
-		// DNS overrides the generic port-80 default with its own 53.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 53
-		}
+		// DstPort 默认 53 已收敛至 ChainPlanner.ValidateSpec（chain_planner.go
+		// validateSpecBase 的 DstPort switch，mapToFlowSpec 不再重复设默认）。
 	case "icmp":
 		// ICMP sub-config already read in the universal section above.
 	case "arp":
@@ -754,16 +752,15 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["dhcp"].(map[string]interface{}); ok {
 			spec.DHCP = parseDHCPConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 67
-		}
+		// DstPort 角色解析由 dhcp 终结层生成器 resolvePorts 完成
+		// （client→67 / server→68，legacy 同款），mapToFlowSpec 不再预填。
 	case "dhcpv6":
 		if sub, ok := cfg["dhcpv6"].(map[string]interface{}); ok {
 			spec.DHCPv6 = parseDHCPv6Config(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 547
-		}
+		// DstPort 方向解析由 dhcpv6 终结层生成器 resolveAddrs 完成
+		// （up=server 547、down=client 546，legacy 同款），
+		// mapToFlowSpec 不再预填。
 	case "grpc":
 		if sub, ok := cfg["grpc"].(map[string]interface{}); ok {
 			spec.GRPC = parseGRPCConfig(sub)
@@ -819,9 +816,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["mdns"].(map[string]interface{}); ok {
 			spec.MDNS = parseMDNSConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 5353
-		}
+		// DstPort 默认 5353 已收敛至 ChainPlanner.ValidateSpec (mdnsPort)。
 	case "mysql":
 		if sub, ok := cfg["mysql"].(map[string]interface{}); ok {
 			spec.MySQL = parseMySQLConfig(sub)
@@ -869,9 +864,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				ControlData:    getByteSlice(sub, "control_data"),
 			}
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 123
-		}
+		// NTP 默认端口 123 (RFC 5905) 已收敛至 ChainPlanner.ValidateSpec。
 	case "openvpn":
 		if sub, ok := cfg["openvpn"].(map[string]interface{}); ok {
 			spec.OpenVPN = parseOpenVPNConfig(sub)
@@ -918,9 +911,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["radius"].(map[string]interface{}); ok {
 			spec.Radius = parseRadiusConfig(sub)
 		}
-		// RADIUS defaults to 1812 (authentication) or 1813 (accounting)
-		// depending on the request code (RFC 2865 §3 / RFC 2866 §3).
-		// Only override when the user did not specify a dst_port.
+		// RADIUS 暂无 layer 生成器（仍走 legacy NewPlanner 路径），
+		// mapToFlowSpec 保留 1812/1813 默认；accounting code=4 选 1813
+		// (RFC 2865 §3 / RFC 2866 §3)。chain planner 同时持有 DstPort=1812/1813
+		// 默认（统一架构 v3 落地后由 chain 接管，届时移除此处重复）。
 		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
 			spec.DstPort = 1812
 			if sub, ok := cfg["radius"].(map[string]interface{}); ok {
@@ -1044,14 +1038,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				ContextName:              getString(sub, "context_name"),
 			}
 		}
-		// SNMP defaults to port 161 (query) or 162 (trap/inform). Only
-		// override when user did not specify dst_port - matches DNS/FTP
-		// pattern. The planner chooses 161 vs 162 based on PDUType when
-		// dst_port is absent here; if the user set dst_port explicitly,
-		// their value wins.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 161
-		}
+		// SNMP 默认端口 161/162 (按 PDUType 选) 已收敛至 ChainPlanner.ValidateSpec。
 	case "socks5":
 		if sub, ok := cfg["socks"].(map[string]interface{}); ok {
 			spec.Socks = parseSocks5Config(sub)
@@ -1175,9 +1162,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["ssdp"].(map[string]interface{}); ok {
 			spec.SSDP = parseSSDPConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 1900
-		}
+		// SSDP 默认端口 1900 (UPnP/SSDP) 已收敛至 ChainPlanner.ValidateSpec。
 	case "ssh":
 		if sub, ok := cfg["ssh"].(map[string]interface{}); ok {
 			spec.SSH = parseSSHConfig(sub)
@@ -1207,21 +1192,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				Messages:       parseSyslogMessages(sub["messages"]),
 			}
 		}
-		// Default port depends on transport: udp/tcp=514, tls=6514.
-		// Only override when the user did not specify a dst_port.
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			transport := "udp"
-			if sub, ok := cfg["syslog"].(map[string]interface{}); ok {
-				if t, ok := sub["transport"].(string); ok && t != "" {
-					transport = t
-				}
-			}
-			if transport == "tls" {
-				spec.DstPort = 6514
-			} else {
-				spec.DstPort = 514
-			}
-		}
+		// Syslog 默认端口 (udp/tcp=514, tls=6514) 已收敛至 ChainPlanner.ValidateSpec。
 	case "telnet":
 		if sub, ok := cfg["telnet"].(map[string]interface{}); ok {
 			spec.Telnet = &TelnetConfig{
@@ -1279,9 +1250,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["tftp"].(map[string]interface{}); ok {
 			spec.TFTP = parseTFTPConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 69
-		}
+		// TFTP 默认端口 69 (RFC 1350) 已收敛至 ChainPlanner.ValidateSpec。
 	case "mqtt":
 		if sub, ok := cfg["mqtt"].(map[string]interface{}); ok {
 			spec.MQTT = parseMQTTConfig(sub)
@@ -1293,9 +1262,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["modbus"].(map[string]interface{}); ok {
 			spec.MODBUS = parseMODBUSConfig(sub)
 		}
-		if _, ok := cfg["dst_port"]; !ok || cfg["dst_port"] == nil {
-			spec.DstPort = 502
-		}
+		// Modbus 默认端口 502 (RFC 793) 已收敛至 ChainPlanner.ValidateSpec。
 	case "rip":
 		if sub, ok := cfg["rip"].(map[string]interface{}); ok {
 			spec.RIP = parseRIPConfig(sub)

@@ -141,9 +141,10 @@ func TestMapToFlowSpec_DHCPv6_Scenario_SARR(t *testing.T) {
 		t.Errorf("Messages should be nil in scenario-only mode, got %d messages", len(c.Messages))
 	}
 
-	// Default dst_port for DHCPv6 = 547.
-	if spec.DstPort != 547 {
-		t.Errorf("DstPort = %d, want 547 (DHCPv6 default)", spec.DstPort)
+	// 端口默认已收敛至 ChainPlanner.ValidateSpec：mapToFlowSpec 产通用默认 80，
+	// DHCPv6 547 由链规划器在 Plan 时补齐（统一架构 v3，不再有第二处默认）。
+	if spec.DstPort != DefaultDstPort {
+		t.Errorf("DstPort = %d, want %d (generic default; 547 applied by chain planner)", spec.DstPort, DefaultDstPort)
 	}
 }
 
@@ -300,9 +301,10 @@ func TestMapToFlowSpec_DHCPv6_NilSubMap(t *testing.T) {
 	if spec.DHCPv6 != nil {
 		t.Errorf("spec.DHCPv6 should be nil when no dhcpv6 sub-map, got %+v", spec.DHCPv6)
 	}
-	// dst_port still defaults to 547 even without a sub-map.
-	if spec.DstPort != 547 {
-		t.Errorf("DstPort = %d, want 547", spec.DstPort)
+	// 端口默认已收敛至 ChainPlanner.ValidateSpec：mapToFlowSpec 产通用默认 80，
+	// DHCPv6 547 由链规划器在 Plan 时补齐。
+	if spec.DstPort != DefaultDstPort {
+		t.Errorf("DstPort = %d, want %d (generic default; 547 applied by chain planner)", spec.DstPort, DefaultDstPort)
 	}
 }
 
