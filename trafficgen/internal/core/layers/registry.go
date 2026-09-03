@@ -429,6 +429,15 @@ func buildDefaultRegistry() {
 		DependsOn:      []string{"http"},
 		FieldContract:  map[string]string{"tcp.dst_port": "8332"},
 	})
+	// stratum（比特币 Stratum v1）：终结层事件为行式 JSON（LF 边界、紧凑
+	// 形态），[tcp→stratum] 直连（ip 层由依赖补全自动插入）。协议配置经
+	// spec.Stratum（顶层 "stratum" 子映射）注入，层 config 恒空；3333 端口
+	// 经 FieldContract 供通用应用补齐。无 stratum dissector，断言全走
+	// tcp.payload/frames（设计 §2 实测基线）。
+	r.Register(LayerSchema{Name: "stratum", Category: CategoryTerminal,
+		DependsOn:      []string{"tcp"},
+		FieldContract:  map[string]string{"tcp.dst_port": "3333"},
+	})
 	// getwork（Bitcoin legacy getwork JSON-RPC over HTTP）：终结层事件已含
 	// 完整 HTTP 帧（请求/响应钉死头序），http 层以透传变换器转发（identity
 	// transformer）。全部协议配置经 spec.GetWork（顶层 "getwork" 子映射）注入，

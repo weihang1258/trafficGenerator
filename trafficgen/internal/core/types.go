@@ -1732,6 +1732,7 @@ type FlowSpec struct {
 	AMQP     *AMQPConfig     `json:"amqp,omitempty"`
 	GBT      *GBTConfig      `json:"gbt,omitempty"`
 	GetWork  *GetWorkConfig  `json:"getwork,omitempty"`
+	Stratum  *StratumConfig  `json:"stratum,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`

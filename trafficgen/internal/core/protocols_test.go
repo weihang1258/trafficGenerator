@@ -38,6 +38,8 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"gbt",
 		// B6（76-getwork）：layer/planner 注册后准入（占位用例同步替换）。
 		"getwork",
+		// B6（75-stratum）：layer/planner 注册后准入（占位用例同步替换）。
+		"stratum",
 	}
 	sort.Strings(want)
 
@@ -67,7 +69,7 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		"bacnet", "cwmp", "dcerpc", "doh", "dtls", "edp", "ethmining",
 		"hl7",
 		"kerberos", "megaco", "mmse", "nmea", "ntlm", "ocsp",
-		"onvif", "spnego", "sstp", "stratum",
+		"onvif", "spnego", "sstp",
 		"xmrmining",
 	}
 	for _, name := range negativeOnly {

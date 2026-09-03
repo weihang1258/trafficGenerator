@@ -138,6 +138,9 @@ import (
 	// legacy getwork JSON-RPC over HTTP，[ip→tcp→http→getwork] 链，同款透传
 	// 转发）。
 	_ "github.com/trafficgen/trafficgen/internal/protocol/getwork"
+	// 空导入：stratum 包 init 反向注册终结层生成器 + 校验器（B6：比特币
+	// Stratum v1，[tcp→stratum] 行式 JSON 直连，无 http 层）。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/stratum"
 	"github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	"github.com/trafficgen/trafficgen/internal/protocol/tftp"
@@ -462,6 +465,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stun"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("gbt"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("getwork"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("stratum"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rtmfp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("amqp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cflow"))

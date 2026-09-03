@@ -547,6 +547,19 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// getwork 依赖 http 层，目的端口 8332 由 FieldContract（tcp.dst_port）
 		// 补齐，不在此默认化。
+	case "stratum":
+		if sub, ok := cfg["stratum"].(map[string]interface{}); ok {
+			if raw, err := json.Marshal(sub); err == nil {
+				var v StratumConfig
+				if err := json.Unmarshal(raw, &v); err != nil {
+					spec.ValidationErrors = append(spec.ValidationErrors, "stratum: "+err.Error())
+				} else {
+					spec.Stratum = &v
+				}
+			}
+		}
+		// stratum 依赖 tcp 层，目的端口 3333 由 FieldContract（tcp.dst_port）
+		// 补齐，不在此默认化。
 	case "tcp":
 		// TCP sub-config already read above; nothing protocol-specific to add.
 	case "udp":

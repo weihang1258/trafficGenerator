@@ -1,8 +1,8 @@
 # Protocol Pcap Test Results
 
-Run at 2026-09-02 12:52:44 — 62 total cases, 62 pass, 0 fail, 0 error
+Run at 2026-09-03 10:32:14 — 10 total cases, 10 pass, 0 fail, 0 error
 
 | Protocol | Cases | Pass | Fail | Error |
 |----------|-------|------|------|-------|
-| getwork | 62 | 62 | 0 | 0 |
+| drda | 10 | 10 | 0 | 0 |
 

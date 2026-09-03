@@ -58,6 +58,9 @@ var allowedProtocols = map[string]bool{
 	// B6（76-getwork）：注册 layer/planner 后准入（占位用例同步替换为 62
 	// 语义用例，protocols_test 哨兵同步摘除）。
 	"getwork": true,
+	// B6（75-stratum）：注册 layer/planner 后准入（占位用例同步替换为 40
+	// 语义用例，protocols_test 哨兵同步摘除）。
+	"stratum": true,
 }
 
 // IsAllowedProtocol reports whether name is an accepted traffic protocol.

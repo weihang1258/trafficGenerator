@@ -452,6 +452,9 @@ type FlowMeta struct {
 	// GetWork is the flow's getwork config (注入到 getwork 终结层生成器，
 	// B6：Bitcoin legacy getwork JSON-RPC over HTTP；同款透传转发)。
 	GetWork *core.GetWorkConfig
+	// Stratum is the flow's stratum config (注入到 stratum 终结层生成器，
+	// B6：比特币 Stratum v1 行式 JSON over TCP；每事件一条行/一对请求响应)。
+	Stratum *core.StratumConfig
 }
 
 // SessionState is the per-flow state shared by all layer generators
