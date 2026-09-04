@@ -19,9 +19,15 @@ import (
 // Per-package conventions: type names (ChainPlanner, FlowMeta, etc.)
 // are package-local; only file boundaries change.
 
-
 func flowMetaFor(spec core.FlowSpec) FlowMeta {
-	return FlowMeta{SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC, SV: spec.SV, GOOSE: spec.GOOSE, ISIS: spec.ISIS}
+	// CksumEngine 恒挂（T3.3）：IPCksumComputer 无状态、零成本，端到端
+	// 校验器/集成测试经 Meta.CksumEngine 复算 IPv4 头校验和与伪头求和
+	// （生成路径的 builder 内联计算不变，此句柄只作对拍用途）。
+	return FlowMeta{
+		SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC,
+		SV: spec.SV, GOOSE: spec.GOOSE, ISIS: spec.ISIS,
+		CksumEngine: NewIPCksumComputer(),
+	}
 }
 
 // flowID mirrors the legacy per-flow ID format// "srcIP-dstIP-srcPort-dstPort"（每 flow 唯一标识）。
@@ -390,6 +396,8 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 				cfg["handshake"] = t.Handshake
 				cfg["termination"] = t.Termination
 				cfg["rst"] = t.RST
+				// T3.3 retransmit：spec.TCP.Retransmit → tcp 层开关。
+				cfg["retransmit"] = t.Retransmit
 			}
 		}
 		out[i] = Layer{Name: l.Name, Config: cfg}

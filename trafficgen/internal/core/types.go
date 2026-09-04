@@ -858,11 +858,11 @@ type OpenWireWireFormat struct {
 // ip 层）；SrcPort 是该连接的客户端源端口（事件模式经 MessageEvent.SrcPort
 // 驱动 TCPGenerator 的会话边界）。
 type OpenWireConnection struct {
-	ConnectionID int    `json:"connection_id,omitempty"`
-	ClientID     string `json:"client_id,omitempty"`
-	SrcPort      uint16 `json:"src_port,omitempty"`
-	SrcIP        string `json:"src_ip,omitempty"`
-	DstIP        string `json:"dst_ip,omitempty"`
+	ConnectionID int             `json:"connection_id,omitempty"`
+	ClientID     string          `json:"client_id,omitempty"`
+	SrcPort      uint16          `json:"src_port,omitempty"`
+	SrcIP        string          `json:"src_ip,omitempty"`
+	DstIP        string          `json:"dst_ip,omitempty"`
 	Events       []OpenWireEvent `json:"events,omitempty"`
 }
 
@@ -900,7 +900,7 @@ type OpenWireEvent struct {
 	// CorrelationID is the explicit Response/ExceptionResponse correlation；
 	// 缺省关联最近一条 c2s command。显式值必须命中已发出的客户端命令
 	// （neg_correlation）。
-	CorrelationID int  `json:"correlation_id,omitempty"`
+	CorrelationID int    `json:"correlation_id,omitempty"`
 	Exception     string `json:"exception,omitempty"`
 	// Redelivery is the MessageDispatch redelivery counter（显式声明）。
 	Redelivery int `json:"redelivery,omitempty"`
@@ -939,7 +939,7 @@ type AMSConfig struct {
 	ClientName string `json:"client_name,omitempty"`
 	// AuthMethod/CredentialRef are the AUTH TLVs（缺省 ref / cred-ref-1；
 	// 不在线发送明文密码——设计 §4）。
-	AuthMethod   string `json:"auth_method,omitempty"`
+	AuthMethod    string `json:"auth_method,omitempty"`
 	CredentialRef string `json:"credential_ref,omitempty"`
 	// SessionLimit is the uint16 server session limit（HELLO_OK 回显）。
 	SessionLimit uint16 `json:"session_limit,omitempty"`
@@ -965,8 +965,8 @@ type AMSConnection struct {
 
 // AMSSession is one management session (SessionID 逻辑流键)。
 type AMSSession struct {
-	SessionID uint32      `json:"session_id,omitempty"`
-	Events    []AMSEvent  `json:"events,omitempty"`
+	SessionID uint32     `json:"session_id,omitempty"`
+	Events    []AMSEvent `json:"events,omitempty"`
 }
 
 // AMSEvent is one AMS frame in sequence order. Kind selects the frame type;
@@ -1058,9 +1058,9 @@ type SwarmConnection struct {
 
 // SwarmSession is one storage session (SessionID 逻辑流键)。
 type SwarmSession struct {
-	SessionID uint64         `json:"session_id,omitempty"`
-	Events    []SwarmEvent   `json:"events,omitempty"`
-	Streams   []SwarmStream  `json:"streams,omitempty"`
+	SessionID uint64        `json:"session_id,omitempty"`
+	Events    []SwarmEvent  `json:"events,omitempty"`
+	Streams   []SwarmStream `json:"streams,omitempty"`
 }
 
 // SwarmStream is one multiplexed stream inside a session (StreamID 键)。
@@ -1161,7 +1161,7 @@ type GnutellaEvent struct {
 	// MessageID is the 16-byte GUID of this message（pong 与 ping 相同）。
 	MessageID []byte `json:"message_id,omitempty"`
 	// TTL/Hops are the header bytes（转发副本 ttl-1/hops+1）。
-	TTL uint8 `json:"ttl,omitempty"`
+	TTL  uint8 `json:"ttl,omitempty"`
 	Hops uint8 `json:"hops,omitempty"`
 	// QueryID references the QUERY GUID（query_hit 事件）。
 	QueryID []byte `json:"query_id,omitempty"`
@@ -1445,16 +1445,16 @@ type DRDAParam struct {
 
 // OPCUAConfig configures a minimal OPC UA TCP session.
 type OPCUAConfig struct {
-	Transport    string           `json:"transport,omitempty"`
-	SecurityMode string           `json:"security_mode,omitempty"`
-	Read         []OPCUANodeRead  `json:"read,omitempty"`
-	Write        []OPCUANodeRead  `json:"write,omitempty"`
-	Browse       []OPCUANodeRead  `json:"browse,omitempty"`
-	Subscription *OPCUASubConfig  `json:"subscription,omitempty"`
-	Sessions     int              `json:"sessions,omitempty"`
-	ErrorInject  *OPCUAErrInject  `json:"error_inject,omitempty"`
-	Close        bool             `json:"close,omitempty"`
-	SkipChannel  bool             `json:"skip_channel,omitempty"`
+	Transport    string          `json:"transport,omitempty"`
+	SecurityMode string          `json:"security_mode,omitempty"`
+	Read         []OPCUANodeRead `json:"read,omitempty"`
+	Write        []OPCUANodeRead `json:"write,omitempty"`
+	Browse       []OPCUANodeRead `json:"browse,omitempty"`
+	Subscription *OPCUASubConfig `json:"subscription,omitempty"`
+	Sessions     int             `json:"sessions,omitempty"`
+	ErrorInject  *OPCUAErrInject `json:"error_inject,omitempty"`
+	Close        bool            `json:"close,omitempty"`
+	SkipChannel  bool            `json:"skip_channel,omitempty"`
 	// BadMessageSize / BadLength are negative-test injections: Validate
 	// rejects them (the faulted spec must never produce traffic).
 	BadMessageSize bool `json:"bad_message_size,omitempty"`
@@ -1689,50 +1689,50 @@ type FlowSpec struct {
 	HopByHop []IPv6Option `json:"hop_by_hop,omitempty"`
 
 	// Protocol specific configuration
-	TCP      *TCPConfig      `json:"tcp,omitempty"`
-	UDP      *UDPConfig      `json:"udp,omitempty"`
-	HTTP     *HTTPConfig     `json:"http,omitempty"`
-	DNS      *DNSConfig      `json:"dns,omitempty"`
-	ICMP     *ICMPConfig     `json:"icmp,omitempty"`
-	ARP      *ARPConfig      `json:"arp,omitempty"`
-	FTP      *FTPConfig      `json:"ftp,omitempty"`
-	SIP      *SIPConfig      `json:"sip,omitempty"`
-	SCTP     *SCTPConfig     `json:"sctp,omitempty"`
-	ICMPv6   *ICMPv6Config   `json:"icmpv6,omitempty"`
-	RTSP     *RTSPConfig     `json:"rtsp,omitempty"`
-	CoAP     *CoAPConfig     `json:"coap,omitempty"`
-	S7       *S7Config       `json:"s7,omitempty"`
-	IEC104   *IEC104Config   `json:"iec104,omitempty"`
-	BGP      *BGPConfig      `json:"bgp,omitempty"`
-	OPCUA    *OPCUAConfig    `json:"opcua,omitempty"`
-	MMS      *MMSConfig      `json:"mms,omitempty"`
-	GOOSE    *GOOSEConfig    `json:"goose,omitempty"`
-	SV       *SVConfig       `json:"sv,omitempty"`
-	STUN     *STUNConfig     `json:"stun,omitempty"`
-	HTTPFLV  *HTTPFLVConfig  `json:"http_flv,omitempty"`
-	HLS      *HLSConfig      `json:"hls,omitempty"`
-	HDS      *HDSConfig      `json:"hds,omitempty"`
-	MOXA     *MOXAConfig     `json:"moxa,omitempty"`
-	SOMEIP   *SOMEIPConfig   `json:"someip,omitempty"`
-	DRDA     *DRDAConfig     `json:"drda,omitempty"`
-	Thrift   *ThriftConfig   `json:"thrift,omitempty"`
-	OpenWire *OpenWireConfig `json:"openwire,omitempty"`
-	AMS      *AMSConfig      `json:"ams,omitempty"`
-	Swarm    *SwarmConfig    `json:"swarm,omitempty"`
-	Gnutella *GnutellaConfig `json:"gnutella,omitempty"`
-	TNS      *TNSConfig      `json:"tns,omitempty"`
-	MongoDB  *MongoDBConfig  `json:"mongodb,omitempty"`
-	Dameng   *DamengConfig   `json:"dameng,omitempty"`
-	KingBase *KingBaseConfig `json:"kingbase,omitempty"`
-	CQL      *CQLConfig      `json:"cql,omitempty"`
-	LDP      *LDPConfig      `json:"ldp,omitempty"`
-	PCEP     *PCEPConfig     `json:"pcep,omitempty"`
-	CFlow    *CFlowConfig    `json:"cflow,omitempty"`
-	RTMFP    *RTMFPConfig    `json:"rtmfp,omitempty"`
-	AMQP     *AMQPConfig     `json:"amqp,omitempty"`
-	GBT      *GBTConfig      `json:"gbt,omitempty"`
-	GetWork  *GetWorkConfig  `json:"getwork,omitempty"`
-	Stratum  *StratumConfig  `json:"stratum,omitempty"`
+	TCP       *TCPConfig       `json:"tcp,omitempty"`
+	UDP       *UDPConfig       `json:"udp,omitempty"`
+	HTTP      *HTTPConfig      `json:"http,omitempty"`
+	DNS       *DNSConfig       `json:"dns,omitempty"`
+	ICMP      *ICMPConfig      `json:"icmp,omitempty"`
+	ARP       *ARPConfig       `json:"arp,omitempty"`
+	FTP       *FTPConfig       `json:"ftp,omitempty"`
+	SIP       *SIPConfig       `json:"sip,omitempty"`
+	SCTP      *SCTPConfig      `json:"sctp,omitempty"`
+	ICMPv6    *ICMPv6Config    `json:"icmpv6,omitempty"`
+	RTSP      *RTSPConfig      `json:"rtsp,omitempty"`
+	CoAP      *CoAPConfig      `json:"coap,omitempty"`
+	S7        *S7Config        `json:"s7,omitempty"`
+	IEC104    *IEC104Config    `json:"iec104,omitempty"`
+	BGP       *BGPConfig       `json:"bgp,omitempty"`
+	OPCUA     *OPCUAConfig     `json:"opcua,omitempty"`
+	MMS       *MMSConfig       `json:"mms,omitempty"`
+	GOOSE     *GOOSEConfig     `json:"goose,omitempty"`
+	SV        *SVConfig        `json:"sv,omitempty"`
+	STUN      *STUNConfig      `json:"stun,omitempty"`
+	HTTPFLV   *HTTPFLVConfig   `json:"http_flv,omitempty"`
+	HLS       *HLSConfig       `json:"hls,omitempty"`
+	HDS       *HDSConfig       `json:"hds,omitempty"`
+	MOXA      *MOXAConfig      `json:"moxa,omitempty"`
+	SOMEIP    *SOMEIPConfig    `json:"someip,omitempty"`
+	DRDA      *DRDAConfig      `json:"drda,omitempty"`
+	Thrift    *ThriftConfig    `json:"thrift,omitempty"`
+	OpenWire  *OpenWireConfig  `json:"openwire,omitempty"`
+	AMS       *AMSConfig       `json:"ams,omitempty"`
+	Swarm     *SwarmConfig     `json:"swarm,omitempty"`
+	Gnutella  *GnutellaConfig  `json:"gnutella,omitempty"`
+	TNS       *TNSConfig       `json:"tns,omitempty"`
+	MongoDB   *MongoDBConfig   `json:"mongodb,omitempty"`
+	Dameng    *DamengConfig    `json:"dameng,omitempty"`
+	KingBase  *KingBaseConfig  `json:"kingbase,omitempty"`
+	CQL       *CQLConfig       `json:"cql,omitempty"`
+	LDP       *LDPConfig       `json:"ldp,omitempty"`
+	PCEP      *PCEPConfig      `json:"pcep,omitempty"`
+	CFlow     *CFlowConfig     `json:"cflow,omitempty"`
+	RTMFP     *RTMFPConfig     `json:"rtmfp,omitempty"`
+	AMQP      *AMQPConfig      `json:"amqp,omitempty"`
+	GBT       *GBTConfig       `json:"gbt,omitempty"`
+	GetWork   *GetWorkConfig   `json:"getwork,omitempty"`
+	Stratum   *StratumConfig   `json:"stratum,omitempty"`
 	ETHMining *ETHMiningConfig `json:"ethmining,omitempty"`
 
 	// Common configuration
@@ -2075,6 +2075,12 @@ type TCPConfig struct {
 	// forces a deterministic client ISN for reproducible tests. Moved here
 	// from FlowSpec because it is TCP-specific.
 	InitialSeq uint32 `json:"initial_seq,omitempty"`
+
+	// Retransmit enables the TCP retransmission state machine (T3.3)：
+	// data segments and peer ACKs drive TCPRetransmissionStateMachine and
+	// the final (simulated-lost) segment is re-emitted after the data
+	// phase (dup PSH-ACK + recovery ACK). false = legacy stream exactly.
+	Retransmit bool `json:"retransmit,omitempty"`
 }
 
 // UDPConfig for UDP protocol.

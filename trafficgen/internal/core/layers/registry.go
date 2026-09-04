@@ -69,6 +69,11 @@ func buildDefaultRegistry() {
 			"initial_seq": {Type: "uint32", Default: uint32(0)},
 			// concurrent: 事件模式按 SrcPort 维护并发连接状态（mms 多会话）。
 			"concurrent": {Type: "bool", Default: false},
+			// retransmit: 开启 TCP 重传模拟（T3.3）。数据段/ACK 发射同步
+			// 驱动 TCPRetransmissionStateMachine（SendSegment/OnACK），数据
+			// 阶段结束后对未确认段（FlightSize>0）补发重传段（dup PSH-ACK），
+			// 模拟丢包恢复。false = 关闭（默认，字节流与 legacy 一致）。
+			"retransmit": {Type: "bool", Default: false},
 		},
 	})
 	r.Register(LayerSchema{Name: "udp", Category: CategoryTransport,
@@ -426,8 +431,8 @@ func buildDefaultRegistry() {
 	// （identity transformer）。全部协议配置经 spec.GBT（顶层 "gbt" 子映射）
 	// 注入，层 config 恒空；8332 端口经 FieldContract 供通用应用补齐。
 	r.Register(LayerSchema{Name: "gbt", Category: CategoryTerminal,
-		DependsOn:      []string{"http"},
-		FieldContract:  map[string]string{"tcp.dst_port": "8332"},
+		DependsOn:     []string{"http"},
+		FieldContract: map[string]string{"tcp.dst_port": "8332"},
 	})
 	// stratum（比特币 Stratum v1）：终结层事件为行式 JSON（LF 边界、紧凑
 	// 形态），[tcp→stratum] 直连（ip 层由依赖补全自动插入）。协议配置经
@@ -435,8 +440,8 @@ func buildDefaultRegistry() {
 	// 经 FieldContract 供通用应用补齐。无 stratum dissector，断言全走
 	// tcp.payload/frames（设计 §2 实测基线）。
 	r.Register(LayerSchema{Name: "stratum", Category: CategoryTerminal,
-		DependsOn:      []string{"tcp"},
-		FieldContract:  map[string]string{"tcp.dst_port": "3333"},
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "3333"},
 	})
 	// ethmining（以太坊挖矿 stratum 协议，EthereumStratum/1.0.0）：终结层
 	// 事件为行式 JSON（LF 边界、紧凑形态），[tcp→ethmining] 直连（ip 层由依
@@ -445,16 +450,16 @@ func buildDefaultRegistry() {
 	// 端口 3353 由用户显式覆盖，正例 22）。无 ethmining dissector，断言全
 	// 走 tcp.payload/frames（设计 §2 实测基线）。
 	r.Register(LayerSchema{Name: "ethmining", Category: CategoryTerminal,
-		DependsOn:      []string{"tcp"},
-		FieldContract:  map[string]string{"tcp.dst_port": "4444"},
+		DependsOn:     []string{"tcp"},
+		FieldContract: map[string]string{"tcp.dst_port": "4444"},
 	})
 	// getwork（Bitcoin legacy getwork JSON-RPC over HTTP）：终结层事件已含
 	// 完整 HTTP 帧（请求/响应钉死头序），http 层以透传变换器转发（identity
 	// transformer）。全部协议配置经 spec.GetWork（顶层 "getwork" 子映射）注入，
 	// 层 config 恒空；8332 端口经 FieldContract 供通用应用补齐。
 	r.Register(LayerSchema{Name: "getwork", Category: CategoryTerminal,
-		DependsOn:      []string{"http"},
-		FieldContract:  map[string]string{"tcp.dst_port": "8332"},
+		DependsOn:     []string{"http"},
+		FieldContract: map[string]string{"tcp.dst_port": "8332"},
 	})
 	r.Register(LayerSchema{Name: "opcua", Category: CategoryTerminal, DependsOn: []string{"tcp"}, Fields: map[string]FieldSchema{
 		"security_mode":    {Type: "string", Default: "none"},
@@ -470,18 +475,18 @@ func buildDefaultRegistry() {
 		"bad_length":       {Type: "bool", Default: false},
 	}})
 	r.Register(LayerSchema{Name: "mms", Category: CategoryTerminal, DependsOn: []string{"tcp"}, Fields: map[string]FieldSchema{
-		"iedName":              {Type: "string"},
-		"objects":              {Type: "list", Default: []interface{}{}},
-		"enableRead":           {Type: "bool", Default: false},
-		"enableWrite":          {Type: "bool", Default: false},
+		"iedName":                 {Type: "string"},
+		"objects":                 {Type: "list", Default: []interface{}{}},
+		"enableRead":              {Type: "bool", Default: false},
+		"enableWrite":             {Type: "bool", Default: false},
 		"enableInformationReport": {Type: "bool", Default: false},
-		"enableGetNameList":    {Type: "bool", Default: false},
-		"enableIdentify":       {Type: "bool", Default: false},
-		"multiSession":         {Type: "list", Default: []interface{}{}},
-		"association":          {Type: "object"},
-		"sequence":             {Type: "object"},
-		"errorClassName":       {Type: "string"},
-		"errorValue":           {Type: "int", Default: 0, Min: 0, Max: 255},
+		"enableGetNameList":       {Type: "bool", Default: false},
+		"enableIdentify":          {Type: "bool", Default: false},
+		"multiSession":            {Type: "list", Default: []interface{}{}},
+		"association":             {Type: "object"},
+		"sequence":                {Type: "object"},
+		"errorClassName":          {Type: "string"},
+		"errorValue":              {Type: "int", Default: 0, Min: 0, Max: 255},
 	}})
 	r.Register(LayerSchema{Name: "moxa", Category: CategoryTerminal, DependsOn: []string{"tcp"}})
 	r.Register(LayerSchema{Name: "someip", Category: CategoryTerminal, DependsOn: []string{"udp"}, TransportOn: []string{"udp", "tcp"}})
@@ -774,7 +779,7 @@ func buildDefaultRegistry() {
 	})
 	r.Register(LayerSchema{Name: "socks5", Category: CategoryTerminal,
 		DependsOn:     []string{"tcp"},
-		OptionalOn:    []string{"tls"}, // SOCKS5-over-TLS：显式写 tls 层启用，默认不启用（J 组组合层）
+		OptionalOn:    []string{"tls"},                           // SOCKS5-over-TLS：显式写 tls 层启用，默认不启用（J 组组合层）
 		FieldContract: map[string]string{"tcp.dst_port": "1080"}, // SOCKS 默认 1080；用户显式非标准端口优先，不强制
 		Fields: map[string]FieldSchema{
 			"version":     {Type: "string", Default: ""},

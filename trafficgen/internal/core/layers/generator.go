@@ -26,6 +26,13 @@ const (
 	MinMSS            = 536 // RFC 879: minimum MSS
 	DefaultWindowSize = 65535
 	DefaultTTL        = 64
+	// dropTailSegments is the simulated packet loss for retransmit mode
+	// (T3.3): the LAST N data segments' peer ACKs are withheld from the SM
+	// (模拟丢包), so those segments stay in the retransmission queue and are
+	// re-emitted once the data phase completes (one RTO round). N=1 keeps
+	// the deterministic loss minimal — enough to exercise the retransmit
+	// path (dup segment + recovery ACK) without perturbing other behavior.
+	dropTailSegments = 1
 )
 
 // LayerGenerator generates packet configs for one layer of a chain
@@ -307,22 +314,22 @@ type FlowMeta struct {
 	// mapToFlowSpec 的 nfs case 存 JSON 解码子 map），生成器侧解析。
 	NFS interface{}
 	// FINS is the flow's FINS config (注入到 fins 层生成器)。
-	FINS     interface{}
-	S7       *core.S7Config
-	IEC104   *core.IEC104Config
-	BGP      *core.BGPConfig
-	OPCUA    *core.OPCUAConfig
-	MMS      *core.MMSConfig
-	GOOSE    *core.GOOSEConfig
-	SV       *core.SVConfig
-	STUN     *core.STUNConfig
-	HTTPFLV  *core.HTTPFLVConfig
-	HLS      *core.HLSConfig
-	HDS      *core.HDSConfig
-	MOXA     *core.MOXAConfig
-	SOMEIP   *core.SOMEIPConfig
-	DRDA     *core.DRDAConfig
-	Thrift   *core.ThriftConfig
+	FINS    interface{}
+	S7      *core.S7Config
+	IEC104  *core.IEC104Config
+	BGP     *core.BGPConfig
+	OPCUA   *core.OPCUAConfig
+	MMS     *core.MMSConfig
+	GOOSE   *core.GOOSEConfig
+	SV      *core.SVConfig
+	STUN    *core.STUNConfig
+	HTTPFLV *core.HTTPFLVConfig
+	HLS     *core.HLSConfig
+	HDS     *core.HDSConfig
+	MOXA    *core.MOXAConfig
+	SOMEIP  *core.SOMEIPConfig
+	DRDA    *core.DRDAConfig
+	Thrift  *core.ThriftConfig
 	// OpenWire is the flow's OpenWire config (注入到 openwire 终结层生成器：
 	// ActiveMQ loose 命令序列逐事件产出；连接级显式地址时走自驱完整包分支，
 	// B5)。Only set for openwire chains.
@@ -459,6 +466,23 @@ type FlowMeta struct {
 	// 73-ethmining v2.0.2：以太坊挖矿 stratum 行式 JSON over TCP；每事件
 	// 一条行/一对请求响应，[tcp→ethmining] 直连)。
 	ETHMining *core.ETHMiningConfig
+	// TCPState is the flow's TCP retransmission state machine (T3.3：tcp 层
+	// config retransmit=true 时由 TCPGenerator 构建并驱动——SendSegment/
+	// OnACK/OnDupACK/OnRTO 随正常数据段/ACK 发射同步喂数)。nil = 关闭
+	// 重传模拟（默认；字节流与 legacy 完全一致，不多不少）。
+	//
+	// DEPRECATED carrier: FlowMeta is copied by value at every layer
+	// boundary, so a pointer written here by an inner layer does NOT
+	// propagate upstream. The live handle is SessionState.TCPRetrans
+	// (shared pointer). This field is kept for the plan's named surface
+	// (tests may set it pre-Plan to force a specific SM instance); the
+	// TCPGenerator itself writes SessionState.TCPRetrans.
+	TCPState *TCPRetransmissionStateMachine
+	// CksumEngine is the flow's IP checksum engine (T3.3：端到端校验/验证
+	// 用——AssembleAndVerify 重组分片后验证 IPv4 头校验和，伪头求和供
+	// TCP/UDP 校验复算)。生成路径本身仍在 builder.go 内联计算（字节级
+	// 兼容约束），此句柄供集成测试/验证器复算对拍。nil = 未启用。
+	CksumEngine *IPCksumComputer
 }
 
 // SessionState is the per-flow state shared by all layer generators
@@ -471,6 +495,11 @@ type SessionState struct {
 	// PacketIndex is the per-flow packet sequence number, advanced by the
 	// ChainPlanner for every packet that leaves the chain (ChainPlanner 统一推进)。
 	PacketIndex uint64
+	// TCPRetrans is the retransmission state machine for retransmit=true
+	// flows (T3.3)。SessionState 是链上共享指针（req.Sess），tcp 层构建的
+	// SM 写在这里可被 ChainPlanner/集成测试观察（FlowMeta 是逐层值拷贝，
+	// 指针字段写入不回传——SM 挂 Sess 而非 Meta）。nil = 未开启。
+	TCPRetrans *TCPRetransmissionStateMachine
 }
 
 // flowConfigField reads a completed layer config field with a schema-type
@@ -727,6 +756,11 @@ type tcpCfg struct {
 	// seq state is restored on return (mms 并发会话；drda 默认语义仍是
 	// 挥旧握新，concurrent=false).
 	concurrent bool
+	// retransmit enables the TCP retransmission state machine (T3.3): data
+	// segments and ACKs also drive TCPRetransmissionStateMachine, and after
+	// the data phase unacked segments (queue tail the simulated peer never
+	// acked) are re-emitted as duplicate PSH-ACK retransmissions.
+	retransmit bool
 }
 
 // resolveCfg resolves the TCP layer configuration from the completed layer
@@ -809,6 +843,13 @@ func (g *TCPGenerator) resolveCfg(req *GenRequest) (tcpCfg, error) {
 			return cfg, errInvalid("concurrent", v)
 		}
 	}
+	if v, ok := flowConfigField(c, "retransmit"); ok {
+		if b, ok := configBool(v); ok {
+			cfg.retransmit = b
+		} else {
+			return cfg, errInvalid("retransmit", v)
+		}
+	}
 	cfg.mss = effectiveMSS(cfg.mss)
 	return cfg, nil
 }
@@ -818,7 +859,7 @@ func fieldType(field string) string {
 	switch field {
 	case "initial_seq":
 		return "uint32"
-	case "handshake", "termination", "rst", "concurrent":
+	case "handshake", "termination", "rst", "concurrent", "retransmit":
 		return "bool"
 	default:
 		return "uint16"
@@ -1024,8 +1065,31 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// 事件模式（Meta.Events != nil）下跳过单 payload 段：终结层（http 等）
 	// 自产报文，legacy http 从不读 spec.Payload，多发包会破坏字节兼容
 	// （review CRITICAL 修复）。
+	//
+	// T3.3 retransmit 模式：数据段发射同步驱动重传状态机（SendSegment/
+	// OnACK）。SM 挂共享 SessionState.TCPRetrans（外层/集成测试可观察
+	// cwnd/RTO/队列状态）。模拟丢包 = 末段（最后 dropTailSegments 个）的
+	// 对端 ACK 不喂 SM（段滞留 segQueue → FlightSize>0），数据阶段结束后
+	// 走一次 OnRTO 重传滞留段（dup PSH-ACK，带原始字节），随后补 ACK 确认
+	// （模拟对端恢复）。retransmit=false 时字节流与 legacy 完全一致。
+	var retransSM *TCPRetransmissionStateMachine
+	if cfg.retransmit {
+		retransSM = NewTCPRetransmissionStateMachine(TCPRetransmissionConfig{
+			MSSBytes: uint32(cfg.mss),
+		})
+		// SM 挂共享 SessionState（FlowMeta 逐层值拷贝，指针写入不回传）。
+		sess.TCPRetrans = retransSM
+	}
 	payload := req.Meta.Payload
 	if len(payload) > 0 && req.Meta.Events == nil {
+		// segPayloads 记录每个数据段的原始字节（按发送序），供重传补发
+		// dup 段复用（SM 的 Segment 只存 seq/len，不存字节）。
+		type segRec struct {
+			seq     uint32
+			payload []byte
+		}
+		var segs []segRec
+		var unackedTail []segRec // 滞留段（模拟丢包，待重传）
 		for len(payload) > 0 {
 			segmentSize := len(payload)
 			if segmentSize > mss {
@@ -1047,6 +1111,10 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			if err := emit(seg); err != nil {
 				return err
 			}
+			if retransSM != nil {
+				retransSM.SendSegment(seg.L4.Seq, uint32(segmentSize), time.Now())
+				segs = append(segs, segRec{seq: seg.L4.Seq, payload: seg.Payload})
+			}
 			clientSeq += uint32(segmentSize)
 			payload = payload[segmentSize:]
 			ack := core.PacketConfig{
@@ -1064,6 +1132,72 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			if err := emit(ack); err != nil {
 				return err
 			}
+			// 模拟丢包：末段（最后 dropTailSegments 个）的对端 ACK 视为
+			// 丢失——不喂 SM，该段滞留 segQueue 待重传。当前段是否属于
+			// "末尾组"在发送时点未知（总段数未定），改为发送后由
+			// unackedTail 收集阶段按 segQueue 精确判定——这里只对
+			// "确定不是末段"（后面还有数据）的 ACK 喂 SM；最后一段的
+			// ACK 是否喂由数据阶段结束后的滞留收集反推（见下）。
+			// 简化实现：仅当 dropTailSegments=1 时，最后一段的 ACK 跳过
+			// （remaining==0 判定）；多段滞留场景由 SM 队列差异体现。
+			if retransSM != nil && len(payload) == 0 && dropTailSegments > 0 {
+				// 此 ACK 模拟丢失，跳过 OnACK（段滞留）。
+			} else if retransSM != nil {
+				retransSM.OnACK(ack.L4.Ack, time.Now())
+			}
+		}
+		// 收集滞留段（segQueue 里的 seq → 原始字节，从 segs 线性匹配）。
+		if retransSM != nil {
+			for _, s := range retransSM.SegQueue() {
+				for _, r := range segs {
+					if r.seq == s.Seq {
+						unackedTail = append(unackedTail, r)
+						break
+					}
+				}
+			}
+		}
+		// 重传滞留段：一次 RTO 轮（OnRTO：ssthresh 减半、cwnd→IW、RTO 翻倍），
+		// 按序补发 dup PSH-ACK（携带原始字节），随后补发对端恢复 ACK 一次性
+		// 确认全部滞留段（正常路径 clientSeq 已含全部段推进，重传不推进 seq）。
+		if retransSM != nil && len(unackedTail) > 0 {
+			retransSM.OnRTO(time.Now())
+			for _, r := range unackedTail {
+				rt := core.PacketConfig{
+					Direction: "up",
+					L4: core.L4Config{
+						Protocol:   "tcp",
+						SrcPort:    cfg.srcPort,
+						DstPort:    cfg.dstPort,
+						Seq:        r.seq,
+						Ack:        serverSeq,
+						Flags:      FlagPSH | FlagACK,
+						WindowSize: winSize,
+					},
+					Payload: r.payload,
+				}
+				if err := emit(rt); err != nil {
+					return err
+				}
+			}
+			last := unackedTail[len(unackedTail)-1]
+			peerAck := last.seq + uint32(len(last.payload))
+			ackFinal := core.PacketConfig{
+				Direction: "down",
+				L4: core.L4Config{
+					Protocol:   "tcp",
+					SrcPort:    cfg.dstPort,
+					DstPort:    cfg.srcPort,
+					Seq:        serverSeq,
+					Ack:        peerAck,
+					Flags:      FlagACK,
+					WindowSize: winSize,
+				},
+			}
+			if err := emit(ackFinal); err != nil {
+				return err
+			}
+			retransSM.OnACK(peerAck, time.Now())
 		}
 	}
 

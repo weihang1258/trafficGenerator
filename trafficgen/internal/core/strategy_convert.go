@@ -337,6 +337,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			MSS:         getUint16(sub, "mss"),
 			WindowSize:  getUint16(sub, "window_size"),
 			InitialSeq:  getUint32(sub, "initial_seq"),
+			Retransmit:  getBool(sub, "retransmit", false),
 		}
 	}
 
