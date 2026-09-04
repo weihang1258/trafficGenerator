@@ -17,19 +17,19 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core/layers"
 	"github.com/trafficgen/trafficgen/internal/mcp"
 	"github.com/trafficgen/trafficgen/internal/output"
-	"github.com/trafficgen/trafficgen/internal/protocol/a2a"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/a2a"
 	"github.com/trafficgen/trafficgen/internal/protocol/arp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/bgp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/coap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/cql"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcpv6"
-	"github.com/trafficgen/trafficgen/internal/protocol/dnp3"
-	"github.com/trafficgen/trafficgen/internal/protocol/doip"
-	"github.com/trafficgen/trafficgen/internal/protocol/enip"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/dnp3"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/doip"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/enip"
 	"github.com/trafficgen/trafficgen/internal/protocol/fins"
 	"github.com/trafficgen/trafficgen/internal/protocol/ftp"
-	"github.com/trafficgen/trafficgen/internal/protocol/gbt32960"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/gbt32960"
 	"github.com/trafficgen/trafficgen/internal/protocol/goose"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/igmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/isis"
@@ -87,13 +87,13 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/openwire"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nvgre"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/vxlan"
-	"github.com/trafficgen/trafficgen/internal/protocol/modbus"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/modbus"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mongodb"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/moxa"
 	"github.com/trafficgen/trafficgen/internal/protocol/mpls"
-	"github.com/trafficgen/trafficgen/internal/protocol/mqtt"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/mqtt"
 	"github.com/trafficgen/trafficgen/internal/protocol/mysql"
-	"github.com/trafficgen/trafficgen/internal/protocol/nfs"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/nfs"
 	"github.com/trafficgen/trafficgen/internal/protocol/ngap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/opcua"
@@ -113,10 +113,10 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/sctp"
 	"github.com/trafficgen/trafficgen/internal/protocol/shadowsocks"
 	"github.com/trafficgen/trafficgen/internal/protocol/sip"
-	"github.com/trafficgen/trafficgen/internal/protocol/smb"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/smb"
 	"github.com/trafficgen/trafficgen/internal/protocol/smtp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
-	"github.com/trafficgen/trafficgen/internal/protocol/socks5"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/socks5"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/someip"
 	"github.com/trafficgen/trafficgen/internal/protocol/srv6"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
@@ -144,9 +144,9 @@ import (
 	// 空导入：ethmining 包 init 反向注册终结层生成器 + 校验器（73-ethmining
 	// v2.0.2：以太 ethash stratum 行式 JSON 直连 [tcp→ethmining]）。
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ethmining"
-	"github.com/trafficgen/trafficgen/internal/protocol/tds"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
-	"github.com/trafficgen/trafficgen/internal/protocol/tftp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/tftp"
 	"github.com/trafficgen/trafficgen/internal/protocol/tls"
 	"github.com/trafficgen/trafficgen/internal/protocol/vmess"
 	"github.com/trafficgen/trafficgen/internal/protocol/vnc"
@@ -531,28 +531,28 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(tls.NewPlanner())
 	app.engine.RegisterPlanner(openvpn.NewPlanner())
 	app.engine.RegisterPlanner(shadowsocks.NewPlanner())
-	app.engine.RegisterPlanner(socks5.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("socks5"))
 	app.engine.RegisterPlanner(vmess.NewPlanner())
 	app.engine.RegisterPlanner(wireguard.NewPlanner())
 	app.engine.RegisterPlanner(xmpp.NewPlanner())
-	app.engine.RegisterPlanner(mqtt.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("mqtt"))
 	app.engine.RegisterPlanner(srv6.NewPlanner())
-	app.engine.RegisterPlanner(gbt32960.NewPlanner())
-	app.engine.RegisterPlanner(tftp.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("gbt32960"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("tftp"))
 	app.engine.RegisterPlanner(jt808.NewPlanner())
 	app.engine.RegisterPlanner(jt809.NewPlanner())
 	app.engine.RegisterPlanner(jtt905.NewPlanner())
-	app.engine.RegisterPlanner(doip.NewPlanner())
-	app.engine.RegisterPlanner(smb.NewPlanner())
-	app.engine.RegisterPlanner(nfs.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("doip"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("smb"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("nfs"))
 	app.engine.RegisterPlanner(ftp.NewPlanner())
 	app.engine.RegisterPlanner(fins.NewPlanner())
-	app.engine.RegisterPlanner(tds.NewPlanner())
-	app.engine.RegisterPlanner(enip.NewPlanner())
-	app.engine.RegisterPlanner(modbus.NewPlanner())
-	app.engine.RegisterPlanner(dnp3.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("tds"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("enip"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("modbus"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("dnp3"))
 	app.engine.RegisterPlanner(mcpprotocol.NewPlanner())
-	app.engine.RegisterPlanner(a2a.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("a2a"))
 
 	// P2c 层链驱动生成: inject the layer-planner factory so tasks carrying a
 	// "layers" config get a per-task ChainPlanner at submit time. core cannot
