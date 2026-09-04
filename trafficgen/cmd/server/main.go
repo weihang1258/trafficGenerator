@@ -31,13 +31,15 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/ftp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/gbt32960"
 	"github.com/trafficgen/trafficgen/internal/protocol/goose"
+	"github.com/trafficgen/trafficgen/internal/protocol/gre"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/igmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/isis"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ospf"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/pim"
-	"github.com/trafficgen/trafficgen/internal/protocol/gre"
-	"github.com/trafficgen/trafficgen/internal/protocol/grpc"
-	"github.com/trafficgen/trafficgen/internal/protocol/gtp"
+	// 空导入：grpc 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/grpc"
+	// 空导入：gtp 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/gtp"
 	"github.com/trafficgen/trafficgen/internal/protocol/h323"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/iec104"
 	// 空导入：http 包 init 反向注册 http 层生成器（layers.RegisterHTTPGenerator），
@@ -67,60 +69,72 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/drda"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmpv6"
-	"github.com/trafficgen/trafficgen/internal/protocol/ike"
-	"github.com/trafficgen/trafficgen/internal/protocol/ike_nat_t"
-	"github.com/trafficgen/trafficgen/internal/protocol/imap"
+	// 空导入：ike 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ike"
+	// 空导入：ike_nat_t 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ike_nat_t"
+	// 空导入：imap 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/imap"
 	"github.com/trafficgen/trafficgen/internal/protocol/jt808"
 	"github.com/trafficgen/trafficgen/internal/protocol/jt809"
 	"github.com/trafficgen/trafficgen/internal/protocol/jtt905"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/kingbase"
-	"github.com/trafficgen/trafficgen/internal/protocol/l2tp"
+	// 空导入：l2tp 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ams"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/geneve"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/gnutella"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/l2tp"
 	"github.com/trafficgen/trafficgen/internal/protocol/ldap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldp"
 	mcpprotocol "github.com/trafficgen/trafficgen/internal/protocol/mcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mms"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/geneve"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/ams"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/swarm"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/gnutella"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/openwire"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/nvgre"
-	_ "github.com/trafficgen/trafficgen/internal/protocol/vxlan"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/modbus"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mongodb"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/moxa"
 	"github.com/trafficgen/trafficgen/internal/protocol/mpls"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mqtt"
-	"github.com/trafficgen/trafficgen/internal/protocol/mysql"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/nvgre"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/openwire"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/swarm"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/vxlan"
+	// 空导入：mysql 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/mysql"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nfs"
 	"github.com/trafficgen/trafficgen/internal/protocol/ngap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/opcua"
-	"github.com/trafficgen/trafficgen/internal/protocol/openvpn"
+	// 空导入：openvpn 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/openvpn"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/pcep"
-	"github.com/trafficgen/trafficgen/internal/protocol/pop3"
+	// 空导入：pop3 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/pop3"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/postgresql" // init 注册 postgresql 层生成器 + 校验器（kingbase 是其 dialect 变体）
 	"github.com/trafficgen/trafficgen/internal/protocol/pppoe"
 	"github.com/trafficgen/trafficgen/internal/protocol/pptp"
 	"github.com/trafficgen/trafficgen/internal/protocol/radius"
-	"github.com/trafficgen/trafficgen/internal/protocol/rdp"
-	"github.com/trafficgen/trafficgen/internal/protocol/redis"
+	// 空导入：rdp 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/rdp"
+	// 空导入：redis 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/redis"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/rip"
 	"github.com/trafficgen/trafficgen/internal/protocol/rtmp"
 	"github.com/trafficgen/trafficgen/internal/protocol/rtsp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/s7"
 	"github.com/trafficgen/trafficgen/internal/protocol/sctp"
-	"github.com/trafficgen/trafficgen/internal/protocol/shadowsocks"
+	// 空导入：shadowsocks 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/shadowsocks"
 	"github.com/trafficgen/trafficgen/internal/protocol/sip"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/smb"
-	"github.com/trafficgen/trafficgen/internal/protocol/smtp"
+	// 空导入：smtp 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/smtp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/socks5"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/someip"
 	"github.com/trafficgen/trafficgen/internal/protocol/srv6"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
-	"github.com/trafficgen/trafficgen/internal/protocol/ssh"
+	// 空导入：ssh 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ssh"
 	"github.com/trafficgen/trafficgen/internal/protocol/sv"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/thrift"
@@ -148,9 +162,11 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tftp"
 	"github.com/trafficgen/trafficgen/internal/protocol/tls"
-	"github.com/trafficgen/trafficgen/internal/protocol/vmess"
+	// 空导入：vmess 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/vmess"
 	"github.com/trafficgen/trafficgen/internal/protocol/vnc"
-	"github.com/trafficgen/trafficgen/internal/protocol/wireguard"
+	// 空导入：wireguard 包 init 注册终结层生成器 + 校验器（T4.1 批二）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/wireguard"
 	"github.com/trafficgen/trafficgen/internal/protocol/xmpp"
 	"github.com/trafficgen/trafficgen/internal/replay"
 	"github.com/trafficgen/trafficgen/internal/storage"
@@ -505,35 +521,35 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(rtsp.NewPlanner())
 	app.engine.RegisterPlanner(sctp.NewPlanner())
 	app.engine.RegisterPlanner(icmpv6.NewPlanner())
-	app.engine.RegisterPlanner(smtp.NewPlanner())
-	app.engine.RegisterPlanner(pop3.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("smtp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("pop3"))
 	app.engine.RegisterPlanner(telnet.NewPlanner())
-	app.engine.RegisterPlanner(imap.NewPlanner())
-	app.engine.RegisterPlanner(grpc.NewPlanner())
-	app.engine.RegisterPlanner(ssh.NewPlanner())
-	app.engine.RegisterPlanner(ike.NewPlanner())
-	app.engine.RegisterPlanner(ike_nat_t.NewPlanner())
-	app.engine.RegisterPlanner(l2tp.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("imap"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("grpc"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ssh"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ike"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ike_nat_t"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("l2tp"))
 	app.engine.RegisterPlanner(pppoe.NewPlanner())
 	app.engine.RegisterPlanner(gre.NewPlanner())
 	app.engine.RegisterPlanner(mpls.NewPlanner())
-	app.engine.RegisterPlanner(gtp.NewPlanner())
-	app.engine.RegisterPlanner(rdp.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("gtp"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("rdp"))
 	app.engine.RegisterPlanner(radius.NewPlanner())
 	app.engine.RegisterPlanner(ldap.NewPlanner())
 	app.engine.RegisterPlanner(vnc.NewPlanner())
 	app.engine.RegisterPlanner(pptp.NewPlanner())
 	app.engine.RegisterPlanner(h323.NewPlanner())
 	app.engine.RegisterPlanner(rtmp.NewPlanner())
-	app.engine.RegisterPlanner(redis.NewPlanner())
-	app.engine.RegisterPlanner(mysql.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("redis"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("mysql"))
 	app.engine.RegisterPlanner(ngap.NewPlanner())
 	app.engine.RegisterPlanner(tls.NewPlanner())
-	app.engine.RegisterPlanner(openvpn.NewPlanner())
-	app.engine.RegisterPlanner(shadowsocks.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("openvpn"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("shadowsocks"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("socks5"))
-	app.engine.RegisterPlanner(vmess.NewPlanner())
-	app.engine.RegisterPlanner(wireguard.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("vmess"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("wireguard"))
 	app.engine.RegisterPlanner(xmpp.NewPlanner())
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mqtt"))
 	app.engine.RegisterPlanner(srv6.NewPlanner())
