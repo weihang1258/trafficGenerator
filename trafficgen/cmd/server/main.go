@@ -561,7 +561,6 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("doip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("smb"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("nfs"))
-	app.engine.RegisterPlanner(ftp.NewPlanner())
 	app.engine.RegisterPlanner(fins.NewPlanner())
 	app.engine.RegisterPlanner(layers.NewChainPlanner("tds"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("enip"))
