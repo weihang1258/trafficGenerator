@@ -336,3 +336,219 @@ func TestFlatChainEquivalence_SpecFieldsPopulated(t *testing.T) {
 	// Helper detection: ensure the same value flows via the helper.
 
 }
+
+// TestFlatChainEquivalence_Batch2Protocols verifies that batch-2 protocols
+// (grpc/gtp/ike/ike_nat_t/imap/l2tp/mysql/openvpn/pop3/rdp/redis/shadowsocks/smtp/ssh/vmess/wireguard)
+// produce nil ValidationErrors when given a minimal valid sub-config.
+// This is the mapToFlowSpec smoke gate before chain equivalence testing.
+func TestFlatChainEquivalence_Batch2Protocols(t *testing.T) {
+	cases := map[string]map[string]interface{}{
+		"grpc": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12345),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"grpc":     map[string]interface{}{"service": "telemetry.Telemetry", "method": "Subscribe"},
+		},
+		"gtp": {
+			"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+			"gtp":    map[string]interface{}{"mode": "u", "version": float64(1), "teid": float64(0x1234)},
+		},
+		"ike": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12345),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"ike":      map[string]interface{}{"role": "initiator"},
+		},
+		"ike_nat_t": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12345),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"ike_nat_t": map[string]interface{}{},
+		},
+		"imap": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12345),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"imap": map[string]interface{}{
+				"banner": "* OK IMAP4rev1 ready",
+				"commands": []interface{}{
+					map[string]interface{}{"tag": "A001", "cmd": "LOGIN alice secret", "responses": []interface{}{"A001 OK LOGIN completed"}},
+				},
+			},
+		},
+		"l2tp": {
+			"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
+			"src_port": float64(1701), "dst_port": float64(1701),
+			"tcp":  map[string]interface{}{"initial_seq": float64(1000)},
+			"l2tp": map[string]interface{}{"role": "lac", "scenario": "tunnel_with_data"},
+		},
+		"mysql": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12345),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"mysql": map[string]interface{}{
+				"username": "root",
+				"commands": []interface{}{map[string]interface{}{"opcode": float64(0x01), "body": ""}},
+			},
+		},
+		"openvpn": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12345),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"openvpn":  map[string]interface{}{},
+		},
+		"pop3": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12345),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"pop3": map[string]interface{}{
+				"banner": "+OK POP3 server ready",
+				"commands": []interface{}{
+					map[string]interface{}{"cmd": "USER alice", "response": "+OK"},
+					map[string]interface{}{"cmd": "PASS secret", "response": "+OK"},
+				},
+			},
+		},
+		"rdp": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12345),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"rdp":      map[string]interface{}{"scenario": "full_session"},
+		},
+		"redis": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12345),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"redis": map[string]interface{}{
+				"commands": []interface{}{map[string]interface{}{"args": []interface{}{"PING"}, "auto_reply": "pong"}},
+			},
+		},
+		"shadowsocks": {
+			"src_ip":      "10.0.0.1",
+			"dst_ip":      "20.0.0.1",
+			"src_port":    float64(12345),
+			"tcp":         map[string]interface{}{"initial_seq": float64(1000)},
+			"shadowsocks": map[string]interface{}{},
+		},
+		"smtp": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(50000),
+			"dst_port": float64(25),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"smtp": map[string]interface{}{
+				"banner": "220 mail.example.org ESMTP",
+				"dialog": []interface{}{
+					map[string]interface{}{"cmd": "HELO client.example.org", "response": "250 mail.example.org"},
+				},
+			},
+		},
+		"ssh": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12345),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"ssh": map[string]interface{}{
+				"scenario":       "exec",
+				"client_version": "SSH-2.0-trafficgen_test",
+			},
+		},
+		"vmess": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12345),
+			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"vmess":    map[string]interface{}{"uuid": "b831381d-6324-4d53-ad4f-8f5f45c30851", "port": float64(443)},
+		},
+		"wireguard": {
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   "20.0.0.1",
+			"src_port": float64(12346),
+			"wireguard": map[string]interface{}{},
+		},
+	}
+	for proto, cfg := range cases {
+		t.Run(proto, func(t *testing.T) {
+			spec := mapToFlowSpec(cfg, proto)
+			if len(spec.ValidationErrors) > 0 {
+				t.Errorf("%s produced ValidationErrors: %v", proto, spec.ValidationErrors)
+			}
+			// Verify the protocol config struct was populated
+			switch proto {
+			case "grpc":
+				if spec.GRPC == nil {
+					t.Error("GRPC not populated")
+				}
+			case "gtp":
+				if spec.GTP == nil {
+					t.Error("GTP not populated")
+				}
+			case "ike":
+				if spec.IKE == nil {
+					t.Error("IKE not populated")
+				}
+			case "ike_nat_t":
+				if spec.IKENATT == nil {
+					t.Error("IKENATT not populated")
+				}
+			case "imap":
+				if spec.IMAP == nil {
+					t.Error("IMAP not populated")
+				}
+			case "l2tp":
+				if spec.L2TP == nil {
+					t.Error("L2TP not populated")
+				}
+			case "mysql":
+				if spec.MySQL == nil {
+					t.Error("MySQL not populated")
+				}
+			case "openvpn":
+				if spec.OpenVPN == nil {
+					t.Error("OpenVPN not populated")
+				}
+			case "pop3":
+				if spec.POP3 == nil {
+					t.Error("POP3 not populated")
+				}
+			case "rdp":
+				if spec.RDP == nil {
+					t.Error("RDP not populated")
+				}
+			case "redis":
+				if spec.Redis == nil {
+					t.Error("Redis not populated")
+				}
+			case "shadowsocks":
+				if spec.Shadowsocks == nil {
+					t.Error("Shadowsocks not populated")
+				}
+			case "smtp":
+				if spec.SMTP == nil {
+					t.Error("SMTP not populated")
+				}
+			case "ssh":
+				if spec.SSH == nil {
+					t.Error("SSH not populated")
+				}
+			case "vmess":
+				if spec.Vmess == nil {
+					t.Error("Vmess not populated")
+				}
+			case "wireguard":
+				if spec.WireGuard == nil {
+					t.Error("WireGuard not populated")
+				}
+			}
+		})
+	}
+}
