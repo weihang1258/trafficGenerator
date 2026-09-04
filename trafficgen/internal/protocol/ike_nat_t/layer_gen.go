@@ -44,8 +44,16 @@ func (g *IKENATTGenerator) Generate(ctx context.Context, req *layers.GenRequest)
 		DstIP:   req.Meta.DstIP,
 		SrcMAC:  req.Meta.SrcMAC,
 		DstMAC:  req.Meta.DstMAC,
-		IKENATT: cfg,
-		// 端口留空：Plan 内按 NAT-T 浮动状态默认 4500。
+		// 端口从 chain 透传（req.Meta.SrcPort/DstPort = spec 值，
+		// validateSpecBase 已默认化 DstPort 4500）。legacy Plan 仅在
+		// spec.SrcPort/DstPort 为 0 时落 NAT-T 浮动默认值（NATDetected 时
+		// 切 4500，否则 500/留空），必须透传以让 legacy 在浮动状态切换后
+		// 反射出与 chain 一致的端口序列（up=12345→4500，down=4500→12345）。
+		// 留空会让 legacy 在 spec 已有 SrcPort=12345 时按浮动态推导 src，
+		// 但 down 方向反射会得到 4500→4500 而非 4500→12345（用户测试值）。
+		SrcPort:  req.Meta.SrcPort,
+		DstPort:  req.Meta.DstPort,
+		IKENATT:  cfg,
 	}
 	ch, err := (&Planner{}).Plan(ctx, spec)
 	if err != nil {

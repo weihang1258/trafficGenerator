@@ -44,8 +44,13 @@ func (g *GTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 		DstIP:  req.Meta.DstIP,
 		SrcMAC: req.Meta.SrcMAC,
 		DstMAC: req.Meta.DstMAC,
-		// 端口留空：Plan 内默认 2152(u)/2123(c)（EffectivePort=0 时填默认）。
-		GTP: cfg,
+		// 端口从 chain 透传（req.Meta.SrcPort/DstPort = spec 值，
+		// validateSpecBase 已默认化 DstPort 2152(u)/2123(c)）。必须透传：
+		// 留空会丢失用户配置的源端口，且 legacy Plan 内按 Mode 默认化后
+		// down 方向反射会错位（2152→2152 而非 2152→srcPort）。
+		SrcPort: req.Meta.SrcPort,
+		DstPort: req.Meta.DstPort,
+		GTP:     cfg,
 	}
 	ch, err := (&Planner{}).Plan(ctx, spec)
 	if err != nil {

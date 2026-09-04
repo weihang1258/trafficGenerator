@@ -33,6 +33,15 @@ func isMigrationCandidate(protocol string) bool {
 	return migrationAllowlist[protocol]
 }
 
+// ConvertFlatSpec is the exported flat-config → FlowSpec entry point for
+// packages outside core (equivalence tests in core/layers_test compare the
+// chain path against the legacy path from the SAME preprocessed spec; the
+// API layer already routes through the internal proxy). It delegates to
+// mapToFlowSpec — no independent conversion logic.
+func ConvertFlatSpec(cfg map[string]interface{}, protocol string) FlowSpec {
+	return mapToFlowSpec(cfg, protocol)
+}
+
 // migrationAllowlist lists protocols whose flat configs are still accepted by
 // mapToFlowSpec (the chain planner is registered in main.go and the per-task
 // ChainPlanner applies the layer-chain semantics at Plan() time). New flat

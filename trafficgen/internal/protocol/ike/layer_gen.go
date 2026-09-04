@@ -46,9 +46,12 @@ func (g *IKEGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 		DstIP:  req.Meta.DstIP,
 		SrcMAC: req.Meta.SrcMAC,
 		DstMAC: req.Meta.DstMAC,
-		// 端口：SrcPort 由用户/chain 给（>1024）；DstPort 留 0 → Plan 默认 500
-		// （legacy Validate 允许 0 or 500）。
-		IKE: cfg,
+		// 端口从 chain 透传（req.Meta.SrcPort/DstPort = spec 值，
+		// validateSpecBase 已默认化 DstPort 500）。legacy Plan 仅在
+		// spec.SrcPort/DstPort 为 0 时落 DefaultPort，必须透传以保留用户值。
+		SrcPort: req.Meta.SrcPort,
+		DstPort: req.Meta.DstPort,
+		IKE:     cfg,
 	}
 	ch, err := (&Planner{}).Plan(ctx, spec)
 	if err != nil {
