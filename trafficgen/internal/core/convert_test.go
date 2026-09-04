@@ -642,10 +642,9 @@ func TestMapToFlowSpec_L2TP_TunnelWithData(t *testing.T) {
 	if string(ip.Payload) != string(wantPayload) {
 		t.Errorf("InnerIP.Payload = %q, want %q", ip.Payload, wantPayload)
 	}
-	// Default port wiring.
-	if spec.DstPort != 1701 {
-		t.Errorf("DstPort = %d, want 1701 (L2TP default)", spec.DstPort)
-	}
+	// Default port wiring: L2TP 目的端口 1701 由 ChainPlanner.ValidateSpec
+	// 的 DstPort switch 在 Plan 时补齐（T2.4 起 mapToFlowSpec 不再设置）——
+	// 端口默认行为由 layers/flat_dstport_default_test.go 锁定。
 }
 
 // TestMapToFlowSpec_L2TP_TunnelWithData_Defaults verifies that when

@@ -47,6 +47,10 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12345),
+				// 显式 dst_port 8604：避免 universal-default 兜底分歧（链路
+				// 默认 8604，legacy spec.DstPort=80 直传，端口默认行为由
+				// flat_dstport_default_test.go 锁定）。
+				"dst_port": float64(8604),
 				"tcp": map[string]interface{}{
 					"initial_seq": float64(1000),
 				},
@@ -79,6 +83,10 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12345),
+				// 显式 dst_port 500：避免 universal-default 兜底分歧（链路
+				// 默认 500，legacy spec.DstPort=80 直传，端口默认行为由
+				// flat_dstport_default_test.go 锁定）。
+				"dst_port": float64(500),
 				"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
 				"ike":      map[string]interface{}{"role": "initiator"},
 			},
@@ -100,6 +108,10 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12345),
+				// 显式 dst_port 3306：避免 universal-default 兜底分歧（链路
+				// 默认 3306，legacy spec.DstPort=80 直传，端口默认行为由
+				// flat_dstport_default_test.go 锁定）。
+				"dst_port": float64(3306),
 				"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
 				"mysql": map[string]interface{}{
 					"username": "root",
@@ -114,6 +126,10 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12345),
+				// 显式 dst_port 1194：避免 universal-default 兜底分歧（链路
+				// 默认 1194，legacy spec.DstPort=80 直传，端口默认行为由
+				// flat_dstport_default_test.go 锁定）。
+				"dst_port": float64(1194),
 				"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
 				"openvpn":  map[string]interface{}{},
 			},
@@ -125,6 +141,10 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12345),
+				// 显式 dst_port 110：避免 universal-default 兜底分歧（链路
+				// 默认 110，legacy spec.DstPort=80 直传，端口默认行为由
+				// flat_dstport_default_test.go 锁定）。
+				"dst_port": float64(110),
 				"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
 				"pop3": map[string]interface{}{
 					"banner": "+OK POP3 server ready",
@@ -143,6 +163,10 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12345),
+				// 显式 dst_port 143：避免 universal-default 兜底分歧（链路
+				// 默认 143，legacy spec.DstPort=80 直传，端口默认行为由
+				// flat_dstport_default_test.go 锁定）。
+				"dst_port": float64(143),
 				"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
 				"imap": map[string]interface{}{
 					"banner": "* OK IMAP4rev1 ready",
@@ -160,6 +184,10 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12345),
+				// 显式 dst_port 3389：避免 universal-default 兜底分歧（链路
+				// 默认 3389，legacy spec.DstPort=80 直传，端口默认行为由
+				// flat_dstport_default_test.go 锁定）。
+				"dst_port": float64(3389),
 				"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
 				"rdp":      map[string]interface{}{"scenario": "full_session"},
 			},
@@ -171,6 +199,10 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12345),
+				// 显式 dst_port 6379：避免 universal-default 兜底分歧（链路
+				// 默认 6379，legacy spec.DstPort=80 直传，端口默认行为由
+				// flat_dstport_default_test.go 锁定）。
+				"dst_port": float64(6379),
 				"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
 				"redis": map[string]interface{}{
 					"commands": []interface{}{map[string]interface{}{"args": []interface{}{"PING"}, "auto_reply": "pong"}},
@@ -217,6 +249,10 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12345),
+				// 显式 dst_port 22：避免 universal-default 兜底分歧（链路默认
+				// 22，legacy spec.DstPort=80 直传，端口默认行为由
+				// flat_dstport_default_test.go 锁定）。
+				"dst_port": float64(22),
 				"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
 				"ssh": map[string]interface{}{
 					"scenario":       "exec",
@@ -246,6 +282,10 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12346),
+				// 显式 dst_port 51820：避免 universal-default 兜底分歧
+				//（链路默认 51820，legacy spec.DstPort=80 直传，端口默认
+				// 行为由 flat_dstport_default_test.go 锁定）。
+				"dst_port": float64(51820),
 			},
 			legacyPlan: wireguardPlan,
 		},
@@ -255,7 +295,11 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12345),
-				"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+				// 显式 dst_port 4500：避免 universal-default 兜底分歧
+				//（链路默认 4500，legacy spec.DstPort=80 直传，端口默认
+				// 行为由 flat_dstport_default_test.go 锁定）。
+				"dst_port":    float64(4500),
+				"tcp":         map[string]interface{}{"initial_seq": float64(1000)},
 				"ike_nat_t": map[string]interface{}{},
 			},
 			legacyPlan: ikeNatTPlan,

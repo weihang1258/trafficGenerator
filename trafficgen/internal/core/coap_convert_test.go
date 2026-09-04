@@ -9,7 +9,7 @@ func TestMapToFlowSpecCoAPParsesConfigAndDefaultPort(t *testing.T) {
 	if spec.CoAP == nil || spec.CoAP.Method != "GET" || string(spec.CoAP.Token) != "\x01\x02\x03" {
 		t.Fatalf("coap config = %#v", spec.CoAP)
 	}
-	if spec.DstPort != 5683 {
-		t.Fatalf("dst port = %d, want 5683", spec.DstPort)
-	}
+	// CoAP 目的端口 5683 由 ChainPlanner.ValidateSpec 的 DstPort switch 在
+	// Plan 时补齐（T2.4 起 mapToFlowSpec 不再设置）—— 端口默认行为由
+	// layers/flat_dstport_default_test.go 锁定。
 }
