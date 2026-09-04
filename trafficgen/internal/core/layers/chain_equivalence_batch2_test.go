@@ -64,7 +64,12 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 			proto: "gtp",
 			flat: map[string]interface{}{
 				"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
-				"gtp": map[string]interface{}{"mode": "u", "version": float64(1), "teid": float64(0x1234)},
+				// 显式 dst_port：universal-default 兜底修复后链路对裸配置
+				// 默认 2152（legacy gtp planner 无 dst_port==0→DefaultPort
+				// 之外的默认，mapToFlowSpec 泄漏的 80 双方曾同为 80）。
+				// 端口默认行为由 flat_dstport_default_test.go 单独锁定。
+				"dst_port": float64(2152),
+				"gtp":      map[string]interface{}{"mode": "u", "version": float64(1), "teid": float64(0x1234)},
 			},
 			legacyPlan: gtpPlan,
 		},
@@ -176,9 +181,13 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 		{
 			proto: "shadowsocks",
 			flat: map[string]interface{}{
-				"src_ip":      "10.0.0.1",
-				"dst_ip":      "20.0.0.1",
-				"src_port":    float64(12345),
+				"src_ip":   "10.0.0.1",
+				"dst_ip":   "20.0.0.1",
+				"src_port": float64(12345),
+				// 显式 dst_port 8388：避免 universal-default 兜底分歧（链路
+				// 默认 8388，legacy planner spec.DstPort=80 直传，端口默认
+				// 行为由 flat_dstport_default_test.go 锁定）。
+				"dst_port":    float64(8388),
 				"tcp":         map[string]interface{}{"initial_seq": float64(1000)},
 				"shadowsocks": map[string]interface{}{},
 			},
@@ -222,6 +231,10 @@ func TestChainEquivalence_Batch2(t *testing.T) {
 				"src_ip":   "10.0.0.1",
 				"dst_ip":   "20.0.0.1",
 				"src_port": float64(12345),
+				// 显式 dst_port 443：避免 universal-default 兜底分歧（链路默认
+				// 443，legacy spec.DstPort=80 直传，端口默认行为由
+				// flat_dstport_default_test.go 锁定）。
+				"dst_port": float64(443),
 				"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
 				"vmess":    map[string]interface{}{"uuid": "b831381d-6324-4d53-ad4f-8f5f45c30851", "port": float64(443)},
 			},

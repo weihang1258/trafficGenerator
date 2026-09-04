@@ -389,6 +389,34 @@ func validateBaseDstPortHandled(name string) bool {
 	return false
 }
 
+// isUniversalDefault reports whether v equals the generic HTTP default (80).
+// Used to detect the "universal default leaks" path: mapToFlowSpec writes 80 to
+// spec.DstPort when the user omitted dst_port, bypassing the spec.DstPort==0 gate
+// in validateSpecBase's DstPort switch. When the value is 80 for a protocol that
+// carries no HTTP semantics, we override to the protocol's well-known port.
+func isUniversalDefault(v uint16) bool {
+	return v == 80
+}
+
+// isUniversalDefaultSrcPort reports whether (name, v) represents the universal
+// default source port (12345) leaking through mapToFlowSpec. When true, the
+// value is treated as 0 and the protocol's SrcPort switch applies. Used for
+// protocols whose terminal layer validates SrcPort against a specific value
+// (ssdp rejects src != 1900, mdns rejects src != 5353) — the universal default
+// 12345 would otherwise hit the validator and fail the task.
+func isUniversalDefaultSrcPort(name string, v uint16) bool {
+	if v != 12345 {
+		return false
+	}
+	switch name {
+	// ssdp/mdns terminal layers validate SrcPort: RFC 6970 requires 1900 for SSDP,
+	// RFC 6762 §5.4 requires 5353 for mDNS. Universal default 12345 would be rejected.
+	case "ssdp", "mdns":
+		return true
+	}
+	return false
+}
+
 // validateChain builds the completed chain and validates it, applying the
 // planner-specific V4/V5 exemption (合成链末层是协议层本身，传输层当末层合法)。
 func (p *ChainPlanner) validateChain() error {
@@ -425,7 +453,7 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			return fmt.Errorf("SrcIP %s and DstIP %s must be same IP version", spec.SrcIP, spec.DstIP)
 		}
 	}
-	if spec.SrcPort == 0 {
+	if spec.SrcPort == 0 || isUniversalDefaultSrcPort(name, spec.SrcPort) {
 		// 协议级源端口默认：独立 transport flow（tcp/udp）无默认，
 		// 必须显式（legacy tcp.go/udp.go 同款）。终结层 udp 链（dns/ntp/
 		// snmp/syslog/mdns）由各自 legacy planner 在 Plan 时默认：dns/snmp/
@@ -433,6 +461,12 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 		// ntp 用 30000+(seed%30000) 的确定性临时端口（planner.go:203-206，
 		// seed=IPID 种子，每次 Plan 随机）；mdns 源端口强制 5353
 		// （RFC 6762 §5.4，legacy planner.go:428-432 同款：spec 为 0 时默认）。
+		//
+		// T2.1 后续（failing-test-first 修复）：mapToFlowSpec 把通用默认
+		// 12345 写进 spec.SrcPort，ssdp/mdns 终结层校验"src 非 0/协议端口
+		// 则拒绝"，12345 落拒绝分支 → 任务失败。isUniversalDefaultSrcPort
+		// 兜底：等于通用默认 12345 的值按 0 语义处理（协议端口默认仍由本
+		// switch 接管）；用户显式写 12345 的其它协议不受影响。
 		switch name {
 		case "ntp":
 			spec.SrcPort = uint16(30000 + (uint32(rand.Uint32()) % 30000))
@@ -440,7 +474,8 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			spec.SrcPort = mdnsPort
 		case "ssdp":
 			// SSDP 源端口强制 1900（legacy planner.go:236-239 同款：spec 为
-			// 0 时默认；RFC 6970 规定 SSDP 用 1900）。
+			// 0 时默认；RFC 6970 规定 SSDP 用 1900）。universal default
+			// 12345 也走此分支（见上）。
 			spec.SrcPort = ssdpPort
 		case "rip":
 			// RIP 源端口 0 保持 0：终结层生成器按 legacy resolveSrcPort 语义
@@ -532,11 +567,18 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			return fmt.Errorf("source port is required")
 		}
 	}
-	if spec.DstPort == 0 {
+	if spec.DstPort == 0 || isUniversalDefault(spec.DstPort) {
 		// 协议级目的端口默认（legacy Plan 时默认，与 strategy_convert 的
 		// mapToFlowSpec 默认值一致）：dns→53、syslog→514（tls 载体 6514）、
 		// snmp→按 PDU 类型（trap/inform 162，其余 161）、ntp→123、
 		// mdns→5353（legacy mdns planner.go:433-436 同款）。
+		//
+		// T2.1 后续（failing-test-first 修复）：mapToFlowSpec 把通用默认 80
+		// 写进 spec.DstPort（universal default），导致 spec.DstPort==0 的
+		// gate 在 chain path 永远不触发，协议端口默认被旁路，packets 携带
+		// 端口 80 而非协议端口。isUniversalDefault 兜底：spec.DstPort 等于
+		// 通用默认 80 时也走 switch 应用协议端口——用户显式写 80 仍按
+		// 显式处理（其它协议显式 dst_port=80 如 sip/hls 直发不受影响）。
 		switch name {
 		case "opcua":
 			spec.DstPort = 4840
