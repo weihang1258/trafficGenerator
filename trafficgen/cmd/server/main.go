@@ -158,6 +158,9 @@ import (
 	// 空导入：ethmining 包 init 反向注册终结层生成器 + 校验器（73-ethmining
 	// v2.0.2：以太 ethash stratum 行式 JSON 直连 [tcp→ethmining]）。
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ethmining"
+	// 空导入：nmea 包 init 反向注册终结层生成器 + 校验器（69-nmea v2.0.0：
+	// NMEA 0183 sentence 明文，[tcp→nmea]/[udp→nmea] 双载体）。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/nmea"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tftp"
@@ -486,6 +489,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("getwork"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stratum"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ethmining"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("nmea"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rtmfp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("amqp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cflow"))

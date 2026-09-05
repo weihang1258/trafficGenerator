@@ -466,6 +466,10 @@ type FlowMeta struct {
 	// 73-ethmining v2.0.2：以太坊挖矿 stratum 行式 JSON over TCP；每事件
 	// 一条行/一对请求响应，[tcp→ethmining] 直连)。
 	ETHMining *core.ETHMiningConfig
+	// NMEA is the flow's nmea config （注入到 nmea 终结层生成器，
+	// 69-nmea v2.0.0：NMEA 0183 sentence 明文 over TCP/UDP；每事件一句，
+	// [tcp→nmea]/[udp→nmea] 双载体）。
+	NMEA *core.NMEAConfig
 	// TCPState is the flow's TCP retransmission state machine (T3.3：tcp 层
 	// config retransmit=true 时由 TCPGenerator 构建并驱动——SendSegment/
 	// OnACK/OnDupACK/OnRTO 随正常数据段/ACK 发射同步喂数)。nil = 关闭

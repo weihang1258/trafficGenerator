@@ -453,6 +453,18 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "4444"},
 	})
+	// nmea（海用电子设备数据交换标准，NMEA 0183 v4.10 sentence 明文协议）：
+	// 终结层事件为完整句子字节（$ 地址 + 逗号字段 + *XX XOR + CRLF），
+	// [tcp→nmea]/[udp→nmea] 双载体（默认 tcp；用户显式写 udp 层时补全替代，
+	// 会话级 transport:"udp" 多载体 fixture 同理）。协议配置经 spec.NMEA
+	// （顶层 "nmea" 子映射）注入，层 config 恒空；10110 端口经 FieldContract
+	// 供通用应用补齐（非默认端口 4001 由用户显式覆盖，正例 42）。无 nmea
+	// dissector，断言全走 tcp.payload/udp.payload/frames（设计 §1④ 实测基线）。
+	r.Register(LayerSchema{Name: "nmea", Category: CategoryTerminal,
+		DependsOn:     []string{"tcp"},
+		TransportOn:   []string{"tcp", "udp"},
+		FieldContract: map[string]string{"tcp.dst_port": "10110", "udp.dst_port": "10110"},
+	})
 	// getwork（Bitcoin legacy getwork JSON-RPC over HTTP）：终结层事件已含
 	// 完整 HTTP 帧（请求/响应钉死头序），http 层以透传变换器转发（identity
 	// transformer）。全部协议配置经 spec.GetWork（顶层 "getwork" 子映射）注入，

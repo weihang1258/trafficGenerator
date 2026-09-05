@@ -495,6 +495,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// ethmining 依赖 tcp 层，目的端口 4444 由 FieldContract（tcp.dst_port）
 		// 补齐，非默认端口（3353 等）由用户显式覆盖。
+	case "nmea":
+		if sub, ok := cfg["nmea"].(map[string]interface{}); ok {
+			parseSubconfigJSON[*NMEAConfig](&spec, sub, "nmea", &spec.NMEA)
+		}
+		// nmea 双载体终结层（默认 tcp / 会话级 transport udp），目的端口
+		// 10110 由 FieldContract（tcp.dst_port/udp.dst_port）补齐，非默认
+		// 端口（4001 等）由用户显式覆盖。
 	case "tcp":
 		// TCP sub-config already read above; nothing protocol-specific to add.
 	case "udp":

@@ -64,6 +64,9 @@ var allowedProtocols = map[string]bool{
 	// B6（73-ethmining）：注册 layer/planner 后准入（占位用例同步替换为 32
 	// 语义用例，protocols_test 哨兵同步摘除）。
 	"ethmining": true,
+	// B6（69-nmea）：注册 layer/planner 后准入（占位用例同步替换为 80
+	// 语义用例，protocols_test 哨兵同步摘除）。
+	"nmea": true,
 }
 
 // IsAllowedProtocol reports whether name is an accepted traffic protocol.

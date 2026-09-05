@@ -1734,6 +1734,7 @@ type FlowSpec struct {
 	GetWork   *GetWorkConfig   `json:"getwork,omitempty"`
 	Stratum   *StratumConfig   `json:"stratum,omitempty"`
 	ETHMining *ETHMiningConfig `json:"ethmining,omitempty"`
+	NMEA      *NMEAConfig      `json:"nmea,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`

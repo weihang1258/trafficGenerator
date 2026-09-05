@@ -42,6 +42,8 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"stratum",
 		// 73-ethmining：layer/planner 注册后准入（占位用例同步替换为 32 语义用例）。
 		"ethmining",
+		// 69-nmea：layer/planner 注册后准入（占位用例同步替换为 80 语义用例）。
+		"nmea",
 	}
 	sort.Strings(want)
 
@@ -70,7 +72,7 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 	negativeOnly := []string{
 		"bacnet", "cwmp", "dcerpc", "doh", "dtls", "edp",
 		"hl7",
-		"kerberos", "megaco", "mmse", "nmea", "ntlm", "ocsp",
+		"kerberos", "megaco", "mmse", "ntlm", "ocsp",
 		"onvif", "spnego", "sstp",
 		"xmrmining",
 	}
