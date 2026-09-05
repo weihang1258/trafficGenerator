@@ -23,7 +23,6 @@ import (
 // Per-package conventions: type names (ChainPlanner, FlowMeta, etc.)
 // are package-local; only file boundaries change.
 
-
 // eventDstOverrideKey is the internal metadata marker the udp generator sets
 // when a terminal event overrides the datagram target (波 5 多播基础设施)。
 // finalEmit consumes it and removes it, so it never leaks into output
@@ -95,8 +94,8 @@ type ChainPlanner struct {
 	// chain on every Plan — pure function of name/chain/registry, so cached
 	// under mu; Plan may run concurrently on one planner instance from
 	// multiple engine workers).
-	mu        sync.Mutex
-	completed []Layer
+	mu           sync.Mutex
+	completed    []Layer
 	completedErr error
 }
 
@@ -681,13 +680,22 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 		case "rip":
 			// RIP 目的端口 0 保持 0：终结层生成器按版本默认（v1/v2→520、
 			// ng→521，legacy getDstPort 语义），事件携带 DstPort。
+			// isUniversalDefault 入口的 80 必须重置回 0（T5.2 修复）：
+			// resolvePorts/getDstPort 只对 0 做动态解析，80 会原样落
+			// udp 层 cfg → 线上端口 80 而非 520/521。动态端口层上 80 无
+			// 协议语义，重置无歧义。
+			spec.DstPort = 0
 		case "dhcp":
 			// DHCP 目的端口 0 保持 0：终结层生成器按角色解析（client→67、
 			// server/relay→67，dhcp planner.go:643-679 resolvePorts 语义）。
+			// 同 rip：universal default 80 重置回 0，否则 resolvePorts 视
+			// 80 为用户显式值直落线上（dhcp_smoke_01 曾回归：dstport=80）。
+			spec.DstPort = 0
 		case "dhcpv6":
 			// DHCPv6 目的端口 0 保持 0：终结层生成器按方向逐事件解析
 			// （up=server 547、down=client 546，dhcpv6 planner.go:435-456
-			// resolveAddrs 语义）。
+			// resolveAddrs 语义）。同 rip：universal default 80 重置回 0。
+			spec.DstPort = 0
 		case "doip":
 			// DoIP 目的端口默认 13400（legacy Plan 用 DefaultTCPPort，
 			// strategy_convert mapToFlowSpec 同款默认）。
@@ -894,8 +902,8 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			meta.TTL = spec.TTL
 			meta.LDP = spec.LDP
 			req := &GenRequest{
-				Meta:  meta,
-				Sess:  sess,
+				Meta: meta,
+				Sess: sess,
 				Emit: func(pkt core.PacketConfig) error {
 					// 方向交换由生成器完成（down 帧 L3/L4 已按发送方翻转）；
 					// 这里只补 MAC/EtherType/TTL/时间戳，不再交换 IP。
@@ -1004,8 +1012,8 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			meta.PIM = spec.PIM
 			meta.NVGRE = spec.NVGRE
 			req := &GenRequest{
-				Meta:  meta,
-				Sess:  sess,
+				Meta: meta,
+				Sess: sess,
 				Emit: func(pkt core.PacketConfig) error {
 					if pkt.Direction == "down" {
 						pkt.L3.SrcIP, pkt.L3.DstIP = pkt.L3.DstIP, pkt.L3.SrcIP
