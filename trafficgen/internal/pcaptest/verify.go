@@ -272,6 +272,28 @@ func checkHasPayload(pcapPath string, c Case) error {
 	}
 	// Swarm 双承载（B5）：TCP storage 帧用 tcp.len（同上）；UDP discovery
 	// datagram 用 udp.length（含 8B UDP 头，>8 即有 SWD1 载荷）。
+	// NMEA（69-nmea）：ASCII 句子 32~82B，UDP $PGRME 全帧 74B 落在通用
+	// ">80" 启发式之下——TCP 侧 tcp.len>0、UDP 侧 udp.length>8 判定
+	// （与 swarm 同款双承载分支）。
+	if c.Proto == "nmea" {
+		if vals, err := FieldValues(pcapPath, "tcp.len", c.DecodeAs); err == nil {
+			for _, v := range vals {
+				if n, e := strconv.Atoi(v); e == nil && n > 0 {
+					return nil
+				}
+			}
+		}
+		vals, err := FieldValues(pcapPath, "udp.length", c.DecodeAs)
+		if err != nil {
+			return err
+		}
+		for _, v := range vals {
+			if n, e := strconv.Atoi(v); e == nil && n > 8 {
+				return nil
+			}
+		}
+		return fmt.Errorf("no nmea payload (tcp.len 0 and udp.length<=8 everywhere)")
+	}
 	if c.Proto == "swarm" {
 		if vals, err := FieldValues(pcapPath, "tcp.len", c.DecodeAs); err == nil {
 			for _, v := range vals {
