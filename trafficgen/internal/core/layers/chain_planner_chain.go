@@ -378,6 +378,15 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 				(len(spec.CWMP.Flows) > 0 || spec.CWMP.Concurrent) {
 				cfg["concurrent"] = true
 			}
+			// nmea 链会话级 termination:"rst" 翻译（69-nmea §5 正例 46）：
+			// 任一会话声明 rst 即切 tcp 层 RST 形态——rst=true 使
+			// TCPGenerator 以单帧 RST|ACK(up) 短路收尾（3+N+1），并关
+			// termination 抑制 FIN 挥手分支。默认（无声明）保持 FIN：
+			// 3+N+4（回归护栏 TestNMEAChainDefaultStillFINTeardown）。
+			if len(chain) > 0 && chain[len(chain)-1].Name == "nmea" && nmeaSessionRST(spec.NMEA) {
+				cfg["rst"] = true
+				cfg["termination"] = false
+			}
 			if t := spec.TCP; t != nil {
 				// http 链强制 legacy http 语义（review LOW-3 修复）：legacy
 				// http.go 只读 spec.TCP 的 MSS/InitialSeq（http.go:126-151），

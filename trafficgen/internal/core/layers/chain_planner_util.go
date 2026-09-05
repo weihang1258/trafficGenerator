@@ -20,7 +20,6 @@ import (
 // Per-package conventions: type names (ChainPlanner, FlowMeta, etc.)
 // are package-local; only file boundaries change.
 
-
 // isHTTPChain reports whether the chain's terminal layer is http
 // (http 链判定：末层即协议层）。Used by applySpecToChain to force the
 // legacy http TCP semantics (忽略 handshake/termination/rst 开关)。
@@ -109,6 +108,22 @@ func amsNeedsSelfDrive(cfg *core.AMSConfig) bool {
 	return false
 }
 
+// nmeaNeedsSelfDrive reports whether any nmea session declares transport:"udp"
+// (会话级 transport 路由，nmea_tcp_udp_coexist 双载体 fixture：终结层需按
+// transport 字段把事件分发到不同载体，TCP 自产握手/挥手，UDP 自产数据报）。
+// 单一 transport（全部 tcp 或全部 ""）走既有事件接线路径即可，无需自驱。
+func nmeaNeedsSelfDrive(cfg *core.NMEAConfig) bool {
+	if cfg == nil {
+		return false
+	}
+	for i := range cfg.Sessions {
+		if cfg.Sessions[i].Transport == "udp" {
+			return true
+		}
+	}
+	return false
+}
+
 func isHTTPChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "http"
 }
@@ -149,6 +164,29 @@ func isDHCPv6Chain(chain []Layer) bool {
 // main connections. See applySpecToChain tcp 分支, 设计 §5 流关联).
 func isCWMPChainWithFlows(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "cwmp"
+}
+
+// nmeaSessionRST reports whether any nmea session or the nmea config block
+// declares termination:"rst"（设计 69-nmea §5 正例 46：RST 异常中断 =
+// 3+N+1 单侧 RST、无 FIN 挥手）。会话级声明必须翻译到 tcp 层 rst=true
+//（cfg.rst 使 TCPGenerator 以单帧 RST|ACK(up) 短路收尾），否则 tcp 层
+// 按默认 FIN 挥手出 3+N+4。NMEAConfig.Termination 是全 session 默认
+// 覆盖（NMEAConfig 缺省，per-session 优先）；per-session
+// Termination="" 时回退到 config-level 声明。
+// 见 applySpecToChain tcp 分支。
+func nmeaSessionRST(cfg *core.NMEAConfig) bool {
+	if cfg == nil {
+		return false
+	}
+	if cfg.Termination == "rst" {
+		return true
+	}
+	for _, s := range cfg.Sessions {
+		if s.Termination == "rst" {
+			return true
+		}
+	}
+	return false
 }
 
 // transportProtocol resolves the IP protocol number from the chain's

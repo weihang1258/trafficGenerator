@@ -43,10 +43,16 @@ type sessionRun struct {
 
 // Generate walks the sessions' events and emits one MessageEvent per
 // sentence (or per packed run)。Sequential mode walks session by session；
-// concurrent mode interleaves round-robin by event index (设计 §5 并发会话）。
+// concurrent mode interleaves round-robin by event index (设计 §5 并发会话)。
+//
+// Self-drive path (req.Emit != nil): mixed tcp+udp carrier.
+// PCAP ordering: transport序 (tcp sessions first, then udp sessions) +
+// session序 (within each transport group). TCP sessions get full handshake
+// (SYN/SYN-ACK/ACK) → per-sentence PSH-ACK → teardown (FIN-ACK/ACK/FIN-ACK/ACK).
+// UDP sessions get one raw datagram per sentence event.
 func (g *NMEAGenerator) Generate(ctx context.Context, req *layers.GenRequest) error {
-	if req.EmitMsg == nil {
-		return fmt.Errorf("nmea generator: EmitMsg is nil (generator not wired to a transport layer)")
+	if req == nil {
+		return fmt.Errorf("nmea generator: request is nil")
 	}
 	cfg := req.Meta.NMEA
 	if cfg == nil {
@@ -64,6 +70,17 @@ func (g *NMEAGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 				Fields: FixtureGGABaseline(),
 			}},
 		}}
+	}
+
+	// Self-drive path: emit complete packets directly (mixed tcp+udp dual-carrier).
+	// TCP sessions get full TCP handshake/data/teardown; UDP sessions send raw datagrams.
+	if req.Emit != nil {
+		return g.generateSelfDrive(ctx, req.Emit, cfg, sessions, req.Meta)
+	}
+
+	// EmitMsg path (legacy transport-wired mode).
+	if req.EmitMsg == nil {
+		return fmt.Errorf("nmea generator: EmitMsg is nil (generator not wired to a transport layer)")
 	}
 
 	runs := make([]*sessionRun, len(sessions))
@@ -145,15 +162,225 @@ func (g *NMEAGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 			}
 		}
 	}
-	for i, r := range runs {
+	for _, r := range runs {
 		if r.hasPend {
 			// pack 尾巴：pack 语义是"与下一句合并"，末尾无下一句时直接
 			// 冲刷为独立段（不报错——与 ethmining pack_next 尾错不同，
 			// NMEA 的 Pack 是会话级开关，末句无后继是合法形态）。
-			_ = i
 			if err := flush(r); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// tcpFlowState holds the TCP state machine state for one NMEA TCP session
+// (self-drive path). direction up = client→server (device→collector).
+// srcIP/dstIP reflect the up direction; emitSegment swaps on "down".
+type tcpFlowState struct {
+	srcIP, dstIP string
+	srcPort      uint16
+	dstPort      uint16
+	clientSeq    uint32 // up-stream seq (device→collector)
+	serverSeq    uint32 // down-stream seq (collector→device)
+}
+
+// emitSegment emits one TCP segment via the self-drive emit function.
+// direction "up" = device→collector (NMEA unidirectional notification).
+func emitSegment(emit func(core.PacketConfig) error, st *tcpFlowState, up bool, flags byte, payload []byte, seq, ack uint32) error {
+	direction := "down"
+	srcIP, dstIP := st.dstIP, st.srcIP // down reverses src/dst
+	srcPort, dstPort := st.dstPort, st.srcPort
+
+	if up {
+		direction = "up"
+		srcIP, dstIP = st.srcIP, st.dstIP
+		srcPort, dstPort = st.srcPort, st.dstPort
+	}
+
+	return emit(core.PacketConfig{
+		Direction: direction,
+		L3:        core.L3Config{SrcIP: srcIP, DstIP: dstIP, Protocol: 6, TTL: 64},
+		L4: core.L4Config{
+			Protocol:   "tcp",
+			SrcPort:    srcPort,
+			DstPort:    dstPort,
+			Seq:        seq,
+			Ack:        ack,
+			Flags:      flags,
+			WindowSize: 65535,
+		},
+		Payload: payload,
+	})
+}
+
+// buildSentenceBytes is a thin wrapper around BuildSentence for the self-drive path.
+func buildSentenceBytes(run *sessionRun, ev core.NMEAEvent) ([]byte, error) {
+	return BuildSentence(run, ev)
+}
+
+// generateSelfDrive emits complete packets for mixed tcp+udp NMEA sessions.
+// PCAP ordering: session 序 (sessions array 序) — each session is emitted
+// in its declared position with its declared transport (no transport-group
+// reordering); design 69-nmea §5 正例 43 nmea_mixed_transport requires
+// sessions[0] first, sessions[1] next.
+func (g *NMEAGenerator) generateSelfDrive(ctx context.Context, emit func(core.PacketConfig) error, cfg *core.NMEAConfig, sessions []core.NMEASession, meta layers.FlowMeta) error {
+	// Resolve IP/port from meta.
+	srcIP := meta.SrcIP
+	if srcIP == "" {
+		srcIP = "10.0.0.1"
+	}
+	dstIP := meta.DstIP
+	if dstIP == "" {
+		dstIP = "20.0.0.1"
+	}
+	srcPort := meta.SrcPort
+	if srcPort == 0 {
+		srcPort = 12345
+	}
+	dstPort := meta.DstPort
+	if dstPort == 0 {
+		dstPort = 10110 // NMEA-0183 standard port
+	}
+
+	// PCAP ordering for mixed transport: keep **session order** (sessions array
+	// 序) — each session emitted in its declared position with its declared
+	// transport. 混合载体 fixture nmea_mixed_transport（设计 69-nmea §5 正例
+	// 43）期望 sessions[0] 先出，sessions[1] 后续；不分 transport group。
+	for i := range sessions {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		switch sessions[i].Transport {
+		case "udp":
+			if err := g.emitUDPSession(ctx, emit, sessions[i], srcIP, dstIP, srcPort, dstPort); err != nil {
+				return err
+			}
+		case "tcp", "":
+			// "" 视为 tcp（与 carrier 默认一致）
+			if err := g.emitTCPSession(ctx, emit, sessions[i], srcIP, dstIP, srcPort, dstPort); err != nil {
+				return err
+			}
+		default:
+			// 未知 transport：跳过但保持位置（不报错，与 carrier_conflict
+			// 校验拒绝的语义不同——校验捕获声明矛盾，生成器只接 transport
+			// 已声明的 tcp/udp；其它值视为配置错误，已在 Validate 拒绝）。
+		}
+	}
+	return nil
+}
+
+// emitTCPSession emits the full TCP session: handshake → per-sentence PSH-ACK → teardown.
+func (g *NMEAGenerator) emitTCPSession(ctx context.Context, emit func(core.PacketConfig) error, sess core.NMEASession, srcIP, dstIP string, srcPort, dstPort uint16) error {
+	st := &tcpFlowState{
+		srcIP:     srcIP,
+		dstIP:     dstIP,
+		srcPort:   srcPort,
+		dstPort:   dstPort,
+		clientSeq: 1000,
+		serverSeq: 2000,
+	}
+
+	run := &sessionRun{sess: sess}
+
+	// --- TCP handshake ---
+	// SYN (up)
+	if err := emitSegment(emit, st, true, layers.FlagSYN, nil, st.clientSeq, 0); err != nil {
+		return err
+	}
+	st.clientSeq++
+
+	// SYN-ACK (down)
+	if err := emitSegment(emit, st, false, layers.FlagSYN|layers.FlagACK, nil, st.serverSeq, st.clientSeq); err != nil {
+		return err
+	}
+	st.serverSeq++
+
+	// ACK (up)
+	if err := emitSegment(emit, st, true, layers.FlagACK, nil, st.clientSeq, st.serverSeq); err != nil {
+		return err
+	}
+
+	// --- Per-sentence data: each sentence → one PSH-ACK (up) + server ACK (down) ---
+	for _, ev := range sess.Events {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		line, err := buildSentenceBytes(run, ev)
+		if err != nil {
+			return err
+		}
+		// PSH-ACK (device sends sentence up)
+		if err := emitSegment(emit, st, true, layers.FlagPSH|layers.FlagACK, line, st.clientSeq, st.serverSeq); err != nil {
+			return err
+		}
+		st.clientSeq += uint32(len(line))
+		// Server ACK (down)
+		if err := emitSegment(emit, st, false, layers.FlagACK, nil, st.serverSeq, st.clientSeq); err != nil {
+			return err
+		}
+	}
+
+	// --- TCP teardown ---
+	// FIN-ACK (up, device initiates close)
+	if err := emitSegment(emit, st, true, layers.FlagFIN|layers.FlagACK, nil, st.clientSeq, st.serverSeq); err != nil {
+		return err
+	}
+	st.clientSeq++
+
+	// ACK (down, server acknowledges FIN)
+	if err := emitSegment(emit, st, false, layers.FlagACK, nil, st.serverSeq, st.clientSeq); err != nil {
+		return err
+	}
+
+	// FIN-ACK (down, server closes)
+	if err := emitSegment(emit, st, false, layers.FlagFIN|layers.FlagACK, nil, st.serverSeq, st.clientSeq); err != nil {
+		return err
+	}
+	st.serverSeq++
+
+	// ACK (up, device acknowledges server FIN)
+	if err := emitSegment(emit, st, true, layers.FlagACK, nil, st.clientSeq, st.serverSeq); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// emitUDPSession emits one raw UDP datagram per sentence event.
+func (g *NMEAGenerator) emitUDPSession(ctx context.Context, emit func(core.PacketConfig) error, sess core.NMEASession, srcIP, dstIP string, srcPort, dstPort uint16) error {
+	run := &sessionRun{sess: sess}
+
+	for _, ev := range sess.Events {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		line, err := buildSentenceBytes(run, ev)
+		if err != nil {
+			return err
+		}
+		sp := srcPort
+		if sess.SrcPort != 0 {
+			sp = sess.SrcPort
+		}
+		if err := emit(core.PacketConfig{
+			Direction: "up",
+			L3:        core.L3Config{SrcIP: srcIP, DstIP: dstIP, Protocol: 17, TTL: 64},
+			L4: core.L4Config{
+				Protocol: "udp",
+				SrcPort:  sp,
+				DstPort:  dstPort,
+			},
+			Payload: line,
+		}); err != nil {
+			return err
 		}
 	}
 	return nil

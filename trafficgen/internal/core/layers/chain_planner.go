@@ -943,7 +943,8 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 	amsSelf := p.name == "ams" && spec.AMS != nil && amsNeedsSelfDrive(spec.AMS)
 	swarmSelf := p.name == "swarm" && spec.Swarm != nil && swarmNeedsSelfDrive(spec.Swarm)
 	gnutellaSelf := p.name == "gnutella" && spec.Gnutella != nil && gnutellaNeedsSelfDrive(spec.Gnutella)
-	if openwireSelf || amsSelf || swarmSelf || gnutellaSelf {
+	nmeaSelf := p.name == "nmea" && nmeaNeedsSelfDrive(spec.NMEA)
+	if openwireSelf || amsSelf || swarmSelf || gnutellaSelf || nmeaSelf {
 		out := make(chan core.PacketConfig, 256)
 		go func() {
 			defer close(out)
@@ -960,6 +961,7 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			meta.AMS = spec.AMS
 			meta.Swarm = spec.Swarm
 			meta.Gnutella = spec.Gnutella
+			meta.NMEA = spec.NMEA
 			index := uint64(0)
 			req := &GenRequest{
 				Meta: meta,

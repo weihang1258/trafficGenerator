@@ -72,14 +72,7 @@ var chainSuiteProtos = map[string]bool{
 // the suite stays a usable regression signal. Remove entries as the engine
 // gaps close.
 var knownGaps = map[string]string{
-	// nmea 会话级 termination:"rst" 已校验未接线（需 chain planner 翻译为
-	// tcp 层 rst=true）。期望包数 3+N+1。
-	"nmea_tcp_rst":       `session termination:"rst" not yet translated to tcp layer rst (engine gap, delegated)`,
-	"nmea_tcp_rst_multi": `session termination:"rst" not yet translated to tcp layer rst (engine gap, delegated)`,
-	// nmea 会话级 transport:"udp" 在 [tcp→nmea] 链上只校验未路由（双载体
-	// 单任务需架构级新增）。期望 10 = TCP 9 + UDP 1。
-	"nmea_tcp_udp_coexist":          `per-session udp carrier on tcp chain not yet routed (engine gap, delegated)`,
-	"nmea_tcp_udp_coexist_reversed": `per-session udp carrier on tcp chain not yet routed (engine gap, delegated)`,
+	"nmea_tcp_udp_coexist_reversed": "会话序 sessions[0]=udp 在前，sessions[1]=tcp 在后；has_handshake 断言首包 TCP SYN 不可见——纯断言口径与设计 §5 正例 43 'sessions[0] 先出' 相左。Plan 已按 sessions 序出包（pcap: udp-1 + tcp-9 = 10），非引擎缺口，待 VerifyPcap 与设计协商。",
 }
 
 // chainSuiteCase is a runnable chain-shaped case plus its source file.

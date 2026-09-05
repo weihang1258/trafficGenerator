@@ -30,6 +30,9 @@ type NMEAConfig struct {
 	// proprietary_no_checksum|gsv_seq_correlation|carrier_layer_missing|
 	// carrier_conflict|port_undeclared|address_family_mismatch|propagation.
 	WireFault string `json:"wire_fault,omitempty"`
+	// Termination selects the close shape for all sessions ("rst" = single-sided
+	// RST; default = graceful FIN). Per-session Termination overrides this.
+	Termination string `json:"termination,omitempty"`
 }
 
 // NMEASession is one device→collector connection: ordered event list (one
