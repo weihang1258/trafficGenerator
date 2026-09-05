@@ -20,8 +20,8 @@ package protocolpcap
 //	CHAIN_PROTO=nmea go test ./test/protocol_pcap/ -run TestLayerChainSuite -v
 //	CHAIN_MAX=5    go test ./test/protocol_pcap/ -run TestLayerChainSuite -v
 //
-// 默认仅执行带空导入的 10 个协议（chain 冒烟 8 协议 + tcp + nmea）；
-// 扩协议时在下方 import 块补空导入并用 CHAIN_PROTO 圈定。
+// 默认仅执行带空导入的 12 个协议（chain 冒烟 8 协议 + tcp + nmea + cwmp +
+// doh）；扩协议时在下方 import 块补空导入并用 CHAIN_PROTO 圈定。
 
 import (
 	"encoding/json"
@@ -45,6 +45,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcpv6"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/doh"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nmea"
@@ -60,8 +61,8 @@ import (
 // this set is skipped with a log line instead of failing: the MCP suite
 // still owns it, and the blank imports above only link these generators.
 var chainSuiteProtos = map[string]bool{
-	"cwmp": true, "dhcp": true, "dhcpv6": true, "dns": true, "mdns": true,
-	"nmea": true, "ntp": true, "snmp": true, "ssdp": true,
+	"cwmp": true, "dhcp": true, "dhcpv6": true, "dns": true, "doh": true,
+	"mdns": true, "nmea": true, "ntp": true, "snmp": true, "ssdp": true,
 	"syslog": true, "tcp": true,
 }
 

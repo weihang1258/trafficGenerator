@@ -144,6 +144,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// （每事件一笔事务一侧的完整 HTTP 帧字节；http 层透传转发；flows[]
 		// 流关联副连接在生成器内锚点发射）。
 		CWMP: spec.CWMP,
+		// DOH 同款（B6，66-doh）：sessions[]/events[] 配置经 Meta 直传 doh
+		// 终结层生成器（每事件一笔查询事务：完整 HTTP 请求帧 + 自动应答
+		// 响应帧；http 层透传转发）。
+		DOH: spec.DOH,
 		// Stratum 同款（B6）：sessions[]/events[] 配置经 Meta 直传 stratum
 		// 终结层生成器（每事件一条行/一对请求响应行；[tcp→stratum] 直连，
 		// 无 http 层）。

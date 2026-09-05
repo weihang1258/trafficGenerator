@@ -1,32 +1,7685 @@
 [
-  {
-    "id": "doh_neg_unregistered",
-    "proto": "doh",
-    "summary": "DOH layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "http": {}
-        },
-        {
-          "doh": {}
-        }
-      ],
-      "src_ip": "192.0.2.66",
-      "dst_ip": "198.51.100.66",
-      "src_port": 42066,
-      "dst_port": 80
+ {
+  "id": "doh_post_ipv4_http11",
+  "proto": "doh",
+  "summary": "POST/IPv4 plaintext single-flow baseline",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer",
-      "notes": [
-        "Design-only gate: doh is not registered in the layer registry; this placeholder is not part of the 38 semantic IDs (24 positive + 14 negative per docs/protocol-designs/66-doh-design.md §9). A future registration must remove it and add the 38 semantic cases in testcase order (docs/protocol-designs/66-doh-testcase.md §2).",
-        "dst_port=80 matches the doh_http1_plain main profile plaintext debug port (docs §2); the placeholder itself never emits packets, doc consistency takes priority (review item M9)."
-      ]
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
     }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/dns-message"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.accept",
+     "value": "application/dns-message"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.66"
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "dns.id",
+     "value": "0x1234"
+    },
+    {
+     "packet": 4,
+     "field": "dns.qry.name",
+     "value": "www.example.com"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_type",
+     "value": "application/dns-message"
+    },
+    {
+     "packet": 5,
+     "field": "dns.id",
+     "same_as_packet": 4
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.response",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "504F5354202F646E732D717565727920"
+    }
+   ]
   }
+ },
+ {
+  "id": "doh_get_ipv4_base64url",
+  "proto": "doh",
+  "summary": "GET dns parameter base64url unpadded (no body, CL:0)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query?dns=EjQBAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.qry.name",
+     "value": "www.example.com"
+    },
+    {
+     "packet": 5,
+     "field": "dns.id",
+     "value": "0x1234"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "474554202F646E732D71756572793F646E733D456A5142414141424141414141414141413364336477646C654746746347786C41324E76625141414151414220485454502F312E310D0A486F73743A203139382E35312E3130302E36360D0A4163636570743A206170706C69636174696F6E2F646E732D6D6573736167650D0A436F6E74656E742D4C656E6774683A20300D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_post_ipv6_http11",
+  "proto": "doh",
+  "summary": "POST/IPv6 carrier (ipv6.nxt=6, offset 74)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "2001:db8::66",
+   "src_port": 42066,
+   "dst_ip": "2001:db8::100:66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "ipv6.version",
+     "value": "6"
+    },
+    {
+     "packet": 4,
+     "field": "ipv6.nxt",
+     "value": "6"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/dns-message"
+    },
+    {
+     "packet": 4,
+     "field": "dns.qry.name",
+     "value": "www.example.com"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 74,
+     "hex": "504F5354202F646E732D717565727920"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_ipv6_base64url",
+  "proto": "doh",
+  "summary": "GET/IPv6 isolated fixture (2001:db8::66 -> 2001:db8::100:66)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "2001:db8::66",
+   "src_port": 42066,
+   "dst_ip": "2001:db8::100:66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "ipv6.version",
+     "value": "6"
+    },
+    {
+     "packet": 4,
+     "field": "ipv6.nxt",
+     "value": "6"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query?dns=EjQBAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB"
+    },
+    {
+     "packet": 5,
+     "field": "dns.qry.name",
+     "value": "www.example.com"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 74,
+     "hex": "474554202F646E732D71756572793F646E733D456A5142414141424141414141414141413364336477646C654746746347786C41324E76625141414151414220485454502F312E310D0A486F73743A20323030313A6462383A3A3130303A36360D0A4163636570743A206170706C69636174696F6E2F646E732D6D6573736167650D0A436F6E74656E742D4C656E6774683A20300D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_header_query",
+  "proto": "doh",
+  "summary": "DNS header 12B big-endian field-by-field",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.flags.response",
+     "value": "0"
+    },
+    {
+     "packet": 4,
+     "field": "dns.flags.opcode",
+     "value": "0"
+    },
+    {
+     "packet": 4,
+     "field": "dns.flags.truncated",
+     "value": "0"
+    },
+    {
+     "packet": 4,
+     "field": "dns.flags.recdesired",
+     "value": "1"
+    },
+    {
+     "packet": 4,
+     "field": "dns.flags.z",
+     "value": "0"
+    },
+    {
+     "packet": 4,
+     "field": "dns.count.queries",
+     "value": "1"
+    },
+    {
+     "packet": 4,
+     "field": "dns.count.answers",
+     "value": "0"
+    },
+    {
+     "packet": 4,
+     "field": "dns.count.auth_rr",
+     "value": "0"
+    },
+    {
+     "packet": 4,
+     "field": "dns.count.add_rr",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.authoritative",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.truncated",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.z",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.auth_rr",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.add_rr",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 214,
+     "hex": "123401000001"
+    },
+    {
+     "packet": 4,
+     "offset": 218,
+     "hex": "0001000000000000"
+    },
+    {
+     "packet": 5,
+     "offset": 162,
+     "hex": "8180"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_question_a",
+  "proto": "doh",
+  "summary": "QNAME label encoding, QTYPE=A(1), QCLASS=IN(1)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.qry.name",
+     "value": "www.example.com"
+    },
+    {
+     "packet": 4,
+     "field": "dns.qry.name.len",
+     "value": "15"
+    },
+    {
+     "packet": 4,
+     "field": "dns.qry.type",
+     "value": "1"
+    },
+    {
+     "packet": 4,
+     "field": "dns.qry.class",
+     "value": "0x0001"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 226,
+     "hex": "03777777"
+    },
+    {
+     "packet": 4,
+     "offset": 242,
+     "hex": "0000010001"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_question_aaaa",
+  "proto": "doh",
+  "summary": "QTYPE=AAAA(28) query with AAAA answer",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "AAAA",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "AAAA",
+           "ttl": 300,
+           "rdata": "2001:db8::1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.qry.type",
+     "value": "28"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "28"
+    },
+    {
+     "packet": 5,
+     "field": "dns.aaaa",
+     "value": "2001:db8::1"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_question_https",
+  "proto": "doh",
+  "summary": "QTYPE=HTTPS(65) query (RFC 9460)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "HTTPS",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "HTTPS",
+           "ttl": 300,
+           "priority": 1,
+           "target": ".",
+           "params": [
+            {
+             "key": 1,
+             "value_hex": "026832"
+            }
+           ]
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.qry.type",
+     "value": "65"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "65"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_question_root",
+  "proto": "doh",
+  "summary": "Root QNAME shortest message (wire 17B)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.qry.name",
+     "value": "<Root>"
+    },
+    {
+     "packet": 4,
+     "field": "dns.count.labels",
+     "value": "1"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "17"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "17"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 226,
+     "hex": "00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_response_noerror",
+  "proto": "doh",
+  "summary": "RCODE=0, QR=1, RA=1, ID echo",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.flags.response",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.recavail",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.id",
+     "same_as_packet": 4
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.queries",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "1"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_response_nxdomain",
+  "proto": "doh",
+  "summary": "RCODE=3 NXDOMAIN with HTTP 200 (HTTP success != DNS success)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NXDOMAIN",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "3"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_response_servfail",
+  "proto": "doh",
+  "summary": "RCODE=2 SERVFAIL with HTTP 200",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "SERVFAIL",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "2"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_answer_ttl",
+  "proto": "doh",
+  "summary": "A answer NAME/TYPE/CLASS/TTL/RDLENGTH/RDATA structure",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.class",
+     "value": "0x0001"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.ttl",
+     "value": "300"
+    },
+    {
+     "packet": 5,
+     "field": "dns.a",
+     "value": "192.0.2.1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 214,
+     "hex": "0000012C"
+    },
+    {
+     "packet": 5,
+     "offset": 218,
+     "hex": "0004C0000201"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_keepalive_multi_transaction",
+  "proto": "doh",
+  "summary": "3 transactions on one connection, per-request keep-alive policy",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       },
+       {
+        "kind": "query",
+        "dns_id": 4661,
+        "name": "www.example.net",
+        "qtype": "AAAA",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.net",
+           "type": "AAAA",
+           "ttl": 300,
+           "rdata": "2001:db8::1"
+          }
+         ]
+        }
+       },
+       {
+        "kind": "query",
+        "dns_id": 4662,
+        "name": "www.example.org",
+        "qtype": "HTTPS",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.org",
+           "type": "HTTPS",
+           "ttl": 300,
+           "priority": 1,
+           "target": ".",
+           "params": [
+            {
+             "key": 1,
+             "value_hex": "026832"
+            }
+           ]
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.stream",
+     "value": "0"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.stream",
+     "same_as_packet": 4
+    },
+    {
+     "packet": 8,
+     "field": "tcp.stream",
+     "same_as_packet": 4
+    },
+    {
+     "packet": 5,
+     "field": "dns.id",
+     "same_as_packet": 4
+    },
+    {
+     "packet": 7,
+     "field": "dns.id",
+     "same_as_packet": 6
+    },
+    {
+     "packet": 9,
+     "field": "dns.id",
+     "same_as_packet": 8
+    },
+    {
+     "packet": 4,
+     "field": "dns.qry.name",
+     "value": "www.example.com"
+    },
+    {
+     "packet": 6,
+     "field": "dns.qry.name",
+     "value": "www.example.net"
+    },
+    {
+     "packet": 8,
+     "field": "dns.qry.name",
+     "value": "www.example.org"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 193,
+     "hex": "436F6E6E656374696F6E3A206B6565702D616C6976650D0A"
+    },
+    {
+     "packet": 6,
+     "offset": 193,
+     "hex": "436F6E6E656374696F6E3A206B6565702D616C6976650D0A"
+    },
+    {
+     "packet": 8,
+     "offset": 193,
+     "hex": "436F6E6E656374696F6E3A20636C6F73650D0A"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_content_length_exact",
+  "proto": "doh",
+  "summary": "Content-Length exact 33 (request) / 64 (response)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "33"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "64"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 173,
+     "hex": "436F6E74656E742D4C656E6774683A203333"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_cache_control",
+  "proto": "doh",
+  "summary": "max-age equals the MINIMUM answer TTL (300/60 -> 60)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          },
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 60,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "http.cache_control",
+     "value": "max-age=60"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 213,
+     "hex": "0000012C"
+    },
+    {
+     "packet": 5,
+     "offset": 244,
+     "hex": "0000003C"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_error_400",
+  "proto": "doh",
+  "summary": "GET missing dns parameter -> 400 empty body, no DNS wire",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 400
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "400"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "485454502F312E31203430302042616420526571756573740D0A436F6E74656E742D4C656E6774683A20300D0A0D0A"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_error_404",
+  "proto": "doh",
+  "summary": "Unknown URI -> 404 empty body, no DNS wire",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "uri": "/unknown",
+        "response": {
+         "status": 404
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "404"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "485454502F312E3120343034204E6F7420466F756E640D0A436F6E74656E742D4C656E6774683A20300D0A0D0A"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_error_415",
+  "proto": "doh",
+  "summary": "Unsupported media type -> 415 empty body, no DNS wire",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 415
+        },
+        "http": {
+         "request_headers": {
+          "Content-Type": "text/plain"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "text/plain"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "415"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "485454502F312E312034313520556E737570706F72746564204D6564696120547970650D0A436F6E74656E742D4C656E6774683A20300D0A0D0A"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_mss_large_response",
+  "proto": "doh",
+  "summary": "Large response spans MSS segments (3 TXT x 2x255 strings, 1650B wire)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "TXT",
+           "ttl": 300,
+           "txt_strings": [
+            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+           ]
+          },
+          {
+           "name": "www.example.com",
+           "type": "TXT",
+           "ttl": 300,
+           "txt_strings": [
+            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+           ]
+          },
+          {
+           "name": "www.example.com",
+           "type": "TXT",
+           "ttl": 300,
+           "txt_strings": [
+            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+            "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+           ]
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 10,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "33"
+    },
+    {
+     "packet": 6,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 6,
+     "field": "http.content_length",
+     "value": "1650"
+    },
+    {
+     "packet": 6,
+     "field": "dns.count.answers",
+     "value": "3"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 351,
+     "hex": "54"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_multi_session",
+  "proto": "doh",
+  "summary": "Two sessions sequential, dual 4-tuples, isolated state",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ],
+      "src_port": 42066
+     },
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 9217,
+        "name": "www.example.net",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.net",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ],
+      "src_port": 42067
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 18,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 10,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 10,
+     "field": "tcp.srcport",
+     "value": "42067"
+    },
+    {
+     "packet": 0,
+     "field": "tcp.stream",
+     "distinct_values": [
+      "0",
+      "1"
+     ]
+    },
+    {
+     "packet": 4,
+     "field": "dns.qry.name",
+     "value": "www.example.com"
+    },
+    {
+     "packet": 13,
+     "field": "dns.qry.name",
+     "value": "www.example.net"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_port_nondefault_post",
+  "proto": "doh",
+  "summary": "POST on non-default port 8080 (full-stack semantics unchanged)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 8080,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "8080"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/dns-message"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "1"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_port_nondefault_get",
+  "proto": "doh",
+  "summary": "GET on non-default port 8080",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 8080,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "8080"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query?dns=EjQBAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_concurrent_sessions",
+  "proto": "doh",
+  "summary": "Two concurrent sessions interleaved, no state bleed",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "concurrent": true,
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ],
+      "src_port": 42066
+     },
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 9217,
+        "name": "www.example.net",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.net",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ],
+      "src_port": 42067
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 18,
+   "fields": [
+    {
+     "packet": 0,
+     "field": "tcp.stream",
+     "distinct_values": [
+      "0",
+      "1"
+     ]
+    },
+    {
+     "packet": 0,
+     "field": "dns.qry.name",
+     "distinct_values": [
+      "www.example.com",
+      "www.example.net"
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_b64_residue_1",
+  "proto": "doh",
+  "summary": "base64url residue-1 form: 19B wire -> 26-char param",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "a",
+        "qtype": "A",
+        "method": "GET"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query?dns=EjQBAAABAAAAAAAAAWEAAAEAAQ"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "19"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_b64_residue_2",
+  "proto": "doh",
+  "summary": "base64url residue-2 form: 20B wire -> 27-char param",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "ab",
+        "qtype": "A",
+        "method": "GET"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query?dns=EjQBAAABAAAAAAAAAmFiAAABAAE"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "20"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_rcode_formerr",
+  "proto": "doh",
+  "summary": "RCODE=1 FORMERR carried by 200",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "FORMERR",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_rcode_notimp",
+  "proto": "doh",
+  "summary": "RCODE=4 NOTIMP",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOTIMP",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "4"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_rcode_refused",
+  "proto": "doh",
+  "summary": "RCODE=5 REFUSED",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "REFUSED",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "5"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_rcode_15_upper",
+  "proto": "doh",
+  "summary": "RCODE=15 (4-bit value upper bound)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "15",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "15"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 160,
+     "hex": "818F"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_rd_zero",
+  "proto": "doh",
+  "summary": "Request RD=0 (recursion not desired)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "rd": false,
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.flags.recdesired",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 216,
+     "hex": "0000"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_ra_zero",
+  "proto": "doh",
+  "summary": "Response RA=0 (no recursion available)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ],
+         "ra": false
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.flags.recavail",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.response",
+     "value": "1"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_aa_set",
+  "proto": "doh",
+  "summary": "Response AA=1 (authoritative answer), flags 85 80",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ],
+         "aa": true
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.flags.authoritative",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 162,
+     "hex": "8580"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_question_txt",
+  "proto": "doh",
+  "summary": "QTYPE=TXT(16) query with single-string TXT answer",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "TXT",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "TXT",
+           "ttl": 300,
+           "rdata": "hello"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.qry.type",
+     "value": "16"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "16"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_question_mx",
+  "proto": "doh",
+  "summary": "QTYPE=MX(15) query; MX answer pref 2B big-endian + exchange",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "MX",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "MX",
+           "ttl": 300,
+           "mx_pref": 10,
+           "rdata": "mail.example.com"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.qry.type",
+     "value": "15"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "15"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 220,
+     "hex": "000A046D61696C076578616D706C6503636F6D00"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_qclass_ch",
+  "proto": "doh",
+  "summary": "QCLASS=CHAOS(3) value variant, echoed in answer",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "qclass": "CHAOS",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1",
+           "class": "CHAOS"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.qry.class",
+     "value": "0x0003"
+    },
+    {
+     "packet": 5,
+     "field": "dns.qry.class",
+     "value": "0x0003"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.class",
+     "value": "0x0003"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_answer_aaaa",
+  "proto": "doh",
+  "summary": "AAAA answer (RDLENGTH=16)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "AAAA",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "AAAA",
+           "ttl": 300,
+           "rdata": "2001:db8::1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.aaaa",
+     "value": "2001:db8::1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "28"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 218,
+     "hex": "001020010DB8000000000000000000000001"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_answer_cname_chain",
+  "proto": "doh",
+  "summary": "CNAME -> A two-answer chain",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "CNAME",
+           "ttl": 300,
+           "rdata": "cname.example.com"
+          },
+          {
+           "name": "cname.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "2"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "5,1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.cname",
+     "value": "cname.example.com"
+    },
+    {
+     "packet": 5,
+     "field": "dns.a",
+     "value": "192.0.2.1"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_answer_multi_types",
+  "proto": "doh",
+  "summary": "A + AAAA answers in configured order",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          },
+          {
+           "name": "www.example.com",
+           "type": "AAAA",
+           "ttl": 300,
+           "rdata": "2001:db8::1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "2"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "1,28"
+    },
+    {
+     "packet": 5,
+     "field": "dns.a",
+     "value": "192.0.2.1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.aaaa",
+     "value": "2001:db8::1"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_answer_svcb_alpn",
+  "proto": "doh",
+  "summary": "HTTPS SVCB AnswerForm (priority + root target + alpn h2)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "HTTPS",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "HTTPS",
+           "ttl": 300,
+           "priority": 1,
+           "target": ".",
+           "params": [
+            {
+             "key": 1,
+             "value_hex": "026832"
+            }
+           ]
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "65"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 220,
+     "hex": "00010000010003026832"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_answer_svcb_alias",
+  "proto": "doh",
+  "summary": "HTTPS SVCB AliasForm (priority 0 + svc.example.net + empty params, RDLENGTH 19)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "HTTPS",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "HTTPS",
+           "ttl": 300,
+           "priority": 0,
+           "target": "svc.example.net",
+           "params": []
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "65"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 220,
+     "hex": "000003737663076578616D706C65036E657400"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_answer_txt_strings",
+  "proto": "doh",
+  "summary": "TXT multi character-strings (per-segment length byte)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "TXT",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "TXT",
+           "ttl": 300,
+           "txt_strings": [
+            "hello",
+            "world"
+           ]
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "16"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 220,
+     "hex": "0568656C6C6F05776F726C64"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_negative_cache_soa",
+  "proto": "doh",
+  "summary": "Negative cache: ANCOUNT=0 + NSCOUNT=1 + SOA + max-age=MINIMUM",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NXDOMAIN",
+         "answers": [],
+         "authority": [
+          {
+           "name": "example.com",
+           "type": "SOA",
+           "ttl": 60,
+           "mname": "ns.example.com",
+           "rname": "hostmaster.example.com",
+           "serial": 2026090101,
+           "refresh": 7200,
+           "retry": 3600,
+           "expire": 1209600,
+           "minimum": 60
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.auth_rr",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "http.cache_control",
+     "value": "max-age=60"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 206,
+     "hex": "0006"
+    },
+    {
+     "packet": 5,
+     "offset": 272,
+     "hex": "0000003C"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_cache_age_header",
+  "proto": "doh",
+  "summary": "Age header present (RFC 8484 5.1 client consideration)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        },
+        "http": {
+         "response_headers": {
+          "Age": "60"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "http.cache_control",
+     "value": "max-age=300"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 158,
+     "hex": "4167653A203630"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_mixed_get_post",
+  "proto": "doh",
+  "summary": "POST -> GET mixed on one connection; Content-Type only on POST",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       },
+       {
+        "kind": "query",
+        "dns_id": 4661,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 11,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/dns-message"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 6,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 6,
+     "field": "http.content_length",
+     "value": "0"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.stream",
+     "same_as_packet": 4
+    },
+    {
+     "packet": 7,
+     "field": "http.response.code",
+     "value": "200"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_host_explicit",
+  "proto": "doh",
+  "summary": "Explicit Host header (doh.example.com, not dst_ip default)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        },
+        "http": {
+         "request_headers": {
+          "Host": "doh.example.com"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "doh.example.com"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_error_400_extra_param",
+  "proto": "doh",
+  "summary": "GET dns + extra query parameter -> 400 (dns is the only parameter)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "extra_query": "foo=bar",
+        "response": {
+         "status": 400
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query?dns=EjQBAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB&foo=bar"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "400"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "485454502F312E31203430302042616420526571756573740D0A436F6E74656E742D4C656E6774683A20300D0A0D0A"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_accept_absent",
+  "proto": "doh",
+  "summary": "Request without Accept header (SHOULD-absent legal form)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        },
+        "http": {
+         "request_headers": {
+          "Accept": ""
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "504F5354202F646E732D717565727920485454502F312E310D0A486F73743A203139382E35312E3130302E36360D0A436F6E74656E742D547970653A206170706C69636174696F6E2F646E732D6D6573736167650D0A436F6E74656E742D4C656E6774683A2033330D0A436F6E6E656374696F6E3A20636C6F73650D0A0D0A"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_connection_close",
+  "proto": "doh",
+  "summary": "Single transaction explicit Connection: close",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 193,
+     "hex": "436F6E6E656374696F6E3A20636C6F73650D0A"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_min_frame_get",
+  "proto": "doh",
+  "summary": "Minimal GET: root name 17B wire -> 23-char param",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "",
+        "qtype": "A",
+        "method": "GET"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query?dns=EjQBAAABAAAAAAAAAAABAAE"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "17"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_ttl_zero",
+  "proto": "doh",
+  "summary": "TTL=0 boundary + max-age=0",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 0,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.resp.ttl",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "http.cache_control",
+     "value": "max-age=0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_ttl_max",
+  "proto": "doh",
+  "summary": "TTL=0xFFFFFFFF full value + max-age=4294967295",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 4294967295,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.resp.ttl",
+     "value": "4294967295"
+    },
+    {
+     "packet": 5,
+     "field": "http.cache_control",
+     "value": "max-age=4294967295"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_qname_label_63",
+  "proto": "doh",
+  "summary": "Single 63-byte label upper bound (wire 81, CL=81)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "81"
+    },
+    {
+     "packet": 4,
+     "field": "dns.qry.name.len",
+     "value": "63"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_qname_total_255",
+  "proto": "doh",
+  "summary": "Full-name 255-byte upper bound (63/63/63/61 labels, CL=271)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "271"
+    },
+    {
+     "packet": 4,
+     "field": "dns.qry.name.len",
+     "value": "253"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_id_zero",
+  "proto": "doh",
+  "summary": "DNS ID=0 boundary (RFC 8484 4.1 SHOULD value; declared deviation)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 0,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.id",
+     "value": "0x0000"
+    },
+    {
+     "packet": 5,
+     "field": "dns.id",
+     "same_as_packet": 4
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_id_max",
+  "proto": "doh",
+  "summary": "DNS ID=65535 full value",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 65535,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.id",
+     "value": "0xffff"
+    },
+    {
+     "packet": 5,
+     "field": "dns.id",
+     "same_as_packet": 4
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_id_one",
+  "proto": "doh",
+  "summary": "DNS ID=1 adjacent value (min+1)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 1,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.id",
+     "value": "0x0001"
+    },
+    {
+     "packet": 5,
+     "field": "dns.id",
+     "same_as_packet": 4
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_id_65534",
+  "proto": "doh",
+  "summary": "DNS ID=65534 adjacent value (max-1)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 65534,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "dns.id",
+     "value": "0xfffe"
+    },
+    {
+     "packet": 5,
+     "field": "dns.id",
+     "same_as_packet": 4
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_ttl_one",
+  "proto": "doh",
+  "summary": "TTL=1 adjacent value + max-age=1",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 1,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.resp.ttl",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "http.cache_control",
+     "value": "max-age=1"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_ttl_4294967294",
+  "proto": "doh",
+  "summary": "TTL=4294967294 adjacent value",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 4294967294,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.resp.ttl",
+     "value": "4294967294"
+    },
+    {
+     "packet": 5,
+     "field": "http.cache_control",
+     "value": "max-age=4294967294"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_qname_254",
+  "proto": "doh",
+  "summary": "Full-name 254 adjacent value (CL=270)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "270"
+    },
+    {
+     "packet": 4,
+     "field": "dns.qry.name.len",
+     "value": "252"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_dns_qname_label_62",
+  "proto": "doh",
+  "summary": "Single label 62 adjacent value (CL=80)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "80"
+    },
+    {
+     "packet": 4,
+     "field": "dns.qry.name.len",
+     "value": "62"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_http_cache_control_soa_minimum",
+  "proto": "doh",
+  "summary": "Negative-cache max-age exactly equals SOA MINIMUM",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NXDOMAIN",
+         "answers": [],
+         "authority": [
+          {
+           "name": "example.com",
+           "type": "SOA",
+           "ttl": 60,
+           "mname": "ns.example.com",
+           "rname": "hostmaster.example.com",
+           "serial": 2026090101,
+           "refresh": 7200,
+           "retry": 3600,
+           "expire": 1209600,
+           "minimum": 60
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "http.cache_control",
+     "value": "max-age=60"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.auth_rr",
+     "value": "1"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_qname_max",
+  "proto": "doh",
+  "summary": "255-name GET variant: 271B wire (residue 1) unpadded 362-char param",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "qtype": "A",
+        "method": "GET"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query?dns=EjQBAAABAAAAAAAAP2FhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYT9iYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI_Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjPWRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGQAAAEAAQ"
+    },
+    {
+     "packet": 5,
+     "field": "dns.qry.name",
+     "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_root_query",
+  "proto": "doh",
+  "summary": "Root-name GET variant: 17B wire (residue 2) 23-char param",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "",
+        "qtype": "A",
+        "method": "GET"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query?dns=EjQBAAABAAAAAAAAAAABAAE"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "17"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_question_aaaa",
+  "proto": "doh",
+  "summary": "QTYPE=AAAA(28) GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "AAAA",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "AAAA",
+           "ttl": 300,
+           "rdata": "2001:db8::1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "28"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_question_https",
+  "proto": "doh",
+  "summary": "QTYPE=HTTPS(65) GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "HTTPS",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "HTTPS",
+           "ttl": 300,
+           "priority": 1,
+           "target": ".",
+           "params": [
+            {
+             "key": 1,
+             "value_hex": "026832"
+            }
+           ]
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "65"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_question_txt",
+  "proto": "doh",
+  "summary": "QTYPE=TXT(16) GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "TXT",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "TXT",
+           "ttl": 300,
+           "rdata": "hello"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "16"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_question_mx",
+  "proto": "doh",
+  "summary": "QTYPE=MX(15) GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "MX",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "MX",
+           "ttl": 300,
+           "mx_pref": 10,
+           "rdata": "mail.example.com"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "15"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_rcode_formerr",
+  "proto": "doh",
+  "summary": "RCODE=1 GET variant (2xx carries any RCODE)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "FORMERR",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_rcode_notimp",
+  "proto": "doh",
+  "summary": "RCODE=4 GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NOTIMP",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "4"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_rcode_refused",
+  "proto": "doh",
+  "summary": "RCODE=5 GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "REFUSED",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "5"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_rcode_15",
+  "proto": "doh",
+  "summary": "RCODE=15 GET variant (4-bit upper bound)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "15",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "15"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_response_noerror",
+  "proto": "doh",
+  "summary": "NOERROR + A answer GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.a",
+     "value": "192.0.2.1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.id",
+     "value": "0x1234"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_response_nxdomain",
+  "proto": "doh",
+  "summary": "NXDOMAIN GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NXDOMAIN",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "3"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_response_servfail",
+  "proto": "doh",
+  "summary": "SERVFAIL GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "SERVFAIL",
+         "answers": []
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.rcode",
+     "value": "2"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_answer_ttl",
+  "proto": "doh",
+  "summary": "A answer structure GET variant (RDLENGTH/RDATA frames)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.ttl",
+     "value": "300"
+    },
+    {
+     "packet": 5,
+     "field": "dns.a",
+     "value": "192.0.2.1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 218,
+     "hex": "0004C0000201"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_answer_aaaa",
+  "proto": "doh",
+  "summary": "AAAA answer GET variant (RDLENGTH 00 10)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "AAAA",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "AAAA",
+           "ttl": 300,
+           "rdata": "2001:db8::1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "dns.aaaa",
+     "value": "2001:db8::1"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "28"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 218,
+     "hex": "0010"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_answer_cname_chain",
+  "proto": "doh",
+  "summary": "CNAME -> A chain GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "CNAME",
+           "ttl": 300,
+           "rdata": "cname.example.com"
+          },
+          {
+           "name": "cname.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "2"
+    },
+    {
+     "packet": 5,
+     "field": "dns.cname",
+     "value": "cname.example.com"
+    },
+    {
+     "packet": 5,
+     "field": "dns.a",
+     "value": "192.0.2.1"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_answer_svcb_alpn",
+  "proto": "doh",
+  "summary": "SVCB AnswerForm GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "HTTPS",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "HTTPS",
+           "ttl": 300,
+           "priority": 1,
+           "target": ".",
+           "params": [
+            {
+             "key": 1,
+             "value_hex": "026832"
+            }
+           ]
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "dns.resp.type",
+     "value": "65"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 220,
+     "hex": "00010000010003026832"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_negative_cache_soa",
+  "proto": "doh",
+  "summary": "SOA negative cache GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NXDOMAIN",
+         "answers": [],
+         "authority": [
+          {
+           "name": "example.com",
+           "type": "SOA",
+           "ttl": 60,
+           "mname": "ns.example.com",
+           "rname": "hostmaster.example.com",
+           "serial": 2026090101,
+           "refresh": 7200,
+           "retry": 3600,
+           "expire": 1209600,
+           "minimum": 60
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.answers",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "dns.count.auth_rr",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "http.cache_control",
+     "value": "max-age=60"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_rd_zero",
+  "proto": "doh",
+  "summary": "RD=0 GET variant (pinned 44-char param, flags 00 00)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "rd": false
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query?dns=EjQAAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB"
+    },
+    {
+     "packet": 5,
+     "field": "dns.qry.name",
+     "value": "www.example.com"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_aa_set",
+  "proto": "doh",
+  "summary": "AA=1 GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 300,
+           "rdata": "192.0.2.1"
+          }
+         ],
+         "aa": true
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 5,
+     "field": "dns.flags.authoritative",
+     "value": "1"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_get_port_nondefault",
+  "proto": "doh",
+  "summary": "Non-default port 8080 GET variant",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 8080,
+   "doh": {
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "8080"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "GET"
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/dns-query?dns=EjQBAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB"
+    }
+   ]
+  }
+ },
+ {
+  "id": "doh_neg_query_missing",
+  "proto": "doh",
+  "summary": "GET config missing the dns query parameter",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "query_missing",
+    "method": "GET",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "dns"
+  }
+ },
+ {
+  "id": "doh_neg_base64_invalid",
+  "proto": "doh",
+  "summary": "base64url containing illegal characters (+//)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "base64",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "base64"
+  }
+ },
+ {
+  "id": "doh_neg_base64_padding",
+  "proto": "doh",
+  "summary": "base64url carrying = padding",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "padding",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "base64"
+  }
+ },
+ {
+  "id": "doh_neg_base64_truncated",
+  "proto": "doh",
+  "summary": "base64url decoding to fewer than 12 bytes",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "b64_short",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "decode"
+  }
+ },
+ {
+  "id": "doh_neg_dns_header_short",
+  "proto": "doh",
+  "summary": "POST body shorter than the 12-byte DNS header",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "dns_header_short",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "dns"
+  }
+ },
+ {
+  "id": "doh_neg_dns_qdcount_zero",
+  "proto": "doh",
+  "summary": "QDCOUNT=0 rejected (question section required)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "qdcount",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "question"
+  }
+ },
+ {
+  "id": "doh_neg_dns_qname_overflow",
+  "proto": "doh",
+  "summary": "QNAME label exceeds 63 bytes",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "qname"
+  }
+ },
+ {
+  "id": "doh_neg_dns_question_truncated",
+  "proto": "doh",
+  "summary": "Question missing root terminator / QTYPE truncated",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "question_truncated",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "question"
+  }
+ },
+ {
+  "id": "doh_neg_content_type",
+  "proto": "doh",
+  "summary": "Content-Type is not application/dns-message",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "content_type",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "content-type"
+  }
+ },
+ {
+  "id": "doh_neg_method",
+  "proto": "doh",
+  "summary": "HTTP method is not GET or POST",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "PUT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "method"
+  }
+ },
+ {
+  "id": "doh_neg_content_length",
+  "proto": "doh",
+  "summary": "POST Content-Length does not equal the DNS body bytes",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "content_length",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "content-length"
+  }
+ },
+ {
+  "id": "doh_neg_layer_chain_missing_http",
+  "proto": "doh",
+  "summary": "Layer chain missing the http carrier (tcp->doh direct)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "carrier"
+  }
+ },
+ {
+  "id": "doh_neg_port_conflict",
+  "proto": "doh",
+  "summary": "Port/carrier declaration conflicts with the plaintext profile (443)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 443,
+   "doh": {
+    "wire_fault": "port_conflict",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "port"
+  }
+ },
+ {
+  "id": "doh_neg_response_id",
+  "proto": "doh",
+  "summary": "Response DNS ID differs from the request ID",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "response_id",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "id"
+  }
+ },
+ {
+  "id": "doh_neg_response_question",
+  "proto": "doh",
+  "summary": "Response Question mismatched / 2xx without DNS body",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "response_question",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "question"
+  }
+ },
+ {
+  "id": "doh_neg_wire_over_max",
+  "proto": "doh",
+  "summary": "Declared DNS wire total length exceeds 65535",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "wire_over_max",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "length"
+  }
+ },
+ {
+  "id": "doh_neg_opcode_nonzero",
+  "proto": "doh",
+  "summary": "Opcode != 0 (QUERY only in this version)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "opcode_nonzero",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "opcode"
+  }
+ },
+ {
+  "id": "doh_neg_get_content_type",
+  "proto": "doh",
+  "summary": "GET transaction declares a Content-Type header (no body carrier)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "method": "GET",
+        "http": {
+         "request_headers": {
+          "Content-Type": "application/dns-message"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "content-type"
+  }
+ },
+ {
+  "id": "doh_neg_response_qr",
+  "proto": "doh",
+  "summary": "Response event declares QR=0 (responses must set QR=1)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "response_qr",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "response"
+  }
+ },
+ {
+  "id": "doh_neg_z_nonzero",
+  "proto": "doh",
+  "summary": "Reserved Z bits non-zero",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "z_nonzero",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "z"
+  }
+ },
+ {
+  "id": "doh_neg_rdlength_mismatch",
+  "proto": "doh",
+  "summary": "Answer RDLENGTH does not equal the RDATA byte count",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "rdlength_mismatch",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "rdlength"
+  }
+ },
+ {
+  "id": "doh_neg_ancount_mismatch",
+  "proto": "doh",
+  "summary": "ANCOUNT does not equal the declared answer count",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "ancount_mismatch",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ancount"
+  }
+ },
+ {
+  "id": "doh_neg_qdcount_multi",
+  "proto": "doh",
+  "summary": "QDCOUNT>1 (this version carries exactly one question)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "wire_fault": "qdcount_multi",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "qdcount"
+  }
+ },
+ {
+  "id": "doh_neg_dns_id_range",
+  "proto": "doh",
+  "summary": "dns_id declared 65536 (16-bit bound +1)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 65536,
+        "name": "www.example.com",
+        "qtype": "A"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "id"
+  }
+ },
+ {
+  "id": "doh_neg_ttl_range",
+  "proto": "doh",
+  "summary": "TTL declared 4294967296 (2^32 bound +1)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "A",
+        "response": {
+         "status": 200,
+         "rcode": "NOERROR",
+         "answers": [
+          {
+           "name": "www.example.com",
+           "type": "A",
+           "ttl": 4294967296,
+           "rdata": "192.0.2.1"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "ttl"
+  }
+ },
+ {
+  "id": "doh_neg_qtype_token",
+  "proto": "doh",
+  "summary": "qtype is a non-numeric unknown token (BOGUS)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "doh": {}
+    }
+   ],
+   "src_ip": "192.0.2.66",
+   "src_port": 42066,
+   "dst_ip": "198.51.100.66",
+   "dst_port": 80,
+   "doh": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "query",
+        "dns_id": 4660,
+        "name": "www.example.com",
+        "qtype": "BOGUS"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "qtype"
+  }
+ }
 ]

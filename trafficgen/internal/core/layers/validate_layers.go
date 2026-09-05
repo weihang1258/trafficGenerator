@@ -68,6 +68,12 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 	if hasLayer(chain, "cwmp") && !hasLayer(chain, "http") {
 		return nil, fmt.Errorf("cwmp: terminal layer requires the http carrier layer ([tcp, http, cwmp]; tcp→cwmp direct chain rejected)")
 	}
+	// DOH 载体检查（66-doh 设计 §2/§7 wire fault layer_chain）：doh 终结层
+	// 事件是完整 HTTP 帧（POST/GET + 响应），链上必须有 http 层（[tcp, http,
+	// doh]，tcp→doh 直连拒绝）。
+	if hasLayer(chain, "doh") && !hasLayer(chain, "http") {
+		return nil, fmt.Errorf("doh: terminal layer requires the http carrier layer ([tcp, http, doh]; tcp→doh direct chain rejected, carrier missing)")
+	}
 	completed, err := r.CompleteChain(chain)
 	if err != nil {
 		exempt := len(chain) == 1 && outerCategory(r, chain[0]) != CategoryTunnel

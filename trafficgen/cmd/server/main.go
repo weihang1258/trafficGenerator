@@ -161,6 +161,9 @@ import (
 	// 空导入：nmea 包 init 反向注册终结层生成器 + 校验器（69-nmea v2.0.0：
 	// NMEA 0183 sentence 明文，[tcp→nmea]/[udp→nmea] 双载体）。
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nmea"
+	// 空导入：doh 包 init 反向注册终结层生成器 + 校验器（66-doh v2.2.1：
+	// DNS over HTTPS / RFC 8484，[tcp→http→doh] 明文 HTTP/1.1 主 profile）。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/doh"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tftp"
@@ -490,6 +493,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("stratum"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ethmining"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("nmea"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("doh"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rtmfp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("amqp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("cflow"))

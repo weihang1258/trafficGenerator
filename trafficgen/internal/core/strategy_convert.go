@@ -508,6 +508,13 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// nmea 双载体终结层（默认 tcp / 会话级 transport udp），目的端口
 		// 10110 由 FieldContract（tcp.dst_port/udp.dst_port）补齐，非默认
 		// 端口（4001 等）由用户显式覆盖。
+	case "doh":
+		if sub, ok := cfg["doh"].(map[string]interface{}); ok {
+			parseSubconfigJSON[*DOHConfig](&spec, sub, "doh", &spec.DOH)
+		}
+		// doh 依赖 http 层（[tcp,http,doh]，tcp→doh 直连在 ValidateLayers
+		// 拒绝），目的端口 80 由 FieldContract（tcp.dst_port）补齐，非默认
+		// 端口（8080）由用户显式覆盖。
 	case "tcp":
 		// TCP sub-config already read above; nothing protocol-specific to add.
 	case "udp":

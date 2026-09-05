@@ -1736,6 +1736,7 @@ type FlowSpec struct {
 	ETHMining *ETHMiningConfig `json:"ethmining,omitempty"`
 	NMEA      *NMEAConfig      `json:"nmea,omitempty"`
 	CWMP      *CWMPConfig      `json:"cwmp,omitempty"`
+	DOH       *DOHConfig       `json:"doh,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`

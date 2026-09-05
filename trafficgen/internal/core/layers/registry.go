@@ -482,6 +482,17 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "8332"},
 	})
+	// doh（DNS over HTTPS / RFC 8484，66-doh v2.2.1）：终结层事件已含完整
+	// HTTP 帧（POST body / GET base64url 查询参数两种映射 + 2xx/非 2xx 响应
+	// 钉死头序），http 层以透传变换器转发（identity transformer）。全部协议
+	// 配置经 spec.DOH（顶层 "doh" 子映射）注入，层 config 恒空；主 profile
+	// doh_http1_plain 明文端口 80 经 FieldContract 供通用应用补齐（非默认
+	// 端口 8080 由用户显式覆盖）。响应帧 Content-Type: application/dns-message
+	// 时 tshark 自动内层解码 dns.*（testcase §1 实测基线）。
+	r.Register(LayerSchema{Name: "doh", Category: CategoryTerminal,
+		DependsOn:     []string{"http"},
+		FieldContract: map[string]string{"tcp.dst_port": "80"},
+	})
 	r.Register(LayerSchema{Name: "opcua", Category: CategoryTerminal, DependsOn: []string{"tcp"}, Fields: map[string]FieldSchema{
 		"security_mode":    {Type: "string", Default: "none"},
 		"read":             {Type: "list", Default: []interface{}{}},

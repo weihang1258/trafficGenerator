@@ -483,6 +483,10 @@ type FlowMeta struct {
 	// 64-cwmp v2.2.2：TR-069 SOAP 1.1 over HTTP；每事件一笔事务一侧的完整
 	// HTTP 帧，http 层透传转发；sessions[]/events[] + flows[] 流关联副连接）。
 	CWMP *core.CWMPConfig
+	// DOH is the flow's doh config （注入到 doh 终结层生成器，
+	// 66-doh v2.2.1：DNS over HTTPS / RFC 8484；每事件一笔查询事务的完整
+	// HTTP 请求/响应帧对（POST body / GET base64url），http 层透传转发）。
+	DOH *core.DOHConfig
 	// TCPState is the flow's TCP retransmission state machine (T3.3：tcp 层
 	// config retransmit=true 时由 TCPGenerator 构建并驱动——SendSegment/
 	// OnACK/OnDupACK/OnRTO 随正常数据段/ACK 发射同步喂数)。nil = 关闭
