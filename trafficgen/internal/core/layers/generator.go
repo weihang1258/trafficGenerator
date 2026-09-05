@@ -165,6 +165,15 @@ type MessageEvent struct {
 	// 每 router 从 0 起、request_full 同 4-tuple 共享 0/1；链层默认回填
 	// 全局递增索引)。nil = 链层默认。设置时须同时设置 FlowID。
 	PacketIndex *uint64
+	// CloseConn signals the transport layer that the event is the last on
+	// its connection four-tuple: the (波 6) generalized TCPGenerator tears
+	// the matching connKey state down before processing the next event so
+	// the next event on a different {src,dstIP,dst} port starts a fresh
+	// connection (flow-correlation side connections: a side GET/PUT
+	// completes and the next main-session transaction must not re-handshake
+	// the side's port). False (default) preserves the legacy behavior —
+	// the connection stays up until the stream's natural teardown.
+	CloseConn bool
 }
 
 // EventGenerator produces the message-event stream for a terminal
@@ -470,6 +479,10 @@ type FlowMeta struct {
 	// 69-nmea v2.0.0：NMEA 0183 sentence 明文 over TCP/UDP；每事件一句，
 	// [tcp→nmea]/[udp→nmea] 双载体）。
 	NMEA *core.NMEAConfig
+	// CWMP is the flow's cwmp config （注入到 cwmp 终结层生成器，
+	// 64-cwmp v2.2.2：TR-069 SOAP 1.1 over HTTP；每事件一笔事务一侧的完整
+	// HTTP 帧，http 层透传转发；sessions[]/events[] + flows[] 流关联副连接）。
+	CWMP *core.CWMPConfig
 	// TCPState is the flow's TCP retransmission state machine (T3.3：tcp 层
 	// config retransmit=true 时由 TCPGenerator 构建并驱动——SendSegment/
 	// OnACK/OnDupACK/OnRTO 随正常数据段/ACK 发射同步喂数)。nil = 关闭
@@ -1212,24 +1225,59 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// seq 各自推进。与 legacy http.go:266-357 字节一致（测试精确断言段数
 	// 与无 ACK 插入）。独立 tcp flow（无事件流）走上方旧逻辑。
 	events := req.Meta.Events
-	// curSrcPort 是"当前 TCP 连接"的客户端源端口（P0a 多会话边界判定）。
-	// 初始连接以 cfg.srcPort 建连；事件携带 SrcPort 覆盖且 != curSrcPort 时视为
-	// 新会话（独立连接）：先挥旧连接，再握新连接，端口用事件携带值。现有终结层
-	// （http/dns 等）不设 SrcPort 覆盖（=0 → 回退 cfg.srcPort），故单连接路径
-	// 永不走边界分支，字节级不变。
-	curSrcPort := cfg.srcPort
+	// connKey 抽象（波 6）：TCP 连接由客户端源端口+服务端 L3 目标+目标端口
+	// 共同标识。普通单连接路径（http/dns 等）事件不设覆盖，三元组全部回退
+	// 配置默认（src=cfg.srcPort、dstIP=cfg.DstIP/空、dst=cfg.dstPort）—
+	// 字节与原 conns[uint16] 路径逐字节一致（单一合成 key）。多会话或流关联
+	// 等带覆盖事件，src/dstIP/dst 非默认时合成独立 key，连接独立建/挥。
+	type connKey struct {
+		src   uint16
+		dstIP string
+		dst   uint16
+	}
+	// resolveConnKey 把事件折叠到其连接 key。无覆盖事件（srcPort=0 且
+	// OverrideDstIP=false 且 DstPort=0）走配置默认——保持原单连接字节。
+	resolveConnKey := func(src uint16, overrideDstIP bool, dstIP string, dst uint16) connKey {
+		k := connKey{src: src, dstIP: dstIP, dst: dst}
+		if src == 0 {
+			k.src = cfg.srcPort
+		}
+		if !overrideDstIP || k.dstIP == "" {
+			k.dstIP = "" // 占位；同 key 不会与真覆盖混（dstIP 是空时回退路径）
+		}
+		if dst == 0 {
+			k.dst = cfg.dstPort
+		}
+		return k
+	}
+	// curKey 是"当前 TCP 连接"的 connKey（首事件未到前为配置默认）。
+	curKey := resolveConnKey(0, false, "", 0)
 	// 事件模式下连接尚未建立（握手延迟到首事件）；空事件流（终结层没发事件
 	// 就关闭）时补默认连接，保持"握手+挥手"空连接的旧行为。
 	connected := !eventMode
-	// 并发会话模式（cfg.concurrent）：按客户端 SrcPort 维护独立连接状态。
-	// 首次见某端口 → 握手建连；切换回已建立的端口 → 恢复其 seq 状态（不挥手
-	// 不握手）。concurrent=false 时沿用 P0a 挥旧握新语义，行为不变。
+	// sawEvent 区分"空事件流"与"CloseConn 拆完后事件流结束"：前者补默认
+	// 连接（旧行为），后者不得再补（连接已按语义拆除）。
+	sawEvent := false
+	// 并发会话模式（cfg.concurrent）：按 connKey 维护独立连接状态。首次见某
+	// key → 握手建连；切换回已建立的 key → 恢复其 seq 状态（不挥手不握手）。
+	// concurrent=false 时沿用 P0a 挥旧握新语义，行为不变。
 	type tcpConn struct {
 		clientSeq, serverSeq uint32
 	}
-	conns := map[uint16]*tcpConn{}
+	conns := map[connKey]*tcpConn{}
 	// connOrder 记录并发连接的首见序（流结束时按此序统一挥手）。
-	var connOrder []uint16
+	var connOrder []connKey
+	// deleteConnKey 从 conns + connOrder 同时移除某 key（CloseConn 路径用：
+	// 流结束前提前拆除某连接 → 流末尾不再重复挥手）。
+	deleteConnKey := func(k connKey) {
+		delete(conns, k)
+		for i, x := range connOrder {
+			if x == k {
+				connOrder = append(connOrder[:i], connOrder[i+1:]...)
+				break
+			}
+		}
+	}
 	for events != nil {
 		var ev MessageEvent
 		var ok bool
@@ -1242,39 +1290,57 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 				continue
 			}
 		}
-		// 会话边界：事件源端口覆盖 != 当前连接端口 → 新连接（挥旧握新或并发恢复）。
-		evSrc := ev.SrcPort
-		if evSrc == 0 {
-			evSrc = cfg.srcPort
-		}
+		// 会话边界：事件合成 key != 当前连接 key → 新连接（挥旧握新或并发恢复）。
+		sawEvent = true
+		evKey := resolveConnKey(ev.SrcPort, ev.OverrideDstIP, ev.DstIP, ev.DstPort)
+		evSrc := evKey.src
 		if cfg.concurrent {
-			if _, seen := conns[evSrc]; !seen {
+			if _, seen := conns[evKey]; !seen {
 				if err := handshake(evSrc); err != nil {
 					return err
 				}
-				conns[evSrc] = &tcpConn{clientSeq: clientSeq, serverSeq: serverSeq}
-				connOrder = append(connOrder, evSrc)
+				conns[evKey] = &tcpConn{clientSeq: clientSeq, serverSeq: serverSeq}
+				connOrder = append(connOrder, evKey)
 			} else {
-				c := conns[evSrc]
+				c := conns[evKey]
 				clientSeq, serverSeq = c.clientSeq, c.serverSeq
 			}
 			connected = true
-			curSrcPort = evSrc
+			curKey = evKey
 		} else if !connected {
-			// 首个事件建立首条连接（端口 = 事件携带值）。
+			// 首个事件建立首条连接（key = 事件携带值）。
 			if err := handshake(evSrc); err != nil {
 				return err
 			}
 			connected = true
-			curSrcPort = evSrc
-		} else if evSrc != curSrcPort {
-			if err := teardown(curSrcPort); err != nil {
+			curKey = evKey
+		} else if evKey != curKey {
+			// 顺序模式下的"挥旧握新"——P0a 多会话边界：单连接路径（无
+			// OverrideDstIP 且 src=0）byte-key 与原 curSrcPort 路径逐字
+			// 相等（key 唯一字段 src=cfg.srcPort），行为不变；多会话/流关联
+			// 路径切换到独立 key，建立新连接。
+			if err := teardown(curKey.src); err != nil {
 				return err
 			}
 			if err := handshake(evSrc); err != nil {
 				return err
 			}
-			curSrcPort = evSrc
+			curKey = evKey
+		}
+		// CloseConn 路径：流关联副连接等"事件流结束前提前拆除"——按当前 key
+		// 挥手，并从并发状态表中移除（避免流末尾 connOrder 重复挥手）。
+		// 顺序模式下同时置 connected=false：下一事件走"首连接"分支只握手，
+		// 不再对已挥掉的 curKey 重复挥手（cwmp 链 flows 场景由 chain 侧强制
+		// concurrent=true 兜底，此为纯防御）。
+		if ev.CloseConn {
+			if err := teardown(evKey.src); err != nil {
+				return err
+			}
+			if cfg.concurrent {
+				deleteConnKey(evKey)
+			} else {
+				connected = false
+			}
 		}
 		segments := segmentByMSS(ev.Bytes, mss)
 		for _, seg := range segments {
@@ -1317,18 +1383,24 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 				serverSeq += uint32(len(seg))
 			}
 		}
-		// 并发会话：本事件推进后的 seq 状态写回该端口的连接状态。
+		// 并发会话：本事件推进后的 seq 状态写回该连接的 connKey 状态。
+		// CloseConn 已在本事件内 teardown 并 deleteConnKey（连接已亡，
+		// seq 状态无意义不回写）——nil 守卫必须有，否则同一事件先删后写
+		// 即空指针（download/upload 副连接收尾必踩）。
 		if cfg.concurrent {
-			conns[evSrc].clientSeq, conns[evSrc].serverSeq = clientSeq, serverSeq
+			if c := conns[evKey]; c != nil {
+				c.clientSeq, c.serverSeq = clientSeq, serverSeq
+			}
 		}
 	}
 
 	// RST|ACK(up) 代替挥手（RFC 9293 §3.5）。
 	// 与 legacy tcp.go:306-328 一致：RST 分支只产出 RST 包，不提前 return——
 	// 状态回写已在上方完成，emit 错误照常传播（review HIGH-1 修复）。
-	// 空事件流（connected==false）：先补默认连接握手，维持旧行为
-	// （握手+RST/挥手空连接）。
-	if !connected && !cfg.rst && cfg.handshake {
+	// 空事件流（sawEvent==false，终结层没发事件就关闭）：补默认连接握手，
+	// 维持旧行为（握手+RST/挥手空连接）。CloseConn 拆过连接的流不算空事件
+	// 流——connected 已 false，不得再补握手（否则流末多出一条空连接）。
+	if !connected && !sawEvent && !cfg.rst && cfg.handshake {
 		if err := handshake(cfg.srcPort); err != nil {
 			return err
 		}
@@ -1358,23 +1430,31 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	}
 
 	// 挥手：FIN|ACK(up) → ACK(down) → FIN|ACK(down) → ACK(up)。
-	// 多会话（P0a）：以"最后一条连接"的客户端源端口挥手（curSrcPort 已跟踪；
-	// 单连接/无事件路径 curSrcPort 恒为 cfg.srcPort，字节级不变）。
+	// 多会话（P0a）：以"最后一条连接"的客户端源端口挥手（curKey 已跟踪；
+	// 单连接/无事件路径 curKey.src 恒为 cfg.srcPort，字节级不变）。
 	// 并发会话模式：全部已建连接按首见序统一挥手（B6 gbt 并发正例——每条
 	// 连接各 4 包 FIN×2×ACK；mms 等终止性语义不受影响：termination=false 的
-	// 链本就不走本分支）。
-	if cfg.termination {
-		if cfg.concurrent && len(connOrder) > 0 {
-			for _, p := range connOrder {
-				c := conns[p]
-				clientSeq, serverSeq = c.clientSeq, c.serverSeq
-				if err := teardown(p); err != nil {
-					return err
+	// 链本就不走本分支）。CloseConn 已在流内移除已挥手 key / 顺序模式已置
+	// connected=false 跳过重复挥手，避免流末重复 FIN。
+	if cfg.termination && connected {
+		if cfg.concurrent {
+			// 并发模式：按首见序挥剩余连接。connOrder 为空有两种成因，语义
+			// 相反：sawEvent=true = 全部经 CloseConn 流内拆除（curKey 已死，
+			// 重复挥手即双 FIN，不挥）；sawEvent=false = 空事件流的默认连接
+			// 补丁（上方握手补齐），必须落穿到下方 teardown 完成旧行为
+			// （握手+挥手空连接 = 7 包）。
+			if sawEvent {
+				for _, p := range connOrder {
+					c := conns[p]
+					clientSeq, serverSeq = c.clientSeq, c.serverSeq
+					if err := teardown(p.src); err != nil {
+						return err
+					}
 				}
+				return nil
 			}
-			return nil
 		}
-		if err := teardown(curSrcPort); err != nil {
+		if err := teardown(curKey.src); err != nil {
 			return err
 		}
 	}

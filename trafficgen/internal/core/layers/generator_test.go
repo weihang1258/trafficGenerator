@@ -1019,3 +1019,37 @@ func TestUDPGenerator_ResolveCfgRejectsUnconvertiblePort(t *testing.T) {
 		t.Fatal("Generate() = nil err, want reject unconvertible dst_port")
 	}
 }
+
+// ---- 波 6 回归：concurrent 模式空事件流仍要挥手 ----
+// connKey 泛化（CloseConn 支持）引入的边界：并发分支在 connOrder 为空时直接
+// return nil，但空事件流（终结层未发任何事件就关闭）先前由默认连接补丁握手
+// 并在流末挥手——旧行为 7 包（3 握手 + 4 挥手）。泛化后必须区分"connOrder 空
+// 因为从未有事件"（要挥手）与"connOrder 空因为 CloseConn 全拆"（不挥手）。
+func TestTCPGenerator_ConcurrentEmptyEventStreamStillTearsDown(t *testing.T) {
+	g := &TCPGenerator{}
+	events := make(chan MessageEvent)
+	close(events) // 空事件流：通道立关，终结层没有事件
+	req := &GenRequest{
+		Layer: Layer{Name: "tcp", Config: map[string]interface{}{
+			"src_port": uint16(12345), "dst_port": uint16(80),
+			"handshake": true, "termination": true,
+			"mss": uint16(1460), "window_size": uint16(65535),
+			"concurrent": true,
+		}},
+		Sess: &SessionState{},
+		Meta: FlowMeta{FlowID: "f1", Events: events},
+	}
+	var out []core.PacketConfig
+	req.Emit = emitCollector(&out)
+	if err := g.Generate(context.Background(), req); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if len(out) != 7 {
+		t.Fatalf("concurrent empty-event-stream = %d packets, want 7 (3 handshake + 4 teardown)", len(out))
+	}
+	// 收尾：FIN|ACK(down) 后随 ACK(up)。
+	last := out[len(out)-1]
+	if last.Direction != "up" || last.L4.Flags != FlagACK {
+		t.Errorf("final packet = dir %q flags %x, want up/0x10 (closing ACK)", last.Direction, last.L4.Flags)
+	}
+}

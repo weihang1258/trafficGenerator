@@ -483,6 +483,12 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// getwork 依赖 http 层，目的端口 8332 由 FieldContract（tcp.dst_port）
 		// 补齐，不在此默认化。
+	case "cwmp":
+		if sub, ok := cfg["cwmp"].(map[string]interface{}); ok {
+			parseSubconfigJSON[*CWMPConfig](&spec, sub, "cwmp", &spec.CWMP)
+		}
+		// cwmp 依赖 http 层，目的端口 7547 由 FieldContract（tcp.dst_port）
+		// 补齐，不在此默认化。
 	case "stratum":
 		if sub, ok := cfg["stratum"].(map[string]interface{}); ok {
 			parseSubconfigJSON[*StratumConfig](&spec, sub, "stratum", &spec.Stratum)

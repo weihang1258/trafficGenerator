@@ -140,6 +140,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// 终结层生成器（每事件一笔事务一侧的完整 HTTP 帧字节；http 层透传
 		// 转发）。
 		GetWork: spec.GetWork,
+		// CWMP 同款（B6）：sessions[] 配置经 Meta 直传 cwmp 终结层生成器
+		// （每事件一笔事务一侧的完整 HTTP 帧字节；http 层透传转发；flows[]
+		// 流关联副连接在生成器内锚点发射）。
+		CWMP: spec.CWMP,
 		// Stratum 同款（B6）：sessions[]/events[] 配置经 Meta 直传 stratum
 		// 终结层生成器（每事件一条行/一对请求响应行；[tcp→stratum] 直连，
 		// 无 http 层）。

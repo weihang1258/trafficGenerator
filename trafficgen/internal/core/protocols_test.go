@@ -44,6 +44,8 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"ethmining",
 		// 69-nmea：layer/planner 注册后准入（占位用例同步替换为 80 语义用例）。
 		"nmea",
+		// 64-cwmp：layer/planner 注册后准入（占位用例同步替换为 150 语义用例）。
+		"cwmp",
 	}
 	sort.Strings(want)
 
@@ -70,7 +72,7 @@ func TestAllowedProtocolsStable(t *testing.T) {
 // flipping its "should be rejected" case to a false pass.
 func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 	negativeOnly := []string{
-		"bacnet", "cwmp", "dcerpc", "doh", "dtls", "edp",
+		"bacnet", "dcerpc", "doh", "dtls", "edp",
 		"hl7",
 		"kerberos", "megaco", "mmse", "ntlm", "ocsp",
 		"onvif", "spnego", "sstp",

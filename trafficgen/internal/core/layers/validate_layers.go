@@ -63,6 +63,11 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 	// 会静默生成 schema 默认的包。补全必须在 factory 内完成（链要驱动生成），
 	// 不能留到 Plan（completedChain 的 p.chain 分支无法识别豁免条件）。
 	r := DefaultRegistry()
+	// CWMP 载体检查：cwmp 终结层事件是完整 HTTP 帧（透传变换器），链上
+	// 必须有 http 层（设计 §2：[tcp, http, cwmp]，tcp→cwmp 直连拒绝）。
+	if hasLayer(chain, "cwmp") && !hasLayer(chain, "http") {
+		return nil, fmt.Errorf("cwmp: terminal layer requires the http carrier layer ([tcp, http, cwmp]; tcp→cwmp direct chain rejected)")
+	}
 	completed, err := r.CompleteChain(chain)
 	if err != nil {
 		exempt := len(chain) == 1 && outerCategory(r, chain[0]) != CategoryTunnel

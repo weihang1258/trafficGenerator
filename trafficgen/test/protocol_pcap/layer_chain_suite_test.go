@@ -41,9 +41,11 @@ import (
 	"github.com/trafficgen/trafficgen/internal/replay"
 
 	// 层生成器 init 注册（覆盖离线套件执行的 chain 用例协议集）。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/cwmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcpv6"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nmea"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
@@ -58,7 +60,7 @@ import (
 // this set is skipped with a log line instead of failing: the MCP suite
 // still owns it, and the blank imports above only link these generators.
 var chainSuiteProtos = map[string]bool{
-	"dhcp": true, "dhcpv6": true, "dns": true, "mdns": true,
+	"cwmp": true, "dhcp": true, "dhcpv6": true, "dns": true, "mdns": true,
 	"nmea": true, "ntp": true, "snmp": true, "ssdp": true,
 	"syslog": true, "tcp": true,
 }

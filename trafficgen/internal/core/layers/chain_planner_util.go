@@ -142,6 +142,15 @@ func isDHCPv6Chain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "dhcpv6"
 }
 
+// isCWMPChainWithFlows reports whether the chain's terminal layer is cwmp
+// (flows[] side connections insert independent four-tuples mid-stream — side
+// GET/PUT + CloseConn teardown — so the tcp layer must run
+// concurrent=true; the sequential 挥旧握新 semantic would tangle side and
+// main connections. See applySpecToChain tcp 分支, 设计 §5 流关联).
+func isCWMPChainWithFlows(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "cwmp"
+}
+
 // transportProtocol resolves the IP protocol number from the chain's
 // transport layer (tcp=6 / udp=17)。独立 transport flow（[ip→udp]，传输层即
 // 末层）看末层；终结层链（[ip→tcp→http]）看倒数第二层。raw-IP 终结层

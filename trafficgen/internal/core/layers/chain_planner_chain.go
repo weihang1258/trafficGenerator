@@ -363,6 +363,21 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 				cfg["termination"] = false
 				cfg["concurrent"] = true
 			}
+			// cwmp 链强制并发会话语义（isMMSChain 同款）：两种触发——
+			// (a) spec.CWMP.Flows 存在：flows[] 副连接在主会话事件流中途插入
+			// 独立四元组（副连接 GET/PUT + CloseConn 挥手），顺序挥旧握新语义
+			// 会把副连接与主会话搅成同一连接状态；per-connKey 并发恢复才是
+			// 正确语义（设计 §5 流关联）。(b) spec.CWMP.Concurrent：生成器按
+			// 事务索引 round-robin 交织多会话事件（用例 #96 cwmp_concurrent_
+			// sessions），tcp 层若仍是顺序挥旧握新，每次交织切换都 teardown+
+			// 重握手（事件数 ×7 包风暴，双会话 4 事件实测 64 包而非 22）。
+			// 这里的竞争是同一 chain planner 内的串行事件流（生成器侧
+			// round-robin 交织由 cwmp layer_gen 发射顺序决定，tcp 层按 key
+			// 恢复 seq——非并发锁竞争），concurrent=true 仅切换连接状态索引方式。
+			if isCWMPChainWithFlows(chain) && spec.CWMP != nil &&
+				(len(spec.CWMP.Flows) > 0 || spec.CWMP.Concurrent) {
+				cfg["concurrent"] = true
+			}
 			if t := spec.TCP; t != nil {
 				// http 链强制 legacy http 语义（review LOW-3 修复）：legacy
 				// http.go 只读 spec.TCP 的 MSS/InitialSeq（http.go:126-151），

@@ -434,6 +434,15 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "8332"},
 	})
+	// cwmp（TR-069 CPE WAN Management Protocol，64-cwmp v2.2.2）：终结层
+	// 事件已含完整 HTTP 帧（SOAP 1.1 envelope、HTTP 头序、digest 认证），
+	// http 层以透传变换器转发（identity transformer）。全部协议配置经
+	// spec.CWMP（顶层 "cwmp" 子映射）注入，层 config 恒空；7547 端口经
+	// FieldContract 供通用应用补齐。
+	r.Register(LayerSchema{Name: "cwmp", Category: CategoryTerminal,
+		DependsOn:     []string{"http"},
+		FieldContract: map[string]string{"tcp.dst_port": "7547"},
+	})
 	// stratum（比特币 Stratum v1）：终结层事件为行式 JSON（LF 边界、紧凑
 	// 形态），[tcp→stratum] 直连（ip 层由依赖补全自动插入）。协议配置经
 	// spec.Stratum（顶层 "stratum" 子映射）注入，层 config 恒空；3333 端口
