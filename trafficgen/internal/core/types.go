@@ -1737,6 +1737,7 @@ type FlowSpec struct {
 	NMEA      *NMEAConfig      `json:"nmea,omitempty"`
 	CWMP      *CWMPConfig      `json:"cwmp,omitempty"`
 	DOH       *DOHConfig       `json:"doh,omitempty"`
+	ONVIF     *ONVIFConfig     `json:"onvif,omitempty"`
 
 	// Common configuration
 	Payload  []byte `json:"payload,omitempty"`

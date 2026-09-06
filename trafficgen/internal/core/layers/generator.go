@@ -487,6 +487,10 @@ type FlowMeta struct {
 	// 66-doh v2.2.1：DNS over HTTPS / RFC 8484；每事件一笔查询事务的完整
 	// HTTP 请求/响应帧对（POST body / GET base64url），http 层透传转发）。
 	DOH *core.DOHConfig
+	// ONVIF is the flow's onvif config （注入到 onvif 终结层生成器，
+	// 67-onvif v2.1.1：ONVIF Core Spec Ver. 26.06 四服务 SOAP 1.2 over HTTP；
+	// 每事件一笔 SOAP 请求/响应帧对，http 层透传转发）。
+	ONVIF *core.ONVIFConfig
 	// TCPState is the flow's TCP retransmission state machine (T3.3：tcp 层
 	// config retransmit=true 时由 TCPGenerator 构建并驱动——SendSegment/
 	// OnACK/OnDupACK/OnRTO 随正常数据段/ACK 发射同步喂数)。nil = 关闭

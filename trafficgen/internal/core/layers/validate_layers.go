@@ -74,6 +74,12 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 	if hasLayer(chain, "doh") && !hasLayer(chain, "http") {
 		return nil, fmt.Errorf("doh: terminal layer requires the http carrier layer ([tcp, http, doh]; tcp→doh direct chain rejected, carrier missing)")
 	}
+	// ONVIF 载体检查（67-onvif v2.1.1 设计 §2）：onvif 终结层事件是完整
+	// HTTP 帧（SOAP 1.2 透传变换器），链上必须有 http 层（[tcp, http, onvif]，
+	// tcp→onvif 直连拒绝）。
+	if hasLayer(chain, "onvif") && !hasLayer(chain, "http") {
+		return nil, fmt.Errorf("onvif: terminal layer requires the http carrier layer ([tcp, http, onvif]; tcp→onvif direct chain rejected, carrier missing)")
+	}
 	completed, err := r.CompleteChain(chain)
 	if err != nil {
 		exempt := len(chain) == 1 && outerCategory(r, chain[0]) != CategoryTunnel

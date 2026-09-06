@@ -493,6 +493,14 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"http"},
 		FieldContract: map[string]string{"tcp.dst_port": "80"},
 	})
+	// onvif（ONVIF Core Spec Ver. 26.06，67-onvif v2.1.1）：终结层事件已含
+	// 完整 HTTP 帧（SOAP 1.2 POST + 2xx/4xx/5xx 响应），http 层以透传变换
+	// 器转发。全部协议配置经 spec.ONVIF（顶层 "onvif" 子映射）注入，层 config
+	// 恒空；目的端口 80 由 FieldContract 补齐（非默认端口由用户显式覆盖）。
+	r.Register(LayerSchema{Name: "onvif", Category: CategoryTerminal,
+		DependsOn:     []string{"http"},
+		FieldContract: map[string]string{"tcp.dst_port": "80"},
+	})
 	r.Register(LayerSchema{Name: "opcua", Category: CategoryTerminal, DependsOn: []string{"tcp"}, Fields: map[string]FieldSchema{
 		"security_mode":    {Type: "string", Default: "none"},
 		"read":             {Type: "list", Default: []interface{}{}},

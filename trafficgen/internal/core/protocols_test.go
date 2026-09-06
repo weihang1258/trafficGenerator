@@ -46,6 +46,8 @@ func TestAllowedProtocolsStable(t *testing.T) {
 		"nmea",
 		// 66-doh：layer/planner 注册后准入（占位用例同步替换为 110 语义用例）。
 		"doh",
+		// 67-onvif：layer/planner 注册后准入（占位用例同步替换为 95 语义用例）。
+		"onvif",
 		// 64-cwmp：layer/planner 注册后准入（占位用例同步替换为 150 语义用例）。
 		"cwmp",
 	}
@@ -77,7 +79,7 @@ func TestNegativeOnlyPlaceholdersRejected(t *testing.T) {
 		"bacnet", "dcerpc", "dtls", "edp",
 		"hl7",
 		"kerberos", "megaco", "mmse", "ntlm", "ocsp",
-		"onvif", "spnego", "sstp",
+		"spnego", "sstp",
 		"xmrmining",
 	}
 	for _, name := range negativeOnly {
