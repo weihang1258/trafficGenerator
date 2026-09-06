@@ -1,28 +1,7957 @@
 [
-  {
-    "id": "onvif_neg_unregistered",
-    "proto": "onvif",
-    "summary": "ONVIF layer is not registered yet; reject at layer validation",
-    "spec_json": {
-      "layers": [
-        {
-          "tcp": {}
-        },
-        {
-          "http": {}
-        },
-        {
-          "onvif": {}
-        }
-      ],
-      "src_ip": "192.0.2.67",
-      "dst_ip": "198.51.100.67",
-      "src_port": 4067,
-      "dst_port": 80
+ {
+  "id": "onvif_ipv4_get_system_date_and_time",
+  "proto": "onvif",
+  "summary": "POST/IPv4 plaintext single-flow baseline (PRE_AUTH, envelope/headers full)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unknown layer"
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
     }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200,
+         "system_date_and_time": {
+          "utc_date_time": "2026-09-01T00:00:00Z"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/onvif/device_service"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 3F 78 6D 6C",
+     "offset": 205
+    },
+    {
+     "packet": 4,
+     "hex": "3C 73 3A 45 6E 76 65 6C 6F 70 65",
+     "offset": 243
+    },
+    {
+     "packet": 4,
+     "hex": "3C 74 64 73 3A 47 65 74 53 79 73 74 65 6D 44 61 74 65 41 6E 64 54 69 6D 65",
+     "offset": 591
+    }
+   ]
   }
+ },
+ {
+  "id": "onvif_device_get_capabilities",
+  "proto": "onvif",
+  "summary": "GetCapabilities: Category=All + Capabilities/XAddr",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetCapabilities",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "category": [
+          "All"
+         ]
+        },
+        "response": {
+         "http_status": 200,
+         "capabilities": {
+          "entries": [
+           {
+            "service": "Media",
+            "x_addr": "http://198.51.100.67/onvif/media_service"
+           },
+           {
+            "service": "Events",
+            "x_addr": "http://198.51.100.67/onvif/event_service"
+           },
+           {
+            "service": "PTZ",
+            "x_addr": "http://198.51.100.67/onvif/ptz_service"
+           }
+          ]
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/onvif/device_service"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 74 64 73 3A 47 65 74 43 61 70 61 62 69 6C 69 74 69 65 73",
+     "offset": 586
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_device_get_device_information",
+  "proto": "onvif",
+  "summary": "GetDeviceInformation: 5 mandatory fields + UsernameToken",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "auth": {
+         "username": "admin",
+         "password": "test123"
+        },
+        "response": {
+         "http_status": 200,
+         "manufacturer": "Example",
+         "model": "IPC-67",
+         "firmware_version": "1.0.0",
+         "serial_number": "SN0000067",
+         "hardware_id": "HW-67"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 55 73 65 72 6E 61 6D 65 54 6F 6B 65 6E",
+     "offset": 673
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_device_get_network_interfaces",
+  "proto": "onvif",
+  "summary": "GetNetworkInterfaces: tds:NetworkInterfaces (token attr) + tt:Enabled",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetNetworkInterfaces",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "auth": {
+         "username": "admin",
+         "password": "test123"
+        },
+        "response": {
+         "http_status": 200,
+         "network_interfaces": [
+          {
+           "token": "nic_1",
+           "enabled": true
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "3C 74 64 73 3A 4E 65 74 77 6F 72 6B 49 6E 74 65 72 66 61 63 65 73",
+     "offset": 669
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_network_interfaces_multi",
+  "proto": "onvif",
+  "summary": "NetworkInterfaces 1..n: dual interfaces tokens distinct",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetNetworkInterfaces",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "auth": {
+         "username": "admin",
+         "password": "test123"
+        },
+        "response": {
+         "http_status": 200,
+         "network_interfaces": [
+          {
+           "token": "nic_1",
+           "enabled": true
+          },
+          {
+           "token": "nic_2",
+           "enabled": true
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "6E 69 63 5F 31",
+     "offset": 744
+    },
+    {
+     "packet": 5,
+     "hex": "6E 69 63 5F 32",
+     "offset": 879
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_ws_security_usernametoken",
+  "proto": "onvif",
+  "summary": "UsernameToken: secext ns/4 elements/nonce+created",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "auth": {
+         "username": "admin",
+         "password": "test123"
+        },
+        "response": {
+         "http_status": 200,
+         "manufacturer": "X"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 55 73 65 72 6E 61 6D 65 54 6F 6B 65 6E",
+     "offset": 673
+    },
+    {
+     "packet": 4,
+     "hex": "3C 4E 6F 6E 63 65",
+     "offset": 868
+    },
+    {
+     "packet": 4,
+     "hex": "3C 43 72 65 61 74 65 64",
+     "offset": 1017
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_usernametoken_created_namespace",
+  "proto": "onvif",
+  "summary": "Created utility ns URI explicit",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "auth": {
+         "username": "admin",
+         "password": "test123"
+        },
+        "response": {
+         "http_status": 200,
+         "manufacturer": "X"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "77 73 73 65 63 75 72 69 74 79 2D 75 74 69 6C 69 74 79 2D 31 2E 30 2E 78 73 64",
+     "offset": 1089
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_soap12_envelope_structure",
+  "proto": "onvif",
+  "summary": "envelope encoding rules full family",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 73 3A 45 6E 76 65 6C 6F 70 65 20 78 6D 6C 6E 73 3A 73 3D 22 68 74 74 70 3A 2F 2F 77 77 77 2E 77 33 2E 6F 72 67 2F 32 30 30 33 2F 30 35 2F 73 6F 61 70 2D 65 6E 76 65 6C 6F 70 65 22",
+     "offset": 243
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_soap12_prefix_variant",
+  "proto": "onvif",
+  "summary": "envelope namespace URI persisted (prefix is implementation-defined)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "77 77 77 2E 77 33 2E 6F 72 67 2F 32 30 30 33 2F 30 35 2F 73 6F 61 70 2D 65 6E 76 65 6C 6F 70 65",
+     "offset": 271
+    },
+    {
+     "packet": 4,
+     "hex": "3C 74 64 73 3A 47 65 74 53 79 73 74 65 6D 44 61 74 65 41 6E 64 54 69 6D 65",
+     "offset": 591
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_ws_addressing_correlation",
+  "proto": "onvif",
+  "summary": "wsa:Action/MessageID/RelatesTo per-pair",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 77 73 61 3A 41 63 74 69 6F 6E",
+     "offset": 315
+    },
+    {
+     "packet": 4,
+     "hex": "3C 77 73 61 3A 4D 65 73 73 61 67 65 49 44",
+     "offset": 448
+    },
+    {
+     "packet": 5,
+     "hex": "3C 77 73 61 3A 52 65 6C 61 74 65 73 54 6F",
+     "offset": 441
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_http_401_digest_challenge",
+  "proto": "onvif",
+  "summary": "401 challenge \u2192 with creds retry \u2192 200 (2 transactions)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 401,
+         "www_authenticate": "Digest realm=\"onvif@device\", nonce=\"abc123\", qop=\"auth\", algorithm=MD5, opaque=\"opaque0000067\""
+        }
+       },
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+        "auth": {
+         "username": "admin",
+         "password": "test123"
+        },
+        "response": {
+         "http_status": 200,
+         "manufacturer": "Example",
+         "model": "IPC-67",
+         "firmware_version": "1.0.0",
+         "serial_number": "SN0000067",
+         "hardware_id": "HW-67"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 11,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 6,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "401"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "0"
+    },
+    {
+     "packet": 5,
+     "field": "http.www_authenticate",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "401"
+    },
+    {
+     "packet": 7,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 7,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 7,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "44 69 67 65 73 74",
+     "offset": 118
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_http_400_malformed_no_body",
+  "proto": "onvif",
+  "summary": "Table 5 400 Malformed: no envelope",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 400
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "400"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "0"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_http_405_method_not_allowed",
+  "proto": "onvif",
+  "summary": "Table 5 405: method not POST/GET",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "method": "PUT",
+        "response": {
+         "http_status": 405
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "PUT"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "405"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "50 55 54",
+     "offset": 54
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_http_415_unsupported_media",
+  "proto": "onvif",
+  "summary": "Table 5 415: unsupported media type",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "content_type": "text/xml",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 415
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "text/xml"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "415"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "value": "0"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_http_host_explicit",
+  "proto": "onvif",
+  "summary": "Host explicit domain",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "http": {
+         "request_headers": {
+          "Host": "onvif.example.com"
+         }
+        },
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "onvif.example.com"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_single_transaction_connection_close",
+  "proto": "onvif",
+  "summary": "Single transaction: Connection close (D-12)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.connection",
+     "value": "close"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_port_nondefault",
+  "proto": "onvif",
+  "summary": "Non-default port 8080",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 8080,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "tcp.dstport",
+     "value": "8080"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_http_keepalive_multi_transaction",
+  "proto": "onvif",
+  "summary": "Multi-transaction keep-alive (3 txs on one stream)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200
+        }
+       },
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetCapabilities",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+        "response": {
+         "http_status": 200,
+         "capabilities": {
+          "entries": [
+           {
+            "service": "Media",
+            "x_addr": "http://198.51.100.67/onvif/media_service"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetProfiles",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000003",
+        "response": {
+         "http_status": 200,
+         "profiles": [
+          {
+           "token": "profile_1",
+           "name": "mainStream"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 13,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.connection",
+     "value": "keep-alive"
+    },
+    {
+     "packet": 6,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 6,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 6,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 6,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 6,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 6,
+     "field": "http.connection",
+     "value": "keep-alive"
+    },
+    {
+     "packet": 8,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 8,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 8,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 8,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 8,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 8,
+     "field": "http.connection",
+     "value": "close"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 7,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 7,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 7,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 9,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 9,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 9,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_media_get_profiles",
+  "proto": "onvif",
+  "summary": "GetProfiles: trt:Profiles (token attr) + tt:VideoEncoder",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetProfiles",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200,
+         "profiles": [
+          {
+           "token": "profile_1",
+           "name": "mainStream",
+           "video_encoder": {
+            "encoding": "H264",
+            "width": 1920,
+            "height": 1080,
+            "fps": 25
+           }
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/onvif/media_service"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "3C 74 72 74 3A 50 72 6F 66 69 6C 65 73",
+     "offset": 649
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_media_get_profiles_multi",
+  "proto": "onvif",
+  "summary": "GetProfiles 0..n: dual Profiles tokens distinct",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetProfiles",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200,
+         "profiles": [
+          {
+           "token": "profile_1",
+           "name": "mainStream"
+          },
+          {
+           "token": "profile_2",
+           "name": "subStream"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/onvif/media_service"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "70 72 6F 66 69 6C 65 5F 31",
+     "offset": 715
+    },
+    {
+     "packet": 5,
+     "hex": "70 72 6F 66 69 6C 65 5F 32",
+     "offset": 836
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_media_get_stream_uri",
+  "proto": "onvif",
+  "summary": "GetStreamUri: StreamSetup+ProfileToken (transactional)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetProfiles",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200,
+         "profiles": [
+          {
+           "token": "profile_1",
+           "name": "mainStream"
+          }
+         ]
+        }
+       },
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetStreamUri",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+        "parameters": {
+         "stream_setup": {
+          "stream": "RTP-Unicast",
+          "protocol": "RTSP"
+         },
+         "profile_token": "same_as_response:0.profiles[0].token"
+        },
+        "response": {
+         "http_status": 200,
+         "media_uri": "rtsp://198.51.100.67:554/profile_1/stream1"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 11,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 6,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 6,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 6,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 6,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 6,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 7,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 7,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 7,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "hex": "52 54 50 2D 55 6E 69 63 61 73 74",
+     "offset": 767
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_media_get_snapshot_uri",
+  "proto": "onvif",
+  "summary": "GetSnapshotUri: ProfileToken \u2192 http MediaUri",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetSnapshotUri",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "profile_token": "profile_1"
+        },
+        "response": {
+         "http_status": 200,
+         "media_uri": "http://198.51.100.67/onvif/snapshot/profile_1"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_ptz_continuous_move",
+  "proto": "onvif",
+  "summary": "ContinuousMove: ProfileToken + Velocity (tt:PTZSpeed)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "ptz",
+        "operation": "ContinuousMove",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "profile_token": "profile_1",
+         "velocity": {
+          "x": "0.1",
+          "y": "0.2"
+         }
+        },
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/onvif/ptz_service"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 74 70 74 7A 3A 43 6F 6E 74 69 6E 75 6F 75 73 4D 6F 76 65",
+     "offset": 579
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_ptz_continuous_move_timeout",
+  "proto": "onvif",
+  "summary": "ContinuousMove with Timeout (xs:duration)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "ptz",
+        "operation": "ContinuousMove",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "profile_token": "profile_1",
+         "timeout": "PT10S"
+        },
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 74 70 74 7A 3A 54 69 6D 65 6F 75 74",
+     "offset": 742
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_ptz_move_stop_sequence",
+  "proto": "onvif",
+  "summary": "PTZ Move\u2192Stop: 2 transactions, MessageID distinct",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "ptz",
+        "operation": "ContinuousMove",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "profile_token": "profile_1"
+        },
+        "response": {
+         "http_status": 200
+        }
+       },
+       {
+        "kind": "request",
+        "service": "ptz",
+        "operation": "Stop",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+        "parameters": {
+         "profile_token": "profile_1"
+        },
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 11,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 6,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 6,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 6,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 6,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 6,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 7,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 7,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 7,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 77 73 61 3A 4D 65 73 73 61 67 65 49 44",
+     "offset": 441
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_ptz_stop_no_flags",
+  "proto": "onvif",
+  "summary": "Stop: PanTilt/Zoom omitted (legal optional)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "ptz",
+        "operation": "Stop",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "profile_token": "profile_1"
+        },
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 74 70 74 7A 3A 53 74 6F 70",
+     "offset": 569
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_ptz_stop_flags",
+  "proto": "onvif",
+  "summary": "Stop with PanTilt+Zoom full form",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "ptz",
+        "operation": "Stop",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "profile_token": "profile_1",
+         "pan_tilt": true,
+         "zoom": true
+        },
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 74 70 74 7A 3A 50 61 6E 54 69 6C 74",
+     "offset": 722
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_events_create_pullpoint_subscription",
+  "proto": "onvif",
+  "summary": "CreatePullPointSubscription: PT1M + SubscriptionReference",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "CreatePullPointSubscription",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "initial_termination_time": "PT1M"
+        },
+        "response": {
+         "http_status": 200,
+         "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0",
+         "current_time": "2026-09-01T00:00:00Z",
+         "termination_time": "2026-09-01T00:01:00Z"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.request.uri",
+     "value": "/onvif/event_service"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 74 65 76 3A 43 72 65 61 74 65 50 75 6C 6C 50 6F 69 6E 74 53 75 62 73 63 72 69 70 74 69 6F 6E",
+     "offset": 618
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_events_create_with_filter",
+  "proto": "onvif",
+  "summary": "Create with Filter (wsnt:TopicExpression)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "CreatePullPointSubscription",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "initial_termination_time": "PT1M",
+         "filter": "tns1:Device/Trigger/DigitalInput"
+        },
+        "response": {
+         "http_status": 200,
+         "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 74 65 76 3A 46 69 6C 74 65 72",
+     "offset": 747
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_events_create_absolute_termination",
+  "proto": "onvif",
+  "summary": "Create with absolute dateTime TerminationTime",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "CreatePullPointSubscription",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "initial_termination_time": "2026-09-02T00:00:00Z"
+        },
+        "response": {
+         "http_status": 200,
+         "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_events_create_to_pull_correlation",
+  "proto": "onvif",
+  "summary": "Create\u2192Pull correlation (wsa:To \u2190 same_as_response)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "CreatePullPointSubscription",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "initial_termination_time": "PT1M"
+        },
+        "response": {
+         "http_status": 200,
+         "subscription_reference": "http://198.51.100.67/onvif/subscription?Idx=0",
+         "current_time": "2026-09-01T00:00:00Z",
+         "termination_time": "2026-09-01T00:01:00Z"
+        }
+       },
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+        "parameters": {
+         "timeout": "PT5S",
+         "message_limit": 2
+        },
+        "to": "same_as_response:0.subscription_reference",
+        "response": {
+         "http_status": 200,
+         "current_time": "2026-09-01T00:00:00Z",
+         "termination_time": "2026-09-01T00:01:00Z"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 11,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 6,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 6,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 6,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 6,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 6,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 7,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 7,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 7,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "hex": "73 75 62 73 63 72 69 70 74 69 6F 6E",
+     "offset": 676
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_events_pull_messages",
+  "proto": "onvif",
+  "summary": "PullMessages: Timeout/MessageLimit + NotificationMessage",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+        "parameters": {
+         "timeout": "PT5S",
+         "message_limit": 2
+        },
+        "response": {
+         "http_status": 200,
+         "current_time": "2026-09-01T00:00:00Z",
+         "termination_time": "2026-09-01T00:01:00Z",
+         "notification_messages": [
+          {
+           "topic": "tns1:Device/Trigger/DigitalInput",
+           "dialect": "http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet",
+           "name": "LogicalState",
+           "value": "true"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 74 65 76 3A 50 75 6C 6C 4D 65 73 73 61 67 65 73",
+     "offset": 722
+    },
+    {
+     "packet": 5,
+     "hex": "3C 77 73 6E 74 3A 4E 6F 74 69 66 69 63 61 74 69 6F 6E 4D 65 73 73 61 67 65",
+     "offset": 794
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_events_pull_messages_timeout_zero",
+  "proto": "onvif",
+  "summary": "PullMessages timeout zero messages (legal)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+        "parameters": {
+         "timeout": "PT5S",
+         "message_limit": 2
+        },
+        "response": {
+         "http_status": 200,
+         "current_time": "2026-09-01T00:00:00Z",
+         "termination_time": "2026-09-01T00:01:00Z"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_events_pull_messages_limit_1",
+  "proto": "onvif",
+  "summary": "PullMessages MessageLimit=1 lower bound",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+        "parameters": {
+         "timeout": "PT5S",
+         "message_limit": 1
+        },
+        "response": {
+         "http_status": 200,
+         "current_time": "2026-09-01T00:00:00Z",
+         "termination_time": "2026-09-01T00:01:00Z"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_events_pull_messages_limit_int_max",
+  "proto": "onvif",
+  "summary": "PullMessages MessageLimit=2147483647 (xs:int max)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+        "parameters": {
+         "timeout": "PT5S",
+         "message_limit": 2147483647
+        },
+        "response": {
+         "http_status": 200,
+         "current_time": "2026-09-01T00:00:00Z",
+         "termination_time": "2026-09-01T00:01:00Z"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "32 31 34 37 34 38 33 36 34 37",
+     "offset": 885
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_events_pull_timeout_pt0s",
+  "proto": "onvif",
+  "summary": "PullMessages Timeout=PT0S (duration zero)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+        "parameters": {
+         "timeout": "PT0S",
+         "message_limit": 2
+        },
+        "response": {
+         "http_status": 200,
+         "current_time": "2026-09-01T00:00:00Z",
+         "termination_time": "2026-09-01T00:01:00Z"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_fault_400_auth",
+  "proto": "onvif",
+  "summary": "Auth Fault: HTTP 400 + env:Sender/ter:NotAuthorized",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 400,
+         "fault": {
+          "value": "env:Sender",
+          "subcode": "ter:NotAuthorized",
+          "reason": "Sender not Authorized"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "400"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "3C 73 3A 46 61 75 6C 74",
+     "offset": 573
+    },
+    {
+     "packet": 5,
+     "hex": "65 6E 76 3A 53 65 6E 64 65 72",
+     "offset": 599
+    },
+    {
+     "packet": 5,
+     "hex": "74 65 72 3A 4E 6F 74 41 75 74 68 6F 72 69 7A 65 64",
+     "offset": 639
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_fault_500_no_such_service",
+  "proto": "onvif",
+  "summary": "500 Fault: env:Receiver/ter:ActionNotSupported + nested ter:NoSuchService",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetCapabilities",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "category": [
+          "Analytics"
+         ]
+        },
+        "response": {
+         "http_status": 500,
+         "fault": {
+          "value": "env:Receiver",
+          "subcode": "ter:ActionNotSupported",
+          "nested_subcode": "ter:NoSuchService",
+          "reason": "No such service"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "500"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "65 6E 76 3A 52 65 63 65 69 76 65 72",
+     "offset": 609
+    },
+    {
+     "packet": 5,
+     "hex": "74 65 72 3A 4E 6F 53 75 63 68 53 65 72 76 69 63 65",
+     "offset": 703
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_fault_full_form",
+  "proto": "onvif",
+  "summary": "Fault full form: Node/Role/Detail",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 400,
+         "fault": {
+          "value": "env:Sender",
+          "subcode": "ter:NotAuthorized",
+          "reason": "Sender not Authorized",
+          "node": "https://onvif.example/wsdl",
+          "role": "https://onvif.example/role",
+          "detail": "Token missing"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "400"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "3C 73 3A 4E 6F 64 65",
+     "offset": 760
+    },
+    {
+     "packet": 5,
+     "hex": "3C 73 3A 52 6F 6C 65",
+     "offset": 803
+    },
+    {
+     "packet": 5,
+     "hex": "3C 73 3A 44 65 74 61 69 6C",
+     "offset": 846
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_capabilities_category_device",
+  "proto": "onvif",
+  "summary": "CapabilityCategory=Device",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetCapabilities",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "category": [
+          "Device"
+         ]
+        },
+        "response": {
+         "http_status": 200,
+         "capabilities": {
+          "entries": [
+           {
+            "service": "Device",
+            "x_addr": "http://198.51.100.67/onvif/device_service"
+           }
+          ]
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_capabilities_category_events",
+  "proto": "onvif",
+  "summary": "CapabilityCategory=Events",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetCapabilities",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "category": [
+          "Events"
+         ]
+        },
+        "response": {
+         "http_status": 200,
+         "capabilities": {
+          "entries": [
+           {
+            "service": "Events",
+            "x_addr": "http://198.51.100.67/onvif/event_service"
+           }
+          ]
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_capabilities_category_imaging",
+  "proto": "onvif",
+  "summary": "CapabilityCategory=Imaging",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetCapabilities",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "category": [
+          "Imaging"
+         ]
+        },
+        "response": {
+         "http_status": 200,
+         "capabilities": {
+          "entries": [
+           {
+            "service": "Imaging",
+            "x_addr": "http://198.51.100.67/onvif/imaging"
+           }
+          ]
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_capabilities_category_media",
+  "proto": "onvif",
+  "summary": "CapabilityCategory=Media",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetCapabilities",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "category": [
+          "Media"
+         ]
+        },
+        "response": {
+         "http_status": 200,
+         "capabilities": {
+          "entries": [
+           {
+            "service": "Media",
+            "x_addr": "http://198.51.100.67/onvif/media_service"
+           }
+          ]
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_capabilities_category_ptz",
+  "proto": "onvif",
+  "summary": "CapabilityCategory=PTZ",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetCapabilities",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "category": [
+          "PTZ"
+         ]
+        },
+        "response": {
+         "http_status": 200,
+         "capabilities": {
+          "entries": [
+           {
+            "service": "PTZ",
+            "x_addr": "http://198.51.100.67/onvif/ptz_service"
+           }
+          ]
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_capabilities_category_analytics",
+  "proto": "onvif",
+  "summary": "CapabilityCategory=Analytics (200 path)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetCapabilities",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "category": [
+          "Analytics"
+         ]
+        },
+        "response": {
+         "http_status": 200,
+         "capabilities": {
+          "entries": [
+           {
+            "service": "Analytics",
+            "x_addr": "http://198.51.100.67/onvif/analytics"
+           }
+          ]
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_capabilities_multi_category",
+  "proto": "onvif",
+  "summary": "Category 0..n: dual values",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetCapabilities",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "category": [
+          "Device",
+          "Events"
+         ]
+        },
+        "response": {
+         "http_status": 200,
+         "capabilities": {
+          "entries": [
+           {
+            "service": "Device",
+            "x_addr": "http://198.51.100.67/onvif/device_service"
+           },
+           {
+            "service": "Events",
+            "x_addr": "http://198.51.100.67/onvif/event_service"
+           }
+          ]
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_date_time_daylight_timezone",
+  "proto": "onvif",
+  "summary": "SystemDateAndTime: DaylightSavings=true + TimeZone",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200,
+         "system_date_and_time": {
+          "date_time_type": "NTP",
+          "daylight_savings": true,
+          "time_zone": "CST-8",
+          "utc_date_time": "2026-09-01T00:00:00Z"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "44 61 79 6C 69 67 68 74 53 61 76 69 6E 67 73",
+     "offset": 780
+    },
+    {
+     "packet": 5,
+     "hex": "43 53 54 2D 38",
+     "offset": 841
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_date_time_localtime",
+  "proto": "onvif",
+  "summary": "SystemDateAndTime: LocalDateTime present",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200,
+         "system_date_and_time": {
+          "utc_date_time": "2026-09-01T00:00:00Z",
+          "local_date_time": "2026-09-01T08:00:00Z"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "3C 74 74 3A 4C 6F 63 61 6C 44 61 74 65 54 69 6D 65",
+     "offset": 945
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_date_time_manual",
+  "proto": "onvif",
+  "summary": "DateTimeType=Manual",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200,
+         "system_date_and_time": {
+          "date_time_type": "Manual",
+          "utc_date_time": "2026-09-01T00:00:00Z"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "hex": "4D 61 6E 75 61 6C",
+     "offset": 754
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_token_len_63",
+  "proto": "onvif",
+  "summary": "ProfileToken 63 chars (maxLength-1)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetSnapshotUri",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "profile_token": "tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "response": {
+         "http_status": 200,
+         "media_uri": "http://198.51.100.67/onvif/snapshot/tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_token_len_64",
+  "proto": "onvif",
+  "summary": "ProfileToken 64 chars (maxLength full)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetSnapshotUri",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "profile_token": "tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "response": {
+         "http_status": 200,
+         "media_uri": "http://198.51.100.67/onvif/snapshot/tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_long_message_id",
+  "proto": "onvif",
+  "summary": "Long MessageID: full 36 chars urn:uuid:",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:6fa459ea-ee8a-3ca4-894e-db77e160355e",
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "75 72 6E 3A 75 75 69 64 3A 36 66 61 34 35 39 65 61",
+     "offset": 512
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_ipv6_transport",
+  "proto": "onvif",
+  "summary": "IPv6 transport baseline (offset 74)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "2001:db8::67",
+   "src_port": 40067,
+   "dst_ip": "2001:db8::100:67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "2001:db8::100:67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "ipv6.nxt",
+     "value": "6"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "hex": "3C 73 3A 45 6E 76 65 6C 6F 70 65",
+     "offset": 266
+    }
+   ]
+  }
+ },
+ {
+  "id": "onvif_ipv6_media_get_profiles",
+  "proto": "onvif",
+  "summary": "IPv6 media GetProfiles",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "2001:db8::67",
+   "src_port": 40067,
+   "dst_ip": "2001:db8::100:67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetProfiles",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200,
+         "profiles": [
+          {
+           "token": "profile_1",
+           "name": "mainStream"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 9,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "2001:db8::100:67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "ipv6.nxt",
+     "value": "6"
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_multi_session",
+  "proto": "onvif",
+  "summary": "Multi-session: 2 sessions, MessageID space independent",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "src_port": 40067,
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     },
+     {
+      "src_port": 40068,
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetProfiles",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+        "response": {
+         "http_status": 200,
+         "profiles": [
+          {
+           "token": "profile_1",
+           "name": "mainStream"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 18,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_concurrent_sessions",
+  "proto": "onvif",
+  "summary": "Concurrent sessions: 4-tuples distinct, transactions paired",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "concurrent": true,
+    "sessions": [
+     {
+      "src_port": 40067,
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "response": {
+         "http_status": 200
+        }
+       }
+      ]
+     },
+     {
+      "src_port": 40068,
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetProfiles",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+        "response": {
+         "http_status": 200,
+         "profiles": [
+          {
+           "token": "profile_1",
+           "name": "mainStream"
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 18,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "http.file_data",
+     "nonzero": true
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_mss_large_capabilities",
+  "proto": "onvif",
+  "summary": "MSS large capabilities: response spans segments",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetCapabilities",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "category": [
+          "All"
+         ]
+        },
+        "response": {
+         "http_status": 200,
+         "capabilities": {
+          "entries": [
+           {
+            "service": "Media",
+            "x_addr": "http://198.51.100.67/onvif/media_service"
+           },
+           {
+            "service": "Events",
+            "x_addr": "http://198.51.100.67/onvif/event_service"
+           },
+           {
+            "service": "PTZ",
+            "x_addr": "http://198.51.100.67/onvif/ptz_service"
+           },
+           {
+            "service": "Device",
+            "x_addr": "http://198.51.100.67/onvif/device_service"
+           },
+           {
+            "service": "Analytics",
+            "x_addr": "http://198.51.100.67/onvif/analytics"
+           },
+           {
+            "service": "Imaging",
+            "x_addr": "http://198.51.100.67/onvif/imaging"
+           },
+           {
+            "service": "Recording",
+            "x_addr": "http://198.51.100.67/onvif/recording_service"
+           },
+           {
+            "service": "Search",
+            "x_addr": "http://198.51.100.67/onvif/search_service"
+           },
+           {
+            "service": "Replay",
+            "x_addr": "http://198.51.100.67/onvif/replay_service"
+           },
+           {
+            "service": "Receiver",
+            "x_addr": "http://198.51.100.67/onvif/receiver_service"
+           },
+           {
+            "service": "AnalyticsEngine",
+            "x_addr": "http://198.51.100.67/onvif/analytics_engine"
+           },
+           {
+            "service": "DeviceIO",
+            "x_addr": "http://198.51.100.67/onvif/device_io"
+           }
+          ]
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "has_handshake": true,
+   "terminates": true,
+   "packet_count": 10,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "http.request.method",
+     "value": "POST"
+    },
+    {
+     "packet": 4,
+     "field": "http.host",
+     "value": "198.51.100.67"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_type",
+     "value": "application/soap+xml; charset=utf-8"
+    },
+    {
+     "packet": 4,
+     "field": "http.content_length",
+     "nonzero": true
+    },
+    {
+     "packet": 4,
+     "field": "http.file_data",
+     "nonzero": true
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "nonzero": true
+    },
+    {
+     "packet": 6,
+     "field": "http.response.code",
+     "value": "200"
+    },
+    {
+     "packet": 6,
+     "field": "http.content_length",
+     "value": "1709"
+    }
+   ],
+   "frames": []
+  }
+ },
+ {
+  "id": "onvif_neg_soap_envelope_ns",
+  "proto": "onvif",
+  "summary": "SOAP 1.1 envelope namespace",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "soap_envelope_ns"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "envelope"
+  }
+ },
+ {
+  "id": "onvif_neg_soap_truncated",
+  "proto": "onvif",
+  "summary": "XML truncated",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "soap_truncated"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "xml"
+  }
+ },
+ {
+  "id": "onvif_neg_soap_body_missing",
+  "proto": "onvif",
+  "summary": "s:Body missing",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "soap_body_missing"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "body"
+  }
+ },
+ {
+  "id": "onvif_neg_soap_header_order",
+  "proto": "onvif",
+  "summary": "s:Header after s:Body",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "soap_header_order"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "header"
+  }
+ },
+ {
+  "id": "onvif_neg_content_type",
+  "proto": "onvif",
+  "summary": "Content-Type text/xml",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "content_type"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "content-type"
+  }
+ },
+ {
+  "id": "onvif_neg_charset_missing",
+  "proto": "onvif",
+  "summary": "charset missing",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "charset_missing"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "charset"
+  }
+ },
+ {
+  "id": "onvif_neg_charset_wrong",
+  "proto": "onvif",
+  "summary": "charset wrong (gbk)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "charset_wrong"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "charset"
+  }
+ },
+ {
+  "id": "onvif_neg_action_mismatch",
+  "proto": "onvif",
+  "summary": "Action/operation mismatch",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetProfiles",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "action": "http://www.onvif.org/ver10/device/wsdl/GetCapabilities",
+        "wire_fault": "action_mismatch"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "action"
+  }
+ },
+ {
+  "id": "onvif_neg_action_suffix",
+  "proto": "onvif",
+  "summary": "Action already carries Response suffix",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "action": "http://www.onvif.org/ver10/device/wsdl/GetSystemDateAndTimeResponse",
+        "wire_fault": "action_suffix"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "action"
+  }
+ },
+ {
+  "id": "onvif_neg_addressing_action",
+  "proto": "onvif",
+  "summary": "wsa:Action missing",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "addressing_action"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "addressing"
+  }
+ },
+ {
+  "id": "onvif_neg_addressing_message_id",
+  "proto": "onvif",
+  "summary": "wsa:MessageID missing",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "addressing_message_id"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "message"
+  }
+ },
+ {
+  "id": "onvif_neg_addressing_relates",
+  "proto": "onvif",
+  "summary": "RelatesTo != MessageID",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "addressing_relates"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "relates"
+  }
+ },
+ {
+  "id": "onvif_neg_addressing_ns",
+  "proto": "onvif",
+  "summary": "wsa namespace wrong",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "addressing_ns"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "addressing"
+  }
+ },
+ {
+  "id": "onvif_neg_operation_unknown",
+  "proto": "onvif",
+  "summary": "Unknown operation",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetFooBar",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "operation_unknown"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "operation"
+  }
+ },
+ {
+  "id": "onvif_neg_operation_ns",
+  "proto": "onvif",
+  "summary": "Service/operation namespace mismatch",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetStreamUri",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "operation_ns"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "namespace"
+  }
+ },
+ {
+  "id": "onvif_neg_service_unknown",
+  "proto": "onvif",
+  "summary": "Service not in four",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "imaging",
+        "operation": "GetImagingSettings",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "service_unknown"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "service"
+  }
+ },
+ {
+  "id": "onvif_neg_parameter_stream_setup",
+  "proto": "onvif",
+  "summary": "GetStreamUri missing StreamSetup",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetStreamUri",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "profile_token": "profile_1"
+        },
+        "wire_fault": "parameter_stream_setup"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "parameter"
+  }
+ },
+ {
+  "id": "onvif_neg_parameter_profile_token",
+  "proto": "onvif",
+  "summary": "GetStreamUri missing ProfileToken",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetStreamUri",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "stream_setup": {
+          "stream": "RTP-Unicast",
+          "protocol": "RTSP"
+         }
+        },
+        "wire_fault": "parameter_profile_token"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "parameter"
+  }
+ },
+ {
+  "id": "onvif_neg_parameter_timeout",
+  "proto": "onvif",
+  "summary": "PullMessages missing Timeout",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+        "parameters": {
+         "message_limit": 2
+        },
+        "wire_fault": "parameter_timeout"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "parameter"
+  }
+ },
+ {
+  "id": "onvif_neg_parameter_message_limit",
+  "proto": "onvif",
+  "summary": "PullMessages missing MessageLimit",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+        "parameters": {
+         "timeout": "PT5S"
+        },
+        "wire_fault": "parameter_message_limit"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "parameter"
+  }
+ },
+ {
+  "id": "onvif_neg_parameter_duration",
+  "proto": "onvif",
+  "summary": "Timeout not xs:duration form",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+        "parameters": {
+         "timeout": "5s",
+         "message_limit": 2
+        },
+        "wire_fault": "parameter_duration"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "parameter"
+  }
+ },
+ {
+  "id": "onvif_neg_auth_missing",
+  "proto": "onvif",
+  "summary": "READ_SYSTEM transaction missing auth",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "auth_missing"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "auth"
+  }
+ },
+ {
+  "id": "onvif_neg_token_nonce",
+  "proto": "onvif",
+  "summary": "UsernameToken missing Nonce",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "auth": {
+         "username": "admin",
+         "password": "test123"
+        },
+        "wire_fault": "token_nonce"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "nonce"
+  }
+ },
+ {
+  "id": "onvif_neg_token_created",
+  "proto": "onvif",
+  "summary": "UsernameToken missing Created",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "auth": {
+         "username": "admin",
+         "password": "test123"
+        },
+        "wire_fault": "token_created"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "created"
+  }
+ },
+ {
+  "id": "onvif_neg_carrier_layer",
+  "proto": "onvif",
+  "summary": "Layer chain missing http (tcp\u2192onvif direct)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "layer"
+  }
+ },
+ {
+  "id": "onvif_neg_carrier_port",
+  "proto": "onvif",
+  "summary": "Port/carrier conflict (HTTPS profile on port 80)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "profile": "onvif_soap12_https",
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "profile"
+  }
+ },
+ {
+  "id": "onvif_neg_carrier_wsdiscovery",
+  "proto": "onvif",
+  "summary": "WS-Discovery UDP 3702 as main chain (wire-fault flagged)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "carrier_wsdiscovery"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "carrier"
+  }
+ },
+ {
+  "id": "onvif_neg_fault_code",
+  "proto": "onvif",
+  "summary": "Fault missing s:Code",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "fault_code"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "fault"
+  }
+ },
+ {
+  "id": "onvif_neg_fault_reason",
+  "proto": "onvif",
+  "summary": "Fault missing s:Reason",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "fault_reason"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "reason"
+  }
+ },
+ {
+  "id": "onvif_neg_fault_value",
+  "proto": "onvif",
+  "summary": "Code/Value outside SOAP 1.2 set",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "fault_value"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "code"
+  }
+ },
+ {
+  "id": "onvif_neg_fault_subcode",
+  "proto": "onvif",
+  "summary": "Subcode missing ter: prefix",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetDeviceInformation",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "fault_subcode"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "subcode"
+  }
+ },
+ {
+  "id": "onvif_neg_length_truncation",
+  "proto": "onvif",
+  "summary": "Envelope byte count mismatch (truncation)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "length_truncation"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "length"
+  }
+ },
+ {
+  "id": "onvif_neg_length_content_length",
+  "proto": "onvif",
+  "summary": "Content-Length != rendered body bytes",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "device",
+        "operation": "GetSystemDateAndTime",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "wire_fault": "length_content_length"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "content-length"
+  }
+ },
+ {
+  "id": "onvif_neg_subscription_source",
+  "proto": "onvif",
+  "summary": "PullMessages wsa:To \u2192 non-Create event",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "to": "same_as_response:0.subscription_reference",
+        "parameters": {
+         "timeout": "PT5S",
+         "message_limit": 2
+        },
+        "wire_fault": "subscription_source"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "subscription"
+  }
+ },
+ {
+  "id": "onvif_neg_subscription_cross_session",
+  "proto": "onvif",
+  "summary": "Subscription reference cross-session",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "CreatePullPointSubscription",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "initial_termination_time": "PT1M"
+        }
+       }
+      ]
+     },
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000002",
+        "to": "same_as_response:0.subscription_reference",
+        "parameters": {
+         "timeout": "PT5S",
+         "message_limit": 2
+        },
+        "wire_fault": "subscription_cross_session"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "correlation"
+  }
+ },
+ {
+  "id": "onvif_neg_token_range",
+  "proto": "onvif",
+  "summary": "ProfileToken 65 chars (>maxLength 64)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "media",
+        "operation": "GetSnapshotUri",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "parameters": {
+         "profile_token": "tok_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "wire_fault": "token_range"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "token"
+  }
+ },
+ {
+  "id": "onvif_neg_message_limit_range",
+  "proto": "onvif",
+  "summary": "MessageLimit 2147483648 (xs:int+1 overflow)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+        "parameters": {
+         "timeout": "PT5S",
+         "message_limit": 2147483648
+        },
+        "wire_fault": "message_limit_range"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "limit"
+  }
+ },
+ {
+  "id": "onvif_neg_wsnt_ns",
+  "proto": "onvif",
+  "summary": "wsnt namespace URI wrong",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "http": {}
+    },
+    {
+     "onvif": {}
+    }
+   ],
+   "src_ip": "192.0.2.67",
+   "src_port": 40067,
+   "dst_ip": "198.51.100.67",
+   "dst_port": 80,
+   "onvif": {
+    "sessions": [
+     {
+      "events": [
+       {
+        "kind": "request",
+        "service": "events",
+        "operation": "PullMessages",
+        "message_id": "urn:uuid:0000067-0000-4000-8000-000000000001",
+        "to": "http://198.51.100.67/onvif/subscription?Idx=0",
+        "parameters": {
+         "timeout": "PT5S",
+         "message_limit": 2
+        },
+        "wire_fault": "wsnt_ns"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "wsnt"
+  }
+ }
 ]
