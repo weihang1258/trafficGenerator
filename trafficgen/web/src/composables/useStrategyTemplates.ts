@@ -114,7 +114,7 @@ function getBuiltinTemplates(t: (key: string) => string): StrategyTemplate[] {
         ttl: 64, tos: 0,
         tcp: { handshake: true, termination: true, mss: 1460, window_size: 65535 }
       },
-      flow_control: { type: 'cps', value: 1000 },
+      flow_control: { type: 'bps', value: 1000 },
       isBuiltin: true
     }
   ]

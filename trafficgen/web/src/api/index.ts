@@ -91,17 +91,13 @@ export interface ApiResponse<T = any> {
   data?: T
 }
 
-// Flow Control
-export interface FlowControlRequest {
-  type: 'flows' | 'cps' | 'bps' | 'ratio' | 'time'
-  value: number
-}
-
-// Output Config
-export interface OutputConfigRequest {
-  port_group_id?: string
-  pcap_path?: string
-}
+// Flow Control / Output Config — deprecated aliases. Single truth is
+// ./schema-types.ts (generated from schemas/v1). Backend accepts only
+// flows|bps|time; cps/ratio were dropped server-side and are kept here only
+// so old imports still compile.
+import type { FlowControl as SchemaFlowControl, OutputConfig as SchemaOutputConfig, OutputType as SchemaOutputType, Strategy as SchemaStrategy } from './schema-types'
+export type FlowControlRequest = SchemaFlowControl
+export type OutputConfigRequest = SchemaOutputConfig
 
 // Task API
 export interface Task {
@@ -110,8 +106,8 @@ export interface Task {
   name: string
   strategy_ids: string[]
   protocol?: string
-  strategies?: Strategy[]
-  output_type: string  // "port_group" or "pcap"
+  strategies?: SchemaStrategy[]
+  output_type: SchemaOutputType
   output_config: OutputConfigRequest
   flow_control?: FlowControlRequest
   status: string  // "pending", "running", "stopped", "completed", "error"
@@ -135,7 +131,7 @@ export interface TaskStats {
 export interface CreateTaskRequest {
   name: string
   strategy_ids: string[]
-  output_type: string  // "port_group" or "pcap"
+  output_type: SchemaOutputType
   output_config: OutputConfigRequest
   flow_control?: FlowControlRequest
 }
@@ -240,16 +236,8 @@ export const authApi = {
 }
 
 // Strategy API
-export interface Strategy {
-  id: string
-  name: string
-  protocol: string
-  config: Record<string, any>
-  flow_control?: FlowControlRequest
-  task_count?: number
-  created_at: number
-  updated_at: number
-}
+// Deprecated alias: single truth is SchemaStrategy in ./schema-types.ts.
+export type Strategy = SchemaStrategy
 
 export interface TaskBrief {
   id: string

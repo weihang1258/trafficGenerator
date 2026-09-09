@@ -270,6 +270,18 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 65535
+            },
+            "target_mac": {
+              "title": "Target MAC",
+              "description": "ARP target hardware address XX:XX:XX:XX:XX:XX. Format checked by Go validation.",
+              "type": "string",
+              "pattern": "^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$"
+            },
+            "target_ip": {
+              "title": "Target IP",
+              "description": "ARP target protocol address. Format checked by Go validation.",
+              "type": "string",
+              "minLength": 1
             }
           }
         },
@@ -398,21 +410,13 @@
         },
         "direction": {
           "title": "Replay direction",
-          "description": "Replay only: single or dual interface.",
-          "type": "string",
-          "enum": [
-            "single",
-            "dual"
-          ]
+          "description": "Replay only: single or dual interface. Empty/unset = engine default (single/recompute); other values validated by ValidateReplaySpec.",
+          "type": "string"
         },
         "checksum_mode": {
           "title": "Checksum mode",
-          "description": "Replay only: recompute or preserve checksums.",
-          "type": "string",
-          "enum": [
-            "recompute",
-            "preserve"
-          ]
+          "description": "Replay only: recompute or preserve checksums. Empty/unset = engine default (single/recompute); other values validated by ValidateReplaySpec.",
+          "type": "string"
         }
       },
       "allOf": [

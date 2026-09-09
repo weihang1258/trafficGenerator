@@ -255,3 +255,69 @@ func ValidateBatchShape(doc map[string]any) ValidationErrors {
 	}
 	return nil
 }
+
+// DocEntry is one title+description pair from the schemas, keyed by JSON path.
+type DocEntry struct {
+	Path        string `json:"path"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+// Descriptions returns the flattened title/description table for one schema
+// file (strategy, task, batch, defs). Paths use JSON-pointer-ish segments
+// (properties/<name>, $defs/<name>). MCP jsonschema tags, REST docs and the
+// frontend derive their human text from here — never a second hand-written copy.
+func Descriptions(file string) ([]DocEntry, error) {
+	if err := load(); err != nil {
+		return nil, err
+	}
+	raw, err := schemasFS.ReadFile(file)
+	if err != nil {
+		return nil, fmt.Errorf("schema: read %s: %w", file, err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("schema: parse %s: %w", file, err)
+	}
+	var out []DocEntry
+	walkDocs("", doc, &out)
+	return out, nil
+}
+
+// DescriptionMap returns path->"title: description" for one schema file.
+func DescriptionMap(file string) (map[string]string, error) {
+	entries, err := Descriptions(file)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]string, len(entries))
+	for _, e := range entries {
+		text := e.Title
+		if e.Description != "" {
+			text += ": " + e.Description
+		}
+		m[e.Path] = text
+	}
+	return m, nil
+}
+
+func walkDocs(path string, v any, out *[]DocEntry) {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return
+	}
+	if t, _ := m["title"].(string); t != "" {
+		d, _ := m["description"].(string)
+		*out = append(*out, DocEntry{Path: path, Title: t, Description: d})
+	}
+	for _, key := range []string{"properties", "$defs"} {
+		if sub, ok := m[key].(map[string]any); ok {
+			for name, val := range sub {
+				walkDocs(path+"/"+key+"/"+name, val, out)
+			}
+		}
+	}
+	if items, ok := m["items"].(map[string]any); ok {
+		walkDocs(path+"/items", items, out)
+	}
+}

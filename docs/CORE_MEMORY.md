@@ -108,3 +108,13 @@
 - 动态与层链的关系：动态是“值的算法”，层链是“值的住处”。动态算出的地址仍只落 `ip` 层、端口仍只落 `tcp`/`udp` 层，数量仍只走 `flow_control`；不许为动态另起一套顶层字段与 `layers` 并存。批量路径已有的 `tuples`/`group_id` 实现是参考基线，策略+任务路径必须对齐同一套语义，不许两套规则各说各话。
 - **Why:** 用户指出：没有动态字段就无法批量造流，静态模板循环生成 N 条流只会得到 N 条重包；此前只做了后面的层链和用例，丢掉了最早的按流变化逻辑。
 - **How to apply:** 代码设计必须逐协议列出动态字段清单与序号算法，测试必须覆盖 inc 到尾回绕、rand 同 seed 可复现、list 轮转、pattern 替换、静态复制被拒绝五类；评审时抽查一条动态结论能否定位到序号算法代码，定位不到打回。
+
+## 13. 统一配置 schema 是机器真相，与文档同步维护
+
+- 路径：`trafficgen/schemas/v1/`（`defs.json` 共享定义、`strategy.json` 策略、`task.json` 任务、`batch.json` 批量；`layers.json` 层链与 `generated/layers.generated.json` 注册表生成表按计划待建，在建好前层字段以 `flowb_query_layers` 运行时视图为准，不许手写第二套表）。
+- 地位：JSON Schema 文件是配置契约的唯一机器可读真相；Go 格式校验、REST/MCP 接口形状、MCP 字段描述、前端类型都从它派生，不许另起第二套手写形状或描述。
+- 同步规则：改配置语义先改 schema，再改派生代码与文档；层注册表变更必须重跑生成并提交生成文件；CI 发现生成文件过期即打回。
+- 与三份文档的关系：schema 不算第四份文档，它是机器契约数据源；人类日常仍只维护三份文档，schema 与三份文档互相引用不复制全文，形状冲突时以 schema 为准。
+- 现状（2026-09-09）：`defs/strategy/task/batch.json` 四份已生成并接入校验（strategy create/update、task create/batch/start 经统一入口）；`layers.json` 与生成表待建；MCP 描述表与前端类型已从 schema 派生（见下）。生成前 REST/MCP/前端各自定义仍并存处，以 schema 为准收敛。
+- **Why:** 用户要求整体 schema 有唯一存放处，所有校验与接口描述都从这里出，否则七处定义会再次分叉。
+- **How to apply:** 评审先查改动是否先落 schema；发现手写形状或描述与 schema 不一致，直接打回。

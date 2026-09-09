@@ -54,10 +54,37 @@ func TestSemanticMatchesHandlerMessages(t *testing.T) {
 			config:   map[string]any{"pcap_asset_id": "x", "speed": map[string]any{"mode": "nope"}},
 			wantSub:  "invalid speed mode",
 		},
+		{
+			name:     "replay empty direction/checksum accepted",
+			mode:     "replay",
+			protocol: "",
+			config:   map[string]any{"pcap_asset_id": "x", "direction": "", "checksum_mode": ""},
+			wantSub:  "",
+		},
+		{
+			name:     "replay bad direction",
+			mode:     "replay",
+			protocol: "",
+			config:   map[string]any{"pcap_asset_id": "x", "direction": "sideways"},
+			wantSub:  "invalid direction",
+		},
+		{
+			name:     "replay bad checksum",
+			mode:     "replay",
+			protocol: "",
+			config:   map[string]any{"pcap_asset_id": "x", "checksum_mode": "mangle"},
+			wantSub:  "invalid checksum_mode",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, errs := ValidateStrategy(tc.mode, tc.protocol, tc.config, tc.fc)
+			if tc.wantSub == "" {
+				if len(errs) != 0 {
+					t.Fatalf("want clean, got %v", errs)
+				}
+				return
+			}
 			if len(errs) == 0 {
 				t.Fatalf("want errors, got clean")
 			}

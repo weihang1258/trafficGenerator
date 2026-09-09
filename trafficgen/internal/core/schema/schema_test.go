@@ -76,3 +76,31 @@ func TestValidDynamicAndReplay(t *testing.T) {
 		}
 	}
 }
+
+func TestDescriptionsCoverMCPFields(t *testing.T) {
+	m, err := DescriptionMap("v1/strategy.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"/properties/config", "/properties/flow_control", "/properties/mode"} {
+		if _, ok := m[p]; !ok {
+			t.Fatalf("missing doc path %s", p)
+		}
+	}
+	dm, err := DescriptionMap("v1/defs.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"/$defs/flow_control", "/$defs/output_config", "/$defs/dynamic_value"} {
+		if _, ok := dm[p]; !ok {
+			t.Fatalf("missing defs path %s", p)
+		}
+	}
+	tm, err := DescriptionMap("v1/task.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := tm["/properties/strategy_ids"]; !ok {
+		t.Fatalf("missing task strategy_ids doc")
+	}
+}

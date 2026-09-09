@@ -421,7 +421,7 @@
               <el-col :span="12">
                 <el-form-item :label="t('strategy.flowControlType')">
                   <el-select v-model="form.flow_control.type" clearable style="width: 100%;" :placeholder="t('strategy.flowControlType')">
-                    <el-option :label="t('strategy.flows')" value="flows" /><el-option :label="t('strategy.cps')" value="cps" /><el-option :label="t('strategy.bps')" value="bps" /><el-option :label="t('strategy.ratio')" value="ratio" /><el-option :label="t('strategy.time')" value="time" />
+                    <el-option :label="t('strategy.flows')" value="flows" /><el-option :label="t('strategy.bps')" value="bps" /><el-option :label="t('strategy.time')" value="time" />
                   </el-select>
                 </el-form-item>
               </el-col>

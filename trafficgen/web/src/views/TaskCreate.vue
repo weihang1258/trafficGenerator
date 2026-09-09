@@ -117,9 +117,7 @@
           <el-form-item :label="t('taskCreate.flowControlType')">
             <el-select v-model="form.flow_control.type" :placeholder="t('strategy.flowControlType')" clearable style="width: 200px;">
               <el-option :label="t('strategy.flows')" value="flows" />
-              <el-option :label="t('strategy.cps')" value="cps" />
               <el-option :label="t('strategy.bps')" value="bps" />
-              <el-option :label="t('strategy.ratio')" value="ratio" />
               <el-option :label="t('strategy.time')" value="time" />
             </el-select>
           </el-form-item>
@@ -272,13 +270,11 @@ const selectedPortGroupName = computed(() => {
 
 // Dynamic flow control constraints
 const flowControlMin = computed(() => {
-  if (form.flow_control.type === 'ratio') return 0
   if (form.flow_control.type === 'time') return 0
   return 1
 })
 
 const flowControlMax = computed(() => {
-  if (form.flow_control.type === 'ratio') return 100
   return Infinity
 })
 
@@ -286,8 +282,7 @@ const flowControlUnit = computed(() => {
   const units: Record<string, string> = {
     flows: t('strategy.unitFlows'),
     bps: t('strategy.unitBps'),
-    cps: t('strategy.unitCps'),
-    ratio: t('strategy.unitRatio'),
+
     time: t('strategy.unitTime')
   }
   return units[form.flow_control.type] || ''
