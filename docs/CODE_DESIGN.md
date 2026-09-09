@@ -7,7 +7,7 @@
 
 项目日常只维护三份权威文档：
 
-1. `docs/CORE_REQUIREMENTS.md`：最高优先级，记录不可违背的核心原则和协作要求。
+1. `docs/CORE_MEMORY.md`：最高优先级，记录不可违背的核心原则和协作要求。
 2. `docs/CODE_DESIGN.md`：把需求和规范转换成可实现的代码设计。
 3. `docs/TEST_CASES.md`：把规范、代码设计和实现转换成可验证的测试点与验收标准。
 

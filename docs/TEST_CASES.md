@@ -7,7 +7,7 @@
 
 项目日常只维护三份权威文档：
 
-1. `docs/CORE_REQUIREMENTS.md`：定义不能违反的原则；
+1. `docs/CORE_MEMORY.md`：定义不能违反的原则；
 2. `docs/CODE_DESIGN.md`：定义代码应该怎样实现；
 3. `docs/TEST_CASES.md`：定义怎样证明设计和实现正确、完整且满足性能要求。
 
