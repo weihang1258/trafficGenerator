@@ -111,10 +111,21 @@
 
 ## 13. 统一配置 schema 是机器真相，与文档同步维护
 
-- 路径：`trafficgen/schemas/v1/`（`defs.json` 共享定义、`strategy.json` 策略、`task.json` 任务、`batch.json` 批量、`layers.json` 层链形状；层字段表由注册表生成到 `generated/layers.generated.json`，不许手写）。
-- 地位：JSON Schema 文件是配置契约的唯一机器可读真相；Go 格式校验、REST/MCP 接口形状、MCP 字段描述、前端类型都从它派生，不许另起第二套手写形状或描述。
-- 同步规则：改配置语义先改 schema，再改派生代码与文档；层注册表变更必须重跑生成并提交生成文件；CI 发现生成文件过期即打回。
+- 路径（仓库根起）：`trafficgen/schemas/v1/`
+  - `defs.json`：共享定义（flow_control 封包、output_config 输出路由、dynamic_value 五种动态值、tuple_config 四元组池、group_id 跨流绑定）。
+  - `strategy.json`：策略形状（mode=synth 按协议模板合成 / mode=replay 按 pcap 回放；config 平铺字段 + layers 数组 + 协议子配置；flow_control 是模板自己的封包）。
+  - `task.json`：任务形状（二选一：strategy_ids 复用已有策略，或内联 batch 一次跑多类；task 的 flow_control 只做总量上限，不改写策略封包）。
+  - `batch.json`：批量形状（classes[]，每类自带速率/元组/回放规格/工作绑定；replay 类必须带 replay、不收 flow_count）。
+  - `layers.json`：层链形状（有序单键对象数组，外层在前；只定形状，补全/推断/字段值归 Go 管）。
+  - `generated/layers.generated.json`：注册表生成表（95 层字段表：分类、依赖、字段、缺省值、范围；由 `internal/core/layers/schemagen` 从 `layers.DefaultRegistry` 生成，不许手写）。
+- 入口（Go 侧唯一真相出口）：`trafficgen/internal/core/schema/`（`ValidateStrategy` 管策略建改、`ValidateTaskCreate` 管任务建/批量建/启动；形状先行、语义随后、报错文案与老接口逐字一致）。REST 建改查（strategy create/update、task create/batch/start）只调入口，不许自写形状检查；MCP 经同一入口继承（自己不再验一遍）。
+- 派生（只读下游，不许反向改上游）：
+  - MCP 描述：`internal/mcp/schemagen` 从 schema 的标题/说明生成四张描述表 + 共用 Config 描述段（`schema_descriptions_generated.go`），`flowb_query_layers` 是同一注册表的实时视图；struct 标签必须是字面量，测试锁住标签与生成文本一致。
+  - 前端类型：`web/src/api/schema-types.ts` 从 schema 生成，`index.ts` 只做别名；后端已删的 cps/ratio 前端选项同步删除。
+  - 文档索引：`docs/config-schema.md`（生成，只做索引不抄契约文字）。
+- 同步规则：改配置语义先改 schema，再改派生代码与文档；层注册表变更必须重跑生成并提交生成文件；生成文件过期测试直接变红（`TestLayersGeneratedMatchesRegistry`，本地用 `go run ./internal/core/layers/schemagen` 重跑）。
+- 缺失与有值的区别：键缺席走引擎缺省，显式 null 算调用方写错直接拒绝（MCP 负责省略没填的键，不发送第三态）。非法值由语义校验按历史文案拒绝。
 - 与三份文档的关系：schema 不算第四份文档，它是机器契约数据源；人类日常仍只维护三份文档，schema 与三份文档互相引用不复制全文，形状冲突时以 schema 为准。
-- 现状（2026-09-09）：`defs/strategy/task/batch/layers.json` 五份齐备，生成表 `generated/layers.generated.json` 由注册表生成（CI 过期打回）；strategy create/update、task create/batch/start 经统一入口；MCP 描述表与前端类型已从 schema 派生。
+- 现状（2026-09-09）：五份形状文件齐备，生成表已提交；strategy create/update、task create/batch/start 经统一入口；MCP 描述表与前端类型已从 schema 派生；负例一致性（REST 与 MCP 同坏配置同报错）见统一入口测试。
 - **Why:** 用户要求整体 schema 有唯一存放处，所有校验与接口描述都从这里出，否则七处定义会再次分叉。
-- **How to apply:** 评审先查改动是否先落 schema；发现手写形状或描述与 schema 不一致，直接打回。
+- **How to apply:** 评审先查改动是否先落 schema；发现手写形状或描述与 schema 不一致，直接打回；发现后端为 null 加兼容（而不是让调用方省略键），直接打回。
