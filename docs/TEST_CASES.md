@@ -113,7 +113,7 @@
 
 **输入：** 坏 IP/MAC 格式、越界 dscp、未知协议、TFTP tid 碰撞（flows=2+server_tid）、replay 坏 speed/direction/checksum、replay 空 direction+checksum 放行、layers 推断 `[ip,tcp,http]`。
 **前置条件：** 无。
-**执行：** `go test ./internal/core/schema/ -run TestSemanticMatchesHandlerMessages`
+**执行：** `go test ./internal/core/schema/ -run 'TestSemanticMatchesHandlerMessages|TestSemanticLayersInference'`
 **期望输出：** 逐例子含指定子串（`invalid IP format: src_ip`、`server_tid 5000 conflicts`、`invalid speed mode`、`invalid direction`、`invalid checksum_mode` 等）；空可选项放行且推断出 protocol。
 **错误期望：** 同上（断言“含子串”即文案锚）。
 **性能期望：** 不适用。
@@ -124,7 +124,7 @@
 **状态：** 已通过
 **级别：** unit + integration
 **来源：** D-SCHEMA-1 §4/§5；用户裁决“有值与缺失是两回事，MCP 负责省略”
-**目标：** replay 六键显式 null 被人话拒绝；MCP 未填可选项时转发/存量均无占位键。
+**目标：** replay 可选项显式 null 被人话拒绝（语义用例 nil 三键 speed/direction/checksum_mode；loop/rewrites/flow_scaling 同走一条 null 分支）；MCP 未填可选项时转发/存量均无占位键（断言 5 键缺席）。
 
 **输入：** `ValidateStrategy` 喂 `speed/direction/checksum_mode=nil`；`handleReplayPcap` 全缺省调用后查库。
 **前置条件：** MCP 测试库（`setupMCPTest`）+ pcap 资产。
@@ -143,7 +143,7 @@
 
 **输入：** 好任务（strategy_ids+pcap）放行；坏 6 例（无 ids 又无 batch、双带、空 ids、port_group 缺 id、pcap 缺 path、坏 FC）；批量好/坏 4 例（含 replay 缺 spec、replay null direction）；replay+bps 冲突（original 策略配 bps 任务封包）。
 **前置条件：** 无。
-**执行：** `go test ./internal/core/schema/ -run 'TestTaskShape|TestBatchShape|TestTaskEntry|TestTaskCreateReplayConflict'`
+**执行：** `go test ./internal/core/schema/ -run 'TestTaskShape|TestBatchShape|TestTaskCreateEntry'`
 **期望输出：** 好放行、坏全红、冲突文案含 `cannot combine with bps`。
 **错误期望：** 封包错用历史文案（`invalid flow_control type`），其余 schema 叶消息。
 **性能期望：** 不适用。
