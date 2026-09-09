@@ -1728,11 +1728,12 @@ func calculateTaskHash(strategyIDs []string, outputConfig string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// validateReplayBPSConflict checks that no replay strategy with original or
-// multiplier speed coexists with bps task-level flow control. The R-F2 invariant
-// forbids a TimestampPacer (used by original/multiplier) from sharing a packet
-// with the engine's parent bps bucket — so if the task ceiling is bps, every
-// replay strategy must use bps speed mode (engine child bucket, no _pacer).
+// validateReplayBPSConflict is retired: the R-F2 invariant (no replay
+// strategy with original/multiplier speed under a bps task ceiling) now
+// lives in schema.ValidateTaskCreate, which both Create and Start call.
+// Kept (unexported, no live callers) so the documented invariant has a
+// stable anchor; delete once replay+bps coverage fully migrates to the
+// schema package tests.
 func validateReplayBPSConflict(strategies []storage.StrategyModel, taskFC *FlowControlRequest) error {
 	if taskFC == nil || taskFC.Type != "bps" {
 		return nil

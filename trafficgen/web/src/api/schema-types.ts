@@ -1,10 +1,10 @@
-// Code generated from trafficgen/schemas/v1 by web schemagen. DO NOT EDIT.
-// Single truth: schemas/v1/*.json. Hand-written types in api/index.ts are
-// deprecated aliases of these; fix drift here, not there.
+// Code generated from trafficgen/schemas/v1 by tools/webgen.py. DO NOT EDIT.
+// Single truth: schemas/v1/*.json.
 
 // Shared envelopes (defs.json).
 export type FlowControlType = 'flows' | 'bps' | 'time'
 export interface FlowControl { type: FlowControlType; value: number }
+// output_config keys: interface2 pcap_path port_group_id
 export interface OutputConfig { port_group_id?: string; pcap_path?: string; interface2?: string }
 
 // Strategy (strategy.json).
@@ -64,6 +64,7 @@ export interface CreateBatchRequest {
 }
 
 // Batch (batch.json).
+// class keys: bps config flow_count flows_per_second group_id id replay tuples type
 export interface BatchClass {
   id: string
   type: string
@@ -80,3 +81,4 @@ export interface BatchSpec {
   global?: { total_flows?: number; duration_seconds?: number }
 }
 
+// Layers: 95 registered (Layer chain).

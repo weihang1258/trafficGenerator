@@ -493,7 +493,9 @@ func validateMAC(mac string) bool {
 	return regexp.MustCompile(`^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$`).MatchString(mac)
 }
 
-// validateConfigNetwork validates IP and MAC fields in a config map.
+// validateConfigNetwork is retired from live paths (schema entry owns
+// network-format checks via validateConfigNetworkLocal). Kept because
+// validation_testpoints_test.go pins its behavior; delete together.
 func validateConfigNetwork(config map[string]interface{}) string {
 	for _, key := range []string{"src_ip", "dst_ip"} {
 		val, ok := config[key]

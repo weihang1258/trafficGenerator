@@ -205,7 +205,7 @@ func TestReplayStrategy_Update_PreservesModeWhenOmitted(t *testing.T) {
 }
 
 // RS6: POST /tasks with replay strategy (original speed) + task-level FC bps
-// -> 400 (validateReplayBPSConflict: TimestampPacer + parent bps bucket violates R-F2).
+// -> 400 (schema.ValidateTaskCreate replay+bps conflict: TimestampPacer + parent bps bucket violates R-F2).
 func TestReplayStrategy_TaskBPSConflict(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, r, db, _ := newTaskTestServer(t)

@@ -120,8 +120,8 @@
   - `generated/layers.generated.json`：注册表生成表（95 层字段表：分类、依赖、字段、缺省值、范围；由 `internal/core/layers/schemagen` 从 `layers.DefaultRegistry` 生成，不许手写）。
 - 入口（Go 侧唯一真相出口）：`trafficgen/internal/core/schema/`（`ValidateStrategy` 管策略建改、`ValidateTaskCreate` 管任务建/批量建/启动；形状先行、语义随后、报错文案与老接口逐字一致）。REST 建改查（strategy create/update、task create/batch/start）只调入口，不许自写形状检查；MCP 经同一入口继承（自己不再验一遍）。
 - 派生（只读下游，不许反向改上游）：
-  - MCP 描述：`internal/mcp/schemagen` 从 schema 的标题/说明生成四张描述表 + 共用 Config 描述段（`schema_descriptions_generated.go`），`flowb_query_layers` 是同一注册表的实时视图；struct 标签必须是字面量，测试锁住标签与生成文本一致。
-  - 前端类型：`web/src/api/schema-types.ts` 从 schema 生成，`index.ts` 只做别名；后端已删的 cps/ratio 前端选项同步删除。
+  - MCP 描述：`internal/mcp/schemagen` 从 schema 的标题/说明生成五张描述表（Strategy/Task/Batch/Defs/Layers）+ 共用 Config 描述段（`schema_descriptions_generated.go`），`flowb_query_layers` 是同一注册表的实时视图；struct 标签必须是字面量，测试锁住标签与生成文本一致。
+  - 前端类型：`trafficgen/tools/webgen.py` 从 schema 生成 `web/src/api/schema-types.ts`，`index.ts` 中 Strategy/FlowControlRequest/OutputConfigRequest/output_type 为纯别名、Task 为 `extends SchemaTask`（仅 stats 为 UI 附加）；后端已删的 cps/ratio 前端选项同步删除。
   - 文档索引：`docs/config-schema.md`（生成，只做索引不抄契约文字）。
 - 同步规则：改配置语义先改 schema，再改派生代码与文档；层注册表变更必须重跑生成并提交生成文件；生成文件过期测试直接变红（`TestLayersGeneratedMatchesRegistry`，本地用 `go run ./internal/core/layers/schemagen` 重跑）。
 - 缺失与有值的区别：键缺席走引擎缺省，显式 null 算调用方写错直接拒绝（MCP 负责省略没填的键，不发送第三态）。非法值由语义校验按历史文案拒绝。

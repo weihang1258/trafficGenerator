@@ -385,7 +385,7 @@ func (s *Server) handleReplayPcap(ctx context.Context, req *mcp.CallToolRequest,
 	}
 
 	// Step 3: start the task. R-F2 invariant (replay original/multiplier +
-	// bps task FC) is enforced inside Start via validateReplayBPSConflict.
+	// bps task FC) is enforced inside Start via schema.ValidateTaskCreate.
 	// On Start failure we return task_id+strategy_id (status="created") so
 	// the LLM can retry via flowb_manage_tasks(action=start, id=task_id).
 	if _, err := s.callHandler(ctx, nil, taskID.ID, nil, taskH.Start); err != nil {

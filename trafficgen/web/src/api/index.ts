@@ -92,31 +92,15 @@ export interface ApiResponse<T = any> {
 }
 
 // Flow Control / Output Config — deprecated aliases. Single truth is
-// ./schema-types.ts (generated from schemas/v1). Backend accepts only
-// flows|bps|time; cps/ratio were dropped server-side and are kept here only
-// so old imports still compile.
-import type { FlowControl as SchemaFlowControl, OutputConfig as SchemaOutputConfig, OutputType as SchemaOutputType, Strategy as SchemaStrategy } from './schema-types'
+// ./schema-types.ts (generated from schemas/v1 by tools/webgen.py).
+// Backend accepts only flows|bps|time; cps/ratio were dropped server-side.
+import type { FlowControl as SchemaFlowControl, OutputConfig as SchemaOutputConfig, OutputType as SchemaOutputType, Strategy as SchemaStrategy, Task as SchemaTask } from './schema-types'
 export type FlowControlRequest = SchemaFlowControl
 export type OutputConfigRequest = SchemaOutputConfig
 
-// Task API
-export interface Task {
-  id: string
-  user_id: string
-  name: string
-  strategy_ids: string[]
-  protocol?: string
-  strategies?: SchemaStrategy[]
-  output_type: SchemaOutputType
-  output_config: OutputConfigRequest
-  flow_control?: FlowControlRequest
-  status: string  // "pending", "running", "stopped", "completed", "error"
-  error_message?: string
-  progress: number
-  created_at: number
-  updated_at: number
-  started_at?: number
-  completed_at?: number
+// Task = generated base (task.json) plus UI-only live-view extra stats
+// (progress snapshot assembled by the task handler, not in task.json).
+export interface Task extends SchemaTask {
   stats?: TaskStats
 }
 
