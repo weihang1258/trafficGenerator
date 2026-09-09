@@ -381,7 +381,10 @@
         "speed": {
           "title": "Replay speed",
           "description": "Replay only: original pace, multiplier of original, or capped bits per second.",
-          "type": "object",
+          "type": [
+            "object",
+            "null"
+          ],
           "additionalProperties": false,
           "properties": {
             "mode": {
@@ -410,13 +413,19 @@
         },
         "direction": {
           "title": "Replay direction",
-          "description": "Replay only: single or dual interface. Empty/unset = engine default (single/recompute); other values validated by ValidateReplaySpec.",
-          "type": "string"
+          "description": "Replay only: single or dual interface. Absent/null/empty = engine default single; other values validated by ValidateReplaySpec.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "checksum_mode": {
           "title": "Checksum mode",
-          "description": "Replay only: recompute or preserve checksums. Empty/unset = engine default (single/recompute); other values validated by ValidateReplaySpec.",
-          "type": "string"
+          "description": "Replay only: recompute or preserve checksums. Absent/null/empty = engine default recompute; other values validated by ValidateReplaySpec.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "allOf": [

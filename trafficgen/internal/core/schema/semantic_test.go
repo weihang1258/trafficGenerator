@@ -55,6 +55,13 @@ func TestSemanticMatchesHandlerMessages(t *testing.T) {
 			wantSub:  "invalid speed mode",
 		},
 		{
+			name:     "replay null speed/direction/checksum accepted (MCP omits optionals as null)",
+			mode:     "replay",
+			protocol: "",
+			config:   map[string]any{"pcap_asset_id": "x", "speed": nil, "direction": nil, "checksum_mode": nil},
+			wantSub:  "",
+		},
+		{
 			name:     "replay empty direction/checksum accepted",
 			mode:     "replay",
 			protocol: "",

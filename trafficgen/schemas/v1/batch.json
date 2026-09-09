@@ -79,7 +79,10 @@
               "speed": {
                 "title": "Replay speed",
                 "description": "original pace, multiplier, or bps cap.",
-                "type": "object",
+                "type": [
+                  "object",
+                  "null"
+                ],
                 "properties": {
                   "mode": {
                     "title": "Speed mode",
@@ -107,20 +110,18 @@
               },
               "direction": {
                 "title": "Replay direction",
-                "description": "single or dual interface.",
-                "type": "string",
-                "enum": [
-                  "single",
-                  "dual"
+                "description": "single or dual interface. Absent/null/empty = engine default single.",
+                "type": [
+                  "string",
+                  "null"
                 ]
               },
               "checksum_mode": {
                 "title": "Checksum mode",
-                "description": "recompute or preserve checksums.",
-                "type": "string",
-                "enum": [
-                  "recompute",
-                  "preserve"
+                "description": "recompute or preserve checksums. Absent/null/empty = engine default recompute.",
+                "type": [
+                  "string",
+                  "null"
                 ]
               }
             }
