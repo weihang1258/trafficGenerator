@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trafficgen.local/schemas/v1/defs.json",
+  "title": "Shared definitions",
+  "description": "Shared strategy/task/batch building blocks: flow control, output routing, per-flow dynamic values, tuple pools, worker binding. Single truth for these shapes; REST, MCP and frontend descriptions derive from here.",
+  "$defs": {
+    "flow_control": {
+      "title": "Flow control",
+      "description": "Quantity or rate envelope. Strategy level sets the template's own envelope; task level caps the aggregate without rewriting strategies.",
+      "type": "object",
+      "required": ["type", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "title": "Flow control type",
+          "description": "flows = flow count, bps = bits per second, time = seconds.",
+          "type": "string",
+          "enum": ["flows", "bps", "time"]
+        },
+        "value": {
+          "title": "Flow control value",
+          "description": "Flow count, bits per second, or seconds. Must be positive.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "output_config": {
+      "title": "Output configuration",
+      "description": "Where generated packets go: a port group for wire replay, or a pcap file. interface2 enables dual-port replay.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "port_group_id": {
+          "title": "Port group id",
+          "description": "Port group for wire output (output_type=port_group).",
+          "type": "string",
+          "minLength": 1
+        },
+        "pcap_path": {
+          "title": "Pcap path",
+          "description": "Pcap file path (output_type=pcap).",
+          "type": "string",
+          "minLength": 1
+        },
+        "interface2": {
+          "title": "Second interface",
+          "description": "Second interface for dual-port replay.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "anyOf": [
+        {"required": ["port_group_id"]},
+        {"required": ["pcap_path"]}
+      ]
+    },
+    "dynamic_value": {
+      "title": "Per-flow dynamic value",
+      "description": "How a per-flow field varies across flows of one template. Flow i resolves deterministically (rand uses seed+i, wraps at range end). Matches StrategyConfig semantics in internal/core (tuple_generator.go, shard_router.go).",
+      "type": "object",
+      "required": ["strategy"],
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "title": "Variation strategy",
+          "description": "fixed = constant, inc = step through range, rand = seeded random in range, list = rotate entries, pattern = substitute {n} from range.",
+          "type": "string",
+          "enum": ["fixed", "inc", "rand", "list", "pattern"]
+        },
+        "value": {
+          "title": "Fixed value",
+          "description": "Constant for fixed strategy (string, number, or boolean)."
+        },
+        "range": {
+          "title": "Value range",
+          "description": "Inclusive [start, end] for inc/rand/pattern strategies.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "step": {
+          "title": "Increment step",
+          "description": "Step for inc strategy. Non-positive falls back to 1.",
+          "type": "integer"
+        },
+        "seed": {
+          "title": "Random seed",
+          "description": "Seed for rand strategy; same seed+index yields the same value.",
+          "type": "integer"
+        },
+        "pattern": {
+          "title": "Pattern template",
+          "description": "Template with {n} placeholder for pattern strategy.",
+          "type": "string",
+          "minLength": 1
+        },
+        "list": {
+          "title": "Rotation list",
+          "description": "Entries rotated per flow for list strategy.",
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string"}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"strategy": {"const": "inc"}}},
+          "then": {"required": ["range"]}
+        },
+        {
+          "if": {"properties": {"strategy": {"const": "rand"}}},
+          "then": {"required": ["range"]}
+        },
+        {
+          "if": {"properties": {"strategy": {"const": "pattern"}}},
+          "then": {"required": ["pattern", "range"]}
+        },
+        {
+          "if": {"properties": {"strategy": {"const": "list"}}},
+          "then": {"required": ["list"]}
+        }
+      ]
+    },
+    "tuple_config": {
+      "title": "Tuple pool",
+      "description": "Four-tuple generation pool for batch classes. Each endpoint accepts a static value or a dynamic_value object.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "src_ip": {
+          "title": "Source IP pool",
+          "description": "Source IPv4 pool: static address or dynamic_value."
+        },
+        "dst_ip": {
+          "title": "Destination IP pool",
+          "description": "Destination IPv4 pool: static address or dynamic_value."
+        },
+        "src_port": {
+          "title": "Source port pool",
+          "description": "Source port pool: static 0-65535 or dynamic_value."
+        },
+        "dst_port": {
+          "title": "Destination port pool",
+          "description": "Destination port pool: static 0-65535 or dynamic_value."
+        }
+      }
+    },
+    "group_id": {
+      "title": "Worker binding",
+      "description": "Routes flows with the same generated id to one PacketWorker, preserving cross-flow timing (e.g. signaling plus data). Same dynamic_value semantics.",
+      "$ref": "#/$defs/dynamic_value"
+    }
+  }
+}
