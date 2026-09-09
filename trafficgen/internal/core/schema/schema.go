@@ -26,12 +26,16 @@ var schemasFS = tgschemas.FS
 const (
 	fileDefs     = "v1/defs.json"
 	fileStrategy = "v1/strategy.json"
+	fileTask     = "v1/task.json"
+	fileBatch    = "v1/batch.json"
 )
 
 var (
 	loadOnce     sync.Once
 	loadErr      error
 	strategyRule *jsonschema.Resolved
+	taskRule     *jsonschema.Resolved
+	batchRule    *jsonschema.Resolved
 	defsDoc      map[string]any
 )
 
@@ -59,8 +63,8 @@ func (errs ValidationErrors) Error() string {
 	return strings.Join(msgs, "; ")
 }
 
-// load resolves strategy.json with defs.json $defs inlined, so no cross-file
-// loader is needed: the single merged document resolves in-tree.
+// load resolves strategy/task/batch schemas with shared $defs inlined, so no
+// cross-file loader is needed: each merged document resolves in-tree.
 func load() error {
 	loadOnce.Do(func() {
 		defsRaw, err := schemasFS.ReadFile(fileDefs)
@@ -72,28 +76,46 @@ func load() error {
 			loadErr = fmt.Errorf("schema: parse defs.json: %w", err)
 			return
 		}
-		doc, err := mergedStrategyDoc()
-		if err != nil {
-			loadErr = fmt.Errorf("schema: merge strategy+defs: %w", err)
+		if strategyRule, loadErr = resolveMerged(fileStrategy, "strategy.json"); loadErr != nil {
 			return
 		}
-		raw, err := json.Marshal(doc)
-		if err != nil {
-			loadErr = fmt.Errorf("schema: re-encode merged strategy: %w", err)
+		if taskRule, loadErr = resolveMerged(fileTask, "task.json"); loadErr != nil {
 			return
 		}
-		raw = inlineRefs(raw)
-		var sch jsonschema.Schema
-		if err := json.Unmarshal(raw, &sch); err != nil {
-			loadErr = fmt.Errorf("schema: parse strategy.json: %w", err)
+		if batchRule, loadErr = resolveMerged(fileBatch, "batch.json"); loadErr != nil {
 			return
-		}
-		strategyRule, loadErr = sch.Resolve(&jsonschema.ResolveOptions{})
-		if loadErr != nil {
-			loadErr = fmt.Errorf("schema: resolve strategy.json: %w", loadErr)
 		}
 	})
 	return loadErr
+}
+
+// resolveMerged inlines shared $defs into one schema file and resolves it.
+func resolveMerged(file, label string) (*jsonschema.Resolved, error) {
+	doc, err := mergedDoc(file)
+	if err != nil {
+		return nil, fmt.Errorf("schema: merge %s: %w", label, err)
+	}
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		return nil, fmt.Errorf("schema: re-encode merged %s: %w", label, err)
+	}
+	raw = inlineRefs(raw)
+	raw = inlineBatchRef(raw)
+	var sch jsonschema.Schema
+	if err := json.Unmarshal(raw, &sch); err != nil {
+		return nil, fmt.Errorf("schema: parse %s: %w", label, err)
+	}
+	r, err := sch.Resolve(&jsonschema.ResolveOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("schema: resolve %s: %w", label, err)
+	}
+	return r, nil
+}
+
+// inlineBatchRef rewrites the task->batch cross-file ref to the in-document
+// batch subschema inlined under $defs by mergedDoc.
+func inlineBatchRef(raw []byte) []byte {
+	return []byte(strings.ReplaceAll(string(raw), `"batch.json"`, `"#/$defs/batch"`))
 }
 
 // inlineRefs rewrites cross-file "defs.json#/$defs/x" refs to in-document
@@ -105,12 +127,18 @@ func inlineRefs(raw []byte) []byte {
 // mergedStrategyDoc returns strategy.json with defs.json $defs inlined under
 // $defs, so "defs.json#/$defs/x" refs resolve in-document via inlineRefs.
 func mergedStrategyDoc() (map[string]any, error) {
-	stratRaw, err := schemasFS.ReadFile(fileStrategy)
+	return mergedDoc(fileStrategy)
+}
+
+// mergedDoc inlines shared $defs into one schema file. For task.json it also
+// inlines batch.json as the "batch" $def so the task->batch ref stays in-tree.
+func mergedDoc(file string) (map[string]any, error) {
+	raw, err := schemasFS.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
 	var doc map[string]any
-	if err := json.Unmarshal(stratRaw, &doc); err != nil {
+	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, err
 	}
 	defs, ok := defsDoc["$defs"].(map[string]any)
@@ -118,12 +146,27 @@ func mergedStrategyDoc() (map[string]any, error) {
 		return nil, fmt.Errorf("schema: defs.json has no $defs")
 	}
 	own, _ := doc["$defs"].(map[string]any)
-	merged := make(map[string]any, len(defs)+len(own))
+	merged := make(map[string]any, len(defs)+len(own)+1)
 	for k, v := range defs {
 		merged[k] = v
 	}
 	for k, v := range own {
 		merged[k] = v
+	}
+	if file == fileTask {
+		batchRaw, err := schemasFS.ReadFile(fileBatch)
+		if err != nil {
+			return nil, err
+		}
+		var batchDoc map[string]any
+		if err := json.Unmarshal(batchRaw, &batchDoc); err != nil {
+			return nil, err
+		}
+		// Drop the subdocument's own $id/$schema: inlined refs must resolve
+		// against the root document's $defs, not a nested base URI scope.
+		delete(batchDoc, "$id")
+		delete(batchDoc, "$schema")
+		merged["batch"] = batchDoc
 	}
 	doc["$defs"] = merged
 	return doc, nil
@@ -188,4 +231,27 @@ func lastIndex(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+// ValidateTaskShape validates {"name","strategy_ids"|"batch","output_type",
+// "output_config","flow_control"} against task.json (batch inlined).
+func ValidateTaskShape(doc map[string]any) ValidationErrors {
+	if err := load(); err != nil {
+		return ValidationErrors{{Message: err.Error()}}
+	}
+	if err := taskRule.Validate(doc); err != nil {
+		return splitError(err)
+	}
+	return nil
+}
+
+// ValidateBatchShape validates {"classes","global"} against batch.json.
+func ValidateBatchShape(doc map[string]any) ValidationErrors {
+	if err := load(); err != nil {
+		return ValidationErrors{{Message: err.Error()}}
+	}
+	if err := batchRule.Validate(doc); err != nil {
+		return splitError(err)
+	}
+	return nil
 }

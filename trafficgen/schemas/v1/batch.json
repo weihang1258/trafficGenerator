@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trafficgen.local/schemas/v1/batch.json",
+  "title": "Batch spec",
+  "description": "Mixed-traffic batch: multiple protocol classes running concurrently in one engine task. Each class carries its own rate, tuple pool, config, and optional replay spec or worker binding.",
+  "type": "object",
+  "required": [
+    "classes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "classes": {
+      "title": "Traffic classes",
+      "description": "At least one class; ids must be unique within the batch.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Class id",
+            "description": "Unique within the batch.",
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "title": "Class protocol",
+            "description": "Protocol name, or replay for pcap replay classes.",
+            "type": "string",
+            "minLength": 1
+          },
+          "bps": {
+            "title": "Class rate",
+            "description": "Per-class rate limit, e.g. 200k, 1M.",
+            "type": "string",
+            "minLength": 1
+          },
+          "flows_per_second": {
+            "title": "Flows per second",
+            "description": "Class flow spawn rate.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "flow_count": {
+            "title": "Flow count",
+            "description": "Number of flows. Must be > 0 except replay classes.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "tuples": {
+            "title": "Tuple pool",
+            "description": "Four-tuple generation pool for this class.",
+            "$ref": "defs.json#/$defs/tuple_config"
+          },
+          "config": {
+            "title": "Class config",
+            "description": "Raw per-protocol config map (same flat base as strategy config).",
+            "type": "object"
+          },
+          "replay": {
+            "title": "Replay spec",
+            "description": "Replay classes only: pcap_asset_id/speed/direction/checksum_mode.",
+            "type": "object",
+            "required": [
+              "pcap_asset_id"
+            ],
+            "properties": {
+              "pcap_asset_id": {
+                "title": "Pcap asset id",
+                "description": "Previously imported pcap asset to replay.",
+                "type": "string",
+                "minLength": 1
+              },
+              "speed": {
+                "title": "Replay speed",
+                "description": "original pace, multiplier, or bps cap.",
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "title": "Speed mode",
+                    "description": "original, multiplier, or bps.",
+                    "type": "string",
+                    "enum": [
+                      "original",
+                      "multiplier",
+                      "bps"
+                    ]
+                  },
+                  "multiplier": {
+                    "title": "Speed multiplier",
+                    "description": "Must be > 0 in multiplier mode.",
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "bps": {
+                    "title": "Speed cap",
+                    "description": "Bits-per-second cap in bps mode.",
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "direction": {
+                "title": "Replay direction",
+                "description": "single or dual interface.",
+                "type": "string",
+                "enum": [
+                  "single",
+                  "dual"
+                ]
+              },
+              "checksum_mode": {
+                "title": "Checksum mode",
+                "description": "recompute or preserve checksums.",
+                "type": "string",
+                "enum": [
+                  "recompute",
+                  "preserve"
+                ]
+              }
+            }
+          },
+          "group_id": {
+            "title": "Worker binding",
+            "description": "Routes same-id flows of this class to one PacketWorker.",
+            "$ref": "defs.json#/$defs/group_id"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "replay"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "replay"
+              ]
+            },
+            "else": {
+              "required": [
+                "flow_count"
+              ],
+              "properties": {
+                "flow_count": {
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "global": {
+      "title": "Global batch settings",
+      "description": "Batch-wide totals and duration.",
+      "type": "object",
+      "properties": {
+        "total_flows": {
+          "title": "Total flows",
+          "description": "Batch-wide flow total.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "duration_seconds": {
+          "title": "Duration seconds",
+          "description": "Batch-wide duration in seconds.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

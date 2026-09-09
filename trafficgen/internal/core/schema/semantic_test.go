@@ -96,3 +96,81 @@ func contains(s, sub string) bool {
 		return false
 	})()
 }
+
+func TestTaskShape(t *testing.T) {
+	good := map[string]any{
+		"name": "t1", "strategy_ids": []any{"s1"},
+		"output_type": "pcap", "output_config": map[string]any{"pcap_path": "x.pcap"},
+	}
+	if errs := ValidateTaskShape(good); len(errs) != 0 {
+		t.Fatalf("want clean, got %v", errs)
+	}
+	bad := []struct {
+		name string
+		doc  map[string]any
+	}{
+		{"no ids nor batch", map[string]any{"name": "t", "output_type": "pcap", "output_config": map[string]any{"pcap_path": "x"}}},
+		{"both ids and batch", map[string]any{"name": "t", "strategy_ids": []any{"s"}, "batch": map[string]any{"classes": []any{}}, "output_type": "pcap", "output_config": map[string]any{"pcap_path": "x"}}},
+		{"empty ids", map[string]any{"name": "t", "strategy_ids": []any{}, "output_type": "pcap", "output_config": map[string]any{"pcap_path": "x"}}},
+		{"pg missing id", map[string]any{"name": "t", "strategy_ids": []any{"s"}, "output_type": "port_group", "output_config": map[string]any{}}},
+		{"pcap missing path", map[string]any{"name": "t", "strategy_ids": []any{"s"}, "output_type": "pcap", "output_config": map[string]any{}}},
+		{"bad fc", map[string]any{"name": "t", "strategy_ids": []any{"s"}, "output_type": "pcap", "output_config": map[string]any{"pcap_path": "x"}, "flow_control": map[string]any{"type": "cps", "value": 1}}},
+	}
+	for _, tc := range bad {
+		t.Run(tc.name, func(t *testing.T) {
+			if errs := ValidateTaskShape(tc.doc); len(errs) == 0 {
+				t.Fatalf("want errors, got clean")
+			}
+		})
+	}
+}
+
+func TestBatchShape(t *testing.T) {
+	good := map[string]any{
+		"classes": []any{map[string]any{"id": "c1", "type": "tcp", "flow_count": 1, "config": map[string]any{}}},
+	}
+	if errs := ValidateBatchShape(good); len(errs) != 0 {
+		t.Fatalf("want clean, got %v", errs)
+	}
+	bad := []struct {
+		name string
+		doc  map[string]any
+	}{
+		{"no classes", map[string]any{}},
+		{"synth no count", map[string]any{"classes": []any{map[string]any{"id": "c", "type": "tcp", "config": map[string]any{}}}}},
+		{"replay no spec", map[string]any{"classes": []any{map[string]any{"id": "c", "type": "replay"}}}},
+	}
+	for _, tc := range bad {
+		t.Run(tc.name, func(t *testing.T) {
+			if errs := ValidateBatchShape(tc.doc); len(errs) == 0 {
+				t.Fatalf("want errors, got clean")
+			}
+		})
+	}
+}
+
+func TestTaskCreateEntry(t *testing.T) {
+	doc := map[string]any{
+		"name": "t1", "strategy_ids": []any{"s1"},
+		"output_type": "pcap", "output_config": map[string]any{"pcap_path": "x.pcap"},
+		"flow_control": map[string]any{"type": "bps", "value": float64(100)},
+	}
+	strats := []StrategyView{{Name: "r1", Mode: "replay", SpeedMode: "original"}}
+	errs := ValidateTaskCreate(doc, strats)
+	if len(errs) == 0 {
+		t.Fatalf("want replay+bps conflict, got clean")
+	}
+	if got := errs.Error(); !contains(got, "cannot combine with bps") {
+		t.Fatalf("want conflict text, got %v", errs)
+	}
+	doc2 := map[string]any{
+		"name": "t1", "strategy_ids": []any{"s1"},
+		"output_type": "pcap", "output_config": map[string]any{"pcap_path": "x.pcap"},
+		"flow_control": map[string]any{"type": "xyz", "value": float64(1)},
+	}
+	if errs := ValidateTaskCreate(doc2, nil); len(errs) == 0 {
+		t.Fatalf("want fc type error, got clean")
+	} else if got := errs.Error(); !contains(got, "invalid flow_control type") {
+		t.Fatalf("want historic fc text, got %v", errs)
+	}
+}

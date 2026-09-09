@@ -9,31 +9,183 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/trafficgen/trafficgen/internal/core"
-	"github.com/trafficgen/trafficgen/internal/output"
 	"github.com/trafficgen/trafficgen/internal/api/websocket"
+	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/core/schema"
+	"github.com/trafficgen/trafficgen/internal/output"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"github.com/trafficgen/trafficgen/pkg/netif"
 	"gorm.io/gorm"
 )
 
+// taskSchemaGate runs the unified task validation entry (shape + flow-control
+// envelope + replay+bps conflict + batch semantics) and writes the 400 on
+// failure. strategyViews carries the loaded strategies for the conflict
+// check. DB lookups (existence/ownership, port groups) stay in the handler.
+func taskSchemaGate(c *gin.Context, doc map[string]interface{}, strategyViews []schema.StrategyView) bool {
+	if errs := schema.ValidateTaskCreate(doc, strategyViews); len(errs) > 0 {
+		BadRequest(c, errs.Error())
+		return false
+	}
+	return true
+}
+
+// toAny round-trips a typed request value through JSON into a plain map,
+// so the schema entry validates exactly what the client sent (field names
+// and types), not Go zero values. Nil input yields nil (absent envelope).
+// Empty strings inside the map are dropped: gin binding fills absent string
+// fields (e.g. OutputConfigRequest.PortGroupID on a pcap task) with "",
+// which the client never sent. Dropping them restores the client-sent shape
+// so "absent" validates as absent. Non-empty values pass through untouched.
+func toAny(v interface{}) map[string]interface{} {
+	if v == nil {
+		return nil
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil
+	}
+	for k, val := range m {
+		if s, ok := val.(string); ok && s == "" {
+			delete(m, k)
+		}
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	return m
+}
+
+// toStrategyViews projects storage models to the minimal view the schema
+// entry needs for the replay+bps conflict check.
+func toStrategyViews(models []storage.StrategyModel) []schema.StrategyView {
+	out := make([]schema.StrategyView, 0, len(models))
+	for _, m := range models {
+		v := schema.StrategyView{Name: m.Name, Mode: m.Mode}
+		var rs struct {
+			Speed struct {
+				Mode string `json:"mode"`
+			} `json:"speed"`
+		}
+		if json.Unmarshal([]byte(m.Config), &rs) == nil {
+			v.SpeedMode = rs.Speed.Mode
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+func containsStr(s, sub string) bool {
+	return strings.Contains(s, sub)
+}
+
+// pruneZero drops zero-valued leaves from a decoded JSON map so the schema
+// entry sees the client-sent shape: gin-bound structs marshal absent strings
+// as "", absent numbers as 0, and absent sub-objects as {"strategy":""} or
+// {}. Every dropped form means "not set" in handler semantics (optional
+// fields, zero = default). Non-empty values pass through untouched. WARNING:
+// only use for batch docs — flow_control value 0 is a REAL user error
+// ("must be positive"), never prune it; taskCreateDoc keeps that path.
+func pruneZero(m map[string]interface{}) map[string]interface{} {
+	for k, v := range m {
+		switch t := v.(type) {
+		case string:
+			if t == "" {
+				delete(m, k)
+			}
+		case float64:
+			if t == 0 {
+				delete(m, k)
+			}
+		case map[string]interface{}:
+			pruneZero(t)
+			if len(t) == 0 {
+				delete(m, k)
+			}
+		case []interface{}:
+			for _, item := range t {
+				if sm, ok := item.(map[string]interface{}); ok {
+					pruneZero(sm)
+				}
+			}
+		}
+	}
+	return m
+}
+
+// toAnyBatch converts a bound BatchSpec to the client-sent shape: same as
+// toAny plus recursive zero pruning (BatchSpec/TrafficClass/GlobalConfig
+// lack omitempty, so absent sub-fields arrive zero-valued).
+func toAnyBatch(v interface{}) map[string]interface{} {
+	if v == nil {
+		return nil
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil
+	}
+	return pruneZero(m)
+}
+
+// toAnyJSON decodes a stored JSON blob into a plain map for the schema entry.
+func toAnyJSON(raw string) map[string]interface{} {
+	if raw == "" {
+		return nil
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return nil
+	}
+	return m
+}
+
+// taskCreateDoc builds the schema-entry document, omitting absent envelopes
+// (nil flow_control/output) so "absent" validates as absent. Explicit values
+// pass through untouched.
+func taskCreateDoc(name string, ids []interface{}, outputType string, output, fc map[string]interface{}) map[string]interface{} {
+	doc := map[string]interface{}{
+		"name": name, "strategy_ids": ids,
+		"output_type": outputType, "output_config": output,
+	}
+	if fc != nil {
+		doc["flow_control"] = fc
+	}
+	return doc
+}
+
+func toAnySlice(ss []string) []interface{} {
+	out := make([]interface{}, 0, len(ss))
+	for _, s := range ss {
+		out = append(out, s)
+	}
+	return out
+}
+
 // TaskHandler handles task requests.
 type TaskHandler struct {
-	db          *storage.DB
-	engine      *core.Engine
-	wsHub       *websocket.Hub
-	failedTasks map[string]string // engineTaskID -> errorMessage
-	failMu      sync.Mutex
+	db                 *storage.DB
+	engine             *core.Engine
+	wsHub              *websocket.Hub
+	failedTasks        map[string]string // engineTaskID -> errorMessage
+	failMu             sync.Mutex
 	lastProgressUpdate map[string]time.Time // parentTaskID -> last DB update time
-	progressMu        sync.Mutex
+	progressMu         sync.Mutex
 }
 
 // startSubmitHook is a test-only hook. When non-nil it is invoked after
@@ -58,10 +210,10 @@ func NewTaskHandlerWithCallbacks(db *storage.DB, engine *core.Engine, wsHandler 
 		hub = wsHandler.Hub()
 	}
 	h := &TaskHandler{
-		db:                db,
-		engine:            engine,
-		wsHub:             hub,
-		failedTasks:       make(map[string]string),
+		db:                 db,
+		engine:             engine,
+		wsHub:              hub,
+		failedTasks:        make(map[string]string),
 		lastProgressUpdate: make(map[string]time.Time),
 	}
 
@@ -161,7 +313,7 @@ func (h *TaskHandler) onEngineProgress(engineTaskID string, progress float64, st
 	// Broadcast progress update via WebSocket
 	if h.wsHub != nil {
 		h.wsHub.BroadcastToTask(parentTaskID, websocket.Message{
-			Type:      websocket.TypeProgressUpdate,
+			Type: websocket.TypeProgressUpdate,
 			Data: map[string]interface{}{
 				"task_id":  parentTaskID,
 				"progress": avgProgress,
@@ -229,7 +381,7 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 				msgType = websocket.TypeTaskFailed
 			}
 			h.wsHub.BroadcastToTask(taskID, websocket.Message{
-				Type:      msgType,
+				Type: msgType,
 				Data: map[string]interface{}{
 					"task_id":  taskID,
 					"status":   task.Status,
@@ -293,7 +445,7 @@ func (h *TaskHandler) onEngineTaskComplete(engineTaskID string) {
 				msgType = websocket.TypeTaskFailed
 			}
 			h.wsHub.BroadcastToTask(taskID, websocket.Message{
-				Type:      msgType,
+				Type: msgType,
 				Data: map[string]interface{}{
 					"task_id":  taskID,
 					"status":   task.Status,
@@ -399,9 +551,9 @@ func (h *TaskHandler) ensureTaskMTU(task *storage.TaskModel, interface2 string) 
 
 // CreateTaskRequest represents a create task request.
 type CreateTaskRequest struct {
-	Name        string               `json:"name" binding:"required"`
-	StrategyIDs []string             `json:"strategy_ids" binding:"required,min=1"`
-	OutputType  string               `json:"output_type" binding:"required"` // "port_group" or "pcap"
+	Name         string               `json:"name" binding:"required"`
+	StrategyIDs  []string             `json:"strategy_ids" binding:"required,min=1"`
+	OutputType   string               `json:"output_type" binding:"required"` // "port_group" or "pcap"
 	OutputConfig *OutputConfigRequest `json:"output_config" binding:"required"`
 	FlowControl  *FlowControlRequest  `json:"flow_control"` // Optional, task-level flow control
 }
@@ -418,8 +570,8 @@ type CreateBatchTaskRequest struct {
 
 // OutputConfigRequest represents output configuration.
 type OutputConfigRequest struct {
-	PortGroupID string `json:"port_group_id"` // For port_group output
-	PcapPath    string `json:"pcap_path"`    // For pcap output
+	PortGroupID string `json:"port_group_id"`        // For port_group output
+	PcapPath    string `json:"pcap_path"`            // For pcap output
 	Interface2  string `json:"interface2,omitempty"` // Second interface for dual-port replay (§16.11)
 }
 
@@ -434,32 +586,32 @@ type TaskStatsResponse struct {
 
 // StrategyBrief represents a strategy summary in the task response.
 type StrategyBrief struct {
-	ID          string               `json:"id"`
-	Name        string               `json:"name"`
-	Mode        string               `json:"mode,omitempty"`
-	Protocol    string               `json:"protocol"`
-	FlowControl *FlowControlRequest  `json:"flow_control,omitempty"`
+	ID          string              `json:"id"`
+	Name        string              `json:"name"`
+	Mode        string              `json:"mode,omitempty"`
+	Protocol    string              `json:"protocol"`
+	FlowControl *FlowControlRequest `json:"flow_control,omitempty"`
 }
 
 // TaskResponse represents a task response.
 type TaskResponse struct {
-	ID           string                `json:"id"`
-	UserID       string                `json:"user_id"`
-	Name         string                `json:"name"`
-	Protocol     string                `json:"protocol,omitempty"`
-	StrategyIDs  []string              `json:"strategy_ids"`
-	Strategies   []StrategyBrief       `json:"strategies,omitempty"`
-	OutputType   string                `json:"output_type"`
-	OutputConfig *OutputConfigRequest  `json:"output_config"`
-	FlowControl  *FlowControlRequest   `json:"flow_control"`
-	Status       string                `json:"status"`
-	ErrorMessage string                `json:"error_message,omitempty"`
-	Progress     float64               `json:"progress"`
-	Stats        *TaskStatsResponse    `json:"stats,omitempty"`
-	CreatedAt    int64                 `json:"created_at"`
-	UpdatedAt    int64                 `json:"updated_at"`
-	StartedAt    *int64                `json:"started_at,omitempty"`
-	CompletedAt  *int64                `json:"completed_at,omitempty"`
+	ID           string               `json:"id"`
+	UserID       string               `json:"user_id"`
+	Name         string               `json:"name"`
+	Protocol     string               `json:"protocol,omitempty"`
+	StrategyIDs  []string             `json:"strategy_ids"`
+	Strategies   []StrategyBrief      `json:"strategies,omitempty"`
+	OutputType   string               `json:"output_type"`
+	OutputConfig *OutputConfigRequest `json:"output_config"`
+	FlowControl  *FlowControlRequest  `json:"flow_control"`
+	Status       string               `json:"status"`
+	ErrorMessage string               `json:"error_message,omitempty"`
+	Progress     float64              `json:"progress"`
+	Stats        *TaskStatsResponse   `json:"stats,omitempty"`
+	CreatedAt    int64                `json:"created_at"`
+	UpdatedAt    int64                `json:"updated_at"`
+	StartedAt    *int64               `json:"started_at,omitempty"`
+	CompletedAt  *int64               `json:"completed_at,omitempty"`
 }
 
 // Create creates a new task (idempotent).
@@ -476,33 +628,12 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Validate strategy_ids
-	if len(req.StrategyIDs) == 0 {
-		BadRequest(c, "at least one strategy_id is required")
+	// Unified schema gate: shape (task.json) + flow-control envelope text.
+	// Strategy existence/ownership and the replay+bps conflict run below
+	// with the loaded models (gate re-runs including the conflict once
+	// strategies are known).
+	if !taskSchemaGate(c, taskCreateDoc(req.Name, toAnySlice(req.StrategyIDs), req.OutputType, toAny(req.OutputConfig), toAny(req.FlowControl)), nil) {
 		return
-	}
-
-	// Validate output configuration
-	if req.OutputType == "port_group" && req.OutputConfig.PortGroupID == "" {
-		BadRequest(c, "port_group_id is required for port_group output")
-		return
-	}
-	if req.OutputType == "pcap" && req.OutputConfig.PcapPath == "" {
-		BadRequest(c, "pcap_path is required for pcap output")
-		return
-	}
-
-	// Validate task-level flow control (if provided).
-	if req.FlowControl != nil {
-		validFlowTypes := map[string]bool{"flows": true, "bps": true, "time": true}
-		if !validFlowTypes[req.FlowControl.Type] {
-			BadRequest(c, "invalid flow_control type: must be flows, bps, or time")
-			return
-		}
-		if req.FlowControl.Value <= 0 {
-			BadRequest(c, "flow_control value must be positive")
-			return
-		}
 	}
 
 	// Validate strategy IDs and capture primary protocol
@@ -522,7 +653,10 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		}
 	}
 
-	// Collect strategies for replay+bps conflict check (needed below)
+	// Collect strategies for replay+bps conflict check (needed below).
+	// The check runs through the unified schema entry so REST, MCP and
+	// tests share one message; the legacy helper stays as the single
+	// implementation behind it.
 	strategiesForFC := make([]storage.StrategyModel, 0, len(req.StrategyIDs))
 	for _, strategyID := range req.StrategyIDs {
 		var strategy storage.StrategyModel
@@ -532,8 +666,7 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		}
 		strategiesForFC = append(strategiesForFC, strategy)
 	}
-	if err := validateReplayBPSConflict(strategiesForFC, req.FlowControl); err != nil {
-		BadRequest(c, err.Error())
+	if !taskSchemaGate(c, taskCreateDoc(req.Name, toAnySlice(req.StrategyIDs), req.OutputType, toAny(req.OutputConfig), toAny(req.FlowControl)), toStrategyViews(strategiesForFC)) {
 		return
 	}
 
@@ -602,18 +735,14 @@ func (h *TaskHandler) CreateBatch(c *gin.Context) {
 		BadRequest(c, "invalid request: "+err.Error())
 		return
 	}
-	if req.Batch == nil || len(req.Batch.Classes) == 0 {
-		BadRequest(c, "batch must contain at least one traffic class")
-		return
-	}
 
-	// Validate output configuration.
-	if req.OutputType == "port_group" && req.OutputConfig.PortGroupID == "" {
-		BadRequest(c, "port_group_id is required for port_group output")
-		return
-	}
-	if req.OutputType == "pcap" && req.OutputConfig.PcapPath == "" {
-		BadRequest(c, "pcap_path is required for pcap output")
+	// Unified schema gate: task shape (batch form) + batch class semantics
+	// via core.ValidateBatchSpec. Output presence and historic messages
+	// preserved; engine SubmitTask re-validates as before.
+	if !taskSchemaGate(c, map[string]interface{}{
+		"name": req.Name, "batch": toAnyBatch(req.Batch),
+		"output_type": req.OutputType, "output_config": toAny(req.OutputConfig),
+	}, nil) {
 		return
 	}
 
@@ -1005,18 +1134,35 @@ func (h *TaskHandler) Start(c *gin.Context) {
 		}
 		loadedStrategies = append(loadedStrategies, strategy)
 	}
-	// Replay+bps conflict: replay original/multiplier + task bps is forbidden
-	var taskFC *FlowControlRequest
+	// Replay+bps conflict via the unified schema entry (same message as
+	// Create). Task shape was validated at creation; only the conflict is
+	// re-checked here against the loaded strategies. toAnyJSON decodes the
+	// stored output blob verbatim (no empty-string dropping: stored JSON has
+	// no gin zero-fill), and the flow_control blob is passed through raw so
+	// an absent ceiling stays absent.
+	var taskFC map[string]interface{}
 	if task.FlowControl != "" {
-		taskFC = &FlowControlRequest{}
-		json.Unmarshal([]byte(task.FlowControl), taskFC)
+		var fc FlowControlRequest
+		json.Unmarshal([]byte(task.FlowControl), &fc)
+		taskFC = map[string]interface{}{"type": fc.Type, "value": fc.Value}
 	}
-	if err := validateReplayBPSConflict(loadedStrategies, taskFC); err != nil {
-		task.Status = "error"
-		task.ErrorMessage = err.Error()
-		h.db.Save(&task)
-		BadRequest(c, task.ErrorMessage)
-		return
+	conflictDoc := map[string]interface{}{
+		"name": task.Name, "strategy_ids": toAnySlice(strategyIDs),
+		"output_type": task.OutputType, "output_config": toAnyJSON(task.OutputConfig),
+	}
+	if taskFC != nil {
+		conflictDoc["flow_control"] = taskFC
+	}
+	if errs := schema.ValidateTaskCreate(conflictDoc, toStrategyViews(loadedStrategies)); len(errs) > 0 {
+		for _, e := range errs {
+			if containsStr(e.Message, "cannot combine with bps") {
+				task.Status = "error"
+				task.ErrorMessage = e.Message
+				h.db.Save(&task)
+				BadRequest(c, task.ErrorMessage)
+				return
+			}
+		}
 	}
 
 	var coreTasks []*core.Task

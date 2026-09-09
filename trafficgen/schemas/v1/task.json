@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trafficgen.local/schemas/v1/task.json",
+  "title": "Task",
+  "description": "A task runs one or more strategies (strategy_ids) or one inline batch spec, with its own output routing and an aggregate flow-control ceiling. The task ceiling caps the total without rewriting any strategy envelope.",
+  "type": "object",
+  "required": ["name", "output_type", "output_config"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "title": "Task name",
+      "description": "Human-readable task name.",
+      "type": "string",
+      "minLength": 1
+    },
+    "strategy_ids": {
+      "title": "Strategy ids",
+      "description": "Strategies to run together (at least one). Either this or batch, not both.",
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "batch": {
+      "title": "Batch spec",
+      "description": "Inline mixed-traffic batch (multiple protocol classes in one engine task). Either this or strategy_ids, not both.",
+      "$ref": "batch.json"
+    },
+    "output_type": {
+      "title": "Output type",
+      "description": "port_group sends to wire interfaces; pcap writes a file.",
+      "type": "string",
+      "enum": ["port_group", "pcap"]
+    },
+    "output_config": {
+      "title": "Output configuration",
+      "description": "Port group or pcap path matching output_type.",
+      "$ref": "defs.json#/$defs/output_config"
+    },
+    "flow_control": {
+      "title": "Task flow control",
+      "description": "Aggregate ceiling over all strategies/classes. Never rewrites strategy envelopes.",
+      "$ref": "defs.json#/$defs/flow_control"
+    }
+  },
+  "allOf": [
+    {"oneOf": [{"required": ["strategy_ids"]}, {"required": ["batch"]}]},
+    {
+      "if": {"properties": {"output_type": {"const": "port_group"}}},
+      "then": {"properties": {"output_config": {"required": ["port_group_id"]}}}
+    },
+    {
+      "if": {"properties": {"output_type": {"const": "pcap"}}},
+      "then": {"properties": {"output_config": {"required": ["pcap_path"]}}}
+    }
+  ]
+}

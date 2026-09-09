@@ -164,3 +164,85 @@ func validateConfigNetworkLocal(config map[string]any) string {
 	}
 	return ""
 }
+
+// ValidateTaskCreate is the single entry for task create validation (both
+// strategy_ids and inline-batch forms). Shape first via task.json, then the
+// semantic checks JSON Schema cannot express: flow-control envelope text,
+// replay+bps conflict against the loaded strategies, batch class semantics
+// via core.ValidateBatchSpec. DB lookups (strategy existence/ownership,
+// port-group existence) stay in the handler — they need the request context.
+func ValidateTaskCreate(doc map[string]any, strategies []StrategyView) ValidationErrors {
+	if shapeErrs := ValidateTaskShape(doc); len(shapeErrs) > 0 {
+		// Flow-control message parity: historic text wins over schema enum
+		// text when the caller set an explicit flow_control.
+		if fc, ok := doc["flow_control"].(map[string]any); ok {
+			if t, _ := fc["type"].(string); t != "" {
+				switch t {
+				case "flows", "bps", "time":
+				default:
+					return ValidationErrors{{Message: "invalid flow_control type: must be flows, bps, or time"}}
+				}
+			}
+			if v, ok := fc["value"].(float64); ok && v <= 0 {
+				return ValidationErrors{{Message: "flow_control value must be positive"}}
+			}
+		}
+		return shapeErrs
+	}
+	var errs ValidationErrors
+	if fc, ok := doc["flow_control"].(map[string]any); ok {
+		if t, _ := fc["type"].(string); t != "" {
+			switch t {
+			case "flows", "bps", "time":
+			default:
+				errs = append(errs, &FieldError{Message: "invalid flow_control type: must be flows, bps, or time"})
+			}
+		}
+		if v, ok := fc["value"].(float64); ok && v <= 0 {
+			errs = append(errs, &FieldError{Message: "flow_control value must be positive"})
+		}
+		if t, _ := fc["type"].(string); t == "bps" {
+			for _, s := range strategies {
+				if s.Mode == "replay" && (s.SpeedMode == "original" || s.SpeedMode == "multiplier") {
+					errs = append(errs, &FieldError{Message: "replay strategy " + quoted(s.Name) + " has " + s.SpeedMode + " speed limit, cannot combine with bps task-level flow control"})
+				}
+			}
+		}
+	}
+	if batch, ok := doc["batch"].(map[string]any); ok {
+		if shapeErrs := ValidateBatchShape(batch); len(shapeErrs) > 0 {
+			errs = append(errs, shapeErrs...)
+		} else if err := validateBatchSemantic(batch); err != nil {
+			errs = append(errs, &FieldError{Message: err.Error()})
+		}
+	}
+	return errs
+}
+
+// validateBatchSemantic decodes the shape-checked batch doc into
+// core.BatchSpec and runs core.ValidateBatchSpec (class ids, protocol
+// allowlist, per-class ranges, replay specs). Shape already passed, so
+// decode errors here are internal, not user errors.
+func validateBatchSemantic(batch map[string]any) error {
+	raw, err := json.Marshal(batch)
+	if err != nil {
+		return fmt.Errorf("invalid batch format")
+	}
+	var spec core.BatchSpec
+	if err := json.Unmarshal(raw, &spec); err != nil {
+		return fmt.Errorf("invalid batch format: %s", err.Error())
+	}
+	return core.ValidateBatchSpec(spec)
+}
+
+// StrategyView is the minimal strategy view ValidateTaskCreate needs for the
+// replay+bps conflict check. Handlers build it from storage models.
+type StrategyView struct {
+	Name      string
+	Mode      string
+	SpeedMode string
+}
+
+func quoted(s string) string {
+	return "\"" + s + "\""
+}
