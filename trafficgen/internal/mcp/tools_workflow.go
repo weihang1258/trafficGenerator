@@ -15,13 +15,13 @@ import (
 // generateTrafficInput is the input for flowb_generate_traffic, the one-shot
 // "create strategy + create task + start task" workflow.
 type generateTrafficInput struct {
-	TaskName           string                 `json:"task_name" jsonschema:"task name"`
-	Protocol           string                 `json:"protocol" jsonschema:"protocol (tcp/udp/http/dns/icmp/arp)"`
-	Config             map[string]interface{} `json:"config" jsonschema:"strategy config. Two formats: (1) layer-chain: {\"layers\":[{\"ip\":{}},{\"tcp\":{}},{\"http\":{}}]} — ordered layers outermost (L2) first; presence switches to layer-chain validation; only schema-declared fields (flowb_query_layers lists fields/defaults/depends_on, unknown rejected; hard depends_on auto-completed; protocol inferred from outermost non-scaffolding layer, explicit protocol must match. (2) flat: src_ip=10.0.0.1, dst_ip=20.0.0.1, src_port=12345, dst_port=80 (DNS 53), src_mac=02:00:00:00:00:01, dst_mac=02:00:00:00:00:02, ttl=64, dscp=0x08 (CS1, TOS 0x20), ip_flags=DF=1; explicit 0/empty honored. http sub-map {method,uri,version,request_headers,body,body_b64,keep_alive,transactions,think_time,response_*}; tcp sub-map {mss,initial_seq,handshake,termination,window_size} (mss default 1460, min 536; initial_seq pins client ISN). group_id {strategy,value/range/list/step/seed/pattern}: fixed/inc/rand/pattern/list bind same-id flows to one worker. tcpdump: ip[1] & 0xfc == 0x20."`
-	StrategyFlowControl *flowControlInput     `json:"strategy_flow_control,omitempty" jsonschema:"optional strategy-level flow control"`
-	TaskFlowControl    *flowControlInput      `json:"task_flow_control,omitempty" jsonschema:"optional task-level flow control (aggregate ceiling)"`
-	OutputType         string                 `json:"output_type" jsonschema:"output type: port_group or pcap"`
-	OutputConfig       *outputConfigInput     `json:"output_config" jsonschema:"output configuration"`
+	TaskName            string                 `json:"task_name" jsonschema:"task name"`
+	Protocol            string                 `json:"protocol" jsonschema:"protocol (tcp/udp/http/dns/icmp/arp)"`
+	Config              map[string]interface{} `json:"config" jsonschema:"strategy config. Two formats: (1) layer-chain: {\"layers\":[{\"ip\":{}},{\"tcp\":{}},{\"http\":{}}]} — ordered layers outermost (L2) first; presence switches to layer-chain validation; only schema-declared fields (flowb_query_layers lists fields/defaults/depends_on, unknown rejected; hard depends_on auto-completed; protocol inferred from outermost non-scaffolding layer, explicit protocol must match. (2) flat: src_ip=10.0.0.1, dst_ip=20.0.0.1, src_port=12345, dst_port=80 (DNS 53), src_mac=02:00:00:00:00:01, dst_mac=02:00:00:00:00:02, ttl=64, dscp=0x08 (CS1, TOS 0x20), ip_flags=DF=1; explicit 0/empty honored. http sub-map {method,uri,version,request_headers,body,body_b64,keep_alive,transactions,think_time,response_*}; tcp sub-map {mss,initial_seq,handshake,termination,window_size} (mss default 1460, min 536; initial_seq pins client ISN). group_id {strategy,value/range/list/step/seed/pattern}: fixed/inc/rand/pattern/list bind same-id flows to one worker. tcpdump: ip[1] & 0xfc == 0x20."`
+	StrategyFlowControl *flowControlInput      `json:"strategy_flow_control,omitempty" jsonschema:"optional strategy-level flow control"`
+	TaskFlowControl     *flowControlInput      `json:"task_flow_control,omitempty" jsonschema:"optional task-level flow control (aggregate ceiling)"`
+	OutputType          string                 `json:"output_type" jsonschema:"output type: port_group or pcap"`
+	OutputConfig        *outputConfigInput     `json:"output_config" jsonschema:"output configuration"`
 }
 
 // generateTrafficOutput is the workflow result returned to the LLM.
@@ -48,8 +48,8 @@ func (s *Server) registerWorkflowTools() {
 	)
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
-			Name:        "flowb_get_task_progress",
-			Description: "Get a task's current progress: status, progress percentage, and live stats (packets_sent, bytes_sent, current_pps, current_bps). Poll this to monitor a running task.",
+			Name:         "flowb_get_task_progress",
+			Description:  "Get a task's current progress: status, progress percentage, and live stats (packets_sent, bytes_sent, current_pps, current_bps). Poll this to monitor a running task.",
 			OutputSchema: dataOnlyOutputSchema(),
 		},
 		s.handleGetTaskProgress,
@@ -63,8 +63,8 @@ func (s *Server) registerWorkflowTools() {
 	)
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
-			Name:        "flowb_wait_for_task",
-			Description: "Block until a task reaches a terminal state (completed/stopped/error) or timeout. Returns the final task state. Default timeout 60s, max 300s. Use for short tasks; long-running tasks should poll flowb_get_task_progress instead.",
+			Name:         "flowb_wait_for_task",
+			Description:  "Block until a task reaches a terminal state (completed/stopped/error) or timeout. Returns the final task state. Default timeout 60s, max 300s. Use for short tasks; long-running tasks should poll flowb_get_task_progress instead.",
 			OutputSchema: dataOnlyOutputSchema(),
 		},
 		s.handleWaitForTask,
@@ -136,8 +136,8 @@ type stopAllTasksInput struct{}
 
 // stopAllTasksResult is the output for flowb_stop_all_tasks.
 type stopAllTasksResult struct {
-	Stopped []string         `json:"stopped"`
-	Errors  []stopTaskError  `json:"errors,omitempty"`
+	Stopped []string        `json:"stopped"`
+	Errors  []stopTaskError `json:"errors,omitempty"`
 }
 type stopTaskError struct {
 	TaskID string `json:"task_id"`
@@ -304,14 +304,28 @@ func (s *Server) handleReplayPcap(ctx context.Context, req *mcp.CallToolRequest,
 
 	// Step 1: create replay strategy. mode=replay; protocol is informational
 	// (the real protocol comes from the pcap). Config is the ReplaySpec JSON.
+	// Explicit null is not absence: unset optionals are omitted so the
+	// schema sees a missing key (engine default) instead of a null value.
 	replaySpec := map[string]interface{}{
-		"pcap_asset_id":  in.PcapAssetID,
-		"loop":           in.Loop,
-		"speed":          in.Speed,
-		"direction":      in.Direction,
-		"checksum_mode":  in.ChecksumMode,
-		"rewrites":       in.Rewrites,
-		"flow_scaling":   in.FlowScaling,
+		"pcap_asset_id": in.PcapAssetID,
+	}
+	if in.Loop != 0 {
+		replaySpec["loop"] = in.Loop
+	}
+	if in.Speed != nil {
+		replaySpec["speed"] = in.Speed
+	}
+	if in.Direction != "" {
+		replaySpec["direction"] = in.Direction
+	}
+	if in.ChecksumMode != "" {
+		replaySpec["checksum_mode"] = in.ChecksumMode
+	}
+	if in.Rewrites != nil {
+		replaySpec["rewrites"] = in.Rewrites
+	}
+	if in.FlowScaling != nil {
+		replaySpec["flow_scaling"] = in.FlowScaling
 	}
 	stratBody := mustMarshal(map[string]interface{}{
 		"name":         in.TaskName,

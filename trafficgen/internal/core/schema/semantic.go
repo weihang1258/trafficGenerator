@@ -56,8 +56,16 @@ func validateStrategySemantic(mode, protocol string, config map[string]any, fc *
 	if mode == "replay" {
 		// Handler-identical messages first: layers rejection and time-only
 		// flow control use the exact historic text (tests assert substrings).
+		// Explicit null is a value, not absence: callers (MCP) must omit
+		// unset optionals instead of sending null. The schema "type" errors
+		// for null are reflect jargon, so translate them to a human message.
 		if _, ok := config["layers"]; ok {
 			fail("layers is not valid for replay strategies (replay config only takes pcap_asset_id/speed/direction/checksum_mode)")
+		}
+		for _, k := range []string{"speed", "direction", "checksum_mode", "rewrites", "flow_scaling", "loop"} {
+			if v, ok := config[k]; ok && v == nil {
+				fail("%s is null; omit it to use the engine default", k)
+			}
 		}
 		if fc != nil && fc.Type != "time" {
 			fail("replay strategy flow_control only supports type=time")

@@ -55,11 +55,11 @@ func TestSemanticMatchesHandlerMessages(t *testing.T) {
 			wantSub:  "invalid speed mode",
 		},
 		{
-			name:     "replay null speed/direction/checksum accepted (MCP omits optionals as null)",
+			name:     "replay null optionals rejected (null is a value, absent is default)",
 			mode:     "replay",
 			protocol: "",
 			config:   map[string]any{"pcap_asset_id": "x", "speed": nil, "direction": nil, "checksum_mode": nil},
-			wantSub:  "",
+			wantSub:  "is null; omit",
 		},
 		{
 			name:     "replay empty direction/checksum accepted",
@@ -173,6 +173,8 @@ func TestBatchShape(t *testing.T) {
 		{"no classes", map[string]any{}},
 		{"synth no count", map[string]any{"classes": []any{map[string]any{"id": "c", "type": "tcp", "config": map[string]any{}}}}},
 		{"replay no spec", map[string]any{"classes": []any{map[string]any{"id": "c", "type": "replay"}}}},
+		{"replay null direction", map[string]any{"classes": []any{map[string]any{"id": "c", "type": "replay",
+			"replay": map[string]any{"pcap_asset_id": "x", "direction": nil}}}}},
 	}
 	for _, tc := range bad {
 		t.Run(tc.name, func(t *testing.T) {

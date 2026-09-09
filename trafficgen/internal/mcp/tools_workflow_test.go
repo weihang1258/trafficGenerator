@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/trafficgen/trafficgen/internal/replay"
+	"github.com/trafficgen/trafficgen/internal/storage"
 )
 
 // ---------------------------------------------------------------------------
@@ -253,6 +254,46 @@ func TestMCP_ReplayPcap_InvalidAssetID(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error for nonexistent pcap_asset_id, got nil")
+	}
+}
+
+func TestMCP_ReplayPcap_OmitsEmptyOptionals(t *testing.T) {
+	env := setupMCPTest(t)
+	defer env.cleanup()
+	assetID := importTestPcap(t, env)
+	env.eng.SetReplayPlanner(replay.NewReplayPlanner(env.db))
+
+	_, out, err := env.srv.handleReplayPcap(context.Background(), nil, replayPcapInput{
+		TaskName:    "replay-omit-test",
+		PcapAssetID: assetID,
+		OutputType:  "pcap",
+		OutputConfig: &outputConfigInput{
+			PcapPath: env.tmp + "/replay-omit.pcap",
+		},
+	})
+	if err != nil {
+		t.Fatalf("replay with omitted optionals: %v", err)
+	}
+	if out.StrategyID == "" {
+		t.Fatal("missing strategy_id")
+	}
+	// 有值和缺失是两回事：没填的可选项在存量 config 里必须缺席，
+	// 不能以 null/"" 占位（schema 拒绝显式 null）。
+	var sm storage.StrategyModel
+	if err := env.db.First(&sm, "id = ?", out.StrategyID).Error; err != nil {
+		t.Fatalf("load strategy: %v", err)
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal([]byte(sm.Config), &cfg); err != nil {
+		t.Fatalf("decode strategy config: %v", err)
+	}
+	for _, k := range []string{"speed", "direction", "checksum_mode", "rewrites", "flow_scaling"} {
+		if v, ok := cfg[k]; ok {
+			t.Errorf("stored config has key %q (want absent); value=%v", k, v)
+		}
+	}
+	if _, ok := cfg["pcap_asset_id"]; !ok {
+		t.Error("stored config missing pcap_asset_id")
 	}
 }
 

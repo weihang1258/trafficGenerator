@@ -380,11 +380,8 @@
         },
         "speed": {
           "title": "Replay speed",
-          "description": "Replay only: original pace, multiplier of original, or capped bits per second.",
-          "type": [
-            "object",
-            "null"
-          ],
+          "description": "Replay only: original pace, multiplier of original, or capped bits per second. Omit to use the engine default; explicit null is rejected (omit the key instead).",
+          "type": "object",
           "additionalProperties": false,
           "properties": {
             "mode": {
@@ -413,19 +410,13 @@
         },
         "direction": {
           "title": "Replay direction",
-          "description": "Replay only: single or dual interface. Absent/null/empty = engine default single; other values validated by ValidateReplaySpec.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "description": "Replay only: single or dual interface. Omit to use the engine default single; explicit null or other values are rejected (null: omit the key; values: ValidateReplaySpec).",
+          "type": "string"
         },
         "checksum_mode": {
           "title": "Checksum mode",
-          "description": "Replay only: recompute or preserve checksums. Absent/null/empty = engine default recompute; other values validated by ValidateReplaySpec.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "description": "Replay only: recompute or preserve checksums. Omit to use the engine default recompute; explicit null or other values are rejected (null: omit the key; values: ValidateReplaySpec).",
+          "type": "string"
         }
       },
       "allOf": [

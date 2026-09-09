@@ -22,7 +22,7 @@ MCP 描述（`internal/mcp/schemagen` → `schema_descriptions_generated.go`）�
 
 - strategy 是单协议模板，自带 flow_control；task 是多策略合并，task 的 flow_control 只做总上限，不改写策略包络。
 - mode=replay 时 config 只收 pcap_asset_id/speed/direction/checksum_mode，不收 layers；flow_control 只收 time。
-- direction/checksum_mode 空值走引擎缺省（single/recompute），非法值由 ValidateReplaySpec 按历史文案拒绝。
+- direction/checksum_mode/speed 缺席走引擎缺省（single/recompute/无调速）；显式 null 被拒绝（缺失和有值是两回事：MCP 负责省略未填键）。非法值由 ValidateReplaySpec 按历史文案拒绝。
 - flow_control 类型只有 flows/bps/time（cps/ratio 已下线，前端选项同步移除）。
 - layers 出现即走层链校验，protocol 可空由推断回填；层字段以 `flowb_query_layers` 运行时视图为准（`layers.json` 生成表待建）。
 
