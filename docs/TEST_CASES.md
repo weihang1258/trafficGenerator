@@ -89,6 +89,96 @@
 6. pcap 与真实 NIC 输出对比；
 7. `-race`、资源释放和取消后的无泄漏检查。
 
+### T-SCHEMA-1 策略形状（strategy.json）
+
+**状态：** 已通过
+**级别：** unit
+**来源：** `docs/CODE_DESIGN.md` D-SCHEMA-1 §1；`trafficgen/schemas/v1/strategy.json`
+**目标：** 畸形策略形状被拒，合法最小/动态/回放/层链形状放行。
+
+**输入：** `ValidateStrategyShape` 直接喂文档（缺 name、坏 mode、坏 FC 类型、0 值 FC、replay 带 layers、无 asset、越界 dscp/port、坏 MAC、坏 tftp mode/tid、multiplier 缺值、inc 缺 range；合法 dynamic/replay/layers 各一）。
+**前置条件：** 无（纯内存）。
+**执行：** `go test ./internal/core/schema/ -run 'TestValidMinimal|TestInvalidCases|TestValidDynamicAndReplay'`
+**期望输出：** 14 个非法全红、3 个合法全绿。
+**错误期望：** 锚词为 schema 叶消息（`required`/`enum`/`exclusiveMinimum`/MAC `pattern` 等）。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/schema/schema_test.go`。
+
+### T-SCHEMA-2 策略语义与历史文案对齐
+
+**状态：** 已通过
+**级别：** unit
+**来源：** D-SCHEMA-1 §3/§5；`strategy_handler.go` 历史分支（createSynth/createReplay/Update）
+**目标：** 语义错的报错字样与老接口逐字一致；形状与语义同错时语义优先。
+
+**输入：** 坏 IP/MAC 格式、越界 dscp、未知协议、TFTP tid 碰撞（flows=2+server_tid）、replay 坏 speed/direction/checksum、replay 空 direction+checksum 放行、layers 推断 `[ip,tcp,http]`。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/schema/ -run TestSemanticMatchesHandlerMessages`
+**期望输出：** 逐例子含指定子串（`invalid IP format: src_ip`、`server_tid 5000 conflicts`、`invalid speed mode`、`invalid direction`、`invalid checksum_mode` 等）；空可选项放行且推断出 protocol。
+**错误期望：** 同上（断言“含子串”即文案锚）。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/schema/semantic_test.go`。
+
+### T-SCHEMA-3 显式 null 拒绝与 MCP 省略键
+
+**状态：** 已通过
+**级别：** unit + integration
+**来源：** D-SCHEMA-1 §4/§5；用户裁决“有值与缺失是两回事，MCP 负责省略”
+**目标：** replay 六键显式 null 被人话拒绝；MCP 未填可选项时转发/存量均无占位键。
+
+**输入：** `ValidateStrategy` 喂 `speed/direction/checksum_mode=nil`；`handleReplayPcap` 全缺省调用后查库。
+**前置条件：** MCP 测试库（`setupMCPTest`）+ pcap 资产。
+**执行：** `go test ./internal/core/schema/ -run TestSemanticMatchesHandlerMessages`；`go test ./internal/mcp/ -run TestMCP_ReplayPcap_OmitsEmptyOptionals`
+**期望输出：** null 用例报错含 `is null; omit`；MCP 用例存量 config 无 speed/direction/checksum_mode/rewrites/flow_scaling 键且有 pcap_asset_id。
+**错误期望：** null 走语义翻译，不漏 reflect 行话（`has type "null"`）。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/schema/semantic_test.go`、`internal/mcp/tools_workflow_test.go`。
+
+### T-SCHEMA-4 任务与批量形状+语义
+
+**状态：** 已通过
+**级别：** unit
+**来源：** D-SCHEMA-1 §3；`task.json`/`batch.json`
+**目标：** 任务二选一、输出配对、封包文案、批量类规则、replay+bps 冲突皆按设计执行。
+
+**输入：** 好任务（strategy_ids+pcap）放行；坏 6 例（无 ids 又无 batch、双带、空 ids、port_group 缺 id、pcap 缺 path、坏 FC）；批量好/坏 4 例（含 replay 缺 spec、replay null direction）；replay+bps 冲突（original 策略配 bps 任务封包）。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/schema/ -run 'TestTaskShape|TestBatchShape|TestTaskEntry|TestTaskCreateReplayConflict'`
+**期望输出：** 好放行、坏全红、冲突文案含 `cannot combine with bps`。
+**错误期望：** 封包错用历史文案（`invalid flow_control type`），其余 schema 叶消息。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/schema/semantic_test.go`。
+
+### T-SCHEMA-5 注册表生成表与过期门
+
+**状态：** 已通过
+**级别：** unit
+**来源：** D-SCHEMA-1 §1/§5；`layers.DefaultRegistry`
+**目标：** 生成表与实时注册表一致；过期必红且指明重跑命令；层链形状合法/非法正确判定。
+
+**输入：** `LayersGenerated` 对 `DefaultRegistry` 逐层比对（95 层：层数/分类/字段数/字段类型）；`ValidateLayersShape` 好链放行、空链/双键条目/裸字符串拒绝。
+**前置条件：** 生成文件已提交。
+**执行：** `go test ./internal/core/schema/ -run 'TestLayersGeneratedMatchesRegistry|TestLayersShape'`
+**期望输出：** 全绿；造假（删一层）后变红，恢复后变绿（已实测）。
+**错误期望：** 过期信息含 `regenerate via go run ./internal/core/layers/schemagen`。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/schema/schema_test.go`；生成器 `internal/core/layers/schemagen/main.go`。
+
+### T-SCHEMA-6 负例一致性横扫（REST vs MCP）
+
+**状态：** 已通过
+**级别：** integration
+**来源：** D-SCHEMA-1 §5；MCP `callHandler` 转发语义（不自验、不改写 message）
+**目标：** 同一坏配置走 REST 与走 MCP，失败且报错逐字一致。
+
+**输入：** 策略 12 例（坏 IP/MAC、越界、未知协议、坏 FC 类型、replay 带 layers、坏 speed/checksum、null direction、未知层、层未知字段、空链）+ 任务 5 例（无 ids 又无 batch、未知策略、坏任务 FC、port_group 缺 id、批量 null direction），共 17 例；REST 喂 JSON body、MCP 喂等价输入结构。
+**前置条件：** MCP 测试 env（含 DB/engine/Server）；REST 用 gin 测试路由。
+**执行：** `go test ./internal/mcp/ -run TestNegativeParity`
+**期望输出：** 17 例全绿（两边都失败且 `REST == MCP`）；横扫曾抓到起草用例错误（`tcp.mss=1` 实为合法）并已替换为真负例。
+**错误期望：** 断言“逐字相等”，分叉即 wiring bug（MCP 改写/美化）。
+**性能期望：** 不适用。
+**实现位置：** `internal/mcp/negative_parity_test.go`。
+
 ## 7. 用例审查与完成条件
 
 测试用例完成前必须进行两条审查：
