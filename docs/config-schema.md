@@ -17,6 +17,8 @@ MCP 描述（`internal/mcp/schemagen` → `schema_descriptions_generated.go`）�
 | `strategy.json` | 策略形状（synth/replay，config 平铺字段 + layers + 子配置） | REST strategy create/update 入口、MCP Config 描述 |
 | `task.json` | 任务形状（strategy_ids XOR batch，任务级 flow_control 上限） | REST task create/batch/start 入口 |
 | `batch.json` | 批量形状（classes[]，逐类速率/元组/回放/绑定） | REST create_batch 入口、前端 BatchSpec |
+| `layers.json` | 层链形状（有序单键对象数组） | layers 形状校验（语义归 Go），MCP 描述表 |
+| `generated/layers.generated.json` | 注册表生成表（95 层字段表，不许手写） | `flowb_query_layers` 对照、CI 过期打回 |
 
 ## 关键规则
 
@@ -24,5 +26,5 @@ MCP 描述（`internal/mcp/schemagen` → `schema_descriptions_generated.go`）�
 - mode=replay 时 config 只收 pcap_asset_id/speed/direction/checksum_mode，不收 layers；flow_control 只收 time。
 - direction/checksum_mode/speed 缺席走引擎缺省（single/recompute/无调速）；显式 null 被拒绝（缺失和有值是两回事：MCP 负责省略未填键）。非法值由 ValidateReplaySpec 按历史文案拒绝。
 - flow_control 类型只有 flows/bps/time（cps/ratio 已下线，前端选项同步移除）。
-- layers 出现即走层链校验，protocol 可空由推断回填；层字段以 `flowb_query_layers` 运行时视图为准（`layers.json` 生成表待建）。
+- layers 出现即走层链校验，protocol 可空由推断回填；层字段表由注册表生成（`generated/layers.generated.json`），`flowb_query_layers` 是同一注册表的实时视图；注册表变更必须重跑生成并提交。
 

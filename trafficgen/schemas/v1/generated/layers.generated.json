@@ -1,0 +1,2032 @@
+{
+  "$generator": "internal/core/layers/schemagen (source: layers.DefaultRegistry)",
+  "layers": {
+    "a2a": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "amqp": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "5672"
+      },
+      "fields": {
+        "channel_max": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "connections": {
+          "type": "list",
+          "default": []
+        },
+        "frame_max": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "heartbeat": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "profile": {
+          "type": "string",
+          "default": ""
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "ams": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "61616"
+      },
+      "fields": {
+        "profile": {
+          "type": "string",
+          "default": "ams_management_v1"
+        }
+      }
+    },
+    "bgp": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "179"
+      },
+      "fields": {
+        "asn": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "capabilities": {
+          "type": "list",
+          "default": []
+        },
+        "hold_time": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "identifier": {
+          "type": "string",
+          "default": ""
+        },
+        "length": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "marker": {
+          "type": "list",
+          "default": []
+        },
+        "notification": {
+          "type": "list",
+          "default": []
+        },
+        "transport": {
+          "type": "string",
+          "default": ""
+        },
+        "update": {
+          "type": "list",
+          "default": []
+        },
+        "version": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "wire_profile": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "cflow": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "coap": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {
+        "accept": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "block1": {
+          "type": "object"
+        },
+        "block2": {
+          "type": "object"
+        },
+        "code": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "confirmable": {
+          "type": "bool",
+          "default": false
+        },
+        "content_format": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "error_code": {
+          "type": "string",
+          "default": ""
+        },
+        "error_payload": {
+          "type": "list",
+          "default": []
+        },
+        "error_responses": {
+          "type": "list",
+          "default": []
+        },
+        "message_id": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "message_ids": {
+          "type": "list",
+          "default": []
+        },
+        "method": {
+          "type": "string",
+          "default": ""
+        },
+        "observe": {
+          "type": "object"
+        },
+        "path": {
+          "type": "list",
+          "default": []
+        },
+        "payload": {
+          "type": "list",
+          "default": []
+        },
+        "query": {
+          "type": "list",
+          "default": []
+        },
+        "response": {
+          "type": "bool",
+          "default": false
+        },
+        "response_blocks": {
+          "type": "list",
+          "default": []
+        },
+        "response_code": {
+          "type": "string",
+          "default": ""
+        },
+        "response_content_format": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "response_payload": {
+          "type": "list",
+          "default": []
+        },
+        "retransmit": {
+          "type": "object"
+        },
+        "session_src_ips": {
+          "type": "list",
+          "default": []
+        },
+        "session_src_ports": {
+          "type": "list",
+          "default": []
+        },
+        "token": {
+          "type": "list",
+          "default": []
+        },
+        "token_length": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "tokens": {
+          "type": "list",
+          "default": []
+        },
+        "uri_max_length": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "version": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        }
+      }
+    },
+    "cql": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "cwmp": {
+      "category": "terminal",
+      "depends_on": [
+        "http"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "7547"
+      },
+      "fields": {}
+    },
+    "dameng": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "5236"
+      },
+      "fields": {}
+    },
+    "dhcp": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "dhcpv6": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "dnp3": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "dns": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "transport_on": [
+        "udp",
+        "tcp"
+      ],
+      "optional_on": [
+        "tls"
+      ],
+      "fields": {
+        "name": {
+          "type": "string",
+          "default": "example.com"
+        },
+        "query_type": {
+          "type": "uint16",
+          "default": 1,
+          "max": 65535
+        }
+      }
+    },
+    "doh": {
+      "category": "terminal",
+      "depends_on": [
+        "http"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "80"
+      },
+      "fields": {}
+    },
+    "doip": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "drda": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "446"
+      },
+      "fields": {
+        "ccsid": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "correlator_inc": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "correlator_start": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "dss_segments": {
+          "type": "list",
+          "default": []
+        },
+        "rdb_name": {
+          "type": "string",
+          "default": ""
+        },
+        "security_token": {
+          "type": "list",
+          "default": []
+        },
+        "security_user": {
+          "type": "string",
+          "default": ""
+        },
+        "session_start": {
+          "type": "int",
+          "default": 0
+        },
+        "sql": {
+          "type": "object"
+        },
+        "transport": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "enip": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "eth": {
+      "category": "l2",
+      "fields": {
+        "dst_mac": {
+          "type": "mac"
+        },
+        "src_mac": {
+          "type": "mac"
+        }
+      }
+    },
+    "ethmining": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "4444"
+      },
+      "fields": {}
+    },
+    "fins": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "transport_on": [
+        "udp",
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "ftp": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "optional_on": [
+        "tls"
+      ],
+      "fields": {
+        "password": {
+          "type": "string",
+          "default": "anonymous"
+        },
+        "username": {
+          "type": "string",
+          "default": "anonymous"
+        }
+      }
+    },
+    "gbt": {
+      "category": "terminal",
+      "depends_on": [
+        "http"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "8332"
+      },
+      "fields": {}
+    },
+    "gbt32960": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "geneve": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "field_contract": {
+        "udp.dst_port": "6081"
+      },
+      "fields": {}
+    },
+    "getwork": {
+      "category": "terminal",
+      "depends_on": [
+        "http"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "8332"
+      },
+      "fields": {}
+    },
+    "gnutella": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "6346"
+      },
+      "fields": {
+        "profile": {
+          "type": "string",
+          "default": "gnutella_v060"
+        }
+      }
+    },
+    "goose": {
+      "category": "terminal",
+      "depends_on": [
+        "eth"
+      ],
+      "fields": {}
+    },
+    "gre": {
+      "category": "tunnel",
+      "depends_on": [
+        "ip"
+      ],
+      "inner_required": [
+        "ip"
+      ],
+      "field_contract": {
+        "ip.protocol": "47"
+      },
+      "fields": {
+        "checksum": {
+          "type": "bool",
+          "default": false
+        },
+        "key": {
+          "type": "uint32",
+          "default": 0
+        },
+        "sequence": {
+          "type": "bool",
+          "default": false
+        }
+      }
+    },
+    "grpc": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "8604"
+      },
+      "fields": {}
+    },
+    "gtp": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "hds": {
+      "category": "terminal",
+      "depends_on": [
+        "http"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "80"
+      },
+      "fields": {
+        "profile": {
+          "type": "string",
+          "default": "hds_http1"
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "hls": {
+      "category": "terminal",
+      "depends_on": [
+        "http"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "80"
+      },
+      "fields": {
+        "profile": {
+          "type": "string",
+          "default": "rfc8216_v7"
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "http": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "optional_on": [
+        "tls"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "80"
+      },
+      "fields": {
+        "body": {
+          "type": "string",
+          "default": ""
+        },
+        "headers": {
+          "type": "map",
+          "default": {}
+        },
+        "method": {
+          "type": "string",
+          "default": "GET"
+        },
+        "uri": {
+          "type": "string",
+          "default": "/"
+        },
+        "version": {
+          "type": "string",
+          "default": "1.1"
+        }
+      }
+    },
+    "http_flv": {
+      "category": "terminal",
+      "depends_on": [
+        "http"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "80"
+      },
+      "fields": {
+        "flags": {
+          "type": "uint8",
+          "default": 0
+        },
+        "rounds": {
+          "type": "int",
+          "default": 0
+        },
+        "tags": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "iec104": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "2404"
+      },
+      "fields": {
+        "cause": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "commands": {
+          "type": "list",
+          "default": []
+        },
+        "common_address": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "dco": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "diq": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "events": {
+          "type": "list",
+          "default": []
+        },
+        "ioa": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "max_apdu_length": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "qds": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "qoi": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "repeat": {
+          "type": "int",
+          "default": 0
+        },
+        "role": {
+          "type": "string",
+          "default": ""
+        },
+        "sco": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "select": {
+          "type": "bool",
+          "default": false
+        },
+        "siq": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "startdt": {
+          "type": "bool",
+          "default": false
+        },
+        "stopdt": {
+          "type": "bool",
+          "default": false
+        },
+        "time": {
+          "type": "string",
+          "default": ""
+        },
+        "transport": {
+          "type": "string",
+          "default": ""
+        },
+        "type_id": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "value": {
+          "type": "int",
+          "default": 0
+        }
+      }
+    },
+    "igmp": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "field_contract": {
+        "ip.protocol": "2"
+      },
+      "fields": {}
+    },
+    "ike": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "field_contract": {
+        "udp.dst_port": "500"
+      },
+      "fields": {}
+    },
+    "ike_nat_t": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "field_contract": {
+        "udp.dst_port": "4500"
+      },
+      "fields": {}
+    },
+    "imap": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "optional_on": [
+        "tls"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "143"
+      },
+      "fields": {}
+    },
+    "ip": {
+      "category": "network",
+      "fields": {
+        "dscp": {
+          "type": "uint8",
+          "default": 0,
+          "max": 63
+        },
+        "dst": {
+          "type": "ip",
+          "default": "20.0.0.1"
+        },
+        "ecn": {
+          "type": "uint8",
+          "default": 0,
+          "max": 3
+        },
+        "frag_offset": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "src": {
+          "type": "ip",
+          "default": "10.0.0.1"
+        },
+        "ttl": {
+          "type": "uint8",
+          "default": 64,
+          "max": 255
+        }
+      }
+    },
+    "isis": {
+      "category": "terminal",
+      "depends_on": [
+        "eth"
+      ],
+      "fields": {}
+    },
+    "l2tp": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "field_contract": {
+        "udp.dst_port": "1701"
+      },
+      "fields": {}
+    },
+    "ldp": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "transport_on": [
+        "udp",
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "mcp": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "mdns": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "mms": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {
+        "association": {
+          "type": "object"
+        },
+        "enableGetNameList": {
+          "type": "bool",
+          "default": false
+        },
+        "enableIdentify": {
+          "type": "bool",
+          "default": false
+        },
+        "enableInformationReport": {
+          "type": "bool",
+          "default": false
+        },
+        "enableRead": {
+          "type": "bool",
+          "default": false
+        },
+        "enableWrite": {
+          "type": "bool",
+          "default": false
+        },
+        "errorClassName": {
+          "type": "string"
+        },
+        "errorValue": {
+          "type": "int",
+          "default": 0,
+          "max": 255
+        },
+        "iedName": {
+          "type": "string"
+        },
+        "multiSession": {
+          "type": "list",
+          "default": []
+        },
+        "objects": {
+          "type": "list",
+          "default": []
+        },
+        "sequence": {
+          "type": "object"
+        }
+      }
+    },
+    "modbus": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "502"
+      },
+      "fields": {
+        "flow_count": {
+          "type": "int",
+          "default": 0
+        },
+        "master_count": {
+          "type": "int",
+          "default": 0
+        },
+        "shared_tid_space": {
+          "type": "bool",
+          "default": false
+        },
+        "suppress_broadcast": {
+          "type": "bool",
+          "default": false
+        },
+        "unit_id": {
+          "type": "uint8",
+          "default": 1,
+          "max": 255
+        }
+      }
+    },
+    "mongodb": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "27017"
+      },
+      "fields": {
+        "bson_fixture_hex": {
+          "type": "string",
+          "default": ""
+        },
+        "messages": {
+          "type": "list",
+          "default": []
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "object"
+        }
+      }
+    },
+    "moxa": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "mpls": {
+      "category": "l2",
+      "fields": {}
+    },
+    "mqtt": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "optional_on": [
+        "tls"
+      ],
+      "fields": {
+        "clean_session": {
+          "type": "bool",
+          "default": true
+        },
+        "client_id": {
+          "type": "string",
+          "default": ""
+        },
+        "connack_properties": {
+          "type": "list",
+          "default": []
+        },
+        "connect_ack_code": {
+          "type": "int",
+          "default": 0
+        },
+        "connect_ack_session_present": {
+          "type": "bool",
+          "default": false
+        },
+        "disconnect": {
+          "type": "bool",
+          "default": true
+        },
+        "disconnect_reason": {
+          "type": "int"
+        },
+        "keep_alive": {
+          "type": "int",
+          "default": 60
+        },
+        "messages": {
+          "type": "list",
+          "default": []
+        },
+        "password": {
+          "type": "string",
+          "default": ""
+        },
+        "ping_after_messages": {
+          "type": "bool",
+          "default": false
+        },
+        "properties": {
+          "type": "list",
+          "default": []
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "subscriptions": {
+          "type": "list",
+          "default": []
+        },
+        "username": {
+          "type": "string",
+          "default": ""
+        },
+        "version": {
+          "type": "int",
+          "default": 0
+        },
+        "will": {
+          "type": "object"
+        }
+      }
+    },
+    "mysql": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "3306"
+      },
+      "fields": {}
+    },
+    "nfs": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "transport_on": [
+        "tcp",
+        "udp"
+      ],
+      "fields": {
+        "auth_flavor": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "auth_sys": {
+          "type": "object"
+        },
+        "direction": {
+          "type": "string",
+          "default": ""
+        },
+        "minorversion": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "mount_filehandle": {
+          "type": "list",
+          "default": []
+        },
+        "ops": {
+          "type": "list",
+          "default": []
+        },
+        "result_status": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "sessions": {
+          "type": "int",
+          "default": 0
+        },
+        "sessions_src_port_base": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "sessions_src_port_step": {
+          "type": "int",
+          "default": 0
+        },
+        "transport": {
+          "type": "string",
+          "default": ""
+        },
+        "version": {
+          "type": "int",
+          "default": 0
+        },
+        "xid_base": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "xid_incr": {
+          "type": "int",
+          "default": 0
+        }
+      }
+    },
+    "nmea": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "transport_on": [
+        "tcp",
+        "udp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "10110",
+        "udp.dst_port": "10110"
+      },
+      "fields": {}
+    },
+    "ntp": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "nvgre": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {}
+    },
+    "onvif": {
+      "category": "terminal",
+      "depends_on": [
+        "http"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "80"
+      },
+      "fields": {}
+    },
+    "opcua": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {
+        "bad_length": {
+          "type": "bool",
+          "default": false
+        },
+        "bad_message_size": {
+          "type": "bool",
+          "default": false
+        },
+        "browse": {
+          "type": "list",
+          "default": []
+        },
+        "close": {
+          "type": "bool",
+          "default": true
+        },
+        "error_inject": {
+          "type": "object"
+        },
+        "read": {
+          "type": "list",
+          "default": []
+        },
+        "security_mode": {
+          "type": "string",
+          "default": "none"
+        },
+        "sessions": {
+          "type": "int",
+          "default": 0
+        },
+        "skip_channel": {
+          "type": "bool",
+          "default": false
+        },
+        "subscription": {
+          "type": "object"
+        },
+        "write": {
+          "type": "list",
+          "default": []
+        }
+      }
+    },
+    "openvpn": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "field_contract": {
+        "udp.dst_port": "1194"
+      },
+      "fields": {}
+    },
+    "openwire": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "61616"
+      },
+      "fields": {
+        "profile": {
+          "type": "string",
+          "default": "activemq_openwire_v12"
+        }
+      }
+    },
+    "ospf": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "field_contract": {
+        "ip.protocol": "89"
+      },
+      "fields": {}
+    },
+    "pcep": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "pim": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "field_contract": {
+        "ip.protocol": "103"
+      },
+      "fields": {}
+    },
+    "pop3": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "optional_on": [
+        "tls"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "110"
+      },
+      "fields": {
+        "banner": {
+          "type": "string",
+          "default": ""
+        },
+        "commands": {
+          "type": "list",
+          "default": []
+        },
+        "mailbox": {
+          "type": "object"
+        }
+      }
+    },
+    "postgresql": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "5432"
+      },
+      "fields": {
+        "dialect": {
+          "type": "string",
+          "default": "postgresql"
+        },
+        "events": {
+          "type": "list",
+          "default": []
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "wire_fault": {
+          "type": "object"
+        },
+        "wire_profile": {
+          "type": "string",
+          "default": "postgresql_v3"
+        }
+      }
+    },
+    "pppoe": {
+      "category": "l2",
+      "fields": {}
+    },
+    "rdp": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "3389"
+      },
+      "fields": {}
+    },
+    "redis": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "6379"
+      },
+      "fields": {}
+    },
+    "rip": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "rtmfp": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "s7": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "102"
+      },
+      "fields": {
+        "commands": {
+          "type": "list",
+          "default": []
+        },
+        "pdu_ref": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "pdu_size": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "sessions": {
+          "type": "int",
+          "default": 0
+        },
+        "transport": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "shadowsocks": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "8388"
+      },
+      "fields": {}
+    },
+    "smb": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {
+        "access_mask": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "auth_mechanism": {
+          "type": "string",
+          "default": ""
+        },
+        "auth_rounds": {
+          "type": "int",
+          "default": 0
+        },
+        "client_capabilities": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "create_disposition": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "create_options": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "dialects": {
+          "type": "list",
+          "default": []
+        },
+        "domain": {
+          "type": "string",
+          "default": ""
+        },
+        "encryption_algorithm": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "encryption_required": {
+          "type": "bool",
+          "default": false
+        },
+        "error_on_command": {
+          "type": "string",
+          "default": ""
+        },
+        "error_response_status": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "file_attributes": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "file_path": {
+          "type": "string",
+          "default": ""
+        },
+        "include_auth": {
+          "type": "bool",
+          "default": true
+        },
+        "include_negotiate": {
+          "type": "bool",
+          "default": true
+        },
+        "include_teardown": {
+          "type": "bool",
+          "default": true
+        },
+        "include_tree_connect": {
+          "type": "bool",
+          "default": true
+        },
+        "max_read_size": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "max_transact_size": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "max_write_size": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "operations": {
+          "type": "list",
+          "default": []
+        },
+        "password": {
+          "type": "string",
+          "default": ""
+        },
+        "preauth_integrity_hash_algorithms": {
+          "type": "list",
+          "default": []
+        },
+        "security_blob": {
+          "type": "list",
+          "default": []
+        },
+        "security_mode": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "selected_dialect": {
+          "type": "string",
+          "default": ""
+        },
+        "server_capabilities": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "share_access": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "share_type": {
+          "type": "uint8",
+          "default": 0,
+          "max": 255
+        },
+        "signing_required": {
+          "type": "bool",
+          "default": false
+        },
+        "transport": {
+          "type": "string",
+          "default": ""
+        },
+        "tree_connect_share": {
+          "type": "string",
+          "default": ""
+        },
+        "username": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "smtp": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "optional_on": [
+        "tls"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "25"
+      },
+      "fields": {
+        "from": {
+          "type": "string",
+          "default": "sender@example.com"
+        },
+        "to": {
+          "type": "string",
+          "default": "recipient@example.com"
+        }
+      }
+    },
+    "snmp": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "socks5": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "optional_on": [
+        "tls"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "1080"
+      },
+      "fields": {
+        "auth_method": {
+          "type": "string",
+          "default": ""
+        },
+        "bnd_addr": {
+          "type": "string",
+          "default": ""
+        },
+        "bnd_port": {
+          "type": "int"
+        },
+        "cmd": {
+          "type": "string",
+          "default": ""
+        },
+        "data": {
+          "type": "list",
+          "default": []
+        },
+        "dst_addr": {
+          "type": "string",
+          "default": ""
+        },
+        "dst_port": {
+          "type": "int"
+        },
+        "password": {
+          "type": "string",
+          "default": ""
+        },
+        "rep": {
+          "type": "int"
+        },
+        "udp": {
+          "type": "object"
+        },
+        "user_id": {
+          "type": "string",
+          "default": ""
+        },
+        "username": {
+          "type": "string",
+          "default": ""
+        },
+        "version": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "someip": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "transport_on": [
+        "udp",
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "ssdp": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "ssh": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "22"
+      },
+      "fields": {}
+    },
+    "stratum": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "3333"
+      },
+      "fields": {}
+    },
+    "stun": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "transport_on": [
+        "udp",
+        "tcp"
+      ],
+      "fields": {}
+    },
+    "sv": {
+      "category": "terminal",
+      "depends_on": [
+        "eth"
+      ],
+      "fields": {}
+    },
+    "swarm": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "transport_on": [
+        "udp",
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "1634",
+        "udp.dst_port": "1634"
+      },
+      "fields": {
+        "profile": {
+          "type": "string",
+          "default": "swarm_storage_v1"
+        }
+      }
+    },
+    "syslog": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "tcp": {
+      "category": "transport",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "concurrent": {
+          "type": "bool",
+          "default": false
+        },
+        "dst_port": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "handshake": {
+          "type": "bool",
+          "default": true
+        },
+        "initial_seq": {
+          "type": "uint32",
+          "default": 0
+        },
+        "mss": {
+          "type": "uint16",
+          "default": 1460,
+          "min": 536,
+          "max": 65535
+        },
+        "retransmit": {
+          "type": "bool",
+          "default": false
+        },
+        "rst": {
+          "type": "bool",
+          "default": false
+        },
+        "src_port": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "termination": {
+          "type": "bool",
+          "default": true
+        },
+        "window_size": {
+          "type": "uint16",
+          "default": 65535,
+          "max": 65535
+        }
+      }
+    },
+    "tds": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "fields": {
+        "app_name": {
+          "type": "string",
+          "default": ""
+        },
+        "client_lcid": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "client_name": {
+          "type": "string",
+          "default": ""
+        },
+        "database": {
+          "type": "string",
+          "default": ""
+        },
+        "encrypt_mode": {
+          "type": "int",
+          "default": 0
+        },
+        "feature_exts": {
+          "type": "list",
+          "default": []
+        },
+        "interface_lib": {
+          "type": "string",
+          "default": ""
+        },
+        "language": {
+          "type": "string",
+          "default": ""
+        },
+        "login": {
+          "type": "object"
+        },
+        "mars": {
+          "type": "bool",
+          "default": false
+        },
+        "packet_size": {
+          "type": "int",
+          "default": 0
+        },
+        "password": {
+          "type": "string",
+          "default": ""
+        },
+        "server_name": {
+          "type": "string",
+          "default": ""
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "user_name": {
+          "type": "string",
+          "default": ""
+        },
+        "version": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        }
+      }
+    },
+    "tftp": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "fields": {}
+    },
+    "thrift": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "9090"
+      },
+      "fields": {
+        "messages": {
+          "type": "list",
+          "default": []
+        },
+        "transport": {
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "tls": {
+      "category": "tunnel",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "443"
+      },
+      "fields": {
+        "alpn": {
+          "type": "list",
+          "default": []
+        },
+        "role": {
+          "type": "string",
+          "default": "client"
+        },
+        "sni": {
+          "type": "string",
+          "default": ""
+        },
+        "version": {
+          "type": "string",
+          "default": "tls1.3"
+        }
+      }
+    },
+    "tns": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "1521"
+      },
+      "fields": {}
+    },
+    "udp": {
+      "category": "transport",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "dst_port": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "src_port": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        }
+      }
+    },
+    "vlan": {
+      "category": "l2",
+      "depends_on": [
+        "eth"
+      ],
+      "optional_on": [
+        "eth"
+      ],
+      "fields": {
+        "id": {
+          "type": "uint16",
+          "default": 0,
+          "max": 4095
+        },
+        "priority": {
+          "type": "uint8",
+          "default": 0,
+          "max": 7
+        }
+      }
+    },
+    "vmess": {
+      "category": "terminal",
+      "depends_on": [
+        "tcp"
+      ],
+      "field_contract": {
+        "tcp.dst_port": "443"
+      },
+      "fields": {}
+    },
+    "vxlan": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "field_contract": {
+        "udp.dst_port": "4789"
+      },
+      "fields": {}
+    },
+    "wireguard": {
+      "category": "terminal",
+      "depends_on": [
+        "udp"
+      ],
+      "field_contract": {
+        "udp.dst_port": "51820"
+      },
+      "fields": {}
+    }
+  }
+}

@@ -29,14 +29,14 @@ type layerFieldView struct {
 // structs emits the unquoted number forms ("1460", "1") that LLMs reliably
 // parse, while numbers would be ambiguous between ports and enums.
 type layerSchemaView struct {
-	Name        string                       `json:"name"`
-	Category    string                       `json:"category"`
-	DependsOn   []string                     `json:"depends_on,omitempty"`
-	TransportOn []string                     `json:"transport_on,omitempty"`
-	OptionalOn  []string                     `json:"optional_on,omitempty"`
-	Constraints []string                     `json:"constraints,omitempty"`
-	Fields      map[string]layerFieldView  `json:"fields"`
-	Inner       []layerSchemaView          `json:"inner,omitempty"` // CategoryTunnel only
+	Name        string                    `json:"name"`
+	Category    string                    `json:"category"`
+	DependsOn   []string                  `json:"depends_on,omitempty"`
+	TransportOn []string                  `json:"transport_on,omitempty"`
+	OptionalOn  []string                  `json:"optional_on,omitempty"`
+	Constraints []string                  `json:"constraints,omitempty"`
+	Fields      map[string]layerFieldView `json:"fields"`
+	Inner       []layerSchemaView         `json:"inner,omitempty"` // CategoryTunnel only
 }
 
 // buildLayerSchemaView converts a registered LayerSchema into the JSON-safe
@@ -102,8 +102,8 @@ type queryLayersOutput struct {
 func (s *Server) registerLayerTools() {
 	mcp.AddTool(s.mcpServer,
 		&mcp.Tool{
-			Name:        "flowb_query_layers",
-			Description: "Query the layer-chain layer registry (层注册表): list every layer with its category, dependencies, and configurable fields with defaults. Use this before creating or updating a strategy with a 'layers' config. Pass 'layer' to look up one layer's full field table; omit it to list all.",
+			Name:         "flowb_query_layers",
+			Description:  "Query the layer-chain layer registry (层注册表): list every layer with its category, dependencies, and configurable fields with defaults. Live view of the same registry dumped to schemas/v1/generated/layers.generated.json (shape: schemas/v1/layers.json). Use this before creating or updating a strategy with a 'layers' config. Pass 'layer' to look up one layer's full field table; omit it to list all.",
 			OutputSchema: manageOutputSchema(),
 		},
 		s.handleQueryLayers,

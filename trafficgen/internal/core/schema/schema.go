@@ -24,10 +24,12 @@ var schemasFS = tgschemas.FS
 
 // schema files embedded from trafficgen/schemas/v1.
 const (
-	fileDefs     = "v1/defs.json"
-	fileStrategy = "v1/strategy.json"
-	fileTask     = "v1/task.json"
-	fileBatch    = "v1/batch.json"
+	fileDefs      = "v1/defs.json"
+	fileStrategy  = "v1/strategy.json"
+	fileTask      = "v1/task.json"
+	fileBatch     = "v1/batch.json"
+	fileLayers    = "v1/layers.json"
+	fileLayersGen = "v1/generated/layers.generated.json"
 )
 
 var (
@@ -36,7 +38,9 @@ var (
 	strategyRule *jsonschema.Resolved
 	taskRule     *jsonschema.Resolved
 	batchRule    *jsonschema.Resolved
+	layersRule   *jsonschema.Resolved
 	defsDoc      map[string]any
+	layersGenDoc map[string]any
 )
 
 // FieldError is one validation failure with a JSON-path location.
@@ -85,6 +89,12 @@ func load() error {
 		if batchRule, loadErr = resolveMerged(fileBatch, "batch.json"); loadErr != nil {
 			return
 		}
+		if layersRule, loadErr = resolveLayers(fileLayers, "layers.json"); loadErr != nil {
+			return
+		}
+		if layersGenDoc, loadErr = readDoc(fileLayersGen); loadErr != nil {
+			return
+		}
 	})
 	return loadErr
 }
@@ -110,6 +120,62 @@ func resolveMerged(file, label string) (*jsonschema.Resolved, error) {
 		return nil, fmt.Errorf("schema: resolve %s: %w", label, err)
 	}
 	return r, nil
+}
+
+// resolveLayers resolves layers.json standalone (no shared $defs needed:
+// the chain shape is self-contained; per-layer tables live in the generated
+// registry dump, not in this schema).
+func resolveLayers(file, label string) (*jsonschema.Resolved, error) {
+	raw, err := schemasFS.ReadFile(file)
+	if err != nil {
+		return nil, fmt.Errorf("schema: read %s: %w", label, err)
+	}
+	var sch jsonschema.Schema
+	if err := json.Unmarshal(raw, &sch); err != nil {
+		return nil, fmt.Errorf("schema: parse %s: %w", label, err)
+	}
+	r, err := sch.Resolve(&jsonschema.ResolveOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("schema: resolve %s: %w", label, err)
+	}
+	return r, nil
+}
+
+// readDoc loads one embedded JSON file as a generic document (for the
+// registry dump, which is data, not a validation schema).
+func readDoc(file string) (map[string]any, error) {
+	raw, err := schemasFS.ReadFile(file)
+	if err != nil {
+		return nil, fmt.Errorf("schema: read %s: %w", file, err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("schema: parse %s: %w", file, err)
+	}
+	return doc, nil
+}
+
+// LayersGenerated returns the registry dump (layer name -> field table).
+// Callers must not mutate the returned map (it is shared process state).
+func LayersGenerated() (map[string]any, error) {
+	if err := load(); err != nil {
+		return nil, err
+	}
+	layers, _ := layersGenDoc["layers"].(map[string]any)
+	return layers, nil
+}
+
+// ValidateLayersShape validates the shape of a decoded layers array against
+// layers.json (ordered single-key objects). Chain semantics (completion,
+// inference, per-field values) stay in layers.ValidateLayers.
+func ValidateLayersShape(v any) ValidationErrors {
+	if err := load(); err != nil {
+		return ValidationErrors{{Message: err.Error()}}
+	}
+	if err := layersRule.Validate(v); err != nil {
+		return splitError(err)
+	}
+	return nil
 }
 
 // inlineBatchRef rewrites the task->batch cross-file ref to the in-document

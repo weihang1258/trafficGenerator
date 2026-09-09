@@ -130,6 +130,11 @@ var schemaDocsDefs = map[string]string{
 	"/$defs/tuple_config/properties/src_port":       "Source port pool: Source port pool: static 0-65535 or dynamic_value.",
 }
 
+// schema v1/layers.json flattened title/description table.
+var schemaDocsLayers = map[string]string{
+	"": "Layer chain: Layer-chain shape rules: ordered single-key objects, outermost (L2) first. Chain semantics (completion, inference, per-field values) are owned by Go (layers.ValidateLayers); per-layer field tables come from generated/layers.generated.json (registry dump, never hand-written).",
+}
+
 // schemaConfigBlurb is the Config-field help shared by strategy and
 // workflow tools. Assembled from schema docs; every hint below is
 // asserted by internal/mcp/tools_schema_test.go — do not trim.

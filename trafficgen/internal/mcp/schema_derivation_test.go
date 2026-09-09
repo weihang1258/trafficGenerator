@@ -32,6 +32,7 @@ func TestSchemaDocsTablesNonEmpty(t *testing.T) {
 		"schemaDocsTask":     schemaDocsTask,
 		"schemaDocsBatch":    schemaDocsBatch,
 		"schemaDocsDefs":     schemaDocsDefs,
+		"schemaDocsLayers":   schemaDocsLayers,
 	} {
 		if len(m) == 0 {
 			t.Errorf("%s is empty; regenerate via go run ./internal/mcp/schemagen", name)

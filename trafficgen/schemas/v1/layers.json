@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trafficgen.local/schemas/v1/layers.json",
+  "title": "Layer chain",
+  "description": "Layer-chain shape rules: ordered single-key objects, outermost (L2) first. Chain semantics (completion, inference, per-field values) are owned by Go (layers.ValidateLayers); per-layer field tables come from generated/layers.generated.json (registry dump, never hand-written).",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "minProperties": 1,
+    "maxProperties": 1
+  }
+}

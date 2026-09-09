@@ -23,6 +23,7 @@ var files = []struct {
 	{"v1/task.json", "task"},
 	{"v1/batch.json", "batch"},
 	{"v1/defs.json", "defs"},
+	{"v1/layers.json", "layers"},
 }
 
 func main() {

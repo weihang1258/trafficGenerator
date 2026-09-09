@@ -3,6 +3,8 @@ package schema
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/trafficgen/trafficgen/internal/core/layers"
 )
 
 func mustDoc(t *testing.T, doc string) map[string]any {
@@ -102,5 +104,72 @@ func TestDescriptionsCoverMCPFields(t *testing.T) {
 	}
 	if _, ok := tm["/properties/strategy_ids"]; !ok {
 		t.Fatalf("missing task strategy_ids doc")
+	}
+}
+
+func TestLayersGeneratedMatchesRegistry(t *testing.T) {
+	layersMap, err := LayersGenerated()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg := layers.DefaultRegistry()
+	if len(layersMap) != len(reg.List()) {
+		t.Fatalf("generated dump has %d layers, registry has %d; regenerate via go run ./internal/core/layers/schemagen",
+			len(layersMap), len(reg.List()))
+	}
+	for _, name := range reg.List() {
+		s, ok := reg.Get(name)
+		if !ok {
+			continue
+		}
+		raw, ok := layersMap[name]
+		if !ok {
+			t.Fatalf("registry layer %q missing from generated dump; regenerate", name)
+			continue
+		}
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("dump entry %q is not an object", name)
+			continue
+		}
+		if entry["category"] != s.Category.String() {
+			t.Errorf("layer %q category: dump=%v registry=%v; regenerate", name, entry["category"], s.Category.String())
+		}
+		fields, _ := entry["fields"].(map[string]any)
+		if len(fields) != len(s.Fields) {
+			t.Errorf("layer %q fields: dump=%d registry=%d; regenerate", name, len(fields), len(s.Fields))
+			continue
+		}
+		for fname, f := range s.Fields {
+			fr, ok := fields[fname]
+			if !ok {
+				t.Errorf("layer %q field %q missing from dump; regenerate", name, fname)
+				continue
+			}
+			fm, ok := fr.(map[string]any)
+			if !ok {
+				t.Errorf("layer %q field %q dump entry not an object", name, fname)
+				continue
+			}
+			if fm["type"] != f.Type {
+				t.Errorf("layer %q field %q type: dump=%v registry=%v; regenerate", name, fname, fm["type"], f.Type)
+			}
+		}
+	}
+}
+
+func TestLayersShape(t *testing.T) {
+	good := []any{map[string]any{"ip": map[string]any{}}, map[string]any{"tcp": map[string]any{}}}
+	if errs := ValidateLayersShape(good); len(errs) != 0 {
+		t.Fatalf("want clean, got %v", errs)
+	}
+	for _, bad := range []any{
+		[]any{},
+		[]any{map[string]any{"ip": map[string]any{}, "tcp": map[string]any{}}},
+		[]any{"ip"},
+	} {
+		if errs := ValidateLayersShape(bad); len(errs) == 0 {
+			t.Fatalf("want errors for %v, got clean", bad)
+		}
 	}
 }
