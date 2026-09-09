@@ -8,14 +8,21 @@
       "title": "Flow control",
       "description": "Quantity or rate envelope. Strategy level sets the template's own envelope; task level caps the aggregate without rewriting strategies.",
       "type": "object",
-      "required": ["type", "value"],
+      "required": [
+        "type",
+        "value"
+      ],
       "additionalProperties": false,
       "properties": {
         "type": {
           "title": "Flow control type",
           "description": "flows = flow count, bps = bits per second, time = seconds.",
           "type": "string",
-          "enum": ["flows", "bps", "time"]
+          "enum": [
+            "flows",
+            "bps",
+            "time"
+          ]
         },
         "value": {
           "title": "Flow control value",
@@ -51,22 +58,38 @@
         }
       },
       "anyOf": [
-        {"required": ["port_group_id"]},
-        {"required": ["pcap_path"]}
+        {
+          "required": [
+            "port_group_id"
+          ]
+        },
+        {
+          "required": [
+            "pcap_path"
+          ]
+        }
       ]
     },
     "dynamic_value": {
       "title": "Per-flow dynamic value",
       "description": "How a per-flow field varies across flows of one template. Flow i resolves deterministically (rand uses seed+i, wraps at range end). Matches StrategyConfig semantics in internal/core (tuple_generator.go, shard_router.go).",
       "type": "object",
-      "required": ["strategy"],
+      "required": [
+        "strategy"
+      ],
       "additionalProperties": false,
       "properties": {
         "strategy": {
           "title": "Variation strategy",
           "description": "fixed = constant, inc = step through range, rand = seeded random in range, list = rotate entries, pattern = substitute {n} from range.",
           "type": "string",
-          "enum": ["fixed", "inc", "rand", "list", "pattern"]
+          "enum": [
+            "fixed",
+            "inc",
+            "rand",
+            "list",
+            "pattern"
+          ]
         },
         "value": {
           "title": "Fixed value",
@@ -100,25 +123,68 @@
           "description": "Entries rotated per flow for list strategy.",
           "type": "array",
           "minItems": 1,
-          "items": {"type": "string"}
+          "items": {
+            "type": "string"
+          }
         }
       },
       "allOf": [
         {
-          "if": {"properties": {"strategy": {"const": "inc"}}},
-          "then": {"required": ["range"]}
+          "if": {
+            "properties": {
+              "strategy": {
+                "const": "inc"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "range"
+            ]
+          }
         },
         {
-          "if": {"properties": {"strategy": {"const": "rand"}}},
-          "then": {"required": ["range"]}
+          "if": {
+            "properties": {
+              "strategy": {
+                "const": "rand"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "range"
+            ]
+          }
         },
         {
-          "if": {"properties": {"strategy": {"const": "pattern"}}},
-          "then": {"required": ["pattern", "range"]}
+          "if": {
+            "properties": {
+              "strategy": {
+                "const": "pattern"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "pattern",
+              "range"
+            ]
+          }
         },
         {
-          "if": {"properties": {"strategy": {"const": "list"}}},
-          "then": {"required": ["list"]}
+          "if": {
+            "properties": {
+              "strategy": {
+                "const": "list"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "list"
+            ]
+          }
         }
       ]
     },

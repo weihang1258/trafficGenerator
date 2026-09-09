@@ -4,20 +4,38 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net"
 	"regexp"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/trafficgen/trafficgen/internal/core"
-	"github.com/trafficgen/trafficgen/internal/core/layers"
+	"github.com/trafficgen/trafficgen/internal/core/schema"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
 	"gorm.io/gorm"
 )
 
-// StrategyHandler handles strategy requests.
+// toSchemaFC converts the REST flow-control request to the schema entry view.
+// nil stays nil (absent envelope, not a zero value).
+func toSchemaFC(fc *FlowControlRequest) *schema.FlowControl {
+	if fc == nil {
+		return nil
+	}
+	return &schema.FlowControl{Type: fc.Type, Value: fc.Value}
+}
+
+// schemaGate runs the unified strategy validation entry and writes the 400 on
+// failure. It returns the effective protocol and false when rejected.
+func schemaGate(c *gin.Context, mode, protocol string, config map[string]interface{}, fc *FlowControlRequest) (string, bool) {
+	eff, errs := schema.ValidateStrategy(mode, protocol, config, toSchemaFC(fc))
+	if len(errs) > 0 {
+		BadRequest(c, errs.Error())
+		return eff, false
+	}
+	return eff, true
+}
+
+// Validate strategy requests.
 type StrategyHandler struct {
 	db *storage.DB
 }
@@ -104,28 +122,15 @@ func (h *StrategyHandler) Create(c *gin.Context) {
 // is validated as a ReplaySpec instead. Strategy-level flow_control only
 // accepts "time" (flows is unsupported, bps folds into speed.mode).
 func (h *StrategyHandler) createReplayStrategy(c *gin.Context, userID string, req *CreateStrategyRequest) {
-	if _, ok := req.Config["layers"]; ok {
-		BadRequest(c, "layers is not valid for replay strategies (replay config only takes pcap_asset_id/speed/direction/checksum_mode)")
+	// Unified schema gate (shape + replay semantics incl. layers rejection,
+	// replay-spec validity, time-only flow control). Messages preserved.
+	if _, ok := schemaGate(c, "replay", "", req.Config, req.FlowControl); !ok {
 		return
 	}
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		BadRequest(c, "invalid config format")
 		return
-	}
-	if err := core.ValidateReplaySpec(json.RawMessage(configJSON)); err != nil {
-		BadRequest(c, err.Error())
-		return
-	}
-	if req.FlowControl != nil {
-		if req.FlowControl.Type != "time" {
-			BadRequest(c, "replay strategy flow_control only supports type=time")
-			return
-		}
-		if req.FlowControl.Value <= 0 {
-			BadRequest(c, "flow_control value must be positive")
-			return
-		}
 	}
 	var flowControlJSON []byte
 	if req.FlowControl != nil {
@@ -162,68 +167,14 @@ func (h *StrategyHandler) createReplayStrategy(c *gin.Context, userID string, re
 // path). cps/ratio flow-control types are rejected; only flows/bps/time are
 // accepted.
 func (h *StrategyHandler) createSynthStrategy(c *gin.Context, userID, mode string, req *CreateStrategyRequest) {
-	if errMsg := validateConfigNetwork(req.Config); errMsg != "" {
-		BadRequest(c, errMsg)
+	// Unified schema gate (shape + network formats, ranges, layers inference,
+	// protocol allowlist, sub-config ranges, TFTP tid rule). Inferred protocol
+	// is written back, same as the old inline ValidateLayers block.
+	eff, ok := schemaGate(c, "synth", req.Protocol, req.Config, req.FlowControl)
+	if !ok {
 		return
 	}
-	if err := core.ValidateConfigRanges(req.Config); err != nil {
-		BadRequest(c, err.Error())
-		return
-	}
-
-	// 层链创建时校验（P3，设计 §10.2）：config 里有 "layers" 键时走层链
-	// 校验 + protocol 推断（§6.2）。必须放在 protocol 白名单之前：protocol
-	// 缺失时由 ValidateLayers 推断最外层协议并回填，白名单才能放行；
-	// 显式 protocol 原样返回（ValidateLayers 保证与最外层一致，V10）。
-	if rawLayers, ok := req.Config["layers"]; ok {
-		layersJSON, err := json.Marshal(rawLayers)
-		if err != nil {
-			BadRequest(c, "invalid layers format: "+err.Error())
-			return
-		}
-		inferred, err := layers.ValidateLayers(layersJSON, req.Protocol)
-		if err != nil {
-			BadRequest(c, err.Error())
-			return
-		}
-		req.Protocol = inferred
-	}
-
-	if req.Protocol == "" || !core.IsAllowedProtocol(req.Protocol) {
-		BadRequest(c, "invalid or missing protocol: "+req.Protocol)
-		return
-	}
-	if err := core.ValidateProtocolSubConfigs(req.Config, req.Protocol); err != nil {
-		BadRequest(c, err.Error())
-		return
-	}
-
-	validFlowTypes := map[string]bool{"flows": true, "bps": true, "time": true}
-	if !validFlowTypes[req.FlowControl.Type] {
-		BadRequest(c, "invalid flow_control type: must be flows, bps, or time")
-		return
-	}
-	if req.FlowControl.Value <= 0 {
-		BadRequest(c, "flow_control value must be positive")
-		return
-	}
-
-	// TFTP batch-level server_tid uniqueness (spec V22/S12, T-066/T-108):
-	// when the strategy's flow_control requests more than one flow and the
-	// config pins an explicit server_tid, every flow of the batch would
-	// share that TID. Per-flow planner.Validate cannot see the batch (it
-	// validates one FlowSpec), so the check lives here where the flow count
-	// and the raw config are both visible.
-	if req.Protocol == "tftp" && req.FlowControl.Type == "flows" && int(req.FlowControl.Value) > 1 {
-		if sub, ok := req.Config["tftp"].(map[string]interface{}); ok {
-			if tv, ok := sub["server_tid"]; ok {
-				if f, ok := tv.(float64); ok && int64(f) > 0 {
-					BadRequest(c, fmt.Sprintf("tftp: server_tid %d conflicts with another flow in the same batch", int64(f)))
-					return
-				}
-			}
-		}
-	}
+	req.Protocol = eff
 
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
@@ -393,79 +344,14 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 		mode = "synth"
 	}
 
-	// Validate request. When mode was provided explicitly, this runs BEFORE
-	// the ownership check (STRAT4-BR2). When mode was empty, validation also
-	// runs before the not-found response (bad input -> 400, good input -> 404).
-	if mode == "replay" {
-		if _, ok := req.Config["layers"]; ok {
-			BadRequest(c, "layers is not valid for replay strategies (replay config only takes pcap_asset_id/speed/direction/checksum_mode)")
-			return
-		}
-		configJSON, err := json.Marshal(req.Config)
-		if err != nil {
-			BadRequest(c, "invalid config format")
-			return
-		}
-		if err := core.ValidateReplaySpec(json.RawMessage(configJSON)); err != nil {
-			BadRequest(c, err.Error())
-			return
-		}
-		if req.FlowControl != nil {
-			if req.FlowControl.Type != "time" {
-				BadRequest(c, "replay strategy flow_control only supports type=time")
-				return
-			}
-			if req.FlowControl.Value <= 0 {
-				BadRequest(c, "flow_control value must be positive")
-				return
-			}
-		}
-	} else {
-		if errMsg := validateConfigNetwork(req.Config); errMsg != "" {
-			BadRequest(c, errMsg)
-			return
-		}
-		if err := core.ValidateConfigRanges(req.Config); err != nil {
-			BadRequest(c, err.Error())
-			return
-		}
-		// 层链创建时校验（P3，与 Create 同款，见 createSynthStrategy）：config 里
-		// 有 "layers" 键时走层链校验 + protocol 推断（§6.2）。必须放在 protocol
-		// 白名单之前：protocol 缺失时由 ValidateLayers 推断最外层协议并回填，
-		// 白名单才能放行；显式 protocol 原样返回（V10 已保证一致）。
-		if rawLayers, ok := req.Config["layers"]; ok {
-			layersJSON, err := json.Marshal(rawLayers)
-			if err != nil {
-				BadRequest(c, "invalid layers format: "+err.Error())
-				return
-			}
-			inferred, err := layers.ValidateLayers(layersJSON, req.Protocol)
-			if err != nil {
-				BadRequest(c, err.Error())
-				return
-			}
-			req.Protocol = inferred
-		}
-		if req.Protocol == "" || !core.IsAllowedProtocol(req.Protocol) {
-			BadRequest(c, "invalid or missing protocol: "+req.Protocol)
-			return
-		}
-		if err := core.ValidateProtocolSubConfigs(req.Config, req.Protocol); err != nil {
-			BadRequest(c, err.Error())
-			return
-		}
-		if req.FlowControl != nil {
-			validFlowTypes := map[string]bool{"flows": true, "bps": true, "time": true}
-			if !validFlowTypes[req.FlowControl.Type] {
-				BadRequest(c, "invalid flow_control type: must be flows, bps, or time")
-				return
-			}
-			if req.FlowControl.Value <= 0 {
-				BadRequest(c, "flow_control value must be positive")
-				return
-			}
-		}
+	// Unified schema gate (same entry as create paths: shape + full semantics,
+	// mode-aware). Preserves STRAT4-BR2 ordering: bad input -> 400 before any
+	// ownership/404 handling below.
+	effProto, gateOK := schemaGate(c, mode, req.Protocol, req.Config, req.FlowControl)
+	if !gateOK {
+		return
 	}
+	req.Protocol = effProto
 
 	// If the empty-mode DB lookup failed (not found / not owned), return 404
 	// now that validation has passed. Preserves STRAT4-BR2: bad input got 400

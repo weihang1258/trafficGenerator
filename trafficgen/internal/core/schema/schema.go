@@ -151,11 +151,41 @@ func splitError(err error) ValidationErrors {
 	var out ValidationErrors
 	for _, line := range strings.Split(err.Error(), "\n") {
 		if line = strings.TrimSpace(line); line != "" {
-			out = append(out, &FieldError{Message: line})
+			out = append(out, &FieldError{Message: shortError(line)})
 		}
 	}
 	if len(out) == 0 {
 		out = append(out, &FieldError{Message: err.Error()})
 	}
 	return out
+}
+
+// shortError strips the "validating <schema-id>: validating <json-pointer>: ..."
+// prefix chain down to the leaf message so callers and users see the cause
+// (e.g. `pattern: "zz" does not match ...` instead of the full pointer path).
+// Pointers vary with schema layout; the leaf message is the stable contract.
+func shortError(msg string) string {
+	markers := []string{"pattern: ", "maximum: ", "minimum: ", "enum: ", "required: ", "const: ", "minLength: ", "maxLength: ", "exclusiveMinimum: ", "not: ", "anyOf: ", "oneOf: ", "multipleOf: "}
+	best := -1
+	for _, m := range markers {
+		if i := lastIndex(msg, m); i > best {
+			best = i
+		}
+	}
+	if best >= 0 {
+		return msg[best:]
+	}
+	if i := lastIndex(msg, ": "); i >= 0 && i+2 < len(msg) {
+		return msg[i+2:]
+	}
+	return msg
+}
+
+func lastIndex(s, sub string) int {
+	for i := len(s) - len(sub); i >= 0; i-- {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
 }

@@ -4,7 +4,10 @@
   "title": "Strategy",
   "description": "A strategy is one single-protocol traffic template with its own quantity/rate envelope. mode=synth synthesizes packets from config via a planner; mode=replay replays a pcap asset (protocol is informational, real protocols come from the pcap).",
   "type": "object",
-  "required": ["name", "config"],
+  "required": [
+    "name",
+    "config"
+  ],
   "additionalProperties": false,
   "properties": {
     "name": {
@@ -17,14 +20,16 @@
       "title": "Strategy mode",
       "description": "synth (default) synthesizes from config; replay replays a pcap asset.",
       "type": "string",
-      "enum": ["synth", "replay"],
+      "enum": [
+        "synth",
+        "replay"
+      ],
       "default": "synth"
     },
     "protocol": {
       "title": "Protocol",
-      "description": "Terminal protocol name for synth strategies (required unless layers infers it). Ignored for replay.",
-      "type": "string",
-      "minLength": 1
+      "description": "Terminal protocol name for synth strategies. Empty when layers infers it; ignored for replay.",
+      "type": "string"
     },
     "config": {
       "title": "Strategy config",
@@ -130,7 +135,11 @@
           "description": "Ordered layer objects outermost (L2) first, innermost application layer last, e.g. [{\"ip\":{}},{\"tcp\":{}},{\"http\":{}}]. Presence switches validation to layer-chain mode; protocol is inferred from the outermost non-scaffolding layer. Per-layer fields follow the layer registry (flowb_query_layers); unknown fields are rejected by Go validation.",
           "type": "array",
           "minItems": 1,
-          "items": {"type": "object", "minProperties": 1, "maxProperties": 1}
+          "items": {
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 1
+          }
         },
         "tcp": {
           "title": "TCP transport options",
@@ -138,13 +147,46 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "mss": {"title": "TCP MSS", "description": "MSS 0-65535, 0 = 1460 default.", "type": "integer", "minimum": 0, "maximum": 65535},
-            "window_size": {"title": "Window size", "description": "Window 0-65535.", "type": "integer", "minimum": 0, "maximum": 65535},
-            "initial_seq": {"title": "Initial sequence", "description": "Client ISN override, 0 = random.", "type": "integer", "minimum": 0},
-            "handshake": {"title": "Handshake", "description": "Emit TCP handshake.", "type": "boolean"},
-            "termination": {"title": "Termination", "description": "Emit TCP teardown.", "type": "boolean"},
-            "rst": {"title": "RST", "description": "Abortive RST close instead of FIN.", "type": "boolean"},
-            "retransmit": {"title": "Retransmit", "description": "Simulate TCP retransmission.", "type": "boolean"}
+            "mss": {
+              "title": "TCP MSS",
+              "description": "MSS 0-65535, 0 = 1460 default.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            "window_size": {
+              "title": "Window size",
+              "description": "Window 0-65535.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            "initial_seq": {
+              "title": "Initial sequence",
+              "description": "Client ISN override, 0 = random.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "handshake": {
+              "title": "Handshake",
+              "description": "Emit TCP handshake.",
+              "type": "boolean"
+            },
+            "termination": {
+              "title": "Termination",
+              "description": "Emit TCP teardown.",
+              "type": "boolean"
+            },
+            "rst": {
+              "title": "RST",
+              "description": "Abortive RST close instead of FIN.",
+              "type": "boolean"
+            },
+            "retransmit": {
+              "title": "Retransmit",
+              "description": "Simulate TCP retransmission.",
+              "type": "boolean"
+            }
           }
         },
         "dns": {
@@ -152,7 +194,13 @@
           "description": "DNS query/response options.",
           "type": "object",
           "properties": {
-            "query_type": {"title": "Query type", "description": "DNS query type 0-65535.", "type": "integer", "minimum": 0, "maximum": 65535}
+            "query_type": {
+              "title": "Query type",
+              "description": "DNS query type 0-65535.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
           }
         },
         "icmp": {
@@ -160,9 +208,27 @@
           "description": "ICMP type/code/sequence.",
           "type": "object",
           "properties": {
-            "type": {"title": "ICMP type", "description": "ICMP type 0-255.", "type": "integer", "minimum": 0, "maximum": 255},
-            "code": {"title": "ICMP code", "description": "ICMP code 0-255.", "type": "integer", "minimum": 0, "maximum": 255},
-            "sequence": {"title": "ICMP sequence", "description": "ICMP sequence 0-65535.", "type": "integer", "minimum": 0, "maximum": 65535}
+            "type": {
+              "title": "ICMP type",
+              "description": "ICMP type 0-255.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "code": {
+              "title": "ICMP code",
+              "description": "ICMP code 0-255.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "sequence": {
+              "title": "ICMP sequence",
+              "description": "ICMP sequence 0-65535.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
           }
         },
         "icmpv6": {
@@ -170,9 +236,27 @@
           "description": "ICMPv6 type/code/sequence.",
           "type": "object",
           "properties": {
-            "type": {"title": "ICMPv6 type", "description": "ICMPv6 type 0-255.", "type": "integer", "minimum": 0, "maximum": 255},
-            "code": {"title": "ICMPv6 code", "description": "ICMPv6 code 0-255.", "type": "integer", "minimum": 0, "maximum": 255},
-            "sequence": {"title": "ICMPv6 sequence", "description": "ICMPv6 sequence 0-65535.", "type": "integer", "minimum": 0, "maximum": 65535}
+            "type": {
+              "title": "ICMPv6 type",
+              "description": "ICMPv6 type 0-255.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "code": {
+              "title": "ICMPv6 code",
+              "description": "ICMPv6 code 0-255.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "sequence": {
+              "title": "ICMPv6 sequence",
+              "description": "ICMPv6 sequence 0-65535.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
           }
         },
         "arp": {
@@ -180,7 +264,13 @@
           "description": "ARP operation.",
           "type": "object",
           "properties": {
-            "operation": {"title": "ARP operation", "description": "ARP operation 0-65535.", "type": "integer", "minimum": 0, "maximum": 65535}
+            "operation": {
+              "title": "ARP operation",
+              "description": "ARP operation 0-65535.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
           }
         },
         "tftp": {
@@ -188,14 +278,68 @@
           "description": "TFTP mode and option negotiation.",
           "type": "object",
           "properties": {
-            "mode": {"title": "TFTP mode", "description": "read = download, write = upload.", "type": "string", "enum": ["read", "write"]},
-            "transfer_mode": {"title": "Transfer mode", "description": "netascii or octet; mail is rejected.", "type": "string", "enum": ["netascii", "octet"]},
-            "error_side": {"title": "Error side", "description": "Which side sends ERROR.", "type": "string", "enum": ["server", "client"]},
-            "blksize": {"title": "Block size", "description": "Negotiated block size 8-65464.", "type": "integer", "minimum": 8, "maximum": 65464},
-            "timeout": {"title": "Timeout", "description": "Retransmit timeout 1-255 seconds.", "type": "integer", "minimum": 1, "maximum": 255},
-            "windowsize": {"title": "Window size", "description": "Sliding window 1-65535.", "type": "integer", "minimum": 1, "maximum": 65535},
-            "error_code": {"title": "Error code", "description": "ERROR code 0-8.", "type": "integer", "minimum": 0, "maximum": 8},
-            "server_tid": {"title": "Server TID", "description": "Pinned server transfer port; must be >= 1024 and is rejected when flows > 1 in one strategy.", "type": "integer", "minimum": 1024, "maximum": 65535}
+            "mode": {
+              "title": "TFTP mode",
+              "description": "read = download, write = upload.",
+              "type": "string",
+              "enum": [
+                "read",
+                "write"
+              ]
+            },
+            "transfer_mode": {
+              "title": "Transfer mode",
+              "description": "netascii or octet; mail is rejected.",
+              "type": "string",
+              "enum": [
+                "netascii",
+                "octet"
+              ]
+            },
+            "error_side": {
+              "title": "Error side",
+              "description": "Which side sends ERROR.",
+              "type": "string",
+              "enum": [
+                "server",
+                "client"
+              ]
+            },
+            "blksize": {
+              "title": "Block size",
+              "description": "Negotiated block size 8-65464.",
+              "type": "integer",
+              "minimum": 8,
+              "maximum": 65464
+            },
+            "timeout": {
+              "title": "Timeout",
+              "description": "Retransmit timeout 1-255 seconds.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 255
+            },
+            "windowsize": {
+              "title": "Window size",
+              "description": "Sliding window 1-65535.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "error_code": {
+              "title": "Error code",
+              "description": "ERROR code 0-8.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "server_tid": {
+              "title": "Server TID",
+              "description": "Pinned server transfer port; must be >= 1024 and is rejected when flows > 1 in one strategy.",
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65535
+            }
           }
         },
         "group_id": {
@@ -207,7 +351,9 @@
           "title": "Secondary flows",
           "description": "Generic secondary flows bound to the primary (FTP data channel, SIP RTP, SCTP multi-homing).",
           "type": "array",
-          "items": {"type": "object"}
+          "items": {
+            "type": "object"
+          }
         },
         "file_source": {
           "title": "File source",
@@ -226,42 +372,105 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "mode": {"title": "Speed mode", "description": "original, multiplier, or bps.", "type": "string", "enum": ["original", "multiplier", "bps"]},
-            "multiplier": {"title": "Speed multiplier", "description": "Must be > 0 in multiplier mode.", "type": "number", "exclusiveMinimum": 0},
-            "bps": {"title": "Speed cap", "description": "Bits-per-second cap in bps mode, e.g. 1000 or 1g.", "type": "string", "minLength": 1}
+            "mode": {
+              "title": "Speed mode",
+              "description": "original, multiplier, or bps.",
+              "type": "string",
+              "enum": [
+                "original",
+                "multiplier",
+                "bps"
+              ]
+            },
+            "multiplier": {
+              "title": "Speed multiplier",
+              "description": "Must be > 0 in multiplier mode.",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "bps": {
+              "title": "Speed cap",
+              "description": "Bits-per-second cap in bps mode, e.g. 1000 or 1g.",
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
         "direction": {
           "title": "Replay direction",
           "description": "Replay only: single or dual interface.",
           "type": "string",
-          "enum": ["single", "dual"]
+          "enum": [
+            "single",
+            "dual"
+          ]
         },
         "checksum_mode": {
           "title": "Checksum mode",
           "description": "Replay only: recompute or preserve checksums.",
           "type": "string",
-          "enum": ["recompute", "preserve"]
+          "enum": [
+            "recompute",
+            "preserve"
+          ]
         }
       },
       "allOf": [
         {
           "if": {
             "properties": {
-              "speed": {"properties": {"mode": {"const": "multiplier"}}, "required": ["mode"]}
+              "speed": {
+                "properties": {
+                  "mode": {
+                    "const": "multiplier"
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              }
             },
-            "required": ["speed"]
+            "required": [
+              "speed"
+            ]
           },
-          "then": {"properties": {"speed": {"required": ["multiplier"]}}}
+          "then": {
+            "properties": {
+              "speed": {
+                "required": [
+                  "multiplier"
+                ]
+              }
+            }
+          }
         },
         {
           "if": {
             "properties": {
-              "speed": {"properties": {"mode": {"const": "bps"}}, "required": ["mode"]}
+              "speed": {
+                "properties": {
+                  "mode": {
+                    "const": "bps"
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              }
             },
-            "required": ["speed"]
+            "required": [
+              "speed"
+            ]
           },
-          "then": {"properties": {"speed": {"required": ["bps"]}}}
+          "then": {
+            "properties": {
+              "speed": {
+                "required": [
+                  "bps"
+                ]
+              }
+            }
+          }
         }
       ]
     },
@@ -273,24 +482,52 @@
   },
   "allOf": [
     {
-      "if": {"properties": {"mode": {"const": "replay"}}},
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "replay"
+          }
+        }
+      },
       "then": {
         "properties": {
-          "config": {"required": ["pcap_asset_id"], "not": {"required": ["layers"]}}
+          "config": {
+            "required": [
+              "pcap_asset_id"
+            ],
+            "not": {
+              "required": [
+                "layers"
+              ]
+            }
+          }
         }
       }
     },
     {
       "if": {
         "properties": {
-          "mode": {"const": "replay"},
-          "flow_control": {"type": "object"}
+          "mode": {
+            "const": "replay"
+          },
+          "flow_control": {
+            "type": "object"
+          }
         },
-        "required": ["mode", "flow_control"]
+        "required": [
+          "mode",
+          "flow_control"
+        ]
       },
       "then": {
         "properties": {
-          "flow_control": {"properties": {"type": {"const": "time"}}}
+          "flow_control": {
+            "properties": {
+              "type": {
+                "const": "time"
+              }
+            }
+          }
         }
       }
     }
