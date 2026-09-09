@@ -215,3 +215,73 @@ go vet 无输出。
 - cmd/server/main.go：空导入 + RegisterPlanner
 - cases/<proto>.json：全量正负例
 - chain_planner_<proto>_test.go：单测
+
+## Task 6a-B6: 66-doh 完成（903fa45，2026-09-06）
+
+- internal/protocol/doh/{builder,planner,layer_gen}.go + internal/core/doh.go：
+  RFC 8484 [ip→tcp→http→doh] 透传家族第 4 员（gbt/getwork/cwmp 同款）
+- cases/doh.json 110 例（84 正 + 26 负）由 _gen_doh_cases.py 生成——
+  脚本字节级镜像 Go builder，偏移/长度/b64 全计算；§8 三方一致序断言
+- 交付验证：离线套件 110/110（CHAIN_PROTO=doh，130s）；全协议 chain
+  suite 300s 绿；layers/doh/core -race 绿；vet 净
+- 关键校准（MSS/断言口径，避免重踩）：
+  1. tshark 3.6.14 跨段 HTTP 重组：response.code/content_length/dns.*
+     全挂**末段**（p6），首段无字段
+  2. alpn SvcParam value 必须长度前缀列表 "026832"（裸 "6832" tshark
+     Malformed）
+  3. GET 请求帧无 dns.*（不可 same_as）；http.request.uri.path 3.6.14
+     不发射，用 http.request.uri 全值
+  4. 镜像头行是 "Name: value"（冒号）；RDATA 偏移 = 12+21+17+10（含
+     RDLEN 时 -2）
+  5. 空 doh 键 {} → doh 基线；无 doh 键 → http 层自身默认 GET /
+     （家族一致行为，chain_planner_doh_test 钉死）
+- 负例锚词通道：19 wire_fault 分派 + 7 结构拒绝（qname 63 溢出/method
+  PUT/[tcp,doh] 载体缺失/GET+Content-Type/dns_id 65536/ttl 2^32/
+  qtype BOGUS），全部 error_contains 主锚词匹配
+## Task 6a-O6: 67-onvif 层链全量接入（2026-09-06，commit ff31e07 / a2477b2 / 3c03077）
+
+B6 HTTP RPC 族第 5 员（gbt/getwork/cwmp/doh 同款 "终结层产 HTTP 帧 + http
+层透传" 模式）：onvif（ONVIF Core Spec Ver. 26.06 SOAP 1.2 over HTTP）
+完整落地，95 例离线套件全绿。
+
+实现：
+- internal/core/onvif.go（236 行）：ONVIFConfig/ONVIFSession/ReqEvent/
+  ONVIFResponse/ONVIFFault 类型 + 11 WSDL operations + 6 services
+  (tds/trt/tptz/tev/tt/ter)
+- internal/protocol/onvif/（7 文件，~1531 行）：
+  - planner: 会话状态机 + 11 操作形状校验 + 7 wire-fault 负例门
+  - builder: SOAP 1.2 envelope 渲染 + WS-Addressing Action/MessageID/
+    To/RelatesTo + WS-Security UsernameToken（nonce+created+digest
+    WSS §4.2 Base64(SHA1(nonce+created+password))）+ 11 操作
+    请求/响应形状 + SOAP 1.2 Fault（Code/Subcode 可嵌套/Reason/
+    Node/Role/Detail）+ HTTP frames（POST/2xx/error）
+  - layer_gen: HTTP RPC family 终结层（每事件一笔 SOAP 1.2 事务，
+    完整 HTTP 请求/响应帧对，http 层透传转发）
+  - event: 95 例 fixture 事件形状
+  - ns: XML namespace 声明常量
+- cmd/server/main.go：空导入 + RegisterPlanner（onvif）
+- cases/onvif.json 95 例（57 正 + 38 负）由 _gen_onvif_cases.py
+  生成——脚本字节级镜像 Go builder，偏移/长度/b64 全计算
+- layers 层链接线（3c03077）：
+  - registry: onvif LayerSchema（terminal, DependsOn http, FieldContract tcp.dst_port=80）
+  - validate_layers: tcp→onvif 直连拒绝（[tcp,http,onvif] 载体检查）
+  - generator: FlowMeta.ONVIF 注入
+  - chain_planner_translate: Meta.ONVIF 直传 onvif 终结层
+  - http/layer_gen: isHTTPRPCInner 纳入 onvif（完整 HTTP 帧透传）
+  - strategy_convert: onvif 子配置解析 + 端口默认 80 由 FieldContract 补齐
+  - protocols: onvif 准入 + allowedProtocolsStable 哨兵
+
+离线套件 CHAIN_PROTO=onvif 95/95 全绿（158s）；chain suite 全协议全绿；
+core + layers -race 全绿。
+
+关键校准（避免重踩）：
+1. RESP_HEAD_LEN = 17+51+22+2 = 92 字节（status 17B + Content-Type 51B +
+   Content-Length: NNNN 22B + CRLF CRLF 2B）；旧值 93 差在 Content-Length
+   行 22 而非 23
+2. c57 packet count：body 1678B → 2 TCP 段（MSS=1460），3+1+2+4 = 10 包
+3. c25 PTZ Move→Stop：keep-alive 跨事件保持
+4. c31 CreatePull：same_as_response 引用 subscription_reference 需 to_override
+5. c35 message_limit：JSON number 非 string（Go decode "2147483647" as 0）
+6. WSS digest: Base64(SHA1(nonce+created+password)) per WSS §4.2
+
+剩余 B6：68-hl7(95) → 70-megaco(77) → 71-mmse(100) → 72-edp(89) → 74-xmrmining(64)
