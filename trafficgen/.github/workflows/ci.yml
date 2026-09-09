@@ -28,6 +28,14 @@ jobs:
     - name: Test
       run: go test -v -race -coverprofile=coverage.out ./...
 
+    - name: Generated files stale check
+      working-directory: trafficgen
+      run: |
+        go run ./internal/core/layers/schemagen
+        go run ./internal/mcp/schemagen
+        python3 tools/webgen.py
+        git diff --exit-code -- schemas/v1/generated/layers.generated.json internal/mcp/schema_descriptions_generated.go web/src/api/schema-types.ts ../docs/config-schema.md
+
     - name: Upload coverage
       uses: codecov/codecov-action@v4
       with:
