@@ -101,6 +101,9 @@ config.production.yaml
 .claude/
 .mcp.json
 docs/superpowers/
+# Agent workspace ledgers (local progress, not deliverables)
+.superpowers/
+trafficgen/.superpowers/
 # Root session test artifacts
 test_*.py
 trafficgen/cmd/verify/
