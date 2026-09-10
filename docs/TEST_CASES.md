@@ -269,7 +269,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/ftp/ftp_sessions_test.go`（TestFTPDataChannelNoFlag）。
 
-### T-FTP-7 策略四元组动态 inc（同键二态）
+### T-FTP-7 策略四元组动态 inc（同键二态）【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】
 
 **状态：** 已通过
 **级别：** unit
@@ -284,7 +284,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/core/worker_tuples_test.go`（新增）。
 
-### T-FTP-8 rand 可复现 + 到尾回绕
+### T-FTP-8 rand 可复现 + 到尾回绕【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】
 
 **状态：** 已通过
 **级别：** unit
@@ -299,7 +299,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/core/worker_tuples_test.go`。
 
-### T-FTP-9 动态四元组覆盖（fixed 端点 + 分片一致）
+### T-FTP-9 动态四元组覆盖（fixed 端点 + 分片一致）【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】
 
 **状态：** 已通过
 **级别：** unit
@@ -314,7 +314,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/core/worker_tuples_test.go`。
 
-### T-FTP-10 FTP 会话 src_port/banner 动态
+### T-FTP-10 FTP 会话 src_port/banner 动态【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】【v2 保留：FTP 字段本就在层内，v3 沿用】
 
 **状态：** 已通过
 **级别：** unit
@@ -329,7 +329,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`（新增）。
 
-### T-FTP-11 命令/响应动态（pattern）
+### T-FTP-11 命令/响应动态（pattern）【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】【v2 保留：FTP 字段本就在层内，v3 沿用】
 
 **状态：** 已通过
 **级别：** unit
@@ -344,7 +344,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
 
-### T-FTP-12 数据负载动态 + FileSource 优先级
+### T-FTP-12 数据负载动态 + FileSource 优先级【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】【v2 保留：FTP 字段本就在层内，v3 沿用】
 
 **状态：** 已通过
 **级别：** unit
@@ -359,7 +359,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
 
-### T-FTP-13 FTP 业务动态可复现性（seed+序号）
+### T-FTP-13 FTP 业务动态可复现性（seed+序号）【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】【v2 保留：FTP 字段本就在层内，v3 沿用】
 
 **状态：** 已通过
 **级别：** unit
@@ -374,7 +374,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
 
-### T-FTP-14 畸形动态配置拒绝（FTP Validate → 任务 error）
+### T-FTP-14 畸形动态配置拒绝（FTP Validate → 任务 error）【v2 部分保留：FTP 畸形部分有效，四元组扁平畸形部分被 v3 替代】【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】
 
 **状态：** 已通过
 **级别：** unit
@@ -389,7 +389,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
 
-### T-FTP-15 flat 静态复制拒绝（create 语义层）
+### T-FTP-15 flat 静态复制拒绝（create 语义层）【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】
 
 **状态：** 已通过
 **级别：** unit + integration
@@ -404,7 +404,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/core/schema/semantic_test.go` + `internal/api/rest/strategy_testpoints_test.go`。
 
-### T-FTP-16 FTP sessions 静态复制拒绝
+### T-FTP-16 FTP sessions 静态复制拒绝【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】【v2 保留：FTP 字段本就在层内，v3 沿用】
 
 **状态：** 已通过
 **级别：** unit
@@ -419,7 +419,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
 
-### T-FTP-17 老形状与存量集成回归 + 横扫扩容
+### T-FTP-17 老形状与存量集成回归 + 横扫扩容【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】【v2 留档：四元组部分被 v3 替代，实现代码未合并不执行】
 
 **状态：** 已通过
 **级别：** unit + integration
@@ -433,6 +433,151 @@
 **错误期望：** 存量显式端口+flows>1 的集成用例（如 flowcontrol_integration IT1/IT2）必须按新规则改为省略端口后转绿（规则变更的可视化）；离线 pcap 套件 count=1 不受影响。
 **性能期望：** 回归耗时不超基线 +10%。
 **实现位置：** 既有测试文件 + `internal/mcp/negative_parity_test.go`（+2 例）。
+
+### T-FTP-7 层 ip/tcp 动态 inc（层形状）【v3 改版：输入从扁平键改为层字段】
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-3 §3/§4；CORE_MEMORY §12
+**目标：** 层内 `ip.src`/`tcp.src_port` 写动态对象时 worker 策略循环按流序号产出四元组。
+
+**输入：** layers `[{"ip":{"src":{"strategy":"inc","range":["10.0.1.1","10.0.1.5"]},"dst":"20.0.0.1"}},{"tcp":{"src_port":{"strategy":"inc","range":[20000,20009]},"dst_port":80}}]` + fc flows=5；engine 进程内驱动 spec 捕获。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/ -run TestWorkerLayerDynInc -count=1`
+**期望输出：** 第 i 流 spec.SrcIP=10.0.1.(1+i)、spec.SrcPort=20000+i；dst 端保持静态；Plan 收到的 spec 即终值。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/worker_tuples_test.go`（改版复用文件，函数改名）。
+
+### T-FTP-8 层动态 rand 可复现 + 回绕（含 MAC/TTL）
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-3 §4；CORE_MEMORY §12
+**目标：** rand 同 seed 两次运行一致；inc/list 到尾回绕；MAC/TTL 名单字段动态生效。
+
+**输入：** ①`ip.dst` 写 rand range ["20.0.0.1","20.0.0.10"] seed 42 flows=100 两次比对；②`tcp.src_port` inc [1,3] flows=5；③`tcp.src_port` list 轮换；④`eth.dst_mac` inc OUI 保留 flows=3；⑤`ip.ttl` inc [64,66] flows=4。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/ -run TestWorkerLayerDynReproducible -count=1`
+**期望输出：** ①两次逐流相等且至少 2 个不同值；②1,2,3,1,2；③轮换；④OUI 前 3 字节不变、后 3 字节递增；⑤64,65,66,64。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/worker_tuples_test.go`。
+
+### T-FTP-9 层动态覆盖（fixed + 分片一致）
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-3 §4
+**目标：** fixed 解析值覆盖；未配动态端点保持；分片键=终值；FlowIndex 逐流。
+
+**输入：** `ip.dst` 写 inc range ["20.0.1.1","20.0.1.2"]、`tcp.src_port` 写 fixed 51000 flows=2。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/ -run TestWorkerLayerDynOverride -count=1`
+**期望输出：** dst_ip 逐流 20.0.1.1/20.0.1.2、src_port 恒 51000；computeHashKey 输入=终值；FlowIndex 0/1。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/worker_tuples_test.go`。
+
+### T-FTP-10 会话级动态（层形状输入，不动）【v3：FTP 字段本就在 ftp 层内，输入不变】
+
+**状态：** 已通过（v2 实现保留）
+**级别：** unit
+**来源：** D-FTP-3 §1；RFC 959
+**目标：** 会话 `src_port`/`banner` 写对象时按流序号解析并驱动独立四元组与横幅。
+
+**输入：** 见 v2 条目（会话字段同键二态，住处=ftp 层，方向正确）。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPSessionDynamicPortBanner -count=1`
+**期望输出：** 见 v2。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
+
+### T-FTP-11 命令 pattern 逐流（不动）
+
+**状态：** 已通过（v2 实现保留）
+**级别：** unit
+**来源：** D-FTP-3 §1
+**目标：** cmd pattern 逐流 + PASV 推导取已解析响应。
+
+**输入/执行/期望：** 见 v2（`TestFTPDynCommands`）。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
+
+### T-FTP-12 负载动态 + 优先级（不动）
+
+**状态：** 已通过（v2 实现保留）
+**级别：** unit
+**来源：** D-FTP-3 §1
+**目标：** payload 动态逐流；FileSource > 文本。
+
+**输入/执行/期望：** 见 v2（`TestFTPDynPayload`）。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
+
+### T-FTP-13 可复现性（不动）
+
+**状态：** 已通过（v2 实现保留）
+**级别：** unit
+**来源：** CORE_MEMORY §12
+**目标：** rand 同 seed 两次 Plan 序列一致。
+
+**输入/执行/期望：** 见 v2（`TestFTPDynReproducible`）。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
+
+### T-FTP-14 畸形拒绝（v2 保留 + 补层动态畸形 2 例）
+
+**状态：** 草案（v2 4 例保留，补 2 例）
+**级别：** unit
+**来源：** D-FTP-3 §5
+**目标：** FTP 畸形 + 层动态畸形均拒绝。
+
+**输入：** v2 ①..⑤ + ⑥`ip.src` 写 `{"strategy":"inc"}`（range 缺失，走 ValidateLayers）；⑦`tcp.mss` 写对象（非动态名单→拒绝）。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPDynInvalid -count=1` + `go test ./internal/core/layers/ -run TestValidateLayersDynInvalid -count=1`
+**期望输出：** 各例精确字段路径错误；绝不静默静态。
+**错误期望：** 批量逐流跳过计 flowFailures。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go` + `internal/core/layers/validate_layers_test.go`。
+
+### T-FTP-15 混用拒绝 + 扁平静态复制（v3 改版）
+
+**状态：** 草案
+**级别：** unit + integration
+**来源：** D-FTP-3 §5
+**目标：** layers 与顶层四元组任一共存→400；纯扁平静态复制仍 400；层形状豁免扁平规则。
+
+**输入：** ①`config:{layers:[...],"src_ip":"10.0.0.1"}` + fc flows=1；②`config:{layers:[...],"src_port":12345}` + fc flows=2；③`config:{src_port:12345}+fc flows=3`（扁平规则保留）；④纯层链 `layers:[{"tcp":{}},{"http":{}}]`（无四元组字段）flows=3 → 201；⑤纯层链 `layers:[{"ip":{"src":"10.0.0.1"}},{"tcp":{}}]`（显式标量、无对象）flows=3 → 400（层链静态复制）；⑥⑤形状任一字段改对象 → 201。
+**前置条件：** REST 测试 env。
+**执行：** `go test ./internal/api/rest/ -run TestLayerFlatConflict -count=1`（+ 既有 TestStaticCopyRejection 回归）
+**期望输出：** ①②400（文案含迁移指引锚词 ip 层/tcp 层）；③400；④201；⑤400（锚词"层内字段写成动态对象"）；⑥201。
+**错误期望：** REST/MCP 同文案（横扫覆盖）。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/schema/semantic_test.go` + `internal/api/rest/strategy_testpoints_test.go`。
+
+### T-FTP-16 sessions 静态复制（不动）
+
+**状态：** 已通过（v2 实现保留）
+**级别：** unit
+**来源：** D-FTP-3 §1
+**目标：** Count>1 全静态会话端口→任务启动 error；动态/Count=1 通过。
+
+**输入/执行/期望：** 见 v2（`TestFTPStaticCopyRejection` ①..⑤）。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
+
+### T-FTP-17 回归 + 横扫（v3 重算）
+
+**状态：** 草案
+**级别：** unit + integration
+**来源：** T-FTP-1 + T-SCHEMA-6；D-FTP-3 §1
+**目标：** 老形状零回归；横扫补混用+层动态畸形两例。
+
+**输入：** 既有 ftp 全套件 + 存量集成用例 + 横扫新增：`config:{layers:[...],"src_port":12345}`（混用红）、`config:{layers:[{"ip":{"src":{"strategy":"inc"}}}]}`（层动态 range 缺失红）。
+**前置条件：** 无。
+**执行：** `go test ./internal/... -count=1`；touched 包 -race；横扫 `go test ./internal/mcp/ -run TestNegativeParity -count=1`
+**期望输出：** 全绿；横扫 19-2(v2 p13 撤销)+2=19 例同文案。
+**错误期望：** 存量集成用例按新规则更新。
+**性能期望：** 回归耗时不超基线 +10%。
+**实现位置：** 既有测试文件 + `internal/mcp/negative_parity_test.go`。
 
 ## 7. 用例审查与完成条件
 

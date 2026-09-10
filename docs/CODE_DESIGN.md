@@ -178,9 +178,9 @@
 #### 8. 验收
 - 对应 `docs/TEST_CASES.md` T-FTP-1…T-FTP-6（T-FTP-5/6 为实现循环新增的 §5 边界用例，已转正登记）。完成条件：老形状零回归；双会话（RETR+LIST）包序列断言通过；数据流 parent 索引区分事务；跨事务 PASV 端口不串扰；空会话 7 包；无标记 DataChannel 不发射；`go build/vet` 干净。
 
-### D-FTP-2 动态值（阶段二：策略路径四元组动态 + FTP 会话/事务字段动态）
+### D-FTP-2 动态值（阶段二：扁平四元组动态 + FTP 字段动态）【v3 改版留档：本条目四元组部分已被 D-FTP-3 替代（数据源从扁平键迁入层字段）；FTP 字段动态部分仍有效】
 
-**状态：** 已验收（2026-09-10 用户批复"开工"后实施；T-FTP-7..17 全绿，触碰包 -race 绿，负例横扫 19 例）
+**状态：** 部分验收（FTP 字段动态 T-FTP-10..14/16 保留；四元组扁平动态 T-FTP-7/8/9/15 由 D-FTP-3 重做，v2 实现代码按 D-FTP-3 §7 回滚/改写）
 **范围（2026-09-10 用户纠正后改版 v2）：** 用户裁定动态配置模型 = "静态字段原地加动态参数"——同一个字段，静态写普通值（int/string）、动态写变化规则对象（fixed/inc/rand/list/pattern 五策略，group_id 既有先例），不分模式、不另起键。本次解决：①四元组动态——strategy config 的 `src_ip`/`dst_ip`/`src_port`/`dst_port` 原地接受"标量或动态对象"，worker 策略循环按流序号解析；策略级 `tuples` 键撤销（v1 误设计，只留批量类 `classes[].tuples`）；②FTP 业务字段动态——`session.src_port`/`session.banner`、`command.cmd`/`command.response`、`data_channel.payload` 同字段二态（v1 的 `*_dyn` 平行键撤销）；③流序号贯通——worker 策略/批量两条循环向 FlowSpec 写入 FlowIndex；④畸形动态配置拒绝——四元组经 mapToFlowSpec 写 ValidationErrors（既有聚合失败机制）、FTP 经 Planner.Validate，任务终态 error，不许静默回退静态；⑤静态复制拒绝——create 语义层 flat 规则 + FTP planner sessions 规则（逃生口从"补 tuples"改为"把该字段写成动态对象"）；⑥schema/派生同步（strategy.json 四元组字段 anyOf 化、tuples 键删除，MCP 描述与前端类型重生成，负例横扫补动态畸形/静态复制两例）。明确不解决：任务级跨策略共用动态池（另立条目）；老形状（顶层 banner/commands）动态（零回归红线）；ftp 子配置 $ref 化（40+ 遗留清单）；批量路径 genIP/genPort 对畸形 range 的静默回退（遗留基线不改，批量类继续用 tuples 池）；批量类无 tuples 的静态复制拒绝（create 期无法审计）；并发会话、ABOR 中断、TCP keepalive；子流 group_id 预写 flowIdx=0 局限（既有已知项）。
 **依据：** CORE_MEMORY §12 全文（策略/任务动态 mandate：五策略、seed+序号可复现、到尾回绕、静态复制必须拒绝或告警、批量 tuples 是参考基线、动态值只落 ip/tcp/udp/协议层）；批量基线代码 `internal/core/tuple_generator.go:34`（genIP）、`:79`（genPort）、`internal/core/shard_router.go:58`（genStringValue）、`:105`（applyPattern）、`internal/core/worker.go:737-763`（批量每流解析与覆盖顺序）；策略路径现状 `internal/core/worker.go:279-324`（仅 src_port 自动+1，其余字段全静态）；FTP 阶段一 `internal/protocol/ftp/ftp.go:277`（planSessions，实际 277 行确认）；schema `trafficgen/schemas/v1/defs.json:73`（dynamic_value）、`:191`（tuple_config）。
 **配置权威：** 动态是"值的算法"，层链是"值的住处"：同键二态算出的地址仍只落 ip 层（src/dst）、端口仍只落 tcp/udp 层（经 spec 注入层链，与静态同一条路径）；FTP 业务字段仍只落 ftp 层；数量仍只走 flow_control。不新增与 layers 并存的第二套顶层字段（批量类 tuples 池照旧）。
@@ -211,7 +211,7 @@
 - InitialSeq 多会话规则（首会话独占、后续随机）与序号空间不受动态影响。
 
 #### 5. 错误与异常
-- 畸形动态配置（strategy 未知或空、inc/rand 的 range 非 2 元或 end<start、list 空、pattern 空或缺 2 元 range）：拒绝，不许静默回退静态（对比表 F；批量 genIP/genPort 静默回退为遗留，不改）。触发点分路径——四元组动态畸形：mapToFlowSpec 解析时写 `spec.ValidationErrors`（既有聚合失败机制）→ worker 预检（`worker.go:210`）终态 error；FTP 动态畸形：策略路径在 worker 循环前的 `planner.Validate(task.Spec)`（`worker.go:222`）→ 任务终态 error，一条流都不发；批量路径在每流 `p.Validate(spec)`（`worker.go:770`）→ 逐流跳过并计入 flowFailures。Plan 入口自身的 Validate（`ftp.go:88`）为直接调用方兜底。
+- 畸形动态配置（strategy 未知或空、inc/rand 的 range 非 2 元或 end<start、list 空、pattern 空或缺 2 元 range）：拒绝，不许静默回退静态（对比表 F；批量 genIP/genPort 静默回退为遗留，不改）。触发点分路径——四元组动态畸形：mapToFlowSpec 解析时写 `spec.ValidationErrors`（既有聚合失败机制）→ worker 预检（`worker.go:210`）终态 error；FTP 动态畸形：策略路径在 worker 循环前的 `planner.Validate(task.Spec)`（`worker.go:222`（策略预检）→ 任务终态 error，一条流都不发；批量路径在每流 `p.Validate(spec)`（`worker.go:770`）→ 逐流跳过并计入 flowFailures。Plan 入口自身的 Validate（`ftp.go:88`）为直接调用方兜底。
 - 静态复制拒绝：flat——`flow_control.type=flows 且 value>1 且 config 显式含顶层标量 src_port 且 src_port 不是动态对象`，create/Update 均 400（统一入口语义层，位置：TFTP tid 规则之后追加；适用所有 synth 协议；仅作用于无 `layers[]` 的 config——层链形状下端口在 tcp 层，检测需注册表字段表支撑，列入不解决）。逃生口：把 src_port 写成动态对象。存量此形状策略一旦编辑即被要求先修配置，属 §12 意图内行为变化。FTP sessions——`spec.Count>1 且存在静态会话端口（或全继承且用户显式写了 spec src_port）且无任何会话把 src_port 写成动态对象`，Planner.Validate 拒绝（批量路径 spec.Count=0 不触发，属已知边界）。触发时机与 flat 规则不同：flat 在建策略时 400，sessions 规则在任务启动时（worker 预检 Validate，`worker.go:222`）以任务终态 error 暴露——建策略时 ValidateProtocolSubConfigs 不审计会话端口形状（属既有子配置边界，不扩范围）。两条文案均给出出路（省略 src_port 走自动递增 / 把对应字段写成动态对象）。
 - 兼容行为变化：存量"显式 src_port + flows>1"的策略自本阶段起在 create/Update 被拒；未编辑的存量策略任务不受影响照跑。回归面：现有显式端口+flows>1 的 REST/引擎集成用例需按新规则更新（省略 src_port 或补 tuples），随本阶段一并提交；离线 pcap 套件 `test/protocol_pcap/cases/ftp.json` 为 count=1 显式端口，不吃此门（Count>1 才触发），零改动。
 - 依据边界：本阶段拒绝规则成立的前提是"策略路径没有任何 planner 能在无索引时自变四元组"（当前成立）；未来若某 planner 用 FlowIndex 自变，需重审该规则（登记为跟随项）。
@@ -236,7 +236,70 @@
 | D FTP 业务动态解析位置 | D1 planner 内（planSessions/resolveTx）；D2 worker 预解析 | D1 工作器保持协议无关、扫描天然拿到已解析响应；D2 破坏分层 | 选 D1 |
 | E 动态四元组覆盖顺序 | E1（v1）tuples 池 Next(i) 非零覆盖；E2（v2）同键二态字段逐字段 Resolve(i) 非零覆盖 | v2 同键二态下不再有池与平铺两处来源；逐字段非零覆盖与既有批量覆盖序一致 | v2：逐字段 Resolve(i)，批量循环同块 |
 | F 畸形动态配置处置 | F1 拒绝→任务 error；F2 静默回退静态（批量 genIP/genPort 现状） | F1 失败路径可测、§5/§9 要求错误真红；F2 隐性静态输出=测不出的退化；批量静默回退属遗留基线，本阶段不改、已列入不解决 | 四元组走 ValidationErrors、FTP 走 Planner.Validate，均 F1 |
-| G 策略级 tuples 池（v1 误设计） | G1 保留（策略 tuples + 同键二态并存）；G2 撤销策略 tuples，批量类 tuples 池不变 | G1 两套写法并存正是用户否决的"乱"；G2 单模型（字段二态），批量路径不动 | 选 G2（用户裁定） |
+| H 策略级 tuples 池（v1 误设计） | H1 保留（策略 tuples + 同键二态并存）；H2 撤销策略 tuples，批量类 tuples 池不变 | H1 两套写法并存正是用户否决的"乱"；H2 单模型（字段二态），批量路径不动 | 选 H2（用户裁定） |
+
+### D-FTP-3 层字段动态 + 扁平四元组清退（阶段三：动态值的住处迁入层链）
+
+**状态：** 草案（D-FTP-2 v3 改版；待用户评审，设计未定稿不开工）
+**范围：** 本次解决：①层字段动态——`ip.src`/`ip.dst`（对象=动态，IP 算法）、`tcp.src_port`/`tcp.dst_port`、`udp.src_port`/`udp.dst_port`（对象=动态，端口算法）、`eth.src_mac`/`eth.dst_mac`（对象=动态，MAC 递增在 scope 内唯一新增算法，其余字段沿用 gen 系）、`ip.ttl`（对象=动态，小整数算法）接受"标量或动态对象"同键二态（与 FTP 字段同一套二态规则：对象写法=动态，标量=静态；范围口径：IP 层取 type=ip 字段（src/dst），tcp/udp 取 type=uint16 端口字段，eth 取 type=mac 字段，ttl 取 type=uint8 且 max≤255 字段（vlan/tls/终结层业务字段不在本阶段名单，见 §4）；非动态字段如 mss/handshake/tcp.flags/ip.dscp 仍只收标量——见 §4 名单）；②FTP 注册表补 sessions/commands/data_channel 字段表（只登记、不删除，原有 username/password 不变；层 config 校验接受 sessions 事务结构，segments 级值校验仍归 planner）；③扁平四元组清退——strategy create/update 拒绝 `layers` 与顶层 `src_ip/dst_ip/src_port/dst_port` 混用（语义层拒绝，`schema/semantic.go`，跨键规则 schema 表达不了；存量策略不追溯）；④畸形动态拒绝——层字段动态对象走 ValidateLayers（策略未知/range 非 2 元/end<start/list 空/pattern 缺模板·range → 400；任务启动预检同口径终态 error；批量路径逐流跳过计 flowFailures）；⑤静态复制拒绝——扁平键方案冻结（保留已合入规则，不再新增口径）；层链形状下 `checkLayerChainStaticCopy`（显式标量四元组+无对象+flows>1，见 §5 口径）；⑥schema/派生同步（strategy.json 扁平四键 anyOf 化撤销为纯标量+混用拒绝说明、`layers.json` 二态规则说明、MCP 描述表与前端类型重生成、负例横扫补层动态畸形/混用两例）。明确不解决：2369 个双写离线用例改写（另立批量迁移任务，本阶段只给形状+拒绝+文档，不许静默改 2369 个文件冒充完成）；`applySpecToChain` 旧端口写回链（清退过渡期保留，见 §3 优先级链）；`translateTerminalConfig` 旧协议配置优先声明（保留，§3 优先级链）；任务级跨策略共用动态池；ftp 子配置 $ref 化；老形状顶层 banner/commands 动态；并发会话、ABOR 中断、keepalive。
+**依据：** CORE_MEMORY §1（层链唯一真相、旧扁平字段必须退出；混用禁止+两道验收门）、§12（动态 mandate：五策略/seed+序号可复现/回绕/静态复制拒绝；"动态是值的算法、层链是值的住处"、批量 tuples 为参考基线）；代码基线 `internal/core/layers/chain_planner_chain.go:276`（applySpecToChain：spec 四元组注入层 config）、`strategy_convert.go:250`（extractLayerSrcDst）、`:281-289`（flat 默认读入）、`validate_layers.go:133`（ValidateLayers 入口）、`worker.go:307-337`（策略循环 auto-inc+拷贝+FlowIndex=i@337）、`:802`（批量预检 `p.Validate(spec)`）、`shard_router.go:58/105`（genStringValue/applyPattern 单真相）、`tuple_generator.go:34/79`（genIP/genPort）；注册表现状 `layers.generated.json`（ip.src/dst type=ip、tcp/udp.src_port/dst_port type=uint16、eth.mac、ip.ttl uint8 max 255）。
+**配置权威：** 层链是唯一真相。动态字段的住处=层字段；扁平四键在带 `layers` 的 config 里是非法键（混用拒绝）；`flow_control` 仍是数量唯一来源。FTP 字段动态（D-FTP-2 已验收部分）住处=ftp 层，不动。
+
+#### 1. 数据与接口
+- 动态策略复用 `dynamic_value`（defs.json 已有：fixed/inc/rand/list/pattern 条件必填已具备，零改动）。层字段二态形状由 Go 层注册表+ValidateLayers 表达（schema layers.json 只加说明文字，不逐字段 anyOf——字段表是生成的，逐字段手写 anyOf 即第二套真相，禁止）。
+- `internal/core/layers/validate_layers.go`：`ValidateLayers` 层 config 值遍历时——对象值→走 dynamic_value 形状检查（strategy 未知/range 非 2 元/list 空/pattern 缺模板·range/end<start → 精确字段路径错误 `layers[i](name).field: …`）；标量值→走既有 V9 类型范围检查（零行为变化）。非动态名单字段见对象值→拒绝（"字段 X 不支持动态"）。
+- `internal/core/types.go`：`FlowSpec` 增层动态缓存 `LayerDyn *LayerDynValues json:"-"`（结构：`IP{Src,Dst *StrategyConfig} TCP{SrcPort,DstPort *StrategyConfig} UDP{SrcPort,DstPort *StrategyConfig} Eth{SrcMAC,DstMAC *StrategyConfig} TTL *StrategyConfig`；v2 的 `Tuples`/`SrcIPDyn` 等扁平 Dyn 字段按 §7 撤销——v2 代码未合并，撤销=不合入，只合入 FlowIndex）。`FlowIndex`（v2 已合入）保留。
+- `internal/core/strategy_convert.go`：mapToFlowSpec 增 `parseLayerDyn(cfg["layers"])`（层数组→LayerDynValues：ip/src·dst、tcp·udp/src_port·dst_port、eth/src_mac·dst_mac、ip/ttl；对象→StrategyConfig，畸形→`spec.ValidationErrors`）；`extractLayerSrcDst` 保持（静态标量路径零改动）；flat 四键保持纯标量解析（动态对象输入→ValidationErrors："带 layers 时四元组请写层字段"，见 §5）。
+- `internal/core/worker.go`：策略循环 auto-inc 之后插入层动态解析块（`resolveLayerTuple(spec, i)`：IP→spec.SrcIP/DstIP、端口→spec.SrcPort/DstPort、MAC→spec.SrcMAC/DstMAC、TTL→spec.TTL；Resolve* 非零才覆盖；批量循环同块插入——批量类 layers 配置此前无动态，属新增能力非行为变化）。v2 的扁平 Dyn 解析块按 §7 撤销（未合并则不合入）。
+- `internal/core/layers/registry.go`：ftp 层加 `sessions`（type=list）、`commands`（type=list）、`data_channel`（type=object）字段（只登记形状，值语义归 planner；阶段一/二解析逻辑不动）。
+- schema：`strategy.json` 扁平四键恢复纯标量 + 描述注明"带 layers 时禁止出现（混用拒绝）"；`layers.json` 描述加二态说明段落；v2 `tuples` 不存在（未实施）无需撤销。重跑三台生成器，门测试锁同步。
+- 校验入口：`schema/semantic.go` ValidateStrategy synth 增混用拒绝（`layers` 与顶层 src_ip/dst_ip/src_port/dst_port 任一共存→400，位置：TFTP tid 规则之后，与 flat 静态复制规则并列；文案给迁移指引："地址写 ip 层 src/dst，端口写 tcp/udp 层 src_port/dst_port"）+ 层链静态复制 `checkLayerChainStaticCopy`（layers 存在 + 层内四元组字段全标量 + fc flows>1 → 拒绝，逃生口=层内字段写对象；位置同上）。FTP sessions 静态复制/畸形规则（v2 已合入）不动。
+
+#### 2. 依赖与生命周期
+- 前置：v2 FTP 字段动态已合入（03a175d/2ed5dda）；`dynamic_value` 条件必填已具备（allOf，schema 单测已覆盖）；`applySpecToChain` 与 `translateTerminalConfig` 保留（过渡期双写兼容，见 §3）。
+- 解析时机：层动态在 worker 每流循环 O(1)（逐字段 Resolve）；ValidateLayers 在 create/update + 任务启动预检各跑一次（纯内存形状检查，无包开销）；LayerDyn 只读（跨流共享指针，v2 只读约束延续）。
+- 存量策略：混用拒绝只拦新建/更新（create/update 语义层），已入库双写策略照跑（任务启动不复查混用——避免线上任务突然变红；迁移任务另行改写）。
+
+#### 3. 主流程与状态
+- 策略流循环 i：spec 副本 → auto-inc（既有条件：flowCount>1 且无显式扁平端口）→ 层动态 `resolveLayerTuple(i)` 非零覆盖 → FlowIndex=i → computeHashKey → Plan（顺序与批量同序；auto-inc 先跑后被覆盖是无害的，保持与批量"覆盖在后"同构，不加跳过条件）。
+- 层动态→spec→链：`resolveLayerTuple` 写 spec 四元组/MAC/TTL → `applySpecToChain` 按既有规则注入层 config（spec 显式 wins；过渡期扁平端口写回链行为保留——无 layers 时唯一来源，有 layers 时 flat 已被混用拒绝拦掉，故写回只剩"层动态解析出的 spec 值"，无歧义）→ 生成器读层 config（零改动）。
+- 优先级链（过渡期如实记录）：层动态解析值 > auto-inc > 扁平静态（无 layers 时）> 引擎默认；`translateTerminalConfig` 的"flat 优先"声明仅作用于终结层协议子配置（http/dns 等），不作用于四元组（四元组走 applySpecToChain），两者正交、无冲突。
+
+#### 4. 递增与覆盖规则
+- 算法单真相：IP/端口=genIP/genPort（fixed/list/inc/rand，不支持 pattern）；MAC=新增 `genMAC(s,i)`（OUI 保留前 3 字节、后 3 字节按 inc 语义递增回绕；rand 种子同规则；list 轮换；fixed 常值；pattern 不支持——MAC 模板无规范先例，拒绝）；TTL=新增 `genSmallInt(s,i,min,max)`（inc/list/rand/fixed，pattern 不支持）；字符串类（将来扩展）=genStringValue。全部确定性（seed+i）+到尾回绕。
+- 动态名单（本阶段开放）：`ip.src/ip.dst`、`tcp.src_port/tcp.dst_port`、`udp.src_port/udp.dst_port`、`eth.src_mac/eth.dst_mac`、`ip.ttl`。非动态字段（见对象即拒绝）：`tcp.mss/handshake/termination/rst/retransmit/concurrent/initial_seq/window_size`、`ip.dscp/ecn/frag_offset`、`udp.*` 除端口外无他字段、`eth.*` 除 MAC 外、`vlan.*`、`tls.*`、全部终结层业务字段（除 ftp.sessions 系已验收）。名单写死在 validate 代码注释 + 本节，评审抽查。
+- 覆盖：同键二态天然互斥（标量/对象二选一）；层动态解析值非零才覆盖 spec（零值回退既有链）。
+
+#### 5. 错误与异常
+- 混用拒绝（新增）：`layers` 与顶层 src_ip/dst_ip/src_port/dst_port 任一共存→400（create/update；文案含迁移指引；错误码 V-NEW）。存量双写策略已入库的不追溯（启动不查）。
+- 层动态畸形（新增）：strategy 未知/range 非 2 元/end<start/list 空/pattern 缺模板·range/非动态名单字段见对象→ValidateLayers 精确路径错误（create 400；任务启动预检同口径终态 error；批量逐流跳过计 flowFailures）。
+- 层链形状下"显式全静态+flows>1"：`checkLayerChainStaticCopy` 拒绝——仅当层内有任一四元组字段被显式写成标量（ip.src/dst、tcp/udp.src_port/dst_port 任一出现）且无任一写成对象且 fc flows>1；全缺省层（如 `[{tcp:{}},{http:{}}]` 无四元组字段）不触发（T-FTP-15 ④保持 201）。文案家族同 flat 规则，逃生口=层内字段写对象。
+- 扁平四键收动态对象：REST 路径在形状层先 400（strategy.json 扁平四键纯标量，对象进不来）；引擎直调路径（mapToFlowSpec 直传对象）在 `spec.ValidationErrors` 拒绝（"四元组动态请写层字段：ip.src/ip.dst、tcp/udp.src_port/dst_port"）→ worker 预检（worker.go:210）终态 error。v2 扁平二态实现按 §7 不合入。
+- planner 错误继续中断 Plan（既有语义）；超时/重传归 tcp 层（D-FTP-1 归属不变）。
+
+#### 6. 性能设计与验收
+- worker 每流新增 O(1) 逐字段 Resolve（与批量等价路径同量级）；parseLayerDyn 每任务一次 O(层数)；ValidateLayers 层 config 值遍历 O(字段数)；LayerDyn 只读无锁；resolveTx 零拷贝规则延续。回归套件耗时相对基线 ±10% 内；不新增性能门；pcap/网卡沿用既有 harness。
+
+#### 7. 实现顺序与回滚
+1. schema：strategy.json `tuples` 属性删除（v2 71bed09 误加，未合并则直接不合入；若已合入则 revert 该文件段）+ tuple_config 端点收紧保留与否按 §7-注决策 + 扁平四键描述加混用说明、layers.json 二态说明 + 三台生成器重跑 + 形状用例（failing：混用 4 键各 1 例 + 层动态畸形 4 例）→ 2. core：LayerDynValues + parseLayerDyn + genMAC/genSmallInt + 导出包装（failing：TestParseLayerDyn + MAC/TTL 单测）→ 3. worker 两循环 resolveLayerTuple（T-FTP-7/8/9 改版为层形状输入）→ 4. registry ftp sessions 登记 + ValidateLayers 二态校验（T-FTP-10..14 输入已是层形状，FTP 解析逻辑不动；T-FTP-14 补层畸形 2 例）→ 5. 混用拒绝 + 层链静态复制规则 + 横扫补 2 例（T-FTP-15/16 改版）→ 6. 全量套件 + touched 包 -race + vet/gofmt + 文档状态回写。v2 未合并代码处置：`Tuples`/`SrcIPDyn` 等扁平 Dyn 字段、扁平二态解析块、worker tuples 块、checkStaticCopy 扁平规则——按"冻结保留"评估：checkStaticCopy 防新扁平双写，予以保留（§9 F 行：保留+冻结口径）；其余不合入。回滚=按提交逆序 revert（schema 与派生同提交）。
+- §7-注（tuple_config 收紧去留）：v2 把 tuple_config 四端点收紧为 anyOf[标量, dynamic_value]——该 $def 被 batch.json 共用。决策：保留收紧（批量 tuples 标量简写本就是 schema 描述承诺的；既有批量用例若有标量端点则此前穿透未验，收紧后变红的用例按"形状补对象写法"更新，随本阶段提交）。影响面已预查（2026-09-10）：离线 cases 批量 tuples 标量端点 0 处，收紧零回归。
+- v2→v3 用例映射：T-FTP-7（输入改层形状）/8（同）/9（同）/10..14（输入已是层形状：FTP 会话字段本来就在 ftp 层内，不动；T-FTP-14 补层动态畸形）/15（p13 输入改 `src_ip` 对象→层内对象；p14 扁平静态复制保留；补混用例）/16（不动）/17（横扫数重算）。
+
+#### 8. 验收
+- 对应 `docs/TEST_CASES.md` T-FTP-7…T-FTP-17（v3 改版输入）。完成条件：五策略在层字段与 FTP 字段全绿；rand 可复现/回绕断言；两条拒绝（混用/层链静态复制）各有反例；畸形动态任务 error；`go build/vet` 干净；touched 包 -race 绿。
+- §1 两道门进度如实记录：①层链动态跑通（本条目）；②扁平四键与 layers 混用拒绝上线（本条目）+ 2369 双写用例改写（另立迁移任务，不在本条目冒充完成）。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A 动态住处 | A1 扁平键二态（v2）；A2 层字段二态（v3，用户裁定） | A1 在将被删除的键上加功能，方向错误；A2 动态落层字段=§1 唯一真相，扁平键只剩清退 | 选 A2 |
+| B 层字段二态形状表达 | B1 schema 逐字段 anyOf；B2 Go 注册表+ValidateLayers（schema 只加说明） | B1 字段表是生成的，手写 anyOf 即第二套真相；B2 单真相在 Go，schema 不分叉 | 选 B2 |
+| C MAC/TTL 动态 | C1 不做；C2 做（MAC 新增算法、TTL 小整数） | 用户示例含 MAC 动态需求的同类场景；MAC 无 pattern（无规范先例）；TTL 名单限定 | 选 C2（名单制） |
+| D 非动态名单 | D1 全字段可动态；D2 名单制（开放 9 字段+ttl） | D1 把 mss/handshake 等开关变成动态=语义灾难；D2 评审可抽查 | 选 D2 |
+| E 混用拒绝范围 | E1 建改都拦+启动复查；E2 只拦建改（存量照跑） | E1 让线上存量任务突然变红=事故；E2 迁移任务另行改写，风险可控 | 选 E2 |
+| F 扁平静态复制 checkStaticCopy（v2 已合入） | F1 合入保留（防新扁平双写）；F2 回滚删除 | 扁平键已进入清退但仍是无 layers 策略的唯一写法，规则保留防静态复制回潮；口径冻结不再扩展 | 选 F1（保留+冻结口径） |
+| G2 层链静态复制 checkLayerChainStaticCopy（新增） | G2a 显式标量触发（缺省层不触发）；G2b 任一四元组字段出现即触发 | G2b 会把 `[{tcp:{}},{http:{}}]` 无字段层也判死，误伤 T-FTP-15 ④；G2a 只拦显式写死的，缺省层放行 | 选 G2a |
 
 ## 5. 设计评审闸门
 
