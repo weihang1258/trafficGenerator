@@ -436,7 +436,7 @@
 
 ### T-FTP-7 层 ip/tcp 动态 inc（层形状）【v3 改版：输入从扁平键改为层字段】
 
-**状态：** 草案
+**状态：** 已通过（D-FTP-3 步骤2-3/4，提交 a986ead+e8c807f；`TestWorkerLayerDynInc`+`TestParseLayerDyn` 全绿）
 **级别：** unit
 **来源：** D-FTP-3 §3/§4；CORE_MEMORY §12
 **目标：** 层内 `ip.src`/`tcp.src_port` 写动态对象时 worker 策略循环按流序号产出四元组。
@@ -451,7 +451,7 @@
 
 ### T-FTP-8 层动态 rand 可复现 + 回绕（含 MAC/TTL）
 
-**状态：** 草案
+**状态：** 已通过（D-FTP-3 步骤2-3，提交 a986ead；`TestWorkerLayerDynReproducible` 全绿）
 **级别：** unit
 **来源：** D-FTP-3 §4；CORE_MEMORY §12
 **目标：** rand 同 seed 两次运行一致；inc/list 到尾回绕；MAC/TTL 名单字段动态生效。
@@ -466,7 +466,7 @@
 
 ### T-FTP-9 层动态覆盖（fixed + 分片一致）
 
-**状态：** 草案
+**状态：** 已通过（D-FTP-3 步骤2-3，提交 a986ead；`TestWorkerLayerDynOverride` 全绿）
 **级别：** unit
 **来源：** D-FTP-3 §4
 **目标：** fixed 解析值覆盖；未配动态端点保持；分片键=终值；FlowIndex 逐流。
@@ -526,14 +526,14 @@
 
 ### T-FTP-14 畸形拒绝（v2 保留 + 补层动态畸形 2 例）
 
-**状态：** 草案（v2 4 例保留，补 2 例）
+**状态：** 已通过（D-FTP-3 步骤4/6a，提交 e8c807f；层畸形以 `TestValidateLayersDynShape`+`TestParseLayerDyn_InvalidEndpoints` 落地，执行命令中的 `TestValidateLayersDynInvalid` 为笔误，实际函数名 DynShape）
 **级别：** unit
 **来源：** D-FTP-3 §5
 **目标：** FTP 畸形 + 层动态畸形均拒绝。
 
 **输入：** v2 ①..⑤ + ⑥`ip.src` 写 `{"strategy":"inc"}`（range 缺失，走 ValidateLayers）；⑦`tcp.mss` 写对象（非动态名单→拒绝）。
 **前置条件：** 无。
-**执行：** `go test ./internal/protocol/ftp/ -run TestFTPDynInvalid -count=1` + `go test ./internal/core/layers/ -run TestValidateLayersDynInvalid -count=1`
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPDynInvalid -count=1` + `go test ./internal/core/layers/ -run TestValidateLayersDynShape -count=1`
 **期望输出：** 各例精确字段路径错误；绝不静默静态。
 **错误期望：** 批量逐流跳过计 flowFailures。
 **性能期望：** 不适用。
@@ -541,7 +541,7 @@
 
 ### T-FTP-15 混用拒绝 + 扁平静态复制（v3 改版）
 
-**状态：** 草案
+**状态：** 已通过（D-FTP-3 步骤1/5/6a，提交 8756423+65bea31；`TestStrategyMixedUseRejected`/`TestLayerChainStaticCopy`/`TestLayerFlatConflict`/`TestStaticCopyRejection` 全绿；策略级 tuples 逃生口随 H2 撤销一并改版为拒绝）
 **级别：** unit + integration
 **来源：** D-FTP-3 §5
 **目标：** layers 与顶层四元组任一共存→400；纯扁平静态复制仍 400；层形状豁免扁平规则。
@@ -566,7 +566,7 @@
 
 ### T-FTP-17 回归 + 横扫（v3 重算）
 
-**状态：** 草案
+**状态：** 已通过（D-FTP-3 步骤6，提交 88d3b0d+65bea31；横扫 15+5=20 例同文案全绿——T-FTP-17 原文"19-2+2=19"系 v2 口径误算，实际横扫基线为 14+5=19，v3 改版后 p13 改层混用并新增 p15，合计 15+5=20；`go test ./internal/...` 全绿，tls/rtmp 散发抖动与本次无关，基线可复现）
 **级别：** unit + integration
 **来源：** T-FTP-1 + T-SCHEMA-6；D-FTP-3 §1
 **目标：** 老形状零回归；横扫补混用+层动态畸形两例。
@@ -574,7 +574,7 @@
 **输入：** 既有 ftp 全套件 + 存量集成用例 + 横扫新增：`config:{layers:[...],"src_port":12345}`（混用红）、`config:{layers:[{"ip":{"src":{"strategy":"inc"}}}]}`（层动态 range 缺失红）。
 **前置条件：** 无。
 **执行：** `go test ./internal/... -count=1`；touched 包 -race；横扫 `go test ./internal/mcp/ -run TestNegativeParity -count=1`
-**期望输出：** 全绿；横扫 19-2(v2 p13 撤销)+2=19 例同文案。
+**期望输出：** 全绿；横扫 15+5=20 例同文案（T-FTP-17 原文误算，见状态行）。
 **错误期望：** 存量集成用例按新规则更新。
 **性能期望：** 回归耗时不超基线 +10%。
 **实现位置：** 既有测试文件 + `internal/mcp/negative_parity_test.go`。
