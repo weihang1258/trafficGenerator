@@ -239,6 +239,36 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/ftp/ftp_testpoints_test.go`（新增）。
 
+### T-FTP-5 空会话边界（实现循环新增）
+
+**状态：** 已通过
+**级别：** unit
+**来源：** `docs/CODE_DESIGN.md` D-FTP-1 §5（会话无事务=仅握手+banner+teardown）；实现自审探针转正
+**目标：** 无事务会话只发握手 3 包+teardown 4 包=7 包。
+
+**输入：** 单会话无事务（SrcPort=23001）。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPEmptySession -count=1`
+**期望输出：** 包数恰为 7。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_sessions_test.go`（TestFTPEmptySession）。
+
+### T-FTP-6 DataChannel 无标记不发射（实现循环新增）
+
+**状态：** 已通过
+**级别：** unit
+**来源：** D-FTP-1 §5（与老路径 `EmitDataChannel && dc != nil` 同判定）；实现自审探针转正
+**目标：** 事务带 DataChannel 但无命令标记时不发射子流。
+
+**输入：** 单事务 Commands={RETR,150} 无标记 + DataChannel 有负载。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPDataChannelNoFlag -count=1`
+**期望输出：** 输出中无任何 `:sub-` FlowID。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_sessions_test.go`（TestFTPDataChannelNoFlag）。
+
 ## 7. 用例审查与完成条件
 
 测试用例完成前必须进行两条审查：
