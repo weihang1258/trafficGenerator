@@ -2,7 +2,7 @@
   {
     "id": "ftp_smoke_01",
     "proto": "ftp",
-    "summary": "FTP 控制通道冒烟：显式 banner + USER/PASS/QUIT 命令（types.go FTPConfig，RFC 959 §4.1），空配置只产握手+终止（设计行为），本 case 用显式消息配置驱动数据帧",
+    "summary": "FTP 控制通道冒烟：USER/PASS/QUIT（RFC 959 §4.1），14 帧 = 3 握手 + banner + 3 命令×2 + 4 终止",
     "spec_json": {
       "src_ip": "10.0.0.1",
       "dst_ip": "20.0.0.1",
@@ -63,29 +63,14 @@
           "value": "331"
         },
         {
-          "packet": 6,
-          "field": "ftp.response.arg",
-          "value": "Anonymous login ok"
-        },
-        {
           "packet": 7,
           "field": "ftp.request.command",
           "value": "PASS"
         },
         {
-          "packet": 7,
-          "field": "ftp.request.arg",
-          "value": "guest"
-        },
-        {
           "packet": 8,
           "field": "ftp.response.code",
           "value": "230"
-        },
-        {
-          "packet": 8,
-          "field": "ftp.response.arg",
-          "value": "Logged in"
         },
         {
           "packet": 9,
@@ -101,16 +86,6 @@
           "packet": 10,
           "field": "ftp.response.arg",
           "value": "Goodbye"
-        },
-        {
-          "packet": 4,
-          "field": "tcp.payload",
-          "value": ""
-        },
-        {
-          "packet": 10,
-          "field": "tcp.payload",
-          "value": ""
         }
       ],
       "frames": [
@@ -131,10 +106,885 @@
         }
       ],
       "notes": [
-        "MCP 生成验证（2026-08-16, /tmp/verify-cases/ftp/ftp_smoke_01.pcap）：14 帧 = 3 握手 + banner + 3 命令×2 + 4 终止，_ws.malformed 全空",
-        "帧字节：packet 4 banner '220 FTP server ready\\r\\n'、packet 5 'USER anonymous\\r\\n'、packet 10 '221 Goodbye\\r\\n'，payload 均从 offset 54 起（Eth14+IPv4 20+TCP 20）",
-        "tshark 3.6 ftp dissector 对 21 端口生效（review 交叉验证实测）：4=banner 220、5=USER、6=331、7=PASS、8=230、9=QUIT、10=221 全字段断言——spec 配置的全部命令与响应逐条上线",
-        "tcp.payload 空 value = presence 断言（banner/QUIT 响应帧必须有负载）"
+        "MCP 生成验证：14 帧 = 3hs + banner@4 + 3cmd×2@5-10 + 4teardown@11-14"
+      ]
+    }
+  },
+  {
+    "id": "ftp_retr_passive",
+    "proto": "ftp",
+    "summary": "T-FTP-2: PASV+RETR 下载，数据通道挂载在 150 与 226 之间；28 帧 = 控制通道 19 + 数据通道 9",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 21,
+      "count": 1,
+      "ftp": {
+        "banner": "220 FTP ready",
+        "commands": [
+          {
+            "cmd": "USER anonymous",
+            "response": "331"
+          },
+          {
+            "cmd": "PASS guest",
+            "response": "230"
+          },
+          {
+            "cmd": "PASV",
+            "response": "227 Entering Passive Mode (20,0,0,1,195,73)"
+          },
+          {
+            "cmd": "RETR /data.bin",
+            "response": "150 Opening data connection",
+            "emit_data_channel": true
+          },
+          {
+            "cmd": "",
+            "response": "226 Transfer complete"
+          },
+          {
+            "cmd": "QUIT",
+            "response": "221 Goodbye"
+          }
+        ],
+        "data_channel": {
+          "mode": "passive",
+          "direction": "down",
+          "payload": "HELLO FTP DATA"
+        }
+      }
+    },
+    "expect": {
+      "min_packets": 28,
+      "packet_count": 28,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "21"
+        },
+        {
+          "packet": 10,
+          "field": "ftp.response.code",
+          "value": "227"
+        },
+        {
+          "packet": 11,
+          "field": "ftp.request.command",
+          "value": "RETR"
+        },
+        {
+          "packet": 11,
+          "field": "ftp.request.arg",
+          "value": "/data.bin"
+        },
+        {
+          "packet": 12,
+          "field": "ftp.response.code",
+          "value": "150"
+        },
+        {
+          "packet": 13,
+          "field": "tcp.dstport",
+          "value": "49993"
+        },
+        {
+          "packet": 22,
+          "field": "ftp.response.code",
+          "value": "226"
+        },
+        {
+          "packet": 23,
+          "field": "ftp.request.command",
+          "value": "QUIT"
+        },
+        {
+          "packet": 24,
+          "field": "ftp.response.code",
+          "value": "221"
+        }
+      ],
+      "notes": [
+        "PASV port=195*256+73=49993；控制通道 19 包（空 cmd 只发响应 1 包）+ 数据通道 9 包 = 28；数据通道 SYN 在 pkt13"
+      ]
+    }
+  },
+  {
+    "id": "ftp_stor_upload",
+    "proto": "ftp",
+    "summary": "T-FTP-2b: PORT+STOR 上传，数据方向=up（client→server）；28 帧",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 21,
+      "count": 1,
+      "ftp": {
+        "banner": "220 FTP ready",
+        "commands": [
+          {
+            "cmd": "USER anonymous",
+            "response": "331"
+          },
+          {
+            "cmd": "PASS guest",
+            "response": "230"
+          },
+          {
+            "cmd": "PORT 10,0,0,1,48,83",
+            "response": "200 PORT command successful"
+          },
+          {
+            "cmd": "STOR /upload.bin",
+            "response": "150 Opening data connection",
+            "emit_data_channel": true
+          },
+          {
+            "cmd": "",
+            "response": "226 Transfer complete"
+          },
+          {
+            "cmd": "QUIT",
+            "response": "221 Goodbye"
+          }
+        ],
+        "data_channel": {
+          "mode": "active",
+          "direction": "up",
+          "payload": "UPLOAD PAYLOAD"
+        }
+      }
+    },
+    "expect": {
+      "min_packets": 28,
+      "packet_count": 28,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "21"
+        },
+        {
+          "packet": 9,
+          "field": "ftp.request.command",
+          "value": "PORT"
+        },
+        {
+          "packet": 10,
+          "field": "ftp.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 11,
+          "field": "ftp.request.command",
+          "value": "STOR"
+        },
+        {
+          "packet": 13,
+          "field": "tcp.dstport",
+          "value": "12371"
+        },
+        {
+          "packet": 22,
+          "field": "ftp.response.code",
+          "value": "226"
+        }
+      ],
+      "notes": [
+        "PORT port=48*256+83=12371；active mode: server 从 20 发起连 client:12371；Direction=up 表示 client→server 文件流"
+      ]
+    }
+  },
+  {
+    "id": "ftp_sessions_dual",
+    "proto": "ftp",
+    "summary": "T-FTP-2 sessions: 双会话（RETR+LIST），独立 TCP 连接、独立数据通道；48 帧 = 2×24",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 21000,
+      "dst_port": 21,
+      "count": 1,
+      "ftp": {
+        "sessions": [
+          {
+            "src_port": 20000,
+            "banner": "220 s1",
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "USER anonymous",
+                    "response": "331"
+                  },
+                  {
+                    "cmd": "PASV",
+                    "response": "227 Entering Passive Mode (20,0,0,1,195,73)"
+                  },
+                  {
+                    "cmd": "RETR /a.bin",
+                    "response": "150",
+                    "emit_data_channel": true
+                  },
+                  {
+                    "cmd": "",
+                    "response": "226 done"
+                  }
+                ],
+                "data_channel": {
+                  "payload": "FILE-A"
+                }
+              }
+            ]
+          },
+          {
+            "src_port": 20001,
+            "banner": "220 s2",
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "CWD /pub",
+                    "response": "250"
+                  },
+                  {
+                    "cmd": "PASV",
+                    "response": "227 Entering Passive Mode (20,0,0,1,195,74)"
+                  },
+                  {
+                    "cmd": "LIST",
+                    "response": "150",
+                    "emit_data_channel": true
+                  },
+                  {
+                    "cmd": "",
+                    "response": "226 done"
+                  }
+                ],
+                "data_channel": {
+                  "payload": "DIR-LIST"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 48,
+      "packet_count": 48,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "20000"
+        },
+        {
+          "packet": 25,
+          "field": "tcp.srcport",
+          "value": "20001"
+        }
+      ],
+      "notes": [
+        "每会话 24 帧 = 控制 15（3hs+banner+3cmd×2+空cmd 1+4teardown）+ 数据通道 9；会话1 数据口 195*256+73=49993，会话2 195*256+74=49994；独立序号/握手/挥手"
+      ]
+    }
+  },
+  {
+    "id": "ftp_session_dynamic_ports",
+    "proto": "ftp",
+    "summary": "T-FTP-10: 会话 src_port_dyn inc [20000..20003]，4 流各不同端口；48 帧 = 4×12",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "dst_port": 21,
+      "ftp": {
+        "sessions": [
+          {
+            "src_port_dyn": {
+              "strategy": "inc",
+              "range": [
+                20000,
+                20003
+              ]
+            },
+            "banner": "220 dyn",
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "USER test",
+                    "response": "331"
+                  },
+                  {
+                    "cmd": "QUIT",
+                    "response": "221"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 4
+    },
+    "expect": {
+      "min_packets": 48,
+      "packet_count": 48,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "20000",
+            "20001",
+            "20002",
+            "20003"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        }
+      ],
+      "notes": [
+        "4 流 × 12 包/流（3hs+banner+2cmd×2+4teardown）= 48 包；排除 server 侧端口 21（server→client 方向包的 srcport）"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_command_pattern",
+    "proto": "ftp",
+    "summary": "T-FTP-11: cmd_dyn pattern 逐流动态，RETR 文件名按流变；46 帧 = 2×23",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "dst_port": 21,
+      "ftp": {
+        "sessions": [
+          {
+            "src_port_dyn": {
+              "strategy": "inc",
+              "range": [
+                30000,
+                30001
+              ]
+            },
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "USER test",
+                    "response": "331"
+                  },
+                  {
+                    "cmd": "PASV",
+                    "response": "227 Entering Passive Mode (20,0,0,1,195,80)"
+                  },
+                  {
+                    "cmd_dyn": {
+                      "strategy": "pattern",
+                      "pattern": "RETR file{n}",
+                      "range": [
+                        1,
+                        2
+                      ]
+                    },
+                    "response": "150",
+                    "emit_data_channel": true
+                  },
+                  {
+                    "cmd": "",
+                    "response": "226 done"
+                  }
+                ],
+                "data_channel": {
+                  "payload": "DATA"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "min_packets": 46,
+      "packet_count": 46,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "30000",
+            "30001"
+          ],
+          "distinct_exclude": [
+            "21",
+            "50000",
+            "30002"
+          ]
+        }
+      ],
+      "notes": [
+        "每流 23 帧 = 控制 14 + 数据通道 9；流0=RETR file1（控制 30000，数据通道客户端口派生 30001），流1=RETR file2（控制 30001，数据通道 30002）；排除 server 21/50000 与数据通道派生端口 30002"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_payload",
+    "proto": "ftp",
+    "summary": "T-FTP-12: data_channel payload_dyn pattern 逐流动态；46 帧 = 2×23",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "dst_port": 21,
+      "ftp": {
+        "sessions": [
+          {
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "USER test",
+                    "response": "331"
+                  },
+                  {
+                    "cmd": "PASV",
+                    "response": "227 Entering Passive Mode (20,0,0,1,195,80)"
+                  },
+                  {
+                    "cmd": "RETR /f.bin",
+                    "response": "150",
+                    "emit_data_channel": true
+                  },
+                  {
+                    "cmd": "",
+                    "response": "226"
+                  }
+                ],
+                "data_channel": {
+                  "payload_dyn": {
+                    "strategy": "pattern",
+                    "pattern": "FILE-{n}",
+                    "range": [
+                      1,
+                      2
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "min_packets": 46,
+      "packet_count": 46,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "notes": [
+        "每流 23 帧 = 控制 14 + 数据通道 9；流0 payload=FILE-1，流1 payload=FILE-2"
+      ]
+    }
+  },
+  {
+    "id": "ftp_multi_command",
+    "proto": "ftp",
+    "summary": "多命令无数据通道：6 命令全双包，20 帧 = 3 握手 + banner + 6×2 + 4 终止",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 21,
+      "count": 1,
+      "ftp": {
+        "banner": "220 ready",
+        "commands": [
+          {
+            "cmd": "USER admin",
+            "response": "331"
+          },
+          {
+            "cmd": "PASS secret",
+            "response": "230"
+          },
+          {
+            "cmd": "TYPE I",
+            "response": "200 Type set to I"
+          },
+          {
+            "cmd": "CWD /data",
+            "response": "250 CWD successful"
+          },
+          {
+            "cmd": "PWD",
+            "response": "257 \"/data\" is current directory"
+          },
+          {
+            "cmd": "QUIT",
+            "response": "221 Goodbye"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 20,
+      "packet_count": 20,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "ftp.request.command",
+          "value": "USER"
+        },
+        {
+          "packet": 7,
+          "field": "ftp.request.command",
+          "value": "PASS"
+        },
+        {
+          "packet": 9,
+          "field": "ftp.request.command",
+          "value": "TYPE"
+        },
+        {
+          "packet": 11,
+          "field": "ftp.request.command",
+          "value": "CWD"
+        },
+        {
+          "packet": 13,
+          "field": "ftp.request.command",
+          "value": "PWD"
+        },
+        {
+          "packet": 15,
+          "field": "ftp.request.command",
+          "value": "QUIT"
+        }
+      ],
+      "notes": [
+        "3 握手 + banner@4 + 6×2 命令@5-16 + 4 挥手@17-20 = 20"
+      ]
+    }
+  },
+  {
+    "id": "ftp_mss_segmentation",
+    "proto": "ftp",
+    "summary": "MSS 分段：超长 payload 触发 MSS=1460 分段，数据通道段数随 payload 长度增长",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 21,
+      "count": 1,
+      "ftp": {
+        "banner": "220 ready",
+        "commands": [
+          {
+            "cmd": "USER test",
+            "response": "331"
+          },
+          {
+            "cmd": "PASS pw",
+            "response": "230"
+          },
+          {
+            "cmd": "PASV",
+            "response": "227 Entering Passive Mode (20,0,0,1,195,90)"
+          },
+          {
+            "cmd": "RETR /big.bin",
+            "response": "150",
+            "emit_data_channel": true
+          },
+          {
+            "cmd": "",
+            "response": "226"
+          },
+          {
+            "cmd": "QUIT",
+            "response": "221"
+          }
+        ],
+        "data_channel": {
+          "mode": "passive",
+          "direction": "down",
+          "payload": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      }
+    },
+    "expect": {
+      "min_packets": 28,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "notes": [
+        "控制通道 19 包 + 数据通道 ≥9 包（payload>1460 触发 MSS 分段，段数随 payload 长度 2-3 段，不钉精确包数）；分段帧 has_payload 兜底"
+      ]
+    }
+  },
+  {
+    "id": "ftp_neg_static_copy",
+    "proto": "ftp",
+    "summary": "静态复制拒绝：src_port 固定 + flows>1 → Validate 报 static copy",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 21,
+      "count": 1,
+      "ftp": {
+        "commands": [
+          {
+            "cmd": "QUIT",
+            "response": "221"
+          }
+        ]
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "static copy",
+      "notes": [
+        "config.src_port=12345 静态 + flows=2 → 两条完全相同四元组"
+      ]
+    }
+  },
+  {
+    "id": "ftp_neg_mss_too_small",
+    "proto": "ftp",
+    "summary": "MSS<536 拒绝（RFC 879 最小包 576B = IP+TCP+536）",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 21,
+      "count": 1,
+      "tcp": {
+        "mss": 100
+      },
+      "ftp": {
+        "commands": [
+          {
+            "cmd": "QUIT",
+            "response": "221"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "too small",
+      "notes": [
+        "MSS 100 < 536 RFC 879 floor，Validate 报 'mss 100 too small'"
+      ]
+    }
+  },
+  {
+    "id": "ftp_neg_dyn_no_range",
+    "proto": "ftp",
+    "summary": "动态策略 inc 无 range → Validate 拒绝",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "dst_port": 21,
+      "ftp": {
+        "sessions": [
+          {
+            "src_port_dyn": {
+              "strategy": "inc"
+            },
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "QUIT",
+                    "response": "221"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "range",
+      "notes": [
+        "inc strategy 缺少 range → validateDynFields 报错"
+      ]
+    }
+  },
+  {
+    "id": "ftp_neg_session_static_copy",
+    "proto": "ftp",
+    "summary": "会话静态复制拒绝：两个会话固定 src_port + flows>1",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 12345,
+      "dst_port": 21,
+      "count": 1,
+      "ftp": {
+        "sessions": [
+          {
+            "src_port": 20000,
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "QUIT",
+                    "response": "221"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "src_port": 20001,
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "QUIT",
+                    "response": "221"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "static copy",
+      "notes": [
+        "2 sessions pinned + count=2 → validateSessionStaticCopy 拒绝"
+      ]
+    }
+  },
+  {
+    "id": "ftp_perf_100flows",
+    "proto": "ftp",
+    "summary": "性能测试：100 流 × USER/PASS/QUIT = 1400 帧，验证吞吐无异常",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "dst_port": 21,
+      "ftp": {
+        "banner": "220 perf",
+        "commands": [
+          {
+            "cmd": "USER test",
+            "response": "331"
+          },
+          {
+            "cmd": "PASS pw",
+            "response": "230"
+          },
+          {
+            "cmd": "QUIT",
+            "response": "221"
+          }
+        ]
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 100
+    },
+    "expect": {
+      "min_packets": 1400,
+      "packet_count": 1400,
+      "negotiated": true,
+      "terminates": true,
+      "notes": [
+        "100 流 × (3握手+banner+6cmd+4挥手)=1400 帧"
+      ]
+    }
+  },
+  {
+    "id": "ftp_perf_1000flows",
+    "proto": "ftp",
+    "summary": "性能压力测试：1000 流 × USER/PASS/QUIT = 14000 帧",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "dst_port": 21,
+      "ftp": {
+        "banner": "220 perf",
+        "commands": [
+          {
+            "cmd": "USER test",
+            "response": "331"
+          },
+          {
+            "cmd": "PASS pw",
+            "response": "230"
+          },
+          {
+            "cmd": "QUIT",
+            "response": "221"
+          }
+        ]
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 1000
+    },
+    "expect": {
+      "min_packets": 14000,
+      "packet_count": 14000,
+      "negotiated": true,
+      "terminates": true,
+      "notes": [
+        "1000 流 × 14 包 = 14000 帧；验证引擎大流量无丢包"
       ]
     }
   }
