@@ -59,3 +59,29 @@ func containsSub(hay, needle string) bool {
 	}
 	return false
 }
+
+// T-FTP-15 v3 扁平逃生口反例（D-FTP-3 §5）：扁平四键收动态对象 →
+// mapToFlowSpec 写 ValidationErrors（worker 预检终态 error），绝不静默缺省。
+func TestFlatFourTupleObjectRejected(t *testing.T) {
+	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port"} {
+		t.Run(k, func(t *testing.T) {
+			spec := mapToFlowSpec(map[string]any{
+				k: map[string]any{"strategy": "inc", "range": []any{1, 5}},
+			}, "tcp")
+			found := false
+			for _, e := range spec.ValidationErrors {
+				if containsSub(e, k) && containsSub(e, "层字段") {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("want ValidationErrors naming %q with layer-field guide, got %v", k, spec.ValidationErrors)
+			}
+		})
+	}
+	// 标量扁平键零回归：无 ValidationErrors。
+	spec := mapToFlowSpec(map[string]any{"src_ip": "10.0.0.9", "src_port": float64(12345)}, "tcp")
+	if len(spec.ValidationErrors) != 0 {
+		t.Fatalf("scalar flat keys must stay clean, got %v", spec.ValidationErrors)
+	}
+}

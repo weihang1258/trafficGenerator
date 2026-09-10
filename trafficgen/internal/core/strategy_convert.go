@@ -299,6 +299,18 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		spec.HasExplicitSrcPort = true
 	}
 
+	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
+	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
+	// 静默回退缺省。注意 defaultString/defaultPort 对对象值恒回缺省，本分支
+	// 必须在缺省读入之后、parseLayerDyn 之前——对象值在此被判死，不会流入
+	// 静态 spec，也不会被误判为"显式标量"触发层链静态复制（该门只看层内）。
+	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port"} {
+		if m, ok := cfg[k].(map[string]any); ok && m != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors,
+				"flat four-tuple field "+k+" must be a scalar (四元组动态请写层字段：ip.src/ip.dst、tcp/udp.src_port/dst_port)")
+		}
+	}
+
 	// 层链 IP 真相在 layers[ip].src/dst（分层架构：IP 属于 ip 层）。flat
 	// src_ip/dst_ip 是 legacy 默认（10.0.0.1/20.0.0.1），层链显式写 ip 层
 	// src/dst（含 IPv6）时必须以此为准，否则默认 IPv4 会顶掉层里的显式
