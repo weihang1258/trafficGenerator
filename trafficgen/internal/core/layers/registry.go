@@ -763,6 +763,12 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"username": {Type: "string", Default: "anonymous"},
 			"password": {Type: "string", Default: "anonymous"},
+			// D-FTP-3: sessions 事务结构登记（只登记形状——值语义归 planner；
+			// 层字段动态名单见 layerDynAllowlist，ftp 业务字段动态走 spec.FTP）。
+			"sessions":     {Type: "list", Default: []interface{}{}},
+			"transactions": {Type: "list", Default: []interface{}{}},
+			"commands":     {Type: "list", Default: []interface{}{}},
+			"data_channel": {Type: "object"},
 		},
 	})
 	r.Register(LayerSchema{Name: "smtp", Category: CategoryTerminal,

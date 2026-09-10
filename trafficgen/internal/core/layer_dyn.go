@@ -393,3 +393,26 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 		}
 	}
 }
+
+// CheckLayerDynShape validates a decoded dynamic object for a layer field
+// (exported for layers.checkLayerDynObjects; single truth with parseLayerDyn's
+// checkDynShape). Returns "" when valid, else a human message prefixed with
+// "lname.field: " (caller strips it and re-anchors to layers[i](name).field).
+func CheckLayerDynShape(lname, field string, m map[string]interface{}) string {
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return "invalid object"
+	}
+	var sc StrategyConfig
+	if err := json.Unmarshal(raw, &sc); err != nil {
+		return "invalid object"
+	}
+	return checkDynShape(lname+"."+field, lname, field, &sc)
+}
+
+// LayerDynAllowlisted reports whether a layer field accepts dynamic objects
+// (D-FTP-3 §4 allowlist; single truth shared by core parse and layers validate).
+func LayerDynAllowlisted(lname, field string) bool {
+	allowed, ok := layerDynAllowlist[lname]
+	return ok && allowed[field]
+}

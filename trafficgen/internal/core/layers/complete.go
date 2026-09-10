@@ -289,6 +289,18 @@ func (r *Registry) ValidateLayerConfig(l Layer) error {
 		if !known {
 			return errf("layers: layer %q: unknown field %q", l.Name, k)
 		}
+		// D-FTP-3 step 4: dynamic objects (dynamic_value, has strategy key)
+		// skip scalar V9 — user chain validated+stripped by ValidateLayers;
+		// planner chains carry no dynamic objects (resolved into spec
+		// pre-injection), so an object here is internal inconsistency,
+		// reject loudly. Non-dynamic structured maps (wire_fault/mailbox/
+		// data_channel...) keep legacy path (unbounded fields skip, bounded
+		// fields numeric-reject), zero behavior change.
+		if m, isObj := v.(map[string]interface{}); isObj {
+			if _, looksDyn := m["strategy"]; looksDyn {
+				return errf("layers: layer %q field %q must be a scalar (dynamic objects are validated via ValidateLayers)", l.Name, k)
+			}
+		}
 		if f.Min == 0 && f.Max == 0 {
 			continue // no numeric bounds declared（bool/字符串字段由生成器转换兜底）
 		}

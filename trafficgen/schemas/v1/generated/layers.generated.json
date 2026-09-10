@@ -445,9 +445,24 @@
         "tls"
       ],
       "fields": {
+        "commands": {
+          "type": "list",
+          "default": []
+        },
+        "data_channel": {
+          "type": "object"
+        },
         "password": {
           "type": "string",
           "default": "anonymous"
+        },
+        "sessions": {
+          "type": "list",
+          "default": []
+        },
+        "transactions": {
+          "type": "list",
+          "default": []
         },
         "username": {
           "type": "string",

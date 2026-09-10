@@ -260,3 +260,41 @@ func TestValidateLayers_MalformedJSON(t *testing.T) {
 		t.Error("non-object layer config: expected error, got nil")
 	}
 }
+
+// T-FTP-14 v3 part (D-FTP-3 §7 step 4): dynamic objects on allowlisted layer
+// fields pass ValidateLayers shape; malformed ones fail with field path.
+func TestValidateLayersDynShape(t *testing.T) {
+	mk := func(ipCfg map[string]any) json.RawMessage {
+		chain := []any{
+			map[string]any{"ip": ipCfg},
+			map[string]any{"tcp": map[string]any{}},
+			map[string]any{"http": map[string]any{}},
+		}
+		raw, _ := json.Marshal(chain)
+		return raw
+	}
+	// valid dynamic object passes
+	valid := map[string]any{
+		"src": map[string]any{"strategy": "inc", "range": []any{"10.0.1.1", "10.0.1.5"}},
+	}
+	if _, err := ValidateLayers(mk(valid), ""); err != nil {
+		t.Fatalf("valid dyn object rejected: %v", err)
+	}
+	// malformed: inc without range → field-path error
+	bad := map[string]any{
+		"src": map[string]any{"strategy": "inc"},
+	}
+	if _, err := ValidateLayers(mk(bad), ""); err == nil {
+		t.Fatal("want rejection for range-less inc, got clean")
+	} else if !strings.Contains(err.Error(), "layers[0](ip).src") {
+		t.Fatalf("want field path, got: %v", err)
+	}
+	// non-allowlisted field with object → rejected
+	chain := []any{
+		map[string]any{"tcp": map[string]any{"mss": map[string]any{"strategy": "inc", "range": []any{1000, 2000}}}},
+	}
+	raw, _ := json.Marshal(chain)
+	if _, err := ValidateLayers(raw, ""); err == nil {
+		t.Fatal("want rejection for dynamic mss, got clean")
+	}
+}

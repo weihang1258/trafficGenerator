@@ -91,6 +91,48 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 	return NewChainPlannerFromChain(effective, completed), nil
 }
 
+// checkLayerDynObjects validates dynamic_value objects in one user-chain
+// layer config (D-FTP-3 §1). Object on a non-allowlisted field →
+// "does not support dynamic"; malformed object → indexed field-path error.
+// Returns the config minus dynamic objects (scalars only) for the V9 path.
+func checkLayerDynObjects(i int, lname string, cfg map[string]interface{}) (map[string]interface{}, error) {
+	stripped := make(map[string]interface{}, len(cfg))
+	for k, v := range cfg {
+		m, isObj := v.(map[string]interface{})
+		if !isObj {
+			stripped[k] = v
+			continue
+		}
+		// 非动态结构化值（wire_fault/mailbox/data_channel…，无 strategy
+		// 键）不是动态对象：原样保留走 legacy V9 路径（无界字段跳过）。
+		if _, looksDyn := m["strategy"]; !looksDyn {
+			stripped[k] = v
+			continue
+		}
+		where := fmt.Sprintf("layers[%d](%s).%s", i, lname, k)
+		if !core.LayerDynAllowlisted(lname, k) {
+			return nil, fmt.Errorf("%s does not support dynamic", where)
+		}
+		if msg := core.CheckLayerDynShape(lname, k, m); msg != "" {
+			reason := msg
+			if j := indexColonSpace(msg); j >= 0 {
+				reason = msg[j+2:]
+			}
+			return nil, fmt.Errorf("%s: %s", where, reason)
+		}
+	}
+	return stripped, nil
+}
+
+func indexColonSpace(s string) int {
+	for i := 0; i+1 < len(s); i++ {
+		if s[i] == ':' && s[i+1] == ' ' {
+			return i
+		}
+	}
+	return -1
+}
+
 // ValidateLayers validates a user-supplied layer chain at strategy-creation
 // time (P3, design §10.2 创建时校验清单): parse the "layers" array, complete
 // hard dependencies (V8), then apply V1-V10. protocol is the strategy's
@@ -189,12 +231,28 @@ func ValidateLayers(layersJSON json.RawMessage, protocol string) (string, error)
 	// completeSynthesized 丢弃 config，单层豁免路径必须回到用户层校验）
 	// + 补全后全链（插入的依赖层，config 为空天然通过）。
 	for i := range chain {
-		if err := r.ValidateLayerConfig(chain[i]); err != nil {
+		// D-FTP-3 §1: 动态对象先行——同键二态：对象值走 dynamic_value
+		// 形状检查（带用户链下标的精确路径），标量走既有 V9。
+		stripped, err := checkLayerDynObjects(i, chain[i].Name, chain[i].Config)
+		if err != nil {
+			return "", err
+		}
+		if err := r.ValidateLayerConfig(Layer{Name: chain[i].Name, Config: stripped}); err != nil {
 			return "", err
 		}
 	}
 	for i := range completed {
-		if err := r.ValidateLayerConfig(completed[i]); err != nil {
+		// D-FTP-3: 补全链沿用用户层 config 引用（含已校验的动态对象）——
+		// 用户循环已逐个校验，这里只剥离对象值走标量 V9（插入的依赖层
+		// config 为空，天然无对象）。
+		strippedDone := make(map[string]interface{}, len(completed[i].Config))
+		for k, v := range completed[i].Config {
+			if _, isObj := v.(map[string]interface{}); isObj {
+				continue
+			}
+			strippedDone[k] = v
+		}
+		if err := r.ValidateLayerConfig(Layer{Name: completed[i].Name, Config: strippedDone}); err != nil {
 			return "", err
 		}
 	}
