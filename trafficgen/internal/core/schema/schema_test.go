@@ -54,6 +54,10 @@ func TestInvalidCases(t *testing.T) {
 		{"bad_server_tid", `{"name":"s","mode":"synth","protocol":"tftp","config":{"tftp":{"server_tid":100}}}`},
 		{"multiplier_no_value", `{"name":"s","mode":"replay","config":{"pcap_asset_id":"x","speed":{"mode":"multiplier"}}}`},
 		{"bad_inc_no_range", `{"name":"s","mode":"synth","protocol":"tcp","config":{"group_id":{"strategy":"inc"}}}`},
+		{"tuples_inc_no_range", `{"name":"s","mode":"synth","protocol":"tcp","config":{"tuples":{"src_port":{"strategy":"inc"}}}}`},
+		{"tuples_bad_strategy", `{"name":"s","mode":"synth","protocol":"tcp","config":{"tuples":{"src_ip":{"strategy":"nope"}}}}`},
+		{"tuples_pattern_no_range", `{"name":"s","mode":"synth","protocol":"tcp","config":{"tuples":{"src_ip":{"strategy":"pattern","pattern":"10.0.{n}.1"}}}}`},
+		{"tuples_unknown_key", `{"name":"s","mode":"synth","protocol":"tcp","config":{"tuples":{"mid_ip":"10.0.0.9"}}}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -71,6 +75,8 @@ func TestValidDynamicAndReplay(t *testing.T) {
 		`{"name":"s","mode":"synth","protocol":"tcp","config":{"group_id":{"strategy":"inc","range":[1,10]}}}`,
 		`{"name":"s","mode":"replay","config":{"pcap_asset_id":"x","speed":{"mode":"multiplier","multiplier":2}}}`,
 		`{"name":"s","mode":"synth","protocol":"tcp","config":{"layers":[{"ip":{}},{"tcp":{}}]}}`,
+		`{"name":"s","mode":"synth","protocol":"tcp","config":{"tuples":{"src_ip":{"strategy":"inc","range":["10.0.1.1","10.0.1.5"]},"src_port":{"strategy":"inc","range":[20000,20009]}}}}`,
+		`{"name":"s","mode":"synth","protocol":"tcp","config":{"tuples":{"dst_ip":"20.0.0.9","src_port":{"strategy":"fixed","value":51000}}}}`,
 	}
 	for i, d := range docs {
 		if errs := ValidateStrategyShape(mustDoc(t, d)); len(errs) != 0 {
