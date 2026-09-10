@@ -134,9 +134,14 @@ func TestNegativeParity_StrategyCreate(t *testing.T) {
 			mcpIn:    manageStrategiesInput{Action: "create", Name: "p12", Mode: "replay", Config: cfg(`{"pcap_asset_id":"x","checksum_mode":"mangle"}`)},
 		},
 		{
-			name:     "tuples bad inc no range",
-			restBody: `{"name":"p13","mode":"synth","protocol":"tcp","config":{"tuples":{"src_port":{"strategy":"inc"}}}}`,
-			mcpIn:    manageStrategiesInput{Action: "create", Name: "p13", Mode: "synth", Protocol: "tcp", Config: cfg(`{"tuples":{"src_port":{"strategy":"inc"}}}`)},
+			name:     "layers flat four-tuple mixed use",
+			restBody: `{"name":"p13","mode":"synth","protocol":"","config":{"layers":[{"tcp":{}}],"src_port":12345}}`,
+			mcpIn:    manageStrategiesInput{Action: "create", Name: "p13", Mode: "synth", Config: cfg(`{"layers":[{"tcp":{}}],"src_port":12345}`)},
+		},
+		{
+			name:     "layer dynamic malformed range",
+			restBody: `{"name":"p15","mode":"synth","protocol":"","config":{"layers":[{"ip":{"src":{"strategy":"inc"}}}]}}`,
+			mcpIn:    manageStrategiesInput{Action: "create", Name: "p15", Mode: "synth", Config: cfg(`{"layers":[{"ip":{"src":{"strategy":"inc"}}}]}`)},
 		},
 		{
 			name:     "static copy pinned port",
