@@ -269,6 +269,171 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/ftp/ftp_sessions_test.go`（TestFTPDataChannelNoFlag）。
 
+### T-FTP-7 策略 tuples inc 四元组（策略+任务路径）
+
+**状态：** 草案
+**级别：** unit
+**来源：** CORE_MEMORY §12；`docs/CODE_DESIGN.md` D-FTP-2 §3/§4；批量基线 `internal/core/worker.go:737-763`
+**目标：** 策略 config 带 tuples 时 worker 策略循环按流序号确定性产出四元组，与批量同语义。
+
+**输入：** 策略 config `{tuples:{src_ip:{strategy:"inc",range:["10.0.1.1","10.0.1.5"]},src_port:{strategy:"inc",range:[20000,20009]}}}` + flow_control flows=5；engine 进程内驱动（SubmitTask + pcap/config 收集，同 `internal/core/engine_test.go` 现有写法；spec=mapToFlowSpec(全配置)）。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/ -run TestWorkerStrategyTuplesInc -count=1`
+**期望输出：** 第 i 流 `src_ip=10.0.1.(1+i)`、`src_port=20000+i`（i=0..4；dst 端未配=保留 spec 默认 20.0.0.1/80）；每流 Plan 收到的 spec 值即最终值。
+**错误期望：** range 非法时（本例无）不适用。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/worker_tuples_test.go`（新增）。
+
+### T-FTP-8 rand 可复现 + 到尾回绕
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-2 §4；CORE_MEMORY §12（seed+序号同结果、到尾回绕）
+**目标：** rand 同 seed 同序号同值；inc/list/pattern 超尾回绕。
+
+**输入：** ①`src_ip:{strategy:"rand",range:["10.0.0.1","10.0.0.254"],seed:42}` flows=100 两次运行全量比对；②inc range [1,3] flows=5；③list ["a","b"] flows=4；④pattern "user{n}" n_range [1,2] flows=4。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/ -run TestWorkerTuplesReproducible -count=1`
+**期望输出：** ①两次 100 流四元组逐一相等；②inc 第 4/5 流回绕为 1/2；③list 序列 a,b,a,b；④pattern 序列 user1,user2,user1,user2。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/worker_tuples_test.go`。
+
+### T-FTP-9 tuples 覆盖顺序（非零才覆盖 + 分片一致）
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-2 §1/§4（E1 决策）；批量覆盖序 worker.go:746-755
+**目标：** tuples 端点非零才覆盖（不砸显式值/默认值）；分片键反映最终四元组。
+
+**输入：** config 显式 `src_port:51000` + tuples `{dst_ip:{strategy:"inc",range:["20.0.1.1","20.0.1.2"]},src_port:{strategy:"fixed",value:51000}}` flows=2；断言 shard 路由输入（computeHashKey 入参）与 spec 终值（fixed 端点=显式静态同值路径，兼验 fixed 策略）。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/ -run TestWorkerTuplesOverridesOnlyNonzero -count=1`
+**期望输出：** 两流 src_port 恒 51000；dst_ip=20.0.1.1/20.0.1.2；computeHashKey 收到的 spec 即上述终值（最终四元组进分片键）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/worker_tuples_test.go`。
+
+### T-FTP-10 FTP 会话 src_port/banner 动态
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-2 §1/§3/§4；RFC 959 §3.x（多控制连接模型）
+**目标：** 会话级动态端口按流序号解析并驱动独立四元组；banner 动态按会话替换。
+
+**输入：** 单会话（sessions 数组 1 项，事务静态）+ `src_port:{strategy:"inc",range:[21000,21001]}`、`banner:{strategy:"list",list:["220 a","220 b"]}`（形状示意：src_port/banner 为动态对象）+ fc flows=2——流 i=0/1 的会话分别解析出 21000/21001 与 banner a/b（会话级动态按流序号逐流变，见 D-FTP-2 §3 索引域）。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPSessionDynamicPortBanner -count=1`
+**期望输出：** 会话 flowID `10.0.0.1-20.0.0.1-21000-21`、`10.0.0.1-20.0.0.1-21001-21`；down 首 PSH 载荷分别 `220 a`、`220 b`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`（新增）。
+
+### T-FTP-11 命令/响应动态（pattern）
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-2 §1/§4；CORE_MEMORY §12（业务字段逐协议清单：FTP=cmd/response/payload）
+**目标：** cmd/response 动态按流序号替换，且响应替换后 PASV 端口推导仍取已解析文本。
+
+**输入：** 单会话两事务 + fc flows=2：事务1 `cmd:{strategy:"pattern",pattern:"USER user{n}",n_range:[1,2]}`+response:"331"；事务2 PASV 响应（静态，含 195,73）+`cmd:{strategy:"pattern",pattern:"RETR f{n}",n_range:[1,3]}`+response:"150"+EmitDataChannel。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPDynCommands -count=1`
+**期望输出：** 流0 up 载荷含 `USER user1`、`RETR f1`；流1 含 `USER user2`、`RETR f2`（同一流的两个事务共用流序号解析，各自 pattern 独立取值）；流0 数据流 server 端口=49993（195·256+73，PASV 推导取已解析响应；两会话 PASV 同文本故两流数据端口同为 49993）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
+
+### T-FTP-12 数据负载动态 + FileSource 优先级
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-2 §4（DataChannel 优先级）；既有 FileSource 语义
+**目标：** payload 动态解析生效；FileSource 存在时动态/静态文本 payload 均被忽略。
+
+**输入：** ①单会话单事务（EmitDataChannel 标记）+ DataChannel `{payload:{strategy:"pattern",pattern:"FILE-{n}",n_range:[1,3]}}` + fc flows=2，断言两流载荷 `FILE-1/FILE-2`（会话内多事务将共用同一流序号解析出同值——索引域规则，见 D-FTP-2 §3）；②同形状 + FileSource（literal）断言载荷=文件内容。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPDynPayload -count=1`
+**期望输出：** ①数据 PSH 载荷 `FILE-1`/`FILE-2`；②载荷=literal 文件内容（动态不生效）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
+
+### T-FTP-13 FTP 业务动态可复现性（seed+序号）
+
+**状态：** 草案
+**级别：** unit
+**来源：** CORE_MEMORY §12；D-FTP-2 §4
+**目标：** FTP 字段 rand 策略同 seed 两次 Plan 序列一致。
+
+**输入：** banner `{strategy:"rand",range:[1,100],seed:7}`（payload 侧用 cmd pattern 即可覆盖字符串五策略的另一路）flows=3，两次 Plan 全量比对 up/down 载荷序列。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPDynReproducible -count=1`
+**期望输出：** 两次载荷序列逐一相等（banner rand 解析为纯数字串，属五策略通用解析路径的有效取值）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
+
+### T-FTP-14 畸形动态配置拒绝（FTP Validate → 任务 error）
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-2 §5（F1 决策）；CORE_MEMORY §9（失败路径必须真红）
+**目标：** 非法动态对象使 Plan 返回 error（不许静默回退静态）；批量路径逐流跳过计数。
+
+**输入：** ①session src_port `{strategy:"inc"}`（range 缺失）；②`{strategy:"nope"}`；③cmd `{strategy:"list",list:[]}`；④pattern 缺 n_range。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPDynInvalid -count=1`
+**期望输出：** 各例 `Planner.Validate`/`Plan` 返回 error 且错误信息含策略/字段名与原因锚词；畸形对象绝不静默按静态/零值发射。策略路径（worker.go:222 预检）同 spec 应以任务终态 error 结束、0 包。
+**错误期望：** 批量路径同一 spec 计入 flowFailures（不中断整类）。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
+
+### T-FTP-15 flat 静态复制拒绝（create 语义层）
+
+**状态：** 草案
+**级别：** unit + integration
+**来源：** CORE_MEMORY §12（静态复制不许充数）；D-FTP-2 §5（C1 决策）
+**目标：** flows>1 + 显式 src_port + 无 tuples 在 create/Update 均 400；同形状+动态（省略 src_port 或补 tuples）通过。
+
+**输入：** ①`config:{src_port:12345,tcp:{...}}` + fc flows=3；②同形状省略 src_port；③同形状+tuples；④带 `layers` 的同语义配置（端口写在 tcp 层）不吃此门照常通过。
+**前置条件：** REST 测试 env。
+**执行：** `go test ./internal/api/rest/ -run TestStaticCopyRejection -count=1`（语义层单测走 schema.ValidateStrategy）
+**期望输出：** ①400 文案含 src_port/tuples/自动递增锚词；②③④201。
+**错误期望：** 错误只走统一入口，REST/MCP 同文案（负例横扫覆盖）。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/schema/semantic_test.go` + `internal/api/rest/strategy_testpoints_test.go`。
+
+### T-FTP-16 FTP sessions 静态复制拒绝
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-2 §5；CORE_MEMORY §12
+**目标：** spec.Count>1 且会话端口全静态（或全继承且显式写了 spec src_port）且无任何会话动态端口时 Validate 拒绝；任一会话动态/未显式继承即通过。
+
+**输入：** ①两静态会话（src_port 显式）+ Count=2；②同会话+任一 src_port 改动态；③单会话继承+Count=1；④显式 src_port+继承会话+Count=2；⑤单静态会话（src_port 显式）+Count=2（规则"存在静态会话端口"也命中单会话多流复制）。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPStaticCopyRejection -count=1`
+**期望输出：** ①④⑤Validate error（文案含静态复制锚词与三条出路）；②③通过。
+**错误期望：** spec.Count=0（批量路径 Plan 语义）不触发拒绝（已知边界，批量类不受此门约束）；拒绝在任务启动的预检 Validate 触发（与 flat 规则的建策略 400 时机不同，见 D-FTP-2 §5）。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_dyn_test.go`。
+
+### T-FTP-17 老形状与存量集成回归 + 横扫扩容
+
+**状态：** 草案
+**级别：** unit + integration
+**来源：** T-FTP-1（既有回归项）+ 负例横扫 T-SCHEMA-6；D-FTP-2 §1（schema 同步）
+**目标：** 老形状零回归；负例横扫补 tuples 畸形与静态复制两例达 19 例。
+
+**输入：** 既有 ftp 全套件 + 存量显式端口+flows>1 集成用例（按新规则更新输入）+ 横扫新增：`config:{tuples:{src_port:{strategy:"inc"}}}`（range 缺失，形状红）、`config:{src_port:12345}+fc flows=2`（语义红）。
+**前置条件：** 无。
+**执行：** `go test ./internal/... -count=1`；`go test ./internal/protocol/ftp/ ./internal/core/ ./internal/api/rest/ ./internal/mcp/ -race -count=1`；横扫 `go test ./internal/mcp/ -run TestNegativeParity -count=1`
+**期望输出：** 全绿；横扫 19 例两边同文案。
+**错误期望：** 存量显式端口+flows>1 的集成用例（如 flowcontrol_integration IT1/IT2）必须按新规则改为省略端口或补 tuples 后转绿（规则变更的可视化）；离线 pcap 套件 count=1 不受影响。
+**性能期望：** 回归耗时不超基线 +10%。
+**实现位置：** 既有测试文件 + `internal/mcp/negative_parity_test.go`（+2 例）。
+
 ## 7. 用例审查与完成条件
 
 测试用例完成前必须进行两条审查：
