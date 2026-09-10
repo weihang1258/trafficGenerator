@@ -60,7 +60,6 @@ var schemaDocsStrategy = map[string]string{
 	"/properties/config/properties/tftp/properties/windowsize":    "Window size: Sliding window 1-65535.",
 	"/properties/config/properties/tos":                           "TOS byte: Legacy whole-byte TOS 0-255, overrides DSCP/ECN when non-zero.",
 	"/properties/config/properties/ttl":                           "TTL: IP TTL 0-255. Absent = 64.",
-	"/properties/config/properties/tuples":                        "Tuple pool: Per-flow four-tuple generation pool (same shape and semantics as batch class tuples). Non-zero resolved values override the static endpoints; addresses still land in the ip layer, ports in the tcp/udp layer.",
 	"/properties/config/properties/vlan_id":                       "VLAN id: VLAN id 0-4095. Absent = no VLAN tag.",
 	"/properties/config/properties/vlan_priority":                 "VLAN priority: VLAN priority 0-7.",
 	"/properties/flow_control":                                    "Strategy flow control: This template's own envelope. Absent on synth = flows/1. Replay only accepts time.",

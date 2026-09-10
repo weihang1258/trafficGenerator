@@ -687,6 +687,9 @@ func TestTaskStart_AlreadyRunning(t *testing.T) {
 	})
 	// The engine must genuinely own the task for the "already running" guard
 	// to fire (a stale DB status with no engine task is reconciled instead).
+	// Timing invariant (see TestTaskStart_OptimisticLock NOTE): the sim engine
+	// task self-completes in ~1-2ms, so nothing slower than in-memory ops may
+	// sit between SubmitTask and the request below.
 	ct, err := core.StrategyModelToTask(&storage.TaskModel{
 		ID: taskID, UserID: "test-user", Name: "t1",
 		StrategyIDs: string(sidsJSON),
@@ -738,10 +741,15 @@ func TestTaskStart_OptimisticLock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("convert: %v", err)
 	}
+	// NOTE: status is flipped to "running" BEFORE SubmitTask on purpose —
+	// the sim engine task self-completes in ~1-2ms, and a sqlite round-trip
+	// between submit and request would exceed that window and flake the
+	// guard (engine task already gone → reconcile → 200). Submit-then-request
+	// with no DB write in between keeps the window at ~µs (in-memory ops).
+	db.Model(&storage.TaskModel{}).Where("id = ?", taskID).Update("status", "running")
 	if err := e.SubmitTask(*ct); err != nil {
 		t.Fatalf("submit precondition: %v", err)
 	}
-	db.Model(&storage.TaskModel{}).Where("id = ?", taskID).Update("status", "running")
 
 	req := httptest.NewRequest("POST", "/tasks/"+taskID+"/start", nil)
 	w := httptest.NewRecorder()

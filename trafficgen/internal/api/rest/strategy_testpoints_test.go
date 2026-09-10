@@ -1175,7 +1175,7 @@ func TestStrategyCreate_TFTPTIDConflict(t *testing.T) {
 }
 
 // T-FTP-15（D-FTP-2 §5）：REST create/Update 上 flat 静态复制 400；
-// 省略端口 / 补 tuples / layers 豁免照常 201。
+// 省略端口 → 201；策略级 tuples 已撤销（D-FTP-3 H2）不再豁免 → 400；layers 豁免照常 201。
 func TestStaticCopyRejection(t *testing.T) {
 	h, r, _ := newStrategyTestServer(t)
 	stratUser(r, "u1", "alice")
@@ -1193,10 +1193,11 @@ func TestStaticCopyRejection(t *testing.T) {
 	if w2.Code != 201 {
 		t.Fatalf("② status=%d body=%s", w2.Code, w2.Body.String())
 	}
-	// ③ tuples → 201
+	// ③ strategy tuples withdrawn (D-FTP-3 H2): the dead tuples key does not
+	// escape the static-copy gate — pinned port still 400.
 	body3 := `{"name":"s3","protocol":"tcp","config":{"src_port":12345,"tuples":{"src_port":{"strategy":"fixed","value":12345}},"tcp":{}},"flow_control":{"type":"flows","value":3}}`
 	w3 := postStrategy(t, r, body3)
-	if w3.Code != 201 {
+	if w3.Code != 400 {
 		t.Fatalf("③ status=%d body=%s", w3.Code, w3.Body.String())
 	}
 	// ④ layers → exempt

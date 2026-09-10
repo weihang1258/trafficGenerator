@@ -178,6 +178,26 @@ func TestBatchShape(t *testing.T) {
 		{"replay no spec", map[string]any{"classes": []any{map[string]any{"id": "c", "type": "replay"}}}},
 		{"replay null direction", map[string]any{"classes": []any{map[string]any{"id": "c", "type": "replay",
 			"replay": map[string]any{"pcap_asset_id": "x", "direction": nil}}}}},
+		// tuple_config anyOf（批量类，D-FTP-3 §7-注保留收紧）：畸形动态端点
+		// 与未知键在形状层拒绝（批量类 tuples 池合法形状在下方通过例）。
+		{"class tuples bad inc", map[string]any{"classes": []any{map[string]any{"id": "c", "type": "tcp", "flow_count": 1,
+			"tuples": map[string]any{"src_port": map[string]any{"strategy": "inc"}}, "config": map[string]any{}}}}},
+		{"class tuples bad strategy", map[string]any{"classes": []any{map[string]any{"id": "c", "type": "tcp", "flow_count": 1,
+			"tuples": map[string]any{"src_ip": map[string]any{"strategy": "nope"}}, "config": map[string]any{}}}}},
+		{"class tuples unknown key", map[string]any{"classes": []any{map[string]any{"id": "c", "type": "tcp", "flow_count": 1,
+			"tuples": map[string]any{"mid_ip": "10.0.0.9"}, "config": map[string]any{}}}}},
+	}
+	// 批量类 tuples 合法形状：标量简写 + 动态对象混写通过（与 defs.json
+	// tuple_config anyOf[标量, dynamic_value] 一致）。
+	goodTuples := map[string]any{"classes": []any{map[string]any{"id": "c", "type": "tcp", "flow_count": 2,
+		"tuples": map[string]any{
+			"src_ip":   "10.0.0.1",
+			"dst_ip":   map[string]any{"strategy": "inc", "range": []any{"10.0.1.1", "10.0.1.5"}},
+			"src_port": map[string]any{"strategy": "inc", "range": []any{20000, 20009}},
+			"dst_port": float64(80),
+		}, "config": map[string]any{}}}}
+	if errs := ValidateBatchShape(goodTuples); len(errs) != 0 {
+		t.Fatalf("batch class tuples valid shape rejected: %v", errs)
 	}
 	for _, tc := range bad {
 		t.Run(tc.name, func(t *testing.T) {
@@ -225,7 +245,7 @@ func TestSemanticStaticCopyRejection(t *testing.T) {
 		t.Fatalf("① want static-copy reject, got %v", errs)
 	}
 	msg := errs[0].Message
-	for _, anchor := range []string{"Omit src_port", "tuples", "dynamic"} {
+	for _, anchor := range []string{"Omit src_port", "dynamic object"} {
 		if !strings.Contains(msg, anchor) {
 			t.Errorf("message missing anchor %q: %s", anchor, msg)
 		}
@@ -236,12 +256,13 @@ func TestSemanticStaticCopyRejection(t *testing.T) {
 		&FlowControl{Type: "flows", Value: 3}); len(errs) != 0 {
 		t.Fatalf("② omit src_port must pass, got %v", errs)
 	}
-	// ③ tuples present → pass
+	// ③ strategy tuples was withdrawn (D-FTP-3 H2): a config carrying the
+	// dead tuples key does NOT escape — pinned port still rejects.
 	if _, errs := ValidateStrategy("synth", "tcp",
 		map[string]any{"src_port": float64(12345),
 			"tuples": map[string]any{"src_port": map[string]any{"strategy": "fixed", "value": 12345}}},
-		&FlowControl{Type: "flows", Value: 3}); len(errs) != 0 {
-		t.Fatalf("③ tuples must pass, got %v", errs)
+		&FlowControl{Type: "flows", Value: 3}); len(errs) == 0 {
+		t.Fatalf("③ tuples no longer escapes (strategy tuples withdrawn), got clean")
 	}
 	// ④ layers + flat src_port → mixed-use rejection (D-FTP-3 reverses the
 	// v2 exemption: layers configs must not carry flat four-tuple keys)

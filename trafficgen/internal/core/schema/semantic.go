@@ -203,21 +203,19 @@ func layerTupleFields(lname string) []string {
 }
 
 // checkStaticCopy (D-FTP-2, CORE_MEMORY §12): flows>1 with a pinned flat
-// src_port and no tuple pool would emit N identical 4-tuples — the static
-// copy anti-pattern. Only applies to configs WITHOUT layers[] (layer-chain
-// shapes are covered by checkLayerChainStaticCopy instead, D-FTP-3).
-// Resolution paths: omit src_port (auto-increment per flow), add tuples,
-// or use dynamic values.
+// src_port would emit N identical 4-tuples — the static copy anti-pattern.
+// Only applies to configs WITHOUT layers[] (layer-chain shapes are covered
+// by checkLayerChainStaticCopy instead, D-FTP-3). Strategy-level tuples was
+// withdrawn (D-FTP-3 H2): no tuples exemption here — the flat escape hatches
+// are omit src_port (auto-increment) or migrate to a layer chain with the
+// port as a dynamic object.
 func checkStaticCopy(config map[string]any) string {
 	if _, hasLayers := config["layers"]; hasLayers {
 		return ""
 	}
-	if _, hasTuples := config["tuples"]; hasTuples {
-		return ""
-	}
 	if v, ok := config["src_port"]; ok && v != nil {
 		if f, ok := v.(float64); ok {
-			return fmt.Sprintf("src_port %d is pinned but flows > 1: every flow would emit an identical 4-tuple (static copy). Omit src_port (auto-increment per flow), add tuples, or use dynamic values", int64(f))
+			return fmt.Sprintf("src_port %d is pinned but flows > 1: every flow would emit an identical 4-tuple (static copy). Omit src_port (auto-increment per flow) or use a layer chain with the port as a dynamic object", int64(f))
 		}
 	}
 	return ""

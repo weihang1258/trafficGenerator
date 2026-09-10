@@ -74,11 +74,6 @@
           "minimum": 0,
           "maximum": 65535
         },
-        "tuples": {
-          "title": "Tuple pool",
-          "description": "Per-flow four-tuple generation pool (same shape and semantics as batch class tuples). Non-zero resolved values override the static endpoints; addresses still land in the ip layer, ports in the tcp/udp layer.",
-          "$ref": "defs.json#/$defs/tuple_config"
-        },
         "ttl": {
           "title": "TTL",
           "description": "IP TTL 0-255. Absent = 64.",
