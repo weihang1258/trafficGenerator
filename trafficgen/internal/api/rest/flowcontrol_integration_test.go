@@ -142,8 +142,10 @@ func TestIntegration_StrategyFlows_GeneratesMultipleFlows(t *testing.T) {
 	defer cleanup()
 
 	pcapPath := t.TempDir() + "/it1.pcap"
+	// src_port omitted: flows=5 + pinned src_port is now a static-copy
+	// rejection (D-FTP-2); auto-increment 12345+i supplies the ports.
 	stratID := createStrategy(t, r, "tcp",
-		`{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","src_port":12345,"dst_port":80,"tcp":{"handshake":true,"termination":true}}`,
+		`{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","dst_port":80,"tcp":{"handshake":true,"termination":true}}`,
 		`{"type":"flows","value":5}`,
 	)
 	taskID := createTask(t, r, "it1", []string{stratID}, pcapPath, "")
@@ -179,7 +181,7 @@ func TestIntegration_TaskLevelBPS_CapsAggregate(t *testing.T) {
 
 	pcapPath := t.TempDir() + "/it2.pcap"
 	stratA := createStrategy(t, r, "tcp",
-		`{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","src_port":12345,"dst_port":80,"tcp":{"handshake":true,"termination":true}}`,
+		`{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","dst_port":80,"tcp":{"handshake":true,"termination":true}}`,
 		`{"type":"flows","value":500}`,
 	)
 	stratB := createStrategy(t, r, "icmp",
@@ -228,7 +230,7 @@ func TestIntegration_TaskLevelFlows_CapsTotal(t *testing.T) {
 
 	pcapPath := t.TempDir() + "/it3.pcap"
 	stratA := createStrategy(t, r, "tcp",
-		`{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","src_port":12345,"dst_port":80,"tcp":{"handshake":true,"termination":true}}`,
+		`{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","dst_port":80,"tcp":{"handshake":true,"termination":true}}`,
 		`{"type":"flows","value":100}`,
 	)
 	stratB := createStrategy(t, r, "icmp",

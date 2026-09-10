@@ -265,3 +265,49 @@ func TestFTPDynInvalid(t *testing.T) {
 		})
 	}
 }
+
+// T-FTP-16：FTP sessions 静态复制拒绝——Count>1 + 全静态端口（或显式 spec
+// 端口+全继承）→ Validate error；任一会话动态端口 / Count=1 → 通过。
+func TestFTPStaticCopyRejection(t *testing.T) {
+	p := NewPlanner()
+	mk := func(count int, mutate func(*core.FTPConfig)) core.FlowSpec {
+		return ftpDynSpec(count, mutate)
+	}
+	// ① two pinned sessions + Count=2 → reject
+	spec := mk(2, func(c *core.FTPConfig) {
+		c.Sessions = append(c.Sessions, c.Sessions[0])
+		c.Sessions[0].SrcPort, c.Sessions[1].SrcPort = 21000, 21001
+	})
+	if err := p.Validate(spec); err == nil || !strings.Contains(err.Error(), "static copy") {
+		t.Errorf("① want static-copy reject, got %v", err)
+	}
+	// ② same shape but one session port dynamic → pass
+	spec2 := mk(2, func(c *core.FTPConfig) {
+		c.Sessions = append(c.Sessions, c.Sessions[0])
+		c.Sessions[0].SrcPort, c.Sessions[1].SrcPort = 21000, 21001
+		c.Sessions[0].SrcPortDyn = &core.StrategyConfig{Strategy: "inc", Range: []interface{}{21000, 21001}}
+		c.Sessions[1].SrcPortDyn = &core.StrategyConfig{Strategy: "inc", Range: []interface{}{21000, 21001}}
+	})
+	if err := p.Validate(spec2); err != nil {
+		t.Errorf("② dynamic session port must pass, got %v", err)
+	}
+	// ③ single inherit session + Count=1 → pass
+	spec3 := mk(1, nil)
+	if err := p.Validate(spec3); err != nil {
+		t.Errorf("③ Count=1 inherit must pass, got %v", err)
+	}
+	// ④ explicit spec src_port + inherit session + Count=2 → reject
+	spec4 := mk(2, nil)
+	spec4.SrcPort = 24000
+	spec4.HasExplicitSrcPort = true
+	if err := p.Validate(spec4); err == nil || !strings.Contains(err.Error(), "static copy") {
+		t.Errorf("④ want static-copy reject, got %v", err)
+	}
+	// ⑤ single pinned session + Count=2 → reject
+	spec5 := mk(2, func(c *core.FTPConfig) {
+		c.Sessions[0].SrcPort = 25000
+	})
+	if err := p.Validate(spec5); err == nil || !strings.Contains(err.Error(), "static copy") {
+		t.Errorf("⑤ want static-copy reject, got %v", err)
+	}
+}

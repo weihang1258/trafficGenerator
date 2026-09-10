@@ -133,6 +133,16 @@ func TestNegativeParity_StrategyCreate(t *testing.T) {
 			restBody: `{"name":"p12","mode":"replay","config":{"pcap_asset_id":"x","checksum_mode":"mangle"}}`,
 			mcpIn:    manageStrategiesInput{Action: "create", Name: "p12", Mode: "replay", Config: cfg(`{"pcap_asset_id":"x","checksum_mode":"mangle"}`)},
 		},
+		{
+			name:     "tuples bad inc no range",
+			restBody: `{"name":"p13","mode":"synth","protocol":"tcp","config":{"tuples":{"src_port":{"strategy":"inc"}}}}`,
+			mcpIn:    manageStrategiesInput{Action: "create", Name: "p13", Mode: "synth", Protocol: "tcp", Config: cfg(`{"tuples":{"src_port":{"strategy":"inc"}}}`)},
+		},
+		{
+			name:     "static copy pinned port",
+			restBody: `{"name":"p14","mode":"synth","protocol":"tcp","config":{"src_port":12345},"flow_control":{"type":"flows","value":2}}`,
+			mcpIn:    manageStrategiesInput{Action: "create", Name: "p14", Mode: "synth", Protocol: "tcp", Config: cfg(`{"src_port":12345}`), FlowControl: &flowControlInput{Type: "flows", Value: 2}},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

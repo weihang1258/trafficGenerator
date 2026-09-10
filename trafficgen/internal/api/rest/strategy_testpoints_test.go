@@ -971,3 +971,36 @@ func TestStrategyCreate_TFTPTIDConflict(t *testing.T) {
 		t.Fatalf("body=%q, want 'conflicts with another flow'", w.Body.String())
 	}
 }
+
+// T-FTP-15（D-FTP-2 §5）：REST create/Update 上 flat 静态复制 400；
+// 省略端口 / 补 tuples / layers 豁免照常 201。
+func TestStaticCopyRejection(t *testing.T) {
+	h, r, _ := newStrategyTestServer(t)
+	stratUser(r, "u1", "alice")
+	r.POST("/strategies", h.Create)
+
+	// ① pinned + flows=3 → 400
+	body := `{"name":"s","protocol":"tcp","config":{"src_port":12345,"tcp":{}},"flow_control":{"type":"flows","value":3}}`
+	w := postStrategy(t, r, body)
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "static copy") {
+		t.Fatalf("① status=%d body=%s", w.Code, w.Body.String())
+	}
+	// ② omit src_port → 201
+	body2 := `{"name":"s2","protocol":"tcp","config":{"tcp":{}},"flow_control":{"type":"flows","value":3}}`
+	w2 := postStrategy(t, r, body2)
+	if w2.Code != 201 {
+		t.Fatalf("② status=%d body=%s", w2.Code, w2.Body.String())
+	}
+	// ③ tuples → 201
+	body3 := `{"name":"s3","protocol":"tcp","config":{"src_port":12345,"tuples":{"src_port":{"strategy":"fixed","value":12345}},"tcp":{}},"flow_control":{"type":"flows","value":3}}`
+	w3 := postStrategy(t, r, body3)
+	if w3.Code != 201 {
+		t.Fatalf("③ status=%d body=%s", w3.Code, w3.Body.String())
+	}
+	// ④ layers → exempt
+	body4 := `{"name":"s4","config":{"layers":[{"tcp":{}},{"http":{}}]},"flow_control":{"type":"flows","value":3}}`
+	w4 := postStrategy(t, r, body4)
+	if w4.Code != 201 {
+		t.Fatalf("④ status=%d body=%s", w4.Code, w4.Body.String())
+	}
+}

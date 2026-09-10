@@ -1,6 +1,9 @@
 package schema
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSemanticMatchesHandlerMessages(t *testing.T) {
 	cases := []struct {
@@ -208,5 +211,49 @@ func TestTaskCreateEntry(t *testing.T) {
 		t.Fatalf("want fc type error, got clean")
 	} else if got := errs.Error(); !contains(got, "invalid flow_control type") {
 		t.Fatalf("want historic fc text, got %v", errs)
+	}
+}
+
+// T-FTP-15（D-FTP-2 §5）：flat 静态复制拒绝——flows>1 + 显式 src_port +
+// 无 tuples/layers → 400；省略端口/补 tuples/带 layers → 通过。
+func TestSemanticStaticCopyRejection(t *testing.T) {
+	// ① reject
+	_, errs := ValidateStrategy("synth", "tcp",
+		map[string]any{"src_port": float64(12345), "tcp": map[string]any{}},
+		&FlowControl{Type: "flows", Value: 3})
+	if len(errs) == 0 || !strings.Contains(errs[0].Message, "static copy") {
+		t.Fatalf("① want static-copy reject, got %v", errs)
+	}
+	msg := errs[0].Message
+	for _, anchor := range []string{"Omit src_port", "tuples", "dynamic"} {
+		if !strings.Contains(msg, anchor) {
+			t.Errorf("message missing anchor %q: %s", anchor, msg)
+		}
+	}
+	// ② omit src_port → pass
+	if _, errs := ValidateStrategy("synth", "tcp",
+		map[string]any{"tcp": map[string]any{}},
+		&FlowControl{Type: "flows", Value: 3}); len(errs) != 0 {
+		t.Fatalf("② omit src_port must pass, got %v", errs)
+	}
+	// ③ tuples present → pass
+	if _, errs := ValidateStrategy("synth", "tcp",
+		map[string]any{"src_port": float64(12345),
+			"tuples": map[string]any{"src_port": map[string]any{"strategy": "fixed", "value": 12345}}},
+		&FlowControl{Type: "flows", Value: 3}); len(errs) != 0 {
+		t.Fatalf("③ tuples must pass, got %v", errs)
+	}
+	// ④ layers present → exempt (port lives in tcp layer)
+	if _, errs := ValidateStrategy("synth", "",
+		map[string]any{"layers": []any{map[string]any{"tcp": map[string]any{}}},
+			"src_port": float64(12345)},
+		&FlowControl{Type: "flows", Value: 3}); len(errs) != 0 {
+		t.Fatalf("④ layers exempt must pass, got %v", errs)
+	}
+	// ⑤ flows=1 pinned → pass
+	if _, errs := ValidateStrategy("synth", "tcp",
+		map[string]any{"src_port": float64(12345)},
+		&FlowControl{Type: "flows", Value: 1}); len(errs) != 0 {
+		t.Fatalf("⑤ flows=1 must pass, got %v", errs)
 	}
 }

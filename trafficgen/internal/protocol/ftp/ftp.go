@@ -84,6 +84,42 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	if err := validateDynFields(spec.FTP); err != nil {
 		return err
 	}
+	if err := validateSessionStaticCopy(spec); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateSessionStaticCopy (D-FTP-2, CORE_MEMORY §12): flows>1 whose session
+// ports are all pinned (explicit session SrcPort, or all-inherit when the
+// user pinned spec.SrcPort) and with no dynamic session port would emit N
+// identical control connections — the static copy anti-pattern. spec.Count=0
+// (batch planner semantics) never triggers: batch classes are exempt (each
+// class's tuples pool owns per-flow variation). Resolution paths: leave
+// src_port unpinned (auto-increment), configure spec.Tuples, or make a
+// session port dynamic.
+func validateSessionStaticCopy(spec core.FlowSpec) error {
+	ftpConfig := spec.FTP
+	if ftpConfig == nil || len(ftpConfig.Sessions) == 0 || spec.Count <= 1 {
+		return nil
+	}
+	anyDyn := false
+	anyPinned := false
+	for _, sess := range ftpConfig.Sessions {
+		if sess.SrcPortDyn != nil {
+			anyDyn = true
+			break
+		}
+		if sess.SrcPort != 0 {
+			anyPinned = true
+		}
+	}
+	if anyDyn {
+		return nil
+	}
+	if anyPinned || spec.HasExplicitSrcPort {
+		return fmt.Errorf("ftp: flows=%d with pinned session src_port emits %d identical control connections (static copy). Omit src_port (auto-increment per flow), add tuples, or use dynamic session src_port", spec.Count, spec.Count)
+	}
 	return nil
 }
 
