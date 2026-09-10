@@ -160,6 +160,16 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		if err := ValidateProtocolSubConfigs(c.Config, c.Type); err != nil {
 			return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)
 		}
+		// D-FTP-3 (CORE_MEMORY §1): layers 与顶层扁平四元组混用拒绝——
+		// 与 strategy create/update 同口径（schema.checkLayerFlatConflict），
+		// 此处重复 6 行检查而非复用（schema 包 import core，反向复用成环）。
+		if _, hasLayers := c.Config["layers"]; hasLayers {
+			for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port"} {
+				if v, ok := c.Config[k]; ok && v != nil {
+					return fmt.Errorf("class[%d] %s: config mixes layers with flat four-tuple field %s (use ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports)", i, c.ID, k)
+				}
+			}
+		}
 		// Validate the class's spec fields (DSCP/ECN/VLAN/MSS ranges, IP format).
 		if err := ValidateFlowSpec(mapToFlowSpec(c.Config, c.Type)); err != nil {
 			return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)

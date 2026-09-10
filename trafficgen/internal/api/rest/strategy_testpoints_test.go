@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	sqlite "github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
+	sqlite "github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"gorm.io/gorm"
@@ -17,8 +17,12 @@ import (
 func newStrategyTestServer(t *testing.T) (*StrategyHandler, *gin.Engine, *storage.DB) {
 	t.Helper()
 	gormDB, err := gorm.Open(sqlite.Open(t.TempDir()+"/strat_test.db"), &gorm.Config{})
-	if err != nil { t.Fatalf("open db: %v", err) }
-	if err := storage.AutoMigrate(gormDB); err != nil { t.Fatalf("migrate: %v", err) }
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := storage.AutoMigrate(gormDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
 	db := &storage.DB{DB: gormDB}
 	h := NewStrategyHandler(db)
 	r := gin.New()
@@ -57,7 +61,12 @@ func createTestStrategy(t *testing.T, db *storage.DB, userID, name, protocol str
 func TestStrategyCreate_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, r, db := newStrategyTestServer(t)
-	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Set("username", "alice"); c.Set("roles", []string{"user"}); c.Next() })
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", "test-user")
+		c.Set("username", "alice")
+		c.Set("roles", []string{"user"})
+		c.Next()
+	})
 	r.POST("/strategies", h.Create)
 
 	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"},"flow_control":{"type":"flows","value":10}}`
@@ -66,19 +75,33 @@ func TestStrategyCreate_Success(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != 201 { t.Fatalf("status=%d, body=%s", w.Code, w.Body.String()) }
+	if w.Code != 201 {
+		t.Fatalf("status=%d, body=%s", w.Code, w.Body.String())
+	}
 	code, msg, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
-	if !strings.Contains(msg, "created") { t.Errorf("msg=%q", msg) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
+	if !strings.Contains(msg, "created") {
+		t.Errorf("msg=%q", msg)
+	}
 	var d map[string]string
 	json.Unmarshal(data, &d)
-	if d["id"] == "" { t.Error("id empty") }
+	if d["id"] == "" {
+		t.Error("id empty")
+	}
 
 	var s storage.StrategyModel
 	db.Where("id = ?", d["id"]).First(&s)
-	if s.UserID != "test-user" { t.Errorf("user_id=%q", s.UserID) }
-	if s.Protocol != "tcp" { t.Errorf("protocol=%q", s.Protocol) }
-	if s.ConfigHash == "" { t.Error("config_hash empty") }
+	if s.UserID != "test-user" {
+		t.Errorf("user_id=%q", s.UserID)
+	}
+	if s.Protocol != "tcp" {
+		t.Errorf("protocol=%q", s.Protocol)
+	}
+	if s.ConfigHash == "" {
+		t.Error("config_hash empty")
+	}
 }
 
 func TestStrategyCreate_NoUser(t *testing.T) {
@@ -89,7 +112,9 @@ func TestStrategyCreate_NoUser(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_BadJSON(t *testing.T) {
@@ -101,7 +126,9 @@ func TestStrategyCreate_BadJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_MissingName(t *testing.T) {
@@ -113,7 +140,9 @@ func TestStrategyCreate_MissingName(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_MissingProtocol(t *testing.T) {
@@ -125,7 +154,9 @@ func TestStrategyCreate_MissingProtocol(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_MissingConfig(t *testing.T) {
@@ -137,7 +168,9 @@ func TestStrategyCreate_MissingConfig(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_BadSrcIP(t *testing.T) {
@@ -150,9 +183,13 @@ func TestStrategyCreate_BadSrcIP(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "invalid IP format: src_ip = bad") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "invalid IP format: src_ip = bad") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestStrategyCreate_BadDstIP(t *testing.T) {
@@ -165,7 +202,9 @@ func TestStrategyCreate_BadDstIP(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_BadSrcMAC(t *testing.T) {
@@ -178,7 +217,9 @@ func TestStrategyCreate_BadSrcMAC(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_BadDstMAC(t *testing.T) {
@@ -191,7 +232,9 @@ func TestStrategyCreate_BadDstMAC(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_DSCPOutOfRange(t *testing.T) {
@@ -204,7 +247,9 @@ func TestStrategyCreate_DSCPOutOfRange(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_VLANOutOfRange(t *testing.T) {
@@ -218,7 +263,9 @@ func TestStrategyCreate_VLANOutOfRange(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_EmptyProtocol(t *testing.T) {
@@ -231,11 +278,15 @@ func TestStrategyCreate_EmptyProtocol(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
 	// Either the binding "required" tag or the handler's explicit check produces
 	// an error containing "protocol" or "Protocol".
-	if !strings.Contains(strings.ToLower(msg), "protocol") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(strings.ToLower(msg), "protocol") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestStrategyCreate_UnsupportedProtocol(t *testing.T) {
@@ -248,9 +299,13 @@ func TestStrategyCreate_UnsupportedProtocol(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "invalid or missing protocol: nosuchproto") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "invalid or missing protocol: nosuchproto") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestStrategyCreate_BadSubConfig(t *testing.T) {
@@ -263,7 +318,9 @@ func TestStrategyCreate_BadSubConfig(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_DefaultFlowControl(t *testing.T) {
@@ -276,14 +333,20 @@ func TestStrategyCreate_DefaultFlowControl(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 201 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 201 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var d map[string]string
 	json.Unmarshal(data, &d)
 	var s storage.StrategyModel
 	db.Where("id = ?", d["id"]).First(&s)
-	if s.FlowControl != `{"type":"flows","value":1}` { t.Errorf("fc=%q", s.FlowControl) }
+	if s.FlowControl != `{"type":"flows","value":1}` {
+		t.Errorf("fc=%q", s.FlowControl)
+	}
 }
 
 func TestStrategyCreate_BadFlowType(t *testing.T) {
@@ -296,9 +359,13 @@ func TestStrategyCreate_BadFlowType(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "invalid flow_control type") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "invalid flow_control type") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestStrategyCreate_NonPositiveValue(t *testing.T) {
@@ -311,7 +378,9 @@ func TestStrategyCreate_NonPositiveValue(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	// Either binding "required" rejects value=0 or handler's explicit check rejects it.
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
 	if !strings.Contains(strings.ToLower(msg), "value") && !strings.Contains(strings.ToLower(msg), "flow_control") {
@@ -330,7 +399,9 @@ func TestStrategyCreate_ConfigMarshalFail(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyCreate_Dedup(t *testing.T) {
@@ -344,7 +415,9 @@ func TestStrategyCreate_Dedup(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 201 { t.Fatalf("first: status=%d", w.Code) }
+	if w.Code != 201 {
+		t.Fatalf("first: status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
 	var d1 map[string]string
 	json.Unmarshal(data, &d1)
@@ -354,14 +427,24 @@ func TestStrategyCreate_Dedup(t *testing.T) {
 	req2.Header.Set("Content-Type", "application/json")
 	w2 := httptest.NewRecorder()
 	r.ServeHTTP(w2, req2)
-	if w2.Code != 200 { t.Fatalf("second: status=%d", w2.Code) }
+	if w2.Code != 200 {
+		t.Fatalf("second: status=%d", w2.Code)
+	}
 	code2, msg2, data2 := parseResponse(t, w2.Body.Bytes())
-	if code2 != 0 { t.Errorf("code=%d", code2) }
-	if !strings.Contains(msg2, "success") { t.Errorf("msg=%q", msg2) }
+	if code2 != 0 {
+		t.Errorf("code=%d", code2)
+	}
+	if !strings.Contains(msg2, "success") {
+		t.Errorf("msg=%q", msg2)
+	}
 	var d2 map[string]string
 	json.Unmarshal(data2, &d2)
-	if d2["id"] != d1["id"] { t.Errorf("dedup returned different id: %s vs %s", d2["id"], d1["id"]) }
-	if !strings.Contains(d2["message"], "already exists") { t.Errorf("msg=%q", d2["message"]) }
+	if d2["id"] != d1["id"] {
+		t.Errorf("dedup returned different id: %s vs %s", d2["id"], d1["id"])
+	}
+	if !strings.Contains(d2["message"], "already exists") {
+		t.Errorf("msg=%q", d2["message"])
+	}
 	_ = code
 }
 
@@ -378,9 +461,13 @@ func TestStrategyCreate_DBCreateFail(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "failed to create strategy") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "failed to create strategy") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -398,12 +485,18 @@ func TestStrategyList_HasItems(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var strs []interface{}
 	json.Unmarshal(data, &strs)
-	if len(strs) == 0 { t.Error("expected strategies") }
+	if len(strs) == 0 {
+		t.Error("expected strategies")
+	}
 }
 
 func TestStrategyList_Empty(t *testing.T) {
@@ -415,12 +508,18 @@ func TestStrategyList_Empty(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var strs []interface{}
 	json.Unmarshal(data, &strs)
-	if len(strs) != 0 { t.Errorf("expected empty, got %d", len(strs)) }
+	if len(strs) != 0 {
+		t.Errorf("expected empty, got %d", len(strs))
+	}
 }
 
 func TestStrategyList_NoUser(t *testing.T) {
@@ -430,7 +529,9 @@ func TestStrategyList_NoUser(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyList_DBFindFail(t *testing.T) {
@@ -444,7 +545,9 @@ func TestStrategyList_DBFindFail(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -461,9 +564,13 @@ func TestStrategyGet_Success(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies/"+id, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, _ := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 }
 
 func TestStrategyGet_NoUser(t *testing.T) {
@@ -473,7 +580,9 @@ func TestStrategyGet_NoUser(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyGet_MissingID(t *testing.T) {
@@ -488,7 +597,9 @@ func TestStrategyGet_MissingID(t *testing.T) {
 	r.ServeHTTP(w, req)
 	// Handler returns 404 for a strategy that doesn't exist (not 400 for missing ID
 	// since "_empty" is a valid ID format that simply doesn't exist in the DB).
-	if w.Code != 400 && w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 && w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyGet_NotFound(t *testing.T) {
@@ -499,9 +610,13 @@ func TestStrategyGet_NotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies/nonexistent", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "strategy not found") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "strategy not found") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestStrategyGet_DBError(t *testing.T) {
@@ -514,7 +629,9 @@ func TestStrategyGet_DBError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -533,14 +650,22 @@ func TestStrategyUpdate_Success(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "strategy updated") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "strategy updated") {
+		t.Errorf("msg=%q", msg)
+	}
 
 	var s storage.StrategyModel
 	db.Where("id = ?", id).First(&s)
-	if s.Name != "s2" { t.Errorf("name=%q", s.Name) }
-	if s.Protocol != "udp" { t.Errorf("protocol=%q", s.Protocol) }
+	if s.Name != "s2" {
+		t.Errorf("name=%q", s.Name)
+	}
+	if s.Protocol != "udp" {
+		t.Errorf("protocol=%q", s.Protocol)
+	}
 }
 
 func TestStrategyUpdate_NoUser(t *testing.T) {
@@ -551,7 +676,9 @@ func TestStrategyUpdate_NoUser(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyUpdate_MissingID(t *testing.T) {
@@ -564,7 +691,9 @@ func TestStrategyUpdate_MissingID(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 && w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 && w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyUpdate_BadJSON(t *testing.T) {
@@ -576,7 +705,9 @@ func TestStrategyUpdate_BadJSON(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyUpdate_BadNetwork(t *testing.T) {
@@ -591,7 +722,9 @@ func TestStrategyUpdate_BadNetwork(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyUpdate_RangeFail(t *testing.T) {
@@ -606,7 +739,9 @@ func TestStrategyUpdate_RangeFail(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyUpdate_BadSubConfig(t *testing.T) {
@@ -621,7 +756,9 @@ func TestStrategyUpdate_BadSubConfig(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyUpdate_NotFound(t *testing.T) {
@@ -634,9 +771,13 @@ func TestStrategyUpdate_NotFound(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "strategy not found") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "strategy not found") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestStrategyUpdate_DBError(t *testing.T) {
@@ -650,7 +791,9 @@ func TestStrategyUpdate_DBError(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyUpdate_BadFlowType(t *testing.T) {
@@ -665,7 +808,9 @@ func TestStrategyUpdate_BadFlowType(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyUpdate_NonPositiveValue(t *testing.T) {
@@ -680,7 +825,9 @@ func TestStrategyUpdate_NonPositiveValue(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyUpdate_FCNil(t *testing.T) {
@@ -695,7 +842,9 @@ func TestStrategyUpdate_FCNil(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyUpdate_DBSaveFail(t *testing.T) {
@@ -712,11 +861,15 @@ func TestStrategyUpdate_DBSaveFail(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	// DB is closed, so the strategy query may fail before reaching the update step.
 	// Accept either error path.
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "failed to") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "failed to") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 // STRAT4-BR2: validation before ownership
@@ -732,7 +885,9 @@ func TestStrategyUpdate_ValidationBeforeOwnership(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	// Config validation fires first -> 400, not 404
-	if w.Code != 400 { t.Fatalf("expected 400 (validation before ownership), got %d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("expected 400 (validation before ownership), got %d", w.Code)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -749,12 +904,18 @@ func TestStrategyDelete_Success(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/strategies/"+id, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "strategy deleted") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "strategy deleted") {
+		t.Errorf("msg=%q", msg)
+	}
 	var count int64
 	db.Model(&storage.StrategyModel{}).Where("id = ?", id).Count(&count)
-	if count != 0 { t.Errorf("strategy still exists") }
+	if count != 0 {
+		t.Errorf("strategy still exists")
+	}
 }
 
 func TestStrategyDelete_NoUser(t *testing.T) {
@@ -764,7 +925,9 @@ func TestStrategyDelete_NoUser(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/strategies/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyDelete_MissingID(t *testing.T) {
@@ -776,7 +939,9 @@ func TestStrategyDelete_MissingID(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/strategies/_empty", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 && w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 && w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyDelete_NotFound(t *testing.T) {
@@ -787,9 +952,13 @@ func TestStrategyDelete_NotFound(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/strategies/nonexistent", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "strategy not found") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "strategy not found") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestStrategyDelete_DBError(t *testing.T) {
@@ -802,7 +971,9 @@ func TestStrategyDelete_DBError(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/strategies/x", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyDelete_UsedByTasks(t *testing.T) {
@@ -821,9 +992,13 @@ func TestStrategyDelete_UsedByTasks(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/strategies/"+id, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "cannot delete") { t.Errorf("msg=%q", msg) }
+	if !strings.Contains(msg, "cannot delete") {
+		t.Errorf("msg=%q", msg)
+	}
 }
 
 func TestStrategyDelete_DBSaveFail(t *testing.T) {
@@ -837,7 +1012,9 @@ func TestStrategyDelete_DBSaveFail(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/strategies/"+id, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyDelete_UsedByCompletedTask(t *testing.T) {
@@ -855,9 +1032,13 @@ func TestStrategyDelete_UsedByCompletedTask(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/strategies/"+id, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	_, msg, _ := parseResponse(t, w.Body.Bytes())
-	if !strings.Contains(msg, "cannot delete") { t.Errorf("msg should mention task reference, got %q", msg) }
+	if !strings.Contains(msg, "cannot delete") {
+		t.Errorf("msg should mention task reference, got %q", msg)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -879,12 +1060,18 @@ func TestStrategyListTasks_HasTasks(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies/"+id+"/tasks", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var tasks []interface{}
 	json.Unmarshal(data, &tasks)
-	if len(tasks) == 0 { t.Error("expected tasks") }
+	if len(tasks) == 0 {
+		t.Error("expected tasks")
+	}
 }
 
 func TestStrategyListTasks_Empty(t *testing.T) {
@@ -897,12 +1084,18 @@ func TestStrategyListTasks_Empty(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies/"+id+"/tasks", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 200 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 200 {
+		t.Fatalf("status=%d", w.Code)
+	}
 	code, _, data := parseResponse(t, w.Body.Bytes())
-	if code != 0 { t.Errorf("code=%d", code) }
+	if code != 0 {
+		t.Errorf("code=%d", code)
+	}
 	var tasks []interface{}
 	json.Unmarshal(data, &tasks)
-	if len(tasks) != 0 { t.Errorf("expected empty, got %d", len(tasks)) }
+	if len(tasks) != 0 {
+		t.Errorf("expected empty, got %d", len(tasks))
+	}
 }
 
 func TestStrategyListTasks_NoUser(t *testing.T) {
@@ -912,7 +1105,9 @@ func TestStrategyListTasks_NoUser(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies/x/tasks", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 401 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 401 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyListTasks_MissingID(t *testing.T) {
@@ -923,7 +1118,9 @@ func TestStrategyListTasks_MissingID(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies//tasks", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyListTasks_NotFound(t *testing.T) {
@@ -934,7 +1131,9 @@ func TestStrategyListTasks_NotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies/nonexistent/tasks", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 404 { t.Fatalf("status=%d", w.Code) }
+	if w.Code != 404 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
 
 func TestStrategyListTasks_DBError(t *testing.T) {
@@ -947,8 +1146,11 @@ func TestStrategyListTasks_DBError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/strategies/x/tasks", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code < 400 { t.Fatalf("status=%d", w.Code) }
+	if w.Code < 400 {
+		t.Fatalf("status=%d", w.Code)
+	}
 }
+
 // TestStrategyCreate_TFTPTIDConflict (spec T-066/T-108, V22): a TFTP strategy
 // whose config pins server_tid and whose flow_control type=flows value>1
 // would generate multiple flows with the SAME server TID. Per spec S12 the
@@ -1002,5 +1204,37 @@ func TestStaticCopyRejection(t *testing.T) {
 	w4 := postStrategy(t, r, body4)
 	if w4.Code != 201 {
 		t.Fatalf("④ status=%d body=%s", w4.Code, w4.Body.String())
+	}
+}
+
+// T-FTP-15 v3（D-FTP-3 §5）：REST create 上混用拒绝 + 层链静态复制。
+func TestLayerFlatConflict(t *testing.T) {
+	h, r, _ := newStrategyTestServer(t)
+	stratUser(r, "u1", "alice")
+	r.POST("/strategies", h.Create)
+
+	// ① layers + src_ip → 400 + migration guide
+	body := `{"name":"m1","protocol":"tcp","config":{"layers":[{"tcp":{}}],"src_ip":"10.0.0.1"},"flow_control":{"type":"flows","value":1}}`
+	w := postStrategy(t, r, body)
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "mixes layers with flat") {
+		t.Fatalf("① status=%d body=%s", w.Code, w.Body.String())
+	}
+	// ② layers + src_port → 400
+	body2 := `{"name":"m2","protocol":"tcp","config":{"layers":[{"tcp":{}}],"src_port":12345},"flow_control":{"type":"flows","value":2}}`
+	w2 := postStrategy(t, r, body2)
+	if w2.Code != 400 {
+		t.Fatalf("② status=%d body=%s", w2.Code, w2.Body.String())
+	}
+	// ⑤ layer explicit scalar + flows=3 → 400 static four-tuple
+	body5 := `{"name":"m5","config":{"layers":[{"ip":{"src":"10.0.0.1"}},{"tcp":{}}]},"flow_control":{"type":"flows","value":3}}`
+	w5 := postStrategy(t, r, body5)
+	if w5.Code != 400 || !strings.Contains(w5.Body.String(), "static four-tuple") {
+		t.Fatalf("⑤ status=%d body=%s", w5.Code, w5.Body.String())
+	}
+	// ⑥ dynamic object escapes → 201 (terminal http layer for V4)
+	body6 := `{"name":"m6","config":{"layers":[{"ip":{"src":{"strategy":"inc","range":["10.0.1.1","10.0.1.5"]}}},{"tcp":{}},{"http":{}}]},"flow_control":{"type":"flows","value":3}}`
+	w6 := postStrategy(t, r, body6)
+	if w6.Code != 201 {
+		t.Fatalf("⑥ status=%d body=%s", w6.Code, w6.Body.String())
 	}
 }

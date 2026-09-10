@@ -215,7 +215,7 @@ func TestTaskCreateEntry(t *testing.T) {
 }
 
 // T-FTP-15（D-FTP-2 §5）：flat 静态复制拒绝——flows>1 + 显式 src_port +
-// 无 tuples/layers → 400；省略端口/补 tuples/带 layers → 通过。
+// 无 tuples/layers → 400；省略端口/补 tuples 通过；带 layers+扁平键 → 混用拒绝（D-FTP-3）。
 func TestSemanticStaticCopyRejection(t *testing.T) {
 	// ① reject
 	_, errs := ValidateStrategy("synth", "tcp",
@@ -243,12 +243,15 @@ func TestSemanticStaticCopyRejection(t *testing.T) {
 		&FlowControl{Type: "flows", Value: 3}); len(errs) != 0 {
 		t.Fatalf("③ tuples must pass, got %v", errs)
 	}
-	// ④ layers present → exempt (port lives in tcp layer)
+	// ④ layers + flat src_port → mixed-use rejection (D-FTP-3 reverses the
+	// v2 exemption: layers configs must not carry flat four-tuple keys)
 	if _, errs := ValidateStrategy("synth", "",
 		map[string]any{"layers": []any{map[string]any{"tcp": map[string]any{}}},
 			"src_port": float64(12345)},
-		&FlowControl{Type: "flows", Value: 3}); len(errs) != 0 {
-		t.Fatalf("④ layers exempt must pass, got %v", errs)
+		&FlowControl{Type: "flows", Value: 3}); len(errs) == 0 {
+		t.Fatalf("④ want mixed-use rejection, got clean")
+	} else if !strings.Contains(errs.Error(), "mixes layers with flat") {
+		t.Fatalf("④ wrong message: %v", errs)
 	}
 	// ⑤ flows=1 pinned → pass
 	if _, errs := ValidateStrategy("synth", "tcp",

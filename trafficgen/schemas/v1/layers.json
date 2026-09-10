@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://trafficgen.local/schemas/v1/layers.json",
   "title": "Layer chain",
-  "description": "Layer-chain shape rules: ordered single-key objects, outermost (L2) first. Chain semantics (completion, inference, per-field values) are owned by Go (layers.ValidateLayers); per-layer field tables come from generated/layers.generated.json (registry dump, never hand-written).",
+  "description": "Layer-chain shape rules: ordered single-key objects, outermost (L2) first. Chain semantics (completion, inference, per-field values) are owned by Go (layers.ValidateLayers); per-layer field tables come from generated/layers.generated.json (registry dump, never hand-written). Layer fields accept a scalar (static) or a dynamic_value object (per-flow dynamic) on the allowlisted four-tuple-ish fields (ip.src/ip.dst, tcp/udp src_port/dst_port, eth src_mac/dst_mac, ip.ttl); other fields take scalars only. Flat four-tuple keys alongside layers are rejected.",
   "type": "array",
   "minItems": 1,
   "items": {

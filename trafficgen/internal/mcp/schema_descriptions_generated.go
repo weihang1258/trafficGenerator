@@ -37,9 +37,9 @@ var schemaDocsStrategy = map[string]string{
 	"/properties/config/properties/speed/properties/bps":          "Speed cap: Bits-per-second cap in bps mode, e.g. 1000 or 1g.",
 	"/properties/config/properties/speed/properties/mode":         "Speed mode: original, multiplier, or bps.",
 	"/properties/config/properties/speed/properties/multiplier":   "Speed multiplier: Must be > 0 in multiplier mode.",
-	"/properties/config/properties/src_ip":                        "Source IP: Source IPv4/IPv6 address. Absent = 10.0.0.1 default. Format checked by Go validation (validateConfigNetwork); the pattern rejects empty shapes only.",
+	"/properties/config/properties/src_ip":                        "Source IP: Source IPv4/IPv6 address. Absent = 10.0.0.1 default. Format checked by Go validation (validateConfigNetwork); the pattern rejects empty shapes only. Layers configs must not carry this key (mixed-use rejected; write ip.src/ip.dst or tcp/udp ports inside layers).",
 	"/properties/config/properties/src_mac":                       "Source MAC: Source MAC XX:XX:XX:XX:XX:XX. Absent = 02:00:00:00:00:01.",
-	"/properties/config/properties/src_port":                      "Source port: Source port 0-65535. Absent = 12345.",
+	"/properties/config/properties/src_port":                      "Source port: Source port 0-65535. Absent = 12345. Layers configs must not carry this key (mixed-use rejected; write ip.src/ip.dst or tcp/udp ports inside layers).",
 	"/properties/config/properties/sub_flows":                     "Secondary flows: Generic secondary flows bound to the primary (FTP data channel, SIP RTP, SCTP multi-homing).",
 	"/properties/config/properties/tcp":                           "TCP transport options: TCP transport parameters (any TCP-based protocol). mss splits payloads longer than MSS; initial_seq pins the client ISN for reproducible tests.",
 	"/properties/config/properties/tcp/properties/handshake":      "Handshake: Emit TCP handshake.",
@@ -133,7 +133,7 @@ var schemaDocsDefs = map[string]string{
 
 // schema v1/layers.json flattened title/description table.
 var schemaDocsLayers = map[string]string{
-	"": "Layer chain: Layer-chain shape rules: ordered single-key objects, outermost (L2) first. Chain semantics (completion, inference, per-field values) are owned by Go (layers.ValidateLayers); per-layer field tables come from generated/layers.generated.json (registry dump, never hand-written).",
+	"": "Layer chain: Layer-chain shape rules: ordered single-key objects, outermost (L2) first. Chain semantics (completion, inference, per-field values) are owned by Go (layers.ValidateLayers); per-layer field tables come from generated/layers.generated.json (registry dump, never hand-written). Layer fields accept a scalar (static) or a dynamic_value object (per-flow dynamic) on the allowlisted four-tuple-ish fields (ip.src/ip.dst, tcp/udp src_port/dst_port, eth src_mac/dst_mac, ip.ttl); other fields take scalars only. Flat four-tuple keys alongside layers are rejected.",
 }
 
 // schemaConfigBlurb is the Config-field help shared by strategy and

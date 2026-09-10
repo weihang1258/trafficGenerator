@@ -253,7 +253,7 @@
 - `internal/core/worker.go`：策略循环 auto-inc 之后插入层动态解析块（`resolveLayerTuple(spec, i)`：IP→spec.SrcIP/DstIP、端口→spec.SrcPort/DstPort、MAC→spec.SrcMAC/DstMAC、TTL→spec.TTL；Resolve* 非零才覆盖；批量循环同块插入——批量类 layers 配置此前无动态，属新增能力非行为变化）。v2 的扁平 Dyn 解析块按 §7 撤销（未合并则不合入）。
 - `internal/core/layers/registry.go`：ftp 层加 `sessions`（type=list）、`commands`（type=list）、`data_channel`（type=object）字段（只登记形状，值语义归 planner；阶段一/二解析逻辑不动）。
 - schema：`strategy.json` 扁平四键恢复纯标量 + 描述注明"带 layers 时禁止出现（混用拒绝）"；`layers.json` 描述加二态说明段落；v2 `tuples` 不存在（未实施）无需撤销。重跑三台生成器，门测试锁同步。
-- 校验入口：`schema/semantic.go` ValidateStrategy synth 增混用拒绝（`layers` 与顶层 src_ip/dst_ip/src_port/dst_port 任一共存→400，位置：TFTP tid 规则之后，与 flat 静态复制规则并列；文案给迁移指引："地址写 ip 层 src/dst，端口写 tcp/udp 层 src_port/dst_port"）+ 层链静态复制 `checkLayerChainStaticCopy`（layers 存在 + 层内四元组字段全标量 + fc flows>1 → 拒绝，逃生口=层内字段写对象；位置同上）。FTP sessions 静态复制/畸形规则（v2 已合入）不动。
+- 校验入口：`schema/semantic.go` ValidateStrategy synth 增混用拒绝（`layers` 与顶层 src_ip/dst_ip/src_port/dst_port 任一共存→400，位置：TFTP tid 规则之后，与 flat 静态复制规则并列；文案给迁移指引："地址写 ip 层 src/dst，端口写 tcp/udp 层 src_port/dst_port"）+ 层链静态复制 `checkLayerChainStaticCopy`（layers 存在 + 层内四元组字段全标量 + fc flows>1 → 拒绝，逃生口=层内字段写对象；位置同上）+ 批量路径 `core.ValidateBatchSpec` 逐类混用拒绝（自审发现 strategy 入口覆盖不到 batch 内联 classes；同文案，`convert.go` 内联 6 行——schema import core，反向复用成环）。FTP sessions 静态复制/畸形规则（v2 已合入）不动。
 
 #### 2. 依赖与生命周期
 - 前置：v2 FTP 字段动态已合入（03a175d/2ed5dda）；`dynamic_value` 条件必填已具备（allOf，schema 单测已覆盖）；`applySpecToChain` 与 `translateTerminalConfig` 保留（过渡期双写兼容，见 §3）。

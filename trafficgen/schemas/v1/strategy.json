@@ -38,7 +38,7 @@
       "properties": {
         "src_ip": {
           "title": "Source IP",
-          "description": "Source IPv4/IPv6 address. Absent = 10.0.0.1 default. Format checked by Go validation (validateConfigNetwork); the pattern rejects empty shapes only.",
+          "description": "Source IPv4/IPv6 address. Absent = 10.0.0.1 default. Format checked by Go validation (validateConfigNetwork); the pattern rejects empty shapes only. Layers configs must not carry this key (mixed-use rejected; write ip.src/ip.dst or tcp/udp ports inside layers).",
           "type": "string",
           "minLength": 1
         },
@@ -62,7 +62,7 @@
         },
         "src_port": {
           "title": "Source port",
-          "description": "Source port 0-65535. Absent = 12345.",
+          "description": "Source port 0-65535. Absent = 12345. Layers configs must not carry this key (mixed-use rejected; write ip.src/ip.dst or tcp/udp ports inside layers).",
           "type": "integer",
           "minimum": 0,
           "maximum": 65535

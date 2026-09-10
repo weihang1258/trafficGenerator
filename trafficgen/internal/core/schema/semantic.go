@@ -130,16 +130,84 @@ func validateStrategySemantic(mode, protocol string, config map[string]any, fc *
 		if msg := checkStaticCopy(config); msg != "" {
 			fail("%s", msg)
 		}
+		if msg := checkLayerChainStaticCopy(config, fc.Value); msg != "" {
+			fail("%s", msg)
+		}
+	}
+	// D-FTP-3: layers 与顶层扁平四元组混用拒绝（只拦新建/更新；存量策略
+	// 已入库的不追溯，任务启动不复查）。位置在所有形状/网络检查之后，
+	// 文案给迁移指引。
+	if _, hasLayers := config["layers"]; hasLayers {
+		if msg := checkLayerFlatConflict(config); msg != "" {
+			fail("%s", msg)
+		}
 	}
 	return protocol, errs
+}
+
+// checkLayerFlatConflict (D-FTP-3, CORE_MEMORY §1): layers 与顶层扁平四元组
+// 任一共存即拒绝。地址写 ip 层 src/dst，端口写 tcp/udp 层 src_port/dst_port。
+func checkLayerFlatConflict(config map[string]any) string {
+	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port"} {
+		if v, ok := config[k]; ok && v != nil {
+			return "config mixes layers with flat four-tuple field " + k + " (use ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports)"
+		}
+	}
+	return ""
+}
+
+// checkLayerChainStaticCopy (D-FTP-3): 层链形状下显式标量四元组 + 无对象 +
+// flows>1 → 拒绝（逃生口=层内字段写动态对象）。仅当层内有任一四元组字段被
+// 显式写成标量时触发；全缺省层（如 [{tcp:{}},{http:{}}]）不触发。
+func checkLayerChainStaticCopy(config map[string]any, flows float64) string {
+	if int(flows) <= 1 {
+		return ""
+	}
+	arr, ok := config["layers"].([]any)
+	if !ok {
+		return ""
+	}
+	hasScalar, hasDyn := false, false
+	for _, item := range arr {
+		layer, _ := item.(map[string]any)
+		for _, lname := range []string{"ip", "tcp", "udp"} {
+			sub, _ := layer[lname].(map[string]any)
+			if sub == nil {
+				continue
+			}
+			for _, f := range layerTupleFields(lname) {
+				v, ok := sub[f]
+				if !ok || v == nil {
+					continue
+				}
+				if _, isObj := v.(map[string]any); isObj {
+					hasDyn = true
+				} else {
+					hasScalar = true
+				}
+			}
+		}
+	}
+	if hasScalar && !hasDyn {
+		return "layers pin a static four-tuple but flows > 1: every flow would emit identical addresses/ports (static copy). Write the varying field as a dynamic object inside its layer (ip.src/ip.dst, tcp/udp src_port/dst_port)"
+	}
+	return ""
+}
+
+// layerTupleFields returns the four-tuple-ish field names of a layer.
+func layerTupleFields(lname string) []string {
+	if lname == "ip" {
+		return []string{"src", "dst"}
+	}
+	return []string{"src_port", "dst_port"}
 }
 
 // checkStaticCopy (D-FTP-2, CORE_MEMORY §12): flows>1 with a pinned flat
 // src_port and no tuple pool would emit N identical 4-tuples — the static
 // copy anti-pattern. Only applies to configs WITHOUT layers[] (layer-chain
-// carries ports in the tcp layer; layer-chain detection needs registry field
-// tables and is out of scope). Resolution paths: omit src_port (auto-
-// increment 12345+i), configure tuples, or use dynamic values.
+// shapes are covered by checkLayerChainStaticCopy instead, D-FTP-3).
+// Resolution paths: omit src_port (auto-increment per flow), add tuples,
+// or use dynamic values.
 func checkStaticCopy(config map[string]any) string {
 	if _, hasLayers := config["layers"]; hasLayers {
 		return ""
