@@ -541,7 +541,7 @@
 
 ### T-FTP-15 混用拒绝 + 扁平静态复制（v3 改版）
 
-**状态：** 已通过（D-FTP-3 步骤1/5/6a，提交 8756423+65bea31；`TestStrategyMixedUseRejected`/`TestLayerChainStaticCopy`/`TestLayerFlatConflict`/`TestStaticCopyRejection` 全绿；策略级 tuples 逃生口随 H2 撤销一并改版为拒绝）
+**状态：** 已通过（D-FTP-3 步骤1/5/6a，提交 8756423+65bea31+3edcc24；`TestStrategyMixedUseRejected`/`TestLayerChainStaticCopy`/`TestLayerFlatConflict`/`TestStaticCopyRejection`/`TestFlatFourTupleObjectRejected` 全绿；策略级 tuples 逃生口随 H2 撤销一并改版为拒绝；扁平四键收对象走 ValidationErrors，worker 预检终态 error）
 **级别：** unit + integration
 **来源：** D-FTP-3 §5
 **目标：** layers 与顶层四元组任一共存→400；纯扁平静态复制仍 400；层形状豁免扁平规则。
