@@ -2392,8 +2392,31 @@ type FTPConfig struct {
 	Banner      string          `json:"banner,omitempty"` // server greeting, e.g. "220 ..."; empty = skip
 	Commands    []FTPCommand    `json:"commands"`
 	DataChannel *FTPDataChannel `json:"data_channel,omitempty"`
+	// Sessions 非空时启用多会话静态结构（D-FTP-1 阶段一）：每会话一条独立
+	// TCP 连接（独立四元组/序号/握手/teardown），会话内按事务顺序执行；数据流
+	// 挂在触发它的事务下（{parent}:sub-{tx-idx}）。空 = 老形状（顶层
+	// Banner/Commands/DataChannel 单控制流，行为不变）。
+	Sessions []FTPSession `json:"sessions,omitempty"`
 	// MSS is governed by TCPConfig.MSS. FTP runs over TCP, so the planner
 	// reads spec.TCP.MSS for segmentation of long FTP payloads.
+}
+
+// FTPSession is one control TCP connection in the multi-session shape
+// (D-FTP-1). SrcPort 0 = inherit spec.SrcPort. Banner is this session's own
+// greeting (empty = skip). Transactions run in order on this connection.
+type FTPSession struct {
+	SrcPort      uint16           `json:"src_port,omitempty"`
+	Banner       string           `json:"banner,omitempty"`
+	Transactions []FTPTransaction `json:"transactions,omitempty"`
+}
+
+// FTPTransaction is one FTP business operation on the control connection
+// (RETR file, LIST directory, CWD, REST+RETR, ...): 1..M command/response
+// pairs plus at most one data channel that the flagged command triggers
+// ({parent}:sub-{tx-idx}).
+type FTPTransaction struct {
+	Commands    []FTPCommand    `json:"commands,omitempty"`
+	DataChannel *FTPDataChannel `json:"data_channel,omitempty"`
 }
 
 // FTPCommand is a single command/response pair within an FTP session.

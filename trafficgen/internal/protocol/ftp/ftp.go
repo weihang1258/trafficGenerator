@@ -95,12 +95,21 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	go func() {
 		defer close(configChan)
 
-		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
-
+		now := time.Now()
 		ftpConfig := spec.FTP
 		if ftpConfig == nil {
 			ftpConfig = &core.FTPConfig{}
 		}
+
+		// Multi-session static shape (D-FTP-1 phase 1): each session is one
+		// independent TCP connection. Empty Sessions = legacy single-control
+		// path below (byte-for-byte unchanged).
+		if len(ftpConfig.Sessions) > 0 {
+			p.planSessions(ctx, configChan, spec, ftpConfig, now)
+			return
+		}
+
+		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
 
 		effectiveTTL := spec.TTL
 		if effectiveTTL == 0 {
@@ -115,7 +124,6 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		}
 		synOpts := synOptions(mss)
 
-		now := time.Now()
 		packetIndex := uint64(0)
 		ipID := uint16(rand.Uint32())
 		nextIPID := func() uint16 {
@@ -259,6 +267,283 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	return configChan, nil
 }
 
+// planSessions drives the multi-session shape (D-FTP-1): one independent
+// TCP connection per FTPSession — own 4-tuple (SrcPort override), own
+// sequence spaces, own handshake/banner/teardown — running its transactions
+// in order. Data channels mount at {parent}:sub-{tx-idx} (per-transaction
+// index replaces the old hardcoded sub-0 collision), and each transaction's
+// data-channel port derivation scans only its own commands' PASV/PORT
+// signaling (per-transaction isolation, T-FTP-4).
+func (p *Planner) planSessions(ctx context.Context, configChan chan<- core.PacketConfig, spec core.FlowSpec, ftpConfig *core.FTPConfig, now time.Time) {
+	for _, sess := range ftpConfig.Sessions {
+		// Per-session TCP state (isolated from other sessions AND from the
+		// legacy single-control path).
+		sessSpec := spec
+		if sess.SrcPort != 0 {
+			sessSpec.SrcPort = sess.SrcPort
+		}
+		flowID := fmt.Sprintf("%s-%s-%d-%d", sessSpec.SrcIP, sessSpec.DstIP, sessSpec.SrcPort, sessSpec.DstPort)
+
+		effectiveTTL := spec.TTL
+		if effectiveTTL == 0 {
+			effectiveTTL = DefaultTTL
+		}
+		mss := uint16(DefaultMSS)
+		if spec.TCP != nil && spec.TCP.MSS > 0 {
+			mss = spec.TCP.MSS
+		}
+		synOpts := synOptions(mss)
+
+		packetIndex := uint64(0)
+		ipID := uint16(rand.Uint32())
+		nextIPID := func() uint16 {
+			id := ipID
+			ipID++
+			return id
+		}
+		// spec.TCP.InitialSeq pins the FIRST session's clientSeq; later
+		// sessions get fresh random ISNs (same ISN twice would read as a
+		// TCP retransmission to DPI).
+		clientSeq := uint32(0)
+		if spec.TCP != nil {
+			clientSeq = spec.TCP.InitialSeq
+		}
+		if clientSeq == 0 {
+			clientSeq = rand.Uint32()
+		}
+		serverSeq := rand.Uint32()
+		winSize := uint16(65535)
+
+		emit := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, seq, ack uint32, flags uint8, payload []byte) {
+			l3 := core.L3Base(srcIP, dstIP, 6, effectiveTTL, nextIPID(), spec)
+			l4 := core.L4Config{
+				Protocol:   "tcp",
+				SrcPort:    srcPort,
+				DstPort:    dstPort,
+				Seq:        seq,
+				Ack:        ack,
+				Flags:      flags,
+				WindowSize: winSize,
+			}
+			if flags == 0x02 || flags == 0x12 {
+				l4.TCPOptions = synOpts
+			}
+			var meta map[string]interface{}
+			if spec.GroupID != nil && spec.GroupID.Strategy != "" {
+				if g := core.FlowGroupIDValue(spec.GroupID, 0); g != "" {
+					meta = map[string]interface{}{"group_id": g}
+				}
+			}
+			configChan <- core.PacketConfig{
+				FlowID:      flowID,
+				PacketIndex: packetIndex,
+				Direction:   direction,
+				Timestamp:   now,
+				L2: core.L2Config{
+					SrcMAC:    srcMAC,
+					DstMAC:    dstMAC,
+					EtherType: core.EtherTypeFor(spec.SrcIP),
+				},
+				L3:       l3,
+				L4:       l4,
+				Payload:  payload,
+				Metadata: meta,
+			}
+			packetIndex++
+		}
+
+		emitData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq uint32, payload []byte) (newSenderSeq uint32) {
+			for _, seg := range segmentByMSS(payload, int(mss)) {
+				emit(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, senderSeq, peerSeq, 0x18, seg)
+				senderSeq += uint32(len(seg))
+			}
+			return senderSeq
+		}
+
+		// --- handshake ---
+		emit("up", spec.SrcMAC, spec.DstMAC, sessSpec.SrcIP, sessSpec.DstIP, sessSpec.SrcPort, sessSpec.DstPort, clientSeq, 0, 0x02, nil)
+		clientSeq++
+		emit("down", spec.DstMAC, spec.SrcMAC, sessSpec.DstIP, sessSpec.SrcIP, sessSpec.DstPort, sessSpec.SrcPort, serverSeq, clientSeq, 0x12, nil)
+		serverSeq++
+		emit("up", spec.SrcMAC, spec.DstMAC, sessSpec.SrcIP, sessSpec.DstIP, sessSpec.SrcPort, sessSpec.DstPort, clientSeq, serverSeq, 0x10, nil)
+
+		// --- session banner ---
+		if sess.Banner != "" {
+			payload := []byte(sess.Banner + "\r\n")
+			serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, sessSpec.DstIP, sessSpec.SrcIP, sessSpec.DstPort, sessSpec.SrcPort, serverSeq, clientSeq, payload)
+		}
+
+		// --- transactions in order ---
+		for txIdx, tx := range sess.Transactions {
+			for _, cmd := range tx.Commands {
+				if cmd.Cmd != "" {
+					payload := []byte(cmd.Cmd + "\r\n")
+					clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, sessSpec.SrcIP, sessSpec.DstIP, sessSpec.SrcPort, sessSpec.DstPort, clientSeq, serverSeq, payload)
+				}
+				if cmd.Response != "" {
+					payload := []byte(cmd.Response + "\r\n")
+					serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, sessSpec.DstIP, sessSpec.SrcIP, sessSpec.DstPort, sessSpec.SrcPort, serverSeq, clientSeq, payload)
+				}
+			}
+			if txHasDataChannel(tx) {
+				p.emitTxDataChannel(ctx, configChan, tx, sessSpec, flowID, now, &packetIndex, nextIPID, mss, txIdx)
+			}
+		}
+
+		// --- teardown (FIN-ACK, ACK, FIN-ACK, ACK) ---
+		emit("up", spec.SrcMAC, spec.DstMAC, sessSpec.SrcIP, sessSpec.DstIP, sessSpec.SrcPort, sessSpec.DstPort, clientSeq, serverSeq, 0x11, nil)
+		clientSeq++
+		emit("down", spec.DstMAC, spec.SrcMAC, sessSpec.DstIP, sessSpec.SrcIP, sessSpec.DstPort, sessSpec.SrcPort, serverSeq, clientSeq, 0x10, nil)
+		emit("down", spec.DstMAC, spec.SrcMAC, sessSpec.DstIP, sessSpec.SrcIP, sessSpec.DstPort, sessSpec.SrcPort, serverSeq, clientSeq, 0x11, nil)
+		serverSeq++
+		emit("up", spec.SrcMAC, spec.DstMAC, sessSpec.SrcIP, sessSpec.DstIP, sessSpec.SrcPort, sessSpec.DstPort, clientSeq, serverSeq, 0x10, nil)
+	}
+}
+
+// txHasDataChannel reports whether any command in the transaction flags the
+// data channel AND the transaction carries one (mirrors the legacy
+// cmd.EmitDataChannel && dc != nil gate).
+func txHasDataChannel(tx core.FTPTransaction) bool {
+	if tx.DataChannel == nil {
+		return false
+	}
+	for _, cmd := range tx.Commands {
+		if cmd.EmitDataChannel {
+			return true
+		}
+	}
+	return false
+}
+
+// emitTxDataChannel is the per-transaction variant of emitFTPDataChannel:
+// identical port derivation (explicit > signaling > fallback) but the
+// signaling scan is scoped to THIS transaction's commands (D-FTP-1 T-FTP-4)
+// and the sub-flow mounts at sub-{txIdx}.
+func (p *Planner) emitTxDataChannel(
+	ctx context.Context,
+	configChan chan<- core.PacketConfig,
+	tx core.FTPTransaction,
+	spec core.FlowSpec,
+	parentFlowID string,
+	now time.Time,
+	packetIndex *uint64,
+	nextIPID func() uint16,
+	parentMSS uint16,
+	txIdx int,
+) {
+	dc := tx.DataChannel
+	mode := dc.Mode
+	if mode == "" {
+		mode = "passive"
+	}
+	isActive := strings.EqualFold(mode, "active")
+
+	// Per-transaction signaling scope (T-FTP-4): scan only this
+	// transaction's command/response pairs for the advertised data port.
+	signalingDataPort := scanTxForDataPort(tx.Commands, isActive)
+
+	clientDataPort := dc.SrcPort
+	serverDataPort := dc.DstPort
+
+	if isActive {
+		if serverDataPort == 0 {
+			serverDataPort = 20
+		}
+		if clientDataPort == 0 {
+			if signalingDataPort != 0 {
+				clientDataPort = signalingDataPort
+			} else if spec.SrcPort == 65535 {
+				clientDataPort = 1024
+			} else {
+				clientDataPort = spec.SrcPort + 1
+			}
+		}
+	} else {
+		if clientDataPort == 0 {
+			if spec.SrcPort == 65535 {
+				clientDataPort = 1024
+			} else {
+				clientDataPort = spec.SrcPort + 1
+			}
+		}
+		if serverDataPort == 0 {
+			if signalingDataPort != 0 {
+				serverDataPort = signalingDataPort
+			} else {
+				serverDataPort = 50000
+			}
+		}
+	}
+
+	mss := dc.MSS
+	if mss == 0 {
+		mss = parentMSS
+	}
+
+	var payloadBytes []byte
+	if dc.FileSource != nil {
+		pc := core.PayloadCacheFrom(ctx)
+		if pc == nil {
+			return
+		}
+		payloadBytes, _ = pc.GetOrLoad(ctx, *dc.FileSource)
+	} else if dc.PayloadB64 != "" {
+		payloadBytes, _ = base64.StdEncoding.DecodeString(dc.PayloadB64)
+	} else {
+		payloadBytes = []byte(dc.Payload)
+	}
+
+	if dc.AbortAfterBytes > 0 && dc.AbortAfterBytes < len(payloadBytes) {
+		payloadBytes = payloadBytes[:dc.AbortAfterBytes]
+	}
+
+	var subPayload string
+	var subPayloadB64 string
+	if len(payloadBytes) > 0 {
+		if core.IsText(payloadBytes) {
+			subPayload = string(payloadBytes)
+		} else {
+			subPayloadB64 = base64.StdEncoding.EncodeToString(payloadBytes)
+		}
+	}
+
+	sub := core.SubFlowSpec{
+		Protocol:        "tcp",
+		SrcPort:         clientDataPort,
+		DstPort:         serverDataPort,
+		Direction:       dc.Direction,
+		Payload:         subPayload,
+		PayloadB64:      subPayloadB64,
+		Handshake:       true,
+		Termination:     true,
+		MSS:             mss,
+		ServerInitiated: isActive,
+		GroupID:         spec.GroupID,
+	}
+	core.EmitSubFlow(configChan, txIdx, sub, spec, parentFlowID, now, packetIndex, nextIPID)
+}
+
+// scanTxForDataPort scans ONE transaction's command/response pairs for the
+// advertised data port (PORT command for active, 227 PASV response for
+// passive). Mirrors scanCommandsForDataPort's last-wins semantics.
+func scanTxForDataPort(commands []core.FTPCommand, isActive bool) uint16 {
+	var port uint16
+	if isActive {
+		for i := 0; i < len(commands); i++ {
+			if p := parsePORTPort(commands[i].Cmd); p != 0 {
+				port = p
+			}
+		}
+	} else {
+		for i := 0; i < len(commands); i++ {
+			if p := parsePASVPort(commands[i].Response); p != 0 {
+				port = p
+			}
+		}
+	}
+	return port
+}
+
 // segmentByMSS splits payload into chunks of at most mss bytes. The last
 // chunk may be smaller. A nil/empty payload returns a single empty chunk
 // so the caller emits one PSH-ACK segment (matching the pre-segmentation
@@ -301,7 +586,9 @@ func synOptions(mss uint16) []core.TCPOption {
 }
 
 // pasvPortRe matches a 227 PASV response line per RFC 959 §4.1.2:
-//   "227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)"
+//
+//	"227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)"
+//
 // The data-port is p1*256+p2.
 //
 // Flags:
@@ -328,7 +615,9 @@ func synOptions(mss uint16) []core.TCPOption {
 var pasvPortRe = regexp.MustCompile(`(?im)^227 [^\n]*?\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)`)
 
 // portCmdRe matches a PORT command per RFC 959 §4.1.2:
-//   "PORT h1,h2,h3,h4,p1,p2"
+//
+//	"PORT h1,h2,h3,h4,p1,p2"
+//
 // The client tells the server "I'm listening on IP h1.h2.h3.h4 port p1*256+p2".
 // Per RFC 959 §5.3.1 FTP commands are case-insensitive — the regex uses
 // (?i) so "port", "Port", "PORT" all parse. The (?m) flag makes ^ match
@@ -421,17 +710,20 @@ func scanCommandsForDataPort(commands []core.FTPCommand, isActive bool, upToIdx 
 // so it routes to the same PacketWorker (wire order = emit order).
 //
 // Port derivation (RFC 959 §5.2), in priority order:
+//
 //  1. Explicit user override (dc.SrcPort / dc.DstPort).
+//
 //  2. Parsed from signaling (PASV 227 response for passive; PORT command
 //     for active) — this is what makes the data-channel 4-tuple match what
 //     the control channel actually advertised.
+//
 //  3. Hardcoded fallback (server port 20 for active; ephemeral
 //     control_src_port+1 for the client's side; 50000 when no PASV response
 //     in dialog).
 //
-//   - active mode (PORT): server connects from port 20 to client's data-port.
+//     - active mode (PORT): server connects from port 20 to client's data-port.
 //     SubFlowSpec.ServerInitiated=true so SYN goes server→client.
-//   - passive mode (PASV): client connects from an ephemeral port to
+//     - passive mode (PASV): client connects from an ephemeral port to
 //     server's data-port.
 //     SubFlowSpec.ServerInitiated=false so SYN goes client→server.
 //

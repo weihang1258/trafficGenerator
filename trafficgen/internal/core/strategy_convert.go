@@ -415,6 +415,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			Banner:      getString(sub, "banner"),
 			Commands:    parseFTPCommands(sub["commands"]),
 			DataChannel: parseFTPDataChannel(sub["data_channel"]),
+			Sessions:    parseFTPSessions(sub["sessions"]),
 		}
 	}
 	if sub, ok := cfg["icmp"].(map[string]interface{}); ok {
@@ -1753,6 +1754,47 @@ func parseSMTPEmail(v interface{}) *SMTPEmail {
 // into an *FTPDataChannel. Returns nil for absent/non-map input — the
 // planner then emits only the control channel (the default for backward
 // compatibility with pre-data-channel specs).
+// parseFTPSessions parses ftp.sessions[] into the multi-session shape
+// (D-FTP-1). Each session: src_port (0 = inherit spec), banner, and an
+// ordered transaction list; each transaction carries commands plus an
+// optional data channel (parsed by parseFTPDataChannel so defaults
+// mode=passive/direction=down apply identically).
+func parseFTPSessions(v interface{}) []FTPSession {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]FTPSession, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sess := FTPSession{
+			SrcPort: getUint16(m, "src_port"),
+			Banner:  getString(m, "banner"),
+		}
+		if txs, ok := m["transactions"].([]interface{}); ok {
+			for _, txItem := range txs {
+				txm, ok := txItem.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				tx := FTPTransaction{
+					Commands:    parseFTPCommands(txm["commands"]),
+					DataChannel: parseFTPDataChannel(txm["data_channel"]),
+				}
+				sess.Transactions = append(sess.Transactions, tx)
+			}
+		}
+		out = append(out, sess)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func parseFTPDataChannel(v interface{}) *FTPDataChannel {
 	m, ok := v.(map[string]interface{})
 	if !ok || m == nil {

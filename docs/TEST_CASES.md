@@ -179,6 +179,66 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/mcp/negative_parity_test.go`。
 
+### T-FTP-1 老形状零回归（sessions 缺席）
+
+**状态：** 草案
+**级别：** unit + pcap
+**来源：** `docs/CODE_DESIGN.md` D-FTP-1；RFC 959 §4.1（CRLF 命令/响应对）
+**目标：** `Sessions` 缺席时包序列与现实现逐包一致。
+
+**输入：** 现有 ftp cases（banner+命令对+EmitDataChannel 单数据流）。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -count=1`（既有 5 文件全量）
+**期望输出：** 全绿；包数=3（握手）+banner 有无各 1/0+命令非空各 1 包+响应非空各 1 包+数据流包+4（teardown）。
+**错误期望：** 无（回归项）。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_*_test.go`（既有）。
+
+### T-FTP-2 双会话操作序列（RETR+LIST）
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-1 §3；记忆 ftp-rfc-session-scheduling（操作序列+独立四元组）
+**目标：** 两会话各走独立 TCP 连接，命令序列不串扰，序号空间隔离。
+
+**输入：** spec `SrcIP=10.0.0.1,DstIP=20.0.0.1,DstPort=21` + `Sessions:[{SrcPort:20000,Banner:"220 s1",Transactions:[{Commands:[{USER..},{PASV(227→50001)},{RETR +EmitDataChannel}],DataChannel:{}}]},{SrcPort:20001,Banner:"220 s2",Transactions:[{Commands:[{CWD..},{PASV(227→50002)},{LIST +EmitDataChannel}],DataChannel:{}}]}]`（DataChannel 空对象=走端口推导；PASV 信令在命令对内给出，断言时可区分推导来源）。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPMultiSession -count=1`
+**期望输出：** 会话1 flowID=`10.0.0.1-20.0.0.1-20000-21`、会话2=`10.0.0.1-20.0.0.1-20001-21`（全串相等）；每会话独立 SYN 起始（serverSeq/clientSeq 不跨会话连续；InitialSeq 缺席时双会话 ISN 均随机且互异）；命令载荷按会话归属（RETR 只在会话1，LIST 只在会话2）。
+**错误期望：** 会话2 SrcPort 缺席（0）时沿用 spec.SrcPort（覆盖规则）。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_testpoints_test.go`（新增）。
+
+### T-FTP-3 数据流挂载事务索引
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-1 §3；`internal/core/subflow.go:55`（`{parent}:sub-{idx}`）
+**目标：** 同一会话内两条数据流的 parent 索引不同（替代 `sub-0` 碰撞）。
+
+**输入：** spec `SrcIP=10.0.0.1,DstIP=20.0.0.1,SrcPort=22000,DstPort=21` + 单会话（Banner:"220 s"）双事务：事务1 `{PASV(227→50011),RETR +EmitDataChannel}`、事务2 `{PASV(227→50012),LIST +EmitDataChannel}`，DataChannel 皆空对象走推导。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPDataChannelTxIndex -count=1`
+**期望输出：** 数据流1 FlowID=`10.0.0.1-20.0.0.1-22000-21:sub-0`（client 22001→server 50011）、数据流2=`10.0.0.1-20.0.0.1-22000-21:sub-1`（client 22001→server 50012）；150→数据→226 交错顺序保持。
+**错误期望：** DataChannel 为空时 EmitDataChannel=true 不发射（现有语义保留）。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_testpoints_test.go`（新增）。
+
+### T-FTP-4 跨事务 PASV 端口不串扰
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-FTP-1 §1（信令扫描域收窄）；`scanCommandsForDataPort` 全局扫描缺陷
+**目标：** 后事务的数据流不用前事务 227 响应里的端口。
+
+**输入：** spec `SrcIP=10.0.0.1,DstIP=20.0.0.1,SrcPort=21000,DstPort=21` + 单会话双事务：事务1 PASV 响应含端口 50001+RETR，事务2 PASV 响应含端口 50002+LIST；DataChannel 端口全 0（走推导：client=21001，server 取各事务 PASV）。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/ftp/ -run TestFTPPASVIsolation -count=1`
+**期望输出：** 数据流1（client 21001→server 50001）、数据流2（client 21001→server 50002）；全局扫描下两者 server 都会是 50001，测试能区分。
+**错误期望：** 无 PASV 信令时回退 50000（现有语义保留）。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_testpoints_test.go`（新增）。
+
 ## 7. 用例审查与完成条件
 
 测试用例完成前必须进行两条审查：
