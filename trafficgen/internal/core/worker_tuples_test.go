@@ -167,7 +167,10 @@ func TestWorkerTuplesOverridesOnlyNonzero(t *testing.T) {
 	if len(specs) != 2 {
 		t.Fatalf("specs=%d, want 2", len(specs))
 	}
-	want := []struct{ dstIP string; srcPort uint16 }{{"20.0.1.1", 51000}, {"20.0.1.2", 51000}}
+	want := []struct {
+		dstIP   string
+		srcPort uint16
+	}{{"20.0.1.1", 51000}, {"20.0.1.2", 51000}}
 	for i, s := range specs {
 		if s.DstIP != want[i].dstIP {
 			t.Errorf("flow %d dst_ip=%q, want %q", i, s.DstIP, want[i].dstIP)

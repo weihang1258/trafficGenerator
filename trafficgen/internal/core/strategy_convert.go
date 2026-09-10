@@ -1576,7 +1576,6 @@ func parseICMPPattern(v interface{}) []ICMPStep {
 	return out
 }
 
-
 // parseStrategyConfigDyn (D-FTP-2): a dynamic value object in FTP config
 // (session src_port/banner, command cmd/response, data_channel payload).
 // Object → *StrategyConfig; scalar/static → nil (static path handles it).
