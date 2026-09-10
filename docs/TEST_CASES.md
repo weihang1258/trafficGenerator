@@ -271,7 +271,7 @@
 
 ### T-FTP-7 策略 tuples inc 四元组（策略+任务路径）
 
-**状态：** 草案
+**状态：** 已通过
 **级别：** unit
 **来源：** CORE_MEMORY §12；`docs/CODE_DESIGN.md` D-FTP-2 §3/§4；批量基线 `internal/core/worker.go:737-763`
 **目标：** 策略 config 带 tuples 时 worker 策略循环按流序号确定性产出四元组，与批量同语义。
@@ -286,7 +286,7 @@
 
 ### T-FTP-8 rand 可复现 + 到尾回绕
 
-**状态：** 草案
+**状态：** 已通过
 **级别：** unit
 **来源：** D-FTP-2 §4；CORE_MEMORY §12（seed+序号同结果、到尾回绕）
 **目标：** rand 同 seed 同序号同值；inc/list/pattern 超尾回绕。
@@ -301,7 +301,7 @@
 
 ### T-FTP-9 tuples 覆盖顺序（非零才覆盖 + 分片一致）
 
-**状态：** 草案
+**状态：** 已通过
 **级别：** unit
 **来源：** D-FTP-2 §1/§4（E1 决策）；批量覆盖序 worker.go:746-755
 **目标：** tuples 端点非零才覆盖（不砸显式值/默认值）；分片键反映最终四元组。
@@ -316,7 +316,7 @@
 
 ### T-FTP-10 FTP 会话 src_port/banner 动态
 
-**状态：** 草案
+**状态：** 已通过
 **级别：** unit
 **来源：** D-FTP-2 §1/§3/§4；RFC 959 §3.x（多控制连接模型）
 **目标：** 会话级动态端口按流序号解析并驱动独立四元组；banner 动态按会话替换。
@@ -331,7 +331,7 @@
 
 ### T-FTP-11 命令/响应动态（pattern）
 
-**状态：** 草案
+**状态：** 已通过
 **级别：** unit
 **来源：** D-FTP-2 §1/§4；CORE_MEMORY §12（业务字段逐协议清单：FTP=cmd/response/payload）
 **目标：** cmd/response 动态按流序号替换，且响应替换后 PASV 端口推导仍取已解析文本。
@@ -346,7 +346,7 @@
 
 ### T-FTP-12 数据负载动态 + FileSource 优先级
 
-**状态：** 草案
+**状态：** 已通过
 **级别：** unit
 **来源：** D-FTP-2 §4（DataChannel 优先级）；既有 FileSource 语义
 **目标：** payload 动态解析生效；FileSource 存在时动态/静态文本 payload 均被忽略。
@@ -361,7 +361,7 @@
 
 ### T-FTP-13 FTP 业务动态可复现性（seed+序号）
 
-**状态：** 草案
+**状态：** 已通过
 **级别：** unit
 **来源：** CORE_MEMORY §12；D-FTP-2 §4
 **目标：** FTP 字段 rand 策略同 seed 两次 Plan 序列一致。
@@ -376,7 +376,7 @@
 
 ### T-FTP-14 畸形动态配置拒绝（FTP Validate → 任务 error）
 
-**状态：** 草案
+**状态：** 已通过
 **级别：** unit
 **来源：** D-FTP-2 §5（F1 决策）；CORE_MEMORY §9（失败路径必须真红）
 **目标：** 非法动态对象使 Plan 返回 error（不许静默回退静态）；批量路径逐流跳过计数。
@@ -391,7 +391,7 @@
 
 ### T-FTP-15 flat 静态复制拒绝（create 语义层）
 
-**状态：** 草案
+**状态：** 已通过
 **级别：** unit + integration
 **来源：** CORE_MEMORY §12（静态复制不许充数）；D-FTP-2 §5（C1 决策）
 **目标：** flows>1 + 显式 src_port + 无 tuples 在 create/Update 均 400；同形状+动态（省略 src_port 或补 tuples）通过。
@@ -406,7 +406,7 @@
 
 ### T-FTP-16 FTP sessions 静态复制拒绝
 
-**状态：** 草案
+**状态：** 已通过
 **级别：** unit
 **来源：** D-FTP-2 §5；CORE_MEMORY §12
 **目标：** spec.Count>1 且会话端口全静态（或全继承且显式写了 spec src_port）且无任何会话动态端口时 Validate 拒绝；任一会话动态/未显式继承即通过。
@@ -421,7 +421,7 @@
 
 ### T-FTP-17 老形状与存量集成回归 + 横扫扩容
 
-**状态：** 草案
+**状态：** 已通过
 **级别：** unit + integration
 **来源：** T-FTP-1（既有回归项）+ 负例横扫 T-SCHEMA-6；D-FTP-2 §1（schema 同步）
 **目标：** 老形状零回归；负例横扫补 tuples 畸形与静态复制两例达 19 例。

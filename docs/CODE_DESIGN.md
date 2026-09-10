@@ -180,7 +180,7 @@
 
 ### D-FTP-2 动态值（阶段二：策略路径四元组动态 + FTP 会话/事务字段动态）
 
-**状态：** 自审定稿（2026-09-10，自审 5 轮干净；待用户评审）
+**状态：** 已验收（2026-09-10 用户批复"开工"后实施；T-FTP-7..17 全绿，触碰包 -race 绿，负例横扫 19 例）
 **范围：** 本次解决：①策略+任务路径四元组动态——strategy config 新增 `tuples`（与批量类 tuples 同形状同语义），worker 策略循环按流序号确定性解析并覆盖；②FTP 业务字段动态——阶段一 sessions 形状下 `session.src_port`/`session.banner`、`command.cmd`/`command.response`、`data_channel.payload` 接受"静态值或动态对象"（fixed/inc/rand/list/pattern 五策略），FTP planner 按流序号解析；③流序号贯通——worker 策略/批量两条循环向 FlowSpec 写入 FlowIndex；④畸形动态配置拒绝（FTP Planner.Validate，任务终态 error，不许静默回退静态）；⑤静态复制拒绝——create 语义层 flat 规则 + FTP planner sessions 规则；⑥schema/派生同步（strategy.json += tuples，MCP 描述与前端类型重生成，负例横扫补 tuples/静态复制两例）。明确不解决：任务级跨策略共用动态池（task-level 跨策略地址池，另立条目）；老形状（顶层 banner/commands）动态（零回归红线）；ftp 子配置 $ref 化（仍在 40+ 遗留清单）；批量路径 genIP/genPort 对畸形 range 的静默回退（遗留基线，本阶段不改，见对比表 F）；批量类无 tuples 的静态复制拒绝（部分协议 planner 在单次 Plan 内自变多流，create 期无法审计，见范围理由）；并发会话、ABOR 中断、TCP keepalive；子流 group_id 预写 flowIdx=0 局限（既有已知项，worker 权威值覆盖不受影响）。
 **依据：** CORE_MEMORY §12 全文（策略/任务动态 mandate：五策略、seed+序号可复现、到尾回绕、静态复制必须拒绝或告警、批量 tuples 是参考基线、动态值只落 ip/tcp/udp/协议层）；批量基线代码 `internal/core/tuple_generator.go:34`（genIP）、`:79`（genPort）、`internal/core/shard_router.go:58`（genStringValue）、`:105`（applyPattern）、`internal/core/worker.go:737-763`（批量每流解析与覆盖顺序）；策略路径现状 `internal/core/worker.go:279-324`（仅 src_port 自动+1，其余字段全静态）；FTP 阶段一 `internal/protocol/ftp/ftp.go:277`（planSessions，实际 277 行确认）；schema `trafficgen/schemas/v1/defs.json:73`（dynamic_value）、`:191`（tuple_config）。
 **配置权威：** 动态是"值的算法"，层链是"值的住处"：tuples 算出的地址仍只落 ip 层（src/dst）、端口仍只落 tcp/udp 层（经 spec 注入层链，与静态同一条路径）；FTP 业务字段仍只落 ftp 层；数量仍只走 flow_control。不新增与 layers 并存的第二套顶层字段。
