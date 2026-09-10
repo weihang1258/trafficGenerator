@@ -308,6 +308,34 @@ func (w *ConfigWorker) processTask(task Task) {
 			spec.SrcPort = DefaultSrcPort + uint16(i)
 		}
 
+		// Per-flow tuple pool (D-FTP-2, batch parity): when the strategy
+		// carries "tuples", resolve the four-tuple at flow index i and
+		// override non-zero endpoints — same order as the batch loop
+		// (worker.go:746-755). Non-zero wins so an unset endpoint keeps the
+		// static/default value above; a resolved zero (e.g. empty list) is a
+		// no-op, not a clobber.
+		if spec.Tuples != nil {
+			tupleGen := NewTupleGenerator(*spec.Tuples)
+			srcIP, dstIP, srcPort, dstPort := tupleGen.Next(i)
+			if srcIP != "" {
+				spec.SrcIP = srcIP
+			}
+			if dstIP != "" {
+				spec.DstIP = dstIP
+			}
+			if srcPort != 0 {
+				spec.SrcPort = srcPort
+			}
+			if dstPort != 0 {
+				spec.DstPort = dstPort
+			}
+		}
+
+		// FlowIndex: zero-based flow sequence for per-flow dynamic fields in
+		// planners that support them (FTP sessions/transactions, D-FTP-2).
+		// Read-only for planners; 0 for direct callers.
+		spec.FlowIndex = i
+
 		// Per-flow shard routing: compute hashKey + gID once for this flow,
 		// then write (shard_idx, group_id) to every packet's Metadata and push
 		// to the matching shard. Same flow -> same shard -> single-goroutine
@@ -756,6 +784,10 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 				if dstPort != 0 {
 					spec.DstPort = dstPort
 				}
+
+				// FlowIndex: per-flow dynamic field index for planners
+				// (D-FTP-2) — same domain as the strategy loop.
+				spec.FlowIndex = flowIdx
 
 				// Per-flow shard routing for batch class. GroupID on the class
 				// is propagated to spec via mapToFlowSpec; computeHashKey uses
