@@ -162,3 +162,35 @@ func asString(v interface{}) string {
 	}
 	return fmt.Sprintf("%v", v)
 }
+
+// ResolveIPValue evaluates a StrategyConfig at flow index i as an IPv4
+// string (fixed/list/inc/rand — same algorithms as genIP). nil/empty/invalid
+// strategy returns "" (callers treat as "no value"). Exported so protocol
+// planners (FTP sessions, D-FTP-2) resolve dynamic fields through the same
+// core implementation instead of re-implementing it.
+func ResolveIPValue(s *StrategyConfig, i int) string {
+	if s == nil {
+		return ""
+	}
+	return genIP(*s, i)
+}
+
+// ResolvePortValue evaluates a StrategyConfig at flow index i as a uint16
+// port (fixed/list/inc/rand). nil/empty/invalid returns 0 (caller's
+// "absent/inherit" sentinel, matching session SrcPort semantics).
+func ResolvePortValue(s *StrategyConfig, i int) uint16 {
+	if s == nil {
+		return 0
+	}
+	return genPort(*s, i)
+}
+
+// ResolveStringValue evaluates a StrategyConfig at flow index i as a string
+// (all five strategies via genStringValue, pattern {n} included).
+// nil/empty/invalid returns "".
+func ResolveStringValue(s *StrategyConfig, i int) string {
+	if s == nil {
+		return ""
+	}
+	return genStringValue(*s, i)
+}

@@ -1208,6 +1208,19 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	}
 
+	// Tuples: optional per-flow four-tuple pool (strategy config "tuples"
+	// key, same shape/semantics as batch TrafficClass.Tuples, D-FTP-2). When
+	// cfg has "tuples" as a map, unmarshal into TupleConfig; absent = nil
+	// (worker keeps static/auto-increment behavior).
+	if tCfg, ok := cfg["tuples"].(map[string]interface{}); ok && tCfg != nil {
+		if raw, err := json.Marshal(tCfg); err == nil {
+			var tc TupleConfig
+			if err := json.Unmarshal(raw, &tc); err == nil {
+				spec.Tuples = &tc
+			}
+		}
+	}
+
 	// InitialSeq backward compat: pre-rename strategies stored this at the
 	// top-level cfg. After the rename it lives inside the "tcp" sub-map. We
 	// prefer spec.TCP.InitialSeq (set above from the tcp sub-map) and fall

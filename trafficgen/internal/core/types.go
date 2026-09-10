@@ -4,6 +4,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/trafficgen/trafficgen/pkg/filesystem"
@@ -1796,6 +1797,20 @@ type FlowSpec struct {
 	// src_port (simulating ephemeral ports) only when user didn't specify it.
 	HasExplicitSrcPort bool `json:"-"`
 
+	// Tuples, when set (strategy config "tuples" key, same shape as batch
+	// TrafficClass.Tuples), makes the worker resolve the four-tuple per flow
+	// index deterministically (inc/rand/list/fixed) and override non-zero
+	// resolved endpoints on the per-flow spec copy — batch-parity semantics
+	// (D-FTP-2). nil = no tuple pool (static/auto-increment behavior).
+	Tuples *TupleConfig `json:"tuples,omitempty"`
+
+	// FlowIndex is the zero-based flow sequence number written by the worker
+	// loops (strategy worker.go and batch class loop) before Plan. Planners
+	// that support per-flow dynamic fields (FTP sessions/transactions,
+	// D-FTP-2) resolve them at this index; direct callers leave 0. Read-only
+	// for planners — never write back from Plan.
+	FlowIndex int `json:"-"`
+
 	// --- L7 protocol configurations (phase 3 batch). Appended at end per
 	// flowspec_extension.md §2.3 to avoid touching existing field layout.
 	// Each pointer is nil when the protocol is not selected; planners must
@@ -3422,12 +3437,59 @@ type TrafficClass struct {
 	GroupID *StrategyConfig `json:"group_id,omitempty"`
 }
 
-// TupleConfig for generating 4-tuples.
+// TupleConfig for generating 4-tuples. Each endpoint accepts a static value
+// (string IP / integer port) or a dynamic_value object — scalar shorthand is
+// normalized to {strategy:"fixed", value:...} on unmarshal so genIP/genPort
+// see one canonical shape. Custom unmarshal is REQUIRED: StrategyConfig is a
+// struct, so plain JSON decoding rejects the scalar shorthand that the schema
+// (defs.json tuple_config anyOf) explicitly allows.
 type TupleConfig struct {
 	SrcIP   StrategyConfig `json:"src_ip"`
 	DstIP   StrategyConfig `json:"dst_ip"`
 	SrcPort StrategyConfig `json:"src_port"`
 	DstPort StrategyConfig `json:"dst_port"`
+}
+
+// UnmarshalJSON accepts each endpoint as a static scalar or a dynamic_value
+// object. Scalars normalize to StrategyConfig{Strategy:"fixed", Value:v};
+// unknown shapes fail loudly (caller surfaces the JSON error) instead of
+// silently zeroing.
+func (tc *TupleConfig) UnmarshalJSON(b []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	type sc StrategyConfig // avoid infinite recursion via type alias
+	dec := func(field string, dst *StrategyConfig) error {
+		r, ok := raw[field]
+		if !ok {
+			return nil
+		}
+		// Object → decode as StrategyConfig (dynamic_value shape).
+		if len(r) > 0 && r[0] == '{' {
+			return json.Unmarshal(r, (*sc)(dst))
+		}
+		// Scalar → fixed strategy shorthand.
+		var v interface{}
+		if err := json.Unmarshal(r, &v); err != nil {
+			return err
+		}
+		*dst = StrategyConfig{Strategy: "fixed", Value: v}
+		return nil
+	}
+	if err := dec("src_ip", &tc.SrcIP); err != nil {
+		return fmt.Errorf("tuples.src_ip: %w", err)
+	}
+	if err := dec("dst_ip", &tc.DstIP); err != nil {
+		return fmt.Errorf("tuples.dst_ip: %w", err)
+	}
+	if err := dec("src_port", &tc.SrcPort); err != nil {
+		return fmt.Errorf("tuples.src_port: %w", err)
+	}
+	if err := dec("dst_port", &tc.DstPort); err != nil {
+		return fmt.Errorf("tuples.dst_port: %w", err)
+	}
+	return nil
 }
 
 // StrategyConfig for value generation strategies.
