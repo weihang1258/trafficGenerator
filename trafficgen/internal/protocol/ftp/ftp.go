@@ -81,6 +81,71 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("MSS %d too small (min %d per RFC 879)", spec.TCP.MSS, MinMSS)
 		}
 	}
+	if err := validateDynFields(spec.FTP); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateDynFields (D-FTP-2): reject malformed dynamic variants BEFORE any
+// emission — a bad dynamic object must fail the task (or skip the flow in
+// batch), never silently fall back to the static value. Rules mirror the
+// core algorithms: inc/rand need a 2-element ordered range; list needs
+// non-empty entries; pattern needs a non-empty template plus a 2-element
+// range; strategy must be one of fixed/inc/rand/list/pattern.
+func validateDynFields(ftpConfig *core.FTPConfig) error {
+	if ftpConfig == nil || len(ftpConfig.Sessions) == 0 {
+		return nil
+	}
+	check := func(where string, s *core.StrategyConfig) error {
+		if s == nil {
+			return nil
+		}
+		switch s.Strategy {
+		case "fixed", "":
+			return nil // empty strategy = treated as absent by resolvers
+		case "inc", "rand":
+			if len(s.Range) != 2 {
+				return fmt.Errorf("ftp %s: %s strategy requires a 2-element range", where, s.Strategy)
+			}
+			return nil
+		case "list":
+			if len(s.List) == 0 {
+				return fmt.Errorf("ftp %s: list strategy requires a non-empty list", where)
+			}
+			return nil
+		case "pattern":
+			if s.Pattern == "" || len(s.Range) != 2 {
+				return fmt.Errorf("ftp %s: pattern strategy requires a template and a 2-element range", where)
+			}
+			return nil
+		default:
+			return fmt.Errorf("ftp %s: unknown dynamic strategy %q", where, s.Strategy)
+		}
+	}
+	for si, sess := range ftpConfig.Sessions {
+		if err := check(fmt.Sprintf("sessions[%d].src_port", si), sess.SrcPortDyn); err != nil {
+			return err
+		}
+		if err := check(fmt.Sprintf("sessions[%d].banner", si), sess.BannerDyn); err != nil {
+			return err
+		}
+		for ti, tx := range sess.Transactions {
+			if tx.DataChannel != nil {
+				if err := check(fmt.Sprintf("sessions[%d].transactions[%d].data_channel.payload", si, ti), tx.DataChannel.PayloadDyn); err != nil {
+					return err
+				}
+			}
+			for ci, cmd := range tx.Commands {
+				if err := check(fmt.Sprintf("sessions[%d].transactions[%d].commands[%d].cmd", si, ti, ci), cmd.CmdDyn); err != nil {
+					return err
+				}
+				if err := check(fmt.Sprintf("sessions[%d].transactions[%d].commands[%d].response", si, ti, ci), cmd.ResponseDyn); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -282,6 +347,19 @@ func (p *Planner) planSessions(ctx context.Context, configChan chan<- core.Packe
 		if sess.SrcPort != 0 {
 			sessSpec.SrcPort = sess.SrcPort
 		}
+		// Session-level dynamic variants (D-FTP-2): resolved at the flow
+		// index; static non-zero wins, dynamic fills the gap.
+		if sess.SrcPortDyn != nil && sess.SrcPort == 0 {
+			if v := core.ResolvePortValue(sess.SrcPortDyn, spec.FlowIndex); v != 0 {
+				sessSpec.SrcPort = v
+			}
+		}
+		banner := sess.Banner
+		if sess.BannerDyn != nil && banner == "" {
+			if v := core.ResolveStringValue(sess.BannerDyn, spec.FlowIndex); v != "" {
+				banner = v
+			}
+		}
 		flowID := fmt.Sprintf("%s-%s-%d-%d", sessSpec.SrcIP, sessSpec.DstIP, sessSpec.SrcPort, sessSpec.DstPort)
 
 		effectiveTTL := spec.TTL
@@ -368,13 +446,21 @@ func (p *Planner) planSessions(ctx context.Context, configChan chan<- core.Packe
 		emit("up", spec.SrcMAC, spec.DstMAC, sessSpec.SrcIP, sessSpec.DstIP, sessSpec.SrcPort, sessSpec.DstPort, clientSeq, serverSeq, 0x10, nil)
 
 		// --- session banner ---
-		if sess.Banner != "" {
-			payload := []byte(sess.Banner + "\r\n")
+		if banner != "" {
+			payload := []byte(banner + "\r\n")
 			serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, sessSpec.DstIP, sessSpec.SrcIP, sessSpec.DstPort, sessSpec.SrcPort, serverSeq, clientSeq, payload)
 		}
 
 		// --- transactions in order ---
-		for txIdx, tx := range sess.Transactions {
+		for txIdx, rawTx := range sess.Transactions {
+			// Per-transaction dynamic resolution (D-FTP-2): static transaction
+			// passes through untouched (zero-copy); a dynamic one is resolved
+			// against spec.FlowIndex. Signal scans below see the RESOLVED text,
+			// so PASV/PORT derivation stays correct automatically.
+			tx := rawTx
+			if hasDynFields(sess) {
+				tx = resolveTx(rawTx, spec.FlowIndex)
+			}
 			for _, cmd := range tx.Commands {
 				if cmd.Cmd != "" {
 					payload := []byte(cmd.Cmd + "\r\n")
@@ -403,6 +489,73 @@ func (p *Planner) planSessions(ctx context.Context, configChan chan<- core.Packe
 // txHasDataChannel reports whether any command in the transaction flags the
 // data channel AND the transaction carries one (mirrors the legacy
 // cmd.EmitDataChannel && dc != nil gate).
+// hasDynFields reports whether any dynamic variant exists in the session
+// tree (D-FTP-2). Cheap pre-scan: when false, resolveTx returns the
+// original transaction with zero allocations and planSessions keeps the
+// phase-1 hot path unchanged.
+func hasDynFields(sess core.FTPSession) bool {
+	if sess.SrcPortDyn != nil || sess.BannerDyn != nil {
+		return true
+	}
+	for _, tx := range sess.Transactions {
+		if tx.DataChannel != nil && tx.DataChannel.PayloadDyn != nil {
+			return true
+		}
+		for _, cmd := range tx.Commands {
+			if cmd.CmdDyn != nil || cmd.ResponseDyn != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// resolveTx materializes a flow-index-resolved copy of the transaction:
+// command cmd/response and data-channel payload replace their static
+// counterparts only when the static field is empty and the dynamic variant
+// resolves non-empty. Static values always win (zero semantic change);
+// dynamic fields are read-only pointers (never written back).
+func resolveTx(tx core.FTPTransaction, i int) core.FTPTransaction {
+	if tx.DataChannel != nil && tx.DataChannel.PayloadDyn != nil && tx.DataChannel.Payload == "" {
+		if v := core.ResolveStringValue(tx.DataChannel.PayloadDyn, i); v != "" {
+			dc := *tx.DataChannel
+			dc.Payload = v
+			tx.DataChannel = &dc
+		}
+	}
+	// CRITICAL: tx.Commands is the shared slice from ftpConfig.Sessions —
+	// the worker reuses the same spec.FTP tree for every flow. Mutating a
+	// command in place would corrupt other flows (flow i's resolved text
+	// would flow into flow j) and race under -race. Copy the slice first,
+	// but only when any dynamic variant actually exists in it.
+	hasCmdDyn := false
+	for _, cmd := range tx.Commands {
+		if cmd.CmdDyn != nil || cmd.ResponseDyn != nil {
+			hasCmdDyn = true
+			break
+		}
+	}
+	cmds := tx.Commands
+	if hasCmdDyn {
+		cmds = append([]core.FTPCommand(nil), tx.Commands...)
+	}
+	for ci := range cmds {
+		cmd := &cmds[ci]
+		if cmd.CmdDyn != nil && cmd.Cmd == "" {
+			if v := core.ResolveStringValue(cmd.CmdDyn, i); v != "" {
+				cmd.Cmd = v
+			}
+		}
+		if cmd.ResponseDyn != nil && cmd.Response == "" {
+			if v := core.ResolveStringValue(cmd.ResponseDyn, i); v != "" {
+				cmd.Response = v
+			}
+		}
+	}
+	tx.Commands = cmds
+	return tx
+}
+
 func txHasDataChannel(tx core.FTPTransaction) bool {
 	if tx.DataChannel == nil {
 		return false

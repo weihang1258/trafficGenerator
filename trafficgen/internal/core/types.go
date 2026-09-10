@@ -2419,16 +2419,26 @@ type FTPConfig struct {
 // FTPSession is one control TCP connection in the multi-session shape
 // (D-FTP-1). SrcPort 0 = inherit spec.SrcPort. Banner is this session's own
 // greeting (empty = skip). Transactions run in order on this connection.
+//
+// Dynamic variants (D-FTP-2): SrcPortDyn/BannerDyn accept a StrategyConfig
+// (fixed/inc/rand/list/pattern, or fixed for scalar shorthand). Resolution
+// order: static non-zero > dynamic value > inherit/skip. Dyn fields are
+// READ-ONLY after parse — the worker copies spec per flow and planSessions
+// resolves them at spec.FlowIndex without writing back.
 type FTPSession struct {
 	SrcPort      uint16           `json:"src_port,omitempty"`
 	Banner       string           `json:"banner,omitempty"`
 	Transactions []FTPTransaction `json:"transactions,omitempty"`
+
+	SrcPortDyn *StrategyConfig `json:"-"`
+	BannerDyn  *StrategyConfig `json:"-"`
 }
 
 // FTPTransaction is one FTP business operation on the control connection
 // (RETR file, LIST directory, CWD, REST+RETR, ...): 1..M command/response
 // pairs plus at most one data channel that the flagged command triggers
-// ({parent}:sub-{tx-idx}).
+// ({parent}:sub-{tx-idx}). Commands may carry dynamic cmd/response variants
+// (D-FTP-2) resolved per flow index; see FTPCommand.
 type FTPTransaction struct {
 	Commands    []FTPCommand    `json:"commands,omitempty"`
 	DataChannel *FTPDataChannel `json:"data_channel,omitempty"`
@@ -2454,6 +2464,12 @@ type FTPCommand struct {
 	// data channels in one session (rare — e.g. LIST then RETR), use
 	// FlowSpec.SubFlows directly.
 	EmitDataChannel bool `json:"emit_data_channel,omitempty"`
+
+	// Dynamic variants (D-FTP-2): resolved per flow index when the static
+	// field is empty. READ-ONLY after parse (shared pointers across the
+	// worker's per-flow spec copies).
+	CmdDyn      *StrategyConfig `json:"-"`
+	ResponseDyn *StrategyConfig `json:"-"`
 }
 
 // FTPDataChannel describes the FTP data connection. The data channel is a
@@ -2506,6 +2522,11 @@ type FTPDataChannel struct {
 	// nil = use inline payload fields. Takes precedence over
 	// FlowSpec.FileSource for FTP data-channel bytes.
 	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
+
+	// PayloadDyn (D-FTP-2): dynamic payload variant, resolved per flow index
+	// when FileSource is unset. Priority: FileSource > PayloadDyn > Payload.
+	// READ-ONLY after parse.
+	PayloadDyn *StrategyConfig `json:"-"`
 }
 
 // SIPConfig for SIP protocol. SIP (RFC 3261) is a session-level protocol:

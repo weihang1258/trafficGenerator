@@ -1576,6 +1576,28 @@ func parseICMPPattern(v interface{}) []ICMPStep {
 	return out
 }
 
+
+// parseStrategyConfigDyn (D-FTP-2): a dynamic value object in FTP config
+// (session src_port/banner, command cmd/response, data_channel payload).
+// Object → *StrategyConfig; scalar/static → nil (static path handles it).
+// Missing strategy key inside the object is left as "" — Planner.Validate
+// rejects it loudly (no silent fallback).
+func parseStrategyConfigDyn(v interface{}) *StrategyConfig {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return nil
+	}
+	var s StrategyConfig
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return nil
+	}
+	return &s
+}
+
 // parseFTPCommands converts the JSON-decoded "commands" value (an array
 // of {cmd, response} objects) into a []FTPCommand. Returns nil for
 // absent/non-array input — the planner then emits only TCP handshake +
@@ -1595,6 +1617,8 @@ func parseFTPCommands(v interface{}) []FTPCommand {
 			Cmd:             getString(m, "cmd"),
 			Response:        getString(m, "response"),
 			EmitDataChannel: getBool(m, "emit_data_channel", false),
+			CmdDyn:          parseStrategyConfigDyn(m["cmd_dyn"]),
+			ResponseDyn:     parseStrategyConfigDyn(m["response_dyn"]),
 		})
 	}
 	if len(out) == 0 {
@@ -1784,8 +1808,10 @@ func parseFTPSessions(v interface{}) []FTPSession {
 			continue
 		}
 		sess := FTPSession{
-			SrcPort: getUint16(m, "src_port"),
-			Banner:  getString(m, "banner"),
+			SrcPort:    getUint16(m, "src_port"),
+			Banner:     getString(m, "banner"),
+			SrcPortDyn: parseStrategyConfigDyn(m["src_port_dyn"]),
+			BannerDyn:  parseStrategyConfigDyn(m["banner_dyn"]),
 		}
 		if txs, ok := m["transactions"].([]interface{}); ok {
 			for _, txItem := range txs {
@@ -1822,6 +1848,7 @@ func parseFTPDataChannel(v interface{}) *FTPDataChannel {
 		PayloadB64:      getString(m, "payload_b64"),
 		MSS:             getUint16(m, "mss"),
 		AbortAfterBytes: getInt(m, "abort_after_bytes"),
+		PayloadDyn:      parseStrategyConfigDyn(m["payload_dyn"]),
 	}
 	// Defaults: Mode="passive", Direction="down" — matches the most
 	// common FTP test shape (PASV + RETR download). Zero-value check
