@@ -251,6 +251,12 @@ func TestFTPDynInvalid(t *testing.T) {
 		{"pattern_no_range", func(c *core.FTPConfig) {
 			c.Sessions[0].Transactions[0].Commands[0].CmdDyn = &core.StrategyConfig{Strategy: "pattern", Pattern: "CMD {n}"}
 		}, "2-element range"},
+		{"inc_end_before_start", func(c *core.FTPConfig) {
+			c.Sessions[0].Transactions[0].Commands[0].ResponseDyn = &core.StrategyConfig{Strategy: "inc", Range: []interface{}{100, 50}}
+		}, "start must not exceed end"},
+		{"list_port_end_before_start", func(c *core.FTPConfig) {
+			c.Sessions[0].SrcPortDyn = &core.StrategyConfig{Strategy: "inc", Range: []interface{}{60000, 20000}}
+		}, "start must not exceed end"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

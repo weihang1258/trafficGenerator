@@ -123,6 +123,26 @@ func validateSessionStaticCopy(spec core.FlowSpec) error {
 	return nil
 }
 
+// dynRangeEnds extracts the numeric range endpoints for validation (mirrors
+// core.toInt: float64/int/int64/string accepted).
+func dynRangeEnds(r []interface{}) (int, int) {
+	toIntLocal := func(v interface{}) int {
+		switch x := v.(type) {
+		case float64:
+			return int(x)
+		case int:
+			return x
+		case int64:
+			return int(x)
+		case string:
+			n, _ := strconv.Atoi(x)
+			return n
+		}
+		return 0
+	}
+	return toIntLocal(r[0]), toIntLocal(r[1])
+}
+
 // validateDynFields (D-FTP-2): reject malformed dynamic variants BEFORE any
 // emission — a bad dynamic object must fail the task (or skip the flow in
 // batch), never silently fall back to the static value. Rules mirror the
@@ -144,6 +164,9 @@ func validateDynFields(ftpConfig *core.FTPConfig) error {
 			if len(s.Range) != 2 {
 				return fmt.Errorf("ftp %s: %s strategy requires a 2-element range", where, s.Strategy)
 			}
+			if a, b := dynRangeEnds(s.Range); a > b {
+				return fmt.Errorf("ftp %s: %s range start must not exceed end", where, s.Strategy)
+			}
 			return nil
 		case "list":
 			if len(s.List) == 0 {
@@ -153,6 +176,9 @@ func validateDynFields(ftpConfig *core.FTPConfig) error {
 		case "pattern":
 			if s.Pattern == "" || len(s.Range) != 2 {
 				return fmt.Errorf("ftp %s: pattern strategy requires a template and a 2-element range", where)
+			}
+			if a, b := dynRangeEnds(s.Range); a > b {
+				return fmt.Errorf("ftp %s: pattern range start must not exceed end", where)
 			}
 			return nil
 		default:
