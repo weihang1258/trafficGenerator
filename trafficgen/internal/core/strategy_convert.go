@@ -1208,16 +1208,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	}
 
-	// Tuples: optional per-flow four-tuple pool (strategy config "tuples"
-	// key, same shape/semantics as batch TrafficClass.Tuples, D-FTP-2). When
-	// cfg has "tuples" as a map, unmarshal into TupleConfig; absent = nil
-	// (worker keeps static/auto-increment behavior).
-	if tCfg, ok := cfg["tuples"].(map[string]interface{}); ok && tCfg != nil {
-		if raw, err := json.Marshal(tCfg); err == nil {
-			var tc TupleConfig
-			if err := json.Unmarshal(raw, &tc); err == nil {
-				spec.Tuples = &tc
-			}
+	// LayerDyn: per-flow dynamic strategies from the layers array (D-FTP-3).
+	// Malformed dynamic objects are recorded in spec.ValidationErrors (worker
+	// precheck fails the task); shape-level malformation is already rejected
+	// at create/update by ValidateLayers.
+	if layersVal, ok := cfg["layers"]; ok && layersVal != nil {
+		if ld, errs := parseLayerDyn(layersVal); ld != nil || len(errs) > 0 {
+			spec.LayerDyn = ld
+			spec.ValidationErrors = append(spec.ValidationErrors, errs...)
 		}
 	}
 

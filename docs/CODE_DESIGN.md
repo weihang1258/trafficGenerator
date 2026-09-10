@@ -262,7 +262,7 @@
 
 #### 3. 主流程与状态
 - 策略流循环 i：spec 副本 → auto-inc（既有条件：flowCount>1 且无显式扁平端口）→ 层动态 `resolveLayerTuple(i)` 非零覆盖 → FlowIndex=i → computeHashKey → Plan（顺序与批量同序；auto-inc 先跑后被覆盖是无害的，保持与批量"覆盖在后"同构，不加跳过条件）。
-- 层动态→spec→链：`resolveLayerTuple` 写 spec 四元组/MAC/TTL → `applySpecToChain` 按既有规则注入层 config（spec 显式 wins；过渡期扁平端口写回链行为保留——无 layers 时唯一来源，有 layers 时 flat 已被混用拒绝拦掉，故写回只剩"层动态解析出的 spec 值"，无歧义）→ 生成器读层 config（零改动）。
+- 层动态→spec→链：`resolveLayerTuple` 写 spec 四元组/MAC/TTL → `applySpecToChain` 按既有规则注入层 config（spec 显式 wins；过渡期扁平端口写回链行为保留——无 layers 时唯一来源，有 layers 时 flat 已被混用拒绝拦掉，故写回只剩"层动态解析出的 spec 值"，无歧义）→ 生成器读层 config（零改动）。批量循环顺序：tuples 池 → 层动态（层声明 wins）→ FlowIndex → 分片。
 - 优先级链（过渡期如实记录）：层动态解析值 > auto-inc > 扁平静态（无 layers 时）> 引擎默认；`translateTerminalConfig` 的"flat 优先"声明仅作用于终结层协议子配置（http/dns 等），不作用于四元组（四元组走 applySpecToChain），两者正交、无冲突。
 
 #### 4. 递增与覆盖规则

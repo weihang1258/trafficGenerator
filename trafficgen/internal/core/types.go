@@ -1797,12 +1797,12 @@ type FlowSpec struct {
 	// src_port (simulating ephemeral ports) only when user didn't specify it.
 	HasExplicitSrcPort bool `json:"-"`
 
-	// Tuples, when set (strategy config "tuples" key, same shape as batch
-	// TrafficClass.Tuples), makes the worker resolve the four-tuple per flow
-	// index deterministically (inc/rand/list/fixed) and override non-zero
-	// resolved endpoints on the per-flow spec copy — batch-parity semantics
-	// (D-FTP-2). nil = no tuple pool (static/auto-increment behavior).
-	Tuples *TupleConfig `json:"tuples,omitempty"`
+	// LayerDyn caches per-flow dynamic strategies parsed from the layers
+	// array (D-FTP-3): ip.src/dst, tcp/udp src_port/dst_port, eth src/dst MAC,
+	// ip.ttl — each either nil (static scalar or absent) or a StrategyConfig
+	// resolved at spec.FlowIndex. Parsed once per task by mapToFlowSpec
+	// (parseLayerDyn); read-only afterwards (shared across per-flow copies).
+	LayerDyn *LayerDynValues `json:"-"`
 
 	// FlowIndex is the zero-based flow sequence number written by the worker
 	// loops (strategy worker.go and batch class loop) before Plan. Planners
@@ -3511,6 +3511,45 @@ func (tc *TupleConfig) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("tuples.dst_port: %w", err)
 	}
 	return nil
+}
+
+// LayerIPDyn holds ip-layer dynamic strategies (nil = static/absent).
+type LayerIPDyn struct {
+	Src *StrategyConfig
+	Dst *StrategyConfig
+	TTL *StrategyConfig
+}
+
+// LayerTransportDyn holds tcp/udp-layer dynamic port strategies.
+type LayerTransportDyn struct {
+	SrcPort *StrategyConfig
+	DstPort *StrategyConfig
+}
+
+// LayerEthDyn holds eth-layer dynamic MAC strategies.
+type LayerEthDyn struct {
+	SrcMAC *StrategyConfig
+	DstMAC *StrategyConfig
+}
+
+// LayerDynValues is the parsed per-flow dynamic strategy set from a layers
+// array (D-FTP-3). All pointers nil-able; nil = that endpoint is static.
+type LayerDynValues struct {
+	IP  LayerIPDyn
+	TCP LayerTransportDyn
+	UDP LayerTransportDyn
+	Eth LayerEthDyn
+}
+
+// HasAny reports whether any dynamic strategy is present.
+func (l *LayerDynValues) HasAny() bool {
+	if l == nil {
+		return false
+	}
+	return l.IP.Src != nil || l.IP.Dst != nil || l.IP.TTL != nil ||
+		l.TCP.SrcPort != nil || l.TCP.DstPort != nil ||
+		l.UDP.SrcPort != nil || l.UDP.DstPort != nil ||
+		l.Eth.SrcMAC != nil || l.Eth.DstMAC != nil
 }
 
 // StrategyConfig for value generation strategies.

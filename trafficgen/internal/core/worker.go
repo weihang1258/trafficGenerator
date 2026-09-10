@@ -308,28 +308,12 @@ func (w *ConfigWorker) processTask(task Task) {
 			spec.SrcPort = DefaultSrcPort + uint16(i)
 		}
 
-		// Per-flow tuple pool (D-FTP-2, batch parity): when the strategy
-		// carries "tuples", resolve the four-tuple at flow index i and
-		// override non-zero endpoints — same order as the batch loop
-		// (worker.go:746-755). Non-zero wins so an unset endpoint keeps the
-		// static/default value above; a resolved zero (e.g. empty list) is a
-		// no-op, not a clobber.
-		if spec.Tuples != nil {
-			tupleGen := NewTupleGenerator(*spec.Tuples)
-			srcIP, dstIP, srcPort, dstPort := tupleGen.Next(i)
-			if srcIP != "" {
-				spec.SrcIP = srcIP
-			}
-			if dstIP != "" {
-				spec.DstIP = dstIP
-			}
-			if srcPort != 0 {
-				spec.SrcPort = srcPort
-			}
-			if dstPort != 0 {
-				spec.DstPort = dstPort
-			}
-		}
+		// Per-flow layer dynamics (D-FTP-3): resolve parsed layer-field
+		// strategies at flow index i; non-zero resolutions override (same
+		// "non-zero wins" order as the batch tuples loop). Placed after
+		// auto-increment so layer dynamics override it; auto-increment
+		// first is harmless when overridden (batch-parity order).
+		resolveLayerTuple(&spec, i)
 
 		// FlowIndex: zero-based flow sequence for per-flow dynamic fields in
 		// planners that support them (FTP sessions/transactions, D-FTP-2).
@@ -784,6 +768,10 @@ func (w *ConfigWorker) processBatchTask(task Task) {
 				if dstPort != 0 {
 					spec.DstPort = dstPort
 				}
+
+				// Layer dynamics (D-FTP-3): after the legacy tuples pool —
+				// the layer declaration wins on conflict (layers are truth).
+				resolveLayerTuple(&spec, flowIdx)
 
 				// FlowIndex: per-flow dynamic field index for planners
 				// (D-FTP-2) — same domain as the strategy loop.
