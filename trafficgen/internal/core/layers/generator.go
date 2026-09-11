@@ -208,6 +208,10 @@ type EventTransformer interface {
 type FlowMeta struct {
 	FlowID  string
 	ClassID string
+	// FlowIndex is the zero-based per-flow sequence number (worker 策略/
+	// 批量循环写入 spec.FlowIndex，drive 经 flowMetaFor 透传；终结层动态
+	// 解析用，D-FTP-2 索引域）。Direct callers default 0.
+	FlowIndex int
 	// Timestamp is the per-packet timestamp source; zero = time.Now() per
 	// packet (包时间戳，零值 = 每包取当前时间)。
 	Timestamp time.Time
@@ -1351,21 +1355,14 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			}
 			curKey = evKey
 		}
-		// CloseConn 路径：流关联副连接等"事件流结束前提前拆除"——按当前 key
+		// CloseConn 路径：流关联副连接等"事件流结束前提前拆除"——本事件的
+		// 数据段先上路（顺序与 legacy 子流"数据→挥手"一致），再按当前 key
 		// 挥手，并从并发状态表中移除（避免流末尾 connOrder 重复挥手）。
 		// 顺序模式下同时置 connected=false：下一事件走"首连接"分支只握手，
 		// 不再对已挥掉的 curKey 重复挥手（cwmp 链 flows 场景由 chain 侧强制
 		// concurrent=true 兜底，此为纯防御）。
-		if ev.CloseConn {
-			if err := teardown(evKey); err != nil {
-				return err
-			}
-			if cfg.concurrent {
-				deleteConnKey(evKey)
-			} else {
-				connected = false
-			}
-		}
+		closeAfter := ev.CloseConn
+		ev.CloseConn = false
 		segments := segmentByMSS(ev.Bytes, mss)
 		for _, seg := range segments {
 			var direction string
@@ -1408,12 +1405,21 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			}
 		}
 		// 并发会话：本事件推进后的 seq 状态写回该连接的 connKey 状态。
-		// CloseConn 已在本事件内 teardown 并 deleteConnKey（连接已亡，
-		// seq 状态无意义不回写）——nil 守卫必须有，否则同一事件先删后写
-		// 即空指针（download/upload 副连接收尾必踩）。
 		if cfg.concurrent {
 			if c := conns[evKey]; c != nil {
 				c.clientSeq, c.serverSeq = clientSeq, serverSeq
+			}
+		}
+		// CloseConn 收尾：数据段已上路（顺序与 legacy"数据→挥手"一致），
+		// 再挥手该 key 并从并发状态表移除（流末不再重复挥手）。
+		if closeAfter {
+			if err := teardown(evKey); err != nil {
+				return err
+			}
+			if cfg.concurrent {
+				deleteConnKey(evKey)
+			} else {
+				connected = false
 			}
 		}
 	}

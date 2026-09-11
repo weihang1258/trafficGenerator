@@ -1080,9 +1080,9 @@ func TestTCPGenerator_PerConnDstPort(t *testing.T) {
 	if err := g.Generate(context.Background(), req); err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	// CloseConn 先挥手后发数据（实现语义）：包序 0-2 握手，3 banner，
-	// 4-7 挥手（CloseConn），8 QUIT 数据；数据连接同构 9-11/12-15/16/17。
-	// 本测试只钉端口落点（per-conn dst），不管数据/挥手相对顺序。
+	// CloseConn 数据先上路后挥手（legacy 子流"数据→挥手"顺序）：
+	// 包序 0-2 握手，3 banner，4 QUIT，5-8 挥手（CloseConn）；
+	// 数据连接同构 9-11/12-13/14-17。本测试只钉端口落点（per-conn dst）。
 	if len(out) != 18 {
 		t.Fatalf("two conns = %d packets, want 18 (9+9)", len(out))
 	}
@@ -1096,13 +1096,13 @@ func TestTCPGenerator_PerConnDstPort(t *testing.T) {
 		0:  {"up", 12345, 21, ""},   // 控制 SYN 落 21
 		1:  {"down", 21, 12345, ""}, // 控制 SYN-ACK 源 21
 		3:  {"down", 21, 12345, "220 ready\r\n"},
-		4:  {"up", 12345, 21, ""},         // 控制 FIN 落 21
-		8:  {"up", 12345, 21, "QUIT\r\n"}, // 控制数据落 21
+		4:  {"up", 12345, 21, "QUIT\r\n"}, // 控制数据落 21
+		5:  {"up", 12345, 21, ""},         // 控制 FIN 落 21
 		9:  {"up", 12346, 49993, ""},      // 数据 SYN 落 49993
 		10: {"down", 49993, 12346, ""},    // 数据 SYN-ACK 源 49993
 		12: {"up", 12346, 49993, "DATA"},  // 数据段落 49993
-		13: {"up", 12346, 49993, ""},      // 数据 FIN 落 49993
-		17: {"down", 49993, 12346, "226 done\r\n"},
+		13: {"down", 49993, 12346, "226 done\r\n"},
+		14: {"up", 12346, 49993, ""}, // 数据 FIN 落 49993
 	} {
 		p := out[i]
 		if p.Direction != w.dir || p.L4.SrcPort != w.src || p.L4.DstPort != w.dst || string(p.Payload) != w.payload {
