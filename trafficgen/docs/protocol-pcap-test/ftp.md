@@ -1,6 +1,6 @@
 # ftp Pcap Test Results
 
-Cases: 96 — pass 96, fail 0, error 0
+Cases: 97 — pass 97, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -26,6 +26,7 @@ Cases: 96 — pass 96, fail 0, error 0
 | ftp_dataconn_425 | RFC 959 §4.2.1/§5.4 数据连接失败：425 Can't open data connection | pass | 18 | [pcap](ftp/ftp_dataconn_425.pcap) |
 | ftp_dataconn_explicit_ports | RFC 959 端口推导最高优先级：显式 src/dst 覆盖 PASV 信令 | pass | 27 | [pcap](ftp/ftp_dataconn_explicit_ports.pcap) |
 | ftp_dataconn_fallback | RFC 959 §3.2 端口推导回退：无 PASV/PORT 信令→server 50000 | pass | 25 | [pcap](ftp/ftp_dataconn_fallback.pcap) |
+| ftp_dc_mss_override | dc.mss 数据通道级 MSS 覆盖（B 类缺口钉现状）：链路径当前忽略该字段、按链全局 MSS=1460 分段 | pass | 28 | [pcap](ftp/ftp_dc_mss_override.pcap) |
 | ftp_dele_550_fail | RFC 959 §5.4 DELE→550 删除被拒（fail 分支） | pass | 16 | [pcap](ftp/ftp_dele_550_fail.pcap) |
 | ftp_dyn_command_pattern | T-FTP-11: cmd_dyn pattern 逐流动态（层链），RETR 文件名按流变；46 帧 = 2×23 | pass | 44 | [pcap](ftp/ftp_dyn_command_pattern.pcap) |
 | ftp_dyn_payload | T-FTP-12: data_channel payload_dyn pattern 逐流动态（层链）；46 帧 = 2×23 | pass | 44 | [pcap](ftp/ftp_dyn_payload.pcap) |
