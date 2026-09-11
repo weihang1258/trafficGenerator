@@ -383,6 +383,10 @@ type FlowMeta struct {
 	// 2/3 会话逐帧事件，encodeRESPArray/encodeSubConfirm/resolveReply 纯
 	// 函数复用)。Only set for redis chains。
 	Redis *core.RedisConfig
+	// FTP is the flow's FTP config (注入到 ftp 终结层生成器：banner +
+	// 会话/命令/响应对/数据通道逐事件产出，resolveTx/端口推导复用
+	// legacy planner)。Only set for ftp chains。
+	FTP *core.FTPConfig
 	// POP3 is the flow's POP3 config (注入到 pop3 终结层生成器：banner +
 	// 命令/响应对逐事件产出，buildMailDropResponse/buildTopResponse 纯函数
 	// 复用)。Only set for pop3 chains。

@@ -173,6 +173,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// Redis 同款（P3）：配置经 Meta 直传 redis 终结层生成器（RESP 会话
 		// 逐帧事件，encodeRESP* 纯函数复用）。
 		Redis: spec.Redis,
+		// FTP 同款（FTP 链化）：配置经 Meta 直传 ftp 终结层生成器
+		// （banner + 会话/命令/响应对/数据通道逐事件产出，resolveTx/
+		// 端口推导复用 legacy planner）。
+		FTP: spec.FTP,
 		// POP3 同款（P3）：配置经 Meta 直传 pop3 终结层生成器（banner + 命令/
 		// 响应对逐事件产出，buildMailDropResponse/buildTopResponse 纯函数复用）。
 		POP3: spec.POP3,
@@ -901,6 +905,16 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			// validator 报错而不是静默空流。
 			spec.PostgreSQL = &core.PostgreSQLConfig{Dialect: "postgresql", WireProfile: "postgresql_v3"}
 		}
+	case "ftp":
+		if spec.FTP != nil {
+			return // 层链形状下顶层 ftp 键在 Task 5 判死；此处只处理层内 config
+		}
+		// 层 config（banner/commands/data_channel/sessions）经
+		// core.ParseFTPConfigFromMap 解码（与扁平 cfg["ftp"] 同 parse
+		// 函数、同缺省，零语义分叉）。空层 config → nil config，
+		// 生成器走默认空会话（与 legacy Plan 对 nil Config 同款）。
+		cfg := completedConfig(s, term.Config)
+		spec.FTP = core.ParseFTPConfigFromMap(cfg)
 	case "pop3":
 		if spec.POP3 != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

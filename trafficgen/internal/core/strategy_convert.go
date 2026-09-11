@@ -7578,3 +7578,67 @@ func parseGOOSEConfig(m map[string]interface{}) *GOOSEConfig {
 	}
 	return b
 }
+
+// ParseFTPConfigFromMap decodes an ftp layer/terminal config map into an
+// *FTPConfig (exported for layers.translateTerminalConfig; single truth with
+// the flat cfg["ftp"] branch of mapToFlowSpec — same parse functions, same
+// defaults). Returns nil for absent/non-map input. file_source inside
+// data_channel (and per-transaction data_channel) is honored, mirroring the
+// flat FileSource override block.
+func ParseFTPConfigFromMap(m map[string]interface{}) *FTPConfig {
+	if m == nil {
+		return nil
+	}
+	fc := &FTPConfig{
+		Banner:      getString(m, "banner"),
+		Commands:    parseFTPCommands(m["commands"]),
+		DataChannel: parseFTPDataChannel(m["data_channel"]),
+		Sessions:    parseFTPSessions(m["sessions"]),
+	}
+	if fc.DataChannel != nil {
+		if dcFS := parseFileSource(getMap(m, "data_channel")); dcFS != nil {
+			fc.DataChannel.FileSource = dcFS
+		}
+	}
+	for si := range fc.Sessions {
+		for ti := range fc.Sessions[si].Transactions {
+			dc := fc.Sessions[si].Transactions[ti].DataChannel
+			if dc == nil {
+				continue
+			}
+			if dcFS := parseFileSource(getTxDataChannelMap(m, si, ti)); dcFS != nil {
+				dc.FileSource = dcFS
+			}
+		}
+	}
+	if fc.Banner == "" && fc.Commands == nil && fc.DataChannel == nil && fc.Sessions == nil {
+		return nil
+	}
+	return fc
+}
+
+// getTxDataChannelMap navigates sessions[si].transactions[ti].data_channel
+// inside a decoded ftp config map. Returns nil when any level is absent.
+func getTxDataChannelMap(m map[string]interface{}, si, ti int) map[string]interface{} {
+	sessArr, ok := m["sessions"].([]interface{})
+	if !ok || si < 0 || si >= len(sessArr) {
+		return nil
+	}
+	sessm, ok := sessArr[si].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	txArr, ok := sessm["transactions"].([]interface{})
+	if !ok || ti < 0 || ti >= len(txArr) {
+		return nil
+	}
+	txm, ok := txArr[ti].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	dcm, ok := txm["data_channel"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return dcm
+}
