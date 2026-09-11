@@ -8,7 +8,7 @@
 - 地址只写 `ip` 层（`src`/`dst`），端口只写 `tcp`/`udp` 层（`src_port`/`dst_port`），流数量只写独立的 `flow_control`。
 - 禁止 `layers` 与顶层 `src_ip`/`dst_ip`/`src_port`/`dst_port`/`count` 混用。混用示例、用例、文档都算跑偏。
 - 验收分两道门，不许互相冒充：①层链能跑通；②旧格式已彻底移除（含用例改写 + 入库检查拦住旧字段）。
-- 现实缺口（2026-09-09 实测）：`mapToFlowSpec` 仍先读旧字段给默认值，`applySpecToChain` 仍把旧端口写回 `tcp`/`udp` 层，`translateTerminalConfig` 仍声明旧协议配置优先。`cases/*.json` 大量双写。FTP 只有注册表层名，没有可运行的层生成器，`[ip,tcp,ftp]` 今天提交会报生成器未实现。
+- 现实缺口（2026-09-09 实测）：`mapToFlowSpec` 仍先读旧字段给默认值，`applySpecToChain` 仍把旧端口写回 `tcp`/`udp` 层，`translateTerminalConfig` 仍声明旧协议配置优先。`cases/*.json` 大量双写。
 - **Why:** 用户明确指出目标就是把旧格式全部改掉，给出旧格式示例等于方向错误。
 - **How to apply:** 给示例只给严格层链形；若代码暂不支持，必须明确标注“目标形状，今天跑不通，需先补代码”，不许拿旧形状冒充最终方案。进度汇报必须分开说“跑通了什么”和“旧字段清掉了多少”。
 
