@@ -179,7 +179,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/mcp/negative_parity_test.go`。
 
-### T-FTP-1 老形状零回归（sessions 缺席）
+### T-FTP-1 老形状零回归（sessions 缺席）【链化注记：cases 现为 `[ip,tcp,ftp]` 层链 JSON，经 `flowb_run_protocol_suite` 直接消费；链语义下数据通道 8 包（无冗余对端 ACK）、sessions_dual 46 包（CloseConn 内联挥手去重），Task 6 提交 c60e922 实测 21/21】
 
 **状态：** 草案
 **级别：** unit + pcap
