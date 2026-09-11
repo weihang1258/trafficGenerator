@@ -953,7 +953,7 @@ func TestUDPGenerator_EventSrcPortOverride(t *testing.T) {
 	}
 	events := make(chan MessageEvent, 2)
 	events <- MessageEvent{Up: true, Bytes: []byte("a"), SrcPort: 520} // 覆盖为 well-known
-	events <- MessageEvent{Up: true, Bytes: []byte("b")}              // 不覆盖 → cfg 值
+	events <- MessageEvent{Up: true, Bytes: []byte("b")}               // 不覆盖 → cfg 值
 	close(events)
 	req := &GenRequest{
 		Layer: Layer{Name: "udp", Config: cfg},
@@ -986,7 +986,7 @@ func TestUDPGenerator_EventSrcPortOverride(t *testing.T) {
 // 不得静默跳过（否则端口落 0），必须显式报错。
 func TestUDPGenerator_ResolveCfgRejectsUnconvertiblePort(t *testing.T) {
 	bad := map[string]interface{}{
-		"src_port": "abc",   // 字符串不可转换
+		"src_port": "abc", // 字符串不可转换
 		"dst_port": uint16(53),
 	}
 	g := &UDPGenerator{}
@@ -1051,5 +1051,62 @@ func TestTCPGenerator_ConcurrentEmptyEventStreamStillTearsDown(t *testing.T) {
 	last := out[len(out)-1]
 	if last.Direction != "up" || last.L4.Flags != FlagACK {
 		t.Errorf("final packet = dir %q flags %x, want up/0x10 (closing ACK)", last.Direction, last.L4.Flags)
+	}
+}
+
+// ---- FTP 链化 Task 1：per-conn 目标端口（数据通道服务端口 ≠ 控制端口）----
+// 两条连接 key.dst 不同（控制 21 / 数据 49993）时，握手/挥手/数据段必须
+// 各自落各自的目标端口；key.dst==0 回退 cfg.dstPort（旧单连接字节不变）。
+func TestTCPGenerator_PerConnDstPort(t *testing.T) {
+	g := &TCPGenerator{}
+	events := make(chan MessageEvent, 4)
+	events <- MessageEvent{Up: false, Bytes: []byte("220 ready\r\n")}
+	events <- MessageEvent{Up: true, Bytes: []byte("QUIT\r\n"), CloseConn: true}
+	events <- MessageEvent{Up: true, Bytes: []byte("DATA"), SrcPort: 12346, DstPort: 49993}
+	events <- MessageEvent{Up: false, Bytes: []byte("226 done\r\n"), SrcPort: 12346, DstPort: 49993, CloseConn: true}
+	close(events)
+	req := &GenRequest{
+		Layer: Layer{Name: "tcp", Config: map[string]interface{}{
+			"src_port": uint16(12345), "dst_port": uint16(21),
+			"handshake": true, "termination": true,
+			"mss": uint16(1460), "window_size": uint16(65535),
+			"concurrent": true,
+		}},
+		Sess: &SessionState{},
+		Meta: FlowMeta{FlowID: "f1", Events: events},
+	}
+	var out []core.PacketConfig
+	req.Emit = emitCollector(&out)
+	if err := g.Generate(context.Background(), req); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	// CloseConn 先挥手后发数据（实现语义）：包序 0-2 握手，3 banner，
+	// 4-7 挥手（CloseConn），8 QUIT 数据；数据连接同构 9-11/12-15/16/17。
+	// 本测试只钉端口落点（per-conn dst），不管数据/挥手相对顺序。
+	if len(out) != 18 {
+		t.Fatalf("two conns = %d packets, want 18 (9+9)", len(out))
+	}
+	type want struct {
+		dir     string
+		src     uint16
+		dst     uint16
+		payload string
+	}
+	for i, w := range map[int]want{
+		0:  {"up", 12345, 21, ""},   // 控制 SYN 落 21
+		1:  {"down", 21, 12345, ""}, // 控制 SYN-ACK 源 21
+		3:  {"down", 21, 12345, "220 ready\r\n"},
+		4:  {"up", 12345, 21, ""},         // 控制 FIN 落 21
+		8:  {"up", 12345, 21, "QUIT\r\n"}, // 控制数据落 21
+		9:  {"up", 12346, 49993, ""},      // 数据 SYN 落 49993
+		10: {"down", 49993, 12346, ""},    // 数据 SYN-ACK 源 49993
+		12: {"up", 12346, 49993, "DATA"},  // 数据段落 49993
+		13: {"up", 12346, 49993, ""},      // 数据 FIN 落 49993
+		17: {"down", 49993, 12346, "226 done\r\n"},
+	} {
+		p := out[i]
+		if p.Direction != w.dir || p.L4.SrcPort != w.src || p.L4.DstPort != w.dst || string(p.Payload) != w.payload {
+			t.Errorf("pkt[%d] = %q %d->%d %q, want %q %d->%d %q", i, p.Direction, p.L4.SrcPort, p.L4.DstPort, p.Payload, w.dir, w.src, w.dst, w.payload)
+		}
 	}
 }

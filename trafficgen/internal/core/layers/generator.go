@@ -767,6 +767,15 @@ func (g *TCPGenerator) Name() string { return "tcp" }
 // 不产出报文事件)。
 func (g *TCPGenerator) GenEvents() EventGenerator { return nil }
 
+// tcpConnKey 标识一条 TCP 连接：客户端源端口 + 服务端 L3 目标 + 目标端口
+// （原 Generate 内 connKey 闭包类型上移到包级，供 handshake/teardown
+// 闭包签名使用；注释见事件循环处 connKey 抽象说明）。
+type tcpConnKey struct {
+	src   uint16
+	dstIP string
+	dst   uint16
+}
+
 // tcpCfg is the resolved TCP layer configuration.
 type tcpCfg struct {
 	srcPort, dstPort uint16
@@ -928,10 +937,16 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	}
 
 	// handshake 闭包：为一条连接发出 SYN(up,0x02)→SYN-ACK(down,0x12)→ACK(up,0x10)
-	// （schema 默认 true）。srcPort 是该连接的客户端源端口（单连接 = cfg.srcPort；
-	// 多会话 = 每个 session 的 SrcPort）。每次调用重新初始化该连接 seq，字节序列
+	// （schema 默认 true）。key 是该连接的 connKey（单连接 = 配置默认；
+	// 多会话 = 每个 session/数据通道的独立 key，含各自目标端口）。
+	// 每次调用重新初始化该连接 seq，字节序列
 	// 与 legacy 单连接握手完全一致（P0a 多会话边界复用于新连接握手）。
-	handshake := func(srcPort uint16) error {
+	handshake := func(key tcpConnKey) error {
+		// defaultKey 回退：key.dst==0 的事件（无 DstPort 覆盖）走配置默认端口，
+		// 与旧 byte-key 单连接行为逐字节一致。
+		if key.dst == 0 {
+			key.dst = cfg.dstPort
+		}
 		if !cfg.handshake {
 			return nil
 		}
@@ -945,12 +960,13 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			clientSeq = rand.Uint32()
 		}
 		serverSeq = rand.Uint32()
+		srcPort, dstPort := key.src, key.dst
 		if err := emit(core.PacketConfig{
 			Direction: "up",
 			L4: core.L4Config{
 				Protocol:   "tcp",
 				SrcPort:    srcPort,
-				DstPort:    cfg.dstPort,
+				DstPort:    dstPort,
 				Seq:        clientSeq,
 				Flags:      FlagSYN,
 				WindowSize: winSize,
@@ -964,7 +980,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			Direction: "down",
 			L4: core.L4Config{
 				Protocol:   "tcp",
-				SrcPort:    cfg.dstPort,
+				SrcPort:    dstPort,
 				DstPort:    srcPort,
 				Seq:        serverSeq,
 				Ack:        clientSeq,
@@ -981,7 +997,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			L4: core.L4Config{
 				Protocol:   "tcp",
 				SrcPort:    srcPort,
-				DstPort:    cfg.dstPort,
+				DstPort:    dstPort,
 				Seq:        clientSeq,
 				Ack:        serverSeq,
 				Flags:      FlagACK,
@@ -994,9 +1010,10 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	}
 
 	// teardown 闭包：为一条连接发出 FIN|ACK(up)→ACK(down)→FIN|ACK(down)→ACK(up)
-	// 挥手（schema 默认 true）。srcPort 是该连接的客户端源端口，字节序列与 legacy
+	// 挥手（schema 默认 true）。key 是该连接的 connKey，字节序列与 legacy
 	// 单连接挥手完全一致（P0a 多会话边界复用于挥旧连接）。
-	teardown := func(srcPort uint16) error {
+	teardown := func(key tcpConnKey) error {
+		srcPort, dstPort := key.src, key.dst
 		if !cfg.termination {
 			return nil
 		}
@@ -1010,7 +1027,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			L4: core.L4Config{
 				Protocol:   "tcp",
 				SrcPort:    srcPort,
-				DstPort:    cfg.dstPort,
+				DstPort:    dstPort,
 				Seq:        clientSeq,
 				Ack:        serverSeq,
 				Flags:      FlagFIN | FlagACK,
@@ -1024,7 +1041,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			Direction: "down",
 			L4: core.L4Config{
 				Protocol:   "tcp",
-				SrcPort:    cfg.dstPort,
+				SrcPort:    dstPort,
 				DstPort:    srcPort,
 				Seq:        serverSeq,
 				Ack:        clientSeq,
@@ -1038,7 +1055,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			Direction: "down",
 			L4: core.L4Config{
 				Protocol:   "tcp",
-				SrcPort:    cfg.dstPort,
+				SrcPort:    dstPort,
 				DstPort:    srcPort,
 				Seq:        serverSeq,
 				Ack:        clientSeq,
@@ -1054,7 +1071,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			L4: core.L4Config{
 				Protocol:   "tcp",
 				SrcPort:    srcPort,
-				DstPort:    cfg.dstPort,
+				DstPort:    dstPort,
 				Seq:        clientSeq,
 				Ack:        serverSeq,
 				Flags:      FlagACK,
@@ -1073,7 +1090,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// 先握手后消费事件字节级一致。
 	eventMode := req.Meta.Events != nil
 	if !eventMode {
-		if err := handshake(cfg.srcPort); err != nil {
+		if err := handshake(tcpConnKey{src: cfg.srcPort, dst: cfg.dstPort}); err != nil {
 			return err
 		}
 	}
@@ -1234,19 +1251,15 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// 与无 ACK 插入）。独立 tcp flow（无事件流）走上方旧逻辑。
 	events := req.Meta.Events
 	// connKey 抽象（波 6）：TCP 连接由客户端源端口+服务端 L3 目标+目标端口
-	// 共同标识。普通单连接路径（http/dns 等）事件不设覆盖，三元组全部回退
+	// 共同标识（类型见包级 tcpConnKey）。普通单连接路径（http/dns 等）
+	// 事件不设覆盖，三元组全部回退
 	// 配置默认（src=cfg.srcPort、dstIP=cfg.DstIP/空、dst=cfg.dstPort）—
 	// 字节与原 conns[uint16] 路径逐字节一致（单一合成 key）。多会话或流关联
 	// 等带覆盖事件，src/dstIP/dst 非默认时合成独立 key，连接独立建/挥。
-	type connKey struct {
-		src   uint16
-		dstIP string
-		dst   uint16
-	}
 	// resolveConnKey 把事件折叠到其连接 key。无覆盖事件（srcPort=0 且
 	// OverrideDstIP=false 且 DstPort=0）走配置默认——保持原单连接字节。
-	resolveConnKey := func(src uint16, overrideDstIP bool, dstIP string, dst uint16) connKey {
-		k := connKey{src: src, dstIP: dstIP, dst: dst}
+	resolveConnKey := func(src uint16, overrideDstIP bool, dstIP string, dst uint16) tcpConnKey {
+		k := tcpConnKey{src: src, dstIP: dstIP, dst: dst}
 		if src == 0 {
 			k.src = cfg.srcPort
 		}
@@ -1272,12 +1285,12 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	type tcpConn struct {
 		clientSeq, serverSeq uint32
 	}
-	conns := map[connKey]*tcpConn{}
+	conns := map[tcpConnKey]*tcpConn{}
 	// connOrder 记录并发连接的首见序（流结束时按此序统一挥手）。
-	var connOrder []connKey
+	var connOrder []tcpConnKey
 	// deleteConnKey 从 conns + connOrder 同时移除某 key（CloseConn 路径用：
 	// 流结束前提前拆除某连接 → 流末尾不再重复挥手）。
-	deleteConnKey := func(k connKey) {
+	deleteConnKey := func(k tcpConnKey) {
 		delete(conns, k)
 		for i, x := range connOrder {
 			if x == k {
@@ -1301,10 +1314,9 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 		// 会话边界：事件合成 key != 当前连接 key → 新连接（挥旧握新或并发恢复）。
 		sawEvent = true
 		evKey := resolveConnKey(ev.SrcPort, ev.OverrideDstIP, ev.DstIP, ev.DstPort)
-		evSrc := evKey.src
 		if cfg.concurrent {
 			if _, seen := conns[evKey]; !seen {
-				if err := handshake(evSrc); err != nil {
+				if err := handshake(evKey); err != nil {
 					return err
 				}
 				conns[evKey] = &tcpConn{clientSeq: clientSeq, serverSeq: serverSeq}
@@ -1317,7 +1329,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			curKey = evKey
 		} else if !connected {
 			// 首个事件建立首条连接（key = 事件携带值）。
-			if err := handshake(evSrc); err != nil {
+			if err := handshake(evKey); err != nil {
 				return err
 			}
 			connected = true
@@ -1327,10 +1339,10 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			// OverrideDstIP 且 src=0）byte-key 与原 curSrcPort 路径逐字
 			// 相等（key 唯一字段 src=cfg.srcPort），行为不变；多会话/流关联
 			// 路径切换到独立 key，建立新连接。
-			if err := teardown(curKey.src); err != nil {
+			if err := teardown(curKey); err != nil {
 				return err
 			}
-			if err := handshake(evSrc); err != nil {
+			if err := handshake(evKey); err != nil {
 				return err
 			}
 			curKey = evKey
@@ -1341,7 +1353,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 		// 不再对已挥掉的 curKey 重复挥手（cwmp 链 flows 场景由 chain 侧强制
 		// concurrent=true 兜底，此为纯防御）。
 		if ev.CloseConn {
-			if err := teardown(evKey.src); err != nil {
+			if err := teardown(evKey); err != nil {
 				return err
 			}
 			if cfg.concurrent {
@@ -1365,9 +1377,9 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			// 响应帧源端口是客户端端口（40000 而非 8080），与 legacy
 			// http.go:330（SrcPort: spec.DstPort）不一致。多会话用 evSrc
 			// 替代 cfg.srcPort（该连接的真实客户端源端口）。
-			srcPort, dstPort := evSrc, cfg.dstPort
+			srcPort, dstPort := evKey.src, evKey.dst
 			if !ev.Up {
-				srcPort, dstPort = cfg.dstPort, evSrc
+				srcPort, dstPort = evKey.dst, evKey.src
 			}
 			pkt := core.PacketConfig{
 				Direction: direction,
@@ -1409,7 +1421,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// 维持旧行为（握手+RST/挥手空连接）。CloseConn 拆过连接的流不算空事件
 	// 流——connected 已 false，不得再补握手（否则流末多出一条空连接）。
 	if !connected && !sawEvent && !cfg.rst && cfg.handshake {
-		if err := handshake(cfg.srcPort); err != nil {
+		if err := handshake(tcpConnKey{src: cfg.srcPort, dst: cfg.dstPort}); err != nil {
 			return err
 		}
 		connected = true
@@ -1455,14 +1467,14 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 				for _, p := range connOrder {
 					c := conns[p]
 					clientSeq, serverSeq = c.clientSeq, c.serverSeq
-					if err := teardown(p.src); err != nil {
+					if err := teardown(p); err != nil {
 						return err
 					}
 				}
 				return nil
 			}
 		}
-		if err := teardown(curKey.src); err != nil {
+		if err := teardown(curKey); err != nil {
 			return err
 		}
 	}
