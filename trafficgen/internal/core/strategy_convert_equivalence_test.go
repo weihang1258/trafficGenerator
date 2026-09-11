@@ -229,9 +229,11 @@ func TestFlatChainEquivalence_FieldContract(t *testing.T) {
 
 // TestFlatChainEquivalence_UniversalTCPSubConfig verifies that the universal
 // "tcp" sub-map is read for ALL protocols (not just case "tcp"), so
-// cfg["tcp"] = {mss: 9000} is honored for http, ftp, sip, etc.
+// cfg["tcp"] = {mss: 9000} is honored for http, sip, etc.
+// Task 5 扁平删除：ftp 已移出本表——扁平四元组 + 顶层 tcp 子映射对 ftp
+// 判死（CheckFTPFlat），MSS 走链上 tcp 层（mss_segmentation 用例，Task 6）。
 func TestFlatChainEquivalence_UniversalTCPSubConfig(t *testing.T) {
-	for _, proto := range []string{"http", "ftp", "sip"} {
+	for _, proto := range []string{"http", "sip"} {
 		t.Run(proto, func(t *testing.T) {
 			spec := mapToFlowSpec(map[string]interface{}{
 				"src_ip":   "10.0.0.1",
@@ -352,7 +354,7 @@ func TestFlatChainEquivalence_Batch2Protocols(t *testing.T) {
 		},
 		"gtp": {
 			"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1",
-			"gtp":    map[string]interface{}{"mode": "u", "version": float64(1), "teid": float64(0x1234)},
+			"gtp": map[string]interface{}{"mode": "u", "version": float64(1), "teid": float64(0x1234)},
 		},
 		"ike": {
 			"src_ip":   "10.0.0.1",
@@ -362,10 +364,10 @@ func TestFlatChainEquivalence_Batch2Protocols(t *testing.T) {
 			"ike":      map[string]interface{}{"role": "initiator"},
 		},
 		"ike_nat_t": {
-			"src_ip":   "10.0.0.1",
-			"dst_ip":   "20.0.0.1",
-			"src_port": float64(12345),
-			"tcp":      map[string]interface{}{"initial_seq": float64(1000)},
+			"src_ip":    "10.0.0.1",
+			"dst_ip":    "20.0.0.1",
+			"src_port":  float64(12345),
+			"tcp":       map[string]interface{}{"initial_seq": float64(1000)},
 			"ike_nat_t": map[string]interface{}{},
 		},
 		"imap": {
@@ -470,9 +472,9 @@ func TestFlatChainEquivalence_Batch2Protocols(t *testing.T) {
 			"vmess":    map[string]interface{}{"uuid": "b831381d-6324-4d53-ad4f-8f5f45c30851", "port": float64(443)},
 		},
 		"wireguard": {
-			"src_ip":   "10.0.0.1",
-			"dst_ip":   "20.0.0.1",
-			"src_port": float64(12346),
+			"src_ip":    "10.0.0.1",
+			"dst_ip":    "20.0.0.1",
+			"src_port":  float64(12346),
 			"wireguard": map[string]interface{}{},
 		},
 	}

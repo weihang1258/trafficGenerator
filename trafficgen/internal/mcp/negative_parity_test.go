@@ -148,6 +148,18 @@ func TestNegativeParity_StrategyCreate(t *testing.T) {
 			restBody: `{"name":"p14","mode":"synth","protocol":"tcp","config":{"src_port":12345},"flow_control":{"type":"flows","value":2}}`,
 			mcpIn:    manageStrategiesInput{Action: "create", Name: "p14", Mode: "synth", Protocol: "tcp", Config: cfg(`{"src_port":12345}`), FlowControl: &flowControlInput{Type: "flows", Value: 2}},
 		},
+		{
+			// Task 5 扁平删除：纯扁平 ftp（四元组 + count + 顶层 ftp 键）→ 400。
+			name:     "ftp pure flat rejected",
+			restBody: `{"name":"p16","mode":"synth","protocol":"ftp","config":{"src_ip":"10.0.0.1","dst_ip":"20.0.0.1","src_port":21000,"dst_port":21,"count":1,"ftp":{"banner":"220"}}}`,
+			mcpIn:    manageStrategiesInput{Action: "create", Name: "p16", Mode: "synth", Protocol: "ftp", Config: cfg(`{"src_ip":"10.0.0.1","dst_ip":"20.0.0.1","src_port":21000,"dst_port":21,"count":1,"ftp":{"banner":"220"}}`)},
+		},
+		{
+			// Task 5 扁平删除：layers 推断 effective==ftp + 顶层 ftp 键混用 → 400。
+			name:     "ftp layers + top-level ftp sub-config rejected",
+			restBody: `{"name":"p17","mode":"synth","protocol":"","config":{"layers":[{"ip":{"src":"10.0.0.1"}},{"tcp":{"src_port":21000,"dst_port":21}},{"ftp":{}}],"ftp":{"banner":"220"}}}`,
+			mcpIn:    manageStrategiesInput{Action: "create", Name: "p17", Mode: "synth", Config: cfg(`{"layers":[{"ip":{"src":"10.0.0.1"}},{"tcp":{"src_port":21000,"dst_port":21}},{"ftp":{}}],"ftp":{"banner":"220"}}`)},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

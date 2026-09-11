@@ -93,18 +93,18 @@ func TestMapToFlowSpec_VLAN(t *testing.T) {
 func TestMapToFlowSpec_HTTPFullSubmap(t *testing.T) {
 	cfg := map[string]interface{}{
 		"http": map[string]interface{}{
-			"method":                "PUT",
-			"uri":                   "/v1/x",
-			"version":               "HTTP/1.0",
-			"request_headers":       map[string]interface{}{"Host": "www.home.com", "X-Trace": "abc"},
-			"body":                  `{"k":"v"}`,
-			"keep_alive":            true,
-			"transactions":          float64(3),
-			"think_time":            float64(200),
-			"response_headers":      map[string]interface{}{"Content-Type": "application/json"},
-			"response_body":         `{"ok":true}`,
-			"response_status_code":  float64(201),
-			"response_status_text":  "Created",
+			"method":               "PUT",
+			"uri":                  "/v1/x",
+			"version":              "HTTP/1.0",
+			"request_headers":      map[string]interface{}{"Host": "www.home.com", "X-Trace": "abc"},
+			"body":                 `{"k":"v"}`,
+			"keep_alive":           true,
+			"transactions":         float64(3),
+			"think_time":           float64(200),
+			"response_headers":     map[string]interface{}{"Content-Type": "application/json"},
+			"response_body":        `{"ok":true}`,
+			"response_status_code": float64(201),
+			"response_status_text": "Created",
 		},
 	}
 	spec := mapToFlowSpec(cfg, "http")
@@ -193,9 +193,9 @@ func TestMapToFlowSpec_HTTP_TCPSubConfig(t *testing.T) {
 // (false), breaking HTTP/FTP/SIP flows that rely on the SYN handshake.
 func TestMapToFlowSpec_InitialSeqLegacy_HandshakeDefault(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip":       "10.0.0.1",
-		"dst_ip":       "10.0.0.2",
-		"initial_seq":  float64(0x22222222),
+		"src_ip":      "10.0.0.1",
+		"dst_ip":      "10.0.0.2",
+		"initial_seq": float64(0x22222222),
 		"http": map[string]interface{}{
 			"method": "GET",
 			"uri":    "/",
@@ -387,8 +387,8 @@ func TestMapToFlowSpec_DefaultIPFlags(t *testing.T) {
 // rationale as TestMapToFlowSpec_DSCPUserExplicitZero.
 func TestMapToFlowSpec_FlagsUserExplicitZero(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip":  "10.0.0.1",
-		"dst_ip":  "10.0.0.2",
+		"src_ip":   "10.0.0.1",
+		"dst_ip":   "10.0.0.2",
 		"ip_flags": float64(0),
 	}
 	spec := mapToFlowSpec(cfg, "tcp")
@@ -401,8 +401,8 @@ func TestMapToFlowSpec_FlagsUserExplicitZero(t *testing.T) {
 // value (e.g. MF=1 for fragmented traffic) wins over the default DF=1.
 func TestMapToFlowSpec_FlagsUserOverride(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip":  "10.0.0.1",
-		"dst_ip":  "10.0.0.2",
+		"src_ip":   "10.0.0.1",
+		"dst_ip":   "10.0.0.2",
 		"ip_flags": float64(1), // MF=1
 	}
 	spec := mapToFlowSpec(cfg, "tcp")
@@ -433,8 +433,8 @@ func TestMapToFlowSpec_DSCPNullFallsBackToDefault(t *testing.T) {
 // null for ip_flags is treated as "not set".
 func TestMapToFlowSpec_FlagsNullFallsBackToDefault(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip":  "10.0.0.1",
-		"dst_ip":  "10.0.0.2",
+		"src_ip":   "10.0.0.1",
+		"dst_ip":   "10.0.0.2",
 		"ip_flags": nil,
 	}
 	spec := mapToFlowSpec(cfg, "tcp")
@@ -1027,7 +1027,8 @@ func TestMapToFlowSpec_HTTPDstPortUserOverride(t *testing.T) {
 
 // TestMapToFlowSpec_DefaultsPropagateToWire_IPPort is an integration test
 // that drives an empty config map through the full path:
-//   cfg -> mapToFlowSpec -> L3Base -> Builder.Build -> wire bytes
+//
+//	cfg -> mapToFlowSpec -> L3Base -> Builder.Build -> wire bytes
 //
 // and asserts the on-wire packet actually carries the default SrcIP/DstIP
 // and src/dst port. Per CLAUDE.md testing policy §4: units passing in
@@ -1152,274 +1153,158 @@ func TestMapToFlowSpec_PadMinFrame_NonBoolIgnored(t *testing.T) {
 }
 
 // ============================================================================
-// FTP branch (strategy_convert.go:273-286)
+// FTP branch (strategy_convert.go)
 // ============================================================================
 //
-// Coverage goals (per CLAUDE.md Testing Policy §3 "one test per code path"):
-//   1. ftp sub-map present -> spec.FTP populated, fields propagated
-//   2. ftp sub-map absent -> spec.FTP nil (degenerate session path)
-//   3. Banner/Commands/MSS fields each propagated
-//   4. dst_port absent -> default 21 (FTP control channel override)
-//   5. dst_port explicit user value -> user wins (NOT overridden to 21)
-//   6. dst_port=0 explicit -> 0 honored (NOT overridden to 21)
-//   7. dst_port=nil -> treated as absent -> 21 (matches DNS pattern)
-//   8. parseFTPCommands: empty/absent array -> nil
-//   9. parseFTPCommands: valid array -> []FTPCommand
-//  10. parseFTPCommands: non-array -> nil
-//  11. parseFTPCommands: array with non-map items -> skipped, rest kept
+// Task 5（扁平删除）后 FTP 扁平形状判死（mapToFlowSpec → ValidationErrors，
+// 见 ftp_flat_test.go）。本区只保留两类仍然合法的覆盖：
+//   1. 层链形状经 mapToFlowSpec 的转换（无顶层扁平键 → 干净；
+//      case "ftp" 的 21 默认口仍对链形 cfg 生效）
+//   2. parse 函数行为（banner/commands/sessions/data_channel）经
+//      ParseFTPConfigFromMap——层链路径 translateTerminalConfig 的同一
+//      真相，扁平 cfg["ftp"] 分支已死。
+// flat dst_port 的 guard-halves（显式 0 荣/nil 回退）由 DNS/SIP 同款测试
+// 覆盖（TestMapToFlowSpec_DNSDstPort* / _SIP_），FTP 不再单独成测。
 
-// TestMapToFlowSpec_FTP_FullConfig verifies that a fully-populated FTP sub-map
-// produces spec.FTP with Banner, Commands, and MSS propagated verbatim.
-func TestMapToFlowSpec_FTP_FullConfig(t *testing.T) {
+// TestMapToFlowSpec_FTP_ChainConfig converts a layers-chain ftp config and
+// verifies: no ValidationErrors (flat keys absent), and the case "ftp"
+// default dst_port 21 still applies when no flat dst_port exists.
+func TestMapToFlowSpec_FTP_ChainConfig(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
-		"tcp": map[string]interface{}{
-			"mss": float64(1400),
+		"layers": []interface{}{
+			map[string]interface{}{"ip": map[string]interface{}{"src": "10.0.0.1", "dst": "10.0.0.2"}},
+			map[string]interface{}{"tcp": map[string]interface{}{"src_port": float64(21000)}},
+			map[string]interface{}{"ftp": map[string]interface{}{"banner": "220 chain"}},
 		},
-		"ftp": map[string]interface{}{
-			"banner": "220 Welcome",
-			"commands": []interface{}{
-				map[string]interface{}{
-					"cmd":      "USER anonymous",
-					"response": "331 Anonymous access allowed",
-				},
-				map[string]interface{}{
-					"cmd":      "PASS guest@",
-					"response": "230 Login successful",
-				},
+	}
+	spec := mapToFlowSpec(cfg, "ftp")
+	if len(spec.ValidationErrors) != 0 {
+		t.Fatalf("chain-shape ftp must convert clean, got %v", spec.ValidationErrors)
+	}
+	if spec.DstPort != 21 {
+		t.Errorf("FTP DstPort=%d, want 21 (control-channel default for chain cfg without flat dst_port)", spec.DstPort)
+	}
+	if spec.SrcIP != "10.0.0.1" || spec.DstIP != "10.0.0.2" {
+		t.Errorf("layer IP truth lost: src=%s dst=%s", spec.SrcIP, spec.DstIP)
+	}
+}
+
+// TestParseFTPConfigFromMap_FullConfig verifies that a fully-populated ftp
+// layer config parses into Banner + Commands verbatim (same parse functions
+// the dead flat branch used; the chain path translates through this entry).
+func TestParseFTPConfigFromMap_FullConfig(t *testing.T) {
+	fc := ParseFTPConfigFromMap(map[string]interface{}{
+		"banner": "220 Welcome",
+		"commands": []interface{}{
+			map[string]interface{}{
+				"cmd":      "USER anonymous",
+				"response": "331 Anonymous access allowed",
+			},
+			map[string]interface{}{
+				"cmd":      "PASS guest@",
+				"response": "230 Login successful",
 			},
 		},
-	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.FTP == nil {
+	})
+	if fc == nil {
 		t.Fatal("FTP nil, want populated")
 	}
-	if spec.FTP.Banner != "220 Welcome" {
-		t.Errorf("FTP.Banner=%q, want \"220 Welcome\"", spec.FTP.Banner)
+	if fc.Banner != "220 Welcome" {
+		t.Errorf("FTP.Banner=%q, want \"220 Welcome\"", fc.Banner)
 	}
-	if spec.TCP == nil {
-		t.Fatal("TCP nil, want populated (MSS lives under TCPConfig now)")
+	if len(fc.Commands) != 2 {
+		t.Fatalf("FTP.Commands len=%d, want 2", len(fc.Commands))
 	}
-	if spec.TCP.MSS != 1400 {
-		t.Errorf("TCP.MSS=%d, want 1400 (MSS unified under TCPConfig)", spec.TCP.MSS)
+	if fc.Commands[0].Cmd != "USER anonymous" || fc.Commands[0].Response != "331 Anonymous access allowed" {
+		t.Errorf("FTP.Commands[0]=%+v", fc.Commands[0])
 	}
-	if len(spec.FTP.Commands) != 2 {
-		t.Fatalf("FTP.Commands len=%d, want 2", len(spec.FTP.Commands))
-	}
-	if spec.FTP.Commands[0].Cmd != "USER anonymous" || spec.FTP.Commands[0].Response != "331 Anonymous access allowed" {
-		t.Errorf("FTP.Commands[0]=%+v", spec.FTP.Commands[0])
-	}
-	if spec.FTP.Commands[1].Cmd != "PASS guest@" || spec.FTP.Commands[1].Response != "230 Login successful" {
-		t.Errorf("FTP.Commands[1]=%+v", spec.FTP.Commands[1])
+	if fc.Commands[1].Cmd != "PASS guest@" || fc.Commands[1].Response != "230 Login successful" {
+		t.Errorf("FTP.Commands[1]=%+v", fc.Commands[1])
 	}
 }
 
-// TestMapToFlowSpec_FTP_SubMapAbsent verifies that absent ftp sub-map leaves
-// spec.FTP nil. The planner then emits only TCP handshake + teardown (an
-// empty FTP session, which is a valid degenerate test).
-func TestMapToFlowSpec_FTP_SubMapAbsent(t *testing.T) {
-	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
+// TestParseFTPConfigFromMap_NilForEmpty verifies the empty-layer-config
+// contract: no banner/commands/data_channel/sessions → nil config, the
+// generator then runs the default empty session (legacy Plan treats nil
+// Config the same way).
+func TestParseFTPConfigFromMap_NilForEmpty(t *testing.T) {
+	if fc := ParseFTPConfigFromMap(map[string]interface{}{}); fc != nil {
+		t.Errorf("FTP=%+v, want nil (empty layer config)", fc)
 	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.FTP != nil {
-		t.Errorf("FTP=%+v, want nil (sub-map absent)", spec.FTP)
-	}
-}
-
-// TestMapToFlowSpec_FTP_SubMapWrongType verifies that a non-map ftp value
-// (e.g. a string from misconfigured JSON) leaves spec.FTP nil. The type
-// assertion `cfg["ftp"].(map[string]interface{})` fails silently.
-func TestMapToFlowSpec_FTP_SubMapWrongType(t *testing.T) {
-	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
-		"ftp":    "not-a-map",
-	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.FTP != nil {
-		t.Errorf("FTP=%+v, want nil (sub-map wrong type)", spec.FTP)
+	if fc := ParseFTPConfigFromMap(nil); fc != nil {
+		t.Errorf("FTP=%+v, want nil (nil input)", fc)
 	}
 }
 
-// TestMapToFlowSpec_FTP_DefaultPort21 verifies that absent dst_port falls
-// back to 21 (FTP control channel). FTP is the second protocol (after DNS)
-// to override the generic port-80 default with its own well-known port.
-func TestMapToFlowSpec_FTP_DefaultPort21(t *testing.T) {
-	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
-		"ftp":    map[string]interface{}{"banner": "220"},
-	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.DstPort != 21 {
-		t.Errorf("FTP DstPort=%d, want 21 (FTP control channel override)", spec.DstPort)
-	}
-}
-
-// TestMapToFlowSpec_FTP_DefaultPort21_NoSubMap verifies the port-21 override
-// fires even when the ftp sub-map is absent. The override is OUTSIDE the
-// sub-map presence check (strategy_convert.go:284-286) so it applies whenever
-// protocol="ftp" regardless of sub-map state.
-func TestMapToFlowSpec_FTP_DefaultPort21_NoSubMap(t *testing.T) {
-	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
-	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.DstPort != 21 {
-		t.Errorf("FTP DstPort=%d, want 21 (override fires even without sub-map)", spec.DstPort)
-	}
-}
-
-// TestMapToFlowSpec_FTP_UserPortHonored verifies that explicit user dst_port
-// wins over the 21 default. Matches the DNS override pattern: presence check
-// at strategy_convert.go:284 means "key present + non-nil" => user wins.
-func TestMapToFlowSpec_FTP_UserPortHonored(t *testing.T) {
-	cfg := map[string]interface{}{
-		"src_ip":   "10.0.0.1",
-		"dst_ip":   "10.0.0.2",
-		"dst_port": float64(2121),
-		"ftp":      map[string]interface{}{"banner": "220"},
-	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.DstPort != 2121 {
-		t.Errorf("FTP DstPort=%d, want 2121 (user override)", spec.DstPort)
-	}
-}
-
-// TestMapToFlowSpec_FTP_DstPortExplicitZeroHonored verifies that explicit
-// dst_port=0 for FTP is NOT overridden to 21. Without the `cfg["dst_port"]==nil`
-// half of the guard, the presence-only check would treat 0 as "absent" and
-// override it. This is the load-bearing test for that half of the guard.
-func TestMapToFlowSpec_FTP_DstPortExplicitZeroHonored(t *testing.T) {
-	cfg := map[string]interface{}{
-		"src_ip":   "10.0.0.1",
-		"dst_ip":   "10.0.0.2",
-		"dst_port": float64(0),
-		"ftp":      map[string]interface{}{"banner": "220"},
-	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.DstPort != 0 {
-		t.Errorf("FTP DstPort=%d, want 0 (explicit zero must NOT be overridden to 21)", spec.DstPort)
-	}
-}
-
-// TestMapToFlowSpec_FTP_DstPortNilFallsBackTo21 verifies that explicit JSON
-// null dst_port is treated as "not set" and falls back to 21. The `== nil`
-// half of the guard catches this case; without it, a null dst_port would
-// pass the outer `_, ok := cfg["dst_port"]` check and leave DstPort at 0.
-func TestMapToFlowSpec_FTP_DstPortNilFallsBackTo21(t *testing.T) {
-	cfg := map[string]interface{}{
-		"src_ip":   "10.0.0.1",
-		"dst_ip":   "10.0.0.2",
-		"dst_port": nil,
-		"ftp":      map[string]interface{}{"banner": "220"},
-	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.DstPort != 21 {
-		t.Errorf("FTP DstPort=%d, want 21 (nil dst_port -> fallback)", spec.DstPort)
-	}
-}
-
-// TestMapToFlowSpec_FTP_CommandsEmpty verifies that an empty commands array
-// leaves spec.FTP.Commands nil (parseFTPCommands returns nil for len==0).
-// The planner then emits a TCP handshake + Banner (if set) + teardown with
-// no command/response pairs.
-func TestMapToFlowSpec_FTP_CommandsEmpty(t *testing.T) {
-	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
-		"ftp": map[string]interface{}{
-			"banner":   "220",
-			"commands": []interface{}{},
-		},
-	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.FTP == nil {
+// TestParseFTPConfigFromMap_CommandsEmpty verifies that an empty commands
+// array leaves Commands nil (parseFTPCommands returns nil for len==0).
+func TestParseFTPConfigFromMap_CommandsEmpty(t *testing.T) {
+	fc := ParseFTPConfigFromMap(map[string]interface{}{
+		"banner":   "220",
+		"commands": []interface{}{},
+	})
+	if fc == nil {
 		t.Fatal("FTP nil, want populated")
 	}
-	if spec.FTP.Commands != nil {
-		t.Errorf("FTP.Commands=%v, want nil (empty array -> nil)", spec.FTP.Commands)
+	if fc.Commands != nil {
+		t.Errorf("FTP.Commands=%v, want nil (empty array -> nil)", fc.Commands)
 	}
 }
 
-// TestMapToFlowSpec_FTP_CommandsAbsent verifies that absent commands key
-// leaves spec.FTP.Commands nil. Same outcome as empty array, different path
-// (sub["commands"] returns nil interface, parseFTPCommands returns nil).
-func TestMapToFlowSpec_FTP_CommandsAbsent(t *testing.T) {
-	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
-		"ftp":    map[string]interface{}{"banner": "220"},
-	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.FTP == nil {
+// TestParseFTPConfigFromMap_CommandsAbsent verifies that an absent commands
+// key leaves Commands nil. Same outcome as empty array, different path.
+func TestParseFTPConfigFromMap_CommandsAbsent(t *testing.T) {
+	fc := ParseFTPConfigFromMap(map[string]interface{}{"banner": "220"})
+	if fc == nil {
 		t.Fatal("FTP nil, want populated")
 	}
-	if spec.FTP.Commands != nil {
-		t.Errorf("FTP.Commands=%v, want nil (absent key)", spec.FTP.Commands)
+	if fc.Commands != nil {
+		t.Errorf("FTP.Commands=%v, want nil (absent key)", fc.Commands)
 	}
 }
 
-// TestMapToFlowSpec_FTP_CommandsNonArray verifies that a non-array commands
-// value (e.g. a string) leaves spec.FTP.Commands nil. parseFTPCommands's
+// TestParseFTPConfigFromMap_CommandsNonArray verifies that a non-array
+// commands value (e.g. a string) leaves Commands nil; with no other content
+// the whole config collapses to nil (empty-config contract). parseFTPCommands's
 // type assertion `v.([]interface{})` fails, returning nil.
-func TestMapToFlowSpec_FTP_CommandsNonArray(t *testing.T) {
-	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
-		"ftp": map[string]interface{}{
-			"commands": "USER anonymous",
-		},
-	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.FTP == nil {
-		t.Fatal("FTP nil, want populated")
-	}
-	if spec.FTP.Commands != nil {
-		t.Errorf("FTP.Commands=%v, want nil (non-array input)", spec.FTP.Commands)
+func TestParseFTPConfigFromMap_CommandsNonArray(t *testing.T) {
+	fc := ParseFTPConfigFromMap(map[string]interface{}{
+		"commands": "USER anonymous",
+	})
+	if fc != nil {
+		t.Errorf("FTP=%+v, want nil (non-array commands -> no content -> nil config)", fc)
 	}
 }
 
-// TestMapToFlowSpec_FTP_CommandsSkipNonMapItems verifies that non-map items
-// in the commands array are silently skipped, while valid items are kept.
-// parseFTPCommands's inner `item.(map[string]interface{})` assertion fails
-// for strings/numbers, but the loop continues — the planner still gets the
-// valid commands around the bad ones.
-func TestMapToFlowSpec_FTP_CommandsSkipNonMapItems(t *testing.T) {
-	cfg := map[string]interface{}{
-		"src_ip": "10.0.0.1",
-		"dst_ip": "10.0.0.2",
-		"ftp": map[string]interface{}{
-			"commands": []interface{}{
-				map[string]interface{}{
-					"cmd":      "USER anonymous",
-					"response": "331 ok",
-				},
-				"garbage-string", // skipped
-				float64(42),      // skipped
-				map[string]interface{}{
-					"cmd":      "QUIT",
-					"response": "221 bye",
-				},
+// TestParseFTPConfigFromMap_CommandsSkipNonMapItems verifies that non-map
+// items in the commands array are silently skipped, while valid items are
+// kept.
+func TestParseFTPConfigFromMap_CommandsSkipNonMapItems(t *testing.T) {
+	fc := ParseFTPConfigFromMap(map[string]interface{}{
+		"commands": []interface{}{
+			map[string]interface{}{
+				"cmd":      "USER anonymous",
+				"response": "331 ok",
+			},
+			"garbage-string", // skipped
+			float64(42),      // skipped
+			map[string]interface{}{
+				"cmd":      "QUIT",
+				"response": "221 bye",
 			},
 		},
-	}
-	spec := mapToFlowSpec(cfg, "ftp")
-	if spec.FTP == nil {
+	})
+	if fc == nil {
 		t.Fatal("FTP nil, want populated")
 	}
-	if len(spec.FTP.Commands) != 2 {
-		t.Fatalf("FTP.Commands len=%d, want 2 (2 valid items, 2 skipped)", len(spec.FTP.Commands))
+	if len(fc.Commands) != 2 {
+		t.Fatalf("FTP.Commands len=%d, want 2 (2 valid items, 2 skipped)", len(fc.Commands))
 	}
-	if spec.FTP.Commands[0].Cmd != "USER anonymous" {
-		t.Errorf("FTP.Commands[0].Cmd=%q", spec.FTP.Commands[0].Cmd)
+	if fc.Commands[0].Cmd != "USER anonymous" {
+		t.Errorf("FTP.Commands[0].Cmd=%q", fc.Commands[0].Cmd)
 	}
-	if spec.FTP.Commands[1].Cmd != "QUIT" {
-		t.Errorf("FTP.Commands[1].Cmd=%q", spec.FTP.Commands[1].Cmd)
+	if fc.Commands[1].Cmd != "QUIT" {
+		t.Errorf("FTP.Commands[1].Cmd=%q", fc.Commands[1].Cmd)
 	}
 }
 
@@ -2025,7 +1910,7 @@ func TestMapToFlowSpec_SCTP_ChunksSkipNonMapItems(t *testing.T) {
 		"sctp": map[string]interface{}{
 			"chunks": []interface{}{
 				map[string]interface{}{"tsn": float64(1), "data": "first"},
-				"garbage", // skipped
+				"garbage",  // skipped
 				float64(7), // skipped
 				map[string]interface{}{"tsn": float64(2), "data": "second"},
 			},
@@ -2186,9 +2071,9 @@ func TestMapToFlowSpec_ICMPv6_SubMapAbsent(t *testing.T) {
 // value leaves spec.ICMPv6 nil.
 func TestMapToFlowSpec_ICMPv6_SubMapWrongType(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip":  "::1",
-		"dst_ip":  "::2",
-		"icmpv6":  "not-a-map",
+		"src_ip": "::1",
+		"dst_ip": "::2",
+		"icmpv6": "not-a-map",
 	}
 	spec := mapToFlowSpec(cfg, "icmpv6")
 	if spec.ICMPv6 != nil {
@@ -2252,8 +2137,8 @@ func TestMapToFlowSpec_ICMPv6_PatternValid(t *testing.T) {
 		"icmpv6": map[string]interface{}{
 			"identifier": float64(0xBEEF),
 			"pattern": []interface{}{
-				map[string]interface{}{"data": "first"},  // sequence=0 -> 1
-				map[string]interface{}{"data": "second"}, // sequence=0 -> 2
+				map[string]interface{}{"data": "first"},                          // sequence=0 -> 1
+				map[string]interface{}{"data": "second"},                         // sequence=0 -> 2
 				map[string]interface{}{"sequence": float64(99), "data": "third"}, // explicit
 			},
 		},
@@ -2309,9 +2194,9 @@ func TestMapToFlowSpec_ICMPv6_PatternEmpty(t *testing.T) {
 // leaves spec.ICMPv6.Pattern nil.
 func TestMapToFlowSpec_ICMPv6_PatternAbsent(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip":  "::1",
-		"dst_ip":  "::2",
-		"icmpv6":  map[string]interface{}{"type": float64(128)},
+		"src_ip": "::1",
+		"dst_ip": "::2",
+		"icmpv6": map[string]interface{}{"type": float64(128)},
 	}
 	spec := mapToFlowSpec(cfg, "icmpv6")
 	if spec.ICMPv6 == nil {
@@ -2352,7 +2237,7 @@ func TestMapToFlowSpec_ICMPv6_PatternSkipNonMapItems(t *testing.T) {
 		"icmpv6": map[string]interface{}{
 			"pattern": []interface{}{
 				map[string]interface{}{"data": "first"},
-				"garbage", // skipped
+				"garbage",  // skipped
 				float64(7), // skipped
 				map[string]interface{}{"data": "fourth"},
 			},
@@ -2492,8 +2377,8 @@ func TestMapToFlowSpec_ICMP_PatternValid(t *testing.T) {
 		"icmp": map[string]interface{}{
 			"identifier": float64(0xCAFE),
 			"pattern": []interface{}{
-				map[string]interface{}{"data": "first"},  // sequence=0 -> 1
-				map[string]interface{}{"data": "second"}, // sequence=0 -> 2
+				map[string]interface{}{"data": "first"},                          // sequence=0 -> 1
+				map[string]interface{}{"data": "second"},                         // sequence=0 -> 2
 				map[string]interface{}{"sequence": float64(99), "data": "third"}, // explicit
 			},
 		},
@@ -2592,7 +2477,7 @@ func TestMapToFlowSpec_ICMP_PatternSkipNonMapItems(t *testing.T) {
 		"icmp": map[string]interface{}{
 			"pattern": []interface{}{
 				map[string]interface{}{"data": "first"},
-				"garbage", // skipped
+				"garbage",  // skipped
 				float64(7), // skipped
 				map[string]interface{}{"data": "fourth"},
 			},
@@ -2686,9 +2571,9 @@ func TestMapToFlowSpec_SubFlows_Absent(t *testing.T) {
 // non-nil but empty slice. Planner iterates len(SubFlows), so empty is safe.
 func TestMapToFlowSpec_SubFlows_EmptyArray(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip":     "10.0.0.1",
-		"dst_ip":     "20.0.0.1",
-		"sub_flows":  []interface{}{},
+		"src_ip":    "10.0.0.1",
+		"dst_ip":    "20.0.0.1",
+		"sub_flows": []interface{}{},
 	}
 	spec := mapToFlowSpec(cfg, "tcp")
 	if spec.SubFlows == nil {
@@ -2759,8 +2644,8 @@ func TestMapToFlowSpec_SubFlows_PayloadB64OverridesPayload(t *testing.T) {
 		"dst_ip": "20.0.0.1",
 		"sub_flows": []interface{}{
 			map[string]interface{}{
-				"protocol":   "tcp",
-				"payload":    "WRONG",
+				"protocol":    "tcp",
+				"payload":     "WRONG",
 				"payload_b64": "ZmlsZSBib2R5",
 			},
 		},
@@ -2789,9 +2674,9 @@ func TestMapToFlowSpec_SubFlows_AltIPsMultiHoming(t *testing.T) {
 		"dst_ip": "20.0.0.1",
 		"sub_flows": []interface{}{
 			map[string]interface{}{
-				"protocol":   "sctp",
-				"alt_src_ip": "10.0.0.2",
-				"alt_dst_ip": "20.0.0.2",
+				"protocol":    "sctp",
+				"alt_src_ip":  "10.0.0.2",
+				"alt_dst_ip":  "20.0.0.2",
 				"alt_src_mac": "02:00:00:00:00:03",
 				"alt_dst_mac": "02:00:00:00:00:04",
 			},
@@ -2893,8 +2778,8 @@ func TestMapToFlowSpec_SubFlows_SkipsNonMapItems(t *testing.T) {
 // path for the ESP data-plane sub-config (strategy_convert.go).
 func TestMapToFlowSpec_IKE_ESPDataPlane(t *testing.T) {
 	cfg := map[string]interface{}{
-		"src_ip":   "10.0.0.1",
-		"dst_ip":   "10.0.0.2",
+		"src_ip": "10.0.0.1",
+		"dst_ip": "10.0.0.2",
 		"ike": map[string]interface{}{
 			"scenario":      "standard_v2",
 			"initiator_spi": float64(0x0123456789ABCDEF),
@@ -2965,14 +2850,14 @@ func TestMapToFlowSpec_IKE_NoESPDataPlane(t *testing.T) {
 func TestMapToFlowSpec_HTTP_ChunkedAndPipeline(t *testing.T) {
 	cfg := map[string]interface{}{
 		"http": map[string]interface{}{
-			"method":                      "POST",
-			"uri":                         "/upload",
-			"body":                        "data",
-			"request_transfer_encoding":   "chunked",
-			"response_transfer_encoding":  "chunked",
-			"chunk_size":                  float64(512),
-			"pipelined":                   true,
-			"transactions":                float64(3),
+			"method":                     "POST",
+			"uri":                        "/upload",
+			"body":                       "data",
+			"request_transfer_encoding":  "chunked",
+			"response_transfer_encoding": "chunked",
+			"chunk_size":                 float64(512),
+			"pipelined":                  true,
+			"transactions":               float64(3),
 		},
 	}
 	spec := mapToFlowSpec(cfg, "http")
@@ -3298,9 +3183,9 @@ func TestMapToFlowSpec_DoIP_HexStringFields(t *testing.T) {
 				map[string]interface{}{
 					"direction": "up",
 					"uds": map[string]interface{}{
-						"service_id":          float64(52),
-						"address_and_length":  "00 44 00 00 00 01 00 00 00 10",
-						"transfer_data":       "aabbccdd",
+						"service_id":         float64(52),
+						"address_and_length": "00 44 00 00 00 01 00 00 00 10",
+						"transfer_data":      "aabbccdd",
 					},
 				},
 			},

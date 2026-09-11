@@ -299,6 +299,17 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		spec.HasExplicitSrcPort = true
 	}
 
+	// Task 5（扁平删除，FTP 层链收尾计划）：protocol==ftp 的扁平配置判死。
+	// create/update 已在 schema 层 400（core.CheckFTPFlat 单一真相）；此处
+	// 覆盖在库旧策略（扁平形状入库、任务启动时才转换）与引擎直调路径 →
+	// spec.ValidationErrors，worker 预检终态 error。放在 D-FTP-3 §5 对象
+	// 检查之前：ftp 语境下"必须是标量"是错误指引，正确指引是迁层链。
+	if protocol == "ftp" {
+		if msg := CheckFTPFlat(cfg); msg != "" {
+			spec.ValidationErrors = append(spec.ValidationErrors, msg)
+		}
+	}
+
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
 	// 静默回退缺省。注意 defaultString/defaultPort 对对象值恒回缺省，本分支
@@ -7577,6 +7588,29 @@ func parseGOOSEConfig(m map[string]interface{}) *GOOSEConfig {
 		}
 	}
 	return b
+}
+
+// CheckFTPFlat (Task 5 扁平删除, FTP 层链收尾计划): protocol==ftp 时顶层
+// src_ip/dst_ip/src_port/dst_port/count 任一或顶层 ftp 子映射出现即拒绝，
+// 返回 checkLayerFlatConflict 家族文案（给迁移指引）。schema 层
+// （strategy create/update 400）与 mapToFlowSpec（在库旧策略/引擎直调 →
+// spec.ValidationErrors）共用此函数，保证两处文案不漂移。nil 值视为未出现
+// （JSON null = 缺省）；层链形状（无顶层扁平键）不触发。导出供
+// schema 包调用（schema import core，反向不可）。
+func CheckFTPFlat(cfg map[string]interface{}) string {
+	if cfg == nil {
+		return ""
+	}
+	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {
+		if v, ok := cfg[k]; ok && v != nil {
+			return "protocol ftp no longer accepts flat config field " + k +
+				" (FTP requires a layers chain: ip.src/ip.dst for addresses, tcp src_port/dst_port for ports, flow_control for the flow count)"
+		}
+	}
+	if v, ok := cfg["ftp"]; ok && v != nil {
+		return "protocol ftp no longer accepts a top-level ftp sub-config (move it into the ftp layer of an [ip,tcp,ftp] layers chain)"
+	}
+	return ""
 }
 
 // ParseFTPConfigFromMap decodes an ftp layer/terminal config map into an

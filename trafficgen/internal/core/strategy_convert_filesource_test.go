@@ -61,23 +61,23 @@ func TestMapToFlowSpec_FileSource_Random(t *testing.T) {
 	}
 }
 
-func TestMapToFlowSpec_FileSource_FTPDataChannel(t *testing.T) {
-	cfg := map[string]interface{}{
-		"protocol": "ftp",
-		"ftp": map[string]interface{}{
-			"data_channel": map[string]interface{}{
-				"file_source": map[string]interface{}{
-					"file": "docs/retr.bin",
-				},
+// Task 5 扁平删除后，FTP 层内 data_channel.file_source 的解析经
+// ParseFTPConfigFromMap（层链 translateTerminalConfig 的同一真相）；
+// 扁平 cfg["ftp"] 路径已判死。
+func TestParseFTPConfigFromMap_FileSource_FTPDataChannel(t *testing.T) {
+	m := map[string]interface{}{
+		"data_channel": map[string]interface{}{
+			"file_source": map[string]interface{}{
+				"file": "docs/retr.bin",
 			},
 		},
 	}
-	spec := core.MapToFlowSpec(cfg, "ftp")
-	if spec.FTP == nil || spec.FTP.DataChannel == nil || spec.FTP.DataChannel.FileSource == nil {
+	fc := core.ParseFTPConfigFromMap(m)
+	if fc == nil || fc.DataChannel == nil || fc.DataChannel.FileSource == nil {
 		t.Fatalf("FTPDataChannel.FileSource is nil")
 	}
-	if spec.FTP.DataChannel.FileSource.File != "docs/retr.bin" {
-		t.Fatalf("File got %q", spec.FTP.DataChannel.FileSource.File)
+	if fc.DataChannel.FileSource.File != "docs/retr.bin" {
+		t.Fatalf("File got %q", fc.DataChannel.FileSource.File)
 	}
 }
 

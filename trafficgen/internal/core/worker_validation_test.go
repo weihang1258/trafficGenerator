@@ -188,7 +188,7 @@ func TestProcessBatchTask_SpecValidationErrors_FailsBatch(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	if gotErr == nil {
-		t.Fatalf("batch with invalid file_source.fill.bytes=-1 silently completed: gotErr=nil. "+
+		t.Fatalf("batch with invalid file_source.fill.bytes=-1 silently completed: gotErr=nil. " +
 			"processBatchTask must fail the task when any class spec has ValidationErrors.")
 	}
 	if got := gotErr.Error(); !strings.Contains(got, "validation") {
@@ -226,6 +226,10 @@ func TestProcessBatchTask_SpecValidationErrors_AllSites(t *testing.T) {
 		expect string // substring expected in the failure error message
 	}{
 		{
+			// Task 5 扁平删除后此 class 双重非法：flat 拒绝（"no longer
+			// accepts"，见 TestProcessBatchTask_FTPFlatRejected）先入 VE，
+			// FileSource Validate 位点仍执行并追加 Fill.Bytes——本用例钉
+			// 住后者位点仍可达（两条消息都在终态 error 里）。
 			name: "B5.6 FTP.DataChannel",
 			class: TrafficClass{
 				ID: "c1", Type: "ftp", FlowCount: 1,
@@ -371,6 +375,86 @@ func TestProcessBatchTask_SpecValidationErrors_AllSites(t *testing.T) {
 				t.Errorf("error = %q, want substring %q", got, tc.expect)
 			}
 		})
+	}
+}
+
+// TestProcessBatchTask_FTPFlatRejected (Task 5 扁平删除)：batch class
+// type=ftp 的扁平配置（顶层 ftp 键 / 四元组 / count）经 mapToFlowSpec 产生
+// ValidationErrors → 整批任务终态 error。批内每个 flow 的转换都会带上该
+// 错误，任务不得静默 completed。
+func TestProcessBatchTask_FTPFlatRejected(t *testing.T) {
+	stubAll := map[string]ProtocolPlanner{
+		"ftp": &stubProtocolPlanner{packetsPerFlow: 1},
+	}
+
+	taskChan := make(chan Task, 1)
+	configChan := make(chan PacketConfig, 64)
+	var wg sync.WaitGroup
+	e := NewEngine(EngineConfig{PacketWorkers: 1, QueueSize: 64})
+	e.shardedConfigChan = []chan PacketConfig{configChan}
+	e.shardCounts = make([]atomic.Int64, 1)
+	e.shardSeed = maphash.MakeSeed()
+	worker := NewConfigWorker(0, stubAll, nil, taskChan, &wg, e)
+
+	var (
+		mu     sync.Mutex
+		gotErr error
+		done   = make(chan struct{}, 1)
+	)
+	worker.SetOnTaskDone(func(taskID string, err error, count int64) {
+		mu.Lock()
+		gotErr = err
+		mu.Unlock()
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	})
+
+	drainDone := make(chan struct{})
+	go func() {
+		for range configChan {
+		}
+		close(drainDone)
+	}()
+
+	task := Task{
+		ID:  "B5.ftp-flat",
+		Ctx: context.Background(),
+		Batch: &BatchSpec{
+			Classes: []TrafficClass{{
+				ID:        "c1",
+				Type:      "ftp",
+				FlowCount: 1,
+				Config: map[string]interface{}{
+					"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1", "dst_port": float64(21),
+					"ftp": map[string]interface{}{"banner": "220"},
+				},
+			}},
+		},
+	}
+	worker.processBatchTask(task)
+
+	close(configChan)
+	<-drainDone
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("onTaskDone not called within 2s")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if gotErr == nil {
+		t.Fatalf("flat ftp batch class silently completed: gotErr=nil")
+	}
+	got := gotErr.Error()
+	if !strings.Contains(got, "validation") {
+		t.Errorf("error = %q, want message mentioning 'validation'", got)
+	}
+	if !strings.Contains(got, "no longer accepts") {
+		t.Errorf("error = %q, want the flat-deletion message substring 'no longer accepts'", got)
 	}
 }
 

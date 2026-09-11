@@ -121,6 +121,17 @@ func validateStrategySemantic(mode, protocol string, config map[string]any, fc *
 	if err := core.ValidateProtocolSubConfigs(config, protocol); err != nil {
 		fail("%s", err.Error())
 	}
+	// Task 5（扁平删除，FTP 层链收尾计划）：protocol==ftp（上方 layers 推断
+	// 已回写，含 effective==ftp）时顶层四元组/count 或顶层 ftp 子映射任一
+	// 出现即 400。FTP 唯一合法形状是层级链 [ip,tcp,ftp]。先于 static copy
+	// 检查：flat 判死语境下 "Omit src_port" 是错误指引，正确指引是迁层链。
+	// 条件与文案的单一真相在 core.CheckFTPFlat（mapToFlowSpec 在库旧行
+	// 路径共用）。
+	if protocol == "ftp" {
+		if msg := core.CheckFTPFlat(config); msg != "" {
+			fail("%s", msg)
+		}
+	}
 	if fc != nil && fc.Type == "flows" && protocol == "tftp" {
 		if msg := checkTFTPServerTID(config, fc.Value); msg != "" {
 			fail("%s", msg)

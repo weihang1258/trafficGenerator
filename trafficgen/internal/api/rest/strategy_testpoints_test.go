@@ -1239,3 +1239,43 @@ func TestLayerFlatConflict(t *testing.T) {
 		t.Fatalf("⑥ status=%d body=%s", w6.Code, w6.Body.String())
 	}
 }
+
+// Task 5（FTP 扁平删除）：protocol==ftp 的扁平配置 create 即 400——四元组/
+// count/顶层 ftp 键任一出现都拒；层链形状（无顶层扁平键）照常 201。
+// 文案沿 checkLayerFlatConflict 家族（给迁移指引）。
+func TestFTPFlatDeletion(t *testing.T) {
+	h, r, _ := newStrategyTestServer(t)
+	stratUser(r, "u1", "alice")
+	r.POST("/strategies", h.Create)
+
+	// ① 纯扁平（四元组 + count + 顶层 ftp 键，旧 21 例的典型形状）→ 400
+	body := `{"name":"f1","protocol":"ftp","config":{"src_ip":"10.0.0.1","dst_ip":"20.0.0.1","src_port":21000,"dst_port":21,"count":1,"ftp":{"banner":"220 ready","commands":[{"cmd":"QUIT","response":"221"}]}}}`
+	w := postStrategy(t, r, body)
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "no longer accepts flat config field src_ip") {
+		t.Fatalf("① status=%d body=%s", w.Code, w.Body.String())
+	}
+	// ② 仅顶层 ftp 键（无四元组）→ 400，文案指路层链
+	body2 := `{"name":"f2","protocol":"ftp","config":{"ftp":{"banner":"220"}}}`
+	w2 := postStrategy(t, r, body2)
+	if w2.Code != 400 || !strings.Contains(w2.Body.String(), "top-level ftp sub-config") {
+		t.Fatalf("② status=%d body=%s", w2.Code, w2.Body.String())
+	}
+	// ③ layers 推断 effective==ftp + 顶层 ftp 键混用 → 400
+	body3 := `{"name":"f3","config":{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":21000,"dst_port":21}},{"ftp":{}}],"ftp":{"banner":"220"}}}`
+	w3 := postStrategy(t, r, body3)
+	if w3.Code != 400 || !strings.Contains(w3.Body.String(), "top-level ftp sub-config") {
+		t.Fatalf("③ status=%d body=%s", w3.Code, w3.Body.String())
+	}
+	// ④ 层链形状（无顶层扁平键）→ 201
+	body4 := `{"name":"f4","config":{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":21000,"dst_port":21}},{"ftp":{"banner":"220 chain","commands":[{"cmd":"QUIT","response":"221"}]}}]},"flow_control":{"type":"flows","value":1}}`
+	w4 := postStrategy(t, r, body4)
+	if w4.Code != 201 {
+		t.Fatalf("④ status=%d body=%s", w4.Code, w4.Body.String())
+	}
+	// ⑤ flows>1 + 层内标量端口 → 层链静态复制照常拦截（不受扁平删除影响）
+	body5 := `{"name":"f5","config":{"layers":[{"ip":{"src":"10.0.0.1"}},{"tcp":{"src_port":21000}},{"ftp":{}}]},"flow_control":{"type":"flows","value":2}}`
+	w5 := postStrategy(t, r, body5)
+	if w5.Code != 400 || !strings.Contains(w5.Body.String(), "static four-tuple") {
+		t.Fatalf("⑤ status=%d body=%s", w5.Code, w5.Body.String())
+	}
+}
