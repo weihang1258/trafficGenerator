@@ -174,6 +174,13 @@ type MessageEvent struct {
 	// the side's port). False (default) preserves the legacy behavior —
 	// the connection stays up until the stream's natural teardown.
 	CloseConn bool
+	// ServerFirst marks a data-connection event whose SYN is sent by the
+	// server, not the client (FTP active mode: server connects 20 →
+	// client's PORT-advertised port, legacy EmitSubFlow ServerInitiated).
+	// The TCP event loop's handshake closure is client-first only; when set,
+	// the loop emits the down-direction SYN/SYN-ACK/ACK triple mirroring
+	// emitTCPSubFlow's ServerInitiated branch. Default false (client-first).
+	ServerFirst bool
 }
 
 // EventGenerator produces the message-event stream for a terminal
@@ -949,7 +956,9 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// 多会话 = 每个 session/数据通道的独立 key，含各自目标端口）。
 	// 每次调用重新初始化该连接 seq，字节序列
 	// 与 legacy 单连接握手完全一致（P0a 多会话边界复用于新连接握手）。
-	handshake := func(key tcpConnKey) error {
+	// serverFirst=true 时发出 server 首 SYN 的 down/up/down 三元组（FTP
+	// active 数据通道，legacy emitTCPSubFlow ServerInitiated 分支）。
+	handshake := func(key tcpConnKey, serverFirst bool) error {
 		// defaultKey 回退：key.dst==0 的事件（无 DstPort 覆盖）走配置默认端口，
 		// 与旧 byte-key 单连接行为逐字节一致。
 		if key.dst == 0 {
@@ -969,6 +978,57 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 		}
 		serverSeq = rand.Uint32()
 		srcPort, dstPort := key.src, key.dst
+		if serverFirst {
+			// SYN (server -> client)
+			if err := emit(core.PacketConfig{
+				Direction: "down",
+				L4: core.L4Config{
+					Protocol:   "tcp",
+					SrcPort:    dstPort,
+					DstPort:    srcPort,
+					Seq:        serverSeq,
+					Flags:      FlagSYN,
+					WindowSize: winSize,
+					TCPOptions: synOpts,
+				},
+			}); err != nil {
+				return err
+			}
+			serverSeq++
+			// SYN-ACK (client -> server)
+			if err := emit(core.PacketConfig{
+				Direction: "up",
+				L4: core.L4Config{
+					Protocol:   "tcp",
+					SrcPort:    srcPort,
+					DstPort:    dstPort,
+					Seq:        clientSeq,
+					Ack:        serverSeq,
+					Flags:      FlagSYN | FlagACK,
+					WindowSize: winSize,
+					TCPOptions: synOpts,
+				},
+			}); err != nil {
+				return err
+			}
+			clientSeq++
+			// ACK (server -> client)
+			if err := emit(core.PacketConfig{
+				Direction: "down",
+				L4: core.L4Config{
+					Protocol:   "tcp",
+					SrcPort:    dstPort,
+					DstPort:    srcPort,
+					Seq:        serverSeq,
+					Ack:        clientSeq,
+					Flags:      FlagACK,
+					WindowSize: winSize,
+				},
+			}); err != nil {
+				return err
+			}
+			return nil
+		}
 		if err := emit(core.PacketConfig{
 			Direction: "up",
 			L4: core.L4Config{
@@ -1098,7 +1158,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// 先握手后消费事件字节级一致。
 	eventMode := req.Meta.Events != nil
 	if !eventMode {
-		if err := handshake(tcpConnKey{src: cfg.srcPort, dst: cfg.dstPort}); err != nil {
+		if err := handshake(tcpConnKey{src: cfg.srcPort, dst: cfg.dstPort}, false); err != nil {
 			return err
 		}
 	}
@@ -1320,11 +1380,13 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			}
 		}
 		// 会话边界：事件合成 key != 当前连接 key → 新连接（挥旧握新或并发恢复）。
+		// ServerFirst 由事件携带（FTP active 数据通道 server 首 SYN，
+		// legacy emitTCPSubFlow ServerInitiated 分支）；其余连接恒 client 首 SYN。
 		sawEvent = true
 		evKey := resolveConnKey(ev.SrcPort, ev.OverrideDstIP, ev.DstIP, ev.DstPort)
 		if cfg.concurrent {
 			if _, seen := conns[evKey]; !seen {
-				if err := handshake(evKey); err != nil {
+				if err := handshake(evKey, ev.ServerFirst); err != nil {
 					return err
 				}
 				conns[evKey] = &tcpConn{clientSeq: clientSeq, serverSeq: serverSeq}
@@ -1337,7 +1399,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			curKey = evKey
 		} else if !connected {
 			// 首个事件建立首条连接（key = 事件携带值）。
-			if err := handshake(evKey); err != nil {
+			if err := handshake(evKey, ev.ServerFirst); err != nil {
 				return err
 			}
 			connected = true
@@ -1350,7 +1412,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 			if err := teardown(curKey); err != nil {
 				return err
 			}
-			if err := handshake(evKey); err != nil {
+			if err := handshake(evKey, ev.ServerFirst); err != nil {
 				return err
 			}
 			curKey = evKey
@@ -1363,45 +1425,63 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 		// concurrent=true 兜底，此为纯防御）。
 		closeAfter := ev.CloseConn
 		ev.CloseConn = false
-		segments := segmentByMSS(ev.Bytes, mss)
-		for _, seg := range segments {
-			var direction string
-			var seq, ack uint32
-			if ev.Up {
-				direction, seq, ack = "up", clientSeq, serverSeq
-			} else {
-				direction, seq, ack = "down", serverSeq, clientSeq
-			}
-			// 方向相关端口交换（P2c-3 修复，review 捕获）：事件模式的 down
-			// 段必须与握手/挥手 down 段一致地把 src/dst 端口互换——响应帧
-			// 以对端端口（cfg.dstPort）为源。旧实现恒写 cfg.srcPort/dstPort，
-			// 响应帧源端口是客户端端口（40000 而非 8080），与 legacy
-			// http.go:330（SrcPort: spec.DstPort）不一致。多会话用 evSrc
-			// 替代 cfg.srcPort（该连接的真实客户端源端口）。
-			srcPort, dstPort := evKey.src, evKey.dst
-			if !ev.Up {
-				srcPort, dstPort = evKey.dst, evKey.src
-			}
-			pkt := core.PacketConfig{
-				Direction: direction,
-				L4: core.L4Config{
-					Protocol:   "tcp",
-					SrcPort:    srcPort,
-					DstPort:    dstPort,
-					Seq:        seq,
-					Ack:        ack,
-					Flags:      FlagPSH | FlagACK,
-					WindowSize: winSize,
-				},
-				Payload: seg,
-			}
-			if err := emit(pkt); err != nil {
-				return err
-			}
-			if ev.Up {
-				clientSeq += uint32(len(seg))
-			} else {
-				serverSeq += uint32(len(seg))
+		// dataEv 字节流向：Up（client 首 SYN / passive）= clientSeq 推进；
+		// down（server 首 SYN / active）= serverSeq 推进。事件 Up 只标记
+		// 首 SYN 方向（serverFirst 由握手分支单独消费），载荷的真实流向
+		// 是"data 连接上谁承载 payload"，legacy emitTCPSubFlow 以 dir 决定：
+		// dir=down（RETR 下载）server 发 PSH，dir=up（STOR 上传）client 发
+		// PSH。终结层用 Up 表达首包方向 + 载荷流向两份信息会冲突——载荷流向
+		// 以 ServerFirst 锚定（active=server 发），首包方向固定 client（除非
+		// ServerFirst）。无载荷 + CloseConn = 纯连接控制事件（ftp 空会话，
+		// T-FTP-5 legacy 7 包等价）：首见 key 照常握手（上方 concurrent/首
+		// 连接分支），数据段跳过（绝不产空 PSH 段），closeAfter 收尾挥手。
+		// 无载荷且非 CloseConn 的事件维持旧路径（segmentByMSS 空 Bytes 出
+		// 空 PSH 段），既有生成器行为不变——它们从不发无载荷事件。
+		evUp := ev.Up
+		if ev.ServerFirst {
+			evUp = false // active：server 发 PAYLOAD，down 方向 PSH
+		}
+		if !(len(ev.Bytes) == 0 && closeAfter) {
+			segments := segmentByMSS(ev.Bytes, mss)
+			for _, seg := range segments {
+				var direction string
+				var seq, ack uint32
+				if evUp {
+					direction, seq, ack = "up", clientSeq, serverSeq
+				} else {
+					direction, seq, ack = "down", serverSeq, clientSeq
+				}
+				// 方向相关端口交换（P2c-3 修复，review 捕获）：事件模式的 down
+				// 段必须与握手/挥手 down 段一致地把 src/dst 端口互换——响应帧
+				// 以对端端口（cfg.dstPort）为源。旧实现恒写 cfg.srcPort/dstPort，
+				// 响应帧源端口是客户端端口（40000 而非 8080），与 legacy
+				// http.go:330（SrcPort: spec.DstPort）不一致。多会话用 evSrc
+				// 替代 cfg.srcPort（该连接的真实客户端源端口）。
+				srcPort, dstPort := evKey.src, evKey.dst
+				if !evUp {
+					srcPort, dstPort = evKey.dst, evKey.src
+				}
+				pkt := core.PacketConfig{
+					Direction: direction,
+					L4: core.L4Config{
+						Protocol:   "tcp",
+						SrcPort:    srcPort,
+						DstPort:    dstPort,
+						Seq:        seq,
+						Ack:        ack,
+						Flags:      FlagPSH | FlagACK,
+						WindowSize: winSize,
+					},
+					Payload: seg,
+				}
+				if err := emit(pkt); err != nil {
+					return err
+				}
+				if evUp {
+					clientSeq += uint32(len(seg))
+				} else {
+					serverSeq += uint32(len(seg))
+				}
 			}
 		}
 		// 并发会话：本事件推进后的 seq 状态写回该连接的 connKey 状态。
@@ -1431,7 +1511,7 @@ func (g *TCPGenerator) Generate(ctx context.Context, req *GenRequest) error {
 	// 维持旧行为（握手+RST/挥手空连接）。CloseConn 拆过连接的流不算空事件
 	// 流——connected 已 false，不得再补握手（否则流末多出一条空连接）。
 	if !connected && !sawEvent && !cfg.rst && cfg.handshake {
-		if err := handshake(tcpConnKey{src: cfg.srcPort, dst: cfg.dstPort}); err != nil {
+		if err := handshake(tcpConnKey{src: cfg.srcPort, dst: cfg.dstPort}, false); err != nil {
 			return err
 		}
 		connected = true

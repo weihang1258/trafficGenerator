@@ -22,7 +22,6 @@ import (
 // Per-package conventions: type names (ChainPlanner, FlowMeta, etc.)
 // are package-local; only file boundaries change.
 
-
 // drive instantiates the generators inner→outer, wires the channels, and
 // drives the outermost generator of the chain — which for a standalone tcp
 // flow is the tcp generator itself (终结/传输层驱动整链)。Each packet flows
@@ -42,9 +41,10 @@ import (
 // 不会产生泄漏。
 func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGenerator, spec core.FlowSpec) ([]core.PacketConfig, error) {
 	sess := &SessionState{IPID: uint16(rand.Uint32())}
-	meta := FlowMeta{
-		FlowID:  flowID(spec),
-		Payload: spec.Payload,
+	var meta = FlowMeta{
+		FlowID:    flowID(spec),
+		Payload:   spec.Payload,
+		FlowIndex: spec.FlowIndex, // 多流会话级 dyn 解析（FTP sessions/banner/dyn 一族，flowMetaFor 同款字段；漏传时 dyn 恒按 index 0 解析）
 		// HTTP/DstIP 注入给 http 层生成器（波 2 方案 A）：HTTPConfig 全量字段
 		// 不落层 config（ValidateLayerConfig 拒绝未知字段），经 Meta 直传。
 		// UDP 同款：UDPConfig 经 Meta.UDP 直传 udp 层生成器（波 3）。
@@ -93,8 +93,8 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// core 无法 import protocol/nfs（protocol 包反向依赖 core），经
 		// spec.Metadata["nfs"] 原样传递（mapToFlowSpec 存 JSON 解码子 map），
 		// 生成器侧解析。
-		NFS:        spec.Metadata["nfs"],
-		FINS:       spec.Metadata["fins"],
+		NFS:  spec.Metadata["nfs"],
+		FINS: spec.Metadata["fins"],
 		// CoAP 同款（P4a）：配置经 Meta 直传 coap 终结层生成器（请求 + 可选
 		// ACK 响应两事件，BuildMessage 纯函数复用）。缺这行时 req.Meta.CoAP
 		// 恒 nil → 生成器回退默认 GET/无响应 → 所有 coap 链只发 1 包。
@@ -204,19 +204,19 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		IKENATT: spec.IKENATT,
 		// gRPC 同款（P3）：HTTP/2 preface + SETTINGS + 逐 call HEADERS/DATA/
 		// trailers 逐帧事件，buildFrame/buildDataFrameStream 纯函数复用。
-		GRPC:    spec.GRPC,
+		GRPC: spec.GRPC,
 		// SSH 同款（P3）：version exchange + KEXINIT/KEXDH + NEWKEYS + userauth
 		// + channel 逐 BPP 帧事件，encode*/buildBPP 纯函数复用。
-		SSH:     spec.SSH,
+		SSH: spec.SSH,
 		// RDP 同款（P3）：X.224/MCS/security PDU 序列逐帧事件，encode* 纯函数
 		// 复用。Only set for rdp chains。
-		RDP:     spec.RDP,
+		RDP: spec.RDP,
 		// OpenVPN 同款（P3）：UDP 数据报序列 P_CONTROL/P_DATA 事件，
 		// build* 纯函数复用。Only set for openvpn chains。
 		OpenVPN: spec.OpenVPN,
 		// VMess 同款（P3）：TCP-mode request/response AEAD 帧序列事件，
 		// build* 纯函数复用。Only set for vmess chains。
-		Vmess:   spec.Vmess,
+		Vmess: spec.Vmess,
 		// Shadowsocks 同款（P3）：TCP-mode AEAD 帧序列 + 可选 SOCKS5/HTTP 混淆
 		// 事件，build* 纯函数复用。Only set for shadowsocks chains。
 		Shadowsocks: spec.Shadowsocks,
@@ -906,8 +906,18 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.PostgreSQL = &core.PostgreSQLConfig{Dialect: "postgresql", WireProfile: "postgresql_v3"}
 		}
 	case "ftp":
-		if spec.FTP != nil {
-			return // 层链形状下顶层 ftp 键在 Task 5 判死；此处只处理层内 config
+		// 只在扁平路径确实携带了业务内容（sessions/banner/commands/data_channel）
+		// 时才跳过翻译。mapToFlowSpec 对协议 ftp 总会创建一个 FTPConfig
+		//（cfg["ftp"] 缺省 → nil Sessions/Commands/Banner/DataChannel），此时
+		// spec.FTP 恒非 nil 但内容全空——必须翻译层链内的 config 才能让生成器
+		// 拿到 sessions。Task 5 扁平删除后，扁平路径入口已 400
+		// （CheckFTPFlat），DB 旧 flat 行在 mapToFlowSpec 经 CheckFTPFlat →
+		// ValidationErrors 阻断，不会到达此处。这里只需区分"空结构体"
+		// 与"有内容的解析结果"。
+		if spec.FTP != nil &&
+			(len(spec.FTP.Sessions) > 0 || len(spec.FTP.Commands) > 0 ||
+				spec.FTP.Banner != "" || spec.FTP.DataChannel != nil) {
+			return
 		}
 		// 层 config（banner/commands/data_channel/sessions）经
 		// core.ParseFTPConfigFromMap 解码（与扁平 cfg["ftp"] 同 parse

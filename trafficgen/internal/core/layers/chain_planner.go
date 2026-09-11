@@ -171,6 +171,32 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 	if err != nil {
 		return spec, err
 	}
+	// 层值回填 spec（Task 6 修正）：用户在 tcp/udp 层显式写的 src_port/
+	// dst_port 是链形状的四元组真相，spec 侧在 Task 5 扁平判死后恒为
+	// mapToFlowSpec 的缺省值（12345/80 或 worker 自动递增基址）——不回填
+	// 则 flowID/包序列/事件 key 三者端口分裂（txindex_dual 实测首包
+	// 12345 而非层值 22000）。仅当层内显式写（非 nil）时回填；层内 dyn
+	// 对象（map）跳过——dyn 由 worker.resolveLayerTuple 按流解析进 spec，
+	// 此处是单 spec 默认化，不得抢占逐流值。
+	for _, l := range chain {
+		if l.Name != "tcp" && l.Name != "udp" {
+			continue
+		}
+		if v, ok := l.Config["src_port"]; ok && v != nil {
+			if _, isObj := v.(map[string]interface{}); !isObj {
+				if up, ok := configUint16(v); ok && up != 0 {
+					spec.SrcPort = up
+				}
+			}
+		}
+		if v, ok := l.Config["dst_port"]; ok && v != nil {
+			if _, isObj := v.(map[string]interface{}); !isObj {
+				if up, ok := configUint16(v); ok && up != 0 {
+					spec.DstPort = up
+				}
+			}
+		}
+	}
 	// 隧道层（gre）结构性校验（P2e T12 review HIGH-2）：GRE 只支持 IPv4
 	// 内层（GREGenerator 的 To4 检查 + builder writeGRE 的 ProtocolType
 	// 0x0800 即内层裸 IPv4 包）。IPv6 内层/空地址是**结构性**错误，必须在此

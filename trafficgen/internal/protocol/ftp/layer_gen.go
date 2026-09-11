@@ -52,6 +52,10 @@ func (g *FTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 		c = &core.FTPConfig{}
 	}
 	flowIdx := req.Meta.FlowIndex
+	// chainSrc = tcp 层的控制端口（spec.SrcPort 经 applySpecToChain 注入）；
+	// 会话 src_port=0 时回退此值（数据通道 ctrlPort+1 派生的唯一真相，
+	// 与 ftp.go:673,681 的 spec.SrcPort+1 同语义）。
+	chainSrc := req.Meta.SrcPort
 	collect := func(fn func(emit func(layers.MessageEvent) error) error) ([]layers.MessageEvent, error) {
 		var evs []layers.MessageEvent
 		if err := fn(func(ev layers.MessageEvent) error {
@@ -72,9 +76,11 @@ func (g *FTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 	}
 
 	// 老形状（顶层 Banner/Commands/DataChannel，Sessions 为空）：单控制流。
+	// srcPort=chainSrc：链上无会话 src_port 时回退到控制通道源端口（spec.SrcPort），
+	// 与 ftp.go planSessions 单流语义一致。
 	if len(c.Sessions) == 0 {
 		evs, err := collect(func(e func(layers.MessageEvent) error) error {
-			return g.emitLegacy(ctx, e, c, 0, flowIdx)
+			return g.emitLegacy(ctx, e, c, chainSrc, flowIdx)
 		})
 		if err != nil {
 			return err
@@ -83,10 +89,16 @@ func (g *FTPGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 	}
 	for _, sess := range c.Sessions {
 		evs, err := collect(func(e func(layers.MessageEvent) error) error {
-			return g.emitSession(ctx, e, c, sess, flowIdx)
+			return g.emitSession(ctx, e, c, sess, flowIdx, chainSrc)
 		})
 		if err != nil {
 			return err
+		}
+		// 空会话（T-FTP-5）：补端口专属建连事件——无载荷纯控制（CloseConn
+		// 由 emitWithSessionClose 搭上），tcp 层首见 key 握手 + CloseConn
+		// 挥手 = legacy 7 包；会话端口为空时回退 tcp 层端口（chainSrc）。
+		if len(evs) == 0 {
+			evs = append(evs, layers.MessageEvent{Up: true, SrcPort: resolveSessionPort(sess, flowIdx, chainSrc)})
 		}
 		if err := emitWithSessionClose(ctx, emit, evs); err != nil {
 			return err
@@ -119,18 +131,31 @@ func emitWithSessionClose(ctx context.Context, emit func(layers.MessageEvent) er
 	return nil
 }
 
+// resolveSessionPort resolves a session's control-port: static non-zero
+// first, dynamic by flow index (D-FTP-2), else the chain tcp layer's port
+// (spec.SrcPort via Meta — legacy spec.SrcPort 同一真相：会话 src_port=0
+// 是"继承控制端口"，数据通道 ctrlPort+1 派生必须拿真实数值，0 会派生出
+// 客户端口 1)。返回 0 仅当链端口也为 0（独立链无端口，事件 0=继承 cfg）。
+func resolveSessionPort(sess core.FTPSession, flowIdx int, chainSrc uint16) uint16 {
+	if sess.SrcPort != 0 {
+		return sess.SrcPort
+	}
+	if sess.SrcPortDyn != nil {
+		if v := core.ResolvePortValue(sess.SrcPortDyn, flowIdx); v != 0 {
+			return v
+		}
+	}
+	return chainSrc
+}
+
 // emitSession emits one control connection: banner + transactions in order,
 // then a CloseConn event so the tcp layer tears this connection down
 // (legacy planSessions 逐会话挥手语义；concurrent 模式 CloseConn 从
 // connOrder 移除，流末不再重复挥手）。
-func (g *FTPGenerator) emitSession(ctx context.Context, emit func(layers.MessageEvent) error, c *core.FTPConfig, sess core.FTPSession, flowIdx int) error {
-	// 会话级动态（D-FTP-2）：静态非零优先，动态按流序号解析。
-	srcPort := sess.SrcPort
-	if sess.SrcPortDyn != nil && srcPort == 0 {
-		if v := core.ResolvePortValue(sess.SrcPortDyn, flowIdx); v != 0 {
-			srcPort = v
-		}
-	}
+func (g *FTPGenerator) emitSession(ctx context.Context, emit func(layers.MessageEvent) error, c *core.FTPConfig, sess core.FTPSession, flowIdx int, chainSrc uint16) error {
+	// 会话级动态（D-FTP-2）：静态非零优先，动态按流序号解析（与
+	// resolveSessionPort 同一真相，空会话控制事件共用）。
+	srcPort := resolveSessionPort(sess, flowIdx, chainSrc)
 	banner := sess.Banner
 	if sess.BannerDyn != nil && banner == "" {
 		if v := core.ResolveStringValue(sess.BannerDyn, flowIdx); v != "" {
@@ -183,7 +208,7 @@ func (g *FTPGenerator) emitLegacy(ctx context.Context, emit func(layers.MessageE
 			return err
 		}
 	}
-	for _, cmd := range c.Commands {
+	for i, cmd := range c.Commands {
 		if cmd.Cmd != "" {
 			if err := emit(ev(true, []byte(cmd.Cmd+"\r\n"))); err != nil {
 				return err
@@ -195,7 +220,13 @@ func (g *FTPGenerator) emitLegacy(ctx context.Context, emit func(layers.MessageE
 			}
 		}
 		if cmd.EmitDataChannel && c.DataChannel != nil {
-			tx := core.FTPTransaction{Commands: []core.FTPCommand{cmd}, DataChannel: c.DataChannel}
+			// 老形状扫描域（legacy scanCommandsForDataPort 同款）：整个对话
+			// 到本命令为止——RETR 前面的 PASV/PORT 才可见。只装单命令的
+			// 事务会让 scanTxForDataPort 看不到信令端口，数据通道回退 50000/20。
+			tx := core.FTPTransaction{
+				Commands:    append([]core.FTPCommand(nil), c.Commands[:i+1]...),
+				DataChannel: c.DataChannel,
+			}
 			if err := g.emitDataChannel(ctx, emit, tx, srcPort); err != nil {
 				return err
 			}
@@ -233,16 +264,20 @@ func (g *FTPGenerator) emitDataChannel(ctx context.Context, emit func(layers.Mes
 	if dc.AbortAfterBytes > 0 && dc.AbortAfterBytes < len(payloadBytes) {
 		payloadBytes = payloadBytes[:dc.AbortAfterBytes]
 	}
-	// Direction 缺省 down（parseFTPDataChannel 默认）：server→client。
-	isDown := dc.Direction == "" || strings.EqualFold(dc.Direction, "down")
-	// CloseConn 搭载荷事件（tcp 层：数据先上路后挥手该 key，legacy
-	// 子流"数据→挥手"顺序；concurrent 模式从 connOrder 移除）。
+	// dataEv 方向约定（legacy EmitSubFlow ServerInitiated 同款）：数据通道
+	// 首 SYN 的发送方决定首包方向——passive=client 首 SYN（Up=true），
+	// active=server 首 SYN（down 方向，ServerFirst=true）。载荷流向固定
+	// down（下载）/up（上传）由 drive 的 ServerFirst 分支按 legacy
+	// emitTCPSubFlow 的 dir 决定：dir=down server 发 PSH，dir=up client 发
+	// PSH。Up 只表达首包方向，ServerFirst 同时翻转首包与载荷两份方向。
+	_ = dc.Direction // 载荷流向由 ServerFirst 锚定（active=server 发）
 	payloadEv := layers.MessageEvent{
-		Up:        !isDown,
-		Bytes:     payloadBytes,
-		SrcPort:   clientDataPort,
-		DstPort:   serverDataPort,
-		CloseConn: true,
+		Up:          !isActive,
+		ServerFirst: isActive,
+		Bytes:       payloadBytes,
+		SrcPort:     clientDataPort,
+		DstPort:     serverDataPort,
+		CloseConn:   true,
 	}
 	if err := g.emitMsg(ctx, emit, payloadEv); err != nil {
 		return err

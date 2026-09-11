@@ -342,8 +342,20 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 			cfg["src_port"] = uint16(spec.SrcPort)
 			cfg["dst_port"] = uint16(spec.DstPort)
 		case "tcp":
-			cfg["src_port"] = uint16(spec.SrcPort)
-			cfg["dst_port"] = uint16(spec.DstPort)
+			// 层值优先（Task 6 修正）：用户在 tcp 层显式写的 src_port/dst_port
+			// 是链形状的四元组真相，不得被 spec.SrcPort/DstPort 覆盖——扁平
+			// 键在 Task 5 判死后，spec 端口对链形状恒为 mapToFlowSpec 的缺省
+			// 值（12345/80），无条件注入会把用户层值顶掉（txindex_dual 实测
+			// 22000 被顶成 12345）。仅当层内未显式写时才注入 spec 值（独立
+			// [ip→tcp] flow 的 flat 语义保留；多流自动递增也走 spec 注入路径，
+			// 此时层内必然没写标量端口——写了会被 checkLayerChainStaticCopy
+			// 拒绝）。
+			if _, has := l.Config["src_port"]; !has {
+				cfg["src_port"] = uint16(spec.SrcPort)
+			}
+			if _, has := l.Config["dst_port"]; !has {
+				cfg["dst_port"] = uint16(spec.DstPort)
+			}
 			// ftp 链强制并发会话语义（mms/cwmp 同款）：FTP 多会话/数据通道
 			// 靠事件 SrcPort/DstPort 覆盖合成独立 connKey；concurrent=true
 			// 使 tcp 层按 key 独立建连/恢复 seq/流末统一挥手。termination
