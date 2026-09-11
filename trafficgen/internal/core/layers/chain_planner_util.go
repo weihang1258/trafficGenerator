@@ -134,6 +134,12 @@ func isMMSChain(chain []Layer) bool {
 	return len(chain) > 0 && chain[len(chain)-1].Name == "mms"
 }
 
+// isFTPChain reports whether the chain's terminal layer is ftp（FTP 链化：
+// 多会话/数据通道靠事件端口覆盖合成独立 connKey，tcp 层须 concurrent=true）。
+func isFTPChain(chain []Layer) bool {
+	return len(chain) > 0 && chain[len(chain)-1].Name == "ftp"
+}
+
 // isRIPChain reports whether the chain's terminal layer is rip（波 5c）：
 // RIP 链的 ip 层 dst 默认注入豁免（spec.DstIP 为空时保留 schema 默认，RIP
 // 生成器按版本推导默认目标并事件级覆盖，见 applySpecToChain ip 分支）。

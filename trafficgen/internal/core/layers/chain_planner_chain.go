@@ -26,6 +26,7 @@ func flowMetaFor(spec core.FlowSpec) FlowMeta {
 	return FlowMeta{
 		SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC,
 		SV: spec.SV, GOOSE: spec.GOOSE, ISIS: spec.ISIS,
+		FlowIndex: spec.FlowIndex,
 		CksumEngine: NewIPCksumComputer(),
 	}
 }
@@ -343,6 +344,13 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 		case "tcp":
 			cfg["src_port"] = uint16(spec.SrcPort)
 			cfg["dst_port"] = uint16(spec.DstPort)
+			// ftp 链强制并发会话语义（mms/cwmp 同款）：FTP 多会话/数据通道
+			// 靠事件 SrcPort/DstPort 覆盖合成独立 connKey；concurrent=true
+			// 使 tcp 层按 key 独立建连/恢复 seq/流末统一挥手。termination
+			// 保持 true，会话/数据 CloseConn 内联挥手（sawEvent 守卫防双 FIN）。
+			if isFTPChain(chain) {
+				cfg["concurrent"] = true
+			}
 			// mms 链强制并发会话语义（同 http 链强制 legacy 模式）：MMS 关联
 			// 会话不挥 TCP 手（设计 §6.1 connect_establish 7 帧止于 DT2；所有
 			// case 包数均不含 FIN），multiSession 是并发会话（按 SrcPort 保持

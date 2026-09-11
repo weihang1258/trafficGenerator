@@ -763,8 +763,11 @@ func buildDefaultRegistry() {
 		Fields: map[string]FieldSchema{
 			"username": {Type: "string", Default: "anonymous"},
 			"password": {Type: "string", Default: "anonymous"},
-			// D-FTP-3: sessions 事务结构登记（只登记形状——值语义归 planner；
-			// 层字段动态名单见 layerDynAllowlist，ftp 业务字段动态走 spec.FTP）。
+			// FTP 链化：业务字段全进 ftp 层（顶层 ftp 键已删）。banner/
+			// commands/data_channel 是老形状字段（D-FTP-1 前）；sessions/
+			// transactions 是多会话形状。值语义归 planner；层字段动态名单
+			// 见 layerDynAllowlist，ftp 业务字段动态走 spec.FTP。
+			"banner":       {Type: "string", Default: ""},
 			"sessions":     {Type: "list", Default: []interface{}{}},
 			"transactions": {Type: "list", Default: []interface{}{}},
 			"commands":     {Type: "list", Default: []interface{}{}},

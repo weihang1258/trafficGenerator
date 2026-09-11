@@ -28,7 +28,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/doip"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/enip"
 	"github.com/trafficgen/trafficgen/internal/protocol/fins"
-	"github.com/trafficgen/trafficgen/internal/protocol/ftp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ftp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/gbt32960"
 	"github.com/trafficgen/trafficgen/internal/protocol/goose"
 	"github.com/trafficgen/trafficgen/internal/protocol/gre"
@@ -529,7 +529,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ospf"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("pim"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("isis"))
-	app.engine.RegisterPlanner(ftp.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ftp"))
 	app.engine.RegisterPlanner(sip.NewPlanner())
 	app.engine.RegisterPlanner(rtsp.NewPlanner())
 	app.engine.RegisterPlanner(sctp.NewPlanner())

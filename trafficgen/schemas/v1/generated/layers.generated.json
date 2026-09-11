@@ -445,6 +445,10 @@
         "tls"
       ],
       "fields": {
+        "banner": {
+          "type": "string",
+          "default": ""
+        },
         "commands": {
           "type": "list",
           "default": []

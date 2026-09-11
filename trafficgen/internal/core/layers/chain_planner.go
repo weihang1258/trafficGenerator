@@ -735,6 +735,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// POP3 目的端口默认 110（RFC 1939，legacy DefaultPort 同款——
 			// 用户显式写 dst_port 时已非零不落此分支）。
 			spec.DstPort = 110
+		case "ftp":
+			// FTP 目的端口默认 21（RFC 959 控制通道；strategy_convert
+			// mapToFlowSpec setDefaultDstPort(&spec, cfg, 21) 同款——
+			// 用户显式写 dst_port 时已非零不落此分支）。
+			spec.DstPort = 21
 		case "imap":
 			// IMAP 目的端口默认 143（RFC 3501，legacy DefaultPort=143 同款——
 			// 用户显式写 dst_port 时已非零不落此分支）。
