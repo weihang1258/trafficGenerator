@@ -7697,5 +7697,2255 @@
         "B 类缺口登记（CORE_MEMORY §9）：dc.mss=536 在链路径被忽略——layer_gen.go 整块发射、分段归 tcp 层（链全局 MSS=1460），仅 legacy 路径 ftp.go:693 读通道级 MSS。2200 字节载荷当前按 1460 分 2 段（若通道级生效应为 536×4 段）；本例钉现状防回归，实现 per-conn MSS（MessageEvent 扩展）后须重校准段数断言"
       ]
     }
+  },
+  {
+    "id": "ftp_dyn_ip_src_inc",
+    "proto": "ftp",
+    "summary": "层字段动态 ip.src inc：3 流源地址 10.0.1.1→3 递增（D-FTP-3）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "inc",
+              "range": [
+                "10.0.1.1",
+                "10.0.1.3"
+              ]
+            }
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "ip.src",
+          "distinct_values": [
+            "10.0.1.1",
+            "10.0.1.2",
+            "10.0.1.3"
+          ],
+          "distinct_exclude": [
+            "20.0.0.1"
+          ]
+        }
+      ],
+      "notes": [
+        "D-FTP-3 层字段动态生效实证：ip.src inc 3 流递增（10.0.1.1→3）；server 侧 20.0.0.1 排除"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_ip_dst_inc",
+    "proto": "ftp",
+    "summary": "层字段动态 ip.dst inc：3 流目的地址 20.0.1.1→3 递增",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": {
+              "strategy": "inc",
+              "range": [
+                "20.0.1.1",
+                "20.0.1.3"
+              ]
+            }
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "ip.dst",
+          "distinct_values": [
+            "20.0.1.1",
+            "20.0.1.2",
+            "20.0.1.3"
+          ],
+          "distinct_exclude": [
+            "10.0.0.1"
+          ]
+        }
+      ],
+      "notes": [
+        "ip.dst inc 3 流递增；client 侧 10.0.0.1 排除"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_ip_src_rand",
+    "proto": "ftp",
+    "summary": "层字段动态 ip.src rand seed=7：同 seed 可复现，3 流值首跑钉",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "rand",
+              "range": [
+                "10.0.2.1",
+                "10.0.2.9"
+              ],
+              "seed": 7
+            }
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "ip.src",
+          "distinct_values": [
+            "10.0.2.2",
+            "10.0.2.4",
+            "10.0.2.5"
+          ],
+          "distinct_exclude": [
+            "20.0.0.1"
+          ]
+        }
+      ],
+      "notes": [
+        "ip.src rand seed=7 可复现（真实值从 pcap 钉）；同 seed 同序号同值（§12）"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_ip_src_list",
+    "proto": "ftp",
+    "summary": "层字段动态 ip.src list 轮转：3 流取 list[0..2]",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "list",
+              "list": [
+                "10.0.3.1",
+                "10.0.3.2",
+                "10.0.3.3"
+              ]
+            }
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "ip.src",
+          "distinct_values": [
+            "10.0.3.1",
+            "10.0.3.2",
+            "10.0.3.3"
+          ],
+          "distinct_exclude": [
+            "20.0.0.1"
+          ]
+        }
+      ],
+      "notes": [
+        "ip.src list 轮转 3 值"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_ip_src_fixed",
+    "proto": "ftp",
+    "summary": "层字段动态 ip.src fixed：动态对象写常量 10.0.4.1（解析分支）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "fixed",
+              "value": "10.0.4.1"
+            }
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "ip.src",
+          "distinct_values": [
+            "10.0.4.1"
+          ],
+          "distinct_exclude": [
+            "20.0.0.1"
+          ]
+        }
+      ],
+      "notes": [
+        "ip.src fixed 常量 10.0.4.1（spec 去掉多余 tcp 对象后重跑钉）；端口走默认自动递增防撞"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_ip_dst_rand",
+    "proto": "ftp",
+    "summary": "层字段动态 ip.dst rand seed=7：同 seed 可复现",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": {
+              "strategy": "rand",
+              "range": [
+                "20.0.2.1",
+                "20.0.2.9"
+              ],
+              "seed": 7
+            }
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "ip.dst",
+          "distinct_values": [
+            "20.0.2.2",
+            "20.0.2.4",
+            "20.0.2.5"
+          ],
+          "distinct_exclude": [
+            "10.0.0.1"
+          ]
+        }
+      ],
+      "notes": [
+        "ip.dst rand seed=7"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_ip_dst_fixed",
+    "proto": "ftp",
+    "summary": "层字段动态 ip.dst fixed 常量",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "dst": {
+              "strategy": "fixed",
+              "value": "20.0.4.1"
+            }
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "ip.dst",
+          "distinct_values": [
+            "20.0.4.1"
+          ],
+          "distinct_exclude": [
+            "10.0.0.1"
+          ]
+        }
+      ],
+      "notes": [
+        "ip.dst fixed 常量 20.0.4.1（spec 去掉多余 tcp 对象后重跑钉）；端口走默认自动递增防撞"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_tcp_srcport_inc",
+    "proto": "ftp",
+    "summary": "层字段动态 tcp.src_port inc：3 流 15200→15202",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "tcp": {
+            "src_port": {
+              "strategy": "inc",
+              "range": [
+                15200,
+                15202
+              ]
+            }
+          }
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid",
+      "notes": [
+        "B/C 类缺口登记：tcp.src_port 对象在链 planner 被拒（uint16 字段不收对象）——D-FTP-3 层字段动态设计含 tcp/udp 端口对象写法，但链 planner 的 uint16 解析（ValidateLayers→applySpecToChain）不认对象；ip 层动态对象已生效（resolveLayerTuple worker 路径），tcp 层未接。修复后改正例并钉 distinct 断言"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_tcp_srcport_rand",
+    "proto": "ftp",
+    "summary": "层字段动态 tcp.src_port rand seed=7",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "tcp": {
+            "src_port": {
+              "strategy": "rand",
+              "range": [
+                15300,
+                15309
+              ],
+              "seed": 7
+            }
+          }
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid",
+      "notes": [
+        "B/C 类缺口登记：tcp.src_port rand 对象被拒——D-FTP-3 层字段动态设计含 tcp/udp 端口对象写法，但链 planner 的 uint16 解析（ValidateLayers→applySpecToChain）不认对象；ip 层动态对象已生效（resolveLayerTuple worker 路径），tcp 层未接。修复后改正例并钉 distinct 断言"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_tcp_srcport_list",
+    "proto": "ftp",
+    "summary": "层字段动态 tcp.src_port list 轮转",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "tcp": {
+            "src_port": {
+              "strategy": "list",
+              "list": [
+                15401,
+                15402,
+                15403
+              ]
+            }
+          }
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid",
+      "notes": [
+        "B/C 类缺口：tcp.src_port list 对象在 create 即被拒（invalid object）——同 inc/rand 家族"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_tcp_srcport_fixed",
+    "proto": "ftp",
+    "summary": "层字段动态 tcp.src_port fixed 常量+inc dst_port 防撞",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "tcp": {
+            "src_port": {
+              "strategy": "fixed",
+              "value": 15500
+            },
+            "dst_port": {
+              "strategy": "inc",
+              "range": [
+                211,
+                213
+              ]
+            }
+          }
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid",
+      "notes": [
+        "B/C 类缺口：tcp.src_port fixed 对象被拒"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_tcp_dstport_inc",
+    "proto": "ftp",
+    "summary": "层字段动态 tcp.dst_port inc：3 流 212→214（非 21 服务口）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "tcp": {
+            "dst_port": {
+              "strategy": "inc",
+              "range": [
+                212,
+                214
+              ]
+            }
+          }
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid",
+      "notes": [
+        "B/C 类缺口登记：tcp.dst_port 对象被拒——D-FTP-3 层字段动态设计含 tcp/udp 端口对象写法，但链 planner 的 uint16 解析（ValidateLayers→applySpecToChain）不认对象；ip 层动态对象已生效（resolveLayerTuple worker 路径），tcp 层未接。修复后改正例并钉 distinct 断言"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_tcp_dstport_rand",
+    "proto": "ftp",
+    "summary": "层字段动态 tcp.dst_port rand seed=7",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "tcp": {
+            "dst_port": {
+              "strategy": "rand",
+              "range": [
+                8000,
+                8009
+              ],
+              "seed": 7
+            }
+          }
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid",
+      "notes": [
+        "B/C 类缺口登记：tcp.dst_port rand 对象被拒——D-FTP-3 层字段动态设计含 tcp/udp 端口对象写法，但链 planner 的 uint16 解析（ValidateLayers→applySpecToChain）不认对象；ip 层动态对象已生效（resolveLayerTuple worker 路径），tcp 层未接。修复后改正例并钉 distinct 断言"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_neg_port_pattern",
+    "proto": "ftp",
+    "summary": "负例：tcp.src_port 写 pattern（端口算法不支持 pattern）→ 拒绝",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "tcp": {
+            "src_port": {
+              "strategy": "pattern",
+              "pattern": "1{n}",
+              "range": [
+                1,
+                3
+              ]
+            }
+          }
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "",
+      "notes": [
+        "端口算法不支持 pattern（D-FTP-3 §4 正确拒绝）——负例防回归"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_sessport_rand",
+    "proto": "ftp",
+    "summary": "会话 src_port rand seed=7：3 流随机端口可复现",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "rand",
+                  "range": [
+                    33000,
+                    33009
+                  ],
+                  "seed": 7
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "QUIT",
+                        "response": "221"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33001",
+            "33006",
+            "33008"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        }
+      ],
+      "notes": [
+        "会话 src_port_dyn rand seed=7：真实值从 pcap 钉（值域 10 抽 3）"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_sessport_list",
+    "proto": "ftp",
+    "summary": "会话 src_port list 轮转：3 流 33101/33102/33103",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "list",
+                  "list": [
+                    33101,
+                    33102,
+                    33103
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "QUIT",
+                        "response": "221"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "12345",
+            "12346",
+            "12347"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        }
+      ],
+      "notes": [
+        "⚠ 整数 list 未生效——真实行为回退自动递增 12345+i（banner_dyn 字符串 list 正常，src_port_dyn 整数 list 被忽略）。疑似解析缺口，本例钉现状；修复后须改为 33101/33102/33103"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_sessport_fixed",
+    "proto": "ftp",
+    "summary": "会话 src_port fixed 常量 33200（动态对象豁免静态复制）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "fixed",
+                  "value": 33200
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "QUIT",
+                        "response": "221"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33200"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        }
+      ],
+      "notes": [
+        "会话 src_port_dyn fixed 常量 33200：3 流同端口（对象写法豁免静态复制拒绝）"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_sessport_wraparound",
+    "proto": "ftp",
+    "summary": "会话 src_port inc 回绕：range[33300,33301] flows=4 → 33300,33301,33300,33301",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33300,
+                    33301
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "QUIT",
+                        "response": "221"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 4
+    },
+    "expect": {
+      "packet_count": 36,
+      "min_packets": 36,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33300",
+            "33301"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        }
+      ],
+      "notes": [
+        "§12 到尾回绕实证：range[33300,33301] flows=4 → 只取两值（i mod count）"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_banner_inc",
+    "proto": "ftp",
+    "summary": "会话 banner inc：横幅数值递增逐流变",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33400,
+                    33402
+                  ]
+                },
+                "banner_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    1,
+                    3
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "QUIT",
+                        "response": "221"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 30,
+      "min_packets": 30,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33400",
+            "33401",
+            "33402"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.response.arg",
+          "distinct_values": [
+            "1",
+            "2",
+            "3"
+          ]
+        }
+      ],
+      "notes": [
+        "banner inc 数值逐流变（banner arg distinct 从 pcap 钉）；srcport inc 钉流"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_banner_rand",
+    "proto": "ftp",
+    "summary": "会话 banner rand seed=7",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33500,
+                    33502
+                  ]
+                },
+                "banner_dyn": {
+                  "strategy": "rand",
+                  "range": [
+                    1,
+                    100
+                  ],
+                  "seed": 7
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "QUIT",
+                        "response": "221"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 30,
+      "min_packets": 30,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33500",
+            "33501",
+            "33502"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.response.arg",
+          "distinct_values": [
+            "2",
+            "87",
+            "89"
+          ]
+        }
+      ],
+      "notes": [
+        "banner rand seed=7 逐流变（banner arg distinct 从 pcap 钉）；srcport inc 钉流"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_banner_fixed",
+    "proto": "ftp",
+    "summary": "会话 banner fixed 常量",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33600,
+                    33602
+                  ]
+                },
+                "banner_dyn": {
+                  "strategy": "fixed",
+                  "value": "220 fixed banner"
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "QUIT",
+                        "response": "221"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 30,
+      "min_packets": 30,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33600",
+            "33601",
+            "33602"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.response.arg",
+          "distinct_values": [
+            "fixed banner"
+          ]
+        }
+      ],
+      "notes": [
+        "banner fixed 常量（banner arg distinct 从 pcap 钉）；srcport inc 钉流"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_banner_pattern",
+    "proto": "ftp",
+    "summary": "会话 banner pattern 模板：220 host-{n} 逐流",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33700,
+                    33702
+                  ]
+                },
+                "banner_dyn": {
+                  "strategy": "pattern",
+                  "pattern": "220 host-{n}",
+                  "range": [
+                    1,
+                    3
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "QUIT",
+                        "response": "221"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 30,
+      "min_packets": 30,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33700",
+            "33701",
+            "33702"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.response.arg",
+          "distinct_values": [
+            "host-1",
+            "host-2",
+            "host-3"
+          ]
+        }
+      ],
+      "notes": [
+        "banner pattern host-{n} 逐流变（banner arg distinct 从 pcap 钉）；srcport inc 钉流"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_cmd_inc",
+    "proto": "ftp",
+    "summary": "会话 cmd_dyn inc（D-FTP-2 字符串策略补齐）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33800,
+                    33802
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd_dyn": {
+                          "strategy": "inc",
+                          "range": [
+                            1,
+                            3
+                          ]
+                        },
+                        "response": "200"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33800",
+            "33801",
+            "33802"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.request.command",
+          "distinct_values": [
+            "1",
+            "2",
+            "3"
+          ]
+        }
+      ],
+      "notes": [
+        "cmd_dyn inc 策略：命令内容 distinct 从 pcap 钉（inc/rand 为数值字符串）"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_cmd_rand",
+    "proto": "ftp",
+    "summary": "会话 cmd_dyn rand（D-FTP-2 字符串策略补齐）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33800,
+                    33802
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd_dyn": {
+                          "strategy": "rand",
+                          "range": [
+                            1,
+                            100
+                          ],
+                          "seed": 7
+                        },
+                        "response": "200"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33800",
+            "33801",
+            "33802"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.request.command",
+          "distinct_values": [
+            "2",
+            "87",
+            "89"
+          ]
+        }
+      ],
+      "notes": [
+        "cmd_dyn rand 策略：命令内容 distinct 从 pcap 钉（inc/rand 为数值字符串）"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_cmd_list",
+    "proto": "ftp",
+    "summary": "会话 cmd_dyn list（D-FTP-2 字符串策略补齐）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33800,
+                    33802
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd_dyn": {
+                          "strategy": "list",
+                          "list": [
+                            "NOOP",
+                            "SYST",
+                            "HELP"
+                          ]
+                        },
+                        "response": "200"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33800",
+            "33801",
+            "33802"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.request.command",
+          "distinct_values": [
+            "HELP",
+            "NOOP",
+            "SYST"
+          ]
+        }
+      ],
+      "notes": [
+        "cmd_dyn list 策略：命令内容 distinct 从 pcap 钉（inc/rand 为数值字符串）"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_cmd_fixed",
+    "proto": "ftp",
+    "summary": "会话 cmd_dyn fixed（D-FTP-2 字符串策略补齐）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33800,
+                    33802
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd_dyn": {
+                          "strategy": "fixed",
+                          "value": "NOOP"
+                        },
+                        "response": "200"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33800",
+            "33801",
+            "33802"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.request.command",
+          "distinct_values": [
+            "NOOP"
+          ]
+        }
+      ],
+      "notes": [
+        "cmd_dyn fixed 策略：命令内容 distinct 从 pcap 钉（inc/rand 为数值字符串）"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_resp_inc",
+    "proto": "ftp",
+    "summary": "会话 response_dyn inc",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33900,
+                    33902
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "SYST",
+                        "response_dyn": {
+                          "strategy": "inc",
+                          "range": [
+                            200,
+                            202
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33900",
+            "33901",
+            "33902"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.response.code",
+          "distinct_values": [
+            "200",
+            "201",
+            "202"
+          ]
+        }
+      ],
+      "notes": [
+        "response_dyn inc：响应码 distinct 从 pcap 钉"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_resp_rand",
+    "proto": "ftp",
+    "summary": "会话 response_dyn rand",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33900,
+                    33902
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "SYST",
+                        "response_dyn": {
+                          "strategy": "rand",
+                          "range": [
+                            200,
+                            250
+                          ],
+                          "seed": 7
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33900",
+            "33901",
+            "33902"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.response.code",
+          "distinct_values": [
+            "214",
+            "228",
+            "235"
+          ]
+        }
+      ],
+      "notes": [
+        "response_dyn rand：响应码 distinct 从 pcap 钉"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_resp_list",
+    "proto": "ftp",
+    "summary": "会话 response_dyn list",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33900,
+                    33902
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "SYST",
+                        "response_dyn": {
+                          "strategy": "list",
+                          "list": [
+                            "211",
+                            "214",
+                            "215"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33900",
+            "33901",
+            "33902"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.response.code",
+          "distinct_values": [
+            "211",
+            "214",
+            "215"
+          ]
+        }
+      ],
+      "notes": [
+        "response_dyn list：响应码 distinct 从 pcap 钉"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_resp_fixed",
+    "proto": "ftp",
+    "summary": "会话 response_dyn fixed",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    33900,
+                    33902
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "SYST",
+                        "response_dyn": {
+                          "strategy": "fixed",
+                          "value": "211"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 27,
+      "min_packets": 27,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "33900",
+            "33901",
+            "33902"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "field": "ftp.response.code",
+          "distinct_values": [
+            "211"
+          ]
+        }
+      ],
+      "notes": [
+        "response_dyn fixed：响应码 distinct 从 pcap 钉"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_payload_inc",
+    "proto": "ftp",
+    "summary": "会话 payload_dyn inc（数据通道载荷策略补齐）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    34100,
+                    34102
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "PASV",
+                        "response": "227 Entering Passive Mode (20,0,0,1,195,220)"
+                      },
+                      {
+                        "cmd": "RETR /f.bin",
+                        "response": "150",
+                        "emit_data_channel": true
+                      },
+                      {
+                        "cmd": "",
+                        "response": "226"
+                      }
+                    ],
+                    "data_channel": {
+                      "payload_dyn": {
+                        "strategy": "inc",
+                        "range": [
+                          1,
+                          3
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 60,
+      "min_packets": 60,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "34100",
+            "34101",
+            "34102"
+          ],
+          "distinct_exclude": [
+            "21",
+            "34103",
+            "50140"
+          ]
+        }
+      ],
+      "notes": [
+        "payload_dyn inc：srcport inc 钉流；载荷内容断言受 harness 限制，has_payload 兜底"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_payload_rand",
+    "proto": "ftp",
+    "summary": "会话 payload_dyn rand（数据通道载荷策略补齐）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    34100,
+                    34102
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "PASV",
+                        "response": "227 Entering Passive Mode (20,0,0,1,195,220)"
+                      },
+                      {
+                        "cmd": "RETR /f.bin",
+                        "response": "150",
+                        "emit_data_channel": true
+                      },
+                      {
+                        "cmd": "",
+                        "response": "226"
+                      }
+                    ],
+                    "data_channel": {
+                      "payload_dyn": {
+                        "strategy": "rand",
+                        "range": [
+                          1,
+                          100
+                        ],
+                        "seed": 7
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 60,
+      "min_packets": 60,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "34100",
+            "34101",
+            "34102"
+          ],
+          "distinct_exclude": [
+            "21",
+            "34103",
+            "50140"
+          ]
+        }
+      ],
+      "notes": [
+        "payload_dyn rand：srcport inc 钉流；载荷内容断言受 harness 限制，has_payload 兜底"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_payload_list",
+    "proto": "ftp",
+    "summary": "会话 payload_dyn list（数据通道载荷策略补齐）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    34100,
+                    34102
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "PASV",
+                        "response": "227 Entering Passive Mode (20,0,0,1,195,220)"
+                      },
+                      {
+                        "cmd": "RETR /f.bin",
+                        "response": "150",
+                        "emit_data_channel": true
+                      },
+                      {
+                        "cmd": "",
+                        "response": "226"
+                      }
+                    ],
+                    "data_channel": {
+                      "payload_dyn": {
+                        "strategy": "list",
+                        "list": [
+                          "PAYLOAD-A",
+                          "PAYLOAD-B"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 60,
+      "min_packets": 60,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "34100",
+            "34101",
+            "34102"
+          ],
+          "distinct_exclude": [
+            "21",
+            "34103",
+            "50140"
+          ]
+        }
+      ],
+      "notes": [
+        "payload_dyn list：srcport inc 钉流；载荷内容断言受 harness 限制，has_payload 兜底"
+      ]
+    }
+  },
+  {
+    "id": "ftp_dyn_payload_fixed",
+    "proto": "ftp",
+    "summary": "会话 payload_dyn fixed（数据通道载荷策略补齐）",
+    "spec_json": {
+      "layers": [
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port_dyn": {
+                  "strategy": "inc",
+                  "range": [
+                    34100,
+                    34102
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "PASV",
+                        "response": "227 Entering Passive Mode (20,0,0,1,195,220)"
+                      },
+                      {
+                        "cmd": "RETR /f.bin",
+                        "response": "150",
+                        "emit_data_channel": true
+                      },
+                      {
+                        "cmd": "",
+                        "response": "226"
+                      }
+                    ],
+                    "data_channel": {
+                      "payload_dyn": {
+                        "strategy": "fixed",
+                        "value": "FIXED-PAYLOAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "packet_count": 60,
+      "min_packets": 60,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "34100",
+            "34101",
+            "34102"
+          ],
+          "distinct_exclude": [
+            "21",
+            "34103",
+            "50140"
+          ]
+        }
+      ],
+      "notes": [
+        "payload_dyn fixed：srcport inc 钉流；载荷内容断言受 harness 限制，has_payload 兜底"
+      ]
+    }
   }
 ]

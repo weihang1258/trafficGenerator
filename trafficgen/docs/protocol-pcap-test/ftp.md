@@ -1,6 +1,6 @@
 # ftp Pcap Test Results
 
-Cases: 97 — pass 97, fail 0, error 0
+Cases: 131 — pass 131, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -28,8 +28,42 @@ Cases: 97 — pass 97, fail 0, error 0
 | ftp_dataconn_fallback | RFC 959 §3.2 端口推导回退：无 PASV/PORT 信令→server 50000 | pass | 25 | [pcap](ftp/ftp_dataconn_fallback.pcap) |
 | ftp_dc_mss_override | dc.mss 数据通道级 MSS 覆盖（B 类缺口钉现状）：链路径当前忽略该字段、按链全局 MSS=1460 分段 | pass | 28 | [pcap](ftp/ftp_dc_mss_override.pcap) |
 | ftp_dele_550_fail | RFC 959 §5.4 DELE→550 删除被拒（fail 分支） | pass | 16 | [pcap](ftp/ftp_dele_550_fail.pcap) |
+| ftp_dyn_banner_fixed | 会话 banner fixed 常量 | pass | 30 | [pcap](ftp/ftp_dyn_banner_fixed.pcap) |
+| ftp_dyn_banner_inc | 会话 banner inc：横幅数值递增逐流变 | pass | 30 | [pcap](ftp/ftp_dyn_banner_inc.pcap) |
+| ftp_dyn_banner_pattern | 会话 banner pattern 模板：220 host-{n} 逐流 | pass | 30 | [pcap](ftp/ftp_dyn_banner_pattern.pcap) |
+| ftp_dyn_banner_rand | 会话 banner rand seed=7 | pass | 30 | [pcap](ftp/ftp_dyn_banner_rand.pcap) |
+| ftp_dyn_cmd_fixed | 会话 cmd_dyn fixed（D-FTP-2 字符串策略补齐） | pass | 27 | [pcap](ftp/ftp_dyn_cmd_fixed.pcap) |
+| ftp_dyn_cmd_inc | 会话 cmd_dyn inc（D-FTP-2 字符串策略补齐） | pass | 27 | [pcap](ftp/ftp_dyn_cmd_inc.pcap) |
+| ftp_dyn_cmd_list | 会话 cmd_dyn list（D-FTP-2 字符串策略补齐） | pass | 27 | [pcap](ftp/ftp_dyn_cmd_list.pcap) |
+| ftp_dyn_cmd_rand | 会话 cmd_dyn rand（D-FTP-2 字符串策略补齐） | pass | 27 | [pcap](ftp/ftp_dyn_cmd_rand.pcap) |
 | ftp_dyn_command_pattern | T-FTP-11: cmd_dyn pattern 逐流动态（层链），RETR 文件名按流变；46 帧 = 2×23 | pass | 44 | [pcap](ftp/ftp_dyn_command_pattern.pcap) |
+| ftp_dyn_ip_dst_fixed | 层字段动态 ip.dst fixed 常量 | pass | 27 | [pcap](ftp/ftp_dyn_ip_dst_fixed.pcap) |
+| ftp_dyn_ip_dst_inc | 层字段动态 ip.dst inc：3 流目的地址 20.0.1.1→3 递增 | pass | 27 | [pcap](ftp/ftp_dyn_ip_dst_inc.pcap) |
+| ftp_dyn_ip_dst_rand | 层字段动态 ip.dst rand seed=7：同 seed 可复现 | pass | 27 | [pcap](ftp/ftp_dyn_ip_dst_rand.pcap) |
+| ftp_dyn_ip_src_fixed | 层字段动态 ip.src fixed：动态对象写常量 10.0.4.1（解析分支） | pass | 27 | [pcap](ftp/ftp_dyn_ip_src_fixed.pcap) |
+| ftp_dyn_ip_src_inc | 层字段动态 ip.src inc：3 流源地址 10.0.1.1→3 递增（D-FTP-3） | pass | 27 | [pcap](ftp/ftp_dyn_ip_src_inc.pcap) |
+| ftp_dyn_ip_src_list | 层字段动态 ip.src list 轮转：3 流取 list[0..2] | pass | 27 | [pcap](ftp/ftp_dyn_ip_src_list.pcap) |
+| ftp_dyn_ip_src_rand | 层字段动态 ip.src rand seed=7：同 seed 可复现，3 流值首跑钉 | pass | 27 | [pcap](ftp/ftp_dyn_ip_src_rand.pcap) |
+| ftp_dyn_neg_port_pattern | 负例：tcp.src_port 写 pattern（端口算法不支持 pattern）→ 拒绝 | pass | 0 | [pcap]() |
 | ftp_dyn_payload | T-FTP-12: data_channel payload_dyn pattern 逐流动态（层链）；46 帧 = 2×23 | pass | 44 | [pcap](ftp/ftp_dyn_payload.pcap) |
+| ftp_dyn_payload_fixed | 会话 payload_dyn fixed（数据通道载荷策略补齐） | pass | 60 | [pcap](ftp/ftp_dyn_payload_fixed.pcap) |
+| ftp_dyn_payload_inc | 会话 payload_dyn inc（数据通道载荷策略补齐） | pass | 60 | [pcap](ftp/ftp_dyn_payload_inc.pcap) |
+| ftp_dyn_payload_list | 会话 payload_dyn list（数据通道载荷策略补齐） | pass | 60 | [pcap](ftp/ftp_dyn_payload_list.pcap) |
+| ftp_dyn_payload_rand | 会话 payload_dyn rand（数据通道载荷策略补齐） | pass | 60 | [pcap](ftp/ftp_dyn_payload_rand.pcap) |
+| ftp_dyn_resp_fixed | 会话 response_dyn fixed | pass | 27 | [pcap](ftp/ftp_dyn_resp_fixed.pcap) |
+| ftp_dyn_resp_inc | 会话 response_dyn inc | pass | 27 | [pcap](ftp/ftp_dyn_resp_inc.pcap) |
+| ftp_dyn_resp_list | 会话 response_dyn list | pass | 27 | [pcap](ftp/ftp_dyn_resp_list.pcap) |
+| ftp_dyn_resp_rand | 会话 response_dyn rand | pass | 27 | [pcap](ftp/ftp_dyn_resp_rand.pcap) |
+| ftp_dyn_sessport_fixed | 会话 src_port fixed 常量 33200（动态对象豁免静态复制） | pass | 27 | [pcap](ftp/ftp_dyn_sessport_fixed.pcap) |
+| ftp_dyn_sessport_list | 会话 src_port list 轮转：3 流 33101/33102/33103 | pass | 27 | [pcap](ftp/ftp_dyn_sessport_list.pcap) |
+| ftp_dyn_sessport_rand | 会话 src_port rand seed=7：3 流随机端口可复现 | pass | 27 | [pcap](ftp/ftp_dyn_sessport_rand.pcap) |
+| ftp_dyn_sessport_wraparound | 会话 src_port inc 回绕：range[33300,33301] flows=4 → 33300,33301,33300,33301 | pass | 36 | [pcap](ftp/ftp_dyn_sessport_wraparound.pcap) |
+| ftp_dyn_tcp_dstport_inc | 层字段动态 tcp.dst_port inc：3 流 212→214（非 21 服务口） | pass | 0 | [pcap]() |
+| ftp_dyn_tcp_dstport_rand | 层字段动态 tcp.dst_port rand seed=7 | pass | 0 | [pcap]() |
+| ftp_dyn_tcp_srcport_fixed | 层字段动态 tcp.src_port fixed 常量+inc dst_port 防撞 | pass | 0 | [pcap]() |
+| ftp_dyn_tcp_srcport_inc | 层字段动态 tcp.src_port inc：3 流 15200→15202 | pass | 0 | [pcap]() |
+| ftp_dyn_tcp_srcport_list | 层字段动态 tcp.src_port list 轮转 | pass | 0 | [pcap]() |
+| ftp_dyn_tcp_srcport_rand | 层字段动态 tcp.src_port rand seed=7 | pass | 0 | [pcap]() |
 | ftp_empty_session | T-FTP-5: 空会话合法（层链）——仅握手 3 + 挥手 4 = 7 包，连接端口 = 会话 src_port | pass | 7 | [pcap](ftp/ftp_empty_session.pcap) |
 | ftp_file_mgmt | RFC 959 §4.1.3 文件管理四连：MKD 257/PWD 257/RMD 250/DELE 250 | pass | 22 | [pcap](ftp/ftp_file_mgmt.pcap) |
 | ftp_file_source | FileSource literal 文件读取：数据通道载荷来自 file_source | pass | 26 | [pcap](ftp/ftp_file_source.pcap) |
