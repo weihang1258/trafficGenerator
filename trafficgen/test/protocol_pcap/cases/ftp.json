@@ -405,6 +405,258 @@
     }
   },
   {
+    "id": "ftp_txindex_dual",
+    "proto": "ftp",
+    "summary": "T-FTP-3: 单会话双事务，两条数据流 parent 索引 sub-0/sub-1 区分，PASV 50011/50012",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 22000,
+      "dst_port": 21,
+      "count": 1,
+      "ftp": {
+        "sessions": [
+          {
+            "banner": "220 s",
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "PASV",
+                    "response": "227 Entering Passive Mode (20,0,0,1,195,91)"
+                  },
+                  {
+                    "cmd": "RETR /f0.bin",
+                    "response": "150",
+                    "emit_data_channel": true
+                  }
+                ],
+                "data_channel": {
+                  "payload": "D0"
+                }
+              },
+              {
+                "commands": [
+                  {
+                    "cmd": "PASV",
+                    "response": "227 Entering Passive Mode (20,0,0,1,195,92)"
+                  },
+                  {
+                    "cmd": "LIST",
+                    "response": "150",
+                    "emit_data_channel": true
+                  }
+                ],
+                "data_channel": {
+                  "payload": "D1"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 34,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "22000"
+        },
+        {
+          "packet": 9,
+          "field": "tcp.dstport",
+          "value": "50011"
+        },
+        {
+          "packet": 22,
+          "field": "tcp.dstport",
+          "value": "50012"
+        }
+      ],
+      "notes": [
+        "控制 16（3hs+banner+tx1 2cmd×2+tx2 2cmd×2+4teardown）+ 数据 9×2 = 34；数据-1 内联挂在 150@8 之后（SYN@9），数据-2 SYN@22；sub-0 口 195*256+91=50011，sub-1 195*256+92=50012"
+      ],
+      "packet_count": 34
+    }
+  },
+  {
+    "id": "ftp_pasv_isolation",
+    "proto": "ftp",
+    "summary": "T-FTP-4: 后事务数据流取本事务 PASV 端口，不串前事务 49993",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 21000,
+      "dst_port": 21,
+      "count": 1,
+      "ftp": {
+        "sessions": [
+          {
+            "banner": "220 s",
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "PASV",
+                    "response": "227 Entering Passive Mode (20,0,0,1,195,73)"
+                  },
+                  {
+                    "cmd": "RETR /a.bin",
+                    "response": "150",
+                    "emit_data_channel": true
+                  }
+                ],
+                "data_channel": {
+                  "payload": "F1"
+                }
+              },
+              {
+                "commands": [
+                  {
+                    "cmd": "PASV",
+                    "response": "227 Entering Passive Mode (20,0,0,1,195,74)"
+                  },
+                  {
+                    "cmd": "LIST",
+                    "response": "150",
+                    "emit_data_channel": true
+                  }
+                ],
+                "data_channel": {
+                  "payload": "F2"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 34,
+      "packet_count": 34,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "21000"
+        },
+        {
+          "packet": 9,
+          "field": "tcp.dstport",
+          "value": "49993"
+        },
+        {
+          "packet": 22,
+          "field": "tcp.dstport",
+          "value": "49994"
+        }
+      ],
+      "notes": [
+        "布局同 txindex（34 包）；全局扫描旧实现会让两条数据流全用 49993；收窄后事务2取 195*256+74=49994"
+      ]
+    }
+  },
+  {
+    "id": "ftp_empty_session",
+    "proto": "ftp",
+    "summary": "T-FTP-5: 空会话合法——仅握手 3 + 挥手 4 = 7 包",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "dst_port": 21,
+      "ftp": {
+        "sessions": [
+          {
+            "src_port": 23001
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 7,
+      "packet_count": 7,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "23001"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "21"
+        }
+      ],
+      "notes": [
+        "无事务会话：无 banner、无命令，仅 3 握手 + 4 挥手"
+      ]
+    }
+  },
+  {
+    "id": "ftp_noflag_no_subflow",
+    "proto": "ftp",
+    "summary": "T-FTP-6: 事务有 DataChannel 但无 emit 标记 → 不发射子流",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "src_port": 24000,
+      "dst_port": 21,
+      "count": 1,
+      "ftp": {
+        "sessions": [
+          {
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "RETR /x.bin",
+                    "response": "150"
+                  }
+                ],
+                "data_channel": {
+                  "payload": "X"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "min_packets": 9,
+      "packet_count": 9,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "ftp.request.command",
+          "value": "RETR"
+        },
+        {
+          "packet": 5,
+          "field": "ftp.response.code",
+          "value": "150"
+        }
+      ],
+      "notes": [
+        "控制通道 9 包（3hs+无banner+1cmd×2+4teardown），无 :sub- 子流；payload X 不上路"
+      ]
+    }
+  },
+  {
     "id": "ftp_session_dynamic_ports",
     "proto": "ftp",
     "summary": "T-FTP-10: 会话 src_port_dyn inc [20000..20003]，4 流各不同端口；48 帧 = 4×12",
@@ -612,6 +864,160 @@
       "has_payload": true,
       "notes": [
         "每流 23 帧 = 控制 14 + 数据通道 9；流0 payload=FILE-1，流1 payload=FILE-2"
+      ]
+    }
+  },
+  {
+    "id": "ftp_response_dyn",
+    "proto": "ftp",
+    "summary": "T-FTP-11b: response_dyn pattern 逐流动态，331/230 文本按流变",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "dst_port": 21,
+      "ftp": {
+        "sessions": [
+          {
+            "src_port_dyn": {
+              "strategy": "inc",
+              "range": [
+                31000,
+                31001
+              ]
+            },
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "USER test",
+                    "response_dyn": {
+                      "strategy": "pattern",
+                      "pattern": "33{n} welcome",
+                      "range": [
+                        1,
+                        2
+                      ]
+                    }
+                  },
+                  {
+                    "cmd": "QUIT",
+                    "response": "221"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "min_packets": 22,
+      "packet_count": 22,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "31000",
+            "31001"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "packet": 5,
+          "field": "ftp.response.code",
+          "value": "331"
+        },
+        {
+          "packet": 16,
+          "field": "ftp.response.code",
+          "value": "332"
+        }
+      ],
+      "notes": [
+        "每流 11 帧 = 3hs+无banner（USER 文本响应直发，无 331 握手对齐包）+QUIT 双包+4teardown；流0 响应 '331 welcome'@5，流1 '332 welcome'@16；22 包总数"
+      ]
+    }
+  },
+  {
+    "id": "ftp_banner_dyn_list",
+    "proto": "ftp",
+    "summary": "T-FTP-10b: banner_dyn list 逐流轮转，220 横幅按流变",
+    "spec_json": {
+      "src_ip": "10.0.0.1",
+      "dst_ip": "20.0.0.1",
+      "dst_port": 21,
+      "ftp": {
+        "sessions": [
+          {
+            "src_port_dyn": {
+              "strategy": "inc",
+              "range": [
+                32000,
+                32001
+              ]
+            },
+            "banner_dyn": {
+              "strategy": "list",
+              "list": [
+                "220 alpha",
+                "220 beta"
+              ]
+            },
+            "transactions": [
+              {
+                "commands": [
+                  {
+                    "cmd": "QUIT",
+                    "response": "221"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "min_packets": 20,
+      "packet_count": 20,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "32000",
+            "32001"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        },
+        {
+          "packet": 4,
+          "field": "ftp.response.arg",
+          "value": "alpha"
+        },
+        {
+          "packet": 14,
+          "field": "ftp.response.arg",
+          "value": "beta"
+        }
+      ],
+      "notes": [
+        "每流 10 帧 = 3hs+banner+1cmd×2+4teardown；流0 banner '220 alpha'，流1 '220 beta'；静态 banner 为空时 dyn 生效"
       ]
     }
   },
