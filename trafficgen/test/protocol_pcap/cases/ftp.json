@@ -10036,5 +10036,742 @@
         "payload_dyn fixed：srcport inc 钉流；载荷内容断言受 harness 限制，has_payload 兜底"
       ]
     }
+  },
+  {
+    "id": "ftp_ipv6_dyn_src_inc",
+    "proto": "ftp",
+    "summary": "IPv6 动态 ip.src inc：3 流 2001:db8::1→::3（T-FTP-18，对称 dyn-ip 格）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "inc",
+              "range": [
+                "2001:db8::1",
+                "2001:db8::3"
+              ]
+            },
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "min_packets": 21,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "ipv6.src",
+          "distinct_values": [
+            "2001:db8::1",
+            "2001:db8::2",
+            "2001:db8::3"
+          ]
+        }
+      ],
+      "notes": [
+        "T-FTP-18 inc 格：128 位递增，对称 ftp_dyn_ip_src_inc"
+      ]
+    }
+  },
+  {
+    "id": "ftp_ipv6_dyn_src_rand",
+    "proto": "ftp",
+    "summary": "IPv6 动态 ip.src rand seed=7（T-FTP-18，可复现格）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "rand",
+              "range": [
+                "2001:db8::1",
+                "2001:db8::9"
+              ],
+              "seed": 7
+            },
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "min_packets": 21,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "ipv6.src",
+          "distinct_values": [
+            "2001:db8::2",
+            "2001:db8::4",
+            "2001:db8::5"
+          ],
+          "distinct_exclude": []
+        }
+      ],
+      "notes": [
+        "T-FTP-18 rand 格 seed=7：三流 ::2/::4/::5（真实 pcap 钉死，可复现）；up 包源=解析值、down 包源=对端 ::2——::2 既是流0解析值也是对端，聚合恰为三值"
+      ]
+    }
+  },
+  {
+    "id": "ftp_ipv6_dyn_src_list",
+    "proto": "ftp",
+    "summary": "IPv6 动态 ip.src list 轮转（T-FTP-18）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "list",
+              "list": [
+                "2001:db8::a",
+                "2001:db8::b"
+              ]
+            },
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "min_packets": 21,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "ipv6.src",
+          "distinct_values": [
+            "2001:db8::a",
+            "2001:db8::b"
+          ],
+          "distinct_exclude": [
+            "2001:db8::2"
+          ]
+        }
+      ],
+      "notes": [
+        "T-FTP-18 list 格：a,b,a 轮转；down 包源=对端 ::2 混入聚合，排除（§14 双向口径）"
+      ]
+    }
+  },
+  {
+    "id": "ftp_ipv6_dyn_dst_fixed",
+    "proto": "ftp",
+    "summary": "IPv6 动态 ip.dst fixed 常量 + 端口 inc 防撞（T-FTP-18）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": {
+              "strategy": "fixed",
+              "value": "2001:db8::99"
+            }
+          }
+        },
+        {
+          "tcp": {
+            "src_port": {
+              "strategy": "inc",
+              "range": [
+                15600,
+                15602
+              ]
+            }
+          }
+        },
+        {
+          "ftp": {
+            "commands": [
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 3
+    },
+    "expect": {
+      "min_packets": 21,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "ipv6.dst",
+          "distinct_values": [
+            "2001:db8::99"
+          ],
+          "distinct_exclude": [
+            "2001:db8::1"
+          ]
+        }
+      ],
+      "notes": [
+        "T-FTP-18 fixed 格：dst 恒 ::99；down 包 dst=源端 ::1 混入聚合，排除（§14 双向口径）"
+      ]
+    }
+  },
+  {
+    "id": "ftp_epsv_passive_download",
+    "proto": "ftp",
+    "summary": "RFC 2428 §3 EPSV 被动下载：EPSV→229(|||50010|)→RETR→数据→226（T-FTP-19）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 38100,
+            "dst_port": 21
+          }
+        },
+        {
+          "ftp": {
+            "banner": "220 v6 ready",
+            "commands": [
+              {
+                "cmd": "USER t",
+                "response": "331"
+              },
+              {
+                "cmd": "PASS p",
+                "response": "230"
+              },
+              {
+                "cmd": "TYPE I",
+                "response": "200"
+              },
+              {
+                "cmd": "EPSV",
+                "response": "229 Entering Extended Passive Mode (|||50010|)"
+              },
+              {
+                "cmd": "RETR /v6epsv.bin",
+                "response": "150 Opening data connection",
+                "emit_data_channel": true
+              },
+              {
+                "cmd": "",
+                "response": "226 Transfer complete"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ],
+            "data_channel": {
+              "mode": "passive",
+              "direction": "down",
+              "payload": "V6-EPSV-DATA"
+            }
+          }
+        }
+      ]
+    },
+    "strategy_fc": null,
+    "expect": {
+      "min_packets": 25,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 11,
+          "field": "ftp.request.command",
+          "value": "EPSV"
+        },
+        {
+          "packet": 12,
+          "field": "ftp.response.code",
+          "value": "229"
+        },
+        {
+          "packet": 15,
+          "field": "tcp.dstport",
+          "value": "50010"
+        }
+      ],
+      "notes": [
+        "T-FTP-19：EPSV→229(|||50010|)→RETR→数据（client 首 SYN→50010）→226；包号按真实 pcap 钉"
+      ]
+    }
+  },
+  {
+    "id": "ftp_eprt_active_upload",
+    "proto": "ftp",
+    "summary": "RFC 2428 §4 EPRT 主动上传：EPRT|2|…|50011|→STOR→数据(server首SYN)→226（T-FTP-20）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 38200,
+            "dst_port": 21
+          }
+        },
+        {
+          "ftp": {
+            "banner": "220 v6 ready",
+            "commands": [
+              {
+                "cmd": "USER t",
+                "response": "331"
+              },
+              {
+                "cmd": "PASS p",
+                "response": "230"
+              },
+              {
+                "cmd": "EPRT |2|2001:db8::1|50011|",
+                "response": "200 EPRT ok"
+              },
+              {
+                "cmd": "STOR /v6eprt.bin",
+                "response": "150 Opening data connection",
+                "emit_data_channel": true
+              },
+              {
+                "cmd": "",
+                "response": "226 Transfer complete"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ],
+            "data_channel": {
+              "mode": "active",
+              "direction": "up",
+              "payload": "V6-EPRT-UP"
+            }
+          }
+        }
+      ]
+    },
+    "strategy_fc": null,
+    "expect": {
+      "min_packets": 25,
+      "negotiated": true,
+      "terminates": true,
+      "has_handshake": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "ftp.request.command",
+          "value": "EPRT"
+        },
+        {
+          "packet": 10,
+          "field": "ftp.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 13,
+          "field": "tcp.srcport",
+          "value": "20"
+        }
+      ],
+      "notes": [
+        "T-FTP-20：EPRT|2|…|50011|→STOR→数据（server 20 首 SYN→50011，13 包 src=20）→226；包号按真实 pcap 钉"
+      ]
+    }
+  },
+  {
+    "id": "ftp_epsv_500_fallback",
+    "proto": "ftp",
+    "summary": "RFC 2428 §5 EPSV→500 不支持扩展模式：无数据通道（T-FTP-21）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 38300,
+            "dst_port": 21
+          }
+        },
+        {
+          "ftp": {
+            "banner": "220 v6 ready",
+            "commands": [
+              {
+                "cmd": "USER t",
+                "response": "331"
+              },
+              {
+                "cmd": "PASS p",
+                "response": "230"
+              },
+              {
+                "cmd": "EPSV",
+                "response": "500 Command not understood"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": null,
+    "expect": {
+      "min_packets": 14,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "ftp.request.command",
+          "value": "EPSV"
+        },
+        {
+          "packet": 10,
+          "field": "ftp.response.code",
+          "value": "500"
+        }
+      ],
+      "notes": [
+        "T-FTP-21：500 合法控制面响应（非任务 error），无数据 SYN；包号按真实 pcap 钉"
+      ]
+    }
+  },
+  {
+    "id": "ftp_eprt_522_reject",
+    "proto": "ftp",
+    "summary": "RFC 2428 §5 EPRT→522 网络协议不支持：无数据通道（T-FTP-21）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 38400,
+            "dst_port": 21
+          }
+        },
+        {
+          "ftp": {
+            "banner": "220 v6 ready",
+            "commands": [
+              {
+                "cmd": "USER t",
+                "response": "331"
+              },
+              {
+                "cmd": "PASS p",
+                "response": "230"
+              },
+              {
+                "cmd": "EPRT |2|2001:db8::1|50011|",
+                "response": "522 Network protocol not supported"
+              },
+              {
+                "cmd": "QUIT",
+                "response": "221"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": null,
+    "expect": {
+      "min_packets": 14,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "ftp.request.command",
+          "value": "EPRT"
+        },
+        {
+          "packet": 10,
+          "field": "ftp.response.code",
+          "value": "522"
+        }
+      ],
+      "notes": [
+        "T-FTP-21：522 合法响应无数据；包号按真实 pcap 钉"
+      ]
+    }
+  },
+  {
+    "id": "ftp_ipv6_sessions_mixed",
+    "proto": "ftp",
+    "summary": "对称：IPv6 双会话（EPSV 被动下载 + EPRT 主动上传，对标 mixed_mode）（T-FTP-21）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 38500,
+            "dst_port": 21
+          }
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port": 38500,
+                "banner": "220 v6p",
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "USER t",
+                        "response": "331"
+                      },
+                      {
+                        "cmd": "EPSV",
+                        "response": "229 Entering Extended Passive Mode (|||50020|)"
+                      },
+                      {
+                        "cmd": "RETR /a.bin",
+                        "response": "150",
+                        "emit_data_channel": true
+                      },
+                      {
+                        "cmd": "",
+                        "response": "226 done"
+                      }
+                    ],
+                    "data_channel": {
+                      "mode": "passive",
+                      "payload": "V6P"
+                    }
+                  }
+                ]
+              },
+              {
+                "src_port": 38510,
+                "banner": "220 v6a",
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "USER t",
+                        "response": "331"
+                      },
+                      {
+                        "cmd": "EPRT |2|2001:db8::1|50021|",
+                        "response": "200 EPRT ok"
+                      },
+                      {
+                        "cmd": "STOR /b.bin",
+                        "response": "150",
+                        "emit_data_channel": true
+                      },
+                      {
+                        "cmd": "",
+                        "response": "226 done"
+                      }
+                    ],
+                    "data_channel": {
+                      "mode": "active",
+                      "direction": "up",
+                      "payload": "V6A"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": null,
+    "expect": {
+      "min_packets": 40,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "38500",
+            "38510"
+          ],
+          "distinct_exclude": [
+            "21",
+            "20",
+            "38501",
+            "38511",
+            "50020",
+            "50021"
+          ]
+        }
+      ],
+      "notes": [
+        "T-FTP-21：v6 双会话端口隔离（46 包实测）；排除 server 21/20 与双向派生口"
+      ]
+    }
+  },
+  {
+    "id": "ftp_ipv6_multiflow",
+    "proto": "ftp",
+    "summary": "对称：IPv6 多流×会话×数据通道（flows=2，会话端口动态，对标 multiflow_multisession）（T-FTP-21）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "fixed",
+              "value": "2001:db8::1"
+            },
+            "dst": {
+              "strategy": "fixed",
+              "value": "2001:db8::2"
+            }
+          }
+        },
+        {
+          "tcp": {}
+        },
+        {
+          "ftp": {
+            "sessions": [
+              {
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    41000,
+                    41001
+                  ]
+                },
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "cmd": "USER t",
+                        "response": "331"
+                      },
+                      {
+                        "cmd": "EPSV",
+                        "response": "229 Entering Extended Passive Mode (|||50030|)"
+                      },
+                      {
+                        "cmd": "RETR /a.bin",
+                        "response": "150",
+                        "emit_data_channel": true
+                      },
+                      {
+                        "cmd": "",
+                        "response": "226"
+                      }
+                    ],
+                    "data_channel": {
+                      "mode": "passive",
+                      "payload": "V6M"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "min_packets": 40,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "fields": [],
+      "notes": [
+        "T-FTP-21：flows=2 × 会话动态端口；ip 层写 fixed 对象绕开静态复制（§9 陷阱③）；distinct 首跑后按真实 pcap 钉"
+      ]
+    }
   }
 ]

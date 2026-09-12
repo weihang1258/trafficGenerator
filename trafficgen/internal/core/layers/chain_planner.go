@@ -471,7 +471,12 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 	}
 	// IP 版本匹配（legacy 各 planner Validate 同款，防 L3 builder 混淆）：
 	// v4-src/v6-dst 混合拒绝。
-	if spec.SrcIP != "" && spec.DstIP != "" {
+	// D-FTP-4 豁免：ip.src/ip.dst 任一端是层动态对象时（spec.HasLayerDynIP，
+	// mapToFlowSpec 随 LayerDyn 置位），解析前 spec 仍带 flat 默认（另一族），
+	// 不得做静态同族检查——逐流解析值的同族性由 ValidateLayers 形状层保证
+	// （混族对象在 create 400 / 启动预检 error，此处放行后 worker 逐流解析、
+	// drive 注入解析值，线上地址恒同族）。
+	if !spec.HasLayerDynIP && spec.SrcIP != "" && spec.DstIP != "" {
 		src := net.ParseIP(spec.SrcIP)
 		dst := net.ParseIP(spec.DstIP)
 		if src != nil && dst != nil && (src.To4() != nil) != (dst.To4() != nil) {

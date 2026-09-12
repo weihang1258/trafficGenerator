@@ -326,6 +326,9 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	// src_ip/dst_ip 是 legacy 默认（10.0.0.1/20.0.0.1），层链显式写 ip 层
 	// src/dst（含 IPv6）时必须以此为准，否则默认 IPv4 会顶掉层里的显式
 	// IPv6 地址（EtherType 也据此选 IPv6）。空值保留 spec 默认。
+	// D-FTP-4 注记：extractLayerSrcDst 只提字符串标量——动态对象端自然落空、
+	// 保留 flat 默认，逐流真相由 worker resolveLayerTuple 写入 spec；对象端
+	// 与静态端的族一致性由 ValidateLayers 形状层保证（混族即 400），此处不判。
 	if layersVal, ok := cfg["layers"]; ok {
 		if src, dst := extractLayerSrcDst(layersVal); src != "" || dst != "" {
 			if src != "" {
@@ -1235,10 +1238,16 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	// Malformed dynamic objects are recorded in spec.ValidationErrors (worker
 	// precheck fails the task); shape-level malformation is already rejected
 	// at create/update by ValidateLayers.
+	// HasLayerDynIP (D-FTP-4): ip.src/ip.dst 任一端是动态对象即 true——
+	// validateSpecBase 据此跳过解析前 spec 的静态同族门（逐流解析值同族性由
+	// 形状层保证，此处 flat 默认不得参与族检查）。
 	if layersVal, ok := cfg["layers"]; ok && layersVal != nil {
 		if ld, errs := parseLayerDyn(layersVal); ld != nil || len(errs) > 0 {
 			spec.LayerDyn = ld
 			spec.ValidationErrors = append(spec.ValidationErrors, errs...)
+		}
+		if ld := spec.LayerDyn; ld != nil && (ld.IP.Src != nil || ld.IP.Dst != nil) {
+			spec.HasLayerDynIP = true
 		}
 	}
 

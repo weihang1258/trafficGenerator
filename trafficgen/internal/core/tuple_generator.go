@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"math/rand"
+	"net"
 	"strconv"
 	"strings"
 )
@@ -30,7 +31,9 @@ func (g *TupleGenerator) Next(index int) (srcIP, dstIP string, srcPort, dstPort 
 	return
 }
 
-// genIP generates an IPv4 string for the given index per the strategy.
+// genIP generates an IP string for the given index per the strategy
+// (D-FTP-4 双栈：IPv4 走既有 32 位整型路径零改动；IPv6 走 128 位路径，
+// 递增跨段进位/回绕/rand/轮转口径与 IPv4 同构；两端异族返回 "").
 func genIP(s StrategyConfig, index int) string {
 	switch s.Strategy {
 	case "fixed", "":
@@ -46,6 +49,9 @@ func genIP(s StrategyConfig, index int) string {
 	case "inc":
 		if len(s.Range) < 2 {
 			return ""
+		}
+		if isIPv6Endpoint(s.Range[0]) || isIPv6Endpoint(s.Range[1]) {
+			return genIP6Inc(s, index)
 		}
 		start, ok1 := ipToU32(asString(s.Range[0]))
 		end, ok2 := ipToU32(asString(s.Range[1]))
@@ -63,6 +69,9 @@ func genIP(s StrategyConfig, index int) string {
 		if len(s.Range) < 2 {
 			return ""
 		}
+		if isIPv6Endpoint(s.Range[0]) || isIPv6Endpoint(s.Range[1]) {
+			return genIP6Rand(s, index)
+		}
 		start, ok1 := ipToU32(asString(s.Range[0]))
 		end, ok2 := ipToU32(asString(s.Range[1]))
 		if !ok1 || !ok2 || end < start {
@@ -73,6 +82,112 @@ func genIP(s StrategyConfig, index int) string {
 	default:
 		return ""
 	}
+}
+
+// isIPv6Endpoint reports whether v is an IPv6 literal (parsed by net.ParseIP
+// and not IPv4-mapped). Strings that parse as IPv4 return false; garbage
+// returns false (callers fall through to the IPv4 path which rejects it).
+func isIPv6Endpoint(v interface{}) bool {
+	str, ok := v.(string)
+	if !ok {
+		return false
+	}
+	ip := net.ParseIP(str)
+	return ip != nil && ip.To4() == nil
+}
+
+// ip6ToU128 parses an IPv6 literal into 16 big-endian bytes.
+func ip6ToU128(s string) ([16]byte, bool) {
+	var out [16]byte
+	ip := net.ParseIP(s)
+	if ip == nil || ip.To4() != nil {
+		return out, false
+	}
+	copy(out[:], ip.To16())
+	return out, true
+}
+
+// u128ToIP formats 16 big-endian bytes as the canonical IPv6 string
+// (net.IP.String: RFC 5952 :: compression, lowercase).
+func u128ToIP(b [16]byte) string {
+	return net.IP(b[:]).String()
+}
+
+// u128Cmp compares two 128-bit big-endian values (-1/0/+1).
+func u128Cmp(a, b [16]byte) int {
+	for i := 0; i < 16; i++ {
+		if a[i] != b[i] {
+			if a[i] < b[i] {
+				return -1
+			}
+			return 1
+		}
+	}
+	return 0
+}
+
+// u128Add adds off (mod 2^128) to b.
+func u128Add(b [16]byte, off uint64) [16]byte {
+	carry := off
+	for i := 15; i >= 0 && carry > 0; i-- {
+		sum := uint64(b[i]) + (carry & 0xFF)
+		b[i] = byte(sum)
+		carry = (carry >> 8) + (sum >> 8)
+	}
+	return b
+}
+
+// u128Diff returns end-start (requires end >= start).
+func u128Diff(start, end [16]byte) uint64 {
+	var borrow uint64
+	var diff [16]byte
+	for i := 15; i >= 0; i-- {
+		d := int64(end[i]) - int64(start[i]) - int64(borrow)
+		if d < 0 {
+			d += 256
+			borrow = 1
+		} else {
+			borrow = 0
+		}
+		diff[i] = byte(d)
+	}
+	var v uint64
+	for i := 8; i < 16; i++ {
+		v = v<<8 | uint64(diff[i])
+	}
+	return v
+}
+
+// genIP6Inc resolves IPv6 inc at flow index i. Mixed-family or unparseable
+// endpoints return "" (callers treat as "no value"; shape-level rejection of
+// mixed families is owned by checkDynEndpoints in layer_dyn.go).
+func genIP6Inc(s StrategyConfig, index int) string {
+	start, ok1 := ip6ToU128(asString(s.Range[0]))
+	end, ok2 := ip6ToU128(asString(s.Range[1]))
+	if !ok1 || !ok2 || u128Cmp(end, start) < 0 {
+		return ""
+	}
+	span := u128Diff(start, end) + 1
+	step := s.Step
+	if step <= 0 {
+		step = 1
+	}
+	off := uint64(index*step) % span
+	return u128ToIP(u128Add(start, off))
+}
+
+// genIP6Rand resolves IPv6 rand at flow index i (seed+i, reproducible).
+// Large spans (>2^64) keep the high 64 bits and randomize the low 64.
+func genIP6Rand(s StrategyConfig, index int) string {
+	start, ok1 := ip6ToU128(asString(s.Range[0]))
+	end, ok2 := ip6ToU128(asString(s.Range[1]))
+	if !ok1 || !ok2 || u128Cmp(end, start) < 0 {
+		return ""
+	}
+	r := rand.New(rand.NewSource(s.Seed + int64(index)))
+	span := u128Diff(start, end) + 1
+	off := uint64(r.Int63n(int64(span)))
+	return u128ToIP(u128Add(start, off))
 }
 
 // genPort generates a port for the given index per the strategy.

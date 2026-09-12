@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net"
 	"strconv"
 	"strings"
 )
@@ -130,6 +131,13 @@ func checkDynShape(where, lname, field string, s *StrategyConfig) string {
 		if a > b {
 			return fmt.Sprintf("%s: %s range start must not exceed end", where, s.Strategy)
 		}
+		// D-FTP-4: IP range 顺序按地址族比较——dynIntEnds 只懂十进制整型，
+		// IPv6 端点经 Atoi 全得 0 会 neighbourhood 误判。IP 字段走 ipRangeOrder。
+		if lname == "ip" && field != "ttl" {
+			if msg := checkIPRangeOrder(where, s.Range); msg != "" {
+				return msg
+			}
+		}
 		return ""
 	case "list":
 		if len(s.List) == 0 {
@@ -183,7 +191,7 @@ func checkDynEndpoints(where, lname, field string, vals []interface{}) string {
 		switch {
 		case isIP:
 			str, _ := v.(string)
-			if !validIPv4(str) {
+			if !validIP(str) {
 				return fmt.Sprintf("%s: invalid IP endpoint %q", where, fmt.Sprint(v))
 			}
 		case isMAC:
@@ -203,9 +211,77 @@ func checkDynEndpoints(where, lname, field string, vals []interface{}) string {
 		}
 	}
 	// MAC order check for inc/rand is done at resolve time (low-byte order);
-	// cross-OUI ranges resolve empty (no-op). Keep loud-shape vs quiet-resolve
-	// split: shape guarantees parseability, resolve guarantees bounds.
+// cross-OUI ranges resolve empty (no-op). Keep loud-shape vs quiet-resolve
+// split: shape guarantees parseability, resolve guarantees bounds.
+// IP mixed-family check is loud too (D-FTP-4): a range/list mixing v4 and
+// v6 endpoints is rejected here, never silently resolved in one family.
+	if isIP && len(vals) == 2 {
+		if msg := checkIPFamilyMix(where, vals); msg != "" {
+			return msg
+		}
+	}
 	return ""
+}
+
+// checkIPRangeOrder compares IP range endpoints within their family
+// (D-FTP-4): IPv4 by u32, IPv6 by u128. Mixed families are rejected by
+// checkIPFamilyMix (called from checkDynEndpoints before this runs); this
+// function only orders same-family pairs. Unparseable endpoints are already
+// rejected by checkDynEndpoints — defensive empty return here.
+func checkIPRangeOrder(where string, r []interface{}) string {
+	a, b := asString(r[0]), asString(r[1])
+	if isV6Literal(a) || isV6Literal(b) {
+		sa, ok1 := ip6ToU128(a)
+		sb, ok2 := ip6ToU128(b)
+		if !ok1 || !ok2 {
+			return ""
+		}
+		if u128Cmp(sb, sa) < 0 {
+			return fmt.Sprintf("%s: inc range start must not exceed end", where)
+		}
+		return ""
+	}
+	sa, ok1 := ipToU32(a)
+	sb, ok2 := ipToU32(b)
+	if !ok1 || !ok2 {
+		return ""
+	}
+	if sb < sa {
+		return fmt.Sprintf("%s: inc range start must not exceed end", where)
+	}
+	return ""
+}
+
+// checkIPFamilyMix rejects a range/list mixing IPv4 and IPv6 endpoints.
+func checkIPFamilyMix(where string, vals []interface{}) string {
+	seenV4, seenV6 := false, false
+	for _, v := range vals {
+		str, _ := v.(string)
+		if isV6Literal(str) {
+			seenV6 = true
+		} else if validIPv4(str) {
+			seenV4 = true
+		}
+	}
+	if seenV4 && seenV6 {
+		return fmt.Sprintf("%s: IPv4 and IPv6 endpoints must not mix (both ends must be the same family)", where)
+	}
+	return ""
+}
+
+// isV6Literal reports whether s parses as IPv6 (not IPv4).
+func isV6Literal(s string) bool {
+	ip := net.ParseIP(s)
+	return ip != nil && ip.To4() == nil
+}
+
+// validIP reports whether s is a parseable IPv4 or IPv6 literal (D-FTP-4
+// 双栈：既有 validIPv4 口径零变化 + net.ParseIP 的 IPv6 分支）。
+func validIP(s string) bool {
+	if validIPv4(s) {
+		return true
+	}
+	return isV6Literal(s)
 }
 
 // validIPv4 reports whether s is a parseable dotted IPv4 address.

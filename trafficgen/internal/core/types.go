@@ -1804,6 +1804,15 @@ type FlowSpec struct {
 	// (parseLayerDyn); read-only afterwards (shared across per-flow copies).
 	LayerDyn *LayerDynValues `json:"-"`
 
+	// HasLayerDynIP flags that the layers array writes ip.src/ip.dst as a
+	// dynamic object (D-FTP-4: 同键二态，任一端是对象即 true). Set once per
+	// task by mapToFlowSpec alongside LayerDyn. validateSpecBase skips the
+	// static same-family gate when true — the per-flow resolved addresses
+	// share one family by shape validation (mixed families are rejected at
+	// create/update + task-start precheck), while the pre-resolution spec
+	// still carries flat defaults that must not be family-checked.
+	HasLayerDynIP bool `json:"-"`
+
 	// FlowIndex is the zero-based flow sequence number written by the worker
 	// loops (strategy worker.go and batch class loop) before Plan. Planners
 	// that support per-flow dynamic fields (FTP sessions/transactions,

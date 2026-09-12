@@ -739,8 +739,8 @@ func (p *Planner) emitTxDataChannel(
 }
 
 // scanTxForDataPort scans ONE transaction's command/response pairs for the
-// advertised data port (PORT command for active, 227 PASV response for
-// passive). Mirrors scanCommandsForDataPort's last-wins semantics.
+// advertised data port (PORT/EPRT command for active, 227 PASV / 229 EPSV
+// response for passive). Mirrors scanCommandsForDataPort's last-wins semantics.
 func scanTxForDataPort(commands []core.FTPCommand, isActive bool) uint16 {
 	var port uint16
 	if isActive {
@@ -748,10 +748,19 @@ func scanTxForDataPort(commands []core.FTPCommand, isActive bool) uint16 {
 			if p := parsePORTPort(commands[i].Cmd); p != 0 {
 				port = p
 			}
+			// D-FTP-4 (RFC 2428 §4): EPRT 与 PORT 同序 last-wins——同一事务
+			// 先后通告时后者赢（与现网"后通告覆盖"一致）。
+			if p := parseEPRTPort(commands[i].Cmd); p != 0 {
+				port = p
+			}
 		}
 	} else {
 		for i := 0; i < len(commands); i++ {
 			if p := parsePASVPort(commands[i].Response); p != 0 {
+				port = p
+			}
+			// D-FTP-4 (RFC 2428 §3): EPSV 与 227 同序 last-wins。
+			if p := parseEPSVPort(commands[i].Response); p != 0 {
 				port = p
 			}
 		}
@@ -843,6 +852,67 @@ var pasvPortRe = regexp.MustCompile(`(?im)^227 [^\n]*?\((\d+),(\d+),(\d+),(\d+),
 // commands with CRLF.
 var portCmdRe = regexp.MustCompile(`(?im)^PORT\s+(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)`)
 
+// epsvPortRe matches a 229 EPSV response line per RFC 2428 §3:
+//
+//	"229 Entering Extended Passive Mode (|||port|)"
+//
+// Only the port is advertised (the address is the control connection's).
+// 口径与 parsePASVPort 同款：字面空格（RFC 959 §5.4 分隔符）、首元组 wins、
+// 溢出拒绝。非 229 行（227 PASV 等）不匹配。
+var epsvPortRe = regexp.MustCompile(`(?im)^229 [^\n]*?\(\|\|\|(\d+)\|\)`)
+
+// parseEPSVPort scans a server response string for a 229 EPSV port triple
+// and returns the advertised data-port. Returns 0 if not found or if the
+// port doesn't parse as an integer in [0, 65535].
+// Example: "229 Entering Extended Passive Mode (|||50010|)" -> 50010.
+func parseEPSVPort(response string) uint16 {
+	m := epsvPortRe.FindStringSubmatch(response)
+	if m == nil {
+		return 0
+	}
+	p, err := strconv.Atoi(m[1])
+	if err != nil {
+		return 0
+	}
+	if p < 0 || p > 65535 {
+		return 0
+	}
+	return uint16(p)
+}
+
+// eprtCmdRe matches an EPRT command per RFC 2428 §4:
+//
+//	"EPRT |af|addr|port|"
+//
+// af=2 is IPv6 (implemented); af=1 (IPv4 over EPRT) is a documented C-class
+// gap (D-FTP-4: 现网只用 PORT 传 v4) and returns 0. The addr segment is
+// passed through unchecked (opaque to port derivation); only the port
+// segment is validated. Case-insensitive per RFC 959 §5.3.1 (multiline
+// future-proofing mirrors portCmdRe).
+var eprtCmdRe = regexp.MustCompile(`(?im)^EPRT\s+\|(\d+)\|([^|]*)\|(\d+)\|`)
+
+// parseEPRTPort scans a client command for an EPRT triple and returns the
+// advertised data-port. Returns 0 if not an EPRT line, af != 2, segments
+// missing, or the port doesn't parse as an integer in [0, 65535].
+// Example: "EPRT |2|2001:db8::1|50011|" -> 50011.
+func parseEPRTPort(cmd string) uint16 {
+	m := eprtCmdRe.FindStringSubmatch(cmd)
+	if m == nil {
+		return 0
+	}
+	if m[1] != "2" {
+		return 0
+	}
+	p, err := strconv.Atoi(m[3])
+	if err != nil {
+		return 0
+	}
+	if p < 0 || p > 65535 {
+		return 0
+	}
+	return uint16(p)
+}
+
 // parsePASVPort scans a server response string for a 227 PASV 6-tuple and
 // returns the derived data-port (p1*256+p2). Returns 0 if not found or if
 // the port components don't parse as integers in [0, 65535].
@@ -908,10 +978,19 @@ func scanCommandsForDataPort(commands []core.FTPCommand, isActive bool, upToIdx 
 			if p := parsePORTPort(commands[i].Cmd); p != 0 {
 				port = p
 			}
+			// D-FTP-4 (RFC 2428 §4): 老形状遗留路径同步新增 EPRT（与
+			// scanTxForDataPort 同序，两处调用点语义一致）。
+			if p := parseEPRTPort(commands[i].Cmd); p != 0 {
+				port = p
+			}
 		}
 	} else {
 		for i := 0; i <= upToIdx; i++ {
 			if p := parsePASVPort(commands[i].Response); p != 0 {
+				port = p
+			}
+			// D-FTP-4 (RFC 2428 §3): 老形状遗留路径同步新增 EPSV。
+			if p := parseEPSVPort(commands[i].Response); p != 0 {
 				port = p
 			}
 		}
