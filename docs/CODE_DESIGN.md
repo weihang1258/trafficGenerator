@@ -301,6 +301,63 @@
 | F 扁平静态复制 checkStaticCopy（v2 已合入） | F1 合入保留（防新扁平双写）；F2 回滚删除 | 扁平键已进入清退但仍是无 layers 策略的唯一写法，规则保留防静态复制回潮；口径冻结不再扩展 | 选 F1（保留+冻结口径） |
 | G2 层链静态复制 checkLayerChainStaticCopy（新增） | G2a 显式标量触发（缺省层不触发）；G2b 任一四元组字段出现即触发 | G2b 会把 `[{tcp:{}},{http:{}}]` 无字段层也判死，误伤 T-FTP-15 ④；G2a 只拦显式写死的，缺省层放行 | 选 G2a |
 
+### D-FTP-4 IPv6 对称覆盖 + 扩展被动/主动（RFC 2428）
+
+**状态：** 草案
+**范围：** 本次解决：①IPv6 动态地址——层 `ip.src`/`ip.dst` 动态对象接受 IPv6 端点（inc/rand/list/fixed，`::` 缩写与文档全写双向互通），`genIP` 从纯 IPv4 算法扩展为双栈（IPv4 保持 32 位整型递增/回绕口径零变化；IPv6 新增 128 位递增/随机/轮转，跨段进位与回绕口径与 IPv4 同构）；②IPv6 扩展被动/主动——`EPSV`（RFC 2428 §3，被动，服务端回 229 含纯端口）与 `EPRT`（RFC 2428 §4，主动，客户端发 `EPRT |2|addr|port|` 三元组）信令端口推导（`scanTxForDataPort` 新增两路解析，与既有 PASV/PORT last-wins 同序；数据通道四元组仍走既有 `dataChannelPorts` 优先级链，零改动）；③IPv6 对称用例——现 2 例（passive 下载/active 上传）之外，按 §9 地址族对称要求补齐动态地址×策略、双会话/多流、EPSV/EPRT 四格（T-FTP-18…21）。明确不解决：`LPSV/LPSX/LPAS` 等历史方言（RFC 1639/795，已被 2428 替代，主流服务端不实现，记 C 类）；`EPRT |1|` IPv4 承载（2428 允许但现网只用 PORT，记 C 类不做）；IPv6 数据通道源端口 20 沿用（active 服务端源端口与地址族正交，RFC 959 §5.2，不变）；批量路径 tuples 池 IPv6（策略+任务路径之外，另立条目）。
+**依据：** RFC 2428 §3（EPSV→229 `(|||port|)`，只通告端口、地址沿用控制连接）、§4（EPRT `|af|addr|port|`，af=1 IPv4、af=2 IPv6）、§5（EPRT/EPSV 失败回退 PORT/PASV 语义，用例覆盖失败分支）；RFC 959 §4.1.2（PASV/PORT 六元组，IPv4 专用——v6 下服务端发 227 无意义，见 2428 §1 引言）；RFC 4291 §2.2（IPv6 文本表示：`::` 压缩、全写、混合表示法，解析必须三态互通）；现网行为：待确认（vsftpd/ProFTPD/FileZilla Server 的 EPSV 默认开/EPRT 支持版本，抓包确认后回填，确认前标“待确认”不写死）；代码基线 `internal/protocol/ftp/ftp.go:844`（portCmdRe）、`:830`（pasvPortRe）、`:744`（scanTxForDataPort）、`internal/core/tuple_generator.go:34`（genIP 纯 IPv4）、`internal/core/layer_dyn.go:186`（validIPv4 端点校验）。
+**配置权威：** 层链是唯一真相。IPv6 地址仍只落 `ip` 层（`src`/`dst` 标量或同键二态对象）；EPSV/EPRT 是 `ftp` 层命令字符串（commands[].cmd/response），不是新字段、不新增层；数量仍只走 `flow_control`。
+
+#### 1. 数据与接口
+- `internal/core/tuple_generator.go`：`genIP` 双栈——端点先判族（同流两端点必须同族，混族拒绝，走既有畸形拒绝通道）：IPv4 走既有 `ipToU32/u32ToIP`（零改动）；IPv6 新增 `ip6ToU128/u128ToIP`（16 字节 big-endian，加减/回绕与 IPv4 同构，step≤0 视为 1，rand 用 `seed+i` 同规则）。`asString` 端点渲染不变（IPv6 字符串原样透传）。
+- `internal/core/layer_dyn.go`：端点校验 `validIPv4` 扩展为 `validIP`（v4 点分十进制 / v6 `net.ParseIP` 且 `To4()==nil`；混族 range/list（`10.0.0.1` 与 `2001:db8::1` 同 range）拒绝，文案指明两端须同族）。`checkDynShape` 的 pattern 拒绝保留（IP 无 pattern，与族无关）。
+- `internal/protocol/ftp/ftp.go`：新增 `parseEPSVPort(response string) uint16`（`229` + `(|||port|)`，last-wins、溢出拒绝口径与 `parsePASVPort` 同款）与 `parseEPRTPort(cmd string) uint16`（`EPRT |2|addr|port|`，af 必须为 2——af=1 是 IPv4 承载记 C 类不做，见范围；addr 段只做透传不校验，端口段做数值合法性校验）。`scanTxForDataPort` 被动分支新增 EPSV 解析（与 227 同序 last-wins：同一事务既有 227 又有 229 时后者赢——与现网“后通告覆盖先通告”一致，待抓包确认）、主动分支新增 EPRT 解析（与 PORT 同序）。`scanCommandsForDataPort`（老形状遗留路径）同步新增两路（同函数体两处调用点）。
+- `internal/protocol/ftp/layer_gen.go`：零改动（复用 `scanTxForDataPort`，已解析响应天然生效；`dataChannelPorts` 优先级链不动）。
+- schema：零改动（layers.json 二态说明已覆盖“IP 算法”，不逐族列举；Error 文案经 Go 层返回，不进 schema）。
+
+#### 2. 依赖与生命周期
+- 前置：D-FTP-3 层动态（LayerDyn 解析/校验/逐流）已验收；IPv6 静态已通（ftp_ipv6_data/active，EtherType 0x86DD 路径已验收）。
+- 解析时机：同既有——层动态每流 O(1)（genIP 双栈分支在流循环内，无额外分配：IPv6 用 16 字节数组栈上运算）；EPSV/EPRT 解析在 Plan 内事务扫描时（与 PASV/PORT 同频次，零新增遍历）。
+- 只读约束延续：Dyn 指针跨流共享只读；正则预编译包级变量（与既有 pasvPortRe/portCmdRe 同款）。
+
+#### 3. 主流程与状态
+- IPv6 动态流循环 i：spec 副本 → `resolveLayerTuple(i)`（genIP 双栈分支产出 v6 字符串）→ spec.SrcIP/DstIP（v6）→ `applySpecToChain` 注入 ip 层 → IP 生成器按族装配（既有 v6 路径，零改动）→ finalEmit 按 `EtherTypeFor` 落 0x86DD（既有路径）。
+- EPSV 被动事务：`EPSV`→`229 Entering Extended Passive Mode (|||50010|)`→`RETR`（150，emit）→数据（client 首 SYN→server 50010）→`226`。EPRT 主动事务：`EPRT |2|2001:db8::1|50011|`→`200`→`STOR`（150，emit）→数据（server 首 SYN→client 50011）→`226`。端口推导：信令解析值优先（既有优先级 2），无信令回退 50000/20（既有优先级 3，不变）。
+- 失败分支（RFC 2428 §5）：EPSV→500（服务端不支持扩展模式，回退 PASV 同事务内重协商——本用例只断控制面 500 无数据通道）与 EPRT→522（网络协议不支持，同理）各一例。
+
+#### 4. 递增与覆盖规则
+- IPv6 inc：`2001:db8::1`→`::2` 低 128 位递增，跨段进位（如 `::ffff`→`::1:0`），end<start 拒绝（128 位比较）；step 口径与 IPv4 一致。rand：`seed+i` 在 [start,end] 区间内均匀（区间按 128 位差计，大区间只取低 64 位随机+高位保持——实现细节，单测锁定行为）。list：轮转（`::` 缩写与全写视为不同字符串但同地址——去重不做，断言按字符串钉，pcap 按地址验，双口径注明）。fixed：常量。
+- EPSV/EPRT 覆盖：同键二态天然互斥不适用（命令是字符串，无动态对象）；信令 last-wins（后通告赢）与既有 PASV/PORT 一致；显式 `dc.SrcPort/DstPort` 仍最高优（优先级 1，不变）。
+- v4/v6 混族：同一 range/list 两端异族→畸形拒绝（任务 error / 400），不静默取一族。
+
+#### 5. 错误与异常
+- 混族动态端点（v4+v6 同 range/list）：ValidateLayers 精确路径错误（create 400；任务启动预检同口径终态 error；批量逐流跳过计 flowFailures）。文案指明两端须同族。
+- 畸形 EPSV/EPRT（`229` 无 `(|||port|)` / 端口溢出 / `EPRT` af≠2 / 缺段）：扫描返回 0→回退 50000/20（与既有 PASV/PORT 畸形同语义：信令解析失败≠任务失败，回退是正确行为，用例断言回退端口而非 error）。af=1 的 EPRT 按 C 类不做（不断言，文档注明）。
+- EPSV→500 / EPRT→522：控制面失败分支用例（无数据通道，包序列=握手+命令对+挥手），错误码断言 500/522。
+- planner 错误继续中断 Plan（既有语义）；超时/重传归 tcp 层（D-FTP-1 归属不变）。
+
+#### 6. 性能设计与验收
+- genIP 双栈：IPv4 路径零改动（热路径无新增分支：先判族一次，v4 直接走老代码）；IPv6 用 16 字节数组运算，无堆分配；EPSV/EPRT 扫描与既有同频次（每事务一次，零新增遍历）。回归套件耗时相对基线 ±10% 内；不新增性能门；pcap 沿用既有 harness（tshark `ipv6.src`/`ftp.request.command` 断言已验证可用）。
+- pcap 与真实网卡分别测什么：pcap 断言地址/端口/命令序列；网卡冒烟（enp135s0f0np0 既有跑法）至少跑通 EPSV 被动下载一例（v6 组播/路由环境相关，跑不通则注明环境限制不算失败）。
+
+#### 7. 实现顺序与回滚
+1. core：`ip6ToU128/u128ToIP` + `genIP` 双栈分支 + `validIP`（failing 先行：`TestGenIP_IPv6Inc/Rand/List/Fixed` + `TestValidIP_MixedFamily_Rejected`，位置：`internal/core/tuple_generator_test.go` / `layer_dyn_test.go`）→ 2. ftp：`parseEPSVPort/parseEPRTPort` + 两处扫描接入（failing 先行：`TestParseEPSVPort/TestParseEPRTPort` + `TestScanTxForDataPort_EPSV/EPRT`，位置：`internal/protocol/ftp/ftp_data_test.go`）→ 3. 用例 T-FTP-18…21（§8 口径，先写后跑，真实 pcap 校准）→ 4. 全量套件 + touched 包 -race + vet/gofmt + 文档状态回写。回滚=按提交逆序 revert（core 双栈与 ftp 解析独立提交，可单独回滚）。
+- 每步 failing test 先行（§9 修 bug 先红后绿）；单测断言 128 位边界（`::ffff`→`::1:0` 进位、`::` 缩写解析）必须有。
+
+#### 8. 验收
+- 对应 `docs/TEST_CASES.md` T-FTP-18…T-FTP-21。完成条件：IPv6 inc/rand/list/fixed 四格绿（rand 可复现/回绕断言）；EPSV 被动下载 + EPRT 主动上传绿（数据通道端口=信令通告值）；500/522 失败分支绿；混族拒绝红（任务 error）；`go build/vet` 干净；touched 包 -race 绿；FTP 全量套件绿（131+新增全绿）。
+- §1 两道门进度如实记录：①IPv6 对称跑通（本条目）；②旧字段零新增（本条目不碰扁平，混用拒绝已由 D-FTP-3 上线）。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A IPv6 递增算法 | A1 128 位整型递增（与 v4 同构）；A2 字符串后缀数字递增（如 `::1`→`::2` 只动末段） | A1 跨段进位正确（`::ffff`→`::1:0`）、回绕口径与 v4 一致；A2 末段溢出即错（`::ffff`+1 无定义），且与 rand 区间语义分裂 | 选 A1 |
+| B 混族端点处置 | B1 拒绝；B2 按首端点族静默 | B1 失败路径可测（§5/§9 要求错误真红）；B2 隐性丢一族=测不出的退化 | 选 B1 |
+| C EPSV/EPRT 解析位置 | C1 扫描函数内新增两路（与 PASV/PORT 同序）；C2 独立新函数+调用方分支 | C1 last-wins/回退语义自动继承，调用方（ftp.go/layer_gen.go 两处）零改动；C2 两处调用方各加分支，语义易分叉 | 选 C1 |
+| D EPRT af=1（IPv4 承载） | D1 同做；D2 记 C 类不做 | D1 现网只用 PORT 传 v4（2428 §4 允许但无部署），做了无人用且多一分支待测；D2 文档注明不冒充 | 选 D2 |
+| E 历史方言 LPSV/LPSX | E1 同做；E2 记 C 类不做 | E1 RFC 1639/795 已被 2428 替代，主流服务端不实现；做了无现网对照 | 选 E2 |
+
 ## 5. 设计评审闸门
 
 代码设计完成后，必须按以下顺序评审：

@@ -579,6 +579,66 @@
 **性能期望：** 回归耗时不超基线 +10%。
 **实现位置：** 既有测试文件 + `internal/mcp/negative_parity_test.go`。
 
+### T-FTP-18 IPv6 动态地址四格（inc/rand/list/fixed）
+
+**状态：** 草案（D-FTP-4 §1/§4/§7 步骤1；单测先行，套件随后）
+**级别：** unit + pcap
+**来源：** D-FTP-4 §4；RFC 4291 §2.2；CORE_MEMORY §9 地址族对称
+**目标：** 层 `ip.src`/`ip.dst` 写 IPv6 动态对象时逐流产出 v6 地址，语义与 IPv4 格对称。
+
+**输入：** ①inc：`{"ip":{"src":{"strategy":"inc","range":["2001:db8::1","2001:db8::3"]}}}` flows=3；②rand：range `["2001:db8::1","2001:db8::9"]` seed=7 flows=3（两次运行逐流相等）；③list：`["2001:db8::a","2001:db8::b"]` flows=3（a,b,a 轮转）；④fixed：`value "2001:db8::99"` flows=2（须配端口动态防静态复制）。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/ -run 'TestGenIP_IPv6|TestValidIP' -count=1`；套件 `flowb_run_protocol_suite` proto=ftp。
+**期望输出：** ①`2001:db8::1/2/3`；②三次值落区间内且两次运行一致；③a,b,a；④恒 `::99`。pcap 断言 `ipv6.src` distinct（distinct 聚合字段通用，任意 tshark 字段可用，见 verify.go:46-78）。
+**错误期望：** 混族 range（如 `["10.0.0.1","2001:db8::9"]`）→ 400/任务 error（文案指明同族）。
+**性能期望：** 不适用（单测）/ 回归 ±10%（套件）。
+**实现位置：** `internal/core/tuple_generator_test.go` + `layer_dyn_test.go` + `test/protocol_pcap/cases/ftp.json`（ftp_ipv6_dyn_src_inc/rand/list/fixed 四例）。
+
+### T-FTP-19 EPSV 被动下载（IPv6，RFC 2428 §3）
+
+**状态：** 草案（D-FTP-4 §3/§7 步骤2；单测先行，套件随后）
+**级别：** unit + pcap
+**来源：** RFC 2428 §3；D-FTP-4 §3 事务序列
+**目标：** `EPSV`→`229 (|||port|)`→`RETR`→数据（client 首 SYN→server 通告口）→`226`，数据通道端口=229 通告值。
+
+**输入：** layers `[ip v6, tcp, ftp]`：commands `USER/PASS/TYPE I/EPSV/RETR(150,emit)/空+226/QUIT`，`229 Entering Extended Passive Mode (|||50010|)`，data_channel passive/down。
+**前置条件：** `parseEPSVPort` 单测绿。
+**执行：** `go test ./internal/protocol/ftp/ -run 'TestParseEPSVPort|TestScanTxForDataPort_EPSV' -count=1`；套件 proto=ftp。
+**期望输出：** 数据 SYN dst=50010；pcap 断言 `ftp.request.command=EPSV` + `ftp.response.code=229` + `tcp.dstport=50010`（数据 SYN 包）。
+**错误期望：** 畸形 229（无三元组/端口溢出）→ 回退 50000（与 PASV 畸形同语义，不断言 error）。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_data_test.go` + `cases/ftp.json`（ftp_epsv_passive_download）。
+
+### T-FTP-20 EPRT 主动上传（IPv6，RFC 2428 §4）
+
+**状态：** 草案（D-FTP-4 §3/§7 步骤2；单测先行，套件随后）
+**级别：** unit + pcap
+**来源：** RFC 2428 §4；D-FTP-4 §3 事务序列
+**目标：** `EPRT |2|addr|port|`→`200`→`STOR`→数据（server 首 SYN→client 通告口）→`226`，数据通道端口=EPRT 通告值。
+
+**输入：** layers `[ip v6, tcp, ftp]`：commands `USER/PASS/EPRT |2|2001:db8::1|50011|(200)/STOR(150,emit)/空+226/QUIT`，data_channel active/up。
+**前置条件：** `parseEPRTPort` 单测绿。
+**执行：** `go test ./internal/protocol/ftp/ -run 'TestParseEPRTPort|TestScanTxForDataPort_EPRT' -count=1`；套件 proto=ftp。
+**期望输出：** 数据首 SYN server→client 50011（ServerFirst）；pcap 断言 `ftp.request.command=EPRT` + 数据 SYN 包端口。
+**错误期望：** af=1 的 EPRT 按 C 类不做（无用例，文档注明）；缺段 EPRT → 回退 20/client+1（与 PORT 畸形同语义）。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/ftp/ftp_data_test.go` + `cases/ftp.json`（ftp_eprt_active_upload）。
+
+### T-FTP-21 扩展模式失败分支 + IPv6 结构对称（RFC 2428 §5）
+
+**状态：** 草案（D-FTP-4 §3/§5/§7 步骤3；套件）
+**级别：** pcap
+**来源：** RFC 2428 §5；CORE_MEMORY §9 地址族对称（双会话/多流格）
+**目标：** ①EPSV→500 无数据通道（控制面失败，回退语义不断言重协商，只断 500+无数据）；②EPRT→522 同理；③IPv6 双会话（被动下载+主动上传各一会话，对标 ftp_sessions_mixed_mode）；④IPv6 多流（flows=2，每流一会话挂数据通道，对标 ftp_multiflow_multisession）。
+
+**输入：** ①commands `EPSV/500 Command not understood` + QUIT；②commands `EPRT |2|...|50011|/522 Network protocol not supported` + QUIT；③sessions 双会话 v6（端口拉开间隔，§9 陷阱①）；④flows=2 + 会话端口动态对象（静态标量会触发静态复制拒绝，§9 陷阱③）。
+**前置条件：** T-FTP-19/20 绿。
+**执行：** 套件 proto=ftp 全量。
+**期望输出：** ①②包序列=握手+命令对+挥手（无数据 SYN，包数按真实 pcap 钉）；③④多会话/多流端口隔离（distinct 钉，派生口排除，§9 陷阱②）。
+**错误期望：** ①②不是任务 error（500/522 是合法控制面响应，有包序列断言）。
+**性能期望：** 回归 ±10%。
+**实现位置：** `cases/ftp.json`（ftp_epsv_500_fallback/ftp_eprt_522_reject/ftp_ipv6_sessions_mixed/ftp_ipv6_multiflow 四例）。
+
 ## 7. 用例审查与完成条件
 
 测试用例完成前必须进行两条审查：
