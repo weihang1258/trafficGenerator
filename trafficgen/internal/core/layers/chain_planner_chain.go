@@ -269,6 +269,19 @@ func layerNames(chain []Layer) string {
 	return "[" + strings.Join(names, " → ") + "]"
 }
 
+// isDynObject reports whether a layer config value is a dynamic object
+// (同键二态的对象写法：有 strategy 键的 map）。applySpecToChain 用它识别
+// "用户显式写的动态值"——对象不得进生成器（生成器只收标量），也不得被
+// spec 缺省值顶掉（对象存在本身就是显式标记）。
+func isDynObject(v interface{}) bool {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return false
+	}
+	_, has := m["strategy"]
+	return has
+}
+
 // applySpecToChain maps flow-level spec values into each layer's config.
 // 手动值 > schema 默认值：只有 spec 上非零/非空的值才写入 config；spec.TCP
 // 为 nil 时（独立 tcp flow 无子配置）完全不动 tcp 层 config，让 schema 默认
@@ -303,7 +316,20 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 			// 的 ip 层 config 由 ValidateLayers 校验（V9 字段范围），spec 空
 			// IP 时删掉层 config 的 src/dst 与 legacy "spec IP 空 → L3 空"
 			// 语义一致（用户要固定 IP 应在 flat spec 写 src_ip）。
-			if spec.SrcIP != "" {
+			//
+			// 同键二态（D-FTP-2 v2 用户裁定）：层值是动态对象（有 strategy
+			// 键的 map）时，spec 值是 worker resolveLayerTuple 的逐流解析
+			// 结果——对象写法即显式标记，注入的是解析值不是 spec 缺省。
+			// 反之对象直接进生成器报 "cannot convert"。isDynObject 判定在
+			// 注入前：对象层值 + 空 spec 值（flowIndex 尚未解析/直接 Plan）
+			// 时仍删对象，避免对象捅进生成器。
+			if v, has := l.Config["src"]; has && isDynObject(v) {
+				if spec.SrcIP != "" {
+					cfg["src"] = spec.SrcIP
+				} else {
+					delete(cfg, "src")
+				}
+			} else if spec.SrcIP != "" {
 				cfg["src"] = spec.SrcIP
 			} else {
 				delete(cfg, "src")
@@ -320,6 +346,12 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 				if !isRIPChain(chain) && !isDHCPChain(chain) && !isDHCPv6Chain(chain) {
 					delete(cfg, "dst")
 				}
+			}
+			// 同键二态（dst 同 src）：动态对象写法即显式标记，spec 值是
+			// 逐流解析结果，与静态标量同路径注入（对象本身已在上式被解析
+			// 值覆盖，不会进生成器）。
+			if v, has := l.Config["dst"]; has && isDynObject(v) && spec.DstIP == "" {
+				delete(cfg, "dst")
 			}
 			if spec.TTL != 0 {
 				cfg["ttl"] = uint8(spec.TTL)
@@ -339,22 +371,62 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 			// udp 层生成器从层 config 读端口装配数据报（src/dst 换向用
 			// cfg.srcPort/dstPort，validateSpecBase 已默认化终结层协议端口）。
 			// UDPConfig 无 schema 字段，经 FlowMeta.UDP 直传生成器。
-			cfg["src_port"] = uint16(spec.SrcPort)
-			cfg["dst_port"] = uint16(spec.DstPort)
-		case "tcp":
-			// 层值优先（Task 6 修正）：用户在 tcp 层显式写的 src_port/dst_port
-			// 是链形状的四元组真相，不得被 spec.SrcPort/DstPort 覆盖——扁平
-			// 键在 Task 5 判死后，spec 端口对链形状恒为 mapToFlowSpec 的缺省
-			// 值（12345/80），无条件注入会把用户层值顶掉（txindex_dual 实测
-			// 22000 被顶成 12345）。仅当层内未显式写时才注入 spec 值（独立
-			// [ip→tcp] flow 的 flat 语义保留；多流自动递增也走 spec 注入路径，
-			// 此时层内必然没写标量端口——写了会被 checkLayerChainStaticCopy
-			// 拒绝）。
-			if _, has := l.Config["src_port"]; !has {
+			// 同键二态（D-FTP-2 v2）：层值是动态对象时，对象本身不是可用
+			// 端口——逐流真相在 spec（worker resolveLayerTuple 已把 LayerDyn
+			// 解析值写入 spec.SrcPort/DstPort）。对象 + 非零 spec → 注入
+			// 解析值替换对象；对象 + 零 spec（直接 Plan 未逐流解析）→ 剥离
+			// 对象回 schema 默认。剩下分支维持无条件注入（udp 无层值优先）。
+			if v, has := l.Config["src_port"]; has && isDynObject(v) {
+				if spec.SrcPort != 0 {
+					cfg["src_port"] = uint16(spec.SrcPort)
+				} else {
+					delete(cfg, "src_port")
+				}
+			} else {
 				cfg["src_port"] = uint16(spec.SrcPort)
 			}
-			if _, has := l.Config["dst_port"]; !has {
+			if v, has := l.Config["dst_port"]; has && isDynObject(v) {
+				if spec.DstPort != 0 {
+					cfg["dst_port"] = uint16(spec.DstPort)
+				} else {
+					delete(cfg, "dst_port")
+				}
+			} else {
 				cfg["dst_port"] = uint16(spec.DstPort)
+			}
+		case "tcp":
+			// 层值优先（Task 6 修正 + 动态对象豁免）：用户在 tcp 层显式写的
+			// src_port/dst_port 是链形状的四元组真相，不得被 spec.SrcPort/
+			// DstPort 覆盖——扁平键在 Task 5 判死后，spec 端口对链形状恒为
+			// mapToFlowSpec 的缺省值（12345/80），无条件注入会把用户层值顶掉
+			// （txindex_dual 实测 22000 被顶成 12345）。仅当层内未显式写时
+			// 才注入 spec 值（独立 [ip→tcp] flow 的 flat 语义保留；多流自动
+			// 递增也走 spec 注入路径，此时层内必然没写标量端口——写了会被
+			// checkLayerChainStaticCopy 拒绝）。
+			// 同键二态（D-FTP-2 v2 用户裁定）：层值是动态对象（map，有
+			// strategy 键）时同样是用户显式值——逐流真相在 spec（worker 的
+			// resolveLayerTuple 已把 LayerDyn 解析值写入 spec.SrcPort/
+			// DstPort，parseLayerDyn→LayerDyn）。对象本身不是可用端口，
+			// 不得进生成器：非零 spec 即注入解析值替换对象；零 spec（直接
+			// Plan 未逐流解析）则剥离回 schema 默认。标量层值保持层值优先，
+			// 不动（Task 6 修正）。
+			if v, has := l.Config["src_port"]; !has {
+				cfg["src_port"] = uint16(spec.SrcPort)
+			} else if isDynObject(v) {
+				if spec.SrcPort != 0 {
+					cfg["src_port"] = uint16(spec.SrcPort)
+				} else {
+					delete(cfg, "src_port")
+				}
+			}
+			if v, has := l.Config["dst_port"]; !has {
+				cfg["dst_port"] = uint16(spec.DstPort)
+			} else if isDynObject(v) {
+				if spec.DstPort != 0 {
+					cfg["dst_port"] = uint16(spec.DstPort)
+				} else {
+					delete(cfg, "dst_port")
+				}
 			}
 			// ftp 链强制并发会话语义（mms/cwmp 同款）：FTP 多会话/数据通道
 			// 靠事件 SrcPort/DstPort 覆盖合成独立 connKey；concurrent=true

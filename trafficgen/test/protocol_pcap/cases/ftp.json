@@ -8148,10 +8148,24 @@
       "value": 3
     },
     "expect": {
-      "expect_error": true,
-      "error_contains": "invalid",
       "notes": [
-        "B/C 类缺口登记：tcp.src_port 对象在链 planner 被拒（uint16 字段不收对象）——D-FTP-3 层字段动态设计含 tcp/udp 端口对象写法，但链 planner 的 uint16 解析（ValidateLayers→applySpecToChain）不认对象；ip 层动态对象已生效（resolveLayerTuple worker 路径），tcp 层未接。修复后改正例并钉 distinct 断言"
+        "同键二态 tcp 层动态对象：worker resolveLayerTuple 逐流解析写入 spec，applySpecToChain 注入替换对象；distinct 钉解析后客户端口"
+      ],
+      "min_packets": 21,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "15200",
+            "15201",
+            "15202"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        }
       ]
     }
   },
@@ -8193,10 +8207,24 @@
       "value": 3
     },
     "expect": {
-      "expect_error": true,
-      "error_contains": "invalid",
       "notes": [
-        "B/C 类缺口登记：tcp.src_port rand 对象被拒——D-FTP-3 层字段动态设计含 tcp/udp 端口对象写法，但链 planner 的 uint16 解析（ValidateLayers→applySpecToChain）不认对象；ip 层动态对象已生效（resolveLayerTuple worker 路径），tcp 层未接。修复后改正例并钉 distinct 断言"
+        "同键二态 tcp.src_port rand seed=7：seed+流序号可复现，3 流 15301/15306/15308（真实 pcap 钉死）"
+      ],
+      "min_packets": 21,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "15301",
+            "15306",
+            "15308"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        }
       ]
     }
   },
@@ -8214,9 +8242,9 @@
             "src_port": {
               "strategy": "list",
               "list": [
-                15401,
-                15402,
-                15403
+                "15401",
+                "15402",
+                "15403"
               ]
             }
           }
@@ -8238,10 +8266,24 @@
       "value": 3
     },
     "expect": {
-      "expect_error": true,
-      "error_contains": "invalid",
       "notes": [
-        "B/C 类缺口：tcp.src_port list 对象在 create 即被拒（invalid object）——同 inc/rand 家族"
+        "同键二态 tcp 层动态对象：worker resolveLayerTuple 逐流解析写入 spec，applySpecToChain 注入替换对象；distinct 钉解析后客户端口"
+      ],
+      "min_packets": 21,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "15401",
+            "15402",
+            "15403"
+          ],
+          "distinct_exclude": [
+            "21"
+          ]
+        }
       ]
     }
   },
@@ -8286,10 +8328,25 @@
       "value": 3
     },
     "expect": {
-      "expect_error": true,
-      "error_contains": "invalid",
       "notes": [
-        "B/C 类缺口：tcp.src_port fixed 对象被拒"
+        "同键二态 tcp 层动态对象：worker resolveLayerTuple 逐流解析写入 spec，applySpecToChain 注入替换对象；distinct 钉解析后客户端口"
+      ],
+      "min_packets": 21,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "15500"
+          ],
+          "distinct_exclude": [
+            "21",
+            "211",
+            "212",
+            "213"
+          ]
+        }
       ]
     }
   },
@@ -8330,10 +8387,26 @@
       "value": 3
     },
     "expect": {
-      "expect_error": true,
-      "error_contains": "invalid",
       "notes": [
-        "B/C 类缺口登记：tcp.dst_port 对象被拒——D-FTP-3 层字段动态设计含 tcp/udp 端口对象写法，但链 planner 的 uint16 解析（ValidateLayers→applySpecToChain）不认对象；ip 层动态对象已生效（resolveLayerTuple worker 路径），tcp 层未接。修复后改正例并钉 distinct 断言"
+        "同键二态 tcp 层动态对象：worker resolveLayerTuple 逐流解析写入 spec，applySpecToChain 注入替换对象；distinct 钉解析后客户端口"
+      ],
+      "min_packets": 21,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "212",
+            "213",
+            "214"
+          ],
+          "distinct_exclude": [
+            "12345",
+            "12346",
+            "12347"
+          ]
+        }
       ]
     }
   },
@@ -8375,10 +8448,26 @@
       "value": 3
     },
     "expect": {
-      "expect_error": true,
-      "error_contains": "invalid",
       "notes": [
-        "B/C 类缺口登记：tcp.dst_port rand 对象被拒——D-FTP-3 层字段动态设计含 tcp/udp 端口对象写法，但链 planner 的 uint16 解析（ValidateLayers→applySpecToChain）不认对象；ip 层动态对象已生效（resolveLayerTuple worker 路径），tcp 层未接。修复后改正例并钉 distinct 断言"
+        "同键二态 tcp.dst_port rand seed=7：3 流 8001/8006/8008（真实 pcap 钉死；客户端口自动递增排除）"
+      ],
+      "min_packets": 21,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "8001",
+            "8006",
+            "8008"
+          ],
+          "distinct_exclude": [
+            "12345",
+            "12346",
+            "12347"
+          ]
+        }
       ]
     }
   },
@@ -8518,9 +8607,9 @@
                 "src_port": {
                   "strategy": "list",
                   "list": [
-                    33101,
-                    33102,
-                    33103
+                    "33101",
+                    "33102",
+                    "33103"
                   ]
                 }
               }
@@ -8543,9 +8632,9 @@
         {
           "field": "tcp.srcport",
           "distinct_values": [
-            "12345",
-            "12346",
-            "12347"
+            "33101",
+            "33102",
+            "33103"
           ],
           "distinct_exclude": [
             "21"

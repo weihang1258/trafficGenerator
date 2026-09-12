@@ -1098,15 +1098,22 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 	// initial_seq 只跳过范围检查，字符串等不可转换值穿透补全到达生成器）。
 	// 预检必须在 Plan 同步执行——drive 运行在 goroutine 内，其错误被吞成
 	// 空流（驱动失败契约），放 drive 里就退化成静默空流而非同步拒绝。
+	// 同键二态豁免（D-FTP-2 v2）：transport 层端口是动态对象（有 strategy
+	// 键的 map）时，drive 的 applySpecToChain 会用 worker 逐流解析值
+	// （spec.SrcPort/DstPort）替换对象——对象本身不是可用端口，预检不得
+	// 读原始链。预检读 drive 同款注入结果（applySpecToChain(chain, spec)），
+	// 标量链注入前后一致（无条件注入幂等 / 层值优先不动），对象链预检的是
+	// 解析/默认形态——形状违规仍同步拒绝（V9 已放行对象，非法标量照旧拦）。
 	if eg, ok := gens[len(chain)-1].(interface{ GenEvents() EventGenerator }); ok && eg.GenEvents() != nil {
 		if idx := transportIndex(gens); idx >= 0 {
+			effChain := p.applySpecToChain(chain, spec)
 			switch g := gens[idx].(type) {
 			case *TCPGenerator:
-				if _, err := g.resolveCfg(&GenRequest{Layer: chain[idx]}); err != nil {
+				if _, err := g.resolveCfg(&GenRequest{Layer: effChain[idx]}); err != nil {
 					return nil, err
 				}
 			case *UDPGenerator:
-				if _, err := g.resolveCfg(&GenRequest{Layer: chain[idx]}); err != nil {
+				if _, err := g.resolveCfg(&GenRequest{Layer: effChain[idx]}); err != nil {
 					return nil, err
 				}
 			}
