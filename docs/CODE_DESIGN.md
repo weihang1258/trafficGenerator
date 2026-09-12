@@ -323,7 +323,10 @@
 >> PORT 127,0,0,1,195,80   << 500 Illegal PORT command.              # v6 下 PORT 判死
 # 真实下载（ftplib，TYPE I → EPSV → TYPE A → RETR test.txt）：
 v4: EPSV → 229 (|||21218|)，18 字节对账无误；v6: EPSV → 229 (|||21224|)，18 字节对账无误。
-# 方法注记：tcpdump 无抓包权限（lo: Operation not permitted），以上为应用层原始问答 + ftplib 字节对账； Идея pcap 断言仍以本机引擎生成 pcap + tshark 为准，不混用现网字节。
+# 线上抓包（mcp-socket-server，root 抓包机 10.12.131.35，lo 口，/home/tmp/ftp-epsv-lo.pcap，39504 字节——tcpdump 单流双写，包有重复，读数时以“首包”为准）：
+v4 控制面（21212）：EPSV→229 (|||21213|)；PASV→227 (127,0,0,1,82,228)；EPRT|2|→500 Bad EPRT protocol；EPRT|1|→200；PORT→200。
+v6 控制面（21222）：EPSV→229 (|||21225|)；PASV→227 (0,0,0,0,82,232)；EPRT|2|→200；PORT→500 Illegal PORT command。
+v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），server 回 SYN-ACK（0x0012），随后 server→client 发 18 字节 PSH（0x0018，内容 `hello epsv verify`），FIN/RST 收尾——与本实现“被动=client 首 SYN、载荷 server→client”一致，端口=229 通告值。
 ```
 **配置权威：** 层链是唯一真相。IPv6 地址仍只落 `ip` 层（`src`/`dst` 标量或同键二态对象）；EPSV/EPRT 是 `ftp` 层命令字符串（commands[].cmd/response），不是新字段、不新增层；数量仍只走 `flow_control`。
 
