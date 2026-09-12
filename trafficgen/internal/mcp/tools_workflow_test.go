@@ -22,7 +22,8 @@ func TestMCP_GetTaskProgress_HappyPath(t *testing.T) {
 	_, genOut, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 		TaskName:   "progress-test",
 		Protocol:   "tcp",
-		Config:     map[string]interface{}{"dst_port": 80, "count": 3},
+		Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
+		StrategyFlowControl: &flowControlInput{Type: "flows", Value: 3},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: env.tmp + "/progress.pcap",
@@ -99,7 +100,8 @@ func TestMCP_StopAllTasks_StopsRunningTask(t *testing.T) {
 	_, genOut, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 		TaskName:   "stop-test",
 		Protocol:   "tcp",
-		Config:     map[string]interface{}{"dst_port": 80, "count": 10000},
+		Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
+		StrategyFlowControl: &flowControlInput{Type: "flows", Value: 10000},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: env.tmp + "/stop.pcap",
@@ -142,7 +144,8 @@ func TestMCP_WaitForTask_Completes(t *testing.T) {
 	_, genOut, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 		TaskName:   "wait-test",
 		Protocol:   "tcp",
-		Config:     map[string]interface{}{"dst_port": 80, "count": 3},
+		Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
+		StrategyFlowControl: &flowControlInput{Type: "flows", Value: 3},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: env.tmp + "/wait.pcap",
@@ -202,7 +205,8 @@ func TestMCP_WaitForTask_Timeout(t *testing.T) {
 	_, genOut, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 		TaskName:   "timeout-test",
 		Protocol:   "tcp",
-		Config:     map[string]interface{}{"dst_port": 80, "count": 10000},
+		Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
+		StrategyFlowControl: &flowControlInput{Type: "flows", Value: 10000},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: env.tmp + "/timeout.pcap",

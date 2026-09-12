@@ -109,7 +109,8 @@ func TestStrategyCreate_LayersFieldRange(t *testing.T) {
 	}
 }
 
-// 无 layers 的存量 flat 写法不受影响（legacy 路径）。
+// Step 1（全协议扁平删除）：无 layers 的存量 flat 写法不再放行 → 400 +
+// 迁移指引。原 legacy 路径已死，唯一合法形状是层链。
 func TestStrategyCreate_FlatConfigStillWorks(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, r, _ := newStrategyTestServer(t)
@@ -118,8 +119,11 @@ func TestStrategyCreate_FlatConfigStillWorks(t *testing.T) {
 
 	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","tcp":{"mss":1460}},"flow_control":{"type":"flows","value":10}}`
 	w := postStrategy(t, r, body)
-	if w.Code != 201 {
-		t.Fatalf("status=%d, body=%s (want 201)", w.Code, w.Body.String())
+	if w.Code != 400 {
+		t.Fatalf("status=%d, body=%s (want 400 flat-deletion)", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "no longer accepts flat config field") {
+		t.Fatalf("body=%s (want flat-deletion guidance)", w.Body.String())
 	}
 }
 

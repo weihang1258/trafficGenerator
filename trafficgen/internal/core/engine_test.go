@@ -203,7 +203,7 @@ func TestMixedTraffic_Batch(t *testing.T) {
 			Classes: []TrafficClass{
 				{
 					ID: "tcp", Type: "tcp", FlowCount: 5,
-					Config: map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "10.0.0.2"},
+					Config: map[string]interface{}{},
 					Tuples: TupleConfig{
 						SrcIP:   StrategyConfig{Strategy: "fixed", Value: "10.0.0.1"},
 						DstIP:   StrategyConfig{Strategy: "fixed", Value: "10.0.0.2"},
@@ -213,7 +213,7 @@ func TestMixedTraffic_Batch(t *testing.T) {
 				},
 				{
 					ID: "udp", Type: "udp", FlowCount: 3,
-					Config: map[string]interface{}{"src_ip": "10.0.0.3", "dst_ip": "10.0.0.4"},
+					Config: map[string]interface{}{},
 					Tuples: TupleConfig{
 						SrcIP:   StrategyConfig{Strategy: "fixed", Value: "10.0.0.3"},
 						DstIP:   StrategyConfig{Strategy: "fixed", Value: "10.0.0.4"},

@@ -126,7 +126,7 @@ func TestRunProtocolCase_ExpectError_ErrorContainsMismatch(t *testing.T) {
 		Proto:  "arp",
 		CaseID: "neg_arp_wrong_substr",
 		SpecJSON: json.RawMessage(
-			`{"src_ip":"not-an-ip"}`), // 无 arp{} → 拒绝，但错误信息不是 error_contains
+			`{}`), // 无 arp{} → 拒绝，但错误信息不是 error_contains → fail（子串失配）
 		OutputType: "pcap",
 		Expect: caseExpectInput{
 			ExpectError:   true,
@@ -353,7 +353,7 @@ func TestRunProtocolSuite_AggregatesPassFail(t *testing.T) {
 		`[{"id":"a2","proto":"arp","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":3}}]`)
 	// expect_error pass：缺 arp{} → 拒绝
 	writeSuiteCase(t, dir, "arp_neg.json",
-		`[{"id":"a3","proto":"arp","spec_json":{"src_ip":"0.0.0.0"},"expect":{"expect_error":true,"error_contains":"ARP config is required"}}]`)
+		`[{"id":"a3","proto":"arp","spec_json":{},"expect":{"expect_error":true,"error_contains":"ARP config is required"}}]`)
 
 	_, out, err := env.srv.handleRunProtocolSuite(context.Background(), nil, suiteInput{
 		CaseDir:    dir,
@@ -395,7 +395,7 @@ func TestRunProtocolSuite_ProtoFilter(t *testing.T) {
 	os.MkdirAll(dir, 0755)
 	writeSuiteCase(t, dir, "arp.json",
 		`[{"id":"a1","proto":"arp","spec_json":{"arp":{"operation":1}},"expect":{"packet_count":2}},
-		  {"id":"t1","proto":"tcp","spec_json":{"dst_port":80},"expect":{"packet_count":1}}]`)
+		  {"id":"t1","proto":"tcp","spec_json":{"layers":[{"tcp":{}}]},"expect":{"packet_count":1}}]`)
 
 	// 只跑 tcp：载入器应过滤掉 arp 用例。
 	_, out, err := env.srv.handleRunProtocolSuite(context.Background(), nil, suiteInput{
@@ -530,7 +530,8 @@ func TestRunProtocolCase_ExpectError_StoppedNotPass(t *testing.T) {
 		_, out, err := env.srv.handleRunProtocolCase(context.Background(), nil, runCaseInput{
 			Proto:          "tcp",
 			CaseID:         "neg_but_stopped",
-			SpecJSON:       json.RawMessage(`{"dst_port":80,"count":1000}`),
+			SpecJSON:       json.RawMessage(`{"layers":[{"tcp":{}}]}`),
+			StrategyFC:     &flowControlInput{Type: "flows", Value: 1000},
 			OutputType:     "pcap",
 			OutputConfig:   &outputConfigInput{PcapPath: env.tmp + "/stop-neg.pcap"},
 			Expect:         caseExpectInput{ExpectError: true, ErrorContains: ""},

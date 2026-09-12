@@ -160,6 +160,12 @@ func ValidateBatchSpec(batch BatchSpec) error {
 		if err := ValidateProtocolSubConfigs(c.Config, c.Type); err != nil {
 			return fmt.Errorf("class[%d] %s: %w", i, c.ID, err)
 		}
+		// Step 1（全协议扁平删除）：batch 类顶层四元组/count 同判死——
+		// 与 strategy create/update 同口径（core.CheckProtoFlat 单一真相，
+		// schema 包 import core，反向复用成环故此处调 core 导出函数）。
+		if msg := CheckProtoFlat(c.Type, c.Config); msg != "" {
+			return fmt.Errorf("class[%d] %s: %s", i, c.ID, msg)
+		}
 		// D-FTP-3 (CORE_MEMORY §1): layers 与顶层扁平四元组混用拒绝——
 		// 与 strategy create/update 同口径（schema.checkLayerFlatConflict），
 		// 此处重复 6 行检查而非复用（schema 包 import core，反向复用成环）。

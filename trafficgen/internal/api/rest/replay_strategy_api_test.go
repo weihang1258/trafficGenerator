@@ -122,7 +122,7 @@ func TestReplayStrategy_Create_SynthDefault(t *testing.T) {
 	r.POST("/strategies", h.Create)
 
 	// No mode field -> defaults to synth
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"}}`
+	body := `{"name":"s1","protocol":"tcp","config":{}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

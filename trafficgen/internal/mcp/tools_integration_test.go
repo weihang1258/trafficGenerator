@@ -127,6 +127,7 @@ func setupMCPTestWithPlanner(t *testing.T, planner core.ProtocolPlanner) *testMC
 	eng.SetBuildFunc(func(c core.PacketConfig) ([]byte, error) {
 		return make([]byte, 64), nil
 	})
+	eng.SetLayerPlannerFactory(layers.BuildLayersPlanner)
 
 	done := make(chan string, 4)
 	eng.OnTaskComplete = func(taskID string) {
@@ -300,7 +301,7 @@ func TestMCP_ManageStrategies_CreateAndList(t *testing.T) {
 		Name:     "s1",
 		Mode:     "synth",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 80},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -360,7 +361,7 @@ func TestMCP_ManageStrategies_Update(t *testing.T) {
 		Action:   "create",
 		Name:     "s2",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 80},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 	})
 	var d map[string]string
 	json.Unmarshal(asRaw(out.Data), &d)
@@ -370,7 +371,7 @@ func TestMCP_ManageStrategies_Update(t *testing.T) {
 		ID:       d["id"],
 		Name:     "s2-updated",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 443},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{"dst_port": float64(443)}}}},
 	})
 	if err != nil {
 		t.Fatalf("update: %v", err)
@@ -386,10 +387,17 @@ func TestMCP_ManageStrategies_Update(t *testing.T) {
 		t.Fatalf("name not updated: %v", gd["name"])
 	}
 	// Verify config field actually changed (not just name). The config is stored
-	// as a JSON object; dst_port should be 443 (float64 from JSON), not 80.
+	// as a layers chain; tcp.dst_port should be 443.
 	cfg, _ := gd["config"].(map[string]interface{})
-	if port, _ := cfg["dst_port"].(float64); port != 443 {
-		t.Fatalf("config.dst_port not updated: got %v, want 443 (full config: %v)", cfg["dst_port"], cfg)
+	arr, _ := cfg["layers"].([]interface{})
+	var port float64
+	for _, item := range arr {
+		if m, ok := item.(map[string]interface{})["tcp"].(map[string]interface{}); ok {
+			port, _ = m["dst_port"].(float64)
+		}
+	}
+	if port != 443 {
+		t.Fatalf("config layers tcp.dst_port not updated: got %v, want 443 (full config: %v)", port, cfg)
 	}
 }
 
@@ -401,7 +409,7 @@ func TestMCP_ManageStrategies_Delete(t *testing.T) {
 		Action:   "create",
 		Name:     "s3",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 80},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 	})
 	var d map[string]string
 	json.Unmarshal(asRaw(out.Data), &d)
@@ -448,7 +456,7 @@ func TestMCP_ManageTasks_CreateAndStart(t *testing.T) {
 		Action:   "create",
 		Name:     "ts1",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 80, "count": 5},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 	})
 	if err != nil {
 		t.Fatalf("create strategy: %v", err)
@@ -517,7 +525,7 @@ func TestMCP_ManageTasks_List(t *testing.T) {
 		Action:   "create",
 		Name:     "list-s1",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 80, "count": 3},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 	})
 	var sd map[string]string
 	json.Unmarshal(asRaw(sout.Data), &sd)
@@ -565,7 +573,7 @@ func TestMCP_ManageTasks_StopFailsNonRunning(t *testing.T) {
 		Action:   "create",
 		Name:     "stop-s1",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 80},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 	})
 	var sd map[string]string
 	json.Unmarshal(asRaw(sout.Data), &sd)
@@ -605,7 +613,7 @@ func TestMCP_ManageTasks_DeleteFailsRunning(t *testing.T) {
 		Action:   "create",
 		Name:     "del-s1",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 80, "count": 100},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 	})
 	var sd map[string]string
 	json.Unmarshal(asRaw(sout.Data), &sd)
@@ -685,7 +693,8 @@ func TestMCP_GenerateTraffic_HappyPath(t *testing.T) {
 	_, out, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 		TaskName:   "gen1",
 		Protocol:   "tcp",
-		Config:     map[string]interface{}{"dst_port": 80, "count": 3},
+		Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
+		StrategyFlowControl: &flowControlInput{Type: "flows", Value: 3},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: env.tmp + "/gen1.pcap",
@@ -736,7 +745,8 @@ func TestMCP_GenerateTraffic_DuplicateIdempotent(t *testing.T) {
 	input := generateTrafficInput{
 		TaskName:   "idem",
 		Protocol:   "tcp",
-		Config:     map[string]interface{}{"dst_port": 80, "count": 3},
+		Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
+		StrategyFlowControl: &flowControlInput{Type: "flows", Value: 3},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: env.tmp + "/idem.pcap",
@@ -815,7 +825,7 @@ func TestMCP_ErrorMapping_MissingName(t *testing.T) {
 	_, _, err := env.srv.handleManageStrategies(context.Background(), nil, manageStrategiesInput{
 		Action:   "create",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 80},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 	})
 	if err == nil {
 		t.Fatal("expected error for missing name")
@@ -844,7 +854,7 @@ func TestMCP_ConcurrentGenerate(t *testing.T) {
 			_, out, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 				TaskName:   fmt.Sprintf("conc-%d", idx),
 				Protocol:   "tcp",
-				Config:     map[string]interface{}{"dst_port": int(80 + idx), "count": 3},
+				Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{"dst_port": float64(80 + idx)}}}},
 				OutputType: "pcap",
 				OutputConfig: &outputConfigInput{
 					PcapPath: env.tmp + fmt.Sprintf("/conc-%d.pcap", idx),
@@ -908,7 +918,7 @@ func TestMCP_ManageStrategies_ListTasks(t *testing.T) {
 		Action:   "create",
 		Name:     "lt-s1",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 80, "count": 3},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 	})
 	if err != nil {
 		t.Fatalf("create strategy: %v", err)
@@ -972,7 +982,7 @@ func TestMCP_ManageTasks_CreateBatch(t *testing.T) {
 					"src_port": map[string]interface{}{"strategy": "fixed", "value": 1234},
 					"dst_port": map[string]interface{}{"strategy": "fixed", "value": 80},
 				},
-				"config": map[string]interface{}{"count": 3},
+				"config": map[string]interface{}{},
 			},
 		},
 	}
@@ -1025,7 +1035,8 @@ func TestMCP_ManageTasks_History(t *testing.T) {
 	_, out, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 		TaskName:   "hist-task",
 		Protocol:   "tcp",
-		Config:     map[string]interface{}{"dst_port": 80, "count": 3},
+		Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
+		StrategyFlowControl: &flowControlInput{Type: "flows", Value: 3},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: env.tmp + "/hist.pcap",
@@ -1098,7 +1109,8 @@ func TestMCP_GenerateTraffic_PcapSideEffect(t *testing.T) {
 	_, out, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 		TaskName:   "se-task",
 		Protocol:   "tcp",
-		Config:     map[string]interface{}{"dst_port": 80, "count": 5},
+		Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
+		StrategyFlowControl: &flowControlInput{Type: "flows", Value: 5},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: pcapPath,
@@ -1143,7 +1155,7 @@ func TestMCP_GenerateTraffic_FlowControl(t *testing.T) {
 	_, out, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 		TaskName:            "fc-task",
 		Protocol:            "tcp",
-		Config:              map[string]interface{}{"dst_port": 80, "count": 3},
+		Config:              map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 		StrategyFlowControl: &flowControlInput{Type: "flows", Value: 10},
 		TaskFlowControl:     &flowControlInput{Type: "flows", Value: 5},
 		OutputType:          "pcap",
@@ -1188,7 +1200,7 @@ func TestMCP_ManageTasks_StopRunning(t *testing.T) {
 		Action:   "create",
 		Name:     "stoprun-s1",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 80, "count": 100},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 	})
 	var sd map[string]string
 	json.Unmarshal(asRaw(sout.Data), &sd)
@@ -1291,9 +1303,7 @@ func TestMCP_GenerateTraffic_PadMinFrame_DefaultON(t *testing.T) {
 		TaskName: "arp-default",
 		Protocol: "arp",
 		Config: map[string]interface{}{
-			"src_ip": "10.0.0.1",
-			"dst_ip": "20.0.0.1",
-			"arp":    map[string]interface{}{"operation": 1},
+			"arp": map[string]interface{}{"operation": 1},
 		},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
@@ -1337,8 +1347,6 @@ func TestMCP_GenerateTraffic_PadMinFrame_False_NoPadding(t *testing.T) {
 		TaskName: "arp-nopad",
 		Protocol: "arp",
 		Config: map[string]interface{}{
-			"src_ip":        "10.0.0.1",
-			"dst_ip":        "20.0.0.1",
 			"arp":           map[string]interface{}{"operation": 1},
 			"pad_min_frame": false,
 		},
@@ -1383,8 +1391,6 @@ func TestMCP_GenerateTraffic_PadMinFrame_True_ExplicitON(t *testing.T) {
 		TaskName: "arp-pad",
 		Protocol: "arp",
 		Config: map[string]interface{}{
-			"src_ip":        "10.0.0.1",
-			"dst_ip":        "20.0.0.1",
 			"arp":           map[string]interface{}{"operation": 1},
 			"pad_min_frame": true,
 		},

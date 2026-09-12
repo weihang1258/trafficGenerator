@@ -160,7 +160,7 @@ func TestEngine_BatchZeroConfigClassFails(t *testing.T) {
 			Classes: []TrafficClass{
 				{
 					ID: "broken", Type: "jt808", FlowCount: 2,
-					Config: map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "10.0.0.2"},
+					Config: map[string]interface{}{},
 				},
 			},
 		},
@@ -217,11 +217,11 @@ func TestEngine_BatchZeroConfigWithHealthyClass(t *testing.T) {
 			Classes: []TrafficClass{
 				{
 					ID: "broken", Type: "jt808", FlowCount: 2,
-					Config: map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "10.0.0.2"},
+					Config: map[string]interface{}{},
 				},
 				{
 					ID: "tcp", Type: "tcp", FlowCount: 1,
-					Config: map[string]interface{}{"src_ip": "10.0.0.3", "dst_ip": "10.0.0.4"},
+					Config: map[string]interface{}{},
 				},
 			},
 		},
@@ -290,9 +290,9 @@ func TestEngine_BatchPartialFailZeroConfigNoDoubleCount(t *testing.T) {
 		Batch: &BatchSpec{
 			Classes: []TrafficClass{
 				{ID: "broken", Type: "jt808", FlowCount: 2,
-					Config: map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "10.0.0.2"}},
+					Config: map[string]interface{}{}},
 				{ID: "tcp", Type: "tcp", FlowCount: 1,
-					Config: map[string]interface{}{"src_ip": "10.0.0.3", "dst_ip": "10.0.0.4"}},
+					Config: map[string]interface{}{}},
 			},
 		},
 	}

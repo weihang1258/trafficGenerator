@@ -149,7 +149,7 @@ func TestHTTPServer_EndToEndWorkflow(t *testing.T) {
 		Arguments: map[string]interface{}{
 			"task_name":   "e2e-test",
 			"protocol":    "tcp",
-			"config":      map[string]interface{}{"dst_port": 80, "count": 5},
+			"config":      map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 			"output_type": "pcap",
 			"output_config": map[string]interface{}{
 				"pcap_path": pcapPath,
@@ -333,7 +333,7 @@ func TestHTTPServer_AllWorkflowToolsCallable(t *testing.T) {
 		Arguments: map[string]interface{}{
 			"task_name":   "wf-test",
 			"protocol":    "tcp",
-			"config":      map[string]interface{}{"dst_port": 80, "count": 2},
+			"config":      map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 			"output_type": "pcap",
 			"output_config": map[string]interface{}{
 				"pcap_path": pcapPath,

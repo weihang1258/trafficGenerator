@@ -7598,6 +7598,31 @@ func parseGOOSEConfig(m map[string]interface{}) *GOOSEConfig {
 	return b
 }
 
+// CheckProtoFlat (Step 1 全协议扁平删除)：除 ftp 外的全体协议，顶层
+// src_ip/dst_ip/src_port/dst_port/count 任一出现即拒绝，返回通用迁移指引
+// 文案（层链形状：地址进 ip 层、端口进 tcp/udp 层、数量走 flow_control）。
+// ftp 委托原 CheckFTPFlat（文案锁死，逐字一致）。schema 层（strategy
+// create/update 400）与 convert.go ValidateBatchSpec（batch 类 shape 门）
+// 共用此函数，保证文案不漂移。nil 值视为未出现（JSON null = 缺省）；
+// 层链形状（无顶层扁平键）与顶层同名子映射（现行协议配置载体，各协议
+// P-PIPE 改写时才迁入层内）不触发。导出供 schema 包调用
+// （schema import core，反向不可）。
+func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
+	if protocol == "ftp" {
+		return CheckFTPFlat(cfg)
+	}
+	if cfg == nil {
+		return ""
+	}
+	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "count"} {
+		if v, ok := cfg[k]; ok && v != nil {
+			return "protocol " + protocol + " no longer accepts flat config field " + k +
+				" (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)"
+		}
+	}
+	return ""
+}
+
 // CheckFTPFlat (Task 5 扁平删除, FTP 层链收尾计划): protocol==ftp 时顶层
 // src_ip/dst_ip/src_port/dst_port/count 任一或顶层 ftp 子映射出现即拒绝，
 // 返回 checkLayerFlatConflict 家族文案（给迁移指引）。schema 层

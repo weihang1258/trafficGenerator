@@ -13,6 +13,7 @@ import (
 	sqlite "github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/internal/core/layers"
 	"github.com/trafficgen/trafficgen/internal/protocol/arp"
 	"github.com/trafficgen/trafficgen/internal/protocol/dns"
 	httpproto "github.com/trafficgen/trafficgen/internal/protocol/http"
@@ -49,6 +50,7 @@ func setupIntegrationTest(t *testing.T) (*gin.Engine, *storage.DB, *core.Engine,
 	e.RegisterPlanner(icmp.NewPlanner())
 	e.RegisterPlanner(arp.NewPlanner())
 	e.SetBuildFunc(core.NewBuilder().Build)
+	e.SetLayerPlannerFactory(layers.BuildLayersPlanner)
 	if err := e.Start(); err != nil {
 		t.Fatalf("start engine: %v", err)
 	}
@@ -144,8 +146,8 @@ func TestIntegration_StrategyFlows_GeneratesMultipleFlows(t *testing.T) {
 	pcapPath := t.TempDir() + "/it1.pcap"
 	// src_port omitted: flows=5 + pinned src_port is now a static-copy
 	// rejection (D-FTP-2); auto-increment 12345+i supplies the ports.
-	stratID := createStrategy(t, r, "tcp",
-		`{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","dst_port":80,"tcp":{"handshake":true,"termination":true}}`,
+	stratID := createStrategy(t, r, "http",
+		`{"layers":[{"ip":{"src":"10.0.0.1","dst":"10.0.0.2"}},{"tcp":{"src_port":{"strategy":"inc","range":[20000,20004]},"dst_port":80,"handshake":true,"termination":true}},{"http":{}}]}`,
 		`{"type":"flows","value":5}`,
 	)
 	taskID := createTask(t, r, "it1", []string{stratID}, pcapPath, "")
@@ -180,12 +182,12 @@ func TestIntegration_TaskLevelBPS_CapsAggregate(t *testing.T) {
 	defer cleanup()
 
 	pcapPath := t.TempDir() + "/it2.pcap"
-	stratA := createStrategy(t, r, "tcp",
-		`{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","dst_port":80,"tcp":{"handshake":true,"termination":true}}`,
+	stratA := createStrategy(t, r, "http",
+		`{"layers":[{"ip":{"src":"10.0.0.1","dst":"10.0.0.2"}},{"tcp":{"src_port":{"strategy":"inc","range":[20000,20999]},"dst_port":80,"handshake":true,"termination":true}},{"http":{}}]}`,
 		`{"type":"flows","value":500}`,
 	)
-	stratB := createStrategy(t, r, "icmp",
-		`{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","icmp":{"type":8,"code":0}}`,
+	stratB := createStrategy(t, r, "http",
+		`{"layers":[{"ip":{"src":"10.0.0.1","dst":"10.0.0.2"}},{"tcp":{"src_port":{"strategy":"inc","range":[21000,21999]},"dst_port":80,"handshake":true,"termination":true}},{"http":{}}]}`,
 		`{"type":"flows","value":500}`,
 	)
 	taskID := createTask(t, r, "it2", []string{stratA, stratB}, pcapPath,
@@ -229,12 +231,12 @@ func TestIntegration_TaskLevelFlows_CapsTotal(t *testing.T) {
 	defer cleanup()
 
 	pcapPath := t.TempDir() + "/it3.pcap"
-	stratA := createStrategy(t, r, "tcp",
-		`{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","dst_port":80,"tcp":{"handshake":true,"termination":true}}`,
+	stratA := createStrategy(t, r, "http",
+		`{"layers":[{"ip":{"src":"10.0.0.1","dst":"10.0.0.2"}},{"tcp":{"src_port":{"strategy":"inc","range":[20000,20099]},"dst_port":80,"handshake":true,"termination":true}},{"http":{}}]}`,
 		`{"type":"flows","value":100}`,
 	)
-	stratB := createStrategy(t, r, "icmp",
-		`{"src_ip":"10.0.0.3","dst_ip":"10.0.0.4","icmp":{"type":8,"code":0}}`,
+	stratB := createStrategy(t, r, "http",
+		`{"layers":[{"ip":{"src":"10.0.0.3","dst":"10.0.0.4"}},{"tcp":{"src_port":{"strategy":"inc","range":[20100,20199]},"dst_port":80,"handshake":true,"termination":true}},{"http":{}}]}`,
 		`{"type":"flows","value":100}`,
 	)
 	taskID := createTask(t, r, "it3", []string{stratA, stratB}, pcapPath,
@@ -276,8 +278,8 @@ func TestIntegration_TaskLevelTime_StopsEarly(t *testing.T) {
 	defer cleanup()
 
 	pcapPath := t.TempDir() + "/it4.pcap"
-	stratID := createStrategy(t, r, "icmp",
-		`{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","icmp":{"type":8,"code":0}}`,
+	stratID := createStrategy(t, r, "http",
+		`{"layers":[{"ip":{"src":"10.0.0.1","dst":"10.0.0.2"}},{"tcp":{"src_port":{"strategy":"inc","range":[20000,20999]},"dst_port":80,"handshake":true,"termination":true}},{"http":{}}]}`,
 		`{"type":"flows","value":99999}`,
 	)
 	taskID := createTask(t, r, "it4", []string{stratID}, pcapPath,

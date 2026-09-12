@@ -149,6 +149,12 @@ func TestNegativeParity_StrategyCreate(t *testing.T) {
 			mcpIn:    manageStrategiesInput{Action: "create", Name: "p14", Mode: "synth", Protocol: "tcp", Config: cfg(`{"src_port":12345}`), FlowControl: &flowControlInput{Type: "flows", Value: 2}},
 		},
 		{
+			// Step 1 全协议扁平删除：非 ftp 纯扁平（sip 顶层 src_ip）→ 400，REST/MCP 同文案。
+			name:     "non-ftp pure flat rejected",
+			restBody: `{"name":"p18","mode":"synth","protocol":"sip","config":{"src_ip":"10.0.0.1","sip":{}}}`,
+			mcpIn:    manageStrategiesInput{Action: "create", Name: "p18", Mode: "synth", Protocol: "sip", Config: cfg(`{"src_ip":"10.0.0.1","sip":{}}`)},
+		},
+		{
 			// Task 5 扁平删除：纯扁平 ftp（四元组 + count + 顶层 ftp 键）→ 400。
 			name:     "ftp pure flat rejected",
 			restBody: `{"name":"p16","mode":"synth","protocol":"ftp","config":{"src_ip":"10.0.0.1","dst_ip":"20.0.0.1","src_port":21000,"dst_port":21,"count":1,"ftp":{"banner":"220"}}}`,

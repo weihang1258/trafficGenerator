@@ -133,7 +133,8 @@ func TestMCP_WaitForTask_FailedState(t *testing.T) {
 	_, genOut, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 		TaskName:   "failed-test",
 		Protocol:   "tcp",
-		Config:     map[string]interface{}{"dst_port": 80, "count": 1},
+		Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
+		StrategyFlowControl: &flowControlInput{Type: "flows", Value: 1},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: env.tmp + "/failed.pcap",
@@ -178,7 +179,8 @@ func TestMCP_WaitForTask_ErrorState(t *testing.T) {
 	_, genOut, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 		TaskName:   "error-test",
 		Protocol:   "tcp",
-		Config:     map[string]interface{}{"dst_port": 80, "count": 1},
+		Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
+		StrategyFlowControl: &flowControlInput{Type: "flows", Value: 1},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: env.tmp + "/error.pcap",
@@ -434,7 +436,7 @@ func TestMCP_ManageStrategies_Get(t *testing.T) {
 		Name:     "get-test",
 		Mode:     "synth",
 		Protocol: "tcp",
-		Config:   map[string]interface{}{"dst_port": 80},
+		Config:   map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -591,7 +593,7 @@ func TestMCP_GenerateTraffic_InvalidProtocol(t *testing.T) {
 	_, out, err := env.srv.handleGenerateTraffic(context.Background(), nil, generateTrafficInput{
 		TaskName:   "bad-proto",
 		Protocol:   "carrier-pigeon",
-		Config:     map[string]interface{}{"dst_port": 80},
+		Config:     map[string]interface{}{"layers": []interface{}{map[string]interface{}{"tcp": map[string]interface{}{}}}},
 		OutputType: "pcap",
 		OutputConfig: &outputConfigInput{
 			PcapPath: env.tmp + "/bad.pcap",

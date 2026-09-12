@@ -52,8 +52,8 @@ func TestCreateBatch(t *testing.T) {
 
 	pcapPath := t.TempDir() + "/batch.pcap"
 	body := `{"name":"batch-test","batch":{"classes":[` +
-		`{"id":"tcp","type":"tcp","flow_count":2,"config":{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","tcp":{"handshake":true,"termination":true}},"tuples":{"src_ip":{"strategy":"fixed","value":"10.0.0.1"},"dst_ip":{"strategy":"fixed","value":"10.0.0.2"},"src_port":{"strategy":"fixed","value":1000},"dst_port":{"strategy":"fixed","value":80}}},` +
-		`{"id":"udp","type":"udp","flow_count":2,"config":{"src_ip":"10.0.0.3","dst_ip":"10.0.0.4"},"tuples":{"src_ip":{"strategy":"fixed","value":"10.0.0.3"},"dst_ip":{"strategy":"fixed","value":"10.0.0.4"},"src_port":{"strategy":"fixed","value":2000},"dst_port":{"strategy":"fixed","value":53}}}` +
+		`{"id":"tcp","type":"tcp","flow_count":2,"config":{"tcp":{"handshake":true,"termination":true}},"tuples":{"src_ip":{"strategy":"fixed","value":"10.0.0.1"},"dst_ip":{"strategy":"fixed","value":"10.0.0.2"},"src_port":{"strategy":"fixed","value":1000},"dst_port":{"strategy":"fixed","value":80}}},` +
+		`{"id":"udp","type":"udp","flow_count":2,"config":{},"tuples":{"src_ip":{"strategy":"fixed","value":"10.0.0.3"},"dst_ip":{"strategy":"fixed","value":"10.0.0.4"},"src_port":{"strategy":"fixed","value":2000},"dst_port":{"strategy":"fixed","value":53}}}` +
 		`]},"output_type":"pcap","output_config":{"pcap_path":"` + pcapPath + `"}}`
 
 	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
@@ -141,7 +141,7 @@ func submitBatchTask(t *testing.T, r *gin.Engine, name string) string {
 	t.Helper()
 	pcapPath := t.TempDir() + "/" + name + ".pcap"
 	body := `{"name":"` + name + `","batch":{"classes":[` +
-		`{"id":"tcp","type":"tcp","flow_count":1,"config":{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","tcp":{"handshake":true,"termination":true}},"tuples":{"src_ip":{"strategy":"fixed","value":"10.0.0.1"},"dst_ip":{"strategy":"fixed","value":"10.0.0.2"},"src_port":{"strategy":"fixed","value":1000},"dst_port":{"strategy":"fixed","value":80}}}` +
+		`{"id":"tcp","type":"tcp","flow_count":1,"config":{"tcp":{"handshake":true,"termination":true}},"tuples":{"src_ip":{"strategy":"fixed","value":"10.0.0.1"},"dst_ip":{"strategy":"fixed","value":"10.0.0.2"},"src_port":{"strategy":"fixed","value":1000},"dst_port":{"strategy":"fixed","value":80}}}` +
 		`]},"output_type":"pcap","output_config":{"pcap_path":"` + pcapPath + `"}}`
 	req := httptest.NewRequest("POST", "/tasks/batch", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

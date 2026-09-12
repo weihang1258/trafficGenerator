@@ -27,10 +27,9 @@ func TestMCP_GroupID_PassthroughAndRouting(t *testing.T) {
 		Mode:     "synth",
 		Protocol: "tcp",
 		Config: map[string]interface{}{
-			"src_ip":   "10.0.0.1",
-			"dst_ip":   "10.0.0.2",
-			"src_port": 12345,
-			"dst_port": 80,
+			"layers": []interface{}{
+				map[string]interface{}{"tcp": map[string]interface{}{}},
+			},
 			"group_id": map[string]interface{}{
 				"strategy": "fixed",
 				"value":    "call-A",

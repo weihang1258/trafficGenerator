@@ -274,7 +274,7 @@ func TestValidateBatchSpec_AllProtocols(t *testing.T) {
 				ID:        proto + "-1",
 				Type:      proto,
 				FlowCount: 1,
-				Config:    map[string]interface{}{"src_ip": "10.0.0.1", "dst_ip": "20.0.0.1"},
+				Config:    map[string]interface{}{"dscp": float64(8)},
 			}
 			// Replay classes need a non-empty Replay field (the planner
 			// unmarshals this JSON into its ReplaySpec); all other classes

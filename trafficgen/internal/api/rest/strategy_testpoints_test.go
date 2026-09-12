@@ -41,7 +41,7 @@ func stratUser(r *gin.Engine, userID, username string) {
 
 func createTestStrategy(t *testing.T, db *storage.DB, userID, name, protocol string) string {
 	t.Helper()
-	config := `{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"}`
+	config := `{}`
 	fc := `{"type":"flows","value":1}`
 	ch := calculateConfigHash("synth", protocol, config, fc)
 	id := uuid.New().String()
@@ -69,7 +69,7 @@ func TestStrategyCreate_Success(t *testing.T) {
 	})
 	r.POST("/strategies", h.Create)
 
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"},"flow_control":{"type":"flows","value":10}}`
+	body := `{"name":"s1","protocol":"tcp","config":{},"flow_control":{"type":"flows","value":10}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -242,7 +242,7 @@ func TestStrategyCreate_DSCPOutOfRange(t *testing.T) {
 	h, r, _ := newStrategyTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/strategies", h.Create)
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1","dscp":256}}`
+	body := `{"name":"s1","protocol":"tcp","config":{"dscp":256}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -258,7 +258,7 @@ func TestStrategyCreate_VLANOutOfRange(t *testing.T) {
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/strategies", h.Create)
 	// ValidateConfigRanges checks "vlan_id" key, not "vlan"
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1","vlan_id":4096}}`
+	body := `{"name":"s1","protocol":"tcp","config":{"vlan_id":4096}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -273,7 +273,7 @@ func TestStrategyCreate_EmptyProtocol(t *testing.T) {
 	h, r, _ := newStrategyTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/strategies", h.Create)
-	body := `{"name":"s1","protocol":"","config":{"src_ip":"10.0.0.1"}}`
+	body := `{"name":"s1","protocol":"","config":{}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -294,7 +294,7 @@ func TestStrategyCreate_UnsupportedProtocol(t *testing.T) {
 	h, r, _ := newStrategyTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/strategies", h.Create)
-	body := `{"name":"s1","protocol":"nosuchproto","config":{"src_ip":"10.0.0.1"}}`
+	body := `{"name":"s1","protocol":"nosuchproto","config":{}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -328,7 +328,7 @@ func TestStrategyCreate_DefaultFlowControl(t *testing.T) {
 	h, r, db := newStrategyTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/strategies", h.Create)
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"}}`
+	body := `{"name":"s1","protocol":"tcp","config":{}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -354,7 +354,7 @@ func TestStrategyCreate_BadFlowType(t *testing.T) {
 	h, r, _ := newStrategyTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/strategies", h.Create)
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1"},"flow_control":{"type":"xyz","value":1}}`
+	body := `{"name":"s1","protocol":"tcp","config":{},"flow_control":{"type":"xyz","value":1}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -373,7 +373,7 @@ func TestStrategyCreate_NonPositiveValue(t *testing.T) {
 	h, r, _ := newStrategyTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/strategies", h.Create)
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1"},"flow_control":{"type":"flows","value":0}}`
+	body := `{"name":"s1","protocol":"tcp","config":{},"flow_control":{"type":"flows","value":0}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -409,7 +409,7 @@ func TestStrategyCreate_Dedup(t *testing.T) {
 	h, r, _ := newStrategyTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.POST("/strategies", h.Create)
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"},"flow_control":{"type":"flows","value":10}}`
+	body := `{"name":"s1","protocol":"tcp","config":{},"flow_control":{"type":"flows","value":10}}`
 
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -456,7 +456,7 @@ func TestStrategyCreate_DBCreateFail(t *testing.T) {
 	sqlDB, _ := db.DB.DB()
 	sqlDB.Close()
 
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"}}`
+	body := `{"name":"s1","protocol":"tcp","config":{}}`
 	req := httptest.NewRequest("POST", "/strategies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -645,7 +645,7 @@ func TestStrategyUpdate_Success(t *testing.T) {
 	r.PUT("/strategies/:id", h.Update)
 	id := createTestStrategy(t, db, "test-user", "s1", "tcp")
 
-	body := `{"name":"s2","protocol":"udp","config":{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"}}`
+	body := `{"name":"s2","protocol":"udp","config":{}}`
 	req := httptest.NewRequest("PUT", "/strategies/"+id, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -717,7 +717,7 @@ func TestStrategyUpdate_BadNetwork(t *testing.T) {
 	r.PUT("/strategies/:id", h.Update)
 	id := createTestStrategy(t, db, "test-user", "s1", "tcp")
 
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"bad"}}`
+	body := `{"name":"s1","protocol":"","config":{"layers":[{"ip":{"src":"bad"}}]}}`
 	req := httptest.NewRequest("PUT", "/strategies/"+id, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -734,7 +734,7 @@ func TestStrategyUpdate_RangeFail(t *testing.T) {
 	r.PUT("/strategies/:id", h.Update)
 	id := createTestStrategy(t, db, "test-user", "s1", "tcp")
 
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1","dscp":256}}`
+	body := `{"name":"s1","protocol":"tcp","config":{"dscp":256}}`
 	req := httptest.NewRequest("PUT", "/strategies/"+id, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -766,7 +766,7 @@ func TestStrategyUpdate_NotFound(t *testing.T) {
 	h, r, _ := newStrategyTestServer(t)
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.PUT("/strategies/:id", h.Update)
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1"}}`
+	body := `{"name":"s1","protocol":"tcp","config":{}}`
 	req := httptest.NewRequest("PUT", "/strategies/nonexistent", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -803,7 +803,7 @@ func TestStrategyUpdate_BadFlowType(t *testing.T) {
 	r.PUT("/strategies/:id", h.Update)
 	id := createTestStrategy(t, db, "test-user", "s1", "tcp")
 
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1"},"flow_control":{"type":"x","value":1}}`
+	body := `{"name":"s1","protocol":"tcp","config":{},"flow_control":{"type":"x","value":1}}`
 	req := httptest.NewRequest("PUT", "/strategies/"+id, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -820,7 +820,7 @@ func TestStrategyUpdate_NonPositiveValue(t *testing.T) {
 	r.PUT("/strategies/:id", h.Update)
 	id := createTestStrategy(t, db, "test-user", "s1", "tcp")
 
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"10.0.0.1"},"flow_control":{"type":"flows","value":0}}`
+	body := `{"name":"s1","protocol":"tcp","config":{},"flow_control":{"type":"flows","value":0}}`
 	req := httptest.NewRequest("PUT", "/strategies/"+id, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -837,7 +837,7 @@ func TestStrategyUpdate_FCNil(t *testing.T) {
 	r.PUT("/strategies/:id", h.Update)
 	id := createTestStrategy(t, db, "test-user", "s1", "tcp")
 
-	body := `{"name":"s2","protocol":"tcp","config":{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2"}}`
+	body := `{"name":"s2","protocol":"tcp","config":{}}`
 	req := httptest.NewRequest("PUT", "/strategies/"+id, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -856,7 +856,7 @@ func TestStrategyUpdate_DBSaveFail(t *testing.T) {
 	sqlDB, _ := db.DB.DB()
 	sqlDB.Close()
 
-	body := `{"name":"s2","protocol":"tcp","config":{"src_ip":"10.0.0.1"}}`
+	body := `{"name":"s2","protocol":"tcp","config":{}}`
 	req := httptest.NewRequest("PUT", "/strategies/"+id, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -879,7 +879,7 @@ func TestStrategyUpdate_ValidationBeforeOwnership(t *testing.T) {
 	r.Use(func(c *gin.Context) { c.Set("userID", "test-user"); c.Next() })
 	r.PUT("/strategies/:id", h.Update)
 	// False ID (not owned by user) + bad config
-	body := `{"name":"s1","protocol":"tcp","config":{"src_ip":"bad"}}`
+	body := `{"name":"s1","protocol":"","config":{"layers":[{"ip":{"src":"bad"}}]}}`
 	req := httptest.NewRequest("PUT", "/strategies/some-other-id", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -1214,10 +1214,10 @@ func TestLayerFlatConflict(t *testing.T) {
 	stratUser(r, "u1", "alice")
 	r.POST("/strategies", h.Create)
 
-	// ① layers + src_ip → 400 + migration guide
+	// ① layers + src_ip → 400 + 判死文案（Step 1 后泛化门覆盖混用门，同条件）
 	body := `{"name":"m1","protocol":"tcp","config":{"layers":[{"tcp":{}}],"src_ip":"10.0.0.1"},"flow_control":{"type":"flows","value":1}}`
 	w := postStrategy(t, r, body)
-	if w.Code != 400 || !strings.Contains(w.Body.String(), "mixes layers with flat") {
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "no longer accepts flat config field") {
 		t.Fatalf("① status=%d body=%s", w.Code, w.Body.String())
 	}
 	// ② layers + src_port → 400

@@ -234,18 +234,19 @@ func TestTaskCreateEntry(t *testing.T) {
 	}
 }
 
-// T-FTP-15（D-FTP-2 §5）：flat 静态复制拒绝——flows>1 + 显式 src_port +
-// 无 tuples/layers → 400；省略端口/补 tuples 通过；带 layers+扁平键 → 混用拒绝（D-FTP-3）。
+// T-FTP-15（D-FTP-2 §5；Step 1 全协议扁平删除后更新）：纯扁平四元组/count
+// 任一出现即判死（no longer accepts，先于 static copy）。省略端口/只带子映射
+// 通过；带 layers+扁平键 → 同判死（D-FTP-3 混用门被泛化门覆盖，同条件）。
 func TestSemanticStaticCopyRejection(t *testing.T) {
 	// ① reject
 	_, errs := ValidateStrategy("synth", "tcp",
 		map[string]any{"src_port": float64(12345), "tcp": map[string]any{}},
 		&FlowControl{Type: "flows", Value: 3})
-	if len(errs) == 0 || !strings.Contains(errs[0].Message, "static copy") {
-		t.Fatalf("① want static-copy reject, got %v", errs)
+	if len(errs) == 0 || !strings.Contains(errs[0].Message, "no longer accepts flat config field") {
+		t.Fatalf("① want flat-deletion reject, got %v", errs)
 	}
 	msg := errs[0].Message
-	for _, anchor := range []string{"Omit src_port", "dynamic object"} {
+	for _, anchor := range []string{"ip.src/ip.dst", "flow_control"} {
 		if !strings.Contains(msg, anchor) {
 			t.Errorf("message missing anchor %q: %s", anchor, msg)
 		}
@@ -264,20 +265,19 @@ func TestSemanticStaticCopyRejection(t *testing.T) {
 		&FlowControl{Type: "flows", Value: 3}); len(errs) == 0 {
 		t.Fatalf("③ tuples no longer escapes (strategy tuples withdrawn), got clean")
 	}
-	// ④ layers + flat src_port → mixed-use rejection (D-FTP-3 reverses the
-	// v2 exemption: layers configs must not carry flat four-tuple keys)
+	// ④ layers + flat src_port → 同判死（泛化门覆盖混用门，同条件）。
 	if _, errs := ValidateStrategy("synth", "",
 		map[string]any{"layers": []any{map[string]any{"tcp": map[string]any{}}},
 			"src_port": float64(12345)},
 		&FlowControl{Type: "flows", Value: 3}); len(errs) == 0 {
-		t.Fatalf("④ want mixed-use rejection, got clean")
-	} else if !strings.Contains(errs.Error(), "mixes layers with flat") {
+		t.Fatalf("④ want flat-deletion rejection, got clean")
+	} else if !strings.Contains(errs.Error(), "no longer accepts flat config field") {
 		t.Fatalf("④ wrong message: %v", errs)
 	}
-	// ⑤ flows=1 pinned → pass
+	// ⑤ flows=1 仍判死（Step 1 后扁平键与流数无关，见者即拒）。
 	if _, errs := ValidateStrategy("synth", "tcp",
 		map[string]any{"src_port": float64(12345)},
-		&FlowControl{Type: "flows", Value: 1}); len(errs) != 0 {
-		t.Fatalf("⑤ flows=1 must pass, got %v", errs)
+		&FlowControl{Type: "flows", Value: 1}); len(errs) == 0 {
+		t.Fatalf("⑤ flows=1 flat must also reject, got clean")
 	}
 }
