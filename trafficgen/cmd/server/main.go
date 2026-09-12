@@ -22,6 +22,10 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/bgp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/coap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/cql"
+	// 空导入：cwmp 包 init 反向注册终结层生成器 + 校验器（64-cwmp v2.1.1：
+	// TR-069 over HTTP，[tcp→http→cwmp]，无空导入则二进制不含其 init，
+	// ChainPlanner("cwmp") 实例化时 generator not implemented）。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/cwmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dhcpv6"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dnp3"
