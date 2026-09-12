@@ -25,6 +25,11 @@ func (g *FINSGenerator) Generate(ctx context.Context, req *layers.GenRequest) er
 		return err
 	}
 	cfg = cloneConfig(cfg)
+	// legacy Plan 同款 SIDAuto 缺省（fins.go Plan: SIDAutoSet 未显式置位 →
+	// SIDAuto=true；SIDAutoSet json:"-" 不落线，wire 配置永远未置位）。
+	if !cfg.SIDAutoSet {
+		cfg.SIDAuto = true
+	}
 	transport := cfg.Transport
 	if transport == "" {
 		transport = "udp"

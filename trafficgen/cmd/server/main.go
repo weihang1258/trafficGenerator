@@ -27,10 +27,10 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dnp3"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/doip"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/enip"
-	"github.com/trafficgen/trafficgen/internal/protocol/fins"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/fins"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ftp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/gbt32960"
-	"github.com/trafficgen/trafficgen/internal/protocol/goose"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/goose"
 	"github.com/trafficgen/trafficgen/internal/protocol/gre"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/igmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/isis"
@@ -135,7 +135,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
 	// 空导入：ssh 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssh"
-	"github.com/trafficgen/trafficgen/internal/protocol/sv"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/sv"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/thrift"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tns"
@@ -518,8 +518,8 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dhcp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dhcpv6"))
-	app.engine.RegisterPlanner(sv.NewPlanner())
-	app.engine.RegisterPlanner(goose.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("sv"))
+	app.engine.RegisterPlanner(layers.NewChainPlanner("goose"))
 	app.engine.RegisterPlanner(icmp.NewPlanner())
 	app.engine.RegisterPlanner(arp.NewPlanner())
 	// raw-IP 路由终结层（P3 T5）：igmp/ospf/pim 是 [ip,<proto>] 链（无 tcp/udp
@@ -574,7 +574,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("doip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("smb"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("nfs"))
-	app.engine.RegisterPlanner(fins.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("fins"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("tds"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("enip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("modbus"))
