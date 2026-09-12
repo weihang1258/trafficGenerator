@@ -86,7 +86,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/l2tp"
 	"github.com/trafficgen/trafficgen/internal/protocol/ldap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldp"
-	mcpprotocol "github.com/trafficgen/trafficgen/internal/protocol/mcp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/mcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mms"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/modbus"
@@ -579,7 +579,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("enip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("modbus"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("dnp3"))
-	app.engine.RegisterPlanner(mcpprotocol.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("mcp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("a2a"))
 
 	// P2c 层链驱动生成: inject the layer-planner factory so tasks carrying a
