@@ -303,9 +303,28 @@
 
 ### D-FTP-4 IPv6 对称覆盖 + 扩展被动/主动（RFC 2428）
 
-**状态：** 已验收（实现提交 22a7d56；单测 `TestGenIP_IPv6*/TestValidIP_MixedFamily` + `TestParseEPSVPort/TestParseEPRTPort/TestScanTxForDataPort_EPSVEPRT` 全绿，三包回归绿，新单测 -race 绿，全量套件 141/141 绿；现网行为待抓包回填项仍为“待确认”，不影响验收）
+**状态：** 已验收（实现提交 22a7d56；单测 `TestGenIP_IPv6*/TestValidIP_MixedFamily` + `TestParseEPSVPort/TestParseEPRTPort/TestScanTxForDataPort_EPSVEPRT` 全绿，三包回归绿，新单测 -race 绿，全量套件 141/141 绿；现网行为已抓包回填见依据行，不影响验收结论）
 **范围：** 本次解决：①IPv6 动态地址——层 `ip.src`/`ip.dst` 动态对象接受 IPv6 端点（inc/rand/list/fixed，`::` 缩写与文档全写双向互通），`genIP` 从纯 IPv4 算法扩展为双栈（IPv4 保持 32 位整型递增/回绕口径零变化；IPv6 新增 128 位递增/随机/轮转，跨段进位与回绕口径与 IPv4 同构）；②IPv6 扩展被动/主动——`EPSV`（RFC 2428 §3，被动，服务端回 229 含纯端口）与 `EPRT`（RFC 2428 §4，主动，客户端发 `EPRT |2|addr|port|` 三元组）信令端口推导（`scanTxForDataPort` 新增两路解析，与既有 PASV/PORT last-wins 同序；数据通道四元组仍走既有 `dataChannelPorts` 优先级链，零改动）；③IPv6 对称用例——现 2 例（passive 下载/active 上传）之外，按 §9 地址族对称要求补齐动态地址×策略、双会话/多流、EPSV/EPRT 四格（T-FTP-18…21）。明确不解决：`LPSV/LPSX/LPAS` 等历史方言（RFC 1639/795，已被 2428 替代，主流服务端不实现，记 C 类）；`EPRT |1|` IPv4 承载（2428 允许但现网只用 PORT，记 C 类不做）；IPv6 数据通道源端口 20 沿用（active 服务端源端口与地址族正交，RFC 959 §5.2，不变）；批量路径 tuples 池 IPv6（策略+任务路径之外，另立条目）。
-**依据：** RFC 2428 §3（EPSV→229 `(|||port|)`，只通告端口、地址沿用控制连接）、§4（EPRT `|af|addr|port|`，af=1 IPv4、af=2 IPv6）、§5（EPRT/EPSV 失败回退 PORT/PASV 语义，用例覆盖失败分支）；RFC 959 §4.1.2（PASV/PORT 六元组，IPv4 专用——v6 下服务端发 227 无意义，见 2428 §1 引言）；RFC 4291 §2.2（IPv6 文本表示：`::` 压缩、全写、混合表示法，解析必须三态互通）；现网行为：待确认（vsftpd/ProFTPD/FileZilla Server 的 EPSV 默认开/EPRT 支持版本，抓包确认后回填，确认前标“待确认”不写死）；代码基线 `internal/protocol/ftp/ftp.go:844`（portCmdRe）、`:830`（pasvPortRe）、`:744`（scanTxForDataPort）、`internal/core/tuple_generator.go:34`（genIP 纯 IPv4）、`internal/core/layer_dyn.go:186`（validIPv4 端点校验）。
+**依据：** RFC 2428 §3（EPSV→229 `(|||port|)`，只通告端口、地址沿用控制连接）、§4（EPRT `|af|addr|port|`，af=1 IPv4、af=2 IPv6）、§5（EPRT/EPSV 失败回退 PORT/PASV 语义，用例覆盖失败分支）；RFC 959 §4.1.2（PASV/PORT 六元组，IPv4 专用——v6 下服务端发 227 无意义，见 2428 §1 引言）；RFC 4291 §2.2（IPv6 文本表示：`::` 压缩、全写、混合表示法，解析必须三态互通）；现网行为（2026-09-12 本地实测，vsftpd 3.0.3，IPv4 实例 :21212 + IPv6 实例 :21222，匿名登录，原始问答逐字记录于本条目附录）：①EPSV 默认开——IPv4 连接上未登录发 EPSV 即进命令分发（回 530 是“未登录”不是“不支持”），FEAT 声明含 EPSV/EPRT，登录后 `EPSV`→`229 Entering Extended Passive Mode (|||21213|)`（v4 上可用，与 FileZilla“EPSV 只用于 IPv6”客户端策略不同——服务端侧 v4/v6 双开）；②EPRT 双栈同源——v4 连接上 `EPRT |1|127.0.0.1|50011|`→`200 EPRT command successful`（服务端认 af=1，本实现 af=1 记 C 类不做是“流量侧不生成”而非“服务端不支持”，文档口径以此为准）；v4 连接上 `EPRT |2|::1|50011|`→`500 Bad EPRT protocol`（族与连接不匹配即 500，不是 522——522 只用于服务端不支持的协议族）；③v6 下 PORT 判死、PASV 放空——v6 连接上 `PORT …`→`500 Illegal PORT command`（FileZilla 论坛“PORT is only for IPv4”同款），`PASV`→`227 Entering Passive Mode (0,0,0,0,82,237)`（地址全零无意义，印证 2428 §1“PASV 在 v6 下无意义”——本实现 v6 用例只用 EPSV/EPRT，不配 PASV/PORT）；④EPSV 真实下载打通——v4/v6 上 `EPSV`→229→`RETR`→数据（client 首 SYN→229 通告口）→226 全程 18 字节对账无误，数据通道端口=229 通告值（与本实现 `dataChannelPorts` 优先级 2 一致）；⑤ProFTPD（proftpd.org/docs/howto/FTP.html 命令表：EPSV/EPRT 均为支持命令，注释“可处理 IPv6 地址”）与 FileZilla Server（论坛 t=45943：v6 上 PORT 被拒“use EPRT instead”；客户端侧 v6 强制 EPSV）为文档依据，未本地起实例（行为与 vsftpd 实测一致，记“文档确认”）；代码基线 `internal/protocol/ftp/ftp.go:844`（portCmdRe）、`:830`（pasvPortRe）、`:744`（scanTxForDataPort）、`internal/core/tuple_generator.go:34`（genIP 纯 IPv4）、`internal/core/layer_dyn.go:186`（validIPv4 端点校验）。
+
+附录：现网问答逐字记录（vsftpd 3.0.3，2026-09-12）
+```
+# IPv4 控制连接（:21212），匿名登录后：
+>> FEAT            << 211-Features: EPRT / EPSV / MDTM / PASV（另有 211 End）
+>> EPSV            << 229 Entering Extended Passive Mode (|||21213|)
+>> PASV            << 227 Entering Passive Mode (127,0,0,1,82,227).
+>> EPRT |2|::1|50011|      << 500 Bad EPRT protocol.
+>> EPRT |1|127.0.0.1|50011| << 200 EPRT command successful. Consider using EPSV.
+>> PORT 127,0,0,1,195,80   << 200 PORT command successful. Consider using PASV.
+# IPv6 控制连接（:21222），匿名登录后：
+>> EPSV            << 229 Entering Extended Passive Mode (|||21228|)
+>> PASV            << 227 Entering Passive Mode (0,0,0,0,82,237).   # 地址全零，无意义
+>> EPRT |2|::1|50011|      << 200 EPRT command successful. Consider using EPSV.
+>> PORT 127,0,0,1,195,80   << 500 Illegal PORT command.              # v6 下 PORT 判死
+# 真实下载（ftplib，TYPE I → EPSV → TYPE A → RETR test.txt）：
+v4: EPSV → 229 (|||21218|)，18 字节对账无误；v6: EPSV → 229 (|||21224|)，18 字节对账无误。
+# 方法注记：tcpdump 无抓包权限（lo: Operation not permitted），以上为应用层原始问答 + ftplib 字节对账； Идея pcap 断言仍以本机引擎生成 pcap + tshark 为准，不混用现网字节。
+```
 **配置权威：** 层链是唯一真相。IPv6 地址仍只落 `ip` 层（`src`/`dst` 标量或同键二态对象）；EPSV/EPRT 是 `ftp` 层命令字符串（commands[].cmd/response），不是新字段、不新增层；数量仍只走 `flow_control`。
 
 #### 1. 数据与接口
