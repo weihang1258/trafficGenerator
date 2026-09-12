@@ -758,13 +758,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    20000,
-                    20003
-                  ]
-                },
                 "banner": "220 dyn",
                 "transactions": [
                   {
@@ -779,7 +772,14 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    20000,
+                    20003
+                  ]
+                }
               }
             ]
           }
@@ -827,13 +827,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    30000,
-                    30001
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -846,16 +839,16 @@
                         "response": "227 Entering Passive Mode (20,0,0,1,195,81)"
                       },
                       {
-                        "cmd_dyn": {
+                        "response": "150",
+                        "emit_data_channel": true,
+                        "cmd": {
                           "strategy": "pattern",
                           "pattern": "RETR file{n}",
                           "range": [
                             1,
                             2
                           ]
-                        },
-                        "response": "150",
-                        "emit_data_channel": true
+                        }
                       },
                       {
                         "cmd": "",
@@ -866,7 +859,14 @@
                       "payload": "DATA"
                     }
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    30000,
+                    30001
+                  ]
+                }
               }
             ]
           }
@@ -936,7 +936,7 @@
                       }
                     ],
                     "data_channel": {
-                      "payload_dyn": {
+                      "payload": {
                         "strategy": "pattern",
                         "pattern": "FILE-{n}",
                         "range": [
@@ -981,19 +981,12 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    31000,
-                    31001
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
                       {
                         "cmd": "USER test",
-                        "response_dyn": {
+                        "response": {
                           "strategy": "pattern",
                           "pattern": "33{n} welcome",
                           "range": [
@@ -1008,7 +1001,14 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    31000,
+                    31001
+                  ]
+                }
               }
             ]
           }
@@ -1054,20 +1054,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    32000,
-                    32001
-                  ]
-                },
-                "banner_dyn": {
-                  "strategy": "list",
-                  "list": [
-                    "220 alpha",
-                    "220 beta"
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -1077,7 +1063,21 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    32000,
+                    32001
+                  ]
+                },
+                "banner": {
+                  "strategy": "list",
+                  "list": [
+                    "220 alpha",
+                    "220 beta"
+                  ]
+                }
               }
             ]
           }
@@ -1365,9 +1365,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc"
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -1377,7 +1374,10 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc"
+                }
               }
             ]
           }
@@ -5373,13 +5373,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    12345,
-                    12347
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -5411,7 +5404,14 @@
                       "payload": "DATA"
                     }
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    12345,
+                    12347
+                  ]
+                }
               }
             ]
           }
@@ -6864,13 +6864,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    41000,
-                    41001
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -6897,16 +6890,16 @@
                       "payload": "S0"
                     }
                   }
-                ]
-              },
-              {
-                "src_port_dyn": {
+                ],
+                "src_port": {
                   "strategy": "inc",
                   "range": [
                     41000,
                     41001
                   ]
-                },
+                }
+              },
+              {
                 "transactions": [
                   {
                     "commands": [
@@ -6929,7 +6922,14 @@
                       "payload": "S1"
                     }
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    41000,
+                    41001
+                  ]
+                }
               }
             ]
           }
@@ -8440,14 +8440,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "rand",
-                  "range": [
-                    33000,
-                    33009
-                  ],
-                  "seed": 7
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -8457,7 +8449,15 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "rand",
+                  "range": [
+                    33000,
+                    33009
+                  ],
+                  "seed": 7
+                }
               }
             ]
           }
@@ -8505,14 +8505,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "list",
-                  "list": [
-                    33101,
-                    33102,
-                    33103
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -8522,7 +8514,15 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "list",
+                  "list": [
+                    33101,
+                    33102,
+                    33103
+                  ]
+                }
               }
             ]
           }
@@ -8570,10 +8570,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "fixed",
-                  "value": 33200
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -8583,7 +8579,11 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "fixed",
+                  "value": 33200
+                }
               }
             ]
           }
@@ -8629,13 +8629,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33300,
-                    33301
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -8645,7 +8638,14 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33300,
+                    33301
+                  ]
+                }
               }
             ]
           }
@@ -8692,20 +8692,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33400,
-                    33402
-                  ]
-                },
-                "banner_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    1,
-                    3
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -8715,7 +8701,21 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33400,
+                    33402
+                  ]
+                },
+                "banner": {
+                  "strategy": "inc",
+                  "range": [
+                    1,
+                    3
+                  ]
+                }
               }
             ]
           }
@@ -8771,21 +8771,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33500,
-                    33502
-                  ]
-                },
-                "banner_dyn": {
-                  "strategy": "rand",
-                  "range": [
-                    1,
-                    100
-                  ],
-                  "seed": 7
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -8795,7 +8780,22 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33500,
+                    33502
+                  ]
+                },
+                "banner": {
+                  "strategy": "rand",
+                  "range": [
+                    1,
+                    100
+                  ],
+                  "seed": 7
+                }
               }
             ]
           }
@@ -8851,17 +8851,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33600,
-                    33602
-                  ]
-                },
-                "banner_dyn": {
-                  "strategy": "fixed",
-                  "value": "220 fixed banner"
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -8871,7 +8860,18 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33600,
+                    33602
+                  ]
+                },
+                "banner": {
+                  "strategy": "fixed",
+                  "value": "220 fixed banner"
+                }
               }
             ]
           }
@@ -8925,21 +8925,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33700,
-                    33702
-                  ]
-                },
-                "banner_dyn": {
-                  "strategy": "pattern",
-                  "pattern": "220 host-{n}",
-                  "range": [
-                    1,
-                    3
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -8949,7 +8934,22 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33700,
+                    33702
+                  ]
+                },
+                "banner": {
+                  "strategy": "pattern",
+                  "pattern": "220 host-{n}",
+                  "range": [
+                    1,
+                    3
+                  ]
+                }
               }
             ]
           }
@@ -9005,29 +9005,29 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33800,
-                    33802
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
                       {
-                        "cmd_dyn": {
+                        "response": "200",
+                        "cmd": {
                           "strategy": "inc",
                           "range": [
                             1,
                             3
                           ]
-                        },
-                        "response": "200"
+                        }
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33800,
+                    33802
+                  ]
+                }
               }
             ]
           }
@@ -9083,30 +9083,30 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33800,
-                    33802
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
                       {
-                        "cmd_dyn": {
+                        "response": "200",
+                        "cmd": {
                           "strategy": "rand",
                           "range": [
                             1,
                             100
                           ],
                           "seed": 7
-                        },
-                        "response": "200"
+                        }
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33800,
+                    33802
+                  ]
+                }
               }
             ]
           }
@@ -9162,30 +9162,30 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33800,
-                    33802
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
                       {
-                        "cmd_dyn": {
+                        "response": "200",
+                        "cmd": {
                           "strategy": "list",
                           "list": [
                             "NOOP",
                             "SYST",
                             "HELP"
                           ]
-                        },
-                        "response": "200"
+                        }
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33800,
+                    33802
+                  ]
+                }
               }
             ]
           }
@@ -9241,26 +9241,26 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
+                "transactions": [
+                  {
+                    "commands": [
+                      {
+                        "response": "200",
+                        "cmd": {
+                          "strategy": "fixed",
+                          "value": "NOOP"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "src_port": {
                   "strategy": "inc",
                   "range": [
                     33800,
                     33802
                   ]
-                },
-                "transactions": [
-                  {
-                    "commands": [
-                      {
-                        "cmd_dyn": {
-                          "strategy": "fixed",
-                          "value": "NOOP"
-                        },
-                        "response": "200"
-                      }
-                    ]
-                  }
-                ]
+                }
               }
             ]
           }
@@ -9314,19 +9314,12 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33900,
-                    33902
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
                       {
                         "cmd": "SYST",
-                        "response_dyn": {
+                        "response": {
                           "strategy": "inc",
                           "range": [
                             200,
@@ -9336,7 +9329,14 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33900,
+                    33902
+                  ]
+                }
               }
             ]
           }
@@ -9392,19 +9392,12 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33900,
-                    33902
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
                       {
                         "cmd": "SYST",
-                        "response_dyn": {
+                        "response": {
                           "strategy": "rand",
                           "range": [
                             200,
@@ -9415,7 +9408,14 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33900,
+                    33902
+                  ]
+                }
               }
             ]
           }
@@ -9471,19 +9471,12 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33900,
-                    33902
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
                       {
                         "cmd": "SYST",
-                        "response_dyn": {
+                        "response": {
                           "strategy": "list",
                           "list": [
                             "211",
@@ -9494,7 +9487,14 @@
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33900,
+                    33902
+                  ]
+                }
               }
             ]
           }
@@ -9550,26 +9550,26 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    33900,
-                    33902
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
                       {
                         "cmd": "SYST",
-                        "response_dyn": {
+                        "response": {
                           "strategy": "fixed",
                           "value": "211"
                         }
                       }
                     ]
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    33900,
+                    33902
+                  ]
+                }
               }
             ]
           }
@@ -9623,13 +9623,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    34100,
-                    34102
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -9648,7 +9641,7 @@
                       }
                     ],
                     "data_channel": {
-                      "payload_dyn": {
+                      "payload": {
                         "strategy": "inc",
                         "range": [
                           1,
@@ -9657,7 +9650,14 @@
                       }
                     }
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    34100,
+                    34102
+                  ]
+                }
               }
             ]
           }
@@ -9708,13 +9708,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    34100,
-                    34102
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -9733,7 +9726,7 @@
                       }
                     ],
                     "data_channel": {
-                      "payload_dyn": {
+                      "payload": {
                         "strategy": "rand",
                         "range": [
                           1,
@@ -9743,7 +9736,14 @@
                       }
                     }
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    34100,
+                    34102
+                  ]
+                }
               }
             ]
           }
@@ -9794,13 +9794,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    34100,
-                    34102
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -9819,7 +9812,7 @@
                       }
                     ],
                     "data_channel": {
-                      "payload_dyn": {
+                      "payload": {
                         "strategy": "list",
                         "list": [
                           "PAYLOAD-A",
@@ -9828,7 +9821,14 @@
                       }
                     }
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    34100,
+                    34102
+                  ]
+                }
               }
             ]
           }
@@ -9879,13 +9879,6 @@
           "ftp": {
             "sessions": [
               {
-                "src_port_dyn": {
-                  "strategy": "inc",
-                  "range": [
-                    34100,
-                    34102
-                  ]
-                },
                 "transactions": [
                   {
                     "commands": [
@@ -9904,13 +9897,20 @@
                       }
                     ],
                     "data_channel": {
-                      "payload_dyn": {
+                      "payload": {
                         "strategy": "fixed",
                         "value": "FIXED-PAYLOAD"
                       }
                     }
                   }
-                ]
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    34100,
+                    34102
+                  ]
+                }
               }
             ]
           }

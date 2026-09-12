@@ -1597,11 +1597,10 @@ func parseICMPPattern(v interface{}) []ICMPStep {
 	return out
 }
 
-// parseStrategyConfigDyn (D-FTP-2): a dynamic value object in FTP config
-// (session src_port/banner, command cmd/response, data_channel payload).
-// Object → *StrategyConfig; scalar/static → nil (static path handles it).
-// Missing strategy key inside the object is left as "" — Planner.Validate
-// rejects it loudly (no silent fallback).
+// parseStrategyConfigDyn (D-FTP-2 v2 同键二态，用户裁定)：同一键的值形态
+// 决定静态/动态——标量走既有静态路径，对象走动态解析。`*_dyn` 平行键已撤销
+// （v1 形状，用户否决），解析层只认同键对象。本函数只做"对象→配置"映射，
+// 调用方负责把同键原始值传进来。
 func parseStrategyConfigDyn(v interface{}) *StrategyConfig {
 	m, ok := v.(map[string]interface{})
 	if !ok || m == nil {
@@ -1637,8 +1636,8 @@ func parseFTPCommands(v interface{}) []FTPCommand {
 			Cmd:             getString(m, "cmd"),
 			Response:        getString(m, "response"),
 			EmitDataChannel: getBool(m, "emit_data_channel", false),
-			CmdDyn:          parseStrategyConfigDyn(m["cmd_dyn"]),
-			ResponseDyn:     parseStrategyConfigDyn(m["response_dyn"]),
+			CmdDyn:          parseStrategyConfigDyn(m["cmd"]),
+			ResponseDyn:     parseStrategyConfigDyn(m["response"]),
 		})
 	}
 	if len(out) == 0 {
@@ -1830,8 +1829,8 @@ func parseFTPSessions(v interface{}) []FTPSession {
 		sess := FTPSession{
 			SrcPort:    getUint16(m, "src_port"),
 			Banner:     getString(m, "banner"),
-			SrcPortDyn: parseStrategyConfigDyn(m["src_port_dyn"]),
-			BannerDyn:  parseStrategyConfigDyn(m["banner_dyn"]),
+			SrcPortDyn: parseStrategyConfigDyn(m["src_port"]),
+			BannerDyn:  parseStrategyConfigDyn(m["banner"]),
 		}
 		if txs, ok := m["transactions"].([]interface{}); ok {
 			for _, txItem := range txs {
@@ -1868,7 +1867,7 @@ func parseFTPDataChannel(v interface{}) *FTPDataChannel {
 		PayloadB64:      getString(m, "payload_b64"),
 		MSS:             getUint16(m, "mss"),
 		AbortAfterBytes: getInt(m, "abort_after_bytes"),
-		PayloadDyn:      parseStrategyConfigDyn(m["payload_dyn"]),
+		PayloadDyn:      parseStrategyConfigDyn(m["payload"]),
 	}
 	// Defaults: Mode="passive", Direction="down" — matches the most
 	// common FTP test shape (PASV + RETR download). Zero-value check
