@@ -703,15 +703,15 @@
 
 **状态：** 草案
 **级别：** pcap
-**来源：** D-HTTP-1 §8；RFC 9110/9112（请求行/状态行/头/体）；9 文件 566 例（cwmp150/doh110/onvif95/gbt81/getwork62/hls24/hds17/http_flv15/http12）
+**来源：** D-HTTP-1 §8；RFC 9110/9112（请求行/状态行/头/体）；9 文件 591 例（cwmp150/doh110/onvif95/gbt81/getwork62/hls24/hds17/http_flv15/http37）
 **目标：** P4 改完后 9 文件全量全绿（增量绿不算），http 改动字节零漂移。
 
-**输入：** 8 子女 cases 改写后形状（P5 按通用改写规则：删顶层四元组→地址进 ip 层、端口进 tcp 层、仅原 count>1 补 strategy_fc；hls/hds 缺 ip、http_flv 缺 ip/tcp 由 CompleteChain 补；doh/onvif 缺 http 负例锚词重钉载体文案）；http.json 12 例新建（T-HTTP-7…16 各一例，严格层链形，无顶层四元组）。
+**输入：** 8 子女 cases 改写后形状（P5 按通用改写规则：删顶层四元组→地址进 ip 层、端口进 tcp 层、仅原 count>1 补 strategy_fc；hls/hds 缺 ip、http_flv 缺 ip/tcp 由 CompleteChain 补；doh/onvif 缺 http 负例锚词重钉载体文案）；http.json 37 例（T-HTTP-7…42：20 字段全覆盖 + 方法/状态/组合/分支/多流/TTL；identity 例因 tshark 伪影删 1 留 37；严格层链形）。
 **前置条件：** T-HTTP-1…4 绿；服务器二进制与 HEAD 同代。
 **执行：** 套件 CASE_PROTO=gbt/getwork/cwmp/doh/onvif/hls/hds/http_flv/http 逐个全量（`flowb_run_protocol_suite` 真实流程：MCP 建任务→引擎生成→tshark 校对），pcap 落惯例根 `/tmp/mcp-pcaps/<proto>/`。
-**期望输出：** 9 文件全绿（566/566；P5 实测全绿）；断言钉请求行/状态行/头/体（tshark `http.request.method/uri/version`、`http.response.code`），包号/端口从落盘 pcap 拿、不手算；负例 158 例锚词逐例重钉（扁平判死先于业务锚，Step1 门）。
+**期望输出：** 9 文件全绿（591/591；P5 实测全绿）；断言钉请求行/状态行/头/体（tshark `http.request.method/uri/version`、`http.response.code`），包号/端口从落盘 pcap 拿、不手算；负例 158 例锚词逐例重钉（扁平判死先于业务锚，Step1 门）。
 **错误期望：** 缺 http 载体 2 例（doh/onvif）+ P4 新增语义延续：错误含载体锚词，任务终态失败（§14 负例走真实流程）。
-**性能期望：** 回归 ±10%（P5 实测 wall：http_flv 4.9s/hls 6.5s/hds 5.2s/gbt 14.3s/getwork 15.2s/doh 41.3s/onvif 46.6s/cwmp 32.7s/http 3.8s，CASE_PROTO 逐文件串行、服务端内 parallel=4；已回填 D-HTTP-1 §6）。
+**性能期望：** 回归 ±10%（P5 实测 wall：http_flv 4.9s/hls 6.5s/hds 5.2s/gbt 14.3s/getwork 15.2s/doh 41.3s/onvif 46.6s/cwmp 32.7s/http 37 例 10.9s，CASE_PROTO 逐文件串行、服务端内 parallel=4；已回填 D-HTTP-1 §6）。
 **实现位置：** `cases/{gbt,getwork,cwmp,doh,onvif,hls,hds,http_flv,http}.json`。
 
 ### T-HTTP-6 存量单测 + 链测试回归【D-HTTP-1 §8】
@@ -878,6 +878,396 @@
 **错误期望：** 无。
 **性能期望：** 不适用。
 **实现位置：** `cases/http.json`（http_nondefault_port）。
+
+### T-HTTP-17 http.json 独立用例——自定义请求头与 Host 覆盖【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（用户 RequestHeaders 任何版本都赢 + Host 自动对 1.1）
+**目标：** 用户 Host `custom.test` 覆盖自动值 + 自定义头 `X-Trace: abc` 上线。
+
+**输入：** 同链形（src_port 40022）+ `http{method GET,uri /hdr,request_headers {X-Trace abc,Host custom.test}}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=GET`、`host=custom.test`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_headers_custom）。
+
+### T-HTTP-18 http.json 独立用例——请求 body_b64 优先【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（resolveRequestBody：BodyB64 优先，非法回退 Body，见 T-HTTP-38 对照）
+**目标：** `body_b64 aGVsbG8=` 解出 5 字节 `hello`（Content-Length=5），忽略文本 body。
+
+**输入：** 同链形（src_port 40023）+ `http{method POST,uri /bin,body text-ignored,body_b64 aGVsbG8=}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=POST`、`content_length=5`。
+**错误期望：** 无（回退语义不断 error，非法输入见 T-HTTP-38）。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_body_b64）。
+
+### T-HTTP-19 http.json 独立用例——请求 gzip 编码【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（请求侧 content_encoding=gzip 即压缩；响应侧对称见 T-HTTP-12）；RFC 1952
+**目标：** 请求体压缩后 Content-Encoding 为 gzip。
+
+**输入：** 同链形（src_port 40024）+ `http{method POST,uri /gz-req,body hello-gzip-request-body,request_content_encoding gzip}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=POST`、`content_encoding=gzip`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_gzip）。
+
+### T-HTTP-20 http.json 独立用例——请求 chunked【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（请求侧 transfer_encoding=chunked 即分块；响应侧对称见 T-HTTP-13）；RFC 7230 §4.1
+**目标：** 请求 Transfer-Encoding 为 chunked。
+
+**输入：** 同链形（src_port 40025）+ `http{method POST,uri /chunk-req,body chunked-request-body,request_transfer_encoding chunked}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=POST`、`transfer_encoding=chunked`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_chunked）。
+
+### T-HTTP-21 http.json 独立用例——请求 chunk_size 多分块【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（chunk_size>0 按该字节数切块；响应侧单测已 cover，pcap 钉请求侧字节）
+**目标：** 16 字节体按 5 字节切 4 块（5/5/5/1），请求行字节用 frames 十六进制钉死（tshark 不解析分块数）。
+
+**输入：** 同链形（src_port 40026）+ `http{method POST,uri /chunks,body 0123456789ABCDEF,request_transfer_encoding chunked,chunk_size 5}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=POST`、`transfer_encoding=chunked` + frames 包 4 偏移 54 十六进制=`POST /chunks HTTP/1.1 CRLF`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_chunk_size_multi）。
+
+### T-HTTP-22 http.json 独立用例——响应头覆盖【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（ResponseHeaders 覆盖默认 Content-Type；请求侧对称见 T-HTTP-17）
+**目标：** 响应 Content-Type 被用户值 `text/custom` 覆盖。
+
+**输入：** 同链形（src_port 40027）+ `http{method GET,uri /override,response_body hello,response_headers {Content-Type text/custom}}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 5 `response.code=200`、`content_type=text/custom`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_resp_headers_override）。
+
+### T-HTTP-23 http.json 独立用例——响应 body_b64 优先【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（resolveResponseBody：ResponseBodyB64 优先；请求侧对称见 T-HTTP-18）
+**目标：** 响应体 5 字节 `hello` 正常发出（状态 200），忽略文本 response_body。
+
+**输入：** 同链形（src_port 40028）+ `http{method GET,uri /b64resp,response_body ignored,response_body_b64 aGVsbG8=}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 5 `response.code=200`（响应体字节只 5 个，不断 content_length，tshark 重组口径见 T-HTTP-5）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_resp_body_b64）。
+
+### T-HTTP-24 http.json 独立用例——响应自定义状态文本【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（ResponseStatusText 非空则覆盖状态表文本；418 非标准码走自定义文本分支）
+**目标：** 418 状态码 + 自定义 reason `Custom Phrase` 上线。
+
+**输入：** 同链形（src_port 40029）+ `http{method GET,uri /teapot,response_status_code 418,response_status_text "Custom Phrase",response_body x}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 5 `response.code=418`（reason 文本 tshark 不单独断，码对即文本分支走过）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_resp_status_text_override）。
+
+### T-HTTP-25 http.json 独立用例——未知状态码兜底【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（状态表未命中→`Status %d` 兜底；T-HTTP-24 是自定义文本版，本例是无文本兜底版）
+**目标：** 599 无表码按 `Status 599` 兜底发出（不断 reason，只断码）。
+
+**输入：** 同链形（src_port 40030）+ `http{method GET,uri /unknown,response_status_code 599,response_body x}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 5 `response.code=599`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_resp_unknown_status）。
+
+### T-HTTP-26 http.json 独立用例——响应空体无 Content-Type【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（空响应体不压 Content-Type……不断 type、只断码与包位置）
+**目标：** 无 response_body 时响应仍 200，且落在包 8（无体包位，对照有体包 5）。
+
+**输入：** 同链形（src_port 40031）+ `http{method GET,uri /empty}`（无任何响应字段）。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 8 `response.code=200`（不是包 5；包位本身就是断言——校准结论：响应无体时包 8、有体时包 5）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_resp_empty_no_content_type）。
+
+### T-HTTP-27 http.json 独立用例——file_source 文件体【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（file_source literal 经 PayloadCache 取体；请求体解析优先级最低一档）
+**目标：** 14 字节 `file-bytes-123` 经 literal 源发出（Content-Length=14）。
+
+**输入：** 同链形（src_port 40032）+ `http{method POST,uri /upload,file_source {source_type literal,literal file-bytes-123}}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=POST`、`content_length=14`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_file_source_literal）。
+
+### T-HTTP-28 http.json 独立用例——响应 MSS 分段【D-HTTP-1 §3】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §3（MSS 分段归 tcp 层；请求侧对称见 T-HTTP-39）；RFC 879
+**目标：** MSS 536 下 600 字节响应体被切成多段（10 包），首请求仍 GET。
+
+**输入：** 同链形（src_port 40033，tcp.mss 536）+ `http{method GET,uri /long,response_body A×600}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 10 包；包 4 `method=GET`（段数本身由包数断，不单独断每段字节）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_mss_segments_long_response）。
+
+### T-HTTP-29 http.json——PUT 方法【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（builders 用户>默认>无；单测 TestBuildHTTPRequest_MultipleMethods 已 cover 方法表，pcap 钉 GET/POST 之外代表）
+**目标：** PUT 请求行与 uri 上线。
+
+**输入：** 同链形（src_port 40034）+ `http{method PUT,uri /item/1,body {"a":1}}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=PUT`、`uri=/item/1`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_put_method）。
+
+### T-HTTP-30 http.json——DELETE 方法【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** 同 T-HTTP-29
+**目标：** DELETE 请求行上线。
+
+**输入：** 同链形（src_port 40035）+ `http{method DELETE,uri /item/1}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=DELETE`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_delete_method）。
+
+### T-HTTP-31 http.json——HEAD 方法【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** 同 T-HTTP-29（单测 TestBuildHTTPRequest_HEADNoBody 已 cover 无体语义）
+**目标：** HEAD 请求行上线。
+
+**输入：** 同链形（src_port 40036）+ `http{method HEAD,uri /head}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=HEAD`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_head_method）。
+
+### T-HTTP-32 http.json——响应 301 Location【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（ResponseHeaders 覆盖；单测 TestHTTPPlan_StatusCode301WithLocation 已 cover）
+**目标：** 301 状态码上线。
+
+**输入：** 同链形（src_port 40037）+ `http{response_status_code 301,response_headers {Location /new},response_body moved}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 5 `response.code=301`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_resp_301_location）。
+
+### T-HTTP-33 http.json——响应 500【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（单测 TestHTTPPlan_StatusCode500 已 cover）
+**目标：** 500 状态码上线。
+
+**输入：** 同链形（src_port 40038）+ `http{response_status_code 500,response_body boom}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 5 `response.code=500`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_resp_500）。
+
+### T-HTTP-34 http.json——响应 201 Created【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（ResponseStatusCode 0→200；非零直用）
+**目标：** 201 状态码与 POST 组合上线。
+
+**输入：** 同链形（src_port 40039）+ `http{method POST,uri /items,body {"n":1},response_status_code 201,response_body {"id":9}}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=POST`；包 5 `response.code=201`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_resp_201_created）。
+
+### T-HTTP-35 http.json——请求 gzip+chunked 复合【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（gzip→chunked 先后顺序；单测 TestBuildHTTPResponse_ChunkedWithGzip 已 cover 响应侧，pcap 钉请求侧）
+**目标：** 请求侧压缩后分块两头并存。
+
+**输入：** 同链形（src_port 40040）+ `http{method POST,body gzip-then-chunk-body-bytes,request_content_encoding gzip,request_transfer_encoding chunked}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `content_encoding=gzip`、`transfer_encoding=chunked`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_gzip_chunked_composite）。
+
+### T-HTTP-36 http.json——请求 transfer identity 直透【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（非 chunked 值按字面头直透；单测 TestBuildHTTPResponse_TransferEncodingNonChunked 已 cover 分支）
+**目标：** identity 配置下请求正常发出（tshark 对该头报 malformed 伪影，故不断编码面、只断请求行与 Host）。
+
+**输入：** 同链形（src_port 40041）+ `http{method POST,body abc,request_transfer_encoding identity}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=POST`、`host=198.51.100.20`。
+**错误期望：** 无（伪影说明见来源行）。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_transfer_identity）。
+
+### T-HTTP-37 http.json——请求非 gzip 编码直透【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（非 gzip 的 content_encoding 按字面直透；单测 TestBuildHTTPRequest_RequestContentEncodingNonGzip 已 cover）
+**目标：** `br` 编码值原样上头。
+
+**输入：** 同链形（src_port 40042）+ `http{method POST,body abc,request_content_encoding br}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `content_encoding=br`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_encoding_non_gzip）。
+
+### T-HTTP-38 http.json——请求坏 b64 回退 body【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（resolveRequestBody：BodyB64 非法→回退 Body，不硬失败）
+**目标：** 非法 b64 不报错，按文本体发出（13 字节）。
+
+**输入：** 同链形（src_port 40043）+ `http{method POST,body fallback-text,body_b64 !!!not-base64!!!}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `content_length=13`。
+**错误期望：** 无（回退语义不断 error）。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_body_invalid_b64_fallback）。
+
+### T-HTTP-39 http.json——请求 MSS 分段【D-HTTP-1 §3】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §3（MSS 分段归 tcp 层；单测 TestHTTPPlan_RequestMSSSegmentsLongBody 已 cover 切片语义，pcap 钉包数）；RFC 879
+**目标：** MSS 536 下 3000 字节请求体分段，包数 14（响应侧 T-HTTP-28 的请求侧对称）。
+
+**输入：** 同链形（src_port 40044，tcp.mss 536）+ `http{method POST,body B×3000}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 14 包；包 9 `http.request.method=POST`（分片后重组仅包 9 可见）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_mss_req_segments_long_body）。
+
+### T-HTTP-40 http.json——单事务 Connection close【D-HTTP-1 §3】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §3（defaultConnection：单事务且非 keep-alive→close；T-HTTP-9 的对照端）
+**目标：** 单事务默认 Connection 为 close。
+
+**输入：** 同链形（src_port 40045）+ `http{uri /one}`。
+**前置条件：** T-HTTP-9 绿（对照）。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `connection=close`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_conn_close_single）。
+
+### T-HTTP-41 http.json——多流动态源端口【D-HTTP-1 §4】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §4（多流变化只走 ip/tcp 层动态 + flow_control；§12 动态整格：inc 回绕/复现）；CORE_MEMORY §9 陷阱③（flows>1 时四元组须动态）
+**目标：** flows=2 + tcp.src_port inc[41000,41001] 产 18 包，两流源端口聚合正确。
+
+**输入：** `[ip,tcp(src_port inc[41000,41001],dst 80),http]` + `strategy_fc{flows 2}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 18 包；`tcp.srcport distinct{41000,41001}（排除 80）`；`tcp.dstport distinct{80,41000,41001}`（tshark 双向聚合口径，见校验器语义）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_multiflow_dynamic_sport）。
+
+### T-HTTP-42 http.json——TTL 注入路径【D-HTTP-1 §4】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §4（applySpecToChain 回写覆盖层 ttl：spec.TTL 非零才注入；层直写 128 被 schema 默认 64 覆盖——框架行为，非 http 缺口；正确路径=顶层 `ttl:128`→spec.TTL→注入层）
+**目标：** 顶层 ttl 128 落包（包 1 `ip.ttl=128`）。
+
+**输入：** 同链形（src_port 40046）+ 顶层 `"ttl":128`（注意不是层内 ttl）。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 1 `ip.ttl=128`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_ttl_custom）。
 
 ## 7. 用例审查与完成条件
 

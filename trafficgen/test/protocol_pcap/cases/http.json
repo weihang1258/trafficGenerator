@@ -529,5 +529,1139 @@
       "expect_error": true,
       "error_contains": "mss"
     }
+  },
+  {
+    "id": "http_req_headers_custom",
+    "proto": "http",
+    "summary": "req custom headers T-HTTP-17",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40022,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/hdr",
+        "version": "HTTP/1.1",
+        "request_headers": {
+          "X-Trace": "abc",
+          "Host": "custom.test"
+        }
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.host",
+          "value": "custom.test"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_req_body_b64",
+    "proto": "http",
+    "summary": "req body_b64 wins T-HTTP-18",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40023,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/bin",
+        "version": "HTTP/1.1",
+        "body": "text-ignored",
+        "body_b64": "aGVsbG8="
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.content_length",
+          "value": "5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_req_gzip",
+    "proto": "http",
+    "summary": "req gzip T-HTTP-19",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40024,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/gz-req",
+        "version": "HTTP/1.1",
+        "body": "hello-gzip-request-body",
+        "request_content_encoding": "gzip"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.content_encoding",
+          "value": "gzip"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_req_chunked",
+    "proto": "http",
+    "summary": "req chunked T-HTTP-20",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40025,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/chunk-req",
+        "version": "HTTP/1.1",
+        "body": "chunked-request-body",
+        "request_transfer_encoding": "chunked"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.transfer_encoding",
+          "value": "chunked"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_req_chunk_size_multi",
+    "proto": "http",
+    "summary": "请求 chunk_size=5 多分块（frames钉GET行，T-HTTP-21）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40026,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/chunks",
+        "version": "HTTP/1.1",
+        "body": "0123456789ABCDEF",
+        "request_transfer_encoding": "chunked",
+        "chunk_size": 5
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.transfer_encoding",
+          "value": "chunked"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "50 4f 53 54 20 2f 63 68 75 6e 6b 73 20 48 54 54 50 2f 31 2e 31 0d 0a"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_resp_headers_override",
+    "proto": "http",
+    "summary": "resp header override T-HTTP-22",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40027,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/override",
+        "version": "HTTP/1.1",
+        "response_body": "hello",
+        "response_headers": {
+          "Content-Type": "text/custom"
+        }
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 5,
+          "field": "http.content_type",
+          "value": "text/custom"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_resp_body_b64",
+    "proto": "http",
+    "summary": "resp body_b64 T-HTTP-23",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40028,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/b64resp",
+        "version": "HTTP/1.1",
+        "response_body": "ignored",
+        "response_body_b64": "aGVsbG8="
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_resp_status_text_override",
+    "proto": "http",
+    "summary": "resp 418 custom phrase T-HTTP-24",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40029,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/teapot",
+        "version": "HTTP/1.1",
+        "response_status_code": 418,
+        "response_status_text": "Custom Phrase",
+        "response_body": "x"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "418"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_resp_unknown_status",
+    "proto": "http",
+    "summary": "resp 599 fallback T-HTTP-25",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40030,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/unknown",
+        "version": "HTTP/1.1",
+        "response_status_code": 599,
+        "response_body": "x"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "599"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_resp_empty_no_content_type",
+    "proto": "http",
+    "summary": "resp empty body T-HTTP-26",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40031,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/empty",
+        "version": "HTTP/1.1"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_file_source_literal",
+    "proto": "http",
+    "summary": "请求 file_source literal：体来自文件源（T-HTTP-27）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40032,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/upload",
+        "version": "HTTP/1.1",
+        "file_source": {
+          "source_type": "literal",
+          "literal": "file-bytes-123"
+        }
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.content_length",
+          "value": "14"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_mss_segments_long_response",
+    "proto": "http",
+    "summary": "mss 536 long resp T-HTTP-28",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40033,
+            "dst_port": 80,
+            "mss": 536
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/long",
+        "version": "HTTP/1.1",
+        "response_body": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    "expect": {
+      "packet_count": 10,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_put_method",
+    "proto": "http",
+    "summary": "PUT method T-HTTP-29",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40034,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "PUT",
+        "uri": "/item/1",
+        "version": "HTTP/1.1",
+        "body": "{\"a\":1}"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "PUT"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/item/1"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_delete_method",
+    "proto": "http",
+    "summary": "DELETE method T-HTTP-30",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40035,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "DELETE",
+        "uri": "/item/1",
+        "version": "HTTP/1.1"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "DELETE"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_head_method",
+    "proto": "http",
+    "summary": "HEAD method T-HTTP-31",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40036,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "HEAD",
+        "uri": "/head",
+        "version": "HTTP/1.1"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "HEAD"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_resp_301_location",
+    "proto": "http",
+    "summary": "resp 301 Location T-HTTP-32",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40037,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/old-path",
+        "version": "HTTP/1.1",
+        "response_status_code": 301,
+        "response_headers": {
+          "Location": "/new"
+        },
+        "response_body": "moved"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "301"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_resp_500",
+    "proto": "http",
+    "summary": "resp 500 T-HTTP-33",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40038,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/err",
+        "version": "HTTP/1.1",
+        "response_status_code": 500,
+        "response_body": "boom"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "500"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_resp_201_created",
+    "proto": "http",
+    "summary": "resp 201 Created T-HTTP-34",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40039,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/items",
+        "version": "HTTP/1.1",
+        "body": "{\"n\":1}",
+        "response_status_code": 201,
+        "response_body": "{\"id\":9}"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "201"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_req_gzip_chunked_composite",
+    "proto": "http",
+    "summary": "req gzip+chunked T-HTTP-35",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40040,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/both",
+        "version": "HTTP/1.1",
+        "body": "gzip-then-chunk-body-bytes",
+        "request_content_encoding": "gzip",
+        "request_transfer_encoding": "chunked"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.content_encoding",
+          "value": "gzip"
+        },
+        {
+          "packet": 4,
+          "field": "http.transfer_encoding",
+          "value": "chunked"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_req_encoding_non_gzip",
+    "proto": "http",
+    "summary": "req encoding br passthrough T-HTTP-37",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40042,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/br",
+        "version": "HTTP/1.1",
+        "body": "abc",
+        "request_content_encoding": "br"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.content_encoding",
+          "value": "br"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_req_body_invalid_b64_fallback",
+    "proto": "http",
+    "summary": "req bad b64 falls back to body T-HTTP-38",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40043,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/fb",
+        "version": "HTTP/1.1",
+        "body": "fallback-text",
+        "body_b64": "!!!not-base64!!!"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.content_length",
+          "value": "13"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_mss_req_segments_long_body",
+    "proto": "http",
+    "summary": "req mss536 long body segments T-HTTP-39",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40044,
+            "dst_port": 80,
+            "mss": 536
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/big",
+        "version": "HTTP/1.1",
+        "body": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+      }
+    },
+    "expect": {
+      "packet_count": 14,
+      "fields": [
+        {
+          "packet": 9,
+          "field": "http.request.method",
+          "value": "POST"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_conn_close_single",
+    "proto": "http",
+    "summary": "single txn Connection close T-HTTP-40",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40045,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/one",
+        "version": "HTTP/1.1"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.connection",
+          "value": "close"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_multiflow_dynamic_sport",
+    "proto": "http",
+    "summary": "multiflow inc sport T-HTTP-41",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": {
+              "strategy": "inc",
+              "range": [
+                41000,
+                41001
+              ]
+            },
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/mf",
+        "version": "HTTP/1.1"
+      }
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 0,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "41000",
+            "41001"
+          ],
+          "distinct_exclude": [
+            "80"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "80",
+            "41000",
+            "41001"
+          ]
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    }
+  },
+  {
+    "id": "http_ttl_custom",
+    "proto": "http",
+    "summary": "TTL 128 经顶层spec注入层（层直写被回写覆盖，T-HTTP-42）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20",
+            "ttl": 128
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40046,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/ttl",
+        "version": "HTTP/1.1"
+      },
+      "ttl": 128
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 1,
+          "field": "ip.ttl",
+          "value": "128"
+        }
+      ]
+    }
   }
 ]
