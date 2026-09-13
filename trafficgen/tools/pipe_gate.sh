@@ -1,0 +1,74 @@
+#!/bin/bash
+# P-PIPE 提交门检查脚本（三道硬门之门 2）。
+# 用法：trafficgen/tools/pipe_gate.sh <proto> [server-binary]
+# 三项：1) 顶层旧键零残留 2) 用例文件全量绿由调用方另跑（本脚本只查静态形状） 3) 二进制与 HEAD 同代
+# 返回：全绿 exit 0，任一红 exit 1 并打印原因。
+set -u
+PROTO="${1:?用法: pipe_gate.sh <proto> [server-binary]}"
+SERVER_BIN="${2:-/tmp/tg-http-p5-server}"
+CASES="trafficgen/test/protocol_pcap/cases/${PROTO}.json"
+
+fail=0
+echo "== 门2-1 顶层旧键零残留: $CASES"
+if [ ! -f "$CASES" ]; then
+  echo "  红: 用例文件不存在"; fail=1
+else
+  # 顶层 src_ip/dst_ip/src_port/dst_port/count 任一出现即红
+  hits=$(python3 - "$CASES" <<'PYEOF'
+import json,sys
+d = json.load(open(sys.argv[1]))
+bad = []
+for c in d:
+    sj = c.get("spec_json", {}) or {}
+    # 故意的扁平负例（expect_error + 锚词含 flat）是门 2-2 的断言对象，不算残留
+    exp = c.get("expect", {}) or {}
+    if exp.get("expect_error") and "flat" in str(exp.get("error_contains", "")):
+        continue
+    for k in ("src_ip","dst_ip","src_port","dst_port","count"):
+        if k in sj and sj[k] is not None:
+            bad.append(c["id"] + ":" + k)
+print("\n".join(bad))
+PYEOF
+)
+  if [ -n "$hits" ]; then
+    echo "  红: 顶层旧键残留:"; echo "$hits" | sed 's/^/    /'; fail=1
+  else
+    echo "  绿: 无顶层旧键"
+  fi
+  # 顶层协议子映射（如 "http" 与 layers 并存）必须登记过渡，否则红
+  sub=$(python3 - "$CASES" <<'PYEOF'
+import json,sys
+d = json.load(open(sys.argv[1]))
+bad = []
+for c in d:
+    sj = c.get("spec_json", {}) or {}
+    if "layers" in sj:
+        for k in list(sj.keys()):
+            if k not in ("layers","strategy_fc","ttl","flow_control","output","output_config") and isinstance(sj[k], dict):
+                bad.append(c["id"] + ":顶层子映射+" + k)
+                break
+print("\n".join(sorted(set(bad))))
+PYEOF
+)
+  if [ -n "$sub" ]; then
+    echo "  黄: 顶层协议子映射与 layers 并存（须在 D-条目登记过渡计划，否则红）："; echo "$sub" | sed 's/^/    /'
+  else
+    echo "  绿: 无顶层协议子映射并存"
+  fi
+fi
+
+echo "== 门2-3 二进制与 HEAD 同代"
+if [ ! -x "$SERVER_BIN" ]; then
+  echo "  黄: 服务二进制不存在($SERVER_BIN)，跳过（调用方须确认服务与 HEAD 同代）"
+else
+  newer=$(find trafficgen -name '*.go' -newer "$SERVER_BIN" 2>/dev/null | head -5)
+  if [ -n "$newer" ]; then
+    echo "  红: 有 .go 比服务二进制新，先重编重跑:"; echo "$newer" | sed 's/^/    /'; fail=1
+  else
+    echo "  绿: 二进制与 HEAD 同代"
+  fi
+fi
+
+echo "== 门2-2 用例全量绿: 本脚本不跑suite（调用方跑 CASE_PROTO=$PROTO 全量，贴 RESULT 行）"
+if [ "$fail" -eq 0 ]; then echo "静态两项全绿"; else echo "有红项，停"; fi
+exit "$fail"
