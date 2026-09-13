@@ -372,3 +372,30 @@ func TestChainPlanner_HTTP_SpecPayloadIgnoredInEventMode(t *testing.T) {
 		}
 	}
 }
+
+// D-HTTP-1 重走步骤 0①（failing 先行）：层 http 全字段翻译——response_side
+// 键经层 config 进 spec.HTTP（当前 5 字段翻译下 ResponseStatusCode 恒 0）。
+func TestChainPlanner_HTTP_LayerTranslatesFullFields(t *testing.T) {
+	p := layers.NewChainPlannerFromChain("http", []layers.Layer{
+		{Name: "ip"},
+		{Name: "tcp"},
+		{Name: "http", Config: map[string]interface{}{
+			"response_status_code": float64(201),
+			"response_body":        "hi",
+		}},
+	})
+	spec := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "10.0.0.2", SrcPort: 2000, DstPort: 80}
+	validated, err := p.ValidateSpec(spec)
+	if err != nil {
+		t.Fatalf("ValidateSpec: %v", err)
+	}
+	if validated.HTTP == nil {
+		t.Fatal("spec.HTTP nil after layer translation")
+	}
+	if validated.HTTP.ResponseStatusCode != 201 {
+		t.Fatalf("ResponseStatusCode = %d, want 201", validated.HTTP.ResponseStatusCode)
+	}
+	if validated.HTTP.ResponseBody != "hi" {
+		t.Fatalf("ResponseBody = %q, want hi", validated.HTTP.ResponseBody)
+	}
+}

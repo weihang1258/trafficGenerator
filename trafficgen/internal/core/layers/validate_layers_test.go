@@ -298,3 +298,29 @@ func TestValidateLayersDynShape(t *testing.T) {
 		t.Fatal("want rejection for dynamic mss, got clean")
 	}
 }
+
+// D-HTTP-1 重走步骤 0③补齐：http 15 关字段对象 → ValidateLayers 400
+// （does not support dynamic，allowlist 门）；6 开字段对象放行。
+func TestValidateLayers_HTTPDynAllowlist(t *testing.T) {
+	closed := []string{"method", "version", "headers", "request_headers", "keep_alive",
+		"transactions", "response_headers", "response_status_text",
+		"response_content_encoding", "request_content_encoding",
+		"request_transfer_encoding", "response_transfer_encoding",
+		"chunk_size", "pipelined", "file_source"}
+	for _, f := range closed {
+		t.Run("closed_"+f, func(t *testing.T) {
+			raw := mustRaw(t, `[{"ip":{}},{"tcp":{}},{"http":{"`+f+`":{"strategy":"list","list":["a","b"]}}}]`)
+			if _, err := ValidateLayers(raw, "http"); err == nil || !strings.Contains(err.Error(), "does not support dynamic") {
+				t.Fatalf("want does-not-support-dynamic 400, got %v", err)
+			}
+		})
+	}
+	for _, f := range []string{"uri", "body", "body_b64", "response_body", "response_body_b64", "response_status_code"} {
+		t.Run("open_"+f, func(t *testing.T) {
+			raw := mustRaw(t, `[{"ip":{}},{"tcp":{}},{"http":{"`+f+`":{"strategy":"list","list":["a","b"]}}}]`)
+			if _, err := ValidateLayers(raw, "http"); err != nil {
+				t.Fatalf("open field %s must pass shape gate, got %v", f, err)
+			}
+		})
+	}
+}

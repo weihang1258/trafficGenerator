@@ -19,6 +19,10 @@ var layerDynAllowlist = map[string]map[string]bool{
 	"tcp": {"src_port": true, "dst_port": true},
 	"udp": {"src_port": true, "dst_port": true},
 	"eth": {"src_mac": true, "dst_mac": true},
+	// D-HTTP-1 重走步骤 4：http 业务 6 开（string 面 5 + int 面 1；其余 15 关，
+	// 对象即 does not support dynamic）。map 型两键（request_headers/
+	// response_headers）无动态形状，直接关。
+	"http": {"uri": true, "body": true, "body_b64": true, "response_body": true, "response_body_b64": true, "response_status_code": true},
 }
 
 // parseLayerDyn extracts per-flow dynamic strategies from a decoded layers
@@ -98,6 +102,21 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 					} else {
 						set(where, lname, f, &out.Eth.DstMAC, v)
 					}
+				case "http":
+					switch f {
+					case "uri":
+						set(where, lname, f, &out.HTTP.URI, v)
+					case "body":
+						set(where, lname, f, &out.HTTP.Body, v)
+					case "body_b64":
+						set(where, lname, f, &out.HTTP.BodyB64, v)
+					case "response_body":
+						set(where, lname, f, &out.HTTP.ResponseBody, v)
+					case "response_body_b64":
+						set(where, lname, f, &out.HTTP.ResponseBodyB64, v)
+					case "response_status_code":
+						set(where, lname, f, &out.HTTP.ResponseStatusCode, v)
+					}
 				}
 			}
 		}
@@ -116,7 +135,33 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 // empty list, bad pattern, pattern on IP/port/MAC/TTL. Range/list endpoints
 // must parse in the field's type (IP/MAC/port/TTL) — unparseable endpoints
 // are loud errors here, never silent empty resolutions downstream.
+// D-HTTP-1 重走裁定表 F：http string 面 5 字段仅 fixed/list/pattern
+// （inc/rand 无意义，形状层拒绝）；response_status_code 走 int 面
+// fixed/inc/rand/list（pattern 无意义，拒绝）。
 func checkDynShape(where, lname, field string, s *StrategyConfig) string {
+	if lname == "http" && field != "response_status_code" {
+		switch s.Strategy {
+		case "fixed", "":
+			return ""
+		case "list":
+			if len(s.List) == 0 {
+				return fmt.Sprintf("%s: list strategy requires a non-empty list", where)
+			}
+			return ""
+		case "pattern":
+			if s.Pattern == "" || len(s.Range) != 2 {
+				return fmt.Sprintf("%s: pattern strategy requires a template and a 2-element range", where)
+			}
+			return ""
+		case "inc", "rand":
+			return fmt.Sprintf("%s: %s strategy is not supported for string field", where, s.Strategy)
+		default:
+			return fmt.Sprintf("%s: unknown dynamic strategy %q", where, s.Strategy)
+		}
+	}
+	if lname == "http" && field == "response_status_code" && s.Strategy == "pattern" {
+		return fmt.Sprintf("%s: pattern strategy is not supported for layer address/port fields", where)
+	}
 	switch s.Strategy {
 	case "fixed", "":
 		return ""
@@ -466,6 +511,52 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 	if ld.Eth.DstMAC != nil {
 		if v := genMAC(*ld.Eth.DstMAC, i); v != "" {
 			spec.DstMAC = v
+		}
+	}
+	// D-HTTP-1 重走步骤 4：http 业务 6 回填。string 面经 ResolveStringValue
+	// （fixed/list/pattern；空值 no-op 保留静态）；status_code 经 genSmallInt
+	// int 面（fixed/inc/rand/list；0 值 no-op——0 即 builder 默认 200，保持
+	// "non-zero wins" 与既有四元组同口径）。spec.HTTP nil 时建空补后再写
+	// （层翻译已建非 nil，防御性补建）；只写回填字段，不碰其余 14 键。
+	// 无跨流污染：回填值只读进标量字段（URI/Body/…），shared 指针
+	// （RequestHeaders/ResponseHeaders map、FileSource）从不写；
+	// 生成器侧 generateTerminal:117 + legacy http.go:91-107 逐流浅拷贝
+	// struct 后再做 FileSource 解析，同 D-FTP-2 resolveTx 只写副本语义。
+	if ld.HTTP.URI != nil || ld.HTTP.Body != nil || ld.HTTP.BodyB64 != nil ||
+		ld.HTTP.ResponseBody != nil || ld.HTTP.ResponseBodyB64 != nil ||
+		ld.HTTP.ResponseStatusCode != nil {
+		if spec.HTTP == nil {
+			spec.HTTP = &HTTPConfig{}
+		}
+		if ld.HTTP.URI != nil {
+			if v := ResolveStringValue(ld.HTTP.URI, i); v != "" {
+				spec.HTTP.URI = v
+			}
+		}
+		if ld.HTTP.Body != nil {
+			if v := ResolveStringValue(ld.HTTP.Body, i); v != "" {
+				spec.HTTP.Body = v
+			}
+		}
+		if ld.HTTP.BodyB64 != nil {
+			if v := ResolveStringValue(ld.HTTP.BodyB64, i); v != "" {
+				spec.HTTP.BodyB64 = v
+			}
+		}
+		if ld.HTTP.ResponseBody != nil {
+			if v := ResolveStringValue(ld.HTTP.ResponseBody, i); v != "" {
+				spec.HTTP.ResponseBody = v
+			}
+		}
+		if ld.HTTP.ResponseBodyB64 != nil {
+			if v := ResolveStringValue(ld.HTTP.ResponseBodyB64, i); v != "" {
+				spec.HTTP.ResponseBodyB64 = v
+			}
+		}
+		if ld.HTTP.ResponseStatusCode != nil {
+			if v := genSmallInt(*ld.HTTP.ResponseStatusCode, i, 0, 65535); v != 0 {
+				spec.HTTP.ResponseStatusCode = v
+			}
 		}
 	}
 }

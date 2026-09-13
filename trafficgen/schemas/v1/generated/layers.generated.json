@@ -630,13 +630,76 @@
           "type": "string",
           "default": ""
         },
+        "body_b64": {
+          "type": "string",
+          "default": ""
+        },
+        "chunk_size": {
+          "type": "int",
+          "default": 0
+        },
+        "file_source": {
+          "type": "object"
+        },
         "headers": {
           "type": "map",
           "default": {}
         },
+        "keep_alive": {
+          "type": "bool",
+          "default": false
+        },
         "method": {
           "type": "string",
           "default": "GET"
+        },
+        "pipelined": {
+          "type": "bool",
+          "default": false
+        },
+        "request_content_encoding": {
+          "type": "string",
+          "default": ""
+        },
+        "request_headers": {
+          "type": "map",
+          "default": {}
+        },
+        "request_transfer_encoding": {
+          "type": "string",
+          "default": ""
+        },
+        "response_body": {
+          "type": "string",
+          "default": ""
+        },
+        "response_body_b64": {
+          "type": "string",
+          "default": ""
+        },
+        "response_content_encoding": {
+          "type": "string",
+          "default": ""
+        },
+        "response_headers": {
+          "type": "map",
+          "default": {}
+        },
+        "response_status_code": {
+          "type": "int",
+          "default": 0
+        },
+        "response_status_text": {
+          "type": "string",
+          "default": ""
+        },
+        "response_transfer_encoding": {
+          "type": "string",
+          "default": ""
+        },
+        "transactions": {
+          "type": "int",
+          "default": 0
         },
         "uri": {
           "type": "string",

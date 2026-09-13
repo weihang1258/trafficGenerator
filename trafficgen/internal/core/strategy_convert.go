@@ -309,6 +309,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, msg)
 		}
 	}
+	// D-HTTP-1 重走步骤 3：http 族在库旧策略顶层 http → ValidationErrors
+	// （新建/更新已在 schema 层经 CheckProtoFlat 400；此处覆盖存量行启动）。
+	switch protocol {
+	case "http", "http_flv", "hls", "hds", "gbt", "getwork", "cwmp", "doh", "onvif":
+		if v, ok := cfg["http"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -374,37 +382,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	// cross-protocol mutual-exclusion check (tftp.go V20
 	// "http field must not be set") was unreachable. Parsing here makes
 	// the V20 checks fire for any protocol, matching the universal TCP
-	// behavior.
+	// behavior. Field decoding is ParseHTTPConfigFromMap (single truth
+	// with layers.translateTerminalConfig).
 	if sub, ok := cfg["http"].(map[string]interface{}); ok {
-		// Backward compat: pre-rename strategies stored request headers
-		// under the "headers" key. Prefer the new "request_headers" key
-		// when present; fall back to legacy key so existing DB rows do
-		// not silently lose user-configured headers.
-		reqHeaders := getStringMap(sub, "request_headers")
-		if len(reqHeaders) == 0 {
-			reqHeaders = getStringMap(sub, "headers")
-		}
-		spec.HTTP = &HTTPConfig{
-			Method:                   getStringDefault(sub, "method", "GET"),
-			URI:                      getStringDefault(sub, "uri", "/"),
-			Version:                  getString(sub, "version"),
-			RequestHeaders:           reqHeaders,
-			Body:                     getString(sub, "body"),
-			BodyB64:                  getString(sub, "body_b64"),
-			KeepAlive:                getBool(sub, "keep_alive", false),
-			Transactions:             getInt(sub, "transactions"),
-			ResponseHeaders:          getStringMap(sub, "response_headers"),
-			ResponseBody:             getString(sub, "response_body"),
-			ResponseBodyB64:          getString(sub, "response_body_b64"),
-			ResponseStatusCode:       getInt(sub, "response_status_code"),
-			ResponseStatusText:       getString(sub, "response_status_text"),
-			ResponseContentEncoding:  getStringWithFallback(sub, "response_content_encoding", "content_encoding"),
-			RequestContentEncoding:   getString(sub, "request_content_encoding"),
-			RequestTransferEncoding:  getString(sub, "request_transfer_encoding"),
-			ResponseTransferEncoding: getString(sub, "response_transfer_encoding"),
-			ChunkSize:                getInt(sub, "chunk_size"),
-			Pipelined:                getBool(sub, "pipelined", false),
-		}
+		spec.HTTP = ParseHTTPConfigFromMap(sub)
 	}
 
 	// Universal DNS/FTP/ICMP/SCTP sub-configs, same rationale as the
@@ -1345,6 +1326,9 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	}
 	if spec.HTTP != nil {
+		// file_source already parsed inside ParseHTTPConfigFromMap (layer-map
+		// inner key); the top-level override below is a no-op safety net for
+		// rows parsed before the single-truth refactor.
 		if hFS := parseFileSource(getMap(cfg, "http")); hFS != nil {
 			spec.HTTP.FileSource = hFS
 		}
@@ -7619,6 +7603,16 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 				" (use a layers chain: ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports, flow_control for the flow count)"
 		}
 	}
+	// D-HTTP-1 重走步骤 3：http 族 9 协议顶层 http 子映射 presence 判死
+	// （ftp 范本同构；空 map 也判死——presence 语义与 ParseHTTPConfigFromMap
+	// 一致：{"http":{}} 即显式走默认）。非 http 族协议的顶层 http 沿旧口径
+	// （tftp V20 互斥门仍由 planner 报 "http field must not be set"）。
+	switch protocol {
+	case "http", "http_flv", "hls", "hds", "gbt", "getwork", "cwmp", "doh", "onvif":
+		if v, ok := cfg["http"]; ok && v != nil {
+			return "protocol " + protocol + " no longer accepts a top-level http sub-config (move it into the http layer of a [ip,tcp,http] layers chain)"
+		}
+	}
 	return ""
 }
 
@@ -7681,6 +7675,52 @@ func ParseFTPConfigFromMap(m map[string]interface{}) *FTPConfig {
 		return nil
 	}
 	return fc
+}
+
+// ParseHTTPConfigFromMap decodes an http layer/terminal config map into an
+// *HTTPConfig (D-HTTP-1 重走步骤 2; exported for layers.translateTerminalConfig;
+// single truth with the universal cfg["http"] read above — same parse, same
+// defaults). nil input → nil (absent). Empty map → non-nil zero config
+// (presence: {"http":{}} takes GET///200 defaults, same as an explicit map).
+// version is stored bare (no "HTTP/" prefix); the layer-translation side
+// prefixes, the universal-read side leaves bare for the builder default.
+func ParseHTTPConfigFromMap(m map[string]interface{}) *HTTPConfig {
+	if m == nil {
+		return nil
+	}
+	// Backward compat: pre-rename strategies stored request headers
+	// under the "headers" key. Prefer the new "request_headers" key
+	// when present; fall back to legacy key so existing DB rows do
+	// not silently lose user-configured headers.
+	reqHeaders := getStringMap(m, "request_headers")
+	if len(reqHeaders) == 0 {
+		reqHeaders = getStringMap(m, "headers")
+	}
+	hc := &HTTPConfig{
+		Method:                   getStringDefault(m, "method", "GET"),
+		URI:                      getStringDefault(m, "uri", "/"),
+		Version:                  getString(m, "version"),
+		RequestHeaders:           reqHeaders,
+		Body:                     getString(m, "body"),
+		BodyB64:                  getString(m, "body_b64"),
+		KeepAlive:                getBool(m, "keep_alive", false),
+		Transactions:             getInt(m, "transactions"),
+		ResponseHeaders:          getStringMap(m, "response_headers"),
+		ResponseBody:             getString(m, "response_body"),
+		ResponseBodyB64:          getString(m, "response_body_b64"),
+		ResponseStatusCode:       getInt(m, "response_status_code"),
+		ResponseStatusText:       getString(m, "response_status_text"),
+		ResponseContentEncoding:  getStringWithFallback(m, "response_content_encoding", "content_encoding"),
+		RequestContentEncoding:   getString(m, "request_content_encoding"),
+		RequestTransferEncoding:  getString(m, "request_transfer_encoding"),
+		ResponseTransferEncoding: getString(m, "response_transfer_encoding"),
+		ChunkSize:                getInt(m, "chunk_size"),
+		Pipelined:                getBool(m, "pipelined", false),
+	}
+	if hFS := parseFileSource(m); hFS != nil {
+		hc.FileSource = hFS
+	}
+	return hc
 }
 
 // getTxDataChannelMap navigates sessions[si].transactions[ti].data_channel

@@ -106,3 +106,20 @@ func TestProtoFlat_FTPMessageLocked(t *testing.T) {
 		t.Fatalf("ftp message must stay locked, got %q", got)
 	}
 }
+
+// D-HTTP-1 重走步骤 0②（failing 先行）：http 族顶层 http 子映射 presence → 判死。
+func TestProtoFlat_TopHTTPSubConfigRejected(t *testing.T) {
+	for _, proto := range []string{"http", "http_flv", "hls", "hds", "gbt", "getwork", "cwmp", "doh", "onvif"} {
+		t.Run(proto, func(t *testing.T) {
+			_, errs := ValidateStrategy("synth", proto, map[string]any{
+				"http": map[string]any{"method": "GET"},
+			}, nil)
+			if len(errs) == 0 {
+				t.Fatalf("want top-level http rejection for %s, got clean", proto)
+			}
+			if !strings.Contains(errs.Error(), "no longer accepts a top-level http sub-config") {
+				t.Fatalf("want top-http anchor, got %v", errs)
+			}
+		})
+	}
+}

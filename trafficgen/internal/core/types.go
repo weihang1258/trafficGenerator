@@ -3540,13 +3540,25 @@ type LayerEthDyn struct {
 	DstMAC *StrategyConfig
 }
 
+// LayerHTTPDyn holds http-layer dynamic business-field strategies
+// (D-HTTP-1 重走步骤 4: string 面 5 + int 面 1; map 型两键关，指针恒 nil)。
+type LayerHTTPDyn struct {
+	URI                *StrategyConfig
+	Body               *StrategyConfig
+	BodyB64            *StrategyConfig
+	ResponseBody       *StrategyConfig
+	ResponseBodyB64    *StrategyConfig
+	ResponseStatusCode *StrategyConfig
+}
+
 // LayerDynValues is the parsed per-flow dynamic strategy set from a layers
 // array (D-FTP-3). All pointers nil-able; nil = that endpoint is static.
 type LayerDynValues struct {
-	IP  LayerIPDyn
-	TCP LayerTransportDyn
-	UDP LayerTransportDyn
-	Eth LayerEthDyn
+	IP   LayerIPDyn
+	TCP  LayerTransportDyn
+	UDP  LayerTransportDyn
+	Eth  LayerEthDyn
+	HTTP LayerHTTPDyn
 }
 
 // HasAny reports whether any dynamic strategy is present.
@@ -3557,7 +3569,10 @@ func (l *LayerDynValues) HasAny() bool {
 	return l.IP.Src != nil || l.IP.Dst != nil || l.IP.TTL != nil ||
 		l.TCP.SrcPort != nil || l.TCP.DstPort != nil ||
 		l.UDP.SrcPort != nil || l.UDP.DstPort != nil ||
-		l.Eth.SrcMAC != nil || l.Eth.DstMAC != nil
+		l.Eth.SrcMAC != nil || l.Eth.DstMAC != nil ||
+		l.HTTP.URI != nil || l.HTTP.Body != nil || l.HTTP.BodyB64 != nil ||
+		l.HTTP.ResponseBody != nil || l.HTTP.ResponseBodyB64 != nil ||
+		l.HTTP.ResponseStatusCode != nil
 }
 
 // StrategyConfig for value generation strategies.

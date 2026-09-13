@@ -831,37 +831,16 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.HTTP != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略
 		}
+		// D-HTTP-1 重走步骤 2：全 20 键经 ParseHTTPConfigFromMap 单一真相
+		// （与顶层通用读同 parse、同缺省）；version 裸值 prefix 归一是翻译侧
+		// 专属（层 config 的 version 是裸版本号，schema 默认 "1.1"；
+		// HTTPConfig.Version 契约是完整 "HTTP/1.1"，builder 只默认空串）。
 		cfg := completedConfig(s, term.Config)
-		spec.HTTP = &core.HTTPConfig{}
-		if v, ok := configString(cfg["method"]); ok {
-			spec.HTTP.Method = v
+		hc := core.ParseHTTPConfigFromMap(cfg)
+		if hc.Version != "" && !strings.HasPrefix(hc.Version, "HTTP/") {
+			hc.Version = "HTTP/" + hc.Version
 		}
-		if v, ok := configString(cfg["uri"]); ok {
-			spec.HTTP.URI = v
-		}
-		if v, ok := configString(cfg["version"]); ok {
-			// 层 config 的 version 是裸版本号（schema 默认 "1.1"），
-			// HTTPConfig.Version 契约是完整 "HTTP/1.1"（types.go:487；
-			// builder 只默认空串，见 http.go:563-565）——prefix 归一，
-			// 与 flat 路径一致（mapToFlowSpec 从 cfg["http"]["version"] 取
-			// 裸值也是经 builder 渲染成 "HTTP/1.1" 的隐含依赖）。
-			if !strings.HasPrefix(v, "HTTP/") {
-				spec.HTTP.Version = "HTTP/" + v
-			} else {
-				spec.HTTP.Version = v
-			}
-		}
-		if h, ok := cfg["headers"]; ok {
-			if m, ok := h.(map[string]interface{}); ok {
-				spec.HTTP.RequestHeaders = make(map[string]string, len(m))
-				for k, v := range m {
-					spec.HTTP.RequestHeaders[k] = fmt.Sprint(v)
-				}
-			}
-		}
-		if v, ok := configString(cfg["body"]); ok {
-			spec.HTTP.Body = v
-		}
+		spec.HTTP = hc
 	case "dns":
 		if spec.DNS != nil {
 			return // flat 权威

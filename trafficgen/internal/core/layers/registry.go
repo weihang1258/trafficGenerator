@@ -104,6 +104,24 @@ func buildDefaultRegistry() {
 			"version": {Type: "string", Default: "1.1"},
 			"headers": {Type: "map", Default: map[string]interface{}{}},
 			"body":    {Type: "string", Default: ""},
+			// D-HTTP-1 重走步骤 1：顶层 http 迁入层（5→21 键）。headers 旧键
+			// 保留（读时回退 request_headers）；新增键类型与缺省见 §7 步骤 1 表。
+			"request_headers":            {Type: "map", Default: map[string]interface{}{}},
+			"body_b64":                   {Type: "string", Default: ""},
+			"keep_alive":                 {Type: "bool", Default: false},
+			"transactions":               {Type: "int", Default: 0},
+			"response_headers":           {Type: "map", Default: map[string]interface{}{}},
+			"response_body":              {Type: "string", Default: ""},
+			"response_body_b64":          {Type: "string", Default: ""},
+			"response_status_code":       {Type: "int", Default: 0},
+			"response_status_text":       {Type: "string", Default: ""},
+			"response_content_encoding":  {Type: "string", Default: ""},
+			"request_content_encoding":   {Type: "string", Default: ""},
+			"request_transfer_encoding":  {Type: "string", Default: ""},
+			"response_transfer_encoding": {Type: "string", Default: ""},
+			"chunk_size":                 {Type: "int", Default: 0},
+			"pipelined":                  {Type: "bool", Default: false},
+			"file_source":                {Type: "object"},
 		},
 		// http 家族目的端口落在 tcp 层（DefaultDstPort=80，strategy_convert
 		// 同款）；声明 tcp.dst_port 供 layers 数组路径（未显式写端口）补齐。

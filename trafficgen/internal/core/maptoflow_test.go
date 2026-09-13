@@ -3254,3 +3254,32 @@ func TestMapToFlowSpec_DoIP_NonHexStringFallsBack(t *testing.T) {
 		t.Errorf("Data = %x, want ASCII hello", uds.Data)
 	}
 }
+
+// D-HTTP-1 重走步骤 0②补齐（maptoflow 侧）：http 族在库旧策略顶层 http →
+// ValidationErrors（worker 预检终态 error）；非 http 族顶层 http 保持旧口径
+// （V20 互斥门，不管此门）。
+func TestMapToFlowSpec_TopHTTPSubConfigRejected(t *testing.T) {
+	for _, proto := range []string{"http", "http_flv", "hls", "hds", "gbt", "getwork", "cwmp", "doh", "onvif"} {
+		t.Run(proto, func(t *testing.T) {
+			spec := mapToFlowSpec(map[string]any{
+				"http": map[string]any{"method": "GET"},
+			}, proto)
+			found := false
+			for _, e := range spec.ValidationErrors {
+				if containsSub(e, "no longer accepts a top-level http sub-config") {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("want top-http ValidationError for %s, got %v", proto, spec.ValidationErrors)
+			}
+		})
+	}
+	// 非 http 族：tftp 顶层 http 不走此门（V20 门仍在 planner 侧）。
+	spec := mapToFlowSpec(map[string]any{"http": map[string]any{"method": "GET"}}, "tftp")
+	for _, e := range spec.ValidationErrors {
+		if containsSub(e, "no longer accepts a top-level http sub-config") {
+			t.Fatalf("non-family tftp must not hit top-http gate, got %v", spec.ValidationErrors)
+		}
+	}
+}
