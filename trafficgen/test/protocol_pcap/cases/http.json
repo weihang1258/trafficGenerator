@@ -18,14 +18,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -80,15 +79,14 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/api",
+            "version": "1.1",
+            "body": "{\"k\":\"v\"}"
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/api",
-        "version": "HTTP/1.1",
-        "body": "{\"k\":\"v\"}"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -135,16 +133,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/keep",
+            "version": "1.1",
+            "transactions": 3,
+            "keep_alive": true
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/keep",
-        "version": "HTTP/1.1",
-        "transactions": 3,
-        "keep_alive": true
-      }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -181,16 +178,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/pipe",
+            "version": "1.1",
+            "transactions": 3,
+            "pipelined": true
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/pipe",
-        "version": "HTTP/1.1",
-        "transactions": 3,
-        "pipelined": true
-      }
+      ]
     },
     "expect": {
       "packet_count": 13,
@@ -222,16 +218,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/missing",
+            "version": "1.1",
+            "response_status_code": 404,
+            "response_body": "not here"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/missing",
-        "version": "HTTP/1.1",
-        "response_status_code": 404,
-        "response_body": "not here"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -263,16 +258,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/gz",
+            "version": "1.1",
+            "response_body": "hello-gzip-body",
+            "response_content_encoding": "gzip"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/gz",
-        "version": "HTTP/1.1",
-        "response_body": "hello-gzip-body",
-        "response_content_encoding": "gzip"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -309,16 +303,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/chunk",
+            "version": "1.1",
+            "response_body": "chunked-body-bytes",
+            "response_transfer_encoding": "chunked"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/chunk",
-        "version": "HTTP/1.1",
-        "response_body": "chunked-body-bytes",
-        "response_transfer_encoding": "chunked"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -355,14 +348,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/old",
+            "version": "HTTP/1.0"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/old",
-        "version": "HTTP/1.0"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -432,14 +424,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/v6",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/v6",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -476,14 +467,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/alt",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/alt",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -515,18 +505,17 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/hdr",
+            "version": "1.1",
+            "request_headers": {
+              "X-Trace": "abc",
+              "Host": "custom.test"
+            }
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/hdr",
-        "version": "HTTP/1.1",
-        "request_headers": {
-          "X-Trace": "abc",
-          "Host": "custom.test"
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -563,16 +552,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/bin",
+            "version": "1.1",
+            "body": "text-ignored",
+            "body_b64": "aGVsbG8="
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/bin",
-        "version": "HTTP/1.1",
-        "body": "text-ignored",
-        "body_b64": "aGVsbG8="
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -609,16 +597,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/gz-req",
+            "version": "1.1",
+            "body": "hello-gzip-request-body",
+            "request_content_encoding": "gzip"
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/gz-req",
-        "version": "HTTP/1.1",
-        "body": "hello-gzip-request-body",
-        "request_content_encoding": "gzip"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -655,16 +642,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/chunk-req",
+            "version": "1.1",
+            "body": "chunked-request-body",
+            "request_transfer_encoding": "chunked"
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/chunk-req",
-        "version": "HTTP/1.1",
-        "body": "chunked-request-body",
-        "request_transfer_encoding": "chunked"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -701,17 +687,16 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/chunks",
+            "version": "1.1",
+            "body": "0123456789ABCDEF",
+            "request_transfer_encoding": "chunked",
+            "chunk_size": 5
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/chunks",
-        "version": "HTTP/1.1",
-        "body": "0123456789ABCDEF",
-        "request_transfer_encoding": "chunked",
-        "chunk_size": 5
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -755,18 +740,17 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/override",
+            "version": "1.1",
+            "response_body": "hello",
+            "response_headers": {
+              "Content-Type": "text/custom"
+            }
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/override",
-        "version": "HTTP/1.1",
-        "response_body": "hello",
-        "response_headers": {
-          "Content-Type": "text/custom"
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -803,16 +787,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/b64resp",
+            "version": "1.1",
+            "response_body": "ignored",
+            "response_body_b64": "aGVsbG8="
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/b64resp",
-        "version": "HTTP/1.1",
-        "response_body": "ignored",
-        "response_body_b64": "aGVsbG8="
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -844,17 +827,16 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/teapot",
+            "version": "1.1",
+            "response_status_code": 418,
+            "response_status_text": "Custom Phrase",
+            "response_body": "x"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/teapot",
-        "version": "HTTP/1.1",
-        "response_status_code": 418,
-        "response_status_text": "Custom Phrase",
-        "response_body": "x"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -886,16 +868,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/unknown",
+            "version": "1.1",
+            "response_status_code": 599,
+            "response_body": "x"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/unknown",
-        "version": "HTTP/1.1",
-        "response_status_code": 599,
-        "response_body": "x"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -927,14 +908,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/empty",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/empty",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -966,18 +946,17 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/upload",
+            "version": "1.1",
+            "file_source": {
+              "source_type": "literal",
+              "literal": "file-bytes-123"
+            }
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/upload",
-        "version": "HTTP/1.1",
-        "file_source": {
-          "source_type": "literal",
-          "literal": "file-bytes-123"
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1015,15 +994,14 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/long",
+            "version": "1.1",
+            "response_body": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/long",
-        "version": "HTTP/1.1",
-        "response_body": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      }
+      ]
     },
     "expect": {
       "packet_count": 10,
@@ -1055,15 +1033,14 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "PUT",
+            "uri": "/item/1",
+            "version": "1.1",
+            "body": "{\"a\":1}"
+          }
         }
-      ],
-      "http": {
-        "method": "PUT",
-        "uri": "/item/1",
-        "version": "HTTP/1.1",
-        "body": "{\"a\":1}"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1100,14 +1077,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "DELETE",
+            "uri": "/item/1",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "DELETE",
-        "uri": "/item/1",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1139,14 +1115,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "HEAD",
+            "uri": "/head",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "HEAD",
-        "uri": "/head",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1178,19 +1153,18 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/old-path",
+            "version": "1.1",
+            "response_status_code": 301,
+            "response_headers": {
+              "Location": "/new"
+            },
+            "response_body": "moved"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/old-path",
-        "version": "HTTP/1.1",
-        "response_status_code": 301,
-        "response_headers": {
-          "Location": "/new"
-        },
-        "response_body": "moved"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1222,16 +1196,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/err",
+            "version": "1.1",
+            "response_status_code": 500,
+            "response_body": "boom"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/err",
-        "version": "HTTP/1.1",
-        "response_status_code": 500,
-        "response_body": "boom"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1263,17 +1236,16 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/items",
+            "version": "1.1",
+            "body": "{\"n\":1}",
+            "response_status_code": 201,
+            "response_body": "{\"id\":9}"
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/items",
-        "version": "HTTP/1.1",
-        "body": "{\"n\":1}",
-        "response_status_code": 201,
-        "response_body": "{\"id\":9}"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1310,17 +1282,16 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/both",
+            "version": "1.1",
+            "body": "gzip-then-chunk-body-bytes",
+            "request_content_encoding": "gzip",
+            "request_transfer_encoding": "chunked"
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/both",
-        "version": "HTTP/1.1",
-        "body": "gzip-then-chunk-body-bytes",
-        "request_content_encoding": "gzip",
-        "request_transfer_encoding": "chunked"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1362,16 +1333,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/br",
+            "version": "1.1",
+            "body": "abc",
+            "request_content_encoding": "br"
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/br",
-        "version": "HTTP/1.1",
-        "body": "abc",
-        "request_content_encoding": "br"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1408,16 +1378,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/fb",
+            "version": "1.1",
+            "body": "fallback-text",
+            "body_b64": "!!!not-base64!!!"
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/fb",
-        "version": "HTTP/1.1",
-        "body": "fallback-text",
-        "body_b64": "!!!not-base64!!!"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1455,15 +1424,14 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/big",
+            "version": "1.1",
+            "body": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/big",
-        "version": "HTTP/1.1",
-        "body": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
-      }
+      ]
     },
     "expect": {
       "packet_count": 14,
@@ -1495,14 +1463,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/one",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/one",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1545,14 +1512,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/mf",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/mf",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 18,
@@ -1604,14 +1570,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/ttl",
+            "version": "1.1"
+          }
         }
       ],
-      "http": {
-        "method": "GET",
-        "uri": "/ttl",
-        "version": "HTTP/1.1"
-      },
       "ttl": 128
     },
     "expect": {
@@ -1649,18 +1614,17 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/hdr-old",
+            "version": "1.1",
+            "headers": {
+              "X-Trace": "abc",
+              "Host": "legacy.test"
+            }
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/hdr-old",
-        "version": "HTTP/1.1",
-        "headers": {
-          "X-Trace": "abc",
-          "Host": "legacy.test"
-        }
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1697,16 +1661,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/ce-old",
+            "version": "1.1",
+            "response_body": "hello-legacy-enc",
+            "response_content_encoding": "gzip"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/ce-old",
-        "version": "HTTP/1.1",
-        "response_body": "hello-legacy-enc",
-        "content_encoding": "gzip"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1743,20 +1706,19 @@
           }
         },
         {
-          "http": {}
-        }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/fill",
-        "version": "HTTP/1.1",
-        "file_source": {
-          "fill": {
-            "byte": 65,
-            "bytes": 16
+          "http": {
+            "method": "POST",
+            "uri": "/fill",
+            "version": "1.1",
+            "file_source": {
+              "fill": {
+                "byte": 65,
+                "bytes": 16
+              }
+            }
           }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1793,21 +1755,20 @@
           }
         },
         {
-          "http": {}
-        }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/rand",
-        "version": "HTTP/1.1",
-        "file_source": {
-          "random": {
-            "min_bytes": 8,
-            "max_bytes": 8,
-            "seed": 7
+          "http": {
+            "method": "POST",
+            "uri": "/rand",
+            "version": "1.1",
+            "file_source": {
+              "random": {
+                "min_bytes": 8,
+                "max_bytes": 8,
+                "seed": 7
+              }
+            }
           }
         }
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -1850,14 +1811,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/v6mf",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/v6mf",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "strategy_fc": {
       "type": "flows",
@@ -1909,15 +1869,14 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/v6long",
+            "version": "1.1",
+            "response_body": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/v6long",
-        "version": "HTTP/1.1",
-        "response_body": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      }
+      ]
     },
     "expect": {
       "packet_count": 10,
@@ -1950,16 +1909,15 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "POST",
+            "uri": "/cm",
+            "version": "1.1",
+            "body": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            "request_transfer_encoding": "chunked"
+          }
         }
-      ],
-      "http": {
-        "method": "POST",
-        "uri": "/cm",
-        "version": "HTTP/1.1",
-        "body": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
-        "request_transfer_encoding": "chunked"
-      }
+      ]
     },
     "expect": {
       "packet_count": 10,
@@ -2003,14 +1961,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/dr",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/dr",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 36,
@@ -2071,14 +2028,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/dl",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/dl",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 36,
@@ -2129,14 +2085,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/df",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/df",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 9,
@@ -2178,14 +2133,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/dw",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/dw",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 45,
@@ -2245,14 +2199,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/dr2",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/dr2",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 36,
@@ -2314,14 +2267,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/ir",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/ir",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "packet_count": 27,
@@ -2371,14 +2323,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -2409,14 +2360,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
@@ -2442,15 +2392,14 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/",
+            "version": "1.1"
+          }
         }
       ],
-      "src_ip": "10.0.0.1",
-      "http": {
-        "method": "GET",
-        "uri": "/",
-        "version": "HTTP/1.1"
-      }
+      "src_ip": "10.0.0.1"
     },
     "expect": {
       "expect_error": true,
@@ -2476,14 +2425,13 @@
           }
         },
         {
-          "http": {}
+          "http": {
+            "method": "GET",
+            "uri": "/",
+            "version": "1.1"
+          }
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "strategy_fc": {
       "type": "flows",
@@ -2515,16 +2463,694 @@
         {
           "gbt": {}
         }
-      ],
-      "http": {
-        "method": "GET",
-        "uri": "/g",
-        "version": "HTTP/1.1"
-      }
+      ]
     },
     "expect": {
       "expect_error": true,
       "error_contains": "requires the http carrier layer"
+    }
+  },
+  {
+    "id": "http_dyn_uri_list",
+    "proto": "http",
+    "summary": "业务uri list轮转：/a /b两流（T-HTTP-60）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": {
+              "strategy": "list",
+              "list": [
+                "41001",
+                "41002"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "uri": {
+              "strategy": "list",
+              "list": [
+                "/a",
+                "/b"
+              ]
+            },
+            "version": "1.1"
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "distinct_values": [
+            "/a",
+            "/b"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_dyn_uri_pattern",
+    "proto": "http",
+    "summary": "业务uri pattern替换：/u1 /u2两流（T-HTTP-61）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": {
+              "strategy": "list",
+              "list": [
+                "41002",
+                "41003"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "uri": {
+              "strategy": "pattern",
+              "pattern": "/u{n}",
+              "range": [
+                1,
+                2
+              ]
+            },
+            "version": "1.1"
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "distinct_values": [
+            "/u1",
+            "/u2"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_dyn_uri_fixed",
+    "proto": "http",
+    "summary": "业务uri fixed对照：恒/a单流（T-HTTP-62）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41003,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "uri": {
+              "strategy": "fixed",
+              "value": "/a"
+            },
+            "version": "1.1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/a"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_dyn_body_list",
+    "proto": "http",
+    "summary": "业务body list轮转两流（T-HTTP-63）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": {
+              "strategy": "list",
+              "list": [
+                "41004",
+                "41005"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "version": "1.1",
+            "body": {
+              "strategy": "list",
+              "list": [
+                "AAA",
+                "BBB"
+              ]
+            },
+            "uri": "/p"
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.request.method",
+          "distinct_values": [
+            "POST"
+          ]
+        },
+        {
+          "packet": 5,
+          "field": "http.request.uri",
+          "distinct_values": [
+            "/p"
+          ]
+        },
+        {
+          "packet": 5,
+          "field": "http.content_length",
+          "distinct_values": [
+            "3"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_dyn_respbody_list",
+    "proto": "http",
+    "summary": "业务response_body list轮转两流（T-HTTP-64）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": {
+              "strategy": "list",
+              "list": [
+                "41005",
+                "41006"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/b",
+            "version": "1.1",
+            "response_body": {
+              "strategy": "list",
+              "list": [
+                "R1",
+                "R2"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "distinct_values": [
+            "200"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_dyn_status_list",
+    "proto": "http",
+    "summary": "业务status_code list枚举200/404两流（T-HTTP-65）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": {
+              "strategy": "list",
+              "list": [
+                "41006",
+                "41007"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/b",
+            "version": "1.1",
+            "response_status_code": {
+              "strategy": "list",
+              "list": [
+                "200",
+                "404"
+              ]
+            },
+            "response_body": "st"
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "distinct_values": [
+            "200",
+            "404"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_dyn_status_inc",
+    "proto": "http",
+    "summary": "业务status_code inc回绕200-201两流（T-HTTP-66）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": {
+              "strategy": "list",
+              "list": [
+                "41007",
+                "41008"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/b",
+            "version": "1.1",
+            "response_status_code": {
+              "strategy": "inc",
+              "range": [
+                200,
+                201
+              ]
+            },
+            "response_body": "st"
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "distinct_values": [
+            "200",
+            "201"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_dyn_status_rand_repro",
+    "proto": "http",
+    "summary": "业务status_code rand复现对照（T-HTTP-67，与66对照）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": {
+              "strategy": "list",
+              "list": [
+                "41008",
+                "41009"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/b",
+            "version": "1.1",
+            "response_status_code": {
+              "strategy": "rand",
+              "range": [
+                200,
+                201
+              ],
+              "seed": 3
+            },
+            "response_body": "st"
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "distinct_values": [
+            "200",
+            "201"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_dyn_body_b64_list",
+    "proto": "http",
+    "summary": "业务body_b64 list轮转两流（T-HTTP-68）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": {
+              "strategy": "list",
+              "list": [
+                "41009",
+                "41010"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "uri": "/b",
+            "version": "1.1",
+            "body_b64": {
+              "strategy": "list",
+              "list": [
+                "QUJD",
+                "REVG"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.content_length",
+          "distinct_values": [
+            "3"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_dyn_respbody_b64_list",
+    "proto": "http",
+    "summary": "业务response_body_b64 list轮转两流（T-HTTP-69）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "dst_port": 80,
+            "src_port": {
+              "strategy": "list",
+              "list": [
+                "41010",
+                "41011"
+              ]
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/b",
+            "version": "1.1",
+            "response_body_b64": {
+              "strategy": "list",
+              "list": [
+                "UjE=",
+                "UjI="
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "distinct_values": [
+            "200"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_neg_dyn_uri_inc",
+    "proto": "http",
+    "summary": "负例：uri inc在string面拒绝（T-HTTP-70）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41001,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "uri": {
+              "strategy": "inc",
+              "range": [
+                "/a",
+                "/b"
+              ]
+            },
+            "version": "1.1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "not supported for string field"
+    }
+  },
+  {
+    "id": "http_neg_dyn_closed_method",
+    "proto": "http",
+    "summary": "负例：method关字段对象拒绝（T-HTTP-71）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41001,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {
+            "method": {
+              "strategy": "list",
+              "list": [
+                "GET",
+                "POST"
+              ]
+            },
+            "uri": "/b",
+            "version": "1.1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "does not support dynamic"
+    }
+  },
+  {
+    "id": "http_neg_top_http",
+    "proto": "http",
+    "summary": "负例：顶层http presence判死（T-HTTP-72）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 41011,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET"
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts a top-level http sub-config"
     }
   }
 ]

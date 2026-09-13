@@ -399,3 +399,71 @@ func TestChainPlanner_HTTP_LayerTranslatesFullFields(t *testing.T) {
 		t.Fatalf("ResponseBody = %q, want hi", validated.HTTP.ResponseBody)
 	}
 }
+
+// D-HTTP-1 重走步骤 4（生产真相锁定）：层内 uri 动态对象经 translateHTTPDyn
+// 按 FlowIndex 直解——Plan 内 ValidateSpec→translate 读到当流序号，worker
+// resolveLayerTuple 跑在 Plan 之后已来不及（HTTP 已定）。此测试钉死
+// "翻译读 p.chain 用户原始链（含动态对象），不读 term 补全链（对象已剥离）"。
+func TestChainPlanner_HTTP_LayerDynURIResolvesPerFlow(t *testing.T) {
+	mkPlanner := func() *layers.ChainPlanner {
+		return layers.NewChainPlannerFromChain("http", []layers.Layer{
+			{Name: "ip"},
+			{Name: "tcp"},
+			{Name: "http", Config: map[string]interface{}{
+				"method": "GET",
+				"uri": map[string]interface{}{
+					"strategy": "list",
+					"list":     []interface{}{"/a", "/b"},
+				},
+				"version": "1.1",
+			}},
+		})
+	}
+	for i, want := range []string{"/a", "/b"} {
+		p := mkPlanner()
+		spec := core.FlowSpec{
+			SrcIP: "10.0.0.1", DstIP: "10.0.0.2",
+			SrcPort: 2000, DstPort: 80, FlowIndex: i,
+		}
+		validated, err := p.ValidateSpec(spec)
+		if err != nil {
+			t.Fatalf("flow %d ValidateSpec: %v", i, err)
+		}
+		if validated.HTTP == nil {
+			t.Fatalf("flow %d: spec.HTTP nil after layer translation", i)
+		}
+		if validated.HTTP.URI != want {
+			t.Fatalf("flow %d: URI = %q, want %q (translateHTTPDyn must resolve at FlowIndex)", i, validated.HTTP.URI, want)
+		}
+	}
+}
+
+// D-HTTP-1 重走步骤 2（空壳例外锁定）：spec.HTTP 非 nil 但 Method/URI/
+// Version 全空（worker resolveLayerTuple 防御性补建产物）时层翻译继续——
+// 空壳无信息，层 config 才是真相；零值 Method 不代表用户写了 GET。
+func TestChainPlanner_HTTP_EmptyShellDoesNotBlockLayerTranslate(t *testing.T) {
+	p := layers.NewChainPlannerFromChain("http", []layers.Layer{
+		{Name: "ip"},
+		{Name: "tcp"},
+		{Name: "http", Config: map[string]interface{}{
+			"method": "POST",
+			"uri":    "/p",
+		}},
+	})
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "10.0.0.2",
+		SrcPort: 2000, DstPort: 80,
+		HTTP: &core.HTTPConfig{},
+	}
+	validated, err := p.ValidateSpec(spec)
+	if err != nil {
+		t.Fatalf("ValidateSpec: %v", err)
+	}
+	if validated.HTTP == nil {
+		t.Fatal("spec.HTTP nil after layer translation")
+	}
+	if validated.HTTP.Method != "POST" || validated.HTTP.URI != "/p" {
+		t.Fatalf("Method/URI = %q/%q, want POST//p (empty shell must not win over layer config)",
+			validated.HTTP.Method, validated.HTTP.URI)
+	}
+}

@@ -522,6 +522,9 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 	// （RequestHeaders/ResponseHeaders map、FileSource）从不写；
 	// 生成器侧 generateTerminal:117 + legacy http.go:91-107 逐流浅拷贝
 	// struct 后再做 FileSource 解析，同 D-FTP-2 resolveTx 只写副本语义。
+	// 注意：本函数只服务 mapToFlowSpec 直调/单测口径；层链引擎路径
+	// （BuildLayersPlanner→translateTerminalConfig translateHTTPDyn）
+	// 才是生产真相——worker resolveLayerTuple 跑在 Plan 之后，HTTP 已定。
 	if ld.HTTP.URI != nil || ld.HTTP.Body != nil || ld.HTTP.BodyB64 != nil ||
 		ld.HTTP.ResponseBody != nil || ld.HTTP.ResponseBodyB64 != nil ||
 		ld.HTTP.ResponseStatusCode != nil {

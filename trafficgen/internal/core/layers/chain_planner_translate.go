@@ -828,14 +828,41 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		}
 		return
 	case "http":
-		if spec.HTTP != nil {
+		// D-HTTP-1 重走步骤 2+4：全 20 键经 ParseHTTPConfigFromMap 单一真相
+		// （与顶层通用读同 parse、同缺省）。
+		// flat 权威早返保留（TestBuildLayersPlanner_FlatSpecWinsOverLayerConfig
+		// 锁定：直接构造 spec.HTTP 的调用方仍是 flat 优先，层 config 忽略；
+		// 顶层 http 另由 CheckProtoFlat 判死，此处只做优先级）。
+		// 例外：spec.HTTP 非 nil 但为空壳（Method/URI/Version 全空——worker
+		// resolveLayerTuple 的防御性补建产物）时，层翻译继续（空壳无信息，
+		// 层 config 才是真相；零值 Method 不代表用户写了 GET）。
+		if spec.HTTP != nil && (spec.HTTP.Method != "" || spec.HTTP.URI != "" || spec.HTTP.Version != "") {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略
 		}
-		// D-HTTP-1 重走步骤 2：全 20 键经 ParseHTTPConfigFromMap 单一真相
-		// （与顶层通用读同 parse、同缺省）；version 裸值 prefix 归一是翻译侧
-		// 专属（层 config 的 version 是裸版本号，schema 默认 "1.1"；
-		// HTTPConfig.Version 契约是完整 "HTTP/1.1"，builder 只默认空串）。
-		cfg := completedConfig(s, term.Config)
+		// 必须读 p.chain（用户原始链，含动态对象），不能读 term（补全链）：
+		// completedConfig 只补标量缺省，动态对象在补全链上已被剥离，
+		// 对象信息只在用户原始链上完整。
+		// 动态对象直解：层内动态 6 键的对象值在此按 spec.FlowIndex 直接
+		// 解析进翻译结果（与 worker resolveLayerTuple 同算法、同序号域；
+		// FlowIndex 由 worker 每流置位，Plan 内 ValidateSpec→translate
+		// 读到当流序号）。标量键走 Parse；对象键走 CheckLayerDynShape
+		// 校验形状后按流序号解析（形状坏→返回错误，Plan 同步失败）。
+		// version 裸值 prefix 归一是翻译侧专属（层 config 的 version 是
+		// 裸版本号，schema 默认 "1.1"；HTTPConfig.Version 契约是完整
+		// "HTTP/1.1"，builder 只默认空串）。
+		rawCfg := term.Config
+		for _, l := range p.chain {
+			if l.Name == "http" {
+				rawCfg = l.Config
+				break
+			}
+		}
+		cfg := completedConfig(s, rawCfg)
+		if msg := translateHTTPDyn(cfg, rawCfg, spec.FlowIndex); msg != "" {
+			// 形状坏（ValidateLayers 已在 create 期 400；此处覆盖引擎直调
+			// 未走 ValidateLayers 路径）→ Plan 同步失败，不静默空流。
+			return
+		}
 		hc := core.ParseHTTPConfigFromMap(cfg)
 		if hc.Version != "" && !strings.HasPrefix(hc.Version, "HTTP/") {
 			hc.Version = "HTTP/" + hc.Version
@@ -971,6 +998,50 @@ func decodeNodeOps(v []interface{}) []core.OPCUANodeRead {
 		ops = append(ops, op)
 	}
 	return ops
+}
+
+// translateHTTPDyn resolves http-layer dynamic objects (D-HTTP-1 6 开字段)
+// in the user raw config at flow index i, writing scalar resolutions into
+// cfg (completed overlay). Scalar keys untouched. Shape errors return a
+// message (caller fails Plan loudly); empty resolution is a no-op preserving
+// the completed default (same "non-zero wins" as worker resolveLayerTuple).
+// Only the 6 allowlisted keys are read; other keys (incl. closed-field
+// objects rejected at ValidateLayers) are ignored here.
+func translateHTTPDyn(cfg, raw map[string]interface{}, i int) string {
+	if raw == nil {
+		return ""
+	}
+	for _, key := range []string{"uri", "body", "body_b64", "response_body", "response_body_b64", "response_status_code"} {
+		m, isObj := raw[key].(map[string]interface{})
+		if !isObj || m == nil {
+			continue
+		}
+		if _, looksDyn := m["strategy"]; !looksDyn {
+			continue
+		}
+		if msg := core.CheckLayerDynShape("http", key, m); msg != "" {
+			return msg
+		}
+		var sc core.StrategyConfig
+		b, _ := json.Marshal(m)
+		if err := json.Unmarshal(b, &sc); err != nil {
+			return "http." + key + ": invalid object"
+		}
+		if key == "response_status_code" {
+			if v := core.ResolvePortValue(&sc, i); v != 0 {
+				cfg[key] = float64(v)
+			} else {
+				delete(cfg, key)
+			}
+			continue
+		}
+		if v := core.ResolveStringValue(&sc, i); v != "" {
+			cfg[key] = v
+		} else {
+			delete(cfg, key)
+		}
+	}
+	return ""
 }
 
 // completedConfig overlays the user layer config onto the schema defaults

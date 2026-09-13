@@ -55,6 +55,33 @@ PYEOF
   else
     echo "  绿: 无顶层协议子映射并存"
   fi
+  # http 族 9 协议顶层 http presence 红线（D-HTTP-1 步骤 3 + T-HTTP-72）：
+  # 迁入完成后，layers 与顶层 http 子映射共存即红；唯一的例外是 presence
+  # 负例本身（expect_error + error_contains 含 top-level），它是执法对象。
+  case "$PROTO" in
+    http|http_flv|hls|hds|gbt|getwork|cwmp|doh|onvif)
+      pres=$(python3 - "$CASES" <<'PYEOF'
+import json,sys
+d = json.load(open(sys.argv[1]))
+bad = []
+for c in d:
+    sj = c.get("spec_json", {}) or {}
+    if "layers" not in sj or not isinstance(sj.get("http"), dict):
+        continue
+    exp = c.get("expect", {}) or {}
+    if exp.get("expect_error") and "top-level" in str(exp.get("error_contains", "")):
+        continue
+    bad.append(c["id"] + ":顶层http presence")
+print("\n".join(sorted(set(bad))))
+PYEOF
+)
+      if [ -n "$pres" ]; then
+        echo "  红: http 族顶层 http presence 残留:"; echo "$pres" | sed 's/^/    /'; fail=1
+      else
+        echo "  绿: http 族无顶层 http presence 残留（presence 负例豁免）"
+      fi
+      ;;
+  esac
 fi
 
 echo "== 门2-3 二进制与 HEAD 同代"
