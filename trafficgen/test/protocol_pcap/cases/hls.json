@@ -6,7 +6,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40000,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -15,10 +24,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40000,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -64,7 +69,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40001,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -73,10 +87,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40001,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -122,7 +132,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40002,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -131,10 +150,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40002,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -184,7 +199,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40003,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -193,10 +217,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40003,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -248,7 +268,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40004,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -257,10 +286,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40004,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -322,7 +347,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40005,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -331,10 +365,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40005,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -405,7 +435,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40006,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -414,10 +453,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40006,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "live": {
@@ -492,7 +527,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40007,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -501,10 +545,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40007,
-      "dst_port": 80,
       "hls": {
         "profile": "apple_ll_hls",
         "ll_hls": {
@@ -561,7 +601,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40008,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -570,10 +619,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40008,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -624,7 +669,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40009,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -633,10 +687,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40009,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -715,7 +765,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40010,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -724,10 +783,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40010,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -775,7 +830,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40011,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -784,10 +848,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40011,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -811,7 +871,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40012,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -820,10 +889,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40012,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -853,7 +918,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "2001:db8:46::10",
+            "dst": "2001:db8:46::20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40013,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -862,10 +936,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "2001:db8:46::10",
-      "dst_ip": "2001:db8:46::20",
-      "src_port": 40013,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -907,7 +977,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40014,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -916,10 +995,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40014,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -985,7 +1060,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40015,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -994,10 +1078,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40015,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -1035,7 +1115,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40016,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -1044,10 +1133,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40016,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -1082,7 +1167,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40017,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -1091,10 +1185,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40017,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -1117,7 +1207,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40018,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -1126,10 +1225,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40018,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -1158,7 +1253,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40019,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -1167,10 +1271,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40019,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "live": {
@@ -1216,7 +1316,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40020,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -1225,10 +1334,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40020,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -1268,7 +1373,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40021,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -1277,10 +1391,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40021,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [
@@ -1318,7 +1428,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40022,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -1327,10 +1446,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40022,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "ll_hls": {},
@@ -1359,7 +1474,16 @@
     "spec_json": {
       "layers": [
         {
-          "tcp": {}
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40023,
+            "dst_port": 80
+          }
         },
         {
           "http": {}
@@ -1368,10 +1492,6 @@
           "hls": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
-      "src_port": 40023,
-      "dst_port": 80,
       "hls": {
         "profile": "rfc8216_v7",
         "sessions": [

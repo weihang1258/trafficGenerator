@@ -6,6 +6,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -16,8 +22,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {}
     },
     "expect": {
@@ -56,6 +60,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -66,8 +76,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {}
     },
     "expect": {
@@ -101,6 +109,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -111,8 +125,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {}
     },
     "expect": {
@@ -134,6 +146,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -144,8 +162,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {}
     },
     "expect": {
@@ -167,6 +183,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -177,8 +199,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {}
     },
     "expect": {
@@ -200,6 +220,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -210,8 +236,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {
         "flags": 1,
         "tags": [
@@ -243,6 +267,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -253,8 +283,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {}
     },
     "expect": {
@@ -286,6 +314,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -296,8 +330,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {
         "flags": 5,
         "tags": [
@@ -370,6 +402,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -380,8 +418,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {
         "flags": 5,
         "rounds": 2
@@ -411,6 +447,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -421,8 +463,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {}
     },
     "expect": {
@@ -449,6 +489,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -459,8 +505,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "2001:db8::1",
-      "dst_ip": "2001:db8::2",
       "http_flv": {}
     },
     "expect": {
@@ -492,6 +536,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -502,8 +552,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {}
     },
     "expect": {
@@ -530,6 +578,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -540,8 +594,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {
         "tags": [
           {
@@ -564,6 +616,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -574,8 +632,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {
         "flags": 5,
         "rounds": -1
@@ -593,6 +649,12 @@
     "spec_json": {
       "layers": [
         {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
           "http": {
             "method": "GET",
             "uri": "/live/test.flv",
@@ -603,8 +665,6 @@
           "http_flv": {}
         }
       ],
-      "src_ip": "192.0.2.10",
-      "dst_ip": "198.51.100.20",
       "http_flv": {
         "flags": 255,
         "rounds": 1
