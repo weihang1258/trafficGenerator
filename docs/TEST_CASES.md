@@ -699,20 +699,20 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/core/maptoflow_test.go`（改）；`internal/mcp/schemagen/main.go:92` + 重生成 `schema_descriptions_generated.go` + `tools_strategy.go:27`/`tools_workflow.go:20`（改）。
 
-### T-HTTP-5 8 子女 suite 联验（http 自身无 cases）【D-HTTP-1 §8】
+### T-HTTP-5 8 子女 + http.json 全量联验【D-HTTP-1 §8】
 
 **状态：** 草案
 **级别：** pcap
-**来源：** D-HTTP-1 §8；RFC 9110/9112（请求行/状态行/头/体）；存量 554 例（cwmp150/doh110/onvif95/gbt81/getwork62/hls24/hds17/http_flv15）
-**目标：** P4 改完后 8 子女文件全量全绿（增量绿不算），http 改动字节零漂移。
+**来源：** D-HTTP-1 §8；RFC 9110/9112（请求行/状态行/头/体）；9 文件 566 例（cwmp150/doh110/onvif95/gbt81/getwork62/hls24/hds17/http_flv15/http12）
+**目标：** P4 改完后 9 文件全量全绿（增量绿不算），http 改动字节零漂移。
 
-**输入：** 8 子女 cases 改写后形状（P5 按通用改写规则：删顶层四元组→地址进 ip 层、端口进 tcp 层、仅原 count>1 补 strategy_fc；hls/hds 缺 ip、http_flv 缺 ip/tcp 由 CompleteChain 补；doh/onvif 缺 http 负例锚词重钉载体文案）。
+**输入：** 8 子女 cases 改写后形状（P5 按通用改写规则：删顶层四元组→地址进 ip 层、端口进 tcp 层、仅原 count>1 补 strategy_fc；hls/hds 缺 ip、http_flv 缺 ip/tcp 由 CompleteChain 补；doh/onvif 缺 http 负例锚词重钉载体文案）；http.json 12 例新建（T-HTTP-7…16 各一例，严格层链形，无顶层四元组）。
 **前置条件：** T-HTTP-1…4 绿；服务器二进制与 HEAD 同代。
-**执行：** 套件 CASE_PROTO=gbt/getwork/cwmp/doh/onvif/hls/hds/http_flv 逐个全量（`flowb_run_protocol_suite` 真实流程：MCP 建任务→引擎生成→tshark 校对），pcap 落 `/tmp/mcp-pcaps/<proto>/`。
-**期望输出：** 8 文件全绿；断言钉请求行/状态行/头/体（tshark `http.request.method/uri/version`、`http.response.code`），包号/端口从落盘 pcap 拿、不手算；负例 116 例锚词逐例重钉（扁平判死先于业务锚，Step1 门）。
+**执行：** 套件 CASE_PROTO=gbt/getwork/cwmp/doh/onvif/hls/hds/http_flv/http 逐个全量（`flowb_run_protocol_suite` 真实流程：MCP 建任务→引擎生成→tshark 校对），pcap 落惯例根 `/tmp/mcp-pcaps/<proto>/`。
+**期望输出：** 9 文件全绿（566/566；P5 实测全绿）；断言钉请求行/状态行/头/体（tshark `http.request.method/uri/version`、`http.response.code`），包号/端口从落盘 pcap 拿、不手算；负例 158 例锚词逐例重钉（扁平判死先于业务锚，Step1 门）。
 **错误期望：** 缺 http 载体 2 例（doh/onvif）+ P4 新增语义延续：错误含载体锚词，任务终态失败（§14 负例走真实流程）。
-**性能期望：** 回归 ±10%（首次跑记录 554 例 suite 基线耗时并回填 D-HTTP-1 §6）。
-**实现位置：** `cases/{gbt,getwork,cwmp,doh,onvif,hls,hds,http_flv}.json`。
+**性能期望：** 回归 ±10%（P5 实测 wall：http_flv 4.9s/hls 6.5s/hds 5.2s/gbt 14.3s/getwork 15.2s/doh 41.3s/onvif 46.6s/cwmp 32.7s/http 3.8s，CASE_PROTO 逐文件串行、服务端内 parallel=4；已回填 D-HTTP-1 §6）。
+**实现位置：** `cases/{gbt,getwork,cwmp,doh,onvif,hls,hds,http_flv,http}.json`。
 
 ### T-HTTP-6 存量单测 + 链测试回归【D-HTTP-1 §8】
 
@@ -728,6 +728,156 @@
 **错误期望：** 无（回归项）。
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/http/*_test.go`（既有）+ `internal/core/layers/chain_planner_http_test.go`（既有）。
+
+### T-HTTP-7 http.json 独立用例——GET 基线【D-HTTP-1 §8】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（终结模式 builders：Host 仅 1.1 自动加）；RFC 9112 §2.1（请求行）、RFC 7230 §5.4（Host）
+**目标：** 单事务 GET 的包序列与字节正确（9 包 = 3 握手 + 请求 + 响应分片 + 4 挥手）。
+
+**输入：** `[ip,tcp,http]` + 顶层 `http{method GET,uri /,version HTTP/1.1}`（src_port 40010，dst 80）。
+**前置条件：** 服务器二进制与 HEAD 同代。
+**执行：** `CASE_PROTO=http go test -run TestProtocolPcapDrive ./test/protocol_pcap/ -v`（真实流程：MCP 建任务→引擎生成→tshark 校对）。
+**期望输出：** 9 包；包 4 `http.request.method=GET`、`uri=/`、`version=HTTP/1.1`、`host=198.51.100.20`；包 8 `http.response.code=200`；`has_handshake/terminates/directional` 全真。
+**错误期望：** 无。
+**性能期望：** 回归 ±10%。
+**实现位置：** `cases/http.json`（http_get_baseline）。
+
+### T-HTTP-8 http.json 独立用例——POST 带体【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（Content-Length 自动、Content-Type 嗅探 magic 优先）；RFC 9110 §8.6（Content-Length）
+**目标：** POST 体 `{"k":"v"}`（9 字节）的长度与类型断言正确。
+
+**输入：** 同 T-HTTP-7 链形（src_port 40011）+ `http{method POST,uri /api,body {"k":"v"}}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7（CASE_PROTO=http 全量）。
+**期望输出：** 9 包；包 4 `content_length=9`、`content_type=application/json; charset=utf-8`；包 8 `response.code=200`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_post_body）。
+
+### T-HTTP-9 http.json 独立用例——keep-alive 3 事务【D-HTTP-1 §3】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §3（终结模式交错循环；Connection 缺省 keep-alive 当且仅当 Transactions>1 或 KeepAlive）；RFC 9112 §6.3（持久连接）
+**目标：** 同连接 3 对请求/响应不断链（13 包），Connection 头为 keep-alive。
+
+**输入：** 同链形（src_port 40012）+ `http{transactions 3,keep_alive true}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 13 包；包 4 `connection=keep-alive`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_keepalive_multi_transactions）。
+
+### T-HTTP-10 http.json 独立用例——pipelined【D-HTTP-1 §3】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §3（pipelined 分支：全请求后全响应）；RFC 9112 §6.3.2
+**目标：** 3 请求先行后 3 响应同为 13 包，首包仍是 GET。
+
+**输入：** 同链形（src_port 40013）+ `http{transactions 3,pipelined true}`。
+**前置条件：** T-HTTP-9 绿（对照：同事务数不同排序）。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 13 包；包 4 `http.request.method=GET`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_pipelined）。
+
+### T-HTTP-11 http.json 独立用例——响应 404【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（状态表 + `Status %d` 兜底；ResponseStatusCode 0→200）
+**目标：** 自定义状态码 404 上线（响应有体时包 5 即完整、不重组）。
+
+**输入：** 同链形（src_port 40014）+ `http{response_status_code 404,response_body "not here"}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 5 `http.response.code=404`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_response_status_404）。
+
+### T-HTTP-12 http.json 独立用例——响应 gzip【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（gzip→chunked 先后顺序；Content-Length 计压缩后）；RFC 1952
+**目标：** 响应体 gzip 压缩后 Content-Encoding 为 gzip。
+
+**输入：** 同链形（src_port 40015）+ `http{response_body hello-gzip-body,response_content_encoding gzip}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 5 `response.code=200`、`content_encoding=gzip`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_gzip_response）。
+
+### T-HTTP-13 http.json 独立用例——响应 chunked【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（chunked 时压制 Content-Length；chunk-size 十六进制）；RFC 7230 §4.1/§3.3.3
+**目标：** 响应 Transfer-Encoding 为 chunked。
+
+**输入：** 同链形（src_port 40016）+ `http{response_body chunked-body-bytes,response_transfer_encoding chunked}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 5 `response.code=200`、`transfer_encoding=chunked`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_chunked_response）。
+
+### T-HTTP-14 http.json 独立用例——HTTP/1.0 不自动 Host【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（`isHTTP11` 门控 Host；用户 Host 任何版本都赢）；RFC 7230 §5.4（Host 为 1.1 强制）
+**目标：** 1.0 请求行版本正确（Host 不自动加，不断言缺席、只断版本）。
+
+**输入：** 同链形（src_port 40017）+ `http{version HTTP/1.0}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `http.request.version=HTTP/1.0`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_version_10_no_auto_host）。
+
+### T-HTTP-15 http.json 独立用例——IPv6 Host 括号【D-HTTP-1 §1】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §1（`bracketHost`：v6 加括号，v4/非 IP 原样）；RFC 7230 §5.4（IP-literal 括号）
+**目标：** v6 目的地址的 Host 头带括号。
+
+**输入：** `[ip(2001:db8::10→2001:db8::20),tcp,http]`（src_port 40019）+ `http{uri /v6}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `host=[2001:db8::20]`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_ipv6）。
+
+### T-HTTP-16 http.json 独立用例——非默认端口【D-HTTP-1 §4】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §4（用户显式 tcp.dst_port > FieldContract 80 > 报错）
+**目标：** 显式 8080 优先于契约 80。
+
+**输入：** 同链形（src_port 40020，tcp.dst_port 8080）+ `http{uri /alt}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `tcp.dstport=8080`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_nondefault_port）。
 
 ## 7. 用例审查与完成条件
 

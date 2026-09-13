@@ -1,0 +1,533 @@
+[
+  {
+    "id": "http_get_baseline",
+    "proto": "http",
+    "summary": "GET 基线：单事务请求/响应，Host 自动、Connection close（T-HTTP-7）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40010,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/",
+        "version": "HTTP/1.1"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "directional": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.uri",
+          "value": "/"
+        },
+        {
+          "packet": 4,
+          "field": "http.request.version",
+          "value": "HTTP/1.1"
+        },
+        {
+          "packet": 4,
+          "field": "http.host",
+          "value": "198.51.100.20"
+        },
+        {
+          "packet": 8,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_post_body",
+    "proto": "http",
+    "summary": "POST 带体：Content-Length 自动、Content-Type 嗅探 JSON（T-HTTP-8）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40011,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/api",
+        "version": "HTTP/1.1",
+        "body": "{\"k\":\"v\"}"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.content_length",
+          "value": "9"
+        },
+        {
+          "packet": 4,
+          "field": "http.content_type",
+          "value": "application/json; charset=utf-8"
+        },
+        {
+          "packet": 8,
+          "field": "http.response.code",
+          "value": "200"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_keepalive_multi_transactions",
+    "proto": "http",
+    "summary": "keep-alive 3 事务：同连接 3 对请求/响应（T-HTTP-9）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40012,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/keep",
+        "version": "HTTP/1.1",
+        "transactions": 3,
+        "keep_alive": true
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.connection",
+          "value": "keep-alive"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_pipelined",
+    "proto": "http",
+    "summary": "pipelined：3 请求先行后 3 响应（T-HTTP-10）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40013,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/pipe",
+        "version": "HTTP/1.1",
+        "transactions": 3,
+        "pipelined": true
+      }
+    },
+    "expect": {
+      "packet_count": 13,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_response_status_404",
+    "proto": "http",
+    "summary": "响应 404：状态行与自定义响应体（T-HTTP-11）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40014,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/missing",
+        "version": "HTTP/1.1",
+        "response_status_code": 404,
+        "response_body": "not here"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "404"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_gzip_response",
+    "proto": "http",
+    "summary": "响应 gzip：Content-Encoding 存在（T-HTTP-12）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40015,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/gz",
+        "version": "HTTP/1.1",
+        "response_body": "hello-gzip-body",
+        "response_content_encoding": "gzip"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 5,
+          "field": "http.content_encoding",
+          "value": "gzip"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_chunked_response",
+    "proto": "http",
+    "summary": "响应 chunked：Transfer-Encoding chunked（T-HTTP-13）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40016,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/chunk",
+        "version": "HTTP/1.1",
+        "response_body": "chunked-body-bytes",
+        "response_transfer_encoding": "chunked"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 5,
+          "field": "http.transfer_encoding",
+          "value": "chunked"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_version_10_no_auto_host",
+    "proto": "http",
+    "summary": "HTTP/1.0：不自动加 Host（T-HTTP-14）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40017,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/old",
+        "version": "HTTP/1.0"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.version",
+          "value": "HTTP/1.0"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_layer_version_bare",
+    "proto": "http",
+    "summary": "层裸 version 1.1：翻译归一为 HTTP/1.1（T-HTTP-2）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40018,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "uri": "/bare",
+            "version": "1.1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.version",
+          "value": "HTTP/1.1"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_ipv6",
+    "proto": "http",
+    "summary": "IPv6：Host 加括号（T-HTTP-15）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::10",
+            "dst": "2001:db8::20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40019,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/v6",
+        "version": "HTTP/1.1"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.host",
+          "value": "[2001:db8::20]"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_nondefault_port",
+    "proto": "http",
+    "summary": "非默认端口 8080：用户显式优先（T-HTTP-16）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40020,
+            "dst_port": 8080
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/alt",
+        "version": "HTTP/1.1"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "8080"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_neg_bad_mss",
+    "proto": "http",
+    "summary": "负例：MSS 100 越下界（T-HTTP-1）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40021,
+            "dst_port": 80,
+            "mss": 100
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/",
+        "version": "HTTP/1.1"
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "mss"
+    }
+  }
+]

@@ -384,7 +384,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 
 **状态：** 草案（P2 写作中，待用户定稿；定稿前不开 P4 代码）
 **范围：** 本次解决 4 个 P1 缺口：①补 http 层校验器（握手/挥手 pin true，mqtt 范式）；②FLV 变换器 version 裸值 prefix 对齐 HLS/HDS；③载体检查从 3 家扩到 8 家（gbt/getwork/hls/hds/http_flv 新增）；④删除 HTTPConfig.ThinkTime（用户裁定：解析了但生成侧零消费，去掉）。明确不解决：`strategy.json` 形状改动（config 节无 additionalProperties 约束，`http` 子映射本就不在 28 键内、无需增删）；`main.go` 接线（http 与 8 子女已是 ChainPlanner，零改动）；翻译扩到 20 字段；HTTP/1.0 之外的新版本方言。
-**依据：** RFC 9110（语义：请求行/状态行/头/体、Host、Connection）、RFC 9112 §6.3（持久连接与 pipelining）、RFC 7230 §3.3.3/§4.1（Transfer-Encoding 优先、chunk 帧）、RFC 1952（gzip）；商业行为（nginx/Apache 的 Host 必查与 keep-alive 超时、curl/Go net/http 的 Host/Connection/Content-Length 自动策略——本实现同向，合成器只管字节正确、不管服务端超时调优）；代码事实（见各节文件行）；存量（8 子女 554 例 + http 单测 170 + `chain_planner_http_test.go` 8 测试）。
+**依据：** RFC 9110（语义：请求行/状态行/头/体、Host、Connection）、RFC 9112 §6.3（持久连接与 pipelining）、RFC 7230 §3.3.3/§4.1（Transfer-Encoding 优先、chunk 帧）、RFC 1952（gzip）；商业行为（nginx/Apache 的 Host 必查与 keep-alive 超时、curl/Go net/http 的 Host/Connection/Content-Length 自动策略——本实现同向，合成器只管字节正确、不管服务端超时调优）；代码事实（见各节文件行）；存量（8 子女 554 例 + http.json 12 例 + http 单测 170 + `chain_planner_http_test.go` 8 测试）。
 **配置权威：** 层链是唯一真相。地址只落 `ip` 层、端口只落 `tcp` 层、数量只走 `flow_control`。http 业务分两处：`http` 层 config 只放 5 字段（method/uri/version/headers/body，走层翻译进 `spec.HTTP`）；`HTTPConfig` 全 20 字段只走顶层 `http` 子映射（`strategy_convert.go:378` 通用读 + `:561` no-op，不进 `strategy.json` 形状——config 节无 additionalProperties 约束，`http` 子映射本就不在列出的 28 键内，删 ThinkTime 键无需 schema 改动）。扁平四元组判死已由 Step1 全协议生效（`strategy_convert.go:7610` + `schema/semantic.go:128` + `convert.go:166`），本条目不碰扁平。
 
 #### 1. 数据与接口
@@ -423,15 +423,15 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 
 #### 6. 性能设计与验收
 - 路径依据：事件流式（逐消息 Emit，无全量收集；FLV/HLS/HDS 每轮一读一写；透传零拷贝转发）；每消息一次 builder 字符串装配（请求/响应各一），FileSource 解析每流一次（PayloadCache 命中后内存读）；无锁（生成器无状态）、无 sleep；分段/限速/背压归 tcp 层与 worker（`worker.go/engine.go` 既有机制，本条目不另设）。
-- 目标：不新增性能门；回归口径=现有套件耗时相对基线 ±10% 内（FTP D-FTP-4 §6 同款口径；数字为待确认——首次跑 P5 时记录 554 例 suite 基线耗时并回填本节）。
-- pcap 验收：8 子女 suite 全绿 + 包落盘可复查（tshark 断言请求行/状态行/头/体，不手算包号）；网卡验收：沿用既有冒烟跑法，至少跑通 cwmp 一例（http 透传代表）+ http_flv 一例（帧变换代表），跑不通注明环境限制不算失败。
+- 目标：不新增性能门；回归口径=现有套件耗时相对基线 ±10% 内（FTP D-FTP-4 §6 同款口径；P5 实测 wall：http_flv 4.9s/hls 6.5s/hds 5.2s/gbt 14.3s/getwork 15.2s/doh 41.3s/onvif 46.6s/cwmp 32.7s/http 12 例 3.8s，CASE_PROTO 逐文件串行、服务端内 parallel=4）。
+- pcap 验收：9 文件 suite 全绿（8 子女 554 + http.json 12 = 566/566，P5 实测）+ 包落惯例根 `/tmp/mcp-pcaps/<proto>/` 可复查（tshark 断言请求行/状态行/头/体，不手算包号）；网卡验收：沿用既有冒烟跑法，至少跑通 cwmp 一例（http 透传代表）+ http_flv 一例（帧变换代表），跑不通注明环境限制不算失败。
 
 #### 7. 实现顺序与回滚
 1. failing 单测（`protocol/http/layer_gen_test.go`：FLV version prefix；validator handshake pin；`layers/validate_layers_test.go`：5 家载体拒绝；`internal/core/maptoflow_test.go`：删 `think_time` 输入 + 断言）→ 2. `protocol/http/layer_gen.go`：补 `RegisterLayerValidator("http",…)`（mqtt 范式，含 handshake 校准注释）+ FLV version 4 行 prefix（HLS 同款）→ 3. `layers/validate_layers.go`：补 5 家载体检查（3 家同款文案）→ 4. 删 `types.go:2150` `ThinkTime` 字段 + `strategy_convert.go:396` 解析行 + MCP 三处描述 `think_time,` 字样（`schemagen/main.go:92` 源头、`schema_descriptions_generated.go:151` 生成、`tools_strategy.go:27`/`tools_workflow.go:20` 手写标签；改后跑 `go run ./internal/mcp/schemagen` 重生成并跑 `TestConfigTagsMatchSchemaBlurb`）+ 前端 4 处（`StrategyConfigPreview/index.vue:57`、`useStrategyTemplates.ts:40,53`、`StrategyList.vue:278,578`；`webgen.py` 不读 Go 注释、无需重跑，`schema-types.ts` 无 think_time 字段）→ 5. 自审（§10：逐行走读 prefix 分支、pin 副作用、锚词字面、删键 diff）→ 6. `go build/vet` + touched 包 `-race`（http、layers、core、mcp）+ 170 单测 + chain_http 8 测试 → 7. P5 用例改写与 suite（另步，不在本条目）。回滚=单提交逆序 revert（P4 一提交，含 validator+prefix+载体+删键四改，可整体回滚；与 P5 用例提交独立）。
 
 #### 8. 验收
 - 对应 `docs/TEST_CASES.md` T-HTTP-*（P3 待写，本条目先占位，P3 回填编号）。
-- 完成条件：failing 三单测先红后绿；170 单测 + chain_http 8 测试绿；8 子女 suite（554 例改写后）全量全绿（增量绿不算）；`go vet` + touched 包 `-race` 绿；§1 两道门如实记录：①层链跑通（子女 suite）；②旧字段零新增（本条目不碰扁平，Step1 门已生效）。
+- 完成条件：failing 三单测先红后绿；170 单测 + chain_http 8 测试绿；9 文件 suite（566 例）全量全绿（增量绿不算）；`go vet` + touched 包 `-race` 绿；§1 两道门如实记录：①层链跑通（子女 suite + http.json）；②旧字段零新增（本条目不碰扁平，Step1 门已生效）。
 
 #### 9. 关键决策对比
 
