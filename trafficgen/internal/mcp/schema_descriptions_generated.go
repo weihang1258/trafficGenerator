@@ -148,7 +148,7 @@ const schemaConfigBlurb = "strategy config. " +
 	"src_mac=02:00:00:00:00:01, dst_mac=02:00:00:00:00:02, ttl=64, dscp=0x08 (CS1, TOS 0x20), " +
 	"ip_flags=DF=1; explicit 0/empty honored. " +
 	"http sub-map {method,uri,version,request_headers,body,body_b64,keep_alive,transactions," +
-	"think_time,response_*}; tcp sub-map {mss,initial_seq,handshake,termination,window_size} " +
+	"response_*}; tcp sub-map {mss,initial_seq,handshake,termination,window_size} " +
 	"(mss default 1460, min 536; initial_seq pins client ISN). " +
 	"group_id {strategy,value/range/list/step/seed/pattern}: fixed/inc/rand/pattern/list " +
 	"bind same-id flows to one worker. tcpdump: ip[1] & 0xfc == 0x20."

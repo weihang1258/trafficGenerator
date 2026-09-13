@@ -2147,7 +2147,6 @@ type HTTPConfig struct {
 	BodyB64        string            `json:"body_b64,omitempty"` // base64-encoded binary body; overrides Body when set
 	KeepAlive      bool              `json:"keep_alive"`
 	Transactions   int               `json:"transactions"`
-	ThinkTime      int               `json:"think_time"` // milliseconds
 
 	// Response-side fields. ResponseHeaders overrides generated defaults
 	// (Content-Type/Content-Length/Connection). ResponseBody empty -> no

@@ -639,6 +639,96 @@
 **性能期望：** 回归 ±10%。
 **实现位置：** `cases/ftp.json`（ftp_epsv_500_fallback/ftp_eprt_522_reject/ftp_ipv6_sessions_mixed/ftp_ipv6_multiflow 四例）。
 
+### T-HTTP-1 http 层校验器（握手 pin + MSS 门）【D-HTTP-1 §5】
+
+**状态：** 草案
+**级别：** unit
+**来源：** `docs/CODE_DESIGN.md` D-HTTP-1 §5（mqtt `mqtt/layer_gen.go:236` 范式）；RFC 879（MSS 下界 536）
+**目标：** 零值 TCP 配置的 http 链不断握手（pin 生效），非法 MSS 在 Plan 期同步失败。
+
+**输入：** ①`[ip,tcp,http]` 链 + spec.TCP 零值（Handshake/Termination=false）；②`tcp.mss`=100 链。
+**前置条件：** 无。
+**执行：** ①`go test ./internal/protocol/http/ -run TestHTTPValidator -count=1`（P4 新增，先红后绿）；②同命令覆盖 MSS 分支。
+**期望输出：** ①validator 把 spec.TCP.Handshake/Termination 写成 true，链产物含完整 3 次握手 + 4 次挥手；②返回 `MSS 100 too small` 类锚词（chain `chain_planner.go:845` 上界 65535 同理不断言字面、只断失败）。
+**错误期望：** ②Plan 期同步返回错误，不进 drive（不断言任务终态，只断 validator/Plan 返回）。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/http/layer_gen_test.go`（新增）。
+
+### T-HTTP-2 FLV 变换器 version 裸值归一【D-HTTP-1 §4】
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-HTTP-1 §4（HLS `hls_transformer.go:40`/HDS `hds_transformer.go:25` 已有 prefix，FLV `layer_gen.go:163-166` 缺）；RFC 9112 §2.1（版本字面 `HTTP/1.1`）
+**目标：** http 层 version 写裸 `1.1` 时，FLV 链请求行仍是完整 `HTTP/1.1`。
+
+**输入：** `[http,http_flv]` 链 + http 层 config `{"method":"GET","uri":"/live/test.flv","version":"1.1"}`（裸值；对照组写 `HTTP/1.1`）。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/http/ -run TestHTTPFLVVersionPrefix -count=1`（P4 新增，先红后绿）。
+**期望输出：** 两组请求行首行均为 `GET /live/test.flv HTTP/1.1`（字节相等；tshark `http.request.version` 同理可断）。
+**错误期望：** 无（回归项；现存 15 例全写完整版，改前改后字节零变化）。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/http/layer_gen_test.go`（新增）。
+
+### T-HTTP-3 载体检查 5 家补齐（gbt/getwork/hls/hds/http_flv）【D-HTTP-1 §5】
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-HTTP-1 §5（cwmp `:68`/doh `:74`/onvif `:80` 已有同款文案；dns `:106` 同款教训：drive 期报错变空流）；现网：doh/onvif 各有 1 个缺 http 负例
+**目标：** 5 家错链（无 http 层）在 Validate 期同步拒绝，锚词与 3 家同族。
+
+**输入：** `[ip,tcp,gbt]`、`[ip,tcp,getwork]`、`[tcp,hls]`、`[tcp,hds]`、`[ip,tcp,http_flv]`（载体检查跑在 CompleteChain 自动补全之前——以实现为准，5 链各 1 例）。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/layers/ -run TestValidateCarrierHTTP -count=1`（P4 新增，先红后绿；位置 `validate_layers_test.go`）。
+**期望输出：** 5 链全部失败，错误含 `requires the http carrier layer`（字面钉死，与 D-HTTP-1 §5 一致）。
+**错误期望：** 即本条（Plan/Validate 期同步失败；对照组 `[ip,tcp,http,X]` 放行不断言包数）。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/layers/validate_layers_test.go`（新增）。
+
+### T-HTTP-4 ThinkTime 删键回归【D-HTTP-1 §7 E（用户裁定删）】
+
+**状态：** 草案
+**级别：** unit
+**来源：** D-HTTP-1 §7 E；`types.go:2150` + `strategy_convert.go:396`
+**目标：** 删字段 + 删解析后，http 全字段解析行为不变（少 ThinkTime 一行），旧配置带该键被忽略。
+
+**输入：** `TestMapToFlowSpec_HTTPFullSubmap` 去掉 `"think_time":200` 输入行 + `ThinkTime` 断言 2 行；另加 1 行：带 `think_time` 键的旧 config 解析不报错且其余字段正确（config 节无 additionalProperties 约束佐证）。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/ -run TestMapToFlowSpec_HTTPFullSubmap -count=1`；MCP 描述 `go test ./internal/mcp/ -run TestConfigTagsMatchSchemaBlurb -count=1`。
+**期望输出：** 两命令绿；`schemaConfigBlurb` 不再含 `think_time,`（schemagen 重生成后 `TestConfigTagsMatchSchemaBlurb` 绿；`tools_schema_test.go` 未锁该字样）。
+**错误期望：** 无（删键项；dnp3/mcp 自家 ThinkTime 不动，不断言它们）。
+**性能期望：** 不适用。
+**实现位置：** `internal/core/maptoflow_test.go`（改）；`internal/mcp/schemagen/main.go:92` + 重生成 `schema_descriptions_generated.go` + `tools_strategy.go:27`/`tools_workflow.go:20`（改）。
+
+### T-HTTP-5 8 子女 suite 联验（http 自身无 cases）【D-HTTP-1 §8】
+
+**状态：** 草案
+**级别：** pcap
+**来源：** D-HTTP-1 §8；RFC 9110/9112（请求行/状态行/头/体）；存量 554 例（cwmp150/doh110/onvif95/gbt81/getwork62/hls24/hds17/http_flv15）
+**目标：** P4 改完后 8 子女文件全量全绿（增量绿不算），http 改动字节零漂移。
+
+**输入：** 8 子女 cases 改写后形状（P5 按通用改写规则：删顶层四元组→地址进 ip 层、端口进 tcp 层、仅原 count>1 补 strategy_fc；hls/hds 缺 ip、http_flv 缺 ip/tcp 由 CompleteChain 补；doh/onvif 缺 http 负例锚词重钉载体文案）。
+**前置条件：** T-HTTP-1…4 绿；服务器二进制与 HEAD 同代。
+**执行：** 套件 CASE_PROTO=gbt/getwork/cwmp/doh/onvif/hls/hds/http_flv 逐个全量（`flowb_run_protocol_suite` 真实流程：MCP 建任务→引擎生成→tshark 校对），pcap 落 `/tmp/mcp-pcaps/<proto>/`。
+**期望输出：** 8 文件全绿；断言钉请求行/状态行/头/体（tshark `http.request.method/uri/version`、`http.response.code`），包号/端口从落盘 pcap 拿、不手算；负例 116 例锚词逐例重钉（扁平判死先于业务锚，Step1 门）。
+**错误期望：** 缺 http 载体 2 例（doh/onvif）+ P4 新增语义延续：错误含载体锚词，任务终态失败（§14 负例走真实流程）。
+**性能期望：** 回归 ±10%（首次跑记录 554 例 suite 基线耗时并回填 D-HTTP-1 §6）。
+**实现位置：** `cases/{gbt,getwork,cwmp,doh,onvif,hls,hds,http_flv}.json`。
+
+### T-HTTP-6 存量单测 + 链测试回归【D-HTTP-1 §8】
+
+**状态：** 草案
+**级别：** unit + race
+**来源：** D-HTTP-1 §8；存量 `protocol/http` 170 单测 + `chain_planner_http_test.go` 8 测试（9 包链、seq 推进、无独立 ACK、pipelined、TCPSeg 忽略、取消收敛）
+**目标：** P4 四改（validator+prefix+载体+删键）后存量行为零回归。
+
+**输入：** 存量测试不变（`http_test.go:4` + `layer_gen_test.go:3` + `http_filesource_test.go:6` + `http_chunked_test.go:31` + `http_testpoints_test.go:126`）。
+**前置条件：** T-HTTP-1…4 绿。
+**执行：** `go test ./internal/protocol/http/ -count=1` + `go test ./internal/core/layers/ -run TestChainPlanner_HTTP -count=1` + touched 包 `-race`（http、layers、core、mcp）+ `go vet`。
+**期望输出：** 全绿；165→170 计数口径（`grep -c "^func Test"` 五文件求和）回填本条状态行。
+**错误期望：** 无（回归项）。
+**性能期望：** 不适用。
+**实现位置：** `internal/protocol/http/*_test.go`（既有）+ `internal/core/layers/chain_planner_http_test.go`（既有）。
+
 ## 7. 用例审查与完成条件
 
 测试用例完成前必须进行两条审查：

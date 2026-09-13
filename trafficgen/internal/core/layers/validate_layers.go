@@ -80,6 +80,24 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 	if hasLayer(chain, "onvif") && !hasLayer(chain, "http") {
 		return nil, fmt.Errorf("onvif: terminal layer requires the http carrier layer ([tcp, http, onvif]; tcp→onvif direct chain rejected, carrier missing)")
 	}
+	// D-HTTP-1 §5：gbt/getwork/hls/hds/http_flv 载体检查（cwmp/doh/onvif
+	// 同款）。5 家终结层事件都经 http 层（帧变换或透传），链上无 http 层
+	// 即结构性错误——Plan/Validate 期同步拒绝（drive 期报错会被吞成空流）。
+	if hasLayer(chain, "gbt") && !hasLayer(chain, "http") {
+		return nil, fmt.Errorf("gbt: terminal layer requires the http carrier layer ([tcp, http, gbt]; tcp→gbt direct chain rejected, carrier missing)")
+	}
+	if hasLayer(chain, "getwork") && !hasLayer(chain, "http") {
+		return nil, fmt.Errorf("getwork: terminal layer requires the http carrier layer ([tcp, http, getwork]; tcp→getwork direct chain rejected, carrier missing)")
+	}
+	if hasLayer(chain, "hls") && !hasLayer(chain, "http") {
+		return nil, fmt.Errorf("hls: terminal layer requires the http carrier layer ([tcp, http, hls]; tcp→hls direct chain rejected, carrier missing)")
+	}
+	if hasLayer(chain, "hds") && !hasLayer(chain, "http") {
+		return nil, fmt.Errorf("hds: terminal layer requires the http carrier layer ([tcp, http, hds]; tcp→hds direct chain rejected, carrier missing)")
+	}
+	if hasLayer(chain, "http_flv") && !hasLayer(chain, "http") {
+		return nil, fmt.Errorf("http_flv: terminal layer requires the http carrier layer ([tcp, http, http_flv]; tcp→http_flv direct chain rejected, carrier missing)")
+	}
 	completed, err := r.CompleteChain(chain)
 	if err != nil {
 		exempt := len(chain) == 1 && outerCategory(r, chain[0]) != CategoryTunnel

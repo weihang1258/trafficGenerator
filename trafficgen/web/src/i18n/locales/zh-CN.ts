@@ -391,7 +391,6 @@ export default {
     body: '请求体',
     keepAlive: '保持连接',
     transactions: '事务数量',
-    thinkTime: '思考时间 (ms)',
     // DNS
     domain: '域名',
     domainPlaceholder: '例如: example.com',

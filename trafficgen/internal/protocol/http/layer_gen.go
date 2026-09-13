@@ -163,6 +163,10 @@ func (g *HTTPGenerator) generateHTTPFLVTransformer(ctx context.Context, req *lay
 	version := layerConfigString(cfg, "version")
 	if version == "" {
 		version = "HTTP/1.1"
+	} else if !strings.HasPrefix(version, "HTTP/") {
+		// 裸版本号归一（HLS/HDS 变换器同款，D-HTTP-1 §4）：层 schema 默认
+		// "1.1"，线上必须完整 "HTTP/1.1"。
+		version = "HTTP/" + version
 	}
 
 	// 轮数：http_flv Rounds 决定 GET/200 事务数（http_flv 每轮产一个 FLV body）。
@@ -361,4 +365,21 @@ func init() {
 	layers.RegisterHTTPGenerator(func() (layers.LayerGenerator, error) {
 		return &HTTPGenerator{}, nil
 	})
+	layers.RegisterLayerValidator("http", validateHTTPSpec)
+}
+
+// validateHTTPSpec is the http terminal-layer spec validator (D-HTTP-1 §5,
+// mqtt layer_gen.go:236 范式)：复用 legacy Planner.Validate（IP 格式 +
+// MSS 下界），再把 spec.TCP 握手/挥手 pin true——legacy http.go 恒产握手/
+// 挥手（无开关），spec.TCP 零值 false 会让 tcp 层生成器跳过握手/挥手。
+func validateHTTPSpec(spec *core.FlowSpec) error {
+	if err := (&Planner{}).Validate(*spec); err != nil {
+		return err
+	}
+	if spec.TCP == nil {
+		spec.TCP = &core.TCPConfig{}
+	}
+	spec.TCP.Handshake = true
+	spec.TCP.Termination = true
+	return nil
 }

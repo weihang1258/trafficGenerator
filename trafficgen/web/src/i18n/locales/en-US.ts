@@ -391,7 +391,6 @@ export default {
     body: 'Body',
     keepAlive: 'Keep Alive',
     transactions: 'Transactions',
-    thinkTime: 'Think Time (ms)',
     // DNS
     domain: 'Domain',
     domainPlaceholder: 'e.g.: example.com',

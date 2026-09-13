@@ -100,7 +100,6 @@ func TestMapToFlowSpec_HTTPFullSubmap(t *testing.T) {
 			"body":                 `{"k":"v"}`,
 			"keep_alive":           true,
 			"transactions":         float64(3),
-			"think_time":           float64(200),
 			"response_headers":     map[string]interface{}{"Content-Type": "application/json"},
 			"response_body":        `{"ok":true}`,
 			"response_status_code": float64(201),
@@ -133,8 +132,12 @@ func TestMapToFlowSpec_HTTPFullSubmap(t *testing.T) {
 	if h.Transactions != 3 {
 		t.Errorf("Transactions=%d, want 3", h.Transactions)
 	}
-	if h.ThinkTime != 200 {
-		t.Errorf("ThinkTime=%d, want 200", h.ThinkTime)
+	// T-HTTP-4: 旧配置带 think_time 键被忽略（不报错，其余字段正确）。
+	legacy := mapToFlowSpec(map[string]interface{}{
+		"http": map[string]interface{}{"method": "GET", "think_time": float64(200)},
+	}, "http")
+	if legacy.HTTP == nil || legacy.HTTP.Method != "GET" {
+		t.Errorf("legacy think_time key: want ignored with Method=GET, got %+v", legacy.HTTP)
 	}
 	if len(h.ResponseHeaders) != 1 || h.ResponseHeaders["Content-Type"] != "application/json" {
 		t.Errorf("ResponseHeaders=%+v, want {Content-Type:application/json}", h.ResponseHeaders)

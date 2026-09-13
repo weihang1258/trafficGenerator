@@ -143,3 +143,83 @@ func TestHTTPLayerGen_FileSourceResolvesRequest(t *testing.T) {
 		t.Errorf("caller HTTPConfig.Body mutated by FileSource resolution: %q", spec.HTTP.Body)
 	}
 }
+
+// TestHTTPValidator_PinHandshakeTermination verifies the http layer
+// validator (T-HTTP-1): zero-value TCP config gets Handshake/Termination
+// pinned true (legacy http.go always handshakes/teardowns; mqtt
+// layer_gen.go:236 same trap), and out-of-range MSS is rejected.
+func TestHTTPValidator_PinHandshakeTermination(t *testing.T) {
+	v := validateHTTPSpec
+	spec := core.FlowSpec{HTTP: &core.HTTPConfig{Method: "GET"}}
+	if err := v(&spec); err != nil {
+		t.Fatalf("validator: %v", err)
+	}
+	if spec.TCP == nil || !spec.TCP.Handshake || !spec.TCP.Termination {
+		t.Errorf("handshake/termination not pinned: %+v", spec.TCP)
+	}
+}
+
+// TestHTTPValidator_RejectsBadMSS verifies the http layer validator
+// rejects out-of-range MSS via the legacy planner Validate.
+func TestHTTPValidator_RejectsBadMSS(t *testing.T) {
+	v := validateHTTPSpec
+	spec := core.FlowSpec{
+		HTTP: &core.HTTPConfig{Method: "GET"},
+		TCP:  &core.TCPConfig{MSS: 100},
+	}
+	if err := v(&spec); err == nil {
+		t.Error("MSS=100: expected error, got nil")
+	}
+}
+
+// TestHTTPFLVVersionPrefix verifies the http_flv transformer normalizes a
+// bare layer-config version ("1.1") to the full "HTTP/1.1" on the wire
+// (T-HTTP-2): same HasPrefix rule as the HLS/HDS transformers.
+func TestHTTPFLVVersionPrefix(t *testing.T) {
+	g := newHTTPGenForTest(t)
+	innerBody := []byte{0x46, 0x4C, 0x56} // FLV magic
+	for _, tc := range []struct {
+		name    string
+		version string
+	}{
+		{"bare", "1.1"},
+		{"full", "HTTP/1.1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			events := make(chan layers.MessageEvent, 4)
+			events <- layers.MessageEvent{Up: false, Bytes: innerBody}
+			spec := core.FlowSpec{
+				DstIP:  "10.0.0.2",
+				HTTP:   &core.HTTPConfig{Method: "GET"},
+				HTTPFLV: &core.HTTPFLVConfig{Rounds: 1},
+			}
+			req, err := layers.NewGenRequestForHTTP(spec)
+			if err != nil {
+				t.Fatalf("NewGenRequestForHTTP: %v", err)
+			}
+			// NewGenRequestForHTTP 只带 Meta.HTTP：变换器模式需手动补
+			// Meta.HTTPFLV（分发入口）与 DstIP（Host 头）。
+			req.Meta.HTTPFLV = &core.HTTPFLVConfig{Rounds: 1}
+			req.Meta.DstIP = "10.0.0.2"
+			req.Layer = layers.Layer{Name: "http", Config: map[string]interface{}{
+				"method": "GET", "uri": "/live/test.flv", "version": tc.version,
+			}}
+			req.Meta.Events = events
+			close(events)
+			var out []layers.MessageEvent
+			req.EmitMsg = func(ev layers.MessageEvent) error {
+				out = append(out, ev)
+				return nil
+			}
+			if err := g.Generate(context.Background(), req); err != nil {
+				t.Fatalf("Generate: %v", err)
+			}
+			if len(out) != 2 {
+				t.Fatalf("got %d events, want 2 (GET+200)", len(out))
+			}
+			if !strings.Contains(string(out[0].Bytes), "GET /live/test.flv HTTP/1.1") {
+				t.Errorf("request line = %q, want GET /live/test.flv HTTP/1.1", string(out[0].Bytes))
+			}
+		})
+	}
+}

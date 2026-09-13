@@ -54,7 +54,6 @@
         <el-descriptions-item :label="t('strategy.uri')">{{ displayValue(config?.http?.uri) }}</el-descriptions-item>
         <el-descriptions-item :label="t('strategy.keepAlive')">{{ config?.http?.keep_alive ? t('common.yes') : t('common.no') }}</el-descriptions-item>
         <el-descriptions-item :label="t('strategy.transactions')">{{ config?.http?.transactions ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item :label="t('strategy.thinkTime')">{{ config?.http?.think_time ?? '-' }}</el-descriptions-item>
       </el-descriptions>
       <!-- Headers -->
       <div v-if="config?.http?.headers && config.http.headers.length > 0" style="margin-top: 8px;">

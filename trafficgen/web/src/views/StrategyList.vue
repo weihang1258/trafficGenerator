@@ -273,11 +273,6 @@
                   <el-input-number v-model="form.config.http.transactions" :min="1" controls-position="right" style="width: 100%;" />
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
-                <el-form-item :label="t('strategy.thinkTime')">
-                  <el-input-number v-model="form.config.http.think_time" :min="0" controls-position="right" style="width: 100%;" />
-                </el-form-item>
-              </el-col>
             </el-row>
           </template>
 
@@ -575,7 +570,7 @@ interface StrategyForm {
     vlan_enable: boolean; vlan_id: number; vlan_priority: number
     tcp: { handshake: boolean; termination: boolean; mss: number; window_size: number; seq?: number; flags?: number; wscale?: boolean; sack?: boolean; timestamps?: boolean }
     udp: { response: boolean }
-    http: { methods: string[]; uri: StrategyValue; headers: { key: string; value: string }[]; body: StrategyValue; keep_alive: boolean; transactions: number; think_time: number }
+    http: { methods: string[]; uri: StrategyValue; headers: { key: string; value: string }[]; body: StrategyValue; keep_alive: boolean; transactions: number }
     dns: { domain: string; query_type: number; response: boolean; response_ip: string }
     icmp: { type: number; code: number; sequence: number; data: string }
     arp: { operation: number; target_mac: string; target_ip: string }
@@ -595,7 +590,7 @@ function defaultForm(): StrategyForm {
       vlan_enable: false, vlan_id: 1, vlan_priority: 0,
       tcp: { handshake: true, termination: true, mss: 1460, window_size: 65535, seq: 0, flags: 0, wscale: false, sack: false, timestamps: false },
       udp: { response: false },
-      http: { methods: ['GET'], uri: sv('/'), headers: [], body: sv(''), keep_alive: true, transactions: 10, think_time: 100 },
+      http: { methods: ['GET'], uri: sv('/'), headers: [], body: sv(''), keep_alive: true, transactions: 10 },
       dns: { domain: 'example.com', query_type: 1, response: false, response_ip: '' },
       icmp: { type: 8, code: 0, sequence: 1, data: 'ping' },
       arp: { operation: 1, target_mac: '', target_ip: '' },
@@ -663,7 +658,7 @@ function onProtocolChange() {
   switch (form.protocol) {
     case 'tcp': form.config.tcp = { handshake: true, termination: true, mss: 1460, window_size: 65535, seq: 0, flags: 0, wscale: false, sack: false, timestamps: false }; break
     case 'udp': form.config.udp = { response: false }; break
-    case 'http': form.config.http = { methods: ['GET'], uri: sv('/'), headers: [], body: '', keep_alive: true, transactions: 10, think_time: 100 }; break
+    case 'http': form.config.http = { methods: ['GET'], uri: sv('/'), headers: [], body: '', keep_alive: true, transactions: 10 }; break
     case 'dns': form.config.dns = { domain: 'example.com', query_type: 1, response: false, response_ip: '' }; break
     case 'icmp': form.config.icmp = { type: 8, code: 0, sequence: 1, data: 'ping' }; break
     case 'arp': form.config.arp = { operation: 1, target_mac: '', target_ip: '' }; break
@@ -787,7 +782,7 @@ function buildConfigForSubmit(): Record<string, any> {
     case 'tcp': cfg.tcp = { handshake: form.config.tcp.handshake, termination: form.config.tcp.termination, mss: form.config.tcp.mss, window_size: form.config.tcp.window_size }; break
     case 'udp': cfg.udp = { response: form.config.udp.response }; break
     case 'http':
-      cfg.http = { method: form.config.http.methods.length === 1 ? form.config.http.methods[0] : form.config.http.methods, uri: extractConfigValue(form.config.http.uri), body: extractConfigValue(form.config.http.body), keep_alive: form.config.http.keep_alive, transactions: form.config.http.transactions, think_time: form.config.http.think_time }
+      cfg.http = { method: form.config.http.methods.length === 1 ? form.config.http.methods[0] : form.config.http.methods, uri: extractConfigValue(form.config.http.uri), body: extractConfigValue(form.config.http.body), keep_alive: form.config.http.keep_alive, transactions: form.config.http.transactions }
       const hdrs: Record<string, string> = {}
       for (const h of form.config.http.headers) { if (h.key) hdrs[h.key] = h.value }
       if (Object.keys(hdrs).length > 0) cfg.http.headers = hdrs

@@ -393,7 +393,6 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			BodyB64:                  getString(sub, "body_b64"),
 			KeepAlive:                getBool(sub, "keep_alive", false),
 			Transactions:             getInt(sub, "transactions"),
-			ThinkTime:                getInt(sub, "think_time"),
 			ResponseHeaders:          getStringMap(sub, "response_headers"),
 			ResponseBody:             getString(sub, "response_body"),
 			ResponseBodyB64:          getString(sub, "response_body_b64"),

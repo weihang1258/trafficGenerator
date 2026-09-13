@@ -37,7 +37,7 @@ function getBuiltinTemplates(t: (key: string) => string): StrategyTemplate[] {
         src_ip: '192.168.1.100', dst_ip: '192.168.1.1',
         src_port: 12345, dst_port: 80,
         ttl: 64, tos: 0,
-        http: { method: 'GET', uri: '/', headers: {}, body: '', keep_alive: true, transactions: 10, think_time: 100 }
+        http: { method: 'GET', uri: '/', headers: {}, body: '', keep_alive: true, transactions: 10 }
       },
       isBuiltin: true
     },
@@ -50,7 +50,7 @@ function getBuiltinTemplates(t: (key: string) => string): StrategyTemplate[] {
         src_ip: '192.168.1.100', dst_ip: '192.168.1.1',
         src_port: 12345, dst_port: 80,
         ttl: 64, tos: 0,
-        http: { method: 'POST', uri: '/api/data', headers: { 'Content-Type': 'application/json' }, body: '{"key":"value"}', keep_alive: false, transactions: 1, think_time: 0 }
+        http: { method: 'POST', uri: '/api/data', headers: { 'Content-Type': 'application/json' }, body: '{"key":"value"}', keep_alive: false, transactions: 1 }
       },
       isBuiltin: true
     },
