@@ -382,14 +382,40 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 
 ### D-HTTP-1 HTTP 底座契约固化（8 子女共用门厅）
 
-**状态：** 草案（P2 写作中，待用户定稿；定稿前不开 P4 代码）
-**范围：** 本次解决 4 个 P1 缺口：①补 http 层校验器（握手/挥手 pin true，mqtt 范式）；②FLV 变换器 version 裸值 prefix 对齐 HLS/HDS；③载体检查从 3 家扩到 8 家（gbt/getwork/hls/hds/http_flv 新增）；④删除 HTTPConfig.ThinkTime（用户裁定：解析了但生成侧零消费，去掉）。明确不解决：`strategy.json` 形状改动（config 节无 additionalProperties 约束，`http` 子映射本就不在 28 键内、无需增删）；`main.go` 接线（http 与 8 子女已是 ChainPlanner，零改动）；翻译扩到 20 字段；HTTP/1.0 之外的新版本方言。
-**依据：** RFC 9110（语义：请求行/状态行/头/体、Host、Connection）、RFC 9112 §6.3（持久连接与 pipelining）、RFC 7230 §3.3.3/§4.1（Transfer-Encoding 优先、chunk 帧）、RFC 1952（gzip）；商业行为（nginx/Apache 的 Host 必查与 keep-alive 超时、curl/Go net/http 的 Host/Connection/Content-Length 自动策略——本实现同向，合成器只管字节正确、不管服务端超时调优）；代码事实（见各节文件行）；存量（8 子女 554 例 + http.json 37 例 + http 单测 170 + `chain_planner_http_test.go` 8 测试）。
+**状态：** 已验收（P4 提交 64cc9d7：校验器+FLV prefix+5 家载体+删 ThinkTime；P5 提交 14f768a/9f8c074/b2ee9b8/本次：8 子女 554 例整形 + http.json 12→37→47 例；自审 2 轮：首轮逐行走读 prefix 分支/pin 副作用/锚词字面/删键 diff，次轮复审 §10 文档逐条+§9 五件事；`go vet` 净 + touched 包 `-race` 绿 + 前端 `vite build` 绿）
+**范围：** 本次解决 4 个 P1 缺口：①补 http 层校验器（握手/挥手 pin true，mqtt `mqtt/layer_gen.go:236` 范式）；②FLV 变换器 version 裸值 prefix 对齐 HLS/HDS；③载体检查从 3 家扩到 8 家（gbt/getwork/hls/hds/http_flv 新增，`validate_layers.go:86-98`）；④删除 HTTPConfig.ThinkTime（用户裁定：解析了但生成侧零消费，去掉）。明确不解决：`strategy.json` 形状改动（config 节无 additionalProperties 约束，`http` 子映射本就不在 28 键内、无需增删）；`main.go` 接线（http 与 8 子女已是 ChainPlanner，零改动）；翻译扩到 20 字段；HTTP/1.0 之外的新版本方言；任务级跨策略共用动态池（与 D-FTP-2 同口径另立条目）。
+**依据：** RFC 9110（语义：请求行/状态行/头/体、Host、Connection）、RFC 9112 §6.3（持久连接与 pipelining）、RFC 7230 §3.3.3（Transfer-Encoding 优先于 Content-Length）/§4.1（chunk 帧）/§5.4（Host 为 1.1 强制）、RFC 1952（gzip）；现网行为（2026-09-13 本地实测，nginx 1.21.5 + Go 1.21 net/http 源码对照）：①无 Host 的 1.1 请求→`400 Bad Request`（有 Host→200；1.0 无 Host→200——与本实现 `isHTTP11` 门控一致）；②`Connection: keep-alive` 被接受→200（与 `defaultConnection` 多事务 keep-alive 一致）；③Go 源码 `request.go:Host` 字段注释（Host 头独立于 Header 表——与本实现 Host 单独处理一致）、`transfer.go:94`（ContentLength 0/-1 才发 chunked——与本实现 chunked 压制 Content-Length 一致）。开源对照：`net/http`（`request.go:Write` 请求行装配、`transfer.go` 分块；只借行为口径，不搬代码）。候选对比见 §9（A–E 五决策）。代码事实（见各节文件行）；存量（8 子女 554 例 + http.json 47 例 + http 单测 173 + `chain_planner_http_test.go` 8 测试）。
 **配置权威：** 层链是唯一真相。地址只落 `ip` 层、端口只落 `tcp` 层、数量只走 `flow_control`。http 业务分两处：`http` 层 config 只放 5 字段（method/uri/version/headers/body，走层翻译进 `spec.HTTP`）；`HTTPConfig` 全 20 字段只走顶层 `http` 子映射（`strategy_convert.go:378` 通用读 + `:561` no-op，不进 `strategy.json` 形状——config 节无 additionalProperties 约束，`http` 子映射本就不在列出的 28 键内，删 ThinkTime 键无需 schema 改动）。扁平四元组判死已由 Step1 全协议生效（`strategy_convert.go:7610` + `schema/semantic.go:128` + `convert.go:166`），本条目不碰扁平。
 
 #### 1. 数据与接口
 - 注册表（`layers/registry.go:97`）：http 为 CategoryTerminal，`DependsOn:[tcp]`，`OptionalOn:[tls]`（默认不明文启用 https，只是允许显式写 tls 层），`TransformEvents:true`，5 字段（method 默认 GET、uri 默认 /、version 默认裸 `1.1`、headers 默认 {}、body 默认 ""），`FieldContract{"tcp.dst_port":"80"}`。8 子女全 `DependsOn:[http]`，契约端口：http/hls/hds/doh/onvif/http_flv=80、gbt/getwork=8332、cwmp=7547（`:395-502`）。
-- `core.HTTPConfig`（`types.go:2141-2220`）：20 字段（Method/URI/Version/RequestHeaders/Body/BodyB64/KeepAlive/Transactions/Response*/RequestContentEncoding/RequestTransferEncoding/ResponseTransferEncoding/ChunkSize/Pipelined/FileSource；P4 删 ThinkTime 后 19 字段）。层翻译只管 5 字段（`chain_planner_translate.go:830-864`：completedConfig overlay 用户值→schema 默认，空串留零由 builder 默认；version 裸值 prefix 归一 `HTTP/`）；全字段通用读（`strategy_convert.go:378-420`：含 headers→request_headers 兼容、`content_encoding` 回退、BodyB64 优先；P4 删 `ThinkTime: getInt(sub,"think_time")` 一行）。
+- `core.HTTPConfig`（`types.go:2141-2220`）：20 字段。字段全表（三选一：已实现/明确不支持/不适用；每行对应测试见 T-HTTP-43…52 与既有条目）：
+
+  | # | 字段（JSON 键） | 实现/分支 | 对应用例 |
+  |---|---|---|---|
+  | 1 | method | 空→GET；任意字面直透（分支代表：GET/POST/PUT/DELETE/HEAD；OPTIONS/PATCH/TRACE/CONNECT 无 pcap 例——未建模分支，行为=同字面直透） | T-HTTP-7/8/29/30/31 |
+  | 2 | uri | 空→/；字面直透 | T-HTTP-7/8/29 |
+  | 3 | version | 空→HTTP/1.1；裸 `1.1` 归一；1.0 不自动 Host | T-HTTP-2/7/14 |
+  | 4 | request_headers | 用户值任何版本都赢（含 Host/Content-Length/Content-Type 大小写不敏感覆盖） | T-HTTP-17 |
+  | 5 | headers（旧键） | request_headers 缺席时回退兼容（存量行防丢头） | T-HTTP-43 |
+  | 6 | body | 文本体；空→无 Content-Length/Content-Type | T-HTTP-8/26 |
+  | 7 | body_b64 | 合法→解码优先于 body；非法→回退 body | T-HTTP-18/38 |
+  | 8 | keep_alive | Transactions>1 或 true→keep-alive，否则 close | T-HTTP-9/40 |
+  | 9 | transactions | ≤0→1；3 事务 13 包 | T-HTTP-9/10 |
+  | 10 | response_headers | 覆盖默认 Content-Type/Location 等 | T-HTTP-22/32 |
+  | 11 | response_body | 空→无长度无类型（包位 8）；有体包位 5 | T-HTTP-11/26 |
+  | 12 | response_body_b64 | 优先于 response_body | T-HTTP-23 |
+  | 13 | response_status_code | 0→200；表内码查表；表外码 `Status %d` 兜底 | T-HTTP-11/32/33/34 |
+  | 14 | response_status_text | 非空覆盖表文本（含 418 自定义） | T-HTTP-24 |
+  | 15 | response_content_encoding | gzip→压缩（长度计压缩后）；旧 `content_encoding` 键回退到此 | T-HTTP-12/44 |
+  | 16 | request_content_encoding | gzip→压缩；非 gzip（br）字面直透 | T-HTTP-19/37 |
+  | 17 | request_transfer_encoding | chunked→分块（压制 Content-Length）；非 chunked（identity）字面直透（单测 `TestBuildHTTPResponse_TransferEncodingNonChunked`；pcap 无例见 T-HTTP-36 注） | T-HTTP-20/35/36 |
+  | 18 | response_transfer_encoding | chunked→分块；字面直透同请求侧 | T-HTTP-13 |
+  | 19 | chunk_size | >0 按字节切块；0→整块单发 | T-HTTP-21 |
+  | 20 | pipelined | true→全请求后全响应；Transactions≤1 时 no-op | T-HTTP-10 |
+  | 21 | file_source | literal/file/fill/random 四形态（file 形态需落盘文件、MCP 不可达，不建 pcap 例，单测见 `http_filesource_test.go:6`） | T-HTTP-27/45/46 |
+
+  层翻译只管 5 字段（`chain_planner_translate.go:830-864`：completedConfig overlay 用户值→schema 默认，空串留零由 builder 默认；version 裸值 prefix 归一 `HTTP/`）；全字段通用读（`strategy_convert.go:378-407`：含 headers→request_headers 兼容、`content_encoding` 回退、BodyB64 优先；P4 删 `ThinkTime: getInt(sub,"think_time")` 一行）。
 - 生成器（`protocol/http/layer_gen.go:45-79`）：三路分发——`Meta.HTTPFLV/HLS/HDS` 非 nil 进帧变换器（内层产 body、http 包 GET/200）；`isHTTPRPCInner`（GBT/GetWork/CWMP/DOH/ONVIF）进透传变换器（事件已是完整帧，原样转）；否则终结模式。注册只有 `RegisterHTTPGenerator`（`:359`），缺 `RegisterLayerValidator`——P4 补（见 §5）。
 - builders（`http.go:552,739`）：用户>默认>无；Host 仅 1.1 自动加、IPv6 加括号（`:597,691`，`isHTTP11/bracketHost`）；Content-Type 嗅探（`:826`，magic 优先）；Content-Length 自动；Connection 缺省 keep-alive 当且仅当 Transactions>1 或 KeepAlive；gzip→chunked 先后顺序；头大小写不敏感覆盖；状态表 + `Status %d` 兜底（`:995`）；BodyB64 优先于 Body（`:635`）；FileSource 循环前解析一次、copy-on-write 防跨流串扰（`layer_gen.go:106,274`）。
 - 变换器取参：FLV 从 `req.Layer.Config` 读 method/uri/version（`:155-166`，flv 链专用默认 uri `/live/stream.flv`，rounds 取 `spec.HTTPFLV.Rounds` `:169-172`）；HLS（`hls_transformer.go:40`）/HDS（`hds_transformer.go:25`）读 version 带 prefix、uri 取自各 session。变换器 `Layer` 由驱动按 `chain[transportIdx+1+k]` 装配（`chain_planner_translate.go:505`），是已补全的层 config——P4 修复只动取值处的 prefix，不动接线。
@@ -406,32 +432,43 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - FLV 模式：每轮 GET(up)→读内层 body→200(down)；keepAlive=非末轮。HLS/HDS：按 sessions 数组序逐会话 GET→200，会话间不交错；无显式 body 时用内层 body 事件。
 - 透传模式：逐事件 `EmitMsg` 原样转，流关闭即结束（tcp 照常分段/握手/挥手）。
 - 会话—事务—多流：http 链一次一流（无子流派生、无 sessions[]）；Transactions 是单连接内事务序列；多会话/多流语义归各子女内层配置（hls/hds sessions、cwmp sessions/transactions），http 层不展开、不编号。
-- 时间线：同步产全部事件，无交错调度；包时间戳由 ChainPlanner 回填。
+- 时间线：同步产全部事件，无交错调度；包时间戳由 ChainPlanner 回填。无等待点、无 sleep（ThinkTime 已删，见 §9 E）；超时/重传归 tcp 层（具体时长见 tcp 层设计，本条目不重复）。
 
-#### 4. 递增与覆盖规则
-- 动态白名单（`layer_dyn.go:17`）：只有 ip（src/dst/ttl）、tcp/udp（src_port/dst_port）、eth（mac）可动态；http 业务字段全静态，不接受动态对象（误写即 `does not support dynamic` 拒绝）。http 链的多流变化只走 ip/tcp 层动态 + `flow_control` 数量。
+#### 4. 递增与覆盖规则 + 正交组合矩阵
+- 动态白名单（`layer_dyn.go:17`）：只有 ip（src/dst/ttl）、tcp/udp（src_port/dst_port）、eth（mac）可动态；http 业务字段全静态，不接受动态对象（误写即 `does not support dynamic` 拒绝）。http 链的多流变化只走 ip/tcp 层动态 + `flow_control` 数量。序号算法沿框架生成器（seed+序号可复现、到尾回绕，见 D-FTP-2 §4/D-FTP-3 §4，不重写）。动态三问：①inc 语义由 T-HTTP-41/47 聚合断言钉住（两流端口各出现）；②复现/回绕由框架级 T-FTP-8 覆盖（同算法，http 不重复）；③静态复制拒绝由 T-HTTP-51 覆盖（http 链专属负例）。
 - 端口优先级：用户显式 tcp.dst_port > FieldContract（80/8332/7547）> 报错。http_flv 首例 `{"http":{"method","uri","version"}}` 非空、余子女 `{"http":{}}` 走默认——P5 改写不碰此分工。
 - version 单一真相：层写裸（schema 默认 `1.1`）、线上全完整（`HTTP/1.1`）；归一位置=翻译路径 + HLS/HDS 变换器已有、P4 给 FLV 补上。builder 空串→`HTTP/1.1`（`http.go:563`）保留。
 - 显式覆盖：method/uri 空串留零走 builder 默认（GET///）；headers/body 同理。`completedConfig`（`:999`）用户值覆盖 schema 默认。
+- 正交组合矩阵（已覆=例号；缺失=×，缺一格即缺口——本次补齐后剩余缺口如实列）：
+
+  | 维度＼地址族 | IPv4 单流 | IPv4 多流 | IPv6 单流 | IPv6 多流 |
+  |---|---|---|---|---|
+  | 默认端口 80 | T-HTTP-7 | T-HTTP-41 | T-HTTP-15 | T-HTTP-47 |
+  | 非默认端口 | T-HTTP-16（8080） | ×（未建例） | ×（未建例） | ×（未建例） |
+  | MSS 分段 | T-HTTP-28/39 | ×（未建例） | T-HTTP-48 | ×（未建例） |
+  | chunked×MSS | T-HTTP-49 | ×（未建例） | ×（未建例） | ×（未建例） |
+  | 1.0×keep-alive | T-HTTP-14（单事务 close；1.0 配多事务未建例） | × | × | × |
+  | TTL | T-HTTP-42 | ×（TTL 与流无关，未建例） | × | × |
 
 #### 5. 错误与异常
 - 新增 http 校验器（P4，mqtt `mqtt/layer_gen.go:236` 范式）：调 `(&Planner{}).Validate(*spec)`（IP 格式 + MSS 下界）+ spec.TCP nil 则建、pin `Handshake/Termination=true`（防零值跳握手；legacy http 恒握手/挥手，链上同样不可关）。MSS 上界（65535）由链 `chain_planner.go:845` 覆盖，legacy `http.go:46` 只管下界——校验器复用 planner 即与现状一致，不另加。
-- 载体检查新增 5 家（`validate_layers.go:66-81` 同款文案）：`gbt/getwork/hls/hds/http_flv: terminal layer requires the http carrier layer ([tcp, http, X]; tcp→X direct chain rejected)`。位置在 `CompleteChain` 前（现有 3 家位置），Plan/Validate 期同步失败（drive 期报错会被吞成空流，dns `:106` 同款教训）。
-- 内层流提前关闭：`inner %s stream closed before body event %d/%d`（FLV/HLS/HDS 各一，须排空后返回）。`Meta.HLS/HDS` nil 进变换器即错（配置与链不一致）。
+- 载体检查新增 5 家（`validate_layers.go:86-98` 同款文案）：`gbt/getwork/hls/hds/http_flv: terminal layer requires the http carrier layer ([tcp, http, X]; tcp→X direct chain rejected)`。位置在 `CompleteChain` 前（现有 3 家位置），Plan/Validate 期同步失败（drive 期报错会被吞成空流，dns `:106` 同款教训）。
+- 内层流提前关闭：`inner %s stream closed before body event %d/%d`（FLV/HLS/HDS 各一，须排空后返回）。`Meta.HLS/HDS` nil 进变换器即错（配置与链不一致）。该分支无 pcap 负例（触发需内层中途断流，suite 表达力边界；单测亦未覆盖——缺口如实记录）。
+- http 专属负例（T-HTTP-50/51/52，真实流程 error_contains）：①顶层 `src_ip` 扁平判死（Step1 CheckProtoFlat，锚词 `no longer accepts flat config field src_ip`）；②层链静态复制（`checkLayerChainStaticCopy`，锚词 `static four-tuple`，flows=2+全静态标量）；③gbt 缺 http 载体（锚词 `requires the http carrier layer`，载体检查 8 家代表）。五策略动态畸形（range 非 2 元/list 空等）由框架级 T-FTP-14 覆盖（同 ValidateLayers 入口，http 不重复）。
 - planner 错误中断 Plan（既有语义）；超时/重传归 tcp 层。扁平/混用拒绝沿 Step1（CheckProtoFlat + checkLayerFlatConflict），本条目不新增旧字段门。
 - Failing 先行：validator（零值 TCP 链→断言握手包存在）、FLV version（层 version `1.1`→断言请求行 `HTTP/1.1`）、载体 5 家（`[ip,tcp,X]`→断言载体锚词）、删键回归（`maptoflow_test.go` 删 `think_time` 输入行 + `ThinkTime` 断言 2 行，改后 `go test ./internal/core/ -run TestMapToFlow_HTTP -count=1` 绿）。
 
 #### 6. 性能设计与验收
 - 路径依据：事件流式（逐消息 Emit，无全量收集；FLV/HLS/HDS 每轮一读一写；透传零拷贝转发）；每消息一次 builder 字符串装配（请求/响应各一），FileSource 解析每流一次（PayloadCache 命中后内存读）；无锁（生成器无状态）、无 sleep；分段/限速/背压归 tcp 层与 worker（`worker.go/engine.go` 既有机制，本条目不另设）。
-- 目标：不新增性能门；回归口径=现有套件耗时相对基线 ±10% 内（FTP D-FTP-4 §6 同款口径；P5 实测 wall：http_flv 4.9s/hls 6.5s/hds 5.2s/gbt 14.3s/getwork 15.2s/doh 41.3s/onvif 46.6s/cwmp 32.7s/http 37 例 10.9s，CASE_PROTO 逐文件串行、服务端内 parallel=4）。
-- pcap 验收：9 文件 suite 全绿（8 子女 554 + http.json 37 = 591/591，P5 实测）+ 包落惯例根 `/tmp/mcp-pcaps/<proto>/` 可复查（tshark 断言请求行/状态行/头/体，不手算包号）；网卡验收：沿用既有冒烟跑法，至少跑通 cwmp 一例（http 透传代表）+ http_flv 一例（帧变换代表），跑不通注明环境限制不算失败。
+- 目标：不新增性能门；回归口径=现有套件耗时相对基线 ±10% 内（FTP D-FTP-4 §6 同款口径；P5 实测 wall：http_flv 4.9s/hls 6.5s/hds 5.2s/gbt 14.3s/getwork 15.2s/doh 41.3s/onvif 46.6s/cwmp 32.7s/http 47 例 13s，CASE_PROTO 逐文件串行、服务端内 parallel=4）。性能边界诚实声明：无目标吞吐/并发上限/内存上限数字（未测，标待确认，不承诺）；无压力/长跑/耗尽场景（缺口）；单流最大报文未声明边界（MSS 分段只测 536+600/3000 字节两档）。
+- pcap 验收：9 文件 suite 全绿（8 子女 554 + http.json 47 = 601/601，P5 实测）+ 包落惯例根 `/tmp/mcp-pcaps/<proto>/` 可复查（tshark 断言请求行/状态行/头/体，不手算包号；落盘路径由 suite 按 `PCAP_ROOT/<proto>/<case>.pcap` 定，用例不写路径）；网卡验收：本机无 enp135s0f0np0 发包口（`NIC_RUN` 测试需该物理口+root，本次未跑——缺口如实记录，pcap 一路已全绿）。
 
 #### 7. 实现顺序与回滚
-1. failing 单测（`protocol/http/layer_gen_test.go`：FLV version prefix；validator handshake pin；`layers/validate_layers_test.go`：5 家载体拒绝；`internal/core/maptoflow_test.go`：删 `think_time` 输入 + 断言）→ 2. `protocol/http/layer_gen.go`：补 `RegisterLayerValidator("http",…)`（mqtt 范式，含 handshake 校准注释）+ FLV version 4 行 prefix（HLS 同款）→ 3. `layers/validate_layers.go`：补 5 家载体检查（3 家同款文案）→ 4. 删 `types.go:2150` `ThinkTime` 字段 + `strategy_convert.go:396` 解析行 + MCP 三处描述 `think_time,` 字样（`schemagen/main.go:92` 源头、`schema_descriptions_generated.go:151` 生成、`tools_strategy.go:27`/`tools_workflow.go:20` 手写标签；改后跑 `go run ./internal/mcp/schemagen` 重生成并跑 `TestConfigTagsMatchSchemaBlurb`）+ 前端 4 处（`StrategyConfigPreview/index.vue:57`、`useStrategyTemplates.ts:40,53`、`StrategyList.vue:278,578`；`webgen.py` 不读 Go 注释、无需重跑，`schema-types.ts` 无 think_time 字段）→ 5. 自审（§10：逐行走读 prefix 分支、pin 副作用、锚词字面、删键 diff）→ 6. `go build/vet` + touched 包 `-race`（http、layers、core、mcp）+ 170 单测 + chain_http 8 测试 → 7. P5 用例改写与 suite（另步，不在本条目）。回滚=单提交逆序 revert（P4 一提交，含 validator+prefix+载体+删键四改，可整体回滚；与 P5 用例提交独立）。
+1. failing 单测（`protocol/http/layer_gen_test.go`：FLV version prefix；validator handshake pin；`layers/validate_layers_test.go`：5 家载体拒绝；`internal/core/maptoflow_test.go`：删 `think_time` 输入 + 断言）→ 2. `protocol/http/layer_gen.go`：补 `RegisterLayerValidator("http",…)`（mqtt 范式，含 handshake 校准注释）+ FLV version 4 行 prefix（HLS 同款）→ 3. `layers/validate_layers.go`：补 5 家载体检查（3 家同款文案）→ 4. 删 `types.go:2150` `ThinkTime` 字段 + `strategy_convert.go:396` 解析行 + MCP 三处描述 `think_time,` 字样（`schemagen/main.go:92` 源头、`schema_descriptions_generated.go:151` 生成、`tools_strategy.go:27`/`tools_workflow.go:20` 手写标签；改后跑 `go run ./internal/mcp/schemagen` 重生成并跑 `TestConfigTagsMatchSchemaBlurb`）+ 前端 4 处（`StrategyConfigPreview/index.vue:57`、`useStrategyTemplates.ts:40,53`、`StrategyList.vue:278,578`；`webgen.py` 不读 Go 注释、无需重跑，`schema-types.ts` 无 think_time 字段）→ 5. 自审（§10：逐行走读 prefix 分支、pin 副作用、锚词字面、删键 diff）→ 6. `go build/vet` + touched 包 `-race`（http、layers、core、mcp）+ 173 单测 + chain_http 8 测试 → 7. P5 用例改写与 suite（另步，不在本条目）。回滚=单提交逆序 revert（P4 一提交，含 validator+prefix+载体+删键四改，可整体回滚；与 P5 用例提交独立）。
 
 #### 8. 验收
 - 对应 `docs/TEST_CASES.md` T-HTTP-*（P3 待写，本条目先占位，P3 回填编号）。
-- 完成条件：failing 三单测先红后绿；170 单测 + chain_http 8 测试绿；9 文件 suite（591 例）全量全绿（增量绿不算）；`go vet` + touched 包 `-race` 绿；§1 两道门如实记录：①层链跑通（子女 suite + http.json）；②旧字段零新增（本条目不碰扁平，Step1 门已生效）。
+- 完成条件：failing 三单测先红后绿；173 单测 + chain_http 8 测试绿；9 文件 suite（600 例）全量全绿（增量绿不算；8 子女回归逐个重跑确认零漂移）；`go vet` + touched 包 `-race` 绿（http/layers/core 关键测试 + 前端 `vite build` 绿）；§1 两道门如实记录：①层链跑通（子女 suite + http.json）；②旧字段零新增（本条目不碰扁平，Step1 门已生效，T-HTTP-50 钉 http 链专属扁平负例）。
 
 #### 9. 关键决策对比
 

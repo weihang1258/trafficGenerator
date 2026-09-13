@@ -1663,5 +1663,456 @@
         }
       ]
     }
+  },
+  {
+    "id": "http_req_headers_legacy",
+    "proto": "http",
+    "summary": "旧headers键兼容：request_headers缺席时回退headers（T-HTTP-43）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40050,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/hdr-old",
+        "version": "HTTP/1.1",
+        "headers": {
+          "X-Trace": "abc",
+          "Host": "legacy.test"
+        }
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        },
+        {
+          "packet": 4,
+          "field": "http.host",
+          "value": "legacy.test"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_req_content_encoding_legacy",
+    "proto": "http",
+    "summary": "旧content_encoding键回退给响应编码：gzip生效（T-HTTP-44）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40051,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/ce-old",
+        "version": "HTTP/1.1",
+        "response_body": "hello-legacy-enc",
+        "content_encoding": "gzip"
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.response.code",
+          "value": "200"
+        },
+        {
+          "packet": 5,
+          "field": "http.content_encoding",
+          "value": "gzip"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_file_source_fill",
+    "proto": "http",
+    "summary": "file_source fill形态：16字节A体（T-HTTP-45）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40052,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/fill",
+        "version": "HTTP/1.1",
+        "file_source": {
+          "fill": {
+            "byte": 65,
+            "bytes": 16
+          }
+        }
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.content_length",
+          "value": "16"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_file_source_random",
+    "proto": "http",
+    "summary": "file_source random定长8字节seed7（T-HTTP-46）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40053,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/rand",
+        "version": "HTTP/1.1",
+        "file_source": {
+          "random": {
+            "min_bytes": 8,
+            "max_bytes": 8,
+            "seed": 7
+          }
+        }
+      }
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 4,
+          "field": "http.content_length",
+          "value": "8"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_ipv6_multiflow_dynamic",
+    "proto": "http",
+    "summary": "IPv6多流：inc源端口两流18包（T-HTTP-47）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::10",
+            "dst": "2001:db8::20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": {
+              "strategy": "inc",
+              "range": [
+                42000,
+                42001
+              ]
+            },
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/v6mf",
+        "version": "HTTP/1.1"
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 0,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "42000",
+            "42001"
+          ],
+          "distinct_exclude": [
+            "80"
+          ]
+        },
+        {
+          "packet": 0,
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "80",
+            "42000",
+            "42001"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_ipv6_mss_segments",
+    "proto": "http",
+    "summary": "IPv6响应MSS分段10包（T-HTTP-48）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::10",
+            "dst": "2001:db8::20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40055,
+            "dst_port": 80,
+            "mss": 536
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/v6long",
+        "version": "HTTP/1.1",
+        "response_body": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    "expect": {
+      "packet_count": 10,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "http.request.method",
+          "value": "GET"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_req_chunked_mss",
+    "proto": "http",
+    "summary": "chunked乘MSS分段10包请求在包5（T-HTTP-49）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40056,
+            "dst_port": 80,
+            "mss": 536
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "uri": "/cm",
+        "version": "HTTP/1.1",
+        "body": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+        "request_transfer_encoding": "chunked"
+      }
+    },
+    "expect": {
+      "packet_count": 10,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "http.request.method",
+          "value": "POST"
+        },
+        {
+          "packet": 5,
+          "field": "http.transfer_encoding",
+          "value": "chunked"
+        }
+      ]
+    }
+  },
+  {
+    "id": "http_neg_flat_src_ip",
+    "proto": "http",
+    "summary": "负例：顶层扁平src_ip判死（T-HTTP-50）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40057,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "src_ip": "10.0.0.1",
+      "http": {
+        "method": "GET",
+        "uri": "/",
+        "version": "HTTP/1.1"
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts flat config field src_ip"
+    }
+  },
+  {
+    "id": "http_neg_static_copy",
+    "proto": "http",
+    "summary": "负例：静态复制拒绝（T-HTTP-51）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40058,
+            "dst_port": 80
+          }
+        },
+        {
+          "http": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/",
+        "version": "HTTP/1.1"
+      }
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "static four-tuple"
+    }
+  },
+  {
+    "id": "http_neg_missing_carrier_gbt",
+    "proto": "http",
+    "summary": "负例：gbt缺http载体（T-HTTP-52）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "192.0.2.10",
+            "dst": "198.51.100.20"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 40059,
+            "dst_port": 8332
+          }
+        },
+        {
+          "gbt": {}
+        }
+      ],
+      "http": {
+        "method": "GET",
+        "uri": "/g",
+        "version": "HTTP/1.1"
+      }
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "requires the http carrier layer"
+    }
   }
 ]

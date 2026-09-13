@@ -641,7 +641,7 @@
 
 ### T-HTTP-1 http 层校验器（握手 pin + MSS 门）【D-HTTP-1 §5】
 
-**状态：** 草案
+**状态：** 已通过（P4 提交 64cc9d7：`TestHTTPValidator_PinHandshakeTermination`+`TestHTTPValidator_RejectsBadMSS` 先红后绿 + `http_neg_bad_mss` 真实流程锚词 `mss`；本次复核仍绿）
 **级别：** unit
 **来源：** `docs/CODE_DESIGN.md` D-HTTP-1 §5（mqtt `mqtt/layer_gen.go:236` 范式）；RFC 879（MSS 下界 536）
 **目标：** 零值 TCP 配置的 http 链不断握手（pin 生效），非法 MSS 在 Plan 期同步失败。
@@ -656,7 +656,7 @@
 
 ### T-HTTP-2 FLV 变换器 version 裸值归一【D-HTTP-1 §4】
 
-**状态：** 草案
+**状态：** 已通过（P4 提交 64cc9d7：`TestHTTPFLVVersionPrefix` 先红后绿 + `http_layer_version_bare` 真实流程归一；本次复核仍绿）
 **级别：** unit
 **来源：** D-HTTP-1 §4（HLS `hls_transformer.go:40`/HDS `hds_transformer.go:25` 已有 prefix，FLV `layer_gen.go:163-166` 缺）；RFC 9112 §2.1（版本字面 `HTTP/1.1`）
 **目标：** http 层 version 写裸 `1.1` 时，FLV 链请求行仍是完整 `HTTP/1.1`。
@@ -671,7 +671,7 @@
 
 ### T-HTTP-3 载体检查 5 家补齐（gbt/getwork/hls/hds/http_flv）【D-HTTP-1 §5】
 
-**状态：** 草案
+**状态：** 已通过（P4 提交 64cc9d7：`TestHTTPCarrierRequired_FiveFamilies` 先红后绿；`chain_planner_http_carrier_test.go` 新文件包 layers_test；本次复核仍绿）
 **级别：** unit
 **来源：** D-HTTP-1 §5（cwmp `:68`/doh `:74`/onvif `:80` 已有同款文案；dns `:106` 同款教训：drive 期报错变空流）；现网：doh/onvif 各有 1 个缺 http 负例
 **目标：** 5 家错链（无 http 层）在 Validate 期同步拒绝，锚词与 3 家同族。
@@ -686,7 +686,7 @@
 
 ### T-HTTP-4 ThinkTime 删键回归【D-HTTP-1 §7 E（用户裁定删）】
 
-**状态：** 草案
+**状态：** 已通过（P4 提交 64cc9d7：`TestMapToFlowSpec_HTTPFullSubmap` 去 think_time 输入+断言 + 旧键忽略行 + `TestConfigTagsMatchSchemaBlurb` 绿 + 前端 4 处词条删除 + `vite build` 本次验证绿；本次复核仍绿）
 **级别：** unit
 **来源：** D-HTTP-1 §7 E；`types.go:2150` + `strategy_convert.go:396`
 **目标：** 删字段 + 删解析后，http 全字段解析行为不变（少 ThinkTime 一行），旧配置带该键被忽略。
@@ -701,37 +701,37 @@
 
 ### T-HTTP-5 8 子女 + http.json 全量联验【D-HTTP-1 §8】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 601/601 全绿：8 子女 554 + http.json 47；8 子女回归逐个重跑零漂移；主库 http 策略/任务行 0/0，前已清零本次复核仍零；suite 文档噪音 `SUMMARY.md` 已恢复、`http.md` 未入库；落盘 `/tmp/mcp-pcaps/<proto>/` 43 正例 pcap 可查，4 负例 0 包是设计）
 **级别：** pcap
-**来源：** D-HTTP-1 §8；RFC 9110/9112（请求行/状态行/头/体）；9 文件 591 例（cwmp150/doh110/onvif95/gbt81/getwork62/hls24/hds17/http_flv15/http37）
+**来源：** D-HTTP-1 §8；RFC 9110/9112（请求行/状态行/头/体）；9 文件 601 例（cwmp150/doh110/onvif95/gbt81/getwork62/hls24/hds17/http_flv15/http47）
 **目标：** P4 改完后 9 文件全量全绿（增量绿不算），http 改动字节零漂移。
 
-**输入：** 8 子女 cases 改写后形状（P5 按通用改写规则：删顶层四元组→地址进 ip 层、端口进 tcp 层、仅原 count>1 补 strategy_fc；hls/hds 缺 ip、http_flv 缺 ip/tcp 由 CompleteChain 补；doh/onvif 缺 http 负例锚词重钉载体文案）；http.json 37 例（T-HTTP-7…42：20 字段全覆盖 + 方法/状态/组合/分支/多流/TTL；identity 例因 tshark 伪影删 1 留 37；严格层链形）。
-**前置条件：** T-HTTP-1…4 绿；服务器二进制与 HEAD 同代。
-**执行：** 套件 CASE_PROTO=gbt/getwork/cwmp/doh/onvif/hls/hds/http_flv/http 逐个全量（`flowb_run_protocol_suite` 真实流程：MCP 建任务→引擎生成→tshark 校对），pcap 落惯例根 `/tmp/mcp-pcaps/<proto>/`。
-**期望输出：** 9 文件全绿（591/591；P5 实测全绿）；断言钉请求行/状态行/头/体（tshark `http.request.method/uri/version`、`http.response.code`），包号/端口从落盘 pcap 拿、不手算；负例 158 例锚词逐例重钉（扁平判死先于业务锚，Step1 门）。
+**输入：** 8 子女 cases 改写后形状（P5 按通用改写规则：删顶层四元组→地址进 ip 层、端口进 tcp 层、仅原 count>1 补 strategy_fc；hls/hds 缺 ip、http_flv 缺 ip/tcp 由 CompleteChain 补；doh/onvif 缺 http 负例锚词重钉载体文案）；http.json 47 例（T-HTTP-7…42：20 字段全覆盖 + 方法/状态/组合/分支/多流/TTL；T-HTTP-43…52：兼容键/file 余形态/正交对称/专属负例；T-HTTP-36 identity 单测覆盖、pcap 例删除；严格层链形）。
+**前置条件：** T-HTTP-1…4 绿；服务器二进制与 HEAD 同代（实测：HEAD 之后无 .go 更新，二进制 09-13 11:43 与 HEAD 同代）。
+**执行：** 套件 CASE_PROTO=gbt/getwork/cwmp/doh/onvif/hls/hds/http_flv/http 逐个全量（`flowb_run_protocol_suite` 真实流程：MCP 建任务→引擎生成→tshark 校对），pcap 落惯例根 `/tmp/mcp-pcaps/<proto>/`（落盘路径由 suite 按 `PCAP_ROOT/<proto>/<case>.pcap` 定，用例不写路径）。
+**期望输出：** 9 文件全绿（601/601；P5 实测全绿）；断言钉请求行/状态行/头/体（tshark `http.request.method/uri/version`、`http.response.code`），包号/端口从落盘 pcap 拿、不手算；负例 161 例锚词逐例重钉（扁平判死先于业务锚，Step1 门；http 链专属 4 负例见 T-HTTP-1（MSS 门）与 T-HTTP-50…52）。
 **错误期望：** 缺 http 载体 2 例（doh/onvif）+ P4 新增语义延续：错误含载体锚词，任务终态失败（§14 负例走真实流程）。
-**性能期望：** 回归 ±10%（P5 实测 wall：http_flv 4.9s/hls 6.5s/hds 5.2s/gbt 14.3s/getwork 15.2s/doh 41.3s/onvif 46.6s/cwmp 32.7s/http 37 例 10.9s，CASE_PROTO 逐文件串行、服务端内 parallel=4；已回填 D-HTTP-1 §6）。
+**性能期望：** 回归 ±10%（P5 实测 wall：http_flv 4.9s/hls 6.5s/hds 5.2s/gbt 14.3s/getwork 15.2s/doh 41.3s/onvif 46.6s/cwmp 32.7s/http 47 例 13s，CASE_PROTO 逐文件串行、服务端内 parallel=4；已回填 D-HTTP-1 §6）。
 **实现位置：** `cases/{gbt,getwork,cwmp,doh,onvif,hls,hds,http_flv,http}.json`。
 
 ### T-HTTP-6 存量单测 + 链测试回归【D-HTTP-1 §8】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测：http 包 173 单测绿 + `TestChainPlanner_HTTP` 绿 + `go vet` 净 + http/layers `-race` 绿 + core 关键测试 `-race` 绿 + 前端 `vite build` 12s 绿；8 子女回归逐个重跑零漂移）
 **级别：** unit + race
-**来源：** D-HTTP-1 §8；存量 `protocol/http` 170 单测 + `chain_planner_http_test.go` 8 测试（9 包链、seq 推进、无独立 ACK、pipelined、TCPSeg 忽略、取消收敛）
+**来源：** D-HTTP-1 §8；存量 `protocol/http` 173 单测 + `chain_planner_http_test.go` 8 测试（9 包链、seq 推进、无独立 ACK、pipelined、TCPSeg 忽略、取消收敛）
 **目标：** P4 四改（validator+prefix+载体+删键）后存量行为零回归。
 
-**输入：** 存量测试不变（`http_test.go:4` + `layer_gen_test.go:3` + `http_filesource_test.go:6` + `http_chunked_test.go:31` + `http_testpoints_test.go:126`）。
+**输入：** 存量测试不变（`http_test.go:4` + `layer_gen_test.go:6` + `http_filesource_test.go:6` + `http_chunked_test.go:31` + `http_testpoints_test.go:126`）。
 **前置条件：** T-HTTP-1…4 绿。
-**执行：** `go test ./internal/protocol/http/ -count=1` + `go test ./internal/core/layers/ -run TestChainPlanner_HTTP -count=1` + touched 包 `-race`（http、layers、core、mcp）+ `go vet`。
-**期望输出：** 全绿；165→170 计数口径（`grep -c "^func Test"` 五文件求和）回填本条状态行。
+**执行：** `go test ./internal/protocol/http/ -count=1` + `go test ./internal/core/layers/ -run TestChainPlanner_HTTP -count=1` + touched 包 `-race`（http、layers、core 关键测试）+ `go vet` + 前端 `vite build`。
+**期望输出：** 全绿；173 计数口径（`grep -c "^func Test"` 五文件求和：4+6+6+31+126）。
 **错误期望：** 无（回归项）。
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/http/*_test.go`（既有）+ `internal/core/layers/chain_planner_http_test.go`（既有）。
 
 ### T-HTTP-7 http.json 独立用例——GET 基线【D-HTTP-1 §8】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（终结模式 builders：Host 仅 1.1 自动加）；RFC 9112 §2.1（请求行）、RFC 7230 §5.4（Host）
 **目标：** 单事务 GET 的包序列与字节正确（9 包 = 3 握手 + 请求 + 响应分片 + 4 挥手）。
@@ -746,7 +746,7 @@
 
 ### T-HTTP-8 http.json 独立用例——POST 带体【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（Content-Length 自动、Content-Type 嗅探 magic 优先）；RFC 9110 §8.6（Content-Length）
 **目标：** POST 体 `{"k":"v"}`（9 字节）的长度与类型断言正确。
@@ -761,7 +761,7 @@
 
 ### T-HTTP-9 http.json 独立用例——keep-alive 3 事务【D-HTTP-1 §3】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §3（终结模式交错循环；Connection 缺省 keep-alive 当且仅当 Transactions>1 或 KeepAlive）；RFC 9112 §6.3（持久连接）
 **目标：** 同连接 3 对请求/响应不断链（13 包），Connection 头为 keep-alive。
@@ -776,7 +776,7 @@
 
 ### T-HTTP-10 http.json 独立用例——pipelined【D-HTTP-1 §3】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §3（pipelined 分支：全请求后全响应）；RFC 9112 §6.3.2
 **目标：** 3 请求先行后 3 响应同为 13 包，首包仍是 GET。
@@ -791,7 +791,7 @@
 
 ### T-HTTP-11 http.json 独立用例——响应 404【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（状态表 + `Status %d` 兜底；ResponseStatusCode 0→200）
 **目标：** 自定义状态码 404 上线（响应有体时包 5 即完整、不重组）。
@@ -806,7 +806,7 @@
 
 ### T-HTTP-12 http.json 独立用例——响应 gzip【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（gzip→chunked 先后顺序；Content-Length 计压缩后）；RFC 1952
 **目标：** 响应体 gzip 压缩后 Content-Encoding 为 gzip。
@@ -821,7 +821,7 @@
 
 ### T-HTTP-13 http.json 独立用例——响应 chunked【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（chunked 时压制 Content-Length；chunk-size 十六进制）；RFC 7230 §4.1/§3.3.3
 **目标：** 响应 Transfer-Encoding 为 chunked。
@@ -836,7 +836,7 @@
 
 ### T-HTTP-14 http.json 独立用例——HTTP/1.0 不自动 Host【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（`isHTTP11` 门控 Host；用户 Host 任何版本都赢）；RFC 7230 §5.4（Host 为 1.1 强制）
 **目标：** 1.0 请求行版本正确（Host 不自动加，不断言缺席、只断版本）。
@@ -851,7 +851,7 @@
 
 ### T-HTTP-15 http.json 独立用例——IPv6 Host 括号【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（`bracketHost`：v6 加括号，v4/非 IP 原样）；RFC 7230 §5.4（IP-literal 括号）
 **目标：** v6 目的地址的 Host 头带括号。
@@ -866,7 +866,7 @@
 
 ### T-HTTP-16 http.json 独立用例——非默认端口【D-HTTP-1 §4】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §4（用户显式 tcp.dst_port > FieldContract 80 > 报错）
 **目标：** 显式 8080 优先于契约 80。
@@ -881,7 +881,7 @@
 
 ### T-HTTP-17 http.json 独立用例——自定义请求头与 Host 覆盖【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（用户 RequestHeaders 任何版本都赢 + Host 自动对 1.1）
 **目标：** 用户 Host `custom.test` 覆盖自动值 + 自定义头 `X-Trace: abc` 上线。
@@ -896,7 +896,7 @@
 
 ### T-HTTP-18 http.json 独立用例——请求 body_b64 优先【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（resolveRequestBody：BodyB64 优先，非法回退 Body，见 T-HTTP-38 对照）
 **目标：** `body_b64 aGVsbG8=` 解出 5 字节 `hello`（Content-Length=5），忽略文本 body。
@@ -911,7 +911,7 @@
 
 ### T-HTTP-19 http.json 独立用例——请求 gzip 编码【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（请求侧 content_encoding=gzip 即压缩；响应侧对称见 T-HTTP-12）；RFC 1952
 **目标：** 请求体压缩后 Content-Encoding 为 gzip。
@@ -926,7 +926,7 @@
 
 ### T-HTTP-20 http.json 独立用例——请求 chunked【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（请求侧 transfer_encoding=chunked 即分块；响应侧对称见 T-HTTP-13）；RFC 7230 §4.1
 **目标：** 请求 Transfer-Encoding 为 chunked。
@@ -941,7 +941,7 @@
 
 ### T-HTTP-21 http.json 独立用例——请求 chunk_size 多分块【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（chunk_size>0 按该字节数切块；响应侧单测已 cover，pcap 钉请求侧字节）
 **目标：** 16 字节体按 5 字节切 4 块（5/5/5/1），请求行字节用 frames 十六进制钉死（tshark 不解析分块数）。
@@ -956,7 +956,7 @@
 
 ### T-HTTP-22 http.json 独立用例——响应头覆盖【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（ResponseHeaders 覆盖默认 Content-Type；请求侧对称见 T-HTTP-17）
 **目标：** 响应 Content-Type 被用户值 `text/custom` 覆盖。
@@ -971,7 +971,7 @@
 
 ### T-HTTP-23 http.json 独立用例——响应 body_b64 优先【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（resolveResponseBody：ResponseBodyB64 优先；请求侧对称见 T-HTTP-18）
 **目标：** 响应体 5 字节 `hello` 正常发出（状态 200），忽略文本 response_body。
@@ -986,7 +986,7 @@
 
 ### T-HTTP-24 http.json 独立用例——响应自定义状态文本【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（ResponseStatusText 非空则覆盖状态表文本；418 非标准码走自定义文本分支）
 **目标：** 418 状态码 + 自定义 reason `Custom Phrase` 上线。
@@ -1001,7 +1001,7 @@
 
 ### T-HTTP-25 http.json 独立用例——未知状态码兜底【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（状态表未命中→`Status %d` 兜底；T-HTTP-24 是自定义文本版，本例是无文本兜底版）
 **目标：** 599 无表码按 `Status 599` 兜底发出（不断 reason，只断码）。
@@ -1016,7 +1016,7 @@
 
 ### T-HTTP-26 http.json 独立用例——响应空体无 Content-Type【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（空响应体不压 Content-Type……不断 type、只断码与包位置）
 **目标：** 无 response_body 时响应仍 200，且落在包 8（无体包位，对照有体包 5）。
@@ -1031,7 +1031,7 @@
 
 ### T-HTTP-27 http.json 独立用例——file_source 文件体【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（file_source literal 经 PayloadCache 取体；请求体解析优先级最低一档）
 **目标：** 14 字节 `file-bytes-123` 经 literal 源发出（Content-Length=14）。
@@ -1046,7 +1046,7 @@
 
 ### T-HTTP-28 http.json 独立用例——响应 MSS 分段【D-HTTP-1 §3】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §3（MSS 分段归 tcp 层；请求侧对称见 T-HTTP-39）；RFC 879
 **目标：** MSS 536 下 600 字节响应体被切成多段（10 包），首请求仍 GET。
@@ -1061,7 +1061,7 @@
 
 ### T-HTTP-29 http.json——PUT 方法【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（builders 用户>默认>无；单测 TestBuildHTTPRequest_MultipleMethods 已 cover 方法表，pcap 钉 GET/POST 之外代表）
 **目标：** PUT 请求行与 uri 上线。
@@ -1076,7 +1076,7 @@
 
 ### T-HTTP-30 http.json——DELETE 方法【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** 同 T-HTTP-29
 **目标：** DELETE 请求行上线。
@@ -1091,7 +1091,7 @@
 
 ### T-HTTP-31 http.json——HEAD 方法【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** 同 T-HTTP-29（单测 TestBuildHTTPRequest_HEADNoBody 已 cover 无体语义）
 **目标：** HEAD 请求行上线。
@@ -1106,7 +1106,7 @@
 
 ### T-HTTP-32 http.json——响应 301 Location【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（ResponseHeaders 覆盖；单测 TestHTTPPlan_StatusCode301WithLocation 已 cover）
 **目标：** 301 状态码上线。
@@ -1121,7 +1121,7 @@
 
 ### T-HTTP-33 http.json——响应 500【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（单测 TestHTTPPlan_StatusCode500 已 cover）
 **目标：** 500 状态码上线。
@@ -1136,7 +1136,7 @@
 
 ### T-HTTP-34 http.json——响应 201 Created【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（ResponseStatusCode 0→200；非零直用）
 **目标：** 201 状态码与 POST 组合上线。
@@ -1151,7 +1151,7 @@
 
 ### T-HTTP-35 http.json——请求 gzip+chunked 复合【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（gzip→chunked 先后顺序；单测 TestBuildHTTPResponse_ChunkedWithGzip 已 cover 响应侧，pcap 钉请求侧）
 **目标：** 请求侧压缩后分块两头并存。
@@ -1164,24 +1164,24 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/http.json`（http_req_gzip_chunked_composite）。
 
-### T-HTTP-36 http.json——请求 transfer identity 直透【D-HTTP-1 §1】
+### T-HTTP-36 请求 transfer identity 字面直透【D-HTTP-1 §1】
 
-**状态：** 草案
-**级别：** pcap
-**来源：** D-HTTP-1 §1（非 chunked 值按字面头直透；单测 TestBuildHTTPResponse_TransferEncodingNonChunked 已 cover 分支）
-**目标：** identity 配置下请求正常发出（tshark 对该头报 malformed 伪影，故不断编码面、只断请求行与 Host）。
+**状态：** 已废弃（分支由单测覆盖；pcap 例因 tshark 对 `Transfer-Encoding: identity` 报 malformed 伪影、无白名单依据，按“不断言做不到的事”删除，用例不在 `cases/http.json`）
+**级别：** unit（单测已 cover）
+**来源：** D-HTTP-1 §1（非 chunked 值按字面头直透）；`http_chunked_test.go:225` `ResponseTransferEncoding: "identity"` 直透分支（请求侧同函数对称）
+**目标：** 非 chunked 值按字面头发出、不做分块帧。
 
-**输入：** 同链形（src_port 40041）+ `http{method POST,body abc,request_transfer_encoding identity}`。
-**前置条件：** T-HTTP-7 绿。
-**执行：** 同 T-HTTP-7。
-**期望输出：** 9 包；包 4 `method=POST`、`host=198.51.100.20`。
-**错误期望：** 无（伪影说明见来源行）。
+**输入：** `ResponseTransferEncoding: "identity"` + body `x`。
+**前置条件：** 无。
+**执行：** `go test ./internal/protocol/http/ -run TestBuildHTTPResponse_TransferEncoding -count=1`
+**期望输出：** 含字面头 `Transfer-Encoding: identity`；体为原文 `x`、不做分块帧。
+**错误期望：** 无。
 **性能期望：** 不适用。
-**实现位置：** `cases/http.json`（http_req_transfer_identity）。
+**实现位置：** `internal/protocol/http/http_chunked_test.go:225`。
 
 ### T-HTTP-37 http.json——请求非 gzip 编码直透【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（非 gzip 的 content_encoding 按字面直透；单测 TestBuildHTTPRequest_RequestContentEncodingNonGzip 已 cover）
 **目标：** `br` 编码值原样上头。
@@ -1196,7 +1196,7 @@
 
 ### T-HTTP-38 http.json——请求坏 b64 回退 body【D-HTTP-1 §1】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §1（resolveRequestBody：BodyB64 非法→回退 Body，不硬失败）
 **目标：** 非法 b64 不报错，按文本体发出（13 字节）。
@@ -1211,7 +1211,7 @@
 
 ### T-HTTP-39 http.json——请求 MSS 分段【D-HTTP-1 §3】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §3（MSS 分段归 tcp 层；单测 TestHTTPPlan_RequestMSSSegmentsLongBody 已 cover 切片语义，pcap 钉包数）；RFC 879
 **目标：** MSS 536 下 3000 字节请求体分段，包数 14（响应侧 T-HTTP-28 的请求侧对称）。
@@ -1226,7 +1226,7 @@
 
 ### T-HTTP-40 http.json——单事务 Connection close【D-HTTP-1 §3】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §3（defaultConnection：单事务且非 keep-alive→close；T-HTTP-9 的对照端）
 **目标：** 单事务默认 Connection 为 close。
@@ -1241,7 +1241,7 @@
 
 ### T-HTTP-41 http.json——多流动态源端口【D-HTTP-1 §4】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §4（多流变化只走 ip/tcp 层动态 + flow_control；§12 动态整格：inc 回绕/复现）；CORE_MEMORY §9 陷阱③（flows>1 时四元组须动态）
 **目标：** flows=2 + tcp.src_port inc[41000,41001] 产 18 包，两流源端口聚合正确。
@@ -1256,7 +1256,7 @@
 
 ### T-HTTP-42 http.json——TTL 注入路径【D-HTTP-1 §4】
 
-**状态：** 草案
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
 **级别：** pcap
 **来源：** D-HTTP-1 §4（applySpecToChain 回写覆盖层 ttl：spec.TTL 非零才注入；层直写 128 被 schema 默认 64 覆盖——框架行为，非 http 缺口；正确路径=顶层 `ttl:128`→spec.TTL→注入层）
 **目标：** 顶层 ttl 128 落包（包 1 `ip.ttl=128`）。
@@ -1268,6 +1268,156 @@
 **错误期望：** 无。
 **性能期望：** 不适用。
 **实现位置：** `cases/http.json`（http_ttl_custom）。
+
+### T-HTTP-43 http.json——旧 headers 键兼容回退【D-HTTP-1 §1】
+
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
+**级别：** pcap
+**来源：** D-HTTP-1 §1（`strategy_convert.go:378` 通用读：`request_headers` 缺席时回退 `headers`，存量行防丢头）
+**目标：** 只写旧 `headers` 键时 Host 覆盖与自定义头同样生效。
+
+**输入：** 同链形（src_port 40050）+ `http{method GET,uri /hdr-old,headers {X-Trace abc,Host legacy.test}}`（注意不是 `request_headers`）。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=GET`、`host=legacy.test`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_headers_legacy）。
+
+### T-HTTP-44 http.json——旧 content_encoding 键回退响应编码【D-HTTP-1 §1】
+
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
+**级别：** pcap
+**来源：** D-HTTP-1 §1（`strategy_convert.go:378` 通用读：`response_content_encoding` 缺席时回退旧 `content_encoding`；只影响响应侧——请求侧 `request_content_encoding` 无此回退，见对照）
+**目标：** 只写旧 `content_encoding: gzip` 时响应体照常压缩。
+
+**输入：** 同链形（src_port 40051）+ `http{method GET,uri /ce-old,response_body hello-legacy-enc,content_encoding gzip}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 5 `response.code=200`、`content_encoding=gzip`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_content_encoding_legacy）。
+
+### T-HTTP-45 http.json——file_source fill 形态【D-HTTP-1 §1】
+
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
+**级别：** pcap
+**来源：** D-HTTP-1 §1（`parseFileSource:1451`：`file_source{fill{byte,bytes}}` 经 PayloadCache 取体；单测 `http_filesource_test.go:6` 只 cover literal）
+**目标：** fill 形态 16 字节 `A` 体正常发出。
+
+**输入：** 同链形（src_port 40052）+ `http{method POST,uri /fill,file_source {fill {byte 65,bytes 16}}}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=POST`、`content_length=16`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_file_source_fill）。
+
+### T-HTTP-46 http.json——file_source random 定长形态【D-HTTP-1 §1】
+
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
+**级别：** pcap
+**来源：** D-HTTP-1 §1（`parseFileSource:1463`：`file_source{random{min_bytes,max_bytes,seed}}`；seed 非零可复现——不断字节值，只断长度；`file` 形态需落盘文件、MCP 不可达，不建 pcap 例）
+**目标：** random 定长 8 字节（min=max=8，seed=7）体正常发出。
+
+**输入：** 同链形（src_port 40053）+ `http{method POST,uri /rand,file_source {random {min_bytes 8,max_bytes 8,seed 7}}}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 9 包；包 4 `method=POST`、`content_length=8`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_file_source_random）。
+
+### T-HTTP-47 http.json——IPv6 多流动态源端口【D-HTTP-1 §4】
+
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
+**级别：** pcap
+**来源：** D-HTTP-1 §4（正交矩阵 IPv6×多流格；T-HTTP-41 的 IPv4 对照端；多流交织非确定性——只断聚合，不断固定包号，见校验器 `verify.go:45` distinct 语义）
+**目标：** v6 下 flows=2 + src_port inc[42000,42001] 产 18 包，两流端口聚合正确。
+
+**输入：** `[ip(2001:db8::10→2001:db8::20),tcp(src_port inc[42000,42001],dst 80),http]` + `strategy_fc{flows 2}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 18 包；`tcp.srcport distinct{42000,42001}（排除 80）`；`tcp.dstport distinct{80,42000,42001}`（tshark 双向聚合口径）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_ipv6_multiflow_dynamic）。
+
+### T-HTTP-48 http.json——IPv6 响应 MSS 分段【D-HTTP-1 §3】
+
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
+**级别：** pcap
+**来源：** D-HTTP-1 §3（正交矩阵 IPv6×MSS 格；T-HTTP-28 的 v6 对照端）；RFC 879
+**目标：** v6 下 MSS 536 + 600 字节响应体分段（10 包）。
+
+**输入：** `[ip(2001:db8::10→2001:db8::20),tcp(src_port 40055,dst 80,mss 536),http]` + `http{method GET,uri /v6long,response_body A×600}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 10 包；包 4 `method=GET`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_ipv6_mss_segments）。
+
+### T-HTTP-49 http.json——请求 chunked×MSS 组合分段【D-HTTP-1 §1/§3】
+
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
+**级别：** pcap
+**来源：** D-HTTP-1 §1（chunked 分块）+ §3（MSS 分段归 tcp 层；实测：600 字节 chunked 体在 MSS 536 下产 10 包，请求在包 5——tshark 重组口径，不手算）
+**目标：** chunked 编码体再经 MSS 切段，请求行在包 5 可见。
+
+**输入：** 同链形（src_port 40056，tcp.mss 536）+ `http{method POST,uri /cm,body C×600,request_transfer_encoding chunked}`。
+**前置条件：** T-HTTP-7 绿。
+**执行：** 同 T-HTTP-7。
+**期望输出：** 10 包；包 5 `method=POST`、`transfer_encoding=chunked`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_req_chunked_mss）。
+
+### T-HTTP-50 http.json——http 链扁平判死负例【D-HTTP-1 §5】
+
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** Step1 CheckProtoFlat（`strategy_convert.go:7609`；http 链专属例——框架级 T-FTP-15 覆通用形状，本例钉 http 链）
+**目标：** 顶层 `src_ip` 与 `layers` 共存时建任务即被拒。
+
+**输入：** 同链形（src_port 40057）+ 顶层 `"src_ip":"10.0.0.1"`（混用）+ `http{method GET,uri /,version HTTP/1.1}`。
+**前置条件：** 无。
+**执行：** 同 T-HTTP-7（suite 走 `flowb_generate_traffic`，MCP 即拒）。
+**期望输出：** 任务失败；错误含 `no longer accepts flat config field src_ip`。
+**错误期望：** 即本条（`expect_error` + `error_contains`）。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_neg_flat_src_ip）。
+
+### T-HTTP-51 http.json——http 链静态复制拒绝负例【D-HTTP-1 §4】
+
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-FTP-3 `checkLayerChainStaticCopy`（`schema/semantic.go:169`；http 链专属例——框架级规则在 http 链的落点）
+**目标：** flows=2 + 全静态标量四元组时建策略即被拒。
+
+**输入：** 同链形（src_port 40058）+ `strategy_fc{flows 2}`（四元组全标量、无动态对象）+ `http{method GET,uri /,version HTTP/1.1}`。
+**前置条件：** 无。
+**执行：** 同 T-HTTP-50。
+**期望输出：** 任务失败；错误含 `static four-tuple`。
+**错误期望：** 即本条；反例=T-HTTP-41（同 flows=2 但源端口写动态对象→通过）。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_neg_static_copy）。
+
+### T-HTTP-52 http.json——gbt 缺 http 载体负例【D-HTTP-1 §5】
+
+**状态：** 已通过（P5 实测 47/47 全绿；二进制与 HEAD 同代）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-HTTP-1 §5 载体检查 8 家（`validate_layers.go:86-98`；单测 `TestHTTPCarrierRequired_FiveFamilies` 覆 5 家离线断言，本例钉 gbt 真实流程落点）
+**目标：** `[ip,tcp,gbt]` 无 http 层时建任务即被拒。
+
+**输入：** `[ip(192.0.2.10→198.51.100.20),tcp(src_port 40059,dst 8332),gbt{}]` + 顶层 `http{method GET,uri /g,version HTTP/1.1}`。
+**前置条件：** 无。
+**执行：** 同 T-HTTP-50。
+**期望输出：** 任务失败；错误含 `requires the http carrier layer`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/http.json`（http_neg_missing_carrier_gbt）。
 
 ## 7. 用例审查与完成条件
 
