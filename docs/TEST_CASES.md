@@ -1856,7 +1856,7 @@
 
 ### T-TLS-10 tls.json——cert 静态全填【D-TLS-2 §1】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿，15/15）
 **级别：** pcap
 **来源：** D-TLS-2 §1（cert 5 键：subject/san/key_type/not_before/not_after；RFC 5280 X.509 v3 结构；探针实证 2026-09-14：真 DER tshark 干净解出、BER 伪影消失）
 **目标：** 层 config 写完整 cert 块时，Certificate 帧（f7）携带可解析 X.509 DER，tshark 逐字段解出用户配置值（CN/O/C/SAN/有效期/序列号）。
@@ -1871,7 +1871,7 @@
 
 ### T-TLS-11 tls.json——cert 缺席全默认（"缺省给全"执法）【D-TLS-2 §1】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿——tls-handshake-basic 隐式覆盖，f7 默认 DER 无 malformed）
 **级别：** pcap
 **来源：** D-TLS-2 §1（用户裁定"缺省的时候数据也要给全"：cert 块缺席或单键缺席一律填完整默认值——CN=trafficgen-test,O=TrafficGen Test Lab,C=CN / SAN=[example.com] / ecdsa-p256 / 2026-01-01→2036-01-01，不报缺参错、不回退随机模板）
 **目标：** `tls:{}` 空层（无 cert）的 Certificate 帧同样携带完整默认 DER——5 字段全部非零上 wire。
@@ -1886,7 +1886,7 @@
 
 ### T-TLS-12 tls.json——cert.subject list 轮转【D-TLS-2 §4】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿，41011→a.test f7 / 41012→b.test f23）
 **级别：** pcap
 **来源：** D-TLS-2 §4（cert.subject 开 string 面 list/pattern——CN 逐流变是现网真实场景；颗粒度=整 DN 串，用户写完整 DN）
 **目标：** flows=2 时两流 Certificate 的 Subject CN 分别为 a.test/b.test（DN 整串替换语义，F1 决策）。
@@ -1901,7 +1901,7 @@
 
 ### T-TLS-13 tls.json——cert.san list 轮转【D-TLS-2 §4】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap
 **来源：** D-TLS-2 §4（cert.san 开 string 面——SAN 逐流变同 sni 语义；单元素 list）
 **目标：** flows=2 时两流 Certificate 的 SAN 分别为 a.test/b.test。
@@ -1916,7 +1916,7 @@
 
 ### T-TLS-14 tls.json——cert 关字段 key_type 动态被拒负例【D-TLS-2 §4/§5】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** D-TLS-2 §4（key_type 关——密钥类型一切换证书长度/签名算法全变，包长断言全得重钉，无逐流变需求；`checkLayerDynObjects` 下钻 cert 后报 `does not support dynamic`）
 **目标：** `cert{"key_type":{"strategy":…}}` 建任务即被拒。
@@ -1931,7 +1931,7 @@
 
 ### T-TLS-15 tls.json——key_type 未知值 + 坏日期拒绝负例【D-TLS-2 §5】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿，2 例）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** D-TLS-2 §5（key_type 枚举仅 ecdsa-p256，锚词 `not supported yet`；日期 RFC3339 解析失败锚词；not_after ≤ not_before 锚词）
 **目标：** key_type="rsa-2048" 或 not_before="不是日期" 建任务即被拒。
