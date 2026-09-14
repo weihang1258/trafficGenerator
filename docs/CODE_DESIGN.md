@@ -559,20 +559,20 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | §9 三源+整格 | RFC 8446 条文 + 本条目 + 现网 1.3 口径；动态整格见 §4 清单 | T-TLS-*；§4 矩阵 |
 | §10 评审闭环 | 改→审→测→修→再审；自审 N 轮结论；测试四问 | T-TLS-5；门 3 抽查 |
 | §11 白话汇报 | 先一句结论；代号带解释；证据只贴路径与结论 | 每次汇报 |
-| §12 动态清单 | 四元组沿框架白名单；业务 4 键：sni 开（string 面 fixed/list/pattern，域名逐流变；本轮唯一开的业务键）/alpn 关（列表无允许的解析面且现状无轮转需求——开它只会加一个"固定串"的伪动态）/version 关（常量协商，链只 1.3）/role 关（常量，链只 client）；序号算法不重写 | `layer_dyn.go:17` 待加行；`tuple_generator.go`；T-TLS-6… |
+| §12 动态清单 | 四元组沿框架白名单；业务 4 键：sni 开（string 面 fixed/list/pattern——rand/inc 无意义，`genStringValue` rand 产整数串，域名要字符串表/模板，形状层拒，T-TLS-7；本轮唯一开的业务键）/alpn 关（列表无允许的解析面且现状无轮转需求——开它只会加一个"固定串"的伪动态）/version 关（常量协商，链只 1.3）/role 关（常量，链只 client）；序号算法不重写 | `layer_dyn.go:17`；`tuple_generator.go`；T-TLS-5/6/7 |
 | §13 schema 同步 | 本轮若改注册表 tls Fields 必须重跑 `schemagen` 并提交生成文件；顶层 `tls` 不迁入故 `strategy.json` 不动 | `generated/layers.generated.json`；门 2 脚本 |
 | §14 真实流程 | cases 即任务 spec；MCP 建任务→引擎生成→tshark 校对；负例带锚词；全量绿；二进制同代；包落盘可查 | T-TLS-5；门 2 三项 |
 
 目标形状（§1 证据）：`{"layers": [{"ip": {"src","dst"}}, {"tcp": {"src_port","dst_port"}}, {"tls": {"version","sni","alpn","role"}}]}`（4 键全列；`tls:{}` 空配置走默认 tls1.3/client）。
 
-**状态：** 定稿（2026-09-14；用户指示继续执行即批）
+**状态：** 已验收（2026-09-14：tls.json 9/9 绿，二进制与 HEAD 同代，`pipe_gate.sh tls` 静态两项绿；门 3 抽查见本条目尾）
 **范围（2026-09-14）：** ①`main.go:564` 翻转 `tls.NewPlanner()` → `layers.NewChainPlanner("tls")` + 空白导入（Step 2 同款一行）；②补 `RegisterLayerValidator("tls")`（mqtt/http 范式：`validateTLSSpec`=调 `(&Planner{}).Validate(*spec)` + spec.TCP nil 则建、pin `Handshake/Termination=true`；标量通道下生成器 drive 期直接读层 config（`layer_gen.go:80-101`），spec.TLS 只在动态 sni 时由本轮步骤 2 写入；failing 先行 3 红例直调 validator）；③tls.json 1 例 FLAT→层链改写（通用改写规则；`tls:{}` 空配置随层走就是正键）+ 负例（扁平五键判死 + static-copy 门代表，锚词钉死）；④§12 业务动态清单落地（sni 开 1 关 3：allowlist 加 `tls:{sni}` 1 行 + string 面形状门 + T-TLS-5/6/7 三例；alpn/version/role 关——对象即 `does not support dynamic` + T-TLS-8 一例钉死）。明确不解决：顶层 `tls` 子映射迁入层（链上无消费方，`layer_gen.go:27`；CheckProtoFlat 现不拦顶层 `tls`，与 http 当年不同——http 是有消费方才迁）；链上 1.2/1.1/1.0 路径（结构性只实现 1.3，同步拒绝；legacy 单测已覆字节）；链上 AlertPath/PSK/证书注入（层 schema 无字段，T13 不扩展）；任务级跨策略共用动态池（与 D-FTP-2 同口径另立条目）。等价证据：T13 链字节已由 `t13_tls_test.go` 钉死（16 帧=3 握手+7 TLS 握手+请求+响应+4 挥手，record 头/握手序列/分片上限）。T13 既有形 `[{"tls":{}},{"http":{}}]` 建链时 inner 有人，Build 出来的补全链翻转前后恒为 `[ip,tcp,tls,http]`——drv 侧走的本来就是链生成器；翻转只换入口（main.go 一行），字节零漂移可实测验证，漂移则按 FTP Task 1 先例扩展事件 flag、不猜。
 **依据：** RFC 8446（握手序列 §4/§7、record 头 §5.1/ContentType §5.1、分片上限 §5.2 的 2^14+1、supported_versions/key_share/signature_algorithms_cert 扩展）；RFC 1035（SNI 253 上限，经 legacy 注释引用）；现网行为（1.3 为主、1.2 兼容主流形态；SNI/ALPN 为真实部署必带项）；开源对照（只借帧结构思路：record 头 ContentType+Version+Length、握手头 Type+3B Length；不搬加密实现——synth 密文是既定语义，`planner.go:21` 已声明是发包程序不是网络设备）。代码事实：legacy 全序列 `planner.go:371`（TCP 握手→TLS 握手→应用数据→挥手）+ Validate `planner.go:158`（IP/版本/role/SNI/AlertPath/PSK）+ 链变换器 `layer_gen.go:11`（事件变换、握手先行注入、16385 分片）+ 链结构性校验 `chain_planner.go:221`（version/role/SNI/ALPN 同步拒）+ 注册表 `registry.go:869`（tunnel 类、depends_on tcp、4 键）+ 接线 `main.go:564`（legacy 待翻转）。
 **配置权威：** 层链是唯一真相。地址只落 `ip` 层、端口只落 `tcp` 层（FieldContract `tcp.dst_port=443`，`registry.go:871`）、数量只走 `flow_control`；tls 业务 4 字段只落 `tls` 层（version/sni/alpn/role）；顶层 `tls` 子映射是过渡载体（本轮不迁，见范围）。扁平五键判死沿 Step1（`strategy_convert.go:7593` CheckProtoFlat）。
 
 #### 1. 数据与接口
 - 输入：层链 `[ip,tcp,tls]`（tls 层 config 4 键：version string 缺省 tls1.3、sni string 缺省空、alpn list 缺省空→生成器默认 [h2,http/1.1]、role string 缺省 client）；spec 侧四元组由层值回填（Task 6 同款：层显式写才回填，dyn 对象跳过走 resolveLayerTuple）。
-- 输出：PacketConfig 流（TCP 握手 3 + TLS 握手 7（ClientHello→ServerHello→EE→Certificate→CertVerify→ServerFinished→ClientFinished）+ 应用数据（内层委托或合成 128B 双向）+ close_notify + 挥手 4/RST）。
+- 输出：PacketConfig 流（TCP 握手 3 + TLS 握手 7（ClientHello→ServerHello→EE→Certificate→CertVerify→ServerFinished→ClientFinished）+ 应用数据（内层委托逐事件包 record，链上 spec.HTTP 恒由 translate 建出）+ 挥手 4/RST）。16 帧口径（P5 落盘实测；legacy 合成 128B/17 帧/close_notify 口径链上已过期）。
 - 新增/修改 Go 类型：无新类型（TLSConfig 已有，`types.go:8038` 12 键；层 schema 4 键是其子集，翻译不需要——链上不读 spec.TLS）。新增函数：`validateTLSSpec`（`internal/protocol/tls/layer_gen.go` 尾，mqtt `layer_gen.go:236` + http `validateHTTPSpec` 同款：调 `(&Planner{}).Validate(*spec)` + spec.TCP nil 则建、pin Handshake/Termination=true）+ `init` 内 `layers.RegisterLayerValidator("tls", validateTLSSpec)`。修改调用点：`main.go:564` 一行翻转 + 空白导入 `_ "…/protocol/tls"`（已有 `:178`，保留；翻转后 legacy planner 仍被 validator 复用，不删包）。
 - 显式覆盖：tls 层 version/role 空串走链默认（1.3/client，与生成器 `:80` 同款）；sni 空=不发扩展；alpn 空=默认双协议。spec.TLS 非 nil 不代表 flat 权威（链上不读 spec.TLS，无 flat-wins 分支——与 http/dns 不同，`layer_gen.go:27` 已声明）。
 
@@ -589,16 +589,20 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - 时间线：同步产全部事件、无交错。序号空间：tcp 层推进（tls 只增 payload 长度，不碰 seq）。
 
 #### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
-- 动态白名单（本轮加 `layer_dyn.go:17` 行）：`tls: {sni, alpn}` 开；`version/role` 关（常量协商：链只实现 1.3/client，逐流变无意义，对象即 `does not support dynamic`）。
-- 开的理由：sni（域名是 §12 点名的关键业务字段，string 面 fixed/list/pattern）；alpn（协商列表逐流变是现网真实场景，list 面轮转；pattern/inc/rand 对列表无意义→形状层拒绝，锚词钉死）。关的理由见上。
-- 序号算法不重写（沿 `tuple_generator.go` genStringValue/genPort 同款；sni 走 string 面，alpn 走 list 面——P3 逐格定时锚词）。
-- 正交组合矩阵（已覆=例号；缺失=×）：
+- 动态白名单：`tls: {sni}` 开（`layer_dyn.go:17` 已加行）；`alpn/version/role` 关（常量/无轮转需求，对象即 `does not support dynamic`）。
+- 开的理由：sni（域名是 §12 点名的关键业务字段，string 面 fixed/list/pattern——rand/inc 产整数串，无意义，形状层拒，T-TLS-7）。
+- 序号算法不重写（沿 `tuple_generator.go` genStringValue 同款；sni 走 string 面）。
+- 正交组合矩阵（已覆=例号；缺失=×，P5 落盘实测回填）：
 
   | 维度 | 单流 | 多流 |
   |---|---|---|
-  | 默认 443 | T-TLS-1 | ×（待 P3 定：四元组动态+flows） |
-  | SNI | T-TLS-2（待建） | × |
-  | ALPN | T-TLS-2（待建） | × |
+  | 默认 443 | T-TLS-1（16 帧） | T-TLS-5（32 帧，两流交织） |
+  | SNI 标量 | T-TLS-2（example.com，ext len 16） | — |
+  | SNI list | — | T-TLS-5（a.com/b.com，f4/f20） |
+  | SNI pattern | — | T-TLS-6（host1/host2.com，f4/f20） |
+  | SNI fixed | T-TLS-5 对照端（a.com 恒值） | — |
+  | SNI rand/inc | T-TLS-7（形状层拒，无 pcap 例） | — |
+  | https 套娃 | T-TLS-9（内层 GET /tls-inner 进 record） | — |
   | 1.2 方言 | legacy 单测已覆（链上不同步实现，T13 不扩展） | × |
   | AlertPath | legacy 单测已覆（链上不注入，T13 不扩展） | × |
 
@@ -634,8 +638,10 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 适用性（其他协议层复用结论）：tunnel 层翻转范本（gre 照抄：翻转一行 + 校验器 + 层 config 即接口）；唯一要裁的是每协议自己的开/关清单与 string/list 面划分（tls 是 sni string 面 + alpn list 面）。
 
 #### 8. 验收
-- 对应 `docs/TEST_CASES.md` T-TLS-*（P3 待写，本条目先占位，P3 回填编号）。
-- 完成条件：步骤 0 三红例先红后绿；tls 包单测 + T13 链测试绿；tls.json suite 全绿（增量绿不算；8 子女回归确认零漂移——tls 是底座，http/dns/mqtt/smtp/pop3/imap/socks5/ftp 链回归逐个重跑）；`go vet` + touched 包 `-race` 绿；§1 两道门：①层链跑通（tls.json）；②旧字段移除（顶层五键判死：新建 400 + 在库 error + 门 2-1 脚本红；顶层 `tls` 不迁入故无 presence 门）。
+- 对应 `docs/TEST_CASES.md` T-TLS-1…9（P3 已交，P5 全绿回钉）。
+- 完成条件（2026-09-14 实测）：步骤 0 三红例先红后绿；tls 包单测 + T13 链测试绿；tls.json suite 9/9 绿（`RESULT: 9 pass, 0 fail, 0 error`，二进制与 HEAD 同代，`pipe_gate.sh tls` 静态两项绿）；`go vet` + touched 包 `-race` 绿；§1 两道门：①层链跑通（tls.json）；②旧字段移除（顶层五键判死：新建 400 + 在库 error + 门 2-1 脚本绿；顶层 `tls` 不迁入故无 presence 门）。
+- 门 3 抽查（任抽三条，均点到证据）：①§1 顶层旧键去向→`pipe_gate.sh tls` 门 2-1 绿 + T-TLS-3 负例锚词 `no longer accepts flat config field src_ip`；②§12 sni 开 1 关 3→`layer_dyn.go:17` allowlist 行 + T-TLS-5/6 pcap（f4/f20 SNI 落盘）+ T-TLS-7 单测 `TestTLSSNIDyn_StringSurfaceRejected` + T-TLS-8 负例锚词 `does not support dynamic`；③§14 真实流程→`RESULT: 9 pass` + 落盘 `/tmp/mcp-pcaps-tls/tls/` 6 pcap（负例 0 包无落盘）+ T-TLS-1 16 帧口径。
+- 缺口如实记录：①在库 tls 行清空未执行（P6 待办：count→备份→删→复核）；②8 子女回归未跑（tls 是 9 协议底座：http/dns/mqtt/smtp/pop3/imap/socks5/ftp/自身链回归逐个重跑，P6 待办）；③网卡验收未跑（本机无发包口，pcap 一路已全绿）；④Full 3588 + `go test ./internal/...` 待 123 协议全走完后 Step 8 执行。
 
 #### 9. 关键决策对比
 

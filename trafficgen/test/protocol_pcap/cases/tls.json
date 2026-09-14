@@ -2,14 +2,14 @@
   {
     "id": "tls-handshake-basic",
     "proto": "tls",
-    "summary": "TLS (端口 443) 冒烟：完整 TCP 握手 + TLS 1.3 ClientHello → ServerHello → EncryptedExtensions → Certificate → Finished → 应用数据 + 终止",
+    "summary": "TLS（端口 443）冒烟：完整 TCP 握手 + TLS 1.3 ClientHello → ServerHello → EncryptedExtensions → Certificate → Finished → 应用数据 + 终止（T-TLS-1）",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 443,
-      "count": 1,
-      "tls": {}
+      "layers": [
+        {"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}},
+        {"tcp": {"src_port": 12345, "dst_port": 443}},
+        {"tls": {}},
+        {"http": {}}
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -31,25 +31,196 @@
         {"packet": 7, "field": "tls.handshake.type", "value": "11"},
         {"packet": 8, "field": "tls.handshake.type", "value": "15"},
         {"packet": 9, "field": "tls.handshake.type", "value": "20"},
-        {"packet": 10, "field": "tls.handshake.type", "value": "20"},
-        {"packet": 11, "field": "tls.record.length", "value": "128"},
-        {"packet": 13, "field": "tls.record.content_type", "value": "21"}
+        {"packet": 10, "field": "tls.handshake.type", "value": "20"}
       ],
       "frames": [
-        {"packet": 4, "offset": 54, "hex": "16 03 03 00 9c 01 00 00 98 03 03"},
-        {"packet": 5, "offset": 54, "hex": "16 03 03 00 5a 02 00 00 56 03 03"},
-        {"packet": 6, "offset": 54, "hex": "16 03 03 00 0f 08 00 00 0b 00 09 00 10 00 05 00 03 02 68 32"},
-        {"packet": 7, "offset": 54, "hex": "16 03 03 01 0d 0b 00 01 09 00 00 01 05"},
-        {"packet": 8, "offset": 54, "hex": "16 03 03 00 48 0f 00 00 44"},
-        {"packet": 9, "offset": 54, "hex": "16 03 03 00 24 14 00 00 20"},
-        {"packet": 10, "offset": 54, "hex": "16 03 03 00 24 14 00 00 20"},
-        {"packet": 11, "offset": 54, "hex": "17 03 03 00 80"}
+        {"packet": 11, "offset": 59, "hex": "47 45 54 20 2f 20 48 54 54 50 2f 31 2e 31"},
+        {"packet": 12, "offset": 59, "hex": "48 54 54 50 2f 31 2e 31 20 32 30 30"}
       ],
       "notes": [
-        "TLS 记录: content_type u8 (16=handshake 22→十进制22, 23=application data) + version 03 03 + len u16；握手: type u8 + len u24",
-        "f4 ClientHello TLS 1.3 (supported_versions 0x0304/0x0303, ciphers 0x1301/0x1302/0x1303, ALPN h2,http/1.1)；f5 ServerHello 0x0304；f6 EncryptedExtensions ALPN h2；f7 Certificate (record len 0x10d, 证书 261B)；f8 CertificateVerify；f9/f10 Finished；f11-12 Application Data (ALPN http2)；f13 Alert (21)",
-        "f7 有 tshark '[Malformed Packet: TLS]' 标记——字节级验证记录为合法 (record len 0x0101, 证书 256B)；tshark 3.6 对短证书的解析伪像；verify.go isMalformedWhitelisted 对 tls- 前缀白名单",
-        "f4 记录长 0x9c=156 与 ClientHello 负载长 152 (0x98) 一致；17 帧 = 3 握手 + 10 TLS + 4 终止"
+        "16 帧 = 3 握手 + 7 TLS 握手（f4 ClientHello/f5 ServerHello/f6 EncryptedExtensions/f7 Certificate/f8 CertificateVerify/f9/f10 Finished）+ 2 应用数据 + 4 挥手；链化后应用数据恒由内层 http 委托（legacy 128B 合成/17 帧/close_notify 口径已过期）",
+        "f11 record 头 5B（17 03 03 + len 53=0x35），明文起点 frame offset=59：GET / HTTP/1.1；f12 明文起点同为 59：HTTP/1.1 200 OK（len 38=0x26）",
+        "f4 ClientHello TLS 1.3（supported_versions 0x0304/0x0303，ciphers 0x1301/0x1302/0x1303，ALPN h2,http/1.1，record len 156=0x9c）；f5 ServerHello 0x0304；f6 EncryptedExtensions ALPN h2",
+        "f7 Certificate 有 tshark BER 伪影——各层长度自洽（record 269/handshake 265/certs 261/cert 256，落盘 tshark -V 验证），证书是 256B 随机模板故 dissector 当 X.509 必败；verify.go 白名单按 BER 前缀/flag 匹配",
+        "包号/字节均以落盘 pcap（tshark）校准，未手算"
+      ]
+    }
+  },
+  {
+    "id": "tls-sni-alpn",
+    "proto": "tls",
+    "summary": "SNI/ALPN 进 ClientHello 扩展：example.com + h2（T-TLS-2）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}},
+        {"tcp": {"src_port": 12346, "dst_port": 443}},
+        {"tls": {"sni": "example.com", "alpn": ["h2", "http/1.1"]}},
+        {"http": {}}
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 16,
+      "fields": [
+        {"packet": 4, "field": "tls.handshake.type", "value": "1"},
+        {"packet": 4, "field": "tls.handshake.extensions_server_name", "value": "example.com"},
+        {"packet": 4, "field": "tls.handshake.extensions_alpn_str", "value": "h2,http/1.1"},
+        {"packet": 6, "field": "tls.handshake.extensions_alpn_str", "value": "h2"}
+      ],
+      "notes": [
+        "sni 标量经层 config 原生通道进生成器（零新增代码）；alpn 标量同款直通",
+        "包 6 EncryptedExtensions 取 alpn[0]=h2（layer_gen.go:110）"
+      ]
+    }
+  },
+  {
+    "id": "tls-neg-flat",
+    "proto": "tls",
+    "summary": "负例：顶层扁平五键判死（T-TLS-3）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}},
+        {"tcp": {"src_port": 12345, "dst_port": 443}},
+        {"tls": {}},
+        {"http": {}}
+      ],
+      "src_ip": "10.0.0.1"
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "no longer accepts flat config field src_ip"
+    }
+  },
+  {
+    "id": "tls-neg-static-copy",
+    "proto": "tls",
+    "summary": "负例：层链静态复制拒绝 flows=2+全静态标量（T-TLS-4）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}},
+        {"tcp": {"src_port": 12345, "dst_port": 443}},
+        {"tls": {}},
+        {"http": {}}
+      ]
+    },
+    "strategy_fc": {"type": "flows", "value": 2},
+    "expect": {
+      "expect_error": true,
+      "error_contains": "static four-tuple"
+    }
+  },
+  {
+    "id": "tls-dyn-sni-list",
+    "proto": "tls",
+    "summary": "业务 sni list 轮转：a.com/b.com 两流（T-TLS-5）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}},
+        {"tcp": {"dst_port": 443, "src_port": {"strategy": "list", "list": ["41001", "41002"]}}},
+        {"tls": {"sni": {"strategy": "list", "list": ["a.com", "b.com"]}}},
+        {"http": {}}
+      ]
+    },
+    "strategy_fc": {"type": "flows", "value": 2},
+    "expect": {
+      "min_packets": 32,
+      "fields": [
+        {"packet": 4, "field": "tls.handshake.extensions_server_name", "distinct_values": ["a.com", "b.com"]}
+      ],
+      "notes": [
+        "tcp list 端口是 static-copy 门逃逸口；41001→a.com、41002→b.com（同序号域对齐）",
+        "包号以落盘 pcap 校准，不手算"
+      ]
+    }
+  },
+  {
+    "id": "tls-dyn-sni-pattern",
+    "proto": "tls",
+    "summary": "业务 sni pattern 替换：host1.com/host2.com 两流（T-TLS-6）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}},
+        {"tcp": {"dst_port": 443, "src_port": {"strategy": "list", "list": ["41002", "41003"]}}},
+        {"tls": {"sni": {"strategy": "pattern", "pattern": "host{n}.com", "range": [1, 2]}}},
+        {"http": {}}
+      ]
+    },
+    "strategy_fc": {"type": "flows", "value": 2},
+    "expect": {
+      "min_packets": 32,
+      "fields": [
+        {"packet": 4, "field": "tls.handshake.extensions_server_name", "distinct_values": ["host1.com", "host2.com"]}
+      ]
+    }
+  },
+  {
+    "id": "tls-dyn-sni-fixed",
+    "proto": "tls",
+    "summary": "业务 sni fixed 对照：单流恒为 a.com（T-TLS-5 对照端）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}},
+        {"tcp": {"src_port": 41003, "dst_port": 443}},
+        {"tls": {"sni": {"strategy": "fixed", "value": "a.com"}}},
+        {"http": {}}
+      ]
+    },
+    "expect": {
+      "min_packets": 16,
+      "fields": [
+        {"packet": 4, "field": "tls.handshake.extensions_server_name", "value": "a.com"}
+      ],
+      "notes": [
+        "fixed 是动态形状的退化对照端：对象写法、标量效果；单流 fixed 不触发 static-copy 门"
+      ]
+    }
+  },
+  {
+    "id": "tls-neg-dyn-closed-version",
+    "proto": "tls",
+    "summary": "负例：关闭字段 version/alpn/role 动态被拒（T-TLS-8）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}},
+        {"tcp": {"src_port": 41001, "dst_port": 443}},
+        {"tls": {"version": {"strategy": "list", "list": ["tls1.3", "tls1.2"]}}},
+        {"http": {}}
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "does not support dynamic"
+    }
+  },
+  {
+    "id": "tls-http-inner",
+    "proto": "tls",
+    "summary": "https 套娃：内层 http GET /tls-inner 包进 ApplicationData（T-TLS-9）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}},
+        {"tcp": {"src_port": 40000, "dst_port": 443}},
+        {"tls": {}},
+        {"http": {"method": "GET", "uri": "/tls-inner", "version": "1.1"}}
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 16,
+      "fields": [
+        {"packet": 4, "field": "tls.handshake.type", "value": "1"}
+      ],
+      "frames": [
+        {"packet": 11, "offset": 59, "hex": "47 45 54 20 2f 74 6c 73 2d 69 6e 6e 65 72"}
+      ],
+      "notes": [
+        "内层 http 请求字节经 tls 包成 ApplicationData record（content_type=23）；record 头 5B（17 03 03 + len），明文起点 offset=59",
+        "GET /tls-inner 明文 hex：47 45 54 20 2f 74 6c 73 2d 69 6e 6e 65 72；包号以落盘 pcap 校准"
       ]
     }
   }

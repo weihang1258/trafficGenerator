@@ -422,11 +422,12 @@ func TestT13_TLSChainValidateAndUnknownFields(t *testing.T) {
 		}
 		if sni, ok := exts[0x0000]; ok {
 			sniSeen = true
-			// SNI body: name_type(1)=0 + name_len(2) + name。
-			if len(sni) >= 3 && string(sni[3:]) == "example.com" && sni[0] == 0 && (int(sni[1])<<8|int(sni[2])) == 11 {
+			// SNI body (RFC 6066 §3): list_len(2) + name[name_type(1)=0 +
+			// name_len(2) + name]。"example.com" → list_len 14 + 0 + 11 + 名。
+			if len(sni) >= 5 && string(sni[5:]) == "example.com" && sni[0] == 0 && sni[1] == 14 && sni[2] == 0 && (int(sni[3])<<8|int(sni[4])) == 11 {
 				// 值正确
 			} else {
-				t.Errorf("ClientHello SNI extension body = %x, want name_type 0 + len 11 + \"example.com\"", sni)
+				t.Errorf("ClientHello SNI extension body = %x, want list_len 14 + name_type 0 + len 11 + \"example.com\"", sni)
 			}
 		}
 		if alpn, ok := exts[0x0010]; ok {

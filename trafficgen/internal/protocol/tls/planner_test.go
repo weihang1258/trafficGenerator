@@ -381,20 +381,31 @@ func TestTLS_Integration_SNI(t *testing.T) {
 		if extType == extensionSNI {
 			foundSNI = true
 			sniBody := extData[pos+4 : pos+4+extDataLen]
-			// ServerNameList: name_type(1) + name_len(2) + name
-			if len(sniBody) < 3 {
+			// ServerNameList (RFC 6066 §3): list_len(2) + ServerName[
+			// name_type(1) + name_len(2) + name].
+			if len(sniBody) < 2 {
 				t.Errorf("SNI body too short")
-			}
-			if sniBody[0] != 0x00 {
-				t.Errorf("SNI name_type=%d, want 0", sniBody[0])
-			}
-			nameLen := int(sniBody[1])<<8 | int(sniBody[2])
-			if nameLen+3 > len(sniBody) {
-				t.Errorf("SNI name_len=%d exceeds body len=%d", nameLen, len(sniBody))
 			} else {
-				gotSNI := string(sniBody[3 : 3+nameLen])
-				if gotSNI != "api.example.com" {
-					t.Errorf("SNI host_name=%q, want %q", gotSNI, "api.example.com")
+				listLen := int(sniBody[0])<<8 | int(sniBody[1])
+				name := sniBody[2:]
+				if listLen != len(name) {
+					t.Errorf("SNI list_len=%d, want %d (rest of body)", listLen, len(name))
+				}
+				if len(name) < 3 {
+					t.Errorf("SNI body too short")
+				} else {
+					if name[0] != 0x00 {
+						t.Errorf("SNI name_type=%d, want 0", name[0])
+					}
+					nameLen := int(name[1])<<8 | int(name[2])
+					if nameLen+3 > len(name) {
+						t.Errorf("SNI name_len=%d exceeds body len=%d", nameLen, len(name))
+					} else {
+						gotSNI := string(name[3 : 3+nameLen])
+						if gotSNI != "api.example.com" {
+							t.Errorf("SNI host_name=%q, want %q", gotSNI, "api.example.com")
+						}
+					}
 				}
 			}
 		}

@@ -786,13 +786,17 @@ func buildClientHello(legacyVersion uint16, sni string, cipherSuites, supportedG
 	// Build extensions
 	var extBuf []byte
 
-	// SNI extension
+	// SNI extension (RFC 6066 §3: ServerNameList = list_len(2) +
+	// ServerName[name_type(1) + name_len(2) + name]).
 	if sni != "" {
 		sniBytes := []byte(sni)
-		sniList := make([]byte, 3+len(sniBytes))
-		sniList[0] = 0x00 // name_type = host_name
-		binary.BigEndian.PutUint16(sniList[1:3], uint16(len(sniBytes)))
-		copy(sniList[3:], sniBytes)
+		name := make([]byte, 3+len(sniBytes))
+		name[0] = 0x00 // name_type = host_name
+		binary.BigEndian.PutUint16(name[1:3], uint16(len(sniBytes)))
+		copy(name[3:], sniBytes)
+		sniList := make([]byte, 2+len(name))
+		binary.BigEndian.PutUint16(sniList[0:2], uint16(len(name)))
+		copy(sniList[2:], name)
 		extBuf = appendExtension(extBuf, extensionSNI, sniList)
 	}
 

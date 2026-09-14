@@ -2015,10 +2015,21 @@ func TestTC_TLS_4_2_1_SNIMaxLength(t *testing.T) {
 		}
 		if extType == 0x0000 {
 			sniBody := extData[pos+4 : pos+4+extLen]
-			if len(sniBody) >= 3 {
-				nameLen := int(sniBody[1])<<8 | int(sniBody[2])
-				if nameLen != 253 {
-					t.Errorf("SNI name_len=%d, want 253", nameLen)
+			// ServerNameList (RFC 6066 §3): list_len(2) + name[
+			// name_type(1) + name_len(2) + name]；253B 域名 → list_len=256。
+			if len(sniBody) >= 2 {
+				listLen := int(sniBody[0])<<8 | int(sniBody[1])
+				if listLen != 256 {
+					t.Errorf("SNI list_len=%d, want 256 (3+253)", listLen)
+				}
+				name := sniBody[2:]
+				if len(name) < 3 {
+					t.Errorf("SNI body too short")
+				} else {
+					nameLen := int(name[1])<<8 | int(name[2])
+					if nameLen != 253 {
+						t.Errorf("SNI name_len=%d, want 253", nameLen)
+					}
 				}
 			}
 			return

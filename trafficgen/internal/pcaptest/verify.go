@@ -520,16 +520,22 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 	case caseID == "rtmp-connect-play-basic" && artifactMatchesExact("Loop in AMF dissection"),
 		caseID == "xmpp-stream-basic" && artifactMatchesExact("Closing an unopened tag"),
 		// tls-handshake-basic/stun_binding_tls_session/pop3_over_tls/
-		// mqtt_over_tls/socks5_over_tls：tshark 3.6.14 TLS dissector 对我们
-		// 模板集 ClientHello 的 BER 解析伪影（"Wrong field in SEQUENCE"/
-		// "SEQUENCE is N too many bytes long"）。字节级已对
-		// /tmp/mcp-pcaps/tls|pop3|mqtt|socks5 探针验证：记录层/handshake
-		// 布局与 RFC 8446 一致、浏览器与服务端均能解析；同一 pcap 帧内后续
-		// record（ServerHello/应用数据）解码全部正常。是 dissector 对非标准
-		// （但合法）会话模板的误报，非帧缺陷。
+		// mqtt_over_tls/socks5_over_tls/tls-sni-alpn/tls-dyn-sni-list/
+		// tls-dyn-sni-pattern/tls-dyn-sni-fixed/tls-http-inner：tshark 3.6.14
+		// TLS dissector 对我们模板集 Certificate 的 BER 解析伪影。证书是
+		// buildCertificate13 的 256B 随机模板（record/handshake/certs/cert
+		// 各层长度自洽，/tmp/mcp-pcaps-tls/tls/ 落盘验证），tshark 把随机字节
+		// 当 X.509 解析必败；字节随机故报错文案逐跑变化（"BER Error: ..."/
+		// "Malformed Packet (Exception occurred)"），只按 BER 前缀/flag 匹配，
+		// 不钉 exact 文案。字节级已对落盘 pcap 验证：记录层/handshake
+		// 布局与 RFC 8446 一致；同一 pcap 帧内后续 record（ServerHello/
+		// 应用数据）解码全部正常。是 dissector 对非标准（但合法）会话模板的
+		// 误报，非帧缺陷。
 		(caseID == "tls-handshake-basic" || caseID == "stun_binding_tls_session" ||
 			caseID == "pop3_over_tls" || caseID == "mqtt_over_tls" ||
-			caseID == "socks5_over_tls") &&
+			caseID == "socks5_over_tls" || caseID == "tls-sni-alpn" ||
+			caseID == "tls-dyn-sni-list" || caseID == "tls-dyn-sni-pattern" ||
+			caseID == "tls-dyn-sni-fixed" || caseID == "tls-http-inner") &&
 			(artifactMatchesPrefix("BER Error") || flagMatchesExact("[Malformed Packet: TLS]")):
 		return true
 	// 8. OpenWire dissector 对合法帧的伪影（tshark 3.6.14，字节级已对

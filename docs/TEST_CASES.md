@@ -1721,22 +1721,22 @@
 
 ### T-TLS-1 tls.json——1.3 握手冒烟基线【D-TLS-1 §3】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：9/9 绿）
 **级别：** pcap
-**来源：** D-TLS-1 §3（状态表：TCP 握手 3 归 tcp → TLS 握手 7 变换器先行注入 → 应用数据合成 128B 双向 → close_notify → 挥手 4）；RFC 8446 §4/§5.1（握手序列/record 头）；既有例 `tls-handshake-basic` 断言沿用（tshark 校准过的 17 帧口径）
-**目标：** 裸 `[ip,tcp,tls]` 链产完整序列（17 帧），TCP 握手/TLS 握手类型序/应用数据/close_notify 全部到位。
+**来源：** D-TLS-1 §3（状态表：TCP 握手 3 归 tcp → TLS 握手 7 变换器先行注入 → 应用数据内层委托 → 挥手 4）；RFC 8446 §4/§5.1（握手序列/record 头）；既有例 `tls-handshake-basic`（tshark 校准过的 16 帧口径）
+**目标：** `[ip,tcp,tls,http]` 链产完整序列（16 帧），TCP 握手/TLS 握手类型序/应用数据/挥手全部到位。
 
-**输入：** `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":12345,"dst_port":443}},{"tls":{}}]}`（`tls:{}` 空层走默认 1.3/client；严格层链形，顶层零扁平键）。
+**输入：** `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":12345,"dst_port":443}},{"tls":{}},{"http":{}}]}`（`tls:{}` 空层走默认 1.3/client；严格层链形，顶层零扁平键）。
 **前置条件：** 服务器二进制与 HEAD 同代；翻转已提交（`main.go` 走 ChainPlanner）。
 **执行：** `CASE_PROTO=tls go test -run TestProtocolPcapDrive ./test/protocol_pcap/ -v`（真实流程：MCP 建任务→引擎生成→tshark 校对）。
-**期望输出：** ≥16 包（既有例 min_packets=16 基线 + 翻转后实测回钉精确包数）；包 4 `tls.handshake.type=1`（ClientHello）、`tls.record.content_type=22`；包 5 type=2、包 6 type=8、包 7 type=11、包 8 type=15、包 9/10 type=20；包 11 `tls.record.length=128`（合成应用数据）；包 13 `tls.record.content_type=21`（close_notify）；`has_handshake/terminates/has_payload` 全真。包号/端口以落盘 pcap（tshark）校准钉死，不手算。
+**期望输出：** 16 包（3 握手 + 7 TLS 握手 + 2 应用数据 + 4 挥手；链化后应用数据恒由内层 http 委托，legacy 128B 合成/17 帧/close_notify 口径已过期）；包 4 `tls.handshake.type=1`（ClientHello）、`tls.record.content_type=22`；包 5 type=2、包 6 type=8、包 7 type=11、包 8 type=15、包 9/10 type=20；f11 frame offset 59 起 `GET / HTTP/1.1`（record len 53=0x35），f12 offset 59 起 `HTTP/1.1 200 OK`（record len 38=0x26）。包号/字节以落盘 pcap（tshark）校准钉死，不手算。
 **错误期望：** 无。
 **性能期望：** 回归 ±10%（翻转前 baseline wall 实测后回填 D-TLS-1 §6）。
 **实现位置：** `cases/tls.json`（tls-handshake-basic 改写）。
 
 ### T-TLS-2 tls.json——SNI/ALPN 进 ClientHello 扩展【D-TLS-1 §1】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap
 **来源：** D-TLS-1 §1（sni string 缺省空=不发扩展；alpn list 缺省空→生成器默认 [h2,http/1.1]，`layer_gen.go:97-101`）；RFC 8446 §4（扩展块）；`t13_tls_test.go:398`（sni/alpn 进扩展的既有断言）
 **目标：** 层 config 写 sni/alpn 时字节真实进入 ClientHello 扩展块（tshark `tls.handshake.extensions_server_name` / `tls.handshake.extensions_alpn_str`）。
@@ -1744,14 +1744,14 @@
 **输入：** 同链形 + `tls{"sni":"example.com","alpn":["h2","http/1.1"]}`。
 **前置条件：** T-TLS-1 绿。
 **执行：** 同 T-TLS-1。
-**期望输出：** 包 4 `tls.handshake.extensions_server_name=example.com`；包 4 `tls.handshake.extensions_alpn_str` 含 `h2,http/1.1`（ClientHello 双协议）；包 6 EncryptedExtensions ALPN 取首元素 `h2`（`layer_gen.go:110` buildEncryptedExtensions(alpn[0])）。包号以落盘 pcap 校准。
+**期望输出：** 包 4 `tls.handshake.extensions_server_name=example.com`；包 4 `tls.handshake.extensions_alpn_str` 含 `h2,http/1.1`（ClientHello 双协议）；包 6 EncryptedExtensions ALPN 取首元素 `h2`（`layer_gen.go:110` buildEncryptedExtensions(alpn[0])）。SNI 扩展 wire 形按 RFC 6066 §3：ServerNameList=list_len(2)+ServerName[name_type(1)+name_len(2)+name]，example.com 的 ext len=16（type 0；2026-09-14 修过缺 list_len 的真 bug，planner.go:789-799）。包号以落盘 pcap 校准。
 **错误期望：** 无。
 **性能期望：** 不适用。
 **实现位置：** `cases/tls.json`（tls-sni-alpn）。
 
 ### T-TLS-3 tls.json——顶层扁平五键判死负例【D-TLS-1 §5】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** Step1 CheckProtoFlat（`strategy_convert.go:7593` 全协议分支，tls 与全体协议同口径；单测 `TestProtoFlat_*` 家族已覆，本例钉 tls 真实流程落点。锚词 `no longer accepts flat config field`）
 **目标：** tls 策略带顶层 `src_ip/dst_ip/src_port/dst_port/count` 任一建任务即 400。
@@ -1766,7 +1766,7 @@
 
 ### T-TLS-4 tls.json——层链静态复制拒绝负例【D-TLS-1 §5】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** D-FTP-3 §5（`checkLayerChainStaticCopy`，`semantic.go:169`：层链显式标量四元组+无对象+flows>1 → 拒绝；逃生口=四元组侧写动态对象，http T-HTTP-60 tcp list 先例）
 **目标：** flows=2 + 全静态标量四元组建任务即被拒（两流同四元组的静态复制反模式执法）。
@@ -1781,7 +1781,7 @@
 
 ### T-TLS-5 tls.json——业务 sni list 轮转【D-TLS-1 §4】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap
 **来源：** D-TLS-1 §4（sni 开 string 面 fixed/list/pattern；序号算法与四元组同域 `ResolveStringValue(i)`，`tuple_generator.go:306`；生产真相=层 config 原生通道（标量）+ spec.TLS 通道（动态解析值，D-TLS-1 步骤 2），生成器 drive 期读 `layerCfg`（`translate.go:505`）+ legacy 兜底分支读 spec.TLS（`planner.go:389`）
 **目标：** flows=2 时两流 ClientHello 的 SNI 分别为 a.com、b.com（业务动态真随流序号变化；四元组同 i 对齐证据=tcp list 端口与 SNI 一一对应）。
@@ -1789,14 +1789,14 @@
 **输入：** 同链形 + `tcp.src_port{strategy list,list["41001","41002"]}`（static-copy 门逃逸口）+ `tls{"sni":{"strategy":"list","list":["a.com","b.com"]}}` + `strategy_fc{flows 2}`。
 **前置条件：** T-TLS-2 绿。
 **执行：** 同 T-TLS-1。
-**期望输出：** 两流各 17 帧（多流交织总数 ≥32 实测钉）；`41001→SNI a.com`、`41002→SNI b.com`（distinct 聚合断言，包号以落盘 pcap 校准）。
+**期望输出：** 两流各 16 帧（多流交织总数 32，落盘实测）；流 1 ClientHello 在 f4（srcport 41001→SNI a.com）、流 2 ClientHello 在 f20（srcport 41002→SNI b.com）（distinct 聚合断言，f4/f20 以落盘 pcap 校准；交织故固定包位无意义）。
 **错误期望：** 无。
 **性能期望：** 不适用。
 **实现位置：** `cases/tls.json`（tls_dyn_sni_list）。
 
 ### T-TLS-6 tls.json——业务 sni pattern 对照【D-TLS-1 §4】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap
 **来源：** D-TLS-1 §4（sni 开 pattern 面；`genStringValue` 的 `{n}` 替换与四元组 pattern 同算法，`shard_router.go:58` 单真相）
 **目标：** pattern `host{n}.com`、range[1,2]、flows=2 时两流 SNI 为 host1.com、host2.com。
@@ -1804,29 +1804,29 @@
 **输入：** 同 T-TLS-5 形状（tcp list["41002","41003"]）+ `tls{"sni":{"strategy":"pattern","pattern":"host{n}.com","range":[1,2]}}` + `strategy_fc{flows 2}`。
 **前置条件：** T-TLS-5 绿。
 **执行：** 同 T-TLS-1。
-**期望输出：** `41002→host1.com`、`41003→host2.com`（distinct 聚合）。
+**期望输出：** 流 1 ClientHello 在 f4（srcport 41002→host1.com）、流 2 ClientHello 在 f20（srcport 41003→host2.com）（distinct 聚合，f4/f20 以落盘 pcap 校准）。
 **错误期望：** 无。
 **性能期望：** 不适用。
 **实现位置：** `cases/tls.json`（tls_dyn_sni_pattern）。
 
-### T-TLS-7 tls.json——业务 sni rand 可复现【D-TLS-1 §4】
+### T-TLS-7 sni string 面 rand 拒绝（裁定表 F 同款）【D-TLS-1 §4】
 
-**状态：** 待执行（P5）
-**级别：** pcap
-**来源：** D-TLS-1 §4（string 面 rand 经 `genStringValue` 的 seed+index 可复现分支；§9 动态整格"可复现格"）
-**目标：** 同 seed+同 range 两次生成 SNI 序列逐流相同（可复现性证据，非抽样）。
+**状态：** 已执行（P5，2026-09-14：单测锁定，suite 未设 rand 例）
+**级别：** unit
+**来源：** D-TLS-1 §4（sni 开 string 面 fixed/list/pattern；inc/rand 无意义——`genStringValue` 的 rand 分支产整数串（`shard_router.go:87-97`），域名要的是字符串表/模板，形状层拒绝；`layer_dyn.go:169-170` 锚词 `not supported for string field`，http 裁定表 F 同款）
+**目标：** `tls{"sni":{"strategy":"rand",…}}` 在形状层即被拒，不进生成器。
 
-**输入：** 同链形 + `tcp.src_port{list["41001","41002","41003","41004"]}` + `tls{"sni":{"strategy":"rand","range":["a.com","m.com"],"seed":7}}` + `strategy_fc{flows 4}`。断言方式：跑两次（两次任务落两个 pcap），比较同端口流的 SNI 值逐流相等。
-**前置条件：** T-TLS-5 绿。
-**执行：** 同 T-TLS-1 跑两轮（pcap 路径 case_id 加 _r1/_r2 或两次覆盖同文件后手动 diff——P5 定稿执行细节）。
-**期望输出：** 两轮同端口号流的 SNI 值完全一致（seed 7 + 同序号同结果）。
-**错误期望：** 无。
+**输入：** `CheckLayerDynShape("tls","sni",{"strategy":"rand","range":["a","b"]})`（单测直调；tls.json 不设 rand 用例——拒绝发生在 create 期形状门，T-TLS-8 同款负例口径）。
+**前置条件：** 无。
+**执行：** `go test ./internal/core/ -run TestTLSSNIDyn_StringSurfaceRejected`。
+**期望输出：** 返回非空拒绝串，含 `not supported for string field`。
+**错误期望：** 即本条（形状拒绝）。
 **性能期望：** 不适用。
-**实现位置：** `cases/tls.json`（tls_dyn_sni_rand_repro）。
+**实现位置：** `internal/core/tls_dyn_lock_test.go:42`（`TestTLSSNIDyn_StringSurfaceRejected`，inc/rand 双例）。
 
 ### T-TLS-8 tls.json——关闭字段 alpn/version/role 动态被拒负例【D-TLS-1 §4】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** D-TLS-1 §4（version/role 关——常量协商：链只实现 1.3/client，逐流变无意义。`checkLayerDynObjects` allowlist 门 `validate_layers.go:116` 报 `does not support dynamic`）
 **目标：** `version{strategy list,…}` 或 `role{strategy …}` 建任务即被拒。
@@ -1841,7 +1841,7 @@
 
 ### T-TLS-9 tls.json——https 套娃（tls+http 内层委托）【D-TLS-1 §3】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap
 **来源：** D-TLS-1 §3（内层委托：终结层事件经 tls 包成 ApplicationData record，方向保留；`layer_gen.go:130-173` 变换契约 + 16385 分片）；`t13_tls_test.go:218`（record 在 TCP payload 的既有断言）
 **目标：** `[ip,tcp,tls,http]` 链产 TLS 握手 + 内层 http 请求/响应字节包进 ApplicationData record（tshark `tls.record.content_type=23` 且 record 内明文含 GET/HTTP 行）。
@@ -1849,7 +1849,7 @@
 **输入：** `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":40000,"dst_port":443}},{"tls":{}},{"http":{"method":"GET","uri":"/tls-inner","version":"1.1"}}]}`。
 **前置条件：** T-TLS-1 绿。
 **执行：** 同 T-TLS-1。
-**期望输出：** ≥17 帧；存在 content_type=23 record 且其明文（tshark `tls.segment.data` 或十六进制断言）含 `GET /tls-inner HTTP/1.1`；响应 record 含 `HTTP/1.1 200`。包号以落盘 pcap 校准。
+**期望输出：** 16 帧（3 握手 + 7 TLS 握手 + 2 应用数据 + 4 挥手）；f11 frame offset 59 起 `GET /tls-inner`（record len 62=0x3e），f12 明文含 `HTTP/1.1 200`（frames hex 断言，包号/字节以落盘 pcap 校准）。
 **错误期望：** 无。
 **性能期望：** 不适用。
 **实现位置：** `cases/tls.json`（tls_http_inner）。
