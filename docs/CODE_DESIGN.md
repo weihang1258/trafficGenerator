@@ -749,6 +749,96 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | E 动态面 | E1 只开 subject/san；E2 全开（含 key_type/日期） | E1 域名/CN 逐流变是真实场景，key_type/日期逐流变只破坏包长稳定性；E2 一开包长断言全废 | 选 E1 |
 | F subject 合并 | F1 用户 DN 整串替换默认；F2 子键合并（用户 CN+默认 O/C） | F1 语义清晰（写了=完整意图）；F2 "半个默认半个用户"的诡异 DN、解析复杂 | 选 F1 |
 
+### D-GRE-1 GRE 隧道层翻转 + 链校验器（tunnel 底座，P-PIPE #3）
+
+**门 1 开工对照表（§1–§14，2026-09-14 gre P-PIPE #3，证据=文档节/代码行/用例号）：**
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键 `count` 去向：数量走 `flow_control`（本例 count=1 缺省即单流，删即可）；顶层 `gre` 子映射（`{}` 空对象）去向：gre 层 config（`{"gre":{}}` 空配置随层走就是正键，key=0/checksum=false/sequence=false 全默认）；目标形状 `{"layers":[{"ip":{"src","dst"}},{"gre":{}},{"ip":{"src","dst"}},{"udp":{"src_port","dst_port"}}]}`（外层 ip→gre→内层 ip→udp；gre InnerRequired=[ip]，内层从 ip 开始，缺了自动补） | `pipe_gate.sh gre` 门 2-1；`registry.go:885` gre 层；T-GRE-1 |
+| §2 策略/任务分工 | 沿框架语义，不另设；gre 无 sessions，多流只走 `flow_control` + 层动态（本轮不开业务动态） | D-GRE-1 §3 |
+| §3 五件套 | 豁免：gre 无子流派生、无 sessions[]、无关联字段；单流=外层 1 帧（outer eth+ip proto47 + GRE头 + 内层完整 IPv4/UDP 包）；内层 L4 由内层终结层（udp）产出，gre 只做封装（与 tls 变换器不同：gre 是真隧道层，包内层字节）；时间线=同步产全部事件、无交错 | `layer_gen.go:1` 隧道契约；`planner.go:1` 封装语义；T-GRE-1 |
+| §4 规范矩阵 | RFC 2784（GRE 头：flags/version + ProtocolType；§3 转发语义）+ RFC 2890（Key/SequenceNumber 扩展；C/R/K/S 位）+ 现网口径（GRE over IPv4 为主，proto 0x0800；tshark 自动解析）；P1 矩阵见本条目依据行 | 本条目依据行 |
+| §5 有错必处理 | 校验器调 Planner.Validate + legacy 恒定语义 pin（gre 无握手/挥手可 pin——隧道层单帧封装，validator 只做 Validate 直传）；链结构性校验（内层 IPv4 必填，IPv6-over-GRE 链上不同步实现）在 ValidateSpec 同步拒（`chain_planner.go` gre 段既有）；扁平/混用沿 Step1 | `planner.go:50`；`chain_planner.go:200`；T-GRE-2/3 |
+| §6 性能 | 单帧封装（内层包一次拷贝 + 外层头装配）；无锁无 sleep；回归 ±10%（实测 wall 回填）；边界诚实声明（无吞吐/并发/内存目标，网卡未跑） | D-GRE-1 §6；T-GRE-1 |
+| §7 三份文档 | 设计=本条目；用例=T-GRE-*；cases 回指编号 | 本条目；TEST_CASES T-GRE-* |
+| §8 先设计后代码 | 本条目定稿后开工 | 本条目 |
+| §9 三源+整格 | RFC 2784/2890 条文 + 本条目 + 现网 GRE-over-IPv4 口径；本轮无动态整格（gre 业务 3 键全关） | T-GRE-* |
+| §10 评审闭环 | 改→审→测→修→再审；自审 N 轮；测试四问 | P6；门 3 |
+| §11 白话汇报 | 先一句结论 | 每次汇报 |
+| §12 动态清单 | 四元组沿框架白名单（外层/内层 ip + udp 端口走通用动态）；业务 3 键全关：key 关（tunnel 标识常量，逐流变无意义）/checksum 关（开关语义）/sequence 关（开关语义）——对象即 `does not support dynamic`；序号算法不重写 | `layer_dyn.go`（本轮零改动）；T-GRE-4 |
+| §13 schema 同步 | 本轮不改注册表 gre Fields（3 键不动），schemagen 零改动；顶层 `gre` 不迁入（空对象随层走，无迁移事项） | 门 2 脚本 |
+| §14 真实流程 | cases 即任务 spec；MCP 建任务→引擎生成→tshark 校对；负例带锚词；全量绿；二进制同代；包落盘可查 | T-GRE-1；门 2 三项 |
+
+目标形状（§1 证据）：`{"layers": [{"ip": {"src","dst"}}, {"gre": {"key","checksum","sequence"}}, {"ip": {"src","dst"}}, {"udp": {"src_port","dst_port"}}]}`（gre 3 键全列；`gre:{}` 空配置走默认 key=0/无checksum/无sequence）。
+
+**状态：** 定稿（2026-09-14）
+**范围（2026-09-14）：** ①`main.go:551` 翻转 `gre.NewPlanner()` → `layers.NewChainPlanner("gre")` + 空白导入（Step 2 同款一行；`main.go:38` 已有非空导入 `gre`，翻转后改空白导入）；②补 `RegisterLayerValidator("gre")`（tls `validateTLSSpec` 范式：调 `(&Planner{}).Validate(*spec)` 直传——gre 无握手/挥手可 pin，隧道层单帧封装；failing 先行红例直调 validator：spec.GRE nil→拒绝）；③gre.json 1 例 FLAT→层链改写（`count` 删 + `gre:{}` 进层 + 外层/内层 ip + 内层 udp 端口；`gre_basic_ipv4` 断言沿用，包号以落盘 pcap 校准）+ 负例 2 个（扁平判死 T-GRE-2 + static-copy 门 T-GRE-3 代表，锚词钉死）+ 关字段动态负例 1 个（T-GRE-4，key 对象即 `does not support dynamic`）。明确不解决：ARP-over-GRE（链上 InnerRequired=[ip]，ARP 内层无链层等价物；legacy 单测已覆字节）；IPv6-over-GRE（链上结构性拒绝，`chain_planner.go:200` 既有；legacy 单测已覆）；InnerTTL/InnerIPID/TCPOptions 链层注入（层 schema 无字段，生成器走默认 64/自增/无选项）；内层 TCP 链（本轮用例只整形既有 UDP 内层，TCP 内层由子女按需覆盖）；gre 业务动态（3 键全关，无整格用例）。等价证据：既有用例 frames hex（offset 34 `00 00 08 00` + offset 58 `30 39 00 50`）翻转前后逐字节比对，漂移则按 FTP Task 1 先例扩展事件 flag、不猜。
+**依据：** RFC 2784（GRE 头 §3：Flags(2B，C/R/K/S/Recursion/Version)+ProtocolType(2B)；转发语义 §3）；RFC 2890（Key 扩展 §3.1：K 位置位时 4B Key；SequenceNumber §3.2：S 位置位时 4B Sequence；Checksum/Routing §3.3-3.4——本实现 checksum 布尔即 C 位）；现网行为（GRE-over-IPv4 为主、proto 0x0800、tshark 自动解析；Key=0 不置 K 位是既有语义）；开源对照（只借帧结构思路：外层 IP proto 47 + GRE 4B 基头 + 内层完整包；不搬实现）。代码事实：legacy 全序列 `planner.go:177`（外层头 + GRE 头 + 内层包）+ Validate `planner.go:50`（ProtocolType 枚举/InnerIP 版本一致性/ARP 矛盾）+ 链隧道生成器 `layer_gen.go:1`（内层包字节自建 + L2.GRE 写 wire 配置 + 外层 proto 47）+ 链结构性校验 `chain_planner.go:200`（内层 IPv4 必填）+ 注册表 `registry.go:885`（tunnel 类、depends_on ip、InnerRequired=[ip]、3 键）+ 接线 `main.go:551`（legacy 待翻转）+ 生成器已注册（`layer_gen.go:174`，缺的只是 validator）。
+**配置权威：** 层链是唯一真相。地址只落内外层 `ip` 层、端口只落内层 `udp` 层、数量只走 `flow_control`；gre 业务 3 字段只落 `gre` 层（key/checksum/sequence）；顶层 `gre` 子映射是过渡载体（空对象随层走，无迁移事项）。扁平五键判死沿 Step1（`strategy_convert.go:7593` CheckProtoFlat）。
+
+#### 1. 数据与接口
+- 输入：层链 `[ip,gre,ip,udp]`（gre 层 config 3 键：key uint32 缺省 0、checksum bool 缺省 false、sequence bool 缺省 false；key=0 不置 K 位）；spec 侧四元组由层值回填（外层/内层 ip 同 spec 地址，legacy InnerSrcIP/InnerDstIP 默认即 spec 地址同款）。
+- 输出：单帧（outer eth + outer ip proto47 + GRE 基头 4B[+Key 4B][+Seq 4B] + 内层完整 IPv4 包 20B + 内层 UDP 8B + 载荷）。包数=1（既有用例口径）。
+- 新增/修改 Go 类型：无新类型（GREConfig 已有；层 schema 3 键齐全）。新增函数：`validateGRESpec`（`internal/protocol/gre/layer_gen.go` 尾，tls `validateTLSSpec` 同款：调 `(&Planner{}).Validate(*spec)` 直传，无 pin——gre 无握手语义）+ `init` 内 `layers.RegisterLayerValidator("gre", validateGRESpec)`。修改调用点：`main.go:551` 一行翻转 + 空白导入。
+- 显式覆盖：key 显式 0=不置 K 位（与缺席同效）；checksum/sequence 空串走链默认 false。spec.GRE 非 nil 不代表 flat 权威（链上不读 spec.GRE，无 flat-wins 分支——tls `layer_gen.go:27` 同款声明，gre 层 config 是接口）。
+
+#### 2. 依赖与生命周期
+- 前置：外层 ip（depends_on）+ 内层 ip（InnerRequired）。gre 是隧道层不能当末层——建链最小输入含内层（`[{"gre":{}},{"ip":{}},{"udp":{}}]` 之类；裸 `[{"gre":{}}]` 被 V4/V5 拒，T20 同款逻辑），补全后链恒为 `[ip,gre,ip,…]`。
+- 资源：无状态生成器；内层 IPID 自持 counter（legacy `InnerIPID+i` 链版：从 0 起每帧自增，避免与外层 IPID 双写竞态）；无锁无 sleep；取消经 ctx.Done 传播。
+
+#### 3. 主流程与状态
+- 状态表：单帧封装（内层包字节自建→L2.GRE 写 wire 配置→外层 builder 序列化）。无握手/挥手/序号推进（隧道层不管传输语义）。
+- 会话边界：单包单会话，无 sessions[]；多流只走 `flow_control` + 四元组层动态。
+- 父子流关系：无（gre 不派生子流；封装≠派生）。
+- 时间线：同步产全部包、无交错。
+
+#### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
+- 动态白名单：本轮零改动（`layer_dyn.go` 不加行——gre 业务 3 键全关；四元组沿框架白名单）。
+- 关的理由：key（tunnel 标识常量；逐流变=不同隧道，应拆不同策略）/checksum（开关语义）/sequence（开关语义）。
+- 序号算法不重写。
+- 正交组合矩阵：
+
+  | 维度 | 单流 | 多流 |
+  |---|---|---|
+  | 默认（无 flags） | T-GRE-1（1 帧，offset 34/58 hex） | ×（未建例：单帧隧道多流无需求） |
+  | Key | ×（未建例：将来开条目再补） | × |
+  | Checksum/Sequence | ×（未建例） | × |
+  | ARP-over-GRE | legacy 单测已覆（链上无内层等价物） | × |
+  | IPv6-over-GRE | legacy 单测已覆（链上结构性拒绝） | × |
+
+#### 5. 错误与异常
+- gre 校验器（本轮新补，tls 范式）：调 `(&Planner{}).Validate(*spec)` 直传（ProtocolType 枚举/InnerIP 版本一致性/ARP 矛盾）。无 pin（gre 无握手/挥手语义）。
+- 链结构性校验（已有，`chain_planner.go:200`）：内层 IPv4 必填（空/IPv6 同步拒绝，gre HIGH-2 先例）。
+- gre 专属负例（T-GRE-2/3/4，真实流程 error_contains）：①顶层扁平判死（Step1 CheckProtoFlat，锚词 `no longer accepts flat config field`——既有用例 `count`+顶层 `gre` 即判死对象）；②层链静态复制（`checkLayerChainStaticCopy`，锚词 `static four-tuple`，flows=2+全静态标量）；③关字段动态（`checkLayerDynObjects` allowlist 门，锚词 `does not support dynamic`，`key{"strategy"…}` 即拒）。
+- Failing 先行：validator spec.GRE nil→拒绝（红例直调）；key 对象→`does not support dynamic`（红例经 ValidateLayers）。
+
+#### 6. 性能设计与验收
+- 路径依据：单帧封装（内层包一次构建 + 外层一次序列化；内层 L4 校验和内联计算）；无锁、无 sleep；分段/限速/背压归外层 ip 与 worker（既有机制）。
+- 目标：不新增性能门；回归口径=现有套件耗时相对基线 ±10% 内。性能边界诚实声明：无目标吞吐/并发上限/内存上限数字（未测，标待确认，不承诺）。
+- pcap 验收：gre.json 全绿（P5 实测）+ 包落 `/tmp/mcp-pcaps/gre/` 可复查（tshark 断言 `gre.flags_and_version` + `gre.proto` + 内层 UDP 端口 + frames hex offset 34/58，不手算包号）；网卡验收：本机无发包口（未跑，pcap 一路已全绿）。
+
+#### 7. 实现顺序与回滚
+- 步骤 0（failing 先行）：`layer_validate_test.go` 新文件 2 红例直调 `validateGRESpec`（tls `layer_validate_test.go` 同款口径）：①spec.GRE nil→断言拒绝（当前无 validator 即红）；②`gre{"key":{"strategy":"list"…}}` 经 ValidateLayers→断言 `does not support dynamic`（当前 allowlist 无 gre 行……注意 allowlist 关=连顶层 key 都没有，对象在 `checkLayerDynObjects` 被拒——红例走 ValidateLayers 即红）。
+- 步骤 1（翻转 + 校验器）：`main.go:551` → `layers.NewChainPlanner("gre")` + 空白导入；`gre/layer_gen.go` 尾加 `validateGRESpec` + `init` 注册。
+- 步骤 2（门 2-1 脚本）：`pipe_gate.sh` 零改动（gre 无顶层协议子映射迁入事项）。
+- 步骤 3（自审 §10 + 构建测试）：`go build ./...` + `go vet` + touched 包 `-race`（core/layers/gre）→ P5 用例改写与 suite（另步）。回滚=本轮单提交逆序 revert。
+- 工作量（估计）：代码约 1 小时（2 文件 + 单测红例）；用例 gre.json 1 例改写 + 负例 3；suite 全量重跑。
+
+#### 8. 验收
+- 对应 `docs/TEST_CASES.md` T-GRE-1…4（P3 先行，见下）。
+- 完成条件：步骤 0 红例先红后绿；gre 包单测绿；gre.json suite 全绿（`RESULT` 全量绿；二进制同代；门 2 三项绿）；`go vet` + touched 包 `-race` 绿；在库 gre 行清空（删前报数→备份→删→复核：tasks 95 + strategies 3）；§1 两道门：①层链跑通（gre.json）；②旧字段移除（顶层 `count`+`gre` 判死：新建 400 + 在库 error + 门 2-1 脚本绿）。
+- 缺口如实记录：ARP/IPv6-over-GRE 链上实现；Key/Checksum/Sequence 整形例；内层 TCP 链例；Full 3588 + `go test ./internal/...` 待 Step 8。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A 翻转 | A1 ChainPlanner 一行；A2 保持 legacy | A1 归位层链，A2 留双轨违反 §1 | 选 A1 |
+| B validator 语义 | B1 Validate 直传无 pin；B2 照抄 tls pin 握手/挥手 | B1 gre 无握手语义，pin 无意义；B2 给隧道层 pin 握手是错语义 | 选 B1 |
+| C 业务动态 | C1 3 键全关；C2 开 key | C1 tunnel 标识逐流变应拆策略，无用例需求；C2 加无消费面的形状门 | 选 C1；将来有需求另立条目 |
+| D 内层协议 | D1 本轮只整形 UDP 内层（既有用例）；D2 顺手加 TCP 内层例 | D1 最小够用；D2 搭车加例无设计需求 | 选 D1 |
+
 
 ## 5. 设计评审闸门
 
