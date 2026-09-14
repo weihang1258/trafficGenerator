@@ -1946,7 +1946,7 @@
 
 ### T-GRE-1 gre.json——层链冒烟基线（内层 IPv4/UDP/DNS）【D-GRE-1 §3】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿，4/4）
 **级别：** pcap
 **来源：** D-GRE-1 §3（五件套豁免：单帧隧道封装；`layer_gen.go:1` 隧道契约——内层包字节自建 + L2.GRE 写 wire + 外层 proto 47）；RFC 2784 §3（GRE 头 flags/version + ProtocolType）；既有例 gre_basic_ipv4（tshark 校准过的 offset 34/58 口径）
 **目标：** `[ip,gre,ip,udp,dns]` 链产 1 帧：外层 eth+IP proto47+GRE 基头（flags 0x0000，proto 0x0800），内层完整 IPv4 包（UDP 12345→80 + DNS 查询载荷）。
@@ -1961,7 +1961,7 @@
 
 ### T-GRE-2 gre.json——顶层扁平五键判死负例【D-GRE-1 §5】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** Step1 CheckProtoFlat（`strategy_convert.go:7593` 全协议分支，gre 与全体协议同口径；单测 `TestProtoFlat_*` 家族已覆，本例钉 gre 真实流程落点。锚词 `no longer accepts flat config field`）
 **目标：** gre 策略带顶层 `src_ip/dst_ip/src_port/dst_port/count` 任一建任务即 400。
@@ -1976,7 +1976,7 @@
 
 ### T-GRE-3 gre.json——层链静态复制拒绝负例【D-GRE-1 §5】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** D-FTP-3 §5（`checkLayerChainStaticCopy`，`semantic.go:169`：层链显式标量四元组+无对象+flows>1 → 拒绝；tls T-TLS-4 同款代表例）
 **目标：** flows=2 + 全静态标量四元组建任务即被拒（两流同四元组的静态复制反模式执法）。
@@ -1991,7 +1991,7 @@
 
 ### T-GRE-4 gre.json——关字段 key 动态被拒负例【D-GRE-1 §12】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-14：绿）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** D-GRE-1 §12（key/checksum/sequence 3 键全关——tunnel 标识/开关语义逐流变无意义；`layer_dyn.go` allowlist 无 gre 行，对象在 `checkLayerDynObjects` 即拒，锚词 `does not support dynamic`）
 **目标：** `gre{"key":{"strategy":…}}` 建任务即被拒。

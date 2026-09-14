@@ -35,7 +35,8 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ftp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/gbt32960"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/goose"
-	"github.com/trafficgen/trafficgen/internal/protocol/gre"
+	// 空导入：gre 包 init 注册 gre 隧道层生成器 + 校验器（D-GRE-1 翻转）。
+	_ "github.com/trafficgen/trafficgen/internal/protocol/gre"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/igmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/isis"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ospf"
@@ -548,7 +549,10 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ike_nat_t"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("l2tp"))
 	app.engine.RegisterPlanner(pppoe.NewPlanner())
-	app.engine.RegisterPlanner(gre.NewPlanner())
+	// gre 切链式生成器（D-GRE-1：[ip→gre→ip→udp→dns] 隧道链驱动，gre 作
+	// 真隧道层——内层包字节自建 + L2.GRE wire 配置 + 外层 proto 47；gre 包
+	// init 反向注册隧道层生成器 + 校验器）。
+	app.engine.RegisterPlanner(layers.NewChainPlanner("gre"))
 	app.engine.RegisterPlanner(mpls.NewPlanner())
 	app.engine.RegisterPlanner(layers.NewChainPlanner("gtp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rdp"))

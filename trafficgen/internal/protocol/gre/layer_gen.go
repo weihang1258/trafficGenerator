@@ -174,4 +174,20 @@ func init() {
 	layers.RegisterLayerGenerator("gre", func() (layers.LayerGenerator, error) {
 		return &GREGenerator{}, nil
 	})
+	layers.RegisterLayerValidator("gre", validateGRESpec)
+}
+
+// validateGRESpec is the gre tunnel-layer spec validator (D-GRE-1 §5,
+// 2026-09-14 探针修订：nil 容忍). 纯层链路径 spec.GRE 恒 nil（链上生成器
+// 读 gre 层 config，不读 flat spec——layer_gen.go:38 既有声明），nil 直传
+// 放行；非 nil（flat gre 子映射/在库旧行）才走 legacy Planner.Validate
+// 全量校验（ProtocolType 枚举/InnerIP 与隧道模式一致性/ARP 矛盾/InnerProto
+// 枚举/Frames≥0/Direction 枚举）——在库旧策略启动期错误语义与 legacy 一致。
+// 无 pin：gre 无握手/挥手语义（隧道层单帧封装，不 pin 任何 TCP 恒定值）。
+// nil 容忍先例：vxlan/geneve/nvgre 的 ValidateConfig(nil) → nil。
+func validateGRESpec(spec *core.FlowSpec) error {
+	if spec.GRE == nil {
+		return nil
+	}
+	return (&Planner{}).Validate(*spec)
 }
