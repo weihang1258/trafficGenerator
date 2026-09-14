@@ -1783,7 +1783,7 @@
 
 **状态：** 待执行（P5）
 **级别：** pcap
-**来源：** D-TLS-1 §4（sni 开 string 面 fixed/list/pattern；序号算法与四元组同域 `ResolveStringValue(i)`，`tuple_generator.go:306`；生产真相=回填层 config 后生成器 `layer_gen.go:97` 读取——`req.Layer.Config` 是唯一读取面，与 http 的 spec.TLS 直传不同）
+**来源：** D-TLS-1 §4（sni 开 string 面 fixed/list/pattern；序号算法与四元组同域 `ResolveStringValue(i)`，`tuple_generator.go:306`；生产真相=层 config 原生通道（标量）+ spec.TLS 通道（动态解析值，D-TLS-1 步骤 2），生成器 drive 期读 `layerCfg`（`translate.go:505`）+ legacy 兜底分支读 spec.TLS（`planner.go:389`）
 **目标：** flows=2 时两流 ClientHello 的 SNI 分别为 a.com、b.com（业务动态真随流序号变化；四元组同 i 对齐证据=tcp list 端口与 SNI 一一对应）。
 
 **输入：** 同链形 + `tcp.src_port{strategy list,list["41001","41002"]}`（static-copy 门逃逸口）+ `tls{"sni":{"strategy":"list","list":["a.com","b.com"]}}` + `strategy_fc{flows 2}`。
@@ -1824,7 +1824,7 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/tls.json`（tls_dyn_sni_rand_repro）。
 
-### T-TLS-8 tls.json——关闭字段 version/role 动态被拒负例【D-TLS-1 §4】
+### T-TLS-8 tls.json——关闭字段 alpn/version/role 动态被拒负例【D-TLS-1 §4】
 
 **状态：** 待执行（P5）
 **级别：** pcap（Validate-negative：真实流程拒绝）
