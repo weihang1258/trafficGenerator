@@ -542,6 +542,111 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | D 载体检查 | D1 扩到 8 家全覆盖；D2 保持 3 家 | D1 `[tcp,gbt]` 类错链同步拒绝（dns 同款教训：drive 期报错变空流）；D2 少 5 个分支但错链行为未定义 | 选 D1 |
 | E ThinkTime（用户裁定删） | E1 删除字段（含解析+MCP 描述+前端+单测）；E2 留解析+文档写死不建模；E3 真实现 sleep | E1 字段零消费（grep 全仓：生成侧无 Sleep/Delay、无 Timestamp 步进；dnp3/mcp 协议自家 ThinkTime 不动），删后旧配置带该键走未知键忽略（config 节无 additionalProperties 约束，不 400）；E2 不删但语义永远假；E3 无包时间戳载体、sleep 只拖慢 suite | 选 E1 |
 
+### D-TLS-1 TLS 隧道层翻转 + 链校验器（9 协议可选底座）
+
+**门 1 开工对照表（§1–§14，2026-09-14 tls P-PIPE，证据=文档节/代码行/用例号）：**
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键 `src_ip/dst_ip/src_port/dst_port/count` 去向：地址进 `ip` 层、端口进 `tcp` 层、数量走 `flow_control`（P5 按通用改写规则）；顶层 `tls` 子映射本轮不迁入层（链上参数本就由层 config 驱动，`layer_gen.go:27` 不读 spec.TLS，迁入无消费方），D-条目“明确不解决”登记；目标形状 `{"layers":[{"ip":{"src","dst"}},{"tcp":{"src_port","dst_port"}},{"tls":{}}]}` | `pipe_gate.sh tls` 门 2-1 绿；`registry.go:869` tls 层；T-TLS-2 |
+| §2 策略/任务分工 | 沿框架语义，不另设；tls 无 sessions，多流只走 `flow_control` + 层动态 | D-TLS-1 §3 |
+| §3 五件套 | 豁免+内层委托：tls 无子流派生、无 sessions[]、无关联字段；单连接内序列=TCP 握手→TLS 握手→应用数据→挥手；内层委托=终结层事件经 tls 包成 ApplicationData record（方向保留），握手 record 先行注入；时间线=同步产全部事件、无交错 | `layer_gen.go:11` 变换器契约；`planner.go:371` legacy 序列；T-TLS-1 |
+| §4 规范矩阵 | RFC 8446（握手/record/分片 §5.2）+ 现网 1.3 为主口径 + 帧结构思路借鉴；P1 矩阵已交（八项逐项，链上 1.2/AlertPath 差异已接受并登记） | D-TLS-1 依据行；P1 矩阵 |
+| §5 有错必处理 | 校验器调 Planner.Validate + pin 握手/挥手（mqtt/D-HTTP-1 范式）；链结构性校验（version/role/SNI/ALPN）在 ValidateSpec 同步拒；扁平/混用沿 Step1 | `planner.go:158`；`chain_planner.go:221`；T-TLS-3/4 |
+| §6 性能 | 事件流式无全量收集（变换器逐事件转发）、无锁无 sleep；回归 ±10%（实测 wall 回填）；边界诚实声明（无吞吐/并发/内存目标，网卡未跑） | D-TLS-1 §6；T-TLS-5 |
+| §7 三份文档 | 设计=本条目；用例=T-TLS-*；cases 回指编号；schema 是机器契约不抄全文 | 本条目；TEST_CASES T-TLS-* |
+| §8 先设计后代码 | 本条目定稿后开工 | 本条目 §7 |
+| §9 三源+整格 | RFC 8446 条文 + 本条目 + 现网 1.3 口径；动态整格见 §4 清单 | T-TLS-*；§4 矩阵 |
+| §10 评审闭环 | 改→审→测→修→再审；自审 N 轮结论；测试四问 | T-TLS-5；门 3 抽查 |
+| §11 白话汇报 | 先一句结论；代号带解释；证据只贴路径与结论 | 每次汇报 |
+| §12 动态清单 | 四元组沿框架白名单；业务 4 键：sni 开（string 面 fixed/list/pattern，域名逐流变）/alpn 开（list 面，套件协商逐流变）/version 关（常量协商，链只 1.3）/role 关（常量，链只 client）；序号算法不重写 | `layer_dyn.go:17` 待加行；`tuple_generator.go`；T-TLS-6… |
+| §13 schema 同步 | 本轮若改注册表 tls Fields 必须重跑 `schemagen` 并提交生成文件；顶层 `tls` 不迁入故 `strategy.json` 不动 | `generated/layers.generated.json`；门 2 脚本 |
+| §14 真实流程 | cases 即任务 spec；MCP 建任务→引擎生成→tshark 校对；负例带锚词；全量绿；二进制同代；包落盘可查 | T-TLS-5；门 2 三项 |
+
+目标形状（§1 证据）：`{"layers": [{"ip": {"src","dst"}}, {"tcp": {"src_port","dst_port"}}, {"tls": {"version","sni","alpn","role"}}]}`（4 键全列；`tls:{}` 空配置走默认 tls1.3/client）。
+
+**状态：** 定稿（2026-09-14；用户指示继续执行即批）
+**范围（2026-09-14）：** ①`main.go:564` 翻转 `tls.NewPlanner()` → `layers.NewChainPlanner("tls")` + 空白导入（Step 2 同款一行）；②补 `RegisterLayerValidator("tls")`（mqtt/D-HTTP-1 范式：调 `(&Planner{}).Validate(*spec)` + spec.TCP nil 则建、pin `Handshake/Termination=true`； failing 先行，validator 零值 TCP 链不断握手）；③tls.json 1 例 FLAT→层链改写（通用改写规则；`tls:{}` 空配置随层走就是正键）+ 负例（扁平五键判死 + static-copy 门代表，锚词钉死）；④§12 业务动态清单落地（sni/alpn 开，allowlist 加行 + 形状门 + 用例，不预设策略面，P3 逐格定）。明确不解决：顶层 `tls` 子映射迁入层（链上无消费方，`layer_gen.go:27`；CheckProtoFlat 现不拦顶层 `tls`，与 http 当年不同——http 是有消费方才迁）；链上 1.2/1.1/1.0 路径（结构性只实现 1.3，同步拒绝；legacy 单测已覆字节）；链上 AlertPath/PSK/证书注入（层 schema 无字段，T13 不扩展）；任务级跨策略共用动态池（与 D-FTP-2 同口径另立条目）。等价证据：T13 链字节已由 `t13_tls_test.go` 钉死（record 头/握手序列/分片上限），翻转前后字节零漂移按 FTP Task 1 先例实测，漂移则扩展事件 flag、不猜。
+**依据：** RFC 8446（握手序列 §4/§7、record 头 §5.1/ContentType §5.1、分片上限 §5.2 的 2^14+1、supported_versions/key_share/signature_algorithms_cert 扩展）；RFC 1035（SNI 253 上限，经 legacy 注释引用）；现网行为（1.3 为主、1.2 兼容主流形态；SNI/ALPN 为真实部署必带项）；开源对照（只借帧结构思路：record 头 ContentType+Version+Length、握手头 Type+3B Length；不搬加密实现——synth 密文是既定语义，`planner.go:21` 已声明是发包程序不是网络设备）。代码事实：legacy 全序列 `planner.go:371`（TCP 握手→TLS 握手→应用数据→挥手）+ Validate `planner.go:158`（IP/版本/role/SNI/AlertPath/PSK）+ 链变换器 `layer_gen.go:11`（事件变换、握手先行注入、16385 分片）+ 链结构性校验 `chain_planner.go:221`（version/role/SNI/ALPN 同步拒）+ 注册表 `registry.go:869`（tunnel 类、depends_on tcp、4 键）+ 接线 `main.go:564`（legacy 待翻转）。
+**配置权威：** 层链是唯一真相。地址只落 `ip` 层、端口只落 `tcp` 层（FieldContract `tcp.dst_port=443`，`registry.go:871`）、数量只走 `flow_control`；tls 业务 4 字段只落 `tls` 层（version/sni/alpn/role）；顶层 `tls` 子映射是过渡载体（本轮不迁，见范围）。扁平五键判死沿 Step1（`strategy_convert.go:7593` CheckProtoFlat）。
+
+#### 1. 数据与接口
+- 输入：层链 `[ip,tcp,tls]`（tls 层 config 4 键：version string 缺省 tls1.3、sni string 缺省空、alpn list 缺省空→生成器默认 [h2,http/1.1]、role string 缺省 client）；spec 侧四元组由层值回填（Task 6 同款：层显式写才回填，dyn 对象跳过走 resolveLayerTuple）。
+- 输出：PacketConfig 流（TCP 握手 3 + TLS 握手 7（ClientHello→ServerHello→EE→Certificate→CertVerify→ServerFinished→ClientFinished）+ 应用数据（内层委托或合成 128B 双向）+ close_notify + 挥手 4/RST）。
+- 新增/修改 Go 类型：无新类型（TLSConfig 已有，`types.go:8038` 12 键；层 schema 4 键是其子集，翻译不需要——链上不读 spec.TLS）。新增函数：`validateTLSSpec`（`internal/protocol/tls/layer_gen.go` 尾，mqtt `layer_gen.go:236` + http `validateHTTPSpec` 同款：调 `(&Planner{}).Validate(*spec)` + spec.TCP nil 则建、pin Handshake/Termination=true）+ `init` 内 `layers.RegisterLayerValidator("tls", validateTLSSpec)`。修改调用点：`main.go:564` 一行翻转 + 空白导入 `_ "…/protocol/tls"`（已有 `:178`，保留；翻转后 legacy planner 仍被 validator 复用，不删包）。
+- 显式覆盖：tls 层 version/role 空串走链默认（1.3/client，与生成器 `:80` 同款）；sni 空=不发扩展；alpn 空=默认双协议。spec.TLS 非 nil 不代表 flat 权威（链上不读 spec.TLS，无 flat-wins 分支——与 http/dns 不同，`layer_gen.go:27` 已声明）。
+
+#### 2. 依赖与生命周期
+- 前置：tcp 层（depends_on，`registry.go:870`）；内层可选（tls 是隧道层，InnerRequired 为空，裸 `[ip,tcp,tls]` 合法，内层无事件时变换器只发握手+合成数据后退出——T13 证明需内层 http 才有委托数据，裸链走合成路径）。
+- 依赖状态：握手/分段/seq 推进全归 tcp 层（tls 只包 record，不管 TCP）；SNI/ALPN 只影响 ClientHello 扩展块字节，不改变包数。
+- 资源：无状态生成器（TLSGenerator 无字段）；无锁无 sleep；取消经 ctx.Done 传播（drain 纪律，`layer_gen.go:49`）。
+- 释放：事件流关闭=内层数据结束，变换器退出；drive 关通道（既有契约）。
+
+#### 3. 主流程与状态
+- 状态表：TCP 握手（3，归 tcp）→ TLS 握手（7，tls 变换器先行注入）→ 应用数据（内层委托逐事件包 record，或合成 128B 双向）→ close_notify（无 AlertPath 时）→ 挥手 4 / RST（归 tcp）。
+- 会话边界：单连接单会话，无 sessions[]；多流只走 `flow_control` + 层动态（四元组动态走 ip/tcp 层，业务动态走 §12 清单）。
+- 父子流关系：无（tls 不派生子流；与 ftp 数据通道不同）。
+- 时间线：同步产全部事件、无交错。序号空间：tcp 层推进（tls 只增 payload 长度，不碰 seq）。
+
+#### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
+- 动态白名单（本轮加 `layer_dyn.go:17` 行）：`tls: {sni, alpn}` 开；`version/role` 关（常量协商：链只实现 1.3/client，逐流变无意义，对象即 `does not support dynamic`）。
+- 开的理由：sni（域名是 §12 点名的关键业务字段，string 面 fixed/list/pattern）；alpn（协商列表逐流变是现网真实场景，list 面轮转；pattern/inc/rand 对列表无意义→形状层拒绝，锚词钉死）。关的理由见上。
+- 序号算法不重写（沿 `tuple_generator.go` genStringValue/genPort 同款；sni 走 string 面，alpn 走 list 面——P3 逐格定时锚词）。
+- 正交组合矩阵（已覆=例号；缺失=×）：
+
+  | 维度 | 单流 | 多流 |
+  |---|---|---|
+  | 默认 443 | T-TLS-1 | ×（待 P3 定：四元组动态+flows） |
+  | SNI | T-TLS-2（待建） | × |
+  | ALPN | T-TLS-2（待建） | × |
+  | 1.2 方言 | legacy 单测已覆（链上不同步实现，T13 不扩展） | × |
+  | AlertPath | legacy 单测已覆（链上不注入，T13 不扩展） | × |
+
+- 端口优先级：用户显式 tcp.dst_port > FieldContract 443 > 报错。
+- version 单一真相：层写裸（schema 默认 `tls1.3`）、线上为 record legacy_version 0x0303 + supported_versions 扩展 0x0304（生成器装配，`planner.go:279/807` 同款）。
+
+#### 5. 错误与异常
+- tls 校验器（本轮新补，mqtt/D-HTTP-1 范式）：调 `(&Planner{}).Validate(*spec)`（IP 格式 + MSS 下界 + 版本/role/SNI/AlertPath/PSK）+ spec.TCP nil 则建、pin `Handshake/Termination=true`（防零值跳握手；legacy tls 恒握手/挥手，链上同样不可关）。MSS 上界（65535）由链 `chain_planner.go:845` 覆盖（既有语义，与 http 同款）。
+- 链结构性校验（已有，`chain_planner.go:221`）：version 非 1.3 / role 非 client / SNI 超 253 / ALPN 名超 255 → ValidateSpec 同步拒绝（drive 期报错会被吞成空流，dns `:106` 同款教训）。validator 与结构性校验的分工：validator 管 legacy 全量语义（含 1.2 版/AlertPath/PSK 形状），结构性校验管链上子集（1.3/client + 长度上限）；1.2 版走链被结构性校验拒（不是 validator 拒），锚词 `not supported in the layer chain yet`。
+- tls 专属负例（T-TLS-3/4，真实流程 error_contains）：①顶层五键扁平判死（Step1 CheckProtoFlat，锚词 `no longer accepts flat config field`）；②层链静态复制（`checkLayerChainStaticCopy`，锚词 `static four-tuple`，flows=2+全静态标量）。顶层 `tls` presence 不判死（本轮明确不解决，见范围；CheckProtoFlat 现不拦顶层 `tls`）。
+- planner 错误中断 Plan（既有语义）；超时/重传归 tcp 层。扁平/混用拒绝沿 Step1。
+- Failing 先行：validator 零值 TCP 链→握手包存在（mqtt/D-HTTP-1 同款红例）；version tls1.2 链→结构性锚词（既有行为，新测钉死）；SNI 超 253→锚词（legacy Validate 与链校验双口径，各一例）。
+
+#### 6. 性能设计与验收
+- 路径依据：事件流式（变换器逐事件转发，无全量收集；每事件一次 record 装配 5B 头 + 载荷拷贝；握手 7 事件先行注入）；FileSource 无（tls 无文件载荷）；无锁（生成器无状态）、无 sleep；分段/限速/背压归 tcp 层与 worker（既有机制，本条目不另设）。
+- 目标：不新增性能门；回归口径=现有套件耗时相对基线 ±10% 内（FTP D-FTP-4 §6 同款口径；P5 实测 wall 回填：tls 1 例基线待测，CASE_PROTO 逐文件串行、服务端内 parallel=4）。性能边界诚实声明：无目标吞吐/并发上限/内存上限数字（未测，标待确认，不承诺）；无压力/长跑/耗尽场景（缺口）；单流最大报文未声明边界（record 分片只测 16385 上限一档，`layer_gen.go:180`）。
+- pcap 验收：tls.json 全绿（P5 实测）+ 包落惯例根 `/tmp/mcp-pcaps/<proto>/` 可复查（tshark 断言 TCP 握手 + `tls.handshake.type` + `tls.record.content_type`，不手算包号；落盘路径由 suite 按 `PCAP_ROOT/<proto>/<case>.pcap` 定）；网卡验收：本机无发包口（`NIC_RUN` 需物理口+root，本次未跑——缺口如实记录，pcap 一路已全绿）。
+
+#### 7. 实现顺序与回滚（2026-09-14；P1 矩阵已交，无矩阵不开工已满足）
+
+步骤 0（failing 先行，一步一红）：①validator 红例（`tls` 包新测试：零值 TCP 的 `[ip,tcp,tls]` 链 ValidateSpec→断言握手包存在，当前无 validator 即红——mqtt/D-HTTP-1 同款）；②翻转红例（`main.go` 仍 legacy 时 `tls.json` 层链形走 ChainPlanner→断言非空，当前接线即红；或等价单测）；③动态红例（层 `{"tls":{"sni":{"strategy":"list","list":["a.com","b.com"]}}}`→断言 parse 出值且形状放行，当前 allowlist 无 tls 行即红）。
+
+步骤 1（翻转 + 校验器）：`main.go:564` → `layers.NewChainPlanner("tls")`（空白导入已有 `:178`，保留）；`tls/layer_gen.go` 尾加 `validateTLSSpec` + `init` 注册（mqtt `layer_gen.go:236` + http `validateHTTPSpec` 同款，不读 spec.TLS——链上参数由层 config 驱动）。
+
+步骤 2（业务动态 2 开 2 关）：`layer_dyn.go:17` allowlist 加 `"tls": {sni, alpn}`；`parseLayerDyn` 加 `case "tls"` 分发（值出 `*StrategyConfig` 进 `LayerDynValues.TLS` 新结构 2 指针 + `HasAny` 扩展）；`checkDynShape`：sni 走 string 面（fixed/list/pattern，inc/rand 拒绝，http 裁定表 F 同款）、alpn 走 list 面（fixed/list，pattern/inc/rand 拒绝——列表无模板语义）；version/role 对象→`does not support dynamic`（allowlist 即真相）。回填点：tls 业务回填目标是**层 config**（不是 spec.TLS——链上不读 spec.TLS；回填进 Plan 前的层 config 覆盖层，disabled-by-default 的反例是 http——http 回填进 spec.HTTP 因生成器读 Meta；tls 生成器读 `req.Layer.Config`，故回填层 config）。回填时机说明：与 http `translateHTTPDyn` 同构（Plan→ValidateSpec→translate 内按 FlowIndex 直解，读 p.chain 原始链）——http 先例，不另发明机制。
+
+步骤 3（门 2-1 脚本）：`pipe_gate.sh` 现只查五键 + http 族 presence；tls 本轮顶层 `tls` 不迁入，脚本零改动（http 族 presence 红线不适用于 tls——tls 不是 http 族 9 协议）。
+
+步骤 4（自审 §10 + 构建测试）：自审走读（validator pin 握手/翻译无 flat-wins/动态 2 开 2 关/结构性校验分工、判死文案）；`go build ./...` + `go vet` + touched 包 `-race`（core/layers/tls）→ P5 用例改写与 suite（另步）。回滚=本轮单提交逆序 revert（翻转+validator+动态，一提交整体回滚；与 P5 用例提交独立）。
+
+工作量（估计）：代码约半天（3 文件 + 单测红例）；用例 tls.json 1 例改写 + 业务动态/SNI/ALPN/负例新例约 8；suite 全量重跑。
+
+适用性（其他协议层复用结论）：tunnel 层翻转范本（gre 照抄：翻转一行 + 校验器 + 层 config 即接口）；唯一要裁的是每协议自己的开/关清单与 string/list 面划分（tls 是 sni string 面 + alpn list 面）。
+
+#### 8. 验收
+- 对应 `docs/TEST_CASES.md` T-TLS-*（P3 待写，本条目先占位，P3 回填编号）。
+- 完成条件：步骤 0 三红例先红后绿；tls 包单测 + T13 链测试绿；tls.json suite 全绿（增量绿不算；8 子女回归确认零漂移——tls 是底座，http/dns/mqtt/smtp/pop3/imap/socks5/ftp 链回归逐个重跑）；`go vet` + touched 包 `-race` 绿；§1 两道门：①层链跑通（tls.json）；②旧字段移除（顶层五键判死：新建 400 + 在库 error + 门 2-1 脚本红；顶层 `tls` 不迁入故无 presence 门）。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A 翻转 | A1 ChainPlanner 一行；A2 保持 legacy | A1 归位层链（Step 2 同款），A2 留双轨违反 §1 | 选 A1 |
+| B 顶层 `tls` 去向 | B1 本轮不迁入、D-条目登记；B2 本轮迁入层 | B1 链上无消费方（`layer_gen.go:27`），迁入无收益；B2 动 schema 无收益 | 选 B1 |
+| C 字节漂移 | C1 先实测 T13 现有链字节、漂移则扩展事件 flag（FTP Task 1 先例）；C2 直接断言等价 | C1 是 plan 原话，C2 赌运气 | 选 C1 |
+| D 动态清单 | D1 sni/alpn 开、version/role 关，P3 逐格；D2 全关 | D1 符合 §12，D2 偷懒 | 选 D1，P3 逐格定 |
+| E 回填目标 | E1 回填层 config（生成器读层）；E2 回填 spec.TLS（生成器不读） | E1 对消费方，E2 写了白写 | 选 E1 |
+
 ## 5. 设计评审闸门
 
 代码设计完成后，必须按以下顺序评审：
@@ -555,3 +660,4 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 7. 文档 review 是否完成并记录“自审轮次、发现问题、修复结果”。
 
 未通过评审的设计不得改代码。需求变化时先改本文档，再改实现和测试。
+
