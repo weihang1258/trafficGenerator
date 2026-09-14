@@ -405,7 +405,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 
 业务动态清单（§12 证据，6 开 15 关；开=uri/body/body_b64/response_body/response_body_b64/response_status_code；关=method/version/headers/request_headers/keep_alive/transactions/response_headers/response_status_text/三编码开关/两transfer开关/chunk_size/pipelined/file_source——headers 两键闭是形状原因（map 型无动态形状，`StrategyConfig.List []string` 装不下 map，fixed 恒值又等价于静态），其余关是语义原因，理由见 §4 本节清单）。
 
-**状态：** 实现中（http 重走：门 1 对照表已交，本条目待改写；原“已验收”结论撤销——顶层 `http` 未迁入层、业务动态清单未列，§1/§12 未达标）
+**状态：** 已验收（2026-09-14：用户检查通过；http.json 67/67 绿，8 子女 suite 联验 621/621 绿，二进制同代，门 2/门 3 齐；门 3 抽查见本条目 §8）
 **范围（重走版，2026-09-13）：** ①顶层 `http` 迁入层（注册表 http Fields 5→21 键 + `ParseHTTPConfigFromMap` 新建为翻译/通用读单一真相 + 层翻译改调用 + 顶层 `http` presence 判死，ftp 范本；`ParseFTPConfigFromMap` 同构先例）；②http 业务 6 字段开动态（uri/body/body_b64/response_body/response_body_b64/response_status_code，解析+回填+用例，15 关理由见 §4 本节清单）；③用例补齐（层内 21 键 + 业务动态整格 + 迁入回归；http.json 53 例顶层 `http`→层内合并——`http_layer_version_bare` 已是层内形为合并范本，`headers`/`content_encoding` 两兼容键随层走就是正键/`response_content_encoding`）+ 8 子女联验全绿。明确不解决：`strategy.json` 形状改动（config 节无 additionalProperties 约束）；`main.go` 接线（已是 ChainPlanner，零改动）；HTTP/1.0 之外的新版本方言；任务级跨策略共用动态池（与 D-FTP-2 同口径另立条目）。原 P1 四缺口（校验器+FLV prefix+5 家载体+删 ThinkTime，已提交 64cc9d7）保持已验收，不重议。
 **依据：** RFC 9110（语义：请求行/状态行/头/体、Host、Connection）、RFC 9112 §6.3（持久连接与 pipelining）、RFC 7230 §3.3.3（Transfer-Encoding 优先于 Content-Length）/§4.1（chunk 帧）/§5.4（Host 为 1.1 强制）、RFC 1952（gzip）；现网行为（2026-09-13 本地实测，nginx 1.21.5 + Go 1.21 net/http 源码对照）：①无 Host 的 1.1 请求→`400 Bad Request`（有 Host→200；1.0 无 Host→200——与本实现 `isHTTP11` 门控一致）；②`Connection: keep-alive` 被接受→200（与 `defaultConnection` 多事务 keep-alive 一致）；③Go 源码 `request.go:Host` 字段注释（Host 头独立于 Header 表——与本实现 Host 单独处理一致）、`transfer.go:94`（ContentLength 0/-1 才发 chunked——与本实现 chunked 压制 Content-Length 一致）。开源对照：`net/http`（`request.go:Write` 请求行装配、`transfer.go` 分块；只借行为口径，不搬代码）。候选对比见 §9（A–E 五决策）。代码事实（见各节文件行）；存量（8 子女 554 例 + http.json 67 例 + http 单测 173 + `chain_planner_http_test.go` 8 测试）。
 **配置权威：** 层链是唯一真相。地址只落 `ip` 层、端口只落 `tcp` 层、数量只走 `flow_control`；http 业务 20 字段只落 `http` 层（注册表 21 键含兼容旧 `headers`，翻译见 §1；`core.ParseHTTPConfigFromMap` 是层翻译与顶层通用读的单一真相，翻译侧多一步 version 裸值 prefix 归一）。顶层 `http` 子映射已判死（http 族 9 协议：`CheckProtoFlat` presence 拒绝 + `mapToFlowSpec` 在库 error，ftp 范本同构；`pipe_gate.sh` 门 2-1 见顶层 `http` 即红）。扁平四元组判死沿 Step1（`strategy_convert.go:7609` + `schema/semantic.go:128` + `convert.go:166`）。
@@ -529,8 +529,9 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 裁定表 F（string 面动态策略集，`genStringValue` 已有五分支是依据）：uri/body/body_b64/response_body/response_body_b64 走 `fixed/list/pattern`（pattern `{n}` 替换是字符串天然语义，`applyPattern` 现成；inc/rand 的 range 端点是数值区间，对任意 URI/体字符串无意义——形状层拒绝 inc/rand，新锚词 `XXX strategy is not supported for string field`，用例钉死）；`response_status_code` 走 int 面 `fixed/inc/rand/list`（pattern 无意义→同门拒绝）。`checkDynEndpoints` 加 string 面分支（端点须 string，非 string 即 `invalid ... endpoint`）。request_headers/response_headers 两 map 键不在此表——map 型无动态形状（`List []string` 装不下 map），allowlist 直接关，对象即 `does not support dynamic`。
 
 #### 8. 验收
-- 对应 `docs/TEST_CASES.md` T-HTTP-*（P3 待写，本条目先占位，P3 回填编号）。
-- 完成条件：步骤 0 三红例先红后绿；173 单测 + chain_http 测试绿；9 文件 suite（608 例基线 + 新增层内 21 键/业务动态整格/迁入回归例，http 67 全绿，增量绿不算；8 子女回归逐个重跑确认零漂移；动态整格 T-HTTP-53…59（四元组维）+ 业务 6 整格新例 T-HTTP-60…72）；`go vet` + touched 包 `-race` 绿；§1 两道门：①层链跑通（子女 suite + http.json）；②旧字段移除（顶层 `http` presence 判死：新建 400 + 在库 error + 门 2-1 脚本红，T-HTTP-50 旁新增迁入负例钉锚词）。
+- 对应 `docs/TEST_CASES.md` T-HTTP-7…72（P3 已交，P5 全绿回钉）。
+- 完成条件（2026-09-14 实测）：http 包单测 + chain_http 测试绿；http.json 67/67 绿 + 8 子女 suite 联验 621/621 绿；`go vet` + touched 包 `-race` 绿；§1 两道门：①层链跑通；②旧字段移除（顶层五键判死 + 顶层 `http` presence 判死：新建 400 + 在库 error + 门 2-1 脚本绿）。
+- 门 3 抽查见 P-PIPE #1 汇报（用户 2026-09-14 检查通过）。
 
 #### 9. 关键决策对比
 
