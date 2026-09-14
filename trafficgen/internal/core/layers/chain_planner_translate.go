@@ -868,6 +868,17 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			hc.Version = "HTTP/" + hc.Version
 		}
 		spec.HTTP = hc
+		// D-TLS-1 步骤 2：tls 消费段（隧道层非末层，无独立 case 分支——挂在
+		// http 末层分支内）。读 p.chain 上 tls 层 config 的 sni：标量直写
+		// spec.TLS.SNI，动态对象按 spec.FlowIndex 直解写入（与 http :845 段
+		// 同构：读 p.chain 原始链、不读 term 补全链）。spec.TLS 非 nil 空壳
+		// （SNI/Version/Role/ALPN 全空——worker 防御性补建产物）不触发 flat
+		// 权威早返，翻译继续（http :836 空壳例外同款）。形状坏→静默返回
+		// （ValidateLayers 已在 create 期 400；此处覆盖引擎直调路径）。
+		// 写入目标 spec.TLS.SNI：legacy 兜底分支（planner.go:389-398 读
+		// spec.TLS，非 nil 优先）+ 生成器层 config 通道（applySpecToChain
+		// 剥离对象后注入解析值）的双通道中的 spec 侧一环。
+		translateTLSSNI(p, spec)
 	case "dns":
 		if spec.DNS != nil {
 			return // flat 权威
@@ -1042,6 +1053,60 @@ func translateHTTPDyn(cfg, raw map[string]interface{}, i int) string {
 		}
 	}
 	return ""
+}
+
+// translateTLSSNI resolves the tls-layer sni field (D-TLS-1 步骤 2，sni 开
+// 1 关 3 中的唯一开键）from the user raw chain into spec.TLS.SNI. Scalar
+// sni writes through; dynamic objects (strategy-bearing maps) resolve at
+// spec.FlowIndex via CheckLayerDynShape + ResolveStringValue (same domain
+// as worker resolveLayerTuple). Empty resolution is a no-op preserving the
+// static/default. Only the allowlisted sni key is read; alpn/version/role
+// objects are rejected at ValidateLayers and ignored here.
+// Reads p.chain (user raw chain, dynamic objects intact), not the completed
+// chain (objects stripped) — same rule as translateHTTPDyn's rawCfg.
+func translateTLSSNI(p *ChainPlanner, spec *core.FlowSpec) {
+	var rawCfg map[string]interface{}
+	for _, l := range p.chain {
+		if l.Name == "tls" {
+			rawCfg = l.Config
+			break
+		}
+	}
+	if rawCfg == nil {
+		return
+	}
+	// spec.TLS 非 nil 空壳（SNI/Version/Role/ALPN 全空）不算 flat 权威——
+	// 层 config 才是真相（http :839 空壳例外同款；tls 链上 spec.TLS 恒 nil
+	// 是合法态，有内容的 spec.TLS 才算 flat presence）。
+	if spec.TLS != nil && (spec.TLS.SNI != "" || spec.TLS.Version != "" ||
+		spec.TLS.Role != "" || len(spec.TLS.ALPN) > 0) {
+		return // flat 权威；二者并存时 flat 优先，层 config 忽略
+	}
+	if m, isObj := rawCfg["sni"].(map[string]interface{}); isObj && m != nil {
+		if _, looksDyn := m["strategy"]; looksDyn {
+			if msg := core.CheckLayerDynShape("tls", "sni", m); msg != "" {
+				return
+			}
+			var sc core.StrategyConfig
+			b, _ := json.Marshal(m)
+			if err := json.Unmarshal(b, &sc); err != nil {
+				return
+			}
+			if v := core.ResolveStringValue(&sc, spec.FlowIndex); v != "" {
+				if spec.TLS == nil {
+					spec.TLS = &core.TLSConfig{}
+				}
+				spec.TLS.SNI = v
+			}
+			return
+		}
+	}
+	if v, ok := rawCfg["sni"].(string); ok && v != "" {
+		if spec.TLS == nil {
+			spec.TLS = &core.TLSConfig{}
+		}
+		spec.TLS.SNI = v
+	}
 }
 
 // completedConfig overlays the user layer config onto the schema defaults

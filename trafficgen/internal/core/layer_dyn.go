@@ -23,6 +23,10 @@ var layerDynAllowlist = map[string]map[string]bool{
 	// 对象即 does not support dynamic）。map 型两键（request_headers/
 	// response_headers）无动态形状，直接关。
 	"http": {"uri": true, "body": true, "body_b64": true, "response_body": true, "response_body_b64": true, "response_status_code": true},
+	// D-TLS-1 步骤 2：tls 业务 sni 开 1 个（string 面；alpn/version/role 关，
+	// 对象即 does not support dynamic）。sni 是域名逐流变（T-TLS-5/6/7）；
+	// alpn 关：列表无允许的解析面且现状无轮转需求（D-TLS-1 适用性段）。
+	"tls": {"sni": true},
 }
 
 // parseLayerDyn extracts per-flow dynamic strategies from a decoded layers
@@ -117,6 +121,11 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 					case "response_status_code":
 						set(where, lname, f, &out.HTTP.ResponseStatusCode, v)
 					}
+				case "tls":
+					// D-TLS-1 步骤 2：sni 是本轮唯一开的业务键（string 面）。
+					if f == "sni" {
+						set(where, lname, f, &out.TLS.SNI, v)
+					}
 				}
 			}
 		}
@@ -138,7 +147,31 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 // D-HTTP-1 重走裁定表 F：http string 面 5 字段仅 fixed/list/pattern
 // （inc/rand 无意义，形状层拒绝）；response_status_code 走 int 面
 // fixed/inc/rand/list（pattern 无意义，拒绝）。
+// D-TLS-1 步骤 2：tls.sni 走 string 面（fixed/list/pattern；inc/rand/
+// unknown 同 http 裁定表 F 锚词 `not supported for string field`）。
+// alpn/version/role 不进本函数——allowlist 关门，由 checkLayerDynObjects
+// 先拦 `does not support dynamic`。
 func checkDynShape(where, lname, field string, s *StrategyConfig) string {
+	if lname == "tls" && field == "sni" {
+		switch s.Strategy {
+		case "fixed", "":
+			return ""
+		case "list":
+			if len(s.List) == 0 {
+				return fmt.Sprintf("%s: list strategy requires a non-empty list", where)
+			}
+			return ""
+		case "pattern":
+			if s.Pattern == "" || len(s.Range) != 2 {
+				return fmt.Sprintf("%s: pattern strategy requires a template and a 2-element range", where)
+			}
+			return ""
+		case "inc", "rand":
+			return fmt.Sprintf("%s: %s strategy is not supported for string field", where, s.Strategy)
+		default:
+			return fmt.Sprintf("%s: unknown dynamic strategy %q", where, s.Strategy)
+		}
+	}
 	if lname == "http" && field != "response_status_code" {
 		switch s.Strategy {
 		case "fixed", "":
@@ -560,6 +593,20 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 			if v := genSmallInt(*ld.HTTP.ResponseStatusCode, i, 0, 65535); v != 0 {
 				spec.HTTP.ResponseStatusCode = v
 			}
+		}
+	}
+	// D-TLS-1 步骤 2：tls 业务 sni 回填。string 面经 ResolveStringValue
+	// （fixed/list/pattern；空值 no-op 保留静态）。spec.TLS nil 时建空补后
+	// 再写（链上 spec.TLS 恒 nil 是合法态，防御性补建）；只写 SNI 一键，
+	// 不碰 Version/Role/ALPN（关字段，对象进不来）。
+	// 注意：http 段同款"只服务直调/单测口径"注记同样适用——链引擎路径
+	// （translateTLS 消费段）才是生产真相，见 chain_planner_translate.go。
+	if ld.TLS.SNI != nil {
+		if spec.TLS == nil {
+			spec.TLS = &TLSConfig{}
+		}
+		if v := ResolveStringValue(ld.TLS.SNI, i); v != "" {
+			spec.TLS.SNI = v
 		}
 	}
 }

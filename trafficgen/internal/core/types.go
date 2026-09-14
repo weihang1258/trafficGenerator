@@ -3551,6 +3551,12 @@ type LayerHTTPDyn struct {
 	ResponseStatusCode *StrategyConfig
 }
 
+// LayerTLSDyn holds tls-layer dynamic business-field strategies
+// (D-TLS-1 步骤 2: sni 开 1 个；alpn/version/role 关，指针恒 nil)。
+type LayerTLSDyn struct {
+	SNI *StrategyConfig
+}
+
 // LayerDynValues is the parsed per-flow dynamic strategy set from a layers
 // array (D-FTP-3). All pointers nil-able; nil = that endpoint is static.
 type LayerDynValues struct {
@@ -3559,6 +3565,7 @@ type LayerDynValues struct {
 	UDP  LayerTransportDyn
 	Eth  LayerEthDyn
 	HTTP LayerHTTPDyn
+	TLS  LayerTLSDyn
 }
 
 // HasAny reports whether any dynamic strategy is present.
@@ -3572,7 +3579,8 @@ func (l *LayerDynValues) HasAny() bool {
 		l.Eth.SrcMAC != nil || l.Eth.DstMAC != nil ||
 		l.HTTP.URI != nil || l.HTTP.Body != nil || l.HTTP.BodyB64 != nil ||
 		l.HTTP.ResponseBody != nil || l.HTTP.ResponseBodyB64 != nil ||
-		l.HTTP.ResponseStatusCode != nil
+		l.HTTP.ResponseStatusCode != nil ||
+		l.TLS.SNI != nil
 }
 
 // StrategyConfig for value generation strategies.
