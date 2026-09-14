@@ -175,7 +175,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tds"
 	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tftp"
-	"github.com/trafficgen/trafficgen/internal/protocol/tls"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/tls"
 	// 空导入：vmess 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/vmess"
 	"github.com/trafficgen/trafficgen/internal/protocol/vnc"
@@ -561,7 +561,10 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("redis"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mysql"))
 	app.engine.RegisterPlanner(ngap.NewPlanner())
-	app.engine.RegisterPlanner(tls.NewPlanner())
+	// tls 切链式生成器（D-TLS-1：[ip→tcp→tls→http] 隧道链驱动，tls 作事件
+	// 变换器（握手先行注入+内层事件包 record），TCP 握手/挥手/分段归 tcp 层；
+	// tls 包 init 反向注册隧道层生成器 + 校验器）。
+	app.engine.RegisterPlanner(layers.NewChainPlanner("tls"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("openvpn"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("shadowsocks"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("socks5"))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
 )
 
@@ -220,4 +221,29 @@ func init() {
 	layers.RegisterLayerGenerator("tls", func() (layers.LayerGenerator, error) {
 		return &TLSGenerator{}, nil
 	})
+	layers.RegisterLayerValidator("tls", validateTLSSpec)
+}
+
+// validateTLSSpec is the tls tunnel-layer spec validator (D-TLS-1 §5,
+// http validateHTTPSpec 同款：复用 legacy Planner.Validate（IP 格式 +
+// MSS 下界 + 版本枚举/role/SNI/AlertPath/PSK），再把 spec.TCP 握手/挥手
+// pin true——legacy tls.go 恒产握手/挥手（Plan :244 handshake/termination
+// 默认 true，spec.TCP nil 时更是恒 true），spec.TCP 零值 false 会让 tcp
+// 层生成器跳过握手/挥手。
+//
+// 注意：只做"校验 + 握手 pin"，不碰 spec.TLS——tls 层 config 的
+// version/sni/alpn/role 由生成器在 drive 期直接读 req.Layer.Config
+// （:80-101），没有"回填 spec.TLS 供生成器读"这一步（与 http 的
+// translateTerminalConfig→Meta.HTTP 直传不同）。链上 spec.TLS 恒 nil
+// 是合法态（legacy planner.go:227 同款默认兜底：nil → tls1.3）。
+func validateTLSSpec(spec *core.FlowSpec) error {
+	if err := (&Planner{}).Validate(*spec); err != nil {
+		return err
+	}
+	if spec.TCP == nil {
+		spec.TCP = &core.TCPConfig{}
+	}
+	spec.TCP.Handshake = true
+	spec.TCP.Termination = true
+	return nil
 }
