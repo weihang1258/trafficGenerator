@@ -1944,6 +1944,66 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/tls.json`（tls_cert_neg_keytype_value + tls_cert_neg_bad_date）。
 
+### T-GRE-1 gre.json——层链冒烟基线（内层 IPv4/UDP/DNS）【D-GRE-1 §3】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** D-GRE-1 §3（五件套豁免：单帧隧道封装；`layer_gen.go:1` 隧道契约——内层包字节自建 + L2.GRE 写 wire + 外层 proto 47）；RFC 2784 §3（GRE 头 flags/version + ProtocolType）；既有例 gre_basic_ipv4（tshark 校准过的 offset 34/58 口径）
+**目标：** `[ip,gre,ip,udp,dns]` 链产 1 帧：外层 eth+IP proto47+GRE 基头（flags 0x0000，proto 0x0800），内层完整 IPv4 包（UDP 12345→80 + DNS 查询载荷）。
+
+**输入：** `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"gre":{}},{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"udp":{"src_port":12345,"dst_port":80}},{"dns":{}}]}`（严格层链形，顶层零扁平键；`gre:{}` 空配置走默认 key=0/checksum=false/sequence=false；末层 dns 终结层必需——裸 [ip,gre,ip,udp] 被 V4 拒，D-GRE-1 探针修订）。
+**前置条件：** 服务器二进制与 HEAD 同代；翻转已提交（`main.go` 走 ChainPlanner）。
+**执行：** `CASE_PROTO=gre go test -run TestProtocolPcapDrive ./test/protocol_pcap/ -v`（真实流程：MCP 建任务→引擎生成→tshark 校对）。
+**期望输出：** 1 包；包 1 `gre.flags_and_version=0x0000`、`gre.proto=0x0800`、`udp.srcport=12345`、`udp.dstport=80`；f1 frame offset 34=`00 00 08 00`（GRE 头）、offset 58=`30 39 00 50`（内层 UDP 头）。整帧长与 legacy flat 形不等价（legacy 内层 28B 裸 UDP，层链形内层 57B 含 DNS 查询——D-GRE-1 范围如实声明），offset 34/58 两处 hex 与 udp 字段保持。包号/字节以落盘 pcap（tshark）校准钉死，不手算。
+**错误期望：** 无。
+**性能期望：** 回归 ±10%（翻转前 baseline wall 实测后回填 D-GRE-1 §6）。
+**实现位置：** `cases/gre.json`（gre_basic_ipv4 改写）。
+
+### T-GRE-2 gre.json——顶层扁平五键判死负例【D-GRE-1 §5】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** Step1 CheckProtoFlat（`strategy_convert.go:7593` 全协议分支，gre 与全体协议同口径；单测 `TestProtoFlat_*` 家族已覆，本例钉 gre 真实流程落点。锚词 `no longer accepts flat config field`）
+**目标：** gre 策略带顶层 `src_ip/dst_ip/src_port/dst_port/count` 任一建任务即 400。
+
+**输入：** `{"layers":[…同 T-GRE-1…],"count":2}`（层链+顶层旧键混用形状）。
+**前置条件：** 无。
+**执行：** 同 T-GRE-1（`expect_error` 路径：MCP 调用即拒）。
+**期望输出：** 任务失败；错误含 `no longer accepts flat config field count`。
+**错误期望：** 即本条（`expect_error` + `error_contains`）。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_neg_flat）。
+
+### T-GRE-3 gre.json——层链静态复制拒绝负例【D-GRE-1 §5】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-FTP-3 §5（`checkLayerChainStaticCopy`，`semantic.go:169`：层链显式标量四元组+无对象+flows>1 → 拒绝；tls T-TLS-4 同款代表例）
+**目标：** flows=2 + 全静态标量四元组建任务即被拒（两流同四元组的静态复制反模式执法）。
+
+**输入：** 同 T-GRE-1 链形（ip/udp 全标量）+ `strategy_fc{"type":"flows","value":2}`。
+**前置条件：** 无。
+**执行：** 同 T-GRE-2。
+**期望输出：** 任务失败；错误含 `static four-tuple`。
+**错误期望：** 即本条（`expect_error` + `error_contains`）。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_neg_static_copy）。
+
+### T-GRE-4 gre.json——关字段 key 动态被拒负例【D-GRE-1 §12】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-GRE-1 §12（key/checksum/sequence 3 键全关——tunnel 标识/开关语义逐流变无意义；`layer_dyn.go` allowlist 无 gre 行，对象在 `checkLayerDynObjects` 即拒，锚词 `does not support dynamic`）
+**目标：** `gre{"key":{"strategy":…}}` 建任务即被拒。
+
+**输入：** 同 T-GRE-1 链形 + gre 层 `{"key":{"strategy":"list","list":[100]}}`。
+**前置条件：** 无。
+**执行：** 同 T-GRE-2。
+**期望输出：** 任务失败；错误含 `does not support dynamic`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_neg_dyn_key）。
+
 ## 7. 用例审查与完成条件
 
 测试用例完成前必须进行两条审查：
