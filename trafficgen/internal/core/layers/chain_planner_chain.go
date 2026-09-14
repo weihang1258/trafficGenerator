@@ -515,6 +515,23 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 				// T3.3 retransmit：spec.TCP.Retransmit → tcp 层开关。
 				cfg["retransmit"] = t.Retransmit
 			}
+		case "tls":
+			// D-TLS-1 步骤 2：tls 层 sni 同键二态（tcp :406 同款语义）。
+			// 标量层值保持层值优先，不动（Task 6 修正同款）；动态对象（map，
+			// 有 strategy 键）不是可用 SNI——逐流真相在 spec（worker 的
+			// resolveLayerTuple 已把 LayerDyn.TLS.SNI 解析值写入 spec.TLS.SNI，
+			// 或 translateTLSSNI 在 ValidateSpec 内直解写入）。对象 + 非空
+			// spec.TLS.SNI → 注入解析值替换对象；对象 + 空（直接 Plan 未逐流
+			// 解析）→ 剥离回 schema 默认（空 = 不发扩展，生成器 :97 同款）。
+			// alpn/version/role 无分支：标量原生直通（零新增代码），对象在
+			// ValidateLayers 已被 allowlist 关门拒掉，到不了这里。
+			if v, has := l.Config["sni"]; has && isDynObject(v) {
+				if spec.TLS != nil && spec.TLS.SNI != "" {
+					cfg["sni"] = spec.TLS.SNI
+				} else {
+					delete(cfg, "sni")
+				}
+			}
 		}
 		out[i] = Layer{Name: l.Name, Config: cfg}
 	}
