@@ -1854,6 +1854,96 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/tls.json`（tls_http_inner）。
 
+### T-TLS-10 tls.json——cert 静态全填【D-TLS-2 §1】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** D-TLS-2 §1（cert 5 键：subject/san/key_type/not_before/not_after；RFC 5280 X.509 v3 结构；探针实证 2026-09-14：真 DER tshark 干净解出、BER 伪影消失）
+**目标：** 层 config 写完整 cert 块时，Certificate 帧（f7）携带可解析 X.509 DER，tshark 逐字段解出用户配置值（CN/O/C/SAN/有效期/序列号）。
+
+**输入：** 同 T-TLS-1 链形 + `tls{"cert":{"subject":"CN=api.test.local,O=TestOrg,OU=QA,L=Beijing,ST=Beijing,C=CN","san":["api.test.local","www.test.local"],"key_type":"ecdsa-p256","not_before":"2026-01-01T00:00:00Z","not_after":"2036-01-01T00:00:00Z"}}`。
+**前置条件：** T-TLS-1 绿。
+**执行：** 同 T-TLS-1。
+**期望输出：** 16 帧；f7 无 malformed 标记（白名单删除后 suite 仍绿的直接证据）；tshark x509 字段断言（字段名以落盘 pcap 实测定，候选：`x509af.rdnSequence`/`x509ce.dNSName`/`x509af.validity.notBefore` 等，不手猜）；序列号=SHA-256 派生（单测钉死算法，pcap 断言字段存在非零）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/tls.json`（tls_cert_static）。
+
+### T-TLS-11 tls.json——cert 缺席全默认（"缺省给全"执法）【D-TLS-2 §1】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** D-TLS-2 §1（用户裁定"缺省的时候数据也要给全"：cert 块缺席或单键缺席一律填完整默认值——CN=trafficgen-test,O=TrafficGen Test Lab,C=CN / SAN=[example.com] / ecdsa-p256 / 2026-01-01→2036-01-01，不报缺参错、不回退随机模板）
+**目标：** `tls:{}` 空层（无 cert）的 Certificate 帧同样携带完整默认 DER——5 字段全部非零上 wire。
+
+**输入：** 同 T-TLS-1 链形（`tls:{}`）。
+**前置条件：** T-TLS-10 绿。
+**执行：** 同 T-TLS-1。
+**期望输出：** 16 帧；f7 无 malformed；tshark 解出默认 CN=trafficgen-test、O=TrafficGen Test Lab、SAN=example.com（字段断言以落盘 pcap 定）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/tls.json`（tls_cert_default——既有 tls-handshake-basic 隐式覆盖本条，独立例只钉 x509 字段断言）。
+
+### T-TLS-12 tls.json——cert.subject list 轮转【D-TLS-2 §4】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** D-TLS-2 §4（cert.subject 开 string 面 list/pattern——CN 逐流变是现网真实场景；颗粒度=整 DN 串，用户写完整 DN）
+**目标：** flows=2 时两流 Certificate 的 Subject CN 分别为 a.test/b.test（DN 整串替换语义，F1 决策）。
+
+**输入：** 同 T-TLS-5 链形（tcp list 端口逃逸口）+ `tls{"cert":{"subject":{"strategy":"list","list":["CN=a.test,O=TrafficGen Test Lab,C=CN","CN=b.test,O=TrafficGen Test Lab,C=CN"]}}}` + `strategy_fc{flows 2}`。
+**前置条件：** T-TLS-10 绿。
+**执行：** 同 T-TLS-1。
+**期望输出：** 32 帧；两流 f7（按 srcport 分流）Subject 分别含 a.test/b.test（tshark x509 字段 distinct 聚合；f 位以落盘 pcap 校准）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/tls.json`（tls_cert_dyn_subject）。
+
+### T-TLS-13 tls.json——cert.san list 轮转【D-TLS-2 §4】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** D-TLS-2 §4（cert.san 开 string 面——SAN 逐流变同 sni 语义；单元素 list）
+**目标：** flows=2 时两流 Certificate 的 SAN 分别为 a.test/b.test。
+
+**输入：** 同 T-TLS-12 形状 + `tls{"cert":{"san":{"strategy":"list","list":["a.test","b.test"]}}}`。
+**前置条件：** T-TLS-12 绿。
+**执行：** 同 T-TLS-1。
+**期望输出：** 32 帧；两流 f7 SAN 分别 a.test/b.test（distinct 聚合）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/tls.json`（tls_cert_dyn_san）。
+
+### T-TLS-14 tls.json——cert 关字段 key_type 动态被拒负例【D-TLS-2 §4/§5】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-TLS-2 §4（key_type 关——密钥类型一切换证书长度/签名算法全变，包长断言全得重钉，无逐流变需求；`checkLayerDynObjects` 下钻 cert 后报 `does not support dynamic`）
+**目标：** `cert{"key_type":{"strategy":…}}` 建任务即被拒。
+
+**输入：** 同链形 + `tls{"cert":{"key_type":{"strategy":"list","list":["ecdsa-p256"]}}}`。
+**前置条件：** 无。
+**执行：** 同 T-TLS-3。
+**期望输出：** 任务失败；错误含 `does not support dynamic`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/tls.json`（tls_cert_neg_dyn_keytype）。
+
+### T-TLS-15 tls.json——key_type 未知值 + 坏日期拒绝负例【D-TLS-2 §5】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-TLS-2 §5（key_type 枚举仅 ecdsa-p256，锚词 `not supported yet`；日期 RFC3339 解析失败锚词；not_after ≤ not_before 锚词）
+**目标：** key_type="rsa-2048" 或 not_before="不是日期" 建任务即被拒。
+
+**输入：** 两例：①同链形 + `tls{"cert":{"key_type":"rsa-2048"}}`；②同链形 + `tls{"cert":{"not_before":"yesterday"}}`。
+**前置条件：** 无。
+**执行：** 同 T-TLS-3。
+**期望输出：** ①错误含 `not supported yet (only "ecdsa-p256")`；②错误含 `invalid RFC3339 timestamp`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/tls.json`（tls_cert_neg_keytype_value + tls_cert_neg_bad_date）。
+
 ## 7. 用例审查与完成条件
 
 测试用例完成前必须进行两条审查：

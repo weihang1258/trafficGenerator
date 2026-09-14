@@ -653,6 +653,100 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | D 动态清单 | D1 sni 开 1 关 3（alpn/version/role 关），P3 逐格；D2 sni+alpn 双开；D3 全关 | D1 符合 §12 最小够用（alpn 开无解析面、无用例需求，见适用性）；D2 加一个"固定串"伪动态+一套无消费面的形状门；D3 偷懒（域名逐流变是真实需求） | 选 D1；alpn 将来有轮转需求时另立条目再开，不在本轮搭车 |
 | E 回填目标 | E1 标量走层 config 原生通道（零新增）+ 动态 sni 经 LayerDyn→spec.TLS→写回本流层 config（http translateHTTPDyn 同构）；E2 只回填 spec.TLS（生成器不读，白写）；E3 只回填层 config（动态对象无处可存） | E1 两条通道各走各的；E2 动态值到不了生成器；E3 动态对象进不了层 config | 选 E1 |
 
+### D-TLS-2 TLS 证书明文配置（cert 块 + 真 DER 替换 256B 随机模板）
+
+**门 1 开工对照表（§1–§14，2026-09-14 D-TLS-2，证据=文档节/代码行/用例号）：**
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | cert 是 tls 层内第 5 个字段（嵌套对象，与 sni/alpn 并列，用户裁定形状）：`{"tls":{"cert":{"subject","san","key_type","not_before","not_after"}}}`；顶层无新增任何键；目标形状 `{"layers":[{"ip":…},{"tcp":…},{"tls":{"sni","cert":{…}}},{"http":{}}]}` | `registry.go:869` tls Fields +cert 行（本轮加）；T-TLS-10 |
+| §2 策略/任务分工 | 沿框架语义；tls 无 sessions，cert 逐流值走 `flow_control` + cert 动态（同 sni 口径） | D-TLS-1 §2 |
+| §3 五件套 | 豁免同 D-TLS-1（无子流派生/sessions/关联）；cert 不改变包数（16/32 帧口径不变，Certificate record 变长不分段——DER ~4xx B < MSS 1460） | D-TLS-1 §3；T-TLS-1 |
+| §4 规范矩阵 | RFC 5280（X.509 v3：TBSCertificate 序列/Issuer/Validity/Subject/SPKI/Extensions/Signature）+ RFC 8446 §4.4.2（Certificate 消息：ctx+list_len+entry[len+der+ext]）；P1 矩阵=本条目依据行 + 2026-09-14 探针实证（固定种子 P-256 标量 + 固定签名熵 reader → `x509.CreateCertificate` DER 逐字节确定，默认参数 465B，`x509.ParseCertificate` 回读 CN/O/C/SAN 完整） | 本条目依据行；/tmp/certprobe 探针（2026-09-14，Go 1.21.13） |
+| §5 有错必处理 | cert 子键枚举校验（subject/san/key_type/not_before/not_after；未知子键拒绝）+ key_type 枚举（本轮仅 ecdsa-p256）+ 日期 RFC3339 解析失败拒绝——全部在 create 期（ValidateLayers/V9 路径）与链结构性校验同步拒，锚词钉死；drive 期防御（certgen 返回 error 中断 Plan） | `chain_planner.go:221` 同款结构性段（本轮扩 cert）；T-TLS-14/15 |
+| §6 性能 | DER 生成带 sync.Map 缓存（同参数→同 DER，cache hit=map 查找）；首次生成=1 次 ECDSA 签名 ~100µs；无锁竞争（缓存只读命中）；回归 ±10% 沿 D-TLS-1 口径 | certgen.go（本轮新文件）§6 |
+| §7 三份文档 | 设计=本条目；用例=T-TLS-10…15；cases 回指编号 | 本条目；TEST_CASES |
+| §8 先设计后代码 | 本条目定稿（用户 2026-09-14 三轮裁定：形状可/缺省给全/公司名 TrafficGen Test Lab）后开工 | 本条目 |
+| §9 三源+整格 | RFC 5280 条文 + 本条目 + tshark 实际解出的字段（P5 落盘校准）；动态整格：subject/san 各 fixed/list/pattern 三格 + 关字段负例 | T-TLS-10…15 |
+| §10 评审闭环 | 改→审→测→修→再审；自审 N 轮；测试四问 | P6；门 3 |
+| §11 白话汇报 | 先一句结论 | 每次汇报 |
+| §12 动态清单 | cert 块内：subject 开（string 面 fixed/list/pattern——CN 逐流变是现网真实场景）/san 开（string 面 fixed/list/pattern——SAN 逐流变同 sni 语义）；key_type 关（密钥类型一切换证书长度/签名算法全变，包长断言全得重钉，无逐流变需求）/not_before 关（时间常量）/not_after 关（时间常量）——对象即 `does not support dynamic`；序号算法不重写（`genStringValue` 同域） | `layer_dyn.go` allowlist + cert 嵌套提取（本轮）；T-TLS-12/13/14 |
+| §13 schema 同步 | tls Fields 4→5 键，必须重跑 `schemagen` 并提交生成文件；顶层 `tls` 不动 | `generated/layers.generated.json`；门 2 脚本 |
+| §14 真实流程 | cases 即任务 spec；MCP→引擎→tshark；x509 字段断言（CN/O/SAN/有效期/序列号）以落盘 pcap 校准；负例带锚词；全量绿；二进制同代 | T-TLS-10…15 |
+
+目标形状（§1 证据）：`{"tls":{"cert":{"subject":"CN=trafficgen-test,O=TrafficGen Test Lab,C=CN","san":["example.com"],"key_type":"ecdsa-p256","not_before":"2026-01-01T00:00:00Z","not_after":"2036-01-01T00:00:00Z"}}}`（5 键全列；块整体缺席或单键缺席一律填完整默认值——用户裁定"缺省时数据也要给全"，不报缺参错、不回退随机模板）。
+
+**状态：** 定稿（2026-09-14；用户三轮裁定后批）
+**范围（2026-09-14）：** ①`internal/protocol/tls/certgen.go` 新文件：固定测试密钥派生（SHA-256 种子 → P-256 标量，`ScalarBaseMult` 推公钥；私钥永不进配置/永不落盘）+ `BuildCertDER(ref *core.X509Ref) ([]byte, error)`（默认值填全 → DN 解析（CN/O/OU/L/ST/C）→ SAN → 固定有效期 → 序列号=SHA-256(subject|san|notBefore|notAfter|keyType) 前 8B → 固定模板（KeyUsage DigitalSignature|KeyEncipherment、ExtKeyUsage ServerAuth、BasicConstraintsValid、IsCA=false、自签 Issuer=Subject）→ `x509.CreateCertificate`（固定签名熵 reader，Go 1.21 ECDSA 需 reader 供 mixedCSPRNG，nil 会 panic——实证）→ sync.Map 缓存）；②`buildCertificate13/12`（`planner.go:997/1032`）弃 256B `rand.Read` 模板改用 `BuildCertDER`（serverCert nil → 默认 ref；`t.ServerCertificate` 死参数复活——legacy flat 路径的 X509Ref 配置首次真正上字节）；③层链侧：`registry.go` tls Fields +`"cert":{Type:"object"}`（重跑 schemagen）+ `chain_planner.go` 结构性校验扩 cert 段（子键枚举/key_type 枚举/日期解析/SAN 条目 ≤253/subject DN 合法性）+ `layer_gen.go` 生成器读 `cfg["cert"]` → `parseCertConfig`（RFC3339 日期→unix，subject/san/key_type 直读）→ `buildCertificate13(ref,false)`；④动态：`layer_dyn.go` allowlist tls 行扩 cert.subject/cert.san（嵌套提取——parseLayerDyn 下钻一层；`checkLayerDynObjects` 对 tls.cert 下钻：subject/san 对象走 string 面形状门，key_type/not_before/not_after 对象即 `does not support dynamic`，未知子键拒绝）+ `LayerTLSDyn` +CertSubject/CertSAN + `resolveLayerTuple` 回填 `spec.TLS.ServerCertificate` + `translateTLSCert`（chain 引擎路径，translateTLSSNI 同构）+ `applySpecToChain` tls 分支扩 cert（对象→注入 spec 解析值/空则剥离子键回默认）；⑤tls.json 新例 6 个（T-TLS-10…15）+ 既有 6 例 frame7 断言/notes 按 pcap 回钉（record 269→~4xx）+ `pcaptest/verify.go` 白名单删 6 个 tls 用例 ID（真 DER tshark 干净解出，BER 伪影消失——这是本条目的主要动机）。明确不解决：key_type 仅 ecdsa-p256（rsa-2048/rsa-4096/ecdsa-p384 拒绝，锚词 `not supported yet`——RSA 需嵌入 1.2KB 固定测试私钥常量或确定性素数搜索（~秒级），无需求先不做）；client cert/mTLS（链上无 CertificateRequest 序列）；extensions 可配（KeyUsage/ExtKeyUsage/BasicConstraints 固定模板）；issuer 可配（恒自签）；serial 可配（恒派生）；cert.file_source（层链 drive 期无证书文件注入通道，且与"明文可配"目标无关）；顶层 `tls.server_certificate` 迁移（沿 D-TLS-1 裁定，flat 载体本轮不动）。
+**依据：** RFC 5280（X.509 v3 结构 §4.1：tbsCertificate 序列=version/serialNumber/signature/issuer/validity/subject/subjectPublicKeyInfo/extensions，签名值覆盖 TBS）；RFC 8446 §4.4.2（Certificate 消息：certificate_request_context(1)+certificate_list(3)+entry[cert_length(3)+cert_data+extensions(2)]——D-TLS-1 已钉的 wire 布局不动，只换 cert_data 内容）；RFC 5280 §4.2.1.6（SAN dNSName）；现网行为（真实 TLS 部署的 Certificate 恒为可解析 X.509 DER——tshark/Wireshark/浏览器都能解；我们旧 256B 随机模板被 tshark BER 解码报 `[Malformed Packet: TLS]`，是 D-TLS-1 白名单注释已承认的 dissector 伪影）；探针实证（2026-09-14，/tmp/certprobe，Go 1.21.13：①固定种子 P-256 标量 + `ScalarBaseMult` → 密钥跨进程稳定；②`x509.CreateCertificate(detReader, …)` 同参数两次调用 DER 逐字节相等；③默认参数 DER 465B；④`x509.ParseCertificate` 回读 CN/O/C/SAN 完整；⑤subject 变化 → DER 变化（序列号派生生效））。代码事实：`buildCertificate13/12` 现状 256B `rand.Read`（`planner.go:1005-1006/1033-1034`）+ `serverCert` 参数恒被忽略（死参数）+ `X509Ref`（`types.go:8081` Subject/San/NotBefore/NotAfter/KeyType/FileSource 六键，flat 侧解析齐全但无消费方）+ 白名单 `verify.go:534`（6 个 tls 用例 ID 挂 BER 伪影豁免）+ `layerDynAllowlist["tls"]={"sni"}`（`layer_dyn.go:29`）。
+**配置权威：** 层链是唯一真相。cert 5 字段只落 `tls` 层的 `cert` 对象内；动态只开 subject/san（string 面）；私钥永不进配置（固定种子运行期派生）；默认值在 certgen 单点填全（subject="CN=trafficgen-test,O=TrafficGen Test Lab,C=CN"、san=["example.com"]、key_type="ecdsa-p256"、not_before=2026-01-01T00:00:00Z、not_after=2036-01-01T00:00:00Z——固定常量非 time.Now()，保 DER 逐字节确定）。
+
+#### 1. 数据与接口
+- 输入：tls 层 config 第 5 键 `cert`（嵌套对象，5 子键全可选——缺席填默认）；动态对象写在 `cert.subject`/`cert.san` 上（同键二态：标量=静态值，对象=逐流策略）。
+- 输出：Certificate 帧的 cert_data 从 256B 随机 → 真 X.509 DER（默认 465B；record/handshake/list/entry 四层长度字段按 `len(der)` 算，`buildCertificate13` 现有长度装配代码不动）。包数不变（16/32）；frame 7 TCP len 274→~4xx。
+- 新增：`certgen.go`（`fixedP256Key()`、`BuildCertDER(ref)`、`parseCertConfig(map) *core.X509Ref`、DER 缓存）；修改：`planner.go` 两函数换数据源、`registry.go` +1 字段、`chain_planner.go` 校验段、`layer_dyn.go` 嵌套提取、`chain_planner_translate.go` +`translateTLSCert`、`chain_planner_chain.go` tls 分支扩 cert、`layer_gen.go` 生成器读 cert、`verify.go` 删 6 白名单 ID。
+- 显式覆盖：cert 子键空值=默认（"缺省给全"裁定）；`"cert":{}` 空对象=全默认（与缺席同效）；subject 只填 `CN=x` 时 O/C 仍给默认（DN 合并：用户键覆盖默认键，缺的键用默认——NOT 整串替换）。
+
+#### 2. 依赖与生命周期
+- 前置：无新依赖（Go 标准库 crypto/x509、crypto/ecdsa、crypto/sha256）。
+- 资源：sync.Map 缓存（key=规范化参数串，value=[]byte DER；同参数恒同 DER，只读命中无竞争）；每唯一配置 ~500B 内存 + 一次 ~100µs 签名。
+- 生命周期：包级缓存进程存活期有效（确定性保证跨任务复用安全）。
+
+#### 3. 主流程与状态
+- 静态：层 config cert 标量 → applySpecToChain 原样保留 → 生成器 `parseCertConfig` → `BuildCertDER`（缓存）→ `buildCertificate13` 装配。
+- 动态：worker/translate 按 FlowIndex 解析 subject/san → `spec.TLS.ServerCertificate`（只写解析键，其余键留给 certgen 默认）→ `applySpecToChain` 把解析值注回层 cert map（对象剥离）→ 生成器同静态路径。
+- flat 路径（legacy）：`spec.TLS.ServerCertificate`（X509Ref，flat 已有解析）直传 `BuildCertDER`——死参数复活，行为变化=flat tls 任务的 Certificate 帧也变真 DER。
+
+#### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
+- 动态白名单：`tls.cert.subject`、`tls.cert.san` 开（string 面 fixed/list/pattern）；`cert.key_type/not_before/not_after` 关（对象即 `does not support dynamic`）；cert 块外无新键。
+- DN 合并语义：subject 标量是完整 DN 串（RFC 4514 风格 `CN=…,O=…,C=…`）；动态解析值同为完整 DN 串（用户在 list 里写完整 DN——不做子键级动态，颗粒度=整 DN）。默认 DN 的 O/C 与用户 DN 的 CN 合并规则：**用户 subject 完整替换默认 subject**（不合并——用户写了 subject 就是对 DN 的完整意图；没写才用默认整串）。修正：探针与 parseCertConfig 均按整串处理，合并语义不存在，避免"半个默认半个用户"的诡异 DN。
+- 序列号派生：SHA-256(规范化参数串) 前 8B——同参数同序列号、参数变序列号变，pcap 断言可钉。
+- 正交组合矩阵：
+
+  | 维度 | 单流 | 多流 |
+  |---|---|---|
+  | cert 缺席（全默认） | T-TLS-11 | × |
+  | cert 静态全填 | T-TLS-10 | × |
+  | subject list | — | T-TLS-12 |
+  | san list | — | T-TLS-13 |
+  | key_type 动态 | T-TLS-14（负例） | — |
+  | key_type 未知值 | T-TLS-15（负例） | — |
+
+#### 5. 错误与异常
+- create 期（ValidateLayers→checkLayerDynObjects 下钻 + V9）：未知 cert 子键 `unknown field`；key_type/not_before/not_after 对象 `does not support dynamic`；subject/san 对象形状坏（inc/rand）`not supported for string field`。
+- 链结构性校验（`chain_planner.go` tls 段扩）：key_type 非 ecdsa-p256 → `key_type %q not supported yet (only "ecdsa-p256")`；not_before/not_after RFC3339 解析失败 → `invalid RFC3339 timestamp`；san 条目 >253B → 拒；subject 空串（显式空=走默认，不拒）；not_after ≤ not_before → 拒（`not_after must be after not_before`）。
+- drive 期防御：`BuildCertDER` 错误（密钥/签名失败，理论不可达）中断 Plan——不吞成空流。
+
+#### 6. 性能设计与验收
+- 路径依据：DER 缓存命中=1 次 map 查找（~100ns）；未命中=DN 解析+SHA-256+1 次 ECDSA 签名（~100µs，P-256 签名实测微秒级）；无锁（sync.Map 读并发安全）；生成器每流 1 次调用。
+- 验收：tls.json suite wall 与 D-TLS-1 基线（5.0s）±10%；16/32 帧包数不变（cert 变长不分段，DER < MSS）；单测断言缓存命中（第二次调用同指针/相等字节）。
+- 边界诚实声明：无吞吐/并发/内存上限数字（未测，沿 D-TLS-1 口径）；缓存无上限（唯一配置数=任务内 subject/san 组合数，实际有界）。
+
+#### 7. 实现顺序与回滚
+- 步骤 0（failing 先行）：①tls 包单测：`BuildCertDER` 两次调用字节相等（确定性）；DER 可 `x509.ParseCertificate` 且 CN/O/C/SAN/有效期/序列号回读正确（明文真实上 wire 的验收本体）；默认 ref 5 字段全非零（"缺省给全"执法）；`parseCertConfig` RFC3339→unix、缺键→默认。②core 单测：`parseLayerDyn` 提取 cert.subject/san 对象；`checkLayerDynObjects` 下钻拒绝 key_type 对象（锚词）；`resolveLayerTuple` 回填 `spec.TLS.ServerCertificate`。③t13：frame 7 Certificate 记录含可解析 DER（`x509.ParseCertificate` 于 record 载荷）。
+- 步骤 1：certgen.go + planner.go 换源 + 单测转绿（既有 256/261/265/269 钉死断言按新值回钉——长度从 `len(der)` 算术推导，非手算）。
+- 步骤 2：registry + schemagen + 结构性校验 + layer_gen 生成器读 cert + 单测。
+- 步骤 3：动态三件套（layer_dyn 嵌套提取 + translateTLSCert + applySpecToChain cert 分支）+ 红例转绿。
+- 步骤 4：tls.json +6 例 + 既有例回钉 + verify.go 删白名单 + suite 全绿 + 门 2。
+- 回滚：单提交整体 revert（certgen+换源+动态+用例一体）。
+
+#### 8. 验收
+- 对应 `docs/TEST_CASES.md` T-TLS-10…15（P3 先行）。
+- 完成条件：步骤 0 红例先红后绿；tls 包/core/layers 单测 + `-race` 绿；tls.json 全量绿（9+6=15 例）；白名单 6 ID 删除后 suite 仍绿（伪影消失的直接证据）；stun 24/24 回归绿（over-tls 底座消费方，Certificate 帧同样变真 DER——断言不钉 cert 长度应不受影响，实测确认）；门 2 三项绿。
+- 缺口如实记录：mqtt/pop3/imap/socks5/smtp 子女回归（mqtt 有既有 18 error 与本轮无关；pop3/imap/socks5/smtp 未链化——他们的 suite 现状 0/1 红是扁平判死，非本轮引入）；rsa-4096/rsa-2048/ecdsa-p384 key_type；client cert/mTLS。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A 证书内容 | A1 真 X.509 DER（固定密钥+确定签名）；A2 固定假模板字节（手造"能解出骨架"的字节） | A1 用标准库单真相、参数真实上 wire（用户"明文配置"诉求的本体）、tshark 干净解出；A2 为 dissector 化妆、参数不上 wire（配置改了字节不变=假配置） | 选 A1 |
+| B 密钥来源 | B1 固定种子运行期派生（SHA-256→P-256 标量）；B2 嵌入 PEM/DER 常量 | B1 零嵌入物、可审计、密钥派生逻辑即文档；B2 1.2KB 不透明常量（RSA 才需要） | 选 B1（RSA 将来开时再 B2） |
+| C 确定性 | C1 固定日期常量+派生序列号+固定签名熵；C2 time.Now()+随机序列号 | C1 跨跑/跨机逐字节稳定（pcap 可 diff、缓存安全）；C2 每跑不同（断言钉不死、缓存失效） | 选 C1 |
+| D cert 载体 | D1 tls 层嵌套对象（用户裁定形状）；D2 顶层 5 个平键（cert_subject 等） | D1 用户已批、语义聚合；D2 复用扁平机制但污染层顶且违背已批形状 | 选 D1 |
+| E 动态面 | E1 只开 subject/san；E2 全开（含 key_type/日期） | E1 域名/CN 逐流变是真实场景，key_type/日期逐流变只破坏包长稳定性；E2 一开包长断言全废 | 选 E1 |
+| F subject 合并 | F1 用户 DN 整串替换默认；F2 子键合并（用户 CN+默认 O/C） | F1 语义清晰（写了=完整意图）；F2 "半个默认半个用户"的诡异 DN、解析复杂 | 选 F1 |
+
+
 ## 5. 设计评审闸门
 
 代码设计完成后，必须按以下顺序评审：
