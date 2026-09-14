@@ -14,7 +14,10 @@ func TestIsMalformedWhitelistedScopesProtocolCasesAndFlags(t *testing.T) {
 		{"wrong rtmp malformed flag", "rtmp-connect-play-basic", "[Malformed Packet: TCP]", false},
 		{"composite rtmp malformed flag", "rtmp-connect-play-basic", "Loop in AMF dissection; unexpected bytes", false},
 		{"known xmpp artifact", "xmpp-stream-basic", "Closing an unopened tag", true},
-		{"known tls artifact", "tls-handshake-basic", "[Malformed Packet: TLS]", true},
+		// D-TLS-2：tls.json 6 例的 Certificate 帧已换真 X.509 DER，BER 伪影
+		// 消失——白名单不再覆盖它们（落盘 6 pcap 零 malformed 实证）。此行钉
+		// 死"删白名单"本身：旧 ID 必须返回 false（防回退）。
+		{"removed tls artifact stays removed", "tls-handshake-basic", "[Malformed Packet: TLS]", false},
 		// J 组 over-TLS 用例的伪影渲染在多次生成间不稳定（单条 BER Error /
 		// 多条逗号拼接 / 泛化 "Malformed Packet (Exception occurred)"），
 		// 逐次实际捕获的值都要命中。

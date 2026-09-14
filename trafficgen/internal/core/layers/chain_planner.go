@@ -257,6 +257,51 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 				}
 			}
 		}
+		// D-TLS-2: cert 结构性校验。cert 缺席=全默认（合法）；cert 非对象
+		// （字符串/数字）→ 同步拒绝；子键枚举在本地做，业务约束（key_type
+		// 枚举/日期/SAN/DN）在 tls 层生成器侧（parseCertConfig + validate，
+		// 单真相——layers 不 import protocol/tls，core 反向依赖禁忌）。
+		// 动态对象（subject/san 的 strategy map）在 ValidateLayers 已下钻
+		// 校验+剥离，到这里只剩标量——对象残留（key_type 等关字段/引擎直调）
+		// 同步拒绝，不静默跳过。
+		if rawCert, hasCert := cfg["cert"]; hasCert && rawCert != nil {
+			certMap, isObj := rawCert.(map[string]interface{})
+			if !isObj {
+				return spec, fmt.Errorf("tls chain: cert must be an object")
+			}
+			for k, v := range certMap {
+				switch k {
+				case "subject", "key_type", "not_before", "not_after":
+					if _, ok := v.(string); !ok {
+						if isDynObject(v) && k == "subject" {
+							continue // 开字段动态对象：ValidateLayers 已校验
+						}
+						return spec, fmt.Errorf("tls chain: cert.%s must be a string", k)
+					}
+				case "san":
+					switch t := v.(type) {
+					case string:
+						_ = t
+					case []interface{}:
+						for _, item := range t {
+							if _, ok := item.(string); !ok {
+								return spec, fmt.Errorf("tls chain: cert.san must be a string or string array")
+							}
+						}
+					default:
+						if isDynObject(v) {
+							continue // 开字段动态对象
+						}
+						return spec, fmt.Errorf("tls chain: cert.san must be a string or string array")
+					}
+				default:
+					return spec, fmt.Errorf("tls chain: cert: unknown field %q", k)
+				}
+			}
+			if msg := validateTLSCertScalars(certMap); msg != "" {
+				return spec, fmt.Errorf("%s", msg)
+			}
+		}
 		break
 	}
 	// FINS carrier validation: TCP carries Frame Send envelopes; UDP carries raw FINS frames.

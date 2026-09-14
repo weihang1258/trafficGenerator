@@ -3552,9 +3552,13 @@ type LayerHTTPDyn struct {
 }
 
 // LayerTLSDyn holds tls-layer dynamic business-field strategies
-// (D-TLS-1 步骤 2: sni 开 1 个；alpn/version/role 关，指针恒 nil)。
+// (D-TLS-1 步骤 2: sni 开 1 个；alpn/version/role 关，指针恒 nil。
+// D-TLS-2: cert.subject/cert.san 开 string 面；cert.key_type/
+// cert.not_before/cert.not_after 关，指针恒 nil）。
 type LayerTLSDyn struct {
-	SNI *StrategyConfig
+	SNI         *StrategyConfig
+	CertSubject *StrategyConfig
+	CertSAN     *StrategyConfig
 }
 
 // LayerDynValues is the parsed per-flow dynamic strategy set from a layers
@@ -3580,7 +3584,7 @@ func (l *LayerDynValues) HasAny() bool {
 		l.HTTP.URI != nil || l.HTTP.Body != nil || l.HTTP.BodyB64 != nil ||
 		l.HTTP.ResponseBody != nil || l.HTTP.ResponseBodyB64 != nil ||
 		l.HTTP.ResponseStatusCode != nil ||
-		l.TLS.SNI != nil
+		l.TLS.SNI != nil || l.TLS.CertSubject != nil || l.TLS.CertSAN != nil
 }
 
 // StrategyConfig for value generation strategies.

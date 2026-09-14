@@ -26,7 +26,10 @@ var layerDynAllowlist = map[string]map[string]bool{
 	// D-TLS-1 步骤 2：tls 业务 sni 开 1 个（string 面；alpn/version/role 关，
 	// 对象即 does not support dynamic）。sni 是域名逐流变（T-TLS-5/6/7）；
 	// alpn 关：列表无允许的解析面且现状无轮转需求（D-TLS-1 适用性段）。
-	"tls": {"sni": true},
+	// D-TLS-2：cert 块是嵌套对象——allowlist 只登记顶层 "cert"（值为对象即
+	// 下钻，不直接 parse）；子键开关在 checkTLSCertDynShape：subject/san 开
+	// string 面，key_type/not_before/not_after 关。
+	"tls": {"sni": true, "cert": true},
 }
 
 // parseLayerDyn extracts per-flow dynamic strategies from a decoded layers
@@ -126,6 +129,31 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 					if f == "sni" {
 						set(where, lname, f, &out.TLS.SNI, v)
 					}
+					// D-TLS-2：cert 块下钻（subject/san 开 string 面；
+					// key_type/not_before/not_after 关——checkTLSCertDynShape
+					// 先拦 does not support dynamic，不进 parse）。
+					// san 的 list 端点是域名串：checkDynEndpoints 的
+					// isIP/isMAC/isPort/isTTL 全假→只判非空，不做类型解析。
+					if f == "cert" {
+						certMap, ok := v.(map[string]interface{})
+						if !ok || certMap == nil {
+							continue
+						}
+						if sv, ok := certMap["subject"]; ok && sv != nil {
+							if sm, isObj := sv.(map[string]interface{}); isObj {
+								if _, looksDyn := sm["strategy"]; looksDyn {
+									set(where+".cert.subject", lname, "cert.subject", &out.TLS.CertSubject, sv)
+								}
+							}
+						}
+						if sv, ok := certMap["san"]; ok && sv != nil {
+							if sm, isObj := sv.(map[string]interface{}); isObj {
+								if _, looksDyn := sm["strategy"]; looksDyn {
+									set(where+".cert.san", lname, "cert.san", &out.TLS.CertSAN, sv)
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -151,7 +179,52 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 // unknown 同 http 裁定表 F 锚词 `not supported for string field`）。
 // alpn/version/role 不进本函数——allowlist 关门，由 checkLayerDynObjects
 // 先拦 `does not support dynamic`。
+// checkTLSCertDynShape 校验 cert 块内单个子键的动态对象（D-TLS-2，
+// checkLayerDynObjects 下钻调用）：subject/san 走 string 面
+// fixed/list/pattern（inc/rand/unknown 同 sni 裁定表 F 锚词）；
+// key_type/not_before/not_after 走到这里即关字段拒绝。
+func checkTLSCertDynShape(where, sub string, s *StrategyConfig) string {
+	switch sub {
+	case "subject", "san":
+		switch s.Strategy {
+		case "fixed", "":
+			return ""
+		case "list":
+			if len(s.List) == 0 {
+				return fmt.Sprintf("%s: list strategy requires a non-empty list", where)
+			}
+			return ""
+		case "pattern":
+			if s.Pattern == "" || len(s.Range) != 2 {
+				return fmt.Sprintf("%s: pattern strategy requires a template and a 2-element range", where)
+			}
+			return ""
+		case "inc", "rand":
+			return fmt.Sprintf("%s: %s strategy is not supported for string field", where, s.Strategy)
+		default:
+			return fmt.Sprintf("%s: unknown dynamic strategy %q", where, s.Strategy)
+		}
+	default:
+		return fmt.Sprintf("%s: does not support dynamic", where)
+	}
+}
+
+// tlsCertSub 把 checkDynShape 的 field 名映射为 cert 子键
+// （"cert.subject"→"subject"；非 cert 字段原样返回）。
+func tlsCertSub(field string) string {
+	if field == "cert.subject" {
+		return "subject"
+	}
+	if field == "cert.san" {
+		return "san"
+	}
+	return field
+}
+
 func checkDynShape(where, lname, field string, s *StrategyConfig) string {
+	if lname == "tls" && (field == "cert.subject" || field == "cert.san") {
+		return checkTLSCertDynShape(where, tlsCertSub(field), s)
+	}
 	if lname == "tls" && field == "sni" {
 		switch s.Strategy {
 		case "fixed", "":
@@ -607,6 +680,28 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 		}
 		if v := ResolveStringValue(ld.TLS.SNI, i); v != "" {
 			spec.TLS.SNI = v
+		}
+	}
+	// D-TLS-2：cert subject/san 回填。string 面经 ResolveStringValue
+	// （fixed/list/pattern；空值 no-op）。写入 spec.TLS.ServerCertificate
+	//（只写解析键：Subject 整串替换/San 单元素；其余键留给 certgen 默认——
+	// 与"缺省给全"同效）。spec.TLS nil 时建空补后再写（sni 段同款）。
+	if ld.TLS.CertSubject != nil || ld.TLS.CertSAN != nil {
+		if spec.TLS == nil {
+			spec.TLS = &TLSConfig{}
+		}
+		if spec.TLS.ServerCertificate == nil {
+			spec.TLS.ServerCertificate = &X509Ref{}
+		}
+		if ld.TLS.CertSubject != nil {
+			if v := ResolveStringValue(ld.TLS.CertSubject, i); v != "" {
+				spec.TLS.ServerCertificate.Subject = v
+			}
+		}
+		if ld.TLS.CertSAN != nil {
+			if v := ResolveStringValue(ld.TLS.CertSAN, i); v != "" {
+				spec.TLS.ServerCertificate.San = []string{v}
+			}
 		}
 	}
 }

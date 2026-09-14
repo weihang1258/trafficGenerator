@@ -994,16 +994,26 @@ func buildEncryptedExtensions(alpnSelected string) []byte {
 }
 
 // buildCertificate13 builds a TLS 1.3 Certificate body (with certificate_request_context).
+// D-TLS-2: cert_data 从真 X.509 DER 来（certRefFromX509(serverCert)；nil 走
+// 全默认）。DER 按 len 装配，长度字段不再钉死 256。
 func buildCertificate13(serverCert *core.X509Ref, clientAuth bool) []byte {
+	certData, err := BuildCertDER(certRefFromX509(serverCert))
+	if err != nil {
+		// 理论不可达（默认值全合法；用户非法值在 create 期/结构性校验已拒）。
+		// 退回确定性默认 DER 占位，不回退随机模板（随机模板是 BER 伪影根源）。
+		certData = fallbackCertDER()
+	}
+	return buildCertificate13FromDER(certData, clientAuth)
+}
+
+// buildCertificate13FromDER 由给定 DER 装配 TLS 1.3 Certificate 消息
+// （层链生成器路径：DER 已由 BuildCertDER 备好，不再经 X509Ref）。
+func buildCertificate13FromDER(certData []byte, clientAuth bool) []byte {
 	// certificate_request_context: 0 for server, 1 byte for client auth
 	ctx := []byte{0x00}
 	if clientAuth {
 		ctx = []byte{0x01, 0x00} // length=1, context=0
 	}
-
-	// certificate_list: one self-signed cert entry
-	certData := make([]byte, 256)
-	rand.Read(certData)
 
 	// CertificateEntry: cert_len(3) + cert_data(N) + extensions(2) in 1.3
 	entry := make([]byte, 3+len(certData)+2)
@@ -1029,9 +1039,12 @@ func buildCertificate13(serverCert *core.X509Ref, clientAuth bool) []byte {
 }
 
 // buildCertificate12 builds a TLS 1.2 Certificate body (no certificate_request_context).
+// D-TLS-2: 同 buildCertificate13，cert_data 换真 DER。
 func buildCertificate12(serverCert *core.X509Ref) []byte {
-	certData := make([]byte, 256)
-	rand.Read(certData)
+	certData, err := BuildCertDER(certRefFromX509(serverCert))
+	if err != nil {
+		certData = fallbackCertDER()
+	}
 
 	entry := make([]byte, 3+len(certData))
 	entry[0] = byte(len(certData) >> 16)

@@ -2017,6 +2017,9 @@
           "type": "list",
           "default": []
         },
+        "cert": {
+          "type": "object"
+        },
         "role": {
           "type": "string",
           "default": "client"

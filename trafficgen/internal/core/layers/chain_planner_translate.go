@@ -879,6 +879,11 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		// spec.TLS，非 nil 优先）+ 生成器层 config 通道（applySpecToChain
 		// 剥离对象后注入解析值）的双通道中的 spec 侧一环。
 		translateTLSSNI(p, spec)
+		// D-TLS-2：cert 消费段（sni 上段同构）。cert 标量（完整块/子键）
+		// 不写 spec——生成器直接读层 config（零新增通道）；动态子键
+		// （subject/san 对象）按 FlowIndex 直解写入
+		// spec.TLS.ServerCertificate（只写解析键，其余留给 certgen 默认）。
+		translateTLSCert(p, spec)
 	case "dns":
 		if spec.DNS != nil {
 			return // flat 权威
@@ -1106,6 +1111,66 @@ func translateTLSSNI(p *ChainPlanner, spec *core.FlowSpec) {
 			spec.TLS = &core.TLSConfig{}
 		}
 		spec.TLS.SNI = v
+	}
+}
+
+// translateTLSCert 直解 tls 层 cert 块内动态子键（D-TLS-2，translateTLSSNI
+// 同构）：subject/san 的 strategy 对象按 spec.FlowIndex 解析，写入
+// spec.TLS.ServerCertificate（只写解析键；标量 cert 不写 spec——生成器
+// 直接读层 config）。读 p.chain 原始链。形状坏→静默返回（create 期已 400）。
+func translateTLSCert(p *ChainPlanner, spec *core.FlowSpec) {
+	var rawCfg map[string]interface{}
+	for _, l := range p.chain {
+		if l.Name == "tls" {
+			rawCfg = l.Config
+			break
+		}
+	}
+	if rawCfg == nil {
+		return
+	}
+	rawCert, ok := rawCfg["cert"].(map[string]interface{})
+	if !ok || rawCert == nil {
+		return
+	}
+	ensureServerCert := func() *core.X509Ref {
+		if spec.TLS == nil {
+			spec.TLS = &core.TLSConfig{}
+		}
+		if spec.TLS.ServerCertificate == nil {
+			spec.TLS.ServerCertificate = &core.X509Ref{}
+		}
+		return spec.TLS.ServerCertificate
+	}
+	if m, isObj := rawCert["subject"].(map[string]interface{}); isObj && m != nil {
+		if _, looksDyn := m["strategy"]; looksDyn {
+			if msg := core.CheckLayerDynShape("tls", "cert.subject", m); msg != "" {
+				return
+			}
+			var sc core.StrategyConfig
+			b, _ := json.Marshal(m)
+			if err := json.Unmarshal(b, &sc); err != nil {
+				return
+			}
+			if v := core.ResolveStringValue(&sc, spec.FlowIndex); v != "" {
+				ensureServerCert().Subject = v
+			}
+		}
+	}
+	if m, isObj := rawCert["san"].(map[string]interface{}); isObj && m != nil {
+		if _, looksDyn := m["strategy"]; looksDyn {
+			if msg := core.CheckLayerDynShape("tls", "cert.san", m); msg != "" {
+				return
+			}
+			var sc core.StrategyConfig
+			b, _ := json.Marshal(m)
+			if err := json.Unmarshal(b, &sc); err != nil {
+				return
+			}
+			if v := core.ResolveStringValue(&sc, spec.FlowIndex); v != "" {
+				ensureServerCert().San = []string{v}
+			}
+		}
 	}
 }
 

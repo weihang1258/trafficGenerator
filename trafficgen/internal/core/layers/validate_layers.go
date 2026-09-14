@@ -3,6 +3,7 @@ package layers
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 )
@@ -123,7 +124,18 @@ func checkLayerDynObjects(i int, lname string, cfg map[string]interface{}) (map[
 		}
 		// 非动态结构化值（wire_fault/mailbox/data_channel…，无 strategy
 		// 键）不是动态对象：原样保留走 legacy V9 路径（无界字段跳过）。
+		// D-TLS-2 例外：tls.cert 块本身无 strategy 键但内含动态子键——下钻
+		// 处理（subject/san 开 string 面；key_type/not_before/not_after
+		// 对象即 does not support dynamic；未知子键拒绝）。
 		if _, looksDyn := m["strategy"]; !looksDyn {
+			if lname == "tls" && k == "cert" {
+				sub, err := checkTLSCertDynObjects(i, m)
+				if err != nil {
+					return nil, err
+				}
+				stripped[k] = sub
+				continue
+			}
 			stripped[k] = v
 			continue
 		}
@@ -140,6 +152,161 @@ func checkLayerDynObjects(i int, lname string, cfg map[string]interface{}) (map[
 		}
 	}
 	return stripped, nil
+}
+
+// checkTLSCertDynObjects 下钻 tls.cert 块（D-TLS-2）：子键逐个处理——
+// subject/san 的动态对象（有 strategy 键）走 string 面形状门，通过后从
+// stripped 剥离（V9 只见标量）；标量原样保留；key_type/not_before/
+// not_after 的对象即 does not support dynamic（关字段）；未知子键拒绝。
+// 返回剥离动态对象后的 cert map（调用方直接装回 stripped["cert"]）。
+func checkTLSCertDynObjects(i int, cert map[string]interface{}) (map[string]interface{}, error) {
+	sub := make(map[string]interface{}, len(cert))
+	for k, v := range cert {
+		m, isObj := v.(map[string]interface{})
+		if !isObj {
+			sub[k] = v
+			continue
+		}
+		if _, looksDyn := m["strategy"]; !looksDyn {
+			sub[k] = v
+			continue
+		}
+		where := fmt.Sprintf("layers[%d](tls).cert.%s", i, k)
+		switch k {
+		case "subject", "san":
+			if msg := core.CheckLayerDynShape("tls", "cert."+k, m); msg != "" {
+				reason := msg
+				if j := indexColonSpace(msg); j >= 0 {
+					reason = msg[j+2:]
+				}
+				return nil, fmt.Errorf("%s: %s", where, reason)
+			}
+			// 通过：剥离（不进 stripped，V9 不见对象）。
+		case "key_type", "not_before", "not_after":
+			return nil, fmt.Errorf("%s does not support dynamic", where)
+		default:
+			return nil, fmt.Errorf("%s: unknown cert field %q", where, k)
+		}
+	}
+	return sub, nil
+}
+
+// validateTLSCertScalars 校验 cert 块内标量子键的业务约束（D-TLS-2，
+// chain_planner.go tls 结构性段调用）：key_type 枚举（本轮仅 ecdsa-p256）、
+// 日期 RFC3339 可解析且 not_after > not_before、SAN 条目 ≤253B、subject
+// DN 可解析（含 CN）。动态对象残留（ValidateLayers 漏剥/引擎直调）→
+// 同步拒绝。certgen.go 的 validateCertRef 是同语义的 tls 包侧实现——
+// 此处是 layers 包侧镜像（import 禁忌，见 chain_planner.go 注释）。
+func validateTLSCertScalars(cert map[string]interface{}) string {
+	strOf := func(k string) (string, bool) {
+		s, ok := cert[k].(string)
+		return s, ok
+	}
+	if v, ok := cert["key_type"]; ok && v != nil {
+		s, isStr := strOf("key_type")
+		if !isStr {
+			return "tls chain: cert.key_type must be a string"
+		}
+		if s != "" && s != "ecdsa-p256" {
+			return fmt.Sprintf("tls chain: cert.key_type %q not supported yet (only \"ecdsa-p256\")", s)
+		}
+	}
+	nbStr, _ := strOf("not_before")
+	naStr, _ := strOf("not_after")
+	var nb, na time.Time
+	var err error
+	if nbStr != "" {
+		if nb, err = time.Parse(time.RFC3339, nbStr); err != nil {
+			return fmt.Sprintf("tls chain: cert.not_before %q invalid RFC3339 timestamp: %v", nbStr, err)
+		}
+	}
+	if naStr != "" {
+		if na, err = time.Parse(time.RFC3339, naStr); err != nil {
+			return fmt.Sprintf("tls chain: cert.not_after %q invalid RFC3339 timestamp: %v", naStr, err)
+		}
+	}
+	if nbStr != "" && naStr != "" && !na.After(nb) {
+		return "tls chain: cert.not_after must be after not_before"
+	}
+	if v, ok := cert["san"]; ok && v != nil {
+		switch t := v.(type) {
+		case string:
+			if len(t) > 253 {
+				return fmt.Sprintf("tls chain: cert.san entry length %d exceeds max 253 bytes", len(t))
+			}
+		case []interface{}:
+			for _, item := range t {
+				s, _ := item.(string)
+				if len(s) > 253 {
+					return fmt.Sprintf("tls chain: cert.san entry length %d exceeds max 253 bytes", len(s))
+				}
+			}
+		}
+	}
+	if v, ok := cert["subject"]; ok && v != nil {
+		if s, isStr := strOf("subject"); isStr && s != "" {
+			if msg := validateTLSCertDN(s); msg != "" {
+				return msg
+			}
+		}
+	}
+	return ""
+}
+
+// validateTLSCertDN 校验 subject DN 串（CN 必填；属性集 CN/O/OU/L/ST/C）。
+func validateTLSCertDN(s string) string {
+	hasCN := false
+	for _, kv := range splitTLSCertDN(s) {
+		eq := -1
+		for i := 0; i < len(kv); i++ {
+			if kv[i] == '=' {
+				eq = i
+				break
+			}
+		}
+		if eq < 0 {
+			return fmt.Sprintf("tls chain: cert.subject %q invalid DN (want K=V pairs)", s)
+		}
+		k, v := trimTLSCertSpace(kv[:eq]), trimTLSCertSpace(kv[eq+1:])
+		if v == "" {
+			return fmt.Sprintf("tls chain: cert.subject %q has empty value for %q", s, k)
+		}
+		switch k {
+		case "CN":
+			hasCN = true
+		case "O", "OU", "L", "ST", "C":
+		default:
+			return fmt.Sprintf("tls chain: cert.subject has unknown attribute %q", k)
+		}
+	}
+	if !hasCN {
+		return fmt.Sprintf("tls chain: cert.subject %q missing CN", s)
+	}
+	return ""
+}
+
+func splitTLSCertDN(s string) []string {
+	var out []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == ',' {
+			out = append(out, s[start:i])
+			start = i + 1
+		}
+	}
+	return append(out, s[start:])
+}
+
+func trimTLSCertSpace(s string) string {
+	start := 0
+	for start < len(s) && (s[start] == ' ' || s[start] == '\t') {
+		start++
+	}
+	end := len(s)
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t') {
+		end--
+	}
+	return s[start:end]
 }
 
 func indexColonSpace(s string) int {

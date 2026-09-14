@@ -100,6 +100,20 @@ func (g *TLSGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 	if len(alpn) == 0 {
 		alpn = []string{"h2", "http/1.1"}
 	}
+	// D-TLS-2：cert 对象→ref（标量直读；动态子键已被 applySpecToChain 剥离并
+	// 注入 spec 解析值——到这里只剩标量）。parse 失败→drive 期同步错误
+	// （ValidateLayers/结构性校验已在 create 期 400；此处覆盖引擎直调路径，
+	// drain 后返回，不吞成空流）。
+	certRef, err := parseCertConfig(cfg["cert"])
+	if err != nil {
+		drain()
+		return fmt.Errorf("tls generator: %v", err)
+	}
+	certDER, err := BuildCertDER(certRef)
+	if err != nil {
+		drain()
+		return fmt.Errorf("tls generator: %v", err)
+	}
 	// 握手 record 序列（legacy tls1.3 fast path，planner.go:415-488 同款）。
 	cipherSuites := []uint16{cipherTLS13AES128GCM256, cipherTLS13AES256GCM384, cipherTLS13CHACHA20POLY1305}
 	supportedGroups := []uint16{groupX25519, groupSecp256r1, groupSecp384r1}
@@ -109,7 +123,7 @@ func (g *TLSGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 			buildClientHello(legacyVersion, sni, cipherSuites, supportedGroups, sigAlgs, alpn, nil, false, false, version))},
 		{Up: false, Bytes: buildRecord(contentTypeHandshake, legacyVersion, buildServerHello13(cipherSuites[0], supportedGroups[0]))},
 		{Up: false, Bytes: buildRecord(contentTypeHandshake, legacyVersion, buildEncryptedExtensions(alpn[0]))},
-		{Up: false, Bytes: buildRecord(contentTypeHandshake, legacyVersion, buildCertificate13(nil, false))},
+		{Up: false, Bytes: buildRecord(contentTypeHandshake, legacyVersion, buildCertificate13FromDER(certDER, false))},
 		{Up: false, Bytes: buildRecord(contentTypeHandshake, legacyVersion, buildCertificateVerify(sigECDSA256r1, 64))},
 		{Up: false, Bytes: buildRecord(contentTypeHandshake, legacyVersion, buildFinished(32))},
 		{Up: true, Bytes: buildRecord(contentTypeHandshake, legacyVersion, buildFinished(32))},

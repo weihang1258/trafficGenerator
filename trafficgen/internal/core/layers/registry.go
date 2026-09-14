@@ -875,6 +875,11 @@ func buildDefaultRegistry() {
 			"sni":     {Type: "string", Default: ""},
 			"alpn":    {Type: "list", Default: []interface{}{}},
 			"role":    {Type: "string", Default: "client"},
+			// D-TLS-2: cert 嵌套对象（5 子键全可选，缺席/缺键填默认）。
+			// object 型无标量 V9 边界（Min/Max 全 0 跳过数值检查）；
+			// 动态对象走 checkLayerDynObjects 下钻（subject/san 开），
+			// 结构化校验在 chain_planner.go tls 结构性段。
+			"cert": {Type: "object"},
 		},
 	})
 	r.Register(LayerSchema{Name: "gre", Category: CategoryTunnel,

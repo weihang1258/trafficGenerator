@@ -532,6 +532,44 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 					delete(cfg, "sni")
 				}
 			}
+			// D-TLS-2：cert 块同键二态（sni 上段同构）。cert 整体是对象但
+			// 无 strategy 键（结构化值，非动态对象）——标量层值优先，不动。
+			// 子键级动态（subject/san 的 strategy map）：逐流真相在 spec
+			//（resolveLayerTuple 已写 ServerCertificate.Subject/San，
+			// 或 translateTLSCert 直解写入）。对象子键 + 非空 spec 解析值
+			// → 注入替换；对象子键 + 空 → 删子键（certgen 填默认）。
+			if rawCert, has := l.Config["cert"]; has {
+				if certMap, isObj := rawCert.(map[string]interface{}); isObj && certMap != nil {
+					outCert := make(map[string]interface{}, len(certMap))
+					for k, v := range certMap {
+						outCert[k] = v
+					}
+					if v, ok := certMap["subject"]; ok && isDynObject(v) {
+						if spec.TLS != nil && spec.TLS.ServerCertificate != nil && spec.TLS.ServerCertificate.Subject != "" {
+							outCert["subject"] = spec.TLS.ServerCertificate.Subject
+						} else {
+							delete(outCert, "subject")
+						}
+					}
+					if v, ok := certMap["san"]; ok && isDynObject(v) {
+						if spec.TLS != nil && spec.TLS.ServerCertificate != nil && len(spec.TLS.ServerCertificate.San) > 0 {
+							san := spec.TLS.ServerCertificate.San
+							if len(san) == 1 {
+								outCert["san"] = san[0]
+							} else {
+								arr := make([]interface{}, len(san))
+								for i, s := range san {
+									arr[i] = s
+								}
+								outCert["san"] = arr
+							}
+						} else {
+							delete(outCert, "san")
+						}
+					}
+					cfg["cert"] = outCert
+				}
+			}
 		}
 		out[i] = Layer{Name: l.Name, Config: cfg}
 	}

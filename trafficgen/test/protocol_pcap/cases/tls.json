@@ -41,7 +41,7 @@
         "16 帧 = 3 握手 + 7 TLS 握手（f4 ClientHello/f5 ServerHello/f6 EncryptedExtensions/f7 Certificate/f8 CertificateVerify/f9/f10 Finished）+ 2 应用数据 + 4 挥手；链化后应用数据恒由内层 http 委托（legacy 128B 合成/17 帧/close_notify 口径已过期）",
         "f11 record 头 5B（17 03 03 + len 53=0x35），明文起点 frame offset=59：GET / HTTP/1.1；f12 明文起点同为 59：HTTP/1.1 200 OK（len 38=0x26）",
         "f4 ClientHello TLS 1.3（supported_versions 0x0304/0x0303，ciphers 0x1301/0x1302/0x1303，ALPN h2,http/1.1，record len 156=0x9c）；f5 ServerHello 0x0304；f6 EncryptedExtensions ALPN h2",
-        "f7 Certificate 有 tshark BER 伪影——各层长度自洽（record 269/handshake 265/certs 261/cert 256，落盘 tshark -V 验证），证书是 256B 随机模板故 dissector 当 X.509 必败；verify.go 白名单按 BER 前缀/flag 匹配",
+        "f7 Certificate 真 X.509 DER（certgen.go 确定性生成，默认参数 DER 466B）——各层长度自洽（record 479/handshake 475/certs 471/cert 466，落盘 tshark -V 验证）；tshark 干净解出 CN=trafficgen-test、O=TrafficGen Test Lab、SAN=example.com，无 malformed（D-TLS-2 后白名单已删）",
         "包号/字节均以落盘 pcap（tshark）校准，未手算"
       ]
     }
@@ -222,6 +222,133 @@
         "内层 http 请求字节经 tls 包成 ApplicationData record（content_type=23）；record 头 5B（17 03 03 + len），明文起点 offset=59",
         "GET /tls-inner 明文 hex：47 45 54 20 2f 74 6c 73 2d 69 6e 6e 65 72；包号以落盘 pcap 校准"
       ]
+    }
+  },
+  {
+    "id": "tls-cert-static",
+    "proto": "tls",
+    "summary": "cert 静态全填：自定义 DN/SAN/有效期进 Certificate（T-TLS-10）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "10.0.0.1", "dst": "20.0.0.1"}},
+        {"tcp": {"src_port": 12347, "dst_port": 443}},
+        {"tls": {"cert": {"subject": "CN=api.test.local,O=TestOrg,OU=QA,L=Beijing,ST=Beijing,C=CN", "san": ["api.test.local", "www.test.local"], "key_type": "ecdsa-p256", "not_before": "2026-01-01T00:00:00Z", "not_after": "2036-01-01T00:00:00Z"}}},
+        {"http": {}}
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "min_packets": 16,
+      "fields": [
+        {"packet": 7, "field": "tls.handshake.type", "value": "11"},
+        {"packet": 7, "field": "x509ce.dNSName", "value": "api.test.local,www.test.local"}
+      ],
+      "notes": [
+        "f7 Certificate 帧真 X.509 DER（certgen.go 确定性生成），tshark 干净解出无 malformed；CN/O/SAN/有效期全是用户配置明文上 wire",
+        "包号以落盘 pcap 校准，不手算"
+      ]
+    }
+  },
+  {
+    "id": "tls-cert-dyn-subject",
+    "proto": "tls",
+    "summary": "cert.subject list 轮转：两流 CN 分别 a.test/b.test（T-TLS-12）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}},
+        {"tcp": {"dst_port": 443, "src_port": {"strategy": "list", "list": ["41011", "41012"]}}},
+        {"tls": {"cert": {"subject": {"strategy": "list", "list": ["CN=a.test,O=TrafficGen Test Lab,C=CN", "CN=b.test,O=TrafficGen Test Lab,C=CN"]}}}},
+        {"http": {}}
+      ]
+    },
+    "strategy_fc": {"type": "flows", "value": 2},
+    "expect": {
+      "min_packets": 32,
+      "fields": [
+        {"packet": 7, "field": "x509sat.printableString", "distinct_values": ["TrafficGen Test Lab,a.test,TrafficGen Test Lab,a.test", "TrafficGen Test Lab,b.test,TrafficGen Test Lab,b.test"]}
+      ],
+      "notes": [
+        "subject 整 DN 串替换语义（F1 决策）；41011→a.test（f7）、41012→b.test（f23）（同序号域对齐）；CN 经 x509sat.printableString 聚合（含 O 值，tshark 该字段无独立 CN 项）",
+        "包号以落盘 pcap 校准，不手算"
+      ]
+    }
+  },
+  {
+    "id": "tls-cert-dyn-san",
+    "proto": "tls",
+    "summary": "cert.san list 轮转：两流 SAN 分别 a.test/b.test（T-TLS-13）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}},
+        {"tcp": {"dst_port": 443, "src_port": {"strategy": "list", "list": ["41013", "41014"]}}},
+        {"tls": {"cert": {"san": {"strategy": "list", "list": ["a.test", "b.test"]}}}},
+        {"http": {}}
+      ]
+    },
+    "strategy_fc": {"type": "flows", "value": 2},
+    "expect": {
+      "min_packets": 32,
+      "fields": [
+        {"packet": 7, "field": "x509ce.dNSName", "distinct_values": ["a.test", "b.test"]}
+      ],
+      "notes": [
+        "41013→a.test、41014→b.test（同序号域对齐）",
+        "包号以落盘 pcap 校准，不手算"
+      ]
+    }
+  },
+  {
+    "id": "tls-cert-neg-dyn-keytype",
+    "proto": "tls",
+    "summary": "负例：cert 关字段 key_type 动态被拒（T-TLS-14）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}},
+        {"tcp": {"src_port": 41001, "dst_port": 443}},
+        {"tls": {"cert": {"key_type": {"strategy": "list", "list": ["ecdsa-p256"]}}}},
+        {"http": {}}
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "does not support dynamic"
+    }
+  },
+  {
+    "id": "tls-cert-neg-keytype-value",
+    "proto": "tls",
+    "summary": "负例：key_type 非法值被拒（T-TLS-15a）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}},
+        {"tcp": {"src_port": 41001, "dst_port": 443}},
+        {"tls": {"cert": {"key_type": "rsa-2048"}}},
+        {"http": {}}
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "not supported yet"
+    }
+  },
+  {
+    "id": "tls-cert-neg-bad-date",
+    "proto": "tls",
+    "summary": "负例：坏日期被拒（T-TLS-15b）",
+    "spec_json": {
+      "layers": [
+        {"ip": {"src": "192.0.2.10", "dst": "198.51.100.20"}},
+        {"tcp": {"src_port": 41001, "dst_port": 443}},
+        {"tls": {"cert": {"not_before": "yesterday"}}},
+        {"http": {}}
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid RFC3339 timestamp"
     }
   }
 ]
