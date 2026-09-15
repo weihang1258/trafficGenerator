@@ -347,7 +347,7 @@
     }
    ],
    "notes": [
-    "T-GRE-6【D-GRE-2 §4】：外层 ip.version=4（10.0.0.1→20.0.0.1），GRE proto=0x86dd；内层源=fd00::1；内层 v6 头 offset 38（eth14+ip20+gre4）frames hex 跑完校准回钉"
+    "T-GRE-6【D-GRE-2 §4】：外层 ip.version=4（10.0.0.1→20.0.0.1），GRE proto=0x86dd；内层源=fd01::1（D-GRE-3 内外分离）；内层 v6 头 offset 38（eth14+ip20+gre4）frames hex 跑完校准回钉"
    ],
    "frames": [
     {
@@ -425,7 +425,7 @@
     }
    ],
    "notes": [
-    "T-GRE-7【D-GRE-2 §4】：外层 IPv6 头 40B（eth14+ip6 40+gre4=58），内层 v4 头 offset 58；内层 ip.src=10.0.0.1 断言跑完校准回钉"
+    "T-GRE-7【D-GRE-2 §4】：外层 IPv6 头 40B（eth14+ip6 40+gre4=58），内层 v4 头 offset 58；内层 ip.src=192.168.1.1（D-GRE-3 内外分离）断言跑完校准回钉"
    ],
    "frames": [
     {
@@ -1130,14 +1130,65 @@
   }
  },
  {
-  "id": "gre_neg_dyn_dns",
+  "id": "gre_neg_dyn_checksum",
   "proto": "gre",
-  "summary": "负例：dns业务字段动态被拒（T-GRE-20，dns不在allowlist）",
+  "summary": "负例：关字段checksum动态被拒（T-GRE-19补，sequence/key/checksum同锚词三键齐锁）",
   "spec_json": {
    "layers": [
     {
      "ip": {
       "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {
+      "checksum": {
+       "strategy": "list",
+       "list": [
+        true
+       ]
+      }
+     }
+    },
+    {
+     "ip": {
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "does not support dynamic"
+  }
+ },
+ {
+  "id": "gre_outer_ip_rand",
+  "proto": "gre",
+  "summary": "外层ip rand动态（T-GRE-21，D-DNS-1顺手：GRE备注②关闭，seed=7可复现）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": {
+       "strategy": "rand",
+       "range": [
+        "10.0.0.1",
+        "10.0.0.2"
+       ],
+       "seed": 7
+      },
       "dst": "20.0.0.1"
      }
     },
@@ -1157,21 +1208,29 @@
      }
     },
     {
-     "dns": {
-      "name": {
-       "strategy": "list",
-       "list": [
-        "a.com",
-        "b.com"
-       ]
-      }
-     }
+     "dns": {}
     }
    ]
   },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
   "expect": {
-   "expect_error": true,
-   "error_contains": "does not support dynamic"
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 0,
+     "field": "ip.src",
+     "distinct_values": [
+      "10.0.0.1,192.168.1.1",
+      "10.0.0.2,192.168.1.1"
+     ]
+    }
+   ],
+   "notes": [
+    "T-GRE-21【D-DNS-1范围⑥】：rand双流distinct；聚合含内层值形同T-GRE-16，落盘回钉"
+   ]
   }
  }
 ]

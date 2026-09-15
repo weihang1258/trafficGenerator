@@ -26,8 +26,6 @@ func vlanGreChain(t *testing.T, vlan map[string]interface{}) json.RawMessage {
 		{"dns": {}},
 	}
 	// vlan 只能打头（V7：L2 必须在最外连续段）。
-	raw := []map[string]map[string]interface{}{{}}
-	_ = raw
 	full := []interface{}{map[string]interface{}{"vlan": vlan}}
 	for _, l := range chain {
 		m := map[string]interface{}{}
@@ -100,8 +98,6 @@ func TestVLANChain_TagOnWire(t *testing.T) {
 // 红例3【D-GRE-3 §5】：隧道结构性错误前缀是 `tunnel chain:`（通用块——
 // 下一条隧道零新增复用；子串锚词不变，用例 error_contains 不漂移）。
 func TestTunnelChain_GenericPrefix(t *testing.T) {
-	raw := vlanGreChain(t, map[string]interface{}{})
-	_ = raw
 	// 内层混族链：前缀断言对象。
 	mixed := []map[string]interface{}{
 		{"ip": map[string]interface{}{"src": "10.0.0.1", "dst": "20.0.0.1"}},

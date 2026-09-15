@@ -316,6 +316,24 @@
         "tls"
       ],
       "fields": {
+        "answers": {
+          "type": "object"
+        },
+        "authority": {
+          "type": "object"
+        },
+        "dnssec_ok": {
+          "type": "bool",
+          "default": false
+        },
+        "edns0_enabled": {
+          "type": "bool",
+          "default": false
+        },
+        "is_response": {
+          "type": "bool",
+          "default": false
+        },
         "name": {
           "type": "string",
           "default": "example.com"
@@ -323,6 +341,37 @@
         "query_type": {
           "type": "uint16",
           "default": 1,
+          "max": 65535
+        },
+        "questions": {
+          "type": "object"
+        },
+        "response_code": {
+          "type": "uint8",
+          "default": 0,
+          "max": 15
+        },
+        "response_ip": {
+          "type": "string",
+          "default": ""
+        },
+        "transport": {
+          "type": "string",
+          "default": ""
+        },
+        "ttl": {
+          "type": "uint32",
+          "default": 0,
+          "max": 4294967295
+        },
+        "txid": {
+          "type": "uint16",
+          "default": 0,
+          "max": 65535
+        },
+        "udp_payload_size": {
+          "type": "uint16",
+          "default": 0,
           "max": 65535
         }
       }

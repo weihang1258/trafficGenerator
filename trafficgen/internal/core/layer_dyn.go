@@ -30,6 +30,11 @@ var layerDynAllowlist = map[string]map[string]bool{
 	// 下钻，不直接 parse）；子键开关在 checkTLSCertDynShape：subject/san 开
 	// string 面，key_type/not_before/not_after 关。
 	"tls": {"sni": true, "cert": true},
+	// D-DNS-1：dns 业务 3 开（name string 面 / query_type·txid int 面；
+	// 其余 11 关，对象即 does not support dynamic）。name 是查询域名逐流变
+	// （T-DNS-8，sni 同款）；query_type/txid 是逐流 int（T-DNS-9/10，
+	// response_status_code 先例）。
+	"dns": {"name": true, "query_type": true, "txid": true},
 }
 
 // parseLayerDyn extracts per-flow dynamic strategies from a decoded layers
@@ -171,6 +176,17 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 							}
 						}
 					}
+				case "dns":
+					// D-DNS-1：name/query_type/txid 三开（其余 11 关——
+					// allowlist 门已拦对象，到不了这里）。
+					switch f {
+					case "name":
+						set(where, lname, f, &out.DNS.Name, v)
+					case "query_type":
+						set(where, lname, f, &out.DNS.QueryType, v)
+					case "txid":
+						set(where, lname, f, &out.DNS.TxID, v)
+					}
 				}
 			}
 		}
@@ -241,6 +257,36 @@ func tlsCertSub(field string) string {
 func checkDynShape(where, lname, field string, s *StrategyConfig) string {
 	if lname == "tls" && (field == "cert.subject" || field == "cert.san") {
 		return checkTLSCertDynShape(where, tlsCertSub(field), s)
+	}
+	// D-DNS-1：dns.name 走 tls-sni 同款 string 面（fixed/list/pattern；
+	// inc/rand 对域名无意义，拒绝）。query_type/txid 走 http-
+	// response_status_code 同款 int 面（fixed/inc/rand/list；pattern 对
+	// 数字无意义，拒绝）——两支都由下方 default 分支天然覆盖（int 面：
+	// inc/rand 走 2 元素 range 端点检查；list 要求非空；pattern 落到
+	// checkLayerDynObjects 前 default 分支报 unknown 或 pattern 分支拒绝），
+	// 这里只特化 name 的 string 面。
+	if lname == "dns" && field == "name" {
+		switch s.Strategy {
+		case "fixed", "":
+			return ""
+		case "list":
+			if len(s.List) == 0 {
+				return fmt.Sprintf("%s: list strategy requires a non-empty list", where)
+			}
+			return ""
+		case "pattern":
+			if s.Pattern == "" || len(s.Range) != 2 {
+				return fmt.Sprintf("%s: pattern strategy requires a template and a 2-element range", where)
+			}
+			return ""
+		case "inc", "rand":
+			return fmt.Sprintf("%s: %s strategy is not supported for string field", where, s.Strategy)
+		default:
+			return fmt.Sprintf("%s: unknown dynamic strategy %q", where, s.Strategy)
+		}
+	}
+	if lname == "dns" && (field == "query_type" || field == "txid") && s.Strategy == "pattern" {
+		return fmt.Sprintf("%s: pattern strategy is not supported for numeric dns fields", where)
 	}
 	if lname == "tls" && field == "sni" {
 		switch s.Strategy {
@@ -718,6 +764,33 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 		if ld.TLS.CertSAN != nil {
 			if v := ResolveStringValue(ld.TLS.CertSAN, i); v != "" {
 				spec.TLS.ServerCertificate.San = []string{v}
+			}
+		}
+	}
+	// D-DNS-1：dns 业务 3 键回填。name 走 string 面（fixed/list/pattern；
+	// 空值 no-op）；query_type/txid 走 int 面（fixed/inc/rand/list；0 值
+	// no-op——0 即 builder 默认：query_type 0 无意义保静态、txid 0 即 0x1234
+	// 回退，保持 "non-zero wins" 与既有四元组同口径）。spec.DNS nil 时建空
+	// 补后再写（层翻译已建非 nil，防御性补建）；只写三键，不碰其余 11 键。
+	// 注意：http/tls 段同款"只服务直调/单测口径"注记同样适用——链引擎路径
+	// （translateDNSDyn）才是生产真相，见 chain_planner_translate.go。
+	if ld.DNS.Name != nil || ld.DNS.QueryType != nil || ld.DNS.TxID != nil {
+		if spec.DNS == nil {
+			spec.DNS = &DNSConfig{}
+		}
+		if ld.DNS.Name != nil {
+			if v := ResolveStringValue(ld.DNS.Name, i); v != "" {
+				spec.DNS.Domain = v
+			}
+		}
+		if ld.DNS.QueryType != nil {
+			if v := ResolvePortValue(ld.DNS.QueryType, i); v != 0 {
+				spec.DNS.QueryType = v
+			}
+		}
+		if ld.DNS.TxID != nil {
+			if v := ResolvePortValue(ld.DNS.TxID, i); v != 0 {
+				spec.DNS.TxID = v
 			}
 		}
 	}

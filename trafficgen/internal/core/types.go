@@ -3561,6 +3561,15 @@ type LayerTLSDyn struct {
 	CertSAN     *StrategyConfig
 }
 
+// LayerDNSDyn holds dns-layer dynamic business-field strategies
+// (D-DNS-1: name 开 string 面；query_type/txid 开 int 面；其余 11 关，
+// 指针恒 nil）。
+type LayerDNSDyn struct {
+	Name      *StrategyConfig
+	QueryType *StrategyConfig
+	TxID      *StrategyConfig
+}
+
 // LayerDynValues is the parsed per-flow dynamic strategy set from a layers
 // array (D-FTP-3). All pointers nil-able; nil = that endpoint is static.
 type LayerDynValues struct {
@@ -3570,6 +3579,7 @@ type LayerDynValues struct {
 	Eth  LayerEthDyn
 	HTTP LayerHTTPDyn
 	TLS  LayerTLSDyn
+	DNS  LayerDNSDyn
 }
 
 // HasAny reports whether any dynamic strategy is present.
@@ -3584,7 +3594,8 @@ func (l *LayerDynValues) HasAny() bool {
 		l.HTTP.URI != nil || l.HTTP.Body != nil || l.HTTP.BodyB64 != nil ||
 		l.HTTP.ResponseBody != nil || l.HTTP.ResponseBodyB64 != nil ||
 		l.HTTP.ResponseStatusCode != nil ||
-		l.TLS.SNI != nil || l.TLS.CertSubject != nil || l.TLS.CertSAN != nil
+		l.TLS.SNI != nil || l.TLS.CertSubject != nil || l.TLS.CertSAN != nil ||
+		l.DNS.Name != nil || l.DNS.QueryType != nil || l.DNS.TxID != nil
 }
 
 // StrategyConfig for value generation strategies.

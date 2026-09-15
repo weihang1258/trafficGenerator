@@ -2229,9 +2229,11 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/gre.json`（gre_neg_dyn_sequence）。
 
-### T-GRE-20 gre.json——dns 业务动态拒绝负例【D-GRE-3 §12】
+### T-GRE-20 gre.json——dns 业务动态拒绝负例【D-GRE-3 §12】【已作废，D-DNS-1 改判，2026-09-15】
 
-**状态：** 已执行（P5，2026-09-15：绿，20/20）
+**作废说明：** D-DNS-1 起 `dns.name` 动态在直连链合法（string 面 list，T-DNS-8 13/13 绿）；隧道内层仅内层 ip 三键静态，dns.name 不在内层静态之列——原"隧道内 dns 动态拒绝"依据作废。用例 `gre_neg_dyn_dns` 已删，替换为 `gre_neg_dyn_checksum`（T-GRE-22）。本编号保留作废注记，不复用。
+
+**原状态：** 已执行（P5，2026-09-15：绿，20/20）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** D-GRE-3 §12（dns 不在 allowlist——`layer_dyn.go:17` 无 dns 行，对象天然关门；gre 链下首锁）
 **目标：** 内层 `dns{"name":{"strategy":"list","list":["a.com","b.com"]}}` 建任务即被拒。
@@ -2242,7 +2244,7 @@
 **期望输出：** 任务失败；错误含 `does not support dynamic`。
 **错误期望：** 即本条。
 **性能期望：** 不适用。
-**实现位置：** `cases/gre.json`（gre_neg_dyn_dns）。
+**实现位置：** `cases/gre.json`（gre_neg_dyn_dns，已删）。
 
 ## 7. 用例审查与完成条件
 
@@ -2261,9 +2263,9 @@
 
 任何只写了功能、没有性能验收的测试集都不算完整。
 
-### T-DNS-1 dns.json——层链冒烟基线（单查询 A 记录）【D-DNS-1 §4】
+### T-DNS-{n} dns.json——层链冒烟基线（单查询 A 记录）【D-DNS-1 §4】
 
-**状态：** 待执行（P5：dns.json 全量之一）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap
 **来源：** RFC 1035 §4.1.1（头 ID/QR/RD/QDCOUNT）；D-DNS-1 §4
 **目标：** 层链形 `[ip,udp,dns{name:example.com,query_type:1}]` 单查询 1 包：`udp.dstport=53`、`dns.id=0x1234`、`dns.flags=0x0100`、`dns.qry.name=example.com`、`dns.qry.type=1`。
@@ -2276,9 +2278,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_smoke_01 改写）。
 
-### T-DNS-2 dns.json——顶层 dns 子映射 presence 判死负例【D-DNS-1 §5】
+### T-DNS-{n} dns.json——顶层 dns 子映射 presence 判死负例【D-DNS-1 §5】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** D-DNS-1 §5（http 族 presence 先例；空 map 也死）
 **目标：** `{"layers":[…],"dns":{}}` 建任务即被拒。
@@ -2291,9 +2293,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_neg_flat）。
 
-### T-DNS-3 dns.json——层链静态复制拒绝负例【D-DNS-1 §5】
+### T-DNS-{n} dns.json——层链静态复制拒绝负例【D-DNS-1 §5】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap（Validate-negative）
 **来源：** §12 静态复制禁令（框架 `checkLayerChainStaticCopy`）
 **目标：** 全静态标量 + flows=2 即被拒。
@@ -2306,9 +2308,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_neg_static_copy）。
 
-### T-DNS-4 dns.json——AAAA 查询正例【D-DNS-1 §9】
+### T-DNS-{n} dns.json——AAAA 查询正例【D-DNS-1 §9】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap
 **来源：** RFC 1035 §3.4.1 + RFC 3596 §2.2（AAAA RDATA）
 **目标：** `dns{query_type:28}` 查询 `dns.qry.type=28`。
@@ -2321,9 +2323,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_aaaa）。
 
-### T-DNS-5 dns.json——响应包正例【D-DNS-1 §9】
+### T-DNS-{n} dns.json——响应包正例【D-DNS-1 §9】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap
 **来源：** RFC 1035 §4.1.1（响应 TXID 回显 MUST）；现网问答场景
 **目标：** `dns{is_response:true,response_ip:1.2.3.4}` 产 2 包（up 查询 + down 响应），响应 txid=查询 txid，响应 A 记录=1.2.3.4。
@@ -2336,9 +2338,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_response）。
 
-### T-DNS-6 dns.json——NXDOMAIN + 权威节正例【D-DNS-1 §9】
+### T-DNS-{n} dns.json——NXDOMAIN + 权威节正例【D-DNS-1 §9】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap
 **来源：** RFC 1035 §4.1.1（RCODE）+ §6.2.5（NXDOMAIN 负缓存权威节 SOA）
 **目标：** `dns{is_response:true,response_code:3,authority:[SOA]}` 响应 rcode=3 且带权威节。
@@ -2351,9 +2353,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_nxdomain_soa）。
 
-### T-DNS-7 dns.json——EDNS0 正例【D-DNS-1 §9】
+### T-DNS-{n} dns.json——EDNS0 正例【D-DNS-1 §9】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap
 **来源：** RFC 6891（OPT 伪记录，ARCOUNT=1）
 **目标：** `dns{edns0_enabled:true}` 查询带附加节（ARCOUNT=1）。
@@ -2366,9 +2368,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_edns0）。
 
-### T-DNS-8 dns.json——name list 动态正例【D-DNS-1 §12】
+### T-DNS-{n} dns.json——name list 动态正例【D-DNS-1 §12】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap（multiflow：flows=2）
 **来源：** D-DNS-1 §12（name string 面 list；tls sni 先例）
 **目标：** `dns.name{"strategy":"list","list":["a.com","b.com"]}` + flows=2 →两流查询域名 distinct。
@@ -2381,9 +2383,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_name_dynamic）。
 
-### T-DNS-9 dns.json——query_type inc 动态正例【D-DNS-1 §12】
+### T-DNS-{n} dns.json——query_type inc 动态正例【D-DNS-1 §12】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap（multiflow：flows=2）
 **来源：** D-DNS-1 §12（query_type int 面 inc）
 **目标：** `dns.query_type{"strategy":"inc","range":[1,28],"step":27}` + flows=2 →两流类型 distinct（1/28）。
@@ -2396,9 +2398,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_qtype_dynamic）。
 
-### T-DNS-10 dns.json——txid inc 动态正例【D-DNS-1 §12】
+### T-DNS-{n} dns.json——txid inc 动态正例【D-DNS-1 §12】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap（multiflow：flows=2）
 **来源：** RFC 1035 §4.1.1（TxID 发包方自选）；D-DNS-1 §12（txid int 面）
 **目标：** `dns.txid{"strategy":"inc","range":[1000,1001]}` + flows=2 →两流 txid distinct。
@@ -2411,9 +2413,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_txid_dynamic）。
 
-### T-DNS-11 dns.json——TCP 载体拒绝负例【D-DNS-1 §5】
+### T-DNS-{n} dns.json——TCP 载体拒绝负例【D-DNS-1 §5】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap（Validate-negative）
 **来源：** RFC 7766（TCP 载体）；链上实现分叉（TCPGenerator 全握手 vs legacy 无握手）——明确不支持
 **目标：** `dns{transport:"tcp"}` 建任务即被拒。
@@ -2426,9 +2428,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_neg_tcp）。
 
-### T-DNS-12 dns.json——rcode 越界拒绝负例【D-DNS-1 §5】
+### T-DNS-{n} dns.json——rcode 越界拒绝负例【D-DNS-1 §5】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap（Validate-negative）
 **来源：** RFC 1035 §4.1.1（RCODE 4 位）；`dns.go` validateDNSConfig
 **目标：** `dns{response_code:16}` 即被拒。
@@ -2441,9 +2443,9 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_neg_rcode）。
 
-### T-DNS-13 dns.json——空域名拒绝负例【D-DNS-1 §5】
+### T-DNS-{n} dns.json——空域名拒绝负例【D-DNS-1 §5】
 
-**状态：** 待执行（P5）
+**状态：** 已执行（P5，2026-09-15：绿，13/13）
 **级别：** pcap（Validate-negative）
 **来源：** `dns.go` validateDNSConfig（空 QNAME 非法）
 **目标：** `dns{name:""}` 即被拒。
@@ -2458,7 +2460,7 @@
 
 ### T-GRE-21 gre.json——外层 ip rand 动态正例【D-DNS-1 范围⑥：GRE 备注②关闭】
 
-**状态：** 待执行（P5，与 dns.json 同批跑）
+**状态：** 已执行（P5，2026-09-15：绿，21/21）
 **级别：** pcap（multiflow：flows=2）
 **来源：** §12 rand 同 seed 可复现（框架 `resolveLayerTuple`；ipv6_dyn_test 单测已锁语义）；GRE 备注②缺口关闭
 **目标：** 外层 `ip.src{"strategy":"rand","range":["10.0.0.1","10.0.0.2"],"seed":7}` + flows=2 →两流外层源 distinct（seed 固定可复现）。
@@ -2470,3 +2472,18 @@
 **错误期望：** 无。
 **性能期望：** 不适用。
 **实现位置：** `cases/gre.json`（gre_outer_ip_rand）。
+
+### T-GRE-22 gre.json——checksum动态拒绝负例【D-DNS-1 §9：T-GRE-20作废替换】
+
+**状态：** 已执行（P5，2026-09-15：绿，21/21）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-GRE-1 §12（gre业务3键全关；T-GRE-4锁key、T-GRE-19锁sequence，本例锁checksum三键齐）
+**目标：** gre层 `{"checksum":{"strategy":"list","list":[true]}}` 建任务即被拒。
+
+**输入：** T-GRE-1链形 + gre层checksum对象。
+**前置条件：** 无。
+**执行：** 同T-GRE-2。
+**期望输出：** 任务失败；错误含 `does not support dynamic`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_neg_dyn_checksum）。

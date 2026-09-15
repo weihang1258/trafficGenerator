@@ -131,9 +131,25 @@ func buildDefaultRegistry() {
 		DependsOn:   []string{"udp"},        // 默认 udp；用户显式写 tcp 层覆盖（补全时替代）
 		TransportOn: []string{"udp", "tcp"}, // 支持的传输层，第一个 = 默认（须与 DependsOn[0] 一致）
 		OptionalOn:  []string{"tls"},
+		// D-DNS-1：层 14 键（顶层 dns 子映射迁入；字段名对齐 DNSConfig
+		// json tag——flat `rcode`→`response_code` 防传输层 RCODE 混淆）。
+		// 缺席键走默认：name=example.com / query_type=1 / udp_payload_size
+		// 4096 经生成器回退；txid=0=0x1234 回退 / ttl=0=300 回退沿 legacy。
 		Fields: map[string]FieldSchema{
-			"query_type": {Type: "uint16", Default: uint16(1), Min: 0, Max: 65535},
-			"name":       {Type: "string", Default: "example.com"},
+			"name":             {Type: "string", Default: "example.com"},
+			"query_type":       {Type: "uint16", Default: uint16(1), Min: 0, Max: 65535},
+			"txid":             {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
+			"is_response":      {Type: "bool", Default: false},
+			"response_ip":      {Type: "string", Default: ""},
+			"edns0_enabled":    {Type: "bool", Default: false},
+			"udp_payload_size": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535}, // 0=4096 回退沿 legacy
+			"dnssec_ok":        {Type: "bool", Default: false},
+			"transport":        {Type: "string", Default: ""},
+			"response_code":    {Type: "uint8", Default: uint8(0), Min: 0, Max: 15},
+			"ttl":              {Type: "uint32", Default: uint32(0), Min: 0, Max: 4294967295},
+			"questions":        {Type: "object"},
+			"answers":          {Type: "object"},
+			"authority":        {Type: "object"},
 		},
 	})
 	// ---- 波 4：ntp/snmp/syslog（udp 终结层，配置经 FlowMeta 直传生成器，

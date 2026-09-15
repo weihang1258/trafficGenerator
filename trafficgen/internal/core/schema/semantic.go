@@ -166,6 +166,9 @@ func checkLayerFlatConflict(config map[string]any) string {
 // checkLayerChainStaticCopy (D-FTP-3): 层链形状下显式标量四元组 + 无对象 +
 // flows>1 → 拒绝（逃生口=层内字段写动态对象）。仅当层内有任一四元组字段被
 // 显式写成标量时触发；全缺省层（如 [{tcp:{}},{http:{}}]）不触发。
+// D-DNS-1 修正：逃生口不限四元组层——业务层动态对象（dns.name/http.uri/
+// tls.sni 等同 parseLayerDyn 口径）同样证明"流间有别"，豁免。只认三层
+// （ip/tcp/udp）的旧逻辑会把纯业务动态多流误杀（dns_name_dynamic 实证）。
 func checkLayerChainStaticCopy(config map[string]any, flows float64) string {
 	if int(flows) <= 1 {
 		return ""
@@ -191,6 +194,25 @@ func checkLayerChainStaticCopy(config map[string]any, flows float64) string {
 					hasDyn = true
 				} else {
 					hasScalar = true
+				}
+			}
+		}
+		// 业务层动态对象逃生口（D-DNS-1）：allowlist 开字段的对象写法即
+		// "逐流有别"证明——与四元组层对象同等豁免。只看对象形状（strategy
+		// 键），不重复 allowlist 语义校验（ValidateLayers 管）。
+		for lname, sub := range layer {
+			if lname == "ip" || lname == "tcp" || lname == "udp" {
+				continue
+			}
+			subMap, _ := sub.(map[string]any)
+			if subMap == nil {
+				continue
+			}
+			for _, v := range subMap {
+				if m, isObj := v.(map[string]any); isObj && m != nil {
+					if _, looksDyn := m["strategy"]; looksDyn {
+						hasDyn = true
+					}
 				}
 			}
 		}

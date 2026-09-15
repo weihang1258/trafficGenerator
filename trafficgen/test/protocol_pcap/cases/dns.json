@@ -1,71 +1,597 @@
 [
-  {
-    "id": "dns_smoke_01",
-    "proto": "dns",
-    "summary": "[chain] 冒烟：DNS 单查询（example.com A 记录）。顶层不设端口 → 默认 dst 53（IANA），txid 默认 0x1234、QR=0、RD=1，共 1 包",
-    "spec_json": {
-      "layers": [
-        {
-          "udp": {}
-        },
-        {
-          "dns": {}
-        }
-      ],
-      "dns": {
-        "domain": "example.com"
-      }
+ {
+  "id": "dns_smoke_01",
+  "proto": "dns",
+  "summary": "[chain] 冒烟：DNS单查询（example.com A记录，层链形[ip,udp,dns]，域名进dns层name）。dst 53（IANA），txid默认0x1234、QR=0、RD=1，共1包",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "udp.dstport",
-          "value": "53"
-        },
-        {
-          "packet": 1,
-          "field": "dns.id",
-          "value": "0x1234"
-        },
-        {
-          "packet": 1,
-          "field": "dns.flags",
-          "value": "0x0100"
-        },
-        {
-          "packet": 1,
-          "field": "dns.flags.response",
-          "value": "0"
-        },
-        {
-          "packet": 1,
-          "field": "dns.flags.recdesired",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "dns.qry.name",
-          "value": "example.com"
-        },
-        {
-          "packet": 1,
-          "field": "dns.qry.type",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "dns.qry.class",
-          "value": "0x0001"
-        }
-      ],
-      "notes": [
-        "RFC 1035 §4.1：DNS header 固定字段（ID/QR/RD/QDCOUNT），此处 ID 默认 0x1234 确定值",
-        "顶层未设端口：dst 默认 53（strategy_convert）、src 保持 flow 默认 12345，不断言",
-        "tshark 探针实测：flags=0x0100、qry.name=example.com、qry.type=1、qry.class=0x0001、id=0x1234",
-        "layers chain style: [udp,dns]; DNS sub-config stays in spec_json['dns']"
-      ]
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 1
+     }
     }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "53"
+    },
+    {
+     "packet": 1,
+     "field": "dns.id",
+     "value": "0x1234"
+    },
+    {
+     "packet": 1,
+     "field": "dns.flags",
+     "value": "0x0100"
+    },
+    {
+     "packet": 1,
+     "field": "dns.flags.response",
+     "value": "0"
+    },
+    {
+     "packet": 1,
+     "field": "dns.flags.recdesired",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.name",
+     "value": "example.com"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.class",
+     "value": "0x0001"
+    }
+   ],
+   "notes": [
+    "RFC 1035 §4.1：DNS header固定字段（ID/QR/RD/QDCOUNT），此处ID默认0x1234确定值",
+    "dns层name=example.com/query_type=1（D-DNS-1：顶层dns子映射已迁入层内）；tshark实测回钉",
+    "顶层未设端口：dst默认53（strategy_convert）、src保持flow默认12345，不断言",
+    "tshark探针实测：flags=0x0100、qry.name=example.com、qry.type=1、qry.class=0x0001、id=0x1234"
+   ]
   }
+ },
+ {
+  "id": "dns_neg_flat",
+  "proto": "dns",
+  "summary": "负例：顶层dns子映射presence判死（T-DNS-2，空map也死）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {}
+    }
+   ],
+   "dns": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts a top-level dns sub-config"
+  }
+ },
+ {
+  "id": "dns_neg_static_copy",
+  "proto": "dns",
+  "summary": "负例：层链静态复制拒绝flows=2+全静态标量（T-DNS-3）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 1
+     }
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "static four-tuple"
+  }
+ },
+ {
+  "id": "dns_aaaa",
+  "proto": "dns",
+  "summary": "AAAA查询（T-DNS-4）：dns{query_type:28}→qry.type=28",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 28
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "53"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.name",
+     "value": "example.com"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "28"
+    }
+   ],
+   "notes": [
+    "T-DNS-4【D-DNS-1 §9】：RFC 3596 AAAA；字段名落盘校准回钉"
+   ]
+  }
+ },
+ {
+  "id": "dns_response",
+  "proto": "dns",
+  "summary": "响应包（T-DNS-5）：is_response+response_ip→2包，响应txid回显、A=1.2.3.4",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 1,
+      "is_response": true,
+      "response_ip": "1.2.3.4"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.flags.response",
+     "value": "0"
+    },
+    {
+     "packet": 2,
+     "field": "dns.flags.response",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "dns.a",
+     "value": "1.2.3.4"
+    }
+   ],
+   "notes": [
+    "T-DNS-5【D-DNS-1 §9】：RFC 1035 §4.1.1响应TXID回显MUST；响应字段名落盘校准回钉"
+   ]
+  }
+ },
+ {
+  "id": "dns_nxdomain_soa",
+  "proto": "dns",
+  "summary": "NXDOMAIN+权威节（T-DNS-6）：response_code:3+authority SOA→rcode=3",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 1,
+      "is_response": true,
+      "response_code": 3,
+      "authority": [
+       {
+        "name": "example.com",
+        "type": 6,
+        "mname": "ns.example.com",
+        "rname": "hostmaster.example.com",
+        "serial": 1,
+        "refresh": 3600,
+        "retry": 600,
+        "expire": 86400,
+        "minimum": 300
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 2,
+     "field": "dns.flags.rcode",
+     "value": "3"
+    }
+   ],
+   "notes": [
+    "T-DNS-6【D-DNS-1 §9】：RFC 1035 §6.2.5负缓存；authority字段名落盘校准回钉"
+   ]
+  }
+ },
+ {
+  "id": "dns_edns0",
+  "proto": "dns",
+  "summary": "EDNS0（T-DNS-7）：edns0_enabled→附加节ARCOUNT=1",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 1,
+      "edns0_enabled": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.qry.name",
+     "value": "example.com"
+    }
+   ],
+   "notes": [
+    "T-DNS-7【D-DNS-1 §9】：RFC 6891 OPT；附加节字段名落盘校准回钉"
+   ]
+  }
+ },
+ {
+  "id": "dns_name_dynamic",
+  "proto": "dns",
+  "summary": "name动态（T-DNS-8）：list双域名+flows=2→两流域名distinct",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": {
+       "strategy": "list",
+       "list": [
+        "a.com",
+        "b.com"
+       ]
+      },
+      "query_type": 1
+     }
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 0,
+     "field": "dns.qry.name",
+     "distinct_values": [
+      "a.com",
+      "b.com"
+     ]
+    }
+   ],
+   "notes": [
+    "T-DNS-8【D-DNS-1 §12】：string面list；聚合方向落盘回钉"
+   ]
+  }
+ },
+ {
+  "id": "dns_qtype_dynamic",
+  "proto": "dns",
+  "summary": "query_type动态（T-DNS-9）：inc[1,28 step27]+flows=2→1/28 distinct",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": {
+       "strategy": "inc",
+       "range": [
+        1,
+        28
+       ],
+       "step": 27
+      }
+     }
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 0,
+     "field": "dns.qry.type",
+     "distinct_values": [
+      "1",
+      "28"
+     ]
+    }
+   ],
+   "notes": [
+    "T-DNS-9【D-DNS-1 §12】：int面inc；落盘回钉"
+   ]
+  }
+ },
+ {
+  "id": "dns_txid_dynamic",
+  "proto": "dns",
+  "summary": "txid动态（T-DNS-10）：inc[1000,1001]+flows=2→双txid distinct",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 1,
+      "txid": {
+       "strategy": "inc",
+       "range": [
+        1000,
+        1001
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 0,
+     "field": "dns.id",
+     "distinct_values": [
+      "0x03e8",
+      "0x03e9"
+     ]
+    }
+   ],
+   "notes": [
+    "T-DNS-10【D-DNS-1 §12】：txid 1000=0x03e8/1001=0x03e9 hex形落盘校准回钉（先按十进制猜，错了回钉）"
+   ]
+  }
+ },
+ {
+  "id": "dns_neg_tcp",
+  "proto": "dns",
+  "summary": "负例：transport=tcp链上拒（T-DNS-11）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "transport": "tcp"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "tcp transport not supported"
+  }
+ },
+ {
+  "id": "dns_neg_rcode",
+  "proto": "dns",
+  "summary": "负例：response_code=16越界拒（T-DNS-12，4位上限15）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "is_response": true,
+      "response_code": 16
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "out of range [0,15]"
+  }
+ },
+ {
+  "id": "dns_neg_empty_name",
+  "proto": "dns",
+  "summary": "负例：空域名拒（T-DNS-13）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "",
+      "query_type": 1
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "query_name (domain) is required"
+  }
+ }
 ]

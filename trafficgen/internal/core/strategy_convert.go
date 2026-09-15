@@ -7613,6 +7613,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol " + protocol + " no longer accepts a top-level http sub-config (move it into the http layer of a [ip,tcp,http] layers chain)"
 		}
 	}
+	// D-DNS-1：dns 顶层 dns 子映射 presence 判死（http 族先例；空 map 也
+	// 死——presence 语义与 ParseHTTPConfigFromMap 一致）。层链形状不触发。
+	if protocol == "dns" {
+		if v, ok := cfg["dns"]; ok && v != nil {
+			return "protocol dns no longer accepts a top-level dns sub-config (move it into the dns layer of an [ip,udp,dns] layers chain)"
+		}
+	}
 	return ""
 }
 

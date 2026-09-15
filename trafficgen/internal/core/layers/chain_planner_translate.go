@@ -885,10 +885,25 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		// spec.TLS.ServerCertificate（只写解析键，其余留给 certgen 默认）。
 		translateTLSCert(p, spec)
 	case "dns":
-		if spec.DNS != nil {
-			return // flat 权威
+		// D-DNS-1：层优先（flat 判死后无双轨——CheckProtoFlat 已拒顶层 dns
+		// 子映射；`if spec.DNS != nil return` 删除）。层 14 键全量翻译进
+		// spec.DNS（生成器读 spec.DNS 不变）；缺席键走 schema 默认（txid=0
+		// /ttl=0/udp_payload_size=0 沿生成器回退语义）。
+		// 动态对象直解（http :845 段同构）：读 p.chain 原始链（对象完整），
+		// 不读 term 补全链（对象已剥离）。name 走 string 面直解；query_type/
+		// txid 走 int 面直解（ResolvePortValue 是通用 uint16 解析器，非端口
+		// 专属——status_code 先例同款）。
+		rawDNS := term.Config
+		for _, l := range p.chain {
+			if l.Name == "dns" {
+				rawDNS = l.Config
+				break
+			}
 		}
 		cfg := completedConfig(s, term.Config)
+		if msg := translateDNSDyn(cfg, rawDNS, spec.FlowIndex); msg != "" {
+			return
+		}
 		spec.DNS = &core.DNSConfig{
 			Domain:    "example.com", // schema 默认；buildDNSQuery 不默认空域名
 			QueryType: 1,             // schema 默认（A 记录）
@@ -898,6 +913,168 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		}
 		if v, ok := configUint16(cfg["query_type"]); ok {
 			spec.DNS.QueryType = v
+		}
+		if v, ok := configUint16(cfg["txid"]); ok {
+			spec.DNS.TxID = v
+		}
+		if v, ok := cfg["is_response"].(bool); ok {
+			spec.DNS.IsResponse = v
+		}
+		if v, ok := configString(cfg["response_ip"]); ok {
+			spec.DNS.ResponseIP = v
+		}
+		if v, ok := cfg["edns0_enabled"].(bool); ok {
+			spec.DNS.EDNS0Enabled = v
+		}
+		if v, ok := configUint16(cfg["udp_payload_size"]); ok {
+			spec.DNS.UDPPayloadSize = v
+		}
+		if v, ok := cfg["dnssec_ok"].(bool); ok {
+			spec.DNS.DnssecOK = v
+		}
+		if v, ok := configString(cfg["transport"]); ok {
+			spec.DNS.Transport = v
+		}
+		if v, ok := configUint8(cfg["response_code"]); ok {
+			spec.DNS.RCode = v
+		}
+		if v, ok := configUint32(cfg["ttl"]); ok {
+			spec.DNS.TTL = v
+		}
+		if v, ok := cfg["questions"].([]interface{}); ok && len(v) > 0 {
+			out := make([]core.DNSQuestion, 0, len(v))
+			for _, item := range v {
+				m, isMap := item.(map[string]interface{})
+				if !isMap {
+					continue
+				}
+				q := core.DNSQuestion{}
+				if s, ok := configString(m["name"]); ok {
+					q.Name = s
+				}
+				if n, ok := configUint16(m["type"]); ok {
+					q.Type = n
+				}
+				if n, ok := configUint16(m["class"]); ok {
+					q.Class = n
+				}
+				out = append(out, q)
+			}
+			if len(out) > 0 {
+				spec.DNS.Questions = out
+			}
+		}
+		// answers/authority：RR 数组逐条翻译（字段映射与 flat
+		// parseDNSRRs 同源——strategy_convert.go:3614 同表；此处是 layers
+		// 侧镜像，不能 import core 的 unexported parse）。
+		for _, key := range []string{"answers", "authority"} {
+			v, ok := cfg[key].([]interface{})
+			if !ok || len(v) == 0 {
+				continue
+			}
+			rrs := make([]core.DNSRR, 0, len(v))
+			for _, item := range v {
+				m, isMap := item.(map[string]interface{})
+				if !isMap {
+					continue
+				}
+				rr := core.DNSRR{}
+				if s, ok := configString(m["name"]); ok {
+					rr.Name = s
+				}
+				if n, ok := configUint16(m["type"]); ok {
+					rr.Type = n
+				}
+				if n, ok := configUint16(m["class"]); ok {
+					rr.Class = n
+				}
+				if n, ok := configUint32(m["ttl"]); ok {
+					rr.TTL = n
+				}
+				if s, ok := configString(m["ip"]); ok {
+					rr.IP = s
+				}
+				if s, ok := configString(m["target"]); ok {
+					rr.Target = s
+				}
+				if n, ok := configUint16(m["preference"]); ok {
+					rr.Preference = n
+				}
+				if s, ok := configString(m["text"]); ok {
+					rr.Text = s
+				}
+				if s, ok := configString(m["mname"]); ok {
+					rr.MName = s
+				}
+				if s, ok := configString(m["rname"]); ok {
+					rr.RName = s
+				}
+				if n, ok := configUint32(m["serial"]); ok {
+					rr.Serial = n
+				}
+				if n, ok := configUint32(m["refresh"]); ok {
+					rr.Refresh = n
+				}
+				if n, ok := configUint32(m["retry"]); ok {
+					rr.Retry = n
+				}
+				if n, ok := configUint32(m["expire"]); ok {
+					rr.Expire = n
+				}
+				if n, ok := configUint32(m["minimum"]); ok {
+					rr.Minimum = n
+				}
+				if n, ok := configUint16(m["priority"]); ok {
+					rr.Priority = n
+				}
+				if n, ok := configUint16(m["weight"]); ok {
+					rr.Weight = n
+				}
+				if n, ok := configUint16(m["port"]); ok {
+					rr.Port = n
+				}
+				if n, ok := configUint16(m["order"]); ok {
+					rr.Order = n
+				}
+				if s, ok := configString(m["flags"]); ok {
+					rr.Flags = s
+				}
+				if s, ok := configString(m["service"]); ok {
+					rr.Service = s
+				}
+				if s, ok := configString(m["regexp"]); ok {
+					rr.Regexp = s
+				}
+				if n, ok := configUint16(m["key_tag"]); ok {
+					rr.KeyTag = n
+				}
+				if n, ok := configUint8(m["algorithm"]); ok {
+					rr.Algorithm = n
+				}
+				if n, ok := configUint8(m["digest_type"]); ok {
+					rr.DigestType = n
+				}
+				if s, ok := configString(m["digest"]); ok {
+					rr.Digest = s
+				}
+				if n, ok := configUint16(m["key_flags"]); ok {
+					rr.KeyFlags = n
+				}
+				if n, ok := configUint8(m["protocol"]); ok {
+					rr.Protocol = n
+				}
+				if s, ok := configString(m["public_key"]); ok {
+					rr.PublicKey = s
+				}
+				rrs = append(rrs, rr)
+			}
+			if len(rrs) > 0 {
+				if key == "answers" {
+					spec.DNS.Answers = rrs
+				} else {
+					spec.DNS.Authority = rrs
+				}
+			}
 		}
 	case "postgresql":
 		if spec.PostgreSQL != nil {
@@ -1014,6 +1191,49 @@ func decodeNodeOps(v []interface{}) []core.OPCUANodeRead {
 		ops = append(ops, op)
 	}
 	return ops
+}
+
+// translateDNSDyn resolves dns-layer dynamic objects (D-DNS-1 3 开字段：
+// name string 面 / query_type·txid int 面) in the user raw config at flow
+// index i, writing scalar resolutions into cfg (completed overlay).
+// translateHTTPDyn 同构（读原始链、不读补全链；形状坏返回错误 Plan 同步
+// 失败；空解析 no-op 保静态）。query_type/txid 走 ResolvePortValue（通用
+// uint16 解析器，status_code 先例同款）。
+func translateDNSDyn(cfg, raw map[string]interface{}, i int) string {
+	if raw == nil {
+		return ""
+	}
+	for _, key := range []string{"name", "query_type", "txid"} {
+		m, isObj := raw[key].(map[string]interface{})
+		if !isObj || m == nil {
+			continue
+		}
+		if _, looksDyn := m["strategy"]; !looksDyn {
+			continue
+		}
+		if msg := core.CheckLayerDynShape("dns", key, m); msg != "" {
+			return msg
+		}
+		var sc core.StrategyConfig
+		b, _ := json.Marshal(m)
+		if err := json.Unmarshal(b, &sc); err != nil {
+			return "dns." + key + ": invalid object"
+		}
+		if key == "name" {
+			if v := core.ResolveStringValue(&sc, i); v != "" {
+				cfg[key] = v
+			} else {
+				delete(cfg, key)
+			}
+			continue
+		}
+		if v := core.ResolvePortValue(&sc, i); v != 0 {
+			cfg[key] = float64(v)
+		} else {
+			delete(cfg, key)
+		}
+	}
+	return ""
 }
 
 // translateHTTPDyn resolves http-layer dynamic objects (D-HTTP-1 6 开字段)
