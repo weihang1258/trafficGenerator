@@ -1061,3 +1061,126 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 
 未通过评审的设计不得改代码。需求变化时先改本文档，再改实现和测试。
 
+
+### D-DNS-1 DNS 顶层 dns 子映射迁入层内 + 层动态放开 name/query_type/txid【P-PIPE #4 门1】
+
+**门 1 开工对照表（§1–§15，2026-09-15，证据=文档节/代码行/用例号）：**
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键五键 dns 现用例零残留（dns.json 仅 `layers`+`dns` 双键）；顶层 `dns` 子映射 14 字段逐键去向见本条目"flat 字段三选一表"；目标形状 `{"layers":[{"ip":{"src","dst"}},{"udp":{"src_port","dst_port"}},{"dns":{"name","query_type","txid",…}}]}`（dns 层字段全集见 §13 行） | dns.json dns_smoke_01；本条目 flat 表 |
+| §2 策略/任务分工 | 沿框架语义；多流走 `flow_control` + 层动态（§12 行） | D-DNS-1 §3 |
+| §3 五件套 | 豁免：dns 无 sessions、无子流派生、无关联字段；单流=1 查询（up）+ 可选 1 响应（down，`is_response` 开关）；dns 只产报文事件（GenEvents），udp 层每事件一 datagram；时间线=查询先响应后、无交错 | `dns/layer_gen.go:29-89` |
+| §4 规范矩阵 | RFC 1035 §4.1/§4.1.1/§4.1.2（报文/头/查询节）+ §4.2.1（UDP 载体）+ §3.2.1（RR）+ §3.4.1/§6（A/AAAA/权威节）；RFC 6891（EDNS0 OPT）；RFC 7766 + RFC 1035 §4.2.2（TCP 载体——明确不支持，链上同步拒）；现网 53/UDP 默认端口；三路对照见本条目依据行 | 本条目依据行 |
+| §5 有错必处理 | 三类锚词：①顶层 dns presence 判死（新锚词 `no longer accepts a top-level dns sub-config`，http 族 9 协议先例）；②TCP 载体链上拒（既有 `dns: tcp transport not supported`）；③层未知字段拒（V9 既有）。无 pin | T-DNS-2/3；`dns/layer_gen.go:114` |
+| §6 性能 | 单查询 1 包 / 响应 2 包；无锁无 sleep；回归 ±10%；边界诚实声明（未测吞吐/并发） | D-DNS-1 §6 |
+| §7 三份文档 | 设计=本条目；用例=T-DNS-*；cases 回指编号 | TEST_CASES T-DNS-* |
+| §8 先设计后代码 | 本条目定稿后开工 | 本条目 |
+| §9 三源+整格 | RFC 条文 + 本条目 + 现网 53/UDP；测试点清单见本条目 §9 表（规范行→用例逐行登记）；动态整格见 §12 行 | §9 表；§12 表 |
+| §10 评审闭环 | failing 先行（顶层 dns presence 拒 + 层 name 生效 + name 动态正例）→ 改 → 审 → 测 → 再审 | §7 |
+| §11 白话汇报 | 先一句结论 | 每次汇报 |
+| §12 动态清单 | 整格见本条目 §12 表：name 开 string 面（fixed/list/pattern；inc/rand 同 sni 裁定表 F 拒绝）/ query_type 开 int 面（fixed/inc/rand/list；pattern 拒绝，response_status_code 先例）/ txid 开 int 面（同 query_type）/ 其余 11 字段关（is_response 等开关语义 + response_ip 等响应静态 + questions/answers/authority 数组无动态形状 + transport 载体选择非逐流值） | T-DNS-8/9/10；`layer_dyn.go` allowlist |
+| §13 schema 同步 | 注册表 dns Fields 扩到 14 键（name/query_type/txid/is_response/response_ip/edns0_enabled/udp_payload_size/dnssec_ok/transport/response_code/ttl/questions/answers/authority——类型/范围/默认见本条目 §13 表）；CheckProtoFlat 加 dns presence 分支；改完重跑 schemagen（生成表 95 层快照同步） | 门 2 脚本 |
+| §14 真实流程 | dns.json 全量绿 + 落盘校准；二进制同代；门 2 三项 | T-DNS-* |
+| §15 三道门 | 本表即门 1；门 2 脚本；门 3 挂表抽查 | 本条目 |
+
+**状态：** 设计中（P2，2026-09-15，用户裁定 A：修正版重做开工表）
+**范围（2026-09-15）：** ①注册表 dns Fields 2→14 键；②translateTerminalConfig dns 分支改层优先（现 flat 优先 `if spec.DNS != nil return` 改为：顶层 dns 出现即判死后，层 config 全量翻译）；③CheckProtoFlat 加 dns presence 判死；④`layer_dyn.go` allowlist 加 `dns: name/query_type/txid` + checkDynShape 面（name 走 tls-sni 同款 string 面；query_type/txid 走 http-response_status_code 同款 int 面）；⑤dns.json 改写 + 新增 T-DNS-2…10 全量跑；⑥GRE 顺手项：gre.json 补 rand 正例 1 例（备注②缺口关闭）。
+**明确不解决：** DNS-over-TCP 链化（TCPGenerator 全握手 vs legacy 无握手 PSH+ACK 语义分叉，另立项；链上同步拒保留）；DNS-over-TLS（doh 协议另有条目）；questions/answers/authority 数组动态（无动态形状）；gre 隧道内 dns 层动态（T-GRE-20 已锁关——隧道内层静态，内外有别不冲突：直连 dns 链开动态，gre 隧道内层 dns 关动态）。
+**依据：** RFC 1035 §4.1（报文格式）/§4.1.1（头：ID/QR/RD/QDCOUNT）/§4.1.2（查询节 QDCOUNT 可 >1；RR 节）/§4.2.1（UDP 载体）/§4.2.2（TCP 载体——不支持依据）/§3.2.1（RR）/§3.4.1（A RDATA）/§6.2.5（NXDOMAIN 权威节）；RFC 6891（EDNS0 OPT）；RFC 7766（TCP 载体）；RFC 3596 §2.2（AAAA）；RFC 4033（DO 位）；现网行为（53/UDP 默认，strategy_convert 默认化）；开源对照（借报文结构思路，不搬实现）。代码事实：`dns/layer_gen.go:29-89`（事件产出；transport tcp 拒 `:35,:113-115`）；`dns.go:86` validateDNSConfig（transport 枚举/rcode≤15/域名必填/RR 族校验）；`types.go:2220` DNSConfig 14 字段；`chain_planner_translate.go` dns 翻译分支（flat 优先）；`strategy_convert.go:401` flat dns 14 键解析；registry dns 2 键（`:130-138`）。
+
+**flat 字段三选一表（§1 逐键去向，共 14 键）：**
+
+| flat `dns` 字段 | 去向 |
+|---|---|
+| domain | dns 层 `name`（字段名对齐层 schema；翻译分支改名） |
+| query_type | dns 层 `query_type`（已在层内） |
+| txid | dns 层 `txid`（新增，uint16，默认 0=0x1234 回退沿 legacy） |
+| is_response/response | dns 层 `is_response`（新增，bool，默认 false） |
+| response_ip | dns 层 `response_ip`（新增，string，默认空） |
+| edns0_enabled | dns 层 `edns0_enabled`（新增，bool） |
+| udp_payload_size | dns 层 `udp_payload_size`（新增，uint16，默认 4096 沿 flat `getIntDefault`） |
+| dnssec_ok | dns 层 `dnssec_ok`（新增，bool） |
+| transport | dns 层 `transport`（新增，string，默认 ""=udp；tcp 值链上同步拒沿既有） |
+| rcode | dns 层 `response_code`（新增，uint8，`response_` 前缀防与传输层混淆；http response_status_code 先例） |
+| ttl | dns 层 `ttl`（新增，uint32，默认 0=300 沿生成器） |
+| questions | dns 层 `questions`（新增，object 数组；动态关） |
+| answers | dns 层 `answers`（新增，object 数组；动态关） |
+| authority | dns 层 `authority`（新增，object 数组；动态关） |
+
+**§9 测试点清单（规范行→用例）：**
+
+| 规范行 | 用例 |
+|---|---|
+| RFC 1035 §4.1.1 头（ID/QR/RD/QDCOUNT=1，默认 txid 0x1234） | T-DNS-1（既有 dns_smoke_01 改写，层链形） |
+| 顶层 dns presence 判死 | T-DNS-2（负例，新锚词） |
+| 静态复制拒绝（flows=2 全静态） | T-DNS-3（负例，`static four-tuple`） |
+| query_type AAAA（28） | T-DNS-4（正例，`dns.qry.type=28`） |
+| is_response 响应包（down，TXID 回显） | T-DNS-5（正例，2 包 + 响应 txid=查询 txid） |
+| rcode NXDOMAIN（3）+ authority SOA | T-DNS-6（正例，现网负缓存场景） |
+| EDNS0 OPT（ARCOUNT=1） | T-DNS-7（正例，`edns0_enabled:true`） |
+| name list 动态（双流不同域名） | T-DNS-8（正例，distinct 双域名） |
+| query_type inc 动态（1→28 双流） | T-DNS-9（正例，distinct 双类型） |
+| txid inc 动态（双流不同 txid） | T-DNS-10（正例，distinct 双 txid） |
+| transport=tcp 链上拒 | T-DNS-11（负例，既有锚词） |
+| rcode>15 拒绝 | T-DNS-12（负例，`exceeds the 4-bit field`） |
+| 空域名拒绝 | T-DNS-13（负例，`query_name (domain) is required`） |
+| GRE 顺手 rand | T-GRE-21（gre.json，外层 ip.src rand 双流，备注②关闭） |
+
+#### 1. 数据与接口
+- 输入：`[ip, udp, dns{14 键}]`（dns 层缺席键走 schema 默认；`name` 默认 example.com 沿既有）。
+- 输出：查询 1 包（up）+ 响应可选 1 包（down）；响应 TXID 回显查询值（RFC 1035 §4.1.1 MUST）。
+- 修改点五处（builder/drive/finalEmit 零改动）：`registry.go` dns Fields 2→14；`chain_planner_translate.go` dns 翻译分支（flat 优先→层优先 + 14 键全量）；`strategy_convert.go` CheckProtoFlat dns presence 分支；`layer_dyn.go` allowlist + 双面形状；`dns/layer_gen.go` 零改动（读 spec.DNS 不变——翻译层已把层值灌进 spec）。新增函数：无。
+- 显式覆盖：层值是 dns 全配置唯一真相；flat `cfg["dns"]` 出现即判死（presence，空 map 也死，http 族先例）。
+
+#### 2. 依赖与生命周期
+- 前置：udp 层（DependsOn 沿既有；tcp 显式覆盖走 TransportOn 沿既有，但 transport=tcp 值仍同步拒——载体 tcp ≠ 值 tcp，前者是层链形状，后者是 dns 报文封装选项）。
+- 资源：无状态生成器；翻译在 ValidateSpec 同步期（幂等覆盖写）。
+
+#### 3. 主流程与状态
+- 翻译顺序：判死（顶层 dns 出现即拒）→ 层 config 全量翻译 → 协议 validator（transport/rcodes/域名/RR 族沿既有）。现 `flat 优先 return` 删除——flat 已死，无双轨。
+- 动态解析：worker resolveLayerTuple 沿框架（name 走 string 面 list/pattern；query_type/txid 走 int 面 inc/rand/list；inc/rand 在 name 上同 sni 拒绝）。
+
+#### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
+- 无新序号算法（框架 resolveLayerTuple；TxID 回显是报文规则非序号算法）。
+- 动态整格（§12）：
+
+  | 层.字段 | 开/关 | 面 | 覆盖 |
+  |---|---|---|---|
+  | dns.name | 开 | string 面（fixed/list/pattern；inc/rand 拒） | T-DNS-8 |
+  | dns.query_type | 开 | int 面（fixed/inc/rand/list；pattern 拒） | T-DNS-9 |
+  | dns.txid | 开 | int 面（同 query_type） | T-DNS-10 |
+  | dns.is_response/response_ip/edns0/transport/response_code/ttl | 关 | 开关/静态/载体选择 | 注记（开关语义逐流变无意义；transport 非逐流值） |
+  | dns.questions/answers/authority | 关 | 数组无动态形状 | 注记 |
+  | ip/udp 四元组 | 开 | 框架白名单沿既有 | T-DNS-8/9/10 附带（flows=2 双流四元组 distinct 由框架保底 `src_port+1`，不断言） |
+- 正交组合：query_type × name 不单建组合例（两字段独立翻译，dyn 路径同一 parseLayerDyn；T-DNS-9 以 AAAA 域名附带覆盖）。
+
+#### 5. 错误与异常
+- 新锚词：`protocol dns no longer accepts a top-level dns sub-config (move it into the dns layer of an [ip,udp,dns] layers chain)`（http 族文案同构）。
+- 既有锚词沿用：`dns: tcp transport not supported…`（T-DNS-11）；`dns rcode %d exceeds the 4-bit field`（T-DNS-12）；`dns query_name (domain) is required`（T-DNS-13）；`static four-tuple`（T-DNS-3）。
+- Failing 先行 3 红例：①顶层 `{"dns":{}}` 空映射 BuildLayersPlanner/Validate 即拒（现状放行——presence 未判死）；②层 `{"dns":{"name":"a.com"}}` 翻译后 spec.DNS.Domain=a.com（现状：name 键未知字段 V9 拒绝——注册表仅 2 键）；③层 name list 动态双流 distinct（现状：allowlist 无 dns 行即 `does not support dynamic`）。
+
+#### 6. 性能设计与验收
+- 单包路径增量：翻译多 12 键取值（ValidateSpec 同步期一次）；动态解析走框架（零新增）。回归口径：dns.json 全量 suite 耗时相对基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测）。
+- pcap 验收：dns.json 全量绿 + 落盘可复查（`dns.qry.name/type` + 响应 txid 回显 + distinct 双值）；网卡未跑。
+
+#### 7. 实现顺序与回滚
+- 步骤 0（failing 先行）：`internal/core/layers/dns_migrate_test.go` 3 红例（BuildLayersPlanner 全链口径）。
+- 步骤 1：注册表 dns Fields 2→14；步骤 2：翻译分支层优先 + 14 键；步骤 3：CheckProtoFlat dns presence；步骤 4：allowlist + 双面形状；步骤 5：`go build` + vet + touched 包 `-race` + schemagen 重跑；P5：dns.json 改写 + T-DNS-2…13 + gre.json T-GRE-21，全量跑 + 校准回钉；P6：评审+提交+清库复核。
+- 回滚：单提交逆序 revert。
+
+#### 8. 验收
+- 对应 T-DNS-1…13 + T-GRE-21（TEST_CASES P3 先行）。完成条件：3 红例先红后绿；dns.json 全量绿 + gre.json 全量绿（RESULT 全量；二进制同代；门 2 三项绿）；touched 包 `-race` 绿；顶层 `dns` 字面零残留（cases 内；除注释/文档历史叙述）；schemagen 生成表已同步（`TestLayersGeneratedMatchesRegistry` 绿）。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A 开工表范围 | A1 全字段表重做（14 键去向+清单）；A2 只搬域名 | A2 留 12 键无去向违反 §1 留白禁令 | 选 A1（用户裁定） |
+| B name/query_type/txid 动态 | B1 三开（name string 面 + 双 int 面）；B2 全关 | B2 无依据（规范/代码均支持逐流变） | 选 B1 |
+| C rcode 住处 | C1 层 `response_code`（`response_` 前缀）；C2 层 `rcode`（flat 原名） | C2 短但与传输层 RCODE 概念易混；C1 http response_status_code 先例 | 选 C1 |
+| D 翻译语义 | D1 层优先（flat 判死后无双轨）；D2 flat 优先保留 | D2 留双轨违反 §1 唯一真相 | 选 D1 |
+| E presence 口径 | E1 空 map 也判死；E2 仅非空判死 | E1 http 族先例（空即显式走默认）；E2 留空壳双轨 | 选 E1 |
+| F 其余 11 字段动态 | F1 全关+理由；F2 全开 | F2 开关/数组无动态形状，开了测不出 | 选 F1 |
+
+## 5. 设计评审闸门

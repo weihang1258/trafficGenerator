@@ -2260,3 +2260,213 @@
 - 测试 review 完成并记录“自审轮次、发现问题、修复结果”。
 
 任何只写了功能、没有性能验收的测试集都不算完整。
+
+### T-DNS-1 dns.json——层链冒烟基线（单查询 A 记录）【D-DNS-1 §4】
+
+**状态：** 待执行（P5：dns.json 全量之一）
+**级别：** pcap
+**来源：** RFC 1035 §4.1.1（头 ID/QR/RD/QDCOUNT）；D-DNS-1 §4
+**目标：** 层链形 `[ip,udp,dns{name:example.com,query_type:1}]` 单查询 1 包：`udp.dstport=53`、`dns.id=0x1234`、`dns.flags=0x0100`、`dns.qry.name=example.com`、`dns.qry.type=1`。
+
+**输入：** 既有 dns_smoke_01 改写：顶层 `dns` 子映射删，域名进 dns 层 `name`；补 ip 层（外层地址）。
+**前置条件：** D-DNS-1 实现合入。
+**执行：** 真实流程（MCP 建任务→生成→tshark）。
+**期望输出：** 1 包；字段同上（落盘校准回钉）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_smoke_01 改写）。
+
+### T-DNS-2 dns.json——顶层 dns 子映射 presence 判死负例【D-DNS-1 §5】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-DNS-1 §5（http 族 presence 先例；空 map 也死）
+**目标：** `{"layers":[…],"dns":{}}` 建任务即被拒。
+
+**输入：** T-DNS-1 链形 + 顶层 `"dns":{}` 空映射。
+**前置条件：** 无。
+**执行：** 同 T-GRE-2（expect_error 路径）。
+**期望输出：** 任务失败；错误含 `no longer accepts a top-level dns sub-config`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_neg_flat）。
+
+### T-DNS-3 dns.json——层链静态复制拒绝负例【D-DNS-1 §5】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative）
+**来源：** §12 静态复制禁令（框架 `checkLayerChainStaticCopy`）
+**目标：** 全静态标量 + flows=2 即被拒。
+
+**输入：** T-DNS-1 链形 + `strategy_fc{"type":"flows","value":2}`。
+**前置条件：** 无。
+**执行：** 同 T-DNS-2。
+**期望输出：** 任务失败；错误含 `static four-tuple`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_neg_static_copy）。
+
+### T-DNS-4 dns.json——AAAA 查询正例【D-DNS-1 §9】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** RFC 1035 §3.4.1 + RFC 3596 §2.2（AAAA RDATA）
+**目标：** `dns{query_type:28}` 查询 `dns.qry.type=28`。
+
+**输入：** T-DNS-1 链形，dns 层改 `query_type:28`。
+**前置条件：** 同 T-DNS-1。
+**执行：** 同 T-DNS-1。
+**期望输出：** 1 包；`dns.qry.type=28`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_aaaa）。
+
+### T-DNS-5 dns.json——响应包正例【D-DNS-1 §9】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** RFC 1035 §4.1.1（响应 TXID 回显 MUST）；现网问答场景
+**目标：** `dns{is_response:true,response_ip:1.2.3.4}` 产 2 包（up 查询 + down 响应），响应 txid=查询 txid，响应 A 记录=1.2.3.4。
+
+**输入：** T-DNS-1 链形 + dns 层 `is_response:true,response_ip:1.2.3.4`。
+**前置条件：** 同 T-DNS-1。
+**执行：** 同 T-DNS-1（min_packets=2；响应包 `dns.flags.response=1` + `dns.a=1.2.3.4`，字段名落盘校准）。
+**期望输出：** 2 包；响应回显 txid。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_response）。
+
+### T-DNS-6 dns.json——NXDOMAIN + 权威节正例【D-DNS-1 §9】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** RFC 1035 §4.1.1（RCODE）+ §6.2.5（NXDOMAIN 负缓存权威节 SOA）
+**目标：** `dns{is_response:true,response_code:3,authority:[SOA]}` 响应 rcode=3 且带权威节。
+
+**输入：** T-DNS-1 链形 + dns 层 `is_response:true,response_code:3,authority:[{name:example.com,type:6,…SOA 字段}]`。
+**前置条件：** 同 T-DNS-1。
+**执行：** 同 T-DNS-5（`dns.flags.rcode=3` + authority 存在，字段名落盘校准）。
+**期望输出：** 2 包；rcode=3。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_nxdomain_soa）。
+
+### T-DNS-7 dns.json——EDNS0 正例【D-DNS-1 §9】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** RFC 6891（OPT 伪记录，ARCOUNT=1）
+**目标：** `dns{edns0_enabled:true}` 查询带附加节（ARCOUNT=1）。
+
+**输入：** T-DNS-1 链形 + dns 层 `edns0_enabled:true`。
+**前置条件：** 同 T-DNS-1。
+**执行：** 同 T-DNS-1（`dns.additional.count=1` 或 OPT 存在，字段名落盘校准）。
+**期望输出：** 1 包；附加节存在。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_edns0）。
+
+### T-DNS-8 dns.json——name list 动态正例【D-DNS-1 §12】
+
+**状态：** 待执行（P5）
+**级别：** pcap（multiflow：flows=2）
+**来源：** D-DNS-1 §12（name string 面 list；tls sni 先例）
+**目标：** `dns.name{"strategy":"list","list":["a.com","b.com"]}` + flows=2 →两流查询域名 distinct。
+
+**输入：** T-DNS-1 链形，name 改 list 对象；`strategy_fc` flows=2。
+**前置条件：** 同 T-DNS-1。
+**执行：** `dns.qry.name` distinct 双值断言（落盘回钉）。
+**期望输出：** 2 流各 1 包；域名两值互异。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_name_dynamic）。
+
+### T-DNS-9 dns.json——query_type inc 动态正例【D-DNS-1 §12】
+
+**状态：** 待执行（P5）
+**级别：** pcap（multiflow：flows=2）
+**来源：** D-DNS-1 §12（query_type int 面 inc）
+**目标：** `dns.query_type{"strategy":"inc","range":[1,28],"step":27}` + flows=2 →两流类型 distinct（1/28）。
+
+**输入：** T-DNS-1 链形，query_type 改 inc 对象；`strategy_fc` flows=2。
+**前置条件：** 同 T-DNS-1。
+**执行：** `dns.qry.type` distinct 双值断言（落盘回钉）。
+**期望输出：** 2 流各 1 包；类型 1/28 互异。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_qtype_dynamic）。
+
+### T-DNS-10 dns.json——txid inc 动态正例【D-DNS-1 §12】
+
+**状态：** 待执行（P5）
+**级别：** pcap（multiflow：flows=2）
+**来源：** RFC 1035 §4.1.1（TxID 发包方自选）；D-DNS-1 §12（txid int 面）
+**目标：** `dns.txid{"strategy":"inc","range":[1000,1001]}` + flows=2 →两流 txid distinct。
+
+**输入：** T-DNS-1 链形，txid 改 inc 对象；`strategy_fc` flows=2。
+**前置条件：** 同 T-DNS-1。
+**执行：** `dns.id` distinct 双值断言（落盘回钉）。
+**期望输出：** 2 流各 1 包；txid 两值互异。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_txid_dynamic）。
+
+### T-DNS-11 dns.json——TCP 载体拒绝负例【D-DNS-1 §5】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative）
+**来源：** RFC 7766（TCP 载体）；链上实现分叉（TCPGenerator 全握手 vs legacy 无握手）——明确不支持
+**目标：** `dns{transport:"tcp"}` 建任务即被拒。
+
+**输入：** T-DNS-1 链形 + dns 层 `transport:"tcp"`（载体保持 udp 层，值走 dns 层字段）。
+**前置条件：** 无。
+**执行：** 同 T-DNS-2。
+**期望输出：** 任务失败；错误含 `tcp transport not supported`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_neg_tcp）。
+
+### T-DNS-12 dns.json——rcode 越界拒绝负例【D-DNS-1 §5】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative）
+**来源：** RFC 1035 §4.1.1（RCODE 4 位）；`dns.go` validateDNSConfig
+**目标：** `dns{response_code:16}` 即被拒。
+
+**输入：** T-DNS-1 链形 + dns 层 `response_code:16`。
+**前置条件：** 无。
+**执行：** 同 T-DNS-2。
+**期望输出：** 任务失败；错误含 `exceeds the 4-bit field`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_neg_rcode）。
+
+### T-DNS-13 dns.json——空域名拒绝负例【D-DNS-1 §5】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative）
+**来源：** `dns.go` validateDNSConfig（空 QNAME 非法）
+**目标：** `dns{name:""}` 即被拒。
+
+**输入：** T-DNS-1 链形 + dns 层 `name:""`。
+**前置条件：** 无。
+**执行：** 同 T-DNS-2。
+**期望输出：** 任务失败；错误含 `query_name (domain) is required`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_neg_empty_name）。
+
+### T-GRE-21 gre.json——外层 ip rand 动态正例【D-DNS-1 范围⑥：GRE 备注②关闭】
+
+**状态：** 待执行（P5，与 dns.json 同批跑）
+**级别：** pcap（multiflow：flows=2）
+**来源：** §12 rand 同 seed 可复现（框架 `resolveLayerTuple`；ipv6_dyn_test 单测已锁语义）；GRE 备注②缺口关闭
+**目标：** 外层 `ip.src{"strategy":"rand","range":["10.0.0.1","10.0.0.2"],"seed":7}` + flows=2 →两流外层源 distinct（seed 固定可复现）。
+
+**输入：** T-GRE-16 链形，src 改 rand 对象（seed=7）；`strategy_fc` flows=2。
+**前置条件：** gre.json 20/20 基线绿。
+**执行：** `ip.src` distinct 双值断言（聚合含内层值形同 T-GRE-16，落盘回钉）。
+**期望输出：** 2 流各 1 包；外层源两值互异。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_outer_ip_rand）。
