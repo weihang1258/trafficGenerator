@@ -2154,6 +2154,96 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/gre.json`（gre_neg_inner_mixed）。
 
+### T-GRE-15 gre.json——外层 VLAN tag 正例【D-GRE-3 §4】
+
+**状态：** 待执行（P5：20/20 全量之一）
+**级别：** pcap
+**来源：** IEEE 802.1Q §3（TPID 0x8100 + TCI=`priority<<13|id`）；`builder.go:1037`（tag 编码实现已就绪）；goose.json `goose_vlan`（`vlan.id/priority` 断言先例）
+**目标：** 链首 `vlan{"id":100,"priority":4}` 时外层帧 eth14 后插 4B 802.1Q：offset 12:14=`81 00`（TPID），offset 14:16=`80 64`（TCI=`4<<13|100`=0x8064）；其余偏移 +4（GRE 头 offset 38，内层 UDP offset 62）。
+
+**输入：** `[vlan{id:100,priority:4}, ip{10.0.0.1→20.0.0.1}, gre{}, ip{192.168.1.1→192.168.1.2}, udp{12345→80}, dns{}]`（内层地址已按 D-GRE-3 分离网段）。
+**前置条件：** D-GRE-3 实现合入；T-GRE-1 绿。
+**执行：** 同 T-GRE-1（min_packets=1；再加 `vlan.id=100` / `vlan.priority=4` 字段断言，字段名以落盘 pcap 校准）。
+**期望输出：** 1 包；frames hex：offset 12 `81 00` + offset 14 `80 64` + GRE 头 offset 38 `00 00 08 00`；帧长=95+4=99（以落盘校准）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_vlan_tagged）。
+
+### T-GRE-16 gre.json——外层 ip 动态正例【D-GRE-3 §12】
+
+**状态：** 待执行（P5：20/20 全量之一）
+**级别：** pcap（multiflow：`strategy_fc{"type":"flows","value":2}`）
+**来源：** D-GRE-3 §12 整格（外层隧道端点逐流变开）；形状同 http `http_multiflow_dynamic_sport`（层内 strategy 对象 + flows=2 + distinct 断言）
+**目标：** 外层 `ip.src{"strategy":"list","list":["10.0.0.1","10.0.0.2"]}` + flows=2 时两流外层源 distinct（`10.0.0.1` / `10.0.0.2`），内层地址恒 `192.168.1.1`（内层静态不受外层动态影响——单四元组模型下内层是常量）。
+
+**输入：** T-GRE-1 链形（内层已分离 `192.168.1.x`），外层 ip.src 改 list 对象；顶层 `strategy_fc` flows=2。
+**前置条件：** 同 T-GRE-15。
+**执行：** 建任务→生成→tshark；`ip.src` distinct_values 双值断言（聚合方向以落盘为准：外层/内层同名字段 distinct 会聚合，断言值以实测回钉）。
+**期望输出：** 2 流各 1 包；外层源两值互异；内层源恒 `192.168.1.1`。
+**错误期望：** 无（static-copy 门放行：链含动态对象非全静态）。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_outer_ip_dynamic）。
+
+### T-GRE-17 gre.json——内层 udp 端口动态正例【D-GRE-3 §12】
+
+**状态：** 待执行（P5：20/20 全量之一）
+**级别：** pcap（multiflow：flows=2）
+**来源：** 同 T-GRE-16（内层传输端口逐流变开）
+**目标：** 内层 `udp.src_port{"strategy":"inc","range":[41000,41001]}` + flows=2 时两流内层源端口 distinct（`41000` / `41001`）。
+
+**输入：** T-GRE-1 链形（内层地址已分离），内层 udp.src_port 改 inc 对象；`strategy_fc` flows=2。
+**前置条件：** 同 T-GRE-15。
+**执行：** 同 T-GRE-16（`udp.srcport` distinct 双值断言，以落盘回钉）。
+**期望输出：** 2 流各 1 包；内层 UDP 源端口两值互异。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_inner_udp_dynamic）。
+
+### T-GRE-18 gre.json——内层 tcp 端口动态正例【D-GRE-3 §12】
+
+**状态：** 待执行（P5：20/20 全量之一）
+**级别：** pcap（multiflow：flows=2）
+**来源：** 同 T-GRE-16（tcp 层端口同款白名单；内层 tcp 链由 T-GRE-8 sequence_multi 形状承载）
+**目标：** T-GRE-8 链形（`[ip,gre,ip,tcp,http]`）内层 `tcp.dst_port{"strategy":"list","list":[80,8080]}` + flows=2 时两流内层目的端口 distinct（`80` / `8080`）。
+
+**输入：** T-GRE-8 链形（内外层地址已分离），内层 tcp.dst_port 改 list 对象；`strategy_fc` flows=2；min_packets=18（每流 9 帧，T-GRE-8 口径）。
+**前置条件：** 同 T-GRE-15。
+**执行：** 同 T-GRE-16（`tcp.dstport` distinct 双值断言，以落盘回钉）。
+**期望输出：** 2 流各 9 包；内层 TCP 目的端口两值互异。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_inner_tcp_dynamic）。
+
+### T-GRE-19 gre.json——gre sequence 动态拒绝负例【D-GRE-3 §12】
+
+**状态：** 待执行（P5：20/20 全量之一）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-GRE-3 §12（gre 业务 3 键全关沿 D-GRE-1；sequence 代表——checksum/key 同锚词，T-GRE-4 已锁 key）
+**目标：** gre 层 `{"sequence":{"strategy":"list","list":[true]}}` 建任务即被拒。
+
+**输入：** T-GRE-1 链形 + gre 层 sequence 对象。
+**前置条件：** 无。
+**执行：** 同 T-GRE-2。
+**期望输出：** 任务失败；错误含 `does not support dynamic`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_neg_dyn_sequence）。
+
+### T-GRE-20 gre.json——dns 业务动态拒绝负例【D-GRE-3 §12】
+
+**状态：** 待执行（P5：20/20 全量之一）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-GRE-3 §12（dns 不在 allowlist——`layer_dyn.go:17` 无 dns 行，对象天然关门；gre 链下首锁）
+**目标：** 内层 `dns{"name":{"strategy":"list","list":["a.com","b.com"]}}` 建任务即被拒。
+
+**输入：** T-GRE-1 链形 + dns 层 name 对象。
+**前置条件：** 无。
+**执行：** 同 T-GRE-2。
+**期望输出：** 任务失败；错误含 `does not support dynamic`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_neg_dyn_dns）。
+
 ## 7. 用例审查与完成条件
 
 测试用例完成前必须进行两条审查：

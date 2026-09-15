@@ -960,6 +960,90 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | D 内层协议 | D1 本轮只整形 UDP 内层（既有用例）；D2 顺手加 TCP 内层例 | D1 最小够用；D2 搭车加例无设计需求 | 选 D1 |
 
 
+### D-GRE-3 GRE 用例内外分离 + VLAN 底座归位框架 + 隧道结构校验泛化 + 动态整格补齐【用户三项裁定 + 拼积木归位 A】
+
+**门 1 开工对照表（§1–§14，2026-09-15，证据=文档节/代码行/探针/用例号）：**
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 目标形状扩一种：`[vlan{id,priority}?, ip, gre, ip, udp/tcp, 终结层]`（vlan 可选打头，缺省无 tag）；内外层地址新网段：v4 内层 `192.168.1.1→192.168.1.2`、v6 内层 `fd01::1→fd01::2`（外层 10.x/fd00 不动，6in4/4in6 已异构不碰）；顶层旧键零新增 | T-GRE-15…20；本条目 §4 |
+| §2 策略/任务分工 | 沿框架语义；动态正例走 `flow_control` flows=2 + 层内 strategy 对象（http T-HTTP-60…72 同款形状） | T-GRE-16/17/18 |
+| §3 五件套 | 豁免（同 D-GRE-1）：vlan 是 L2 占位 wrapper——不产包、不参事件流，只逐包透传（drive 级联不断）；tag 落定在 finalEmit（`l2For` 读 `spec.VLAN`，chain_planner_gen.go:207 既有分支）；单帧封装/时间线不变 | 本条目 §1 数据与接口；探针（2026-09-15） |
+| §4 规范矩阵 | IEEE 802.1Q（TPID 0x8100 + TCI=`priority<<13\|id`，与 `builder.go:1037` 同算法）；现网 GRE 外层常带 VLAN tag；tshark `vlan.id/priority` 字段（goose_vlan 先例）；隧道结构规则 RFC 2784 §2.2 + RFC 2473 沿 D-GRE-2 | `builder.go:1037`；goose.json vlan 断言；T-GRE-15 |
+| §5 有错必处理 | 锚词子串零变化（前缀 `gre chain:`→`tunnel chain:`，用例 `error_contains` 全是子串不断言前缀）：外层空 `outer ip addresses required` / 内层坏 IP `is not a valid IP address` / 内层混族 `must be the same IP version` / 内层动态 `inner ip layer does not support dynamic`；vlan id/prio 越界走既有 V9（schema Min/Max 4095/7）；vlan 进隧道内走既有 V7 拒（`must be in the outermost run`，存量单测已钉） | T-GRE-13/14；TestValidateLayers_L2Placement；T-GRE-19/20 |
+| §6 性能 | vlan 提取=ValidateSpec 内一次链扫描；passthrough=逐包一次转发（无锁无分配）；隧道泛化=同等分支数（`l.Name!="gre"` 字面换成 CategoryTunnel 查表）；回归口径 suite ±10%，边界诚实声明（未测吞吐/并发） | 本条目 §6 |
+| §7 三份文档 | 设计=本条目；用例=T-GRE-15…20；cases 回指编号 | TEST_CASES T-GRE-15…20 |
+| §8 先设计后代码 | 本条目定稿后开工 | 本条目 |
+| §9 三源+整格 | 802.1Q 条文 + builder.go:1037 + goose vlan 先例；动态整格见 §12 行（开 3 正例 / 关 2 负例 / 引用 1 / 注记不开 2） | §12 整格表 |
+| §10 评审闭环 | failing 先行 3 红例（BuildLayersPlanner vlan 拒 / wire TCI / tunnel 前缀）→ 改 → 审 → 测 → 再审 | 本条目 §7 步骤 |
+| §11 白话汇报 | 先一句结论 | 每次汇报 |
+| §12 动态清单 | 整格见本条目 §12 表：外层 ip.src/dst 开（T-GRE-16 正例）/ 内外 udp/tcp 端口开（T-GRE-17/18 正例）/ gre checksum·sequence 关（T-GRE-19 负例，sequence 代表）/ dns 业务关（T-GRE-20 负例）/ http 业务引用 T-HTTP-60…72（同 parseLayerDyn 路径）/ vlan.id 关（allowlist 无 vlan 行天然关，不单建例）/ 外层 ttl·eth mac 注记不开（无业务语义/链值无翻译分支，F2 另立项） | T-GRE-16…20 |
+| §13 schema 同步 | 注册表零改动（vlan/gre Fields 不动；只读 `CategoryTunnel` 分类）；schemagen/webgen 不跑 | 门 2 脚本 |
+| §14 真实流程 | 20/20 全绿 + 落盘校准（checksum 值重钉——内层地址字节变了旧值作废；vlan TCI hex；distinct 聚合方向）；二进制同代；门 2 三项 | T-GRE-15…20 |
+
+**状态：** 设计中（P2，2026-09-15）
+**范围（2026-09-15）：** ①`newGenerator` 加 `vlan` 分支（passthrough 透传——消费 Inner 逐包 Emit 原样，eth `nil` 直返同款不可抄：eth 恒 chain[0] 非 wrapper，vlan 恒 wrapper，直返会 strand 包→静默空流）；②ValidateSpec 通用路径加 vlan 提取（补全链首个 vlan 层 id/priority→`spec.VLAN`；层值赢 flat `vlan_id`，缺席不动）；③`chain_planner.go` gre 结构段删块→通用隧道块（触发=链含 CategoryTunnel 层且其下一层是 ip；tls 链天然豁免——tls 后是终结层非 ip；锚词子串不变）；④gre.json 12 例改内层地址 + 6 例新增（T-GRE-15…20）+ 全量 20/20 校准。
+**明确不解决：** eth 层 `src_mac/dst_mac` 链值无人消费（`applySpecToChain` 无 eth 分支 + `l2For` 只读顶层 spec MAC，另立项）；vlan 动态（allowlist 无 vlan 行，对象天然 `does not support dynamic`，不单建例）；内层 VLAN（V7 结构性拒）；MPLS/PPP inner·tcp_options·keepalive 沿 D-GRE-2。
+**依据：** IEEE 802.1Q §3（TPID 0x8100 + TCI）；`builder.go:1037`（tag 编码 `priority<<13\|id`，实现已就绪只缺上游供给）；`chain_planner_gen.go:198`（`l2For` 的 `spec.VLAN` 传播分支已存在，供给即生效）；drive 级联语义（`chain_planner_translate.go` wrapper 循环：每层恰一关闭者，wrapper 必须消费输入——探针 2026-09-15：`generator not implemented for layer "vlan"` 是 BuildLayersPlanner 预检同步拒，ValidateLayers 面放行）；RFC 2784 §2.2 / RFC 2473 沿 D-GRE-2。
+
+#### 1. 数据与接口
+- 输入：`[vlan{id,priority}?, ip, gre, ip, udp/tcp, 终结层]`（vlan 缺席=无 tag；出现即打 tag，id=0 也打——presence 即意图，OptionalOn 已保证不写不打）。
+- 输出：外层帧 eth14 后插 4B 802.1Q（TPID 0x8100 + TCI），其余偏移 +4；down 帧 tag 保留（只换 MAC，tag 与方向无关）。
+- 修改点三处（builder/注册表/schema/drive/finalEmit 零改动）：`chain_planner_gen.go` newGenerator vlan 分支；`chain_planner.go` ValidateSpec（vlan 提取 + 隧道块泛化）。新增函数：无（passthrough 生成器 1 个小 struct，ethPlaceholderGenerator 同构）。
+- 显式覆盖：vlan 层值→`spec.VLAN`（通用路径，所有链生效——http 链将来写 vlan 层直接生效，零新增）；flat `vlan_id` 无 vlan 层时沿 legacy（只动有层情形，不碰旧语义）。
+
+#### 2. 依赖与生命周期
+- 前置：vlan 层 DependsOn eth（缺 eth 自动补，补全链 `[eth,vlan,ip,…]`，V7 最外连续段通过）。
+- 资源：passthrough 无状态；vlan 提取在 ValidateSpec 同步期（Plan 内复调无累积——`spec.VLAN` 覆盖写幂等）。
+
+#### 3. 主流程与状态
+- 级联：`[eth,vlan,ip,gre,ip,udp,dns]` 的 wrapper 环= vlan→外层ip→gre→内层ip（transportIdx=5，循环天然覆盖，无需改接线）；终结层事件流/变换器断言不受影响（vlan 非 EventTransformer 但它在 transport 之外，`assertEventWiring` 只查 transport…末层之间）。
+- 通用隧道块伪形：`for i,l := range chain { schema:=reg.Get(l.Name); if schema.Category!=CategoryTunnel || i+1>=len(chain) || chain[i+1].Name!="ip" { continue }; …三检查…; break }`。
+
+#### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
+- 无新序号算法（vlan 无序号；GRE Sequence 沿 D-GRE-2）。
+- 动态整格（§12）：
+
+  | 层.字段 | 开/关 | gre 链语义 | 覆盖 |
+  |---|---|---|---|
+  | ip.src/dst（外层） | 开 | 隧道端点逐流变 | T-GRE-16（list 2 值 + flows=2，外层源 distinct） |
+  | udp/tcp 端口 | 开 | 内层端口逐流变 | T-GRE-17（udp）/T-GRE-18（tcp+http 内层） |
+  | ip.*（内层） | 关 | 单四元组模型 | T-GRE-13（沿 D-GRE-2） |
+  | gre.checksum/sequence | 关 | 布尔开关无动态面 | T-GRE-19（sequence 对象拒，代表同锚词） |
+  | dns.* | 关 | 不在 allowlist | T-GRE-20（name 对象 → does not support dynamic） |
+  | http.* 6 字段 | 开 | 内层业务 | 引用 T-HTTP-60…72（同 parseLayerDyn 路径） |
+  | vlan.id/priority | 关 | allowlist 无行 | 注记（不单建例） |
+  | 外层 ttl / eth mac | — | 无语义/无翻译分支 | 注记不开（F2 另立项记） |
+- 正交组合：vlan × v4（T-GRE-15）；vlan × v6 不单建（tag 与 L3 族正交，builder 侧 EtherType 照旧由 `EtherTypeFor` 定）；动态 × 6in4 不单建（dyn 走外层 spec，与内层族正交）。
+
+#### 5. 错误与异常
+- 通用隧道块锚词（前缀 `tunnel chain:`，子串与 D-GRE-2 一致）：外层空 `outer ip addresses required (tunnel endpoints come from the outer ip layer)`；内层坏 IP `inner ip layer %s %q is not a valid IP address`；内层混族 `inner ip layer addresses %s/%s must be the same IP version`。
+- Failing 先行 3 红例：①`[{"vlan":{"id":100}},{"ip":…},{"gre":{}},…]` BuildLayersPlanner 通过（现状 `generator not implemented for layer "vlan"`）；②同链 Plan→builder 首帧 12:14=`81 00` + 14:16=`80 64`（id=100/prio=4，TCI=`4<<13\|100`=0x8064）且全帧（up+down）带 tag；③内层混族/外层空错误含 `tunnel chain:` 前缀（现状 `gre chain:`）。
+
+#### 6. 性能设计与验收
+- 单包路径增量：vlan 透传一次 channel 转发（与 gre/ip wrapper 同款，无新增分配）；ValidateSpec 提取一次短链扫描（≤8 层）。回归口径：gre.json 全量 suite 耗时相对 D-GRE-2 基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测）。
+- pcap 验收：20/20 全绿 + 落盘可复查（checksum 两值重钉——内层地址字节变旧值作废；vlan TCI hex 双钉；distinct 聚合方向以落盘为准）；网卡未跑。
+
+#### 7. 实现顺序与回滚
+- 步骤 0（failing 先行）：`internal/core/layers/gre_vlan_tunnel_test.go` 3 红例（BuildLayersPlanner 全链口径）。
+- 步骤 1：newGenerator vlan passthrough；步骤 2：ValidateSpec vlan 提取 + 隧道块泛化（删 gre 专属块）；步骤 3：`go build ./...` + vet + touched 包 `-race`；P5：gre.json 12 例改地址 + 6 例新增，全量 20/20 跑 + 校准回钉；P6：评审+提交+清库复核（D-GRE-1 已清空，在库复核零新增）。
+- 回滚：单提交逆序 revert。
+
+#### 8. 验收
+- 对应 T-GRE-15…20（TEST_CASES P3 先行）。完成条件：3 红例先红后绿；gre.json 20/20 全绿（RESULT 全量；二进制同代；门 2 三项绿）；touched 包 `-race` 绿；`gre chain:` 字面零残留（除注释/文档历史叙述）。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A 归位 | A1 框架通用；A2 gre 专属抄两遍 | A1 下一条隧道零新增，A2 违背拼积木 | 选 A1（用户裁定） |
+| B tag 路径 | B1 ValidateSpec 提 spec.VLAN 走 l2For；B2 vlan 生成器自写 L2 | B2 会被 finalEmit 全量重建覆盖（只保留 GRE），B1 用既有分支零新增装配 | 选 B1 |
+| C wrapper 语义 | C1 passthrough 转发；C2 eth 同款 nil 直返 | C2 strand 包→静默空流（eth 恒 chain[0] 非 wrapper 才可直返） | 选 C1 |
+| D 触发条件 | D1 tunnel 层且下一层是 ip；D2 p.name=="gre" | D2 即现状；D1 下 tls 链天然豁免（tls 后非 ip） | 选 D1 |
+| E 缺席默认 | E1 出现即打（含 id 0）；E2 id 0 忽略 | E1 presence=意图（OptionalOn 已保不写不打） | 选 E1 |
+| F eth mac | F1 本轮带出；F2 另立项 | F1 扩范围（无翻译分支要新建） | 选 F2，记明确不解决 |
+
+
 ## 5. 设计评审闸门
 
 代码设计完成后，必须按以下顺序评审：
