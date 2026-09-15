@@ -16,8 +16,8 @@
     },
     {
      "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
      }
     },
     {
@@ -91,8 +91,8 @@
     },
     {
      "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
      }
     },
     {
@@ -129,8 +129,8 @@
     },
     {
      "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
      }
     },
     {
@@ -177,8 +177,8 @@
     },
     {
      "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
      }
     },
     {
@@ -214,8 +214,8 @@
     },
     {
      "ip": {
-      "src": "fd00::1",
-      "dst": "fd00::2"
+      "src": "fd01::1",
+      "dst": "fd01::2"
      }
     },
     {
@@ -265,7 +265,7 @@
     {
      "packet": 1,
      "field": "ipv6.src",
-     "value": "fd00::1,fd00::1"
+     "value": "fd00::1,fd01::1"
     }
    ],
    "notes": [
@@ -302,8 +302,8 @@
     },
     {
      "ip": {
-      "src": "fd00::1",
-      "dst": "fd00::2"
+      "src": "fd01::1",
+      "dst": "fd01::2"
      }
     },
     {
@@ -343,7 +343,7 @@
     {
      "packet": 1,
      "field": "ipv6.src",
-     "value": "fd00::1"
+     "value": "fd01::1"
     }
    ],
    "notes": [
@@ -380,8 +380,8 @@
     },
     {
      "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
      }
     },
     {
@@ -421,7 +421,7 @@
     {
      "packet": 1,
      "field": "ip.src",
-     "value": "10.0.0.1"
+     "value": "192.168.1.1"
     }
    ],
    "notes": [
@@ -460,8 +460,8 @@
     },
     {
      "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
      }
     },
     {
@@ -525,8 +525,8 @@
     },
     {
      "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
      }
     },
     {
@@ -551,7 +551,7 @@
     {
      "packet": 1,
      "field": "gre.checksum",
-     "value": "0x9637"
+     "value": "0xfb89"
     }
    ],
    "notes": [
@@ -578,8 +578,8 @@
     },
     {
      "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
      }
     },
     {
@@ -640,8 +640,8 @@
     },
     {
      "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
      }
     },
     {
@@ -671,7 +671,7 @@
     {
      "packet": 1,
      "field": "gre.checksum",
-     "value": "0xfd8a"
+     "value": "0x62dd"
     }
    ],
    "notes": [
@@ -703,8 +703,8 @@
     },
     {
      "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1",
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2",
       "ttl": 60
      }
     },
@@ -798,7 +798,7 @@
     },
     {
      "ip": {
-      "src": "10.0.0.1",
+      "src": "192.168.1.1",
       "dst": "fd00::2"
      }
     },
@@ -816,6 +816,362 @@
   "expect": {
    "expect_error": true,
    "error_contains": "must be the same IP version"
+  }
+ },
+ {
+  "id": "gre_vlan_tagged",
+  "proto": "gre",
+  "summary": "VLAN正例（T-GRE-15）：链首vlan{id:100,priority:4}→外层帧打802.1Q tag（TPID 0x8100+TCI 0x8064），其余偏移+4",
+  "spec_json": {
+   "layers": [
+    {
+     "vlan": {
+      "id": 100,
+      "priority": 4
+     }
+    },
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {}
+    },
+    {
+     "ip": {
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "vlan.id",
+     "value": "100"
+    },
+    {
+     "packet": 1,
+     "field": "vlan.priority",
+     "value": "4"
+    },
+    {
+     "packet": 1,
+     "field": "gre.proto",
+     "value": "0x0800"
+    },
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "80"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 12,
+     "hex": "81 00"
+    },
+    {
+     "packet": 1,
+     "offset": 14,
+     "hex": "80 64"
+    },
+    {
+     "packet": 1,
+     "offset": 38,
+     "hex": "00 00 08 00"
+    }
+   ],
+   "notes": [
+    "T-GRE-15【D-GRE-3 §4】：TCI=priority4<<13|id100=0x8064；GRE头offset 38=eth14+vlan4+ip20；字段名落盘校准回钉"
+   ]
+  }
+ },
+ {
+  "id": "gre_outer_ip_dynamic",
+  "proto": "gre",
+  "summary": "外层ip动态正例（T-GRE-16）：外层src list双值+flows=2→两流外层源distinct，内层恒192.168.1.1",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": {
+       "strategy": "list",
+       "list": [
+        "10.0.0.1",
+        "10.0.0.2"
+       ]
+      },
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {}
+    },
+    {
+     "ip": {
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 0,
+     "field": "ip.src",
+     "distinct_values": [
+      "10.0.0.1,192.168.1.1",
+      "10.0.0.2,192.168.1.1"
+     ]
+    }
+   ],
+   "notes": [
+    "T-GRE-16【D-GRE-3 §12】：distinct聚合方向以落盘为准回钉；内层源恒192.168.1.1不断言（同名字段聚合口径待实测）"
+   ]
+  }
+ },
+ {
+  "id": "gre_inner_udp_dynamic",
+  "proto": "gre",
+  "summary": "内层udp动态正例（T-GRE-17）：内层src_port inc 41000-41001+flows=2→两流内层源端口distinct",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {}
+    },
+    {
+     "ip": {
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
+     }
+    },
+    {
+     "udp": {
+      "src_port": {
+       "strategy": "inc",
+       "range": [
+        41000,
+        41001
+       ]
+      },
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 0,
+     "field": "udp.srcport",
+     "distinct_values": [
+      "41000",
+      "41001"
+     ]
+    }
+   ],
+   "notes": [
+    "T-GRE-17【D-GRE-3 §12】：distinct聚合方向以落盘为准回钉"
+   ]
+  }
+ },
+ {
+  "id": "gre_inner_tcp_dynamic",
+  "proto": "gre",
+  "summary": "内层tcp动态正例（T-GRE-18）：T-GRE-8链形内层dst_port inc[80,8080 step8000]+flows=2→两流内层目的端口distinct(80/8080)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {
+      "sequence": true
+     }
+    },
+    {
+     "ip": {
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": {
+       "strategy": "inc",
+       "range": [
+        80,
+        8080
+       ],
+       "step": 8000
+      }
+     }
+    },
+    {
+     "http": {}
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "min_packets": 18,
+   "fields": [
+    {
+     "packet": 0,
+     "field": "tcp.dstport",
+     "distinct_values": [
+      "80",
+      "8080"
+     ],
+     "distinct_exclude": [
+      "12345"
+     ]
+    }
+   ],
+   "notes": [
+    "T-GRE-18【D-GRE-3 §12】：每流9帧（T-GRE-8口径），distinct聚合方向以落盘为准回钉"
+   ]
+  }
+ },
+ {
+  "id": "gre_neg_dyn_sequence",
+  "proto": "gre",
+  "summary": "负例：关字段sequence动态被拒（T-GRE-19，代表checksum/key同锚词）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {
+      "sequence": {
+       "strategy": "list",
+       "list": [
+        true
+       ]
+      }
+     }
+    },
+    {
+     "ip": {
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "does not support dynamic"
+  }
+ },
+ {
+  "id": "gre_neg_dyn_dns",
+  "proto": "gre",
+  "summary": "负例：dns业务字段动态被拒（T-GRE-20，dns不在allowlist）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {}
+    },
+    {
+     "ip": {
+      "src": "192.168.1.1",
+      "dst": "192.168.1.2"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {
+      "name": {
+       "strategy": "list",
+       "list": [
+        "a.com",
+        "b.com"
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "does not support dynamic"
   }
  }
 ]

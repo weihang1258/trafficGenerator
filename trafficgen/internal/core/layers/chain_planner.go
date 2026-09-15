@@ -197,34 +197,69 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 			}
 		}
 	}
-	// 隧道层（gre）结构性校验（P2e T12 review HIGH-2 起；D-GRE-2 重写）：
+	// 链上 vlan 层 → spec.VLAN（D-GRE-3 通用路径）：tag 落定走既有 l2For
+	// 的 spec.VLAN 传播分支（chain_planner_gen.go:207），本处只做供给。
+	// 层值赢 flat（spec.VLAN 已由 mapToFlowSpec 从顶层 vlan_id 填）：补全链
+	// 首个 vlan 层显式值覆盖；缺席不动（flat legacy 语义保留）。出现即打
+	// tag（含 id=0：OptionalOn 已保证不写层即无 tag，写了就是显式意图）。
+	for _, l := range chain {
+		if l.Name != "vlan" {
+			continue
+		}
+		// 缺键（id 未写）= 不启用，不动 spec（flat legacy 语义保留）；
+		// id 显式写（含 0）= 启用覆盖。V9 已保范围（0..4095/0..7）。
+		// 此处读的是补全链 Config（含 schema 默认）：{"vlan":{}} 空配置
+		// complement 后 Config 恒空 map（BuildLayersPlanner 传原始用户层，
+		// 默认注入只发生在 applySpecToChain 的副本 cfg，不回写链）——缺键
+		// 即用户没写，不误触发。
+		rawID, hasID := l.Config["id"]
+		if !hasID || rawID == nil {
+			break
+		}
+		id, idOK := configUint16(rawID)
+		if !idOK {
+			break
+		}
+		prio, _ := configUint8(l.Config["priority"])
+		spec.VLAN = &core.VLAN{ID: id, Priority: prio}
+		break
+	}
+	// 隧道结构性校验（P2e T12 review HIGH-2 起；D-GRE-2 重写 gre 专属；
+	// D-GRE-3 泛化为通用隧道块——用户裁定 A：拼积木归位框架）。
+	// 触发 = 链上任一 CategoryTunnel 层其直接内层邻居是 ip（gre 形）。
+	// tls 链天然豁免（tls 后是终结层非 ip，不触发；tls 自有下段版本/角色块）。
 	// 外层（spec 地址=首个 ip 层）与内层（内层 ip 层显式 src/dst，缺席回退
 	// spec 值）各自必须非空、可解析、两地址同族；**外内族可异**（4in6/6in4
 	// 合法，D-GRE-2 §4 矩阵）。必须在此同步拒绝——drive 期生成器报错会被
 	// Plan goroutine 吞成 0 包空流（既有契约），调用方拿到空流而非明确错误。
+	// 锚词子串与 D-GRE-2 一致（前缀 gre chain: → tunnel chain:；用例
+	// error_contains 全是子串，不断言前缀，不漂移）。
+	r := p.effectiveRegistry()
 	for i, l := range chain {
-		if l.Name != "gre" {
+		schema, ok := r.Get(l.Name)
+		if !ok || schema.Category != CategoryTunnel {
+			continue
+		}
+		if i+1 >= len(chain) || chain[i+1].Name != "ip" {
 			continue
 		}
 		if spec.SrcIP == "" || spec.DstIP == "" {
-			return spec, fmt.Errorf("gre chain: outer ip addresses required (tunnel endpoints come from the outer ip layer)")
+			return spec, fmt.Errorf("tunnel chain: outer ip addresses required (tunnel endpoints come from the outer ip layer)")
 		}
 		inSrc, inDst := spec.SrcIP, spec.DstIP
-		if i+1 < len(chain) && chain[i+1].Name == "ip" {
-			if v, ok := chain[i+1].Config["src"].(string); ok && v != "" {
-				inSrc = v
-			}
-			if v, ok := chain[i+1].Config["dst"].(string); ok && v != "" {
-				inDst = v
-			}
+		if v, ok := chain[i+1].Config["src"].(string); ok && v != "" {
+			inSrc = v
+		}
+		if v, ok := chain[i+1].Config["dst"].(string); ok && v != "" {
+			inDst = v
 		}
 		for _, pair := range []struct{ name, val string }{{"src", inSrc}, {"dst", inDst}} {
 			if net.ParseIP(pair.val) == nil {
-				return spec, fmt.Errorf("gre chain: inner ip layer %s %q is not a valid IP address", pair.name, pair.val)
+				return spec, fmt.Errorf("tunnel chain: inner ip layer %s %q is not a valid IP address", pair.name, pair.val)
 			}
 		}
 		if s, d := net.ParseIP(inSrc), net.ParseIP(inDst); (s.To4() != nil) != (d.To4() != nil) {
-			return spec, fmt.Errorf("gre chain: inner ip layer addresses %s/%s must be the same IP version", inSrc, inDst)
+			return spec, fmt.Errorf("tunnel chain: inner ip layer addresses %s/%s must be the same IP version", inSrc, inDst)
 		}
 		break
 	}

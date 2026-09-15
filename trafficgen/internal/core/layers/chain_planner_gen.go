@@ -54,6 +54,10 @@ func newGenerator(name string) (LayerGenerator, error) {
 		// 生成器自行构建完整 PacketConfig（含 SrcMAC/DstMAC/EtherType），
 		// eth 层只要求可实例化、不产包（Generate 直通返回 nil）。
 		return &ethPlaceholderGenerator{}, nil
+	case "vlan":
+		// vlan 是 L2 wrapper 占位层（D-GRE-3）：tag 由 ValidateSpec 提取进
+		// spec.VLAN、经 l2For 在 finalEmit 落定；生成器只逐包透传。
+		return &vlanPassthroughGenerator{}, nil
 	case "goose":
 		if factory, ok := registeredGenerators["goose"]; ok {
 			return factory()
@@ -79,6 +83,35 @@ func (*ethPlaceholderGenerator) Generate(ctx context.Context, req *GenRequest) e
 }
 
 func (*ethPlaceholderGenerator) GenEvents() EventGenerator { return nil }
+
+// vlanPassthroughGenerator is the L2 vlan-layer generator (D-GRE-3).
+// 与 eth 占位层不同：eth 恒为 chain[0]（非 wrapper，Generate 永不被调）、
+// vlan 恒为 wrapper 层（drive 级联为每个 wrapper 起 goroutine 从 Inner 消费）。
+// nil 直返会 strand 封包（内层产出无人消费→静默空流），故必须逐包透传 Emit。
+type vlanPassthroughGenerator struct{}
+
+func (*vlanPassthroughGenerator) Name() string { return "vlan" }
+
+func (*vlanPassthroughGenerator) Generate(ctx context.Context, req *GenRequest) error {
+	if req.Inner == nil || req.Emit == nil {
+		return nil
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case pkt, ok := <-req.Inner:
+			if !ok {
+				return nil
+			}
+			if err := req.Emit(pkt); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func (*vlanPassthroughGenerator) GenEvents() EventGenerator { return nil }
 
 // registeredGenerators holds production terminal-layer generator factories
 // (生产终结层生成器工厂，由协议包 init 经 RegisterLayerGenerator 注册；
