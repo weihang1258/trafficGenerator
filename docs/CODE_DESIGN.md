@@ -1204,3 +1204,23 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - T-DNS-19（A 类，零代码）：v6 地址查询，`ipv6.version=6`（UDP 无握手首包即断言；TCP 系 v6 例首包恒为握手需包 4 起，见 doh/coap 先例——UDP 单包直断是正确口径）。
 - 缺口诚实登记：①离线套件（`layer_chain_suite_test.go:runChainCase`）`MapToFlowSpec` 只提显式 flat/scalars，v6 地址在离线路径恒回退 v4——T-DNS-19 离线红、MCP 绿，以 MCP 为准（§14 真实流程）；②同文件两枚历史负例（`dns_neg_flat` 顶层 presence、`dns_neg_static_copy` 静态复制）在离线路径同样失守（MCP 层 400/拒绝门离线未复刻），属 harness 表达力边界（C 类），不冒充。
 - 验收：dns.json 15→19 例 MCP 全量绿（RESULT 19/19；二进制已重编同代；门 2 静态两项绿）。
+
+#### D-DNS-1 补遗 T-DNS-20..25（六类 RR 问答配对，2026-09-16，用户指漏补齐）
+
+- 范围：零代码改动（A 类用例）。六类 RR 编码路径（AAAA/MX/TXT/NS/PTR/SRV）与问答配对断言面（`qry.name/qry.type` + `resp.type` + RDATA）均已就绪——本补遗只建例 + 落盘校准。
+- T-DNS-20：AAAA 问答（`query_type:28` + `response_ip:2001:db8::1`，v4 承载问 v6 答；v6 承载由 T-DNS-19 覆盖）。
+- T-DNS-21：MX 问答（preference=10 + exchange=mail.example.com）。
+- T-DNS-22：TXT 问答（text=hello-world）。
+- T-DNS-23：NS 问答（ns1.example.com，授权链形状）。
+- T-DNS-24：PTR 反向（in-addr.arpa 问答）。
+- T-DNS-25：SRV 问答（port=5060 + target=sip.example.com）。口径注记：不断言 `dns.srv.name`——tshark 对该字段取报文压缩指针末段（恒 `example.com`），线序全名已逐字节核对正确；配对由 `qry.name` + `resp.type` + RDATA 承担。
+- 验收：dns.json 19→25 例 MCP 全量绿（RESULT 25/25；无代码改动二进制同代；门 2 静态两项绿）。
+
+#### D-DNS-1 补遗 T-DNS-26..29（v6 问答配对 + DNSSEC/NAPTR，2026-09-16，用户指漏补齐之二）
+
+- 范围：零代码改动（A 类用例）。v6 承载 AAAA 回答、DS/DNSKEY/NAPTR 编码路径均已就绪——本补遗只建例 + 落盘校准。
+- T-DNS-26：v6 承载 × AAAA 回答（T-DNS-19 只问不答、T-DNS-20 只 v4 承载，矩阵缺的格）。
+- T-DNS-27：DS 问答（key_id=0x3039 + algorithm=8 + digest；tshark 名 `key_id` 非配置键 `key_tag`）。
+- T-DNS-28：DNSKEY 问答（不断 flags——tshark 十六进制 `0x0100`，改断 protocol=3）。
+- T-DNS-29：NAPTR 问答（order=100 + preference=50 + service=sip+E2U）。
+- 验收：dns.json 25→29 例 MCP 全量绿（RESULT 29/29；无代码改动二进制同代；门 2 静态两项绿）。

@@ -899,5 +899,723 @@
   "notes": [
    "T-DNS-19:地址族矩阵v6格,ipv6.version=6(落盘实测);注意离线套件走spec默认v4,真值以MCP为准"
   ]
+ },
+ {
+  "id": "dns_aaaa_response",
+  "proto": "dns",
+  "summary": "AAAA响应(T-DNS-20):问example.com AAAA→答2001:db8::1",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 28,
+      "is_response": true,
+      "response_ip": "2001:db8::1"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.qry.name",
+     "value": "example.com"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "28"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.name",
+     "value": "example.com"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.type",
+     "value": "28"
+    },
+    {
+     "packet": 2,
+     "field": "dns.count.answers",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "dns.aaaa",
+     "value": "2001:db8::1"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-20:v4承载问AAAA,响应AAAA=2001:db8::1(落盘校准钉)"
+  ]
+ },
+ {
+  "id": "dns_mx_response",
+  "proto": "dns",
+  "summary": "MX响应(T-DNS-21):问example.com MX→答mail preference+exchange",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 15,
+      "is_response": true,
+      "answers": [
+       {
+        "name": "example.com",
+        "type": 15,
+        "preference": 10,
+        "target": "mail.example.com"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.qry.name",
+     "value": "example.com"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "15"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.name",
+     "value": "example.com"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.type",
+     "value": "15"
+    },
+    {
+     "packet": 2,
+     "field": "dns.count.answers",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "dns.mx.preference",
+     "value": "10"
+    },
+    {
+     "packet": 2,
+     "field": "dns.mx.mail_exchange",
+     "value": "mail.example.com"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-21:MX问答,RDATA=preference+exchange(落盘校准钉)"
+  ]
+ },
+ {
+  "id": "dns_txt_response",
+  "proto": "dns",
+  "summary": "TXT响应(T-DNS-22):问example.com TXT→答文本",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 16,
+      "is_response": true,
+      "answers": [
+       {
+        "name": "example.com",
+        "type": 16,
+        "text": "hello-world"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.qry.name",
+     "value": "example.com"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "16"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.name",
+     "value": "example.com"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.type",
+     "value": "16"
+    },
+    {
+     "packet": 2,
+     "field": "dns.count.answers",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "dns.txt",
+     "value": "hello-world"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-22:TXT问答,RDATA=文本串(落盘校准钉)"
+  ]
+ },
+ {
+  "id": "dns_ns_response",
+  "proto": "dns",
+  "summary": "NS响应(T-DNS-23):问example.com NS→答ns1.example.com",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 2,
+      "is_response": true,
+      "answers": [
+       {
+        "name": "example.com",
+        "type": 2,
+        "target": "ns1.example.com"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.qry.name",
+     "value": "example.com"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.name",
+     "value": "example.com"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.type",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "dns.count.answers",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "dns.ns",
+     "value": "ns1.example.com"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-23:NS问答,授权链形状(落盘校准钉)"
+  ]
+ },
+ {
+  "id": "dns_ptr_response",
+  "proto": "dns",
+  "summary": "PTR反向(T-DNS-24):问1.0.0.10.in-addr.arpa PTR→答host.example.com",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "1.0.0.10.in-addr.arpa",
+      "query_type": 12,
+      "is_response": true,
+      "answers": [
+       {
+        "name": "1.0.0.10.in-addr.arpa",
+        "type": 12,
+        "target": "host.example.com"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.qry.name",
+     "value": "1.0.0.10.in-addr.arpa"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "12"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.name",
+     "value": "1.0.0.10.in-addr.arpa"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.type",
+     "value": "12"
+    },
+    {
+     "packet": 2,
+     "field": "dns.count.answers",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "dns.ptr.domain_name",
+     "value": "host.example.com"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-24:PTR反向解析问答(落盘校准钉)"
+  ]
+ },
+ {
+  "id": "dns_srv_response",
+  "proto": "dns",
+  "summary": "SRV响应(T-DNS-25):问_sip._tcp.example.com SRV→答priority/weight/port/target",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "_sip._tcp.example.com",
+      "query_type": 33,
+      "is_response": true,
+      "answers": [
+       {
+        "name": "_sip._tcp.example.com",
+        "type": 33,
+        "priority": 10,
+        "weight": 20,
+        "port": 5060,
+        "target": "sip.example.com"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.qry.name",
+     "value": "_sip._tcp.example.com"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "33"
+    },
+    {
+     "packet": 2,
+     "field": "dns.srv.service",
+     "value": "_sip"
+    },
+    {
+     "packet": 2,
+     "field": "dns.srv.proto",
+     "value": "_tcp"
+    },
+    {
+     "packet": 2,
+     "field": "dns.srv.name",
+     "value": "example.com"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.type",
+     "value": "33"
+    },
+    {
+     "packet": 2,
+     "field": "dns.count.answers",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "dns.srv.port",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "dns.srv.target",
+     "value": "sip.example.com"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-25:SRV问答,微服务发现形状(落盘校准钉)"
+  ]
+ },
+ {
+  "id": "dns_v6_aaaa_response",
+  "proto": "dns",
+  "summary": "v6承载AAAA问答(T-DNS-26):fd00::1问example.com AAAA→答2001:db8::1",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "fd00::1",
+      "dst": "fd00::2"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 28,
+      "is_response": true,
+      "response_ip": "2001:db8::1"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "ipv6.version",
+     "value": "6"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "28"
+    },
+    {
+     "packet": 2,
+     "field": "ipv6.version",
+     "value": "6"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.type",
+     "value": "28"
+    },
+    {
+     "packet": 2,
+     "field": "dns.aaaa",
+     "value": "2001:db8::1"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-26:v6承载×v6回答,矩阵对称格(落盘校准钉)"
+  ]
+ },
+ {
+  "id": "dns_ds_response",
+  "proto": "dns",
+  "summary": "DS响应(T-DNS-27):问example.com DS→答keytag/algorithm/digest",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 43,
+      "is_response": true,
+      "answers": [
+       {
+        "name": "example.com",
+        "type": 43,
+        "key_tag": 12345,
+        "algorithm": 8,
+        "digest_type": 2,
+        "digest": "AABBCCDDEE"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "43"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.type",
+     "value": "43"
+    },
+    {
+     "packet": 2,
+     "field": "dns.count.answers",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "dns.ds.key_id",
+     "value": "0x3039"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-27:DS问答(落盘校准钉)"
+  ]
+ },
+ {
+  "id": "dns_dnskey_response",
+  "proto": "dns",
+  "summary": "DNSKEY响应(T-DNS-28):问example.com DNSKEY→答flags/protocol/algorithm",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 48,
+      "is_response": true,
+      "answers": [
+       {
+        "name": "example.com",
+        "type": 48,
+        "key_flags": 256,
+        "protocol": 3,
+        "algorithm": 8,
+        "public_key": "AQAB"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "48"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.type",
+     "value": "48"
+    },
+    {
+     "packet": 2,
+     "field": "dns.count.answers",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "dns.dnskey.protocol",
+     "value": "3"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-28:DNSKEY问答(落盘校准钉)"
+  ]
+ },
+ {
+  "id": "dns_naptr_response",
+  "proto": "dns",
+  "summary": "NAPTR响应(T-DNS-29):问example.com NAPTR→答order/preference/flags/service",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 35,
+      "is_response": true,
+      "answers": [
+       {
+        "name": "example.com",
+        "type": 35,
+        "order": 100,
+        "preference": 50,
+        "flags": "S",
+        "service": "sip+E2U",
+        "regexp": "!^.*$!sip:info@example.com!",
+        "target": "_sip._tcp.example.com"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "35"
+    },
+    {
+     "packet": 2,
+     "field": "dns.resp.type",
+     "value": "35"
+    },
+    {
+     "packet": 2,
+     "field": "dns.count.answers",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "dns.naptr.order",
+     "value": "100"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-29:NAPTR问答(落盘校准钉)"
+  ]
  }
 ]

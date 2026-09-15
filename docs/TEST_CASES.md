@@ -2578,3 +2578,156 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_v6_query）。
 **口径注记：** 离线套件（runChainCase 经 MapToFlowSpec）v6 地址回退 v4，该例离线红、MCP 绿，以 MCP 为准（harness 表达力边界，不冒充）。
+
+### T-DNS-20 dns.json——AAAA 响应正例【D-DNS-1 补遗 §9 问答配对】
+
+**状态：** 已执行（P5：绿，25/25）
+**级别：** pcap
+**来源：** RFC 3596 §2.2（AAAA RDATA 16 字节）；D-DNS-1 补遗
+**目标：** 问 AAAA、答 AAAA=2001:db8::1，问答类型配对。
+
+**输入：** T-DNS-1 链形，dns 层 `query_type:28,is_response:true,response_ip:2001:db8::1`。
+**前置条件：** A/AAAA 族校验（T-DNS-4 单测）已覆盖；零代码改动。
+**执行：** 问包 `qry.type=28` + 答包 `resp.type=28` + `dns.aaaa=2001:db8::1`，落盘实测回钉。
+**期望输出：** 2 包（查询 + AAAA 响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_aaaa_response）。
+
+### T-DNS-21 dns.json——MX 响应正例【D-DNS-1 补遗 §9 问答配对】
+
+**状态：** 已执行（P5：绿，25/25）
+**级别：** pcap
+**来源：** RFC 1035 §3.3.9（MX RDATA=preference+exchange）；D-DNS-1 补遗
+**目标：** 问 MX、答 preference=10 + exchange=mail.example.com。
+
+**输入：** T-DNS-1 链形，dns 层 `query_type:15,is_response:true,answers:[{MX preference/target}]`。
+**前置条件：** MX 编码路径（dns.go TypeMX）已就绪；零代码改动。
+**执行：** 问包 `qry.type=15` + 答包 `resp.type=15` + `mx.preference/mx.mail_exchange`，落盘实测回钉。
+**期望输出：** 2 包（查询 + MX 响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_mx_response）。
+
+### T-DNS-22 dns.json——TXT 响应正例【D-DNS-1 补遗 §9 问答配对】
+
+**状态：** 已执行（P5：绿，25/25）
+**级别：** pcap
+**来源：** RFC 1035 §3.3.14（TXT character-string）；D-DNS-1 补遗
+**目标：** 问 TXT、答文本 hello-world。
+
+**输入：** T-DNS-1 链形，dns 层 `query_type:16,is_response:true,answers:[{TXT text}]`。
+**前置条件：** TXT 编码路径已就绪；零代码改动。
+**执行：** 问包 `qry.type=16` + 答包 `resp.type=16` + `dns.txt=hello-world`，落盘实测回钉。
+**期望输出：** 2 包（查询 + TXT 响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_txt_response）。
+
+### T-DNS-23 dns.json——NS 响应正例【D-DNS-1 补遗 §9 问答配对】
+
+**状态：** 已执行（P5：绿，25/25）
+**级别：** pcap
+**来源：** RFC 1035 §3.3.11（NS RDATA=域名）；D-DNS-1 补遗
+**目标：** 问 NS、答 ns1.example.com（授权链形状）。
+
+**输入：** T-DNS-1 链形，dns 层 `query_type:2,is_response:true,answers:[{NS target}]`。
+**前置条件：** NS 编码路径（TypeNS→encodeDomainName）已就绪；零代码改动。
+**执行：** 问包 `qry.type=2` + 答包 `resp.type=2` + `dns.ns=ns1.example.com`，落盘实测回钉。
+**期望输出：** 2 包（查询 + NS 响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_ns_response）。
+
+### T-DNS-24 dns.json——PTR 反向正例【D-DNS-1 补遗 §9 问答配对】
+
+**状态：** 已执行（P5：绿，25/25）
+**级别：** pcap
+**来源：** RFC 1035 §3.5（in-addr.arpa 反向）；D-DNS-1 补遗
+**目标：** 问 PTR、答 host.example.com。
+
+**输入：** T-DNS-1 链形，dns 层 `name:1.0.0.10.in-addr.arpa,query_type:12,is_response:true,answers:[{PTR target}]`。
+**前置条件：** PTR 编码路径（TypePTR→encodeDomainName）已就绪；零代码改动。
+**执行：** 问包 `qry.type=12` + 答包 `resp.type=12` + `dns.ptr.domain_name=host.example.com`，落盘实测回钉。
+**期望输出：** 2 包（查询 + PTR 响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_ptr_response）。
+
+### T-DNS-25 dns.json——SRV 响应正例【D-DNS-1 补遗 §9 问答配对】
+
+**状态：** 已执行（P5：绿，25/25）
+**级别：** pcap
+**来源：** RFC 2782（SRV RDATA=priority/weight/port/target）；D-DNS-1 补遗
+**目标：** 问 SRV、答 port=5060 + target=sip.example.com（微服务发现形状）。
+
+**输入：** T-DNS-1 链形，dns 层 `name:_sip._tcp.example.com,query_type:33,is_response:true,answers:[{SRV 四字段}]`。
+**前置条件：** SRV 编码路径（dns.go TypeSRV）已就绪；零代码改动。
+**执行：** 问包 `qry.name/qry.type=33` + 答包 `resp.type=33` + `srv.port/srv.target`，落盘实测回钉。
+**期望输出：** 2 包（查询 + SRV 响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_srv_response）。
+**口径注记：** 不断言 `dns.srv.name`——该字段 tshark 取报文压缩指针末段恒为 `example.com`（线序全名正确，已逐字节核对），断言它等于全名必然红；问答配对由 `qry.name` + `resp.type` + RDATA 三元组承担。
+
+### T-DNS-26 dns.json——v6 承载 AAAA 问答正例【D-DNS-1 补遗 §9 地址族矩阵】
+
+**状态：** 已执行（P5：绿，29/29）
+**级别：** pcap
+**来源：** RFC 3596 + 地址族对称矩阵（承载 v6 × 答 v6）；D-DNS-1 补遗
+**目标：** v6 承载问 AAAA、答 AAAA=2001:db8::1（T-DNS-19 只问不答，本例收口）。
+
+**输入：** T-DNS-1 链形，ip 层改 `src:fd00::1,dst:fd00::2`，dns 层 `query_type:28,is_response:true,response_ip:2001:db8::1`。
+**前置条件：** v6 承载（T-DNS-19）+ AAAA 回答（T-DNS-20）各已覆盖；零代码改动。
+**执行：** 双包 `ipv6.version=6` + `dns.aaaa=2001:db8::1`，落盘实测回钉。
+**期望输出：** 2 包（v6 查询 + v6 AAAA 响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_v6_aaaa_response）。
+
+### T-DNS-27 dns.json——DS 响应正例【D-DNS-1 补遗 §9 问答配对】
+
+**状态：** 已执行（P5：绿，29/29）
+**级别：** pcap
+**来源：** RFC 4034 §5（DS RDATA=keytag/algorithm/digest-type/digest）；D-DNS-1 补遗
+**目标：** 问 DS、答 key_id=0x3039 + algorithm=8 + digest=aabbccddee。
+
+**输入：** T-DNS-1 链形，dns 层 `query_type:43,is_response:true,answers:[{DS 四字段}]`。
+**前置条件：** DS 编码路径（dns.go TypeDS）已就绪；零代码改动。
+**执行：** 问包 `qry.type=43` + 答包 `resp.type=43` + `ds.key_id/ds.algorithm/ds.digest`，落盘实测回钉。
+**期望输出：** 2 包（查询 + DS 响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_ds_response）。
+**口径注记：** tshark 字段名是 `dns.ds.key_id`（十六进制 `0x3039`），不是配置键 `key_tag`。
+
+### T-DNS-28 dns.json——DNSKEY 响应正例【D-DNS-1 补遗 §9 问答配对】
+
+**状态：** 已执行（P5：绿，29/29）
+**级别：** pcap
+**来源：** RFC 4034 §2（DNSKEY RDATA=flags/protocol/algorithm/key）；D-DNS-1 补遗
+**目标：** 问 DNSKEY、答 protocol=3 + algorithm=8。
+
+**输入：** T-DNS-1 链形，dns 层 `query_type:48,is_response:true,answers:[{DNSKEY 四字段}]`。
+**前置条件：** DNSKEY 编码路径（dns.go TypeDNSKEY）已就绪；零代码改动。
+**执行：** 问包 `qry.type=48` + 答包 `resp.type=48` + `dnskey.protocol/algorithm`，落盘实测回钉。
+**期望输出：** 2 包（查询 + DNSKEY 响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_dnskey_response）。
+**口径注记：** 不断言 `dns.dnskey.flags`——tshark 按十六进制出 `0x0100`，改断 `protocol=3` 同等钉住 RDATA 头。
+
+### T-DNS-29 dns.json——NAPTR 响应正例【D-DNS-1 补遗 §9 问答配对】
+
+**状态：** 已执行（P5：绿，29/29）
+**级别：** pcap
+**来源：** RFC 3401 §4.1（NAPTR RDATA=order/preference/flags/service/regexp/replacement）；D-DNS-1 补遗
+**目标：** 问 NAPTR、答 order=100 + preference=50 + service=sip+E2U。
+
+**输入：** T-DNS-1 链形，dns 层 `query_type:35,is_response:true,answers:[{NAPTR 七字段}]`。
+**前置条件：** NAPTR 编码路径（dns.go TypeNAPTR）已就绪；零代码改动。
+**执行：** 问包 `qry.type=35` + 答包 `resp.type=35` + `naptr.order/preference/service`，落盘实测回钉。
+**期望输出：** 2 包（查询 + NAPTR 响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_naptr_response）。
