@@ -2487,3 +2487,33 @@
 **错误期望：** 即本条。
 **性能期望：** 不适用。
 **实现位置：** `cases/gre.json`（gre_neg_dyn_checksum）。
+
+### T-DNS-14 dns.json——单包双问正例【D-DNS-1 补遗 §3 新规矩】
+
+**状态：** 已执行（P5，2026-09-15：绿，15/15）
+**级别：** pcap
+**来源：** RFC 1035 §4.1.2（QDCOUNT 可 >1）；D-DNS-1 补遗
+**目标：** `dns{questions:[{name:a.com,type:1},{name:b.com,type:28}]}` 单查询包带两问（QDCOUNT=2）。
+
+**输入：** T-DNS-1 链形，dns 层改 questions 双问数组。
+**前置条件：** D-DNS-1 已验收（字段翻译就绪，零代码改动）。
+**执行：** 同 T-DNS-1（`dns.count.queries=2` + `dns.qry.name=a.com,b.com`/`dns.qry.type=1,28` 逗号聚合，落盘实测回钉）。
+**期望输出：** 1 包；QDCOUNT=2。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_multi_question）。
+
+### T-DNS-15 dns.json——单包双答正例【D-DNS-1 补遗 §3 新规矩】
+
+**状态：** 已执行（P5，2026-09-15：绿，15/15）
+**级别：** pcap
+**来源：** RFC 1035 §4.1.2（多 RR）；D-DNS-1 补遗
+**目标：** `dns{is_response:true,answers:[{A 1.2.3.4},{A 5.6.7.8}]}` 响应包带两答（ANCOUNT=2）。
+
+**输入：** T-DNS-1 链形 + dns 层 `is_response:true,answers` 双 A 数组。
+**前置条件：** 同 T-DNS-14。
+**执行：** 同 T-DNS-5（`dns.count.answers=2` + `dns.a=1.2.3.4,5.6.7.8` 逗号聚合，落盘实测回钉；包1查询包无answers计0）。
+**期望输出：** 2 包（查询 + 双答响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_multi_answer）。

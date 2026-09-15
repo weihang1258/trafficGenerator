@@ -1188,3 +1188,10 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | F 其余 11 字段动态 | F1 全关+理由；F2 全开 | F2 开关/数组无动态形状，开了测不出 | 选 F1 |
 
 ## 5. 设计评审闸门
+
+#### D-DNS-1 补遗 T-DNS-14/15（单包多问多答，2026-09-15，§3 新规矩首落点）
+
+- 范围：零代码改动（A 类用例）。`questions`/`answers` 字段翻译已在 D-DNS-1 落地（`chain_planner_translate.go` dns 分支 Questions/Answers 段）；构造器多问路径（`dns/layer_gen.go:48` `len(Questions)>0`→`buildDNSMessage`）与多 RR 路径（`:83` Answers 非空→`buildDNSResponseGeneral`）已就绪——本补遗只建例 + 落盘校准。
+- T-DNS-14：`dns{questions:[{name:a.com,type:1},{name:b.com,type:28}]}` 单查询包 QDCOUNT=2（RFC 1035 §4.1.2 QDCOUNT 可 >1）。
+- T-DNS-15：`dns{is_response:true,answers:[{A 1.2.3.4},{A 5.6.7.8}]}` 响应包 ANCOUNT=2（RFC 1035 §4.1.2 多 RR；单 RR 路径由 T-DNS-5 覆盖）。
+- 验收：dns.json 13→15 例全量绿（RESULT 全量；二进制同代；门 2 三项绿）。

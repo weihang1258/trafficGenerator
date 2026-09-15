@@ -593,5 +593,121 @@
    "expect_error": true,
    "error_contains": "query_name (domain) is required"
   }
+ },
+ {
+  "id": "dns_multi_question",
+  "proto": "dns",
+  "summary": "单包双问（T-DNS-14）：questions双问→QDCOUNT=2",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "questions": [
+       {
+        "name": "a.com",
+        "type": 1
+       },
+       {
+        "name": "b.com",
+        "type": 28
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.count.queries",
+     "value": "2"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.name",
+     "value": "a.com,b.com"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "1,28"
+    }
+   ],
+   "notes": [
+    "T-DNS-14【D-DNS-1补遗】：RFC 1035 §4.1.2 QDCOUNT>1；tshark同名字段逗号聚合（落盘实测a.com,b.com / 1,28）"
+   ]
+  }
+ },
+ {
+  "id": "dns_multi_answer",
+  "proto": "dns",
+  "summary": "单包双答（T-DNS-15）：answers双A→ANCOUNT=2",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 1,
+      "is_response": true,
+      "answers": [
+       {
+        "name": "example.com",
+        "type": 1,
+        "ip": "1.2.3.4"
+       },
+       {
+        "name": "example.com",
+        "type": 1,
+        "ip": "5.6.7.8"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 2,
+     "field": "dns.count.answers",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "dns.a",
+     "value": "1.2.3.4,5.6.7.8"
+    }
+   ],
+   "notes": [
+    "T-DNS-15【D-DNS-1补遗】：RFC 1035 §4.1.2多RR；tshark同名字段逗号聚合（落盘实测1.2.3.4,5.6.7.8）；包1查询包无answers计0"
+   ]
+  }
  }
 ]
