@@ -1084,7 +1084,11 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | §14 真实流程 | dns.json 全量绿 + 落盘校准；二进制同代；门 2 三项 | T-DNS-* |
 | §15 三道门 | 本表即门 1；门 2 脚本；门 3 挂表抽查 | 本条目 |
 
-**状态：** 设计中（P2，2026-09-15，用户裁定 A：修正版重做开工表）
+**状态：** 已验收（2026-09-15，P6）
+**完成回填（2026-09-15）：** 步骤0三红例先红后绿（presence判死空map即拒/层14键翻译2包/txid族校验红例自修正IPv6回包）；代码六文件（注册表14键/翻译层优先+直解/判死presence/allowlist双面/静态门业务逃生口/回填三键）；dns.json 1→13例+T-GRE-21 rand+gre_neg_dyn_checksum替补；`RESULT: 13 pass, 0 fail, 0 error (of 13)` + `RESULT: 21 pass, 0 fail, 0 error (of 21)`（/tmp/tg-dns-p1-server与HEAD同代，门2静态两项双绿）；落盘校准：txid笔误0x03ea→0x03e9回钉、qtype distinct 1/28、name distinct双域名、rcode锚词V9口径`out of range [0,15]`；`go test ./internal/...` 123包全绿（tls单例抖动一次，复跑3连绿，全量终绿）+ touched -race绿；在库dns/gre清空（删前tasks 21+28/strategies 8+14 → 删后0/0）。
+**门3抽查三条：** ①§1顶层迁入→dns.json零顶层dns键（门2-1绿，黄项dns_neg_flat系执法对象豁免）；②§5 presence→`strategy_convert.go` CheckProtoFlat dns分支（http族文案同构），T-DNS-2真实流程拒；③§12 name动态→T-DNS-8双流distinct + T-GRE-20作废改判（dns.name合法化证据）。
+**P5落地偏差（如实登记）：** ①静态门误杀纯业务动态多流——`checkLayerChainStaticCopy`只认四元组对象，dns三动态例全军拒；修为业务层对象逃生口（http/tls既有动态例同益，回归全绿）；②T-GRE-20作废：D-DNS-1后dns.name动态合法，原"隧道内dns动态拒绝"依据消亡，例替换为checksum版（T-GRE-22），编号保留作废注记；③gre_6in4/4in6 notes旧地址残留两处已订正（fd01::1/192.168.1.1）；④GRE遗留死代码`_ = raw`三处顺手清（备注①关闭）；⑤注释`gre chain:`残留系历史叙述（"前缀A→B"说明句），非功能字面，保留。
+**范围（2026-09-15）：**
 **范围（2026-09-15）：** ①注册表 dns Fields 2→14 键；②translateTerminalConfig dns 分支改层优先（现 flat 优先 `if spec.DNS != nil return` 改为：顶层 dns 出现即判死后，层 config 全量翻译）；③CheckProtoFlat 加 dns presence 判死；④`layer_dyn.go` allowlist 加 `dns: name/query_type/txid` + checkDynShape 面（name 走 tls-sni 同款 string 面；query_type/txid 走 http-response_status_code 同款 int 面）；⑤dns.json 改写 + 新增 T-DNS-2…10 全量跑；⑥GRE 顺手项：gre.json 补 rand 正例 1 例（备注②缺口关闭）。
 **明确不解决：** DNS-over-TCP 链化（TCPGenerator 全握手 vs legacy 无握手 PSH+ACK 语义分叉，另立项；链上同步拒保留）；DNS-over-TLS（doh 协议另有条目）；questions/answers/authority 数组动态（无动态形状）；gre 隧道内 dns 层动态（T-GRE-20 已锁关——隧道内层静态，内外有别不冲突：直连 dns 链开动态，gre 隧道内层 dns 关动态）。
 **依据：** RFC 1035 §4.1（报文格式）/§4.1.1（头：ID/QR/RD/QDCOUNT）/§4.1.2（查询节 QDCOUNT 可 >1；RR 节）/§4.2.1（UDP 载体）/§4.2.2（TCP 载体——不支持依据）/§3.2.1（RR）/§3.4.1（A RDATA）/§6.2.5（NXDOMAIN 权威节）；RFC 6891（EDNS0 OPT）；RFC 7766（TCP 载体）；RFC 3596 §2.2（AAAA）；RFC 4033（DO 位）；现网行为（53/UDP 默认，strategy_convert 默认化）；开源对照（借报文结构思路，不搬实现）。代码事实：`dns/layer_gen.go:29-89`（事件产出；transport tcp 拒 `:35,:113-115`）；`dns.go:86` validateDNSConfig（transport 枚举/rcode≤15/域名必填/RR 族校验）；`types.go:2220` DNSConfig 14 字段；`chain_planner_translate.go` dns 翻译分支（flat 优先）；`strategy_convert.go:401` flat dns 14 键解析；registry dns 2 键（`:130-138`）。
