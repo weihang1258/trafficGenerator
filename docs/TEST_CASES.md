@@ -2156,7 +2156,7 @@
 
 ### T-GRE-15 gre.json——外层 VLAN tag 正例【D-GRE-3 §4】
 
-**状态：** 待执行（P5：20/20 全量之一）
+**状态：** 已执行（P5，2026-09-15：绿，20/20）
 **级别：** pcap
 **来源：** IEEE 802.1Q §3（TPID 0x8100 + TCI=`priority<<13|id`）；`builder.go:1037`（tag 编码实现已就绪）；goose.json `goose_vlan`（`vlan.id/priority` 断言先例）
 **目标：** 链首 `vlan{"id":100,"priority":4}` 时外层帧 eth14 后插 4B 802.1Q：offset 12:14=`81 00`（TPID），offset 14:16=`80 64`（TCI=`4<<13|100`=0x8064）；其余偏移 +4（GRE 头 offset 38，内层 UDP offset 62）。
@@ -2171,7 +2171,7 @@
 
 ### T-GRE-16 gre.json——外层 ip 动态正例【D-GRE-3 §12】
 
-**状态：** 待执行（P5：20/20 全量之一）
+**状态：** 已执行（P5，2026-09-15：绿，20/20）
 **级别：** pcap（multiflow：`strategy_fc{"type":"flows","value":2}`）
 **来源：** D-GRE-3 §12 整格（外层隧道端点逐流变开）；形状同 http `http_multiflow_dynamic_sport`（层内 strategy 对象 + flows=2 + distinct 断言）
 **目标：** 外层 `ip.src{"strategy":"list","list":["10.0.0.1","10.0.0.2"]}` + flows=2 时两流外层源 distinct（`10.0.0.1` / `10.0.0.2`），内层地址恒 `192.168.1.1`（内层静态不受外层动态影响——单四元组模型下内层是常量）。
@@ -2186,7 +2186,7 @@
 
 ### T-GRE-17 gre.json——内层 udp 端口动态正例【D-GRE-3 §12】
 
-**状态：** 待执行（P5：20/20 全量之一）
+**状态：** 已执行（P5，2026-09-15：绿，20/20）
 **级别：** pcap（multiflow：flows=2）
 **来源：** 同 T-GRE-16（内层传输端口逐流变开）
 **目标：** 内层 `udp.src_port{"strategy":"inc","range":[41000,41001]}` + flows=2 时两流内层源端口 distinct（`41000` / `41001`）。
@@ -2201,7 +2201,7 @@
 
 ### T-GRE-18 gre.json——内层 tcp 端口动态正例【D-GRE-3 §12】
 
-**状态：** 待执行（P5：20/20 全量之一）
+**状态：** 已执行（P5，2026-09-15：绿，20/20）
 **级别：** pcap（multiflow：flows=2）
 **来源：** 同 T-GRE-16（tcp 层端口同款白名单；内层 tcp 链由 T-GRE-8 sequence_multi 形状承载）
 **目标：** T-GRE-8 链形（`[ip,gre,ip,tcp,http]`）内层 `tcp.dst_port{"strategy":"list","list":[80,8080]}` + flows=2 时两流内层目的端口 distinct（`80` / `8080`）。
@@ -2216,7 +2216,7 @@
 
 ### T-GRE-19 gre.json——gre sequence 动态拒绝负例【D-GRE-3 §12】
 
-**状态：** 待执行（P5：20/20 全量之一）
+**状态：** 已执行（P5，2026-09-15：绿，20/20）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** D-GRE-3 §12（gre 业务 3 键全关沿 D-GRE-1；sequence 代表——checksum/key 同锚词，T-GRE-4 已锁 key）
 **目标：** gre 层 `{"sequence":{"strategy":"list","list":[true]}}` 建任务即被拒。
@@ -2231,7 +2231,7 @@
 
 ### T-GRE-20 gre.json——dns 业务动态拒绝负例【D-GRE-3 §12】
 
-**状态：** 待执行（P5：20/20 全量之一）
+**状态：** 已执行（P5，2026-09-15：绿，20/20）
 **级别：** pcap（Validate-negative：真实流程拒绝）
 **来源：** D-GRE-3 §12（dns 不在 allowlist——`layer_dyn.go:17` 无 dns 行，对象天然关门；gre 链下首锁）
 **目标：** 内层 `dns{"name":{"strategy":"list","list":["a.com","b.com"]}}` 建任务即被拒。
