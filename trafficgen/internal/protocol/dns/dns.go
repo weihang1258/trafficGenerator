@@ -80,7 +80,8 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 }
 
 // validateDNSConfig validates the DNS config portion of a flow spec
-// (DNSConfig 非 nil、transport 合法、rcode ≤ 15、问题来源非空、RR family)。
+// (DNSConfig 非 nil、transport 合法、rcode ≤ 15、域名长度、问题来源非空、
+// RR family)。
 // 波 4 起经 layer_gen.go 的 init 注册为 dns 链的协议校验器，与 legacy
 // Validate 共用同一实现（配置部分），保证两条路径拒绝同一批 spec。
 func validateDNSConfig(spec core.FlowSpec) error {
@@ -101,6 +102,22 @@ func validateDNSConfig(spec core.FlowSpec) error {
 	// above 15 need EDNS0 extended-rcode which is out of scope here.
 	if spec.DNS.RCode > 15 {
 		return fmt.Errorf("dns rcode %d exceeds the 4-bit field (max 15)", spec.DNS.RCode)
+	}
+
+	// Domain length (RFC 1035 §2.3.4: full name ≤255 octets on the wire;
+	// §3.1: each label ≤63 octets). encodeDomainName writes label-len +
+	// labels + 0x00 with byte(len) truncation — overlong input silently
+	// wraps the length byte (300-char label → len byte 0x2C), producing a
+	// malformed QNAME. Reject loudly at submit time (T-DNS-17).
+	for _, name := range dnsQueryNames(spec.DNS) {
+		if len(name) > 253 {
+			return fmt.Errorf("dns query name %q exceeds max 253 characters (RFC 1035 §2.3.4)", name)
+		}
+		for _, label := range splitLabels(name) {
+			if len(label) > 63 {
+				return fmt.Errorf("dns query name label %q exceeds max 63 octets (RFC 1035 §3.1)", label)
+			}
+		}
 	}
 
 	// Question source. When Questions is set, it overrides Domain/QueryType
@@ -510,6 +527,31 @@ func buildDNSResponse(domain string, queryType uint16, responseIP string, txid u
 	result = append(result, rdata...)
 
 	return result
+}
+
+// dnsQueryNames collects every domain-shaped string the config will emit
+// (Domain, explicit Questions names, and every RR name/target/mname/rname)
+// so the length gate can check them all.
+func dnsQueryNames(cfg *core.DNSConfig) []string {
+	names := make([]string, 0, 1+len(cfg.Questions)+4*len(cfg.Answers)+4*len(cfg.Authority))
+	if cfg.Domain != "" {
+		names = append(names, cfg.Domain)
+	}
+	for _, q := range cfg.Questions {
+		if q.Name != "" {
+			names = append(names, q.Name)
+		}
+	}
+	for _, rrs := range [][]core.DNSRR{cfg.Answers, cfg.Authority} {
+		for _, rr := range rrs {
+			for _, s := range []string{rr.Name, rr.Target, rr.MName, rr.RName} {
+				if s != "" {
+					names = append(names, s)
+				}
+			}
+		}
+	}
+	return names
 }
 
 // encodeDomainName encodes a domain name for DNS.

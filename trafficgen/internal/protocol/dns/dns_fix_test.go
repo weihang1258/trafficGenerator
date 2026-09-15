@@ -7,6 +7,7 @@ package dns
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -225,5 +226,38 @@ func TestF3_DNSPlan_ValidateRejectsFamilyMismatch(t *testing.T) {
 	}
 	if err := p.Validate(spec); err == nil {
 		t.Error("Validate accepted TypeA with IPv6 responseIP; expected family-mismatch error")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// F4: overlong domain names rejected at submit time (RFC 1035 §2.3.4/§3.1,
+// T-DNS-17). encodeDomainName truncates label lengths to one byte, so an
+// overlong label would silently wrap and emit a malformed QNAME — reject
+// loudly instead.
+// ---------------------------------------------------------------------------
+
+func TestValidateDNSConfig_LongDomainRejected(t *testing.T) {
+	longLabel := strings.Repeat("a", 64) + ".example.com"
+	if err := validateDNSConfig(core.FlowSpec{DNS: &core.DNSConfig{Domain: longLabel, QueryType: TypeA}}); err == nil {
+		t.Fatal("64-octet label accepted, want rejection (RFC 1035 §3.1)")
+	} else if !strings.Contains(err.Error(), "63 octets") {
+		t.Fatalf("err = %q, want anchor `63 octets`", err)
+	}
+	longName := strings.Repeat("a", 250) + ".com"
+	if err := validateDNSConfig(core.FlowSpec{DNS: &core.DNSConfig{Domain: longName, QueryType: TypeA}}); err == nil {
+		t.Fatal("overlong name accepted, want rejection (RFC 1035 §2.3.4)")
+	} else if !strings.Contains(err.Error(), "253 characters") {
+		t.Fatalf("err = %q, want anchor `253 characters`", err)
+	}
+	// RR 名与 target 同门：超长 CNAME target 也必须拒。
+	bad := &core.DNSConfig{Domain: "www.example.com", QueryType: TypeA, IsResponse: true,
+		Answers: []core.DNSRR{{Name: "www.example.com", Type: TypeCNAME, Target: strings.Repeat("b", 70) + ".example.com"}}}
+	if err := validateDNSConfig(core.FlowSpec{DNS: bad}); err == nil {
+		t.Fatal("overlong CNAME target accepted, want rejection")
+	}
+	// 合法边界：63 字节 label 与 253 字符全名放行。
+	ok := &core.DNSConfig{Domain: strings.Repeat("a", 63) + ".example.com", QueryType: TypeA}
+	if err := validateDNSConfig(core.FlowSpec{DNS: ok}); err != nil {
+		t.Fatalf("63-octet label rejected: %v", err)
 	}
 }

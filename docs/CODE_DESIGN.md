@@ -1195,3 +1195,12 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - T-DNS-14：`dns{questions:[{name:a.com,type:1},{name:b.com,type:28}]}` 单查询包 QDCOUNT=2（RFC 1035 §4.1.2 QDCOUNT 可 >1）。
 - T-DNS-15：`dns{is_response:true,answers:[{A 1.2.3.4},{A 5.6.7.8}]}` 响应包 ANCOUNT=2（RFC 1035 §4.1.2 多 RR；单 RR 路径由 T-DNS-5 覆盖）。
 - 验收：dns.json 13→15 例全量绿（RESULT 全量；二进制同代；门 2 三项绿）。
+
+#### D-DNS-1 补遗 T-DNS-16/17/18/19（CNAME 链/域名长度门/重传/v6，2026-09-15，§3/§9 三场景收口）
+
+- T-DNS-16（A 类，零代码）：`answers:[{CNAME→alias},{A 1.2.3.4}]` 响应 ANCOUNT=2，现网 CDN 别名链形状；CNAME 编码路径（`dns.go:482` TypeCNAME→`encodeDomainName(Target)`）+ 通用多 RR 响应路径已就绪。
+- T-DNS-17（B 类，需 validator 改动）：超长域名提交期拒绝。根因：`encodeDomainName` 按 `byte(len)` 写长度，超长 label 静默回绕（如 300 字符→长度字节 0x2C）产出畸形 QNAME；旧 validator 只查空名/RR 族，无长度门。改动：`validateDNSConfig` 加长度门（全名>253 拒 §2.3.4；单 label>63 拒 §3.1；检查面=Domain+Questions 名+Answers/Authority 的 Name/Target/MName/RName），失败先行单测 `TestValidateDNSConfig_LongDomainRejected`（dns_fix_test.go F4：64 拒/253+拒/超长 CNAME target 拒/63 放）。
+- T-DNS-18（A 类，零代码）：固定 `txid:1001` + `is_response` 双包同 `dns.id=0x03e9`（UDP 丢包重传同 TxID 语义；TxID 回显 MUST 由 T-DNS-5 覆盖，本例钉"重传不变"）。
+- T-DNS-19（A 类，零代码）：v6 地址查询，`ipv6.version=6`（UDP 无握手首包即断言；TCP 系 v6 例首包恒为握手需包 4 起，见 doh/coap 先例——UDP 单包直断是正确口径）。
+- 缺口诚实登记：①离线套件（`layer_chain_suite_test.go:runChainCase`）`MapToFlowSpec` 只提显式 flat/scalars，v6 地址在离线路径恒回退 v4——T-DNS-19 离线红、MCP 绿，以 MCP 为准（§14 真实流程）；②同文件两枚历史负例（`dns_neg_flat` 顶层 presence、`dns_neg_static_copy` 静态复制）在离线路径同样失守（MCP 层 400/拒绝门离线未复刻），属 harness 表达力边界（C 类），不冒充。
+- 验收：dns.json 15→19 例 MCP 全量绿（RESULT 19/19；二进制已重编同代；门 2 静态两项绿）。

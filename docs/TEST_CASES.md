@@ -2517,3 +2517,64 @@
 **错误期望：** 无。
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_multi_answer）。
+
+### T-DNS-16 dns.json——CNAME 链正例【D-DNS-1 补遗 §9 业务场景】
+
+**状态：** 已执行（P5，2026-09-15：绿，19/19）
+**级别：** pcap
+**来源：** RFC 1035 §3.3.1（CNAME）；现网 CDN 别名链行为；D-DNS-1 补遗
+**目标：** `dns{is_response:true,answers:[{CNAME www→alias},{A alias→1.2.3.4}]}` 响应包 ANCOUNT=2。
+
+**输入：** T-DNS-1 链形 + dns 层 `is_response:true,answers` CNAME+A 数组。
+**前置条件：** CNAME 编码路径（dns.go TypeCNAME）与多 RR 响应路径就绪，零代码改动。
+**执行：** 同 T-DNS-5（`dns.count.answers=2` + `dns.cname=alias.example.com` + `dns.a=1.2.3.4`，落盘实测回钉）。
+**期望输出：** 2 包（查询 + CNAME 链响应）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_cname_chain）。
+
+### T-DNS-17 dns.json——超长域名拒绝负例【D-DNS-1 补遗 §9 数据场景】
+
+**状态：** 已执行（P5，2026-09-15：绿，19/19）
+**级别：** pcap + 单测（F4）
+**来源：** RFC 1035 §2.3.4（全名≤255 线上字节）/§3.1（单 label≤63）；D-DNS-1 补遗
+**目标：** 超长域名提交期拒绝，不产出畸形 QNAME。
+
+**输入：** T-DNS-1 链形，dns 层 `name` 为 64 字节单 label 全域名。
+**前置条件：** `validateDNSConfig` 长度门落地（dns.go）。
+**执行：** MCP 提交即拒，锚词 `exceeds max 63 octets`；单测另覆全名超 253、超长 CNAME target 拒、63 字节边界放（dns_fix_test.go F4）。
+**期望输出：** 任务失败（Validate-negative）。
+**错误期望：** 有（锚词 `exceeds max 63 octets`）。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_neg_long_domain）+ `internal/protocol/dns/dns_fix_test.go`（F4）。
+
+### T-DNS-18 dns.json——重传同 TxID 正例【D-DNS-1 补遗 §9 现网场景】
+
+**状态：** 已执行（P5，2026-09-15：绿，19/19）
+**级别：** pcap
+**来源：** RFC 1035 §4.1.1（TxID 回显 MUST）；UDP 丢包重传同 TxID 现网语义；D-DNS-1 补遗
+**目标：** 固定 `txid:1001` 时查询包与响应包 `dns.id` 同为 `0x03e9`。
+
+**输入：** T-DNS-1 链形 + dns 层 `txid:1001,is_response:true,response_ip:1.2.3.4`。
+**前置条件：** TxID 回显路径（T-DNS-5）已覆盖；零代码改动。
+**执行：** 同 T-DNS-5（双包 `dns.id=0x03e9`，落盘实测回钉）。
+**期望输出：** 2 包（查询 + 响应，同 TxID）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_retry_same_txid）。
+
+### T-DNS-19 dns.json——IPv6 承载正例【D-DNS-1 补遗 §9 地址族矩阵】
+
+**状态：** 已执行（P5，2026-09-15：绿，19/19，MCP 口径）
+**级别：** pcap
+**来源：** RFC 3596（AAAA）+ 地址族对称矩阵 v6 格；D-DNS-1 补遗
+**目标：** v6 地址查询首包 `ipv6.version=6` + `dns.qry.type=28`。
+
+**输入：** T-DNS-1 链形，ip 层改 `src:fd00::1,dst:fd00::2`，dns 层 `query_type:28`。
+**前置条件：** 链上 EtherType 按 L3 源地址选族（builder + finalEmit）；UDP 无握手首包即断言。
+**执行：** MCP 真实流程（`ipv6.version=6` 落盘实测回钉；UDP 单包直断口径，TCP 系 v6 例首包恒为握手需包 4 起不适用）。
+**期望输出：** 1 包（v6 查询）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/dns.json`（dns_v6_query）。
+**口径注记：** 离线套件（runChainCase 经 MapToFlowSpec）v6 地址回退 v4，该例离线红、MCP 绿，以 MCP 为准（harness 表达力边界，不冒充）。

@@ -709,5 +709,195 @@
     "T-DNS-15【D-DNS-1补遗】：RFC 1035 §4.1.2多RR；tshark同名字段逗号聚合（落盘实测1.2.3.4,5.6.7.8）；包1查询包无answers计0"
    ]
   }
+ },
+ {
+  "id": "dns_cname_chain",
+  "proto": "dns",
+  "summary": "CNAME链(T-DNS-16):answers=CNAME+A→ANCOUNT=2,别名cname回显",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "www.example.com",
+      "query_type": 1,
+      "is_response": true,
+      "answers": [
+       {
+        "name": "www.example.com",
+        "type": 5,
+        "target": "alias.example.com"
+       },
+       {
+        "name": "alias.example.com",
+        "type": 1,
+        "ip": "1.2.3.4"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 2,
+     "field": "dns.count.answers",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "dns.a",
+     "value": "1.2.3.4"
+    },
+    {
+     "packet": 2,
+     "field": "dns.cname",
+     "value": "alias.example.com"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-16:现网CDN别名链,ANCOUNT=2,CNAME=alias.example.com+A=1.2.3.4(落盘实测)"
+  ]
+ },
+ {
+  "id": "dns_neg_long_domain",
+  "proto": "dns",
+  "summary": "负例:超长label拒(T-DNS-17):单label 64字节>63上限",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
+      "query_type": 1
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "exceeds max 63 octets"
+  },
+  "notes": [
+   "T-DNS-17:超长label拒,锚词exceeds max 63 octets(validator长度门,落盘MCP实测)"
+  ]
+ },
+ {
+  "id": "dns_retry_same_txid",
+  "proto": "dns",
+  "summary": "重传同txid(T-DNS-18):固定txid 1001→双包dns.id同为0x03e9",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 1,
+      "txid": 1001,
+      "is_response": true,
+      "response_ip": "1.2.3.4"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "dns.id",
+     "value": "0x03e9"
+    },
+    {
+     "packet": 2,
+     "field": "dns.id",
+     "value": "0x03e9"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-18:UDP重传同txid,双包dns.id=0x03e9(落盘实测)"
+  ]
+ },
+ {
+  "id": "dns_v6_query",
+  "proto": "dns",
+  "summary": "IPv6承载(T-DNS-19):v6地址查询→ip.version=6",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "fd00::1",
+      "dst": "fd00::2"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 53
+     }
+    },
+    {
+     "dns": {
+      "name": "example.com",
+      "query_type": 28
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "ipv6.version",
+     "value": "6"
+    },
+    {
+     "packet": 1,
+     "field": "dns.qry.type",
+     "value": "28"
+    }
+   ]
+  },
+  "notes": [
+   "T-DNS-19:地址族矩阵v6格,ipv6.version=6(落盘实测);注意离线套件走spec默认v4,真值以MCP为准"
+  ]
  }
 ]
