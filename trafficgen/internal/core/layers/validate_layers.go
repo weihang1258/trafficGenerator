@@ -415,7 +415,21 @@ func ValidateLayers(layersJSON json.RawMessage, protocol string) (string, error)
 	// 字段范围（V9）：用户链各层（config 只保留在用户层上——
 	// completeSynthesized 丢弃 config，单层豁免路径必须回到用户层校验）
 	// + 补全后全链（插入的依赖层，config 为空天然通过）。
+	firstIP := true
 	for i := range chain {
+		// D-GRE-2 §12：内层 ip 层（隧道载荷侧，非首个 ip 层）动态对象拒绝
+		// ——LayerDynValues 只有一套 ip 值，双层动态会静默打架（外层对象
+		// 被内层顶掉，2026-09-15 探针 C）。单四元组模型下内层地址静态。
+		if chain[i].Name == "ip" {
+			if !firstIP {
+				for _, f := range []string{"src", "dst", "ttl"} {
+					if isDynObject(chain[i].Config[f]) {
+						return "", fmt.Errorf("layers[%d](ip).%s: inner ip layer does not support dynamic (tunnel inner addresses are static; vary the outer ip layer instead)", i, f)
+					}
+				}
+			}
+			firstIP = false
+		}
 		// D-FTP-3 §1: 动态对象先行——同键二态：对象值走 dynamic_value
 		// 形状检查（带用户链下标的精确路径），标量走既有 V9。
 		stripped, err := checkLayerDynObjects(i, chain[i].Name, chain[i].Config)

@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -285,41 +286,35 @@ func TestT12_GREChainValidateAndUnknownFields(t *testing.T) {
 	}
 }
 
-// TestT12_GREInnerErrorPropagates: 内层 IPv6 必须**同步拒绝**（review HIGH-2）。
-// drive 的运行时错误按既有契约静默吞掉（Plan goroutine 报错 → 空流），而
-// IPv6-over-GRE 是**结构性**错误（GREGenerator 只支持 IPv4 内层，To4 检查；
-// builder writeGRE 的 ProtocolType 0x0800 即内层裸 IPv4）——结构性错误必须在
-// Validate/Plan 同步报错（与生成器不可实例化、事件接线配错同款先例，
-// chain_planner.go:266-270），否则调用方拿到 0 包空流而非明确错误。
+// TestT12_GREInnerErrorPropagates: 结构性错误必须**同步拒绝**（review
+// HIGH-2 原意保留）。D-GRE-2（2026-09-15）重写：原"IPv6-over-GRE 拒绝"
+// 语义已作废——v6/v4 内层全族开放（正路径由 gre_v6_test.go
+// TestGREChain_V6InV6/V4InV6 接管）；本测试保留两个仍然成立的意图：
+// ①drive 运行时错误静默吞空的防御——载体换为空 spec 地址（结构性错误，
+// 必须在 Validate/Plan 同步报错，不静默空流）；②错误传播双路径一致。
 func TestT12_GREInnerErrorPropagates(t *testing.T) {
-	// spec 内层 IPv6（outer 也 v6 才能通过 validateSpecBase 的版本一致性检查）
-	// → 隧道链校验必须报错（IPv6-over-GRE 不支持）。
-	spec := core.FlowSpec{
-		SrcIP: "2001:db8::1", DstIP: "2001:db8::2",
-		SrcPort: 40000, DstPort: 8080,
-		Count: 1,
-	}
 	p, err := layers.BuildLayersPlanner("gre", json.RawMessage(`[{"gre":{}},{"http":{}}]`))
 	if err != nil {
 		t.Fatalf("BuildLayersPlanner: %v", err)
 	}
-	// Plan 与 Validate 双路径必须同步拒绝（failing-test-first：当前实现
-	// Validate 通过 + Plan 返回空流，此测试先失败）。
-	if err := p.Validate(spec); err == nil {
-		t.Error("Validate: IPv6-over-GRE chain accepted, want sync rejection (inner addresses must be IPv4)")
-	}
-	if ch, err := p.Plan(context.Background(), spec); err == nil {
-		// Plan 通过了（不应发生）——但即使走了，也必须不得静默空流。
-		for range ch {
+	// v6-in-v6 是 D-GRE-2 合法场景（不再拒绝）——出包正路径见
+	// TestGREChain_V6InV6；此处只确认不再报"not supported yet"旧文案。
+	v6 := core.FlowSpec{SrcIP: "2001:db8::1", DstIP: "2001:db8::2", SrcPort: 40000, DstPort: 8080, Count: 1}
+	if err := p.Validate(v6); err != nil {
+		if strings.Contains(err.Error(), "IPv6-over-GRE not supported") {
+			t.Errorf("Validate still rejects v6-over-GRE with the retired anchor: %v", err)
 		}
-		t.Error("Plan: IPv6-over-GRE chain accepted, want sync rejection (drive must not swallow as empty flow)")
 	}
-	// 空地址同样必须拒绝（review MEDIUM：spec 空 → applySpecToChain 删除 ip 层
-	// src/dst → 内层无地址，合法"legacy 默认"在链路径不存在——链路径没有
-	// schema 默认回退）。
+	// 空 spec 地址：结构性错误必须同步拒绝（新锚词 outer ip addresses
+	// required；spec 空 → applySpecToChain 删 ip 层 src/dst → 无隧道端点）。
 	empty := core.FlowSpec{SrcPort: 40000, DstPort: 8080, Count: 1}
 	if err := p.Validate(empty); err == nil {
-		t.Error("Validate: gre chain with empty src/dst accepted, want sync rejection (no inner addresses)")
+		t.Error("Validate: gre chain with empty src/dst accepted, want sync rejection (no outer ip addresses)")
+	}
+	if ch, err := p.Plan(context.Background(), empty); err == nil {
+		for range ch {
+		}
+		t.Error("Plan: gre chain with empty src/dst accepted, want sync rejection (drive must not swallow as empty flow)")
 	}
 }
 

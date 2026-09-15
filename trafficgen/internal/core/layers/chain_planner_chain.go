@@ -290,6 +290,12 @@ func isDynObject(v interface{}) bool {
 func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Layer {
 	r := p.effectiveRegistry()
 	out := make([]Layer, len(chain))
+	// D-GRE-2 §1：首个 ip 层是外层（隧道端点），后续 ip 层是内层（隧道载荷
+	// 源）。内层地址权威=内层 ip 层显式标量，缺席才回填 spec 值（=外层值，
+	// D-GRE-1 兼容）——spec 广播只作用外层，消除"内层 v6 被外层 v4 静默
+	// 顶掉"（2026-09-15 探针 A）。内层 ttl/dscp/ecn/frag_offset 不注入
+	// spec 值：这些字段只认内层层配置（inner_ttl 决策 C1）。
+	seenIP := false
 	for i, l := range chain {
 		// 以 schema 默认值为底（手动值 > 默认值：只覆盖用户显式写的）。
 		s, _ := r.Get(l.Name)
@@ -304,6 +310,45 @@ func (p *ChainPlanner) applySpecToChain(chain []Layer, spec core.FlowSpec) []Lay
 		}
 		switch l.Name {
 		case "ip":
+			innerIP := seenIP
+			seenIP = true
+			if innerIP {
+				// 内层 ip 层（隧道载荷）：用户显式标量保留；动态对象沿
+				// 外层同款防御（ValidateLayers 已拒内层动态，引擎直调
+				// 路径仍需防对象进生成器）；缺席回填 spec 值；spec 空时
+				// 删 schema 默认（同外层 LOW-1 语义）。
+				if v, has := l.Config["src"]; has && isDynObject(v) {
+					if spec.SrcIP != "" {
+						cfg["src"] = spec.SrcIP
+					} else {
+						delete(cfg, "src")
+					}
+				} else if _, has := l.Config["src"]; !has {
+					if spec.SrcIP != "" {
+						cfg["src"] = spec.SrcIP
+					} else {
+						delete(cfg, "src")
+					}
+				}
+				if v, has := l.Config["dst"]; has && isDynObject(v) {
+					if spec.DstIP != "" {
+						cfg["dst"] = spec.DstIP
+					} else {
+						delete(cfg, "dst")
+					}
+				} else if _, has := l.Config["dst"]; !has {
+					if spec.DstIP != "" {
+						cfg["dst"] = spec.DstIP
+					} else {
+						delete(cfg, "dst")
+					}
+				}
+				// 内层 ttl/dscp/ecn/frag_offset：不注入 spec 值（用户
+				// 显式层值 > schema 默认，恒不被 spec 顶掉）。
+				out[i] = Layer{Name: l.Name, Config: cfg}
+				continue
+			}
+			// 外层 ip 层（隧道端点/普通链唯一 ip 层）：现行为不变。
 			// 只有 spec 显式写了 IP 才注入层 config；spec IP 为空时**移除**
 			// schema 默认的 10.0.0.1/20.0.0.1（review LOW-1 修复）：legacy
 			// 语义是"spec IP 空 → L3 空"，链上 ip 层默认只服务独立 ip flow

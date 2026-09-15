@@ -65,10 +65,27 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 		}
 		*dst = &sc
 	}
+	firstIP := true
 	for i, item := range arr {
 		layer, _ := item.(map[string]interface{})
 		if layer == nil {
 			continue
+		}
+		// D-GRE-2 §12：内层 ip 层动态对象拒绝（与 ValidateLayers 同锚词，
+		// 双侧执法——本函数是 worker 逐流解析入口，引擎直调绕过
+		// ValidateLayers 时此处兜底）。单四元组模型：双层动态静默打架
+		// （外层对象被内层顶掉，2026-09-15 探针 C）。
+		if sub, ok := layer["ip"].(map[string]interface{}); ok {
+			if !firstIP {
+				for _, f := range []string{"src", "dst", "ttl"} {
+					if m, isObj := sub[f].(map[string]interface{}); isObj {
+						if _, looksDyn := m["strategy"]; looksDyn {
+							errs = append(errs, fmt.Sprintf("layers[%d](ip).%s: inner ip layer does not support dynamic (tunnel inner addresses are static; vary the outer ip layer instead)", i, f))
+						}
+					}
+				}
+			}
+			firstIP = false
 		}
 		for lname, allowed := range layerDynAllowlist {
 			sub, _ := layer[lname].(map[string]interface{})

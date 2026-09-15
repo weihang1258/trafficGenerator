@@ -196,5 +196,626 @@
    "expect_error": true,
    "error_contains": "does not support dynamic"
   }
+ },
+ {
+  "id": "gre_v6_in_v6",
+  "proto": "gre",
+  "summary": "v6-in-v6 纯 v6 隧道（T-GRE-5）：外层 IPv6(next header 47) + GRE proto 0x86dd + 内层 IPv6/UDP/DNS -> 1 帧",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "fd00::1",
+      "dst": "fd00::2"
+     }
+    },
+    {
+     "gre": {}
+    },
+    {
+     "ip": {
+      "src": "fd00::1",
+      "dst": "fd00::2"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "gre.proto",
+     "value": "0x86dd"
+    },
+    {
+     "packet": 1,
+     "field": "gre.flags_and_version",
+     "value": "0x0000"
+    },
+    {
+     "packet": 1,
+     "field": "eth.type",
+     "value": "0x86dd"
+    },
+    {
+     "packet": 1,
+     "field": "udp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "80"
+    },
+    {
+     "packet": 1,
+     "field": "ipv6.version",
+     "value": "6,6"
+    },
+    {
+     "packet": 1,
+     "field": "ipv6.src",
+     "value": "fd00::1,fd00::1"
+    }
+   ],
+   "notes": [
+    "T-GRE-5【D-GRE-2 §4】：外层 eth.type=0x86dd（IPv6 承载 GRE），GRE proto=0x86dd（v6 内层），内层 UDP 校验和非零（RFC 6936）；内层 ipv6 字段断言跑完落盘 pcap 校准后回钉"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 58,
+     "hex": "60 00 00 00"
+    },
+    {
+     "packet": 1,
+     "offset": 98,
+     "hex": "30 39 00 50"
+    }
+   ]
+  }
+ },
+ {
+  "id": "gre_6in4",
+  "proto": "gre",
+  "summary": "6in4 异构（T-GRE-6）：外层 v4、内层 ip 层显式 v6——内层地址不被外层顶掉（静默覆盖修复的正例）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {}
+    },
+    {
+     "ip": {
+      "src": "fd00::1",
+      "dst": "fd00::2"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "gre.proto",
+     "value": "0x86dd"
+    },
+    {
+     "packet": 1,
+     "field": "ip.version",
+     "value": "4,6"
+    },
+    {
+     "packet": 1,
+     "field": "udp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "80"
+    },
+    {
+     "packet": 1,
+     "field": "ipv6.src",
+     "value": "fd00::1"
+    }
+   ],
+   "notes": [
+    "T-GRE-6【D-GRE-2 §4】：外层 ip.version=4（10.0.0.1→20.0.0.1），GRE proto=0x86dd；内层源=fd00::1；内层 v6 头 offset 38（eth14+ip20+gre4）frames hex 跑完校准回钉"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 38,
+     "hex": "60 00 00 00"
+    },
+    {
+     "packet": 1,
+     "offset": 78,
+     "hex": "30 39 00 50"
+    }
+   ]
+  }
+ },
+ {
+  "id": "gre_4in6",
+  "proto": "gre",
+  "summary": "4in6 异构（T-GRE-7）：外层 v6、内层显式 v4——外层 EtherType 0x86dd + next header 47，GRE proto 0x0800",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "fd00::1",
+      "dst": "fd00::2"
+     }
+    },
+    {
+     "gre": {}
+    },
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "gre.proto",
+     "value": "0x0800"
+    },
+    {
+     "packet": 1,
+     "field": "eth.type",
+     "value": "0x86dd"
+    },
+    {
+     "packet": 1,
+     "field": "udp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 1,
+     "field": "udp.dstport",
+     "value": "80"
+    },
+    {
+     "packet": 1,
+     "field": "ip.src",
+     "value": "10.0.0.1"
+    }
+   ],
+   "notes": [
+    "T-GRE-7【D-GRE-2 §4】：外层 IPv6 头 40B（eth14+ip6 40+gre4=58），内层 v4 头 offset 58；内层 ip.src=10.0.0.1 断言跑完校准回钉"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 58,
+     "hex": "45 00 00 39"
+    },
+    {
+     "packet": 1,
+     "offset": 78,
+     "hex": "30 39 00 50"
+    }
+   ]
+  }
+ },
+ {
+  "id": "gre_sequence_multi",
+  "proto": "gre",
+  "summary": "sequence 多帧递增（T-GRE-8）：内层 [tcp,http] 9 帧（3握手+2数据+4挥手），S 位置位逐帧序号 0→8",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {
+      "sequence": true
+     }
+    },
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "http": {}
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 9,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "gre.flags_and_version",
+     "value": "0x1000"
+    }
+   ],
+   "notes": [
+    "T-GRE-8【D-GRE-2 §4】：S 位=0x1000；逐帧序号 0..8（gre.sequence 字段名以落盘 pcap 校准后回钉 distinct 断言）；min_packets=9 以 tshark 实测为准（探针 2026-09-15 九帧实锤）"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 34,
+     "hex": "10 00 08 00"
+    },
+    {
+     "packet": 1,
+     "offset": 38,
+     "hex": "00 00 00 00"
+    },
+    {
+     "packet": 9,
+     "offset": 38,
+     "hex": "00 00 00 08"
+    }
+   ]
+  }
+ },
+ {
+  "id": "gre_checksum",
+  "proto": "gre",
+  "summary": "checksum C 位（T-GRE-9）：C 位置位（flags 0x8000）+ 4B 校验和",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {
+      "checksum": true
+     }
+    },
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "gre.flags_and_version",
+     "value": "0x8000"
+    },
+    {
+     "packet": 1,
+     "field": "gre.checksum",
+     "value": "0x9637"
+    }
+   ],
+   "notes": [
+    "T-GRE-9【D-GRE-2 §4】：校验和字段存在且非零（字段名跑完校准回钉；值可复算）"
+   ]
+  }
+ },
+ {
+  "id": "gre_key",
+  "proto": "gre",
+  "summary": "key K 位与值（T-GRE-10）：key=0x12345678，K 位置位（flags 0x2000）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {
+      "key": 305419896
+     }
+    },
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "gre.flags_and_version",
+     "value": "0x2000"
+    },
+    {
+     "packet": 1,
+     "field": "gre.key",
+     "value": "0x12345678"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 38,
+     "hex": "12 34 56 78"
+    }
+   ],
+   "notes": [
+    "T-GRE-10【D-GRE-2 §4】：Key 4B 紧跟 GRE 基头（offset 38=eth14+ip20+gre4），frames hex 直接钉 12 34 56 78；gre.key 字段断言跑完校准回钉"
+   ]
+  }
+ },
+ {
+  "id": "gre_kcs_combo",
+  "proto": "gre",
+  "summary": "K+C+S 三键组合（T-GRE-11）：flags 0xb000，GRE 头 16B（4基+4校验+4键+4序号）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {
+      "key": 305419896,
+      "checksum": true,
+      "sequence": true
+     }
+    },
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "gre.flags_and_version",
+     "value": "0xb000"
+    },
+    {
+     "packet": 1,
+     "field": "gre.key",
+     "value": "0x12345678"
+    },
+    {
+     "packet": 1,
+     "field": "gre.checksum",
+     "value": "0xfd8a"
+    }
+   ],
+   "notes": [
+    "T-GRE-11【D-GRE-2 §4】：帧长 95+12=107（v4 内 dns 内层 57B + 外层 38B + 三可选域 12B）；帧长断言跑完校准回钉"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 42,
+     "hex": "12 34 56 78"
+    }
+   ]
+  }
+ },
+ {
+  "id": "gre_inner_ttl",
+  "proto": "gre",
+  "summary": "内层 TTL 覆盖（T-GRE-12）：内层 ip{ttl:60} 生效，外层仍 64——两个 TTL 独立",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {}
+    },
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1",
+      "ttl": 60
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 22,
+     "hex": "40"
+    },
+    {
+     "packet": 1,
+     "offset": 46,
+     "hex": "3c"
+    }
+   ],
+   "notes": [
+    "T-GRE-12【D-GRE-2 §1 决策 C1】：外层 TTL 字节 offset 22=0x40(64)，内层 TTL 字节 offset 46=0x3c(60)（eth14+外ip20+gre4+内ip8）；tshark 内外两层 ip.ttl 同名，用 frames hex 分别钉死"
+   ]
+  }
+ },
+ {
+  "id": "gre_neg_inner_dyn",
+  "proto": "gre",
+  "summary": "负例：内层 ip 动态拒绝（T-GRE-13）——单四元组模型，内层地址静态",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {}
+    },
+    {
+     "ip": {
+      "src": {
+       "strategy": "list",
+       "list": [
+        "30.0.0.1",
+        "30.0.0.2"
+       ]
+      },
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "inner ip layer does not support dynamic"
+  }
+ },
+ {
+  "id": "gre_neg_inner_mixed",
+  "proto": "gre",
+  "summary": "负例：内层混族拒绝（T-GRE-14）——v4 源 + v6 目的不是合法 IP 包",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "gre": {}
+    },
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "fd00::2"
+     }
+    },
+    {
+     "udp": {
+      "src_port": 12345,
+      "dst_port": 80
+     }
+    },
+    {
+     "dns": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "must be the same IP version"
+  }
  }
 ]

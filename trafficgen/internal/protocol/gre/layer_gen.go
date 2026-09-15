@@ -9,29 +9,26 @@ import (
 	"github.com/trafficgen/trafficgen/internal/core/layers"
 )
 
-// GREGenerator is the gre tunnel-layer generator (gre 隧道层生成器, P2e T12)。
-// It wraps every packet from the inner chain (内层 ip → tcp → http) into a
-// GRE-encapsulated frame: the inner packet bytes are built here (complete
-// inner IPv4 header + L4 with checksums — the core builder can't build the
-// inner packet because GRE's payload is a bare IP packet, not an Ethernet
-// frame), the outer L3.Protocol is set to 47 (IPPROTO_GRE), and the wire
-// GRE config (Key/Checksum/Sequence) is written into L2.GRE for the core
-// builder's writeGRE/fillGREChecksum to serialize.
+// GREGenerator is the gre tunnel-layer generator (gre 隧道层生成器, P2e T12；
+// D-GRE-2 内层族分派)。It wraps every packet from the inner chain (内层 ip →
+// tcp/udp → 终结层) into a GRE-encapsulated frame: the inner packet bytes are
+// built here (complete inner IPv4 **or IPv6** header + L4 with checksums — the
+// core builder can't build the inner packet because GRE's payload is a bare IP
+// packet, not an Ethernet frame), the outer L3.Protocol is set to 47
+// (IPPROTO_GRE), and the wire GRE config (Key/Checksum/Sequence) is written
+// into L2.GRE for the core builder's writeGRE/fillGREChecksum to serialize.
+// GRE ProtocolType follows the inner family: 0x0800 (v4) / 0x86DD (v6).
 //
 // The inner IP header and inner L4 checksums are byte-identical to the
-// legacy gre planner's buildInnerIPv4Packet / buildInnerL4 (same functions,
-// same package). The inner addresses are the inner ip layer's values — for a
-// [ip → gre → ip → tcp → http] chain, the ChainPlanner's applySpecToChain
-// injects spec.SrcIP/DstIP into both ip layer configs, so outer and inner
-// addresses are both the spec addresses (legacy gre: InnerSrcIP/InnerDstIP
-// default to spec.SrcIP/DstIP); down 帧的内层地址交换与 legacy gre 的
-// inSrc/inDst 交换一致（legacy planner.go:265-269）。
+// legacy gre planner's buildInnerIPv4Packet / buildInnerIPv6Packet /
+// buildInnerL4 (same functions, same package). The inner addresses are the
+// inner ip layer's values (D-GRE-2: 用户显式标量保留，缺席=外层 spec 值)；
+// down 帧的内层地址交换与 legacy gre 的 inSrc/inDst 交换一致。
 //
 // 与 legacy 的差异（结构所致，已接受）：
-//   - inner IPID 从 0 起每帧自增（legacy `InnerIPID + i`；链的会话不共享
-//     IPID——外层 ip 层生成器持有外层 IPID，隧道层自持内层 counter，避免
-//     Sess.IPID 双写竞态）。
-//   - inner TTL 恒 64（legacy InnerTTL 默认 64；链层 InnerTTL 无注入路径）。
+//   - inner IPID 从 0 起每帧自增（legacy `InnerIPID + i`；v6 内层无 IPID）。
+//   - inner TTL 读 pkt.L3.TTL（内层 ip 层 ttl 覆盖生效，D-GRE-2 决策 C1；
+//     0 回退默认 64）。
 //   - TCPOptions 不注入（legacy cfg.TCPOptions 由策略直配；链层无该字段）。
 //   - 内层 TCP 字段取自内层包 L4（seq/ack/flags/window 已由 tcp 层生成器
 //     推进——比 legacy 读静态 spec.TCP 更真实）。
@@ -84,11 +81,12 @@ func (g *GREGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 			if pkt.Direction == "down" {
 				innerSrc, innerDst = innerDst, innerSrc
 			}
-			// 内层 IPv4 地址必须有效：链路径只支持 IPv4-over-GRE（builder
-			// writeGRE 的 ProtocolType 0x0800 意味着内层是裸 IPv4 包）。
-			if net.ParseIP(innerSrc).To4() == nil || net.ParseIP(innerDst).To4() == nil {
-				return fmt.Errorf("gre generator: inner IPv4 addresses required (got %q/%q); IPv6-over-GRE not supported by the layer chain yet",
-					innerSrc, innerDst)
+			// D-GRE-2：内层族分派——v4/v6 内层各自合法，外内族可异
+			// （4in6/6in4）。内层两地址同族+可解析已由结构段（chain_planner.go
+			// gre 段）同步保证，此处防御兜底。
+			srcIP, dstIP := net.ParseIP(innerSrc), net.ParseIP(innerDst)
+			if srcIP == nil || dstIP == nil {
+				return fmt.Errorf("gre generator: inner addresses %q/%q are not valid IP addresses", innerSrc, innerDst)
 			}
 			// 内层 TCP 配置：从内层包 L4 拷贝（seq/ack/flags/window 已由 tcp
 			// 层生成器推进）。无 TCP 选项（链层无注入路径）。
@@ -101,17 +99,34 @@ func (g *GREGenerator) Generate(ctx context.Context, req *layers.GenRequest) err
 					WindowSize:  pkt.L4.WindowSize,
 				}
 			}
-			// 完整内层 IP 包（20B 头 + L4，校验和完整）——legacy
-			// buildInnerIPv4Packet 同款。内层 L4 proto 由内层包 L4.Protocol
-			// 决定（tcp=6 / udp=17）。
-			inner := buildInnerIPv4Packet(innerSrc, innerDst, innerProtoFor(pkt),
-				pkt.L4.SrcPort, pkt.L4.DstPort, uint8(DefaultInnerTTL), pkt.Payload,
-				uint16(innerIPID), innerTCP, nil)
+			// D-GRE-2 决策 C1：内层 TTL 读内层 ip 层生成器写入的
+			// pkt.L3.TTL（用户内层 ip.ttl 覆盖生效）；0 回退默认（防御）。
+			innerTTL := pkt.L3.TTL
+			if innerTTL == 0 {
+				innerTTL = DefaultInnerTTL
+			}
+			// 完整内层 IP 包（头 + L4，校验和完整）——legacy
+			// buildInnerIPv4Packet / buildInnerIPv6Packet 同款。内层 L4 proto
+			// 由内层包 L4.Protocol 决定（tcp=6 / udp=17）；GRE ProtocolType
+			// 随内层族（0x0800 / 0x86DD）。v6 无 IPID（RFC 8200），counter
+			// 仅 v4 路径消费。
+			var protoType uint16
+			var inner []byte
+			if srcIP.To4() == nil {
+				protoType = core.EtherTypeIPv6
+				inner = buildInnerIPv6Packet(innerSrc, innerDst, innerProtoFor(pkt),
+					pkt.L4.SrcPort, pkt.L4.DstPort, innerTTL, pkt.Payload, innerTCP, nil)
+			} else {
+				protoType = core.EtherTypeIPv4
+				inner = buildInnerIPv4Packet(innerSrc, innerDst, innerProtoFor(pkt),
+					pkt.L4.SrcPort, pkt.L4.DstPort, innerTTL, pkt.Payload,
+					uint16(innerIPID), innerTCP, nil)
+			}
 			innerIPID++
 			// 每帧 wire GRE 配置：K/C/S 位 + 自增 Sequence（legacy
 			// cfg.Sequence + i 语义；链默认基值 0）。
 			greCfg := core.GREConfig{
-				ProtocolType:    core.EtherTypeIPv4,
+				ProtocolType:    protoType,
 				Checksum:        checksum,
 				KeyPresent:      key != 0,
 				Key:             key,

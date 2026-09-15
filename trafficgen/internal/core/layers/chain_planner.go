@@ -197,24 +197,34 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 			}
 		}
 	}
-	// 隧道层（gre）结构性校验（P2e T12 review HIGH-2）：GRE 只支持 IPv4
-	// 内层（GREGenerator 的 To4 检查 + builder writeGRE 的 ProtocolType
-	// 0x0800 即内层裸 IPv4 包）。IPv6 内层/空地址是**结构性**错误，必须在此
-	// 同步拒绝——drive 期生成器报错会被 Plan goroutine 吞成 0 包空流
-	// （chain_planner.go:266-270 的既有契约），调用方拿到空流而非明确错误。
-	// 校验读 spec 地址（applySpecToChain 把 spec.SrcIP/DstIP 注入每个 ip 层，
-	// 外层与内层同值；flat spec.GRE 的 InnerSrcIP/InnerDstIP 默认即 spec
-	// 地址，同受此约束）。
-	for _, l := range chain {
+	// 隧道层（gre）结构性校验（P2e T12 review HIGH-2 起；D-GRE-2 重写）：
+	// 外层（spec 地址=首个 ip 层）与内层（内层 ip 层显式 src/dst，缺席回退
+	// spec 值）各自必须非空、可解析、两地址同族；**外内族可异**（4in6/6in4
+	// 合法，D-GRE-2 §4 矩阵）。必须在此同步拒绝——drive 期生成器报错会被
+	// Plan goroutine 吞成 0 包空流（既有契约），调用方拿到空流而非明确错误。
+	for i, l := range chain {
 		if l.Name != "gre" {
 			continue
 		}
 		if spec.SrcIP == "" || spec.DstIP == "" {
-			return spec, fmt.Errorf("gre chain: inner IPv4 addresses required (tunnel chains derive inner addresses from spec src_ip/dst_ip; empty spec addresses leave no inner addresses)")
+			return spec, fmt.Errorf("gre chain: outer ip addresses required (tunnel endpoints come from the outer ip layer)")
 		}
-		if net.ParseIP(spec.SrcIP).To4() == nil || net.ParseIP(spec.DstIP).To4() == nil {
-			return spec, fmt.Errorf("gre chain: IPv6-over-GRE not supported yet (inner addresses %s/%s must be IPv4)",
-				spec.SrcIP, spec.DstIP)
+		inSrc, inDst := spec.SrcIP, spec.DstIP
+		if i+1 < len(chain) && chain[i+1].Name == "ip" {
+			if v, ok := chain[i+1].Config["src"].(string); ok && v != "" {
+				inSrc = v
+			}
+			if v, ok := chain[i+1].Config["dst"].(string); ok && v != "" {
+				inDst = v
+			}
+		}
+		for _, pair := range []struct{ name, val string }{{"src", inSrc}, {"dst", inDst}} {
+			if net.ParseIP(pair.val) == nil {
+				return spec, fmt.Errorf("gre chain: inner ip layer %s %q is not a valid IP address", pair.name, pair.val)
+			}
+		}
+		if s, d := net.ParseIP(inSrc), net.ParseIP(inDst); (s.To4() != nil) != (d.To4() != nil) {
+			return spec, fmt.Errorf("gre chain: inner ip layer addresses %s/%s must be the same IP version", inSrc, inDst)
 		}
 		break
 	}
