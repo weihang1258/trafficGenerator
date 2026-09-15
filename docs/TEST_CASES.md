@@ -2004,6 +2004,156 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/gre.json`（gre_neg_dyn_key）。
 
+### T-GRE-5 gre.json——v6-in-v6 纯 v6 隧道【D-GRE-2 §4】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** D-GRE-2 §4（v6 外 v6 里矩阵格；RFC 2473；现状=结构段同步拒，探针 B）；D-GRE-2 §3（生成器族分派→buildInnerIPv6Packet+proto 0x86DD）
+**目标：** `[ip(v6),gre,ip(v6),udp,dns]` 链产 1 帧：外层 IPv6（EtherType 0x86DD，next header 47）+ GRE proto 0x86dd + 内层完整 IPv6/UDP/DNS。
+
+**输入：** `{"layers":[{"ip":{"src":"fd00::1","dst":"fd00::2"}},{"gre":{}},{"ip":{"src":"fd00::1","dst":"fd00::2"}},{"udp":{"src_port":12345,"dst_port":80}},{"dns":{}}]}`。
+**前置条件：** T-GRE-1 绿；D-GRE-2 实现合入。
+**执行：** 同 T-GRE-1。
+**期望输出：** 1 包；`gre.proto=0x86dd`、`gre.flags_and_version=0x0000`、外层 `eth.type=0x86dd`、内层 `ipv6.version=6`、`udp.srcport=12345/udp.dstport=80`；内层 UDP 校验和非零（v6 UDP 不许零校验和，RFC 6936）。字段名/字节以落盘 pcap（tshark）校准。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_v6_in_v6）。
+
+### T-GRE-6 gre.json——v4 外 v6 里（6in4 异构）【D-GRE-2 §4】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** D-GRE-2 §4（现状=静默覆盖 bug，探针 A：内层 v6 被换 v4 出包无告警）；RFC 2473
+**目标：** 外层 v4、内层 ip 层显式写 v6：出包内层必须是用户写的 v6 地址（不被外层顶掉），GRE proto 0x86dd。
+
+**输入：** 外层 `ip{"src":"10.0.0.1","dst":"20.0.0.1"}` + 内层 `ip{"src":"fd00::1","dst":"fd00::2"}`，余同 T-GRE-5。
+**前置条件：** 同 T-GRE-5。
+**执行：** 同 T-GRE-1。
+**期望输出：** 1 包；外层 `ip.version=4`（10.0.0.1→20.0.0.1）；`gre.proto=0x86dd`；内层源=fd00::1、目的=fd00::2（`ipv6.src/ipv6.dst`）；断言内层字节含 fd00 前缀（frames hex，落盘校准）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_6in4）。
+
+### T-GRE-7 gre.json——v6 外 v4 里（4in6 异构）【D-GRE-2 §4】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** D-GRE-2 §4（外层 v6 现状被结构段拒）；现网 4in6 过渡常态
+**目标：** 外层 v6、内层显式 v4：外层 EtherType 0x86DD + next header 47，内层 IPv4，GRE proto 0x0800。
+
+**输入：** 外层 `ip{"src":"fd00::1","dst":"fd00::2"}` + 内层 `ip{"src":"10.0.0.1","dst":"20.0.0.1"}`，余同 T-GRE-1。
+**前置条件：** 同 T-GRE-5。
+**执行：** 同 T-GRE-1。
+**期望输出：** 1 包；`eth.type=0x86dd`、`gre.proto=0x0800`、内层 `ip.src=10.0.0.1/ip.dst=20.0.0.1`。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_4in6）。
+
+### T-GRE-8 gre.json——sequence 多帧递增【D-GRE-2 §4】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** D-GRE-2 §4（内层 TCP 链矩阵格；RFC 2890 §3.2 S 位+逐帧递增；链生成器 sequenceNum++ 既有，无例）
+**目标：** `[ip,gre,ip,tcp,http]` + `gre{"sequence":true}` 产 9 帧，每帧 GRE 带序号 0→8，S 位（flags 0x1000）。
+
+**输入：** `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"gre":{"sequence":true}},{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":12345,"dst_port":80}},{"http":{}}]}`。
+**前置条件：** 同 T-GRE-5。
+**执行：** 同 T-GRE-1。
+**期望输出：** 9 包（3 握手+2 数据+4 挥手，全 GRE 封装）；`gre.flags_and_version=0x1000`；首帧序号 0、末帧序号 8（`gre.sequence` 字段名以落盘 pcap 校准，逐帧 distinct 断言）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_sequence_multi）。
+
+### T-GRE-9 gre.json——checksum C 位【D-GRE-2 §4】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** RFC 2784 §3.1（可选校验和，C 位）；D-GRE-2 §4（K/C/S 单键矩阵格）
+**目标：** `gre{"checksum":true}` 置 C 位（flags 0x8000）+ 4B 校验和且值正确。
+
+**输入：** 同 T-GRE-1 链形 + `gre{"checksum":true}`。
+**前置条件：** 同 T-GRE-5。
+**执行：** 同 T-GRE-1。
+**期望输出：** 1 包；`gre.flags_and_version=0x8000`；校验和字段存在且非零（值以落盘 pcap 校准，tshark 可复算）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_checksum）。
+
+### T-GRE-10 gre.json——key K 位与值【D-GRE-2 §4】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** RFC 2890 §3.1（K 位+4B Key）；D-GRE-2 §4
+**目标：** `gre{"key":305419896}`（0x12345678）置 K 位且 Key 值上 wire。
+
+**输入：** 同 T-GRE-1 链形 + `gre{"key":305419896}`。
+**前置条件：** 同 T-GRE-5。
+**执行：** 同 T-GRE-1。
+**期望输出：** 1 包；`gre.flags_and_version=0x2000`；`gre.key=0x12345678`（字段名落盘校准；frames hex 断言 offset 38 起 4B `12 34 56 78`）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_key）。
+
+### T-GRE-11 gre.json——K+C+S 三键组合【D-GRE-2 §4】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** RFC 2890（三位组合头 16B：4 基+4 校验+4 键+4 序号）；D-GRE-2 §4
+**目标：** 三键全开：flags 0xB000，GRE 头 16 字节，四可选域全上 wire。
+
+**输入：** 同 T-GRE-1 链形 + `gre{"key":305419896,"checksum":true,"sequence":true}`。
+**前置条件：** 同 T-GRE-5。
+**执行：** 同 T-GRE-1。
+**期望输出：** 1 包；`gre.flags_and_version=0xb000`；帧长=95+12（三可选域；以落盘 pcap 校准）；key/checksum/sequence 字段齐（字段名落盘校准）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_kcs_combo）。
+
+### T-GRE-12 gre.json——内层 TTL 覆盖【D-GRE-2 §1】
+
+**状态：** 待执行（P5）
+**级别：** pcap
+**来源：** D-GRE-2 §1（flat inner_ttl→内层 ip 层 ttl；生成器改读 pkt.L3.TTL）
+**目标：** 内层 `ip{"ttl":60}` 时内层包 TTL=60（外层不受影响仍 64）。
+
+**输入：** 同 T-GRE-1 链形，内层 ip 层改 `{"src":"10.0.0.1","dst":"20.0.0.1","ttl":60}`。
+**前置条件：** 同 T-GRE-5。
+**执行：** 同 T-GRE-1。
+**期望输出：** 1 包；内层 `ip.ttl=60`；外层 `ip.ttl=64`（两个字段独立断言）。
+**错误期望：** 无。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_inner_ttl）。
+
+### T-GRE-13 gre.json——内层 ip 动态拒绝负例【D-GRE-2 §5/§12】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-GRE-2 §12（LayerDynValues 单套 ip 值，双层动态打架——探针 C 实锤外层被内层顶掉无告警；双侧拒绝）
+**目标：** 内层 ip 层 src 写动态对象建任务即被拒。
+
+**输入：** 同 T-GRE-1 链形，内层 ip 层改 `{"src":{"strategy":"list","list":["30.0.0.1","30.0.0.2"]}}`。
+**前置条件：** 无。
+**执行：** 同 T-GRE-2。
+**期望输出：** 任务失败；错误含 `inner ip layer does not support dynamic`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_neg_inner_dyn）。
+
+### T-GRE-14 gre.json——内层混族拒绝负例【D-GRE-2 §5】
+
+**状态：** 待执行（P5）
+**级别：** pcap（Validate-negative：真实流程拒绝）
+**来源：** D-GRE-2 §5（内层两地址必须同族——一个 IP 包不可能 v4 源 v6 目的）
+**目标：** 内层 ip 层 src=v4、dst=v6 建任务即被拒。
+
+**输入：** 同 T-GRE-1 链形，内层 ip 层改 `{"src":"10.0.0.1","dst":"fd00::2"}`。
+**前置条件：** 无。
+**执行：** 同 T-GRE-2。
+**期望输出：** 任务失败；错误含 `must be the same IP version`。
+**错误期望：** 即本条。
+**性能期望：** 不适用。
+**实现位置：** `cases/gre.json`（gre_neg_inner_mixed）。
+
 ## 7. 用例审查与完成条件
 
 测试用例完成前必须进行两条审查：

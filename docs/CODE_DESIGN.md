@@ -830,7 +830,123 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 #### 8. 验收
 - 对应 `docs/TEST_CASES.md` T-GRE-1…4（P3 先行，见下）。
 - 完成条件：步骤 0 红例先红后绿；gre 包单测绿；gre.json suite 全绿（`RESULT` 全量绿；二进制同代；门 2 三项绿）；`go vet` + touched 包 `-race` 绿；在库 gre 行清空（删前报数→备份→删→复核：tasks 95 + strategies 3）；§1 两道门：①层链跑通（gre.json）；②旧字段移除（顶层 `count`+`gre` 判死：新建 400 + 在库 error + 门 2-1 脚本绿）。
-- 缺口如实记录：ARP/IPv6-over-GRE 链上实现；Key/Checksum/Sequence 整形例；内层 TCP 链例；Full 3588 + `go test ./internal/...` 待 Step 8。
+- 缺口如实记录：ARP/IPv6-over-GRE 链上实现；Key/Checksum/Sequence 整形例；内层 TCP 链例；Full 3588 + `go test ./internal/...` 待 Step 8。（前三项由 D-GRE-2 回补）
+
+### D-GRE-2 GRE 隧道 v4/v6 全族 + 内层地址自治 + 静默覆盖修复【D-GRE-1 缺口回补】
+
+**门 1 开工对照表（§1–§14，2026-09-15，证据=文档节/代码行/探针/用例号）：**
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 老 flat `gre` 子映射 16 字段逐键去向见本条目"flat 字段三选一表"（8 个此前无去向的字段本轮各归其位：inner 地址→内层 ip 层、inner_ttl→内层 ip 层 ttl、其余三选一登记）；目标形状两种族：`[ip(v4/v6), gre, ip(v4/v6), udp/tcp, 终结层]`——内外层地址各自独立、族可异 | 本条目 flat 表；T-GRE-5/6/7 |
+| §2 策略/任务分工 | 沿框架语义；多流走 `flow_control`，内外四元组动态规则见 §12 行 | D-GRE-2 §3 |
+| §3 五件套 | 豁免（同 D-GRE-1）：单帧封装无子流派生/无 sessions；内层 L4 由内层传输/终结层产出，gre 只封装 | D-GRE-1 §3；T-GRE-8 |
+| §4 规范矩阵 | **地址族×位置矩阵**（下表）+ flat 字段三选一表——每格已实现/本轮补/明确不支持三选一，无留白；依据 RFC 2784 §2.2（ProtocolType 标识内层载荷）、RFC 2473（IPv6-in-IPv4 GRE）、现网 4in6/6in4 过渡隧道常态 | 本条目矩阵行 |
+| §5 有错必处理 | 三处修复各带锚词：内层坏 IP / 内层混族 / 内层 ip 动态拒绝；静默覆盖（无错假成功）是本轮消灭对象——探针 A 实锤外 v4 内 v6 出包内层被换 v4 无告警 | §5 错误表；探针 A/B/C（2026-09-15） |
+| §6 性能 | 修复均在单包路径（一次 To4 判族/一次 TTL 读取），无锁无分配增长；回归口径 suite ±10%，边界诚实声明（无吞吐/并发数字，未测） | §6 |
+| §7 三份文档 | 设计=本条目；用例=T-GRE-5…14；cases 回指编号 | TEST_CASES T-GRE-5…14 |
+| §8 先设计后代码 | 本条目定稿后开工 | 本条目 |
+| §9 三源+整格 | 地址族对称覆盖矩阵（v4/v6 × 外/里 × 正负例）逐格登记，一族代表另一族的旧缺口即本条目起因 | §4 矩阵；T-GRE-5…14 |
+| §10 评审闭环 | failing 先行 6 红例（探针转正）→ 改 → 审 → 测 → 再审 | §7 |
+| §11 白话汇报 | 先一句结论 | 每次汇报 |
+| §12 动态清单 | 外层 ip.src/dst 与端口动态开（既有白名单）；**内层 ip 层动态关**（新负例锚词 `inner ip layer does not support dynamic`）——LayerDynValues 只有一套 ip 值，双层动态打架（探针 C 实锤：外层对象被内层顶掉，无告警）；gre 业务 3 键关沿 D-GRE-1；序号算法不重写 | 探针 C；T-GRE-13 |
+| §13 schema 同步 | 注册表 gre Fields 零改动（key/checksum/sequence 不动）；v6 靠内外 ip 层既有字段表达，无新键 | 门 2 脚本 |
+| §14 真实流程 | cases 即任务 spec；MCP 建任务→生成→tshark 校对；断言数值以落盘 pcap 校准（gre.sequence 等字段名先跑后钉）；二进制同代 | T-GRE-5…14 |
+
+**状态：** 定稿（2026-09-15）
+**范围（2026-09-15）：** ①`applySpecToChain` ip 注入规则改：spec 地址只注入**首个**（外层）ip 层；内层 ip 层用户标量保留、src/dst 缺席回填 spec 值（向后兼容 T-GRE-1：内层不写=外层值）；内层不注入 ttl/dscp/ecn（内层这些值只认内层层配置）。②`chain_planner.go` gre 结构段重写：外层 spec 地址任意族（非空+可解析）；内层有效地址=内层 ip 层显式值否则 spec；内层两地址必须同族；**外内族可异**（4in6/6in4 放行）。③`GREGenerator` 族分派：内层 To4 非空→`buildInnerIPv4Packet`+proto 0x0800；否则→`buildInnerIPv6Packet`（同包既有函数）+proto 0x86DD；内层 TTL 改读 `pkt.L3.TTL`（内层 ip 层生成器已写入，0 回退 64）。④内层 ip 层动态对象双侧拒绝（ValidateLayers + parseLayerDyn），锚词 `inner ip layer does not support dynamic`。builder 零改动（0x86DD 双位本就放行，2026-09-15 核查 `builder.go:492` validateGREConfig）。
+**明确不支持（三选一登记，不冒充）：** ARP 内层（无 arp 链层，InnerRequired=[ip] 结构性排除）；MPLS/PPP 内层（0x8847/0x880B，从未实现）；GRE keepalive（非标扩展）；`inner_ipid` 基值（链版 0 起自增保逐字节可复现，基值无需求）；`tcp_options` 内层注入（需 MessageEvent 扩展，另立项）；`routing/routing_present`（RFC 2890 已弃用，原实现仅字节透传）；`frames`/`direction`（形状由层链取代：多帧=内层链包数，方向=内层事件方向）；`protocol_type` 显式值（自动推导：内层族→0x0800/0x86DD）；`sequence` 基值（恒 0）；同一策略 v4/v6 混族动态（全局混族 400 门，非 gre 专属）。
+**依据：** RFC 2784 §2.2/§3.1（GRE 头 ProtocolType 标识内层载荷协议；IPv4=0x0800/ARP=0x0806）；RFC 2890（K/C/S 位语义）；RFC 2473（IPv6-over-IPv4 隧道——4in6 过渡场景的规范源头）；现网行为（6in4/4in6 过渡隧道是运营商现网常态，tshark 对两族 GRE 自动解析）；开源对照（借帧结构思路：外层 IP proto 47 + GRE 头 + 内层完整 IP 包，v4/v6 内层同构处理，不搬实现）。代码事实（2026-09-15 探针）：`extractLayerSrcDst` 只取首个 ip 层（`strategy_convert.go:255`，return 在循环内首 ip 层即返）；`applySpecToChain` spec 地址灌所有 ip 层（`chain_planner_chain.go:290` ip case）；探针 A：外 v4+内 v6 → 出包内层 v4 无告警（静默覆盖实锤）；探针 B：v6 链 → `IPv6-over-GRE not supported yet`（结构段 v4 钉死）；探针 C：双 ip 层动态 → parseLayerDyn 只留内层值外层被顶（打架实锤）；`buildInnerIPv6Packet`/`buildInnerL4` v6 伪头校验和齐备（`planner.go:395/429`）但链生成器不调；`GREGenerator` proto 硬编码 0x0800（`layer_gen.go:114`）、TTL 硬编码 64（`:108`）而内层 ip 生成器已写 `pkt.L3.TTL`（`generator.go` IPGenerator，2026-09-15 核查）。
+
+**§4 地址族×位置矩阵（规范要求→业务场景→代码现状→去向）：**
+
+| 场景 | 规范/现网依据 | 代码现状（2026-09-15） | 去向 |
+|---|---|---|---|
+| v4 外 v4 里 | RFC 2784 基本形 | 已实现（T-GRE-1） | 保持 |
+| v4 外 v6 里 | RFC 2473 6in4 过渡 | **静默覆盖 bug**（探针 A：内层被换 v4 无告警） | 本轮修（T-GRE-6） |
+| v6 外 v4 里 | 现网 4in6 过渡 | 同上 + 外层 v6 被结构段拒 | 本轮修（T-GRE-7） |
+| v6 外 v6 里 | RFC 2473 纯 v6 隧道 | 结构段同步拒（探针 B） | 本轮修（T-GRE-5） |
+| 内层 ARP | RFC 2784 0x0806 | 无 arp 链层（InnerRequired=[ip]） | 明确不支持 |
+| 内层 MPLS/PPP | 0x8847/0x880B | 从未实现 | 明确不支持 |
+| keepalive | 非标扩展 | 从未实现 | 明确不支持 |
+| 内层 TCP 序列 | 内层 tcp 层既有 | 生成器支持（探针 9 帧）无例 | T-GRE-8 建例 |
+
+**flat 字段三选一表（§1 逐键去向）：**
+
+| flat `gre` 字段 | 去向 |
+|---|---|
+| 四元组/count | 外层 ip/udp 层 + flow_control（已迁，D-GRE-1） |
+| inner_src_ip/inner_dst_ip | 内层 ip 层 src/dst（**本轮修通**） |
+| inner_proto | 内层 tcp/udp 层（已迁） |
+| inner_ttl | 内层 ip 层 ttl（**本轮修通**：生成器改读 pkt.L3.TTL） |
+| inner_payload | 内层终结层载荷（已迁） |
+| key/key_present | gre 层 key（已迁；K 位=key≠0） |
+| sequence(+present) | gre 层 sequence（已迁；基值恒 0） |
+| checksum | gre 层 checksum（已迁） |
+| protocol_type | 自动推导（内层族→0x0800/0x86DD），显式值明确不支持 |
+| inner_ipid | 明确不支持（链版 0 起自增保复现） |
+| tcp_options | 明确不支持（需 MessageEvent 扩展，另立项） |
+| routing/routing_present | 明确不支持（RFC 2890 弃用） |
+| frames/direction | 明确不支持（形状由层链取代） |
+
+**配置权威：** 层链唯一真相。外层地址只认首个 ip 层，内层地址只认内层 ip 层（缺席=外层值）；内层 TTL 只认内层 ip 层 ttl；GRE 头三键只认 gre 层。
+
+#### 1. 数据与接口
+- 输入：两种族层链 `[ip(v4/v6), gre{key,checksum,sequence}, ip(v4/v6), udp/tcp, 终结层]`；内外层地址独立。
+- 输出：单帧（外层 eth+IP proto47 + GRE 头[+Key/Checksum/Sequence] + 内层完整 v4 或 v6 包）。
+- 修改点四处（builder/注册表/schema 零改动）：`chain_planner_chain.go` applySpecToChain ip case（首个 ip 层标志位）；`chain_planner.go` gre 结构段（读内层层配置）；`gre/layer_gen.go` Generate（族分派 + TTL）；`validate_layers.go`+`layer_dyn.go`（内层动态拒绝）。新增函数：无。
+- 显式覆盖：内层 ip 层 src/dst/ttl/dscp 用户显式值一律生效（本轮起不被顶）；内层 dscp/ecn/frag_offset 不注入 spec 值（只认层配置，缺省 0）。
+
+#### 2. 依赖与生命周期
+- 前置同 D-GRE-1（外层 ip + 内层 ip + 内层终结层）；新增：内层 ip 层是内层地址/TTL 的唯一权威，结构段按"内层 ip 层显式值否则 spec"解析有效内层地址。
+- 资源：无状态生成器；族分派是逐包一次 To4 判定，无锁无分配增长；取消经 ctx.Done。
+
+#### 3. 主流程与状态
+- 单帧封装不变；生成器内层分派：`net.ParseIP(innerSrc).To4() != nil` → v4 builder+0x0800；否则 v6 builder+0x86DD（内外族独立，互不约束）；down 帧内层地址交换语义两族同款；内层 TTL=`pkt.L3.TTL`（0→64）。
+
+#### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
+- 内层 IPID 沿链 counter 0 起自增；GRE Sequence 沿 gre 层 sequence 键 0 起自增（多帧场景=内层链多包，T-GRE-8）。
+- 动态：外层四元组开（既有）；内层 ip 层三键（src/dst/ttl）动态对象一律拒（单四元组模型）；gre 业务 3 键关沿 D-GRE-1。
+- 正交组合矩阵：
+
+  | 维度 | v4 内层 | v6 内层 |
+  |---|---|---|
+  | v4 外层 | T-GRE-1（既有） | T-GRE-6（新） |
+  | v6 外层 | T-GRE-7（新） | T-GRE-5（新） |
+  | K/C/S 单键 | T-GRE-9/10（新） | ×（族与键正交，v4 侧代表） |
+  | K+C+S 组合 | T-GRE-11（新） | ×（同上） |
+  | sequence 多帧递增 | T-GRE-8（新） | ×（同上） |
+  | 内层 TTL 覆盖 | T-GRE-12（新） | ×（同上） |
+
+#### 5. 错误与异常
+- 结构段锚词（chain_planner.go gre 段）：外层空 `gre chain: outer ip addresses required (tunnel endpoints come from the outer ip layer)`；内层坏 IP `gre chain: inner ip layer src %q is not a valid IP address`；内层混族 `gre chain: inner ip layer addresses %s/%s must be the same IP version`。旧文案（`IPv6-over-GRE not supported yet`/`inner IPv4 addresses required`）随 v4 钉死一起作废。
+- 内层动态锚词（双侧）：`layers[%d](ip).%s: inner ip layer does not support dynamic (tunnel inner addresses are static; vary the outer ip layer instead)`。
+- 生成器防御：内层地址不可解析（防御路径，校验已拦）→ 报错不静默。
+- Failing 先行 6 红例（探针转正，实现前全红）：内层标量保留 / v6-in-v6 放行 / 内层混族拒 / 内层 TTL 生效 / ValidateLayers 内层动态拒 / parseLayerDyn 内层动态拒。
+
+#### 6. 性能设计与验收
+- 修复均在单包路径：族分派一次 To4、TTL 一次读取、注入分支一个标志位——无锁、无 sleep、无每包新分配。回归口径：gre.json 全量 suite 耗时相对 D-GRE-1 基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测，标待确认，不承诺）。
+- pcap 验收：14/14 全绿 + 落盘可复查（v6 用例 tshark `gre.proto=0x86dd`+内层 `ipv6` 字段，字段名以落盘 pcap 校准）；网卡未跑（无发包口）。
+
+#### 7. 实现顺序与回滚
+- 步骤 0（failing 先行）：`internal/core/layers/gre_v6_test.go` 5 红例（BuildLayersPlanner 全链口径，`_ "protocol/gre"`+`_ "protocol/dns"` 空导入注册）+ `internal/core/layer_dyn_inner_test.go` 1 红例。
+- 步骤 1：applySpecToChain 内层保留分支；步骤 2：结构段重写；步骤 3：生成器族分派+TTL；步骤 4：内层动态双侧拒绝；步骤 5：`go build ./...` + vet + touched 包 `-race`；P5：gre.json 增 10 例全量跑；P6：评审+提交+清库复核（D-GRE-1 已清空，无新增在库）。
+- 回滚：单提交逆序 revert。
+
+#### 8. 验收
+- 对应 T-GRE-5…14（TEST_CASES P3 先行）。完成条件：6 红例先红后绿；gre.json 14/14 全绿（RESULT 全量；二进制同代；门 2 三项绿）；touched 包 `-race` 绿；新旧结构段文案切换无残留引用。
+- 缺口如实记录：tcp_options 内层注入（另立项）；Full 3588 待 Step 8。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A 内层地址权威 | A1 内层标量自治/缺席回填外层；A2 spec 广播（现状=静默 bug）；A3 内层必填 | A1 兼容 T-GRE-1（不写=外层值）且消灭静默覆盖；A2 已证错；A3 破坏既有用例 | 选 A1 |
+| B v6 范围 | B1 全族+异构；B2 仅同族 | B1 覆盖 4in6/6in4 过渡场景（现网常态）；B2 省一半例仍留异构缺口 | 选 B1 |
+| C inner_ttl 住处 | C1 内层 ip 层 ttl（生成器读 pkt.L3.TTL）；C2 gre 层新字段 | C1 零 schema 改动且合"值住其层"；C2 违背层链哲学 | 选 C1 |
+| D 内层动态 | D1 拒绝+负例；D2 扩 LayerDynValues 双套 | D1 单四元组模型内自洽（打架已证）；D2 大改无需求 | 选 D1，将来需求另立条目 |
+| E 旧结构段文案 | E1 重写（含 outer/inner 新锚词）；E2 保留 IPv4 字样 | E2 与全族语义矛盾 | 选 E1 |
+
 
 #### 9. 关键决策对比
 
