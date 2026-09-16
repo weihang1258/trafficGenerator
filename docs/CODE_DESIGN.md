@@ -1270,7 +1270,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | §9 三源+整格 | 三源：RFC 条文 + 本条目 + 商业三家行为（上表）；颗粒度：legacy 85 单测已拆到单行为点，pcap 层仅 1 冒烟→P3 清单先行（初估 18–24 例）；三场景：数据=validator 4 类负例；业务=信封序列/EHLO 多行/多 RCPT/RSET/NOOP/VRFY/QUIT 中断/Email 三形态+附件；现网=Postfix 形 banner/EHLO 能力表/Gmail 587 口径/Exchange 220 开头（缺口，P3 补）；枚举：命令表逐条（EXPN/TURN 真缺，HELP/VRFY 已有——复审 R4 纠正）；正交：端口 25/587/465 × 地址族 v4/v6 × 单会话；断言边界：包序/超时计时器 harness 做不到处注记（回放语义不冒充状态机） | §4 整格表；P3 清单 |
 | §10 评审闭环 | failing 先行 3 红例（见本条目 §5）→ 改 → 审 → 测 → 再审；`go vet` + touched 包 `-race` | 本条目 §7 |
 | §11 白话汇报 | 先一句结论 | 每次汇报 |
-| §12 动态清单 | 四元组开（ip/tcp 通用）；smtp 业务全关：banner 关（问候语无逐流变需求）/dialog 关（序列语义，逐流变破坏事务顺序）/email 关（MIME 构造无逐流变需求）——有序单连接会话，不冒充开；另立项口（信封地址逐流变若有批量需求）。序号算法沿框架（worker.go:316-321，mqtt 同款）；P4 验 flows=2 留空防静态复制（§9 陷阱③） | 本条目 §4 整格表 |
+| §12 动态清单 | 四元组开（ip/tcp 通用）；smtp 业务全关：banner 关（问候语无逐流变需求）/dialog 关（序列语义，逐流变破坏事务顺序）/email 关（MIME 构造无逐流变需求）——有序单连接会话，不冒充开；另立项口（信封地址逐流变若有批量需求）。序号算法沿框架（worker.go:300-321，mqtt 同款）；P4 验 flows=2 留空防静态复制（§9 陷阱③） | 本条目 §4 整格表 |
 | §13 schema 同步 | 注册表 smtp Fields 2→0 键（删 from/to孤儿；banner/email/dialog 住 `SMTPConfig` 不进 registry——pop3 的 banner/commands 登记是其翻译分支消费，本仓 smtp 翻译走 JSON 往返读 `SMTPConfig` 字段，registry 只留契约端口）；删后重跑 schemagen 并提交生成文件（`TestLayersGeneratedMatchesRegistry` 绿）；CheckProtoFlat 加 smtp presence 分支 | 门 2 脚本 |
 | §14 真实流程 | smtp.json 全量 + 落盘 tshark 校准（包号/端口不手算；空壳默认会话包数以落盘为准）；二进制同代；门 2 三项；负例 `.neg.pcap` 口径沿 d323068 | smtp.json |
 
@@ -1337,3 +1337,153 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | D 业务动态 | D1 全关+理由；D2 开 banner/信封 | D2 有序会话无逐流变需求，开了测不出 | 选 D1，信封逐流变另立项口 |
 | E legacy 25 缺省 | E1 补 setDefaultDstPort(25)；E2 维持现状 | E1 与 xmpp/sip 同款行为对齐；E2 留扁平无端口 DstPort=0 缺口 | 选 E1（理由按复审 R5：行为对齐） |
 | F presence 口径 | F1 空 map 也判死；F2 仅非空判死 | F1 mqtt/dns 先例（空即显式走默认）；F2 留空壳双轨 | 选 F1 |
+
+### D-POP3-1 POP3 顶层 pop3 子映射迁入层内 + 业务动态全关【P-PIPE #7 门1】
+
+**门 1 开工对照表（§1–§15，2026-09-17，证据=文档节/代码行/用例号）：**
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键五键去向：`src_ip`→`layers[ip].src`、`dst_ip`→`layers[ip].dst`、`src_port`→`layers[tcp].src_port`、`dst_port`→`layers[tcp].dst_port`（110 由 `FieldContract tcp.dst_port=110` 补，用户写 995 优先）、`count`→删（缺省单流，走 `flow_control`）、顶层 `pop3` 子映射→`layers[pop3]`（banner/commands/mailbox 同名直迁；层内键名与 `POP3Config` JSON 键一致，见 `types.go:6660`）。目标形状：`{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":13000,"dst_port":110}},{"pop3":{"banner":"+OK POP3 server ready","commands":[{"cmd":"USER alice","response":"+OK alice"},{"cmd":"PASS secret","response":"+OK Logged in"},{"cmd":"QUIT","response":"+OK bye"}]}}]}`。P4 必修 3 项：①`CheckProtoFlat` 加 pop3 presence 分支（mqtt/dns/smtp 同款文案，空 map 也死）；②扁平侧 `case "pop3"` 补 `setDefaultDstPort(&spec, cfg, 110)` 一行（注释有、调用无，smtp `:882` 同款行为对齐）；③pop3.json 2 例改写层链形（smoke_01 纯扁平→`[ip,tcp,pop3]`；over_tls 混用→`[ip,tcp,tls,pop3]`，旧键全删） | pop3.json 2 例；`registry.go:828`；`strategy_convert.go:788`；本条目 §1/§7 |
+| §2 策略/任务分工 | 沿框架语义；多流走 `flow_control` + 层动态（§12 行）；`spec` 本身不管数量 | D-POP3-1 §3 |
+| §3 五件套 | 会话表：单 TCP 长连接单会话，无 `sessions[]`（RFC 1939 §3–§6：客户端主动建连，豁免多会话扇出；pop3 代码无 sessions/driven_by 形状）。事务序列：banner（+OK，down，可空）→USER→PASS（或 APOP 一条）→STAT/LIST/RETR/DELE/NOOP/RSET/TOP/UIDL 任意轮→QUIT→UPDATE（服务端删标记信，dd 实为挥手）→FIN，命令/响应对逐条按序产事件（空 Cmd 跳过命令包=服务端单轮，空 Response 跳过响应包=客户端单轮）。关联关系：无（POP3 无控制/数据双流，FTP PASV 类比不适用）。插入位置：终结层事件流直入 tcp 层（事件模式，tcp 管握手/seq-ack/挥手/MSS 分段；POP3S 形 `[ip,tcp,tls,pop3]` 经 tls 层隧道）；maildrop/TOP 合成在命令轮内替响应（RETR/TOP 处）。时间线：单流顺序无交错；多流=整会话复制。豁免≠豁免多事务：多轮操作/异常断线/长保活各至少一例（§9 立项 T-POP3-25/26/27） | `pop3/planner.go:337`；`pop3/layer_gen.go:30`；`registry.go:828` |
+| §4 规范矩阵 | RFC 1939 §3（连接模型：TCP 110 监听、状态机、`+OK`/`-ERR`、dot-stuffing、参数≤40 字符、响应≤512 字符、空闲定时器≥10 分钟）+ §4（AUTHORIZATION：USER/PASS/APOP/QUIT）+ §5（TRANSACTION：STAT/LIST/RETR/DELE/NOOP/RSET）+ §6（UPDATE：QUIT 进更新态删信）+ §7（可选：TOP/UIDL/USER/PASS/APOP 细则；USER 名≤40 字符、UID 1–70 字符）+ §10（示例会话）+ §11（消息格式）；RFC 879（MSS≥536）+ RFC 6528（随机 ISN）；RFC 2449（CAPA 扩展机制）/ RFC 2595（STLS/AUTH，台词覆盖，真升级另立项）。三路对照：规范底线✓；商业准绳=Gmail `pop.gmail.com:995` 强制 SSL（Google 帮助"用其他客户端读取 Gmail"）+ Outlook `outlook.office365.com:995` SSL/TLS（微软支持"POP、IMAP 和 SMTP 设置"）+ Dovecot 默认问候/CAPA（版本文档亲验失败→转引待亲验）；开源借鉴=本仓 legacy 回放基线（133 单测：37 planner + 75 testpoints + 21 mime，不搬代码）。候选对比见本条目 §9 | P1 矩阵（本条目 §9 三表）；`types.go:6660` |
+| §5 有错必处理 | 依赖：pop3 层 DependsOn tcp / OptionalOn tls（registry.go:828）；配置经 Meta 直传终结层生成器（chain_planner_translate.go:pop3 分支）；validator 调 `(&Planner{}).Validate`（layer_gen.go:112）。validator 真拦 16 分支：坏 IP×2、MSS<536、mailbox 超 10 万、UID>70、命令含 CRLF、单行响应含 CRLF、EmitMailDrop 无 mailbox、MailDrop MsgNum 越界、EmitTop 与 MailDrop 互斥、EmitTop 无 mailbox、Top MsgNum 越界、USER>40、PASS>255、APOP 摘要长度错、APOP 摘要非 hex；端口不强制 110（995 放行） | `planner.go:101`；`registry.go:832`；本条目 §9 |
+| §6 性能 | 单会话 14 包量级（3 握手 + banner + 3 命令×2 + 4 挥手）；无锁无 sleep（事件模式，tcp 层管分段）；回归口径：pop3.json 全量 suite 耗时相对基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测）；网卡未跑 | D-POP3-1 §6 |
+| §7 三份文档 | 设计=本条目；用例=T-POP3-*；cases 回指编号 | TEST_CASES T-POP3-* |
+| §8 先设计后代码 | 本条目定稿后开工 | 本条目 |
+| §9 三源+整格 | RFC 条文 + 本条目 + 现网三家；测试点清单见 TEST_CASES T-POP3-1…（规范行→用例逐行登记）；动态整格见 §12 行 | T-POP3-*；§12 表 |
+| §10 评审闭环 | failing 先行（顶层 pop3 presence 拒 + `setDefaultDstPort(110)` 缺省 + 层 mailbox 翻译）→ 改 → 审 → 测 → 再审 | §7 |
+| §11 白话汇报 | 先一句结论 | 每次汇报 |
+| §12 动态清单 | 整格见本条目 §12 表：四元组开（ip/tcp 通用）；pop3 业务全关：banner 关（问候语无逐流变需求）/commands 关（序列语义，逐流变破坏事务顺序）/mailbox 关（maildrop 静态信箱；逐流变破坏 RETR/UIDL 确定性）——有序单连接会话，不冒充开；另立项口（信封/用户名逐流变若有批量需求）。序号算法沿框架（worker.go:300-321 + `resolveLayerTuple`，smtp 同款）；P4 验 flows=2 留空防静态复制（§9 陷阱③） | 本条目 §4 整格表 |
+| §13 schema 同步 | 注册表 pop3 Fields 3 键齐（banner/commands/mailbox，无孤儿，零改动）；翻译分支已有（pop3 同款 JSON 往返 + flat 权威，`chain_planner_translate.go:1127`，零改动）；`main.go:543` 已翻 ChainPlanner（零改动）；本期只加：CheckProtoFlat pop3 presence 分支 + `setDefaultDstPort(110)`；改完重跑 schemagen（生成表快照同步，`TestLayersGeneratedMatchesRegistry` 绿）；allowlist 零改动（pop3 业务全关，不进 allowlist，smtp 先例） | 门 2 脚本 |
+| §14 真实流程 | pop3.json 全量绿 + 落盘 tshark 校准（包号/端口不手算；空壳默认会话包数以落盘为准）；二进制同代；门 2 四项；负例 `.neg.pcap` 口径沿 d323068 | pop3.json |
+| §15 三道门 | 本表即门 1；门 2 脚本；门 3 挂表抽查；P5R 反查 pop3 表在 P3 登记（`coverage_gate.py` 仿 smtp 表） | 本条目 |
+
+**状态：** P1 定稿（2026-09-17，门 1 待用户批）
+**范围（2026-09-17）：** ①`CheckProtoFlat` 加 pop3 presence 判死；②扁平侧补 `setDefaultDstPort(110)`；③pop3.json 2 例改写 + P3 新例全量跑 + 校准回钉；④清库（pop3 行，删前计数→备份→删→复核）。
+**明确不解决：** STLS 真升级 / POP3S `[tcp,tls,pop3]` 真握手链（台词覆盖已有 `TestPOP3Point_1_14_*`，真升级另立项）；状态机 enforcement（回放语义是架构选择，C 类如实注明，不冒充）；空闲 autologout 计时器（RFC 1939 §3 ≥10 分钟，C 类：无时钟不断言）；任务级跨策略动态池（D-FTP-2 同口径另立）；APOP 摘要计算（`computeAPOPDigest` helper 已有，planner 不主动算，用户原文提供，C 类）。
+**依据：** RFC 1939 §3（TCP 110 监听/三状态/`+OK`/`-ERR` 大写/dot-stuffing CRLF.CRLF/参数≤40 字符/响应≤512 字符/空闲定时器≥10 分钟）/§4（AUTHORIZATION：USER/PASS/APOP/QUIT）/§5（TRANSACTION：STAT/LIST/RETR/DELE/NOOP/RSET）/§6（UPDATE：QUIT 进更新态）/§7（可选命令：USER/PASS/APOP/TOP/UIDL；USER 名≤40/UID 1–70 字符）/§10（示例会话全文抄：USER/PASS/STAT/LIST/RETR/QUIT 官方序列）/§11（消息格式）；RFC 2449（CAPA 扩展机制）/ RFC 2595（STLS/AUTH；台词覆盖，真升级另立项）；RFC 879（MSS≥536）/ RFC 6528（ISN）；商业：Gmail POP（`pop.gmail.com:995` 强制 SSL + `recent:` 模式 + 留档/删档选项，Google 帮助文档）/ Outlook（`outlook.office365.com:995` SSL/TLS，微软支持文档）/ Dovecot（默认问候/CAPA 版本文档亲验失败→转引待亲验，现网抓包确认方式）；代码事实：`pop3/planner.go:101-208`（validator 14 类）/`:213-386`（回放 Plan）/`pop3/layer_gen.go:30-84`（事件生成器+注册+握手挥手校准）、`types.go:6660/6669/6718`（POP3Config/Command/Mailbox/Message/MIMEPart）。
+
+**§9 规范矩阵（P1 先行，规范要求 → 业务场景 → 代码现状 → 缺口）：**
+
+| 规范行 | 业务场景 | 代码现状 | 缺口→用例 |
+|---|---|---|---|
+| RFC 1939 §3 连接模型（TCP 110 监听，客户端主动建连） | 默认会话冒烟（banner+USER+PASS+QUIT） | 已实现（Plan 恒产握手/挥手；链上 FieldContract 110 缺省） | 改写 T-POP3-1（A） |
+| RFC 1939 §4 AUTHORIZATION（USER/PASS/APOP/QUIT） | 登录三形：USER+PASS / APOP 一条 / 空 USER 跳过 | 已实现（回放 + APOP 摘要格式门） | T-POP3-2/3/4（A） |
+| RFC 1939 §5 TRANSACTION（STAT/LIST/RETR/DELE/NOOP/RSET） | 每命令一例 + 组合流（STAT→LIST→RETR→DELE→QUIT 官方 §10 序列全文抄） | 已实现（回放；maildrop/TOP 合成） | T-POP3-5…10 + 官方序列例（A） |
+| RFC 1939 §6 UPDATE（QUIT 进更新态删信） | QUIT 收尾（各例附带断言 terminates） | 已实现（链挥手） | 附带不断单独例（不适用单独例） |
+| RFC 1939 §7 可选（TOP/UIDL） | TOP 合成（headers+前 N 行）/ UIDL 多行单行 | 已实现（EmitTop/EmitMailDrop + validator 互斥门） | T-POP3-11/12（A） |
+| RFC 1939 §3 dot-stuffing（CRLF.CRLF，`.` 开头行补点） | RETR 点填充体 | 已实现（`buildMailDropResponse`） | T-POP3-13（A，转离线 `TestPOP3Point_3_10_3`） |
+| RFC 1939 §3 响应≤512 / 参数≤40 / PASS≤255 / UID 1–70（USER>40 拒/PASS>255 拒/APOP 非 hex 拒/UID>70 拒/命令 CRLF 注入拒/单行响应 CRLF 拒） | 6 负例 | 已实现（validator 16 分支 16 处 return 中 8 类；离线 `TestPOP3Validate_USERTooLong/PASSTooLong/APOPDigest*/UIDTooLong/CRLFInjectionRejected/ResponseWithCRLFWithoutMultiline` 有基线） | T-POP3-14…19（A 负例，锚词取字面） |
+| RFC 1939 §3 空闲定时器≥10 分钟 | 不做（无时钟，C 类） | 无 | C 类注记，不列用例 |
+| RFC 1939 §10 示例会话 | 官方序列全文抄（USER/PASS/STAT/LIST/RETR/QUIT） | 回放 | T-POP3-20（A） |
+| RFC 2449 CAPA / RFC 2595 STLS/AUTH | 台词覆盖（CAPA 列表/STLS→+OK/AUTH PLAIN 轮次）；真升级另立项 | 回放（离线 `TestPOP3Point_1_13_*`/`1_14_*`/`1_15_*` 有基线） | T-POP3-21/22/23（A 台词） |
+| RFC 879 MSS≥536 / RFC 6528 ISN | MSS<536 拒；ISN 随机（不断言值） | 已实现 | T-POP3-24（A 负例，`too small`） |
+| 现网 Gmail（995 强制 SSL + recent 模式） | banner 台词 + recent: 用户名形 | 回放 | T-POP3-28（A，映射地板线） |
+| 现网 Outlook（995 SSL/TLS） | banner 台词 | 回放 | T-POP3-29（A，映射地板线） |
+| 现网 Dovecot（默认问候/CAPA） | banner 台词（转引待亲验注记） | 回放 | T-POP3-30（A，映射地板线+待确认） |
+| 多事务三项（多轮/异常断线/长保活） | 同连接多 RETR / 无 QUIT 断线 / 多 NOOP | 已实现（回放天然支持） | T-POP3-25/26/27（A） |
+| 复合流（登录+多动作一条流） | USER+PASS+STAT+RETR+DELE+QUIT 一条流 | 已实现 | T-POP3-31（A，≥3 动作） |
+| 方向/端口/v6（995 显式通过/v6 承载/坏 IP 拒） | t13/t15/t19 同款三例 | 已实现（FieldContract 995 优先；框架 ip 门） | T-POP3-32/33/34（A） |
+| 顶层 pop3 presence 判死 + 静态复制拒绝 | 2 负例 | 待 P4（本期修） | T-POP3-35/36（A，failing 先行） |
+
+**命令×响应码矩阵（§4 子表①，逐格已覆/缺失；回放语义下响应码是用户写的 Response 原文，`+OK`/`-ERR` 两分支各至少一例）：**
+
+| 命令 | 成功（+OK） | 失败（-ERR） | 状态 |
+|---|---|---|---|
+| USER | T-POP3-1 | T-POP3-19（-ERR 台词，C 类边界） | P3 建 |
+| PASS | T-POP3-1 | 同上（共用 -ERR 台词格） | P3 建 |
+| APOP | T-POP3-3 | T-POP3-17（摘要非 hex 拒，validator 真拦） | P3 建 |
+| STAT | T-POP3-5 | —（空 maildrop 回 `+OK 0 0`，不断 -ERR） | P3 建 |
+| LIST | T-POP3-6 | T-POP3-7（越界回 -ERR 台词） | P3 建 |
+| RETR | T-POP3-8（maildrop 合成） | T-POP3-9（无此信 -ERR 台词） | P3 建 |
+| DELE | T-POP3-10（含越界台词） | 同格 | P3 建 |
+| NOOP | T-POP3-27（长保活） | —（NOOP 无失败分支，不适用） | P3 建 |
+| RSET | T-POP3-10 附带 | —（RSET 无失败分支，不适用） | 附带 |
+| TOP | T-POP3-11 | T-POP3-12（无 mailbox 拒，validator 真拦） | P3 建 |
+| UIDL | T-POP3-12（多行） | T-POP3-18（UID>70 拒，validator 真拦） | P3 建 |
+| QUIT | 各例附带 terminates | —（QUIT 无失败分支，不适用） | 附带 |
+| CAPA/STLS/AUTH | T-POP3-21/22/23（台词） | T-POP3-22 附带（STLS 事务态 -ERR 台词，转离线 `2_6_1`） | P3 建 |
+
+**数据形态变体表（§4 子表②，mailbox/响应形态逐项）：**
+
+| 形态 | 说明 | 用例 |
+|---|---|---|
+| 空 maildrop（STAT 回 `+OK 0 0`） | 无信状态 | T-POP3-5 |
+| 单信纯文本 RETR | headers+空行+body+点终结 | T-POP3-8 |
+| 多信 maildrop（2 信 LIST/UIDL） | 多行响应两行体 | T-POP3-6/12 |
+| MIME multipart 附件 | `mime_parts` + boundary 自动 | T-POP3-13 附带（转离线 MIME 基线 21 单测已有，pcap 建一例） |
+| 空正文信 | headers+空 body | T-POP3-8 附带（MsgNum 2 空信） |
+| 点填充体（`.` 开头行） | dot-stuffing | T-POP3-13 |
+| TOP 前 N 行（N=0 仅头） | EmitTop/TopLines | T-POP3-11 |
+| 超长信 MSS 切段 | 大 body 分段 | T-POP3-13 附带（转离线 `4_4_2`，pcap 不建大包例，C 类注记） |
+
+**商业行为→用例映射表（§4 子表③）：**
+
+| 商业行为 | 出处 | 用例 | 状态 |
+|---|---|---|---|
+| Gmail `pop.gmail.com:995` 强制 SSL | Google 帮助"用其他客户端读取 Gmail" | T-POP3-28 | P3 建（banner 台词地板线） |
+| Gmail `recent:` 模式（近 30 天） | 同上 | T-POP3-28 附带（用户名 `recent:alice`） | P3 建 |
+| Outlook `outlook.office365.com:995` SSL/TLS | 微软支持"POP、IMAP 和 SMTP 设置" | T-POP3-29 | P3 建（banner 台词地板线） |
+| Dovecot 默认问候/CAPA | 版本文档亲验失败→转引待亲验 | T-POP3-30 | P3 建（待确认：抓现网包比字节） |
+| Postfix 无 POP3（不适用） | — | — | 不适用（Postfix 只做 SMTP） |
+
+#### 1. 数据与接口
+- 输入：`[ip, tcp, pop3{banner?,commands?[],mailbox?{messages[]}}]`（pop3 层缺席键走 `POP3Config` 零值→生成器默认空会话沿既有；`banner` 空跳过不像 smtp 自动补，沿既有 `planner.go:332`）；POP3S 形 `[ip,tcp,tls,pop3]`（tls 层隧道，pop3 事件直入）。
+- 输出：3 握手 + banner(down，可空) + 命令/响应对 + 4 挥手（链式，与 legacy 同形；MSS 切段/ISN 由 tcp 层与 planner 同款逻辑承担）。
+- 修改点两处（builder/drive/finalEmit 零改动）：`strategy_convert.go` CheckProtoFlat 加 pop3 presence 分支（mqtt/dns/smtp 文案同构，空 map 也死）+ `case "pop3"` 内补 `setDefaultDstPort(&spec, cfg, 110)`（注释已写行为对齐，调用缺失）；`registry.go`/`chain_planner_translate.go`/`layer_dyn.go`/`main.go` 零改动（已齐）。新增函数：无。
+- 显式覆盖：层值是 pop3 全配置唯一真相；flat `cfg["pop3"]` 出现即判死（presence，空 map 也死，mqtt 先例）。
+
+#### 2. 依赖与生命周期
+- 前置：tcp 层（DependsOn；缺 tcp 自动补，tcp DependsOn ip 连带补全）；tls 为 OptionalOn（声明保留，真升级另立项）。
+- 资源：无状态生成器；翻译在 ValidateSpec 同步期（幂等覆盖写）；空层 config 翻译出 `&POP3Config{}` 非 nil（生成器走默认空会话，与 legacy `pop3Config==nil→&POP3Config{}` 同款 `planner.go:226`；mailbox 嵌套 messages[] 逐个字段解码，见 `strategy_convert.go:1686`）。
+- flat 权威判据：简单 nil 判（扁平侧条件创建，复审 smtp R6 同款：`if spec.POP3 != nil return`，扁平侧无 ftp 式恒非 nil，空 `pop3:{}` 建空壳走 flat 权威与 presence 判死自洽）。
+
+#### 3. 主流程与状态
+- 三状态：AUTHORIZATION（USER/PASS/APOP/QUIT，§4）→TRANSACTION（STAT/LIST/RETR/DELE/NOOP/RSET，§5；可选 TOP/UIDL，§7）→UPDATE（QUIT 进更新态删信，§6）。回放不 enforcement 状态机（smtp 同款架构选择，C 类如实注明）：错序由用户写 `-ERR` Response 台词表达（离线 `TestPOP3Point_3_16_1_UnknownCommand` 先例）。
+- 翻译顺序：判死（顶层 pop3 出现即拒）→ 层 config 翻译（JSON 往返，mailbox 嵌套自动）→ 协议 validator（14 类真拦沿既有）。
+- 动态解析：本期 pop3 业务无动态，worker resolveLayerTuple 只解四元组（flows=2 时 pop3 层留空防静态复制）。
+
+#### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
+- 无新序号算法（框架 `resolveLayerTuple`（worker.go:318） + `spec.FlowIndex` 只读（worker.go:326）；pop3 planner 不读 FlowIndex，smtp 同款）。
+- 动态整格（§12）：
+
+  | 层.字段 | 开/关 | 面 | 覆盖 |
+  |---|---|---|---|
+  | pop3.banner | 关 | 问候语无逐流变需求 | 注记 |
+  | pop3.commands | 关 | 序列语义，逐流变破坏事务顺序 | 注记 |
+  | pop3.mailbox | 关 | maildrop 静态信箱；逐流变破坏 RETR/UIDL 确定性 | 注记 |
+  | ip/udp 四元组 | 开 | 框架白名单沿既有 | T-POP3-33 附带（flows=2 双流四元组 distinct 由框架保底 `src_port+1`，不断言） |
+- 正交组合：地址族×结构（IPv4 单会话×IPv6 单会话对称两格：T-POP3-1 v4 + T-POP3-33 v6）；端口档位（110 缺省/T-POP3-1 + 995 显式/T-POP3-32 + 空壳缺省/冒烟）；模式×方向（明文 `[ip,tcp,pop3]` + POP3S `[ip,tcp,tls,pop3]` 改写的 over_tls）。
+- 静态门业务逃生口：pop3 业务全关→flows=2 例无动态逃生，留空防静态复制（T-POP3-33 同款 smtp T-024：无显式标量四元组，src_port 保底+1）。
+
+#### 5. 错误与异常
+- 新锚词：`protocol pop3 no longer accepts a top-level pop3 sub-config (move it into the pop3 layer of an [ip,tcp,pop3] layers chain)`（mqtt/dns/smtp 文案同构）。
+- 既有锚词沿用 16 分支（字面子串）：`is not a valid IP address`（T-POP3-34）/`too small`（T-POP3-24）/`max`（mailbox 超限：离线无 10 万构造基线，pcap 负例不断全量构造，见 T-POP3-15 注记）/`UID length`（T-POP3-18）/`contains CRLF`（T-POP3-16/17）/`but Mailbox is nil`（T-POP3-12）/`out of range`（T-POP3-7/12）/`mutually exclusive`（T-POP3-12）/`USER name length`（T-POP3-14）/`PASS password length`（T-POP3-15 改小载荷断文案）/`APOP digest`（T-POP3-17）。
+- Failing 先行 3 红例：①顶层 `{"pop3":{}}` 空映射 create 即 400（现状放行——presence 未判死）；②扁平 `{"dst_port":…}` 无 pop3 键 legacy 形 DstPort=0（现状：注释写默认 110 但无 `setDefaultDstPort` 调用）；③层 `{"pop3":{"mailbox":{…}}}` 翻译后 spec.POP3.Mailbox 非空（现状已绿——翻译分支齐，本例锁回归）。
+- 超早拒绝无落盘口径沿 d323068（T-POP3-35/36/24 在 writer 建文件前被拒，`.neg.pcap` 24B 头或零文件，mqtt/smtp 先例同款）。
+
+#### 6. 性能设计与验收
+- 单包路径增量：presence 一次 map 查 + 缺省一行赋值（ValidateSpec/convert 同步期一次）；动态解析走框架（零新增）。回归口径：pop3.json 全量 suite 耗时相对基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测）。
+- pcap 验收：pop3.json 全量绿 + 落盘可复查（`pop.request.command/parameter` + `pop.response.indicator/description` + distinct 双值）；网卡未跑。
+- 背压/长时间：沿引擎既有（本期无新状态、无新锁、无新 sleep；mailbox 上限 10 万防内存 blowup 沿既有 `MaxMessages`）。
+
+#### 7. 实现顺序与回滚
+- 步骤 0（failing 先行）：`internal/core/pop3_migrate_test.go` 新建 3 红例（presence 拒/DstPort 缺省 110/层 mailbox 翻译回归）。
+- 步骤 1：`strategy_convert.go` CheckProtoFlat 加 pop3 presence 分支；步骤 2：`case "pop3"` 补 `setDefaultDstPort(&spec, cfg, 110)`；步骤 3：`go build` + vet + touched 包 `-race` + schemagen 重跑（无变更则生成表不动）；P5：pop3.json 改写 + T-POP3-2…36 全量跑 + 校准回钉；P6：评审+提交+清库复核。
+- 回滚：单提交逆序 revert（P4 代码与 P5 用例分两提交）。
+
+#### 8. 验收
+- 对应 T-POP3-1…36（TEST_CASES P3 先行）。完成条件：3 红例先红后绿；pop3.json 全量绿（RESULT 全量；二进制同代；门 2 四项绿：旧键零残留 + 全量绿 + 同代 + 反查绿）；touched 包 `-race` 绿；顶层 `pop3` 字面零残留（cases 内）；schemagen 生成表已同步（`TestLayersGeneratedMatchesRegistry` 绿）；在库 pop3 行清空（删前计数→备份→删→复核）。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A presence 口径 | A1 空 map 也判死；A2 仅非空判死 | A1 mqtt/dns/smtp 先例（空即显式走默认）；A2 留空壳双轨 | 选 A1 |
+| B 110 缺省走法 | B1 补 `setDefaultDstPort(110)`；B2 维持现状靠 FieldContract | B1 与 smtp `:882`/xmpp/sip 同款行为对齐（legacy 扁平路径 DstPort=0 缺口）；B2 链上虽有 FieldContract 但 legacy 扁平无端口仍 0 | 选 B1（理由按 smtp 复审 R5：行为对齐） |
+| C 业务动态 | C1 全关+理由；C2 开 mailbox/用户名 | C2 有序会话+静态信箱，开了测不出（mailbox 逐流变破坏 RETR 确定性） | 选 C1，逐流变另立项口 |
+| D 翻译走法 | D1 现状 JSON 往返不动；D2 改 ftp 同款复用 parse | D2 需重写 mailbox 嵌套解码，已有分支零分叉，动它违反 YAGNI | 选 D1（零改动） |
+| E UIDL 语义 | E1 用户原文提供（planner 不自动）；E2 自动生成 | E2 与 `types.go` 注释"Empty = 不自动生成"冲突，属无依据设计 | 选 E1（沿既有注释） |
+| F 超大 mailbox 负例 | F1 小载荷断上限文案变体；F2 构造 10 万+1 信 | F2 载荷上百 MB，MCP 建策略即卡死，测的是耐心不是门 | 选 F1（不断全量构造，见 T-POP3-15 注记） |
