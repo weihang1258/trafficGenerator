@@ -1463,11 +1463,12 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - 既有锚词沿用 16 分支（字面子串）：`is not a valid IP address`（T-POP3-34）/`too small`（T-POP3-24）/`max`（mailbox 超限：离线无 10 万构造基线，pcap 负例不断全量构造，见 T-POP3-15 注记）/`UID length`（T-POP3-18）/`contains CRLF`（T-POP3-16/17）/`but Mailbox is nil`（T-POP3-12）/`out of range`（T-POP3-7/12）/`mutually exclusive`（T-POP3-12）/`USER name length`（T-POP3-14）/`PASS password length`（T-POP3-15 改小载荷断文案）/`APOP digest`（T-POP3-17）。
 - Failing 先行 3 红例：①顶层 `{"pop3":{}}` 空映射 create 即 400（现状放行——presence 未判死）；②扁平 `{"dst_port":…}` 无 pop3 键 legacy 形 DstPort=0（现状：注释写默认 110 但无 `setDefaultDstPort` 调用）；③层 `{"pop3":{"mailbox":{…}}}` 翻译后 spec.POP3.Mailbox 非空（现状已绿——翻译分支齐，本例锁回归）。
 - 超早拒绝无落盘口径沿 d323068（T-POP3-35/36/24 在 writer 建文件前被拒，`.neg.pcap` 24B 头或零文件，mqtt/smtp 先例同款）。
+- 四件事：失败返回=策略创建期 400（presence/MsgNum 越界等，任务根本不启动）或任务启动期 error（在库旧策略经 ValidationErrors）；会话命运=合成期拒绝无会话可继续（不产包），回放错序不断言重试；重试=无（回放语义不重试不重连，RST/FIN 沿引擎既有挥手）；超时=空闲 autologout 无时钟不断言（C 类，见明确不解决）。
 
 #### 6. 性能设计与验收
 - 单包路径增量：presence 一次 map 查 + 缺省一行赋值（ValidateSpec/convert 同步期一次）；动态解析走框架（零新增）。回归口径：pop3.json 全量 suite 耗时相对基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测）。
 - pcap 验收：pop3.json 全量绿 + 落盘可复查（`pop.request.command/parameter` + `pop.response.indicator/description` + distinct 双值）；网卡未跑。
-- 背压/长时间：沿引擎既有（本期无新状态、无新锁、无新 sleep；mailbox 上限 10 万防内存 blowup 沿既有 `MaxMessages`）。
+- 背压/长时间：沿引擎既有（本期无新状态、无新锁、无新 sleep；mailbox 上限 10 万防内存 blowup 沿既有 `MaxMessages`）；单流最大报文=点终结短命令级（MSS 切段由 tcp 层承担）；队列上限/CPU 并行度沿引擎既有（本期零新增不断言具体数）。
 
 #### 7. 实现顺序与回滚
 - 步骤 0（failing 先行）：`internal/core/pop3_migrate_test.go` 新建 3 红例（presence 拒/DstPort 缺省 110/层 mailbox 翻译回归）。

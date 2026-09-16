@@ -2852,18 +2852,18 @@
 
 | 规范行 | 用例 | 分类 |
 |---|---|---|
-| 默认会话（banner+USER+PASS+QUIT，改写存量冒烟） | T-POP3-1 | A（改写，落盘重钉包数/字段） |
+| 默认会话（banner+USER+PASS+QUIT，改写存量冒烟；110 缺省不断端口） | T-POP3-1 | A（改写，落盘重钉包数/字段） |
 | USER 空名跳过（空 Cmd 只发响应） | T-POP3-2 | A（转离线 `1_1_2`） |
 | APOP 一条登录（banner 时间戳+摘要） | T-POP3-3 | A（转离线 `3_2_1`；摘要原文提供，planner 不主动算） |
 | 空 USER 在 TRANSACTION 态照发（状态机不 enforcement） | T-POP3-4 | A（转离线 `1_1_3`；C 类注记：回放不断状态机） |
 | STAT 空 maildrop（`+OK 0 0`） | T-POP3-5 | A（转离线 `1_4_1`/`4_1_1`） |
 | LIST 多信（maildrop 合成 2 行体） | T-POP3-6 | A |
-| LIST 越界（-ERR 台词） | T-POP3-7 | A（转离线 `1_5_4`；回放台词，C 类边界） |
+| LIST 越界（-ERR 台词） | T-POP3-7 | A（转离线 `1_5_4`；回放台词，锚词 `out of range` 类，C 类边界） |
 | RETR maildrop 合成（headers+空行+body+点终结） | T-POP3-8 | A（转离线 `1_6_1`；MsgNum 2 空信附带空正文形态） |
 | RETR 无此信（-ERR 台词） | T-POP3-9 | A（转离线 `1_6_6` 变体；回放台词，C 类边界） |
 | DELE 删信（含越界 -ERR 台词） | T-POP3-10 | A（转离线 `1_7_1`/`1_7_2`） |
 | TOP 合成（headers+前 N 行；N=0 仅头） | T-POP3-11 | A（转离线 `1_10_1`/`1_10_2`） |
-| UIDL 多行/单行 + EmitTop 无 mailbox 拒 | T-POP3-12 | A（转离线 `1_11_1`/`1_11_2`；负例锚词 `but Mailbox is nil`） |
+| UIDL 多行/单行 + EmitTop 无 mailbox 拒/互斥拒 | T-POP3-12 | A（转离线 `1_11_1`/`1_11_2`；负例锚词 `but Mailbox is nil` + `mutually exclusive`） |
 | RETR 点填充体（`.` 开头行补点） | T-POP3-13 | A（转离线 `3_10_3`；MIME 附件形态附带转离线 MIME 基线 21 单测） |
 | USER 超长拒绝（>40） | T-POP3-14 | A（负例，锚词 `USER name length`；转离线 `USERTooLong`/`1_1_6`） |
 | PASS 超长拒绝（>255，小载荷断文案） | T-POP3-15 | A（负例，锚词 `PASS password length`；mailbox 超限同口径不断全量构造） |
@@ -2883,7 +2883,7 @@
 | 现网 Outlook 形（995） | T-POP3-29 | A（映射地板线，同上） |
 | 现网 Dovecot 形（默认问候/CAPA） | T-POP3-30 | A（映射地板线+待确认：抓现网包比字节） |
 | 复合流（登录+STAT+RETR+DELE+QUIT 一条流） | T-POP3-31 | A（≥3 动作组合流） |
-| POP3S 端口 995 显式通过（改写存量 over_tls） | T-POP3-32 | A（改写；明文不断言 TLS 握手细节，随形钉 `tcp.dstport=995`） |
+| POP3S 端口 995 显式通过（改写存量 over_tls；缺省 110 见 T-POP3-1） | T-POP3-32 | A（改写；明文不断言 TLS 握手细节，随形钉 `tcp.dstport=995`） |
 | v6 承载冒烟（`[ip(v6),tcp,pop3]`） | T-POP3-33 | A（mqtt_v6/smtp_t015 先例：字段名 tshark 无回值则降级注记） |
 | 坏 IP 拒绝（链上走框架 ip 层门） | T-POP3-34 | A（负例，锚词 `is not a valid IP address`；pop3 validator 坏 IP 门由 legacy 扁平路径覆盖，C 类） |
 | 顶层 pop3 presence 判死 | T-POP3-35 | A（负例，新锚词 `no longer accepts a top-level pop3 sub-config`；failing 先行①） |
