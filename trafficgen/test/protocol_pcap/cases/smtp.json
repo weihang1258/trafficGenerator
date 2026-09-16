@@ -4,12 +4,23 @@
   "proto": "smtp",
   "summary": "SMTP (端口 25) 冒烟：完整 TCP 握手 + HELO/MAIL/RCPT/DATA/QUIT 命令对话 + 终止",
   "spec_json": {
-   "src_ip": "10.0.0.1",
-   "dst_ip": "20.0.0.1",
-   "src_port": 12345,
-   "dst_port": 25,
-   "count": 1,
-   "smtp": {}
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {}
+    }
+   ]
   },
   "expect": {
    "has_handshake": true,
@@ -150,6 +161,1412 @@
     "SMTP 数据阶段: f5 HELO → f7 MAIL FROM → f9 RCPT TO → f11 DATA → f13 邮件体 (From/To/Subject/正文) → f15 QUIT；20 帧 = 3 握手 + 12 命令/响应 + 1 正文 + 4 终止",
     "邮件体多段传输：f13 为正文首段（From: alice@example.org 前缀）",
     "f12 354 表示 DATA 开始；f14 250 表示邮件已接收；f16 221 表示会话关闭"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t002_top_smtp_presence_reject",
+  "proto": "smtp",
+  "summary": "T-002: 顶层smtp presence判死",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {}
+    }
+   ],
+   "smtp": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "no longer accepts a top-level smtp sub-config",
+   "notes": [
+    "D-SMTP-1 §5 新锚词；mqtt/dns 先例同构"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t003_ehlo_multiline",
+  "proto": "smtp",
+  "summary": "T-003: EHLO多行能力表",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "dialog": [
+       {
+        "cmd": "EHLO client.example.org",
+        "response": "250-mail.example.org\r\n250-SIZE 10240000\r\n250 HELP"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 2.0.0 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "smtp.response.code",
+     "value": "220"
+    },
+    {
+     "packet": 5,
+     "field": "smtp.req.command",
+     "value": "EHLO"
+    },
+    {
+     "packet": 7,
+     "field": "smtp.req.command",
+     "value": "QUIT"
+    }
+   ],
+   "notes": [
+    "EHLO多行250-能力表；离线TestSMTP_1_2_2转pcap"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t004_multi_rcpt",
+  "proto": "smtp",
+  "summary": "T-004: 双RCPT群发",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "dialog": [
+       {
+        "cmd": "HELO client.example.org",
+        "response": "250 mail.example.org"
+       },
+       {
+        "cmd": "MAIL FROM:<alice@example.org>",
+        "response": "250 2.1.0 Ok"
+       },
+       {
+        "cmd": "RCPT TO:<bob@example.com>",
+        "response": "250 2.1.5 Ok"
+       },
+       {
+        "cmd": "RCPT TO:<carol@example.com>",
+        "response": "250 2.1.5 Ok"
+       },
+       {
+        "cmd": "DATA",
+        "response": "354 End data with <CR><LF>.<CR><LF>"
+       },
+       {
+        "cmd": "From: alice@example.org\r\nTo: bob@example.com\r\nSubject: T\r\n\r\nHi\r\n.",
+        "response": "250 2.0.0 Ok: queued as 1"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 2.0.0 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "min_packets": 18,
+   "fields": [
+    {
+     "packet": 9,
+     "field": "smtp.req.command",
+     "value": "RCPT"
+    },
+    {
+     "packet": 11,
+     "field": "smtp.req.command",
+     "value": "RCPT"
+    },
+    {
+     "packet": 13,
+     "field": "smtp.req.command",
+     "value": "DATA"
+    }
+   ],
+   "notes": [
+    "双收件人两RCPT轮次；包数落盘校准"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t005_rset",
+  "proto": "smtp",
+  "summary": "T-005: RSET中断重来",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "dialog": [
+       {
+        "cmd": "HELO client.example.org",
+        "response": "250 mail.example.org"
+       },
+       {
+        "cmd": "MAIL FROM:<alice@example.org>",
+        "response": "250 2.1.0 Ok"
+       },
+       {
+        "cmd": "RSET",
+        "response": "250 2.0.0 Ok"
+       },
+       {
+        "cmd": "MAIL FROM:<alice@example.org>",
+        "response": "250 2.1.0 Ok"
+       },
+       {
+        "cmd": "RCPT TO:<bob@example.com>",
+        "response": "250 2.1.5 Ok"
+       },
+       {
+        "cmd": "DATA",
+        "response": "354 End data with <CR><LF>.<CR><LF>"
+       },
+       {
+        "cmd": "From: a@b.c\r\n\r\nx\r\n.",
+        "response": "250 2.0.0 Ok: queued as 1"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 2.0.0 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "smtp.req.command",
+     "value": "HELO"
+    },
+    {
+     "packet": 9,
+     "field": "smtp.req.command",
+     "value": "RSET"
+    },
+    {
+     "packet": 11,
+     "field": "smtp.req.command",
+     "value": "MAIL"
+    }
+   ],
+   "notes": [
+    "RSET后重发信封；离线TestSMTP_1_7_1转pcap"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t006_noop",
+  "proto": "smtp",
+  "summary": "T-006: NOOP保活",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "dialog": [
+       {
+        "cmd": "HELO client.example.org",
+        "response": "250 mail.example.org"
+       },
+       {
+        "cmd": "NOOP",
+        "response": "250 2.0.0 Ok"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 2.0.0 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "smtp.req.command",
+     "value": "HELO"
+    },
+    {
+     "packet": 7,
+     "field": "smtp.req.command",
+     "value": "NOOP"
+    },
+    {
+     "packet": 9,
+     "field": "smtp.req.command",
+     "value": "QUIT"
+    }
+   ],
+   "notes": [
+    "空闲保活；离线TestSMTP_1_8_1转pcap"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t007_vrfy",
+  "proto": "smtp",
+  "summary": "T-007: VRFY地址探查",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "dialog": [
+       {
+        "cmd": "HELO client.example.org",
+        "response": "250 mail.example.org"
+       },
+       {
+        "cmd": "VRFY alice",
+        "response": "250 2.1.5 Alice Smith <alice@example.org>"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 2.0.0 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "smtp.req.command",
+     "value": "HELO"
+    },
+    {
+     "packet": 7,
+     "field": "smtp.req.command",
+     "value": "VRFY"
+    },
+    {
+     "packet": 9,
+     "field": "smtp.req.command",
+     "value": "QUIT"
+    }
+   ],
+   "notes": [
+    "离线TestSMTP_1_9_1转pcap"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t008_expn",
+  "proto": "smtp",
+  "summary": "T-008: EXPN列表探查",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "dialog": [
+       {
+        "cmd": "HELO client.example.org",
+        "response": "250 mail.example.org"
+       },
+       {
+        "cmd": "EXPN friends",
+        "response": "250-John <j@example.org>\r\n250 Jane <jane@example.org>"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 2.0.0 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "smtp.req.command",
+     "value": "HELO"
+    },
+    {
+     "packet": 7,
+     "field": "smtp.req.command",
+     "value": "EXPN"
+    },
+    {
+     "packet": 9,
+     "field": "smtp.req.command",
+     "value": "QUIT"
+    }
+   ],
+   "notes": [
+    "全仓零用例，复审R4；回放台词，不断言状态机"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t009_quit_after_data",
+  "proto": "smtp",
+  "summary": "T-009: DATA后直接QUIT",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "dialog": [
+       {
+        "cmd": "HELO client.example.org",
+        "response": "250 mail.example.org"
+       },
+       {
+        "cmd": "MAIL FROM:<a@b.c>",
+        "response": "250 Ok"
+       },
+       {
+        "cmd": "RCPT TO:<d@e.f>",
+        "response": "250 Ok"
+       },
+       {
+        "cmd": "DATA",
+        "response": "354 End data with <CR><LF>.<CR><LF>"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 2.0.0 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 11,
+     "field": "smtp.req.command",
+     "value": "DATA"
+    },
+    {
+     "packet": 12,
+     "field": "smtp.response.code",
+     "value": "354"
+    },
+    {
+     "packet": 14,
+     "field": "smtp.response.code",
+     "value": "221"
+    }
+   ],
+   "notes": [
+    "DATA后直接QUIT：包13是QUIT+221同段合并（tshark重组不拆第二条命令原文，断包序+221不断QUIT字面，§9断言边界注记）；离线TestSMTP_2_4_3钉QUIT原文，pcap层以221存在+包数隐含发出"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t010_email_text",
+  "proto": "smtp",
+  "summary": "T-010: Email声明式纯文本",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "email": {
+       "headers": [
+        "From: alice@example.org",
+        "To: bob@example.com",
+        "Subject: Hi"
+       ],
+       "text_body": "hello"
+      },
+      "dialog": [
+       {
+        "cmd": "HELO client.example.org",
+        "response": "250 mail.example.org"
+       },
+       {
+        "cmd": "MAIL FROM:<alice@example.org>",
+        "response": "250 2.1.0 Ok"
+       },
+       {
+        "cmd": "RCPT TO:<bob@example.com>",
+        "response": "250 2.1.5 Ok"
+       },
+       {
+        "cmd": "DATA",
+        "response": "354 End data with <CR><LF>.<CR><LF>"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 2.0.0 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "notes": [
+    "Email声明式纯文本：包13body含From: alic字节前缀（偏移54，存量冒烟同口径）；包14自动250"
+   ],
+   "fields": [
+    {
+     "packet": 12,
+     "field": "smtp.response.code",
+     "value": "354"
+    },
+    {
+     "packet": 14,
+     "field": "smtp.response.code",
+     "value": "250"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 13,
+     "offset": 54,
+     "hex": "46 72 6f 6d 3a 20 61 6c 69 63"
+    }
+   ]
+  }
+ },
+ {
+  "id": "smtp_t011_email_alternative",
+  "proto": "smtp",
+  "summary": "T-011: Email alternative双体",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "email": {
+       "headers": [
+        "From: a@b.c",
+        "Subject: Alt"
+       ],
+       "text_body": "plain",
+       "html_body": "<b>hi</b>"
+      },
+      "dialog": [
+       {
+        "cmd": "HELO x",
+        "response": "250 y"
+       },
+       {
+        "cmd": "MAIL FROM:<a@b.c>",
+        "response": "250 Ok"
+       },
+       {
+        "cmd": "RCPT TO:<d@e.f>",
+        "response": "250 Ok"
+       },
+       {
+        "cmd": "DATA",
+        "response": "354 Go"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "notes": [
+    "multipart/alternative：包13含MIME-Version字节；落盘实测"
+   ],
+   "fields": [
+    {
+     "packet": 12,
+     "field": "smtp.response.code",
+     "value": "354"
+    },
+    {
+     "packet": 14,
+     "field": "smtp.response.code",
+     "value": "250"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 13,
+     "offset": 54,
+     "hex": "46 72 6f 6d 3a 20 61 40 62 2e"
+    }
+   ]
+  }
+ },
+ {
+  "id": "smtp_t012_email_attach",
+  "proto": "smtp",
+  "summary": "T-012: Email附件mixed+base64",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "email": {
+       "headers": [
+        "From: a@b.c",
+        "Subject: Att"
+       ],
+       "text_body": "see attach",
+       "attachments": [
+        {
+         "filename": "a.bin",
+         "content_type": "application/octet-stream",
+         "data_b64": "AAEC"
+        }
+       ]
+      },
+      "dialog": [
+       {
+        "cmd": "HELO x",
+        "response": "250 y"
+       },
+       {
+        "cmd": "MAIL FROM:<a@b.c>",
+        "response": "250 Ok"
+       },
+       {
+        "cmd": "RCPT TO:<d@e.f>",
+        "response": "250 Ok"
+       },
+       {
+        "cmd": "DATA",
+        "response": "354 Go"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "notes": [
+    "multipart/mixed+base64附件：包13含MIME-Version字节；落盘实测"
+   ],
+   "fields": [
+    {
+     "packet": 12,
+     "field": "smtp.response.code",
+     "value": "354"
+    },
+    {
+     "packet": 14,
+     "field": "smtp.response.code",
+     "value": "250"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 13,
+     "offset": 54,
+     "hex": "46 72 6f 6d 3a 20 61 40 62 2e"
+    }
+   ]
+  }
+ },
+ {
+  "id": "smtp_t013_port_587",
+  "proto": "smtp",
+  "summary": "T-013: 提交端口587",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 587
+     }
+    },
+    {
+     "smtp": {}
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "587"
+    }
+   ],
+   "notes": [
+    "validator不强制端口；明文链"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t014_port_465",
+  "proto": "smtp",
+  "summary": "T-014: SMTPS端口465",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 465
+     }
+    },
+    {
+     "smtp": {}
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "465"
+    }
+   ],
+   "notes": [
+    "只断端口不断言TLS握手，真握手另立项"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t015_v6",
+  "proto": "smtp",
+  "summary": "T-015: v6承载冒烟",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "2001:db8::1",
+      "dst": "2001:db8::2"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {}
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "notes": [
+    "v6承载投递；ipv6.version=6有回值（落盘实测），不断言降级"
+   ],
+   "fields": [
+    {
+     "packet": 4,
+     "field": "ipv6.version",
+     "value": "6"
+    },
+    {
+     "packet": 4,
+     "field": "smtp.response.code",
+     "value": "220"
+    }
+   ]
+  }
+ },
+ {
+  "id": "smtp_t016_postfix_banner",
+  "proto": "smtp",
+  "summary": "T-016: 现网Postfix形banner",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "banner": "220 mx.example.org ESMTP Postfix",
+      "dialog": [
+       {
+        "cmd": "HELO x",
+        "response": "250 y"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "smtp.response.code",
+     "value": "220"
+    }
+   ],
+   "notes": [
+    "banner逐字钉；postconf.5 smtpd_banner=$myhostname ESMTP"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t017_auth_login",
+  "proto": "smtp",
+  "summary": "T-017: AUTH LOGIN三步",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "dialog": [
+       {
+        "cmd": "EHLO x",
+        "response": "250-mail.example.org\r\n250-AUTH LOGIN PLAIN\r\n250 HELP"
+       },
+       {
+        "cmd": "AUTH LOGIN",
+        "response": "334 VXNlcm5hbWU6"
+       },
+       {
+        "cmd": "YWxpY2U=",
+        "response": "334 UGFzc3dvcmQ6"
+       },
+       {
+        "cmd": "aHVudGVyMg==",
+        "response": "235 2.7.0 Authentication successful"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "smtp.req.command",
+     "value": "EHLO"
+    },
+    {
+     "packet": 7,
+     "field": "smtp.req.command",
+     "value": "AUTH"
+    },
+    {
+     "packet": 13,
+     "field": "smtp.req.command",
+     "value": "QUIT"
+    }
+   ],
+   "notes": [
+    "台词序列；离线TestSMTP_1_12_3转pcap；真认证不做"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t018_starttls_script",
+  "proto": "smtp",
+  "summary": "T-018: STARTTLS台词到220",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "dialog": [
+       {
+        "cmd": "EHLO x",
+        "response": "250-STARTTLS"
+       },
+       {
+        "cmd": "STARTTLS",
+        "response": "220 2.0.0 Ready to start TLS"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "smtp.req.command",
+     "value": "EHLO"
+    },
+    {
+     "packet": 8,
+     "field": "smtp.response.code",
+     "value": "220"
+    }
+   ],
+   "notes": [
+    "EHLO→STARTTLS→220台词；tshark把STARTTLS命令截断显示为STAR（伪影），不断言该包原文，只断包序+220响应；真升级另立项；离线TestSMTP_2_6_1转pcap"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t019_bad_srcip_reject",
+  "proto": "smtp",
+  "summary": "T-019: 坏目的IP拒绝（validator门）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "not-an-ip"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "invalid IP address: not-an-ip",
+   "notes": [
+    "链上坏IP走框架ip层门（非smtp validator门）；smtp validator坏IP门由legacy扁平路径覆盖，C类注记（mqtt IP门×2先例同款）"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t020_mss_reject",
+  "proto": "smtp",
+  "summary": "T-020: MSS过小拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25,
+      "mss": 100
+     }
+    },
+    {
+     "smtp": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "out of range [536,65535]",
+   "notes": [
+    "tcp层mss=100走V9范围门（mqtt mss先例同款）；legacy planner门由扁平路径覆盖"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t021_boundary_reject",
+  "proto": "smtp",
+  "summary": "T-021: boundary超长拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "email": {
+       "text_body": "x",
+       "html_body": "<b>y</b>",
+       "boundary": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+      },
+      "dialog": [
+       {
+        "cmd": "HELO x",
+        "response": "250 y"
+       },
+       {
+        "cmd": "MAIL FROM:<a@b.c>",
+        "response": "250 Ok"
+       },
+       {
+        "cmd": "RCPT TO:<d@e.f>",
+        "response": "250 Ok"
+       },
+       {
+        "cmd": "DATA",
+        "response": "354 Go"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "Boundary",
+   "notes": [
+    "RFC 2046 §5.1.1 70上限"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t022_attach_nodata_reject",
+  "proto": "smtp",
+  "summary": "T-022: 附件无数据拒绝",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "email": {
+       "text_body": "x",
+       "attachments": [
+        {
+         "filename": "a.bin"
+        }
+       ]
+      },
+      "dialog": [
+       {
+        "cmd": "HELO x",
+        "response": "250 y"
+       },
+       {
+        "cmd": "MAIL FROM:<a@b.c>",
+        "response": "250 Ok"
+       },
+       {
+        "cmd": "RCPT TO:<d@e.f>",
+        "response": "250 Ok"
+       },
+       {
+        "cmd": "DATA",
+        "response": "354 Go"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "neither Data nor DataB64",
+   "notes": [
+    "RFC 2045 §6.8"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t023_turn",
+  "proto": "smtp",
+  "summary": "T-023: TURN命令回放",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {
+      "dialog": [
+       {
+        "cmd": "HELO x",
+        "response": "250 y"
+       },
+       {
+        "cmd": "TURN",
+        "response": "502 Command not implemented"
+       },
+       {
+        "cmd": "QUIT",
+        "response": "221 Bye"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "has_payload": true,
+   "fields": [
+    {
+     "packet": 5,
+     "field": "smtp.req.command",
+     "value": "HELO"
+    },
+    {
+     "packet": 7,
+     "field": "smtp.req.command",
+     "value": "TURN"
+    },
+    {
+     "packet": 9,
+     "field": "smtp.req.command",
+     "value": "QUIT"
+    }
+   ],
+   "notes": [
+    "全仓零用例，复审R4；回放不断言状态机"
+   ]
+  }
+ },
+ {
+  "id": "smtp_t024_default_twoflow",
+  "proto": "smtp",
+  "summary": "T-024: 全缺省双流（静态复制门反例：无显式标量不触发，src_port保底+1）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "smtp": {}
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 40,
+   "has_handshake": true,
+   "notes": [
+    "全缺省双流：无显式标量四元组，静态复制门不触发（§9陷阱③反例——门只拦显式标量）；src_port保底+1防撞；40=2×20单流，落盘实测"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  }
+ },
+ {
+  "id": "smtp_t024b_static_pinned_reject",
+  "proto": "smtp",
+  "summary": "T-024b: 显式标量四元组flows=2拒绝（静态复制门正例）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {
+      "src_port": 12345,
+      "dst_port": 25
+     }
+    },
+    {
+     "smtp": {}
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "static",
+   "notes": [
+    "显式标量四元组+flows=2+无动态逃生（smtp业务全关，D-SMTP-1 §12）→static门拒；与T-024全缺省放行对照"
    ]
   }
  }

@@ -1140,6 +1140,23 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if err := json.Unmarshal(raw, &pc); err == nil {
 			spec.POP3 = &pc
 		}
+	case "smtp":
+		if spec.SMTP != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// D-SMTP-1：层 config（banner/dialog/email）经 JSON 往返解码为
+		// core.SMTPConfig（pop3 `:1127` 同款；Email/Attachment 嵌套自动）。
+		// 生成器对 nil config 已走默认会话（layer_gen.go:57），但 validator/
+		// 单测要求翻译发生在校验前，故空层 config 也翻译出非 nil config。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			return
+		}
+		var sc core.SMTPConfig
+		if err := json.Unmarshal(raw, &sc); err == nil {
+			spec.SMTP = &sc
+		}
 	case "mqtt":
 		// D-MQTT-1：层优先（flat 判死后无双轨——CheckProtoFlat 已拒顶层
 		// mqtt 子映射）。http :839 空壳例外同款：spec.MQTT 非 nil 但为空

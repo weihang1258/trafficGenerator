@@ -813,8 +813,12 @@ func buildDefaultRegistry() {
 		OptionalOn:    []string{"tls"},
 		FieldContract: map[string]string{"tcp.dst_port": "25"}, // RFC 5321 §3.1；用户显式非标准端口优先（提交 587 / SMTPS 465），不强制
 		Fields: map[string]FieldSchema{
-			"from": {Type: "string", Default: "sender@example.com"},
-			"to":   {Type: "string", Default: "recipient@example.com"},
+			// D-SMTP-1：banner/dialog/email 三键（SMTPConfig 同名；email/
+			// dialog 是嵌套对象/数组，V9 只验顶层键存在，值语义归翻译分支
+			// JSON 往返解码 + validator）。from/to 孤儿已删（§5）。
+			"banner": {Type: "string", Default: ""},
+			"dialog": {Type: "list", Default: []interface{}{}},
+			"email":  {Type: "object"},
 		},
 	})
 	r.Register(LayerSchema{Name: "redis", Category: CategoryTerminal,

@@ -1252,3 +1252,87 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 **依据：** OASIS MQTT 3.1.1/5.0（设计 doc `14-mqtt-design.md` §1–§8 为历史参考，不作新权威）；`mqtt/layer_gen.go:233-266`（validator+生成器双拒+sessions 门）；`strategy_convert.go:1047/4524`（flat 读+parse）；`types.go:9631`（MQTTConfig 全字段）；`tuple_generator.go:306`（string 面算法）。
 
 **门 3 抽查三条（2026-09-16）：** ①§1 顶层迁入→mqtt.json 202 例 `layers` 形零残留（门 2-1 内联 GREEN；t149 转负例是执法对象）；②§5 presence→`strategy_convert.go:7631` CheckProtoFlat mqtt 分支，mqtt_t149 真实流程拒（RESULT 203/203 含该负例 PASS）；③§12 client_id 动态→mqtt_dyn_client_id_list（flows=2，mqtt.clientid distinct 全绿）。
+
+### D-SMTP-1 SMTP 顶层 smtp 子映射迁入层内【P-PIPE #6 门1】
+
+**门 1 开工对照表（§1–§14，2026-09-16，证据=文档节/代码行/用例号）：**
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键清单：`src_ip`→`layers[ip].src`、`dst_ip`→`layers[ip].dst`、`src_port`→`layers[tcp].src_port`、`dst_port`→`layers[tcp].dst_port`（25 由 `FieldContract tcp.dst_port=25` 补，用户写 587/465 优先）、`count`→删（本例 `count:1` 缺省单流）、顶层 `smtp` 子映射→`layers[smtp]`（banner/email/dialog 同名直迁）。目标形状：`{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":12345,"dst_port":25}},{"smtp":{}}]}`（空 smtp 走默认 banner+默认 Dialog）。P4 必修 4 项：①`translateTerminalConfig` 加 `case "smtp"`（全文 grep 零命中，层配置今天被忽略）；②CheckProtoFlat 加 smtp presence 门（mqtt `:7633`/dns `:7626` 同款文案）；③扁平侧补 `setDefaultDstPort(25)` 一行（xmpp/sip 同款，行为对齐非注释问题）；④删 registry 孤儿 `from/to`（见 §5 行）+ 重跑 schemagen | smtp.json 1 例；`registry.go:811`；`strategy_convert.go:870`；本条目 §1/§7 |
+| §2 策略/任务分工 | 沿框架语义；`flows=N` 同模板复制；`src_port` 保 0 不默认化走 `12345+i`（chain_planner.go:653 与 legacy planner.go:215 同款） | 本条目 §3/§4 |
+| §3 五件套 | 会话表：单 TCP 连接单会话，无 `sessions[]`（RFC 5321 长连接客户端主动建连，豁免多会话扇出）。事务序列：banner(220,down)→HELO/EHLO→MAIL→RCPT(可多)→DATA→354→body→250→QUIT→221，Dialog 逐条按序产事件（空 Cmd/Response 跳过，纯单向轮次）。关联关系：无（SMTP 无控制/数据双流，FTP PASV 类比不适用）。插入位置：终结层事件流直入 tcp 层（事件模式，tcp 管握手/seq-ack/挥手/MSS 分段）；Email 声明式在 DATA/354 后插 body+250。时间线：单流顺序无交错；多流=整会话复制 | `smtp/layer_gen.go:53-126`；`planner.go:117-340` |
+| §4 规范矩阵 | RFC 5321（连接/命令/状态机/字段/错误；章节号凡非代码注释亲验的一律转引待亲验，见本条目依据行注记）+ 5322/2045/2046/2183（MIME）+ 879（MSS≥536）+ 6528（随机 ISN）+ 4954（AUTH）/3207（STARTTLS，台词覆盖，真升级另立项）。三路对照：规范底线✓；商业准绳=Postfix 默认 banner `$myhostname ESMTP $mail_name`（postconf.5 smtpd_banner）/ Gmail 587+STARTTLS 或 465、未 STARTTLS 先 AUTH 回 530 / Exchange 接收连接器 banner 须 220 开头（微软文档）；开源借鉴=Postfix 文档行为 + 本仓 legacy 回放基线（85 单测，不搬代码）。候选对比见本条目 §9 | P1 矩阵（会话记录）；`types.go:7225` |
+| §5 有错必处理 | 依赖：smtp 层 DependsOn tcp / OptionalOn tls（registry.go:811）；配置经 Meta 直传终结层生成器（chain_planner_translate.go:172）；validator 调 `(&Planner{}).Validate`（layer_gen.go:153）。validator 真拦 4 类：坏 IP、MSS<536、boundary 超长/含 CRLF、附件无数据（planner.go:84-110，mime.go:332）；端口不强制 25（587/465 放行）。孤儿裁定：registry `smtp.from/to` 在 `SMTPConfig` 无对应字段、全仓无消费者（strategy_convert.go:3284 的 From 是 xmpp 的），P4 删除——FTP/POP3 的 banner 有真实消费不可类比 | `planner.go:84`；`registry.go:816`；本条目 §9 |
+| §6 性能 | 单会话包数=3 握手+Dialog 帧+banner+4 挥手（链 4 包挥手，legacy 4 包同形，layer_gen.go:20-24 文档化分歧仅握手选项细节）；Email 附件线性增帧；回归口径 suite ±10%；边界诚实声明（未测吞吐/并发） | 本条目 §6 |
+| §7 三份文档 | 设计=本条目；用例=T-SMTP-*（P3 先行，存量 1 例改写去向见 §9 前表）；cases 回指编号 | TEST_CASES T-SMTP（P3 建） |
+| §8 先设计后代码 | 本条目定稿后开工 | 本条目 |
+| §9 三源+整格 | 三源：RFC 条文 + 本条目 + 商业三家行为（上表）；颗粒度：legacy 85 单测已拆到单行为点，pcap 层仅 1 冒烟→P3 清单先行（初估 18–24 例）；三场景：数据=validator 4 类负例；业务=信封序列/EHLO 多行/多 RCPT/RSET/NOOP/VRFY/QUIT 中断/Email 三形态+附件；现网=Postfix 形 banner/EHLO 能力表/Gmail 587 口径/Exchange 220 开头（缺口，P3 补）；枚举：命令表逐条（EXPN/TURN 真缺，HELP/VRFY 已有——复审 R4 纠正）；正交：端口 25/587/465 × 地址族 v4/v6 × 单会话；断言边界：包序/超时计时器 harness 做不到处注记（回放语义不冒充状态机） | §4 整格表；P3 清单 |
+| §10 评审闭环 | failing 先行 3 红例（见本条目 §5）→ 改 → 审 → 测 → 再审；`go vet` + touched 包 `-race` | 本条目 §7 |
+| §11 白话汇报 | 先一句结论 | 每次汇报 |
+| §12 动态清单 | 四元组开（ip/tcp 通用）；smtp 业务全关：banner 关（问候语无逐流变需求）/dialog 关（序列语义，逐流变破坏事务顺序）/email 关（MIME 构造无逐流变需求）——有序单连接会话，不冒充开；另立项口（信封地址逐流变若有批量需求）。序号算法沿框架（worker.go:316-321，mqtt 同款）；P4 验 flows=2 留空防静态复制（§9 陷阱③） | 本条目 §4 整格表 |
+| §13 schema 同步 | 注册表 smtp Fields 2→0 键（删 from/to孤儿；banner/email/dialog 住 `SMTPConfig` 不进 registry——pop3 的 banner/commands 登记是其翻译分支消费，本仓 smtp 翻译走 JSON 往返读 `SMTPConfig` 字段，registry 只留契约端口）；删后重跑 schemagen 并提交生成文件（`TestLayersGeneratedMatchesRegistry` 绿）；CheckProtoFlat 加 smtp presence 分支 | 门 2 脚本 |
+| §14 真实流程 | smtp.json 全量 + 落盘 tshark 校准（包号/端口不手算；空壳默认会话包数以落盘为准）；二进制同代；门 2 三项；负例 `.neg.pcap` 口径沿 d323068 | smtp.json |
+
+**状态：** P5 已验收（2026-09-16；门 1 已批→P4 3 红先红后绿→P5 MCP 25/25 全绿；门 3 抽查见本条目末）
+**完成回填（2026-09-16）：** P4 四改动（`case "smtp"` 翻译分支 pop3 同款 + presence 门 + `setDefaultDstPort(25)` + 删 from/to 孤儿重跑 schemagen）；smtp.json 1→25 例（存量冒烟迁层链 + T-SMTP-2…24/24b，包位逐例落盘 tshark 重钉）；`RESULT: 25 pass, 0 fail, 0 error (of 25)`（/tmp/tg-smtp-p5-server 与 HEAD 同代，门 2 静态两项绿）；落盘 22 文件零孤儿（6 负例中 3 超早拒绝无落盘系旧行为：t002/t020/t024b 在 writer 建文件前被拒，mqtt t045/t046/t149 先例同款）；`go test ./internal/...` 123 包绿（rtmp 单例偶发抖动一次，复跑 3 连绿，tls/rtmp 基线抖动口径）+ touched 包 `-race` 绿；在库 smtp 清空（删前 strategies 19/tasks 170 → 删后 0/0，备份 /tmp/trafficgen.db.bak-smtp-p6，无跨协议引用）。
+**门3抽查三条：** ①§1 顶层迁入→smtp.json 25 例 `layers` 形零残留（门 2-1 绿，黄项 t002 系执法对象豁免）；②§5 presence→`strategy_convert.go` CheckProtoFlat smtp 分支，smtp_t002 真实流程拒；③§1 banner 翻译→`chain_planner_translate.go` `case "smtp"`，smtp_t016 落盘 banner 字节钉死。
+**范围（P4）：** ①`translateTerminalConfig` 加 `case "smtp"`（pop3 `:1127` 同款 JSON 往返解码 + 简单 nil 判 flat 权威——扁平侧条件创建无 ftp 式恒非 nil，空 `smtp:{}` 建空壳走 flat 权威与 presence 判死自洽，见复审 R6）；②CheckProtoFlat 加 smtp presence 门（mqtt 文案同构，空 map 也死）；③扁平侧补 `setDefaultDstPort(25)`；④删 registry `from/to` + 重跑 schemagen；⑤smtp.json 1 例改写层链形 + P3 新例（18–24 例）全量跑 + 校准回钉；⑥清库（smtp 行，删前计数→备份→删→复核）。
+**明确不解决：** STARTTLS 真升级 / SMTPS `[tcp,tls,smtp]` 真握手链（台词覆盖已有 `TestSMTP_2_6_1`，真升级另立项）；状态机 enforcement（回放语义是架构选择，C 类如实注明，不冒充）；超时计时器（C 类，NOOP/RSET 序列+大 body 覆盖可测部分）；任务级跨策略动态池（D-FTP-2 同口径另立）；DSN/SMTPUTF8（按需立项）。
+**依据：** RFC 5321（连接模型 §3.1/问候 220/命令 §4.1.1/顺序 §4.1.4/响应码 §4.2/终止符 §4.1.1.4/dot-stuffing §4.5.2——注：§2.3/§4.1.2/§4.5.3.2 具体数字转引自代码注释，P2 定稿时未亲验 RFC 原文，P4 动工前逐条亲验，验实则留验虚则删，复审 R2/R3）；RFC 5322 §3.6（消息头）/ RFC 2045 §6.8（base64）/ RFC 2046 §5.1.1（mixed/boundary≤70）§5.1.4（alternative）§4（缺省类型）/ RFC 2183（附件处置）/ RFC 879（MSS）/ RFC 6528（ISN）；商业：Postfix postconf.5 `smtpd_banner`（默认 `$myhostname ESMTP $mail_name`）、Gmail SMTP（587+STARTTLS/465，530 先 STARTTLS 语义）、Microsoft Exchange 接收连接器 banner 文档（须 220 开头）；代码事实：`smtp/planner.go:84-110`（validator 4 类）/`:117-340`（回放 Plan）/`:346/:364`（默认会话双范本）、`smtp/mime.go:51`（Email 构造）、`smtp/layer_gen.go:53-156`（事件生成器+注册）、`types.go:7251/7302/7366`（SMTPConfig/Email/Command）。
+
+#### 1. 数据与接口
+- 输入：`[ip, tcp, smtp{banner?,email?,dialog?}]`（smtp 层缺席键走 `SMTPConfig` 零值→生成器默认会话；`banner` 空自动 `220 <DstIP> ESMTP trafficgen` 沿既有）。
+- 输出：3 握手 + banner(down) + Dialog 命令/响应对 + 4 挥手（链式，与 legacy 同形；MSS 切段/ISN 由 tcp 层与 planner 同款逻辑承担）。
+- 修改点四处（builder/drive/finalEmit 零改动）：`chain_planner_translate.go` 加 `case "smtp"`（pop3 同款：`if spec.SMTP != nil return` + completedConfig + JSON 往返→`core.SMTPConfig`）；`strategy_convert.go` CheckProtoFlat 加 smtp presence 分支 + `case "smtp"` 内补 `setDefaultDstPort(25)`；`registry.go` 删 smtp Fields `from/to`；`layer_dyn.go` 零改动（smtp 业务全关，不进 allowlist）。新增函数：无。
+- 显式覆盖：层值是 smtp 全配置唯一真相；flat `cfg["smtp"]` 出现即判死（presence，空 map 也死，mqtt 先例）。
+
+#### 2. 依赖与生命周期
+- 前置：tcp 层（DependsOn；缺 tcp 自动补，tcp DependsOn ip 连带补全）；tls 为 OptionalOn（声明保留，真升级另立项）。
+- 资源：无状态生成器；翻译在 ValidateSpec 同步期（幂等覆盖写）；空层 config 翻译出 `&SMTPConfig{}` 非 nil（生成器走默认会话，与 legacy `smtpConfig==nil→&SMTPConfig{}` 同款 `planner.go:130`）。
+
+#### 3. 主流程与状态
+- 翻译顺序：判死（顶层 smtp 出现即拒）→ 层 config 翻译（JSON 往返，Email 嵌套自动）→ 协议 validator（4 类真拦沿既有）。flat 权威判据：简单 nil 判（扁平侧条件创建，复审 R6）。
+- 回放语义：Dialog 逐条按序产事件，不做状态机 enforcement；503/530 类序列错由用户写 Response 台词表达（`TestSMTP_2_5_3` 先例），C 类如实注明。
+- 动态解析：本期 smtp 业务无动态，worker resolveLayerTuple 只解四元组（flows=2 时 smtp 层留空防静态复制）。
+
+#### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
+- 无新序号算法（框架 resolveLayerTuple）。
+- 业务动态整格（§12，本期全关）：
+
+  | 层.字段 | 开/关 | 理由 |
+  |---|---|---|
+  | smtp.banner | 关 | 问候语逐流变无需求 |
+  | smtp.dialog[].cmd/response | 关 | 序列语义，逐流变破坏事务顺序 |
+  | smtp.email.* | 关 | MIME 构造逐流变无需求 |
+  | ip/tcp 四元组 | 开 | 框架白名单沿既有（flows=2 留空防静态复制） |
+- 正交组合：端口 25/587/465 × v4/v6 × 单会话；query×name 类组合不适用（smtp 无双独立翻译字段）。
+
+#### 5. 错误与异常
+- 新锚词：`protocol smtp no longer accepts a top-level smtp sub-config (move it into the smtp layer of an [ip,tcp,smtp] layers chain)`（mqtt 文案同构）。
+- 既有锚词沿用（A 类直转 `.neg` 负例）：`smtp: invalid SrcIP/DstIP`、`smtp: TCP.MSS %d too small`、`Email.Boundary … exceeds max 70 chars / contains CRLF`、`Email.Attachments[%d] has neither Data nor DataB64`。
+- 回放序列错（503/530/顺序错）属 C 类：不断言引擎拦截，用脚本序列覆盖。
+- Failing 先行 3 红例：①顶层 `{"smtp":{}}` 空映射即拒（现状放行——presence 未判死）；②层 `{"smtp":{"banner":"220 x"}}` 翻译后 `spec.SMTP.Banner=220 x`（现状：层配置被忽略，spec.SMTP 保持 nil）；③扁平无端口时 `spec.DstPort=25`（现状：注释写默认 25，实际未调 setDefaultDstPort）。
+
+#### 6. 性能设计与验收
+- 单包路径增量：翻译 3 键取值（ValidateSpec 同步期一次）；动态解析零新增（业务全关）。回归口径：smtp.json 全量 suite 耗时相对基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测）。
+- pcap 验收：smtp.json 全量绿 + 落盘可复查（`smtp.req.command/parameter` + `smtp.response.code` + 握手/挥手）；网卡未跑。
+
+#### 7. 实现顺序与回滚
+- 步骤 0（failing 先行）：`internal/core/layers/smtp_migrate_test.go` 3 红例（BuildLayersPlanner 全链口径：presence 拒 + banner 翻译 + 25 缺省）。
+- 步骤 1：`case "smtp"` 翻译分支；步骤 2：CheckProtoFlat presence + `setDefaultDstPort(25)`；步骤 3：删 from/to + schemagen 重跑；步骤 4：`go build` + vet + touched 包 `-race`；P5：smtp.json 改写 + T-SMTP 新例，全量跑 + 校准回钉；P6：评审+提交+清库复核。
+- 回滚：单提交逆序 revert。
+
+#### 8. 验收
+- 对应 T-SMTP-*（TEST_CASES P3 先行）。完成条件：3 红例先红后绿；smtp.json 全量绿（RESULT 全量；二进制同代；门 2 三项绿）；touched 包 `-race` 绿；顶层 `smtp` 字面零残留（cases 内；除注释/文档历史叙述）；schemagen 生成表已同步（`TestLayersGeneratedMatchesRegistry` 绿）。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A 翻译走法 | A1 pop3 同款 JSON 往返；A2 ftp 同款复用 parse | A2 需给 smtp 写 ParseSMTPConfigFromMap 新函数，Email 嵌套手写解码；A1 嵌套自动零分叉 | 选 A1 |
+| B 空壳语义 | B1 简单 nil 判；B2 mqtt 同款逐字段空壳例外 | 扁平侧条件创建无恒非 nil 问题，B2 多余复杂度 | 选 B1（复审 R6） |
+| C from/to 孤儿 | C1 删除+重跑生成表；C2 接线到信封 | C2 零消费者，接线属无依据设计（§5 禁止） | 选 C1 |
+| D 业务动态 | D1 全关+理由；D2 开 banner/信封 | D2 有序会话无逐流变需求，开了测不出 | 选 D1，信封逐流变另立项口 |
+| E legacy 25 缺省 | E1 补 setDefaultDstPort(25)；E2 维持现状 | E1 与 xmpp/sip 同款行为对齐；E2 留扁平无端口 DstPort=0 缺口 | 选 E1（理由按复审 R5：行为对齐） |
+| F presence 口径 | F1 空 map 也判死；F2 仅非空判死 | F1 mqtt/dns 先例（空即显式走默认）；F2 留空壳双轨 | 选 F1 |

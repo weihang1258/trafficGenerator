@@ -2765,3 +2765,52 @@
 
 **执行口径：** MCP 真实流程 206/206 全绿（2026-09-16，同代二进制 /tmp/tg-mqtt-biz-server，pcap 落盘 /tmp/mcp-pcaps/mqtt/206 文件零孤儿——16 个旧多会话名 24B 残留已删；frames hex 逐例落盘重钉——链挥手 4 包 vs legacy 3 包，t168 6→9、t169 8→11；门 2 三项）。
 **实现位置：** `cases/mqtt.json`（203 例：165 存量改写 + 38 sessions 拆分 − 17 原扇出 + 4 v6/dyn + 8 负例 + t149 转负例）。
+
+### T-SMTP-1… smtp.json——存量审计 + 测试点清单【D-SMTP-1 P3 先行，P4 未开工】
+
+**状态：** P3 设计中（2026-09-16；存量 1 例扁平冒烟待改写；P4 未开工）
+**级别：** pcap
+**来源：** RFC 5321/5322/2045/2046/2183 + D-SMTP-1 §4 + 商业三家行为（Postfix banner/Gmail 587+530/Exchange 220 开头）
+**存量去向（1 例 → 改写后初估 18–24 例）：**
+
+| 形状 | 数量 | 去向 |
+|---|---|---|
+| 纯扁平（`src_ip/dst_ip/src_port/dst_port/count` + 顶层 `smtp:{}`） | 1 | 合入：`smtp-basic-session` 删 5 旧键→`[ip,tcp,smtp]` 链（`smtp:{}` 进层同名键）；锚词/包数不照抄，P5 落盘重钉 |
+| legacy 单测（85 个：43 testpoints + 22 planner + 20 mime） | 85 | 不动：离线 planner 行为基线；pcap 层按本清单重建，不搬运子集充数 |
+
+**测试点清单（规范行→用例，逐点登记）：**
+
+| 规范行 | 用例 | 分类 |
+|---|---|---|
+| 默认会话（HELO/MAIL/RCPT/DATA/body/QUIT，改写存量冒烟） | T-SMTP-1 | A（改写，落盘重钉包数/字段） |
+| 顶层 smtp presence 判死 | T-SMTP-2 | A（负例，新锚词 `no longer accepts a top-level smtp sub-config`） |
+| EHLO 多行能力表（250-/SIZE/HELP） | T-SMTP-3 | A（`TestSMTP_1_2_2` 已有离线版，转 pcap） |
+| 多 RCPT 群发（双收件人） | T-SMTP-4 | A |
+| RSET 中断重来 | T-SMTP-5 | A（`TestSMTP_1_7_1` 离线版转 pcap） |
+| NOOP 保活 | T-SMTP-6 | A（`TestSMTP_1_8_1` 离线版转 pcap） |
+| VRFY 地址探查 | T-SMTP-7 | A（`TestSMTP_1_9_1` 离线版转 pcap） |
+| EXPN 列表探查 | T-SMTP-8 | A（全仓零用例，复审 R4） |
+| QUIT 中断（DATA 后直接 QUIT） | T-SMTP-9 | A（`TestSMTP_2_4_3` 离线版转 pcap） |
+| Email 声明式纯文本 | T-SMTP-10 | A（`TestSMTPPlan_Email_SimpleText` 转 pcap） |
+| Email multipart/alternative（文本+HTML） | T-SMTP-11 | A |
+| Email 附件 base64（multipart/mixed） | T-SMTP-12 | A |
+| 提交端口 587 显式通过 | T-SMTP-13 | A（validator 不强制端口，落盘钉 `tcp.dstport=587`） |
+| SMTPS 端口 465 显式通过 | T-SMTP-14 | A（同上，明文链不断言 TLS 握手） |
+| v6 承载冒烟（`[ip(v6),tcp,smtp]`） | T-SMTP-15 | A（mqtt_v6 先例：字段名 tshark 无回值则降级注记） |
+| 现网形 banner（Postfix `$myhostname ESMTP` 形） | T-SMTP-16 | A（banner 逐字钉 `220 … ESMTP`） |
+| 现网形 AUTH 登录序列（EHLO→AUTH→235） | T-SMTP-17 | A（台词序列，`TestSMTP_1_12_3` 离线版转 pcap） |
+| 现网形 Gmail 587 口径（EHLO→STARTTLS→220 台词） | T-SMTP-18 | A（只到 220 台词，真升级另立项） |
+| 坏 IP 拒绝（链上走框架 ip 层门） | T-SMTP-19 | A（负例，锚词 `invalid IP address: not-an-ip`；smtp validator 坏 IP 门由 legacy 扁平路径覆盖，C 类） |
+| MSS<536 拒绝（tcp 层 V9 范围门） | T-SMTP-20 | A（负例，锚词 `out of range [536,65535]`；legacy planner 门由扁平路径覆盖） |
+| boundary 超长/含 CRLF 拒绝 | T-SMTP-21 | A（负例，锚词 `Boundary` 字面） |
+| 附件无数据拒绝 | T-SMTP-22 | A（负例，锚词 `neither Data nor DataB64`） |
+| TURN 命令 | T-SMTP-23 | A（全仓零用例，复审 R4；回放台词，不断言状态机） |
+| 全缺省双流放行（静态门反例：无显式标量不触发） | T-SMTP-24 | A（正例，40 包=2×20；src_port 保底+1） |
+| 显式标量四元组 flows=2 拒绝 | T-SMTP-24b | A（负例，锚词 `static`；smtp 业务全关无动态逃生，与 T-024 对照） |
+
+**明确不列缺口：** 503/530 序列错（回放语义 C 类，脚本台词覆盖）；超时计时器（C 类，NOOP/大 body 覆盖可测部分）；STARTTLS 真升级/SMTPS 真握手（另立项）；DSN/SMTPUTF8（按需立项）；任务级跨策略动态池（D-FTP-2 同口径另立）。
+
+**执行口径：** P5 `CASE_PROTO=smtp` 全量绿（RESULT 全量；二进制同代；门 2 三项）；断言 `smtp.req.command/parameter` + `smtp.response.code` + 握手/挥手；包数落盘重钉禁手算；负例 `.neg.pcap` 口径沿 d323068。
+**实现位置：** `cases/smtp.json`（1 例改写 + T-SMTP-2…24/24b 新建 24 例，共 25 例）。
+
+**P5 落地偏差（如实登记，2026-09-16，MCP 25/25 全绿，同代二进制 /tmp/tg-smtp-p5-server）：** ①包位首版全按 legacy 手算错→逐例落盘 tshark 重钉（Dialog 轮次各 2 包，banner 包 4 起）；②t018 STARTTLS 命令被 tshark 截断显示为 STAR（伪影）→不断该包原文，只断包序+220；③t009 QUIT 与 221 同段合并（tshark 不拆第二条命令）→不断 QUIT 字面，断 DATA/354/221 序列（离线 TestSMTP_2_4_3 钉原文）；④t019 改链上可达形（坏 dst 进 ip 层）→走框架门，smtp validator 门判链上不可达（mqtt IP 门先例）；⑤t020 走 tcp 层 V9 门（非 planner 门）；⑥t024 改名正例（全缺省双流 40 包放行）+ 增 t024b 真拒绝例（显式标量对照）；⑦t015 v6 `ipv6.version=6` 有回值（无需降级）；⑧离线链套件 4 红（t002/t019/t024b 三负例系 MCP 层门离线未复刻 + t015 v6 离线回退 v4，dns T-DNS-19 先例同款 C 类 harness 边界，以 MCP 为准）——smtp 空导入+协议集注册已补（layer_chain_suite_test.go）。

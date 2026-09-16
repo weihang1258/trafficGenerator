@@ -879,6 +879,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		// the user did not specify a dst_port - matches the DNS/FTP
 		// pattern. Submission (587) and SMTPS (465) are also valid but
 		// the user must set dst_port explicitly for those.
+		setDefaultDstPort(&spec, cfg, 25)
 	case "snmp":
 		if sub, ok := cfg["snmp"].(map[string]interface{}); ok {
 			// Version is presence-checked: 0 is a legitimate value (SNMPv1,
@@ -7633,6 +7634,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "mqtt" {
 		if v, ok := cfg["mqtt"]; ok && v != nil {
 			return "protocol mqtt no longer accepts a top-level mqtt sub-config (move it into the mqtt layer of an [ip,tcp,mqtt] layers chain)"
+		}
+	}
+	// D-SMTP-1：smtp 顶层 smtp 子映射 presence 判死（mqtt 先例；空 map 也
+	// 死）。层链形状不触发。
+	if protocol == "smtp" {
+		if v, ok := cfg["smtp"]; ok && v != nil {
+			return "protocol smtp no longer accepts a top-level smtp sub-config (move it into the smtp layer of an [ip,tcp,smtp] layers chain)"
 		}
 	}
 	return ""

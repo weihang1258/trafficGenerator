@@ -1739,13 +1739,16 @@
         "tcp.dst_port": "25"
       },
       "fields": {
-        "from": {
+        "banner": {
           "type": "string",
-          "default": "sender@example.com"
+          "default": ""
         },
-        "to": {
-          "type": "string",
-          "default": "recipient@example.com"
+        "dialog": {
+          "type": "list",
+          "default": []
+        },
+        "email": {
+          "type": "object"
         }
       }
     },
