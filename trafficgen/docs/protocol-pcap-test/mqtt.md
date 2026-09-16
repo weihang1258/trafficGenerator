@@ -1,11 +1,24 @@
 # mqtt Pcap Test Results
 
-Cases: 169 — pass 169, fail 0, error 0
+Cases: 203 — pass 203, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
+| mqtt_dyn_client_id_list | client_id dyn (D-MQTT-1 s12): list + flows=2, CONNECT client_id distinct | pass | 20 | [pcap](mqtt/mqtt_dyn_client_id_list.pcap) |
+| mqtt_dyn_payload_list | payload dyn (D-MQTT-1 s12): list + flows=2, PUBLISH payload distinct | pass | 22 | [pcap](mqtt/mqtt_dyn_payload_list.pcap) |
+| mqtt_dyn_topic_pattern | topic dyn (D-MQTT-1 s12): pattern + flows=2, PUBLISH topic distinct | pass | 22 | [pcap](mqtt/mqtt_dyn_topic_pattern.pcap) |
+| mqtt_neg_bad_direction | negative: message direction illegal value rejected | pass | 0 | [pcap]() |
+| mqtt_neg_clientid_nul | negative: client_id with U+0000 rejected (validateUTF8 forbidden code point) | pass | 0 | [pcap]() |
+| mqtt_neg_dup_qos0 | negative: DUP=true + QoS 0 rejected (OASIS DUP only QoS>0) | pass | 0 | [pcap]() |
+| mqtt_neg_prop_string_nul | negative: properties string with U+0000 rejected | pass | 0 | [pcap]() |
+| mqtt_neg_prop_stringpair_nonul | negative: properties stringpair without NUL separator rejected | pass | 0 | [pcap]() |
+| mqtt_neg_prop_vbi_overflow | negative: SUBSCRIBE properties vbi over 268435455 rejected | pass | 0 | [pcap]() |
+| mqtt_neg_sessions_rejected | negative: sessions non-empty rejected on chain (D-MQTT-1 s3 one-flow-per-chain, anchor one flow per chain) | pass | 0 | [pcap]() |
+| mqtt_neg_unknown_prop_format | negative: properties unknown format rejected | pass | 0 | [pcap]() |
 | mqtt_over_tls | MQTTS：TLS 载体上的 MQTT 连接会话（[tcp,tls,mqtt] 层链，8883 IANA 端口），tls.record.content_type=23 application_data 内承载 MQTT CONNECT | pass | 17 | [pcap](mqtt/mqtt_over_tls.pcap) |
-| mqtt_s10_multi_session | S10/T-063: 3 会话并发独立流(每流 10 包, PUBLISH a/b/c) | pass | 30 | [pcap](mqtt/mqtt_s10_multi_session.pcap) |
+| mqtt_s10_multi_session__s0 | S10/T-063: 3 会话并发独立流(每流 10 包, PUBLISH a/b/c) | pass | 11 | [pcap](mqtt/mqtt_s10_multi_session__s0.pcap) |
+| mqtt_s10_multi_session__s1 | S10/T-063: 3 会话并发独立流(每流 10 包, PUBLISH a/b/c) | pass | 11 | [pcap](mqtt/mqtt_s10_multi_session__s1.pcap) |
+| mqtt_s10_multi_session__s2 | S10/T-063: 3 会话并发独立流(每流 10 包, PUBLISH a/b/c) | pass | 11 | [pcap](mqtt/mqtt_s10_multi_session__s2.pcap) |
 | mqtt_s12_v5_properties | S12/T-185: MQTT 5.0 CONNECT Properties(SessionExpiry+TopicAliasMax+UserProp) + PUBLISH ContentType/TopicAlias(11 包) | pass | 12 | [pcap](mqtt/mqtt_s12_v5_properties.pcap) |
 | mqtt_s13_auth | S13/T-186: Username/Password 认证(ConnectFlags=0xC2, 9 包:3 握手+CONNECT+CONNACK+DISCONNECT+3 挥手) | pass | 10 | [pcap](mqtt/mqtt_s13_auth.pcap) |
 | mqtt_s14_connack_reject | S14/T-068: CONNACK 拒绝码 5 跳过后续 MQTT 包(8 包) | pass | 9 | [pcap](mqtt/mqtt_s14_connack_reject.pcap) |
@@ -55,10 +68,16 @@ Cases: 169 — pass 169, fail 0, error 0
 | mqtt_t050_disconnect_false_fin | T-050: Disconnect=false 模型异常断开: 无 DISCONNECT, TCP 仍 FIN 挥手(8 包) | pass | 9 | [pcap](mqtt/mqtt_t050_disconnect_false_fin.pcap) |
 | mqtt_t052_initial_seq_1000 | T-052: TCP InitialSeq=1000 → SYN seq=1000, 第三个包 ACK seq=1001(9 包) | pass | 10 | [pcap](mqtt/mqtt_t052_initial_seq_1000.pcap) |
 | mqtt_t053_keep_alive_zero | T-053: keep_alive=0 → CONNECT 保活字段 00 00(9 包) | pass | 10 | [pcap](mqtt/mqtt_t053_keep_alive_zero.pcap) |
-| mqtt_t059_retain_multi_session | T-059: 两 session Retain=1 publish 各自独立(20 包) | pass | 20 | [pcap](mqtt/mqtt_t059_retain_multi_session.pcap) |
-| mqtt_t064_srcport_explicit_sessions | T-064: 3 session 显式 SrcPort 50000/50001/50002(30 包) | pass | 30 | [pcap](mqtt/mqtt_t064_srcport_explicit_sessions.pcap) |
-| mqtt_t065_session_override_inherit | T-065: session1 覆盖 username/will/ping=false, session2 全继承(20 包) | pass | 22 | [pcap](mqtt/mqtt_t065_session_override_inherit.pcap) |
-| mqtt_t066_messages_inherit_replace | T-066: 顶层 messages 继承 vs session1 整体替换(29 包) | pass | 30 | [pcap](mqtt/mqtt_t066_messages_inherit_replace.pcap) |
+| mqtt_t059_retain_multi_session__s0 | T-059: 两 session Retain=1 publish 各自独立(20 包) | pass | 11 | [pcap](mqtt/mqtt_t059_retain_multi_session__s0.pcap) |
+| mqtt_t059_retain_multi_session__s1 | T-059: 两 session Retain=1 publish 各自独立(20 包) | pass | 11 | [pcap](mqtt/mqtt_t059_retain_multi_session__s1.pcap) |
+| mqtt_t064_srcport_explicit_sessions__s0 | T-064: 3 session 显式 SrcPort 50000/50001/50002(30 包) | pass | 11 | [pcap](mqtt/mqtt_t064_srcport_explicit_sessions__s0.pcap) |
+| mqtt_t064_srcport_explicit_sessions__s1 | T-064: 3 session 显式 SrcPort 50000/50001/50002(30 包) | pass | 11 | [pcap](mqtt/mqtt_t064_srcport_explicit_sessions__s1.pcap) |
+| mqtt_t064_srcport_explicit_sessions__s2 | T-064: 3 session 显式 SrcPort 50000/50001/50002(30 包) | pass | 11 | [pcap](mqtt/mqtt_t064_srcport_explicit_sessions__s2.pcap) |
+| mqtt_t065_session_override_inherit__s0 | T-065: session1 覆盖 username/will/ping=false, session2 全继承(20 包) | pass | 11 | [pcap](mqtt/mqtt_t065_session_override_inherit__s0.pcap) |
+| mqtt_t065_session_override_inherit__s1 | T-065: session1 覆盖 username/will/ping=false, session2 全继承(20 包) | pass | 13 | [pcap](mqtt/mqtt_t065_session_override_inherit__s1.pcap) |
+| mqtt_t066_messages_inherit_replace__s0 | T-066: 顶层 messages 继承 vs session1 整体替换(29 包) | pass | 11 | [pcap](mqtt/mqtt_t066_messages_inherit_replace__s0.pcap) |
+| mqtt_t066_messages_inherit_replace__s1 | T-066: 顶层 messages 继承 vs session1 整体替换(29 包) | pass | 11 | [pcap](mqtt/mqtt_t066_messages_inherit_replace__s1.pcap) |
+| mqtt_t066_messages_inherit_replace__s2 | T-066: 顶层 messages 继承 vs session1 整体替换(29 包) | pass | 11 | [pcap](mqtt/mqtt_t066_messages_inherit_replace__s2.pcap) |
 | mqtt_t067_v5_session_present_clean_reject | T-067: 3.1.1 connect_ack_code=6 → Validate 拒绝 (3.1.1 仅允 0-5) | pass | 0 | [pcap]() |
 | mqtt_t068_v4_no_username_password_reject | T-068: v4 password set but no username → Validate 拒绝 (3.1.2.6 PasswordFlag 需 UsernameFlag) | pass | 0 | [pcap]() |
 | mqtt_t069_clean_session_and_session_present_reject | T-069: clean_session=true + session_present=true → Validate 互斥拒绝 | pass | 0 | [pcap]() |
@@ -110,7 +129,9 @@ Cases: 169 — pass 169, fail 0, error 0
 | mqtt_t120_will_empty_clientid | T-120: 空 ClientID + will → 通过; Connect Flags bit1=1(Clean) + bit2=1(Will)(9 包) | pass | 10 | [pcap](mqtt/mqtt_t120_will_empty_clientid.pcap) |
 | mqtt_t121_strategy_convert | T-121: MCP 全链路解析 mqtt 配置 → task completed + pcap 含 MQTT(9 包) | pass | 10 | [pcap](mqtt/mqtt_t121_strategy_convert.pcap) |
 | mqtt_t125_validation_error_propagation | T-125: qos=3 → task 失败, error 含 'qos'(Validate 错误透传) | pass | 0 | [pcap]() |
-| mqtt_t126_multi_session_4tuple | T-126: 3 session 未显式 SrcPort → 4-tuple 互异, SrcPort 自增 12345/12346/12347(30 包) | pass | 30 | [pcap](mqtt/mqtt_t126_multi_session_4tuple.pcap) |
+| mqtt_t126_multi_session_4tuple__s0 | T-126: 3 session 未显式 SrcPort → 4-tuple 互异, SrcPort 自增 12345/12346/12347(30 包) | pass | 11 | [pcap](mqtt/mqtt_t126_multi_session_4tuple__s0.pcap) |
+| mqtt_t126_multi_session_4tuple__s1 | T-126: 3 session 未显式 SrcPort → 4-tuple 互异, SrcPort 自增 12345/12346/12347(30 包) | pass | 11 | [pcap](mqtt/mqtt_t126_multi_session_4tuple__s1.pcap) |
+| mqtt_t126_multi_session_4tuple__s2 | T-126: 3 session 未显式 SrcPort → 4-tuple 互异, SrcPort 自增 12345/12346/12347(30 包) | pass | 11 | [pcap](mqtt/mqtt_t126_multi_session_4tuple__s2.pcap) |
 | mqtt_t127_workers8_no_reorder | T-127: 默认 spec 8 PacketWorkers → 包序与 PacketIndex 一致(10 包) | pass | 11 | [pcap](mqtt/mqtt_t127_workers8_no_reorder.pcap) |
 | mqtt_t131_zero_payloads | T-131: 0 字节 payload + 0 字节 will → 不 panic, 长度字段=0(10 包) | pass | 11 | [pcap](mqtt/mqtt_t131_zero_payloads.pcap) |
 | mqtt_t132_connack_v5_code128 | T-132: 5.0 CONNACK Reason Code 128 (Unspecified error) → CONNACK 20 03 00 80 00 + 无后续 MQTT 包(8 包) | pass | 9 | [pcap](mqtt/mqtt_t132_connack_v5_code128.pcap) |
@@ -126,11 +147,17 @@ Cases: 169 — pass 169, fail 0, error 0
 | mqtt_t141b_subscribe_subid_200 | T-141b: 5.0 SUBSCRIBE Properties 0x0B Subscription Identifier=200(vbi) → 82 ... 0b c8 01(11 包) | pass | 12 | [pcap](mqtt/mqtt_t141b_subscribe_subid_200.pcap) |
 | mqtt_t141c_down_publish_two_subids | T-141c: 5.0 down PUBLISH 两个 0x0B SubID=200/201(可重复) → 30 ... 0b c8 01 0b c9 01 | pass | 13 | [pcap](mqtt/mqtt_t141c_down_publish_two_subids.pcap) |
 | mqtt_t141d_subscribe_two_subids_reject | T-141d: 5.0 SUBSCRIBE 两个 0x0B Subscription Identifier → Validate 拒绝(SUBSCRIBE 0x0B 不得重复) | pass | 0 | [pcap]() |
-| mqtt_t146_flowid_suffix | T-146: 多会话 FlowID 含 :mqtt-0/1/2 后缀(30 包) | pass | 30 | [pcap](mqtt/mqtt_t146_flowid_suffix.pcap) |
-| mqtt_t147_tcp_seq_independent | T-147: 多会话 TCP seq 独立不互相影响(30 包) | pass | 20 | [pcap](mqtt/mqtt_t147_tcp_seq_independent.pcap) |
-| mqtt_t148_packet_index_independent | T-148: 多会话 PacketIndex 每流从 0 起(30 包) | pass | 30 | [pcap](mqtt/mqtt_t148_packet_index_independent.pcap) |
-| mqtt_t149_group_id_shared | T-149: GroupID=fixed g1 + 3 session → 同 worker 顺序输出(30 包) | pass | 30 | [pcap](mqtt/mqtt_t149_group_id_shared.pcap) |
-| mqtt_t150_session_srcport_priority | T-150: Sessions[0].SrcPort=50000 不自动递增(20 包) | pass | 20 | [pcap](mqtt/mqtt_t150_session_srcport_priority.pcap) |
+| mqtt_t146_flowid_suffix__s0 | T-146: 多会话 FlowID 含 :mqtt-0/1/2 后缀(30 包) | pass | 11 | [pcap](mqtt/mqtt_t146_flowid_suffix__s0.pcap) |
+| mqtt_t146_flowid_suffix__s1 | T-146: 多会话 FlowID 含 :mqtt-0/1/2 后缀(30 包) | pass | 11 | [pcap](mqtt/mqtt_t146_flowid_suffix__s1.pcap) |
+| mqtt_t146_flowid_suffix__s2 | T-146: 多会话 FlowID 含 :mqtt-0/1/2 后缀(30 包) | pass | 11 | [pcap](mqtt/mqtt_t146_flowid_suffix__s2.pcap) |
+| mqtt_t147_tcp_seq_independent__s0 | T-147: 多会话 TCP seq 独立不互相影响(30 包) | pass | 11 | [pcap](mqtt/mqtt_t147_tcp_seq_independent__s0.pcap) |
+| mqtt_t147_tcp_seq_independent__s1 | T-147: 多会话 TCP seq 独立不互相影响(30 包) | pass | 11 | [pcap](mqtt/mqtt_t147_tcp_seq_independent__s1.pcap) |
+| mqtt_t148_packet_index_independent__s0 | T-148: 多会话 PacketIndex 每流从 0 起(30 包) | pass | 11 | [pcap](mqtt/mqtt_t148_packet_index_independent__s0.pcap) |
+| mqtt_t148_packet_index_independent__s1 | T-148: 多会话 PacketIndex 每流从 0 起(30 包) | pass | 11 | [pcap](mqtt/mqtt_t148_packet_index_independent__s1.pcap) |
+| mqtt_t148_packet_index_independent__s2 | T-148: 多会话 PacketIndex 每流从 0 起(30 包) | pass | 11 | [pcap](mqtt/mqtt_t148_packet_index_independent__s2.pcap) |
+| mqtt_t149_group_id_shared | T-149(链判死负例，D-MQTT-1 §3)：顶层 mqtt+sessions 扇出形状已被 presence 门拒绝（one flow per chain）；跨流 group_id 保序是任务级多策略语义，另立项 | pass | 0 | [pcap]() |
+| mqtt_t150_session_srcport_priority__s0 | T-150: Sessions[0].SrcPort=50000 不自动递增(20 包) | pass | 11 | [pcap](mqtt/mqtt_t150_session_srcport_priority__s0.pcap) |
+| mqtt_t150_session_srcport_priority__s1 | T-150: Sessions[0].SrcPort=50000 不自动递增(20 包) | pass | 11 | [pcap](mqtt/mqtt_t150_session_srcport_priority__s1.pcap) |
 | mqtt_t151_v5_nolocal | T-151: 5.0 SUBSCRIBE NoLocal → Options 字节 bit2=1(11 包) | pass | 12 | [pcap](mqtt/mqtt_t151_v5_nolocal.pcap) |
 | mqtt_t152_nolocal_v4 | T-152: 3.1.1 filter NoLocal=true → Validate 拒绝 | pass | 0 | [pcap]() |
 | mqtt_t153_retain_as_published_v5 | T-153: 5.0 filter RetainAsPublished=true → Options byte bit3=1(12 包) | pass | 13 | [pcap](mqtt/mqtt_t153_retain_as_published_v5.pcap) |
@@ -145,8 +172,8 @@ Cases: 169 — pass 169, fail 0, error 0
 | mqtt_t165_connack_v5_sp_bits | T-165: 5.0 CONNACK byte[0] ∈ {0x00, 0x01}(9 包) | pass | 10 | [pcap](mqtt/mqtt_t165_connack_v5_sp_bits.pcap) |
 | mqtt_t166_sub_no_filters | T-166: subscriptions filters=[] → Validate 拒绝 | pass | 0 | [pcap]() |
 | mqtt_t167_topic_65536 | T-167: topic 65536B(超 2 字节长度上限) → Validate 拒绝 | pass | 0 | [pcap]() |
-| mqtt_t168_rst_no_disconnect | T-168: RST=true 无 DISCONNECT, 最后包 RST(6 包) | pass | 6 | [pcap](mqtt/mqtt_t168_rst_no_disconnect.pcap) |
-| mqtt_t169_rst_will | T-169: RST=true + will → will PUBLISH+PUBACK 在 RST 前(8 包) | pass | 8 | [pcap](mqtt/mqtt_t169_rst_will.pcap) |
+| mqtt_t168_rst_no_disconnect | T-168: RST=true 无 DISCONNECT, 最后包 RST(6 包) | pass | 9 | [pcap](mqtt/mqtt_t168_rst_no_disconnect.pcap) |
+| mqtt_t169_rst_will | T-169: RST=true + will → will PUBLISH+PUBACK 在 RST 前(8 包) | pass | 11 | [pcap](mqtt/mqtt_t169_rst_will.pcap) |
 | mqtt_t170_fin_will | T-170: FIN 挥手 + will → will PUBLISH+PUBACK 在 FIN 前(10 包) | pass | 11 | [pcap](mqtt/mqtt_t170_fin_will.pcap) |
 | mqtt_t171_prop_id_100 | T-171: Property Identifier=100(未分配) → Validate 拒绝 | pass | 0 | [pcap]() |
 | mqtt_t171_property_id_out_of_range | T-171: Property identifier=100 → Validate 拒绝 (MQTT 5.0 仅允 1-44) | pass | 0 | [pcap]() |
@@ -155,12 +182,18 @@ Cases: 169 — pass 169, fail 0, error 0
 | mqtt_t173_prop_uint32_overflow | T-173: Property uint32 Value=5000000000(>4294967295) → Validate 拒绝 | pass | 0 | [pcap]() |
 | mqtt_t174_prop_byte_overflow | T-174: Property byte Value=256(>255) → Validate 拒绝 | pass | 0 | [pcap]() |
 | mqtt_t175_prop_binary_overlen | T-175: Property binary Value 65536B hex → Validate 拒绝 | pass | 0 | [pcap]() |
-| mqtt_t176_clean_session_inherit | T-176: 顶层 CleanSession=false, session 继承 → CONNACK SP=1(20 包) | pass | 20 | [pcap](mqtt/mqtt_t176_clean_session_inherit.pcap) |
-| mqtt_t177_keep_alive_inherit | T-177: 顶层 KeepAlive=120, session 继承 → CONNECT 00 78(20 包) | pass | 20 | [pcap](mqtt/mqtt_t177_keep_alive_inherit.pcap) |
-| mqtt_t177b_keep_alive_zero_override | T-177b: 顶层 60, session keep_alive:0 显式覆盖 → 00 00(20 包) | pass | 20 | [pcap](mqtt/mqtt_t177b_keep_alive_zero_override.pcap) |
-| mqtt_t178_disconnect_inherit | T-178: 顶层 Disconnect=false, session 继承 → 无 DISCONNECT 包(20 包) | pass | 18 | [pcap](mqtt/mqtt_t178_disconnect_inherit.pcap) |
-| mqtt_t179_will_replace | T-179: 顶层 will=a, session will=b → CONNECT 含 will topic b(20 包) | pass | 20 | [pcap](mqtt/mqtt_t179_will_replace.pcap) |
-| mqtt_t180_will_nil_inherit | T-180: 顶层 will=a, session will=nil → CONNECT 含 will topic a(20 包) | pass | 20 | [pcap](mqtt/mqtt_t180_will_nil_inherit.pcap) |
+| mqtt_t176_clean_session_inherit__s0 | T-176: 顶层 CleanSession=false, session 继承 → CONNACK SP=1(20 包) | pass | 11 | [pcap](mqtt/mqtt_t176_clean_session_inherit__s0.pcap) |
+| mqtt_t176_clean_session_inherit__s1 | T-176: 顶层 CleanSession=false, session 继承 → CONNACK SP=1(20 包) | pass | 11 | [pcap](mqtt/mqtt_t176_clean_session_inherit__s1.pcap) |
+| mqtt_t177_keep_alive_inherit__s0 | T-177: 顶层 KeepAlive=120, session 继承 → CONNECT 00 78(20 包) | pass | 11 | [pcap](mqtt/mqtt_t177_keep_alive_inherit__s0.pcap) |
+| mqtt_t177_keep_alive_inherit__s1 | T-177: 顶层 KeepAlive=120, session 继承 → CONNECT 00 78(20 包) | pass | 11 | [pcap](mqtt/mqtt_t177_keep_alive_inherit__s1.pcap) |
+| mqtt_t177b_keep_alive_zero_override__s0 | T-177b: 顶层 60, session keep_alive:0 显式覆盖 → 00 00(20 包) | pass | 11 | [pcap](mqtt/mqtt_t177b_keep_alive_zero_override__s0.pcap) |
+| mqtt_t177b_keep_alive_zero_override__s1 | T-177b: 顶层 60, session keep_alive:0 显式覆盖 → 00 00(20 包) | pass | 11 | [pcap](mqtt/mqtt_t177b_keep_alive_zero_override__s1.pcap) |
+| mqtt_t178_disconnect_inherit__s0 | T-178: 顶层 Disconnect=false, session 继承 → 无 DISCONNECT 包(20 包) | pass | 10 | [pcap](mqtt/mqtt_t178_disconnect_inherit__s0.pcap) |
+| mqtt_t178_disconnect_inherit__s1 | T-178: 顶层 Disconnect=false, session 继承 → 无 DISCONNECT 包(20 包) | pass | 10 | [pcap](mqtt/mqtt_t178_disconnect_inherit__s1.pcap) |
+| mqtt_t179_will_replace__s0 | T-179: 顶层 will=a, session will=b → CONNECT 含 will topic b(20 包) | pass | 11 | [pcap](mqtt/mqtt_t179_will_replace__s0.pcap) |
+| mqtt_t179_will_replace__s1 | T-179: 顶层 will=a, session will=b → CONNECT 含 will topic b(20 包) | pass | 11 | [pcap](mqtt/mqtt_t179_will_replace__s1.pcap) |
+| mqtt_t180_will_nil_inherit__s0 | T-180: 顶层 will=a, session will=nil → CONNECT 含 will topic a(20 包) | pass | 11 | [pcap](mqtt/mqtt_t180_will_nil_inherit__s0.pcap) |
+| mqtt_t180_will_nil_inherit__s1 | T-180: 顶层 will=a, session will=nil → CONNECT 含 will topic a(20 包) | pass | 11 | [pcap](mqtt/mqtt_t180_will_nil_inherit__s1.pcap) |
 | mqtt_t190_empty_topic_no_alias | T-190: topic='' 无 Topic Alias(v4) → Validate 拒绝 | pass | 0 | [pcap]() |
 | mqtt_t190_empty_topic_no_alias_reject | T-190/T-114: messages[].topic='' 且未建立 topic alias → Validate 拒绝 | pass | 0 | [pcap]() |
 | mqtt_t191_packet_id_65535_qos2 | T-191: QoS2 + packet_id=65535 → 4 包交换均含 0xFF 0xFF(13 包) | pass | 14 | [pcap](mqtt/mqtt_t191_packet_id_65535_qos2.pcap) |
@@ -173,3 +206,4 @@ Cases: 169 — pass 169, fail 0, error 0
 | mqtt_t199_connack_retain_available | T-199: 5.0 CONNACK Retain Available=0 → 输出 25 00(9 包) | pass | 10 | [pcap](mqtt/mqtt_t199_connack_retain_available.pcap) |
 | mqtt_t200_connack_shared_sub_avail | T-200: 5.0 CONNACK Shared Sub Available=1 → 输出 2A 01(9 包) | pass | 10 | [pcap](mqtt/mqtt_t200_connack_shared_sub_avail.pcap) |
 | mqtt_t200a_shared_sub_311_reject | T-200 补: 3.1.1 订阅 $share/ 共享订阅 filter → Validate 拒绝 (共享订阅 5.0 only) | pass | 0 | [pcap]() |
+| mqtt_v6_connect | IPv6 (D-MQTT-1 s9 gap): [ip(v6),tcp,mqtt] CONNECT exchange | pass | 10 | [pcap](mqtt/mqtt_v6_connect.pcap) |

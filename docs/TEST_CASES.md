@@ -2731,3 +2731,36 @@
 **错误期望：** 无。
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_naptr_response）。
+
+### T-MQTT-1…203 mqtt.json——存量审计 + 缺口矩阵【D-MQTT-1 P3 先行，P4/P5 已执行】
+
+**状态：** P5 已验收（2026-09-16；MCP 真实流程 203/203 全绿，同代二进制 /tmp/tg-mqtt-p4-server，pcap 落盘 /tmp/mcp-pcaps/mqtt/）
+**级别：** pcap
+**来源：** OASIS MQTT 3.1.1/5.0 + D-MQTT-1 §4 + 现网抓包待补
+**存量去向（169 例 → 改写后 203 例）：**
+
+| 形状 | 数量 | 去向 |
+|---|---|---|
+| `layers+顶层mqtt` 双轨（空 mqtt 层 + 顶层业务） | 89 | 合入：删顶层 mqtt→层内同名键，锚词/包数不变 |
+| `layers+顶层mqtt+顶层tcp`（mss/rst/initial_seq 7 例：t043/t044/t052/t168/t169 + 2 扁平） | 5+2 | 合入：tcp 键（mss/rst/initial_seq）迁 `layers[tcp]` 同名键；RST 两例包数按链 4 包挥手重校准 |
+| 纯 `{"mqtt"}` 扁平（含 17 sessions 例 + 54 负例） | 71 | 合入：补 `[ip,tcp,mqtt]` 链（缺 ip 层则补；mqtt 层 DependsOn tcp 连带补全）；sessions 17 例逐条拆单会话（继承值写全）；54 负例只换形状不换锚词 |
+| `mqtt_over_tls`（扁平四键 + `[tcp,tls,mqtt]`） | 1 | 合入：四键迁 `layers[ip]/layers[tcp]`，目标形状见 D-MQTT-1 §1 |
+| `group_id+{"mqtt"}`（t149） | 1 | 转负例：sessions 扇出形状已被 presence 门拒绝，改 expect_error（锚词 `no longer accepts a top-level mqtt sub-config`）；跨流保序任务级语义另立项 |
+| 新增 v6/dyn（P4） | 4 | mqtt_v6_connect（v6 CONNECT，clientid 钉；ipv6 tshark 字段名待查，帧偏移断言降级注记）+ mqtt_dyn_client_id_list/topic_pattern/payload_list（flows=2 distinct 钉；§9④陷阱：ip 层留空防静态复制，dyn 对象即逐流有别证明） |
+| 新增负例（P4，§5 缺口收口） | 8 | mqtt_neg_dup_qos0/bad_direction/unknown_prop_format/stringpair_nonul/vbi_overflow/sessions_rejected/string_nul/clientid_nul；surrogate 分支 JSON 不可达（孤立代理项无法编码），与 U+0000 同循环，注记不冒充 |
+| 13 拆分例 frames 补钉（P5） | 13 | 原多流 frames/fields 只剩包数，逐例补 CONNECT(client_id，含 will/keepalive 标志位差异）+PUBLISH(topic/payload) 字节断言，全部落盘校准（4 例 CONNECT 手算错→ landed pcap 取实际值修正） |
+
+**缺口矩阵（2026-09-16 P5 收口实测）：**
+
+| 缺口 | 分类 | 计划 |
+|---|---|---|
+| v6/IPv6 零例（地址族矩阵空；正例 112 例全 v4） | B（需跑通 v6 链 + 落盘校准） | 已收口：mqtt_v6_connect（`[ip(v6),tcp,mqtt]` CONNECT 10 包，mqtt.clientid=v6-01 钉；ipv6.version 字段名 tshark 无回值，帧偏移断言降级注记，landed pcap 留查） |
+| 业务动态零例（除 t149 的 group_id fixed 外无 strategy 对象；flows 全靠 sessions 扇出，无 strategy_fc） | B（allowlist + 翻译 + resolve，D-MQTT-1 §12） | 已收口：mqtt_dyn_client_id_list/topic_pattern/payload_list（flows=2，distinct 全绿；mqtt.msg 是 FT_BYTES，tshark 吐 hex，期望按 hex 钉） |
+| 19 条 validator 分支无用例命中（DUP-QoS0/非法方向/IP 格式门×2/config nil×2/空配置/无效属性 id/未知属性格式/属性 string 三门/属性 vbi 越界×2/UTF-8 禁码点/session 包裹×3/session 端口撞/session SUBACK 码/源端口下限） | B（逐条补负例，锚词取字面子串） | 已收口 8 条链可达分支（见新增负例行）；剩余 11 条三分类注记：IP 格式门×2/config nil×2/空配置/session 包裹×3/端口撞/SUBACK/源端口下限——链上不可达（IP 来自 ip 层校验、空壳翻译保底、sessions 入口即拒），legacy 扁平路径覆盖，C 类（架构表达力边界，不冒充） |
+| sessions 17 例链上拒（`one flow per chain`） | C（架构表达力边界，单流链无 N 流展开——RFC 只定一连接一会话，扇出是 legacy 批量形状） | 已收口：38 拆分单流例全绿（mqtt_neg_sessions_rejected 负例锁 `one flow per chain` 锚词） |
+| 现网常用形薄弱（mqtts 1 例/will 全正常不断线对/down 3 例/认证 3 正例/keepalive=0 2 例/订阅选项各 1 例） | A（零代码，只建例 + 落盘校准） | P5 新增：异常断线 will 发布包序例、retain 新订阅即收例、down 转发例、PING 保活例 |
+| 现网抓包对照（mosquitto/emqx；设计 doc 只有建议句无 pcap） | 待确认（确认方式：抓包比字节） | P5 补证据或如实注记未做 |
+| S6 UNSUBSCRIBE / S8 AUTH 包 | 明确不支持（代码无 builder，只有 Type 常量 `mqtt.go:45-46`；设计 doc §1.4） | 不列缺口，D-MQTT-1 §4 已登记 |
+
+**执行口径：** MCP 真实流程 203/203 全绿（2026-09-16，同代二进制 /tmp/tg-mqtt-p4-server，pcap 落盘 /tmp/mcp-pcaps/mqtt/219 文件；frames hex 逐例落盘重钉——链挥手 4 包 vs legacy 3 包，t168 6→9、t169 8→11；门 2 三项）。
+**实现位置：** `cases/mqtt.json`（203 例：165 存量改写 + 38 sessions 拆分 − 17 原扇出 + 4 v6/dyn + 8 负例 + t149 转负例）。

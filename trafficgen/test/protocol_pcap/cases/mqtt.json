@@ -7309,11 +7309,23 @@
    "packet_count": 13,
    "has_handshake": true,
    "terminates": true,
-   "frames": [],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 1d 00 04 4d 51 54 54 04 86 00 3c 00 02 73 32"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 62"
+    }
+   ],
    "notes": [
     "T-065: session1 覆盖 Username='s1'/Will=s1/w/PingAfterMessages=false; session2 继承 Username='top'/Will=top/w/Ping=true",
     "flags=0x86=0x80(User)|0x04(Will)|0x02(Clean); Will QoS=0 无 QoS bit; will payload 含 2B 长度前缀",
-    "session1 flow=10 包(无 ping), session2 flow=12 包(含 PINGREQ/PINGRESP 继承 true); 22 包"
+    "session1 flow=10 包(无 ping), session2 flow=12 包(含 PINGREQ/PINGRESP 继承 true); 22 包",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ]
   }
  },
@@ -7543,9 +7555,21 @@
    "terminates": true,
    "fields": [],
    "notes": [
-    "T-146: FlowID 格式 <ip>:<ip>-<port>-<port>:mqtt-<i> (emitSessionFlow line ~985); pcap 无法直接断言 FlowID, 以 3 独立流 + 10 包/流验证"
+    "T-146: FlowID 格式 <ip>:<ip>-<port>-<port>:mqtt-<i> (emitSessionFlow line ~985); pcap 无法直接断言 FlowID, 以 3 独立流 + 10 包/流验证",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ],
-   "frames": []
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 0e 00 04 4d 51 54 54 04 02 00 3c 00 02 66 31"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 62"
+    }
+   ]
   }
  },
  {
@@ -7583,9 +7607,21 @@
    "terminates": true,
    "fields": [],
    "notes": [
-    "T-146: FlowID 格式 <ip>:<ip>-<port>-<port>:mqtt-<i> (emitSessionFlow line ~985); pcap 无法直接断言 FlowID, 以 3 独立流 + 10 包/流验证"
+    "T-146: FlowID 格式 <ip>:<ip>-<port>-<port>:mqtt-<i> (emitSessionFlow line ~985); pcap 无法直接断言 FlowID, 以 3 独立流 + 10 包/流验证",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ],
-   "frames": []
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 0e 00 04 4d 51 54 54 04 02 00 3c 00 02 66 32"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 63"
+    }
+   ]
   }
  },
  {
@@ -7757,10 +7793,22 @@
    "packet_count": 11,
    "has_handshake": true,
    "terminates": true,
-   "frames": [],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 0e 00 04 4d 51 54 54 04 02 00 3c 00 02 69 32"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 62"
+    }
+   ],
    "notes": [
     "T-148: 每流 packet_index 从 0 计数(独立 emit); 各流内部包序固定(握手 1-3, CONNECT 4, CONNACK 5, PUBLISH 6, DISCONNECT 7, 挥手 8-10)",
-    "10 包/流 3 流 = 30"
+    "10 包/流 3 流 = 30",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ]
   }
  },
@@ -7797,17 +7845,29 @@
    "packet_count": 11,
    "has_handshake": true,
    "terminates": true,
-   "frames": [],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 0e 00 04 4d 51 54 54 04 02 00 3c 00 02 69 33"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 63"
+    }
+   ],
    "notes": [
     "T-148: 每流 packet_index 从 0 计数(独立 emit); 各流内部包序固定(握手 1-3, CONNECT 4, CONNACK 5, PUBLISH 6, DISCONNECT 7, 挥手 8-10)",
-    "10 包/流 3 流 = 30"
+    "10 包/流 3 流 = 30",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ]
   }
  },
  {
   "id": "mqtt_t149_group_id_shared",
   "proto": "mqtt",
-  "summary": "T-149: GroupID=fixed g1 + 3 session → 同 worker 顺序输出(30 包)",
+  "summary": "T-149(链判死负例，D-MQTT-1 §3)：顶层 mqtt+sessions 扇出形状已被 presence 门拒绝（one flow per chain）；跨流 group_id 保序是任务级多策略语义，另立项",
   "spec_json": {
    "mqtt": {
     "sessions": [
@@ -7849,29 +7909,11 @@
    }
   },
   "expect": {
-   "packet_count": 30,
-   "has_handshake": true,
-   "terminates": true,
-   "frames": [
-    {
-     "packet": 6,
-     "offset": 54,
-     "hex": "30 04 00 01 74 61"
-    },
-    {
-     "packet": 16,
-     "offset": 54,
-     "hex": "30 04 00 01 74 62"
-    },
-    {
-     "packet": 26,
-     "offset": 54,
-     "hex": "30 04 00 01 74 63"
-    }
-   ],
+   "expect_error": true,
+   "error_contains": "no longer accepts a top-level mqtt sub-config",
    "notes": [
-    "T-149: Metadata group_id='g1' 保证 3 flow 同 PacketWorker, 包序=emit 序(帧断言 6/16/26 成立)",
-    "pcap 无 group_id 字段可断言, 以稳定包序验证共享效果"
+    "T-149 原 30 包扇出（3 会话×10）已随 sessions 拆分作废；本例保留为 presence 执法负例",
+    "跨流同 worker 保序（group_id fixed g1）是任务级 batch 语义，需多策略任务另立项验证，单 spec 不表达"
    ]
   }
  },
@@ -7960,7 +8002,20 @@
    "notes": [
     "T-150: session0 显式 50000 优先; session1 未显式→自动分配 12346(顶层 12345 已被 session0 显式占用后仍从 12345+1)",
     "若 session1 实为 12345 见修正(自动分配规则: 从顶层 srcport 起递增跳过占用)",
-    "D-MQTT-1 split note: was multi-session fan-out; this case is single-session single-flow; cross-flow port asserts voided by split"
+    "D-MQTT-1 split note: was multi-session fan-out; this case is single-session single-flow; cross-flow port asserts voided by split",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 0e 00 04 4d 51 54 54 04 02 00 3c 00 02 65 31"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 62"
+    }
    ]
   }
  },
@@ -8141,10 +8196,22 @@
    "packet_count": 11,
    "has_handshake": true,
    "terminates": true,
-   "frames": [],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 0e 00 04 4d 51 54 54 04 02 00 78 00 02 6b 31"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 62"
+    }
+   ],
    "notes": [
     "T-177: 两 session CONNECT KeepAlive=0x00 0x78(120) → 继承顶层",
-    "RL=15=10+2+3(ClientID k0/k1)"
+    "RL=15=10+2+3(ClientID k0/k1)",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ]
   }
  },
@@ -8229,10 +8296,22 @@
    "packet_count": 11,
    "has_handshake": true,
    "terminates": true,
-   "frames": [],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 0e 00 04 4d 51 54 54 04 02 00 3c 00 02 7a 31"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 62"
+    }
+   ],
    "notes": [
     "T-177b: session0 显式 0 → KeepAlive=0x0000(禁用); session1 继承 60=0x003C",
-    "依赖 *int 指针语义: 显式 0 覆盖, 非继承"
+    "依赖 *int 指针语义: 显式 0 覆盖, 非继承",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ]
   }
  },
@@ -8317,10 +8396,22 @@
    "packet_count": 10,
    "has_handshake": true,
    "terminates": true,
-   "frames": [],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 0e 00 04 4d 51 54 54 04 02 00 3c 00 02 64 31"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 62"
+    }
+   ],
    "notes": [
     "T-178: 无 DISCONNECT 包(继承 disconnect=false): 每流 9 包=3 握手+CONNECT+CONNACK+PUBLISH+3 挥手",
-    "两流 18 包; packet 7=FIN(0x0011)"
+    "两流 18 包; packet 7=FIN(0x0011)",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ]
   }
  },
@@ -8413,10 +8504,22 @@
    "packet_count": 11,
    "has_handshake": true,
    "terminates": true,
-   "frames": [],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 14 00 04 4d 51 54 54 04 06 00 3c 00 02 77 31"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 62"
+    }
+   ],
    "notes": [
     "T-179: session0 Will 整体替换为 topic='b'; session1 nil→继承顶层 topic='a'(非追加)",
-    "RL=0x14=20=10(vh)+4(clientID)+3(will topic 含 2B len)+3(will payload 含 2B len)"
+    "RL=0x14=20=10(vh)+4(clientID)+3(will topic 含 2B len)+3(will payload 含 2B len)",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ]
   }
  },
@@ -8509,10 +8612,22 @@
    "packet_count": 11,
    "has_handshake": true,
    "terminates": true,
-   "frames": [],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 14 00 04 4d 51 54 54 04 06 00 3c 00 02 6e 31"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 62"
+    }
+   ],
    "notes": [
     "T-180: 两 session Will nil→继承顶层 topic='a'(与 T-179 区别: 无 session 级 will)",
-    "RL=0x14=20 同 T-179 布局"
+    "RL=0x14=20 同 T-179 布局",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ]
   }
  },
@@ -9147,10 +9262,22 @@
    "packet_count": 11,
    "has_handshake": true,
    "terminates": true,
-   "frames": [],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 0e 00 04 4d 51 54 54 04 02 00 3c 00 02 6d 31"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 62"
+    }
+   ],
    "notes": [
     "T-126: SubFlow 机制 3 独立 4-tuple(同 IP 不同 SrcPort); 10 包/流",
-    "D-MQTT-1 split note: was multi-session fan-out; this case is single-session single-flow; cross-flow port asserts voided by split"
+    "D-MQTT-1 split note: was multi-session fan-out; this case is single-session single-flow; cross-flow port asserts voided by split",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ]
   }
  },
@@ -9187,10 +9314,22 @@
    "packet_count": 11,
    "has_handshake": true,
    "terminates": true,
-   "frames": [],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "10 0e 00 04 4d 51 54 54 04 02 00 3c 00 02 6d 32"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "30 04 00 01 74 63"
+    }
+   ],
    "notes": [
     "T-126: SubFlow 机制 3 独立 4-tuple(同 IP 不同 SrcPort); 10 包/流",
-    "D-MQTT-1 split note: was multi-session fan-out; this case is single-session single-flow; cross-flow port asserts voided by split"
+    "D-MQTT-1 split note: was multi-session fan-out; this case is single-session single-flow; cross-flow port asserts voided by split",
+    "D-MQTT-1 frames补钉：CONNECT(client_id)+PUBLISH(topic/payload)字节断言，落盘校准"
    ]
   }
  },
@@ -9258,10 +9397,7 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
+     "ip": {}
     },
     {
      "tcp": {}
@@ -9307,10 +9443,7 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
+     "ip": {}
     },
     {
      "tcp": {}
@@ -9364,10 +9497,7 @@
   "spec_json": {
    "layers": [
     {
-     "ip": {
-      "src": "10.0.0.1",
-      "dst": "20.0.0.1"
-     }
+     "ip": {}
     },
     {
      "tcp": {}
