@@ -795,7 +795,8 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 		// POP3 defaults to port 110 per RFC 1939 §6. Only override when
 		// the user did not specify a dst_port - matches the DNS/FTP/SIP
-		// override pattern.
+		// override pattern (D-POP3-1: previously comment-only, smtp :882 同款).
+		setDefaultDstPort(&spec, cfg, 110)
 	case "rdp":
 		if sub, ok := cfg["rdp"].(map[string]interface{}); ok {
 			spec.RDP = parseRDPConfig(sub)
@@ -7641,6 +7642,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "smtp" {
 		if v, ok := cfg["smtp"]; ok && v != nil {
 			return "protocol smtp no longer accepts a top-level smtp sub-config (move it into the smtp layer of an [ip,tcp,smtp] layers chain)"
+		}
+	}
+	// D-POP3-1：pop3 顶层 pop3 子映射 presence 判死（smtp 先例；空 map 也
+	// 死）。层链形状不触发。
+	if protocol == "pop3" {
+		if v, ok := cfg["pop3"]; ok && v != nil {
+			return "protocol pop3 no longer accepts a top-level pop3 sub-config (move it into the pop3 layer of an [ip,tcp,pop3] layers chain)"
 		}
 	}
 	return ""

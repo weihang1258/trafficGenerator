@@ -1355,7 +1355,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | §9 三源+整格 | RFC 条文 + 本条目 + 现网三家；测试点清单见 TEST_CASES T-POP3-1…（规范行→用例逐行登记）；动态整格见 §12 行 | T-POP3-*；§12 表 |
 | §10 评审闭环 | failing 先行（顶层 pop3 presence 拒 + `setDefaultDstPort(110)` 缺省 + 层 mailbox 翻译）→ 改 → 审 → 测 → 再审 | §7 |
 | §11 白话汇报 | 先一句结论 | 每次汇报 |
-| §12 动态清单 | 整格见本条目 §12 表：四元组开（ip/tcp 通用）；pop3 业务全关：banner 关（问候语无逐流变需求）/commands 关（序列语义，逐流变破坏事务顺序）/mailbox 关（maildrop 静态信箱；逐流变破坏 RETR/UIDL 确定性）——有序单连接会话，不冒充开；另立项口（信封/用户名逐流变若有批量需求）。序号算法沿框架（worker.go:300-321 + `resolveLayerTuple`，smtp 同款）；P4 验 flows=2 留空防静态复制（§9 陷阱③） | 本条目 §4 整格表 |
+| §12 动态清单 | 整格见本条目 §12 表：四元组开（ip/tcp 通用）；pop3 业务全关：banner 关（问候语无逐流变需求）/commands 关（序列语义，逐流变破坏事务顺序）/mailbox 关（maildrop 静态信箱；逐流变破坏 RETR/UIDL 确定性）——有序单连接会话，不冒充开；另立项口（信封/用户名逐流变若有批量需求）。序号算法沿框架（worker.go:316-321 + `resolveLayerTuple`，smtp 同款）；P4 验 flows=2 留空防静态复制（§9 陷阱③） | 本条目 §4 整格表 |
 | §13 schema 同步 | 注册表 pop3 Fields 3 键齐（banner/commands/mailbox，无孤儿，零改动）；翻译分支已有（pop3 同款 JSON 往返 + flat 权威，`chain_planner_translate.go:1127`，零改动）；`main.go:543` 已翻 ChainPlanner（零改动）；本期只加：CheckProtoFlat pop3 presence 分支 + `setDefaultDstPort(110)`；改完重跑 schemagen（生成表快照同步，`TestLayersGeneratedMatchesRegistry` 绿）；allowlist 零改动（pop3 业务全关，不进 allowlist，smtp 先例） | 门 2 脚本 |
 | §14 真实流程 | pop3.json 全量绿 + 落盘 tshark 校准（包号/端口不手算；空壳默认会话包数以落盘为准）；二进制同代；门 2 四项；负例 `.neg.pcap` 口径沿 d323068 | pop3.json |
 | §15 三道门 | 本表即门 1；门 2 脚本；门 3 挂表抽查；P5R 反查 pop3 表在 P3 登记（`coverage_gate.py` 仿 smtp 表） | 本条目 |
@@ -1363,7 +1363,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 **状态：** P1 定稿（2026-09-17，门 1 待用户批）
 **范围（2026-09-17）：** ①`CheckProtoFlat` 加 pop3 presence 判死；②扁平侧补 `setDefaultDstPort(110)`；③pop3.json 2 例改写 + P3 新例全量跑 + 校准回钉；④清库（pop3 行，删前计数→备份→删→复核）。
 **明确不解决：** STLS 真升级 / POP3S `[tcp,tls,pop3]` 真握手链（台词覆盖已有 `TestPOP3Point_1_14_*`，真升级另立项）；状态机 enforcement（回放语义是架构选择，C 类如实注明，不冒充）；空闲 autologout 计时器（RFC 1939 §3 ≥10 分钟，C 类：无时钟不断言）；任务级跨策略动态池（D-FTP-2 同口径另立）；APOP 摘要计算（`computeAPOPDigest` helper 已有，planner 不主动算，用户原文提供，C 类）。
-**依据：** RFC 1939 §3（TCP 110 监听/三状态/`+OK`/`-ERR` 大写/dot-stuffing CRLF.CRLF/参数≤40 字符/响应≤512 字符/空闲定时器≥10 分钟）/§4（AUTHORIZATION：USER/PASS/APOP/QUIT）/§5（TRANSACTION：STAT/LIST/RETR/DELE/NOOP/RSET）/§6（UPDATE：QUIT 进更新态）/§7（可选命令：USER/PASS/APOP/TOP/UIDL；USER 名≤40/UID 1–70 字符）/§10（示例会话全文抄：USER/PASS/STAT/LIST/RETR/QUIT 官方序列）/§11（消息格式）；RFC 2449（CAPA 扩展机制）/ RFC 2595（STLS/AUTH；台词覆盖，真升级另立项）；RFC 879（MSS≥536）/ RFC 6528（ISN）；商业：Gmail POP（`pop.gmail.com:995` 强制 SSL + `recent:` 模式 + 留档/删档选项，Google 帮助文档）/ Outlook（`outlook.office365.com:995` SSL/TLS，微软支持文档）/ Dovecot（默认问候/CAPA 版本文档亲验失败→转引待亲验，现网抓包确认方式）；代码事实：`pop3/planner.go:101-208`（validator 14 类）/`:213-386`（回放 Plan）/`pop3/layer_gen.go:30-84`（事件生成器+注册+握手挥手校准）、`types.go:6660/6669/6718`（POP3Config/Command/Mailbox/Message/MIMEPart）。
+**依据：** RFC 1939 §3（TCP 110 监听/三状态/`+OK`/`-ERR` 大写/dot-stuffing CRLF.CRLF/参数≤40 字符/响应≤512 字符/空闲定时器≥10 分钟）/§4（AUTHORIZATION：USER/PASS/APOP/QUIT）/§5（TRANSACTION：STAT/LIST/RETR/DELE/NOOP/RSET）/§6（UPDATE：QUIT 进更新态）/§7（可选命令：USER/PASS/APOP/TOP/UIDL；USER 名≤40/UID 1–70 字符）/§10（示例会话全文抄：USER/PASS/STAT/LIST/RETR/QUIT 官方序列）/§11（消息格式）；RFC 2449（CAPA 扩展机制）/ RFC 2595（STLS/AUTH；台词覆盖，真升级另立项）；RFC 879（MSS≥536）/ RFC 6528（ISN）；商业：Gmail POP（`pop.gmail.com:995` 强制 SSL + `recent:` 模式 + 留档/删档选项，Google 帮助文档）/ Outlook（`outlook.office365.com:995` SSL/TLS，微软支持文档）/ Dovecot（默认问候/CAPA 版本文档亲验失败→转引待亲验，现网抓包确认方式）；代码事实：`pop3/planner.go:101-208`（validator 16 分支）/`:213-386`（回放 Plan）/`pop3/layer_gen.go:30-84`（事件生成器+注册+握手挥手校准）、`types.go:6660/6669/6718`（POP3Config/Command/Mailbox/Message/MIMEPart）。
 
 **§9 规范矩阵（P1 先行，规范要求 → 业务场景 → 代码现状 → 缺口）：**
 
@@ -1442,7 +1442,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 
 #### 3. 主流程与状态
 - 三状态：AUTHORIZATION（USER/PASS/APOP/QUIT，§4）→TRANSACTION（STAT/LIST/RETR/DELE/NOOP/RSET，§5；可选 TOP/UIDL，§7）→UPDATE（QUIT 进更新态删信，§6）。回放不 enforcement 状态机（smtp 同款架构选择，C 类如实注明）：错序由用户写 `-ERR` Response 台词表达（离线 `TestPOP3Point_3_16_1_UnknownCommand` 先例）。
-- 翻译顺序：判死（顶层 pop3 出现即拒）→ 层 config 翻译（JSON 往返，mailbox 嵌套自动）→ 协议 validator（14 类真拦沿既有）。
+- 翻译顺序：判死（顶层 pop3 出现即拒）→ 层 config 翻译（JSON 往返，mailbox 嵌套自动）→ 协议 validator（16 分支真拦沿既有）。
 - 动态解析：本期 pop3 业务无动态，worker resolveLayerTuple 只解四元组（flows=2 时 pop3 层留空防静态复制）。
 
 #### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
