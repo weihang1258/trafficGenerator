@@ -2768,7 +2768,7 @@
 
 ### T-SMTP-1… smtp.json——存量审计 + 测试点清单【D-SMTP-1 P3 先行，P4 未开工】
 
-**状态：** P3 设计中（2026-09-16；存量 1 例扁平冒烟待改写；P4 未开工）
+**状态：** P6 已验收（2026-09-17；43/43 全绿，反查 35/35；基线 25 例见 P5 落地偏差，补遗 18 例见⑨）
 **级别：** pcap
 **来源：** RFC 5321/5322/2045/2046/2183 + D-SMTP-1 §4 + 商业三家行为（Postfix banner/Gmail 587+530/Exchange 220 开头）
 **存量去向（1 例 → 改写后初估 18–24 例）：**
@@ -2807,10 +2807,30 @@
 | TURN 命令 | T-SMTP-23 | A（全仓零用例，复审 R4；回放台词，不断言状态机） |
 | 全缺省双流放行（静态门反例：无显式标量不触发） | T-SMTP-24 | A（正例，40 包=2×20；src_port 保底+1） |
 | 显式标量四元组 flows=2 拒绝 | T-SMTP-24b | A（负例，锚词 `static`；smtp 业务全关无动态逃生，与 T-024 对照） |
+| 530 需认证拒绝 | T-SMTP-25 | A（台词版：回放语义不断引擎拦截，C 类边界） |
+| 550 邮箱不可用 | T-SMTP-26 | A（台词版，同上） |
+| 554 事务失败（超大拒收） | T-SMTP-27 | A（台词版，同上） |
+| 452 存储不足 | T-SMTP-28 | A（台词版，同上） |
+| 421 服务不可用 | T-SMTP-29 | A（台词版，同上） |
+| 503 坏序列 | T-SMTP-30 | A（台词版，同上） |
+| 535 认证失败 | T-SMTP-31 | A（台词版，真认证不做） |
+| Email 纯 HTML 单体 | T-SMTP-32 | A（声明式注入，DATA/354 后自动体） |
+| Email 双附件 mixed | T-SMTP-33 | A（包 13 首体块 Content-Type 整帧偏移 190 落盘钉） |
+| Email 空正文 | T-SMTP-34 | A |
+| Email 纯附件无正文 | T-SMTP-35 | A（包 13 附件块整帧偏移 190 落盘钉） |
+| direction 下行改写 | T-SMTP-36 | A（包 7 源端口 25 + 载荷原文；tshark 不把下行包解成 req.command，§9 断言边界注记） |
+| 同连接两封信 | T-SMTP-37 | A（多事务：同连接两次 DATA，28 包） |
+| DATA 后无 QUIT 断线 | T-SMTP-38 | A（异常断线：SMTP 层无 QUIT，TCP 照常 FIN） |
+| 三 NOOP 长保活 | T-SMTP-39 | A（同连接 3×NOOP，18 包） |
+| 复合流（AUTH+RSET+两封信） | T-SMTP-40 | A（登录+两封信+RSET 一条流，36 包） |
+| 现网 Gmail 形 banner | T-SMTP-41 | A（映射地板线：问候原文，真服务器对接另立项） |
+| 现网 Exchange 形 banner | T-SMTP-42 | A（同上） |
 
 **明确不列缺口：** 503/530 序列错（回放语义 C 类，脚本台词覆盖）；超时计时器（C 类，NOOP/大 body 覆盖可测部分）；STARTTLS 真升级/SMTPS 真握手（另立项）；DSN/SMTPUTF8（按需立项）；任务级跨策略动态池（D-FTP-2 同口径另立）。
 
-**执行口径：** P5 `CASE_PROTO=smtp` 全量绿（RESULT 全量；二进制同代；门 2 三项）；断言 `smtp.req.command/parameter` + `smtp.response.code` + 握手/挥手；包数落盘重钉禁手算；负例 `.neg.pcap` 口径沿 d323068。
-**实现位置：** `cases/smtp.json`（1 例改写 + T-SMTP-2…24/24b 新建 24 例，共 25 例）。
+**执行口径：** P5 `CASE_PROTO=smtp` 全量绿（2026-09-17 `RESULT: 43 pass, 0 fail, 0 error (of 43)`；二进制同代；门 2 四项全绿：旧键零残留 + 全量绿 + 同代 + 反查 35/35）；断言 `smtp.req.command/parameter` + `smtp.response.code` + 握手/挥手；包数落盘重钉禁手算；负例 `.neg.pcap` 口径沿 d323068。
+**实现位置：** `cases/smtp.json`（43 例：1 例改写 + T-SMTP-2…24/24b 24 例 + T-SMTP-25…42 18 例）。
+
+**P5 补遗落地偏差（2026-09-17，MCP 43/43 全绿，⑨）：** ①t036 direction 下行首版断 `smtp.req.command` 落空（tshark 不把下行载荷解成命令——下行包 7 源端口回到 25 即方向证据）→改断 `tcp.srcport=25` + 载荷原文 hex（§9 断言边界注记）；②t033/t035 首版 frames 用“载荷偏移”（136）手算→校验器口径是整帧偏移→落盘实测改 190（54 帧头 + 136 载荷）才绿（§14 禁手算的现行教训）；③离线链套件 39/43（t002/t019/t024b 三负例 MCP 层门离线未复刻 + t015 v6 离线回退 v4，同基线 4 红零新增，C 类 harness 边界以 MCP 为准）；落盘 40 文件零孤儿（3 超早拒绝无落盘系旧行为：t002/t020/t024b，mqtt 先例同款）；在库 smtp 清空（删前 strategies 176/tasks 399 → 删后 139/140，smtp 0/0，mqtt 139/140 全留，备份 /tmp/trafficgen.db.bak-smtp-p6-supplement）。
 
 **P5 落地偏差（如实登记，2026-09-16，MCP 25/25 全绿，同代二进制 /tmp/tg-smtp-p5-server）：** ①包位首版全按 legacy 手算错→逐例落盘 tshark 重钉（Dialog 轮次各 2 包，banner 包 4 起）；②t018 STARTTLS 命令被 tshark 截断显示为 STAR（伪影）→不断该包原文，只断包序+220；③t009 QUIT 与 221 同段合并（tshark 不拆第二条命令）→不断 QUIT 字面，断 DATA/354/221 序列（离线 TestSMTP_2_4_3 钉原文）；④t019 改链上可达形（坏 dst 进 ip 层）→走框架门，smtp validator 门判链上不可达（mqtt IP 门先例）；⑤t020 走 tcp 层 V9 门（非 planner 门）；⑥t024 改名正例（全缺省双流 40 包放行）+ 增 t024b 真拒绝例（显式标量对照）；⑦t015 v6 `ipv6.version=6` 有回值（无需降级）；⑧离线链套件 4 红（t002/t019/t024b 三负例系 MCP 层门离线未复刻 + t015 v6 离线回退 v4，dns T-DNS-19 先例同款 C 类 harness 边界，以 MCP 为准）——smtp 空导入+协议集注册已补（layer_chain_suite_test.go）。
