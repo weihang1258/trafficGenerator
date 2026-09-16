@@ -53,7 +53,8 @@ type progressResult struct {
 }
 
 // Runner drives cases through the MCP server, one generate_traffic call per
-// case, and writes each pcap under pcapDir/<proto>/<caseID>.pcap.
+// case, and writes each pcap under pcapDir/<proto>/<caseID>.pcap (negative
+// expect_error cases: <caseID>.neg.pcap, via pcaptest.CasePcapName).
 type Runner struct {
 	Client *Client
 	// PcapDir is where pcap files land. Use an absolute path so both the
@@ -82,7 +83,7 @@ func (r *Runner) RunCase(ctx context.Context, c Case, timeout time.Duration) *Ca
 	if outputType == "" {
 		outputType = "pcap"
 	}
-	absPath := filepath.Join(r.PcapDir, c.Proto, c.ID+".pcap")
+	absPath := filepath.Join(r.PcapDir, c.Proto, pcaptest.CasePcapName(c.ID, c.Expect.ExpectError))
 	args := map[string]any{
 		"task_name":   fmt.Sprintf("%s-%s", c.Proto, c.ID),
 		"protocol":    c.Proto,

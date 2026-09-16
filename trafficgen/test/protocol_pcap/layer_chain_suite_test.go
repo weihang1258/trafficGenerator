@@ -239,7 +239,7 @@ func runChainCase(t *testing.T, c chainSuiteCase, dir string) (pcapPath, errText
 	}
 
 	taskID := "chain-" + c.ID
-	pcapPath = filepath.Join(dir, taskID+".pcap")
+	pcapPath = filepath.Join(dir, pcaptest.CasePcapName(taskID, c.Expect.ExpectError))
 	pw, err := output.NewPCAPWriter(pcapPath)
 	if err != nil {
 		t.Fatalf("%s: create pcap writer: %v", c.ID, err)

@@ -82,3 +82,17 @@ type StrategyFC struct {
 	Type  string  `json:"type"`
 	Value float64 `json:"value"`
 }
+
+// CasePcapName maps a case to its on-disk pcap file name. Expect-error
+// cases (expected to produce no packets — at most a header-only file from
+// the writer created before validation fails) carry a .neg marker so
+// expected-empty pcaps are recognizable by name: "<id>.pcap" vs
+// "<id>.neg.pcap". All pcap path derivation (MCP suite/single-case tools,
+// go-test drivers, offline verifiers) must go through this — never
+// concatenate ".pcap" by hand.
+func CasePcapName(caseID string, expectError bool) string {
+	if expectError {
+		return caseID + ".neg.pcap"
+	}
+	return caseID + ".pcap"
+}

@@ -14,9 +14,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/trafficgen/trafficgen/internal/pcaptest"
 )
 
-// TestVerifyExistingPcaps 对 /tmp/mcp-pcaps/<proto>/<caseID>.pcap 逐个执行
+// TestVerifyExistingPcaps 对 /tmp/mcp-pcaps/<proto>/<caseID>.pcap（负例为
+// <caseID>.neg.pcap，见 pcaptest.CasePcapName）逐个执行
 // VerifyPcap（tshark 断言）。用例加载逻辑与 loadCases 一致。仅当
 // VERIFY_RUN=1 时运行，避免污染常规全量测试。
 func TestVerifyExistingPcaps(t *testing.T) {
@@ -57,7 +60,7 @@ func TestVerifyExistingPcaps(t *testing.T) {
 			total++
 			// 路径必须与 RunCase 一致（用 case 的 proto 字段而非 map key）：
 			// 文件名与 proto 字段可能不同（如 cases/probe_smb.json 声明 proto=smb）。
-			pcap := filepath.Join(pcapRoot, c.Proto, c.ID+".pcap")
+			pcap := filepath.Join(pcapRoot, c.Proto, pcaptest.CasePcapName(c.ID, c.Expect.ExpectError))
 			if _, err := os.Stat(pcap); err != nil {
 				fail++
 				line := fmt.Sprintf("MISSING\t%s\t%s\tpcap missing: %v\n", proto, c.ID, err)

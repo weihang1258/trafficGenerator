@@ -33,6 +33,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/trafficgen/trafficgen/internal/pcaptest"
 )
 
 const (
@@ -429,7 +431,7 @@ func TestNICDrive(t *testing.T) {
 				continue
 			}
 			// 先抓包，再发起任务；任务完成（= 全部帧已物理发出）后停抓。
-			pcap := filepath.Join(nicCapDir, c.Proto, c.ID+".pcap")
+			pcap := filepath.Join(nicCapDir, c.Proto, pcaptest.CasePcapName(c.ID, c.Expect.ExpectError))
 			if err := os.MkdirAll(filepath.Dir(pcap), 0755); err != nil {
 				errCount++
 				t.Errorf("[%s] %s: mkdir: %v", c.Proto, c.ID, err)

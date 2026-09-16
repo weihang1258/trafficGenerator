@@ -2734,7 +2734,7 @@
 
 ### T-MQTT-1…206 mqtt.json——存量审计 + 缺口矩阵【D-MQTT-1 P3 先行，P4/P5 已执行，业务流补遗】
 
-**状态：** P5 已验收（2026-09-16；MCP 真实流程 206/206 全绿，同代二进制 /tmp/tg-mqtt-biz-server，pcap 落盘 /tmp/mcp-pcaps/mqtt/206 文件零孤儿）
+**状态：** P5 已验收（2026-09-16；MCP 真实流程 206/206 全绿，同代二进制 /tmp/tg-mqtt-biz-server，pcap 落盘 /tmp/mcp-pcaps/mqtt/206 文件零孤儿）；预期空包负例落盘带 `.neg` 标记（66 例 `<id>.neg.pcap`，命名唯一真相 `pcaptest.CasePcapName`，suite/单例/离线三路同口径）
 **级别：** pcap
 **来源：** OASIS MQTT 3.1.1/5.0 + D-MQTT-1 §4 + 现网抓包待补
 **存量去向（169 例 → 改写后 206 例）：**

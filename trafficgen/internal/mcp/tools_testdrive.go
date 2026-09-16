@@ -357,7 +357,7 @@ func (s *Server) runOneCasePortGroup(ctx context.Context, req *mcp.CallToolReque
 	// NIC 抓包编排：先起 tcpdump（等待 listening+就绪），任务完成（=全部帧
 	// 已物理发出）后停抓，再对抓到的线上帧跑 VerifyPcap。负向用例在此已
 	// return，不会走到抓包。
-	capturePath := filepath.Join(pcaptest.CaptureDefaultDir, c.Proto, c.ID+".pcap")
+	capturePath := filepath.Join(pcaptest.CaptureDefaultDir, c.Proto, pcaptest.CasePcapName(c.ID, c.Expect.ExpectError))
 	captureEnabled := nic != nil && nic.Enabled
 	var capCmd *exec.Cmd
 	if captureEnabled {
@@ -530,7 +530,7 @@ func (s *Server) handleRunProtocolCase(ctx context.Context, req *mcp.CallToolReq
 			path = in.OutputConfig.PcapPath
 		}
 		if path == "" {
-			path = suiteCasePcapPath("", in.Proto, in.CaseID)
+			path = suiteCasePcapPath("", in.Proto, in.CaseID, in.Expect.ExpectError)
 		}
 		path = resolvePcapOutputPath(path)
 	} else {
@@ -563,11 +563,13 @@ func safeCaseComponent(s string) bool {
 // PcapPath on the suite's output_config is a ROOT directory; each case derives
 // <root>/<proto>/<case_id>.pcap under it. This keeps distinct cases in distinct
 // files (no cross-case overwrite) while honoring the caller-chosen root.
-func suiteCasePcapPath(root, proto, caseID string) string {
+// expect_error 用例预期空包（至多 writer 建文件时的 24B 头），文件名带
+// .neg 标记（pcaptest.CasePcapName），与正例落盘文件一眼可分。
+func suiteCasePcapPath(root, proto, caseID string, expectError bool) string {
 	if root == "" {
 		root = "/tmp/mcp-pcaps"
 	}
-	return filepath.Join(root, proto, caseID+".pcap")
+	return filepath.Join(root, proto, pcaptest.CasePcapName(caseID, expectError))
 }
 
 func resolvePcapOutputPath(path string) string {
@@ -730,9 +732,9 @@ func (s *Server) handleRunProtocolSuite(ctx context.Context, req *mcp.CallToolRe
 				pgid = in.OutputConfig.PortGroupID
 			}
 			if outType == "pcap" {
-				path = suiteCasePcapPath("", c.Proto, c.ID)
+				path = suiteCasePcapPath("", c.Proto, c.ID, c.Expect.ExpectError)
 				if in.OutputConfig != nil && in.OutputConfig.PcapPath != "" {
-					path = suiteCasePcapPath(in.OutputConfig.PcapPath, c.Proto, c.ID)
+					path = suiteCasePcapPath(in.OutputConfig.PcapPath, c.Proto, c.ID, c.Expect.ExpectError)
 				}
 				path = resolvePcapOutputPath(path)
 			}
