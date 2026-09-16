@@ -1,7 +1,7 @@
 #!/bin/bash
 # P-PIPE 提交门检查脚本（三道硬门之门 2）。
 # 用法：trafficgen/tools/pipe_gate.sh <proto> [server-binary]
-# 三项：1) 顶层旧键零残留 2) 用例文件全量绿由调用方另跑（本脚本只查静态形状） 3) 二进制与 HEAD 同代
+# 四项：1) 顶层旧键零残留 2) 用例文件全量绿由调用方另跑（本脚本只查静态形状） 3) 二进制与 HEAD 同代 4) 覆盖反查（P5R，已登记协议才查）
 # 返回：全绿 exit 0，任一红 exit 1 并打印原因。
 set -u
 PROTO="${1:?用法: pipe_gate.sh <proto> [server-binary]}"
@@ -97,5 +97,19 @@ else
 fi
 
 echo "== 门2-2 用例全量绿: 本脚本不跑suite（调用方跑 CASE_PROTO=$PROTO 全量，贴 RESULT 行）"
-if [ "$fail" -eq 0 ]; then echo "静态两项全绿"; else echo "有红项，停"; fi
+echo "== 门2-4 覆盖反查: coverage_gate.py（已登记协议才查，未登记判黄不挡路）"
+if [ -f "trafficgen/tools/coverage_gate.py" ]; then
+  python3 trafficgen/tools/coverage_gate.py "$PROTO" 2>&1 | tail -8
+  rc=${PIPESTATUS[0]}
+  if [ "$rc" -eq 0 ]; then
+    echo "  绿: 覆盖反查通过"
+  elif [ "$rc" -eq 2 ]; then
+    echo "  黄: 该协议检查表未登记，不挡路"
+  else
+    echo "  红: 覆盖反查有缺口，停"; fail=1
+  fi
+else
+  echo "  黄: coverage_gate.py 不存在，跳过"
+fi
+if [ "$fail" -eq 0 ]; then echo "静态四项全绿"; else echo "有红项，停"; fi
 exit "$fail"

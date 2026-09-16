@@ -1,0 +1,197 @@
+#!/usr/bin/env python3
+# coverage_gate.py — P5R 覆盖反查门（R3 落地件，不替代门2-1/2/3）。
+#
+# 干什么：读 cases/<proto>.json，照“该测的清单”逐项点名，缺一件就红。
+# 不干什么：不断包字节、不跑服务（那是门2-2 suite 的事）；只查“有没有例”。
+# 口径（诚实声明）：
+# - 失败码“台词版也算”：回放语义下响应码是用户写的 Response 原文，门只查
+#   字面出现，不查引擎拦截（C 类边界，见 D 条目 R6）。
+# - 商业映射查用例 id/summary/notes 关键字，是地板线——证明“想到了”，
+#   不证明“测真了”（对接真服务器另立项）。
+# - composite 定义与补例清单配套，改定义同步改清单（见 check_smtp 注释）。
+# 检查表按协议逐个登记（CHECKS）；未登记的协议出口 2（门脚本判黄，不挡路）。
+#
+# 用法：python3 trafficgen/tools/coverage_gate.py smtp [--cases <path>]
+# 出口：全绿 0；有缺口 1；协议未登记/文件缺失 2。
+
+import json
+import re
+import sys
+from pathlib import Path
+
+# --------------------------------------------------------------------------
+# SMTP 检查表（D-SMTP-1 P3 清单 + 覆盖审计 9 空白的机器版）
+# --------------------------------------------------------------------------
+
+SMTP_COMMANDS = ["HELO", "EHLO", "MAIL", "RCPT", "DATA", "RSET",
+                 "NOOP", "VRFY", "EXPN", "TURN", "AUTH", "QUIT"]
+SMTP_FAIL_CODES = ["530", "550", "554", "452", "421", "503", "535"]
+SMTP_EMAIL_SHAPES = ["text-only", "html-only", "alternative", "mixed-single",
+                     "mixed-multi", "custom-boundary", "empty-body",
+                     "attach-only"]
+SMTP_COMMERCIAL = ["postfix", "gmail", "exchange"]
+
+
+def _smtp_dialogs(cases):
+    """逐个产出 (case_id, smtp层dict)。顶层 smtp 键（presence 负例）不算。"""
+    for c in cases:
+        spec = c.get("spec_json", {}) or {}
+        for layer in spec.get("layers", []) or []:
+            smtp = (layer or {}).get("smtp")
+            if isinstance(smtp, dict):
+                yield c.get("id", "?"), smtp
+
+
+def _cmd_tokens(dialog):
+    """Dialog 的命令字序列。base64 载荷（含 =/+）自动排除，只收纯字母字。"""
+    toks = []
+    for item in dialog or []:
+        if not isinstance(item, dict):
+            continue
+        parts = (item.get("cmd") or "").strip().split()
+        if parts and re.fullmatch(r"[A-Z]+", parts[0].upper()):
+            toks.append(parts[0].upper())
+    return toks
+
+
+def _responses_text(dialog):
+    return " ".join((item.get("response") or "")
+                     for item in (dialog or []) if isinstance(item, dict))
+
+
+def _email_shapes(email):
+    """Email 八格判定（形态定义见 D-SMTP-1 P3 清单 R1 落地）。"""
+    shapes = set()
+    if not isinstance(email, dict):
+        return shapes
+    has_text = bool((email.get("text_body") or "").strip())
+    has_html = bool((email.get("html_body") or "").strip())
+    atts = email.get("attachments") or []
+    n_att = len(atts) if isinstance(atts, list) else 0
+    custom = bool((email.get("boundary") or "").strip()) and (has_html or n_att > 0)
+    if has_text and not has_html and n_att == 0:
+        shapes.add("text-only")
+    if has_html and not has_text and n_att == 0:
+        shapes.add("html-only")
+    if has_text and has_html and n_att == 0:
+        shapes.add("alternative")
+    if n_att == 1:
+        shapes.add("mixed-single")
+    if n_att >= 2:
+        shapes.add("mixed-multi")
+    if custom:
+        shapes.add("custom-boundary")
+    if not has_text and not has_html and n_att == 0:
+        shapes.add("empty-body")
+    if not has_text and not has_html and n_att > 0:
+        shapes.add("attach-only")
+    return shapes
+
+
+def check_smtp(cases):
+    """返回 [(检查名, 通过?, 证据case_id或缺口说明)]。"""
+    rows = []
+    dialogs = [(cid, sm.get("dialog") or []) for cid, sm in _smtp_dialogs(cases)]
+
+    # 1. 对话命令 12 个，一个不能少。
+    for cmd in SMTP_COMMANDS:
+        hit = next((cid for cid, d in dialogs if cmd in _cmd_tokens(d)), None)
+        rows.append((f"命令 {cmd}", hit is not None, hit or "无用例"))
+
+    # 2. 失败码 7 个，台词版也算。
+    blob = " ".join(_responses_text(d) for _, d in dialogs)
+    for code in SMTP_FAIL_CODES:
+        hit = re.search(r"(?<![0-9])" + code + r"(?![0-9])", blob) is not None
+        rows.append((f"失败码 {code}", hit, "台词出现" if hit else "无用例"))
+
+    # 3. Email 八格。
+    shape_hit = {}
+    for cid, sm in _smtp_dialogs(cases):
+        for s in _email_shapes(sm.get("email")):
+            shape_hit.setdefault(s, cid)
+    for s in SMTP_EMAIL_SHAPES:
+        rows.append((f"Email {s}", s in shape_hit,
+                     shape_hit.get(s, "无用例")))
+
+    # 4. direction 覆盖字段至少 1 例在用。
+    hit = next((cid for cid, sm in _smtp_dialogs(cases)
+                for item in (sm.get("dialog") or [])
+                if isinstance(item, dict) and (item.get("direction") or "").strip()),
+               None)
+    rows.append(("direction 字段在用", hit is not None, hit or "25 例出现 0 次"))
+
+    # 5. 同连接多事务：一例 Dialog 含 ≥2 个 DATA（两封信；RSET 重发不算）。
+    hit = next((cid for cid, d in dialogs
+                if _cmd_tokens(d).count("DATA") >= 2), None)
+    rows.append(("多事务（同连接两封信）", hit is not None, hit or "无用例"))
+
+    # 6. 异常断线：含 MAIL/DATA 但无 QUIT 的 Dialog。
+    def abnormal(d):
+        toks = _cmd_tokens(d)
+        return ("MAIL" in toks or "DATA" in toks) and "QUIT" not in toks
+    hit = next((cid for cid, d in dialogs if abnormal(d)), None)
+    rows.append(("异常断线（无 QUIT）", hit is not None, hit or "无用例"))
+
+    # 7. 长保活：一例 Dialog 含 ≥2 个 NOOP。
+    hit = next((cid for cid, d in dialogs
+                if _cmd_tokens(d).count("NOOP") >= 2), None)
+    rows.append(("长保活（多 NOOP）", hit is not None, hit or "无用例"))
+
+    # 8. 复合流：≥2 DATA 且（AUTH 或 RSET 或附件邮件）——与纯多封信区分。
+    def composite(cid, sm, d):
+        toks = _cmd_tokens(d)
+        if toks.count("DATA") < 2:
+            return False
+        has_auth = "AUTH" in toks
+        has_rset = "RSET" in toks
+        has_att = bool((sm.get("email") or {}).get("attachments"))
+        return has_auth or has_rset or has_att
+    hit = next((cid for cid, sm in _smtp_dialogs(cases)
+                for d in [sm.get("dialog") or []] if composite(cid, sm, d)),
+               None)
+    rows.append(("复合流（多动作一条流）", hit is not None, hit or "无用例"))
+
+    # 9. 现网三家映射（id/summary/notes 关键字，地板线）。
+    texts = {c.get("id", "?"): json.dumps(
+        [c.get("id"), c.get("summary"),
+         (c.get("expect") or {}).get("notes")], ensure_ascii=False).lower()
+             for c in cases}
+    for kw in SMTP_COMMERCIAL:
+        hit = next((cid for cid, t in texts.items() if kw in t), None)
+        rows.append((f"现网映射 {kw}", hit is not None, hit or "无用例"))
+
+    return rows
+
+
+CHECKS = {"smtp": check_smtp}
+
+
+def main(argv):
+    proto = argv[1] if len(argv) > 1 else ""
+    cases_path = None
+    if "--cases" in argv:
+        cases_path = argv[argv.index("--cases") + 1]
+    if proto not in CHECKS:
+        print(f"该协议检查表未登记：{proto or '(空)'}（按协议逐个登记，不挡路）")
+        return 2
+    if cases_path is None:
+        here = Path(__file__).resolve()
+        cases_path = (here.parent / ".." / "test" / "protocol_pcap"
+                      / "cases" / f"{proto}.json")
+    try:
+        cases = json.loads(Path(cases_path).read_text())
+    except FileNotFoundError:
+        print(f"用例文件缺失：{cases_path}")
+        return 2
+    rows = CHECKS[proto](cases)
+    n_pass = sum(1 for _, ok, _ in rows if ok)
+    print(f"== 覆盖反查：{proto}（{len(cases)} 例，{len(rows)} 项）")
+    for name, ok, ev in rows:
+        print(f"[{'PASS' if ok else 'MISS'}] {name} —— {ev}")
+    print(f"反查：{n_pass}/{len(rows)} 通过"
+          + (" —— 绿" if n_pass == len(rows) else " —— 红，有缺口，停"))
+    return 0 if n_pass == len(rows) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
