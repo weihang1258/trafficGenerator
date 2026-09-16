@@ -9888,5 +9888,236 @@
     "negative: client_id with U+0000 rejected"
    ]
   }
+ },
+ {
+  "id": "mqtt_biz_telemetry_subpub",
+  "proto": "mqtt",
+  "summary": "业务流·遥测采集：CONNECT(auth)+SUBSCRIBE 2过滤器+PUBLISH QoS1 温湿度+PING 保活+DISCONNECT 正常下线",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "mqtt": {
+      "client_id": "tele-01",
+      "username": "sensor",
+      "password": "s3cret",
+      "subscriptions": [
+       {
+        "packet_id": 1,
+        "filters": [
+         {
+          "filter": "sensor/+/temp",
+          "qos": 1
+         },
+         {
+          "filter": "sensor/+/hum",
+          "qos": 1
+         }
+        ]
+       }
+      ],
+      "messages": [
+       {
+        "topic": "sensor/a/temp",
+        "payload": "23.5",
+        "qos": 1,
+        "packet_id": 10
+       },
+       {
+        "topic": "sensor/a/hum",
+        "payload": "60",
+        "qos": 1,
+        "packet_id": 11
+       }
+      ],
+      "ping_after_messages": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 18,
+   "has_handshake": true,
+   "terminates": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "mqtt.clientid",
+     "value": "tele-01"
+    },
+    {
+     "packet": 4,
+     "field": "mqtt.username",
+     "value": "sensor"
+    }
+   ],
+   "notes": [
+    "业务流: 3握手+CONNECT+CONNACK+SUB+SUBACK+PUB+PUBACK+PUB+PUBACK+PING+PINGRESP+DISCONNECT+4挥手=18",
+    "SUBACK 授权 QoS1；双 PUBLISH 同用户名下不同主题"
+   ]
+  }
+ },
+ {
+  "id": "mqtt_biz_abnormal_will_alarm",
+  "proto": "mqtt",
+  "summary": "业务流·异常掉线告警：CONNECT(will)+SUBSCRIBE 告警主题+PUBLISH QoS2 指令+异常断开触发 will 下发(down)+无 DISCONNECT",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "mqtt": {
+      "client_id": "alarm-01",
+      "will": {
+       "topic": "alarm/status",
+       "payload": "offline",
+       "qos": 1,
+       "retain": true
+      },
+      "disconnect": false,
+      "subscriptions": [
+       {
+        "packet_id": 1,
+        "filters": [
+         {
+          "filter": "alarm/+",
+          "qos": 1
+         }
+        ]
+       }
+      ],
+      "messages": [
+       {
+        "topic": "alarm/arm",
+        "payload": "ARMED",
+        "qos": 2,
+        "packet_id": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 17,
+   "has_handshake": true,
+   "terminates": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "mqtt.clientid",
+     "value": "alarm-01"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "34"
+    },
+    {
+     "packet": 12,
+     "offset": 54,
+     "hex": "33"
+    }
+   ],
+   "notes": [
+    "业务流: 3握手+CONNECT+CONNACK+SUB+SUBACK+PUB2+PUBREC+PUBREL+PUBCOMP+will下发(down)+PUBACK+4挥手=17",
+    "will retain=1（掉线遗言被保留，新订阅即收）；无 DISCONNECT 包（异常断开语义）",
+    "帧钉：pkt8 QoS2 PUBLISH首字节 0x34（触发指令上行），pkt12 will 下发首字节 0x33（broker 视角 QoS1 down）"
+   ]
+  }
+ },
+ {
+  "id": "mqtt_biz_v5_session_full",
+  "proto": "mqtt",
+  "summary": "业务流·v5 完整会话：CONNECT properties+SUBSCRIBE 双过滤器+PUBLISH QoS0/QoS1+PING+DISCONNECT reason",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "tcp": {}
+    },
+    {
+     "mqtt": {
+      "version": 5,
+      "client_id": "v5biz-01",
+      "properties": [
+       {
+        "identifier": 17,
+        "format": "uint32",
+        "value": "3600"
+       }
+      ],
+      "subscriptions": [
+       {
+        "packet_id": 1,
+        "filters": [
+         {
+          "filter": "biz/cmd",
+          "qos": 1
+         },
+         {
+          "filter": "biz/log",
+          "qos": 0
+         }
+        ]
+       }
+      ],
+      "messages": [
+       {
+        "topic": "biz/cmd",
+        "payload": "run",
+        "qos": 1,
+        "packet_id": 30
+       },
+       {
+        "topic": "biz/log",
+        "payload": "ok",
+        "qos": 0
+       }
+      ],
+      "ping_after_messages": true,
+      "disconnect_reason": 0
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 17,
+   "has_handshake": true,
+   "terminates": true,
+   "fields": [
+    {
+     "packet": 4,
+     "field": "mqtt.clientid",
+     "value": "v5biz-01"
+    }
+   ],
+   "notes": [
+    "业务流: 3握手+CONNECT(props)+CONNACK+SUB+SUBACK+PUB1+PUBACK+PUB0+PING+PINGRESP+DISCONNECT(reason)+4挥手=17",
+    "5.0 SessionExpiry(0x11)=3600；双过滤器不同 QoS；DISCONNECT 正常 reason=0"
+   ]
+  }
  }
 ]

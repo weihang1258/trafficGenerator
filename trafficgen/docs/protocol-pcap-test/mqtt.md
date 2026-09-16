@@ -1,9 +1,12 @@
 # mqtt Pcap Test Results
 
-Cases: 203 — pass 203, fail 0, error 0
+Cases: 206 — pass 206, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
+| mqtt_biz_abnormal_will_alarm | 业务流·异常掉线告警：CONNECT(will)+SUBSCRIBE 告警主题+PUBLISH QoS2 指令+异常断开触发 will 下发(down)+无 DISCONNECT | pass | 17 | [pcap](mqtt/mqtt_biz_abnormal_will_alarm.pcap) |
+| mqtt_biz_telemetry_subpub | 业务流·遥测采集：CONNECT(auth)+SUBSCRIBE 2过滤器+PUBLISH QoS1 温湿度+PING 保活+DISCONNECT 正常下线 | pass | 18 | [pcap](mqtt/mqtt_biz_telemetry_subpub.pcap) |
+| mqtt_biz_v5_session_full | 业务流·v5 完整会话：CONNECT properties+SUBSCRIBE 双过滤器+PUBLISH QoS0/QoS1+PING+DISCONNECT reason | pass | 17 | [pcap](mqtt/mqtt_biz_v5_session_full.pcap) |
 | mqtt_dyn_client_id_list | client_id dyn (D-MQTT-1 s12): list + flows=2, CONNECT client_id distinct | pass | 20 | [pcap](mqtt/mqtt_dyn_client_id_list.pcap) |
 | mqtt_dyn_payload_list | payload dyn (D-MQTT-1 s12): list + flows=2, PUBLISH payload distinct | pass | 22 | [pcap](mqtt/mqtt_dyn_payload_list.pcap) |
 | mqtt_dyn_topic_pattern | topic dyn (D-MQTT-1 s12): pattern + flows=2, PUBLISH topic distinct | pass | 22 | [pcap](mqtt/mqtt_dyn_topic_pattern.pcap) |

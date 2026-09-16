@@ -2732,12 +2732,12 @@
 **性能期望：** 不适用。
 **实现位置：** `cases/dns.json`（dns_naptr_response）。
 
-### T-MQTT-1…203 mqtt.json——存量审计 + 缺口矩阵【D-MQTT-1 P3 先行，P4/P5 已执行】
+### T-MQTT-1…206 mqtt.json——存量审计 + 缺口矩阵【D-MQTT-1 P3 先行，P4/P5 已执行，业务流补遗】
 
-**状态：** P5 已验收（2026-09-16；MCP 真实流程 203/203 全绿，同代二进制 /tmp/tg-mqtt-p4-server，pcap 落盘 /tmp/mcp-pcaps/mqtt/）
+**状态：** P5 已验收（2026-09-16；MCP 真实流程 206/206 全绿，同代二进制 /tmp/tg-mqtt-biz-server，pcap 落盘 /tmp/mcp-pcaps/mqtt/206 文件零孤儿）
 **级别：** pcap
 **来源：** OASIS MQTT 3.1.1/5.0 + D-MQTT-1 §4 + 现网抓包待补
-**存量去向（169 例 → 改写后 203 例）：**
+**存量去向（169 例 → 改写后 206 例）：**
 
 | 形状 | 数量 | 去向 |
 |---|---|---|
@@ -2749,6 +2749,7 @@
 | 新增 v6/dyn（P4） | 4 | mqtt_v6_connect（v6 CONNECT，clientid 钉；ipv6 tshark 字段名待查，帧偏移断言降级注记）+ mqtt_dyn_client_id_list/topic_pattern/payload_list（flows=2 distinct 钉；§9④陷阱：ip 层留空防静态复制，dyn 对象即逐流有别证明） |
 | 新增负例（P4，§5 缺口收口） | 8 | mqtt_neg_dup_qos0/bad_direction/unknown_prop_format/stringpair_nonul/vbi_overflow/sessions_rejected/string_nul/clientid_nul；surrogate 分支 JSON 不可达（孤立代理项无法编码），与 U+0000 同循环，注记不冒充 |
 | 13 拆分例 frames 补钉（P5） | 13 | 原多流 frames/fields 只剩包数，逐例补 CONNECT(client_id，含 will/keepalive 标志位差异）+PUBLISH(topic/payload) 字节断言，全部落盘校准（4 例 CONNECT 手算错→ landed pcap 取实际值修正） |
+| 业务流补遗（P5 后，§9 业务场景то薄弱项） | 3 | mqtt_biz_telemetry_subpub（遥测采集 18 包：auth+SUB 双过滤器+双 QoS1 PUBLISH+PING+正常下线）/mqtt_biz_abnormal_will_alarm（异常掉线 17 包：will+SUB+QoS2 指令+will 下发 down+无 DISCONNECT）/mqtt_biz_v5_session_full（v5 完整会话 17 包：props+SUB 双过滤器+QoS1/QoS0+PING+DISCONNECT reason）；包数离线预排后 MCP 落盘确认（alarm 例首版包数/帧号手算错→实测修正） |
 
 **缺口矩阵（2026-09-16 P5 收口实测）：**
 
@@ -2762,5 +2763,5 @@
 | 现网抓包对照（mosquitto/emqx；设计 doc 只有建议句无 pcap） | 待确认（确认方式：抓包比字节） | P5 补证据或如实注记未做 |
 | S6 UNSUBSCRIBE / S8 AUTH 包 | 明确不支持（代码无 builder，只有 Type 常量 `mqtt.go:45-46`；设计 doc §1.4） | 不列缺口，D-MQTT-1 §4 已登记 |
 
-**执行口径：** MCP 真实流程 203/203 全绿（2026-09-16，同代二进制 /tmp/tg-mqtt-p4-server，pcap 落盘 /tmp/mcp-pcaps/mqtt/219 文件；frames hex 逐例落盘重钉——链挥手 4 包 vs legacy 3 包，t168 6→9、t169 8→11；门 2 三项）。
+**执行口径：** MCP 真实流程 206/206 全绿（2026-09-16，同代二进制 /tmp/tg-mqtt-biz-server，pcap 落盘 /tmp/mcp-pcaps/mqtt/206 文件零孤儿——16 个旧多会话名 24B 残留已删；frames hex 逐例落盘重钉——链挥手 4 包 vs legacy 3 包，t168 6→9、t169 8→11；门 2 三项）。
 **实现位置：** `cases/mqtt.json`（203 例：165 存量改写 + 38 sessions 拆分 − 17 原扇出 + 4 v6/dyn + 8 负例 + t149 转负例）。
