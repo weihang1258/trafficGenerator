@@ -1141,16 +1141,43 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.POP3 = &pc
 		}
 	case "mqtt":
-		if spec.MQTT != nil {
+		// D-MQTT-1：层优先（flat 判死后无双轨——CheckProtoFlat 已拒顶层
+		// mqtt 子映射）。http :839 空壳例外同款：spec.MQTT 非 nil 但为空
+		// 壳（ClientID/Messages/Will/Subscriptions/User/Properties 全空——
+		// worker resolveLayerTuple 的防御性补建产物）时层翻译继续（空壳
+		// 无信息，层 config 才是真相）；有内容的 spec.MQTT = 预 resolve
+		// 的 flat/直调值，翻译跳过（flat 权威，http :839 同款——直接构造
+		// spec 的调用方/单测仍是 flat 优先，顶层 mqtt 另由 CheckProtoFlat
+		// 判死）。空层 config 也必须翻译出非 nil config（mqtt validator
+		// 要求 spec.MQTT 非 nil，"MQTTConfig is required" 见 :112-115）。
+		if spec.MQTT != nil && (spec.MQTT.ClientID != "" ||
+			len(spec.MQTT.Messages) > 0 || spec.MQTT.Will != nil ||
+			len(spec.MQTT.Subscriptions) > 0 || spec.MQTT.Username != "" ||
+			len(spec.MQTT.Properties) > 0) {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略
 		}
-		// 层 config 经 JSON 往返解码为 core.MQTTConfig（J 组 MQTTS：
-		// [tcp,tls,mqtt] 链）。mqtt validator 要求 spec.MQTT 非 nil，
-		// 空层 config 也必须翻译出非 nil config（与 opcua 分支同款）。
+		// 层 17 键经 JSON 往返解码为 core.MQTTConfig（生成器读 spec.MQTT
+		// 不变，J 组 MQTTS [tcp,tls,mqtt] 链同走此分支）。动态对象
+		//（client_id 直键 / topic·payload 逐 messages[] 下钻）先按
+		// spec.FlowIndex 直解写回 cfg 再走往返——对象值会让往返 unmarshal
+		// 失败（Topic string 收 map），直解必须在前。
+		// 读 p.chain 原始链取对象（补全链同引用，此读是将来多 mqtt 层
+		// 时的明确语义锚）。形状坏 → 不翻译，spec.MQTT 保持 nil →
+		// validator 报 "MQTTConfig is required"（同步失败）。
+		rawMQTT := term.Config
+		for _, l := range p.chain {
+			if l.Name == "mqtt" {
+				rawMQTT = l.Config
+				break
+			}
+		}
 		cfg := completedConfig(s, term.Config)
+		if msg := translateMQTTDyn(cfg, rawMQTT, spec.FlowIndex); msg != "" {
+			return
+		}
 		raw, err := json.Marshal(cfg)
 		if err != nil {
-			return
+			return // 理论不可达（config 已是 JSON 可编码 map）
 		}
 		var mc core.MQTTConfig
 		if err := json.Unmarshal(raw, &mc); err == nil {
@@ -1233,6 +1260,82 @@ func translateDNSDyn(cfg, raw map[string]interface{}, i int) string {
 			delete(cfg, key)
 		}
 	}
+	return ""
+}
+
+// translateMQTTDyn resolves mqtt-layer dynamic objects (D-MQTT-1 §12 三开：
+// client_id 直键 string 面 / topic·payload 逐 messages[] 槽位下钻 string 面)
+// in the user raw config at flow index i, writing scalar resolutions into cfg
+// (completed overlay). translateDNSDyn 同构：读原始链（对象完整）；形状坏
+// 返回消息（caller 不翻译 → validator 同步拒绝）；空解析 no-op 保静态。
+// messages[] 逐槽独立解析：静态槽不动，动态槽各自按 i 解析；item 浅拷贝
+// 后替换——不写 p.chain 原对象（Plan 逐流复跑，对象必须保真）。
+func translateMQTTDyn(cfg, raw map[string]interface{}, i int) string {
+	if raw == nil {
+		return ""
+	}
+	if m, isObj := raw["client_id"].(map[string]interface{}); isObj && m != nil {
+		if _, looksDyn := m["strategy"]; looksDyn {
+			if msg := core.CheckLayerDynShape("mqtt", "client_id", m); msg != "" {
+				return msg
+			}
+			var sc core.StrategyConfig
+			b, _ := json.Marshal(m)
+			if err := json.Unmarshal(b, &sc); err != nil {
+				return "mqtt.client_id: invalid object"
+			}
+			if v := core.ResolveStringValue(&sc, i); v != "" {
+				cfg["client_id"] = v
+			} else {
+				delete(cfg, "client_id")
+			}
+		}
+	}
+	msgs, ok := raw["messages"].([]interface{})
+	if !ok || len(msgs) == 0 {
+		return ""
+	}
+	out := make([]interface{}, 0, len(msgs))
+	for _, item := range msgs {
+		im, isMap := item.(map[string]interface{})
+		if !isMap {
+			out = append(out, item)
+			continue
+		}
+		copied := false
+		for _, key := range []string{"topic", "payload"} {
+			m, isObj := im[key].(map[string]interface{})
+			if !isObj || m == nil {
+				continue
+			}
+			if _, looksDyn := m["strategy"]; !looksDyn {
+				continue
+			}
+			if msg := core.CheckLayerDynShape("mqtt", key, m); msg != "" {
+				return msg
+			}
+			var sc core.StrategyConfig
+			b, _ := json.Marshal(m)
+			if err := json.Unmarshal(b, &sc); err != nil {
+				return "mqtt." + key + ": invalid object"
+			}
+			if !copied {
+				cp := make(map[string]interface{}, len(im))
+				for k, v := range im {
+					cp[k] = v
+				}
+				im = cp
+				copied = true
+			}
+			if v := core.ResolveStringValue(&sc, i); v != "" {
+				im[key] = v
+			} else {
+				delete(im, key)
+			}
+		}
+		out = append(out, im)
+	}
+	cfg["messages"] = out
 	return ""
 }
 

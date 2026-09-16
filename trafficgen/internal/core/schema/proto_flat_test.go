@@ -81,8 +81,9 @@ func TestProtoFlatBeatsStaticCopyMessage(t *testing.T) {
 }
 
 // 顶层同名子映射是现行协议配置载体，不拦（各协议 P-PIPE 改写时才迁入层内）。
+// D-MQTT-1 后 mqtt 顶层子映射已判死，示例换 modbus（尚未迁层）。
 func TestProtoFlat_SubConfigAllowed(t *testing.T) {
-	_, errs := ValidateStrategy("synth", "mqtt", map[string]any{"mqtt": map[string]any{}}, nil)
+	_, errs := ValidateStrategy("synth", "modbus", map[string]any{"modbus": map[string]any{}}, nil)
 	if len(errs) != 0 {
 		t.Fatalf("top-level sub-config must stay allowed, got %v", errs)
 	}

@@ -35,6 +35,13 @@ var layerDynAllowlist = map[string]map[string]bool{
 	// （T-DNS-8，sni 同款）；query_type/txid 是逐流 int（T-DNS-9/10，
 	// response_status_code 先例）。
 	"dns": {"name": true, "query_type": true, "txid": true},
+	// D-MQTT-1：mqtt 业务 3 开（client_id/topic/payload 全 string 面）。
+	// 顶行只登记 client_id——它是层直键（checkLayerDynObjects 通用 allowlist
+	// 门在此拦）；topic/payload 是 messages[] 槽位键（非层顶字段，顶层出现
+	// 对象按未知/关字段拒绝），其动态执法在 parseLayerDyn/translateMQTTDyn/
+	// checkLayerDynObjects 三处的 messages 下钻点（CheckLayerDynShape
+	// "mqtt","topic"/"payload"）。其余 14 关，对象即 does not support dynamic。
+	"mqtt": {"client_id": true},
 }
 
 // parseLayerDyn extracts per-flow dynamic strategies from a decoded layers
@@ -187,6 +194,42 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 					case "txid":
 						set(where, lname, f, &out.DNS.TxID, v)
 					}
+				case "mqtt":
+					// D-MQTT-1：client_id 直键（string 面）。topic/payload
+					// 是 messages[] 槽位键——下方下钻处理，层顶无此二键
+					//（allowlist 顶行只登记 client_id）。
+					if f == "client_id" {
+						set(where, lname, f, &out.MQTT.ClientID, v)
+					}
+				}
+			}
+			// D-MQTT-1：mqtt messages[] 下钻——topic/payload 槽位键的动态
+			// 对象逐槽提取（首遇策略进单槽，单策略语义；形状坏 →
+			// ValidationErrors）。静态槽/其他键不碰。
+			if lname == "mqtt" {
+				if msgs, ok := sub["messages"].([]interface{}); ok {
+					for j, item := range msgs {
+						im, isMap := item.(map[string]interface{})
+						if !isMap {
+							continue
+						}
+						for _, key := range []string{"topic", "payload"} {
+							m, isObj := im[key].(map[string]interface{})
+							if !isObj || m == nil {
+								continue
+							}
+							if _, looksDyn := m["strategy"]; !looksDyn {
+								continue
+							}
+							msgWhere := fmt.Sprintf("layers[%d](mqtt).messages[%d].%s", i, j, key)
+							if key == "topic" && out.MQTT.Topic == nil {
+								set(msgWhere, lname, key, &out.MQTT.Topic, m)
+							}
+							if key == "payload" && out.MQTT.Payload == nil {
+								set(msgWhere, lname, key, &out.MQTT.Payload, m)
+							}
+						}
+					}
 				}
 			}
 		}
@@ -287,6 +330,29 @@ func checkDynShape(where, lname, field string, s *StrategyConfig) string {
 	}
 	if lname == "dns" && (field == "query_type" || field == "txid") && s.Strategy == "pattern" {
 		return fmt.Sprintf("%s: pattern strategy is not supported for numeric dns fields", where)
+	}
+	// D-MQTT-1：mqtt 三开全 string 面（client_id 层直键 / topic·payload
+	// messages[] 槽位键；dns.name/tls.sni 同款：fixed/list/pattern 开，
+	// inc/rand 关——域名/文本无意义）。
+	if lname == "mqtt" && (field == "client_id" || field == "topic" || field == "payload") {
+		switch s.Strategy {
+		case "fixed", "":
+			return ""
+		case "list":
+			if len(s.List) == 0 {
+				return fmt.Sprintf("%s: list strategy requires a non-empty list", where)
+			}
+			return ""
+		case "pattern":
+			if s.Pattern == "" || len(s.Range) != 2 {
+				return fmt.Sprintf("%s: pattern strategy requires a template and a 2-element range", where)
+			}
+			return ""
+		case "inc", "rand":
+			return fmt.Sprintf("%s: %s strategy is not supported for string field", where, s.Strategy)
+		default:
+			return fmt.Sprintf("%s: unknown dynamic strategy %q", where, s.Strategy)
+		}
 	}
 	if lname == "tls" && field == "sni" {
 		switch s.Strategy {
@@ -791,6 +857,36 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 		if ld.DNS.TxID != nil {
 			if v := ResolvePortValue(ld.DNS.TxID, i); v != 0 {
 				spec.DNS.TxID = v
+			}
+		}
+	}
+	// D-MQTT-1：mqtt 业务 3 键回填（client_id string 面直写；topic/payload
+	// 单策略语义——直调口径把解析值写进全部 Messages 槽。链引擎路径
+	// translateMQTTDyn 逐槽独立解析（静态槽不动），混合静态/动态槽配置请走
+	// 层链——http/tls/dns 段同款"只服务直调/单测口径"注记同样适用，生产
+	// 真相见 chain_planner_translate.go）。空值 no-op 保留静态；spec.MQTT
+	// nil 时建空补后再写（无 Messages 槽时 topic/payload 无处可写，no-op）。
+	if ld.MQTT.ClientID != nil || ld.MQTT.Topic != nil || ld.MQTT.Payload != nil {
+		if spec.MQTT == nil {
+			spec.MQTT = &MQTTConfig{}
+		}
+		if ld.MQTT.ClientID != nil {
+			if v := ResolveStringValue(ld.MQTT.ClientID, i); v != "" {
+				spec.MQTT.ClientID = v
+			}
+		}
+		if len(spec.MQTT.Messages) > 0 {
+			for j := range spec.MQTT.Messages {
+				if ld.MQTT.Topic != nil {
+					if v := ResolveStringValue(ld.MQTT.Topic, i); v != "" {
+						spec.MQTT.Messages[j].Topic = v
+					}
+				}
+				if ld.MQTT.Payload != nil {
+					if v := ResolveStringValue(ld.MQTT.Payload, i); v != "" {
+						spec.MQTT.Messages[j].Payload = v
+					}
+				}
 			}
 		}
 	}

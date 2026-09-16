@@ -117,6 +117,20 @@ func BuildLayersPlanner(protocol string, layersJSON json.RawMessage) (core.Proto
 func checkLayerDynObjects(i int, lname string, cfg map[string]interface{}) (map[string]interface{}, error) {
 	stripped := make(map[string]interface{}, len(cfg))
 	for k, v := range cfg {
+		// D-MQTT-1：mqtt messages[] 下钻——topic/payload 槽位键的动态对象
+		// （有 strategy 键）走 string 面形状门，通过后从 item 剥离（V9 只
+		// 见标量）；标量/其他键/item 原样保留。item 浅拷贝替换，不动原对象
+		//（ValidateLayers 只读校验）。无动态对象时原 slice 直通。
+		if lname == "mqtt" && k == "messages" {
+			if arr, ok := v.([]interface{}); ok {
+				out, err := stripMQTTMessagesDyn(i, arr)
+				if err != nil {
+					return nil, err
+				}
+				stripped[k] = out
+				continue
+			}
+		}
 		m, isObj := v.(map[string]interface{})
 		if !isObj {
 			stripped[k] = v
@@ -189,6 +203,52 @@ func checkTLSCertDynObjects(i int, cert map[string]interface{}) (map[string]inte
 		}
 	}
 	return sub, nil
+}
+
+// stripMQTTMessagesDyn 下钻 mqtt messages[] 数组（D-MQTT-1）：每 item 的
+// topic/payload 键若为动态对象（有 strategy 键）→ string 面形状门
+//（CheckLayerDynShape "mqtt","topic"/"payload"，client_id 直键走
+// checkLayerDynObjects 通用 allowlist 门）；通过后从 item 剥离（V9 只见
+// 标量），形状坏 → 错误（create 期 400）。item 浅拷贝替换——原对象不动。
+// 无动态对象时返回的 slice 含相同的 item 引用（调用方直通）。
+func stripMQTTMessagesDyn(i int, arr []interface{}) ([]interface{}, error) {
+	out := make([]interface{}, 0, len(arr))
+	for _, item := range arr {
+		im, isMap := item.(map[string]interface{})
+		if !isMap {
+			out = append(out, item)
+			continue
+		}
+		copied := false
+		for _, key := range []string{"topic", "payload"} {
+			m, isObj := im[key].(map[string]interface{})
+			if !isObj || m == nil {
+				continue
+			}
+			if _, looksDyn := m["strategy"]; !looksDyn {
+				continue
+			}
+			where := fmt.Sprintf("layers[%d](mqtt).messages[].%s", i, key)
+			if msg := core.CheckLayerDynShape("mqtt", key, m); msg != "" {
+				reason := msg
+				if j := indexColonSpace(msg); j >= 0 {
+					reason = msg[j+2:]
+				}
+				return nil, fmt.Errorf("%s: %s", where, reason)
+			}
+			if !copied {
+				cp := make(map[string]interface{}, len(im))
+				for k, v := range im {
+					cp[k] = v
+				}
+				im = cp
+				copied = true
+			}
+			delete(im, key)
+		}
+		out = append(out, im)
+	}
+	return out, nil
 }
 
 // validateTLSCertScalars 校验 cert 块内标量子键的业务约束（D-TLS-2，

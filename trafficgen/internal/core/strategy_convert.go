@@ -317,6 +317,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
 		}
 	}
+	// D-MQTT-1：mqtt 在库旧策略顶层 mqtt → ValidationErrors（存量行启动
+	// 即 error，worker 预检终态；新建/更新已在 schema 层经 CheckProtoFlat
+	// 400）。空 map 也死（presence 语义）。
+	if protocol == "mqtt" {
+		if v, ok := cfg["mqtt"]; ok && v != nil {
+			spec.ValidationErrors = append(spec.ValidationErrors, CheckProtoFlat(protocol, cfg))
+		}
+	}
 
 	// D-FTP-3 §5: 扁平四键收动态对象（引擎直调路径，REST 形状层已先 400）→
 	// spec.ValidationErrors 拒绝并指路层字段，worker 预检终态 error，绝不
@@ -7618,6 +7626,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "dns" {
 		if v, ok := cfg["dns"]; ok && v != nil {
 			return "protocol dns no longer accepts a top-level dns sub-config (move it into the dns layer of an [ip,udp,dns] layers chain)"
+		}
+	}
+	// D-MQTT-1：mqtt 顶层 mqtt 子映射 presence 判死（dns 先例；空 map 也
+	// 死）。层链形状不触发。
+	if protocol == "mqtt" {
+		if v, ok := cfg["mqtt"]; ok && v != nil {
+			return "protocol mqtt no longer accepts a top-level mqtt sub-config (move it into the mqtt layer of an [ip,tcp,mqtt] layers chain)"
 		}
 	}
 	return ""

@@ -3580,6 +3580,17 @@ type LayerDynValues struct {
 	HTTP LayerHTTPDyn
 	TLS  LayerTLSDyn
 	DNS  LayerDNSDyn
+	MQTT LayerMQTTDyn
+}
+
+// LayerMQTTDyn holds mqtt-layer dynamic business-field strategies
+// (D-MQTT-1: client_id 开 string 面（层直键）；topic/payload 开 string 面
+// （messages[] 槽位键——parse 逐槽下钻存首遇策略，单策略语义）；其余 14 关，
+// 指针恒 nil）。
+type LayerMQTTDyn struct {
+	ClientID *StrategyConfig
+	Topic    *StrategyConfig
+	Payload  *StrategyConfig
 }
 
 // HasAny reports whether any dynamic strategy is present.
@@ -3595,7 +3606,8 @@ func (l *LayerDynValues) HasAny() bool {
 		l.HTTP.ResponseBody != nil || l.HTTP.ResponseBodyB64 != nil ||
 		l.HTTP.ResponseStatusCode != nil ||
 		l.TLS.SNI != nil || l.TLS.CertSubject != nil || l.TLS.CertSAN != nil ||
-		l.DNS.Name != nil || l.DNS.QueryType != nil || l.DNS.TxID != nil
+		l.DNS.Name != nil || l.DNS.QueryType != nil || l.DNS.TxID != nil ||
+		l.MQTT.ClientID != nil || l.MQTT.Topic != nil || l.MQTT.Payload != nil
 }
 
 // StrategyConfig for value generation strategies.

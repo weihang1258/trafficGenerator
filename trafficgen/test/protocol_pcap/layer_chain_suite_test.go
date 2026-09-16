@@ -48,12 +48,14 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/doh"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/http"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/mqtt"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nmea"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/onvif"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/syslog"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/tls"
 )
 
 // chainSuiteProtos is the protocol set this offline executor covers — the
@@ -63,7 +65,7 @@ import (
 // still owns it, and the blank imports above only link these generators.
 var chainSuiteProtos = map[string]bool{
 	"cwmp": true, "dhcp": true, "dhcpv6": true, "dns": true, "doh": true,
-	"mdns": true, "nmea": true, "ntp": true, "onvif": true, "snmp": true,
+	"mdns": true, "mqtt": true, "nmea": true, "ntp": true, "onvif": true, "snmp": true,
 	"ssdp": true, "syslog": true, "tcp": true,
 }
 
