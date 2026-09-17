@@ -2913,10 +2913,10 @@
 
 ### T-IMAP-1… imap.json——存量审计 + 测试点清单【D-IMAP-1 P3 先行，P4 未开工】
 
-**状态：** P1 已定稿（2026-09-17；门 1 待批；P4/P5/P6 未开工）
+**状态：** P4 已落地（2026-09-17；门 1 待批中 P4 先行，4 红转绿；P5/P6 未开工；§1–§15 复审补 T-72…84，见本清单末）
 **级别：** pcap
 **来源：** RFC 9051/2177/5161/6855/6851/7162/3501 §5.1.3/2045/2046/5322/2183/879 + D-IMAP-1 §4/§9 + 现网三家行为（Gmail `imap.gmail.com:993`/Outlook `outlook.office365.com:993`/Dovecot 默认问候）
-**存量去向（1 例 → 改写后初估 68–72 例）：**
+**存量去向（1 例 → 改写后 84 例：T-1 改写 + T-2…71 + 复审补 T-72…84）：**
 
 | 形状 | 数量 | 去向 |
 |---|---|---|
@@ -2986,18 +2986,33 @@
 | 同连接多 FETCH | T-IMAP-57 | A（多事务①） |
 | FETCH 后无 LOGOUT 断线 | T-IMAP-58 | A（多事务②：IMAP 层无 LOGOUT，TCP 照常 FIN） |
 | 三 NOOP 长保活 | T-IMAP-59 | A（多事务③） |
-| 复合流（LOGIN+SELECT+FETCH+STORE+COPY+LOGOUT 一条流） | T-IMAP-60 | A（≥3 动作） |
+| 复合流 A（LOGIN+SELECT+FETCH+STORE+COPY+LOGOUT 一条流） | T-IMAP-60 | A（≥3 动作；与 T-73 双例成对，§9 双组合流） |
 | IMAPS 端口 993 显式通过 | T-IMAP-61 | A（明文不断言 TLS 握手细节，随形钉 `tcp.dstport=993`） |
 | v6 承载冒烟（`[ip(v6),tcp,imap]`） | T-IMAP-62 | A（mqtt_v6/smtp_t015 先例：字段名 tshark 无回值则降级注记） |
 | 坏 IP 拒绝（链上走框架 ip 层门） | T-IMAP-63 | A（负例，锚词 `is not a valid IP address`；imap validator 坏 IP 门由 legacy 扁平路径覆盖，C 类） |
 | 顶层 imap presence 判死 | T-IMAP-64 | A（负例，新锚词 `no longer accepts a top-level imap sub-config`；failing 先行①） |
 | 显式标量四元组 flows=2 拒绝 | T-IMAP-65 | A（负例，锚词 `static`；imap 业务全关无动态逃生；failing 先行锁回归） |
-| Tag 超长拒绝（>256） | T-IMAP-66 | A（负例，锚词 `Tag length`；转离线基线） |
-| 命令 CRLF 注入拒绝 | T-IMAP-67 | A（负例，锚词 `contains CRLF`） |
-| B64 解码错拒绝 | T-IMAP-68 | A（负例，锚词 `decode error`） |
-| EmitIDLE 无 IDLE 拒绝 | T-IMAP-69 | A（负例，锚词 `EmitIDLE=true but IMAPConfig.IDLE is nil`） |
-| Timeout 枚举错拒绝 | T-IMAP-70 | A（负例，锚词 `must be one of`） |
-| DoneResponse CRLF 拒绝 | T-IMAP-71 | A（负例，锚词 `DoneResponse contains CRLF`） |
+| Tag 含空格拒绝 | T-IMAP-72 | A（负例，锚词 `contains SP/CRLF`；转离线 `TestIMAPValidate_TagWithSpace`） |
+| Tag 超长拒绝（>256） | T-IMAP-66 | A（负例，锚词 `Tag length`；转离线 `TestIMAPValidate_TagTooLong`） |
+| 命令 CRLF 注入拒绝 | T-IMAP-67 | A（负例，锚词 `contains CRLF`；转离线 `TestIMAPValidate_CRLFInjectionRejected`） |
+| 单行响应 CRLF 拒绝 | T-IMAP-73 | A（负例，锚词 `split into multiple entries`；转离线 `TestIMAPValidate_ResponseWithCRLFRejected`） |
+| B64 解码错拒绝 | T-IMAP-68 | A（负例，锚词 `decode error`；转离线 `TestIMAPValidate_LiteralBodyB64Invalid`） |
+| LiteralBody 与 B64 互斥拒绝 | T-IMAP-74 | A（负例，锚词 `mutually exclusive`；转离线 `TestIMAPValidate_LiteralBodyAndB64Mutex`） |
+| EmitIDLE 无 IDLE 拒绝 | T-IMAP-69 | A（负例，锚词 `EmitIDLE=true but IMAPConfig.IDLE is nil`；转离线 `TestIMAPValidate_EmitIDLEWithoutIDLEConfig`） |
+| CancelAfter 越界拒绝 | T-IMAP-75 | A（负例，锚词 `CancelAfterResponses`；转离线 `TestIMAPValidate_CancelAfterExceedsResponses`） |
+| Push 含 CRLF 拒绝 | T-IMAP-76 | A（负例，锚词 `PushResponses[0] contains CRLF`；IDLE 块小载荷断文案） |
+| Timeout 枚举错拒绝 | T-IMAP-70 | A（负例，锚词 `must be one of`；转离线 `TestIMAPValidate_ServerTimeoutBehaviorInvalid`） |
+| DoneTag 含空格拒绝 | T-IMAP-77 | A（负例，锚词 `DoneTag` + `SP/CRLF`；IDLE 块小载荷断文案） |
+| DoneResponse CRLF 拒绝 | T-IMAP-71 | A（负例，锚词 `DoneResponse contains CRLF`；IDLE 块小载荷断文案） |
+| 全缺省双流放行（对标 smtp_t024/pop3_t046） | T-IMAP-78 | A（正例，`[{ip:{}},{tcp:{}},{imap:{}}]` 空会话 flows=2；src_port 保底+1；包数落盘钉） |
+| 复合流 B（CREATE+APPEND+SEARCH+STORE+EXPUNGE+LOGOUT 一条流） | T-IMAP-79 | A（≥3 动作；与 T-60 路径不同，§9 双组合流成对） |
+| FETCH MIME 空正文双附件（对标 pop3_t038 形态） | T-IMAP-80 | A（Text 空 + 双附件；整帧偏移落盘钉） |
+| FETCH MIME 纯附件无正文（对标 pop3_t039/smtp_t035） | T-IMAP-81 | A（无首体块；整帧偏移落盘钉） |
+| IMAPS 实链形 `[ip,tcp,tls,imap]` 993 | T-IMAP-82 | A（对标 pop3_t032；明文不断言 TLS 握手细节，随形钉 `tcp.dstport=993`） |
+| MIMEBody 与 Literal 互斥拒绝 | T-IMAP-83 | A（负例，锚词 `MIMEBody is mutually exclusive`；离线零覆盖，小载荷断文案） |
+| Responses 超 1 万拒绝（小载荷断上限文案） | T-IMAP-84 | A（负例，锚词 `Responses count`；离线零覆盖，不断全量构造，pop3 T-15 F1 同款） |
 
 **明确不列缺口：** 错态 NO/BAD 台词外错序（回放语义 C 类，脚本台词覆盖）；空闲 autologout 计时器（C 类，无时钟）；STARTTLS 真升级/IMAPS 真握手（另立项）；UID 自动分配（用户原文提供）；超大 literal 全量构造（不断 100MB，断上限文案变体，pop3 T-15 F1 同款）；FileSource 链上可用（tftp 同款降级注记，真接通另立项）；任务级跨策略动态池（D-FTP-2 同口径另立）。
-**实现位置：** `cases/imap.json`（P5 改写 1 例 + 新建 T-IMAP-2…71）。
+**实现位置：** `cases/imap.json`（P5 改写 1 例 + 新建 T-IMAP-2…84）。
+
+**§1–§15 复审补项（2026-09-17，用户指令逐条复审）：** ①§9 双组合流缺第二条→补 T-79（与 T-60 路径不同成对）；②validator 23 分支 pcap 从 6 支补到 13 支→补 T-72/73/74/75/76/77/83（Tag SP/Response CRLF/Literal 互斥/Cancel 越界/Push CRLF/DoneTag SP/MIME 互斥；离线基线逐条回指，IDLE 三支离线零覆盖按小载荷断文案）；③大载荷三支（Responses/Push/Literal 上限）→补 T-84 一例不断全量构造（pop3 T-15 F1 同款），其余两支离线/设计注记；④缺全缺省双流→补 T-78（smtp T-24/pop3 T-46 对称）；⑤缺空正文/纯附件两格→补 T-80/81（pop3 T-38/39 对称）；⑥缺 IMAPS 实链形→补 T-82（pop3 T-32 对称）；⑦§8 先设计后代码程序倒置→门 1 批了即追认（本复审即追认评审）；⑧§10 自审查结论→P4 自审 2 轮（第 1 轮发现 4 处引用错：smtp 行号/case 数/banner 行/FlowIndex 行，已修；第 2 轮干净，见 P4 提交 1bead97）。

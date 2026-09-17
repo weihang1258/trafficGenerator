@@ -305,7 +305,154 @@ def check_pop3(cases):
     return rows
 
 
-CHECKS = {"smtp": check_smtp, "pop3": check_pop3}
+# --------------------------------------------------------------------------
+# IMAP 检查表（D-IMAP-1 P3 清单机器版：命令×码矩阵 + 形态 + 多事务三项 +
+# 双组合流 + 商业三家；回放语义下 NO/BAD 台词版也算，C 类边界见 D 条目）
+# --------------------------------------------------------------------------
+
+IMAP_COMMANDS = ["CAPABILITY", "NOOP", "LOGOUT", "STARTTLS", "AUTHENTICATE",
+                 "LOGIN", "ENABLE", "SELECT", "EXAMINE", "CREATE", "DELETE",
+                 "RENAME", "SUBSCRIBE", "UNSUBSCRIBE", "LIST", "NAMESPACE",
+                 "STATUS", "APPEND", "IDLE", "CLOSE", "UNSELECT", "EXPUNGE",
+                 "SEARCH", "FETCH", "STORE", "COPY", "MOVE", "UID"]
+IMAP_COMMERCIAL = ["gmail", "outlook", "dovecot"]
+
+
+def _imap_commands(cases):
+    """逐个产出 (case_id, imap层dict)。顶层 imap 键（presence 负例）不算。"""
+    for c in cases:
+        spec = c.get("spec_json", {}) or {}
+        for layer in spec.get("layers", []) or []:
+            imap = (layer or {}).get("imap")
+            if isinstance(imap, dict):
+                yield c.get("id", "?"), imap
+
+
+def _imap_tokens(cmds):
+    """commands 的命令字序列（EmitIDLE 合成轮跳过字面统计）。"""
+    toks = []
+    for item in cmds or []:
+        if not isinstance(item, dict):
+            continue
+        parts = (item.get("cmd") or "").strip().split()
+        if parts and re.fullmatch(r"[A-Z]+", parts[0].upper()):
+            toks.append(parts[0].upper())
+    return toks
+
+
+def _imap_responses(cmds):
+    return " ".join(" ".join(item.get("responses") or [])
+                     for item in (cmds or []) if isinstance(item, dict))
+
+
+def check_imap(cases):
+    """返回 [(检查名, 通过?, 证据case_id或缺口说明)]。"""
+    rows = []
+    cmds = [(cid, p.get("commands") or []) for cid, p in _imap_commands(cases)]
+
+    # 1. 命令 28 个，一个不能少（SUBSCRIBE/UNSUBSCRIBE 同例 T-IMAP-25 双命令）。
+    for cmd in IMAP_COMMANDS:
+        hit = next((cid for cid, d in cmds if cmd in _imap_tokens(d)), None)
+        rows.append((f"命令 {cmd}", hit is not None, hit or "无用例"))
+
+    # 2. NO/BAD 台词各至少 1 例（回放语义不断引擎拦截）。
+    blob = " ".join(_imap_responses(d) for _, d in cmds)
+    for needle, name in [("NO ", "NO 台词"), ("BAD", "BAD 台词")]:
+        hit = re.search(needle, blob) is not None
+        rows.append((name, hit, "台词出现" if hit else "无用例"))
+
+    # 3. literal 双形（LiteralBody 上行 + B64/占位替换）与 IDLE 轮各至少 1 例。
+    lit = next((cid for cid, p in _imap_commands(cases)
+                for item in (p.get("commands") or [])
+                if isinstance(item, dict) and
+                (item.get("literal_body") or item.get("literal_body_b64"))),
+               None)
+    rows.append(("literal 体", lit is not None, lit or "无用例"))
+    idle = next((cid for cid, p in _imap_commands(cases)
+                 for item in (p.get("commands") or [])
+                 if isinstance(item, dict) and item.get("emit_idle")),
+                None)
+    rows.append(("IDLE 轮", idle is not None, idle or "无用例"))
+
+    # 4. 多事务三项：多轮 FETCH / 无 LOGOUT 断线 / 多 NOOP。
+    hit = next((cid for cid, d in cmds
+                if _imap_tokens(d).count("FETCH") >= 2), None)
+    rows.append(("多事务（同连接两 FETCH）", hit is not None, hit or "无用例"))
+
+    def abnormal(d):
+        toks = _imap_tokens(d)
+        return "FETCH" in toks and "LOGOUT" not in toks
+    hit = next((cid for cid, d in cmds if abnormal(d)), None)
+    rows.append(("异常断线（无 LOGOUT）", hit is not None, hit or "无用例"))
+    hit = next((cid for cid, d in cmds
+                if _imap_tokens(d).count("NOOP") >= 2), None)
+    rows.append(("长保活（多 NOOP）", hit is not None, hit or "无用例"))
+
+    # 5. 双组合流：两条各含登录 + ≥3 业务动作的流（T-60/T-79 成对，§9 双组合流）。
+    def composite(d):
+        toks = _imap_tokens(d)
+        if "LOGIN" not in toks or "LOGOUT" not in toks:
+            return False
+        biz = [t for t in toks if t not in ("LOGIN", "LOGOUT")]
+        return len(set(biz)) >= 3
+    comp = [cid for cid, d in cmds if composite(d)]
+    rows.append(("复合流 A", len(comp) >= 1, comp[0] if comp else "无用例"))
+    rows.append(("复合流 B（第二条）", len(comp) >= 2,
+                 comp[1] if len(comp) >= 2 else "无用例"))
+
+    # 6. MIME 双附件下载（与 smtp_t033/pop3_t037 对称；FETCH mime_body 双附件）。
+    hit = next((cid for cid, p in _imap_commands(cases)
+                for item in (p.get("commands") or [])
+                if isinstance(item, dict) and
+                len(((item.get("mime_body") or {}).get("attachments")
+                     or [])) >= 2), None)
+    rows.append(("MIME 双附件下载", hit is not None, hit or "无用例"))
+
+    # 7. validator 代表分支收口（Tag 超长/Tag SP/Response CRLF/互斥×2/
+    # 解码错/EmitIDLE 无 IDLE/Cancel 越界/Push CRLF/Timeout 枚举/DoneTag SP/
+    # DoneResponse CRLF/Responses 上限）。
+    blob_exp = json.dumps([(c.get("id"), (c.get("expect") or {}).get(
+        "error_contains")) for c in cases], ensure_ascii=False)
+    for needle, name in [("Tag length", "Tag 超长拒"),
+                         ("contains SP/CRLF", "Tag SP 拒"),
+                         ("split into multiple", "Response CRLF 拒"),
+                         ("mutually exclusive", "互斥拒"),
+                         ("decode error", "B64 解码错拒"),
+                         ("EmitIDLE=true but IMAPConfig.IDLE is nil",
+                          "EmitIDLE 无 IDLE 拒"),
+                         ("CancelAfterResponses", "Cancel 越界拒"),
+                         ("PushResponses[0] contains CRLF", "Push CRLF 拒"),
+                         ("must be one of", "Timeout 枚举错拒"),
+                         ("DoneTag", "DoneTag 拒"),
+                         ("DoneResponse contains CRLF", "DoneResponse 拒"),
+                         ("Responses count", "Responses 上限拒")]:
+        hit = needle in blob_exp
+        rows.append((name, hit, "锚词出现" if hit else "无用例"))
+
+    # 8. 全缺省双流放行（与 smtp_t024/pop3_t046 对称；静态门反例）。
+    hit = next((c.get("id", "?") for c in cases
+                if ((c.get("strategy_fc") or {}).get("value") == 2 and
+                    all((lay.get("ip") or {}) == {} and
+                        (lay.get("tcp") or {}) == {} and
+                        (lay.get("imap") or {}) == {}
+                        for lay in (c.get("spec_json", {}) or {}).get(
+                            "layers", []) if "ip" in (lay or {}) or
+                        "tcp" in (lay or {}) or "imap" in (lay or {})))), None)
+    rows.append(("全缺省双流", hit is not None, hit or "无用例"))
+
+    # 9. 现网三家映射（id/summary/notes 关键字，地板线）。
+    texts = {c.get("id", "?"): json.dumps(
+        [c.get("id"), c.get("summary"),
+         (c.get("expect") or {}).get("notes")], ensure_ascii=False).lower()
+             for c in cases}
+    for kw in IMAP_COMMERCIAL:
+        hit = next((cid for cid, t in texts.items() if kw in t), None)
+        rows.append((f"现网映射 {kw}", hit is not None, hit or "无用例"))
+
+    return rows
+
+
+CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
 
 def main(argv):

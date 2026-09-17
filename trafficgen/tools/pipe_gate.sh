@@ -58,30 +58,40 @@ PYEOF
   # http 族 9 协议顶层 http presence 红线（D-HTTP-1 步骤 3 + T-HTTP-72）：
   # 迁入完成后，layers 与顶层 http 子映射共存即红；唯一的例外是 presence
   # 负例本身（expect_error + error_contains 含 top-level），它是执法对象。
+  # dns/mqtt/smtp/pop3/imap 单协议 presence 红线（各 D-条目 P4 判死分支同款）：
+  # 口径与 http 族一致——presence 负例豁免，其余共存即红。
   case "$PROTO" in
     http|http_flv|hls|hds|gbt|getwork|cwmp|doh|onvif)
-      pres=$(python3 - "$CASES" <<'PYEOF'
+      _pres_key="http"
+      ;;
+    dns|mqtt|smtp|pop3|imap)
+      _pres_key="$PROTO"
+      ;;
+  esac
+  if [ -n "${_pres_key:-}" ]; then
+      pres=$(python3 - "$CASES" "$_pres_key" <<'PYEOF'
 import json,sys
 d = json.load(open(sys.argv[1]))
+key = sys.argv[2]
 bad = []
 for c in d:
     sj = c.get("spec_json", {}) or {}
-    if "layers" not in sj or not isinstance(sj.get("http"), dict):
+    if "layers" not in sj or not isinstance(sj.get(key), dict):
         continue
     exp = c.get("expect", {}) or {}
     if exp.get("expect_error") and "top-level" in str(exp.get("error_contains", "")):
         continue
-    bad.append(c["id"] + ":顶层http presence")
+    bad.append(c["id"] + ":顶层" + key + " presence")
 print("\n".join(sorted(set(bad))))
 PYEOF
 )
       if [ -n "$pres" ]; then
-        echo "  红: http 族顶层 http presence 残留:"; echo "$pres" | sed 's/^/    /'; fail=1
+        echo "  红: 顶层 ${_pres_key} presence 残留:"; echo "$pres" | sed 's/^/    /'; fail=1
       else
-        echo "  绿: http 族无顶层 http presence 残留（presence 负例豁免）"
+        echo "  绿: 无顶层 ${_pres_key} presence 残留（presence 负例豁免）"
       fi
-      ;;
-  esac
+      unset _pres_key
+  fi
 fi
 
 echo "== 门2-3 二进制与 HEAD 同代"
