@@ -707,7 +707,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		}
 	case "imap":
 		if sub, ok := cfg["imap"].(map[string]interface{}); ok {
-			spec.IMAP = parseIMAPConfig(sub)
+			spec.IMAP = ParseIMAPConfigFromMap(sub)
 		}
 		// IMAP defaults to port 143 per RFC 9051 §2.1. Only override when
 		// the user did not specify a dst_port - matches the POP3/SMTP
@@ -2886,21 +2886,6 @@ func parseESPDataPlaneConfig(v interface{}) *ESPDataPlaneConfig {
 	}
 }
 
-// parseIMAPConfig converts the JSON-decoded "imap" sub-map into *IMAPConfig.
-func parseIMAPConfig(m map[string]interface{}) *IMAPConfig {
-	if m == nil {
-		return nil
-	}
-	cfg := &IMAPConfig{
-		Banner:            getString(m, "banner"),
-		Commands:          parseIMAPCommands(m["commands"]),
-		IDLE:              parseIMAPIDLE(m["idle"]),
-		PipelinedCommands: getBool(m, "pipelined_commands", false),
-		AllowUTF8Mailbox:  getBool(m, "allow_utf8_mailbox", false),
-	}
-	return cfg
-}
-
 func parseIMAPCommands(v interface{}) []IMAPCommand {
 	arr, ok := v.([]interface{})
 	if !ok || len(arr) == 0 {
@@ -2945,8 +2930,32 @@ func parseIMAPIDLE(v interface{}) *IMAPIDLE {
 	}
 }
 
-// parseIMAPMIMEBody converts the JSON-decoded "mime_body" sub-map into
-// *IMAPMIMEBody. Returns nil when the input is absent or not a map.
+// ParseIMAPConfigFromMap decodes an imap layer/terminal config map into an
+// *IMAPConfig (single truth with the flat cfg["imap"] path — same parse,
+// same defaults). nil input → nil (absent). Empty map → non-nil zero
+// config (presence, same as an explicit map).
+//
+// Attachment byte convention (SMTP DataB64 family): mime_body attachments
+// carry "data" as raw text ([]byte(raw) verbatim — NOT base64) and
+// "data_b64" as pre-encoded base64 text. This matters because Go's JSON
+// []byte semantics demand base64 text: a bare JSON round-trip of the layer
+// config into IMAPConfig fails the WHOLE config on any raw-text attachment
+// (spec.IMAP stays nil → silent empty session). Hence the layer path must
+// use THIS function, never a JSON round-trip.
+func ParseIMAPConfigFromMap(m map[string]interface{}) *IMAPConfig {
+	if m == nil {
+		return nil
+	}
+	cfg := &IMAPConfig{
+		Banner:            getString(m, "banner"),
+		Commands:          parseIMAPCommands(m["commands"]),
+		IDLE:              parseIMAPIDLE(m["idle"]),
+		PipelinedCommands: getBool(m, "pipelined_commands", false),
+		AllowUTF8Mailbox:  getBool(m, "allow_utf8_mailbox", false),
+	}
+	return cfg
+}
+
 func parseIMAPMIMEBody(v interface{}) *IMAPMIMEBody {
 	m, ok := v.(map[string]interface{})
 	if !ok || m == nil {

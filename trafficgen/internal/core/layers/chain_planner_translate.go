@@ -1161,22 +1161,17 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.IMAP != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略
 		}
-		// D-IMAP-1：层 config（banner/commands/idle/pipelined_commands/
-		// allow_utf8_mailbox）经 JSON 往返解码为 core.IMAPConfig（pop3
-		// `:1127`/smtp `:1143` 同款；commands/idle/mime_body/FileSource
-		// 嵌套自动——FileSource `file/literal/fill/random` 键与
-		// filesystem.FileSource tags 对齐零分叉）。生成器对 nil config
-		// 已走默认空会话（layer_gen.go:43-45），但 validator/单测要求翻译
-		// 发生在校验前，故空层 config 也翻译出非 nil config。
+		// D-IMAP-1：层 config 经 core.ParseIMAPConfigFromMap 解码为
+		// core.IMAPConfig（与扁平 cfg["imap"] 同 parse 函数、同缺省，
+		// 零语义分叉；ftp ParseFTPConfigFromMap / http
+		// ParseHTTPConfigFromMap 同款）。旧 JSON 往返在此判死：
+		// IMAPAttachment.Data 是 []byte，Go JSON 语义只认 base64 文本，
+		// 附件 "data" 裸文本即整包解码失败、spec.IMAP 留 nil，mime_body
+		// 经链恒空会话（T-051/52/80 实测 7 包空流），扁平同输入却正常。
+		// 空层 config 也翻译出非 nil config（validator/单测要求翻译发生
+		// 在校验前；生成器对 nil config 走默认空会话）。
 		cfg := completedConfig(s, term.Config)
-		raw, err := json.Marshal(cfg)
-		if err != nil {
-			return
-		}
-		var ic core.IMAPConfig
-		if err := json.Unmarshal(raw, &ic); err == nil {
-			spec.IMAP = &ic
-		}
+		spec.IMAP = core.ParseIMAPConfigFromMap(cfg)
 	case "mqtt":
 		// D-MQTT-1：层优先（flat 判死后无双轨——CheckProtoFlat 已拒顶层
 		// mqtt 子映射）。http :839 空壳例外同款：spec.MQTT 非 nil 但为空
