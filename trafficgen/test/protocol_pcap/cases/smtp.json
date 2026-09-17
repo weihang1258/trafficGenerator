@@ -886,9 +886,9 @@
        "text_body": "see attach",
        "attachments": [
         {
-         "filename": "a.bin",
-         "content_type": "application/octet-stream",
-         "data_b64": "AAEC"
+         "filename": "README.md",
+         "content_type": "text/markdown",
+         "data_b64": "IyBUcmFmZmljR2VuZXJhdG9yIC0g6auY5oCn6IO9572R57uc5rWB6YeP55Sf5oiQ5ZmoCgrpnaLl\r\nkJHnvZHnu5zmtYvor5XkuI7mgKfog73or4TkvLDlnLrmma/nmoTmtYHph4/nlJ/miJDns7vnu5/v\r\nvIzmj5DkvpsgV2ViIOeuoeeQhueVjOmdouOAgVJFU1QgQVBJ44CB5a6e5pe25o6o6YCB5ZKM5a6M\r\n5pW05Y+v6KeC5rWL5oCn44CCCgojIyDlip/og73liJfooagKCiMjIyDmtYHph4/nlJ/miJAKCi0g\r\n5Yib5bu6IFRDUC9VRFAvSFRUUC9ETlMvSUNNUC9BUlAg5rWB6YeP5Lu75YqhCi0gVENQ77ya6YWN\r\n572u5piv5ZCm5ZCv55So5o+h5omL44CB5oyl5omL44CBTVNTCi0gSFRUUO+8mumFjee9ruivt+ax\r\nguaWueazlShHRVQvUE9TVOetiSnjgIFVUknjgIFCb2R544CBS2VlcC1BbGl2ZeOAgeS6i+WKoeaV\r\nsOOAgeaAneiAg+aXtumXtAotIEROU++8mumFjee9ruWfn+WQjeOAgeafpeivouexu+WeiyhBL0FB\r\nQUEvQ05BTUUvTVgpCi0g6K6+572u5rqQL+ebrueahCBJUOOAgeerr+WPo+OAgU1BQwotIOiuvue9\r\nrui+k+WHuuaooeW8j++8mue9keWNoeWPkemAgSAvIFBDQVAg5L+d5a2YIC8g5Y+M6Lev5ZCM5pe2\r\nCi0g6K6+572uIFZMQU4g5qCH562+CgojIyMg5rWB6YeP562W55WlCgotIOWIm+W7ui/nvJbovpEv\r\n5Yig6Zmk562W55Wl5qih5p2/77yI5Y+v5aSN55So55qE5rWB6YeP5Y+C5pWw5a6a5LmJ77yJCi0g\r\n562W55Wl5YyF5ZCr77ya5Y2P6K6u57G75Z6L44CB5Y2P6K6u5Y+C5pWw44CB5rWB6YeP5o6n5Yi2\r\n77yI5bm25Y+R5rWB5pWwL+i/nuaOpemAn+eOhy/lkJ7lkJDph48v5Y2g5q+UL+aXtumVv++8iQot\r\nIOetlueVpeWPr+iiq+WkmuS4quS7u+WKoeW8leeUqAoKIyMjIOS7u+WKoeeuoeeQhgoKLSDliJvl\r\nu7rku7vliqHvvJrlkb3lkI3jgIHpgInmi6nnrZbnlaXjgIHpgInmi6novpPlh7rnm67moIcKLSDl\r\nkK/liqgv5YGc5q2iL+WIoOmZpOS7u+WKoQotIOafpeeci+S7u+WKoeeKtuaAgShwZW5kaW5nL3J1\r\nbm5pbmcvc3RvcHBlZC9jb21wbGV0ZWQvZXJyb3Ip5ZKM6L+b5bqmCi0g5om56YeP5ZCv5YqoL+WB\r\nnOatoi/liKDpmaQKLSDmjInnirbmgIHlkozljY/orq7nsbvlnovnrZvpgIkKLSDlrp7ml7bnu5/o\r\nrqHvvJrlt7Llj5HmiqXmlofmlbDjgIHlrZfoioLmlbDjgIHlvZPliY0gUFBTL0JQUwoKIyMjIOe9\r\nkeWNoeS4juerr+WPowoKLSDmn6XnnIvns7vnu5/nvZHljaHkv6Hmga/vvIjlkI3np7DjgIFNQUPj\r\ngIFJUOOAgeeKtuaAge+8iQotIOmHjeaWsOWPkeeOsOe9keWNoQotIOWIm+W7uuerr+WPo+e7hO+8\r\niOWkmue9keWNoeiBmuWQiCArIOadg+mHjei0n+i9veWdh+ihoe+8iQotIOerr+WPo+iHquWKqOWI\r\nhumFjeS4jumHiuaUvgoKIyMjIOWOhuWPsuiusOW9lQoKLSDmjInml7bpl7TojIPlm7Tmn6Xor6Ll\r\nt7LlrozmiJDku7vliqEKLSDmn6XnnIvljoblj7Lnu5/orqHvvJrmiqXmlofmlbDjgIHlrZfoioLm\r\nlbDjgIHmjIHnu63ml7bpl7QKCiMjIyDnlKjmiLfkuI7mnYPpmZAKCi0g5rOo5YaML+eZu+W9lS/n\r\nmbvlh7oKLSDop5LoibLmnYPpmZDvvJrnrqHnkIblkZgo5YWo5p2D6ZmQKSAvIOeUqOaItyjku7vl\r\niqHlkoznrZbnlaXnrqHnkIYpIC8g6K6/5a6iKOWPquivuykKLSDnlKjmiLfoh6rnrqHnkIbvvJrk\r\nv67mlLnpgq7nrrEv5a+G56CB44CB5Yig6Zmk6LSm5oi3Ci0g566h55CG5ZGY77ya5Yib5bu6L+e8\r\nlui+kS/npoHnlKgv6YeN572u5a+G56CBL+WIoOmZpOeUqOaItwoKIyMjIOezu+e7n+ebkeaOpwoK\r\nLSBEYXNoYm9hcmTvvJrmtLvot4Pku7vliqHmlbDjgIHlkJ7lkJDph4/jgIHljY/orq7liIbluIPl\r\nm77ooagKLSDns7vnu5/nirbmgIHvvJrlvJXmk47ov5DooYznirbmgIHjgIFDUFUv5YaF5a2Y44CB\r\n6L+Q6KGM5pe26ZW/Ci0g5YGl5bq35qOA5p+l5LiO5bCx57uq5qOA5p+lCgojIyMg57O757uf6K6+\r\n572uCgotIOivreiogOWIh+aNoijkuK0v6IuxKQotIOacgOWkp+W5tuWPkeS7u+WKoeaVsAotIOe8\r\nk+WGsuWMuuWkp+WwjwotIOaXpeW/l+e6p+WIqwoKIyMg5a6J6KOF6YOo572yCgojIyMg5rqQ56CB\r\n57yW6K+RCgpgYGBiYXNoCmNkIHRyYWZmaWNnZW4KCiMg5ZCO56uvCmdvIG1vZCBkb3dubG9hZApt\r\na2RpciAtcCBiaW4gJiYgZ28gYnVpbGQgLW8gYmluL3RyYWZmaWNnZW4gLi9jbWQvc2VydmVyCgoj\r\nIOWJjeerrwpjZCB3ZWIgJiYgbnBtIGluc3RhbGwgJiYgbnBtIHJ1biBidWlsZCAmJiBjZCAuLgoK\r\nIyDlkK/liqgKLi9iaW4vdHJhZmZpY2dlbiAtY29uZmlnIGNvbmZpZ3MvY29uZmlnLnlhbWwKYGBg\r\nCgrpu5jorqTnrqHnkIblkZjvvJpgYWRtaW5gIC8gYGFkbWluYO+8jOiuv+mXriBodHRwOi8vbG9j\r\nYWxob3N0OjgwODAKCiMjIyBEb2NrZXIg5Y2V5a655ZmoCgpgYGBiYXNoCmNkIHRyYWZmaWNnZW4K\r\nZG9ja2VyIGJ1aWxkIC10IHRyYWZmaWNnZW46bGF0ZXN0IC4KZG9ja2VyIHJ1biAtZCAtLW5ldHdv\r\ncmsgaG9zdCAtdiAuL2RhdGE6L2RhdGEgdHJhZmZpY2dlbjpsYXRlc3QKYGBgCgojIyMgRG9ja2Vy\r\nIENvbXBvc2XvvIjlkKvnm5HmjqflpZfku7bvvIkKCmBgYGJhc2gKY2QgdHJhZmZpY2dlbgoKIyDm\r\noLjlv4PmnI3liqHvvIh0cmFmZmljZ2VuICsgUHJvbWV0aGV1cyArIEdyYWZhbmHvvIkKZG9ja2Vy\r\nIGNvbXBvc2UgdXAgLWQKCiMg5oyJ6ZyA5ZCv55So5Y+v6YCJ5pyN5YqhCmRvY2tlciBjb21wb3Nl\r\nIC0tcHJvZmlsZSBwb3N0Z3JlcyB1cCAtZCAgICAgICMgUG9zdGdyZVNRTApkb2NrZXIgY29tcG9z\r\nZSAtLXByb2ZpbGUgcmVkaXMgdXAgLWQgICAgICAgICAjIFJlZGlzCmRvY2tlciBjb21wb3NlIC0t\r\ncHJvZmlsZSBhbGVydG1hbmFnZXIgdXAgLWQgICMgQWxlcnRtYW5hZ2VyCmBgYAoKfCDmnI3liqEg\r\nfCDlnLDlnYAgfCDotKblj7cgfAp8LS0tLS0tfC0tLS0tLXwtLS0tLS18CnwgV2ViIOeVjOmdoiB8\r\nIGh0dHA6Ly9sb2NhbGhvc3Q6ODA4MCB8IGFkbWluIC8gYWRtaW4gfAp8IEdyYWZhbmEgfCBodHRw\r\nOi8vbG9jYWxob3N0OjMwMDAgfCBhZG1pbiAvIGFkbWluIHwKfCBQcm9tZXRoZXVzIHwgaHR0cDov\r\nL2xvY2FsaG9zdDo5MDkwIHwgLSB8CgojIyMgS3ViZXJuZXRlcwoKYGBgYmFzaApjZCB0cmFmZmlj\r\nZ2VuL2RlcGxveW1lbnRzL2s4cwprdWJlY3RsIGFwcGx5IC1mIHNlY3JldC55YW1sLGNvbmZpZ21h\r\ncC55YW1sLGRlcGxveW1lbnQueWFtbCxzZXJ2aWNlLnlhbWwKa3ViZWN0bCBhcHBseSAtZiBpbmdy\r\nZXNzLnlhbWwgICMg5oyJ6ZyACmt1YmVjdGwgYXBwbHkgLWYgaHBhLnlhbWwgICAgICAjIOaMiemc\r\ngApgYGAKCiMjIOmFjee9rgoK5Li76YWN572u5paH5Lu2IGBjb25maWdzL2NvbmZpZy55YW1sYO+8\r\njOWFs+mUrumhue+8mgoKfCDphY3nva4gfCDpu5jorqTlgLwgfCDor7TmmI4gfAp8LS0tLS0tfC0t\r\nLS0tLS0tfC0tLS0tLXwKfCBgc2VydmVyLnBvcnRgIHwgODA4MCB8IOebkeWQrOerr+WPoyB8Cnwg\r\nYGRhdGFiYXNlLnR5cGVgIHwgc3FsaXRlIHwgc3FsaXRlIC8gcG9zdGdyZXMgfAp8IGBlbmdpbmUu\r\nY29uZmlnX3dvcmtlcnNgIHwgNCB8IOmFjee9rueUn+aIkOWNj+eoi+aVsCB8CnwgYGVuZ2luZS5w\r\nYWNrZXRfd29ya2Vyc2AgfCA4IHwg5oql5paH5p6E6YCg5Y2P56iL5pWwIHwKfCBgZW5naW5lLmJ1\r\nZmZlcl9zaXplYCB8IDQwOTYgfCDnjq/lvaLnvJPlhrLlrrnph48gfAp8IGBhdXRoLmp3dF9zZWNy\r\nZXRgIHwgLSB8IOeUn+S6p+eOr+Wig+WKoeW/heS/ruaUuSB8CnwgYGF1dGguYWRtaW4ucGFzc3dv\r\ncmRgIHwgYWRtaW4gfCDnlJ/kuqfnjq/looPliqHlv4Xkv67mlLkgfAoKPiDnlJ/kuqfnjq/looPl\r\nu7rorq7kvb/nlKggYGNvbmZpZy5zdGFuZGFsb25lLnlhbWxg77yM6YCa6L+H546v5aKD5Y+Y6YeP\r\n5rOo5YWl5pWP5oSf6YWN572u44CC"
         }
        ]
       },
@@ -924,7 +924,7 @@
    "terminates": true,
    "has_payload": true,
    "notes": [
-    "multipart/mixed+base64附件：包13含MIME-Version字节；落盘实测"
+    "单附件 mixed（RFC 2046 §5.1.1）：附件为仓库真实文件 README.md（3783 字节，落盘解码与原文逐字节一致）；包位落盘重钉"
    ],
    "fields": [
     {
@@ -933,7 +933,7 @@
      "value": "354"
     },
     {
-     "packet": 14,
+     "packet": 17,
      "field": "smtp.response.code",
      "value": "250"
     }

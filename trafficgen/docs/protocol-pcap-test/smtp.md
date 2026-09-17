@@ -15,7 +15,7 @@ Cases: 43 — pass 43, fail 0, error 0
 | smtp_t009_quit_after_data | T-009: DATA后直接QUIT | pass | 18 | [pcap](smtp/smtp_t009_quit_after_data.pcap) |
 | smtp_t010_email_text | T-010: Email声明式纯文本 | pass | 20 | [pcap](smtp/smtp_t010_email_text.pcap) |
 | smtp_t011_email_alternative | T-011: Email alternative双体 | pass | 20 | [pcap](smtp/smtp_t011_email_alternative.pcap) |
-| smtp_t012_email_attach | T-012: Email附件mixed+base64 | pass | 20 | [pcap](smtp/smtp_t012_email_attach.pcap) |
+| smtp_t012_email_attach | T-012: Email附件mixed+base64 | pass | 23 | [pcap](smtp/smtp_t012_email_attach.pcap) |
 | smtp_t013_port_587 | T-013: 提交端口587 | pass | 20 | [pcap](smtp/smtp_t013_port_587.pcap) |
 | smtp_t014_port_465 | T-014: SMTPS端口465 | pass | 20 | [pcap](smtp/smtp_t014_port_465.pcap) |
 | smtp_t015_v6 | T-015: v6承载冒烟 | pass | 20 | [pcap](smtp/smtp_t015_v6.pcap) |
