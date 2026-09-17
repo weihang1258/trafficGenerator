@@ -1360,7 +1360,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | §14 真实流程 | pop3.json 全量绿 + 落盘 tshark 校准（包号/端口不手算；空壳默认会话包数以落盘为准）；二进制同代；门 2 四项；负例 `.neg.pcap` 口径沿 d323068 | pop3.json |
 | §15 三道门 | 本表即门 1；门 2 脚本；门 3 挂表抽查；P5R 反查 pop3 表在 P3 登记（`coverage_gate.py` 仿 smtp 表） | 本条目 |
 
-**状态：** P6 已验收（2026-09-17；门 1 已批→P4 2 红转绿→P5 37/37 + 反查 26/26；门 3 抽查见本条目末）
+**状态：** P6 已验收（2026-09-17；门 1 已批→P4 2 红转绿→P5 基线 37/37→补遗 13 例 50/50 + 反查 32/32；门 3 抽查见本条目末）
 **范围（2026-09-17）：** ①`CheckProtoFlat` 加 pop3 presence 判死；②扁平侧补 `setDefaultDstPort(110)`；③pop3.json 2 例改写 + P3 新例全量跑 + 校准回钉；④清库（pop3 行，删前计数→备份→删→复核）。
 **明确不解决：** STLS 真升级 / POP3S `[tcp,tls,pop3]` 真握手链（台词覆盖已有 `TestPOP3Point_1_14_*`，真升级另立项）；状态机 enforcement（回放语义是架构选择，C 类如实注明，不冒充）；空闲 autologout 计时器（RFC 1939 §3 ≥10 分钟，C 类：无时钟不断言）；任务级跨策略动态池（D-FTP-2 同口径另立）；APOP 摘要计算（`computeAPOPDigest` helper 已有，planner 不主动算，用户原文提供，C 类）。
 **依据：** RFC 1939 §3（TCP 110 监听/三状态/`+OK`/`-ERR` 大写/dot-stuffing CRLF.CRLF/参数≤40 字符/响应≤512 字符/空闲定时器≥10 分钟）/§4（AUTHORIZATION：USER/PASS/APOP/QUIT）/§5（TRANSACTION：STAT/LIST/RETR/DELE/NOOP/RSET）/§6（UPDATE：QUIT 进更新态）/§7（可选命令：USER/PASS/APOP/TOP/UIDL；USER 名≤40/UID 1–70 字符）/§10（示例会话全文抄：USER/PASS/STAT/LIST/RETR/QUIT 官方序列）/§11（消息格式）；RFC 2449（CAPA 扩展机制）/ RFC 2595（STLS/AUTH；台词覆盖，真升级另立项）；RFC 879（MSS≥536）/ RFC 6528（ISN）；商业：Gmail POP（`pop.gmail.com:995` 强制 SSL + `recent:` 模式 + 留档/删档选项，Google 帮助文档）/ Outlook（`outlook.office365.com:995` SSL/TLS，微软支持文档）/ Dovecot（问候/CAPA/QUIT 回复均已亲验，见 T-POP3-30 注记）；代码事实：`pop3/planner.go:101-208`（validator 16 分支）/`:213-386`（回放 Plan）/`pop3/layer_gen.go:30-84`（事件生成器+注册+握手挥手校准）、`types.go:6660/6669/6718`（POP3Config/Command/Mailbox/Message/MIMEPart）。
@@ -1478,6 +1478,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 #### 8. 验收
 - 对应 T-POP3-1…36（TEST_CASES P3 先行）。完成条件：3 红例先红后绿；pop3.json 全量绿（RESULT 全量；二进制同代；门 2 四项绿：旧键零残留 + 全量绿 + 同代 + 反查绿）；touched 包 `-race` 绿；顶层 `pop3` 字面零残留（cases 内）；schemagen 生成表已同步（`TestLayersGeneratedMatchesRegistry` 绿）；在库 pop3 行清空（删前计数→备份→删→复核）。
 - **完成回填（2026-09-17）：** pop3.json 2→37 例（存量改写 + T-POP3-2…36，包位逐例落盘重钉，t010 补 RSET）；`RESULT: 37 pass, 0 fail, 0 error (of 37)`（/tmp/tg-pop3-p5-server 与 HEAD 同代，门 2 四项全绿）；落盘 34 文件零孤儿（2 旧名已删；3 超早拒绝无落盘系旧行为）；`go test` 四包绿 + core/layers `-race` 绿；在库 pop3 清空（删前 166/323 → 删后 139/140，pop3 0/0，mqtt 全留，备份 /tmp/trafficgen.db.bak-pop3-p6）。
+- **补遗回填（2026-09-17，对标 SMTP，零代码）：** 反查门 26 项→补 T-POP3-37…49 13 例→`RESULT: 50 pass, 0 fail, 0 error (of 50)` + 反查 32/32（门 2 四项全绿）；MIME 双附件下载与 smtp_t033 同结构成对（包 10 整帧偏移 288）；validator 16 分支 pcap 全收口；落盘 47 文件零孤儿（3 超早拒绝无落盘系旧行为）。
 - **门3抽查三条：** ①§1 顶层迁入→pop3.json 37 例 `layers` 形零残留（门 2-1 绿；t035 系执法对象豁免）；②§5 presence→`strategy_convert.go` CheckProtoFlat pop3 分支，pop3_t035 真实流程拒；③§1 缺省 110→`case "pop3"` 内 `setDefaultDstPort(110)`，pop3_t001 包 1 `tcp.dstport=110` 落盘钉死。
 
 #### 9. 关键决策对比

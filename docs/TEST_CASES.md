@@ -2837,7 +2837,7 @@
 
 ### T-POP3-1… pop3.json——存量审计 + 测试点清单【D-POP3-1 P3 先行，P4 未开工】
 
-**状态：** P6 已验收（2026-09-17；37/37 全绿，反查 26/26；基线见 P5 落地偏差）
+**状态：** P6 已验收（2026-09-17；50/50 全绿，反查 32/32；基线 37 例见 P5 落地偏差，补遗 13 例见⑥）
 **级别：** pcap
 **来源：** RFC 1939/2449/2595/879 + D-POP3-1 §4/§9 + 现网三家行为（Gmail `pop.gmail.com:995`/Outlook `outlook.office365.com:995`/Dovecot 默认问候）
 **存量去向（2 例 → 改写后初估 34–36 例）：**
@@ -2888,10 +2888,25 @@
 | 坏 IP 拒绝（链上走框架 ip 层门） | T-POP3-34 | A（负例，锚词 `is not a valid IP address`；pop3 validator 坏 IP 门由 legacy 扁平路径覆盖，C 类） |
 | 顶层 pop3 presence 判死 | T-POP3-35 | A（负例，新锚词 `no longer accepts a top-level pop3 sub-config`；failing 先行①） |
 | 显式标量四元组 flows=2 拒绝 | T-POP3-36 | A（负例，锚词 `static`；pop3 业务全关无动态逃生，与 T-POP3-33 对照；failing 先行锁回归） |
+| RETR 双附件下载（对标 smtp_t033） | T-POP3-37 | A（maildrop MIME 双附件合成；包 10 附件块整帧偏移 288 落盘钉） |
+| RETR 空正文信（对标 smtp_t034） | T-POP3-38 | A（空体 size=0，包 10 状态行 `+OK 0 octets` 落盘钉） |
+| RETR 纯附件无正文（对标 smtp_t035） | T-POP3-39 | A（无首体块；包 10 附件块整帧偏移 206） |
+| PASS 密码错 -ERR（对标 smtp_t031） | T-POP3-40 | A（台词版，现网最常见失败，C 类边界） |
+| 未知命令 -ERR（对标 smtp_t023） | T-POP3-41 | A（台词版，转离线 `3_16_1`） |
+| RETR 合成无信箱拒绝 | T-POP3-42 | A（负例，锚词 `but Mailbox is nil`；与 T-012b 成对） |
+| RETR 信号越界拒绝 | T-POP3-43 | A（负例，锚词 `out of range`） |
+| TOP 信号越界拒绝 | T-POP3-44 | A（负例，锚词 `out of range`；与 T-043 分属不同分支） |
+| 双合成互斥拒绝 | T-POP3-45 | A（负例，锚词 `mutually exclusive`） |
+| 全缺省双流放行（对标 smtp_t024） | T-POP3-46 | A（正例，空会话 7 包×2=14；src_port 保底双流） |
+| 未登录直接退出 | T-POP3-47 | A（转离线 `1_12_1`；AUTHORIZATION 态 QUIT） |
+| LIST 单封单行（与 T-006 对称） | T-POP3-48 | A（转离线 `1_5_3`） |
+| TOP 零行仅头（转离线 1_10_2） | T-POP3-49 | A |
 
 **明确不列缺口：** 错序 -ERR（回放语义 C 类，脚本台词覆盖）；空闲 autologout 计时器（C 类，无时钟）；STLS 真升级/POP3S 真握手（另立项）；UIDL 自动生成（沿 `types.go` 注释不自动，用户原文提供）；超大 maildrop 全量构造（不断 10 万信，断上限文案变体）；任务级跨策略动态池（D-FTP-2 同口径另立）。
 
-**执行口径：** P5 `CASE_PROTO=pop3` 全量绿（2026-09-17 `RESULT: 37 pass, 0 fail, 0 error (of 37)`；/tmp/tg-pop3-p5-server 与 HEAD 同代；门 2 四项全绿：旧键零残留 + 全量绿 + 同代 + 反查 26/26）；断言 `pop.request.command/parameter` + `pop.response.indicator/description` + 握手/挥手；包数落盘重钉禁手算；负例 `.neg.pcap` 口径沿 d323068。
-**实现位置：** `cases/pop3.json`（37 例：2 例改写 + T-POP3-2…36 新建 35 例，含 T-POP3-12b TOP 无信箱拒）。
+**执行口径：** P5 `CASE_PROTO=pop3` 全量绿（2026-09-17 `RESULT: 50 pass, 0 fail, 0 error (of 50)`；/tmp/tg-pop3-p5-server 与 HEAD 同代；门 2 四项全绿：旧键零残留 + 全量绿 + 同代 + 反查 32/32）；断言 `pop.request.command/parameter` + `pop.response.indicator/description` + 握手/挥手；包数落盘重钉禁手算；负例 `.neg.pcap` 口径沿 d323068。
+**实现位置：** `cases/pop3.json`（50 例：2 例改写 + T-POP3-2…49 新建，含 T-POP3-12b）。
 
 **P5 落地偏差（2026-09-17，MCP 37/37 全绿）：** ①POP3 短命令帧恒<80B→27 例去 `has_payload`（frame.len 代理不适用，不断摆设）；②t002 空 Cmd 包位手算错→落盘重钉（包 5 响应/包 6 QUIT）；③t024 改 tcp 层 V9 门字面（非 planner 门，smtp T-020 同款）；④t010 补 RSET（DELE 后撤销标记，转离线 3_11_1，包 9/11/13/15 落盘钉死）；⑤离线链套件 34/37（t034/t035/t036 三负例 MCP 层门离线未复刻，smtp/dns 先例同款 C 类 harness 边界，以 MCP 为准，pop3 空导入+协议集注册已补）；落盘 34 文件零孤儿（2 旧名残留已删；3 超早拒绝无落盘系旧行为：t024/t035/t036，mqtt/smtp 先例同款）；在库 pop3 清空（删前 strategies 166/tasks 323 → 删后 139/140，pop3 0/0，mqtt 140 全留，备份 /tmp/trafficgen.db.bak-pop3-p6，无跨协议引用）。
+
+**P5 补遗落地偏差（2026-09-17，MCP 50/50 全绿，⑥）：** ①对标 SMTP 补 13 例（T-37…49：MIME 双附件/空正文/纯附件下载 + PASS -ERR/未知命令 + validator 四分支收口 + 全缺省双流 + QUIT/LIST/TOP 形状对称）；②t037/t039 首版 frames 用“载荷偏移”手算→校验器口径是整帧偏移（含 `+OK octets` 状态行）→落盘实测改 288/206（§14 禁手算的现行教训）；③t046 全缺省双流 14 包（空会话 7 包×2，src_port 保底 12345/12346）；④反查表 +6 项（26→32：双附件/PASS -ERR/三拒收口/双流）；⑤落盘 47 文件零孤儿（3 超早拒绝无落盘系旧行为：t024/t035/t036）。

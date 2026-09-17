@@ -259,7 +259,41 @@ def check_pop3(cases):
     hit = next((cid for cid, d in cmds if composite(d)), None)
     rows.append(("复合流（多动作一条流）", hit is not None, hit or "无用例"))
 
-    # 7. 现网三家映射（id/summary/notes 关键字，地板线）。
+    # 7. MIME 双附件下载（与 smtp_t033 对称；包内双附件字节）。
+    hit = next((cid for cid, p in _pop3_commands(cases)
+                for m in ((p.get("mailbox") or {}).get("messages") or [])
+                if isinstance(m, dict) and len(m.get("mime_parts") or []) >= 2),
+               None)
+    rows.append(("MIME 双附件下载", hit is not None, hit or "无用例"))
+
+    # 8. PASS 登录失败 -ERR（现网最常见失败；台词版）。
+    pass_err = next((cid for cid, d in cmds
+                     for item in d
+                     if isinstance(item, dict) and
+                     (item.get("cmd") or "").strip().upper().startswith("PASS")
+                     and "-ERR" in (item.get("response") or "")), None)
+    rows.append(("PASS -ERR 台词", pass_err is not None, pass_err or "无用例"))
+
+    # 9. validator 四分支收口（EmitMailDrop 无信箱/MsgNum 越界×2/双合成互斥）。
+    blob_exp = json.dumps([(c.get("id"), (c.get("expect") or {}).get(
+        "error_contains")) for c in cases], ensure_ascii=False)
+    for needle, name in [("but Mailbox is nil", "合成无信箱拒"),
+                         ("out of range", "信号越界拒"),
+                         ("mutually exclusive", "双合成互斥拒")]:
+        hit = needle in blob_exp
+        rows.append((name, hit, "锚词出现" if hit else "无用例"))
+
+    # 10. 全缺省双流放行（与 smtp_t024 对称；静态门反例）。
+    hit = next((c.get("id", "?") for c in cases
+                if ((c.get("strategy_fc") or {}).get("value") == 2 and
+                    all((lay.get("ip") or {}) == {} and
+                        (lay.get("tcp") or {}) == {}
+                        for lay in (c.get("spec_json", {}) or {}).get(
+                            "layers", []) if "ip" in (lay or {}) or
+                        "tcp" in (lay or {})))), None)
+    rows.append(("全缺省双流", hit is not None, hit or "无用例"))
+
+    # 11. 现网三家映射（id/summary/notes 关键字，地板线）。
     texts = {c.get("id", "?"): json.dumps(
         [c.get("id"), c.get("summary"),
          (c.get("expect") or {}).get("notes")], ensure_ascii=False).lower()
