@@ -2913,7 +2913,7 @@
 
 ### T-IMAP-1… imap.json——存量审计 + 测试点清单【D-IMAP-1 P3 先行，P4 未开工】
 
-**状态：** P4 已落地（2026-09-17；门 1 待批中 P4 先行，4 红转绿；P5/P6 未开工；§1–§15 复审补 T-72…84，见本清单末）
+**状态：** P6 已验收（2026-09-17；门 1 已批→P4 4 红转绿→P5 84/84 + 反查 54/54；在库 imap 已清空，见 D-IMAP-1 §10 回填）
 **级别：** pcap
 **来源：** RFC 9051/2177/5161/6855/6851/7162/3501 §5.1.3/2045/2046/5322/2183/879 + D-IMAP-1 §4/§9 + 现网三家行为（Gmail `imap.gmail.com:993`/Outlook `outlook.office365.com:993`/Dovecot 默认问候）
 **存量去向（1 例 → 改写后 84 例：T-1 改写 + T-2…71 + 复审补 T-72…84）：**
@@ -2979,7 +2979,7 @@
 | UTF-8 关拒绝（non-ASCII 锚词） | T-IMAP-50 | A（负例，锚词 `non-ASCII`；ASCII 等价附带转离线 `3_19_7_3`） |
 | FETCH MIMEBody 双附件下载（真实 README 附件，对标 smtp_t033） | T-IMAP-51 | A（simple 纯文本附带；整帧偏移落盘钉） |
 | APPEND MIMEBody 上行 | T-IMAP-52 | A（自定义 boundary 附带） |
-| MSS<536 拒绝 | T-IMAP-53 | A（负例，锚词 `too small`；RFC 879） |
+| MSS<536 拒绝 | T-IMAP-53 | A（负例，锚词 `out of range [536,65535]` tcp 层 V9 门字面，smtp T-020/pop3 T-24 同款；RFC 879） |
 | 现网 Gmail 形（993 强制 SSL + Gimap ready 问候） | T-IMAP-54 | A（banner 台词地板线；问候原文 openssl 亲验列 P5） |
 | 现网 Outlook 形（993 SSL/TLS） | T-IMAP-55 | A（banner 台词地板线） |
 | 现网 Dovecot 形（问候/CAPABILITY） | T-IMAP-56 | A（telnet 亲验列 P5，POP3 口径同款） |
@@ -3016,3 +3016,4 @@
 **实现位置：** `cases/imap.json`（P5 改写 1 例 + 新建 T-IMAP-2…84）。
 
 **§1–§15 复审补项（2026-09-17，用户指令逐条复审）：** ①§9 双组合流缺第二条→补 T-79（与 T-60 路径不同成对）；②validator 23 分支 pcap 从 6 支补到 13 支→补 T-72/73/74/75/76/77/83（Tag SP/Response CRLF/Literal 互斥/Cancel 越界/Push CRLF/DoneTag SP/MIME 互斥；离线基线逐条回指，IDLE 三支离线零覆盖按小载荷断文案）；③大载荷三支（Responses/Push/Literal 上限）→补 T-84 一例不断全量构造（pop3 T-15 F1 同款），其余两支离线/设计注记；④缺全缺省双流→补 T-78（smtp T-24/pop3 T-46 对称）；⑤缺空正文/纯附件两格→补 T-80/81（pop3 T-38/39 对称）；⑥缺 IMAPS 实链形→补 T-82（pop3 T-32 对称）；⑦§8 先设计后代码程序倒置→门 1 批了即追认（本复审即追认评审）；⑧§10 自审查结论→P4 自审 2 轮（第 1 轮发现 4 处引用错：smtp 行号/case 数/banner 行/FlowIndex 行，已修；第 2 轮干净，见 P4 提交 1bead97）。
+**P6 完成回填（2026-09-17）：** P5 `RESULT: 84 pass, 0 fail, 0 error (of 84)`（/tmp/tg-imap-p5-server 与 HEAD 同代；门 2 四项全绿；反查 54/54；smtp 43/43、pop3 50/50 无误伤）+ 落盘 81 文件零孤儿 + 在库 imap 清空（删前 strategies 63/tasks 130 → 删后 0/0，备份 `/tmp/trafficgen-pre-imap-clear.db`）+ P5 修真 bug 一件（层翻译分支 JSON 往返判死 → `ParseIMAPConfigFromMap` 单 parse 真相，failing 先行 2 红转绿，见 D-IMAP-1 §10 回填②）；门 3 抽查见 D-IMAP-1 §10 回填。T-053 锚词已按 V9 门字面更正（见上表）。
