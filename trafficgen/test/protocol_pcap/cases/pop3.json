@@ -1871,12 +1871,12 @@
        },
        {
         "cmd": "CAPA",
-        "response": "+OK\r\nTOP\r\nUIDL\r\n.\r\n",
+        "response": "+OK\r\nTOP\r\nUIDL\r\nRESP-CODES\r\nPIPELINING\r\nSTLS\r\nUSER\r\nSASL\r\n.\r\n",
         "multiline": true
        },
        {
         "cmd": "QUIT",
-        "response": "+OK bye"
+        "response": "+OK Logging out."
        }
       ]
      }
@@ -1899,8 +1899,7 @@
     }
    ],
    "notes": [
-    "POP3 短命令帧恒<80B（frame.len 代理不适用；mqtt/smtp 先例同款不断 has_payload）",
-    "dovecot 映射地板线+待确认：抓现网包比字节"
+    "dovecot 映射已亲验：问候 `+OK Dovecot ready.`（官方 login_greeting 缺省 `Dovecot ready`，多份现网 telnet 实录一致）；CAPA 含 TOP/UIDL/RESP-CODES/PIPELINING/STLS/USER/SASL（nmap pop3-capabilities 实扫）；QUIT 回 `+OK Logging out.`（Heinlein 实录会话）"
    ]
   }
  },

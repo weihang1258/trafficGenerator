@@ -2881,7 +2881,7 @@
 | 多 NOOP 长保活 | T-POP3-27 | A（§3 多事务③：同连接 3×NOOP，转离线 `3_15_1_NOOPx10` 缩量） |
 | 现网 Gmail 形（995+recent 用户名） | T-POP3-28 | A（映射地板线：问候原文，真服务器对接另立项） |
 | 现网 Outlook 形（995） | T-POP3-29 | A（映射地板线，同上） |
-| 现网 Dovecot 形（默认问候/CAPA） | T-POP3-30 | A（映射地板线+待确认：抓现网包比字节） |
+| 现网 Dovecot 形（问候/CAPA/QUIT） | T-POP3-30 | A（映射已亲验：问候原文+7 项能力集+退出回复） |
 | 复合流（登录+STAT+RETR+DELE+QUIT 一条流） | T-POP3-31 | A（≥3 动作组合流） |
 | POP3S 端口 995 显式通过（改写存量 over_tls；缺省 110 见 T-POP3-1） | T-POP3-32 | A（改写；明文不断言 TLS 握手细节，随形钉 `tcp.dstport=995`） |
 | v6 承载冒烟（`[ip(v6),tcp,pop3]`） | T-POP3-33 | A（mqtt_v6/smtp_t015 先例：字段名 tshark 无回值则降级注记） |
