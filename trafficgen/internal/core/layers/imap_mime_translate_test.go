@@ -18,8 +18,8 @@ import (
 // 7 包空流）。mime_body 经链即死，扁平同输入却正常（parseIMAPMIMEBody
 // 直解 []byte(raw)），层/扁平双轨分叉。
 //
-// 本文件三测试：A/B 走 BuildLayersPlanner→Plan 黑盒（失败先行，当前红）；
-// C 锁扁平真相（当前绿，修后回归锚）。
+// 本文件三测试：A/B 走 BuildLayersPlanner→Plan 黑盒（层翻译分支的
+// mime_body 存活证据）；C 锁扁平真相（同输入扁平 parse 的 data 语义锚）。
 
 // imapWireDown 用层链 JSON 走完整 ChainPlanner→Plan，返回全部下行载荷拼接。
 func imapWireDown(t *testing.T, imapCfg map[string]interface{}) string {
