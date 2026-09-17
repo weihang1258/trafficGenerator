@@ -839,6 +839,17 @@ func buildDefaultRegistry() {
 		DependsOn:     []string{"tcp"},
 		OptionalOn:    []string{"tls"},
 		FieldContract: map[string]string{"tcp.dst_port": "143"}, // RFC 3501 默认 143；用户显式非标准端口优先（IMAPS 993），不强制
+		Fields: map[string]FieldSchema{
+			// D-IMAP-1：banner/commands/idle/pipelined_commands/
+			// allow_utf8_mailbox 五键（IMAPConfig 同名；commands/idle/
+			// mime_body 是嵌套对象/数组，V9 只验顶层键存在，值语义归翻译
+			// 分支 JSON 往返解码 + validator）。
+			"banner":             {Type: "string", Default: ""},
+			"commands":           {Type: "list", Default: []interface{}{}},
+			"idle":               {Type: "object"},
+			"pipelined_commands": {Type: "bool", Default: false},
+			"allow_utf8_mailbox": {Type: "bool", Default: false},
+		},
 	})
 	r.Register(LayerSchema{Name: "mysql", Category: CategoryTerminal,
 		DependsOn:     []string{"tcp"},

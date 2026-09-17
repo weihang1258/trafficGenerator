@@ -709,6 +709,10 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 		if sub, ok := cfg["imap"].(map[string]interface{}); ok {
 			spec.IMAP = parseIMAPConfig(sub)
 		}
+		// IMAP defaults to port 143 per RFC 9051 §2.1. Only override when
+		// the user did not specify a dst_port - matches the POP3/SMTP
+		// override pattern (D-IMAP-1: pop3 :799 / smtp :883 同款行为对齐).
+		setDefaultDstPort(&spec, cfg, 143)
 	case "l2tp":
 		if sub, ok := cfg["l2tp"].(map[string]interface{}); ok {
 			spec.L2TP = parseL2TPConfig(sub)
@@ -7649,6 +7653,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "pop3" {
 		if v, ok := cfg["pop3"]; ok && v != nil {
 			return "protocol pop3 no longer accepts a top-level pop3 sub-config (move it into the pop3 layer of an [ip,tcp,pop3] layers chain)"
+		}
+	}
+	// D-IMAP-1：imap 顶层 imap 子映射 presence 判死（pop3 先例；空 map 也
+	// 死）。层链形状不触发。
+	if protocol == "imap" {
+		if v, ok := cfg["imap"]; ok && v != nil {
+			return "protocol imap no longer accepts a top-level imap sub-config (move it into the imap layer of an [ip,tcp,imap] layers chain)"
 		}
 	}
 	return ""

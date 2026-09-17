@@ -1157,6 +1157,26 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if err := json.Unmarshal(raw, &sc); err == nil {
 			spec.SMTP = &sc
 		}
+	case "imap":
+		if spec.IMAP != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// D-IMAP-1：层 config（banner/commands/idle/pipelined_commands/
+		// allow_utf8_mailbox）经 JSON 往返解码为 core.IMAPConfig（pop3
+		// `:1127`/smtp `:1143` 同款；commands/idle/mime_body/FileSource
+		// 嵌套自动——FileSource `file/literal/fill/random` 键与
+		// filesystem.FileSource tags 对齐零分叉）。生成器对 nil config
+		// 已走默认空会话（layer_gen.go:43-45），但 validator/单测要求翻译
+		// 发生在校验前，故空层 config 也翻译出非 nil config。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			return
+		}
+		var ic core.IMAPConfig
+		if err := json.Unmarshal(raw, &ic); err == nil {
+			spec.IMAP = &ic
+		}
 	case "mqtt":
 		// D-MQTT-1：层优先（flat 判死后无双轨——CheckProtoFlat 已拒顶层
 		// mqtt 子映射）。http :839 空壳例外同款：spec.MQTT 非 nil 但为空

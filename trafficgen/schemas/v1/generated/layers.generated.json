@@ -934,7 +934,27 @@
       "field_contract": {
         "tcp.dst_port": "143"
       },
-      "fields": {}
+      "fields": {
+        "allow_utf8_mailbox": {
+          "type": "bool",
+          "default": false
+        },
+        "banner": {
+          "type": "string",
+          "default": ""
+        },
+        "commands": {
+          "type": "list",
+          "default": []
+        },
+        "idle": {
+          "type": "object"
+        },
+        "pipelined_commands": {
+          "type": "bool",
+          "default": false
+        }
+      }
     },
     "ip": {
       "category": "network",
