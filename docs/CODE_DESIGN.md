@@ -1344,7 +1344,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 
 | § | 本协议怎么满足 | 证据 |
 |---|---|---|
-| §1 层链唯一真相 | 顶层旧键五键去向：`src_ip`→`layers[ip].src`、`dst_ip`→`layers[ip].dst`、`src_port`→`layers[tcp].src_port`、`dst_port`→`layers[tcp].dst_port`（110 由 `FieldContract tcp.dst_port=110` 补，用户写 995 优先）、`count`→删（缺省单流，走 `flow_control`）、顶层 `pop3` 子映射→`layers[pop3]`（banner/commands/mailbox 同名直迁；层内键名与 `POP3Config` JSON 键一致，见 `types.go:6660`）。目标形状：`{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":13000,"dst_port":110}},{"pop3":{"banner":"+OK POP3 server ready","commands":[{"cmd":"USER alice","response":"+OK alice"},{"cmd":"PASS secret","response":"+OK Logged in"},{"cmd":"QUIT","response":"+OK bye"}]}}]}`。P4 必修 3 项：①`CheckProtoFlat` 加 pop3 presence 分支（mqtt/dns/smtp 同款文案，空 map 也死）；②扁平侧 `case "pop3"` 补 `setDefaultDstPort(&spec, cfg, 110)` 一行（注释有、调用无，smtp `:882` 同款行为对齐）；③pop3.json 2 例改写层链形（smoke_01 纯扁平→`[ip,tcp,pop3]`；over_tls 混用→`[ip,tcp,tls,pop3]`，旧键全删） | pop3.json 2 例；`registry.go:828`；`strategy_convert.go:788`；本条目 §1/§7 |
+| §1 层链唯一真相 | 顶层旧键五键去向：`src_ip`→`layers[ip].src`、`dst_ip`→`layers[ip].dst`、`src_port`→`layers[tcp].src_port`、`dst_port`→`layers[tcp].dst_port`（110 由 `FieldContract tcp.dst_port=110` 补，用户写 995 优先）、`count`→删（缺省单流，走 `flow_control`）、顶层 `pop3` 子映射→`layers[pop3]`（banner/commands/mailbox 同名直迁；层内键名与 `POP3Config` JSON 键一致，见 `types.go:6660`）。目标形状：`{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":13000,"dst_port":110}},{"pop3":{"banner":"+OK POP3 server ready","commands":[{"cmd":"USER alice","response":"+OK alice"},{"cmd":"PASS secret","response":"+OK Logged in"},{"cmd":"QUIT","response":"+OK bye"}]}}]}`。P4 必修 3 项：①`CheckProtoFlat` 加 pop3 presence 分支（mqtt/dns/smtp 同款文案，空 map 也死）；②扁平侧 `case "pop3"` 补 `setDefaultDstPort(&spec, cfg, 110)` 一行（注释有、调用无，smtp `:883` 同款行为对齐）；③pop3.json 2 例改写层链形（smoke_01 纯扁平→`[ip,tcp,pop3]`；over_tls 混用→`[ip,tcp,tls,pop3]`，旧键全删） | pop3.json 2 例；`registry.go:828`；`strategy_convert.go:788`；本条目 §1/§7 |
 | §2 策略/任务分工 | 沿框架语义；多流走 `flow_control` + 层动态（§12 行）；`spec` 本身不管数量 | D-POP3-1 §3 |
 | §3 五件套 | 会话表：单 TCP 长连接单会话，无 `sessions[]`（RFC 1939 §3–§6：客户端主动建连，豁免多会话扇出；pop3 代码无 sessions/driven_by 形状）。事务序列：banner（+OK，down，可空）→USER→PASS（或 APOP 一条）→STAT/LIST/RETR/DELE/NOOP/RSET/TOP/UIDL 任意轮→QUIT→UPDATE（服务端删标记信，dd 实为挥手）→FIN，命令/响应对逐条按序产事件（空 Cmd 跳过命令包=服务端单轮，空 Response 跳过响应包=客户端单轮）。关联关系：无（POP3 无控制/数据双流，FTP PASV 类比不适用）。插入位置：终结层事件流直入 tcp 层（事件模式，tcp 管握手/seq-ack/挥手/MSS 分段；POP3S 形 `[ip,tcp,tls,pop3]` 经 tls 层隧道）；maildrop/TOP 合成在命令轮内替响应（RETR/TOP 处）。时间线：单流顺序无交错；多流=整会话复制。豁免≠豁免多事务：多轮操作/异常断线/长保活各至少一例（§9 立项 T-POP3-25/26/27） | `pop3/planner.go:337`；`pop3/layer_gen.go:30`；`registry.go:828` |
 | §4 规范矩阵 | RFC 1939 §3（连接模型：TCP 110 监听、状态机、`+OK`/`-ERR`、dot-stuffing、参数≤40 字符、响应≤512 字符、空闲定时器≥10 分钟）+ §4（AUTHORIZATION：USER/PASS/APOP/QUIT）+ §5（TRANSACTION：STAT/LIST/RETR/DELE/NOOP/RSET）+ §6（UPDATE：QUIT 进更新态删信）+ §7（可选：TOP/UIDL/USER/PASS/APOP 细则；USER 名≤40 字符、UID 1–70 字符）+ §10（示例会话）+ §11（消息格式）；RFC 879（MSS≥536）+ RFC 6528（随机 ISN）；RFC 2449（CAPA 扩展机制）/ RFC 2595（STLS/AUTH，台词覆盖，真升级另立项）。三路对照：规范底线✓；商业准绳=Gmail `pop.gmail.com:995` 强制 SSL（Google 帮助"用其他客户端读取 Gmail"）+ Outlook `outlook.office365.com:995` SSL/TLS（微软支持"POP、IMAP 和 SMTP 设置"）+ Dovecot 问候 `+OK Dovecot ready.`（官方 login_greeting 缺省 `Dovecot ready`）/CAPA 7 项（nmap 实扫）/QUIT 回 `+OK Logging out.`（已亲验，见 T-POP3-30 注记）；开源借鉴=本仓 legacy 回放基线（133 单测：37 planner + 75 testpoints + 21 mime，不搬代码）。候选对比见本条目 §9 | P1 矩阵（本条目 §9 三表）；`types.go:6660` |
@@ -1446,7 +1446,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - 动态解析：本期 pop3 业务无动态，worker resolveLayerTuple 只解四元组（flows=2 时 pop3 层留空防静态复制）。
 
 #### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
-- 无新序号算法（框架 `resolveLayerTuple`（worker.go:318） + `spec.FlowIndex` 只读（worker.go:326）；pop3 planner 不读 FlowIndex，smtp 同款）。
+- 无新序号算法（框架 `resolveLayerTuple`（worker.go:318） + `spec.FlowIndex` 只读（worker.go:321）；pop3 planner 不读 FlowIndex，smtp 同款）。
 - 动态整格（§12）：
 
   | 层.字段 | 开/关 | 面 | 覆盖 |
@@ -1486,8 +1486,196 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | 决策 | 候选 | 优劣 | 结论 |
 |------|------|------|------|
 | A presence 口径 | A1 空 map 也判死；A2 仅非空判死 | A1 mqtt/dns/smtp 先例（空即显式走默认）；A2 留空壳双轨 | 选 A1 |
-| B 110 缺省走法 | B1 补 `setDefaultDstPort(110)`；B2 维持现状靠 FieldContract | B1 与 smtp `:882`/xmpp/sip 同款行为对齐（legacy 扁平路径 DstPort=0 缺口）；B2 链上虽有 FieldContract 但 legacy 扁平无端口仍 0 | 选 B1（理由按 smtp 复审 R5：行为对齐） |
+| B 110 缺省走法 | B1 补 `setDefaultDstPort(110)`；B2 维持现状靠 FieldContract | B1 与 smtp `:883`/xmpp/sip 同款行为对齐（legacy 扁平路径 DstPort=0 缺口）；B2 链上虽有 FieldContract 但 legacy 扁平无端口仍 0 | 选 B1（理由按 smtp 复审 R5：行为对齐） |
 | C 业务动态 | C1 全关+理由；C2 开 mailbox/用户名 | C2 有序会话+静态信箱，开了测不出（mailbox 逐流变破坏 RETR 确定性） | 选 C1，逐流变另立项口 |
 | D 翻译走法 | D1 现状 JSON 往返不动；D2 改 ftp 同款复用 parse | D2 需重写 mailbox 嵌套解码，已有分支零分叉，动它违反 YAGNI | 选 D1（零改动） |
 | E UIDL 语义 | E1 用户原文提供（planner 不自动）；E2 自动生成 | E2 与 `types.go` 注释"Empty = 不自动生成"冲突，属无依据设计 | 选 E1（沿既有注释） |
 | F 超大 mailbox 负例 | F1 小载荷断上限文案变体；F2 构造 10 万+1 信 | F2 载荷上百 MB，MCP 建策略即卡死，测的是耐心不是门 | 选 F1（不断全量构造，见 T-POP3-15 注记） |
+
+### D-IMAP-1 IMAP 顶层 imap 子映射迁入层内 + 业务动态全关【P-PIPE #8 门1】
+
+**门 1 开工对照表（§1–§15，2026-09-17，证据=文档节/代码行/用例号）：**
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键五键去向：`src_ip`→`layers[ip].src`、`dst_ip`→`layers[ip].dst`、`src_port`→`layers[tcp].src_port`、`dst_port`→`layers[tcp].dst_port`（143 由 `FieldContract tcp.dst_port=143` 补，用户写 993 优先）、`count`→删（缺省单流，走 `flow_control`）、顶层 `imap` 子映射→`layers[imap]`（banner/commands/idle/pipelined_commands/allow_utf8_mailbox 同名直迁；commands 嵌套 tag/cmd/responses/literal_body/_b64/file_source/emit_idle/cancel_after/uid_cache/mime_body，idle 嵌套 push/done_tag/done_response/timeout，mime_body 嵌套 headers/boundary/text/parts(content_type+body)/attachments(filename+content_type+data)，层内键名与 `IMAPConfig` JSON 键一致，见 `types.go:4570/4622/4766/4853`）。目标形状：`{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":14000,"dst_port":143}},{"imap":{"banner":"* OK IMAP ready","commands":[{"tag":"A001","cmd":"LOGIN alice secret","responses":["A001 OK LOGIN completed"]},{"tag":"A002","cmd":"LIST \"\" \"*\"","responses":["* LIST (\\Inbox) \"\" INBOX","A002 OK LIST completed"]},{"tag":"A003","cmd":"LOGOUT","responses":["* BYE Logging out","A003 OK LOGOUT completed"]}]}}]}`。P4 必修 5 项：①`CheckProtoFlat` 加 imap presence 分支（mqtt/dns/smtp/pop3 同款文案，空 map 也死）；②扁平侧 `case "imap"` 补 `setDefaultDstPort(&spec, cfg, 143)` 一行（pop3 `:799`/smtp `:883` 同款行为对齐；现状注释亦无）；③`registry.go:838` 补 imap Fields 5 键（现状零 Fields=层内业务键 V9 全拒）；④`translateTerminalConfig` 加 `case "imap"`（pop3 `:1127`/smtp `:1143` 同款 JSON 往返 + flat 权威，FileSource 键直通零分叉）；⑤imap.json 1 例改写层链形（smoke_01 纯扁平→`[ip,tcp,imap]`，5 旧键全删） | imap.json 1 例；`registry.go:838`；`strategy_convert.go:708`；本条目 §1/§7 |
+| §2 策略/任务分工 | 沿框架语义；多流走 `flow_control` + 层动态（§12 行）；`spec` 本身不管数量 | D-IMAP-1 §3 |
+| §3 五件套 | 会话表：单 TCP 长连接单会话，无 `sessions[]`（RFC 9051 §3：客户端主动建连，豁免多会话扇出；imap 代码无 sessions/driven_by 形状）。事务序列：greeting（`* OK`/`PREAUTH`/`BYE` 定初始态，down，可空）→各态命令：CAPABILITY/NOOP/LOGOUT（任意态 §6.1）、STARTTLS/AUTHENTICATE/LOGIN（未认证态 §6.2）、ENABLE/SELECT/EXAMINE/CREATE/DELETE/RENAME/SUBSCRIBE/UNSUBSCRIBE/LIST/NAMESPACE/STATUS/APPEND/IDLE（已认证态 §6.3）、CLOSE/UNSELECT/EXPUNGE/SEARCH/FETCH/STORE/COPY/MOVE/UID（已选择态 §6.4）→LOGOUT→挥手→FIN；tag 逐条（空 tag 自动 A001 递增，tag 复用服务器须接受、不校验）；命令/响应对逐条按序产事件（空 Cmd 跳过命令包=服务端单轮如 AUTH challenge，空 Responses 跳过响应包；sync literal `{N}` 占位替换+literal 体+收尾 CRLF：server→client 直接跟字节，client→server 须等 continuation `+`；MIMEBody>B64>Body 优先级，FileSource 链上不可用 tftp 同款降级）；IDLE 轮（RFC 2177：IDLE→`+ idling`→push→DONE→done response→可选 timeout BYE；DONE 裸发无 tag，tag 只在 done response）；cancel_after 表 AUTHENTICATE 取消 `*`；uid_cache_invalidation 尾注；pipelined 双相位 vs 默认逐条。关联关系：无（IMAP 无控制/数据双流，FTP PASV 类比不适用）。插入位置：终结层事件流直入 tcp 层（事件模式，tcp 管握手/seq-ack/挥手/MSS 分段；IMAPS 形 `[ip,tcp,tls,imap]` 经 tls 层隧道）。时间线：单流顺序无交错；多流=整会话复制。豁免≠豁免多事务：多轮操作/异常断线/长保活各至少一例（§9 立项 T-IMAP-57/58/59） | `imap/planner.go:296`；`imap/layer_gen.go:38`；`registry.go:838` |
+| §4 规范矩阵 | RFC 9051 §2.1（TCP 143 明文/993 隐式 TLS 监听）+ §2.2.1（tag：客户端每命令不同 tag SHOULD、服务器 MUST 接受复用；空格/CRLF 语法错；Tag 上限见 §9 待确认项）+ §2.2.2（tagged/untagged `*`/continuation `+` 三响应；completion 带原 tag）+ §3（四状态：greeting 定初始态 OK/PREAUTH/BYE；错态命令回 BAD/NO；迁移图例①–⑦）+ §4.3（sync literal `{N}`CRLF+字节）+ §5.4（autologout 计时器：无时钟不断言，C 类）+ §5.5（pipelining 多命令并行）+ §6（命令分态表：6.1 任意态/6.2 未认证/6.3 已认证/6.4 已选择）+ §7（响应表：OK/NO/BAD/PREAUTH/BYE/CAPABILITY/LIST/STATUS/EXISTS/EXPUNGE/FETCH/`+`）+ §8（官方示例会话全文抄）；RFC 879（MSS≥536）+ RFC 6528（随机 ISN）；RFC 2177（IDLE：`+ idling`/DONE/timeout BYE；常量 `IDLEContuation/IDLEDone/IDLETimeoutBye`）/ RFC 5161（ENABLE）/ RFC 6855（UTF-8，AllowUTF8Mailbox）/ RFC 6851（MOVE）/ RFC 7162（CONDSTORE，UIDCacheInvalidationResponse）/ RFC 3501 §5.1.3（Modified UTF-7，C 类）；MIME：RFC 2045 §6.8（base64 76 换行）/ RFC 2046 §5.1.1（mixed/boundary）/ RFC 5322（消息头）/ RFC 2183（附件处置）。三路对照：规范底线✓；商业准绳=Gmail `imap.gmail.com:993` 强制 SSL（Google Workspace 文档）+ 问候 `* OK Gimap ready…`（双源现网实录，openssl 亲验列 P5）+ Outlook `outlook.office365.com:993` SSL/TLS + OAuth2/Modern（微软支持"POP、IMAP 和 SMTP 设置"）+ Dovecot 问候 `* OK [CAPABILITY IMAP4rev1 …] Dovecot ready.`（三份以上现网实录交叉，telnet 亲验列 P5，POP3 口径同款）；开源借鉴=本仓 legacy 回放基线（136 单测：50 planner + 70 testpoints + 13 mime + 3 f2_done（`grep -c ^func Test` 实数），不搬代码）。候选对比见本条目 §9 | P1 矩阵（本条目 §9 三表）；`types.go:4570` |
+| §5 有错必处理 | 依赖：imap 层 DependsOn tcp / OptionalOn tls（registry.go:838）；配置经 Meta 直传终结层生成器（chain_planner_translate.go:183-185）；validator 调 `(&Planner{}).Validate`（layer_gen.go:256-260）。validator 真拦 23 分支：坏 IP×2、MSS<536、Tag>256、Tag 含 SP/CRLF、Cmd 含 CRLF、Cmd 非 ASCII（缺 allow_utf8）、Responses 超 1 万、Response 含 CRLF、LiteralBody 与 B64 互斥、LiteralBody 超长、B64 解码错、B64 解码超长、MIMEBody 与 Literal 互斥、MIMEBody 构造超长、EmitIDLE 无 IDLE、CancelAfter 越界、Push 超 1000、Push 含 CRLF、Timeout 枚举错、DoneTag 含 SP/CRLF、DoneTag 超长、DoneResponse 含 CRLF；端口不强制 143（993 放行）。P4 必修见 §1 行（Fields 补齐 + 翻译分支，缺任一层配置即死或静默空会话） | `planner.go:140`（23 处 return `:144-286`）；`registry.go:838`；本条目 §9 |
+| §6 性能 | 单会话包数量级=3 握手 + banner + 命令/响应帧 + 4 挥手（literal/MIME 体线性增帧）；无锁无 sleep（事件模式，tcp 层管分段）；回归口径：imap.json 全量 suite 耗时相对基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测）；网卡未跑 | D-IMAP-1 §6 |
+| §7 三份文档 | 设计=本条目；用例=T-IMAP-*；cases 回指编号 | TEST_CASES T-IMAP-* |
+| §8 先设计后代码 | 本条目定稿后开工 | 本条目 |
+| §9 三源+整格 | RFC 条文 + 本条目 + 现网三家；测试点清单见 TEST_CASES T-IMAP-1…（规范行→用例逐行登记）；动态整格见 §12 行 | T-IMAP-*；§12 表 |
+| §10 评审闭环 | failing 先行 4 红例（顶层 imap presence 拒 + `setDefaultDstPort(143)` 缺省 + registry Fields 收录 + 层 banner/commands 翻译）→ 改 → 审 → 测 → 再审 | §7 |
+| §11 白话汇报 | 先一句结论 | 每次汇报 |
+| §12 动态清单 | 整格见本条目 §12 表：四元组开（ip/tcp 通用）；imap 业务全关：banner 关（问候语无逐流变需求）/commands 关（序列语义 + tag 计数，逐流变破坏事务顺序）/idle 关（会话级单例）/mime_body 关（静态信体，逐流变破坏 FETCH 确定性）——有序单连接会话，不冒充开；另立项口（用户名/信箱名逐流变若有批量需求）。序号算法沿框架（worker.go:316 + `resolveLayerTuple` :774，smtp 同款）；P4 验 flows=2 留空防静态复制（§9 陷阱③） | 本条目 §4 整格表 |
+| §13 schema 同步 | 注册表 imap Fields 0→5 键（banner/commands/idle/pipelined_commands/allow_utf8_mailbox；commands/idle/mime_body 嵌套对象/数组 V9 只验顶层键存在，值语义归翻译分支 JSON 往返 + validator，smtp/pop3 同款）；翻译分支新增（pop3 `:1127`/smtp `:1143` 同款 JSON 往返 + flat 权威，FileSource 键直通零分叉）；`main.go:545` 已翻 ChainPlanner（零改动）；本期只加：CheckProtoFlat imap presence 分支 + `setDefaultDstPort(143)`；改完重跑 schemagen（生成表快照同步，`TestLayersGeneratedMatchesRegistry` 绿）；allowlist 零改动（imap 业务全关，不进 allowlist，smtp 先例） | 门 2 脚本 |
+| §14 真实流程 | imap.json 全量绿 + 落盘 tshark 校准（包号/端口不手算；空壳默认会话包数以落盘为准）；二进制同代；门 2 四项；负例 `.neg.pcap` 口径沿 d323068 | imap.json |
+| §15 三道门 | 本表即门 1；门 2 脚本；门 3 挂表抽查；P5R 反查 imap 表在 P3 登记（`coverage_gate.py` 仿 smtp/pop3 表） | 本条目 |
+
+**状态：** P1 已定稿（2026-09-17；门 1 待批；P2/P3/P4/P5/P6 未开工）
+**范围（P4）：** ①`CheckProtoFlat` 加 imap presence 判死；②扁平侧补 `setDefaultDstPort(143)`；③`registry.go:838` 补 imap Fields 5 键；④`translateTerminalConfig` 加 `case "imap"`（JSON 往返 + flat 权威）；⑤imap.json 1 例改写 + P3 新例（初估 68–72 例）全量跑 + 校准回钉；⑥清库（imap 行，删前计数→备份→删→复核）。
+**明确不解决：** STARTTLS 真升级 / IMAPS `[tcp,tls,imap]` 真握手链（台词覆盖已有离线基线，真升级另立项）；状态机 enforcement（回放语义是架构选择，C 类如实注明，不冒充）；空闲 autologout 计时器（RFC 9051 §5.4，C 类：无时钟不断言）；UID 自动分配/序号语义（用户原文提供，不自动）；超大 literal 全量构造（不断 100MB，断上限文案变体，pop3 T-15 F1 同款）；FileSource 链上可用（tftp 同款降级注记：直通不断言可用，真接通另立项）；任务级跨策略动态池（D-FTP-2 同口径另立）。
+**依据：** RFC 9051 §2.1（TCP 143 明文/993 隐式 TLS 监听）/§2.2.1（tag：每命令不同 SHOULD、复用 MUST 接受、空格/CRLF 语法错；上限数字 P2 亲验原文后统一，见 §9 待确认项）/§2.2.2（tagged/untagged `*`/continuation `+`；completion 带原 tag；错态 BAD/NO）/§3（四状态 + greeting 定初始态 OK/PREAUTH/BYE + 迁移图例①–⑦）/§4.3（sync literal `{N}`CRLF+字节；server→client 直接跟、client→server 等 `+`）/§5.4（autologout 计时器，C 类）/§5.5（pipelining）/§6（命令分态：6.1 任意态 CAPABILITY/NOOP/LOGOUT；6.2 未认证 STARTTLS/AUTHENTICATE/LOGIN；6.3 已认证 ENABLE/SELECT/EXAMINE/CREATE/DELETE/RENAME/SUBSCRIBE/UNSUBSCRIBE/LIST/NAMESPACE/STATUS/APPEND/IDLE；6.4 已选择 CLOSE/UNSELECT/EXPUNGE/SEARCH/FETCH/STORE/COPY/MOVE/UID）/§7（响应表）/§8（官方示例会话全文抄，标题已亲验、P5 逐字抄原文）；RFC 2177（IDLE：`+ idling`/DONE 裸发/timeout BYE）/ RFC 5161（ENABLE）/ RFC 6855（UTF-8）/ RFC 6851（MOVE）/ RFC 7162（CONDSTORE）/ RFC 3501 §5.1.3（Modified UTF-7，C 类）；RFC 2045 §6.8（base64 76 换行）/ RFC 2046 §5.1.1（mixed/boundary）/ RFC 5322（消息头）/ RFC 2183（附件处置）；RFC 879（MSS≥536）/ RFC 6528（ISN）；商业：Gmail IMAP（`imap.gmail.com:993` 强制 SSL，Google Workspace 文档；问候 `* OK Gimap ready…` 双源实录，openssl 亲验列 P5）/ Outlook（`outlook.office365.com:993` SSL/TLS + OAuth2/Modern，微软支持文档）/ Dovecot（问候 `* OK [CAPABILITY IMAP4rev1 …] Dovecot ready.` 三份以上实录交叉，telnet 亲验列 P5）；代码事实：`imap/planner.go:140`（validator 23 分支 `:144-286`）/`:296`（回放 Plan）/`:309`（nil→空会话）/常量 `MaxTagLen=256`(`:79`)/`MaxResponses=10000`(`:85`)/`MaxPush=1000`(`:90`)/`MaxLiteral=100MB`(`:96`)/`:678`（formatCommandLine）/`:689`（占位识别）/`:711`（占位替换）/`:821`（constructMIMEBody）、`imap/layer_gen.go:38`（事件生成器）/`:256`（init 注册 + 握手挥手校准）、`types.go:4570/4622/4766/4853`（IMAPConfig/Command/MIMEBody/IDLE）。
+
+**§9 规范矩阵（P1 先行，规范要求 → 业务场景 → 代码现状 → 缺口）：**
+
+| 规范行 | 业务场景 | 代码现状 | 缺口→用例 |
+|---|---|---|---|
+| RFC 9051 §2.1 连接模型（TCP 143 监听，客户端主动建连） | 默认会话冒烟（banner+LOGIN+LIST+LOGOUT，改写存量冒烟；143 缺省不断端口） | 已实现（Plan 恒产握手/挥手；链上 FieldContract 143 缺省；legacy DefaultPort=143） | 改写 T-IMAP-1（A） |
+| RFC 9051 §2.2.1 tag（三形：显式/自动递增/点线数字） | 显式 A001 / 空 tag 自动 A001… / tag.42/X-Custom-1/001 | 已实现（autoTagCounter `A%03d`；Tag 长度/SP/CRLF 门） | T-IMAP-2/3/4（A，转离线 `1_1_1_*`） |
+| RFC 9051 §2.2.2 三响应（tagged/untagged `*`/continuation `+`） | 空 Cmd 服务端单轮（AUTH challenge `+`）/ untagged + tagged 同轮 | 已实现（空 Cmd/空 Responses 跳过；回放） | T-IMAP-5（A，转离线 `1_1_2_4`） |
+| RFC 9051 §3 四状态（greeting 定初始态；LOGIN→SELECT→业务→LOGOUT） | 状态序列正例 + 错序台词（未认证态 SELECT 回 NO，C 类边界） | 已实现回放（不 enforcement，C 类如实注明；离线 `3_19_4_1` 先例） | T-IMAP-6/7（A） |
+| RFC 9051 §4.3 sync literal（`{N}`CRLF+字节） | APPEND LiteralBody / APPEND B64 / FETCH 响应占位替换 | 已实现（resolveLiteral 优先级 MIME>B64>Body；FileSource 链上不可用 tftp 同款） | T-IMAP-8/9（A，转离线 `1_15_*/1_21_5`） |
+| RFC 9051 §5.4 autologout | 不做（无时钟，C 类） | 无 | C 类注记，不列用例 |
+| RFC 9051 §5.5 pipelining | 流水线双相位 vs 默认逐条对照 | 已实现（PipelinedCommands；离线 `3_19_5_*`） | T-IMAP-10（A） |
+| RFC 9051 §6.1 任意态（CAPABILITY/NOOP/LOGOUT） | 三命令各一例 | 已实现（离线 `1_2_1/1_3_1/1_4_*`） | T-IMAP-11/12/13（A） |
+| RFC 9051 §6.2 未认证态（LOGIN/AUTHENTICATE/STARTTLS） | LOGIN 成功/失败 NO 台词；AUTHENTICATE PLAIN/LOGIN 双形 + 取消 `*`；STARTTLS 台词（真升级另立项） | 已实现（离线 `1_6_*/1_7_*`） | T-IMAP-14/15/16/17（A） |
+| RFC 9051 §6.3 已认证态（ENABLE/SELECT/EXAMINE/CREATE/DELETE/RENAME/SUB/UNSUB/LIST/NAMESPACE/STATUS/APPEND/IDLE） | 逐命令一例：SELECT 成功/失败、EXAMINE 台词、CREATE/DELETE（含 INBOX 拒 NO）/RENAME、SUB/UNSUB 台词、LIST、NAMESPACE 台词、STATUS、APPEND 带 flags；ENABLE 台词（离线零覆盖，全仓零命中，下同）；IDLE 见 RFC 2177 行 | 已实现回放（SELECT/CREATE/DELETE/RENAME/LIST/STATUS/APPEND 离线有基线；ENABLE/EXAMINE/SUB/UNSUB/NAMESPACE 离线零覆盖→pcap 建台词例） | T-IMAP-18…29（A） |
+| RFC 9051 §6.4 已选择态（CLOSE/UNSELECT/EXPUNGE/SEARCH/FETCH/STORE/COPY/MOVE/UID） | 逐命令一例：CLOSE/UNSELECT/EXPUNGE/SEARCH 非空与空结果/FETCH flags/FETCH body literal/STORE 加减 flag/COPY 成功与失败/MOVE + UID FETCH | 已实现（离线 `1_17_*/1_18_*/1_19_*/1_21_*/1_22_*/1_23_*/1_24_*` 全有基线） | T-IMAP-30…39（A） |
+| RFC 9051 §7 响应表（OK/NO/BAD/BYE 等） | NO/BAD 失败码台词（C 类边界）+ 未知命令 BAD 台词 | 回放台词（回放不断言状态机） | T-IMAP-40/41（A） |
+| RFC 9051 §8 官方示例会话 | 全文抄 | 回放 | T-IMAP-42（A；标题已亲验，P5 逐字抄原文） |
+| RFC 2177 IDLE（`+ idling`/DONE/timeout BYE） | 有 push / 无 push / timeout 三形（close_after_idle/keep_idle/none，各一例） | 已实现（链冒烟 `TestChainPlannerIMAPIDLE`；离线 `1_16_*/3_19_2_*`） | T-IMAP-43/44/45/46/47（A） |
+| RFC 7162 CONDSTORE（UIDCacheInvalidation 尾注） | 尾注正例（反例无尾注附带不断单独例） | 已实现（离线 `3_19_9_*`） | T-IMAP-48（A） |
+| RFC 6855 UTF-8（AllowUTF8Mailbox 开/关） | 开正例 / 关拒绝（non-ASCII 锚词）/ ASCII 等价附带 | 已实现（离线 `3_19_7_*`） | T-IMAP-49/50（A 负例其一） |
+| MIME（RFC 2045/2046/5322/2183：mixed/boundary/base64/附件） | FETCH MIMEBody 双附件下载（对标 smtp_t033/pop3_t037，真实 README 附件）/ APPEND MIME 上行 | 已实现（constructMIMEBody；mime 13 单测） | T-IMAP-51/52（A，真实文件） |
+| RFC 879 MSS≥536 / RFC 6528 ISN | MSS<536 拒；ISN 随机（不断言值） | 已实现 | T-IMAP-53（A 负例，`too small`） |
+| 现网 Gmail（993 强制 SSL + Gimap ready 问候） | banner 台词 | 回放 | T-IMAP-54（A，映射地板线；问候原文 openssl 亲验列 P5） |
+| 现网 Outlook（993 SSL/TLS） | banner 台词 | 回放 | T-IMAP-55（A，映射地板线） |
+| 现网 Dovecot（问候/CAPABILITY） | banner 台词（三份实录交叉能力集） | 回放 | T-IMAP-56（A；telnet 亲验列 P5，POP3 口径同款） |
+| 多事务三项（多轮/异常断线/长保活） | 同连接多 FETCH / 无 LOGOUT 断线 / 多 NOOP | 已实现（回放天然支持） | T-IMAP-57/58/59（A） |
+| 复合流（登录+多动作一条流） | LOGIN+SELECT+FETCH+STORE+COPY+LOGOUT 一条流 | 已实现 | T-IMAP-60（A，≥3 动作） |
+| 方向/端口/v6（993 显式通过/v6 承载/坏 IP 拒） | smtp t13/t15/t19 同款三例 | 已实现（FieldContract 993 优先；框架 ip 门） | T-IMAP-61/62/63（A） |
+| 顶层 imap presence 判死 + 静态复制拒绝 | 2 负例 | 待 P4（本期修） | T-IMAP-64/65（A，failing 先行） |
+| validator 23 分支收口（代表 6 支：Tag 超长/Tag SP/Cmd CRLF/B64 解码错/EmitIDLE 无 IDLE/Timeout 枚举错/DoneResponse CRLF——其余 17 支离线有基线，大载荷分支按 F1 小载荷断文案） | 6 负例 | 已实现 | T-IMAP-66…71（A 负例，锚词取字面） |
+
+**待确认项（P2 定稿前亲验 RFC 原文后统一，smtp R2/R3 同款口径）：** ①Tag 上限：`planner.go:79` 256 vs `types.go:4622` 注释 128——以 RFC 9051 §2.2.1/§9 形式语法为准，错的一侧随 P4 改；②`MaxResponses=10000`/`MaxPush=1000`/`MaxLiteral=100MB` 三上限为本仓自定防 blowup 数（注释称 design doc 上限），无 RFC 条文，沿既有用例锁定行为不改口径。
+
+**命令×响应码矩阵（§4 子表①，逐格已覆/缺失；回放语义下响应码是用户写的 Responses 原文，OK/NO/BAD 三分支各至少一例）：**
+
+| 命令 | 成功（tagged OK） | 失败（NO/BAD 台词） | 状态 |
+|---|---|---|---|
+| CAPABILITY | T-IMAP-11 | —（无失败分支，不适用） | P3 建 |
+| NOOP | T-IMAP-12（+T-59 长保活） | —（无失败分支，不适用） | P3 建 |
+| LOGOUT | T-IMAP-13（各例附带 terminates） | —（无失败分支，不适用） | P3 建 |
+| STARTTLS | T-IMAP-17（台词，真升级另立项） | — | P3 建 |
+| AUTHENTICATE | T-IMAP-16（PLAIN/LOGIN 双形） | T-IMAP-16 附带取消 `*`（C 类） | P3 建 |
+| LOGIN | T-IMAP-14 | T-IMAP-15（NO 台词，C 类边界） | P3 建 |
+| ENABLE | T-IMAP-18（台词；离线零覆盖） | — | P3 建 |
+| SELECT | T-IMAP-19 | T-IMAP-20（NO 台词） | P3 建 |
+| EXAMINE | T-IMAP-21（台词；离线零覆盖） | — | P3 建 |
+| CREATE | T-IMAP-22 | — | P3 建 |
+| DELETE | T-IMAP-23 | T-IMAP-23 附带 NO（INBOX 不可删） | P3 建 |
+| RENAME | T-IMAP-24 | — | P3 建 |
+| SUBSCRIBE | T-IMAP-25（台词；离线零覆盖） | — | P3 建 |
+| UNSUBSCRIBE | T-IMAP-25（台词；离线零覆盖） | — | P3 建 |
+| LIST | T-IMAP-26 | — | P3 建 |
+| NAMESPACE | T-IMAP-27（台词；离线零覆盖） | — | P3 建 |
+| STATUS | T-IMAP-28 | — | P3 建 |
+| APPEND | T-IMAP-29（+T-8/9 literal 双形） | — | P3 建 |
+| IDLE | T-IMAP-43/44（+45/46/47 timeout 三形） | — | P3 建 |
+| CLOSE | T-IMAP-30 | — | P3 建 |
+| UNSELECT | T-IMAP-31 | — | P3 建 |
+| EXPUNGE | T-IMAP-32 | — | P3 建 |
+| SEARCH | T-IMAP-33 | T-IMAP-34（空结果，非失败，注记） | P3 建 |
+| FETCH | T-IMAP-35/36（+T-51 MIME 双附件） | — | P3 建 |
+| STORE | T-IMAP-37（加减 flag） | — | P3 建 |
+| COPY | T-IMAP-38 | T-IMAP-38 附带失败（NONEXISTENT） | P3 建 |
+| MOVE | T-IMAP-39 | — | P3 建 |
+| UID | T-IMAP-39 附带（UID FETCH） | — | P3 建 |
+| 未知命令 | — | T-IMAP-41（BAD 台词；回放不断言状态机） | P3 建 |
+
+**数据形态变体表（§4 子表②，greeting/tag/响应/literal/IDLE 形态逐项）：**
+
+| 形态 | 说明 | 用例 |
+|---|---|---|
+| 空 greeting（banner 空跳过） | 生成器跳过问候帧沿既有 | T-IMAP-1 附带（另立空 banner 例不断单独例） |
+| `* OK` 问候 | 常规未认证 greeting | T-IMAP-1 |
+| `PREAUTH` 问候台词 | 预认证连接（§3 图例②） | T-IMAP-6 附带 |
+| `BYE` 问候台词 | 拒绝连接（§3 图例③） | T-IMAP-7 附带 |
+| tag 自动递增（空 tag→A001…） | autoTagCounter `A%03d` | T-IMAP-3 |
+| untagged `*` + tagged completion 同轮 | LIST/SELECT 响应对 | T-IMAP-19/26 |
+| continuation `+` 单轮 | AUTH challenge（空 Cmd 跳过命令包） | T-IMAP-5 |
+| sync literal 上行（APPEND `{N}`+体） | LiteralBody/B64 双形 | T-IMAP-8/9 |
+| sync literal 下行（FETCH 占位替换+体+收尾 CRLF） | `{0}`→实际长重写 | T-IMAP-36 |
+| 空 literal（零长 `{0}`） | 离线 `3_19_6_*` 转 pcap | T-IMAP-9 附带 |
+| MIME simple 纯文本 | Text 单体 | T-IMAP-51 附带（首体块） |
+| MIME multipart 双附件 | 真实 README 附件（对标 smtp_t033） | T-IMAP-51 |
+| 自定义 boundary | 用户原文逐字 | T-IMAP-52 附带 |
+| IDLE 有 push / 无 push | RFC 2177 双形 | T-IMAP-43/44 |
+| IDLE timeout BYE 三形 | close_after_idle/keep_idle/none | T-IMAP-45/46/47 |
+| 流水线双相位 vs 默认逐条 | PipelinedCommands 开/关对照 | T-IMAP-10（双例） |
+| UTF-8 开/关/ASCII 等价 | AllowUTF8Mailbox 三形 | T-IMAP-49/50 |
+| CONDSTORE 尾注有/无 | UIDCacheInvalidation 开关 | T-IMAP-48（反例附带） |
+
+**商业行为→用例映射表（§4 子表③）：**
+
+| 商业行为 | 出处 | 用例 | 状态 |
+|---|---|---|---|
+| Gmail `imap.gmail.com:993` 强制 SSL | Google Workspace 文档"IMAP、POP 和 SMTP" | T-IMAP-54 | P3 建（banner 台词地板线；问候原文 openssl 亲验列 P5） |
+| Gmail 问候 `* OK Gimap ready…` | 双源现网实录（nylas 文档 + mintlify 排障手册） | T-IMAP-54 附带 | P3 建（openssl 亲验列 P5，不删） |
+| Outlook `outlook.office365.com:993` SSL/TLS + OAuth2/Modern | 微软支持"POP、IMAP 和 SMTP 设置" | T-IMAP-55 | P3 建（banner 台词地板线） |
+| Dovecot 问候/CAPABILITY（`IMAP4rev1 LITERAL+ SASL-IR … ID ENABLE IDLE AUTH=PLAIN` + `Dovecot ready.`） | 三份以上现网实录交叉（serverfault/roundcube 论坛/部署实录） | T-IMAP-56 | P3 建（telnet 亲验列 P5，POP3 口径同款，不删） |
+
+#### 1. 数据与接口
+- 输入：`[ip, tcp, imap{banner?,commands?[],idle?{},pipelined_commands?,allow_utf8_mailbox?}]`（imap 层缺席键走 `IMAPConfig` 零值→生成器默认空会话沿既有；`banner` 空跳过不像 smtp 自动补，沿既有 `planner.go:418` 空判断；IMAPS 形 `[ip,tcp,tls,imap]` 经 tls 层隧道）。
+- 输出：3 握手 + banner(down，可空) + 命令/响应对（含 literal 体帧/IDLE 轮）+ 4 挥手（链式，与 legacy 同形；MSS 切段/ISN 由 tcp 层与 planner 同款逻辑承担）。
+- 修改点四处（builder/drive/finalEmit 零改动）：`strategy_convert.go` CheckProtoFlat 加 imap presence 分支（mqtt/dns/smtp/pop3 文案同构，空 map 也死）+ `case "imap"` 内补 `setDefaultDstPort(&spec, cfg, 143)`；`registry.go` 补 imap Fields 5 键（banner/commands/idle/pipelined_commands/allow_utf8_mailbox；嵌套 V9 只验顶层键）；`chain_planner_translate.go` 加 `case "imap"`（pop3/smtp 同款：`if spec.IMAP != nil return` + completedConfig + JSON 往返→`core.IMAPConfig`，FileSource 键直通）；`layer_dyn.go` 零改动（imap 业务全关，不进 allowlist）。新增函数：无。
+- 显式覆盖：层值是 imap 全配置唯一真相；flat `cfg["imap"]` 出现即判死（presence，空 map 也死，mqtt 先例）。
+
+#### 2. 依赖与生命周期
+- 前置：tcp 层（DependsOn；缺 tcp 自动补，tcp DependsOn ip 连带补全）；tls 为 OptionalOn（声明保留，真升级另立项）。
+- 资源：无状态生成器；翻译在 ValidateSpec 同步期（幂等覆盖写）；空层 config 翻译出 `&IMAPConfig{}` 非 nil（生成器走默认空会话，与 legacy `imapConfig==nil→&IMAPConfig{}` 同款 `planner.go:309`；commands/idle/mime_body 嵌套 JSON 往返自动，FileSource `file/literal/fill/random` 键与 `filesystem.FileSource` tags 对齐零分叉，见 `strategy_convert.go:1477`）。
+- flat 权威判据：简单 nil 判（扁平侧条件创建，复审 smtp R6 同款：`if spec.IMAP != nil return`，扁平侧无 ftp 式恒非 nil，空 `imap:{}` 建空壳走 flat 权威与 presence 判死自洽）。
+
+#### 3. 主流程与状态
+- 四状态：NOT-AUTHENTICATED（STARTTLS/AUTHENTICATE/LOGIN，§6.2）→AUTHENTICATED（ENABLE/SELECT/…/IDLE，§6.3）→SELECTED（CLOSE/…/UID，§6.4）→LOGOUT（§3 图例⑦；BYE + tagged completion + 挥手）。回放不 enforcement 状态机（smtp 同款架构选择，C 类如实注明）：错序由用户写 NO/BAD Responses 台词表达（离线 `TestIMAPPoint_3_19_4_1_TagMismatchReplayed` 先例）。
+- 翻译顺序：判死（顶层 imap 出现即拒）→ 层 config 翻译（JSON 往返，commands/idle/mime 嵌套自动）→ 协议 validator（23 分支真拦沿既有）。
+- 动态解析：本期 imap 业务无动态，worker resolveLayerTuple 只解四元组（flows=2 时 imap 层留空防静态复制）。
+
+#### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
+- 无新序号算法（框架 `resolveLayerTuple`（worker.go:316） + `spec.FlowIndex` 只读（worker.go:321）；imap planner 不读 FlowIndex，smtp 同款）。
+- 动态整格（§12）：
+
+  | 层.字段 | 开/关 | 面 | 覆盖 |
+  |---|---|---|---|
+  | imap.banner | 关 | 问候语无逐流变需求 | 注记 |
+  | imap.commands | 关 | 序列语义 + tag 计数，逐流变破坏事务顺序 | 注记 |
+  | imap.idle | 关 | 会话级单例（push/done/timeout 与命令轮绑定） | 注记 |
+  | imap.mime_body（经 commands[]） | 关 | 静态信体；逐流变破坏 FETCH 确定性 | 注记 |
+  | ip/tcp 四元组 | 开 | 框架白名单沿既有 | T-IMAP-62 附带（flows=2 双流四元组 distinct 由框架保底 `src_port+1`，不断言） |
+- 正交组合：地址族×结构（IPv4 单会话×IPv6 单会话对称两格：T-IMAP-1 v4 + T-IMAP-62 v6）；端口档位（143 缺省/T-IMAP-1 + 993 显式/T-IMAP-61 + 空壳缺省/冒烟）；模式×方向（明文 `[ip,tcp,imap]` + IMAPS `[ip,tcp,tls,imap]` 改写的 over_tls 对称）。
+- 静态门业务逃生口：imap 业务全关→flows=2 例无动态逃生，留空防静态复制（smtp T-024 同款：无显式标量四元组，src_port 保底+1）。
+
+#### 5. 错误与异常
+- 新锚词：`protocol imap no longer accepts a top-level imap sub-config (move it into the imap layer of an [ip,tcp,imap] layers chain)`（mqtt/dns/smtp/pop3 文案同构）。
+- 既有锚词沿用 23 分支（字面子串）：`is not a valid IP address`（T-IMAP-63）/`too small`（T-IMAP-53）/`Tag length`（T-IMAP-66）/`contains SP/CRLF`（Tag 门，离线有基线，pcap 不单列）/`contains CRLF`（T-IMAP-67）/`non-ASCII`（T-IMAP-50）/`exceeds max`（Responses/Push/Literal/MIME 上限：离线有基线，大载荷按 F1 小载荷断文案变体，pcap 不单列全量构造）/`decode error`（T-IMAP-68）/`mutually exclusive`（Literal/MIME 互斥：离线有基线，pcap 不单列）/`EmitIDLE=true but IMAPConfig.IDLE is nil`（T-IMAP-69）/`CancelAfterResponses`（越界：离线有基线，pcap 不单列）/`must be one of`（T-IMAP-70）/`DoneTag`（SP/超长：离线有基线，pcap 不单列）/`DoneResponse contains CRLF`（T-IMAP-71）。
+- Failing 先行 4 红例：①顶层 `{"imap":{}}` 空映射 create 即 400（现状放行——presence 未判死）；②扁平无端口 legacy 形 DstPort=0（现状：无 `setDefaultDstPort` 调用，注释亦无）；③层 `{"imap":{"banner":"…"}}` 报 unknown field 或包内无 banner（现状：registry 零 Fields + 无翻译分支）；④层 commands 翻译后 spec.IMAP.Commands 非空且包内见 tag（现状：无分支，生成器走默认空会话）。
+- 超早拒绝无落盘口径沿 d323068（presence/静态门/MSS 门在 writer 建文件前被拒，`.neg.pcap` 24B 头或零文件，mqtt/smtp/pop3 先例同款）。
+- 四件事：失败返回=策略创建期 400（presence/Tag 越界等，任务根本不启动）或任务启动期 error（在库旧策略经 ValidationErrors）；会话命运=合成期拒绝无会话可继续（不产包），回放错序不断言重试；重试=无（回放语义不重试不重连，RST/FIN 沿引擎既有挥手）；超时=autologout/IDLE 29 分钟无时钟不断言（C 类，见明确不解决；IDLE timeout BYE 只建台词形）。
+
+#### 6. 性能设计与验收
+- 单包路径增量：presence 一次 map 查 + 缺省一行赋值 + Fields 登记（ValidateSpec/convert 同步期一次）；动态解析走框架（零新增）。回归口径：imap.json 全量 suite 耗时相对基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测）。
+- pcap 验收：imap.json 全量绿 + 落盘可复查（`imap.line/tag/command/isrequest/response/status/response_tag` + 握手/挥手）；网卡未跑。
+- 背压/长时间：沿引擎既有（本期无新状态、无新锁、无新 sleep；literal 上限 100MB/Responses 上限 1 万/IDLE push 上限 1000 防内存 blowup 沿既有常量）；单流最大报文=literal/MIME 体（MSS 切段由 tcp 层承担）；队列上限/CPU 并行度沿引擎既有（本期零新增不断言具体数）。
+
+#### 7. 实现顺序与回滚
+- 步骤 0（failing 先行）：`internal/core/layers/imap_migrate_test.go` 新建 4 红例（presence 拒/DstPort 缺省 143/registry Fields 收录/层 banner+commands 翻译）。
+- 步骤 1：`strategy_convert.go` CheckProtoFlat 加 imap presence 分支；步骤 2：`case "imap"` 补 `setDefaultDstPort(&spec, cfg, 143)`；步骤 3：`registry.go` 补 imap Fields 5 键；步骤 4：`chain_planner_translate.go` 加 `case "imap"`（JSON 往返 + flat 权威）；步骤 5：`go build` + vet + touched 包 `-race` + schemagen 重跑；P5：imap.json 改写 + T-IMAP-2…71 全量跑 + 校准回钉；P6：评审+提交+清库复核。
+- 回滚：单提交逆序 revert（P4 代码与 P5 用例分两提交）。
+
+#### 8. 验收
+- 对应 T-IMAP-1…71（TEST_CASES P3 先行）。完成条件：4 红例先红后绿；imap.json 全量绿（RESULT 全量；二进制同代；门 2 四项绿：旧键零残留 + 全量绿 + 同代 + 反查绿）；touched 包 `-race` 绿；顶层 `imap` 字面零残留（cases 内）；schemagen 生成表已同步（`TestLayersGeneratedMatchesRegistry` 绿）；在库 imap 行清空（删前计数→备份→删→复核）。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A presence 口径 | A1 空 map 也判死；A2 仅非空判死 | A1 mqtt/dns/smtp/pop3 先例（空即显式走默认）；A2 留空壳双轨 | 选 A1 |
+| B 143 缺省走法 | B1 补 `setDefaultDstPort(143)`；B2 维持现状靠 FieldContract | B1 与 pop3 `:799`/smtp `:883` 同款行为对齐（legacy 扁平路径 DstPort=0 缺口）；B2 链上虽有 FieldContract 但 legacy 扁平无端口仍 0 | 选 B1（理由按 smtp 复审 R5：行为对齐） |
+| C 业务动态 | C1 全关+理由；C2 开 banner/信箱名 | C2 有序会话 + tag 计数，开了测不出（commands 逐流变破坏事务顺序与 tag 确定性） | 选 C1，逐流变另立项口 |
+| D 翻译走法 | D1 pop3/smtp 同款 JSON 往返；D2 ftp 同款复用 parseIMAP* | D2 需 export 三 parse 函数 + MIME/IDLE 嵌套手写解码，改动面大；D1 嵌套自动、FileSource 键直通零分叉 | 选 D1 |
+| E FileSource 链上 | E1 直通不断言可用（tftp 同款降级注记）；E2 接 PayloadCache 到 drive | E2 改 drive 签名 + Meta 承载，改动面大且 tftp 同款缺口未收 | 选 E1，真接通另立项 |
+| F 超大 literal 负例 | F1 小载荷断上限文案变体；F2 构造 100MB literal | F2 MCP 建策略即卡死，测的是耐心不是门 | 选 F1（pop3 T-15 同款，不断全量构造） |
+| G 问候原文亲验 | G1 台词 + 待亲验注记不删；G2 删待亲验行 | G2 丢商业映射地板线；G1 POP3 Dovecot 亲验口径同款（openssl/telnet 亲验列 P5 执行项） | 选 G1 |

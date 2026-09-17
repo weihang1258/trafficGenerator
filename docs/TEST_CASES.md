@@ -2910,3 +2910,94 @@
 **P5 落地偏差（2026-09-17，MCP 37/37 全绿）：** ①POP3 短命令帧恒<80B→27 例去 `has_payload`（frame.len 代理不适用，不断摆设）；②t002 空 Cmd 包位手算错→落盘重钉（包 5 响应/包 6 QUIT）；③t024 改 tcp 层 V9 门字面（非 planner 门，smtp T-020 同款）；④t010 补 RSET（DELE 后撤销标记，转离线 3_11_1，包 9/11/13/15 落盘钉死）；⑤离线链套件 34/37（t034/t035/t036 三负例 MCP 层门离线未复刻，smtp/dns 先例同款 C 类 harness 边界，以 MCP 为准，pop3 空导入+协议集注册已补）；落盘 34 文件零孤儿（2 旧名残留已删；3 超早拒绝无落盘系旧行为：t024/t035/t036，mqtt/smtp 先例同款）；在库 pop3 清空（删前 strategies 166/tasks 323 → 删后 139/140，pop3 0/0，mqtt 140 全留，备份 /tmp/trafficgen.db.bak-pop3-p6，无跨协议引用）。
 
 **P5 补遗落地偏差（2026-09-17，MCP 50/50 全绿，⑥）：** ①对标 SMTP 补 13 例（T-37…49：MIME 双附件/空正文/纯附件下载 + PASS -ERR/未知命令 + validator 四分支收口 + 全缺省双流 + QUIT/LIST/TOP 形状对称）；②t037/t039 首版 frames 用“载荷偏移”手算→校验器口径是整帧偏移（含 `+OK octets` 状态行）→落盘实测改 288/206（§14 禁手算的现行教训）；③t046 全缺省双流 14 包（空会话 7 包×2，src_port 保底 12345/12346）；④反查表 +6 项（26→32：双附件/PASS -ERR/三拒收口/双流）；⑤落盘 47 文件零孤儿（3 超早拒绝无落盘系旧行为：t024/t035/t036）。
+
+### T-IMAP-1… imap.json——存量审计 + 测试点清单【D-IMAP-1 P3 先行，P4 未开工】
+
+**状态：** P1 已定稿（2026-09-17；门 1 待批；P4/P5/P6 未开工）
+**级别：** pcap
+**来源：** RFC 9051/2177/5161/6855/6851/7162/3501 §5.1.3/2045/2046/5322/2183/879 + D-IMAP-1 §4/§9 + 现网三家行为（Gmail `imap.gmail.com:993`/Outlook `outlook.office365.com:993`/Dovecot 默认问候）
+**存量去向（1 例 → 改写后初估 68–72 例）：**
+
+| 形状 | 数量 | 去向 |
+|---|---|---|
+| 纯扁平（`src_ip/dst_ip/src_port/dst_port/count` + 顶层 `imap`） | 1（imap_smoke_01） | 合入 T-IMAP-1：删 5 旧键→`[ip,tcp,imap]` 链（`imap` 进层同名键；层内键名与 `IMAPConfig` JSON 键一致）；tag 自动 A001…/包数不照抄，P5 落盘重钉 |
+| legacy 单测（136 个：50 planner + 70 testpoints + 13 mime + 3 f2_done） | 136 | 不动：离线 planner 行为基线；pcap 层按本清单重建，不搬运子集充数 |
+
+**测试点清单（规范行→用例，逐点登记）：**
+
+| 规范行 | 用例 | 分类 |
+|---|---|---|
+| 默认会话（banner+LOGIN+LIST+LOGOUT，改写存量冒烟；143 缺省不断端口） | T-IMAP-1 | A（改写，落盘重钉包数/字段） |
+| tag 显式 A001 | T-IMAP-2 | A（转离线 `1_1_1_1`） |
+| tag 自动递增（空 tag→A001…） | T-IMAP-3 | A（转离线 `1_1_1_2`） |
+| tag 点线数字三形（tag.42/X-Custom-1/001） | T-IMAP-4 | A（转离线 `1_1_1_3/4/5`） |
+| 空 Cmd 服务端单轮（AUTH challenge `+`） | T-IMAP-5 | A（转离线 `1_1_2_4`；untagged+tagged 同轮附带） |
+| 未认证态 SELECT 错序 NO 台词 | T-IMAP-6 | A（回放台词，C 类边界；PREAUTH 问候附带） |
+| BYE 问候拒绝连接台词 | T-IMAP-7 | A（回放台词，C 类边界） |
+| APPEND LiteralBody 上行 literal | T-IMAP-8 | A（转离线 `1_15_1`） |
+| APPEND B64 / FETCH 响应占位替换 | T-IMAP-9 | A（转离线 `1_15_4`/`1_21_5`；空 literal 附带转离线 `3_19_6_*`） |
+| 流水线双相位 vs 默认逐条对照 | T-IMAP-10 | A（双例；转离线 `3_19_5_1/2`） |
+| CAPABILITY 任意态 | T-IMAP-11 | A（转离线 `1_2_1`） |
+| NOOP 任意态 | T-IMAP-12 | A（转离线 `1_3_1`） |
+| LOGOUT 任意态（附带 terminates） | T-IMAP-13 | A（转离线 `1_4_*`） |
+| LOGIN 成功 | T-IMAP-14 | A（转离线 `1_7_1`；引号密码附带转离线 `1_7_3`） |
+| LOGIN 失败 NO 台词 | T-IMAP-15 | A（转离线 `1_7_2`；C 类边界） |
+| AUTHENTICATE PLAIN/LOGIN 双形 + 取消 `*` | T-IMAP-16 | A（转离线 `1_6_*/3_19_3_*`） |
+| STARTTLS 台词（真升级另立项） | T-IMAP-17 | A（台词版） |
+| ENABLE 台词（离线零覆盖） | T-IMAP-18 | A（台词版） |
+| SELECT 成功（EXISTS+OK 同轮） | T-IMAP-19 | A（转离线 `1_9_1`） |
+| SELECT 失败 NO 台词 | T-IMAP-20 | A（转离线 `1_9_2`；C 类边界） |
+| EXAMINE 台词（离线零覆盖） | T-IMAP-21 | A（台词版） |
+| CREATE 信箱 | T-IMAP-22 | A（转离线 `1_11_1`） |
+| DELETE 信箱（含 INBOX 拒 NO） | T-IMAP-23 | A（转离线 `1_11_2/4`） |
+| RENAME 信箱 | T-IMAP-24 | A（转离线 `1_11_3`） |
+| SUBSCRIBE/UNSUBSCRIBE 台词（离线零覆盖） | T-IMAP-25 | A（台词版，双命令同例） |
+| LIST 信箱列表 | T-IMAP-26 | A（转离线 `1_13_1`） |
+| NAMESPACE 台词（离线零覆盖） | T-IMAP-27 | A（台词版） |
+| STATUS 信箱状态 | T-IMAP-28 | A（转离线 `1_14_1`） |
+| APPEND 带 flags | T-IMAP-29 | A（转离线 `1_15_2`） |
+| CLOSE 已选择态 | T-IMAP-30 | A（转离线 `1_17_2`） |
+| UNSELECT 已选择态 | T-IMAP-31 | A（转离线 `1_17_3`） |
+| EXPUNGE 已选择态 | T-IMAP-32 | A（转离线 `1_18_1`） |
+| SEARCH 非空结果 | T-IMAP-33 | A（转离线 `1_19_1`） |
+| SEARCH 空结果 | T-IMAP-34 | A（转离线 `1_19_6`；空非失败，注记） |
+| FETCH flags | T-IMAP-35 | A（转离线 `1_21_1`） |
+| FETCH body literal 下行（占位替换+体+收尾 CRLF） | T-IMAP-36 | A（转离线 `1_21_5`） |
+| STORE 加减 flag | T-IMAP-37 | A（转离线 `1_22_*`） |
+| COPY 成功与失败 | T-IMAP-38 | A（转离线 `1_23_*`） |
+| MOVE + UID FETCH | T-IMAP-39 | A（转离线 `1_24_1`；UID 逐字不断语义） |
+| NO 失败码台词 | T-IMAP-40 | A（台词版，C 类边界） |
+| 未知命令 BAD 台词 | T-IMAP-41 | A（台词版；回放不断言状态机） |
+| RFC 9051 §8 官方示例会话全文抄 | T-IMAP-42 | A（§8 标题+目录已亲验，P5 逐字抄会话原文） |
+| IDLE 有 push | T-IMAP-43 | A（转离线 `1_16_1`） |
+| IDLE 无 push | T-IMAP-44 | A（转离线 `1_16_3`） |
+| IDLE timeout close_after_idle | T-IMAP-45 | A（转离线 `3_19_2_1`） |
+| IDLE timeout keep_idle | T-IMAP-46 | A（转离线 `3_19_2_2`） |
+| IDLE timeout none | T-IMAP-47 | A（转离线 `3_19_2_3`） |
+| CONDSTORE 尾注正例 | T-IMAP-48 | A（转离线 `3_19_9_2`；反例附带不断单独例） |
+| UTF-8 开正例 | T-IMAP-49 | A（转离线 `3_19_7_1`） |
+| UTF-8 关拒绝（non-ASCII 锚词） | T-IMAP-50 | A（负例，锚词 `non-ASCII`；ASCII 等价附带转离线 `3_19_7_3`） |
+| FETCH MIMEBody 双附件下载（真实 README 附件，对标 smtp_t033） | T-IMAP-51 | A（simple 纯文本附带；整帧偏移落盘钉） |
+| APPEND MIMEBody 上行 | T-IMAP-52 | A（自定义 boundary 附带） |
+| MSS<536 拒绝 | T-IMAP-53 | A（负例，锚词 `too small`；RFC 879） |
+| 现网 Gmail 形（993 强制 SSL + Gimap ready 问候） | T-IMAP-54 | A（banner 台词地板线；问候原文 openssl 亲验列 P5） |
+| 现网 Outlook 形（993 SSL/TLS） | T-IMAP-55 | A（banner 台词地板线） |
+| 现网 Dovecot 形（问候/CAPABILITY） | T-IMAP-56 | A（telnet 亲验列 P5，POP3 口径同款） |
+| 同连接多 FETCH | T-IMAP-57 | A（多事务①） |
+| FETCH 后无 LOGOUT 断线 | T-IMAP-58 | A（多事务②：IMAP 层无 LOGOUT，TCP 照常 FIN） |
+| 三 NOOP 长保活 | T-IMAP-59 | A（多事务③） |
+| 复合流（LOGIN+SELECT+FETCH+STORE+COPY+LOGOUT 一条流） | T-IMAP-60 | A（≥3 动作） |
+| IMAPS 端口 993 显式通过 | T-IMAP-61 | A（明文不断言 TLS 握手细节，随形钉 `tcp.dstport=993`） |
+| v6 承载冒烟（`[ip(v6),tcp,imap]`） | T-IMAP-62 | A（mqtt_v6/smtp_t015 先例：字段名 tshark 无回值则降级注记） |
+| 坏 IP 拒绝（链上走框架 ip 层门） | T-IMAP-63 | A（负例，锚词 `is not a valid IP address`；imap validator 坏 IP 门由 legacy 扁平路径覆盖，C 类） |
+| 顶层 imap presence 判死 | T-IMAP-64 | A（负例，新锚词 `no longer accepts a top-level imap sub-config`；failing 先行①） |
+| 显式标量四元组 flows=2 拒绝 | T-IMAP-65 | A（负例，锚词 `static`；imap 业务全关无动态逃生；failing 先行锁回归） |
+| Tag 超长拒绝（>256） | T-IMAP-66 | A（负例，锚词 `Tag length`；转离线基线） |
+| 命令 CRLF 注入拒绝 | T-IMAP-67 | A（负例，锚词 `contains CRLF`） |
+| B64 解码错拒绝 | T-IMAP-68 | A（负例，锚词 `decode error`） |
+| EmitIDLE 无 IDLE 拒绝 | T-IMAP-69 | A（负例，锚词 `EmitIDLE=true but IMAPConfig.IDLE is nil`） |
+| Timeout 枚举错拒绝 | T-IMAP-70 | A（负例，锚词 `must be one of`） |
+| DoneResponse CRLF 拒绝 | T-IMAP-71 | A（负例，锚词 `DoneResponse contains CRLF`） |
+
+**明确不列缺口：** 错态 NO/BAD 台词外错序（回放语义 C 类，脚本台词覆盖）；空闲 autologout 计时器（C 类，无时钟）；STARTTLS 真升级/IMAPS 真握手（另立项）；UID 自动分配（用户原文提供）；超大 literal 全量构造（不断 100MB，断上限文案变体，pop3 T-15 F1 同款）；FileSource 链上可用（tftp 同款降级注记，真接通另立项）；任务级跨策略动态池（D-FTP-2 同口径另立）。
+**实现位置：** `cases/imap.json`（P5 改写 1 例 + 新建 T-IMAP-2…71）。
