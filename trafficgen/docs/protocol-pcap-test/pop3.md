@@ -41,7 +41,7 @@ Cases: 50 — pass 50, fail 0, error 0
 | pop3_t034_bad_ip_reject | T-034: 坏 IP 拒绝 | pass | 0 | [pcap]() |
 | pop3_t035_presence_reject | T-035: 顶层 pop3 判死 | pass | 0 | [pcap]() |
 | pop3_t036_static_pinned_reject | T-036: 显式标量双流拒绝 | pass | 0 | [pcap]() |
-| pop3_t037_mime_multi_attach | T-037: RETR 双附件下载 | pass | 16 | [pcap](pop3/pop3_t037_mime_multi_attach.pcap) |
+| pop3_t037_mime_multi_attach | T-037: RETR 双附件下载 | pass | 19 | [pcap](pop3/pop3_t037_mime_multi_attach.pcap) |
 | pop3_t038_empty_body_retr | T-038: RETR 空正文信 | pass | 16 | [pcap](pop3/pop3_t038_empty_body_retr.pcap) |
 | pop3_t039_attach_only | T-039: RETR 纯附件无正文 | pass | 16 | [pcap](pop3/pop3_t039_attach_only.pcap) |
 | pop3_t040_pass_auth_failed | T-040: PASS 密码错 -ERR | pass | 14 | [pcap](pop3/pop3_t040_pass_auth_failed.pcap) |

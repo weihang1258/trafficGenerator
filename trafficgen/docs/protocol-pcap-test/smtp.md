@@ -37,7 +37,7 @@ Cases: 43 — pass 43, fail 0, error 0
 | smtp_t030_fail_503_sequence | T-030: 503 坏序列 | pass | 14 | [pcap](smtp/smtp_t030_fail_503_sequence.pcap) |
 | smtp_t031_fail_535_authfail | T-031: 535 认证失败 | pass | 18 | [pcap](smtp/smtp_t031_fail_535_authfail.pcap) |
 | smtp_t032_email_html_only | T-032: Email 纯 HTML 单体 | pass | 20 | [pcap](smtp/smtp_t032_email_html_only.pcap) |
-| smtp_t033_email_mixed_multi | T-033: Email 双附件 mixed | pass | 20 | [pcap](smtp/smtp_t033_email_mixed_multi.pcap) |
+| smtp_t033_email_mixed_multi | T-033: Email 双附件 mixed | pass | 23 | [pcap](smtp/smtp_t033_email_mixed_multi.pcap) |
 | smtp_t034_email_empty_body | T-034: Email 空正文 | pass | 20 | [pcap](smtp/smtp_t034_email_empty_body.pcap) |
 | smtp_t035_email_attach_only | T-035: Email 纯附件无正文 | pass | 20 | [pcap](smtp/smtp_t035_email_attach_only.pcap) |
 | smtp_t036_direction_override | T-036: direction 下行改写 | pass | 13 | [pcap](smtp/smtp_t036_direction_override.pcap) |
