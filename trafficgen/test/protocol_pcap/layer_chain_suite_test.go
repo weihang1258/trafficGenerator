@@ -52,6 +52,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nmea"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/onvif"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/pop3"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/smtp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
@@ -67,6 +68,7 @@ import (
 var chainSuiteProtos = map[string]bool{
 	"cwmp": true, "dhcp": true, "dhcpv6": true, "dns": true, "doh": true,
 	"mdns": true, "mqtt": true, "nmea": true, "ntp": true, "onvif": true, "snmp": true,
+	"pop3": true,
 	"smtp": true,
 	"ssdp": true, "syslog": true, "tcp": true,
 }

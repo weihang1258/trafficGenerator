@@ -163,7 +163,115 @@ def check_smtp(cases):
     return rows
 
 
-CHECKS = {"smtp": check_smtp}
+# --------------------------------------------------------------------------
+# POP3 检查表（D-POP3-1 P3 清单机器版：命令×码矩阵 + 形态 + 多事务三项 +
+# 商业三家；回放语义下 -ERR 台词版也算，C 类边界见 D 条目）
+# --------------------------------------------------------------------------
+
+POP3_COMMANDS = ["USER", "PASS", "APOP", "STAT", "LIST", "RETR", "DELE",
+                 "NOOP", "RSET", "TOP", "UIDL", "QUIT", "CAPA", "STLS",
+                 "AUTH"]
+POP3_COMMERCIAL = ["gmail", "outlook", "dovecot"]
+
+
+def _pop3_commands(cases):
+    """逐个产出 (case_id, pop3层dict)。顶层 pop3 键（presence 负例）不算。"""
+    for c in cases:
+        spec = c.get("spec_json", {}) or {}
+        for layer in spec.get("layers", []) or []:
+            pop3 = (layer or {}).get("pop3")
+            if isinstance(pop3, dict):
+                yield c.get("id", "?"), pop3
+
+
+def _pop3_tokens(cmds):
+    """commands 的命令字序列（EmitMailDrop/EmitTop 合成轮跳过字面统计）。"""
+    toks = []
+    for item in cmds or []:
+        if not isinstance(item, dict):
+            continue
+        parts = (item.get("cmd") or "").strip().split()
+        if parts and re.fullmatch(r"[A-Z]+", parts[0].upper()):
+            toks.append(parts[0].upper())
+    return toks
+
+
+def _pop3_responses(cmds):
+    return " ".join((item.get("response") or "")
+                     for item in (cmds or []) if isinstance(item, dict))
+
+
+def check_pop3(cases):
+    """返回 [(检查名, 通过?, 证据case_id或缺口说明)]。"""
+    rows = []
+    cmds = [(cid, p.get("commands") or []) for cid, p in _pop3_commands(cases)]
+
+    # 1. 命令 15 个，一个不能少（含 RSET：DELE 后撤销标记）。
+    for cmd in POP3_COMMANDS:
+        hit = next((cid for cid, d in cmds if cmd in _pop3_tokens(d)), None)
+        rows.append((f"命令 {cmd}", hit is not None, hit or "无用例"))
+
+    # 2. -ERR 台词至少 1 例（回放语义不断引擎拦截）。
+    blob = " ".join(_pop3_responses(d) for _, d in cmds)
+    hit = re.search(r"-ERR", blob) is not None
+    rows.append(("-ERR 台词", hit, "台词出现" if hit else "无用例"))
+
+    # 3. maildrop 合成（EmitMailDrop）与 TOP 合成（EmitTop）各至少 1 例。
+    maildrop = next((cid for cid, p in _pop3_commands(cases)
+                     for item in (p.get("commands") or [])
+                     if isinstance(item, dict) and item.get("emit_mail_drop")),
+                    None)
+    rows.append(("maildrop 合成", maildrop is not None, maildrop or "无用例"))
+    top = next((cid for cid, p in _pop3_commands(cases)
+                for item in (p.get("commands") or [])
+                if isinstance(item, dict) and item.get("emit_top")),
+               None)
+    rows.append(("TOP 合成", top is not None, top or "无用例"))
+
+    # 4. 多行响应（multiline）至少 1 例。
+    hit = next((cid for cid, p in _pop3_commands(cases)
+                for item in (p.get("commands") or [])
+                if isinstance(item, dict) and item.get("multiline")),
+               None)
+    rows.append(("多行响应", hit is not None, hit or "无用例"))
+
+    # 5. 多事务三项：多轮 RETR / 无 QUIT 断线 / 多 NOOP。
+    hit = next((cid for cid, d in cmds
+                if _pop3_tokens(d).count("RETR") >= 2), None)
+    rows.append(("多事务（同连接两 RETR）", hit is not None, hit or "无用例"))
+
+    def abnormal(d):
+        toks = _pop3_tokens(d)
+        return "RETR" in toks and "QUIT" not in toks
+    hit = next((cid for cid, d in cmds if abnormal(d)), None)
+    rows.append(("异常断线（无 QUIT）", hit is not None, hit or "无用例"))
+    hit = next((cid for cid, d in cmds
+                if _pop3_tokens(d).count("NOOP") >= 2), None)
+    rows.append(("长保活（多 NOOP）", hit is not None, hit or "无用例"))
+
+    # 6. 复合流：登录 + ≥3 业务动作一条流。
+    def composite(d):
+        toks = _pop3_tokens(d)
+        if "USER" not in toks or "QUIT" not in toks:
+            return False
+        biz = [t for t in toks if t not in ("USER", "PASS", "QUIT")]
+        return len(set(biz)) >= 3
+    hit = next((cid for cid, d in cmds if composite(d)), None)
+    rows.append(("复合流（多动作一条流）", hit is not None, hit or "无用例"))
+
+    # 7. 现网三家映射（id/summary/notes 关键字，地板线）。
+    texts = {c.get("id", "?"): json.dumps(
+        [c.get("id"), c.get("summary"),
+         (c.get("expect") or {}).get("notes")], ensure_ascii=False).lower()
+             for c in cases}
+    for kw in POP3_COMMERCIAL:
+        hit = next((cid for cid, t in texts.items() if kw in t), None)
+        rows.append((f"现网映射 {kw}", hit is not None, hit or "无用例"))
+
+    return rows
+
+
+CHECKS = {"smtp": check_smtp, "pop3": check_pop3}
 
 
 def main(argv):

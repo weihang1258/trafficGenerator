@@ -2837,7 +2837,7 @@
 
 ### T-POP3-1… pop3.json——存量审计 + 测试点清单【D-POP3-1 P3 先行，P4 未开工】
 
-**状态：** P3 设计中（2026-09-17；存量 2 例待改写；P4 未开工）
+**状态：** P6 已验收（2026-09-17；37/37 全绿，反查 26/26；基线见 P5 落地偏差）
 **级别：** pcap
 **来源：** RFC 1939/2449/2595/879 + D-POP3-1 §4/§9 + 现网三家行为（Gmail `pop.gmail.com:995`/Outlook `outlook.office365.com:995`/Dovecot 默认问候）
 **存量去向（2 例 → 改写后初估 34–36 例）：**
@@ -2875,7 +2875,7 @@
 | CAPA 扩展列表台词 | T-POP3-21 | A（台词版，转离线 `1_13_1`；RFC 2449，真协商不做） |
 | STLS 台词（授权态+OK/事务态 -ERR） | T-POP3-22 | A（台词版，转离线 `1_14_1`/`2_6_1`；RFC 2595，真升级另立项） |
 | AUTH 三机制台词（PLAIN/LOGIN/CRAM-MD5） | T-POP3-23 | A（台词版，转离线 `1_15_1`/`1_15_2`/`1_15_3`；真认证不做） |
-| MSS<536 拒绝 | T-POP3-24 | A（负例，锚词 `too small`；RFC 879） |
+| MSS<536 拒绝 | T-POP3-24 | A（负例，锚词 `out of range [536,65535]`（tcp 层 V9 门字面，smtp T-020 同款）；RFC 879） |
 | 同连接多 RETR（多轮操作） | T-POP3-25 | A（§3 多事务①：同连接两次 RETR） |
 | RETR 后无 QUIT 断线 | T-POP3-26 | A（§3 多事务②：POP3 层无 QUIT，TCP 照常 FIN） |
 | 多 NOOP 长保活 | T-POP3-27 | A（§3 多事务③：同连接 3×NOOP，转离线 `3_15_1_NOOPx10` 缩量） |
@@ -2891,5 +2891,7 @@
 
 **明确不列缺口：** 错序 -ERR（回放语义 C 类，脚本台词覆盖）；空闲 autologout 计时器（C 类，无时钟）；STLS 真升级/POP3S 真握手（另立项）；UIDL 自动生成（沿 `types.go` 注释不自动，用户原文提供）；超大 maildrop 全量构造（不断 10 万信，断上限文案变体）；任务级跨策略动态池（D-FTP-2 同口径另立）。
 
-**执行口径：** P5 `CASE_PROTO=pop3` 全量绿（RESULT 全量；二进制同代；门 2 四项）；断言 `pop.request.command/parameter` + `pop.response.indicator/description` + 握手/挥手；包数落盘重钉禁手算；负例 `.neg.pcap` 口径沿 d323068。
-**实现位置：** `cases/pop3.json`（2 例改写 + T-POP3-2…36 新建，初估 34–36 例）。
+**执行口径：** P5 `CASE_PROTO=pop3` 全量绿（2026-09-17 `RESULT: 37 pass, 0 fail, 0 error (of 37)`；/tmp/tg-pop3-p5-server 与 HEAD 同代；门 2 四项全绿：旧键零残留 + 全量绿 + 同代 + 反查 26/26）；断言 `pop.request.command/parameter` + `pop.response.indicator/description` + 握手/挥手；包数落盘重钉禁手算；负例 `.neg.pcap` 口径沿 d323068。
+**实现位置：** `cases/pop3.json`（37 例：2 例改写 + T-POP3-2…36 新建 35 例，含 T-POP3-12b TOP 无信箱拒）。
+
+**P5 落地偏差（2026-09-17，MCP 37/37 全绿）：** ①POP3 短命令帧恒<80B→27 例去 `has_payload`（frame.len 代理不适用，不断摆设）；②t002 空 Cmd 包位手算错→落盘重钉（包 5 响应/包 6 QUIT）；③t024 改 tcp 层 V9 门字面（非 planner 门，smtp T-020 同款）；④t010 补 RSET（DELE 后撤销标记，转离线 3_11_1，包 9/11/13/15 落盘钉死）；⑤离线链套件 34/37（t034/t035/t036 三负例 MCP 层门离线未复刻，smtp/dns 先例同款 C 类 harness 边界，以 MCP 为准，pop3 空导入+协议集注册已补）；落盘 34 文件零孤儿（2 旧名残留已删；3 超早拒绝无落盘系旧行为：t024/t035/t036，mqtt/smtp 先例同款）；在库 pop3 清空（删前 strategies 166/tasks 323 → 删后 139/140，pop3 0/0，mqtt 140 全留，备份 /tmp/trafficgen.db.bak-pop3-p6，无跨协议引用）。
