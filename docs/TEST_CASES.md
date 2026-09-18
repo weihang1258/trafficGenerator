@@ -3117,3 +3117,59 @@
 **复审纠正记录（2026-09-18 P1 重审）：** ①vn22 自带 TLV→VR-20 实锚；②tpos18 tag=65535 帧断言 ffff→tag 最大无缺；③last_entry 显式 tpos7/vp03 已有；④vp03=全显式对照锚点；⑤vn18/19 不可达终审（gre/mpls 解析在 switch protocol 之内）；⑥suite spec.TTL 恒 0。
 **执行口径：** P5 srv6 真实流程全量（`flowb_run_protocol_suite`：MCP 建任务→引擎生成→tshark 校对）74/74 全绿 + 落盘 `/tmp/mcp-pcaps/srv6/` 零孤儿 + 门 2 四项 + 反查 check_srv6 全绿（P4 登记）。断言包号/帧字节全部落盘重钉（down 双换修复、端口删影后 udp.srcport 以 pcap 为准）。
 **实现位置：** `cases/srv6.json`（P5 改写 67 + 作废 1 + 新建 7）。
+
+### T-FINS-1…44 fins.json——存量审计 + 测试点清单【D-FINS-1 P3 先行，P4 未开工】
+
+**状态：** P3 定稿（2026-09-18；权威=D-FINS-1（含依赖链判定 C1/C2/C3）；存量 40 点逐条审计去向如下表；P4/P5 未开工）
+
+**三源：** ①标准=欧姆龙 W342-E1（FINS 无 RFC，4.10 官方规范口径；字节证据=W342 派生的 Wireshark packet-omron-fins + gofins 双转录交叉，历史 §1.5）②设计=D-FINS-1（C1 0103/0104 补齐、C2 clock 7B、C3 FINS/TCP length 26、E-06 cfg 级、E-10）③现网=开源双源行为（CX-Simulator 商业映射=待确认，确认方式：抓 CX-Simulator 报文比对或查 W342-E1 版本差异，D-FINS-1 立项①）。
+
+**存量审计（19-fins-testcase.md T-001~T-040 → 去向，9.14 逐条）：**
+
+| 旧号 | 去向 | 说明 |
+|---|---|---|
+| T-001~T-010、T-012、T-020、T-021、T-023 | 改写（12 例既有 cases + sessions_neg_area） | 顶层四元组→ip/udp/tcp 层、顶层 fins→层内；断言落盘重钉（14.6） |
+| T-011 DM 字写 | 转正落盘 `fins_dm_write_word` | 0102 已实现，纯缺例 |
+| T-013 Fill 0103 | 转正落盘 `fins_fill_dm` | D-FINS-1 C1 P4 实现后有效 |
+| T-014 多区读 0104 | 转正落盘 `fins_multi_read` | 同上；请求断言 FrameAssert 原始字节（tshark NC 怪癖，§3.9 注） |
+| T-015 ICF 方向位 | 拆分：响应 ICF=0xC1 断言=T-001 等价覆盖；显式 cfg.icf 半→`fins_icf_explicit` | 9.19 拆到不可再分 |
+| T-016 SID 递增 01→02 | 转正落盘 `fins_sid_auto_incr` | 同会话双命令——兼补"多命令事务序列"缺口（门 1 重审 #5） |
+| T-017 显式固定 SID | 转正落盘 `fins_sid_fixed` | `sid_auto:false` 显式可设（UnmarshalJSON 区分缺席/显式，实测 :32） |
+| T-018 TCP/FINS 命令隔离 | 等价覆盖=T-002 | T-002 已同包断言 omron.tcp.command=2 与 omron.command=0101 |
+| T-019 expect_response=false | 转正落盘 `fins_expect_response_false` | 1 包（仅请求） |
+| T-022 多会话不同 4-tuple | 合入 T-020/T-021 改写 | sessions 派生口 1245+i 确定性——改写后加 distinct udp.srcport 断言（旧 notes"系统分配可能复用"说法纠正：端口是派生值非随机，落盘重钉） |
+| T-024 结束码 0x1101 | 拆分：配置拒=T-023 已覆；响应面→`fins_down_endcode_1101`（down 带 response_end_code） | 结束码 9 值同一发包形状（值参数化），按 9.21 分支代表 1 例 + 0x0000 全例既有 |
+| T-025~T-030、T-032 | 转正落盘负例 7 条 | E-04/E-06/E-02/E-03/E-05/E-07/E-09 各锚词一例 |
+| T-031 响应长度缺失 | C 类注记 | E-08 配置面不可达：响应数据由生成器按 NC 自合成，长度恒一致；不冒充覆盖 |
+| T-033 GCT 非法 | 转正落盘 `fins_vn_gct` | validate 已有（"invalid gct"）；历史 E 表未编号=D 表漏行，D-FINS-1 已收口 |
+| T-034 DNA 非法 | 转正落盘 `fins_vn_dna` | "invalid dna"；SNA 同分支同形另立 `fins_vn_sna`（消息不同=行为点不同，9.6） |
+| T-035 非 9600 端口 decode_as | C 类注记 | harness 无 decode_as 支持（grep 证实）；端口能力由 udp 层 dst_port 承担（框架职责），不冒充覆盖 |
+| T-036/037 FrameAssert 头字节 | 合入改写例 frames pin | 落盘重钉，不照抄设计 offset 手算值（14.6） |
+| T-038~T-040 汇总冒烟 | 等价覆盖=suite 全量口径 | suite 即冒烟，不单独建例 |
+
+**新增测试点（规范行→用例，D-FINS-1 新面 + 枚举补口）：**
+
+| 编号 | 名称 | 断言面 | 类 |
+|---|---|---|---|
+| T-25 | 结束码响应面 | down 命令 response_end_code=0x1101 → 响应帧结束码字节 11 01（wire pin 落盘钉） | A |
+| T-26 | cfg 级 E-06 | cfg.icf=0x41（bit6 置位）→ "icf request direction bit must be clear" | A（D-FINS-1 E-06） |
+| T-27 | E-10 read_areas 空 | 0104 无 read_areas → "read_areas" | A（组数>16 同分支同锚，9.21 代表） |
+| T-28 | 0103 位口径拒 | fill+bit → "fill does not support bit access" | A |
+| T-29 | 0103 填充模板 | fill dm NC=3 data=[0xAB,0xCD] → 请求尾 8 字节原始断言（02 帧） | A（C1） |
+| T-30 | 0104 双组读 | dm+hr 各 1 字 → 请求原始字节 FrameAssert + 响应逐组数据（组内 uint16(i+1) BE） | A（C1） |
+| T-31 | 组合流 A（TCP+多命令+SID 递增） | tcp 载体，读 DM→写 CIO→校时 3 命令，SID 01→02→03，握手+6 FINS 帧 | A（9.11 ≥3 动作） |
+| T-32 | 组合流 B（UDP+双会话+全键+结束码） | sessions=2，位写+显式 icf/gct/da1/sa1 节点号，会话 2 的响应带 0x1101 | A（9.11 ≥3 动作） |
+| T-33 | tc_bit 字口径（0x09 码补口） | memory_area=tc_bit 字读 → 区码 0x09 | A（9.20 区码取值补口） |
+| T-34 | wr 位读（0x31 码补口） | wr+bit → 区码 0x31 | A（9.20 补口；至此 11 个区码值全覆） |
+| T-35 | 顶层 presence 判死 | 顶层 fins+layers → "top-level fins sub-config"（failing 先行①） | A |
+| T-36 | 静态复制拒 | layers 静态四元组+flows=2 → 静态复制锚词 | A |
+| T-37 | transport 非法 | "invalid transport" | A |
+| T-38 | direction 非法 | "invalid direction" | A |
+| T-39 | sessions 负值 | "sessions must be >= 0" | A |
+
+**枚举取值覆盖（9.20-9.22 承载位置扫描）：** 区码 11 值（字 0xB0/0xB1/0xB2/0x89/0x82/0xDC/0x09+位 0x30/0x31/0x32/0x09）全覆（T-033/034 补口后）；命令码 5 值（0101/0102/0103/0104/0701）正例全覆+未知码负例；结束码 9 值同形状分支代表（T-25+全例 0x0000）；ICF 方向位请求/响应双值（T-001 响应 0xC1 + 显式例）；载体 2×地址族 2（v4 全量+v6 代表——FINS 载荷与 IP 版本无关（G6），差异仅在 ip 层=框架职责，矩阵登记说明，srv6 单族声明同口径）。
+**正交矩阵：** 载体 2×命令 5×位/字×sessions 3×direction 2——已覆格见上；缺格=TCP×sessions（TCP 多会话：tcp 层挥旧握新语义，B 类候选注记，P4 后评估是否落盘）；动态整格=N/A（fins 业务 16 键零动态，D-FINS-1 §12；四元组动态走框架三层 allowlist 既有格）。
+**通用陷阱自查（9.37-9.40）：** 派生口 1245+i 确定性、distinct 断言排除服务端 9600 与派生口混入（T-022 断言只收客户端派生口集合）；多命令同会话共享 SID 序号=真实语义（T-31 断言递增非独立）；无 flows>1 静态标量例（T-36 拒绝面已锁）。
+**断言边界（9.27）：** tshark 对 0104 请求组忽略 NC（FrameAssert 原始字节代偿）；FINS/TCP FIN/ACK 交织顺序由 TCP 载体决定（min_packets 口径）；包时序断言 harness 不支持（既有注记）。
+**执行口径：** P5 fins 真实流程全量（MCP 建任务→引擎生成→tshark 校对）全绿 + 落盘 `/tmp/mcp-pcaps/fins/` + 门 2 四项 + 反查 check_fins（P4 登记）。断言数值一律落盘重钉（14.6/9.31）——含 C3 修正后的 omron.tcp.length=26、tcp min_packets 拆解不预写。
+**实现位置：** `cases/fins.json`（P5 改写 14 + 转正/新建 30 = 44 例；T-018/T-031/T-035/T-038~040 四行作废/等价/C 类各注记）。
