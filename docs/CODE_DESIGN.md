@@ -1692,3 +1692,113 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 - **落盘：** 81 文件零孤儿（68 正文 + 13 `.neg.pcap`；3 超早拒绝无落盘系旧行为：T-053/T-064/T-065，smtp/pop3 先例同款；旧 `imap_smoke_01.pcap` 已删）。
 - **在库 imap 清空：** 删前 strategies 63/tasks 130 → 删后 imap 0/0（mqtt 139/140、pop3 37/376、smtp 38/222 全留；备份 `/tmp/trafficgen-pre-imap-clear.db`；tasks 无跨协议 `strategy_ids` 引用）。
 - **门 3 抽查三条：** ①§1 顶层迁入→imap.json 84 例 `layers` 形零残留（门 2-1 绿；T-064 系执法对象豁免）；②§5 presence→`strategy_convert.go:7671` CheckProtoFlat imap 分支，imap_t064 真实流程拒；③§1 翻译→`chain_planner_translate.go:1174` `ParseIMAPConfigFromMap` 单 parse 真相，T-052 落盘 MIME 体包 8 首段 `From: a@b.c` 帧字节钉死（整帧偏移 54）。
+
+### D-MCP-1 MCP 顶层 mcp 子映射迁入层内 + think_time 死字段删除【P-PIPE #9 门1】
+
+**门 1 开工对照表（§1–§15，2026-09-17 用户已批，证据=文档节/代码行/用例号）：**
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键去向：`src_ip`→`layers[ip].src`、`dst_ip`→`layers[ip].dst`、`src_port`→`layers[tcp].src_port`、`dst_port`→`layers[tcp].dst_port`（78 例显式 8081 原样进层——链上 stdio 缺省 22，丢了即变字节；缺省语义 stdio→22/HTTP→8081 由 validateSpecBase mcp 分支 + 翻译分支补齐，用户显式优先）、`count`→删（79 例全 `count:1`，缺省即单流）、顶层 `mcp` 子映射→`layers[mcp]`（MCPConfig 同名 21 键直迁）。现状：73 例 `[tcp,mcp]+扁平5键+顶层mcp` 双轨（且缺 ip 层，改写补），6 例纯扁平无 layers。目标形状：`{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"tcp":{"src_port":12345,"dst_port":8081}},{"mcp":{"transport":"stdio","requests":[{"method":"tools/list"},{"method":"tools/call","params":{"name":"ping"}}]}}]}`。P4 必修：①`CheckProtoFlat` 加 mcp presence 分支（imap 同款文案，空 map 也死）；②注册表 mcp 补 Fields 21 键（原零 Fields=层内业务键 V9 全拒）；③`translateTerminalConfig` 加 `case "mcp"`（pop3/smtp/imap 同款 + flat 权威）；④`pipe_gate.sh:67` presence 名单加 mcp | mcp.json 79 例审计；`strategy_convert.go:1103`（flat 读）；`chain_planner.go:829-838`（stdio→22/HTTP→8081）；`registry.go:241`（零 Fields）；`pipe_gate.sh:67` |
+| §2 策略/任务分工 | 沿框架语义；策略=单会话模板自带 `flow_control`，任务=多策略合跑+总封顶（`{taskID}-{strategyID}` 独立桶）；`flows=N` 同模板复制 N 条流（多会话=M 条独立四元组，16-mcp-design §7.16）；`spec` 不管数量；未写动态时仅 `src_port` 自动+1 保底（worker 12345+i），其余逐流不变如实声明 | MCPConfig 无 sessions（types.go:1907）；t043/44 多流例 |
+| §3 五件套 | 会话表：一 flow=一 TCP 连接上一 MCP 会话：initialize 请求(up)→initialize 响应(down，版本降级 §7.1/T11)→notifications/initialized(up)→requests 逐条请求/响应→可选 rounds 重复→收尾归 tcp 层（shutdown 校准 termination，`layer_gen.go:584-588`）。三传输各一序：stdio 逐行 JSON（`:145-240`）；http_sse（GET 建 SSE 流→POST→202→SSE 推送，`:247-378`）；streamable（POST→JSON/SSE→DELETE/204 带内终止，`:386-533`）。事务序列=包序列即事务；通知按 Step∈[0,len(Requests)] 定点插入（`:221-232`）。关联关系：无（数据面全在同一 TCP 流内，无独立子流）。插入位置：终结层事件流直入 tcp 层，tcp 管握手/分段/挥手（legacy 3 包挥手 vs 链 4 包——全部包数 P5 落盘重钉，M6）。时间线：单流严格顺序无交错；id 配对全 0 自动 vs 全显式、混用拒（`mcp.go:167-185`） | `layer_gen.go:145-533`；`mcp.go:61-` Validator 19 分支 |
+| §4 规范矩阵 | `docs/protocol-designs/16-mcp-design.md`（§2 报文三传输/§3 方法表 14+通知 6/§4.4 校验规则/§5 状态机/§6 Plan/§7 场景 §7.1-§7.19/§8 测试清单 T1-T104）+ JSON-RPC 2.0（错误码保留段 [-32700,-32000]）+ MCP spec 三版本（2024-11-05/2025-03-26/2025-06-18，严格枚举）+ 现网（stdio 本地 22/HTTP 远端 8081）。P1 矩阵见本条目 §9 表 + 三张子表（方法×响应码/形态变体/商业→用例） | 16-mcp-design.md；本条目 §9 |
+| §5 有错必处理 | 既有 6 负例锚词沿用（caps 重键 `must be a JSON object`/mixed-id/空 method/非法版本/error-code 越界）；P5 补 validator 分支负例（transport/auth/state/负计数器/parts role/step 越界，锚词取字面）；新增顶层 mcp presence 锚词（P4，imap 文案同构）；依赖：mcp 层 DependsOn tcp；validator 19 分支链可达 14 + C 类 5（IP×2 走框架 ip 层门、config required 被翻译保底、legacy 空配置路径） | mcp.json 6 负例；`mcp.go:61-185` |
+| §6 性能 | 单会话包数=3 握手+3 初始化+2×len(requests)×rounds+通知帧+挥手（stdio 4 包链式/legacy 3 包）；HTTP 形 POST/202/SSE 帧线性增；无锁无 sleep（事件模式，tcp 层管分段）；回归口径：mcp.json 全量 suite 耗时相对基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测）；网卡未跑 | 本条目 §6 |
+| §7 三份文档 | 设计=本条目；用例=T-MCP-1…103（P3 先行，存量 79 逐条审计去向）；cases 回指编号；16-mcp-design.md 是历史参考非权威（§7 既有文档保留条款），冲突以本条目为准 | TEST_CASES T-MCP-* |
+| §8 先设计后代码 | 门 1 表批复→P1 矩阵（本条目 §9）→P3 清单→failing 先行 4 红例→P4 代码；无设计条目 Diff 打回 | 本条目 |
+| §9 三源+整格 | 三源：16-mcp-design + JSON-RPC 2.0 + 现网（stdio/HTTP）；P3 清单先行（TEST_CASES T-MCP 表，规范行→用例逐行）；三场景缺口（复审场景分析 2026-09-17）：数据 5 补（rounds/shutdown/parts 请求侧/sampling parts/audio）+ 业务 4 补（双组合流/长任务全程/错误码 -32600/-32603 台词）+ 现网 4 补（streamable 全程/认证拒/能力门控 sampling/三家映射）+ 负例 6 补（presence/静态复制/transport/state/负计数器/parts role/step）——多会话部分失败（T45）=C 类（suite 每例单策略，flows=N 同模板复制无法逐流差异，任务级多策略另立项）；枚举全覆盖见反查表 65 项；正交：传输×版本×地址族（v4 全量+v6 冒烟 1）；断言边界：包序/时序 harness 注记，frames hex 落盘钉 | T-MCP 清单；`coverage_gate.py check_mcp` 65 项 |
+| §10 评审闭环 | failing 先行 4 红例（presence 拒/层键收录/层 requests 翻译/ThinkTime 删除）→改→审→测→再审；`go vet` + touched 六包 `-race` | P4 |
+| §11 白话汇报 | 先一句结论 | 每次汇报 |
+| §12 动态清单 | 四元组开（框架 ip/tcp 白名单既有）。业务 21 键全关（allowlist 不加 mcp 行，smtp/pop3/imap 先例）：transport（载体选择非逐流值）/protocol_version-auth-state（协商开关与枚举校验面）/requests-responses-notifications（有序事务配对+id 配对+Step 定位，逐流变破坏配对确定性；mqtt 开 topic/payload 是槽位值可独立变，本协议 req/resp 是配对结构，不对称有理）/client_info-server_info-caps-parts-metadata-push（结构化对象无逐流变形状；caps 缺省=省略字段，动态注入破坏线形）/id_counter-rounds（计数器）/session_id（缺省随机 32hex 不可逐流确定性，显式值即静态）/base_url-context_id-parent_id（字符串标注）/shutdown（收尾开关）。`think_time` 死字段 M1-E1 删除（生成器零消费，http ThinkTime E1 先例"语义永远假"；见本条目 §9 决策 A）。无业务序号算法（idCounter 是请求编号非流序号，`mcp.go` nextID）；四元组走框架 `resolveLayerTuple`。validate-only 字段注记：context_id/parent_id/metadata/push_notification/parts 顶层字段经 validator 校验但生成器不消费（_meta 家族靠 requests params 内联上線，t046/47/69/70 证据）——注入实现 B 类另立项，不删（不属本期范围） | `layer_dyn.go:17-50`（无 mcp 行）；`validate_layers.go:157`；`layer_gen.go:39-42` |
+| §13 schema 同步 | 注册表 mcp Fields 0→21 键（一律不设 Default：零值即设计缺省 transport 空→stdio/version 空→2024-11-05/Shutdown nil→true/caps 空→{}；Default 注入会污染 RawMessage 破坏"caps 缺省=省略字段"线形）；CheckProtoFlat 加 mcp presence；`pipe_gate.sh` presence 名单加 mcp；改完重跑 schemagen（生成表 65 行 mcp 段同步，`TestLayersGeneratedMatchesRegistry` 绿）；MCPConfig 删 think_time 无派生面（schemas/web/mcp 描述零引用，实测 grep） | 门 2 脚本；`generated/layers.generated.json` |
+| §14 真实流程 | mcp.json 全量绿 + 落盘 `/tmp/mcp-pcaps/mcp/` + 二进制与 HEAD 同代 + 门 2 四项（`pipe_gate.sh mcp`）；负例 `.neg.pcap` 口径沿 d323068；包号/端口全部落盘重钉不照抄（M5/M6：78 例显式 8081 进层、tpos2 无 dst_port 由 stdio 缺省 22 承接——legacy 扁平 80 是偏差，链上 22 才是设计值；挥手 3→4 包） | T-MCP-* |
+| §15 三道门 | 本表即门 1（已批）；门 2 脚本（mcp presence 红线已接：dns/mqtt/smtp/pop3/imap/mcp 六协议同口径）；门 3 挂表抽查；P5R 反查 `check_mcp` 65 项已登记（探针 9/65，MISS 56 项=P5 补例清单） | 本条目 |
+
+**状态：** P4 已落地（2026-09-18；门 1 已批→4 红转绿→touched 六包 `-race` 绿；P5 未开工）
+**范围（P4）：** ①`CheckProtoFlat` 加 mcp presence 判死；②`registry.go` mcp Fields 21 键；③`translateTerminalConfig` 加 `case "mcp"`（JSON 往返 + flat 权威 + HTTP 形缺省端口修正）；④`MCPConfig` 删 `ThinkTime` 死字段（M1-E1）；⑤schemagen 重跑生成表同步；⑥`pipe_gate.sh` presence 名单 + `coverage_gate.py` check_mcp 65 项登记。
+**明确不解决：** TLS 底座组合 `[ip,tcp,tls,mcp]`（M2：未验不登 OptionalOn，验证后另立）；状态机 enforcement（回放语义 C 类，§5.6 禁止跳转靠 validator 分支负例锁不靠引擎）；validate-only 五字段（context_id/parent_id/metadata/push_notification/parts）的 _meta 注入实现（B 类另立项，t046/47/69/70 证明 params 内联已可表达）；任务级多策略"多会话部分失败"（T45，C 类：suite 每例单策略）；JSON-RPC Batch（§2.6，生成器无 batch builder，T81-85 设计有、码无——B 类另立项不冒充）；MCP over Unix socket/真 stdio 管道（TCP 承载即本协议语义）。
+**依据：** `docs/protocol-designs/16-mcp-design.md`（历史参考：§2 报文/§3 方法表/§4.3 缺省/§4.4 Validate 14 规则/§5 状态机/§6 Plan/§7 场景/§8 T1-T104）；JSON-RPC 2.0 spec（错误码段）；MCP spec 2024-11-05/2025-03-26/2025-06-18（版本严格枚举依据）；代码事实：`mcp/layer_gen.go:61-139`（Generate 默认化+传输分发）/`:145-533`（三传输事件序）/`:567-591`（注册+握手挥手校准）、`mcp/mcp.go:61-185`（Validate 19 分支）、`mcp/plan.go:29-130`（legacy Plan 缺省+端口）、`mcp/http_plan.go:22-160`（HTTP 帧构造）、`types.go:1907`（MCPConfig 22 字段→删 think_time 后 21）、`chain_planner.go:829-838`（DstPort mcp 分支）。
+
+**§9 规范矩阵（P1，规范要求 → 业务场景 → 代码现状 → 缺口→用例）：**
+
+| 规范行 | 业务场景 | 代码现状 | 缺口→用例 |
+|---|---|---|---|
+| JSON-RPC 2.0 包结构（jsonrpc/id/method/params/result/error） | initialize→业务→收尾全序（T-1 改写冒烟） | 已实现（builder 纯函数+行分隔） | 改写 T-1 |
+| §2.2 错误码保留段 [-32700,-32000]（+sampling -1 特例） | 六码台词：parse/invalid request/method not found/invalid params/internal/resource not found/reject | 已实现（responses 原文回放；Rule 13 拒正数） | t050/tpos6/t052/t092/t093 有；-32600/-32603 缺→T-93/94 |
+| §2.3 stdio 行分隔 JSON | 默认序列/换行转义/teardown 序列 | 已实现 | t002/t029/t064/t071a/b/t077/t102a/b 有 |
+| §2.4 HTTP+SSE（GET 先于 POST/endpoint 事件/202/Mcp-Session-Id） | 会话建立/认证头/auth in response | 已实现（http_plan.go 帧构造） | tpos7/t036/t038 有；全程含 DELETE→T-87 |
+| §2.5 Streamable HTTP（POST→JSON/SSE/DELETE 204 带内） | 会话建立/Basic 认证 | 已实现 | tpos8/t037 有；全程→T-87 附带 |
+| §3.1 生命周期（initialize 协商/降级/initialized 通知/ping） | 降级 t011/ping 三变体 t102 | 已实现（响应恒 2024-11-05） | t011/t024/t064/t102a/b 有 |
+| §3.2 工具（tools/list 分页/tools/call/isError/image/未知工具） | 分页 t100/isError t015/image t016/-32602 t017 | 已实现 | t013-17/t072/t100/t104 有 |
+| §3.3 资源（list/read 文本 blob 404/subscribe+updated/templates/unsubscribe 版本门） | t019-22/t038/t051/t063/t071/t072-73 | 已实现 | 已有；无缺口 |
+| §3.4-3.5 提示词/补全（prompts list/get 多角色/parts 响应/complete） | t009/t023/t025/t026/t068 | 已实现 | 请求侧 parts（sampling）→T-82 |
+| §3.6 日志（setLevel/message 推送） | t011/t066 | 已实现 | 已有 |
+| §3.7 通知（cancelled requestId/progress token） | t029/t040/t047/t054/t080 | 已实现 | step 越界负例→T-99 |
+| §3.8-3.9 roots/sampling（S→C 反查/全字段/stopReason/temperature/reject -1） | t032-34/t041/t053/t055/t062/t076/t086-89 | 已实现 | 能力门控 sampling 缺→T-89 |
+| §3.10 扩展表 31 字段 | content 五类型/state 六值/auth 三方案/caps 双向 | 已实现（validator 枚举） | audio 缺→T-100；auth 拒→T-88；state 拒→T-96 |
+| §4.4 Validate 14 规则（19 分支） | 正负各一 | 已实现 | 链可达 14 支收口→T-88/90/92/95/96/97/98/99 + 既有 6；C 类 5 支注记 |
+| §5 状态机（会话五态/长任务六值） | 长任务四终态 t039-42 | 已实现（回放） | 全程流→T-85；state 负值→T-96 |
+| §6 Plan（缺省序列/多轮/收尾开关） | rounds/shutdown | 已实现（layer_gen 默认化） | rounds>1→T-80；shutdown:false→T-81 |
+| §7.16 多会话（M 条独立四元组/id 独立） | flows=3 t043/t044 | 已实现（引擎逐流 Plan） | 全缺省双流→T-91；部分失败 C 类注记 |
+| §7.18-7.19 边界/异常 | caps 空对象/省略/重键 | 已实现 | t053/t065/t089/t090/t099 有 |
+
+**方法×响应码矩阵（§4 子表①，回放语义：响应是用户写原文，逐方法成功例已覆、错误例按码收口）：** 14 业务方法各有 ≥1 成功例（T-1…79 改写面）；错误码七值——-32700 t050/-32601 tpos6+t063/-32602 t052+t062+t102b/-32002 t092/-1 t093 有，-32600→T-93、-32603→T-94（P5）；isError 工具层错 t015 与协议层 error 区分已锁。
+
+**数据形态变体表（§4 子表②）：** stdio 行 JSON（t002 转义）｜SSE endpoint 事件（tpos7）｜streamable JSON vs SSE 响应（tpos8/t088 交错通知）｜caps 空/省略/对象/字符串含重键（t053/t065/t089/t090/t099）｜ping params 三变体（t102a/b）｜roots/list 无 params（t101）｜unsubscribe 双版本门（t071a/b）｜sampling 全字段/temperature/reject（t034/t062/t093）｜state 四终态+无 state progress（t039-42/t080）｜shutdown 开关（缺省+T-81）｜rounds（缺省+T-80）。
+
+**商业行为→用例映射表（§4 子表③）：**
+
+| 商业行为 | 出处 | 用例 | 状态 |
+|---|---|---|---|
+| Claude Desktop 客户端形（clientInfo claude-desktop + roots/sampling caps） | 16-mcp-design §3.1 示例 + Anthropic Desktop 文档 | T-MCP-101 | P3 建（台词地板线） |
+| Cursor 客户端形（自定义 clientInfo/tools caps） | Cursor MCP 文档 | T-MCP-102 | P3 建（tpos4 notes 已含 cursor 字样附带） |
+| flowB 服务端形（serverInfo name=flowB + tools listChanged） | 16-mcp-design §1.1（产品名 flowB 声明） | T-MCP-103 | P3 建（server_info 显式） |
+
+#### 1. 数据与接口
+- 输入：`[ip, tcp, mcp{21 键}]`（mcp 层缺席键走 MCPConfig 零值→生成器默认会话：缺省 requests=[tools/list, tools/call ping]、version 2024-11-05、transport stdio、rounds 1、shutdown true）。
+- 输出：3 握手 + initialize 请求/响应 + initialized + requests×rounds 请求/响应 + 定点通知 + 挥手（链 4 包；streamable 另有 DELETE/204 带内帧；shutdown:false 无挥手帧）。
+- 修改点四处（builder/emit/http_plan 零改动）：`strategy_convert.go` CheckProtoFlat 加 mcp presence 分支；`registry.go` mcp Fields 21 键；`chain_planner_translate.go` 加 `case "mcp"`；`types.go` 删 ThinkTime。新增函数：无（JSON 往返复用 pop3/smtp 形；MCPConfig 无 []byte 业务字段，无 imap 式判死）。
+- 显式覆盖：层值是 mcp 全配置唯一真相；flat `cfg["mcp"]` 出现即判死（presence，空 map 也死）。
+
+#### 2. 依赖与生命周期
+- 前置：tcp 层（DependsOn；缺 tcp 自动补，连带补 ip）。tls 不登 OptionalOn（M2 未验）。
+- 资源：无状态生成器（每 flow 一 MCPGenerator.Generate，sessionID 每会话一随机）；翻译在 ValidateSpec 同步期（幂等覆盖写）。
+
+#### 3. 主流程与状态
+- 翻译顺序：presence 判死（create 期 400）→ validateSpecBase（mcp DstPort 缺省：spec.MCP 为 nil 时按 stdio→22）→ translateTerminalConfig `case "mcp"`（JSON 往返 + HTTP 形缺省修正 8081）→ mcp validator（19 分支）→ tcp/udp 层值回填（用户显式 dst_port 最终覆盖）。
+- 端口优先级：tcp 层显式 > 翻译后 transport 缺省（HTTP 8081/stdio 22）> validateSpecBase stdio 缺省。legacy 扁平路径 dst_port=80 是 universal default 偏差（tpos2 notes 实录），链上 22 才是设计值——P5 改写后该偏差消亡。
+- 回放语义：requests/responses 原文回放，状态机不 enforcement（C 类如实注明）。
+
+#### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
+- 无新序号算法（框架 resolveLayerTuple；idCounter 是请求编号非流序号）。
+- 业务动态整格（§12，21 键全关，理由见门 1 表 §12 行；allowlist 不加 mcp 行）。
+- 正交组合：传输 3 × 版本 3（显式三值各 ≥1 例+缺省）× 地址族（v4 全量 + v6 冒烟 T-86）× flows（1/2/3）。
+
+#### 5. 错误与异常
+- 新锚词：`protocol mcp no longer accepts a top-level mcp sub-config (move it into the mcp layer of an [ip,tcp,mcp] layers chain)`（imap 文案同构）。
+- 既有锚词沿用（P5 全量收口）：`must be a JSON object`/`mixed auto and explicit id assignment`/`requests[0].method is required`/`invalid protocol_version`/`responses[0].error.code=… out of JSON-RPC reserved range`；P5 新增负例锚词：`invalid transport`/`invalid auth scheme`/`invalid state.initial`/`id_counter must be >= 0`/`parts[0].role`/`notifications[0].step=`。
+- Failing 先行 4 红例（已全红后转绿）：①顶层 `{"mcp":{}}` 空映射 presence 拒；②层 `{"mcp":{"transport":…,"requests":…}}` V9 放行（原 unknown field）；③层 requests 翻译上線（原 spec.MCP nil→"mcp config is required"）；④`MCPConfig` 无 ThinkTime（反射锁）。
+
+#### 6. 性能设计与验收
+- 单包路径增量：翻译 21 键 JSON 往返一次（ValidateSpec 同步期）；动态解析零新增（业务全关）。回归口径：mcp.json 全量 suite 耗时相对基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测）。
+- pcap 验收：mcp.json 全量绿 + 落盘可复查（stdio JSON 行帧 hex + HTTP 请求行/状态行 + SSE 事件 + tcp.dstport 8081/22）；网卡未跑。
+
+#### 7. 实现顺序与回滚
+- 步骤 0（failing 先行）：`internal/core/layers/mcp_migrate_test.go` 4 红例（已完成，全红确认）。
+- 步骤 1：CheckProtoFlat mcp presence；步骤 2：registry 21 键；步骤 3：translate `case "mcp"`；步骤 4：删 ThinkTime；步骤 5：schemagen 重跑 + build/vet/touched 六包 `-race`；P5：mcp.json 79→103 改写+新建 + 全量跑 + 校准回钉；P6：评审+提交+清库复核（dev 库 mcp 0/0，删前重报）。
+- 回滚：单提交逆序 revert（P4 代码与 P5 用例分两提交）。
+
+#### 8. 验收
+- 对应 T-MCP-1…103（TEST_CASES P3 先行）。完成条件：4 红例先红后绿；mcp.json 全量绿（RESULT 全量；二进制同代；门 2 四项绿）；touched 包 `-race` 绿；顶层 `mcp` 字面零残留（cases 内）；schemagen 生成表同步；在库 mcp 行清空复核。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A think_time 去留（M1） | A1 删除（E1）；A2 留解析注记假语义（E2）；A3 真实现 sleep（E3） | 全仓零消费（生成器/引擎/派生面 grep 实证）；E2=http 教训"语义永远假"；E3 无包时间戳载体且拖慢 suite | 选 A1（http E1 先例；设计文档 16-mcp-design 系历史参考不绑定） |
+| B 翻译走法 | B1 JSON 往返（pop3/smtp 同款）；B2 导出 ParseMCPConfigFromMap（imap 同款） | imap 判死根因是 []byte 附件；MCPConfig 无 []byte 业务字段（caps 是 RawMessage JSON 文本，往返无损且与扁平 parseMCPConfig 同路径字节一致） | 选 B1 |
+| C 端口缺省 | C1 仅靠 validateSpecBase（stdio 22）；C2 translate 后按 transport 修正 HTTP 形 8081 | C1 对 http_sse/streamable 无显式端口的链给错 22（validateSpecBase 时 spec.MCP 尚 nil）；C2 与 legacy plan.go:61-68 对齐，tcp 层显式值由层值回填最终覆盖不抢占 | 选 C2 |
+| D presence 口径 | D1 空 map 也判死；D2 仅非空判死 | D1 imap/mqtt/smtp/pop3/dns 先例（空即显式走默认）；D2 留空壳双轨 | 选 D1 |
+| E OptionalOn tls | E1 本期登记；E2 不登（M2 验证后另立） | E2 诚实：链未验不承诺；E1 若链不可跑即虚假登记 | 选 E2 |
+| F caps Default 注入 | F1 Fields 不设 Default；F2 设 Default `{}` | F2 completedConfig 注入使 RawMessage 恒非 nil，破坏"caps 缺省=省略字段"线形（16-mcp-design §4.3/规则 6）；F1 零值即设计缺省 | 选 F1 |

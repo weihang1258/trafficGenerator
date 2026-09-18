@@ -3017,3 +3017,66 @@
 
 **§1–§15 复审补项（2026-09-17，用户指令逐条复审）：** ①§9 双组合流缺第二条→补 T-79（与 T-60 路径不同成对）；②validator 23 分支 pcap 从 6 支补到 13 支→补 T-72/73/74/75/76/77/83（Tag SP/Response CRLF/Literal 互斥/Cancel 越界/Push CRLF/DoneTag SP/MIME 互斥；离线基线逐条回指，IDLE 三支离线零覆盖按小载荷断文案）；③大载荷三支（Responses/Push/Literal 上限）→补 T-84 一例不断全量构造（pop3 T-15 F1 同款），其余两支离线/设计注记；④缺全缺省双流→补 T-78（smtp T-24/pop3 T-46 对称）；⑤缺空正文/纯附件两格→补 T-80/81（pop3 T-38/39 对称）；⑥缺 IMAPS 实链形→补 T-82（pop3 T-32 对称）；⑦§8 先设计后代码程序倒置→门 1 批了即追认（本复审即追认评审）；⑧§10 自审查结论→P4 自审 2 轮（第 1 轮发现 4 处引用错：smtp 行号/case 数/banner 行/FlowIndex 行，已修；第 2 轮干净，见 P4 提交 1bead97）。
 **P6 完成回填（2026-09-17）：** P5 `RESULT: 84 pass, 0 fail, 0 error (of 84)`（/tmp/tg-imap-p5-server 与 HEAD 同代；门 2 四项全绿；反查 54/54；smtp 43/43、pop3 50/50 无误伤）+ 落盘 81 文件零孤儿 + 在库 imap 清空（删前 strategies 63/tasks 130 → 删后 0/0，备份 `/tmp/trafficgen-pre-imap-clear.db`）+ P5 修真 bug 一件（层翻译分支 JSON 往返判死 → `ParseIMAPConfigFromMap` 单 parse 真相，failing 先行 2 红转绿，见 D-IMAP-1 §10 回填②）；门 3 抽查见 D-IMAP-1 §10 回填。T-053 锚词已按 V9 门字面更正（见上表）。
+
+### T-MCP-1…103 mcp.json——存量审计 + 测试点清单【D-MCP-1 P3 先行，P4 未开工】
+
+**状态：** P4 已落地（4 红转绿，见 D-MCP-1）；P5 未开工（本文清单即 P5 补例依据）
+**级别：** pcap
+**来源：** JSON-RPC 2.0 + MCP spec 三版本 + `docs/protocol-designs/16-mcp-design.md`（历史参考）§2-§8 + D-MCP-1 §4/§9 + 现网（Claude Desktop/Cursor/flowB 服务端形）
+**存量去向（79 例 → 改写后 103 例：T-1…79 改写 + T-80…103 新建）：**
+
+| 形状 | 数量 | 去向 |
+|---|---|---|
+| `layers:[tcp,mcp]` + 顶层扁平 5 键 + 顶层 `mcp` 双轨（缺 ip 层） | 73 | 合入：补 `ip` 层、删 5 旧键→`[ip,tcp,mcp]`；`mcp` 子映射进层同名键（MCPConfig 同名 21 键）；包数/包号不照抄——链挥手 4 包 vs legacy 3 包、tpos2 无 dst_port 由 stdio 缺省 22 承接（legacy 扁平 80 是偏差，链上 22 是设计值），P5 落盘逐例重钉 |
+| 纯扁平（无 layers，6 负例中 5 例 + tpos2 同形） | 6 | 合入：补 `[ip,tcp,mcp]` 链同上；负例只换形状不换锚词（validator 分支锚词原样） |
+| 显式 `dst_port:8081`（78 例） | 78 | `tcp.dst_port:8081` 原样进层（M5 陷阱：丢了会被 stdio 缺省 22 顶掉变字节） |
+| 无 `src_port`（t043/t044 flows=3） | 2 | `tcp` 层 src_port 留空（显式写会禁用 worker 12345+i 递增致四元组撞车，t043 notes 实录） |
+
+**新建清单（P5 补例，编号定稿；全部 A 类零代码）：**
+
+| 规范行 | 用例 | 分类 |
+|---|---|---|
+| §6 rounds 多轮（id 跨轮递增） | T-MCP-80（rounds=2，同 requests 两轮） | A |
+| §4.1/§6.4 shutdown 开关（无挥手/无 DELETE） | T-MCP-81（shutdown:false，stdio，包数落盘钉） | A |
+| §3.9 sampling 请求 multi-part content | T-MCP-82（messages[].content.parts） | A |
+| §9 组合流 A 工具链（≥3 动作：tools/list 分页→tools/call 成功→tools/call 图片→progress 通知） | T-MCP-83 | A（双组合流①） |
+| §9 组合流 B 资源链（≥3 动作：resources/list→read 文本→read blob→subscribe→updated→list_changed） | T-MCP-84 | A（双组合流②） |
+| §7.15 长任务全程（working→input_required→继续→completed 一条走完） | T-MCP-85（state 全程） | A |
+| §9 地址族 v6 承载 | T-MCP-86（`[ip(v6),tcp,mcp]`；mqtt_v6/smtp_t015 先例：字段名 tshark 无回值则帧偏移降级注记） | A |
+| §2.5 streamable 全程（POST→JSON/SSE→DELETE/204 带内） | T-MCP-87（session_id 显式固定） | A（现网①） |
+| §4.4 规则 4 auth 枚举 | T-MCP-88（非法 scheme 拒，锚词 `invalid auth scheme`） | A（负例） |
+| §5.4 能力门控 sampling（未声明→-32601 台词） | T-MCP-89（t063 subscribe 门已有，本例补 sampling 对称面） | A |
+| §1 顶层 mcp presence 判死 | T-MCP-90（负例，锚词 `no longer accepts a top-level mcp sub-config`；failing 先行①） | A（负例） |
+| §9 全缺省双流放行（对标 smtp_t024/pop3_t046/imap_t078） | T-MCP-91（`[{ip:{}},{tcp:{}},{mcp:{}}]` flows=2；src_port 保底+1） | A |
+| §9 静态复制拒绝（显式标量四元组 flows=2） | T-MCP-92（负例，锚词 `static four-tuple`） | A（负例） |
+| §2.2 错误码 -32600 Invalid Request 台词 | T-MCP-93 | A（复审纠正：此前"六码全有"误判，实缺） |
+| §2.2 错误码 -32603 Internal error 台词 | T-MCP-94（同上纠正） | A |
+| §4.4 规则 2 transport 枚举 | T-MCP-95（`transport:"websocket"` 拒，锚词 `invalid transport`） | A（负例） |
+| §4.4 规则 5 state 枚举 | T-MCP-96（`state.initial:"paused"` 拒，锚词 `invalid state.initial`；final 同枚举面同族注记） | A（负例） |
+| §4.4 规则 8 负计数器 | T-MCP-97（`id_counter:-1` 拒，锚词 `must be >= 0`；rounds 同锚词族同族注记） | A（负例） |
+| §4.4 规则 10 parts role 枚举 | T-MCP-98（`parts:[{role:"system"}]` 拒，锚词 `.role`；content.type 同循环同族注记） | A（负例） |
+| §4.4 规则 12 通知 Step 越界 | T-MCP-99（`step:9` 越界拒，锚词 `.step=`；通知 method required 同循环同族注记） | A（负例） |
+| §3.10 content audio（2025-06-18 新增） | T-MCP-100（tools/call 响应 audio content） | A |
+| 现网 Claude Desktop 形 | T-MCP-101（clientInfo claude-desktop + roots/sampling caps） | A（映射地板线） |
+| 现网 Cursor 形 | T-MCP-102（自定义 clientInfo + tools caps） | A（tpos4 notes cursor 字样附带） |
+| 现网 flowB 服务端形 | T-MCP-103（serverInfo name=flowB + tools listChanged；16-mcp-design §1.1） | A |
+
+**缺口矩阵（2026-09-18 P3 审计）：**
+
+| 缺口 | 分类 | 计划 |
+|---|---|---|
+| rounds/shutdown/parts 请求侧/audio/错误码两码（-32600/-32603）零例 | A（零代码） | 已列 T-80/81/82/93/94/100 |
+| 组合流不足（存量最长 3 步且 responses 全合成；无双条 ≥3 动作） | A | 已列 T-83/84 |
+| 长任务只有四终态快照、无全程流 | A | 已列 T-85 |
+| v6 零例 | A | 已列 T-86（M3 关单） |
+| 现网复杂业务（streamable 全程/认证拒/能力门控 sampling/三家映射） | A | 已列 T-87/88/89/101/102/103 |
+| validator 链可达 14 支仅 6 支有负例 | A | 已列 T-88/90/92/95/96/97/98/99；C 类 5 支注记（IP×2 走框架 ip 层门、config required 被翻译保底、legacy 空配置路径——链上不可达） |
+| 多会话部分失败（设计 T45） | C（suite 每例单策略，flows=N 同模板复制无法逐流差异；任务级多策略另立项） | 注记不冒充 |
+| JSON-RPC Batch（设计 §2.6/T81-85） | B（生成器无 batch builder；设计有、码无） | 另立项，不建例不冒充 |
+| validate-only 五字段（context_id/parent_id/metadata/push_notification/parts 顶层）生成器不消费 | B（_meta 注入实现另立项；t046/47/69/70 证明 params 内联已可表达线形） | 注记，不删不冒充 |
+| TLS 底座组合 `[ip,tcp,tls,mcp]` | B（M2 未验） | 另立，不登 OptionalOn |
+
+**复审纠正记录（2026-09-18 场景审计）：** ①能力门控 subscribe 负例 t063 已有（此前"缺"误判），仅 sampling 门缺→T-89 补对称面；②错误码"六码全有"误判——-32600/-32603 实缺→T-93/94；③`_meta` 家族线形由 requests params 内联承载（t046/47/69/70），顶层五字段是 validate-only 面，属代码缺口非用例缺口。
+
+**执行口径：** P5 MCP 真实流程全量（`flowb_run_protocol_suite`：MCP 建任务→引擎生成→tshark 校对）103/103 全绿 + 落盘 `/tmp/mcp-pcaps/mcp/` 零孤儿 + 门 2 四项（presence 红线已接）+ 反查 65 项全绿（探针 9/65，MISS 56 项=本清单）。
+**实现位置：** `cases/mcp.json`（P5 改写 79 + 新建 24）。
