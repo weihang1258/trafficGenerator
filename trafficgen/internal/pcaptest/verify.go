@@ -492,6 +492,13 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 	// 仍正确解析（errcls/errcod/func），仅 dissector 残留。属已知伪影非帧缺陷。
 	case caseID == "s7_error_class_code":
 		return true
+	// FINS 0104 Multiple Memory Area Read 请求伪影：packet-omron-fins.c 的
+	// 0104 分支按 count 循环读 4 字节/组（区码+地址2+bit），忽略每组的
+	// NC——N 组请求剩余 N×2B NC 未消费 → malformed。线型合法（W342-E1：
+	// count 1B + N×[区码+地址2+bit+NC2]，设计 §3.9 注记录该怪癖）；帧字节
+	// 经 fins_multi_read 的 frames 原始断言校验。
+	case caseID == "fins_multi_read":
+		return true
 	// 5. RTMP/XMPP/TLS dissector 对字节级合法帧的伪影（2026-08 冒烟用例，
 	//    已对探针 pcap 验证）：RTMP dissector 的 AMF 递归守卫在嵌套 _result
 	//    对象上触发（"Loop in AMF dissection"），但 AMF 编码合法（string

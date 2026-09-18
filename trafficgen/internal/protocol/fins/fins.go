@@ -113,11 +113,11 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			}
 			for j, ra := range cmd.ReadAreas {
 				raBit := ra.BitSet || ra.Bit != 0
-				if _, ok := memoryAreaCode(ra.MemoryArea, ra.Bit, raBit); !ok {
-					return fmt.Errorf("fins: commands[%d].read_areas[%d] invalid memory area %q", i, j, ra.MemoryArea)
-				}
 				if ra.MemoryArea == "dm" && raBit {
 					return fmt.Errorf("fins: commands[%d].read_areas[%d] dm does not support bit access", i, j)
+				}
+				if _, ok := memoryAreaCode(ra.MemoryArea, ra.Bit, raBit); !ok {
+					return fmt.Errorf("fins: commands[%d].read_areas[%d] invalid memory area %q", i, j, ra.MemoryArea)
 				}
 				if ra.Address > areaAddressLimit(ra.MemoryArea) {
 					return fmt.Errorf("fins: commands[%d].read_areas[%d] address exceeds range", i, j)
@@ -142,11 +142,13 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("fins: commands[%d] bit must be 0-15", i)
 		}
 		bitAccess := cmd.BitSet || cmd.Bit != 0
-		if _, ok := memoryAreaCode(cmd.MemoryArea, cmd.Bit, bitAccess); !ok {
-			return fmt.Errorf("fins: commands[%d] invalid memory area %q", i, cmd.MemoryArea)
-		}
+		// E-03 先于区码查表（dm 不在位口径码表内，查表先答会让 E-03 成
+		// 死代码——设计 E 表 E-01/E-03 语义独立，红例锁）。
 		if cmd.MemoryArea == "dm" && bitAccess {
 			return fmt.Errorf("fins: commands[%d] dm does not support bit access", i)
+		}
+		if _, ok := memoryAreaCode(cmd.MemoryArea, cmd.Bit, bitAccess); !ok {
+			return fmt.Errorf("fins: commands[%d] invalid memory area %q", i, cmd.MemoryArea)
 		}
 		if cmd.Address > areaAddressLimit(cmd.MemoryArea) {
 			return fmt.Errorf("fins: commands[%d] address exceeds range", i)
@@ -395,9 +397,9 @@ func BuildFrameWithConfig(cfg *FINSConfig, cmd FINSCommand, response bool, sid u
 	}
 	if icf == 0 {
 		if response {
-			icf = 0xC1
+			icf = 0xC0
 		} else {
-			icf = 0x81
+			icf = 0x80
 		}
 	}
 	icf |= 0x80

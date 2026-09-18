@@ -78,7 +78,7 @@ func TestFINSResponseUsesResponseICF(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := events[1].Bytes[0]; got != 0xC0 {
-		t.Fatalf("response ICF = 0x%02X, want 0xC1", got)
+		t.Fatalf("response ICF = 0x%02X, want 0xC0", got)
 	}
 }
 
@@ -243,7 +243,7 @@ func TestBuildMemoryAreaReadFrame(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []byte{0x81, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x82, 0x00, 0x64, 0x00, 0x00, 0x02}
+	want := []byte{0x80, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x82, 0x00, 0x64, 0x00, 0x00, 0x02}
 	if !bytes.Equal(request, want) {
 		t.Fatalf("request = % X, want % X", request, want)
 	}
@@ -443,7 +443,7 @@ func TestPlanHonorsDownDirectionWithoutAutomaticResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(packets) != 1 || packets[0].Direction != "down" || packets[0].Payload[0] != 0xC1 {
+	if len(packets) != 1 || packets[0].Direction != "down" || packets[0].Payload[0] != 0xC0 {
 		t.Fatalf("packets = %#v, want one down response frame", packets)
 	}
 }

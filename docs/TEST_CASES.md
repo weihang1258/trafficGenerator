@@ -3118,9 +3118,9 @@
 **执行口径：** P5 srv6 真实流程全量（`flowb_run_protocol_suite`：MCP 建任务→引擎生成→tshark 校对）74/74 全绿 + 落盘 `/tmp/mcp-pcaps/srv6/` 零孤儿 + 门 2 四项 + 反查 check_srv6 全绿（P4 登记）。断言包号/帧字节全部落盘重钉（down 双换修复、端口删影后 udp.srcport 以 pcap 为准）。
 **实现位置：** `cases/srv6.json`（P5 改写 67 + 作废 1 + 新建 7）。
 
-### T-FINS-1…44 fins.json——存量审计 + 测试点清单【D-FINS-1 P3 先行，P4 未开工】
+### T-FINS-1…45 fins.json——存量审计 + 测试点清单【D-FINS-1 P3 定稿，P5 已执行】
 
-**状态：** P3 定稿（2026-09-18；权威=D-FINS-1（含依赖链判定 C1/C2/C3）；存量 40 点逐条审计去向如下表；P4/P5 未开工）
+**状态：** P5 已执行（2026-09-18；suite 45/45 全绿，coverage 46/46，门 2 四项绿；权威=D-FINS-1 含 C1/C2/C3/**C4 缺省 ICF**。P5 修正 4 处：①T-39 锚词改 registry V9 范围门（"not a numeric value in [0,1000000]"，实测先于 planner "sessions must be >= 0"——锚词对真实执法门）；②**C4**：缺省 ICF 0x81/0xC1 违反自身 E-06（bit0=1=不需要响应），修正为 0x80/0xC0，历史 omron.icf 断言随落盘更新；③E-03 "dm does not support bit access" 由死代码转可达（dm 检查移到区码查表之前）；④0104 请求 tshark 怪癖入 malformed 白名单（设计 §3.9，帧字节经 frames 原始断言校验））
 
 **三源：** ①标准=欧姆龙 W342-E1（FINS 无 RFC，4.10 官方规范口径；字节证据=W342 派生的 Wireshark packet-omron-fins + gofins 双转录交叉，历史 §1.5）②设计=D-FINS-1（C1 0103/0104 补齐、C2 clock 7B、C3 FINS/TCP length 26、E-06 cfg 级、E-10）③现网=开源双源行为（CX-Simulator 商业映射=待确认，确认方式：抓 CX-Simulator 报文比对或查 W342-E1 版本差异，D-FINS-1 立项①）。
 
@@ -3165,11 +3165,11 @@
 | T-36 | 静态复制拒 | layers 静态四元组+flows=2 → 静态复制锚词 | A |
 | T-37 | transport 非法 | "invalid transport" | A |
 | T-38 | direction 非法 | "invalid direction" | A |
-| T-39 | sessions 负值 | "sessions must be >= 0" | A |
+| T-39 | sessions 负值 | registry V9 范围门 "not a numeric value in [0,1000000]"（实测先于 planner 同义分支，锚词对真实执法门） | A |
 
 **枚举取值覆盖（9.20-9.22 承载位置扫描）：** 区名×口径 11 组合（去重码值 10，0x09 位/字同码：字 0xB0/0xB1/0xB2/0x89/0x82/0xDC/0x09+位 0x30/0x31/0x32）全覆（T-033/034 补口后）；命令码 5 值（0101/0102/0103/0104/0701）正例全覆+未知码负例；结束码 9 值同形状分支代表（T-25+全例 0x0000）；ICF 方向位请求/响应双值（T-001 响应 0xC1 + 显式例）；载体 2×地址族 2（v4 全量+v6 代表——FINS 载荷与 IP 版本无关（G6），差异仅在 ip 层=框架职责，矩阵登记说明，srv6 单族声明同口径）。
 **正交矩阵：** 载体 2×命令 5×位/字×sessions 3×direction 2——已覆格见上；缺格=TCP×sessions（TCP 多会话：tcp 层挥旧握新语义，B 类候选注记，P4 后评估是否落盘）；动态整格=N/A（fins 业务 16 键零动态，D-FINS-1 §12；四元组动态走框架三层 allowlist 既有格）。
 **通用陷阱自查（9.37-9.40）：** 派生口 1245+i 确定性、distinct 断言排除服务端 9600 与派生口混入（T-022 断言只收客户端派生口集合）；多命令同会话共享 SID 序号=真实语义（T-31 断言递增非独立）；无 flows>1 静态标量例（T-36 拒绝面已锁）。
 **断言边界（9.27）：** tshark 对 0104 请求组忽略 NC（FrameAssert 原始字节代偿）；FINS/TCP FIN/ACK 交织顺序由 TCP 载体决定（min_packets 口径）；包时序断言 harness 不支持（既有注记）。
 **执行口径：** P5 fins 真实流程全量（MCP 建任务→引擎生成→tshark 校对）全绿 + 落盘 `/tmp/mcp-pcaps/fins/` + 门 2 四项 + 反查 check_fins（P4 登记）。断言数值一律落盘重钉（14.6/9.31）——含 C3 修正后的 omron.tcp.length=26、tcp min_packets 拆解不预写。
-**实现位置：** `cases/fins.json`（P5 改写 14 + 转正/新建 30 = 44 例；T-018/T-031/T-035/T-038~040 四行作废/等价/C 类各注记）。
+**实现位置：** `cases/fins.json`（P5 改写 14 + 转正/新建 31 = **45 例**；T-018 等价覆盖、T-031 E-08 配置面不可达 C 类、T-035 decode_as C 类、T-038~040 等价 suite 口径；P5 补 `fins_vn_fill_data_len`（0103 模板 2B 校验分支，9.5 补口））。

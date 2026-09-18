@@ -22,7 +22,7 @@ func TestFillRequestVector(t *testing.T) {
 		t.Fatalf("build 0103: %v", err)
 	}
 	want := []byte{
-		0x81, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0x01, // 头：ICF/RSV/GCT/DNA/DA1/DA2/SNA/SA1/SA2/SID
+		0x80, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0x01, // 头：ICF/RSV/GCT/DNA/DA1/DA2/SNA/SA1/SA2/SID
 		0x01, 0x03, // 命令码 0103
 		0x82, 0x00, 0x64, 0x00, // DM 区码 + 地址 100 + bit 0
 		0x00, 0x03, // NC=3
@@ -47,7 +47,7 @@ func TestMultipleReadVectors(t *testing.T) {
 		t.Fatalf("build 0104 req: %v", err)
 	}
 	wantReq := []byte{
-		0x81, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0x01,
+		0x80, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0x01,
 		0x01, 0x04, // 命令码 0104
 		0x02,                               // 组数
 		0x82, 0x00, 0x64, 0x00, 0x00, 0x01, // 组1：DM 地址 100 NC=1
@@ -61,7 +61,7 @@ func TestMultipleReadVectors(t *testing.T) {
 		t.Fatalf("build 0104 resp: %v", err)
 	}
 	wantResp := []byte{
-		0xC1, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0x01,
+		0xC0, 0x00, 0x02, 0, 0, 0, 0, 0, 0, 0x01,
 		0x01, 0x04,
 		0x00, 0x00, // 结束码 0x0000
 		0x00, 0x01, // 组1 数据（字 1 元素 = 1）
@@ -98,5 +98,16 @@ func TestMultipleReadCommandLevelICFStillChecked(t *testing.T) {
 	err := (&Planner{}).Validate(spec)
 	if err == nil || !strings.Contains(err.Error(), "icf response-required bit must be clear") {
 		t.Fatalf("0104 with bad cmd-level ICF must be rejected, got: %v", err)
+	}
+}
+
+// P5 预检红：E-03 DM 位口径——设计 E 表独立行，消息"dm does not support
+// bit access"应真实可达（此前 dm+bit 先撞 memoryAreaCode 区码表 → E-01
+// 抢答，E-03 死代码）。修复=dm 检查移到区码查表之前。
+func TestValidateRejectsDMBitAccessWithE03Message(t *testing.T) {
+	cfg := &FINSConfig{Commands: []FINSCommand{{Command: CommandMemoryAreaRead, MemoryArea: "dm", Bit: 1, Items: 1}}}
+	err := NewPlanner().Validate(testSpec(cfg))
+	if err == nil || !strings.Contains(err.Error(), "dm does not support bit access") {
+		t.Fatalf("E-03 anchor mismatch, got: %v", err)
 	}
 }
