@@ -1923,7 +1923,6 @@ type MCPConfig struct {
 	PushNotification   MCPPushNotification `json:"push_notification,omitempty"`   // tools/call callback URL
 	IDCounter          int                 `json:"id_counter,omitempty"`          // first request id; 0=auto from 1
 	Rounds             int                 `json:"rounds,omitempty"`              // repeat count; 0=1
-	ThinkTime          int                 `json:"think_time,omitempty"`          // ms between rounds
 	Shutdown           *bool               `json:"shutdown,omitempty"`            // nil=true (TCP FIN teardown)
 	ContextID          string              `json:"context_id,omitempty"`          // _meta.contextId (call chain)
 	ParentID           string              `json:"parent_id,omitempty"`           // notifications/progress parentId

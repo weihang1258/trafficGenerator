@@ -1172,6 +1172,33 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		// 在校验前；生成器对 nil config 走默认空会话）。
 		cfg := completedConfig(s, term.Config)
 		spec.IMAP = core.ParseIMAPConfigFromMap(cfg)
+	case "mcp":
+		if spec.MCP != nil {
+			return // flat 权威；二者并存时 flat 优先，层 config 忽略
+		}
+		// D-MCP-1：层 config（MCPConfig 同名 21 键）经 JSON 往返解码为
+		// core.MCPConfig（pop3/smtp :1143 同款；imap 式 []byte 判死在 mcp
+		// 不成立——MCPConfig 无 []byte 业务字段，caps 是 json.RawMessage，
+		// JSON 文本往返无损且与扁平 parseMCPConfig 字节同路径零分叉）。
+		// 空层 config 也翻译出非 nil config（mcp validator 要求 spec.MCP
+		// 非 nil，"mcp config is required"），生成器走默认会话。
+		// 端口：validateSpecBase 先于本函数跑（当时 spec.MCP 为 nil，stdio
+		// 缺省 22 已写）；翻译后按 transport 修正 HTTP 形缺省 8081（legacy
+		// plan.go:61-68 同款）。用户在 tcp 层显式写 dst_port 时，后续层值
+		// 回填（ValidateSpec 末段，本函数之后执行）以用户值覆盖，不抢占。
+		cfg := completedConfig(s, term.Config)
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			return // 理论不可达（config 已是 JSON 可编码 map）
+		}
+		var mc core.MCPConfig
+		if err := json.Unmarshal(raw, &mc); err == nil {
+			spec.MCP = &mc
+			if (mc.Transport == "http_sse" || mc.Transport == "streamable") &&
+				(spec.DstPort == 0 || spec.DstPort == mcpStdioPort) {
+				spec.DstPort = mcpHTTPPort
+			}
+		}
 	case "mqtt":
 		// D-MQTT-1：层优先（flat 判死后无双轨——CheckProtoFlat 已拒顶层
 		// mqtt 子映射）。http :839 空壳例外同款：spec.MQTT 非 nil 但为空

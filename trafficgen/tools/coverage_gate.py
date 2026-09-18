@@ -455,6 +455,170 @@ def check_imap(cases):
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
 
+# --------------------------------------------------------------------------
+# MCP 检查表（D-MCP-1 P3 清单机器版：方法表 + 通知族 + 错误码 + 传输×版本 +
+# state 终态 + content 类型 + validator 锚词 + 多会话 + 组合流 + 双向方法 +
+# 现网三家；回放语义下错误响应是用户写的 responses 原文，台词版也算——
+# C 类边界见 D 条目）
+# --------------------------------------------------------------------------
+
+MCP_METHODS = ["ping", "tools/list", "tools/call", "resources/list",
+               "resources/read", "resources/subscribe",
+               "resources/templates/list", "resources/unsubscribe",
+               "prompts/list", "prompts/get", "completion/complete",
+               "logging/setLevel", "roots/list", "sampling/createMessage"]
+MCP_NOTIFICATIONS = ["notifications/progress", "notifications/message",
+                     "notifications/cancelled",
+                     "notifications/roots/list_changed",
+                     "notifications/resources/updated",
+                     "notifications/resources/list_changed"]
+MCP_ERROR_CODES = ["-32700", "-32600", "-32601", "-32602", "-32603",
+                   "-32002", "-1"]
+MCP_TRANSPORTS = ["stdio", "http_sse", "streamable"]
+MCP_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18"]
+MCP_STATE_FINALS = ["completed", "input_required", "failed", "canceled"]
+MCP_CONTENT_TYPES = ["text", "image", "audio", "resource", "resource_link"]
+MCP_VALIDATOR_ANCHORS = [
+    ("invalid transport", "非法 transport 拒"),
+    ("invalid protocol_version", "非法版本拒"),
+    ("invalid auth scheme", "非法 auth 拒"),
+    ("invalid state.initial", "非法 state 拒"),
+    ("must be a JSON object", "caps 形状拒"),
+    (".method is required", "空 method 拒"),
+    ("must be >= 0", "负计数器拒"),
+    (".role", "parts role 拒"),
+    (".step=", "通知 Step 越界拒"),
+    ("error.code=", "错误码越界拒"),
+    ("mixed auto and explicit id assignment", "id 混用拒"),
+    ("no longer accepts a top-level mcp sub-config", "顶层 mcp presence 拒"),
+    ("static four-tuple", "静态复制拒"),
+]
+MCP_COMMERCIAL = ["claude", "cursor", "flowb"]
+
+
+def _mcp_layers(cases):
+    """逐个产出 (case_id, mcp层dict)。顶层 mcp 键（presence 负例）不算。"""
+    for c in cases:
+        spec = c.get("spec_json", {}) or {}
+        for layer in spec.get("layers", []) or []:
+            mcp = (layer or {}).get("mcp")
+            if isinstance(mcp, dict):
+                yield c.get("id", "?"), mcp
+
+
+def check_mcp(cases):
+    """返回 [(检查名, 通过?, 证据case_id或缺口说明)]。"""
+    rows = []
+    lays = list(_mcp_layers(cases))
+
+    # 1. 方法表 14 个（notifications/initialized 由生成器固定注入，t064 帧
+    # 断言锁，不入 requests 扫描面）。
+    def methods_of(mcp):
+        return [(r.get("method") or "") for r in (mcp.get("requests") or [])
+                if isinstance(r, dict)]
+    for method in MCP_METHODS:
+        hit = next((cid for cid, m in lays if method in methods_of(m)), None)
+        rows.append((f"方法 {method}", hit is not None, hit or "无用例"))
+
+    # 2. 通知族 6 形各至少 1 例。
+    for n in MCP_NOTIFICATIONS:
+        hit = next((cid for cid, m in lays
+                    for item in (m.get("notifications") or [])
+                    if isinstance(item, dict) and item.get("method") == n),
+                   None)
+        rows.append((f"通知 {n}", hit is not None, hit or "无用例"))
+
+    # 3. 错误码 7 个（responses[].error.code 字面；台词版也算）。
+    blob = json.dumps([(m.get("responses") or []) for _, m in lays],
+                      ensure_ascii=False)
+    for code in MCP_ERROR_CODES:
+        hit = re.search(r'"code":\s*' + re.escape(code) + r'(?![0-9])',
+                        blob) is not None
+        rows.append((f"错误码 {code}", hit, "台词出现" if hit else "无用例"))
+
+    # 4. 传输 3 × 版本 3（版本含显式三值各 1 例；缺省=2024-11-05 由生成器
+    # 承担，t011 降级例附带）。
+    for t in MCP_TRANSPORTS:
+        hit = next((cid for cid, m in lays if m.get("transport") == t), None)
+        rows.append((f"传输 {t}", hit is not None, hit or "无用例"))
+    for v in MCP_VERSIONS:
+        hit = next((cid for cid, m in lays
+                    if m.get("protocol_version") == v), None)
+        rows.append((f"版本 {v}", hit is not None, hit or "无用例"))
+
+    # 5. state 终态 4（state.final 字段面；initial/final 同枚举面，一例代表）。
+    for f in MCP_STATE_FINALS:
+        hit = next((cid for cid, m in lays
+                    if (m.get("state") or {}).get("final") == f), None)
+        rows.append((f"state 终态 {f}", hit is not None, hit or "无用例"))
+
+    # 6. content 类型 5（requests/responses 内 content.type 字面）。
+    for ct in MCP_CONTENT_TYPES:
+        hit = re.search(r'"type":\s*"' + ct + r'"', blob) is not None
+        rows.append((f"content {ct}", hit, "字面出现" if hit else "无用例"))
+
+    # 7. validator 锚词收口（错误锚词 + presence/静态复制负例，字面出现）。
+    blob_exp = json.dumps([(c.get("id"), c.get("spec_json", {}),
+                            (c.get("expect") or {}).get("error_contains"),
+                            (c.get("expect") or {}).get("notes"))
+                           for c in cases], ensure_ascii=False)
+    for needle, name in MCP_VALIDATOR_ANCHORS:
+        hit = needle in blob_exp
+        rows.append((name, hit, "锚词出现" if hit else "无用例"))
+
+    # 8. 多会话（flows>=2 至少 2 例：独立 4-tuple 聚合 + id 独立）。
+    multi = [c.get("id", "?") for c in cases
+             if ((c.get("strategy_fc") or {}).get("value") or 0) >= 2]
+    rows.append(("多会话（flows>=2）", len(multi) >= 1,
+                 multi[0] if multi else "无用例"))
+    rows.append(("多会话（第二条）", len(multi) >= 2,
+                 multi[1] if len(multi) >= 2 else "无用例"))
+
+    # 9. 双组合流（§9：至少两条、每条会话内 >=3 不同业务方法）。
+    def composite(mcp):
+        ms = {x for x in methods_of(mcp)
+              if x not in ("notifications/initialized",)}
+        return len(ms) >= 3
+    comp = [cid for cid, m in lays if composite(m)]
+    rows.append(("组合流 A（>=3 方法）", len(comp) >= 1,
+                 comp[0] if comp else "无用例"))
+    rows.append(("组合流 B（第二条）", len(comp) >= 2,
+                 comp[1] if len(comp) >= 2 else "无用例"))
+
+    # 10. 双向方法（S→C 反查：roots/list + sampling/createMessage 已在方法
+    # 表逐个点名；此处锁"响应侧带 capability 声明"的协商例至少 1）。
+    hit = next((cid for cid, m in lays
+                if isinstance(m.get("client_capabilities"), (dict, str))
+                and isinstance(m.get("server_capabilities"), (dict, str))
+                and methods_of(m)), None)
+    rows.append(("双向能力协商", hit is not None, hit or "无用例"))
+
+    # 11. shutdown 双形（缺省挥手 + shutdown:false 无挥手）。
+    hit = next((cid for cid, m in lays if m.get("shutdown") is False), None)
+    rows.append(("shutdown:false 无挥手", hit is not None, hit or "无用例"))
+
+    # 12. rounds 多轮至少 1 例。
+    hit = next((cid for cid, m in lays
+                if (m.get("rounds") or 0) > 1), None)
+    rows.append(("rounds>1 多轮", hit is not None, hit or "无用例"))
+
+    # 13. 现网三家映射（id/summary/notes 关键字，地板线：Claude Desktop /
+    # Cursor / flowB 自家服务端形）。
+    texts = {c.get("id", "?"): json.dumps(
+        [c.get("id"), c.get("summary"),
+         (c.get("expect") or {}).get("notes")], ensure_ascii=False).lower()
+             for c in cases}
+    for kw in MCP_COMMERCIAL:
+        hit = next((cid for cid, t in texts.items() if kw in t), None)
+        rows.append((f"现网映射 {kw}", hit is not None, hit or "无用例"))
+
+    return rows
+
+
+CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
+          "mcp": check_mcp}
+
+
 def main(argv):
     proto = argv[1] if len(argv) > 1 else ""
     cases_path = None

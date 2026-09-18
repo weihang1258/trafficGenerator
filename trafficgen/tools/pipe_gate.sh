@@ -58,13 +58,13 @@ PYEOF
   # http 族 9 协议顶层 http presence 红线（D-HTTP-1 步骤 3 + T-HTTP-72）：
   # 迁入完成后，layers 与顶层 http 子映射共存即红；唯一的例外是 presence
   # 负例本身（expect_error + error_contains 含 top-level），它是执法对象。
-  # dns/mqtt/smtp/pop3/imap 单协议 presence 红线（各 D-条目 P4 判死分支同款）：
+  # dns/mqtt/smtp/pop3/imap/mcp 单协议 presence 红线（各 D-条目 P4 判死分支同款）：
   # 口径与 http 族一致——presence 负例豁免，其余共存即红。
   case "$PROTO" in
     http|http_flv|hls|hds|gbt|getwork|cwmp|doh|onvif)
       _pres_key="http"
       ;;
-    dns|mqtt|smtp|pop3|imap)
+    dns|mqtt|smtp|pop3|imap|mcp)
       _pres_key="$PROTO"
       ;;
   esac

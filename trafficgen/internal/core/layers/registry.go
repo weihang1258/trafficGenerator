@@ -234,12 +234,43 @@ func buildDefaultRegistry() {
 	// 请求/响应序列 → 可选挥手，三传输（stdio/http_sse/streamable）均单
 	// TCP 连接：stdio 逐行 JSON，HTTP 模式为 HTTP 帧（GET/POST/DELETE +
 	// SSE push），TCP 语义（握手/seq-ack/挥手/MSS 分段）交给 tcp 层生成器；
-	// streamable 的 DELETE/204 是应用层帧（带内，非挥手）。配置
-	// （transport/requests/responses/notifications/rounds...）繁多不落层
-	// config（layers 数组条目零负载），经 spec.MCP flat 键携带、FlowMeta
-	// 直传生成器；目的端口默认 stdio→22 / HTTP→8081（validateSpecBase）。
+	// streamable 的 DELETE/204 是应用层帧（带内，非挥手）。目的端口默认
+	// stdio→22 / HTTP→8081（validateSpecBase；HTTP 形缺省修正由 translate
+	// 分支在翻译后补，用户显式 tcp.dst_port 优先）。
+	//
+	// D-MCP-1：层 config 收 MCPConfig 同名 21 键（M1-E1 删 think_time 死
+	// 字段后）。一律不设 Default：零值即设计缺省（transport 空走 stdio、
+	// protocol_version 空 2024-11-05、Shutdown nil=true、caps 空 {}，
+	// 16-mcp-design §4.3），且 completedConfig 缺省注入会把 RawMessage 字段
+	// 污染成非 nil——破坏"caps 缺省=省略字段"的线形。嵌套对象/数组/RawMessage
+	// V9 只验顶层键存在，值语义归翻译分支 JSON 往返解码 + validator
+	// （pop3/smtp/imap 同款）。tls 底座组合 [ip,tcp,tls,mcp] 未验（M2 另立，
+	// 不登 OptionalOn，不挡开工）。
 	r.Register(LayerSchema{Name: "mcp", Category: CategoryTerminal,
 		DependsOn: []string{"tcp"},
+		Fields: map[string]FieldSchema{
+			"transport":           {Type: "string"},
+			"base_url":            {Type: "string"},
+			"session_id":          {Type: "string"},
+			"protocol_version":    {Type: "string"},
+			"client_info":         {Type: "object"},
+			"server_info":         {Type: "object"},
+			"client_capabilities": {Type: "object"},
+			"server_capabilities": {Type: "object"},
+			"requests":            {Type: "list"},
+			"responses":           {Type: "list"},
+			"notifications":       {Type: "list"},
+			"auth":                {Type: "object"},
+			"state":               {Type: "object"},
+			"parts":               {Type: "list"},
+			"metadata":            {Type: "object"},
+			"push_notification":   {Type: "object"},
+			"id_counter":          {Type: "int"}, // 负值由 mcp validator Rule 8/9 拒（锚词 id_counter/rounds must be >= 0）
+			"rounds":              {Type: "int"},
+			"shutdown":            {Type: "bool"}, // nil=true 语义：不设 Default，缺省不进 config map
+			"context_id":          {Type: "string"},
+			"parent_id":           {Type: "string"},
+		},
 	})
 	// ---- P4a：modbus（tcp 终结层。Modbus TCP——事务序列展开为逐帧事件
 	// （每事务 request MBAP 帧 + 可选 response MBAP 帧，共享 TID），wire

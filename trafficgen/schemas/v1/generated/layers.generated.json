@@ -1022,7 +1022,71 @@
       "depends_on": [
         "tcp"
       ],
-      "fields": {}
+      "fields": {
+        "auth": {
+          "type": "object"
+        },
+        "base_url": {
+          "type": "string"
+        },
+        "client_capabilities": {
+          "type": "object"
+        },
+        "client_info": {
+          "type": "object"
+        },
+        "context_id": {
+          "type": "string"
+        },
+        "id_counter": {
+          "type": "int"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "notifications": {
+          "type": "list"
+        },
+        "parent_id": {
+          "type": "string"
+        },
+        "parts": {
+          "type": "list"
+        },
+        "protocol_version": {
+          "type": "string"
+        },
+        "push_notification": {
+          "type": "object"
+        },
+        "requests": {
+          "type": "list"
+        },
+        "responses": {
+          "type": "list"
+        },
+        "rounds": {
+          "type": "int"
+        },
+        "server_capabilities": {
+          "type": "object"
+        },
+        "server_info": {
+          "type": "object"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "shutdown": {
+          "type": "bool"
+        },
+        "state": {
+          "type": "object"
+        },
+        "transport": {
+          "type": "string"
+        }
+      }
     },
     "mdns": {
       "category": "terminal",

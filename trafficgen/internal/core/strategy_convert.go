@@ -7671,6 +7671,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol imap no longer accepts a top-level imap sub-config (move it into the imap layer of an [ip,tcp,imap] layers chain)"
 		}
 	}
+	// D-MCP-1：mcp 顶层 mcp 子映射 presence 判死（imap 先例；空 map 也
+	// 死）。层链形状不触发。
+	if protocol == "mcp" {
+		if v, ok := cfg["mcp"]; ok && v != nil {
+			return "protocol mcp no longer accepts a top-level mcp sub-config (move it into the mcp layer of an [ip,tcp,mcp] layers chain)"
+		}
+	}
 	return ""
 }
 
