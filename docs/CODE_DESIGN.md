@@ -1915,7 +1915,7 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 
 ### D-FINS-1 FINS 顶层 fins 子映射迁入层内 + 0103/0104 补齐 + cfg 级 ICF 校验【P-PIPE #11 门1】
 
-**状态：** P2 定稿（2026-09-18；门 1 对照表已批复（自重审 4 硬伤+3 不准已修正回填）；P1 矩阵 + 依赖链判定终版如下；P4 未开工）
+**状态：** 已验收（2026-09-18；实现+P5 提交 aaa3e27/ad4429a；suite 45/45 全绿 + srv6 回归 74/74，coverage 46/46，pipe_gate 静态四项绿；fins -race + vet 净；在库清空 tasks 638（strategies 0），备份 bak-fins-clear-20260918-162644，复核 0/0。依赖链判定 C1/C2/C3/C4 全落地：0103/0104 实现、clock 7B、FINS/TCP length=26、缺省 ICF 0x80/0xC0。P4 自审 2 轮修 3 缺陷（translate 覆盖/carrier、0104 校验顺序、read_areas 豁免），P5 复盘 4 处（T-39 V9 锚词、C4、E-03 死代码转可达、0104 白名单）。门 3 抽查三条：①§1 层链唯一真相——fins_vn_presence 经真实服务拒绝，锚词 "top-level fins sub-config"（strategy_convert.go CheckProtoFlat fins 分支）；②§12 动态清单——core/layer_dyn.go 无 fins 行（业务 16 键全关），fins_sessions_two 双会话派生口 1245/1246 逐流唯一（layer_gen.go:51-59 base+i）；③§14 真实流程——fins_multi_read 帧 pin "82 00 64 00 00 01 b2 00 10 00 00 01" 原始字节断言（tshark 0104 NC 怪癖白名单化，字节经套件落盘比对））
 
 **权威链（§7）：** 标准=欧姆龙 W342-E1（SYSMAC CS/CJ 通信命令手册；FINS 系厂商专有协议无 RFC，按 4.10 走官方规范口径）→ 设计=本条目（权威；19-fins-design.md v1.0.1 降级历史参考，仅作 transcription 来源）→ 代码 → 测试。字节事实的标准证据=W342-E1 经 Wireshark packet-omron-fins 与 gofins 双转录交叉一致（历史文档 §1.5，两处字节值核对一致）。
 

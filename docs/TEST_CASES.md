@@ -3120,7 +3120,7 @@
 
 ### T-FINS-1…45 fins.json——存量审计 + 测试点清单【D-FINS-1 P3 定稿，P5 已执行】
 
-**状态：** P5 已执行（2026-09-18；suite 45/45 全绿，coverage 46/46，门 2 四项绿；权威=D-FINS-1 含 C1/C2/C3/**C4 缺省 ICF**。P5 修正 4 处：①T-39 锚词改 registry V9 范围门（"not a numeric value in [0,1000000]"，实测先于 planner "sessions must be >= 0"——锚词对真实执法门）；②**C4**：缺省 ICF 0x81/0xC1 违反自身 E-06（bit0=1=不需要响应），修正为 0x80/0xC0，历史 omron.icf 断言随落盘更新；③E-03 "dm does not support bit access" 由死代码转可达（dm 检查移到区码查表之前）；④0104 请求 tshark 怪癖入 malformed 白名单（设计 §3.9，帧字节经 frames 原始断言校验））
+**状态：** 已验收（2026-09-18；suite 45/45 全绿，coverage 46/46，门 2 四项绿，在库 fins 行清空复核 0/0；权威=D-FINS-1 含 C1/C2/C3/**C4 缺省 ICF**。P5 修正 4 处：①T-39 锚词改 registry V9 范围门（"not a numeric value in [0,1000000]"，实测先于 planner "sessions must be >= 0"——锚词对真实执法门）；②**C4**：缺省 ICF 0x81/0xC1 违反自身 E-06（bit0=1=不需要响应），修正为 0x80/0xC0，历史 omron.icf 断言随落盘更新；③E-03 "dm does not support bit access" 由死代码转可达（dm 检查移到区码查表之前）；④0104 请求 tshark 怪癖入 malformed 白名单（设计 §3.9，帧字节经 frames 原始断言校验））
 
 **三源：** ①标准=欧姆龙 W342-E1（FINS 无 RFC，4.10 官方规范口径；字节证据=W342 派生的 Wireshark packet-omron-fins + gofins 双转录交叉，历史 §1.5）②设计=D-FINS-1（C1 0103/0104 补齐、C2 clock 7B、C3 FINS/TCP length 26、E-06 cfg 级、E-10）③现网=开源双源行为（CX-Simulator 商业映射=待确认，确认方式：抓 CX-Simulator 报文比对或查 W342-E1 版本差异，D-FINS-1 立项①）。
 
