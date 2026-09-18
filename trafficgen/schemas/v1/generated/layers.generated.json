@@ -483,7 +483,66 @@
         "udp",
         "tcp"
       ],
-      "fields": {}
+      "fields": {
+        "commands": {
+          "type": "list"
+        },
+        "da1": {
+          "type": "uint8",
+          "max": 255
+        },
+        "da2": {
+          "type": "uint8",
+          "max": 255
+        },
+        "dna": {
+          "type": "uint8",
+          "max": 255
+        },
+        "gct": {
+          "type": "uint8",
+          "max": 255
+        },
+        "handshake": {
+          "type": "bool"
+        },
+        "icf": {
+          "type": "uint8",
+          "max": 255
+        },
+        "read_areas": {
+          "type": "list"
+        },
+        "sa1": {
+          "type": "uint8",
+          "max": 255
+        },
+        "sa2": {
+          "type": "uint8",
+          "max": 255
+        },
+        "sessions": {
+          "type": "int",
+          "max": 1000000
+        },
+        "sid": {
+          "type": "uint8",
+          "max": 255
+        },
+        "sid_auto": {
+          "type": "bool"
+        },
+        "sna": {
+          "type": "uint8",
+          "max": 255
+        },
+        "termination": {
+          "type": "bool"
+        },
+        "transport": {
+          "type": "string"
+        }
+      }
     },
     "ftp": {
       "category": "terminal",

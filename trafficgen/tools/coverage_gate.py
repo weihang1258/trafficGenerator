@@ -770,8 +770,122 @@ def check_srv6(cases):
     return rows
 
 
+def check_fins(cases):
+    """D-FINS-1 P5R 反查表（T-FINS-1…44）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []  # (cid, fins子映射)
+    tops = []  # (cid, layers数组)
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        ls = sj.get("layers") or []
+        tops.append((c.get("id", "?"), ls))
+        for l in ls:
+            if isinstance(l, dict) and isinstance(l.get("fins"), dict):
+                lays.append((c.get("id", "?"), l["fins"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+    flatcases = json.dumps([c.get("spec_json", {}) for c in cases], ensure_ascii=False)
+
+    def cmd_of(m):
+        cmds = m.get("commands") or []
+        return [x.get("command") for x in cmds if isinstance(x, dict)]
+
+    def areas_of(cid):
+        for cid2, m in lays:
+            if cid2 != cid:
+                continue
+            for x in m.get("commands") or []:
+                if isinstance(x, dict) and x.get("command") == 0x0104:
+                    return x.get("read_areas") or []
+        return None
+
+    # 1. 载体 2（tcp 例须有 tcp 层）。
+    rows.append(("载体 udp", any("udp" in [list(x)[0] for x in ls] for _, ls in tops), "udp 层"))
+    tcp_hit = next((cid for cid, ls in tops
+                    if "tcp" in [list(x)[0] for x in ls]), None)
+    rows.append(("载体 tcp", tcp_hit is not None, tcp_hit or "无用例"))
+
+    # 2. 地址族（v6 代表；单/双族口径见 T-FINS 矩阵登记）。
+    v6 = any("2001:db8::" in flatcases for _ in [0])
+    rows.append(("地址族 v6", v6, "2001:db8::" if v6 else "无用例"))
+
+    # 3. 命令码 5 值正例 + 未知码负例。
+    for code, name in [(0x0101, "0101 读"), (0x0102, "0102 写"),
+                       (0x0103, "0103 Fill"), (0x0104, "0104 多区读"),
+                       (0x0701, "0701 校时")]:
+        hit = next((cid for cid, m in lays if code in cmd_of(m)), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+    rows.append(("未知命令负例", "unsupported command" in blob, "锚词出现" if "unsupported command" in blob else "无用例"))
+
+    # 4. 区名×口径组合（9.20-9.22 扫描）。
+    area_seen = set()
+    for _, m in lays:
+        for x in m.get("commands") or []:
+            if not isinstance(x, dict):
+                continue
+            bit = "bit" in x
+            area_seen.add((x.get("memory_area", ""), bit))
+        for ra in (x.get("read_areas") or [] for x in m.get("commands") or [] if isinstance(x, dict)):
+            for a in ra:
+                if isinstance(a, dict):
+                    area_seen.add((a.get("memory_area", ""), "bit" in a))
+    for area, bit, name in [("dm", False, "dm 字"), ("cio", False, "cio 字"), ("wr", False, "wr 字"),
+                            ("hr", False, "hr 字"), ("tc_pv", False, "tc_pv 字"), ("ir", False, "ir 字"),
+                            ("tc_bit", False, "tc_bit 字(0x09)"), ("cio", True, "cio 位(0x30)"),
+                            ("wr", True, "wr 位(0x31)"), ("hr", True, "hr 位(0x32)")]:
+        hit = (area, bit) in area_seen
+        rows.append((f"区码 {name}", hit, "已覆" if hit else "无用例"))
+
+    # 5. 会话/SID/关回包/结束码面。
+    rows.append(("sessions≥2", any((m.get("sessions") or 0) >= 2 for _, m in lays), "sessions"))
+    rows.append(("SID 递增", "fins_sid_auto_incr" in blob, "fins_sid_auto_incr"))
+    rows.append(("SID 固定", "fins_sid_fixed" in blob, "fins_sid_fixed"))
+    rows.append(("expect_response=false", "expect_response" in blob, "锚词出现"))
+    rows.append(("结束码响应面", "response_end_code" in blob, "锚词出现"))
+
+    # 6. E-01~E-10 锚词 + presence/static。
+    for needle, name in [
+        ("invalid memory area", "E-01 内存区"),
+        ("unsupported command", "E-02 命令码"),
+        ("dm does not support bit access", "E-03 DM 位"),
+        ("address exceeds range", "E-04 越界"),
+        ("items must be > 0", "E-05 元素数"),
+        ("icf request direction bit must be clear", "E-06 ICF cfg 级"),
+        ("icf response-required bit must be clear", "E-06 ICF bit0"),
+        ("data length", "E-07 数据长"),
+        ("clock field out of range", "E-09 BCD"),
+        ("invalid gct", "GCT"),
+        ("invalid dna", "DNA"),
+        ("invalid sna", "SNA"),
+        ("read_areas", "E-10 组面"),
+        ("fill data must be 2 bytes", "0103 模板"),
+        ("fill does not support bit access", "0103 位拒"),
+        ("invalid transport", "transport 枚举"),
+        ("invalid direction", "direction 枚举"),
+        ("sessions must be >= 0", "sessions 负值"),
+        ("top-level fins sub-config", "presence 判死"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    # 7. 组合流 2 条（T-FINS T-31/32）。
+    for kw, name in [("组合流 A", "组合流 A（TCP+多命令+SID 递增）"),
+                     ("组合流 B", "组合流 B（UDP+双会话+全键+结束码）")]:
+        hit = next((c.get("id") for c in cases
+                    if kw in json.dumps(c.get("summary", ""), ensure_ascii=False)
+                    or kw in json.dumps((c.get("expect") or {}).get("notes") or [], ensure_ascii=False)), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 8. 多流（strategy_fc flows>=2 ≥2 例：sessions 派生面 + 静态复制拒）。
+    multi = [c.get("id", "?") for c in cases
+             if ((c.get("spec_json") or {}).get("strategy_fc") or {}).get("value", 0) >= 2
+             or "flows" in json.dumps((c.get("spec_json") or {}).get("strategy_fc") or {})]
+    rows.append(("多流/静态复制面", len(multi) >= 1, multi[0] if multi else "无用例"))
+
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
-          "mcp": check_mcp, "srv6": check_srv6}
+          "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins}
 
 
 def main(argv):

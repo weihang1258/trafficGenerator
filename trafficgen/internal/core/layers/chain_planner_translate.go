@@ -1254,6 +1254,24 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.SRv6 == nil {
 			spec.SRv6 = core.ParseSRv6ConfigFromMap(term.Config)
 		}
+	case "fins":
+		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
+		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6
+		// inner_payload 陷阱）。carrier 门（chain_planner.go :369）在本翻译
+		// （ValidateSpec :161）之后执行，层内 transport 值可达。空层 {} 也
+		// 翻译出非 nil 空配置 → 生成器缺省化（P0b-2 默认 DM 读）。仅在
+		// Metadata 缺席时落层值：既有 Metadata（引擎直调/存量行带类型配置）
+		// 不被空层覆盖，carrier 门仍读原值（fins_test carrier mismatch 锁）。
+		if spec.Metadata == nil {
+			spec.Metadata = make(map[string]interface{})
+		}
+		if _, exists := spec.Metadata["fins"]; !exists {
+			cfgMap := term.Config
+			if cfgMap == nil {
+				cfgMap = map[string]interface{}{}
+			}
+			spec.Metadata["fins"] = cfgMap
+		}
 	case "socks5":
 		if spec.Socks != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

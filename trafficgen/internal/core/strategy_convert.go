@@ -7701,6 +7701,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol srv6 no longer accepts a top-level srv6 sub-config (move it into the srv6 layer of an [ip,srv6] layers chain)"
 		}
 	}
+	// D-FINS-1：fins 顶层 fins 子映射 presence 判死（srv6 先例；空 map 也
+	// 死）。层链形状不触发。
+	if protocol == "fins" {
+		if v, ok := cfg["fins"]; ok && v != nil {
+			return "protocol fins no longer accepts a top-level fins sub-config (move it into the fins layer of a layers chain: ip + udp/tcp carrier + fins)"
+		}
+	}
 	return ""
 }
 

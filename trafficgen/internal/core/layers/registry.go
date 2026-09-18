@@ -727,9 +727,31 @@ func buildDefaultRegistry() {
 	// 携带、FlowMeta 直传生成器；目的端口默认 2055（v9）/4739（IPFIX）。
 	r.Register(LayerSchema{Name: "cflow", Category: CategoryTerminal, DependsOn: []string{"udp"}})
 	// ---- P4a：fins（UDP/TCP 终结层，FINS 命令帧由协议生成器构造）。
+	// D-FINS-1：层 config 收 FINSConfig 同名 16 用户键，一律不设 Default
+	// （mcp 决策 F 谱系：缺省单一真相在代码——GCT=2/ICF 0x81·0xC1/SID 递增/
+	// 默认 DM 读由 GetConfig/生成器 resolve 承担）。read_areas 仅 0104 合法，
+	// 语义校验归 fins.Validate。
 	r.Register(LayerSchema{Name: "fins", Category: CategoryTerminal,
 		DependsOn:   []string{"udp"},
 		TransportOn: []string{"udp", "tcp"},
+		Fields: map[string]FieldSchema{
+			"transport":   {Type: "string"},
+			"commands":    {Type: "list"},
+			"sessions":    {Type: "int", Min: 0, Max: 1000000},
+			"sid":         {Type: "uint8", Min: 0, Max: 255},
+			"sid_auto":    {Type: "bool"},
+			"icf":         {Type: "uint8", Min: 0, Max: 255},
+			"gct":         {Type: "uint8", Min: 0, Max: 255},
+			"dna":         {Type: "uint8", Min: 0, Max: 255},
+			"da1":         {Type: "uint8", Min: 0, Max: 255},
+			"da2":         {Type: "uint8", Min: 0, Max: 255},
+			"sna":         {Type: "uint8", Min: 0, Max: 255},
+			"sa1":         {Type: "uint8", Min: 0, Max: 255},
+			"sa2":         {Type: "uint8", Min: 0, Max: 255},
+			"handshake":   {Type: "bool"},
+			"termination": {Type: "bool"},
+			"read_areas":  {Type: "list"},
+		},
 	})
 	r.Register(LayerSchema{Name: "nfs", Category: CategoryTerminal,
 		DependsOn:   []string{"tcp"},        // 默认 tcp；用户显式写 udp 层覆盖（补全时替代）

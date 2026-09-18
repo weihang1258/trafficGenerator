@@ -50,6 +50,17 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	if cfg.ICF != 0 && !validICF(cfg.ICF) {
 		return fmt.Errorf("fins: invalid icf 0x%02X", cfg.ICF)
 	}
+	// D-FINS-1 E-06 cfg 级：cfg.ICF 是请求 ICF——bit6（响应位）必须清零、
+	// bit0（不期望响应）必须清零；bit7/保留位由 validICF 查。命令级同款
+	// 三规则见 commands 循环内。
+	if cfg.ICF != 0 {
+		if cfg.ICF&0x40 != 0 {
+			return fmt.Errorf("fins: icf request direction bit must be clear")
+		}
+		if cfg.ICF&1 != 0 {
+			return fmt.Errorf("fins: icf response-required bit must be clear")
+		}
+	}
 	if cfg.GCT != 0 && cfg.GCT != 2 {
 		return fmt.Errorf("fins: invalid gct %d", cfg.GCT)
 	}
@@ -60,8 +71,15 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("fins: invalid sna %d", cfg.SNA)
 	}
 	for i, cmd := range cfg.Commands {
-		if cmd.Command != CommandMemoryAreaRead && cmd.Command != CommandMemoryAreaWrite && cmd.Command != CommandClockRead {
+		if cmd.Command != CommandMemoryAreaRead && cmd.Command != CommandMemoryAreaWrite &&
+			cmd.Command != CommandClockRead && cmd.Command != CommandMemoryAreaFill &&
+			cmd.Command != CommandMultipleMemoryAreaRead {
 			return fmt.Errorf("fins: commands[%d] unsupported command 0x%04X", i, cmd.Command)
+		}
+		// D-FINS-1 C1：read_areas 仅 0104 合法（语义校验在 ClockRead 之后
+		// 的 0104 分支——保证 direction/ICF 校验先于 continue 执行）。
+		if cmd.Command != CommandMultipleMemoryAreaRead && len(cmd.ReadAreas) > 0 {
+			return fmt.Errorf("fins: commands[%d] read_areas is only valid for command 0x0104", i)
 		}
 		if cmd.Direction != "" && cmd.Direction != "up" && cmd.Direction != "down" {
 			return fmt.Errorf("fins: commands[%d] invalid direction", i)
@@ -83,6 +101,37 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		if cmd.Command == CommandClockRead {
 			if err := validateClock(cmd.Clock); err != nil {
 				return fmt.Errorf("fins: commands[%d] clock: %w", i, err)
+			}
+			continue
+		}
+		// D-FINS-1 C1/E-10：0104 组校验（1-16 组；组内逐组走
+		// E-01/E-03/E-04/E-05 同款规则）。置于 direction/ICF 校验之后：
+		// 命令级 ICF 规则对 0104 同样适用（顺序锁 TestMultipleReadCommandLevelICFStillChecked）。
+		if cmd.Command == CommandMultipleMemoryAreaRead {
+			if len(cmd.ReadAreas) == 0 || len(cmd.ReadAreas) > 16 {
+				return fmt.Errorf("fins: commands[%d] read_areas must contain 1-16 areas", i)
+			}
+			for j, ra := range cmd.ReadAreas {
+				raBit := ra.BitSet || ra.Bit != 0
+				if _, ok := memoryAreaCode(ra.MemoryArea, ra.Bit, raBit); !ok {
+					return fmt.Errorf("fins: commands[%d].read_areas[%d] invalid memory area %q", i, j, ra.MemoryArea)
+				}
+				if ra.MemoryArea == "dm" && raBit {
+					return fmt.Errorf("fins: commands[%d].read_areas[%d] dm does not support bit access", i, j)
+				}
+				if ra.Address > areaAddressLimit(ra.MemoryArea) {
+					return fmt.Errorf("fins: commands[%d].read_areas[%d] address exceeds range", i, j)
+				}
+				if ra.Items == 0 {
+					return fmt.Errorf("fins: commands[%d].read_areas[%d] items must be > 0", i, j)
+				}
+				maxItems := uint16(960)
+				if raBit {
+					maxItems = 4096
+				}
+				if ra.Items > maxItems {
+					return fmt.Errorf("fins: commands[%d].read_areas[%d] items exceeds range", i, j)
+				}
 			}
 			continue
 		}
@@ -122,6 +171,16 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		}
 		if cmd.Command == CommandMemoryAreaRead && len(cmd.Data) > 0 && len(cmd.Data) != want {
 			return fmt.Errorf("fins: commands[%d] data length %d, want %d", i, len(cmd.Data), want)
+		}
+		// D-FINS-1 C1：0103 Fill 仅字口径（设计 §3.8：位口径非 W342 字义），
+		// 填充模板恒 2 字节（剩余长度恒 8）。
+		if cmd.Command == CommandMemoryAreaFill {
+			if bitAccess {
+				return fmt.Errorf("fins: commands[%d] fill does not support bit access", i)
+			}
+			if len(cmd.Data) != 2 {
+				return fmt.Errorf("fins: commands[%d] fill data must be 2 bytes", i)
+			}
 		}
 	}
 	return nil
@@ -376,6 +435,22 @@ func BuildFrameWithConfig(cfg *FINSConfig, cmd FINSCommand, response bool, sid u
 				}
 			}
 			frame = append(frame, data...)
+		case CommandMultipleMemoryAreaRead:
+			// D-FINS-1 C1：逐组数据，组内重起（字=uint16(i+1) BE、位=i%2），
+			// 与 0101 单读合成模式同款。
+			for _, ra := range cmd.ReadAreas {
+				if ra.BitSet || ra.Bit != 0 {
+					for i := 0; i < int(ra.Items); i++ {
+						frame = append(frame, byte(i%2))
+					}
+				} else {
+					for i := 0; i < int(ra.Items); i++ {
+						b := make([]byte, 2)
+						binary.BigEndian.PutUint16(b, uint16(i+1))
+						frame = append(frame, b...)
+					}
+				}
+			}
 		case CommandClockRead:
 			clock := cmd.Clock
 			if clock == nil {
@@ -390,8 +465,13 @@ func BuildFrameWithConfig(cfg *FINSConfig, cmd FINSCommand, response bool, sid u
 		return frame, nil
 	}
 	switch cmd.Command {
-	case CommandMemoryAreaRead, CommandMemoryAreaWrite:
+	case CommandMemoryAreaRead, CommandMemoryAreaWrite, CommandMemoryAreaFill:
 		bitAccess := cmd.BitSet || cmd.Bit != 0
+		if cmd.Command == CommandMemoryAreaFill {
+			// D-FINS-1 C1：0103 仅字口径（validate 已拒位口径，此处防御性
+			// 强制），填充模板 2 字节直排，无 DC（剩余长度恒 8）。
+			bitAccess = false
+		}
 		area, ok := memoryAreaCode(cmd.MemoryArea, cmd.Bit, bitAccess)
 		if !ok {
 			return nil, fmt.Errorf("fins: invalid memory area %q", cmd.MemoryArea)
@@ -401,6 +481,20 @@ func BuildFrameWithConfig(cfg *FINSConfig, cmd FINSCommand, response bool, sid u
 			dc := len(cmd.Data)
 			frame = append(frame, byte(dc>>8), byte(dc))
 			frame = append(frame, cmd.Data...)
+		}
+		if cmd.Command == CommandMemoryAreaFill {
+			frame = append(frame, cmd.Data...)
+		}
+	case CommandMultipleMemoryAreaRead:
+		// D-FINS-1 C1：组数 1B + N×[区码+地址2B+bit+NC2B]（每 6B/组）。
+		frame = append(frame, byte(len(cmd.ReadAreas)))
+		for _, ra := range cmd.ReadAreas {
+			raBit := ra.BitSet || ra.Bit != 0
+			area, ok := memoryAreaCode(ra.MemoryArea, ra.Bit, raBit)
+			if !ok {
+				return nil, fmt.Errorf("fins: invalid memory area %q", ra.MemoryArea)
+			}
+			frame = append(frame, area, byte(ra.Address>>8), byte(ra.Address), ra.Bit, byte(ra.Items>>8), byte(ra.Items))
 		}
 	case CommandClockRead:
 	default:

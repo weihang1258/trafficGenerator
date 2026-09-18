@@ -11,7 +11,11 @@ const (
 	DefaultPort            = 9600
 	CommandMemoryAreaRead  = 0x0101
 	CommandMemoryAreaWrite = 0x0102
-	CommandClockRead       = 0x0701
+	// D-FINS-1 C1：0103 Fill / 0104 Multiple Read 补齐（W342-E1 命令集，
+	// 设计 G2 首版范围；此前代码缺实现=违反设计）。
+	CommandMemoryAreaFill         = 0x0103
+	CommandMultipleMemoryAreaRead = 0x0104
+	CommandClockRead              = 0x0701
 )
 
 type FINSConfig struct {
@@ -47,6 +51,38 @@ type FINSCommand struct {
 	ResponseEndCode uint16     `json:"response_end_code,omitempty"`
 	ExpectResponse  *bool      `json:"expect_response,omitempty"`
 	Clock           *FINSClock `json:"clock,omitempty"`
+	// ReadAreas 是 0104 Multiple Memory Area Read 的读取组（仅 0104 合法，
+	// 1-16 组；D-FINS-1 C1/E-10）。
+	ReadAreas []FINSReadArea `json:"read_areas,omitempty"`
+}
+
+// FINSReadArea 是 0104 请求的单个读取组：[区码+地址2B+bit+NC2B]。
+// Bit/BitSet 语义与 FINSCommand 同款（显式 "bit" 键即位口径，BitSet 由
+// UnmarshalJSON 从键存在性派生）。
+type FINSReadArea struct {
+	MemoryArea string `json:"memory_area,omitempty"`
+	Address    uint16 `json:"address,omitempty"`
+	Bit        uint8  `json:"bit,omitempty"`
+	BitSet     bool   `json:"-"`
+	Items      uint16 `json:"items,omitempty"`
+}
+
+func (a *FINSReadArea) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		MemoryArea string `json:"memory_area,omitempty"`
+		Address    uint16 `json:"address,omitempty"`
+		Bit        uint8  `json:"bit,omitempty"`
+		Items      uint16 `json:"items,omitempty"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	*a = FINSReadArea{MemoryArea: raw.MemoryArea, Address: raw.Address, Bit: raw.Bit, BitSet: fields["bit"] != nil, Items: raw.Items}
+	return nil
 }
 
 func (c *FINSConfig) UnmarshalJSON(data []byte) error {
@@ -101,6 +137,7 @@ func (c *FINSCommand) UnmarshalJSON(data []byte) error {
 		ResponseEndCode uint16          `json:"response_end_code,omitempty"`
 		ExpectResponse  *bool           `json:"expect_response,omitempty"`
 		Clock           *FINSClock      `json:"clock,omitempty"`
+		ReadAreas       []FINSReadArea  `json:"read_areas,omitempty"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
@@ -123,7 +160,7 @@ func (c *FINSCommand) UnmarshalJSON(data []byte) error {
 		Command: raw.Command, Direction: raw.Direction, SID: raw.SID, ICF: raw.ICF,
 		MemoryArea: raw.MemoryArea, Address: raw.Address, Bit: raw.Bit, BitSet: fields["bit"] != nil, Items: raw.Items,
 		Data: dataBytes, ResponseEndCode: raw.ResponseEndCode,
-		ExpectResponse: raw.ExpectResponse, Clock: raw.Clock,
+		ExpectResponse: raw.ExpectResponse, Clock: raw.Clock, ReadAreas: raw.ReadAreas,
 	}
 	return nil
 }
