@@ -3020,7 +3020,7 @@
 
 ### T-MCP-1…103 mcp.json——存量审计 + 测试点清单【D-MCP-1 P3 先行，P4 未开工】
 
-**状态：** P4 已落地（4 红转绿，见 D-MCP-1）；P5 未开工（本文清单即 P5 补例依据）
+**状态：** P6 已验收（2026-09-18；P4 4 红转绿→P5 103/103 全绿 + 反查 65/65 + 门 2 四项绿，见 D-MCP-1；首跑 88/103 六类修记录在 D-MCP-1 范围（P5/P6）段）
 **级别：** pcap
 **来源：** JSON-RPC 2.0 + MCP spec 三版本 + `docs/protocol-designs/16-mcp-design.md`（历史参考）§2-§8 + D-MCP-1 §4/§9 + 现网（Claude Desktop/Cursor/flowB 服务端形）
 **存量去向（79 例 → 改写后 103 例：T-1…79 改写 + T-80…103 新建）：**
@@ -3078,5 +3078,5 @@
 
 **复审纠正记录（2026-09-18 场景审计）：** ①能力门控 subscribe 负例 t063 已有（此前"缺"误判），仅 sampling 门缺→T-89 补对称面；②错误码"六码全有"误判——-32600/-32603 实缺→T-93/94；③`_meta` 家族线形由 requests params 内联承载（t046/47/69/70），顶层五字段是 validate-only 面，属代码缺口非用例缺口。
 
-**执行口径：** P5 MCP 真实流程全量（`flowb_run_protocol_suite`：MCP 建任务→引擎生成→tshark 校对）103/103 全绿 + 落盘 `/tmp/mcp-pcaps/mcp/` 零孤儿 + 门 2 四项（presence 红线已接）+ 反查 65 项全绿（探针 9/65，MISS 56 项=本清单）。
+**执行口径：** P5 已执行（2026-09-18）：MCP 真实流程全量（`flowb_run_protocol_suite`：MCP 建任务→引擎生成→tshark 校对）103/103 全绿 + 落盘 `/tmp/mcp-pcaps/mcp/` 零孤儿（89 正例 pcap + 13 `.neg` 空包标记，t090 presence create 阶段 400 无任务）+ 门 2 四项绿 + 反查 65/65 全绿（P4 探针 9/65 的 56 MISS 已由 24 新例 + 反查证据通道补齐）。
 **实现位置：** `cases/mcp.json`（P5 改写 79 + 新建 24）。
