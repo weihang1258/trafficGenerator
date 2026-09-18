@@ -1980,3 +1980,62 @@ presence="top-level fins sub-config"；E-01="invalid memory area"；E-02="unsupp
 | E-06 cfg 级 | A 补校验；B 注记 build 自愈即可 | A 补全 E-06 设计完整性，几行校验；B 留校验缺口（坏配置静默过 validate 靠运行期自愈兜底） | **A**（链判：代码违反设计） |
 | Fields 缺省 | A 全键无 Default；B 注册表带 Default | A 缺省单一真相在代码（D-MCP-1 决策 F 谱系）；B 复制缺省值有分叉风险 | **A**（架构谱系既定） |
 | F' 翻译走法 | A Metadata map 直存；B typed parse（导出 ParseFINSConfigFromMap）；C JSON 往返 spec 字段 | A 零新代码复用 GetConfig map 分支；fins 无 srv6 式 []byte 字符串陷阱，C 亦安全但多一层 | **A** |
+
+### D-GOOSE-1 GOOSE 顶层 goose 子映射迁入层内（L2-only 终结层）+ translate 真实现【P-PIPE #12 门1】
+
+**状态：** P2 定稿（2026-09-19；门 1 对照表已批复（自重审 3 硬伤+2 不准已修正回填：设计引用改为 §2、⑥静态复制门缺口立项、⑦t0 死键立项）；P1 矩阵 + 依赖链判定终版如下；P4 未开工）
+
+**权威链（§7）：** 标准=IEC 61850-8-1（GOOSE 系标准组织协议，按 4.10 走官方规范口径）→ 设计=本条目（权威；23-goose-design.md 保留历史参考）→ 代码 → 测试。字节事实的标准证据=IEC 61850-8-1 经 libiec61850 `goose_publisher.c` + Wireshark `packet-goose.c` 双转录交叉（历史 §2 :187/:213，含初稿标签错误显式弃用记录）。
+
+**依赖链判定（P1 冲突终审，无选择题）：**
+
+| # | 断链层 | 判定 | 处置 |
+|---|---|---|---|
+| ⑥ 静态复制门 eth 缺口 | 代码断链（框架） | 12.9 要求"必须拒绝或告警" → `layerTupleFields` 只查 ip/tcp/udp 层，eth-only 链 flows>1 静默发 N 条重复流（sqNum 撞号损坏序列语义）=**框架未满足 12.9** | P4 扩 `layerTupleFields` 含 eth（src_mac/dst_mac）：通用修（sv/isis 同享；实测 37 例零 strategy_fc 无回归面）。拒绝文案指引"ip.src/ip.dst, tcp/udp src_port/dst_port"对 L2-only 无逃生口属文案瑕疵——拒绝本身正确，注记即可（无层动态 allowlist eth 行=业务字段全关，不给对象逃生） |
+| ⑦ t0 心跳节拍 | 实现缺失（配置面死键） | EventSeq.DelayMs 已实现（重发退避 ✓）；纯心跳 pacing（t0_ms）三层全无——用例 heartbeat 的 `t0_ms:1000` 被 Go parse 静默忽略（parse 无该键）。suite 无包间隔断言（9.27）→ **C 类** | P3 审计删键 + C 类注记"pacing 未实现，无断言面"（设计 §2 静默弃用，不入代码） |
+| count 住处 | 架构规则 | 单流帧数语义=goose 层内（框架 `isL2OnlyProtocol` + `strategy_convert.go:568-578` 注记同口径） | 改写：顶层 count→层内 count；flows>1 由⑥新门拒绝 |
+| S2 退避 vs t0 | 链判区分 | 重发退避有 DelayMs 实现 ✓，心跳 pacing 无 → 误报澄清（P1 重审 #4） | 本表即依据 |
+
+#### 1. 文件清单
+- Modify: `trafficgen/internal/core/layers/registry.go`——goose Fields 18 键（appid/gocb_ref/dat_set/go_id/tal_ms/conf_rev/start_stnum/start_sqnum/static/test/nds_com/boolean/data/event_seq/count/dst_mac/vlan_enabled/vlan_id/vlan_priority），**一律无 Default**（validate 要求 gocb_ref/dat_set 必填、conf_rev 非零=零缺省谱系）。L2-only 业务键全关动态（allowlist 不加 goose 行）
+- Modify: `trafficgen/internal/core/layers/chain_planner_translate.go`——`case "goose"` 真实现（现 no-op `return`→替换）：`cfg := completedConfig(s, term.Config)` + `spec.GOOSE = parseGOOSEConfig(cfg)`。链优先（flat 判死后无双轨）。空层 `{}` 翻译出空 map → parseGOOSEConfig 零配置 → validator "goose config is required"（VR-01 等价=mcp/srv6 同款 C 类保底行为，保持）
+- Modify: `trafficgen/internal/core/schema/semantic.go`——`layerTupleFields` 扩 eth（src_mac/dst_mac）。文案注记 L2-only（⑥ 表已判）
+- Modify: `trafficgen/internal/core/strategy_convert.go`——CheckProtoFlat goose presence 分支（srv6/fins 先例，空 map 也死）
+- Modify: `trafficgen/tools/pipe_gate.sh`（名单+goose）、`trafficgen/tools/coverage_gate.py`（check_goose 登记）
+- Modify: `trafficgen/schemas/v1/generated/layers.generated.json`（schemagen 重跑，13.19）
+- Modify: `trafficgen/test/protocol_pcap/cases/goose.json`（12 例改写+新例，T-GOOSE 权威）
+- Test: `trafficgen/internal/core/layers/goose_migrate_test.go`（failing 先行红例族）
+
+#### 2. 接口签名
+- parse 走法：复用既有 `parseGOOSEConfig(map)`（strategy_convert.go:7590，FINSConfig map 解析同款单源复用，无 srv6 式 []byte 陷阱——goose Data.Value 经 `item["value"]` 透传 interface{}）
+- presence 锚词：`protocol goose no longer accepts a top-level goose sub-config (move it into the goose layer of an [eth,goose] layers chain)`
+
+#### 3. 主流程
+链路径：ValidateLayers（V9 18 键）→ validateSpecBase（L2-only 既有：不填 src_ip/dst_ip/端口...；eth 层补全）→ **translateTerminalConfig case "goose"（真实现，flat 判死后层优先）** → carrier/结构检查（既有）→ protocolValidator（RegisterLayerValidator 既有 goose.go:553）→ Plan → Generator（既有 goose.go:552，**零改动**，req.Meta.GOOSE=spec.GOOSE 同款 MAPPED carry）→ Emit。
+L2 帧语义不变：EtherType 0x88B8（chain_planner.go:323-326 L2 回填既有）；MAC 由 eth 层 src（顶层 src_mac 迁入）+ 层内 dst_mac（组播）。
+
+#### 4. 增量步骤（failing 先行，逐项 review→test→fix→review）
+1. goose_migrate_test.go 红例族 5 项：①顶层 presence 判死 ②层 18 键 V9 放行 ③translate→spec.GOOSE→Plan 出包（heartbeat 3 帧，stNum 恒 1/sqNum 连续——纯链目前红）④⑥ eth 静态复制门（flows=2 eth 静态 MAC 拒绝）⑤12.9 sv 同享不回归（sv 链 flows=2 同门拒绝——同法则适用，sv 用例零 strategy_fc 保持）
+2. translate 真实现+registry Fields+CheckProtoFlat presence+static eth+pipe_gate/coverage_gate 登记+schemagen 重跑 → 红转绿
+3. cases 改写 12 例+新例（P3 清单驱动）→ suite 全量 → 门 2 四项
+
+#### 5. 错误锚词（用例 error_contains 字面值）
+presence="top-level goose sub-config"；"goose appid 0x... outside GOOSE range"；"goose gocb_ref and dat_set are required"；"goose control-block strings exceed 255 bytes"；"goose tal_ms must be in"；"goose conf_rev must be non-zero"；"goose stNum must not overflow"；"goose sqNum must not overflow"；"goose at least one data member is required"；"goose unsupported data type"；"goose sqNum step"；"goose is Layer 2 only and must not use IP or transport fields"；⑥新门="layers pin a static four-tuple...（含 eth，由 semantic.go static 锚词派生，P5 落盘钉死字面）"。
+
+#### 6. 性能设计与验收
+包数公式：帧数=count（Static）/ EventSeq 展开（事件数×退避数+心跳基准）。生成器 channel 流式、无全量收集、无锁（既有）；翻译一次（同步期）。回归口径：goose.json suite 耗时相对基线 ±10%。两路验收：pcap 全量绿+落盘（/tmp/mcp-pcaps/goose/）；网卡路未跑如实声明。无承诺数字（未测，不编造）。
+
+#### 7. 顺序与回滚
+红例→translate/Fields 核心（⑥ static 同批）→门登记→cases→suite。回滚粒度=单提交：translate 真实现独立（revert 回 no-op=纯链不可跑旧态，非退化）；static eth 独立；cases 独立。
+
+#### 8. 验收
+对应 T-GOOSE（P3 定稿编号）。完成条件：5 红例先红后绿；goose.json 全量绿（RESULT+二进制同代+门 2 四项）；touched 包 `-race`+vet 净；顶层 count/src_mac/goose 字面零残留；schemagen 同步绿；门 1 对照表回填实际证据号（15.8）+ 抽查三条（15.9）；在库 goose tasks 498 + strategies 9 清空（删前报数→备份→删→复核）。
+
+#### 9. 关键决策对比（依赖链判定 + 架构谱系）
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| ⑥ static 修法 | A 扩 layerTupleFields 含 eth（通用）；B L2-only 特判拒 flows>1 | A 根因一处修全家共享、sv/isis 37 例实测零回归面；B 分叉逻辑 | **A**（链判：框架职责） |
+| ⑦ t0 | A 实现 pacing；B C 类注记 | A 无包间隔断言面（9.27），实现不可验证；B 如实注记 | **B**（断言面不可达） |
+| translate 走法 | A completedConfig+parseGOOSEConfig 复用；B 手工逐键映射 | A 单源复用（parse 函数=flat 路径同一实现，无双语义） | **A** |
+| Fields 缺省 | A 全键无 Default；B 注册表带 Default | A 缺省单一真相在代码（D-MCP-1 决策 F 谱系）；validate 强制必填项与 Default 语义冲突 | **A** |
