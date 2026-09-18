@@ -1242,6 +1242,18 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if err := json.Unmarshal(raw, &mc); err == nil {
 			spec.MQTT = &mc
 		}
+	case "srv6":
+		// D-SRV6-1：层 config（SRv6Config 同名 16 用户键）经
+		// core.ParseSRv6ConfigFromMap 复用扁平解析单一真相（非 JSON 往返：
+		// inner_payload []byte 的字符串语义是原文字节，往返会 base64 误读；
+		// segments_left/last_entry/reduced 指针三态也由扁平 parse 派生）。
+		// 空层 config 也翻译出非 nil（srv6 validator VR-02 必拒"segment_list
+		// must not be empty"，VR-01 链上不可达=mcp"config required 被翻译
+		// 保底"同款 C 类）。无业务动态（allowlist 不加 srv6 行），raw 层
+		// config 即 completedConfig（零 Default）。
+		if spec.SRv6 == nil {
+			spec.SRv6 = core.ParseSRv6ConfigFromMap(term.Config)
+		}
 	case "socks5":
 		if spec.Socks != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

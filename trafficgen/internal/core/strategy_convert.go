@@ -1544,6 +1544,13 @@ func formatBPS(val float64) string {
 // array of {type, value} option objects, RFC 8200 §4.2) into a
 // []IPv6Option. Returns nil for absent/non-array input so the builder emits
 // a plain IPv6 header. "value" is the raw option data (the string's bytes).
+// ParseHopByHopOptions is the exported single-truth parser for the IPv6
+// hop-by-hop option list（D-SRV6-1：ip 层 hop_by_hop → spec.HopByHop 回填
+// 由 layers 包经此复用，扁平路径 parseHopByHopOptions 同一实现）。
+func ParseHopByHopOptions(v interface{}) []IPv6Option {
+	return parseHopByHopOptions(v)
+}
+
 func parseHopByHopOptions(v interface{}) []IPv6Option {
 	arr, ok := v.([]interface{})
 	if !ok || len(arr) == 0 {
@@ -5230,7 +5237,16 @@ func parseWireGuardConfig(m map[string]interface{}) *WireGuardConfig {
 // The segment_list is the user-facing processing order (entry 0 = first
 // segment); the planner REVERSES it to wire order (RFC 8754 §2). See
 // internal/protocol/srv6 for the planner/validator and design §5.1.
+// D-SRV6-1：层链翻译（layers 包）经 ParseSRv6ConfigFromMap 复用同一解析
+// （单一真相，防 JSON 往返 base64 误读 inner_payload []byte 字符串语义）。
 func parseSRv6Config(m map[string]interface{}) *SRv6Config {
+	return ParseSRv6ConfigFromMap(m)
+}
+
+// ParseSRv6ConfigFromMap is the exported single-truth parser for the "srv6"
+// sub-map (flat 路径与 layers 翻译共用；layers → core 单向依赖，imap
+// ParseIMAPConfigFromMap 先例)。
+func ParseSRv6ConfigFromMap(m map[string]interface{}) *SRv6Config {
 	if m == nil {
 		return nil
 	}
@@ -7676,6 +7692,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 	if protocol == "mcp" {
 		if v, ok := cfg["mcp"]; ok && v != nil {
 			return "protocol mcp no longer accepts a top-level mcp sub-config (move it into the mcp layer of an [ip,tcp,mcp] layers chain)"
+		}
+	}
+	// D-SRV6-1：srv6 顶层 srv6 子映射 presence 判死（mcp 先例；空 map 也
+	// 死）。层链形状不触发。
+	if protocol == "srv6" {
+		if v, ok := cfg["srv6"]; ok && v != nil {
+			return "protocol srv6 no longer accepts a top-level srv6 sub-config (move it into the srv6 layer of an [ip,srv6] layers chain)"
 		}
 	}
 	return ""

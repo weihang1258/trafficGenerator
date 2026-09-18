@@ -36,6 +36,10 @@ func buildDefaultRegistry() {
 			"dscp":        {Type: "uint8", Default: uint8(0), Min: 0, Max: 63},
 			"ecn":         {Type: "uint8", Default: uint8(0), Min: 0, Max: 3},
 			"frag_offset": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
+			// D-SRV6-1：IPv6 hop-by-hop 扩展头选项列表（RFC 8200 §4.3，
+			// [{type,value}]）。经 ValidateSpec 回填 spec.HopByHop，由
+			// finalEmit/raw-IP 驱动写入 L3（builder 装配 NH=0 链）。
+			"hop_by_hop": {Type: "object"},
 		},
 	})
 
@@ -973,6 +977,37 @@ func buildDefaultRegistry() {
 	// nvgre 生成器自写外层 IP + L2.GRE。无传输层、无端口概念。
 	r.Register(LayerSchema{Name: "nvgre", Category: CategoryTerminal,
 		DependsOn: []string{"ip"},
+	})
+	// srv6（raw-IP 终结层。RFC 8754——IPv6 扩展头 SRH（NH=43/Routing
+	// Type=4），非独立传输层：每 flow 产 frames 帧 IPv6+SRH(+HBH)+内层
+	// L4/载荷完整包，wire 由 legacy srv6 Planner 复用产出（SRV6Generator
+	// 包装）。与 nvgre 同构：无传输层、无端口概念（内层端口是 SRH 载荷
+	// 语义，住层内 inner_src_port/inner_dst_port，0 回退 spec 逐流值）。
+	// D-SRV6-1：层 config 收 SRv6Config 同名 16 用户键，一律不设 Default
+	// （mcp 决策 F 先例：SegmentList 缺省 [] 会污染空层"VR-02 必拒"线形；
+	// 零值即设计缺省 SL=len-1/LE=len-1|len-2/reduced 按 seg_type/frames 1/
+	// dir up 由生成器 resolve* 承担）。指针三态（segments_left_ptr 等）由
+	// ParseSRv6ConfigFromMap 从同名标量键派生，非独立用户键。
+	r.Register(LayerSchema{Name: "srv6", Category: CategoryTerminal,
+		DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"src_ipv6":         {Type: "string"},
+			"dst_ipv6":         {Type: "string"},
+			"segment_list":     {Type: "list"},
+			"segments_left":    {Type: "uint8", Min: 0, Max: 255}, // 显式 0=终节点视角；缺席=len-1（指针三态）
+			"last_entry":       {Type: "uint8", Min: 0, Max: 255},
+			"reduced":          {Type: "bool"},
+			"flags":            {Type: "uint8", Min: 0, Max: 255}, // RFC 8754 §2.1 全 0 硬约束，非零由 VR-08 拒
+			"tag":              {Type: "uint16", Min: 0, Max: 65535},
+			"seg_type":         {Type: "string"},
+			"payload_protocol": {Type: "string"},
+			"inner_payload":    {Type: "object"}, // 字符串=原文字节 | 字节数组（getByteSlice 双形）
+			"inner_src_port":   {Type: "uint16", Min: 0, Max: 65535},
+			"inner_dst_port":   {Type: "uint16", Min: 0, Max: 65535},
+			"tlv":              {Type: "list"},
+			"frames":           {Type: "int", Min: 0, Max: 1000000}, // 负值由 VR-21 拒
+			"direction":        {Type: "string"},
+		},
 	})
 	// geneve（udp 终结层。RFC 8926——8-byte GENEVE 基础头（Ver/OptLen +
 	// OAM/Critical flags + Protocol Type + VNI）+ 4-byte-unit options + 内层

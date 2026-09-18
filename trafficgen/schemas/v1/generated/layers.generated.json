@@ -978,6 +978,9 @@
           "default": 0,
           "max": 65535
         },
+        "hop_by_hop": {
+          "type": "object"
+        },
         "src": {
           "type": "ip",
           "default": "10.0.0.1"
@@ -1915,6 +1918,69 @@
         "tcp"
       ],
       "fields": {}
+    },
+    "srv6": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "direction": {
+          "type": "string"
+        },
+        "dst_ipv6": {
+          "type": "string"
+        },
+        "flags": {
+          "type": "uint8",
+          "max": 255
+        },
+        "frames": {
+          "type": "int",
+          "max": 1000000
+        },
+        "inner_dst_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "inner_payload": {
+          "type": "object"
+        },
+        "inner_src_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "last_entry": {
+          "type": "uint8",
+          "max": 255
+        },
+        "payload_protocol": {
+          "type": "string"
+        },
+        "reduced": {
+          "type": "bool"
+        },
+        "seg_type": {
+          "type": "string"
+        },
+        "segment_list": {
+          "type": "list"
+        },
+        "segments_left": {
+          "type": "uint8",
+          "max": 255
+        },
+        "src_ipv6": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "tlv": {
+          "type": "list"
+        }
+      }
     },
     "ssdp": {
       "category": "terminal",

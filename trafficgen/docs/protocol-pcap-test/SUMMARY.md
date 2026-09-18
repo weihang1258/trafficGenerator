@@ -1,8 +1,8 @@
 # Protocol Pcap Test Results
 
-Run at 2026-09-16 13:55:59 — 206 total cases, 206 pass, 0 fail, 0 error
+Run at 2026-09-18 12:46:07 — 74 total cases, 74 pass, 0 fail, 0 error
 
 | Protocol | Cases | Pass | Fail | Error |
 |----------|-------|------|------|-------|
-| mqtt | 206 | 206 | 0 | 0 |
+| srv6 | 74 | 74 | 0 | 0 |
 

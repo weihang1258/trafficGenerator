@@ -136,7 +136,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/snmp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/socks5"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/someip"
-	"github.com/trafficgen/trafficgen/internal/protocol/srv6"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/srv6"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssdp"
 	// 空导入：ssh 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ssh"
@@ -576,7 +576,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("wireguard"))
 	app.engine.RegisterPlanner(xmpp.NewPlanner())
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mqtt"))
-	app.engine.RegisterPlanner(srv6.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("srv6"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("gbt32960"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("tftp"))
 	app.engine.RegisterPlanner(jt808.NewPlanner())

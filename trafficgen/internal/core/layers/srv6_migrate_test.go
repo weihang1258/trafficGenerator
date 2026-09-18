@@ -130,9 +130,15 @@ func TestSRV6Chain_DownNoDoubleSwap(t *testing.T) {
 		t.Fatalf("Plan: %v", err)
 	}
 	for pkt := range ch {
-		// legacy down 语义：effectiveSrc/Dst 交换 → L3.SrcIP=原 DstIP。
-		if pkt.L3.SrcIP != "2001:db8::2" {
-			t.Fatalf("down L3.SrcIP = %q, want 2001:db8::2 (legacy swap, no double swap)", pkt.L3.SrcIP)
+		// legacy down 语义（mf04 期望同款，RFC 8754 §4.1 DA=首段）：
+		// L3.SrcIP = 原 SegmentList[0]，L3.DstIP = 原 List[n-1]（最终目的）。
+		// 断言这两个值即锁死"drive 未二次换向"（二次换向会变回
+		// src=2001:db8::1 / dst=首段）。
+		if pkt.L3.SrcIP != "2001:db8:a::1" {
+			t.Fatalf("down L3.SrcIP = %q, want 2001:db8:a::1 (legacy SRH swap, no double swap)", pkt.L3.SrcIP)
+		}
+		if pkt.L3.DstIP != "2001:db8:c::1" {
+			t.Fatalf("down L3.DstIP = %q, want 2001:db8:c::1 (original final destination)", pkt.L3.DstIP)
 		}
 		// L2 MAC 由 legacy 换向后写入（down: src=原 dst）。drive 不再换。
 		if pkt.L2.SrcMAC != core.DefaultDstMAC {

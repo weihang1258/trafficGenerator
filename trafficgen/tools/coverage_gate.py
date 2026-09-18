@@ -625,8 +625,153 @@ def check_mcp(cases):
     return rows
 
 
+def check_srv6(cases):
+    """D-SRV6-1 P5R 反查表。返回 [(检查名, 通过?, 证据case_id或缺口说明)]。"""
+    rows = []
+    lays = []  # (cid, srv6子映射)
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("srv6"), dict):
+                lays.append((c.get("id", "?"), l["srv6"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. seg_type 枚举（重点 9 + end.un + 缺省=end + 非法 vn08，设计 §3.4 口径）。
+    for st in ["", "end", "end.x", "end.dx6", "end.dx4", "end.dt4", "end.dt6",
+               "end.b6", "end.b6.encaps", "end.b6.encaps.red", "end.un",
+               "end.zzz"]:
+        hit = next((cid for cid, m in lays
+                    if m.get("seg_type", "") == st), None)
+        name = "seg_type 缺省(=end)" if st == "" else f"seg_type {st}"
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. payload_protocol 7 值（含缺省=udp）。
+    for pp in ["", "udp", "tcp", "icmpv6", "ipv6", "ipv4", "none"]:
+        hit = next((cid for cid, m in lays
+                    if m.get("payload_protocol", "") == pp), None)
+        name = "payload 缺省(=udp)" if pp == "" else f"payload {pp}"
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 3. TLV 类型面：正面 4(padn 自动)/5(HMAC)/200(实验) 出现 + 负面保留
+    #    1/2/3/6 锚词（3→T-71）。
+    for t in [4, 5, 200]:
+        hit = next((cid for cid, m in lays
+                    for tlv in m.get("tlv") or []
+                    if isinstance(tlv, dict) and tlv.get("type") == t), None)
+        rows.append((f"TLV type {t}", hit is not None, hit or "无用例"))
+    for t in [1, 2, 3, 6]:
+        hit = f"reserved TLV type {t} must not be set" in blob
+        rows.append((f"TLV 保留 {t} 拒", hit, "锚词出现" if hit else "无用例"))
+
+    # 4. reduced 三态（缺省/true/显式 false→T-70）。
+    for red, name in [(None, "reduced 缺省"), (True, "reduced true"),
+                      (False, "reduced 显式 false")]:
+        hit = next((cid for cid, m in lays
+                    if (m.get("reduced", None) == red)), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 5. tag 三值 + direction 双向 + frames 四形。
+    for tag, name in [(0, "tag 零"), (43981, "tag 中值"), (65535, "tag 最大")]:
+        hit = next((cid for cid, m in lays if m.get("tag") == tag), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+    for d, name in [(None, "direction 缺省(up)"), ("down", "direction down")]:
+        hit = next((cid for cid, m in lays
+                    if m.get("direction", None) == d), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+    for f, name in [(None, "frames 缺省(=1)"), (5, "frames 5"),
+                    (1000, "frames 1000"), (-1, "frames 负拒")]:
+        hit = next((cid for cid, m in lays
+                    if m.get("frames", None) == f), None)
+        if name == "frames 负拒":
+            # 实际执法门是 registry V9 范围（先于 validator VR-21），锚词对真实门。
+            hit = "not a numeric value in [0,1000000]" in blob
+            rows.append((name, hit, "锚词出现" if hit else "无用例"))
+        else:
+            rows.append((name, hit is not None, hit or "无用例"))
+
+    # 6. 段数边界 0/1/2/3/126/127/128。
+    for n in [0, 1, 2, 3, 126, 127, 128]:
+        hit = next((cid for cid, m in lays
+                    if len(m.get("segment_list") or []) == n), None)
+        rows.append((f"段数 {n}", hit is not None, hit or "无用例"))
+
+    # 7. VR 锚词收口（链可达 17 支 + presence/静态复制负例；VR-01/14/16/17
+    #    =C 类，Go 单测覆盖，D-SRV6-1 §5 登记）。
+    anchors = [
+        ("segment_list must not be empty", "VR-02 list 非空"),
+        ("segment_list too large", "VR-03 段数上限"),
+        ("segment_list[0] must be IPv6", "VR-04 段 IPv6"),
+        ("is not IPv6", "VR-05/06 地址族"),
+        ("srv6 requires IPv6", "VR-06 外层 IPv6"),
+        ("unknown seg_type", "VR-07 行为枚举"),
+        ("flags must be 0", "VR-08 flags 全零"),
+        ("last_entry+1", "VR-09 SL/LE 关系"),
+        ("exceeds 255 bytes", "VR-10 TLV 长度"),
+        ("pad1 must not be set manually", "VR-11 Pad1 禁设"),
+        ("padN must not be set manually", "VR-12 PadN 禁设"),
+        ("requires inner_payload >= 40 bytes", "VR-15 内层长度"),
+        ("requires payload_protocol=", "VR-15 行为×载荷"),
+        ("hdr_ext_len overflow", "VR-18/19/20 溢出"),
+        ("not a numeric value in [0,1000000]", "V9 frames 范围（覆盖 VR-21）"),
+        ("payload_protocol=none with non-empty inner_payload", "VR-22 none 非空载荷（T-69）"),
+        ("direction=down requires source-node view", "VR-23 down 源节点视角"),
+        ("top-level srv6 sub-config", "presence 判死（T-74）"),
+        ("static four-tuple", "静态复制拒（T-75）"),
+    ]
+    for needle, name in anchors:
+        hit = needle in blob
+        rows.append((name, hit, "锚词出现" if hit else "无用例"))
+
+    # 8. 多流（flows>=2 ≥2 例）。
+    multi = [c.get("id", "?") for c in cases
+             if ((c.get("strategy_fc") or {}).get("value") or 0) >= 2]
+    rows.append(("多流（flows>=2）", len(multi) >= 1,
+                 multi[0] if multi else "无用例"))
+    rows.append(("多流（第二条）", len(multi) >= 2,
+                 multi[1] if len(multi) >= 2 else "无用例"))
+
+    # 9. 组合流 2 条（HBH 链 T-72 / down+HMAC+内层端口 T-73，notes 关键字）。
+    for kw, name in [("组合流 A", "组合流 A（HBH+TLV+多段）"),
+                     ("组合流 B", "组合流 B（down+HMAC+内层端口）")]:
+        hit = next((c.get("id") for c in cases
+                    if kw in json.dumps(c.get("summary", ""), ensure_ascii=False)
+                    or kw in json.dumps((c.get("expect") or {}).get("notes") or [],
+                                        ensure_ascii=False)), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 10. HBH 链 + dst_mac（End.X 改写面）+ 内层端口 回退/覆盖。
+    hit = next((cid for cid in (c.get("id") for c in cases)
+                if "hop_by_hop" in blob), None)
+    rows.append(("HBH 链", "hop_by_hop" in blob,
+                 hit or "无用例"))
+    hit = next((c.get("id") for c in cases if "dst_mac" in json.dumps(
+        c.get("spec_json", {}), ensure_ascii=False)), None)
+    rows.append(("End.X dst_mac", hit is not None, hit or "无用例"))
+    hit = next((cid for cid, m in lays if m.get("inner_src_port")), None)
+    rows.append(("内层端口 覆盖", hit is not None, hit or "无用例"))
+    # 回退执法例：无 inner_src_port 且 notes 标记 inner_src_port_fallback
+    # （帧 pin 断言回退值 12345，即真实执法断言）。
+    hit = next((c.get("id") for c in cases
+                if "inner_src_port_fallback" in json.dumps(
+                    (c.get("expect") or {}).get("notes") or [], ensure_ascii=False)
+                and not next((m.get("inner_src_port") for cid, m in lays
+                              if cid == c.get("id")), None)), None)
+    rows.append(("内层端口 回退", hit is not None, hit or "无用例"))
+
+    # 11. DstIP=首段 帧断言（new08 字节面）。
+    hit = next((c.get("id") for c in cases
+                if "dstip_byte_match" in c.get("id", "")), None)
+    rows.append(("DstIP=首段 字节断言", hit is not None, hit or "无用例"))
+
+    # 12. 商业映射（子表③ 全待确认：登记说明行，恒过不冒充）。
+    rows.append(("现网映射", True, "D-SRV6-1 子表③ 待确认（Linux seg6 抓包/厂商文档）"))
+
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
-          "mcp": check_mcp}
+          "mcp": check_mcp, "srv6": check_srv6}
 
 
 def main(argv):

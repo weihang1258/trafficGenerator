@@ -468,6 +468,10 @@ type FlowMeta struct {
 	// 完整包——外层 IP proto 47 + L2.GRE TEB(0x6558) + 内层帧 payload，
 	// B4 封装类)。Only set for nvgre chains.
 	NVGRE *core.NVGREConfig
+	// SRv6 is the flow's SRv6 config (注入到 srv6 终结层生成器：raw-IP
+	// 链 [ip,srv6]，D-SRV6-1——生成器包装 legacy Planner.Plan 自产完整
+	// IPv6+SRH 包)。Only set for srv6 chains.
+	SRv6 *core.SRv6Config
 	// IGMP/OSPF/PIM/ISIS is the flow's routing config (注入到各自终结层生成器，
 	// P3 T5：igmp/ospf/pim 是 raw-IP [ip,<proto>] 链，isis 是 L2-only
 	// [eth,isis] 链；生成器经 req.Meta.<XXX> 读协议配置逐事件产包)。Only set

@@ -224,6 +224,21 @@ func (p *ChainPlanner) ValidateSpec(spec core.FlowSpec) (core.FlowSpec, error) {
 		spec.VLAN = &core.VLAN{ID: id, Priority: prio}
 		break
 	}
+	// 链上 ip 层 hop_by_hop → spec.HopByHop（D-SRV6-1 通用路径）：扁平键
+	// 判死后 HBH 的住处是 ip 层（vlan 先例）；消费点 spec.HopByHop 既有
+	// （finalEmit/raw-IP 驱动写 L3，builder 装配 NH=0 链）。读用户原始层
+	// （BuildLayersPlanner 传原始用户层，缺键即用户没写，不误触发）；
+	// 层值赢 flat（spec.HopByHop 已由 mapToFlowSpec 从顶层 hop_by_hop 填，
+	// 扁平判死后该路径消亡，回填恒为唯一供给）。
+	for _, l := range chain {
+		if l.Name != "ip" {
+			continue
+		}
+		if v, has := l.Config["hop_by_hop"]; has && v != nil {
+			spec.HopByHop = core.ParseHopByHopOptions(v)
+		}
+		break
+	}
 	// 隧道结构性校验（P2e T12 review HIGH-2 起；D-GRE-2 重写 gre 专属；
 	// D-GRE-3 泛化为通用隧道块——用户裁定 A：拼积木归位框架）。
 	// 触发 = 链上任一 CategoryTunnel 层其直接内层邻居是 ip（gre 形）。
@@ -497,6 +512,9 @@ func validateBaseDstPortHandled(name string) bool {
 		// vxlan/geneve 不在豁免名单——它们的默认 4789/6081 走 FieldContract
 		// 通用块（validateBaseDstPortHandled 之外的 amqp/bgp 同款）。
 		"nvgre",
+		// D-SRV6-1 srv6：SRH 扩展头无端口概念（内层端口住 srv6 层，
+		// 回退 spec 逐流值），目的端口 0 合法（raw-IP 同款）。
+		"srv6",
 		// stateless UDP protocols: ports defaulted by the DstPort switch above.
 		"tftp", "radius":
 		return true
@@ -680,9 +698,10 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// 不在此默认化。
 		case "moxa":
 		// Moxa 源端口 0 保持 0：透传单连接，多流由 worker 递增。
-		case "igmp", "ospf", "pim", "isis", "nvgre":
-			// raw-IP 路由终结层（P3 T5）与 nvgre（B4 封装类，同样无传输层）
-			// ：无端口概念，源/目的端口 0 保持 0。
+		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6":
+			// raw-IP 路由终结层（P3 T5）与 nvgre（B4 封装类）/srv6
+			// （D-SRV6-1，SRH 扩展头）同样无传输层：无端口概念，源/目的
+			// 端口 0 保持 0（内层端口住 srv6 层，回退 spec 逐流值）。
 		default:
 			return fmt.Errorf("source port is required")
 		}
@@ -1139,6 +1158,12 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			meta.OSPF = spec.OSPF
 			meta.PIM = spec.PIM
 			meta.NVGRE = spec.NVGRE
+			meta.SRv6 = spec.SRv6
+			// srv6 内层端口回退链（inner 端口缺省→spec 端口）依赖这两个值；
+			// 多流时 worker.go 已按流注入 spec.SrcPort=12345+i。igmp/ospf/
+			// pim/nvgre 生成器不读端口字段，赋值对它们无副作用。
+			meta.SrcPort = spec.SrcPort
+			meta.DstPort = spec.DstPort
 			req := &GenRequest{
 				Meta: meta,
 				Sess: sess,
