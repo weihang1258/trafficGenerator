@@ -1912,3 +1912,69 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | E 内层端口住处 | E1 srv6 层 inner_*_port（门 1 已批）；E2 链上 tcp/udp 层 | 链上无传输层可住；E2 破坏 raw-IP 形状 | 选 E1 |
 | F 翻译走法 | F1 复用扁平 parse（导出 ParseSRv6ConfigFromMap，imap 先例）；F2 JSON 往返（mcp 先例） | inner_payload []byte 的字符串语义（getByteSlice 直取原文）会被 JSON 往返 base64 误读；指针三态（segments_left_ptr）也须扁平 parse 派生 | 选 F1 |
 | G validator 接入 | G1 RegisterLayerValidator（dns/nvgre 先例）；G2 仅 legacy planner.Validate | 链上 ValidateSpec 不经 legacy planner，G2 则 23 分支全漏 | 选 G1 |
+
+### D-FINS-1 FINS 顶层 fins 子映射迁入层内 + 0103/0104 补齐 + cfg 级 ICF 校验【P-PIPE #11 门1】
+
+**状态：** P2 定稿（2026-09-18；门 1 对照表已批复（自重审 4 硬伤+3 不准已修正回填）；P1 矩阵 + 依赖链判定终版如下；P4 未开工）
+
+**权威链（§7）：** 标准=欧姆龙 W342-E1（SYSMAC CS/CJ 通信命令手册；FINS 系厂商专有协议无 RFC，按 4.10 走官方规范口径）→ 设计=本条目（权威；19-fins-design.md v1.0.1 降级历史参考，仅作 transcription 来源）→ 代码 → 测试。字节事实的标准证据=W342-E1 经 Wireshark packet-omron-fins 与 gofins 双转录交叉一致（历史文档 §1.5，两处字节值核对一致）。
+
+**依赖链判定（P1 冲突终审——按"标准→设计→代码→测试"判对错，无选择题）：**
+
+| # | 断链层 | 判定 | 处置 |
+|---|---|---|---|
+| C1 0103/0104 | 代码断链 | 标准定义命令（W342-E1，tshark 解码器同）→ 设计 G2 忠实宣称首版实现 → 代码零实现零配置面=**代码错** | P4 补齐：0103 Fill + 0104 Multiple Read（请求/响应体+E-10 校验+错误码面复活）；T-013/T-014 转正落盘 |
+| C2 clock 字节数 | 设计断链 | 标准（tshark 按 W342 解析 0x0701 响应=7 字节 BCD 无世纪；实现与单测 fins_test.go:308 同为 7B）→ 历史设计文字"8 字节"=**设计错** | 本条目修订为 7 字节（年月日时分秒星期）；FINSClock.Century 保留配置面不序列化；历史文档 §3.3 加修订注记 |
+| E-06 cfg 级 | 代码断链 | 设计 E-06（请求 ICF bit6=1/bit0=1/bit7=0 非法）适用于 ICF 全配置面 → 命令级三规则已实现（fins.go:70-82），cfg 级只查位合法（:50）=**代码缺** | P4 补 cfg 级方向一致性（cfg.ICF 系请求 ICF：bit6 必须清零、bit0 必须清零；bit7 由既有 validICF 查）。注：build 已强制自愈（:338-344），线面本安全，补校验是 E-06 完整性 |
+| Fields 缺省 | 架构规则 | 已接受架构谱系（D-MCP-1 决策 F：缺省单一真相在代码）| registry fins 全键**无 Default**；空层/缺省由 GetConfig 默认化承担（GCT=2/ICF 0x81/0xC1/SID 递增/默认 DM 读命令） |
+
+#### 1. 文件清单
+- Modify: `trafficgen/internal/protocol/fins/types.go`——新增 `FINSReadArea{MemoryArea string; Address uint16; Bit uint8; Items uint16}`（json 键 memory_area/address/bit/items）；`FINSCommand` 增 `ReadAreas []FINSReadArea json:"read_areas,omitempty"`（仅 0104 合法）
+- Modify: `trafficgen/internal/protocol/fins/fins.go`——validate：E-02 支持集 +0103/0104、E-10（read_areas 空/组数>16/组内非法=同 E-01/E-04/E-05 规则）、0103 限定字口径+`Data` 恰 2 字节填充模板、cfg 级 E-06；BuildFrameWithConfig：0103 请求体（寻址 4B+NC 2B+填充字 2B，无 DC，响应=结束码）、0104 请求体（组数 1B+N×6B）与响应体（结束码+逐组合成数据：字=元素 uint16(i+1) BE 组内重起，位=i%2，与 0101 同款）
+- Modify: `trafficgen/internal/core/layers/registry.go`——fins Fields 16 键（transport/commands/sessions/sid/sid_auto/icf/gct/dna/da1/da2/sna/sa1/sa2/handshake/termination/read_areas），一律无 Default
+- Modify: `trafficgen/internal/core/layers/chain_planner_translate.go`——`case "fins"`：层 config map 直存 `spec.Metadata["fins"]`（GetConfig map 分支既有 types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6 inner_payload 陷阱）。carrier 门序已验证安全：ValidateSpec :161 translate 先于 :369 门
+- Modify: `trafficgen/internal/core/strategy_convert.go`——CheckProtoFlat fins presence 分支（mcp/srv6 先例，空 map 也死）
+- Modify: `trafficgen/tools/pipe_gate.sh`（:67 名单+fins）、`trafficgen/tools/coverage_gate.py`（check_fins 登记）
+- Modify: `trafficgen/schemas/v1/generated/layers.generated.json`（schemagen 重跑，13.19）
+- Modify: `trafficgen/test/protocol_pcap/cases/fins.json`（14 例改写+新例，T-FINS 权威）
+- Modify: `docs/protocol-designs/19-fins-design.md`——C2 修订注记（8B→7B，历史文档文字纠错，地位不变）
+- Test: `trafficgen/internal/core/layers/fins_migrate_test.go`（failing 先行红例①②③）+ `trafficgen/internal/protocol/fins/fins_test.go` 增补（红例④⑤⑥：0103/0104 构造向量、cfg 级 E-06——现 validate 拒 0103/0104 为 E-02、cfg ICF 无方向检查，两处先红）
+
+#### 2. 接口签名
+- `type FINSReadArea struct { MemoryArea string `json:"memory_area"`; Address uint16 `json:"address"`; Bit uint8 `json:"bit,omitempty"`; Items uint16 `json:"items"` }`
+- `FINSCommand.ReadAreas []FINSReadArea`（json:"read_areas,omitempty"）
+- translate：`case "fins": spec.Metadata["fins"] = term.Config`（层优先，flat 判死后无双轨）
+- presence 锚词：`protocol fins no longer accepts a top-level fins sub-config (move it into the fins layer of a layers chain: ip + udp/tcp carrier + fins)`
+
+#### 3. 主流程
+链路径：ValidateLayers（V9 16 键）→ validateSpecBase（ip/udp/tcp 补全；fins dst 9600 缺省既有 :726）→ **translateTerminalConfig case "fins"（:161，先于 carrier 门 :369，序安全）** → carrier 门（transport↔载体一致性，既有）→ protocolValidator（RegisterLayerValidator 既有 layer_gen.go:177）→ Plan → FINSGenerator（**零改动**）→ GetConfig→Validate（新增分支）→ emitSessionCommands（零改动，命令循环自然承载 0103/0104）→ BuildFrameWithConfig（新增 0103/0104 case）→ req.Emit。
+wire 要点：0103 请求剩余长度恒 8（tshark 口径，历史 §3.8）；0104 请求组 6B（区码+地址 2+bit+NC 2），tshark 对请求组按 4B/组忽略 NC——**请求断言用 FrameAssert 原始字节，不做 omron.\* NC 字段断言**（历史 §3.9 怪癖注）。
+会话语义不变：sessions=N 逐会话独立流（端口 base+i，layer_gen.go:51-59）、SID 会话内递增跨命令（fins.go:281-285）、carrier 门缺省跟随链载体。
+
+#### 4. 增量步骤（failing 先行，逐项 review→test→fix→review）
+1. 红例族 6 项（两处文件，见 §1 Test 行）：layers fins_migrate_test.go ①顶层 presence 判死 ②层 16 键 V9 放行 ③translate→Metadata→Plan 出包（含 sessions 端口/SID 断言）；fins 包 fins_test.go ④0103 构造向量（原始字节）⑤0104 构造向量（请求原始字节+响应数据合成）⑥cfg 级 E-06 红
+2. validate+build 实现（C1 全量+E-06 cfg 级）→ 红转绿
+3. registry Fields+translate case+CheckProtoFlat presence+pipe_gate/coverage_gate 登记+schemagen 重跑
+4. cases 改写 14 例+新例（P3 清单驱动）→ suite 全量 → 门 2 四项
+
+#### 5. 错误锚词（用例 error_contains 字面值）
+presence="top-level fins sub-config"；E-01="invalid memory area"；E-02="unsupported command 0x"；E-03="dm does not support bit access"；E-04="address exceeds range"；E-05="items must be > 0"/"items exceeds range"；E-06 命令级="invalid icf"/"icf request direction bit must be clear"/"icf response-required bit must be clear"、cfg 级新增同族文案（"icf request direction bit must be clear" 复用）；E-07="data length"；E-09="clock field out of range"；0103 新增="fill data must be 2 bytes"/"fill does not support bit access"（设计 §3.8 仅字口径）；E-10 新增="read_areas"族（空/组数>16）。
+
+#### 6. 性能设计与验收
+包数公式：UDP=2×命令数×sessions；TCP 另加握手 3+挥手 4（tcp 层语义）；0104 响应 O(Σ组 NC×元素字节)。生成器 channel 流式、无全量收集、无锁（既有结构）；翻译一次（同步期）。回归口径：fins.json suite 全量耗时相对基线 ±10%。两路验收：pcap 全量绿+落盘可复查（/tmp/mcp-pcaps/fins/）；网卡路未跑，如实声明。无吞吐/并发/内存承诺数字（未测，不编造）。
+
+#### 7. 顺序与回滚
+红例→validate/build 实现→registry/translate/presence→cases→suite。回滚粒度=单提交：0103/0104 实现独立 diff（revert 不影响既有 0101/0102/0701）；presence 判死独立；cases 独立。
+
+#### 8. 验收
+对应 T-FINS（P3 定稿编号）。完成条件：6 红例先红后绿；fins.json 全量绿（RESULT 行+二进制同代+门 2 四项）；touched 包 `-race`+vet 净；顶层四元组与顶层 fins 字面零残留；schemagen 同步绿；门 1 对照表回填实际证据号（15.8）+ 抽查三条（15.9）；在库 fins tasks 638 清空（删前报数→备份→删→复核，strategies 现为 0 行）。
+
+#### 9. 关键决策对比（依赖链判定 + 架构谱系）
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| C1 0103/0104 | A 补齐实现；B 降级非目标改设计 | A 兑现设计 G2、错误面（E-10/0x1102/0x2003）已备、SCADA 批量采集真实价值；B=自砍已宣称目标、须改三处设计文字 | **A**（链判：代码违反设计） |
+| C2 clock 字节 | A 采 7B 修设计文字；B 改码发 8B | A 与标准证据（tshark/W342）、单测、实现三方一致；B 被 tshark 判 malformed、§14 真实流程必红 | **A**（链判：设计违反标准） |
+| E-06 cfg 级 | A 补校验；B 注记 build 自愈即可 | A 补全 E-06 设计完整性，几行校验；B 留校验缺口（坏配置静默过 validate 靠运行期自愈兜底） | **A**（链判：代码违反设计） |
+| Fields 缺省 | A 全键无 Default；B 注册表带 Default | A 缺省单一真相在代码（D-MCP-1 决策 F 谱系）；B 复制缺省值有分叉风险 | **A**（架构谱系既定） |
+| F' 翻译走法 | A Metadata map 直存；B typed parse（导出 ParseFINSConfigFromMap）；C JSON 往返 spec 字段 | A 零新代码复用 GetConfig map 分支；fins 无 srv6 式 []byte 字符串陷阱，C 亦安全但多一层 | **A** |
