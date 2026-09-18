@@ -675,7 +675,35 @@ func buildDefaultRegistry() {
 			"max_apdu_length": {Type: "uint16", Default: uint16(0), Min: 0, Max: 65535},
 			"repeat":          {Type: "int", Default: 0, Min: 0, Max: 0},
 		}})
-	r.Register(LayerSchema{Name: "goose", Category: CategoryTerminal, DependsOn: []string{"eth"}})
+	// D-GOOSE-1：层 config 收 GOOSEConfig 同名 18 用户键，一律不设 Default
+	// （fins 16 键同款——dns 14 键带 Default 是例外非先例：dns 走"缺席=
+	// 全默认合法"语义，goose 走"缺席=validator 拒绝"语义；无 static——
+	// GOOSEConfig 无此字段、无生成器消费，为 P1 矩阵幽灵键已删除）。
+	// 无界字段（string/bool/object：gocb_ref/dat_set/data 等）走 V9
+	// Min==0&&Max==0 跳过口径，非法值由 protocolValidator 拒收。
+	// L2-only 业务键全关动态（allowlist 不加 goose 行；eth 行既有不动）。
+	r.Register(LayerSchema{Name: "goose", Category: CategoryTerminal, DependsOn: []string{"eth"},
+		Fields: map[string]FieldSchema{
+			"appid":         {Type: "uint16", Min: 0, Max: 0x3fff},
+			"gocb_ref":      {Type: "string"},
+			"dat_set":       {Type: "string"},
+			"go_id":         {Type: "string"},
+			"tal_ms":        {Type: "uint32", Min: 0, Max: 4294967295},
+			"conf_rev":      {Type: "uint32", Min: 0, Max: 4294967295},
+			"start_stnum":   {Type: "uint32", Min: 0, Max: 4294967295},
+			"start_sqnum":   {Type: "uint32", Min: 0, Max: 4294967295},
+			"test":          {Type: "bool"},
+			"nds_com":       {Type: "bool"},
+			"boolean":       {Type: "bool"},
+			"data":          {Type: "list"},
+			"event_seq":     {Type: "list"},
+			"count":         {Type: "int", Min: 0, Max: 1000000},
+			"dst_mac":       {Type: "mac"},
+			"vlan_enabled":  {Type: "bool"},
+			"vlan_id":       {Type: "uint16", Min: 0, Max: 4095},
+			"vlan_priority": {Type: "uint8", Min: 0, Max: 7},
+		},
+	})
 	r.Register(LayerSchema{Name: "sv", Category: CategoryTerminal, DependsOn: []string{"eth"}})
 	// ---- P3 T5：路由协议终结层。igmp/ospf/pim 是 raw-IP [ip→<proto>] 链（无
 	// tcp/udp 传输层，IP 协议号 2/89/103 由 transportProtocol 按终结层名解析）；

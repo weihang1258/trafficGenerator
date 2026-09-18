@@ -7708,6 +7708,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol fins no longer accepts a top-level fins sub-config (move it into the fins layer of a layers chain: ip + udp/tcp carrier + fins)"
 		}
 	}
+	// D-GOOSE-1：goose 顶层 goose 子映射 presence 判死（fins 先例；空 map 也
+	// 死）。层链形状不触发。
+	if protocol == "goose" {
+		if v, ok := cfg["goose"]; ok && v != nil {
+			return "protocol goose no longer accepts a top-level goose sub-config (move it into the goose layer of an [eth,goose] layers chain)"
+		}
+	}
 	return ""
 }
 

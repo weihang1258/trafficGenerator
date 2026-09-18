@@ -884,8 +884,95 @@ def check_fins(cases):
     return rows
 
 
+def check_goose(cases):
+    """D-GOOSE-1 P5R 反查表（T-GOOSE-1…30）。返回 [(检查名, 通过?, 证据)]。
+    层内 goose 子映射扫描（P5 改写后形状；P4 登记时旧顶层 goose 键例判 MISS，
+    P5 cases 落地后转绿）。
+    """
+    rows = []
+    lays = []  # (cid, goose层内子映射)
+    tops = []  # (cid, layers数组)
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        ls = sj.get("layers") or []
+        tops.append((c.get("id", "?"), ls))
+        for l in ls:
+            if isinstance(l, dict) and isinstance(l.get("goose"), dict):
+                lays.append((c.get("id", "?"), l["goose"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景 S1-S7（正例存在性）。
+    for kw, name in [("heartbeat", "S1 心跳"), ("retransmit", "S2 退避"),
+                     ("dataset_change", "S2 变化"), ("test_flag", "S3 test"),
+                     ("ndscom", "S3 ndsCom"), ("vlan", "S4 VLAN"),
+                     ("multitype", "S5 多类型"), ("multidataset", "S7 多数据集"),
+                     ("no_ip", "S6 无IP")]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 数据类型 11 白名单（data[].type 字面；int64/uint64 分支代表）。
+    for t in ["boolean", "bit_string", "int32", "int64", "uint32", "uint64",
+              "float32", "octet_string", "visible_string", "binary_time",
+              "utc_time"]:
+        hit = next((cid for cid, m in lays
+                    for d in m.get("data") or []
+                    if isinstance(d, dict) and d.get("type") == t), None)
+        rows.append((f"类型 {t}", hit is not None, hit or "无用例"))
+
+    # 3. 可选键覆盖（go_id/start_stnum/start_sqnum/test/nds_com/vlan三键/
+    #    event_seq/count/dst_mac）。
+    for k, name in [("go_id", "go_id 显式"), ("start_stnum", "start_stnum"),
+                    ("start_sqnum", "start_sqnum"), ("test", "test 键"),
+                    ("nds_com", "nds_com 键"), ("vlan_enabled", "VLAN 开关"),
+                    ("vlan_id", "vlan_id"), ("vlan_priority", "vlan_priority"),
+                    ("event_seq", "event_seq"), ("count", "count 层内"),
+                    ("dst_mac", "dst_mac 层内")]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. event_seq 槽位四键。
+    for k, name in [("data_idx", "ev data_idx"), ("delay_ms", "ev delay_ms"),
+                    ("retransmits", "ev retransmits"),
+                    ("sqnum_step", "ev sqnum_step")]:
+        hit = next((cid for cid, m in lays
+                    for e in m.get("event_seq") or []
+                    if isinstance(e, dict) and k in e), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 5. 校验分支 13 锚词 + presence/static。
+    for needle, name in [
+        ("outside GOOSE range", "appid 越界"),
+        ("gocb_ref and dat_set are required", "gocb_ref/dat_set 必填"),
+        ("exceed 255 bytes", "超长串"),
+        ("tal_ms must be in", "tal_ms"),
+        ("conf_rev must be non-zero", "conf_rev"),
+        ("stNum must not overflow", "stNum 回绕"),
+        ("sqNum must not overflow", "sqNum 上限"),
+        ("at least one", "空 data"),
+        ("unsupported data type", "非法 type"),
+        ("sqNum step", "sqNum 跳号"),
+        ("Layer 2 only", "L2-only 门"),
+        ("VLAN is out of range", "VLAN 越界"),
+        ("top-level goose sub-config", "presence 判死"),
+        ("static four-tuple", "静态复制拒"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    # 6. 组合流 2 条（T-28/29，notes 关键字）。
+    for kw, name in [("组合流 A", "组合流 A（三旗同帧）"),
+                     ("组合流 B", "组合流 B（事件+多类型）")]:
+        hit = next((c.get("id") for c in cases
+                    if kw in json.dumps(c.get("summary", ""), ensure_ascii=False)
+                    or kw in json.dumps((c.get("expect") or {}).get("notes") or [], ensure_ascii=False)), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
-          "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins}
+          "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
+          "goose": check_goose}
 
 
 def main(argv):

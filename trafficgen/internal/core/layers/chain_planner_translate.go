@@ -723,6 +723,104 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 	}
 	switch term.Name {
 	case "goose":
+		// D-GOOSE-1：层 config 手工逐键映射进 spec.GOOSE（dns 手工映射
+		// 同款——parseGOOSEConfig 在 strategy_convert 包未导出，layers 不可
+		// 见；mcp JSON 往返/srv6 导出函数两条路皆无）。completedConfig 补全
+		// 标量（本层 18 键零 Default，补全即原值）+ configUint*/configString/
+		// configBool 逐键 + data/event_seq 槽位下钻（item["value"]
+		// interface{} 透传，无 srv6 式 []byte 陷阱；parseGOOSEConfig:7590
+		// 逐键对照为单源口径）。层优先（flat 判死后无双轨；goose 无 flat
+		// 守卫历史故不设守卫——spec.GOOSE 缺席走翻译、已存在（引擎直调）
+		// 则不覆盖，dns 同款）。空层 {} 翻译出零配置（非 nil）→ validator
+		// 首命中 GOCBRef/DatSet=="" → "gocb_ref and dat_set are required"。
+		// C 类排除：boolean 顶层键不映射（parse 有键、生成器零消费，
+		// T-GOOSE C 类③）；delay_ms/data_idx 只解析（生成器零消费，
+		// T-GOOSE C 类②，序列形状不断）。
+		if spec.GOOSE == nil {
+			cfg := completedConfig(s, term.Config)
+			gc := &core.GOOSEConfig{}
+			if v, ok := configUint16(cfg["appid"]); ok {
+				gc.APPID = v
+			}
+			if v, ok := configString(cfg["gocb_ref"]); ok {
+				gc.GOCBRef = v
+			}
+			if v, ok := configString(cfg["dat_set"]); ok {
+				gc.DatSet = v
+			}
+			if v, ok := configString(cfg["go_id"]); ok {
+				gc.GOID = v
+			}
+			if v, ok := configUint32(cfg["tal_ms"]); ok {
+				gc.TALMs = v
+			}
+			if v, ok := configUint32(cfg["conf_rev"]); ok {
+				gc.ConfRev = v
+			}
+			if v, ok := configUint32(cfg["start_stnum"]); ok {
+				gc.StartSTNum = v
+			}
+			if v, ok := configUint32(cfg["start_sqnum"]); ok {
+				gc.StartSQNum = v
+			}
+			if v, ok := configBool(cfg["test"]); ok {
+				gc.Test = v
+			}
+			if v, ok := configBool(cfg["nds_com"]); ok {
+				gc.NDSCom = v
+			}
+			// boolean 顶层键：parse 有键、生成器零消费（T-GOOSE C 类③）——
+			// 此处故意不映射（字段事实：c.Boolean 全库零命中）。
+			if v, ok := cfg["data"].([]interface{}); ok {
+				for _, raw := range v {
+					if item, ok := raw.(map[string]interface{}); ok {
+						name, _ := configString(item["name"])
+						typ, _ := configString(item["type"])
+						var bitLen int
+						if u, ok := configUint64(item["bit_length"]); ok {
+							bitLen = int(u)
+						}
+						gc.Data = append(gc.Data, core.GOOSEData{Name: name, Type: typ, Value: item["value"], BitLength: bitLen})
+					}
+				}
+			}
+			if v, ok := cfg["event_seq"].([]interface{}); ok {
+				for _, raw := range v {
+					if item, ok := raw.(map[string]interface{}); ok {
+						var ev core.GOOSEEventSeq
+						if u, ok := configUint64(item["data_idx"]); ok {
+							ev.DataIdx = int(u)
+						}
+						if u, ok := configUint64(item["delay_ms"]); ok {
+							ev.DelayMs = int(u)
+						}
+						if u, ok := configUint64(item["retransmits"]); ok {
+							ev.Retransmits = int(u)
+						}
+						if u, ok := configUint64(item["sqnum_step"]); ok {
+							ev.SqNumStep = int(u)
+						}
+						gc.EventSeq = append(gc.EventSeq, ev)
+					}
+				}
+			}
+			if u, ok := configUint64(cfg["count"]); ok {
+				gc.Count = int(u)
+			}
+			if v, ok := configString(cfg["dst_mac"]); ok {
+				gc.DstMAC = v
+			}
+			if v, ok := configBool(cfg["vlan_enabled"]); ok {
+				gc.VLANEnabled = v
+			}
+			if v, ok := configUint16(cfg["vlan_id"]); ok {
+				gc.VLANID = v
+			}
+			if v, ok := configUint8(cfg["vlan_priority"]); ok {
+				gc.VLANPriority = v
+			}
+			spec.GOOSE = gc
+		}
 		return
 	case "opcua":
 		if spec.OPCUA != nil {

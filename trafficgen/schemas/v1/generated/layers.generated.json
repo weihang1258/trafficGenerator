@@ -639,7 +639,70 @@
       "depends_on": [
         "eth"
       ],
-      "fields": {}
+      "fields": {
+        "appid": {
+          "type": "uint16",
+          "max": 16383
+        },
+        "boolean": {
+          "type": "bool"
+        },
+        "conf_rev": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "count": {
+          "type": "int",
+          "max": 1000000
+        },
+        "dat_set": {
+          "type": "string"
+        },
+        "data": {
+          "type": "list"
+        },
+        "dst_mac": {
+          "type": "mac"
+        },
+        "event_seq": {
+          "type": "list"
+        },
+        "go_id": {
+          "type": "string"
+        },
+        "gocb_ref": {
+          "type": "string"
+        },
+        "nds_com": {
+          "type": "bool"
+        },
+        "start_sqnum": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "start_stnum": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "tal_ms": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "test": {
+          "type": "bool"
+        },
+        "vlan_enabled": {
+          "type": "bool"
+        },
+        "vlan_id": {
+          "type": "uint16",
+          "max": 4095
+        },
+        "vlan_priority": {
+          "type": "uint8",
+          "max": 7
+        }
+      }
     },
     "gre": {
       "category": "tunnel",

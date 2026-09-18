@@ -180,7 +180,7 @@ func checkLayerChainStaticCopy(config map[string]any, flows float64) string {
 	hasScalar, hasDyn := false, false
 	for _, item := range arr {
 		layer, _ := item.(map[string]any)
-		for _, lname := range []string{"ip", "tcp", "udp"} {
+		for _, lname := range []string{"ip", "tcp", "udp", "eth"} {
 			sub, _ := layer[lname].(map[string]any)
 			if sub == nil {
 				continue
@@ -224,9 +224,14 @@ func checkLayerChainStaticCopy(config map[string]any, flows float64) string {
 }
 
 // layerTupleFields returns the four-tuple-ish field names of a layer.
+// D-GOOSE-1 ⑥：含 eth（src_mac/dst_mac）——eth-only 链 flows>1 无四元组
+// 可查时静默发 N 条重复流（sqNum 撞号），通用修（sv/isis 同享）。
 func layerTupleFields(lname string) []string {
 	if lname == "ip" {
 		return []string{"src", "dst"}
+	}
+	if lname == "eth" {
+		return []string{"src_mac", "dst_mac"}
 	}
 	return []string{"src_port", "dst_port"}
 }
