@@ -2039,3 +2039,69 @@ presence="top-level goose sub-config"；"goose appid 0x... outside GOOSE range"�
 | ⑦ t0 | A 实现 pacing；B C 类注记 | A 无包间隔断言面（9.27），实现不可验证；B 如实注记 | **B**（断言面不可达） |
 | translate 走法 | A completedConfig+parseGOOSEConfig 复用；B 手工逐键映射 | **A 不可编译**（parse 未导出，layers 包不可见；dns/mqtt 均为手工映射先例）→ **B**：completedConfig 补全 + configUint*/configString/configBool 逐键 + data/event_seq 槽位下钻，parse:7590 逐键对照为单源口径 | **B**（dns 同款） |
 | Fields 缺省 | A 全键无 Default；B 注册表带 Default | A 缺省单一真相在代码（D-MCP-1 决策 F 谱系）；validate 强制必填项与 Default 语义冲突 | **A** |
+
+### D-SV-1 SV 顶层 sv 子映射迁入层内（L2-only 终结层）+ translate 真实现【P-PIPE #13 门1】
+
+**状态：** P1 门1 待批（2026-09-19；CORE_MEMORY 237 条逐条复审完成——全过 + 6 处发现已回填本条目：①appid 现负值 0x3999 在 V9 [16384,32767] 注册后改 create-time 拒，锚词收紧 "out of range [16384,32767]"（goose P5 复盘②口径）②period_us 判"配置面有 parse+struct、行为面生成器零消费"死键，非幽灵键（与 goose t0_ms 幽灵键不同级）③MAC 动态多流例 sv P3 补 1（goose 33 例亦缺，注记对齐缺口）④smpSynch 第三值例 P3 补 ⑤float32 通道独立断言 P3 核对 ⑥组合流=字段正交组合 2 例替代（单消息协议无动作序列，9.11 豁免+替代面）。缺口立项 4：P4 四件套（registry 15 键/translate case/presence 分支/门登记）+ P5 改写 12 例。链路径已具备：main.go:526 翻转 + 生成器/校验器注册（sv.go:191-192）+ FlowMeta.SV carry（chain_planner_chain.go:28）+ EtherTypeSV 回填（chain_planner.go:1008）+ isL2OnlyProtocol（strategy_convert.go:224）+ static-eth 门已由 goose ⑥ 通用修带绿（TestSVChainStaticEthRejected））
+
+**权威链（§7）：** 标准=IEC 61850-9-2/-9-2LE（4.10 官方规范口径）→ 设计=本条目（权威；24-sv-design.md 保留历史参考，仅作 transcription 来源）→ 代码 → 测试。字节事实的标准证据=IEC 61850-9-2 经 libiec61850 `sv_publisher` + Wireshark `packet-sv.c` 双转录交叉（历史 §2；BuildPayload 注释 "tests/sv.json 1.5=0x3fc00000" 即 IEEE 754 转录锚）。
+
+**依赖链判定（P1 预判，P2 定稿复核）：**
+
+| # | 断链层 | 判定 | 处置 |
+|---|---|---|---|
+| ① period_us | 行为缺失（配置面死键） | 键有 parse（strategy_convert.go:7571）+struct（types.go PeriodUS），生成器 Generate（sv.go:162-184）零消费=无 pacing——配置面存在、行为面未实现（与 goose t0_ms 幽灵键不同级，同 C 类结论） | P3 审计注记 C 类"pacing 未实现，无断言面"；键保留不入代码改动 |
+| ② appid V9 边界 | 门序（V9 vs validator） | validator "outside SV range 0x4000-0x7fff"（sv.go:27）语义范围应上移 V9 create-time（goose appid [0,0x3fff] 同款）；现用例负值 0x3999 会改由 V9 拒 | registry appid {uint16, Min 16384, Max 32767}；neg_appid 锚词收紧 V9 "out of range [16384,32767]"（.neg 无落盘=超早拒绝，mqtt 先例） |
+| ③ MAC 动态多流 | 用例覆盖缺口 | 12.9 逃生口（eth.src_mac/dst_mac 动态对象，layer_dyn.go:21 allowlist）链路已通（resolveLayerTuple:741→spec.SrcMAC→Meta.SrcMAC→帧），sv 12 例零覆盖；goose 33 例亦无（对齐缺口注记） | P3 补 1 例 MAC 动态多流（A 类可达已验证）；goose 侧注记不回改 |
+| ④ 组合流替代面 | 9.11 豁免判定 | sv 单消息协议（每帧完整 ASDU）无动作序列可组合 → 豁免+替代面：字段正交组合 2 例（goose combo_flags/combo_event 同构） | P3 定 2 条组合例（vlan×double_send×quality 布局 / smp_rate×dat_set×多通道） |
+
+#### 门 1 开工对照表（§1–§15，2026-09-19，CORE_MEMORY 237 条逐条复审通过后交付；证据=文档节/代码行/用例号）
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | L2-only 链 `[eth,sv]`：无 ip/端口概念（1.1/1.2 豁免：validateSpecBase 豁免+validator "Layer 2 only"）；顶层旧键去向——`sv` 子映射 15 键→`layers[sv]` 直迁、`count`→sv 层 count（单流帧数语义 sv.go:167）、`src_mac` 顶层保留（非扁平五键，flat src_mac→spec.SrcMAC 消费口径既有，goose 先例）、`strategy_fc`=唯一流数入口。现状 12 例全 MIXED（layers 空占位 + 顶层 sv/count/src_mac）=1.4 违规现状→P5 改写。目标形状：`{"layers":[{"eth":{}},{"sv":{"sv_id":"xxx","appid":16384,"conf_rev":1,"samples_per_cycle":80,"smp_synch":1,"smp_rate":80,"data":[{"name":"A","type":"int32","inst_mag":100}],"count":3}}]}`。P4 必修四件：①CheckProtoFlat sv presence 分支（goose :7715 同款文案 `[eth,sv]`，空 map 也死）②registry sv Fields 15 键全无 Default（appid Min 16384/vlan_id Max 4095/vlan_priority Max 7 语义边界）③translateTerminalConfig case "sv"（手工逐键——parseSVConfig:7571 未导出不可跨包；data 下钻 inst_mag 按 type 分流 int32/float64→InstMagF、quality presence→HasQuality）④pipe_gate.sh:67 名单+sv、coverage_gate check_sv 登记 | sv.json 12 例审计；registry.go:707（行在 fields 空）；strategy_convert.go:7715（插入点）；types.go:1646（SVConfig 15 键） |
+| §2 策略/任务分工 | 沿框架语义；策略=一条 SV 发布流模板（15 键）自带 strategy_fc；任务=多策略合跑+总封顶（{taskID}-{strategyID} 独立桶）；flows=N 同模板复制 N 流（MAC 动态对象逐流异=唯一逐流变面）；spec 不管流数（Count 是单流帧数非流数，sv.go:167 n=c.Count 缺省 1——如实分开声明） | sv.go:162-170；chain_planner_chain.go:28 |
+| §3 五件套 | **豁免+替代面**（周期采样值流，发布/订阅无握手无会话）：会话表=豁免（IEC 61850-9-2 无连接单向组播推流）；事务序列=豁免（单帧即完整 ASDU，0x60+0x30+0xa2 一层）；单事务四件事=豁免（无事务可拆）；关联关系=豁免（无控制/数据分离）；插入位置=sv 终结层自产完整包（chain_planner.go:992-1017 L2-only 分支：生成器 L2 保留+EtherTypeSV 回填+L3 清零，builder 只补缺省 MAC）；时间线=单流顺序发射（Generate 循环），多流并发=worker 逐流（框架 resolveLayerTuple）。多流覆盖（3.14）：静态 MAC flows>1 被 static-eth 门拒（正确行为）+ MAC 动态对象逃生口 P3 补例 1（③ 立项）。smpCnt 回绕序列是帧内样本语义非流间编排（3.13 如实分） | chain_planner.go:992-1017；sv.go:179（smpCnt (i/step)%SamplesPerCycle）；semantic.go:229（static-eth 门） |
+| §4 规范矩阵 | IEC 61850-9-2/-9-2LE 官方口径（4.10）；24-sv-design.md 历史参考非权威（§7.4）；P1 矩阵见本条目 §9 表+三张子表（①命令×响应=豁免，单向无响应协议，以"字段×tag 矩阵"替代） | 24-sv-design.md；本条目 §9 |
+| §5 有错必处理 | validator 9 分支全列锚词（sv.go:23-50：config required/appid range/svID required ≤255/confRev non-zero/samples_per_cycle ≥1/smpSynch 0,1,2/data required/type unsupported（仅 int32,float32）/L2 only）+carrier V7b（complete.go:352 [ip,sv] 拒）+presence（P4）+static-eth 门+V9 边界——负例锚词全对真实执法门（goose 复盘②口径）；依赖：eth 层 DependsOn（registry.go:707）、FlowMeta.SV carry、EtherType 回填——§2 依赖节全列 | sv.go:23-50；complete.go:352 |
+| §6 性能 | 单流包数=count（缺省 1；现有 count=100 压力锚 sv_smp_seq 系）；生成器循环直发 Emit（sv.go:162-184，无缓冲聚合、无锁、channel 流式框架既有）；每帧 O(通道数) 序列化（BuildPayload 单遍）；翻译一次（ValidateSpec 同步期）；回归口径：sv.json suite 耗时相对基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测不承诺，goose 同款）；网卡未跑 | sv.go:162-184；本条目 §6 |
+| §7 三份文档 | 设计=本条目；用例=T-SV 清单（P3 先行，存量 12 逐条审计去向）；cases 回指编号；24-sv-design.md 历史参考非权威，冲突以本条目为准 | TEST_CASES T-SV-* |
+| §8 先设计后代码 | 门 1 表批复→P1 矩阵→P3 清单→failing 先行红例→P4 代码；无设计条目 Diff 打回 | 本条目 |
+| §9 三源+整格 | 三源：IEC 61850-9-2/-9-2LE + 24-sv-design（历史转录）+ 现网（继保测试仪/合并单元=待确认一项，确认方式：抓现网 SV 组播包）；P3 清单先行；存量 12 例逐条审计（9.14）；枚举全覆盖=smpSynch 3 值（③ 补第三值例）/data type 2 值（int32 负数+float32 0x3fc00000）/appid 边界 4 值（0x4000/0x7fff/0x3fff/0x8000）/quality 布局 2 形（4i4v vs 4B 自定义）/dat_set 有无/smp_rate 有无；正交：smpSynch×smp_rate×quality×dat_set×double_send×vlan×count；组合流 2 条=字段正交替代（④）；断言边界：包间隔（pacing 死键①）不可断=C 注记，smpCnt 序列逐帧 pin 断 | P1 矩阵子表①②③；coverage_gate check_sv（P4 登记） |
+| §10 评审闭环 | failing 先行红例族（①presence 拒②层 15 键 V9 放行③translate 上线出包（smpCnt 序列）④MAC 动态多流逐流异）→改→审→测→再审；`go vet`+touched 包 `-race` | P4 |
+| §11 白话汇报 | 先一句结论 | 每次汇报 |
+| §12 动态清单 | L2-only 无四元组（1.2）；业务 15 键**全关动态**（allowlist 不加 sv 行——逐键理由：appid/conf_rev/sv_id/dat_set/samples_per_cycle/smp_synch/smp_rate/period_us/data/count/dst_mac/double_send/vlan_enabled/vlan_id/vlan_priority 逐流变破坏采样序列语义（smpCnt 配对+数据集一致性），采样值发布流无"逐流业务身份"概念）；唯一逐流变合法面=eth MAC 动态对象（allowlist eth 行既有，layer_dyn.go:21）——发布者身份逐流异合理+12.9 逃生口；序号算法两处：smpCnt=(i/step)%SamplesPerCycle（sv.go:179，step=double_send?2:1）+MAC genMAC(strategy,i)（layer_dyn.go:741-748） | layer_dyn.go（无 sv 行）；layer_dyn.go:21/:741；sv.go:179 |
+| §13 schema 同步 | registry sv Fields 15 键全无 Default（mcp 决策 F 谱系；appid {uint16,Min 16384,Max 32767}/conf_rev {uint32,Max}/samples_per_cycle {uint16,Max 65535}（≥1 留 validator锚）/smp_synch {uint8}/smp_rate {uint16}/period_us {int 无界 V9 skip}/count {int,Max 1000000}/vlan_id {uint16,Max 4095}/vlan_priority {uint8,Max 7}/sv_id-dat_set string/double_send-vlan_enabled bool/dst_mac mac/data list）；validator 文案零改动（P4 不碰 sv.go）；改完重跑 schemagen（TestLayersGeneratedMatchesRegistry 绿） | 门 2 脚本；generated/layers.generated.json |
+| §14 真实流程 | sv.json 全量绿 + 落盘 `/tmp/mcp-pcaps/sv/` + 二进制与 HEAD 同代 + 门 2 四项（pipe_gate.sh sv）；负例 .neg.pcap 口径沿 d323068（presence/appid 超早拒绝无落盘=既有行为）；包号/smpCnt/帧字节全部落盘重钉不照抄（14.6：12 例改写先跑拿 pcap 再钉，smp_seq/double_send/wrap 的 smpCnt 序列断言以落盘为准） | T-SV-* |
+| §15 三道门 | 本表即门 1（待批）；门 2 脚本（pipe_gate.sh:67 名单+sv，八协议同口径）；门 3 挂表抽查；P5R 反查 check_sv 登记（P4，锚词+枚举+MAC 动态+presence/static/carrier 负例） | 本条目 |
+
+#### §9 规范矩阵（P1，规范要求 → 业务场景 → 代码现状 → 缺口→用例）
+
+| 规范行 | 业务场景 | 代码现状 | 缺口→用例 |
+|---|---|---|---|
+| 9-2 APDU 结构（0x60+noAPDU 0x80=1+seqASDU 0xa2） | 全部正例 | 已实现（BuildPayload sv.go:109-160） | 帧字节 pin 已有（smp_seq 等） |
+| ASDU 字段 tag 0x80 svID/0x81 datSet（可选）/0x82 smpCnt/0x83 confRev/0x85 smpSynch/0x86 smpRate（可选 >0）/0x87 seqData | 单字段断言面 | 已实现逐 tag（sv.go:109-160）；datSet/smpRate 条件编码 | 7 tag 字段断言 P3 逐项核对补齐（82/83/85 现有，80/81/86/87 核对） |
+| 9-2LE seqData 4i4v（值 4B+quality 4B） | sv_4i4v | 已实现（HasQuality 分支） | 负 int32 字节断言（单测已有→suite 例 P3 对齐） |
+| 自定义 dataset（无 datSet，4B/通道） | sv_custom_dataset | 已实现 | 已有 |
+| smpSynch ∈ {0,1,2} | smp_seq/global 两值 | validator 3 值门 | 第三值例→P3 补 |
+| smpCnt 周期回绕 ((i/step)%samples_per_cycle) | smp_wrap/double_send | 已实现（uint16 不截断先取模，单测 :108） | double_send 同 smpCnt 双帧断言已有；回绕序列帧 pin 已有 |
+| appid 0x4000-0x7fff | 16384 正例边界 | validator sv.go:27 + V9 P4 边界 | 边界 4 值（0x4000 过/0x7fff 过/0x3fff 拒/0x8000 拒）P3 补 |
+| confRev 非零 | neg_confrev | validator sv.go:33 | 已有 |
+| samples_per_cycle ≥1 | neg_wrap | validator sv.go:36 | 已有 |
+| 仅 int32/float32 | 4i4v | validator sv.go:46 | 非法 type 负例→P3 补 |
+| L2-only（禁 IP/传输字段） | neg 类 | validator sv.go:50 + V7b carrier | [ip,sv] 负例→P3 补 |
+| VLAN 802.1Q（vlan_enabled/id/priority） | sv_vlan | 已实现（生成器 L2.VLAN） | priority 3 值/ip_priority 越界负例 P3 补 |
+| period_us 周期 | sv_period | **行为缺失**（生成器零消费） | C 类注记（① 立项） |
+
+**子表① 命令×响应码矩阵：** 豁免——单向发布协议无请求-响应；替代面=上表"字段×tag"矩阵（7 tag 逐行）。
+**子表② 形态变体表：** smpSynch 0/1/2 ｜ smp_rate 有/无 ｜ quality 布局 4i4v/4B ｜ dat_set 有/无 ｜ double_send 有/无 ｜ count 1/3/4/6/100 ｜ vlan 有/无（id×priority）｜ appid 边界 4 值 ｜ data type 2 值 ｜ MAC 动态/静态 。
+**子表③ 商业行为→用例映射表：**
+
+| 商业行为 | 出处 | 用例 | 状态 |
+|---|---|---|---|
+| 合并单元 9-2LE 4i4v 带质量形 | 继保测试仪/合并单元（抓现网 SV 组播包确认） | sv_4i4v 近似 | 待确认：抓包核对 |
+| 自定义 dataset 小帧形 | 同上 | sv_custom_dataset 近似 | 待确认：同上 |
+
+**P4 范围（预填，goose 同构）：** ①CheckProtoFlat sv presence 分支（:7715 后追加，文案 `[eth,sv]`）②registry.go:707 sv 行补 Fields 15 键 ③chain_planner_translate.go case "sv"（completedConfig+手工逐键+data 下钻 type 分流 inst_mag→InstMag int32 / InstMagF float32、quality presence→HasQuality）④pipe_gate.sh:67+coverage_gate.py check_sv ⑤schemagen 重跑 ⑥红例族 4 项先行。
+**明确不解决：** 9-2 原版多 ASDU 折叠（seqASDU>1，现网合并单元单 ASDU 主流，无用例需求）；真实时间同步面（smpSynch 全局位只是字段值非时钟语义）；period_us pacing 实现（C 类①，断言面缺失不立项不冒充）；GOOSE/SV 混发编排（跨协议编排非单协议管线范围）。
+**依据：** `docs/protocol-designs/24-sv-design.md`（历史参考）；IEC 61850-9-2/-9-2LE；代码事实：`sv/sv.go:20-192`（Validate 9 分支/BuildPayload/Generate/注册）、`core/types.go:1630-1680`（SVData/SVConfig 15 键）、`strategy_convert.go:7571`（parseSVConfig）、`strategy_convert.go:224`（isL2OnlyProtocol）、`chain_planner.go:992/:1008`（L2-only EtherType 回填）、`chain_planner.go:499/:567`（validateSpecBase 豁免）、`chain_planner_chain.go:28`（FlowMeta.SV）、`layer_dyn.go:21`（eth allowlist）/:741-748（genMAC→spec.SrcMAC）、`builder.go:17`（EtherTypeSV=0x88BA）、`complete.go:352`（V7b carrier）、`semantic.go:229`（static-eth 门，goose ⑥ 已含 sv）、`sv_test.go`（7 单测）。
