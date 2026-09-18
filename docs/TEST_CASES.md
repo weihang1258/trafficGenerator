@@ -3173,3 +3173,68 @@
 **断言边界（9.27）：** tshark 对 0104 请求组忽略 NC（FrameAssert 原始字节代偿）；FINS/TCP FIN/ACK 交织顺序由 TCP 载体决定（min_packets 口径）；包时序断言 harness 不支持（既有注记）。
 **执行口径：** P5 fins 真实流程全量（MCP 建任务→引擎生成→tshark 校对）全绿 + 落盘 `/tmp/mcp-pcaps/fins/` + 门 2 四项 + 反查 check_fins（P4 登记）。断言数值一律落盘重钉（14.6/9.31）——含 C3 修正后的 omron.tcp.length=26、tcp min_packets 拆解不预写。
 **实现位置：** `cases/fins.json`（P5 改写 14 + 转正/新建 31 = **45 例**；T-018 等价覆盖、T-031 E-08 配置面不可达 C 类、T-035 decode_as C 类、T-038~040 等价 suite 口径；P5 补 `fins_vn_fill_data_len`（0103 模板 2B 校验分支，9.5 补口））。
+
+### T-GOOSE-1… goose.json——存量审计 + 测试点清单【D-GOOSE-1 P3 定稿，P4/P5 未开工】
+
+**状态：** P3 定稿（2026-09-19；P4 translate 真实现 + P5 改写/跑测未开工。D-GOOSE-1 P2 定稿 9 项回填已落：18 键无 static、translate 手工逐键、空层保底=gocb_ref 必填分支、行号、src_mac 留顶层、allowlist-eth 更正、包数公式、tmax 漏项、Fields 无界注记）
+**级别：** pcap
+**来源：** ①标准=IEC 61850-8-1（4.10 官方规范口径；字节经 libiec61850 `goose_publisher.c` + Wireshark `packet-goose.c` 双转录交叉）②设计=D-GOOSE-1（⑥ static-eth 门/⑦ t0 C 类/count 层内/包数公式）③现网=libiec61850 示例行为（gocbRef/datSet 缺省串、goID 缺省=gocbRef、test/ndsCom 恒编码 `87 01 00`/`89 01 00`）
+**存量去向（12 例 → P5 改写后 30 例：12 改写 + 16 新建（T-2/3 门面 + T-15…30，其中 T-1…14 为改写位号、T-2/3 与改写位不重例）：**
+
+| 存量 | 去向 | 说明 |
+|---|---|---|
+| goose_heartbeat（S1 心跳 3 帧） | 改写 | 顶层 `count:3`→层内 count、`t0_ms` 删（⑦ 死键）、`goose:{}` 进层同名键；断言落盘重钉 |
+| goose_retransmit（S2 退避 8 帧） | 改写 | `count:8`→层内、`t0_ms`/`tmax_ms` 删（⑦ 死键×2）、event_seq 留层内；`delay_ms` 现状死字段不断包间隔（9.27 注记） |
+| goose_dataset_change（S2 变化 5 帧） | 改写 | 同上（`t0_ms`/`tmax_ms` 删）；sqNum=0 复位断言保留 |
+| goose_test_flag（S3 test） | 改写 | `count:2`→层内、`t0_ms` 删 |
+| goose_ndscom_flag（S3 ndsCom） | 改写 | 同上 |
+| goose_vlan（S4） | 改写 | `count:2`→层内、`t0_ms` 删；vlan 三键留层内（顶层 `vlan_id` 不消费是 flat 旧口径，层内为准） |
+| goose_multitype（S5 10 成员） | 改写 | `count:2`→层内、`t0_ms` 删；10 成员 hex 逐段落盘重钉（禁手算 9.31） |
+| goose_multidataset（S7 6 成员） | 改写 | 同上 |
+| goose_no_ip（S6） | 改写 | `count:3`→层内、`t0_ms` 删；`frame.protocols` nonzero 口径保留（环境相关不断 exact） |
+| goose_neg_appid（NEG-01） | 改写 | 锚词 `appid`（substring，`goose.go:28` 全字面 `outside GOOSE range`，P5 对真实门） |
+| goose_neg_sqnum（NEG-02） | 改写 | 锚词 `sqNum`（`goose.go:60`，`sqnum_step:2` 注入） |
+| goose_neg_stnum（NEG-03） | 改写 | 锚词 `stNum`（`goose.go:43`，`start_stnum:0xFFFFFFFF`） |
+
+**测试点清单（规范行→用例，逐点登记）：**
+
+| 规范行/设计条目 | 用例 | 分类 |
+|---|---|---|
+| S1 静默心跳（stNum 恒 1、sqNum 递增，改写存量） | T-GOOSE-1 | A（改写，落盘重钉包数/字段/frames） |
+| 顶层 goose presence 判死（空 map 也死，CheckProtoFlat） | T-GOOSE-2 | A（负例，新锚词 `top-level goose sub-config`；fins_vn_presence 同构，P4 failing 先行①） |
+| 显式标量 eth MAC + flows=2 拒绝（⑥ 新门） | T-GOOSE-3 | A（负例，锚词 `static four-tuple`；fins_vn_static_copy 同构，eth 层显式 `src_mac`，P4 failing 先行④） |
+| S2 快速重发退避（改写存量，retransmits=5） | T-GOOSE-4 | A（改写；首帧 stNum+1/sqNum=0 + 0..5 序列不断包间隔） |
+| S2 数据集变化（改写存量，retransmits=2） | T-GOOSE-5 | A（改写；sqNum=0 复位 `86 01 00` 必断） |
+| S3 test 置位（改写存量） | T-GOOSE-6 | A（改写；`87 01 01` 逐帧） |
+| S3 ndsCom 置位（改写存量） | T-GOOSE-7 | A（改写；`89 01 01` 逐帧） |
+| S4 VLAN（改写存量，TCI=0x8064） | T-GOOSE-8 | A（改写；TPID/TCI/EtherType 右移+4 落盘钉） |
+| S5 多类型 10 成员（改写存量） | T-GOOSE-9 | A（改写；9.6 已拆到成员级，P5 只重钉 offset） |
+| S7 多数据集 6 成员（改写存量） | T-GOOSE-10 | A（改写；`8a 01 06` + 成员数一致） |
+| S6 无 IP 证明（改写存量） | T-GOOSE-11 | A（改写；`88 b8`@12 + `61`@22 双字节证据） |
+| NEG-01 appid 越界（改写存量，0x4000） | T-GOOSE-12 | A（负例，锚词 `appid`） |
+| NEG-02 sqNum 跳号（改写存量，sqnum_step=2） | T-GOOSE-13 | A（负例，锚词 `sqNum`） |
+| NEG-03 stNum 回绕（改写存量，0xFFFFFFFF） | T-GOOSE-14 | A（负例，锚词 `stNum`） |
+| 9.3 conf_rev=0 拒（设计 §9.3 点名 `goose_neg_confrev`，存量漏） | T-GOOSE-15 | A（负例，锚词 `conf_rev must be non-zero`；`goose.go:40`） |
+| 空 data 拒（`goose.go:49`，存量漏） | T-GOOSE-16 | A（负例，锚词 `at least one allData member`；单测 `TestPlannerRejectsInvalidGOOSEConfiguration/no members` 同款行为 pcap 转正） |
+| 非法 type 拒（`goose.go:53`，§3.8 矩阵外） | T-GOOSE-17 | A（负例，锚词 `unsupported data type`；type=`bogus`，单测 bad type 同款转正） |
+| gocb_ref 空拒（`goose.go:31`，存量漏） | T-GOOSE-18 | A（负例，锚词 `gocb_ref and dat_set are required`；`gocb_ref:""`，单测 control block 同款转正） |
+| 超长串拒（`goose.go:34`，9.8 超长格） | T-GOOSE-19 | A（负例，锚词 `exceed 255 bytes`；gocb_ref 256 字符） |
+| tal_ms=0 拒（`goose.go:37`，9.8 空值/边界格） | T-GOOSE-20 | A（负例，锚词 `tal_ms must be in`） |
+| go_id 显式值（§3.4 可选键，存量零覆盖） | T-GOOSE-21 | A（正例，`go_id` 显式≠gocbRef → `83` 段 hex 落盘钉；与缺省回填对照） |
+| start_sqnum 非零起点（`goose.go:477`，存量零覆盖） | T-GOOSE-22 | A（正例，`start_sqnum:5` → 首帧 sqNum=5 序列 5/6/7；与 neg_sqnum 跳号门对照，正常值放行） |
+| start_stnum 非零起点（`goose.go:473`，`goose_stnum_override` §10.1 立即支持已实现） | T-GOOSE-23 | A（正例，`start_stnum:10` → 首帧 stNum=10；与 0xFFFFFFFF 拒绝门对照） |
+| int64 负值编码（§3.8 有符号分支，存量只有 int32） | T-GOOSE-24 | A（正例，`int64:-1` → `85 01 ff` 最小编码落盘钉；9.21 分支代表：int64 同分支） |
+| uint64 大值编码（§3.8 无符号分支，存量只有 uint32） | T-GOOSE-25 | A（正例，`uint64:4294967296` → `86 05 01 00 00 00 00` 落盘钉；uint64 同分支代表） |
+| octet_string（§3.8 ✓，存量零覆盖） | T-GOOSE-26 | A（正例，`octet_string:"AB"` → `89 02 41 42` 落盘钉；9.20 取值补口） |
+| utc_time（§3.6 0x91，存量零覆盖） | T-GOOSE-27 | A（正例，`utc_time` → `91 08` tag+len 落盘钉，内容墙钟不断值；binary_time 存量已有，utc_time 为同表补口） |
+| 组合流 A（heartbeat 鉴别面 + S3 双旗 + S4，≥3 动作，9.11） | T-GOOSE-28 | A（正例：test=true + nds_com=true + vlan_enabled 三键同帧 → `87 01 01`/`89 01 01`/TPID 同包断言；三动作同属 APDU/L2 不同字段，9.6 行为点=三旗同编不断包序） |
+| 组合流 B（S2 事件 + S5 多类型 + S7 条目一致，≥3 动作，9.11） | T-GOOSE-29 | A（正例：event_seq burst + 6 成员数据集 + numDatSetEntries 一致 → stNum+1/sqNum=0 序列与 `8a 01 06` 同包断言） |
+| 空层 `{goose:{}}` 保底分支（D-GOOSE-1 §1：零配置→gocb_ref 必填分支） | T-GOOSE-30 | A（负例，锚词 `gocb_ref and dat_set are required`；与 T-18 同锚不同形状=9.22 承载位置扫描：空层 vs 显式空串） |
+
+**C 类注记（9.17，不冒充覆盖）：** ① pacing（t0 纯心跳间隔）：parse/GOOSEConfig/生成器三层全无 `t0_ms` 键，suite 无包间隔断言（9.27）→ D-GOOSE-1 ⑦，P5 删键；② `event_seq.delay_ms`/`data_idx`：parse 有键、生成器 `goose.go:532` 只读 `Retransmits`（DelayMs/DataIdx 零消费，grep 实证）→ 不断包间隔/成员切换语义，序列形状不断；③ `boolean` 顶层键：parse 有键（`strategy_convert.go:7597`）、生成器零消费（`c.Boolean` 全库零命中）→ 不建用例，P4 translate 不映射（设计 §1 已排除）；④ Length/APDU 自洽（§9.4）/条目数自洽（§9.5）：生成器自编码恒一致，配置面不可达（fins E-08 同款口径）；⑤ array/struct 0xA1/0xA2（§3.8 规划中/§10 待条件）：`isValidDataMember` 拒收 → 归入 T-17 非法 type 代表，不单独建规划中用例；⑥ 包时序/ wall-clock 内容（`t` 0x84/`binary_time`/`utc_time` 内容）：harness 不定值不断内容（既有 heartbeat `84 08` tag+len 口径）。
+**枚举取值覆盖（9.20-9.22 承载位置扫描）：** 数据类型 9 ✓值（boolean/bit_string/int32/uint32/float32/octet_string/visible_string/binary_time/utc_time；int64/uint64 按 9.21 同分支代表 T-24/25；array/struct 规划中归 T-17）+ T-26/27 补口后 11 白名单类型行为全覆（9 ✓正例 + 2 代表 + 非法拒）；校验分支 13（`goose.go:24/28/31/34/37/40/43/46/49/53/60/64/67·70`，VLAN 双分支同锚 9.21 代表一例）；承载位置 2（层内键 vs 空层保底 T-30；顶层 `vlan_id` 不消费旧口径废止）。
+**正交矩阵：** Static/EventSeq 2×VLAN 2×类型 11×方向 1（L2-only 无方向）——缺格=多事件 burst（EventSeq≥2：stNum+2 语义生成器支持 `goose.go:526` 循环，存量全单事件，B 类候选注记，P4 后评估是否落盘）；地址族 N/A（L2-only 无 IP，S6 即对称声明，fins v6 代表口径不适用）；动态整格=N/A（goose 业务 18 键零动态，allowlist 不加 goose 行，D-GOOSE-1 §1；eth 四元组动态走框架既有格）。
+**通用陷阱自查（9.37-9.40）：** 无派生端口（L2-only 无端口）；无 distinct 聚合（sqNum/stNum 序列用 `value`/`same_as_packet`，multitype 多实例用 nonzero + frames 精确字节）；flows>1 静态标量只有 T-3 拒绝例（9.39 互斥遵守）；无共享序号动态字段。
+**断言边界（9.27）：** 包间隔（DelayMs/t0）无断言面（C 类①②）；墙钟内容不断值（tag+len）；`frame.protocols` 只 nonzero（环境相关）；`goose.length`/`reserve` 随 APDU 变，P5 落盘重钉不预写。
+**执行口径：** P5 goose 真实流程全量（MCP 建任务→引擎生成→tshark 校对）全绿 + 落盘 `/tmp/mcp-pcaps/goose/` + 门 2 四项 + 反查 check_goose（P4 登记）。断言数值（offset/hex/length）一律落盘重钉（14.6/9.31），不照抄存量手算值。
+**实现位置：** `cases/goose.json`（P5 改写 12：顶层 count→层内、删 `t0_ms`×12/`tmax_ms`×2、层内 goose 18 键；新建 T-15…30（含 T-2/3 门面）；T-GSE-S1-02 并入 heartbeat Length 断言不单独建例）。
