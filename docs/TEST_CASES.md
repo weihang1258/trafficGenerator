@@ -3174,9 +3174,9 @@
 **执行口径：** P5 fins 真实流程全量（MCP 建任务→引擎生成→tshark 校对）全绿 + 落盘 `/tmp/mcp-pcaps/fins/` + 门 2 四项 + 反查 check_fins（P4 登记）。断言数值一律落盘重钉（14.6/9.31）——含 C3 修正后的 omron.tcp.length=26、tcp min_packets 拆解不预写。
 **实现位置：** `cases/fins.json`（P5 改写 14 + 转正/新建 31 = **45 例**；T-018 等价覆盖、T-031 E-08 配置面不可达 C 类、T-035 decode_as C 类、T-038~040 等价 suite 口径；P5 补 `fins_vn_fill_data_len`（0103 模板 2B 校验分支，9.5 补口））。
 
-### T-GOOSE-1… goose.json——存量审计 + 测试点清单【D-GOOSE-1 P3 定稿，P4/P5 未开工】
+### T-GOOSE-1…33 goose.json——存量审计 + 测试点清单【D-GOOSE-1 P3 定稿，P5 已执行】
 
-**状态：** P3 定稿（2026-09-19；P4 translate 真实现 + P5 改写/跑测未开工。D-GOOSE-1 P2 定稿 9 项回填已落：18 键无 static、translate 手工逐键、空层保底=gocb_ref 必填分支、行号、src_mac 留顶层、allowlist-eth 更正、包数公式、tmax 漏项、Fields 无界注记）
+**状态：** 已执行（2026-09-18；suite 33/33 全绿，coverage 反查 51/51，门 2 四项绿，fins 45/45 + srv6 74/74 零回归。**P5 复盘修正 5 处**：①**coverage 反查逮到 P3 清单漏例 3 个**——sqNum 上限（:46）/L2-only 载体门（V7b）/VLAN 越界（V9），补例 T-31/32/33（30→33 例）；②**锚词对真实执法门**（fins T-39 口径）——appid 越界改 V9 `out of range [0,16383]`（V9 范围门先于 validator 段位门）、stNum 改 validator 全字面 `stNum must not overflow`、sqNum 跳号改 `sqNum step`；③uint64 例 tshark `goose.unsigned` 是 FT_UINT32，2^32 截断为 0——删该 fields 断言，frames pin 为主证据；④**strategy_fc 必须在 case 顶层**（driver 读 case 级注入 generate_traffic 参数；放 spec_json 内 driver 不读=静态门不触发，fins 同款双写）；⑤static 例 src_mac 写 eth 层内（门查层内显式标量，顶层 src_mac 不触发⑥门）。落盘 29 正例 pcap + 11 neg，3 个 create-time 超早拒绝无落盘系旧行为（mqtt 先例同款），孤儿 pcap 3 个已清
 **级别：** pcap
 **来源：** ①标准=IEC 61850-8-1（4.10 官方规范口径；字节经 libiec61850 `goose_publisher.c` + Wireshark `packet-goose.c` 双转录交叉）②设计=D-GOOSE-1（⑥ static-eth 门/⑦ t0 C 类/count 层内/包数公式）③现网=libiec61850 示例行为（gocbRef/datSet 缺省串、goID 缺省=gocbRef、test/ndsCom 恒编码 `87 01 00`/`89 01 00`）
 **存量去向（12 例 → P5 改写后 30 例：12 改写 + 16 新建（T-2/3 门面 + T-15…30，其中 T-1…14 为改写位号、T-2/3 与改写位不重例）：**
@@ -3237,4 +3237,4 @@
 **通用陷阱自查（9.37-9.40）：** 无派生端口（L2-only 无端口）；无 distinct 聚合（sqNum/stNum 序列用 `value`/`same_as_packet`，multitype 多实例用 nonzero + frames 精确字节）；flows>1 静态标量只有 T-3 拒绝例（9.39 互斥遵守）；无共享序号动态字段。
 **断言边界（9.27）：** 包间隔（DelayMs/t0）无断言面（C 类①②）；墙钟内容不断值（tag+len）；`frame.protocols` 只 nonzero（环境相关）；`goose.length`/`reserve` 随 APDU 变，P5 落盘重钉不预写。
 **执行口径：** P5 goose 真实流程全量（MCP 建任务→引擎生成→tshark 校对）全绿 + 落盘 `/tmp/mcp-pcaps/goose/` + 门 2 四项 + 反查 check_goose（P4 登记）。断言数值（offset/hex/length）一律落盘重钉（14.6/9.31），不照抄存量手算值。
-**实现位置：** `cases/goose.json`（P5 改写 12：顶层 count→层内、删 `t0_ms`×12/`tmax_ms`×2、层内 goose 18 键；新建 T-15…30（含 T-2/3 门面）；T-GSE-S1-02 并入 heartbeat Length 断言不单独建例）。
+**实现位置：** `cases/goose.json`（**33 例**：改写 12——顶层 count→层内、删 `t0_ms`×12/`tmax_ms`×2、层内 goose 18 键；新建 T-15…30（含 T-2/3 门面）+ P5 补口 T-31/32/33；T-GSE-S1-02 并入 heartbeat Length 断言不单独建例。字节断言全部落盘复核：改写例帧布局与改写前逐字节一致（仅 spec 形状迁移）、新例预测 pin（offset 109/162/165/172/177/182）一次通过）。

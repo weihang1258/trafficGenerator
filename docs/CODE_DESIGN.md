@@ -1983,7 +1983,7 @@ presence="top-level fins sub-config"；E-01="invalid memory area"；E-02="unsupp
 
 ### D-GOOSE-1 GOOSE 顶层 goose 子映射迁入层内（L2-only 终结层）+ translate 真实现【P-PIPE #12 门1】
 
-**状态：** P2 定稿（2026-09-19；门 1 对照表已批复；P2 重审 9 项已回填：static 幽灵键删除、translate 导出路线、空层锚词、行号、src_mac 留顶层、allowlist-eth 更正、包数公式、tmax 漏项、Fields 无界注记；P1 矩阵 + 依赖链判定终版如下；P4 未开工）
+**状态：** P5 已执行（2026-09-18；P4 提交 2553f1a——registry 18 键零 Default + translate 手工逐键 + presence 判死 + static-eth 门，4 红先红后绿；P5 提交 suite 33/33 全绿 + coverage 51/51 + 门 2 四项绿 + fins 45/45、srv6 74/74 零回归；P5 复盘 5 处见 T-GOOSE 状态行。P6 评审/在库清空未做）
 
 **权威链（§7）：** 标准=IEC 61850-8-1（GOOSE 系标准组织协议，按 4.10 走官方规范口径）→ 设计=本条目（权威；23-goose-design.md 保留历史参考）→ 代码 → 测试。字节事实的标准证据=IEC 61850-8-1 经 libiec61850 `goose_publisher.c` + Wireshark `packet-goose.c` 双转录交叉（历史 §2 :187/:213，含初稿标签错误显式弃用记录）。
 

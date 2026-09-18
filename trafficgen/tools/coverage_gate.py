@@ -942,7 +942,7 @@ def check_goose(cases):
 
     # 5. 校验分支 13 锚词 + presence/static。
     for needle, name in [
-        ("outside GOOSE range", "appid 越界"),
+        ("out of range [0,16383]", "appid 越界（V9 真实门）"),
         ("gocb_ref and dat_set are required", "gocb_ref/dat_set 必填"),
         ("exceed 255 bytes", "超长串"),
         ("tal_ms must be in", "tal_ms"),
@@ -952,8 +952,8 @@ def check_goose(cases):
         ("at least one", "空 data"),
         ("unsupported data type", "非法 type"),
         ("sqNum step", "sqNum 跳号"),
-        ("Layer 2 only", "L2-only 门"),
-        ("VLAN is out of range", "VLAN 越界"),
+        ("must not have an ip/transport carrier", "L2-only 载体门（V7b）"),
+        ("out of range [0,4095]", "VLAN 越界（V9 真实门）"),
         ("top-level goose sub-config", "presence 判死"),
         ("static four-tuple", "静态复制拒"),
     ]:
