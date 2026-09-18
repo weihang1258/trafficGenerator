@@ -542,9 +542,19 @@ def check_mcp(cases):
         hit = next((cid for cid, m in lays if m.get("transport") == t), None)
         rows.append((f"传输 {t}", hit is not None, hit or "无用例"))
     for v in MCP_VERSIONS:
+        # 证据两路：层配置显式 protocol_version，或 expect 帧十六进制解码后
+        # 出现 "protocolVersion":"<v>"（t011 降级例：客户端 2025-06-18，
+        # 服务端响应 2024-11-05 钉在 wire——wire 钉死比配置回显更强）。
+        frame_hit = any(
+            any('"protocolVersion":"' + v + '"' in bytes.fromhex(
+                f.get("hex", "").replace(" ", "")
+            ).decode("ascii", errors="ignore")
+            for f in (c.get("expect") or {}).get("frames") or [])
+            for c in cases)
         hit = next((cid for cid, m in lays
                     if m.get("protocol_version") == v), None)
-        rows.append((f"版本 {v}", hit is not None, hit or "无用例"))
+        ok = hit is not None or frame_hit
+        rows.append((f"版本 {v}", ok, hit or ("帧钉死" if frame_hit else "无用例")))
 
     # 5. state 终态 4（state.final 字段面；initial/final 同枚举面，一例代表）。
     for f in MCP_STATE_FINALS:
