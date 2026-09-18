@@ -3080,3 +3080,40 @@
 
 **执行口径：** P5 已执行（2026-09-18）：MCP 真实流程全量（`flowb_run_protocol_suite`：MCP 建任务→引擎生成→tshark 校对）103/103 全绿 + 落盘 `/tmp/mcp-pcaps/mcp/` 零孤儿（89 正例 pcap + 13 `.neg` 空包标记，t090 presence create 阶段 400 无任务）+ 门 2 四项绿 + 反查 65/65 全绿（P4 探针 9/65 的 56 MISS 已由 24 新例 + 反查证据通道补齐）。
 **实现位置：** `cases/mcp.json`（P5 改写 79 + 新建 24）。
+
+### T-SRV6-1…74 srv6.json——存量审计 + 测试点清单【D-SRV6-1 P3 先行，P4 未开工】
+
+**状态：** P3 定稿（2026-09-18；P1 矩阵复审终版见 D-SRV6-1；P4 failing 先行 5 红例未落地）
+**级别：** pcap
+**来源：** RFC 8754（§2/§2.1/§4.1/§4.1.1/§4.3.1.1/§8.2）+ RFC 8200（§3/§4.3/§4.4/§4.7/§8.1）+ RFC 8986（End* 命名）+ D-SRV6-1 §9 三子表 + `docs/protocol-designs/15-srv6-design.md` v2.0.2（历史参考）+ 现网 Linux seg6/厂商 SR Policy（待确认两项，见 D-SRV6-1 子表③）
+**存量去向（68 例 → 改写后 74 例：67 改写 + vn01 作废 + T-69…74 新建 6+1）：**
+
+| 存量 | 去向 | 依据 |
+|---|---|---|
+| tpos1…tpos21（21 正例） | 改写 `[ip,srv6]`；顶层端口删影（层内 inner 已有值 13 例）/显式迁 inner（bnd06 src_port→inner_src_port:2222）/count 删（tpos9/21 包数由 frames 承担）/tpos17 hop_by_hop→ip 层 | D-SRV6-1 §1 |
+| vn02…vn17、vn20…vn24（22 负例） | 改写层链形，锚词字面不变 | 锚词=validator 字面 |
+| vn18/vn19（mpls/gre 组合） | 改写，子映射顶层保留（链上静默忽略=legacy 同款，notes 已声明）；VR-16/17 锚词由 planner_test.go 覆盖=C 类 | D-SRV6-1 决策 B |
+| vn01（无 srv6 config） | **作废**：VR-01 链上不可达（空层翻译保底非 nil→VR-02），与 vn02 等价覆盖 | 9.14 作废+原因；mcp C 类先例 |
+| bnd01/02/04/06/10（边界 5 例） | 改写；bnd06 inner_src_port 显式迁 + 1000 帧压力锚保留 | D-SRV6-1 §6 |
+| p18/vp03/vp04/vp06（4 例） | 改写（vp03=12 键全显式对照锚点；vp04 dst_mac 顶层保留） | D-SRV6-1 决策 D |
+| new01…new14（12 例） | 改写（new03/04 内层端口回退/覆盖语义保字节） | 14.6 落盘重钉 |
+| e2e04/mf03/mf04/mf05（多流 4 例） | 改写+ip.dst 改 fixed 策略对象（静态复制门逃生口，mcp t043/44 先例）；mf04 down 双换修复后 L3/MAC 断言落盘重钉 | 9.39；D-SRV6-1 §3 |
+| exc01（1 例） | 改写 | — |
+
+**新建用例（P5 执行，锚词=validator 字面）：**
+
+| # | 测试点 | 形状/断言 | 类 |
+|---|---|---|---|
+| T-69 | VR-22：payload_protocol=none + 非空 inner_payload 拒 | validate-negative，锚词 `payload_protocol=none with non-empty inner_payload` | A |
+| T-70 | reduced 显式 false（2 段，覆盖 SegType 默认反转面） | 正例，帧断言 last_entry=1+双段全列 | A |
+| T-71 | TLV 保留类型 3 拒 | validate-negative，锚词 `reserved TLV type 3` | A |
+| T-72 | 组合流 A：HBH 链+SRH+TLV+3 段（≥3 业务动作） | 正例，帧断言 NH 链 0→43+TLV 对齐 | A |
+| T-73 | 组合流 B：down 反转+HMAC TLV+显式内层端口（≥3 业务动作） | 正例，L3 地址/List 反转/帧断言落盘钉 | A |
+| T-74 | 顶层 srv6 presence 判死（failing 先行①同源） | validate-negative，锚词 `top-level srv6 sub-config` | A |
+| T-75 | 静态复制拒（layers 静态 ip+flows=2） | validate-negative，锚词 `static four-tuple`（checkLayerChainStaticCopy） | A |
+
+**测试点清单（规范行→用例，全部既有例改写后回指）：** 8754 §2 反序→tpos2/new08；§4.1 DA→tpos1；§4.1.1 reduced→tpos3/tpos20/p18/T-70；§2.1 TLV→tpos4/5/16/vn10-15/T-71；8200 §4.3 HBH→tpos17/T-72；§4.4 HdrExtLen→vn22/new07/bnd01/02/04；§4.7 none→tpos14/T-69；§8.1 伪头→tpos11；§4.3.1.1 视角→tpos7（单用例视角链=C 类注记）；8986 End*→tpos6/10/vp06/new01/01a/01b/new14/vp04/vn16（字符串合法口径=设计 §3.4）；DR 缺省链→new05/new06/vp03；DD down→tpos13/mf04/vn24/T-73；VR 全表→子表①（D-SRV6-1）；frames→tpos9/tpos21/bnd06/new09；tag→tpos15/18/19；多流→e2e04/mf03/04/05；内层端口→new03/04。
+**正交矩阵：** 载荷 7×段数 8×reduced 3×TLV 6×方向 2×flows 3——已覆格见上，缺格无（地址族单族协议：v6 全量+v4 必拒 vn07，矩阵登记说明）。
+**复审纠正记录（2026-09-18 P1 重审）：** ①vn22 自带 TLV→VR-20 实锚；②tpos18 tag=65535 帧断言 ffff→tag 最大无缺；③last_entry 显式 tpos7/vp03 已有；④vp03=全显式对照锚点；⑤vn18/19 不可达终审（gre/mpls 解析在 switch protocol 之内）；⑥suite spec.TTL 恒 0。
+**执行口径：** P5 srv6 真实流程全量（`flowb_run_protocol_suite`：MCP 建任务→引擎生成→tshark 校对）74/74 全绿 + 落盘 `/tmp/mcp-pcaps/srv6/` 零孤儿 + 门 2 四项 + 反查 check_srv6 全绿（P4 登记）。断言包号/帧字节全部落盘重钉（down 双换修复、端口删影后 udp.srcport 以 pcap 为准）。
+**实现位置：** `cases/srv6.json`（P5 改写 67 + 作废 1 + 新建 7）。

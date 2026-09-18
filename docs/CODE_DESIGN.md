@@ -1807,3 +1807,108 @@ v6 数据面（21229）：client 60382→server 21229 首 SYN（SYN 0x0002），
 | D presence 口径 | D1 空 map 也判死；D2 仅非空判死 | D1 imap/mqtt/smtp/pop3/dns 先例（空即显式走默认）；D2 留空壳双轨 | 选 D1 |
 | E OptionalOn tls | E1 本期登记；E2 不登（M2 验证后另立） | E2 诚实：链未验不承诺；E1 若链不可跑即虚假登记 | 选 E2 |
 | F caps Default 注入 | F1 Fields 不设 Default；F2 设 Default `{}` | F2 completedConfig 注入使 RawMessage 恒非 nil，破坏"caps 缺省=省略字段"线形（16-mcp-design §4.3/规则 6）；F1 零值即设计缺省 | 选 F1 |
+
+### D-SRV6-1 SRv6 顶层 srv6 子映射迁入层内（raw-IP 终结层）+ hop_by_hop 归 ip 层【P-PIPE #10 门1】
+
+**门 1 开工对照表（§1–§15，2026-09-18 用户已批"开工"；P1 矩阵已复审，复审纠错 5 硬伤+2 不准已回填本条目；证据=文档节/代码行/用例号）：**
+
+| § | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 层链唯一真相 | 顶层旧键去向：`src_ip`→`layers[ip].src`、`dst_ip`→`layers[ip].dst`（vn07 的 v4 src 保留=VR-06 负例）、`src_port`/`dst_port`→`layers[srv6].inner_src_port/inner_dst_port`（内层端口是 SRH 载荷语义非链上传输层端口；层内已有 inner 值的 13 例删顶层影子端口；无 inner 影子的单流例 bnd06 显式迁 inner_src_port:2222）、`count`→删（2 例全 =1，包数由 frames 承担）、顶层 `srv6` 子映射→`layers[srv6]`（16 键直迁）、`hop_by_hop`→`layers[ip].hop_by_hop`（新字段，vlan 先例）、`dst_mac` 顶层保留（单例 vp04，raw-IP drive 读 spec.DstMAC；L2 字段不在扁平五键内）、`mpls`/`gre` 顶层保留（vn18/19，v1 不实现嵌套=设计 §1.4，链上与 legacy 同款静默忽略）、`group_id` 顶层保留（flow_control 家族非扁平四元组）。现状 68 例全扁平（50 例 v6+srv6/6 例带内层端口/2 例 group_id/1 例 count/1 例 HBH/1 例 dst_mac/mpls+gre 各 1/vn01 无 srv6）。目标形状：`{"layers":[{"ip":{"src":"2001:db8::1","dst":"2001:db8::2"}},{"srv6":{"segment_list":["2001:db8::2"],"seg_type":"end","payload_protocol":"udp","inner_dst_port":53,"inner_payload":"12345678"}}]}`。P4 必修：①`CheckProtoFlat` 加 srv6 presence 分支（mcp 同款文案 `[ip,srv6]`，空 map 也死）；②注册表 srv6 Fields 16 键全无 Default；③`translateTerminalConfig` 加 `case "srv6"`（复用扁平 parse 单一真相，非 JSON 往返——inner_payload []byte 的字符串语义 getByteSlice 直取原文，往返会 base64 误读）；④`pipe_gate.sh:67` presence 名单加 srv6 | srv6.json 68 例审计；`strategy_convert.go:1046`（flat 读）；`parseSRv6Config:5233`（getByteSlice 字符串=原文字节）；`registry.go` 无 srv6；`pipe_gate.sh:67` |
+| §2 策略/任务分工 | 沿框架语义；策略=一条 SR Policy 模板（segment_list 等 16 键）自带 `flow_control`；任务=多策略合跑+总封顶（`{taskID}-{strategyID}` 独立桶）；`flows=N` 同模板复制 N 条流（内层端口 0→spec.SrcPort 逐流回退=worker 12345+i 保底，e2e04 实测 12345→12444 全唯一）；`spec` 不管数量；`frames` 是单流多帧（Hop Limit 递减序列）与 flows=N 复制是两个维度，如实分开声明 | SRv6Config 无 sessions（types.go:10168）；e2e04/mf03/mf05 多流例；bnd06 frames=1000 |
+| §3 五件套 | **豁免+替代面**（单包载荷协议，设计 §1.3"不是会话状态机"）：会话表=豁免（SRH 无状态扩展头，一 flow=N 帧同模板）；事务序列=豁免（单包即全部，frames 多帧等间隔 Hop Limit 64,63,…,1,255 回绕永不 0——bnd06 帧断言）；关联关系=豁免（无控制/数据流分离）；插入位置=srv6 终结层自产完整包（raw-IP 驱动，nvgre/igmp 先例），builder 只按 L2 补 MAC；时间线=单流顺序无交错，"视角递增"按 RFC 8754 §4.3.1.1 由多条 FlowSpec 表达（设计 Frames NOTE 显式声明），单用例内不冒充。业务"多动作"以协议形态组合替代组合流：组合流A=HBH 链+SRH+TLV+多段（T-72 新建）、组合流B=down 反转+HMAC TLV+显式内层端口+多段（T-73 新建） | `planner.go:39-60`（每 flow N 帧）；`bnd06` 帧断言；设计 §1.4 |
+| §4 规范矩阵 | `docs/protocol-designs/15-srv6-design.md` v2.0.2（历史参考非权威，§7.4 保留条款）：§2 反序存储/§3 消息结构/§4 处理视角/§5 配置/§6 S1-S16 HexDump/§8 VR-01–23+DR-01–13+DD-01–07 + RFC 8754（§2/§2.1/§4.1/§4.1.1/§4.3.1.1/§8.2）+ RFC 8200（§3/§4.3/§4.4/§4.7/§8.1）+ RFC 8986（End* 命名参考）。P1 矩阵（含复审纠错终版）见本条目 §9 表 + 三张子表 | 15-srv6-design.md；本条目 §9 |
+| §5 有错必处理 | VR-01–23 全量锚词核对（子表①）：22/23 有例，仅 VR-22 缺（T-69 新建）；VR-01 链上不可达（空层翻译保底非 nil，mcp D-MCP-1 §5"config required 被翻译保底"同款 C 类）→vn01 作废合入 vn02；VR-16/17 链上不可达（gre/mpls 解析在 switch protocol :457 之内，universal 段 :380-455 不含——suite 路径子映射静默忽略与 legacy 一致，锚词由 planner_test.go 覆盖=C 类注记）；依赖：srv6 层 DependsOn ip（v6 地址判族），validator=RegisterLayerValidator("srv6", Validate) 23 分支链上同步拒 | `validate.go:13`（VR-01–23）；子表① |
+| §6 性能 | 单流包数=frames（缺省 1；bnd06=1000 压力锚，Hop Limit 回绕序列帧断言）；生成器包装 legacy Plan（channel 流式 256 缓冲，无全量收集，无锁）；SRH 序列化每包 O(段数)+TLV 对齐；翻译一次（ValidateSpec 同步期）；回归口径：srv6.json 全量 suite 耗时相对基线 ±10%；边界诚实声明：无吞吐/并发/内存目标数字（未测）；网卡未跑 | planner.go channel 256；本条目 §6 |
+| §7 三份文档 | 设计=本条目；用例=T-SRV6-1…74（P3 先行，存量 68 逐条审计去向：67 改写+vn01 作废+6 新建）；cases 回指编号；15-srv6-design.md 是历史参考非权威，冲突以本条目为准 | TEST_CASES T-SRV6-* |
+| §8 先设计后代码 | 门 1 表批复→P1 矩阵+复审→P3 清单→failing 先行 5 红例→P4 代码；无设计条目 Diff 打回 | 本条目 |
+| §9 三源+整格 | 三源：RFC 8754/8200/8986 + 15-srv6-design（历史）+ 现网（Linux seg6/厂商 SR Policy=待确认两项，确认方式：抓 Linux 内核发包+查 iproute2 文档版本）；P3 清单先行（T-SRV6 表规范行→用例逐行）；存量 68 例逐条审计（9.14）；枚举全覆盖=seg_type 29 值（重点 9+字符串合法口径，设计 §3.4）/payload 7 值全有/TLV 类型正 0,4,5,200+负 1,2,6（**3 缺→T-71**）/reduced 三态（显式 false 缺→T-70）/tag 三值/方向 2/frames 4 形/段数 0,1,2,3,5,126,127,128；正交：载荷×段数×reduced×TLV×方向×flows；地址族**单族协议**（v6 全量+v4 必拒负例 vn07，矩阵登记说明）；组合流 2 条=A（HBH+TLV+多段，T-72）B（down+HMAC+内层端口，T-73）；断言边界：包序/时序 harness 注记，SRH 帧字节落盘钉（tpos 系列已有帧 hex 先例） | T-SRV6 清单；`coverage_gate.py check_srv6`（P4 登记） |
+| §10 评审闭环 | failing 先行 5 红例（presence 拒/层键 V9 放行/层翻译上线/inner_payload 字符串字节语义/down 不双换）→改→审→测→再审；`go vet`+touched 包 `-race` | P4 |
+| §11 白话汇报 | 先一句结论 | 每次汇报 |
+| §12 动态清单 | 四元组开（框架 ip 白名单既有；ip.src/dst 动态对象=多流例静态复制门逃生口，mcp t043/44 先例；内层端口 0→spec 逐流回退=worker 保底）。业务 16 键全关（allowlist 不加 srv6 行，mcp/smtp/pop3/imap 先例）：segment_list（SR Policy 路径本体，逐流变破坏路径语义）/segments_left-last_entry（指针三态=视角选择器）/reduced（同）/flags（RFC 全 0 硬约束 VR-08）/tag-seg_type-payload_protocol（枚举选择器非逐流值）/tlv（结构化对象）/src_ipv6-dst_ipv6（与 ip 层重复的显式覆盖键）/frames-direction（帧数与方向开关）。inner_payload/inner_src_port/inner_dst_port 三键同关（载荷与内层端口逐流变破坏 FlowID 配对语义；逐流差异化走 flows=N+worker 端口保底）。无业务序号算法（SegmentsLeft 是 SRH 字段值非流序号）；四元组走框架 resolveLayerTuple | `layer_dyn.go`（无 srv6 行）；types.go:10168 字段注释 |
+| §13 schema 同步 | 注册表 srv6 Fields 16 键（一律不设 Default：mcp 决策 F 先例——SegmentList 缺省 [] 会污染空层"VR-02 必拒"线形；零值即设计缺省 SL=len-1/LE=len-1|len-2/reduced 按 seg_type/frames 1/dir up 由生成器 resolve* 承担）；ip 层加 `hop_by_hop` 字段（Type object，tpos17 承接）+ ValidateSpec ip 层回填 spec.HopByHop（finalEmit :345 既有消费点）+ 导出 `core.ParseHopByHopOptions`（layers 反向依赖禁忌，imap ParseIMAPConfigFromMap 先例）；导出 `core.ParseSRv6ConfigFromMap`（translate 复用扁平 parse 单一真相）；CheckProtoFlat 加 srv6 presence；`pipe_gate.sh` 名单加 srv6；改完重跑 schemagen（`TestLayersGeneratedMatchesRegistry` 绿） | 门 2 脚本；`generated/layers.generated.json` |
+| §14 真实流程 | srv6.json 全量绿 + 落盘 `/tmp/mcp-pcaps/srv6/` + 二进制与 HEAD 同代 + 门 2 四项（`pipe_gate.sh srv6`）；负例 `.neg.pcap` 口径沿 d323068；包号/端口/帧字节全部落盘重钉不照抄（M5/M6：①顶层端口删影后 udp.srcport 断言以落盘为准——new03 回退链 spec.SrcPort=12345 与 legacy 同值、bnd06 显式迁 inner 后 2222 保持；②tpos2 inner_dst_port:8080 层内已有值，删顶层影子不改字节；③down 双换修复后 mf04/tpos13 的 L3 地址/MAC 以落盘重钉）；黄项登记：顶层 mpls/gre/group_id 三键与 layers 并存属"已登记保留"（本条目明确不解决段），非过渡债务 | T-SRV6-* |
+| §15 三道门 | 本表即门 1（已批）；门 2 脚本（srv6 presence 红线接入：dns/mqtt/smtp/pop3/imap/mcp/srv6 七协议同口径）；门 3 挂表抽查；P5R 反查 `check_srv6` 登记（P4，锚词+枚举+多流+组合流+presence/静态复制负例） | 本条目 |
+
+**状态：** P2/P3 定稿（2026-09-18；P1 矩阵已复审纠错；P4 未开工）
+**范围（P4）：** ①`CheckProtoFlat` srv6 presence 判死分支；②`registry.go` srv6 LayerSchema（CategoryTerminal+DependsOn ip+16 Fields 无 Default）+ ip 层 hop_by_hop 字段；③`chain_planner_translate.go` `case "srv6"`（raw 层 config→core.ParseSRv6ConfigFromMap，空层→非 nil 空 config 触 VR-02）+ ValidateSpec ip 层 hop_by_hop→spec.HopByHop 回填；④`generator.go` FlowMeta.SRv6 + `chain_planner.go` isRawIPChain 加 srv6 + raw-IP drive meta.SRv6 + validateSpecBase 无端口豁免加 srv6；⑤`srv6/layer_gen.go` 新建（SRV6Generator 包装 legacy Planner.Plan：direction 强制 up 防双换、L2 MAC 沿 legacy 已换值、Plan 复用零分叉）+ RegisterLayerGenerator/Validator；⑥`core.ParseSRv6ConfigFromMap`/`core.ParseHopByHopOptions` 导出（parseSRv6Config/parseHopByHopOptions 委托，零分叉）；⑦`main.go:579` 翻转 `layers.NewChainPlanner("srv6")`；⑧schemagen 重跑；⑨`pipe_gate.sh` 名单 + `coverage_gate.py` check_srv6 登记。
+**P1 复审纠错记录（2026-09-18，防再漂）：** ①vn22 自带 TLV（type200）→VR-20 实锚撤销审计项；②tag=65535 tpos18 有帧断言 ffff→P3-1 撤销；③last_entry 显式 tpos7(2)/vp03(1) 有→P3-3 撤销；④src/dst_ipv6 全显式锚点=vp03（12 键+帧断言全钉）→P3-4 撤销；⑤vn18/19 可达性**二次纠正**：gre/mpls 解析在 switch protocol 之内+universal 段不含→suite 不可达（复审第 5 条系误纠，原始决策 B 成立）；⑥suite 路径 spec.TTL 恒 0 无注入→无字节影响。
+**明确不解决：** SR-MPLS/GRE over SRv6 嵌套（设计 §1.4 v1 声明；vn18/19 子映射链上静默忽略=legacy 同款，顶层保留并登记）；VR-16/17 链可达化（须动 universal 段解析口，收益仅 2 例锚词，planner_test.go 已覆盖=C 类）；VR-01 链可达化（空层翻译保底非 nil，mcp 同款 C 类）；End* 节点行为语义执行（RFC 8986 控制面，trafficgen 只做报文形态）；HMAC 真实计算（KeyID+占位 digest，设计 §1.4）；视角递增单用例化（多条 FlowSpec 链表达，suite 单 spec 结构=C 类注记）；ip 层 ttl/dscp/ecn 对 srv6 链生效（raw-IP 驱动不跑 ip 生成器，用例零使用，用例出现时另立）；TLS 底座组合（未验不登）。
+**依据：** `docs/protocol-designs/15-srv6-design.md` v2.0.2（历史参考：§2 编码/§3 结构/§5 配置/§6 S1-S16/§8 VR/DR/DD/§10 元数据）；RFC 8754 §2/§2.1/§4.1/§4.1.1/§4.3.1.1/§8.2；RFC 8200 §3/§4.3/§4.4/§4.7/§8.1；RFC 8986 §3.4/§4.x（命名）；代码事实：`srv6/planner.go:38-343`（Plan 全量+缺省+down 交换+ICMPv6 缺省）、`srv6/validate.go:13-197`（VR-01–23）、`srv6/serializer.go`（toCoreSRH/BuildFrame）、`core/types.go:10168-10256`（SRv6Config 16 用户键+指针三态）、`strategy_convert.go:5233`（parseSRv6Config）、`chain_planner_util.go:40`（isRawIPChain）、`chain_planner.go:1126-1173`（raw-IP 驱动）、`registry.go:974`（nvgre 先例）、`builder.go:268-277`（L3.SRH 装配）。
+
+**§9 规范矩阵（P1 复审终版，规范要求 → 业务场景 → 代码现状 → 缺口→用例）：**
+
+| 规范行 | 业务场景 | 代码现状 | 缺口→用例 |
+|---|---|---|---|
+| 8754 §2 反序存储 + §4.1 DA=首段 | S1/S2 单/多段，DstIP/List 字节断言 | 已实现（planner 反序+serializer） | tpos1/2/new08 有 |
+| 8754 §4.1.1 Reduced（省末段/LE=len-2/D-bit） | S3/tpos3/tpos20（HMAC+reduced）/p18（red 默认 true） | 已实现（resolveReduced 三态） | 显式 reduced:false 缺→T-70 |
+| 8200 §4.4 HdrExtLen 8 位 | vn22（127 段+TLV 溢出）/bnd01/02/04 边界/new07 字节 | VR-03/18/19/20 | vn22 实锚 VR-20（自带 TLV）✓ |
+| 8754 §2.1/§8.2 TLV（Pad1=0/PadN=4 自动，HMAC=5 8n 对齐，1/2/3/6 保留禁设） | tpos4/5/16/20 正 + vn10–15 负 | VR-10–13 + builder 自动填充 | type3 负例缺→T-71 |
+| 8200 §4.3 HBH 链（NH=0→43） | tpos17 一例 | builder L3.HopByHop 已支持；链上无住处 | ip 层 hop_by_hop 新字段（P4）+组合流 T-72 |
+| 8200 §4.7 No Next Header（=59 包必弃） | tpos14（none 空载荷合法） | VR-22 有码 | 负例缺→T-69（none+非空 inner 拒） |
+| 8200 §8.1 伪头 DstIP=最终目的 | tpos11（ICMPv6 S16 校验和） | planner 内联+builder 一致 | 已有 |
+| 8754 §4.3.1.1 视角（SL 递减/DstIP 更新） | tpos7（midpoint SL=1/LE=2/addr 断言）/S15 | 帧断言已钉 | 单用例视角链=C 类（多 FlowSpec 表达） |
+| 8986 §3.4 End* 行为（重点 9+字符串合法口径） | dx6/dx4/dt4/dt6/b6/b6.encaps(.red)/end.x/end.un + vn08 非法 | supportedSegTypes 29 值 | 已有（14 例 seg_type 面） |
+| 设计 §5.3 DR-01–13 缺省链 | new05（SL 缺省）/new06（SL=0 显式）/tpos3（reduced）/new03/04（内层端口回退/覆盖）/vp03（12 键全显式锚点） | resolve* 已实现 | 已有（vp03 为全显式对照） |
+| 设计 §8.3 DD down 反转 | tpos13/mf04（L3 地址/端口换向断言）+vn24（SL 显式拒） | DD-01–07+VR-23 | 已有；P4 防双换（生成器 direction 强制 up）→落盘重钉 |
+| 设计 §8.1 VR-01–23 错误面 | 子表① 22/23 有例 | validate.go 23 分支 | VR-22→T-69；VR-01/16/17 链不可达=C 类注记；vn01 作废合入 vn02 |
+| 设计 §Frames/bnd06 帧序 | frames=1/5/1000/-1 | Hop Limit 回绕序列 | bnd06 帧断言已有 |
+
+**子表① VR×用例：** VR-01 vn01（作废：链不可达，合入 vn02）；VR-02 vn02；VR-03 vn03；VR-04 vn05；VR-05 vn06；VR-06 vn07；VR-07 vn08；VR-08 vn09；VR-09 vn04+new13；VR-10 vn10；VR-11 vn11；VR-12 vn12；VR-13 vn13/14/15（type3→T-71）；VR-14 vn16（拒）/vp04（过）；VR-15 vn17/vn20/vn21；VR-16/17 planner_test.go（C 类）；VR-18/19/20 vn22+new07；VR-21 new09；VR-22→T-69；VR-23 vn24。
+**子表② 形态变体：** 段数 0/1/2/3/5/126/127/128 ｜ seg_type 12 值 ｜ 载荷 7 值 ｜ reduced 缺省/true/（false→T-70）｜ TLV HMAC/PadN/Pad1/exp200/保留负 ｜ HBH 有/无（+组合 T-72）｜ 方向 up/down ｜ frames 1/5/1000/-1 ｜ tag 零/中/最大 ｜ 内层端口 回退/覆盖 ｜ 多流 flows 10×3/100+down 多流 ｜ group_id fixed。
+**子表③ 商业行为→用例（无映射标待确认+方式）：**
+
+| 商业行为 | 出处 | 用例 | 状态 |
+|---|---|---|---|
+| Linux `ip -6 route … encap seg6 mode encap` 基础封装形 | iproute2 文档（版本待查）+抓 Linux 内核发包 | tpos1 近似 | 待确认：抓包核对 |
+| Linux `mode inline`（D-bit reduced+HMAC 面貌） | 同上 | tpos20 近似 | 待确认：同上 |
+| End.DX6/DX4/DT4/DT6 PE 解封装形 | RFC 8986 §4.4/§4.5/§4.8/§4.9+厂商文档（待查） | tpos6/new01/01a/01b | 近似；现网包待抓 |
+| SR Policy 多段显式路径（控制器下发形） | 厂商 SR Policy 文档（待查） | tpos2/S15 | 待确认 |
+| End.X 邻接改写目的 MAC 面貌 | 厂商文档（待查） | vp04 近似 | 待确认 |
+
+#### 1. 数据与接口
+- 输入：`[ip{src,dst,hop_by_hop?}, srv6{16 键}]`；srv6 层缺席键走 SRv6Config 零值→生成器 resolve* 缺省（SL=len-1、LE=len-1|len-2、reduced 按 seg_type、frames 1、dir up、PP 空→udp）。
+- 输出：每 flow frames 帧 IPv6+SRH(+HBH)+内层 L4/载荷，完整包由 srv6 终结层生成器自产（raw-IP 驱动），builder 按 L2 补 MAC/EtherType、按 spec 补 DSCP/IPFlags/FragOffset。
+- 修改点：`strategy_convert.go`（presence 分支+导出 ParseSRv6ConfigFromMap/ParseHopByHopOptions）；`registry.go`（srv6 层+ip.hop_by_hop）；`chain_planner_translate.go`（case "srv6"+ip 层 hop_by_hop 回填）；`generator.go`（FlowMeta.SRv6）；`chain_planner_chain.go`（isRawIPChain 加 srv6）；`chain_planner.go`（raw-IP meta.SRv6+validateSpecBase 豁免）；`srv6/layer_gen.go` 新建；`main.go:579` 翻转；`pipe_gate.sh`/`coverage_gate.py`。
+
+#### 2. 依赖与生命周期
+- 前置：ip 层（DependsOn；缺自动补）；无传输层（raw-IP 链，isRawIPChain 分支驱动）；validator 23 分支在 ValidateSpec 同步拒（drive 前零静默空流）。
+- 资源：无状态生成器（每 flow 一 Generate，内部 goroutine channel 256）。
+
+#### 3. 主流程与状态
+- 顺序：presence 判死（create 400）→ ValidateLayers（V9 字段面）→ validateSpecBase（srv6 无端口豁免）→ translateTerminalConfig case "srv6"（raw 层 config→ParseSRv6ConfigFromMap→spec.SRv6；空层→非 nil 空 config）→ ip 层 hop_by_hop 回填 spec.HopByHop → srv6 validator（VR-01–23）→ Plan（raw-IP 分支）→ SRV6Generator.Generate（构造等价 FlowSpec 复用 legacy Planner.Plan→逐包 Direction 强制 "up" 转 Emit）。
+- direction=down 双换修复：legacy Plan 内部已完成 MAC/IP/端口/List 反转全套换向并置 Direction="down"；raw-IP drive 对 "down" 包再换 L3 地址=双换错。生成器统一改写 Direction="up" 后转 Emit（L2 MAC legacy 已换好非空，drive l2For 跳过；L3 地址保持 legacy 换向结果），P5 落盘重钉 mf04/tpos13 断言。
+- 内层端口回退：inner_*_port=0→spec.SrcPort/DstPort（链上=mapToFlowSpec 缺省 12345/80 或 worker 逐流值）；与 legacy 扁平语义同构（顶层端口本是回退源，链上回退源恒 spec）。
+
+#### 4. 递增与覆盖规则 + 正交组合矩阵 + 业务动态清单
+- 无新序号算法（SegmentsLeft 是 SRH 字段值非流序号；Hop Limit 帧序=64-i 回绕 1..255 永不 0，legacy 既有）；四元组走框架 resolveLayerTuple。
+- 业务动态整格（§12，16 键全关+inner 三键关，理由见门 1 表 §12 行；allowlist 不加 srv6 行）。
+- 正交组合：载荷 7 × 段数 8 形 × reduced 3 态 × TLV 6 形 × 方向 2 × flows（1/10/100）。
+
+#### 5. 错误与异常
+- 新锚词：`protocol srv6 no longer accepts a top-level srv6 sub-config (move it into the srv6 layer of an [ip,srv6] layers chain)`（mcp 文案同构）。
+- 既有锚词全量沿用（23 分支字面，子表①）；failing 先行 5 红例：①presence 拒；②层 16 键 V9 放行（原 unknown field）；③层翻译上线（原 generator not implemented）；④inner_payload "12345678" 字节=原文（防 JSON 往返 base64 误读，决策 F 锁）；⑤direction=down 不双换（L3 地址=legacy 换向值）。
+
+#### 6. 性能设计与验收
+- 单包路径增量：翻译 16 键一次（ValidateSpec 同步期）；生成器=legacy Plan 包装零新增序列化；SRH 每包 O(段数+TLV)。压力锚=bnd06 frames=1000（既有）。回归口径：srv6.json 全量 suite 耗时 ±10%；诚实声明：无吞吐/并发/内存目标数字（未测）；网卡未跑。
+- pcap 验收：全量绿+落盘可复查（ipv6.nxt=43/routing.type=4/segleft/last_entry/tag 帧断言+SRH 帧 hex）；网卡未跑。
+
+#### 7. 实现顺序与回滚
+- 步骤 0（failing 先行）：`internal/core/layers/srv6_migrate_test.go` 5 红例。
+- 步骤 1 presence→2 导出 parse→3 registry+ip.hop_by_hop→schemagen→4 translate+回填→5 FlowMeta+isRawIPChain+drive+validateSpecBase→6 layer_gen+注册→7 main 翻转→8 build/vet/touched `-race`；P5：68→74 例整形+全量+落盘重钉；P6：评审+提交+清库（strategies 43/tasks 6332 删前重报）。
+- 回滚：单提交逆序 revert（P4 代码与 P5 用例分两提交）。
+
+#### 8. 验收
+- 对应 T-SRV6-1…74。完成条件：5 红例先红后绿；srv6.json 全量绿（RESULT 全量；二进制同代；门 2 四项绿）；touched 包 `-race` 绿；顶层 `srv6` 字面零残留（mpls/gre/group_id 三键登记保留）；schemagen 同步；在库 srv6 行清空复核。
+
+#### 9. 关键决策对比
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A 链形状 | A1 `[ip,srv6]` raw-IP 终结（nvgre/igmp 先例）；A2 tunnel 形 `[ip,srv6,ip,…]`（gre 先例 InnerRequired） | SRH 是外层 IPv6 的扩展头非封装隧道，内层是裸载荷非完整 IP 包；A2 语义错位且 legacy Plan 全套复用落空 | 选 A1 |
+| B vn18/19 mpls/gre 组合 | B1 正例形保留+注记（子映射链上静默忽略=legacy 同款）；B2 动 universal 段解析口转负例 | universal 段（:380-455）只收 tcp/http/dns/ftp/icmp/sctp，gre/mpls 解析在 switch protocol（:457）之内——suite 路径 spec.GRE/MPLS 恒 nil，VR-16/17 本就不可达；B2 收益仅 2 例锚词，planner_test.go 已覆盖 | 选 B1（复审第 5 条系误纠，本条目为终审） |
+| C hop_by_hop 住处 | C1 ip 层新字段（vlan 先例）+ValidateSpec 回填 spec.HopByHop；C2 srv6 层收编 | HBH 是 IPv6 扩展头非 SRH 语义（设计 §1.2 链式关系），C1 归位正确且 tcp 链同享；C2 语义错位 | 选 C1 |
+| D dst_mac 住处 | D1 顶层保留（单例 vp04）；D2 eth 层 | raw-IP drive 读 spec.DstMAC 零改动；D2 需动 drive 分支，单例不值 | 选 D1 |
+| E 内层端口住处 | E1 srv6 层 inner_*_port（门 1 已批）；E2 链上 tcp/udp 层 | 链上无传输层可住；E2 破坏 raw-IP 形状 | 选 E1 |
+| F 翻译走法 | F1 复用扁平 parse（导出 ParseSRv6ConfigFromMap，imap 先例）；F2 JSON 往返（mcp 先例） | inner_payload []byte 的字符串语义（getByteSlice 直取原文）会被 JSON 往返 base64 误读；指针三态（segments_left_ptr）也须扁平 parse 派生 | 选 F1 |
+| G validator 接入 | G1 RegisterLayerValidator（dns/nvgre 先例）；G2 仅 legacy planner.Validate | 链上 ValidateSpec 不经 legacy planner，G2 则 23 分支全漏 | 选 G1 |
