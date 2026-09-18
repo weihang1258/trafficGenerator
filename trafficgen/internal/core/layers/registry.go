@@ -1005,7 +1005,7 @@ func buildDefaultRegistry() {
 			"inner_src_port":   {Type: "uint16", Min: 0, Max: 65535},
 			"inner_dst_port":   {Type: "uint16", Min: 0, Max: 65535},
 			"tlv":              {Type: "list"},
-			"frames":           {Type: "int", Min: 0, Max: 1000000}, // 负值由 VR-21 拒
+			"frames":           {Type: "int", Min: 0, Max: 1000000}, // 负值由 V9 范围门拒（先于 VR-21）
 			"direction":        {Type: "string"},
 		},
 	})
