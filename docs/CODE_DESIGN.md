@@ -2042,11 +2042,11 @@ presence="top-level goose sub-config"；"goose appid 0x... outside GOOSE range"�
 
 ### D-SV-1 SV 顶层 sv 子映射迁入层内（L2-only 终结层）+ translate 真实现【P-PIPE #13 门1】
 
-**状态：** P1 门1 待批（2026-09-19；CORE_MEMORY 237 条逐条复审完成——全过 + 6 处发现已回填本条目：①appid 现负值 0x3999 在 V9 [16384,32767] 注册后改 create-time 拒，锚词收紧 "out of range [16384,32767]"（goose P5 复盘②口径）②period_us 判"配置面有 parse+struct、行为面生成器零消费"死键，非幽灵键（与 goose t0_ms 幽灵键不同级）③MAC 动态多流例 sv P3 补 1（goose 33 例亦缺，注记对齐缺口）④smpSynch 第三值例 P3 补 ⑤float32 通道独立断言 P3 核对 ⑥组合流=字段正交组合 2 例替代（单消息协议无动作序列，9.11 豁免+替代面）。缺口立项 4：P4 四件套（registry 15 键/translate case/presence 分支/门登记）+ P5 改写 12 例。链路径已具备：main.go:526 翻转 + 生成器/校验器注册（sv.go:191-192）+ FlowMeta.SV carry（chain_planner_chain.go:28）+ EtherTypeSV 回填（chain_planner.go:1008）+ isL2OnlyProtocol（strategy_convert.go:224）+ static-eth 门已由 goose ⑥ 通用修带绿（TestSVChainStaticEthRejected））
+**状态：** P2 定稿（2026-09-19；门 1 已批（用户"继续"）；CORE_MEMORY 237 条逐条复审完成——全过 + 6 处发现已回填本条目：①appid 现负值 0x3999 在 V9 [16384,32767] 注册后改 create-time 拒，锚词收紧 "out of range [16384,32767]"（goose P5 复盘②口径）②period_us 判"配置面有 parse+struct、行为面生成器零消费"死键，非幽灵键（与 goose t0_ms 幽灵键不同级）③MAC 动态多流例 sv P3 补 1（goose 33 例亦缺，注记对齐缺口）④smpSynch 第三值例 P3 补 ⑤float32 通道独立断言 P3 核对 ⑥组合流=字段正交组合 2 例替代（单消息协议无动作序列，9.11 豁免+替代面）。依赖链判定终审 + 设计八节 + 决策表 A–F 定稿见下；P3 未开工。缺口立项 4：P4 四件套（registry 15 键/translate case/presence 分支/门登记）+ P5 改写 12 例。链路径已具备：main.go:526 翻转 + 生成器/校验器注册（sv.go:191-192）+ FlowMeta.SV carry（chain_planner_chain.go:28）+ EtherTypeSV 回填（chain_planner.go:1008）+ isL2OnlyProtocol（strategy_convert.go:224）+ static-eth 门已由 goose ⑥ 通用修带绿（TestSVChainStaticEthRejected）。在库基线（P2 时点）：sv tasks 314 + strategies 8（P6 删前重报）
 
 **权威链（§7）：** 标准=IEC 61850-9-2/-9-2LE（4.10 官方规范口径）→ 设计=本条目（权威；24-sv-design.md 保留历史参考，仅作 transcription 来源）→ 代码 → 测试。字节事实的标准证据=IEC 61850-9-2 经 libiec61850 `sv_publisher` + Wireshark `packet-sv.c` 双转录交叉（历史 §2；BuildPayload 注释 "tests/sv.json 1.5=0x3fc00000" 即 IEEE 754 转录锚）。
 
-**依赖链判定（P1 预判，P2 定稿复核）：**
+**依赖链判定（P1 预判→P2 定稿终审）：**
 
 | # | 断链层 | 判定 | 处置 |
 |---|---|---|---|
@@ -2074,6 +2074,61 @@ presence="top-level goose sub-config"；"goose appid 0x... outside GOOSE range"�
 | §13 schema 同步 | registry sv Fields 15 键全无 Default（mcp 决策 F 谱系；appid {uint16,Min 16384,Max 32767}/conf_rev {uint32,Max}/samples_per_cycle {uint16,Max 65535}（≥1 留 validator锚）/smp_synch {uint8}/smp_rate {uint16}/period_us {int 无界 V9 skip}/count {int,Max 1000000}/vlan_id {uint16,Max 4095}/vlan_priority {uint8,Max 7}/sv_id-dat_set string/double_send-vlan_enabled bool/dst_mac mac/data list）；validator 文案零改动（P4 不碰 sv.go）；改完重跑 schemagen（TestLayersGeneratedMatchesRegistry 绿） | 门 2 脚本；generated/layers.generated.json |
 | §14 真实流程 | sv.json 全量绿 + 落盘 `/tmp/mcp-pcaps/sv/` + 二进制与 HEAD 同代 + 门 2 四项（pipe_gate.sh sv）；负例 .neg.pcap 口径沿 d323068（presence/appid 超早拒绝无落盘=既有行为）；包号/smpCnt/帧字节全部落盘重钉不照抄（14.6：12 例改写先跑拿 pcap 再钉，smp_seq/double_send/wrap 的 smpCnt 序列断言以落盘为准） | T-SV-* |
 | §15 三道门 | 本表即门 1（待批）；门 2 脚本（pipe_gate.sh:67 名单+sv，八协议同口径）；门 3 挂表抽查；P5R 反查 check_sv 登记（P4，锚词+枚举+MAC 动态+presence/static/carrier 负例） | 本条目 |
+
+#### 1. 文件清单（P2 定稿）
+- Modify: `trafficgen/internal/core/layers/registry.go:707`——sv 行补 Fields 15 键（sv_id/dat_set string、appid {uint16, Min 0x4000, Max 0x7fff}、conf_rev {uint32, Min 0, Max 4294967295}、samples_per_cycle {uint16, Min 0, Max 65535}、smp_synch {uint8, Min 0, Max 255}、smp_rate {uint16, Min 0, Max 65535}、period_us {int}（无 Min/Max=V9 跳过口径）、data list、count {int, Min 0, Max 1000000}、dst_mac mac、double_send/vlan_enabled bool、vlan_id {uint16, Min 0, Max 4095}、vlan_priority {uint8, Min 0, Max 7}）——**一律无 Default**（决策 F）
+- Modify: `trafficgen/internal/core/layers/chain_planner_translate.go`——`case "sv"`（case "goose" :725 邻位）：`if spec.SV == nil` 层优先（引擎直调不覆盖，goose 同款）；completedConfig + configUint16/configUint32/configUint8/configString/configBool/configUint64 逐键；data 槽位下钻——inst_mag **有符号**走原始数值断言 switch int/float64 双臂（configUint64 拒负不可用，决策 D）：`d.InstMag = int32(f)`，typ=="float32" 同源 `d.InstMagF = float32(f)`；quality presence→`HasQuality=true`（parse:7583 口径）+ configUint64→Quality。空层 `{}` 翻译出零配置→validator 首命中 `svID==""` → "sv svID is required"（"sv config is required" 仅 spec.SV==nil 命中，翻译后不可达=C 类，mcp/goose 空层保底同款）
+- Modify: `trafficgen/internal/core/strategy_convert.go`——CheckProtoFlat sv presence 分支（goose :7715 后追加，空 map 也死）
+- Modify: `trafficgen/tools/pipe_gate.sh:67`（名单+sv）、`trafficgen/tools/coverage_gate.py`（check_sv 登记）
+- Modify: `trafficgen/schemas/v1/generated/layers.generated.json`（schemagen 重跑，13.19）
+- Modify: `trafficgen/test/protocol_pcap/cases/sv.json`（12 例改写+新例，T-SV 权威，P5）
+- Test: `trafficgen/internal/core/layers/sv_migrate_test.go`（红例族 4 项）
+- **零改动**：`internal/protocol/sv/sv.go`（validator/生成器/BuildPayload 既有，字节事实不动）、`internal/core/types.go`（SVConfig/SVData 既有）
+
+#### 2. 接口签名
+- presence 锚词：`protocol sv no longer accepts a top-level sv sub-config (move it into the sv layer of an [eth,sv] layers chain)`（goose/srv6/fins 同款家族，空 map 也死，CheckProtoFlat goose 分支后追加）
+- translate 签名（goose 手工逐键同款）：`raw := term.Config`（p.chain 原始层 config）→ `cfg := completedConfig(s, term.Config)`（标量补全；本层 15 键零 Default，补全即原值）→ `spec.SV = &core.SVConfig{...}` 逐键 + data 下钻 `SVData{Name, Type, InstMag int32(f), InstMagF float32(f)|type 分流, Quality, HasQuality}`
+- V9 边界锚词：appid `out of range [16384,32767]`（create-time 先火，② 终审）；vlan_id `out of range [0,4095]`；validator 9 锚词原样（sv.go:23-50 零改动）
+
+#### 3. 主流程
+create 路径：ValidateStrategy → shape → semantic：ValidateLayers（V9 15 键+appid 语义边界）→ CheckProtoFlat sv presence（P4）→ checkLayerChainStaticCopy（flows>1 时 eth 显式标量拒，semantic.go:229 既有）→ 400 同文案 REST/MCP。
+任务路径：mapToFlowSpec l2Only（strategy_convert.go:279）→ parseLayerDyn（eth MAC 动态对象→LayerDyn）→ ChainPlanner.ValidateSpec：validateSpecBase L2-only 豁免（chain_planner.go:499/:567）→ translateTerminalConfig `case "sv"`（spec.SV==nil 才翻译）→ protocolValidator（RegisterLayerValidator sv.go:192，9 分支）→ carrier 门（complete.go:352 V7b `[ip,sv]` 拒）→ Plan L2-only 分支（chain_planner.go:992 分支内 :1008 EtherTypeSV 回填+L3 清零）→ Generator.Generate（req.Meta.SV 经 flowMetaFor chain_planner_chain.go:28 carry；count 帧 smpCnt=(i/step)%SamplesPerCycle，sv.go:179）。
+MAC 路径：src——链 drive `if pkt.L2.SrcMAC == ""` 时 l2For 补（生成器 packet() 已设 SrcMAC=req.Meta.SrcMAC 恒非空，l2For 不覆盖；goose 同款）；动态对象→worker resolveLayerTuple（layer_dyn.go:741 genMAC(i)→spec.SrcMAC）→Meta.SrcMAC→每帧。dst——层内 sv.dst_mac→sc.DstMAC→packet()（空则组播缺省）。
+
+#### 4. 增量步骤（failing 先行，review→test→fix→review）
+`sv_migrate_test.go` 红例族 4 项（goose_migrate_test.go 同构，package layers_test，import sv 包 init）：
+① `TestSVChain_FlatPresenceRejected`——CheckProtoFlat("sv", {layers, sv:{}}) 返回含 "top-level sv sub-config"（空 map 也死）
+② `TestSVChain_LayerFieldsAccepted`——15 键 ValidateLayers(raw, "sv") 放行（appid 取 16384 边界值）
+③ `TestSVChain_LayerTranslateSmpSeq`——NewChainPlannerFromChain("sv", [eth, sv{appid:16384, sv_id, conf_rev:1, samples_per_cycle:80, data:[{name:"a",type:"int32",inst_mag:100}], count:3}]) → Validate+Plan → 3 帧 smpCnt 0,1,2（payload tag 0x82 最小编码解析，gooseStSq 同构 helper）
+④ `TestSVChain_AppidBelowRangeRejected`——ValidateLayers appid 16383 → 含 "out of range [16384,32767]"
+（V9 对 eth 显式标量放行的正交锁已在 goose_migrate_test.go TestSVChain_StaticEthRejected 恒绿，不重写）
+步骤 2：registry Fields+translate case+presence 分支+pipe_gate/coverage_gate 登记+schemagen 重跑 → 4 红转绿。
+步骤 3（P5）：cases 改写 12 例+新例（P3 清单驱动）→ suite 全量 → 门 2 四项。
+
+#### 5. 错误锚词（用例 error_contains 字面值）
+presence="top-level sv sub-config"；V9 appid="out of range [16384,32767]"；V9 vlan_id="out of range [0,4095]"；static="static four-tuple"；carrier="must not have an ip/transport carrier"；validator 全字面（P5 按真实执法门锚）：`sv svID is required and must be <=255 bytes`/`sv confRev must be non-zero`/`sv samples_per_cycle must be >= 1`/`sv smpSynch must be 0, 1 or 2`/`sv data is required`/`sv data type %q unsupported; only int32 and float32 are supported`/`sv is Layer 2 only and must not use IP or transport fields`。appid validator 锚词（`outside SV range 0x4000-0x7fff`）注册后对**非零**越界值被 V9 遮蔽（0x3fff→V9 create-time 拒）；**显式 0 仍达 validator**（V9 u==0 放行语义，complete.go:315-320，goose 复盘②同款分级注记）——validator 文案保留 sv.go 零改动，P3 落例按值分派锚词。
+
+#### 6. 性能设计与验收
+单流包数=count（缺省 1，sv.go:167-170）；double_send 时 step=2（总帧数恒 n，两帧共享一 smpCnt）；生成器循环直发 Emit（sv.go:162-184，无缓冲聚合、无锁、channel 流式框架既有）；每帧 O(通道数) 序列化（BuildPayload 单遍，quality 布局分支 O(1)）；翻译一次（ValidateSpec 同步期）。回归口径：sv.json suite 耗时相对基线 ±10%。两路验收：pcap 全量绿+落盘（/tmp/mcp-pcaps/sv/）；网卡路未跑如实声明。无承诺数字（未测，不编造，goose 同款）。
+
+#### 7. 顺序与回滚
+红例→registry+translate 核心→presence→门登记→schemagen→绿；P5 cases→suite。回滚粒度=单提交：translate 真实现独立（revert 回无 case=纯链不可跑旧态，非退化）；presence 独立；cases 独立。sv.go 零改动=字节事实零风险。
+
+#### 8. 验收
+对应 T-SV（P3 定稿编号）。完成条件：4 红例先红后绿；sv.json 全量绿（RESULT+二进制同代+门 2 四项）；touched 包 `-race`+vet 净；顶层 count/sv 字面零残留（**src_mac 留顶层**：goose 同款口径，非扁平五键）；schemagen 同步绿；门 1 对照表回填实际证据号 + 抽查三条（门 3）；在库 sv 行清空（P2 时点 314+8，删前重报→备份→删→复核）。
+
+#### §9' 关键决策对比（P2 定稿终审）
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A appid V9 边界 | A1 {uint16, Min 0x4000, Max 0x7fff} 注册（V9 create-time 先火）；A2 只注册类型边界 Max 65535，范围留 validator task-time | A1 goose appid [0,0x3fff] 同款——锚词对真实执法门（先火门），负例超早拒无落盘=既有行为；A2 负例落 .neg.pcap 锚 validator 字面，两协议口径分裂 | **A1**（goose 复盘②谱系） |
+| B period_us | B1 生成器实现 pacing；B2 C 类注记保留键 | B1 无包间隔断言面（9.27），实现不可验证；B2 如实注记 | **B2**（goose ⑦ 同判） |
+| C translate 走法 | A 导出 ParseSVConfigFromMap（srv6 F1 先例）；B 手工逐键（goose/dns/mqtt 先例） | A 需新导出面；sv 无 srv6 式 []byte/指针三态陷阱，15 键手工量小且 goose 一致性优先 | **B**（goose 同款） |
+| D inst_mag 有符号下钻 | A configUint64（负值静默丢弃）；B 原始数值断言 switch 双臂承接 int/float64（JSON 源恒 float64、单测 Go 字面 int 双源）→int32(f)/float32(f) | 负值是 9.8 数据场景（单测 TestBuildPayloadPreservesNegativeInt32Bytes 已锁负字节），A 破坏语义；configUint64 拒负（generator.go:571-573）不可用 | **B** |
+| E MAC 动态多流例 | A sv P3 补 1；B 不补（goose 33 例也无） | B 满足"对齐"但违背 3.14 多流覆盖；A 补齐逃生口面且链路已验证可达 | **A**（goose 侧注记不回改） |
+| F Fields 缺省 | A 全键无 Default；B 注册表带 Default | A 缺省单一真相在代码（D-MCP-1 决策 F 谱系）；validator 必填（svID/confRev）与 Default 语义冲突 | **A**（goose 同款） |
+
+
 
 #### §9 规范矩阵（P1，规范要求 → 业务场景 → 代码现状 → 缺口→用例）
 
