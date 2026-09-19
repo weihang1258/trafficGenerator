@@ -1,15 +1,23 @@
 [
   {
-    "id": "h323-q931-basic",
+    "id": "h323_smoke_01",
     "proto": "h323",
-    "summary": "H.323 (端口 1720) 冒烟：完整 TCP 握手 + Q.931 呼叫控制 SETUP → CALL PROCEEDING → FACILITY/ALERTING → CONNECT → RELEASE COMPLETE + 终止",
+    "summary": "冒烟：full 场景呼叫周期（握手+Q.931 十消息+挥手），地址住 ip 层、端口住 h323 层",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 1720,
-      "count": 1,
-      "h323": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "src_port": 12345,
+            "dst_port": 1720
+          }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -18,28 +26,768 @@
       "has_payload": true,
       "min_packets": 15,
       "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "1720"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
-        {"packet": 4, "field": "q931.message_type", "value": "0x05"},
-        {"packet": 5, "field": "q931.message_type", "value": "0x02"},
-        {"packet": 6, "field": "q931.message_type", "value": "0x62"},
-        {"packet": 7, "field": "q931.message_type", "value": "0x01"},
-        {"packet": 11, "field": "q931.message_type", "value": "0x07"},
-        {"packet": 12, "field": "q931.message_type", "value": "0x5a"},
-        {"packet": 13, "field": "q931.message_type", "value": "0x5a"}
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "1720"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.flags",
+          "value": "0x010"
+        },
+        {
+          "packet": 4,
+          "field": "q931.message_type",
+          "value": "0x05"
+        },
+        {
+          "packet": 5,
+          "field": "q931.message_type",
+          "value": "0x02"
+        },
+        {
+          "packet": 6,
+          "field": "q931.message_type",
+          "value": "0x62"
+        },
+        {
+          "packet": 7,
+          "field": "q931.message_type",
+          "value": "0x01"
+        },
+        {
+          "packet": 11,
+          "field": "q931.message_type",
+          "value": "0x07"
+        },
+        {
+          "packet": 12,
+          "field": "q931.message_type",
+          "value": "0x5a"
+        },
+        {
+          "packet": 13,
+          "field": "q931.message_type",
+          "value": "0x5a"
+        }
       ],
       "frames": [
-        {"packet": 4, "offset": 54, "hex": "03 00 00 1d 08 02 25 84 05 04 03 90 90 a3 28 0d 41 64 6d 69 6e 69 73 74 72 61 74 6f 72"},
-        {"packet": 11, "offset": 54, "hex": "03 00 00 1d 08 02 a5 84 07"},
-        {"packet": 12, "offset": 54, "hex": "03 00 00 18 08 02 25 84 5a 28 0d 41 64 6d 69 6e 69 73 74 72 61 74 6f 72"}
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "03 00 00 1d 08 02 25 84 05 04 03 90 90 a3 28 0d 41 64 6d 69 6e 69 73 74 72 61 74 6f 72"
+        },
+        {
+          "packet": 11,
+          "offset": 54,
+          "hex": "03 00 00 1d 08 02 a5 84 07"
+        },
+        {
+          "packet": 12,
+          "offset": 54,
+          "hex": "03 00 00 18 08 02 25 84 5a 28 0d 41 64 6d 69 6e 69 73 74 72 61 74 6f 72"
+        }
       ],
       "notes": [
-        "H.323 RAS 之上为 Q.931 (ITU-T Q.931 / H.225.0)：TPKT (03 len) + len u16 + 0x08 discriminator + callref 02 25 84 + message type: 0x05=SETUP, 0x02=CALL PROCEEDING, 0x62=FACILITY, 0x01=ALERTING, 0x07=CONNECT, 0x5a=RELEASE COMPLETE",
-        "f4 SETUP 含 Bearer capability (03 90 90 a3) + displayName 'Administrator' (28 0d) (H.225.0 displayIE UTF8)；callref 0x2584 发起方向 (bit7=0)，f11 CONNECT 回 0xa584 终止方向；f11 负载止于 message type (0x07)，displayIE 在 f12 RELEASE COMPLETE 前独立成帧",
-        "f6/f8-10 FACILITY 用于 H.245 地址协商；16 帧 = 3 握手 + 10 数据 + 3 终止（双 FIN + ACK）",
-        "q931.message_type 输出 0x 前缀十六进制；callref 值确定性 (0x2584)"
+        "D-H323-1 P5 改写：四元组→ip 层+h323 层端口、count 删、顶层 h323:{}→层内空；expect 断言全部等价保留（字节一致由 P5 实证）",
+        "ITU-T H.225.0 §7.3：Q.931 over TCP 1720，TPKT(RFC 1006) 包裹；full 场景 16 包/呼叫（3+10+3，代码精算）",
+        "参考 pcap 字节复刻：Display IE 'Administrator' 短帧面"
+      ]
+    }
+  },
+  {
+    "id": "h323_vn_presence",
+    "proto": "h323",
+    "summary": "T-H323-2: 顶层 h323 presence 判死（空 map 也死，icmpv6 先例）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {}
+        }
+      ],
+      "h323": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "top-level h323 sub-config",
+      "notes": [
+        "D-H323-1 §2 presence 门（create-time，无落盘）"
+      ]
+    }
+  },
+  {
+    "id": "h323_vn_static_port",
+    "proto": "h323",
+    "summary": "T-H323-3: h323 层静态端口+flows=2 拒绝（12.9 静态复制，门扩扫 h323 层）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "h323": {
+            "src_port": 12345,
+            "dst_port": 1720
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "static four-tuple",
+      "notes": [
+        "依赖链③执法洞修补实证：ip 层无显式地址时 h323 静态端口是唯一四元组真相"
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    }
+  },
+  {
+    "id": "h323_neg_role",
+    "proto": "h323",
+    "summary": "T-H323-4: role 非法（legacy Validate 真门）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "role": "gatekeeper",
+            "src_port": 12345
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid role",
+      "notes": [
+        "h323.go:125 锚词复用零新文案；task-time .neg.pcap"
+      ]
+    }
+  },
+  {
+    "id": "h323_neg_scenario",
+    "proto": "h323",
+    "summary": "T-H323-5: scenario 非法",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "scenario": "bogus",
+            "src_port": 12345
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid scenario",
+      "notes": [
+        "h323.go:135 锚词；task-time"
+      ]
+    }
+  },
+  {
+    "id": "h323_neg_calls",
+    "proto": "h323",
+    "summary": "T-H323-6: calls 负数（V9 create-time 先拦）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "calls": -1,
+            "src_port": 12345
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "not a numeric value",
+      "notes": [
+        "registry calls Min=0：负数 configUint64 失败（complete.go:318），legacy '>=0' 锚词不可达——V9 先拦口径"
+      ]
+    }
+  },
+  {
+    "id": "h323_neg_display",
+    "proto": "h323",
+    "summary": "T-H323-7: display_name 超 254 字节（legacy Validate 真门）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "display_name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "src_port": 12345
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "display_name must be <=",
+      "notes": [
+        "h323.go:145 锚词；Display IE 长度 1 字节上限；task-time"
+      ]
+    }
+  },
+  {
+    "id": "h323_scenario_tunnel",
+    "proto": "h323",
+    "summary": "T-H323-8: tunnel_only 场景（12 包=3+6+3，无 FACILITY 隧道面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "scenario": "tunnel_only",
+            "src_port": 12345
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 4,
+          "field": "q931.message_type",
+          "value": "0x05"
+        },
+        {
+          "packet": 7,
+          "field": "q931.message_type",
+          "value": "0x07"
+        },
+        {
+          "packet": 8,
+          "field": "q931.message_type",
+          "value": "0x5a"
+        },
+        {
+          "packet": 10,
+          "field": "tcp.flags",
+          "value": "0x010"
+        }
+      ],
+      "notes": [
+        "tunnel_only 骨架：SETUP/CP/ALERTING/CONNECT/RELCOMP×2=6 条 Q.931；包序落盘重钉（9.31）"
+      ]
+    }
+  },
+  {
+    "id": "h323_scenario_ras",
+    "proto": "h323",
+    "summary": "T-H323-9: ras_only 场景（8 包 UDP 1719，无 TCP 握手）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "scenario": "ras_only",
+            "ras": {
+              "enabled": true
+            },
+            "src_port": 12345
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 8,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1719"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1719"
+        }
+      ],
+      "notes": [
+        "RAS 四对：GRQ→GCF/RRQ→RCF/ARQ→ACF/DRQ→DCF（h323.go:492-499）；ras_only 跳过 TCP（h323.go:196 实证）"
+      ]
+    }
+  },
+  {
+    "id": "h323_scenario_data",
+    "proto": "h323",
+    "summary": "T-H323-10: data_only 场景（10 RTP 帧 UDP 单向）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "scenario": "data_only",
+            "media": {
+              "enabled": true
+            },
+            "src_port": 12345
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "5062"
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "5063"
+        }
+      ],
+      "notes": [
+        "frames 缺省 10（h323.go:417-419）；RTP 端口 OLC 缺省 5062/5063；全部 up 向"
+      ]
+    }
+  },
+  {
+    "id": "h323_calls_multi",
+    "proto": "h323",
+    "summary": "T-H323-11: calls=2+显式 crv=0x1000（32 包=16×2；呼叫间 CRV 0x1000→0x1001 递增）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "calls": 2,
+            "src_port": 12345,
+            "crv": 4096,
+            "display_name": "t-h323-11"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 32,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "q931.message_type",
+          "value": "0x05"
+        },
+        {
+          "packet": 20,
+          "field": "q931.message_type",
+          "value": "0x05"
+        },
+        {
+          "packet": 20,
+          "field": "frame.len",
+          "value": "79"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "03 00 00 19 08 02 10 00 05 04 03 90 90 a3 28 09 74 2d 68 33 32 33 2d 31 31"
+        },
+        {
+          "packet": 20,
+          "offset": 54,
+          "hex": "03 00 00 19 08 02 10 01 05 04 03 90 90 a3 28 09 74 2d 68 33 32 33 2d 31 31"
+        }
+      ],
+      "notes": [
+        "显式 crv=4096+display_name='t-h323-11'（9.21 枚举显式格）：呼叫1 SETUP CRV=0x1000（包4）、呼叫2=0x1001（包20），Crv+callNum（h323.go:283）——pcap 实测重钉（14.6）"
+      ]
+    }
+  },
+  {
+    "id": "h323_media_full",
+    "proto": "h323",
+    "summary": "T-H323-12: full+RTP 媒体面（18 包=16+2；RTP 插 CONNECT 后）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "media": {
+              "enabled": true,
+              "frames": 2
+            },
+            "src_port": 12345
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 11,
+          "field": "q931.message_type",
+          "value": "0x07"
+        },
+        {
+          "packet": 12,
+          "field": "udp.srcport",
+          "value": "5062"
+        },
+        {
+          "packet": 13,
+          "field": "udp.srcport",
+          "value": "5062"
+        },
+        {
+          "packet": 14,
+          "field": "q931.message_type",
+          "value": "0x5a"
+        },
+        {
+          "packet": 15,
+          "field": "q931.message_type",
+          "value": "0x5a"
+        }
+      ],
+      "notes": [
+        "Media 在 CONNECT 后 RELCOMP 前插帧（h323.go:336-338 实证序）：11=CONNECT、12-13=RTP、14-15=RELCOMP；包序首跑校准"
+      ]
+    }
+  },
+  {
+    "id": "h323_dst_default",
+    "proto": "h323",
+    "summary": "T-H323-13: 空 h323 层 dst_port 缺省 1720（translate 镜像 setDefaultDstPort）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {}
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 16,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "1720"
+        }
+      ],
+      "notes": [
+        "决策 B/C：dst_port 缺席→1720（strategy_convert.go:933 同款）；src_port 缺席单流=0（tcp 层同口径'无默认须显式'）"
+      ]
+    }
+  },
+  {
+    "id": "h323_port_dyn",
+    "proto": "h323",
+    "summary": "T-H323-14: h323.src_port 动态 inc+flows=2（逐流端口池，决策 E1）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "inc",
+              "range": [
+                "10.0.1.1",
+                "10.0.1.2"
+              ],
+              "step": 1
+            },
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "src_port": {
+              "strategy": "inc",
+              "range": [
+                30000,
+                30001
+              ],
+              "step": 1
+            },
+            "dst_port": 1720
+          }
+        }
+      ],
+      "group_id": {
+        "strategy": "fixed",
+        "value": "h323-port-dyn"
+      }
+    },
+    "expect": {
+      "packet_count": 32,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "30000"
+        },
+        {
+          "packet": 16,
+          "field": "tcp.srcport",
+          "value": "30000"
+        },
+        {
+          "packet": 17,
+          "field": "tcp.srcport",
+          "value": "30001"
+        },
+        {
+          "packet": 32,
+          "field": "tcp.srcport",
+          "value": "30001"
+        },
+        {
+          "packet": 1,
+          "field": "ip.src",
+          "value": "10.0.1.1"
+        },
+        {
+          "packet": 17,
+          "field": "ip.src",
+          "value": "10.0.1.2"
+        }
+      ],
+      "notes": [
+        "逐流成对序（group_id 固定单 worker FIFO，icmpv6 T-11 先例）：流1=包1-16 源口 30000、流2=包17-32 源口 30001；首跑校准"
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    }
+  },
+  {
+    "id": "h323_role_callee",
+    "proto": "h323",
+    "summary": "T-H323-15: role=callee（握手恒 client 发起；Q.931 面方向翻转）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "role": "callee",
+            "src_port": 12345
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 16,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "ip.src",
+          "value": "10.0.0.1"
+        },
+        {
+          "packet": 4,
+          "field": "ip.src",
+          "value": "20.0.0.1"
+        },
+        {
+          "packet": 4,
+          "field": "ip.dst",
+          "value": "10.0.0.1"
+        },
+        {
+          "packet": 4,
+          "field": "frame.len",
+          "value": "83"
+        },
+        {
+          "packet": 5,
+          "field": "q931.message_type",
+          "value": "0x02"
+        },
+        {
+          "packet": 11,
+          "field": "q931.message_type",
+          "value": "0x07"
+        },
+        {
+          "packet": 13,
+          "field": "q931.message_type",
+          "value": "0x5a"
+        }
+      ],
+      "notes": [
+        "role 只翻 Q.931 消息方向与 CRV 标志（h323.go:305-310）；握手恒 spec src→dst（h323.go:288-291）",
+        "tshark 方向性伪影（首跑校准）：down 侧发起的 Q.931（ip.src=20.0.0.1）不出 message_type 字段——字节结构由 frame.len 83/78 对称+方向翻转断言承担"
+      ]
+    }
+  },
+  {
+    "id": "h323_rewrite_addr",
+    "proto": "h323",
+    "summary": "T-H323-16: rewrite_addr=true（长度保持重写；frame.len 序列与 T-1 全等）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "h323": {
+            "rewrite_addr": true,
+            "src_port": 12345
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 16,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "frame.len",
+          "value": "83"
+        },
+        {
+          "packet": 11,
+          "field": "frame.len",
+          "value": "83"
+        }
+      ],
+      "notes": [
+        "长度保持重写（IP 4B/port 2B 原位替换，types.go:5493）；frame.len 83/83 与 smoke 实测全等（首跑校准）",
+        "字节级断言=C 类（模板内嵌 IP 无 tshark 字段面+h323_test.go 零覆盖实证）"
+      ]
+    }
+  },
+  {
+    "id": "h323_v6",
+    "proto": "h323",
+    "summary": "T-H323-17: v6 地址对照（9.24 对称；无族强制两族均可跑）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "h323": {
+            "src_port": 12345
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 16,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ipv6.src",
+          "value": "2001:db8::1"
+        },
+        {
+          "packet": 1,
+          "field": "ipv6.dst",
+          "value": "2001:db8::2"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "1720"
+        }
+      ],
+      "notes": [
+        "legacy Validate 无族强制（仅 net.ParseIP）；EtherType 0x86DD 由 EtherTypeFor 选择"
       ]
     }
   }

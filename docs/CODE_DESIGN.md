@@ -2308,7 +2308,14 @@ create：ValidateStrategy→ValidateLayers（V9 6 键）→CheckProtoFlat presen
 
 ### D-H323-1 H.323 层链化：raw 自驱终层（三平面整包 relay）+ 端口住层【P-PIPE #15 门1】
 
-**状态：** P2 定稿（2026-09-19；门 1 已批（用户"继续"）+ 待批三项同批（1.2 偏离批、端口动态开）；CORE_MEMORY 240 条逐条复审完成——**对抗重审 4 轮，抓到并改正 4 处事实错误**（Validate 锚词 6→8、parse 文案 6→7、包数公式手算错、在库数 94→95），末轮净；设计八节+决策 A-E 见下；P3 未开工）。现状：legacy planner 完整（h323.go:159，三平面一体：Q.931/TCP 1720 TPKT、H.245 隧道于 FACILITY、RAS/UDP 1719、RTP/UDP，自带握手/挥手与 seq/ack，参考 pcap 字节复刻 types.go:5455-5472），main.go:563 直挂 legacy，**层链四件全缺**（registry 无行/translate 无 case/FlowMeta 无字段/无 generator——grep 实证含 generator.go rc=1）。用例 1 例纯扁平（四元组+count+顶层 h323:{}）→P5 改写。
+**状态：** 已验收（2026-09-19，P-PIPE #15 收官；自审 2 轮净）。**P4**（7bc70a8）：6 红例先红后绿——红例③当场抓出包数公式手算错（15→16/呼叫，Q.931 实为 10 条）与 msg_type 偏移错（payload[8] 非 [7]），红例⑥直证静态复制门漏扫执法洞；touched 包 -race 净。**P5**：h323.json 17 例（改写 1+新建 16）真实流程全量绿 ×3 连跑，落盘 /tmp/mcp-pcaps/h323/（17 例 14 文件：11 正例 pcap+6 负例 .neg.pcap）；首跑 13/17 后实钉重校 3 例（T-11 显式 crv=0x1000→0x1001 逐呼叫递增 frame pin、T-15 tshark Q.931 方向性伪影——down 侧消息不出 message_type、T-16 frame.len=83/83 与 smoke 全等证长度保持重写）+T-6 锚词校准（V9 先拦，registry Min=0 使 legacy ">=0" 不可达）；ras_only 合成 stub 触发 tshark H.225.0 malformed=按字节证据（8×60B 五元组逐包验证）加白名单条目 h323_scenario_ras（legacy 合成器字节合同，先例 doip_userdata_empty）；门2 四项绿（反查 24/24）；回归 icmpv6/srv6/sv/goose 全绿。**P6**：在库清空 tasks 216+strategies 15→0/0（备份 /tmp/trafficgen-backup-h323-p6-redo-20260919-172347.db；**事故注记**：首次清库误在错误 cwd 的相对路径上执行（sqlite3 静默打开仓库根旧库读出 0），因对账（总行数 -216 吻合）复核发现后以绝对路径重做——删后总行数 241478→241262 精确对账）。
+
+**门3 抽查三条（门1 表抽 §1/§5/§12 行）：**
+1. §1 层链唯一真相 → registry.go h323 行（CategoryTerminal+DependsOn ip+Fields 10 键无 Default）+ 用例 h323_smoke_01 层形 `[{"ip":{...}},{"h323":{"src_port":12345,"dst_port":1720}}]`，存量断言字节等价保留（suite PASS 实证）✓
+2. §5 有错必处理（锚词族）→ layer_gen.go validateLayer（required 保底+legacy Validate 复用）+ 用例 h323_neg_role error_contains `invalid role`（h323.go:125 零新文案，suite PASS 实证）✓
+3. §12 动态清单（业务 8 键全关+端口 2 键开）→ layer_dyn.go allowlist "h323" 行（红例⑤实证）+ 用例 h323_port_dyn src_port inc 对象逐流异（32 包源口 30000/30001 pcap 实钉）✓
+
+（原 P2 定稿记录：门 1 已批（用户"继续"）+ 待批三项同批（1.2 偏离批、端口动态开）；CORE_MEMORY 240 条逐条复审完成——**对抗重审 4 轮，抓到并改正 4 处事实错误**（Validate 锚词 6→8、parse 文案 6→7、包数公式手算错、在库数 94→95），末轮净；设计八节+决策 A-E 见下；P3 未开工）。现状：legacy planner 完整（h323.go:159，三平面一体：Q.931/TCP 1720 TPKT、H.245 隧道于 FACILITY、RAS/UDP 1719、RTP/UDP，自带握手/挥手与 seq/ack，参考 pcap 字节复刻 types.go:5455-5472），main.go:563 直挂 legacy，**层链四件全缺**（registry 无行/translate 无 case/FlowMeta 无字段/无 generator——grep 实证含 generator.go rc=1）。用例 1 例纯扁平（四元组+count+顶层 h323:{}）→P5 改写。
 
 **架构裁定（门1 已批）：** **A1 [ip,h323] raw 自驱终层整包 relay**（icmpv6 包装法 + force-up 防双换）。可行性三点实证：①builder `if l4Len>0 {writeL4}` 链形无关（builder.go:404）；②raw-IP relay Emit→out 通道（chain_planner.go:1200）；③legacy 包自带 L2/L3/L4（协议 6/17 混合，h323.go:251/:460/:546），生成器逐包给全、drive 只补缺省。A2（事件重写）否决：RAS/RTP UDP 面单链无处安放、seq/ack 换框架破字节契约。端口住 h323 层（1.2 字面偏离已批，srv6 inner 端口先例）。
 

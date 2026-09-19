@@ -499,6 +499,16 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 	// 经 fins_multi_read 的 frames 原始断言校验。
 	case caseID == "fins_multi_read":
 		return true
+	// H.323 ras_only RAS stub 伪影（2026-09-19，字节级已对
+	// /tmp/mcp-pcaps/h323/h323_scenario_ras.pcap 验证）：legacy RAS 面发
+	// 最小合成 stub（4B 头 [seqno 0x00+type] + [0x00 0x01 协议标识] +
+	// 4B GK IP，h323.go:503-509），非完整 PER 编码——types.go:5471 注记
+	// "RAS has no reference pcap"。packet-h225.c 按 H.225.0 §7 PER 解析
+	// 8 字节载荷 → 每帧 "[Malformed Packet: H.225.0]"（判得对：确非完整
+	// RAS 消息）。帧结构面正确（8×60B，五元组 12345↔1719、GK 10.12.184.53
+	// 双向交替逐包验证），是 legacy 合成器字节合同，非帧缺陷。
+	case caseID == "h323_scenario_ras":
+		return true
 	// 5. RTMP/XMPP/TLS dissector 对字节级合法帧的伪影（2026-08 冒烟用例，
 	//    已对探针 pcap 验证）：RTMP dissector 的 AMF 递归守卫在嵌套 _result
 	//    对象上触发（"Loop in AMF dissection"），但 AMF 编码合法（string

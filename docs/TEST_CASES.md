@@ -627,6 +627,7 @@
 ### T-FTP-21 扩展模式失败分支 + IPv6 结构对称（RFC 2428 §5）
 
 **状态：** 已通过（实现提交 22a7d56；141/141 绿，断言按真实 pcap 钉死）（D-FTP-4 §3/§5/§7 步骤3；套件）
+**P5 校准注记（已验收实际形状）：** ①T-6 锚词=V9 先拦 `not a numeric value`（registry calls Min=0，legacy ">=0" 不可达）；②T-11 显式 crv=0x1000+display_name='t-h323-11'（9.21 显式格），CRV 0x1000→0x1001 逐呼叫递增 frame pin 实测（包4/包20 offset 54）；③T-15 tshark Q.931 方向性伪影：down 侧发起的消息不出 message_type 字段，方向翻转由 ip.src 翻转+frame.len 83/78 对称承担；④T-16 frame.len 83/83 与 smoke 全等=长度保持重写实证，字节级=C 类；⑤ras_only 的 legacy 合成 stub（8×60B）触发 tshark H.225.0 malformed=字节证据白名单条目 h323_scenario_ras（pcaptest verify.go，先例 doip_userdata_empty）。
 **级别：** pcap
 **来源：** RFC 2428 §5；CORE_MEMORY §9 地址族对称（双会话/多流格）
 **目标：** ①EPSV→500 无数据通道（控制面失败，回退语义不断言重协商，只断 500+无数据）；②EPRT→522 同理；③IPv6 双会话（被动下载+主动上传各一会话，对标 ftp_sessions_mixed_mode）；④IPv6 多流（flows=2，每流一会话挂数据通道，对标 ftp_multiflow_multisession）。
@@ -3330,7 +3331,7 @@
 
 ### T-H323-1…17 h323.json——存量审计 + 测试点清单【D-H323-1 P3 定稿，P4 未开工】
 
-**状态：** P3 定稿（2026-09-19；存量 1 例逐条审计改写（等价迁移：src/dst→ip 层、端口→h323 层、count 删、顶层 h323:{}→层内空；fields 断言保留等价——包数 15/握手 flags/Q.931 消息序不变）+ 新建 16 例=17 例。锚词按真实执法门：create-time（presence/static 2 门无落盘）vs task-time validator（role/scenario/calls/display 4 门 .neg.pcap——legacy Validate 复用零新文案 h323.go:102-157）。包数公式代码精算（P4 红例③修正）：full=16/呼叫（3 握手+**10** Q.931+3 挥手——Q.931 序列 SETUP/CP/F↓/ALERTING↓/F↑/F↓/F↑/CONNECT↓/RELCOMP↑/RELCOMP↓=10 条，h323.go:322-341 逐行计数；存量例 min_packets=15 掩盖精确值）、tunnel_only=12（3+6+3）、ras_only=8（GRQ/GCF/RRQ/RCF/ARQ/ACF/DRQ/DCF，h323.go:492-499 实证）、data_only=frames（缺省 10）。**legacy 行为事实注记：Ras.Enabled 仅 ras_only 场景生效（full+Ras 不发 RAS 面，h323.go:194-199 分支实证）；Media.Enabled 在 full（CONNECT 后插帧）与 data_only 两处生效**）
+**状态：** 已验收（2026-09-19，P5 全量绿 ×3 连跑+门2 四项+反查 24/24；P6 清库 216+15→0/0）。存量 1 例逐条审计改写（等价迁移：src/dst→ip 层、端口→h323 层、count 删、顶层 h323:{}→层内空；fields 断言保留等价——字节一致 suite 实证）+ 新建 16 例=17 例。锚词按真实执法门：create-time（presence/static 2 门无落盘）vs task-time validator（role/scenario/calls/display 4 门 .neg.pcap——legacy Validate 复用零新文案 h323.go:102-157）。包数公式代码精算（P4 红例③修正）：full=16/呼叫（3 握手+**10** Q.931+3 挥手——Q.931 序列 SETUP/CP/F↓/ALERTING↓/F↑/F↓/F↑/CONNECT↓/RELCOMP↑/RELCOMP↓=10 条，h323.go:322-341 逐行计数；存量例 min_packets=15 掩盖精确值）、tunnel_only=12（3+6+3）、ras_only=8（GRQ/GCF/RRQ/RCF/ARQ/ACF/DRQ/DCF，h323.go:492-499 实证）、data_only=frames（缺省 10）。**legacy 行为事实注记：Ras.Enabled 仅 ras_only 场景生效（full+Ras 不发 RAS 面，h323.go:194-199 分支实证）；Media.Enabled 在 full（CONNECT 后插帧）与 data_only 两处生效**）
 **级别：** pcap
 **来源：** ①标准=ITU-T H.225.0 §7/§7.3+Q.931+RFC 1006+RFC 3550（4.10 口径）②设计=D-H323-1 ③现网=参考 pcap 转录（types.go:5466，直呼无 GK）
 **存量去向（1 例 → P5 改写后 17 例）：**

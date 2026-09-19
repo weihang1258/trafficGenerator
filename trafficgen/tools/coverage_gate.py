@@ -609,7 +609,7 @@ def check_h323(cases):
         ("static four-tuple", "静态端口拒"),
         ("invalid role", "role 非法（legacy 真门）"),
         ("invalid scenario", "scenario 非法（legacy 真门）"),
-        ("calls must be >= 0", "calls 负数（legacy 真门）"),
+        ("not a numeric value", "calls 负数（V9 先拦真门——P5 校准：registry Min=0 使 legacy '>=0' 锚词不可达）"),
         ("display_name must be <=", "display 超长（legacy 真门）"),
     ]:
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
