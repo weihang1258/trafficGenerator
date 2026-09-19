@@ -3368,3 +3368,39 @@
 **断言边界（9.27）：** 包间隔/时间差无断言面；RTP payload 字节（G.711 静音模板）frame.len 面可钉、深字节无字段面注记。
 **执行口径：** P5 h323 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/h323/`+门 2 四项+反查 check_h323（P4 登记）。断言数值落盘重钉（14.6/9.31）；存量 fields 断言保留等价（包数/flags/消息序/端口不变）。
 **实现位置：** `cases/h323.json`（**17 例**：改写 1+新建 16）。
+
+### T-MPLS-1…13 mpls.json——存量审计 + 测试点清单【D-MPLS-1 P3 定稿，P4 未开工】
+
+**状态：** P3 定稿（2026-09-19；存量 1 例逐条审计改写（等价迁移：count 删、顶层 mpls→层内、补 ip 层显式地址+mpls 层显式端口 12345/80——存量靠扁平缺省 10.0.0.1/20.0.0.1/12345/80，fields/frames 断言保留等价字节）+ 新建 12 例=13 例。锚词按真实执法门：create-time（presence/static 2 门无落盘）vs task-time validator（label 上界/TC 上界/S 栈底/InnerProto/Direction/Frames 6 门 .neg.pcap——legacy Validate 复用零新文案 planner.go:40-95）。包数=frames（缺省 1，模板面每流帧数）。**链路径语义注记：inner_proto=0（auto）在链上恒解析为 UDP（spec.TCP 链不可达）——枚举格 0 与 17 等价，0/17 双格仍各建一例钉合同**）
+**级别：** pcap
+**来源：** ①标准=RFC 3031 §3.12+RFC 3032 §2.1/§3.1/§3.9/§3.10+RFC 5462 ②设计=D-MPLS-1 ③现网=探针 pcap（/tmp/probe-iana/mpls.pcap，存量 notes 验证记录）
+**存量去向（1 例 → P5 改写后 13 例）：**
+
+| 存量 | 去向 | 说明 |
+|---|---|---|
+| mpls_single_label_ipv4 | 改写 | count 删、顶层 mpls→layers[mpls]、补 ip 层 src/dst 显式+mpls 层 src_port/dst_port 显式；fields（eth.type 0x8847/mpls.label 100/exp 0/bottom 1/ttl 64/udp.dstport 80）+frames（offset 14 `00 06 41 40`）全部保留等价——字节一致由 P5 实证 |
+
+**新建例清单（T-2…13）：**
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| 顶层 mpls presence 判死 | T-2 mpls_vn_presence | A（负例，锚词 `top-level mpls sub-config`；create-time） |
+| mpls 层静态端口+flows=2 拒 | T-3 mpls_vn_static_port | A（负例，锚词 `static four-tuple`；形状=[ip{},mpls{ports}] 最小证明形；create-time） |
+| label 超 20bit | T-4 mpls_neg_label | A（负例，label:0x100000→`exceeds 20 bits`；.neg.pcap） |
+| TC 超 3bit | T-5 mpls_neg_tc | A（负例，tc:8→`exceeds 3 bits`；.neg.pcap） |
+| S 位非栈底 | T-6 mpls_neg_sbit | A（负例，labels:[{label:1,s:true},{label:2}]→`not the bottom of stack`；.neg.pcap） |
+| InnerProto 非法 | T-7 mpls_neg_innerproto | A（负例，inner_proto:6→合法!改 1→`InnerProto 1 not in supported list`；.neg.pcap） |
+| Direction 非法 | T-8 mpls_neg_direction | A（负例，direction:"sideways"→`not in supported list`；.neg.pcap） |
+| frames 多帧 | T-9 mpls_frames_multi | A（正例，frames:3→3 包；IP ID 逐帧+1（ip.id 断言 1/2/3——首跑校准）） |
+| direction=down 交换 | T-10 mpls_direction_down | A（正例，1 包；ip.src/dst 与 eth MAC 全交换（ip.src=20.0.0.1 实钉）） |
+| multicast 0x8848 | T-11 mpls_multicast | A（正例，multicast:true→eth.type=0x8848） |
+| 内层 TCP 裸头 | T-12 mpls_inner_tcp | A（正例，inner_proto:6→tcp.dstport 断言；**内层 TCP 无握手/seq 语义=裸头（链路径合同注记）**） |
+| v6 内层对照（9.24） | T-13 mpls_v6 | A（正例，ip 层 v6→内层 IPv6（builder 内层双族 §3.9）；mpls.label 断言不变） |
+
+**C 类注记（9.17）：** ①保留标签 0-15 不校验（legacy 合同，用例避开——T-4 用 0x100000 非 0-15）；②LDP/RSVP 控制面（明确不解决）；③内层 TCP 会话语义（④ C 类）；④中链 shim 表达（A2 否决）。
+**枚举取值覆盖（9.20-9.22）：** label{100,0x100000 拒}✓；TC{0,8 拒}✓；S{缺省自动,非栈底拒}✓（T-1 自动/T-6 拒）；TTL{0→64,显式}——⚠️ P3 校准：TTL 显式格并入 T-13 或独立格→**缺独立格，补 T-1 notes 或视为 9.21 同分支代表（TTL 0 缺省=T-1 钉 64；显式 TTL 无独立格=接受为单分支代表，注记）**；multicast{off,on}✓；inner_proto{0,17,6,1 拒}✓；direction{up,down,非法拒}✓；frames{缺省 1,3}✓；端口{显式,缺省,动态}——显式=T-1、缺省=T-4?（无）、动态=**缺格→P4 后补一例 port_dyn（E1），或注记 E1 格随 h323 T-14 同构推迟**——**裁定：补 T-14 mpls_port_dyn（src_port inc+flows=2，32→3 包逐流，group_id 固定）→ 14 例**。
+**正交矩阵：** 栈深{1,N}×族{v4,v6}×inner{udp,tcp}×direction×multicast——落格见上表；动态整格=业务 5 键全关+端口 2 键（T-14）。
+**通用陷阱自查（9.37-9.40）：** 无派生端口；多流=T-14 group_id 固定；IP ID 逐帧递增=真实语义钉（9.40）。
+**断言边界（9.27）：** 包间隔无面；内层 TCP 裸头无状态断言面（C③）。
+**执行口径：** P5 mpls 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/mpls/`+门 2 四项+反查 check_mpls；数值落盘重钉（14.6/9.31）。
+**实现位置：** `cases/mpls.json`（**14 例**：改写 1+新建 13）。
