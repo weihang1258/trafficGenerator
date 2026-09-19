@@ -3497,7 +3497,7 @@
 **执行口径：** P5 telnet 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/telnet/`+门 2 四项+反查 check_telnet；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
 **实现位置：** `cases/telnet.json`（**17 例**：改写 1+新建 16）。
 
-### T-SIP-1…24 sip.json——存量审计 + 测试点清单【D-SIP-1 P6 已验收 + 补充批 T-19…24】
+### T-SIP-1…43 sip.json——存量审计 + 测试点清单【D-SIP-1 P6 已验收 + 补充批 T-19…24 + 补充批二 T-25…43】
 
 **状态：** 已验收（2026-09-19 P6：首跑 9/18→9 红全为断言面校准按 pcap 重钉（包号偏 1/body 实长/末段 315=头补全计入分段对象/rtp.* 字段 tshark 3.6 无效改 frames pin offset 42/udp.port 双值改 srcport-dstport/SDP 端口超 65535 上界拒改 60070/空 dialog 低级错 3 例补 dialog）→18/18 ×2 连跑+反查 29/29；回归 telnet 17/ngap 17/h323 17/mpls 14/icmpv6 11 全绿；pcap 落盘 /tmp/mcp-pcaps/sip/）。P3 定稿（2026-09-19）原注记：存量 1 例逐条审计改写（等价迁移：count 删、顶层 sip{dialog}→sip 层、四元组→layers[ip] 显式+显式端口 12001/5060；断言面=14 fields（sip.Method/Request-Line/Status-Code/CSeq.seq/CSeq.method）+frames 4 pin offset 54+标量（negotiated/terminates）全保留）+ 新建 17 例=18 例。
 **级别：** pcap
@@ -3535,6 +3535,27 @@
 | dialog 内 OPTIONS 保活 | T-22 sip_options_keepalive | A（补充批，§3.15 保活+§11；OPTIONS 中插 INVITE/BYE 之间；CSeq 2 钉） |
 | 状态码大类枚举 | T-23 sip_status_class_enum | A（补充批，§9.20 5xx(500)/6xx(603) 补格，与 404/486 合成 4xx/5xx/6xx 全大类） |
 | 组合流二 PRACK | T-24 sip_callflow_complete | A（补充批，§9.11 组合流≥2 富余化；RFC 3262 PRACK+RAck 关联钉） |
+| REGISTER 摘要鉴权 | T-25 sip_register_digest_auth | A（批二，§22.1：401 WWW-Authenticate→Authorization 重发；现网注册规范面） |
+| REGISTER 刷新注销 | T-26 sip_register_expire0 | A（批二，§10.2.2 Expires:0+Contact:*；注册生命周期） |
+| 同流双呼 | T-27 sip_two_calls_sequential | A（批二，§3.2 独立 Call-ID 独立命运：呼A 成+B 486 拒；现实 UA 行为） |
+| REFER 盲转 | T-28 sip_refer_transfer | A（批二，RFC 3515：Refer-To+NOTIFY sipfrag 进展+BYE；转移键语义） |
+| MWI 留言灯 | T-29 sip_subscribe_notify_mwi | A（批二，RFC 3265/3842：SUBSCRIBE message-summary→NOTIFY MWI 体） |
+| 183 早媒体 | T-30 sip_early_media_183 | A（批二，RFC 3262：183+SDP sendonly→PRACK/RAck；彩铃面） |
+| HOLD 保持恢复 | T-31 sip_hold_resume | A（批二，RFC 3264 §6：re-INVITE sendonly→sendrecv 三轮事务） |
+| INFO DTMF | T-32 sip_info_dtmf | A（批二，RFC 2976：dtmf-relay 体带外按键；IVR 面） |
+| 302 呼转 | T-33 sip_302_redirect | A（批二，§8.1.3.4：Contact 目标重发 INVITE，Request-Line 钉） |
+| UPDATE 会话刷新 | T-34 sip_update_session_timer | A（批二，RFC 3311/4028：Session-Expires；与 re-INVITE 对照） |
+| INVITE 401 鉴权 | T-35 sip_invite_401_challenge | A（批二，§22.1 呼叫鉴权面：401→ACK→重发；与注册鉴权分格） |
+| MESSAGE IM | T-36 sip_message_im | A（批二，RFC 3428 页模式；对话外单事务 min 联结） |
+| 紧凑形头方言 | T-37 sip_compact_form | A（批二，§20 compact v=/f=/t=/i=/l=；方言透传） |
+| 多跳 Via 链 | T-38 sip_via_chain | A（批二，3 Via+Record-Route/Route 代理拓扑头；Max-Forwards 68） |
+| 超长头长 URI | T-39 sip_long_auth_uri | A（批二，§9.8：512B 级 Digest+226B URI；与 mss_segment 正交） |
+| tel: URI+UTF-8 | T-40 sip_tel_uri_utf8 | A（批二，RFC 3966 互通+带引号 UTF-8 display name；E.164 面） |
+| SDP 双流音视频 | T-41 sip_sdp_video_multistream | A（批二，多 m= 行 audio 0/8/101+video 96；§9.22 承载形状） |
+| multipart 双体 | T-42 sip_body_multipart | A（批二，RFC 5621：SDP+octet-stream 双体；§3.14 单包多载荷） |
+| 头名大小写混写 | T-43 sip_hdr_case_mix | A（批二，§7.3 头名不敏感：fRoM/cALL-iD 混写+解码双证） |
+
+**补充批二（2026-09-20，用户复审"业务不够真实不复杂"→对照 ftp 面铺设现网业务 12 例+数据 7 例=43 例，43/43 ×2 稳态+反查 54/54）：** 方法面从 {INVITE,ACK,BYE,REGISTER,OPTIONS,PRACK,CANCEL} 扩到 +{REFER,NOTIFY,SUBSCRIBE,INFO,UPDATE,MESSAGE}=12 方法全主流面；新增引擎合同发现 2 条如实注记：①紧凑 i: 头不进头补全长形识别（引擎另补自动 Call-ID 双值并存=合同边界）；②application/isup 合成字节触发 tshark ISUP 解析器 malformed（改 octet-stream，不造假 expert 红）。P5 校准 5 处：包序偏移 4 处（BYE 位次按消息序重算）+Content-Length 248=引擎按 body 精确回填。
 
 **补充批（2026-09-19，§3/§9 对抗复审后 A 类补例 6 例=24 例，24/24 一次全绿+反查 35/35）：** 触发原因=用户质询 sip 用例覆盖面。审计结论：文档无责（§3.15/§9.9/§9.10/§9.11/§9.25 条条明确），P3 枚举口径错位——拿 legacy 能力面当边界，而 dialog 是任意消息序列（method 任意串/status_code 任意整数），多事务/非正常结束/保活/状态码大类/组合流二全部现有引擎零改动可构建。B 类引擎结构缺口 5 项立项进 D-SIP-1"明确不解决"（sessions[] 多会话、每流 Call-ID/CSeq/branch 唯一化、NAT rport 方言、RTP 与 dialog 双向交错、SIPS/TLS 原有）。
 

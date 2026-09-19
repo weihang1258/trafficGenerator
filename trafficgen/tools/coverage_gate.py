@@ -765,7 +765,17 @@ def check_sip(cases):
                      ("port_dyn", "端口动态面"), ("empty_dialog", "空 dialog 面"),
                      ("reinvite", "re-INVITE 会话刷新面"), ("cancel", "CANCEL 取消面"),
                      ("busy_reject", "486 非正常结束面"), ("keepalive", "dialog 内 OPTIONS 保活面"),
-                     ("status_class_enum", "状态码大类枚举面"), ("callflow_complete", "组合流二 PRACK 面")]:
+                     ("status_class_enum", "状态码大类枚举面"), ("callflow_complete", "组合流二 PRACK 面"),
+                     ("register_digest_auth", "注册摘要鉴权面"), ("register_expire0", "注册刷新注销面"),
+                     ("two_calls_sequential", "同流双呼独立 Call-ID 面"), ("refer_transfer", "REFER 盲转面"),
+                     ("subscribe_notify_mwi", "SUBSCRIBE/NOTIFY MWI 面"), ("early_media_183", "183 早媒体+PRACK 面"),
+                     ("hold_resume", "HOLD 保持恢复面"), ("info_dtmf", "INFO DTMF 面"),
+                     ("_302_redirect", "302 呼转面"), ("update_session_timer", "UPDATE 会话刷新面"),
+                     ("invite_401_challenge", "INVITE 401 鉴权面"), ("message_im", "MESSAGE 页模式 IM 面"),
+                     ("compact_form", "紧凑形头方言面"), ("via_chain", "多跳 Via 链面"),
+                     ("long_auth_uri", "超长头长 URI 面"), ("tel_uri_utf8", "tel: URI+UTF-8 面"),
+                     ("sdp_video_multistream", "SDP 双流音视频面"), ("body_multipart", "multipart 双体面"),
+                     ("hdr_case_mix", "头名大小写混写面")]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
 
