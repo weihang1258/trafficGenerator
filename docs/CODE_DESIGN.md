@@ -2305,3 +2305,77 @@ create：ValidateStrategy→ValidateLayers（V9 6 键）→CheckProtoFlat presen
 **明确不解决：** RFC 4861 邻居发现（独立协议族非 Echo 语义）；file_source 层链化（③ C 类）；Error 消息类 type（1-4 类非 Echo 面，legacy 未实现不冒充）。
 **依据：** RFC 4443 §2.3/§4.1；RFC 8200 §8.1；代码事实：`icmpv6/icmpv6.go:47/:89`（legacy Plan）、`core/types.go:2848-2883`（ICMPv6Config/Step 6 键+伪头注记）、`strategy_convert.go:732-743`（parse）、`:1428`（file_source）、`chain_planner_util.go:40`（isRawIPChain）、`chain_planner.go:505/:701`（端口豁免清单）、`:1168`（down 交换）、`layers/generator.go:215`（FlowMeta）、`main.go:541`（legacy 直挂现状）。
 
+
+### D-H323-1 H.323 层链化：raw 自驱终层（三平面整包 relay）+ 端口住层【P-PIPE #15 门1】
+
+**状态：** P2 定稿（2026-09-19；门 1 已批（用户"继续"）+ 待批三项同批（1.2 偏离批、端口动态开）；CORE_MEMORY 240 条逐条复审完成——**对抗重审 4 轮，抓到并改正 4 处事实错误**（Validate 锚词 6→8、parse 文案 6→7、包数公式手算错、在库数 94→95），末轮净；设计八节+决策 A-E 见下；P3 未开工）。现状：legacy planner 完整（h323.go:159，三平面一体：Q.931/TCP 1720 TPKT、H.245 隧道于 FACILITY、RAS/UDP 1719、RTP/UDP，自带握手/挥手与 seq/ack，参考 pcap 字节复刻 types.go:5455-5472），main.go:563 直挂 legacy，**层链四件全缺**（registry 无行/translate 无 case/FlowMeta 无字段/无 generator——grep 实证含 generator.go rc=1）。用例 1 例纯扁平（四元组+count+顶层 h323:{}）→P5 改写。
+
+**架构裁定（门1 已批）：** **A1 [ip,h323] raw 自驱终层整包 relay**（icmpv6 包装法 + force-up 防双换）。可行性三点实证：①builder `if l4Len>0 {writeL4}` 链形无关（builder.go:404）；②raw-IP relay Emit→out 通道（chain_planner.go:1200）；③legacy 包自带 L2/L3/L4（协议 6/17 混合，h323.go:251/:460/:546），生成器逐包给全、drive 只补缺省。A2（事件重写）否决：RAS/RTP UDP 面单链无处安放、seq/ack 换框架破字节契约。端口住 h323 层（1.2 字面偏离已批，srv6 inner 端口先例）。
+
+**权威链（§7）：** 标准=ITU-T H.225.0（Q.931 信令 TCP 1720 §7.3、RAS UDP 1719 §7、H.245 隧道）+ITU-T Q.931+RFC 1006（TPKT）+RFC 3550（RTP）→ 设计=本条目（权威）→ 代码 → 测试。字节事实=参考 pcap 转录（types.go:5466，直呼无 GK，4 quirk）+Wireshark packet-h225/h245 dissector。
+
+**依赖链判定：**
+
+| # | 断链层 | 判定 | 处置 |
+|---|---|---|---|
+| ① 层链四件全缺 | 代码缺口 | registry/translate/FlowMeta/layer_gen 全无；main.go:563 直挂 | P4 四件套+红例族（registry 10 键、translate case、FlowMeta.H323+carry、layer_gen 包装+注册） |
+| ② legacy 校验已全 | 无缺口（icmpv6 式修正不适用——P1 重审实证 Validate 8 锚词覆盖 IP/nil/role/scenario/calls/display/MSS，parse 7 文案） | 层链路径只缺接线 | validateLayer=required 保底+复用 legacy Validate（零新文案） |
+| ③ 静态复制门漏扫 | 执法洞 | checkLayerChainStaticCopy 只扫 ip/tcp/udp/eth（semantic.go:186），h323 层端口标量+flows>1 漏拒（12.9 违规面） | P4 扫描列表加 "h323"（layerTupleFields 默认分支恰返 src_port/dst_port）+红例⑥ |
+| ④ MSS 链上不可达 | C 类 | spec.TCP.MSS 仅扁平路可达（扁平已死）；链上无 tcp 层=无 MSS 住处 | 明确不解决：syn options 恒 DefaultMSS 1460（legacy 合成器字节事实） |
+| ⑤ 端口动态 | 用户已批开 | allowlist 无 h323 行=端口对象即 does not support dynamic | P4：LayerDynValues.H323+LayerH323Dyn{SrcPort,DstPort}+allowlist 行+parseLayerDyn case+resolveLayerTuple 块+HasAny（同键二态：对象解析值落 spec、translate 标量覆盖/对象放行） |
+
+#### 门 1 对照表（已批，证据回填版）
+
+§1 键去向：src_ip/dst_ip→layers[ip].src/dst；src_port/dst_port→layers[h323]（已批偏离）；count→删；顶层 h323 8 业务键→layers[h323] 直迁。目标形状 `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"h323":{"src_port":12345,"dst_port":1720}}]}`。§3 五件套：呼叫=会话（Calls 声明、Crv+callNum h323.go:283）、事务=SETUP→CP→FACILITY(TCS/TCSACK/MSDACK)→ALERTING→FACILITY→CONNECT→[RTP]→RELCOMP×2、无跨流关联（H.245 隧道在流内=豁免注记）、插入=h323 终层自产完整包、呼叫间串行。§12 动态：业务 8 键全关（结构选择器/会话语义，icmpv6 同判）；四元组=ip.src/dst（框架）+h323 端口（已批开）；序号=Crv+callNum+worker 12345+i。
+
+#### 决策对比（4.17）
+
+| 决策 | 候选 | 结论 |
+|------|------|------|
+| A 链形 | A1 [ip,h323] raw 自驱整包 relay vs A2 [ip,tcp,h323] 事件重写 | **A1**（三平面保真+字节契约；A2 RAS/RTP 断供） |
+| B 端口住处 | B1 h323 层键+门扩扫 vs B2 假 tcp 层只作宿主 | **B1**（结构诚实；B2 形状欺骗） |
+| C 翻译 | C1 手工逐键镜像 parse（icmpv6 法）vs C2 导出 parseH323Config | **C1** |
+| D 校验 | D1 复用 legacy Validate 零新文案 vs D2 新写 | **D1**（8 锚词全覆盖） |
+| E 端口动态 | E1 开 2 键（对象=逐流端口池）vs E2 关（只 worker 保底） | **E1**（用户已批；12.13 与 tcp/udp 语义对齐） |
+
+**明确不解决：** GK 路由模式（仅直呼）；MSS 链上覆盖（④ C 类）；H.245 独立通道（非隧道形态）；RAS 现网字节确认（规范编码已实现，抓包待确认注记）。
+
+#### 1. 文件清单（P2 定稿）
+- Modify: `internal/core/layers/registry.go`——h323 行（CategoryTerminal+DependsOn ip+无 FieldContract+Fields 10 键无 Default：role/scenario{string}、crv{uint16}、display_name{string}、calls{int}、rewrite_addr{bool}、media/ras{object}、src_port/dst_port{uint16}——决策 F：缺省语义在 translate 镜像 parse）
+- Modify: `internal/core/layers/chain_planner_translate.go`——case "h323"（spec.H323==nil 层优先；8 业务键逐映射+media/ras 子映射下钻；缺省镜像 parse：role caller/scenario full/crv getIntPresence 0x2584/display "Administrator"/calls 1/media{5062,5063,10,pt0,160}/ras{1719,"10.12.184.53","terminal"}；端口同键二态：src_port 标量→spec.SrcPort、dst_port 标量→spec.DstPort（缺席→1720 镜像 setDefaultDstPort）、对象→放行（resolveLayerTuple 已解析））
+- Modify: `internal/core/layers/generator.go`——FlowMeta.H323+carry（chain_planner_chain.go flowMetaFor）
+- Modify: `internal/core/layers/chain_planner_util.go`——isRawIPChain 加 h323
+- Modify: `internal/core/layers/chain_planner.go`——validateBaseDstPortHandled+SrcPort 零保持两名单加 h323（端口经 translate 后到，base 检查期 spec 端口仍 0）
+- Modify: `internal/core/strategy_convert.go`——CheckProtoFlat h323 presence 分支（sv/icmpv6 先例）
+- Modify: `internal/core/schema/semantic.go`——checkLayerChainStaticCopy 扫描列表加 "h323"（③）
+- Modify: `internal/core/layer_dyn.go`+`internal/core/types.go`——LayerH323Dyn/LayerDynValues.H323/HasAny/allowlist "h323" 行/parseLayerDyn case/resolveLayerTuple 块（⑤）
+- Create: `internal/protocol/h323/layer_gen.go`——Generator 包装 legacy Plan（等价 FlowSpec：SrcIP/DstIP/TTL/MAC/端口/H323 直传；force Direction="up" 防双换——legacy 逐包自管方向/地址/seq-ack，drive down-swap 会错换；GenEvents 返 nil——chain_planner.go:1216 事件分支判定）+validateLayer（required 保底+legacy Validate 复用零新文案）+init 注册
+- Modify: `cmd/server/main.go:563`——NewChainPlanner("h323")+空导入
+- Modify: `tools/pipe_gate.sh`+`tools/coverage_gate.py`（check_h323）、schemagen 重跑
+- Modify: `test/protocol_pcap/cases/h323.json`（P5 按 T-H323）
+- Test: `internal/core/layers/h323_migrate_test.go`（红例①-⑤）+`internal/core/schema/h323_static_port_test.go`（红例⑥）
+- 零改动：`internal/protocol/h323/h323.go`（字节事实）
+
+#### 2. 接口签名（锚词）
+- presence：`protocol h323 no longer accepts a top-level h323 sub-config (move it into the h323 layer of an [ip,h323] layers chain)`
+- validator：`h323: H323Config is required`（translate 后不可达=C 类保底）；legacy 复用 8 锚词原样（`h323: invalid role %q (must be caller or callee)` 等）
+- static：`static four-tuple`（semantic.go 既有门，扫描面扩 h323）
+
+#### 3. 主流程
+create：ValidateStrategy→ValidateLayers（V9 10 键）→CheckProtoFlat presence→checkLayerChainStaticCopy（含 h323 端口）→400。
+任务：mapToFlowSpec→parseLayerDyn（h323 端口对象→LayerDynValues.H323）→worker resolveLayerTuple（逐流解析端口落 spec）→ChainPlanner.ValidateSpec：validateSpecBase（h323 端口豁免）→translate case "h323"（10 键+端口同键二态）→validateLayer（required+legacy Validate）→Plan：isRawIPChain→raw-IP 驱动（flowMetaFor+meta 补齐→Generator.Generate→legacy Plan(ctx, 等价 spec)→整包 relay；force up 防双换；drive 只补 L2 缺省/EtherType/DSCP）→builder 按 L2/L3/L4 装配（writeL4 l4Len>0 链形无关）。
+
+#### 4. 增量步骤（failing 先行）
+红例族 6（icmpv6_migrate 同构）：①TestH323Chain_FlatPresenceRejected ②TestH323Chain_LayerFieldsAccepted（10 键 V9 放行）③TestH323Chain_LayerTranslateCallCycle（链 [ip{v4},h323{ports}] → 15 包（full=3+9+3/呼叫，已实证）+flags 0x02/0x12/0x10+首 Q.931 payload[0]=0x03(TPKT)/[7]=0x05(SETUP)）④TestH323Chain_DstPortDefault1720（空层→pkt1 L4.DstPort==1720）⑤TestH323Chain_PortDynAccepted（h323.src_port 对象→ValidateLayers+CheckLayerDynShape 过=allowlist 生效）⑥TestH323Chain_StaticPortFlowsRejected（schema：h323 层静态 src_port+flows=2→"static four-tuple"）。
+
+#### 5. 错误锚词
+见 §2；parse 7 文案为扁平遗篱（链路径经 legacy Validate 8 锚词执法，零新文案）。
+
+#### 6. 性能设计与验收
+包数公式（P3 从代码精算钉死，不手算——P1 教训）：full=15/呼叫（3+9+3 实证）、tunnel_only=12/呼叫、ras_only/data_only=emitRASSignaling/emitRTPMedia 循环精算；整包 relay 流式（channel 256 既有）无全量收集无锁无新增分配热点（模板字节复用）；翻译一次（ValidateSpec 同步期）；回归口径 suite 耗时 ±10%；pcap 路=套件全绿，网卡路未跑注明。
+
+#### 7. 顺序与回滚
+红例→registry+translate→FlowMeta/isRawIPChain/豁免→门扩扫+layer_dyn→layer_gen+注册→presence→main 翻转→门登记+schemagen→绿；P5 cases。回滚=单提交粒度；h323.go 零改动=字节事实零风险。
+
+#### 8. 验收
+对应 T-H323（P3 定稿）。完成条件：6 红例先红后绿；h323.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 src_ip/dst_ip/src_port/dst_port/count/h323 字面零残留；schemagen 同步绿；门 1 表回填+抽查三条；在库 h323 行清空（P6 删前报数 tasks 95+strategies 3→备份→删→复核）。
