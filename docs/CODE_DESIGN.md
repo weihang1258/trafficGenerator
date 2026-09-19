@@ -2693,3 +2693,76 @@ create：ValidateStrategy→ValidateLayers（V9 4 键）→CheckProtoFlat presen
 
 #### 8. 验收
 对应 T-SIP（P3 定稿）。完成条件：6 红例先红后绿；sip.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 count/sip 字面零残留；schemagen 同步绿；门 1 表回填+抽查三条；在库 sip 行清空（P6 删前报数 91+4→备份→删→复核——绝对路径+总量对账）。
+
+### D-RADIUS-1 radius 层链化：终层自驱（UDP 无状态 Rounds 交换）+ 端口住层【P-PIPE #20 门1】
+
+**状态：** P2 定稿（2026-09-19；门 1 已交+对抗自重审 2 轮（锚词计数 12→13 条修正、响应 Authenticator 恒随机边界补报（:343 每响应新 randomAuth，仅请求侧 fixed hex 可钉）、identifier+round uint8 回绕注记；主体零事实错误，末轮净）；CORE_MEMORY 逐条复审完成。裁定延续：端口住 radius 层+端口动态 E1=七度已批。现状：legacy 完整（radius.go 477 行，**UDP 无状态**——无握手挥手，Rounds×(请求 up→响应 down) 同四元组交换（:306-370）；20B 头 Code+ID+Length+Authenticator+TLV 属性（RFC 2865 §5；VSA type 26 外层 8B :432-445）；码面 8 码=请求{1,3,4,11,12}×响应{2,3,5,11,13}+auto{1→2,4→5,12→13}（:61-65），code 3/11 无 auto 必须显式 response_code（Validate :127-128）；缺省 dst 1812/code=4→1813、rounds 1、code 0→Access-Request、reqAttrs 缺省（User-Name "user"/acct Start+Session-Id）；Authenticator crypto/rand 随机（:459-468）或 fixed hex 16B；identifier+round uint8 回绕（:307）。Validate **13 条锚词**（:98/:103 IP parse/:107 nil 硬拒 `radius config is required`——与前六 nil 合法不同/:117 请求码/:125 响应码/:128 无默认响应/:135 hex/:138 16B/:171 长度超界/:178-:189 format 四态）。**v3 预留已在 chain_planner**（:525 dst-0 合法名单+：770 DstPort switch 1812/1813——但 validateSpecBase:149 先于 translate:161，:770 拿不到 code 恒 1812=**顺序缺陷，translate 自补覆盖修正**）。main.go:121 具名导入+:562 直挂，层链四件全缺。用例 1 例 `radius_smoke_01` spec 仅 `{"radius":{}}` **本无扁平键**（packet_count 2+14 fields tshark radius.code/id/length/req/rsp/reqframe/authenticator nonzero+avp.type/length 实证）。在库 tasks 91+strategies 4）
+
+**架构裁定（P2 定稿）：** **A1 [ip,radius] 终层自驱整包 relay**（八度验证机器：emit 逐包自管方向（:320-368 up/down 各 emit 自换地址端口）→force-up 防双换；stun/tftp 同组 UDP 无状态先例 main.go:502/:584 已链化）。**端口缺省顺序修正（本条目核心新裁定）**：validateSpecBase(:149) 先于 translate(:161) 执行，:770 预写的 `case "radius"` 拿不到 spec.Radius（恒 nil）恒落 1812——**translate 自补 dst 缺省：dst_port 层键缺席→code==4?1813:1812**（后写覆盖预写 1812；双态判断依据=层 config 键而非 spec.DstPort，不会被预写值误判"用户显式"）；扁平侧 strategy_convert:884-899 同款缺省保留（mapToFlowSpec 仍服务内部形状，两路各自闭合，:884"届时移除"注记裁定不移除）。**随机性注记**：请求 Authenticator 缺省随机/fixed hex 16B 可钉值；**响应 Authenticator 恒随机**（:343 即使请求 fixed）——断言仅 nonzero（存量先例）；ip.id 随机不断言。**v6 正例格**（ParseIP 通用无族强制）。
+
+**权威链（§7）：** 标准=RFC 2865（§3 报文/§5 属性/§5.1-§5.79 TLV）+RFC 2866（§3 accounting 口）→ 设计=本条目（权威）→ 代码 → 测试。字节事实=参考 pcap portion_Radius.pcap（auth 1812）/start-stop.pcap（acct 1813）转录（radius.go:17-18）+存量探针实测（tshark radius.* 14 断言）。
+
+**依赖链判定：**
+
+| # | 断链层 | 判定 | 处置 |
+|---|---|---|---|
+| ① 层链四件缺 | 代码缺口 | registry 无行/translate 无 case/FlowMeta 无 Radius/无 generator | P4：registry 新终层行（9 键：7 业务+2 端口，attributes/response_attributes{list}）+translate（7 键逐映射+两列表 round-trip）+FlowMeta.Radius+carry+layer_gen 包装+注册 |
+| ② legacy 校验已全 | 无缺口 | Validate 13 锚词（码白名单×2/无默认响应/hex/16B/长度/format 四态/IP×2/nil） | validateLayer=legacy 复用零新文案（nil 恒不可达：translate 恒填非 nil）；IP parse 链不可达（schema 先拦） |
+| ③ 静态复制门漏扫 | 执法洞 | 扫描列表无 radius | P4 扫描列表 += "radius"+红例⑥ |
+| ④ :770 顺序缺陷 | 代码缺口（v3 预留） | 预写 1812 拿不到 code | **本条目修正**：translate 自补 dst 缺省（见架构裁定）；:770 预写保留不动（无副作用） |
+| ⑤ 端口动态 | E1 延续 | allowlist 无 radius 行 | P4：LayerDynValues.RADIUS+allowlist 2 键+parseLayerDyn case+resolveLayerTuple+HasAny |
+| ⑥ v6 对照 | 正例格 | IP 透明 | v4/v6 双族逐格（9.24）——P3 落格 |
+
+#### 门 1 对照表（已交，证据回填版）
+
+§1 键去向：存量无扁平四元组/count（唯一顶层键 radius 子映射）→layers[radius] 直迁 7 业务键；端口住层。目标形状 `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"radius":{"src_port":12345,"dst_port":1812,"code":1,"identifier":0,"rounds":1,"attributes":[{"type":1,"value":"user"}]}}],"strategy_fc":{"type":"flows","value":1}}`。§3 五件套：会话表=豁免（UDP 无状态 RFC 2865）；事务序列=Rounds×(请求 up→响应 down)无握手挥手；关联=豁免；插入=raw-IP 驱动整包 relay；时间线=轮次线性 ID=identifier+round。§12 动态：业务 7 键全关（码面/轮数结构/鉴权/AVP 模板逐键理由见 P1 §12 表）；端口 2 键开（E1）；序号=layer_dyn resolveLayerTuple radius 块（P4 新增）。
+
+#### 决策对比（4.17）
+
+| 决策 | 候选 | 结论 |
+|------|------|------|
+| A 链形 | A1 终层自驱 vs 事件面 | **A1**（UDP 无状态最简形态；stun/tftp 同组先例） |
+| B 端口住处 | B1 radius 层键+门扩扫 | **B1** |
+| C 翻译 | C1 7 键逐映射+两列表 round-trip+**dst 缺省 translate 自补（顺序修正）** | **C1** |
+| D 校验 | D1 复用 13 锚词（nil 恒不可达；v6 正例） | **D1** |
+| E 端口动态 | E1 延续 | **E1** |
+
+**明确不解决：** 响应 Authenticator MD5 验证（RFC 2865 §3 响应应为请求 Auth 的 MD5——legacy 随机合成=C 合同不冒充）；IP parse 链锚词（不可达）；rounds>256 回绕外语义；Message-Authenticator(80)/EAP-Message 属性特殊编码（通用 TLV 已覆盖）。
+
+#### 1. 文件清单（P2 定稿）
+- Modify: `internal/core/layers/registry.go`——radius 终层行（CategoryTerminal+DependsOn ip+Fields 9 键无 Default：code{uint8}/identifier{uint8}/authenticator{string}/attributes{list}/response_code{uint8}/response_attributes{list}/rounds{int 面 uint16}/src_port{uint16}/dst_port{uint16}）
+- Modify: `internal/core/layers/chain_planner_translate.go`——case "radius"（spec.Radius==nil 层优先；7 键逐映射零缺省镜像 :884 parseRadiusConfig；attributes/response_attributes JSON round-trip；端口双态：标量→spec、**dst 缺席→code==4?1813:1812 顺序修正**、src 缺席不动 worker 保底、对象放行）
+- Modify: `internal/core/layers/generator.go`+`chain_planner_chain.go`——FlowMeta.Radius+carry
+- Modify: `internal/core/layers/chain_planner_util.go`——isRawIPChain 加 radius
+- Modify: `internal/core/layers/chain_planner.go`——:525/:770 v3 预留已存在**不动**；两端口豁免名单按需（:707 SrcPort zero-keep **不加** radius——worker 保底正确语义）
+- Modify: `internal/core/strategy_convert.go`——CheckProtoFlat radius presence 分支（:884-899 扁平缺省保留）
+- Modify: `internal/core/schema/semantic.go`——扫描列表 += "radius"
+- Modify: `internal/core/layer_dyn.go`+`internal/core/types.go`——LayerDynValues.RADIUS/allowlist/parseLayerDyn/resolveLayerTuple/HasAny（⑤）
+- Create: `internal/protocol/radius/layer_gen.go`——Generator 包装 legacy Plan（force Direction="up" 防双换；GenEvents nil）+validateLayer（纯 legacy 13 锚词）+init 注册
+- Modify: `cmd/server/main.go:121,562`——具名导入→空导入+NewChainPlanner("radius")
+- Modify: `tools/pipe_gate.sh`+`tools/coverage_gate.py`（check_radius）、schemagen 重跑
+- Modify: `test/protocol_pcap/cases/radius.json`（P5 按 T-RADIUS）
+- Test: `internal/core/layers/radius_migrate_test.go`（红例①-④）+`internal/core/radius_layer_dyn_test.go`（红例⑤）+`internal/core/schema/radius_static_port_test.go`（红例⑥）
+- 零改动：`internal/protocol/radius/radius.go`（字节事实）
+
+#### 2. 接口签名（锚词）
+- presence：`protocol radius no longer accepts a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)`
+- validator：legacy 13 锚词（`invalid request code (allowed: 1, 3, 4, 11, 12)`/`invalid response code (allowed: 2, 3, 5, 11, 13)`/`has no default response code`/`invalid authenticator hex`/`must be 16 bytes`/`exceeds the %d-byte field limit`/`format=ipv4/uint32/hex`/`unknown format` 等——radius.go:98-189 实取）
+- static：`static four-tuple`（既有门，扫描面扩 radius）
+
+#### 3. 主流程
+create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presence→checkLayerChainStaticCopy（含 radius 端口）→400。
+任务：mapToFlowSpec→parseLayerDyn→worker resolveLayerTuple→ChainPlanner.ValidateSpec：validateSpecBase（radius 在 :525 dst-0 名单+:770 预写 1812 无害）→translate case "radius"（**覆盖 dst 1812/1813**）→validateLayer（legacy——IP/nil 锚词链不可达）→Plan：isRawIPChain→raw-IP 驱动（meta 补齐→Generator.Generate→legacy Plan Rounds×2 整包 relay→force up 防双换）→builder：UDP L4 装配。
+
+#### 4. 增量步骤（failing 先行）
+红例族 6：①TestRadiusChain_FlatPresenceRejected ②TestRadiusChain_LayerFieldsAccepted（9 键 V9 含 attributes 列表）③TestRadiusChain_LayerTranslateMinimalExchange（链 [ip,radius{ports,code:1}]→2 包（req up/rsp down）+radius.code 1/2+dstport 1812）④TestRadiusChain_PresenceFilled（7 键逐槽+attributes round-trip+VSA vendor_id）+**TestRadiusChain_AcctPort1813**（code:4→dstport 1813=顺序修正专项）⑤TestRadiusLayerPortDynAllowlisted（core）⑥TestRadiusStaticPortFlowsRejected（schema：[ip{},radius{ports}]+flows=2）。
+
+#### 5. 错误锚词
+见 §2；legacy 13 锚词为链路径执法面（零新文案）；IP parse/nil 两锚词链不可达=C 注记零死锚。
+
+#### 6. 性能设计与验收
+包数=Rounds×2；整包 relay 流式（channel 256）无收集无锁；翻译一次；回归口径 suite ±10%；pcap 路=套件；网卡未跑注明。
+#### 7. 顺序与回滚
+红例→registry+translate（含顺序修正专项红例）→FlowMeta/isRawIPChain→门扩扫+layer_dyn→layer_gen+注册→presence→main 翻转→门登记+schemagen→绿；P5 cases。回滚=单提交粒度；radius.go 零改动=字节事实零风险。
+#### 8. 验收
+对应 T-RADIUS（P3 定稿）。完成条件：7 红例先红后绿（含 1813 专项）；radius.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 radius 字面零残留（负例豁免）；schemagen 同步绿；门 1 表回填+抽查三条；在库 radius 行清空（P6 删前报数→备份→删→复核——绝对路径+总量对账）。
