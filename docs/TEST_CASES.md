@@ -3485,9 +3485,9 @@
 **执行口径：** P5 telnet 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/telnet/`+门 2 四项+反查 check_telnet；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
 **实现位置：** `cases/telnet.json`（**17 例**：改写 1+新建 16）。
 
-### T-SIP-1…18 sip.json——存量审计 + 测试点清单【D-SIP-1 P3 定稿，P4 未开工】
+### T-SIP-1…18 sip.json——存量审计 + 测试点清单【D-SIP-1 P5 已验收】
 
-**状态：** P3 定稿（2026-09-19）。存量 1 例逐条审计改写（等价迁移：count 删、顶层 sip{dialog}→sip 层、四元组→layers[ip] 显式+显式端口 12001/5060；断言面=14 fields（sip.Method/Request-Line/Status-Code/CSeq.seq/CSeq.method）+frames 4 pin offset 54+标量（negotiated/terminates）全保留）+ 新建 17 例=18 例。
+**状态：** 已验收（2026-09-19 P6：首跑 9/18→9 红全为断言面校准按 pcap 重钉（包号偏 1/body 实长/末段 315=头补全计入分段对象/rtp.* 字段 tshark 3.6 无效改 frames pin offset 42/udp.port 双值改 srcport-dstport/SDP 端口超 65535 上界拒改 60070/空 dialog 低级错 3 例补 dialog）→18/18 ×2 连跑+反查 29/29；回归 telnet 17/ngap 17/h323 17/mpls 14/icmpv6 11 全绿；pcap 落盘 /tmp/mcp-pcaps/sip/）。P3 定稿（2026-09-19）原注记：存量 1 例逐条审计改写（等价迁移：count 删、顶层 sip{dialog}→sip 层、四元组→layers[ip] 显式+显式端口 12001/5060；断言面=14 fields（sip.Method/Request-Line/Status-Code/CSeq.seq/CSeq.method）+frames 4 pin offset 54+标量（negotiated/terminates）全保留）+ 新建 17 例=18 例。
 **级别：** pcap
 **来源：** ①标准=RFC 3261（§7/§8.1.1/§20.8/§8.1.1.4）+RFC 3550（§5.1 RTP）+RFC 3264（§5.1）②设计=D-SIP-1 ③现网=存量 pcap 12 帧实证（tshark SIP 解码器五字段+逐字节 frames）
 **存量去向（1 例 → P5 改写后 18 例）：**
