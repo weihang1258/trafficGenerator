@@ -118,7 +118,8 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/postgresql" // init 注册 postgresql 层生成器 + 校验器（kingbase 是其 dialect 变体）
 	"github.com/trafficgen/trafficgen/internal/protocol/pppoe"
 	"github.com/trafficgen/trafficgen/internal/protocol/pptp"
-	"github.com/trafficgen/trafficgen/internal/protocol/radius"
+	// 空导入：radius 包 init 注册层生成器 + 校验器（D-RADIUS-1）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/radius"
 	// 空导入：rdp 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/rdp"
 	// 空导入：redis 包 init 注册终结层生成器 + 校验器（T4.1 批二）
@@ -559,7 +560,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mpls"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("gtp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rdp"))
-	app.engine.RegisterPlanner(radius.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("radius"))
 	app.engine.RegisterPlanner(ldap.NewPlanner())
 	app.engine.RegisterPlanner(vnc.NewPlanner())
 	app.engine.RegisterPlanner(pptp.NewPlanner())

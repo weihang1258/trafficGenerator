@@ -1254,6 +1254,19 @@ func buildDefaultRegistry() {
 			"dst_port": {Type: "uint16", Min: 0, Max: 65535},
 		},
 	})
+	r.Register(LayerSchema{Name: "radius", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"code":                {Type: "uint8", Min: 0, Max: 255},
+			"identifier":          {Type: "uint8", Min: 0, Max: 255},
+			"authenticator":       {Type: "string"},
+			"attributes":          {Type: "list"},
+			"response_code":       {Type: "uint8", Min: 0, Max: 255},
+			"response_attributes": {Type: "list"},
+			"rounds":              {Type: "uint16", Min: 0, Max: 65535},
+			"src_port":            {Type: "uint16", Min: 0, Max: 65535},
+			"dst_port":            {Type: "uint16", Min: 0, Max: 65535},
+		},
+	})
 	r.Register(LayerSchema{Name: "pppoe", Category: CategoryL2})
 
 	defaultRegistry = r

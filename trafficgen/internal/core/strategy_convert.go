@@ -7836,6 +7836,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol sip no longer accepts a top-level sip sub-config (move it into the sip layer of an [ip,sip] layers chain)"
 		}
 	}
+	// D-RADIUS-1：radius 顶层 radius 子映射 presence 判死（前六协议同款；
+	// 空 map 也死）。层链形状不触发。
+	if protocol == "radius" {
+		if v, ok := cfg["radius"]; ok && v != nil {
+			return "protocol radius no longer accepts a top-level radius sub-config (move it into the radius layer of an [ip,radius] layers chain)"
+		}
+	}
 	return ""
 }
 

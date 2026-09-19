@@ -64,6 +64,10 @@ var layerDynAllowlist = map[string]map[string]bool{
 	// 联结端口语义住层）；业务 2 键全关（dialog=会话结构、media=SDP
 	// 关联语义），对象即 does not support dynamic。
 	"sip": {"src_port": true, "dst_port": true},
+	// D-RADIUS-1 决策 E1（前六协议已批延续）：radius 层端口 2 键开（UDP
+	// 联结端口语义住层）；业务 7 键全关（码面/轮数/鉴权/AVP 模板），
+	// 对象即 does not support dynamic。
+	"radius": {"src_port": true, "dst_port": true},
 }
 
 // parseLayerDyn extracts per-flow dynamic strategies from a decoded layers
@@ -258,6 +262,13 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 						set(where, lname, f, &out.SIP.SrcPort, v)
 					} else {
 						set(where, lname, f, &out.SIP.DstPort, v)
+					}
+				case "radius":
+					// D-RADIUS-1 决策 E1：同前六端口 int 面。
+					if f == "src_port" {
+						set(where, lname, f, &out.RADIUS.SrcPort, v)
+					} else {
+						set(where, lname, f, &out.RADIUS.DstPort, v)
 					}
 				}
 			}
@@ -851,6 +862,17 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 	}
 	if ld.SIP.DstPort != nil {
 		if v := ResolvePortValue(ld.SIP.DstPort, i); v != 0 {
+			spec.DstPort = v
+		}
+	}
+	// D-RADIUS-1 决策 E1：radius 层端口逐流解析落 spec（前六同款）。
+	if ld.RADIUS.SrcPort != nil {
+		if v := ResolvePortValue(ld.RADIUS.SrcPort, i); v != 0 {
+			spec.SrcPort = v
+		}
+	}
+	if ld.RADIUS.DstPort != nil {
+		if v := ResolvePortValue(ld.RADIUS.DstPort, i); v != 0 {
 			spec.DstPort = v
 		}
 	}

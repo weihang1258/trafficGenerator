@@ -1863,6 +1863,47 @@
       "category": "l2",
       "fields": {}
     },
+    "radius": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "attributes": {
+          "type": "list"
+        },
+        "authenticator": {
+          "type": "string"
+        },
+        "code": {
+          "type": "uint8",
+          "max": 255
+        },
+        "dst_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "identifier": {
+          "type": "uint8",
+          "max": 255
+        },
+        "response_attributes": {
+          "type": "list"
+        },
+        "response_code": {
+          "type": "uint8",
+          "max": 255
+        },
+        "rounds": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "src_port": {
+          "type": "uint16",
+          "max": 65535
+        }
+      }
+    },
     "rdp": {
       "category": "terminal",
       "depends_on": [

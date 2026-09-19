@@ -511,9 +511,11 @@ func validateBaseDstPortHandled(name string) bool {
 		// D-NGAP-1：ngap 端口住层（SCTP 联结端口语义），同 h323/mpls。
 		// D-TELNET-1：telnet 同款（TCP 联结端口语义）。
 		// D-SIP-1：sip 同款（TCP 信令联结端口语义）。
+		// D-RADIUS-1：radius 同款（UDP 联结端口语义）。
 		"ngap",
 		"telnet",
 		"sip",
+		"radius",
 		// B4 nvgre：无传输层、无端口概念（raw-IP 同款），目的端口 0 合法。
 		// vxlan/geneve 不在豁免名单——它们的默认 4789/6081 走 FieldContract
 		// 通用块（validateBaseDstPortHandled 之外的 amqp/bgp 同款）。
@@ -522,7 +524,8 @@ func validateBaseDstPortHandled(name string) bool {
 		// 回退 spec 逐流值），目的端口 0 合法（raw-IP 同款）。
 		"srv6",
 		// stateless UDP protocols: ports defaulted by the DstPort switch above.
-		"tftp", "radius":
+		// radius 已在上方 D-RADIUS-1 豁免块登记，此处不重复列。
+		"tftp":
 		return true
 	}
 	return false
@@ -704,12 +707,16 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// 不在此默认化。
 		case "moxa":
 		// Moxa 源端口 0 保持 0：透传单连接，多流由 worker 递增。
-		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip":
+		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip", "radius":
 			// raw-IP 路由终结层（P3 T5）与 nvgre（B4 封装类）/srv6
 			// （D-SRV6-1，SRH 扩展头）同样无传输层：无端口概念，源/目的
 			// 端口 0 保持 0（内层端口住 srv6 层，回退 spec 逐流值）。
 			// h323（D-H323-1）同列：端口概念存在但住 h323 层，translate
 			// 期才落到 spec（base 检查期 0 保持 0）。
+			// radius（D-RADIUS-1）同列：端口住 radius 层，validateSpecBase
+			// 先于 translate 执行，base 检查期 0 保持 0；src 缺席单流 0
+			// 上包（legacy mapToFlowSpec 扁平路径才默认 12345，链路径语义
+			// 对齐 mcp/modbus 直传族），多流 worker 按 12345+i 注入。
 		default:
 			return fmt.Errorf("source port is required")
 		}

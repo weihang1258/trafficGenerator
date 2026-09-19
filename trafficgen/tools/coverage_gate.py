@@ -1302,9 +1302,59 @@ def check_goose(cases):
     return rows
 
 
+def check_radius(cases):
+    """D-RADIUS-1 P5 反查表（T-RADIUS-1…21）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("radius"), dict):
+                lays.append((c.get("id", "?"), l["radius"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面（21 例逐点名）。
+    for kw, name in [("smoke", "S 基线改写例"), ("flat_presence", "presence 判死面"),
+                     ("flat_static_port", "静态端口拒面"), ("acct_1813", "Accounting 1813 顺序修正面"),
+                     ("challenge", "Challenge 显式响应码"), ("status", "Status-Server/Client"),
+                     ("code3", "请求码 3 枚举"), ("reject", "Reject 失败分支"),
+                     ("neg_no_auto", "无默认响应拒"), ("neg_reqcode", "请求码非法"),
+                     ("neg_rspcode", "响应码非法"), ("auth_fixed", "fixed authenticator 钉值"),
+                     ("neg_auth_hex", "authenticator 非法 hex"), ("neg_auth_len", "authenticator 长度错"),
+                     ("attr_formats", "属性四 format+VSA"), ("neg_attr_len", "属性超长"),
+                     ("neg_format", "format 非法"), ("rounds", "rounds 多轮"),
+                     ("_v6", "v6 正例面"), ("default_port", "缺省端口 1812 面"),
+                     ("port_dyn", "端口动态面")]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖（业务 7 键 + 端口 2 键）。
+    for k in ["code", "identifier", "authenticator", "response_code",
+              "rounds", "attributes", "response_attributes", "src_port", "dst_port"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面（9 负例全 legacy 真门）。
+    for needle, name in [
+        ("top-level radius sub-config", "presence 判死"),
+        ("static four-tuple", "静态端口拒"),
+        ("has no default response code", "无默认响应拒"),
+        ("invalid request code", "请求码非法"),
+        ("invalid response code", "响应码非法"),
+        ("invalid authenticator hex", "authenticator 非法 hex"),
+        ("must be 16 bytes", "authenticator 长度错"),
+        ("exceeds the 253-byte", "属性超长"),
+        ("unknown format", "format 非法"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius}
 
 
 def main(argv):

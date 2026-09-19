@@ -1411,6 +1411,77 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			}
 		}
 		return
+	case "radius":
+		// D-RADIUS-1：层 config 手工逐键映射进 spec.Radius（parseRadiusConfig
+		// 未导出不可跨包，决策 C1）。7 键逐映射零缺省镜像 :884；两属性
+		// 列表经 JSON round-trip 直迁（RadiusAttribute 形状带 struct 标签）。
+		// 端口双态与【核心顺序修正】：validateSpecBase:149 执行在 translate
+		// 之前，其 :770 预写拿不到 spec.Radius（恒 nil）恒落 1812——此处
+		// 依据层键显式性执行覆盖：当 dst_port 层键缺席时，依 code==4?1813:1812
+		// 强制覆盖预写值；用户显式写 dst_port 层键时层值赢；src 缺席不动
+		// （worker 12345+i 保底）；对象放行。
+		if spec.Radius == nil {
+			cfg := completedConfig(s, term.Config)
+			rc := &core.RadiusConfig{}
+			if v, ok := cfg["code"]; ok {
+				if u, ok := configUint8(v); ok {
+					rc.Code = int(u)
+				}
+			}
+			if v, ok := cfg["identifier"]; ok {
+				if u, ok := configUint8(v); ok {
+					rc.Identifier = u
+				}
+			}
+			if v, ok := configString(cfg["authenticator"]); ok {
+				rc.Authenticator = v
+			}
+			if v, ok := cfg["response_code"]; ok {
+				if u, ok := configUint8(v); ok {
+					rc.ResponseCode = u
+				}
+			}
+			if v, ok := cfg["rounds"]; ok {
+				if u, ok := configUint16(v); ok {
+					rc.Rounds = int(u)
+				}
+			}
+			if attrs, ok := cfg["attributes"]; ok {
+				if b, err := json.Marshal(attrs); err == nil {
+					var out []core.RadiusAttribute
+					if json.Unmarshal(b, &out) == nil {
+						rc.Attributes = out
+					}
+				}
+			}
+			if rattrs, ok := cfg["response_attributes"]; ok {
+				if b, err := json.Marshal(rattrs); err == nil {
+					var out []core.RadiusAttribute
+					if json.Unmarshal(b, &out) == nil {
+						rc.ResponseAttributes = out
+					}
+				}
+			}
+			spec.Radius = rc
+			// 端口双态+顺序修正：判断依据=层 config 是否显式含 "dst_port"
+			if v, ok := cfg["src_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.SrcPort = u
+				}
+			}
+			if v, ok := cfg["dst_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.DstPort = u
+				}
+			} else {
+				if rc.Code == 4 {
+					spec.DstPort = 1813
+				} else {
+					spec.DstPort = 1812
+				}
+			}
+		}
+		return
 	case "opcua":
 		if spec.OPCUA != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略
