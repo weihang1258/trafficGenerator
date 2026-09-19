@@ -747,6 +747,48 @@
       ],
       "fields": {}
     },
+    "h323": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "calls": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "crv": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "dst_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "media": {
+          "type": "object"
+        },
+        "ras": {
+          "type": "object"
+        },
+        "rewrite_addr": {
+          "type": "bool"
+        },
+        "role": {
+          "type": "string"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "src_port": {
+          "type": "uint16",
+          "max": 65535
+        }
+      }
+    },
     "hds": {
       "category": "terminal",
       "depends_on": [

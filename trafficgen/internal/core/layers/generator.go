@@ -482,6 +482,8 @@ type FlowMeta struct {
 	ISIS *core.ISISConfig
 	// ICMPv6 is the flow's ICMPv6 config（D-ICMPV6-1：raw-IP 终结层生成器直传）。Only set for icmpv6 chains.
 	ICMPv6 *core.ICMPv6Config
+	// H323 is the flow's h323 config（D-H323-1：raw 自驱终层生成器直传）。Only set for h323 chains.
+	H323 *core.H323Config
 	// GBT is the flow's gbt config (注入到 gbt 终结层生成器，B6：BIP 22/23
 	// JSON-RPC over HTTP；sessions[]/events[] 逐事件产完整 HTTP 帧，http 层
 	// 透传转发)。Only set for gbt chains。

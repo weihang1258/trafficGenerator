@@ -7801,6 +7801,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol icmpv6 no longer accepts a top-level icmpv6 sub-config (move it into the icmpv6 layer of an [ip,icmpv6] layers chain)"
 		}
 	}
+	// D-H323-1：h323 顶层 h323 子映射 presence 判死（icmpv6 先例；空
+	// map 也死）。层链形状不触发。
+	if protocol == "h323" {
+		if v, ok := cfg["h323"]; ok && v != nil {
+			return "protocol h323 no longer accepts a top-level h323 sub-config (move it into the h323 layer of an [ip,h323] layers chain)"
+		}
+	}
 	return ""
 }
 

@@ -3580,6 +3580,9 @@ type LayerDynValues struct {
 	TLS  LayerTLSDyn
 	DNS  LayerDNSDyn
 	MQTT LayerMQTTDyn
+	// H323 holds h323-layer dynamic port strategies（D-H323-1 决策 E1：
+	// src_port/dst_port 2 键开 int 面，逐流端口池；业务 8 键关）。
+	H323 LayerTransportDyn
 }
 
 // LayerMQTTDyn holds mqtt-layer dynamic business-field strategies
@@ -3600,6 +3603,7 @@ func (l *LayerDynValues) HasAny() bool {
 	return l.IP.Src != nil || l.IP.Dst != nil || l.IP.TTL != nil ||
 		l.TCP.SrcPort != nil || l.TCP.DstPort != nil ||
 		l.UDP.SrcPort != nil || l.UDP.DstPort != nil ||
+		l.H323.SrcPort != nil || l.H323.DstPort != nil ||
 		l.Eth.SrcMAC != nil || l.Eth.DstMAC != nil ||
 		l.HTTP.URI != nil || l.HTTP.Body != nil || l.HTTP.BodyB64 != nil ||
 		l.HTTP.ResponseBody != nil || l.HTTP.ResponseBodyB64 != nil ||

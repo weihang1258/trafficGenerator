@@ -45,7 +45,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/grpc"
 	// 空导入：gtp 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/gtp"
-	"github.com/trafficgen/trafficgen/internal/protocol/h323"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/h323" // 空导入：h323 包 init 注册层生成器 + 校验器（D-H323-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/iec104"
 	// 空导入：http 包 init 反向注册 http 层生成器（layers.RegisterHTTPGenerator），
 	// ChainPlanner("http") 经此实例化；协议本体由层链驱动。
@@ -560,7 +560,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(ldap.NewPlanner())
 	app.engine.RegisterPlanner(vnc.NewPlanner())
 	app.engine.RegisterPlanner(pptp.NewPlanner())
-	app.engine.RegisterPlanner(h323.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("h323"))
 	app.engine.RegisterPlanner(rtmp.NewPlanner())
 	app.engine.RegisterPlanner(layers.NewChainPlanner("redis"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mysql"))

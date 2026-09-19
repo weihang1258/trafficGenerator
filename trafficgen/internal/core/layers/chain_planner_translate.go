@@ -971,6 +971,124 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.ICMPv6 = ic
 		}
 		return
+	case "h323":
+		// D-H323-1：层 config 手工逐键映射进 spec.H323（parseH323Config
+		// 未导出不可跨包，决策 C1）。缺省镜像 parse（strategy_convert.go
+		// :3309，getIntPresence 语义=缺省补默认、显式 0 保留）：role caller/
+		// scenario full/crv 0x2584/display "Administrator"/calls 1/media·ras
+		// 子映射缺省见下钻。端口同键二态（D-FTP-2 v2）：标量→spec 端口
+		// （层值赢），dst_port 缺席→1720（镜像 setDefaultDstPort :933）、
+		// src_port 缺席→不动（worker 12345+i 保底）；对象→放行（worker
+		// resolveLayerTuple 已把逐流解析值写进 spec 端口）。
+		if spec.H323 == nil {
+			cfg := completedConfig(s, term.Config)
+			hc := &core.H323Config{
+				Role:        "caller",
+				Scenario:    "full",
+				Crv:         0x2584,
+				DisplayName: "Administrator",
+				Calls:       1,
+			}
+			if v, ok := configString(cfg["role"]); ok {
+				hc.Role = v
+			}
+			if v, ok := configString(cfg["scenario"]); ok {
+				hc.Scenario = v
+			}
+			// getIntPresence：显式 0 保留（Plan 内 0→DefaultCRV 二次兜底）。
+			if v, ok := cfg["crv"]; ok {
+				if u, ok := configUint16(v); ok {
+					hc.Crv = u
+				}
+			}
+			if v, ok := configString(cfg["display_name"]); ok {
+				hc.DisplayName = v
+			}
+			if v, ok := cfg["calls"]; ok {
+				if u, ok := configUint16(v); ok {
+					hc.Calls = int(u)
+				}
+			}
+			if v, ok := configBool(cfg["rewrite_addr"]); ok {
+				hc.RewriteAddr = v
+			}
+			if mm, ok := cfg["media"].(map[string]interface{}); ok {
+				mc := &core.H323MediaConfig{
+					SrcPort:   5062,
+					DstPort:   5063,
+					Frames:    10,
+					FrameSize: 160,
+				}
+				if v, ok := configBool(mm["enabled"]); ok {
+					mc.Enabled = v
+				}
+				if v, ok := mm["src_port"]; ok {
+					if u, ok := configUint16(v); ok {
+						mc.SrcPort = u
+					}
+				}
+				if v, ok := mm["dst_port"]; ok {
+					if u, ok := configUint16(v); ok {
+						mc.DstPort = u
+					}
+				}
+				if v, ok := mm["frames"]; ok {
+					if u, ok := configUint16(v); ok {
+						mc.Frames = int(u)
+					}
+				}
+				if v, ok := mm["payload_type"]; ok {
+					if u, ok := configUint8(v); ok {
+						mc.PayloadType = u
+					}
+				}
+				if v, ok := mm["frame_size"]; ok {
+					if u, ok := configUint16(v); ok {
+						mc.FrameSize = int(u)
+					}
+				}
+				hc.Media = mc
+			}
+			if rm, ok := cfg["ras"].(map[string]interface{}); ok {
+				rc := &core.H323RasConfig{
+					GatekeeperIP: "10.12.184.53",
+					Port:         1719,
+					EndpointType: "terminal",
+				}
+				if v, ok := configBool(rm["enabled"]); ok {
+					rc.Enabled = v
+				}
+				if v, ok := configString(rm["gatekeeper_ip"]); ok {
+					rc.GatekeeperIP = v
+				}
+				if v, ok := rm["port"]; ok {
+					if u, ok := configUint16(v); ok {
+						rc.Port = u
+					}
+				}
+				if v, ok := configString(rm["endpoint_type"]); ok {
+					rc.EndpointType = v
+				}
+				hc.Ras = rc
+			}
+			spec.H323 = hc
+		}
+		// 端口同键二态（H323Config 之外，spec 框架端口）：见 case 头注。
+		if cfg := completedConfig(s, term.Config); cfg != nil {
+			if v, ok := cfg["src_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.SrcPort = u
+				}
+			}
+			if v, ok := cfg["dst_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.DstPort = u
+				}
+			} else {
+				spec.DstPort = 1720
+			}
+		}
+		return
 	case "opcua":
 		if spec.OPCUA != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

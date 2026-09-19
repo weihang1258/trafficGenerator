@@ -42,6 +42,10 @@ var layerDynAllowlist = map[string]map[string]bool{
 	// checkLayerDynObjects 三处的 messages 下钻点（CheckLayerDynShape
 	// "mqtt","topic"/"payload"）。其余 14 关，对象即 does not support dynamic。
 	"mqtt": {"client_id": true},
+	// D-H323-1 决策 E1（用户已批）：h323 层端口 2 键开（对象=逐流端口池，
+	// 12.13 与 tcp/udp 端口语义对齐）；业务 8 键全关（结构选择器/会话
+	// 语义，icmpv6 同判），对象即 does not support dynamic。
+	"h323": {"src_port": true, "dst_port": true},
 }
 
 // parseLayerDyn extracts per-flow dynamic strategies from a decoded layers
@@ -200,6 +204,14 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 					//（allowlist 顶行只登记 client_id）。
 					if f == "client_id" {
 						set(where, lname, f, &out.MQTT.ClientID, v)
+					}
+				case "h323":
+					// D-H323-1 决策 E1：端口 2 键 int 面（tcp/udp 同款，
+					// checkDynShape default 分支天然覆盖）。
+					if f == "src_port" {
+						set(where, lname, f, &out.H323.SrcPort, v)
+					} else {
+						set(where, lname, f, &out.H323.DstPort, v)
 					}
 				}
 			}
@@ -735,6 +747,19 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 	}
 	if ld.UDP.DstPort != nil {
 		if v := ResolvePortValue(ld.UDP.DstPort, i); v != 0 {
+			spec.DstPort = v
+		}
+	}
+	// D-H323-1 决策 E1：h323 层端口逐流解析落 spec（与 tcp/udp 同款
+	// "non-zero wins"；legacy Plan 按 spec 端口组装信令/媒体面）。
+	// 顺序在 worker auto-increment 之后（同 tcp：层动态覆盖保底）。
+	if ld.H323.SrcPort != nil {
+		if v := ResolvePortValue(ld.H323.SrcPort, i); v != 0 {
+			spec.SrcPort = v
+		}
+	}
+	if ld.H323.DstPort != nil {
+		if v := ResolvePortValue(ld.H323.DstPort, i); v != 0 {
 			spec.DstPort = v
 		}
 	}

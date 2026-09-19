@@ -758,6 +758,26 @@ func buildDefaultRegistry() {
 			"pattern":    {Type: "list"},
 		},
 	})
+	// D-H323-1：h323 raw 自驱终层（[ip,h323]，ITU-T H.225.0/Q.931）。10 键
+	// 无 Default（决策 F；缺省语义在 translate 镜像 parse：role caller/
+	// scenario full/crv 0x2584/display Administrator/calls 1/dst_port 1720/
+	// media·ras 子映射缺省）；无跨层 FieldContract（端口住本层，1.2 已批
+	// 偏离）；role/scenario/calls/display 约束留 layer validator（复用
+	// legacy Validate 8 锚词零新文案）。
+	r.Register(LayerSchema{Name: "h323", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"role":         {Type: "string"},
+			"scenario":     {Type: "string"},
+			"crv":          {Type: "uint16", Min: 0, Max: 65535},
+			"display_name": {Type: "string"},
+			"calls":        {Type: "uint16", Min: 0, Max: 65535},
+			"rewrite_addr": {Type: "bool"},
+			"src_port":     {Type: "uint16", Min: 0, Max: 65535},
+			"dst_port":     {Type: "uint16", Min: 0, Max: 65535},
+			"media":        {Type: "object"},
+			"ras":          {Type: "object"},
+		},
+	})
 	r.Register(LayerSchema{Name: "bgp", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "179"},
 		Fields: map[string]FieldSchema{
