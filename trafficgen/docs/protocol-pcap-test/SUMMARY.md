@@ -1,8 +1,8 @@
 # Protocol Pcap Test Results
 
-Run at 2026-09-19 21:26:12 — 11 total cases, 11 pass, 0 fail, 0 error
+Run at 2026-09-19 23:31:43 — 17 total cases, 17 pass, 0 fail, 0 error
 
 | Protocol | Cases | Pass | Fail | Error |
 |----------|-------|------|------|-------|
-| icmpv6 | 11 | 11 | 0 | 0 |
+| telnet | 17 | 17 | 0 | 0 |
 
