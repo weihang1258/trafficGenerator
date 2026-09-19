@@ -1,904 +1,1649 @@
 [
-  {
-    "id": "sv_smp_seq",
-    "proto": "sv",
-    "summary": "9-2LE base sampled-value stream: 3 frames, smpCnt 0/1/2 incrementing, appid 0x4000, length 0x6A(=106), confRev 1, no VLAN, no IP (eth:sv)",
-    "spec_json": {
-      "count": 3,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 1,
-        "samples_per_cycle": 4000,
-        "smp_synch": 2,
-        "smp_rate": 4000,
-        "period_us": 250,
-        "double_send": false,
-        "dst_mac": "01:0c:cd:04:00:01",
-        "vlan_enabled": false,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "quality": 0
-          },
-          {
-            "name": "I_B",
-            "type": "int32",
-            "quality": 0
-          },
-          {
-            "name": "I_C",
-            "type": "int32",
-            "quality": 0
-          },
-          {
-            "name": "I_N",
-            "type": "int32",
-            "quality": 0
-          },
-          {
-            "name": "V_A",
-            "type": "int32",
-            "quality": 0
-          },
-          {
-            "name": "V_B",
-            "type": "int32",
-            "quality": 0
-          },
-          {
-            "name": "V_C",
-            "type": "int32",
-            "quality": 0
-          },
-          {
-            "name": "V_N",
-            "type": "int32",
-            "quality": 0
-          }
-        ]
-      }
+ {
+  "id": "sv_smp_seq",
+  "proto": "sv",
+  "summary": "9-2LE base sampled-value stream: 3 frames, smpCnt 0/1/2 incrementing, appid 0x4000, length 0x6A(=106), confRev 1, no VLAN, no IP (eth:sv)",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
     },
-    "expect": {
-      "packet_count": 3,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "sv.appid",
-          "value": "0x4000"
-        },
-        {
-          "packet": 1,
-          "field": "sv.length",
-          "value": "112"
-        },
-        {
-          "packet": 1,
-          "field": "sv.reserve1",
-          "value": "0x0000"
-        },
-        {
-          "packet": 1,
-          "field": "sv.reserve2",
-          "value": "0x0000"
-        },
-        {
-          "packet": 1,
-          "field": "sv.svID",
-          "value": "xxxxMUnn01"
-        },
-        {
-          "packet": 1,
-          "field": "sv.smpCnt",
-          "value": "0"
-        },
-        {
-          "packet": 2,
-          "field": "sv.smpCnt",
-          "value": "1"
-        },
-        {
-          "packet": 3,
-          "field": "sv.smpCnt",
-          "value": "2"
-        },
-        {
-          "packet": 1,
-          "field": "sv.confRev",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "sv.confRev",
-          "same_as_packet": 1
-        },
-        {
-          "packet": 1,
-          "field": "sv.smpSynch",
-          "value": "2"
-        },
-        {
-          "packet": 1,
-          "field": "sv.smpRate",
-          "value": "4000"
-        },
-        {
-          "packet": 1,
-          "field": "sv.noASDU",
-          "value": "1"
-        }
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 4000,
+      "smp_synch": 2,
+      "smp_rate": 4000,
+      "period_us": 250,
+      "double_send": false,
+      "dst_mac": "01:0c:cd:04:00:01",
+      "vlan_enabled": false,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "quality": 0
+       },
+       {
+        "name": "I_B",
+        "type": "int32",
+        "quality": 0
+       },
+       {
+        "name": "I_C",
+        "type": "int32",
+        "quality": 0
+       },
+       {
+        "name": "I_N",
+        "type": "int32",
+        "quality": 0
+       },
+       {
+        "name": "V_A",
+        "type": "int32",
+        "quality": 0
+       },
+       {
+        "name": "V_B",
+        "type": "int32",
+        "quality": 0
+       },
+       {
+        "name": "V_C",
+        "type": "int32",
+        "quality": 0
+       },
+       {
+        "name": "V_N",
+        "type": "int32",
+        "quality": 0
+       }
       ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 14,
-          "hex": "40 00 00 70 00 00 00 00"
-        },
-        {
-          "packet": 1,
-          "offset": 22,
-          "hex": "60 66 80 01 01 a2 61 30 5f"
-        },
-        {
-          "packet": 1,
-          "offset": 31,
-          "hex": "80 0a 78 78 78 78 4d 55 6e 6e 30 31"
-        },
-        {
-          "packet": 1,
-          "offset": 43,
-          "hex": "82 02 00 00 83 04 00 00 00 01 85 01 02 86 02 0f a0 87 40"
-        }
-      ],
-      "notes": [
-        "frame = 14 eth + 8 SV hdr + 104 APDU = 126B; SV Length field counts from APPID: 8 + 104 = 112 = 0x70 (10B svID; old 4B-SV01 template was wrong, see sv_4i4v/sv_custom_dataset frames renumbered +6/+12)",
-        "ASDU fields (10B svID xxxxMUnn01): smpCnt@43 82 02 + confRev@47 83 04 + smpSynch@53 85 01 + smpRate@56 86 02 0f a0 + seqData tag@60 87 40"
-      ]
+      "count": 3
+     }
     }
+   ]
   },
-  {
-    "id": "sv_double_send",
-    "proto": "sv",
-    "summary": "redundant double-send: same smpCnt appears twice (2 frames identical bytes), then stream continues; count 6 -> smpCnt 0,0,1,1,2,2",
-    "spec_json": {
-      "count": 6,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 1,
-        "samples_per_cycle": 4000,
-        "smp_synch": 2,
-        "smp_rate": 4000,
-        "period_us": 250,
-        "double_send": true,
-        "vlan_enabled": false,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "quality": 0
-          }
-        ]
-      }
+  "expect": {
+   "packet_count": 3,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sv.appid",
+     "value": "0x4000"
     },
-    "expect": {
-      "packet_count": 6,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "sv.smpCnt",
-          "value": "0"
-        },
-        {
-          "packet": 2,
-          "field": "sv.smpCnt",
-          "value": "0"
-        },
-        {
-          "packet": 3,
-          "field": "sv.smpCnt",
-          "value": "1"
-        },
-        {
-          "packet": 4,
-          "field": "sv.smpCnt",
-          "value": "1"
-        },
-        {
-          "packet": 5,
-          "field": "sv.smpCnt",
-          "value": "2"
-        },
-        {
-          "packet": 6,
-          "field": "sv.smpCnt",
-          "value": "2"
-        },
-        {
-          "packet": 2,
-          "field": "sv.confRev",
-          "same_as_packet": 1
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 0,
-          "hex": "01 0c cd 04 00 01"
-        },
-        {
-          "packet": 1,
-          "offset": 14,
-          "hex": "40 00 00 38 00 00 00 00"
-        },
-        {
-          "packet": 1,
-          "offset": 22,
-          "hex": "60 2e 80 01 01 a2 29 30 27"
-        },
-        {
-          "packet": 2,
-          "offset": 0,
-          "hex": "01 0c cd 04 00 01"
-        },
-        {
-          "packet": 2,
-          "offset": 14,
-          "hex": "40 00 00 38 00 00 00 00"
-        },
-        {
-          "packet": 2,
-          "offset": 22,
-          "hex": "60 2e 80 01 01 a2 29 30 27"
-        }
-      ],
-      "notes": [
-        "same smpCnt twice = redundancy report; the two frames differ only in frame number, content bytes identical (design §4.6/§6.2)",
-        "distinct smpCnt values are [0,1,2] each appearing exactly 2 times"
-      ]
-    }
-  },
-  {
-    "id": "sv_smp_wrap",
-    "proto": "sv",
-    "summary": "smpCnt wrap-around: samples_per_cycle=4 -> smpCnt 0,1,2,3,0,1 (wrap at 3->0, never 4); 6 frames",
-    "spec_json": {
-      "count": 6,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 1,
-        "samples_per_cycle": 4,
-        "smp_synch": 2,
-        "smp_rate": 400,
-        "period_us": 2500,
-        "double_send": false,
-        "vlan_enabled": false,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "quality": 0
-          }
-        ]
-      }
+    {
+     "packet": 1,
+     "field": "sv.length",
+     "value": "112"
     },
-    "expect": {
-      "packet_count": 6,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "sv.smpCnt",
-          "value": "0"
-        },
-        {
-          "packet": 2,
-          "field": "sv.smpCnt",
-          "value": "1"
-        },
-        {
-          "packet": 3,
-          "field": "sv.smpCnt",
-          "value": "2"
-        },
-        {
-          "packet": 4,
-          "field": "sv.smpCnt",
-          "value": "3"
-        },
-        {
-          "packet": 5,
-          "field": "sv.smpCnt",
-          "value": "0"
-        },
-        {
-          "packet": 6,
-          "field": "sv.smpCnt",
-          "value": "1"
-        }
-      ],
-      "notes": [
-        "wrap is samples_per_cycle-1 -> 0, never reaching samples_per_cycle (4); stream continues after wrap (design §4.3/§6.3)",
-        "relative-wrap variant keeps packet_count low; the 9-2LE 4000 wrap is exercised by config value and the same code path"
-      ]
-    }
-  },
-  {
-    "id": "sv_neg_wrap",
-    "proto": "sv",
-    "summary": "negative: samples_per_cycle=0 (illegal wrap/cycle count <1) must fail the task",
-    "spec_json": {
-      "count": 3,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 1,
-        "samples_per_cycle": 0,
-        "smp_synch": 2,
-        "vlan_enabled": false,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "quality": 0
-          }
-        ]
-      }
+    {
+     "packet": 1,
+     "field": "sv.reserve1",
+     "value": "0x0000"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "samples_per_cycle",
-      "notes": [
-        "design §9.1: samples_per_cycle < 1 rejected; smpCnt is 16-bit, wrap must be >= 1 and <= 65535",
-        "expected error: 'samples_per_cycle must be >= 1'"
-      ]
-    }
-  },
-  {
-    "id": "sv_smp_synch_global",
-    "proto": "sv",
-    "summary": "smpSynch field stable at 2 (global/PTP sync) across all frames of the stream",
-    "spec_json": {
-      "count": 4,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 1,
-        "samples_per_cycle": 4000,
-        "smp_synch": 2,
-        "smp_rate": 4000,
-        "period_us": 250,
-        "double_send": false,
-        "vlan_enabled": false,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "quality": 0
-          }
-        ]
-      }
+    {
+     "packet": 1,
+     "field": "sv.reserve2",
+     "value": "0x0000"
     },
-    "expect": {
-      "min_packets": 4,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "sv.smpSynch",
-          "value": "2"
-        },
-        {
-          "packet": 2,
-          "field": "sv.smpSynch",
-          "same_as_packet": 1
-        },
-        {
-          "packet": 3,
-          "field": "sv.smpSynch",
-          "same_as_packet": 1
-        },
-        {
-          "packet": 4,
-          "field": "sv.smpSynch",
-          "same_as_packet": 1
-        }
-      ],
-      "notes": [
-        "smpSynch 2 = global clock (PTP synchronized); value is stable per-frame, not an event (design §4.4/§6.4)",
-        "switch-to-2 across a config boundary is covered by design; single-task case asserts stability"
-      ]
-    }
-  },
-  {
-    "id": "sv_neg_smp_synch",
-    "proto": "sv",
-    "summary": "negative: smp_synch=5 (legal set is {0,1,2}) must fail the task",
-    "spec_json": {
-      "count": 3,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 1,
-        "samples_per_cycle": 4000,
-        "smp_synch": 5,
-        "vlan_enabled": false,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "quality": 0
-          }
-        ]
-      }
+    {
+     "packet": 1,
+     "field": "sv.svID",
+     "value": "xxxxMUnn01"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "smpSynch",
-      "notes": [
-        "design §9.5: smpSynch legal values are 0 (not synchronized), 1 (local), 2 (global); 3-15 rejected",
-        "expected error: 'smpSynch must be 0, 1 or 2'"
-      ]
-    }
-  },
-  {
-    "id": "sv_4i4v",
-    "proto": "sv",
-    "summary": "9-2LE full dataset 4 current + 4 voltage: seqData 64 bytes, per-channel instMag 30..135, quality good; also serves as the no-IP proof (eth:sv, no ip layer)",
-    "spec_json": {
-      "count": 1,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 1,
-        "samples_per_cycle": 4000,
-        "smp_synch": 2,
-        "smp_rate": 4000,
-        "period_us": 250,
-        "double_send": false,
-        "vlan_enabled": false,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "quality": 0,
-            "inst_mag": 30
-          },
-          {
-            "name": "I_B",
-            "type": "int32",
-            "quality": 0,
-            "inst_mag": 45
-          },
-          {
-            "name": "I_C",
-            "type": "int32",
-            "quality": 0,
-            "inst_mag": 60
-          },
-          {
-            "name": "I_N",
-            "type": "int32",
-            "quality": 0,
-            "inst_mag": 75
-          },
-          {
-            "name": "V_A",
-            "type": "int32",
-            "quality": 0,
-            "inst_mag": 90
-          },
-          {
-            "name": "V_B",
-            "type": "int32",
-            "quality": 0,
-            "inst_mag": 105
-          },
-          {
-            "name": "V_C",
-            "type": "int32",
-            "quality": 0,
-            "inst_mag": 120
-          },
-          {
-            "name": "V_N",
-            "type": "int32",
-            "quality": 0,
-            "inst_mag": 135
-          }
-        ]
-      }
+    {
+     "packet": 1,
+     "field": "sv.smpCnt",
+     "value": "0"
     },
-    "expect": {
-      "min_packets": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "eth.type",
-          "value": "0x88ba"
-        },
-        {
-          "packet": 1,
-          "field": "frame.protocols",
-          "value": "eth:ethertype:sv"
-        },
-        {
-          "packet": 1,
-          "field": "sv.smpCnt",
-          "value": "0"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "88 ba"
-        },
-        {
-          "packet": 1,
-          "offset": 60,
-          "hex": "87 40"
-        },
-        {
-          "packet": 1,
-          "offset": 62,
-          "hex": "00 00 00 1e 00 00 00 00 00 00 00 2d 00 00 00 00"
-        },
-        {
-          "packet": 1,
-          "offset": 94,
-          "hex": "00 00 00 5a 00 00 00 00 00 00 00 69 00 00 00 00"
-        },
-        {
-          "packet": 1,
-          "offset": 118,
-          "hex": "00 00 00 87 00 00 00 00"
-        }
-      ],
-      "notes": [
-        "no-IP proof: offset 12 is EtherType 0x88ba (not 0x0800/0x86dd), frame.protocols == eth:sv with no ip segment (design §6.7)",
-        "seqData 64 bytes = 8 channels x 8 (int32 instMag big-endian + 4B quality; design §2.7); instMag I_A=30 V_N=135 verified in hex",
-        "10B svID shifts ASDU: seqData tag@60, data@62..125 (sv_smp_seq for the shared layout)",
-        "if tshark supports PhsMeas decoding (-d sv.seqData,PhsMeas), sv.meas_value equals 30..135 and sv.meas_quality == 0; otherwise raw sv.seqData / FrameAssert hex above"
-      ]
-    }
-  },
-  {
-    "id": "sv_custom_dataset",
-    "proto": "sv",
-    "summary": "non-9-2LE custom dataset: 2 channels (int32 + float32), no per-channel quality, smpRate field omitted (optional-field behavior), smpSynch 2",
-    "spec_json": {
-      "count": 1,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 1,
-        "samples_per_cycle": 4000,
-        "smp_synch": 2,
-        "period_us": 250,
-        "double_send": false,
-        "vlan_enabled": false,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "inst_mag": 30
-          },
-          {
-            "name": "V_A",
-            "type": "float32",
-            "inst_mag": 1.5
-          }
-        ]
-      }
+    {
+     "packet": 2,
+     "field": "sv.smpCnt",
+     "value": "1"
     },
-    "expect": {
-      "min_packets": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "sv.svID",
-          "value": "xxxxMUnn01"
-        },
-        {
-          "packet": 1,
-          "field": "sv.smpCnt",
-          "value": "0"
-        },
-        {
-          "packet": 1,
-          "field": "sv.smpSynch",
-          "value": "2"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 56,
-          "hex": "87 08 00 00 00 1e 3f c0 00 00"
-        }
-      ],
-      "notes": [
-        "no smpRate config -> the 0x86 field is absent entirely; FrameAssert offset 56 shows seqData tag 0x87 directly after smpSynch (no 0x86 between) (design §6.6)",
-        "10B svID shifts ASDU: seqData tag@56, data@58..65; frame SV Length = 52 = 0x34 (8 hdr + savPdu 36 + asdu) (design §2.4)",
-        "channels: int32 30 = 0x1e, float32 1.5 = 0x3fc00000 big-endian; seqData 8 bytes",
-        "frame length 60 = exactly minimal ethernet frame, no padding (14 + 8 hdr + 38 APDU = 60)"
-      ]
-    }
-  },
-  {
-    "id": "sv_vlan",
-    "proto": "sv",
-    "summary": "802.1Q VLAN on SV: vlan_id 100, priority 4 -> TCI 0x8064 inserted before EtherType 0x88ba",
-    "spec_json": {
-      "count": 1,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 1,
-        "samples_per_cycle": 4000,
-        "smp_synch": 2,
-        "smp_rate": 4000,
-        "period_us": 250,
-        "double_send": false,
-        "vlan_enabled": true,
-        "vlan_id": 100,
-        "vlan_priority": 4,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "quality": 0
-          }
-        ]
-      }
+    {
+     "packet": 3,
+     "field": "sv.smpCnt",
+     "value": "2"
     },
-    "expect": {
-      "min_packets": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "vlan.id",
-          "value": "100"
-        },
-        {
-          "packet": 1,
-          "field": "vlan.priority",
-          "value": "4"
-        },
-        {
-          "packet": 1,
-          "field": "vlan.etype",
-          "value": "0x88ba"
-        },
-        {
-          "packet": 1,
-          "field": "frame.protocols",
-          "value": "eth:ethertype:vlan:ethertype:sv"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "81 00 80 64 88 ba"
-        }
-      ],
-      "notes": [
-        "TCI = priority(4)<<13 + DEI(0)<<12 + VID(100) = 0x8000 + 0x64 = 0x8064 (design §2.2/§6.8)",
-        "all SV-header/APDU offsets shift +4 when VLAN present"
-      ]
-    }
-  },
-  {
-    "id": "sv_period",
-    "proto": "sv",
-    "summary": "sampling period stability: period_us 250, 100 frames delivered (redundancy of the period-driven sender); timing asserted via time_delta sampling",
-    "spec_json": {
-      "count": 100,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 1,
-        "samples_per_cycle": 4000,
-        "smp_synch": 2,
-        "smp_rate": 4000,
-        "period_us": 250,
-        "double_send": false,
-        "vlan_enabled": false,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "quality": 0
-          }
-        ]
-      }
+    {
+     "packet": 1,
+     "field": "sv.confRev",
+     "value": "1"
     },
-    "expect": {
-      "min_packets": 100,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "sv.smpCnt",
-          "value": "0"
-        }
-      ],
-      "notes": [
-        "100 frames at period 250us; captures of long streams assert frame.time_delta ~250us (+/- tolerance) and frame.time_relative monotonic (design §4.8/§6.9)",
-        "if the framework cannot read time fields, period correctness is covered by unit tests on the ticker plus this packet-count bound"
-      ]
-    }
-  },
-  {
-    "id": "sv_neg_confrev",
-    "proto": "sv",
-    "summary": "negative: conf_rev=0 (must be >= 1, 0 means undefined config version) must fail the task",
-    "spec_json": {
-      "count": 3,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 16384,
-        "conf_rev": 0,
-        "samples_per_cycle": 4000,
-        "smp_synch": 2,
-        "vlan_enabled": false,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "quality": 0
-          }
-        ]
-      }
+    {
+     "packet": 2,
+     "field": "sv.confRev",
+     "same_as_packet": 1
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "confRev",
-      "notes": [
-        "design §9.2: confRev must be >= 1; 0 indicates undefined version and is rejected",
-        "expected error: 'confRev must be >= 1'"
-      ]
-    }
-  },
-  {
-    "id": "sv_neg_appid",
-    "proto": "sv",
-    "summary": "negative: appid 0x3999 falls in the GOOSE-reserved range (0x0000-0x3FFF) and must fail; SV segment is 0x4000-0x7FFF",
-    "spec_json": {
-      "count": 3,
-      "src_mac": "aa:bb:cc:dd:ee:03",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "sv": {}
-        }
-      ],
-      "sv": {
-        "sv_id": "xxxxMUnn01",
-        "appid": 14745,
-        "conf_rev": 1,
-        "samples_per_cycle": 4000,
-        "smp_synch": 2,
-        "vlan_enabled": false,
-        "data": [
-          {
-            "name": "I_A",
-            "type": "int32",
-            "quality": 0
-          }
-        ]
-      }
+    {
+     "packet": 1,
+     "field": "sv.smpSynch",
+     "value": "2"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "appid",
-      "notes": [
-        "appid 0x3999 = 14745 decimal, within GOOSE reserved range 0x0000-0x3FFF (design §2.4/§9.3); validator distinguishes segments",
-        "SV standard segment is 0x4000-0x7FFF with default 0x4000; 0x8000-0xFFFF user segment allowed",
-        "expected error: 'appid 0x3999 is in the GOOSE-reserved range; SV appid must be 0x4000-0x7FFF (or 0x8000-0xFFFF)'"
-      ]
+    {
+     "packet": 1,
+     "field": "sv.smpRate",
+     "value": "4000"
+    },
+    {
+     "packet": 1,
+     "field": "sv.noASDU",
+     "value": "1"
     }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 14,
+     "hex": "40 00 00 70 00 00 00 00"
+    },
+    {
+     "packet": 1,
+     "offset": 22,
+     "hex": "60 66 80 01 01 a2 61 30 5f"
+    },
+    {
+     "packet": 1,
+     "offset": 31,
+     "hex": "80 0a 78 78 78 78 4d 55 6e 6e 30 31"
+    },
+    {
+     "packet": 1,
+     "offset": 43,
+     "hex": "82 02 00 00 83 04 00 00 00 01 85 01 02 86 02 0f a0 87 40"
+    }
+   ],
+   "notes": [
+    "frame = 14 eth + 8 SV hdr + 104 APDU = 126B; SV Length field counts from APPID: 8 + 104 = 112 = 0x70 (10B svID; old 4B-SV01 template was wrong, see sv_4i4v/sv_custom_dataset frames renumbered +6/+12)",
+    "ASDU fields (10B svID xxxxMUnn01): smpCnt@43 82 02 + confRev@47 83 04 + smpSynch@53 85 01 + smpRate@56 86 02 0f a0 + seqData tag@60 87 40"
+   ]
   }
+ },
+ {
+  "id": "sv_double_send",
+  "proto": "sv",
+  "summary": "redundant double-send: same smpCnt appears twice (2 frames identical bytes), then stream continues; count 6 -> smpCnt 0,0,1,1,2,2",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 4000,
+      "smp_synch": 2,
+      "smp_rate": 4000,
+      "period_us": 250,
+      "double_send": true,
+      "vlan_enabled": false,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "quality": 0
+       }
+      ],
+      "count": 6
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 6,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sv.smpCnt",
+     "value": "0"
+    },
+    {
+     "packet": 2,
+     "field": "sv.smpCnt",
+     "value": "0"
+    },
+    {
+     "packet": 3,
+     "field": "sv.smpCnt",
+     "value": "1"
+    },
+    {
+     "packet": 4,
+     "field": "sv.smpCnt",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "sv.smpCnt",
+     "value": "2"
+    },
+    {
+     "packet": 6,
+     "field": "sv.smpCnt",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "sv.confRev",
+     "same_as_packet": 1
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 0,
+     "hex": "01 0c cd 04 00 01"
+    },
+    {
+     "packet": 1,
+     "offset": 14,
+     "hex": "40 00 00 38 00 00 00 00"
+    },
+    {
+     "packet": 1,
+     "offset": 22,
+     "hex": "60 2e 80 01 01 a2 29 30 27"
+    },
+    {
+     "packet": 2,
+     "offset": 0,
+     "hex": "01 0c cd 04 00 01"
+    },
+    {
+     "packet": 2,
+     "offset": 14,
+     "hex": "40 00 00 38 00 00 00 00"
+    },
+    {
+     "packet": 2,
+     "offset": 22,
+     "hex": "60 2e 80 01 01 a2 29 30 27"
+    }
+   ],
+   "notes": [
+    "same smpCnt twice = redundancy report; the two frames differ only in frame number, content bytes identical (design §4.6/§6.2)",
+    "distinct smpCnt values are [0,1,2] each appearing exactly 2 times"
+   ]
+  }
+ },
+ {
+  "id": "sv_smp_wrap",
+  "proto": "sv",
+  "summary": "smpCnt wrap-around: samples_per_cycle=4 -> smpCnt 0,1,2,3,0,1 (wrap at 3->0, never 4); 6 frames",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 4,
+      "smp_synch": 2,
+      "smp_rate": 400,
+      "period_us": 2500,
+      "double_send": false,
+      "vlan_enabled": false,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "quality": 0
+       }
+      ],
+      "count": 6
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 6,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sv.smpCnt",
+     "value": "0"
+    },
+    {
+     "packet": 2,
+     "field": "sv.smpCnt",
+     "value": "1"
+    },
+    {
+     "packet": 3,
+     "field": "sv.smpCnt",
+     "value": "2"
+    },
+    {
+     "packet": 4,
+     "field": "sv.smpCnt",
+     "value": "3"
+    },
+    {
+     "packet": 5,
+     "field": "sv.smpCnt",
+     "value": "0"
+    },
+    {
+     "packet": 6,
+     "field": "sv.smpCnt",
+     "value": "1"
+    }
+   ],
+   "notes": [
+    "wrap is samples_per_cycle-1 -> 0, never reaching samples_per_cycle (4); stream continues after wrap (design §4.3/§6.3)",
+    "relative-wrap variant keeps packet_count low; the 9-2LE 4000 wrap is exercised by config value and the same code path"
+   ]
+  }
+ },
+ {
+  "id": "sv_neg_wrap",
+  "proto": "sv",
+  "summary": "negative: samples_per_cycle=0 (illegal wrap/cycle count <1) must fail the task",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 0,
+      "smp_synch": 2,
+      "vlan_enabled": false,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "quality": 0
+       }
+      ],
+      "count": 3
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "sv samples_per_cycle must be >= 1",
+   "notes": [
+    "design §9.1: samples_per_cycle < 1 rejected; smpCnt is 16-bit, wrap must be >= 1 and <= 65535",
+    "expected error: 'samples_per_cycle must be >= 1'"
+   ]
+  }
+ },
+ {
+  "id": "sv_smp_synch_global",
+  "proto": "sv",
+  "summary": "smpSynch field stable at 2 (global/PTP sync) across all frames of the stream",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 4000,
+      "smp_synch": 2,
+      "smp_rate": 4000,
+      "period_us": 250,
+      "double_send": false,
+      "vlan_enabled": false,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "quality": 0
+       }
+      ],
+      "count": 4
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 4,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sv.smpSynch",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "sv.smpSynch",
+     "same_as_packet": 1
+    },
+    {
+     "packet": 3,
+     "field": "sv.smpSynch",
+     "same_as_packet": 1
+    },
+    {
+     "packet": 4,
+     "field": "sv.smpSynch",
+     "same_as_packet": 1
+    }
+   ],
+   "notes": [
+    "smpSynch 2 = global clock (PTP synchronized); value is stable per-frame, not an event (design §4.4/§6.4)",
+    "switch-to-2 across a config boundary is covered by design; single-task case asserts stability"
+   ]
+  }
+ },
+ {
+  "id": "sv_neg_smp_synch",
+  "proto": "sv",
+  "summary": "negative: smp_synch=5 (legal set is {0,1,2}) must fail the task",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 4000,
+      "smp_synch": 5,
+      "vlan_enabled": false,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "quality": 0
+       }
+      ],
+      "count": 3
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "sv smpSynch must be 0, 1 or 2",
+   "notes": [
+    "design §9.5: smpSynch legal values are 0 (not synchronized), 1 (local), 2 (global); 3-15 rejected",
+    "expected error: 'smpSynch must be 0, 1 or 2'"
+   ]
+  }
+ },
+ {
+  "id": "sv_4i4v",
+  "proto": "sv",
+  "summary": "9-2LE full dataset 4 current + 4 voltage: seqData 64 bytes, per-channel instMag 30..135, quality good; also serves as the no-IP proof (eth:sv, no ip layer)",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 4000,
+      "smp_synch": 2,
+      "smp_rate": 4000,
+      "period_us": 250,
+      "double_send": false,
+      "vlan_enabled": false,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "quality": 0,
+        "inst_mag": 30
+       },
+       {
+        "name": "I_B",
+        "type": "int32",
+        "quality": 0,
+        "inst_mag": 45
+       },
+       {
+        "name": "I_C",
+        "type": "int32",
+        "quality": 0,
+        "inst_mag": 60
+       },
+       {
+        "name": "I_N",
+        "type": "int32",
+        "quality": 0,
+        "inst_mag": 75
+       },
+       {
+        "name": "V_A",
+        "type": "int32",
+        "quality": 0,
+        "inst_mag": 90
+       },
+       {
+        "name": "V_B",
+        "type": "int32",
+        "quality": 0,
+        "inst_mag": 105
+       },
+       {
+        "name": "V_C",
+        "type": "int32",
+        "quality": 0,
+        "inst_mag": 120
+       },
+       {
+        "name": "V_N",
+        "type": "int32",
+        "quality": 0,
+        "inst_mag": 135
+       }
+      ],
+      "count": 1
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "eth.type",
+     "value": "0x88ba"
+    },
+    {
+     "packet": 1,
+     "field": "frame.protocols",
+     "value": "eth:ethertype:sv"
+    },
+    {
+     "packet": 1,
+     "field": "sv.smpCnt",
+     "value": "0"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 12,
+     "hex": "88 ba"
+    },
+    {
+     "packet": 1,
+     "offset": 60,
+     "hex": "87 40"
+    },
+    {
+     "packet": 1,
+     "offset": 62,
+     "hex": "00 00 00 1e 00 00 00 00 00 00 00 2d 00 00 00 00"
+    },
+    {
+     "packet": 1,
+     "offset": 94,
+     "hex": "00 00 00 5a 00 00 00 00 00 00 00 69 00 00 00 00"
+    },
+    {
+     "packet": 1,
+     "offset": 118,
+     "hex": "00 00 00 87 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "no-IP proof: offset 12 is EtherType 0x88ba (not 0x0800/0x86dd), frame.protocols == eth:sv with no ip segment (design §6.7)",
+    "seqData 64 bytes = 8 channels x 8 (int32 instMag big-endian + 4B quality; design §2.7); instMag I_A=30 V_N=135 verified in hex",
+    "10B svID shifts ASDU: seqData tag@60, data@62..125 (sv_smp_seq for the shared layout)",
+    "if tshark supports PhsMeas decoding (-d sv.seqData,PhsMeas), sv.meas_value equals 30..135 and sv.meas_quality == 0; otherwise raw sv.seqData / FrameAssert hex above"
+   ]
+  }
+ },
+ {
+  "id": "sv_custom_dataset",
+  "proto": "sv",
+  "summary": "non-9-2LE custom dataset: 2 channels (int32 + float32), no per-channel quality, smpRate field omitted (optional-field behavior), smpSynch 2",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 4000,
+      "smp_synch": 2,
+      "period_us": 250,
+      "double_send": false,
+      "vlan_enabled": false,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 30
+       },
+       {
+        "name": "V_A",
+        "type": "float32",
+        "inst_mag": 1.5
+       }
+      ],
+      "count": 1
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sv.svID",
+     "value": "xxxxMUnn01"
+    },
+    {
+     "packet": 1,
+     "field": "sv.smpCnt",
+     "value": "0"
+    },
+    {
+     "packet": 1,
+     "field": "sv.smpSynch",
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 56,
+     "hex": "87 08 00 00 00 1e 3f c0 00 00"
+    }
+   ],
+   "notes": [
+    "no smpRate config -> the 0x86 field is absent entirely; FrameAssert offset 56 shows seqData tag 0x87 directly after smpSynch (no 0x86 between) (design §6.6)",
+    "10B svID shifts ASDU: seqData tag@56, data@58..65; frame SV Length = 52 = 0x34 (8 hdr + savPdu 36 + asdu) (design §2.4)",
+    "channels: int32 30 = 0x1e, float32 1.5 = 0x3fc00000 big-endian; seqData 8 bytes",
+    "frame length 60 = exactly minimal ethernet frame, no padding (14 + 8 hdr + 38 APDU = 60)"
+   ]
+  }
+ },
+ {
+  "id": "sv_vlan",
+  "proto": "sv",
+  "summary": "802.1Q VLAN on SV: vlan_id 100, priority 4 -> TCI 0x8064 inserted before EtherType 0x88ba",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 4000,
+      "smp_synch": 2,
+      "smp_rate": 4000,
+      "period_us": 250,
+      "double_send": false,
+      "vlan_enabled": true,
+      "vlan_id": 100,
+      "vlan_priority": 4,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "quality": 0
+       }
+      ],
+      "count": 1
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "vlan.id",
+     "value": "100"
+    },
+    {
+     "packet": 1,
+     "field": "vlan.priority",
+     "value": "4"
+    },
+    {
+     "packet": 1,
+     "field": "vlan.etype",
+     "value": "0x88ba"
+    },
+    {
+     "packet": 1,
+     "field": "frame.protocols",
+     "value": "eth:ethertype:vlan:ethertype:sv"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 12,
+     "hex": "81 00 80 64 88 ba"
+    }
+   ],
+   "notes": [
+    "TCI = priority(4)<<13 + DEI(0)<<12 + VID(100) = 0x8000 + 0x64 = 0x8064 (design §2.2/§6.8)",
+    "all SV-header/APDU offsets shift +4 when VLAN present"
+   ]
+  }
+ },
+ {
+  "id": "sv_period",
+  "proto": "sv",
+  "summary": "sampling period stability: period_us 250, 100 frames delivered (redundancy of the period-driven sender); timing asserted via time_delta sampling",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 4000,
+      "smp_synch": 2,
+      "smp_rate": 4000,
+      "period_us": 250,
+      "double_send": false,
+      "vlan_enabled": false,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "quality": 0
+       }
+      ],
+      "count": 100
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 100,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sv.smpCnt",
+     "value": "0"
+    }
+   ],
+   "notes": [
+    "100 frames at period 250us; captures of long streams assert frame.time_delta ~250us (+/- tolerance) and frame.time_relative monotonic (design §4.8/§6.9)",
+    "if the framework cannot read time fields, period correctness is covered by unit tests on the ticker plus this packet-count bound"
+   ]
+  }
+ },
+ {
+  "id": "sv_neg_confrev",
+  "proto": "sv",
+  "summary": "negative: conf_rev=0 (must be >= 1, 0 means undefined config version) must fail the task",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 0,
+      "samples_per_cycle": 4000,
+      "smp_synch": 2,
+      "vlan_enabled": false,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "quality": 0
+       }
+      ],
+      "count": 3
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "sv confRev must be non-zero",
+   "notes": [
+    "design §9.2: confRev must be >= 1; 0 indicates undefined version and is rejected",
+    "expected error: 'confRev must be >= 1'"
+   ]
+  }
+ },
+ {
+  "id": "sv_neg_appid",
+  "proto": "sv",
+  "summary": "negative: appid 0x3999 falls in the GOOSE-reserved range (0x0000-0x3FFF) and must fail; SV segment is 0x4000-0x7FFF",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16383,
+      "conf_rev": 1,
+      "samples_per_cycle": 4000,
+      "smp_synch": 2,
+      "vlan_enabled": false,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "quality": 0
+       }
+      ],
+      "count": 3
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "out of range [16384,32767]",
+   "notes": [
+    "appid 0x3999 = 14745 decimal, within GOOSE reserved range 0x0000-0x3FFF (design §2.4/§9.3); validator distinguishes segments",
+    "SV standard segment is 0x4000-0x7FFF with default 0x4000; 0x8000-0xFFFF user segment allowed",
+    "expected error: 'appid 0x3999 is in the GOOSE-reserved range; SV appid must be 0x4000-0x7FFF (or 0x8000-0xFFFF)'"
+   ]
+  }
+ },
+ {
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {}
+    }
+   ],
+   "sv": {}
+  },
+  "id": "sv_vn_presence",
+  "proto": "sv",
+  "summary": "D-SV-1 presence: top-level sv sub-config rejected (empty map also dies)",
+  "expect": {
+   "error_contains": "top-level sv sub-config",
+   "expect_error": true
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 100
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "id": "sv_vn_static_copy",
+  "summary": "12.9 static copy: eth layer explicit scalar src_mac + flows=2 rejected",
+  "expect": {
+   "error_contains": "static four-tuple",
+   "expect_error": true
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {}
+    }
+   ]
+  },
+  "id": "sv_vn_empty_layer",
+  "summary": "empty sv layer translates to zero config -> appid 0x0000 lower-bound first hit (sv.go:26)",
+  "expect": {
+   "error_contains": "sv appid 0x0000 outside SV range 0x4000-0x7fff",
+   "expect_error": true
+  }
+ },
+ {
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "ip": {
+      "src": "192.168.10.1",
+      "dst": "192.168.10.2"
+     }
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 100
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "id": "sv_neg_ip_carrier",
+  "proto": "sv",
+  "summary": "V7b: [ip,sv] chain rejected - sv must not have an ip/transport carrier",
+  "expect": {
+   "error_contains": "must not have an ip/transport carrier",
+   "expect_error": true
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 100
+       }
+      ],
+      "vlan_enabled": true,
+      "vlan_id": 4096,
+      "vlan_priority": 4
+     }
+    }
+   ]
+  },
+  "id": "sv_neg_vlan",
+  "summary": "V9 vlan_id upper bound: 4096 rejected at create time",
+  "expect": {
+   "error_contains": "out of range [0,4095]",
+   "expect_error": true
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 32767,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 100
+       }
+      ],
+      "smp_synch": 0,
+      "count": 1
+     }
+    }
+   ]
+  },
+  "id": "sv_smp_synch_0",
+  "summary": "smpSynch value 0 (not synchronized) + appid upper edge 0x7fff accepted",
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sv.smpSynch",
+     "value": "0"
+    },
+    {
+     "packet": 1,
+     "field": "sv.appid",
+     "value": "0x7fff"
+    }
+   ]
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 100
+       }
+      ],
+      "smp_synch": 1,
+      "count": 1
+     }
+    }
+   ]
+  },
+  "id": "sv_smp_synch_1",
+  "summary": "smpSynch value 1 (global) accepted",
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sv.smpSynch",
+     "value": "1"
+    }
+   ]
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 100
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "id": "sv_neg_svid_255",
+  "summary": "svID 256 bytes rejected (validator branch: required and <=255)",
+  "expect": {
+   "error_contains": "sv svID is required and must be <=255 bytes",
+   "expect_error": true
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80
+     }
+    }
+   ]
+  },
+  "id": "sv_neg_no_data",
+  "summary": "data missing rejected (validator branch)",
+  "expect": {
+   "error_contains": "sv data is required",
+   "expect_error": true
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int64",
+        "inst_mag": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "id": "sv_neg_type",
+  "summary": "unsupported data type int64 rejected (only int32/float32)",
+  "expect": {
+   "error_contains": "sv data type \"int64\" unsupported",
+   "expect_error": true
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 0,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 100
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "id": "sv_neg_zero_appid",
+  "summary": "explicit appid 0: V9 u==0 pass-through -> validator dual-bound rejects (sv.go:26)",
+  "expect": {
+   "error_contains": "sv appid 0x0000 outside SV range 0x4000-0x7fff",
+   "expect_error": true
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": -1
+       }
+      ],
+      "count": 1
+     }
+    }
+   ]
+  },
+  "id": "sv_int32_neg",
+  "summary": "int32 negative channel: inst_mag -1 -> seqData bytes ff ff ff ff (sign preserved)",
+  "expect": {
+   "packet_count": 1,
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 14,
+     "hex": "40 00 00 30 00 00 00 00"
+    },
+    {
+     "packet": 1,
+     "offset": 56,
+     "hex": "87 04 ff ff ff ff"
+    }
+   ]
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "V_A",
+        "type": "float32",
+        "inst_mag": 1.5
+       }
+      ],
+      "count": 1
+     }
+    }
+   ]
+  },
+  "id": "sv_float32",
+  "summary": "float32 channel: inst_mag 1.5 -> IEEE754 bytes 3f c0 00 00",
+  "expect": {
+   "packet_count": 1,
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 14,
+     "hex": "40 00 00 30 00 00 00 00"
+    },
+    {
+     "packet": 1,
+     "offset": 56,
+     "hex": "87 04 3f c0 00 00"
+    }
+   ]
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {
+      "src_mac": {
+       "strategy": "inc",
+       "range": [
+        "aa:00:00:00:00:01",
+        "aa:00:00:00:00:02"
+       ],
+       "step": 1
+      }
+     }
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 100
+       }
+      ],
+      "count": 1
+     }
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 3
+  },
+  "id": "sv_mac_dyn_inc",
+  "summary": "MAC dynamic inc multi-flow + wrap: flows=3 over range-of-2, flow3 wraps to :01",
+  "expect": {
+   "packet_count": 3,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "eth.src",
+     "value": "aa:00:00:00:00:01"
+    },
+    {
+     "packet": 2,
+     "field": "eth.src",
+     "value": "aa:00:00:00:00:02"
+    },
+    {
+     "packet": 3,
+     "field": "eth.src",
+     "value": "aa:00:00:00:00:01"
+    }
+   ]
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {
+      "src_mac": {
+       "strategy": "list",
+       "list": [
+        "aa:bb:cc:00:00:11",
+        "aa:bb:cc:00:00:22"
+       ]
+      }
+     }
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 100
+       }
+      ],
+      "count": 1
+     }
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "id": "sv_mac_dyn_list",
+  "summary": "MAC dynamic list rotation: flows=2 over 2-MAC list",
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "eth.src",
+     "value": "aa:bb:cc:00:00:11"
+    },
+    {
+     "packet": 2,
+     "field": "eth.src",
+     "value": "aa:bb:cc:00:00:22"
+    }
+   ]
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {
+      "src_mac": {
+       "strategy": "rand",
+       "range": [
+        "aa:00:00:00:00:01",
+        "aa:00:00:00:00:ff"
+       ],
+       "seed": 7
+      }
+     }
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 100
+       }
+      ],
+      "count": 1
+     }
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "id": "sv_mac_dyn_rand",
+  "summary": "MAC dynamic rand (seed=7): flows=2 distinct, seed-reproducible (pins from pcap)",
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "eth.src",
+     "value": "aa:00:00:00:00:fb"
+    },
+    {
+     "packet": 2,
+     "field": "eth.src",
+     "value": "aa:00:00:00:00:97"
+    }
+   ]
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 10,
+        "quality": 1
+       },
+       {
+        "name": "I_B",
+        "type": "int32",
+        "inst_mag": 20,
+        "quality": 1
+       }
+      ],
+      "vlan_enabled": true,
+      "vlan_id": 200,
+      "vlan_priority": 5,
+      "double_send": true,
+      "count": 4
+     }
+    }
+   ]
+  },
+  "id": "sv_combo_vlan_double",
+  "summary": "combo A: VLAN(200,pri5) + double_send shared-smpCnt + 4i4v quality layout, count=4",
+  "expect": {
+   "packet_count": 4,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "vlan.id",
+     "value": "200"
+    },
+    {
+     "packet": 1,
+     "field": "vlan.priority",
+     "value": "5"
+    },
+    {
+     "packet": 1,
+     "field": "sv.smpCnt",
+     "value": "0"
+    },
+    {
+     "packet": 2,
+     "field": "sv.smpCnt",
+     "value": "0"
+    },
+    {
+     "packet": 3,
+     "field": "sv.smpCnt",
+     "value": "1"
+    },
+    {
+     "packet": 4,
+     "field": "sv.smpCnt",
+     "value": "1"
+    }
+   ]
+  }
+ },
+ {
+  "proto": "sv",
+  "spec_json": {
+   "src_mac": "aa:bb:cc:dd:ee:03",
+   "layers": [
+    {
+     "eth": {}
+    },
+    {
+     "sv": {
+      "sv_id": "xxxxMUnn01",
+      "appid": 16384,
+      "conf_rev": 1,
+      "samples_per_cycle": 80,
+      "data": [
+       {
+        "name": "I_A",
+        "type": "int32",
+        "inst_mag": 100,
+        "quality": 1
+       },
+       {
+        "name": "V_A",
+        "type": "float32",
+        "inst_mag": 1.5
+       }
+      ],
+      "dat_set": "xxxxMUnn01/ds",
+      "smp_rate": 4000,
+      "count": 1
+     }
+    }
+   ]
+  },
+  "id": "sv_combo_rate_dataset",
+  "summary": "combo B: dat_set present (tag 0x81 first pin) + smp_rate + mixed int32q/float32 channels",
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sv.datSet",
+     "value": "xxxxMUnn01/ds"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 14,
+     "hex": "40 00 00 4b 00 00 00 00"
+    },
+    {
+     "packet": 1,
+     "offset": 43,
+     "hex": "81 0d 78 78 78 78 4d 55 6e 6e 30 31 2f 64 73"
+    },
+    {
+     "packet": 1,
+     "offset": 75,
+     "hex": "87 0c 00 00 00 64 00 00 00 01 3f c0 00 00"
+    }
+   ]
+  }
+ }
 ]

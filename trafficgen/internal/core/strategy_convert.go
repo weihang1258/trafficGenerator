@@ -298,6 +298,14 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	if _, ok := cfg["src_port"]; ok && cfg["src_port"] != nil {
 		spec.HasExplicitSrcPort = true
 	}
+	// D-SV-1 ⑥（P5 sv_mac_dyn_inc 实测红转绿）：L2-only（goose/sv）无端口
+	// 概念——worker 多流保底递增（worker.go DefaultSrcPort+i）会注入假端
+	// 口，被终结层 "Layer 2 only" 校验拒收。l2Only 恒置 HasExplicitSrcPort
+	// =worker 跳过递增，spec 端口保持 0 值真相（校验器零值口径不变）。
+	// goose 同享（12.9 MAC 动态逃生口的 flows 面一并打通）。
+	if l2Only {
+		spec.HasExplicitSrcPort = true
+	}
 
 	// Task 5（扁平删除，FTP 层链收尾计划）：protocol==ftp 的扁平配置判死。
 	// create/update 已在 schema 层 400（core.CheckFTPFlat 单一真相）；此处
