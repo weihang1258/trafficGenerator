@@ -2167,3 +2167,24 @@ presence="top-level sv sub-config"；V9 appid="out of range [16384,32767]"；V9 
 **P4 范围（预填，goose 同构）：** ①CheckProtoFlat sv presence 分支（:7715 后追加，文案 `[eth,sv]`）②registry.go:707 sv 行补 Fields 15 键 ③chain_planner_translate.go case "sv"（completedConfig+手工逐键+data 下钻 inst_mag 有符号双臂→InstMag/InstMagF、quality presence→HasQuality）④pipe_gate.sh:67+coverage_gate.py check_sv ⑤schemagen 重跑 ⑥红例族 5 项先行（sv.go 零改动——⑤ 假发现已撤销）。
 **明确不解决：** 9-2 原版多 ASDU 折叠（seqASDU>1，现网合并单元单 ASDU 主流，无用例需求）；真实时间同步面（smpSynch 全局位只是字段值非时钟语义）；period_us pacing 实现（C 类①，断言面缺失不立项不冒充）；GOOSE/SV 混发编排（跨协议编排非单协议管线范围）。
 **依据：** `docs/protocol-designs/24-sv-design.md`（历史参考）；IEC 61850-9-2/-9-2LE；代码事实：`sv/sv.go:20-192`（Validate 9 分支/BuildPayload/Generate/注册）、`core/types.go:1630-1680`（SVData/SVConfig 15 键）、`strategy_convert.go:7571`（parseSVConfig）、`strategy_convert.go:224`（isL2OnlyProtocol）、`chain_planner.go:992/:1008`（L2-only EtherType 回填）、`chain_planner.go:499/:567`（validateSpecBase 豁免）、`chain_planner_chain.go:28`（FlowMeta.SV）、`layer_dyn.go:21`（eth allowlist）/:741-748（genMAC→spec.SrcMAC）、`builder.go:17`（EtherTypeSV=0x88BA）、`complete.go:352`（V7b carrier）、`semantic.go:229`（static-eth 门，goose ⑥ 已含 sv）、`sv_test.go`（7 单测）。
+
+### D-REWORK-1 顶层白名单整改：游离字段全迁层（CORE_MEMORY 1.11-1.13）【P-PIPE 返工，2026-09-19 用户指令】
+
+**状态：** 已验收（2026-09-19；审计 13 已完成协议+ftp——goose 顶层 src_mac×32 / sv×30 / http 顶层 ttl×1 / srv6 顶层 dst_mac×1 + mpls/gre 伪配置×2；其余九协议顶层仅 presence/flat 拒绝负例=正当测试面，mqtt group_id=flow_control 家族框架键不属违规。整改后**已完成协议顶层游离字段零残留**）
+
+**根因（自审）：** 1.4 五键清单被当成全集执行，"清单没点名"被当"允许"；且自创 CORE_MEMORY 无依据的"登记保留"豁免写进门1表——成本考量（字节不重钉/代码不动）越权到原则前面。用户裁定：黑名单漏点的键以白名单原则为准（1.11-1.13，用户授权增补）。
+
+**整改内容：**
+- 代码①：`extractLayerMACs`/`extractLayerIPTTL`（strategy_convert.go，extractLayerSrcDst 同构）——eth 层静态 src_mac/dst_mac → spec.SrcMAC/DstMAC、ip 层显式 ttl → spec.TTL；动态对象照旧走 resolveLayerTuple（零变化）
+- 代码②：`checkLayerFlatConflict` 扩列 +src_mac/dst_mac（semantic.go）——layers 与顶层 MAC 并存=混用 400（1.4 例举非全集的执法化）
+- 测试：3 红先红后绿（TestEthLayerStaticMACConsumed/TestIPLayerTTLConsumed/TestTopLevelMACWithLayersRejected，top_level_whitelist_test.go）
+- 用例：goose 32 例+sv 30 例顶层 src_mac 迁入 eth 层（MAC 值不变，帧字节逐字节一致——suite pin 未动即证）；http_ttl_custom 删顶层 ttl 影子（ip.ttl 128 已在，回填链路补通）；srv6 vp04 顶层 dst_mac→链头新增 eth 层（[eth,ip,srv6]，isRawIPChain 按末层判定不受影响）；srv6 vn18/19 删 mpls/gre 伪配置键（1.12：不消费字段必须删除，功能不实现语义保留在"明确不解决"段）
+- 门：pipe_gate.sh 门2① 禁列扩 +src_mac/dst_mac/ttl（黑名单为实现手段，白名单以 1.11 为准）
+- 覆盖：D-GOOSE-1/D-SV-1 §8"src_mac 留顶层"与 D-SRV6-1 D1/D 决策（dst_mac 顶层保留）自本条目起**废止**；各 T-条目状态行已注记
+
+**验证：** 三红转绿；四协议 suite 全绿（goose 33/sv 30/http 67/srv6 74，pin 零改动=字节一致性证明）；其余九已完成协议回归全绿（dns/mqtt/smtp/pop3/imap/mcp/fins/tls/gre）；core/schema -race 绿；门2 四协议全绿（新禁列下顶层零残留）；已完成协议顶层游离复核 0。
+
+**影响后续管线：** 未完成协议（modbus src_mac/dst_mac×213、isis src_mac×24、dhcpv6 src_mac×1 等）的存量顶层 MAC/TTL 一律按 1.11 在各自 P-PIPE 迁入 eth/ip 层——门2① 新禁列已能拦截。
+
+**依据：** CORE_MEMORY 1.11-1.13（2026-09-19 用户授权增补）；用户指令"将所有的已经完成的协议有问题的，全部整改，并重新测试"。
+

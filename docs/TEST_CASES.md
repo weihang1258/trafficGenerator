@@ -729,7 +729,7 @@
 **性能期望：** 不适用。
 **实现位置：** `internal/protocol/http/*_test.go`（既有）+ `internal/core/layers/chain_planner_http_test.go`（既有）。
 
-### T-HTTP-7 http.json 独立用例——GET 基线【D-HTTP-1 §8】
+### T-HTTP-7 http.json 独立用例——GET 基线【D-HTTP-1 §8；D-REWORK-1 整改：http_ttl_custom 顶层 ttl 影子迁除，ip.ttl 回填】
 
 **状态：** 已通过（P5 实测 67/67 全绿；二进制与 HEAD 同代）
 **级别：** pcap
@@ -3081,7 +3081,7 @@
 **执行口径：** P5 已执行（2026-09-18）：MCP 真实流程全量（`flowb_run_protocol_suite`：MCP 建任务→引擎生成→tshark 校对）103/103 全绿 + 落盘 `/tmp/mcp-pcaps/mcp/` 零孤儿（89 正例 pcap + 13 `.neg` 空包标记，t090 presence create 阶段 400 无任务）+ 门 2 四项绿 + 反查 65/65 全绿（P4 探针 9/65 的 56 MISS 已由 24 新例 + 反查证据通道补齐）。
 **实现位置：** `cases/mcp.json`（P5 改写 79 + 新建 24）。
 
-### T-SRV6-1…74 srv6.json——存量审计 + 测试点清单【D-SRV6-1 P3 先行，P4 未开工】
+### T-SRV6-1…74 srv6.json——存量审计 + 测试点清单【D-SRV6-1 P3 先行，P4 未开工；D-REWORK-1 整改：vp04 dst_mac 迁 eth 层、vn18/19 删伪配置】
 
 **状态：** 已验收（2026-09-18；P5 提交 e041941：suite 74 pass/0 fail/0 error，落盘 pcap 零孤儿，coverage 反查 74/74，门 2 四项全绿；failing 先行 5 红例转绿见 srv6_migrate_test.go；P5 复盘锚词对真实执法门 2 处 + raw-IP 端口回退修复 1 处，详见 D-SRV6-1 状态行）
 **级别：** pcap
@@ -3174,7 +3174,7 @@
 **执行口径：** P5 fins 真实流程全量（MCP 建任务→引擎生成→tshark 校对）全绿 + 落盘 `/tmp/mcp-pcaps/fins/` + 门 2 四项 + 反查 check_fins（P4 登记）。断言数值一律落盘重钉（14.6/9.31）——含 C3 修正后的 omron.tcp.length=26、tcp min_packets 拆解不预写。
 **实现位置：** `cases/fins.json`（P5 改写 14 + 转正/新建 31 = **45 例**；T-018 等价覆盖、T-031 E-08 配置面不可达 C 类、T-035 decode_as C 类、T-038~040 等价 suite 口径；P5 补 `fins_vn_fill_data_len`（0103 模板 2B 校验分支，9.5 补口））。
 
-### T-GOOSE-1…33 goose.json——存量审计 + 测试点清单【D-GOOSE-1 P3 定稿，P6 已验收】
+### T-GOOSE-1…33 goose.json——存量审计 + 测试点清单【D-GOOSE-1 P3 定稿，P6 已验收；D-REWORK-1 整改（32 例 src_mac 迁 eth 层，字节不变）】
 
 **状态：** P6 已验收（2026-09-18；门 3 抽查三条见 D-GOOSE-1 状态行——①goose_vn_presence 真实服务拒 strategy_convert.go:7715 ②goose_vn_static_copy 拒 semantic.go:229 eth 门+layer_dyn 零 goose 行 ③goose_goid 帧 pin@109+heartbeat 落盘 sqNum 1,2,3；在库 goose tasks 570+strategies 27 清空复核 0/0）。已执行（2026-09-18；suite 33/33 全绿，coverage 反查 51/51，门 2 四项绿，fins 45/45 + srv6 74/74 零回归。**P5 复盘修正 5 处**：①**coverage 反查逮到 P3 清单漏例 3 个**——sqNum 上限（:46）/L2-only 载体门（V7b）/VLAN 越界（V9），补例 T-31/32/33（30→33 例）；②**锚词对真实执法门**（fins T-39 口径）——appid 越界改 V9 `out of range [0,16383]`（V9 范围门先于 validator 段位门）、stNum 改 validator 全字面 `stNum must not overflow`、sqNum 跳号改 `sqNum step`；③uint64 例 tshark `goose.unsigned` 是 FT_UINT32，2^32 截断为 0——删该 fields 断言，frames pin 为主证据；④**strategy_fc 必须在 case 顶层**（driver 读 case 级注入 generate_traffic 参数；放 spec_json 内 driver 不读=静态门不触发，fins 同款双写）；⑤static 例 src_mac 写 eth 层内（门查层内显式标量，顶层 src_mac 不触发⑥门）。落盘 29 正例 pcap + 11 neg，3 个 create-time 超早拒绝无落盘系旧行为（mqtt 先例同款），孤儿 pcap 3 个已清
 **级别：** pcap
@@ -3239,7 +3239,7 @@
 **执行口径：** P5 goose 真实流程全量（MCP 建任务→引擎生成→tshark 校对）全绿 + 落盘 `/tmp/mcp-pcaps/goose/` + 门 2 四项 + 反查 check_goose（P4 登记）。断言数值（offset/hex/length）一律落盘重钉（14.6/9.31），不照抄存量手算值。
 **实现位置：** `cases/goose.json`（**33 例**：改写 12——顶层 count→层内、删 `t0_ms`×12/`tmax_ms`×2、层内 goose 18 键；新建 T-15…30（含 T-2/3 门面）+ P5 补口 T-31/32/33；T-GSE-S1-02 并入 heartbeat Length 断言不单独建例。字节断言全部落盘复核：改写例帧布局与改写前逐字节一致（仅 spec 形状迁移）、新例预测 pin（offset 109/162/165/172/177/182）一次通过）。
 
-### T-SV-1…30 sv.json——存量审计 + 测试点清单【D-SV-1 P3 定稿，P6 已验收】
+### T-SV-1…30 sv.json——存量审计 + 测试点清单【D-SV-1 P3 定稿，P6 已验收；D-REWORK-1 整改（30 例 src_mac 迁 eth 层，字节不变）】
 
 **状态：** P6 已验收（2026-09-19；门 3 抽查三条见 D-SV-1 状态行——①sv_vn_presence 真实服务拒 strategy_convert.go:7730 ②layer_dyn 零 sv 行+MAC 动态三策略实测（T-26/27/28）③sv_int32_neg 帧 pin@56+smpCnt 三证落盘复核；在库 sv tasks 314+strategies 8 清空复核 0/0）。已执行（2026-09-19；suite 30/30 全绿（RESULT 行），coverage 反查 42/42，门 2 四项绿（pipe_gate sv + 显式二进制），goose 33/fins 45/srv6 74 零回归，落盘 25（17 正+8 neg.pcap+5 create-time 无落盘）零孤儿。**P5 复盘 5 处**：①`expect.error_contains` 之外必须带 `expect_error:true`（driver 判定预期失败契约，goose 存量例皆有，P3 清单漏记——9 新负例首跑全 error）；②**worker.go:307 多流保底 × L2-only 假端口**——flows>1 时 12345+i 注入被 "Layer 2 only" 校验误伤（sv_mac_dyn_inc 实测 planning failed），⑥ 立项落地：mapToFlowSpec l2Only 恒置 HasExplicitSrcPort（红单测 TestL2OnlyHasExplicitSrcPort 先行，goose 同享）；③**genMAC 首八位 OUI 掩码语义**（0xFF0000000000 只保首八位、中间八位组清零）——mac_dyn 三例 range 按此对齐（aa:00:00:00:00:xx 形），rand seed7 落盘钉值 fb/97 可复现，list 策略逐字面不经掩码（实测全 MAC 保真）；④预测 pin 手算错 3 处（SV 长度 0x2a→0x30/0x51→0x4b、seqData offset 50→56）——9.31 再证，全部落盘重钉；⑤发现⑤再修正：float32 并非全库零覆盖（sv_custom_dataset 第二通道即 3f c0 00 00）——T-25 重新定位为"独立格专项钉值"，覆盖声明由"零覆盖补口"改为"有覆盖非独立格"）。P3 定稿（2026-09-19；存量 12 例逐条审计全改写（等价迁移，无作废无合入）+ 新建 18 例=30 例；锚词按真实执法门分级——create-time V9（appid 下界/vlan_id/static/presence/carrier 5 门无落盘）vs task-time validator（confRev/samples_per_cycle/smpSynch/svID/data/type/appid 显式 0 六门 .neg.pcap）。核心取值面：float32 通道全库零覆盖（T-25 补）、smpSynch 值 0/1 零覆盖（T-18/19 补）、dat_set 有形零覆盖（T-30 补，tag 0x81 条件编码首钉）、MAC 动态多流零覆盖（T-26/27/28 补，含 inc 回绕）。**P3"实锤断链"系假发现（P4 实读 sv.go:26 纠正）**：从 goose 单界外推"只查上界"——实为 `< 0x4000 || > 0x7fff` 双界既有执法，无断链无修；红例⑤ 转性为 V9 u==0 放行→validator 双界的回归锁，T-15/T-23 锚词与现状真门一致不变
 **级别：** pcap

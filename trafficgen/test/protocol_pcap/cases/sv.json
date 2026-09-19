@@ -4,10 +4,11 @@
   "proto": "sv",
   "summary": "9-2LE base sampled-value stream: 3 frames, smpCnt 0/1/2 incrementing, appid 0x4000, length 0x6A(=106), confRev 1, no VLAN, no IP (eth:sv)",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -170,10 +171,11 @@
   "proto": "sv",
   "summary": "redundant double-send: same smpCnt appears twice (2 frames identical bytes), then stream continues; count 6 -> smpCnt 0,0,1,1,2,2",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -280,10 +282,11 @@
   "proto": "sv",
   "summary": "smpCnt wrap-around: samples_per_cycle=4 -> smpCnt 0,1,2,3,0,1 (wrap at 3->0, never 4); 6 frames",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -353,10 +356,11 @@
   "proto": "sv",
   "summary": "negative: samples_per_cycle=0 (illegal wrap/cycle count <1) must fail the task",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -392,10 +396,11 @@
   "proto": "sv",
   "summary": "smpSynch field stable at 2 (global/PTP sync) across all frames of the stream",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -455,10 +460,11 @@
   "proto": "sv",
   "summary": "negative: smp_synch=5 (legal set is {0,1,2}) must fail the task",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -494,10 +500,11 @@
   "proto": "sv",
   "summary": "9-2LE full dataset 4 current + 4 voltage: seqData 64 bytes, per-channel instMag 30..135, quality good; also serves as the no-IP proof (eth:sv, no ip layer)",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -624,10 +631,11 @@
   "proto": "sv",
   "summary": "non-9-2LE custom dataset: 2 channels (int32 + float32), no per-channel quality, smpRate field omitted (optional-field behavior), smpSynch 2",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -695,10 +703,11 @@
   "proto": "sv",
   "summary": "802.1Q VLAN on SV: vlan_id 100, priority 4 -> TCI 0x8064 inserted before EtherType 0x88ba",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -767,10 +776,11 @@
   "proto": "sv",
   "summary": "sampling period stability: period_us 250, 100 frames delivered (redundancy of the period-driven sender); timing asserted via time_delta sampling",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -815,10 +825,11 @@
   "proto": "sv",
   "summary": "negative: conf_rev=0 (must be >= 1, 0 means undefined config version) must fail the task",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -854,10 +865,11 @@
   "proto": "sv",
   "summary": "negative: appid 0x3999 falls in the GOOSE-reserved range (0x0000-0x3FFF) and must fail; SV segment is 0x4000-0x7FFF",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -891,10 +903,11 @@
  },
  {
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {}
@@ -913,7 +926,6 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
      "eth": {
@@ -951,10 +963,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {}
@@ -970,7 +983,6 @@
  },
  {
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
      "ip": {
@@ -1006,10 +1018,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -1041,10 +1054,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -1086,10 +1100,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -1126,10 +1141,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -1158,10 +1174,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -1183,10 +1200,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -1215,10 +1233,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -1247,10 +1266,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -1291,10 +1311,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -1335,7 +1356,6 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
      "eth": {
@@ -1397,7 +1417,6 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
      "eth": {
@@ -1453,7 +1472,6 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
      "eth": {
@@ -1510,10 +1528,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {
@@ -1585,10 +1604,11 @@
  {
   "proto": "sv",
   "spec_json": {
-   "src_mac": "aa:bb:cc:dd:ee:03",
    "layers": [
     {
-     "eth": {}
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:03"
+     }
     },
     {
      "sv": {

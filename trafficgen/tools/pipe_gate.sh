@@ -24,7 +24,7 @@ for c in d:
     exp = c.get("expect", {}) or {}
     if exp.get("expect_error") and "flat" in str(exp.get("error_contains", "")):
         continue
-    for k in ("src_ip","dst_ip","src_port","dst_port","count"):
+    for k in ("src_ip","dst_ip","src_port","dst_port","count","src_mac","dst_mac","ttl"):
         if k in sj and sj[k] is not None:
             bad.append(c["id"] + ":" + k)
 print("\n".join(bad))

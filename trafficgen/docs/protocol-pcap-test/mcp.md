@@ -1,6 +1,6 @@
 # mcp Pcap Test Results
 
-Cases: 79 — pass 79, fail 0, error 0
+Cases: 103 — pass 103, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -58,21 +58,45 @@ Cases: 79 — pass 79, fail 0, error 0
 | mcp_t074_stdio_sampling_fields | T-074/§8.13: sampling/createMessage 字段完整性 messages+systemPrompt+maxTokens（可选字段可缺省） | pass | 12 | [pcap](mcp/mcp_t074_stdio_sampling_fields.pcap) |
 | mcp_t077_stdio_teardown_sequence | T-077/§6.2: stdio teardown 3 包字节序列 FIN-ACK(up)→FIN-ACK(down)→ACK(up)，flags 0x11/0x11/0x10 | pass | 12 | [pcap](mcp/mcp_t077_stdio_teardown_sequence.pcap) |
 | mcp_t079_stdio_error_code_positive_reject | T-079/§4.4: MCPError.Code=42（正数）→ Validate 拒绝（JSON-RPC 错误码不可为正） | pass | 0 | [pcap]() |
+| mcp_t080_rounds2 | T-MCP-80/§6: rounds=2 同 requests 两轮，id 跨轮递增 | pass | 14 | [pcap](mcp/mcp_t080_rounds2.pcap) |
 | mcp_t080_stdio_progress_no_state | T-080/§8.12: progress 通知 params 仅 progressToken/progress/total/message，无 state 字段 | pass | 13 | [pcap](mcp/mcp_t080_stdio_progress_no_state.pcap) |
+| mcp_t081_shutdown_false | T-MCP-81/§4.1: shutdown=false 无挥手 | pass | 8 | [pcap](mcp/mcp_t081_shutdown_false.pcap) |
+| mcp_t082_sampling_parts | T-MCP-82/§3.9: sampling 请求 multi-part content | pass | 12 | [pcap](mcp/mcp_t082_sampling_parts.pcap) |
+| mcp_t083_composite_tools | T-MCP-83/§9: 组合流A 工具链（list 分页→call→ping→progress，4 动作） | pass | 17 | [pcap](mcp/mcp_t083_composite_tools.pcap) |
+| mcp_t084_composite_resources | T-MCP-84/§9: 组合流B 资源链（list→read 文本→read blob→subscribe→updated→list_changed） | pass | 20 | [pcap](mcp/mcp_t084_composite_resources.pcap) |
+| mcp_t085_longtask_full | T-MCP-85/§7.15: 长任务全程 submitted→working→input_required→completed | pass | 16 | [pcap](mcp/mcp_t085_longtask_full.pcap) |
 | mcp_t086_stdio_roots_gated | T-086/§5.4: client 声明 roots，server 未声明 → roots/list 被拒绝 -32601 Method not found | pass | 12 | [pcap](mcp/mcp_t086_stdio_roots_gated.pcap) |
+| mcp_t086_v6 | T-MCP-86/§9: v6 承载冒烟 [ip(v6),tcp,mcp] | pass | 12 | [pcap](mcp/mcp_t086_v6.pcap) |
 | mcp_t087_stdio_experimental_warning | T-087/§5.4: client 声明 experimental.xyz 非标准字段，server 保留 + _meta.warnings，后续请求不拒绝 | pass | 12 | [pcap](mcp/mcp_t087_stdio_experimental_warning.pcap) |
+| mcp_t087_streamable_full | T-MCP-87/§2.5: streamable 全程 POST→JSON→DELETE/204 带内终止 | pass | 15 | [pcap](mcp/mcp_t087_streamable_full.pcap) |
+| mcp_t088_auth_scheme_reject | T-MCP-88/§4.4 规则4: 非法 auth scheme 拒绝 | pass | 0 | [pcap]() |
 | mcp_t088_stdio_roots_sampling_negotiated | T-088/§5.4: 双向协商成功，client roots+sampling 声明 + server tools+resources 声明 + S→C roots/list + sampling/createMessage | pass | 14 | [pcap](mcp/mcp_t088_stdio_roots_sampling_negotiated.pcap) |
+| mcp_t089_sampling_gated | T-MCP-89/§5.4: sampling 未声明能力 -32601（t063 subscribe 对称面） | pass | 12 | [pcap](mcp/mcp_t089_sampling_gated.pcap) |
 | mcp_t089_stdio_capabilities_empty_obj | T-089/§5.4: 能力声明空对象 {} 合法不报错，双方按无能力处理 | pass | 12 | [pcap](mcp/mcp_t089_stdio_capabilities_empty_obj.pcap) |
+| mcp_t090_presence_reject | T-MCP-90/§1: 顶层 mcp presence 判死（failing 先行①） | pass | 0 | [pcap]() |
 | mcp_t090_stdio_client_caps_dup_key | T-090/§5.4: ClientCapabilities 重复键 → Validate 拒绝 | pass | 0 | [pcap]() |
+| mcp_t091_default_dual | T-MCP-91/§9: 全缺省双流放行（空层 flows=2，对标 smtp_t024/pop3_t046/imap_t078） | pass | 28 | [pcap](mcp/mcp_t091_default_dual.pcap) |
+| mcp_t092_static_copy_reject | T-MCP-92/§9 陷阱③: 显式标量四元组 flows=2 静态复制拒绝 | pass | 0 | [pcap]() |
 | mcp_t092_stdio_resources_read_32002 | T-092/§7.5: resources/read uri 不存在 -32002 Resource not found（spec 合规错误码） | pass | 12 | [pcap](mcp/mcp_t092_stdio_resources_read_32002.pcap) |
+| mcp_t093_error_32600 | T-MCP-93/§2.2: -32600 Invalid Request 台词 | pass | 12 | [pcap](mcp/mcp_t093_error_32600.pcap) |
 | mcp_t093_stdio_sampling_reject_code_minus1 | T-093/§8.13: sampling 拒绝响应 error.code=-1（spec 用户拒绝示例） | pass | 12 | [pcap](mcp/mcp_t093_stdio_sampling_reject_code_minus1.pcap) |
+| mcp_t094_error_32603 | T-MCP-94/§2.2: -32603 Internal error 台词 | pass | 12 | [pcap](mcp/mcp_t094_error_32603.pcap) |
 | mcp_t094_stdio_content_resource_link | T-094/§8.15: MCPContent.Type=resource_link（spec 2025-06-18 新增），uri+name 引用形式 | pass | 12 | [pcap](mcp/mcp_t094_stdio_content_resource_link.pcap) |
 | mcp_t095_stdio_content_resource_embedded | T-095/§8.15: MCPContent.Type=resource 嵌入资源（uri+mimeType+text 内联） | pass | 12 | [pcap](mcp/mcp_t095_stdio_content_resource_embedded.pcap) |
+| mcp_t095_transport_reject | T-MCP-95/§4.4 规则2: 非法 transport 拒绝 | pass | 0 | [pcap]() |
+| mcp_t096_state_reject | T-MCP-96/§4.4 规则5: 非法 state.initial 拒绝 | pass | 0 | [pcap]() |
+| mcp_t097_id_counter_reject | T-MCP-97/§4.4 规则8: 负 id_counter 拒绝 | pass | 0 | [pcap]() |
+| mcp_t098_parts_role_reject | T-MCP-98/§4.4 规则10: 非法 parts role 拒绝 | pass | 0 | [pcap]() |
 | mcp_t099_stdio_server_caps_dup_key | T-099/§5.4: ServerCapabilities 重复键 → Validate 拒绝（与 T90 对称） | pass | 0 | [pcap]() |
+| mcp_t099_step_range_reject | T-MCP-99/§4.4 规则12: 通知 Step 越界拒绝 | pass | 0 | [pcap]() |
+| mcp_t100_content_audio | T-MCP-100/§3.10: content audio（2025-06-18） | pass | 12 | [pcap](mcp/mcp_t100_content_audio.pcap) |
 | mcp_t100_stdio_tools_list_pagination | T-100/§8.10: tools/list 分页 cursor + nextCursor（spec 分页机制） | pass | 12 | [pcap](mcp/mcp_t100_stdio_tools_list_pagination.pcap) |
+| mcp_t101_claude_desktop | T-MCP-101/现网: Claude Desktop 客户端形 | pass | 12 | [pcap](mcp/mcp_t101_claude_desktop.pcap) |
 | mcp_t101_stdio_roots_list_no_params | T-101/§8.11: roots/list 请求省略 params（spec 示例一致，id=12） | pass | 12 | [pcap](mcp/mcp_t101_stdio_roots_list_no_params.pcap) |
+| mcp_t102_cursor | T-MCP-102/现网: Cursor 客户端形 | pass | 12 | [pcap](mcp/mcp_t102_cursor.pcap) |
 | mcp_t102a_stdio_ping_empty_params | T-102a/§8.4: ping 请求带空对象 params:{}（宽松 spec 接受） | pass | 12 | [pcap](mcp/mcp_t102a_stdio_ping_empty_params.pcap) |
 | mcp_t102b_stdio_ping_nonempty_params | T-102b/§8.4: ping 带非空 params {x:1} → 严格 spec 服务端 -32602 Invalid params | pass | 12 | [pcap](mcp/mcp_t102b_stdio_ping_nonempty_params.pcap) |
+| mcp_t103_flowb_server | T-MCP-103/现网: flowB 服务端形（serverInfo name=flowB） | pass | 12 | [pcap](mcp/mcp_t103_flowb_server.pcap) |
 | mcp_t103_stdio_sampling_temperature_stop | T-103/§8.13: sampling 请求含 temperature=0.7 + stopSequences=["\n\n"]（可选字段） | pass | 12 | [pcap](mcp/mcp_t103_stdio_sampling_temperature_stop.pcap) |
 | mcp_t104_stdio_unknown_tool_message | T-104/§8.10: tools/call 未知工具 error.message 含 "Unknown tool:" 前缀 + 工具名 | pass | 12 | [pcap](mcp/mcp_t104_stdio_unknown_tool_message.pcap) |
 | mcp_tpos1_stdio_initialize | T-POS-1/§6.2: stdio 单会话默认流程（initialize→tools/list→tools/call→shutdown），13 包，行分隔 JSON | pass | 14 | [pcap](mcp/mcp_tpos1_stdio_initialize.pcap) |

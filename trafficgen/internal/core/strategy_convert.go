@@ -252,6 +252,56 @@ func defaultL2Port(cfg map[string]interface{}, key string, l2Only bool, def uint
 // layers[ip].src/dst，而 flat src_ip/dst_ip 是 legacy 默认). Returns empty
 // strings for chains that do not explicitly write ip.src/dst. layersVal is the
 // decoded "layers" array: []interface{}{map[string]interface{}{"ip": {...}}, ...}.
+// extractLayerMACs returns the explicit static src_mac/dst_mac from the eth
+// layer of a layers-chain config (D-REWORK-1，CORE_MEMORY 1.11：MAC 真相住
+// eth 层，顶层 src_mac/dst_mac 与 layers 并存已被 checkLayerFlatConflict
+// 拒绝）。只提静态标量；动态对象照旧走 parseLayerDyn→resolveLayerTuple
+// 逐流写入 spec。Returns empty strings when absent.
+func extractLayerMACs(layersVal interface{}) (src, dst string) {
+	arr, _ := layersVal.([]interface{})
+	for _, item := range arr {
+		layer, _ := item.(map[string]interface{})
+		ethCfg, _ := layer["eth"].(map[string]interface{})
+		if ethCfg == nil {
+			continue
+		}
+		if s, ok := ethCfg["src_mac"].(string); ok {
+			src = s
+		}
+		if d, ok := ethCfg["dst_mac"].(string); ok {
+			dst = d
+		}
+		return src, dst
+	}
+	return "", ""
+}
+
+// extractLayerIPTTL returns the explicit ttl from the ip layer of a
+// layers-chain config（D-REWORK-1：http_ttl_custom 顶层影子迁除后，ip 层
+// 显式 ttl 是唯一真相）。Present-but-zero 与顶层 getIntDefault 口径一致。
+func extractLayerIPTTL(layersVal interface{}) (ttl uint8, present bool) {
+	arr, _ := layersVal.([]interface{})
+	for _, item := range arr {
+		layer, _ := item.(map[string]interface{})
+		ipCfg, _ := layer["ip"].(map[string]interface{})
+		if ipCfg == nil {
+			continue
+		}
+		v, ok := ipCfg["ttl"]
+		if !ok || v == nil {
+			return 0, false
+		}
+		switch n := v.(type) {
+		case float64:
+			return uint8(n), true
+		case int:
+			return uint8(n), true
+		}
+		return 0, false
+	}
+	return 0, false
+}
+
 func extractLayerSrcDst(layersVal interface{}) (src, dst string) {
 	arr, _ := layersVal.([]interface{})
 	for _, item := range arr {
@@ -361,6 +411,20 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 			if dst != "" {
 				spec.DstIP = dst
 			}
+		}
+		// D-REWORK-1（CORE_MEMORY 1.11）：MAC 真相住 eth 层、TTL 真相住
+		// ip 层——层内显式值回填 spec，顶层同名键已被 checkLayerFlatConflict
+		// 拒绝（混用 400），此回填是层链形状的唯一消费路径。
+		if src, dst := extractLayerMACs(layersVal); src != "" || dst != "" {
+			if src != "" {
+				spec.SrcMAC = src
+			}
+			if dst != "" {
+				spec.DstMAC = dst
+			}
+		}
+		if ttl, present := extractLayerIPTTL(layersVal); present {
+			spec.TTL = ttl
 		}
 	}
 

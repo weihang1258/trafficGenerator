@@ -154,8 +154,10 @@ func validateStrategySemantic(mode, protocol string, config map[string]any, fc *
 
 // checkLayerFlatConflict (D-FTP-3, CORE_MEMORY §1): layers 与顶层扁平四元组
 // 任一共存即拒绝。地址写 ip 层 src/dst，端口写 tcp/udp 层 src_port/dst_port。
+// D-REWORK-1（CORE_MEMORY 1.11 顶层白名单）：src_mac/dst_mac 同列——MAC 真相
+// 住 eth 层，顶层影子与 layers 并存同判混用。
 func checkLayerFlatConflict(config map[string]any) string {
-	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port"} {
+	for _, k := range []string{"src_ip", "dst_ip", "src_port", "dst_port", "src_mac", "dst_mac"} {
 		if v, ok := config[k]; ok && v != nil {
 			return "config mixes layers with flat four-tuple field " + k + " (use ip.src/ip.dst for addresses, tcp/udp src_port/dst_port for ports)"
 		}

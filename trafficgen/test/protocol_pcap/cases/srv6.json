@@ -2419,14 +2419,7 @@
       "payload_protocol": "udp"
      }
     }
-   ],
-   "mpls": {
-    "labels": [
-     {
-      "value": 100
-     }
-    ]
-   }
+   ]
   },
   "expect": {
    "packet_count": 1,
@@ -2463,10 +2456,7 @@
       "payload_protocol": "udp"
      }
     }
-   ],
-   "gre": {
-    "protocol_type": 2048
-   }
+   ]
   },
   "expect": {
    "packet_count": 1,
@@ -3819,6 +3809,11 @@
   "spec_json": {
    "layers": [
     {
+     "eth": {
+      "dst_mac": "02:00:00:00:00:99"
+     }
+    },
+    {
      "ip": {
       "src": "2001:db8::1",
       "dst": "2001:db8::2"
@@ -3833,8 +3828,7 @@
       "payload_protocol": "udp"
      }
     }
-   ],
-   "dst_mac": "02:00:00:00:00:99"
+   ]
   },
   "expect": {
    "packet_count": 1,

@@ -1,2179 +1,2209 @@
 [
-  {
-    "id": "goose_heartbeat",
-    "proto": "goose",
-    "summary": "T-GSE-S1-01/02 static heartbeat: 3 frames, stNum constant 1, sqNum 1/2/3 incrementing, appid 0x1000, confRev 1, TAL 500, numDatSetEntries 3, no IP (L2-direct 0x88b8)",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 4096,
-            "test": false,
-            "nds_com": false,
-            "vlan_enabled": false,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1234
-              },
-              {
-                "name": "tm",
-                "type": "binary_time"
-              },
-              {
-                "name": "rate",
-                "type": "int32",
-                "value": 5678
-              }
-            ],
-            "count": 3
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 3,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "eth.type",
-          "value": "0x88b8"
-        },
-        {
-          "packet": 1,
-          "field": "goose.appid",
-          "value": "0x1000"
-        },
-        {
-          "packet": 1,
-          "field": "goose.length",
-          "value": "184"
-        },
-        {
-          "packet": 1,
-          "field": "goose.confRev",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.confRev",
-          "same_as_packet": 1
-        },
-        {
-          "packet": 3,
-          "field": "goose.confRev",
-          "same_as_packet": 1
-        },
-        {
-          "packet": 1,
-          "field": "goose.stNum",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.stNum",
-          "same_as_packet": 1
-        },
-        {
-          "packet": 3,
-          "field": "goose.stNum",
-          "same_as_packet": 1
-        },
-        {
-          "packet": 1,
-          "field": "goose.sqNum",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.sqNum",
-          "value": "2"
-        },
-        {
-          "packet": 3,
-          "field": "goose.sqNum",
-          "value": "3"
-        },
-        {
-          "packet": 1,
-          "field": "goose.timeAllowedtoLive",
-          "value": "500"
-        },
-        {
-          "packet": 1,
-          "field": "goose.numDatSetEntries",
-          "value": "3"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 14,
-          "hex": "10 00"
-        },
-        {
-          "packet": 1,
-          "offset": 22,
-          "hex": "61"
-        },
-        {
-          "packet": 1,
-          "offset": 25,
-          "hex": "80 29"
-        },
-        {
-          "packet": 1,
-          "offset": 68,
-          "hex": "81 02 01 f4"
-        },
-        {
-          "packet": 1,
-          "offset": 72,
-          "hex": "82 23"
-        },
-        {
-          "packet": 1,
-          "offset": 109,
-          "hex": "83 29"
-        },
-        {
-          "packet": 1,
-          "offset": 152,
-          "hex": "84 08"
-        },
-        {
-          "packet": 1,
-          "offset": 162,
-          "hex": "85 01 01 86 01 01 87 01 00 88 01 01 89 01 00"
-        },
-        {
-          "packet": 1,
-          "offset": 177,
-          "hex": "8a 01 03 ab 10"
-        },
-        {
-          "packet": 1,
-          "offset": 182,
-          "hex": "85 02 04 d2"
-        },
-        {
-          "packet": 1,
-          "offset": 186,
-          "hex": "8c 06"
-        },
-        {
-          "packet": 1,
-          "offset": 194,
-          "hex": "85 02 16 2e"
-        },
-        {
-          "packet": 2,
-          "offset": 165,
-          "hex": "86 01 02"
-        },
-        {
-          "packet": 3,
-          "offset": 165,
-          "hex": "86 01 03"
-        }
-      ],
-      "notes": [
-        "NO-VLAN frame: eth14 + goose-hdr8 + APDU; APDU content 173 bytes -> 61 81 AD; all uint32 fields (TAL/stNum/sqNum/confRev) use MINIMAL BER encoding (libiec61850 ber_encoder compressInteger): TAL=500 -> 81 02 01 f4, stNum=1 -> 85 01 01, confRev=1 -> 88 01 01",
-        "offsets computed byte-by-byte: 61@22 80@24 81@68 82@72 83@109 84@152 85@162 86@165 87@168 88@171 89@174 8a@177 ab@180 members@181/185/193 (t field 84 08 wall-clock: tag+length asserted only, never content)",
-        "tshark goose.* fields verified against tshark 3.6.14 (FT_BOOLEAN prints 0/1); absent parser falls back to the byte-level asserts which are always present"
-      ]
-    }
-  },
-  {
-    "id": "goose_retransmit",
-    "proto": "goose",
-    "summary": "T-GSE-S2-01 fast retransmit: 1 heartbeat(sqNum=1) + event + 5 fast retransmits (stNum=2 sqNum=0..5), then heartbeat resumes with sqNum=6; content byte-identical across retransmit frames",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1234
-              }
-            ],
-            "event_seq": [
-              {
-                "data_idx": 0,
-                "delay_ms": 5,
-                "retransmits": 5
-              }
-            ],
-            "count": 8
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 8,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.stNum",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "goose.sqNum",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.stNum",
-          "value": "2"
-        },
-        {
-          "packet": 2,
-          "field": "goose.sqNum",
-          "value": "0"
-        },
-        {
-          "packet": 3,
-          "field": "goose.stNum",
-          "same_as_packet": 2
-        },
-        {
-          "packet": 3,
-          "field": "goose.sqNum",
-          "value": "1"
-        },
-        {
-          "packet": 4,
-          "field": "goose.sqNum",
-          "value": "2"
-        },
-        {
-          "packet": 5,
-          "field": "goose.sqNum",
-          "value": "3"
-        },
-        {
-          "packet": 6,
-          "field": "goose.sqNum",
-          "value": "4"
-        },
-        {
-          "packet": 7,
-          "field": "goose.sqNum",
-          "value": "5"
-        },
-        {
-          "packet": 8,
-          "field": "goose.stNum",
-          "same_as_packet": 2
-        },
-        {
-          "packet": 8,
-          "field": "goose.sqNum",
-          "value": "6"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 2,
-          "offset": 162,
-          "hex": "85 01 02 86 01 00"
-        },
-        {
-          "packet": 3,
-          "offset": 165,
-          "hex": "86 01 01"
-        },
-        {
-          "packet": 4,
-          "offset": 165,
-          "hex": "86 01 02"
-        },
-        {
-          "packet": 5,
-          "offset": 165,
-          "hex": "86 01 03"
-        },
-        {
-          "packet": 6,
-          "offset": 165,
-          "hex": "86 01 04"
-        },
-        {
-          "packet": 7,
-          "offset": 165,
-          "hex": "86 01 05"
-        },
-        {
-          "packet": 8,
-          "offset": 165,
-          "hex": "86 01 06"
-        },
-        {
-          "packet": 2,
-          "offset": 177,
-          "hex": "8a 01 01 ab 04"
-        }
-      ],
-      "notes": [
-        "design S2 frame sequence: 1 heartbeat (stNum=1,sqNum=1) + event (stNum+1=2, sqNum RESET to 0) + 5 fast retransmits (sqNum 1..5) + frame 8 back to heartbeat rate (sqNum=6); count=8 frames total; event_seq only changes the state machine (stNum+1/sqNum=0) - data bytes stay identical across the burst; design §6.2 S2 table must list all 8 frames (was 7)",
-        "all uint32 minimal BER encoding: stNum=2 -> 85 01 02, sqNum -> 86 01 <n>, TAL -> 81 02 01 f4; single member config -> 8a 01 01 ab 04 (num=1, allData content 4B)",
-        "sqNum=0 on the first event frame is the mandatory T-GSE-S2-02 reset-semantics assertion"
-      ]
-    }
-  },
-  {
-    "id": "goose_dataset_change",
-    "proto": "goose",
-    "summary": "T-GSE-S2-02 dataset change: heartbeat stNum=1 sqNum=1 then event frame stNum=2 sqNum=0 (RESET, not 1), retransmits sqNum 0..2 then heartbeat",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1234
-              }
-            ],
-            "event_seq": [
-              {
-                "data_idx": 0,
-                "delay_ms": 5,
-                "retransmits": 2
-              }
-            ],
-            "count": 5
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 5,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.stNum",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "goose.sqNum",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.stNum",
-          "value": "2"
-        },
-        {
-          "packet": 2,
-          "field": "goose.sqNum",
-          "value": "0"
-        },
-        {
-          "packet": 3,
-          "field": "goose.sqNum",
-          "value": "1"
-        },
-        {
-          "packet": 4,
-          "field": "goose.sqNum",
-          "value": "2"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 162,
-          "hex": "85 01 01 86 01 01"
-        },
-        {
-          "packet": 2,
-          "offset": 162,
-          "hex": "85 01 02 86 01 00"
-        },
-        {
-          "packet": 3,
-          "offset": 165,
-          "hex": "86 01 01"
-        },
-        {
-          "packet": 4,
-          "offset": 165,
-          "hex": "86 01 02"
-        }
-      ],
-      "notes": [
-        "CRITICAL: event-change first frame sqNum is 0 (not 1) - state machine reset semantics, mandatory coverage item (minimal encoding: 86 01 00)",
-        "stNum is monotonically +1 per event; sqNum restarts at 0 for the event burst"
-      ]
-    }
-  },
-  {
-    "id": "goose_test_flag",
-    "proto": "goose",
-    "summary": "T-GSE-S3-01 test flag set: all frames carry test=true encoded as BER 87 01 01",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 4096,
-            "test": true,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "count": 2
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 2,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.simulation",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.simulation",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 168,
-          "hex": "87 01 01 88 01 01 89 01 00"
-        },
-        {
-          "packet": 2,
-          "offset": 168,
-          "hex": "87 01 01"
-        }
-      ],
-      "notes": [
-        "Wireshark prints goose.test as goose.simulation (FT_BOOLEAN prints 0/1, not true/false - tshark 3.6.14 verified); byte-level 87 01 01 is the FrameAssert fallback that never depends on dissector",
-        "test=true chain @167: 87 01 01 (test) 88 01 01 (confRev) 89 01 00 (ndsCom) - offsets lock field positions",
-        "mandatory coverage: test flag must be settable and observable in every frame"
-      ]
-    }
-  },
-  {
-    "id": "goose_ndscom_flag",
-    "proto": "goose",
-    "summary": "T-GSE-S3-02 ndsCom flag set: all frames carry ndsCom=true encoded as BER 89 01 01",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 4096,
-            "nds_com": true,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "count": 2
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 2,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.ndsCom",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.ndsCom",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 168,
-          "hex": "87 01 00 88 01 01 89 01 01"
-        },
-        {
-          "packet": 2,
-          "offset": 174,
-          "hex": "89 01 01"
-        }
-      ],
-      "notes": [
-        "ndsCom (need-to-stream) sets 0x89 01 01; false sets 0x89 01 00 (see heartbeat for the false case); FT_BOOLEAN prints 0/1 in tshark",
-        "ndsCom=true chain @167: 87 01 00 (test) 88 01 01 (confRev) 89 01 01 (ndsCom)",
-        "observation: receiver treats ndsCom=true data as not-ready - flag must round-trip byte-exactly"
-      ]
-    }
-  },
-  {
-    "id": "goose_vlan",
-    "proto": "goose",
-    "summary": "T-GSE-S4-01 VLAN: TPID 0x8100 + TCI 0x8064 (prio 4 / id 100), EtherType 0x88b8 shifted +4, APDU at offset 26",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 4096,
-            "vlan_enabled": true,
-            "vlan_id": 100,
-            "vlan_priority": 4,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "count": 2
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 2,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "vlan.id",
-          "value": "100"
-        },
-        {
-          "packet": 1,
-          "field": "vlan.priority",
-          "value": "4"
-        },
-        {
-          "packet": 1,
-          "field": "vlan.etype",
-          "value": "0x88b8"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "81 00 80 64 88 b8"
-        },
-        {
-          "packet": 1,
-          "offset": 18,
-          "hex": "10 00"
-        },
-        {
-          "packet": 1,
-          "offset": 20,
-          "hex": "00 ab"
-        },
-        {
-          "packet": 1,
-          "offset": 26,
-          "hex": "61"
-        }
-      ],
-      "notes": [
-        "VLAN header sits between MACs and EtherType; TCI = prio(4)<<13 | dei(1b) | vid 100 = 0x8064",
-        "all APDU offsets shift by +4 vs the non-VLAN case (offset 26 here vs 22); GOOSE Length @20 = 00 ab (171) proves design 9.4 VLAN formula: frame length - 18 - 8 = APDU; APDU content=160, long-form header=3, APDU total=163, Length=8+163=171"
-      ]
-    }
-  },
-  {
-    "id": "goose_multitype",
-    "proto": "goose",
-    "summary": "T-GSE-S5-01 multi-type data values: Boolean x2, Integer x2, Unsigned, FloatingPoint, BitString x2, VisibleString x2 (10 members) - all BER member tags byte-verified, numDatSetEntries 10",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "b1",
-                "type": "boolean",
-                "value": true
-              },
-              {
-                "name": "b2",
-                "type": "boolean",
-                "value": false
-              },
-              {
-                "name": "i1",
-                "type": "int32",
-                "value": 150
-              },
-              {
-                "name": "i2",
-                "type": "int32",
-                "value": 5678
-              },
-              {
-                "name": "u1",
-                "type": "uint32",
-                "value": 10000
-              },
-              {
-                "name": "f1",
-                "type": "float32",
-                "value": 2.5
-              },
-              {
-                "name": "s1",
-                "type": "bit_string",
-                "value": "fe",
-                "bit_length": 8
-              },
-              {
-                "name": "s2",
-                "type": "bit_string",
-                "value": "0f",
-                "bit_length": 4
-              },
-              {
-                "name": "v1",
-                "type": "visible_string",
-                "value": "Hello"
-              },
-              {
-                "name": "v2",
-                "type": "visible_string",
-                "value": "World"
-              }
-            ],
-            "count": 2
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 2,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.numDatSetEntries",
-          "value": "10"
-        },
-        {
-          "packet": 1,
-          "field": "goose.boolean",
-          "nonzero": true
-        },
-        {
-          "packet": 1,
-          "field": "goose.integer",
-          "nonzero": true
-        },
-        {
-          "packet": 1,
-          "field": "goose.unsigned",
-          "value": "10000"
-        },
-        {
-          "packet": 1,
-          "field": "goose.float_value",
-          "value": "2.5"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 177,
-          "hex": "8a 01 0a ab 2f"
-        },
-        {
-          "packet": 1,
-          "offset": 182,
-          "hex": "83 01 01 83 01 00"
-        },
-        {
-          "packet": 1,
-          "offset": 188,
-          "hex": "85 02 00 96 85 02 16 2e"
-        },
-        {
-          "packet": 1,
-          "offset": 196,
-          "hex": "86 02 27 10"
-        },
-        {
-          "packet": 1,
-          "offset": 200,
-          "hex": "87 05 08"
-        },
-        {
-          "packet": 1,
-          "offset": 207,
-          "hex": "84 02 00 fe"
-        },
-        {
-          "packet": 1,
-          "offset": 211,
-          "hex": "84 02 04 f0"
-        },
-        {
-          "packet": 1,
-          "offset": 215,
-          "hex": "8a 05 48 65 6c 6c 6f"
-        },
-        {
-          "packet": 1,
-          "offset": 222,
-          "hex": "8a 05 57 6f 72 6c 64"
-        }
-      ],
-      "notes": [
-        "mandatory coverage: Boolean/Integer/Real(FloatingPoint)/BitString each >1 instance - 2 booleans, 2 int32, 1 float32 (=IEC 61850 FloatingPoint/Real), 2 bit_strings, 2 visible_strings; numDatSetEntries 10",
-        "BIT STRING 0x84: len = 1 + ceil(n/8), padding byte FIRST = (byteSize*8)-bitLength (ber_encoder.c) - 8-bit value fe -> 84 02 00 fe (padding 0, NOT 1); 4-bit value 0f -> 84 02 04 f0 (padding 4, bits left-aligned)",
-        "multi-instance field asserts: goose.boolean/integer output is per-packet comma-joined (tshark: 1,0) so exact-value equality is impossible - use nonzero (existence) here; exact bytes are proven by the frame asserts above",
-        "FloatingPoint 0x87: len = 1 + width/8 = 5 bytes (1 exponent-width byte 08 + 4 mantissa bytes), NOT IEEE754 bare 4B - frame asserts the 87 05 08 prefix; goose.real decodes to 2.5 (FT_DOUBLE)"
-      ]
-    }
-  },
-  {
-    "id": "goose_multidataset",
-    "proto": "goose",
-    "summary": "T-GSE-S7-01 multi-dataset: 6 members (bool/int32/uint32/float32/bit_string/visible_string), numDatSetEntries 6 == allData member count",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "b1",
-                "type": "boolean",
-                "value": true
-              },
-              {
-                "name": "i1",
-                "type": "int32",
-                "value": 42
-              },
-              {
-                "name": "u1",
-                "type": "uint32",
-                "value": 999
-              },
-              {
-                "name": "f1",
-                "type": "float32",
-                "value": 1.5
-              },
-              {
-                "name": "s1",
-                "type": "bit_string",
-                "value": "aa"
-              },
-              {
-                "name": "v1",
-                "type": "visible_string",
-                "value": "IEC"
-              }
-            ],
-            "count": 2
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 2,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.numDatSetEntries",
-          "value": "6"
-        },
-        {
-          "packet": 1,
-          "field": "goose.allData",
-          "nonzero": true
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 177,
-          "hex": "8a 01 06 ab 1a"
-        },
-        {
-          "packet": 1,
-          "offset": 182,
-          "hex": "83 01 01"
-        },
-        {
-          "packet": 1,
-          "offset": 185,
-          "hex": "85 01 2a"
-        },
-        {
-          "packet": 1,
-          "offset": 188,
-          "hex": "86 02 03 e7"
-        },
-        {
-          "packet": 1,
-          "offset": 192,
-          "hex": "87 05 08"
-        },
-        {
-          "packet": 1,
-          "offset": 199,
-          "hex": "84 02 00 aa"
-        },
-        {
-          "packet": 1,
-          "offset": 203,
-          "hex": "8a 03 49 45 43"
-        }
-      ],
-      "notes": [
-        "numDatSetEntries=6 and allData (0xab) contains exactly 6 members - mandatory coverage: multi-dataset with numDatSetEntries > 1",
-        "member order preserved as listed; each type has its BER discriminator byte (0x83/0x85/0x86/0x87/0x84/0x8a); minimal encoding: int32 42 -> 85 01 2a, bit_string aa -> 84 02 00 aa (padding 0)"
-      ]
-    }
-  },
-  {
-    "id": "goose_no_ip",
-    "proto": "goose",
-    "summary": "T-GSE-S6-01 no-IP proof: frame carries ethernet 0x88b8 directly (no IPv4 0x0800 / IPv6 0x86dd), APDU 0x61 starts at byte 22 - GOOSE is L2-terminated",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1234
-              }
-            ],
-            "count": 3
-          }
-        }
-      ]
-    },
-    "expect": {
-      "packet_count": 3,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "eth.type",
-          "value": "0x88b8"
-        },
-        {
-          "packet": 1,
-          "field": "frame.protocols",
-          "nonzero": true
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "88 b8"
-        },
-        {
-          "packet": 1,
-          "offset": 22,
-          "hex": "61"
-        }
-      ],
-      "notes": [
-        "byte-level no-IP proof: offset 12 = 88 b8 (EtherType is GOOSE, not 0x0800/0x86dd) AND offset 22 = 61 (APDU first byte, not 0x45 IPv4 first nibble) - proves the Eth header is directly followed by the GOOSE APDU with NO IP layer in between",
-        "frame.protocols exact value is environment-dependent (eth:ethertype:goose with the goose dissector, eth:data without) so only existence (nonzero) is asserted - the two byte asserts are the dissector-independent proof, lower-level than field assertions and green in both environments",
-        "GOOSE is Ethernet-multicast with no IP encapsulation - IPv4/IPv6 marked N/A in the testcase doc 1.5"
-      ]
-    }
-  },
-  {
-    "id": "goose_neg_appid",
-    "proto": "goose",
-    "summary": "negative: appid 0x4000 falls in the SV-reserved segment (0x4000-0x7FFF) and must fail; GOOSE segment is 0x0000-0x3FFF",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 16384,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "count": 3
-          }
-        }
-      ]
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "out of range [0,16383]",
-      "notes": [
-        "appid 0x4000 = 16384 decimal, within the SV reserved range 0x4000-0x7FFF (design 9.2); validator must reject with segment awareness",
-        "default GOOSE appid 0x1000 is valid; this proves out-of-range detection is not 'anything != 0x1000 fails'",
-        "真实执法门=V9 范围（appid max 0x3fff 先于 validator 段位门，fins T-39 口径）"
-      ]
-    }
-  },
-  {
-    "id": "goose_neg_sqnum",
-    "proto": "goose",
-    "summary": "negative: non-contiguous sqNum - retransmit sequence jumps/duplicates sqNum (violates monotonically +1 within a burst)",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "event_seq": [
-              {
-                "data_idx": 0,
-                "delay_ms": 5,
-                "retransmits": 2,
-                "sqnum_step": 2
-              }
-            ],
-            "count": 4
-          }
-        }
-      ]
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "sqNum step",
-      "notes": [
-        "sqNum must be contiguous (+1) within a change burst or heartbeat run; a step/jump is invalid (design 9.1)",
-        "guards the T-GSE-S2-02 'change first frame sqNum=0 then +1' hard rule so generators cannot silently skip numbers"
-      ]
-    }
-  },
-  {
-    "id": "goose_neg_stnum",
-    "proto": "goose",
-    "summary": "negative: stNum wrap-around - stNum must never regress/wrap (0xFFFFFFFF -> 0), violating the change counter monotonicity",
-    "spec_json": {
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "conf_rev": 1,
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "appid": 4096,
-            "start_stnum": 4294967295,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "count": 4
-          }
-        }
-      ]
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "stNum must not overflow",
-      "notes": [
-        "stNum is a monotonic change counter; wrap (0xFFFFFFFF -> 0) would mislead subscribers into treating a new version as old (design 9.1)",
-        "start_stnum 4294967295 = 0xFFFFFFFF triggers the validator on the out-of-range/regression path (design 10.1 goose_stnum_override: start read from config, never wrap)"
-      ]
-    }
-  },
-  {
-    "id": "goose_vn_presence",
-    "proto": "goose",
-    "summary": "T-GOOSE-2: 顶层 goose presence 判死（空 map 也死，CheckProtoFlat fins 先例）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {}
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01",
-      "goose": {}
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "top-level goose sub-config",
-      "notes": [
-        "failing 先行①同源；spec 另带顶层 goose 子映射由下方注入"
-      ]
-    }
-  },
-  {
-    "id": "goose_vn_static_copy",
-    "proto": "goose",
-    "summary": "T-GOOSE-3: 显式标量 eth MAC + flows=2 拒绝（⑥ static-eth 门，sv/isis 同享）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {
-            "src_mac": "aa:bb:cc:dd:ee:01"
-          }
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ]
-          }
-        }
-      ]
-    },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "static four-tuple",
-      "notes": [
-        "checkLayerChainStaticCopy 扩 eth 后执法；逃生口=eth src_mac 写动态对象",
-        "src_mac 必须写 eth 层内（门查层内显式标量；顶层 src_mac 不触发）"
-      ]
-    },
-    "strategy_fc": {
-      "type": "flows",
-      "value": 2
-    }
-  },
-  {
-    "id": "goose_neg_confrev",
-    "proto": "goose",
-    "summary": "T-GOOSE-15: conf_rev=0 拒（设计 §9.3，validator conf_rev must be non-zero）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 0,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ]
-          }
-        }
-      ],
+ {
+  "id": "goose_heartbeat",
+  "proto": "goose",
+  "summary": "T-GSE-S1-01/02 static heartbeat: 3 frames, stNum constant 1, sqNum 1/2/3 incrementing, appid 0x1000, confRev 1, TAL 500, numDatSetEntries 3, no IP (L2-direct 0x88b8)",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
       "src_mac": "aa:bb:cc:dd:ee:01"
+     }
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "conf_rev must be non-zero",
-      "notes": [
-        "V9 显式零放行（u==0 continue），真实执法门=goose validator :40"
-      ]
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 4096,
+      "test": false,
+      "nds_com": false,
+      "vlan_enabled": false,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1234
+       },
+       {
+        "name": "tm",
+        "type": "binary_time"
+       },
+       {
+        "name": "rate",
+        "type": "int32",
+        "value": 5678
+       }
+      ],
+      "count": 3
+     }
     }
+   ]
   },
-  {
-    "id": "goose_neg_no_data",
-    "proto": "goose",
-    "summary": "T-GOOSE-16: 空 data 拒（validator at least one allData member）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": []
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+  "expect": {
+   "packet_count": 3,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "eth.type",
+     "value": "0x88b8"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "at least one",
-      "notes": [
-        "单测 TestPlannerRejectsInvalidGOOSEConfiguration/no members 同款行为 pcap 转正"
-      ]
-    }
-  },
-  {
-    "id": "goose_neg_type",
-    "proto": "goose",
-    "summary": "T-GOOSE-17: 非法数据类型拒（§3.8 矩阵外，array/struct 规划中同拒）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "x",
-                "type": "bogus",
-                "value": 1
-              }
-            ]
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 1,
+     "field": "goose.appid",
+     "value": "0x1000"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "unsupported data type",
-      "notes": [
-        "单测 bad type 同款转正"
-      ]
-    }
-  },
-  {
-    "id": "goose_neg_gocbref",
-    "proto": "goose",
-    "summary": "T-GOOSE-18: gocb_ref 空拒（validator gocb_ref and dat_set are required）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ]
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 1,
+     "field": "goose.length",
+     "value": "184"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "gocb_ref and dat_set are required",
-      "notes": [
-        "单测 control block 同款转正；与 T-30 空层保底同锚不同承载位置（9.22）"
-      ]
-    }
-  },
-  {
-    "id": "goose_neg_str255",
-    "proto": "goose",
-    "summary": "T-GOOSE-19: gocb_ref 256 字符拒（exceed 255 bytes，9.8 超长格）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ]
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 1,
+     "field": "goose.confRev",
+     "value": "1"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "exceed 255 bytes",
-      "notes": []
-    }
-  },
-  {
-    "id": "goose_neg_tal",
-    "proto": "goose",
-    "summary": "T-GOOSE-20: tal_ms=0 拒（tal_ms must be in 1..4294967295，9.8 空值/边界格）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 0,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ]
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 2,
+     "field": "goose.confRev",
+     "same_as_packet": 1
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "tal_ms must be in",
-      "notes": [
-        "V9 显式零放行，真实执法门=goose validator :37"
-      ]
-    }
-  },
-  {
-    "id": "goose_goid",
-    "proto": "goose",
-    "summary": "T-GOOSE-21: go_id 显式值（§3.4 可选键，0x83 段写显式串非 gocbRef 回填）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "go_id": "test-goid"
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 3,
+     "field": "goose.confRev",
+     "same_as_packet": 1
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "eth.type",
-          "value": "0x88b8"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 109,
-          "hex": "83 09 74 65 73 74 2d 67 6f 69 64"
-        }
-      ],
-      "notes": [
-        "与缺省回填对照：heartbeat 0x83 长度 0x29(=gocbRef)，此处 0x09 显式串",
-        "offset 复用心跳布局（gocbRef/datSet 长度不变）；落盘后复核"
-      ]
-    }
-  },
-  {
-    "id": "goose_start_sqnum",
-    "proto": "goose",
-    "summary": "T-GOOSE-22: start_sqnum=5 非零起点（首帧 sqNum=5，5/6/7 连续）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 3,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "start_sqnum": 5
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 1,
+     "field": "goose.stNum",
+     "value": "1"
     },
-    "expect": {
-      "packet_count": 3,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.sqNum",
-          "value": "5"
-        },
-        {
-          "packet": 2,
-          "field": "goose.sqNum",
-          "value": "6"
-        },
-        {
-          "packet": 3,
-          "field": "goose.sqNum",
-          "value": "7"
-        },
-        {
-          "packet": 1,
-          "field": "goose.stNum",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.stNum",
-          "same_as_packet": 1
-        },
-        {
-          "packet": 3,
-          "field": "goose.stNum",
-          "same_as_packet": 1
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 165,
-          "hex": "86 01 05"
-        },
-        {
-          "packet": 3,
-          "offset": 165,
-          "hex": "86 01 07"
-        }
-      ],
-      "notes": [
-        "与 neg_sqnum 跳号门对照：合法非零起点放行"
-      ]
-    }
-  },
-  {
-    "id": "goose_start_stnum",
-    "proto": "goose",
-    "summary": "T-GOOSE-23: start_stnum=10 非零起点（stNum=10 恒，sqNum 1/2；§10.1 override 已实现）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 2,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "start_stnum": 10
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 2,
+     "field": "goose.stNum",
+     "same_as_packet": 1
     },
-    "expect": {
-      "packet_count": 2,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.stNum",
-          "value": "10"
-        },
-        {
-          "packet": 2,
-          "field": "goose.stNum",
-          "same_as_packet": 1
-        },
-        {
-          "packet": 1,
-          "field": "goose.sqNum",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.sqNum",
-          "value": "2"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 162,
-          "hex": "85 01 0a"
-        }
-      ],
-      "notes": [
-        "与 neg_stnum 0xFFFFFFFF 拒绝门对照：合法值放行"
-      ]
-    }
-  },
-  {
-    "id": "goose_int64",
-    "proto": "goose",
-    "summary": "T-GOOSE-24: int64 负值最小编码（85 01 ff，含符号位；9.21 int64 分支代表）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "n",
-                "type": "int64",
-                "value": -1
-              }
-            ]
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 3,
+     "field": "goose.stNum",
+     "same_as_packet": 1
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.integer",
-          "nonzero": true
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 182,
-          "hex": "85 01 ff"
-        }
-      ],
-      "notes": [
-        "intVal 最小编码保留符号位字节：-1 → ff 单字节"
-      ]
-    }
-  },
-  {
-    "id": "goose_uint64",
-    "proto": "goose",
-    "summary": "T-GOOSE-25: uint64 大值编码（2^32 → 86 05 01 00 00 00 00；uint64 分支代表）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "u",
-                "type": "uint64",
-                "value": 4294967296
-              }
-            ]
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 1,
+     "field": "goose.sqNum",
+     "value": "1"
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.numDatSetEntries",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 182,
-          "hex": "86 05 01 00 00 00 00"
-        }
-      ],
-      "notes": [
-        "uint64Val 最小大端：2^32 需 5 字节",
-        "goose.unsigned 字段断言删除：tshark dissector FT_UINT32，2^32 截断为 0（帧字节 frames pin 为准）"
-      ]
-    }
-  },
-  {
-    "id": "goose_octet_string",
-    "proto": "goose",
-    "summary": "T-GOOSE-26: octet_string（0x89 tag，§3.8 取值补口）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "o",
-                "type": "octet_string",
-                "value": "AB"
-              }
-            ]
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 2,
+     "field": "goose.sqNum",
+     "value": "2"
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.numDatSetEntries",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 182,
-          "hex": "89 02 41 42"
-        }
-      ],
-      "notes": [
-        "'AB' ASCII = 41 42"
-      ]
-    }
-  },
-  {
-    "id": "goose_utc_time",
-    "proto": "goose",
-    "summary": "T-GOOSE-27: utc_time（0x91 8B CP 时间，tag+len 断言内容墙钟不定值）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "t",
-                "type": "utc_time"
-              }
-            ]
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 3,
+     "field": "goose.sqNum",
+     "value": "3"
     },
-    "expect": {
-      "packet_count": 1,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.numDatSetEntries",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 182,
-          "hex": "91 08"
-        }
-      ],
-      "notes": [
-        "binary_time 存量已有（heartbeat），utc_time 同表补口"
-      ]
-    }
-  },
-  {
-    "id": "goose_combo_flags",
-    "proto": "goose",
-    "summary": "T-GOOSE-28 组合流 A: test=true+nds_com=true+VLAN 同帧三动作（9.11 ≥3）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 2,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "test": true,
-            "nds_com": true,
-            "vlan_enabled": true,
-            "vlan_id": 100,
-            "vlan_priority": 4
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 1,
+     "field": "goose.timeAllowedtoLive",
+     "value": "500"
     },
-    "expect": {
-      "packet_count": 2,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "vlan.id",
-          "value": "100"
-        },
-        {
-          "packet": 1,
-          "field": "vlan.priority",
-          "value": "4"
-        },
-        {
-          "packet": 1,
-          "field": "goose.simulation",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "goose.ndsCom",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.simulation",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.ndsCom",
-          "value": "1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 12,
-          "hex": "81 00 80 64 88 b8"
-        },
-        {
-          "packet": 1,
-          "offset": 172,
-          "hex": "87 01 01 88 01 01 89 01 01"
-        },
-        {
-          "packet": 2,
-          "offset": 172,
-          "hex": "87 01 01"
-        }
-      ],
-      "notes": [
-        "三动作=APDU 两个布尔旗 + L2 VLAN 头同帧编排；VLAN 布局=test_flag+4 偏移",
-        "帧 2 只断 87 01 01（逐帧三旗由 fields 承担）"
-      ]
+    {
+     "packet": 1,
+     "field": "goose.numDatSetEntries",
+     "value": "3"
     }
-  },
-  {
-    "id": "goose_combo_event",
-    "proto": "goose",
-    "summary": "T-GOOSE-29 组合流 B: event_seq 事件 + 6 成员多类型 + numDatSetEntries 一致（9.11 ≥3）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 5,
-            "data": [
-              {
-                "name": "b1",
-                "type": "boolean",
-                "value": true
-              },
-              {
-                "name": "i1",
-                "type": "int32",
-                "value": 42
-              },
-              {
-                "name": "u1",
-                "type": "uint32",
-                "value": 999
-              },
-              {
-                "name": "f1",
-                "type": "float32",
-                "value": 1.5
-              },
-              {
-                "name": "s1",
-                "type": "bit_string",
-                "value": "aa"
-              },
-              {
-                "name": "v1",
-                "type": "visible_string",
-                "value": "IEC"
-              }
-            ],
-            "event_seq": [
-              {
-                "data_idx": 0,
-                "delay_ms": 5,
-                "retransmits": 2
-              }
-            ]
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 14,
+     "hex": "10 00"
     },
-    "expect": {
-      "packet_count": 5,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "goose.stNum",
-          "value": "1"
-        },
-        {
-          "packet": 1,
-          "field": "goose.sqNum",
-          "value": "1"
-        },
-        {
-          "packet": 2,
-          "field": "goose.stNum",
-          "value": "2"
-        },
-        {
-          "packet": 2,
-          "field": "goose.sqNum",
-          "value": "0"
-        },
-        {
-          "packet": 3,
-          "field": "goose.sqNum",
-          "value": "1"
-        },
-        {
-          "packet": 4,
-          "field": "goose.sqNum",
-          "value": "2"
-        },
-        {
-          "packet": 5,
-          "field": "goose.sqNum",
-          "value": "3"
-        },
-        {
-          "packet": 1,
-          "field": "goose.numDatSetEntries",
-          "value": "6"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 1,
-          "offset": 162,
-          "hex": "85 01 01 86 01 01"
-        },
-        {
-          "packet": 2,
-          "offset": 162,
-          "hex": "85 01 02 86 01 00"
-        },
-        {
-          "packet": 5,
-          "offset": 165,
-          "hex": "86 01 03"
-        },
-        {
-          "packet": 1,
-          "offset": 177,
-          "hex": "8a 01 06"
-        }
-      ],
-      "notes": [
-        "三动作=事件状态机 + 多类型数据集 + 条目数一致性同流编排",
-        "包数公式：1 事件前心跳 + (2+1) 爆发 + 1 补足 = 5"
-      ]
-    }
-  },
-  {
-    "id": "goose_vn_empty_layer",
-    "proto": "goose",
-    "summary": "T-GOOSE-30: 空层 {goose:{}} 保底（零配置非 nil → gocb_ref 必填分支）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {}
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 1,
+     "offset": 22,
+     "hex": "61"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "gocb_ref and dat_set are required",
-      "notes": [
-        "9.22 承载位置扫描：空层 vs 显式空串（T-18）同锚不同形状",
-        "goose config is required 仅 spec.GOOSE==nil 命中，翻译后不可达"
-      ]
-    }
-  },
-  {
-    "id": "goose_neg_sqnum_max",
-    "proto": "goose",
-    "summary": "T-GOOSE-31: start_sqnum=0xFFFFFFFF 拒（sqNum must not overflow，validator :46）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "start_sqnum": 4294967295
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 1,
+     "offset": 25,
+     "hex": "80 29"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "sqNum must not overflow",
-      "notes": [
-        "V9 max 含 4294967295 放行，真实执法门=validator task 门"
-      ]
-    }
-  },
-  {
-    "id": "goose_neg_ip_carrier",
-    "proto": "goose",
-    "summary": "T-GOOSE-32: [ip,goose] 载体拒（V7b must not have an ip/transport carrier）",
-    "spec_json": {
-      "layers": [
-        {
-          "ip": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ]
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 1,
+     "offset": 68,
+     "hex": "81 02 01 f4"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "must not have an ip/transport carrier",
-      "notes": [
-        "isis_neg_ip_carrier 同构；validator Layer 2 only 分支由本门等价覆盖（create 先于 task）"
-      ]
-    }
-  },
-  {
-    "id": "goose_neg_vlan",
-    "proto": "goose",
-    "summary": "T-GOOSE-33: vlan_id=4096 拒（V9 out of range [0,4095]）",
-    "spec_json": {
-      "layers": [
-        {
-          "eth": {}
-        },
-        {
-          "goose": {
-            "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
-            "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
-            "tal_ms": 500,
-            "conf_rev": 1,
-            "appid": 4096,
-            "dst_mac": "01:0c:cd:01:02:03",
-            "count": 1,
-            "data": [
-              {
-                "name": "pos",
-                "type": "int32",
-                "value": 1
-              }
-            ],
-            "vlan_enabled": true,
-            "vlan_id": 4096,
-            "vlan_priority": 4
-          }
-        }
-      ],
-      "src_mac": "aa:bb:cc:dd:ee:01"
+    {
+     "packet": 1,
+     "offset": 72,
+     "hex": "82 23"
     },
-    "expect": {
-      "expect_error": true,
-      "error_contains": "out of range [0,4095]",
-      "notes": [
-        "V9 范围门先于 validator VLAN is out of range（fins T-39 同款对真实门）"
-      ]
+    {
+     "packet": 1,
+     "offset": 109,
+     "hex": "83 29"
+    },
+    {
+     "packet": 1,
+     "offset": 152,
+     "hex": "84 08"
+    },
+    {
+     "packet": 1,
+     "offset": 162,
+     "hex": "85 01 01 86 01 01 87 01 00 88 01 01 89 01 00"
+    },
+    {
+     "packet": 1,
+     "offset": 177,
+     "hex": "8a 01 03 ab 10"
+    },
+    {
+     "packet": 1,
+     "offset": 182,
+     "hex": "85 02 04 d2"
+    },
+    {
+     "packet": 1,
+     "offset": 186,
+     "hex": "8c 06"
+    },
+    {
+     "packet": 1,
+     "offset": 194,
+     "hex": "85 02 16 2e"
+    },
+    {
+     "packet": 2,
+     "offset": 165,
+     "hex": "86 01 02"
+    },
+    {
+     "packet": 3,
+     "offset": 165,
+     "hex": "86 01 03"
     }
+   ],
+   "notes": [
+    "NO-VLAN frame: eth14 + goose-hdr8 + APDU; APDU content 173 bytes -> 61 81 AD; all uint32 fields (TAL/stNum/sqNum/confRev) use MINIMAL BER encoding (libiec61850 ber_encoder compressInteger): TAL=500 -> 81 02 01 f4, stNum=1 -> 85 01 01, confRev=1 -> 88 01 01",
+    "offsets computed byte-by-byte: 61@22 80@24 81@68 82@72 83@109 84@152 85@162 86@165 87@168 88@171 89@174 8a@177 ab@180 members@181/185/193 (t field 84 08 wall-clock: tag+length asserted only, never content)",
+    "tshark goose.* fields verified against tshark 3.6.14 (FT_BOOLEAN prints 0/1); absent parser falls back to the byte-level asserts which are always present"
+   ]
   }
+ },
+ {
+  "id": "goose_retransmit",
+  "proto": "goose",
+  "summary": "T-GSE-S2-01 fast retransmit: 1 heartbeat(sqNum=1) + event + 5 fast retransmits (stNum=2 sqNum=0..5), then heartbeat resumes with sqNum=6; content byte-identical across retransmit frames",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1234
+       }
+      ],
+      "event_seq": [
+       {
+        "data_idx": 0,
+        "delay_ms": 5,
+        "retransmits": 5
+       }
+      ],
+      "count": 8
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 8,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.stNum",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "goose.sqNum",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "goose.stNum",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "goose.sqNum",
+     "value": "0"
+    },
+    {
+     "packet": 3,
+     "field": "goose.stNum",
+     "same_as_packet": 2
+    },
+    {
+     "packet": 3,
+     "field": "goose.sqNum",
+     "value": "1"
+    },
+    {
+     "packet": 4,
+     "field": "goose.sqNum",
+     "value": "2"
+    },
+    {
+     "packet": 5,
+     "field": "goose.sqNum",
+     "value": "3"
+    },
+    {
+     "packet": 6,
+     "field": "goose.sqNum",
+     "value": "4"
+    },
+    {
+     "packet": 7,
+     "field": "goose.sqNum",
+     "value": "5"
+    },
+    {
+     "packet": 8,
+     "field": "goose.stNum",
+     "same_as_packet": 2
+    },
+    {
+     "packet": 8,
+     "field": "goose.sqNum",
+     "value": "6"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 2,
+     "offset": 162,
+     "hex": "85 01 02 86 01 00"
+    },
+    {
+     "packet": 3,
+     "offset": 165,
+     "hex": "86 01 01"
+    },
+    {
+     "packet": 4,
+     "offset": 165,
+     "hex": "86 01 02"
+    },
+    {
+     "packet": 5,
+     "offset": 165,
+     "hex": "86 01 03"
+    },
+    {
+     "packet": 6,
+     "offset": 165,
+     "hex": "86 01 04"
+    },
+    {
+     "packet": 7,
+     "offset": 165,
+     "hex": "86 01 05"
+    },
+    {
+     "packet": 8,
+     "offset": 165,
+     "hex": "86 01 06"
+    },
+    {
+     "packet": 2,
+     "offset": 177,
+     "hex": "8a 01 01 ab 04"
+    }
+   ],
+   "notes": [
+    "design S2 frame sequence: 1 heartbeat (stNum=1,sqNum=1) + event (stNum+1=2, sqNum RESET to 0) + 5 fast retransmits (sqNum 1..5) + frame 8 back to heartbeat rate (sqNum=6); count=8 frames total; event_seq only changes the state machine (stNum+1/sqNum=0) - data bytes stay identical across the burst; design §6.2 S2 table must list all 8 frames (was 7)",
+    "all uint32 minimal BER encoding: stNum=2 -> 85 01 02, sqNum -> 86 01 <n>, TAL -> 81 02 01 f4; single member config -> 8a 01 01 ab 04 (num=1, allData content 4B)",
+    "sqNum=0 on the first event frame is the mandatory T-GSE-S2-02 reset-semantics assertion"
+   ]
+  }
+ },
+ {
+  "id": "goose_dataset_change",
+  "proto": "goose",
+  "summary": "T-GSE-S2-02 dataset change: heartbeat stNum=1 sqNum=1 then event frame stNum=2 sqNum=0 (RESET, not 1), retransmits sqNum 0..2 then heartbeat",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1234
+       }
+      ],
+      "event_seq": [
+       {
+        "data_idx": 0,
+        "delay_ms": 5,
+        "retransmits": 2
+       }
+      ],
+      "count": 5
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 5,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.stNum",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "goose.sqNum",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "goose.stNum",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "goose.sqNum",
+     "value": "0"
+    },
+    {
+     "packet": 3,
+     "field": "goose.sqNum",
+     "value": "1"
+    },
+    {
+     "packet": 4,
+     "field": "goose.sqNum",
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 162,
+     "hex": "85 01 01 86 01 01"
+    },
+    {
+     "packet": 2,
+     "offset": 162,
+     "hex": "85 01 02 86 01 00"
+    },
+    {
+     "packet": 3,
+     "offset": 165,
+     "hex": "86 01 01"
+    },
+    {
+     "packet": 4,
+     "offset": 165,
+     "hex": "86 01 02"
+    }
+   ],
+   "notes": [
+    "CRITICAL: event-change first frame sqNum is 0 (not 1) - state machine reset semantics, mandatory coverage item (minimal encoding: 86 01 00)",
+    "stNum is monotonically +1 per event; sqNum restarts at 0 for the event burst"
+   ]
+  }
+ },
+ {
+  "id": "goose_test_flag",
+  "proto": "goose",
+  "summary": "T-GSE-S3-01 test flag set: all frames carry test=true encoded as BER 87 01 01",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 4096,
+      "test": true,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "count": 2
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.simulation",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "goose.simulation",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 168,
+     "hex": "87 01 01 88 01 01 89 01 00"
+    },
+    {
+     "packet": 2,
+     "offset": 168,
+     "hex": "87 01 01"
+    }
+   ],
+   "notes": [
+    "Wireshark prints goose.test as goose.simulation (FT_BOOLEAN prints 0/1, not true/false - tshark 3.6.14 verified); byte-level 87 01 01 is the FrameAssert fallback that never depends on dissector",
+    "test=true chain @167: 87 01 01 (test) 88 01 01 (confRev) 89 01 00 (ndsCom) - offsets lock field positions",
+    "mandatory coverage: test flag must be settable and observable in every frame"
+   ]
+  }
+ },
+ {
+  "id": "goose_ndscom_flag",
+  "proto": "goose",
+  "summary": "T-GSE-S3-02 ndsCom flag set: all frames carry ndsCom=true encoded as BER 89 01 01",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 4096,
+      "nds_com": true,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "count": 2
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.ndsCom",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "goose.ndsCom",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 168,
+     "hex": "87 01 00 88 01 01 89 01 01"
+    },
+    {
+     "packet": 2,
+     "offset": 174,
+     "hex": "89 01 01"
+    }
+   ],
+   "notes": [
+    "ndsCom (need-to-stream) sets 0x89 01 01; false sets 0x89 01 00 (see heartbeat for the false case); FT_BOOLEAN prints 0/1 in tshark",
+    "ndsCom=true chain @167: 87 01 00 (test) 88 01 01 (confRev) 89 01 01 (ndsCom)",
+    "observation: receiver treats ndsCom=true data as not-ready - flag must round-trip byte-exactly"
+   ]
+  }
+ },
+ {
+  "id": "goose_vlan",
+  "proto": "goose",
+  "summary": "T-GSE-S4-01 VLAN: TPID 0x8100 + TCI 0x8064 (prio 4 / id 100), EtherType 0x88b8 shifted +4, APDU at offset 26",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 4096,
+      "vlan_enabled": true,
+      "vlan_id": 100,
+      "vlan_priority": 4,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "count": 2
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "vlan.id",
+     "value": "100"
+    },
+    {
+     "packet": 1,
+     "field": "vlan.priority",
+     "value": "4"
+    },
+    {
+     "packet": 1,
+     "field": "vlan.etype",
+     "value": "0x88b8"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 12,
+     "hex": "81 00 80 64 88 b8"
+    },
+    {
+     "packet": 1,
+     "offset": 18,
+     "hex": "10 00"
+    },
+    {
+     "packet": 1,
+     "offset": 20,
+     "hex": "00 ab"
+    },
+    {
+     "packet": 1,
+     "offset": 26,
+     "hex": "61"
+    }
+   ],
+   "notes": [
+    "VLAN header sits between MACs and EtherType; TCI = prio(4)<<13 | dei(1b) | vid 100 = 0x8064",
+    "all APDU offsets shift by +4 vs the non-VLAN case (offset 26 here vs 22); GOOSE Length @20 = 00 ab (171) proves design 9.4 VLAN formula: frame length - 18 - 8 = APDU; APDU content=160, long-form header=3, APDU total=163, Length=8+163=171"
+   ]
+  }
+ },
+ {
+  "id": "goose_multitype",
+  "proto": "goose",
+  "summary": "T-GSE-S5-01 multi-type data values: Boolean x2, Integer x2, Unsigned, FloatingPoint, BitString x2, VisibleString x2 (10 members) - all BER member tags byte-verified, numDatSetEntries 10",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "b1",
+        "type": "boolean",
+        "value": true
+       },
+       {
+        "name": "b2",
+        "type": "boolean",
+        "value": false
+       },
+       {
+        "name": "i1",
+        "type": "int32",
+        "value": 150
+       },
+       {
+        "name": "i2",
+        "type": "int32",
+        "value": 5678
+       },
+       {
+        "name": "u1",
+        "type": "uint32",
+        "value": 10000
+       },
+       {
+        "name": "f1",
+        "type": "float32",
+        "value": 2.5
+       },
+       {
+        "name": "s1",
+        "type": "bit_string",
+        "value": "fe",
+        "bit_length": 8
+       },
+       {
+        "name": "s2",
+        "type": "bit_string",
+        "value": "0f",
+        "bit_length": 4
+       },
+       {
+        "name": "v1",
+        "type": "visible_string",
+        "value": "Hello"
+       },
+       {
+        "name": "v2",
+        "type": "visible_string",
+        "value": "World"
+       }
+      ],
+      "count": 2
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.numDatSetEntries",
+     "value": "10"
+    },
+    {
+     "packet": 1,
+     "field": "goose.boolean",
+     "nonzero": true
+    },
+    {
+     "packet": 1,
+     "field": "goose.integer",
+     "nonzero": true
+    },
+    {
+     "packet": 1,
+     "field": "goose.unsigned",
+     "value": "10000"
+    },
+    {
+     "packet": 1,
+     "field": "goose.float_value",
+     "value": "2.5"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 177,
+     "hex": "8a 01 0a ab 2f"
+    },
+    {
+     "packet": 1,
+     "offset": 182,
+     "hex": "83 01 01 83 01 00"
+    },
+    {
+     "packet": 1,
+     "offset": 188,
+     "hex": "85 02 00 96 85 02 16 2e"
+    },
+    {
+     "packet": 1,
+     "offset": 196,
+     "hex": "86 02 27 10"
+    },
+    {
+     "packet": 1,
+     "offset": 200,
+     "hex": "87 05 08"
+    },
+    {
+     "packet": 1,
+     "offset": 207,
+     "hex": "84 02 00 fe"
+    },
+    {
+     "packet": 1,
+     "offset": 211,
+     "hex": "84 02 04 f0"
+    },
+    {
+     "packet": 1,
+     "offset": 215,
+     "hex": "8a 05 48 65 6c 6c 6f"
+    },
+    {
+     "packet": 1,
+     "offset": 222,
+     "hex": "8a 05 57 6f 72 6c 64"
+    }
+   ],
+   "notes": [
+    "mandatory coverage: Boolean/Integer/Real(FloatingPoint)/BitString each >1 instance - 2 booleans, 2 int32, 1 float32 (=IEC 61850 FloatingPoint/Real), 2 bit_strings, 2 visible_strings; numDatSetEntries 10",
+    "BIT STRING 0x84: len = 1 + ceil(n/8), padding byte FIRST = (byteSize*8)-bitLength (ber_encoder.c) - 8-bit value fe -> 84 02 00 fe (padding 0, NOT 1); 4-bit value 0f -> 84 02 04 f0 (padding 4, bits left-aligned)",
+    "multi-instance field asserts: goose.boolean/integer output is per-packet comma-joined (tshark: 1,0) so exact-value equality is impossible - use nonzero (existence) here; exact bytes are proven by the frame asserts above",
+    "FloatingPoint 0x87: len = 1 + width/8 = 5 bytes (1 exponent-width byte 08 + 4 mantissa bytes), NOT IEEE754 bare 4B - frame asserts the 87 05 08 prefix; goose.real decodes to 2.5 (FT_DOUBLE)"
+   ]
+  }
+ },
+ {
+  "id": "goose_multidataset",
+  "proto": "goose",
+  "summary": "T-GSE-S7-01 multi-dataset: 6 members (bool/int32/uint32/float32/bit_string/visible_string), numDatSetEntries 6 == allData member count",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "b1",
+        "type": "boolean",
+        "value": true
+       },
+       {
+        "name": "i1",
+        "type": "int32",
+        "value": 42
+       },
+       {
+        "name": "u1",
+        "type": "uint32",
+        "value": 999
+       },
+       {
+        "name": "f1",
+        "type": "float32",
+        "value": 1.5
+       },
+       {
+        "name": "s1",
+        "type": "bit_string",
+        "value": "aa"
+       },
+       {
+        "name": "v1",
+        "type": "visible_string",
+        "value": "IEC"
+       }
+      ],
+      "count": 2
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.numDatSetEntries",
+     "value": "6"
+    },
+    {
+     "packet": 1,
+     "field": "goose.allData",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 177,
+     "hex": "8a 01 06 ab 1a"
+    },
+    {
+     "packet": 1,
+     "offset": 182,
+     "hex": "83 01 01"
+    },
+    {
+     "packet": 1,
+     "offset": 185,
+     "hex": "85 01 2a"
+    },
+    {
+     "packet": 1,
+     "offset": 188,
+     "hex": "86 02 03 e7"
+    },
+    {
+     "packet": 1,
+     "offset": 192,
+     "hex": "87 05 08"
+    },
+    {
+     "packet": 1,
+     "offset": 199,
+     "hex": "84 02 00 aa"
+    },
+    {
+     "packet": 1,
+     "offset": 203,
+     "hex": "8a 03 49 45 43"
+    }
+   ],
+   "notes": [
+    "numDatSetEntries=6 and allData (0xab) contains exactly 6 members - mandatory coverage: multi-dataset with numDatSetEntries > 1",
+    "member order preserved as listed; each type has its BER discriminator byte (0x83/0x85/0x86/0x87/0x84/0x8a); minimal encoding: int32 42 -> 85 01 2a, bit_string aa -> 84 02 00 aa (padding 0)"
+   ]
+  }
+ },
+ {
+  "id": "goose_no_ip",
+  "proto": "goose",
+  "summary": "T-GSE-S6-01 no-IP proof: frame carries ethernet 0x88b8 directly (no IPv4 0x0800 / IPv6 0x86dd), APDU 0x61 starts at byte 22 - GOOSE is L2-terminated",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1234
+       }
+      ],
+      "count": 3
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 3,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "eth.type",
+     "value": "0x88b8"
+    },
+    {
+     "packet": 1,
+     "field": "frame.protocols",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 12,
+     "hex": "88 b8"
+    },
+    {
+     "packet": 1,
+     "offset": 22,
+     "hex": "61"
+    }
+   ],
+   "notes": [
+    "byte-level no-IP proof: offset 12 = 88 b8 (EtherType is GOOSE, not 0x0800/0x86dd) AND offset 22 = 61 (APDU first byte, not 0x45 IPv4 first nibble) - proves the Eth header is directly followed by the GOOSE APDU with NO IP layer in between",
+    "frame.protocols exact value is environment-dependent (eth:ethertype:goose with the goose dissector, eth:data without) so only existence (nonzero) is asserted - the two byte asserts are the dissector-independent proof, lower-level than field assertions and green in both environments",
+    "GOOSE is Ethernet-multicast with no IP encapsulation - IPv4/IPv6 marked N/A in the testcase doc 1.5"
+   ]
+  }
+ },
+ {
+  "id": "goose_neg_appid",
+  "proto": "goose",
+  "summary": "negative: appid 0x4000 falls in the SV-reserved segment (0x4000-0x7FFF) and must fail; GOOSE segment is 0x0000-0x3FFF",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 16384,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "count": 3
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "out of range [0,16383]",
+   "notes": [
+    "appid 0x4000 = 16384 decimal, within the SV reserved range 0x4000-0x7FFF (design 9.2); validator must reject with segment awareness",
+    "default GOOSE appid 0x1000 is valid; this proves out-of-range detection is not 'anything != 0x1000 fails'",
+    "真实执法门=V9 范围（appid max 0x3fff 先于 validator 段位门，fins T-39 口径）"
+   ]
+  }
+ },
+ {
+  "id": "goose_neg_sqnum",
+  "proto": "goose",
+  "summary": "negative: non-contiguous sqNum - retransmit sequence jumps/duplicates sqNum (violates monotonically +1 within a burst)",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "event_seq": [
+       {
+        "data_idx": 0,
+        "delay_ms": 5,
+        "retransmits": 2,
+        "sqnum_step": 2
+       }
+      ],
+      "count": 4
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "sqNum step",
+   "notes": [
+    "sqNum must be contiguous (+1) within a change burst or heartbeat run; a step/jump is invalid (design 9.1)",
+    "guards the T-GSE-S2-02 'change first frame sqNum=0 then +1' hard rule so generators cannot silently skip numbers"
+   ]
+  }
+ },
+ {
+  "id": "goose_neg_stnum",
+  "proto": "goose",
+  "summary": "negative: stNum wrap-around - stNum must never regress/wrap (0xFFFFFFFF -> 0), violating the change counter monotonicity",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "conf_rev": 1,
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "appid": 4096,
+      "start_stnum": 4294967295,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "count": 4
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "stNum must not overflow",
+   "notes": [
+    "stNum is a monotonic change counter; wrap (0xFFFFFFFF -> 0) would mislead subscribers into treating a new version as old (design 9.1)",
+    "start_stnum 4294967295 = 0xFFFFFFFF triggers the validator on the out-of-range/regression path (design 10.1 goose_stnum_override: start read from config, never wrap)"
+   ]
+  }
+ },
+ {
+  "id": "goose_vn_presence",
+  "proto": "goose",
+  "summary": "T-GOOSE-2: 顶层 goose presence 判死（空 map 也死，CheckProtoFlat fins 先例）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {}
+    }
+   ],
+   "goose": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "top-level goose sub-config",
+   "notes": [
+    "failing 先行①同源；spec 另带顶层 goose 子映射由下方注入"
+   ]
+  }
+ },
+ {
+  "id": "goose_vn_static_copy",
+  "proto": "goose",
+  "summary": "T-GOOSE-3: 显式标量 eth MAC + flows=2 拒绝（⑥ static-eth 门，sv/isis 同享）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "static four-tuple",
+   "notes": [
+    "checkLayerChainStaticCopy 扩 eth 后执法；逃生口=eth src_mac 写动态对象",
+    "src_mac 必须写 eth 层内（门查层内显式标量；顶层 src_mac 不触发）"
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  }
+ },
+ {
+  "id": "goose_neg_confrev",
+  "proto": "goose",
+  "summary": "T-GOOSE-15: conf_rev=0 拒（设计 §9.3，validator conf_rev must be non-zero）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 0,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "conf_rev must be non-zero",
+   "notes": [
+    "V9 显式零放行（u==0 continue），真实执法门=goose validator :40"
+   ]
+  }
+ },
+ {
+  "id": "goose_neg_no_data",
+  "proto": "goose",
+  "summary": "T-GOOSE-16: 空 data 拒（validator at least one allData member）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": []
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "at least one",
+   "notes": [
+    "单测 TestPlannerRejectsInvalidGOOSEConfiguration/no members 同款行为 pcap 转正"
+   ]
+  }
+ },
+ {
+  "id": "goose_neg_type",
+  "proto": "goose",
+  "summary": "T-GOOSE-17: 非法数据类型拒（§3.8 矩阵外，array/struct 规划中同拒）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "x",
+        "type": "bogus",
+        "value": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "unsupported data type",
+   "notes": [
+    "单测 bad type 同款转正"
+   ]
+  }
+ },
+ {
+  "id": "goose_neg_gocbref",
+  "proto": "goose",
+  "summary": "T-GOOSE-18: gocb_ref 空拒（validator gocb_ref and dat_set are required）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "gocb_ref and dat_set are required",
+   "notes": [
+    "单测 control block 同款转正；与 T-30 空层保底同锚不同承载位置（9.22）"
+   ]
+  }
+ },
+ {
+  "id": "goose_neg_str255",
+  "proto": "goose",
+  "summary": "T-GOOSE-19: gocb_ref 256 字符拒（exceed 255 bytes，9.8 超长格）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "exceed 255 bytes",
+   "notes": []
+  }
+ },
+ {
+  "id": "goose_neg_tal",
+  "proto": "goose",
+  "summary": "T-GOOSE-20: tal_ms=0 拒（tal_ms must be in 1..4294967295，9.8 空值/边界格）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 0,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "tal_ms must be in",
+   "notes": [
+    "V9 显式零放行，真实执法门=goose validator :37"
+   ]
+  }
+ },
+ {
+  "id": "goose_goid",
+  "proto": "goose",
+  "summary": "T-GOOSE-21: go_id 显式值（§3.4 可选键，0x83 段写显式串非 gocbRef 回填）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "go_id": "test-goid"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "eth.type",
+     "value": "0x88b8"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 109,
+     "hex": "83 09 74 65 73 74 2d 67 6f 69 64"
+    }
+   ],
+   "notes": [
+    "与缺省回填对照：heartbeat 0x83 长度 0x29(=gocbRef)，此处 0x09 显式串",
+    "offset 复用心跳布局（gocbRef/datSet 长度不变）；落盘后复核"
+   ]
+  }
+ },
+ {
+  "id": "goose_start_sqnum",
+  "proto": "goose",
+  "summary": "T-GOOSE-22: start_sqnum=5 非零起点（首帧 sqNum=5，5/6/7 连续）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 3,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "start_sqnum": 5
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 3,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.sqNum",
+     "value": "5"
+    },
+    {
+     "packet": 2,
+     "field": "goose.sqNum",
+     "value": "6"
+    },
+    {
+     "packet": 3,
+     "field": "goose.sqNum",
+     "value": "7"
+    },
+    {
+     "packet": 1,
+     "field": "goose.stNum",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "goose.stNum",
+     "same_as_packet": 1
+    },
+    {
+     "packet": 3,
+     "field": "goose.stNum",
+     "same_as_packet": 1
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 165,
+     "hex": "86 01 05"
+    },
+    {
+     "packet": 3,
+     "offset": 165,
+     "hex": "86 01 07"
+    }
+   ],
+   "notes": [
+    "与 neg_sqnum 跳号门对照：合法非零起点放行"
+   ]
+  }
+ },
+ {
+  "id": "goose_start_stnum",
+  "proto": "goose",
+  "summary": "T-GOOSE-23: start_stnum=10 非零起点（stNum=10 恒，sqNum 1/2；§10.1 override 已实现）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 2,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "start_stnum": 10
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.stNum",
+     "value": "10"
+    },
+    {
+     "packet": 2,
+     "field": "goose.stNum",
+     "same_as_packet": 1
+    },
+    {
+     "packet": 1,
+     "field": "goose.sqNum",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "goose.sqNum",
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 162,
+     "hex": "85 01 0a"
+    }
+   ],
+   "notes": [
+    "与 neg_stnum 0xFFFFFFFF 拒绝门对照：合法值放行"
+   ]
+  }
+ },
+ {
+  "id": "goose_int64",
+  "proto": "goose",
+  "summary": "T-GOOSE-24: int64 负值最小编码（85 01 ff，含符号位；9.21 int64 分支代表）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "n",
+        "type": "int64",
+        "value": -1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.integer",
+     "nonzero": true
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 182,
+     "hex": "85 01 ff"
+    }
+   ],
+   "notes": [
+    "intVal 最小编码保留符号位字节：-1 → ff 单字节"
+   ]
+  }
+ },
+ {
+  "id": "goose_uint64",
+  "proto": "goose",
+  "summary": "T-GOOSE-25: uint64 大值编码（2^32 → 86 05 01 00 00 00 00；uint64 分支代表）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "u",
+        "type": "uint64",
+        "value": 4294967296
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.numDatSetEntries",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 182,
+     "hex": "86 05 01 00 00 00 00"
+    }
+   ],
+   "notes": [
+    "uint64Val 最小大端：2^32 需 5 字节",
+    "goose.unsigned 字段断言删除：tshark dissector FT_UINT32，2^32 截断为 0（帧字节 frames pin 为准）"
+   ]
+  }
+ },
+ {
+  "id": "goose_octet_string",
+  "proto": "goose",
+  "summary": "T-GOOSE-26: octet_string（0x89 tag，§3.8 取值补口）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "o",
+        "type": "octet_string",
+        "value": "AB"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.numDatSetEntries",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 182,
+     "hex": "89 02 41 42"
+    }
+   ],
+   "notes": [
+    "'AB' ASCII = 41 42"
+   ]
+  }
+ },
+ {
+  "id": "goose_utc_time",
+  "proto": "goose",
+  "summary": "T-GOOSE-27: utc_time（0x91 8B CP 时间，tag+len 断言内容墙钟不定值）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "t",
+        "type": "utc_time"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 1,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.numDatSetEntries",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 182,
+     "hex": "91 08"
+    }
+   ],
+   "notes": [
+    "binary_time 存量已有（heartbeat），utc_time 同表补口"
+   ]
+  }
+ },
+ {
+  "id": "goose_combo_flags",
+  "proto": "goose",
+  "summary": "T-GOOSE-28 组合流 A: test=true+nds_com=true+VLAN 同帧三动作（9.11 ≥3）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 2,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "test": true,
+      "nds_com": true,
+      "vlan_enabled": true,
+      "vlan_id": 100,
+      "vlan_priority": 4
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 2,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "vlan.id",
+     "value": "100"
+    },
+    {
+     "packet": 1,
+     "field": "vlan.priority",
+     "value": "4"
+    },
+    {
+     "packet": 1,
+     "field": "goose.simulation",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "goose.ndsCom",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "goose.simulation",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "goose.ndsCom",
+     "value": "1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 12,
+     "hex": "81 00 80 64 88 b8"
+    },
+    {
+     "packet": 1,
+     "offset": 172,
+     "hex": "87 01 01 88 01 01 89 01 01"
+    },
+    {
+     "packet": 2,
+     "offset": 172,
+     "hex": "87 01 01"
+    }
+   ],
+   "notes": [
+    "三动作=APDU 两个布尔旗 + L2 VLAN 头同帧编排；VLAN 布局=test_flag+4 偏移",
+    "帧 2 只断 87 01 01（逐帧三旗由 fields 承担）"
+   ]
+  }
+ },
+ {
+  "id": "goose_combo_event",
+  "proto": "goose",
+  "summary": "T-GOOSE-29 组合流 B: event_seq 事件 + 6 成员多类型 + numDatSetEntries 一致（9.11 ≥3）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 5,
+      "data": [
+       {
+        "name": "b1",
+        "type": "boolean",
+        "value": true
+       },
+       {
+        "name": "i1",
+        "type": "int32",
+        "value": 42
+       },
+       {
+        "name": "u1",
+        "type": "uint32",
+        "value": 999
+       },
+       {
+        "name": "f1",
+        "type": "float32",
+        "value": 1.5
+       },
+       {
+        "name": "s1",
+        "type": "bit_string",
+        "value": "aa"
+       },
+       {
+        "name": "v1",
+        "type": "visible_string",
+        "value": "IEC"
+       }
+      ],
+      "event_seq": [
+       {
+        "data_idx": 0,
+        "delay_ms": 5,
+        "retransmits": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "packet_count": 5,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "goose.stNum",
+     "value": "1"
+    },
+    {
+     "packet": 1,
+     "field": "goose.sqNum",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "goose.stNum",
+     "value": "2"
+    },
+    {
+     "packet": 2,
+     "field": "goose.sqNum",
+     "value": "0"
+    },
+    {
+     "packet": 3,
+     "field": "goose.sqNum",
+     "value": "1"
+    },
+    {
+     "packet": 4,
+     "field": "goose.sqNum",
+     "value": "2"
+    },
+    {
+     "packet": 5,
+     "field": "goose.sqNum",
+     "value": "3"
+    },
+    {
+     "packet": 1,
+     "field": "goose.numDatSetEntries",
+     "value": "6"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 1,
+     "offset": 162,
+     "hex": "85 01 01 86 01 01"
+    },
+    {
+     "packet": 2,
+     "offset": 162,
+     "hex": "85 01 02 86 01 00"
+    },
+    {
+     "packet": 5,
+     "offset": 165,
+     "hex": "86 01 03"
+    },
+    {
+     "packet": 1,
+     "offset": 177,
+     "hex": "8a 01 06"
+    }
+   ],
+   "notes": [
+    "三动作=事件状态机 + 多类型数据集 + 条目数一致性同流编排",
+    "包数公式：1 事件前心跳 + (2+1) 爆发 + 1 补足 = 5"
+   ]
+  }
+ },
+ {
+  "id": "goose_vn_empty_layer",
+  "proto": "goose",
+  "summary": "T-GOOSE-30: 空层 {goose:{}} 保底（零配置非 nil → gocb_ref 必填分支）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {}
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "gocb_ref and dat_set are required",
+   "notes": [
+    "9.22 承载位置扫描：空层 vs 显式空串（T-18）同锚不同形状",
+    "goose config is required 仅 spec.GOOSE==nil 命中，翻译后不可达"
+   ]
+  }
+ },
+ {
+  "id": "goose_neg_sqnum_max",
+  "proto": "goose",
+  "summary": "T-GOOSE-31: start_sqnum=0xFFFFFFFF 拒（sqNum must not overflow，validator :46）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "start_sqnum": 4294967295
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "sqNum must not overflow",
+   "notes": [
+    "V9 max 含 4294967295 放行，真实执法门=validator task 门"
+   ]
+  }
+ },
+ {
+  "id": "goose_neg_ip_carrier",
+  "proto": "goose",
+  "summary": "T-GOOSE-32: [ip,goose] 载体拒（V7b must not have an ip/transport carrier）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "must not have an ip/transport carrier",
+   "notes": [
+    "isis_neg_ip_carrier 同构；validator Layer 2 only 分支由本门等价覆盖（create 先于 task）"
+   ]
+  }
+ },
+ {
+  "id": "goose_neg_vlan",
+  "proto": "goose",
+  "summary": "T-GOOSE-33: vlan_id=4096 拒（V9 out of range [0,4095]）",
+  "spec_json": {
+   "layers": [
+    {
+     "eth": {
+      "src_mac": "aa:bb:cc:dd:ee:01"
+     }
+    },
+    {
+     "goose": {
+      "gocb_ref": "simpleIOGenericIO/LLN0$GO$gcbAnalogValues",
+      "dat_set": "simpleIOGenericIO/LLN0$AnalogValues",
+      "tal_ms": 500,
+      "conf_rev": 1,
+      "appid": 4096,
+      "dst_mac": "01:0c:cd:01:02:03",
+      "count": 1,
+      "data": [
+       {
+        "name": "pos",
+        "type": "int32",
+        "value": 1
+       }
+      ],
+      "vlan_enabled": true,
+      "vlan_id": 4096,
+      "vlan_priority": 4
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "out of range [0,4095]",
+   "notes": [
+    "V9 范围门先于 validator VLAN is out of range（fins T-39 同款对真实门）"
+   ]
+  }
+ }
 ]
