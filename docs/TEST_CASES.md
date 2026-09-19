@@ -3437,6 +3437,12 @@
 | SST 越界 | T-16 ngap_neg_sst | A（负例，pdu_session_setup.sst:300→`SST 300 out of range [0,255]`；task-time；.neg.pcap） |
 | NAS 超长 | T-17 ngap_neg_nas_len | A（负例，initial_nas 4097 字节→`InitialNAS too long`；task-time；.neg.pcap） |
 
+| VSA 248B 超长拒 | T-22 radius_neg_vsa_len | A（负例，锚词 `exceeds the 247-byte field limit`；§9.8 超长×VSA 位型，与 T-16 的 253 门分锚） |
+| 普通 attr 恰 253B | T-23 radius_attr_boundary | A（正例，边界等值格 253 过/254 拒对偶；avp.length=255 恰满 1 字节） |
+| 现网 NAS 组合 | T-24 radius_nas_combo | A（正例，Service-Type/NAS-IP/Calling-Station/Message-Authenticator 四属性承载；MA 仅 opaque 字节位型） |
+| CoA 43 白名单外拒 | T-25 radius_neg_coa | A（负例，RFC 5176 现网真实码比 T-10 假码 42 更现网；CoA 族支持=B′ 立项） |
+
+**P5 校准实录（25/25 落盘重钉）：** ①tshark 同包多 AVP 字段逗号拼接（avp.type "1,8,5,6,26"、avp.length "6,6,6,4,10"）——length 按 value 实长+2 复算（user=4→6，非值域臆算）；②tshark 对 11→11/12→13 非标准对不标 rsp/reqframe（空）——方向改用 udp.srcport/dstport 交换钉；③port_dyn 4 包=2 流×(req+resp)，响应端口交换→src/dst 双向各聚 4 值 distinct_values（不钉包位）；④flow_control 键名实为 strategy_fc（sip 先例一致）。
 **C 类注记（9.17）：** ①随机面 verTag/TSN/cookie/ip.id 断言避开（T-1 先例）；②SCTP IPv6 路径=明确不解决（T-13 负例钉）；③全合规 PER=不冒充（④ C 类）；④sctp 传输层机器（A2 否决，序号 28 另立项）；⑤链路径 src_port 缺省无格（worker 12345+i 保底=T-14 同例钉）。
 **枚举取值覆盖（9.20-9.22）：** procedureCode{21,15,4,46,29,41}✓（T-1/4/5/6/7/8）；chunk{1,2,10,11,DATA,7,8,14}✓（T-1）；业务 12 键逐键≥1 格✓（T-4…T-12；ran/amf_ue_ngap_id=T-11）；端口{显式,缺省,动态}✓（T-1/T-14/T-15）；DRX{缺省,2}✓（T-1/T-10）；负例{s presence,static copy,v6,sst,nas 长度}✓。
 **正交矩阵：** 可选流程{0,1,全}×端口{显式,缺省,动态}×方向面（IUE/UL=up、DL/UEC-Cmd=down 实钉）——落格见上表；动态整格=业务 12 键全关+端口 2 键（T-15）。
@@ -3477,6 +3483,12 @@
 | 端口动态 E1 | T-16 telnet_port_dyn | A（正例，src_port/dst_port 动态对象+strategy_fc flows=2→group_id 固定 2 流×13=26 包，端口逐流断言） |
 | unknown scenario 拒 | T-17 telnet_neg_scenario | A（负例，scenario:"telnet999"→`unknown scenario`；task-time validator；.neg.pcap） |
 
+| VSA 248B 超长拒 | T-22 radius_neg_vsa_len | A（负例，锚词 `exceeds the 247-byte field limit`；§9.8 超长×VSA 位型，与 T-16 的 253 门分锚） |
+| 普通 attr 恰 253B | T-23 radius_attr_boundary | A（正例，边界等值格 253 过/254 拒对偶；avp.length=255 恰满 1 字节） |
+| 现网 NAS 组合 | T-24 radius_nas_combo | A（正例，Service-Type/NAS-IP/Calling-Station/Message-Authenticator 四属性承载；MA 仅 opaque 字节位型） |
+| CoA 43 白名单外拒 | T-25 radius_neg_coa | A（负例，RFC 5176 现网真实码比 T-10 假码 42 更现网；CoA 族支持=B′ 立项） |
+
+**P5 校准实录（25/25 落盘重钉）：** ①tshark 同包多 AVP 字段逗号拼接（avp.type "1,8,5,6,26"、avp.length "6,6,6,4,10"）——length 按 value 实长+2 复算（user=4→6，非值域臆算）；②tshark 对 11→11/12→13 非标准对不标 rsp/reqframe（空）——方向改用 udp.srcport/dstport 交换钉；③port_dyn 4 包=2 流×(req+resp)，响应端口交换→src/dst 双向各聚 4 值 distinct_values（不钉包位）；④flow_control 键名实为 strategy_fc（sip 先例一致）。
 **C 类注记（9.17）：** ①随机面 serverSeq/clientSeq/ip.id 断言避开（seq/ack 相对关系 harness 不可断=9.27 注记）；②RFC 1143 协商状态机不做（legacy 合同逐字发射，不冒充真协商）；③MSS 链路径固定 1460（spec.TCP 不可达，1.12 口径）；④synch DM 无 URG（L4Config 无字段）；⑤validateLayer IP parse 锚词链不可达（schema 格式门先拦）=零死锚词。
 **枚举取值覆盖（9.20-9.22）：** 19 事件类型{data,B64 合并/will/wont/do/dont/sb/ttype_send/ttype_is/naws/ip/dm/nop/ayt/brk/ao/ec/el/ga/synch}——T-1(will/do/data)+T-4(全协商面 wont/dont/ttype_send/ttype_is/naws)+T-9(ip/dm)+T-10(data/B64)+T-11(sb)+T-12(缺省对照)+**剩余 8 类型{nop/ayt/brk/ao/ec/el/ga}单字节命令**→**裁定：T-12 扩为 dialog 多事件例（nop/ayt/brk/ao/ec/el/ga 七单字节命令逐个入 dialog，一处覆盖七枚举）**；场景{6/6}✓（T-4…T-9）；端口{显式,缺省,动态}✓（T-1/T-15/T-16）；地址族{v4,v6}✓（9.24 双族）；负例{presence,static copy,unknown scenario}✓。
 **正交矩阵：** 场景{6}×地址族{v4,v6}×端口{显式,缺省,动态}——v6 对照=T-14（基线 dialog 族）；动态整格=业务 10 键全关+端口 2 键（T-16）。
@@ -3485,7 +3497,7 @@
 **执行口径：** P5 telnet 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/telnet/`+门 2 四项+反查 check_telnet；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
 **实现位置：** `cases/telnet.json`（**17 例**：改写 1+新建 16）。
 
-### T-SIP-1…18 sip.json——存量审计 + 测试点清单【D-SIP-1 P5 已验收】
+### T-SIP-1…24 sip.json——存量审计 + 测试点清单【D-SIP-1 P6 已验收 + 补充批 T-19…24】
 
 **状态：** 已验收（2026-09-19 P6：首跑 9/18→9 红全为断言面校准按 pcap 重钉（包号偏 1/body 实长/末段 315=头补全计入分段对象/rtp.* 字段 tshark 3.6 无效改 frames pin offset 42/udp.port 双值改 srcport-dstport/SDP 端口超 65535 上界拒改 60070/空 dialog 低级错 3 例补 dialog）→18/18 ×2 连跑+反查 29/29；回归 telnet 17/ngap 17/h323 17/mpls 14/icmpv6 11 全绿；pcap 落盘 /tmp/mcp-pcaps/sip/）。P3 定稿（2026-09-19）原注记：存量 1 例逐条审计改写（等价迁移：count 删、顶层 sip{dialog}→sip 层、四元组→layers[ip] 显式+显式端口 12001/5060；断言面=14 fields（sip.Method/Request-Line/Status-Code/CSeq.seq/CSeq.method）+frames 4 pin offset 54+标量（negotiated/terminates）全保留）+ 新建 17 例=18 例。
 **级别：** pcap
@@ -3517,7 +3529,21 @@
 | 缺省端口 5060 | T-16 sip_default_port | A（正例，sip 层无端口→tcp.dstport=5060（translate 镜像 setDefaultDstPort）；src worker 保底） |
 | 端口动态 E1 | T-17 sip_port_dyn | A（正例，src_port/dst_port 动态对象+flows=2→group_id 固定 2 流×12=24 包端口逐流） |
 | 空 dialog 最小联结 | T-18 sip_empty_dialog | A（正例，sip 层空业务面（或 dialog:[]）→7 包=3 握手+0+4 挥手（nil-config 合同）；flags 序全断言） |
+| re-INVITE 会话刷新 | T-19 sip_reinvite_refresh | A（补充批，§3.15 多轮操作+§9.9；INVITE→200→ACK→re-INVITE→200→ACK→BYE→200=8 消息 15 包；CSeq 递增钉） |
+| CANCEL 取消未应答 | T-20 sip_cancel | A（补充批，RFC 3261 §9；INVITE→180→CANCEL→200→487→ACK=6 消息 13 包；无 BYE） |
+| 486 Busy 非正常结束 | T-21 sip_busy_reject | A（补充批，§3.15 非正常结束②；INVITE→486→ACK=10 包；非 2xx 仍 ACK、无 BYE） |
+| dialog 内 OPTIONS 保活 | T-22 sip_options_keepalive | A（补充批，§3.15 保活+§11；OPTIONS 中插 INVITE/BYE 之间；CSeq 2 钉） |
+| 状态码大类枚举 | T-23 sip_status_class_enum | A（补充批，§9.20 5xx(500)/6xx(603) 补格，与 404/486 合成 4xx/5xx/6xx 全大类） |
+| 组合流二 PRACK | T-24 sip_callflow_complete | A（补充批，§9.11 组合流≥2 富余化；RFC 3262 PRACK+RAck 关联钉） |
 
+**补充批（2026-09-19，§3/§9 对抗复审后 A 类补例 6 例=24 例，24/24 一次全绿+反查 35/35）：** 触发原因=用户质询 sip 用例覆盖面。审计结论：文档无责（§3.15/§9.9/§9.10/§9.11/§9.25 条条明确），P3 枚举口径错位——拿 legacy 能力面当边界，而 dialog 是任意消息序列（method 任意串/status_code 任意整数），多事务/非正常结束/保活/状态码大类/组合流二全部现有引擎零改动可构建。B 类引擎结构缺口 5 项立项进 D-SIP-1"明确不解决"（sessions[] 多会话、每流 Call-ID/CSeq/branch 唯一化、NAT rport 方言、RTP 与 dialog 双向交错、SIPS/TLS 原有）。
+
+| VSA 248B 超长拒 | T-22 radius_neg_vsa_len | A（负例，锚词 `exceeds the 247-byte field limit`；§9.8 超长×VSA 位型，与 T-16 的 253 门分锚） |
+| 普通 attr 恰 253B | T-23 radius_attr_boundary | A（正例，边界等值格 253 过/254 拒对偶；avp.length=255 恰满 1 字节） |
+| 现网 NAS 组合 | T-24 radius_nas_combo | A（正例，Service-Type/NAS-IP/Calling-Station/Message-Authenticator 四属性承载；MA 仅 opaque 字节位型） |
+| CoA 43 白名单外拒 | T-25 radius_neg_coa | A（负例，RFC 5176 现网真实码比 T-10 假码 42 更现网；CoA 族支持=B′ 立项） |
+
+**P5 校准实录（25/25 落盘重钉）：** ①tshark 同包多 AVP 字段逗号拼接（avp.type "1,8,5,6,26"、avp.length "6,6,6,4,10"）——length 按 value 实长+2 复算（user=4→6，非值域臆算）；②tshark 对 11→11/12→13 非标准对不标 rsp/reqframe（空）——方向改用 udp.srcport/dstport 交换钉；③port_dyn 4 包=2 流×(req+resp)，响应端口交换→src/dst 双向各聚 4 值 distinct_values（不钉包位）；④flow_control 键名实为 strategy_fc（sip 先例一致）。
 **C 类注记（9.17）：** ①随机面 RTP seq/ts/ssrc+TCP ISN+ip.id 断言避开（RFC 3550 合同）；②SDP future-bleed（:769 全 dialog 扫描——用例避开 re-INVITE 后端口变化场景=T-13 注记）；③MSS 链路径固定 1460（spec.TCP 不可达 1.12）；④RFC 3261 Timer/重传不做（合成器合同）；⑤validateLayer IP parse/MSS 锚词链不可达（schema 先拦/spec.TCP 不可达）=零死锚词。
 **枚举取值覆盖（9.20-9.22）：** 方法{INVITE,ACK,BYE,REGISTER,OPTIONS}✓（T-1/6/7）；响应码{100,180,200,404}✓（T-1/8）；头补全三态{user 赢,生成,纯响应 verbatim}✓（T-5/T-4/T-1 响应回显）；RTP PT{0,8?}——**PT 8 缺格→裁定：T-11 扩双值（media payload_type 0 断言+rtp.pt 单格）或视为单分支代表（0=PCMU 缺省）注记**——保持 T-11 PT0 单格+注记（PT 仅 1B 值拷贝 :865 同分支）；承载位置{dialog body/headers 数组/media 子结构}✓（T-9/T-5/T-11-14）；端口{显式,缺省,动态}✓（T-1/T-16/T-17）；地址族{v4,v6}✓（T-15）。
 **正交矩阵：** 方法×响应×方向×{有/无 media}×地址族——落格见上表；动态整格=业务 2 键全关+端口 2 键（T-17）。
@@ -3526,9 +3552,9 @@
 **执行口径：** P5 sip 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/sip/`+门 2 四项+反查 check_sip；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
 **实现位置：** `cases/sip.json`（**18 例**：改写 1+新建 17）。
 
-### T-RADIUS-1…21 radius.json——存量审计 + 测试点清单【D-RADIUS-1 P3 定稿，P4 未开工】
+### T-RADIUS-1…25 radius.json——存量审计 + 测试点清单【D-RADIUS-1 P5 全绿 25/25】
 
-**状态：** P3 定稿（2026-09-19）。存量 1 例逐条审计改写（等价迁移：spec 仅 `{"radius":{}}` 本无扁平键→补 layers[ip] 显式 10.0.0.1/20.0.0.1+radius 层显式端口 12345/1812（worker/缺省缺省显式化，mpls 轮先例）；packet_count 2+14 fields（tshark radius.code/id/length/req/rsp/reqframe/authenticator nonzero+avp.type/length）全保留）+ 新建 20 例=21 例。
+**状态：** P5 全绿（2026-09-19，25/25 + 覆盖反查 44/44 + 门2 静态四项绿 + 五协议回归绿）。P3 定稿存量 1 例逐条审计改写（等价迁移：spec 仅 `{"radius":{}}` 本无扁平键→补 layers[ip] 显式 10.0.0.1/20.0.0.1+radius 层显式端口 12345/1812（worker/缺省缺省显式化，mpls 轮先例）；packet_count 2+14 fields（tshark radius.code/id/length/req/rsp/reqframe/authenticator nonzero+avp.type/length）全保留）+ 新建 20 例=21 例。
 **级别：** pcap
 **来源：** ①标准=RFC 2865（§3/§5）+RFC 2866（§3）②设计=D-RADIUS-1 ③现网=参考 pcap portion_Radius.pcap/start-stop.pcap（radius.go:17-18）+存量探针实测（length 26/20、id 复刻、authenticator nonzero）
 **存量去向（1 例 → P5 改写后 21 例）：**
@@ -3562,10 +3588,16 @@
 | 缺省端口 1812 | T-20 radius_default_port | A（正例，radius 层无端口→udp.dstport=1812（translate 顺序修正覆盖路径）；src worker 保底） |
 | 端口动态 E1 | T-21 radius_port_dyn | A（正例，src_port/dst_port 动态对象+flows=2→group_id 固定 2 流×2=4 包端口逐流） |
 
+| VSA 248B 超长拒 | T-22 radius_neg_vsa_len | A（负例，锚词 `exceeds the 247-byte field limit`；§9.8 超长×VSA 位型，与 T-16 的 253 门分锚） |
+| 普通 attr 恰 253B | T-23 radius_attr_boundary | A（正例，边界等值格 253 过/254 拒对偶；avp.length=255 恰满 1 字节） |
+| 现网 NAS 组合 | T-24 radius_nas_combo | A（正例，Service-Type/NAS-IP/Calling-Station/Message-Authenticator 四属性承载；MA 仅 opaque 字节位型） |
+| CoA 43 白名单外拒 | T-25 radius_neg_coa | A（负例，RFC 5176 现网真实码比 T-10 假码 42 更现网；CoA 族支持=B′ 立项） |
+
+**P5 校准实录（25/25 落盘重钉）：** ①tshark 同包多 AVP 字段逗号拼接（avp.type "1,8,5,6,26"、avp.length "6,6,6,4,10"）——length 按 value 实长+2 复算（user=4→6，非值域臆算）；②tshark 对 11→11/12→13 非标准对不标 rsp/reqframe（空）——方向改用 udp.srcport/dstport 交换钉；③port_dyn 4 包=2 流×(req+resp)，响应端口交换→src/dst 双向各聚 4 值 distinct_values（不钉包位）；④flow_control 键名实为 strategy_fc（sip 先例一致）。
 **C 类注记（9.17）：** ①随机面：响应 Authenticator 恒随机（:343）断言仅 nonzero；请求缺省随机（T-12 fixed 钉值方案）；ip.id 不断言；②响应 MD5 验证不做（legacy 随机合成=C 合同）；③IP parse/nil 两锚词链不可达（schema 先拦/translate 恒填）=零死锚；④rounds>256 uint8 回绕避开。
-**枚举取值覆盖（9.20-9.22）：** 请求码{1(T-1),3(T-7/T-9),4(T-4),11(T-5),12(T-6)}✓5/5；响应码{2(T-1 auto),3(T-7/T-8),5(T-4),11(T-5),13(T-6)}✓5/5；format{string,ipv4,uint32,hex}✓4/4（T-15）+VSA✓；rounds{1,3}✓；端口{显式,缺省,动态}✓（T-1/T-20/T-21）；地址族{v4,v6}✓（T-19）；负例 9✓（T-2/3/9/10/11/13/14/16/17——全部 legacy 真门锚词）。
+**枚举取值覆盖（9.20-9.22）：** 请求码{1(T-1),3(T-7/T-9),4(T-4),11(T-5),12(T-6)}✓5/5；响应码{2(T-1 auto),3(T-7/T-8),5(T-4),11(T-5),13(T-6)}✓5/5；format{string,ipv4,uint32,hex}✓4/4（T-15）+VSA✓；rounds{1,3}✓；端口{显式,缺省,动态}✓（T-1/T-20/T-21）；地址族{v4,v6}✓（T-19）；负例 11✓（T-2/3/9/10/11/13/14/16/17 + T-22 VSA 247 门 + T-25 CoA 43——全部 legacy 真门锚词）。
 **正交矩阵：** 码×响应（auto/显式/无）×format×端口×地址族——落格见上；动态整格=业务 7 键全关+端口 2 键（T-21）。
 **通用陷阱自查（9.37-9.40）：** 无派生端口；T-21 group_id 固定；id 复刻+递增=真实语义钉（存量先例）。
 **断言边界（9.27）：** 响应 authenticator 恒随机仅 nonzero；包间隔无面。
 **执行口径：** P5 radius 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/radius/`+门 2 四项+反查 check_radius；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
-**实现位置：** `cases/radius.json`（**21 例**：改写 1+新建 20）。
+**实现位置：** `cases/radius.json`（**25 例**：改写 1+新建 20+补充批 4）。

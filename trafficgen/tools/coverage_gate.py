@@ -762,7 +762,10 @@ def check_sip(cases):
                      ("rtp_media", "RTP 子流面"), ("rtp_down", "RTP down 面"),
                      ("sdp_port", "SDP 派生端口面"), ("filesource", "RTP FileSource 面"),
                      ("_v6", "v6 正例面"), ("default_port", "缺省端口面"),
-                     ("port_dyn", "端口动态面"), ("empty_dialog", "空 dialog 面")]:
+                     ("port_dyn", "端口动态面"), ("empty_dialog", "空 dialog 面"),
+                     ("reinvite", "re-INVITE 会话刷新面"), ("cancel", "CANCEL 取消面"),
+                     ("busy_reject", "486 非正常结束面"), ("keepalive", "dialog 内 OPTIONS 保活面"),
+                     ("status_class_enum", "状态码大类枚举面"), ("callflow_complete", "组合流二 PRACK 面")]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
 
@@ -1325,7 +1328,9 @@ def check_radius(cases):
                      ("attr_formats", "属性四 format+VSA"), ("neg_attr_len", "属性超长"),
                      ("neg_format", "format 非法"), ("rounds", "rounds 多轮"),
                      ("_v6", "v6 正例面"), ("default_port", "缺省端口 1812 面"),
-                     ("port_dyn", "端口动态面")]:
+                     ("port_dyn", "端口动态面"), ("neg_vsa_len", "VSA 超长拒面"),
+                     ("attr_boundary", "253 边界等值面"), ("nas_combo", "现网 NAS 组合面"),
+                     ("neg_coa", "CoA 白名单外拒面")]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
 
@@ -1346,6 +1351,7 @@ def check_radius(cases):
         ("must be 16 bytes", "authenticator 长度错"),
         ("exceeds the 253-byte", "属性超长"),
         ("unknown format", "format 非法"),
+        ("exceeds the 247-byte", "VSA 超长拒"),
     ]:
         rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
 

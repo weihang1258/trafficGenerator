@@ -2,9 +2,22 @@
   {
     "id": "radius_smoke_01",
     "proto": "radius",
-    "summary": "冒烟：RADIUS Access-Request（空配置）→ 自动响应 Access-Accept。顶层不设端口 → dst 默认 1812（IANA）、src 保持 flow 默认 12345，请求含 User-Name AVP，共 2 包",
+    "summary": "冒烟（改写）：[ip,radius] 空业务面→1 轮 req(up)/rsp(down) 2 包。端口显式化 12345/1812（worker/缺省显式化，mpls 轮先例）；code1→2 auto、id 0 复刻、length 26/20、authenticator nonzero 全保留等价",
     "spec_json": {
-      "radius": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812
+          }
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -81,10 +94,1067 @@
         }
       ],
       "notes": [
-        "RFC 2865 §3：Code/ID/Length/Authenticator 固定头；Code 1=Access-Request、2=Access-Accept",
-        "autoResponse 规则（design §3）：code 1 → 2，响应同 4-tuple 回包；id 复刻请求 id=0",
-        "顶层未设端口：dst 默认 1812（strategy_convert 覆盖）、src 保持 flow 默认 12345；随机 Authenticator 不断言值但必须非零（nonzero，review 发现响应体损坏只断言 code=2 仍通过）",
-        "tshark 探针实测：请求 length=26 含 User-Name(1) AVP 长 6；响应 length=20 无属性、rsp=1、reqframe=1；端口 12345→1812 双向交换"
+        "RFC 2865 §3：Code/ID/Length/Authenticator 固定头；1=Access-Request、2=Access-Accept",
+        "autoResponse（radius.go:42-80）：code 1→2，同 4 元组回包，id 复刻",
+        "端口显式 12345/1812（层显式化，mpls 轮先例）；authenticator 请求侧缺省随机/响应侧恒随机，仅 nonzero",
+        "length 26 含 User-Name(1) AVP 长 6；响应 length 20 无属性"
+      ]
+    }
+  },
+  {
+    "id": "radius_flat_presence",
+    "proto": "radius",
+    "summary": "T-RADIUS-2 presence 判死（层链+顶层 radius 子映射并存即拒，空 map 也死——判死负例非残留，记忆文档 presence-negative-case-shape）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {}
+        }
+      ],
+      "radius": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "top-level radius sub-config"
+    }
+  },
+  {
+    "id": "radius_flat_static_port",
+    "proto": "radius",
+    "summary": "T-RADIUS-3 radius 层静态四元组+flows=2 拒（12.9，多流必须动态对象）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "static four-tuple"
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    }
+  },
+  {
+    "id": "radius_acct_1813",
+    "proto": "radius",
+    "summary": "T-RADIUS-4 Accounting-Request→1813（translate 顺序修正：dst 缺席依 code==4?1813:1812 覆盖 :770 预写；code4→auto resp 5 Accounting-Response；参考 start-stop.pcap）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "code": 4,
+            "attributes": [
+              {
+                "type": 40,
+                "format": "uint32",
+                "value": "1"
+              },
+              {
+                "type": 4,
+                "format": "ipv4",
+                "value": "10.0.0.1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1813"
+        },
+        {
+          "packet": 1,
+          "field": "radius.code",
+          "value": "4"
+        },
+        {
+          "packet": 1,
+          "field": "radius.avp.type",
+          "value": "40,4"
+        },
+        {
+          "packet": 2,
+          "field": "radius.code",
+          "value": "5"
+        },
+        {
+          "packet": 2,
+          "field": "radius.rsp",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "radius.reqframe",
+          "value": "1"
+        }
+      ],
+      "notes": [
+        "RFC 2866 §3：Accounting-Request(4)→Accounting-Response(5)，IANA 1813",
+        ":770 预写拿不到 spec.Radius 恒 1812——translate 自补覆盖（D-RADIUS-1 核心）",
+        "40=Acct-Status-Type(Start=1)、4=NAS-IP-Address",
+        "tshark 同包多 AVP 字段逗号拼接（P5 校准）"
+      ]
+    }
+  },
+  {
+    "id": "radius_challenge",
+    "proto": "radius",
+    "summary": "T-RADIUS-5 code11 Access-Challenge 显式响应（3/11 无 auto 必须显式合同；challenge 11→rsp 11）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 11,
+            "response_code": 11
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "radius.code",
+          "value": "11"
+        },
+        {
+          "packet": 2,
+          "field": "radius.code",
+          "value": "11"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "12345"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1812"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "12345"
+        }
+      ],
+      "notes": [
+        "autoResponse 无 11→显式 response_code:11；tshark 对 11→11 对不标 rsp/reqframe（P5 校准）→方向用端口交换钉"
+      ]
+    }
+  },
+  {
+    "id": "radius_status",
+    "proto": "radius",
+    "summary": "T-RADIUS-6 Status-Server 探询对（code12→auto 13 Status-Client，RFC 5997）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 12
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "radius.code",
+          "value": "12"
+        },
+        {
+          "packet": 2,
+          "field": "radius.code",
+          "value": "13"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "12345"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "1812"
+        },
+        {
+          "packet": 2,
+          "field": "udp.dstport",
+          "value": "12345"
+        }
+      ],
+      "notes": [
+        "RFC 5997 存活探询 12→13；tshark 对 12→13 对不标 rsp/reqframe（P5 校准）→方向用端口交换钉"
+      ]
+    }
+  },
+  {
+    "id": "radius_code3",
+    "proto": "radius",
+    "summary": "T-RADIUS-7 请求码 3 枚举格（requestCodes 含 3=legacy 合同，无 auto→显式 response_code:3=Access-Reject）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 3,
+            "response_code": 3
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "radius.code",
+          "value": "3"
+        },
+        {
+          "packet": 2,
+          "field": "radius.code",
+          "value": "3"
+        }
+      ],
+      "notes": [
+        "requestCodes{1,3,4,11,12} 含 3；code3 无 auto→response_code:3 显式"
+      ]
+    }
+  },
+  {
+    "id": "radius_reject",
+    "proto": "radius",
+    "summary": "T-RADIUS-8 Access-Request 被拒失败分支（code1+response_code:3→Access-Reject；3.7/9.9 失败分支面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "response_code": 3
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "radius.code",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "radius.code",
+          "value": "3"
+        },
+        {
+          "packet": 2,
+          "field": "radius.rsp",
+          "value": "1"
+        }
+      ],
+      "notes": [
+        "Access-Reject(3) 显式覆盖 auto 2——鉴权失败分支；请求 1→响应 3"
+      ]
+    }
+  },
+  {
+    "id": "radius_neg_no_auto",
+    "proto": "radius",
+    "summary": "T-RADIUS-9 负例：code3 无 response_code→无默认响应拒（task-time）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 3
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "has no default response code"
+    }
+  },
+  {
+    "id": "radius_neg_reqcode",
+    "proto": "radius",
+    "summary": "T-RADIUS-10 负例：code42 非法请求码",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 42
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid request code"
+    }
+  },
+  {
+    "id": "radius_neg_rspcode",
+    "proto": "radius",
+    "summary": "T-RADIUS-11 负例：response_code:9 非法响应码",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "response_code": 9
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid response code"
+    }
+  },
+  {
+    "id": "radius_auth_fixed",
+    "proto": "radius",
+    "summary": "T-RADIUS-12 fixed authenticator 钉值（16B hex 请求帧 radius.authenticator 值断言=唯一可钉值格；响应侧 nonzero 恒随机）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "authenticator": "000102030405060708090a0b0c0d0e0f"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "radius.authenticator",
+          "value": "000102030405060708090a0b0c0d0e0f"
+        },
+        {
+          "packet": 2,
+          "field": "radius.authenticator",
+          "nonzero": true
+        }
+      ],
+      "notes": [
+        "请求侧 authenticator 固定 16B hex→可钉值；响应侧 :343 恒随机→nonzero"
+      ]
+    }
+  },
+  {
+    "id": "radius_neg_auth_hex",
+    "proto": "radius",
+    "summary": "T-RADIUS-13 负例：authenticator 非法 hex",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "authenticator": "zz"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid authenticator hex"
+    }
+  },
+  {
+    "id": "radius_neg_auth_len",
+    "proto": "radius",
+    "summary": "T-RADIUS-14 负例：authenticator 15B hex→16 字节门",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "authenticator": "000102030405060708090a0b0c0d0e"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "must be 16 bytes, got 15"
+    }
+  },
+  {
+    "id": "radius_attr_formats",
+    "proto": "radius",
+    "summary": "T-RADIUS-15 属性四 format+VSA 枚举格（string/ipv4/uint32/hex+VSA vendor_id 9；9.20-9.22 双列表 attributes/response_attributes 各≥1 格）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "attributes": [
+              {
+                "type": 1,
+                "value": "user"
+              },
+              {
+                "type": 8,
+                "format": "ipv4",
+                "value": "10.0.0.1"
+              },
+              {
+                "type": 5,
+                "format": "uint32",
+                "value": "42"
+              },
+              {
+                "type": 6,
+                "format": "hex",
+                "value": "aabb"
+              },
+              {
+                "type": 26,
+                "vendor_id": 9,
+                "value": "vs"
+              }
+            ],
+            "response_code": 2,
+            "response_attributes": [
+              {
+                "type": 26,
+                "vendor_id": 9,
+                "value": "ok"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "radius.avp.type",
+          "value": "1,8,5,6,26"
+        },
+        {
+          "packet": 1,
+          "field": "radius.avp.length",
+          "value": "6,6,6,4,10"
+        },
+        {
+          "packet": 2,
+          "field": "radius.avp.type",
+          "value": "26"
+        }
+      ],
+      "notes": [
+        "format{string,ipv4,uint32,hex}4/4（:406-422）；VSA type 26 外层+vendor_id 9（:432-445）",
+        "1=User-Name(string)、8=Framed-IP(ipv4)、5=NAS-Port-Id(uint32)、6=Service-Type(hex 2B)；avp.type 逐序断言",
+        "tshark 同包多 AVP 逗号拼接（P5 校准）；length: 1→8(6+2)/8→6/5→7/6→6/26VSA→13(8+5)"
+      ]
+    }
+  },
+  {
+    "id": "radius_neg_attr_len",
+    "proto": "radius",
+    "summary": "T-RADIUS-16 负例：string 254B 超 253 门（MaxAttrValue）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "attributes": [
+              {
+                "type": 1,
+                "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "exceeds the 253-byte field limit"
+    }
+  },
+  {
+    "id": "radius_neg_format",
+    "proto": "radius",
+    "summary": "T-RADIUS-17 负例：format dword 非法",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "attributes": [
+              {
+                "type": 5,
+                "format": "dword",
+                "value": "1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unknown format"
+    }
+  },
+  {
+    "id": "radius_rounds",
+    "proto": "radius",
+    "summary": "T-RADIUS-18 rounds:3+identifier:5→6 包，radius.id 5/6/7 递增（identifier+round 合同；9.39 rounds>256 回绕避开）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "identifier": 5,
+            "rounds": 3
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 6,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "radius.id",
+          "value": "5"
+        },
+        {
+          "packet": 2,
+          "field": "radius.id",
+          "value": "5"
+        },
+        {
+          "packet": 3,
+          "field": "radius.id",
+          "value": "6"
+        },
+        {
+          "packet": 4,
+          "field": "radius.id",
+          "value": "6"
+        },
+        {
+          "packet": 5,
+          "field": "radius.id",
+          "value": "7"
+        },
+        {
+          "packet": 6,
+          "field": "radius.id",
+          "value": "7"
+        }
+      ],
+      "notes": [
+        "每轮 req+resp 同 id 复刻；byte(id+round) 5/6/7（:307）；同 4 元组多轮=同流多事务等价"
+      ]
+    }
+  },
+  {
+    "id": "radius_v6",
+    "proto": "radius",
+    "summary": "T-RADIUS-19 IPv6 链同构（9.24 地址族对称，Validate 无族强制）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "fd00::1",
+            "dst": "fd00::2"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ipv6.dst",
+          "value": "fd00::2"
+        },
+        {
+          "packet": 1,
+          "field": "radius.code",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "radius.code",
+          "value": "2"
+        }
+      ],
+      "notes": [
+        "ip 层 v6 端点→同构 2 包；族对称零业务改动"
+      ]
+    }
+  },
+  {
+    "id": "radius_default_port",
+    "proto": "radius",
+    "summary": "T-RADIUS-20 radius 层端口全缺→dst=1812（translate 顺序修正 code1→1812 覆盖路径；src 0 上包=worker/缺省缺省）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "code": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "value": "1812"
+        },
+        {
+          "packet": 1,
+          "field": "radius.code",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "radius.code",
+          "value": "2"
+        }
+      ],
+      "notes": [
+        "dst 缺席+code!=4→1812（1813 修正走 T-4）；src 缺席链路径 0 上包（srcport 非 0 断言不接）"
+      ]
+    }
+  },
+  {
+    "id": "radius_port_dyn",
+    "proto": "radius",
+    "summary": "T-RADIUS-21 src_port/dst_port 动态 inc+flows=2（E1 逐流端口池；group_id 固定同 worker 保序；2 流×2=4 包）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "code": 1,
+            "src_port": {
+              "strategy": "inc",
+              "range": [
+                12001,
+                12002
+              ],
+              "step": 1,
+              "group_id": "radius-src"
+            },
+            "dst_port": {
+              "strategy": "inc",
+              "range": [
+                1812,
+                1813
+              ],
+              "step": 1,
+              "group_id": "radius-dst"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 4,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "distinct_values": [
+            "12001",
+            "12002",
+            "1812",
+            "1813"
+          ]
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "distinct_values": [
+            "12001",
+            "12002",
+            "1812",
+            "1813"
+          ]
+        },
+        {
+          "packet": 1,
+          "field": "radius.code",
+          "distinct_values": [
+            "1",
+            "2"
+          ]
+        }
+      ],
+      "notes": [
+        "12.1 层字段动态同键二态；group_id 固定→同 worker FIFO；多流调度非确定交织→distinct_values 聚合断言（不钉包位）",
+        "12.1 层字段动态同键二态；group_id 固定→同 worker FIFO；4 包=2 流×(req+resp)，响应端口交换→src/dst 双向各聚 4 值（12001/12002 源池、1812/1813 目的池）"
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    }
+  },
+  {
+    "id": "radius_neg_vsa_len",
+    "proto": "radius",
+    "summary": "T-RADIUS-22 负例：VSA value 248B 超 247 门（MaxVSAValue=8+value≤255；§9.8 超长×VSA 位型格）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "attributes": [
+              {
+                "type": 26,
+                "vendor_id": 9,
+                "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "exceeds the 247-byte field limit",
+      "notes": [
+        "VSA 外层 Length 1 字节→value≤247（radius.go:36-37,:162-171）；与 T-16 的 253 门分锚"
+      ]
+    }
+  },
+  {
+    "id": "radius_attr_boundary",
+    "proto": "radius",
+    "summary": "T-RADIUS-23 普通 attr 恰 253B 边界等值通过（§9.8 边界格：253 过/254 拒由 T-16 对偶）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "attributes": [
+              {
+                "type": 1,
+                "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "radius.avp.type",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "radius.avp.length",
+          "value": "255"
+        },
+        {
+          "packet": 2,
+          "field": "radius.code",
+          "value": "2"
+        }
+      ],
+      "notes": [
+        "253+2=255 恰满 1 字节 Length；254→拒（T-16）；255=最大合法 AVP"
+      ]
+    }
+  },
+  {
+    "id": "radius_nas_combo",
+    "proto": "radius",
+    "summary": "T-RADIUS-24 现网接入认证组合例（§9.10：Service-Type/NAS-IP/Calling-Station/Message-Authenticator 四属性承载；MA 仅 opaque 字节承载）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 1,
+            "attributes": [
+              {
+                "type": 6,
+                "format": "uint32",
+                "value": "2"
+              },
+              {
+                "type": 4,
+                "format": "ipv4",
+                "value": "10.0.0.1"
+              },
+              {
+                "type": 31,
+                "value": "00-11-22-33-44-55"
+              },
+              {
+                "type": 80,
+                "format": "hex",
+                "value": "000102030405060708090a0b0c0d0e0f"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "radius.avp.type",
+          "value": "6,4,31,80"
+        },
+        {
+          "packet": 1,
+          "field": "radius.avp.length",
+          "value": "6,6,19,18"
+        },
+        {
+          "packet": 2,
+          "field": "radius.code",
+          "value": "2"
+        }
+      ],
+      "notes": [
+        "6=Service-Type(Framed=2)、4=NAS-IP、31=Calling-Station-Id(17+2=19)、80=Message-Authenticator(16+2=18)",
+        "MA 的 HMAC-MD5 计算不在引擎合同（B′ 立项）——本例只钉字节承载位型"
+      ]
+    }
+  },
+  {
+    "id": "radius_neg_coa",
+    "proto": "radius",
+    "summary": "T-RADIUS-25 负例：CoA-Request(43) 白名单外拒（RFC 5176 现网真实码，比 T-10 假码 42 更现网；CoA 族支持=B′ 立项）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "radius": {
+            "src_port": 12345,
+            "dst_port": 1812,
+            "code": 43
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid request code",
+      "notes": [
+        "requestCodes{1,3,4,11,12} 不含 43；RFC 5176 CoA/Disconnect 码族扩展另立条目"
       ]
     }
   }
