@@ -1,44 +1,1328 @@
 [
-  {
-    "id": "ngap-sctp-setup-basic",
-    "proto": "ngap",
-    "summary": "NGAP over SCTP (端口 38412) 冒烟：SCTP 4 路握手 + NGSetup (procedureCode 21, PPID 60) + SHUTDOWN 拆链",
-    "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
+ {
+  "id": "ngap_sctp_setup_basic",
+  "proto": "ngap",
+  "summary": "冒烟：SCTP 4路握手+NGSetup对+3路拆链=最小9包（存量等价迁移）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 9,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.dstport",
+     "value": "38412"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.chunk_type",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.chunk_type",
+     "value": "2"
+    },
+    {
+     "packet": 3,
+     "field": "sctp.chunk_type",
+     "value": "10"
+    },
+    {
+     "packet": 4,
+     "field": "sctp.chunk_type",
+     "value": "11"
+    },
+    {
+     "packet": 5,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 5,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 7,
+     "field": "sctp.chunk_type",
+     "value": "7"
+    },
+    {
+     "packet": 8,
+     "field": "sctp.chunk_type",
+     "value": "8"
+    },
+    {
+     "packet": 9,
+     "field": "sctp.chunk_type",
+     "value": "14"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 5,
+     "offset": 62,
+     "hex": "00 15 00 00 03 00 48 00 0b 00 08 08 60 f4 10 04 00 00"
+    },
+    {
+     "packet": 6,
+     "offset": 62,
+     "hex": "01 15 01 00 01 00 01 00 0b 41 4d 46 2d 54 45 53 54 2d 30 31"
+    }
+   ],
+   "notes": [
+    "T-NGAP-1 改写：count 删、顶层空 ngap:{}→ngap 层（业务面空+端口 12345/38412 显式）、四元组→ip 层显式；13 fields+2 frames pin 保留等价——字节一致由 P5 实证",
+    "SCTP DATA chunk PPID 60 (0x3c)=NGAP (TS 38.412)；f5 NGAP-PDU 首字节 0x00=initiatingMessage procedureCode 21；f6 0x01=successfulOutcome+21+AMFName 'AMF-TEST-01'"
+   ]
+  }
+ },
+ {
+  "id": "ngap_flat_presence",
+  "proto": "ngap",
+  "summary": "T-NGAP-2: 顶层 ngap presence 判死（空 map 也死）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412
+     }
+    }
+   ],
+   "ngap": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "top-level ngap sub-config",
+   "notes": [
+    "D-NGAP-1 §2 presence 门（create-time）"
+   ]
+  }
+ },
+ {
+  "id": "ngap_flat_static_port",
+  "proto": "ngap",
+  "summary": "T-NGAP-3: ngap 层静态端口+flows=2 拒（12.9，门扩扫 ngap 层）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412
+     }
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "static four-tuple",
+   "notes": [
+    "ip 层空（对门无贡献）最小证明形（h323/mpls T-3 同构）"
+   ]
+  }
+ },
+ {
+  "id": "ngap_initial_ue",
+  "proto": "ngap",
+  "summary": "T-NGAP-4: InitialUEMessage (proc 15, up)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
       "src_port": 12345,
       "dst_port": 38412,
-      "count": 1,
-      "ngap": {}
-    },
-    "expect": {
-      "has_payload": true,
-      "min_packets": 9,
-      "fields": [
-        {"packet": 1, "field": "sctp.srcport", "value": "12345"},
-        {"packet": 1, "field": "sctp.dstport", "value": "38412"},
-        {"packet": 1, "field": "sctp.chunk_type", "value": "1"},
-        {"packet": 2, "field": "sctp.chunk_type", "value": "2"},
-        {"packet": 3, "field": "sctp.chunk_type", "value": "10"},
-        {"packet": 4, "field": "sctp.chunk_type", "value": "11"},
-        {"packet": 5, "field": "sctp.data_payload_proto_id", "value": "60"},
-        {"packet": 5, "field": "ngap.procedureCode", "value": "21"},
-        {"packet": 6, "field": "ngap.procedureCode", "value": "21"},
-        {"packet": 6, "field": "sctp.data_payload_proto_id", "value": "60"},
-        {"packet": 7, "field": "sctp.chunk_type", "value": "7"},
-        {"packet": 8, "field": "sctp.chunk_type", "value": "8"},
-        {"packet": 9, "field": "sctp.chunk_type", "value": "14"}
-      ],
-      "frames": [
-        {"packet": 5, "offset": 62, "hex": "00 15 00 00 03 00 48 00 0b 00 08 08 60 f4 10 04 00 00"},
-        {"packet": 6, "offset": 62, "hex": "01 15 01 00 01 00 01 00 0b 41 4d 46 2d 54 45 53 54 2d 30 31"}
-      ],
-      "notes": [
-        "NGAP 运行于 SCTP (RFC 7552 §6)：f1-4 为 INIT(1)/INIT_ACK(2)/COOKIE_ECHO(10)/COOKIE_ACK(11) 四路握手；f5 NGSetup 请求、f6 NGSetup 响应 (AMFName 'AMF-TEST-01')；f7-9 SHUTDOWN(7)/SHUTDOWN_ACK(8)/SHUTDOWN_COMPLETE(14)",
-        "SCTP DATA chunk PPID 60 (0x3c) = NGAP (TS 38.412)；f5 NGAP-PDU 首字节 0x00=initiatingMessage，procedureCode 21=id-NGSetup",
-        "无 TCP → 不使用 negotiated/terminates（SCTP 无 SYN/FIN 语义）；terminates 语义由 SHUTDOWN 序列覆盖",
-        "ngap 设计默认端口 38412 (SCTP)；9 帧 = 4 握手 + 2 DATA + 3 SHUTDOWN"
-      ]
+      "initial_ue_message": true,
+      "initial_nas": "hello"
+     }
     }
+   ]
+  },
+  "expect": {
+   "min_packets": 10,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.dstport",
+     "value": "38412"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.chunk_type",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.chunk_type",
+     "value": "2"
+    },
+    {
+     "packet": 3,
+     "field": "sctp.chunk_type",
+     "value": "10"
+    },
+    {
+     "packet": 4,
+     "field": "sctp.chunk_type",
+     "value": "11"
+    },
+    {
+     "packet": 5,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 5,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 7,
+     "field": "ngap.procedureCode",
+     "value": "15"
+    },
+    {
+     "packet": 8,
+     "field": "sctp.chunk_type",
+     "value": "7"
+    },
+    {
+     "packet": 9,
+     "field": "sctp.chunk_type",
+     "value": "8"
+    },
+    {
+     "packet": 10,
+     "field": "sctp.chunk_type",
+     "value": "14"
+    }
+   ],
+   "notes": [
+    "legacy 合同：握手4→NGSetup对(p5/p6)→可选流程(p7..)→拆链3；procedureCode 见 TS 38.413 §9.2；首跑校准"
+   ]
   }
+ },
+ {
+  "id": "ngap_dl_nas",
+  "proto": "ngap",
+  "summary": "T-NGAP-5: DownlinkNASTransport (proc 4, down)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412,
+      "downlink_nas": "downbytes"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 10,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.dstport",
+     "value": "38412"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.chunk_type",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.chunk_type",
+     "value": "2"
+    },
+    {
+     "packet": 3,
+     "field": "sctp.chunk_type",
+     "value": "10"
+    },
+    {
+     "packet": 4,
+     "field": "sctp.chunk_type",
+     "value": "11"
+    },
+    {
+     "packet": 5,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 5,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 7,
+     "field": "ngap.procedureCode",
+     "value": "4"
+    },
+    {
+     "packet": 8,
+     "field": "sctp.chunk_type",
+     "value": "7"
+    },
+    {
+     "packet": 9,
+     "field": "sctp.chunk_type",
+     "value": "8"
+    },
+    {
+     "packet": 10,
+     "field": "sctp.chunk_type",
+     "value": "14"
+    }
+   ],
+   "notes": [
+    "legacy 合同：握手4→NGSetup对(p5/p6)→可选流程(p7..)→拆链3；procedureCode 见 TS 38.413 §9.2；首跑校准"
+   ]
+  }
+ },
+ {
+  "id": "ngap_ul_nas",
+  "proto": "ngap",
+  "summary": "T-NGAP-6: UplinkNASTransport (proc 46, up)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412,
+      "uplink_nas": "upbytes"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 10,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.dstport",
+     "value": "38412"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.chunk_type",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.chunk_type",
+     "value": "2"
+    },
+    {
+     "packet": 3,
+     "field": "sctp.chunk_type",
+     "value": "10"
+    },
+    {
+     "packet": 4,
+     "field": "sctp.chunk_type",
+     "value": "11"
+    },
+    {
+     "packet": 5,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 5,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 7,
+     "field": "ngap.procedureCode",
+     "value": "46"
+    },
+    {
+     "packet": 8,
+     "field": "sctp.chunk_type",
+     "value": "7"
+    },
+    {
+     "packet": 9,
+     "field": "sctp.chunk_type",
+     "value": "8"
+    },
+    {
+     "packet": 10,
+     "field": "sctp.chunk_type",
+     "value": "14"
+    }
+   ],
+   "notes": [
+    "legacy 合同：握手4→NGSetup对(p5/p6)→可选流程(p7..)→拆链3；procedureCode 见 TS 38.413 §9.2；首跑校准"
+   ]
+  }
+ },
+ {
+  "id": "ngap_pdu_session",
+  "proto": "ngap",
+  "summary": "T-NGAP-7: PDUSessionSetup 请求+响应 (proc 29 对)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412,
+      "pdu_session_setup": {
+       "pdu_session_id": 1,
+       "sst": 1,
+       "sd": 1
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 11,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.dstport",
+     "value": "38412"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.chunk_type",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.chunk_type",
+     "value": "2"
+    },
+    {
+     "packet": 3,
+     "field": "sctp.chunk_type",
+     "value": "10"
+    },
+    {
+     "packet": 4,
+     "field": "sctp.chunk_type",
+     "value": "11"
+    },
+    {
+     "packet": 5,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 5,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 7,
+     "field": "ngap.procedureCode",
+     "value": "29"
+    },
+    {
+     "packet": 8,
+     "field": "ngap.procedureCode",
+     "value": "29"
+    },
+    {
+     "packet": 9,
+     "field": "sctp.chunk_type",
+     "value": "7"
+    },
+    {
+     "packet": 10,
+     "field": "sctp.chunk_type",
+     "value": "8"
+    },
+    {
+     "packet": 11,
+     "field": "sctp.chunk_type",
+     "value": "14"
+    }
+   ],
+   "notes": [
+    "legacy 合同：握手4→NGSetup对(p5/p6)→可选流程(p7..)→拆链3；procedureCode 见 TS 38.413 §9.2；首跑校准"
+   ]
+  }
+ },
+ {
+  "id": "ngap_ue_release",
+  "proto": "ngap",
+  "summary": "T-NGAP-8: UEContextRelease Command+Complete (proc 41 对)",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412,
+      "ue_context_release": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 11,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.dstport",
+     "value": "38412"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.chunk_type",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.chunk_type",
+     "value": "2"
+    },
+    {
+     "packet": 3,
+     "field": "sctp.chunk_type",
+     "value": "10"
+    },
+    {
+     "packet": 4,
+     "field": "sctp.chunk_type",
+     "value": "11"
+    },
+    {
+     "packet": 5,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 5,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 7,
+     "field": "ngap.procedureCode",
+     "value": "41"
+    },
+    {
+     "packet": 8,
+     "field": "ngap.procedureCode",
+     "value": "41"
+    },
+    {
+     "packet": 9,
+     "field": "sctp.chunk_type",
+     "value": "7"
+    },
+    {
+     "packet": 10,
+     "field": "sctp.chunk_type",
+     "value": "8"
+    },
+    {
+     "packet": 11,
+     "field": "sctp.chunk_type",
+     "value": "14"
+    }
+   ],
+   "notes": [
+    "legacy 合同：握手4→NGSetup对(p5/p6)→可选流程(p7..)→拆链3；procedureCode 见 TS 38.413 §9.2；首跑校准"
+   ]
+  }
+ },
+ {
+  "id": "ngap_all_procedures",
+  "proto": "ngap",
+  "summary": "T-NGAP-9: 全可选流程 16 包=4握手+2Setup+1+1+1+2+2+3拆链",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412,
+      "initial_ue_message": true,
+      "initial_nas": "rr",
+      "downlink_nas": "dl",
+      "uplink_nas": "ul",
+      "pdu_session_setup": {
+       "pdu_session_id": 1,
+       "sst": 1,
+       "sd": 1
+      },
+      "ue_context_release": true
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 16,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.srcport",
+     "value": "12345"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.dstport",
+     "value": "38412"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.chunk_type",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.chunk_type",
+     "value": "2"
+    },
+    {
+     "packet": 3,
+     "field": "sctp.chunk_type",
+     "value": "10"
+    },
+    {
+     "packet": 4,
+     "field": "sctp.chunk_type",
+     "value": "11"
+    },
+    {
+     "packet": 5,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 5,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "sctp.data_payload_proto_id",
+     "value": "60"
+    },
+    {
+     "packet": 7,
+     "field": "ngap.procedureCode",
+     "value": "15"
+    },
+    {
+     "packet": 8,
+     "field": "ngap.procedureCode",
+     "value": "4"
+    },
+    {
+     "packet": 9,
+     "field": "ngap.procedureCode",
+     "value": "46"
+    },
+    {
+     "packet": 10,
+     "field": "ngap.procedureCode",
+     "value": "29"
+    },
+    {
+     "packet": 11,
+     "field": "ngap.procedureCode",
+     "value": "29"
+    },
+    {
+     "packet": 12,
+     "field": "ngap.procedureCode",
+     "value": "41"
+    },
+    {
+     "packet": 13,
+     "field": "ngap.procedureCode",
+     "value": "41"
+    },
+    {
+     "packet": 14,
+     "field": "sctp.chunk_type",
+     "value": "7"
+    },
+    {
+     "packet": 15,
+     "field": "sctp.chunk_type",
+     "value": "8"
+    },
+    {
+     "packet": 16,
+     "field": "sctp.chunk_type",
+     "value": "14"
+    }
+   ],
+   "notes": [
+    "legacy 合同：握手4→NGSetup对(p5/p6)→可选流程(p7..)→拆链3；procedureCode 见 TS 38.413 §9.2；首跑校准"
+   ]
+  }
+ },
+ {
+  "id": "ngap_ta_drx",
+  "proto": "ngap",
+  "summary": "T-NGAP-10: global_ran_node_id+supported_ta_list 2 项+default_paging_drx=2（NGSetupReq PER 编码）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412,
+      "supported_ta_list": [
+       {
+        "plmn_mcc": 460,
+        "plmn_mnc": 1,
+        "tacs": [
+         100,
+         200
+        ]
+       },
+       {
+        "plmn_mcc": 411,
+        "plmn_mnc": 5,
+        "tacs": [
+         300
+        ]
+       }
+      ],
+      "default_paging_drx": 2,
+      "global_ran_node_id": {
+       "plmn_mcc": 460,
+       "plmn_mnc": 1,
+       "gnb_id": 4097
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 9,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.chunk_type",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.chunk_type",
+     "value": "2"
+    },
+    {
+     "packet": 3,
+     "field": "sctp.chunk_type",
+     "value": "10"
+    },
+    {
+     "packet": 4,
+     "field": "sctp.chunk_type",
+     "value": "11"
+    },
+    {
+     "packet": 5,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 7,
+     "field": "sctp.chunk_type",
+     "value": "7"
+    },
+    {
+     "packet": 8,
+     "field": "sctp.chunk_type",
+     "value": "8"
+    },
+    {
+     "packet": 9,
+     "field": "sctp.chunk_type",
+     "value": "14"
+    }
+   ],
+   "notes": [
+    "TA/DRX 进 NGSetupReq PDU 字节（f5 offset 62 起）——首跑校准后钉 hex pin；本例先钉包结构与 proc 面"
+   ]
+  }
+ },
+ {
+  "id": "ngap_ue_ids",
+  "proto": "ngap",
+  "summary": "T-NGAP-11: ran_ue_ngap_id/amf_ue_ngap_id 显式（IUE IE 断言面）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412,
+      "ran_ue_ngap_id": 42,
+      "amf_ue_ngap_id": 424242,
+      "initial_ue_message": true,
+      "initial_nas": "nas"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 10,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.chunk_type",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.chunk_type",
+     "value": "2"
+    },
+    {
+     "packet": 3,
+     "field": "sctp.chunk_type",
+     "value": "10"
+    },
+    {
+     "packet": 4,
+     "field": "sctp.chunk_type",
+     "value": "11"
+    },
+    {
+     "packet": 5,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 7,
+     "field": "ngap.procedureCode",
+     "value": "15"
+    },
+    {
+     "packet": 8,
+     "field": "sctp.chunk_type",
+     "value": "7"
+    },
+    {
+     "packet": 9,
+     "field": "sctp.chunk_type",
+     "value": "8"
+    },
+    {
+     "packet": 10,
+     "field": "sctp.chunk_type",
+     "value": "14"
+    }
+   ],
+   "notes": [
+    "UE ID 进 IUE PDU IE（p7 offset 62 起）——首跑校准后钉 hex pin"
+   ]
+  }
+ },
+ {
+  "id": "ngap_amf_name",
+  "proto": "ngap",
+  "summary": "T-NGAP-12: amf_name 自定义 'AMF-EDGE-07'（f6 NGSetupResp PDU hex pin）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412,
+      "amf_name": "AMF-EDGE-07"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 9,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.chunk_type",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.chunk_type",
+     "value": "2"
+    },
+    {
+     "packet": 3,
+     "field": "sctp.chunk_type",
+     "value": "10"
+    },
+    {
+     "packet": 4,
+     "field": "sctp.chunk_type",
+     "value": "11"
+    },
+    {
+     "packet": 5,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 7,
+     "field": "sctp.chunk_type",
+     "value": "7"
+    },
+    {
+     "packet": 8,
+     "field": "sctp.chunk_type",
+     "value": "8"
+    },
+    {
+     "packet": 9,
+     "field": "sctp.chunk_type",
+     "value": "14"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 62,
+     "hex": "01 15 01 00 01 00 01 00 0b 41 4d 46 2d 45 44 47 45 2d 30 37"
+    }
+   ],
+   "notes": [
+    "name 长度 11 (0x0b) 与存量化同长度 → p6 PDU 形状同构仅字符串面变；'AMF-EDGE-07'=41 4d 46 2d 45 44 47 45 2d 30 37；首跑校准"
+   ]
+  }
+ },
+ {
+  "id": "ngap_neg_v6",
+  "proto": "ngap",
+  "summary": "T-NGAP-13: ip 层 v6 → legacy v4-only 拒",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "fd00::1",
+      "dst": "fd00::2"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "only IPv4 is supported",
+   "notes": [
+    "ngap.go:149-156 锚词（task-time validator；D-NGAP-1 §6 v6=负例格）"
+   ]
+  }
+ },
+ {
+  "id": "ngap_default_port",
+  "proto": "ngap",
+  "summary": "T-NGAP-14: ngap 层无端口键 → dst 缺省 38412（translate 镜像 setDefaultDstPort）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {}
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 9,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.dstport",
+     "value": "38412"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.chunk_type",
+     "value": "1"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.dstport",
+     "value": "12345"
+    },
+    {
+     "packet": 2,
+     "field": "sctp.chunk_type",
+     "value": "2"
+    },
+    {
+     "packet": 3,
+     "field": "sctp.chunk_type",
+     "value": "10"
+    },
+    {
+     "packet": 4,
+     "field": "sctp.chunk_type",
+     "value": "11"
+    },
+    {
+     "packet": 5,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 6,
+     "field": "ngap.procedureCode",
+     "value": "21"
+    },
+    {
+     "packet": 7,
+     "field": "sctp.chunk_type",
+     "value": "7"
+    },
+    {
+     "packet": 8,
+     "field": "sctp.chunk_type",
+     "value": "8"
+    },
+    {
+     "packet": 9,
+     "field": "sctp.chunk_type",
+     "value": "14"
+    }
+   ],
+   "notes": [
+    "dst_port 缺席→38412（3GPP TS 38.413）；src_port 缺席→worker 12345+i 保底（p2 down 方向 dst=src 保底值——首跑校准 src 面）"
+   ]
+  }
+ },
+ {
+  "id": "ngap_port_dyn",
+  "proto": "ngap",
+  "summary": "T-NGAP-15: ngap.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×9=18 包）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": {
+       "strategy": "inc",
+       "range": [
+        "10.0.1.1",
+        "10.0.1.2"
+       ],
+       "step": 1
+      },
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": {
+       "strategy": "inc",
+       "range": [
+        20000,
+        20001
+       ],
+       "step": 1
+      },
+      "dst_port": {
+       "strategy": "fixed",
+       "value": 38412
+      }
+     }
+    }
+   ],
+   "group_id": {
+    "strategy": "fixed",
+    "value": "ngap-port-dyn"
+   }
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "packet_count": 18,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "sctp.srcport",
+     "value": "20000"
+    },
+    {
+     "packet": 1,
+     "field": "sctp.dstport",
+     "value": "38412"
+    },
+    {
+     "packet": 10,
+     "field": "sctp.srcport",
+     "value": "20001"
+    },
+    {
+     "packet": 10,
+     "field": "sctp.dstport",
+     "value": "38412"
+    }
+   ],
+   "notes": [
+    "group_id 固定单 worker FIFO（h323/mpls T-14 先例）；流序 p1..p9=流1、p10..p18=流2；dst 端口对象=fixed 逐流 38412（E1 对象面）"
+   ]
+  }
+ },
+ {
+  "id": "ngap_neg_sst",
+  "proto": "ngap",
+  "summary": "T-NGAP-16: pdu_session_setup.sst=300 → legacy 越界拒",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412,
+      "pdu_session_setup": {
+       "pdu_session_id": 1,
+       "sst": 300,
+       "sd": 1
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "SST 300 out of range [0,255]",
+   "notes": [
+    "ngap.go:196-198 锚词（task-time validator）"
+   ]
+  }
+ },
+ {
+  "id": "ngap_neg_nas_len",
+  "proto": "ngap",
+  "summary": "T-NGAP-17: initial_nas 4097 字节 → legacy 超长拒",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "ngap": {
+      "src_port": 12345,
+      "dst_port": 38412,
+      "initial_nas": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "InitialNAS too long",
+   "notes": [
+    "ngap.go:205-207 锚词（task-time validator；4097=上界+1）"
+   ]
+  }
+ }
 ]
