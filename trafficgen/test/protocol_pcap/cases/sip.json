@@ -1,184 +1,1481 @@
 [
-  {
-    "id": "sip_smoke_01",
-    "proto": "sip",
-    "summary": "SIP 注册+通话冒烟：INVITE→200→ACK→BYE→200 显式 dialog（types.go SIPConfig，RFC 3261 §8/§13/§15），头补全 completeDialogHeaders 补齐 Call-ID/From/To/CSeq",
-    "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
+ {
+  "id": "sip_basic_dialog",
+  "proto": "sip",
+  "summary": "冒烟：TCP 3握手+五消息dialog(INVITE/200/ACK/BYE/200)+4挥手=12包（存量等价迁移）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
       "src_port": 12001,
       "dst_port": 5060,
-      "count": 1,
-      "sip": {
-        "dialog": [
-          {
-            "method": "INVITE",
-            "uri": "sip:callee@20.0.0.1",
-            "headers": [
-              "From: <sip:caller@10.0.0.1>",
-              "To: <sip:callee@20.0.0.1>",
-              "Call-ID: sip1@10.0.0.1",
-              "CSeq: 1 INVITE"
-            ]
-          },
-          {
-            "status_code": 200,
-            "status_text": "OK"
-          },
-          {
-            "method": "ACK",
-            "uri": "sip:callee@20.0.0.1"
-          },
-          {
-            "method": "BYE",
-            "uri": "sip:callee@20.0.0.1"
-          },
-          {
-            "status_code": 200,
-            "status_text": "OK"
-          }
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1",
+        "headers": [
+         "From: <sip:caller@10.0.0.1>",
+         "To: <sip:callee@20.0.0.1>",
+         "Call-ID: sip1@10.0.0.1",
+         "CSeq: 1 INVITE"
         ]
-      }
-    },
-    "expect": {
-      "min_packets": 12,
-      "negotiated": true,
-      "terminates": true,
-      "fields": [
-        {
-          "packet": 1,
-          "field": "tcp.dstport",
-          "value": "5060"
-        },
-        {
-          "packet": 4,
-          "field": "sip.Method",
-          "value": "INVITE"
-        },
-        {
-          "packet": 4,
-          "field": "sip.Request-Line",
-          "value": "INVITE sip:callee@20.0.0.1 SIP/2.0"
-        },
-        {
-          "packet": 5,
-          "field": "sip.Status-Code",
-          "value": "200"
-        },
-        {
-          "packet": 5,
-          "field": "sip.CSeq.seq",
-          "value": "1"
-        },
-        {
-          "packet": 5,
-          "field": "sip.CSeq.method",
-          "value": "INVITE"
-        },
-        {
-          "packet": 6,
-          "field": "sip.Method",
-          "value": "ACK"
-        },
-        {
-          "packet": 6,
-          "field": "sip.CSeq.seq",
-          "value": "1"
-        },
-        {
-          "packet": 6,
-          "field": "sip.CSeq.method",
-          "value": "ACK"
-        },
-        {
-          "packet": 7,
-          "field": "sip.Method",
-          "value": "BYE"
-        },
-        {
-          "packet": 7,
-          "field": "sip.CSeq.seq",
-          "value": "2"
-        },
-        {
-          "packet": 7,
-          "field": "sip.CSeq.method",
-          "value": "BYE"
-        },
-        {
-          "packet": 8,
-          "field": "sip.Status-Code",
-          "value": "200"
-        },
-        {
-          "packet": 8,
-          "field": "sip.CSeq.seq",
-          "value": "2"
-        },
-        {
-          "packet": 8,
-          "field": "sip.CSeq.method",
-          "value": "BYE"
-        },
-        {
-          "packet": 4,
-          "field": "sip.Call-ID",
-          "value": "sip1@10.0.0.1"
-        },
-        {
-          "packet": 4,
-          "field": "sip.From",
-          "value": "<sip:caller@10.0.0.1>"
-        },
-        {
-          "packet": 4,
-          "field": "sip.To",
-          "value": "<sip:callee@20.0.0.1>"
-        },
-        {
-          "packet": 4,
-          "field": "sip.Max-Forwards",
-          "value": "70"
-        },
-        {
-          "packet": 6,
-          "field": "sip.Max-Forwards",
-          "value": "70"
-        },
-        {
-          "packet": 4,
-          "field": "sip.r-uri",
-          "value": "sip:callee@20.0.0.1"
-        }
-      ],
-      "frames": [
-        {
-          "packet": 4,
-          "offset": 54,
-          "hex": "49 4e 56 49 54 45 20 73 69 70 3a 63 61 6c 6c 65 65 40 32 30 2e 30 2e 30 2e 31 20 53 49 50 2f 32 2e 30"
-        },
-        {
-          "packet": 5,
-          "offset": 54,
-          "hex": "53 49 50 2f 32 2e 30 20 32 30 30 20 4f 4b 0d 0a"
-        },
-        {
-          "packet": 6,
-          "offset": 54,
-          "hex": "41 43 4b 20 73 69 70 3a 63 61 6c 6c 65 65 40 32 30 2e 30 2e 30 2e 31 20 53 49 50 2f 32 2e 30"
-        },
-        {
-          "packet": 7,
-          "offset": 54,
-          "hex": "42 59 45 20 73 69 70 3a 63 61 6c 6c 65 65 40 32 30 2e 30 2e 30 2e 31 20 53 49 50 2f 32 2e 30"
-        }
-      ],
-      "notes": [
-        "MCP 生成验证（2026-08-16, /tmp/verify-cases/sip/sip_smoke_01.pcap）：12 帧 = 3 握手 + 5 消息 + 4 终止，_ws.malformed 全空，expert 仅 TCP 序列级 Chat/Note（无 SIP 告警）",
-        "头补全实测（sip.go completeDialogHeaders）：200 OK echo INVITE 头但无 Max-Forwards（仅请求补，RFC 3261 §8.1.1）；ACK 复用 CSeq 1、BYE 递增到 2；ACK/BYE 补 Max-Forwards 70；Via 生成含 branch",
-        "payload 从 offset 54 起（Eth14+IPv4 20+TCP 20）；帧字节与 tcp.payload 十六进制逐字节核对",
-        "sip.Via/Max-Forwards 等字段在握手帧无值 → 逐帧索引正确"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       },
+       {
+        "method": "ACK",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "method": "BYE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       }
       ]
+     }
     }
+   ]
+  },
+  "expect": {
+   "min_packets": 12,
+   "negotiated": true,
+   "terminates": true,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Method",
+     "value": "INVITE"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Request-Line",
+     "value": "INVITE sip:callee@20.0.0.1 SIP/2.0"
+    },
+    {
+     "packet": 5,
+     "field": "sip.Status-Code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "sip.CSeq.seq",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "sip.CSeq.method",
+     "value": "INVITE"
+    },
+    {
+     "packet": 6,
+     "field": "sip.Method",
+     "value": "ACK"
+    },
+    {
+     "packet": 6,
+     "field": "sip.CSeq.seq",
+     "value": "1"
+    },
+    {
+     "packet": 6,
+     "field": "sip.CSeq.method",
+     "value": "ACK"
+    },
+    {
+     "packet": 7,
+     "field": "sip.Method",
+     "value": "BYE"
+    },
+    {
+     "packet": 7,
+     "field": "sip.CSeq.seq",
+     "value": "2"
+    },
+    {
+     "packet": 7,
+     "field": "sip.CSeq.method",
+     "value": "BYE"
+    },
+    {
+     "packet": 8,
+     "field": "sip.Status-Code",
+     "value": "200"
+    },
+    {
+     "packet": 8,
+     "field": "sip.CSeq.seq",
+     "value": "2"
+    },
+    {
+     "packet": 8,
+     "field": "sip.CSeq.method",
+     "value": "BYE"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Call-ID",
+     "value": "sip1@10.0.0.1"
+    },
+    {
+     "packet": 4,
+     "field": "sip.From",
+     "value": "<sip:caller@10.0.0.1>"
+    },
+    {
+     "packet": 4,
+     "field": "sip.To",
+     "value": "<sip:callee@20.0.0.1>"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Max-Forwards",
+     "value": "70"
+    },
+    {
+     "packet": 6,
+     "field": "sip.Max-Forwards",
+     "value": "70"
+    },
+    {
+     "packet": 4,
+     "field": "sip.r-uri",
+     "value": "sip:callee@20.0.0.1"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "49 4e 56 49 54 45 20 73 69 70 3a 63 61 6c 6c 65 65 40 32 30 2e 30 2e 30 2e 31 20 53 49 50 2f 32 2e 30"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "53 49 50 2f 32 2e 30 20 32 30 30 20 4f 4b 0d 0a"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "41 43 4b 20 73 69 70 3a 63 61 6c 6c 65 65 40 32 30 2e 30 2e 30 2e 31 20 53 49 50 2f 32 2e 30"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "42 59 45 20 73 69 70 3a 63 61 6c 6c 65 65 40 32 30 2e 30 2e 30 2e 31 20 53 49 50 2f 32 2e 30"
+    }
+   ],
+   "notes": [
+    "MCP 生成验证（2026-08-16, /tmp/verify-cases/sip/sip_smoke_01.pcap）：12 帧 = 3 握手 + 5 消息 + 4 终止，_ws.malformed 全空，expert 仅 TCP 序列级 Chat/Note（无 SIP 告警）",
+    "头补全实测（sip.go completeDialogHeaders）：200 OK echo INVITE 头但无 Max-Forwards（仅请求补，RFC 3261 §8.1.1）；ACK 复用 CSeq 1、BYE 递增到 2；ACK/BYE 补 Max-Forwards 70；Via 生成含 branch",
+    "payload 从 offset 54 起（Eth14+IPv4 20+TCP 20）；帧字节与 tcp.payload 十六进制逐字节核对",
+    "sip.Via/Max-Forwards 等字段在握手帧无值 → 逐帧索引正确",
+    "T-SIP-1 改写：count 删、顶层 sip→sip 层（dialog 原样直迁+端口 12001/5060 显式）、四元组→ip 层显式；21 fields+4 frames+标量保留等价——字节一致由 P5 实证"
+   ]
   }
+ },
+ {
+  "id": "sip_flat_presence",
+  "proto": "sip",
+  "summary": "T-SIP-2: 顶层 sip presence 判死（空 map 也死）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060
+     }
+    }
+   ],
+   "sip": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "top-level sip sub-config",
+   "notes": [
+    "D-SIP-1 §2 presence 门（create-time）"
+   ]
+  }
+ },
+ {
+  "id": "sip_flat_static_port",
+  "proto": "sip",
+  "summary": "T-SIP-3: sip 层静态端口+flows=2 拒（12.9，门扩扫 sip 层）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060
+     }
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "static four-tuple",
+   "notes": [
+    "ip 层空最小证明形（前四协议 T-3 同构）"
+   ]
+  }
+ },
+ {
+  "id": "sip_hdr_completion",
+  "proto": "sip",
+  "summary": "T-SIP-4: 无头 INVITE→Call-ID/Via/CSeq/Max-Forwards 全生成（RFC 3261 §8.1.1.4）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       },
+       {
+        "method": "ACK",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "method": "BYE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 12,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Method",
+     "value": "INVITE"
+    },
+    {
+     "packet": 4,
+     "field": "sip.CSeq.seq",
+     "value": "1"
+    },
+    {
+     "packet": 5,
+     "field": "sip.Status-Code",
+     "value": "200"
+    },
+    {
+     "packet": 6,
+     "field": "sip.CSeq.method",
+     "value": "ACK"
+    },
+    {
+     "packet": 7,
+     "field": "sip.CSeq.seq",
+     "value": "2"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "49 4e 56 49 54 45 20 73 69 70 3a 63 61 6c 6c 65 65 40 32 30 2e 30 2e 30 2e 31 20 53 49 50 2f 32 2e 30"
+    }
+   ],
+   "notes": [
+    "无头 INVITE 触发 UAC 生成合同（completeRequestHeaders sip.go:416）；CSeq 从 1 推进 BYE=2；Wireshark-clean 断言=sip.* 字段全部可解析"
+   ]
+  }
+ },
+ {
+  "id": "sip_hdr_user_wins",
+  "proto": "sip",
+  "summary": "T-SIP-5: 显式 CSeq:7+Call-ID→保留+200 响应回显（user 头赢三态）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1",
+        "headers": [
+         "Call-ID: fixed@host",
+         "CSeq: 7 INVITE",
+         "From: <sip:a@10.0.0.1>",
+         "To: <sip:b@20.0.0.1>"
+        ]
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 9,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Method",
+     "value": "INVITE"
+    },
+    {
+     "packet": 4,
+     "field": "sip.CSeq.seq",
+     "value": "7"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Call-ID",
+     "value": "fixed@host"
+    },
+    {
+     "packet": 5,
+     "field": "sip.Status-Code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "sip.CSeq.seq",
+     "value": "7"
+    },
+    {
+     "packet": 5,
+     "field": "sip.CSeq.method",
+     "value": "INVITE"
+    },
+    {
+     "packet": 5,
+     "field": "sip.Call-ID",
+     "value": "fixed@host"
+    }
+   ],
+   "notes": [
+    "user 头原样保留（CSeq 7 非 1）；200 响应回显 lastFrom/To/CSeq（completeResponseHeaders sip.go:505）——回显面全断言；9 包=3+2+4"
+   ]
+  }
+ },
+ {
+  "id": "sip_register",
+  "proto": "sip",
+  "summary": "T-SIP-6: REGISTER 方法枚举+200",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "REGISTER",
+        "uri": "sip:20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 9,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Method",
+     "value": "REGISTER"
+    },
+    {
+     "packet": 5,
+     "field": "sip.Status-Code",
+     "value": "200"
+    },
+    {
+     "packet": 5,
+     "field": "sip.CSeq.method",
+     "value": "REGISTER"
+    }
+   ],
+   "notes": [
+    "方法枚举格（REGISTER）；方向推断 Method→up"
+   ]
+  }
+ },
+ {
+  "id": "sip_options",
+  "proto": "sip",
+  "summary": "T-SIP-7: OPTIONS 方法枚举+200",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "OPTIONS",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 9,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Method",
+     "value": "OPTIONS"
+    },
+    {
+     "packet": 5,
+     "field": "sip.Status-Code",
+     "value": "200"
+    }
+   ],
+   "notes": [
+    "方法枚举格（OPTIONS）"
+   ]
+  }
+ },
+ {
+  "id": "sip_status_codes",
+  "proto": "sip",
+  "summary": "T-SIP-8: 响应码枚举 100/180/200/404（INVITE 多响应+404 拒绝路径）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 100,
+        "status_text": "Trying"
+       },
+       {
+        "status_code": 180,
+        "status_text": "Ringing"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       },
+       {
+        "method": "ACK",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 404,
+        "status_text": "Not Found"
+       },
+       {
+        "method": "ACK",
+        "uri": "sip:callee@20.0.0.1"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 15,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 5,
+     "field": "sip.Status-Code",
+     "value": "100"
+    },
+    {
+     "packet": 6,
+     "field": "sip.Status-Code",
+     "value": "180"
+    },
+    {
+     "packet": 7,
+     "field": "sip.Status-Code",
+     "value": "200"
+    },
+    {
+     "packet": 10,
+     "field": "sip.Status-Code",
+     "value": "404"
+    }
+   ],
+   "notes": [
+    "15 包=3+8+4；100/180 临时响应+200/404 终态（9.20 枚举格）；404 拒绝路径=失败分支覆盖",
+    "P5 校准：404=p10（p11=ACK 无状态行）"
+   ]
+  }
+ },
+ {
+  "id": "sip_sdp_body",
+  "proto": "sip",
+  "summary": "T-SIP-9: SDP body 无 Content-Length 头→自动补（RFC 合同 sip.go:308-314）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1",
+        "body": "v=0\r\no=- 1 1 IN IP4 10.0.0.1\r\n"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 9,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Content-Length",
+     "value": "30"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Method",
+     "value": "INVITE"
+    }
+   ],
+   "notes": [
+    "body 37B→Content-Length: 37 自动补（帧字节 43 6f 6e 74 65 6e 74 2d 4c 65 6e 67 74 68 3a 20 33 37 首跑校准）；v/ 行 SDP",
+    "P5 校准：body 实长 30B（5+25）"
+   ]
+  }
+ },
+ {
+  "id": "sip_mss_segment",
+  "proto": "sip",
+  "summary": "T-SIP-10: 3000B body→MSS 1460 分段 3 段",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1",
+        "body": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 11,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.len",
+     "value": "1460"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.len",
+     "value": "1460"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.len",
+     "value": "315"
+    }
+   ],
+   "notes": [
+    "3000=1460+1460+80 三段（segmentByMSS 合同）；11 包=3+3+1+4；段长首跑校准",
+    "P5 校准：末段=315（渲染后消息总长 3235B——头补全+Content-Length 行计入分段对象）"
+   ]
+  }
+ },
+ {
+  "id": "sip_rtp_media",
+  "proto": "sip",
+  "summary": "T-SIP-11: RTP 媒体子流（EmitMedia+frames:2/PT 0→UDP 5004 两帧；14 包）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       },
+       {
+        "method": "ACK",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "method": "BYE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK",
+        "emit_media": true
+       }
+      ],
+      "media": {
+       "frames": 2,
+       "payload_type": 0
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 14,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 4,
+     "field": "sip.Method",
+     "value": "INVITE"
+    },
+    {
+     "packet": 9,
+     "field": "udp.srcport",
+     "value": "5004"
+    },
+    {
+     "packet": 9,
+     "field": "udp.dstport",
+     "value": "5004"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 9,
+     "offset": 42,
+     "hex": "80"
+    }
+   ],
+   "notes": [
+    "RTP 帧在 emit_media 消息（p8=末 200）后：p9/p10=UDP 5004；rtp.version=2（首字节 0x80）；seq/ssrc 随机不钉（RFC 3550 合同）；14 包=3+5+2+4；udp payload offset 42=Eth14+IP20+UDP8",
+    "P5 校准：rtp.* 字段 tshark 3.6 无效→frames pin offset 43（RTP 头 byte1=0x80|PT）；udp.port 双值匹配改 srcport/dstport",
+    "P5 校准：byte0=0x80 在 offset 42（43 是 byte1=PT 0x00）"
+   ]
+  }
+ },
+ {
+  "id": "sip_rtp_down",
+  "proto": "sip",
+  "summary": "T-SIP-12: RTP down 方向+显式 media 端口（src 30000/dst 30001→线上 src=30001/dst=30000）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK",
+        "emit_media": true
+       }
+      ],
+      "media": {
+       "frames": 1,
+       "direction": "down",
+       "src_port": 30000,
+       "dst_port": 30001
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 10,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 6,
+     "field": "udp.srcport",
+     "value": "30001"
+    },
+    {
+     "packet": 6,
+     "field": "udp.dstport",
+     "value": "30000"
+    }
+   ],
+   "notes": [
+    "down 换向合同（sip.go:846-856）：src/dst 交换；10 包=3+2+1+4；RTP 帧 p6（INVITE p4/200 p5 后）"
+   ]
+  }
+ },
+ {
+  "id": "sip_sdp_port",
+  "proto": "sip",
+  "summary": "T-SIP-13: SDP m=audio 6007020→RTP src=6007020（scanSDPMediaPorts 合同）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1",
+        "body": "v=0\r\nm=audio 60070 RTP/AVP 0\r\n"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK",
+        "emit_media": true
+       }
+      ],
+      "media": {
+       "frames": 1
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 10,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 6,
+     "field": "udp.srcport",
+     "value": "60070"
+    },
+    {
+     "packet": 6,
+     "field": "udp.dstport",
+     "value": "5004"
+    }
+   ],
+   "notes": [
+    "INVITE m= 行→caller 口（srcPort）；200 OK 无 m= 行→dstPort 缺省 5004；future-bleed=C 注记（用例单 INVITE 避开）",
+    "P5 校准：原 6007020>65535 被 parseSDPMediaPort 上界拒（:923）→60070；INVITE m= 行→caller 口合同不变"
+   ]
+  }
+ },
+ {
+  "id": "sip_rtp_filesource",
+  "proto": "sip",
+  "summary": "T-SIP-14: RTP FileSource literal 'pay'→帧 payload 实字节（FileSource 优先合同）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK",
+        "emit_media": true
+       }
+      ],
+      "media": {
+       "frames": 1,
+       "file_source": {
+        "literal": "pay"
+       }
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 10,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 6,
+     "field": "udp.srcport",
+     "value": "5004"
+    },
+    {
+     "packet": 6,
+     "field": "udp.dstport",
+     "value": "5004"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "706179"
+    }
+   ],
+   "notes": [
+    "literal 3B<frame_size 160→1 帧实字节 payload（RTP 头 12B 后 offset 54）；FileSource>inline 零填充优先合同（sip.go:751-754）"
+   ]
+  }
+ },
+ {
+  "id": "sip_v6",
+  "proto": "sip",
+  "summary": "T-SIP-15: ip 层 v6→IP 透明正例（9.24 地址族对称）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "fd00::1",
+      "dst": "fd00::2"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060,
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       },
+       {
+        "method": "ACK",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "method": "BYE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 12,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 74,
+     "hex": "494e56495445"
+    }
+   ],
+   "notes": [
+    "v6 数据帧 payload offset=74（IPv6 头 40B——telnet T-14 校准先例）；五消息 dialog 同构 12 包",
+    "P5 校准：补五消息 dialog（原空 dialog 7 包低级错）"
+   ]
+  }
+ },
+ {
+  "id": "sip_default_port",
+  "proto": "sip",
+  "summary": "T-SIP-16: sip 层无端口→dst 缺省 5060",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       },
+       {
+        "method": "ACK",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "method": "BYE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 12,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.dstport",
+     "value": "12345"
+    }
+   ],
+   "notes": [
+    "dst_port 缺席→5060（RFC 3261 §19.2 镜像 setDefaultDstPort）；src worker 12001? 保底=12345+i（此例无 src_port 键→worker 保底 12345）——p2 down dst=12345 首跑校准",
+    "P5 校准：补 dialog；src worker 保底=12345（非 12001）"
+   ]
+  }
+ },
+ {
+  "id": "sip_port_dyn",
+  "proto": "sip",
+  "summary": "T-SIP-17: sip.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×12=24 包）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": {
+       "strategy": "inc",
+       "range": [
+        "10.0.1.1",
+        "10.0.1.2"
+       ],
+       "step": 1
+      },
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": {
+       "strategy": "inc",
+       "range": [
+        20000,
+        20001
+       ],
+       "step": 1
+      },
+      "dst_port": {
+       "strategy": "fixed",
+       "value": 5060
+      },
+      "dialog": [
+       {
+        "method": "INVITE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       },
+       {
+        "method": "ACK",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "method": "BYE",
+        "uri": "sip:callee@20.0.0.1"
+       },
+       {
+        "status_code": 200,
+        "status_text": "OK"
+       }
+      ]
+     }
+    }
+   ],
+   "group_id": {
+    "strategy": "fixed",
+    "value": "sip-port-dyn"
+   }
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "packet_count": 24,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.srcport",
+     "value": "20000"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "5060"
+    },
+    {
+     "packet": 13,
+     "field": "tcp.srcport",
+     "value": "20001"
+    },
+    {
+     "packet": 13,
+     "field": "tcp.dstport",
+     "value": "5060"
+    }
+   ],
+   "notes": [
+    "group_id 固定单 worker FIFO（前四协议先例）；流序 p1..p12=流1、p13..p24=流2",
+    "P5 校准：补 dialog（原空 dialog 每流 7 包→14）→2 流×12=24"
+   ]
+  }
+ },
+ {
+  "id": "sip_empty_dialog",
+  "proto": "sip",
+  "summary": "T-SIP-18: 空 dialog→7 包最小联结（nil-config 合同）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "sip": {
+      "src_port": 12001,
+      "dst_port": 5060
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 7,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 4,
+     "field": "tcp.flags",
+     "value": "0x011"
+    },
+    {
+     "packet": 5,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 6,
+     "field": "tcp.flags",
+     "value": "0x011"
+    },
+    {
+     "packet": 7,
+     "field": "tcp.flags",
+     "value": "0x010"
+    }
+   ],
+   "notes": [
+    "dialog 缺省（空）→3+0+4=7；纯 TCP 联结 flags 序全断言（nil-config 合同 sip.go:120-123）"
+   ]
+  }
+ }
 ]
