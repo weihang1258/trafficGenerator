@@ -3525,3 +3525,47 @@
 **断言边界（9.27）：** RTP seq/ssrc 随机不钉；MSS 分段末段长度=首跑校准；RTP 帧 payload 零填充面（无 FileSource 时 frameSize 字节零值占位 :851-853）不钉长度断言以外的内容。
 **执行口径：** P5 sip 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/sip/`+门 2 四项+反查 check_sip；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
 **实现位置：** `cases/sip.json`（**18 例**：改写 1+新建 17）。
+
+### T-RADIUS-1…21 radius.json——存量审计 + 测试点清单【D-RADIUS-1 P3 定稿，P4 未开工】
+
+**状态：** P3 定稿（2026-09-19）。存量 1 例逐条审计改写（等价迁移：spec 仅 `{"radius":{}}` 本无扁平键→补 layers[ip] 显式 10.0.0.1/20.0.0.1+radius 层显式端口 12345/1812（worker/缺省缺省显式化，mpls 轮先例）；packet_count 2+14 fields（tshark radius.code/id/length/req/rsp/reqframe/authenticator nonzero+avp.type/length）全保留）+ 新建 20 例=21 例。
+**级别：** pcap
+**来源：** ①标准=RFC 2865（§3/§5）+RFC 2866（§3）②设计=D-RADIUS-1 ③现网=参考 pcap portion_Radius.pcap/start-stop.pcap（radius.go:17-18）+存量探针实测（length 26/20、id 复刻、authenticator nonzero）
+**存量去向（1 例 → P5 改写后 21 例）：**
+
+| 存量 | 去向 | 说明 |
+|---|---|---|
+| radius_smoke_01 | 改写 | 补 ip 层+显式端口+radius 层空业务面；packet_count 2+14 fields 保留等价——字节一致由 P5 实证（code1→2 auto/length 26/20/id 0 复刻） |
+
+**新建例清单（T-2…21）：**
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| 顶层 radius presence 判死 | T-2 radius_flat_presence | A（负例，锚词 `top-level radius sub-config`；create-time） |
+| radius 层静态端口+flows=2 拒 | T-3 radius_flat_static_port | A（负例，锚词 `static four-tuple`；create-time） |
+| Accounting 分流 1813 | T-4 radius_acct_1813 | A（正例，code:4→dstport 1813+auto resp 5；**:770 顺序修正专项**（translate 自补覆盖预写 1812）；参考 start-stop.pcap 面） |
+| Challenge 显式响应码 | T-5 radius_challenge | A（正例，code:11+response_code:11→对（3/11 无 auto 必须显式合同）；请求码 11+响应码 11 枚举格） |
+| Status-Server/Client | T-6 radius_status | A（正例，code:12→auto 13；探询对） |
+| Access-Reject 请求码格 | T-7 radius_code3 | A（正例，code:3+response_code:3→请求码 3 枚举格（requestCodes 含 3=legacy 合同）） |
+| 失败分支 Reject 响应 | T-8 radius_reject | A（正例，code:1+response_code:3→Access-Request 被拒（失败分支 3.7/9.9）；radius.code 1→3 断言） |
+| 无默认响应拒 | T-9 radius_neg_no_auto | A（负例，code:3 无 response_code→`has no default response code`；task-time） |
+| 请求码非法 | T-10 radius_neg_reqcode | A（负例，code:42→`invalid request code`；task-time） |
+| 响应码非法 | T-11 radius_neg_rspcode | A（负例，response_code:9→`invalid response code`；task-time） |
+| fixed authenticator 钉值 | T-12 radius_auth_fixed | A（正例，authenticator:"000102...0f" 16B hex→请求帧 radius.authenticator **值断言**（唯一可钉值格）；响应侧 nonzero（恒随机）） |
+| authenticator 非法 hex | T-13 radius_neg_auth_hex | A（负例，authenticator:"zz"→`invalid authenticator hex`；task-time） |
+| authenticator 长度错 | T-14 radius_neg_auth_len | A（负例，15B hex→`must be 16 bytes, got 15`；task-time） |
+| 属性四 format+VSA | T-15 radius_attr_formats | A（正例，attributes:[string "user"/ipv4 10.0.0.1/uint32 42/hex "aabb"/{type:1,vendor_id:9,value:"vs"}]→avp.type 逐断言+VSA type 26 外层（:432-445）；9.20-9.22 承载位置双列表 attributes/response_attributes 各≥1 格——response_attributes 并入本例响应面） |
+| 属性超长 | T-16 radius_neg_attr_len | A（负例，string 254B→`exceeds the 253-byte field limit`；task-time） |
+| format 非法 | T-17 radius_neg_format | A（负例，format:"dword"→`unknown format`；task-time） |
+| rounds 多轮 | T-18 radius_rounds | A（正例，rounds:3+identifier:5→6 包；radius.id 5/6/7 递增断言（identifier+round 合同；rounds>256 uint8 回绕=C 注记用例避开）） |
+| v6 正例 | T-19 radius_v6 | A（正例，ip 层 v6→2 包同构；9.24 地址族对称） |
+| 缺省端口 1812 | T-20 radius_default_port | A（正例，radius 层无端口→udp.dstport=1812（translate 顺序修正覆盖路径）；src worker 保底） |
+| 端口动态 E1 | T-21 radius_port_dyn | A（正例，src_port/dst_port 动态对象+flows=2→group_id 固定 2 流×2=4 包端口逐流） |
+
+**C 类注记（9.17）：** ①随机面：响应 Authenticator 恒随机（:343）断言仅 nonzero；请求缺省随机（T-12 fixed 钉值方案）；ip.id 不断言；②响应 MD5 验证不做（legacy 随机合成=C 合同）；③IP parse/nil 两锚词链不可达（schema 先拦/translate 恒填）=零死锚；④rounds>256 uint8 回绕避开。
+**枚举取值覆盖（9.20-9.22）：** 请求码{1(T-1),3(T-7/T-9),4(T-4),11(T-5),12(T-6)}✓5/5；响应码{2(T-1 auto),3(T-7/T-8),5(T-4),11(T-5),13(T-6)}✓5/5；format{string,ipv4,uint32,hex}✓4/4（T-15）+VSA✓；rounds{1,3}✓；端口{显式,缺省,动态}✓（T-1/T-20/T-21）；地址族{v4,v6}✓（T-19）；负例 9✓（T-2/3/9/10/11/13/14/16/17——全部 legacy 真门锚词）。
+**正交矩阵：** 码×响应（auto/显式/无）×format×端口×地址族——落格见上；动态整格=业务 7 键全关+端口 2 键（T-21）。
+**通用陷阱自查（9.37-9.40）：** 无派生端口；T-21 group_id 固定；id 复刻+递增=真实语义钉（存量先例）。
+**断言边界（9.27）：** 响应 authenticator 恒随机仅 nonzero；包间隔无面。
+**执行口径：** P5 radius 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/radius/`+门 2 四项+反查 check_radius；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
+**实现位置：** `cases/radius.json`（**21 例**：改写 1+新建 20）。
