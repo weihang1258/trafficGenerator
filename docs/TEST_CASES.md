@@ -3405,9 +3405,9 @@
 **执行口径：** P5 mpls 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/mpls/`+门 2 四项+反查 check_mpls；数值落盘重钉（14.6/9.31）。
 **实现位置：** `cases/mpls.json`（**14 例**：改写 1+新建 13）。
 
-### T-NGAP-1…17 ngap.json——存量审计 + 测试点清单【D-NGAP-1 P3 定稿，P4 未开工】
+### T-NGAP-1…17 ngap.json——存量审计 + 测试点清单【D-NGAP-1 P5 已验收】
 
-**状态：** P3 定稿（2026-09-19）。存量 1 例逐条审计改写（等价迁移：count 删、顶层空 `ngap:{}`→ngap 层空业务面+显式端口 12345/38412、补 ip 层显式地址——legacy 缺省面（AMF-TEST-01/MCC460 等）不进用例，断言 13 fields+2 frames pin 全保留等价字节）+ 新建 16 例=17 例。**P3 期修正回填 D-NGAP-1 §6**：UEContextRelease=Command+Complete 两包（ngap.go:387-398 实证），全开 16 包（非 15）。
+**状态：** 已验收（2026-09-19 P6：RESULT 17 pass/0 fail ×2 连跑+反查 36/36（T-10 并入 global_ran_node_id 补缺口）；回归 icmpv6 11/h323 17/mpls 14/srv6 74/sv 30/goose 33 全绿；pcap 落盘 /tmp/mcp-pcaps/ngap/）。P3 定稿（2026-09-19）原注记：存量 1 例逐条审计改写（等价迁移：count 删、顶层空 `ngap:{}`→ngap 层空业务面+显式端口 12345/38412、补 ip 层显式地址——legacy 缺省面（AMF-TEST-01/MCC460 等）不进用例，断言 13 fields+2 frames pin 全保留等价字节）+ 新建 16 例=17 例。**P3 期修正回填 D-NGAP-1 §6**：UEContextRelease=Command+Complete 两包（ngap.go:387-398 实证），全开 16 包（非 15）。
 **级别：** pcap
 **来源：** ①标准=3GPP TS 38.413（procedureCode §9.2：NGSetup 21/InitialUE 15/DL NAS 4/UL NAS 46/PDU Setup 29/UE Release 41）+TS 38.412（PPID 60）+RFC 4960（SCTP 握手 §5/拆链 §9.2）②设计=D-NGAP-1 ③现网=参考 pcap SCTP_NAS.pcap 转录（ngap.go:40-41）+Wireshark packet-ngap（tshark 3.6.14 ngap.procedureCode 字段已验证存在）
 **存量去向（1 例 → P5 改写后 17 例）：**
