@@ -7794,6 +7794,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol sv no longer accepts a top-level sv sub-config (move it into the sv layer of an [eth,sv] layers chain)"
 		}
 	}
+	// D-ICMPV6-1：icmpv6 顶层 icmpv6 子映射 presence 判死（sv 先例；空
+	// map 也死）。层链形状不触发。
+	if protocol == "icmpv6" {
+		if v, ok := cfg["icmpv6"]; ok && v != nil {
+			return "protocol icmpv6 no longer accepts a top-level icmpv6 sub-config (move it into the icmpv6 layer of an [ip,icmpv6] layers chain)"
+		}
+	}
 	return ""
 }
 

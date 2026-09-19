@@ -909,6 +909,39 @@
         }
       }
     },
+    "icmpv6": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "field_contract": {
+        "ip.protocol": "58"
+      },
+      "fields": {
+        "code": {
+          "type": "uint8",
+          "max": 255
+        },
+        "data": {
+          "type": "string"
+        },
+        "identifier": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "pattern": {
+          "type": "list"
+        },
+        "sequence": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "type": {
+          "type": "uint8",
+          "max": 255
+        }
+      }
+    },
     "iec104": {
       "category": "terminal",
       "depends_on": [

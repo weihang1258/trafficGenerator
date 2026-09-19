@@ -42,10 +42,10 @@ func isRawIPChain(name string, chain []Layer) bool {
 		return false
 	}
 	switch chain[len(chain)-1].Name {
-	case "igmp", "ospf", "pim", "nvgre", "srv6":
+	case "igmp", "ospf", "pim", "nvgre", "srv6", "icmpv6":
 		return true
 	}
-	return name == "igmp" || name == "ospf" || name == "pim" || name == "nvgre" || name == "srv6"
+	return name == "igmp" || name == "ospf" || name == "pim" || name == "nvgre" || name == "srv6" || name == "icmpv6"
 }
 
 // isCarrierMixedChain reports whether the terminal layer self-drives mixed

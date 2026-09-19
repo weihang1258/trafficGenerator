@@ -73,7 +73,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/dns"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/drda"
 	"github.com/trafficgen/trafficgen/internal/protocol/icmp"
-	"github.com/trafficgen/trafficgen/internal/protocol/icmpv6"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/icmpv6" // 空导入：icmpv6 包 init 注册层生成器 + 校验器（D-ICMPV6-1）
 	// 空导入：ike 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ike"
 	// 空导入：ike_nat_t 包 init 注册终结层生成器 + 校验器（T4.1 批二）
@@ -538,7 +538,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(sip.NewPlanner())
 	app.engine.RegisterPlanner(rtsp.NewPlanner())
 	app.engine.RegisterPlanner(sctp.NewPlanner())
-	app.engine.RegisterPlanner(icmpv6.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("icmpv6"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("smtp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("pop3"))
 	app.engine.RegisterPlanner(telnet.NewPlanner())

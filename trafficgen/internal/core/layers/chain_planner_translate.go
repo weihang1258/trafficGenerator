@@ -910,6 +910,67 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.SV = sc
 		}
 		return
+	case "icmpv6":
+		// D-ICMPV6-1：层 config 手工逐键映射进 spec.ICMPv6（parse 未导出
+		// 不可跨包）。缺省镜像 parse（strategy_convert.go:732，决策 D1）：
+		// type 128/code 0/sequence 1/data "ping"——空层=合法缺省 ping，
+		// 存量例语义保持。data 字符串直转 []byte（getString 同口径，无
+		// srv6 式 []byte 陷阱）；pattern 槽位下钻（step 缺省 sequence
+		// 语义在生成器 index+1，translate 只透传显式值）。file_source 不
+		// 映射（③ C 类）。层优先（spec.ICMPv6 缺席走翻译，goose 同款）。
+		// 空层 {} 翻译出零值+缺省 → validator type/code 分支不触发（128/0
+		// 合法）；v6 族检查由 layer validator 复用 legacy Validate。
+		if spec.ICMPv6 == nil {
+			cfg := completedConfig(s, term.Config)
+			ic := &core.ICMPv6Config{Type: 128, Code: 0, Sequence: 1}
+			if v, ok := configUint8(cfg["type"]); ok {
+				ic.Type = v
+			}
+			if v, ok := configUint8(cfg["code"]); ok {
+				ic.Code = v
+			}
+			if v, ok := configUint16(cfg["identifier"]); ok {
+				ic.Identifier = v
+			}
+			if v, ok := configUint16(cfg["sequence"]); ok {
+				ic.Sequence = v
+			}
+			if v, ok := cfg["data"].(string); ok {
+				ic.Data = []byte(v)
+			} else {
+				ic.Data = []byte("ping")
+			}
+			if v, ok := cfg["pattern"].([]interface{}); ok {
+				for _, raw := range v {
+					if item, ok := raw.(map[string]interface{}); ok {
+						// 缺省镜像 parseICMPv6Pattern（D1）：type 128/
+						// code 0/sequence==0（含显式 0）自动补 index+1/
+						// data "ping"。
+						st := core.ICMPv6Step{Type: 128}
+						if u, ok := configUint8(item["type"]); ok {
+							st.Type = u
+						}
+						if u, ok := configUint8(item["code"]); ok {
+							st.Code = u
+						}
+						if u, ok := configUint16(item["sequence"]); ok {
+							st.Sequence = u
+						}
+						if st.Sequence == 0 {
+							st.Sequence = uint16(len(ic.Pattern) + 1)
+						}
+						if d, ok := item["data"].(string); ok {
+							st.Data = []byte(d)
+						} else {
+							st.Data = []byte("ping")
+						}
+						ic.Pattern = append(ic.Pattern, st)
+					}
+				}
+			}
+			spec.ICMPv6 = ic
+		}
+		return
 	case "opcua":
 		if spec.OPCUA != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

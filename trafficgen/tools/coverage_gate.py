@@ -533,6 +533,47 @@ def check_sv(cases):
 
     return rows
 
+def check_icmpv6(cases):
+    """D-ICMPV6-1 P5R 反查表（T-ICMPV6-1…11）。返回 [(检查名, 通过?, 证据)]。
+    层内 icmpv6 子映射扫描（P5 改写后形状；P4 登记时旧顶层键例判 MISS，
+    P5 cases 落地后转绿）。
+    """
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("icmpv6"), dict):
+                lays.append((c.get("id", "?"), l["icmpv6"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面。
+    for kw, name in [("smoke", "S 基线 Echo 对"), ("type_129", "type 129 单发"),
+                     ("pattern", "Pattern 面"), ("dyn", "动态多流"),
+                     ("static_copy", "静态复制面"), ("v4", "v4 拒绝面")]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖。
+    for k, name in [("type", "type"), ("code", "code"), ("identifier", "identifier"),
+                    ("sequence", "sequence"), ("data", "data"), ("pattern", "pattern")]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面。
+    for needle, name in [
+        ("top-level icmpv6 sub-config", "presence 判死"),
+        ("static four-tuple", "静态复制拒"),
+        ("must be IPv6", "v4 拒（legacy 复用真门）"),
+        ("type must be 128", "type 非法（validator 真门）"),
+        ("code must be 0", "code 非 0（validator 真门）"),
+        ("pattern step", "pattern step 非法（validator 真门）"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
 
@@ -1053,7 +1094,7 @@ def check_goose(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6}
 
 
 def main(argv):

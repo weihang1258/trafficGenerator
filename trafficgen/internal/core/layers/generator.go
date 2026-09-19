@@ -480,6 +480,8 @@ type FlowMeta struct {
 	OSPF *core.OSPFConfig
 	PIM  *core.PIMConfig
 	ISIS *core.ISISConfig
+	// ICMPv6 is the flow's ICMPv6 config（D-ICMPV6-1：raw-IP 终结层生成器直传）。Only set for icmpv6 chains.
+	ICMPv6 *core.ICMPv6Config
 	// GBT is the flow's gbt config (注入到 gbt 终结层生成器，B6：BIP 22/23
 	// JSON-RPC over HTTP；sessions[]/events[] 逐事件产完整 HTTP 帧，http 层
 	// 透传转发)。Only set for gbt chains。

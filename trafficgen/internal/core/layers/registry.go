@@ -742,6 +742,22 @@ func buildDefaultRegistry() {
 		FieldContract: map[string]string{"ip.protocol": "103"}, // RFC 7761 PIM IPPROTO=103
 	})
 	r.Register(LayerSchema{Name: "isis", Category: CategoryTerminal, DependsOn: []string{"eth"}})
+	// D-ICMPV6-1：icmpv6 raw-IP 终结层（[ip,icmpv6]，RFC 4443）。6 业务键
+	// 无 Default（决策 F；缺省语义在 translate 镜像 parse：type 128/code
+	// 0/seq 1/data "ping"）；FieldContract 声明 ip.protocol=58（igmp=2 同款
+	// 框架块）；type 128/129 与 code 0 约束留 layer validator（V9 数值域
+	// 只做类型界）。
+	r.Register(LayerSchema{Name: "icmpv6", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		FieldContract: map[string]string{"ip.protocol": "58"},
+		Fields: map[string]FieldSchema{
+			"type":       {Type: "uint8", Min: 0, Max: 255},
+			"code":       {Type: "uint8", Min: 0, Max: 255},
+			"identifier": {Type: "uint16", Min: 0, Max: 65535},
+			"sequence":   {Type: "uint16", Min: 0, Max: 65535},
+			"data":       {Type: "string"},
+			"pattern":    {Type: "list"},
+		},
+	})
 	r.Register(LayerSchema{Name: "bgp", Category: CategoryTerminal, DependsOn: []string{"tcp"},
 		FieldContract: map[string]string{"tcp.dst_port": "179"},
 		Fields: map[string]FieldSchema{
