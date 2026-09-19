@@ -2386,3 +2386,78 @@ create：ValidateStrategy→ValidateLayers（V9 10 键）→CheckProtoFlat prese
 
 #### 8. 验收
 对应 T-H323（P3 定稿）。完成条件：6 红例先红后绿；h323.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 src_ip/dst_ip/src_port/dst_port/count/h323 字面零残留；schemagen 同步绿；门 1 表回填+抽查三条；在库 h323 行清空（P6 删前报数 tasks 95+strategies 3→备份→删→复核）。
+
+### D-MPLS-1 MPLS 层链化：终层自驱（h323 机器整包 relay）+ 端口住层【P-PIPE #16 门1】
+
+**状态：** P2 定稿（2026-09-19；门 1 已交+对抗自重审 2 轮（1 处行号修正+1 处语义注记补充+2 项框架排查落定，末轮净）；CORE_MEMORY 240 条逐条复审完成。裁定延续：端口住 mpls 层+端口动态 E1=h323 已批同款（用户"开工/继续处理"连续 mandate）。现状：legacy 完整（planner.go:104-223，Eth+标签栈+内层 IP/TCP/UDP 单帧发射，frames 缺省 1 逐帧 IP ID 递增，direction up/down 自交换，Validate **10 锚词** planner.go:40-95），main.go:556 直挂，**层链四件全缺**+registry 占位行 CategoryL2 带警告注记（registry.go:1196-1202，本设计裁定替换）。用例 1 例纯扁平（{"count":1,"mpls":{"labels":[{"label":100}]}}，地址/端口全靠扁平缺省）。在库 tasks 93+strategies 5（普查表 92 漂移注记））
+
+**架构裁定（P2 定稿）：** **A1 [ip,mpls] 终层自驱整包 relay**（h323 已验证机器：wrap legacy Plan+force-up 防双换——legacy direction=down 自行交换地址+MAC，raw-IP 驱动 down-swap 会双换）。否决记录：①A2 中链 shim [eth,mpls,ip,tcp]（registry 占位注记设想）需框架级新机制（数组=线序+transport 终结面未定义），占位注记自评"属 P2 工作项"——本裁定以 A1 替代并在新行注记中更新；②B2 [ip,tcp,mpls] 端口住 tcp 层——**中链 tcp 静态端口无进 spec 通道**（extractLayer* 仅 ip 地址/eth MAC/ip TTL 三函数，strategy_convert.go:250-330），且"动态通静态不通"形状不一致——不可行。**链路径语义注记（重审补充）：inner_proto=0（auto）在链路径恒解析为 UDP**——spec.TCP 唯一来源是扁平顶层 tcp 子映射（strategy_convert.go:446），链配置下恒 nil，内层 TCP 恒裸头（无 seq/ack/flags，planner.go:112/:189-192 不可达）=legacy 合同链上面。
+
+**权威链（§7）：** 标准=RFC 3031（架构 §3.12 in-place）+RFC 3032（标签编码 §2.1/§3.1、EtherType §3.10 按 builder.go:85 引用、内层双族 §3.9）+RFC 5462（TC）→ 设计=本条目（权威）→ 代码 → 测试。字节事实=探针 pcap 转录（存量用例 notes 引 /tmp/probe-iana/mpls.pcap）+Wireshark packet-mpls。
+
+**依赖链判定：**
+
+| # | 断链层 | 判定 | 处置 |
+|---|---|---|---|
+| ① 层链四件缺 | 代码缺口 | registry 占位行（CategoryL2 无字段）/translate 无 case/FlowMeta 无 MPLS（grep rc=1）/无 generator | P4：占位行替换 CategoryTerminal 终层行（DependsOn ip+Fields 8 键无 Default）+translate case+FlowMeta.MPLS+carry+layer_gen 包装+注册 |
+| ② legacy 校验已全 | 无缺口 | Validate 10 锚词覆盖 nil/IP×2/空栈/label/TC/S/InnerProto/Frames/Direction | validateLayer=required 保底+legacy 复用零新文案 |
+| ③ 静态复制门漏扫 | 执法洞 | 扫描列表无 mpls（semantic.go:187），mpls 层静态端口+flows>1 漏拒 | P4 扫描列表 += "mpls"（h323 同款）+红例⑥ |
+| ④ inner TCP 裸头 | C 类 | spec.TCP 链不可达（上注） | 明确注记：链上内层 TCP 无握手/序号语义（legacy 单帧数据面合同） |
+| ⑤ 端口动态 | E1 延续 | allowlist 无 mpls 行 | P4：LayerDynValues.MPLS+allowlist mpls 端口 2 键+parseLayerDyn case+resolveLayerTuple 块+HasAny |
+| ⑥ 保留标签 0-15 未校验 | legacy 合同 | Validate 只查 >0xFFFFF（types.go:3280 文档与实现的边界差） | 诚实注记不冒充：用例避开保留值（P3），不新增文案 |
+
+#### 门 1 对照表（已交，证据回填版）
+
+§1 键去向：src_ip/dst_ip→layers[ip].src/dst（内层=流地址 RFC 3031 §3.12）；src_port/dst_port→layers[mpls]；count→删；顶层 mpls 6 业务键→layers[mpls] 直迁（labels 数组子键 label/tc/s/ttl 原样）。目标形状 `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"mpls":{"src_port":12345,"dst_port":80,"labels":[{"label":100}]}}]}`。§3 五件套：数据面豁免（无控制面/无事务/无跨流——planner.go:8-10），插入=mpls 终层自产完整包，时间线=frames 顺序帧 IP ID 逐帧+1（planner.go:160-164）。§12 动态：业务 5 键全关（labels=路径身份/multicast=EtherType 选择器/inner_proto=内层选择器/direction=方向选择器/inner_payload=载荷）；端口 2 键开（E1 延续）；序号=IP ID 逐帧+1+worker 12345+i。
+
+#### 决策对比（4.17）
+
+| 决策 | 候选 | 结论 |
+|------|------|------|
+| A 链形 | A1 [ip,mpls] 终层自驱 vs A2 中链 shim vs B2 [ip,tcp,mpls] 端口住 tcp | **A1**（A2 框架级大改否决；B2 静态端口无通道不可行） |
+| B 端口住处 | B1 mpls 层键+门扩扫 | **B1**（h323 已批同款） |
+| C 翻译 | C1 手工逐键零缺省映射（parse 零缺省，缺省全在 Plan——比 h323 更简） | **C1** |
+| D 校验 | D1 复用 legacy Validate 10 锚词 | **D1** |
+| E 端口动态 | E1 开 2 键（h323 已批延续） | **E1** |
+
+**明确不解决：** LDP/RSVP 控制面（协议本质 out of scope）；内层 TCP 会话语义（④ C 类）；保留标签 0-15 校验（⑥ legacy 合同）；中链 shim 表达（A2 否决，若未来需要另立项）。
+
+#### 1. 文件清单（P2 定稿）
+- Modify: `internal/core/layers/registry.go`——占位行替换（CategoryL2→CategoryTerminal，DependsOn ["ip"]，Fields 8 键无 Default：labels{list}/multicast{bool}/inner_proto{uint8}/src_port{uint16}/dst_port{uint16}/frames{uint16}/direction{string}/inner_payload{string}；注记更新：A1 终层裁定替代 shim 设想）
+- Modify: `internal/core/layers/chain_planner_translate.go`——case "mpls"（spec.MPLS==nil 层优先；6 业务键逐映射+端口同键二态（标量→spec/对象→放行）；parse 零缺省→translate 零缺省，缺省全在 legacy Plan 内填——比 h323 更简）
+- Modify: `internal/core/layers/generator.go`+`chain_planner_chain.go`——FlowMeta.MPLS+carry
+- Modify: `internal/core/layers/chain_planner_util.go`——isRawIPChain 加 mpls
+- Modify: `internal/core/layers/chain_planner.go`——两端口豁免名单加 mpls
+- Modify: `internal/core/strategy_convert.go`——CheckProtoFlat mpls presence 分支
+- Modify: `internal/core/schema/semantic.go:187`——扫描列表 += "mpls"
+- Modify: `internal/core/layer_dyn.go`+`internal/core/types.go`——LayerDynValues.MPLS/allowlist/parseLayerDyn case/resolveLayerTuple/HasAny（⑤）
+- Create: `internal/protocol/mpls/layer_gen.go`——Generator 包装 legacy Plan（等价 FlowSpec：SrcIP/DstIP/TTL/MAC/端口/MPLS 直传；force Direction="up" 防双换——legacy down 自交换；GenEvents 返 nil）+validateLayer（required+legacy 10 锚词复用）+init 注册
+- Modify: `cmd/server/main.go:556`——NewChainPlanner("mpls")+空导入
+- Modify: `tools/pipe_gate.sh`+`tools/coverage_gate.py`（check_mpls）、schemagen 重跑
+- Modify: `test/protocol_pcap/cases/mpls.json`（P5 按 T-MPLS）
+- Test: `internal/core/layers/mpls_migrate_test.go`（红例①-⑤）+`internal/core/schema/mpls_static_port_test.go`（红例⑥）
+- 零改动：`internal/protocol/mpls/planner.go`（字节事实）
+
+#### 2. 接口签名（锚词）
+- presence：`protocol mpls no longer accepts a top-level mpls sub-config (move it into the mpls layer of an [ip,mpls] layers chain)`
+- validator：`mpls: MPLS config is required`（translate 后不可达=C 类保底）；legacy 10 锚词原样复用
+- static：`static four-tuple`（既有门，扫描面扩 mpls）
+
+#### 3. 主流程
+create：ValidateStrategy→ValidateLayers（V9 8 键）→CheckProtoFlat presence→checkLayerChainStaticCopy（含 mpls 端口）→400。
+任务：mapToFlowSpec→parseLayerDyn（mpls 端口对象）→worker resolveLayerTuple→ChainPlanner.ValidateSpec：validateSpecBase（mpls 端口豁免）→translate case "mpls"→validateLayer（required+legacy Validate）→Plan：isRawIPChain→raw-IP 驱动（meta 补齐+Generator.Generate→legacy Plan 整包 relay→force up 防双换）→builder：writeL2 强制 0x8847/0x8848+栈写入+offset 14（VLAN 18）→内层 L3/L4 正常装配。
+
+#### 4. 增量步骤（failing 先行）
+红例族 6（h323_migrate 同构）：①TestMPLSChain_FlatPresenceRejected ②TestMPLSChain_LayerFieldsAccepted（8 键 V9）③TestMPLSChain_LayerTranslateLabelFrame（链 [ip,mpls{src_port,dst_port,labels:[{label:100}]}]→1 帧（frames 缺省）+frames 字节 pin `00 06 41 40` 等价+udp.dstport 80）④TestMPLSChain_PlanDefaults（空 mpls 层→1 帧+dir up+auto=UDP（链上 spec.TCP 恒 nil 注记实证）+栈 TTL 0→64）⑤TestMPLSLayerPortDynAllowlisted（core：allowlist 2 键）⑥TestMPLSStaticPortFlowsRejected（schema：mpls 层静态端口+flows=2→"static four-tuple"；形状=[ip{},mpls{ports}]，ip 层空对门无贡献的最小证明形）。
+
+#### 5. 错误锚词
+见 §2；legacy 10 锚词为链路径唯一执法面（零新文案）。
+
+#### 6. 性能设计与验收
+帧数=frames（缺省 1，模板面）；整包 relay 流式（channel 256 既有）无收集无锁；翻译一次；标签栈字节复用（mplsCfg.Labels 复用 planner.go:133-139）；回归口径 suite ±10%；pcap 路=套件，网卡未跑注明。
+
+#### 7. 顺序与回滚
+红例→registry 替换+translate→FlowMeta/isRawIPChain/豁免→门扩扫+layer_dyn→layer_gen+注册→presence→main 翻转→门登记+schemagen→绿；P5 cases。回滚=单提交粒度；planner.go 零改动=字节事实零风险。
+
+#### 8. 验收
+对应 T-MPLS（P3 定稿）。完成条件：6 红例先红后绿；mpls.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 count/mpls 字面零残留；schemagen 同步绿；门 1 表回填+抽查三条；在库 mpls 行清空（P6 删前报数 93+5→备份→删→复核——**绝对路径+删后总量对账**）。
