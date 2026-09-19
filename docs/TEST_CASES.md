@@ -3294,7 +3294,9 @@
 
 ### T-ICMPV6-1…11 icmpv6.json——存量审计 + 测试点清单【D-ICMPV6-1 P3 定稿，P4 未开工】
 
-**状态：** P3 定稿（2026-09-19；存量 1 例逐条审计改写（等价迁移：src/dst 迁 ip 层、icmpv6:{} 留层内空=缺省 ping 语义不变，fields 断言不动预期字节一致）+ 新建 10 例=11 例。锚词按真实执法门：create-time（presence/static 2 门无落盘）vs task-time validator（v4/type/code/pattern_step 4 门 .neg.pcap——legacy Validate v6 检查复用零新文案 icmpv6.go:60-79）。组合 2 条=Pattern 混型步/多变 data 步（D-ICMPV6-1 ④）
+**状态：** 已验收（2026-09-19，P5 全量绿 ×5 连跑+门2 四项+反查 18/18；P6 清库 150+11→0/0）。存量 1 例逐条审计改写（等价迁移：src/dst 迁 ip 层、icmpv6:{} 留层内空=缺省 ping 语义不变，fields 断言不动预期字节一致）+ 新建 10 例=11 例。锚词按真实执法门：create-time（presence/static 2 门无落盘）vs task-time validator（v4/type/code/pattern_step 4 门 .neg.pcap——legacy Validate v6 检查复用零新文案 icmpv6.go:60-79）。组合 2 条=Pattern 混型步/多变 data 步（D-ICMPV6-1 ④）。
+
+**P5 校准注记（已验收实际形状）：** ①T-8 改显式 identifier=7/sequence=9/data="probe"（9.21 identifier 显式格落此例；id=0x0007≠seq=9 证非 0 回退路径，data.data=70726f6265）；②T-11 补 strategy_fc flows=2（用例漏传判缺省单流）+ 固定 group_id（srv6_mf03 先例：分片路由流序不定，固定后单 worker FIFO 确定序），源序列按 pcap 实钉 [::1,::9,::2,::9]（逐流成对：reply 源=该流 dst ::9，非对端流源）；③data.data 为 tshark 紧凑 hex 无冒号。
 **级别：** pcap
 **来源：** ①标准=RFC 4443 §2.3/§4.1+RFC 8200 §8.1（4.9 有 RFC）②设计=D-ICMPV6-1 ③现网=iputils ping6（待确认抓包，子表③）
 **存量去向（1 例 → P5 改写后 11 例）：**

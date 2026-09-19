@@ -2,11 +2,19 @@
   {
     "id": "icmpv6_smoke_01",
     "proto": "icmpv6",
-    "summary": "冒烟：ICMPv6 Echo Request → 自动 Reply（IPv6 链路，src_ip/dst_ip 显式）。type 128/129、code 0、id/seq 固定 1，共 2 包",
+    "summary": "冒烟：ICMPv6 Echo Request → 自动 Reply（IPv6 链路，地址住 ip 层）。type 128/129、code 0、id/seq 固定 1，共 2 包",
     "spec_json": {
-      "src_ip": "2001:db8::1",
-      "dst_ip": "2001:db8::2",
-      "icmpv6": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "icmpv6": {}
+        }
+      ]
     },
     "expect": {
       "packet_count": 2,
@@ -79,10 +87,487 @@
       ],
       "notes": [
         "RFC 4443 §4.1：type 128=Echo Request、129=Echo Reply，code=0；identifier/sequence 回显不变",
-        "ICMPv6 需要 IPv6 链路 → src_ip/dst_ip 必须为 IPv6 地址（validate 要求）；默认 TTL=64",
+        "D-ICMPV6-1 P5 改写：src_ip/dst_ip→layers[ip].src/dst、icmpv6:{}→层内空 map（空层=缺省 ping：type 128/code 0/seq 1/data ping，决策 D1 镜像 parse）；fields 断言全部保留，预期字节一致",
         "自动回复（auto-reply）：应答交换 src/dst，id/seq 复刻请求值",
         "tshark 探针实测：全部值与上表一致，校验和状态 good（1）"
       ]
+    }
+  },
+  {
+    "id": "icmpv6_vn_presence",
+    "proto": "icmpv6",
+    "summary": "T-ICMPV6-2: 顶层 icmpv6 presence 判死（空 map 也死，CheckProtoFlat sv 先例）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "icmpv6": {}
+        }
+      ],
+      "icmpv6": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "top-level icmpv6 sub-config",
+      "notes": [
+        "D-ICMPV6-1 §2 presence 门：层链形状下顶层 icmpv6 子映射出现即拒（create-time，无落盘）",
+        "failing 先行红例①同源；spec_json 内顶层 icmpv6 键即触发门"
+      ]
+    }
+  },
+  {
+    "id": "icmpv6_vn_static_copy",
+    "proto": "icmpv6",
+    "summary": "T-ICMPV6-3: ip 层显式标量 v6 地址 + flows=2 拒绝（static four-tuple 门）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "icmpv6": {}
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "static four-tuple"
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    }
+  },
+  {
+    "id": "icmpv6_neg_v4",
+    "proto": "icmpv6",
+    "summary": "T-ICMPV6-4: v4 地址经 [ip,icmpv6] 链必须拒（legacy Validate v6 强制 icmpv6.go:60-79 复用）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "10.0.0.2"
+          }
+        },
+        {
+          "icmpv6": {}
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "must be IPv6",
+      "notes": [
+        "依赖链②：实现前链上无 validator=v4 静默放行（红例④）；复用 legacy 检查零新文案"
+      ]
+    }
+  },
+  {
+    "id": "icmpv6_neg_type",
+    "proto": "icmpv6",
+    "summary": "T-ICMPV6-5: type=130 非法（Echo 语义仅 128/129）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "icmpv6": {
+            "type": 130
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "icmpv6 type must be 128 (Echo Request) or 129 (Echo Reply), got 130",
+      "notes": [
+        "D-ICMPV6-1 §5 validator 新分支（legacy 路径不查 type，链路径补齐）"
+      ]
+    }
+  },
+  {
+    "id": "icmpv6_neg_code",
+    "proto": "icmpv6",
+    "summary": "T-ICMPV6-6: code=1 非 0（Echo 报文 code 恒 0，RFC 4443 §4.1/§4.2）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "icmpv6": {
+            "code": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "icmpv6 code must be 0 for Echo, got 1",
+      "notes": [
+        "D-ICMPV6-1 §5 validator 新分支"
+      ]
+    }
+  },
+  {
+    "id": "icmpv6_neg_pattern_step",
+    "proto": "icmpv6",
+    "summary": "T-ICMPV6-7: pattern step type=0 非法",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "icmpv6": {
+            "pattern": [
+              {
+                "type": 0,
+                "sequence": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "icmpv6 pattern step 1 type must be 128 or 129, got 0",
+      "notes": [
+        "D-ICMPV6-1 §5 validator 逐步校验；step 缺省 type=128 由 translate 镜像 parse（红例⑤），显式 0 必拒"
+      ]
+    }
+  },
+  {
+    "id": "icmpv6_type_129",
+    "proto": "icmpv6",
+    "summary": "T-ICMPV6-8: type=129 单发（无 auto-reply，up 向 1 包）；identifier/sequence/data 显式（id=7≠seq=9 证非回退）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "icmpv6": {
+            "type": 129,
+            "identifier": 7,
+            "sequence": 9,
+            "data": "probe"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "icmpv6.type",
+          "value": "129"
+        },
+        {
+          "packet": 1,
+          "field": "icmpv6.code",
+          "value": "0"
+        },
+        {
+          "packet": 1,
+          "field": "icmpv6.echo.identifier",
+          "value": "0x0007"
+        },
+        {
+          "packet": 1,
+          "field": "icmpv6.echo.sequence_number",
+          "value": "9"
+        },
+        {
+          "packet": 1,
+          "field": "ipv6.src",
+          "value": "2001:db8::1"
+        },
+        {
+          "packet": 1,
+          "field": "ipv6.dst",
+          "value": "2001:db8::2"
+        },
+        {
+          "packet": 1,
+          "field": "data.data",
+          "value": "70726f6265"
+        }
+      ],
+      "notes": [
+        "legacy 单 ping 路径：仅 type=128 才自动回包（icmpv6.go:203-226）；129 单发源/目的不换向",
+        "identifier 显式 7、sequence 显式 9：回显字段逐字节钉死（id=0x0007≠seq=9，证明非 0 回退路径）；data 显式 probe（9.21 枚举：identifier 显式格由此例承担）"
+      ]
+    }
+  },
+  {
+    "id": "icmpv6_pattern_mixed",
+    "proto": "icmpv6",
+    "summary": "T-ICMPV6-9: Pattern 混型步（128 步+129 步）→ 3 包（req+reply 对 + 单 reply）；identifier 缺省 0 回退 Sequence",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "icmpv6": {
+            "pattern": [
+              {
+                "type": 128,
+                "sequence": 1
+              },
+              {
+                "type": 129,
+                "sequence": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 3,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "icmpv6.type",
+          "value": "128"
+        },
+        {
+          "packet": 1,
+          "field": "icmpv6.echo.sequence_number",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "icmpv6.echo.identifier",
+          "value": "0x0001"
+        },
+        {
+          "packet": 2,
+          "field": "icmpv6.type",
+          "value": "129"
+        },
+        {
+          "packet": 2,
+          "field": "icmpv6.echo.sequence_number",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "icmpv6.echo.identifier",
+          "value": "0x0001"
+        },
+        {
+          "packet": 3,
+          "field": "icmpv6.type",
+          "value": "129"
+        },
+        {
+          "packet": 3,
+          "field": "icmpv6.echo.sequence_number",
+          "value": "2"
+        },
+        {
+          "packet": 3,
+          "field": "icmpv6.echo.identifier",
+          "value": "0x0002"
+        }
+      ],
+      "notes": [
+        "legacy pattern 路径：每步 1 包，type=128 步追加自动回包（icmpv6.go:160-191）→ 128/129/129",
+        "identifier 缺省 0 → 回退 Sequence（icmpv6.go:288-291，ICMPv4 同款），步2 seq=2 → id=2"
+      ]
+    }
+  },
+  {
+    "id": "icmpv6_pattern_data",
+    "proto": "icmpv6",
+    "summary": "T-ICMPV6-10: Pattern 多步多变 data（aa/bb）→ 4 包 seq 1/2 递增、data 逐字节断言",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "icmpv6": {
+            "pattern": [
+              {
+                "type": 128,
+                "sequence": 1,
+                "data": "aa"
+              },
+              {
+                "type": 128,
+                "sequence": 2,
+                "data": "bb"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 4,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "icmpv6.type",
+          "value": "128"
+        },
+        {
+          "packet": 1,
+          "field": "icmpv6.echo.sequence_number",
+          "value": "1"
+        },
+        {
+          "packet": 1,
+          "field": "data.data",
+          "value": "6161"
+        },
+        {
+          "packet": 2,
+          "field": "icmpv6.type",
+          "value": "129"
+        },
+        {
+          "packet": 2,
+          "field": "icmpv6.echo.sequence_number",
+          "value": "1"
+        },
+        {
+          "packet": 2,
+          "field": "data.data",
+          "value": "6161"
+        },
+        {
+          "packet": 3,
+          "field": "icmpv6.type",
+          "value": "128"
+        },
+        {
+          "packet": 3,
+          "field": "icmpv6.echo.sequence_number",
+          "value": "2"
+        },
+        {
+          "packet": 3,
+          "field": "data.data",
+          "value": "6262"
+        },
+        {
+          "packet": 4,
+          "field": "icmpv6.type",
+          "value": "129"
+        },
+        {
+          "packet": 4,
+          "field": "icmpv6.echo.sequence_number",
+          "value": "2"
+        },
+        {
+          "packet": 4,
+          "field": "data.data",
+          "value": "6262"
+        }
+      ],
+      "notes": [
+        "每步请求+自动回包共享 stepData（icmpv6.go:170-176 step.Data 优先）；data.data 为 tshark 紧凑 hex（实测无冒号）",
+        "9.31 口径：data.data 锚值落盘重钉（首跑校准）"
+      ]
+    }
+  },
+  {
+    "id": "icmpv6_ip_dyn_multi",
+    "proto": "icmpv6",
+    "summary": "T-ICMPV6-11: ip.src 动态 inc + flows=2 → 4 包逐流源异（3.14 逃生口；dynamic 对象豁免 static copy 门）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "inc",
+              "range": [
+                "2001:db8::1",
+                "2001:db8::2"
+              ],
+              "step": 1
+            },
+            "dst": "2001:db8::9"
+          }
+        },
+        {
+          "icmpv6": {}
+        }
+      ],
+      "group_id": {
+        "strategy": "fixed",
+        "value": "icmpv6-dyn-multi"
+      }
+    },
+    "expect": {
+      "packet_count": 4,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ipv6.src",
+          "value": "2001:db8::1"
+        },
+        {
+          "packet": 2,
+          "field": "ipv6.src",
+          "value": "2001:db8::9"
+        },
+        {
+          "packet": 3,
+          "field": "ipv6.src",
+          "value": "2001:db8::2"
+        },
+        {
+          "packet": 4,
+          "field": "ipv6.src",
+          "value": "2001:db8::9"
+        }
+      ],
+      "notes": [
+        "srv6_mf03 先例：group_id 固定 → 单 worker FIFO 确定序（分片路由否则流序不定）",
+        "逐流成对序：flow1 req(::1)/reply(src=dst ::9)、flow2 req(::2)/reply(::9)；首跑 pcap 校准（9.31）",
+        "v6 inc 解析=ResolveIPValue 框架既有；dynamic 对象豁免 static copy 门"
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
     }
   }
 ]

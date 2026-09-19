@@ -2190,7 +2190,19 @@ presence="top-level sv sub-config"；V9 appid="out of range [16384,32767]"；V9 
 
 ### D-ICMPV6-1 ICMPv6 层链化：raw-IP 终结层 + 新建 layer_gen/validator【P-PIPE #14 门1】
 
-**状态：** P2 定稿（2026-09-19；门 1 已批（用户"可以，连续推进"）；CORE_MEMORY 240 条逐条复审（含 1.11-1.13 增补）完成——全过 + 关键预判 4 项；依赖链② P2 实读修正（legacy Validate 已有 v6 强制 icmpv6.go:60-79，非无校验）+ 设计八节 + 决策表 A-F 定稿见下；P3 未开工。现状：legacy planner 既有（icmpv6.go:47/:89，Echo Request/Reply+auto-reply+Pattern 多步 ping+FileSource 全实现，main.go:541 直挂 legacy），**层链四件全缺**（registry 无行/translate 无 case/无 generator/validator 注册/FlowMeta 无字段）。用例 1 例纯扁平（src_ip/dst_ip+icmpv6 子映射）=1.11 违规现状→P5 改写。链形判定：[ip,icmpv6] raw-IP 终结层（igmp/ospf/pim 同款，FieldContract ip.protocol=58））
+**状态：** 已验收（2026-09-19，P-PIPE #14 收官；自审 2 轮净）。**P4**（34fdf62）：5 红例先红后绿（①presence ②6键V9 ③translate Echo对 ⑤step缺省镜像parse ⑥D-FTP-4动态豁免，④v4拒），实现八件+门登记+schemagen 97层，touched 包 -race 净。**P5**：icmpv6.json 11 例（改写1+新建10）真实流程全量绿 ×5 连跑（含 2 稳定性复跑），落盘 /tmp/mcp-pcaps/icmpv6/（11 例 9 文件：7 正例 pcap+4 负例 .neg.pcap）；门2 四项绿（顶层零残留/全量绿/二进制同代/反查 18/18）；回归 srv6 74/74+sv+goose 绿（igmp 红=序号69 存量扁平待办，判死门正确执法非本次回归）。**P6**：在库清空 tasks 150+strategies 11→0/0 无孤儿（备份 /tmp/trafficgen-backup-icmpv6-p6-20260919-140741.db）。
+
+**P4/P5 实现修正三注记（对 P2 预填的偏差，均不违设计决策）：**
+- **validateLayer 补 D-FTP-4 豁免**（红例⑥）：ip.src/dst 层动态对象时 spec 解析前带 flat 缺省 10.0.0.1（异族），裸委托 legacy Validate 会误杀动态多流——与 validateSpecBase chain_planner.go:587 同口径 `HasLayerDynIP` 跳过静态判族（逐流同族性由 ValidateLayers 保证，generate 期 legacy Plan 内 Validate 按解析值复验）。T-4 静态 v4 拒绝不受影响（suite 实证）。
+- **translate pattern step 缺省镜像**（红例⑤）：parse 的 step 级 type→128/seq==0→index+1/data→"ping" 缺省在 translate 侧同步镜像（P2 决策 D 的 step 级细化；自审第 1 轮抓到，failing 先行修）。
+- **T-8 显式三键 + T-11 group_id/strategy_fc**（P5 校准）：T-8 改 identifier=7/sequence=9/data="probe" 显式（9.21 identifier 显式格落此例，id≠seq 证非回退）；T-11 补 strategy_fc flows=2（用例漏传致单流）+ 固定 group_id 强制单 worker FIFO 确定序（srv6_mf03 先例，分片路由流序不定），源序列 [::1,::9,::2,::9] 按 pcap 实钉。
+
+**门3 抽查三条（门1 表抽 §1/§5/§12 行，逐条点行号/用例号）：**
+1. §1 层链唯一真相 → registry.go icmpv6 行（CategoryTerminal+DependsOn ip+FieldContract "ip.protocol":"58"+Fields 6 键，registry.go:745-760）+ 用例 icmpv6_smoke_01 层形 `[{"ip":{...}},{"icmpv6":{}}]` ——表内"四件套"声明与代码实形一致 ✓
+2. §5 有错必处理（锚词族）→ layer_gen.go validateLayer（type/code/pattern 分支 layer_gen.go:63-73+legacy 复用 :80）+ 用例 icmpv6_neg_type error_contains 全文匹配锚词 `icmpv6 type must be 128 (Echo Request) or 129 (Echo Reply), got 130`（suite PASS 实证）✓
+3. §12 动态清单（业务 6 键全关+四元组开 ip.src/dst）→ layer_dyn.go allowlist 无 icmpv6 行（业务键零动态）+ 用例 icmpv6_ip_dyn_multi ip.src inc 对象逐流异（4 包源 [::1,::9,::2,::9] 实钉）✓
+
+（原 P2 定稿记录：门 1 已批（用户"可以，连续推进"）；CORE_MEMORY 240 条逐条复审（含 1.11-1.13 增补）完成——全过 + 关键预判 4 项；依赖链② P2 实读修正（legacy Validate 已有 v6 强制 icmpv6.go:60-79，非无校验）+ 设计八节 + 决策表 A-F 定稿见下。链形判定：[ip,icmpv6] raw-IP 终结层（igmp/ospf/pim 同款，FieldContract ip.protocol=58））
 
 **权威链（§7）：** 标准=RFC 4443（ICMPv6，4.9 有 RFC 直接适用：type 128/129 §4.1、校验和 §2.3 经 IPv6 伪头 RFC 8200 §8.1 nextHeader=58）→ 设计=本条目（权威）→ 代码 → 测试。字节事实经 Wireshark packet-icmpv6 + iputils ping6 双转录。
 
