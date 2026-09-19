@@ -7715,6 +7715,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol goose no longer accepts a top-level goose sub-config (move it into the goose layer of an [eth,goose] layers chain)"
 		}
 	}
+	// D-SV-1：sv 顶层 sv 子映射 presence 判死（goose 先例；空 map 也
+	// 死）。层链形状不触发。
+	if protocol == "sv" {
+		if v, ok := cfg["sv"]; ok && v != nil {
+			return "protocol sv no longer accepts a top-level sv sub-config (move it into the sv layer of an [eth,sv] layers chain)"
+		}
+	}
 	return ""
 }
 

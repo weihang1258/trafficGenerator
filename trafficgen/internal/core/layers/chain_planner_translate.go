@@ -822,6 +822,94 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			spec.GOOSE = gc
 		}
 		return
+	case "sv":
+		// D-SV-1：层 config 手工逐键映射进 spec.SV（goose case 同款——
+		// parseSVConfig 在 strategy_convert 包未导出，layers 不可见）。
+		// completedConfig 补全标量（本层 15 键零 Default，补全即原值）+
+		// configUint*/configString/configBool 逐键 + data 槽位下钻。
+		// inst_mag 有符号（int32 语义；负数字节是 T-24 场景）——
+		// configUint64 拒负不可用，raw 数值 switch 双臂承接（JSON 源
+		// float64、内部源 int）；typ=="float32" 同源 InstMagF（parse:
+		// 7583 口径）；quality presence→HasQuality。层优先（spec.SV
+		// 缺席走翻译、已存在（引擎直调）不覆盖，goose 同款）。空层 {}
+		// 翻译出零配置（非 nil）→ validator 首命中 appid 0x0000 下界
+		// （sv.go:26 双界既有执法；svID 必填分支由超长例单点钉）。
+		if spec.SV == nil {
+			cfg := completedConfig(s, term.Config)
+			sc := &core.SVConfig{}
+			if v, ok := configString(cfg["sv_id"]); ok {
+				sc.SVID = v
+			}
+			if v, ok := configString(cfg["dat_set"]); ok {
+				sc.DatSet = v
+			}
+			if v, ok := configUint16(cfg["appid"]); ok {
+				sc.APPID = v
+			}
+			if v, ok := configUint32(cfg["conf_rev"]); ok {
+				sc.ConfRev = v
+			}
+			if v, ok := configUint16(cfg["samples_per_cycle"]); ok {
+				sc.SamplesPerCycle = v
+			}
+			if v, ok := configUint8(cfg["smp_synch"]); ok {
+				sc.SMPSynch = v
+			}
+			if v, ok := configUint16(cfg["smp_rate"]); ok {
+				sc.SMPRate = v
+			}
+			if u, ok := configUint64(cfg["period_us"]); ok {
+				sc.PeriodUS = int(u)
+			}
+			if u, ok := configUint64(cfg["count"]); ok {
+				sc.Count = int(u)
+			}
+			if v, ok := configString(cfg["dst_mac"]); ok {
+				sc.DstMAC = v
+			}
+			if v, ok := configBool(cfg["double_send"]); ok {
+				sc.DoubleSend = v
+			}
+			if v, ok := configBool(cfg["vlan_enabled"]); ok {
+				sc.VLANEnabled = v
+			}
+			if v, ok := configUint16(cfg["vlan_id"]); ok {
+				sc.VLANID = v
+			}
+			if v, ok := configUint8(cfg["vlan_priority"]); ok {
+				sc.VLANPriority = v
+			}
+			if v, ok := cfg["data"].([]interface{}); ok {
+				for _, raw := range v {
+					if item, ok := raw.(map[string]interface{}); ok {
+						name, _ := configString(item["name"])
+						typ, _ := configString(item["type"])
+						d := core.SVData{Name: name, Type: typ}
+						switch n := item["inst_mag"].(type) {
+						case float64:
+							d.InstMag = int32(n)
+							if typ == "float32" {
+								d.InstMagF = float32(n)
+							}
+						case int:
+							d.InstMag = int32(n)
+							if typ == "float32" {
+								d.InstMagF = float32(n)
+							}
+						}
+						if _, ok := item["quality"]; ok {
+							d.HasQuality = true
+							if u, ok := configUint64(item["quality"]); ok {
+								d.Quality = uint32(u)
+							}
+						}
+						sc.Data = append(sc.Data, d)
+					}
+				}
+			}
+			spec.SV = sc
+		}
+		return
 	case "opcua":
 		if spec.OPCUA != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

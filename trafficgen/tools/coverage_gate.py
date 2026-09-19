@@ -452,6 +452,87 @@ def check_imap(cases):
     return rows
 
 
+
+def check_sv(cases):
+    """D-SV-1 P5R 反查表（T-SV-1…30）。返回 [(检查名, 通过?, 证据)]。
+    层内 sv 子映射扫描（P5 改写后形状；P4 登记时旧顶层 sv 键例判 MISS，
+    P5 cases 落地后转绿）。
+    """
+    rows = []
+    lays = []  # (cid, sv层内子映射)
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("sv"), dict):
+                lays.append((c.get("id", "?"), l["sv"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面（正例存在性）。
+    for kw, name in [("smp_seq", "S 基线序列"), ("double_send", "double_send"),
+                     ("smp_wrap", "smpCnt 回绕"), ("smp_synch", "smpSynch 面"),
+                     ("4i4v", "9-2LE 4i4v"), ("custom_dataset", "自定义 dataset"),
+                     ("vlan", "VLAN"), ("period", "周期(死键注记)"),
+                     ("mac_dyn", "MAC 动态多流"), ("combo", "组合面")]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. data 类型 2 值 + 负数。
+    for t in ["int32", "float32"]:
+        hit = next((cid for cid, m in lays
+                    for d in m.get("data") or []
+                    if isinstance(d, dict) and d.get("type") == t), None)
+        rows.append((f"类型 {t}", hit is not None, hit or "无用例"))
+    hitneg = next((cid for cid, m in lays
+                   for d in m.get("data") or []
+                   if isinstance(d, dict) and isinstance(d.get("inst_mag"), (int, float)) and d.get("inst_mag") < 0), None)
+    rows.append(("int32 负数", hitneg is not None, hitneg or "无用例"))
+
+    # 3. 可选键覆盖（dat_set/smp_rate/dst_mac/count/vlan 三键/double_send/
+    #    period_us/samples_per_cycle/smp_synch/sv_id/appid/conf_rev）。
+    for k, name in [("dat_set", "dat_set 显式"), ("smp_rate", "smp_rate"),
+                    ("dst_mac", "dst_mac 层内"), ("count", "count 层内"),
+                    ("vlan_enabled", "VLAN 开关"), ("vlan_id", "vlan_id"),
+                    ("vlan_priority", "vlan_priority"),
+                    ("double_send", "double_send 键"),
+                    ("period_us", "period_us(死键)"),
+                    ("samples_per_cycle", "samples_per_cycle"),
+                    ("smp_synch", "smp_synch"), ("sv_id", "sv_id"),
+                    ("appid", "appid"), ("conf_rev", "conf_rev")]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 4. MAC 动态三策略（eth 层 src_mac 对象）。
+    macs = []
+    for c in cases:
+        for l in (c.get("spec_json", {}) or {}).get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("eth"), dict):
+                v = l["eth"].get("src_mac")
+                if isinstance(v, dict):
+                    macs.append((c.get("id", "?"), v.get("strategy")))
+    for st, name in [("inc", "MAC inc"), ("list", "MAC list"), ("rand", "MAC rand")]:
+        hit = next((cid for cid, s2 in macs if s2 == st), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 5. 锚词面（create-time V9/门 + task-time validator 全字面）。
+    for needle, name in [
+        ("out of range [16384,32767]", "appid 越界（V9 真实门）"),
+        ("outside SV range 0x4000-0x7fff", "appid 显式 0（validator 真实门）"),
+        ("svID is required", "svID 必填/超长"),
+        ("confRev must be non-zero", "confRev"),
+        ("samples_per_cycle must be >= 1", "samples_per_cycle"),
+        ("smpSynch must be 0, 1 or 2", "smpSynch"),
+        ("data is required", "空 data"),
+        ("unsupported data type", "非法 type"),
+        ("must not have an ip/transport carrier", "L2-only 载体门（V7b）"),
+        ("out of range [0,4095]", "VLAN 越界（V9 真实门）"),
+        ("top-level sv sub-config", "presence 判死"),
+        ("static four-tuple", "静态复制拒"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
 
@@ -972,7 +1053,7 @@ def check_goose(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose}
+          "goose": check_goose, "sv": check_sv}
 
 
 def main(argv):

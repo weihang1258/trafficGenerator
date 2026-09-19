@@ -2042,7 +2042,9 @@ presence="top-level goose sub-config"；"goose appid 0x... outside GOOSE range"�
 
 ### D-SV-1 SV 顶层 sv 子映射迁入层内（L2-only 终结层）+ translate 真实现【P-PIPE #13 门1】
 
-**状态：** P2 定稿（2026-09-19；门 1 已批（用户"继续"）；CORE_MEMORY 237 条逐条复审完成——全过 + 6 处发现已回填本条目：①appid 现负值 0x3999 在 V9 [16384,32767] 注册后改 create-time 拒，锚词收紧 "out of range [16384,32767]"（goose P5 复盘②口径）②period_us 判"配置面有 parse+struct、行为面生成器零消费"死键，非幽灵键（与 goose t0_ms 幽灵键不同级）③MAC 动态多流例 sv P3 补 1（goose 33 例亦缺，注记对齐缺口）④smpSynch 第三值例 P3 补 ⑤float32 通道独立断言 P3 核对 ⑥组合流=字段正交组合 2 例替代（单消息协议无动作序列，9.11 豁免+替代面）。依赖链判定终审（⑤ 行 P3 自审增补）+ 设计八节 + 决策表 A–G 定稿见下；P3 定稿（T-SV-1…30，TEST_CASES 2026-09-19；12 改写+18 新建；自审实锤 ⑤ appid 下界断链并回填——T-15/T-23 锚词按修后真门定）；P4 未开工。缺口立项 4：P4 四件套（registry 15 键/translate case/presence 分支/门登记）+ P5 改写 12 例。链路径已具备：main.go:526 翻转 + 生成器/校验器注册（sv.go:191-192）+ FlowMeta.SV carry（chain_planner_chain.go:28）+ EtherTypeSV 回填（chain_planner.go:1008）+ isL2OnlyProtocol（strategy_convert.go:224）+ static-eth 门已由 goose ⑥ 通用修带绿（TestSVChainStaticEthRejected）。在库基线（P2 时点）：sv tasks 314 + strategies 8（P6 删前重报）
+**状态：** P2 定稿（2026-09-19；门 1 已批（用户"继续"）；CORE_MEMORY 237 条逐条复审完成——全过 + 6 处发现已回填本条目：①appid 现负值 0x3999 在 V9 [16384,32767] 注册后改 create-time 拒，锚词收紧 "out of range [16384,32767]"（goose P5 复盘②口径）②period_us 判"配置面有 parse+struct、行为面生成器零消费"死键，非幽灵键（与 goose t0_ms 幽灵键不同级）③MAC 动态多流例 sv P3 补 1（goose 33 例亦缺，注记对齐缺口）④smpSynch 第三值例 P3 补 ⑤float32 通道独立断言 P3 核对 ⑥组合流=字段正交组合 2 例替代（单消息协议无动作序列，9.11 豁免+替代面）。依赖链判定终审（⑤ 行 P3 假发现、P4 实读纠正）+ 设计八节 + 决策表 A–G（G 撤销）见下；P3 定稿（T-SV-1…30，TEST_CASES 2026-09-19；12 改写+18 新建）；P4 已执行（见下）。缺口立项 4：P4 四件套（registry 15 键/translate case/presence 分支/门登记）+ P5 改写 12 例。链路径已具备：main.go:526 翻转 + 生成器/校验器注册（sv.go:191-192）+ FlowMeta.SV carry（chain_planner_chain.go:28）+ EtherTypeSV 回填（chain_planner.go:1008）+ isL2OnlyProtocol（strategy_convert.go:224）+ static-eth 门已由 goose ⑥ 通用修带绿（TestSVChainStaticEthRejected）。在库基线（P2 时点）：sv tasks 314 + strategies 8（P6 删前重报）
+
+**P4 执行记录（2026-09-19）：** 5 红先红后绿——实现前逐条红因：①presence 放行 ②unknown field ③④⑤ translate no-op→"sv config is required"（④另 unknown field 锚不对）。实现：registry sv Fields 15 键（appid [0x4000,0x7fff]/period_us 无界 V9 skip）+translate case "sv"（14 标量逐键+data 双臂下钻 inst_mag/quality presence→HasQuality）+CheckProtoFlat sv presence（goose 后邻位）+pipe_gate.sh:67+coverage_gate check_sv 登记+schemagen 重跑 96 层；**sv.go 零改动**（⑤ 假发现撤销，:26 双界既有）。验证：build/vet 净；layers/core/schema/sv 四包 `-race` 绿；rest/mcp 回归绿；TestLayersGeneratedMatchesRegistry 绿。自审 1 轮：json.Number 臂差异与 goose 同构（该路径恒 float64 无分叉）、presence 无条件判死含纯扁平形（在库旧行启动 error=判死语义预期）、V9 list 类型不校验 item 内容（inst_mag 字符串静默 0=parse getInt 同口径）。
 
 **权威链（§7）：** 标准=IEC 61850-9-2/-9-2LE（4.10 官方规范口径）→ 设计=本条目（权威；24-sv-design.md 保留历史参考，仅作 transcription 来源）→ 代码 → 测试。字节事实的标准证据=IEC 61850-9-2 经 libiec61850 `sv_publisher` + Wireshark `packet-sv.c` 双转录交叉（历史 §2；BuildPayload 注释 "tests/sv.json 1.5=0x3fc00000" 即 IEEE 754 转录锚）。
 
@@ -2054,7 +2056,7 @@ presence="top-level goose sub-config"；"goose appid 0x... outside GOOSE range"�
 | ② appid V9 边界 | 门序（V9 vs validator） | validator "outside SV range 0x4000-0x7fff"（sv.go:27）语义范围应上移 V9 create-time（goose appid [0,0x3fff] 同款）；现用例负值 0x3999 会改由 V9 拒 | registry appid {uint16, Min 16384, Max 32767}；neg_appid 锚词收紧 V9 "out of range [16384,32767]"（.neg 无落盘=超早拒绝，mqtt 先例） |
 | ③ MAC 动态多流 | 用例覆盖缺口 | 12.9 逃生口（eth.src_mac/dst_mac 动态对象，layer_dyn.go:21 allowlist）链路已通（resolveLayerTuple:741→spec.SrcMAC→Meta.SrcMAC→帧），sv 12 例零覆盖；goose 33 例亦无（对齐缺口注记） | P3 补 1 例 MAC 动态多流（A 类可达已验证）；goose 侧注记不回改 |
 | ④ 组合流替代面 | 9.11 豁免判定 | sv 单消息协议（每帧完整 ASDU）无动作序列可组合 → 豁免+替代面：字段正交组合 2 例（goose combo_flags/combo_event 同构） | P3 定 2 条组合例（vlan×double_send×quality 布局 / smp_rate×dat_set×多通道） |
-| ⑤ appid 下界 | 代码断链（自相矛盾） | validator 锚词宣称 0x4000-0x7fff（sv.go:27）但只查上界 `c.APPID > 0x7fff`——appid<0x4000（含 0）静默放行出 0x0000 帧=实现与自身锚词矛盾（fins C4 同款；P3 自审实锤） | P4 一行修：`if c.APPID < 0x4000 || c.APPID > 0x7fff`（:27）；红例⑤ failing 先行；非零下界违例仍 V9 create-time 先火（② 分工不变：V9 管非零、validator 管 0——u==0 放行语义 complete.go:315） |
+| ⑤ appid 下界（P3 假发现，P4 纠正） | 判定错误（P3 自审） | P3 从 goose 单界（`>0x3fff`）外推"sv 只查上界"——**未实读 sv.go:26**；P4 红例⑤ 逼出实读：sv.go:26 本就是双界 `< 0x4000 \|\| > 0x7fff`，appid<0x4000（含 0）一直被拒，无断链 | **零代码改动**；红例⑤ 保留=V9 u==0 放行→validator 双界执法的回归锁（实现前因 translate 缺失而红，转绿后恒绿）；T-15/T-23 锚词与现状真门一致不变 |
 
 #### 门 1 开工对照表（§1–§15，2026-09-19，CORE_MEMORY 237 条逐条复审通过后交付；证据=文档节/代码行/用例号）
 
@@ -2078,14 +2080,13 @@ presence="top-level goose sub-config"；"goose appid 0x... outside GOOSE range"�
 
 #### 1. 文件清单（P2 定稿）
 - Modify: `trafficgen/internal/core/layers/registry.go:707`——sv 行补 Fields 15 键（sv_id/dat_set string、appid {uint16, Min 0x4000, Max 0x7fff}、conf_rev {uint32, Min 0, Max 4294967295}、samples_per_cycle {uint16, Min 0, Max 65535}、smp_synch {uint8, Min 0, Max 255}、smp_rate {uint16, Min 0, Max 65535}、period_us {int}（无 Min/Max=V9 跳过口径）、data list、count {int, Min 0, Max 1000000}、dst_mac mac、double_send/vlan_enabled bool、vlan_id {uint16, Min 0, Max 4095}、vlan_priority {uint8, Min 0, Max 7}）——**一律无 Default**（决策 F）
-- Modify: `trafficgen/internal/core/layers/chain_planner_translate.go`——`case "sv"`（case "goose" :725 邻位）：`if spec.SV == nil` 层优先（引擎直调不覆盖，goose 同款）；completedConfig + configUint16/configUint32/configUint8/configString/configBool/configUint64 逐键；data 槽位下钻——inst_mag **有符号**走原始数值断言 switch int/float64 双臂（configUint64 拒负不可用，决策 D）：`d.InstMag = int32(f)`，typ=="float32" 同源 `d.InstMagF = float32(f)`；quality presence→`HasQuality=true`（parse:7583 口径）+ configUint64→Quality。空层 `{}` 翻译出零配置→validator 首命中 appid 0x0000 下界（⑤ 修后 :27）→ "sv appid 0x0000 outside SV range 0x4000-0x7fff"（svID 必填分支由超长例 T-20 单点钉；"sv config is required" 仅 spec.SV==nil 命中，翻译后不可达=C 类，mcp/goose 空层保底同款）
+- Modify: `trafficgen/internal/core/layers/chain_planner_translate.go`——`case "sv"`（case "goose" :725 邻位）：`if spec.SV == nil` 层优先（引擎直调不覆盖，goose 同款）；completedConfig + configUint16/configUint32/configUint8/configString/configBool/configUint64 逐键；data 槽位下钻——inst_mag **有符号**走原始数值断言 switch int/float64 双臂（configUint64 拒负不可用，决策 D）：`d.InstMag = int32(f)`，typ=="float32" 同源 `d.InstMagF = float32(f)`；quality presence→`HasQuality=true`（parse:7583 口径）+ configUint64→Quality。空层 `{}` 翻译出零配置→validator 首命中 appid 0x0000 下界（sv.go:26 双界既有）→ "sv appid 0x0000 outside SV range 0x4000-0x7fff"（svID 必填分支由超长例 T-20 单点钉；"sv config is required" 仅 spec.SV==nil 命中，翻译后不可达=C 类，mcp/goose 空层保底同款）
 - Modify: `trafficgen/internal/core/strategy_convert.go`——CheckProtoFlat sv presence 分支（goose :7715 后追加，空 map 也死）
 - Modify: `trafficgen/tools/pipe_gate.sh:67`（名单+sv）、`trafficgen/tools/coverage_gate.py`（check_sv 登记）
 - Modify: `trafficgen/schemas/v1/generated/layers.generated.json`（schemagen 重跑，13.19）
 - Modify: `trafficgen/test/protocol_pcap/cases/sv.json`（12 例改写+新例，T-SV 权威，P5）
 - Test: `trafficgen/internal/core/layers/sv_migrate_test.go`（红例族 5 项）
-- Modify: `trafficgen/internal/protocol/sv/sv.go:27`——appid 下界一行修（`< 0x4000 ||` 前置，依赖链 ⑤；fins C4 谱系）
-- **零改动**：`internal/protocol/sv/sv.go` 其余（BuildPayload/Generate/注册，字节事实不动）、`internal/core/types.go`（SVConfig/SVData 既有）
+- **零改动**：`internal/protocol/sv/sv.go`（validator :26 双界既有/BuildPayload/Generate/注册，字节事实不动）、`internal/core/types.go`（SVConfig/SVData 既有）——P3 假发现导致的"一行修"计划在 P4 实读后撤销
 
 #### 2. 接口签名
 - presence 锚词：`protocol sv no longer accepts a top-level sv sub-config (move it into the sv layer of an [eth,sv] layers chain)`（goose/srv6/fins 同款家族，空 map 也死，CheckProtoFlat goose 分支后追加）
@@ -2103,19 +2104,19 @@ MAC 路径：src——链 drive `if pkt.L2.SrcMAC == ""` 时 l2For 补（生成�
 ② `TestSVChain_LayerFieldsAccepted`——15 键 ValidateLayers(raw, "sv") 放行（appid 取 16384 边界值）
 ③ `TestSVChain_LayerTranslateSmpSeq`——NewChainPlannerFromChain("sv", [eth, sv{appid:16384, sv_id, conf_rev:1, samples_per_cycle:80, data:[{name:"a",type:"int32",inst_mag:100}], count:3}]) → Validate+Plan → 3 帧 smpCnt 0,1,2（payload tag 0x82 最小编码解析，gooseStSq 同构 helper）
 ④ `TestSVChain_AppidBelowRangeRejected`——ValidateLayers appid 16383 → 含 "out of range [16384,32767]"
-⑤ `TestSVChain_AppidZeroRejected`——链 Validate：层 config appid:0（V9 u==0 放行）+ sv_id 缺省 → validator `sv appid 0x0000 outside SV range 0x4000-0x7fff`（⑤ 修前该配置静默放行=红）
+⑤ `TestSVChain_AppidZeroRejected`——链 Validate：层 config appid:0（V9 u==0 放行）→ validator 双界拒 `sv appid 0x0000 outside SV range 0x4000-0x7fff`（实现前因 translate 缺失报 "config is required"=红；转绿后恒绿=回归锁）
 （V9 对 eth 显式标量放行的正交锁已在 goose_migrate_test.go TestSVChain_StaticEthRejected 恒绿，不重写）
-步骤 2：registry Fields+translate case+presence 分支+appid 下界一行修+pipe_gate/coverage_gate 登记+schemagen 重跑 → 5 红转绿。
+步骤 2：registry Fields+translate case+presence 分支+pipe_gate/coverage_gate 登记+schemagen 重跑 → 5 红转绿。
 步骤 3（P5）：cases 改写 12 例+新例（P3 清单驱动）→ suite 全量 → 门 2 四项。
 
 #### 5. 错误锚词（用例 error_contains 字面值）
-presence="top-level sv sub-config"；V9 appid="out of range [16384,32767]"；V9 vlan_id="out of range [0,4095]"；static="static four-tuple"；carrier="must not have an ip/transport carrier"；validator 全字面（P5 按真实执法门锚）：`sv svID is required and must be <=255 bytes`/`sv confRev must be non-zero`/`sv samples_per_cycle must be >= 1`/`sv smpSynch must be 0, 1 or 2`/`sv data is required`/`sv data type %q unsupported; only int32 and float32 are supported`/`sv is Layer 2 only and must not use IP or transport fields`。appid validator 锚词（`outside SV range 0x4000-0x7fff`）注册后对**非零**越界值被 V9 遮蔽（0x3fff→V9 create-time 拒）；**显式 0 仍达 validator**（V9 u==0 放行语义，complete.go:315-320，goose 复盘②同款分级注记）——validator 锚词字面零变化（同文案 `outside SV range 0x4000-0x7fff`），sv.go :27 一行修（⑤）使下界同归此门，P3 落例按值分派锚词。
+presence="top-level sv sub-config"；V9 appid="out of range [16384,32767]"；V9 vlan_id="out of range [0,4095]"；static="static four-tuple"；carrier="must not have an ip/transport carrier"；validator 全字面（P5 按真实执法门锚）：`sv svID is required and must be <=255 bytes`/`sv confRev must be non-zero`/`sv samples_per_cycle must be >= 1`/`sv smpSynch must be 0, 1 or 2`/`sv data is required`/`sv data type %q unsupported; only int32 and float32 are supported`/`sv is Layer 2 only and must not use IP or transport fields`。appid validator 锚词（`outside SV range 0x4000-0x7fff`）注册后对**非零**越界值被 V9 遮蔽（0x3fff→V9 create-time 拒）；**显式 0 仍达 validator**（V9 u==0 放行语义，complete.go:315-320，goose 复盘②同款分级注记）——appid 双界执法 sv.go:26 既有（P3 假发现 P4 纠正），锚词按值分派：非零越界→V9 create-time、显式 0→validator task-time。
 
 #### 6. 性能设计与验收
 单流包数=count（缺省 1，sv.go:167-170）；double_send 时 step=2（总帧数恒 n，两帧共享一 smpCnt）；生成器循环直发 Emit（sv.go:162-184，无缓冲聚合、无锁、channel 流式框架既有）；每帧 O(通道数) 序列化（BuildPayload 单遍，quality 布局分支 O(1)）；翻译一次（ValidateSpec 同步期）。回归口径：sv.json suite 耗时相对基线 ±10%。两路验收：pcap 全量绿+落盘（/tmp/mcp-pcaps/sv/）；网卡路未跑如实声明。无承诺数字（未测，不编造，goose 同款）。
 
 #### 7. 顺序与回滚
-红例→registry+translate 核心+appid 一行修→presence→门登记→schemagen→绿；P5 cases→suite。回滚粒度=单提交：translate 真实现独立（revert 回无 case=纯链不可跑旧态，非退化）；presence 独立；cases 独立。sv.go 仅 :27 一行修=字节事实（BuildPayload/Generate）零风险。
+红例→registry+translate 核心→presence→门登记→schemagen→绿；P5 cases→suite。回滚粒度=单提交：translate 真实现独立（revert 回无 case=纯链不可跑旧态，非退化）；presence 独立；cases 独立。sv.go 零改动=字节事实零风险。
 
 #### 8. 验收
 对应 T-SV（P3 定稿编号）。完成条件：5 红例先红后绿；sv.json 全量绿（RESULT+二进制同代+门 2 四项）；touched 包 `-race`+vet 净；顶层 count/sv 字面零残留（**src_mac 留顶层**：goose 同款口径，非扁平五键）；schemagen 同步绿；门 1 对照表回填实际证据号 + 抽查三条（门 3）；在库 sv 行清空（P2 时点 314+8，删前重报→备份→删→复核）。
@@ -2130,7 +2131,7 @@ presence="top-level sv sub-config"；V9 appid="out of range [16384,32767]"；V9 
 | D inst_mag 有符号下钻 | A configUint64（负值静默丢弃）；B 原始数值断言 switch 双臂承接 int/float64（JSON 源恒 float64、单测 Go 字面 int 双源）→int32(f)/float32(f) | 负值是 9.8 数据场景（单测 TestBuildPayloadPreservesNegativeInt32Bytes 已锁负字节），A 破坏语义；configUint64 拒负（generator.go:571-573）不可用 | **B** |
 | E MAC 动态多流例 | A sv P3 补 1；B 不补（goose 33 例也无） | B 满足"对齐"但违背 3.14 多流覆盖；A 补齐逃生口面且链路已验证可达 | **A**（goose 侧注记不回改） |
 | F Fields 缺省 | A 全键无 Default；B 注册表带 Default | A 缺省单一真相在代码（D-MCP-1 决策 F 谱系）；validator 必填（svID/confRev）与 Default 语义冲突 | **A**（goose 同款） |
-| G appid 下界修法 | A validator :27 一行修（锚词宣称域全执法）；B C 类钉现状（断言 0x0000 出包+注记） | A fins C4 谱系——实现不得与自身锚词矛盾，4.24 先改实现；B 把错误行为钉成回归基线 | **A**（红例⑤ 先行） |
+| G appid 下界修法 | A validator 一行修；B C 类钉现状 | **撤销**：P3 假发现——sv.go:26 双界既有，无修可做；红例⑤ 转性为回归锁 | **撤销**（P4 实读纠正） |
 
 
 
@@ -2161,6 +2162,6 @@ presence="top-level sv sub-config"；V9 appid="out of range [16384,32767]"；V9 
 | 合并单元 9-2LE 4i4v 带质量形 | 继保测试仪/合并单元（抓现网 SV 组播包确认） | sv_4i4v 近似 | 待确认：抓包核对 |
 | 自定义 dataset 小帧形 | 同上 | sv_custom_dataset 近似 | 待确认：同上 |
 
-**P4 范围（预填，goose 同构）：** ①CheckProtoFlat sv presence 分支（:7715 后追加，文案 `[eth,sv]`）②registry.go:707 sv 行补 Fields 15 键 ③chain_planner_translate.go case "sv"（completedConfig+手工逐键+data 下钻 inst_mag 有符号双臂→InstMag/InstMagF、quality presence→HasQuality）④pipe_gate.sh:67+coverage_gate.py check_sv ⑤schemagen 重跑 ⑥sv.go:27 appid 下界一行修 ⑦红例族 5 项先行。
+**P4 范围（预填，goose 同构）：** ①CheckProtoFlat sv presence 分支（:7715 后追加，文案 `[eth,sv]`）②registry.go:707 sv 行补 Fields 15 键 ③chain_planner_translate.go case "sv"（completedConfig+手工逐键+data 下钻 inst_mag 有符号双臂→InstMag/InstMagF、quality presence→HasQuality）④pipe_gate.sh:67+coverage_gate.py check_sv ⑤schemagen 重跑 ⑥红例族 5 项先行（sv.go 零改动——⑤ 假发现已撤销）。
 **明确不解决：** 9-2 原版多 ASDU 折叠（seqASDU>1，现网合并单元单 ASDU 主流，无用例需求）；真实时间同步面（smpSynch 全局位只是字段值非时钟语义）；period_us pacing 实现（C 类①，断言面缺失不立项不冒充）；GOOSE/SV 混发编排（跨协议编排非单协议管线范围）。
 **依据：** `docs/protocol-designs/24-sv-design.md`（历史参考）；IEC 61850-9-2/-9-2LE；代码事实：`sv/sv.go:20-192`（Validate 9 分支/BuildPayload/Generate/注册）、`core/types.go:1630-1680`（SVData/SVConfig 15 键）、`strategy_convert.go:7571`（parseSVConfig）、`strategy_convert.go:224`（isL2OnlyProtocol）、`chain_planner.go:992/:1008`（L2-only EtherType 回填）、`chain_planner.go:499/:567`（validateSpecBase 豁免）、`chain_planner_chain.go:28`（FlowMeta.SV）、`layer_dyn.go:21`（eth allowlist）/:741-748（genMAC→spec.SrcMAC）、`builder.go:17`（EtherTypeSV=0x88BA）、`complete.go:352`（V7b carrier）、`semantic.go:229`（static-eth 门，goose ⑥ 已含 sv）、`sv_test.go`（7 单测）。

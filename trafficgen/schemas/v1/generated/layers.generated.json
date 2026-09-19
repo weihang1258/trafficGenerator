@@ -2147,7 +2147,62 @@
       "depends_on": [
         "eth"
       ],
-      "fields": {}
+      "fields": {
+        "appid": {
+          "type": "uint16",
+          "min": 16384,
+          "max": 32767
+        },
+        "conf_rev": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "count": {
+          "type": "int",
+          "max": 1000000
+        },
+        "dat_set": {
+          "type": "string"
+        },
+        "data": {
+          "type": "list"
+        },
+        "double_send": {
+          "type": "bool"
+        },
+        "dst_mac": {
+          "type": "mac"
+        },
+        "period_us": {
+          "type": "int"
+        },
+        "samples_per_cycle": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "smp_rate": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "smp_synch": {
+          "type": "uint8",
+          "max": 255
+        },
+        "sv_id": {
+          "type": "string"
+        },
+        "vlan_enabled": {
+          "type": "bool"
+        },
+        "vlan_id": {
+          "type": "uint16",
+          "max": 4095
+        },
+        "vlan_priority": {
+          "type": "uint8",
+          "max": 7
+        }
+      }
     },
     "swarm": {
       "category": "terminal",

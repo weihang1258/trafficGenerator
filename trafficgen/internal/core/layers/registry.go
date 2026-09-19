@@ -704,7 +704,30 @@ func buildDefaultRegistry() {
 			"vlan_priority": {Type: "uint8", Min: 0, Max: 7},
 		},
 	})
-	r.Register(LayerSchema{Name: "sv", Category: CategoryTerminal, DependsOn: []string{"eth"}})
+	// D-SV-1：sv 层 15 业务键（L2-only 终结层，[eth,sv] 链）。一律无
+	// Default（决策 F：validator 必填项 svID/confRev 与 Default 语义冲突，
+	// goose 同款）；appid 注册完整语义域 [0x4000,0x7fff]（决策 A1，goose
+	// appid [0,0x3fff] 同款——V9 create-time 先火，锚词对真实执法门）；
+	// period_us 无界（V9 Min==0&&Max==0 跳过口径，pacing 死键 C 类不改）。
+	r.Register(LayerSchema{Name: "sv", Category: CategoryTerminal, DependsOn: []string{"eth"},
+		Fields: map[string]FieldSchema{
+			"sv_id":             {Type: "string"},
+			"dat_set":           {Type: "string"},
+			"appid":             {Type: "uint16", Min: 0x4000, Max: 0x7fff},
+			"conf_rev":          {Type: "uint32", Min: 0, Max: 4294967295},
+			"samples_per_cycle": {Type: "uint16", Min: 0, Max: 65535},
+			"smp_synch":         {Type: "uint8", Min: 0, Max: 255},
+			"smp_rate":          {Type: "uint16", Min: 0, Max: 65535},
+			"period_us":         {Type: "int"},
+			"data":              {Type: "list"},
+			"count":             {Type: "int", Min: 0, Max: 1000000},
+			"dst_mac":           {Type: "mac"},
+			"double_send":       {Type: "bool"},
+			"vlan_enabled":      {Type: "bool"},
+			"vlan_id":           {Type: "uint16", Min: 0, Max: 4095},
+			"vlan_priority":     {Type: "uint8", Min: 0, Max: 7},
+		},
+	})
 	// ---- P3 T5：路由协议终结层。igmp/ospf/pim 是 raw-IP [ip→<proto>] 链（无
 	// tcp/udp 传输层，IP 协议号 2/89/103 由 transportProtocol 按终结层名解析）；
 	// isis 是 L2-only [eth→isis] 链（LLC 载体）。配置经 FlowMeta.IGMP/OSPF/PIM/
