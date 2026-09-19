@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/trafficgen/trafficgen/internal/core"
+	"github.com/trafficgen/trafficgen/pkg/filesystem"
 )
 
 // Package layers is part of the layer-chain architecture (v3) for
@@ -1277,6 +1278,86 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 				}
 			} else {
 				spec.DstPort = 38412
+			}
+		}
+		return
+	case "telnet":
+		// D-TELNET-1：层 config 手工逐键映射进 spec.Telnet（parseTelnet
+		// 内联于 strategy_convert.go:1085 不可跨包复用，决策 C1）。
+		// 缺省镜像 parse（零缺省——banner/terminal_type/NAWS/xterm 等
+		// 缺省在 legacy Plan 内落，translate 缺省=不动）。dialog 列表与
+		// file_source object 经 JSON round-trip 直迁（TelnetEvent/
+		// FileSource 形状由 struct 标签管，与扁平 parse 同形）。端口同键
+		// 二态（D-FTP-2 v2）：标量→spec 端口（层值赢），dst_port 缺席→
+		// 23（镜像 setDefaultDstPort，RFC 854 IANA）、src_port 缺席→
+		// 不动（worker 12345+i 保底）；对象→放行（worker
+		// resolveLayerTuple 已把逐流解析值写进 spec 端口）。
+		if spec.Telnet == nil {
+			cfg := completedConfig(s, term.Config)
+			tc := &core.TelnetConfig{}
+			if v, ok := configString(cfg["banner"]); ok {
+				tc.Banner = v
+			}
+			if v, ok := configString(cfg["terminal_type"]); ok {
+				tc.TerminalType = v
+			}
+			if v, ok := cfg["window_cols"]; ok {
+				if u, ok := configUint16(v); ok {
+					tc.WindowCols = u
+				}
+			}
+			if v, ok := cfg["window_rows"]; ok {
+				if u, ok := configUint16(v); ok {
+					tc.WindowRows = u
+				}
+			}
+			if v, ok := configString(cfg["scenario"]); ok {
+				tc.Scenario = v
+			}
+			if v, ok := configString(cfg["username"]); ok {
+				tc.Username = v
+			}
+			if v, ok := configString(cfg["password"]); ok {
+				tc.Password = v
+			}
+			if cmds, ok := cfg["commands"]; ok {
+				if b, err := json.Marshal(cmds); err == nil {
+					var out []string
+					if json.Unmarshal(b, &out) == nil {
+						tc.Commands = out
+					}
+				}
+			}
+			if dlg, ok := cfg["dialog"]; ok {
+				if b, err := json.Marshal(dlg); err == nil {
+					var out []core.TelnetEvent
+					if json.Unmarshal(b, &out) == nil {
+						tc.Dialog = out
+					}
+				}
+			}
+			if fs, ok := cfg["file_source"]; ok {
+				if b, err := json.Marshal(fs); err == nil {
+					var out filesystem.FileSource
+					if json.Unmarshal(b, &out) == nil {
+						tc.FileSource = &out
+					}
+				}
+			}
+			spec.Telnet = tc
+			// 端口双态（h323 同款：标量层值赢，dst 缺省 23，src 缺席
+			// 不动，对象放行）。
+			if v, ok := cfg["src_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.SrcPort = u
+				}
+			}
+			if v, ok := cfg["dst_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.DstPort = u
+				}
+			} else {
+				spec.DstPort = 23
 			}
 		}
 		return

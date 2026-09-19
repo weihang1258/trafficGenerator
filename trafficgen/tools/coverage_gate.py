@@ -700,6 +700,47 @@ def check_ngap(cases):
 
     return rows
 
+def check_telnet(cases):
+    """D-TELNET-1 P5 反查表（T-TELNET-1…17）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("telnet"), dict):
+                lays.append((c.get("id", "?"), l["telnet"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面。
+    for kw, name in [("basic", "S 基线 defaultDialog"), ("presence", "presence 判死面"),
+                     ("static_port", "静态端口拒面"), ("login_full", "login_full 场景"),
+                     ("login_fail", "login_fail 场景"), ("multi_command", "multi_command 场景"),
+                     ("long_output", "long_output 场景"), ("option_reject", "option_reject 场景"),
+                     ("synch", "synch 场景"), ("iac", "IAC 转义面"), ("sb_", "sb 子协商面"),
+                     ("ttype", "ttype/naws 面"), ("banner", "banner 前置面"),
+                     ("_v6", "v6 正例面"), ("default_port", "缺省端口面"),
+                     ("port_dyn", "端口动态面"), ("scenario", "unknown scenario 拒面")]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖（业务 10 键+端口 2 键）。
+    for k in ["banner", "dialog", "terminal_type", "window_cols", "window_rows",
+              "file_source", "scenario", "username", "password", "commands",
+              "src_port", "dst_port"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面。
+    for needle, name in [
+        ("top-level telnet sub-config", "presence 判死"),
+        ("static four-tuple", "静态端口拒"),
+        ("unknown scenario", "scenario 白名单（legacy 真门）"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
 
@@ -1220,7 +1261,7 @@ def check_goose(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet}
 
 
 def main(argv):

@@ -488,6 +488,8 @@ type FlowMeta struct {
 	MPLS *core.MPLSConfig
 	// NGAP is the flow's ngap config（D-NGAP-1：raw 自驱终层生成器直传）。Only set for ngap chains.
 	NGAP *core.NGAPConfig
+	// Telnet is the flow's telnet config（D-TELNET-1：raw 自驱终层生成器直传）。Only set for telnet chains.
+	Telnet *core.TelnetConfig
 	// GBT is the flow's gbt config (注入到 gbt 终结层生成器，B6：BIP 22/23
 	// JSON-RPC over HTTP；sessions[]/events[] 逐事件产完整 HTTP 帧，http 层
 	// 透传转发)。Only set for gbt chains。

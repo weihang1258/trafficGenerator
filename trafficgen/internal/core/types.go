@@ -3589,6 +3589,9 @@ type LayerDynValues struct {
 	// NGAP holds ngap-layer dynamic port strategies（D-NGAP-1 决策 E1：
 	// 同 h323/mpls——端口 2 键开，业务 12 键关）。
 	NGAP LayerTransportDyn
+	// TELNET holds telnet-layer dynamic port strategies（D-TELNET-1 决策
+	// E1：同前三——端口 2 键开，业务 10 键关）。
+	TELNET LayerTransportDyn
 }
 
 // LayerMQTTDyn holds mqtt-layer dynamic business-field strategies
@@ -3612,6 +3615,7 @@ func (l *LayerDynValues) HasAny() bool {
 		l.H323.SrcPort != nil || l.H323.DstPort != nil ||
 		l.MPLS.SrcPort != nil || l.MPLS.DstPort != nil ||
 		l.NGAP.SrcPort != nil || l.NGAP.DstPort != nil ||
+		l.TELNET.SrcPort != nil || l.TELNET.DstPort != nil ||
 		l.Eth.SrcMAC != nil || l.Eth.DstMAC != nil ||
 		l.HTTP.URI != nil || l.HTTP.Body != nil || l.HTTP.BodyB64 != nil ||
 		l.HTTP.ResponseBody != nil || l.HTTP.ResponseBodyB64 != nil ||

@@ -2519,6 +2519,54 @@
         }
       }
     },
+    "telnet": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "banner": {
+          "type": "string"
+        },
+        "commands": {
+          "type": "list"
+        },
+        "dialog": {
+          "type": "list"
+        },
+        "dst_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "file_source": {
+          "type": "object"
+        },
+        "password": {
+          "type": "string"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "src_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "terminal_type": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "window_cols": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "window_rows": {
+          "type": "uint16",
+          "max": 65535
+        }
+      }
+    },
     "tftp": {
       "category": "terminal",
       "depends_on": [

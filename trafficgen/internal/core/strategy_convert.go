@@ -7822,6 +7822,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol ngap no longer accepts a top-level ngap sub-config (move it into the ngap layer of an [ip,ngap] layers chain)"
 		}
 	}
+	// D-TELNET-1：telnet 顶层 telnet 子映射 presence 判死（h323/mpls/ngap
+	// 同款；空 map 也死）。层链形状不触发。
+	if protocol == "telnet" {
+		if v, ok := cfg["telnet"]; ok && v != nil {
+			return "protocol telnet no longer accepts a top-level telnet sub-config (move it into the telnet layer of an [ip,telnet] layers chain)"
+		}
+	}
 	return ""
 }
 

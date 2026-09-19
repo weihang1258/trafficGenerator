@@ -1230,6 +1230,22 @@ func buildDefaultRegistry() {
 			"dst_port":            {Type: "uint16", Min: 0, Max: 65535},
 		},
 	})
+	r.Register(LayerSchema{Name: "telnet", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"banner":        {Type: "string"},
+			"dialog":        {Type: "list"},
+			"terminal_type": {Type: "string"},
+			"window_cols":   {Type: "uint16", Min: 0, Max: 65535},
+			"window_rows":   {Type: "uint16", Min: 0, Max: 65535},
+			"file_source":   {Type: "object"},
+			"scenario":      {Type: "string"},
+			"username":      {Type: "string"},
+			"password":      {Type: "string"},
+			"commands":      {Type: "list"},
+			"src_port":      {Type: "uint16", Min: 0, Max: 65535},
+			"dst_port":      {Type: "uint16", Min: 0, Max: 65535},
+		},
+	})
 	r.Register(LayerSchema{Name: "pppoe", Category: CategoryL2})
 
 	defaultRegistry = r

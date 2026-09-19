@@ -55,6 +55,11 @@ var layerDynAllowlist = map[string]map[string]bool{
 	// 联结端口语义住层）；业务 12 键全关（结构选择器/联结身份/载荷，
 	// 逐流变破坏 gNB↔AMF 联结语义），对象即 does not support dynamic。
 	"ngap": {"src_port": true, "dst_port": true},
+	// D-TELNET-1 决策 E1（h323/mpls/ngap 已批延续）：telnet 层端口 2 键
+	// 开（TCP 联结端口语义住层）；业务 10 键全关（banner/dialog=会话
+	// 身份、scenario=结构选择器、credentials=凭据面，逐流变破坏交互
+	// 语义），对象即 does not support dynamic。
+	"telnet": {"src_port": true, "dst_port": true},
 }
 
 // parseLayerDyn extracts per-flow dynamic strategies from a decoded layers
@@ -235,6 +240,13 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 						set(where, lname, f, &out.NGAP.SrcPort, v)
 					} else {
 						set(where, lname, f, &out.NGAP.DstPort, v)
+					}
+				case "telnet":
+					// D-TELNET-1 决策 E1：同前三端口 int 面。
+					if f == "src_port" {
+						set(where, lname, f, &out.TELNET.SrcPort, v)
+					} else {
+						set(where, lname, f, &out.TELNET.DstPort, v)
 					}
 				}
 			}
@@ -806,6 +818,17 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 	}
 	if ld.NGAP.DstPort != nil {
 		if v := ResolvePortValue(ld.NGAP.DstPort, i); v != 0 {
+			spec.DstPort = v
+		}
+	}
+	// D-TELNET-1 决策 E1：telnet 层端口逐流解析落 spec（前三同款）。
+	if ld.TELNET.SrcPort != nil {
+		if v := ResolvePortValue(ld.TELNET.SrcPort, i); v != 0 {
+			spec.SrcPort = v
+		}
+	}
+	if ld.TELNET.DstPort != nil {
+		if v := ResolvePortValue(ld.TELNET.DstPort, i); v != 0 {
 			spec.DstPort = v
 		}
 	}

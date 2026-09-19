@@ -175,7 +175,8 @@ import (
 	// 明文 HTTP/1.1 主 profile）。
 	_ "github.com/trafficgen/trafficgen/internal/protocol/onvif"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tds"
-	"github.com/trafficgen/trafficgen/internal/protocol/telnet"
+	// 空导入：telnet 包 init 注册层生成器 + 校验器（D-TELNET-1）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/telnet"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tftp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tls"
 	// 空导入：vmess 包 init 注册终结层生成器 + 校验器（T4.1 批二）
@@ -542,7 +543,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("icmpv6"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("smtp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("pop3"))
-	app.engine.RegisterPlanner(telnet.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("telnet"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("imap"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("grpc"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ssh"))
