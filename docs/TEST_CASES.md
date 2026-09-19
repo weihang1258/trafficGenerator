@@ -3291,3 +3291,37 @@
 **断言边界（9.27）：** 包间隔（period_us）无断言面（C①）；`frame.protocols` 只 nonzero（环境相关）；sv.length/APDU 长度随通道数变，P5 落盘重钉不预写；direction 恒 up（L2-only 单向发布）。
 **执行口径：** P5 sv 真实流程全量（MCP 建任务→引擎生成→tshark 校对）全绿 + 落盘 `/tmp/mcp-pcaps/sv/` + 门 2 四项 + 反查 check_sv（P4 登记）。断言数值（offset/hex/length/smpCnt 序列）一律落盘重钉（14.6/9.31），不照抄存量手算值；改写例帧布局与改写前逐字节一致预期（仅 spec 形状迁移，goose 先例）。
 **实现位置：** `cases/sv.json`（**30 例**：改写 12——顶层 sv 子映射/count 迁层内、`src_mac` 留顶层、锚词对真实门收紧 4 例、T-12 改值贴边界；新建 T-13…30；字节断言全部落盘复核）。
+
+### T-ICMPV6-1…11 icmpv6.json——存量审计 + 测试点清单【D-ICMPV6-1 P3 定稿，P4 未开工】
+
+**状态：** P3 定稿（2026-09-19；存量 1 例逐条审计改写（等价迁移：src/dst 迁 ip 层、icmpv6:{} 留层内空=缺省 ping 语义不变，fields 断言不动预期字节一致）+ 新建 10 例=11 例。锚词按真实执法门：create-time（presence/static 2 门无落盘）vs task-time validator（v4/type/code/pattern_step 4 门 .neg.pcap——legacy Validate v6 检查复用零新文案 icmpv6.go:60-79）。组合 2 条=Pattern 混型步/多变 data 步（D-ICMPV6-1 ④）
+**级别：** pcap
+**来源：** ①标准=RFC 4443 §2.3/§4.1+RFC 8200 §8.1（4.9 有 RFC）②设计=D-ICMPV6-1 ③现网=iputils ping6（待确认抓包，子表③）
+**存量去向（1 例 → P5 改写后 11 例）：**
+
+| 存量 | 去向 | 说明 |
+|---|---|---|
+| icmpv6_smoke_01 | 改写 | `src_ip/dst_ip`→`layers[ip].src/dst`、`icmpv6:{}`→`layers[icmpv6]:{}`（空层=缺省 ping：type 128/code 0/seq 1/data "ping"，决策 D1 镜像 parse）；fields 断言（type 128/129、id/seq 1、hlim 64、v6 地址）全部保留预期字节一致 |
+
+**新建例清单（T-2…11）：**
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| 顶层 icmpv6 presence 判死 | T-2 icmpv6_vn_presence | A（负例，锚词 `top-level icmpv6 sub-config`；create-time 无落盘，P4 红例①） |
+| ip 层显式地址 + flows=2 拒（12.9） | T-3 icmpv6_vn_static_copy | A（负例，锚词 `static four-tuple`；strategy_fc flows=2；create-time 无落盘） |
+| v4 地址拒（② legacy 检查复用） | T-4 icmpv6_neg_v4 | A（负例，锚词 `must be IPv6`；task-time .neg.pcap；实现前链上无 validator=静默放行=红例④） |
+| type 非法（validator 新分支） | T-5 icmpv6_neg_type | A（负例，type:130→`icmpv6 type must be 128 (Echo Request) or 129 (Echo Reply), got 130`；.neg.pcap） |
+| code 非 0（Echo 语义） | T-6 icmpv6_neg_code | A（负例，code:1→`icmpv6 code must be 0 for Echo, got 1`；.neg.pcap） |
+| pattern step type 非法 | T-7 icmpv6_neg_pattern_step | A（负例，pattern:[{type:0}]→`icmpv6 pattern step 1 type must be 128 or 129, got 0`；.neg.pcap） |
+| type 129 单发（无 auto-reply） | T-8 icmpv6_type_129 | A（正例，type:129→1 包 up；packet_count 1+type 129 断言） |
+| 组合 A：Pattern 混型步（128 步+129 步） | T-9 icmpv6_pattern_mixed | A（正例，pattern:[{type:128,sequence:1},{type:129,sequence:2}]→3 包（req+reply 对+单 reply）；identifier 缺省 0 回退语义同例覆盖） |
+| 组合 B：Pattern 多步多变 data（≥3 动作） | T-10 icmpv6_pattern_data | A（正例，pattern 2 步 data "aa"/"bb"→4 包 seq 1/2 递增；data 字节 pin 落盘重钉） |
+| ip.src 动态多流（3.14 逃生口） | T-11 icmpv6_ip_dyn_multi | A（正例，ip.src `{"strategy":"inc","range":["2001:db8::1","2001:db8::2"],"step":1}`+flows=2→4 包逐流源异（v6 inc 解析=ResolveIPValue 框架既有）；distinct 断言落盘重钉） |
+
+**C 类注记（9.17）：** ① file_source 层链不可达（③ 立项，无用例需求不建例）；② Error 类 type（1-4 类，legacy 未实现不冒充）；③ Reply 即时性/时间差断言（9.27 引擎 auto-reply 无时间语义面）；④ identifier 0 回退语义单独格=T-9 同例覆盖（缺省 0→回退 sequence，断言 id=1）。
+**枚举取值覆盖（9.20-9.22）：** type 2 值 ✓（128=T-1 缺省/129=T-8）；code ✓（0=全量；非 0 拒=T-6）；pattern 0/1/N 步 ✓（0=T-1/1 步=T-8 等价单 ping/2 步=T-9/T-10）；identifier 0 回退 ✓（T-9）/显式（T-1 id=1）；data 缺省/显式 ✓（T-1/T-10）；地址族 ✓（v6=全量/v4 拒=T-4）；validator 分支 ✓（config required=C 同源保底/type=T-5/code=T-6/pattern=T-7/v6 族=T-4）；门面 ✓（presence=T-2/static=T-3）。
+**正交矩阵：** type 2×pattern {0,1,2 步}×data {缺省,显式}×identifier {0,显式}×地址 {v6,v4}——落格见上表；动态整格=业务 6 键全关，唯一开面=ip.src/dst（T-11 覆盖 inc；list/rand 属框架格随管线通用面）。
+**通用陷阱自查（9.37-9.40）：** 无派生端口（raw-IP 无 L4 头）；多流=T-11 逐流源异（9.39 逃生态）；Sequence 缺省=index+1 按真实语义钉（9.40）。
+**断言边界（9.27）：** Reply 即时性无时间断言面（C③）；伪头校验和 tshark checksum 字段（校验正确性由 builder 伪头路径既有，落盘重钉 checkok 口径视 tshark 支持而定，不预写）。
+**执行口径：** P5 icmpv6 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/icmpv6/`+门 2 四项+反查 check_icmpv6（P4 登记）。断言数值落盘重钉（14.6/9.31）；存量 fields 断言保留预期字节一致（v6 地址/缺省语义不变）。
+**实现位置：** `cases/icmpv6.json`（**11 例**：改写 1+新建 10）。
