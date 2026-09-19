@@ -7808,6 +7808,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol h323 no longer accepts a top-level h323 sub-config (move it into the h323 layer of an [ip,h323] layers chain)"
 		}
 	}
+	// D-MPLS-1：mpls 顶层 mpls 子映射 presence 判死（h323 先例；空
+	// map 也死）。层链形状不触发。
+	if protocol == "mpls" {
+		if v, ok := cfg["mpls"]; ok && v != nil {
+			return "protocol mpls no longer accepts a top-level mpls sub-config (move it into the mpls layer of an [ip,mpls] layers chain)"
+		}
+	}
 	return ""
 }
 

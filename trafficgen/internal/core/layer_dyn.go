@@ -46,6 +46,11 @@ var layerDynAllowlist = map[string]map[string]bool{
 	// 12.13 与 tcp/udp 端口语义对齐）；业务 8 键全关（结构选择器/会话
 	// 语义，icmpv6 同判），对象即 does not support dynamic。
 	"h323": {"src_port": true, "dst_port": true},
+	// D-MPLS-1 决策 E1（h323 已批延续）：mpls 层端口 2 键开（内层端口语义
+	// 属终层标签流，逐流端口池）；业务 5 键全关（labels=路径身份/
+	// multicast=EtherType 选择器/inner_proto=内层选择器/direction=方向
+	// 选择器/inner_payload=载荷），对象即 does not support dynamic。
+	"mpls": {"src_port": true, "dst_port": true},
 }
 
 // parseLayerDyn extracts per-flow dynamic strategies from a decoded layers
@@ -212,6 +217,13 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 						set(where, lname, f, &out.H323.SrcPort, v)
 					} else {
 						set(where, lname, f, &out.H323.DstPort, v)
+					}
+				case "mpls":
+					// D-MPLS-1 决策 E1：同 h323 端口 int 面。
+					if f == "src_port" {
+						set(where, lname, f, &out.MPLS.SrcPort, v)
+					} else {
+						set(where, lname, f, &out.MPLS.DstPort, v)
 					}
 				}
 			}
@@ -760,6 +772,17 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 	}
 	if ld.H323.DstPort != nil {
 		if v := ResolvePortValue(ld.H323.DstPort, i); v != 0 {
+			spec.DstPort = v
+		}
+	}
+	// D-MPLS-1 决策 E1：mpls 层端口逐流解析落 spec（h323 同款）。
+	if ld.MPLS.SrcPort != nil {
+		if v := ResolvePortValue(ld.MPLS.SrcPort, i); v != 0 {
+			spec.SrcPort = v
+		}
+	}
+	if ld.MPLS.DstPort != nil {
+		if v := ResolvePortValue(ld.MPLS.DstPort, i); v != 0 {
 			spec.DstPort = v
 		}
 	}

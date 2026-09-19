@@ -616,6 +616,45 @@ def check_h323(cases):
 
     return rows
 
+def check_mpls(cases):
+    """D-MPLS-1 P5R 反查表（T-MPLS-1…14）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("mpls"), dict):
+                lays.append((c.get("id", "?"), l["mpls"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面。
+    for kw, name in [("smoke", "S 基线单标签"), ("frames", "多帧面"),
+                     ("direction", "方向面"), ("multicast", "multicast 面"),
+                     ("inner_tcp", "内层 TCP 面"), ("v6", "v6 内层对照"),
+                     ("dyn", "端口动态面"), ("static_port", "静态端口拒面")]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖。
+    for k in ["labels", "multicast", "inner_proto", "src_port", "dst_port",
+              "frames", "direction", "inner_payload"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面。
+    for needle, name in [
+        ("top-level mpls sub-config", "presence 判死"),
+        ("static four-tuple", "静态端口拒"),
+        ("exceeds 20 bits", "label 上界（legacy 真门）"),
+        ("exceeds 3 bits", "TC 上界（legacy 真门）"),
+        ("not the bottom of stack", "S 位非栈底（legacy 真门）"),
+        ("not in supported list", "InnerProto/Direction 非法（legacy 真门）"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
 
@@ -1136,7 +1175,7 @@ def check_goose(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls}
 
 
 def main(argv):

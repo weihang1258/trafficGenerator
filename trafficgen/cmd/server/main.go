@@ -97,7 +97,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/modbus"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mongodb"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/moxa"
-	"github.com/trafficgen/trafficgen/internal/protocol/mpls"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/mpls" // 空导入：mpls 包 init 注册层生成器 + 校验器（D-MPLS-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mqtt"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nvgre"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/openwire"
@@ -553,7 +553,7 @@ func (app *Application) initEngine() error {
 	// 真隧道层——内层包字节自建 + L2.GRE wire 配置 + 外层 proto 47；gre 包
 	// init 反向注册隧道层生成器 + 校验器）。
 	app.engine.RegisterPlanner(layers.NewChainPlanner("gre"))
-	app.engine.RegisterPlanner(mpls.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("mpls"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("gtp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rdp"))
 	app.engine.RegisterPlanner(radius.NewPlanner())

@@ -25,7 +25,7 @@ func flowMetaFor(spec core.FlowSpec) FlowMeta {
 	// （生成路径的 builder 内联计算不变，此句柄只作对拍用途）。
 	return FlowMeta{
 		SrcMAC: spec.SrcMAC, DstMAC: spec.DstMAC,
-		SV: spec.SV, GOOSE: spec.GOOSE, ISIS: spec.ISIS, ICMPv6: spec.ICMPv6, H323: spec.H323,
+		SV: spec.SV, GOOSE: spec.GOOSE, ISIS: spec.ISIS, ICMPv6: spec.ICMPv6, H323: spec.H323, MPLS: spec.MPLS,
 		FlowIndex: spec.FlowIndex,
 		CksumEngine: NewIPCksumComputer(),
 	}

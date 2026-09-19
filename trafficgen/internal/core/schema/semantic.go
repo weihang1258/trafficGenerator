@@ -184,7 +184,8 @@ func checkLayerChainStaticCopy(config map[string]any, flows float64) string {
 		layer, _ := item.(map[string]any)
 		// D-H323-1：h323 层端口住层（1.2 已批偏离），12.9 执法同权——
 		// 静态标量端口 + flows>1 与 tcp/udp 同拒（依赖链③执法洞修补）。
-		for _, lname := range []string{"ip", "tcp", "udp", "eth", "h323"} {
+		// D-MPLS-1：mpls 同款延续。
+		for _, lname := range []string{"ip", "tcp", "udp", "eth", "h323", "mpls"} {
 			sub, _ := layer[lname].(map[string]any)
 			if sub == nil {
 				continue

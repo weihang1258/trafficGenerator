@@ -1414,8 +1414,40 @@
       "fields": {}
     },
     "mpls": {
-      "category": "l2",
-      "fields": {}
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "direction": {
+          "type": "string"
+        },
+        "dst_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "frames": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "inner_payload": {
+          "type": "string"
+        },
+        "inner_proto": {
+          "type": "uint8",
+          "max": 255
+        },
+        "labels": {
+          "type": "list"
+        },
+        "multicast": {
+          "type": "bool"
+        },
+        "src_port": {
+          "type": "uint16",
+          "max": 65535
+        }
+      }
     },
     "mqtt": {
       "category": "terminal",

@@ -1089,6 +1089,84 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			}
 		}
 		return
+	case "mpls":
+		// D-MPLS-1：层 config 手工逐键映射进 spec.MPLS（parseMPLSConfig
+		// 未导出不可跨包，决策 C1）。parse 零缺省（strategy_convert.go
+		// :3529——缺省全在 legacy Plan 内填：inner_proto 0→auto、frames 0
+		// →1、direction ""→up、标签 TTL 0→64），translate 零缺省同口径。
+		// 端口同键二态（h323 同款）：标量→spec 端口（层值赢）、对象→放行
+		// （worker resolveLayerTuple 已把逐流解析值写进 spec 端口）。
+		if spec.MPLS == nil {
+			cfg := completedConfig(s, term.Config)
+			mc := &core.MPLSConfig{}
+			if v, ok := cfg["multicast"]; ok {
+				if b, ok := configBool(v); ok {
+					mc.Multicast = b
+				}
+			}
+			if v, ok := cfg["inner_proto"]; ok {
+				if u, ok := configUint8(v); ok {
+					mc.InnerProto = u
+				}
+			}
+			if v, ok := cfg["direction"]; ok {
+				if sv, ok := configString(v); ok {
+					mc.Direction = sv
+				}
+			}
+			if v, ok := cfg["frames"]; ok {
+				if u, ok := configUint16(v); ok {
+					mc.Frames = int(u)
+				}
+			}
+			if v, ok := configString(cfg["inner_payload"]); ok {
+				mc.InnerPayload = []byte(v)
+			}
+			if arr, ok := cfg["labels"].([]interface{}); ok {
+				for _, raw := range arr {
+					item, ok := raw.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					lb := core.MPLSLabel{}
+					if v, ok := item["label"]; ok {
+						if u, ok := configUint64(v); ok {
+							lb.Label = uint32(u)
+						}
+					}
+					if v, ok := item["tc"]; ok {
+						if u, ok := configUint8(v); ok {
+							lb.TC = u
+						}
+					}
+					if v, ok := item["s"]; ok {
+						if b, ok := configBool(v); ok {
+							lb.S = b
+						}
+					}
+					if v, ok := item["ttl"]; ok {
+						if u, ok := configUint8(v); ok {
+							lb.TTL = u
+						}
+					}
+					mc.Labels = append(mc.Labels, lb)
+				}
+			}
+			spec.MPLS = mc
+		}
+		if cfg := completedConfig(s, term.Config); cfg != nil {
+			if v, ok := cfg["src_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.SrcPort = u
+				}
+			}
+			if v, ok := cfg["dst_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.DstPort = u
+				}
+			}
+		}
+		return
 	case "opcua":
 		if spec.OPCUA != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

@@ -1193,13 +1193,25 @@ func buildDefaultRegistry() {
 		},
 	})
 
-	// ---- 二层层：mpls / pppoe（占位，P2 补字段）----
-	// 注意：不能照搬 gre 隧道表达——MPLS 线上格式是 Eth + 标签栈 + 内层 IP
-	// （无外层 IP 头，RFC 3031/3032），DependsOn:["ip"] 会补出错误的外层
-	// IP 头；core builder 从 L2Config.MPLS 原生写标签栈，链式表达需要新的
-	// shim 层机制，属 P2 工作项。未写生成器 → 链式配置干净拒绝
-	// （generator not implemented），legacy planner 路径不受影响。
-	r.Register(LayerSchema{Name: "mpls", Category: CategoryL2})
+	// ---- D-MPLS-1：mpls 终层自驱（[ip,mpls]，RFC 3031/3032）----
+	// 原 shim 层设想（CategoryL2 占位）已裁定否决：A1 终层自驱替代（h323
+	// 机器整包 relay——legacy planner 自产 Eth+标签栈+内层 IP/TCP/UDP 完整
+	// 包，builder 强制 0x8847/0x8848 原生写栈）。8 键无 Default（决策 F：
+	// parse 零缺省，缺省全在 legacy Plan 内填）；端口住本层（1.2 已批
+	// 偏离，h323 同款）；label 20bit/TC 3bit/S 栈底约束留 legacy Validate
+	// （10 锚词零新文案）。pppoe 仍为占位（后续 P-PIPE）。
+	r.Register(LayerSchema{Name: "mpls", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"labels":        {Type: "list"},
+			"multicast":     {Type: "bool"},
+			"inner_proto":   {Type: "uint8", Min: 0, Max: 255},
+			"src_port":      {Type: "uint16", Min: 0, Max: 65535},
+			"dst_port":      {Type: "uint16", Min: 0, Max: 65535},
+			"frames":        {Type: "uint16", Min: 0, Max: 65535},
+			"direction":     {Type: "string"},
+			"inner_payload": {Type: "string"},
+		},
+	})
 	r.Register(LayerSchema{Name: "pppoe", Category: CategoryL2})
 
 	defaultRegistry = r
