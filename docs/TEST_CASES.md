@@ -3445,9 +3445,9 @@
 **执行口径：** P5 ngap 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/ngap/`+门 2 四项+反查 check_ngap；数值落盘重钉（14.6/9.31）；**服务端验证=pcaptest 改动需服务器重编重启**（h323 教训）。
 **实现位置：** `cases/ngap.json`（**17 例**：改写 1+新建 16）。
 
-### T-TELNET-1…17 telnet.json——存量审计 + 测试点清单【D-TELNET-1 P3 定稿，P4 未开工】
+### T-TELNET-1…17 telnet.json——存量审计 + 测试点清单【D-TELNET-1 P5 已验收】
 
-**状态：** P3 定稿（2026-09-19）。存量 1 例逐条审计改写（等价迁移：count 删、顶层空 `telnet:{}`→telnet 层空业务面+显式端口 12345/23、四元组→layers[ip] 显式；**断言面=8 fields+6 frames+4 标量（has_handshake/negotiated/terminates/min_packets:12）全保留**——12 为保守下界实际 13 包，P5 校准后可钉 13；存量 notes"Will Echo"注释与字节不符（ff fb 03=WILL SGA）不迁移错误注释）+ 新建 16 例=17 例。
+**状态：** 已验收（2026-09-19 P6：RESULT 17 pass/0 fail ×3 连跑（首跑 14/17→3 红全为推算校准按 pcap 重钉：login_full 登录段序偏 2/long_output 大响应首段偏 3/v6 帧 offset 74=IPv6 头 40B）+补键 2 例后反查 32/32；回归 ngap 17/h323 17/mpls 14/icmpv6 11 全绿；pcap 落盘 /tmp/mcp-pcaps/telnet/；min_packets 保守下界维持存量口径）。P3 定稿（2026-09-19）原注记：存量 1 例逐条审计改写（等价迁移：count 删、顶层空 `telnet:{}`→telnet 层空业务面+显式端口 12345/23、四元组→layers[ip] 显式；**断言面=8 fields+6 frames+4 标量（has_handshake/negotiated/terminates/min_packets:12）全保留**——12 为保守下界实际 13 包，P5 校准后可钉 13；存量 notes"Will Echo"注释与字节不符（ff fb 03=WILL SGA）不迁移错误注释）+ 新建 16 例=17 例。
 **级别：** pcap
 **来源：** ①标准=RFC 854（NVT+IAC 转义 §3）+RFC 855（选项/SB）+RFC 1091（TTYPE）+RFC 1073（NAWS）②设计=D-TELNET-1 ③现网=存量 pcap 13 帧实证（tshark telnet 解码器 frames hex 逐字节+telnet.data 伪影注记：IAC 帧空串/trim 尾空白/\r\n 字面转义）
 **存量去向（1 例 → P5 改写后 17 例）：**

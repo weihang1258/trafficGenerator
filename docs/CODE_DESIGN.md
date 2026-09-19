@@ -2546,7 +2546,7 @@ create：ValidateStrategy→ValidateLayers（V9 14 键）→CheckProtoFlat prese
 
 ### D-TELNET-1 telnet 层链化：终层自驱（TCP 信令整包 relay）+ 端口住层【P-PIPE #18 门1】
 
-**状态：** P2 定稿（2026-09-19；门 1 已交+对抗自重审 2 轮（存量断言计数 13→8 fields+4 标量自纠、包数校准值 3 处修正、notes"Will Echo"注释瑕疵发现；主体零事实错误，末轮净）；CORE_MEMORY 逐条复审完成。裁定延续：端口住 telnet 层+端口动态 E1=h323/mpls/ngap 四度已批。现状：legacy 完整（telnet.go 563+scenario.go 329 行，TCP 全托管自产——3 握手(MSS/WinScale/SACK 选项 synOptions:553)+可选 banner(:291)+FileSource(:297)+19 事件类型 dialog 循环(:307,IAC 转义 RFC 854 §3)+4 挥手；6 场景（scenario.go:54 login_full/login_fail/multi_command/long_output/option_reject/synch），包数公式=3+N 事件段+4（基线 defaultDialog 6 事件=13 包；场景校准值 login_full/multi_command 33、option_reject 28、login_fail 27、long_output 36、synch 38——P3/首跑校准），ISN 随机（serverSeq 恒随机:222，clientSeq 链路径不可控），ipID 随机基址——断言避开随机面。main.go:178 具名导入+:545 直挂，**层链四件全缺+registry 无行**。用例 1 例纯扁平（**8 fields+6 frames+4 标量断言**（has_handshake/negotiated/terminates/min_packets:12——12=保守下界实际 13,P5 校准）+tshark 伪影注记：telnet.data 对 IAC 帧空串/trim 尾空白/\r\n 字面转义；存量 notes"Will Echo"注释与字节不符（ff fb 03=WILL SGA）——P3 注记不迁移错误注释）。在库 tasks 92+strategies 3）
+**状态：** 已验收（2026-09-19 P6；P4 6红转绿 f924972+file_source 契约修正 76c42cd、P5 17/17+门2四项+反查 32/32+回归四协议绿 d58bef9、清库 176+19→0/0 总量对账精确 241209/716（P1 普查 92+3 已漂移以实测为准）；门3 抽查三条：①13 包 flags 序+方向面 dst 交替断言=telnet_migrate_test.go TestTelnetChain_LayerTranslateMinimalDialog（wantFlags/wantDst 逐包序实钉，emit 调用序 telnet.go:283-339 回指）②file_source 零值→nil 契约=translate 镜像块（chain_planner_translate.go，parseFileSource strategy_convert.go:1545-1548 契约回指；P4 自审抓分叉修正实证）③v6 正例格=cases T-14（帧 offset 74=IPv6 头 40B P5 校准实测，IP 透明 telnet.go:30-31+builder.go:125 回指）。原 P2 定稿注记：2026-09-19；门 1 已交+对抗自重审 2 轮（存量断言计数 13→8 fields+4 标量自纠、包数校准值 3 处修正、notes"Will Echo"注释瑕疵发现；主体零事实错误，末轮净）；CORE_MEMORY 逐条复审完成。裁定延续：端口住 telnet 层+端口动态 E1=h323/mpls/ngap 四度已批。现状：legacy 完整（telnet.go 563+scenario.go 329 行，TCP 全托管自产——3 握手(MSS/WinScale/SACK 选项 synOptions:553)+可选 banner(:291)+FileSource(:297)+19 事件类型 dialog 循环(:307,IAC 转义 RFC 854 §3)+4 挥手；6 场景（scenario.go:54 login_full/login_fail/multi_command/long_output/option_reject/synch），包数公式=3+N 事件段+4（基线 defaultDialog 6 事件=13 包；场景校准值 login_full/multi_command 33、option_reject 28、login_fail 27、long_output 36、synch 38——P3/首跑校准），ISN 随机（serverSeq 恒随机:222，clientSeq 链路径不可控），ipID 随机基址——断言避开随机面。main.go:178 具名导入+:545 直挂，**层链四件全缺+registry 无行**。用例 1 例纯扁平（**8 fields+6 frames+4 标量断言**（has_handshake/negotiated/terminates/min_packets:12——12=保守下界实际 13,P5 校准）+tshark 伪影注记：telnet.data 对 IAC 帧空串/trim 尾空白/\r\n 字面转义；存量 notes"Will Echo"注释与字节不符（ff fb 03=WILL SGA）——P3 注记不迁移错误注释）。在库 tasks 92+strategies 3）
 
 **架构裁定（P2 定稿）：** **A1 [ip,telnet] 终层自驱整包 relay**（h323/mpls/ngap 四度验证机器：wrap legacy Plan+force-up 防双换——legacy 逐 emit 自管方向与地址 telnet.go:227-271，raw-IP 驱动 down 包 L3 换向会双换）。否决：B2 [ip,tcp,telnet] 事件面——19 事件类型+IAC 转义+MSS 分段+TCP 选项须全量重写为 MessageEvent 流破坏字节等价，且 tcp 层无静态端口抽取通道（extractLayerSrcDst 仅 ip，mpls B2 已证死路）。**IP 版本透明注记（重审落定）**：Validate 无族强制（telnet.go:30-31+124-157 实证）+EtherTypeFor(builder.go:125) v6→0x86DD 框架既有 → **validateLayer 无需 D-FTP-4 豁免；v6=正例对照格**（9.24 地址族对称 v4/v6 双族逐格——与 ngap 负例格语义相反）。**随机性注记**：serverSeq 恒随机/clientSeq 链路径不可控/ipID 随机——断言仅 flags/端口/事件字节面（相对 seq 关系 harness 不可断=9.27 注记）；ip.id 不断言。**MSS 注记**：链路径 spec.TCP 恒 nil→MSS 恒 1460（1.12"不被消费"C 类；spec.TCP.InitialSeq 同不可达）；synch DM 无 URG（L4Config 无 UrgentPointer 字段，telnet.go:478-481 自认）同 C 类。
 
@@ -2556,7 +2556,7 @@ create：ValidateStrategy→ValidateLayers（V9 14 键）→CheckProtoFlat prese
 
 | # | 断链层 | 判定 | 处置 |
 |---|---|---|---|
-| ① 层链四件缺 | 代码缺口 | registry 无行/translate 无 case/FlowMeta 无 TELNET/无 generator | P4：registry 新终层行（14 键：10 业务+2 端口+dialog{list}+file_source{object}）+translate+FlowMeta.TELNET+carry+layer_gen 包装+注册 |
+| ① 层链四件缺 | 代码缺口 | registry 无行/translate 无 case/FlowMeta 无 TELNET/无 generator | P4：registry 新终层行（14 键：10 业务+2 端口+dialog{list}+file_source{object}）+translate+FlowMeta.Telnet+carry（字段名随 spec 同名，NFS/CoAP 正常词先例）+layer_gen 包装+注册 |
 | ② legacy 校验已全 | 无缺口 | Validate 5 锚词（IP parse×2/MSS×2 链不可达/scenario 白名单） | validateLayer=legacy 复用零新文案（nil-config 合法=空 telnet 层走 defaultDialog 13 包最小联结） |
 | ③ 静态复制门漏扫 | 执法洞 | 扫描列表无 telnet | P4 扫描列表 += "telnet"+红例⑥ |
 | ④ 协商状态机 | C 类 | RFC 1143 Q method 不做（telnet.go:18-21 合同：逐字发射非真协商） | 明确注记不冒充 |
@@ -2582,7 +2582,7 @@ create：ValidateStrategy→ValidateLayers（V9 14 键）→CheckProtoFlat prese
 #### 1. 文件清单（P2 定稿）
 - Modify: `internal/core/layers/registry.go`——telnet 终层行（CategoryTerminal+DependsOn ip+Fields 14 键无 Default：banner{string}/dialog{list}/terminal_type{string}/window_cols{uint16}/window_rows{uint16}/file_source{object}/scenario{string}/username{string}/password{string}/commands{list}/src_port{uint16}/dst_port{uint16}）
 - Modify: `internal/core/layers/chain_planner_translate.go`——case "telnet"（spec.TELNET==nil 层优先；10 业务键逐映射零缺省镜像 parse:1085+dialog/file_source 直迁+端口同键二态；dst_port 缺席→23 镜像 setDefaultDstPort）
-- Modify: `internal/core/layers/generator.go`+`chain_planner_chain.go`——FlowMeta.TELNET+carry
+- Modify: `internal/core/layers/generator.go`+`chain_planner_chain.go`——FlowMeta.Telnet+carry（字段名随 spec 同名，NFS/CoAP 正常词先例）
 - Modify: `internal/core/layers/chain_planner_util.go`——isRawIPChain 加 telnet
 - Modify: `internal/core/layers/chain_planner.go`——两端口豁免名单加 telnet
 - Modify: `internal/core/strategy_convert.go`——CheckProtoFlat telnet presence 分支
