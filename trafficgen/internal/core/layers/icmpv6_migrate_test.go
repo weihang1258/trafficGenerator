@@ -140,6 +140,28 @@ func TestICMPv6Chain_PatternStepDefaultsMirrorParse(t *testing.T) {
 	}
 }
 
+// 红例⑥【D-FTP-4 豁免对齐】：ip.src 层动态对象 + icmpv6 → Validate 必须
+// 放行（解析前 spec 仍带 flat 缺省 10.0.0.1，另一族；validateSpecBase
+// chain_planner.go:587 已豁免同族静态检查，validateLayer 裸委托 legacy
+// Validate 缺豁免 → 误杀动态多流）。
+func TestICMPv6Chain_DynamicIPFamilyExempt(t *testing.T) {
+	p := layers.NewChainPlannerFromChain("icmpv6", []layers.Layer{
+		{Name: "ip", Config: map[string]interface{}{
+			"src": map[string]interface{}{"strategy": "inc", "range": []interface{}{"2001:db8::1", "2001:db8::2"}, "step": 1},
+			"dst": "2001:db8::9",
+		}},
+		{Name: "icmpv6", Config: map[string]interface{}{}},
+	})
+	spec := core.FlowSpec{
+		SrcIP:         "10.0.0.1", // flat 缺省（动态对象未解析时的占位）
+		DstIP:         "20.0.0.1",
+		HasLayerDynIP: true,
+	}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("dynamic ip.src must escape static v6 family check (D-FTP-4 exemption): %v", err)
+	}
+}
+
 // 红例④【D-ICMPV6-1 依赖链②】：v4 地址经链路径必须拒（legacy Validate 的
 // v6 强制复用进 layer validator）。实现前链上无 validator=静默放行。
 func TestICMPv6Chain_V4Rejected(t *testing.T) {

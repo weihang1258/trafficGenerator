@@ -71,6 +71,14 @@ func validateLayer(s core.FlowSpec) error {
 			return fmt.Errorf("icmpv6 pattern step %d type must be 128 or 129, got %d", i+1, st.Type)
 		}
 	}
+	if s.HasLayerDynIP {
+		// D-FTP-4 豁免（validateSpecBase chain_planner.go:587 同口径）：
+		// ip.src/ip.dst 任一端是层动态对象时，解析前 spec 仍带 flat 缺省
+		// 10.0.0.1/20.0.0.1（可能异族），不得静态判族——逐流解析值恒同族
+		// （ValidateLayers 形状层混族 400），generate 期 legacy Plan 内
+		// Validate 按解析后地址复验。此处跳过 legacy v6 强制。
+		return nil
+	}
 	var p Planner
 	return p.Validate(s)
 }
