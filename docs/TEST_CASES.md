@@ -3238,3 +3238,56 @@
 **断言边界（9.27）：** 包间隔（DelayMs/t0）无断言面（C 类①②）；墙钟内容不断值（tag+len）；`frame.protocols` 只 nonzero（环境相关）；`goose.length`/`reserve` 随 APDU 变，P5 落盘重钉不预写。
 **执行口径：** P5 goose 真实流程全量（MCP 建任务→引擎生成→tshark 校对）全绿 + 落盘 `/tmp/mcp-pcaps/goose/` + 门 2 四项 + 反查 check_goose（P4 登记）。断言数值（offset/hex/length）一律落盘重钉（14.6/9.31），不照抄存量手算值。
 **实现位置：** `cases/goose.json`（**33 例**：改写 12——顶层 count→层内、删 `t0_ms`×12/`tmax_ms`×2、层内 goose 18 键；新建 T-15…30（含 T-2/3 门面）+ P5 补口 T-31/32/33；T-GSE-S1-02 并入 heartbeat Length 断言不单独建例。字节断言全部落盘复核：改写例帧布局与改写前逐字节一致（仅 spec 形状迁移）、新例预测 pin（offset 109/162/165/172/177/182）一次通过）。
+
+### T-SV-1…30 sv.json——存量审计 + 测试点清单【D-SV-1 P3 定稿，P4 未开工】
+
+**状态：** P3 定稿（2026-09-19；存量 12 例逐条审计全改写（等价迁移，无作废无合入）+ 新建 18 例=30 例；锚词按真实执法门分级——create-time V9（appid 下界/vlan_id/static/presence/carrier 5 门无落盘）vs task-time validator（confRev/samples_per_cycle/smpSynch/svID/data/type/appid 显式 0 六门 .neg.pcap）。核心取值面：float32 通道全库零覆盖（T-25 补）、smpSynch 值 0/1 零覆盖（T-18/19 补）、dat_set 有形零覆盖（T-30 补，tag 0x81 条件编码首钉）、MAC 动态多流零覆盖（T-26/27/28 补，含 inc 回绕）。**P3 自审实锤代码断链 1 处**（D-SV-1 ⑤）：sv validator 只查 appid 上界（`> 0x7fff`），<0x4000（含 0）静默放行出 0x0000 帧——P4 一行修+红例⑤ 先行，T-15/T-23 锚词按修后真门定
+**级别：** pcap
+**来源：** ①标准=IEC 61850-9-2/-9-2LE（4.10 官方规范口径；字节经 libiec61850 `sv_publisher` + Wireshark `packet-sv.c` 双转录交叉）②设计=D-SV-1（appid V9 边界/period_us C 类/count 层内/MAC 动态多流/组合替代面）③现网=合并单元 9-2LE 4i4v 形（sv_4i4v 近似；抓现网 SV 组播包=待确认，子表③）
+**存量去向（12 例 → P5 改写后 30 例）：**
+
+| 存量 | 去向 | 说明 |
+|---|---|---|
+| sv_smp_seq（基线 13 fields+4 pins） | 改写 | 顶层 sv 11 键→`layers[sv]` 直迁、`count:3`→层内、`src_mac` 留顶层；`period_us` 保留（死键 C 类注记）；断言落盘重钉 |
+| sv_double_send（smpCnt 0,0,1,1… fields） | 改写 | 同上（`double_send:true` 留层内）；共享 smpCnt 断言保留 |
+| sv_smp_wrap（samples_per_cycle:4 回绕） | 改写 | 同上；**补回绕序列帧 pin**（smpCnt 0,1,2,3,0,1 逐帧）——存量 0 pin 缺口 |
+| sv_neg_wrap（samples_per_cycle:0） | 改写 | 锚词收紧全字面 `sv samples_per_cycle must be >= 1`（V9 u==0 放行→validator task-time，.neg.pcap；complete.go:315 门序实测） |
+| sv_smp_synch_global（smp_synch:2） | 改写 | 同上 |
+| sv_neg_smp_synch（smp_synch:5） | 改写 | 锚词全字面 `sv smpSynch must be 0, 1 or 2`（.neg.pcap） |
+| sv_4i4v（8 通道×int32+quality） | 改写 | 9-2LE 标准形；8 通道 seqData 布局 8×8B 落盘重钉 |
+| sv_custom_dataset（无 smp_rate、2 通道 4B） | 改写 | 非 9-2LE 自定义形；无 dat_set 无 smp_rate 条件编码两面 |
+| sv_vlan（vlan 三键） | 改写 | vlan_enabled/id/priority 层内；TPID/TCI 断言落盘重钉 |
+| sv_period（period_us:250, count:100） | 改写 | **C 类注记**：pacing 未实现（生成器零消费，D-SV-1 ①），无包间隔断言面；用例保留=count=100 规模锚+字段断言 |
+| sv_neg_confrev（conf_rev:0） | 改写 | 锚词全字面 `sv confRev must be non-zero`（.neg.pcap） |
+| sv_neg_appid（appid:14745） | 改写 | 值 14745→**16383**（贴下界 0x3fff，边界价值）；锚词改 V9 `out of range [16384,32767]`（create-time 先火，无落盘；D-SV-1 ② 终审）；原 0x3999 同门等价注记 |
+
+**新建例清单（T-13…30，P3 定稿）：**
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| 顶层 sv presence 判死（空 map 也死） | T-13 sv_vn_presence | A（负例，锚词 `top-level sv sub-config`；goose_vn_presence 同构；create-time 无落盘，P4 红例①） |
+| 显式标量 eth MAC + flows=2 拒（12.9） | T-14 sv_vn_static_copy | A（负例，锚词 `static four-tuple`；eth 层显式 src_mac+case 级 strategy_fc flows=2；create-time 无落盘，P4 红例族外门面） |
+| 空层 `{sv:{}}` 保底分支（D-SV-1 §3：零配置→appid 0x0000 下界首命中） | T-15 sv_vn_empty_layer | A（负例，锚词 `sv appid 0x0000 outside SV range 0x4000-0x7fff`——⑤ 修后空层首命中 appid 下界（:27 位次先于 svID）；.neg.pcap；svID 必填分支=T-20 单点钉） |
+| [ip,sv] carrier 拒（V7b） | T-16 sv_neg_ip_carrier | A（负例，锚词 `must not have an ip/transport carrier`；complete.go:352 create-time 无落盘） |
+| vlan_id 越界（V9） | T-17 sv_neg_vlan | A（负例，锚词 `out of range [0,4095]`；vlan_id:4096；create-time 无落盘） |
+| smpSynch 值 0（9.20 值域补口） | T-18 sv_smp_synch_0 | A（正例：`85 01 00` 断言；appid 取 **32767**=0x7fff 顺带钉上边界过） |
+| smpSynch 值 1（9.20 值域补口） | T-19 sv_smp_synch_1 | A（正例：`85 01 01` 断言） |
+| svID 超 255（validator 分支补口） | T-20 sv_neg_svid_255 | A（负例，256 字符 sv_id→`sv svID is required and must be <=255 bytes`；.neg.pcap） |
+| data 缺失（validator 分支补口） | T-21 sv_neg_no_data | A（负例，`sv data is required`；.neg.pcap） |
+| 非法 data type（validator 分支补口） | T-22 sv_neg_type | A（负例，type:"int64"→`sv data type "int64" unsupported; only int32 and float32 are supported`；.neg.pcap） |
+| appid 显式 0（V9 u==0 放行→validator，13.20 零值语义钉） | T-23 sv_neg_zero_appid | A（负例，appid:0→`sv appid 0x0000 outside SV range 0x4000-0x7fff`；.neg.pcap；与非零越界走 V9 门=同分支按值分派两锚词；⑤ 修前该值静默放行=红例⑤ 先行依据） |
+| int32 负数字节（9.8 大小端/符号） | T-24 sv_int32_neg | A（正例，inst_mag:-1 单通道 count=1→seqData `ff ff ff ff` 帧 pin；单测 TestBuildPayloadPreservesNegativeInt32Bytes 的 suite 对齐例） |
+| float32 通道字节（9.8，全库零覆盖补口） | T-25 sv_float32 | A（正例，type:"float32" inst_mag:1.5→`3f c0 00 00` 帧 pin；BuildPayload 注释转录锚） |
+| MAC 动态 inc 多流+回绕（12.15 五类之 inc/回绕） | T-26 sv_mac_dyn_inc | A（正例：eth.src_mac `{"strategy":"inc","range":["aa:bb:cc:00:00:01","aa:bb:cc:00:00:02"],"step":1}` + strategy_fc flows=3→第 3 流回绕 :01；逐流 MAC 断言；genMAC layer_dyn.go:585） |
+| MAC 动态 list 轮转（12.15） | T-27 sv_mac_dyn_list | A（正例：list 2 MAC+flows=2→逐流轮转断言） |
+| MAC 动态 rand 同 seed 可复现（12.15） | T-28 sv_mac_dyn_rand | A（正例：rand range+seed+flows=2→distinct+复跑同值断言） |
+| 组合 A（9.11 替代面：vlan+double_send+quality，≥3 字段面） | T-29 sv_combo_vlan_double | A（正例：vlan_enabled+double_send:true+quality 通道+count:4 同包→TPID/共享 smpCnt/8B 通道三断言） |
+| 组合 B（dat_set 有形+smp_rate+混型通道，≥3 字段面） | T-30 sv_combo_rate_dataset | A（正例：dat_set 首次有形→tag `0x81` 条件编码首钉+smp_rate `0x86`+int32/float32 混通道） |
+
+**C 类注记（9.17，不冒充覆盖）：** ① pacing（period_us 周期）：配置面有 parse+struct、生成器 Generate（sv.go:162-184）零消费=行为未实现，suite 无包间隔断言（9.27）→ D-SV-1 ①（与 goose t0_ms 幽灵键不同级——sv 键面存在不删，T-10 注记）；② validator `sv is Layer 2 only...` 分支：链上 validateSpecBase L2-only 豁免使 spec 四元组恒空→分支不可达（goose 同款 C 类，单测 TestPlannerSVRejectsIPAndInvalidConfig 覆盖）；③ validator appid `outside SV range` 分支：非零越界被 V9 遮蔽（complete.go:321），显式 0 可达=T-23（⑤ 一行修前该分支对 0 也不可达——静默放行是断链，已立项修）；④ MAC pattern 策略：genMAC（layer_dyn.go:585）仅 fixed/list/inc/rand 四策略，pattern 无→12.15 五类之 pattern=C；⑤ seqASDU 多 ASDU 折叠（0xa2>1）：D-SV-1 明确不解决；⑥ 包间隔/时间戳内容：harness 无断言面（C 类① 同源）。
+**枚举取值覆盖（9.20-9.22 承载位置扫描）：** smpSynch 3 值 ✓（2=T-1/T-5、0=T-18、1=T-19）；data type 2 值 ✓（int32=T-7 等全量、float32=T-25/T-30）；appid 边界 4 值 ✓（0x4000 过=全量正例、0x7fff 过=T-18、0x3fff 拒=T-12、0x8000 拒=V9 同门 9.21 代表注记、0=T-23）；validator 9 分支 ✓（config required=T-15 同源保底/svID required=T-20/confRev=T-11/samples=T-4/smpSynch=T-6/data required=T-21/type=T-22/appid 下界=T-15+T-23（⑤ 修后）/L2 only=C②）；V9 门 5 ✓（appid 下界 T-12/vlan_id T-17/static T-14/presence T-13/carrier T-16）；dat_set 有/无 ✓（无=T-8、有=T-30）；smp_rate 有/无 ✓（无=T-8、有=全量）。
+**正交矩阵：** smpSynch 3×smp_rate 2×quality 2（4i4v/4B）×dat_set 2×double_send 2×vlan 2×count {1,3,4,6,100}——已覆格见上表落点；地址族 N/A（L2-only 无 IP，MAC 面=组播缺省+单播 dst T-26 系即对称声明）；动态整格=eth MAC 1 字段×4 策略（fixed=静态 T-14 拒面、inc+回绕=T-26、list=T-27、rand=T-28、pattern=C④——9.32 整格无抽样）。
+**通用陷阱自查（9.37-9.40）：** 无派生端口（L2-only）；无 distinct 聚合（smpCnt 序列逐帧 `value` 断言；MAC 逐流 exact）；flows>1 静态标量只有 T-14 拒绝例（9.39 互斥遵守——T-26/27/28 MAC 全走动态对象）；共享流序号语义=T-26/27/28 按"逐流不同"钉（同流内多帧共享同流序号=同 MAC，真实语义 9.40）。
+**断言边界（9.27）：** 包间隔（period_us）无断言面（C①）；`frame.protocols` 只 nonzero（环境相关）；sv.length/APDU 长度随通道数变，P5 落盘重钉不预写；direction 恒 up（L2-only 单向发布）。
+**执行口径：** P5 sv 真实流程全量（MCP 建任务→引擎生成→tshark 校对）全绿 + 落盘 `/tmp/mcp-pcaps/sv/` + 门 2 四项 + 反查 check_sv（P4 登记）。断言数值（offset/hex/length/smpCnt 序列）一律落盘重钉（14.6/9.31），不照抄存量手算值；改写例帧布局与改写前逐字节一致预期（仅 spec 形状迁移，goose 先例）。
+**实现位置：** `cases/sv.json`（**30 例**：改写 12——顶层 sv 子映射/count 迁层内、`src_mac` 留顶层、锚词对真实门收紧 4 例、T-12 改值贴边界；新建 T-13…30；字节断言全部落盘复核）。
