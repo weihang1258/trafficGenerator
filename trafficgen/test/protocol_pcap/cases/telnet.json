@@ -1,44 +1,997 @@
 [
-  {
-    "id": "telnet-basic-session",
-    "proto": "telnet",
-    "summary": "Telnet (端口 23) 冒烟：完整 TCP 握手 + 选项协商 + login 提示/输入 + 命令回显 + 终止",
-    "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
+ {
+  "id": "telnet_basic_session",
+  "proto": "telnet",
+  "summary": "冒烟：TCP 3握手+defaultDialog 6事件+4挥手=13包（存量等价迁移）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23
+     }
+    }
+   ]
+  },
+  "expect": {
+   "has_handshake": true,
+   "negotiated": true,
+   "terminates": true,
+   "min_packets": 12,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "23"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 6,
+     "field": "telnet.data",
+     "value": "login:"
+    },
+    {
+     "packet": 7,
+     "field": "telnet.data",
+     "value": "alice\\r\\n"
+    },
+    {
+     "packet": 8,
+     "field": "telnet.data",
+     "value": "$"
+    },
+    {
+     "packet": 9,
+     "field": "telnet.data",
+     "value": "exit\\r\\n"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "ff fb 03"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "ff fd 03"
+    },
+    {
+     "packet": 6,
+     "offset": 54,
+     "hex": "6c 6f 67 69 6e 3a 20"
+    },
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "61 6c 69 63 65 0d 0a"
+    },
+    {
+     "packet": 8,
+     "offset": 54,
+     "hex": "24 20"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "65 78 69 74 0d 0a"
+    }
+   ],
+   "notes": [
+    "T-TELNET-1 改写：count 删、顶层 telnet:{}→telnet 层（业务面空+端口 12345/23 显式）、四元组→ip 层显式；8 fields+6 frames+4 标量保留等价——字节一致由 P5 实证",
+    "tshark 伪影：telnet.data 对 IAC 帧输出空串；trim 尾部空白（'login: '→'login:'）；\\r\\n 显示字面转义——字节面以 frames 断言为准",
+    "f4 ff fb 03=IAC WILL SGA(3)（存量 notes 'Will Echo' 注释有误不迁移）；f5 ff fd 03=IAC DO SGA",
+    "min_packets 12=存量保守下界（实际 13 包=3+6+4）——P5 校准后可钉 13"
+   ]
+  }
+ },
+ {
+  "id": "telnet_flat_presence",
+  "proto": "telnet",
+  "summary": "T-TELNET-2: 顶层 telnet presence 判死（空 map 也死）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23
+     }
+    }
+   ],
+   "telnet": {}
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "top-level telnet sub-config",
+   "notes": [
+    "D-TELNET-1 §2 presence 门（create-time）"
+   ]
+  }
+ },
+ {
+  "id": "telnet_flat_static_port",
+  "proto": "telnet",
+  "summary": "T-TELNET-3: telnet 层静态端口+flows=2 拒（12.9，门扩扫 telnet 层）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {}
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23
+     }
+    }
+   ]
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "static four-tuple",
+   "notes": [
+    "ip 层空（对门无贡献）最小证明形（h323/mpls/ngap T-3 同构）"
+   ]
+  }
+ },
+ {
+  "id": "telnet_login_full",
+  "proto": "telnet",
+  "summary": "T-TELNET-4: login_full 场景+5 参数键（协商 11+登录 8+shell+双命令+logout=33 包校准）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
       "src_port": 12345,
       "dst_port": 23,
-      "count": 1,
-      "telnet": {}
-    },
-    "expect": {
-      "has_handshake": true,
-      "negotiated": true,
-      "terminates": true,
-      "min_packets": 12,
-      "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "23"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
-        {"packet": 6, "field": "telnet.data", "value": "login:"},
-        {"packet": 7, "field": "telnet.data", "value": "alice\\r\\n"},
-        {"packet": 8, "field": "telnet.data", "value": "$"},
-        {"packet": 9, "field": "telnet.data", "value": "exit\\r\\n"}
-      ],
-      "frames": [
-        {"packet": 4, "offset": 54, "hex": "ff fb 03"},
-        {"packet": 5, "offset": 54, "hex": "ff fd 03"},
-        {"packet": 6, "offset": 54, "hex": "6c 6f 67 69 6e 3a 20"},
-        {"packet": 7, "offset": 54, "hex": "61 6c 69 63 65 0d 0a"},
-        {"packet": 8, "offset": 54, "hex": "24 20"},
-        {"packet": 9, "offset": 54, "hex": "65 78 69 74 0d 0a"}
-      ],
-      "notes": [
-        "f4 服务器 'Will Echo' (IAC ff fb 03)；f5 客户端 'Do Echo' (ff fd 03) (RFC 854 §3)；f6 login 提示；f7 用户输入 alice\\r\\n；f8 shell 提示 $；f9 exit\\r\\n",
-        "telnet.data 对 IAC 帧 (f4/f5) 输出空串（纯选项协商无数据）；tshark 对 telnet.data 会 trim 尾部空白——'login: ' 显示为 'login:'（真实字节含 0x20，由 f6/f8 帧断言逐字节覆盖）；f7/f9 的 \\r\\n 显示为字面反斜杠转义序列（逐字节验证 '61 6c 69 63 65 0d 0a'）",
-        "数据帧均 ≤61B 故不用 has_payload（frames 断言已覆盖）；13 帧 = 3 握手 + 6 数据 + 4 终止"
-      ]
+      "scenario": "login_full",
+      "username": "bob",
+      "password": "hunter2",
+      "terminal_type": "vt100",
+      "window_cols": 200,
+      "window_rows": 60
+     }
     }
+   ]
+  },
+  "expect": {
+   "min_packets": 33,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 17,
+     "field": "telnet.data",
+     "value": "Password:"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "ff fb 01"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "ff fd 01"
+    },
+    {
+     "packet": 15,
+     "offset": 54,
+     "hex": "6c 6f 67 69 6e 3a 20"
+    },
+    {
+     "packet": 20,
+     "offset": 54,
+     "hex": "68756e746572320d0a"
+    }
+   ],
+   "notes": [
+    "事件段公式：3 握手+11 协商+8 登录+$+2 命令×2+2 logout=26 段→33 包；包号推算值——首跑 pcap 校准（9.31/14.6）",
+    "P5 校准：Password:↓=p17、secret123=p20（推算 p21/p19 偏 2）",
+    "P5 补键：username/password/terminal_type/window_cols/window_rows 场景参数键显式化（buildScenarioDialog 全消费面）；密码帧=hunter2"
+   ]
   }
+ },
+ {
+  "id": "telnet_login_fail",
+  "proto": "telnet",
+  "summary": "T-TELNET-5: login_fail 场景（失败路径 'Login incorrect' 重提示=27 包校准）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23,
+      "scenario": "login_fail"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 27,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 23,
+     "offset": 54,
+     "hex": "4c6f67696e20696e636f72726563740d0a6c6f67696e3a20"
+    }
+   ],
+   "notes": [
+    "20 事件段（11 协商+8 登录+1 重提示）→p23=最后数据段；失败分支覆盖 9.9"
+   ]
+  }
+ },
+ {
+  "id": "telnet_multi_command",
+  "proto": "telnet",
+  "summary": "T-TELNET-6: multi_command 场景+commands:[uname,pwd]（多动作组合流 9.11=33 包校准）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23,
+      "scenario": "multi_command",
+      "commands": [
+       "uname",
+       "pwd"
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 33,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 25,
+     "offset": 54,
+     "hex": "4c696e757820686f737420352e31302e3020233120534d50207838365f363420474e552f4c696e75780d0a"
+    }
+   ],
+   "notes": [
+    "26 事件段（11+8+$+2×2+2）→uname 响应在 p25（uname↑=p24 后的服务器段）；canned commandResponse 面断言"
+   ]
+  }
+ },
+ {
+  "id": "telnet_long_output",
+  "proto": "telnet",
+  "summary": "T-TELNET-7: long_output 场景（8197B 响应 MSS 1460 分段 6 段=36 包校准）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23,
+      "scenario": "long_output"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 36,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    },
+    {
+     "packet": 25,
+     "field": "tcp.len",
+     "value": "1460"
+    }
+   ],
+   "notes": [
+    "29 事件段（11 协商+10 登录面+6 大响应段+2 logout）→36 包；大响应首段 p22（tcp.len=1460=MSS 分段合同）；分段数=首跑校准",
+    "P5 校准：大响应首段=p25（推算 p22 偏 3）"
+   ]
+  }
+ },
+ {
+  "id": "telnet_option_reject",
+  "proto": "telnet",
+  "summary": "T-TELNET-8: option_reject 场景（DONT/WONT 拒绝路径=28 包校准）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23,
+      "scenario": "option_reject"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 28,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 7,
+     "offset": 54,
+     "hex": "ff fe 27"
+    },
+    {
+     "packet": 9,
+     "offset": 54,
+     "hex": "ff fe 22"
+    }
+   ],
+   "notes": [
+    "21 事件段（10 协商头+11 登录面）→28 包；RFC 855 §3 拒绝路径字节断言"
+   ]
+  }
+ },
+ {
+  "id": "telnet_synch",
+  "proto": "telnet",
+  "summary": "T-TELNET-9: synch 场景（IAC IP+DM 中断长输出=38 包校准）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23,
+      "scenario": "synch"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 38,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 30,
+     "offset": 54,
+     "hex": "fff4"
+    },
+    {
+     "packet": 31,
+     "offset": 54,
+     "hex": "fff2"
+    }
+   ],
+   "notes": [
+    "31 事件段（11 协商+10 登录面+5 大输出段+ip/dm/^C/exit/logout）→38 包；ip=p30/dm=p31 包号推算——首跑校准"
+   ]
+  }
+ },
+ {
+  "id": "telnet_iac_escape",
+  "proto": "telnet",
+  "summary": "T-TELNET-10: IAC 转义 data 0xFF 翻倍（RFC 854 §3；data_b64 形态）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23,
+      "dialog": [
+       {
+        "type": "data",
+        "direction": "up",
+        "data_b64": "Yf8gYg=="
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 8,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "61ffff2062"
+    }
+   ],
+   "notes": [
+    "base64 'Yf8gYg=='=a\\xff b → escapeIAC 翻倍 61 ff ff 20 62；JSON data 字段无法表达单字节 0xFF（UTF-8 重编码 C3 BF 陷阱）→ data_b64 形态覆盖（9.22 承载位置扫描）"
+   ]
+  }
+ },
+ {
+  "id": "telnet_sb_subneg",
+  "proto": "telnet",
+  "summary": "T-TELNET-11: sb 子协商框架字节+SubData 0xFF 翻倍",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23,
+      "dialog": [
+       {
+        "type": "sb",
+        "direction": "up",
+        "option": 39,
+        "sub_data_b64": "eP8="
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 8,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "fffa2778fffffff0"
+    }
+   ],
+   "notes": [
+    "IAC SB(ff fa) <opt 0x27> <sub: 78 ff ff> IAC SE(ff f0)；SubData 内 0xFF 翻倍；opt 39=NEW-ENVIRON"
+   ]
+  }
+ },
+ {
+  "id": "telnet_ttype_naws_singles",
+  "proto": "telnet",
+  "summary": "T-TELNET-12: ttype_is/naws 缺省值（xterm/80x24）+七单字节命令枚举格",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23,
+      "dialog": [
+       {
+        "type": "ttype_is",
+        "direction": "up"
+       },
+       {
+        "type": "naws",
+        "direction": "up"
+       },
+       {
+        "type": "nop",
+        "direction": "up"
+       },
+       {
+        "type": "ayt",
+        "direction": "up"
+       },
+       {
+        "type": "brk",
+        "direction": "up"
+       },
+       {
+        "type": "ao",
+        "direction": "up"
+       },
+       {
+        "type": "ec",
+        "direction": "up"
+       },
+       {
+        "type": "el",
+        "direction": "up"
+       },
+       {
+        "type": "ga",
+        "direction": "up"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 16,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "ff fa 18 00 78 74 65 72 6d ff f0"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "ff fa 1f 00 50 00 18 ff f0"
+    }
+   ],
+   "notes": [
+    "ttype_is 缺省 xterm（TelnetConfig 链上 TerminalType=''→plan 兜底 xterm）；naws 80x24=00 50 00 18；七单字节命令 nop(241)/ayt(246)/brk(243)/ao(245)/ec(247)/el(248)/ga(249) 逐枚举入 dialog（9.20 枚举格裁定）——p6..p12 各 2B 帧 ff f1/ff f6/ff f3/ff f5/ff f7/ff f8/ff f9（P5 校准钉全）"
+   ]
+  }
+ },
+ {
+  "id": "telnet_banner",
+  "proto": "telnet",
+  "summary": "T-TELNET-13: banner+file_source 前置（握手后首数据段 down）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23,
+      "banner": "Welcome\r\n",
+      "file_source": {
+       "literal": "pay"
+      }
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 15,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 54,
+     "hex": "57656c636f6d650d0a"
+    },
+    {
+     "packet": 5,
+     "offset": 54,
+     "hex": "706179"
+    }
+   ],
+   "notes": [
+    "banner 在 dialog 前发射（telnet.go:291）→p4=首数据段；14 包=3+1 banner+6 dialog+4",
+    "P5 补键：file_source literal 形态（免文件依赖）——file 段=baner 后 p5（telnet.go:297-304 dialog 前）；15 包=3+1+1+6+4"
+   ]
+  }
+ },
+ {
+  "id": "telnet_v6",
+  "proto": "telnet",
+  "summary": "T-TELNET-14: ip 层 v6 → IP 透明正例（9.24 地址族对称；eth.type 0x86dd）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "fd00::1",
+      "dst": "fd00::2"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23
+     }
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 12,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "23"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    }
+   ],
+   "frames": [
+    {
+     "packet": 4,
+     "offset": 74,
+     "hex": "ff fb 03"
+    }
+   ],
+   "notes": [
+    "telnet 无 IP 版本强制（telnet.go:30-31）+EtherTypeFor v6→0x86dd（builder.go:125）——v6=正例格（与 ngap 负例格语义相反）；事件字节面与 v4 完全同构",
+    "P5 校准：v6 数据帧 payload offset=74（IPv6 头 40B，v4 为 54）"
+   ]
+  }
+ },
+ {
+  "id": "telnet_default_port",
+  "proto": "telnet",
+  "summary": "T-TELNET-15: telnet 层无端口键 → dst 缺省 23（translate 镜像 setDefaultDstPort）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {}
+    }
+   ]
+  },
+  "expect": {
+   "min_packets": 12,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "23"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.flags",
+     "value": "0x002"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.dstport",
+     "value": "12345"
+    },
+    {
+     "packet": 2,
+     "field": "tcp.flags",
+     "value": "0x012"
+    },
+    {
+     "packet": 3,
+     "field": "tcp.flags",
+     "value": "0x010"
+    }
+   ],
+   "notes": [
+    "dst_port 缺席→23（RFC 854 IANA）；src_port 缺席→worker 12345+i 保底（p2 down 方向 dst=src 保底值）"
+   ]
+  }
+ },
+ {
+  "id": "telnet_port_dyn",
+  "proto": "telnet",
+  "summary": "T-TELNET-16: telnet.src_port 动态 inc+flows=2（E1 逐流端口池，2 流×13=26 包）",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": {
+       "strategy": "inc",
+       "range": [
+        "10.0.1.1",
+        "10.0.1.2"
+       ],
+       "step": 1
+      },
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": {
+       "strategy": "inc",
+       "range": [
+        20000,
+        20001
+       ],
+       "step": 1
+      },
+      "dst_port": {
+       "strategy": "fixed",
+       "value": 23
+      }
+     }
+    }
+   ],
+   "group_id": {
+    "strategy": "fixed",
+    "value": "telnet-port-dyn"
+   }
+  },
+  "strategy_fc": {
+   "type": "flows",
+   "value": 2
+  },
+  "expect": {
+   "packet_count": 26,
+   "fields": [
+    {
+     "packet": 1,
+     "field": "tcp.srcport",
+     "value": "20000"
+    },
+    {
+     "packet": 1,
+     "field": "tcp.dstport",
+     "value": "23"
+    },
+    {
+     "packet": 14,
+     "field": "tcp.srcport",
+     "value": "20001"
+    },
+    {
+     "packet": 14,
+     "field": "tcp.dstport",
+     "value": "23"
+    }
+   ],
+   "notes": [
+    "group_id 固定单 worker FIFO（h323/mpls/ngap T-16 先例）；流序 p1..p13=流1、p14..p26=流2"
+   ]
+  }
+ },
+ {
+  "id": "telnet_neg_scenario",
+  "proto": "telnet",
+  "summary": "T-TELNET-17: unknown scenario → legacy 白名单拒",
+  "spec_json": {
+   "layers": [
+    {
+     "ip": {
+      "src": "10.0.0.1",
+      "dst": "20.0.0.1"
+     }
+    },
+    {
+     "telnet": {
+      "src_port": 12345,
+      "dst_port": 23,
+      "scenario": "telnet999"
+     }
+    }
+   ]
+  },
+  "expect": {
+   "expect_error": true,
+   "error_contains": "unknown scenario",
+   "notes": [
+    "scenario.go:58 锚词（task-time validator；6 场景白名单）"
+   ]
+  }
+ }
 ]
