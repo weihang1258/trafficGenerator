@@ -2530,13 +2530,13 @@ create：ValidateStrategy→ValidateLayers（V9 14 键）→CheckProtoFlat prese
 任务：mapToFlowSpec→parseLayerDyn→worker resolveLayerTuple→ChainPlanner.ValidateSpec：validateSpecBase（ngap 端口豁免）→translate case "ngap"→validateLayer（legacy Validate——v4-only 与缺省同族无冲突）→Plan：isRawIPChain→raw-IP 驱动（meta 补齐→Generator.Generate→legacy Plan 整包 relay→force up 防双换）→builder：SCTP L4 装配（CRC32c 既有 builder.go:427 路径）。
 
 #### 4. 增量步骤（failing 先行）
-红例族 6：①TestNGAPChain_FlatPresenceRejected ②TestNGAPChain_LayerFieldsAccepted（14 键 V9）③TestNGAPChain_LayerTranslateMinimalSession（链 [ip,ngap{ports}]→9 包+SCTP chunk 序列 1/2/10/11/DATA×2/7/8/14+dstport 38412）④TestNGAPChain_TranslateKeysFilled（业务键逐槽断言含嵌套 pdu_session_setup）⑤TestNGAPLayerPortDynAllowlisted（core）⑥TestNGAPStaticPortFlowsRejected（schema：[ip{},ngap{ports}]+flows=2）。
+红例族 6（P3 联动修正：全开 16 包）：①TestNGAPChain_FlatPresenceRejected ②TestNGAPChain_LayerFieldsAccepted（14 键 V9）③TestNGAPChain_LayerTranslateMinimalSession（链 [ip,ngap{ports}]→9 包+SCTP chunk 序列 1/2/10/11/DATA×2/7/8/14+dstport 38412）④TestNGAPChain_TranslateKeysFilled（业务键逐槽断言含嵌套 pdu_session_setup）⑤TestNGAPLayerPortDynAllowlisted（core）⑥TestNGAPStaticPortFlowsRejected（schema：[ip{},ngap{ports}]+flows=2）。
 
 #### 5. 错误锚词
 见 §2；legacy 16 锚词为链路径唯一执法面（零新文案）。
 
 #### 6. 性能设计与验收
-包数=9+N 可选（InitialUE/UEContextRelease 各 1、Downlink/Uplink NAS 各 1、PDUSession 对 2）；整包 relay 流式（channel 256）无收集无锁；翻译一次；回归口径 suite ±10%；pcap 路=套件；网卡未跑注明。
+包数=9+N 可选（InitialUE/DL NAS/UL NAS 各 1、PDUSession 对 2、UEContextRelease 对 2（Command+Complete，ngap.go:387-398 实证——P3 修正：原误记 +1））；整包 relay 流式（channel 256）无收集无锁；翻译一次；回归口径 suite ±10%；pcap 路=套件；网卡未跑注明。
 
 #### 7. 顺序与回滚
 红例→registry+translate→FlowMeta/isRawIPChain/豁免→门扩扫+layer_dyn→layer_gen+注册→presence→main 翻转→门登记+schemagen→绿；P5 cases。回滚=单提交粒度；ngap.go 零改动=字节事实零风险。

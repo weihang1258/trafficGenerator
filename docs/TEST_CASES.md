@@ -3404,3 +3404,43 @@
 **断言边界（9.27）：** 包间隔无面；内层 TCP 裸头无状态断言面（C③）。
 **执行口径：** P5 mpls 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/mpls/`+门 2 四项+反查 check_mpls；数值落盘重钉（14.6/9.31）。
 **实现位置：** `cases/mpls.json`（**14 例**：改写 1+新建 13）。
+
+### T-NGAP-1…17 ngap.json——存量审计 + 测试点清单【D-NGAP-1 P3 定稿，P4 未开工】
+
+**状态：** P3 定稿（2026-09-19）。存量 1 例逐条审计改写（等价迁移：count 删、顶层空 `ngap:{}`→ngap 层空业务面+显式端口 12345/38412、补 ip 层显式地址——legacy 缺省面（AMF-TEST-01/MCC460 等）不进用例，断言 13 fields+2 frames pin 全保留等价字节）+ 新建 16 例=17 例。**P3 期修正回填 D-NGAP-1 §6**：UEContextRelease=Command+Complete 两包（ngap.go:387-398 实证），全开 16 包（非 15）。
+**级别：** pcap
+**来源：** ①标准=3GPP TS 38.413（procedureCode §9.2：NGSetup 21/InitialUE 15/DL NAS 4/UL NAS 46/PDU Setup 29/UE Release 41）+TS 38.412（PPID 60）+RFC 4960（SCTP 握手 §5/拆链 §9.2）②设计=D-NGAP-1 ③现网=参考 pcap SCTP_NAS.pcap 转录（ngap.go:40-41）+Wireshark packet-ngap（tshark 3.6.14 ngap.procedureCode 字段已验证存在）
+**存量去向（1 例 → P5 改写后 17 例）：**
+
+| 存量 | 去向 | 说明 |
+|---|---|---|
+| ngap-sctp-setup-basic | 改写 | count 删、顶层 `ngap:{}`→layers[ngap]（业务面空+src_port 12345/dst_port 38412 显式）、四元组→layers[ip] 显式 10.0.0.1/20.0.0.1；expect 13 fields（chunk 序列 1/2/10/11+proc 21 对+7/8/14）+frames 2 pin（offset 62：f5 `00 15`=initiatingMessage+21、f6 `01 15…41 4d 46…`=successfulOutcome+21+"AMF-TEST-01"）全部保留等价——字节一致由 P5 实证 |
+
+**新建例清单（T-2…17）：**
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| 顶层 ngap presence 判死 | T-2 ngap_flat_presence | A（负例，锚词 `top-level ngap sub-config`；create-time） |
+| ngap 层静态端口+flows=2 拒 | T-3 ngap_flat_static_port | A（负例，锚词 `static four-tuple`；形状=[ip{},ngap{ports}] 最小证明形；create-time） |
+| InitialUEMessage | T-4 ngap_initial_ue | A（正例，initial_ue_message:true+initial_nas→10 包，p5=NGSetupReq proc 21、p7=proc 15 initiatingMessage） |
+| DownlinkNASTransport | T-5 ngap_dl_nas | A（正例，downlink_nas→10 包，p7=proc 4 successfulOutcome，方向 down） |
+| UplinkNASTransport | T-6 ngap_ul_nas | A（正例，uplink_nas→10 包，p7=proc 46 initiatingMessage，方向 up） |
+| PDUSessionSetup 对 | T-7 ngap_pdu_session | A（正例，pdu_session_setup{pdu_session_id:1,sst:1,sd:"000001"}→11 包，p7/p8=proc 29（Command down+Complete up 同码）） |
+| UEContextRelease 对 | T-8 ngap_ue_release | A（正例，ue_context_release:true→11 包，p7/p8=proc 41 双向） |
+| 全可选全开 | T-9 ngap_all_procedures | A（正例，16 包=4 握手+2 NGSetup+1 IUE+1 DL+1 UL+2 PDU+2 UECR+3 拆链；chunk+procedureCode 全序列断言） |
+| TA 列表+DRX | T-10 ngap_ta_drx | A（正例，supported_ta_list 2 项+default_paging_drx:2→NGSetupReq PDU 字节 pin（P5 校准 offset/hex）） |
+| UE ID 显式 | T-11 ngap_ue_ids | A（正例，ran_ue_ngap_id/amf_ue_ngap_id 显式+initial_ue_message→IUE IE 断言（P5 校准 tshark ngap.RAN_UE_NGAP_ID 字段或 frames hex）） |
+| AMF name 自定义 | T-12 ngap_amf_name | A（正例，amf_name:"AMF-EDGE-07"→f6 offset 62 hex 含 `41 4d 46 2d 45 44 47 45 2d 30 37`（"AMF-EDGE-07"）pin） |
+| v6 拒（legacy v4-only） | T-13 ngap_neg_v6 | A（负例，ip 层 v6→`only IPv4 is supported`；task-time validator；.neg.pcap） |
+| dst_port 缺省 38412 | T-14 ngap_default_port | A（正例，ngap 层无端口→sctp.dstport=38412 断言（translate 镜像 setDefaultDstPort；src worker 12345+i 保底）） |
+| 端口动态 E1 | T-15 ngap_port_dyn | A（正例，src_port/dst_port 动态对象+strategy_fc flows=2→group_id 固定 2 流×9=18 包，端口逐流断言） |
+| SST 越界 | T-16 ngap_neg_sst | A（负例，pdu_session_setup.sst:300→`SST 300 out of range [0,255]`；task-time；.neg.pcap） |
+| NAS 超长 | T-17 ngap_neg_nas_len | A（负例，initial_nas 4097 字节→`InitialNAS too long`；task-time；.neg.pcap） |
+
+**C 类注记（9.17）：** ①随机面 verTag/TSN/cookie/ip.id 断言避开（T-1 先例）；②SCTP IPv6 路径=明确不解决（T-13 负例钉）；③全合规 PER=不冒充（④ C 类）；④sctp 传输层机器（A2 否决，序号 28 另立项）；⑤链路径 src_port 缺省无格（worker 12345+i 保底=T-14 同例钉）。
+**枚举取值覆盖（9.20-9.22）：** procedureCode{21,15,4,46,29,41}✓（T-1/4/5/6/7/8）；chunk{1,2,10,11,DATA,7,8,14}✓（T-1）；业务 12 键逐键≥1 格✓（T-4…T-12；ran/amf_ue_ngap_id=T-11）；端口{显式,缺省,动态}✓（T-1/T-14/T-15）；DRX{缺省,2}✓（T-1/T-10）；负例{s presence,static copy,v6,sst,nas 长度}✓。
+**正交矩阵：** 可选流程{0,1,全}×端口{显式,缺省,动态}×方向面（IUE/UL=up、DL/UEC-Cmd=down 实钉）——落格见上表；动态整格=业务 12 键全关+端口 2 键（T-15）。
+**通用陷阱自查（9.37-9.40）：** 无派生端口；多流=T-15 group_id 固定（h323 T-14/mpls T-14 先例）；包序=SCTP emit 线性+legacy 自管方向（force-up 防双换，链路径合同）。
+**断言边界（9.27）：** 随机面不钉；DRX/MCC/MNC 进 PER 编码字节=P5 校准后钉（T-10/T-11 注记）；无包间隔面。
+**执行口径：** P5 ngap 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/ngap/`+门 2 四项+反查 check_ngap；数值落盘重钉（14.6/9.31）；**服务端验证=pcaptest 改动需服务器重编重启**（h323 教训）。
+**实现位置：** `cases/ngap.json`（**17 例**：改写 1+新建 16）。
