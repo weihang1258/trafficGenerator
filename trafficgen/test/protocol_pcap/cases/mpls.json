@@ -2,16 +2,28 @@
   {
     "id": "mpls_single_label_ipv4",
     "proto": "mpls",
-    "summary": "smoke: single label stack (label 100, TTL 64) over inner IPv4/UDP -> 1 frame; tshark auto-parses MPLS (eth.type 0x8847)",
+    "summary": "冒烟：单标签栈（label 100/TTL 64）内层 IPv4/UDP 单帧；地址 ip 层、端口 mpls 层（存量等价迁移）",
     "spec_json": {
-      "count": 1,
-      "mpls": {
-        "labels": [
-          {
-            "label": 100
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
           }
-        ]
-      }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100
+              }
+            ],
+            "inner_payload": "probe"
+          }
+        }
+      ]
     },
     "expect": {
       "min_packets": 1,
@@ -45,6 +57,11 @@
           "packet": 1,
           "field": "udp.dstport",
           "value": "80"
+        },
+        {
+          "packet": 1,
+          "field": "data.data",
+          "value": "70726f6265"
         }
       ],
       "frames": [
@@ -55,9 +72,584 @@
         }
       ],
       "notes": [
-        "label entry wire (RFC 3032 3.1): label 100<<12 | S=1<<8 | TTL 64 -> 0x00064140, verified against /tmp/probe-iana/mpls.pcap (probe used key 'value' so label=0, wire 00 00 01 40; this case uses the real key 'label' -> 00 06 41 40)",
-        "inner L4 is UDP with flow default ports (src 12345, dst 80); tshark auto-parses MPLS and the inner IP/UDP"
+        "D-MPLS-1 P5 改写：count 删、顶层 mpls→层内、补 ip 层显式地址+mpls 层显式端口（原扁平缺省 10.0.0.1/20.0.0.1/12345/80 等价显式化）；fields/frames 断言保留（label entry wire: 100<<12|S<<8|TTL64=0x00064140，探针 pcap 验证值）",
+        "inner_payload 显式 'probe'（9.21 显式格；data.data 紧凑 hex 首跑校准）"
       ]
+    }
+  },
+  {
+    "id": "mpls_vn_presence",
+    "proto": "mpls",
+    "summary": "T-MPLS-2: 顶层 mpls presence 判死（空 map 也死）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100
+              }
+            ]
+          }
+        }
+      ],
+      "mpls": {}
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "top-level mpls sub-config",
+      "notes": [
+        "D-MPLS-1 §2 presence 门（create-time）"
+      ]
+    }
+  },
+  {
+    "id": "mpls_vn_static_port",
+    "proto": "mpls",
+    "summary": "T-MPLS-3: mpls 层静态端口+flows=2 拒（12.9，门扩扫 mpls 层）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {}
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "static four-tuple",
+      "notes": [
+        "ip 层空（对门无贡献）最小证明形（h323 T-3 同构）"
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    }
+  },
+  {
+    "id": "mpls_neg_label",
+    "proto": "mpls",
+    "summary": "T-MPLS-4: label 超 20bit（legacy Validate 真门）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 1048576
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "exceeds 20 bits",
+      "notes": [
+        "planner.go:66 锚词；0x100000=2^20（保留标签 0-15 不测=C 类避开）"
+      ]
+    }
+  },
+  {
+    "id": "mpls_neg_tc",
+    "proto": "mpls",
+    "summary": "T-MPLS-5: TC 超 3bit",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100,
+                "tc": 8
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "exceeds 3 bits",
+      "notes": [
+        "planner.go:69 锚词（RFC 5462）"
+      ]
+    }
+  },
+  {
+    "id": "mpls_neg_sbit",
+    "proto": "mpls",
+    "summary": "T-MPLS-6: S 位非栈底",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 1,
+                "s": true
+              },
+              {
+                "label": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "not the bottom of stack",
+      "notes": [
+        "planner.go:72 锚词（RFC 3032 §2.1）"
+      ]
+    }
+  },
+  {
+    "id": "mpls_neg_innerproto",
+    "proto": "mpls",
+    "summary": "T-MPLS-7: inner_proto 非法",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100
+              }
+            ],
+            "inner_proto": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "InnerProto 1 not in supported list",
+      "notes": [
+        "planner.go:80 锚词"
+      ]
+    }
+  },
+  {
+    "id": "mpls_neg_direction",
+    "proto": "mpls",
+    "summary": "T-MPLS-8: direction 非法",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100
+              }
+            ],
+            "direction": "sideways"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "Direction \"sideways\" not in supported list",
+      "notes": [
+        "planner.go:91 锚词"
+      ]
+    }
+  },
+  {
+    "id": "mpls_frames_multi",
+    "proto": "mpls",
+    "summary": "T-MPLS-9: frames=3 多帧（IP ID 逐帧+1）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100
+              }
+            ],
+            "frames": 3
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 3,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "mpls.label",
+          "value": "100"
+        },
+        {
+          "packet": 2,
+          "field": "mpls.label",
+          "value": "100"
+        },
+        {
+          "packet": 3,
+          "field": "mpls.label",
+          "value": "100"
+        },
+        {
+          "packet": 1,
+          "field": "ip.id",
+          "value": "0x0001"
+        },
+        {
+          "packet": 2,
+          "field": "ip.id",
+          "value": "0x0002"
+        },
+        {
+          "packet": 3,
+          "field": "ip.id",
+          "value": "0x0003"
+        }
+      ],
+      "notes": [
+        "frames=模板面每流帧数（planner.go:118-121 缺省 1）；IP ID 逐帧+1（planner.go:160-164）——ip.id 值首跑校准"
+      ]
+    }
+  },
+  {
+    "id": "mpls_direction_down",
+    "proto": "mpls",
+    "summary": "T-MPLS-10: direction=down（地址+MAC 全交换）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100
+              }
+            ],
+            "direction": "down"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.src",
+          "value": "20.0.0.1"
+        },
+        {
+          "packet": 1,
+          "field": "ip.dst",
+          "value": "10.0.0.1"
+        },
+        {
+          "packet": 1,
+          "field": "mpls.label",
+          "value": "100"
+        }
+      ],
+      "notes": [
+        "planner.go:171-176 down 自交换（legacy 层面）；raw-IP 驱动 force-up 防双换后帧面仍是交换后的地址"
+      ]
+    }
+  },
+  {
+    "id": "mpls_multicast",
+    "proto": "mpls",
+    "summary": "T-MPLS-11: multicast EtherType 0x8848",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100
+              }
+            ],
+            "multicast": true
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "eth.type",
+          "value": "0x8848"
+        },
+        {
+          "packet": 1,
+          "field": "mpls.label",
+          "value": "100"
+        }
+      ],
+      "notes": [
+        "RFC 3032 §3.10；builder.go:1029-1033 强制"
+      ]
+    }
+  },
+  {
+    "id": "mpls_inner_tcp",
+    "proto": "mpls",
+    "summary": "T-MPLS-12: 内层 TCP 裸头（inner_proto:6）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100
+              }
+            ],
+            "inner_proto": 6
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "eth.type",
+          "value": "0x8847"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "12345"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "80"
+        }
+      ],
+      "notes": [
+        "链路径合同：内层 TCP 无握手/seq 语义=裸头（spec.TCP 链不可达，D-MPLS-1 ④）；tcp.flags 无握手断言"
+      ]
+    }
+  },
+  {
+    "id": "mpls_v6",
+    "proto": "mpls",
+    "summary": "T-MPLS-13: v6 内层对照（builder 双族 §3.9）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "2001:db8::1",
+            "dst": "2001:db8::2"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": 12345,
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 1,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "mpls.label",
+          "value": "100"
+        },
+        {
+          "packet": 1,
+          "field": "ipv6.src",
+          "value": "2001:db8::1"
+        },
+        {
+          "packet": 1,
+          "field": "ipv6.hlim",
+          "value": "64"
+        }
+      ],
+      "notes": [
+        "MPLS labels any IP packet（RFC 3032 §3.9）；内层 hlim 64=spec.TTL 缺省"
+      ]
+    }
+  },
+  {
+    "id": "mpls_port_dyn",
+    "proto": "mpls",
+    "summary": "T-MPLS-14: mpls.src_port 动态 inc+flows=2（E1 逐流端口池）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": {
+              "strategy": "inc",
+              "range": [
+                "10.0.1.1",
+                "10.0.1.2"
+              ],
+              "step": 1
+            },
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "mpls": {
+            "src_port": {
+              "strategy": "inc",
+              "range": [
+                30000,
+                30001
+              ],
+              "step": 1
+            },
+            "dst_port": 80,
+            "labels": [
+              {
+                "label": 100
+              }
+            ]
+          }
+        }
+      ],
+      "group_id": {
+        "strategy": "fixed",
+        "value": "mpls-port-dyn"
+      }
+    },
+    "expect": {
+      "packet_count": 2,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ip.src",
+          "value": "10.0.1.1"
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "value": "30000"
+        },
+        {
+          "packet": 2,
+          "field": "ip.src",
+          "value": "10.0.1.2"
+        },
+        {
+          "packet": 2,
+          "field": "udp.srcport",
+          "value": "30001"
+        }
+      ],
+      "notes": [
+        "每流 1 帧（frames 缺省）：流1 源口 30000、流2 30001；group_id 固定单 worker FIFO（icmpv6 T-11 先例）；首跑校准"
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
     }
   }
 ]

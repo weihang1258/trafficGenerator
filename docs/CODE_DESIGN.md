@@ -2389,7 +2389,14 @@ create：ValidateStrategy→ValidateLayers（V9 10 键）→CheckProtoFlat prese
 
 ### D-MPLS-1 MPLS 层链化：终层自驱（h323 机器整包 relay）+ 端口住层【P-PIPE #16 门1】
 
-**状态：** P2 定稿（2026-09-19；门 1 已交+对抗自重审 2 轮（1 处行号修正+1 处语义注记补充+2 项框架排查落定，末轮净）；CORE_MEMORY 240 条逐条复审完成。裁定延续：端口住 mpls 层+端口动态 E1=h323 已批同款（用户"开工/继续处理"连续 mandate）。现状：legacy 完整（planner.go:104-223，Eth+标签栈+内层 IP/TCP/UDP 单帧发射，frames 缺省 1 逐帧 IP ID 递增，direction up/down 自交换，Validate **10 锚词** planner.go:40-95），main.go:556 直挂，**层链四件全缺**+registry 占位行 CategoryL2 带警告注记（registry.go:1196-1202，本设计裁定替换）。用例 1 例纯扁平（{"count":1,"mpls":{"labels":[{"label":100}]}}，地址/端口全靠扁平缺省）。在库 tasks 93+strategies 5（普查表 92 漂移注记））
+**状态：** 已验收（2026-09-19，P-PIPE #16 收官；自审 2 轮净）。**P4**（7e2ebb5）：6 红例先红后绿（红例②连带抓出 CategoryL2 outermost 校验冲突随占位行替换消解；红例④原断言写错当轮修正为翻译结果逐键断言）；registry 占位行替换终层行 8 键+schemagen 98 层；touched 包 -race 净。**P5**：mpls.json 14 例（改写 1+新建 13）真实流程全量绿 ×4 连跑（首跑即全绿），落盘 /tmp/mcp-pcaps/mpls/；门2 四项绿（反查 22/22——首验 20/22 抓出反查关键词失配+inner_payload 缺格，补 T-1 显式 payload 格 data.data=70726f6265 实钉后 22/22）；回归 h323/icmpv6/srv6/sv 全绿。**P6**：在库清空 tasks 142+strategies 13→0/0（**绝对路径+总量对账 241393-142=241251 精确吻合**——h323 事故后纪律执行；备份 /tmp/trafficgen-backup-mpls-p6-20260919-181657.db）。
+
+**门3 抽查三条（门1 表抽 §1/§5/§12 行）：**
+1. §1 层链唯一真相 → registry.go mpls 终层行（CategoryTerminal+DependsOn ip+Fields 8 键无 Default，占位行注记更新为 A1 裁定）+ 用例 mpls_single_label_ipv4 层形 `[{"ip":{src,dst}},{"mpls":{src_port,dst_port,labels}}]`，存量 fields/frames 断言保留（frames `00 06 41 40` suite PASS 实证）✓
+2. §5 有错必处理（锚词族）→ layer_gen.go validateLayer（required 保底+legacy Validate 复用）+ 用例 mpls_neg_label error_contains `exceeds 20 bits`（planner.go:66 零新文案，suite PASS 实证）✓
+3. §12 动态清单（业务 5 键全关+端口 2 键开）→ layer_dyn.go allowlist "mpls" 行（红例⑤实证）+ 用例 mpls_port_dyn src_port inc 对象逐流异（2 包源口 30000/30001 pcap 实钉）✓
+
+（原 P2 定稿记录：门 1 已交+对抗自重审 2 轮（1 处行号修正+1 处语义注记补充+2 项框架排查落定，末轮净）；CORE_MEMORY 240 条逐条复审完成。裁定延续：端口住 mpls 层+端口动态 E1=h323 已批同款（用户"开工/继续处理"连续 mandate）。现状：legacy 完整（planner.go:104-223，Eth+标签栈+内层 IP/TCP/UDP 单帧发射，frames 缺省 1 逐帧 IP ID 递增，direction up/down 自交换，Validate **10 锚词** planner.go:40-95），main.go:556 直挂，**层链四件全缺**+registry 占位行 CategoryL2 带警告注记（registry.go:1196-1202，本设计裁定替换）。用例 1 例纯扁平（{"count":1,"mpls":{"labels":[{"label":100}]}}，地址/端口全靠扁平缺省）。在库 tasks 93+strategies 5（普查表 92 漂移注记））
 
 **架构裁定（P2 定稿）：** **A1 [ip,mpls] 终层自驱整包 relay**（h323 已验证机器：wrap legacy Plan+force-up 防双换——legacy direction=down 自行交换地址+MAC，raw-IP 驱动 down-swap 会双换）。否决记录：①A2 中链 shim [eth,mpls,ip,tcp]（registry 占位注记设想）需框架级新机制（数组=线序+transport 终结面未定义），占位注记自评"属 P2 工作项"——本裁定以 A1 替代并在新行注记中更新；②B2 [ip,tcp,mpls] 端口住 tcp 层——**中链 tcp 静态端口无进 spec 通道**（extractLayer* 仅 ip 地址/eth MAC/ip TTL 三函数，strategy_convert.go:250-330），且"动态通静态不通"形状不一致——不可行。**链路径语义注记（重审补充）：inner_proto=0（auto）在链路径恒解析为 UDP**——spec.TCP 唯一来源是扁平顶层 tcp 子映射（strategy_convert.go:446），链配置下恒 nil，内层 TCP 恒裸头（无 seq/ack/flags，planner.go:112/:189-192 不可达）=legacy 合同链上面。
 

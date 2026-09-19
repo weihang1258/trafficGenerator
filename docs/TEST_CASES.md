@@ -3371,7 +3371,7 @@
 
 ### T-MPLS-1…13 mpls.json——存量审计 + 测试点清单【D-MPLS-1 P3 定稿，P4 未开工】
 
-**状态：** P3 定稿（2026-09-19；存量 1 例逐条审计改写（等价迁移：count 删、顶层 mpls→层内、补 ip 层显式地址+mpls 层显式端口 12345/80——存量靠扁平缺省 10.0.0.1/20.0.0.1/12345/80，fields/frames 断言保留等价字节）+ 新建 12 例=13 例。锚词按真实执法门：create-time（presence/static 2 门无落盘）vs task-time validator（label 上界/TC 上界/S 栈底/InnerProto/Direction/Frames 6 门 .neg.pcap——legacy Validate 复用零新文案 planner.go:40-95）。包数=frames（缺省 1，模板面每流帧数）。**链路径语义注记：inner_proto=0（auto）在链上恒解析为 UDP（spec.TCP 链不可达）——枚举格 0 与 17 等价，0/17 双格仍各建一例钉合同**）
+**状态：** 已验收（2026-09-19，P5 全量绿 ×4 连跑+门2 四项+反查 22/22；P6 清库 142+13→0/0 总量对账精确）。存量 1 例逐条审计改写（等价迁移：count 删、顶层 mpls→层内、补 ip 层显式地址+mpls 层显式端口 12345/80——存量靠扁平缺省，fields/frames 断言保留等价字节）+ 新建 13 例=14 例（P5 校准：反查 22/22 所需 T-1 补 inner_payload 显式格 data.data=70726f6265；最终 14 例=改写 1+新建 13，P3 原表 13 例+T-14）。锚词按真实执法门：create-time（presence/static 2 门无落盘）vs task-time validator（label 上界/TC 上界/S 栈底/InnerProto/Direction/Frames 6 门 .neg.pcap——legacy Validate 复用零新文案 planner.go:40-95）。包数=frames（缺省 1，模板面每流帧数）。**链路径语义注记：inner_proto=0（auto）在链上恒解析为 UDP（spec.TCP 链不可达）——枚举格 0 与 17 等价，0/17 双格仍各建一例钉合同**）
 **级别：** pcap
 **来源：** ①标准=RFC 3031 §3.12+RFC 3032 §2.1/§3.1/§3.9/§3.10+RFC 5462 ②设计=D-MPLS-1 ③现网=探针 pcap（/tmp/probe-iana/mpls.pcap，存量 notes 验证记录）
 **存量去向（1 例 → P5 改写后 13 例）：**

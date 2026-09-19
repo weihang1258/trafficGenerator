@@ -629,7 +629,7 @@ def check_mpls(cases):
     blob = json.dumps(cases, ensure_ascii=False)
 
     # 1. 场景面。
-    for kw, name in [("smoke", "S 基线单标签"), ("frames", "多帧面"),
+    for kw, name in [("single_label", "S 基线单标签"), ("frames", "多帧面"),
                      ("direction", "方向面"), ("multicast", "multicast 面"),
                      ("inner_tcp", "内层 TCP 面"), ("v6", "v6 内层对照"),
                      ("dyn", "端口动态面"), ("static_port", "静态端口拒面")]:
