@@ -3484,3 +3484,44 @@
 **断言边界（9.27）：** seq/ack 只断 flags 面（ISN 随机）；IAC 帧 telnet.data 空串=已知伪影（frames 字节断言兜底）；包间隔无面。
 **执行口径：** P5 telnet 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/telnet/`+门 2 四项+反查 check_telnet；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
 **实现位置：** `cases/telnet.json`（**17 例**：改写 1+新建 16）。
+
+### T-SIP-1…18 sip.json——存量审计 + 测试点清单【D-SIP-1 P3 定稿，P4 未开工】
+
+**状态：** P3 定稿（2026-09-19）。存量 1 例逐条审计改写（等价迁移：count 删、顶层 sip{dialog}→sip 层、四元组→layers[ip] 显式+显式端口 12001/5060；断言面=14 fields（sip.Method/Request-Line/Status-Code/CSeq.seq/CSeq.method）+frames 4 pin offset 54+标量（negotiated/terminates）全保留）+ 新建 17 例=18 例。
+**级别：** pcap
+**来源：** ①标准=RFC 3261（§7/§8.1.1/§20.8/§8.1.1.4）+RFC 3550（§5.1 RTP）+RFC 3264（§5.1）②设计=D-SIP-1 ③现网=存量 pcap 12 帧实证（tshark SIP 解码器五字段+逐字节 frames）
+**存量去向（1 例 → P5 改写后 18 例）：**
+
+| 存量 | 去向 | 说明 |
+|---|---|---|
+| sip-basic-dialog | 改写 | count 删、顶层 sip→layers[sip]、四元组→ip 层显式+端口显式；五消息（INVITE/200/ACK/BYE/200）+14 fields+frames 4 pin（p4 INVITE 请求行/p5 200 状态行/p6 ACK/p7 BYE）保留等价——字节一致由 P5 实证 |
+
+**新建例清单（T-2…18）：**
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| 顶层 sip presence 判死 | T-2 sip_flat_presence | A（负例，锚词 `top-level sip sub-config`；create-time） |
+| sip 层静态端口+flows=2 拒 | T-3 sip_flat_static_port | A（负例，锚词 `static four-tuple`；[ip{},sip{ports}]；create-time） |
+| 头补全：无头 INVITE 生成 | T-4 sip_hdr_completion | A（正例，dialog 仅 method+uri→Call-ID/Via/CSeq/Max-Forwards 全生成（RFC 3261 §8.1.1.4）；sip.CSeq.seq=1/Method=INVITE+Via/Call-ID 头存在断言=Wireshark-clean 格） |
+| 头补全：user 头赢+响应回显 | T-5 sip_hdr_user_wins | A（正例，显式 Call-ID/From/To+CSeq:7→INVITE 保留+200 响应回显同值（lastFrom/To/CSeq 继承）；user>补全>无三态之 user 态） |
+| REGISTER 枚举 | T-6 sip_register | A（正例，REGISTER+200；方法枚举格） |
+| OPTIONS 枚举 | T-7 sip_options | A（正例，OPTIONS+200；方法枚举格） |
+| 响应码枚举 | T-8 sip_status_codes | A（正例，100/180/200/404 逐响应（多 dialog 消息组）；sip.Status-Code 逐值断言） |
+| SDP body+Content-Length 自动 | T-9 sip_sdp_body | A（正例，INVITE 带 SDP body 无 Content-Length 头→自动补 `Content-Length: N`（N=body 字节数）帧 pin；v=-o-m= 行+SIP 头数组） |
+| 长消息 MSS 分段 | T-10 sip_mss_segment | A（正例，3000B body INVITE→3 段（1460/1460/80）；tcp.len 逐段断言；首跑校准） |
+| RTP 媒体子流 | T-11 sip_rtp_media | A（正例，末消息 emit_media:true+media{frames:2,payload_type:0}→RTP 2 帧 UDP（udp.port 5004/rtp.pt 0/rtp 版本 0x80 断言）；**seq/ssrc 随机不钉**（RFC 3550 合同）；14 包=3+5+2+4） |
+| RTP 方向 down+显式端口 | T-12 sip_rtp_down | A（正例，media{direction:"down",src_port:30000,dst_port:30001}→RTP down 帧 src=30001/dst=30000 交换断言（:846-856 换向合同）） |
+| SDP 派生端口 | T-13 sip_sdp_port | A（正例，INVITE body m=audio 6007020→RTP src=6007020（scanSDPMediaPorts 合同 :776-796）；future-bleed=C 注记用例避开 re-INVITE） |
+| RTP FileSource | T-14 sip_rtp_filesource | A（正例，media.file_source literal→RTP 帧 payload=literal 字节分块（frame_size 切）；payload 前 12B RTP 头+实字节断言） |
+| v6 正例 | T-15 sip_v6 | A（正例，ip 层 v6→12 包同构+帧 offset 校准（74）；9.24 地址族对称） |
+| 缺省端口 5060 | T-16 sip_default_port | A（正例，sip 层无端口→tcp.dstport=5060（translate 镜像 setDefaultDstPort）；src worker 保底） |
+| 端口动态 E1 | T-17 sip_port_dyn | A（正例，src_port/dst_port 动态对象+flows=2→group_id 固定 2 流×12=24 包端口逐流） |
+| 空 dialog 最小联结 | T-18 sip_empty_dialog | A（正例，sip 层空业务面（或 dialog:[]）→7 包=3 握手+0+4 挥手（nil-config 合同）；flags 序全断言） |
+
+**C 类注记（9.17）：** ①随机面 RTP seq/ts/ssrc+TCP ISN+ip.id 断言避开（RFC 3550 合同）；②SDP future-bleed（:769 全 dialog 扫描——用例避开 re-INVITE 后端口变化场景=T-13 注记）；③MSS 链路径固定 1460（spec.TCP 不可达 1.12）；④RFC 3261 Timer/重传不做（合成器合同）；⑤validateLayer IP parse/MSS 锚词链不可达（schema 先拦/spec.TCP 不可达）=零死锚词。
+**枚举取值覆盖（9.20-9.22）：** 方法{INVITE,ACK,BYE,REGISTER,OPTIONS}✓（T-1/6/7）；响应码{100,180,200,404}✓（T-1/8）；头补全三态{user 赢,生成,纯响应 verbatim}✓（T-5/T-4/T-1 响应回显）；RTP PT{0,8?}——**PT 8 缺格→裁定：T-11 扩双值（media payload_type 0 断言+rtp.pt 单格）或视为单分支代表（0=PCMU 缺省）注记**——保持 T-11 PT0 单格+注记（PT 仅 1B 值拷贝 :865 同分支）；承载位置{dialog body/headers 数组/media 子结构}✓（T-9/T-5/T-11-14）；端口{显式,缺省,动态}✓（T-1/T-16/T-17）；地址族{v4,v6}✓（T-15）。
+**正交矩阵：** 方法×响应×方向×{有/无 media}×地址族——落格见上表；动态整格=业务 2 键全关+端口 2 键（T-17）。
+**通用陷阱自查（9.37-9.40）：** RTP 端口=SDP 派生非父+1（3.37 不适用）；T-17 group_id 固定；RTP 帧插在 EmitMedia 消息与下一条消息之间（wire order=emit order 同 worker 保序 :14）。
+**断言边界（9.27）：** RTP seq/ssrc 随机不钉；MSS 分段末段长度=首跑校准；RTP 帧 payload 零填充面（无 FileSource 时 frameSize 字节零值占位 :851-853）不钉长度断言以外的内容。
+**执行口径：** P5 sip 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/sip/`+门 2 四项+反查 check_sip；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
+**实现位置：** `cases/sip.json`（**18 例**：改写 1+新建 17）。
