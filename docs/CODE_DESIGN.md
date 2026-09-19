@@ -2190,7 +2190,7 @@ presence="top-level sv sub-config"；V9 appid="out of range [16384,32767]"；V9 
 
 ### D-ICMPV6-1 ICMPv6 层链化：raw-IP 终结层 + 新建 layer_gen/validator【P-PIPE #14 门1】
 
-**状态：** P1 门1 待批（2026-09-19；CORE_MEMORY 240 条逐条复审（含 1.11-1.13 增补）完成——全过 + 关键预判 4 项见依赖链判定表。现状：legacy planner 既有（icmpv6.go:47/:89，Echo Request/Reply+auto-reply+Pattern 多步 ping+FileSource 全实现，main.go:541 直挂 legacy），**层链四件全缺**（registry 无行/translate 无 case/无 generator/validator 注册/FlowMeta 无字段）。用例 1 例纯扁平（src_ip/dst_ip+icmpv6 子映射）=1.11 违规现状→P5 改写。链形判定：[ip,icmpv6] raw-IP 终结层（igmp/ospf/pim 同款，FieldContract ip.protocol=58））
+**状态：** P2 定稿（2026-09-19；门 1 已批（用户"可以，连续推进"）；CORE_MEMORY 240 条逐条复审（含 1.11-1.13 增补）完成——全过 + 关键预判 4 项；依赖链② P2 实读修正（legacy Validate 已有 v6 强制 icmpv6.go:60-79，非无校验）+ 设计八节 + 决策表 A-F 定稿见下；P3 未开工。现状：legacy planner 既有（icmpv6.go:47/:89，Echo Request/Reply+auto-reply+Pattern 多步 ping+FileSource 全实现，main.go:541 直挂 legacy），**层链四件全缺**（registry 无行/translate 无 case/无 generator/validator 注册/FlowMeta 无字段）。用例 1 例纯扁平（src_ip/dst_ip+icmpv6 子映射）=1.11 违规现状→P5 改写。链形判定：[ip,icmpv6] raw-IP 终结层（igmp/ospf/pim 同款，FieldContract ip.protocol=58））
 
 **权威链（§7）：** 标准=RFC 4443（ICMPv6，4.9 有 RFC 直接适用：type 128/129 §4.1、校验和 §2.3 经 IPv6 伪头 RFC 8200 §8.1 nextHeader=58）→ 设计=本条目（权威）→ 代码 → 测试。字节事实经 Wireshark packet-icmpv6 + iputils ping6 双转录。
 
@@ -2199,7 +2199,7 @@ presence="top-level sv sub-config"；V9 appid="out of range [16384,32767]"；V9 
 | # | 断链层 | 判定 | 处置 |
 |---|---|---|---|
 | ① 层链四件全缺 | 代码缺口（未翻转） | registry/translate/FlowMeta/注册全无；legacy 直挂 main.go:541 | P4 四件套+红例族（registry Fields 6 键+FieldContract ip.protocol=58、translate case 手工逐键、FlowMeta.ICMPv6+carry、layer_gen 包装 legacy Plan+RegisterLayerGenerator/Validator） |
-| ② v4 地址静默零校验和 | 代码断链（自相矛盾） | types.go:2860 注记：伪头要求 v6，v4 地址产出零校验和（合法帧头+错校验和=线上必弃包）——legacy 无校验 | P4 validator 补"地址必须 v6"分支（锚词含 requires IPv6）；负例 P3 落 |
+| ② v4 拒绝（P1 预判修正，P2 实读） | 检查既有、层链未接 | legacy Validate **已有 v6 强制**（icmpv6.go:60-79，锚词 `must be IPv6 (got IPv4)`）——types.go:2860 注记是"为何要查"的背景说明非"无校验"声明；层链路径不经 legacy Validate=检查未接 | P4 layer validator 复用 legacy v6 检查（零新文案）+type/code/pattern 新分支；红例④ 经链路径先红 |
 | ③ FileSource 层链不可达 | 配置面缺口 | parseFileSource 读顶层子映射（strategy_convert.go:1428）；扁平判死后 file_source 无住处；现网用例零使用 | P4 translate 不映射 file_source+C 类注记（需要时另立项）；不强迁 |
 | ④ 组合流替代面 | 9.11 判定 | Echo 会话天然多动作：Pattern 多步（stepN request/reply、Sequence 递增）即组合序列本体 | 组合例=Pattern 多步 2 条（≥3 动作面） |
 
@@ -2243,6 +2243,53 @@ presence="top-level sv sub-config"；V9 appid="out of range [16384,32767]"；V9 
 | Linux ping6 Echo 对（id/seq 递增） | iputils ping6+抓包确认 | 存量冒烟近似 | 待确认：抓 ping6 包核对 |
 
 **P4 范围（预填）：** ①registry icmpv6 行（Fields 6 键+FieldContract ip.protocol=58）②translate case "icmpv6"（6 键+pattern 下钻；file_source 不映射③）③FlowMeta.ICMPv6+carry+isRawIPChain+validateSpecBase 两豁免清单 ④layer_gen 新建（包装 legacy Plan；RegisterLayerGenerator/Validator）⑤validator 新建（type 128/129、v6 族、pattern step、code）+CheckProtoFlat presence ⑥pipe_gate/coverage_gate 登记+schemagen ⑦红例族 4 项先行。
+#### 1. 文件清单（P2 定稿）
+- Modify: `internal/core/layers/registry.go`——icmpv6 行（CategoryTerminal+DependsOn ip+FieldContract `"ip.protocol":"58"`+Fields 6 键：type{uint8}/code{uint8}/identifier{uint16}/sequence{uint16}/data{string}/pattern{list}，一律无 Default——决策 F）
+- Modify: `internal/core/layers/chain_planner_translate.go`——case "icmpv6"（spec.ICMPv6==nil 层优先；6 键逐映射+pattern 槽位下钻；**缺省镜像 parse**（决策 D）：type 缺省 128/code 0/sequence 1/data "ping"——空层=合法缺省 ping，存量例语义保持；data 字符串直转 []byte 无 []byte 陷阱）
+- Modify: `internal/core/layers/generator.go`——FlowMeta.ICMPv6+flowMetaFor carry
+- Modify: `internal/core/layers/chain_planner_util.go:40`——isRawIPChain 加 icmpv6
+- Modify: `internal/core/layers/chain_planner.go:505/:701`——两处端口豁免清单加 icmpv6（raw-IP 同款；mapToFlowSpec 12345/80 缺省对 raw-IP 无 L4 头无害，igmp 同款）
+- Modify: `internal/core/strategy_convert.go`——CheckProtoFlat icmpv6 presence 分支（sv 后邻位，空 map 也死）
+- Create: `internal/protocol/icmpv6/layer_gen.go`——Generator 包装 legacy Plan（meta→等价 FlowSpec 复用零分叉）+validateLayer（复用 legacy v6 检查+新分支 type∈{128,129}/code==0/pattern step type）+init RegisterLayerGenerator/Validator
+- Modify: `tools/pipe_gate.sh:67`+`tools/coverage_gate.py` check_icmpv6、`schemas/v1/generated/layers.generated.json`（schemagen）
+- Modify: `test/protocol_pcap/cases/icmpv6.json`（1 例改写+新例，T-ICMPV6 权威，P5）
+- Test: `internal/core/layers/icmpv6_migrate_test.go`（红例族 4）
+- 零改动：`internal/protocol/icmpv6/icmpv6.go`（legacy Plan/Validate 字节事实）
+
+#### 2. 接口签名
+- presence 锚词：`protocol icmpv6 no longer accepts a top-level icmpv6 sub-config (move it into the icmpv6 layer of an [ip,icmpv6] layers chain)`
+- validator 锚词：`icmpv6 config is required`（spec.ICMPv6==nil 翻译后不可达=C 类，与 translate 保底同款）/`icmpv6 type must be 128 (Echo Request) or 129 (Echo Reply), got %d`/`icmpv6 code must be 0 for Echo, got %d`/`icmpv6 pattern step %d type must be 128 or 129, got %d`/legacy 复用 `must be IPv6 (got IPv4)`（零新文案）
+
+#### 3. 主流程
+create：ValidateStrategy→ValidateLayers（V9 6 键）→CheckProtoFlat presence→checkLayerChainStaticCopy（ip 层显式+flows>1 拒，既有）→400。
+任务：mapToFlowSpec（raw-IP 非 l2Only，spec 端口缺省 12345/80 对无 L4 头无害）→parseLayerDyn（ip.src/dst 动态）→ChainPlanner.ValidateSpec：validateSpecBase（icmpv6 端口豁免①②）→translate case "icmpv6"→validateLayer（注册后链上同步拒）→Plan：isRawIPChain→raw-IP 驱动（flowMetaFor+meta 补齐 SrcIP/DstIP/TTL→Generator.Generate→legacy Plan(ctx, 等价 spec)→包 relay；down 包 L3 交换 :1168 既有→builder L2 MAC 缺省+伪头校验和）。
+
+#### 4. 增量步骤（failing 先行）
+`icmpv6_migrate_test.go` 红例族 4（sv_migrate 同构）：①TestICMPv6Chain_FlatPresenceRejected ②TestICMPv6Chain_LayerFieldsAccepted（6 键 V9 放行）③TestICMPv6Chain_LayerTranslateEchoPair（链 [ip{v6},icmpv6{identifier:1,sequence:1}] 缺省 type 128→Validate+Plan→2 包，payload[0]==128/129）④TestICMPv6Chain_V4Rejected（链 v4 地址→Validate 拒 `must be IPv6`——实现前无 validator=静默放行红）。步骤 2 四件套→4 红转绿。
+
+#### 5. 错误锚词
+见 §2；另 static=`static four-tuple`（semantic.go 既有门）。
+
+#### 6. 性能设计与验收
+包数=2×ping 步数（单 ping 2 包/Pattern N 步 2N 包/type 129 单包）；legacy Plan 包装（channel 256 流式既有，无锁无收集）；翻译一次；伪头校验和每包 O(len(data))（builder 既有）；回归口径 suite 耗时 ±10%；无吞吐数字（未测不承诺）；网卡未跑。
+
+#### 7. 顺序与回滚
+红例→registry+translate→FlowMeta/isRawIPChain/豁免→layer_gen+注册→presence→门登记+schemagen→绿；P5 cases。回滚=单提交粒度（layer_gen revert=纯链不可跑旧态非退化；presence/cases 独立；icmpv6.go 零改动=字节事实零风险）。
+
+#### 8. 验收
+对应 T-ICMPV6（P3 定稿）。完成条件：4 红例先红后绿；icmpv6.json 全量绿（RESULT+二进制同代+门 2 四项）；touched 包 -race+vet 净；顶层 src_ip/dst_ip/icmpv6 字面零残留；schemagen 同步绿；门 1 表回填+抽查三条；在库 icmpv6 行清空（P6 删前重报→备份→删→复核）。
+
+#### §9' 关键决策对比（P2 定稿终审）
+
+| 决策 | 候选 | 优劣 | 结论 |
+|------|------|------|------|
+| A 链形 | A1 [ip,icmpv6] raw-IP 终结；A2 [eth,ip,icmpv6] 带 eth | MAC 无业务语义（存量例无 MAC 断言，builder 缺省即可）；A2 多一层无用形状 | **A1**（igmp/ospf/pim 同款） |
+| B 生成器 | B1 包装 legacy Plan（等价 spec 复用）；B2 重写发射逻辑 | B1 Echo 配对/Pattern/伪头全复用零分叉、legacy Validate v6 检查同享；B2 重复实现风险 | **B1**（srv6 同款） |
+| C 校验器 | C1 新建 validateLayer（type/code/pattern+复用 legacy v6）；C2 仅 legacy Validate | 层链 ValidateSpec 不经 legacy→C2 全漏；C1 层链同步拒 | **C1** |
+| D translate 缺省 | D1 镜像 parse 缺省（type 128/code 0/seq 1/data "ping"，空层=合法缺省）；D2 无缺省必显式 | D1 保持存量 icmpv6:{} 语义+parse 单源对照口径；D2 破坏存量例 | **D1** |
+| E file_source | E1 translate 映射；E2 不迁+C 类（③） | 零用例需求+parseFileSource 未导出复刻有风险 | **E2**（1.12：需要时立项） |
+| F registry Fields | F1 注册 6 键（V9 键面）；F2 igmp 空层式（语义全默认） | F1 层可表达 type/pattern 等业务值+V9 域校验；F2 只能空层全缺省 | **F1**（GOOSE 谱系） |
+
 **明确不解决：** RFC 4861 邻居发现（独立协议族非 Echo 语义）；file_source 层链化（③ C 类）；Error 消息类 type（1-4 类非 Echo 面，legacy 未实现不冒充）。
 **依据：** RFC 4443 §2.3/§4.1；RFC 8200 §8.1；代码事实：`icmpv6/icmpv6.go:47/:89`（legacy Plan）、`core/types.go:2848-2883`（ICMPv6Config/Step 6 键+伪头注记）、`strategy_convert.go:732-743`（parse）、`:1428`（file_source）、`chain_planner_util.go:40`（isRawIPChain）、`chain_planner.go:505/:701`（端口豁免清单）、`:1168`（down 交换）、`layers/generator.go:215`（FlowMeta）、`main.go:541`（legacy 直挂现状）。
 
