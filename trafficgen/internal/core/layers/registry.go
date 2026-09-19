@@ -1246,6 +1246,14 @@ func buildDefaultRegistry() {
 			"dst_port":      {Type: "uint16", Min: 0, Max: 65535},
 		},
 	})
+	r.Register(LayerSchema{Name: "sip", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"dialog":   {Type: "list"},
+			"media":    {Type: "object"},
+			"src_port": {Type: "uint16", Min: 0, Max: 65535},
+			"dst_port": {Type: "uint16", Min: 0, Max: 65535},
+		},
+	})
 	r.Register(LayerSchema{Name: "pppoe", Category: CategoryL2})
 
 	defaultRegistry = r

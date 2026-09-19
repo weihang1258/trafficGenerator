@@ -741,6 +741,49 @@ def check_telnet(cases):
 
     return rows
 
+def check_sip(cases):
+    """D-SIP-1 P5 反查表（T-SIP-1…18）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("sip"), dict):
+                lays.append((c.get("id", "?"), l["sip"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面。
+    for kw, name in [("basic", "S 基线五消息"), ("presence", "presence 判死面"),
+                     ("static_port", "静态端口拒面"), ("hdr_completion", "头补全生成面"),
+                     ("hdr_user_wins", "user 头赢面"), ("register", "REGISTER 枚举"),
+                     ("options", "OPTIONS 枚举"), ("status_codes", "响应码枚举"),
+                     ("sdp_body", "SDP body 面"), ("mss_segment", "MSS 分段面"),
+                     ("rtp_media", "RTP 子流面"), ("rtp_down", "RTP down 面"),
+                     ("sdp_port", "SDP 派生端口面"), ("filesource", "RTP FileSource 面"),
+                     ("_v6", "v6 正例面"), ("default_port", "缺省端口面"),
+                     ("port_dyn", "端口动态面"), ("empty_dialog", "空 dialog 面")]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖（业务 2 键+端口 2 键+media 内键）。
+    for k in ["dialog", "media", "src_port", "dst_port"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+    medias = [(cid, m.get("media") or {}) for cid, m in lays]
+    for k in ["frames", "payload_type", "src_port", "direction", "file_source"]:
+        hit = next((cid for cid, m in medias if k in m), None)
+        rows.append(("media." + k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面。
+    for needle, name in [
+        ("top-level sip sub-config", "presence 判死"),
+        ("static four-tuple", "静态端口拒"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
 
@@ -1261,7 +1304,7 @@ def check_goose(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip}
 
 
 def main(argv):

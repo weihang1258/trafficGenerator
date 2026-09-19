@@ -7829,6 +7829,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol telnet no longer accepts a top-level telnet sub-config (move it into the telnet layer of an [ip,telnet] layers chain)"
 		}
 	}
+	// D-SIP-1：sip 顶层 sip 子映射 presence 判死（前四协议同款；空 map
+	// 也死）。层链形状不触发。
+	if protocol == "sip" {
+		if v, ok := cfg["sip"]; ok && v != nil {
+			return "protocol sip no longer accepts a top-level sip sub-config (move it into the sip layer of an [ip,sip] layers chain)"
+		}
+	}
 	return ""
 }
 

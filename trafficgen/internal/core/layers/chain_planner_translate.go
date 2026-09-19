@@ -1366,6 +1366,51 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			}
 		}
 		return
+	case "sip":
+		// D-SIP-1：层 config 手工逐键映射进 spec.SIP（parseSIPDialog/
+		// parseSIPMedia 未导出不可跨包，决策 C1）。dialog/media 经 JSON
+		// round-trip 直迁（SIPMessage/SIPMedia 形状由 struct 标签管，与
+		// 扁平 parse 同形，零缺省镜像 :698）。端口同键二态（D-FTP-2 v2）：
+		// 标量→spec 端口（层值赢），dst_port 缺席→5060（镜像
+		// setDefaultDstPort，RFC 3261 §19.2）、src_port 缺席→不动
+		// （worker 12345+i 保底）；对象→放行（worker resolveLayerTuple
+		// 已把逐流解析值写进 spec 端口）。
+		if spec.SIP == nil {
+			cfg := completedConfig(s, term.Config)
+			sc := &core.SIPConfig{}
+			if dlg, ok := cfg["dialog"]; ok {
+				if b, err := json.Marshal(dlg); err == nil {
+					var out []core.SIPMessage
+					if json.Unmarshal(b, &out) == nil {
+						sc.Dialog = out
+					}
+				}
+			}
+			if md, ok := cfg["media"]; ok {
+				if b, err := json.Marshal(md); err == nil {
+					var out core.SIPMedia
+					if json.Unmarshal(b, &out) == nil {
+						sc.Media = &out
+					}
+				}
+			}
+			spec.SIP = sc
+			// 端口双态（h323 同款：标量层值赢，dst 缺省 5060，src 缺席
+			// 不动，对象放行）。
+			if v, ok := cfg["src_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.SrcPort = u
+				}
+			}
+			if v, ok := cfg["dst_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.DstPort = u
+				}
+			} else {
+				spec.DstPort = 5060
+			}
+		}
+		return
 	case "opcua":
 		if spec.OPCUA != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

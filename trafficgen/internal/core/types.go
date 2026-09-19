@@ -3592,6 +3592,9 @@ type LayerDynValues struct {
 	// TELNET holds telnet-layer dynamic port strategies（D-TELNET-1 决策
 	// E1：同前三——端口 2 键开，业务 10 键关）。
 	TELNET LayerTransportDyn
+	// SIP holds sip-layer dynamic port strategies（D-SIP-1 决策 E1：同前
+	// 四——端口 2 键开，业务 2 键关）。
+	SIP LayerTransportDyn
 }
 
 // LayerMQTTDyn holds mqtt-layer dynamic business-field strategies
@@ -3616,6 +3619,7 @@ func (l *LayerDynValues) HasAny() bool {
 		l.MPLS.SrcPort != nil || l.MPLS.DstPort != nil ||
 		l.NGAP.SrcPort != nil || l.NGAP.DstPort != nil ||
 		l.TELNET.SrcPort != nil || l.TELNET.DstPort != nil ||
+		l.SIP.SrcPort != nil || l.SIP.DstPort != nil ||
 		l.Eth.SrcMAC != nil || l.Eth.DstMAC != nil ||
 		l.HTTP.URI != nil || l.HTTP.Body != nil || l.HTTP.BodyB64 != nil ||
 		l.HTTP.ResponseBody != nil || l.HTTP.ResponseBodyB64 != nil ||

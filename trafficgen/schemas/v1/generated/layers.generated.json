@@ -1940,6 +1940,28 @@
       },
       "fields": {}
     },
+    "sip": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "dialog": {
+          "type": "list"
+        },
+        "dst_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "media": {
+          "type": "object"
+        },
+        "src_port": {
+          "type": "uint16",
+          "max": 65535
+        }
+      }
+    },
     "smb": {
       "category": "terminal",
       "depends_on": [

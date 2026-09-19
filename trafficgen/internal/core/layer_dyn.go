@@ -60,6 +60,10 @@ var layerDynAllowlist = map[string]map[string]bool{
 	// 身份、scenario=结构选择器、credentials=凭据面，逐流变破坏交互
 	// 语义），对象即 does not support dynamic。
 	"telnet": {"src_port": true, "dst_port": true},
+	// D-SIP-1 决策 E1（前四协议已批延续）：sip 层端口 2 键开（TCP 信令
+	// 联结端口语义住层）；业务 2 键全关（dialog=会话结构、media=SDP
+	// 关联语义），对象即 does not support dynamic。
+	"sip": {"src_port": true, "dst_port": true},
 }
 
 // parseLayerDyn extracts per-flow dynamic strategies from a decoded layers
@@ -247,6 +251,13 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 						set(where, lname, f, &out.TELNET.SrcPort, v)
 					} else {
 						set(where, lname, f, &out.TELNET.DstPort, v)
+					}
+				case "sip":
+					// D-SIP-1 决策 E1：同前四端口 int 面。
+					if f == "src_port" {
+						set(where, lname, f, &out.SIP.SrcPort, v)
+					} else {
+						set(where, lname, f, &out.SIP.DstPort, v)
 					}
 				}
 			}
@@ -829,6 +840,17 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 	}
 	if ld.TELNET.DstPort != nil {
 		if v := ResolvePortValue(ld.TELNET.DstPort, i); v != 0 {
+			spec.DstPort = v
+		}
+	}
+	// D-SIP-1 决策 E1：sip 层端口逐流解析落 spec（前四同款）。
+	if ld.SIP.SrcPort != nil {
+		if v := ResolvePortValue(ld.SIP.SrcPort, i); v != 0 {
+			spec.SrcPort = v
+		}
+	}
+	if ld.SIP.DstPort != nil {
+		if v := ResolvePortValue(ld.SIP.DstPort, i); v != 0 {
 			spec.DstPort = v
 		}
 	}

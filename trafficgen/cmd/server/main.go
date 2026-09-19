@@ -130,7 +130,8 @@ import (
 	"github.com/trafficgen/trafficgen/internal/protocol/sctp"
 	// 空导入：shadowsocks 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/shadowsocks"
-	"github.com/trafficgen/trafficgen/internal/protocol/sip"
+	// 空导入：sip 包 init 注册层生成器 + 校验器（D-SIP-1）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/sip"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/smb"
 	// 空导入：smtp 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/smtp"
@@ -537,7 +538,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("pim"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("isis"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ftp"))
-	app.engine.RegisterPlanner(sip.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("sip"))
 	app.engine.RegisterPlanner(rtsp.NewPlanner())
 	app.engine.RegisterPlanner(sctp.NewPlanner())
 	app.engine.RegisterPlanner(layers.NewChainPlanner("icmpv6"))
