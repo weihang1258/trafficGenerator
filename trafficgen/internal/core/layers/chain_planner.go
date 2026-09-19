@@ -508,6 +508,8 @@ func validateBaseDstPortHandled(name string) bool {
 		"dhcpv6", "doip", "gbt32960", "mcp", "modbus", "mqtt", "nfs", "smb",
 		"tds", "moxa", "someip", "postgresql", "goose", "sv",
 		"igmp", "ospf", "pim", "isis", "icmpv6", "h323", "mpls",
+		// D-NGAP-1：ngap 端口住层（SCTP 联结端口语义），同 h323/mpls。
+		"ngap",
 		// B4 nvgre：无传输层、无端口概念（raw-IP 同款），目的端口 0 合法。
 		// vxlan/geneve 不在豁免名单——它们的默认 4789/6081 走 FieldContract
 		// 通用块（validateBaseDstPortHandled 之外的 amqp/bgp 同款）。
@@ -698,7 +700,7 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// 不在此默认化。
 		case "moxa":
 		// Moxa 源端口 0 保持 0：透传单连接，多流由 worker 递增。
-		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "h323", "mpls":
+		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap":
 			// raw-IP 路由终结层（P3 T5）与 nvgre（B4 封装类）/srv6
 			// （D-SRV6-1，SRH 扩展头）同样无传输层：无端口概念，源/目的
 			// 端口 0 保持 0（内层端口住 srv6 层，回退 spec 逐流值）。

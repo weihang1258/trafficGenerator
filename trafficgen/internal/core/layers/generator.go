@@ -486,6 +486,8 @@ type FlowMeta struct {
 	H323 *core.H323Config
 	// MPLS is the flow's mpls config（D-MPLS-1：raw 自驱终层生成器直传）。Only set for mpls chains.
 	MPLS *core.MPLSConfig
+	// NGAP is the flow's ngap config（D-NGAP-1：raw 自驱终层生成器直传）。Only set for ngap chains.
+	NGAP *core.NGAPConfig
 	// GBT is the flow's gbt config (注入到 gbt 终结层生成器，B6：BIP 22/23
 	// JSON-RPC over HTTP；sessions[]/events[] 逐事件产完整 HTTP 帧，http 层
 	// 透传转发)。Only set for gbt chains。
@@ -566,6 +568,25 @@ func flowConfigField(cfg map[string]interface{}, key string) (interface{}, bool)
 
 // configUint64 converts a config value to uint64 (schema-typed defaults
 // and raw numeric strings). ok=false when absent or unparseable.
+// ngapByteSlice mirrors core getByteSlice (strategy_convert.go:6226): NAS
+// keys take a raw string (bytes as-is, NOT hex) or a []interface{} of
+// numbers. D-NGAP-1 decision C1 parity requirement.
+func ngapByteSlice(v interface{}) []byte {
+	switch b := v.(type) {
+	case string:
+		return []byte(b)
+	case []interface{}:
+		out := make([]byte, 0, len(b))
+		for _, n := range b {
+			if u, ok := configUint64(n); ok {
+				out = append(out, byte(u))
+			}
+		}
+		return out
+	}
+	return nil
+}
+
 func configUint64(v interface{}) (uint64, bool) {
 	switch n := v.(type) {
 	case uint8:

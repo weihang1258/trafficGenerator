@@ -1608,6 +1608,61 @@
         }
       }
     },
+    "ngap": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "amf_name": {
+          "type": "string"
+        },
+        "amf_ue_ngap_id": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "default_paging_drx": {
+          "type": "uint8",
+          "max": 3
+        },
+        "downlink_nas": {
+          "type": "string"
+        },
+        "dst_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "global_ran_node_id": {
+          "type": "object"
+        },
+        "initial_nas": {
+          "type": "string"
+        },
+        "initial_ue_message": {
+          "type": "bool"
+        },
+        "pdu_session_setup": {
+          "type": "object"
+        },
+        "ran_ue_ngap_id": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "src_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "supported_ta_list": {
+          "type": "list"
+        },
+        "ue_context_release": {
+          "type": "bool"
+        },
+        "uplink_nas": {
+          "type": "string"
+        }
+      }
+    },
     "nmea": {
       "category": "terminal",
       "depends_on": [

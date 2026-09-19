@@ -1167,6 +1167,119 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			}
 		}
 		return
+	case "ngap":
+		// D-NGAP-1：层 config 手工逐键映射进 spec.NGAP（parseNGAPConfig
+		// 未导出不可跨包，决策 C1）。缺省镜像 parse（strategy_convert.go
+		// :6589 parseNGAPConfig 零缺省——AMFName/DRX/UE ID 缺省在 legacy
+		// Plan 内落，translate 缺省=不动）。端口同键二态（D-FTP-2 v2）：
+		// 标量→spec 端口（层值赢），dst_port 缺席→38412（镜像
+		// setDefaultDstPort，3GPP TS 38.413 规范端口）、src_port 缺席→
+		// 不动（worker 12345+i 保底）；对象→放行（worker resolveLayerTuple
+		// 已把逐流解析值写进 spec 端口）。NAS 三键 string→raw bytes
+		// （镜像 getByteSlice：string 直转，非 hex）。
+		if spec.NGAP == nil {
+			cfg := completedConfig(s, term.Config)
+			nc := &core.NGAPConfig{}
+			if v, ok := configString(cfg["amf_name"]); ok {
+				nc.AMFName = v
+			}
+			if v, ok := cfg["default_paging_drx"]; ok {
+				if u, ok := configUint8(v); ok {
+					nc.DefaultPagingDRX = int(u)
+				}
+			}
+			if v, ok := cfg["ran_ue_ngap_id"]; ok {
+				if u, ok := configUint32(v); ok {
+					nc.RANUENGAPID = u
+				}
+			}
+			if v, ok := cfg["amf_ue_ngap_id"]; ok {
+				if u, ok := configUint32(v); ok {
+					nc.AMFUENGAPID = u
+				}
+			}
+			if v, ok := configBool(cfg["initial_ue_message"]); ok {
+				nc.InitialUEMessage = v
+			}
+			if v, ok := configBool(cfg["ue_context_release"]); ok {
+				nc.UEContextRelease = v
+			}
+			if v, ok := cfg["initial_nas"]; ok {
+				nc.InitialNAS = ngapByteSlice(v)
+			}
+			if v, ok := cfg["downlink_nas"]; ok {
+				nc.DownlinkNAS = ngapByteSlice(v)
+			}
+			if v, ok := cfg["uplink_nas"]; ok {
+				nc.UplinkNAS = ngapByteSlice(v)
+			}
+			// 嵌套三件下钻（零缺省镜像 parseNGAPConfig）。
+			if g, ok := cfg["global_ran_node_id"].(map[string]interface{}); ok && g != nil {
+				gid := &core.NGAPGlobalRANNodeID{}
+				if u, ok := configUint64(g["plmn_mcc"]); ok {
+					gid.PLMNMCC = int(u)
+				}
+				if u, ok := configUint64(g["plmn_mnc"]); ok {
+					gid.PLMNMNC = int(u)
+				}
+				if u, ok := configUint32(g["gnb_id"]); ok {
+					gid.GNBID = u
+				}
+				nc.GlobalRANNodeID = gid
+			}
+			if tas, ok := cfg["supported_ta_list"].([]interface{}); ok {
+				for _, item := range tas {
+					taMap, ok := item.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					ta := core.NGAPSupportedTA{}
+					if u, ok := configUint64(taMap["plmn_mcc"]); ok {
+						ta.PLMNMCC = int(u)
+					}
+					if u, ok := configUint64(taMap["plmn_mnc"]); ok {
+						ta.PLMNMNC = int(u)
+					}
+					if tacs, ok := taMap["tacs"].([]interface{}); ok {
+						for _, tc := range tacs {
+							if u, ok := configUint32(tc); ok {
+								ta.TACs = append(ta.TACs, u)
+							}
+						}
+					}
+					nc.SupportedTAList = append(nc.SupportedTAList, ta)
+				}
+			}
+			if ps, ok := cfg["pdu_session_setup"].(map[string]interface{}); ok && ps != nil {
+				pss := &core.NGAPPDUSessionSetup{}
+				if u, ok := configUint64(ps["pdu_session_id"]); ok {
+					pss.PDUSessionID = int(u)
+				}
+				if u, ok := configUint64(ps["sst"]); ok {
+					pss.SST = int(u)
+				}
+				if u, ok := configUint32(ps["sd"]); ok {
+					pss.SD = u
+				}
+				nc.PDUSessionSetup = pss
+			}
+			spec.NGAP = nc
+			// 端口双态（h323 同款：标量层值赢，dst 缺省 38412，src 缺席
+			// 不动，对象放行）。
+			if v, ok := cfg["src_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.SrcPort = u
+				}
+			}
+			if v, ok := cfg["dst_port"]; ok {
+				if u, ok := configUint16(v); ok {
+					spec.DstPort = u
+				}
+			} else {
+				spec.DstPort = 38412
+			}
+		}
+		return
 	case "opcua":
 		if spec.OPCUA != nil {
 			return // flat 权威；二者并存时 flat 优先，层 config 忽略

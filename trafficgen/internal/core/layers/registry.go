@@ -1212,6 +1212,24 @@ func buildDefaultRegistry() {
 			"inner_payload": {Type: "string"},
 		},
 	})
+	r.Register(LayerSchema{Name: "ngap", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"global_ran_node_id":  {Type: "object"},
+			"supported_ta_list":   {Type: "list"},
+			"default_paging_drx":  {Type: "uint8", Min: 0, Max: 3},
+			"amf_name":            {Type: "string"},
+			"ran_ue_ngap_id":      {Type: "uint32", Min: 0, Max: 4294967295},
+			"amf_ue_ngap_id":      {Type: "uint32", Min: 0, Max: 4294967295},
+			"initial_ue_message":  {Type: "bool"},
+			"initial_nas":         {Type: "string"},
+			"downlink_nas":        {Type: "string"},
+			"uplink_nas":          {Type: "string"},
+			"pdu_session_setup":   {Type: "object"},
+			"ue_context_release":  {Type: "bool"},
+			"src_port":            {Type: "uint16", Min: 0, Max: 65535},
+			"dst_port":            {Type: "uint16", Min: 0, Max: 65535},
+		},
+	})
 	r.Register(LayerSchema{Name: "pppoe", Category: CategoryL2})
 
 	defaultRegistry = r

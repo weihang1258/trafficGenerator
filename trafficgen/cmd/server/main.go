@@ -106,7 +106,8 @@ import (
 	// 空导入：mysql 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mysql"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/nfs"
-	"github.com/trafficgen/trafficgen/internal/protocol/ngap"
+	// 空导入：ngap 包 init 注册层生成器 + 校验器（D-NGAP-1）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ngap"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ntp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/opcua"
 	// 空导入：openvpn 包 init 注册终结层生成器 + 校验器（T4.1 批二）
@@ -564,7 +565,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(rtmp.NewPlanner())
 	app.engine.RegisterPlanner(layers.NewChainPlanner("redis"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mysql"))
-	app.engine.RegisterPlanner(ngap.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ngap"))
 	// tls 切链式生成器（D-TLS-1：[ip→tcp→tls→http] 隧道链驱动，tls 作事件
 	// 变换器（握手先行注入+内层事件包 record），TCP 握手/挥手/分段归 tcp 层；
 	// tls 包 init 反向注册隧道层生成器 + 校验器）。

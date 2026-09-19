@@ -7815,6 +7815,13 @@ func CheckProtoFlat(protocol string, cfg map[string]interface{}) string {
 			return "protocol mpls no longer accepts a top-level mpls sub-config (move it into the mpls layer of an [ip,mpls] layers chain)"
 		}
 	}
+	// D-NGAP-1：ngap 顶层 ngap 子映射 presence 判死（h323/mpls 同款；
+	// 空 map 也死）。层链形状不触发。
+	if protocol == "ngap" {
+		if v, ok := cfg["ngap"]; ok && v != nil {
+			return "protocol ngap no longer accepts a top-level ngap sub-config (move it into the ngap layer of an [ip,ngap] layers chain)"
+		}
+	}
 	return ""
 }
 

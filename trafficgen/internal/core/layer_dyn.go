@@ -51,6 +51,10 @@ var layerDynAllowlist = map[string]map[string]bool{
 	// multicast=EtherType 选择器/inner_proto=内层选择器/direction=方向
 	// 选择器/inner_payload=载荷），对象即 does not support dynamic。
 	"mpls": {"src_port": true, "dst_port": true},
+	// D-NGAP-1 决策 E1（h323/mpls 已批延续）：ngap 层端口 2 键开（SCTP
+	// 联结端口语义住层）；业务 12 键全关（结构选择器/联结身份/载荷，
+	// 逐流变破坏 gNB↔AMF 联结语义），对象即 does not support dynamic。
+	"ngap": {"src_port": true, "dst_port": true},
 }
 
 // parseLayerDyn extracts per-flow dynamic strategies from a decoded layers
@@ -224,6 +228,13 @@ func parseLayerDyn(layersVal interface{}) (*LayerDynValues, []string) {
 						set(where, lname, f, &out.MPLS.SrcPort, v)
 					} else {
 						set(where, lname, f, &out.MPLS.DstPort, v)
+					}
+				case "ngap":
+					// D-NGAP-1 决策 E1：同 h323/mpls 端口 int 面。
+					if f == "src_port" {
+						set(where, lname, f, &out.NGAP.SrcPort, v)
+					} else {
+						set(where, lname, f, &out.NGAP.DstPort, v)
 					}
 				}
 			}
@@ -783,6 +794,18 @@ func resolveLayerTuple(spec *FlowSpec, i int) {
 	}
 	if ld.MPLS.DstPort != nil {
 		if v := ResolvePortValue(ld.MPLS.DstPort, i); v != 0 {
+			spec.DstPort = v
+		}
+	}
+	// D-NGAP-1 决策 E1：ngap 层端口逐流解析落 spec（h323/mpls 同款；
+	// legacy Plan 按 spec 端口组装 SCTP 联结）。
+	if ld.NGAP.SrcPort != nil {
+		if v := ResolvePortValue(ld.NGAP.SrcPort, i); v != 0 {
+			spec.SrcPort = v
+		}
+	}
+	if ld.NGAP.DstPort != nil {
+		if v := ResolvePortValue(ld.NGAP.DstPort, i); v != 0 {
 			spec.DstPort = v
 		}
 	}

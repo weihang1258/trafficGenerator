@@ -655,6 +655,51 @@ def check_mpls(cases):
 
     return rows
 
+def check_ngap(cases):
+    """D-NGAP-1 P5 反查表（T-NGAP-1…17）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("ngap"), dict):
+                lays.append((c.get("id", "?"), l["ngap"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面。
+    for kw, name in [("basic", "S 基线 SCTP 联结"), ("initial_ue", "InitialUEMessage 面"),
+                     ("dl_nas", "DownlinkNAS 面"), ("ul_nas", "UplinkNAS 面"),
+                     ("pdu_session", "PDUSessionSetup 面"), ("ue_release", "UEContextRelease 面"),
+                     ("all_procedures", "全流程面"), ("ta_drx", "TA 列表+DRX 面"),
+                     ("ue_ids", "UE ID 面"), ("amf_name", "AMF name 面"),
+                     ("default_port", "缺省端口面"), ("port_dyn", "端口动态面"),
+                     ("v6", "v6 拒面"), ("static_port", "静态端口拒面"),
+                     ("presence", "presence 判死面"), ("sst", "SST 越界面"),
+                     ("nas_len", "NAS 超长面")]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖（业务 12 键+端口 2 键）。
+    for k in ["global_ran_node_id", "supported_ta_list", "default_paging_drx",
+              "amf_name", "ran_ue_ngap_id", "amf_ue_ngap_id",
+              "initial_ue_message", "initial_nas", "downlink_nas", "uplink_nas",
+              "pdu_session_setup", "ue_context_release", "src_port", "dst_port"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面。
+    for needle, name in [
+        ("top-level ngap sub-config", "presence 判死"),
+        ("static four-tuple", "静态端口拒"),
+        ("only IPv4 is supported", "v6 拒（legacy 真门）"),
+        ("SST 300 out of range", "SST 越界（legacy 真门）"),
+        ("InitialNAS too long", "NAS 超长（legacy 真门）"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap}
 
 
@@ -1175,7 +1220,7 @@ def check_goose(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap}
 
 
 def main(argv):
