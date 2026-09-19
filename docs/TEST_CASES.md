@@ -3330,7 +3330,7 @@
 
 ### T-H323-1…17 h323.json——存量审计 + 测试点清单【D-H323-1 P3 定稿，P4 未开工】
 
-**状态：** P3 定稿（2026-09-19；存量 1 例逐条审计改写（等价迁移：src/dst→ip 层、端口→h323 层、count 删、顶层 h323:{}→层内空；fields 断言保留等价——包数 15/握手 flags/Q.931 消息序不变）+ 新建 16 例=17 例。锚词按真实执法门：create-time（presence/static 2 门无落盘）vs task-time validator（role/scenario/calls/display 4 门 .neg.pcap——legacy Validate 复用零新文案 h323.go:102-157）。包数公式代码精算：full=15/呼叫（3+9+3，存量例 min_packets 15 吻合）、tunnel_only=12（3+6+3）、ras_only=8（GRQ/GCF/RRQ/RCF/ARQ/ACF/DRQ/DCF，h323.go:492-499 实证）、data_only=frames（缺省 10）。**legacy 行为事实注记：Ras.Enabled 仅 ras_only 场景生效（full+Ras 不发 RAS 面，h323.go:194-199 分支实证）；Media.Enabled 在 full（CONNECT 后插帧）与 data_only 两处生效**）
+**状态：** P3 定稿（2026-09-19；存量 1 例逐条审计改写（等价迁移：src/dst→ip 层、端口→h323 层、count 删、顶层 h323:{}→层内空；fields 断言保留等价——包数 15/握手 flags/Q.931 消息序不变）+ 新建 16 例=17 例。锚词按真实执法门：create-time（presence/static 2 门无落盘）vs task-time validator（role/scenario/calls/display 4 门 .neg.pcap——legacy Validate 复用零新文案 h323.go:102-157）。包数公式代码精算（P4 红例③修正）：full=16/呼叫（3 握手+**10** Q.931+3 挥手——Q.931 序列 SETUP/CP/F↓/ALERTING↓/F↑/F↓/F↑/CONNECT↓/RELCOMP↑/RELCOMP↓=10 条，h323.go:322-341 逐行计数；存量例 min_packets=15 掩盖精确值）、tunnel_only=12（3+6+3）、ras_only=8（GRQ/GCF/RRQ/RCF/ARQ/ACF/DRQ/DCF，h323.go:492-499 实证）、data_only=frames（缺省 10）。**legacy 行为事实注记：Ras.Enabled 仅 ras_only 场景生效（full+Ras 不发 RAS 面，h323.go:194-199 分支实证）；Media.Enabled 在 full（CONNECT 后插帧）与 data_only 两处生效**）
 **级别：** pcap
 **来源：** ①标准=ITU-T H.225.0 §7/§7.3+Q.931+RFC 1006+RFC 3550（4.10 口径）②设计=D-H323-1 ③现网=参考 pcap 转录（types.go:5466，直呼无 GK）
 **存量去向（1 例 → P5 改写后 17 例）：**
@@ -3347,18 +3347,18 @@
 | h323 层静态端口+flows=2 拒（12.9） | T-3 h323_vn_static_port | A（负例，锚词 `static four-tuple`；门扩扫 h323 层=P4 红例⑥同源；create-time） |
 | role 非法 | T-4 h323_neg_role | A（负例，role:"gatekeeper"→`h323: invalid role`；.neg.pcap task-time） |
 | scenario 非法 | T-5 h323_neg_scenario | A（负例，scenario:"bogus"→`h323: invalid scenario`；.neg.pcap） |
-| calls 负数 | T-6 h323_neg_calls | A（负例，calls:-1→`h323: calls must be >= 0, got -1`（legacy Validate 锚词，非 parse 的 >=1 遗篱）；.neg.pcap） |
+| calls 负数 | T-6 h323_neg_calls | A（负例，calls:-1→V9 create-time 拒（registry Min=0，`calls" = -1 invalid: not a numeric value in [0,65535]`）——legacy ">= 0" 锚词经层路径被 V9 先拦不可达，P5 校准注记） |
 | display_name 超长 | T-7 h323_neg_display | A（负例，255 字节→`h323: display_name must be <=`；.neg.pcap） |
 | scenario=tunnel_only | T-8 h323_scenario_tunnel | A（正例，12 包（3+6+3）：无 FACILITY 隧道面） |
 | scenario=ras_only | T-9 h323_scenario_ras | A（正例，ras{enabled:true}→8 包 UDP 1719；无 TCP 握手（ras_only 跳过 TCP 实证）） |
 | scenario=data_only | T-10 h323_scenario_data | A（正例，media{enabled:true}→10 包（frames 缺省）UDP 单向 up） |
-| calls=2 多呼叫 | T-11 h323_calls_multi | A（正例，30 包（15×2）；CRV 逐呼叫+1（Q.931 CRV 字节断言：呼叫2 SETUP CRV=0x2585）） |
-| full+RTP 媒体面 | T-12 h323_media_full | A（正例，media{enabled:true,frames:2}→17 包（15+2）；RTP 插 CONNECT 后 RELCOMP 前（h323.go:336-338 实证序）） |
+| calls=2 多呼叫 | T-11 h323_calls_multi | A（正例，32 包（16×2）；CRV 逐呼叫+1（呼叫2 SETUP=包20，CRV 字节 0x2585）） |
+| full+RTP 媒体面 | T-12 h323_media_full | A（正例，media{enabled:true,frames:2}→18 包（16+2）；RTP 插 CONNECT 后 RELCOMP 前（h323.go:336-338 实证序）） |
 | dst_port 缺省 1720 | T-13 h323_dst_default | A（正例，空 h323 层→pkt1 tcp.dstport=1720（translate 镜像 setDefaultDstPort）） |
-| h323.src_port 动态 inc+flows=2 | T-14 h323_port_dyn | A（正例，端口对象逐流异（30000/30001）+group_id 固定确定序（icmpv6 T-11 先例）；30 包逐流源端口 pin） |
+| h323.src_port 动态 inc+flows=2 | T-14 h323_port_dyn | A（正例，端口对象逐流异（30000/30001）+group_id 固定确定序（icmpv6 T-11 先例）；32 包逐流源端口 pin） |
 | role=callee 方向翻转 | T-15 h323_role_callee | A（正例，握手仍 client 三包（h323.go:288-291 恒 client 发起——role 只翻 Q.931 面与 CRV 标志）；SETUP 从对侧发（ipv4.src 翻转断言）） |
 | rewrite_addr 长度保持 | T-16 h323_rewrite_addr | A（正例，rewrite_addr:true→frame.len 序列与 T-1 全等（长度保持重写实证）；**字节级断言=C 类**（模板内嵌 IP 字节无 tshark 字段面+单测零覆盖实证 h323_test.go 30 测试无一涉及），注记不冒充） |
-| v6 地址对照（9.24 对称） | T-17 h323_v6 | A（正例，ip 层 v6→15 包（legacy 无族强制=两族均可跑，EtherType 0x86DD 断言）） |
+| v6 地址对照（9.24 对称） | T-17 h323_v6 | A（正例，ip 层 v6→16 包（legacy 无族强制=两族均可跑，EtherType 0x86DD 断言）） |
 
 **C 类注记（9.17）：** ①rewrite_addr 字节级断言（T-16，模板内嵌 IP 无 tshark 字段面）；②GK 路由模式（明确不解决）；③MSS 链上覆盖（无住处，恒 1460 缺省=D-H323-1 ④）；④RAS PER 字节现网确认（规范编码已实现，抓 GK 现网包待确认）。
 **枚举取值覆盖（9.20-9.22）：** role 2 值 ✓（caller=T-1/callee=T-15）；scenario 4 值 ✓（full=T-1/tunnel=T-8/ras=T-9/data=T-10）；calls {0缺省,1,2} ✓（T-13 空层/T-1/T-11）；media {off,on} ✓（T-1/T-10/T-12）；ras {off,on} ✓（T-1/T-9）；rewrite {off,on} ✓（T-1/T-16）；display {缺省,显式,超长拒} ✓（T-1/T-11 显式可并入/T-7）；ports {显式,缺省,动态} ✓（T-1/T-13/T-14）；地址族 ✓（v4=全量/v6=T-17）；validator 分支 ✓（IP parse 2/T-4 role/T-5 scenario/T-6 calls/T-7 display/nil-config=C 保底/MSS=C③）；门面 ✓（presence=T-2/static=T-3）。
