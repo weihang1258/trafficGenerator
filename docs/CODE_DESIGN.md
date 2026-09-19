@@ -2618,3 +2618,78 @@ create：ValidateStrategy→ValidateLayers（V9 14 键）→CheckProtoFlat prese
 
 #### 8. 验收
 对应 T-TELNET（P3 定稿）。完成条件：6 红例先红后绿；telnet.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 count/telnet 字面零残留；schemagen 同步绿；门 1 表回填+抽查三条；在库 telnet 行清空（P6 删前报数 92+3→备份→删→复核——绝对路径+总量对账）。
+
+### D-SIP-1 sip 层链化：终层自驱（TCP 信令+RTP 子流整包 relay）+ 端口住层【P-PIPE #19 门1】
+
+**状态：** P2 定稿（2026-09-19；门 1 已交+对抗自重审 1 轮（presence 零命中复核/emitSIPMedia nil 风险排除——sipConfig==spec.SIP 同引用 :120-123:239；主体零事实错误，末轮净）；CORE_MEMORY 逐条复审完成。裁定延续：端口住 sip 层+端口动态 E1=五度已批。现状：legacy 完整（sip.go 1177 行，**本组首个带子流协议**——TCP 信令面全托管（3 握手 :194-201+dialog 逐消息 MSS 分段 PSH-ACK :215-242+4 挥手 :244-254）+**RTP UDP 子流**（emitSIPMedia :717：EmitMedia 标记关联点、独立四元组 rtpFlowID=parent+":rtp" :828、SDP m= 行端口推导 scanSDPMediaPorts+media.src_port/dst_port 显式覆盖、方向=SDP a= 属性推导 RFC 3264 §5.1、缺省 5004/frameSize 160/sampleRate 8000、RFC 3550 §5.1 seq/ts/ssrc 随机 :826-828、FileSource 优先 :751-754 无 cache 静默不发射）；dialogCtx 头补全状态机 :337-409（Call-ID 首现继承/生成 RFC 3261 §8.1.1.4、CSeq 推进、响应回显 lastFrom/To/Via、user 头>补全>无三态）；renderSIPMessage RFC 3261 §7 文本+Content-Length 自动 :308-314。Validate 3 锚词（IP parse×2/MSS min——无 large）。main.go:133 具名导入+:540 直挂，**层链四件全缺+registry 无行**。用例 1 例纯扁平（INVITE/200/ACK/BYE/200 五消息=12 包，tshark sip.Method/CSeq.seq/CSeq.method/Status-Code/Request-Line 五字段+frames 4 pin offset 54——每消息 1 包短消息面）。在库 tasks 91+strategies 4）
+
+**架构裁定（P2 定稿）：** **A1 [ip,sip] 终层自驱整包 relay**（五度验证机器：wrap legacy Plan+force-up 防双换——TCP down 包与 RTP down 帧均由 legacy 自换地址端口 MAC（:846-856 media 方向面同 h323 媒体保护），raw-IP 驱动换向会双换）。否决：B2 [ip,tcp,sip] 事件面——dialogCtx 头补全状态机（跨消息 Call-ID/CSeq 继承）+RTP 子流发射须全量重写为事件流，破坏字节等价。**关联语义注记（§3 落定）**：RTP 子流关联三件事 legacy 显式字段全齐——归属=EmitMedia 消息、触发=该消息后、端口方向=SDP m=/a= 推导+media 显式覆盖（CWMP driven_by 的 SIP 等价物）；被关联流独立 ID=parent+":rtp"（3.10 parent:sub-idx 形状天然满足）。**v6 正例格**（Validate 无族强制+EtherTypeFor）。**随机性注记**：RTP seq/ts/ssrc 随机（RFC 3550 合同）+TCP ISN 随机——断言仅 PT/帧长/端口/flags/SIP 文本面；ip.id 不断言。
+
+**权威链（§7）：** 标准=RFC 3261（§7 文本格式/§8.1.1 强制头/§20.8 头定义/§8.1.1.4 Call-ID 生成）+RFC 3550（§5.1 RTP 头）+RFC 3264（§5.1 方向属性）→ 设计=本条目（权威）→ 代码 → 测试。字节事实=存量 pcap 12 帧实证（tshark SIP 解码器逐字节）。
+
+**依赖链判定：**
+
+| # | 断链层 | 判定 | 处置 |
+|---|---|---|---|
+| ① 层链四件缺 | 代码缺口 | registry 无行/translate 无 case/FlowMeta 无 SIP/无 generator | P4：registry 新终层行（4 键：dialog{list}/media{object}/src_port/dst_port）+translate（dialog/media JSON round-trip）+FlowMeta.SIP+carry+layer_gen 包装+注册 |
+| ② legacy 校验已全 | 无缺口 | Validate 3 锚词（IP parse×2/MSS min；MSS 链不可达） | validateLayer=legacy 复用零新文案（nil-config 合法=空 dialog 7 包最小联结） |
+| ③ 静态复制门漏扫 | 执法洞 | 扫描列表无 sip | P4 扫描列表 += "sip"+红例⑥ |
+| ④ SDP future-bleed | C 类 | scanSDPMediaPorts 扫全 dialog（:769-773 自认），re-INVITE 后端口前渗 | 明确注记不冒充（修复需传 dialog index=大重构，明确不解决） |
+| ⑤ 端口动态 | E1 延续 | allowlist 无 sip 行 | P4：LayerDynValues.SIP+allowlist 2 键+parseLayerDyn case+resolveLayerTuple+HasAny |
+| ⑥ v6 对照 | 正例格 | IP 透明 | v4/v6 双族逐格（9.24）——P3 落格 |
+
+#### 门 1 对照表（已交，证据回填版）
+
+§1 键去向：src_ip/dst_ip→layers[ip]；src_port/dst_port→layers[sip]；count→删；顶层 sip 2 业务键（dialog/media）→layers[sip] 直迁。目标形状见门 1 提交（INVITE+200 dialog+media 示例）。§3 五件套：会话表=单 TCP 信令+可选 RTP 子流；事务序列=3 握手→dialog 消息序→[RTP 子流在 EmitMedia 消息后]→4 挥手；关联=EmitMedia+SDP m=/a=（三件事全齐）；插入=raw-IP 驱动整包 relay；时间线=emit 线性（RTP 同 worker 保序）。§12 动态：dialog/media 全关（会话结构/SDP 关联语义）；端口 2 键开（E1）；序号=layer_dyn resolveLayerTuple sip 块（P4 新增）。
+
+#### 决策对比（4.17）
+
+| 决策 | 候选 | 结论 |
+|------|------|------|
+| A 链形 | A1 终层自驱 vs B2 [ip,tcp,sip] 事件面 | **A1**（B2 破坏头补全状态机+RTP 字节等价） |
+| B 端口住处 | B1 sip 层键+门扩扫 | **B1** |
+| C 翻译 | C1 dialog/media JSON round-trip 直迁（SIPMessage/SIPMedia 带 json 标签） | **C1** |
+| D 校验 | D1 复用 3 锚词（v6 正例；MSS 链不可达 C 注记） | **D1** |
+| E 端口动态 | E1 延续 | **E1** |
+
+**明确不解决：** SDP future-bleed（④ C 类）；RFC 3261 Timer/重传（合成器合同）；SIPS/TLS 传输（tls 序号 2 另立项）；MSS 链路径配置（1.12）。
+
+#### 1. 文件清单（P2 定稿）
+- Modify: `internal/core/layers/registry.go`——sip 终层行（CategoryTerminal+DependsOn ip+Fields 4 键无 Default：dialog{list}/media{object}/src_port{uint16}/dst_port{uint16}）
+- Modify: `internal/core/layers/chain_planner_translate.go`——case "sip"（spec.SIP==nil 层优先；dialog/media JSON round-trip 直迁镜像 parseSIPDialog/parseSIPMedia :5554/:5599 零缺省；端口同键二态；dst_port 缺席→5060 镜像 setDefaultDstPort）
+- Modify: `internal/core/layers/generator.go`+`chain_planner_chain.go`——FlowMeta.SIP+carry
+- Modify: `internal/core/layers/chain_planner_util.go`——isRawIPChain 加 sip
+- Modify: `internal/core/layers/chain_planner.go`——两端口豁免名单加 sip
+- Modify: `internal/core/strategy_convert.go`——CheckProtoFlat sip presence 分支
+- Modify: `internal/core/schema/semantic.go`——扫描列表 += "sip"
+- Modify: `internal/core/layer_dyn.go`+`internal/core/types.go`——LayerDynValues.SIP/allowlist/parseLayerDyn/resolveLayerTuple/HasAny（⑤）
+- Create: `internal/protocol/sip/layer_gen.go`——Generator 包装 legacy Plan（force Direction="up" 防双换；GenEvents nil）+validateLayer（纯 legacy 3 锚词）+init 注册
+- Modify: `cmd/server/main.go:133,540`——具名导入→空导入+NewChainPlanner("sip")
+- Modify: `tools/pipe_gate.sh`+`tools/coverage_gate.py`（check_sip）、schemagen 重跑
+- Modify: `test/protocol_pcap/cases/sip.json`（P5 按 T-SIP）
+- Test: `internal/core/layers/sip_migrate_test.go`（红例①-④）+`internal/core/sip_layer_dyn_test.go`（红例⑤）+`internal/core/schema/sip_static_port_test.go`（红例⑥）
+- 零改动：`internal/protocol/sip/sip.go`（字节事实）
+
+#### 2. 接口签名（锚词）
+- presence：`protocol sip no longer accepts a top-level sip sub-config (move it into the sip layer of an [ip,sip] layers chain)`
+- validator：legacy 3 锚词（`invalid source IP`/`invalid destination IP`/`MSS %d too small`——后者链不可达）；nil-config 合法走空 dialog 7 包
+- static：`static four-tuple`（既有门，扫描面扩 sip）
+
+#### 3. 主流程
+create：ValidateStrategy→ValidateLayers（V9 4 键）→CheckProtoFlat presence→checkLayerChainStaticCopy（含 sip 端口）→400。
+任务：mapToFlowSpec→parseLayerDyn→worker resolveLayerTuple→ChainPlanner.ValidateSpec：validateSpecBase（sip 端口豁免）→translate case "sip"→validateLayer（legacy——v6 透明无冲突）→Plan：isRawIPChain→raw-IP 驱动（meta 补齐→Generator.Generate→legacy Plan 整包 relay 含 RTP 子流→force up 防双换）→builder：TCP 装配+RTP 帧直出（UDP 装配既有路径）。
+
+#### 4. 增量步骤（failing 先行）
+红例族 6：①TestSIPChain_FlatPresenceRejected ②TestSIPChain_LayerFieldsAccepted（4 键 V9）③TestSIPChain_LayerTranslateMinimalDialog（链 [ip,sip{ports}]→12 包（存量五消息等价）+flags 序+INVITE 字节 pin）④TestSIPChain_PresenceFilled（dialog/media round-trip 逐槽+SIPMessage 头数组保序）⑤TestSIPLayerPortDynAllowlisted（core）⑥TestSIPStaticPortFlowsRejected（schema：[ip{},sip{ports}]+flows=2）。
+
+#### 5. 错误锚词
+见 §2；legacy 3 锚词为链路径执法面（零新文案；MSS 锚词链不可达=C 注记零死锚）。
+
+#### 6. 性能设计与验收
+包数=3+N 消息段（MSS 分段）+frames（RTP）+4；基线 12（五消息）/空 dialog 7；整包 relay 流式（channel 256）无收集无锁；翻译一次；回归口径 suite ±10%；pcap 路=套件；网卡未跑注明。
+
+#### 7. 顺序与回滚
+红例→registry+translate→FlowMeta/isRawIPChain/豁免→门扩扫+layer_dyn→layer_gen+注册→presence→main 翻转→门登记+schemagen→绿；P5 cases。回滚=单提交粒度；sip.go 零改动=字节事实零风险。
+
+#### 8. 验收
+对应 T-SIP（P3 定稿）。完成条件：6 红例先红后绿；sip.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 count/sip 字面零残留；schemagen 同步绿；门 1 表回填+抽查三条；在库 sip 行清空（P6 删前报数 91+4→备份→删→复核——绝对路径+总量对账）。
