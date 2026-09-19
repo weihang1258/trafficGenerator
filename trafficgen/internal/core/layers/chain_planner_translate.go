@@ -1340,7 +1340,12 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 				if b, err := json.Marshal(fs); err == nil {
 					var out filesystem.FileSource
 					if json.Unmarshal(b, &out) == nil {
-						tc.FileSource = &out
+						// 镜像 parseFileSource 零值→nil 契约
+						// （strategy_convert.go:1545-1548）：全零
+						// FileSource 视为缺省，不产生非 nil 空指针。
+						if out.File != "" || out.Literal != "" || out.Fill != nil || out.Random != nil {
+							tc.FileSource = &out
+						}
 					}
 				}
 			}

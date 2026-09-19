@@ -61,7 +61,7 @@ func TestTelnetChain_LayerFieldsAccepted(t *testing.T) {
 			map[string]interface{}{"type": "data", "direction": "down", "data": "login: "},
 		},
 		"file_source": map[string]interface{}{
-			"file_source": "/tmp/telnet-payload.txt",
+			"file": "/tmp/telnet-payload.txt",
 		},
 	})
 	if _, err := layers.ValidateLayers(raw, "telnet"); err != nil {
