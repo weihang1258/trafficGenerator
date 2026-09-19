@@ -2468,3 +2468,78 @@ create：ValidateStrategy→ValidateLayers（V9 8 键）→CheckProtoFlat presen
 
 #### 8. 验收
 对应 T-MPLS（P3 定稿）。完成条件：6 红例先红后绿；mpls.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 count/mpls 字面零残留；schemagen 同步绿；门 1 表回填+抽查三条；在库 mpls 行清空（P6 删前报数 93+5→备份→删→复核——**绝对路径+删后总量对账**）。
+
+### D-NGAP-1 NGAP 层链化：终层自驱（SCTP 信令整包 relay）+ 端口住层【P-PIPE #17 门1】
+
+**状态：** P2 定稿（2026-09-19；门 1 已交+对抗自重审 3 轮（拆链随机条件疑点排除——`if shutdownTSN > 0` 只防 TSN 下溢三 emit 恒发；`ngap.procedureCode` 字段初查误判当场自纠；主体零事实错误，末轮净）；CORE_MEMORY 240 条逐条复审完成。裁定延续：端口住 ngap 层+端口动态 E1=h323/mpls 已批同款。现状：legacy 完整（ngap.go 895 行，SCTP 4 路握手+NGSetup 对恒发+5 可选流程+3 路拆链=**最小 9 包**，全 SCTP 包自产 L3 proto 132/验证标签存 Ack 槽），main.go:567 直挂，**层链四件全缺+registry 无行**（连占位都无）。用例 1 例纯扁平（min_packets 9+13 fields chunk 序列+frames 2 字节 pin——**断言全部避开随机面**（verTag/TSN/cookie 随机，ngap.go:259-279））。在库 tasks 92+strategies 3（普查 91 漂移））
+
+**架构裁定（P2 定稿）：** **A1 [ip,ngap] 终层自驱整包 relay**（h323/mpls 三度验证机器：wrap legacy Plan+force-up 防双换——legacy 逐 emit 自管方向与地址，raw-IP 驱动 down-swap 会双换）。否决：A2 [ip,sctp,ngap] 事件面——registry 无 sctp 层（grep 计数 0，sctp 协议序号 28 待办），需先建 SCTP 传输层机器=两级新机制。**v4-only 语义注记（重审落定）**：legacy 强制 IPv4（ngap.go:146-156）与扁平缺省同族 → **validateLayer 无需 D-FTP-4 豁免**（h323 是 v6-only 异族才需要）；动态 ip 层给 v6 range 在逐流 Plan 时被拒=正确执法（P3 负例格）。**随机性注记**：verTag/TSN/cookie/ip.id 基址随机（ngap.go:259-279）——断言仅 chunk 类型/端口/PPID/procedureCode 面（存量用例已如此=先例），ip.id 不断言。
+
+**权威链（§7）：** 标准=3GPP TS 38.413（NGAP，流程码 §9.2/criticality §9.1）+TS 38.412（SID）+RFC 4960（SCTP §5 握手/§9.2 拆链）→ 设计=本条目（权威）→ 代码 → 测试。字节事实=参考 pcap SCTP_NAS.pcap 转录（ngap.go:40-41，InitialUEMessage+Registration Request MCC460/MNC01）+Wireshark packet-ngap（tshark 3.6.14 有 ngap.procedureCode 字段，存量 pin 有效）。
+
+**依赖链判定：**
+
+| # | 断链层 | 判定 | 处置 |
+|---|---|---|---|
+| ① 层链四件缺 | 代码缺口 | registry 无行/translate 无 case/FlowMeta 无 NGAP/无 generator | P4：registry 新终层行（14 键：12 业务+2 端口，嵌套 object/list）+translate+FlowMeta.NGAP+carry+layer_gen 包装+注册 |
+| ② legacy 校验已全 | 无缺口 | Validate 16 锚词（IP×4/端口×2/MCC·MNC×4/PDUSessionID/SST/DRX/NAS 长度×3） | validateLayer=required 保底+legacy 复用零新文案 |
+| ③ 静态复制门漏扫 | 执法洞 | 扫描列表无 ngap | P4 扫描列表 += "ngap"（h323/mpls 同款）+红例⑥ |
+| ④ 简化 PER | C 类 | ngap.go:35-38 自认非全合规（无约束长度决定项） | 明确注记：legacy 合同字节面，对照 Wireshark 解码深度=待确认不冒充 |
+| ⑤ 端口动态 | E1 延续 | allowlist 无 ngap 行 | P4：LayerDynValues.NGAP+allowlist 2 键+parseLayerDyn case+resolveLayerTuple+HasAny |
+| ⑥ v6 对照 | 负例格 | legacy 强制 v4 | v6=负例（非 h323/mpls 的正例对照）——P3 落格 |
+
+#### 门 1 对照表（已交，证据回填版）
+
+§1 键去向：src_ip/dst_ip→layers[ip]；src_port/dst_port→layers[ngap]；count→删；顶层 ngap 12 业务键→layers[ngap] 直迁（嵌套三件原样）。目标形状 `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"ngap":{"src_port":12345,"dst_port":38412,"initial_ue_message":true}}]}`。§3 五件套：联结=一条 gNB↔AMF SCTP 联结；事务序列=握手 4→NGSetup 对（恒发）→5 可选流程→拆链 3；无跨流关联（NAS 流内）=豁免注记；插入=ngap 终层自产完整 SCTP 包；时间线=emit 线性。§12 动态：业务 12 键全关（结构选择器/联结身份/载荷）；端口 2 键开（E1）；序号=ip.id 随机基址+1+worker 端口保底。
+
+#### 决策对比（4.17）
+
+| 决策 | 候选 | 结论 |
+|------|------|------|
+| A 链形 | A1 终层自驱 vs A2 [ip,sctp,ngap] 事件面 | **A1**（A2 需两级新机制） |
+| B 端口住处 | B1 ngap 层键+门扩扫 | **B1** |
+| C 翻译 | C1 手工逐键零缺省+嵌套下钻 | **C1** |
+| D 校验 | D1 复用 16 锚词（无 D-FTP-4 豁免——v4-only 同族） | **D1** |
+| E 端口动态 | E1 延续 | **E1** |
+
+**明确不解决：** SCTP IPv6 路径（legacy 拒）；全合规 PER（④ C 类）；NGAP 6 流程之外的流程扩展（legacy 范围）；sctp 传输层机器（A2 否决，sctp 协议序号 28 另立项）。
+
+#### 1. 文件清单（P2 定稿）
+- Modify: `internal/core/layers/registry.go`——ngap 终层行（CategoryTerminal+DependsOn ip+Fields 14 键无 Default：global_ran_node_id{object}/supported_ta_list{list}/pdu_session_setup{object}/amf_name{string}/default_paging_drx{uint8}/ran_ue_ngap_id{uint32}/amf_ue_ngap_id{uint32}/initial_ue_message{bool}/ue_context_release{bool}/initial_nas{string}/downlink_nas{string}/uplink_nas{string}/src_port{uint16}/dst_port{uint16}）
+- Modify: `internal/core/layers/chain_planner_translate.go`——case "ngap"（spec.NGAP==nil 层优先；12 业务键逐映射+嵌套三件下钻+NAS 三键 string→bytes+端口同键二态；parse 零缺省→translate 零缺省，缺省在 legacy Plan）
+- Modify: `internal/core/layers/generator.go`+`chain_planner_chain.go`——FlowMeta.NGAP+carry
+- Modify: `internal/core/layers/chain_planner_util.go`——isRawIPChain 加 ngap
+- Modify: `internal/core/layers/chain_planner.go`——两端口豁免名单加 ngap
+- Modify: `internal/core/strategy_convert.go`——CheckProtoFlat ngap presence 分支
+- Modify: `internal/core/schema/semantic.go`——扫描列表 += "ngap"
+- Modify: `internal/core/layer_dyn.go`+`internal/core/types.go`——LayerDynValues.NGAP/allowlist/parseLayerDyn/resolveLayerTuple/HasAny（⑤）
+- Create: `internal/protocol/ngap/layer_gen.go`——Generator 包装 legacy Plan（等价 FlowSpec 直传；force Direction="up" 防双换；GenEvents nil）+validateLayer（required+legacy 16 锚词）+init 注册
+- Modify: `cmd/server/main.go:567`——NewChainPlanner("ngap")+空导入
+- Modify: `tools/pipe_gate.sh`+`tools/coverage_gate.py`（check_ngap）、schemagen 重跑
+- Modify: `test/protocol_pcap/cases/ngap.json`（P5 按 T-NGAP）
+- Test: `internal/core/layers/ngap_migrate_test.go`（红例①-⑤）+`internal/core/schema/ngap_static_port_test.go`（红例⑥）
+- 零改动：`internal/protocol/ngap/ngap.go`（字节事实）
+
+#### 2. 接口签名（锚词）
+- presence：`protocol ngap no longer accepts a top-level ngap sub-config (move it into the ngap layer of an [ip,ngap] layers chain)`
+- validator：`ngap: NGAP config is required`？——**legacy Validate 对 nil-config 返 nil（ngap.go:166-168 "minimal: SCTP handshake only"）！** translate 恒填非 nil（空层→零值 NGAPConfig=合法 9 包最小联结）——**无需 required 保底分支**（h323/mpls 不同：legacy 自身接受 nil）。validateLayer=纯 legacy 复用。
+- static：`static four-tuple`（既有门，扫描面扩 ngap）
+
+#### 3. 主流程
+create：ValidateStrategy→ValidateLayers（V9 14 键）→CheckProtoFlat presence→checkLayerChainStaticCopy（含 ngap 端口）→400。
+任务：mapToFlowSpec→parseLayerDyn→worker resolveLayerTuple→ChainPlanner.ValidateSpec：validateSpecBase（ngap 端口豁免）→translate case "ngap"→validateLayer（legacy Validate——v4-only 与缺省同族无冲突）→Plan：isRawIPChain→raw-IP 驱动（meta 补齐→Generator.Generate→legacy Plan 整包 relay→force up 防双换）→builder：SCTP L4 装配（CRC32c 既有 builder.go:427 路径）。
+
+#### 4. 增量步骤（failing 先行）
+红例族 6：①TestNGAPChain_FlatPresenceRejected ②TestNGAPChain_LayerFieldsAccepted（14 键 V9）③TestNGAPChain_LayerTranslateMinimalSession（链 [ip,ngap{ports}]→9 包+SCTP chunk 序列 1/2/10/11/DATA×2/7/8/14+dstport 38412）④TestNGAPChain_TranslateKeysFilled（业务键逐槽断言含嵌套 pdu_session_setup）⑤TestNGAPLayerPortDynAllowlisted（core）⑥TestNGAPStaticPortFlowsRejected（schema：[ip{},ngap{ports}]+flows=2）。
+
+#### 5. 错误锚词
+见 §2；legacy 16 锚词为链路径唯一执法面（零新文案）。
+
+#### 6. 性能设计与验收
+包数=9+N 可选（InitialUE/UEContextRelease 各 1、Downlink/Uplink NAS 各 1、PDUSession 对 2）；整包 relay 流式（channel 256）无收集无锁；翻译一次；回归口径 suite ±10%；pcap 路=套件；网卡未跑注明。
+
+#### 7. 顺序与回滚
+红例→registry+translate→FlowMeta/isRawIPChain/豁免→门扩扫+layer_dyn→layer_gen+注册→presence→main 翻转→门登记+schemagen→绿；P5 cases。回滚=单提交粒度；ngap.go 零改动=字节事实零风险。
+
+#### 8. 验收
+对应 T-NGAP（P3 定稿）。完成条件：6 红例先红后绿；ngap.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 count/ngap 字面零残留；schemagen 同步绿；门 1 表回填+抽查三条；在库 ngap 行清空（P6 删前报数 92+3→备份→删→复核——绝对路径+总量对账）。
