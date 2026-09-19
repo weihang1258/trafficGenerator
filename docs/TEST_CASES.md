@@ -3444,3 +3444,43 @@
 **断言边界（9.27）：** 随机面不钉；DRX/MCC/MNC 进 PER 编码字节=P5 校准后钉（T-10/T-11 注记）；无包间隔面。
 **执行口径：** P5 ngap 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/ngap/`+门 2 四项+反查 check_ngap；数值落盘重钉（14.6/9.31）；**服务端验证=pcaptest 改动需服务器重编重启**（h323 教训）。
 **实现位置：** `cases/ngap.json`（**17 例**：改写 1+新建 16）。
+
+### T-TELNET-1…17 telnet.json——存量审计 + 测试点清单【D-TELNET-1 P3 定稿，P4 未开工】
+
+**状态：** P3 定稿（2026-09-19）。存量 1 例逐条审计改写（等价迁移：count 删、顶层空 `telnet:{}`→telnet 层空业务面+显式端口 12345/23、四元组→layers[ip] 显式；**断言面=8 fields+6 frames+4 标量（has_handshake/negotiated/terminates/min_packets:12）全保留**——12 为保守下界实际 13 包，P5 校准后可钉 13；存量 notes"Will Echo"注释与字节不符（ff fb 03=WILL SGA）不迁移错误注释）+ 新建 16 例=17 例。
+**级别：** pcap
+**来源：** ①标准=RFC 854（NVT+IAC 转义 §3）+RFC 855（选项/SB）+RFC 1091（TTYPE）+RFC 1073（NAWS）②设计=D-TELNET-1 ③现网=存量 pcap 13 帧实证（tshark telnet 解码器 frames hex 逐字节+telnet.data 伪影注记：IAC 帧空串/trim 尾空白/\r\n 字面转义）
+**存量去向（1 例 → P5 改写后 17 例）：**
+
+| 存量 | 去向 | 说明 |
+|---|---|---|
+| telnet-basic-session | 改写 | count 删、顶层 telnet:{}→layers[telnet]（业务面空+src_port 12345/dst_port 23 显式）、四元组→layers[ip]；8 fields（tcp.flags 0x002/0x012/0x010+telnet.data×4）+6 frames（offset 54：ff fb 03/ff fd 03/6c 6f 67 69 6e 3a 20/61 6c 69 63 65 0d 0a/24 20/65 78 69 74 0d 0a）+4 标量全保留等价——字节一致由 P5 实证 |
+
+**新建例清单（T-2…17）：**
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| 顶层 telnet presence 判死 | T-2 telnet_flat_presence | A（负例，锚词 `top-level telnet sub-config`；create-time） |
+| telnet 层静态端口+flows=2 拒 | T-3 telnet_flat_static_port | A（负例，锚词 `static four-tuple`；形状=[ip{},telnet{ports}]；create-time） |
+| login_full 场景 | T-4 telnet_login_full | A（正例，scenario:login_full→33 包校准（26 事件段+7）；协商 11 IAC 事件+密码 echo 关闭 wont/dont+2 命令回显；断言 IAC 字节+login 字节） |
+| login_fail 场景 | T-5 telnet_login_fail | A（正例，27 包校准；"Login incorrect\r\nlogin: " 重提示断言=失败路径 9.9） |
+| multi_command 场景 | T-6 telnet_multi_command | A（正例，33 包；commands:["uname","pwd"] 显式双命令（9.11 多动作组合流）+commandResponse canned 输出断言） |
+| long_output 场景 | T-7 telnet_long_output | A（正例，36 包校准；8197B 响应 MSS 1460 分段 6 段断言（段长 tcp.len=1460×5+末段）） |
+| option_reject 场景 | T-8 telnet_option_reject | A（正例，28 包；DONT/WONT 拒绝路径字节断言（ff fe 39/ff fb 22→拒绝对）） |
+| synch 场景 | T-9 telnet_synch | A（正例，38 包校准；IAC IP(ff f4)+IAC DM(ff f2) 中断序列断言；DM 无 URG=C 注记） |
+| IAC data 转义 | T-10 telnet_iac_escape | A（正例，dialog 手动 data 含 0xFF→`61 ff ff 20` 翻倍字节 pin（RFC 854 §3 核心）；DataB64 形态同例覆盖） |
+| sb 子协商 | T-11 telnet_sb_subneg | A（正例，dialog 手动 sb 事件+SubDataB64→`ff fa <opt> <data> ff f0` 框架字节 pin；SubData 内 0xFF 翻倍） |
+| ttype_is/naws 缺省+显式 | T-12 telnet_ttype_naws | A（正例，dialog ttype_is+naws：缺省 xterm/80x24 字节 pin+显式值同例对照（19 事件类型枚举格代表）） |
+| banner 前置 | T-13 telnet_banner | A（正例，banner:"Welcome\r\n"→p4 首数据段 banner 字节 pin（握手后第一 PSH-ACK down）） |
+| v6 正例（IP 透明） | T-14 telnet_v6 | A（正例，ip 层 v6→eth.type 0x86DD+tcp.flags 断言（9.24 地址族对称：telnet v6=正例格）；事件字节面不变） |
+| 缺省端口 23 | T-15 telnet_default_port | A（正例，telnet 层无端口→tcp.dstport=23 断言（translate 镜像 setDefaultDstPort；src worker 保底）） |
+| 端口动态 E1 | T-16 telnet_port_dyn | A（正例，src_port/dst_port 动态对象+strategy_fc flows=2→group_id 固定 2 流×13=26 包，端口逐流断言） |
+| unknown scenario 拒 | T-17 telnet_neg_scenario | A（负例，scenario:"telnet999"→`unknown scenario`；task-time validator；.neg.pcap） |
+
+**C 类注记（9.17）：** ①随机面 serverSeq/clientSeq/ip.id 断言避开（seq/ack 相对关系 harness 不可断=9.27 注记）；②RFC 1143 协商状态机不做（legacy 合同逐字发射，不冒充真协商）；③MSS 链路径固定 1460（spec.TCP 不可达，1.12 口径）；④synch DM 无 URG（L4Config 无字段）；⑤validateLayer IP parse 锚词链不可达（schema 格式门先拦）=零死锚词。
+**枚举取值覆盖（9.20-9.22）：** 19 事件类型{data,B64 合并/will/wont/do/dont/sb/ttype_send/ttype_is/naws/ip/dm/nop/ayt/brk/ao/ec/el/ga/synch}——T-1(will/do/data)+T-4(全协商面 wont/dont/ttype_send/ttype_is/naws)+T-9(ip/dm)+T-10(data/B64)+T-11(sb)+T-12(缺省对照)+**剩余 8 类型{nop/ayt/brk/ao/ec/el/ga}单字节命令**→**裁定：T-12 扩为 dialog 多事件例（nop/ayt/brk/ao/ec/el/ga 七单字节命令逐个入 dialog，一处覆盖七枚举）**；场景{6/6}✓（T-4…T-9）；端口{显式,缺省,动态}✓（T-1/T-15/T-16）；地址族{v4,v6}✓（9.24 双族）；负例{presence,static copy,unknown scenario}✓。
+**正交矩阵：** 场景{6}×地址族{v4,v6}×端口{显式,缺省,动态}——v6 对照=T-14（基线 dialog 族）；动态整格=业务 10 键全关+端口 2 键（T-16）。
+**通用陷阱自查（9.37-9.40）：** 无派生端口；多流=T-16 group_id 固定；tshark telnet.data 伪影三则=断言以 frames hex 为主、telnet.data 为辅（存量先例）。
+**断言边界（9.27）：** seq/ack 只断 flags 面（ISN 随机）；IAC 帧 telnet.data 空串=已知伪影（frames 字节断言兜底）；包间隔无面。
+**执行口径：** P5 telnet 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/telnet/`+门 2 四项+反查 check_telnet；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
+**实现位置：** `cases/telnet.json`（**17 例**：改写 1+新建 16）。
