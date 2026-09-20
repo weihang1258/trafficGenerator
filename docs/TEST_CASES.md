@@ -3638,3 +3638,23 @@
 **断言边界（9.27）：** 响应 authenticator 恒随机仅 nonzero；包间隔无面。
 **执行口径：** P5 radius 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/radius/`+门 2 四项+反查 check_radius；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
 **实现位置：** `cases/radius.json`（**25 例**：改写 1+新建 20+补充批 4）。
+
+### T-SIP-58…71 sessions[] 多会话（D-SIP-2 WP-A P3 清单）
+
+**状态：** P3 定稿（2026-09-20）。三源=RFC 3261 §12（dialog 标识）+D-SIP-2 WP-A+Kamailio 多 dialog 并存行为（子表③）。
+**级别：** pcap。**存量去向：** 57 例等价保留（dialog 路径零字节回归线）。
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| 双会话独立面 | T-58 sip_sessions_two_dialogs | A（正例：2 session 独立 call_id/独立端口/独立生命周期；2×(3+2+4)=18 包） |
+| 派生 Call-ID | T-59 sip_sessions_derived_callid | A（call_id 缺省派生 `{flow}-{sess}@{srcIP}` 断言；12.4 可复现） |
+| 显式赢 | T-60 sip_sessions_explicit_wins | A（消息内显式 Call-ID 头 > session.call_id > 派生；user-wins 保持） |
+| 互斥判死 | T-61 sip_neg_sessions_dialog_mutex | A（负例，锚词 `sip: sessions and dialog are mutually exclusive`；create-time） |
+| 空数组 | T-62 sip_neg_sessions_empty | A（负例，同锚词面） |
+| 静态复制拒 | T-63 sip_neg_sessions_static | A（负例，sessions 内标量端口+flows=2→`static four-tuple`） |
+| 端口动态整格 | T-64…68 sip_sessions_port_{inc,rand,list,fixed,pattern} | A（9.32/12.15 五策略逐格 flows=2；distinct 断言；rand seed 钉/回绕格） |
+| call_id 动态 | T-69/70 sip_sessions_callid_{pattern,fixed} | A（flows=2 逐流 Call-ID 断言） |
+| v6 对称 | T-71 sip_sessions_v6 | A（9.24：fd00 双栈双会话格） |
+
+**动态整格（9.32）：** sessions[].src_port×五策略（T-64…68）+call_id×2（T-69/70）=7 格本 WP 落满；medias[].src_port 归 WP-B。**9.40 注记：** 同流多 session 共享 FlowIndex→动态对象同值=真实语义（session 差异锚派生缺省端口 base+M+idx 与 call_id 派生序，不锚 FlowIndex）。**断言边界：** 时间戳=发射序；branch 派生仅 sessions 模式（dialog 模式随机=零字节回归线）。
+**实现位置：** cases/sip.json（71 例）。验收=CASE_PROTO=sip 全量绿+57 例零字节回归+门 2 四项+反查表扩条目。
