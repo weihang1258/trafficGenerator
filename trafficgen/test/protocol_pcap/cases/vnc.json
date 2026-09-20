@@ -284,12 +284,12 @@
         {
           "packet": 11,
           "offset": 54,
-          "hex": "46 70 8d dc 13 a8 b3 13"
+          "hex": "46 70 8d dc 13 a8 b3 13 c5 99 1e 6d ec fa f2 80"
         },
         {
           "packet": 12,
           "offset": 54,
-          "hex": "df 13 24 a5 0b 30 90 3a"
+          "hex": "df 13 24 a5 0b 30 90 3a 38 c8 f9 b8 33 26 2c 6e"
         },
         {
           "packet": 13,
@@ -300,11 +300,17 @@
           "packet": 14,
           "offset": 54,
           "hex": "01"
+        },
+        {
+          "packet": 16,
+          "offset": 54,
+          "hex": "00 00 00 0b 00 00 00 00 00 00 00 02 53 54 44 56"
         }
       ],
       "notes": [
         "参考 pcap 字节逐字钉：challenge 46 70 8d dc...（seed=0 缺省参考字节）；response df 13 24 a5（DES 密文参考字节）",
-        "f9 AuthCaps：count=1 + record(code=2 VNCAUTH + STDV + VNCAUTH_)；f8 TunnelCaps none"
+        "f9 AuthCaps：count=1 + record(code=2 VNCAUTH + STDV + VNCAUTH_)；f8 TunnelCaps none",
+        "追加轮补钉：f16 InteractionCaps 头（nServer 0/nClient 11/nEnc 0/pad）+首记录（code 2 RRE STDV），全 11 记录 184B"
       ]
     }
   },
