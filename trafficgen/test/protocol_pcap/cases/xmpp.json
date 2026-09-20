@@ -1,46 +1,435 @@
 [
   {
-    "id": "xmpp-stream-basic",
+    "id": "xmpp_t1_smoke_plain",
     "proto": "xmpp",
-    "summary": "XMPP (端口 5222) 冒烟：完整 TCP 握手 + XML 流协商 + AUTH PLAIN → 会话建立 (bind/session) → presence → 流关闭 + 终止",
+    "summary": "T-1 smoke 改写（PLAIN 19 帧参考形）：10 阶段全序 + 5222",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5222,
-      "count": 1,
-      "xmpp": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "xmpp": {}
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
       "negotiated": true,
       "terminates": true,
       "has_payload": true,
-      "min_packets": 16,
-      "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "5222"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
-        {"packet": 10, "field": "xmpp.id", "value": "bind_1"},
-        {"packet": 10, "field": "xmpp.type", "value": "set"},
-        {"packet": 11, "field": "xmpp.id", "value": "bind_1"},
-        {"packet": 11, "field": "xmpp.type", "value": "result"},
-        {"packet": 12, "field": "xmpp.id", "value": "sess_1"},
-        {"packet": 12, "field": "xmpp.type", "value": "set"},
-        {"packet": 13, "field": "xmpp.id", "value": "sess_1"},
-        {"packet": 13, "field": "xmpp.type", "value": "result"}
-      ],
       "frames": [
-        {"packet": 10, "offset": 54, "hex": "3c 69 71 20 74 79 70 65 3d 27 73 65 74 27 20 69 64 3d 27 62 69 6e 64 5f 31 27"},
-        {"packet": 14, "offset": 54, "hex": "3c 70 72 65 73 65 6e 63 65 2f 3e"},
-        {"packet": 15, "offset": 54, "hex": "3c 2f 73 74 72 65 61 6d 3a 73 74 72 65 61 6d 3e"}
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "3c 69 71 20 74 79 70 65 3d 27 73 65 74 27 20 69 64 3d 27 62 69 6e 64 5f 31 27"
+        },
+        {
+          "packet": 14,
+          "offset": 54,
+          "hex": "3c 70 72 65 73 65 6e 63 65 2f 3e"
+        },
+        {
+          "packet": 15,
+          "offset": 54,
+          "hex": "3c 2f 73 74 72 65 61 6d 3a 73 74 72 65 61 6d 3e"
+        }
       ],
       "notes": [
-        "f4/f5 流头 (stream:stream to/from example.com version 1.0)；f6 AUTH PLAIN；f7 SUCCESS；f8/f9 流重启；f10 IQ bind_1 set (resource trafficgen)；f11 bind_1 result；f12 sess_1 set；f13 sess_1 result；f14 presence 自闭合标签；f15/f16 '</stream:stream>' 流结束",
-        "f15/f16 有 tshark 'Closing an unopened tag' 专家标记（_ws.malformed）——字节级验证 '</stream:stream>' 为合法 XMPP 流终止 (RFC 6120 §4.5)；verify.go isMalformedWhitelisted 对 xmpp- 前缀白名单",
-        "f4/5/8/9 专家 'Unknown attribute' 为 Note 级别（tshark 对 stream 头属性的宽松解析），非 malformed，无需白名单",
-        "19 帧 = 3 握手 + 13 数据 + 3 终止（双 FIN + ACK）"
+        "19 帧=3 握手+13 数据（流开+features+auth+success+重启+postAuth+bind×2+sess×2+presence+流关×2）+3 终止（双 FIN+ACK）",
+        "f15/f16 '</stream:stream>' 有 tshark 'Closing an unopened tag' 专家标记——合法 XMPP 流终止字节（verify.go xmpp- 前缀白名单）"
+      ],
+      "min_packets": 16,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "5222"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.flags",
+          "value": "0x010"
+        },
+        {
+          "packet": 10,
+          "field": "xmpp.id",
+          "value": "bind_1"
+        },
+        {
+          "packet": 10,
+          "field": "xmpp.type",
+          "value": "set"
+        },
+        {
+          "packet": 11,
+          "field": "xmpp.id",
+          "value": "bind_1"
+        },
+        {
+          "packet": 11,
+          "field": "xmpp.type",
+          "value": "result"
+        },
+        {
+          "packet": 12,
+          "field": "xmpp.id",
+          "value": "sess_1"
+        },
+        {
+          "packet": 12,
+          "field": "xmpp.type",
+          "value": "set"
+        },
+        {
+          "packet": 13,
+          "field": "xmpp.id",
+          "value": "sess_1"
+        },
+        {
+          "packet": 13,
+          "field": "xmpp.type",
+          "value": "result"
+        }
+      ]
+    }
+  },
+  {
+    "id": "xmpp_t2_digest_md5",
+    "proto": "xmpp",
+    "summary": "T-2 auth_mechanism=DIGEST-MD5：四步质询应答",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "xmpp": {
+            "auth_mechanism": "DIGEST-MD5"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "packet_count": 21,
+      "frames": [],
+      "notes": [
+        "四步：auth→challenge(nonce)→response→success+rspauth（比 PLAIN 多 challenge/response 两帧=21）"
+      ]
+    }
+  },
+  {
+    "id": "xmpp_t3_scram_sha1",
+    "proto": "xmpp",
+    "summary": "T-3 auth_mechanism=SCRAM-SHA-1：六步交换（参考 pcap 同机制）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "xmpp": {
+            "auth_mechanism": "SCRAM-SHA-1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "packet_count": 23,
+      "frames": [],
+      "notes": [
+        "六步：auth→空 challenge→response→challenge(nonce)→response→success+verification（比 PLAIN 多四帧=23）"
+      ]
+    }
+  },
+  {
+    "id": "xmpp_t4_anonymous",
+    "proto": "xmpp",
+    "summary": "T-4 auth_mechanism=ANONYMOUS：匿名单轮",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "xmpp": {
+            "auth_mechanism": "ANONYMOUS"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "packet_count": 19,
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "3c 61 75 74 68 20 78 6d 6c 6e 73 3d 27 75 72 6e 3a 69 65 74 66 3a 70 61 72 61 6d 73 3a 78 6d 6c 3a 6e 73 3a 78 6d 70 70 2d 73 61 73 6c 27 20 6d 65 63 68 61 6e 69 73 6d 3d 27 41 4e 4f 4e 59 4d 4f 55 53 27 2f 3e"
+        }
+      ],
+      "notes": [
+        "匿名单轮与 PLAIN 同帧数（19）；f6 匿名 auth 元素字节实测钉"
+      ]
+    }
+  },
+  {
+    "id": "xmpp_t5_presence_off",
+    "proto": "xmpp",
+    "summary": "T-5 presence=false：presence 缺席",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "xmpp": {
+            "presence": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "packet_count": 18,
+      "frames": [],
+      "notes": [
+        "presence 缺席→19-1=18"
+      ]
+    }
+  },
+  {
+    "id": "xmpp_t6_messages_both",
+    "proto": "xmpp",
+    "summary": "T-6 messages 双向：up/down message 节",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "xmpp": {
+            "messages": [
+              {
+                "direction": "up",
+                "to": "alice@example.com",
+                "body": "ping"
+              },
+              {
+                "direction": "down",
+                "to": "user@example.com",
+                "body": "pong"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "packet_count": 21,
+      "frames": [
+        {
+          "packet": 15,
+          "offset": 54,
+          "hex": "3c 6d 65 73 73 61 67 65 20 74 6f 3d 27 61 6c 69 63 65 40 65 78 61 6d 70 6c 65 2e 63 6f 6d 27 20 74 79 70 65 3d 27 63 68 61 74 27 3e 3c 62 6f 64 79 3e 70 69 6e 67 3c 2f 62 6f 64 79 3e 3c 2f 6d 65 73 73 61 67 65 3e"
+        },
+        {
+          "packet": 16,
+          "offset": 54,
+          "hex": "3c 6d 65 73 73 61 67 65 20 74 6f 3d 27 75 73 65 72 40 65 78 61 6d 70 6c 65 2e 63 6f 6d 27 20 74 79 70 65 3d 27 63 68 61 74 27 3e 3c 62 6f 64 79 3e 70 6f 6e 67 3c 2f 62 6f 64 79 3e 3c 2f 6d 65 73 73 61 67 65 3e"
+        }
+      ],
+      "notes": [
+        "messages 在 presence 后逐条发射（每条+1 帧）；f15 up（to alice）/f16 down（to user）message 节字节实测钉"
+      ]
+    }
+  },
+  {
+    "id": "xmpp_t7_identity_custom",
+    "proto": "xmpp",
+    "summary": "T-7 from/jid/resource/stream_id 定制",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "xmpp": {
+            "from": "chat.x.cn",
+            "jid": "ops@chat.x.cn",
+            "resource": "bot7",
+            "stream_id": "ff11ee22"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "packet_count": 19,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "3c 3f 78 6d 6c 20 76 65 72 73 69 6f 6e 3d 27 31 2e 30 27 20 3f 3e 3c 73 74 72 65 61 6d 3a 73 74 72 65 61 6d 20 74 6f 3d 27 63 68 61 74 2e 78 2e 63 6e 27 20 78 6d 6c 6e 73 3d 27 6a 61 62 62 65 72 3a 63 6c 69 65 6e 74 27 20 78 6d 6c 6e 73 3a 73 74 72 65 61 6d 3d 27 68 74 74 70 3a 2f 2f 65 74 68 65 72 78 2e 6a 61 62 62 65 72 2e 6f 72 67 2f 73 74 72 65 61 6d 73 27 20 76 65 72 73 69 6f 6e 3d 27 31 2e 30 27 3e"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "3c 69 71 20 74 79 70 65 3d 27 73 65 74 27 20 69 64 3d 27 62 69 6e 64 5f 31 27 3e 3c 62 69 6e 64 20 78 6d 6c 6e 73 3d 27 75 72 6e 3a 69 65 74 66 3a 70 61 72 61 6d 73 3a 78 6d 6c 3a 6e 73 3a 78 6d 70 70 2d 62 69 6e 64 27 3e 3c 72 65 73 6f 75 72 63 65 3e 62 6f 74 37 3c 2f 72 65 73 6f 75 72 63 65 3e 3c 2f 62 69 6e 64 3e 3c 2f 69 71 3e"
+        }
+      ],
+      "notes": [
+        "f4 流头 to='chat.x.cn'；f10 bind resource bot7+stream_id 回流（字节实测钉）"
+      ]
+    }
+  },
+  {
+    "id": "xmpp_t8_plain_credentials",
+    "proto": "xmpp",
+    "summary": "T-8 username/password 定制：PLAIN base64 钉",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "xmpp": {
+            "username": "ops",
+            "password": "s3cret"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "has_payload": true,
+      "packet_count": 19,
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "3c 61 75 74 68 20 78 6d 6c 6e 73 3d 27 75 72 6e 3a 69 65 74 66 3a 70 61 72 61 6d 73 3a 78 6d 6c 3a 6e 73 3a 78 6d 70 70 2d 73 61 73 6c 27 20 6d 65 63 68 61 6e 69 73 6d 3d 27 50 4c 41 49 4e 27 3e 41 47 39 77 63 77 42 7a 4d 32 4e 79 5a 58 51 3d 3c 2f 61 75 74 68 3e"
+        }
+      ],
+      "notes": [
+        "auth 载荷实测钉：base64(\\0ops\\0s3cret)=AG9wcwBzM2NyZXQ=；缺省 user/pass 由 T-1 承接"
+      ]
+    }
+  },
+  {
+    "id": "xmpp_t9_neg_mech",
+    "proto": "xmpp",
+    "summary": "负例：auth_mechanism=NTLM（枚举外）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "xmpp": {
+            "auth_mechanism": "NTLM"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "unsupported auth mechanism",
+      "notes": [
+        "planner Validate 锚（PLAIN/DIGEST-MD5/SCRAM-SHA-1/ANONYMOUS 四枚举）"
+      ]
+    }
+  },
+  {
+    "id": "xmpp_t10_neg_direction",
+    "proto": "xmpp",
+    "summary": "负例：message direction=left（枚举外）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "xmpp": {
+            "messages": [
+              {
+                "direction": "left",
+                "to": "a@b.c",
+                "body": "x"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid direction",
+      "notes": [
+        "planner Validate 锚（up/down 枚举）"
       ]
     }
   }

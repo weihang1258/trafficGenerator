@@ -3851,3 +3851,7 @@
 ### T-VNC-1…21 vnc 层链收敛（D-VNC-1 P3 清单见 CODE_DESIGN D-VNC-1；P5 已执行 21/21 ×2 全绿，2026-09-20）
 
 RFC 6143 RFB 反推 17 例：T-1 33 帧参考形（Tight 13 握手消息+客户端消息面+FBU 循环+5900）/T-2 握手字节钉（challenge/response 参考字节）/T-3 security_type=2/T-4 =1/T-5 认证失败分支（reason 逐字节+提前拆链）/T-6 share=false/T-7 raw 确定性像素/T-8 KeyEvent 显式（0xffe9=65513，笔误教训入档）/T-9 extras 三消息交织/T-10 colourmap/T-11 客户端消息关/T-12 rounds×interval 线性/T-13 pointer 缺省 507/320/T-14…17 负例四锚（security_type 枚举 planner、auth_result V9 区间、rect encoding planner、width=0 显式 0 过 V9 落 planner）。包数全部实测钉（首跑 3 红手估错已修正：T-3=29/T-4=27 均漏数 InteractionCaps 缺席）。在库 vnc 行已清（4+81，备份 -vnc-purge-20260920.db）。**追加对抗复审第 2 轮**：registry 26 键逐键反扫抓 10 键 suite 零覆盖→补 T-18…21 四复合例（ServerInit 定制/encodings+pointer 显式/caps 定制/seed 确定性字节，全部实测钉；T-20 修 nServer=0 解 tshark Malformed），21/21 ×2 全绿+反查 48/48。
+
+### T-XMPP-1…10 xmpp 层链收敛（D-XMPP-1 P3 清单见 CODE_DESIGN D-XMPP-1；P5 已执行 10/10 ×2 全绿，2026-09-20）
+
+RFC 6120/6121 反推 10 例：T-1 PLAIN 19 帧全序（10 阶段+5222）/T-2 DIGEST-MD5 21/T-3 SCRAM-SHA-1 23（参考 pcap 同机制）/T-4 ANONYMOUS 19（元素字节钉）/T-5 presence=false 18/T-6 messages 双向（message 节字节钉）/T-7 from/jid/resource/stream_id 定制（流头+bind 钉）/T-8 PLAIN 凭据 base64 钉/T-9…10 负例两锚（auth 枚举/direction 枚举，全落 planner Validate）。包数手算全中（SASL 线性差 +0/+2/+4）；'</stream:stream>' 白名单泛化 xmpp_ 前缀（旧例 id 精确匹配→前缀）。在库 xmpp 行已清（3+77，备份 -xmpp-purge-20260920.db）。

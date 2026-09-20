@@ -1,7 +1,16 @@
 # xmpp Pcap Test Results
 
-Cases: 1 — pass 1, fail 0, error 0
+Cases: 10 — pass 10, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
-| xmpp-stream-basic | XMPP (端口 5222) 冒烟：完整 TCP 握手 + XML 流协商 + AUTH PLAIN → 会话建立 (bind/session) → presence → 流关闭 + 终止 | pass | 19 | [pcap](xmpp/xmpp-stream-basic.pcap) |
+| xmpp_t10_neg_direction | 负例：message direction=left（枚举外） | pass | 0 | [pcap]() |
+| xmpp_t1_smoke_plain | T-1 smoke 改写（PLAIN 19 帧参考形）：10 阶段全序 + 5222 | pass | 19 | [pcap](xmpp/xmpp_t1_smoke_plain.pcap) |
+| xmpp_t2_digest_md5 | T-2 auth_mechanism=DIGEST-MD5：四步质询应答 | pass | 21 | [pcap](xmpp/xmpp_t2_digest_md5.pcap) |
+| xmpp_t3_scram_sha1 | T-3 auth_mechanism=SCRAM-SHA-1：六步交换（参考 pcap 同机制） | pass | 23 | [pcap](xmpp/xmpp_t3_scram_sha1.pcap) |
+| xmpp_t4_anonymous | T-4 auth_mechanism=ANONYMOUS：匿名单轮 | pass | 19 | [pcap](xmpp/xmpp_t4_anonymous.pcap) |
+| xmpp_t5_presence_off | T-5 presence=false：presence 缺席 | pass | 18 | [pcap](xmpp/xmpp_t5_presence_off.pcap) |
+| xmpp_t6_messages_both | T-6 messages 双向：up/down message 节 | pass | 21 | [pcap](xmpp/xmpp_t6_messages_both.pcap) |
+| xmpp_t7_identity_custom | T-7 from/jid/resource/stream_id 定制 | pass | 19 | [pcap](xmpp/xmpp_t7_identity_custom.pcap) |
+| xmpp_t8_plain_credentials | T-8 username/password 定制：PLAIN base64 钉 | pass | 19 | [pcap](xmpp/xmpp_t8_plain_credentials.pcap) |
+| xmpp_t9_neg_mech | 负例：auth_mechanism=NTLM（枚举外） | pass | 0 | [pcap]() |

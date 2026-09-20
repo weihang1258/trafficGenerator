@@ -1675,6 +1675,50 @@ def check_pptp(cases):
 
     return rows
 
+def check_xmpp(cases):
+    """D-XMPP-1 P6 反查表（T-XMPP-1…10，9.52 对账 18/18）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("xmpp"), dict):
+                lays.append((c.get("id", "?"), l["xmpp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_smoke_plain", "T-1 PLAIN 19 帧参考形"),
+        ("t2_digest_md5", "T-2 DIGEST-MD5 四步"),
+        ("t3_scram_sha1", "T-3 SCRAM-SHA-1 六步"),
+        ("t4_anonymous", "T-4 ANONYMOUS"),
+        ("t5_presence_off", "T-5 presence=false"),
+        ("t6_messages_both", "T-6 messages 双向"),
+        ("t7_identity_custom", "T-7 身份四键定制"),
+        ("t8_plain_credentials", "T-8 PLAIN 凭据 base64 钉"),
+        ("t9_neg_mech", "T-9 auth 机制拒"),
+        ("t10_neg_direction", "T-10 direction 拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    keys_seen = 0
+    for k in ["auth_mechanism", "presence", "messages", "from", "jid",
+              "resource", "stream_id", "username", "password"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+        if hit is not None:
+            keys_seen += 1
+
+    for needle, name in [
+        ("unsupported auth mechanism", "T-9 auth 锚"),
+        ("invalid direction", "T-10 direction 锚"),
+        ("5222", "T-1 端口锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 def check_vnc(cases):
     """D-VNC-1 P6 反查表（T-VNC-1…17，9.52 对账 27/27）。返回 [(检查名, 通过?, 证据)]。"""
     rows = []
@@ -1738,7 +1782,7 @@ def check_vnc(cases):
 
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc, "xmpp": check_xmpp}
 
 
 def main(argv):

@@ -541,6 +541,11 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 		// ——AMF 编码合法可解析，仅 RTMP dissector 的 AMF 递归守卫对
 		// 嵌套 _result 对象误报）：rtmp_ 前缀=层链 16 例族。
 		strings.HasPrefix(caseID, "rtmp_") && artifactMatchesExact("Loop in AMF dissection"),
+		// D-XMPP-1：'</stream:stream>' 流关闭（RFC 6120 §4.4）对 tshark
+		// 是未打开标签的关闭——字节合法、语义合法，dissector 必报
+		// "Closing an unopened tag"（每例双 FIN 前两帧恒现）；xmpp_ 前缀=
+		// 层链 10 例族，"xmpp-stream-basic"=旧扁平例兼容。
+		strings.HasPrefix(caseID, "xmpp_") && artifactMatchesExact("Closing an unopened tag"),
 		caseID == "xmpp-stream-basic" && artifactMatchesExact("Closing an unopened tag"),
 		// stun_binding_tls_session/pop3_over_tls/mqtt_over_tls/socks5_over_tls：
 		// tshark 3.6.14 TLS dissector 对我们模板集 Certificate 的 BER 解析
