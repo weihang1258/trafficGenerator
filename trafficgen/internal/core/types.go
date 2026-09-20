@@ -2565,6 +2565,15 @@ type SIPConfig struct {
 	// with Dialog (the single-dialog shorthand) — enforced at create time
 	// (schema) and re-checked by the planner as a task-time backstop.
 	Sessions []SIPSession `json:"sessions,omitempty"`
+	// Medias carries the multi-stream media shape (D-SIP-2 WP-B): each
+	// entry is one RTP stream (direction up/down); at the EmitMedia
+	// message the entries' frames are emitted round-robin (up/down
+	// alternating — real RTP is bidirectional per RFC 3550). Mutually
+	// exclusive with Media. Interleave schedules the remaining dialog
+	// messages into the media stream ("N frames between messages",
+	// deterministic even split per CORE_MEMORY 3.12).
+	Medias     []SIPMedia `json:"medias,omitempty"`
+	Interleave bool       `json:"interleave,omitempty"`
 	// MSS is governed by TCPConfig.MSS. SIP runs over TCP (or UDP), so the
 	// planner reads spec.TCP.MSS for segmentation of long SIP messages.
 }
@@ -2583,6 +2592,10 @@ type SIPSession struct {
 
 	Dialog []SIPMessage `json:"dialog,omitempty"`
 	Media  *SIPMedia    `json:"media,omitempty"`
+	// D-SIP-2 WP-B: per-session multi-stream media + interleave (same
+	// semantics as the SIPConfig-level fields).
+	Medias     []SIPMedia `json:"medias,omitempty"`
+	Interleave bool       `json:"interleave,omitempty"`
 
 	SrcPortDyn *StrategyConfig `json:"-"`
 	DstPortDyn *StrategyConfig `json:"-"`
@@ -2657,6 +2670,12 @@ type SIPMedia struct {
 	// PayloadCache.GetOrLoad(src) instead of synthesizing G.711-style
 	// payload. nil = synthesize per PayloadType/FrameSize.
 	FileSource *filesystem.FileSource `json:"file_source,omitempty"`
+
+	// D-SIP-2 WP-B: dynamic-object forms of the media ports (same-key
+	// two-state, resolved at spec.FlowIndex). json:"-" — parsed from the
+	// raw map by ParseSIPMedias, never round-tripped.
+	SrcPortDyn *StrategyConfig `json:"-"`
+	DstPortDyn *StrategyConfig `json:"-"`
 }
 
 // RTSPConfig for the RTSP protocol. RTSP (RFC 2326) is a session-level

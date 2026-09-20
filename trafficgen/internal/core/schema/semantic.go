@@ -147,6 +147,11 @@ func validateStrategySemantic(mode, protocol string, config map[string]any, fc *
 	if msg := checkSIPSessionsMutex(config); msg != "" {
 		fail("%s", msg)
 	}
+	// D-SIP-2 WP-B：medias[] 与 media 互斥（空数组同锚词面）——同 sessions
+	// 口径，Planner.Validate 背 door。
+	if msg := checkSIPMediasMutex(config); msg != "" {
+		fail("%s", msg)
+	}
 	// D-FTP-3: layers 与顶层扁平四元组混用拒绝（只拦新建/更新；存量策略
 	// 已入库的不追溯，任务启动不复查）。位置在所有形状/网络检查之后，
 	// 文案给迁移指引。
@@ -230,7 +235,7 @@ func checkLayerChainStaticCopy(config map[string]any, flows float64) string {
 				}
 				// D-SIP-2 WP-A：sessions[] 内嵌端口同权——标量入 hasScalar、
 				// 动态对象入 hasDyn（12.9 执法洞修补，嵌套结构不豁免）。
-				if k != "sessions" {
+				if k != "sessions" && k != "medias" {
 					continue
 				}
 				sessArr, ok := v.([]any)
@@ -294,6 +299,32 @@ func checkSIPSessionsMutex(config map[string]any) string {
 		}
 		if sess, ok := sip["sessions"].([]any); ok && len(sess) == 0 {
 			return "sip: sessions and dialog are mutually exclusive (use sessions for the multi-session shape, dialog for the single-dialog shorthand)"
+		}
+	}
+	return ""
+}
+
+// checkSIPMediasMutex (D-SIP-2 WP-B): sip 层 medias[] 与 media 互斥
+// （多流形态 vs 单流速记——语义与 sessions×dialog 同构）；空 medias 数组
+// 同锚词面。
+func checkSIPMediasMutex(config map[string]any) string {
+	arr, ok := config["layers"].([]any)
+	if !ok {
+		return ""
+	}
+	for _, item := range arr {
+		layer, _ := item.(map[string]any)
+		sip, _ := layer["sip"].(map[string]any)
+		if sip == nil {
+			continue
+		}
+		_, hasMedia := sip["media"]
+		_, hasMedias := sip["medias"]
+		if hasMedias && hasMedia {
+			return "sip: media and medias are mutually exclusive (use media for a single stream, medias for the multi-stream shape)"
+		}
+		if medias, ok := sip["medias"].([]any); ok && len(medias) == 0 {
+			return "sip: media and medias are mutually exclusive (use media for a single stream, medias for the multi-stream shape)"
 		}
 	}
 	return ""

@@ -1994,8 +1994,14 @@
           "type": "uint16",
           "max": 65535
         },
+        "interleave": {
+          "type": "bool"
+        },
         "media": {
           "type": "object"
+        },
+        "medias": {
+          "type": "list"
         },
         "sessions": {
           "type": "list"

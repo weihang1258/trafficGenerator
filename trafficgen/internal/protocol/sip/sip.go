@@ -109,6 +109,11 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 	if spec.SIP != nil && len(spec.SIP.Dialog) > 0 && len(spec.SIP.Sessions) > 0 {
 		return fmt.Errorf("sip: sessions and dialog are mutually exclusive (use sessions for the multi-session shape, dialog for the single-dialog shorthand)")
 	}
+	// D-SIP-2 WP-B：media 与 medias 互斥（task-time back door——create 期由
+	// schema checkSIPMediasMutex 同锚词判死，两路独立闭合）。
+	if spec.SIP != nil && spec.SIP.Media != nil && len(spec.SIP.Medias) > 0 {
+		return fmt.Errorf("sip: media and medias are mutually exclusive (use media for a single stream, medias for the multi-stream shape)")
+	}
 	return nil
 }
 
@@ -157,7 +162,7 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 		// wire stream stays coherent across sessions. D-SIP-2 WP-A: the
 		// dialog path is this function called once with the spec ports and
 		// no default Call-ID — byte-identical to the pre-sessions planner.
-		runSession := func(flowID string, srcPort, dstPort uint16, dialog []core.SIPMessage, media *core.SIPMedia, defaultCallID string) {
+		runSession := func(flowID string, srcPort, dstPort uint16, dialog []core.SIPMessage, media *core.SIPMedia, medias []core.SIPMedia, interleave bool, defaultCallID string) {
 			// Random ISN per RFC 6528. User can override client ISN via
 			// spec.TCP.InitialSeq for reproducible tests.
 			clientSeq := uint32(0)
@@ -228,7 +233,77 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			var dc dialogCtx
 			dc.defaultCallID = defaultCallID
 			dc.sessionScoped = defaultCallID != ""
-			for _, msg := range dialog {
+
+			// D-SIP-2 WP-B: normalize the media sources. media (single
+			// stream) and medias (multi-stream) are mutually exclusive
+			// (Validate); each source maps to one sipMediaStream. The
+			// single-media stream keeps the legacy flow ID suffix ":rtp";
+			// medias entries get ":rtp-<dir>" (CORE_MEMORY 3.10
+			// parent:sub-idx shape).
+			type mediaRef struct {
+				m   core.SIPMedia
+				fid string
+			}
+			var refs []mediaRef
+			if media != nil {
+				refs = append(refs, mediaRef{*media, flowID + ":rtp"})
+			}
+			for _, e := range medias {
+				mdir := e.Direction
+				if mdir == "" {
+					mdir = "up"
+				}
+				refs = append(refs, mediaRef{e, flowID + ":rtp-" + strings.ToLower(mdir)})
+			}
+
+			// interleave schedule (CORE_MEMORY 3.12 — deterministic): with
+			// T total frames and G gaps (after the EmitMedia message,
+			// between each remaining message pair, after the last message),
+			// gap g carries T/G frames plus one extra for the first T%G
+			// gaps. "N frames between messages", reproducible.
+			gapShare := func(g, total, gaps int) int {
+				if gaps <= 0 {
+					return total
+				}
+				return total/gaps + boolInt(g < total%gaps)
+			}
+
+			var streams []*sipMediaStream
+			framesTotal, gapIdx, gapsTotal := 0, 0, 0
+			pending := func() int {
+				n := 0
+				for _, st := range streams {
+					n += st.frames - st.emitted
+				}
+				return n
+			}
+			emitFrames := func(n int) {
+				for emitted := 0; emitted < n; {
+					progressed := false
+					for _, st := range streams {
+						if st.emitted < st.frames {
+							st.emitFrame(ctx, configChan, now, &packetIndex, nextIPID)
+							emitted++
+							progressed = true
+							if emitted >= n {
+								break
+							}
+						}
+					}
+					if !progressed {
+						break
+					}
+				}
+			}
+
+			for idx := range dialog {
+				msg := dialog[idx]
+				// Interleave hook: flush this gap's frame share before the
+				// next dialog message (only after the media point).
+				if interleave && len(streams) > 0 && pending() > 0 && gapIdx < gapsTotal {
+					emitFrames(gapShare(gapIdx, framesTotal, gapsTotal))
+					gapIdx++
+				}
 				completeDialogHeaders(&msg, &dc, spec)
 				payload := renderSIPMessage(msg)
 				if len(payload) == 0 {
@@ -244,17 +319,40 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				if direction == "up" {
 					clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientSeq, serverSeq, payload)
 				} else {
-					serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, serverSeq, clientSeq, payload)
+					serverSeq = emitData("down", spec.DstMAC, spec.DstMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, serverSeq, clientSeq, payload)
 				}
 
-				// Emit RTP media sub-flow after this message when the user
-				// flagged it. The sub-flow is a UDP flow (separate 4-tuple)
-				// but shares the parent's GroupID so it routes to the same
-				// PacketWorker — wire order = emit order, so RTP frames land
-				// between this message and the next (usually ACK → BYE).
-				if msg.EmitMedia && media != nil {
-					emitSIPMedia(ctx, configChan, media, spec, flowID, now, &packetIndex, nextIPID)
+				// Emit the RTP media sub-flow(s) after this message when the
+				// user flagged it. Each stream is a UDP flow (separate
+				// 4-tuple) routed to the same PacketWorker — wire order =
+				// emit order. Without interleave the streams' frames are
+				// round-robined here (up/down alternating = real
+				// bidirectional RTP per RFC 3550); with interleave only this
+				// gap's share is emitted and the rest spreads across the
+				// remaining dialog messages.
+				if msg.EmitMedia && len(refs) > 0 {
+					for _, ref := range refs {
+						if st := newSIPMediaStream(ctx, ref.fid, &ref.m, spec); st != nil {
+							streams = append(streams, st)
+							framesTotal += st.frames
+						}
+					}
+					if interleave {
+						// gaps AFTER this message: before each remaining
+						// message (R hooks) + after the last one = R+1
+						// boundaries. Frames are drained by the per-message
+						// hook and the tail — nothing here (gap0 double-emit
+						// bug: the hook before the next message IS gap0).
+						gapsTotal = len(dialog) - idx
+						gapIdx = 0
+					} else {
+						emitFrames(framesTotal)
+					}
 				}
+			}
+			// Interleave tail: frames left after the last dialog message.
+			if interleave && len(streams) > 0 && pending() > 0 {
+				emitFrames(pending())
 			}
 
 			// --- TCP teardown (FIN-ACK, ACK, FIN-ACK, ACK) ---
@@ -313,13 +411,13 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 				// and generateCallID returns a full line; keep the invariant.
 				callID = "Call-ID: " + callID
 				sessFlowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, src, dst)
-				runSession(sessFlowID, src, dst, sess.Dialog, sess.Media, callID)
+				runSession(sessFlowID, src, dst, sess.Dialog, sess.Media, sess.Medias, sess.Interleave, callID)
 			}
 			return
 		}
 
 		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
-		runSession(flowID, spec.SrcPort, spec.DstPort, sipConfig.Dialog, sipConfig.Media, "")
+		runSession(flowID, spec.SrcPort, spec.DstPort, sipConfig.Dialog, sipConfig.Media, sipConfig.Medias, sipConfig.Interleave, "")
 	}()
 
 	return configChan, nil
@@ -687,6 +785,13 @@ func generateTo(msg *core.SIPMessage, spec core.FlowSpec) string {
 // none. RFC 3261 §8.1.1.7: the branch parameter MUST begin with the
 // magic cookie "z9hG4bK"; the sent-by field identifies the sender's
 // address:port (bracketed for IPv6 literals per §19.1.1).
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 func generateVia(spec core.FlowSpec) string {
 	return fmt.Sprintf("Via: SIP/2.0/TCP %s:%d;branch=z9hG4bK%08x", sipHostOf(spec.SrcIP), spec.SrcPort, rand.Uint32())
 }
@@ -822,6 +927,40 @@ func emitSIPMedia(
 	packetIndex *uint64,
 	nextIPID func() uint16,
 ) {
+	if st := newSIPMediaStream(ctx, parentFlowID, media, spec); st != nil {
+		for i := 0; i < st.frames; i++ {
+			st.emitFrame(ctx, configChan, now, packetIndex, nextIPID)
+		}
+	}
+}
+
+// sipMediaStream is one resolved RTP media entry (D-SIP-2 WP-B): all
+// per-stream state from the legacy emitSIPMedia (ports/PT/frame size/
+// direction tuple/random seq-timestamp-ssrc/Framesource chunks) plus an
+// emitted counter so the interleave scheduler can drain streams round-robin.
+type sipMediaStream struct {
+	spec          core.FlowSpec
+	media         *core.SIPMedia
+	frames        int
+	framePayloads [][]byte
+	srcPortWire   uint16
+	dstPortWire   uint16
+	srcMAC, dstMAC, srcIP, dstIP string
+	dir           string
+	pt            uint8
+	frameSize     int
+	flowID        string
+	ssrc          uint32
+	rtpSeq        uint32
+	rtpTimestamp  uint32
+	emitted       int
+}
+
+// newSIPMediaStream resolves one media entry (legacy emitSIPMedia head,
+// logic order preserved for byte parity). Returns nil when FileSource is
+// set but no payload cache is in the context — legacy contract: emit
+// nothing rather than fall through to synthesized bytes.
+func newSIPMediaStream(ctx context.Context, flowID string, media *core.SIPMedia, spec core.FlowSpec) *sipMediaStream {
 	frames := media.Frames
 	if frames <= 0 {
 		frames = 1
@@ -839,7 +978,7 @@ func emitSIPMedia(
 	if media.FileSource != nil {
 		pc := core.PayloadCacheFrom(ctx)
 		if pc == nil {
-			return
+			return nil
 		}
 		bytes, _ := pc.GetOrLoad(ctx, *media.FileSource)
 		rtpFramePayloads = splitRTPFrames(bytes, media.FrameSize)
@@ -873,7 +1012,14 @@ func emitSIPMedia(
 	// dialog index into emitSIPMedia, which is a larger refactor.
 	invitePort, ok200Port := scanSDPMediaPorts(spec.SIP.Dialog)
 
+	// D-SIP-2 WP-B: dynamic port objects sit at the explicit tier
+	// (resolved at spec.FlowIndex) — dyn > static > SDP > 5004.
 	srcPort := media.SrcPort
+	if srcPort == 0 && media.SrcPortDyn != nil {
+		if v := core.ResolvePortValue(media.SrcPortDyn, spec.FlowIndex); v != 0 {
+			srcPort = v
+		}
+	}
 	if srcPort == 0 {
 		srcPort = invitePort
 	}
@@ -881,6 +1027,11 @@ func emitSIPMedia(
 		srcPort = 5004
 	}
 	dstPort := media.DstPort
+	if dstPort == 0 && media.DstPortDyn != nil {
+		if v := core.ResolvePortValue(media.DstPortDyn, spec.FlowIndex); v != 0 {
+			dstPort = v
+		}
+	}
 	if dstPort == 0 {
 		dstPort = ok200Port
 	}
@@ -913,12 +1064,6 @@ func emitSIPMedia(
 		dir = "up"
 	}
 
-	// Per RFC 3550 §5.1, seq and timestamp start at random values.
-	ssrc := rand.Uint32()
-	rtpSeq := uint16(rand.Uint32())
-	rtpTimestamp := rand.Uint32()
-	rtpFlowID := parentFlowID + ":rtp"
-
 	// Direction determines L2/L3 tuple. "up" = caller→callee (spec.SrcIP →
 	// spec.DstIP); "down" = callee→caller (swap). Case-insensitive to
 	// match FTP's Mode comparison (ftp.go:445 strings.EqualFold) — a user
@@ -935,7 +1080,53 @@ func emitSIPMedia(
 		srcPortWire, dstPortWire = srcPort, dstPort
 	}
 
-	for i := 0; i < frames; i++ {
+	// Per RFC 3550 §5.1, seq and timestamp start at random values.
+	return &sipMediaStream{
+		spec:          spec,
+		media:         media,
+		frames:        frames,
+		framePayloads: rtpFramePayloads,
+		dir:           dir,
+		pt:            pt,
+		frameSize:     frameSize,
+		srcPortWire:   srcPortWire,
+		dstPortWire:   dstPortWire,
+		srcMAC:        srcMAC,
+		dstMAC:        dstMAC,
+		srcIP:         srcIP,
+		dstIP:         dstIP,
+		flowID:        flowID,
+		ssrc:          rand.Uint32(),
+		rtpSeq:        rand.Uint32(),
+		rtpTimestamp:  rand.Uint32(),
+	}
+}
+
+// emitFrame emits the stream's next RTP frame (legacy emitSIPMedia loop
+// body verbatim — header layout, payload chunking, seq/timestamp advance).
+func (st *sipMediaStream) emitFrame(
+	ctx context.Context,
+	configChan chan<- core.PacketConfig,
+	now time.Time,
+	packetIndex *uint64,
+	nextIPID func() uint16,
+) {
+	i := st.emitted
+	dir := st.dir
+	pt := st.pt
+	frameSize := st.frameSize
+	ssrc := st.ssrc
+	rtpSeq := uint16(st.rtpSeq + uint32(st.emitted))
+	rtpTimestamp := st.rtpTimestamp + uint32(i)*uint32(st.frameSize)
+	rtpFlowID := st.flowID
+	srcMAC, dstMAC := st.srcMAC, st.dstMAC
+	srcIP, dstIP := st.srcIP, st.dstIP
+	srcPortWire, dstPortWire := st.srcPortWire, st.dstPortWire
+	var mediaFileSource = st.media.FileSource
+	_ = mediaFileSource
+
+
+	{
 		// RTP header (12 bytes, no CSRC or extension):
 		//   V=2, P=0, X=0, CC=0 -> byte 0 = 0x80
 		//   M=0, PT=pt -> byte 1 = pt & 0x7F
@@ -947,9 +1138,9 @@ func emitSIPMedia(
 		// Otherwise, the payload is frameSize bytes of zeros — a
 		// placeholder so DPI sees the right packet size.
 		var framePayload []byte
-		if media.FileSource != nil {
-			if i < len(rtpFramePayloads) {
-				framePayload = rtpFramePayloads[i]
+		if mediaFileSource != nil {
+			if i < len(st.framePayloads) {
+				framePayload = st.framePayloads[i]
 			}
 		} else {
 			framePayload = make([]byte, frameSize)
@@ -979,14 +1170,13 @@ func emitSIPMedia(
 				DstMAC:    dstMAC,
 				EtherType: core.EtherTypeFor(srcIP),
 			},
-			L3:      core.L3Base(srcIP, dstIP, 17, effectiveTTLOf(spec), nextIPID(), spec),
+			L3:      core.L3Base(srcIP, dstIP, 17, effectiveTTLOf(st.spec), nextIPID(), st.spec),
 			L4:      core.L4Config{Protocol: "udp", SrcPort: srcPortWire, DstPort: dstPortWire},
 			Payload: udpPayload,
 		}
 		configChan <- cfg
 		*packetIndex++
-		rtpSeq++
-		rtpTimestamp += uint32(frameSize)
+		st.emitted++
 	}
 
 	// sampleRate is currently informational — we use it to compute the
@@ -994,7 +1184,7 @@ func emitSIPMedia(
 	// The user sets frameSize directly, so we don't need sampleRate for
 	// the math. We keep it on SIPMedia for future use (e.g. RTCP SR
 	// generation, which needs the clock rate).
-	_ = sampleRate
+	_ = st.media.SampleRate
 }
 
 // sdpMediaPortRe matches an SDP "m=audio <port> ..." line per RFC 4566

@@ -698,9 +698,11 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
-				Dialog:   parseSIPDialog(sub["dialog"]),
-				Media:    parseSIPMedia(sub["media"]),
-				Sessions: ParseSIPSessions(sub["sessions"]),
+				Dialog:     parseSIPDialog(sub["dialog"]),
+				Media:      parseSIPMedia(sub["media"]),
+				Sessions:   ParseSIPSessions(sub["sessions"]),
+				Medias:     ParseSIPMedias(sub["medias"]),
+				Interleave: getBool(sub, "interleave", false),
 			}
 		}
 		// SIP defaults to port 5060 (signaling). Only override when the
@@ -5592,6 +5594,33 @@ func parseSIPDialog(v interface{}) []SIPMessage {
 // signaling (backward compat with pre-media specs).
 //
 // Direction: parsed here so the JSON {"media":{"direction":"down"}} path
+// ParseSIPMedias decodes sip "medias[]" into the multi-stream media shape
+// (D-SIP-2 WP-B). Exported for layers.translateTerminalConfig (single truth
+// with the flat cfg["sip"] branch — ParseSIPSessions precedent). Each entry
+// reuses parseSIPMedia (direction/frames/payload_type/file_source) plus the
+// dynamic-object forms of the ports. Returns nil for absent/non-array input.
+func ParseSIPMedias(v interface{}) []SIPMedia {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]SIPMedia, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		e := parseSIPMedia(m)
+		if e == nil {
+			continue
+		}
+		e.SrcPortDyn = parseStrategyConfigDyn(m["src_port"])
+		e.DstPortDyn = parseStrategyConfigDyn(m["dst_port"])
+		out = append(out, *e)
+	}
+	return out
+}
+
 // ParseSIPSessions decodes sip "sessions[]" into the multi-session shape
 // (D-SIP-2 WP-A). Exported for layers.translateTerminalConfig (single
 // truth with the flat cfg["sip"] branch above — ParseFTPConfigFromMap

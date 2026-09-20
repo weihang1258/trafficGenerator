@@ -131,3 +131,124 @@ func TestSIPSessionsMutexValidate(t *testing.T) {
 		t.Fatalf("want mutex anchor from Validate, got %v", err)
 	}
 }
+
+// D-SIP-2 WP-B：双向交替（up 2 帧+down 2 帧→方向序 up,down,up,down）。
+func TestSIPMediasBidirectionalAlternate(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12001, DstPort: 5060,
+		SIP: &core.SIPConfig{Dialog: []core.SIPMessage{
+			{Method: "INVITE", URI: "sip:callee@20.0.0.1", EmitMedia: true},
+			{StatusCode: 200, StatusText: "OK"},
+		}, Medias: []core.SIPMedia{
+			{Direction: "up", Frames: 2},
+			{Direction: "down", Frames: 2},
+		}},
+	}
+	var p Planner
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var dirs []string
+	for pkt := range ch {
+		if pkt.L4.Protocol == "udp" {
+			dirs = append(dirs, pkt.Direction)
+		}
+	}
+	want := "up,down,up,down"
+	if got := strings.Join(dirs, ","); got != want {
+		t.Fatalf("RTP direction order=%q want %q (round-robin alternation)", got, want)
+	}
+}
+
+// D-SIP-2 WP-B：interleave 交错调度（4 帧媒体夹在 3 条后续消息间：
+// gap 划分 T=4 G=4→每 gap 1 帧；帧序=媒体,200,媒体,ACK,媒体,媒体）。
+func TestSIPMediasInterleaveSchedule(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12001, DstPort: 5060,
+		SIP: &core.SIPConfig{
+			Interleave: true,
+			Dialog: []core.SIPMessage{
+				{Method: "INVITE", URI: "sip:callee@20.0.0.1", EmitMedia: true},
+				{StatusCode: 200, StatusText: "OK"},
+				{StatusCode: 200, StatusText: "OK"},
+				{StatusCode: 200, StatusText: "OK"},
+			},
+			Medias: []core.SIPMedia{{Direction: "up", Frames: 4}},
+		},
+	}
+	var p Planner
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var seq []string
+	for pkt := range ch {
+		if pkt.L4.Protocol == "udp" {
+			seq = append(seq, "R")
+		} else if len(pkt.Payload) > 0 {
+			if strings.Contains(string(pkt.Payload), "SIP/2.0 200") {
+				seq = append(seq, "M")
+			}
+		}
+	}
+	// gaps: after-INVITE/after-200a/after-200b/after-200c 各 1 帧
+	want := "R,M,R,M,R,M,R"
+	if got := strings.Join(seq, ","); got != want {
+		t.Fatalf("interleave sequence=%q want %q", got, want)
+	}
+}
+
+// D-SIP-2 WP-B：medias 互斥 Validate 背 door。
+func TestSIPMediasMutexValidate(t *testing.T) {
+	spec := core.FlowSpec{
+		SIP: &core.SIPConfig{
+			Media:  &core.SIPMedia{Frames: 1},
+			Medias: []core.SIPMedia{{Direction: "up", Frames: 1}},
+		},
+	}
+	var p Planner
+	err := p.Validate(spec)
+	if err == nil || !strings.Contains(err.Error(), "sip: media and medias are mutually exclusive") {
+		t.Fatalf("want medias mutex anchor from Validate, got %v", err)
+	}
+}
+
+// D-SIP-2 WP-B：双向子流独立 ID（parent:rtp-up / parent:rtp-down）。
+func TestSIPMediasFlowIDSuffix(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12001, DstPort: 5060,
+		SIP: &core.SIPConfig{Dialog: []core.SIPMessage{
+			{Method: "INVITE", URI: "sip:callee@20.0.0.1", EmitMedia: true},
+			{StatusCode: 200, StatusText: "OK"},
+		}, Medias: []core.SIPMedia{
+			{Direction: "up", Frames: 1},
+			{Direction: "down", Frames: 1},
+		}},
+	}
+	var p Planner
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	fids := map[string]bool{}
+	for pkt := range ch {
+		if pkt.L4.Protocol == "udp" {
+			fids[pkt.FlowID] = true
+		}
+	}
+	if len(fids) != 2 {
+		t.Fatalf("want 2 distinct RTP flow IDs (3.10 parent:sub-idx), got %v", fids)
+	}
+	for _, want := range []string{":rtp-up", ":rtp-down"} {
+		found := false
+		for id := range fids {
+			if strings.HasSuffix(id, want) {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("flow ID suffix %q missing: %v", want, fids)
+		}
+	}
+}

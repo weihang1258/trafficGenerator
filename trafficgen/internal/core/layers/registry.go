@@ -1248,11 +1248,13 @@ func buildDefaultRegistry() {
 	})
 	r.Register(LayerSchema{Name: "sip", Category: CategoryTerminal, DependsOn: []string{"ip"},
 		Fields: map[string]FieldSchema{
-			"dialog":   {Type: "list"},
-			"media":    {Type: "object"},
-			"sessions": {Type: "list"}, // D-SIP-2 WP-A：多会话结构（与 dialog 互斥，语义层判死）
-			"src_port": {Type: "uint16", Min: 0, Max: 65535},
-			"dst_port": {Type: "uint16", Min: 0, Max: 65535},
+			"dialog":     {Type: "list"},
+			"media":      {Type: "object"},
+			"sessions":   {Type: "list"}, // D-SIP-2 WP-A：多会话结构（与 dialog 互斥，语义层判死）
+			"medias":     {Type: "list"}, // D-SIP-2 WP-B：多流媒体（与 media 互斥，语义层判死）
+			"interleave": {Type: "bool"}, // D-SIP-2 WP-B：媒体流内信令交错调度
+			"src_port":   {Type: "uint16", Min: 0, Max: 65535},
+			"dst_port":   {Type: "uint16", Min: 0, Max: 65535},
 		},
 	})
 	r.Register(LayerSchema{Name: "radius", Category: CategoryTerminal, DependsOn: []string{"ip"},

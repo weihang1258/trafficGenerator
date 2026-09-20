@@ -97,3 +97,65 @@ func TestSIPSessionsAloneAccepted(t *testing.T) {
 		}
 	}
 }
+
+// D-SIP-2 WP-B 红例：medias 与 media 互斥（create 400）。
+func TestSIPMediasMutexRejected(t *testing.T) {
+	_, errs := ValidateStrategy("synth", "sip", map[string]any{
+		"layers": []any{
+			map[string]any{"ip": map[string]any{}},
+			map[string]any{"sip": map[string]any{
+				"media":  map[string]any{"frames": 2},
+				"medias": []any{map[string]any{"direction": "up", "frames": 2}},
+			}},
+		},
+	}, nil)
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Message, "sip: media and medias are mutually exclusive") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("want media/medias mutex rejection, got %v", errs)
+	}
+}
+
+// D-SIP-2 WP-B：空 medias 数组同锚词面。
+func TestSIPMediasEmptyRejected(t *testing.T) {
+	_, errs := ValidateStrategy("synth", "sip", map[string]any{
+		"layers": []any{
+			map[string]any{"ip": map[string]any{}},
+			map[string]any{"sip": map[string]any{"medias": []any{}}},
+		},
+	}, nil)
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Message, "sip: media and medias are mutually exclusive") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("want empty-medias rejection, got %v", errs)
+	}
+}
+
+// D-SIP-2 WP-B：medias 内标量端口 + flows=2 → static-copy 拒。
+func TestSIPMediasStaticCopyRejected(t *testing.T) {
+	_, errs := ValidateStrategy("synth", "sip", map[string]any{
+		"layers": []any{
+			map[string]any{"ip": map[string]any{}},
+			map[string]any{"sip": map[string]any{
+				"medias": []any{map[string]any{"direction": "up", "src_port": 30001, "frames": 2}},
+			}},
+		},
+	}, &FlowControl{Type: "flows", Value: 2})
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Message, "static four-tuple") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("want medias static-copy rejection, got %v", errs)
+	}
+}

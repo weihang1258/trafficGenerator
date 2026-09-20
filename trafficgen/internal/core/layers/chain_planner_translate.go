@@ -1403,6 +1403,16 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 			if ss, ok := cfg["sessions"]; ok {
 				sc.Sessions = core.ParseSIPSessions(ss)
 			}
+			// D-SIP-2 WP-B：medias[] 多流媒体（与 media 互斥——schema 判死
+			// +validator 背 door，translate 只解析）；interleave 交错调度。
+			if md, ok := cfg["medias"]; ok {
+				sc.Medias = core.ParseSIPMedias(md)
+			}
+			if iv, ok := cfg["interleave"]; ok {
+				if b, ok := iv.(bool); ok {
+					sc.Interleave = b
+				}
+			}
 			spec.SIP = sc
 			// 端口双态（h323 同款：标量层值赢，dst 缺省 5060，src 缺席
 			// 不动，对象放行）。
