@@ -1,24 +1,47 @@
 [
   {
-    "id": "vnc-small-rects-basic",
+    "id": "vnc_t1_smoke_ref",
     "proto": "vnc",
-    "summary": "VNC (端口 5900) 冒烟：Tight 握手 + 认证 + 小矩形 FBU 交互（帧数 < 100，默认全屏探针 2190 帧不可用）",
+    "summary": "T-1 smoke 改写（33 帧参考形）：Tight 握手 13 消息 + 客户端消息面 + FBU 循环 + 拆链，5900 端口",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 5900,
-      "count": 1,
-      "vnc": {
-        "initial_fbu": [
-          {"x": 0, "y": 1, "width": 12, "height": 19, "encoding": "xcursor"},
-          {"x": 0, "y": 0, "width": 12, "height": 19, "encoding": "hextile"}
-        ],
-        "update_rects": [
-          {"x": 0, "y": 0, "width": 12, "height": 19, "encoding": "hextile"}
-        ],
-        "rounds": 1
-      }
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
@@ -27,48 +50,1154 @@
       "has_payload": true,
       "packet_count": 33,
       "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "5900"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
-        {"packet": 4, "field": "vnc.server_proto_ver", "value": "003.008"},
-        {"packet": 5, "field": "vnc.client_proto_ver", "value": "003.008"},
-        {"packet": 6, "field": "vnc.security_type", "value": "2,16"},
-        {"packet": 7, "field": "vnc.client_security_type", "value": "16"},
-        {"packet": 13, "field": "vnc.auth_result", "value": "0"},
-        {"packet": 14, "field": "vnc.share_desktop_flag", "value": "1"},
-        {"packet": 15, "field": "vnc.desktop_name", "value": "QTMS:1 (ykaul)"},
-        {"packet": 15, "field": "vnc.width", "value": "1024"},
-        {"packet": 15, "field": "vnc.height", "value": "768"},
-        {"packet": 17, "field": "vnc.client_message_type", "value": "0"},
-        {"packet": 18, "field": "vnc.client_message_type", "value": "2"},
-        {"packet": 19, "field": "vnc.client_message_type", "value": "4"},
-        {"packet": 19, "field": "vnc.key", "value": "0x0000ffe9"},
-        {"packet": 20, "field": "vnc.key", "value": "0x0000ffe3"},
-        {"packet": 21, "field": "vnc.key", "value": "0x0000ffe1"},
-        {"packet": 22, "field": "vnc.key", "value": "0x0000ffea"},
-        {"packet": 23, "field": "vnc.key", "value": "0x0000ffe4"},
-        {"packet": 24, "field": "vnc.key", "value": "0x0000ffe2"},
-        {"packet": 25, "field": "vnc.client_message_type", "value": "3"},
-        {"packet": 26, "field": "vnc.server_message_type", "value": "0"},
-        {"packet": 26, "field": "vnc.fb_update_num_rects", "value": "2"},
-        {"packet": 27, "field": "vnc.client_message_type", "value": "5"},
-        {"packet": 28, "field": "vnc.server_message_type", "value": "0"},
-        {"packet": 29, "field": "vnc.client_message_type", "value": "3"},
-        {"packet": 29, "field": "vnc.update_req_incremental", "value": "1"}
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "5900"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.flags",
+          "value": "0x010"
+        },
+        {
+          "packet": 4,
+          "field": "vnc.server_proto_ver",
+          "value": "003.008"
+        },
+        {
+          "packet": 5,
+          "field": "vnc.client_proto_ver",
+          "value": "003.008"
+        },
+        {
+          "packet": 6,
+          "field": "vnc.security_type",
+          "value": "2,16"
+        },
+        {
+          "packet": 7,
+          "field": "vnc.client_security_type",
+          "value": "16"
+        },
+        {
+          "packet": 13,
+          "field": "vnc.auth_result",
+          "value": "0"
+        },
+        {
+          "packet": 14,
+          "field": "vnc.share_desktop_flag",
+          "value": "1"
+        },
+        {
+          "packet": 15,
+          "field": "vnc.desktop_name",
+          "value": "QTMS:1 (ykaul)"
+        },
+        {
+          "packet": 15,
+          "field": "vnc.width",
+          "value": "1024"
+        },
+        {
+          "packet": 15,
+          "field": "vnc.height",
+          "value": "768"
+        },
+        {
+          "packet": 17,
+          "field": "vnc.client_message_type",
+          "value": "0"
+        },
+        {
+          "packet": 18,
+          "field": "vnc.client_message_type",
+          "value": "2"
+        },
+        {
+          "packet": 19,
+          "field": "vnc.client_message_type",
+          "value": "4"
+        },
+        {
+          "packet": 25,
+          "field": "vnc.client_message_type",
+          "value": "3"
+        },
+        {
+          "packet": 26,
+          "field": "vnc.server_message_type",
+          "value": "0"
+        },
+        {
+          "packet": 26,
+          "field": "vnc.fb_update_num_rects",
+          "value": "2"
+        },
+        {
+          "packet": 27,
+          "field": "vnc.client_message_type",
+          "value": "5"
+        },
+        {
+          "packet": 28,
+          "field": "vnc.server_message_type",
+          "value": "0"
+        },
+        {
+          "packet": 29,
+          "field": "vnc.client_message_type",
+          "value": "3"
+        },
+        {
+          "packet": 29,
+          "field": "vnc.update_req_incremental",
+          "value": "1"
+        }
       ],
       "frames": [
-        {"packet": 25, "offset": 54, "hex": "03 00 00 00 00 00 04 00 03 00"},
-        {"packet": 26, "offset": 54, "hex": "00 00 00 02 00 00 00 01 00 0c 00 13 ff ff ff 10"},
-        {"packet": 28, "offset": 54, "hex": "00 00 00 01 00 00 00 00 00 0c 00 13 00 00 00 05"},
-        {"packet": 29, "offset": 54, "hex": "03 01 00 00 00 00 04 00 03 00"}
+        {
+          "packet": 25,
+          "offset": 54,
+          "hex": "03 00 00 00 00 00 04 00 03 00"
+        },
+        {
+          "packet": 26,
+          "offset": 54,
+          "hex": "00 00 00 02 00 00 00 01 00 0c 00 13 ff ff ff 10"
+        },
+        {
+          "packet": 28,
+          "offset": 54,
+          "hex": "00 00 00 01 00 00 00 00 00 0c 00 13 00 00 00 05"
+        },
+        {
+          "packet": 29,
+          "offset": 54,
+          "hex": "03 01 00 00 00 00 04 00 03 00"
+        }
       ],
       "notes": [
-        "小矩形配置使 33 帧完成会话（默认 initial_fbu 全屏 hextile 1024x768 + 2×16x16 update_rects + rounds=2144 产生 2190 帧 / 3.3MB，不适用于冒烟断言）；矩形字段名来自 core.VNCRectConfig JSON tags: x/y/width/height/encoding",
-        "f26 初始 FBU 2 矩形: XCursor(0,1,12,19) (encoding -240 = ff ff ff 10) + hextile(0,0,12,19)；hextile 12x19 → 6 个 8x8 平铺 (0x01 ctrl + 原始像素) 总载荷 6x65+6=396B → 1 帧",
-        "f27 PointerEvent(5) → f28 FBU(1 rect, hextile 12x19) → f29 增量 FBU 请求 (03 01...) → f30-33 终止 (FIN-ACK/ACK/FIN-ACK/ACK)",
-        "key_events 默认 6 键 (0xffe9 Page_Up/0xffe3 Home/0xffe1 Left/0xffea Page_Down/0xffe4 End/0xffe2 Right) 全 down=0；key_down 字段 tshark 不输出 (only_if_no_other_fields)，按键按下状态用 hex 帧断言",
-        "f4/f5 版本交换 'RFB 003.008' (hex '52 46 42 20 30 30 33 2e 30 30 38'); 默认 Tight 安全类型 16"
+        "33 帧=握手3+版本×2+secTypes+选择+TunnelCaps+AuthCaps+VNC-Auth选择+challenge+response+result+ClientInit+ServerInit+InteractionCaps+SetPixelFormat+SetEncodings+KeyEvent×6+FBU-req+initial FBU+Pointer+FBU+增量FBU-req+拆链4",
+        "小矩形配置使 33 帧完成会话（缺省 initial_fbu 全屏 hextile 1024x768 产生 ~2190 帧/3.3MB，不适用于冒烟断言）",
+        "key_events 缺省 6 键释放（0xffe9/0xffe3/0xffe1/0xffea/0xffe4/0xffe2）；key_down 字段 tshark 不输出",
+        "f4/f5 版本交换 'RFB 003.008\\n' 12B；缺省 Tight 安全类型 16（参考 pcap QTMS:1 (ykaul) 1024x768 32bpp）"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t2_handshake_bytes",
+    "proto": "vnc",
+    "summary": "T-2 握手字节钉：版本 12B / secTypes 02 02 10 / TunnelCaps 00000000 / AuthCaps 记录 / challenge+response 参考字节",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 33,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "52 46 42 20 30 30 33 2e 30 30 38 0a"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "52 46 42 20 30 30 33 2e 30 30 38 0a"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "02 02 10"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "10"
+        },
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "00 00 00 00"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "00 00 00 01 00 00 00 02 53 54 44 56 56 4e 43 41 55 54 48 5f"
+        },
+        {
+          "packet": 10,
+          "offset": 54,
+          "hex": "00 00 00 02"
+        },
+        {
+          "packet": 11,
+          "offset": 54,
+          "hex": "46 70 8d dc 13 a8 b3 13"
+        },
+        {
+          "packet": 12,
+          "offset": 54,
+          "hex": "df 13 24 a5 0b 30 90 3a"
+        },
+        {
+          "packet": 13,
+          "offset": 54,
+          "hex": "00 00 00 00"
+        },
+        {
+          "packet": 14,
+          "offset": 54,
+          "hex": "01"
+        }
+      ],
+      "notes": [
+        "参考 pcap 字节逐字钉：challenge 46 70 8d dc...（seed=0 缺省参考字节）；response df 13 24 a5（DES 密文参考字节）",
+        "f9 AuthCaps：count=1 + record(code=2 VNCAUTH + STDV + VNCAUTH_)；f8 TunnelCaps none"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t3_sec_type_vncauth",
+    "proto": "vnc",
+    "summary": "T-3 security_type=2：VNC Auth 路径（无 Tunnel/AuthCaps/无 InteractionCaps，challenge/response 16B）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "security_type": 2,
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 29,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "vnc.security_type",
+          "value": "2"
+        },
+        {
+          "packet": 7,
+          "field": "vnc.client_security_type",
+          "value": "2"
+        },
+        {
+          "packet": 10,
+          "field": "vnc.auth_result",
+          "value": "0"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "01 02"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "02"
+        }
+      ],
+      "notes": [
+        "包数实测钉 29：sec 2 路径比 Tight 少 TunnelCaps/AuthCaps/VNC-Auth 选择+InteractionCaps 共 4 消息（33-4=29）；challenge/response 在 f8/f9"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t4_sec_type_none",
+    "proto": "vnc",
+    "summary": "T-4 security_type=1：None 路径（secTypes 01 01，无 challenge，直通 init）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "security_type": 1,
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 27,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "vnc.security_type",
+          "value": "1"
+        },
+        {
+          "packet": 7,
+          "field": "vnc.client_security_type",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "01 01"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "01"
+        }
+      ],
+      "notes": [
+        "包数实测钉 27：None 路径比 Tight 少 challenge/response/TunnelCaps/AuthCaps/VNC-Auth 选择+InteractionCaps 共 6 消息（33-6=27）"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t5_auth_fail",
+    "proto": "vnc",
+    "summary": "T-5 auth_result=1 失败分支：reason 透传 + 无 ServerInit + 提前拆链",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "auth_result": 1,
+            "auth_reason": "denied"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": false,
+      "terminates": true,
+      "packet_count": 17,
+      "fields": [
+        {
+          "packet": 13,
+          "field": "vnc.auth_result",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 8,
+          "offset": 54,
+          "hex": "00 00 00 00"
+        },
+        {
+          "packet": 13,
+          "offset": 54,
+          "hex": "00 00 00 01 00 00 00 06 64 65 6e 69 65 64"
+        }
+      ],
+      "notes": [
+        "17 帧=握手3+版本2+secTypes+选择+TunnelCaps+AuthCaps+VNC-Auth选择+challenge+response+result+拆链4；result 帧=u32(1)+len(6)+'denied'",
+        "negotiated=false：无 ClientInit/ServerInit（RFC 6143 §7.2.2 失败即断）"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t6_share_false",
+    "proto": "vnc",
+    "summary": "T-6 share_desktop=false：ClientInit 0x00",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "share_desktop": false,
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 33,
+      "fields": [
+        {
+          "packet": 14,
+          "field": "vnc.share_desktop_flag",
+          "value": "0"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 14,
+          "offset": 54,
+          "hex": "00"
+        }
+      ],
+      "notes": [
+        "ClientInit shared-flag 0x00（缺省 0x01 由 T-1 承接）"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t7_raw_rect",
+    "proto": "vnc",
+    "summary": "T-7 raw 编码矩形：rawPixels 确定性 (n*13+1..4) 像素钉",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "raw"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 33,
+      "frames": [
+        {
+          "packet": 28,
+          "offset": 54,
+          "hex": "00 00 00 01 00 00 00 00 00 0c 00 13 00 00 00 00 01 02 03 04 0e 0f 10 11"
+        }
+      ],
+      "notes": [
+        "raw 像素确定性：n=0 → 01 02 03 04；n=1 → 0e 0f 10 11（(n*13+k)&0xFF，vnc.go rawPixels）；encoding 0 = 00 00 00 00",
+        "12x19 raw 数据 912B+12B 头 → FBU 928B ≤ MSS 1 帧"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t8_key_down_explicit",
+    "proto": "vnc",
+    "summary": "T-8 key_events 显式：单 KeyEvent down 键 0xffe9 帧字节钉",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "key_events": [
+              {
+                "down": true,
+                "key": 65513
+              }
+            ],
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 28,
+      "frames": [
+        {
+          "packet": 19,
+          "offset": 54,
+          "hex": "04 01 00 00 00 00 ff e9"
+        }
+      ],
+      "notes": [
+        "KeyEvent 帧：type 04 + down 01 + pad 2B + key u32 00 00 ff e9（0xffe9=65513 Page_Up；tshark 不出 key_down 字段，按帧字节钉）",
+        "显式单键替代缺省 6 键 → 33-5=28 帧"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t9_extras_mix",
+    "proto": "vnc",
+    "summary": "T-9 extras 交织：Bell 02 + ServerCutText 03 + ClientCutText 06",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "bell": true,
+            "server_cut_text": "brd",
+            "client_cut_text": "cp",
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 38,
+      "fields": [
+        {
+          "packet": 26,
+          "field": "vnc.client_message_type",
+          "value": "6"
+        },
+        {
+          "packet": 27,
+          "field": "vnc.server_message_type",
+          "value": "2"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 26,
+          "offset": 54,
+          "hex": "06 00 00 00 00 00 00 02 63 70"
+        },
+        {
+          "packet": 27,
+          "offset": 54,
+          "hex": "02"
+        },
+        {
+          "packet": 28,
+          "offset": 54,
+          "hex": "03 00 00 00 00 00 00 03 62 72 64"
+        }
+      ],
+      "notes": [
+        "extras 在每个 FBU 前发射：Bell f27 + ServerCutText f28 → initial FBU f29；round 内再一轮 → 33+5=38",
+        "ClientCutText f26：type 06 + pad + len(2) + 'cp'（63 70）；ServerCutText：type 03 + len(3) + 'brd'（62 72 64）"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t10_colourmap",
+    "proto": "vnc",
+    "summary": "T-10 set_colour_map_entries：01 消息（first/num/6B 项）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "set_colour_map_entries": {
+              "first": 0,
+              "colors": [
+                "ffff00000000",
+                "0000ffff0000"
+              ]
+            },
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 35,
+      "fields": [
+        {
+          "packet": 26,
+          "field": "vnc.server_message_type",
+          "value": "1"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 26,
+          "offset": 54,
+          "hex": "01 00 00 00 00 02 ff ff 00 00 00 00 00 00 ff ff 00 00"
+        }
+      ],
+      "notes": [
+        "colourmap 在每个 FBU 前（缺省 1 轮 → 2 次）→ 33+2=35；帧：type 01 + pad + first u16 + num u16 + 6B×2（红绿蓝各 2B）"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t11_client_msgs_off",
+    "proto": "vnc",
+    "summary": "T-11 client_set_pixel_format/encodings=false：客户端消息缺省面",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "client_set_pixel_format": false,
+            "client_set_encodings": false,
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 31,
+      "fields": [
+        {
+          "packet": 17,
+          "field": "vnc.client_message_type",
+          "value": "4"
+        }
+      ],
+      "notes": [
+        "SetPixelFormat/SetEncodings 缺席 → 33-2=31；InteractionCaps 后首个客户端消息=KeyEvent(type 04)"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t12_rounds_linear",
+    "proto": "vnc",
+    "summary": "T-12 rounds=2 + fbu_update_interval=2：编排线性（Pointer→FBU×2 两轮）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "rounds": 2,
+            "fbu_update_interval": 2,
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 37,
+      "fields": [
+        {
+          "packet": 27,
+          "field": "vnc.client_message_type",
+          "value": "5"
+        },
+        {
+          "packet": 30,
+          "field": "vnc.client_message_type",
+          "value": "5"
+        },
+        {
+          "packet": 33,
+          "field": "vnc.update_req_incremental",
+          "value": "1"
+        }
+      ],
+      "notes": [
+        "initial FBU + (Pointer+FBU×2)×2 + 增量 FBU-req = 数据面 8 消息 → 33+4=37"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t13_pointer_default",
+    "proto": "vnc",
+    "summary": "T-13 pointer 坐标缺省 507/320 + button 0 帧字节钉",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 33,
+      "fields": [
+        {
+          "packet": 27,
+          "field": "vnc.client_message_type",
+          "value": "5"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 27,
+          "offset": 54,
+          "hex": "05 00 01 fb 01 40"
+        }
+      ],
+      "notes": [
+        "PointerEvent：type 05 + button 00 + x u16 01 fb(507) + y u16 01 40(320)——参考 pcap 缺省坐标"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t14_neg_sec_type",
+    "proto": "vnc",
+    "summary": "负例：security_type=7（枚举外）planner 锚词",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "security_type": 7
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid vnc security type",
+      "notes": [
+        "planner Validate 锚（1/2/16 枚举；registry V9 无范围不先拦）"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t15_neg_auth_result",
+    "proto": "vnc",
+    "summary": "负例：auth_result=3 超区间 V9 锚词",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "auth_result": 3
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "out of range [0,2]",
+      "notes": [
+        "registry V9 区间先拦（auth_result Min 0 Max 2）"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t16_neg_rect_encoding",
+    "proto": "vnc",
+    "summary": "负例：rect encoding 非法 planner 锚词",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "jwt"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid vnc rect encoding",
+      "notes": [
+        "planner Validate 锚（raw/hextile/xcursor 三枚举）"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t17_neg_width_zero",
+    "proto": "vnc",
+    "summary": "负例：width=0 显式 0 planner 锚词",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "width": 0
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid vnc width",
+      "notes": [
+        "V9 显式 0 放行（u==0 continue）→ planner Validate 锚（allowed 1-65535）"
       ]
     }
   }

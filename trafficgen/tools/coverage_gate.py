@@ -1675,9 +1675,63 @@ def check_pptp(cases):
 
     return rows
 
+def check_vnc(cases):
+    """D-VNC-1 P6 反查表（T-VNC-1…17，9.52 对账 27/27）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("vnc"), dict):
+                lays.append((c.get("id", "?"), l["vnc"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("t1_smoke_ref", "T-1 smoke 33 帧参考形"),
+        ("t2_handshake_bytes", "T-2 握手字节钉"),
+        ("t3_sec_type_vncauth", "T-3 security_type=2"),
+        ("t4_sec_type_none", "T-4 security_type=1"),
+        ("t5_auth_fail", "T-5 认证失败分支"),
+        ("t6_share_false", "T-6 share_desktop=false"),
+        ("t7_raw_rect", "T-7 raw 编码确定性像素"),
+        ("t8_key_down_explicit", "T-8 key_events 显式"),
+        ("t9_extras_mix", "T-9 extras 三消息交织"),
+        ("t10_colourmap", "T-10 set_colour_map_entries"),
+        ("t11_client_msgs_off", "T-11 客户端消息关"),
+        ("t12_rounds_linear", "T-12 rounds/interval 线性"),
+        ("t13_pointer_default", "T-13 pointer 缺省坐标钉"),
+        ("t14_neg_sec_type", "T-14 security_type 拒"),
+        ("t15_neg_auth_result", "T-15 auth_result 拒"),
+        ("t16_neg_rect_encoding", "T-16 rect encoding 拒"),
+        ("t17_neg_width_zero", "T-17 width=0 拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    keys_seen = 0
+    for k in ["security_type", "auth_result", "share_desktop", "key_events",
+              "bell", "server_cut_text", "client_cut_text",
+              "set_colour_map_entries", "initial_fbu", "update_rects",
+              "rounds", "client_set_pixel_format"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+        if hit is not None:
+            keys_seen += 1
+
+    for needle, name in [
+        ("invalid vnc security type", "T-14 security_type 锚"),
+        ("out of range [0,2]", "T-15 V9 区间锚"),
+        ("invalid vnc rect encoding", "T-16 rect encoding 锚"),
+        ("invalid vnc width", "T-17 width 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp, "vnc": check_vnc}
 
 
 def main(argv):
