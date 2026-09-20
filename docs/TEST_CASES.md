@@ -3741,7 +3741,7 @@
 
 **对账两行：** RFC 3261 §21+IANA 响应码逻辑点总数≈57 项 → 分支代表建例 **25** 码（6 分支全覆盖）+ 32 码按 9.21 分支注记（同分支同 wire 形状，逐值扩充按需）= **57/57 对账平**。字节序 n/a（文本协议）；字符集=tel_uri_utf8 已覆。
 
-### T-PPPOE-1…24 pppoe 层链收敛（D-PPPOE-1 P3 清单，2026-09-20，待批）
+### T-PPPOE-1…24 pppoe 层链收敛（D-PPPOE-1 P3 清单，2026-09-20；P5 已执行 24/24 ×2 全绿，2026-09-20）
 
 **三源：** RFC 2516（§4/§5/§5.6/§7）+RFC 1661（§4/§5/§6/§8）+D-PPPOE-1+现网 BRAS 行为（AC-Name/Cookie/Host-Uniq）。**级别：** pcap。
 **存量去向（9.14）：** `pppoe_discovery_session_lcp` 1 例扁平（`{"count":1,"pppoe":{}}`）→ 改写层链形合入 T-1（等价覆盖+PADT 重校准，原 7 帧→8 帧）。
@@ -3755,7 +3755,7 @@
 | PPP 协议字段（RFC 1661 §5） | 0x0021/0xc021/0xc023/0xc223 发射+0x8021 IPCP 未编排 | 生命周期例逐帧断言；**缺口 F：IPCP 阶段**（现网拨号先协商地址再传数据；引擎数据面地址来自配置非协商，v1=B′ 立项注记不实现） |
 | LCP 选项（RFC 1661 §6） | MRU(type1)/Magic-Number(type5)/Auth-Protocol(type3 分支) | T-1 缺省 1492 断言/T-11 显式 MRU+Magic 钉值/T-4 无 auth 无 type3 分支/T-5 c023/T-6 c223 |
 
-**边界（9.46）：** 空 Service-Name=零长标签 any-service（T-9）；cookie nil/显式（T-10）；MRU 0→缺省 1492（T-1）；data_frames 0=无数据帧（T-8）；超大 data_payload（T-14 内）；字节序 n/a（协议字段网络序由 builder 恒定，注记）。
+**边界（9.46）：** 空 Service-Name=零长标签 any-service（T-9）；cookie nil/显式（T-10）；MRU 0→缺省 1492（T-1）；data_frames 0=**缺省 1 数据帧**（P5 勘误：原写『无数据帧』与实现 frames==0→1 不符，T-8 按实现语义钉）；超大 data_payload（T-16 内）；字节序 n/a（协议字段网络序由 builder 恒定，注记）。
 
 **业务场景（9.48/9.49）：** 全生命周期（T-1）/padt=false（T-2）/skip_discovery（T-3）/auth none（T-4）/pap（T-5）/chap（T-6）/data_direction down（T-7）/inner_proto UDP（T-18）/多会话派生 ID（T-12）/多会话显式 ID（T-13）/复合大场景（T-14：sessions[2]+chap+双向 data+PADT+skip 混杂 ≥3 类交织=9.50）。
 **现网（9.10）：** BRAS 三标签形（T-10）/any-service（T-9）。
@@ -3765,5 +3765,7 @@
 **实现位置：** cases/pppoe.json（**24 例**，T-1 改写+T-2…18 新建+T-19…24 负例）。
 
 **9.52 对账两行：** RFC 2516/1661 逻辑点总数 **45**（code 6+TLV 10+PPP 协议 5+LCP 选项 3+边界 5+业务变体 8+现网 2+负例分支 6）→ 建例/分支代表 **39** + 注记 6（TLV 0103/0105/0110/0201/0202/0203 B′ + IPCP 缺口 F + 非法码 n/a）= **45/45 对账平**。清单出处=规范原文逐表反推，非现有用例总结。
+
+**P5 执行记录（2026-09-20）：** cases/pppoe.json 24 例层链形（T-1 smoke 改写 7→8 帧重校准；T-15/16/17 为 P3 清单编号空洞的补定义：inner_proto 显式 TCP/data_payload 字节钉/data_frames=2 多帧——均属既有表行 inner_proto 分支与 data_payload 边界的落实，非新场景）；suite ×2 连续全绿 `RESULT: 24 pass, 0 fail, 0 error (of 24)`；pcap 19 正例+3 neg（T-21/23/24 create-time 拒绝无 pcap）；tshark 复查 T-1 八帧 code 序（09/07/19/65/00×3/00 21/a7）与 T-12 三会话独立 Discovery+PADT 1/2/3。**首跑抓真 bug 1：parsePPPoEConfig 漏接 padt 键（层链路径 padt:false 被静默丢弃恒发 PADT，ParseSIPSessions 漏 Medias 同型）→补 getBoolPtr 解析+parse 层锁例 TestParsePPPoEConfigPADTPtr**；byte 校准 4 处（Auth-Proto 选项 4B 非 6B→LCP len 0x12；tags 起点 offset 20 非 18；chal ppp proto 首字节 c2；payload offset 50）；cookie 用字节数组（getByteSlice 字符串=原文字节，hex 串被当 ASCII）；T-21 锚词随真实拦截面（registry V9 范围门先于 planner Validate）；T-22 改同族 IPv6（混族被 ip 层 same-IP-version 先拦）；T-14 auth 按裁定 4 归顶层模板键（sessions 不覆盖模板）。
 
 **P3 复审（2026-09-20，对抗走查）：** 抓 2 项 errata 已并入：①**层 Fields 计数终值=16**（planner 实际消费 14 键实测：ACName/Auth/Cookie/DataDirection/DataFrames/DataPayload/InnerProto/MagicNumber/MRU/Password/ServiceName/SessionID/SkipDiscovery/Username + padt + sessions；wire 键 code/ppp_protocol/payload_length/discovery_tags 为 builder 每包面不被流程消费→**不登记层 Fields**（1.12 消费面裁定，ValidateLayerConfig 拒之=正确行为），修正 P2 errata② 的 20）；②**sessions 互斥键集合精确化**：互斥=会话级行为键 {session_id, skip_discovery, data_frames, data_payload, inner_proto, data_direction}，模板键 {ac_name, service_name, auth, username, password, mru, magic_number, cookie, padt} 允许与 sessions 共存共享（裁定4"模板键共享"落到键级，P4 semantic 检查按此集合）。验证通过项：T-11 Magic 钉值可行（MagicNumber 在消费清单）；T-12 派生 1/2/3 与单会话缺省 1 自洽；9.51 组合注记（地址族 n/a=内嵌 IPv4 only，IPv6 即 T-22 负例）。**复审结论：自审 1 轮 2 项修正，清单净，待批进 P4。**

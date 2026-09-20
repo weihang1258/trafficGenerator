@@ -3443,7 +3443,11 @@ func parsePPPoEConfig(m map[string]interface{}) *PPPoEConfig {
 		DataPayload:   getByteSlice(m, "data_payload"),
 		InnerProto:    uint8(getInt(m, "inner_proto")),
 		DataDirection: getString(m, "data_direction"),
-		Sessions:      ParsePPPoESessions(m["sessions"]),
+		// PADT 指针三态（缺省 true）：false=抑制终止帧——此前漏解析致
+		// 层链路径 padt:false 被静默丢弃（T-2 首跑抓出，ParseSIPSessions
+		// 漏 Medias 同型）。
+		PADT:     getBoolPtr(m, "padt"),
+		Sessions: ParsePPPoESessions(m["sessions"]),
 	}
 	return cfg
 }

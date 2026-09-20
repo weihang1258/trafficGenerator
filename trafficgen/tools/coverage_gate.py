@@ -1395,9 +1395,72 @@ def check_radius(cases):
     return rows
 
 
+
+def check_pppoe(cases):
+    """D-PPPOE-1 P6 反查表（T-PPPOE-1…24，9.52 对账 45/45）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("pppoe"), dict):
+                lays.append((c.get("id", "?"), l["pppoe"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面（24 例逐点名，T-PPPOE 清单）。
+    for kw, name in [
+        ("lifecycle_full", "T-1 全生命周期 8 帧（PADT 缺省真）"),
+        ("padt_suppressed", "T-2 padt=false 抑制"),
+        ("skip_discovery", "T-3 跳过发现+显式 ID"),
+        ("auth_none_lcp_len", "T-4 无 Auth-Proto 选项 LCP len 钉"),
+        ("auth_pap", "T-5 PAP c023 两帧"),
+        ("auth_chap", "T-6 CHAP c223 三帧"),
+        ("data_direction_down", "T-7 下行换向"),
+        ("data_frames_zero_default", "T-8 data_frames=0 缺省 1（勘误面）"),
+        ("service_name_any", "T-9 any-service 零长标签"),
+        ("bras_three_tags", "T-10 BRAS 三标签（现网）"),
+        ("mru_magic_explicit", "T-11 MRU+Magic 钉值"),
+        ("sessions_derived_ids", "T-12 派生 ID 1/2/3"),
+        ("sessions_explicit_ids", "T-13 显式 ID 100/200"),
+        ("composite_multi_session", "T-14 复合大场景（9.50）"),
+        ("inner_tcp_explicit", "T-15 内嵌 TCP"),
+        ("data_payload_bytes", "T-16 载荷字节钉"),
+        ("data_frames_two", "T-17 多帧+IPID 递增"),
+        ("inner_udp_explicit", "T-18 内嵌 UDP 显式"),
+        ("neg_auth_invalid", "T-19 auth 枚举拒"),
+        ("neg_inner_proto_invalid", "T-20 inner_proto 枚举拒"),
+        ("neg_data_frames_negative", "T-21 data_frames 负值拒"),
+        ("neg_ipv6_inner", "T-22 内嵌 IPv6 拒"),
+        ("neg_sessions_mutex", "T-23 sessions 互斥拒"),
+        ("neg_duplicate_session_id", "T-24 重复 ID 拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖（消费面 16 键中流程可写部分逐键）。
+    for k in ["session_id", "skip_discovery", "ac_name", "service_name", "cookie",
+              "mru", "magic_number", "auth", "username", "data_frames",
+              "data_payload", "inner_proto", "data_direction", "padt", "sessions"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面（6 负例，真实拦截面文案）。
+    for needle, name in [
+        ("Auth", "T-19 auth 枚举锚"),
+        ("InnerProto", "T-20 inner_proto 锚"),
+        ("data_frames", "T-21 范围门锚"),
+        ("must be IPv4", "T-22 IPv6 拒锚"),
+        ("pppoe: sessions and top-level session config are mutually exclusive", "T-23 互斥锚"),
+        ("pppoe: duplicate session_id", "T-24 重复锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe}
 
 
 def main(argv):

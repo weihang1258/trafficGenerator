@@ -67,3 +67,23 @@ func TestParsePPPoEConfigWiresSessions(t *testing.T) {
 		t.Fatalf("sessions not wired through parsePPPoEConfig: %+v", cfg.Sessions)
 	}
 }
+
+// T-2 首跑抓出的漏接锁例：padt:false 指针三态必须从层 config 解析
+// （漏接=层链路径 PADT 抑制被静默丢弃，恒发终止帧）。
+func TestParsePPPoEConfigPADTPtr(t *testing.T) {
+	var withPadt map[string]interface{}
+	if err := json.Unmarshal([]byte(`{"padt": false}`), &withPadt); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	cfg := parsePPPoEConfig(withPadt)
+	if cfg.PADT == nil || *cfg.PADT {
+		t.Fatalf("padt:false must parse to *bool false, got %+v", cfg.PADT)
+	}
+	var noPadt map[string]interface{}
+	if err := json.Unmarshal([]byte(`{}`), &noPadt); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if cfg2 := parsePPPoEConfig(noPadt); cfg2.PADT != nil {
+		t.Fatalf("absent padt must stay nil (default-true at planner), got %+v", cfg2.PADT)
+	}
+}

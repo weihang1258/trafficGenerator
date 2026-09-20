@@ -2879,7 +2879,7 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 #### 8. 验收
 对应 T-RADIUS（P3 定稿）。完成条件：7 红例先红后绿（含 1813 专项）；radius.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 radius 字面零残留（负例豁免）；schemagen 同步绿；门 1 表回填+抽查三条；在库 radius 行清空（P6 删前报数→备份→删→复核——绝对路径+总量对账）。
 
-## D-PPPOE-1 pppoe 层链收敛（#21，P2 定稿 2026-09-20，待批）
+## D-PPPOE-1 pppoe 层链收敛（#21，2026-09-20 已验收：8b6c565 P4+P5/P6 同日收官）
 
 **依据：** RFC 2516（PPPoE §4 会话/§5 Discovery+TLV/§5.6 PADT/§7 MTU 1492）+RFC 1661（§4 LCP/§5 PPP Protocol/§6 选项/§8 认证）+现网 BRAS 行为（AC-Name/AC-Cookie/Host-Uniq 标签，出处=运营商接入网通用抓包形，注记待确认方式=抓现网拨号包）。**现状代码事实：** legacy 完整 512 行（discovery 四步+LCP MRU/Magic+PAP/CHAP+IPv4 数据面，planner.go）；内嵌 IPv4 直读 spec.SrcIP/DstIP（:407-410，down 交换）；DefaultSessionID=1/DefaultACName="trafficgen"（:38/:46）；Validate 7 锚词（:100-158，含 DataDirection 枚举）；registry 占位行零字段（registry.go:1275）；main.go legacy 直挂（:555）；扁平 1 例 smoke `{"count":1,"pppoe":{}}`（7 帧，PADS session_id 0x0001）；**planner 零 PADT 流程**（builder 面有 0xa7）。
 
@@ -2908,3 +2908,9 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 - **注记（B′ 账本）**：链路径内层 L4 端口恒 0——链上无 tcp/udp 层可承载内嵌 IPv4 端口，pppoe 层 16 键亦无端口位（合成面合法：内层 UDP src/dst=0 上包）；现网形内层端口需求=B′ 立项候选（与 IPCP 缺口 F 同账本）。
 - **实施期修教学件**：重构期 build 断（python 块切片吃掉 for 收口→作用域链下移→`runSession` 自引用 undefined——Go 短声明作用域始于声明末，闭包体内自引用不可见）；emit 闭包 FlowID 曾用外层 flowID 致多会话流身份相同（裁定5 违例，复审前自查抓出改 sessFlowID）；Go 字面量 int vs JSON float64 双形两次踩（schema numField、链测试 mustJSONMap——getUint16 族只认 float64/json.Number 与生产解码面一致）。
 **复审结论：P4 自审 2 轮（实施自查 1+对抗复审 1），对抗轮抓 2 实错已修，修正后全绿。待批进 P5。**
+
+**P5/P6 验收（2026-09-20）：** suite ×2 连续全绿 `RESULT: 24 pass, 0 fail, 0 error (of 24)`（负例 6 全带锚词真实流程断言）；pcap 落盘 19 正例+3 neg 可复查；tshark 抽查 T-1/T-12 帧序与 session 绑定全对；coverage_gate check_pppoe 登记 45/45 绿（场景 24+键 15+锚词 6）。**P5 抓真 bug 1：parsePPPoEConfig 漏接 padt（T-2 首跑抓出，层链路径 PADT 抑制被静默丢弃）→getBoolPtr 补接+锁例**，byte 校准与 T-8/T-14/T-21/T-22 口径修正详见 TEST_CASES P5 执行记录。
+**门1 对照表回填（实际证据）：** §1 顶层旧键→cases 24 例零顶层四元组（pipe_gate 门2-1 绿）+地址入 ip 层（pppoe_lifecycle_full spec_json）；§3 五件套→单流豁免（无子流派生，Transactions=单会话帧序）+多会话 sessions 五件套（T-12/13/14）；§12 动态字段→session_id dyn=PPPoESession.SessionIDDyn（strategy_convert.go parseStrategyConfigDyn 旁挂）+ResolvePortValue 逐流解析（planner.go sessions 循环）+FlowIndex 透传（layer_gen.go spec.FlowIndex）；门 1 表其余行按 P2-P4 复审修正版执行。
+**门3 抽查三条（每条点到代码行/用例号）：** ①裁定 3 PADT 缺省真→planner.go `if sessCfg.PADT == nil || *sessCfg.PADT`（emitFrame 前）+T-2 padt_suppressed 7 帧无 0xa7+T-1 第 8 帧 `11 a7 00 01 00 00`；②裁定 4 互斥→schema/semantic.go checkPPPoESessionsMutex 行为 6 键扫描+planner.go Validate 背 door 同锚词（T-23 真实流程 400 断言）+parse 锁例 TestParsePPPoEConfigPADTPtr；③裁定 5 流身份→planner.go emit 闭包 `cfgOut.FlowID = sessFlowID`（session 后缀）+T-12 派生 ID 1/2/3 tshark uniq 3×3 数据帧+TestChainPlanner_PPPOESessionsChain 2 distinct FlowIDs。
+**9.53 门3 复杂度抽查：** 最复杂例=T-14 复合大场景，维度计数=多会话(2)×认证(chap 共享)×skip_discovery×方向(down)×多帧(data_frames 2)=5 类交织 ≥3 ✓（9.50 达标），19 包两生命周期形状逐帧钉。
+**在库清库：** 删前 SELECT 报数→备份→删→对账（P6 收官段执行，见提交信息）。
