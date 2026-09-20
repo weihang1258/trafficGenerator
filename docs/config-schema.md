@@ -19,9 +19,9 @@ MCP 描述（`internal/mcp/schemagen` → `schema_descriptions_generated.go`）�
 | `task.json` | 任务形状（strategy_ids XOR batch，任务级 flow_control 上限） | REST task create/batch/start 入口 |
 | `batch.json` | 批量形状（classes[]，逐类速率/元组/回放/绑定） | REST create_batch 入口、前端 BatchSpec |
 | `layers.json` | 层链形状（有序单键对象数组） | layers 形状校验（语义归 Go），MCP 描述表 |
-| `generated/layers.generated.json` | 注册表生成表（95 层字段表，不许手写） | `flowb_query_layers` 对照、CI 过期打回 |
+| `generated/layers.generated.json` | 注册表生成表（106 层字段表，不许手写） | `flowb_query_layers` 对照、CI 过期打回 |
 
-层字段：95 层，字段最多 smb（34 个）。
+层字段：106 层，字段最多 pptp（51 个）。
 <!-- GEN:TABLES-END -->
 
 ## 关键规则
