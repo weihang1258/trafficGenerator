@@ -2068,6 +2068,13 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.RTMP == nil {
 			spec.RTMP = core.ParseRTMPConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "rtsp":
+		// D-RTSP-1：层 config 经 core.ParseRTSPConfigFromMap 复用扁平
+		// 解析单一真相（dialog/media 与 mapToFlowSpec case "rtsp" 同构）。
+		// dialog 必需锚（空 dialog 拒）由 rtsp validator 背 door 承接。
+		if spec.RTSP == nil {
+			spec.RTSP = core.ParseRTSPConfigFromMap(completedConfig(s, term.Config))
+		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
 		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6

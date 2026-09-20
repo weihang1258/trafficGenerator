@@ -5758,6 +5758,19 @@ func parseSIPMedia(v interface{}) *SIPMedia {
 // it from Method/StatusCode. Headers is a list of "Name: Value" strings;
 // CSeq/Session/Transport/Content-Length are auto-completed by the
 // planner. Body is the optional message body (e.g. SDP).
+// ParseRTSPConfigFromMap converts the JSON-decoded "rtsp" sub-map into
+// *RTSPConfig (mirror of the mapToFlowSpec case "rtsp" body; exported for
+// the layer-translate path — ParseLDAPConfigFromMap precedent).
+func ParseRTSPConfigFromMap(m map[string]interface{}) *RTSPConfig {
+	if m == nil {
+		return nil
+	}
+	return &RTSPConfig{
+		Dialog: parseRTSPDialog(m["dialog"]),
+		Media:  parseRTSPMedia(m["media"]),
+	}
+}
+
 func parseRTSPDialog(v interface{}) []RTSPMessage {
 	arr, ok := v.([]interface{})
 	if !ok || len(arr) == 0 {

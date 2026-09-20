@@ -1314,6 +1314,18 @@ func buildDefaultRegistry() {
 			"data":        {Type: "list"}, // 项：direction/msg_type/chunk_stream_id/payload(_b64)
 		},
 	})
+	// rtsp（tcp 终结层。RFC 2326——文本 dialog（OPTIONS/DESCRIBE/SETUP/
+	// PLAY/TEARDOWN，CSeq/Session 头自动补全）+可选 RTP 媒体子流（emit_media
+	// 触发，RTSPMedia 描述），wire 字节由 rtsp 生成器 raw 自驱产出
+	// （D-RTSP-1 裁定1，ldap/rtmp 对称：legacy 自建 TCP 握手/挥手原样保留）。
+	// Fields 登记消费面 2 键；控制通道 554 由 validateSpecBase DstPort
+	// switch 缺省（dns→53 同款，legacy setDefaultDstPort 链路径等价）。
+	r.Register(LayerSchema{Name: "rtsp", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"dialog": {Type: "list"}, // 项：method/uri/status_code/status_text/headers/body/direction/emit_media
+			"media":  {Type: "object"},
+		},
+	})
 	// pppoe（eth 终结层。RFC 2516——Discovery（PADI/PADO/PADR/PADS，EtherType
 	// 0x8863）+ 会话（LCP/Auth/数据，EtherType 0x8864）+ PADT 终止，wire 字节
 	// 由 pppoe 生成器 raw 自驱产出（D-PPPOE-1 裁定1，帧无外层 IP 头，ip 层

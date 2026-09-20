@@ -499,6 +499,8 @@ type FlowMeta struct {
 	LDAP *core.LDAPConfig
 	// D-RTMP-1：rtmp raw 链同款。
 	RTMP *core.RTMPConfig
+	// D-RTSP-1：rtsp raw 链同款。
+	RTSP *core.RTSPConfig
 	// Radius is the flow's radius config（D-RADIUS-1：raw 自驱终层生成器直传）。Only set for radius chains.
 	Radius *core.RadiusConfig
 	// GBT is the flow's gbt config (注入到 gbt 终结层生成器，B6：BIP 22/23

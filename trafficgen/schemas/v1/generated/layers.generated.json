@@ -2078,6 +2078,20 @@
         }
       }
     },
+    "rtsp": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "dialog": {
+          "type": "list"
+        },
+        "media": {
+          "type": "object"
+        }
+      }
+    },
     "s7": {
       "category": "terminal",
       "depends_on": [
