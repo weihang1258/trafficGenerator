@@ -3740,3 +3740,30 @@
 | 6xx 全局失败 | 600/603 | T-56 区段/603 decline；604/606/607 同分支注记 |
 
 **对账两行：** RFC 3261 §21+IANA 响应码逻辑点总数≈57 项 → 分支代表建例 **25** 码（6 分支全覆盖）+ 32 码按 9.21 分支注记（同分支同 wire 形状，逐值扩充按需）= **57/57 对账平**。字节序 n/a（文本协议）；字符集=tel_uri_utf8 已覆。
+
+### T-PPPOE-1…24 pppoe 层链收敛（D-PPPOE-1 P3 清单，2026-09-20，待批）
+
+**三源：** RFC 2516（§4/§5/§5.6/§7）+RFC 1661（§4/§5/§6/§8）+D-PPPOE-1+现网 BRAS 行为（AC-Name/Cookie/Host-Uniq）。**级别：** pcap。
+**存量去向（9.14）：** `pppoe_discovery_session_lcp` 1 例扁平（`{"count":1,"pppoe":{}}`）→ 改写层链形合入 T-1（等价覆盖+PADT 重校准，原 7 帧→8 帧）。
+
+**数据场景全表（9.46/9.47，出处=规范原文）：**
+
+| 表 | 枚举 | 建例/去向 |
+|---|---|---|
+| Code 全表（RFC 2516 §5） | 0x00/0x09/0x07/0x19/0x65/0xa7 | 生命周期例逐帧断言（T-1…6/14）；非法码=builder 面 n/a 注记（planner 自管 code 不透出） |
+| TLV 标签表（§5.1） | 0000/0101/0102/0104 发射+0110 builder 支持未编排+0103/0105/0201/0202/0203 未实现 | T-9/T-10 断言 0101/0102/0104 值；0103 Host-Uniq=B′ 注记（真实客户端关联标签）；0201 PADS 错误标签=B′ 注记 |
+| PPP 协议字段（RFC 1661 §5） | 0x0021/0xc021/0xc023/0xc223 发射+0x8021 IPCP 未编排 | 生命周期例逐帧断言；**缺口 F：IPCP 阶段**（现网拨号先协商地址再传数据；引擎数据面地址来自配置非协商，v1=B′ 立项注记不实现） |
+| LCP 选项（RFC 1661 §6） | MRU(type1)/Magic-Number(type5)/Auth-Protocol(type3 分支) | T-1 缺省 1492 断言/T-11 显式 MRU+Magic 钉值/T-4 无 auth 无 type3 分支/T-5 c023/T-6 c223 |
+
+**边界（9.46）：** 空 Service-Name=零长标签 any-service（T-9）；cookie nil/显式（T-10）；MRU 0→缺省 1492（T-1）；data_frames 0=无数据帧（T-8）；超大 data_payload（T-14 内）；字节序 n/a（协议字段网络序由 builder 恒定，注记）。
+
+**业务场景（9.48/9.49）：** 全生命周期（T-1）/padt=false（T-2）/skip_discovery（T-3）/auth none（T-4）/pap（T-5）/chap（T-6）/data_direction down（T-7）/inner_proto UDP（T-18）/多会话派生 ID（T-12）/多会话显式 ID（T-13）/复合大场景（T-14：sessions[2]+chap+双向 data+PADT+skip 混杂 ≥3 类交织=9.50）。
+**现网（9.10）：** BRAS 三标签形（T-10）/any-service（T-9）。
+**负例（14.11，锚词全部真实流程断言）：** 非法 auth（T-19 既有锚词）/非法 inner_proto（T-20）/DataFrames<0（T-21）/内嵌 IPv6（T-22）/sessions×顶层键互斥（T-23 新锚词 `pppoe: sessions and top-level session config are mutually exclusive`）/duplicate session_id（T-24 新锚词 `pppoe: duplicate session_id`）。
+
+**9.40 陷阱注记：** sessions 派生=**会话序号 i**（SessionID 1+i 逐会话递增，非流序号共享同值——与 sip 动态对象按 FlowIndex 解析语义不同，断言按会话真实语义钉）。
+**实现位置：** cases/pppoe.json（**24 例**，T-1 改写+T-2…18 新建+T-19…24 负例）。
+
+**9.52 对账两行：** RFC 2516/1661 逻辑点总数 **45**（code 6+TLV 10+PPP 协议 5+LCP 选项 3+边界 5+业务变体 8+现网 2+负例分支 6）→ 建例/分支代表 **39** + 注记 6（TLV 0103/0105/0110/0201/0202/0203 B′ + IPCP 缺口 F + 非法码 n/a）= **45/45 对账平**。清单出处=规范原文逐表反推，非现有用例总结。
+
+**P3 复审（2026-09-20，对抗走查）：** 抓 2 项 errata 已并入：①**层 Fields 计数终值=16**（planner 实际消费 14 键实测：ACName/Auth/Cookie/DataDirection/DataFrames/DataPayload/InnerProto/MagicNumber/MRU/Password/ServiceName/SessionID/SkipDiscovery/Username + padt + sessions；wire 键 code/ppp_protocol/payload_length/discovery_tags 为 builder 每包面不被流程消费→**不登记层 Fields**（1.12 消费面裁定，ValidateLayerConfig 拒之=正确行为），修正 P2 errata② 的 20）；②**sessions 互斥键集合精确化**：互斥=会话级行为键 {session_id, skip_discovery, data_frames, data_payload, inner_proto, data_direction}，模板键 {ac_name, service_name, auth, username, password, mru, magic_number, cookie, padt} 允许与 sessions 共存共享（裁定4"模板键共享"落到键级，P4 semantic 检查按此集合）。验证通过项：T-11 Magic 钉值可行（MagicNumber 在消费清单）；T-12 派生 1/2/3 与单会话缺省 1 自洽；9.51 组合注记（地址族 n/a=内嵌 IPv4 only，IPv6 即 T-22 负例）。**复审结论：自审 1 轮 2 项修正，清单净，待批进 P4。**
