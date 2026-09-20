@@ -2091,6 +2091,13 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.VNC == nil {
 			spec.VNC = core.ParseVNCConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "xmpp":
+		// D-XMPP-1：层 config 经 core.ParseXmppConfigFromMap 复用扁平
+		// 解析单一真相（messages 记录 direction/to/body 与 flat 同构）。
+		// 空层 config 也翻译出非 nil（全默认=PLAIN 19 帧参考形）。
+		if spec.Xmpp == nil {
+			spec.Xmpp = core.ParseXmppConfigFromMap(completedConfig(s, term.Config))
+		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
 		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6

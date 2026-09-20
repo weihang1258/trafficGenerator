@@ -542,6 +542,9 @@ func validateBaseDstPortHandled(name string) bool {
 		// D-VNC-1 vnc：自建 TCP 载体（控制通道 5900 由生成器 Plan
 		// :561 缺省），层 config 无端口位，0 合法（pptp 同款）。
 		"vnc",
+		// D-XMPP-1 xmpp：自建 TCP 载体（控制通道 5222 由下方 DstPort
+		// switch 承接——legacy Plan 无内部缺省，rtsp 式必选）。
+		"xmpp",
 		// stateless UDP protocols: ports defaulted by the DstPort switch above.
 		// radius 已在上方 D-RADIUS-1 豁免块登记，此处不重复列。
 		"tftp":
@@ -726,7 +729,7 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// 不在此默认化。
 		case "moxa":
 		// Moxa 源端口 0 保持 0：透传单连接，多流由 worker 递增。
-		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip", "radius", "pppoe", "ldap", "rtmp", "rtsp", "pptp", "vnc":
+		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip", "radius", "pppoe", "ldap", "rtmp", "rtsp", "pptp", "vnc", "xmpp":
 			// pppoe（D-PPPOE-1）同列：帧无外层传输层，链路径无端口可写
 			// （内层 IPv4 数据面的 L4 端口住 spec，0 由生成器合成面承担）。
 			// raw-IP 路由终结层（P3 T5）与 nvgre（B4 封装类）/srv6
@@ -769,6 +772,11 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// D-RTSP-1：RTSP 控制通道 554（IANA；legacy mapToFlowSpec
 			// setDefaultDstPort(&spec, cfg, 554) 链路径等价承接）。
 			spec.DstPort = 554
+		case "xmpp":
+			// D-XMPP-1：XMPP client-to-server 5222（RFC 6120 §13.3；
+			// legacy 缺省住 mapToFlowSpec setDefaultDstPort(&spec, cfg,
+			// 5222) :944，Plan 无内部缺省——链路径必须 switch 承接）。
+			spec.DstPort = 5222
 		case "mdns":
 			spec.DstPort = mdnsPort
 		case "syslog":
@@ -1212,6 +1220,8 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			meta.PPTP = spec.PPTP
 			// D-VNC-1：vnc raw 链同款。
 			meta.VNC = spec.VNC
+			// D-XMPP-1：xmpp raw 链同款。
+			meta.Xmpp = spec.Xmpp
 			// srv6 内层端口回退链（inner 端口缺省→spec 端口）依赖这两个值；
 			// 多流时 worker.go 已按流注入 spec.SrcPort=12345+i。igmp/ospf/
 			// pim/nvgre 生成器不读端口字段，赋值对它们无副作用。

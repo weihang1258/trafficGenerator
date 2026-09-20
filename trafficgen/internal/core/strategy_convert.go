@@ -3233,6 +3233,12 @@ func ParsePPTPConfigFromMap(m map[string]interface{}) *PPTPConfig {
 	return parsePPTPConfig(m)
 }
 
+// ParseXmppConfigFromMap exports parseXmppConfig for the layer-translate
+// path (ParseVNCConfigFromMap precedent).
+func ParseXmppConfigFromMap(m map[string]interface{}) *XmppConfig {
+	return parseXmppConfig(m)
+}
+
 // ParseVNCConfigFromMap exports parseVNCConfig for the layer-translate
 // path (ParsePPTPConfigFromMap precedent). parseVNCConfig 的 errs 通道
 // （encodings 列表非数值项）在链面不外露——链路径无 ValidationErrors

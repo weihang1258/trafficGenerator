@@ -3175,3 +3175,58 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **P6 追加对抗复审（2026-09-20，用户指令"没复审就再复审一次"）：** 抓 1 实缺口已修：①P3 复审声称"InteractionCaps 11 记录=T-1 ServerInit 段承接"实为**无任何断言**（T-1/T-2 均未钉 f16）→T-2 补钉 f16 头 16B（nServer 0/nClient 11/nEnc 0/pad+首记录 code 2 RRE STDV，tshark 实测）+challenge/response 钉扩全 16B，复跑 17/17 ×2 全绿。横扫项：registry↔parse 26↔26 逐键零差、四名单齐（util×2/chain_planner×2）、生成物同代（layers.generated 107 层 vnc 26 键/config-schema 计数行/schema-types/mcp 描述——终端层不单列=pptp 同形 by design）、包数 17 例全钉零占位、负例 4 锚拦截面核（T-15 V9 区间、T-14/16/17 planner——T-17 显式 0 过 V9 落 planner 与 P3 复审口径一致）、性能段 33 帧已实测（2190 帧缺省全屏保持 ≈ 估值标注）。**复审结论：追加轮 1 实缺口补钉，修正后 17/17 ×2 全绿，净。**
 
 **P6 追加对抗复审·第 2 轮（2026-09-20，用户指令"没复审就再复审一次"）：** 本轮换角度=**registry 26 键逐键反扫 suite 发送面**，抓 1 大缺口：10 键 suite 从未发过（server_name/width/height/pixel_format/interaction_caps/encodings/pointer_x/y/button/challenge_seed/response_seed——前轮 T-list 只覆盖缺省形与部分显式形，违反 9.46 全表扫）→补 T-18…21 四复合例（每例多键交织：ServerInit 定制/encodings+pointer 显式/caps 定制/seed），全部 tshark 实测钉字节；T-20 顺带抓 tshark 形状约束（InteractionCaps 记录数=nServer+nClient+nEnc，nServer=1 无记录=Malformed Packet→改 0）；T-21 钉值证实同种子双 seed 产生同 16B（seededBytes 独立调用同输入）。修正后 suite **21/21 ×2 全绿**、反查 **48/48**（33→48：+例 4+键 11）、门2 四项复绿、全仓 vet 净+`go test ./internal/...` 122 包全绿。**复审结论：第 2 轮抓 1 大缺口（10 键零覆盖）+1 形状约束，补 4 例后全绿，净。**
+
+## D-XMPP-1 xmpp 层链收敛（#27，P1+P2 定稿 2026-09-20，待批）
+
+### P1 规范矩阵（RFC 6120 XMPP Core + RFC 6121 XMPP IM 反推，含三张子表要求 4.22）
+
+| 规范点 | 出处 | 代码现状 | 缺口 |
+|---|---|---|---|
+| 传输载体：TCP 5222（client-to-server） | RFC 6120 §13.3 | DefaultPort=5222（xmpp.go:50）；**缺省住 flat setDefaultDstPort（:944），Plan 内无缺省** | **缺口：链路径 DstPort switch 承接 5222（rtsp 式，pptp 不同——legacy 无内部缺省）** |
+| 流开启：`<stream:stream to=...>` 客户端先行，服务器回流头+features | §4.2 | buildStreamOpen :488+buildStreamFeatures :503 | 无 |
+| features 面：STARTTLS/SASL 机制表/压缩/roster 版本 | §5.3.2 参考形 | featuresResp 一次性编码 | 无（字节面钉 T-1/T-2） |
+| SASL 认证四机制：PLAIN(RFC 4616 单轮)/DIGEST-MD5(RFC 2831 四步)/SCRAM-SHA-1(RFC 5802 六步)/ANONYMOUS(RFC 4505 单轮) | §6 | switch mech :309-381，四分支全实现；Validate 枚举锚 :122-126 | 无 |
+| 流重启：SASL 成功后客户端必须重开流 | §4.3.3.2 | streamRestart :386+postAuthFeatures :390 | 无 |
+| 资源绑定：iq set/bind → iq result/jid | §7 | buildBindRequest :600/buildBindResult :609 | 无 |
+| 会话建立：iq set/session → iq result | RFC 3921 §3（XEP-0045 遗产） | buildSessionRequest :619/Result :628 | 无 |
+| Presence：初始存在状态，可关 | RFC 6121 §4.2 | *bool 三态 :410-417 | 无 |
+| Messages：message 节双向（up/down） | RFC 6121 §5.2 | buildMessageStanza :636+方向循环 :420-446 | 无 |
+| 流关闭：客户端 </stream:stream>，服务器回 | §4.4 | :450-455 | 无 |
+| 方向换向：legacy 包内置 Direction="down"，raw drive 二次换 | — | — | **缺口：layer_gen 防双换（七连协议同款）** |
+| 层链接线 | — | main.go :582 legacy Planner | **缺口：五件套+翻转+blank import** |
+| 校验锚：auth 机制枚举（4 值）/message direction 枚举/MSS 下界 | design | Validate :99-144（3 锚族） | 无（validator 背 door 注册即达） |
+
+**①命令×响应矩阵：** 流开→features/auth→success（或 challenge→response→…→success ×4 机制）/重启→postAuth features/bind req→result/sess req→result/presence 单向/message 双向/流关→回——逐格已实现；失败分支=SASL failure 未建模（参考 pcap 全为 invalid-authzid 失败会话，trafficgen 只出 happy path=B′ 注记）。
+**②数据形态变体：** 机制四枚举×消息步数（2/4/6/2）、PLAIN base64（\0user\0pass）、messages 方向双值、jid/resource/stream_id/from 字符串定制面。
+**③商业行为映射：** 参考 pcap（llcj dport=5222，SCRAM-SHA-1 失败会话）特性=流头/features 机制表/SCRAM 步序已映射（T-3 钉）；现网主流 ejabberd/prosody 行为=未逐项抓包（B′ 注记：确认方式=抓真实客户端登录包）；STARTTLS 与压缩（zlib）未建模=设计裁定 B′ 注记。
+**三路对照：** ①RFC 6120/6121 原文；②参考 pcap 形+失败路径注记；③ejabberd/prosody 开源思路（流状态机单连接编排）。**候选对比：** (a) [ip,xmpp] raw 自驱 wrap（六连协议对称，零字节回归）✓ vs (b) [ip,tcp,xmpp] 事件面（XML 流需 TCP 传输层事件化，大改）→裁定 (a)。
+**门1 三行：** §1 扁平键全删（src_ip/dst_ip/src_port/dst_port/count+顶层 xmpp 子映射），目标形 `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"xmpp":{"auth_mechanism":"PLAIN","messages":[{"direction":"down","to":"a@b.c","body":"hi"}]}}]}`+5222 由链路径 DstPort switch 缺省（legacy 缺省住 flat :944，Plan 无内部缺省——**必须 switch 承接**）；§3 单流豁免——XMPP=单 TCP 连接 XML 流会话（无 sessions/子流），Transactions=流内消息序（10 阶段见包注释），五件套=会话表(1 连接)/事务序(10 阶段)/关联(无)/插入位置(n/a)/时间线(顺序)；§12 动态=worker 四元组+ISN random，业务键全静态单值（username/password/jid 等=静态缺省面如实注记，无 dyn 旁挂）。
+
+### 裁定（P2 定稿）
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | 层形状=[ip, xmpp]：CategoryTerminal+DependsOn `["ip"]`；raw 自驱 wrap legacy（自建 TCP+10 阶段全消息面零分叉），layer_gen 防双换 Direction=up | 六连协议对称 |
+| 2 | 翻转五件套：isRawIPChain 双名单+=xmpp；src 0-keep+=xmpp；validateBaseDstPortHandled+=xmpp **且 DstPort switch+=case "xmpp": 5222**（与 pptp 唯一差异：legacy Plan 无内部缺省，switch 必须承接，rtsp 式）；registry 行 **9 Fields**（parseXmppConfig 顶层 9 键逐键：7 标量+presence bool+messages list 记录 3 键）+translate case 复用 ParseXmppConfigFromMap 导出+FlowMeta.Xmpp+raw 注入；main.go 翻转 | pppoe 五件套同构+rtsp 端口式 |
+| 3 | 场景强度全额：10 阶段消息面（流开/features/SASL 四机制枚举各一例/重启/bind/session/presence/messages 双向/流关）/定制面（from/jid/resource/stream_id/username/password）/presence 三态关断；负例 2 锚（auth_mechanism 枚举/message direction 枚举） | 9.46–9.53 |
+| 4 | B′ 账本：SASL 失败路径不建模（参考 pcap 全失败会话 vs trafficgen happy path——行为差异如实）、STARTTLS/压缩未建模（确认方式=抓现网）、SCRAM 内容为固定示例串非真算法输出 | RFC 6120+参考 pcap 如实 |
+
+**文件：** protocol/xmpp/layer_gen.go（新）+chain_planner_util.go+chain_planner.go（名单+DstPort switch）+registry.go（9 Fields 行）+chain_planner_translate.go（case）+generator.go（FlowMeta.Xmpp）+strategy_convert.go（ParseXmppConfigFromMap）+cmd/server/main.go（翻转）+cases/xmpp.json（改写+补强）+xmpp_chain_test.go（新）。
+**性能（6.4-6.6）：** 流式 channel 256；包数=19 帧基线（3 握手+13 数据+3 拆链），SASL 机制线性（PLAIN 19/DIGEST-MD5 21/SCRAM-SHA-1 23/ANONYMOUS 19），messages 每条+1；pcap 验收路（网卡路未跑注明 6.3，估值待 P5 实测钉）。
+**回滚：** 单提交粒度，摘除即回。
+
+### T-XMPP-1…10 清单（P3，RFC 6120 反推；9.52 对账 **18/18**：流开启 1+features 1+SASL 枚举 4+重启 1+bind 1+session 1+presence 1+messages 双向 1+流关 1+端口 1+现网 1+定制面 3+负例 2 → 建例 10 代表（T-1 承接 10 阶段全序+现网形+端口；T-2…4 承接 SASL 四枚举）+B′ 注记 4（SASL 失败路径、STARTTLS、压缩、SCRAM 内容））
+
+| # | 用例 | 断言面 |
+|---|---|---|
+| T-1 | smoke 改写（PLAIN 19 帧参考形） | 10 阶段全序（3 握手+流开+features+auth+success+重启+postAuth+bind×2+sess×2+presence+流关×2+3 拆链）+5222 端口 |
+| T-2 | auth_mechanism=DIGEST-MD5 | 四步质询应答（auth→challenge→response→success+rspauth）21 帧 |
+| T-3 | auth_mechanism=SCRAM-SHA-1 | 六步交换（参考 pcap 同机制）23 帧 |
+| T-4 | auth_mechanism=ANONYMOUS | 匿名单轮（buildAuthAnonymous 字节钉）19 帧 |
+| T-5 | presence=false | presence 缺席 18 帧 |
+| T-6 | messages 双向 | up/down message 节（to/body 透传字节钉） |
+| T-7 | from/jid/resource/stream_id 定制 | 流头 to=+bind jid+流 id 字节钉 |
+| T-8 | username/password 定制 | PLAIN base64(\0u\0p) 字节钉 |
+| T-9 | 负例 auth_mechanism=NTLM | 锚词 `unsupported auth mechanism` |
+| T-10 | 负例 message direction=left | 锚词 `invalid direction` |
+
+**P3 复审（2026-09-20 对抗走查）：** 10 阶段由 T-1 全序承接（逐帧断言）；SASL 四枚举=T-1（PLAIN）+T-2/3/4（各一例，9.21 分支级代表）；presence 三态=T-1（true）+T-5（false）；messages 双向=T-6（up+down 各一）；定制面=T-7/T-8（7 个字符串键全覆盖）；负例 2 锚拦截点=planner Validate（auth 枚举 :122-126 无 registry 范围、direction 枚举 :136-141——registry messages 记录不下探，两锚都落 planner）；端口 5222=T-1 dstport 字段。9.50 复合例=T-6（messages 双向+presence 开+全阶段）。对账 18/18 平。**清单净，待批进 P4。**

@@ -3231,6 +3231,41 @@
         "udp.dst_port": "51820"
       },
       "fields": {}
+    },
+    "xmpp": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "auth_mechanism": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "jid": {
+          "type": "string"
+        },
+        "messages": {
+          "type": "list"
+        },
+        "password": {
+          "type": "string"
+        },
+        "presence": {
+          "type": "bool"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "stream_id": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        }
+      }
     }
   }
 }

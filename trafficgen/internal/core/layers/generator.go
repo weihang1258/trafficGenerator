@@ -505,6 +505,8 @@ type FlowMeta struct {
 	PPTP *core.PPTPConfig
 	// D-VNC-1：vnc raw 链同款。
 	VNC *core.VNCConfig
+	// D-XMPP-1：xmpp raw 链同款。
+	Xmpp *core.XmppConfig
 	// Radius is the flow's radius config（D-RADIUS-1：raw 自驱终层生成器直传）。Only set for radius chains.
 	Radius *core.RadiusConfig
 	// GBT is the flow's gbt config (注入到 gbt 终结层生成器，B6：BIP 22/23

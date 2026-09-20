@@ -1428,6 +1428,28 @@ func buildDefaultRegistry() {
 			"response_seed":           {Type: "uint64"},
 		},
 	})
+	// xmpp（tcp 终结层。RFC 6120——TCP 5222 XML 流会话：流开启→features→
+	// SASL 认证（PLAIN/DIGEST-MD5/SCRAM-SHA-1/ANONYMOUS 四枚举）→流重启→
+	// 资源绑定→会话建立→presence→messages→流关闭，wire 字节由 xmpp 生成器
+	// raw 自驱产出（D-XMPP-1 裁定1，六连协议对称：legacy 自建 TCP 握手/挥手
+	// 原样保留）。Fields 登记 parseXmppConfig 顶层 9 键（1.12 消费面逐键：
+	// 7 标量+presence bool+messages list 记录 3 键 direction/to/body）；
+	// 控制通道 5222 由链路径 DstPort switch 缺省（**legacy Plan 无内部缺省**，
+	// 缺省住 flat setDefaultDstPort :944——xmpp 与 pptp 唯一差异，rtsp 式
+	// 必选）。auth_mechanism=枚举无范围（planner Validate 锚）。
+	r.Register(LayerSchema{Name: "xmpp", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"from":           {Type: "string"},
+			"jid":            {Type: "string"},
+			"resource":       {Type: "string"},
+			"stream_id":      {Type: "string"},
+			"auth_mechanism": {Type: "string"}, // 枚举 PLAIN/DIGEST-MD5/SCRAM-SHA-1/ANONYMOUS，planner 锚
+			"username":       {Type: "string"},
+			"password":       {Type: "string"},
+			"presence":       {Type: "bool"},
+			"messages":       {Type: "list"}, // 记录：direction/to/body
+		},
+	})
 	// pppoe（eth 终结层。RFC 2516——Discovery（PADI/PADO/PADR/PADS，EtherType
 	// 0x8863）+ 会话（LCP/Auth/数据，EtherType 0x8864）+ PADT 终止，wire 字节
 	// 由 pppoe 生成器 raw 自驱产出（D-PPPOE-1 裁定1，帧无外层 IP 头，ip 层

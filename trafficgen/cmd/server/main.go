@@ -187,7 +187,8 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/vnc"
 	// 空导入：wireguard 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/wireguard"
-	"github.com/trafficgen/trafficgen/internal/protocol/xmpp"
+	// 空导入：xmpp 包 init 注册层生成器 + 校验器（D-XMPP-1）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/xmpp"
 	"github.com/trafficgen/trafficgen/internal/replay"
 	"github.com/trafficgen/trafficgen/internal/storage"
 	"github.com/trafficgen/trafficgen/pkg/auth"
@@ -579,7 +580,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("socks5"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("vmess"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("wireguard"))
-	app.engine.RegisterPlanner(xmpp.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("xmpp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mqtt"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("srv6"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("gbt32960"))
