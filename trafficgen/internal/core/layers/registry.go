@@ -1326,6 +1326,69 @@ func buildDefaultRegistry() {
 			"media":  {Type: "object"},
 		},
 	})
+	// pptp（tcp 终结层。RFC 2637——TCP 控制面（1723，15 消息族：SCCRQ/
+	// SCCRP/OCRQ/OCRP/SLI/CCRQ/CCDN/StopRQ/RP/ECRQ/RP/ICRQ/ICRP/ICCN/WEN）
+	// +GRE 增强头数据面（16B 头+PPP 帧内嵌 IPv4），wire 字节由 pptp 生成器
+	// raw 自驱产出（D-PPTP-1 裁定1，四连协议对称：legacy 自建 TCP 握手/
+	// 挥手原样保留）。Fields 登记 parsePPTPConfig 顶层 51 键（1.12 消费面
+	// 逐键；inner_ip=object 内嵌 7 子键 srv6 先例）；控制通道 1723 由生成器
+	// Plan :404 缺省（0-keep+validateBaseDstPortHandled 豁免）。ICRQ 族
+	// PAC 现网形/MS 缺省= B′ 注记。
+	r.Register(LayerSchema{Name: "pptp", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"role":               {Type: "string"},
+			"scenario":           {Type: "string"},
+			"calls":              {Type: "int", Min: 0, Max: 65535},
+			"echo":               {Type: "bool"},
+			"version":            {Type: "uint16", Min: 0, Max: 65535},
+			"framing_caps":       {Type: "uint32", Min: 0, Max: 4294967295},
+			"bearer_caps":        {Type: "uint32", Min: 0, Max: 4294967295},
+			"max_channels":       {Type: "uint16", Min: 0, Max: 65535},
+			"firmware_revision":  {Type: "uint16", Min: 0, Max: 65535},
+			"host_name":          {Type: "string"},
+			"vendor_name":        {Type: "string"},
+			"scrp_result":        {Type: "uint8", Min: 0, Max: 255},
+			"scrp_error":         {Type: "uint8", Min: 0, Max: 255},
+			"scrp_framing_caps":  {Type: "uint32", Min: 0, Max: 4294967295},
+			"scrp_bearer_caps":   {Type: "uint32", Min: 0, Max: 4294967295},
+			"scrp_firmware_rev":  {Type: "uint16", Min: 0, Max: 65535},
+			"call_id":            {Type: "uint16", Min: 0, Max: 65535},
+			"peer_call_id":       {Type: "uint16", Min: 0, Max: 65535},
+			"call_serial":        {Type: "uint16", Min: 0, Max: 65535},
+			"min_bps":            {Type: "uint32", Min: 0, Max: 4294967295},
+			"max_bps":            {Type: "uint32", Min: 0, Max: 4294967295},
+			"bearer_type":        {Type: "uint32", Min: 0, Max: 4294967295},
+			"framing_type":       {Type: "uint32", Min: 0, Max: 4294967295},
+			"window_size":        {Type: "uint16", Min: 0, Max: 65535},
+			"packet_delay":       {Type: "uint16", Min: 0, Max: 65535},
+			"phone_number":       {Type: "string"},
+			"dialed_number":      {Type: "string"},
+			"dialing_number":     {Type: "string"},
+			"sub_address":        {Type: "string"},
+			"ocrp_result":        {Type: "uint8", Min: 0, Max: 255},
+			"ocrp_error":         {Type: "uint8", Min: 0, Max: 255},
+			"cause_code":         {Type: "uint16", Min: 0, Max: 65535},
+			"connect_speed":      {Type: "uint32", Min: 0, Max: 4294967295},
+			"ocrp_window_size":   {Type: "uint16", Min: 0, Max: 65535},
+			"ocrp_delay":         {Type: "uint16", Min: 0, Max: 65535},
+			"physical_channel_id": {Type: "uint32", Min: 0, Max: 4294967295},
+			"send_accm":          {Type: "uint32", Min: 0, Max: 4294967295},
+			"receive_accm":       {Type: "uint32", Min: 0, Max: 4294967295},
+			"sli_count":          {Type: "int", Min: 0, Max: 65535},
+			"sli_peer_call_id":   {Type: "uint16", Min: 0, Max: 65535},
+			"stop_result":        {Type: "uint8", Min: 0, Max: 255},
+			"stop_reason":        {Type: "uint8", Min: 0, Max: 255},
+			"stop_error":         {Type: "uint8", Min: 0, Max: 255},
+			"ccdn_result":        {Type: "uint8", Min: 0, Max: 255},
+			"ccdn_error":         {Type: "uint8", Min: 0, Max: 255},
+			"ccdn_cause":         {Type: "uint8", Min: 0, Max: 255},
+			"wen":                {Type: "bool"},
+			"incoming_call":      {Type: "bool"},
+			"data_frames":        {Type: "int", Min: 0, Max: 1000000},
+			"down_data_frames":   {Type: "int", Min: 0, Max: 1000000},
+			"inner_ip":           {Type: "object"}, // 内嵌 7 子键：src_ip/dst_ip/proto/src_port/dst_port/ttl/payload（srv6 inner_payload 先例）
+		},
+	})
 	// pppoe（eth 终结层。RFC 2516——Discovery（PADI/PADO/PADR/PADS，EtherType
 	// 0x8863）+ 会话（LCP/Auth/数据，EtherType 0x8864）+ PADT 终止，wire 字节
 	// 由 pppoe 生成器 raw 自驱产出（D-PPPOE-1 裁定1，帧无外层 IP 头，ip 层

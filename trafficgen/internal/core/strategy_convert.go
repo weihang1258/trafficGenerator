@@ -3227,6 +3227,12 @@ func parseL2TPInnerIP(v interface{}) *L2TPInnerIP {
 // (so explicit values need to be nonzero to take effect), but the frame
 // counts (data_frames/down_data_frames/sli_count) honor an explicit 0
 // (zero frames is a legal config).
+// ParsePPTPConfigFromMap exports parsePPTPConfig for the layer-translate
+// path (parse helpers are package-local; ParseLDAPConfigFromMap precedent).
+func ParsePPTPConfigFromMap(m map[string]interface{}) *PPTPConfig {
+	return parsePPTPConfig(m)
+}
+
 func parsePPTPConfig(m map[string]interface{}) *PPTPConfig {
 	if m == nil {
 		return nil

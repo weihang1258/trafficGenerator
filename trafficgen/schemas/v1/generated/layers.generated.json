@@ -1980,6 +1980,206 @@
         }
       }
     },
+    "pptp": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "bearer_caps": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "bearer_type": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "call_id": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "call_serial": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "calls": {
+          "type": "int",
+          "max": 65535
+        },
+        "cause_code": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "ccdn_cause": {
+          "type": "uint8",
+          "max": 255
+        },
+        "ccdn_error": {
+          "type": "uint8",
+          "max": 255
+        },
+        "ccdn_result": {
+          "type": "uint8",
+          "max": 255
+        },
+        "connect_speed": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "data_frames": {
+          "type": "int",
+          "max": 1000000
+        },
+        "dialed_number": {
+          "type": "string"
+        },
+        "dialing_number": {
+          "type": "string"
+        },
+        "down_data_frames": {
+          "type": "int",
+          "max": 1000000
+        },
+        "echo": {
+          "type": "bool"
+        },
+        "firmware_revision": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "framing_caps": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "framing_type": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "host_name": {
+          "type": "string"
+        },
+        "incoming_call": {
+          "type": "bool"
+        },
+        "inner_ip": {
+          "type": "object"
+        },
+        "max_bps": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "max_channels": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "min_bps": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "ocrp_delay": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "ocrp_error": {
+          "type": "uint8",
+          "max": 255
+        },
+        "ocrp_result": {
+          "type": "uint8",
+          "max": 255
+        },
+        "ocrp_window_size": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "packet_delay": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "peer_call_id": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "phone_number": {
+          "type": "string"
+        },
+        "physical_channel_id": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "receive_accm": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "role": {
+          "type": "string"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "scrp_bearer_caps": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "scrp_error": {
+          "type": "uint8",
+          "max": 255
+        },
+        "scrp_firmware_rev": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "scrp_framing_caps": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "scrp_result": {
+          "type": "uint8",
+          "max": 255
+        },
+        "send_accm": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "sli_count": {
+          "type": "int",
+          "max": 65535
+        },
+        "sli_peer_call_id": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "stop_error": {
+          "type": "uint8",
+          "max": 255
+        },
+        "stop_reason": {
+          "type": "uint8",
+          "max": 255
+        },
+        "stop_result": {
+          "type": "uint8",
+          "max": 255
+        },
+        "sub_address": {
+          "type": "string"
+        },
+        "vendor_name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "wen": {
+          "type": "bool"
+        },
+        "window_size": {
+          "type": "uint16",
+          "max": 65535
+        }
+      }
+    },
     "radius": {
       "category": "terminal",
       "depends_on": [

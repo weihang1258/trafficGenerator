@@ -2075,6 +2075,14 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.RTSP == nil {
 			spec.RTSP = core.ParseRTSPConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "pptp":
+		// D-PPTP-1：层 config 经 core.ParsePPTPConfigFromMap 复用扁平
+		// 解析单一真相（sub_address hex/inner_ip 嵌套 7 子键由扁平 parse
+		// 承接，JSON 往返会误读 payload 字节面——srv6 inner_payload 同
+		// 陷阱）。空层 config 也翻译出非 nil（全默认=参考 pcap full 形）。
+		if spec.PPTP == nil {
+			spec.PPTP = core.ParsePPTPConfigFromMap(completedConfig(s, term.Config))
+		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
 		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6

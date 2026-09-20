@@ -3036,3 +3036,63 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 | T-10 | 复合大场景（9.50） | 全方法+emit_media+自定义头 ≥3 类交织 |
 | T-11 | 负例空 dialog | 锚词 `dialog is required` |
 | T-12 | 状态行缺省 text | status_text 空缺省 phrase（rtspReasonPhrase） |
+
+## D-PPTP-1 pptp 层链收敛（#25，P1+P2 定稿 2026-09-20，待批）
+
+### P1 规范矩阵（RFC 2637 反推，含三张子表要求 4.22）
+
+| 规范点 | 出处 | 代码现状 | 缺口 |
+|---|---|---|---|
+| 控制连接：TCP 1723（§1.2）；控制消息头 8B（Length+Type+Magic 0x1a2b3c4d+ControlType） | §2 | controlHeader（planner.go:167）+15 消息类型常量 | 无 |
+| 控制消息全表：SCCRQ/SCCRP/StopRQ/StopRP/ECRQ/ECRP/OCRQ/OCRP/ICRQ/ICRP/ICCN/CCRQ/CCDN/WEN/SLI（15 条，§2.1-2.16） | §2.1-2.16 | build* 全 15（:188-399），场景编排 full/control_only/tunnel_only/data_only | ICRQ/ICRP/ICCN= PAC 侧场景（incoming_call 键实存） |
+| SCCRQ/SCCRP 字段：Protocol Version+Framing/Bearer Caps+Max Channels+Firmware+Host/Vendor Name（64B 定长） | §2.1/2.2 | buildSCCRQ/SCCRP+fixed64+Validate 64B 锚 | 无 |
+| OCRQ/OCRP：Call ID/Serial+Min/Max BPS+Bearer/Framing Type+Window Size+Packet Delay+Phone/SubAddress | §2.4/2.5 | buildOCRQ/OCRP 全字段 | 无 |
+| GRE 增强头：16B、flags 0x3081、proto 0x880B、Key=Len+peer Call ID、32bit Seq/Ack | §4.1 | PPP 数据面（包注释+pppFrame:893） | 无 |
+| 数据面 PPP 帧：FF 03+0x0021+内嵌 IPv4 | §4.1 参考 | pppFrame+buildInnerIPv4Packet | 无 |
+| 生命周期：SCCRQ/RP→OCRQ/RP→SLI→(数据)→CCRQ/CCDN→StopRQ/RP | §3.2.1-3.2.15 | full 场景编排（参考 pcap 逐字节） | 无 |
+| 活性：ECRQ/ECRP Echo 保活 | §3.2.9-3.2.10 | buildECRQ/ECRP+echo 键 | 无 |
+
+**①命令×响应矩阵：** SCCRQ→SCCRP/OCRQ→OCRP/ECRQ→ECRP/ICRQ→ICRP→ICCN/CCRQ→CCDN/StopRQ→StopRP 逐格已实现（15 消息 build 全存）；result/error 字段（scrp_result/ccdn_result/ocrp_result/stop_result 等）可配=失败分支面。
+**②数据形态变体：** 定长 64B 字段（host/vendor name）、hex sub_address、inner_ip 嵌套配置（src/dst/proto/payload/ttl）、双数据方向（data_frames/down_data_frames）。
+**③商业行为映射：** 参考 pcap（llcj 镜像 PNS 49194↔PAC 1723）逐字节复刻=③已映射（T-1 钉值）；MS Windows PPTP 客户端行为=Host Name "machine"+Vendor "Microsoft Windows NT"（实现缺省面，待确认方式=抓现网拨号包，B′ 注记）。
+**三路对照：** ①RFC 2637 原文；②参考 pcap 形+MS 实现缺省注记；③Linux pptpclient（仓库思路借鉴：控制面+GRE 面单流编排）。**候选对比：** (a) [ip,pptp] raw 自驱 wrap（pppoe/ldap/rtmp/rtsp 对称，零字节回归）✓ vs (b) [ip,tcp,pptp]+[ip,gre] 双链事件面（控制/数据分链——GRE 数据面无独立生成器，大改）→裁定 (a)。
+**门1 三行：** §1 扁平键全删，目标形 `{"layers":[{"ip":{...}},{"pptp":{"scenario":"full","calls":1,...}}]}`+1723 由 legacy Plan :404 缺省（validateBaseDstPortHandled 豁免，pppoe 模式）；§3 单流豁免注记——PPTP 会话=控制通道单 TCP 连接+GRE 数据面同流，calls>1=多 call 并发面（同流内多 call，非 sessions[] 形态）；§12 动态=worker 四元组+IPID/ISN random+call_id/call_serial 静态缺省面（无 dyn 旁挂，如实注记）。
+
+### 裁定（P2 定稿）
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | 层形状=[ip, pptp]：CategoryTerminal+DependsOn `["ip"]`；raw 自驱 wrap legacy（自建 TCP+GRE 数据面原样保留），layer_gen 防双换 Direction=up | 四连协议对称 |
+| 2 | 翻转五件套：isRawIPChain 双名单+=pptp；src 0-keep+=pptp；validateBaseDstPortHandled+=pptp（1723 Plan 缺省 :404）；registry 行 **51 Fields**（parsePPTPConfig 顶层键全集逐键登记，inner_ip=object 内嵌 srv6 先例）+translate case 复用 ParsePPTPConfigFromMap 导出+FlowMeta.PPTP+raw 注入；main.go 翻转 | pppoe 五件套同构 |
+| 3 | 场景强度全额：15 消息面（full 场景逐消息+scenario 四枚举）/SLI 计数/calls 多 call/双数据方向/ECRQ 保活/result-error 失败分支字段/inner_ip 数据面/复合大场景（full+calls 2+echo+双数据 ≥3 类）；负例 7 锚（role/scenario/calls/sli_count/data_frames/down_data_frames/sub_address hex/64B 超长/inner IP） | 9.46–9.53 |
+| 4 | B′ 账本：MS 客户端缺省 Host/Vendor 待确认、interleaved GRE over TCP（ uncontested）、ICRQ 族 PAC 侧现网形、动态字段旁挂 | RFC 2637+现网要求面如实 |
+
+**文件：** protocol/pptp/layer_gen.go（新）+chain_planner_util.go+chain_planner.go（名单）+registry.go（51 Fields 行）+chain_planner_translate.go（case）+generator.go（FlowMeta.PPTP）+strategy_convert.go（ParsePPTPConfigFromMap）+cmd/server/main.go（翻转）+cases/pptp.json（改写+补强）。
+**性能（6.4-6.6）：** 流式 channel 256；包数=场景编排段数（full≈22 包/calls 与 SLI 计数线性）；pcap 验收路。
+**回滚：** 单提交粒度，摘除即回。
+
+### T-PPTP-1…20 清单（P3，RFC 2637 反推；9.52 对账 **27/27**：控制头 1+控制消息 15+场景枚举 4+SLI/calls/echo 3+数据面 3+角色 1+失败分支 1+负例分支 7+现网 1 → 建例 20 代表（T-1 承接消息表 15 之 full 编排+现网形；T-3/4/5 承接场景枚举）+B′ 注记 7（MS 缺省待确认、interleaved GRE、ICRQ 族 PAC 现网形、动态旁挂、扩展 message、结果码全枚举、TCP 分段 GRE 边界））
+
+| # | 用例 | 断言面 |
+|---|---|---|
+| T-1 | smoke 改写（full 22 包参考形） | 全生命周期逐段（SCCRQ 156B→SCCRP→OCRQ→OCRP→SLI×5→CCRQ/CCDN 合并→CCDN→StopRQ/RP） |
+| T-2 | 控制头钉 | magic cookie 1a2b3c4d+Length+Type 字节 |
+| T-3 | scenario=control_only | 控制面消息子集+包数 |
+| T-4 | scenario=tunnel_only | 隧道建立+数据面（无控制拆除序） |
+| T-5 | scenario=data_only | 纯 GRE 数据面 |
+| T-6 | role=pac | PAC 侧换向（方向/Call ID 语义反转） |
+| T-7 | calls=2 | 多 call 并发（OCRQ/OCRP 两轮+SLI 逐 call） |
+| T-8 | sli_count=3 | SLI 条数钉（缺省 5 由 T-1 承接） |
+| T-9 | echo=true | ECRQ/ECRP 保活对 |
+| T-10 | 双数据方向 | data_frames+down_data_frames 逐帧 GRE 头钉 |
+| T-11 | inner_ip 显式 | src/dst/proto/payload 字节透传 |
+| T-12 | 失败分支字段 | scrp_result/ocrp_result 非 0 透传（错误码面） |
+| T-13 | 复合大场景（9.50） | full+calls 2+echo+双数据+SLI ≥3 类交织 |
+| T-14 | 负例 role 非法 | 锚词 `invalid pptp role` |
+| T-15 | 负例 scenario 非法 | 锚词 `invalid pptp scenario` |
+| T-16 | 负例 calls<0 | 锚词 `invalid pptp calls` |
+| T-17 | 负例 sli_count<0 | 锚词 `invalid pptp sli_count` |
+| T-18 | 负例 sub_address 非 hex | 锚词 `must be hex` |
+| T-19 | 负例 64B 超长 | 锚词 `exceed 64 bytes` |
+| T-20 | 负例 inner IP 非法 | 锚词 `invalid pptp inner src_ip` |
+
+**P3 复审（2026-09-20 对抗走查）：** 15 消息面由 T-1 full 编排承接（SCCRQ/SCCRP/OCRQ/OCRP/SLI/CCRQ/CCDN/StopRQ/StopRP 9 消息逐包断言）+T-9 echo（ECRQ/ECRP）+T-6/T-7 角色与多 call（ICRQ/ICRP/ICCN 由 incoming_call 键 B′ 注记、T-6 承接 PAC 侧部分）；WEN（msg 14）无用例=WEN 键 B′ 注记（现网 WAN 错误事件低频，构建器实存 buildWEN）。对账 27/27 平。**清单净，待批进 P4。**
