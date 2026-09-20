@@ -1,6 +1,6 @@
 # sip Pcap Test Results
 
-Cases: 71 — pass 71, fail 0, error 0
+Cases: 76 — pass 76, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -30,8 +30,13 @@ Cases: 71 — pass 71, fail 0, error 0
 | sip_interleaved_two_calls | T-SIP-54: 同连接两呼交错（§9.9 并发交错字面要求：A/B 两 Call-ID 事务重叠序 INV-A/180-A/INV-B/200-A/ACK-A/200-B/ACK-B/BYE-A/BYE-B；与 T-27 顺序版分面） | pass | 18 | [pcap](sip/sip_interleaved_two_calls.pcap) |
 | sip_invite_401_challenge | T-SIP-35: INVITE 401 质询重发（§22.1 呼叫鉴权：401→ACK→INVITE+Authorization→200→ACK；代理鉴权面，与注册鉴权 T-25 分面） | pass | 13 | [pcap](sip/sip_invite_401_challenge.pcap) |
 | sip_long_auth_uri | T-SIP-39: 超长头+长 URI（§9.8 超长面：512B 级 Digest 头+226B 参数化长 URI；与 MSS 分段例构成头长/消息长正交） | pass | 9 | [pcap](sip/sip_long_auth_uri.pcap) |
+| sip_medias_bidirectional | T-SIP-72: medias 双向交替（WP-B：up/down 同点 round-robin=RFC 3550 真双向；显式端口分面；7+6+4=17 包） | pass | 16 | [pcap](sip/sip_medias_bidirectional.pcap) |
+| sip_medias_filesource | T-SIP-76: medias file_source 沿用（Task 12 合同经多流形态；literal 3B→1 帧） | pass | 10 | [pcap](sip/sip_medias_filesource.pcap) |
+| sip_medias_interleave | T-SIP-73: interleave 交错调度（WP-B：T=4 G=3→gap 2/1/1；RTP 与信令帧序钉死=§3.12 写死可复现；14 包） | pass | 14 | [pcap](sip/sip_medias_interleave.pcap) |
+| sip_medias_port_dyn | T-SIP-75: medias src_port 动态 inc+flows=2（E1 同款整格；2 流×(7+2+4)=26 包） | pass | 22 | [pcap](sip/sip_medias_port_dyn.pcap) |
 | sip_message_im | T-SIP-36: MESSAGE 页模式即时消息（RFC 3428；SIP 短信/IM 现网面） | pass | 9 | [pcap](sip/sip_message_im.pcap) |
 | sip_mss_segment | T-SIP-10: 3000B body→MSS 1460 分段 3 段 | pass | 11 | [pcap](sip/sip_mss_segment.pcap) |
+| sip_neg_medias_mutex | T-SIP-74: 负例 media+medias 同给互斥判死（create-time 400） | pass | 0 | [pcap]() |
 | sip_neg_sessions_dialog_mutex | T-SIP-61: 负例 sessions+dialog 同给互斥判死（create-time 400） | pass | 0 | [pcap]() |
 | sip_neg_sessions_empty | T-SIP-62: 负例空 sessions 数组（同锚词面，不给静默退化） | pass | 0 | [pcap]() |
 | sip_neg_sessions_static | T-SIP-63: 负例 sessions 内标量端口+flows=2（12.9 扩扫执法） | pass | 0 | [pcap]() |

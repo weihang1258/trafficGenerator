@@ -789,7 +789,10 @@ def check_sip(cases):
                      ("sessions_port_inc", "session 端口 inc 格"), ("sessions_port_rand", "session 端口 rand 格"),
                      ("sessions_port_list", "session 端口 list 格"), ("sessions_port_fixed", "session 端口 fixed 格"),
                      ("sessions_port_pattern", "session 端口 pattern 格"), ("sessions_callid_pattern", "call_id pattern 格"),
-                     ("sessions_callid_fixed", "call_id fixed 格"), ("sessions_v6", "v6 双会话格")]:
+                     ("sessions_callid_fixed", "call_id fixed 格"), ("sessions_v6", "v6 双会话格"),
+                     ("medias_bidirectional", "双向交替面"), ("medias_interleave", "交错调度面"),
+                     ("neg_medias_mutex", "medias 互斥判死面"), ("medias_port_dyn", "medias 端口动态格"),
+                     ("medias_filesource", "medias file_source 面")]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
 

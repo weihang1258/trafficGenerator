@@ -6109,5 +6109,313 @@
         "9.24 地址族对称：派生 Call-ID 主机部=sipHostOf v6 括号形（RFC 19.1.1 sent-by 口径，落盘校准）"
       ]
     }
+  },
+  {
+    "id": "sip_medias_bidirectional",
+    "proto": "sip",
+    "summary": "T-SIP-72: medias 双向交替（WP-B：up/down 同点 round-robin=RFC 3550 真双向；显式端口分面；7+6+4=17 包）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "emit_media": true
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1"
+              }
+            ],
+            "medias": [
+              {
+                "direction": "up",
+                "frames": 3,
+                "src_port": 30004,
+                "dst_port": 30006
+              },
+              {
+                "direction": "down",
+                "frames": 3,
+                "src_port": 30005,
+                "dst_port": 30007
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 16,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "distinct_values": [
+            "30004",
+            "30007"
+          ]
+        },
+        {
+          "packet": 1,
+          "field": "udp.dstport",
+          "distinct_values": [
+            "30006",
+            "30005"
+          ]
+        }
+      ],
+      "notes": [
+        "round-robin 交替=帧序 up,down,up,down,up,down（包位 5-10 单测钉）；16=3握+3SIP+6RTP+4挥",
+        "down 方向 wire 元组交换（src=dstPort 30007/dst=srcPort 30005）——emitSIPMedia 既有合同，P5 校准"
+      ]
+    }
+  },
+  {
+    "id": "sip_medias_interleave",
+    "proto": "sip",
+    "summary": "T-SIP-73: interleave 交错调度（WP-B：T=4 G=3→gap 2/1/1；RTP 与信令帧序钉死=§3.12 写死可复现；14 包）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "interleave": true,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "emit_media": true
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1"
+              }
+            ],
+            "medias": [
+              {
+                "direction": "up",
+                "frames": 4
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 14,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Method",
+          "value": "INVITE"
+        },
+        {
+          "packet": 5,
+          "field": "udp.srcport"
+        },
+        {
+          "packet": 6,
+          "field": "udp.srcport"
+        },
+        {
+          "packet": 7,
+          "field": "sip.Status-Code",
+          "value": "200"
+        },
+        {
+          "packet": 8,
+          "field": "udp.srcport"
+        },
+        {
+          "packet": 9,
+          "field": "sip.Method",
+          "value": "ACK"
+        },
+        {
+          "packet": 10,
+          "field": "udp.srcport"
+        }
+      ],
+      "notes": [
+        "gap 均分 T=4/G=3→2/1/1；包位=4 INVITE/5,6 RTP/7 200/8 RTP/9 ACK/10 RTP（P5 校准：含 INVITE 自身包位偏移）"
+      ]
+    }
+  },
+  {
+    "id": "sip_neg_medias_mutex",
+    "proto": "sip",
+    "summary": "T-SIP-74: 负例 media+medias 同给互斥判死（create-time 400）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "media": {
+              "frames": 1
+            },
+            "medias": [
+              {
+                "direction": "up",
+                "frames": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "sip: media and medias are mutually exclusive"
+    }
+  },
+  {
+    "id": "sip_medias_port_dyn",
+    "proto": "sip",
+    "summary": "T-SIP-75: medias src_port 动态 inc+flows=2（E1 同款整格；2 流×(7+2+4)=26 包）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "emit_media": true
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ],
+            "medias": [
+              {
+                "direction": "up",
+                "frames": 2,
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    31001,
+                    31002
+                  ],
+                  "step": 1,
+                  "group_id": "md-inc"
+                },
+                "dst_port": 30008
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 22,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "distinct_values": [
+            "31001",
+            "31002"
+          ]
+        }
+      ],
+      "notes": [
+        "22=2 流×(3握+2 SIP+4挥)+2×2 RTP；udp.srcport 聚合=RTP 源口 31001/31002（down 无流；5060 是 TCP 不入 udp 聚合——P5 校准）"
+      ]
+    }
+  },
+  {
+    "id": "sip_medias_filesource",
+    "proto": "sip",
+    "summary": "T-SIP-76: medias file_source 沿用（Task 12 合同经多流形态；literal 3B→1 帧）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "emit_media": true
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ],
+            "medias": [
+              {
+                "direction": "up",
+                "file_source": {
+                  "literal": "pay"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 10,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "udp.srcport",
+          "value": "5004"
+        }
+      ],
+      "notes": [
+        "emit_media 挂 INVITE→RTP 在包 5（10=3握+2 SIP+1 RTP+4挥；P5 校准）"
+      ]
+    }
   }
 ]

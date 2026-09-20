@@ -3658,3 +3658,19 @@
 
 **动态整格（9.32）：** sessions[].src_port×五策略（T-64…68）+call_id×2（T-69/70）=7 格本 WP 落满；medias[].src_port 归 WP-B。**9.40 注记：** 同流多 session 共享 FlowIndex→动态对象同值=真实语义（session 差异锚派生缺省端口 base+M+idx 与 call_id 派生序，不锚 FlowIndex）。**断言边界：** 时间戳=发射序；branch 派生仅 sessions 模式（dialog 模式随机=零字节回归线）。
 **实现位置：** cases/sip.json（71 例）。验收=CASE_PROTO=sip 全量绿+57 例零字节回归+门 2 四项+反查表扩条目。
+
+### T-SIP-72…76 medias[] 多流双向+交错（D-SIP-2 WP-B P3 清单）
+
+**状态：** P5 全绿（2026-09-20，76/76 ×2 稳态+落盘 70=76−6 对账精确+门 2 静态四项绿+反查 87/87）。三源=RFC 3550 §5.1（RTP 双向）+D-SIP-2 WP-B+现网双向通话面。**级别：** pcap。
+**存量去向：** media 单流 5 例等价保留（单流路径字节等价由流重构守，emitSIPMedia=流对象包装）。
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| 双向交替 | T-72 sip_medias_bidirectional | A（up/down 同点 round-robin；显式端口分两流四元组；down wire 元组交换校准） |
+| 交错调度 | T-73 sip_medias_interleave | A（T=4/G=3→2/1/1；包位 5,6 RTP/7 200/8 RTP/9 ACK/10 RTP 落盘钉） |
+| 互斥判死 | T-74 sip_neg_medias_mutex | A（负例，锚词 `sip: media and medias are mutually exclusive`） |
+| 端口动态 | T-75 sip_medias_port_dyn | A（medias src_port inc+flows=2；dyn>静态>SDP>5004 优先链） |
+| file_source 沿用 | T-76 sip_medias_filesource | A（Task 12 FileSource>inline 合同经多流形态） |
+
+**P5 校准 3 处（14.6 落盘重钉）：** ①down 方向 wire 元组交换（src=dstPort）②包位含 INVITE 自身偏移 ③udp 聚合不含 TCP 端口（9.38 口径）。**gap0 双发 bug** 单测捕获修正（媒体点不发射，hook/尾部分担 R+1 gap）。
+**实现位置：** cases/sip.json（**76 例**）。
