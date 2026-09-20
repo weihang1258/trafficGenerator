@@ -5660,9 +5660,14 @@ func ParseSIPSessions(v interface{}) []SIPSession {
 			CallID:     getString(m, "call_id"),
 			Dialog:     parseSIPDialog(m["dialog"]),
 			Media:      parseSIPMedia(m["media"]),
-			SrcPortDyn: parseStrategyConfigDyn(m["src_port"]),
-			DstPortDyn: parseStrategyConfigDyn(m["dst_port"]),
-			CallIDDyn:  parseStrategyConfigDyn(m["call_id"]),
+			// D-SIP-2 补强批：per-session medias[]/interleave 接线——
+			// 此前漏解析被静默丢弃（SIPSession 有字段无 parse 填充，
+			// planner 层直构 spec 的单测覆盖不到，T-SIP-87 首跑抓出）。
+			Medias:      ParseSIPMedias(m["medias"]),
+			Interleave:  getBool(m, "interleave", false),
+			SrcPortDyn:  parseStrategyConfigDyn(m["src_port"]),
+			DstPortDyn:  parseStrategyConfigDyn(m["dst_port"]),
+			CallIDDyn:   parseStrategyConfigDyn(m["call_id"]),
 		}
 		out = append(out, sess)
 	}
