@@ -2694,6 +2694,98 @@ create：ValidateStrategy→ValidateLayers（V9 4 键）→CheckProtoFlat presen
 #### 8. 验收
 对应 T-SIP（P3 定稿）。完成条件：6 红例先红后绿；sip.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 count/sip 字面零残留；schemagen 同步绿；门 1 表回填+抽查三条；在库 sip 行清空（P6 删前报数 91+4→备份→删→复核——绝对路径+总量对账）。
 
+### D-SIP-2 sip 引擎结构补全：sessions[] 多会话+媒体双向交错+NAT 合成+SIPS/TLS 事件面【D-SIP-1 B′ 四项收编，P2 定稿待批】
+
+**状态：** P2 设计（2026-09-20；用户指示"按核心记忆文档设计 D-SIP-1 剩余边界方案"）。四个独立 WP，各自 P-PIPE+独立提交；WP-D 风险最高可独立延期。现状代码事实：Media 单挂点（sip.go:239 `msg.EmitMedia && sipConfig.Media != nil`）；flows=2=同模板复制（Call-ID 同字节）；Via 原样透传（sip.go 零 rport/received 逻辑）；sip 终层自驱 GenEvents=nil（layer_gen.go:26）；框架已有 tls 事件变换器先例（chain_planner_chain.go:216 [ip→tcp→tls→http] 绿）+mqtt OptionalOn tls（registry.go:311）。
+
+**权威链（§7）：** RFC 3261（§17 事务/§19.3 Via branch 合同）+RFC 3581（§4 rport/received 回填）+RFC 3264（§5-6 offer/answer）+RFC 3550（§5.1 RTP 双向）+RFC 4566（SDP）→ 设计=本条目（权威）→ 代码 → 测试。CORE_MEMORY 依据：§3.1-3.3（sessions 显式/独立四元组/独立生命周期）、§3.11-3.12（流间交错调度写清）、§9.9（并发交错/中断续作）、§9.23（地址族×会话×流矩阵）、1.12（字段必须住层）、12.9（静态复制拒绝）。
+
+#### P1 现状→缺口矩阵
+
+| 规范/文档要求 | 业务场景 | 代码现状 | 缺口 |
+|---|---|---|---|
+| §3.1-3.3 多会话显式声明独立 ID/四元组/生命周期 | UA 与服务器并发多 dialog（注册+通话+订阅并存） | SIPConfig.Dialog 单会话；flows=2 模板复制同 Call-ID | sessions[] 结构缺失（WP-A） |
+| §3.8-3.10 RTP 关联三件事 | 双向通话媒体 | Media *SIPMedia 单向单挂点（types.go:2616 注释自认双向靠"用户建模两条"但配置只有一条槽位） | medias[] 双向+交错（WP-B） |
+| RFC 3581 §4 NAT 回填 | NAT 穿越响应路由 | Via 用户原文透传，零合成 | rport/received 发射期合成（WP-C） |
+| RFC 3261 SIPS URI/tls 底座 | 运营商加密信令 | GenEvents=nil 自驱拼完整包，无法插 tls 层 | 事件面双模式（WP-D） |
+
+#### 架构裁定
+
+**裁定 1（WP-A）：** sessions 语义=**每 session 一条独立 TCP 信令连接**（独立握手/挥手/四元组），沿 ftp sessions 范式（FTPSession:2435 先例：静态结构原地+Dyn 旁挂）。dialog 单会话形态零改动零回归；`sessions` 与 `dialog` 同给即 400（互斥锚词）。
+**裁定 2（WP-B）：** medias[] 与 media 互斥（同给 400）；双向=同 EmitMedia 消息点 up/down 帧交替发射（A1 B2 交替，非两段纯流）；`interleave: true` 时后续 dialog 消息按"N 帧夹 1 信令"等分点插入（调度方式写死=可复现，§3.12）。
+**裁定 3（WP-C）：** NAT 合成只作用于 **up 请求侧发射时**（down 响应=回放用户原文，RFC 3581 的 received 本就是服务端回填——引擎模拟的是"用户写的 src_ip 即 NAT 后地址"的发送侧事实，不做对端探测，诚实边界）。`nat:{rport:true}` 显式开启，缺省透传零变化。
+**裁定 4（WP-D）：** 双模式——[ip,sip] 自驱保字节等价线（D-SIP-1 否决 B2 的教训只在 tls 模式局部化重演）；事件面=新 EventGenerator 把 dialog 翻成 MessageEvents，头补全 dialogCtx 状态机在事件面重写。**tls 链上 media 面=拒绝**（RTP 是 UDP 裸流不进 TLS，锚词 `media is not supported on a tls sip chain`）。
+
+#### 决策对比
+
+| 决策 | 候选 | 结论 |
+|---|---|---|
+| A 会话结构 | A1 sessions[]（ftp 范式） vs A2 多 FlowSpec 表达 vs A3 每流 dialog 派生 | **A1**（A2 用例表达不了并发不同内容=本轮起点缺口；A3 隐式魔法违 3.1） |
+| B 标识派生 | B1 引擎自动 Call-ID/branch vs B2 用户全显式 | **B1 缺省+B2 覆盖**（session.call_id 显式赢，缺省 `{flow}-{sess}@{src_ip}`；branch 缺省 `z9hG4bK-<hash>`；模板内用户 CSeq 原样=回放合同不动） |
+| C 双向媒体 | C1 medias[] 同点交替 vs C2 两条独立 media 流 | **C1**（C2 又回到"两段纯流"非真实交错） |
+| D NAT 范围 | D1 仅 up 请求合成 vs D2 全消息合成 | **D1**（down=回放原文是全引擎合同；越界即违反回放语义） |
+| E SIPS 路径 | E1 双模式事件面 vs E2 全量重写自驱为事件 | **E1**（E2 破坏 57 例字节等价线=D-SIP-1 已否决；E1 只在 tls 模式局部重写） |
+
+#### WP-A sessions[] 多会话+标识唯一化（首批）
+
+**范围：** ①sip 层新增 `sessions:[{src_port?,dst_port?,call_id?,dialog:[...],media?}]`；②sessions/dialog 互斥 400（锚词 `sip: sessions and dialog are mutually exclusive`，空数组同锚词面）；③标识派生：call_id 缺省 `{flow}-{sess}@{src_ip}`、Via branch 缺省 `z9hG4bK-<hash(call_id,cseq)>`（头补全已有 Via 合成上叠 branch 缺省）；④每 session 独立 TCP 连接（独立 3 握 4 挥）；⑤静态复制门扩 sessions 内端口（语义层扫描 sessions[].src_port/dst_port 标量+flows>1 拒，D-FTP-3 同口径）。
+**文件：** types.go（SIPSession+SIPConfig.Sessions）/strategy_convert.go（translate 解析+互斥检查）/protocol/sip/sip.go（planSessions 循环+标识派生）/core/schema/semantic.go（静态复制扩扫）/registry.go（registry 行加 sessions 键）/layer_dyn.go（session 端口动态位）。
+**验收：** 57 例零字节回归（sessions 缺省路径）+新例≥6（双会话独立 Call-ID/独立端口/交错生命周期/派生 Call-ID 断言/互斥负例/静态复制负例）。
+**回滚：** 单提交粒度；dialog 路径零改动=存量零风险。
+
+#### WP-B medias[] 双向+交错
+
+**范围：** `medias:[{direction,frames,payload_type,src_port?,dst_port?,file_source?}]` 与 media 互斥；双 medias 同 EmitMedia 点交替；`interleave:true` 消息等分插入。
+**文件：** types.go（SIPMedias+sip.go emitSIPMedia 改分段回调）/strategy_convert.go/registry.go/layer_dyn.go（medias[].src_port/dst_port 开动态）。
+**验收：** 新例≥5（双向交替帧序断言/interleave 消息落点断言/互斥负例/动态端口/file_source 沿用）。
+**回滚：** media 旧键不动=存量零风险。
+
+#### WP-C NAT rport/received 合成
+
+**范围：** `nat:{rport:true}`（received 随 rport 同开，RFC 3581 绑定语义）；up 请求发射期合成 `rport=<实际 src_port>;received=<src_ip>`；仅当 Via 含 rport 参数或 nat.rport=true。
+**文件：** types.go（SIPNAT）/sip.go（emit 前 rewrite 一步）/strategy_convert.go/registry.go。
+**验收：** 新例≥3（rport 回填值断言/缺省透传零变化回归/对 Via 无 rport 参数的 nat 开关语义格）。
+**回滚：** 缺省关=存量零风险。
+
+#### WP-D SIPS/TLS 事件面（可独立延期）
+
+**范围：** 新 EventGenerator（dialog→MessageEvents）；[ip,tcp,(tls),sip] 链注册；事件面头补全状态机重写；tls 链 media 拒绝锚词；spike 先行（OPTIONS over tls vs tshark 手工对照）→OptionalOn 登记（M2 纪律：未验不登）。
+**文件：** protocol/sip/event_gen.go（新）/layers/chain_planner_chain.go（sip 事件路由）/registry.go（OptionalOn）/layer_gen.go（双模式分派）。
+**验收：** spike 通过+冒烟例≥3（OPTIONS/REGISTER over tls/非法组合负例）+[ip,sip] 57 例零回归。
+**回滚：** OptionalOn 不登记=默认路径不可达；单提交粒度。
+
+#### §12 动态字段清单（新增面）
+
+| 字段 | 开/关 | 理由 |
+|---|---|---|
+| sessions[].src_port/dst_port | 开（E1 同款） | 逐流逐会话端口池=多会话多流主用例面 |
+| sessions[].call_id | 开（pattern/fixed） | 标识派生覆盖口（B2 决策） |
+| medias[].src_port/dst_port | 开 | 与 T-21 同构 |
+| sessions[].dialog 内容 | 关 | 会话结构=回放模板（D-SIP-1 既有裁定） |
+| frames/payload_type/nat.* | 关 | 结构/行为面无逐流语义 |
+
+#### 门 1 对照表（14 行）
+
+| § | 满足方式+证据 |
+|---|---|
+| §1 顶层旧键 | 无新增顶层键——全部结构住 sip 层内（1.11-1.13 白名单：layers/flow_control/output 之外零游离）；sessions/medias/nat 均为层内键 |
+| §2 判死 | 既有 presence 判死不变；新增互斥负例锚词 3 条（sessions×dialog/medias×media/tls×media） |
+| §3 五件套 | 会话表=sessions[]（每条独立 ID=call_id/四元组/生命周期）；事务序列=session 内 dialog 消息序；关联=medias[]→EmitMedia 消息点+SDP 推导（三件事不变）；插入=WP-B interleave 等分点；时间线=交错调度写死可复现（§3.12） |
+| §4 规范矩阵 | 见 P1 表（RFC 3261/3581/3264/3550/4566 逐项） |
+| §5 依赖与错误 | 互斥 400×3+空 sessions 400+静态复制拒（锚词全列）；错误返回=create 期 schema 拒/任务期 planner error（§5.6 四件套沿用） |
+| §6 性能与验收 | 包数=session 数×(7+Σmsg)+媒体帧；回归口径=57 例 ±10% + 字节零变化线；pcap+网卡两路（网卡注明未跑口径） |
+| §7 顺序与回滚 | WP-A→B→C→D 逐 WP 独立提交；每 WP 回滚=单提交粒度；dialog/media 旧键零改动=存量零风险 |
+| §8 定稿后开工 | 本条目 P2 待用户批 |
+| §9 测试设计 | 每 WP 新例数已列（6/5/3/3）+存量 57 例回归面；T-SIP-58… 起编 |
+| §10 自审闭环 | 每 WP 改→审→测→修→再审（CLAUDE.md 绑定） |
+| §11 白话汇报 | 每 WP 收官一句结论+过门证据 |
+| §12 动态清单 | 见上表 |
+| §13 schema 先行 | registry 行同步+schemagen 重跑（102→103+ 键）；MCP 描述/前端类型重生成 |
+| §14 全量门 | 每 WP：CASE_PROTO=sip 全量绿+落盘 pcap+门 2 四项+反查表扩条目 |
+
+**明确不解决：** 对端探测式 NAT 行为模拟（真 NAT 穿越需收包回填=非合成器合同）；ICE/STUN/TURN 联动（独立协议面）；SIP over WebSocket（RFC 7118）；SRTP（媒体加密独立面）；会议焦点混音行为（RFC 4575 只承载名册不执行混音）。
+
+
 ### D-RADIUS-1 radius 层链化：终层自驱（UDP 无状态 Rounds 交换）+ 端口住层【P-PIPE #20 门1】
 
 **状态：** P2 定稿（2026-09-19；门 1 已交+对抗自重审 2 轮（锚词计数 12→13 条修正、响应 Authenticator 恒随机边界补报（:343 每响应新 randomAuth，仅请求侧 fixed hex 可钉）、identifier+round uint8 回绕注记；主体零事实错误，末轮净）；CORE_MEMORY 逐条复审完成。裁定延续：端口住 radius 层+端口动态 E1=七度已批。现状：legacy 完整（radius.go 477 行，**UDP 无状态**——无握手挥手，Rounds×(请求 up→响应 down) 同四元组交换（:306-370）；20B 头 Code+ID+Length+Authenticator+TLV 属性（RFC 2865 §5；VSA type 26 外层 8B :432-445）；码面 8 码=请求{1,3,4,11,12}×响应{2,3,5,11,13}+auto{1→2,4→5,12→13}（:61-65），code 3/11 无 auto 必须显式 response_code（Validate :127-128）；缺省 dst 1812/code=4→1813、rounds 1、code 0→Access-Request、reqAttrs 缺省（User-Name "user"/acct Start+Session-Id）；Authenticator crypto/rand 随机（:459-468）或 fixed hex 16B；identifier+round uint8 回绕（:307）。Validate **13 条锚词**（:98/:103 IP parse/:107 nil 硬拒 `radius config is required`——与前六 nil 合法不同/:117 请求码/:125 响应码/:128 无默认响应/:135 hex/:138 16B/:171 长度超界/:178-:189 format 四态）。**v3 预留已在 chain_planner**（:525 dst-0 合法名单+：770 DstPort switch 1812/1813——但 validateSpecBase:149 先于 translate:161，:770 拿不到 code 恒 1812=**顺序缺陷，translate 自补覆盖修正**）。main.go:121 具名导入+:562 直挂，层链四件全缺。用例 1 例 `radius_smoke_01` spec 仅 `{"radius":{}}` **本无扁平键**（packet_count 2+14 fields tshark radius.code/id/length/req/rsp/reqframe/authenticator nonzero+avp.type/length 实证）。在库 tasks 91+strategies 4）。**P4 已执行（2026-09-19，提交 1501264）：** registry 9 键行/CheckProtoFlat presence/translate case radius（7 业务键+JSON round-trip+dst 缺席顺序修正覆盖）/**SrcPort 零保持名单 += radius**（validateSpecBase 先于 translate，src 缺席单流 0 上包=mcp/modbus 直传族语义，多流 worker 12345+i；本项 P4 构建期发现、推翻 P2 "不加名单"误判——链路径无 12345 保底，h323/sip 同构先例直接适用）/FlowMeta+carry/isRawIPChain/layer_dyn 五件套/layer_gen（force-up 防双换/GenEvents nil/validateLayer legacy 委托）/main 翻转/门登记+schemagen 102 层；5 红例全绿+touched 包 -race+vet 净。**P5 已执行（2026-09-19）：** cases 25/25 全绿（T-1 改写+T-2…21+A′ 补充批 T-22…25）；P5 校准 4 处见 T-RADIUS 状态行（多 AVP 逗号拼接/11→11 与 12→13 无 rsp/reqframe 改端口交换钉/port_distinct 双向聚合/strategy_fc 键名）；反查 check_radius 44/44+门 2 静态四项绿+五协议回归绿；落盘 /tmp/mcp-pcaps/radius/）。**P6 已验收（2026-09-19）：** 在库清空 tasks 165+strategies 19（删前实测重报，241334−165=241169/763−19=744 双总量对账精确），备份 /tmp/trafficgen-backup-radius-p6.db，复核 0/0+交叉引用 0；门 3 抽查三条：①§1 层链唯一真相——radius_flat_presence 经真实流程拒绝锚词 "top-level radius sub-config"（strategy_convert.go CheckProtoFlat radius 分支空 map 也死），25 例非负例顶层仅 layers+strategy_fc（presence-negative-case-shape：负例=层链+顶层空子映射并存，判死执法对象非残留）；②§12 动态清单——业务 7 键全关（layer_dyn.go 零 radius 业务行）+端口 2 键开（T-21 src/dst inc 双 group_id 实证 12001→12002/1812→1813 逐流），序号算法=resolveLayerTuple radius 块；③§14 真实流程——T-4 acct 1813 顺序修正专项经真实服务落盘实证 udp.dstport=1813（tshark 非 :770 预写路径），T-24 NAS 组合 avp.type "6,4,31,80" 逗号拼接落盘重钉。P4 构建期发现+ SrcPort 零保持名单修正（见 P4 记录）
