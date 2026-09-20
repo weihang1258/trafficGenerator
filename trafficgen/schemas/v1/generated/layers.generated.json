@@ -2003,6 +2003,9 @@
         "medias": {
           "type": "list"
         },
+        "nat": {
+          "type": "object"
+        },
         "sessions": {
           "type": "list"
         },

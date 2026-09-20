@@ -234,6 +234,8 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			dc.defaultCallID = defaultCallID
 			dc.sessionScoped = defaultCallID != ""
 
+			natRPort := spec.SIP != nil && spec.SIP.NAT != nil && spec.SIP.NAT.RPort
+
 			// D-SIP-2 WP-B: normalize the media sources. media (single
 			// stream) and medias (multi-stream) are mutually exclusive
 			// (Validate); each source maps to one sipMediaStream. The
@@ -305,15 +307,29 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 					gapIdx++
 				}
 				completeDialogHeaders(&msg, &dc, spec)
-				payload := renderSIPMessage(msg)
-				if len(payload) == 0 {
-					continue
-				}
 				direction := msg.Direction
 				if direction == "" {
 					direction = inferDirection(msg)
 				}
 				if direction != "up" && direction != "down" {
+					continue
+				}
+				// D-SIP-2 WP-C (RFC 3581 §4): outbound requests get their
+				// Via rport/received filled with the flow's actual source
+				// endpoint — when nat.rport is on, or the user left a bare
+				// ";rport" (the RFC's client-side request behavior).
+				// Responses replay user bytes verbatim (no rewrite).
+				if direction == "up" && len(msg.Headers) > 0 {
+					// force=natRPort；bare ";rport" 标记即使无开关也回填
+					// （RFC 3581 §4 客户端行为；无标记且未开关=原样返回）。
+					for hi, h := range msg.Headers {
+						if strings.HasPrefix(strings.ToLower(h), "via:") {
+							msg.Headers[hi] = rewriteViaRPort(h, sipHostOf(spec.SrcIP), srcPort, natRPort)
+						}
+					}
+				}
+				payload := renderSIPMessage(msg)
+				if len(payload) == 0 {
 					continue
 				}
 				if direction == "up" {
@@ -785,6 +801,42 @@ func generateTo(msg *core.SIPMessage, spec core.FlowSpec) string {
 // none. RFC 3261 §8.1.1.7: the branch parameter MUST begin with the
 // magic cookie "z9hG4bK"; the sent-by field identifies the sender's
 // address:port (bracketed for IPv6 literals per §19.1.1).
+// rewriteViaRPort fills the Via rport/received parameters with the flow's
+// actual source endpoint (RFC 3581 §4, D-SIP-2 WP-C). A bare ";rport"
+// (the client-side marker) or an existing rport=/received= value is
+// replaced; otherwise the parameters are appended when force is set.
+// Via has no rport marker and force is false → returned unchanged.
+func rewriteViaRPort(via string, host string, port uint16, force bool) string {
+	params := strings.Split(via, ";")
+	hasMarker := false
+	for i, p := range params {
+		trim := strings.TrimSpace(p)
+		low := strings.ToLower(trim)
+		if low == "rport" {
+			params[i] = "rport=" + strconv.Itoa(int(port))
+			hasMarker = true
+		} else if strings.HasPrefix(low, "rport=") {
+			params[i] = "rport=" + strconv.Itoa(int(port))
+			hasMarker = true
+		} else if strings.HasPrefix(low, "received=") {
+			params[i] = "received=" + host
+		}
+	}
+	if !hasMarker {
+		if !force {
+			return via
+		}
+		// force（nat.rport 开关）：无标记也追加参数对（RFC 3581 客户端
+		// 把 rport 放最前的合同等价表达=开关代客户端补标记）。
+		return via + ";rport=" + strconv.Itoa(int(port)) + ";received=" + host
+	}
+	out := strings.Join(params, ";")
+	if !strings.Contains(out, "received=") {
+		out += ";received=" + host
+	}
+	return out
+}
+
 func boolInt(b bool) int {
 	if b {
 		return 1

@@ -703,6 +703,7 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 				Sessions:   ParseSIPSessions(sub["sessions"]),
 				Medias:     ParseSIPMedias(sub["medias"]),
 				Interleave: getBool(sub, "interleave", false),
+				NAT:        parseSIPNAT(sub["nat"]),
 			}
 		}
 		// SIP defaults to port 5060 (signaling). Only override when the
@@ -5594,6 +5595,17 @@ func parseSIPDialog(v interface{}) []SIPMessage {
 // signaling (backward compat with pre-media specs).
 //
 // Direction: parsed here so the JSON {"media":{"direction":"down"}} path
+// parseSIPNAT decodes sip "nat" into the RFC 3581 switch set (D-SIP-2
+// WP-C). Returns nil for absent/non-map input — nil means verbatim
+// pass-through (the engine default).
+func parseSIPNAT(v interface{}) *SIPNAT {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &SIPNAT{RPort: getBool(m, "rport", false)}
+}
+
 // ParseSIPMedias decodes sip "medias[]" into the multi-stream media shape
 // (D-SIP-2 WP-B). Exported for layers.translateTerminalConfig (single truth
 // with the flat cfg["sip"] branch — ParseSIPSessions precedent). Each entry

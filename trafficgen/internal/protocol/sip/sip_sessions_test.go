@@ -252,3 +252,122 @@ func TestSIPMediasFlowIDSuffix(t *testing.T) {
 		}
 	}
 }
+
+// D-SIP-2 WP-C 红例：RFC 3581 §4 rport/received 回填。
+// Via 带 bare rport 参数 → 发射期回填 rport=<实际端口>;received=<srcIP>。
+func TestNATBareRPortFill(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12001, DstPort: 5060,
+		SIP: &core.SIPConfig{Dialog: []core.SIPMessage{
+			{Method: "OPTIONS", URI: "sip:callee@20.0.0.1",
+				Headers: []string{"Via: SIP/2.0/TCP 10.0.0.1:9999;branch=z9hG4bKx;rport"}},
+			{StatusCode: 200, StatusText: "OK",
+				Headers: []string{"Via: SIP/2.0/TCP 10.0.0.1:9999;branch=z9hG4bKx;rport=9999;received=10.0.0.1"}},
+		}},
+	}
+	var p Planner
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	reqOK, respOK := false, false
+	for pkt := range ch {
+		text := string(pkt.Payload)
+		if strings.Contains(text, "OPTIONS") {
+			if strings.Contains(text, "rport=12001;received=10.0.0.1") {
+				reqOK = true
+			}
+			if strings.Contains(text, "rport;") || strings.HasSuffix(text, "rport\r\n") {
+				t.Fatalf("bare rport must be filled on outbound request")
+			}
+		}
+		if strings.Contains(text, "SIP/2.0 200") {
+			// down 响应=回放用户原文（含已回填形）——不二次改写
+			if strings.Contains(text, "rport=9999;received=10.0.0.1") {
+				respOK = true
+			}
+			if strings.Contains(text, "rport=12001") {
+				t.Fatalf("response must replay user bytes verbatim (no rewrite)")
+			}
+		}
+	}
+	if !reqOK || !respOK {
+		t.Fatalf("req fill=%v resp replay=%v", reqOK, respOK)
+	}
+}
+
+// nat.rport=true 且 Via 无 rport 参数 → 开关强制回填。
+func TestNATSwitchForcesFill(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12001, DstPort: 5060,
+		SIP: &core.SIPConfig{NAT: &core.SIPNAT{RPort: true}, Dialog: []core.SIPMessage{
+			{Method: "OPTIONS", URI: "sip:callee@20.0.0.1",
+				Headers: []string{"Via: SIP/2.0/TCP 10.0.0.1:12001;branch=z9hG4bKy"}},
+			{StatusCode: 200, StatusText: "OK"},
+		}},
+	}
+	var p Planner
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	found := false
+	for pkt := range ch {
+		if strings.Contains(string(pkt.Payload), "rport=12001;received=10.0.0.1") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("nat.rport switch must force rport/received fill")
+	}
+}
+
+// 缺省透传零变化：无 nat、无 rport 参数 → Via 原样。
+func TestNATDefaultPassthrough(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12001, DstPort: 5060,
+		SIP: &core.SIPConfig{Dialog: []core.SIPMessage{
+			{Method: "OPTIONS", URI: "sip:callee@20.0.0.1",
+				Headers: []string{"Via: SIP/2.0/TCP 10.0.0.1:12001;branch=z9hG4bKz"}},
+			{StatusCode: 200, StatusText: "OK"},
+		}},
+	}
+	var p Planner
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	for pkt := range ch {
+		text := string(pkt.Payload)
+		if strings.Contains(text, "rport=") || strings.Contains(text, "received=") {
+			t.Fatalf("default must pass Via through untouched: %q", text)
+		}
+	}
+}
+
+// sessions 模式：回填端口=会话实际端口（非 spec 端口）。
+func TestNATSessionsActualPort(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12001, DstPort: 5060,
+		SIP: &core.SIPConfig{NAT: &core.SIPNAT{RPort: true}, Sessions: []core.SIPSession{
+			{SrcPort: 22001, Dialog: []core.SIPMessage{
+				{Method: "OPTIONS", URI: "sip:callee@20.0.0.1",
+					Headers: []string{"Via: SIP/2.0/TCP 10.0.0.1:22001;branch=z9hG4bKs"}},
+			}},
+		}},
+	}
+	var p Planner
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	found := false
+	for pkt := range ch {
+		if strings.Contains(string(pkt.Payload), "rport=22001;received=10.0.0.1") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("sessions mode must fill the session's actual port")
+	}
+}

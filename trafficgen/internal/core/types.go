@@ -2565,6 +2565,13 @@ type SIPConfig struct {
 	// with Dialog (the single-dialog shorthand) — enforced at create time
 	// (schema) and re-checked by the planner as a task-time backstop.
 	Sessions []SIPSession `json:"sessions,omitempty"`
+	// NAT carries the RFC 3581 NAT traversal synthesis switches
+	// (D-SIP-2 WP-C): rport=true fills rport=<actual srcport>;
+	// received=<srcIP> on outbound requests at emit time. nil/false =
+	// verbatim pass-through (zero drift). Applies to dialog and sessions
+	// paths alike; responses replay user bytes untouched (RFC 3581 fills
+	// happen on the request side only in this synthesizer's contract).
+	NAT *SIPNAT `json:"nat,omitempty"`
 	// Medias carries the multi-stream media shape (D-SIP-2 WP-B): each
 	// entry is one RTP stream (direction up/down); at the EmitMedia
 	// message the entries' frames are emitted round-robin (up/down
@@ -2600,6 +2607,13 @@ type SIPSession struct {
 	SrcPortDyn *StrategyConfig `json:"-"`
 	DstPortDyn *StrategyConfig `json:"-"`
 	CallIDDyn  *StrategyConfig `json:"-"`
+}
+
+// SIPNAT is the RFC 3581 §4 NAT synthesis switch set (D-SIP-2 WP-C).
+// received is bound to rport (the RFC fills both together); exposing one
+// switch keeps the contract honest.
+type SIPNAT struct {
+	RPort bool `json:"rport,omitempty"`
 }
 
 // SIPMessage is a single message within a SIP dialog. A request sets

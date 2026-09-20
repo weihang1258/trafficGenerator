@@ -1413,6 +1413,12 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 					sc.Interleave = b
 				}
 			}
+			// D-SIP-2 WP-C：RFC 3581 rport/received 合成开关（nil=透传）。
+			if nv, ok := cfg["nat"]; ok {
+				if nm, ok := nv.(map[string]interface{}); ok {
+					sc.NAT = &core.SIPNAT{RPort: nm["rport"] == true}
+				}
+			}
 			spec.SIP = sc
 			// 端口双态（h323 同款：标量层值赢，dst 缺省 5060，src 缺席
 			// 不动，对象放行）。

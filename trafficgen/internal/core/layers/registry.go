@@ -1253,6 +1253,7 @@ func buildDefaultRegistry() {
 			"sessions":   {Type: "list"}, // D-SIP-2 WP-A：多会话结构（与 dialog 互斥，语义层判死）
 			"medias":     {Type: "list"}, // D-SIP-2 WP-B：多流媒体（与 media 互斥，语义层判死）
 			"interleave": {Type: "bool"}, // D-SIP-2 WP-B：媒体流内信令交错调度
+			"nat":        {Type: "object"}, // D-SIP-2 WP-C：RFC 3581 rport/received 合成开关
 			"src_port":   {Type: "uint16", Min: 0, Max: 65535},
 			"dst_port":   {Type: "uint16", Min: 0, Max: 65535},
 		},
