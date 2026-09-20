@@ -3114,6 +3114,104 @@
       },
       "fields": {}
     },
+    "vnc": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "auth_reason": {
+          "type": "string"
+        },
+        "auth_result": {
+          "type": "int",
+          "max": 2
+        },
+        "bell": {
+          "type": "bool"
+        },
+        "challenge_seed": {
+          "type": "uint64"
+        },
+        "client_cut_text": {
+          "type": "string"
+        },
+        "client_set_encodings": {
+          "type": "bool"
+        },
+        "client_set_pixel_format": {
+          "type": "bool"
+        },
+        "encodings": {
+          "type": "list"
+        },
+        "fbu_update_interval": {
+          "type": "int",
+          "min": 1,
+          "max": 1000000
+        },
+        "height": {
+          "type": "int",
+          "min": 1,
+          "max": 65535
+        },
+        "initial_fbu": {
+          "type": "list"
+        },
+        "interaction_caps": {
+          "type": "object"
+        },
+        "key_events": {
+          "type": "list"
+        },
+        "pixel_format": {
+          "type": "object"
+        },
+        "pointer_button": {
+          "type": "int",
+          "max": 255
+        },
+        "pointer_x": {
+          "type": "int",
+          "max": 65535
+        },
+        "pointer_y": {
+          "type": "int",
+          "max": 65535
+        },
+        "response_seed": {
+          "type": "uint64"
+        },
+        "rounds": {
+          "type": "int",
+          "min": 1,
+          "max": 1000000
+        },
+        "security_type": {
+          "type": "int"
+        },
+        "server_cut_text": {
+          "type": "string"
+        },
+        "server_name": {
+          "type": "string"
+        },
+        "set_colour_map_entries": {
+          "type": "object"
+        },
+        "share_desktop": {
+          "type": "bool"
+        },
+        "update_rects": {
+          "type": "list"
+        },
+        "width": {
+          "type": "int",
+          "min": 1,
+          "max": 65535
+        }
+      }
+    },
     "vxlan": {
       "category": "terminal",
       "depends_on": [

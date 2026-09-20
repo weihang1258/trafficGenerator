@@ -2083,6 +2083,14 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.PPTP == nil {
 			spec.PPTP = core.ParsePPTPConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "vnc":
+		// D-VNC-1：层 config 经 core.ParseVNCConfigFromMap 复用扁平解析
+		// 单一真相（rect hextile_tile_data/xcursor_blob hex 原文由扁平
+		// parse 承接；getIntPresence 显式 0 保留=缺省面与 flat 同构）。
+		// 空层 config 也翻译出非 nil（全默认=参考 pcap Tight 形）。
+		if spec.VNC == nil {
+			spec.VNC = core.ParseVNCConfigFromMap(completedConfig(s, term.Config))
+		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
 		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6

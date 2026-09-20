@@ -183,7 +183,8 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/tls"
 	// 空导入：vmess 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/vmess"
-	"github.com/trafficgen/trafficgen/internal/protocol/vnc"
+	// 空导入：vnc 包 init 注册层生成器 + 校验器（D-VNC-1）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/vnc"
 	// 空导入：wireguard 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/wireguard"
 	"github.com/trafficgen/trafficgen/internal/protocol/xmpp"
@@ -562,7 +563,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rdp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("radius"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ldap"))
-	app.engine.RegisterPlanner(vnc.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("vnc"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("pptp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("h323"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rtmp"))

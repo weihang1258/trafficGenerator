@@ -3233,6 +3233,16 @@ func ParsePPTPConfigFromMap(m map[string]interface{}) *PPTPConfig {
 	return parsePPTPConfig(m)
 }
 
+// ParseVNCConfigFromMap exports parseVNCConfig for the layer-translate
+// path (ParsePPTPConfigFromMap precedent). parseVNCConfig 的 errs 通道
+// （encodings 列表非数值项）在链面不外露——链路径无 ValidationErrors
+// 消费点（translate :1901 注记：schema 层先拦），姊妹协议 wrapper 同为
+// 单值形；B′ 账本注记该残差，扁平面仍大声失败。
+func ParseVNCConfigFromMap(m map[string]interface{}) *VNCConfig {
+	cfg, _ := parseVNCConfig(m)
+	return cfg
+}
+
 func parsePPTPConfig(m map[string]interface{}) *PPTPConfig {
 	if m == nil {
 		return nil

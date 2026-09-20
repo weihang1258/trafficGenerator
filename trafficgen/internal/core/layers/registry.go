@@ -1389,6 +1389,45 @@ func buildDefaultRegistry() {
 			"inner_ip":           {Type: "object"}, // 内嵌 7 子键：src_ip/dst_ip/proto/src_port/dst_port/ttl/payload（srv6 inner_payload 先例）
 		},
 	})
+	// vnc（tcp 终结层。RFC 6143 RFB——TCP 5900 服务器先发言：版本协商
+	// 12B→安全握手（Tight 16 默认/VNC 2/None 1 三路径）→ServerInit→客户端
+	// 6 消息→FBU 循环→拆链，wire 字节由 vnc 生成器 raw 自驱产出（D-VNC-1
+	// 裁定1，五连协议对称：legacy 自建 TCP 握手/挥手原样保留）。Fields 登记
+	// parseVNCConfig 顶层 26 键（1.12 消费面逐键：19 标量+3 object+4 list）；
+	// 控制通道 5900 由生成器 Plan :561 缺省（0-keep+validateBaseDstPortHandled
+	// 豁免，pptp 模式）。security_type=枚举(1/2/16)不带范围（V9 区间会误伤，
+	// planner Validate 锚）；encodings 含负值伪编码（-240 等）不带范围；
+	// challenge_seed/response_seed uint64 无界。
+	r.Register(LayerSchema{Name: "vnc", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"security_type":           {Type: "int"},
+			"auth_result":             {Type: "int", Min: 0, Max: 2},
+			"auth_reason":             {Type: "string"},
+			"share_desktop":           {Type: "bool"},
+			"width":                   {Type: "int", Min: 1, Max: 65535},
+			"height":                  {Type: "int", Min: 1, Max: 65535},
+			"server_name":             {Type: "string"},
+			"pixel_format":            {Type: "object"}, // 10 子键：bits_per_pixel/depth/big_endian/true_color/red_max/green_max/blue_max/red_shift/green_shift/blue_shift
+			"interaction_caps":        {Type: "object"}, // 4 子键：server_msg_types/client_msg_types/encoding_types/caps[]（记录 code/vendor/name）
+			"key_events":              {Type: "list"},   // 记录：down/key
+			"client_set_pixel_format": {Type: "bool"},
+			"client_set_encodings":    {Type: "bool"},
+			"encodings":               {Type: "list"}, // 含负值伪编码（-240 等），V9 不带范围
+			"rounds":                  {Type: "int", Min: 1, Max: 1000000},
+			"pointer_x":               {Type: "int", Min: 0, Max: 65535},
+			"pointer_y":               {Type: "int", Min: 0, Max: 65535},
+			"pointer_button":          {Type: "int", Min: 0, Max: 255},
+			"fbu_update_interval":     {Type: "int", Min: 1, Max: 1000000},
+			"initial_fbu":             {Type: "list"}, // rect 记录 7 键：x/y/width/height/encoding/hextile_tile_data/xcursor_blob
+			"update_rects":            {Type: "list"}, // rect 记录同 initial_fbu
+			"bell":                    {Type: "bool"},
+			"set_colour_map_entries":  {Type: "object"}, // 2 子键：first/colors
+			"server_cut_text":         {Type: "string"},
+			"client_cut_text":         {Type: "string"},
+			"challenge_seed":          {Type: "uint64"},
+			"response_seed":           {Type: "uint64"},
+		},
+	})
 	// pppoe（eth 终结层。RFC 2516——Discovery（PADI/PADO/PADR/PADS，EtherType
 	// 0x8863）+ 会话（LCP/Auth/数据，EtherType 0x8864）+ PADT 终止，wire 字节
 	// 由 pppoe 生成器 raw 自驱产出（D-PPPOE-1 裁定1，帧无外层 IP 头，ip 层

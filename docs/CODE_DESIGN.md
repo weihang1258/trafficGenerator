@@ -3102,3 +3102,64 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **P3 复审（2026-09-20 对抗走查）：** 15 消息面由 T-1 full 编排承接（SCCRQ/SCCRP/OCRQ/OCRP/SLI/CCRQ/CCDN/StopRQ/StopRP 9 消息逐包断言）+T-9 echo（ECRQ/ECRP）+T-6/T-7 角色与多 call（ICRQ/ICRP/ICCN 由 incoming_call 键 B′ 注记、T-6 承接 PAC 侧部分）；WEN（msg 14）无用例=WEN 键 B′ 注记（现网 WAN 错误事件低频，构建器实存 buildWEN）。对账 27/27 平。**清单净，待批进 P4。**
 
 **P6 追加对抗复审（2026-09-20，用户指令"没复审就再复审一次"）：** 抓 2 实缺口已修：①T-3/4/5/6/7/9/12/13 八例包数"实测钉"占位未钉（9.31/14.6 校准义务未完成——跑过但实测值没写回断言）→pcap 逐一实测钉齐（21/16/4/21/31/23/21/33）+suite 复跑 ×2 全绿；②性能段"full≈22 包"P2 估值笔误与实测 26 不符→按实测修正。横扫项：registry↔parse 键集 51↔51 逐键零差、四名单齐、生成物同代（layers.generated/mcp 描述/config-schema 106 层/schema-types）、前四协议占位横扫零残留、负例 7 锚真实拦截面逐个核可达（role/scenario/sub_address/64B/inner IP=planner 锚；calls/sli_count=registry V9 先拦）。**复审结论：追加轮 2 实缺口+1 笔误全修，修正后 20/20 ×2 全绿，净。**
+
+## D-VNC-1 vnc 层链收敛（#26，P1+P2 定稿 2026-09-20，待批）
+
+### P1 规范矩阵（RFC 6143 RFB 反推，含三张子表要求 4.22）
+
+| 规范点 | 出处 | 代码现状 | 缺口 |
+|---|---|---|---|
+| 传输载体：TCP 5900（范围 5900-5909），服务器先发言 | §1.1/§7.1 | DefaultPort=5900（vnc.go:27）+Plan :561 内部缺省；自建 TCP 握手/挥手 :718-723/:810-816 | 链路径翻转（main.go :565 legacy→ChainPlanner） |
+| 版本协商：12B "RFB 003.008\n" 服务器→客户端双向 | §7.1 | versionString :54+交换 :726-727 | 无（raw wrap 零分叉继承） |
+| 安全握手：secTypes=[count]+types；Tight(16) 附 TunnelCaps+AuthCaps+VNC-Auth 选择；VNC(2) challenge/response；None(1) 直通 | §7.2.1 | secTypesBytes :228+Tight 分支 :730-738；challenge/response 参考 pcap 字节+seed :617-624 | 无 |
+| SecurityResult：u32；失败附 reasonLen+reason 且无 ServerInit 提前拆链 | §7.2.2 | buildSecurityResult :321+失败分支 :741-750 | 无 |
+| ClientInit share flag / ServerInit（宽高+像素格式 16B+nameLen+name）/ Tight InteractionCaps | §7.3 | :752-761+buildServerInit :241+buildInteractionCaps :335 | 无 |
+| 客户端消息：SetPixelFormat(00)/SetEncodings(02)/FBU-req(03)/KeyEvent(04)/PointerEvent(05)/ClientCutText(06) | §8 | build* :367-437+发射序 :764-777 | 无 |
+| 服务器消息：FBU(00)/SetColourMapEntries(01)/Bell(02)/ServerCutText(03) | §9 | build* :441-476+extras 闭包 :781-805 | 无 |
+| 编码：raw(0)/hextile(5)/xcursor(-240)；Tight zlib 不建模 | 附录/§7.4 | buildRect :480+hextileData :520+rawPixels 确定性填充 :508 | Tight zlib=B′ 注记（设计裁定） |
+| 数据面编排：非增量全屏 FBU→initial FBU→rounds×(Pointer→fbuInterval×FBU)→增量 FBU | 参考 pcap 结构 | :773-808 | 无 |
+| 方向换向：legacy Plan 包内置 Direction="down"，raw drive Emit 会二次换 L3 | — | — | **缺口：layer_gen.go 防双换（六连协议同款）** |
+| 层链接线 | — | main.go :565 legacy Planner | **缺口：五件套+翻转+blank import** |
+| 校验锚：security_type 枚举(1/2/16)/auth_result(0-2)/宽高(1-65535)/rounds≥1/pointer/fbu_interval/pixel bpp-depth/key u32/encoding 区间/rect 字段/colour hex | design §6 | Validate :119-198（13 锚族） | 无（validator 背 door 注册即达） |
+
+**①命令×响应矩阵：** 版本 S→C→C echo / secTypes S→选择 C / [Tight]TunnelCaps+AuthCaps S→VNC-Auth 选择 C / challenge S→response C / SecurityResult S / ClientInit C→ServerInit(+Caps) S / 客户端 6 消息→FBU 应答逐格已实现；auth_result 1/2=失败分支面。
+**②数据形态变体：** 像素格式 10 字段嵌套、InteractionCaps 4+记录嵌套、rect 7 键（含 hextile_tile_data/xcursor_blob hex 原文）、encodings 含负值伪编码、seed 双 u64。
+**③商业行为映射：** 参考 pcap（TightVNC "QTMS:1 (ykaul)" 1024×768 32bpp）握手 13 消息逐字节复刻=③已映射（T-1/T-2 钉值）；真 Tight zlib 流=不建模（B′ 注记：DES 响应为确定性伪随机非真密文、参考 pcap garbage padding 不复刻）。
+**三路对照：** ①RFC 6143 原文；②参考 pcap 形+TightVNC 行为注记；③TigerVNC/ltsp 开源思路（RFB 状态机单连接编排）。**候选对比：** (a) [ip,vnc] raw 自驱 wrap（五连协议对称，零字节回归）✓ vs (b) [ip,tcp,vnc] 事件面（需 TCP 传输层 server-first 事件化改造，大改）→裁定 (a)。
+**门1 三行：** §1 扁平键全删（src_ip/dst_ip/src_port/dst_port/count+顶层 vnc 子映射），目标形 `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"vnc":{"initial_fbu":[...],"update_rects":[...],"rounds":1}}]}`+5900 由 legacy Plan :561 缺省（0-keep+validateBaseDstPortHandled 豁免，pptp 模式）；§3 单流豁免——VNC=单 TCP 连接会话（无 sessions/子流派生），Transactions=单连接内消息序（13 握手消息→客户端消息→FBU 循环→拆链），五件套=会话表(1 连接)/事务序(如上)/关联(无)/插入位置(n/a)/时间线(顺序)；§12 动态=worker 四元组+IPID/ISN random，业务键全静态单值（无 dyn 旁挂，challenge_seed/response_seed=静态种子如实注记），_flow_index 不消费。
+
+### 裁定（P2 定稿）
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | 层形状=[ip, vnc]：CategoryTerminal+DependsOn `["ip"]`；raw 自驱 wrap legacy（自建 TCP 握手/挥手+RFB 全消息面原样保留），layer_gen 防双换 Direction=up | 五连协议对称 |
+| 2 | 翻转五件套：isRawIPChain 双名单+=vnc；src 0-keep+=vnc；validateBaseDstPortHandled+=vnc（5900 Plan :561 缺省，不加 DstPort switch，pptp 同款）；registry 行 **26 Fields**（parseVNCConfig 顶层键全集逐键登记：19 标量+pixel_format/interaction_caps/set_colour_map_entries=object+key_events/encodings/initial_fbu/update_rects=list；security_type/challenge_seed/response_seed 无范围——枚举锚与负值列 V9 不误伤）+translate case 复用 ParseVNCConfigFromMap 导出+FlowMeta.VNC+raw 注入；main.go 翻转 | pppoe 五件套同构 |
+| 3 | 场景强度全额：13 握手消息面（版本/secTypes/Tunnel/Auth caps/VNC-Auth 选择/challenge/response/SecurityResult/ClientInit/ServerInit/InteractionCaps）/安全路径三枚举（16/2/1）/认证失败分支/客户端 6 消息/服务器 4 消息/编码三形（raw 确定性像素/hextile/xcursor）/rounds×fbuInterval 线性/extras 交织；负例 4 锚（security_type 枚举/auth_result V9 区间/width 显式 0/rect encoding 枚举） | 9.46–9.53 |
+| 4 | B′ 账本：Tight zlib 数据面不建模（§7.4 设计裁定）、auth response=确定性伪随机非真 DES、参考 pcap garbage padding 不复刻、5901 参考端口（参考 pcap 抓自 5901，配置面用缺省 5900） | RFC 6143+设计裁定如实 |
+
+**文件：** protocol/vnc/layer_gen.go（新）+chain_planner_util.go+chain_planner.go（名单）+registry.go（26 Fields 行）+chain_planner_translate.go（case）+generator.go（FlowMeta.VNC）+strategy_convert.go（ParseVNCConfigFromMap）+cmd/server/main.go（翻转）+cases/vnc.json（改写+补强）+vnc_chain_test.go（新）。
+**性能（6.4-6.6）：** 流式 channel 256；包数=13 握手消息段+客户端消息+2 FBU+rounds×fbuInterval 编排+4 拆链——缺省 initial_fbu 全屏 hextile 1024×768≈3072 tiles≈3.1MB→MSS 分段 ~2190 帧（T-1 冒烟形小矩形 33 帧实测钉，P5 校准）；pcap 验收路（网卡路未跑注明 6.3）。
+**回滚：** 单提交粒度，摘除即回。
+
+### T-VNC-1…17 清单（P3，RFC 6143 反推；9.52 对账 **27/27**：版本协商 1+安全路径 3+认证失败 1+init 面 2+客户端消息 6+服务器消息 4+编码 3+编排 2+端口 1+现网 1+负例 4 → 建例 17 代表（T-1 承接握手 13 消息+现网形+端口；T-2 钉字节）+B′ 注记 4（Tight zlib 不建模、DES 伪随机、garbage padding、参考 5901））
+
+| # | 用例 | 断言面 |
+|---|---|---|
+| T-1 | smoke 改写（33 帧参考形） | 全生命周期逐段（3 握手+版本×2+secTypes+选择+caps+auth+result+init+客户端消息+FBU 循环+拆链 4）+5900 端口 |
+| T-2 | 握手字节钉 | 版本 "RFB 003.008\n" 12B+secTypes `02 02 10`+TunnelCaps 00000000+AuthCaps 记录 |
+| T-3 | security_type=2 | VNC Auth 路径（无 Tunnel/AuthCaps/无 InteractionCaps，challenge/response 16B） |
+| T-4 | security_type=1 | None 路径（secTypes `01 01`，无 challenge，直通 init） |
+| T-5 | auth_result=1 失败分支 | reason 串透传+无 ServerInit+提前拆链（4 帧终止） |
+| T-6 | share_desktop=false | ClientInit 0x00 |
+| T-7 | raw 编码矩形 | rawPixels 确定性 (n*13+1..4) 像素钉 |
+| T-8 | key_events 显式 | key down 帧字节钉（tshark 不出 key_down 字段）+键值 0x0000ffe9 |
+| T-9 | extras 交织 | Bell 02+ServerCutText 03+ClientCutText 06 三消息 |
+| T-10 | set_colour_map_entries | 01 消息（first/num/6B 项） |
+| T-11 | 客户端消息关 | client_set_pixel_format/encodings=false 缺省面 |
+| T-12 | rounds=2+fbu_interval=2 | 编排线性（Pointer→FBU×2 两轮） |
+| T-13 | pointer 坐标 | 507/320 缺省+button 字节钉 |
+| T-14 | 负例 security_type=7 | 锚词 `invalid vnc security type`（planner 锚，V9 无范围不先拦） |
+| T-15 | 负例 auth_result=3 | 锚词 `out of range [0,2]`（V9 区间先拦） |
+| T-16 | 负例 rect encoding 非法 | 锚词 `invalid vnc rect encoding` |
+| T-17 | 负例 width=0 | 锚词 `invalid vnc width`（V9 显式 0 放行→planner 锚） |
+
+**P3 复审（2026-09-20 对抗走查）：** 13 握手消息由 T-1 full 编排承接（逐包断言）+T-2 字节钉；客户端 6 消息=T-1（PixelFormat/Encodings/FBU-req×2/KeyEvent 缺省形）+T-8（KeyEvent 显形）+T-9（CutText 双向）+T-13（Pointer）；服务器 4 消息=T-1（FBU）+T-9（Bell/ServerCutText）+T-10（ColourMap）；安全路径三枚举=T-1（16）+T-3（2）+T-4（1）+T-5（失败分支）；编码三形=T-1（hextile/xcursor）+T-7（raw）；负例 4 锚拦截点逐一核（V9 显式 0 放行→width/rounds 落 planner；auth_result 区间 V9 先拦；security_type/rect encoding 无 V9 范围→planner）。InteractionCaps 11 记录=T-1 ServerInit 段承接（184B）。对账 27/27 平。**清单净，待批进 P4。**
