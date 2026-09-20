@@ -775,7 +775,14 @@ def check_sip(cases):
                      ("compact_form", "紧凑形头方言面"), ("via_chain", "多跳 Via 链面"),
                      ("long_auth_uri", "超长头长 URI 面"), ("tel_uri_utf8", "tel: URI+UTF-8 面"),
                      ("sdp_video_multistream", "SDP 双流音视频面"), ("body_multipart", "multipart 双体面"),
-                     ("hdr_case_mix", "头名大小写混写面")]:
+                     ("hdr_case_mix", "头名大小写混写面"),
+                     ("100_trying_retrans", "100 Trying+重传面"), ("forked_invite", "并行分叉竞速面"),
+                     ("conference_join", "会议加入+名册面"), ("replaces_attended", "Replaces 询转面"),
+                     ("offerless_3pcc", "offerless INVITE/3PCC 面"), ("publish_presence", "PUBLISH 在线状态面"),
+                     ("reason_q850", "Reason:Q.850 释放原因面"), ("ims_pheaders", "IMS 私有头面"),
+                     ("history_info_fwd", "History-Info 呼转链面"), ("491_glare", "491 glare 面"),
+                     ("interleaved_two_calls", "并发交错双呼面"), ("status_enum_4xx", "4xx 枚举长尾面"),
+                     ("status_enum_56xx", "5xx/6xx 枚举面"), ("v6_port_dyn", "v6×多流矩阵面")]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
 

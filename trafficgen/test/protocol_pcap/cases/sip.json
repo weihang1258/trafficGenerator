@@ -3802,5 +3802,1506 @@
         "tshark 大小写不敏感解码 cALL-iD→sip.Call-ID 断言=混写透传+解码双证；引擎头名不重写=回放字节事实（P5 校准：BYE 在 p7）"
       ]
     }
+  },
+  {
+    "id": "sip_100_trying_retrans",
+    "proto": "sip",
+    "summary": "T-SIP-44: 100 Trying+同 CSeq 请求重传（RFC 3261 §17.1.1.2 UDP 重传语义：T1 间隔重发原请求；§21.1.1 1xx provisional）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: rtx@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 100,
+                "status_text": "Trying"
+              },
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: rtx@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 180,
+                "status_text": "Ringing"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: rtx@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 13,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Method",
+          "value": "INVITE"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "100"
+        },
+        {
+          "packet": 6,
+          "field": "sip.Method",
+          "value": "INVITE"
+        },
+        {
+          "packet": 6,
+          "field": "sip.CSeq.seq",
+          "value": "1"
+        },
+        {
+          "packet": 7,
+          "field": "sip.Status-Code",
+          "value": "180"
+        }
+      ],
+      "notes": [
+        "同 CSeq=1 两条 INVITE 帧=重传重复（引擎逐消息发射=回放合同）；100/180 provisional 类补格"
+      ]
+    }
+  },
+  {
+    "id": "sip_forked_invite",
+    "proto": "sip",
+    "summary": "T-SIP-45: 并行分叉 INVITE 竞速（RFC 3261 §3.1.2.1/3266：代理分叉多支路多 tag，一支 486 一支 200——多方同时振铃面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: fork@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 180,
+                "status_text": "Ringing",
+                "headers": [
+                  "Call-ID: fork@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=ua1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 180,
+                "status_text": "Ringing",
+                "headers": [
+                  "Call-ID: fork@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=ua2",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 486,
+                "status_text": "Busy Here",
+                "headers": [
+                  "Call-ID: fork@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=ua1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "headers": [
+                  "Call-ID: fork@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=ua2",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: fork@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 13,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "180"
+        },
+        {
+          "packet": 6,
+          "field": "sip.Status-Code",
+          "value": "180"
+        },
+        {
+          "packet": 7,
+          "field": "sip.Status-Code",
+          "value": "486"
+        },
+        {
+          "packet": 8,
+          "field": "sip.Status-Code",
+          "value": "200"
+        }
+      ],
+      "notes": [
+        "同 INVITE 两 tag 支路并行响铃；486(ua1) 竞败+200(ua2) 竞胜=分叉呼叫等待现网面（多方维度的流内表达）"
+      ]
+    }
+  },
+  {
+    "id": "sip_conference_join",
+    "proto": "sip",
+    "summary": "T-SIP-46: 会议加入+名册事件（RFC 4579 焦点 URI+RFC 4575 conference-info；多方会议面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:conf300@20.0.0.1;gruu",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:conf300@20.0.0.1>",
+                  "Call-ID: conf@10.0.0.1",
+                  "CSeq: 1 INVITE",
+                  "Supported: join"
+                ],
+                "body": "v=0\r\no=- 9 9 IN IP4 10.0.0.1\r\nc=IN IP4 10.0.0.1\r\nm=audio 5004 RTP/AVP 0\r\n"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: conf@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "NOTIFY",
+                "uri": "sip:caller@10.0.0.1",
+                "headers": [
+                  "Call-ID: conf@10.0.0.1",
+                  "CSeq: 2 NOTIFY",
+                  "Event: conference",
+                  "Subscription-State: active",
+                  "Content-Type: application/conference-info+xml"
+                ],
+                "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<conference-info xmlns=\"urn:ietf:params:xml:ns:conference-info\" state=\"full\">\r\n <conference-description><display-name>conf300</display-name></conference-description>\r\n <users><user entity=\"sip:caller@10.0.0.1\"><status>connected</status></user></users>\r\n</conference-info>\r\n"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 12,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Request-Line",
+          "value": "INVITE sip:conf300@20.0.0.1;gruu SIP/2.0"
+        },
+        {
+          "packet": 7,
+          "field": "sip.Method",
+          "value": "NOTIFY"
+        },
+        {
+          "packet": 7,
+          "field": "sip.CSeq.method",
+          "value": "NOTIFY"
+        }
+      ],
+      "notes": [
+        "焦点 URI（conf300;gruu）+conference 事件包 XML 名册体=会议加入合同；Supported: join 头钉 RFC 3911 互操作面"
+      ]
+    }
+  },
+  {
+    "id": "sip_replaces_attended",
+    "proto": "sip",
+    "summary": "T-SIP-47: Replaces 询转（RFC 3891+3515：REFER 带 Replaces=有接续转移，NOTIFY 上报 200 OK；与 T-28 盲转分面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: att@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: att@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "REFER",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: att@10.0.0.1",
+                  "CSeq: 2 REFER",
+                  "Refer-To: <sip:3001@20.0.0.1?Replaces=origcall%4010.0.0.1%3Bto-tag%3Ds1%3Bfrom-tag%3Dc1>",
+                  "Referred-By: <sip:caller@10.0.0.1>"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "NOTIFY",
+                "uri": "sip:caller@10.0.0.1",
+                "headers": [
+                  "Call-ID: att@10.0.0.1",
+                  "CSeq: 3 NOTIFY",
+                  "Event: refer",
+                  "Subscription-State: terminated"
+                ],
+                "body": "SIP/2.0 200 OK\r\n"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "BYE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: att@10.0.0.1",
+                  "CSeq: 4 BYE"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 16,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "sip.Method",
+          "value": "REFER"
+        },
+        {
+          "packet": 7,
+          "field": "sip.CSeq.seq",
+          "value": "2"
+        },
+        {
+          "packet": 9,
+          "field": "sip.Method",
+          "value": "NOTIFY"
+        },
+        {
+          "packet": 11,
+          "field": "sip.Method",
+          "value": "BYE"
+        }
+      ],
+      "notes": [
+        "Refer-To 内嵌 Replaces 参数（URL 编码 %40 %3B）=询转目标旧会话接管合同；sipfrag 200 OK=转移成功上报（vs 盲转 100 Trying）"
+      ]
+    }
+  },
+  {
+    "id": "sip_offerless_3pcc",
+    "proto": "sip",
+    "summary": "T-SIP-48: offerless INVITE/3PCC（RFC 3725 流 I：无 SDP INVITE→200 带 offer→ACK 带 answer；offer/answer 方向翻转面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: pcc@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "headers": [
+                  "Call-ID: pcc@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=pcc",
+                  "CSeq: 1 INVITE",
+                  "Content-Type: application/sdp"
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: pcc@10.0.0.1",
+                  "CSeq: 1 ACK",
+                  "Content-Type: application/sdp"
+                ],
+                "body": "v=0\r\no=- 11 11 IN IP4 10.0.0.1\r\nc=IN IP4 10.0.0.1\r\nm=audio 5004 RTP/AVP 0\r\n"
+              },
+              {
+                "method": "BYE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: pcc@10.0.0.1",
+                  "CSeq: 2 BYE"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 12,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Method",
+          "value": "INVITE"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "200"
+        },
+        {
+          "packet": 6,
+          "field": "sip.Method",
+          "value": "ACK"
+        },
+        {
+          "packet": 7,
+          "field": "sip.Method",
+          "value": "BYE"
+        }
+      ],
+      "notes": [
+        "INVITE 无体=控制器后置 offer（3PCC 流 I）；ACK 带 answer=offer/answer 方向与常规（T-1/T-30）翻转"
+      ]
+    }
+  },
+  {
+    "id": "sip_publish_presence",
+    "proto": "sip",
+    "summary": "T-SIP-49: PUBLISH 在线状态（RFC 3903 事件状态发布；SIP-ETag/SIP-If-Match 软状态刷新合同）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "PUBLISH",
+                "uri": "sip:1001@20.0.0.1",
+                "headers": [
+                  "From: <sip:1001@10.0.0.1>",
+                  "To: <sip:1001@20.0.0.1>",
+                  "Call-ID: pub@10.0.0.1",
+                  "CSeq: 1 PUBLISH",
+                  "Event: presence",
+                  "Expires: 3600",
+                  "Content-Type: application/pidf+xml"
+                ],
+                "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<presence xmlns=\"urn:ietf:params:xml:ns:pidf\" entity=\"sip:1001@10.0.0.1\">\r\n <tuple id=\"t1\"><status><basic>open</basic></status></tuple>\r\n</presence>\r\n"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "headers": [
+                  "Call-ID: pub@10.0.0.1",
+                  "SIP-ETag: etag123",
+                  "Expires: 3600"
+                ]
+              },
+              {
+                "method": "PUBLISH",
+                "uri": "sip:1001@20.0.0.1",
+                "headers": [
+                  "From: <sip:1001@10.0.0.1>",
+                  "To: <sip:1001@20.0.0.1>",
+                  "Call-ID: pub@10.0.0.1",
+                  "CSeq: 2 PUBLISH",
+                  "Event: presence",
+                  "SIP-If-Match: etag123",
+                  "Expires: 3600",
+                  "Content-Type: application/pidf+xml"
+                ],
+                "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<presence xmlns=\"urn:ietf:params:xml:ns:pidf\" entity=\"sip:1001@10.0.0.1\">\r\n <tuple id=\"t1\"><status><basic>closed</basic></status></tuple>\r\n</presence>\r\n"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "headers": [
+                  "Call-ID: pub@10.0.0.1",
+                  "SIP-ETag: etag123",
+                  "Expires: 3600"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 11,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Method",
+          "value": "PUBLISH"
+        },
+        {
+          "packet": 6,
+          "field": "sip.Method",
+          "value": "PUBLISH"
+        },
+        {
+          "packet": 6,
+          "field": "sip.CSeq.seq",
+          "value": "2"
+        },
+        {
+          "packet": 7,
+          "field": "sip.Status-Code",
+          "value": "200"
+        }
+      ],
+      "notes": [
+        "首次发布发 ETag→刷新带 If-Match=软状态合同；pidf basic open→closed 状态翻转面"
+      ]
+    }
+  },
+  {
+    "id": "sip_reason_q850",
+    "proto": "sip",
+    "summary": "T-SIP-50: Reason:Q.850 释放原因（RFC 3326：PSTN 互通释放码 cause=16 normal clearing；与 T-44 重传/普通 BYE 分面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: rsn@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: rsn@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "BYE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: rsn@10.0.0.1",
+                  "CSeq: 2 BYE",
+                  "Reason: Q.850;cause=16;text=\"Normal call clearing\"",
+                  "Reason: SIP;cause=200;text=\"Call completed elsewhere\""
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 12,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "sip.Method",
+          "value": "BYE"
+        },
+        {
+          "packet": 7,
+          "field": "sip.CSeq.seq",
+          "value": "2"
+        },
+        {
+          "packet": 8,
+          "field": "sip.Status-Code",
+          "value": "200"
+        }
+      ],
+      "notes": [
+        "双 Reason 头（Q.850 cause16+SIP cause200）=PSTN/多设备互通释放语义承载"
+      ]
+    }
+  },
+  {
+    "id": "sip_ims_pheaders",
+    "proto": "sip",
+    "summary": "T-SIP-51: IMS 私有头面板（RFC 3325 P-Asserted-Identity/P-Preferred-Identity+RFC 3323 Privacy；现网运营商网里面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:1001@ims.example>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: ims@10.0.0.1",
+                  "CSeq: 1 INVITE",
+                  "P-Preferred-Identity: <sip:1001@ims.example>",
+                  "Privacy: id",
+                  "Route: <sip:pcscf@10.0.0.254:5060;lr>"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "headers": [
+                  "Call-ID: ims@10.0.0.1",
+                  "P-Asserted-Identity: <sip:+861055551001@ims.example;user=phone>",
+                  "Privacy: none"
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: ims@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "BYE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: ims@10.0.0.1",
+                  "CSeq: 2 BYE"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 12,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Method",
+          "value": "INVITE"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "200"
+        },
+        {
+          "packet": 7,
+          "field": "sip.Method",
+          "value": "BYE"
+        }
+      ],
+      "notes": [
+        "请求侧 P-Preferred+Privacy:id（请求网络断言后隐去）→响应侧 P-Asserted（E.164 user=phone）=IMS 鉴权身份链承载"
+      ]
+    }
+  },
+  {
+    "id": "sip_history_info_fwd",
+    "proto": "sip",
+    "summary": "T-SIP-52: History-Info 呼转链（RFC 4244：302 重定向后重发带历史条目；与 T-33 素呼转分面=带审计链版）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: hist@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 302,
+                "status_text": "Moved Temporarily",
+                "headers": [
+                  "Call-ID: hist@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=h302",
+                  "CSeq: 1 INVITE",
+                  "Contact: <sip:3001@20.0.0.1>"
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: hist@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "INVITE",
+                "uri": "sip:3001@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:3001@20.0.0.1>",
+                  "Call-ID: hist@10.0.0.1",
+                  "CSeq: 2 INVITE",
+                  "History-Info: <sip:callee@20.0.0.1>;reason=SIP;cause=302;text=\"Moved Temporarily\"",
+                  "History-Info: <sip:3001@20.0.0.1>;index=1.1"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: hist@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 2 ACK"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 13,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "302"
+        },
+        {
+          "packet": 7,
+          "field": "sip.Method",
+          "value": "INVITE"
+        },
+        {
+          "packet": 7,
+          "field": "sip.Request-Line",
+          "value": "INVITE sip:3001@20.0.0.1 SIP/2.0"
+        },
+        {
+          "packet": 8,
+          "field": "sip.Status-Code",
+          "value": "200"
+        }
+      ],
+      "notes": [
+        "302 后重发携 History-Info 链（cause=302 条目+index 递增）=呼转审计面（T-33 无链素呼转对照）"
+      ]
+    }
+  },
+  {
+    "id": "sip_491_glare",
+    "proto": "sip",
+    "summary": "T-SIP-53: 491 Request Pending glare（RFC 3261 §14.2：双方同发 re-INVITE 竞争；响应码枚举 491 格）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: glr@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: glr@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: glr@10.0.0.1",
+                  "CSeq: 2 INVITE"
+                ]
+              },
+              {
+                "status_code": 491,
+                "status_text": "Request Pending",
+                "headers": [
+                  "Call-ID: glr@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=glr",
+                  "CSeq: 2 INVITE"
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: glr@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 2 ACK"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 13,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 7,
+          "field": "sip.Method",
+          "value": "INVITE"
+        },
+        {
+          "packet": 7,
+          "field": "sip.CSeq.seq",
+          "value": "2"
+        },
+        {
+          "packet": 8,
+          "field": "sip.Status-Code",
+          "value": "491"
+        },
+        {
+          "packet": 9,
+          "field": "sip.Method",
+          "value": "ACK"
+        }
+      ],
+      "notes": [
+        "re-INVITE 竞争收 491→ACK 终局= glare 合同面（重试定时由 T1*2.6-4 随机化=引擎不模拟时钟，回放面如实）"
+      ]
+    }
+  },
+  {
+    "id": "sip_interleaved_two_calls",
+    "proto": "sip",
+    "summary": "T-SIP-54: 同连接两呼交错（§9.9 并发交错字面要求：A/B 两 Call-ID 事务重叠序 INV-A/180-A/INV-B/200-A/ACK-A/200-B/ACK-B/BYE-A/BYE-B；与 T-27 顺序版分面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: ia@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 180,
+                "status_text": "Ringing",
+                "headers": [
+                  "Call-ID: ia@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=ia",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: ib@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "headers": [
+                  "Call-ID: ia@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=ia",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: ia@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "headers": [
+                  "Call-ID: ib@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=ib",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: ib@10.0.0.1",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "BYE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: ia@10.0.0.1",
+                  "CSeq: 2 BYE"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "headers": [
+                  "Call-ID: ia@10.0.0.1",
+                  "CSeq: 2 BYE"
+                ]
+              },
+              {
+                "method": "BYE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: ib@10.0.0.1",
+                  "CSeq: 2 BYE"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "headers": [
+                  "Call-ID: ib@10.0.0.1",
+                  "CSeq: 2 BYE"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 18,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Call-ID",
+          "value": "ia@10.0.0.1"
+        },
+        {
+          "packet": 6,
+          "field": "sip.Call-ID",
+          "value": "ib@10.0.0.1"
+        },
+        {
+          "packet": 7,
+          "field": "sip.Status-Code",
+          "value": "200"
+        },
+        {
+          "packet": 11,
+          "field": "sip.Method",
+          "value": "BYE"
+        }
+      ],
+      "notes": [
+        "A 未完 B 已入（事务交错）+交错收尾=同连接并发面；T-27 顺序版对照=§9.9 顺序/交错两格"
+      ]
+    }
+  },
+  {
+    "id": "sip_status_enum_4xx",
+    "proto": "sip",
+    "summary": "T-SIP-55: 4xx 响应码枚举长尾（§9.20 响应码表=数据场景清单：403/408/480/481/488 五格；与既有 401/404/486/487/491 分格）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: e4@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 403,
+                "status_text": "Forbidden"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: e4@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: e4@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 408,
+                "status_text": "Request Timeout"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: e4@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: e4@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 480,
+                "status_text": "Temporarily Unavailable"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: e4@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: e4@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 481,
+                "status_text": "Call/Transaction Does Not Exist"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: e4@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: e4@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 488,
+                "status_text": "Not Acceptable Here"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: e4@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 21,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "403"
+        },
+        {
+          "packet": 8,
+          "field": "sip.Status-Code",
+          "value": "408"
+        },
+        {
+          "packet": 11,
+          "field": "sip.Status-Code",
+          "value": "480"
+        },
+        {
+          "packet": 14,
+          "field": "sip.Status-Code",
+          "value": "481"
+        },
+        {
+          "packet": 17,
+          "field": "sip.Status-Code",
+          "value": "488"
+        }
+      ],
+      "notes": [
+        "同 dialog 五事务五码（403 禁用/408 超时/480 不可达/481 无事务/488 媒体不容）=4xx 长尾枚举；非 2xx 各自 ACK"
+      ]
+    }
+  },
+  {
+    "id": "sip_status_enum_56xx",
+    "proto": "sip",
+    "summary": "T-SIP-56: 5xx/6xx 响应码枚举（§9.20：503 服务不可用+600 全局忙；与 500/603 分格）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: e56@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 503,
+                "status_text": "Service Unavailable"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: e56@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              },
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "From: <sip:caller@10.0.0.1>",
+                  "To: <sip:callee@20.0.0.1>",
+                  "Call-ID: e56@10.0.0.1",
+                  "CSeq: 1 INVITE"
+                ]
+              },
+              {
+                "status_code": 600,
+                "status_text": "Busy Everywhere"
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Call-ID: e56@10.0.0.1",
+                  "To: <sip:callee@20.0.0.1>;tag=srv",
+                  "CSeq: 1 ACK"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 12,
+      "negotiated": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "503"
+        },
+        {
+          "packet": 8,
+          "field": "sip.Status-Code",
+          "value": "600"
+        }
+      ],
+      "notes": [
+        "503（服务器故障重试面）+600（全局忙=6xx 终局不重试类）；6xx 类与 603 Decline 分格"
+      ]
+    }
+  },
+  {
+    "id": "sip_v6_port_dyn",
+    "proto": "sip",
+    "summary": "T-SIP-57: v6×多流矩阵格（§9.23 地址族×结构：fd00 双栈端点+src/dst 端口动态+flows=2；4 包=2 流×(req+resp)）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "fd00::1",
+            "dst": "fd00::2"
+          }
+        },
+        {
+          "sip": {
+            "dialog": [
+              {
+                "method": "OPTIONS",
+                "uri": "sip:callee@[fd00::2]"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ],
+            "src_port": {
+              "strategy": "inc",
+              "range": [
+                22001,
+                22002
+              ],
+              "step": 1,
+              "group_id": "sip-v6-src"
+            },
+            "dst_port": {
+              "strategy": "inc",
+              "range": [
+                5061,
+                5062
+              ],
+              "step": 1,
+              "group_id": "sip-v6-dst"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ipv6.dst",
+          "distinct_values": [
+            "fd00::1",
+            "fd00::2"
+          ]
+        },
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "22001",
+            "22002",
+            "5061",
+            "5062"
+          ]
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "distinct_values": [
+            "22001",
+            "22002",
+            "5061",
+            "5062"
+          ]
+        },
+        {
+          "packet": 1,
+          "field": "sip.Method",
+          "distinct_values": [
+            "OPTIONS"
+          ]
+        }
+      ],
+      "notes": [
+        "v6 端点×动态端口×flows=2 三维正交；SIP 引擎 TCP 载体（RFC 3261）→每流 3握+OPTIONS/200+4挥=9 包×2 流=18；端口双向聚合（22001/22002 源池、5061/5062 目的池）；Request-URI [fd00::2] 括号形",
+        "静态 v6 地址+动态端口对象=D-DNS-1 流间有别豁免设计行为（radius T-21 同构）"
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    }
   }
 ]

@@ -3497,7 +3497,7 @@
 **执行口径：** P5 telnet 真实流程全量全绿+落盘 `/tmp/mcp-pcaps/telnet/`+门 2 四项+反查 check_telnet；数值落盘重钉（14.6/9.31）；**服务端验证=服务器重编重启**（h323 教训）。
 **实现位置：** `cases/telnet.json`（**17 例**：改写 1+新建 16）。
 
-### T-SIP-1…43 sip.json——存量审计 + 测试点清单【D-SIP-1 P6 已验收 + 补充批 T-19…24 + 补充批二 T-25…43】
+### T-SIP-1…57 sip.json——存量审计 + 测试点清单【D-SIP-1 P6 已验收 + 补充批 T-19…24 + 批二 T-25…43 + 批三 T-44…57】
 
 **状态：** 已验收（2026-09-19 P6：首跑 9/18→9 红全为断言面校准按 pcap 重钉（包号偏 1/body 实长/末段 315=头补全计入分段对象/rtp.* 字段 tshark 3.6 无效改 frames pin offset 42/udp.port 双值改 srcport-dstport/SDP 端口超 65535 上界拒改 60070/空 dialog 低级错 3 例补 dialog）→18/18 ×2 连跑+反查 29/29；回归 telnet 17/ngap 17/h323 17/mpls 14/icmpv6 11 全绿；pcap 落盘 /tmp/mcp-pcaps/sip/）。P3 定稿（2026-09-19）原注记：存量 1 例逐条审计改写（等价迁移：count 删、顶层 sip{dialog}→sip 层、四元组→layers[ip] 显式+显式端口 12001/5060；断言面=14 fields（sip.Method/Request-Line/Status-Code/CSeq.seq/CSeq.method）+frames 4 pin offset 54+标量（negotiated/terminates）全保留）+ 新建 17 例=18 例。
 **级别：** pcap
@@ -3554,6 +3554,22 @@
 | SDP 双流音视频 | T-41 sip_sdp_video_multistream | A（批二，多 m= 行 audio 0/8/101+video 96；§9.22 承载形状） |
 | multipart 双体 | T-42 sip_body_multipart | A（批二，RFC 5621：SDP+octet-stream 双体；§3.14 单包多载荷） |
 | 头名大小写混写 | T-43 sip_hdr_case_mix | A（批二，§7.3 头名不敏感：fRoM/cALL-iD 混写+解码双证） |
+| 100 Trying+重传 | T-44 sip_100_trying_retrans | A（批三，§17.1.1.2 UDP 重传语义：同 CSeq 双 INVITE+100/180 provisional 类补格） |
+| 并行分叉竞速 | T-45 sip_forked_invite | A（批三，多 tag 双支路 180×2→486 竞败+200 竞胜；多方同时振铃） |
+| 会议加入+名册 | T-46 sip_conference_join | A（批三，RFC 4579/4575：焦点 URI+conference-info XML 名册 NOTIFY） |
+| Replaces 询转 | T-47 sip_replaces_attended | A（批三，RFC 3891：Refer-To 内嵌 Replaces（URL 编码）+sipfrag 200；与盲转分面） |
+| offerless 3PCC | T-48 sip_offerless_3pcc | A（批三，RFC 3725 流 I：无体 INVITE→200 带 offer→ACK 带 answer） |
+| PUBLISH 在线状态 | T-49 sip_publish_presence | A（批三，RFC 3903：pidf 体+SIP-ETag/If-Match 软状态刷新） |
+| Reason Q.850 | T-50 sip_reason_q850 | A（批三，RFC 3326：双 Reason 头 Q.850 cause16+SIP cause200） |
+| IMS 私有头 | T-51 sip_ims_pheaders | A（批三，RFC 3325/3323：P-Preferred/P-Asserted+Privacy+P-CSCF Route） |
+| History-Info 呼转链 | T-52 sip_history_info_fwd | A（批三，RFC 4244：302 后重发带历史条目；与素呼转分面） |
+| 491 glare | T-53 sip_491_glare | A（批三，§14.2 re-INVITE 竞争收 491→ACK） |
+| 并发交错双呼 | T-54 sip_interleaved_two_calls | A（批三，§9.9 并发交错字面：A/B 事务重叠序；与 T-27 顺序版分格） |
+| 4xx 枚举长尾 | T-55 sip_status_enum_4xx | A（批三，§9.20：403/408/480/481/488 五格） |
+| 5xx/6xx 枚举 | T-56 sip_status_enum_56xx | A（批三，§9.20：503+600；与 500/603 分格） |
+| v6×多流矩阵 | T-57 sip_v6_port_dyn | A（批三，§9.23 地址族×结构：fd00+动态端口+flows=2；TCP 载体 9 包/流×2=18） |
+
+**批三（2026-09-20，用户复审"多方同时通话没考虑全"→再核 RFC 3261 全方法/响应码表+CORE_MEMORY §9.9/§9.23=多方维度+方法收尾+矩阵补格 14 例=57 例，57/57 ×2 稳态+反查 68/68）：** 多方维度三面=并行分叉（流内多 tag 竞速）/会议（焦点+名册事件）/询转（Replaces）；方法面 12→13（+PUBLISH）；offer/answer 方向翻转（offerless）；响应码累计 1xx{100,180,183}/2xx/3xx{302}/4xx{401,403,404,408,480,481,486,487,488,491}/5xx{500,503}/6xx{600,603}（长尾冷码 405/406/410/412/413/415/416/420/421/423/482-485/489/493/494/501/502/504/505/513/580/604/606 等同构可表达=按需扩充注记）；§9.23 矩阵 v6×多流格落定（TCP 载体=引擎合同，9 包/流）。P5 校准 3 处：双重嵌套 JSON（工具脚本错）13 例 error、包位偏移 2 处、T-57 TCP 载体包数 18。
 
 **补充批二（2026-09-20，用户复审"业务不够真实不复杂"→对照 ftp 面铺设现网业务 12 例+数据 7 例=43 例，43/43 ×2 稳态+反查 54/54）：** 方法面从 {INVITE,ACK,BYE,REGISTER,OPTIONS,PRACK,CANCEL} 扩到 +{REFER,NOTIFY,SUBSCRIBE,INFO,UPDATE,MESSAGE}=12 方法全主流面；新增引擎合同发现 2 条如实注记：①紧凑 i: 头不进头补全长形识别（引擎另补自动 Call-ID 双值并存=合同边界）；②application/isup 合成字节触发 tshark ISUP 解析器 malformed（改 octet-stream，不造假 expert 红）。P5 校准 5 处：包序偏移 4 处（BYE 位次按消息序重算）+Content-Length 248=引擎按 body 精确回填。
 
