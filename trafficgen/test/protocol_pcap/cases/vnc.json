@@ -1206,5 +1206,317 @@
         "V9 显式 0 放行（u==0 continue）→ planner Validate 锚（allowed 1-65535）"
       ]
     }
+  },
+  {
+    "id": "vnc_t18_init_customize",
+    "proto": "vnc",
+    "summary": "T-18 ServerInit 定制：server_name/width/height/pixel_format 逐字节钉",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "server_name": "SRV-X",
+            "width": 320,
+            "height": 240,
+            "pixel_format": {
+              "bits_per_pixel": 16,
+              "depth": 16
+            },
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 33,
+      "frames": [
+        {
+          "packet": 15,
+          "offset": 54,
+          "hex": "01 40 00 f0 10 10 00 01 00 ff 00 ff 00 ff 10 08 00 00 00 00 00 00 00 05 53 52 56 2d 58"
+        }
+      ],
+      "notes": [
+        "包数实测钉 33（ServerInit 内容变、结构不变）；f15=宽 0140(320)+高 00f0(240)+像素格式 16B（bpp16/depth16/LE/truecolor/max255×3/shift16,8,0）+nameLen 5+SRV-X"
+      ],
+      "fields": [
+        {
+          "packet": 15,
+          "field": "vnc.width",
+          "value": "320"
+        },
+        {
+          "packet": 15,
+          "field": "vnc.height",
+          "value": "240"
+        },
+        {
+          "packet": 15,
+          "field": "vnc.desktop_name",
+          "value": "SRV-X"
+        }
+      ]
+    }
+  },
+  {
+    "id": "vnc_t19_encodings_pointer",
+    "proto": "vnc",
+    "summary": "T-19 encodings 显式列表 + pointer 坐标/按键显式（SetEncodings/PointerEvent 字节钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "encodings": [
+              0,
+              5,
+              -240
+            ],
+            "pointer_button": 1,
+            "pointer_x": 100,
+            "pointer_y": 200,
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 33,
+      "frames": [
+        {
+          "packet": 18,
+          "offset": 54,
+          "hex": "02 00 00 03 00 00 00 00 00 00 00 05 ff ff ff 10"
+        },
+        {
+          "packet": 27,
+          "offset": 54,
+          "hex": "05 01 00 64 00 c8"
+        }
+      ],
+      "notes": [
+        "SetEncodings 实测钉：type 02+pad+nEnc 3+raw(0)/hextile(5)/xcursor(ffffff10)；PointerEvent 实测钉：type 05+button 01+x 0064(100)+y 00c8(200)——缺省形 507/320 由 T-13 承接"
+      ],
+      "fields": [
+        {
+          "packet": 27,
+          "field": "vnc.client_message_type",
+          "value": "5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "vnc_t20_caps_customize",
+    "proto": "vnc",
+    "summary": "T-20 interaction_caps 定制：头 4xu16 + 2 记录逐字节钉",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "interaction_caps": {
+              "server_msg_types": 0,
+              "client_msg_types": 2,
+              "encoding_types": 0,
+              "caps": [
+                {
+                  "code": 5,
+                  "vendor": "STDV",
+                  "name": "HEXTILE_"
+                },
+                {
+                  "code": 1,
+                  "vendor": "STDV",
+                  "name": "COPYRECT"
+                }
+              ]
+            },
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 33,
+      "frames": [
+        {
+          "packet": 16,
+          "offset": 54,
+          "hex": "00 00 00 02 00 00 00 00 00 00 00 05 53 54 44 56 48 45 58 54 49 4c 45 5f 00 00 00 01 53 54 44 56 43 4f 50 59 52 45 43 54"
+        }
+      ],
+      "notes": [
+        "追加轮修正：nServer 1→0（tshark 记录数=nServer+nClient+nEnc，1 无记录=malformed）；f16：头 0/2/0/pad+记录(5,STDV,HEXTILE_)+(1,STDV,COPYRECT)=40B 实测钉"
+      ]
+    }
+  },
+  {
+    "id": "vnc_t21_seeds",
+    "proto": "vnc",
+    "summary": "T-21 challenge_seed/response_seed：确定性伪随机字节钉（非参考字节）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "vnc": {
+            "challenge_seed": 1,
+            "response_seed": 1,
+            "initial_fbu": [
+              {
+                "x": 0,
+                "y": 1,
+                "width": 12,
+                "height": 19,
+                "encoding": "xcursor"
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "update_rects": [
+              {
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 19,
+                "encoding": "hextile"
+              }
+            ],
+            "rounds": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 33,
+      "frames": [
+        {
+          "packet": 11,
+          "offset": 54,
+          "hex": "47 ab b9 4d 0e c8 d0 ac 56 bf 7f 2d 27 bc df a1"
+        },
+        {
+          "packet": 12,
+          "offset": 54,
+          "hex": "47 ab b9 4d 0e c8 d0 ac 56 bf 7f 2d 27 bc df a1"
+        }
+      ],
+      "notes": [
+        "seed=1 → xorshift64* 确定性 16B 实测钉（同种子同字节：challenge/response 各自独立 seededBytes(1,16) 故相等；与参考字节 46 70 8d dc...不同）"
+      ]
+    }
   }
 ]

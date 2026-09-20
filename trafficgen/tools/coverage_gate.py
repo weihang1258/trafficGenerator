@@ -1705,6 +1705,10 @@ def check_vnc(cases):
         ("t15_neg_auth_result", "T-15 auth_result 拒"),
         ("t16_neg_rect_encoding", "T-16 rect encoding 拒"),
         ("t17_neg_width_zero", "T-17 width=0 拒"),
+        ("t18_init_customize", "T-18 ServerInit 定制（name/wh/pixel_format）"),
+        ("t19_encodings_pointer", "T-19 encodings+pointer 显式"),
+        ("t20_caps_customize", "T-20 interaction_caps 定制"),
+        ("t21_seeds", "T-21 challenge/response seed"),
     ]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
@@ -1713,7 +1717,10 @@ def check_vnc(cases):
     for k in ["security_type", "auth_result", "share_desktop", "key_events",
               "bell", "server_cut_text", "client_cut_text",
               "set_colour_map_entries", "initial_fbu", "update_rects",
-              "rounds", "client_set_pixel_format"]:
+              "rounds", "client_set_pixel_format", "server_name", "width",
+              "height", "pixel_format", "interaction_caps", "encodings",
+              "pointer_x", "pointer_y", "pointer_button", "challenge_seed",
+              "response_seed"]:
         hit = next((cid for cid, m in lays if k in m), None)
         rows.append((k, hit is not None, hit or "无用例"))
         if hit is not None:

@@ -1,6 +1,6 @@
 # vnc Pcap Test Results
 
-Cases: 17 — pass 17, fail 0, error 0
+Cases: 21 — pass 21, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -12,7 +12,11 @@ Cases: 17 — pass 17, fail 0, error 0
 | vnc_t15_neg_auth_result | 负例：auth_result=3 超区间 V9 锚词 | pass | 0 | [pcap]() |
 | vnc_t16_neg_rect_encoding | 负例：rect encoding 非法 planner 锚词 | pass | 0 | [pcap]() |
 | vnc_t17_neg_width_zero | 负例：width=0 显式 0 planner 锚词 | pass | 0 | [pcap]() |
+| vnc_t18_init_customize | T-18 ServerInit 定制：server_name/width/height/pixel_format 逐字节钉 | pass | 33 | [pcap](vnc/vnc_t18_init_customize.pcap) |
+| vnc_t19_encodings_pointer | T-19 encodings 显式列表 + pointer 坐标/按键显式（SetEncodings/PointerEvent 字节钉） | pass | 33 | [pcap](vnc/vnc_t19_encodings_pointer.pcap) |
 | vnc_t1_smoke_ref | T-1 smoke 改写（33 帧参考形）：Tight 握手 13 消息 + 客户端消息面 + FBU 循环 + 拆链，5900 端口 | pass | 33 | [pcap](vnc/vnc_t1_smoke_ref.pcap) |
+| vnc_t20_caps_customize | T-20 interaction_caps 定制：头 4xu16 + 2 记录逐字节钉 | pass | 33 | [pcap](vnc/vnc_t20_caps_customize.pcap) |
+| vnc_t21_seeds | T-21 challenge_seed/response_seed：确定性伪随机字节钉（非参考字节） | pass | 33 | [pcap](vnc/vnc_t21_seeds.pcap) |
 | vnc_t2_handshake_bytes | T-2 握手字节钉：版本 12B / secTypes 02 02 10 / TunnelCaps 00000000 / AuthCaps 记录 / challenge+response 参考字节 | pass | 33 | [pcap](vnc/vnc_t2_handshake_bytes.pcap) |
 | vnc_t3_sec_type_vncauth | T-3 security_type=2：VNC Auth 路径（无 Tunnel/AuthCaps/无 InteractionCaps，challenge/response 16B） | pass | 29 | [pcap](vnc/vnc_t3_sec_type_vncauth.pcap) |
 | vnc_t4_sec_type_none | T-4 security_type=1：None 路径（secTypes 01 01，无 challenge，直通 init） | pass | 27 | [pcap](vnc/vnc_t4_sec_type_none.pcap) |

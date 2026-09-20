@@ -3848,6 +3848,6 @@
 **9.52 对账：** RFC 2326 逻辑点 16/16 对账平（方法 6+响应 2+头补全 3+body 1+RTP 1+URI 2+负例 1→建例 12 代表+注记 4：GET_PARAMETER/SET_PARAMETER、interleaved $ 块、Record 族、MSS 锚链路径不可达）。清单出处=RFC 2326 原文反推。
 
 
-### T-VNC-1…17 vnc 层链收敛（D-VNC-1 P3 清单见 CODE_DESIGN D-VNC-1；P5 已执行 17/17 ×2 全绿，2026-09-20）
+### T-VNC-1…21 vnc 层链收敛（D-VNC-1 P3 清单见 CODE_DESIGN D-VNC-1；P5 已执行 21/21 ×2 全绿，2026-09-20）
 
-RFC 6143 RFB 反推 17 例：T-1 33 帧参考形（Tight 13 握手消息+客户端消息面+FBU 循环+5900）/T-2 握手字节钉（challenge/response 参考字节）/T-3 security_type=2/T-4 =1/T-5 认证失败分支（reason 逐字节+提前拆链）/T-6 share=false/T-7 raw 确定性像素/T-8 KeyEvent 显式（0xffe9=65513，笔误教训入档）/T-9 extras 三消息交织/T-10 colourmap/T-11 客户端消息关/T-12 rounds×interval 线性/T-13 pointer 缺省 507/320/T-14…17 负例四锚（security_type 枚举 planner、auth_result V9 区间、rect encoding planner、width=0 显式 0 过 V9 落 planner）。包数全部实测钉（首跑 3 红手估错已修正：T-3=29/T-4=27 均漏数 InteractionCaps 缺席）。在库 vnc 行已清（4+81，备份 -vnc-purge-20260920.db）。
+RFC 6143 RFB 反推 17 例：T-1 33 帧参考形（Tight 13 握手消息+客户端消息面+FBU 循环+5900）/T-2 握手字节钉（challenge/response 参考字节）/T-3 security_type=2/T-4 =1/T-5 认证失败分支（reason 逐字节+提前拆链）/T-6 share=false/T-7 raw 确定性像素/T-8 KeyEvent 显式（0xffe9=65513，笔误教训入档）/T-9 extras 三消息交织/T-10 colourmap/T-11 客户端消息关/T-12 rounds×interval 线性/T-13 pointer 缺省 507/320/T-14…17 负例四锚（security_type 枚举 planner、auth_result V9 区间、rect encoding planner、width=0 显式 0 过 V9 落 planner）。包数全部实测钉（首跑 3 红手估错已修正：T-3=29/T-4=27 均漏数 InteractionCaps 缺席）。在库 vnc 行已清（4+81，备份 -vnc-purge-20260920.db）。**追加对抗复审第 2 轮**：registry 26 键逐键反扫抓 10 键 suite 零覆盖→补 T-18…21 四复合例（ServerInit 定制/encodings+pointer 显式/caps 定制/seed 确定性字节，全部实测钉；T-20 修 nServer=0 解 tshark Malformed），21/21 ×2 全绿+反查 48/48。

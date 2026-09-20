@@ -3140,7 +3140,7 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **性能（6.4-6.6）：** 流式 channel 256；包数=13 握手消息段+客户端消息+2 FBU+rounds×fbuInterval 编排+4 拆链——缺省 initial_fbu 全屏 hextile 1024×768≈3072 tiles≈3.1MB→MSS 分段 ~2190 帧（T-1 冒烟形小矩形 33 帧实测钉，P5 校准）；pcap 验收路（网卡路未跑注明 6.3）。
 **回滚：** 单提交粒度，摘除即回。
 
-### T-VNC-1…17 清单（P3，RFC 6143 反推；9.52 对账 **27/27**：版本协商 1+安全路径 3+认证失败 1+init 面 2+客户端消息 6+服务器消息 4+编码 3+编排 2+端口 1+现网 1+负例 4 → 建例 17 代表（T-1 承接握手 13 消息+现网形+端口；T-2 钉字节）+B′ 注记 4（Tight zlib 不建模、DES 伪随机、garbage padding、参考 5901））
+### T-VNC-1…21 清单（P3，RFC 6143 反推；9.52 对账 **27/27**：版本协商 1+安全路径 3+认证失败 1+init 面 2+客户端消息 6+服务器消息 4+编码 3+编排 2+端口 1+现网 1+负例 4 → 建例 21 代表（T-1 承接握手 13 消息+现网形+端口；T-2 钉字节；T-18…21 承接 ServerInit/encodings/pointer 显式/caps/seed 定制面——追加轮 2 逐键扫补）+B′ 注记 4（Tight zlib 不建模、DES 伪随机、garbage padding、参考 5901））
 
 | # | 用例 | 断言面 |
 |---|---|---|
@@ -3161,6 +3161,10 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 | T-15 | 负例 auth_result=3 | 锚词 `out of range [0,2]`（V9 区间先拦） |
 | T-16 | 负例 rect encoding 非法 | 锚词 `invalid vnc rect encoding` |
 | T-17 | 负例 width=0 | 锚词 `invalid vnc width`（V9 显式 0 放行→planner 锚） |
+| T-18 | ServerInit 定制 | server_name/width/height/pixel_format 逐字节钉（宽 0140/高 00f0/pf 16B bpp16/nameLen+SRV-X） |
+| T-19 | encodings+pointer 显式 | SetEncodings（3 项含 xcursor 负值）+PointerEvent（button 1/x 100/y 200）字节钉 |
+| T-20 | interaction_caps 定制 | 头 0/2/0/pad+2 记录 40B 钉（nServer=0：tshark 记录数=三计数和） |
+| T-21 | challenge/response seed | seed=1 确定性 16B 钉（同种子同字节，异于参考字节） |
 
 **P3 复审（2026-09-20 对抗走查）：** 13 握手消息由 T-1 full 编排承接（逐包断言）+T-2 字节钉；客户端 6 消息=T-1（PixelFormat/Encodings/FBU-req×2/KeyEvent 缺省形）+T-8（KeyEvent 显形）+T-9（CutText 双向）+T-13（Pointer）；服务器 4 消息=T-1（FBU）+T-9（Bell/ServerCutText）+T-10（ColourMap）；安全路径三枚举=T-1（16）+T-3（2）+T-4（1）+T-5（失败分支）；编码三形=T-1（hextile/xcursor）+T-7（raw）；负例 4 锚拦截点逐一核（V9 显式 0 放行→width/rounds 落 planner；auth_result 区间 V9 先拦；security_type/rect encoding 无 V9 范围→planner）。InteractionCaps 11 记录=T-1 ServerInit 段承接（184B）。对账 27/27 平。**清单净，待批进 P4。**
 
@@ -3169,3 +3173,5 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **P6 评审与提交（2026-09-20）：** 测试四问全过（T-1 测对路径=链 translate→validator→raw wrap 全链；真触发=MCP 建任务真流程；断言输出=字段+帧字节双面；规范覆盖=9.52 对账 27/27）。反查表 check_vnc **33/33 绿**。在库清库：strategies 4+tasks 81 删前报数→备份 trafficgen-vnc-purge-20260920.db→删→复核 0/0（总量 strategies 702/tasks 240595）。schemagen 三件套同代（107 层）。门3 抽查三条：①裁定2 26 Fields→registry vnc 行逐键+T-1 33 帧全序；②裁定3 负例锚→T-14…17 真实流程 400（planner/V9 拦截面各得其位）；③裁定1 raw wrap→layer_gen 防双换+T-2 握手字节钉。9.53 复杂例=T-9 五面交织（Bell+ServerCutText+ClientCutText+initial FBU+round FBU）。
 
 **P6 追加对抗复审（2026-09-20，用户指令"没复审就再复审一次"）：** 抓 1 实缺口已修：①P3 复审声称"InteractionCaps 11 记录=T-1 ServerInit 段承接"实为**无任何断言**（T-1/T-2 均未钉 f16）→T-2 补钉 f16 头 16B（nServer 0/nClient 11/nEnc 0/pad+首记录 code 2 RRE STDV，tshark 实测）+challenge/response 钉扩全 16B，复跑 17/17 ×2 全绿。横扫项：registry↔parse 26↔26 逐键零差、四名单齐（util×2/chain_planner×2）、生成物同代（layers.generated 107 层 vnc 26 键/config-schema 计数行/schema-types/mcp 描述——终端层不单列=pptp 同形 by design）、包数 17 例全钉零占位、负例 4 锚拦截面核（T-15 V9 区间、T-14/16/17 planner——T-17 显式 0 过 V9 落 planner 与 P3 复审口径一致）、性能段 33 帧已实测（2190 帧缺省全屏保持 ≈ 估值标注）。**复审结论：追加轮 1 实缺口补钉，修正后 17/17 ×2 全绿，净。**
+
+**P6 追加对抗复审·第 2 轮（2026-09-20，用户指令"没复审就再复审一次"）：** 本轮换角度=**registry 26 键逐键反扫 suite 发送面**，抓 1 大缺口：10 键 suite 从未发过（server_name/width/height/pixel_format/interaction_caps/encodings/pointer_x/y/button/challenge_seed/response_seed——前轮 T-list 只覆盖缺省形与部分显式形，违反 9.46 全表扫）→补 T-18…21 四复合例（每例多键交织：ServerInit 定制/encodings+pointer 显式/caps 定制/seed），全部 tshark 实测钉字节；T-20 顺带抓 tshark 形状约束（InteractionCaps 记录数=nServer+nClient+nEnc，nServer=1 无记录=Malformed Packet→改 0）；T-21 钉值证实同种子双 seed 产生同 16B（seededBytes 独立调用同输入）。修正后 suite **21/21 ×2 全绿**、反查 **48/48**（33→48：+例 4+键 11）、门2 四项复绿、全仓 vet 净+`go test ./internal/...` 122 包全绿。**复审结论：第 2 轮抓 1 大缺口（10 键零覆盖）+1 形状约束，补 4 例后全绿，净。**
