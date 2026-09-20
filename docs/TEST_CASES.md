@@ -3770,7 +3770,7 @@
 
 **P3 复审（2026-09-20，对抗走查）：** 抓 2 项 errata 已并入：①**层 Fields 计数终值=16**（planner 实际消费 14 键实测：ACName/Auth/Cookie/DataDirection/DataFrames/DataPayload/InnerProto/MagicNumber/MRU/Password/ServiceName/SessionID/SkipDiscovery/Username + padt + sessions；wire 键 code/ppp_protocol/payload_length/discovery_tags 为 builder 每包面不被流程消费→**不登记层 Fields**（1.12 消费面裁定，ValidateLayerConfig 拒之=正确行为），修正 P2 errata② 的 20）；②**sessions 互斥键集合精确化**：互斥=会话级行为键 {session_id, skip_discovery, data_frames, data_payload, inner_proto, data_direction}，模板键 {ac_name, service_name, auth, username, password, mru, magic_number, cookie, padt} 允许与 sessions 共存共享（裁定4"模板键共享"落到键级，P4 semantic 检查按此集合）。验证通过项：T-11 Magic 钉值可行（MagicNumber 在消费清单）；T-12 派生 1/2/3 与单会话缺省 1 自洽；9.51 组合注记（地址族 n/a=内嵌 IPv4 only，IPv6 即 T-22 负例）。**复审结论：自审 1 轮 2 项修正，清单净，待批进 P4。**
 
-### T-LDAP-1…22 ldap 层链收敛（D-LDAP-1 P3 清单，2026-09-20，待批）
+### T-LDAP-1…22 ldap 层链收敛（D-LDAP-1 P3 清单，2026-09-20；P5 已执行 22/22 ×2 全绿，2026-09-20）
 
 **三源：** RFC 4511（§4.1.1 BER+messageID/§4.2 bind/§4.3 unbind/§4.5 search/§4.1.9 resultCode/§5.2 传输）+D-LDAP-1+现网 AD RootDSE 形（参考 pcap 15 属性）。**级别：** pcap。
 **存量去向（9.14）：** `ldap-bind-search-basic` 1 例扁平 → 改写层链形合入 T-1（等价覆盖：包数/字段断言随层链端口显式化重钉）。
@@ -3803,5 +3803,7 @@
 
 **边界注记（9.46）：** 超长 bind_dn（BER 长形 OctetString 内）=B′ 注记（T-2 已钉长形面）；time_limit=-1 与 size_limit 同门（T-21 代表，锚词面同族——对账记 1 分支）；filter_value 空+equality=空断言值（BER 04 00，T-9 不含=B′ 注记）。**9.40 陷阱：** 无 sessions/dyn 形态（单连接协议），messageID 是唯一序号锚（静态 base+3r 公式，非 FlowIndex）。
 **P3 复审（2026-09-20，对抗走查）：** 表六标签/scope 三枚举/filter 双 CHOICE/bind 三面/resultCode 两分支/messageID 双面/unbind 三态逐项过——1 项补强：传输分段逻辑点的承接面=参考形 15 属性 searchRequest ≈200B < MSS 1460 单段（T-1 包数间接钉+segmentByMSS 单测 ldap_test.go 已存），多段分段面属 TCP 框架不重复计；time_limit 负例与 size_limit 同锚词族合并 T-21（已注记）。**复审结论：自审 1 轮 1 项并入，清单净，待批进 P4。**
+
+**P5 执行记录（2026-09-20）：** cases/ldap.json 22 例层链形（T-1 改写等价覆盖：13 包=握手3+5 消息+unbind+挥手4，原 min_packets 12 为下限非钉值）；suite ×2 连续全绿 `RESULT: 22 pass, 0 fail, 0 error (of 22)`；pcap 16 正例+5 neg（T-17…21 create-time 拒绝无 pcap，T-22 同）。**byte 校准（pcap 实测非手算）：包数笔算普遍 -1（挥手 4 帧面重数）；BER 恒长形语义钉（berWrap 0x84+4B 长度，不做短形优化——bindReq SEQ len 0x10/searchReq 0x158/bindReq 内层 protocolOp 60 84 00 00 00 07）；messageID 实测帧序钉（rounds=2：bindReq 1/4、searchReq 2/5、unbind 6=base+3(r-1)+2，notes 初稿"unbind id 3"为 rounds=1 值笔误已校正）；T-21 锚词随 registry V9 真实拦截面（size_limit=-1 被 "not a numeric value in [0,2147483647]" 拦先于 planner Validate）**；端口面：包4 tcp.srcport=12345（worker 逐流保底）恒 389 的断言面=tcp.dstport。coverage_gate check_ldap 43/43 绿。
 
 **9.52 对账两行：** RFC 4511 逻辑点总数 **38**（BER 4+操作标签 6+bind 组成 3+search 组成 8+filter CHOICE 2+resultCode 2+messageID 1+unbind 1+传输 1+负例分支 7+业务变体多轮/匿名 2+现网 RootDSE 1）→ 建例代表 **36** + 注记 2（filter_value 空断言+超长 DN B′；time_limit 与 size_limit 同门合并计）= **38/38 对账平**。清单出处=RFC 4511 原文逐章反推，非现有用例总结。

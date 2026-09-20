@@ -2957,3 +2957,9 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **性能（6.4-6.6）：** 流式 channel 256；包数=握手 3+Σrounds(2+分段子包)+unbind 段+挥手 4；无共享状态；pcap 验收路。
 **回滚：** 单提交粒度；main.go 摘除空白导入即回 legacy；registry/名单行摘除即回。
 **风险：** ldap 长形 BER 长度字节在多段 payload 下的 frames hex 断言偏移需 pcap 校准不手算；[ip,ldap] 0-keep 端口链路 SrcPort=0 时 worker 注入面（多流）与单流显式化的用例口径按 radius T 系对齐。
+
+**P4 已实现+复审（2026-09-20，e4ada5d）：** 五件套全落（isRawIPChain 双名单/两处 0-keep/registry 15 Fields+双 schemagen/translate case+ParseLDAPConfigFromMap 导出+FlowMeta.LDAP+raw 分支注入/main.go 翻转）；ldap/layer_gen.go 新建（pppoe 防双换模式，FlowIndex 透传）；链级 2 例（rounds=2 18 包形状+六段 flags 序+每段 389+version=4 背 door 锚词）。**复审 1 轮对抗走查：registry 15 键类型面（int 0=缺省语义合法）/0-keep/raw 注入/translate 空层非 nil/防双换七项副作用（TTL/DSCP/Flags 全零值无副作用）/背 door 锚词逐查，0 新错（int 双形坑实施中被 mustJSONMap 口径拦）。**
+
+**P5/P6 验收（2026-09-20）：** suite ×2 连续全绿 `RESULT: 22 pass, 0 fail, 0 error (of 22)`；BER 恒长形语义+messageID 帧序经 tshark 实测钉（详见 TEST_CASES P5 执行记录：bindReq SEQ 30 84 00 00 00 10/searchReq 0x158/unbind id 6）；coverage_gate check_ldap 43/43 绿（场景 22+键 15+锚 6）。
+**门1 对照表回填（实际证据）：** §1 顶层旧键→cases 22 例零顶层四元组（pipe_gate 门2-1）+地址入 ip 层（ldap_session_full spec_json）；§3 单流豁免声明+rounds 消息序（T-11/T-14）；§12 动态字段=worker 12345+i 四元组面（包4 srcport=12345 实测钉）+IPID/ISN random（spec.TCP.InitialSeq 可 override，ldap.go randomUint32）。**门3 抽查三条：** ①裁定1 raw wrap→layer_gen.go Direction=up 防双换+T-1 包4-9 六标签 60/61/63/64/65/42 逐帧+TestChainPlanner_LDAPRawChain 18 包 flags 序；②裁定2 五件套→registry.go ldap 行 15 Fields+chain_planner_util.go isRawIPChain 双名单+T-1 frames BER 长形钉；③裁定3 端口语义→legacy Plan `if spec.DstPort == 0`（ldap.go:308）+validateBaseDstPortHandled "ldap" 行+链测试每段 389 断言。**9.53 复杂度抽查：** T-14 复合例=多轮(2)×equality filter×simple 认证×自定义属性 四类交织 ≥3 ✓。
+**在库清库：** 删前报数→备份→删→对账（同日执行，见提交信息）。

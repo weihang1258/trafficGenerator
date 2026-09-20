@@ -1,49 +1,836 @@
 [
   {
-    "id": "ldap-bind-search-basic",
+    "id": "ldap_session_full",
     "proto": "ldap",
-    "summary": "LDAP (端口 389) 冒烟：完整 TCP 握手 + bindRequest(0) → bindResponse(1) → searchRequest(3) → searchResEntry(4) → unbind(2) + 终止",
+    "summary": "T-1 全会话（smoke 改写，等价覆盖）：握手3+bindReq/bindResp+searchReq/entry/done+unbind+挥手4=12 包；protocolOp 六标签逐帧",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 389,
-      "count": 1,
-      "ldap": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {}
+        }
+      ]
     },
     "expect": {
+      "packet_count": 13,
       "has_handshake": true,
-      "negotiated": true,
       "terminates": true,
       "has_payload": true,
-      "min_packets": 12,
       "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "389"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
-        {"packet": 4, "field": "ldap.protocolOp", "value": "0"},
-        {"packet": 4, "field": "ldap.messageID", "value": "1"},
-        {"packet": 5, "field": "ldap.protocolOp", "value": "1"},
-        {"packet": 5, "field": "ldap.resultCode", "value": "0"},
-        {"packet": 6, "field": "ldap.protocolOp", "value": "3"},
-        {"packet": 6, "field": "ldap.scope", "value": "0"},
-        {"packet": 6, "field": "ldap.filter", "value": "7"},
-        {"packet": 7, "field": "ldap.protocolOp", "value": "4"},
-        {"packet": 8, "field": "ldap.protocolOp", "value": "5"},
-        {"packet": 8, "field": "ldap.resultCode", "value": "0"},
-        {"packet": 9, "field": "ldap.protocolOp", "value": "2"}
-      ],
-      "frames": [
-        {"packet": 4, "offset": 54, "hex": "30 84 00 00 00 10 02 01 01 60 84 00 00 00 07 02 01 03 04 00 80 00"},
-        {"packet": 5, "offset": 54, "hex": "30 84 00 00 00 10 02 01 01 61 84 00 00 00 07 0a 01 00 04 00 04 00"},
-        {"packet": 6, "offset": 54, "hex": "30 84 00 00 01 58 02 01 02 63 84 00 00 01 4f"},
-        {"packet": 9, "offset": 54, "hex": "30 84 00 00 00 05 02 01 03 42 00"}
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "389"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 3,
+          "field": "tcp.flags",
+          "value": "0x010"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "389"
+        },
+        {
+          "packet": 8,
+          "field": "tcp.flags",
+          "value": "0x018"
+        },
+        {
+          "packet": 9,
+          "field": "tcp.flags",
+          "value": "0x018"
+        },
+        {
+          "packet": 12,
+          "field": "tcp.flags",
+          "value": "0x010"
+        }
       ],
       "notes": [
-        "LDAPMessage: BER SEQUENCE(0x30) + 长度(0x84 长形式) + messageID + protocolOp 应用标签 (0x60=bindRequest, 0x61=bindResponse, 0x63=searchRequest, 0x64=searchResEntry, 0x65=searchResDone, 0x42=unbindRequest) (RFC 4511 §4.2/4.5)",
-        "f4 bindRequest msgID 1 版本 3 简单认证；f5 bindResponse resultCode 0=success；f6 searchRequest msgID 2 (objectClass=* 7=present)；f7 searchResEntry；f8 searchResDone 0；f9 unbindRequest msgID 3",
-        "f6 为 348 字节大包 (搜索树返回多项)；13 帧 = 3 握手 + 6 数据 + 4 终止"
+        "端口 389 由生成器 Plan 缺省（链路径无端口位，D-LDAP-1 裁定3）",
+        "包4 bindReq(up)/包5 bindResp(down)/包6 searchReq(up)/包7 entry(down)/包8 done(down)/包9 unbind(up)——BER 应用标签 60/61/63/64/65/42 在 TCP 载荷首字节（frames 钉）",
+        "BER 恒长形（berWrap 0x84+4B 长度，实现语义）：bindReq SEQ len 0x10=16；searchReq 0x158=344（15 属性 RootDSE）；unbind len 5+42 00 NULL op"
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "30 84 00 00 00 10 02 01 01 60"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "30 84 00 00 00 10 02 01 01 61"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "30 84 00 00 01 58 02 01 02 63"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "30 84 00 00 00 05 02 01 03 42 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "ldap_ber_long_form_length",
+    "proto": "ldap",
+    "summary": "T-2 BER 长形长度字节：15 属性 RootDSE searchReq 消息 >127B → 外层 SEQUENCE 30 84 长形 4B 长度前缀（RFC 4511 §4.1.1）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {}
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "389"
+        }
+      ],
+      "notes": [
+        "外层 SEQUENCE 与内层 protocolOp 均长形：30 84 + 4B 长度 / 60 84 + 4B 长度（RFC 4511 §4.1.1 长形面）",
+        "bindReq 内层 len 0x07=version(3)+name(2)+simple(2)；searchReq 外层 len 0x158=344",
+        "offset 63=54+SEQ 6B+messageID 3B（bindReq protocolOp 起点）"
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 63,
+          "hex": "60 84 00 00 00 07 02 01 03"
+        },
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "30 84 00 00 01 58"
+        }
+      ]
+    }
+  },
+  {
+    "id": "ldap_message_id_increment",
+    "proto": "ldap",
+    "summary": "T-3 messageID 递增钉：rounds=2 → bind id {1,4}/search id {2,5}/unbind id 3",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "rounds": 2
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 18,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "389"
+        }
+      ],
+      "notes": [
+        "3 握手+2 轮×5 消息+unbind+4 挥手=17",
+        "messageID 实测钉：帧4=1(bindReq)/帧9=4(bindReq r2)/帧11=5(searchReq r2)/帧14=6(unbind=base+3(r-1)+2)；帧6 searchReq id 2 同 T-1"
+      ],
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "30 84 00 00 00 10 02 01 01 60"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "30 84 00 00 00 10 02 01 04 60"
+        },
+        {
+          "packet": 11,
+          "offset": 54,
+          "hex": "30 84 00 00 01 58 02 01 05 63"
+        },
+        {
+          "packet": 14,
+          "offset": 54,
+          "hex": "30 84 00 00 00 05 02 01 06 42 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "ldap_bind_anonymous",
+    "proto": "ldap",
+    "summary": "T-4 匿名 bind（缺省）：bindRequest name 空 OCTET STRING+simple [0] 空",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "unbind=false（11 包）避免与 T-13 重复面；匿名面=bind_dn/bind_password 缺省空"
+      ]
+    }
+  },
+  {
+    "id": "ldap_bind_simple",
+    "proto": "ldap",
+    "summary": "T-5 simple bind：bind_dn=cn=admin,dc=test+bind_password=s3cret 入 bindRequest（name+0x80 密码串字节钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "bind_dn": "cn=admin,dc=test",
+            "bind_password": "s3cret",
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "RFC 4511 §4.2.1 simple 认证：0x80 上下文标签+密码 OCTET STRING"
+      ]
+    }
+  },
+  {
+    "id": "ldap_bind_version2",
+    "proto": "ldap",
+    "summary": "T-6 version=2：bindRequest version INTEGER 字节 02（缺省 03 由 T-1 承接）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "version": 2,
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "RFC 4511 §4.2.1 version2 兼容面"
+      ]
+    }
+  },
+  {
+    "id": "ldap_scope_single_level",
+    "proto": "ldap",
+    "summary": "T-7 scope=singleLevel(1)：searchRequest scope ENUMERATED 字节 01",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "search_scope": 1,
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "RFC 4511 §4.5.1.2 枚举 1"
+      ]
+    }
+  },
+  {
+    "id": "ldap_scope_whole_subtree",
+    "proto": "ldap",
+    "summary": "T-8 scope=wholeSubtree(2)：searchRequest scope 字节 02",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "search_scope": 2,
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "RFC 4511 §4.5.1.2 枚举 2；缺省 0 由 T-1 承接"
+      ]
+    }
+  },
+  {
+    "id": "ldap_filter_equality",
+    "proto": "ldap",
+    "summary": "T-9 equality filter：filter_type=equality+search_filter=uid+filter_value=alice → 0xa3 CHOICE+断言值",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "filter_type": "equality",
+            "search_filter": "uid",
+            "filter_value": "alice",
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "RFC 4511 §4.5.1.7 equalityMatch [3]：attr OCTET STRING+assertionValue 直接内联（无嵌套 SEQUENCE）"
+      ]
+    }
+  },
+  {
+    "id": "ldap_result_invalid_credentials",
+    "proto": "ldap",
+    "summary": "T-10 result_code=49：bindResponse+searchResDone resultCode 0x31（invalidCredentials 失败分支）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "result_code": 49,
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "RFC 4511 §4.1.9 ENUMERATED 49=invalidCredentials"
+      ]
+    }
+  },
+  {
+    "id": "ldap_rounds_two",
+    "proto": "ldap",
+    "summary": "T-11 rounds=2 多轮：两完整 bind/search 序+messageID 续编（17 包）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "rounds": 2,
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 17,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.flags",
+          "value": "0x018"
+        },
+        {
+          "packet": 9,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "3 握手+2×5+4 挥手=16；messageID 1/2 与 4/5 两轮续编，unbind 抑制"
+      ]
+    }
+  },
+  {
+    "id": "ldap_attributes_custom",
+    "proto": "ldap",
+    "summary": "T-12 attributes 自定义：AttributeSelection [cn, mail]（非 RootDSE 15）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "attributes": [
+              "cn",
+              "mail"
+            ],
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "RFC 4511 §4.5.1.8：显式列表覆盖 RootDSE 缺省——消息缩短，长形→短形边界面"
+      ]
+    }
+  },
+  {
+    "id": "ldap_unbind_suppressed",
+    "proto": "ldap",
+    "summary": "T-13 unbind=false：无 0x42 帧，末 done 后径直挥手（11 包）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 8,
+          "field": "tcp.flags",
+          "value": "0x018"
+        },
+        {
+          "packet": 9,
+          "field": "tcp.flags",
+          "value": "0x011"
+        }
+      ],
+      "notes": [
+        "unbind 指针三态 false=抑制（T-1 缺省 true 对面）；包9=FIN-ACK 挥手首帧"
+      ]
+    }
+  },
+  {
+    "id": "ldap_composite_multi_round",
+    "proto": "ldap",
+    "summary": "T-14 复合大场景（9.50）：rounds=2+equality filter+非匿名 bind+自定义属性 ≥3 类交织；16 包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "rounds": 2,
+            "filter_type": "equality",
+            "search_filter": "sAMAccountName",
+            "filter_value": "jdoe",
+            "bind_dn": "CN=svc,DC=corp",
+            "bind_password": "pw",
+            "attributes": [
+              "cn",
+              "member"
+            ],
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 17,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.flags",
+          "value": "0x018"
+        },
+        {
+          "packet": 9,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "多轮+equality+simple 认证+自定义属性四类交织；AD 现网服务账号查询形"
+      ]
+    }
+  },
+  {
+    "id": "ldap_search_base_dn",
+    "proto": "ldap",
+    "summary": "T-15 search_base_dn 显式：dc=corp,dc=com（非 RootDSE 空串）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "search_base_dn": "dc=corp,dc=com",
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "RFC 4511 §4.5.1.1 baseObject；entry 的 objectName 同步该值"
+      ]
+    }
+  },
+  {
+    "id": "ldap_size_time_limit",
+    "proto": "ldap",
+    "summary": "T-16 size_limit=10+time_limit=60：searchRequest 两 INTEGER 字节钉",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "size_limit": 10,
+            "time_limit": 60,
+            "unbind": false
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 12,
+      "fields": [
+        {
+          "packet": 6,
+          "field": "tcp.flags",
+          "value": "0x018"
+        }
+      ],
+      "notes": [
+        "RFC 4511 §4.5.1.3/4；参考 pcap timeLimit 120 同族面"
+      ]
+    }
+  },
+  {
+    "id": "ldap_neg_version_invalid",
+    "proto": "ldap",
+    "summary": "T-负例 version_invalid",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "version": 4
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid version",
+      "notes": [
+        "RFC 4511 §4.2.1 锚词（Validate 7 锚之一）"
+      ]
+    }
+  },
+  {
+    "id": "ldap_neg_scope_invalid",
+    "proto": "ldap",
+    "summary": "T-负例 scope_invalid",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "search_scope": 3
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid scope",
+      "notes": [
+        "RFC 4511 §4.5.1.2 锚词（Validate 7 锚之一）"
+      ]
+    }
+  },
+  {
+    "id": "ldap_neg_filter_type_invalid",
+    "proto": "ldap",
+    "summary": "T-负例 filter_type_invalid",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "filter_type": "substring"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid filter type",
+      "notes": [
+        "RFC 4511 §4.5.1.7 锚词（Validate 7 锚之一）"
+      ]
+    }
+  },
+  {
+    "id": "ldap_neg_result_code_range",
+    "proto": "ldap",
+    "summary": "T-负例 result_code_range",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "result_code": 128
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "out of ENUMERATED range",
+      "notes": [
+        "RFC 4511 §4.1.9 锚词（Validate 7 锚之一）"
+      ]
+    }
+  },
+  {
+    "id": "ldap_neg_size_limit_negative",
+    "proto": "ldap",
+    "summary": "T-负例 size_limit_negative",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "size_limit": -1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "size_limit",
+      "notes": [
+        "RFC 4511 §4.5.1.3 锚词（Validate 7 锚之一）"
+      ]
+    }
+  },
+  {
+    "id": "ldap_neg_message_id_overflow",
+    "proto": "ldap",
+    "summary": "T-22 负例：message_id_base=32767+rounds=2 → base+3r+2 超限",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "ldap": {
+            "message_id_base": 32767,
+            "rounds": 2
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "exceeds 0x7FFF",
+      "notes": [
+        "RFC 4511 §4.1.1.1 messageID 上限锚（Validate base+3*(rounds-1)+2 公式）"
       ]
     }
   }

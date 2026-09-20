@@ -1458,9 +1458,71 @@ def check_pppoe(cases):
 
     return rows
 
+
+def check_ldap(cases):
+    """D-LDAP-1 P6 反查表（T-LDAP-1…22，9.52 对账 38/38）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("ldap"), dict):
+                lays.append((c.get("id", "?"), l["ldap"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面（22 例逐点名，T-LDAP 清单）。
+    for kw, name in [
+        ("session_full", "T-1 全会话 13 包（六标签 BER 面钉）"),
+        ("ber_long_form_length", "T-2 BER 长形前缀专钉"),
+        ("message_id_increment", "T-3 messageID 递增实测钉"),
+        ("bind_anonymous", "T-4 匿名 bind"),
+        ("bind_simple", "T-5 simple bind"),
+        ("bind_version2", "T-6 version=2"),
+        ("scope_single_level", "T-7 scope=1"),
+        ("scope_whole_subtree", "T-8 scope=2"),
+        ("filter_equality", "T-9 equality CHOICE"),
+        ("result_invalid_credentials", "T-10 resultCode 49"),
+        ("rounds_two", "T-11 rounds=2 多轮"),
+        ("attributes_custom", "T-12 attributes 自定义"),
+        ("unbind_suppressed", "T-13 unbind 抑制"),
+        ("composite_multi_round", "T-14 复合大场景（9.50）"),
+        ("search_base_dn", "T-15 base DN 显式"),
+        ("size_time_limit", "T-16 size/time limit"),
+        ("neg_version_invalid", "T-17 version 拒"),
+        ("neg_scope_invalid", "T-18 scope 拒"),
+        ("neg_filter_type_invalid", "T-19 filter_type 拒"),
+        ("neg_result_code_range", "T-20 result_code 拒"),
+        ("neg_size_limit_negative", "T-21 size_limit 拒"),
+        ("neg_message_id_overflow", "T-22 messageID 超限拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖（15 键逐键）。
+    for k in ["rounds", "message_id_base", "version", "bind_dn", "bind_password",
+              "search_base_dn", "search_scope", "size_limit", "time_limit",
+              "filter_type", "search_filter", "filter_value", "attributes",
+              "result_code", "unbind"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面（6 负例）。
+    for needle, name in [
+        ("invalid version", "T-17 version 锚"),
+        ("invalid scope", "T-18 scope 锚"),
+        ("invalid filter type", "T-19 filter_type 锚"),
+        ("out of ENUMERATED range", "T-20 result_code 锚"),
+        ("size_limit", "T-21 范围门锚"),
+        ("exceeds 0x7FFF", "T-22 messageID 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap}
 
 
 def main(argv):
