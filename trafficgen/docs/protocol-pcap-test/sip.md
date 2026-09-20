@@ -1,6 +1,6 @@
 # sip Pcap Test Results
 
-Cases: 86 — pass 86, fail 0, error 0
+Cases: 96 — pass 96, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -13,6 +13,7 @@ Cases: 86 — pass 86, fail 0, error 0
 | sip_callflow_complete | T-SIP-24: 组合流二（§9.11 组合流≥2 条≥3 动作；INVITE→180→200→ACK→PRACK→200→BYE→200=8 消息+TCP=15 包；含 180 临时+PRACK 确认） | pass | 15 | [pcap](sip/sip_callflow_complete.pcap) |
 | sip_cancel | T-SIP-20: CANCEL 取消未应答呼叫（§3.15 非正常结束①；INVITE→180→CANCEL→200→487→ACK=6 消息+TCP=13 包；无 BYE 序列） | pass | 13 | [pcap](sip/sip_cancel.pcap) |
 | sip_compact_form | T-SIP-37: 紧凑形头方言（RFC 3261 §20 compact：v=/f=/t=/i=/l=；§9.10 常见方言面） | pass | 12 | [pcap](sip/sip_compact_form.pcap) |
+| sip_conf_burst_3party | T-SIP-87: 复合大场景——三方会议建立风暴（9.50：多会话+多事务+多流关联+异常分支+NAT 五类交织单例） | pass | 42 | [pcap](sip/sip_conf_burst_3party.pcap) |
 | sip_conference_join | T-SIP-46: 会议加入+名册事件（RFC 4579 焦点 URI+RFC 4575 conference-info；多方会议面） | pass | 12 | [pcap](sip/sip_conference_join.pcap) |
 | sip_default_port | T-SIP-16: sip 层无端口→dst 缺省 5060 | pass | 12 | [pcap](sip/sip_default_port.pcap) |
 | sip_early_media_183 | T-SIP-30: 183 早期媒体+PRACK（RFC 3262 提前振铃音/回铃媒体；现网运营商彩铃面） | pass | 13 | [pcap](sip/sip_early_media_183.pcap) |
@@ -21,6 +22,7 @@ Cases: 86 — pass 86, fail 0, error 0
 | sip_flat_static_port | T-SIP-3: sip 层静态端口+flows=2 拒（12.9，门扩扫 sip 层） | pass | 0 | [pcap]() |
 | sip_forked_invite | T-SIP-45: 并行分叉 INVITE 竞速（RFC 3261 §3.1.2.1/3266：代理分叉多支路多 tag，一支 486 一支 200——多方同时振铃面） | pass | 13 | [pcap](sip/sip_forked_invite.pcap) |
 | sip_hdr_case_mix | T-SIP-43: 头名大小写混写透传（RFC 3261 §7.3 头名大小写不敏感；fRoM/cALL-iD/CsEq 现网乱写面） | pass | 12 | [pcap](sip/sip_hdr_case_mix.pcap) |
+| sip_hdr_cl_user_wins | T-SIP-95: 用户自带 Content-Length 与 body 并存→引擎禁二次追加（字节回放边界） | pass | 9 | [pcap](sip/sip_hdr_cl_user_wins.pcap) |
 | sip_hdr_completion | T-SIP-4: 无头 INVITE→Call-ID/Via/CSeq/Max-Forwards 全生成（RFC 3261 §8.1.1.4） | pass | 12 | [pcap](sip/sip_hdr_completion.pcap) |
 | sip_hdr_user_wins | T-SIP-5: 显式 CSeq:7+Call-ID→保留+200 响应回显（user 头赢三态） | pass | 9 | [pcap](sip/sip_hdr_user_wins.pcap) |
 | sip_history_info_fwd | T-SIP-52: History-Info 呼转链（RFC 4244：302 重定向后重发带历史条目；与 T-33 素呼转分面=带审计链版） | pass | 13 | [pcap](sip/sip_history_info_fwd.pcap) |
@@ -35,6 +37,7 @@ Cases: 86 — pass 86, fail 0, error 0
 | sip_medias_interleave | T-SIP-73: interleave 交错调度（WP-B：T=4 G=3→gap 2/1/1；RTP 与信令帧序钉死=§3.12 写死可复现；14 包） | pass | 14 | [pcap](sip/sip_medias_interleave.pcap) |
 | sip_medias_port_dyn | T-SIP-75: medias src_port 动态 inc+flows=2（E1 同款整格；2 流×(7+2+4)=26 包） | pass | 22 | [pcap](sip/sip_medias_port_dyn.pcap) |
 | sip_message_im | T-SIP-36: MESSAGE 页模式即时消息（RFC 3428；SIP 短信/IM 现网面） | pass | 9 | [pcap](sip/sip_message_im.pcap) |
+| sip_msg_empty_entry_skipped | T-SIP-96: dialog 空消息条目静默跳过语义钉（9.46 非法值边界；空条目不产包不报错） | pass | 9 | [pcap](sip/sip_msg_empty_entry_skipped.pcap) |
 | sip_mss_segment | T-SIP-10: 3000B body→MSS 1460 分段 3 段 | pass | 11 | [pcap](sip/sip_mss_segment.pcap) |
 | sip_nat_default_passthrough | T-SIP-79: 缺省透传零变化回归（无 nat 无标记→Via 原样；字节零漂移线） | pass | 9 | [pcap](sip/sip_nat_default_passthrough.pcap) |
 | sip_nat_rport_fill | T-SIP-77: bare rport 参数回填（RFC 3581 §4：rport=12001;received=10.0.0.1；无需开关） | pass | 9 | [pcap](sip/sip_nat_rport_fill.pcap) |
@@ -59,6 +62,13 @@ Cases: 86 — pass 86, fail 0, error 0
 | sip_register_expire0 | T-SIP-26: REGISTER 刷新+注销（Expires:0 递减=RFC 3261 §10.2.2 注销；注册生命周期 §3.2 面） | pass | 11 | [pcap](sip/sip_register_expire0.pcap) |
 | sip_reinvite_refresh | T-SIP-19: 会话内 re-INVITE 刷新（§3.15 多轮操作+会话内重协商；INVITE→200→ACK→re-INVITE→200→ACK→BYE→200=8 消息+TCP 3握4挥=15 包） | pass | 15 | [pcap](sip/sip_reinvite_refresh.pcap) |
 | sip_replaces_attended | T-SIP-47: Replaces 询转（RFC 3891+3515：REFER 带 Replaces=有接续转移，NOTIFY 上报 200 OK；与 T-28 盲转分面） | pass | 16 | [pcap](sip/sip_replaces_attended.pcap) |
+| sip_resp_202_refer | T-SIP-88: 202 Accepted（REFER 成功上下文；2xx 非 200 分支值） | pass | 9 | [pcap](sip/sip_resp_202_refer.pcap) |
+| sip_resp_300_contacts | T-SIP-89: 300 Multiple Choices 多 Contact 列表数据形状（3xx 分支+列表形） | pass | 10 | [pcap](sip/sip_resp_300_contacts.pcap) |
+| sip_resp_407_proxy_auth | T-SIP-90: 407 代理鉴权头族（Proxy-Authenticate/Proxy-Authorization≠401 的 WWW/Authorization） | pass | 10 | [pcap](sip/sip_resp_407_proxy_auth.pcap) |
+| sip_resp_420_bad_extension | T-SIP-91: 420 Bad Extension（Require 未知扩展→扩展协商失败，Supported 头形） | pass | 10 | [pcap](sip/sip_resp_420_bad_extension.pcap) |
+| sip_resp_422_session_timer | T-SIP-92: 422 会话定时器协商失败（RFC 4028 §6：Session-Expires 过小→422+Min-SE） | pass | 10 | [pcap](sip/sip_resp_422_session_timer.pcap) |
+| sip_resp_489_bad_event | T-SIP-93: 489 Bad Event（SUBSCRIBE 上下文错误码=同码不同上下文测试点，9.21） | pass | 9 | [pcap](sip/sip_resp_489_bad_event.pcap) |
+| sip_resp_503_retry_after | T-SIP-94: 503 + Retry-After 头数据点（服务过载现网常见形） | pass | 10 | [pcap](sip/sip_resp_503_retry_after.pcap) |
 | sip_rtp_down | T-SIP-12: RTP down 方向+显式 media 端口（src 30000/dst 30001→线上 src=30001/dst=30000） | pass | 10 | [pcap](sip/sip_rtp_down.pcap) |
 | sip_rtp_filesource | T-SIP-14: RTP FileSource literal 'pay'→帧 payload 实字节（FileSource 优先合同） | pass | 10 | [pcap](sip/sip_rtp_filesource.pcap) |
 | sip_rtp_media | T-SIP-11: RTP 媒体子流（EmitMedia+frames:2/PT 0→UDP 5004 两帧；14 包） | pass | 14 | [pcap](sip/sip_rtp_media.pcap) |

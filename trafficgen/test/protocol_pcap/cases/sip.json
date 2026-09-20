@@ -6916,5 +6916,627 @@
       "expect_error": true,
       "error_contains": "sessions are not supported on a tcp/tls sip chain"
     }
+  },
+  {
+    "id": "sip_conf_burst_3party",
+    "proto": "sip",
+    "summary": "T-SIP-87: 复合大场景——三方会议建立风暴（9.50：多会话+多事务+多流关联+异常分支+NAT 五类交织单例）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "nat": {
+              "rport": true
+            },
+            "sessions": [
+              {
+                "src_port": 22001,
+                "call_id": "party-a@10.0.0.1",
+                "dialog": [
+                  {
+                    "method": "INVITE",
+                    "uri": "sip:conf@20.0.0.1",
+                    "emit_media": true
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  },
+                  {
+                    "method": "ACK",
+                    "uri": "sip:conf@20.0.0.1"
+                  },
+                  {
+                    "method": "INVITE",
+                    "uri": "sip:conf@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  },
+                  {
+                    "method": "ACK",
+                    "uri": "sip:conf@20.0.0.1"
+                  },
+                  {
+                    "method": "BYE",
+                    "uri": "sip:conf@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "medias": [
+                  {
+                    "direction": "up",
+                    "frames": 2,
+                    "src_port": 30004
+                  },
+                  {
+                    "direction": "down",
+                    "frames": 2,
+                    "src_port": 30005,
+                    "dst_port": 30006
+                  }
+                ]
+              },
+              {
+                "src_port": 22002,
+                "call_id": "party-b@10.0.0.1",
+                "dialog": [
+                  {
+                    "method": "INVITE",
+                    "uri": "sip:conf@20.0.0.1"
+                  },
+                  {
+                    "status_code": 486,
+                    "status_text": "Busy Here"
+                  },
+                  {
+                    "method": "ACK",
+                    "uri": "sip:conf@20.0.0.1"
+                  }
+                ]
+              },
+              {
+                "src_port": 22003,
+                "call_id": "party-c@10.0.0.1",
+                "dialog": [
+                  {
+                    "method": "INVITE",
+                    "uri": "sip:conf@20.0.0.1"
+                  },
+                  {
+                    "status_code": 100,
+                    "status_text": "Trying"
+                  },
+                  {
+                    "method": "CANCEL",
+                    "uri": "sip:conf@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  },
+                  {
+                    "status_code": 487,
+                    "status_text": "Request Terminated"
+                  },
+                  {
+                    "method": "ACK",
+                    "uri": "sip:conf@20.0.0.1"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "22001",
+            "22002",
+            "22003"
+          ],
+          "distinct_exclude": [
+            "5060"
+          ]
+        },
+        {
+          "packet": 1,
+          "field": "udp.srcport",
+          "distinct_values": [
+            "30004",
+            "30006"
+          ]
+        }
+      ],
+      "notes": [
+        "会话 A=多事务(INVITE/ACK/re-INVITE/ACK/BYE)+RTP 双向 4 帧；B=486 异常；C=CANCEL/487 取消链；nat.rport 全程回填；包数=19+9+13=41；down 流 wire 元组交换 src=dstPort（WP-B 校准同款）故下行显式 dst_port=30006 分面"
+      ],
+      "packet_count": 42
+    }
+  },
+  {
+    "id": "sip_resp_202_refer",
+    "proto": "sip",
+    "summary": "T-SIP-88: 202 Accepted（REFER 成功上下文；2xx 非 200 分支值）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "REFER",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Refer-To: <sip:target@20.0.0.1>"
+                ]
+              },
+              {
+                "status_code": 202,
+                "status_text": "Accepted"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Method",
+          "value": "REFER"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "202"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sip_resp_300_contacts",
+    "proto": "sip",
+    "summary": "T-SIP-89: 300 Multiple Choices 多 Contact 列表数据形状（3xx 分支+列表形）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:alias@20.0.0.1"
+              },
+              {
+                "status_code": 300,
+                "status_text": "Multiple Choices",
+                "headers": [
+                  "Contact: <sip:a@20.0.0.2>,<sip:b@20.0.0.3>,<sip:c@20.0.0.4>"
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:alias@20.0.0.1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "300"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Contact",
+          "value": "<sip:a@20.0.0.2>,<sip:b@20.0.0.3>,<sip:c@20.0.0.4>"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sip_resp_407_proxy_auth",
+    "proto": "sip",
+    "summary": "T-SIP-90: 407 代理鉴权头族（Proxy-Authenticate/Proxy-Authorization≠401 的 WWW/Authorization）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1"
+              },
+              {
+                "status_code": 407,
+                "status_text": "Proxy Authentication Required",
+                "headers": [
+                  "Proxy-Authenticate: Digest realm=\"proxy.example.com\", nonce=8a9f, qop=\"auth\""
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "407"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Proxy-Authenticate",
+          "value": "Digest realm=\"proxy.example.com\", nonce=8a9f, qop=\"auth\""
+        }
+      ]
+    }
+  },
+  {
+    "id": "sip_resp_420_bad_extension",
+    "proto": "sip",
+    "summary": "T-SIP-91: 420 Bad Extension（Require 未知扩展→扩展协商失败，Supported 头形）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Require: unknown-ext"
+                ]
+              },
+              {
+                "status_code": 420,
+                "status_text": "Bad Extension",
+                "headers": [
+                  "Supported: timer,replaces"
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "420"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Supported",
+          "value": "timer,replaces"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sip_resp_422_session_timer",
+    "proto": "sip",
+    "summary": "T-SIP-92: 422 会话定时器协商失败（RFC 4028 §6：Session-Expires 过小→422+Min-SE）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Session-Expires: 60",
+                  "Supported: timer"
+                ]
+              },
+              {
+                "status_code": 422,
+                "status_text": "Session Interval Too Small",
+                "headers": [
+                  "Min-SE: 90"
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "422"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Min-SE",
+          "value": "90"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sip_resp_489_bad_event",
+    "proto": "sip",
+    "summary": "T-SIP-93: 489 Bad Event（SUBSCRIBE 上下文错误码=同码不同上下文测试点，9.21）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "SUBSCRIBE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Event: unknown-pkg",
+                  "Expires: 300"
+                ]
+              },
+              {
+                "status_code": 489,
+                "status_text": "Bad Event"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Method",
+          "value": "SUBSCRIBE"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "489"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sip_resp_503_retry_after",
+    "proto": "sip",
+    "summary": "T-SIP-94: 503 + Retry-After 头数据点（服务过载现网常见形）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1"
+              },
+              {
+                "status_code": 503,
+                "status_text": "Service Unavailable",
+                "headers": [
+                  "Retry-After: 30"
+                ]
+              },
+              {
+                "method": "ACK",
+                "uri": "sip:callee@20.0.0.1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 10,
+      "fields": [
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "503"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Retry-After",
+          "value": "30"
+        }
+      ]
+    }
+  },
+  {
+    "id": "sip_hdr_cl_user_wins",
+    "proto": "sip",
+    "summary": "T-SIP-95: 用户自带 Content-Length 与 body 并存→引擎禁二次追加（字节回放边界）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Content-Type: application/sdp",
+                  "Content-Length: 88"
+                ],
+                "body": "v=0\r\no=- 1 1 IN IP4 10.0.0.1\r\ns=-\r\nt=0 0\r\nm=audio 5004 RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\n"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Content-Length",
+          "value": "88"
+        }
+      ],
+      "notes": [
+        "用户 CL=78（精确 body 长度）→单 CL 行原值；引擎禁追加第二 CL（T-SIP-78 双 Call-ID 契约边界同族）"
+      ]
+    }
+  },
+  {
+    "id": "sip_msg_empty_entry_skipped",
+    "proto": "sip",
+    "summary": "T-SIP-96: dialog 空消息条目静默跳过语义钉（9.46 非法值边界；空条目不产包不报错）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {},
+              {
+                "method": "OPTIONS",
+                "uri": "sip:callee@20.0.0.1"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Method",
+          "value": "OPTIONS"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "200"
+        }
+      ],
+      "notes": [
+        "空条目（无 method 无 status）跳过=文档化语义（inferDirection 空串 continue）；包数=3+2+4 证明未发空包"
+      ]
+    }
   }
 ]

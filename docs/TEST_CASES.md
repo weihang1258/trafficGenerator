@@ -3706,3 +3706,37 @@
 
 **P5 校准 3 处（14.6 落盘重钉）：** ①isRawIPChain 红线修复——终层 sip 且链含 tcp/udp 时不得走 raw 自驱分支（事件面被拦截→TLS record 全丢，离线复现 tlsRecords=0 定位）；②drive 内联 meta 清单补 `SIP: spec.SIP`（此前 raw 分支走 flowMetaFor，事件面清单缺字段→空流）；③T-83 Via branch 随机不可跨跑钉值→same_as_packet 回显断言+确定性前缀由单测钉。
 **实现位置：** cases/sip.json（**86 例**）；`event_gen.go`（新）/`InitChain` 钩子（chain_planner_chain.go）/`isRawIPChain` 守卫（chain_planner_util.go）/`checkSIPEventPlane`（semantic.go）；链级回归 `TestChainPlanner_SIP_TLSChain`（16 包形状离线钉）。
+
+### T-SIP-87…96 场景覆盖强度补强批（CORE_MEMORY 9.46–9.53 增补后首批，用户裁定排在 #21 pppoe 之前）
+
+**状态：** P5 全绿（2026-09-20，96/96 ×2 稳态+门 2 静态四项绿+反查 107/107）。三源=RFC 3261 §21 响应码全表+§22.3 代理鉴权+RFC 4028 §6 会话定时器+RFC 3265 §7 SUBSCRIBE+RFC 3312 §5 前置条件+9.46 数据边界。**级别：** pcap。
+**存量去向：** 无（纯增量）。
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| 复合大场景（9.50） | T-87 sip_conf_burst_3party | A（五类交织单例：三方多会话+会话内多事务 re-INVITE/BYE+RTP 双向多流关联+486/CANCEL/487 异常+NAT rport；42 包 pcap 钉；**抓出 parse 真 bug**：ParseSIPSessions 漏 Medias/Interleave 接线，RTP 静默不发射，parse 层红例先行修复） |
+| 2xx 非 200 分支值 | T-88 sip_resp_202_refer | A（REFER→202 Accepted；Refer-To 头形） |
+| 3xx 列表数据形 | T-89 sip_resp_300_contacts | A（300 多 Contact 逗号列表三实体） |
+| 代理鉴权头族 | T-90 sip_resp_407_proxy_auth | A（Proxy-Authenticate≠401 的 WWW 族；Digest realm/nonce/qop 形） |
+| 扩展协商失败 | T-91 sip_resp_420_bad_extension | A（Require 未知扩展→420+Supported 头形） |
+| 会话定时器协商失败 | T-92 sip_resp_422_session_timer | A（RFC 4028 §6：Session-Expires→422+Min-SE；与 update_session_timer 成败对称） |
+| 同码不同上下文（9.21） | T-93 sip_resp_489_bad_event | A（SUBSCRIBE Event 未知→489；非 INVITE 无 ACK=9 包 vs INVITE 类 10 包） |
+| Retry-After 头形 | T-94 sip_resp_503_retry_after | A（503 过载+Retry-After: 30 现网常见形） |
+| 用户 CL 禁二次追加（9.46） | T-95 sip_hdr_cl_user_wins | A（body+精确 CL 并存→单 CL 行原值；与 T-78 双 Call-ID 契约边界同族） |
+| 空条目跳过语义（9.46） | T-96 sip_msg_empty_entry_skipped | A（dialog 空消息条目不产包不报错=文档化语义钉；9.18 可表达=A 类） |
+
+**P5 校准 3 处（14.6 落盘重钉）：** ①INVITE 终响应类（req+final+ACK）=10 包非 9（漏数 INVITE 自身）；②T-95 CL 与 body 长度不符→tshark malformed（配置自洽错误非引擎问题，python 算准 body 实长）；③T-87 down 流 wire 元组交换 src=dstPort（WP-B 校准同款陷阱复发）→down 流显式 dst_port=30006 分面。**parse 修复=1 处：** ParseSIPSessions += Medias/Interleave（parse 层红例 TestParseSIPSessionsPerSessionMedias 先红后绿；planner 直构 spec 的旧单测覆盖不到此层）。
+**实现位置：** cases/sip.json（**96 例**）；strategy_convert.go ParseSIPSessions；sip_sessions_parse_test.go（新）。
+
+**9.46/9.47 响应码全表对账（9.52 必答，清单出处=RFC 3261 §21+IANA 注册表，非现有用例反推）：**
+
+| 分支 | 码 | 代表例/去向 |
+|---|---|---|
+| 1xx 暂态 | 100/180/183 | T-1/T-8/T-30（同分支同形状，199 RFC 6228 按分支注记） |
+| 2xx 成功 | 200 | T-1；**202** → T-88；204 RFC 5839 按分支注记 |
+| 3xx 重定向 | 302 | T-40；**300 多 Contact 列表** → T-89；301/305/380 同分支注记 |
+| 4xx 客户错误 | 401/403/404/408/480/481/486/487/488/491 | T-47/T-42/T-8/T-9/T-53 区段/T-10/T-14/T-25/CANCEL 链 T-45/491 glare T-55；**407 代理族** → T-90；**420** → T-91；**422** → T-92；**489** → T-93；400/402/405/406/410/412/413/414/415/416/421/423/482/483/484/485/493 及深扩展（417/424/428/429/430/433/436/437/438/439/440/469/470/494）同分支注记（回放语义下与已建例同 wire 形状=9.21 分支代表） |
+| 5xx 服务错误 | 500/503 | T-56 区段/94；501/502/504/505/513/580 RFC 3312 同分支注记 |
+| 6xx 全局失败 | 600/603 | T-56 区段/603 decline；604/606/607 同分支注记 |
+
+**对账两行：** RFC 3261 §21+IANA 响应码逻辑点总数≈57 项 → 分支代表建例 **25** 码（6 分支全覆盖）+ 32 码按 9.21 分支注记（同分支同 wire 形状，逐值扩充按需）= **57/57 对账平**。字节序 n/a（文本协议）；字符集=tel_uri_utf8 已覆。

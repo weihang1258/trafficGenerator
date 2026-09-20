@@ -371,3 +371,39 @@ func TestNATSessionsActualPort(t *testing.T) {
 		t.Fatalf("sessions mode must fill the session's actual port")
 	}
 }
+
+// D-SIP-2 补强批红例（9.49 复合编排）：sessions 内 per-session medias 多流
+// 必须解析并发射——ParseSIPSessions 此前漏 Medias/Interleave 接线（静默丢）。
+func TestSIPSessionsPerSessionMedias(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1", SrcPort: 12001, DstPort: 5060,
+		SIP: &core.SIPConfig{Sessions: []core.SIPSession{
+			{SrcPort: 22001, Dialog: []core.SIPMessage{
+				{Method: "INVITE", URI: "sip:conf@20.0.0.1", EmitMedia: true},
+				{StatusCode: 200, StatusText: "OK"},
+			}, Medias: []core.SIPMedia{
+				{Direction: "up", Frames: 2},
+				{Direction: "down", Frames: 2},
+			}},
+		}},
+	}
+	var p Planner
+	ch, err := p.Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	udp := 0
+	var dirs []string
+	for pkt := range ch {
+		if pkt.L4.Protocol == "udp" {
+			udp++
+			dirs = append(dirs, pkt.Direction)
+		}
+	}
+	if udp != 4 {
+		t.Fatalf("udp frames=%d want 4 (2 up + 2 down round-robin)", udp)
+	}
+	if got, want := strings.Join(dirs, ","), "up,down,up,down"; got != want {
+		t.Fatalf("directions=%q want %q", got, want)
+	}
+}

@@ -797,7 +797,12 @@ def check_sip(cases):
                      ("nat_default_passthrough", "NAT 缺省透传零漂移面"), ("nat_sessions_port", "NAT 会话真值端口面"),
                      ("tls_options", "SIPS/TLS 事件面"), ("tls_register", "TLS REGISTER 面"),
                      ("tcp_options", "纯 tcp 事件面明文线"), ("neg_tls_media", "tls×media 判死面"),
-                     ("neg_sips_no_tls", "sips 无 tls 判死面"), ("neg_tls_sessions", "tls×sessions 判死面")]:
+                     ("neg_sips_no_tls", "sips 无 tls 判死面"), ("neg_tls_sessions", "tls×sessions 判死面"),
+                     ("conf_burst", "复合大场景交织面(9.50)"), ("resp_202", "2xx 非 200 分支值"),
+                     ("resp_300", "3xx 多 Contact 列表形"), ("resp_407", "代理鉴权头族"),
+                     ("resp_420", "扩展协商失败面"), ("resp_422", "会话定时器协商失败(RFC 4028)"),
+                     ("resp_489", "SUBSCRIBE 上下文错误码(9.21)"), ("retry_after", "Retry-After 头形"),
+                     ("cl_user_wins", "用户 CL 禁二次追加(9.46)"), ("empty_entry", "空条目跳过语义钉")]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
 
