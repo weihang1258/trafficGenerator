@@ -3854,4 +3854,4 @@ RFC 6143 RFB 反推 17 例：T-1 33 帧参考形（Tight 13 握手消息+客户�
 
 ### T-XMPP-1…10 xmpp 层链收敛（D-XMPP-1 P3 清单见 CODE_DESIGN D-XMPP-1；P5 已执行 10/10 ×2 全绿，2026-09-20）
 
-RFC 6120/6121 反推 10 例：T-1 PLAIN 19 帧全序（10 阶段+5222）/T-2 DIGEST-MD5 21/T-3 SCRAM-SHA-1 23（参考 pcap 同机制）/T-4 ANONYMOUS 19（元素字节钉）/T-5 presence=false 18/T-6 messages 双向（message 节字节钉）/T-7 from/jid/resource/stream_id 定制（流头+bind 钉）/T-8 PLAIN 凭据 base64 钉/T-9…10 负例两锚（auth 枚举/direction 枚举，全落 planner Validate）。包数手算全中（SASL 线性差 +0/+2/+4）；'</stream:stream>' 白名单泛化 xmpp_ 前缀（旧例 id 精确匹配→前缀）。在库 xmpp 行已清（3+77，备份 -xmpp-purge-20260920.db）。
+RFC 6120/6121 反推 10 例：T-1 PLAIN 19 帧全序（10 阶段+5222）/T-2 DIGEST-MD5 21/T-3 SCRAM-SHA-1 23（参考 pcap 同机制）/T-4 ANONYMOUS 19（元素字节钉）/T-5 presence=false 18/T-6 messages 双向（message 节字节钉）/T-7 from/jid/resource/stream_id 定制（流头+bind 钉）/T-8 PLAIN 凭据 base64 钉/T-9…10 负例两锚（auth 枚举/direction 枚举，全落 planner Validate）。包数手算全中（SASL 线性差 +0/+2/+4）；'</stream:stream>' 白名单泛化 xmpp_ 前缀（旧例 id 精确匹配→前缀）。在库 xmpp 行已清（3+77，备份 -xmpp-purge-20260920.db）。**追加复审第 3 轮**：断言值 vs 配置值逐键核对抓 T-7 stream_id/jid 值未钉（f5/f11 实测补钉）+normalizeAuthMech 大小写宽松 B′ 注记+2 既有 flaky（snmp/goose）记账；10/10 ×2 全绿。
