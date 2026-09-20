@@ -529,6 +529,9 @@ func validateBaseDstPortHandled(name string) bool {
 		// D-LDAP-1 ldap：自建 TCP 载体（目的端口 389 由生成器 Plan
 		// 缺省），层 config 无端口位，0 合法（radius 同款）。
 		"ldap",
+		// D-RTMP-1 rtmp：自建 TCP 载体（目的端口 1935 由生成器 Plan
+		// 缺省），层 config 无端口位，0 合法（ldap 同款）。
+		"rtmp",
 		// stateless UDP protocols: ports defaulted by the DstPort switch above.
 		// radius 已在上方 D-RADIUS-1 豁免块登记，此处不重复列。
 		"tftp":
@@ -713,7 +716,7 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// 不在此默认化。
 		case "moxa":
 		// Moxa 源端口 0 保持 0：透传单连接，多流由 worker 递增。
-		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip", "radius", "pppoe", "ldap":
+		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip", "radius", "pppoe", "ldap", "rtmp":
 			// pppoe（D-PPPOE-1）同列：帧无外层传输层，链路径无端口可写
 			// （内层 IPv4 数据面的 L4 端口住 spec，0 由生成器合成面承担）。
 			// raw-IP 路由终结层（P3 T5）与 nvgre（B4 封装类）/srv6
@@ -1187,6 +1190,8 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			meta.PPPoE = spec.PPPoE
 			// D-LDAP-1：ldap raw 链同款。
 			meta.LDAP = spec.LDAP
+			// D-RTMP-1：rtmp raw 链同款。
+			meta.RTMP = spec.RTMP
 			// srv6 内层端口回退链（inner 端口缺省→spec 端口）依赖这两个值；
 			// 多流时 worker.go 已按流注入 spec.SrcPort=12345+i。igmp/ospf/
 			// pim/nvgre 生成器不读端口字段，赋值对它们无副作用。

@@ -4582,6 +4582,12 @@ func parseSocksDataMessages(v interface{}) []SocksDataMessage {
 	return out
 }
 
+// ParseRTMPConfigFromMap exports parseRTMPConfig for the layer-translate
+// path (parse helpers are package-local; ParseLDAPConfigFromMap precedent).
+func ParseRTMPConfigFromMap(m map[string]interface{}) *RTMPConfig {
+	return parseRTMPConfig(m)
+}
+
 // parseRTMPConfig converts the JSON-decoded "rtmp" sub-map into *RTMPConfig.
 // RTMP (Adobe Real-Time Messaging Protocol) 配置解析.
 // 空/缺失 map 返回 nil — 与 socks5/radius/vnc 模式一致.

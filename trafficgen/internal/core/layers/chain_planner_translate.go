@@ -2060,6 +2060,14 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.LDAP == nil {
 			spec.LDAP = core.ParseLDAPConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "rtmp":
+		// D-RTMP-1：层 config 经 core.ParseRTMPConfigFromMap 复用扁平
+		// 解析单一真相（payload_b64 双形由扁平 parse 承接，JSON 往返会
+		// 误读——data[].payload 字节数组/base64 双形同 inner_payload 陷阱）。
+		// 空层 config 也翻译出非 nil（全默认=参考 pcap play 形合法）。
+		if spec.RTMP == nil {
+			spec.RTMP = core.ParseRTMPConfigFromMap(completedConfig(s, term.Config))
+		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
 		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6

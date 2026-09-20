@@ -1298,6 +1298,22 @@ func buildDefaultRegistry() {
 			"unbind":          {Type: "bool"},
 		},
 	})
+	// rtmp（tcp 终结层。Adobe RTMP——C0/C1/S0/S1/S2/C2 握手（1536B 随机+
+	// 回显）+chunk（fmt0 基本头+11B 消息头）+AMF0 命令（connect/
+	// createStream/play|publish）+协议控制四消息+音视频数据面，wire 字节由
+	// rtmp 生成器 raw 自驱产出（D-RTMP-1 裁定1，ldap 对称：legacy 自建 TCP
+	// 握手/挥手原样保留）。Fields 登记消费面 5 键（data 项内子键随 list 项）；
+	// 端口 1935 由生成器 Plan 缺省（0-keep+validateBaseDstPortHandled 豁免）。
+	// AMF3/chunk fmt1-3/其余命令族=B′ 注记。
+	r.Register(LayerSchema{Name: "rtmp", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"app":         {Type: "string"},
+			"tc_url":      {Type: "string"},
+			"command":     {Type: "string"},
+			"stream_name": {Type: "string"},
+			"data":        {Type: "list"}, // 项：direction/msg_type/chunk_stream_id/payload(_b64)
+		},
+	})
 	// pppoe（eth 终结层。RFC 2516——Discovery（PADI/PADO/PADR/PADS，EtherType
 	// 0x8863）+ 会话（LCP/Auth/数据，EtherType 0x8864）+ PADT 终止，wire 字节
 	// 由 pppoe 生成器 raw 自驱产出（D-PPPOE-1 裁定1，帧无外层 IP 头，ip 层

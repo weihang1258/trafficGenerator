@@ -3807,3 +3807,31 @@
 **P5 执行记录（2026-09-20）：** cases/ldap.json 22 例层链形（T-1 改写等价覆盖：13 包=握手3+5 消息+unbind+挥手4，原 min_packets 12 为下限非钉值）；suite ×2 连续全绿 `RESULT: 22 pass, 0 fail, 0 error (of 22)`；pcap 16 正例+5 neg（T-17…21 create-time 拒绝无 pcap，T-22 同）。**byte 校准（pcap 实测非手算）：包数笔算普遍 -1（挥手 4 帧面重数）；BER 恒长形语义钉（berWrap 0x84+4B 长度，不做短形优化——bindReq SEQ len 0x10/searchReq 0x158/bindReq 内层 protocolOp 60 84 00 00 00 07）；messageID 实测帧序钉（rounds=2：bindReq 1/4、searchReq 2/5、unbind 6=base+3(r-1)+2，notes 初稿"unbind id 3"为 rounds=1 值笔误已校正）；T-21 锚词随 registry V9 真实拦截面（size_limit=-1 被 "not a numeric value in [0,2147483647]" 拦先于 planner Validate）**；端口面：包4 tcp.srcport=12345（worker 逐流保底）恒 389 的断言面=tcp.dstport。coverage_gate check_ldap 43/43 绿。
 
 **9.52 对账两行：** RFC 4511 逻辑点总数 **38**（BER 4+操作标签 6+bind 组成 3+search 组成 8+filter CHOICE 2+resultCode 2+messageID 1+unbind 1+传输 1+负例分支 7+业务变体多轮/匿名 2+现网 RootDSE 1）→ 建例代表 **36** + 注记 2（filter_value 空断言+超长 DN B′；time_limit 与 size_limit 同门合并计）= **38/38 对账平**。清单出处=RFC 4511 原文逐章反推，非现有用例总结。
+
+### T-RTMP-1…16 rtmp 层链收敛（D-RTMP-1 P3 清单，2026-09-20，待批）
+
+**三源：** Adobe RTMP spec（§5 握手/§6 chunk/§7-8 命令）+D-RTMP-1+参考 pcap（llcj 镜像 play 会话）。**级别：** pcap。
+**存量去向（9.14）：** `rtmp-connect-play-basic` 1 例扁平 → 改写层链形合入 T-1（等价覆盖+端口显式化重钉）。
+**层 Fields=5**（app/tc_url/command/stream_name/data——data 项内 direction/msg_type/chunk_stream_id/payload(_b64) 随 list 项）。
+
+| # | 用例 | 断言面 | 出处 |
+|---|---|---|---|
+| T-1 | smoke 改写（play 全会话） | 握手3+RTMP 握手（C0C1/S0S1S2/C2 按 MSS 分段）+命令序+挥手；恒 1935=tcp.dstport | spec §5-8 |
+| T-2 | RTMP 握手分段数 | C0C1 1537B→2 段（MSS 1460）、S0S1S2 3073B→3 段、C2 1536B→2 段；包数间接钉 | §5.2/5.3 |
+| T-3 | chunk 基本头+消息头钉 | connect chunk 头 `03`（fmt0 csid3）+11B 消息头（len3+type 0x14+streamID 4B 小端）frames 钉 | §6.1.1 |
+| T-4 | AMF0 connect 钉 | `02 00 07 connect`+txn `00 3f f0 00 00 00 00 00 00`（1.0）+命令对象 app/tcUrl | §7.2.1 |
+| T-5 | 协议控制四消息 | WindowAck(5)/SetPeerBW(6)/StreamBegin(4)/SetChunkSize(1) msgType 逐包（服务端响应段） | §5.4-5.6 |
+| T-6 | publish 模式 | command=publish→第三阶段 `02 00 07 publish` 替代 play | §7.2.3 |
+| T-7 | stream_name 自定义 | play/publish 参数字节入 AMF0 串 | §7.2.3 |
+| T-8 | app/tc_url 自定义 | connect 命令对象属性字节钉 | §7.2.1 |
+| T-9 | 数据面音频 | msg_type=8+csid=4 chunk 头钉 | §11.4 |
+| T-10 | 数据面视频 | msg_type=9+csid=6 chunk 头钉 | §11.4 |
+| T-11 | 数据面双向 | up+down 各一 chunk（publish 推+play 拉混合面） | spec |
+| T-12 | payload 显式 | payload_b64 解码字节透传（chunk 数据段 frames 钉） | parse 双形面 |
+| T-13 | 复合大场景（9.50） | publish+自定义 app+音视频混合数据面 ≥3 类交织 | 9.50 |
+| T-14 | 负例 App 超长 | >255B → 锚词 `App exceeds` | Validate |
+| T-15 | 负例 Command 非法 | 锚词 `invalid Command` | Validate |
+| T-16 | 负例 MsgType 非法 | data[0].msg_type=5 → 锚词 `MsgType` | Validate |
+
+**边界注记（9.46）：** MSS<536 负例链路径不可达（[ip,rtmp] 无 tcp 层）=B′ 注记（3 锚建例）；payload 缺省 100B 随机（T-9/10 用长度间接钉）；C1/S1 随机 1528B 不断言值只断言长度与回显关系（T-2）。**9.40 陷阱：** 恒 1935 断言面=tcp.dstport（worker srcport 12345+i）。
+**9.52 对账两行：** Adobe RTMP spec 逻辑点总数 **21**（握手 4+chunk 格式 3+协议控制 4+AMF0 命令 6+CSID 1+数据面 2+负例分支 4-1 合并 MSS+现网 1→实际枚举=握手 4+chunk 3+协议控制 4+命令 6+CSID 1+数据 2+负例 3+现网 1 = **24**，其中建例代表 **16**（T-1 承接握手回显+现网形）+B′ 注记 **8**（fmt1-3、AMF3、其余命令族、MSS 负例、pause/seek/deleteStream、extended ts、加密握手 RTMPE、edge 会话形）= **24/24 对账平**。清单出处=Adobe spec 原文反推。

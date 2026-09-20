@@ -125,7 +125,7 @@ import (
 	// 空导入：redis 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/redis"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/rip"
-	"github.com/trafficgen/trafficgen/internal/protocol/rtmp"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/rtmp" // 空导入：rtmp 包 init 注册层生成器 + 校验器（D-RTMP-1）
 	"github.com/trafficgen/trafficgen/internal/protocol/rtsp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/s7"
 	"github.com/trafficgen/trafficgen/internal/protocol/sctp"
@@ -565,7 +565,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(vnc.NewPlanner())
 	app.engine.RegisterPlanner(pptp.NewPlanner())
 	app.engine.RegisterPlanner(layers.NewChainPlanner("h323"))
-	app.engine.RegisterPlanner(rtmp.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("rtmp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("redis"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("mysql"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ngap"))

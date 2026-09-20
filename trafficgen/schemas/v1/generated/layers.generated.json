@@ -2055,6 +2055,29 @@
       ],
       "fields": {}
     },
+    "rtmp": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "app": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "data": {
+          "type": "list"
+        },
+        "stream_name": {
+          "type": "string"
+        },
+        "tc_url": {
+          "type": "string"
+        }
+      }
+    },
     "s7": {
       "category": "terminal",
       "depends_on": [

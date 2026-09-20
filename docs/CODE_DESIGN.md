@@ -2963,3 +2963,34 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **P5/P6 验收（2026-09-20）：** suite ×2 连续全绿 `RESULT: 22 pass, 0 fail, 0 error (of 22)`；BER 恒长形语义+messageID 帧序经 tshark 实测钉（详见 TEST_CASES P5 执行记录：bindReq SEQ 30 84 00 00 00 10/searchReq 0x158/unbind id 6）；coverage_gate check_ldap 43/43 绿（场景 22+键 15+锚 6）。
 **门1 对照表回填（实际证据）：** §1 顶层旧键→cases 22 例零顶层四元组（pipe_gate 门2-1）+地址入 ip 层（ldap_session_full spec_json）；§3 单流豁免声明+rounds 消息序（T-11/T-14）；§12 动态字段=worker 12345+i 四元组面（包4 srcport=12345 实测钉）+IPID/ISN random（spec.TCP.InitialSeq 可 override，ldap.go randomUint32）。**门3 抽查三条：** ①裁定1 raw wrap→layer_gen.go Direction=up 防双换+T-1 包4-9 六标签 60/61/63/64/65/42 逐帧+TestChainPlanner_LDAPRawChain 18 包 flags 序；②裁定2 五件套→registry.go ldap 行 15 Fields+chain_planner_util.go isRawIPChain 双名单+T-1 frames BER 长形钉；③裁定3 端口语义→legacy Plan `if spec.DstPort == 0`（ldap.go:308）+validateBaseDstPortHandled "ldap" 行+链测试每段 389 断言。**9.53 复杂度抽查：** T-14 复合例=多轮(2)×equality filter×simple 认证×自定义属性 四类交织 ≥3 ✓。
 **在库清库：** 删前报数→备份→删→对账（同日执行，见提交信息）。
+
+## D-RTMP-1 rtmp 层链收敛（#23，P1+P2 定稿 2026-09-20，待批）
+
+### P1 规范矩阵（Adobe RTMP spec 反推，非现有用例总结）
+
+| 规范点 | 出处 | 代码现状 | 缺口 |
+|---|---|---|---|
+| 握手 C0/C1+S0/S1/S2+C2：版本 0x03；C1/S1=4B 时间+4B 零+1528B 随机；S2 回显 C1、C2 回显 S1 | Adobe RTMP spec §5.1-5.3 | buildC0C1/buildS0S1S2/buildC2（rtmp.go:422-476），分段按 MSS | 无 |
+| chunk 基本头 fmt0：fmt(2b)+csid(6b)；消息头 11B=ts(3B)+len(3B)+type(1B)+streamID(4B 小端) | spec §6.1.1 | buildAMF0Chunk（:527）恒 type0 | 其他 fmt（1/2/3 省头）=B′ |
+| 协议控制：Set Chunk Size(1)/Stream Begin(4)/Window Ack Size(5)/Set Peer Bandwidth(6) | spec §5.4-5.6 | buildServerResponse/buildWinAckSizePayload/buildSetBufferLength | 无 |
+| AMF0 命令：connect(txn1+对象 app/tcUrl)/_result/createStream(txn2)/play/publish | spec §7.2/§8 | buildConnectAMF0/buildConnectResult/buildCreateStreamAMF0/buildPlayAMF0/buildPublishAMF0 | AMF3/其余命令（deleteStream/pause/seek）=B′ |
+| CSID 分配：2 协议/3 命令/4 音频/6 视频 | 参考 pcap | 常量+使用 | 无 |
+| 数据面：MsgType 8 音频/9 视频 chunk | spec §6.1/§11.4 | Data[]RTMPDataChunk 逐条 chunk | 无 |
+| 传输：TCP 1935+自建握手/挥手/MSS 分段 | 参考 pcap | rtsp 族同款（segmentByMSS:720） | 无 |
+
+**三路对照：** ①规范=上表；②商业行为=Adobe FMS/参考 pcap（llcj 镜像 play 会话：connect→窗口三件套→createStream→play）；③开源=librtmp 会话序同构（connect 事务→createStream→play）。**候选：** (a) [ip,rtmp] raw 自驱（ldap/radius 对称，legacy 自建 TCP wrap）；(b) [ip,tcp,rtmp] 事件面（大改不立项）。**裁定 (a)**。
+
+**门1 三行：** §1 顶层旧键=1 例扁平全删，目标形 `{"layers":[{"ip":{"src","dst"}},{"rtmp":{"command":...,"data":[...]}}]}`+1935 由 Plan 缺省（raw 0-keep+validateBaseDstPortHandled）；§3 单流豁免（Transactions=单连接内握手→命令→数据序）；§12 动态=worker 四元组+IPID/ISN random（C1/S1 随机 1528B=crypto/rand，回显语义保证确定性关系）。
+
+### 裁定（P2 定稿）
+
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | 层形状=[ip, rtmp]：CategoryTerminal+DependsOn `["ip"]`；raw 自驱 wrap legacy（自建 TCP/握手/分段原样保留），layer_gen 防双换 Direction=up | ldap D-LDAP-1 对称 |
+| 2 | 翻转五件套：isRawIPChain 双名单+=rtmp；src 0-keep+=rtmp；validateBaseDstPortHandled+=rtmp（1935 Plan 缺省 :178 区段实存）；registry 行 5 Fields（app/tc_url/command/stream_name/data——data 子键随 list 项）+translate case 复用 ParseRTMPConfigFromMap 导出+FlowMeta.RTMP+raw 分支注入；main.go 翻转 | ldap 五件套同构 |
+| 3 | 端口语义：1935 由 Plan 缺省（0-keep 自洽），测试显式 12345/1935 走 spec；恒 1935 断言面=tcp.dstport（worker srcport 陷阱） | ldap T 系先例 |
+| 4 | 场景强度全额：握手回显面/chunk 头字节钉/AMF0 connect 钉/协议控制四消息/publish vs play/stream_name/app/数据面音视频双 MsgType/payload 显式/复合大场景（publish+app+音视频数据 ≥3 类）；负例 3 锚建例（App 超长/Command/MsgType）+MSS<536 链路径不可达=B′ 注记 | CORE_MEMORY 9.46–9.53 |
+| 5 | B′ 账本：chunk fmt 1/2/3、AMF3、deleteStream/pause/seek、MSS<536 负例锚（无 tcp 层） | spec 要求面如实 |
+
+**文件：** protocol/rtmp/layer_gen.go（新）+chain_planner_util.go+chain_planner.go（名单）+registry.go（行）+chain_planner_translate.go（case）+generator.go（FlowMeta.RTMP）+strategy_convert.go（ParseRTMPConfigFromMap）+cmd/server/main.go（翻转）+cases/rtmp.json（改写+补强）。
+**回滚：** 单提交粒度，摘除空白导入/名单行/registry 行即回。
