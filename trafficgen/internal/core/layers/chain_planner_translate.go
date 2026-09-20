@@ -100,6 +100,10 @@ func (p *ChainPlanner) drive(ctx context.Context, chain []Layer, gens []LayerGen
 		// ACK 响应两事件，BuildMessage 纯函数复用）。缺这行时 req.Meta.CoAP
 		// 恒 nil → 生成器回退默认 GET/无响应 → 所有 coap 链只发 1 包。
 		CoAP:       spec.CoAP,
+		// D-SIP-2 WP-D：sip 事件面同款（dialog→MessageEvents 生成器读
+		// Meta.SIP）。此前 sip 走 isRawIPChain 自驱分支（flowMetaFor 有
+		// SIP 字段）——事件面分支在本 drive 内联 meta 清单补齐。
+		SIP: spec.SIP,
 		S7:         spec.S7,
 		IEC104:     spec.IEC104,
 		GOOSE:      spec.GOOSE,

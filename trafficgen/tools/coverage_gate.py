@@ -794,7 +794,10 @@ def check_sip(cases):
                      ("neg_medias_mutex", "medias 互斥判死面"), ("medias_port_dyn", "medias 端口动态格"),
                      ("medias_filesource", "medias file_source 面"),
                      ("nat_rport_fill", "NAT bare rport 回填面"), ("nat_switch_forces", "nat 开关强制面"),
-                     ("nat_default_passthrough", "NAT 缺省透传零漂移面"), ("nat_sessions_port", "NAT 会话真值端口面")]:
+                     ("nat_default_passthrough", "NAT 缺省透传零漂移面"), ("nat_sessions_port", "NAT 会话真值端口面"),
+                     ("tls_options", "SIPS/TLS 事件面"), ("tls_register", "TLS REGISTER 面"),
+                     ("tcp_options", "纯 tcp 事件面明文线"), ("neg_tls_media", "tls×media 判死面"),
+                     ("neg_sips_no_tls", "sips 无 tls 判死面"), ("neg_tls_sessions", "tls×sessions 判死面")]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
 

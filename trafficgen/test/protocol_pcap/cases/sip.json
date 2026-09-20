@@ -6618,5 +6618,303 @@
         "回填=会话真值端口（2.8 派生/显式均然）；单条 OPTIONS 无响应=3+1+4=8 包（pcap 实测校准）"
       ]
     }
+  },
+  {
+    "id": "sip_tls_options",
+    "proto": "sip",
+    "summary": "T-SIP-81: SIPS OPTIONS over [ip,tcp,tls,sip]（WP-D 事件面；默认口 5061 显式写；包数 pcap 校准）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12001,
+            "dst_port": 5061
+          }
+        },
+        {
+          "tls": {}
+        },
+        {
+          "sip": {
+            "dialog": [
+              {
+                "method": "OPTIONS",
+                "uri": "sips:callee@20.0.0.1"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "5061"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "value": "12001"
+        },
+        {
+          "packet": 1,
+          "field": "tls.record.content_type",
+          "distinct_values": [
+            "22"
+          ]
+        }
+      ],
+      "notes": [
+        "16 包=3 tcp 握手+7 tls 握手 record(CH/SH/EE/Cert/CV/Fin×2)+2 app-data(OPTIONS/200 各一)+4 挥手（pcap 实测）；app-data 加密态无 content_type 字段，record 头 0x17 由包数形状钉"
+      ],
+      "packet_count": 16
+    }
+  },
+  {
+    "id": "sip_tls_register",
+    "proto": "sip",
+    "summary": "T-SIP-82: REGISTER over tls（WP-D 冒烟第二例；tls 缺省 cert 全数据）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12001,
+            "dst_port": 5061
+          }
+        },
+        {
+          "tls": {}
+        },
+        {
+          "sip": {
+            "dialog": [
+              {
+                "method": "REGISTER",
+                "uri": "sips:20.0.0.1"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "5061"
+        },
+        {
+          "packet": 1,
+          "field": "tls.record.content_type",
+          "distinct_values": [
+            "22"
+          ]
+        }
+      ],
+      "notes": [
+        "同 T-81 形状（REGISTER/200 两 app-data record）；pcap 实测 16 包"
+      ],
+      "packet_count": 16
+    }
+  },
+  {
+    "id": "sip_tcp_options",
+    "proto": "sip",
+    "summary": "T-SIP-83: OPTIONS over 纯 tcp 面字节可见（WP-D：事件面明文证据线；3+2+4=9 包）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12001,
+            "dst_port": 5060
+          }
+        },
+        {
+          "sip": {
+            "dialog": [
+              {
+                "method": "OPTIONS",
+                "uri": "sip:callee@20.0.0.1"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Method",
+          "value": "OPTIONS"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Status-Code",
+          "value": "200"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Via",
+          "same_as_packet": 4
+        }
+      ],
+      "notes": [
+        "明文面=事件面头补全字节证据；响应 Via 回显请求 Via（same_as_packet=RFC 3261 §8.1.3.2；branch 随机不可跨跑钉值，确定性前缀由 TestSIPEventModeBasic 单测钉）"
+      ]
+    }
+  },
+  {
+    "id": "sip_neg_tls_media",
+    "proto": "sip",
+    "summary": "T-SIP-84: 负例 tls 链 media 判死（RTP 裸 UDP 流不进传输，create 400）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12001,
+            "dst_port": 5061
+          }
+        },
+        {
+          "tls": {}
+        },
+        {
+          "sip": {
+            "media": {
+              "frames": 2
+            },
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sip:callee@20.0.0.1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "media is not supported on a tcp/tls sip chain"
+    }
+  },
+  {
+    "id": "sip_neg_sips_no_tls",
+    "proto": "sip",
+    "summary": "T-SIP-85: 负例 sips: URI 无 tls 层判死（RFC 3261 §26.2.2，create 400）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12001,
+            "dst_port": 5060
+          }
+        },
+        {
+          "sip": {
+            "dialog": [
+              {
+                "method": "INVITE",
+                "uri": "sips:callee@20.0.0.1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "sip: sips uri requires a tls layer in the chain"
+    }
+  },
+  {
+    "id": "sip_neg_tls_sessions",
+    "proto": "sip",
+    "summary": "T-SIP-86: 负例 tls 链 sessions 判死（一链一连接无多会话等价物，create 400）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "tcp": {
+            "src_port": 12001,
+            "dst_port": 5061
+          }
+        },
+        {
+          "tls": {}
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "src_port": 22001,
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "sessions are not supported on a tcp/tls sip chain"
+    }
   }
 ]

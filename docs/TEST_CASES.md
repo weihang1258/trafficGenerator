@@ -3689,3 +3689,20 @@
 
 **P5 校准 1 处（14.6 落盘重钉）：** T-80 `min_packets` 9→8（单 session 单消息无响应=3 握手+1 消息+4 挥手，落盘 pcap 实测）。
 **实现位置：** cases/sip.json（**80 例**）；`rewriteViaRPort`（internal/protocol/sip/sip.go）；`SIPNAT{RPort}`（internal/core/types.go）。
+
+### T-SIP-81…86 SIPS/TLS 事件面（D-SIP-2 WP-D P3 清单）
+
+**状态：** P5 全绿（2026-09-20，86/86 ×2 稳态+门 2 静态四项绿+反查 97/97）。三源=RFC 3261 §26.2.1/§26.2.2+RFC 5630 §2.6+D-SIP-2 WP-D。**级别：** pcap。
+**存量去向：** 无（新载体面；[ip,sip] 自驱 80 例零回归线不动，isRawIPChain 增传输层守卫后逐字节复验）。
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| SIPS OPTIONS over TLS | T-81 sip_tls_options | A（[ip,tcp,tls,sip]；16 包=3 握手+7 TLS record+2 app-data+4 挥手 pcap 钉） |
+| REGISTER over TLS | T-82 sip_tls_register | A（同形状；tls 缺省 cert 全数据） |
+| 纯 tcp 事件面 | T-83 sip_tcp_options | A（明文线：sip.Method/CSeq/Via tshark 直查；响应 Via 回显=§8.1.3.2 same_as_packet） |
+| tls×media 判死 | T-84 sip_neg_tls_media | N（锚词 `media is not supported on a tcp/tls sip chain`，RTP 裸 UDP 流不进传输） |
+| sips 无 tls 判死 | T-85 sip_neg_sips_no_tls | N（锚词 `sip: sips uri requires a tls layer in the chain`，RFC 3261 §26.2.2） |
+| tls×sessions 判死 | T-86 sip_neg_tls_sessions | N（锚词 `sessions are not supported on a tcp/tls sip chain`，一链一连接） |
+
+**P5 校准 3 处（14.6 落盘重钉）：** ①isRawIPChain 红线修复——终层 sip 且链含 tcp/udp 时不得走 raw 自驱分支（事件面被拦截→TLS record 全丢，离线复现 tlsRecords=0 定位）；②drive 内联 meta 清单补 `SIP: spec.SIP`（此前 raw 分支走 flowMetaFor，事件面清单缺字段→空流）；③T-83 Via branch 随机不可跨跑钉值→same_as_packet 回显断言+确定性前缀由单测钉。
+**实现位置：** cases/sip.json（**86 例**）；`event_gen.go`（新）/`InitChain` 钩子（chain_planner_chain.go）/`isRawIPChain` 守卫（chain_planner_util.go）/`checkSIPEventPlane`（semantic.go）；链级回归 `TestChainPlanner_SIP_TLSChain`（16 包形状离线钉）。

@@ -41,6 +41,15 @@ func isRawIPChain(name string, chain []Layer) bool {
 	if len(chain) == 0 {
 		return false
 	}
+	// D-SIP-2 WP-D: a chain carrying tcp/udp beneath the terminal is an
+	// event-plane chain — the transport branch owns handshake/teardown, so
+	// raw-IP self-drive (which emits its own) must never intercept it. Only
+	// transport-less terminals stay raw ([ip, sip] byte-parity line intact).
+	for _, l := range chain {
+		if l.Name == "tcp" || l.Name == "udp" {
+			return false
+		}
+	}
 	switch chain[len(chain)-1].Name {
 	case "igmp", "ospf", "pim", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip", "radius":
 		return true

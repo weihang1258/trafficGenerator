@@ -1,6 +1,6 @@
 # sip Pcap Test Results
 
-Cases: 80 — pass 80, fail 0, error 0
+Cases: 86 — pass 86, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -44,6 +44,9 @@ Cases: 80 — pass 80, fail 0, error 0
 | sip_neg_sessions_dialog_mutex | T-SIP-61: 负例 sessions+dialog 同给互斥判死（create-time 400） | pass | 0 | [pcap]() |
 | sip_neg_sessions_empty | T-SIP-62: 负例空 sessions 数组（同锚词面，不给静默退化） | pass | 0 | [pcap]() |
 | sip_neg_sessions_static | T-SIP-63: 负例 sessions 内标量端口+flows=2（12.9 扩扫执法） | pass | 0 | [pcap]() |
+| sip_neg_sips_no_tls | T-SIP-85: 负例 sips: URI 无 tls 层判死（RFC 3261 §26.2.2，create 400） | pass | 0 | [pcap]() |
+| sip_neg_tls_media | T-SIP-84: 负例 tls 链 media 判死（RTP 裸 UDP 流不进传输，create 400） | pass | 0 | [pcap]() |
+| sip_neg_tls_sessions | T-SIP-86: 负例 tls 链 sessions 判死（一链一连接无多会话等价物，create 400） | pass | 0 | [pcap]() |
 | sip_offerless_3pcc | T-SIP-48: offerless INVITE/3PCC（RFC 3725 流 I：无 SDP INVITE→200 带 offer→ACK 带 answer；offer/answer 方向翻转面） | pass | 12 | [pcap](sip/sip_offerless_3pcc.pcap) |
 | sip_options | T-SIP-7: OPTIONS 方法枚举+200 | pass | 9 | [pcap](sip/sip_options.pcap) |
 | sip_options_keepalive | T-SIP-22: dialog 内 OPTIONS 保活（§3.15 保活+会话内探活；INVITE→200→ACK→OPTIONS→200→BYE→200=7 消息+TCP=14 包） | pass | 14 | [pcap](sip/sip_options_keepalive.pcap) |
@@ -78,7 +81,10 @@ Cases: 80 — pass 80, fail 0, error 0
 | sip_status_enum_4xx | T-SIP-55: 4xx 响应码枚举长尾（§9.20 响应码表=数据场景清单：403/408/480/481/488 五格；与既有 401/404/486/487/491 分格） | pass | 22 | [pcap](sip/sip_status_enum_4xx.pcap) |
 | sip_status_enum_56xx | T-SIP-56: 5xx/6xx 响应码枚举（§9.20：503 服务不可用+600 全局忙；与 500/603 分格） | pass | 13 | [pcap](sip/sip_status_enum_56xx.pcap) |
 | sip_subscribe_notify_mwi | T-SIP-29: SUBSCRIBE/NOTIFY MWI 留言灯（RFC 3265 事件框架+RFC 3842 message-summary body；现网语音信箱面） | pass | 13 | [pcap](sip/sip_subscribe_notify_mwi.pcap) |
+| sip_tcp_options | T-SIP-83: OPTIONS over 纯 tcp 面字节可见（WP-D：事件面明文证据线；3+2+4=9 包） | pass | 9 | [pcap](sip/sip_tcp_options.pcap) |
 | sip_tel_uri_utf8 | T-SIP-40: tel: URI 互通+UTF-8 显示名（RFC 3966 tel 互通 RFC 3261 §19.1.6；现网 E.164 拨号面） | pass | 12 | [pcap](sip/sip_tel_uri_utf8.pcap) |
+| sip_tls_options | T-SIP-81: SIPS OPTIONS over [ip,tcp,tls,sip]（WP-D 事件面；默认口 5061 显式写；包数 pcap 校准） | pass | 16 | [pcap](sip/sip_tls_options.pcap) |
+| sip_tls_register | T-SIP-82: REGISTER over tls（WP-D 冒烟第二例；tls 缺省 cert 全数据） | pass | 16 | [pcap](sip/sip_tls_register.pcap) |
 | sip_two_calls_sequential | T-SIP-27: 同流两通连续呼叫（独立 Call-ID 独立命运：呼A 成+B 拒；§3.1-3.3 独立会话语义+§9.9 现实 UA 行为） | pass | 15 | [pcap](sip/sip_two_calls_sequential.pcap) |
 | sip_update_session_timer | T-SIP-34: UPDATE 会话定时刷新（RFC 3311 不占 INVITE 事务槽；RFC 4028 Session-Expires 面板） | pass | 12 | [pcap](sip/sip_update_session_timer.pcap) |
 | sip_v6 | T-SIP-15: ip 层 v6→IP 透明正例（9.24 地址族对称） | pass | 12 | [pcap](sip/sip_v6.pcap) |
