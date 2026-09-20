@@ -1,51 +1,638 @@
 [
   {
-    "id": "pptp-control-gre-basic",
+    "id": "pptp_full_session_ref",
     "proto": "pptp",
-    "summary": "PPTP (端口 1723) 冒烟：完整 TCP 握手 + 控制面 Start/Outgoing-Call/Set-Link-Info/Call-Clear + GRE 数据面 (PPP) + 终止",
+    "summary": "T-1 full 会话（smoke 改写，参考 pcap 逐字节）：SCCRQ/SCCRP/OCRQ/OCRP/SLI×5/CCRQ+CCDN 合并/CCDN/StopRQ/StopRP",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 1723,
-      "count": 1,
-      "pptp": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {}
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
-      "negotiated": true,
       "terminates": true,
-      "has_payload": true,
-      "min_packets": 22,
       "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "1723"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
-        {"packet": 4, "field": "pptp.type", "value": "1"},
-        {"packet": 4, "field": "pptp.magic_cookie", "value": "0x1a2b3c4d"},
-        {"packet": 4, "field": "pptp.control_message_type", "value": "1"},
-        {"packet": 5, "field": "pptp.control_message_type", "value": "2"},
-        {"packet": 6, "field": "pptp.control_message_type", "value": "7"},
-        {"packet": 7, "field": "pptp.control_message_type", "value": "8"},
-        {"packet": 8, "field": "pptp.control_message_type", "value": "15"},
-        {"packet": 18, "field": "pptp.control_message_type", "value": "12"},
-        {"packet": 20, "field": "pptp.control_message_type", "value": "13"},
-        {"packet": 21, "field": "pptp.control_message_type", "value": "3"},
-        {"packet": 22, "field": "pptp.control_message_type", "value": "4"},
-        {"packet": 13, "field": "gre.proto", "value": "0x880b"},
-        {"packet": 13, "field": "ppp.protocol", "value": "0x0021"}
-      ],
-      "frames": [
-        {"packet": 4, "offset": 54, "hex": "00 9c 00 01 1a 2b 3c 4d 00 01 00 00 01 00"},
-        {"packet": 6, "offset": 54, "hex": "00 a8 00 01 1a 2b 3c 4d 00 07 00 00 a9 c0 00 03"},
-        {"packet": 21, "offset": 54, "hex": "00 10 00 01 1a 2b 3c 4d 00 03 00 00 01 00"}
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "1723"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "156"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.len",
+          "value": "156"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.len",
+          "value": "168"
+        },
+        {
+          "packet": 7,
+          "field": "tcp.len",
+          "value": "32"
+        },
+        {
+          "packet": 8,
+          "field": "tcp.len",
+          "value": "24"
+        },
+        {
+          "packet": 18,
+          "field": "tcp.len",
+          "value": "16"
+        },
+        {
+          "packet": 19,
+          "field": "tcp.len",
+          "value": "164"
+        },
+        {
+          "packet": 20,
+          "field": "tcp.len",
+          "value": "148"
+        },
+        {
+          "packet": 21,
+          "field": "tcp.len",
+          "value": "16"
+        },
+        {
+          "packet": 22,
+          "field": "tcp.len",
+          "value": "16"
+        }
       ],
       "notes": [
-        "PPTP 控制面帧头 (RFC 2637 §3.2): 长度 u16 + magic cookie 1a2b3c4d + 控制消息类型 u16: 1=Start-Control-Connection-Request, 2=Reply, 7=Outgoing-Call-Request, 8=Outgoing-Call-Reply, 15=Set-Link-Info, 12=Call-Clear-Request, 13=Call-Disconnect-Notify, 3=Stop-Control-Connection-Request, 4=Reply",
-        "f13-17 GRE 数据面 (协议 0x880b=PPP, 增强 GRE v1) 内封装 PPP IPCP (0x0021) 10.10.10.1/10.10.10.2；26 帧 = 12 控制 + 5 GRE + 4 终止 + 5 握手/连接控制",
-        "f6 Outgoing-Call-Request call_id=43456 (0xa9c0) serial=3；f7 Reply call_id=13769 peer=43456 result=1；f21 Stop 请求 reason=1",
-        "PPTP 控制消息为确定性字段，不涉及随机会话 ID"
+        "26 帧=握手3+SCCRQ 156/SCCRP 156/OCRQ 168/OCRP 32+SLI×5(24B)+GRE 数据×5+CCRQ 16/CCRQ+CCDN 合并 164/CCDN 148/StopRQ 16/StopRP 16+挥手4",
+        "包 13-17=GRE 数据面（IP proto 47 无 TCP 端口，data_frames 缺省 5）；参考 pcap quirks 保留（SLI-down peer call id=0xc02a、CCRQ+CCDN 合并段）",
+        "1723 由 legacy Plan :404 缺省；恒 1723 断言面=tcp.dstport（包 1 请求帧）"
+      ],
+      "packet_count": 26
+    }
+  },
+  {
+    "id": "pptp_control_header_magic",
+    "proto": "pptp",
+    "summary": "T-2 控制头钉：magic cookie 1a2b3c4d+Length+Type 字节（TCP 载荷首 8B）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {}
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "控制头 12B 实测（RFC 2637 §2）：Length(2B)=0x009c=156、PPTP Message Type(2B)=1（control）、Magic 1a2b3c4d、Control Type 0001=SCCRQ/0002=SCCRP、Reserved(2B)",
+        "offset 54=eth14+IP20+TCP20"
+      ],
+      "packet_count": 26,
+      "frames": [
+        {
+          "packet": 4,
+          "offset": 54,
+          "hex": "00 9c 00 01 1a 2b 3c 4d 00 01 00 00"
+        },
+        {
+          "packet": 5,
+          "offset": 54,
+          "hex": "00 9c 00 01 1a 2b 3c 4d 00 02 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "pptp_scenario_control_only",
+    "proto": "pptp",
+    "summary": "T-3 scenario=control_only：控制面消息子集（无 GRE 数据面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "scenario": "control_only"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "包数由场景编排实测钉"
+      ]
+    }
+  },
+  {
+    "id": "pptp_scenario_tunnel_only",
+    "proto": "pptp",
+    "summary": "T-4 scenario=tunnel_only：隧道建立+数据面（无控制拆除）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "scenario": "tunnel_only"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "P2 errata 勘误：tunnel_only=隧道建立+拆除（无数据面——emitDataPlane 仅 full/data_only 触发，planner.go :665/:605）；16 帧=3 握手+控制面 9+挥手 4"
+      ],
+      "packet_count": 16
+    }
+  },
+  {
+    "id": "pptp_scenario_data_only",
+    "proto": "pptp",
+    "summary": "T-5 scenario=data_only：纯 GRE 数据面",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "scenario": "data_only",
+            "data_frames": 2
+          }
+        }
+      ]
+    },
+    "expect": {
+      "notes": [
+        "data_only=纯 GRE 数据面（无 TCP 握手/挥手——场景语义即跳过控制面），断言面=GRE 帧数"
+      ]
+    }
+  },
+  {
+    "id": "pptp_role_pac",
+    "proto": "pptp",
+    "summary": "T-6 role=pac：PAC 侧换向（方向/Call ID 语义反转）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "role": "pac",
+            "scenario": "control_only"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "方向面换向：SCCRQ 由 PAC 发出（语义反转）"
+      ]
+    }
+  },
+  {
+    "id": "pptp_calls_two",
+    "proto": "pptp",
+    "summary": "T-7 calls=2 多 call 并发：OCRQ/OCRP 两轮+SLI 逐 call",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "calls": 2,
+            "scenario": "control_only"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "包数实测钉；Call ID 递增面"
+      ]
+    }
+  },
+  {
+    "id": "pptp_sli_count_three",
+    "proto": "pptp",
+    "summary": "T-8 sli_count=3：SLI 条数钉（缺省 5 由 T-1 承接）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "sli_count": 3
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 20,
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "SLI×3 → 总包数 22-2=20"
+      ]
+    }
+  },
+  {
+    "id": "pptp_echo_keepalive",
+    "proto": "pptp",
+    "summary": "T-9 echo=true：ECRQ/ECRP 保活对（RFC 2637 §3.2.9-10）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "echo": true,
+            "scenario": "control_only"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "ECRQ(up)/ECRP(down) 一对；msgType 5/6"
+      ]
+    }
+  },
+  {
+    "id": "pptp_data_both_directions",
+    "proto": "pptp",
+    "summary": "T-10 双数据方向：scenario=full+data_frames=2+down_data_frames=1 逐帧 GRE 头（数据面住 full 编排）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "scenario": "full",
+            "data_frames": 2,
+            "down_data_frames": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "notes": [
+        "GRE 增强头实测（帧 13=full 场景首个数据帧）：flags 0x3081+proto 0x880B（RFC 2637 §4.1）",
+        "24 帧=full 基准 26-缺省 5 数据+3（data_frames 2+down 1）；帧 13-15=GRE 帧（ip.proto 47）"
+      ],
+      "frames": [
+        {
+          "packet": 13,
+          "offset": 34,
+          "hex": "30 81 88 0b"
+        }
+      ],
+      "packet_count": 24
+    }
+  },
+  {
+    "id": "pptp_inner_ip_explicit",
+    "proto": "pptp",
+    "summary": "T-11 inner_ip 显式：src/dst/proto/payload 字节透传（PPP FF 03+0x0021+内嵌 IPv4）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "scenario": "tunnel_only",
+            "data_frames": 1,
+            "inner_ip": {
+              "src_ip": "192.168.1.10",
+              "dst_ip": "10.10.0.5",
+              "payload": "inner-pkt"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "inner_ip=object 内嵌 7 子键（registry object 型，srv6 先例）；payload 字符串=原文字节"
+      ]
+    }
+  },
+  {
+    "id": "pptp_result_error_fields",
+    "proto": "pptp",
+    "summary": "T-12 失败分支字段：scrp_result=5+ocrp_result=2 非 0 透传（错误码面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "scrp_result": 5,
+            "ocrp_result": 2,
+            "scenario": "control_only"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "SCCRP/OCRP result-code 字段字节钉（pcap 校准后补）"
+      ]
+    }
+  },
+  {
+    "id": "pptp_composite_full_multi",
+    "proto": "pptp",
+    "summary": "T-13 复合大场景（9.50）：full+calls 2+echo+双数据+SLI 3 ≥3 类交织",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "calls": 2,
+            "echo": true,
+            "sli_count": 3,
+            "data_frames": 1,
+            "down_data_frames": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "五类交织：多 call+保活+双数据+SLI 计数+full 拆除序；包数实测钉"
+      ]
+    }
+  },
+  {
+    "id": "pptp_neg_role_invalid",
+    "proto": "pptp",
+    "summary": "负例：invalid pptp role 锚词",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "role": "switch"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid pptp role",
+      "notes": [
+        "Validate 锚（invalid pptp role）"
+      ]
+    }
+  },
+  {
+    "id": "pptp_neg_scenario_invalid",
+    "proto": "pptp",
+    "summary": "负例：invalid pptp scenario 锚词",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "scenario": "half"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid pptp scenario",
+      "notes": [
+        "Validate 锚（invalid pptp scenario）"
+      ]
+    }
+  },
+  {
+    "id": "pptp_neg_calls_negative",
+    "proto": "pptp",
+    "summary": "T-16 负例：calls=-1→registry V9 范围门拒（链路径真实拦截点）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "calls": -1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "calls",
+      "notes": [
+        "Validate 锚（invalid pptp calls）"
+      ]
+    }
+  },
+  {
+    "id": "pptp_neg_sli_count_negative",
+    "proto": "pptp",
+    "summary": "T-17 负例：sli_count=-1→registry V9 范围门拒（链路径真实拦截点）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "sli_count": -1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "sli_count",
+      "notes": [
+        "Validate 锚（invalid pptp sli_count）"
+      ]
+    }
+  },
+  {
+    "id": "pptp_neg_sub_address_hex",
+    "proto": "pptp",
+    "summary": "负例：must be hex 锚词",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "sub_address": "zz"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "must be hex",
+      "notes": [
+        "Validate 锚（must be hex）"
+      ]
+    }
+  },
+  {
+    "id": "pptp_neg_host_name_long",
+    "proto": "pptp",
+    "summary": "负例：exceed 64 bytes 锚词",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "host_name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "exceed 64 bytes",
+      "notes": [
+        "Validate 锚（exceed 64 bytes）"
+      ]
+    }
+  },
+  {
+    "id": "pptp_neg_inner_ip_invalid",
+    "proto": "pptp",
+    "summary": "负例：invalid pptp inner src_ip 锚词",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "pptp": {
+            "inner_ip": {
+              "src_ip": "300.1.2.3"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid pptp inner src_ip",
+      "notes": [
+        "Validate 锚（invalid pptp inner src_ip）"
       ]
     }
   }

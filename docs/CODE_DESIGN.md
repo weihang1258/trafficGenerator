@@ -3070,6 +3070,10 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **性能（6.4-6.6）：** 流式 channel 256；包数=场景编排段数（full≈22 包/calls 与 SLI 计数线性）；pcap 验收路。
 **回滚：** 单提交粒度，摘除即回。
 
+**P4 已实现+复审（2026-09-20，8c941b0）：** 五件套全落（registry **51 Fields 实数复核**：parsePPTPConfig 顶层 50+data_frames=51，inner_ip=object 内嵌 7 子键）+layer_gen+链级 2 例。复审抓 1 断言口径错：GRE 数据面帧无 TCP 端口（IP proto 47），"每帧 1723"断言改为控制面帧限定——修正后链级净。
+**P5 执行记录（2026-09-20）：** suite ×2 全绿 `RESULT: 20 pass, 0 fail, 0 error (of 20)`；实测钉：26 帧全序（3 握手+SCCRQ 156/SCCRP 156/OCRQ 168/OCRP 32+SLI×5+GRE×5+CCRQ/CCDN 合并 164/CCDN 148/StopRQ/RP+挥手 4）、控制头 12B（Length+MsgType 1+magic+ControlType）、GRE 头 30 81 88 0b。**P2 errata：tunnel_only=隧道建立+拆除无数据面（emitDataPlane 仅 full/data_only 触发 planner.go :665/:605——P1 矩阵初写"带数据面"错误已勘）**；首跑 4 红全用例侧（srcport 陷阱重犯/registry V9 锚词 2 例/data_only 断言面）。coverage_gate 见 P6。
+**门3 抽查三条：** ①裁定2 51 Fields→registry.go pptp 行逐键+T-1 26 帧全序；②裁定3 负例锚→role 非法链级背 door+T-14…20 真实流程 400；③裁定1 raw wrap→layer_gen 防双换+T-2 控制头帧钉。9.53 复杂例=T-13 五类交织（多 call+echo+双数据+SLI+full 拆除）。在库清库见提交信息。
+
 ### T-PPTP-1…20 清单（P3，RFC 2637 反推；9.52 对账 **27/27**：控制头 1+控制消息 15+场景枚举 4+SLI/calls/echo 3+数据面 3+角色 1+失败分支 1+负例分支 7+现网 1 → 建例 20 代表（T-1 承接消息表 15 之 full 编排+现网形；T-3/4/5 承接场景枚举）+B′ 注记 7（MS 缺省待确认、interleaved GRE、ICRQ 族 PAC 现网形、动态旁挂、扩展 message、结果码全枚举、TCP 分段 GRE 边界））
 
 | # | 用例 | 断言面 |

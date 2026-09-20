@@ -1615,9 +1615,69 @@ def check_rtsp(cases):
 
     return rows
 
+
+def check_pptp(cases):
+    """D-PPTP-1 P6 反查表（T-PPTP-1…20，9.52 对账 27/27）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("pptp"), dict):
+                lays.append((c.get("id", "?"), l["pptp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("full_session_ref", "T-1 full 26 帧参考形"),
+        ("control_header_magic", "T-2 控制头 magic 钉"),
+        ("scenario_control_only", "T-3 control_only"),
+        ("scenario_tunnel_only", "T-4 tunnel_only（P2 errata 勘误面）"),
+        ("scenario_data_only", "T-5 data_only 纯 GRE"),
+        ("role_pac", "T-6 role=pac 换向"),
+        ("calls_two", "T-7 calls=2 多 call"),
+        ("sli_count_three", "T-8 SLI 计数"),
+        ("echo_keepalive", "T-9 ECRQ/ECRP 保活"),
+        ("data_both_directions", "T-10 双数据方向 GRE 头"),
+        ("inner_ip_explicit", "T-11 inner_ip 显式"),
+        ("result_error_fields", "T-12 失败分支字段"),
+        ("composite_full_multi", "T-13 复合大场景（9.50 五类交织）"),
+        ("neg_role_invalid", "T-14 role 拒"),
+        ("neg_scenario_invalid", "T-15 scenario 拒"),
+        ("neg_calls_negative", "T-16 calls 拒"),
+        ("neg_sli_count_negative", "T-17 sli_count 拒"),
+        ("neg_sub_address_hex", "T-18 hex 拒"),
+        ("neg_host_name_long", "T-19 64B 拒"),
+        ("neg_inner_ip_invalid", "T-20 inner IP 拒"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    keys_seen = 0
+    for k in ["role", "scenario", "calls", "echo", "sli_count", "data_frames",
+              "down_data_frames", "inner_ip", "scrp_result", "ocrp_result",
+              "sub_address", "host_name"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+        if hit is not None:
+            keys_seen += 1
+
+    for needle, name in [
+        ("invalid pptp role", "T-14 role 锚"),
+        ("invalid pptp scenario", "T-15 scenario 锚"),
+        ("calls", "T-16 范围门锚"),
+        ("sli_count", "T-17 范围门锚"),
+        ("must be hex", "T-18 hex 锚"),
+        ("exceed 64 bytes", "T-19 64B 锚"),
+        ("invalid pptp inner src_ip", "T-20 inner IP 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp, "pptp": check_pptp}
 
 
 def main(argv):
