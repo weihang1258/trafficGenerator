@@ -1571,9 +1571,53 @@ def check_rtmp(cases):
 
     return rows
 
+
+def check_rtsp(cases):
+    """D-RTSP-1 P6 反查表（T-RTSP-1…12，9.52 对账 16/16）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("rtsp"), dict):
+                lays.append((c.get("id", "?"), l["rtsp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    for kw, name in [
+        ("options_smoke", "T-1 OPTIONS 冒烟 9 包"),
+        ("play_session_full", "T-2 play 全序五方法（现网形）"),
+        ("describe_sdp_body", "T-3 DESCRIBE+SDP body"),
+        ("response_404", "T-4 404 响应面"),
+        ("pause_teardown", "T-5 PAUSE/TEARDOWN"),
+        ("uri_explicit_and_default", "T-6 URI 显式+缺省构造"),
+        ("headers_custom", "T-7 头显式覆盖+自动补 CSeq"),
+        ("emit_media_rtp", "T-8 RTP 媒面子流"),
+        ("direction_explicit", "T-9 direction 显式覆盖"),
+        ("composite_full_session_media", "T-10 复合大场景（9.50）"),
+        ("neg_dialog_required", "T-11 空 dialog 拒"),
+        ("status_text_default", "T-12 缺省 phrase"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    for k in ["dialog", "media"]:
+        hit = next((cid for cid, m in lays if k in m), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+    sub = json.dumps([m for _, m in lays], ensure_ascii=False)
+    for k in ["method", "uri", "status_code", "status_text", "headers", "body", "direction", "emit_media"]:
+        rows.append((k, k in sub, "dialog 项键" if k in sub else "无用例"))
+
+    for needle, name in [
+        ("dialog is required", "T-11 dialog 必需锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp, "rtsp": check_rtsp}
 
 
 def main(argv):

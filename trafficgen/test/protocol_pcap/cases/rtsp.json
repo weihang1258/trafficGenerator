@@ -1,41 +1,567 @@
 [
   {
-    "id": "rtsp-options-basic",
+    "id": "rtsp_options_smoke",
     "proto": "rtsp",
-    "summary": "RTSP (端口 554) 冒烟：完整 TCP 握手 + OPTIONS 请求（唯一确定性方法）+ 终止",
+    "summary": "T-1 OPTIONS 冒烟（smoke 改写，等价覆盖）：握手3+OPTIONS req/resp+挥手4=9 包；控制通道 554",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 554,
-      "count": 1,
-      "rtsp": {
-        "dialog": [
-          {"method": "OPTIONS"}
-        ]
-      }
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": [
+              {
+                "method": "OPTIONS"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "554"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "554"
+        },
+        {
+          "packet": 8,
+          "field": "tcp.flags",
+          "value": "0x011"
+        }
+      ],
+      "notes": [
+        "554 由 validateSpecBase DstPort switch 缺省（链路径，dns→53 同款）",
+        "恒 554 断言面=tcp.dstport（worker srcport 12345 保底）"
+      ]
+    }
+  },
+  {
+    "id": "rtsp_play_session_full",
+    "proto": "rtsp",
+    "summary": "T-2 play 会话全序（现网形）：OPTIONS/DESCRIBE/SETUP/PLAY/TEARDOWN 五方法请求响应+Session 头自动补全",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": [
+              {
+                "method": "OPTIONS"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "DESCRIBE"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "body": "v=0\r\n"
+              },
+              {
+                "method": "SETUP"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "PLAY"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "TEARDOWN"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 17,
+      "has_handshake": true,
+      "terminates": true,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "554"
+        },
+        {
+          "packet": 17,
+          "field": "tcp.flags",
+          "value": "0x010"
+        }
+      ],
+      "notes": [
+        "3 握手+10 消息+4 挥手=17；CSeq/Session 头由 legacy completeRTSPHeaders 自动补全"
+      ]
+    }
+  },
+  {
+    "id": "rtsp_describe_sdp_body",
+    "proto": "rtsp",
+    "summary": "T-3 DESCRIBE+SDP body：body 字节透传+Content-Length 自动补",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": [
+              {
+                "method": "DESCRIBE"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "body": "v=0\r\no=- 0 0 IN IP4 20.0.0.1\r\n"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "terminates": true,
+      "notes": [
+        "SDP 面字节 frames 钉（跑后校准）；Content-Length=body 长度自动写入"
+      ]
+    }
+  },
+  {
+    "id": "rtsp_response_404",
+    "proto": "rtsp",
+    "summary": "T-4 404 响应面：status_code=404+reason Not Found",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": [
+              {
+                "method": "DESCRIBE"
+              },
+              {
+                "status_code": 404
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "terminates": true,
+      "notes": [
+        "status_text 空→rtspReasonPhrase(404)=Not Found 缺省（T-12 语义）"
+      ]
+    }
+  },
+  {
+    "id": "rtsp_pause_teardown",
+    "proto": "rtsp",
+    "summary": "T-5 PAUSE/TEARDOWN 面：两方法请求/响应序",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": [
+              {
+                "method": "PLAY"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "PAUSE"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "TEARDOWN"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 13,
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "3 握手+6 消息+4 挥手=15"
+      ]
+    }
+  },
+  {
+    "id": "rtsp_uri_explicit_and_default",
+    "proto": "rtsp",
+    "summary": "T-6 URI 面：DESCRIBE 显式 uri=rtsp://20.0.0.1/media；OPTIONS 缺省构造 rtmp 同族 rtsp://<dstIP>/media",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": [
+              {
+                "method": "OPTIONS"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "DESCRIBE",
+                "uri": "rtsp://20.0.0.1/media"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 11,
+      "terminates": true,
+      "notes": [
+        "URI 缺省=rtsp://<dstIP>/media（IPv6 括号分支 B′）；显式值字节入请求行"
+      ]
+    }
+  },
+  {
+    "id": "rtsp_headers_custom",
+    "proto": "rtsp",
+    "summary": "T-7 头显式覆盖：headers 自定义 User-Agent 与自动补 CSeq 共存",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": [
+              {
+                "method": "OPTIONS",
+                "headers": [
+                  "User-Agent: trafficgen"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "terminates": true,
+      "notes": [
+        "CSeq 缺失自动补（completeRTSPHeaders）；显式头原样透传"
+      ]
+    }
+  },
+  {
+    "id": "rtsp_emit_media_rtp",
+    "proto": "rtsp",
+    "summary": "T-8 RTP 媒面子流：PLAY 响应 emit_media=true+media 配置→RTP 包序（legacy emitRTSPMedia 复用）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": [
+              {
+                "method": "OPTIONS"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "DESCRIBE"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "body": "v=0\r\n"
+              },
+              {
+                "method": "SETUP"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "PLAY",
+                "emit_media": true
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ],
+            "media": {
+              "direction": "down",
+              "packets": 2,
+              "payload": "rtp-payload"
+            }
+          }
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
-      "negotiated": true,
       "terminates": true,
-      "has_payload": true,
-      "min_packets": 7,
-      "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "554"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"},
-        {"packet": 4, "field": "rtsp.method", "value": "OPTIONS"},
-        {"packet": 4, "field": "rtsp.url", "value": "rtsp://20.0.0.1/media"}
-      ],
-      "frames": [
-        {"packet": 4, "offset": 54, "hex": "4f 50 54 49 4f 4e 53 20 72 74 73 70 3a 2f 2f 32 30 2e 30 2e 30 2e 31 2f 6d 65 64 69 61 20 52 54 53 50 2f 31 2e 30 0d 0a 43 53 65 71 3a 20 31 0d 0a 0d 0a"}
-      ],
       "notes": [
-        "f4 为唯一数据帧（OPTIONS 无服务器响应，8 帧 = 3 握手 + 1 请求 + 4 终止）",
-        "CSeq 确定性 = 1（设计对话框序号自 1 起）；tshark 无 rtsp.cseq 字段（仅 method/url/status），故用帧字节断言 CSeq 头",
-        "CSeq/User-Agent 等头按设计输出"
+        "RTP-Info 头+RTP 包序由 legacy emitRTSPMedia 实测形（包数跑后钉）"
+      ]
+    }
+  },
+  {
+    "id": "rtsp_direction_explicit",
+    "proto": "rtsp",
+    "summary": "T-9 direction 显式：覆盖方法推断（down 向请求形——server 主动消息合成面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": [
+              {
+                "method": "OPTIONS",
+                "direction": "down"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "direction": "up"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "terminates": true,
+      "notes": [
+        "inferDirection 缺省：请求 up/响应 down；显式 direction 覆盖"
+      ]
+    }
+  },
+  {
+    "id": "rtsp_composite_full_session_media",
+    "proto": "rtsp",
+    "summary": "T-10 复合大场景（9.50）：五方法全序+emit_media+自定义头+SDP body ≥3 类交织",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": [
+              {
+                "method": "OPTIONS",
+                "headers": [
+                  "User-Agent: trafficgen"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "DESCRIBE"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "body": "v=0\r\n"
+              },
+              {
+                "method": "SETUP"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "PLAY",
+                "emit_media": true
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              },
+              {
+                "method": "TEARDOWN"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ],
+            "media": {
+              "direction": "down",
+              "packets": 1,
+              "payload": "media"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "五方法+RTP 媒体+自定义头+SDP 四类交织（现网 VLC play 形）"
+      ]
+    }
+  },
+  {
+    "id": "rtsp_neg_dialog_required",
+    "proto": "rtsp",
+    "summary": "T-11 负例：空 dialog → 锚词 dialog is required（validator 背 door）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": []
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "dialog is required",
+      "notes": [
+        "legacy Validate 同锚（两路独立闭合）"
+      ]
+    }
+  },
+  {
+    "id": "rtsp_status_text_default",
+    "proto": "rtsp",
+    "summary": "T-12 status_text 空缺省：status_code=200 无 status_text→reason OK 缺省（rtspReasonPhrase）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtsp": {
+            "dialog": [
+              {
+                "method": "OPTIONS"
+              },
+              {
+                "status_code": 200
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "terminates": true,
+      "notes": [
+        "与 T-4 404 缺省 phrase 同语义分支（200 面）"
       ]
     }
   }

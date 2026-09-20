@@ -2999,3 +2999,40 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **P5/P6 验收（2026-09-20）：** suite ×2 连续全绿 `RESULT: 16 pass, 0 fail, 0 error (of 16)`；分段序/connect chunk/AMF0 txn/流号小端 tshark 实测钉（详见 TEST_CASES P5 执行记录）；RTMP dissector 伪影按先例扩白名单族（服务端重编生效——suite 验证在 MCP 侧的机制注记）；coverage_gate check_rtmp 29/29 绿。
 **门1 对照表回填（实际证据）：** §1 扁平键→cases 16 例零顶层四元组+地址入 ip 层；§3 单流豁免+命令序（T-1 20 包全序钉）；§12 动态=worker 四元组+C1/S1 crypto/rand（回显关系保证确定性）+IPID/ISN random。**门3 抽查三条：** ①裁定1 raw wrap→layer_gen.go 防双换+T-1 包 11-17 命令面帧序+TestChainPlanner_RTMPRawChain；②裁定2 五件套→registry rtmp 行 5 Fields+translate ParseRTMPConfigFromMap 单真相+T-11 payload_b64 双形例；③裁定3 端口语义→legacy Plan 1935 缺省+链测试每段 1935 断言+恒 1935 断言面=tcp.dstport。**9.53 复杂度抽查：** T-12 复合例=publish×自定义 app×流名×音视频双 chunk 四类交织 ≥3 ✓。
 **在库清库：** 删前报数→备份→删→对账（见提交信息）。
+
+## D-RTSP-1 rtsp 层链收敛（#24，P1+P2 定稿 2026-09-20，待批）
+
+### P1 矩阵（RFC 2326 反推）：方法面（OPTIONS/DESCRIBE/SETUP/PLAY/PAUSE/TEARDOWN，RFC 2326 §10 逐节）+响应面（§7 status/status_text）+头补全（CSeq §12.3/Session §12.37/Transport §12.39 自动补）+SDP body（附录 C）+RTP 媒体子流（§2 rtp-info/AVP RFC 3550）+传输（§10 TCP 554，自建握手/挥手 rtsp 族）。实现全存（rtsp.go 974 行：renderRTSPMessage/completeRTSPHeaders/emitRTSPMedia）。缺口=B′：GET_PARAMETER/SET_PARAMETER 枚举面、嵌入式二进制 interleaved ($ 块)。
+**三路对照：** 规范=§10 方法序；商业=VLC/ffplay play 会话形（OPTIONS 保活→DESCRIBE(SDP)→SETUP(Transport)→PLAY→TEARDOWN）；开源=live555 同构。**裁定 (a) [ip,rtsp] raw 自驱**（ldap/rtmp 对称）。
+**门1 三行：** §1 扁平键全删，目标形 `{"layers":[{"ip":{...}},{"rtsp":{"dialog":[...]}}]}`+554 由 validateSpecBase DstPort switch 缺省（本轮新增 case "rtsp"→554，dns→53 同款——legacy 缺省住 mapToFlowSpec setDefaultDstPort，链路径等价承接）；§3 单流豁免（Transactions=dialog 消息序）；§12 动态=worker 四元组+IPID/ISN random。
+
+### 裁定（P2 定稿）
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | 层形状=[ip, rtsp]：CategoryTerminal+DependsOn `["ip"]`；raw 自驱 wrap legacy | ldap/rtmp 对称 |
+| 2 | 翻转五件套：isRawIPChain 双名单+=rtsp；src 0-keep+=rtsp；**DstPort switch += rtsp→554**（本轮新增，替代 validateBaseDstPortHandled 豁免——554 是协议级缺省非 0-keep）+validateBaseDstPortHandled+=rtsp；registry 行 2 Fields（dialog/media）+translate case 复用 ParseRTSPConfigFromMap 导出（镜像扁平 case 体）+FlowMeta.RTSP+raw 注入；main.go 翻转 | pppoe/rtmp 五件套同构+dns 端口缺省先例 |
+| 3 | dialog 必需锚（空 dialog 拒）链上由 RegisterLayerValidator 背 door 承接（legacy Validate 同文案） | legacy Validate 实存 |
+| 4 | 场景强度全额：方法序（OPTIONS 保活/DESCRIBE SDP/SETUP Session/PLAY/PAUSE/TEARDOWN）/响应码 200/404/头补全面/RTP 媒面子流/复合全方法形；负例=空 dialog | 9.46–9.53 |
+| 5 | B′ 账本：GET_PARAMETER/SET_PARAMETER、interleaved $ 块、Record/ANNOUNCE/REDIRECT | RFC 2326 §10 要求面如实 |
+
+**文件：** protocol/rtsp/layer_gen.go（新）+chain_planner_util.go+chain_planner.go（名单+DstPort switch）+registry.go（行）+chain_planner_translate.go（case）+generator.go（FlowMeta.RTSP）+strategy_convert.go（ParseRTSPConfigFromMap）+cmd/server/main.go（翻转）+cases/rtsp.json（改写+补强）。
+**回滚：** 单提交粒度，摘除即回。
+
+**P4 已实现+P5/P6 验收（2026-09-20，5cc20a0+收官提交）：** 五件套全落+DstPort switch rtsp→554；链级 2 例（四消息 11 包 554 面+空 dialog 背 door）；suite ×2 全绿 `RESULT: 12 pass, 0 fail, 0 error (of 12)`；coverage_gate check_rtsp 23/23 绿；**门3 抽查：①裁定2 DstPort switch→chain_planner.go case "rtsp"→554+T-1 包1 tcp.dstport=554；②裁定3 dialog 锚→RegisterLayerValidator+T-11 真实流程 400；③裁定1 raw wrap→layer_gen 防双换+T-2 五方法 17 包序**。9.53 复杂例=T-10 四类交织。在库清库见提交信息。复审 1 轮 0 新错（srcport 陷阱在用例侧重犯 2 例、包数笔算 1 例——全部用例侧，实现零 bug）。
+
+### T-RTSP-1…12 清单（P3，RFC 2326 反推；9.52 对账 **16/16**：方法 6+响应 2+头补全 3+body 1+RTP 1+URI 2+负例 1+现网复合 1→建例 12+注记 4（GET_PARAMETER/SET_PARAMETER、interleaved、Record 族、MSS 锚链路径不可达））
+
+| # | 用例 | 断言面 |
+|---|---|---|
+| T-1 | smoke 改写（OPTIONS 冒烟） | 9 包=握手3+req/resp+挥手4；恒 554=tcp.dstport |
+| T-2 | play 会话全序 | OPTIONS/DESCRIBE/SETUP/PLAY/TEARDOWN 五方法+Session 头补全（现网形） |
+| T-3 | DESCRIBE+SDP body | body 字节透传+Content-Length |
+| T-4 | 404 响应面 | status_code 404+reason |
+| T-5 | PAUSE/TEARDOWN 面 | 两方法请求/响应序 |
+| T-6 | URI 显式+缺省构造 | method/uri 字节钉 |
+| T-7 | 头显式覆盖 | headers 自定义（User-Agent 等）与自动补 CSeq 共存 |
+| T-8 | RTP 媒面子流 | emit_media+media 配置→RTP 包序（复用 legacy 实测形） |
+| T-9 | direction 显式 | up/down 覆盖推断 |
+| T-10 | 复合大场景（9.50） | 全方法+emit_media+自定义头 ≥3 类交织 |
+| T-11 | 负例空 dialog | 锚词 `dialog is required` |
+| T-12 | 状态行缺省 text | status_text 空缺省 phrase（rtspReasonPhrase） |

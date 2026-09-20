@@ -3837,3 +3837,13 @@
 **P5 执行记录（2026-09-20）：** cases/rtmp.json 16 例层链形（T-1 改写 20 包全序钉：握手3+C0C1 两段+S0S1S2 三段+C2 两段+connect+服务端五连+客户端 winack+createStream+setBufferLen+_result+play+挥手4）；suite ×2 连续全绿 `RESULT: 16 pass, 0 fail, 0 error (of 16)`。**byte 校准（tshark 实测非手算）：分段序 1460/77、1460/1460/153、1460/76 三组钉（T-2）；connect chunk `03 00 00 00 00 00 41 14 00 00 00 00 02 00 07 63 6f 6e 6e 65 63 74`+txn double 1.0（offset 76）；winack chunk `02...05...00 26 25 a0`=2500000；play chunk streamID 01 00 00 00（createStream 后流号 1）**。**tshark RTMP dissector "Loop in AMF dissection" 伪影处置**：命令面 5 帧 malformed 报警（tshark 自身解析出 connect()/_result() 消息名=AMF 编码合法），按 rtmp-connect-play-basic 先例扩层链族条目（`strings.HasPrefix(caseID, "rtmp_")`）入 pcaptest IsMalformedWhitelisted——**注意白名单生效面=服务端二进制内的 pcaptest，suite 验证跑在 MCP 侧，改白名单必须重编重启服务端**（本轮 3 跑红即此因）。coverage_gate check_rtmp 29/29 绿（T-7 补 tc_url 显式例）。
 
 **9.52 对账两行：** Adobe RTMP spec 逻辑点总数 **21**（握手 4+chunk 格式 3+协议控制 4+AMF0 命令 6+CSID 1+数据面 2+负例分支 4-1 合并 MSS+现网 1→实际枚举=握手 4+chunk 3+协议控制 4+命令 6+CSID 1+数据 2+负例 3+现网 1 = **24**，其中建例代表 **16**（T-1 承接握手回显+现网形）+B′ 注记 **8**（fmt1-3、AMF3、其余命令族、MSS 负例、pause/seek/deleteStream、extended ts、加密握手 RTMPE、edge 会话形）= **24/24 对账平**。清单出处=Adobe spec 原文反推。
+
+
+### T-RTSP-1…12 rtsp 层链收敛（D-RTSP-1 P3 清单见 CODE_DESIGN D-RTSP-1；P5 已执行 12/12 ×2 全绿，2026-09-20）
+
+**三源：** RFC 2326（§7 消息/§10 方法/§12 头）+D-RTSP-1+VLC play 会话形。**级别：** pcap。
+**存量去向（9.14）：** `rtsp` 1 例扁平 OPTIONS → 改写层链形合入 T-1。
+
+**P5 执行记录（2026-09-20）：** cases/rtsp.json 12 例层链形（T-1 改写 9 包；T-2 现网五方法全序 17 包；T-10 复合五方法+RTP+自定义头+SDP）；suite ×2 连续全绿 `RESULT: 12 pass, 0 fail, 0 error (of 12)`。**首跑 3 红=用例侧笔误（srcport/dstport 陷阱重犯 2 例——worker 12345 保底 vs 恒 554 断言面；PAUSE/TEARDOWN 包数 3+6+4=13 笔算 15 错），实现面零 bug**；554 协议级缺省=DstPort switch 新增 case（dns→53 同款）。coverage_gate check_rtsp 23/23 绿（场景 12+键 10+锚 1）。
+**9.52 对账：** RFC 2326 逻辑点 16/16 对账平（方法 6+响应 2+头补全 3+body 1+RTP 1+URI 2+负例 1→建例 12 代表+注记 4：GET_PARAMETER/SET_PARAMETER、interleaved $ 块、Record 族、MSS 锚链路径不可达）。清单出处=RFC 2326 原文反推。
+
