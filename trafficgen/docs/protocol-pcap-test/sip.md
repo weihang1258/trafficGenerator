@@ -1,6 +1,6 @@
 # sip Pcap Test Results
 
-Cases: 57 — pass 57, fail 0, error 0
+Cases: 71 — pass 71, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -32,6 +32,9 @@ Cases: 57 — pass 57, fail 0, error 0
 | sip_long_auth_uri | T-SIP-39: 超长头+长 URI（§9.8 超长面：512B 级 Digest 头+226B 参数化长 URI；与 MSS 分段例构成头长/消息长正交） | pass | 9 | [pcap](sip/sip_long_auth_uri.pcap) |
 | sip_message_im | T-SIP-36: MESSAGE 页模式即时消息（RFC 3428；SIP 短信/IM 现网面） | pass | 9 | [pcap](sip/sip_message_im.pcap) |
 | sip_mss_segment | T-SIP-10: 3000B body→MSS 1460 分段 3 段 | pass | 11 | [pcap](sip/sip_mss_segment.pcap) |
+| sip_neg_sessions_dialog_mutex | T-SIP-61: 负例 sessions+dialog 同给互斥判死（create-time 400） | pass | 0 | [pcap]() |
+| sip_neg_sessions_empty | T-SIP-62: 负例空 sessions 数组（同锚词面，不给静默退化） | pass | 0 | [pcap]() |
+| sip_neg_sessions_static | T-SIP-63: 负例 sessions 内标量端口+flows=2（12.9 扩扫执法） | pass | 0 | [pcap]() |
 | sip_offerless_3pcc | T-SIP-48: offerless INVITE/3PCC（RFC 3725 流 I：无 SDP INVITE→200 带 offer→ACK 带 answer；offer/answer 方向翻转面） | pass | 12 | [pcap](sip/sip_offerless_3pcc.pcap) |
 | sip_options | T-SIP-7: OPTIONS 方法枚举+200 | pass | 9 | [pcap](sip/sip_options.pcap) |
 | sip_options_keepalive | T-SIP-22: dialog 内 OPTIONS 保活（§3.15 保活+会话内探活；INVITE→200→ACK→OPTIONS→200→BYE→200=7 消息+TCP=14 包） | pass | 14 | [pcap](sip/sip_options_keepalive.pcap) |
@@ -50,6 +53,17 @@ Cases: 57 — pass 57, fail 0, error 0
 | sip_sdp_body | T-SIP-9: SDP body 无 Content-Length 头→自动补（RFC 合同 sip.go:308-314） | pass | 9 | [pcap](sip/sip_sdp_body.pcap) |
 | sip_sdp_port | T-SIP-13: SDP m=audio 6007020→RTP src=6007020（scanSDPMediaPorts 合同） | pass | 10 | [pcap](sip/sip_sdp_port.pcap) |
 | sip_sdp_video_multistream | T-SIP-41: SDP 双流音视频+DTMF 载荷（§5.14 多 m= 行：audio 0/8+video 96+telephone-event 101；与单音频 sdp_body 分格） | pass | 12 | [pcap](sip/sip_sdp_video_multistream.pcap) |
+| sip_sessions_callid_fixed | T-SIP-70: call_id fixed 动态（12.15 整格⑦；两流同 Call-ID=显式声明） | pass | 18 | [pcap](sip/sip_sessions_callid_fixed.pcap) |
+| sip_sessions_callid_pattern | T-SIP-69: call_id pattern 动态（12.15 整格⑥；flows=2 逐流 Call-ID） | pass | 18 | [pcap](sip/sip_sessions_callid_pattern.pcap) |
+| sip_sessions_derived_callid | T-SIP-59: Call-ID 缺省派生（12.4 确定性：{flowIdx}-{sessIdx}@{srcIP}；端口缺省派生 12345+M*flow+idx 防撞） | pass | 18 | [pcap](sip/sip_sessions_derived_callid.pcap) |
+| sip_sessions_explicit_wins | T-SIP-60: 显式赢三级（消息头 > session.call_id > 派生；user-wins 合同不变） | pass | 9 | [pcap](sip/sip_sessions_explicit_wins.pcap) |
+| sip_sessions_port_fixed | T-SIP-67: sessions src_port fixed（12.15 整格④；fixed=两流同值=显式声明语义） | pass | 18 | [pcap](sip/sip_sessions_port_fixed.pcap) |
+| sip_sessions_port_inc | T-SIP-64: sessions src_port inc+flows=2（12.15 整格①；group_id 固定） | pass | 18 | [pcap](sip/sip_sessions_port_inc.pcap) |
+| sip_sessions_port_list | T-SIP-66: sessions src_port list 轮转（12.15 整格③） | pass | 18 | [pcap](sip/sip_sessions_port_list.pcap) |
+| sip_sessions_port_pattern | T-SIP-68: sessions src_port pattern（12.15 整格⑤；模板 {n} 流序号替换） | pass | 18 | [pcap](sip/sip_sessions_port_pattern.pcap) |
+| sip_sessions_port_rand | T-SIP-65: sessions src_port rand seed 钉（12.15 整格②；seed=7 可复现） | pass | 18 | [pcap](sip/sip_sessions_port_rand.pcap) |
+| sip_sessions_two_dialogs | T-SIP-58: 双会话独立面（§3.1-3.3：独立 call_id/独立四元组/独立生命周期；2×(3+2+4)=18 包） | pass | 18 | [pcap](sip/sip_sessions_two_dialogs.pcap) |
+| sip_sessions_v6 | T-SIP-71: v6 双会话对称格（9.24：fd00 端点×多会话；缺省端口派生同构） | pass | 18 | [pcap](sip/sip_sessions_v6.pcap) |
 | sip_status_class_enum | T-SIP-23: 状态码枚举补格（§9.20 4xx/5xx/6xx 大类覆盖；INVITE→486→ACK=10 包） | pass | 13 | [pcap](sip/sip_status_class_enum.pcap) |
 | sip_status_codes | T-SIP-8: 响应码枚举 100/180/200/404（INVITE 多响应+404 拒绝路径） | pass | 15 | [pcap](sip/sip_status_codes.pcap) |
 | sip_status_enum_4xx | T-SIP-55: 4xx 响应码枚举长尾（§9.20 响应码表=数据场景清单：403/408/480/481/488 五格；与既有 401/404/486/487/491 分格） | pass | 22 | [pcap](sip/sip_status_enum_4xx.pcap) |

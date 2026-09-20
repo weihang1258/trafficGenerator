@@ -242,16 +242,20 @@ func checkLayerChainStaticCopy(config map[string]any, flows float64) string {
 					if sess == nil {
 						continue
 					}
-					for _, pf := range []string{"src_port", "dst_port"} {
+					for _, pf := range []string{"src_port", "dst_port", "call_id"} {
 						pv, ok := sess[pf]
 						if !ok || pv == nil {
 							continue
 						}
 						if pm, isObj := pv.(map[string]any); isObj {
+							// 动态对象（含 call_id 的 pattern/fixed）=逐流
+							// 有别证明入 hasDyn；标量只对端口入 hasScalar
+							// （call_id/dialog 静态文本不构成四元组复制面，
+							// 两流同 Call-ID 是显式声明语义）。
 							if _, looksDyn := pm["strategy"]; looksDyn {
 								hasDyn = true
 							}
-						} else {
+						} else if pf != "call_id" {
 							hasScalar = true
 						}
 					}

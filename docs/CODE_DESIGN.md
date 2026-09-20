@@ -2696,7 +2696,7 @@ create：ValidateStrategy→ValidateLayers（V9 4 键）→CheckProtoFlat presen
 
 ### D-SIP-2 sip 引擎结构补全：sessions[] 多会话+媒体双向交错+NAT 合成+SIPS/TLS 事件面【D-SIP-1 B′ 四项收编，P2 定稿待批】
 
-**状态：** P2 设计（2026-09-20；用户指示"按核心记忆文档设计 D-SIP-1 剩余边界方案"）。四个独立 WP，各自 P-PIPE+独立提交；WP-D 风险最高可独立延期。现状代码事实：Media 单挂点（sip.go:239 `msg.EmitMedia && sipConfig.Media != nil`）；flows=2=同模板复制（Call-ID 同字节）；Via 原样透传（sip.go 零 rport/received 逻辑）；sip 终层自驱 GenEvents=nil（layer_gen.go:26）；框架已有 tls 事件变换器先例（chain_planner_chain.go:216 [ip→tcp→tls→http] 绿）+mqtt OptionalOn tls（registry.go:311）。
+**状态：** WP-A P5 已执行（2026-09-20：71/71 ×2 稳态+落盘对账 66=71−5+门 2 四项绿；P5 校准 5 处见 T-SIP-58 状态行——genPort pattern 补口/嵌套 dyn 扫描 call_id/rand 钉值/v6 括号/list 字符串合同）。P2 设计（2026-09-20；用户指示"按核心记忆文档设计 D-SIP-1 剩余边界方案"；**CORE_MEMORY 240 条逐条重审完成——12 处缺口修正入条目**：组合语义/四件事/三张子表/签名/性能口径/整格矩阵/spec 例等）。四个独立 WP，各自 P-PIPE+独立提交；WP-D 风险最高可独立延期。现状代码事实：Media 单挂点（sip.go:239 `msg.EmitMedia && sipConfig.Media != nil`）；flows=2=同模板复制（Call-ID 同字节）；Via 原样透传（sip.go 零 rport/received 逻辑）；sip 终层自驱 GenEvents=nil（layer_gen.go:26）；框架已有 tls 事件变换器先例（chain_planner_chain.go:216 [ip→tcp→tls→http] 绿）+mqtt OptionalOn tls（registry.go:311）。
 
 **权威链（§7）：** RFC 3261（§17 事务/§19.3 Via branch 合同）+RFC 3581（§4 rport/received 回填）+RFC 3264（§5-6 offer/answer）+RFC 3550（§5.1 RTP 双向）+RFC 4566（SDP）→ 设计=本条目（权威）→ 代码 → 测试。CORE_MEMORY 依据：§3.1-3.3（sessions 显式/独立四元组/独立生命周期）、§3.11-3.12（流间交错调度写清）、§9.9（并发交错/中断续作）、§9.23（地址族×会话×流矩阵）、1.12（字段必须住层）、12.9（静态复制拒绝）。
 

@@ -226,6 +226,10 @@ func genPort(s StrategyConfig, index int) uint16 {
 		}
 		r := rand.New(rand.NewSource(s.Seed + int64(index)))
 		return uint16(start + r.Intn(end-start+1))
+	case "pattern":
+		// D-SIP-2 WP-A：五策略合同补口（CORE_MEMORY 12.1）——端口按
+		// 模板渲染后转数值（"260{n}"→"2601"→2601）；渲染空串落 0。
+		return toPort(applyPattern(s.Pattern, s.Range, index))
 	default:
 		return 0
 	}

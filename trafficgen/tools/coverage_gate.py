@@ -782,7 +782,14 @@ def check_sip(cases):
                      ("reason_q850", "Reason:Q.850 释放原因面"), ("ims_pheaders", "IMS 私有头面"),
                      ("history_info_fwd", "History-Info 呼转链面"), ("491_glare", "491 glare 面"),
                      ("interleaved_two_calls", "并发交错双呼面"), ("status_enum_4xx", "4xx 枚举长尾面"),
-                     ("status_enum_56xx", "5xx/6xx 枚举面"), ("v6_port_dyn", "v6×多流矩阵面")]:
+                     ("status_enum_56xx", "5xx/6xx 枚举面"), ("v6_port_dyn", "v6×多流矩阵面"),
+                     ("sessions_two_dialogs", "双会话独立面"), ("sessions_derived_callid", "Call-ID 派生面"),
+                     ("sessions_explicit_wins", "显式赢面"), ("neg_sessions_dialog_mutex", "sessions 互斥判死面"),
+                     ("neg_sessions_empty", "空数组判死面"), ("neg_sessions_static", "sessions 静态复制拒面"),
+                     ("sessions_port_inc", "session 端口 inc 格"), ("sessions_port_rand", "session 端口 rand 格"),
+                     ("sessions_port_list", "session 端口 list 格"), ("sessions_port_fixed", "session 端口 fixed 格"),
+                     ("sessions_port_pattern", "session 端口 pattern 格"), ("sessions_callid_pattern", "call_id pattern 格"),
+                     ("sessions_callid_fixed", "call_id fixed 格"), ("sessions_v6", "v6 双会话格")]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
 

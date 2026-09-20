@@ -3641,7 +3641,7 @@
 
 ### T-SIP-58…71 sessions[] 多会话（D-SIP-2 WP-A P3 清单）
 
-**状态：** P3 定稿（2026-09-20）。三源=RFC 3261 §12（dialog 标识）+D-SIP-2 WP-A+Kamailio 多 dialog 并存行为（子表③）。
+**状态：** P5 全绿（2026-09-20，71/71 ×2 稳态+落盘 66 正例 pcap 对账精确+门 2 静态四项绿）。P3 定稿（2026-09-20）：三源=RFC 3261 §12（dialog 标识）+D-SIP-2 WP-A+Kamailio 多 dialog 并存行为（子表③）。**P5 校准 5 处（14.6/9.31 落盘重钉）：** ①genPort 五策略合同补 pattern 口（12.1 缺口，T-68 即失败测试）②sessions 嵌套 dyn 扫描补 call_id 对象入 hasDyn（T-69/70 误拒修复）③rand seed=7 钉值 23187/23189④v6 派生 Call-ID 主机部括号形（sipHostOf RFC 19.1.1 口径）⑤list 项须字符串（StrategyConfig.List []string 合同，整型写法解析空落缺省）。
 **级别：** pcap。**存量去向：** 57 例等价保留（dialog 路径零字节回归线）。
 
 | 测试点 | 用例 | 类别/说明 |

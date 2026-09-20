@@ -5303,5 +5303,811 @@
       "type": "flows",
       "value": 2
     }
+  },
+  {
+    "id": "sip_sessions_two_dialogs",
+    "proto": "sip",
+    "summary": "T-SIP-58: 双会话独立面（§3.1-3.3：独立 call_id/独立四元组/独立生命周期；2×(3+2+4)=18 包）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "src_port": 22001,
+                "call_id": "sess-a@10.0.0.1"
+              },
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "src_port": 22002,
+                "call_id": "sess-b@10.0.0.1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "22001",
+            "22002",
+            "5060"
+          ]
+        },
+        {
+          "packet": 1,
+          "field": "sip.Call-ID",
+          "distinct_values": [
+            "sess-a@10.0.0.1",
+            "sess-b@10.0.0.1"
+          ]
+        }
+      ],
+      "notes": [
+        "每会话独立 TCP 连接（独立 SYN/FIN 序）；Call-ID 逐会话断言（req+resp 同值复刻）；srcport 双向聚合含服务端 5060（9.38）"
+      ]
+    }
+  },
+  {
+    "id": "sip_sessions_derived_callid",
+    "proto": "sip",
+    "summary": "T-SIP-59: Call-ID 缺省派生（12.4 确定性：{flowIdx}-{sessIdx}@{srcIP}；端口缺省派生 12345+M*flow+idx 防撞）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ]
+              },
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "sip.Call-ID",
+          "distinct_values": [
+            "0-0@10.0.0.1",
+            "0-1@10.0.0.1"
+          ]
+        },
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "12345",
+            "12346",
+            "5060"
+          ]
+        }
+      ],
+      "notes": [
+        "派生可复现（12.4 同序号同结果）；缺省端口 base(12345)+flowIdx*M+sessIdx=12345/12346"
+      ]
+    }
+  },
+  {
+    "id": "sip_sessions_explicit_wins",
+    "proto": "sip",
+    "summary": "T-SIP-60: 显式赢三级（消息头 > session.call_id > 派生；user-wins 合同不变）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1",
+                    "headers": [
+                      "Call-ID: explicit@10.0.0.1"
+                    ]
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "call_id": "sess-a@10.0.0.1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 9,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "sip.Call-ID",
+          "distinct_values": [
+            "explicit@10.0.0.1"
+          ]
+        }
+      ],
+      "notes": [
+        "消息级显式 Call-ID 压过 session.call_id（completeDialogHeaders first-occurrence-wins 既有合同）"
+      ]
+    }
+  },
+  {
+    "id": "sip_neg_sessions_dialog_mutex",
+    "proto": "sip",
+    "summary": "T-SIP-61: 负例 sessions+dialog 同给互斥判死（create-time 400）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "dialog": [
+              {
+                "method": "OPTIONS",
+                "uri": "sip:callee@20.0.0.1"
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ],
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "sip: sessions and dialog are mutually exclusive"
+    }
+  },
+  {
+    "id": "sip_neg_sessions_empty",
+    "proto": "sip",
+    "summary": "T-SIP-62: 负例空 sessions 数组（同锚词面，不给静默退化）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": []
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "sip: sessions and dialog are mutually exclusive"
+    }
+  },
+  {
+    "id": "sip_neg_sessions_static",
+    "proto": "sip",
+    "summary": "T-SIP-63: 负例 sessions 内标量端口+flows=2（12.9 扩扫执法）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "src_port": 22001
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "static four-tuple"
+    }
+  },
+  {
+    "id": "sip_sessions_port_inc",
+    "proto": "sip",
+    "summary": "T-SIP-64: sessions src_port inc+flows=2（12.15 整格①；group_id 固定）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "src_port": {
+                  "strategy": "inc",
+                  "range": [
+                    23001,
+                    23002
+                  ],
+                  "step": 1,
+                  "group_id": "sp-inc"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "23001",
+            "23002",
+            "5060"
+          ]
+        }
+      ],
+      "notes": [
+        "inc 逐流 23001→23002；9.38 聚合含服务端口"
+      ]
+    }
+  },
+  {
+    "id": "sip_sessions_port_rand",
+    "proto": "sip",
+    "summary": "T-SIP-65: sessions src_port rand seed 钉（12.15 整格②；seed=7 可复现）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "src_port": {
+                  "strategy": "rand",
+                  "range": [
+                    23101,
+                    23200
+                  ],
+                  "seed": 7,
+                  "group_id": "sp-rand"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "23187",
+            "23189",
+            "5060"
+          ]
+        }
+      ],
+      "notes": [
+        "rand seed=7 落盘校准：两流 23187/23189（12.4 同 seed 同序号可复现）"
+      ]
+    }
+  },
+  {
+    "id": "sip_sessions_port_list",
+    "proto": "sip",
+    "summary": "T-SIP-66: sessions src_port list 轮转（12.15 整格③）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "src_port": {
+                  "strategy": "list",
+                  "list": [
+                    "24001",
+                    "24002"
+                  ],
+                  "group_id": "sp-list"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "24001",
+            "24002",
+            "5060"
+          ]
+        }
+      ],
+      "notes": [
+        "list 逐流轮转"
+      ]
+    }
+  },
+  {
+    "id": "sip_sessions_port_fixed",
+    "proto": "sip",
+    "summary": "T-SIP-67: sessions src_port fixed（12.15 整格④；fixed=两流同值=显式声明语义）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "src_port": {
+                  "strategy": "fixed",
+                  "value": 25001,
+                  "group_id": "sp-fixed"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "25001",
+            "5060"
+          ]
+        }
+      ],
+      "notes": [
+        "fixed 同值两流=用户显式选择（引擎放行；同四元组两连接为有意语义）"
+      ]
+    }
+  },
+  {
+    "id": "sip_sessions_port_pattern",
+    "proto": "sip",
+    "summary": "T-SIP-68: sessions src_port pattern（12.15 整格⑤；模板 {n} 流序号替换）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "src_port": {
+                  "strategy": "pattern",
+                  "pattern": "260{n}",
+                  "group_id": "sp-pat",
+                  "range": [
+                    1,
+                    2
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "tcp.srcport",
+          "distinct_values": [
+            "2601",
+            "2602",
+            "5060"
+          ]
+        }
+      ],
+      "notes": [
+        "pattern 260{n}→2601/2602（落盘校准）"
+      ]
+    }
+  },
+  {
+    "id": "sip_sessions_callid_pattern",
+    "proto": "sip",
+    "summary": "T-SIP-69: call_id pattern 动态（12.15 整格⑥；flows=2 逐流 Call-ID）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "call_id": {
+                  "strategy": "pattern",
+                  "pattern": "sip{n}@10.0.0.1",
+                  "group_id": "ci-pat",
+                  "range": [
+                    1,
+                    2
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "sip.Call-ID",
+          "distinct_values": [
+            "sip1@10.0.0.1",
+            "sip2@10.0.0.1"
+          ]
+        }
+      ],
+      "notes": [
+        "pattern 模板逐流替换（落盘校准）"
+      ]
+    }
+  },
+  {
+    "id": "sip_sessions_callid_fixed",
+    "proto": "sip",
+    "summary": "T-SIP-70: call_id fixed 动态（12.15 整格⑦；两流同 Call-ID=显式声明）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ],
+                "call_id": {
+                  "strategy": "fixed",
+                  "value": "static@10.0.0.1",
+                  "group_id": "ci-fix"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "strategy_fc": {
+      "type": "flows",
+      "value": 2
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "sip.Call-ID",
+          "distinct_values": [
+            "static@10.0.0.1"
+          ]
+        }
+      ],
+      "notes": [
+        "fixed 同值"
+      ]
+    }
+  },
+  {
+    "id": "sip_sessions_v6",
+    "proto": "sip",
+    "summary": "T-SIP-71: v6 双会话对称格（9.24：fd00 端点×多会话；缺省端口派生同构）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "fd00::1",
+            "dst": "fd00::2"
+          }
+        },
+        {
+          "sip": {
+            "sessions": [
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ]
+              },
+              {
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1"
+                  },
+                  {
+                    "status_code": 200,
+                    "status_text": "OK"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "packet_count": 18,
+      "fields": [
+        {
+          "packet": 1,
+          "field": "ipv6.dst",
+          "distinct_values": [
+            "fd00::1",
+            "fd00::2"
+          ]
+        },
+        {
+          "packet": 1,
+          "field": "sip.Call-ID",
+          "distinct_values": [
+            "0-0@[fd00::1]",
+            "0-1@[fd00::1]"
+          ]
+        }
+      ],
+      "notes": [
+        "9.24 地址族对称：派生 Call-ID 主机部=sipHostOf v6 括号形（RFC 19.1.1 sent-by 口径，落盘校准）"
+      ]
+    }
   }
 ]
