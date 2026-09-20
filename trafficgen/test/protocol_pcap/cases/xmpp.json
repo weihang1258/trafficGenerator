@@ -23,6 +23,11 @@
       "has_payload": true,
       "frames": [
         {
+          "packet": 4,
+          "offset": 54,
+          "hex": "3c 3f 78 6d 6c 20 76 65 72 73 69 6f 6e 3d 27 31 2e 30 27 20 3f 3e 3c 73 74 72 65 61 6d 3a 73 74 72 65 61 6d 20 74 6f 3d 27 65 78 61 6d 70 6c 65 2e 63 6f 6d 27"
+        },
+        {
           "packet": 10,
           "offset": 54,
           "hex": "3c 69 71 20 74 79 70 65 3d 27 73 65 74 27 20 69 64 3d 27 62 69 6e 64 5f 31 27"
@@ -39,10 +44,9 @@
         }
       ],
       "notes": [
-        "19 帧=3 握手+13 数据（流开+features+auth+success+重启+postAuth+bind×2+sess×2+presence+流关×2）+3 终止（双 FIN+ACK）",
+        "包数实测钉 19=3 握手+13 数据（流开+features+auth+success+重启+postAuth+bind×2+sess×2+presence+流关×2）+3 终止（双 FIN+ACK）；f4 流头缺省 to='example.com' 钉",
         "f15/f16 '</stream:stream>' 有 tshark 'Closing an unopened tag' 专家标记——合法 XMPP 流终止字节（verify.go xmpp- 前缀白名单）"
       ],
-      "min_packets": 16,
       "fields": [
         {
           "packet": 1,
@@ -104,7 +108,8 @@
           "field": "xmpp.type",
           "value": "result"
         }
-      ]
+      ],
+      "packet_count": 19
     }
   },
   {
@@ -132,9 +137,25 @@
       "terminates": true,
       "has_payload": true,
       "packet_count": 21,
-      "frames": [],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "3c 61 75 74 68 20 78 6d 6c 6e 73 3d 27 75 72 6e 3a 69 65 74 66 3a 70 61 72 61 6d 73 3a 78 6d 6c 3a 6e 73 3a 78 6d 70 70 2d 73 61 73 6c 27 20 6d 65 63 68 61 6e 69 73 6d 3d 27 44 49 47 45 53 54 2d 4d 44 35 27 2f 3e"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "3c 63 68 61 6c 6c 65 6e 67 65 20 78 6d 6c 6e 73 3d 27 75 72 6e 3a 69 65 74 66 3a 70 61 72 61 6d 73 3a 78 6d 6c 3a 6e 73 3a 78 6d 70 70 2d 73 61 73 6c 27 3e"
+        },
+        {
+          "packet": 9,
+          "offset": 54,
+          "hex": "3c 73 75 63 63 65 73 73 20 78 6d 6c 6e 73 3d 27 75 72 6e 3a 69 65 74 66 3a 70 61 72 61 6d 73 3a 78 6d 6c 3a 6e 73 3a 78 6d 70 70 2d 73 61 73 6c 27 3e"
+        }
+      ],
       "notes": [
-        "四步：auth→challenge(nonce)→response→success+rspauth（比 PLAIN 多 challenge/response 两帧=21）"
+        "包数实测钉 21；四步实测钉：f6 auth mechanism='DIGEST-MD5'/f7 challenge 带 base64 nonce 载荷/f9 success 带 base64 rspauth 载荷（前缀钉）——四步比 PLAIN 多 challenge/response 两帧"
       ]
     }
   },
@@ -163,9 +184,25 @@
       "terminates": true,
       "has_payload": true,
       "packet_count": 23,
-      "frames": [],
+      "frames": [
+        {
+          "packet": 6,
+          "offset": 54,
+          "hex": "3c 61 75 74 68 20 78 6d 6c 6e 73 3d 27 75 72 6e 3a 69 65 74 66 3a 70 61 72 61 6d 73 3a 78 6d 6c 3a 6e 73 3a 78 6d 70 70 2d 73 61 73 6c 27 20 6d 65 63 68 61 6e 69 73 6d 3d 27 53 43 52 41 4d 2d 53 48 41 2d 31 27 2f 3e"
+        },
+        {
+          "packet": 7,
+          "offset": 54,
+          "hex": "3c 63 68 61 6c 6c 65 6e 67 65 20 78 6d 6c 6e 73 3d 27 75 72 6e 3a 69 65 74 66 3a 70 61 72 61 6d 73 3a 78 6d 6c 3a 6e 73 3a 78 6d 70 70 2d 73 61 73 6c 27 3e 3c 2f 63 68 61 6c 6c 65 6e 67 65 3e"
+        },
+        {
+          "packet": 11,
+          "offset": 54,
+          "hex": "3c 73 75 63 63 65 73 73 20 78 6d 6c 6e 73 3d 27 75 72 6e 3a 69 65 74 66 3a 70 61 72 61 6d 73 3a 78 6d 6c 3a 6e 73 3a 78 6d 70 70 2d 73 61 73 6c 27 3e"
+        }
+      ],
       "notes": [
-        "六步：auth→空 challenge→response→challenge(nonce)→response→success+verification（比 PLAIN 多四帧=23）"
+        "包数实测钉 23；六步实测钉：f6 auth mechanism='SCRAM-SHA-1'/f7 空 challenge（参考 pcap 同形）/f11 success 带 verification 载荷（前缀钉）——六步比 PLAIN 多四帧"
       ]
     }
   },
@@ -231,9 +268,15 @@
       "terminates": true,
       "has_payload": true,
       "packet_count": 18,
-      "frames": [],
+      "frames": [
+        {
+          "packet": 14,
+          "offset": 54,
+          "hex": "3c 2f 73 74 72 65 61 6d 3a 73 74 72 65 61 6d 3e"
+        }
+      ],
       "notes": [
-        "presence 缺席→19-1=18"
+        "包数实测钉 18；f14=sess_1 result 后首帧即 '</stream:stream>'（位置证明 presence 缺席——T-1 同位置 f14 是 <presence/>）"
       ]
     }
   },
