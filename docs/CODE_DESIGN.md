@@ -3067,7 +3067,7 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 | 4 | B′ 账本：MS 客户端缺省 Host/Vendor 待确认、interleaved GRE over TCP（ uncontested）、ICRQ 族 PAC 侧现网形、动态字段旁挂 | RFC 2637+现网要求面如实 |
 
 **文件：** protocol/pptp/layer_gen.go（新）+chain_planner_util.go+chain_planner.go（名单）+registry.go（51 Fields 行）+chain_planner_translate.go（case）+generator.go（FlowMeta.PPTP）+strategy_convert.go（ParsePPTPConfigFromMap）+cmd/server/main.go（翻转）+cases/pptp.json（改写+补强）。
-**性能（6.4-6.6）：** 流式 channel 256；包数=场景编排段数（full≈22 包/calls 与 SLI 计数线性）；pcap 验收路。
+**性能（6.4-6.6）：** 流式 channel 256；包数=场景编排段数（full 缺省实测 26=3 握手+4 控制+SLI×5+GRE×5+拆除段族；calls/SLI/data_frames 线性——T-7 calls2=31、T-8 SLI3=20、T-10 数据 3=24、T-13 复合=33 实测钉）；pcap 验收路（网卡路未跑注明 6.3）。
 **回滚：** 单提交粒度，摘除即回。
 
 **P4 已实现+复审（2026-09-20，8c941b0）：** 五件套全落（registry **51 Fields 实数复核**：parsePPTPConfig 顶层 50+data_frames=51，inner_ip=object 内嵌 7 子键）+layer_gen+链级 2 例。复审抓 1 断言口径错：GRE 数据面帧无 TCP 端口（IP proto 47），"每帧 1723"断言改为控制面帧限定——修正后链级净。
@@ -3100,3 +3100,5 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 | T-20 | 负例 inner IP 非法 | 锚词 `invalid pptp inner src_ip` |
 
 **P3 复审（2026-09-20 对抗走查）：** 15 消息面由 T-1 full 编排承接（SCCRQ/SCCRP/OCRQ/OCRP/SLI/CCRQ/CCDN/StopRQ/StopRP 9 消息逐包断言）+T-9 echo（ECRQ/ECRP）+T-6/T-7 角色与多 call（ICRQ/ICRP/ICCN 由 incoming_call 键 B′ 注记、T-6 承接 PAC 侧部分）；WEN（msg 14）无用例=WEN 键 B′ 注记（现网 WAN 错误事件低频，构建器实存 buildWEN）。对账 27/27 平。**清单净，待批进 P4。**
+
+**P6 追加对抗复审（2026-09-20，用户指令"没复审就再复审一次"）：** 抓 2 实缺口已修：①T-3/4/5/6/7/9/12/13 八例包数"实测钉"占位未钉（9.31/14.6 校准义务未完成——跑过但实测值没写回断言）→pcap 逐一实测钉齐（21/16/4/21/31/23/21/33）+suite 复跑 ×2 全绿；②性能段"full≈22 包"P2 估值笔误与实测 26 不符→按实测修正。横扫项：registry↔parse 键集 51↔51 逐键零差、四名单齐、生成物同代（layers.generated/mcp 描述/config-schema 106 层/schema-types）、前四协议占位横扫零残留、负例 7 锚真实拦截面逐个核可达（role/scenario/sub_address/64B/inner IP=planner 锚；calls/sli_count=registry V9 先拦）。**复审结论：追加轮 2 实缺口+1 笔误全修，修正后 20/20 ×2 全绿，净。**

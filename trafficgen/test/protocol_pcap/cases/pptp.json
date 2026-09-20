@@ -146,8 +146,9 @@
       "has_handshake": true,
       "terminates": true,
       "notes": [
-        "包数由场景编排实测钉"
-      ]
+        "实测 21 包"
+      ],
+      "packet_count": 21
     }
   },
   {
@@ -201,7 +202,8 @@
     "expect": {
       "notes": [
         "data_only=纯 GRE 数据面（无 TCP 握手/挥手——场景语义即跳过控制面），断言面=GRE 帧数"
-      ]
+      ],
+      "packet_count": 4
     }
   },
   {
@@ -229,7 +231,8 @@
       "terminates": true,
       "notes": [
         "方向面换向：SCCRQ 由 PAC 发出（语义反转）"
-      ]
+      ],
+      "packet_count": 21
     }
   },
   {
@@ -256,8 +259,9 @@
       "has_handshake": true,
       "terminates": true,
       "notes": [
-        "包数实测钉；Call ID 递增面"
-      ]
+        "实测 31 包；Call ID 递增面"
+      ],
+      "packet_count": 31
     }
   },
   {
@@ -313,7 +317,8 @@
       "terminates": true,
       "notes": [
         "ECRQ(up)/ECRP(down) 一对；msgType 5/6"
-      ]
+      ],
+      "packet_count": 23
     }
   },
   {
@@ -411,7 +416,8 @@
       "terminates": true,
       "notes": [
         "SCCRP/OCRP result-code 字段字节钉（pcap 校准后补）"
-      ]
+      ],
+      "packet_count": 21
     }
   },
   {
@@ -441,8 +447,9 @@
       "has_handshake": true,
       "terminates": true,
       "notes": [
-        "五类交织：多 call+保活+双数据+SLI 计数+full 拆除序；包数实测钉"
-      ]
+        "五类交织：多 call+保活+双数据+SLI 计数+full 拆除序；实测 33 包"
+      ],
+      "packet_count": 33
     }
   },
   {
