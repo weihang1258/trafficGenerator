@@ -28,6 +28,11 @@
           "hex": "3c 3f 78 6d 6c 20 76 65 72 73 69 6f 6e 3d 27 31 2e 30 27 20 3f 3e 3c 73 74 72 65 61 6d 3a 73 74 72 65 61 6d 20 74 6f 3d 27 65 78 61 6d 70 6c 65 2e 63 6f 6d 27"
         },
         {
+          "packet": 6,
+          "offset": 54,
+          "hex": "3c 61 75 74 68 20 78 6d 6c 6e 73 3d 27 75 72 6e 3a 69 65 74 66 3a 70 61 72 61 6d 73 3a 78 6d 6c 3a 6e 73 3a 78 6d 70 70 2d 73 61 73 6c 27 20 6d 65 63 68 61 6e 69 73 6d 3d 27 50 4c 41 49 4e 27 3e 41 48 56 7a 5a 58 49 41 63 47 46 7a 63 77 3d 3d 3c 2f 61 75 74 68 3e"
+        },
+        {
           "packet": 10,
           "offset": 54,
           "hex": "3c 69 71 20 74 79 70 65 3d 27 73 65 74 27 20 69 64 3d 27 62 69 6e 64 5f 31 27"
@@ -45,7 +50,8 @@
       ],
       "notes": [
         "包数实测钉 19=3 握手+13 数据（流开+features+auth+success+重启+postAuth+bind×2+sess×2+presence+流关×2）+3 终止（双 FIN+ACK）；f4 流头缺省 to='example.com' 钉",
-        "f15/f16 '</stream:stream>' 有 tshark 'Closing an unopened tag' 专家标记——合法 XMPP 流终止字节（verify.go xmpp- 前缀白名单）"
+        "f15/f16 '</stream:stream>' 有 tshark 'Closing an unopened tag' 专家标记——合法 XMPP 流终止字节（verify.go xmpp- 前缀白名单）",
+        "追加轮4 补缺省凭据钉：f6 PLAIN auth 载荷 AHVzZXIAcGFzcw==（\\0user\\0pass 缺省字面值）"
       ],
       "fields": [
         {
@@ -329,7 +335,20 @@
         }
       ],
       "notes": [
-        "messages 在 presence 后逐条发射（每条+1 帧）；f15 up（to alice）/f16 down（to user）message 节字节实测钉"
+        "messages 在 presence 后逐条发射（每条+1 帧）；f15 up（to alice）/f16 down（to user）message 节字节实测钉",
+        "追加轮4（隔离复审）补方向值钉：direction 的唯一 e2e 可观察=L3 侧别（f15 up=10.0.0.1→/f16 down=20.0.0.1→）——stanza 字节不含方向，raw 链防双换回归由此拦截"
+      ],
+      "fields": [
+        {
+          "packet": 15,
+          "field": "ip.src",
+          "value": "10.0.0.1"
+        },
+        {
+          "packet": 16,
+          "field": "ip.src",
+          "value": "20.0.0.1"
+        }
       ]
     }
   },
@@ -483,6 +502,48 @@
       "error_contains": "invalid direction",
       "notes": [
         "planner Validate 锚（up/down 枚举）"
+      ]
+    }
+  },
+  {
+    "id": "xmpp_t11_long_body_mss",
+    "proto": "xmpp",
+    "summary": "T-11 长 body 超 MSS 分段（9.46 超长边界）：3000 字符 body→message 节 ~3060B→2 个 TCP 段",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "xmpp": {
+            "messages": [
+              {
+                "direction": "up",
+                "to": "bulk@example.com",
+                "body": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "negotiated": true,
+      "terminates": true,
+      "packet_count": 22,
+      "frames": [
+        {
+          "packet": 15,
+          "offset": 54,
+          "hex": "3c 6d 65 73 73 61 67 65 20 74 6f 3d 27 62 75 6c 6b 40 65 78 61 6d 70 6c 65 2e 63 6f 6d 27 20 74 79 70 65 3d 27 63 68 61 74 27 3e 3c 62 6f 64 79"
+        }
+      ],
+      "notes": [
+        "包数实测钉 22：19 基线+1 message 拆 3 段（1460+1460+146——body 3000+节开销 66=3066B；MSS=1460 引擎唯一真实分段边界，XML 字符串无规范上界）；f15=message 节首段前缀实测钉（追加轮4 隔离复审缺口 3）"
       ]
     }
   }

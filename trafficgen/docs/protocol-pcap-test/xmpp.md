@@ -1,10 +1,11 @@
 # xmpp Pcap Test Results
 
-Cases: 10 — pass 10, fail 0, error 0
+Cases: 11 — pass 11, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
 | xmpp_t10_neg_direction | 负例：message direction=left（枚举外） | pass | 0 | [pcap]() |
+| xmpp_t11_long_body_mss | T-11 长 body 超 MSS 分段（9.46 超长边界）：3000 字符 body→message 节 ~3060B→2 个 TCP 段 | pass | 22 | [pcap](xmpp/xmpp_t11_long_body_mss.pcap) |
 | xmpp_t1_smoke_plain | T-1 smoke 改写（PLAIN 19 帧参考形）：10 阶段全序 + 5222 | pass | 19 | [pcap](xmpp/xmpp_t1_smoke_plain.pcap) |
 | xmpp_t2_digest_md5 | T-2 auth_mechanism=DIGEST-MD5：四步质询应答 | pass | 21 | [pcap](xmpp/xmpp_t2_digest_md5.pcap) |
 | xmpp_t3_scram_sha1 | T-3 auth_mechanism=SCRAM-SHA-1：六步交换（参考 pcap 同机制） | pass | 23 | [pcap](xmpp/xmpp_t3_scram_sha1.pcap) |

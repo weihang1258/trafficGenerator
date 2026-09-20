@@ -1698,6 +1698,7 @@ def check_xmpp(cases):
         ("t8_plain_credentials", "T-8 PLAIN 凭据 base64 钉"),
         ("t9_neg_mech", "T-9 auth 机制拒"),
         ("t10_neg_direction", "T-10 direction 拒"),
+        ("t11_long_body_mss", "T-11 长 body 超 MSS 分段"),
     ]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
