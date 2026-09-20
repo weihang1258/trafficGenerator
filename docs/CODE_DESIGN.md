@@ -2700,7 +2700,17 @@ create：ValidateStrategy→ValidateLayers（V9 4 键）→CheckProtoFlat presen
 
 **权威链（§7）：** RFC 3261（§17 事务/§19.3 Via branch 合同）+RFC 3581（§4 rport/received 回填）+RFC 3264（§5-6 offer/answer）+RFC 3550（§5.1 RTP 双向）+RFC 4566（SDP）→ 设计=本条目（权威）→ 代码 → 测试。CORE_MEMORY 依据：§3.1-3.3（sessions 显式/独立四元组/独立生命周期）、§3.11-3.12（流间交错调度写清）、§9.9（并发交错/中断续作）、§9.23（地址族×会话×流矩阵）、1.12（字段必须住层）、12.9（静态复制拒绝）。
 
-#### P1 现状→缺口矩阵
+#### P1 现状→缺口矩阵（4.21）
+
+**三路对照来源（4.12-4.15/4.17）：** 规范=RFC 3261/3581/3264/3550 原文；商业行为=Kamailio force_rport()/Asterisk chan_sip 多 dialog 并存/FreeSWITCHConference 焦点行为（官方文档出处，映射见子表③）；开源思路=kamailio（github.com/kamailio/kamailio，src/core/parser/msg_parser.c rport 解析思路）/opensips（tls 模块事件化思路），只借鉴不搬运。子表①②③（4.22）在每 WP 开工前随该 WP P1 全量落格——本条目 P2 先落全量框架：
+
+**子表① 方法×响应码矩阵（已覆格=用例号）：** INVITE{100(T-44)/180(T-44,54)/183(T-30)/200(T-1等)/302(T-33)/401(T-35)/403(T-55)/404(T-7)/408(T-55)/480(T-55)/486(T-21,27)/487(T-20)/488(T-55)/491(T-53)/500(T-23)/503(T-56)/600(T-56)/603(T-23)}；REGISTER{200(T-5)/401(T-25)}；ACK/BYE/OPTIONS/INFO/UPDATE/MESSAGE/REFER/NOTIFY/SUBSCRIBE/PUBLISH{200 系}；CANCEL{200/487(T-20)}。分支级口径（9.21）：4xx 各码独立分支已逐格；同码异上下文（200×INVITE vs 200×BYE）已分例。
+
+**子表② 数据形态变体表：** 紧凑形头(T-37)/多跳 Via+RR/Route(T-38)/超长头+URI(T-39)/tel:+UTF-8(T-40)/SDP 双流(T-41)/multipart 双体(T-42)/头名混写(T-43)/offerless(T-48)/pidf+conference-info XML 体(T-46,49)/sipfrag/dtmf-relay/MWI 体(T-20,28,29,32)/v6 端点+括号 URI(T-19,57)；大小端=SIP 文本协议 n/a（如实标注）；空值=空 dialog(T-18)。
+
+**子表③ 商业行为→用例映射：** Kamailio rport 回填（WP-C 用例）/Asterisk 多 dialog 注册绑定订阅（T-29 同 Call-ID 面）/FreeSWITCH 会议名册（T-46）/运营商 IMS P 头（T-51）/摘机早媒体（T-30）/DTMF 带外（T-32）。逐条出处=各产品官方文档；无映射项标待确认（确认方式：抓 Kamailio 5.6 现网包，P3 前完成）。
+
+#### P1 现状→缺口矩阵（4.21）
 
 | 规范/文档要求 | 业务场景 | 代码现状 | 缺口 |
 |---|---|---|---|
@@ -2711,7 +2721,7 @@ create：ValidateStrategy→ValidateLayers（V9 4 键）→CheckProtoFlat presen
 
 #### 架构裁定
 
-**裁定 1（WP-A）：** sessions 语义=**每 session 一条独立 TCP 信令连接**（独立握手/挥手/四元组），沿 ftp sessions 范式（FTPSession:2435 先例：静态结构原地+Dyn 旁挂）。dialog 单会话形态零改动零回归；`sessions` 与 `dialog` 同给即 400（互斥锚词）。
+**裁定 1（WP-A）：** sessions 语义=**每 session 一条独立 TCP 信令连接**（独立握手/挥手/四元组），沿 ftp sessions 范式（FTPSession:2435 先例：静态结构原地+Dyn 旁挂）。dialog 单会话形态零改动零回归；`sessions` 与 `dialog` 同给即 400（互斥锚词）。**flows×sessions 组合语义（2.5/2.8）：** flows=N × sessions=M = N×M 条信令连接（worker 流序号复制 sessions 模板）；session.src_port 缺省时按 `base(12345)+flowIdx*M+sessIdx` 派生防撞（2.8 保底口径扩展，写死则撞=用户责任，12.9 拒绝面只管"完全静态+多流"）；sessions 内标量端口+无动态+flows>1=静态复制拒绝（semantic.go 扩扫 sessions[].src_port/dst_port）。**端口住 sip 层=1.2 已批偏离延续**（D-SIP-1 七度已批，h323/sip 同款，semantic.go layerTupleFields 注记）。
 **裁定 2（WP-B）：** medias[] 与 media 互斥（同给 400）；双向=同 EmitMedia 消息点 up/down 帧交替发射（A1 B2 交替，非两段纯流）；`interleave: true` 时后续 dialog 消息按"N 帧夹 1 信令"等分点插入（调度方式写死=可复现，§3.12）。
 **裁定 3（WP-C）：** NAT 合成只作用于 **up 请求侧发射时**（down 响应=回放用户原文，RFC 3581 的 received 本就是服务端回填——引擎模拟的是"用户写的 src_ip 即 NAT 后地址"的发送侧事实，不做对端探测，诚实边界）。`nat:{rport:true}` 显式开启，缺省透传零变化。
 **裁定 4（WP-D）：** 双模式——[ip,sip] 自驱保字节等价线（D-SIP-1 否决 B2 的教训只在 tls 模式局部化重演）；事件面=新 EventGenerator 把 dialog 翻成 MessageEvents，头补全 dialogCtx 状态机在事件面重写。**tls 链上 media 面=拒绝**（RTP 是 UDP 裸流不进 TLS，锚词 `media is not supported on a tls sip chain`）。
@@ -2728,8 +2738,11 @@ create：ValidateStrategy→ValidateLayers（V9 4 键）→CheckProtoFlat presen
 
 #### WP-A sessions[] 多会话+标识唯一化（首批）
 
-**范围：** ①sip 层新增 `sessions:[{src_port?,dst_port?,call_id?,dialog:[...],media?}]`；②sessions/dialog 互斥 400（锚词 `sip: sessions and dialog are mutually exclusive`，空数组同锚词面）；③标识派生：call_id 缺省 `{flow}-{sess}@{src_ip}`、Via branch 缺省 `z9hG4bK-<hash(call_id,cseq)>`（头补全已有 Via 合成上叠 branch 缺省）；④每 session 独立 TCP 连接（独立 3 握 4 挥）；⑤静态复制门扩 sessions 内端口（语义层扫描 sessions[].src_port/dst_port 标量+flows>1 拒，D-FTP-3 同口径）。
+**依赖（5.1）：** legacy dialog 路径零改动为基线/头补全 dialogCtx（派生 Call-ID 注入点）/worker 流序号贯通（FlowIndex 既有）。**错误四件套（5.2）：** 失败返回=create 期 400（互斥/空数组/静态复制锚词）；会话命运=合成期拒绝无包产出；重试=无（回放合同）；超时=无时钟不断言（C 类）。**范围：** ①sip 层新增 `sessions:[{src_port?,dst_port?,call_id?,dialog:[...],media?}]`；②sessions/dialog 互斥 400（锚词 `sip: sessions and dialog are mutually exclusive`，空数组同锚词面）；③标识派生：call_id 缺省 `{flow}-{sess}@{src_ip}`、Via branch 缺省 `z9hG4bK-<hash(call_id,cseq)>`（头补全已有 Via 合成上叠 branch 缺省）；④每 session 独立 TCP 连接（独立 3 握 4 挥）；⑤静态复制门扩 sessions 内端口（语义层扫描 sessions[].src_port/dst_port 标量+flows>1 拒，D-FTP-3 同口径）。
 **文件：** types.go（SIPSession+SIPConfig.Sessions）/strategy_convert.go（translate 解析+互斥检查）/protocol/sip/sip.go（planSessions 循环+标识派生）/core/schema/semantic.go（静态复制扩扫）/registry.go（registry 行加 sessions 键）/layer_dyn.go（session 端口动态位）。
+**接口签名（8.2/8.3）：** `type SIPSession struct { SrcPort uint16; DstPort uint16; CallID string; Dialog []SIPMessage; Media *SIPMedia; SrcPortDyn/DstPortDyn/CallIDDyn *StrategyConfig(标签 json:"-") }`；`SIPConfig.Sessions []SIPSession json:"sessions,omitempty"`；派生函数 `deriveSIPCallID(flowIdx, sessIdx int, srcIP string) string`、`deriveSIPBranch(callID string, seq int) string`（sip.go 内未导出）。
+**主流程（8.4）：** translate 解析 sessions（JSON round-trip）→FlowMeta.SIP.Sessions→Plan 循环 per flow：per session 建独立 dialogCtx（派生 Call-ID 注入）→独立 3 握→dialog 消息序→独立 4 挥→下一 session。
+**冲突点（8.7）：** 头补全 dialogCtx 现按单 dialog 键控（Call-ID 继承）——sessions 后须 per-session ctx（改键=flow-sess 二元组，存量单 dialog 路径键不变零回归）；静态复制门扩扫与 D-FTP-3 层门共用 layerTupleFields 扩展点。
 **验收：** 57 例零字节回归（sessions 缺省路径）+新例≥6（双会话独立 Call-ID/独立端口/交错生命周期/派生 Call-ID 断言/互斥负例/静态复制负例）。
 **回滚：** 单提交粒度；dialog 路径零改动=存量零风险。
 
@@ -2768,15 +2781,15 @@ create：ValidateStrategy→ValidateLayers（V9 4 键）→CheckProtoFlat presen
 
 | § | 满足方式+证据 |
 |---|---|
-| §1 顶层旧键 | 无新增顶层键——全部结构住 sip 层内（1.11-1.13 白名单：layers/flow_control/output 之外零游离）；sessions/medias/nat 均为层内键 |
+| §1 顶层旧键 | 无新增顶层键——全部结构住 sip 层内（1.11-1.13 白名单：layers/flow_control/output 之外零游离）；sessions/medias/nat 均为层内键。**目标形状完整例（15.3，WP-A+B+C 合成像）：** `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"sip":{"sessions":[{"src_port":22001,"call_id":"a@10.0.0.1","dialog":[{"method":"INVITE","uri":"sip:callee@20.0.0.1"},{"status_code":200,"status_text":"OK"}],"medias":[{"direction":"up","frames":3},{"direction":"down","frames":3}]}},{"dst_port":5062,"dialog":[{"method":"OPTIONS","uri":"sip:callee@20.0.0.1"},{"status_code":200,"status_text":"OK"}]}],"nat":{"rport":true}}]}`（1.9：WP-D 落地前此例可跑——仅 tls 组合部分属"需先补代码"，其余三 WP 即目标形状本体） |
 | §2 判死 | 既有 presence 判死不变；新增互斥负例锚词 3 条（sessions×dialog/medias×media/tls×media） |
-| §3 五件套 | 会话表=sessions[]（每条独立 ID=call_id/四元组/生命周期）；事务序列=session 内 dialog 消息序；关联=medias[]→EmitMedia 消息点+SDP 推导（三件事不变）；插入=WP-B interleave 等分点；时间线=交错调度写死可复现（§3.12） |
+| §3 五件套+四件事 | 会话表=sessions[]（每条独立 ID=call_id/四元组/生命周期）；事务序列=session 内 dialog 消息序；关联=medias[]→EmitMedia 消息点+SDP 推导（三件事不变；**双向子流 ID=parent:rtp-up / parent:rtp-down**（3.10 parent:sub-idx 形状）；插入=WP-B interleave 等分点；时间线=交错调度写死可复现，**包时间戳=发射序（引擎无时钟，断言面=帧序非绝对时间，3.12 口径如实）**。**单事务四件事（3.4-3.7）：** 前置=同 dialog 先行消息（401 的 nonce→重发、302 的 Contact→重发）；触发=dialog 消息发射；成功分支=2xx→下一消息；失败分支=非 2xx→ACK/重发/终止（T-25/33/53 用例面表达） |
 | §4 规范矩阵 | 见 P1 表（RFC 3261/3581/3264/3550/4566 逐项） |
 | §5 依赖与错误 | 互斥 400×3+空 sessions 400+静态复制拒（锚词全列）；错误返回=create 期 schema 拒/任务期 planner error（§5.6 四件套沿用） |
-| §6 性能与验收 | 包数=session 数×(7+Σmsg)+媒体帧；回归口径=57 例 ±10% + 字节零变化线；pcap+网卡两路（网卡注明未跑口径） |
+| §6 性能与验收 | 包数=session 数×(7+Σmsg)+媒体帧；**依据（6.4）：** 流式 channel（既有 256 缓冲）逐包发射不全量收集，session 仅增遍历循环零新增常驻内存，无共享状态无新锁；**六类场景（6.6）：** 并发交错=WP-A/B 用例面覆盖，基线/目标规模/压力/长跑/背压=引擎级性能测试（全协议共用，D-FTP-4 同款口径**缺口如实记录不冒充**）；无吞吐数字承诺（6.5 未测标待确认）；回归口径=57 例 ±10% + 字节零变化线；pcap+网卡两路（网卡未跑注明，6.3） |
 | §7 顺序与回滚 | WP-A→B→C→D 逐 WP 独立提交；每 WP 回滚=单提交粒度；dialog/media 旧键零改动=存量零风险 |
 | §8 定稿后开工 | 本条目 P2 待用户批 |
-| §9 测试设计 | 每 WP 新例数已列（6/5/3/3）+存量 57 例回归面；T-SIP-58… 起编 |
+| §9 测试设计 | 每 WP 新例数已列（6/5/3/3）+存量 57 例回归面；T-SIP-58… 起编。**动态整格矩阵（9.32/12.15，P3 落格）：** sessions[].src_port×{inc,rand,list,fixed,pattern}+call_id×{pattern,fixed}+medias[].src_port×{inc,list}=**10 格逐格不抽样**；每格三问（9.34：语义发生/可复现/回绕）。**9.40 陷阱注记：** 同流多 session 共享 FlowIndex→动态同值=真实语义（session 差异锚 call_id/session 端口派生序，不锚 FlowIndex） |
 | §10 自审闭环 | 每 WP 改→审→测→修→再审（CLAUDE.md 绑定） |
 | §11 白话汇报 | 每 WP 收官一句结论+过门证据 |
 | §12 动态清单 | 见上表 |
