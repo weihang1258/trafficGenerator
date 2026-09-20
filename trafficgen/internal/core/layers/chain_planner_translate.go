@@ -1394,6 +1394,15 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 					}
 				}
 			}
+			// D-SIP-2 WP-A：sessions[] 多会话（每 session 独立 TCP 连接/
+			// Call-ID/生命周期）。与 dialog 互斥——schema create 门已判死
+			// （checkSIPSessionsMutex），task-time 由协议 validator
+			// （Planner.Validate 同锚词）背 door，translate 只负责解析。
+			// 导出单一真相 ParseSIPSessions 承接 dyn 旁挂
+			// （ParseFTPConfigFromMap 先例）。
+			if ss, ok := cfg["sessions"]; ok {
+				sc.Sessions = core.ParseSIPSessions(ss)
+			}
 			spec.SIP = sc
 			// 端口双态（h323 同款：标量层值赢，dst 缺省 5060，src 缺席
 			// 不动，对象放行）。

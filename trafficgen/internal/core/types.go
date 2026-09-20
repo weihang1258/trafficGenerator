@@ -2559,8 +2559,34 @@ type FTPDataChannel struct {
 type SIPConfig struct {
 	Dialog []SIPMessage `json:"dialog"`
 	Media  *SIPMedia    `json:"media,omitempty"`
+	// Sessions carries the multi-session shape (D-SIP-2 WP-A): each entry
+	// is one independent TCP signaling connection with its own Call-ID,
+	// four-tuple and lifecycle (CORE_MEMORY 3.1-3.3). Mutually exclusive
+	// with Dialog (the single-dialog shorthand) — enforced at create time
+	// (schema) and re-checked by the planner as a task-time backstop.
+	Sessions []SIPSession `json:"sessions,omitempty"`
 	// MSS is governed by TCPConfig.MSS. SIP runs over TCP (or UDP), so the
 	// planner reads spec.TCP.MSS for segmentation of long SIP messages.
+}
+
+// SIPSession is one entry of SIPConfig.Sessions (D-SIP-2 WP-A, the
+// FTPSession precedent): per-session ports (0 = inherit the chain
+// spec ports), optional Call-ID (empty = planner derives
+// "{flowIdx}-{sessIdx}@{srcIP}", deterministic per CORE_MEMORY 12.4),
+// the session's dialog messages and optional RTP media. SrcPortDyn /
+// DstPortDyn / CallIDDyn carry the dynamic-object form of the same
+// fields (same-key two-state, resolved at spec.FlowIndex).
+type SIPSession struct {
+	SrcPort uint16 `json:"src_port,omitempty"`
+	DstPort uint16 `json:"dst_port,omitempty"`
+	CallID  string `json:"call_id,omitempty"`
+
+	Dialog []SIPMessage `json:"dialog,omitempty"`
+	Media  *SIPMedia    `json:"media,omitempty"`
+
+	SrcPortDyn *StrategyConfig `json:"-"`
+	DstPortDyn *StrategyConfig `json:"-"`
+	CallIDDyn  *StrategyConfig `json:"-"`
 }
 
 // SIPMessage is a single message within a SIP dialog. A request sets

@@ -50,6 +50,7 @@ package sip
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"math/rand"
 	"net"
 	"regexp"
@@ -101,6 +102,13 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 			return fmt.Errorf("MSS %d too small (min %d per RFC 879)", spec.TCP.MSS, MinMSS)
 		}
 	}
+	// D-SIP-2 WP-A：sessions 与 dialog 互斥（task-time back door——create
+	// 期由 schema checkSIPSessionsMutex 同锚词判死，两路独立闭合）。空
+	// sessions 数组同锚词面（ParseSIPSessions 对空数组返回 nil，故这里
+	// 用原值判空）。
+	if spec.SIP != nil && len(spec.SIP.Dialog) > 0 && len(spec.SIP.Sessions) > 0 {
+		return fmt.Errorf("sip: sessions and dialog are mutually exclusive (use sessions for the multi-session shape, dialog for the single-dialog shorthand)")
+	}
 	return nil
 }
 
@@ -114,8 +122,6 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 
 	go func() {
 		defer close(configChan)
-
-		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
 
 		sipConfig := spec.SIP
 		if sipConfig == nil {
@@ -144,114 +150,176 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 			return id
 		}
 
-		// Random ISN per RFC 6528. User can override client ISN via
-		// spec.TCP.InitialSeq for reproducible tests.
-		clientSeq := uint32(0)
-		if spec.TCP != nil {
-			clientSeq = spec.TCP.InitialSeq
+		// runSession emits one signaling connection: TCP handshake → the
+		// session's dialog messages (each one or more PSH-ACK segments) →
+		// TCP teardown. All connection-scoped state (seq counters, dialog
+		// context) lives here; packetIndex/ipID stay flow-global so the
+		// wire stream stays coherent across sessions. D-SIP-2 WP-A: the
+		// dialog path is this function called once with the spec ports and
+		// no default Call-ID — byte-identical to the pre-sessions planner.
+		runSession := func(flowID string, srcPort, dstPort uint16, dialog []core.SIPMessage, media *core.SIPMedia, defaultCallID string) {
+			// Random ISN per RFC 6528. User can override client ISN via
+			// spec.TCP.InitialSeq for reproducible tests.
+			clientSeq := uint32(0)
+			if spec.TCP != nil {
+				clientSeq = spec.TCP.InitialSeq
+			}
+			if clientSeq == 0 {
+				clientSeq = rand.Uint32()
+			}
+			serverSeq := rand.Uint32()
+
+			winSize := uint16(65535)
+
+			// --- TCP handshake (SYN, SYN-ACK, ACK) ---
+			emit := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, seq, ack uint32, flags uint8, payload []byte) {
+				l3 := core.L3Base(srcIP, dstIP, 6, effectiveTTL, nextIPID(), spec)
+				l4 := core.L4Config{
+					Protocol:   "tcp",
+					SrcPort:    srcPort,
+					DstPort:    dstPort,
+					Seq:        seq,
+					Ack:        ack,
+					Flags:      flags,
+					WindowSize: winSize,
+				}
+				if flags == 0x02 || flags == 0x12 {
+					// SYN or SYN-ACK carries TCP options.
+					l4.TCPOptions = synOpts
+				}
+				cfg := core.PacketConfig{
+					FlowID:      flowID,
+					PacketIndex: packetIndex,
+					Direction:   direction,
+					Timestamp:   now,
+					L2: core.L2Config{
+						SrcMAC:    srcMAC,
+						DstMAC:    dstMAC,
+						EtherType: core.EtherTypeFor(spec.SrcIP),
+					},
+					L3:      l3,
+					L4:      l4,
+					Payload: payload,
+				}
+				configChan <- cfg
+				packetIndex++
+			}
+
+			// SYN (client -> server)
+			emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientSeq, 0, 0x02, nil)
+			clientSeq++
+			// SYN-ACK (server -> client)
+			emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, serverSeq, clientSeq, 0x12, nil)
+			serverSeq++
+			// ACK (client -> server)
+			emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientSeq, serverSeq, 0x10, nil)
+
+			// emitData segments payload by MSS and emits each chunk as a
+			// PSH-ACK in the given direction, advancing the sender's seq.
+			emitData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq uint32, payload []byte) (newSenderSeq uint32) {
+				for _, seg := range segmentByMSS(payload, int(mss)) {
+					emit(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, senderSeq, peerSeq, 0x18, seg)
+					senderSeq += uint32(len(seg))
+				}
+				return senderSeq
+			}
+
+			// --- SIP dialog (each message becomes one or more PSH-ACK segments) ---
+			var dc dialogCtx
+			dc.defaultCallID = defaultCallID
+			dc.sessionScoped = defaultCallID != ""
+			for _, msg := range dialog {
+				completeDialogHeaders(&msg, &dc, spec)
+				payload := renderSIPMessage(msg)
+				if len(payload) == 0 {
+					continue
+				}
+				direction := msg.Direction
+				if direction == "" {
+					direction = inferDirection(msg)
+				}
+				if direction != "up" && direction != "down" {
+					continue
+				}
+				if direction == "up" {
+					clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientSeq, serverSeq, payload)
+				} else {
+					serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, serverSeq, clientSeq, payload)
+				}
+
+				// Emit RTP media sub-flow after this message when the user
+				// flagged it. The sub-flow is a UDP flow (separate 4-tuple)
+				// but shares the parent's GroupID so it routes to the same
+				// PacketWorker — wire order = emit order, so RTP frames land
+				// between this message and the next (usually ACK → BYE).
+				if msg.EmitMedia && media != nil {
+					emitSIPMedia(ctx, configChan, media, spec, flowID, now, &packetIndex, nextIPID)
+				}
+			}
+
+			// --- TCP teardown (FIN-ACK, ACK, FIN-ACK, ACK) ---
+			// Client FIN
+			emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientSeq, serverSeq, 0x11, nil)
+			clientSeq++
+			// Server ACK
+			emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, serverSeq, clientSeq, 0x10, nil)
+			// Server FIN
+			emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, dstPort, srcPort, serverSeq, clientSeq, 0x11, nil)
+			serverSeq++
+			// Client ACK
+			emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, srcPort, dstPort, clientSeq, serverSeq, 0x10, nil)
 		}
-		if clientSeq == 0 {
-			clientSeq = rand.Uint32()
-		}
-		serverSeq := rand.Uint32()
 
-		winSize := uint16(65535)
-
-		// --- TCP handshake (SYN, SYN-ACK, ACK) ---
-		emit := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, seq, ack uint32, flags uint8, payload []byte) {
-			l3 := core.L3Base(srcIP, dstIP, 6, effectiveTTL, nextIPID(), spec)
-			l4 := core.L4Config{
-				Protocol:   "tcp",
-				SrcPort:    srcPort,
-				DstPort:    dstPort,
-				Seq:        seq,
-				Ack:        ack,
-				Flags:      flags,
-				WindowSize: winSize,
+		// D-SIP-2 WP-A: sessions mode — each entry is an independent TCP
+		// signaling connection with its own Call-ID/four-tuple/lifecycle
+		// (CORE_MEMORY 3.1-3.3). Port derivation (2.8 collision-free):
+		// explicit > dynamic object (resolved at FlowIndex) > default
+		// base(12345)+flowIdx*M+sessIdx; dst falls back to the spec port
+		// (the layer pre-write's 5060). Call-ID: explicit session value >
+		// dynamic object > derived "{flowIdx}-{sessIdx}@{srcIP}".
+		if len(sipConfig.Sessions) > 0 {
+			m := len(sipConfig.Sessions)
+			for i := range sipConfig.Sessions {
+				sess := &sipConfig.Sessions[i]
+				src := sess.SrcPort
+				if sess.SrcPortDyn != nil {
+					if v := core.ResolvePortValue(sess.SrcPortDyn, spec.FlowIndex); v != 0 {
+						src = v
+					}
+				}
+				dst := sess.DstPort
+				if sess.DstPortDyn != nil {
+					if v := core.ResolvePortValue(sess.DstPortDyn, spec.FlowIndex); v != 0 {
+						dst = v
+					}
+				}
+				if src == 0 {
+					src = uint16(12345 + spec.FlowIndex*m + i)
+				}
+				if dst == 0 {
+					dst = spec.DstPort
+				}
+				callID := sess.CallID
+				if sess.CallIDDyn != nil {
+					if v := core.ResolveStringValue(sess.CallIDDyn, spec.FlowIndex); v != "" {
+						callID = v
+					}
+				}
+				if callID == "" {
+					callID = fmt.Sprintf("%d-%d@%s", spec.FlowIndex, i, sipHostOf(spec.SrcIP))
+				}
+				// dialogCtx.callID carries the full header line ("Call-ID:
+				// value") — findHeader seeds it verbatim from user headers
+				// and generateCallID returns a full line; keep the invariant.
+				callID = "Call-ID: " + callID
+				sessFlowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, src, dst)
+				runSession(sessFlowID, src, dst, sess.Dialog, sess.Media, callID)
 			}
-			if flags == 0x02 || flags == 0x12 {
-				// SYN or SYN-ACK carries TCP options.
-				l4.TCPOptions = synOpts
-			}
-			cfg := core.PacketConfig{
-				FlowID:      flowID,
-				PacketIndex: packetIndex,
-				Direction:   direction,
-				Timestamp:   now,
-				L2: core.L2Config{
-					SrcMAC:    srcMAC,
-					DstMAC:    dstMAC,
-					EtherType: core.EtherTypeFor(spec.SrcIP),
-				},
-				L3:      l3,
-				L4:      l4,
-				Payload: payload,
-			}
-			configChan <- cfg
-			packetIndex++
-		}
-
-		// SYN (client -> server)
-		emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, 0, 0x02, nil)
-		clientSeq++
-		// SYN-ACK (server -> client)
-		emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x12, nil)
-		serverSeq++
-		// ACK (client -> server)
-		emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil)
-
-		// emitData segments payload by MSS and emits each chunk as a
-		// PSH-ACK in the given direction, advancing the sender's seq.
-		emitData := func(direction, srcMAC, dstMAC, srcIP, dstIP string, srcPort, dstPort uint16, senderSeq, peerSeq uint32, payload []byte) (newSenderSeq uint32) {
-			for _, seg := range segmentByMSS(payload, int(mss)) {
-				emit(direction, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort, senderSeq, peerSeq, 0x18, seg)
-				senderSeq += uint32(len(seg))
-			}
-			return senderSeq
+			return
 		}
 
-		// --- SIP dialog (each message becomes one or more PSH-ACK segments) ---
-		var dc dialogCtx
-		for _, msg := range sipConfig.Dialog {
-			completeDialogHeaders(&msg, &dc, spec)
-			payload := renderSIPMessage(msg)
-			if len(payload) == 0 {
-				continue
-			}
-			direction := msg.Direction
-			if direction == "" {
-				direction = inferDirection(msg)
-			}
-			if direction != "up" && direction != "down" {
-				continue
-			}
-			if direction == "up" {
-				clientSeq = emitData("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, payload)
-			} else {
-				serverSeq = emitData("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, payload)
-			}
-
-			// Emit RTP media sub-flow after this message when the user
-			// flagged it. The sub-flow is a UDP flow (separate 4-tuple)
-			// but shares the parent's GroupID so it routes to the same
-			// PacketWorker — wire order = emit order, so RTP frames land
-			// between this message and the next (usually ACK → BYE).
-			if msg.EmitMedia && sipConfig.Media != nil {
-				emitSIPMedia(ctx, configChan, sipConfig.Media, spec, flowID, now, &packetIndex, nextIPID)
-			}
-		}
-
-		// --- TCP teardown (FIN-ACK, ACK, FIN-ACK, ACK) ---
-		// Client FIN
-		emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x11, nil)
-		clientSeq++
-		// Server ACK
-		emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x10, nil)
-		// Server FIN
-		emit("down", spec.DstMAC, spec.SrcMAC, spec.DstIP, spec.SrcIP, spec.DstPort, spec.SrcPort, serverSeq, clientSeq, 0x11, nil)
-		serverSeq++
-		// Client ACK
-		emit("up", spec.SrcMAC, spec.DstMAC, spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort, clientSeq, serverSeq, 0x10, nil)
+		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
+		runSession(flowID, spec.SrcPort, spec.DstPort, sipConfig.Dialog, sipConfig.Media, "")
 	}()
 
 	return configChan, nil
@@ -348,6 +416,16 @@ type dialogCtx struct {
 	lastFrom   string // full From line of the last request (responses echo it)
 	lastTo     string // full To line of the last request (responses echo it)
 	lastVia    string // full Via line of the last request (responses echo it)
+
+	// D-SIP-2 WP-A (sessions mode): defaultCallID is the session-scoped
+	// Call-ID used when a request omits the header and no context exists
+	// yet (explicit session.call_id or the derived "{flow}-{sess}@{srcIP}").
+	// sessionScoped marks sessions mode — the generated Via branch becomes
+	// deterministic (hash of the Call-ID) so multi-session runs are
+	// reproducible (CORE_MEMORY 12.4). Dialog mode leaves both zero —
+	// generation stays exactly as before (byte parity).
+	defaultCallID string
+	sessionScoped bool
 }
 
 // completeDialogHeaders fills the RFC 3261 mandatory headers that a
@@ -417,7 +495,11 @@ func completeRequestHeaders(msg *core.SIPMessage, dc *dialogCtx, spec core.FlowS
 	// Call-ID is the dialog identifier (§8.1.1.4). Generate it before
 	// the CSeq logic, which needs dc.active for its default numbering.
 	if _, ok := findHeader(msg.Headers, "Call-ID"); !ok && !dc.active {
-		dc.callID = generateCallID(spec)
+		if dc.defaultCallID != "" {
+			dc.callID = dc.defaultCallID
+		} else {
+			dc.callID = generateCallID(spec)
+		}
 		dc.active = true
 	}
 
@@ -480,7 +562,7 @@ func completeRequestHeaders(msg *core.SIPMessage, dc *dialogCtx, spec core.FlowS
 	}
 	if _, ok := findHeader(msg.Headers, "Via"); !ok {
 		if dc.via == "" {
-			dc.via = generateVia(spec)
+			dc.via = generateViaSess(spec, dc)
 		}
 		msg.Headers = append(msg.Headers, dc.via)
 	}
@@ -607,6 +689,22 @@ func generateTo(msg *core.SIPMessage, spec core.FlowSpec) string {
 // address:port (bracketed for IPv6 literals per §19.1.1).
 func generateVia(spec core.FlowSpec) string {
 	return fmt.Sprintf("Via: SIP/2.0/TCP %s:%d;branch=z9hG4bK%08x", sipHostOf(spec.SrcIP), spec.SrcPort, rand.Uint32())
+}
+
+// generateViaSess is generateVia with sessions-mode branch derivation
+// (D-SIP-2 WP-A): the branch is the RFC 3261 §19.1.1 magic cookie plus an
+// FNV-1a hash of the session Call-ID — deterministic per session, so
+// multi-session runs are reproducible (CORE_MEMORY 12.4) and branches
+// never collide across sessions sharing a template. Dialog mode
+// (sessionScoped=false) delegates to the original random form — zero
+// byte drift on the legacy path.
+func generateViaSess(spec core.FlowSpec, dc *dialogCtx) string {
+	if !dc.sessionScoped || dc.callID == "" {
+		return generateVia(spec)
+	}
+	h := fnv.New32a()
+	h.Write([]byte(dc.callID))
+	return fmt.Sprintf("Via: SIP/2.0/TCP %s:%d;branch=z9hG4bK-%08x", sipHostOf(spec.SrcIP), spec.SrcPort, h.Sum32())
 }
 
 // inferDirection returns "up" for requests (Method set) and "down" for

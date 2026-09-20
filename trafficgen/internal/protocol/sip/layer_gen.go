@@ -43,6 +43,10 @@ func (g *Generator) Generate(ctx context.Context, req *layers.GenRequest) error 
 		SrcPort: req.Meta.SrcPort,
 		DstPort: req.Meta.DstPort,
 		SIP:     req.Meta.SIP,
+		// D-SIP-2 WP-A：FlowIndex 贯通——sessions 缺省端口派生
+		// base(12345)+flowIdx*M+sessIdx 与动态对象解析都锚流序号，
+		// 不传则多流全部按流 0 派生撞端口（ftp layer_gen:54 先例）。
+		FlowIndex: req.Meta.FlowIndex,
 	}
 	ch, err := g.legacy.Plan(ctx, spec)
 	if err != nil {

@@ -1997,6 +1997,9 @@
         "media": {
           "type": "object"
         },
+        "sessions": {
+          "type": "list"
+        },
         "src_port": {
           "type": "uint16",
           "max": 65535

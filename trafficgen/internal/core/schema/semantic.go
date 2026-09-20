@@ -141,6 +141,12 @@ func validateStrategySemantic(mode, protocol string, config map[string]any, fc *
 			fail("%s", msg)
 		}
 	}
+	// D-SIP-2 WP-A：sip 层 sessions[] 互斥判死（与 dialog 同给即拒；空数组
+	// 同锚词面）——create-time 400；Planner.Validate 侧同名锚词做 task-time
+	// 背 door（C 类：两路独立闭合，radius 扁平缺省同口径）。
+	if msg := checkSIPSessionsMutex(config); msg != "" {
+		fail("%s", msg)
+	}
 	// D-FTP-3: layers 与顶层扁平四元组混用拒绝（只拦新建/更新；存量策略
 	// 已入库的不追溯，任务启动不复查）。位置在所有形状/网络检查之后，
 	// 文案给迁移指引。
@@ -215,10 +221,39 @@ func checkLayerChainStaticCopy(config map[string]any, flows float64) string {
 			if subMap == nil {
 				continue
 			}
-			for _, v := range subMap {
+			for k, v := range subMap {
 				if m, isObj := v.(map[string]any); isObj && m != nil {
 					if _, looksDyn := m["strategy"]; looksDyn {
 						hasDyn = true
+					}
+					continue
+				}
+				// D-SIP-2 WP-A：sessions[] 内嵌端口同权——标量入 hasScalar、
+				// 动态对象入 hasDyn（12.9 执法洞修补，嵌套结构不豁免）。
+				if k != "sessions" {
+					continue
+				}
+				sessArr, ok := v.([]any)
+				if !ok {
+					continue
+				}
+				for _, sItem := range sessArr {
+					sess, _ := sItem.(map[string]any)
+					if sess == nil {
+						continue
+					}
+					for _, pf := range []string{"src_port", "dst_port"} {
+						pv, ok := sess[pf]
+						if !ok || pv == nil {
+							continue
+						}
+						if pm, isObj := pv.(map[string]any); isObj {
+							if _, looksDyn := pm["strategy"]; looksDyn {
+								hasDyn = true
+							}
+						} else {
+							hasScalar = true
+						}
 					}
 				}
 			}
@@ -233,6 +268,33 @@ func checkLayerChainStaticCopy(config map[string]any, flows float64) string {
 // layerTupleFields returns the four-tuple-ish field names of a layer.
 // D-GOOSE-1 ⑥：含 eth（src_mac/dst_mac）——eth-only 链 flows>1 无四元组
 // 可查时静默发 N 条重复流（sqNum 撞号），通用修（sv/isis 同享）。
+// checkSIPSessionsMutex (D-SIP-2 WP-A): sip 层 sessions[] 与 dialog 互斥
+// （sessions 是多会话形态，dialog 是单会话速记——同给语义不明即拒）；空
+// sessions 数组同锚词面（空结构无独立语义，不给静默退化）。锚词带 sip:
+// 前缀=协议锁文案（radius 系文案先例）。
+func checkSIPSessionsMutex(config map[string]any) string {
+	arr, ok := config["layers"].([]any)
+	if !ok {
+		return ""
+	}
+	for _, item := range arr {
+		layer, _ := item.(map[string]any)
+		sip, _ := layer["sip"].(map[string]any)
+		if sip == nil {
+			continue
+		}
+		_, hasDialog := sip["dialog"]
+		_, hasSessions := sip["sessions"]
+		if hasSessions && hasDialog {
+			return "sip: sessions and dialog are mutually exclusive (use sessions for the multi-session shape, dialog for the single-dialog shorthand)"
+		}
+		if sess, ok := sip["sessions"].([]any); ok && len(sess) == 0 {
+			return "sip: sessions and dialog are mutually exclusive (use sessions for the multi-session shape, dialog for the single-dialog shorthand)"
+		}
+	}
+	return ""
+}
+
 func layerTupleFields(lname string) []string {
 	if lname == "ip" {
 		return []string{"src", "dst"}

@@ -698,8 +698,9 @@ func mapToFlowSpec(cfg map[string]interface{}, protocol string) FlowSpec {
 	case "sip":
 		if sub, ok := cfg["sip"].(map[string]interface{}); ok {
 			spec.SIP = &SIPConfig{
-				Dialog: parseSIPDialog(sub["dialog"]),
-				Media:  parseSIPMedia(sub["media"]),
+				Dialog:   parseSIPDialog(sub["dialog"]),
+				Media:    parseSIPMedia(sub["media"]),
+				Sessions: ParseSIPSessions(sub["sessions"]),
 			}
 		}
 		// SIP defaults to port 5060 (signaling). Only override when the
@@ -5591,6 +5592,42 @@ func parseSIPDialog(v interface{}) []SIPMessage {
 // signaling (backward compat with pre-media specs).
 //
 // Direction: parsed here so the JSON {"media":{"direction":"down"}} path
+// ParseSIPSessions decodes sip "sessions[]" into the multi-session shape
+// (D-SIP-2 WP-A). Exported for layers.translateTerminalConfig (single
+// truth with the flat cfg["sip"] branch above — ParseFTPConfigFromMap
+// precedent). Each session: src_port/dst_port (0 = inherit spec ports,
+// planner derives collision-free defaults when omitted), optional call_id
+// (empty = planner derives "{flowIdx}-{sessIdx}@{srcIP}"), the session's
+// dialog messages and optional media. Dynamic-object forms of the ports
+// and call_id are parsed into the Dyn fields (same-key two-state,
+// resolved at spec.FlowIndex by the planner). Returns nil for
+// absent/non-array input.
+func ParseSIPSessions(v interface{}) []SIPSession {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]SIPSession, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sess := SIPSession{
+			SrcPort:    getUint16(m, "src_port"),
+			DstPort:    getUint16(m, "dst_port"),
+			CallID:     getString(m, "call_id"),
+			Dialog:     parseSIPDialog(m["dialog"]),
+			Media:      parseSIPMedia(m["media"]),
+			SrcPortDyn: parseStrategyConfigDyn(m["src_port"]),
+			DstPortDyn: parseStrategyConfigDyn(m["dst_port"]),
+			CallIDDyn:  parseStrategyConfigDyn(m["call_id"]),
+		}
+		out = append(out, sess)
+	}
+	return out
+}
+
 // is wired through. Without this, the user's explicit direction override
 // is silently dropped and the planner falls through to the SDP-derived
 // default (or "up"). FileSource is parsed separately after this function
