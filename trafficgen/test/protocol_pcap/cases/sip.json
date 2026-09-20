@@ -6417,5 +6417,206 @@
         "emit_media 挂 INVITE→RTP 在包 5（10=3握+2 SIP+1 RTP+4挥；P5 校准）"
       ]
     }
+  },
+  {
+    "id": "sip_nat_rport_fill",
+    "proto": "sip",
+    "summary": "T-SIP-77: bare rport 参数回填（RFC 3581 §4：rport=12001;received=10.0.0.1；无需开关）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "OPTIONS",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Via: SIP/2.0/TCP 10.0.0.1:9999;branch=z9hG4bKx;rport"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK",
+                "headers": [
+                  "Via: SIP/2.0/TCP 10.0.0.1:9999;branch=z9hG4bKx;rport=9999;received=10.0.0.1"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Via",
+          "value": "SIP/2.0/TCP 10.0.0.1:9999;branch=z9hG4bKx;rport=12001;received=10.0.0.1"
+        },
+        {
+          "packet": 5,
+          "field": "sip.Via",
+          "value": "SIP/2.0/TCP 10.0.0.1:9999;branch=z9hG4bKx;rport=9999;received=10.0.0.1"
+        }
+      ],
+      "notes": [
+        "请求侧回填实际端口 12001（bare 标记→RFC 客户端行为）；响应侧回放原文（9999 不二次改写）——P5 校准 tshark sip.Via 格式"
+      ]
+    }
+  },
+  {
+    "id": "sip_nat_switch_forces",
+    "proto": "sip",
+    "summary": "T-SIP-78: nat.rport 开关强制填（Via 无 rport 参数→开关代客户端补参数对）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "nat": {
+              "rport": true
+            },
+            "dialog": [
+              {
+                "method": "OPTIONS",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Via: SIP/2.0/TCP 10.0.0.1:12001;branch=z9hG4bKy"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Via",
+          "value": "SIP/2.0/TCP 10.0.0.1:12001;branch=z9hG4bKy;rport=12001;received=10.0.0.1"
+        }
+      ],
+      "notes": [
+        "开关强制：参数对追加尾部；响应无 Via 头补全面=回放"
+      ]
+    }
+  },
+  {
+    "id": "sip_nat_default_passthrough",
+    "proto": "sip",
+    "summary": "T-SIP-79: 缺省透传零变化回归（无 nat 无标记→Via 原样；字节零漂移线）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "src_port": 12001,
+            "dst_port": 5060,
+            "dialog": [
+              {
+                "method": "OPTIONS",
+                "uri": "sip:callee@20.0.0.1",
+                "headers": [
+                  "Via: SIP/2.0/TCP 10.0.0.1:12001;branch=z9hG4bKz"
+                ]
+              },
+              {
+                "status_code": 200,
+                "status_text": "OK"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 9,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Via",
+          "value": "SIP/2.0/TCP 10.0.0.1:12001;branch=z9hG4bKz"
+        }
+      ],
+      "notes": [
+        "缺省关=原样（57 例零回归线的本格）"
+      ]
+    }
+  },
+  {
+    "id": "sip_nat_sessions_port",
+    "proto": "sip",
+    "summary": "T-SIP-80: sessions 模式回填会话实际端口（22001 非 spec 12001）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "sip": {
+            "nat": {
+              "rport": true
+            },
+            "sessions": [
+              {
+                "src_port": 22001,
+                "dialog": [
+                  {
+                    "method": "OPTIONS",
+                    "uri": "sip:callee@20.0.0.1",
+                    "headers": [
+                      "Via: SIP/2.0/TCP 10.0.0.1:22001;branch=z9hG4bKs"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "min_packets": 8,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "sip.Via",
+          "value": "SIP/2.0/TCP 10.0.0.1:22001;branch=z9hG4bKs;rport=22001;received=10.0.0.1"
+        }
+      ],
+      "notes": [
+        "回填=会话真值端口（2.8 派生/显式均然）；单条 OPTIONS 无响应=3+1+4=8 包（pcap 实测校准）"
+      ]
+    }
   }
 ]

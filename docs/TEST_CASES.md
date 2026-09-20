@@ -3674,3 +3674,18 @@
 
 **P5 校准 3 处（14.6 落盘重钉）：** ①down 方向 wire 元组交换（src=dstPort）②包位含 INVITE 自身偏移 ③udp 聚合不含 TCP 端口（9.38 口径）。**gap0 双发 bug** 单测捕获修正（媒体点不发射，hook/尾部分担 R+1 gap）。
 **实现位置：** cases/sip.json（**76 例**）。
+
+### T-SIP-77…80 NAT rport/received 回填（D-SIP-2 WP-C P3 清单）
+
+**状态：** P5 全绿（2026-09-20，80/80 ×2 稳态+门 2 静态四项绿+反查 91/91）。三源=RFC 3581 §4（rport 参数对称回填）+D-SIP-2 WP-C+现网 NAT 穿越面。**级别：** pcap。
+**存量去向：** 无（新增能力面；缺省透传例 T-79 兼作 57 例零漂移回归线的本格）。
+
+| 测试点 | 用例 | 类别/说明 |
+|---|---|---|
+| bare rport 回填 | T-77 sip_nat_rport_fill | A（Via 带 bare `;rport`→发射期回填 `rport=12001;received=10.0.0.1`；响应侧回放原文零二次改写） |
+| 开关强制 | T-78 sip_nat_switch_forces | A（`nat.rport=true` 且 Via 无标记→开关代客户端补参数对至尾部） |
+| 缺省透传 | T-79 sip_nat_default_passthrough | A（无 nat 无标记→Via 原样；字节零漂移线） |
+| 会话真值端口 | T-80 sip_nat_sessions_port | A（sessions 模式回填=会话实际端口 22001 非 spec 12001；单条 OPTIONS 无响应=8 包 pcap 校准） |
+
+**P5 校准 1 处（14.6 落盘重钉）：** T-80 `min_packets` 9→8（单 session 单消息无响应=3 握手+1 消息+4 挥手，落盘 pcap 实测）。
+**实现位置：** cases/sip.json（**80 例**）；`rewriteViaRPort`（internal/protocol/sip/sip.go）；`SIPNAT{RPort}`（internal/core/types.go）。

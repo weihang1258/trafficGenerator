@@ -792,7 +792,9 @@ def check_sip(cases):
                      ("sessions_callid_fixed", "call_id fixed 格"), ("sessions_v6", "v6 双会话格"),
                      ("medias_bidirectional", "双向交替面"), ("medias_interleave", "交错调度面"),
                      ("neg_medias_mutex", "medias 互斥判死面"), ("medias_port_dyn", "medias 端口动态格"),
-                     ("medias_filesource", "medias file_source 面")]:
+                     ("medias_filesource", "medias file_source 面"),
+                     ("nat_rport_fill", "NAT bare rport 回填面"), ("nat_switch_forces", "nat 开关强制面"),
+                     ("nat_default_passthrough", "NAT 缺省透传零漂移面"), ("nat_sessions_port", "NAT 会话真值端口面")]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))
 

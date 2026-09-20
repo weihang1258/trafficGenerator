@@ -1,6 +1,6 @@
 # sip Pcap Test Results
 
-Cases: 76 — pass 76, fail 0, error 0
+Cases: 80 — pass 80, fail 0, error 0
 
 | Case | Summary | Status | Packets | Pcap |
 |------|---------|--------|---------|------|
@@ -36,6 +36,10 @@ Cases: 76 — pass 76, fail 0, error 0
 | sip_medias_port_dyn | T-SIP-75: medias src_port 动态 inc+flows=2（E1 同款整格；2 流×(7+2+4)=26 包） | pass | 22 | [pcap](sip/sip_medias_port_dyn.pcap) |
 | sip_message_im | T-SIP-36: MESSAGE 页模式即时消息（RFC 3428；SIP 短信/IM 现网面） | pass | 9 | [pcap](sip/sip_message_im.pcap) |
 | sip_mss_segment | T-SIP-10: 3000B body→MSS 1460 分段 3 段 | pass | 11 | [pcap](sip/sip_mss_segment.pcap) |
+| sip_nat_default_passthrough | T-SIP-79: 缺省透传零变化回归（无 nat 无标记→Via 原样；字节零漂移线） | pass | 9 | [pcap](sip/sip_nat_default_passthrough.pcap) |
+| sip_nat_rport_fill | T-SIP-77: bare rport 参数回填（RFC 3581 §4：rport=12001;received=10.0.0.1；无需开关） | pass | 9 | [pcap](sip/sip_nat_rport_fill.pcap) |
+| sip_nat_sessions_port | T-SIP-80: sessions 模式回填会话实际端口（22001 非 spec 12001） | pass | 8 | [pcap](sip/sip_nat_sessions_port.pcap) |
+| sip_nat_switch_forces | T-SIP-78: nat.rport 开关强制填（Via 无 rport 参数→开关代客户端补参数对） | pass | 9 | [pcap](sip/sip_nat_switch_forces.pcap) |
 | sip_neg_medias_mutex | T-SIP-74: 负例 media+medias 同给互斥判死（create-time 400） | pass | 0 | [pcap]() |
 | sip_neg_sessions_dialog_mutex | T-SIP-61: 负例 sessions+dialog 同给互斥判死（create-time 400） | pass | 0 | [pcap]() |
 | sip_neg_sessions_empty | T-SIP-62: 负例空 sessions 数组（同锚词面，不给静默退化） | pass | 0 | [pcap]() |
