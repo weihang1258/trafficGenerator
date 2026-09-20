@@ -1,41 +1,618 @@
 [
   {
-    "id": "rtmp-connect-play-basic",
+    "id": "rtmp_play_session_full",
     "proto": "rtmp",
-    "summary": "RTMP (端口 1935) 冒烟：TCP 握手 + C0/C1+S0/S1/S2 握手 + connect/createStream/play AMF 命令 + 终止",
+    "summary": "T-1 play 全会话（smoke 改写，等价覆盖）：握手3+RTMP 握手（C0C1/S0S1S2/C2 按 MSS 分段）+connect→窗口三件套→createStream→play 命令序+挥手",
     "spec_json": {
-      "src_ip": "10.0.0.1",
-      "dst_ip": "20.0.0.1",
-      "src_port": 12345,
-      "dst_port": 1935,
-      "count": 1,
-      "rtmp": {}
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {}
+        }
+      ]
     },
     "expect": {
       "has_handshake": true,
-      "negotiated": true,
       "terminates": true,
       "has_payload": true,
-      "min_packets": 17,
       "fields": [
-        {"packet": 1, "field": "tcp.flags", "value": "0x002"},
-        {"packet": 1, "field": "tcp.dstport", "value": "1935"},
-        {"packet": 2, "field": "tcp.flags", "value": "0x012"},
-        {"packet": 3, "field": "tcp.flags", "value": "0x010"}
-      ],
-      "frames": [
-        {"packet": 11, "offset": 54, "hex": "03 00 00 00 00 00 41 14 00 00 00 00 02 00 07 63 6f 6e 6e 65 63 74"},
-        {"packet": 11, "offset": 66, "hex": "02 00 07 63 6f 6e 6e 65 63 74 00 3f f0 00 00 00 00 00 00 03 00 03 61 70 70 02 00 04 6c 69 76 65 00 05 74 63 55 72 6c"},
-        {"packet": 12, "offset": 54, "hex": "02 00 00 00 00 00 04 05 00 00 00 00 00 26 25 a0"},
-        {"packet": 14, "offset": 54, "hex": "03 00 00 00 00 00 19 14 00 00 00 00 02 00 0c 63 72 65 61 74 65 53 74 72 65 61 6d 00 40 00"},
-        {"packet": 16, "offset": 54, "hex": "02 00 00 00 00 00 1d 14 00 00 00 00 02 00 07 5f 72 65 73 75 6c 74"},
-        {"packet": 17, "offset": 54, "hex": "03 00 00 00 00 00 1a 14 01 00 00 00 02 00 04 70 6c 61 79 00 40 08"}
+        {
+          "packet": 1,
+          "field": "tcp.flags",
+          "value": "0x002"
+        },
+        {
+          "packet": 1,
+          "field": "tcp.dstport",
+          "value": "1935"
+        },
+        {
+          "packet": 2,
+          "field": "tcp.flags",
+          "value": "0x012"
+        },
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "1460"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.len",
+          "value": "77"
+        },
+        {
+          "packet": 8,
+          "field": "tcp.len",
+          "value": "153"
+        },
+        {
+          "packet": 11,
+          "field": "tcp.len",
+          "value": "77"
+        },
+        {
+          "packet": 18,
+          "field": "tcp.flags",
+          "value": "0x011"
+        }
       ],
       "notes": [
-        "RTMP 握手 (f4-f10) 为随机字节（C1/S1 1536B 按 MSS 分段，tshark 追加 'Unchunked RTMP' 块）——不断言握手帧 hex；仅断言确定性 AMF 命令串",
-        "AMF0 string: 0x02 0x00 <len16> <bytes>；f11 connect (type 0x14, len 0x41) 含 app='live' tcUrl='rtmp://20.0.0.1/live'；f12 _result 'NetConnection.Connect.Success' + 'Connection succeeded.'（含 WindowAck 2500000/SetPeerBandwidth 2500000/SetChunkSize 4 三条前置消息，offset 54 断言首条）；f14 createStream (len 0x19)；f16 _result (number 4)；f17 play (type 0x14, stream 1, len 0x1a)",
-        "帧 11/12/14/16/17 有 tshark 'Loop in AMF dissection' 专家标记（_ws.malformed）——字节级验证为合法 AMF 编码，tshark 3.6 解析器在多重嵌套 _result 上循环检测；verify.go isMalformedWhitelisted 对 rtmp- 前缀白名单",
-        "20 帧 = 3 握手 + 7 握手消息 + 7 AMF 数据 + 3 终止（双 FIN + ACK）"
+        "20 帧=握手3+C0C1 2段+S0S1S2 3段+C2 2段+connect 1+服务端五连 1+客户端winack 1+createStream 1+setBufferLen 1+_result 1+play 1+挥手4",
+        "分段序实测（tshark tcp.len）：1460/77=C0C1 1537B、1460/1460/153=S0S1S2 3073B、1460/76=C2 1536B（MSS 1460，T-2 专钉）",
+        "恒 1935 断言面=tcp.dstport（worker srcport 12345 保底，D-RTMP-1 裁定3）"
+      ],
+      "packet_count": 20
+    }
+  },
+  {
+    "id": "rtmp_handshake_segments",
+    "proto": "rtmp",
+    "summary": "T-2 RTMP 握手分段数：C0C1 1537B→2 段（MSS 1460）、S0S1S2 3073B→3 段、C2 1536B→2 段（tshark tcp.len 钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {}
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "C0C1=1+1536=1537B→1460+77 两段（包4/5）；S0S1S2=1+1536+1536=3073B→1460+1460+153 三段（包6/7/8）；C2=1536B→1460+76 两段（包9/10）",
+        "Adobe spec §5.2/5.3：C1/S1/S2 均 1536B 结构（时间+零+随机/回显）——随机值不断言，分段形状钉死"
+      ],
+      "packet_count": 20,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.len",
+          "value": "1460"
+        },
+        {
+          "packet": 5,
+          "field": "tcp.len",
+          "value": "77"
+        },
+        {
+          "packet": 6,
+          "field": "tcp.len",
+          "value": "1460"
+        },
+        {
+          "packet": 7,
+          "field": "tcp.len",
+          "value": "1460"
+        },
+        {
+          "packet": 8,
+          "field": "tcp.len",
+          "value": "153"
+        },
+        {
+          "packet": 9,
+          "field": "tcp.len",
+          "value": "1460"
+        },
+        {
+          "packet": 10,
+          "field": "tcp.len",
+          "value": "76"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmp_chunk_header_amf0_connect",
+    "proto": "rtmp",
+    "summary": "T-3 chunk 头+AMF0 connect 钉：基本头 03（fmt0 csid3）+消息头 11B（len3+type 0x14+streamID 4B 小端）+02 00 07 connect",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {}
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "chunk 头 12B：03=fmt0+csid3、ts 3B 零、len 0x000041=65、type 0x14=AMF0 命令、streamID 4B 小端零（§6.1.1）",
+        "AMF0：02 00 07 connect（string）+ txn 00 3f f0 00 00 00 00 00 00（double 1.0）+命令对象 app/tcUrl（§7.2.1）",
+        "offset 76=54+12(chunk头)+10(AMF0 string 头+connect 名)"
+      ],
+      "packet_count": 20,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "1935"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 11,
+          "offset": 54,
+          "hex": "03 00 00 00 00 00 41 14 00 00 00 00 02 00 07 63 6f 6e 6e 65 63 74"
+        },
+        {
+          "packet": 11,
+          "offset": 76,
+          "hex": "00 3f f0 00 00 00 00 00 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmp_protocol_control_messages",
+    "proto": "rtmp",
+    "summary": "T-4 协议控制四消息：WindowAckSize(5)/SetPeerBandwidth(6)/StreamBegin(4)/SetChunkSize(1) msgType 逐包",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {}
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "包12 服务端五连首 chunk（csid2）：type 05=Window Ack Size、payload 0x002625a0=2500000；后续 Set Peer BW(6)/Stream Begin(4)/Set Chunk Size(1)/_result(0x14) 同帧多 chunk（tshark Info 列已证五消息并列）",
+        "包14 createStream：csid3+len 0x19+AMF0 string createStream；包17 play：len 0x1a+streamID 01 00 00 00（小端流号 1，createStream 后）+AMF0 play",
+        "客户端 winack 回显=包13（type 5，len 16B 帧）"
+      ],
+      "packet_count": 20,
+      "fields": [
+        {
+          "packet": 4,
+          "field": "tcp.dstport",
+          "value": "1935"
+        }
+      ],
+      "frames": [
+        {
+          "packet": 12,
+          "offset": 54,
+          "hex": "02 00 00 00 00 00 04 05 00 00 00 00 00 26 25 a0"
+        },
+        {
+          "packet": 14,
+          "offset": 54,
+          "hex": "03 00 00 00 00 00 19 14 00 00 00 00 02 00 0c 63 72 65 61 74 65 53 74 72 65 61 6d"
+        },
+        {
+          "packet": 17,
+          "offset": 54,
+          "hex": "03 00 00 00 00 00 1a 14 01 00 00 00 02 00 04 70 6c 61 79 00"
+        }
+      ]
+    }
+  },
+  {
+    "id": "rtmp_publish_mode",
+    "proto": "rtmp",
+    "summary": "T-5 publish 模式：command=publish→第三阶段 02 00 07 publish 替代 play",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "command": "publish"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "§7.2.3 推流命令面；包数与 T-1 对称"
+      ]
+    }
+  },
+  {
+    "id": "rtmp_stream_name_custom",
+    "proto": "rtmp",
+    "summary": "T-6 stream_name 自定义：play 命令流名参数字节入 AMF0 串",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "stream_name": "movie1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "缺省 stream 由 T-1 承接"
+      ]
+    }
+  },
+  {
+    "id": "rtmp_app_tc_url_custom",
+    "proto": "rtmp",
+    "summary": "T-7 app/tc_url 显式：connect 命令对象属性字节钉（app=live2/tcUrl 显式构造，覆盖自动构造分支）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "app": "live2",
+            "tc_url": "rtmp://20.0.0.1:1935/live2"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "tc_url 显式值优先于自动构造 rtmp://<DstIP>/<app>（Plan tcURL 缺省分支由 T-1 承接）"
+      ]
+    }
+  },
+  {
+    "id": "rtmp_data_audio",
+    "proto": "rtmp",
+    "summary": "T-8 数据面音频：msg_type=8+csid=4 chunk",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "data": [
+              {
+                "direction": "up",
+                "msg_type": 8,
+                "chunk_stream_id": 4
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "payload 缺省 100B 随机——长度间接钉"
+      ]
+    }
+  },
+  {
+    "id": "rtmp_data_video",
+    "proto": "rtmp",
+    "summary": "T-9 数据面视频：msg_type=9+csid=6 chunk",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "data": [
+              {
+                "direction": "down",
+                "msg_type": 9,
+                "chunk_stream_id": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "缺省视频面（T-8 音频对面）"
+      ]
+    }
+  },
+  {
+    "id": "rtmp_data_bidirectional",
+    "proto": "rtmp",
+    "summary": "T-10 数据面双向：up 音频+down 视频各一 chunk（推拉混合面）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "data": [
+              {
+                "direction": "up",
+                "msg_type": 8,
+                "chunk_stream_id": 4
+              },
+              {
+                "direction": "down",
+                "msg_type": 9,
+                "chunk_stream_id": 6
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "两 chunk 方向序=命令面完成后逐条 PSH-ACK"
+      ]
+    }
+  },
+  {
+    "id": "rtmp_data_payload_b64",
+    "proto": "rtmp",
+    "summary": "T-11 payload 显式 b64：payload_b64 解码字节透传（chunk 数据段 frames 钉）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "data": [
+              {
+                "direction": "up",
+                "msg_type": 8,
+                "chunk_stream_id": 4,
+                "payload_b64": "cnRtcC1kYXRh"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "cnRtcC1kYXRh=rtmp-data；parse payload_b64 双形面（JSON 往返不可达，仅扁平 parse 单真相）"
+      ]
+    }
+  },
+  {
+    "id": "rtmp_composite_publish_multi_data",
+    "proto": "rtmp",
+    "summary": "T-12 复合大场景（9.50）：publish+自定义 app/stream+音视频混合数据面 ≥3 类交织",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "command": "publish",
+            "app": "stream1",
+            "stream_name": "cam1",
+            "data": [
+              {
+                "direction": "up",
+                "msg_type": 8,
+                "chunk_stream_id": 4,
+                "payload_b64": "YXVkaW8w"
+              },
+              {
+                "direction": "up",
+                "msg_type": 9,
+                "chunk_stream_id": 6,
+                "payload_b64": "dmlkZW8x"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "推流+自定义 app+流名+音视频双 chunk 四类交织"
+      ]
+    }
+  },
+  {
+    "id": "rtmp_neg_app_too_long",
+    "proto": "rtmp",
+    "summary": "T-13 负例：app 超 255B → 锚词 App exceeds",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "app": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "App exceeds",
+      "notes": [
+        "Validate App 长度锚"
+      ]
+    }
+  },
+  {
+    "id": "rtmp_neg_command_invalid",
+    "proto": "rtmp",
+    "summary": "T-14 负例：command=pause → 锚词 invalid Command",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "command": "pause"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "invalid Command",
+      "notes": [
+        "Validate Command 枚举锚（play/publish）"
+      ]
+    }
+  },
+  {
+    "id": "rtmp_neg_msg_type_invalid",
+    "proto": "rtmp",
+    "summary": "T-15 负例：data[0].msg_type=5 → 锚词 MsgType",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "data": [
+              {
+                "direction": "up",
+                "msg_type": 5
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "expect_error": true,
+      "error_contains": "MsgType",
+      "notes": [
+        "Validate 数据面 MsgType 枚举锚（8/9）"
+      ]
+    }
+  },
+  {
+    "id": "rtmp_data_payload_raw",
+    "proto": "rtmp",
+    "summary": "T-16 payload 显式原始串：payload 原文字节透传（getByteSlice 字符串=原文字节语义，pppoe cookie 同款陷阱注记）",
+    "spec_json": {
+      "layers": [
+        {
+          "ip": {
+            "src": "10.0.0.1",
+            "dst": "20.0.0.1"
+          }
+        },
+        {
+          "rtmp": {
+            "data": [
+              {
+                "direction": "up",
+                "msg_type": 8,
+                "chunk_stream_id": 4,
+                "payload": "raw-frame"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "has_handshake": true,
+      "terminates": true,
+      "notes": [
+        "payload 字符串=原文字节（非 hex）——pppoe cookie 陷阱同款；frames 钉跑后校准"
       ]
     }
   }

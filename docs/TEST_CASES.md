@@ -3808,7 +3808,7 @@
 
 **9.52 对账两行：** RFC 4511 逻辑点总数 **38**（BER 4+操作标签 6+bind 组成 3+search 组成 8+filter CHOICE 2+resultCode 2+messageID 1+unbind 1+传输 1+负例分支 7+业务变体多轮/匿名 2+现网 RootDSE 1）→ 建例代表 **36** + 注记 2（filter_value 空断言+超长 DN B′；time_limit 与 size_limit 同门合并计）= **38/38 对账平**。清单出处=RFC 4511 原文逐章反推，非现有用例总结。
 
-### T-RTMP-1…16 rtmp 层链收敛（D-RTMP-1 P3 清单，2026-09-20，待批）
+### T-RTMP-1…16 rtmp 层链收敛（D-RTMP-1 P3 清单，2026-09-20；P5 已执行 16/16 ×2 全绿，2026-09-20）
 
 **三源：** Adobe RTMP spec（§5 握手/§6 chunk/§7-8 命令）+D-RTMP-1+参考 pcap（llcj 镜像 play 会话）。**级别：** pcap。
 **存量去向（9.14）：** `rtmp-connect-play-basic` 1 例扁平 → 改写层链形合入 T-1（等价覆盖+端口显式化重钉）。
@@ -3834,4 +3834,6 @@
 | T-16 | 负例 MsgType 非法 | data[0].msg_type=5 → 锚词 `MsgType` | Validate |
 
 **边界注记（9.46）：** MSS<536 负例链路径不可达（[ip,rtmp] 无 tcp 层）=B′ 注记（3 锚建例）；payload 缺省 100B 随机（T-9/10 用长度间接钉）；C1/S1 随机 1528B 不断言值只断言长度与回显关系（T-2）。**9.40 陷阱：** 恒 1935 断言面=tcp.dstport（worker srcport 12345+i）。
+**P5 执行记录（2026-09-20）：** cases/rtmp.json 16 例层链形（T-1 改写 20 包全序钉：握手3+C0C1 两段+S0S1S2 三段+C2 两段+connect+服务端五连+客户端 winack+createStream+setBufferLen+_result+play+挥手4）；suite ×2 连续全绿 `RESULT: 16 pass, 0 fail, 0 error (of 16)`。**byte 校准（tshark 实测非手算）：分段序 1460/77、1460/1460/153、1460/76 三组钉（T-2）；connect chunk `03 00 00 00 00 00 41 14 00 00 00 00 02 00 07 63 6f 6e 6e 65 63 74`+txn double 1.0（offset 76）；winack chunk `02...05...00 26 25 a0`=2500000；play chunk streamID 01 00 00 00（createStream 后流号 1）**。**tshark RTMP dissector "Loop in AMF dissection" 伪影处置**：命令面 5 帧 malformed 报警（tshark 自身解析出 connect()/_result() 消息名=AMF 编码合法），按 rtmp-connect-play-basic 先例扩层链族条目（`strings.HasPrefix(caseID, "rtmp_")`）入 pcaptest IsMalformedWhitelisted——**注意白名单生效面=服务端二进制内的 pcaptest，suite 验证跑在 MCP 侧，改白名单必须重编重启服务端**（本轮 3 跑红即此因）。coverage_gate check_rtmp 29/29 绿（T-7 补 tc_url 显式例）。
+
 **9.52 对账两行：** Adobe RTMP spec 逻辑点总数 **21**（握手 4+chunk 格式 3+协议控制 4+AMF0 命令 6+CSID 1+数据面 2+负例分支 4-1 合并 MSS+现网 1→实际枚举=握手 4+chunk 3+协议控制 4+命令 6+CSID 1+数据 2+负例 3+现网 1 = **24**，其中建例代表 **16**（T-1 承接握手回显+现网形）+B′ 注记 **8**（fmt1-3、AMF3、其余命令族、MSS 负例、pause/seek/deleteStream、extended ts、加密握手 RTMPE、edge 会话形）= **24/24 对账平**。清单出处=Adobe spec 原文反推。

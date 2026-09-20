@@ -2994,3 +2994,8 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 
 **文件：** protocol/rtmp/layer_gen.go（新）+chain_planner_util.go+chain_planner.go（名单）+registry.go（行）+chain_planner_translate.go（case）+generator.go（FlowMeta.RTMP）+strategy_convert.go（ParseRTMPConfigFromMap）+cmd/server/main.go（翻转）+cases/rtmp.json（改写+补强）。
 **回滚：** 单提交粒度，摘除空白导入/名单行/registry 行即回。
+
+**P4 已实现+复审（2026-09-20，23305ac）：** 五件套全落（isRawIPChain 双名单/两处 0-keep/registry 5 Fields+双 schemagen/translate case+ParseRTMPConfigFromMap 导出（payload_b64 双形不走 JSON 往返）/FlowMeta.RTMP+raw 注入/main.go 翻转）；rtmp/layer_gen.go 新建（防双换模式）；链级 2 例（publish+音视频数据面形状+command=pause 背 door）。复审 1 轮：五件套接线点+防双换副作用逐查 0 新错。
+**P5/P6 验收（2026-09-20）：** suite ×2 连续全绿 `RESULT: 16 pass, 0 fail, 0 error (of 16)`；分段序/connect chunk/AMF0 txn/流号小端 tshark 实测钉（详见 TEST_CASES P5 执行记录）；RTMP dissector 伪影按先例扩白名单族（服务端重编生效——suite 验证在 MCP 侧的机制注记）；coverage_gate check_rtmp 29/29 绿。
+**门1 对照表回填（实际证据）：** §1 扁平键→cases 16 例零顶层四元组+地址入 ip 层；§3 单流豁免+命令序（T-1 20 包全序钉）；§12 动态=worker 四元组+C1/S1 crypto/rand（回显关系保证确定性）+IPID/ISN random。**门3 抽查三条：** ①裁定1 raw wrap→layer_gen.go 防双换+T-1 包 11-17 命令面帧序+TestChainPlanner_RTMPRawChain；②裁定2 五件套→registry rtmp 行 5 Fields+translate ParseRTMPConfigFromMap 单真相+T-11 payload_b64 双形例；③裁定3 端口语义→legacy Plan 1935 缺省+链测试每段 1935 断言+恒 1935 断言面=tcp.dstport。**9.53 复杂度抽查：** T-12 复合例=publish×自定义 app×流名×音视频双 chunk 四类交织 ≥3 ✓。
+**在库清库：** 删前报数→备份→删→对账（见提交信息）。

@@ -535,6 +535,12 @@ func IsMalformedWhitelisted(caseID string, flags ...string) bool {
 	case caseID == "ldp_label_request_ipv4", caseID == "ldp_ordered_dod_allocation":
 		return true
 	case caseID == "rtmp-connect-play-basic" && artifactMatchesExact("Loop in AMF dissection"),
+		// D-RTMP-1 P5 层链用例族同伪影（2026-09-20，字节级已对
+		// /tmp/mcp-pcaps/rtmp/ldap 期探针验证：tshark 自身解析出
+		// "connect()"/"_result()"/"Window Acknowledgement Size" 等消息名
+		// ——AMF 编码合法可解析，仅 RTMP dissector 的 AMF 递归守卫对
+		// 嵌套 _result 对象误报）：rtmp_ 前缀=层链 16 例族。
+		strings.HasPrefix(caseID, "rtmp_") && artifactMatchesExact("Loop in AMF dissection"),
 		caseID == "xmpp-stream-basic" && artifactMatchesExact("Closing an unopened tag"),
 		// stun_binding_tls_session/pop3_over_tls/mqtt_over_tls/socks5_over_tls：
 		// tshark 3.6.14 TLS dissector 对我们模板集 Certificate 的 BER 解析

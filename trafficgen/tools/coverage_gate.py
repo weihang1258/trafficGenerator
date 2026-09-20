@@ -1520,9 +1520,60 @@ def check_ldap(cases):
 
     return rows
 
+
+def check_rtmp(cases):
+    """D-RTMP-1 P6 反查表（T-RTMP-1…16，9.52 对账 24/24）。返回 [(检查名, 通过?, 证据)]。"""
+    rows = []
+    lays = []
+    for c in cases:
+        sj = c.get("spec_json", {}) or {}
+        for l in sj.get("layers") or []:
+            if isinstance(l, dict) and isinstance(l.get("rtmp"), dict):
+                lays.append((c.get("id", "?"), l["rtmp"]))
+                break
+    blob = json.dumps(cases, ensure_ascii=False)
+
+    # 1. 场景面（16 例逐点名，T-RTMP 清单）。
+    for kw, name in [
+        ("play_session_full", "T-1 play 全会话 20 包"),
+        ("handshake_segments", "T-2 握手分段数专钉"),
+        ("chunk_header_amf0_connect", "T-3 chunk 头+AMF0 connect"),
+        ("protocol_control_messages", "T-4 协议控制四消息"),
+        ("publish_mode", "T-5 publish 模式"),
+        ("stream_name_custom", "T-6 stream_name 自定义"),
+        ("app_tc_url_custom", "T-7 app/tc_url 自定义"),
+        ("data_audio", "T-8 数据面音频"),
+        ("data_video", "T-9 数据面视频"),
+        ("data_bidirectional", "T-10 数据面双向"),
+        ("data_payload_b64", "T-11 payload b64 双形"),
+        ("composite_publish_multi_data", "T-12 复合大场景（9.50）"),
+        ("neg_app_too_long", "T-13 App 超长拒"),
+        ("neg_command_invalid", "T-14 Command 拒"),
+        ("neg_msg_type_invalid", "T-15 MsgType 拒"),
+        ("data_payload_raw", "T-16 payload 原文串"),
+    ]:
+        hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
+        rows.append((name, hit is not None, hit or "无用例"))
+
+    # 2. 键覆盖（5 键 + data 项内 4 子键）。
+    for k in ["app", "tc_url", "command", "stream_name", "data",
+              "direction", "msg_type", "chunk_stream_id", "payload_b64", "payload"]:
+        hit = next((cid for cid, m in lays if k in json.dumps(m)), None)
+        rows.append((k, hit is not None, hit or "无用例"))
+
+    # 3. 锚词面（3 负例）。
+    for needle, name in [
+        ("App exceeds", "T-13 App 长度锚"),
+        ("invalid Command", "T-14 Command 锚"),
+        ("MsgType", "T-15 MsgType 锚"),
+    ]:
+        rows.append((name, needle in blob, "锚词出现" if needle in blob else "无用例"))
+
+    return rows
+
 CHECKS = {"smtp": check_smtp, "pop3": check_pop3, "imap": check_imap,
           "mcp": check_mcp, "srv6": check_srv6, "fins": check_fins,
-          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap}
+          "goose": check_goose, "sv": check_sv, "icmpv6": check_icmpv6, "h323": check_h323, "mpls": check_mpls, "ngap": check_ngap, "telnet": check_telnet, "sip": check_sip, "radius": check_radius, "pppoe": check_pppoe, "ldap": check_ldap, "rtmp": check_rtmp}
 
 
 def main(argv):
