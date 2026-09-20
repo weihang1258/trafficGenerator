@@ -1206,6 +1206,66 @@
       },
       "fields": {}
     },
+    "ldap": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "attributes": {
+          "type": "list"
+        },
+        "bind_dn": {
+          "type": "string"
+        },
+        "bind_password": {
+          "type": "string"
+        },
+        "filter_type": {
+          "type": "string"
+        },
+        "filter_value": {
+          "type": "string"
+        },
+        "message_id_base": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "result_code": {
+          "type": "uint8",
+          "max": 255
+        },
+        "rounds": {
+          "type": "int",
+          "max": 100000
+        },
+        "search_base_dn": {
+          "type": "string"
+        },
+        "search_filter": {
+          "type": "string"
+        },
+        "search_scope": {
+          "type": "int",
+          "max": 255
+        },
+        "size_limit": {
+          "type": "int",
+          "max": 2147483647
+        },
+        "time_limit": {
+          "type": "int",
+          "max": 2147483647
+        },
+        "unbind": {
+          "type": "bool"
+        },
+        "version": {
+          "type": "int",
+          "max": 255
+        }
+      }
+    },
     "ldp": {
       "category": "terminal",
       "depends_on": [

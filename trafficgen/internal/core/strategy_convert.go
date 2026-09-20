@@ -4926,6 +4926,12 @@ func parseIntList(v interface{}) []int {
 // parseLDAPConfig converts the JSON-decoded "ldap" sub-map into
 // *LDAPConfig. Unbind defaults to true (send unbindRequest at session
 // end); the planner treats nil as true, false as skip.
+// ParseLDAPConfigFromMap exports parseLDAPConfig for the layer-translate
+// path (parse helpers are package-local; ParsePPPoEConfigFromMap precedent).
+func ParseLDAPConfigFromMap(m map[string]interface{}) *LDAPConfig {
+	return parseLDAPConfig(m)
+}
+
 func parseLDAPConfig(m map[string]interface{}) *LDAPConfig {
 	if m == nil {
 		return nil

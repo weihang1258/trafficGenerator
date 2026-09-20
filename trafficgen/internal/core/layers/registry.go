@@ -1272,6 +1272,32 @@ func buildDefaultRegistry() {
 			"dst_port":            {Type: "uint16", Min: 0, Max: 65535},
 		},
 	})
+	// ldap（tcp 终结层。RFC 4511——BER TLV 消息面：bind 匿名/simple、search
+	// （scope 三枚举+Filter CHOICE present/equality+AttributeSelection）+
+	// unbind，消息按 MSS 分段，wire 字节由 ldap 生成器 raw 自驱产出
+	// （D-LDAP-1 裁定1，radius 对称：legacy 自建 TCP 握手/挥手原样保留）。
+	// Fields 登记消费面 15 键（LDAPConfig 全字段）；端口 389 由生成器
+	// Plan 缺省（链路径无端口位，0-keep 名单+validateBaseDstPortHandled
+	// 豁免）。startTLS/SASL/其余 Filter CHOICE=B′ 注记。
+	r.Register(LayerSchema{Name: "ldap", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"rounds":          {Type: "int", Min: 0, Max: 100000},
+			"message_id_base": {Type: "uint16", Min: 0, Max: 65535},
+			"version":         {Type: "int", Min: 0, Max: 255},
+			"bind_dn":         {Type: "string"},
+			"bind_password":   {Type: "string"},
+			"search_base_dn":  {Type: "string"},
+			"search_scope":    {Type: "int", Min: 0, Max: 255},
+			"size_limit":      {Type: "int", Min: 0, Max: 2147483647},
+			"time_limit":      {Type: "int", Min: 0, Max: 2147483647},
+			"filter_type":     {Type: "string"},
+			"search_filter":   {Type: "string"},
+			"filter_value":    {Type: "string"},
+			"attributes":      {Type: "list"},
+			"result_code":     {Type: "uint8", Min: 0, Max: 255},
+			"unbind":          {Type: "bool"},
+		},
+	})
 	// pppoe（eth 终结层。RFC 2516——Discovery（PADI/PADO/PADR/PADS，EtherType
 	// 0x8863）+ 会话（LCP/Auth/数据，EtherType 0x8864）+ PADT 终止，wire 字节
 	// 由 pppoe 生成器 raw 自驱产出（D-PPPOE-1 裁定1，帧无外层 IP 头，ip 层

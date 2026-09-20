@@ -495,6 +495,8 @@ type FlowMeta struct {
 	// D-PPPOE-1：pppoe raw 链同款（配置经 Meta 直传终结层生成器，
 	// srv6 Meta.SRv6 先例）。
 	PPPoE *core.PPPoEConfig
+	// D-LDAP-1：ldap raw 链同款。
+	LDAP *core.LDAPConfig
 	// Radius is the flow's radius config（D-RADIUS-1：raw 自驱终层生成器直传）。Only set for radius chains.
 	Radius *core.RadiusConfig
 	// GBT is the flow's gbt config (注入到 gbt 终结层生成器，B6：BIP 22/23

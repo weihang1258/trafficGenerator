@@ -2914,3 +2914,46 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **门3 抽查三条（每条点到代码行/用例号）：** ①裁定 3 PADT 缺省真→planner.go `if sessCfg.PADT == nil || *sessCfg.PADT`（emitFrame 前）+T-2 padt_suppressed 7 帧无 0xa7+T-1 第 8 帧 `11 a7 00 01 00 00`；②裁定 4 互斥→schema/semantic.go checkPPPoESessionsMutex 行为 6 键扫描+planner.go Validate 背 door 同锚词（T-23 真实流程 400 断言）+parse 锁例 TestParsePPPoEConfigPADTPtr；③裁定 5 流身份→planner.go emit 闭包 `cfgOut.FlowID = sessFlowID`（session 后缀）+T-12 派生 ID 1/2/3 tshark uniq 3×3 数据帧+TestChainPlanner_PPPOESessionsChain 2 distinct FlowIDs。
 **9.53 门3 复杂度抽查：** 最复杂例=T-14 复合大场景，维度计数=多会话(2)×认证(chap 共享)×skip_discovery×方向(down)×多帧(data_frames 2)=5 类交织 ≥3 ✓（9.50 达标），19 包两生命周期形状逐帧钉。
 **在库清库：** 删前 SELECT 报数→备份→删→对账（P6 收官段执行，见提交信息）。
+
+## D-LDAP-1 ldap 层链收敛（#22，P1+P2 定稿 2026-09-20，待批）
+
+### P1 规范矩阵（§4 八项→缺口）
+
+**规范要求（RFC 4511 原文逐章反推，非现有用例总结）：**
+
+| 规范点 | 出处 | 代码现状 | 缺口 |
+|---|---|---|---|
+| BER TLV：messageID INTEGER 最小字节编码（符号位补零） | §4.1.1 | berInt（ldap.go:130）实存 | 无 |
+| BER 长度短形/长形（≤127 短形；>127 长形 0x81/0x82 前缀） | §4.1.1 | berWrap（:151）——15 属性 RootDSE searchRequest 走长形 | 无（pcap 钉） |
+| protocolOp 应用标签 {bindReq 0x60, bindResp 0x61, unbind 0x42, searchReq 0x63, searchEntry 0x64, searchDone 0x65} | §4.2-4.5 | 常量全 + build* 全 | 无 |
+| bindRequest：version(2/3)+name+simple [0] 认证 | §4.2.1 | buildBindRequest（:214），versionOf 缺省 3 | SASL bind=B′（RFC 4513 §5.2 另族） |
+| searchRequest：baseObject+scope{0,1,2}+derefAliases+sizeLimit+timeLimit+typesOnly+Filter CHOICE+AttributeSelection | §4.5.1 | buildSearchRequest（:246）：scope/limit 可配；**derefAliases/typesOnly 恒定值** | deref/typesOnly 可配=B′（合成面语义弱） |
+| Filter CHOICE：present [7] 0x87 / equality [3] 0xa3 | §4.5.1.7 | buildFilter（:231）双分支+filter_value | 其余 Filter 族（and/or/not/substr/ greaterOrEqual…7 种）=B′ |
+| resultCode ENUMERATED 0-127（0 success/49 invalidCredentials） | §4.1.9 | ldapResult（:186）+Validate 上界锚 | 匹配码 10-16 全枚举=B′（值可透传） |
+| messageID 递增：bind=base+3r / search=+1 / unbind=+2 | §4.1.1.1 | Plan 循环 rb/base+3r 编排 | 无 |
+| unbind 无响应（单向） | §4.3 | buildUnbind+Unbind 指针三态缺省真 | 无 |
+| 传输：TCP 389（IANA）+消息按段分段 | §5.2 | segmentByMSS（:441）+自建握手/挥手（rtsp 族） | 无 |
+
+**三路对照：** ①规范=上表；②商业软件行为=AD 客户端 RootDSE 查询形（参考 pcap：15 属性 present filter objectclass、timeLimit 120、匿名 bind）——defaultAttributes（:53）逐名复刻；③开源实现思路=OpenLDAP ldapsearch 会话形 bind→search→entry→done→unbind 单连接有序消息——Plan 编排同构。
+**候选方案：** (a) [ip,ldap] raw 自驱（radius D-RADIUS-1 对称：legacy 自建 TCP 握手原样 wrap，srv6 防双换模式）——零字节回归、最小分叉；(b) [ip,tcp,ldap] 事件面（tcp 层管握手，ldap 变 MessageEvents）——大改，legacy 自建 seq 编排需全拆。**裁定 (a)**：与 radius 对称口径，事件面=sip WP-D 先例 B′ 候选不立项（ldap 单连接消息面无 TLS 事件需求面，startTLS=B′ 注记）。
+
+**门1 三行强制展开：**
+- §1 顶层旧键：现存 1 例扁平 `src_ip/dst_ip/src_port/dst_port/count/ldap{}` 全删；目标形状 `{"layers":[{"ip":{"src","dst"}},{"ldap":{...15 键}}]}`+端口 389 语义住 ldap 层（FieldContract carrier dst_port 或 raw 0-keep 名单——**raw 分支 spec.SrcPort/DstPort 直传 legacy**，链上无 tcp 层故 0-keep+由生成器 spec 缺省 389？legacy Plan `if spec.DstPort == 0 { spec.DstPort = DefaultPort }` 实存 ✓ 0-keep+Plan 缺省自洽，validateBaseDstPortHandled += ldap）；
+- §3 五件套：单流协议豁免声明（无子流派生、无 sessions，Transactions=单 TCP 连接内 rounds 消息序：bind→bindResp→search→entry→done ×rounds→unbind）；多流=worker 12345+i 端口面（FlowIndex）；
+- §12 动态字段：四元组 worker 递增（12345+i）；业务字段动态面=attributes 列表/filter value（静态配置面，无 dyn 策略需求——LDAPConfig 无 dyn 旁挂，如实注记；MessageIDBase/rounds 静态）。序号算法=IPID randomIPID+ISN randomUint32（RFC 6528）/可 override（spec.TCP.InitialSeq）。
+
+### 裁定（P2 定稿）
+
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | 层形状=[ip, ldap]：ldap CategoryTerminal+DependsOn `["ip"]`（radius 对称 registry 行）；raw 自驱=legacy Plan 原样 wrap（自建 TCP 握手/MSS 分段/挥手全保留） | radius D-RADIUS-1 对称；P1 候选 (a) |
+| 2 | 翻转五件套：① isRawIPChain 名单 += ldap（双名单）② validateSpecBase src 0-keep += ldap ③ validateBaseDstPortHandled += ldap（Plan 内缺省 389 自洽）④ registry 行补 15 Fields+translate `case "ldap"` 复用 parseLDAPConfig（全 string/[]string，**JSON 往返安全但按 ParseLDAPConfigFromMap 单真相先例走导出包装**）+FlowMeta.LDAP carry+raw 分支注入 ⑤ main.go 翻转+空白导入 | pppoe 裁定 2 同构 |
+| 3 | 端口语义：389 由 Plan 缺省（legacy :308 实存），层 config 无端口键（15 键无端口位）；测试用例显式 12345/389 走 spec（raw 分支 SrcPort/DstPort 注入已实存） | radius T 系先例 |
+| 4 | 场景强度全额（9.46–9.53）：BER 面（长形长度钉+messageID 递增钉）/操作标签全表/bind 匿名 vs simple/scope 三枚举/filter 双 CHOICE/resultCode 49 失败分支/rounds 多轮/attributes 自定义/unbind 抑制/version 2/复合大场景（多轮+equality+非匿名+49+自定义属性 ≥3 类交织）；负例 7 锚（version/scope/filter_type/result_code/size_limit/time_limit/messageID 超限） | CORE_MEMORY 9.46–9.53 |
+| 5 | B′ 注记账本：SASL bind、Filter 其余 7 CHOICE、derefAliases/typesOnly 可配、startTLS（tls 链组合候选）、modify/add/compare/abandon/extended 操作族、result 匹配码全枚举 | RFC 4511 要求面如实 |
+
+**文件：** protocol/ldap/layer_gen.go（新，wrap legacy+防双换 Direction=up——注意 legacy emit 已带 L3/L4 与 MAC/EtherType，对齐 pppoe 模式）+core/layers/chain_planner_util.go+chain_planner.go（名单两处）+registry.go（行登记 15 Fields）+chain_planner_translate.go（case+carry）+generator.go（FlowMeta.LDAP）+strategy_convert.go（ParseLDAPConfigFromMap 导出）+cmd/server/main.go（翻转）+cases/ldap.json（改写+补强）。
+**接口签名：** `ParseLDAPConfigFromMap(m map[string]interface{}) *LDAPConfig`（导出包装）；layer_gen 照 pppoe raw 模式（GenEvents nil stub，force-up 防双换，FlowIndex 透传）。
+**性能（6.4-6.6）：** 流式 channel 256；包数=握手 3+Σrounds(2+分段子包)+unbind 段+挥手 4；无共享状态；pcap 验收路。
+**回滚：** 单提交粒度；main.go 摘除空白导入即回 legacy；registry/名单行摘除即回。
+**风险：** ldap 长形 BER 长度字节在多段 payload 下的 frames hex 断言偏移需 pcap 校准不手算；[ip,ldap] 0-keep 端口链路 SrcPort=0 时 worker 注入面（多流）与单流显式化的用例口径按 radius T 系对齐。

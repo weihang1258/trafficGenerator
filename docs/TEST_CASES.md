@@ -3769,3 +3769,39 @@
 **P5 执行记录（2026-09-20）：** cases/pppoe.json 24 例层链形（T-1 smoke 改写 7→8 帧重校准；T-15/16/17 为 P3 清单编号空洞的补定义：inner_proto 显式 TCP/data_payload 字节钉/data_frames=2 多帧——均属既有表行 inner_proto 分支与 data_payload 边界的落实，非新场景）；suite ×2 连续全绿 `RESULT: 24 pass, 0 fail, 0 error (of 24)`；pcap 19 正例+3 neg（T-21/23/24 create-time 拒绝无 pcap）；tshark 复查 T-1 八帧 code 序（09/07/19/65/00×3/00 21/a7）与 T-12 三会话独立 Discovery+PADT 1/2/3。**首跑抓真 bug 1：parsePPPoEConfig 漏接 padt 键（层链路径 padt:false 被静默丢弃恒发 PADT，ParseSIPSessions 漏 Medias 同型）→补 getBoolPtr 解析+parse 层锁例 TestParsePPPoEConfigPADTPtr**；byte 校准 4 处（Auth-Proto 选项 4B 非 6B→LCP len 0x12；tags 起点 offset 20 非 18；chal ppp proto 首字节 c2；payload offset 50）；cookie 用字节数组（getByteSlice 字符串=原文字节，hex 串被当 ASCII）；T-21 锚词随真实拦截面（registry V9 范围门先于 planner Validate）；T-22 改同族 IPv6（混族被 ip 层 same-IP-version 先拦）；T-14 auth 按裁定 4 归顶层模板键（sessions 不覆盖模板）。
 
 **P3 复审（2026-09-20，对抗走查）：** 抓 2 项 errata 已并入：①**层 Fields 计数终值=16**（planner 实际消费 14 键实测：ACName/Auth/Cookie/DataDirection/DataFrames/DataPayload/InnerProto/MagicNumber/MRU/Password/ServiceName/SessionID/SkipDiscovery/Username + padt + sessions；wire 键 code/ppp_protocol/payload_length/discovery_tags 为 builder 每包面不被流程消费→**不登记层 Fields**（1.12 消费面裁定，ValidateLayerConfig 拒之=正确行为），修正 P2 errata② 的 20）；②**sessions 互斥键集合精确化**：互斥=会话级行为键 {session_id, skip_discovery, data_frames, data_payload, inner_proto, data_direction}，模板键 {ac_name, service_name, auth, username, password, mru, magic_number, cookie, padt} 允许与 sessions 共存共享（裁定4"模板键共享"落到键级，P4 semantic 检查按此集合）。验证通过项：T-11 Magic 钉值可行（MagicNumber 在消费清单）；T-12 派生 1/2/3 与单会话缺省 1 自洽；9.51 组合注记（地址族 n/a=内嵌 IPv4 only，IPv6 即 T-22 负例）。**复审结论：自审 1 轮 2 项修正，清单净，待批进 P4。**
+
+### T-LDAP-1…22 ldap 层链收敛（D-LDAP-1 P3 清单，2026-09-20，待批）
+
+**三源：** RFC 4511（§4.1.1 BER+messageID/§4.2 bind/§4.3 unbind/§4.5 search/§4.1.9 resultCode/§5.2 传输）+D-LDAP-1+现网 AD RootDSE 形（参考 pcap 15 属性）。**级别：** pcap。
+**存量去向（9.14）：** `ldap-bind-search-basic` 1 例扁平 → 改写层链形合入 T-1（等价覆盖：包数/字段断言随层链端口显式化重钉）。
+**层 Fields=15**（LDAPConfig 全字段，ParseLDAPConfigFromMap 全接）：rounds/message_id_base/version/bind_dn/bind_password/search_base_dn/search_scope/size_limit/time_limit/filter_type/search_filter/filter_value/attributes/result_code/unbind。
+
+| # | 用例 | 断言面 | 出处 |
+|---|---|---|---|
+| T-1 | smoke 改写（层链形） | 全会话形：握手 3+bind 2+search 3+unbind+挥手 4；protocolOp 六标签 {60,61,63,64,65,42} 逐帧；端口 12345/389 显式 | §4.2-4.5 全序 |
+| T-2 | BER 长形长度字节 | 15 属性 RootDSE searchRequest >127B → 长形长度前缀字节钉（pcap 校准不手算） | §4.1.1 |
+| T-3 | messageID 递增钉 | rounds=2 → bind id {1,4}/search id {2,5}/unbind id 3（base 缺省 1） | §4.1.1.1 |
+| T-4 | 匿名 bind（缺省） | bindRequest name 空串+simple [0] 空 OCTET STRING | §4.2.1 |
+| T-5 | simple bind | bind_dn/bind_password 字节入 bindRequest（name+0x80 密码串） | §4.2.1 |
+| T-6 | version=2 | bindRequest version 字节 02（缺省 03 由 T-1 钉） | §4.2.1 |
+| T-7 | scope=singleLevel(1) | searchRequest scope 字节 01 | §4.5.1.2 |
+| T-8 | scope=wholeSubtree(2) | searchRequest scope 字节 02（缺省 0 由 T-1 钉） | §4.5.1.2 |
+| T-9 | equality filter | filter_type=equality+search_filter/filter_value → 0xa3 CHOICE+断言值字节 | §4.5.1.7 |
+| T-10 | result_code=49 | bindResponse+searchResDone resultCode 0x31（invalidCredentials 失败分支） | §4.1.9 |
+| T-11 | rounds=2 多轮 | 两完整 bind/search 序+messageID 续编 | 9.49 |
+| T-12 | attributes 自定义 | AttributeSelection 2 属性（cn,mail）非 RootDSE 15 | §4.5.1.8 |
+| T-13 | unbind=false | 无 0x42 帧，末数据帧后径直挥手 | §4.3 |
+| T-14 | 复合大场景（9.50） | rounds=2+equality filter+非匿名 bind+自定义属性 ≥3 类交织单例 | 9.50 |
+| T-15 | search base DN | search_base_dn 显式（非 RootDSE 空串） | §4.5.1.1 |
+| T-16 | size/time limit 显式 | size_limit=10/time_limit=60 INTEGER 字节钉 | §4.5.1.3/4 |
+| T-17 | 负例 version=4 | 锚词 `invalid version` | §4.2.1 |
+| T-18 | 负例 scope=3 | 锚词 `invalid scope` | §4.5.1.2 |
+| T-19 | 负例 filter_type=substring | 锚词 `invalid filter type` | §4.5.1.7 |
+| T-20 | 负例 result_code=128 | 锚词 `out of ENUMERATED range` | §4.1.9 |
+| T-21 | 负例 size_limit=-1 | 锚词 `size_limit must be >= 0` | §4.5.1.3 |
+| T-22 | 负例 messageID 超限 | base 0x7FFF+rounds 2 → 锚词 `exceeds 0x7FFF` | §4.1.1.1 |
+
+**边界注记（9.46）：** 超长 bind_dn（BER 长形 OctetString 内）=B′ 注记（T-2 已钉长形面）；time_limit=-1 与 size_limit 同门（T-21 代表，锚词面同族——对账记 1 分支）；filter_value 空+equality=空断言值（BER 04 00，T-9 不含=B′ 注记）。**9.40 陷阱：** 无 sessions/dyn 形态（单连接协议），messageID 是唯一序号锚（静态 base+3r 公式，非 FlowIndex）。
+**P3 复审（2026-09-20，对抗走查）：** 表六标签/scope 三枚举/filter 双 CHOICE/bind 三面/resultCode 两分支/messageID 双面/unbind 三态逐项过——1 项补强：传输分段逻辑点的承接面=参考形 15 属性 searchRequest ≈200B < MSS 1460 单段（T-1 包数间接钉+segmentByMSS 单测 ldap_test.go 已存），多段分段面属 TCP 框架不重复计；time_limit 负例与 size_limit 同锚词族合并 T-21（已注记）。**复审结论：自审 1 轮 1 项并入，清单净，待批进 P4。**
+
+**9.52 对账两行：** RFC 4511 逻辑点总数 **38**（BER 4+操作标签 6+bind 组成 3+search 组成 8+filter CHOICE 2+resultCode 2+messageID 1+unbind 1+传输 1+负例分支 7+业务变体多轮/匿名 2+现网 RootDSE 1）→ 建例代表 **36** + 注记 2（filter_value 空断言+超长 DN B′；time_limit 与 size_limit 同门合并计）= **38/38 对账平**。清单出处=RFC 4511 原文逐章反推，非现有用例总结。

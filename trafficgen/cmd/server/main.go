@@ -89,7 +89,7 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/geneve"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/gnutella"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/l2tp"
-	"github.com/trafficgen/trafficgen/internal/protocol/ldap"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/ldap" // 空导入：ldap 包 init 注册层生成器 + 校验器（D-LDAP-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/ldp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mcp"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/mdns"
@@ -561,7 +561,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("gtp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rdp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("radius"))
-	app.engine.RegisterPlanner(ldap.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("ldap"))
 	app.engine.RegisterPlanner(vnc.NewPlanner())
 	app.engine.RegisterPlanner(pptp.NewPlanner())
 	app.engine.RegisterPlanner(layers.NewChainPlanner("h323"))

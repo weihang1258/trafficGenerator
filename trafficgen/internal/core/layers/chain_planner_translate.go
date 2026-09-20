@@ -2052,6 +2052,14 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.PPPoE == nil {
 			spec.PPPoE = core.ParsePPPoEConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "ldap":
+		// D-LDAP-1：层 config 经 core.ParseLDAPConfigFromMap 复用扁平
+		// 解析单一真相（15 键全 string/int/[]string/bool，无 []byte
+		// 陷阱）。空层 config 也翻译出非 nil（全默认=参考包 RootDSE
+		// 形合法）。unbind 指针三态由扁平 parse 承接。
+		if spec.LDAP == nil {
+			spec.LDAP = core.ParseLDAPConfigFromMap(completedConfig(s, term.Config))
+		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
 		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6
