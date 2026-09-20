@@ -540,6 +540,11 @@ type dialogCtx struct {
 	// generation stays exactly as before (byte parity).
 	defaultCallID string
 	sessionScoped bool
+	// D-SIP-2 WP-D: the transport token written into a generated Via
+	// ("TCP" self-drive default; "TLS" on tls event-plane chains,
+	// RFC 3261 §26.2.1). User-supplied Via headers always win verbatim —
+	// this only affects generated headers.
+	viaTransport string
 }
 
 // completeDialogHeaders fills the RFC 3261 mandatory headers that a
@@ -845,7 +850,15 @@ func boolInt(b bool) int {
 }
 
 func generateVia(spec core.FlowSpec) string {
-	return fmt.Sprintf("Via: SIP/2.0/TCP %s:%d;branch=z9hG4bK%08x", sipHostOf(spec.SrcIP), spec.SrcPort, rand.Uint32())
+	return generateViaT(spec, "TCP")
+}
+
+// generateViaT is the single Via formatting point (D-SIP-2 WP-D): the
+// transport token is a parameter so tls event-plane chains emit "TLS"
+// (RFC 3261 §26.2.1) without a second renderer. Self-drive callers pass
+// "TCP" — byte-identical to the pre-WP-D planner.
+func generateViaT(spec core.FlowSpec, transport string) string {
+	return fmt.Sprintf("Via: SIP/2.0/%s %s:%d;branch=z9hG4bK%08x", transport, sipHostOf(spec.SrcIP), spec.SrcPort, rand.Uint32())
 }
 
 // generateViaSess is generateVia with sessions-mode branch derivation
@@ -856,12 +869,16 @@ func generateVia(spec core.FlowSpec) string {
 // (sessionScoped=false) delegates to the original random form — zero
 // byte drift on the legacy path.
 func generateViaSess(spec core.FlowSpec, dc *dialogCtx) string {
+	tr := dc.viaTransport
+	if tr == "" {
+		tr = "TCP"
+	}
 	if !dc.sessionScoped || dc.callID == "" {
-		return generateVia(spec)
+		return generateViaT(spec, tr)
 	}
 	h := fnv.New32a()
 	h.Write([]byte(dc.callID))
-	return fmt.Sprintf("Via: SIP/2.0/TCP %s:%d;branch=z9hG4bK-%08x", sipHostOf(spec.SrcIP), spec.SrcPort, h.Sum32())
+	return fmt.Sprintf("Via: SIP/2.0/%s %s:%d;branch=z9hG4bK-%08x", tr, sipHostOf(spec.SrcIP), spec.SrcPort, h.Sum32())
 }
 
 // inferDirection returns "up" for requests (Method set) and "down" for

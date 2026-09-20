@@ -2760,12 +2760,19 @@ create：ValidateStrategy→ValidateLayers（V9 4 键）→CheckProtoFlat presen
 **验收：** 新例≥3（rport 回填值断言/缺省透传零变化回归/对 Via 无 rport 参数的 nat 开关语义格）。
 **回滚：** 缺省关=存量零风险。
 
-#### WP-D SIPS/TLS 事件面（可独立延期）
+#### WP-D SIPS/TLS 事件面
 
-**范围：** 新 EventGenerator（dialog→MessageEvents）；[ip,tcp,(tls),sip] 链注册；事件面头补全状态机重写；tls 链 media 拒绝锚词；spike 先行（OPTIONS over tls vs tshark 手工对照）→OptionalOn 登记（M2 纪律：未验不登）。
-**文件：** protocol/sip/event_gen.go（新）/layers/chain_planner_chain.go（sip 事件路由）/registry.go（OptionalOn）/layer_gen.go（双模式分派）。
-**验收：** spike 通过+冒烟例≥3（OPTIONS/REGISTER over tls/非法组合负例）+[ip,sip] 57 例零回归。
-**回滚：** OptionalOn 不登记=默认路径不可达；单提交粒度。
+**范围：** 事件模式 EventGenerator（dialog→MessageEvents，复用 render/补全状态机非重写）；[ip,tcp,(tls),sip] 链注册；tls 链 media/sessions 拒绝锚词；sips: URI 无 tls 拒绝锚词。
+**P2 定稿补充（2026-09-20，裁定 4 细化 + 延期裁定撤销）：** 延期理由不成立——tls 链底座已在役（[ip,tcp,tls,http] 绿、mqtt OptionalOn 先例），字节回归面被模式分离限死。五个定稿决策：
+1. **双模式分派=InitChain 链感知钩子**：GenEvents() 无参且 mqtt 无双模式先例，instantiateGens 同步调用可选接口 `InitChain([]Layer)`；sip Generator 记 eventMode=链含 tcp/tls、tlsMode=链含 tls；GenEvents 按 eventMode 返回（[ip,sip] 恒 nil=自驱字节零回归线）；Generate 以 req.EmitMsg!=nil 分派（mqtt 同款）。
+2. **事件面形状拒绝**：sessions/media/medias 在事件面无等价物（一链一连接；RTP 是 UDP 裸流）→ 锚词 "sessions are not supported on a tcp/tls sip chain" / "media is not supported on a tcp/tls sip chain"；schema create-time + 生成器运行时双保险（mqtt 纪律）。interleave 不拒（无 media 即惰性）。
+3. **Via 传输令牌按链面**：生成 Via TCP（自驱）/TLS（tls 链，RFC 3261 §26.2.1 SIPS 必须走 TLS）；实现=dialogCtx.viaTransport 单格式化点（自驱路径字节零漂移）；用户显式写 Via 恒赢不重写（引擎字节回放哲学=文档化边界）。
+4. **sips: URI 无 tls 层判死**（RFC 3261 §26.2.2+RFC 5630）：只扫 dialog[].uri 与 sessions[].dialog[].uri 请求 URI 前缀 sips:；To/Contact 头内 sips 不扫=B′ 边界；锚词 "sip: sips uri requires a tls layer in the chain"。
+5. **5061 缺省不自动注入**（B′ 边界如实记录）：tls 链 SIPS 端口由用户显式写 tcp.dst_port=5061（tls 层 FieldContract 是单值合同 "tcp.dst_port":"443"，不适用双载口协议）；后续需要可加变体。
+**P1 矩阵增补行（SIPS/TLS 面）：** SIPS URI 语义（RFC 3261 §26.2.1：SIPS 要求端到端 TLS+Via TLS）→ 决策 3/4；TLS 传输承载（§26.2.4+RFC 5630 §2.6）→ 决策 2（RTP 不进 TLS）+事件面；5061 端口（IANA sips 注册口）→ 决策 5 显式边界。
+**文件：** protocol/sip/event_gen.go（新）/layers/chain_planner_chain.go（InitChain 钩子 4 行）/registry.go（OptionalOn tls——M2 纪律：与验证通过的代码+pcap 证据同提交才算登记）/layer_gen.go（双模式分派）/sip.go（viaTransport 单格式化点）/schema/semantic.go（checkSIPEventPlane）。
+**验收：** 6 例（T-81 OPTIONS over tls / T-82 REGISTER over tls / T-83 OPTIONS over 纯 tcp 面字节可见 / T-84 tls×media 拒 / T-85 sips 无 tls 拒 / T-86 tls×sessions 拒）+ [ip,sip] 80 例零回归；事件面单测≥5（基本流/TLS 令牌/形状拒/NAT 复用/双模式分派）。
+**回滚：** OptionalOn 摘除+InitChain 钩子摘除=双模式不可达，[ip,sip] 自驱不受影响；单提交粒度。
 
 #### §12 动态字段清单（新增面）
 

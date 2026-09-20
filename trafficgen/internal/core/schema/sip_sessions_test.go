@@ -159,3 +159,90 @@ func TestSIPMediasStaticCopyRejected(t *testing.T) {
 		t.Fatalf("want medias static-copy rejection, got %v", errs)
 	}
 }
+
+// D-SIP-2 WP-D 红例：tls 链上 sessions 判死（一链一连接无多会话等价物）。
+func TestSIPTLSChainSessionsRejected(t *testing.T) {
+	_, errs := ValidateStrategy("synth", "sip", map[string]any{
+		"layers": []any{
+			map[string]any{"ip": map[string]any{}},
+			map[string]any{"tcp": map[string]any{}},
+			map[string]any{"tls": map[string]any{}},
+			map[string]any{"sip": map[string]any{
+				"sessions": []any{map[string]any{"src_port": 22001}},
+			}},
+		},
+	}, nil)
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Message, "sessions are not supported on a tcp/tls sip chain") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("want tls×sessions rejection, got %v", errs)
+	}
+}
+
+// D-SIP-2 WP-D 红例：tls 链上 media 判死（RTP 是 UDP 裸流不进 TLS）。
+func TestSIPTLSChainMediaRejected(t *testing.T) {
+	_, errs := ValidateStrategy("synth", "sip", map[string]any{
+		"layers": []any{
+			map[string]any{"ip": map[string]any{}},
+			map[string]any{"tcp": map[string]any{}},
+			map[string]any{"tls": map[string]any{}},
+			map[string]any{"sip": map[string]any{
+				"dialog": []any{map[string]any{"method": "OPTIONS", "uri": "sip:x"}},
+				"media":  map[string]any{"frames": 2},
+			}},
+		},
+	}, nil)
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Message, "media is not supported on a tcp/tls sip chain") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("want tls×media rejection, got %v", errs)
+	}
+}
+
+// D-SIP-2 WP-D 红例：纯 tcp 链上 sips: URI 判死（SIPS 必须走 TLS）。
+func TestSIPSIPSUriWithoutTLSRejected(t *testing.T) {
+	_, errs := ValidateStrategy("synth", "sip", map[string]any{
+		"layers": []any{
+			map[string]any{"ip": map[string]any{}},
+			map[string]any{"tcp": map[string]any{}},
+			map[string]any{"sip": map[string]any{
+				"dialog": []any{map[string]any{"method": "INVITE", "uri": "sips:callee@20.0.0.1"}},
+			}},
+		},
+	}, nil)
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Message, "sip: sips uri requires a tls layer in the chain") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("want sips-needs-tls rejection, got %v", errs)
+	}
+}
+
+// 放行面：无 tls/sips 的 [ip,sip] 自驱链不受事件面检查误伤。
+func TestSIPSelfDriveChainAccepted(t *testing.T) {
+	_, errs := ValidateStrategy("synth", "sip", map[string]any{
+		"layers": []any{
+			map[string]any{"ip": map[string]any{}},
+			map[string]any{"sip": map[string]any{
+				"dialog": []any{map[string]any{"method": "OPTIONS", "uri": "sip:x"}},
+				"media":  map[string]any{"frames": 2},
+			}},
+		},
+	}, nil)
+	for _, e := range errs {
+		if strings.Contains(e.Message, "tcp/tls sip chain") || strings.Contains(e.Message, "sips uri") {
+			t.Fatalf("self-drive chain must not hit event-plane checks: %v", e)
+		}
+	}
+}

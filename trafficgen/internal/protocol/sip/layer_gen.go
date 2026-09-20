@@ -14,23 +14,46 @@ import (
 )
 
 // Generator adapts the legacy Planner to the layers generator interface.
+// D-SIP-2 WP-D dual mode: the raw [ip, sip] chain self-drives complete
+// packets (byte-parity line); chains carrying tcp/tls activate the event
+// plane (dialog→MessageEvents, tcp layer owns handshake/seq-ack/teardown).
 type Generator struct {
-	legacy *Planner
+	legacy    *Planner
+	eventMode bool // chain contains tcp or tls (set by InitChain)
+	tlsMode   bool // chain contains tls (Via transport token TLS)
+}
+
+// InitChain is the chain-aware dispatch hook (instantiateGens calls it
+// synchronously, before assertEventWiring/drive consult GenEvents).
+func (g *Generator) InitChain(chain []layers.Layer) {
+	for _, l := range chain {
+		switch l.Name {
+		case "tls":
+			g.eventMode, g.tlsMode = true, true
+		case "tcp":
+			g.eventMode = true
+		}
+	}
 }
 
 func (*Generator) Name() string { return "sip" }
 
-// GenEvents returns nil: sip is a raw self-drive terminal layer — complete
-// packets via Emit (raw-IP drive), not message events. Must stay nil
-// (chain_planner.go's event-branch check routes non-nil GenEvents to the
-// transport path).
-func (g *Generator) GenEvents() layers.EventGenerator { return nil }
+// GenEvents returns the event-plane generator only on tcp/tls chains; nil
+// keeps the raw [ip, sip] chain on the self-drive path (the 80-case suite's
+// byte-parity line).
+func (g *Generator) GenEvents() layers.EventGenerator {
+	if g.eventMode {
+		return g
+	}
+	return nil
+}
 
-// Generate relays legacy Plan packets to the chain drive. Every packet is
-// forced to Direction "up"（前四协议同款防双换）：TCP down 包与 RTP down
-// 帧均由 legacy 自换地址端口 MAC（sip.go:846-856 media 方向面/emit 逐包
-// 自管），raw-IP 驱动对 down 包的 L3 换向会双换错。
+// Generate dispatches on the wiring: EmitMsg non-nil = event plane, else
+// legacy self-drive relay.
 func (g *Generator) Generate(ctx context.Context, req *layers.GenRequest) error {
+	if req != nil && req.EmitMsg != nil {
+		return g.generateEvents(ctx, req)
+	}
 	if req == nil || req.Emit == nil || req.Meta.SIP == nil {
 		return fmt.Errorf("sip generator: invalid request")
 	}

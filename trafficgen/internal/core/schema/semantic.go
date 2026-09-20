@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"strings"
 
 	"github.com/trafficgen/trafficgen/internal/core"
 	"github.com/trafficgen/trafficgen/internal/core/layers"
@@ -150,6 +151,11 @@ func validateStrategySemantic(mode, protocol string, config map[string]any, fc *
 	// D-SIP-2 WP-B：medias[] 与 media 互斥（空数组同锚词面）——同 sessions
 	// 口径，Planner.Validate 背 door。
 	if msg := checkSIPMediasMutex(config); msg != "" {
+		fail("%s", msg)
+	}
+	// D-SIP-2 WP-D：事件面形状门（tcp/tls 链拒 sessions/media；无 tls 拒
+	// sips: URI）——create-time 400，event_gen.go 同款锚词做运行时背 door。
+	if msg := checkSIPEventPlane(config); msg != "" {
 		fail("%s", msg)
 	}
 	// D-FTP-3: layers 与顶层扁平四元组混用拒绝（只拦新建/更新；存量策略
@@ -483,4 +489,86 @@ type StrategyView struct {
 
 func quoted(s string) string {
 	return "\"" + s + "\""
+}
+
+// checkSIPEventPlane (D-SIP-2 WP-D): the event-plane shape gate for tcp/tls
+// sip chains. RTP media (bare UDP streams outside the transport) and
+// sessions[] (multi-connection) have no equivalent on a single-connection
+// event chain — rejected; a sips: Request-URI without a tls layer violates
+// RFC 3261 §26.2.2 — rejected. The self-drive [ip, sip] chain is untouched
+// (its 80-case suite is the byte-parity line). Runtime backstop anchors
+// live in protocol/sip/event_gen.go (same wording).
+func checkSIPEventPlane(config map[string]any) string {
+	arr, ok := config["layers"].([]any)
+	if !ok {
+		return ""
+	}
+	hasTCP, hasTLS := false, false
+	for _, item := range arr {
+		if layer, _ := item.(map[string]any); layer != nil {
+			if _, ok := layer["tcp"]; ok {
+				hasTCP = true
+			}
+			if _, ok := layer["tls"]; ok {
+				hasTLS = true
+			}
+		}
+	}
+	if !hasTCP && !hasTLS {
+		return ""
+	}
+	eventPlane := hasTCP || hasTLS
+	for _, item := range arr {
+		layer, _ := item.(map[string]any)
+		sip, _ := layer["sip"].(map[string]any)
+		if sip == nil {
+			continue
+		}
+		if eventPlane {
+			if _, ok := sip["sessions"]; ok {
+				return "sip: sessions are not supported on a tcp/tls sip chain (one connection per chain; use the self-drive [ip, sip] chain for sessions)"
+			}
+			if _, ok := sip["media"]; ok {
+				return "sip: media is not supported on a tcp/tls sip chain (RTP is a bare UDP stream outside the transport; use the self-drive [ip, sip] chain for media)"
+			}
+			if _, ok := sip["medias"]; ok {
+				return "sip: media is not supported on a tcp/tls sip chain (RTP is a bare UDP stream outside the transport; use the self-drive [ip, sip] chain for media)"
+			}
+		}
+		if !hasTLS {
+			for _, m := range sipDialogURIs(sip) {
+				if strings.HasPrefix(strings.ToLower(strings.TrimSpace(m)), "sips:") {
+					return "sip: sips uri requires a tls layer in the chain"
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// sipDialogURIs collects the Request-URIs the sips check scans (dialog[]
+// and sessions[].dialog[]). Header-embedded sips URIs (To/Contact) are a
+// documented B′ boundary — a UAC's own header bytes replay verbatim.
+func sipDialogURIs(sip map[string]any) []string {
+	var uris []string
+	scan := func(dlg any) {
+		if arr, ok := dlg.([]any); ok {
+			for _, e := range arr {
+				if m, _ := e.(map[string]any); m != nil {
+					if u, ok := m["uri"].(string); ok {
+						uris = append(uris, u)
+					}
+				}
+			}
+		}
+	}
+	scan(sip["dialog"])
+	if sess, ok := sip["sessions"].([]any); ok {
+		for _, e := range sess {
+			if s, _ := e.(map[string]any); s != nil {
+				scan(s["dialog"])
+			}
+		}
+	}
+	return uris
 }

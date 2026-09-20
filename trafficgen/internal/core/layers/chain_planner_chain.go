@@ -202,6 +202,13 @@ func instantiateGens(chain []Layer) ([]LayerGenerator, error) {
 		if err != nil {
 			return nil, err
 		}
+		// D-SIP-2 WP-D 双模式分派钩子：GenEvents() 无参（mqtt 纯事件模式
+		// 无此问题），链形状感知的生成器（sip 自驱/事件双模式）在实例化期
+		// 拿到完整链——早于 Plan 的 assertEventWiring 与 drive 的
+		// GenEvents() 检查两处调用点。未实现者不受影响。
+		if ca, ok := gen.(interface{ InitChain([]Layer) }); ok {
+			ca.InitChain(chain)
+		}
 		gens[i] = gen
 	}
 	return gens, nil

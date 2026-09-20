@@ -1247,6 +1247,7 @@ func buildDefaultRegistry() {
 		},
 	})
 	r.Register(LayerSchema{Name: "sip", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		OptionalOn: []string{"tls"}, // D-SIP-2 WP-D：SIPS——显式写 tls 层启用（事件面）
 		Fields: map[string]FieldSchema{
 			"dialog":     {Type: "list"},
 			"media":      {Type: "object"},
