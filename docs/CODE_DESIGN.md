@@ -2878,3 +2878,25 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 红例→registry+translate（含顺序修正专项红例）→FlowMeta/isRawIPChain→门扩扫+layer_dyn→layer_gen+注册→presence→main 翻转→门登记+schemagen→绿；P5 cases。回滚=单提交粒度；radius.go 零改动=字节事实零风险。
 #### 8. 验收
 对应 T-RADIUS（P3 定稿）。完成条件：7 红例先红后绿（含 1813 专项）；radius.json 全量绿（RESULT+二进制同代+门 2 四项+反查）；touched 包 -race+vet 净；顶层 radius 字面零残留（负例豁免）；schemagen 同步绿；门 1 表回填+抽查三条；在库 radius 行清空（P6 删前报数→备份→删→复核——绝对路径+总量对账）。
+
+## D-PPPOE-1 pppoe 层链收敛（#21，P2 定稿 2026-09-20，待批）
+
+**依据：** RFC 2516（PPPoE §4 会话/§5 Discovery+TLV/§5.6 PADT/§7 MTU 1492）+RFC 1661（§4 LCP/§5 PPP Protocol/§6 选项/§8 认证）+现网 BRAS 行为（AC-Name/AC-Cookie/Host-Uniq 标签，出处=运营商接入网通用抓包形，注记待确认方式=抓现网拨号包）。**现状代码事实：** legacy 完整 512 行（discovery 四步+LCP MRU/Magic+PAP/CHAP+IPv4 数据面，planner.go）；内嵌 IPv4 直读 spec.SrcIP/DstIP（:407-410，down 交换）；DefaultSessionID=1/DefaultACName="trafficgen"（:38/:46）；Validate 7 锚词（:100-158，含 DataDirection 枚举）；registry 占位行零字段（registry.go:1275）；main.go legacy 直挂（:555）；扁平 1 例 smoke `{"count":1,"pppoe":{}}`（7 帧，PADS session_id 0x0001）；**planner 零 PADT 流程**（builder 面有 0xa7）。
+
+### 裁定（P2 定稿）
+
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | **层形状=[ip, pppoe]**：pppoe CategoryTerminal+DependsOn `["ip"]`（srv6 对称口径 registry.go:1100）；raw 自驱=终层自产完整帧（Eth+PPPoE+PPP+内嵌 IPv4，isRawIPChain 分支）；**ip 层值=内嵌 IPv4 语义**（帧无外层 IP 头，Validate :111-120 的 IP 检查即内嵌 IP）；eth 可选层（MAC 覆写，registry.go:47 字段已在；不写=spec 缺省 MAC） | 门1 复审错③裁定 |
+| 2 | **翻转五件套（缺口 D）**：① isRawIPChain 名单 += pppoe（chain_planner_util.go:45）② validateSpecBase src 0-保持名单 += pppoe（chain_planner.go:710 区段，radius P4 同款先例）③ dst 分支同款豁免（:489）④ registry 行补 Fields（18 业务键）+translate `case "pppoe"` 复用 parsePPPoEConfig 单真相+FlowMeta carry ⑤ main.go 翻转 ChainPlanner+空白导入 | 门1 复审遗④ |
+| 3 | **PADT 补齐（缺口 A）**：planner 数据面后发 PADT（code 0xa7、up、Session ID=已分配、零 TLV）；键 `padt` bool **缺省 true**（RFC 2516 §5.6 完整生命周期）；smoke 例重校准 7→8 帧（14.6 从 pcap 钉） | §5.6 要求面 |
+| 4 | **多会话（缺口 B，9.49 硬要求）**：`sessions[]` 每项=完整生命周期（Discovery→LCP→Auth→Data→PADT），session_id 显式>派生（DefaultSessionID=1 逐项 +i，PADS 回显即派生值）；模板键（ac_name/service_name/auth/username/password/mru/data_frames…）共享；与顶层单会话键同给判死，锚词 `pppoe: sessions and top-level session config are mutually exclusive` | sip sessions 范式；RFC 2516 §5 每会话独立发现 |
+| 5 | **流身份与 MAC（缺口 E）**：多流身份锚=Session ID（派生防撞=12.10 保底，不触 12.9 静态复制拒）；显式重复 session_id → Validate 拒，锚词 `pppoe: duplicate session_id`；MAC 恒 spec 值不递增（goose 现状一致，如实注记无先例） | 9.35 锚点+门1 复审错② |
+| 6 | **场景强度（9.46–9.53 全额）**：数据=code 全表{00,09,07,19,65,a7}+非法码负例/TLV 标签表{0000,0101,0102,0103,0104,0110,0201,0202,0203}逐值/PPP 协议字段{0021,c021,8021,c023,c223}/LCP 选项表/边界（payload_length 覆写、空 Service-Name=any、cookie 有无、超大 data_payload）；业务=全生命周期/skip_discovery/pap/chap/data_direction 双向/PADT 拆断；现网=BRAS 三标签形/多会话并发；复合大场景=多会话+auth+data+PADT+异常 ≥3 类交织单例（9.50） | CORE_MEMORY 9.46–9.53 |
+
+**文件：** protocol/pppoe/layer_gen.go（新，wrap legacy）+planner.go（PADT+sessions）/core/layers/chain_planner_util.go+chain_planner.go（名单）/registry.go（行补全）/chain_planner_translate.go（case+carry）/strategy_convert.go（sessions parse，单真相）/cmd/server/main.go（翻转）/cases/pppoe.json（改写+补强）。
+**接口签名：** `ParsePPPoESessions(v any) []PPPoESession`（导出单真相）；`PPPoESession{SessionID uint16; SessionIDDyn *StrategyConfig; DataFrames int; ...}`；layer_gen 照 sip raw 自驱形（GenEvents nil，force-up 防双换）。
+**性能（6.4-6.6）：** 流式 channel 256 逐帧发射无收集；包数=会话数×(4 Discovery+2 LCP+2×auth+DataFrames+1 PADT)；无共享状态无新锁；六类引擎级场景=全协议共用缺口如实记录；pcap 一路验收（网卡路=物理口直发，未跑注明 6.3）。
+**回滚：** 单提交粒度；main.go 摘除空白导入即回 legacy；planner 增量（PADT/sessions）向后兼容（padt 缺省 true 改变 smoke 计数=唯一重校准点，如实）。
+**门1 对照表：** 已交（2026-09-20），复审修正 4 项后为定稿版（锚词 7/内嵌 IP=[ip,pppoe]/翻转五件套/MAC 无递增先例），随 P6 回填证据号。
+**P2 复审（2026-09-20，对抗走查，用户指令每阶段必复审）：** 抓 4 项 errata，已并入上文：①文件清单漏 types.go（PPPoESession 结构+PPPoEConfig.Sessions 字段）与 schema/semantic.go（sessions 互斥+重复 session_id 两检查，sip checkSIPSessionsMutex 同构）；②registry Fields 计数 18→**20**（+padt+sessions，ValidateLayerConfig 拒未知字段故必须全登记）；③"eth 可选层 MAC 覆写"降级为 P4 验证项——extractLayerMACs 回填机制在扁平 mapToFlowSpec（strategy_convert.go:415-423）实存，但**链路径 eth MAC 注入点未证**（goose 用例只写 eth.src_mac 无 src MAC 值断言，goose 层 dst_mac 是业务键非链层），v1 口径=MAC 走 spec 缺省 02:00:00:00:00:01/02，链路 eth 覆写验证后再定；④门1 §3 "失败=PADI 重发"表述撤销——planner 零重发逻辑（grep 空），失败分支=回放表达（用户写 PADS Service-Name-Error 0x0201 错误标签=B′ 注记，逐值建例按需）。**复审结论：自审 1 轮 4 项修正，修正后定稿净，待批进 P3。**
