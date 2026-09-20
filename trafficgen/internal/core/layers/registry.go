@@ -1272,7 +1272,34 @@ func buildDefaultRegistry() {
 			"dst_port":            {Type: "uint16", Min: 0, Max: 65535},
 		},
 	})
-	r.Register(LayerSchema{Name: "pppoe", Category: CategoryL2})
+	// pppoe（eth 终结层。RFC 2516——Discovery（PADI/PADO/PADR/PADS，EtherType
+	// 0x8863）+ 会话（LCP/Auth/数据，EtherType 0x8864）+ PADT 终止，wire 字节
+	// 由 pppoe 生成器 raw 自驱产出（D-PPPOE-1 裁定1，帧无外层 IP 头，ip 层
+	// 值=内层 IPv4 语义）。Fields 只登记消费面 16 键（1.12）：14 消费键 +
+	// padt + sessions；wire 键 code/ppp_protocol/payload_length/discovery_
+	// tags 是 builder 专属不进 Fields。sessions[] 与顶层行为 6 键互斥由
+	// schema/semantic 判死（9.49）。
+	r.Register(LayerSchema{Name: "pppoe", Category: CategoryTerminal,
+		DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"session_id":     {Type: "uint16", Min: 0, Max: 65535},
+			"skip_discovery": {Type: "bool"},
+			"ac_name":        {Type: "string"},
+			"service_name":   {Type: "string"},
+			"cookie":         {Type: "object"}, // 字符串=原文字节 | 字节数组（getByteSlice 双形）
+			"mru":            {Type: "uint16", Min: 0, Max: 65535},
+			"magic_number":   {Type: "uint32", Min: 0, Max: 4294967295},
+			"auth":           {Type: "string"},
+			"username":       {Type: "string"},
+			"password":       {Type: "string"},
+			"data_frames":    {Type: "int", Min: 0, Max: 1000000},
+			"data_payload":   {Type: "object"}, // 同 cookie 双形
+			"inner_proto":    {Type: "uint8", Min: 0, Max: 255},
+			"data_direction": {Type: "string"},
+			"padt":           {Type: "bool"}, // 缺省 true（RFC 2516 §5.6），指针三态
+			"sessions":       {Type: "list"}, // 每项一完整生命周期（9.49）
+		},
+	})
 
 	defaultRegistry = r
 }

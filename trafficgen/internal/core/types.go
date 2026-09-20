@@ -3068,6 +3068,17 @@ type PPPoEConfig struct {
 	// Relay-Session-Id (0x0110), etc. Ignored for Session Data frames.
 	DiscoveryTags []PPPoETag `json:"discovery_tags,omitempty"`
 
+	// PADT, when true, emits an RFC 2516 §5.6 Active Discovery
+	// Terminate frame at session teardown. nil defaults to true
+	// (full RFC lifecycle); explicit false skips PADT.
+	PADT *bool `json:"padt,omitempty"`
+
+	// Sessions carries the multi-session shape (D-PPPOE-1 P2): each
+	// entry runs an independent Discovery→LCP→Auth→Data→PADT lifecycle
+	// with its own SessionID. Mutually exclusive with top-level session
+	// behavior fields.
+	Sessions []PPPoESession `json:"sessions,omitempty"`
+
 	// --- Session-level fields (driven by the internal/protocol/pppoe
 	// planner; ignored by the builder, which only reads the wire-level
 	// fields above) ---
@@ -10575,4 +10586,19 @@ type GBT32960StatusChange struct {
 	AtReportIndex int                `json:"at_report_index"` // 0-based; must be unique
 	AlarmData     *GBT32960AlarmData `json:"alarm_data,omitempty"`
 	CustomFields  string             `json:"custom_fields,omitempty"`
+}
+
+// PPPoESession is one entry of PPPoEConfig.Sessions (D-PPPOE-1 P2,
+// the SIPSession/FTPSession precedent): per-session SessionID (0 =
+// derived DefaultSessionID+i), optional SkipDiscovery, and per-session
+// data-plane controls. Template fields (ac_name/auth/cookie...) are
+// inherited from the top-level PPPoEConfig.
+type PPPoESession struct {
+	SessionID     uint16          `json:"session_id,omitempty"`
+	SessionIDDyn  *StrategyConfig `json:"-"`
+	SkipDiscovery bool            `json:"skip_discovery,omitempty"`
+	DataFrames    int             `json:"data_frames,omitempty"`
+	DataPayload   []byte          `json:"data_payload,omitempty"`
+	InnerProto    uint8           `json:"inner_proto,omitempty"`
+	DataDirection string          `json:"data_direction,omitempty"`
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/trafficgen/trafficgen/internal/core"
@@ -158,6 +159,12 @@ func validateStrategySemantic(mode, protocol string, config map[string]any, fc *
 	if msg := checkSIPEventPlane(config); msg != "" {
 		fail("%s", msg)
 	}
+	// D-PPPOE-1 裁定4：pppoe 层 sessions[] 与顶层行为 6 键互斥（空数组同
+	// 锚词面；显式 session_id 重复判死）——create-time 400，Planner.Validate
+	// 同文案背 door。
+	if msg := checkPPPoESessionsMutex(config); msg != "" {
+		fail("%s", msg)
+	}
 	// D-FTP-3: layers 与顶层扁平四元组混用拒绝（只拦新建/更新；存量策略
 	// 已入库的不追溯，任务启动不复查）。位置在所有形状/网络检查之后，
 	// 文案给迁移指引。
@@ -309,6 +316,71 @@ func checkSIPSessionsMutex(config map[string]any) string {
 	}
 	return ""
 }
+
+// checkPPPoESessionsMutex (D-PPPOE-1 裁定4): pppoe 层 sessions[] 与顶层
+// 行为键互斥。行为 6 键 = session_id/skip_discovery/data_frames/
+// data_payload/inner_proto/data_direction（sessions 内 per-entry 覆盖面）；
+// 模板 9 键（ac_name/service_name/auth/username/password/mru/magic_number/
+// cookie/padt）共存合法（继承语义）。空 sessions 数组同锚词面。锚词
+// Planner.Validate 同文案做 task-time 背 door（C 类两路独立闭合）。
+func checkPPPoESessionsMutex(config map[string]any) string {
+	arr, ok := config["layers"].([]any)
+	if !ok {
+		return ""
+	}
+	behaviorKeys := []string{"session_id", "skip_discovery", "data_frames", "data_payload", "inner_proto", "data_direction"}
+	for _, item := range arr {
+		layer, _ := item.(map[string]any)
+		pppoe, _ := layer["pppoe"].(map[string]any)
+		if pppoe == nil {
+			continue
+		}
+		sess, hasSessions := pppoe["sessions"].([]any)
+		if !hasSessions {
+			continue
+		}
+		if len(sess) == 0 {
+			return pppoeSessionsMutexMsg
+		}
+		for _, k := range behaviorKeys {
+			if _, given := pppoe[k]; given {
+				return pppoeSessionsMutexMsg
+			}
+		}
+		// 显式 session_id 重复判死（派生 ID 不受影响）。数值面兼容
+		// int 字面量与 JSON float64。
+		seen := map[float64]bool{}
+		for _, e := range sess {
+			m, _ := e.(map[string]any)
+			if m == nil {
+				continue
+			}
+			if id, ok := numField(m["session_id"]); ok {
+				if seen[id] {
+					return "pppoe: duplicate session_id " + strconv.FormatFloat(id, 'f', -1, 64) + " (each entry runs one lifecycle; derived IDs auto-increment)"
+				}
+				seen[id] = true
+			}
+		}
+	}
+	return ""
+}
+
+// numField accepts the numeric shapes a layer-config value may carry
+// (JSON decode → float64; Go literals → int/int64).
+func numField(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	}
+	return 0, false
+}
+
+const pppoeSessionsMutexMsg = "pppoe: sessions and top-level session config are mutually exclusive (use sessions for the multi-session shape; top-level behavior keys only for the single-session shorthand)"
 
 // checkSIPMediasMutex (D-SIP-2 WP-B): sip 层 medias[] 与 media 互斥
 // （多流形态 vs 单流速记——语义与 sessions×dialog 同构）；空 medias 数组

@@ -116,7 +116,7 @@ import (
 	// 空导入：pop3 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/pop3"
 	_ "github.com/trafficgen/trafficgen/internal/protocol/postgresql" // init 注册 postgresql 层生成器 + 校验器（kingbase 是其 dialect 变体）
-	"github.com/trafficgen/trafficgen/internal/protocol/pppoe"
+	_ "github.com/trafficgen/trafficgen/internal/protocol/pppoe"
 	"github.com/trafficgen/trafficgen/internal/protocol/pptp"
 	// 空导入：radius 包 init 注册层生成器 + 校验器（D-RADIUS-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/radius"
@@ -552,7 +552,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ike"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ike_nat_t"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("l2tp"))
-	app.engine.RegisterPlanner(pppoe.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("pppoe"))
 	// gre 切链式生成器（D-GRE-1：[ip→gre→ip→udp→dns] 隧道链驱动，gre 作
 	// 真隧道层——内层包字节自建 + L2.GRE wire 配置 + 外层 proto 47；gre 包
 	// init 反向注册隧道层生成器 + 校验器）。

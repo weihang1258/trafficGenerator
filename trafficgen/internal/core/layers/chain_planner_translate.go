@@ -2041,6 +2041,17 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.SRv6 == nil {
 			spec.SRv6 = core.ParseSRv6ConfigFromMap(term.Config)
 		}
+	case "pppoe":
+		// D-PPPOE-1：层 config 经 core.ParsePPPoEConfigFromMap 复用扁平
+		// 解析单一真相（data_payload []byte 字符串语义=原文字节，JSON
+		// 往返会 base64 误读——srv6 inner_payload 同陷阱；sessions[] 经
+		// ParsePPPoESessions 承接 dyn 旁挂）。空层 config 也翻译出非 nil
+		// （全默认冒烟形状合法：PADT 缺省 true、SessionID 缺省 1）。
+		// sessions×顶层行为键互斥由 schema create 门判死 +
+		// Planner.Validate 同锚词背 door，translate 只负责解析。
+		if spec.PPPoE == nil {
+			spec.PPPoE = core.ParsePPPoEConfigFromMap(completedConfig(s, term.Config))
+		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
 		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6

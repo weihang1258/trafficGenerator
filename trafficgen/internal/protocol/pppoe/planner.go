@@ -149,6 +149,38 @@ func (p *Planner) Validate(spec core.FlowSpec) error {
 		return fmt.Errorf("pppoe: DataDirection %q not in supported list (allowed: up, down)", cfg.DataDirection)
 	}
 
+	// D-PPPOE-1 裁定4 (9.49): sessions[] multi-session shape. Mutex with
+	// the top-level behavior keys (per-entry overrides make the top-level
+	// values ambiguous), empty array and duplicate explicit IDs rejected.
+	// Same anchors as schema/semantic checkPPPoESessionsMutex (two
+	// independent closures, sip WP-A precedent). nil slice = single-session
+	// shorthand; non-nil empty = the multi-session shape with no entries.
+	if cfg.Sessions != nil {
+		if len(cfg.Sessions) == 0 {
+			return fmt.Errorf("pppoe: sessions and top-level session config are mutually exclusive (use sessions for the multi-session shape, top-level behavior keys only for the single-session shorthand)")
+		}
+		for _, k := range []struct {
+			name  string
+			given bool
+		}{{"SessionID", cfg.SessionID != 0}, {"SkipDiscovery", cfg.SkipDiscovery},
+			{"DataFrames", cfg.DataFrames != 0}, {"DataPayload", cfg.DataPayload != nil},
+			{"InnerProto", cfg.InnerProto != 0}, {"DataDirection", cfg.DataDirection != ""}} {
+			if k.given {
+				return fmt.Errorf("pppoe: sessions and top-level session config are mutually exclusive (top-level %s given; use sessions for the multi-session shape, top-level behavior keys only for the single-session shorthand)", k.name)
+			}
+		}
+		seen := map[uint16]bool{}
+		for _, sess := range cfg.Sessions {
+			if sess.SessionID == 0 {
+				continue // derived IDs (DefaultSessionID+i) auto-unique
+			}
+			if seen[sess.SessionID] {
+				return fmt.Errorf("pppoe: duplicate session_id %d (each entry runs one lifecycle; derived IDs auto-increment)", sess.SessionID)
+			}
+			seen[sess.SessionID] = true
+		}
+	}
+
 	return nil
 }
 
@@ -160,274 +192,338 @@ func (p *Planner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan core.Pac
 	configChan := make(chan core.PacketConfig, 256)
 	cfg := spec.PPPoE
 
-	// Resolve the LCP Magic-Number before launching the goroutine (RFC
-	// 1661 §6.13: "MUST be chosen randomly"). crypto/rand failure is
-	// effectively impossible; fall back to a fixed value so the flow
-	// still emits. Tests set MagicNumber explicitly for determinism.
-	magic := cfg.MagicNumber
-	if magic == 0 {
-		var b [4]byte
-		if _, err := rand.Read(b[:]); err == nil {
-			magic = binary.BigEndian.Uint32(b[:])
-		} else {
-			magic = 0x0900beef
-		}
-	}
-
 	go func() {
 		defer close(configChan)
 		flowID := fmt.Sprintf("%s-%s-%d-%d", spec.SrcIP, spec.DstIP, spec.SrcPort, spec.DstPort)
 		now := time.Now()
-
-		// Session state: the Session ID is assigned by PADS and echoed by
-		// every Session Data frame (RFC 2516 §5.4). Discovery frames
-		// (PADI/PADO/PADR/PADS) carry 0x0000.
-		sessionID := cfg.SessionID
-		if sessionID == 0 {
-			sessionID = DefaultSessionID
-		}
-		mru := cfg.MRU
-		if mru == 0 {
-			mru = DefaultMRU
-		}
-		acName := cfg.ACName
-		if acName == "" {
-			acName = DefaultACName
-		}
-		user := cfg.Username
-		if user == "" {
-			user = DefaultCredentials
-		}
-		pass := cfg.Password
-		if pass == "" {
-			pass = DefaultCredentials
-		}
-
-		// MACs: client = up side, server = down side.
-		upMAC, downMAC := spec.SrcMAC, spec.DstMAC
-		if spec.SrcMAC == "" {
-			upMAC = "aa:bb:cc:dd:ee:01"
-		}
-		if spec.DstMAC == "" {
-			downMAC = "aa:bb:cc:dd:ee:02"
-		}
-
-		packetIndex := uint64(0)
-		emit := func(cfgOut core.PacketConfig) bool {
-			cfgOut.FlowID = flowID
-			cfgOut.PacketIndex = packetIndex
-			cfgOut.Timestamp = now
-			select {
-			case configChan <- cfgOut:
-				packetIndex++
-				return true
-			case <-ctx.Done():
-				return false
+		// resolveMagic picks the LCP Magic-Number (RFC 1661 §6.13: "MUST be
+		// chosen randomly"). crypto/rand failure is effectively impossible;
+		// fall back to a fixed value so the flow still emits. Tests set
+		// MagicNumber explicitly for determinism. Per-session (P4 复审 R1):
+		// each session is its own PPP link, so every lifecycle rolls its
+		// own magic — a goroutine-level value would leak one session's
+		// magic into its siblings.
+		resolveMagic := func(m uint32) uint32 {
+			if m != 0 {
+				return m
 			}
-		}
-
-		// emitFrame builds and emits a single PPPoE frame. Discovery
-		// frames (code != 0x00) carry TLV tags in PPPoE.DiscoveryTags
-		// (the builder serializes them); Session Data frames with a
-		// non-IPv4 PPP protocol carry the PPP control message in Payload;
-		// Session Data frames with PPP Protocol 0x0021 carry the inner
-		// L3/L4 built from l3/l4.
-		emitFrame := func(direction, srcMAC, dstMAC string, code uint8, sessID uint16, pppProto uint16, tags []core.PPPoETag, payload []byte, l3 core.L3Config, l4 core.L4Config, withL3L4 bool) bool {
-			var etherType uint16 = core.EtherTypePPPoEDiscovery
-			if code == core.PPPoECodeSessionData {
-				etherType = core.EtherTypePPPoESession
+			var b [4]byte
+			if _, err := rand.Read(b[:]); err == nil {
+				return binary.BigEndian.Uint32(b[:])
 			}
-			cfgOut := core.PacketConfig{
-				Direction: direction,
-				L2: core.L2Config{
-					SrcMAC:    srcMAC,
-					DstMAC:    dstMAC,
-					EtherType: etherType,
-					PPPoE: &core.PPPoEConfig{
-						Code:          code,
-						SessionID:     sessID,
-						PPPProtocol:   pppProto,
-						DiscoveryTags: tags,
+			return 0x0900beef
+		}
+		// runSession runs one complete PPPoE lifecycle (Discovery →
+		// LCP → Auth → Data → PADT) against sessCfg. D-PPPOE-1 P4:
+		// extracted from the single-session body so sessions[] can run
+		// independent lifecycles (SIPSession/FTPSession precedent).
+		runSession := func(sessCfg core.PPPoEConfig, sessFlowID string) {
+			magic := resolveMagic(sessCfg.MagicNumber)
+
+			// Session state: the Session ID is assigned by PADS and echoed by
+			// every Session Data frame (RFC 2516 §5.4). Discovery frames
+			// (PADI/PADO/PADR/PADS) carry 0x0000.
+			sessionID := sessCfg.SessionID
+			if sessionID == 0 {
+				sessionID = DefaultSessionID
+			}
+			mru := sessCfg.MRU
+			if mru == 0 {
+				mru = DefaultMRU
+			}
+			acName := sessCfg.ACName
+			if acName == "" {
+				acName = DefaultACName
+			}
+			user := sessCfg.Username
+			if user == "" {
+				user = DefaultCredentials
+			}
+			pass := sessCfg.Password
+			if pass == "" {
+				pass = DefaultCredentials
+			}
+
+			// MACs: client = up side, server = down side.
+			upMAC, downMAC := spec.SrcMAC, spec.DstMAC
+			if spec.SrcMAC == "" {
+				upMAC = "aa:bb:cc:dd:ee:01"
+			}
+			if spec.DstMAC == "" {
+				downMAC = "aa:bb:cc:dd:ee:02"
+			}
+
+			packetIndex := uint64(0)
+			emit := func(cfgOut core.PacketConfig) bool {
+				// Per-session flow identity (D-PPPOE-1 裁定5): the caller
+				// passes a session-suffixed ID so parallel sessions stay
+				// distinct flows in resequencing/aggregation.
+				cfgOut.FlowID = sessFlowID
+				cfgOut.PacketIndex = packetIndex
+				cfgOut.Timestamp = now
+				select {
+				case configChan <- cfgOut:
+					packetIndex++
+					return true
+				case <-ctx.Done():
+					return false
+				}
+			}
+
+			// emitFrame builds and emits a single PPPoE frame. Discovery
+			// frames (code != 0x00) carry TLV tags in PPPoE.DiscoveryTags
+			// (the builder serializes them); Session Data frames with a
+			// non-IPv4 PPP protocol carry the PPP control message in Payload;
+			// Session Data frames with PPP Protocol 0x0021 carry the inner
+			// L3/L4 built from l3/l4.
+			emitFrame := func(direction, srcMAC, dstMAC string, code uint8, sessID uint16, pppProto uint16, tags []core.PPPoETag, payload []byte, l3 core.L3Config, l4 core.L4Config, withL3L4 bool) bool {
+				var etherType uint16 = core.EtherTypePPPoEDiscovery
+				if code == core.PPPoECodeSessionData {
+					etherType = core.EtherTypePPPoESession
+				}
+				cfgOut := core.PacketConfig{
+					Direction: direction,
+					L2: core.L2Config{
+						SrcMAC:    srcMAC,
+						DstMAC:    dstMAC,
+						EtherType: etherType,
+						PPPoE: &core.PPPoEConfig{
+							Code:          code,
+							SessionID:     sessID,
+							PPPProtocol:   pppProto,
+							DiscoveryTags: tags,
+						},
 					},
-				},
-				Payload: payload,
-			}
-			if withL3L4 {
-				cfgOut.L3 = l3
-				cfgOut.L4 = l4
-			}
-			return emit(cfgOut)
-		}
-
-		// ----- Discovery phase (RFC 2516 §5.1-5.4) -----
-		if !cfg.SkipDiscovery {
-			// PADI (RFC 2516 §5.2): client -> broadcast, Session_ID 0.
-			// A zero-length Service-Name tag means "any service".
-			padiTags := []core.PPPoETag{{Type: core.PPPoETagServiceName, Value: []byte(cfg.ServiceName)}}
-			if !emitFrame("up", upMAC, broadcastMAC, core.PPPoECodePADI, 0, 0, padiTags, nil, core.L3Config{}, core.L4Config{}, false) {
-				return
+					Payload: payload,
+				}
+				if withL3L4 {
+					cfgOut.L3 = l3
+					cfgOut.L4 = l4
+				}
+				return emit(cfgOut)
 			}
 
-			// PADO (RFC 2516 §5.3): server -> client, Session_ID 0,
-			// carries AC-Name + AC-Cookie.
-			padoTags := []core.PPPoETag{
-				{Type: core.PPPoETagServiceName, Value: []byte(cfg.ServiceName)},
-				{Type: core.PPPoETagACName, Value: []byte(acName)},
-			}
-			if len(cfg.Cookie) > 0 {
-				padoTags = append(padoTags, core.PPPoETag{Type: core.PPPoETagACCookie, Value: cfg.Cookie})
-			}
-			if !emitFrame("down", downMAC, upMAC, core.PPPoECodePADO, 0, 0, padoTags, nil, core.L3Config{}, core.L4Config{}, false) {
-				return
-			}
+			// ----- Discovery phase (RFC 2516 §5.1-5.4) -----
+			if !sessCfg.SkipDiscovery {
+				// PADI (RFC 2516 §5.2): client -> broadcast, Session_ID 0.
+				// A zero-length Service-Name tag means "any service".
+				padiTags := []core.PPPoETag{{Type: core.PPPoETagServiceName, Value: []byte(sessCfg.ServiceName)}}
+				if !emitFrame("up", upMAC, broadcastMAC, core.PPPoECodePADI, 0, 0, padiTags, nil, core.L3Config{}, core.L4Config{}, false) {
+					return
+				}
 
-			// PADR (RFC 2516 §5.4): client -> server, Session_ID 0,
-			// echoes the AC-Cookie from PADO.
-			padrTags := []core.PPPoETag{{Type: core.PPPoETagServiceName, Value: []byte(cfg.ServiceName)}}
-			if len(cfg.Cookie) > 0 {
-				padrTags = append(padrTags, core.PPPoETag{Type: core.PPPoETagACCookie, Value: cfg.Cookie})
-			}
-			if !emitFrame("up", upMAC, downMAC, core.PPPoECodePADR, 0, 0, padrTags, nil, core.L3Config{}, core.L4Config{}, false) {
-				return
-			}
+				// PADO (RFC 2516 §5.3): server -> client, Session_ID 0,
+				// carries AC-Name + AC-Cookie.
+				padoTags := []core.PPPoETag{
+					{Type: core.PPPoETagServiceName, Value: []byte(sessCfg.ServiceName)},
+					{Type: core.PPPoETagACName, Value: []byte(acName)},
+				}
+				if len(sessCfg.Cookie) > 0 {
+					padoTags = append(padoTags, core.PPPoETag{Type: core.PPPoETagACCookie, Value: sessCfg.Cookie})
+				}
+				if !emitFrame("down", downMAC, upMAC, core.PPPoECodePADO, 0, 0, padoTags, nil, core.L3Config{}, core.L4Config{}, false) {
+					return
+				}
 
-			// PADS (RFC 2516 §5.4): server -> client, assigns the
-			// Session_ID that all Session Data frames must echo.
-			padsTags := []core.PPPoETag{{Type: core.PPPoETagServiceName, Value: []byte(cfg.ServiceName)}}
-			if len(cfg.Cookie) > 0 {
-				padsTags = append(padsTags, core.PPPoETag{Type: core.PPPoETagACCookie, Value: cfg.Cookie})
-			}
-			if !emitFrame("down", downMAC, upMAC, core.PPPoECodePADS, sessionID, 0, padsTags, nil, core.L3Config{}, core.L4Config{}, false) {
-				return
-			}
-		}
+				// PADR (RFC 2516 §5.4): client -> server, Session_ID 0,
+				// echoes the AC-Cookie from PADO.
+				padrTags := []core.PPPoETag{{Type: core.PPPoETagServiceName, Value: []byte(sessCfg.ServiceName)}}
+				if len(sessCfg.Cookie) > 0 {
+					padrTags = append(padrTags, core.PPPoETag{Type: core.PPPoETagACCookie, Value: sessCfg.Cookie})
+				}
+				if !emitFrame("up", upMAC, downMAC, core.PPPoECodePADR, 0, 0, padrTags, nil, core.L3Config{}, core.L4Config{}, false) {
+					return
+				}
 
-		// ----- Session phase: LCP (RFC 1661 §4) -----
-		// Configure-Request options: MRU (§6.1), Magic-Number (§6.13),
-		// and the Auth-Protocol option (RFC 1334 §2.2 / RFC 1994 §3)
-		// when authentication is enabled.
-		lcpOpts := make([]byte, 0, 16)
-		lcpOpts = append(lcpOpts, lcpOptMRU, 4)
-		lcpOpts = binary.BigEndian.AppendUint16(lcpOpts, mru)
-		lcpOpts = append(lcpOpts, lcpOptMagicNumber, 6)
-		lcpOpts = binary.BigEndian.AppendUint32(lcpOpts, magic)
-		var authProto uint16
-		switch cfg.Auth {
-		case "pap":
-			authProto = core.PPPProtocolPAP
-		case "chap":
-			authProto = core.PPPProtocolCHAP
-		}
-		if authProto != 0 {
-			lcpOpts = append(lcpOpts, lcpOptAuthProtocol, 4)
-			lcpOpts = binary.BigEndian.AppendUint16(lcpOpts, authProto)
-		}
-		// Client sends Configure-Request; the server echoes a
-		// Configure-Ack with the identical options (RFC 1661 §6.1).
-		lcpReq := buildLCPMessage(lcpConfigureRequest, 1, lcpOpts)
-		if !emitFrame("up", upMAC, downMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolLCP, nil, lcpReq, core.L3Config{}, core.L4Config{}, false) {
-			return
-		}
-		lcpAck := buildLCPMessage(lcpConfigureAck, 1, lcpOpts)
-		if !emitFrame("down", downMAC, upMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolLCP, nil, lcpAck, core.L3Config{}, core.L4Config{}, false) {
-			return
-		}
-
-		// ----- Authentication (RFC 1334 PAP / RFC 1994 CHAP) -----
-		switch cfg.Auth {
-		case "pap":
-			// Client -> server Authenticate-Request, then server ->
-			// client Authenticate-Ack.
-			papReq := buildPAPRequest(1, user, pass)
-			if !emitFrame("up", upMAC, downMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolPAP, nil, papReq, core.L3Config{}, core.L4Config{}, false) {
-				return
-			}
-			papAck := buildPAPAck(1, "welcome")
-			if !emitFrame("down", downMAC, upMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolPAP, nil, papAck, core.L3Config{}, core.L4Config{}, false) {
-				return
-			}
-		case "chap":
-			// Server -> client Challenge, client -> server Response
-			// (the planner echoes the challenge value — trafficgen
-			// synthesizes the exchange and does not compute real MD5
-			// digests, RFC 1994 §4.1), then server -> client Success.
-			var value [chapValueLen]byte
-			if _, err := rand.Read(value[:]); err != nil {
-				for i := range value {
-					value[i] = byte(i + 1)
+				// PADS (RFC 2516 §5.4): server -> client, assigns the
+				// Session_ID that all Session Data frames must echo.
+				padsTags := []core.PPPoETag{{Type: core.PPPoETagServiceName, Value: []byte(sessCfg.ServiceName)}}
+				if len(sessCfg.Cookie) > 0 {
+					padsTags = append(padsTags, core.PPPoETag{Type: core.PPPoETagACCookie, Value: sessCfg.Cookie})
+				}
+				if !emitFrame("down", downMAC, upMAC, core.PPPoECodePADS, sessionID, 0, padsTags, nil, core.L3Config{}, core.L4Config{}, false) {
+					return
 				}
 			}
-			chal := buildCHAPChallenge(1, value[:], user)
-			if !emitFrame("down", downMAC, upMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolCHAP, nil, chal, core.L3Config{}, core.L4Config{}, false) {
-				return
-			}
-			resp := buildCHAPResponse(1, value[:], user)
-			if !emitFrame("up", upMAC, downMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolCHAP, nil, resp, core.L3Config{}, core.L4Config{}, false) {
-				return
-			}
-			succ := buildCHAPSuccess(1)
-			if !emitFrame("down", downMAC, upMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolCHAP, nil, succ, core.L3Config{}, core.L4Config{}, false) {
-				return
-			}
-		}
 
-		// ----- IPv4 data plane (RFC 1661 §6, PPP Protocol 0x0021) -----
-		innerProto := cfg.InnerProto
-		if innerProto == 0 {
-			if spec.TCP != nil {
-				innerProto = 6
-			} else {
-				innerProto = 17
+			// ----- Session phase: LCP (RFC 1661 §4) -----
+			// Configure-Request options: MRU (§6.1), Magic-Number (§6.13),
+			// and the Auth-Protocol option (RFC 1334 §2.2 / RFC 1994 §3)
+			// when authentication is enabled.
+			lcpOpts := make([]byte, 0, 16)
+			lcpOpts = append(lcpOpts, lcpOptMRU, 4)
+			lcpOpts = binary.BigEndian.AppendUint16(lcpOpts, mru)
+			lcpOpts = append(lcpOpts, lcpOptMagicNumber, 6)
+			lcpOpts = binary.BigEndian.AppendUint32(lcpOpts, magic)
+			var authProto uint16
+			switch sessCfg.Auth {
+			case "pap":
+				authProto = core.PPPProtocolPAP
+			case "chap":
+				authProto = core.PPPProtocolCHAP
 			}
-		}
-		dataDir := cfg.DataDirection
-		if dataDir == "" {
-			dataDir = "up"
-		}
-		payload := cfg.DataPayload
-		if payload == nil {
-			payload = spec.Payload
-		}
-		frames := cfg.DataFrames
-		if frames == 0 {
-			frames = 1
-		}
-		ipidCounter := uint32(0)
-		nextIPID := func() uint16 {
-			ipidCounter++
-			return uint16(ipidCounter)
-		}
-		for i := 0; i < frames; i++ {
-			if err := ctx.Err(); err != nil {
+			if authProto != 0 {
+				lcpOpts = append(lcpOpts, lcpOptAuthProtocol, 4)
+				lcpOpts = binary.BigEndian.AppendUint16(lcpOpts, authProto)
+			}
+			// Client sends Configure-Request; the server echoes a
+			// Configure-Ack with the identical options (RFC 1661 §6.1).
+			lcpReq := buildLCPMessage(lcpConfigureRequest, 1, lcpOpts)
+			if !emitFrame("up", upMAC, downMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolLCP, nil, lcpReq, core.L3Config{}, core.L4Config{}, false) {
 				return
 			}
-			var srcMAC, dstMAC, srcIP, dstIP string
-			if dataDir == "up" {
-				srcMAC, dstMAC = upMAC, downMAC
-				srcIP, dstIP = spec.SrcIP, spec.DstIP
-			} else {
-				srcMAC, dstMAC = downMAC, upMAC
-				srcIP, dstIP = spec.DstIP, spec.SrcIP
+			lcpAck := buildLCPMessage(lcpConfigureAck, 1, lcpOpts)
+			if !emitFrame("down", downMAC, upMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolLCP, nil, lcpAck, core.L3Config{}, core.L4Config{}, false) {
+				return
 			}
-			l3 := core.L3Base(srcIP, dstIP, innerProto, spec.TTL, nextIPID(), spec)
-			l4 := core.L4Config{
-				Protocol: "udp",
-				SrcPort:  spec.SrcPort,
-				DstPort:  spec.DstPort,
+
+			// ----- Authentication (RFC 1334 PAP / RFC 1994 CHAP) -----
+			switch sessCfg.Auth {
+			case "pap":
+				// Client -> server Authenticate-Request, then server ->
+				// client Authenticate-Ack.
+				papReq := buildPAPRequest(1, user, pass)
+				if !emitFrame("up", upMAC, downMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolPAP, nil, papReq, core.L3Config{}, core.L4Config{}, false) {
+					return
+				}
+				papAck := buildPAPAck(1, "welcome")
+				if !emitFrame("down", downMAC, upMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolPAP, nil, papAck, core.L3Config{}, core.L4Config{}, false) {
+					return
+				}
+			case "chap":
+				// Server -> client Challenge, client -> server Response
+				// (the planner echoes the challenge value — trafficgen
+				// synthesizes the exchange and does not compute real MD5
+				// digests, RFC 1994 §4.1), then server -> client Success.
+				var value [chapValueLen]byte
+				if _, err := rand.Read(value[:]); err != nil {
+					for i := range value {
+						value[i] = byte(i + 1)
+					}
+				}
+				chal := buildCHAPChallenge(1, value[:], user)
+				if !emitFrame("down", downMAC, upMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolCHAP, nil, chal, core.L3Config{}, core.L4Config{}, false) {
+					return
+				}
+				resp := buildCHAPResponse(1, value[:], user)
+				if !emitFrame("up", upMAC, downMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolCHAP, nil, resp, core.L3Config{}, core.L4Config{}, false) {
+					return
+				}
+				succ := buildCHAPSuccess(1)
+				if !emitFrame("down", downMAC, upMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolCHAP, nil, succ, core.L3Config{}, core.L4Config{}, false) {
+					return
+				}
 			}
-			if innerProto == 6 {
-				l4.Protocol = "tcp"
+
+			// ----- IPv4 data plane (RFC 1661 §6, PPP Protocol 0x0021) -----
+			innerProto := sessCfg.InnerProto
+			if innerProto == 0 {
 				if spec.TCP != nil {
-					l4.Seq = spec.TCP.Seq
-					l4.Ack = spec.TCP.Ack
-					l4.Flags = spec.TCP.Flags
-					l4.WindowSize = spec.TCP.WindowSize
+					innerProto = 6
+				} else {
+					innerProto = 17
 				}
 			}
-			if !emitFrame(dataDir, srcMAC, dstMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolIPv4, nil, payload, l3, l4, true) {
-				return
+			dataDir := sessCfg.DataDirection
+			if dataDir == "" {
+				dataDir = "up"
+			}
+			payload := sessCfg.DataPayload
+			if payload == nil {
+				payload = spec.Payload
+			}
+			frames := sessCfg.DataFrames
+			if frames == 0 {
+				frames = 1
+			}
+			ipidCounter := uint32(0)
+			nextIPID := func() uint16 {
+				ipidCounter++
+				return uint16(ipidCounter)
+			}
+			for i := 0; i < frames; i++ {
+				if err := ctx.Err(); err != nil {
+					return
+				}
+				var srcMAC, dstMAC, srcIP, dstIP string
+				if dataDir == "up" {
+					srcMAC, dstMAC = upMAC, downMAC
+					srcIP, dstIP = spec.SrcIP, spec.DstIP
+				} else {
+					srcMAC, dstMAC = downMAC, upMAC
+					srcIP, dstIP = spec.DstIP, spec.SrcIP
+				}
+				l3 := core.L3Base(srcIP, dstIP, innerProto, spec.TTL, nextIPID(), spec)
+				l4 := core.L4Config{
+					Protocol: "udp",
+					SrcPort:  spec.SrcPort,
+					DstPort:  spec.DstPort,
+				}
+				if innerProto == 6 {
+					l4.Protocol = "tcp"
+					if spec.TCP != nil {
+						l4.Seq = spec.TCP.Seq
+						l4.Ack = spec.TCP.Ack
+						l4.Flags = spec.TCP.Flags
+						l4.WindowSize = spec.TCP.WindowSize
+					}
+				}
+				if !emitFrame(dataDir, srcMAC, dstMAC, core.PPPoECodeSessionData, sessionID, core.PPPProtocolIPv4, nil, payload, l3, l4, true) {
+					return
+				}
+			}
+
+			// ----- Session termination: PADT (RFC 2516 §5.6) -----
+			// Client-initiated Active Discovery Terminate; the assigned
+			// Session ID is echoed. Zero TLV tags (§5.6 allows empty).
+			// Discovery EtherType per the builder's code mapping.
+			if sessCfg.PADT == nil || *sessCfg.PADT {
+				if !emitFrame("up", upMAC, downMAC, core.PPPoECodePADT, sessionID, 0, nil, nil, core.L3Config{}, core.L4Config{}, false) {
+					return
+				}
 			}
 		}
+
+		// D-PPPOE-1 P4 (9.49): sessions[] — one full lifecycle per
+		// entry; session_id explicit > dynamic > derived
+		// DefaultSessionID+i. Template fields inherit from the top-level
+		// config; per-session entries override the session-behavior keys.
+		if len(cfg.Sessions) > 0 {
+			for i := range cfg.Sessions {
+				sess := &cfg.Sessions[i]
+				sessCfg := *cfg
+				sessCfg.Sessions = nil
+				if sess.SessionIDDyn != nil {
+					if v := core.ResolvePortValue(sess.SessionIDDyn, spec.FlowIndex); v != 0 {
+						sessCfg.SessionID = v
+					}
+				} else {
+					sessCfg.SessionID = sess.SessionID
+				}
+				if sessCfg.SessionID == 0 {
+					sessCfg.SessionID = DefaultSessionID + uint16(i)
+				}
+				if sess.SkipDiscovery {
+					sessCfg.SkipDiscovery = true
+				}
+				if sess.DataFrames != 0 {
+					sessCfg.DataFrames = sess.DataFrames
+				}
+				if sess.DataPayload != nil {
+					sessCfg.DataPayload = sess.DataPayload
+				}
+				if sess.InnerProto != 0 {
+					sessCfg.InnerProto = sess.InnerProto
+				}
+				if sess.DataDirection != "" {
+					sessCfg.DataDirection = sess.DataDirection
+				}
+				sessFlowID := fmt.Sprintf("%s-pppoe-sess%d", flowID, sessCfg.SessionID)
+				runSession(sessCfg, sessFlowID)
+			}
+			return
+		}
+		runSession(*cfg, flowID)
 	}()
 
 	return configChan, nil

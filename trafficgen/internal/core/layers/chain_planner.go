@@ -523,6 +523,9 @@ func validateBaseDstPortHandled(name string) bool {
 		// D-SRV6-1 srv6：SRH 扩展头无端口概念（内层端口住 srv6 层，
 		// 回退 spec 逐流值），目的端口 0 合法（raw-IP 同款）。
 		"srv6",
+		// D-PPPOE-1 pppoe：帧无外层传输层（内层 L4 端口住 spec，链路径
+		// 0 合法，raw-IP 同款）。
+		"pppoe",
 		// stateless UDP protocols: ports defaulted by the DstPort switch above.
 		// radius 已在上方 D-RADIUS-1 豁免块登记，此处不重复列。
 		"tftp":
@@ -707,7 +710,9 @@ func validateSpecBase(name string, spec *core.FlowSpec) error {
 			// 不在此默认化。
 		case "moxa":
 		// Moxa 源端口 0 保持 0：透传单连接，多流由 worker 递增。
-		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip", "radius":
+		case "igmp", "ospf", "pim", "isis", "nvgre", "srv6", "icmpv6", "h323", "mpls", "ngap", "telnet", "sip", "radius", "pppoe":
+			// pppoe（D-PPPOE-1）同列：帧无外层传输层，链路径无端口可写
+			// （内层 IPv4 数据面的 L4 端口住 spec，0 由生成器合成面承担）。
 			// raw-IP 路由终结层（P3 T5）与 nvgre（B4 封装类）/srv6
 			// （D-SRV6-1，SRH 扩展头）同样无传输层：无端口概念，源/目的
 			// 端口 0 保持 0（内层端口住 srv6 层，回退 spec 逐流值）。
@@ -1174,6 +1179,9 @@ func (p *ChainPlanner) Plan(ctx context.Context, spec core.FlowSpec) (<-chan cor
 			meta.PIM = spec.PIM
 			meta.NVGRE = spec.NVGRE
 			meta.SRv6 = spec.SRv6
+			// D-PPPOE-1：pppoe raw 链同款（层 config 经 translate 落
+			// spec.PPPoE，此处直传终结层生成器）。
+			meta.PPPoE = spec.PPPoE
 			// srv6 内层端口回退链（inner 端口缺省→spec 端口）依赖这两个值；
 			// 多流时 worker.go 已按流注入 spec.SrcPort=12345+i。igmp/ospf/
 			// pim/nvgre 生成器不读端口字段，赋值对它们无副作用。

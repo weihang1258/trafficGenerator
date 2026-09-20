@@ -1860,8 +1860,65 @@
       }
     },
     "pppoe": {
-      "category": "l2",
-      "fields": {}
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "ac_name": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "string"
+        },
+        "cookie": {
+          "type": "object"
+        },
+        "data_direction": {
+          "type": "string"
+        },
+        "data_frames": {
+          "type": "int",
+          "max": 1000000
+        },
+        "data_payload": {
+          "type": "object"
+        },
+        "inner_proto": {
+          "type": "uint8",
+          "max": 255
+        },
+        "magic_number": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "mru": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "padt": {
+          "type": "bool"
+        },
+        "password": {
+          "type": "string"
+        },
+        "service_name": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "sessions": {
+          "type": "list"
+        },
+        "skip_discovery": {
+          "type": "bool"
+        },
+        "username": {
+          "type": "string"
+        }
+      }
     },
     "radius": {
       "category": "terminal",

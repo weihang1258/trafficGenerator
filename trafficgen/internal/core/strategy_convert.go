@@ -3443,8 +3443,45 @@ func parsePPPoEConfig(m map[string]interface{}) *PPPoEConfig {
 		DataPayload:   getByteSlice(m, "data_payload"),
 		InnerProto:    uint8(getInt(m, "inner_proto")),
 		DataDirection: getString(m, "data_direction"),
+		Sessions:      ParsePPPoESessions(m["sessions"]),
 	}
 	return cfg
+}
+
+// ParsePPPoEConfigFromMap exports parsePPPoEConfig for the layer-translate
+// path (parse helpers are package-local; ParseFTPConfigFromMap precedent).
+func ParsePPPoEConfigFromMap(m map[string]interface{}) *PPPoEConfig {
+	return parsePPPoEConfig(m)
+}
+
+// ParsePPPoESessions converts the JSON-decoded "sessions" array into
+// []PPPoESession (D-PPPOE-1 9.49: one full lifecycle per entry). Exported
+// for the layer-translate path, which reuses parsePPPoEConfig.
+func ParsePPPoESessions(v interface{}) []PPPoESession {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) == 0 {
+		return nil
+	}
+	out := make([]PPPoESession, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, PPPoESession{
+			SessionID:     getUint16(m, "session_id"),
+			SessionIDDyn:  parseStrategyConfigDyn(m["session_id"]),
+			SkipDiscovery: getBool(m, "skip_discovery", false),
+			DataFrames:    getInt(m, "data_frames"),
+			DataPayload:   getByteSlice(m, "data_payload"),
+			InnerProto:    uint8(getInt(m, "inner_proto")),
+			DataDirection: getString(m, "data_direction"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func parsePPPoETags(v interface{}) []PPPoETag {

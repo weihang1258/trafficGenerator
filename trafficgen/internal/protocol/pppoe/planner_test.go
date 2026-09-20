@@ -52,9 +52,10 @@ func TestPlanner_FullSession_WireSequence(t *testing.T) {
 	}
 
 	cfgs := planAll(t, spec)
-	// PADI, PADO, PADR, PADS, LCP req, LCP ack, 2 data frames.
-	if len(cfgs) != 8 {
-		t.Fatalf("emitted %d packets, want 8 (4 discovery + 2 LCP + 2 data)", len(cfgs))
+	// PADI, PADO, PADR, PADS, LCP req, LCP ack, 2 data frames, PADT
+	// (default-true termination, RFC 2516 §5.6).
+	if len(cfgs) != 9 {
+		t.Fatalf("emitted %d packets, want 9", len(cfgs))
 	}
 
 	// ----- Discovery: PADI -----
@@ -165,6 +166,21 @@ func TestPlanner_FullSession_WireSequence(t *testing.T) {
 			t.Errorf("data[%d] payload = %q, want spec.Payload", i, data.Payload)
 		}
 	}
+
+	// ----- Termination: PADT (RFC 2516 §5.6), the 9th frame -----
+	padtCfg := cfgs[8]
+	if padtCfg.Direction != "up" || padtCfg.L2.PPPoE.Code != core.PPPoECodePADT {
+		t.Errorf("PADT = dir %q code 0x%02x, want up/0xa7", padtCfg.Direction, padtCfg.L2.PPPoE.Code)
+	}
+	if padtCfg.L2.PPPoE.SessionID != 0x000f {
+		t.Errorf("PADT SessionID = %d, want 0x000f (echo assigned)", padtCfg.L2.PPPoE.SessionID)
+	}
+	if len(padtCfg.L2.PPPoE.DiscoveryTags) != 0 {
+		t.Errorf("PADT tags = %+v, want zero TLV tags", padtCfg.L2.PPPoE.DiscoveryTags)
+	}
+	if padtCfg.L2.EtherType != core.EtherTypePPPoEDiscovery {
+		t.Errorf("PADT EtherType = 0x%04x, want 0x8863 (discovery)", padtCfg.L2.EtherType)
+	}
 }
 
 // TestPlanner_LCPFrameBytes_Pcap reproduces pcap 4.pppoe_sample.pcap frame
@@ -185,9 +201,9 @@ func TestPlanner_LCPFrameBytes_Pcap(t *testing.T) {
 	}
 
 	cfgs := planAll(t, spec)
-	// SkipDiscovery: LCP req, LCP ack, 1 data frame.
-	if len(cfgs) != 3 {
-		t.Fatalf("emitted %d packets, want 3", len(cfgs))
+	// SkipDiscovery: LCP req, LCP ack, 1 data frame, PADT.
+	if len(cfgs) != 4 {
+		t.Fatalf("emitted %d packets, want 4", len(cfgs))
 	}
 
 	builder := core.NewBuilder()
@@ -234,9 +250,9 @@ func TestPlanner_PAP(t *testing.T) {
 	}
 
 	cfgs := planAll(t, spec)
-	// LCP req, LCP ack, PAP req, PAP ack, 1 default data frame.
-	if len(cfgs) != 5 {
-		t.Fatalf("emitted %d packets, want 5", len(cfgs))
+	// LCP req, LCP ack, PAP req, PAP ack, 1 default data frame, PADT.
+	if len(cfgs) != 6 {
+		t.Fatalf("emitted %d packets, want 6", len(cfgs))
 	}
 
 	// LCP Configure-Request options include Auth-Protocol = PAP (0xc023):
@@ -288,9 +304,10 @@ func TestPlanner_CHAP(t *testing.T) {
 	}
 
 	cfgs := planAll(t, spec)
-	// LCP req, LCP ack, CHAP challenge, CHAP response, CHAP success, 1 data.
-	if len(cfgs) != 6 {
-		t.Fatalf("emitted %d packets, want 6", len(cfgs))
+	// LCP req, LCP ack, CHAP challenge, CHAP response, CHAP success,
+	// 1 data frame, PADT.
+	if len(cfgs) != 7 {
+		t.Fatalf("emitted %d packets, want 7", len(cfgs))
 	}
 
 	lcpReq := cfgs[0].Payload
@@ -337,8 +354,8 @@ func TestPlanner_DefaultSessionID(t *testing.T) {
 		PPPoE: &core.PPPoEConfig{},
 	}
 	cfgs := planAll(t, spec)
-	if len(cfgs) != 7 {
-		t.Fatalf("emitted %d packets, want 7", len(cfgs))
+	if len(cfgs) != 8 {
+		t.Fatalf("emitted %d packets, want 8", len(cfgs))
 	}
 	// PADS assigns 1.
 	if cfgs[3].L2.PPPoE.SessionID != DefaultSessionID {
@@ -379,9 +396,9 @@ func TestPlanner_DataPlane_Down(t *testing.T) {
 	}
 
 	cfgs := planAll(t, spec)
-	// LCP req, LCP ack, 3 data frames.
-	if len(cfgs) != 5 {
-		t.Fatalf("emitted %d packets, want 5", len(cfgs))
+	// LCP req, LCP ack, 3 data frames, PADT.
+	if len(cfgs) != 6 {
+		t.Fatalf("emitted %d packets, want 6", len(cfgs))
 	}
 
 	seenIPIDs := map[uint16]bool{}
@@ -510,8 +527,8 @@ func TestPlanner_EndToEnd_WireBytes(t *testing.T) {
 	}
 
 	cfgs := planAll(t, spec)
-	if len(cfgs) != 7 {
-		t.Fatalf("emitted %d packets, want 7", len(cfgs))
+	if len(cfgs) != 8 {
+		t.Fatalf("emitted %d packets, want 8 (PADT default-true adds the 8th frame, RFC 2516 §5.6)", len(cfgs))
 	}
 
 	builder := core.NewBuilder()
@@ -558,5 +575,231 @@ func TestPlanner_EndToEnd_WireBytes(t *testing.T) {
 	}
 	if !bytes.Equal(data[50:55], []byte("hello")) {
 		t.Errorf("data payload = % x, want hello", data[50:55])
+	}
+
+	// PADT frame (frame[7]): discovery EtherType 0x8863, code 0xa7, the
+	// assigned Session ID echoed, zero TLV tags (Payload_Length 0),
+	// client -> server MACs (RFC 2516 §5.6).
+	padt := frames[7]
+	if !bytes.Equal(padt[0:6], []byte{0x00, 0x03, 0xa0, 0x12, 0x30, 0xcc}) {
+		t.Errorf("PADT dst MAC = % x, want server MAC", padt[0:6])
+	}
+	if !bytes.Equal(padt[12:20], []byte{0x88, 0x63, 0x11, 0xa7, 0x00, 0x0f, 0x00, 0x00}) {
+		t.Errorf("PADT frame = % x, want 88 63 11 a7 00 0f 00 00 at [12:20]", padt[12:20])
+	}
+}
+
+// D-PPPOE-1 P4 红例（failing 先行）：PADT 终止帧（RFC 2516 §5.6）+
+// sessions[] 多生命周期（9.49）+ 派生 SessionID。
+
+// PADT：数据面后发终止帧（code 0xa7、Session ID 回显、up 方向）。
+func TestPPPoEPADTTermination(t *testing.T) {
+	padt := true
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1",
+		SrcMAC: "aa:bb:cc:dd:ee:01", DstMAC: "aa:bb:cc:dd:ee:02",
+		PPPoE: &core.PPPoEConfig{
+			SkipDiscovery: true, SessionID: 77, MagicNumber: 0x01020304,
+			Auth: "none", DataFrames: 1, PADT: &padt,
+		},
+	}
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var pkts []core.PacketConfig
+	for cfg := range ch {
+		pkts = append(pkts, cfg)
+	}
+	if len(pkts) != 4 {
+		t.Fatalf("packets=%d want 4 (LCP req/ack + data + PADT)", len(pkts))
+	}
+	last := pkts[len(pkts)-1]
+	if last.L2.PPPoE == nil || last.L2.PPPoE.Code != core.PPPoECodePADT {
+		t.Fatalf("last frame code=%#x want PADT(%#x)", codeOf(last), core.PPPoECodePADT)
+	}
+	if last.L2.PPPoE.SessionID != 77 {
+		t.Fatalf("PADT session id=%d want 77 (echo assigned)", last.L2.PPPoE.SessionID)
+	}
+	if last.Direction != "up" {
+		t.Fatalf("PADT direction=%q want up (client-initiated RFC 2516 §5.6)", last.Direction)
+	}
+	if last.L2.EtherType != core.EtherTypePPPoEDiscovery {
+		t.Fatalf("PADT ethertype=%#x want 0x8863", last.L2.EtherType)
+	}
+}
+
+// PADT=false 变体：不产终止帧（对照组）。
+func TestPPPoEPADTSuppressed(t *testing.T) {
+	padt := false
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1",
+		PPPoE: &core.PPPoEConfig{
+			SkipDiscovery: true, MagicNumber: 0x01020304,
+			Auth: "none", DataFrames: 1, PADT: &padt,
+		},
+	}
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	n := 0
+	for cfg := range ch {
+		n++
+		if cfg.L2.PPPoE != nil && cfg.L2.PPPoE.Code == core.PPPoECodePADT {
+			t.Fatalf("padt=false must not emit PADT")
+		}
+	}
+	if n != 3 {
+		t.Fatalf("packets=%d want 3 (LCP req/ack + data)", n)
+	}
+}
+
+// sessions[3]：三个完整生命周期，SessionID 派生 1/2/3，各自 PADT 收尾。
+func TestPPPoESessionsMultiLifecycle(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1",
+		SrcMAC: "aa:bb:cc:dd:ee:01", DstMAC: "aa:bb:cc:dd:ee:02",
+		PPPoE: &core.PPPoEConfig{
+			ACName: "BRAS-1", Auth: "none", DataFrames: 1, MagicNumber: 0x01020304,
+			Sessions: []core.PPPoESession{
+				{}, {}, {},
+			},
+		},
+	}
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	var sessIDs []uint16
+	padts := 0
+	var padtSessIDs []uint16
+	seenPADS := map[uint16]int{}
+	for cfg := range ch {
+		if cfg.L2.PPPoE == nil {
+			continue
+		}
+		switch cfg.L2.PPPoE.Code {
+		case core.PPPoECodePADS:
+			seenPADS[cfg.L2.PPPoE.SessionID]++
+		case core.PPPoECodePADT:
+			padts++
+			padtSessIDs = append(padtSessIDs, cfg.L2.PPPoE.SessionID)
+		}
+		if cfg.L2.PPPoE.Code == core.PPPoECodeSessionData {
+			sessIDs = append(sessIDs, cfg.L2.PPPoE.SessionID)
+		}
+	}
+	// 3 sessions × (PADI/PADO/PADR/PADS + LCP req/ack + data + PADT) = 24
+	if len(sessIDs) != 9 {
+		t.Fatalf("session-data frames=%d want 9 (3 sessions × 3 frames)", len(sessIDs))
+	}
+	if seenPADS[1] != 1 || seenPADS[2] != 1 || seenPADS[3] != 1 {
+		t.Fatalf("PADS session ids not derived 1/2/3: %v", seenPADS)
+	}
+	if padts != 3 {
+		t.Fatalf("PADTs=%d want 3", padts)
+	}
+	if len(padtSessIDs) != 3 || padtSessIDs[0] != 1 || padtSessIDs[1] != 2 || padtSessIDs[2] != 3 {
+		t.Fatalf("PADT session ids=%v want [1 2 3]", padtSessIDs)
+	}
+	_ = sessIDs
+}
+
+// 显式 session_id 覆盖派生；互斥外的模板键共享。
+func TestPPPoESessionsExplicitID(t *testing.T) {
+	spec := core.FlowSpec{
+		SrcIP: "10.0.0.1", DstIP: "20.0.0.1",
+		PPPoE: &core.PPPoEConfig{
+			ACName: "BRAS-1", Auth: "none", MagicNumber: 0x01020304,
+			Sessions: []core.PPPoESession{
+				{SessionID: 100, DataFrames: 2},
+				{},
+			},
+		},
+	}
+	ch, err := NewPlanner().Plan(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	bySess := map[uint16]int{}
+	for cfg := range ch {
+		if cfg.L2.PPPoE == nil {
+			continue
+		}
+		switch {
+		case cfg.L2.PPPoE.Code == core.PPPoECodePADS:
+			bySess[cfg.L2.PPPoE.SessionID] += 10000
+		case cfg.L2.PPPoE.Code == core.PPPoECodeSessionData && cfg.L2.PPPoE.PPPProtocol == core.PPPProtocolIPv4:
+			// Count only the IPv4 data plane (LCP/Auth frames also use
+			// Code=SessionData but carry 0xc021/0xc023/0xc223).
+			bySess[cfg.L2.PPPoE.SessionID]++
+		}
+	}
+	if bySess[100]/10000 != 1 {
+		t.Fatalf("explicit session 100 not PADSed: %v", bySess)
+	}
+	if bySess[100]%10000 != 2 {
+		t.Fatalf("session 100 data frames=%d want 2 (per-session override)", bySess[100]%10000)
+	}
+	if bySess[2]/10000 != 1 {
+		t.Fatalf("second session must derive id 2 (DefaultSessionID+i, i=1): %v", bySess)
+	}
+	if bySess[2]%10000 != 1 {
+		t.Fatalf("second session default data frames=%d want 1: %v", bySess[2]%10000, bySess)
+	}
+}
+
+func codeOf(c core.PacketConfig) uint8 {
+	if c.L2.PPPoE == nil {
+		return 0
+	}
+	return c.L2.PPPoE.Code
+}
+
+// D-PPPOE-1 裁定4 背 door 红例（C 类两路独立闭合，schema 侧同文案）：
+// Planner.Validate 拒绝 sessions×顶层行为键同给、空 sessions、重复
+// 显式 session_id。
+func TestPlanner_ValidateSessionsMutex(t *testing.T) {
+	p := NewPlanner()
+	base := core.FlowSpec{SrcIP: "10.0.0.1", DstIP: "20.0.0.1"}
+
+	// sessions + 顶层行为键（data_frames）→ 互斥。
+	spec := base
+	spec.PPPoE = &core.PPPoEConfig{
+		DataFrames: 3,
+		Sessions:   []core.PPPoESession{{SessionID: 100}},
+	}
+	err := p.Validate(spec)
+	if err == nil || !strings.Contains(err.Error(), "pppoe: sessions and top-level session config are mutually exclusive") {
+		t.Fatalf("want mutex anchor, got %v", err)
+	}
+
+	// 空 sessions → 同锚词面。
+	spec.PPPoE = &core.PPPoEConfig{Sessions: []core.PPPoESession{}}
+	err = p.Validate(spec)
+	if err == nil || !strings.Contains(err.Error(), "pppoe: sessions and top-level session config are mutually exclusive") {
+		t.Fatalf("want mutex anchor for empty sessions, got %v", err)
+	}
+
+	// 重复显式 session_id → 判死。
+	spec.PPPoE = &core.PPPoEConfig{
+		Sessions: []core.PPPoESession{{SessionID: 100}, {SessionID: 100}},
+	}
+	err = p.Validate(spec)
+	if err == nil || !strings.Contains(err.Error(), "pppoe: duplicate session_id") {
+		t.Fatalf("want duplicate anchor, got %v", err)
+	}
+
+	// 模板键共存合法。
+	spec.PPPoE = &core.PPPoEConfig{
+		ACName: "BRAS-1",
+		Sessions: []core.PPPoESession{
+			{SessionID: 100, DataFrames: 2},
+			{DataFrames: 1},
+		},
+	}
+	if err := p.Validate(spec); err != nil {
+		t.Fatalf("template keys must coexist with sessions: %v", err)
 	}
 }

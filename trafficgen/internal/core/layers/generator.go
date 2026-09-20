@@ -492,6 +492,9 @@ type FlowMeta struct {
 	Telnet *core.TelnetConfig
 	// SIP is the flow's sip config（D-SIP-1：raw 自驱终层生成器直传，含 RTP 子流）。Only set for sip chains.
 	SIP *core.SIPConfig
+	// D-PPPOE-1：pppoe raw 链同款（配置经 Meta 直传终结层生成器，
+	// srv6 Meta.SRv6 先例）。
+	PPPoE *core.PPPoEConfig
 	// Radius is the flow's radius config（D-RADIUS-1：raw 自驱终层生成器直传）。Only set for radius chains.
 	Radius *core.RadiusConfig
 	// GBT is the flow's gbt config (注入到 gbt 终结层生成器，B6：BIP 22/23
