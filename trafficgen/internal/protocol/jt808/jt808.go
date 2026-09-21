@@ -438,6 +438,10 @@ func emitProcedure(pr JT808Procedure, cfg *JT808Config, emit func(string, uint16
 		emit("up", MsgLocationQueryResponse, body, true)
 	case ProcCancel:
 		emit("up", MsgTerminalCancel, nil, true)
+	case ProcHeartbeat:
+		// 0x0002 终端心跳（JT/T 808 §7.2）：空体上行，保活核心型——
+		// 隔离复审 F4 勘误补齐。
+		emit("up", 0x0002, nil, true)
 	case ProcPropertyResponse:
 		body, err := buildPropertyResponseBody(pr.PropertyData)
 		if err != nil {

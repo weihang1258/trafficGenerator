@@ -10742,9 +10742,10 @@ type JT808Extra struct {
 	Value  []byte `json:"value"`
 }
 
-// JT808Param is one TLV param item for 0x8103 (design §4A.9).
+// JT808Param is one 0x8103 param item（JT/T 808 §7.9：参数ID DWORD；
+// 隔离复审 F2 勘误——legacy uint8 线上 1 字节）.
 type JT808Param struct {
-	Id    uint8  `json:"id"`
+	Id    uint32 `json:"id"`
 	Value []byte `json:"value"`
 }
 

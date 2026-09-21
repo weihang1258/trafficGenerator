@@ -1747,6 +1747,7 @@ def check_jt808(cases):
         ("t13_neg_color0_plate", "T-13 车牌互斥拒"),
         ("t14_neg_ackflag_99", "T-14 ACKFlag=99 拒"),
         ("t15_identity_composite", "T-15 身份面复合例"),
+        ("t16_heartbeat", "T-16 终端心跳 0x0002"),
     ]:
         hit = next((c.get("id") for c in cases if kw in c.get("id", "")), None)
         rows.append((name, hit is not None, hit or "无用例"))

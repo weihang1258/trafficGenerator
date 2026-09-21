@@ -50,6 +50,7 @@ const (
 	ProcQueryParams             = "query_params"
 	ProcQueryLocation           = "query_location"
 	ProcTextDown                = "text_down"
+	ProcHeartbeat     = "heartbeat"
 )
 
 // Header length (消息头长度): 12B without fragmentation, 16B with (design §1).

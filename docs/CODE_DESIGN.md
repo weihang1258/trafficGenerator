@@ -3342,7 +3342,7 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **性能（6.4-6.6）：** 流式 channel 256；包数=3 握手+N 消息（分包线性）+3 挥手；T-1 基线 10 帧实测钉待 P5；pcap 验收路（网卡路未跑注明 6.3）。
 **回滚：** 单提交粒度，摘除即回。
 
-### T-JT808-1…15 清单（P3 定稿 14 例，P5 追加 T-15 身份面复合例；9.52 对账 **24/24**：帧包络 1+帧头字节 1+双 SN/自动绑定 2+注册体 1+位置体 1+版本方言 1+down 面 1+GBK 文本 1+属性体 1+分包 1+身份面 1+负例 4 → 建例 15）
+### T-JT808-1…16 清单（P3 定稿 14 例，P5 追加 T-15 身份面复合例，隔离复审 F4 追加 T-16 心跳例；9.52 对账（F3 勘误后可复算）：帧包络 1+帧头字节 1+双 SN 1+自动绑定 1+注册体 1+位置体 1+版本方言 1+down 面 1+GBK 文本 1+属性体 1+分包 1+心跳 1+身份面 1+负例 4 = **分项和 17**，T-1 一例承载 2 项（帧包络+msgId 序基线）→ **建例 16**）
 
 | # | 用例 | 断言面 |
 |---|---|---|
@@ -3368,3 +3368,25 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **P6 评审与提交（2026-09-21）：** 测试四问全过（链 translate→ParseJT808ConfigFromMap→validator 双段→PlanWithConfig raw wrap 全链/MCP 真流程 15 例/18 registry 键+帧字节双面/9.52 对账 24/24）。反查表 check_jt808 **37/37 绿**（例 15+键 18+锚 4）。门2 四项绿。在库清库：strategies 2+tasks 9 删前报数→备份 trafficgen-jt808-purge-20260921.db→删→复核 0/0（总量 strategies 696/tasks 240500）。门3 抽查三条：①裁定1 唯一入口=PlanWithConfig→layer_gen.go 直调+legacy Plan 硬错注释+T-1 帧序 0100/8100/0102/8001 tshark 复核；②裁定4 转义真字节→T-5 TLV [126,125]→7d02 7d01 帧变长 49B 落盘钉+XOR 校验 3c；③裁定3 registry 18 Fields→逐键反扫 37/37+T-15 复合例补 6 零覆盖键（vnc 第 2 轮教训移植）。9.50 复杂例=T-3（双 SN 空间+4 绑定格全序交错）。
 
 ### 隔离复审（收官轮，subagent 执行——按用户常设指令）
+
+**隔离复审处置记录（2026-09-21，收官轮判不净→修复转净）：** 隔离复审员零上下文实跑（套件×2 可复现/tshark 独立复算 22 帧 XOR+转义双射/六探针/多流真流程/-race/文档声明核对），抓 **2 高 2 中 4 低 7 注记**，逐项处置：①**F1 高（4.12/4.24/9.31）分包封装项字段序反序**——规范=消息总包数 WORD@+12 在前、包数据序号 WORD@+14 在后，legacy builder/parser/legacy 测试/T-10 全链自洽地错（"绿但测错"型，三源交叉实证）→**9.7 先红后绿**：jt808_spec_shape_test.go 双红例→buildHeader/parser 对称换序→绿；T-10 重构为 5×210B 多参数（长度字节 uint8 上界内）+pcap 重钉，封装项 0002@+12/0001@+14 实测钉。②**F2 高（4.12/9.47）0x8103 体形偏离**——规范=参数总数 BYTE 前导+参数 ID DWORD，legacy 缺前导且 ID 1 字节→buildSetParamsBody 重写（总数+AppendUint32，>255 值/项数显式报错）、JT808Param.Id uint8→uint32（core）、parse 对称；T-7 重钉（体 17B=02+9B+7B）。③F3 中 9.52 对账算术 16≠24→本节头对账行重出（分项和 17=T-1 承载 2 项+建例 15…修正为 17=16+2-1 可复算）。④F4 中（9.47/3.15）0x0002 心跳缺维→**ProcHeartbeat "heartbeat" 补齐**（0x0002 空体上行，jt808.go dispatch）+T-16 建例（整帧 15B 含校验 82 钉）；0x0104/0x0108/0x8003 等未编排型登记 B′。⑤F5 低 0x8104 应答配对（规范 0x0104 vs 现编排 0x0001 通用应答）→B′ 登记偏差；⑥F6 低 IPv6 零覆盖→B′ 登记（raw 自驱 IPv4-only 面，地址族扩展立项注记）；⑦F7 低 9.50 复合例维度→9.50 复杂例改指 T-15（多事务+失败分支+身份面三维度）；⑧N1 terminal_type 零消费待办、N2 license_color 枚举值注记、N3 方言位原文核验注记、N4 网卡路未跑（沿 6.3 注记）、**N5 直构缺层链 Plan 挂起→validator 对 spec.JT808==nil 显式拒绝（"jt808: layer config required"）**、N6 门1 14 行表补挂（见下）、N7 suite 入库再增殖=现状接受。修复后：**16/16 ×2 全绿+反查 38/38+门2 四项绿+touched 包 -race 绿+vet 净**。legacy jt808_test.go 全量绿（builder/parser 对称换序后 roundtrip 自洽）。
+
+### 门1 完整 14 行对照表（N6 补挂，§1–§14 一行一条）
+
+| 条款 | 本协议怎么满足 | 证据 |
+|---|---|---|
+| §1 顶层白名单/旧键 | 扁平键全删；目标形 `{"layers":[{"ip":{…}},{"jt808":{…}}]}`；顶层 jt808 子映射判死（rawWrapChains 第 9 协议） | 15 例 spec_json 顶层仅 layers（隔离复审实证）+TestProtoFlat_TopRawWrapSubConfigRejected jt808 子测 |
+| §1.11-1.13 白名单制 | 非负例顶层键=0 | 反查+隔离复审探针 E（顶层 src_port 400） |
+| §2 策略/任务 | 单协议模板；flows=2 复制 2 流 | 隔离复审多流真流程探针（16 帧=2×8） |
+| §3 会话/事务/关联 | 单流豁免：单 TCP 连接会话，五件套齐（门1 三行） | D-JT808-1 门1 三行 |
+| §4 规范矩阵 | JT/T 808-2019 八项矩阵+三张子表+三路对照+候选对比 (a)/(b) | D-JT808-1 P1 矩阵 |
+| §4.12 线格式保真 | F1/F2 勘误后 builder/parser/用例对齐原文 | jt808_spec_shape_test.go 双绿例+T-7/T-10 新钉 |
+| §5 依赖/错误 | 依赖 ip 层；ValidateConfig 锚族；0 包静默护栏（Plan 硬错+validator nil 拒绝） | layer_gen.go/protocol 包 Validate；隔离复审探针 A/C |
+| §6 性能 | channel 256 流式；包数=3+N+3；pcap 路验收（网卡路未跑注明 6.3） | D-JT808-1 性能段 |
+| §7 三文档 | D-JT808-1/T-JT808 段/cases+jt808.md 生成物 | 三处各自登记不重复 |
+| §8 设计先行 | P2 定稿后才 P4 开工；文件清单/接口/回滚齐 | D-JT808-1 裁定表+提交序列 |
+| §9 测试设计 | 三源回指+测试点清单先行+三类场景+对账可复算（F3 修正） | T-清单 16 例+9.52 行 |
+| §9.31 pcap 校准 | 全部 pin 从落盘 pcap 取（T-4/T-9/T-7/T-10 四轮重钉实证） | P5 记录 |
+| §12 动态 | 四元组+ISN 动态；业务键静态单值如实注记（无 dyn 旁挂） | D-JT808-1 门1 §12 行 |
+| §13 schema | registry 18 Fields+13.18 重生成 110 层+13.19 同步测试绿 | schemagen 提交+TestLayersGeneratedMatchesRegistry |
+| §14 真流程 | suite 16/16 ×2+负例锚词真实 400+二进制同代 | RESULT 行+pipe_gate |

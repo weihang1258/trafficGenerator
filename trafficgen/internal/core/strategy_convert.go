@@ -3341,7 +3341,7 @@ func ParseJT808ConfigFromMap(m map[string]interface{}) *JT808Config {
 						continue
 					}
 					pr.Params = append(pr.Params, JT808Param{
-						Id:    uint8(getInt(pmm, "id")),
+						Id:    uint32(getInt(pmm, "id")), // DWORD（F2 勘误）
 						Value: getByteSlice(pmm, "value"),
 					})
 				}

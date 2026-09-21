@@ -80,6 +80,8 @@ func init() {
 		if spec.JT808 != nil {
 			return ValidateConfig(spec.JT808)
 		}
-		return nil
+		// 隔离复审 N5：直构缺协议层链（无 jt808 层）在此显式拒绝，防止
+		// 静默走 Generate 缺省壳后 PlanWithConfig 报错被 raw 分支吞掉。
+		return fmt.Errorf("jt808: layer config required")
 	})
 }

@@ -66,8 +66,9 @@ func ParseFrame(raw []byte) (*ParsedFrame, error) {
 		if len(decoded) < HeaderLen+PackageInfoLen+1 {
 			return nil, fmt.Errorf("jt808: fragmented frame too short")
 		}
-		p.PackageNum = binary.BigEndian.Uint16(decoded[12:14])
-		p.PackageTotal = binary.BigEndian.Uint16(decoded[14:16])
+		// JT/T 808 §5.4.2：总包数在前（+12）、序号在后（+14）——F1 勘误对称面。
+		p.PackageTotal = binary.BigEndian.Uint16(decoded[12:14])
+		p.PackageNum = binary.BigEndian.Uint16(decoded[14:16])
 		hdrLen = HeaderLenPkg
 	}
 	// Body + checksum = remaining bytes after header.

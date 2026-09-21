@@ -21,8 +21,10 @@ func buildHeader(msgID uint16, props uint16, phoneBCD []byte, msgSN uint16, pack
 	h = append(h, phoneBCD...)
 	h = binary.BigEndian.AppendUint16(h, msgSN)
 	if packageFlag {
-		h = binary.BigEndian.AppendUint16(h, pkgNum)
+		// JT/T 808 §5.4.2 消息体封装项：消息总包数 WORD(+12) 在前、包数据
+		// 序号 WORD(+14) 在后（隔离复审 F1 勘误——legacy 发反序）。
 		h = binary.BigEndian.AppendUint16(h, pkgTotal)
+		h = binary.BigEndian.AppendUint16(h, pkgNum)
 	}
 	return h
 }
@@ -238,13 +240,21 @@ func buildPropertyResponseBody(p *JT808Property) ([]byte, error) {
 	return body, nil
 }
 
-// buildSetParamsBody constructs the 0x8103 set-params body (design §4A.9):
-// TLV list, each entry ParamId(1) + ParamLen(1) + ParamValue(ParamLen).
+// buildSetParamsBody constructs the 0x8103 set-params body（JT/T 808 §7.9：
+// 消息体=参数总数 BYTE + Σ[参数ID DWORD + 参数长度 BYTE + 参数值]；
+// 隔离复审 F2 勘误——legacy 缺总数前导且 ID 线上 1 字节）.
 func buildSetParamsBody(params []JT808Param) ([]byte, error) {
-	body := make([]byte, 0, len(params)*8)
+	if len(params) > 255 {
+		return nil, fmt.Errorf("jt808: too many params %d (total byte is uint8)", len(params))
+	}
+	body := make([]byte, 0, 1+len(params)*8)
+	body = append(body, byte(len(params)))
 	for _, p := range params {
-		body = append(body, p.Id)
+		body = binary.BigEndian.AppendUint32(body, p.Id)
 		body = append(body, byte(len(p.Value)))
+		if len(p.Value) > 255 {
+			return nil, fmt.Errorf("jt808: param 0x%x value %d bytes > 255 (length byte is uint8)", p.Id, len(p.Value))
+		}
 		body = append(body, p.Value...)
 	}
 	return body, nil
