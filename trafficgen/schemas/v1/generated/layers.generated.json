@@ -2325,6 +2325,44 @@
         }
       }
     },
+    "sctp": {
+      "category": "terminal",
+      "depends_on": [
+        "ip"
+      ],
+      "fields": {
+        "abort": {
+          "type": "bool"
+        },
+        "chunks": {
+          "type": "list"
+        },
+        "dst_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "fragment_size": {
+          "type": "int",
+          "min": 16,
+          "max": 1000000
+        },
+        "heartbeats": {
+          "type": "object"
+        },
+        "initiate_tag": {
+          "type": "uint32",
+          "max": 4294967295
+        },
+        "src_port": {
+          "type": "uint16",
+          "max": 65535
+        },
+        "verification_tag": {
+          "type": "uint32",
+          "max": 4294967295
+        }
+      }
+    },
     "shadowsocks": {
       "category": "terminal",
       "depends_on": [

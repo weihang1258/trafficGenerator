@@ -3233,6 +3233,24 @@ func ParsePPTPConfigFromMap(m map[string]interface{}) *PPTPConfig {
 	return parsePPTPConfig(m)
 }
 
+// ParseSCTPConfigFromMap exports the universal-section SCTP read for the
+// layer-translate path (ParseXmppConfigFromMap precedent). SCTP 无 switch
+// case——sub-config 在 mapToFlowSpec universal 段读取（:517），此处复用同一
+// 段逻辑等价形（六键逐字一致）。
+func ParseSCTPConfigFromMap(m map[string]interface{}) *SCTPConfig {
+	if m == nil {
+		return nil
+	}
+	return &SCTPConfig{
+		VerificationTag: getUint32(m, "verification_tag"),
+		InitiateTag:     getUint32(m, "initiate_tag"),
+		Chunks:          parseSCTPChunks(m["chunks"]),
+		Heartbeats:      parseSCTPHeartbeats(m["heartbeats"]),
+		Abort:           getBool(m, "abort", false),
+		FragmentSize:    getInt(m, "fragment_size"),
+	}
+}
+
 // ParseXmppConfigFromMap exports parseXmppConfig for the layer-translate
 // path (ParseVNCConfigFromMap precedent).
 func ParseXmppConfigFromMap(m map[string]interface{}) *XmppConfig {

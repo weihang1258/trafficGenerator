@@ -128,7 +128,8 @@ import (
 	_ "github.com/trafficgen/trafficgen/internal/protocol/rtmp" // 空导入：rtmp 包 init 注册层生成器 + 校验器（D-RTMP-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/rtsp" // 空导入：rtsp 包 init 注册层生成器 + 校验器（D-RTSP-1）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/s7"
-	"github.com/trafficgen/trafficgen/internal/protocol/sctp"
+	// 空导入：sctp 包 init 注册层生成器 + 校验器（D-SCTP-1）
+	_ "github.com/trafficgen/trafficgen/internal/protocol/sctp"
 	// 空导入：shadowsocks 包 init 注册终结层生成器 + 校验器（T4.1 批二）
 	_ "github.com/trafficgen/trafficgen/internal/protocol/shadowsocks"
 	// 空导入：sip 包 init 注册层生成器 + 校验器（D-SIP-1）
@@ -543,7 +544,7 @@ func (app *Application) initEngine() error {
 	app.engine.RegisterPlanner(layers.NewChainPlanner("ftp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("sip"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("rtsp"))
-	app.engine.RegisterPlanner(sctp.NewPlanner())
+	app.engine.RegisterPlanner(layers.NewChainPlanner("sctp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("icmpv6"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("smtp"))
 	app.engine.RegisterPlanner(layers.NewChainPlanner("pop3"))

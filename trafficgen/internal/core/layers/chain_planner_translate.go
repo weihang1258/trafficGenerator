@@ -2098,6 +2098,30 @@ func (p *ChainPlanner) translateTerminalConfig(spec *core.FlowSpec) {
 		if spec.Xmpp == nil {
 			spec.Xmpp = core.ParseXmppConfigFromMap(completedConfig(s, term.Config))
 		}
+	case "sctp":
+		// D-SCTP-1：层 config 经 core.ParseSCTPConfigFromMap 复用扁平
+		// 解析单一真相（chunks[].data 双形 string/字节数组由扁平 parse
+		// 承接——rtmp payload_b64 同陷阱面）。空层 config 也翻译出非 nil。
+		if spec.SCTP == nil {
+			spec.SCTP = core.ParseSCTPConfigFromMap(completedConfig(s, term.Config))
+		}
+		// 1.12 端口补位：sctp 层显式 src_port/dst_port 回填 spec（tcp/udp
+		// 层回填循环 :181 只认 tcp/udp 层名，sctp 端口住本层）——非零显式
+		// 才覆盖，dyn 对象/0 跳过（与 tcp 回填同语义）。
+		if v, ok := term.Config["src_port"]; ok && v != nil {
+			if _, isObj := v.(map[string]interface{}); !isObj {
+				if up, ok2 := configUint16(v); ok2 && up != 0 {
+					spec.SrcPort = up
+				}
+			}
+		}
+		if v, ok := term.Config["dst_port"]; ok && v != nil {
+			if _, isObj := v.(map[string]interface{}); !isObj {
+				if up, ok2 := configUint16(v); ok2 && up != 0 {
+					spec.DstPort = up
+				}
+			}
+		}
 	case "fins":
 		// D-FINS-1：层 config map 直存 Metadata（GetConfig map 分支既有
 		// types.go:159-168；Data []byte 经 JSON 数字数组无双语义，无 srv6

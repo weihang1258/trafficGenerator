@@ -1450,6 +1450,28 @@ func buildDefaultRegistry() {
 			"messages":       {Type: "list"}, // 记录：direction/to/body
 		},
 	})
+	// sctp（tcp 终结层。RFC 4960——SCTP 自成 L4（IP proto 132）：公共头
+	// （src/dst 端口+VerificationTag）+4 路握手（INIT VTag=0→INIT-ACK 带
+	// Cookie→COOKIE-ECHO→COOKIE-ACK）+DATA（TSN/SID/SSN/PPID，分片 B/E/
+	// middle flags）+HEARTBEAT（主路径/AltPath 多宿主子流）+SHUTDOWN 三路
+	// 或 ABORT 突断，wire 字节由 sctp 生成器 raw 自驱产出（D-SCTP-1 裁定1，
+	// 八连协议对称：legacy 全消息面原样保留）。Fields 登记 parse 6 键+
+	// **src_port/dst_port 补位（1.12：SCTP 端口无层可住必须立项——tcp/udp
+	// 层不适用于 proto 132，端口住本层经 translate 回填 spec）**；无协议级
+	// 缺省（flat 同口径不静默改 80）。fragment_size V9 区间 [16,1e6]：显式
+	// 0 过 V9（无分叉缺省）、负值/1-15 被拒（Validate 下界 16 同口径）。
+	r.Register(LayerSchema{Name: "sctp", Category: CategoryTerminal, DependsOn: []string{"ip"},
+		Fields: map[string]FieldSchema{
+			"verification_tag": {Type: "uint32", Min: 0, Max: 4294967295},
+			"initiate_tag":     {Type: "uint32", Min: 0, Max: 4294967295},
+			"chunks":           {Type: "list"}, // 记录 7 键：tsn/sid/ssn/ppid/data（双形 string/字节数组）/direction/file_source
+			"heartbeats":       {Type: "object"}, // 2 子键：count/alt_path（4 键 alt_src_ip/alt_dst_ip/alt_src_mac/alt_dst_mac）
+			"abort":            {Type: "bool"},
+			"fragment_size":    {Type: "int", Min: 16, Max: 1000000},
+			"src_port":         {Type: "uint16", Min: 0, Max: 65535},
+			"dst_port":         {Type: "uint16", Min: 0, Max: 65535},
+		},
+	})
 	// pppoe（eth 终结层。RFC 2516——Discovery（PADI/PADO/PADR/PADS，EtherType
 	// 0x8863）+ 会话（LCP/Auth/数据，EtherType 0x8864）+ PADT 终止，wire 字节
 	// 由 pppoe 生成器 raw 自驱产出（D-PPPOE-1 裁定1，帧无外层 IP 头，ip 层

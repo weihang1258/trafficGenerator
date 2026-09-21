@@ -3241,3 +3241,57 @@ create：ValidateStrategy→ValidateLayers（V9 9 键）→CheckProtoFlat presen
 **P6 追加对抗复审·第 3 轮（2026-09-21，用户指令"没复审就再复审一次"）：** 本轮角度=**断言值 vs 配置值逐键核对（键发过≠值被钉过，9.43 摆设断言面）**，抓 2 实缺口：①T-7 的 stream_id/jid **值**从未被断言——f4/f10 钉的是流头 to= 与 bind resource，stream_id 只出现在 f5 回流头 id='ff11ee22'、jid 只出现在 f11 bind result `<jid>ops@chat.x.cn/bot7</jid>`→实测补钉 f5/f11 两帧；②normalizeAuthMech ToUpper 接受任意大小写机制名（legacy 唯一测试只测规范大写形，SASL 机制名按 RFC 4422 区分大小写）——legacy 宽松行为如实 B′ 注记，不做行为变更。横扫项：全 `go test ./internal/...` 三轮=122 包绿，期间抓 2 既有 flaky（TestChainPlanner_SNMP_GetResponse/TestGOOSEDataMemberBitStringEncoding——不同包跨轮随机现形、单跑 ×5 全过、与本协议无关的既有随机钉，如实记账）；pipe_gate.sh 二进制路径加 TG_SERVER_BIN 环境变量覆盖（每协议显式传参 papercut）。修正后 **10/10 ×2 全绿**、反查 22/22、门2 复绿。**复审结论：第 3 轮抓 2 值断言缺口+2 既有 flaky 记账，T-7 补钉后净。**
 
 **P6 追加对抗复审·第 4 轮（2026-09-21，用户指令复审改隔离 subagent 执行——首个隔离轮）：** 隔离复审员（零共享上下文）独立通读 CORE_MEMORY 248 条+实跑 suite/反查/门2/-race/生成表过期测试+tshark 抽 6 帧逐字节比对——判定门全过、无 CRITICAL/HIGH，抓 1 中 2 低三缺口全修：①**中（9.43/14.17）T-6 direction 值未钉**（stanza 字节不含方向，唯一 e2e 可观察=L3 侧别——raw 链防双换回归 suite 不会红）→f15/f16 补 ip.src 双向钉；②低（3.15）XEP-0199 IQ ping 长保活无例无项→B′ 立项（裁定4 账本+确认方式）；③低（9.46 超长）segmentByMSS 分段路径零覆盖→**T-11 新例**（3000 字符 body→3 段 1460+1460+146=22 帧实测钉+首段前缀钉）。备忘 5 项同轮处理：T-1 补缺省凭据钉（AHVzZXIAcGFzcw==）、门1 §12 行补 file:line、:944→:945 行号勘误、presence 显式 true 与 nil 同路 n/a、pipe_gate 门2-1 黑名单制 vs 1.13 白名单=repo 级旧账立项注记（非本协议引入）。修正后 **11/11 ×2 全绿**、反查 23/23。**复审结论：隔离轮 1 中 2 低全修+备忘 5 项处理，净。**
+## D-SCTP-1 sctp 层链收敛（#28，P1+P2 定稿 2026-09-21，待批）
+
+### P1 规范矩阵（RFC 4960 SCTP 反推，含三张子表要求 4.22）
+
+| 规范点 | 出处 | 代码现状 | 缺口 |
+|---|---|---|---|
+| 传输载体：IP proto 132，SCTP 自成 L4（公共头含 src/dst 端口+VerificationTag），无 TCP 握手 | §3.1 | core.ProtocolSCTP+emit :225-248（verTag 复用 L4.Ack 槽）；端口=spec.SrcPort/DstPort | **缺口：端口无层可住（1.12 立项）——sctp 层补 src_port/dst_port 字段+translate 回填** |
+| 4 路握手：INIT(VTag=0)→INIT-ACK(带 Cookie)→COOKIE-ECHO(回 Cookie)→COOKIE-ACK | §5.1 | :270-294，cookie 32B 随机；双 VTag 0=随机非零 | 无 |
+| DATA 块：TSN/SID/SSN/PPID+用户载荷；双向 | §3.3.1 | buildDATAChunkWithFlags :567+方向循环 :318-380 | 无 |
+| 分片：FragmentSize 拆分，B/E/middle flags+TSN 递增 | §3.3.1 | splitDATAChunk :593+flags :76-78；Validate 下界 16 | 无 |
+| SACK：gap blocks+dup TSN | §3.3.4 | buildSACKChunk :689（builder 面，无编排触发=用例面注记） | SACK 编排无用例=B′（builder 已实测） |
+| HEARTBEAT/HEARTBEAT-ACK：主路径或备用路径 | §3.5.1 | emitSCTPHeartbeats :751+Heartbeats.Count | 无 |
+| 多宿主：AltPath 备用 4 元组子流+INIT 携带 IPv4 Address 参数(type 5)+同地址族约束 | §6/C5+§3.3.2.1 | AltPath :261-269+Validate 同族锚 :129-155 | 无 |
+| 关闭：3 路 SHUTDOWN/ACK/COMPLETE 或 ABORT 突断 | §9.2/§9.1 | :391-421（Abort 替代非叠加） | 无 |
+| ERROR 块：9 种 cause code | §3.3.10 | buildERRORChunk :718（builder 面） | ERROR 编排无用例=B′ |
+| 校验和：SCTP 校验和算法 | 附录 B | 引擎 L3/SCTP 输出面承接（sctp_test 钉） | 无 |
+| 方向换向：legacy 包内置 Direction="down"，raw drive 二次换 | — | — | **缺口：layer_gen 防双换（八连协议同款）** |
+| 层链接线 | — | main.go :546 legacy Planner | **缺口：五件套+翻转+blank import（具名转空导入）** |
+| 校验锚：AltPath IP 合法性/IPv6 拒/同族拒/FragmentSize 下界 | design | Validate :102-166（4 锚族） | 无（validator 背 door 注册即达） |
+
+**①命令×响应矩阵：** INIT→INIT-ACK/COOKIE-ECHO→COOKIE-ACK/HEARTBEAT→HEARTBEAT-ACK/SHUTDOWN→SHUTDOWN-ACK→SHUTDOWN-COMPLETE/DATA→(SACK 未自动编排)/ABORT 单向——逐格已实现；SACK/ERROR=builder 实存无编排（B′）。
+**②数据形态变体：** chunk data 双形（string/字节数组，扁平 parse :5864-5874 承接）、分片三 flags 形、TSN 显式起点 vs 自增、AltPath 4 键嵌套、VTag/InitiateTag 显式 vs 随机。
+**③商业行为映射：** 无参考 pcap（9 tasks 在库为现网需求面：NGAP 38412/M3UA 2905 端口特征）；Linux kernel SCTP（lksctp）行为=开源思路参照；三路中"商业软件行为"一路=用户现网任务特征反推（9 tasks 在库），如实注记。
+**三路对照：** ①RFC 4960 原文；②在库 9 tasks 端口/载荷特征（现网需求面）；③lksctp 工具集思路（4 握手+心跳+多宿主编排）。**候选对比：** (a) [ip,sctp] raw 自驱 wrap（七连协议对称，legacy 全消息面零分叉）✓ vs (b) [ip] 单层+sctp 作 L4 框架层改造（框架级大改）→裁定 (a)。
+**门1 三行：** §1 扁平键全删（src_ip/dst_ip/src_port/dst_port/count+顶层 sctp 子映射），目标形 `{"layers":[{"ip":{"src":"10.0.0.1","dst":"20.0.0.1"}},{"sctp":{"dst_port":38412,"chunks":[{"direction":"down","ppid":60,"data":"payload"}]}}]}`+**端口住 sctp 层（src_port/dst_port 字段，1.12 立项补位；translate 回填 spec；无协议级缺省——flat 口径不静默改 80，链路径 0 合法（validateBaseDstPortHandled 豁免），用例一律显式）**；§3 单流豁免——SCTP=单关联（association，同 4 元组单 TSN 空间），AltPath 心跳=同 GroupID 子流（多宿主，唯一真子流面！），五件套=会话表(1 关联+可选 alt 子流)/事务序(4 握手→心跳→DATA→关闭)/关联(AltPath 子流独立 4 元组同 GroupID)/插入位置(心跳在 COOKIE-ACK 后首 DATA 前)/时间线(顺序)；§12 动态=worker 四元组+TSN/VTag random（sctp.go :200-220 rand 非 0），业务键全静态单值（chunks[].tsn 显式起点=静态钉，如实注记无 dyn 旁挂）。
+
+### 裁定（P2 定稿）
+| # | 裁定 | 依据 |
+|---|---|---|
+| 1 | 层形状=[ip, sctp]：CategoryTerminal+DependsOn `["ip"]`；raw 自驱 wrap legacy（4 握手/DATA/分片/心跳/多宿主/双关闭全保留），layer_gen 防双换 Direction=up | 七连协议对称 |
+| 2 | 翻转五件套：isRawIPChain 双名单+=sctp；src 0-keep+=sctp；validateBaseDstPortHandled+=sctp（无协议级缺省，flat 同口径不静默改 80）；**registry 行 8 Fields**（parse 6 键+**src_port/dst_port uint16 补位**——1.12：端口无层可住必须立项，translate 回填 spec.SrcPort/DstPort=非零显式才覆盖框架缺面）+translate case 复用 ParseSCTPConfigFromMap 导出+FlowMeta.SCTP+raw 注入；main.go 具名导入转翻转 | pppoe 五件套+1.12 立项 |
+| 3 | 场景强度全额：4 握手字节/DATA 双向（TSN/SID/SSN/PPID 钉）/分片三 flags/心跳主路径/多宿主 AltPath 子流/ABORT 突断/显式 TSN 起点；负例 2 锚（AltPath IPv6/同族拒、FragmentSize<16）——全落 planner Validate（V9 不下探嵌套） | 9.46–9.53 |
+| 4 | B′ 账本：SACK/ERROR builder 实存无编排用例（builder 面已有 legacy 单测钉）、无参考 pcap（在库 9 tasks=现网需求面反推）、端口无协议级缺省（用户必显式）、多宿主子流计数与父流同 pcap 落盘 | RFC 4960 如实 |
+
+**文件：** protocol/sctp/layer_gen.go（新）+chain_planner_util.go+chain_planner.go（名单）+registry.go（8 Fields 行）+chain_planner_translate.go（case+端口回填）+generator.go（FlowMeta.SCTP）+strategy_convert.go（ParseSCTPConfigFromMap）+cmd/server/main.go（翻转）+cases/sctp.json（新建）+sctp_chain_test.go（新）。
+**性能（6.4-6.6）：** 流式 channel 256；包数=4 握手+DATA（分片线性）+心跳 2×对+3 关闭（ABORT 1）；基线 7 帧实测钉待 P5；pcap 验收路（网卡路未跑注明 6.3）。
+**回滚：** 单提交粒度，摘除即回。
+
+### T-SCTP-1…10 清单（P3，RFC 4960 反推；9.52 对账 **20/20**：公共头/端口 1+4 握手 1+DATA 面 2（双向+四标识）+分片 1+心跳 2（主路径+多宿主）+关闭 2（SHUTDOWN/ABORT）+TSN 语义 1+现网端口 1+负例 2 → 建例 10 代表（T-1 基线关联；T-2 握手字节）+B′ 4（SACK/ERROR 编排、无参考 pcap、端口显式、多宿主同 pcap））
+
+| # | 用例 | 断言面 |
+|---|---|---|
+| T-1 | 基线关联（4 握手+3 关闭） | 7 帧+chunk_type 序 1/2/10/11/7/8/14+端口面 |
+| T-2 | 4 握手字节钉 | INIT VTag=0/INIT-ACK Cookie 随机非空/COOKIE-ECHO 回同 Cookie/COOKIE-ACK |
+| T-3 | DATA 双向 | chunks up+down（TSN 自增双空间/SID/SSN/PPID/data 字节钉） |
+| T-4 | 分片（fragment_size=16） | 100B→7 段 B/middle×5/E flags+TSN 连续 |
+| T-5 | HEARTBEAT 主路径 | count=2→4 帧（HEARTBEAT/ACK 对）插在 COOKIE-ACK 后 |
+| T-6 | AltPath 多宿主 | 备用 4 元组子流落同 pcap+INIT 携带 IPv4 Address 参数 |
+| T-7 | ABORT 突断 | abort=true→5 帧（4 握手+ABORT，无 SHUTDOWN 族） |
+| T-8 | 显式 TSN/SID 钉 | ch.tsn=100 起点逐段递增 |
+| T-9 | 负例 AltPath IPv6 | 锚词 `only IPv4 multi-homing` |
+| T-10 | 负例 fragment_size=1 | 锚词 `below minimum` |
+
+**P3 复审（2026-09-21 对抗走查）：** chunk_type 全枚举面=DATA(0)/INIT(1)/INIT_ACK(2)/SACK(3)/HB(4)/HB_ACK(5)/ABORT(6)/SHUTDOWN(7)/SHUTDOWN_ACK(8)/ERROR(9)/COOKIE_ECHO(10)/COOKIE_ACK(11)/SHUTDOWN_COMPLETE(14) 13 型中编排可达 10 型（SACK/ERROR=B′），T-1 钉 7 型+T-5 钉 HB 对+T-3 DATA；分片三 flags=T-4 全三形（B/middle/E）；双向=T-3；AltPath 同族锚=T-9（IPv6 拒）+Validate 同族分支（负例 2 锚=T-9/T-10，全落 planner Validate：嵌套对象 V9 不下探、fragment_size 显式 0 过 V9 落 planner）。9.50 复合例=T-6（多宿主子流+心跳+握手全序）。对账 20/20 平。**清单净，待批进 P4。**
